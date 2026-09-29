@@ -160,11 +160,10 @@ Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
 
 ## Open questions
 
-These need Dad or Patrick and are also in the Questions tab:
+These need Dad or Patrick and are also in the Questions tab. None of them blocks step 1 of the build order. V6 is not in use (Patrick, 2026-09-29), so no V6 fix jumps the queue and the SOF stays last.
 
 1. Flight-math corrections: the audit found places where V6's numbers look wrong (EM turn rate halved; 3D bank halved and mirrored; Turn Sim "toward/away" and "wide/tight" inverted for some aircraft; 4312/2134 drawn mirrored; auto-timing delay). Fix them, or keep V6 behaviour?
-2. Should the SOF weather parser be fixed first, ahead of the module order, because the V6 SOF misreads some TAFs today?
-3. Lead "desired parameters": is the 200 kt target ground speed or indicated airspeed?
-4. How should GPS dropouts and bad fixes in a ForeFlight track be shown (gap in the line, marker, or hidden)?
-5. Weather source: V6's SOF gets all METAR/TAF from one unidentified third-party proxy (datamask.org) with no fallback. The plan is an official source first (such as aviationweather.gov) with a fallback, chosen after testing from a real browser.
-6. Lightning: V6 shows none (every lightning view is hidden). Which one should the SOF show: the ECCC density image (official, Canada only) or the Blitzortung live strikes (unofficial feed)?
+2. Lead "desired parameters": is the 200 kt target ground speed or indicated airspeed?
+3. How should GPS dropouts and bad fixes in a ForeFlight track be shown (gap in the line, marker, or hidden)?
+4. Weather source: V6's SOF gets all METAR/TAF from one unidentified third-party proxy (datamask.org) with no fallback. The plan is an official source first (such as aviationweather.gov) with a fallback, chosen after testing from a real browser.
+5. Lightning: V6 shows none (every lightning view is hidden). Which one should the SOF show: the ECCC density image (official, Canada only) or the Blitzortung live strikes (unofficial feed)?
