@@ -160,9 +160,12 @@ Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
 
 ## Open questions
 
-This one needs Dad and is also in the Questions tab (Q18). It does not block step 1 of the build order. V6 is not in use (Patrick, 2026-09-29), so no V6 fix jumps the queue and the SOF stays last.
+These need Dad and are also in the Questions tab (Q18, Q24, Q25 and Q26). None of them blocks step 1 of the build order; each is needed only before the module it touches. V6 is not in use (Patrick, 2026-09-29), so no V6 fix jumps the queue and the SOF stays last.
 
 1. Flight-math corrections: the audit found places where V6's numbers are wrong (EM turn rate halved; 3D bank halved and mirrored; Turn Sim "toward/away" inverted and "wide/tight" inverted for aircraft on lead's right; auto timing holding wingmen for #1) and two that depend on Dad's intent (whether 4312/2134 are drawn mirrored; the auto-timing delay rule). Fix them, or keep V6 behaviour? The plan doc's Flight math check tab has the reasoning and a V6 test run for each.
+2. Turn Sim start heading (Q24): V6 treats it as a math angle (0 = east, 90 = north). Make it a compass heading (000 = north, 090 = east), as the Traffic Sim already does?
+3. Traffic Sim rounded turns (Q25): V6 joins each corner with a Bézier curve, so a 90° corner is flown at 0.71 of the stated radius and a 135° corner at 0.38. Fly a true circular arc at the stated radius?
+4. Recorded flight data (Q26): V6's debrief reads a track's recorded G and pitch but never its recorded bank, and reads a blank pitch column as 0°. Show recorded bank when a track has it, and estimate pitch when the column is blank?
 
 ## Settled since the first draft
 
