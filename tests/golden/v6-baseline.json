@@ -1,0 +1,485 @@
+{
+ "source": "original V6 (original/original.sha256)",
+ "viewport": "1600x950",
+ "kml": {
+  "status": "Loaded 4 track(s), 23,400 total points. Common playback: 18:19:04Z to 20:03:52Z.",
+  "samples": [
+   {
+    "slider": 0,
+    "time": "t = 18:19:04Z",
+    "live": "#1 18:19:04Z   Alt 1875 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33487, Lon -105.55478\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:19:04Z   Alt 1872 ft   GS 0 kt\nNative G --   Est G 1.00 G\nLat 50.33557, Lon -105.55502\nPosition: TIGHT — interval 255 ft, fore/aft -55 ft\n#3 18:19:04Z   Alt 1890 ft   GS 1 kt\nNative G 0.94 G   Est G --\nLat 50.33538, Lon -105.55595\nPosition: TIGHT / AFT / FORE — interval 182 ft, fore/aft -272 ft, #3 aft 272 ft\n#4 18:19:04Z   Alt 1893 ft   GS 1 kt\nNative G 1.03 G   Est G --\nLat 50.33544, Lon -105.55557\nPosition: TIGHT — interval 206 ft, fore/aft -182 ft",
+    "spacing": "1-2: 261 ft Closure --\n1-3: 328 ft Closure --\n1-4: 275 ft Closure --\n2-3: 229 ft Closure --\n2-4: 136 ft Closure --\n3-4: 94 ft Closure --\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 261 ft\nAA 78°   HCA vs Lead 84°   Closure --\nNative G --   Est G 1.00 G\n#3 Range 328 ft\nAA 34°   HCA vs Lead 90°   Closure --\nNative G 0.94 G   Est G --\n#4 Range 275 ft\nAA 49°   HCA vs Lead 90°   Closure --\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 25,
+    "time": "t = 18:21:41Z",
+    "live": "#1 18:21:41Z   Alt 1874 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33487, Lon -105.55478\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:21:41Z   Alt 1869 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33485, Lon -105.55442\nPosition: TIGHT — interval 7 ft, fore/aft 86 ft\n#3 18:21:41Z   Alt 1881 ft   GS 0 kt\nNative G 0.94 G   Est G --\nLat 50.33537, Lon -105.55601\nPosition: TIGHT / AFT / FORE — interval 183 ft, fore/aft -289 ft, #3 aft 289 ft\n#4 18:21:41Z   Alt 1838 ft   GS 1 kt\nNative G 1.03 G   Est G --\nLat 50.33544, Lon -105.55556\nPosition: TIGHT — interval 208 ft, fore/aft -180 ft",
+    "spacing": "1-2: 86 ft Closure 0 kt\n1-3: 342 ft Closure 0 kt\n1-4: 275 ft Closure 0 kt\n2-3: 420 ft Closure 0 kt\n2-4: 342 ft Closure 0 kt\n3-4: 111 ft Closure 0 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 86 ft\nAA 175°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G --\n#3 Range 342 ft\nAA 32°   HCA vs Lead 180°   Closure 0 kt\nNative G 0.94 G   Est G --\n#4 Range 275 ft\nAA 49°   HCA vs Lead 34°   Closure 0 kt\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 50,
+    "time": "t = 18:24:18Z",
+    "live": "#1 18:24:18Z   Alt 1874 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33487, Lon -105.55478\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:24:18Z   Alt 1869 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33485, Lon -105.55442\nPosition: TIGHT — interval 9 ft, fore/aft 85 ft\n#3 18:24:18Z   Alt 1873 ft   GS 0 kt\nNative G 0.94 G   Est G --\nLat 50.33537, Lon -105.55598\nPosition: TIGHT / AFT / FORE — interval 183 ft, fore/aft -280 ft, #3 aft 280 ft\n#4 18:24:18Z   Alt 1856 ft   GS 1 kt\nNative G 1.03 G   Est G --\nLat 50.33538, Lon -105.55559\nPosition: TIGHT — interval 187 ft, fore/aft -188 ft",
+    "spacing": "1-2: 86 ft Closure 0 kt\n1-3: 334 ft Closure 0 kt\n1-4: 265 ft Closure 0 kt\n2-3: 413 ft Closure 0 kt\n2-4: 336 ft Closure -1 kt\n3-4: 92 ft Closure +1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 86 ft\nAA 174°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G --\n#3 Range 334 ft\nAA 33°   HCA vs Lead 0°   Closure 0 kt\nNative G 0.94 G   Est G --\n#4 Range 265 ft\nAA 45°   HCA vs Lead 90°   Closure 0 kt\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 75,
+    "time": "t = 18:26:55Z",
+    "live": "#1 18:26:55Z   Alt 1875 ft   GS 4 kt\nNative G --   Est G --\nLat 50.33473, Lon -105.55483\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:26:55Z   Alt 1871 ft   GS 5 kt\nNative G --   Est G --\nLat 50.33475, Lon -105.55445\nPosition: TIGHT — interval 63 ft, fore/aft -65 ft\n#3 18:26:55Z   Alt 1878 ft   GS 0 kt\nNative G 0.94 G   Est G --\nLat 50.33538, Lon -105.55596\nPosition: TIGHT / FORE — interval 353 ft, fore/aft -7 ft, #3 aft 7 ft\n#4 18:26:55Z   Alt 1905 ft   GS 0 kt\nNative G 1.03 G   Est G --\nLat 50.33535, Lon -105.55561\nPosition: TIGHT — interval 285 ft, fore/aft -54 ft",
+    "spacing": "1-2: 90 ft Closure 0 kt\n1-3: 353 ft Closure 0 kt\n1-4: 290 ft Closure 0 kt\n2-3: 420 ft Closure 0 kt\n2-4: 348 ft Closure 0 kt\n3-4: 82 ft Closure 0 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 90 ft\nAA 44°   HCA vs Lead 6°   Closure 0 kt\nNative G --   Est G --\n#3 Range 353 ft\nAA 89°   HCA vs Lead 131°   Closure 0 kt\nNative G 0.94 G   Est G --\n#4 Range 290 ft\nAA 79°   HCA vs Lead 131°   Closure 0 kt\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 100,
+    "time": "t = 18:29:32Z",
+    "live": "#1 18:29:32Z   Alt 1886 ft   GS 10 kt\nNative G --   Est G --\nLat 50.33591, Lon -105.56452\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:29:32Z   Alt 1880 ft   GS 11 kt\nNative G --   Est G --\nLat 50.33572, Lon -105.56408\nPosition: TIGHT — interval 26 ft, fore/aft -120 ft\n#3 18:29:32Z   Alt 1888 ft   GS 13 kt\nNative G 0.94 G   Est G 1.00 G\nLat 50.33546, Lon -105.56274\nPosition: TIGHT / AFT / FORE — interval 12 ft, fore/aft -447 ft, #3 aft 447 ft\n#4 18:29:32Z   Alt 1884 ft   GS 12 kt\nNative G 1.03 G   Est G --\nLat 50.33527, Lon -105.56181\nPosition: TIGHT / AFT — interval 30 ft, fore/aft -676 ft",
+    "spacing": "1-2: 122 ft Closure +1 kt\n1-3: 447 ft Closure +3 kt\n1-4: 676 ft Closure +2 kt\n2-3: 329 ft Closure +2 kt\n2-4: 559 ft Closure +1 kt\n3-4: 230 ft Closure -1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 122 ft\nAA 12°   HCA vs Lead 1°   Closure +1 kt\nNative G --   Est G --\n#3 Range 447 ft\nAA 1°   HCA vs Lead 2°   Closure +3 kt\nNative G 0.94 G   Est G 1.00 G   ΔG +0.06\n#4 Range 676 ft\nAA 3°   HCA vs Lead 15°   Closure +2 kt\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 125,
+    "time": "t = 18:32:10Z",
+    "live": "#1 18:32:10Z   Alt 1888 ft   GS 12 kt\nNative G --   Est G --\nLat 50.33406, Lon -105.57285\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:32:10Z   Alt 1886 ft   GS 10 kt\nNative G --   Est G --\nLat 50.33441, Lon -105.57240\nPosition: TIGHT — interval 32 ft, fore/aft -163 ft\n#3 18:32:10Z   Alt 1882 ft   GS 11 kt\nNative G 0.94 G   Est G --\nLat 50.33514, Lon -105.57198\nPosition: TIGHT / AFT / FORE — interval 4 ft, fore/aft -413 ft, #3 aft 413 ft\n#4 18:32:10Z   Alt 1871 ft   GS 12 kt\nNative G 1.03 G   Est G --\nLat 50.33548, Lon -105.57149\nPosition: TIGHT / AFT — interval 37 ft, fore/aft -571 ft",
+    "spacing": "1-2: 166 ft Closure -1 kt\n1-3: 413 ft Closure -1 kt\n1-4: 572 ft Closure 0 kt\n2-3: 252 ft Closure +1 kt\n2-4: 408 ft Closure +2 kt\n3-4: 163 ft Closure +1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 166 ft\nAA 11°   HCA vs Lead 1°   Closure -1 kt\nNative G --   Est G --\n#3 Range 413 ft\nAA 1°   HCA vs Lead 3°   Closure -1 kt\nNative G 0.94 G   Est G --\n#4 Range 572 ft\nAA 4°   HCA vs Lead 0°   Closure 0 kt\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 150,
+    "time": "t = 18:34:47Z",
+    "live": "#1 18:34:47Z   Alt 1985 ft   GS 123 kt\nNative G --   Est G 1.00 G\nLat 50.32747, Lon -105.56052\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 18:34:47Z   Alt 1908 ft   GS 109 kt\nNative G --   Est G 1.00 G\nLat 50.32877, Lon -105.56476\nPosition: TIGHT / AFT — interval 45 ft, fore/aft -1102 ft\n#3 18:34:47Z   Alt 1885 ft   GS 0 kt\nNative G 0.94 G   Est G --\nLat 50.33204, Lon -105.57386\nPosition: TIGHT / AFT / FORE — interval 16 ft, fore/aft -3590 ft, #3 aft 3590 ft\n#4 18:34:47Z   Alt 1867 ft   GS 1 kt\nNative G 1.03 G   Est G --\nLat 50.33193, Lon -105.57408\nPosition: TIGHT / AFT — interval 45 ft, fore/aft -3616 ft",
+    "spacing": "1-2: 1103 ft Closure -14 kt\n1-3: 3590 ft Closure -121 kt\n1-4: 3617 ft Closure -121 kt\n2-3: 2489 ft Closure -107 kt\n2-4: 2514 ft Closure -107 kt\n3-4: 66 ft Closure +1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 1103 ft\nAA 2°   HCA vs Lead 1°   Closure -14 kt\nNative G --   Est G 1.00 G\n#3 Range 3590 ft\nAA 0°   HCA vs Lead 28°   Closure -121 kt\nNative G 0.94 G   Est G --\n#4 Range 3617 ft\nAA 1°   HCA vs Lead 118°   Closure -121 kt\nNative G 1.03 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 175,
+    "time": "t = 18:37:24Z",
+    "live": "#1 18:37:24Z   Alt 6085 ft   GS 190 kt\nNative G --   Est G 1.04 G\nLat 50.25830, Lon -105.39016\nLead desired: LEAD ON PARAMETERS — target 200±10 kt, 1.0±0.20 G\n#2 18:37:24Z   Alt 6073 ft   GS 190 kt\nNative G --   Est G 1.04 G\nLat 50.25831, Lon -105.39033\nPosition: TIGHT — interval 32 ft, fore/aft -24 ft\n#3 18:37:24Z   Alt 4206 ft   GS 197 kt\nNative G 0.96 G   Est G 1.01 G\nLat 50.28497, Lon -105.44152\nPosition: AFT / AFT — interval 4643 ft, fore/aft -14805 ft, #3 aft 14805 ft\n#4 18:37:24Z   Alt 4228 ft   GS 199 kt\nNative G 1.06 G   Est G 1.01 G\nLat 50.28543, Lon -105.44295\nPosition: TIGHT / AFT — interval 45 ft, fore/aft -14812 ft",
+    "spacing": "1-2: 40 ft Closure 0 kt\n1-3: 15516 ft Closure +14 kt\n1-4: 15536 ft Closure +16 kt\n2-3: 15484 ft Closure +14 kt\n2-4: 15503 ft Closure +16 kt\n3-4: 46 ft Closure +1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 40 ft\nAA 53°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.04 G\n#3 Range 15516 ft\nAA 17°   HCA vs Lead 24°   Closure +14 kt\nNative G 0.96 G   Est G 1.01 G   ΔG +0.05\n#4 Range 15536 ft\nAA 18°   HCA vs Lead 24°   Closure +16 kt\nNative G 1.06 G   Est G 1.01 G   ΔG -0.05",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 200,
+    "time": "t = 18:40:01Z",
+    "live": "#1 18:40:01Z   Alt 10615 ft   GS 208 kt\nNative G --   Est G 1.00 G\nLat 50.18378, Lon -105.54017\nLead desired: LEAD ON PARAMETERS — target 200±10 kt, 1.0±0.20 G\n#2 18:40:01Z   Alt 10576 ft   GS 207 kt\nNative G --   Est G 1.01 G\nLat 50.18415, Lon -105.53971\nPosition: TIGHT — interval 133 ft, fore/aft -114 ft\n#3 18:40:01Z   Alt 8164 ft   GS 218 kt\nNative G 1.09 G   Est G 1.10 G\nLat 50.18624, Lon -105.47867\nPosition: TIGHT / AFT / AFT — interval 150 ft, fore/aft -14462 ft, #3 aft 14462 ft\n#4 18:40:01Z   Alt 8139 ft   GS 215 kt\nNative G 1.18 G   Est G 1.13 G\nLat 50.18653, Lon -105.47845\nPosition: TIGHT / AFT — interval 248 ft, fore/aft -14471 ft",
+    "spacing": "1-2: 175 ft Closure -3 kt\n1-3: 14463 ft Closure +8 kt\n1-4: 14473 ft Closure +5 kt\n2-3: 14349 ft Closure +9 kt\n2-4: 14357 ft Closure +6 kt\n3-4: 98 ft Closure -3 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 175 ft\nAA 50°   HCA vs Lead 1°   Closure -3 kt\nNative G --   Est G 1.01 G\n#3 Range 14463 ft\nAA 1°   HCA vs Lead 7°   Closure +8 kt\nNative G 1.09 G   Est G 1.10 G   ΔG +0.00\n#4 Range 14473 ft\nAA 1°   HCA vs Lead 6°   Closure +5 kt\nNative G 1.18 G   Est G 1.13 G   ΔG -0.05",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 225,
+    "time": "t = 18:42:38Z",
+    "live": "#1 18:42:38Z   Alt 11749 ft   GS 222 kt\nNative G --   Est G 1.00 G\nLat 50.11421, Lon -105.68220\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 18:42:38Z   Alt 11713 ft   GS 220 kt\nNative G --   Est G 1.00 G\nLat 50.11554, Lon -105.68383\nPosition: TIGHT / AFT — interval 288 ft, fore/aft -548 ft\n#3 18:42:38Z   Alt 11312 ft   GS 233 kt\nNative G 1.04 G   Est G 1.00 G\nLat 50.13037, Lon -105.67760\nPosition: TIGHT / AFT / FORE — interval 2064 ft, fore/aft -5733 ft, #3 aft 5733 ft\n#4 18:42:38Z   Alt 11276 ft   GS 271 kt\nNative G 0.96 G   Est G 1.00 G\nLat 50.13462, Lon -105.67916\nPosition: TIGHT / AFT — interval 135 ft, fore/aft -6929 ft",
+    "spacing": "1-2: 619 ft Closure -2 kt\n1-3: 6093 ft Closure +20 kt\n1-4: 7193 ft Closure +55 kt\n2-3: 5694 ft Closure +25 kt\n2-4: 6756 ft Closure +59 kt\n3-4: 1204 ft Closure +38 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 619 ft\nAA 28°   HCA vs Lead 0°   Closure -2 kt\nNative G --   Est G 1.00 G\n#3 Range 6093 ft\nAA 20°   HCA vs Lead 9°   Closure +20 kt\nNative G 1.04 G   Est G 1.00 G   ΔG -0.04\n#4 Range 7193 ft\nAA 16°   HCA vs Lead 8°   Closure +55 kt\nNative G 0.96 G   Est G 1.00 G   ΔG +0.04",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 250,
+    "time": "t = 18:45:16Z",
+    "live": "#1 18:45:16Z   Alt 12312 ft   GS 241 kt\nNative G --   Est G 1.00 G\nLat 50.03196, Lon -105.65383\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 18:45:16Z   Alt 12337 ft   GS 247 kt\nNative G --   Est G 1.01 G\nLat 50.03359, Lon -105.65655\nPosition: TIGHT / AFT — interval 584 ft, fore/aft -646 ft\n#3 18:45:16Z   Alt 12100 ft   GS 207 kt\nNative G 0.93 G   Est G 1.01 G\nLat 50.04187, Lon -105.65231\nPosition: TIGHT / AFT / FORE — interval 690 ft, fore/aft -3300 ft, #3 aft 3300 ft\n#4 18:45:16Z   Alt 11920 ft   GS 224 kt\nNative G 1.24 G   Est G 1.23 G\nLat 50.04324, Lon -105.65410\nPosition: TIGHT / AFT — interval 262 ft, fore/aft -3844 ft",
+    "spacing": "1-2: 871 ft Closure -15 kt\n1-3: 3371 ft Closure -37 kt\n1-4: 3868 ft Closure -43 kt\n2-3: 2944 ft Closure -53 kt\n2-4: 3354 ft Closure -69 kt\n3-4: 604 ft Closure +36 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 871 ft\nAA 42°   HCA vs Lead 6°   Closure -15 kt\nNative G --   Est G 1.01 G\n#3 Range 3371 ft\nAA 12°   HCA vs Lead 4°   Closure -37 kt\nNative G 0.93 G   Est G 1.01 G   ΔG +0.08\n#4 Range 3868 ft\nAA 6°   HCA vs Lead 23°   Closure -43 kt\nNative G 1.24 G   Est G 1.23 G   ΔG -0.01",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 275,
+    "time": "t = 18:47:53Z",
+    "live": "#1 18:47:53Z   Alt 12364 ft   GS 253 kt\nNative G --   Est G 1.00 G\nLat 49.91432, Lon -105.65231\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 18:47:53Z   Alt 12603 ft   GS 163 kt\nNative G --   Est G 1.00 G\nLat 49.90072, Lon -105.70681\nPosition: WIDE / FORE — interval 10174 ft, fore/aft 3436 ft\n#3 18:47:53Z   Alt 11335 ft   GS 311 kt\nNative G 1.40 G   Est G 2.20 G\nLat 49.91058, Lon -105.61668\nPosition: WIDE / FORE / FORE — interval 7771 ft, fore/aft 537 ft, #3 aft -537 ft\n#4 18:47:53Z   Alt 11662 ft   GS 262 kt\nNative G 1.71 G   Est G 1.46 G\nLat 49.91255, Lon -105.59484\nPosition: FORE — interval 5129 ft, fore/aft 964 ft",
+    "spacing": "1-2: 10738 ft Closure +137 kt\n1-3: 7790 ft Closure +16 kt\n1-4: 12937 ft Closure -52 kt\n2-3: 18178 ft Closure +143 kt\n2-4: 23206 ft Closure +64 kt\n3-4: 5147 ft Closure -67 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 10738 ft\nAA 109°   HCA vs Lead 39°   Closure +137 kt\nNative G --   Est G 1.00 G\n#3 Range 7790 ft\nAA 94°   HCA vs Lead 12°   Closure +16 kt\nNative G 1.40 G   Est G 2.20 G   ΔG +0.80\n#4 Range 12937 ft\nAA 94°   HCA vs Lead 11°   Closure -52 kt\nNative G 1.71 G   Est G 1.46 G   ΔG -0.25",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 300,
+    "time": "t = 18:50:30Z",
+    "live": "#1 18:50:30Z   Alt 12348 ft   GS 260 kt\nNative G --   Est G 1.00 G\nLat 49.87870, Lon -105.60005\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 18:50:30Z   Alt 12602 ft   GS 343 kt\nNative G --   Est G 1.00 G\nLat 49.88680, Lon -105.49710\nPosition: TIGHT / AFT — interval 3985 ft, fore/aft -5187 ft\n#3 18:50:30Z   Alt 11976 ft   GS 259 kt\nNative G 1.00 G   Est G 1.00 G\nLat 49.86486, Lon -105.59473\nPosition: AFT / FORE — interval 4989 ft, fore/aft -1619 ft, #3 aft 1619 ft\n#4 18:50:30Z   Alt 11648 ft   GS 264 kt\nNative G 1.12 G   Est G 1.09 G\nLat 49.85858, Lon -105.59397\nPosition: TIGHT / AFT — interval 2262 ft, fore/aft -1928 ft",
+    "spacing": "1-2: 6541 ft Closure +69 kt\n1-3: 5246 ft Closure -33 kt\n1-4: 7503 ft Closure +5 kt\n2-3: 9658 ft Closure +7 kt\n2-4: 11700 ft Closure +31 kt\n3-4: 2283 ft Closure +38 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 6541 ft\nAA 38°   HCA vs Lead 1°   Closure +69 kt\nNative G --   Est G 1.00 G\n#3 Range 5246 ft\nAA 72°   HCA vs Lead 7°   Closure -33 kt\nNative G 1.00 G   Est G 1.00 G   ΔG +0.00\n#4 Range 7503 ft\nAA 75°   HCA vs Lead 1°   Closure +5 kt\nNative G 1.12 G   Est G 1.09 G   ΔG -0.03",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 325,
+    "time": "t = 18:53:07Z",
+    "live": "#1 18:53:07Z   Alt 12228 ft   GS 272 kt\nNative G --   Est G 1.00 G\nLat 50.03495, Lon -105.72459\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 18:53:07Z   Alt 12462 ft   GS 273 kt\nNative G --   Est G 1.66 G\nLat 50.04557, Lon -105.71838\nPosition: TIGHT / FORE — interval 3868 ft, fore/aft 1801 ft\n#3 18:53:07Z   Alt 11861 ft   GS 263 kt\nNative G 1.02 G   Est G 1.02 G\nLat 50.01952, Lon -105.73716\nPosition: AFT / FORE — interval 5980 ft, fore/aft -2237 ft, #3 aft 2237 ft\n#4 18:53:07Z   Alt 11639 ft   GS 278 kt\nNative G 1.44 G   Est G 1.41 G\nLat 50.01011, Lon -105.74381\nPosition: TIGHT / AFT — interval 3480 ft, fore/aft -3689 ft",
+    "spacing": "1-2: 4266 ft Closure -111 kt\n1-3: 6385 ft Closure -6 kt\n1-4: 10154 ft Closure -17 kt\n2-3: 10643 ft Closure -123 kt\n2-4: 14414 ft Closure -134 kt\n3-4: 3771 ft Closure -11 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 4266 ft\nAA 115°   HCA vs Lead 32°   Closure -111 kt\nNative G --   Est G 1.66 G\n#3 Range 6385 ft\nAA 69°   HCA vs Lead 1°   Closure -6 kt\nNative G 1.02 G   Est G 1.02 G   ΔG -0.00\n#4 Range 10154 ft\nAA 69°   HCA vs Lead 2°   Closure -17 kt\nNative G 1.44 G   Est G 1.41 G   ΔG -0.03",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 350,
+    "time": "t = 18:55:44Z",
+    "live": "#1 18:55:44Z   Alt 12272 ft   GS 267 kt\nNative G --   Est G 1.18 G\nLat 50.02168, Lon -105.62962\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 18:55:44Z   Alt 12392 ft   GS 359 kt\nNative G --   Est G 1.00 G\nLat 50.01311, Lon -105.63991\nPosition: TIGHT / AFT — interval 123 ft, fore/aft -3195 ft\n#3 18:55:44Z   Alt 12296 ft   GS 277 kt\nNative G 1.29 G   Est G 1.42 G\nLat 50.01431, Lon -105.64326\nPosition: TIGHT / AFT / FORE — interval 887 ft, fore/aft -4159 ft, #3 aft 4159 ft\n#4 18:55:44Z   Alt 11554 ft   GS 285 kt\nNative G 1.05 G   Est G 1.05 G\nLat 50.01230, Lon -105.65834\nPosition: TIGHT / AFT — interval 2406 ft, fore/aft -6811 ft",
+    "spacing": "1-2: 3197 ft Closure +92 kt\n1-3: 4253 ft Closure +11 kt\n1-4: 7565 ft Closure +43 kt\n2-3: 1231 ft Closure +3 kt\n2-4: 4809 ft Closure +6 kt\n3-4: 3580 ft Closure +8 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 3197 ft\nAA 2°   HCA vs Lead 1°   Closure +92 kt\nNative G --   Est G 1.00 G\n#3 Range 4253 ft\nAA 12°   HCA vs Lead 21°   Closure +11 kt\nNative G 1.29 G   Est G 1.42 G   ΔG +0.13\n#4 Range 7565 ft\nAA 26°   HCA vs Lead 23°   Closure +43 kt\nNative G 1.05 G   Est G 1.05 G   ΔG +0.00",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 375,
+    "time": "t = 18:58:22Z",
+    "live": "#1 18:58:22Z   Alt 12103 ft   GS 279 kt\nNative G --   Est G 1.98 G\nLat 50.01712, Lon -105.66776\nLead desired: FAST / HIGH G — target 200±10 kt, 1.0±0.20 G\n#2 18:58:22Z   Alt 12303 ft   GS 155 kt\nNative G --   Est G 1.00 G\nLat 49.99062, Lon -105.68699\nPosition: WIDE / AFT — interval 6748 ft, fore/aft -282 ft\n#3 18:58:22Z   Alt 12265 ft   GS 283 kt\nNative G 1.98 G   Est G 2.04 G\nLat 50.01494, Lon -105.67893\nPosition: TIGHT / AFT / FORE — interval 924 ft, fore/aft -2174 ft, #3 aft 2174 ft\n#4 18:58:22Z   Alt 11955 ft   GS 225 kt\nNative G 2.06 G   Est G 1.47 G\nLat 50.01270, Lon -105.68481\nPosition: TIGHT / AFT — interval 937 ft, fore/aft -3640 ft",
+    "spacing": "1-2: 6754 ft Closure +83 kt\n1-3: 2362 ft Closure +5 kt\n1-4: 4088 ft Closure -82 kt\n2-3: 6124 ft Closure -5 kt\n2-4: 5930 ft Closure -88 kt\n3-4: 1740 ft Closure -86 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 6754 ft\nAA 88°   HCA vs Lead 51°   Closure +83 kt\nNative G --   Est G 1.00 G\n#3 Range 2362 ft\nAA 23°   HCA vs Lead 36°   Closure +5 kt\nNative G 1.98 G   Est G 2.04 G   ΔG +0.06\n#4 Range 4088 ft\nAA 27°   HCA vs Lead 71°   Closure -82 kt\nNative G 2.06 G   Est G 1.47 G   ΔG -0.59",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 400,
+    "time": "t = 19:00:59Z",
+    "live": "#1 19:00:59Z   Alt 12290 ft   GS 247 kt\nNative G --   Est G 1.00 G\nLat 49.96527, Lon -105.62570\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:00:59Z   Alt 12474 ft   GS 254 kt\nNative G --   Est G 1.01 G\nLat 49.96367, Lon -105.61903\nPosition: TIGHT / AFT — interval 543 ft, fore/aft -1565 ft\n#3 19:00:59Z   Alt 12324 ft   GS 219 kt\nNative G 0.89 G   Est G 1.00 G\nLat 49.96906, Lon -105.61101\nPosition: TIGHT / AFT / FORE — interval 1476 ft, fore/aft -3488 ft, #3 aft 3488 ft\n#4 19:00:59Z   Alt 12173 ft   GS 250 kt\nNative G 1.14 G   Est G 1.32 G\nLat 49.97072, Lon -105.60656\nPosition: TIGHT / AFT — interval 632 ft, fore/aft -4513 ft",
+    "spacing": "1-2: 1656 ft Closure +3 kt\n1-3: 3787 ft Closure -30 kt\n1-4: 4981 ft Closure -43 kt\n2-3: 2788 ft Closure -36 kt\n2-4: 3965 ft Closure -73 kt\n3-4: 1204 ft Closure -19 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 1656 ft\nAA 19°   HCA vs Lead 1°   Closure +3 kt\nNative G --   Est G 1.01 G\n#3 Range 3787 ft\nAA 23°   HCA vs Lead 3°   Closure -30 kt\nNative G 0.89 G   Est G 1.00 G   ΔG +0.11\n#4 Range 4981 ft\nAA 25°   HCA vs Lead 17°   Closure -43 kt\nNative G 1.14 G   Est G 1.32 G   ΔG +0.18",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 425,
+    "time": "t = 19:03:36Z",
+    "live": "#1 19:03:36Z   Alt 12239 ft   GS 255 kt\nNative G --   Est G 1.00 G\nLat 49.99205, Lon -105.73743\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:03:36Z   Alt 12260 ft   GS 317 kt\nNative G --   Est G 1.00 G\nLat 49.99784, Lon -105.82039\nPosition: TIGHT / AFT — interval 1722 ft, fore/aft -4171 ft\n#3 19:03:36Z   Alt 11862 ft   GS 252 kt\nNative G 1.14 G   Est G 1.00 G\nLat 50.00346, Lon -105.73215\nPosition: FORE / FORE — interval 4066 ft, fore/aft 1414 ft, #3 aft -1414 ft\n#4 19:03:36Z   Alt 11607 ft   GS 287 kt\nNative G 1.06 G   Est G 1.05 G\nLat 50.00581, Lon -105.73511\nPosition: TIGHT / FORE — interval 885 ft, fore/aft 785 ft",
+    "spacing": "1-2: 4512 ft Closure +70 kt\n1-3: 4305 ft Closure +5 kt\n1-4: 5013 ft Closure +55 kt\n2-3: 6056 ft Closure +46 kt\n2-4: 5915 ft Closure +40 kt\n3-4: 1085 ft Closure +62 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 4512 ft\nAA 22°   HCA vs Lead 7°   Closure +70 kt\nNative G --   Est G 1.00 G\n#3 Range 4305 ft\nAA 109°   HCA vs Lead 1°   Closure +5 kt\nNative G 1.14 G   Est G 1.00 G   ΔG -0.14\n#4 Range 5013 ft\nAA 99°   HCA vs Lead 11°   Closure +55 kt\nNative G 1.06 G   Est G 1.05 G   ΔG -0.02",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 450,
+    "time": "t = 19:06:13Z",
+    "live": "#1 19:06:13Z   Alt 12413 ft   GS 230 kt\nNative G --   Est G 1.00 G\nLat 49.88149, Lon -105.62783\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:06:13Z   Alt 12649 ft   GS 242 kt\nNative G --   Est G 1.03 G\nLat 49.88275, Lon -105.61506\nPosition: TIGHT — interval 2985 ft, fore/aft 62 ft\n#3 19:06:13Z   Alt 12013 ft   GS 225 kt\nNative G 1.05 G   Est G 1.00 G\nLat 49.89974, Lon -105.62548\nPosition: TIGHT / AFT / FORE — interval 1662 ft, fore/aft -6574 ft, #3 aft 6574 ft\n#4 19:06:13Z   Alt 11649 ft   GS 213 kt\nNative G 1.04 G   Est G 1.00 G\nLat 49.90084, Lon -105.61128\nPosition: TIGHT / AFT — interval 3330 ft, fore/aft -6449 ft",
+    "spacing": "1-2: 2985 ft Closure +21 kt\n1-3: 6781 ft Closure -3 kt\n1-4: 8156 ft Closure -15 kt\n2-3: 6767 ft Closure -12 kt\n2-4: 6814 ft Closure -36 kt\n3-4: 3333 ft Closure -2 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 2985 ft\nAA 91°   HCA vs Lead 5°   Closure +21 kt\nNative G --   Est G 1.03 G\n#3 Range 6781 ft\nAA 14°   HCA vs Lead 1°   Closure -3 kt\nNative G 1.05 G   Est G 1.00 G   ΔG -0.05\n#4 Range 8156 ft\nAA 38°   HCA vs Lead 0°   Closure -15 kt\nNative G 1.04 G   Est G 1.00 G   ΔG -0.03",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 475,
+    "time": "t = 19:08:50Z",
+    "live": "#1 19:08:50Z   Alt 12169 ft   GS 248 kt\nNative G --   Est G 6.54 G\nLat 49.87911, Lon -105.37109\nLead desired: FAST / HIGH G — target 200±10 kt, 1.0±0.20 G\n#2 19:08:50Z   Alt 12513 ft   GS 247 kt\nNative G --   Est G 1.11 G\nLat 49.86988, Lon -105.36933\nPosition: TIGHT / AFT — interval 2787 ft, fore/aft -1937 ft\n#3 19:08:50Z   Alt 11547 ft   GS 273 kt\nNative G 0.98 G   Est G 1.00 G\nLat 49.87560, Lon -105.40191\nPosition: TIGHT / AFT / FORE — interval 3676 ft, fore/aft -6398 ft, #3 aft 6398 ft\n#4 19:08:50Z   Alt 11374 ft   GS 168 kt\nNative G 1.21 G   Est G 1.02 G\nLat 49.86235, Lon -105.39641\nPosition: TIGHT / AFT — interval 711 ft, fore/aft -8711 ft",
+    "spacing": "1-2: 3394 ft Closure -6 kt\n1-3: 7378 ft Closure +52 kt\n1-4: 8740 ft Closure -93 kt\n2-3: 7852 ft Closure +119 kt\n2-4: 7084 ft Closure -49 kt\n3-4: 4959 ft Closure +45 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 3394 ft\nAA 55°   HCA vs Lead 1°   Closure -6 kt\nNative G --   Est G 1.11 G\n#3 Range 7378 ft\nAA 30°   HCA vs Lead 43°   Closure +52 kt\nNative G 0.98 G   Est G 1.00 G   ΔG +0.02\n#4 Range 8740 ft\nAA 5°   HCA vs Lead 35°   Closure -93 kt\nNative G 1.21 G   Est G 1.02 G   ΔG -0.19",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 500,
+    "time": "t = 19:11:28Z",
+    "live": "#1 19:11:28Z   Alt 12292 ft   GS 255 kt\nNative G --   Est G 1.00 G\nLat 49.93870, Lon -105.60901\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:11:28Z   Alt 12566 ft   GS 258 kt\nNative G --   Est G 1.00 G\nLat 49.94838, Lon -105.59790\nPosition: FORE — interval 4342 ft, fore/aft 542 ft\n#3 19:11:28Z   Alt 12043 ft   GS 261 kt\nNative G 0.96 G   Est G 1.00 G\nLat 49.93076, Lon -105.58163\nPosition: TIGHT / AFT / FORE — interval 2277 ft, fore/aft -6264 ft, #3 aft 6264 ft\n#4 19:11:28Z   Alt 11717 ft   GS 252 kt\nNative G 0.95 G   Est G 1.00 G\nLat 49.94008, Lon -105.56477\nPosition: AFT — interval 5211 ft, fore/aft -6498 ft",
+    "spacing": "1-2: 4376 ft Closure +7 kt\n1-3: 6665 ft Closure +4 kt\n1-4: 9915 ft Closure -16 kt\n2-3: 7112 ft Closure +6 kt\n2-4: 7711 ft Closure -15 kt\n3-4: 5216 ft Closure -14 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 4376 ft\nAA 97°   HCA vs Lead 2°   Closure +7 kt\nNative G --   Est G 1.00 G\n#3 Range 6665 ft\nAA 20°   HCA vs Lead 1°   Closure +4 kt\nNative G 0.96 G   Est G 1.00 G   ΔG +0.04\n#4 Range 9915 ft\nAA 49°   HCA vs Lead 4°   Closure -16 kt\nNative G 0.95 G   Est G 1.00 G   ΔG +0.05",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 525,
+    "time": "t = 19:14:05Z",
+    "live": "#1 19:14:05Z   Alt 12089 ft   GS 234 kt\nNative G --   Est G 1.00 G\nLat 50.05553, Lon -105.74849\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:14:05Z   Alt 12784 ft   GS 250 kt\nNative G --   Est G 1.01 G\nLat 50.09488, Lon -105.72176\nPosition: WIDE / AFT — interval 14619 ft, fore/aft -5536 ft\n#3 19:14:05Z   Alt 11881 ft   GS 242 kt\nNative G 1.14 G   Est G 1.00 G\nLat 50.06091, Lon -105.71700\nPosition: TIGHT / AFT / FORE — interval 2323 ft, fore/aft -6975 ft, #3 aft 6975 ft\n#4 19:14:05Z   Alt 11589 ft   GS 206 kt\nNative G 0.95 G   Est G 1.00 G\nLat 50.07908, Lon -105.70812\nPosition: WIDE / AFT — interval 6671 ft, fore/aft -8715 ft",
+    "spacing": "1-2: 15632 ft Closure +32 kt\n1-3: 7352 ft Closure +3 kt\n1-4: 12524 ft Closure -9 kt\n2-3: 12380 ft Closure +40 kt\n2-4: 6462 ft Closure -8 kt\n3-4: 6894 ft Closure +17 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 15632 ft\nAA 69°   HCA vs Lead 8°   Closure +32 kt\nNative G --   Est G 1.01 G\n#3 Range 7352 ft\nAA 18°   HCA vs Lead 3°   Closure +3 kt\nNative G 1.14 G   Est G 1.00 G   ΔG -0.14\n#4 Range 12524 ft\nAA 46°   HCA vs Lead 5°   Closure -9 kt\nNative G 0.95 G   Est G 1.00 G   ΔG +0.05",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 550,
+    "time": "t = 19:16:42Z",
+    "live": "#1 19:16:42Z   Alt 12395 ft   GS 228 kt\nNative G --   Est G 1.00 G\nLat 50.08649, Lon -105.78447\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:16:42Z   Alt 12411 ft   GS 229 kt\nNative G --   Est G 1.00 G\nLat 50.08676, Lon -105.78602\nPosition: TIGHT / AFT — interval 277 ft, fore/aft -251 ft\n#3 19:16:42Z   Alt 12385 ft   GS 223 kt\nNative G 1.05 G   Est G 1.00 G\nLat 50.09067, Lon -105.78570\nPosition: TIGHT / AFT / FORE — interval 448 ft, fore/aft -1557 ft, #3 aft 1557 ft\n#4 19:16:42Z   Alt 12241 ft   GS 239 kt\nNative G 1.07 G   Est G 1.01 G\nLat 50.09242, Lon -105.78492\nPosition: TIGHT / AFT — interval 906 ft, fore/aft -2053 ft",
+    "spacing": "1-2: 373 ft Closure 0 kt\n1-3: 1620 ft Closure -5 kt\n1-4: 2244 ft Closure +8 kt\n2-3: 1494 ft Closure -7 kt\n2-4: 2156 ft Closure +4 kt\n3-4: 675 ft Closure +9 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 373 ft\nAA 48°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.00 G\n#3 Range 1620 ft\nAA 16°   HCA vs Lead 0°   Closure -5 kt\nNative G 1.05 G   Est G 1.00 G   ΔG -0.05\n#4 Range 2244 ft\nAA 24°   HCA vs Lead 3°   Closure +8 kt\nNative G 1.07 G   Est G 1.01 G   ΔG -0.06",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 575,
+    "time": "t = 19:19:19Z",
+    "live": "#1 19:19:19Z   Alt 12225 ft   GS 233 kt\nNative G --   Est G 1.00 G\nLat 49.94238, Lon -105.64810\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:19:19Z   Alt 12221 ft   GS 233 kt\nNative G --   Est G 1.00 G\nLat 49.94237, Lon -105.64832\nPosition: TIGHT — interval 45 ft, fore/aft -25 ft\n#3 19:19:19Z   Alt 12219 ft   GS 233 kt\nNative G 1.00 G   Est G 1.00 G\nLat 49.94242, Lon -105.64859\nPosition: TIGHT / FORE — interval 87 ft, fore/aft -153 ft, #3 aft 153 ft\n#4 19:19:19Z   Alt 12300 ft   GS 234 kt\nNative G 1.10 G   Est G 1.00 G\nLat 49.94244, Lon -105.64895\nPosition: TIGHT — interval 150 ft, fore/aft -225 ft",
+    "spacing": "1-2: 52 ft Closure 0 kt\n1-3: 175 ft Closure 0 kt\n1-4: 270 ft Closure 0 kt\n2-3: 134 ft Closure 0 kt\n2-4: 225 ft Closure 0 kt\n3-4: 96 ft Closure 0 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 52 ft\nAA 61°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.00 G\n#3 Range 175 ft\nAA 30°   HCA vs Lead 0°   Closure 0 kt\nNative G 1.00 G   Est G 1.00 G   ΔG -0.00\n#4 Range 270 ft\nAA 34°   HCA vs Lead 0°   Closure 0 kt\nNative G 1.10 G   Est G 1.00 G   ΔG -0.10",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 600,
+    "time": "t = 19:21:56Z",
+    "live": "#1 19:21:56Z   Alt 13048 ft   GS 263 kt\nNative G --   Est G 1.00 G\nLat 49.87776, Lon -105.66676\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:21:56Z   Alt 13098 ft   GS 363 kt\nNative G --   Est G 1.37 G\nLat 49.86962, Lon -105.67488\nPosition: TIGHT / AFT — interval 853 ft, fore/aft -1359 ft\n#3 19:21:56Z   Alt 13063 ft   GS 268 kt\nNative G 0.99 G   Est G 1.00 G\nLat 49.87718, Lon -105.66686\nPosition: TIGHT / FORE — interval 145 ft, fore/aft -242 ft, #3 aft 242 ft\n#4 19:21:56Z   Alt 13055 ft   GS 276 kt\nNative G 1.04 G   Est G 1.02 G\nLat 49.87655, Lon -105.66702\nPosition: TIGHT / AFT — interval 314 ft, fore/aft -411 ft",
+    "spacing": "1-2: 1605 ft Closure +109 kt\n1-3: 282 ft Closure +7 kt\n1-4: 518 ft Closure +12 kt\n2-3: 1323 ft Closure +103 kt\n2-4: 1090 ft Closure +97 kt\n3-4: 239 ft Closure +4 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 1605 ft\nAA 32°   HCA vs Lead 8°   Closure +109 kt\nNative G --   Est G 1.37 G\n#3 Range 282 ft\nAA 31°   HCA vs Lead 2°   Closure +7 kt\nNative G 0.99 G   Est G 1.00 G   ΔG +0.01\n#4 Range 518 ft\nAA 37°   HCA vs Lead 0°   Closure +12 kt\nNative G 1.04 G   Est G 1.02 G   ΔG -0.02",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 625,
+    "time": "t = 19:24:34Z",
+    "live": "#1 19:24:34Z   Alt 13036 ft   GS 255 kt\nNative G --   Est G 1.42 G\nLat 50.01352, Lon -105.47549\nLead desired: FAST / HIGH G — target 200±10 kt, 1.0±0.20 G\n#2 19:24:34Z   Alt 13023 ft   GS 259 kt\nNative G --   Est G 1.58 G\nLat 50.01361, Lon -105.47533\nPosition: TIGHT — interval 41 ft, fore/aft -27 ft\n#3 19:24:34Z   Alt 13043 ft   GS 261 kt\nNative G 1.39 G   Est G 1.43 G\nLat 50.01329, Lon -105.47321\nPosition: TIGHT / FORE — interval 105 ft, fore/aft -192 ft, #3 aft 192 ft\n#4 19:24:34Z   Alt 12995 ft   GS 283 kt\nNative G 1.57 G   Est G 1.62 G\nLat 50.01376, Lon -105.47210\nPosition: TIGHT / AFT — interval 337 ft, fore/aft -379 ft",
+    "spacing": "1-2: 49 ft Closure +67 kt\n1-3: 219 ft Closure 0 kt\n1-4: 508 ft Closure +10 kt\n2-3: 178 ft Closure -15 kt\n2-4: 461 ft Closure -39 kt\n3-4: 298 ft Closure +10 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 49 ft\nAA 57°   HCA vs Lead 0°   Closure +67 kt\nNative G --   Est G 1.58 G\n#3 Range 219 ft\nAA 29°   HCA vs Lead 5°   Closure 0 kt\nNative G 1.39 G   Est G 1.43 G   ΔG +0.04\n#4 Range 508 ft\nAA 42°   HCA vs Lead 4°   Closure +10 kt\nNative G 1.57 G   Est G 1.62 G   ΔG +0.05",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 650,
+    "time": "t = 19:27:11Z",
+    "live": "#1 19:27:11Z   Alt 10726 ft   GS 249 kt\nNative G --   Est G 1.06 G\nLat 50.02661, Lon -105.75499\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:27:11Z   Alt 10711 ft   GS 249 kt\nNative G --   Est G 1.06 G\nLat 50.02670, Lon -105.75483\nPosition: TIGHT — interval 43 ft, fore/aft -16 ft\n#3 19:27:11Z   Alt 10773 ft   GS 250 kt\nNative G 1.08 G   Est G 1.07 G\nLat 50.02591, Lon -105.75330\nPosition: TIGHT / FORE — interval 50 ft, fore/aft -199 ft, #3 aft 199 ft\n#4 19:27:11Z   Alt 10705 ft   GS 248 kt\nNative G 1.11 G   Est G 1.06 G\nLat 50.02592, Lon -105.75311\nPosition: TIGHT — interval 30 ft, fore/aft -193 ft",
+    "spacing": "1-2: 46 ft Closure +1 kt\n1-3: 205 ft Closure -1 kt\n1-4: 195 ft Closure -2 kt\n2-3: 205 ft Closure 0 kt\n2-4: 191 ft Closure -3 kt\n3-4: 21 ft Closure +2 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 46 ft\nAA 70°   HCA vs Lead 0°   Closure +1 kt\nNative G --   Est G 1.06 G\n#3 Range 205 ft\nAA 14°   HCA vs Lead 2°   Closure -1 kt\nNative G 1.08 G   Est G 1.07 G   ΔG -0.00\n#4 Range 195 ft\nAA 9°   HCA vs Lead 3°   Closure -2 kt\nNative G 1.11 G   Est G 1.06 G   ΔG -0.04",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 675,
+    "time": "t = 19:29:48Z",
+    "live": "#1 19:29:48Z   Alt 6425 ft   GS 260 kt\nNative G --   Est G 1.00 G\nLat 50.18906, Lon -105.90559\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:29:48Z   Alt 6427 ft   GS 259 kt\nNative G --   Est G 1.00 G\nLat 50.18907, Lon -105.90541\nPosition: TIGHT — interval 38 ft, fore/aft -19 ft\n#3 19:29:48Z   Alt 6439 ft   GS 259 kt\nNative G 0.98 G   Est G 1.00 G\nLat 50.18894, Lon -105.90575\nPosition: TIGHT / FORE — interval 52 ft, fore/aft -110 ft, #3 aft 110 ft\n#4 19:29:48Z   Alt 6469 ft   GS 261 kt\nNative G 1.01 G   Est G 1.00 G\nLat 50.18895, Lon -105.90542\nPosition: TIGHT — interval 14 ft, fore/aft -193 ft",
+    "spacing": "1-2: 43 ft Closure 0 kt\n1-3: 122 ft Closure 0 kt\n1-4: 193 ft Closure +31 kt\n2-3: 129 ft Closure 0 kt\n2-4: 176 ft Closure +32 kt\n3-4: 106 ft Closure +26 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 43 ft\nAA 64°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.00 G\n#3 Range 122 ft\nAA 25°   HCA vs Lead 0°   Closure 0 kt\nNative G 0.98 G   Est G 1.00 G   ΔG +0.02\n#4 Range 193 ft\nAA 4°   HCA vs Lead 0°   Closure +31 kt\nNative G 1.01 G   Est G 1.00 G   ΔG -0.01",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 700,
+    "time": "t = 19:32:25Z",
+    "live": "#1 19:32:25Z   Alt 4035 ft   GS 247 kt\nNative G --   Est G 1.00 G\nLat 50.34389, Lon -106.04958\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:32:25Z   Alt 4031 ft   GS 248 kt\nNative G --   Est G 1.00 G\nLat 50.34389, Lon -106.04933\nPosition: TIGHT — interval 52 ft, fore/aft -26 ft\n#3 19:32:25Z   Alt 4073 ft   GS 246 kt\nNative G 0.98 G   Est G 1.00 G\nLat 50.34373, Lon -106.04974\nPosition: TIGHT / FORE — interval 63 ft, fore/aft -134 ft, #3 aft 134 ft\n#4 19:32:25Z   Alt 4075 ft   GS 190 kt\nNative G 1.00 G   Est G 1.00 G\nLat 50.34373, Lon -106.04939\nPosition: TIGHT — interval 12 ft, fore/aft -234 ft",
+    "spacing": "1-2: 58 ft Closure +1 kt\n1-3: 148 ft Closure -1 kt\n1-4: 235 ft Closure -18 kt\n2-3: 157 ft Closure -1 kt\n2-4: 212 ft Closure -19 kt\n3-4: 125 ft Closure -14 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 58 ft\nAA 63°   HCA vs Lead 0°   Closure +1 kt\nNative G --   Est G 1.00 G\n#3 Range 148 ft\nAA 25°   HCA vs Lead 0°   Closure -1 kt\nNative G 0.98 G   Est G 1.00 G   ΔG +0.02\n#4 Range 235 ft\nAA 3°   HCA vs Lead 0°   Closure -18 kt\nNative G 1.00 G   Est G 1.00 G   ΔG +0.00",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 725,
+    "time": "t = 19:35:02Z",
+    "live": "#1 19:35:02Z   Alt 3109 ft   GS 247 kt\nNative G --   Est G 1.00 G\nLat 50.45592, Lon -105.90974\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:35:02Z   Alt 3106 ft   GS 247 kt\nNative G --   Est G 1.00 G\nLat 50.45584, Lon -105.90989\nPosition: TIGHT — interval 44 ft, fore/aft -16 ft\n#3 19:35:02Z   Alt 3101 ft   GS 246 kt\nNative G 1.03 G   Est G 1.00 G\nLat 50.45619, Lon -105.90974\nPosition: TIGHT / FORE — interval 83 ft, fore/aft -191 ft, #3 aft 191 ft\n#4 19:35:02Z   Alt 3050 ft   GS 263 kt\nNative G 1.11 G   Est G 1.00 G\nLat 50.45667, Lon -105.91156\nPosition: TIGHT — interval 23 ft, fore/aft -231 ft",
+    "spacing": "1-2: 46 ft Closure 0 kt\n1-3: 208 ft Closure 0 kt\n1-4: 232 ft Closure +16 kt\n2-3: 216 ft Closure 0 kt\n2-4: 225 ft Closure +15 kt\n3-4: 72 ft Closure +12 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 46 ft\nAA 70°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.00 G\n#3 Range 208 ft\nAA 23°   HCA vs Lead 0°   Closure 0 kt\nNative G 1.03 G   Est G 1.00 G   ΔG -0.03\n#4 Range 232 ft\nAA 6°   HCA vs Lead 0°   Closure +16 kt\nNative G 1.11 G   Est G 1.00 G   ΔG -0.10",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 750,
+    "time": "t = 19:37:40Z",
+    "live": "#1 19:37:40Z   Alt 2511 ft   GS 265 kt\nNative G --   Est G 1.00 G\nLat 50.36543, Lon -105.64795\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:37:40Z   Alt 2500 ft   GS 265 kt\nNative G --   Est G 1.00 G\nLat 50.36535, Lon -105.64808\nPosition: TIGHT — interval 40 ft, fore/aft -13 ft\n#3 19:37:40Z   Alt 2552 ft   GS 264 kt\nNative G 0.69 G   Est G 1.00 G\nLat 50.36619, Lon -105.64957\nPosition: TIGHT / FORE — interval 67 ft, fore/aft -172 ft, #3 aft 172 ft\n#4 19:37:40Z   Alt 2561 ft   GS 265 kt\nNative G 1.01 G   Est G 1.00 G\nLat 50.36611, Lon -105.64990\nPosition: TIGHT — interval 2 ft, fore/aft -219 ft",
+    "spacing": "1-2: 42 ft Closure -1 kt\n1-3: 185 ft Closure -1 kt\n1-4: 219 ft Closure 0 kt\n2-3: 191 ft Closure -2 kt\n2-4: 210 ft Closure 0 kt\n3-4: 80 ft Closure -1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 42 ft\nAA 72°   HCA vs Lead 0°   Closure -1 kt\nNative G --   Est G 1.00 G\n#3 Range 185 ft\nAA 21°   HCA vs Lead 0°   Closure -1 kt\nNative G 0.69 G   Est G 1.00 G   ΔG +0.31\n#4 Range 219 ft\nAA 1°   HCA vs Lead 0°   Closure 0 kt\nNative G 1.01 G   Est G 1.00 G   ΔG -0.01",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 775,
+    "time": "t = 19:40:17Z",
+    "live": "#1 19:40:17Z   Alt 3826 ft   GS 263 kt\nNative G --   Est G 1.00 G\nLat 50.42769, Lon -105.52484\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:40:17Z   Alt 3821 ft   GS 263 kt\nNative G --   Est G 1.00 G\nLat 50.42777, Lon -105.52471\nPosition: TIGHT — interval 39 ft, fore/aft -19 ft\n#3 19:40:17Z   Alt 3835 ft   GS 264 kt\nNative G 0.75 G   Est G 1.00 G\nLat 50.42711, Lon -105.52282\nPosition: TIGHT / FORE — interval 50 ft, fore/aft -175 ft, #3 aft 175 ft\n#4 19:40:17Z   Alt 3848 ft   GS 348 kt\nNative G 0.87 G   Est G 1.00 G\nLat 50.42733, Lon -105.52264\nPosition: TIGHT / AFT — interval 38 ft, fore/aft -395 ft",
+    "spacing": "1-2: 43 ft Closure +1 kt\n1-3: 182 ft Closure +1 kt\n1-4: 397 ft Closure -19 kt\n2-3: 179 ft Closure +1 kt\n2-4: 376 ft Closure -19 kt\n3-4: 237 ft Closure -18 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 43 ft\nAA 63°   HCA vs Lead 0°   Closure +1 kt\nNative G --   Est G 1.00 G\n#3 Range 182 ft\nAA 16°   HCA vs Lead 0°   Closure +1 kt\nNative G 0.75 G   Est G 1.00 G   ΔG +0.25\n#4 Range 397 ft\nAA 5°   HCA vs Lead 0°   Closure -19 kt\nNative G 0.87 G   Est G 1.00 G   ΔG +0.13",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 800,
+    "time": "t = 19:42:54Z",
+    "live": "#1 19:42:54Z   Alt 2992 ft   GS 243 kt\nNative G --   Est G 1.06 G\nLat 50.46991, Lon -105.80645\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:42:54Z   Alt 3011 ft   GS 244 kt\nNative G --   Est G 1.07 G\nLat 50.47001, Lon -105.80640\nPosition: TIGHT — interval 39 ft, fore/aft -13 ft\n#3 19:42:54Z   Alt 3035 ft   GS 243 kt\nNative G 0.98 G   Est G 1.04 G\nLat 50.46976, Lon -105.80622\nPosition: TIGHT / FORE — interval 56 ft, fore/aft -191 ft, #3 aft 191 ft\n#4 19:42:54Z   Alt 2961 ft   GS 239 kt\nNative G 1.02 G   Est G 1.00 G\nLat 50.46952, Lon -105.80603\nPosition: TIGHT — interval 143 ft, fore/aft -234 ft",
+    "spacing": "1-2: 41 ft Closure 0 kt\n1-3: 199 ft Closure 0 kt\n1-4: 275 ft Closure -1 kt\n2-3: 202 ft Closure +1 kt\n2-4: 287 ft Closure -1 kt\n3-4: 98 ft Closure -5 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 41 ft\nAA 72°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.07 G\n#3 Range 199 ft\nAA 16°   HCA vs Lead 1°   Closure 0 kt\nNative G 0.98 G   Est G 1.04 G   ΔG +0.06\n#4 Range 275 ft\nAA 31°   HCA vs Lead 0°   Closure -1 kt\nNative G 1.02 G   Est G 1.00 G   ΔG -0.02",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 825,
+    "time": "t = 19:45:31Z",
+    "live": "#1 19:45:31Z   Alt 2520 ft   GS 258 kt\nNative G --   Est G 1.00 G\nLat 50.37210, Lon -105.67037\nLead desired: FAST — target 200±10 kt, 1.0±0.20 G\n#2 19:45:31Z   Alt 2513 ft   GS 258 kt\nNative G --   Est G 1.00 G\nLat 50.37221, Lon -105.67034\nPosition: TIGHT — interval 38 ft, fore/aft -10 ft\n#3 19:45:31Z   Alt 2529 ft   GS 260 kt\nNative G 0.93 G   Est G 1.00 G\nLat 50.37248, Lon -105.67035\nPosition: TIGHT / FORE — interval 122 ft, fore/aft -171 ft, #3 aft 171 ft\n#4 19:45:31Z   Alt 2487 ft   GS 262 kt\nNative G 1.10 G   Est G 1.00 G\nLat 50.37280, Lon -105.67038\nPosition: TIGHT — interval 220 ft, fore/aft -223 ft",
+    "spacing": "1-2: 40 ft Closure 0 kt\n1-3: 210 ft Closure +1 kt\n1-4: 314 ft Closure +1 kt\n2-3: 181 ft Closure +2 kt\n2-4: 280 ft Closure +1 kt\n3-4: 111 ft Closure 0 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 40 ft\nAA 75°   HCA vs Lead 0°   Closure 0 kt\nNative G --   Est G 1.00 G\n#3 Range 210 ft\nAA 36°   HCA vs Lead 0°   Closure +1 kt\nNative G 0.93 G   Est G 1.00 G   ΔG +0.07\n#4 Range 314 ft\nAA 45°   HCA vs Lead 0°   Closure +1 kt\nNative G 1.10 G   Est G 1.00 G   ΔG -0.10",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 850,
+    "time": "t = 19:48:08Z",
+    "live": "#1 19:48:08Z   Alt 2147 ft   GS 120 kt\nNative G --   Est G 1.00 G\nLat 50.33833, Lon -105.59146\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 19:48:08Z   Alt 3357 ft   GS 146 kt\nNative G --   Est G 1.01 G\nLat 50.34469, Lon -105.60930\nPosition: TIGHT / AFT — interval 8 ft, fore/aft -4954 ft\n#3 19:48:08Z   Alt 2883 ft   GS 143 kt\nNative G 1.26 G   Est G 1.25 G\nLat 50.33680, Lon -105.61581\nPosition: TIGHT / AFT / FORE — interval 3323 ft, fore/aft -4772 ft, #3 aft 4772 ft\n#4 19:48:08Z   Alt 3482 ft   GS 136 kt\nNative G 0.93 G   Est G 1.01 G\nLat 50.33303, Lon -105.61352\nPosition: TIGHT / AFT — interval 1019 ft, fore/aft -3650 ft",
+    "spacing": "1-2: 4954 ft Closure -141 kt\n1-3: 5815 ft Closure -83 kt\n1-4: 5672 ft Closure -167 kt\n2-3: 3336 ft Closure -18 kt\n2-4: 4541 ft Closure -111 kt\n3-4: 1515 ft Closure -33 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 4954 ft\nAA 0°   HCA vs Lead 99°   Closure -141 kt\nNative G --   Est G 1.01 G\n#3 Range 5815 ft\nAA 35°   HCA vs Lead 119°   Closure -83 kt\nNative G 1.26 G   Est G 1.25 G   ΔG -0.01\n#4 Range 5672 ft\nAA 50°   HCA vs Lead 176°   Closure -167 kt\nNative G 0.93 G   Est G 1.01 G   ΔG +0.08",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 875,
+    "time": "t = 19:50:46Z",
+    "live": "#1 19:50:46Z   Alt 1878 ft   GS 8 kt\nNative G --   Est G --\nLat 50.32883, Lon -105.55595\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 19:50:46Z   Alt 1879 ft   GS 7 kt\nNative G --   Est G --\nLat 50.32850, Lon -105.55618\nPosition: TIGHT — interval 47 ft, fore/aft -124 ft\n#3 19:50:46Z   Alt 1868 ft   GS 7 kt\nNative G 1.02 G   Est G --\nLat 50.32803, Lon -105.55708\nPosition: TIGHT / AFT / FORE — interval 16 ft, fore/aft -385 ft, #3 aft 385 ft\n#4 19:50:46Z   Alt 1917 ft   GS 12 kt\nNative G 0.97 G   Est G --\nLat 50.32753, Lon -105.55751\nPosition: TIGHT / AFT — interval 72 ft, fore/aft -582 ft",
+    "spacing": "1-2: 133 ft Closure 0 kt\n1-3: 385 ft Closure 0 kt\n1-4: 586 ft Closure +4 kt\n2-3: 263 ft Closure 0 kt\n2-4: 458 ft Closure +4 kt\n3-4: 205 ft Closure +4 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 133 ft\nAA 21°   HCA vs Lead 1°   Closure 0 kt\nNative G --   Est G --\n#3 Range 385 ft\nAA 2°   HCA vs Lead 2°   Closure 0 kt\nNative G 1.02 G   Est G --\n#4 Range 586 ft\nAA 7°   HCA vs Lead 2°   Closure +4 kt\nNative G 0.97 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 900,
+    "time": "t = 19:53:23Z",
+    "live": "#1 19:53:23Z   Alt 1871 ft   GS 8 kt\nNative G --   Est G --\nLat 50.33471, Lon -105.55230\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 19:53:23Z   Alt 1863 ft   GS 11 kt\nNative G --   Est G --\nLat 50.33445, Lon -105.55199\nPosition: TIGHT — interval 38 ft, fore/aft -112 ft\n#3 19:53:23Z   Alt 1859 ft   GS 8 kt\nNative G 0.93 G   Est G --\nLat 50.33428, Lon -105.55146\nPosition: TIGHT / AFT / FORE — interval 24 ft, fore/aft -251 ft, #3 aft 251 ft\n#4 19:53:23Z   Alt 1872 ft   GS 12 kt\nNative G 1.08 G   Est G --\nLat 50.33389, Lon -105.55099\nPosition: TIGHT / AFT — interval 81 ft, fore/aft -405 ft",
+    "spacing": "1-2: 118 ft Closure +3 kt\n1-3: 252 ft Closure 0 kt\n1-4: 413 ft Closure +4 kt\n2-3: 140 ft Closure -2 kt\n2-4: 296 ft Closure +1 kt\n3-4: 164 ft Closure +3 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 118 ft\nAA 19°   HCA vs Lead 13°   Closure +3 kt\nNative G --   Est G --\n#3 Range 252 ft\nAA 6°   HCA vs Lead 7°   Closure 0 kt\nNative G 0.93 G   Est G --\n#4 Range 413 ft\nAA 11°   HCA vs Lead 4°   Closure +4 kt\nNative G 1.08 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 925,
+    "time": "t = 19:56:00Z",
+    "live": "#1 19:56:00Z   Alt 1878 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33485, Lon -105.55440\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 19:56:00Z   Alt 1868 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33535, Lon -105.55598\nPosition: TIGHT / AFT — interval 185 ft, fore/aft -367 ft\n#3 19:56:00Z   Alt 1871 ft   GS 0 kt\nNative G 0.93 G   Est G --\nLat 50.33534, Lon -105.55562\nPosition: TIGHT / AFT / FORE — interval 181 ft, fore/aft -283 ft, #3 aft 283 ft\n#4 19:56:00Z   Alt 1884 ft   GS 1 kt\nNative G 1.02 G   Est G --\nLat 50.33528, Lon -105.55528\nPosition: TIGHT — interval 159 ft, fore/aft -205 ft",
+    "spacing": "1-2: 411 ft Closure 0 kt\n1-3: 336 ft Closure 0 kt\n1-4: 259 ft Closure 0 kt\n2-3: 84 ft Closure 0 kt\n2-4: 164 ft Closure 0 kt\n3-4: 81 ft Closure 0 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 411 ft\nAA 27°   HCA vs Lead 180°   Closure 0 kt\nNative G --   Est G --\n#3 Range 336 ft\nAA 33°   HCA vs Lead 0°   Closure 0 kt\nNative G 0.93 G   Est G --\n#4 Range 259 ft\nAA 38°   HCA vs Lead 38°   Closure 0 kt\nNative G 1.02 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 950,
+    "time": "t = 19:58:37Z",
+    "live": "#1 19:58:37Z   Alt 1864 ft   GS 1 kt\nNative G --   Est G --\nLat 50.33542, Lon -105.55539\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 19:58:37Z   Alt 1866 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33535, Lon -105.55596\nPosition: TIGHT — interval 67 ft, fore/aft 116 ft\n#3 19:58:37Z   Alt 1869 ft   GS 0 kt\nNative G 0.93 G   Est G --\nLat 50.33543, Lon -105.55534\nPosition: TIGHT / FORE — interval 8 ft, fore/aft -11 ft, #3 aft 11 ft\n#4 19:58:37Z   Alt 1871 ft   GS 0 kt\nNative G 0.93 G   Est G --\nLat 50.33542, Lon -105.55527\nPosition: TIGHT — interval 10 ft, fore/aft -27 ft",
+    "spacing": "1-2: 134 ft Closure +1 kt\n1-3: 13 ft Closure -1 kt\n1-4: 29 ft Closure -1 kt\n2-3: 147 ft Closure 0 kt\n2-4: 162 ft Closure 0 kt\n3-4: 16 ft Closure 0 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 134 ft\nAA 150°   HCA vs Lead 161°   Closure +1 kt\nNative G --   Est G --\n#3 Range 13 ft\nAA 36°   HCA vs Lead 71°   Closure -1 kt\nNative G 0.93 G   Est G --\n#4 Range 29 ft\nAA 20°   HCA vs Lead 161°   Closure -1 kt\nNative G 0.93 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 975,
+    "time": "t = 20:01:14Z",
+    "live": "#1 20:01:14Z   Alt 1897 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33571, Lon -105.55542\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 20:01:14Z   Alt 1871 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33573, Lon -105.55537\nPosition: TIGHT — interval 5 ft, fore/aft -13 ft\n#3 20:01:14Z   Alt 1869 ft   GS 0 kt\nNative G 0.93 G   Est G --\nLat 50.33573, Lon -105.55537\nPosition: TIGHT / FORE — interval 6 ft, fore/aft -15 ft, #3 aft 15 ft\n#4 20:01:14Z   Alt 1868 ft   GS 1 kt\nNative G 1.04 G   Est G --\nLat 50.33570, Lon -105.55519\nPosition: TIGHT — interval 44 ft, fore/aft -27 ft",
+    "spacing": "1-2: 14 ft Closure 0 kt\n1-3: 16 ft Closure 0 kt\n1-4: 52 ft Closure +1 kt\n2-3: 2 ft Closure 0 kt\n2-4: 41 ft Closure +1 kt\n3-4: 40 ft Closure +1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 14 ft\nAA 24°   HCA vs Lead 123°   Closure 0 kt\nNative G --   Est G --\n#3 Range 16 ft\nAA 21°   HCA vs Lead 123°   Closure 0 kt\nNative G 0.93 G   Est G --\n#4 Range 52 ft\nAA 59°   HCA vs Lead 120°   Closure +1 kt\nNative G 1.04 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   },
+   {
+    "slider": 1000,
+    "time": "t = 20:03:52Z",
+    "live": "#1 20:03:52Z   Alt 1975 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33553, Lon -105.55572\nLead desired: SLOW — target 200±10 kt, 1.0±0.20 G\n#2 20:03:52Z   Alt 1871 ft   GS 0 kt\nNative G --   Est G --\nLat 50.33573, Lon -105.55537\nPosition: TIGHT — interval 4 ft, fore/aft -108 ft\n#3 20:03:52Z   Alt 1869 ft   GS 0 kt\nNative G 0.93 G   Est G --\nLat 50.33573, Lon -105.55537\nPosition: TIGHT / FORE — interval 3 ft, fore/aft -110 ft, #3 aft 110 ft\n#4 20:03:52Z   Alt 1828 ft   GS 2 kt\nNative G 1.02 G   Est G --\nLat 50.33582, Lon -105.55517\nPosition: TIGHT — interval 1 ft, fore/aft -166 ft",
+    "spacing": "1-2: 108 ft Closure -2 kt\n1-3: 110 ft Closure -2 kt\n1-4: 166 ft Closure -2 kt\n2-3: 2 ft Closure 0 kt\n2-4: 58 ft Closure +1 kt\n3-4: 56 ft Closure +1 kt\nSpread: 4000-6000 ft, 3/9 ±250 ft\nOffset #3 aft: 8000 ±1000 ft\nLead: 200 ±10 kt, 1.0 ±0.20 G\nPositive closure means range is decreasing; negative means opening.",
+    "aspectHca": "#2 Range 108 ft\nAA 2°   HCA vs Lead 140°   Closure -2 kt\nNative G --   Est G --\n#3 Range 110 ft\nAA 2°   HCA vs Lead 79°   Closure -2 kt\nNative G 0.93 G   Est G --\n#4 Range 166 ft\nAA 0°   HCA vs Lead 110°   Closure -2 kt\nNative G 1.02 G   Est G --",
+    "tennis": "Off.",
+    "summary": "Ship\tPts\tStart\tEnd\n#1\t6166\t18:18:11Z\t20:03:52Z\n#2\t5571\t18:19:04Z\t20:04:23Z\n#3\t6068\t18:16:56Z\t20:04:17Z\n#4\t5595\t18:17:42Z\t20:04:41Z"
+   }
+  ],
+  "errors": []
+ },
+ "turnSim": {
+  "samples": [
+   {
+    "steps": 0,
+    "spacing": "1-2: 6000 ft (0.99 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 12000 ft (1.97 NM)\n2-4: 18000 ft (2.96 NM)",
+    "error": "#2: ON SPACING interval 6000 ft, fore/aft 0 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t6000 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 1,
+    "spacing": "1-2: 6000 ft (0.99 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 12000 ft (1.97 NM)\n2-4: 18000 ft (2.96 NM)",
+    "error": "#2: ON SPACING interval 6000 ft, fore/aft 0 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t6000 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 5,
+    "spacing": "1-2: 5998 ft (0.99 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 11998 ft (1.97 NM)\n2-4: 17998 ft (2.96 NM)",
+    "error": "#2: ON SPACING interval 5998 ft, fore/aft 0 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t5998 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 10,
+    "spacing": "1-2: 5992 ft (0.99 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 11992 ft (1.97 NM)\n2-4: 17992 ft (2.96 NM)",
+    "error": "#2: ON SPACING interval 5992 ft, fore/aft 0 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t5992 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 20,
+    "spacing": "1-2: 5971 ft (0.98 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 11971 ft (1.97 NM)\n2-4: 17971 ft (2.96 NM)",
+    "error": "#2: ON SPACING interval 5971 ft, fore/aft -1 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t5971 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 40,
+    "spacing": "1-2: 5887 ft (0.97 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 11887 ft (1.96 NM)\n2-4: 17887 ft (2.94 NM)",
+    "error": "#2: ON SPACING interval 5887 ft, fore/aft -12 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t5887 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 80,
+    "spacing": "1-2: 5563 ft (0.92 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 11563 ft (1.90 NM)\n2-4: 17562 ft (2.89 NM)",
+    "error": "#2: ON SPACING interval 5562 ft, fore/aft -89 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t5563 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 120,
+    "spacing": "1-2: 5064 ft (0.83 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 11059 ft (1.82 NM)\n2-4: 17058 ft (2.81 NM)",
+    "error": "#2: AFT interval 5056 ft, fore/aft -293 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t5064 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 160,
+    "spacing": "1-2: 4463 ft (0.73 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 10434 ft (1.72 NM)\n2-4: 16426 ft (2.70 NM)",
+    "error": "#2: AFT interval 4412 ft, fore/aft -670 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t4463 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   },
+   {
+    "steps": 200,
+    "spacing": "1-2: 3897 ft (0.64 NM)\n1-3: 6000 ft (0.99 NM)\n1-4: 12000 ft (1.97 NM)\n3-4: 6000 ft (0.99 NM)\n2-3: 9770 ft (1.61 NM)\n2-4: 15740 ft (2.59 NM)",
+    "error": "#2: TIGHT / AFT interval 3690 ft, fore/aft -1254 ft\n#3: ON SPACING interval 6000 ft, fore/aft 0 ft\n#4: ON SPACING interval 6000 ft, fore/aft 0 ft\n\nDesired interval: 4000-6000 ft. Line-abreast fore/aft: ±250 ft of Lead's 3/9. Offset box: #3 line 8000 ft aft ±1000 ft.",
+    "summary": "Metric\tValue\nCurrent min sep\t3897 ft\nTurn radius\t2474 ft\nTurn rate\t8.6°/sec\nTime to 90°\t10.5 sec\nBank angle\t60.0°\nSpeed\t220 KTAS"
+   }
+  ],
+  "errors": []
+ },
+ "bfm": {
+  "note": "seconds of real (faked) time after pressing Play",
+  "samples": [
+   {
+    "t": 0,
+    "live": "Range: 2.00 NM\nBlue angle-off: 0°\nRed angle-off: 0°\nTime since merge: 0.0 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: --",
+    "phase": "HEAD-TO-HEAD"
+   },
+   {
+    "t": 5,
+    "live": "Range: 1.39 NM\nBlue angle-off: 0°\nRed angle-off: 0°\nTime since merge: 0.0 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: --",
+    "phase": "HEAD-TO-HEAD"
+   },
+   {
+    "t": 10,
+    "live": "Range: 0.77 NM\nBlue angle-off: 0°\nRed angle-off: 0°\nTime since merge: 0.0 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: --",
+    "phase": "HEAD-TO-HEAD"
+   },
+   {
+    "t": 20,
+    "live": "Range: 0.42 NM\nBlue angle-off: 145°\nRed angle-off: 145°\nTime since merge: 3.7 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: --",
+    "phase": "2 CIRCLE"
+   },
+   {
+    "t": 30,
+    "live": "Range: 0.55 NM\nBlue angle-off: 49°\nRed angle-off: 49°\nTime since merge: 13.7 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: --",
+    "phase": "2 CIRCLE"
+   },
+   {
+    "t": 45,
+    "live": "Range: 0.72 NM\nBlue angle-off: 84°\nRed angle-off: 84°\nTime since merge: 28.7 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: BLUE @ +18.2 sec",
+    "phase": "2 CIRCLE"
+   },
+   {
+    "t": 60,
+    "live": "Range: 0.63 NM\nBlue angle-off: 120°\nRed angle-off: 120°\nTime since merge: 43.7 sec\nBlue ΔAlt: 0 ft • Red ΔAlt: 0 ft\nVertical separation: 0 ft\nFirst nose-on: BLUE @ +18.2 sec",
+    "phase": "2 CIRCLE"
+   }
+  ],
+  "errors": []
+ }
+}
