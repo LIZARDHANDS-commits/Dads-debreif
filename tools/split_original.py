@@ -34,6 +34,6 @@ def kml(m):
     return m.group(1) + stash(b64, "kml") + '"'
 
 text = re.sub(r'(data:[a-z]+/[a-z0-9.+-]+;base64,)([A-Za-z0-9+/]+=*)', data_uri, text)
-text = re.sub(r'("b64":")([A-Za-z0-9+/]+=*)"', kml, text)
+text = re.sub(r'("b64":"|b64:")([A-Za-z0-9+/]+=*)"', kml, text)
 (out_dir / "shell.html").write_text(text, encoding="utf-8")
 (out_dir / "original.sha256").write_text(hashlib.sha256(src.read_bytes()).hexdigest() + "\n")
