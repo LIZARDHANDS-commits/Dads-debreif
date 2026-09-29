@@ -4,7 +4,7 @@ Status: **draft for Patrick's review**. Nothing moves out of `original/` until t
 
 This is the top-level spec. It says which pieces the new app is made of, what each piece owns, which pieces depend on which, and the order we build them in. Each module then gets its own `specs/SPEC-<module-id>.md` before its code is written.
 
-Requirement IDs (R1–R21) and decision numbers (D1–D30) refer to the tabs in the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Requirement IDs (R1–R21) and decision numbers (D1–D34) refer to the tabs in the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
@@ -18,7 +18,7 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 2. Vite is used only as the dev server and bundler (D13, proposed). The source still runs as plain modules.
 3. Hosting is GitHub Pages from this repo (D12, proposed). A service worker makes it work offline after one visit (D15, proposed; R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
-5. Live weather comes from any reliable public source that allows browser requests (Patrick: any weather source is fine).
+5. Live weather comes from an official source first (aviationweather.gov) with a backup, both tested from a real browser (D33).
 
 ## Why the code is split this way
 
@@ -160,10 +160,13 @@ Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
 
 ## Open questions
 
-These need Dad or Patrick and are also in the Questions tab. None of them blocks step 1 of the build order. V6 is not in use (Patrick, 2026-09-29), so no V6 fix jumps the queue and the SOF stays last.
+This one needs Dad and is also in the Questions tab (Q18). It does not block step 1 of the build order. V6 is not in use (Patrick, 2026-09-29), so no V6 fix jumps the queue and the SOF stays last.
 
-1. Flight-math corrections: the audit found places where V6's numbers look wrong (EM turn rate halved; 3D bank halved and mirrored; Turn Sim "toward/away" and "wide/tight" inverted for some aircraft; 4312/2134 drawn mirrored; auto-timing delay). Fix them, or keep V6 behaviour?
-2. Lead "desired parameters": is the 200 kt target ground speed or indicated airspeed?
-3. How should GPS dropouts and bad fixes in a ForeFlight track be shown (gap in the line, marker, or hidden)?
-4. Weather source: V6's SOF gets all METAR/TAF from one unidentified third-party proxy (datamask.org) with no fallback. The plan is an official source first (such as aviationweather.gov) with a fallback, chosen after testing from a real browser.
-5. Lightning: V6 shows none (every lightning view is hidden). Which one should the SOF show: the ECCC density image (official, Canada only) or the Blitzortung live strikes (unofficial feed)?
+1. Flight-math corrections: the audit found places where V6's numbers are wrong (EM turn rate halved; 3D bank halved and mirrored; Turn Sim "toward/away" inverted and "wide/tight" inverted for aircraft on lead's right; auto timing holding wingmen for #1) and two that depend on Dad's intent (whether 4312/2134 are drawn mirrored; the auto-timing delay rule). Fix them, or keep V6 behaviour? The plan doc's Flight math check tab has the reasoning and a V6 test run for each.
+
+## Settled since the first draft
+
+- The lead's 200 kt target is indicated airspeed. The debrief converts GPS ground speed to an estimated IAS, labelled "est. IAS" (D31).
+- GPS gaps break the track line and blank the spacing readouts, and impossible points are dropped with a note in the status line (D32).
+- Weather: an official source first (aviationweather.gov) with a backup, both tested from a real browser (D33).
+- Lightning: Blitzortung live strikes (D34). Its terms of use get checked when the SOF is built.
