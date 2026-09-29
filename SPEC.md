@@ -1,6 +1,6 @@
 # Spec: DAD's OODA LOOP, module map
 
-Status: **draft for Patrick's review**. Nothing moves out of `original/` until this map is approved.
+Status: **approved by Patrick on 2026-09-29**. Changes to the map go through a pull request, and each module gets its own spec before its code is written.
 
 This is the top-level spec. It says which pieces the new app is made of, what each piece owns, which pieces depend on which, and the order we build them in. Each module then gets its own `specs/SPEC-<module-id>.md` before its code is written.
 
