@@ -4,7 +4,7 @@ Status: **draft for Patrick's review**. Nothing moves out of `original/` until t
 
 This is the top-level spec. It says which pieces the new app is made of, what each piece owns, which pieces depend on which, and the order we build them in. Each module then gets its own `specs/SPEC-<module-id>.md` before its code is written.
 
-Requirement IDs (R1–R21) and decision numbers (D1–D29) refer to the tabs in the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Requirement IDs (R1–R21) and decision numbers (D1–D30) refer to the tabs in the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
