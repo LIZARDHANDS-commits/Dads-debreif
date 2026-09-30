@@ -34,11 +34,14 @@ export function phaseText(state) {
   return state.setup.circles === 1 ? '1-CIRCLE' : '2-CIRCLE';
 }
 
-/** Who got first nose-on and when after the merge, "Blue at +18.2 s"; "--" until then (V6 `first`, line 4279). */
+/**
+ * Who got first nose-on and when after the merge, "Blue at +18.2 s"; "--" until
+ * then (V6 `first`, line 4279). A tie reads "Both at +18.2 s" (Q48).
+ */
 export function firstNoseText(state) {
   const mark = state.firstNose;
   if (!mark) return '--';
-  const who = mark.by === 'blue' ? 'Blue' : 'Red';
+  const who = mark.both ? 'Both' : mark.by === 'blue' ? 'Blue' : 'Red';
   return `${who} at +${(mark.timeSec - state.mergeSec).toFixed(1)} s`;
 }
 

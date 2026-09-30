@@ -101,6 +101,16 @@ test('first nose-on reads "Blue at +18.2 s", counted from the merge, or "Red at 
   assert.equal(firstNoseText(b), 'Blue at +12.6 s');
 });
 
+test('Q48: a tie reads "Both at +18.2 s", in the card and in firstNoseText', () => {
+  const s = createFight();
+  while (!s.firstNose) stepFight(s, 0.02);
+  assert.equal(firstNoseText(s), 'Both at +18.2 s');
+  assert.equal(byId(resultRows(s)).firstNose.text, 'Both at +18.2 s');
+  const one = createFight({ circles: 1 });
+  while (!one.firstNose) stepFight(one, 0.02);
+  assert.equal(firstNoseText(one), 'Both at +9.1 s');
+});
+
 test('time since the merge counts up from the merge to one decimal and is 0.0 s before it', () => {
   const s = createFight();
   stepFight(s, 10);

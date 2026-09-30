@@ -92,9 +92,12 @@ function compareAircraft(mine, v6p, stepNo, name, who) {
   near(mine.pitchRad, v6p.pitch, RAD_TOL, `${who} pitch`, stepNo, name);
 }
 
-/** Exact ties (same speed, G and pitch) are decided by rounding noise in V6, so who is named, in the marked line and in the "Blue at / Red at" readout, isn't pinned (Q48). */
-const isTie = (g) => (g.blueKt ?? 220) === (g.redKt ?? 220) && (g.blueG ?? 4) === (g.redG ?? 4)
-  && (!g.vertical || (g.bluePitchDeg ?? 0) === (g.redPitchDeg ?? 0));
+/**
+ * Q48, the one difference on a tie. When both noses come within 5° in the same step V6 names one aircraft, in an even
+ * fight by rounding noise. The rebuild marks it `both`, and the readout says "Both at +18.2 s" where V6 names one.
+ * V6's own two angles at that step say whether it was a tie; everything else (the time, the line, the chase) is V6's.
+ */
+const isBothAtMark = (v6) => v6.ao(v6.S.a, v6.S.b) <= 5 && v6.ao(v6.S.b, v6.S.a) <= 5;
 
 // ── The readouts against the text V6 writes on the page ──────────────────────
 
@@ -138,15 +141,12 @@ function ourReadouts(state) {
 }
 
 let readoutsCompared = 0;
-function compareReadouts(v6, mine, stepNo, name) {
+function compareReadouts(v6, mine, stepNo, name, v6Both) {
   const want = v6InRebuildWords(v6.text);
   const got = ourReadouts(mine);
-  if (isTie(mine.setup) && mine.firstNose) {
-    // Who is named on a tie isn't pinned (Q48); "--" before first nose-on still is, and so is the time.
-    const when = (text) => text.replace(/^(Blue|Red) at /, '');
-    assert.equal(when(got.firstNose), when(want.firstNose), `${name}: first nose-on time at step ${stepNo}`);
-    delete got.firstNose;
-    delete want.firstNose;
+  if (v6Both) {
+    // Q48, the one readout difference on a tie: V6 names an aircraft, the rebuild says "Both".
+    want.firstNose = want.firstNose.replace(/^(Blue|Red) at /, 'Both at ');
   }
   if (!mine.setup.vertical) {
     // With Climb and dive off the rebuild doesn't show height, and V6 shows zero.
@@ -167,16 +167,17 @@ for (const setup of GRID) {
     const v6 = createV6Fight(fightSetup);
     const mine = createFight(fightSetup);
     near(mine.mergeSec, v6.S.merge, 1e-12, 'merge time', 0, name);
-    let seenNose = false, seenMerge = false;
-    compareReadouts(v6, mine, 0, name);
+    let seenNose = false, seenMerge = false, v6Both = false;
+    compareReadouts(v6, mine, 0, name, v6Both);
     for (let i = 1; i <= STEPS; i++) {
       v6.step(FIGHT_STEP_SEC);
       stepFight(mine, FIGHT_STEP_SEC);
+      if (v6.S.firstNose && !seenNose) v6Both = isBothAtMark(v6);
       // Every 25th step, every step around the merge and first nose-on, and the last one.
       const nearMerge = Math.abs(mine.timeSec - mine.mergeSec) < 0.1;
       const nearNose = mine.firstNose && mine.timeSec - mine.firstNose.timeSec < 0.1;
       const readoutsDue = i % 25 === 0 || i === STEPS || nearMerge || nearNose;
-      if (readoutsDue) compareReadouts(v6, mine, i, name);
+      if (readoutsDue) compareReadouts(v6, mine, i, name, v6Both);
       near(mine.timeSec, v6.t, 1e-12, 'fight time', i, name);
       if (mine.merged !== v6.S.done) assert.fail(`${name}: merged is ${mine.merged}, V6 ${v6.S.done}, at step ${i}`);
       seenMerge ||= mine.merged;
@@ -187,16 +188,14 @@ for (const setup of GRID) {
       if (want && !seenNose) {
         seenNose = true;
         near(got.timeSec, want.t, 1e-12, 'first nose-on time', i, name);
-        if (isTie(fightSetup)) {
-          // A tie: either aircraft may be named (see isTie); the pair of points is the same.
-          const pts = (a, b) => [a.xFt ?? a.x, a.yFt ?? a.y, b.xFt ?? b.x, b.yFt ?? b.y].map(Math.abs);
-          pts(got.from, got.to).forEach((v, k) => near(v, pts(want.from, want.to)[k], FT_TOL, 'first nose-on line', i, name));
+        assert.equal(got.both, v6Both, `${name}: a tie is marked as both (Q48), nothing else is, at step ${i}`);
+        const close = (p, q) => Math.abs(p.xFt - q.x) <= FT_TOL && Math.abs(p.yFt - q.y) <= FT_TOL;
+        if (v6Both) {
+          // A tie: V6 names either aircraft, the rebuild draws the line from Blue; it is the same two points.
+          assert.ok((close(got.from, want.from) && close(got.to, want.to)) || (close(got.from, want.to) && close(got.to, want.from)), `${name}: first nose-on line, at step ${i}`);
         } else {
           assert.equal(got.by, want.id === 'a' ? 'blue' : 'red', `${name}: who got first nose-on, at step ${i}`);
-          near(got.from.xFt, want.from.x, FT_TOL, 'first nose-on line', i, name);
-          near(got.from.yFt, want.from.y, FT_TOL, 'first nose-on line', i, name);
-          near(got.to.xFt, want.to.x, FT_TOL, 'first nose-on line', i, name);
-          near(got.to.yFt, want.to.y, FT_TOL, 'first nose-on line', i, name);
+          assert.ok(close(got.from, want.from) && close(got.to, want.to), `${name}: first nose-on line, at step ${i}`);
         }
       }
     }

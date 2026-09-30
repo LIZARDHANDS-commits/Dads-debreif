@@ -158,21 +158,24 @@ function fly(p, perf, d, vertical) {
 /**
  * The first aircraft whose nose is within 5° of the other is marked, once,
  * after the merge, with where both were at that moment (V6 `checkFirstNose`,
- * line 4241). If both are within 5° in the same step, V6 names the one with
- * the smaller angle, which in an even fight is rounding noise (Q48 changes it).
+ * line 4241). V6 names the one with the smaller angle if both are within 5°
+ * in the same step, which in an even fight is rounding noise. Q48 changes that
+ * one thing: both within 5° in the same step is a tie, marked `both: true`.
+ * `by` still names an aircraft for code that reads it ('blue' for a tie, never
+ * rounding noise), and the line still runs from Blue to Red in that case.
  */
 function checkFirstNose(state) {
   if (!state.merged || state.firstNose) return;
   const blueOff = offNoseDeg(state.blue, state.red);
   const redOff = offNoseDeg(state.red, state.blue);
   if (blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG) {
-    let byBlue;
-    if (blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG) byBlue = blueOff <= redOff;
-    else byBlue = blueOff <= FIRST_NOSE_DEG;
+    const both = blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG;
+    const byBlue = both || blueOff <= FIRST_NOSE_DEG;
     const by = byBlue ? 'blue' : 'red';
     const other = byBlue ? 'red' : 'blue';
     state.firstNose = {
       by,
+      both,
       timeSec: state.timeSec,
       from: { xFt: state[by].xFt, yFt: state[by].yFt },
       to: { xFt: state[other].xFt, yFt: state[other].yFt },

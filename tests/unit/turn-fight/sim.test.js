@@ -125,9 +125,45 @@ test('a 360° turn takes 360 ÷ rate seconds: heading is back where it started a
   assert.equal(r1(turnSec), 18.7);
 });
 
-test('first nose-on at V6\'s defaults: +18.2 s in a 2-circle fight, +9.1 s in a 1-circle fight (a tie, either aircraft may be named)', () => {
+test('first nose-on at V6\'s defaults: +18.2 s in a 2-circle fight, +9.1 s in a 1-circle fight (a tie, so it is marked as both)', () => {
   assert.equal(r1(sinceMerge(runUntil({ circles: 2 }, (s) => s.firstNose))), 18.2);
   assert.equal(r1(sinceMerge(runUntil({ circles: 1 }, (s) => s.firstNose))), 9.1);
+});
+
+test('Q48: a tie is marked as both: an even fight has `both` true in either fight type, and an uneven one has it false', () => {
+  for (const circles of [1, 2]) {
+    const tie = runUntil({ circles }, (s) => s.firstNose);
+    assert.equal(tie.firstNose.both, true, `${circles}-circle, even`);
+    assert.ok(offNoseDeg(tie.blue, tie.red) <= 5 && offNoseDeg(tie.red, tie.blue) <= 5, 'both noses are within 5°');
+    // `by` stays a valid aircraft for code that reads the old field: Blue, never rounding noise.
+    assert.equal(tie.firstNose.by, 'blue');
+  }
+  assert.equal(runUntil({ blueKt: 250, redKt: 200 }, (s) => s.firstNose).firstNose.both, false);
+  assert.equal(runUntil({ blueG: 5 }, (s) => s.firstNose).firstNose.both, false);
+});
+
+test('Q48: both within 5° in the same step is "both" even when the fight is uneven; the line still runs Blue to Red', () => {
+  // Noses on each other from the merge point's two sides, then one step: neither leaves 5° in 0.02 s.
+  const s = createFight({ blueKt: 250, redKt: 200 });
+  s.merged = true;
+  s.timeSec = s.mergeSec;
+  Object.assign(s.blue, { xFt: -1000, yFt: 0, headingRad: 0 });
+  Object.assign(s.red, { xFt: 1000, yFt: 0, headingRad: Math.PI });
+  stepFight(s, FIGHT_STEP_SEC);
+  assert.equal(s.firstNose.both, true);
+  assert.deepEqual(s.firstNose.from, { xFt: s.blue.xFt, yFt: s.blue.yFt });
+  assert.deepEqual(s.firstNose.to, { xFt: s.red.xFt, yFt: s.red.yFt });
+});
+
+test('Q48: with First nose chases a tie chases the same as V6 does: both turn toward each other at their own rate', () => {
+  const s = createFight({ chase: true });
+  while (!s.firstNose) stepFight(s, FIGHT_STEP_SEC);
+  assert.equal(s.firstNose.both, true);
+  const before = [s.blue.headingRad, s.red.headingRad];
+  stepFight(s, FIGHT_STEP_SEC);
+  // Turning toward each other, neither more than rate × step.
+  const maxTurn = s.perf.blue.rateRadPerSec * FIGHT_STEP_SEC + 1e-12;
+  assert.ok(Math.abs(wrapPi(s.blue.headingRad - before[0])) <= maxTurn && Math.abs(wrapPi(s.red.headingRad - before[1])) <= maxTurn);
 });
 
 test('first nose-on in an uneven 2-circle fight goes to the faster turn: Red at 200 kt beats Blue at 250 kt, at +14.4 s', () => {
