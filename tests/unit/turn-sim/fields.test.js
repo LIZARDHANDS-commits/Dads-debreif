@@ -1,7 +1,7 @@
 // The Turn Sim's words (fields.js) and the clock-cue status lines (readouts.js), for the clock and auto timing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { optionsOf, clockLabel, errorFields } from '../../../src/modules/turn-sim/fields.js';
+import { optionsOf, clockLabel, errorFields, CHECK_SOLVE } from '../../../src/modules/turn-sim/fields.js';
 import { cueStatus } from '../../../src/modules/turn-sim/readouts.js';
 import { SETTINGS_RULES } from '../../../src/modules/turn-sim/settings.js';
 
@@ -107,4 +107,10 @@ test('N7: the Auto clock position reads 4:30 right and 7:30 left for the Delayed
   const { clockAutoLabel } = await import('../../../src/modules/turn-sim/fields.js');
   assert.equal(clockAutoLabel('delayed45away'), 'Auto (4:30 right, 7:30 left)');
   for (const maneuver of ['delayed90away', 'hook90', 'inplace90', 'check30']) assert.equal(clockAutoLabel(maneuver), 'Auto (7 right, 5 left)');
+});
+
+// C4: the roll-in hint must not print a spacing that only holds at the defaults (3,924 ft at 6,000, 2,849 at 4,000, 4,999 at 8,000).
+test('the Roll in hint quotes no distance, since the spacing it ends at follows the set Spacing (C4)', () => {
+  assert.ok(!/\d/.test(CHECK_SOLVE.hint), CHECK_SOLVE.hint);
+  assert.match(CHECK_SOLVE.hint, /two thirds of the set spacing/);
 });
