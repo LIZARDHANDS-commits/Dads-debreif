@@ -20,26 +20,34 @@ export function imageAddress({ mime, data }) {
 
 /**
  * onChange(): asks for a redraw when a picture has loaded. makeImage: for
- * tests. Returns { draw(ctx, { items, toScreen }), state(), dispose() }.
+ * tests. A picture that fails to decode or is too large asks for a redraw too, so the
+ * words under the map can stop naming it. Returns { draw(ctx, { items, toScreen }), state(), dispose() }.
  * items: [{ key, mime, data, box, alpha }] bottom first; key names the frame
  * (layer and time); box is { minLat, maxLat, minLon, maxLon }; toScreen(lat, lon)
  * gives [x, y] in CSS pixels.
  */
 export function createSavedWeatherLayer({ onChange, makeImage = () => new Image() }) {
-  const images = new Map(); // key → { image, ready, failed }
-  let last = { wanted: 0, ready: 0, failed: 0 };
+  const images = new Map(); // key → { image, data, ready, failed }
+  let last = { wanted: 0, ready: 0, failed: 0, failedKeys: [] };
 
   function entryFor(item) {
     let entry = images.get(item.key);
+    // The same key for other bytes (another debrief's picture for the same layer and time) is another picture.
+    if (entry && entry.data !== item.data) {
+      entry.image.onload = entry.image.onerror = null;
+      images.delete(item.key);
+      entry = undefined;
+    }
     if (entry) {
       images.delete(item.key); // back to the newest end
     } else {
-      entry = { image: makeImage(), ready: false, failed: false };
+      entry = { image: makeImage(), data: item.data, ready: false, failed: false };
       const { image } = entry;
       image.onload = () => {
         // A small file can decode to a huge picture: whatever the file said, nothing bigger than we asked for is drawn.
         if (image.naturalWidth > LIMITS.maxPixels || image.naturalHeight > LIMITS.maxPixels) {
           entry.failed = true;
+          onChange();
           return;
         }
         entry.ready = true;
@@ -47,6 +55,7 @@ export function createSavedWeatherLayer({ onChange, makeImage = () => new Image(
       };
       image.onerror = () => {
         entry.failed = true;
+        onChange();
       };
       image.src = imageAddress(item);
     }
@@ -62,10 +71,10 @@ export function createSavedWeatherLayer({ onChange, makeImage = () => new Image(
   return {
     draw(ctx, { items, toScreen }) {
       let ready = 0;
-      let failed = 0;
+      const failedKeys = [];
       for (const item of items) {
         const entry = entryFor(item);
-        if (entry.failed) failed += 1;
+        if (entry.failed) failedKeys.push(item.key);
         if (!entry.ready) continue;
         ready += 1;
         const [x1, y1] = toScreen(item.box.maxLat, item.box.minLon); // north-west
@@ -75,9 +84,9 @@ export function createSavedWeatherLayer({ onChange, makeImage = () => new Image(
         ctx.drawImage(entry.image, Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
         ctx.restore();
       }
-      last = { wanted: items.length, ready, failed };
+      last = { wanted: items.length, ready, failed: failedKeys.length, failedKeys };
     },
-    /** What the last draw found: { wanted, ready, failed } pictures. */
+    /** What the last draw found: { wanted, ready, failed } pictures, and the keys of those that failed. */
     state: () => last,
     dispose() {
       for (const { image } of images.values()) image.onload = image.onerror = null;

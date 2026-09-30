@@ -4,7 +4,8 @@
 // the way in, so the standards are flattened to "standards.spread.minFt" and
 // so on. Plain values only; tested in Node.
 import { renameDfp, setDfpNote, sortDfps, DFP_LIMITS } from './dfp.js';
-import { MAX_SAVED_CHARS, weatherForFile } from './weather/saved-radar.js';
+import { MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
+import { weatherForFile } from './weather/saved-radar.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
@@ -21,17 +22,38 @@ export const WEATHER_KEY = 'savedWeather';
 
 /**
  * The rules readDebriefFile checks the file's settings against, from
- * app.standards.limits. `weather`: also keep the saved radar's block, up to
- * the longest text saved-radar.js allows (it checks the inside itself).
+ * app.standards.limits. `weather`: also keep the saved radar's block, of any
+ * length a file the tool opens can have, so a block over the length
+ * saved-radar.js allows reaches its checks and is left out with a line (the
+ * file reader would drop it without a word). saved-radar.js checks the inside.
  */
 export function settingsRules(limits, { weather = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
-  if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_SAVED_CHARS };
+  if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_DEBRIEF_BYTES };
   for (const [group, fields] of Object.entries(limits)) {
     rules[`${PREFIX}${group}.on`] = { type: 'boolean' };
     for (const [key, limit] of Object.entries(fields)) rules[`${PREFIX}${group}.${key}`] = { type: 'number', min: limit.min, max: limit.max };
   }
   return rules;
+}
+
+/**
+ * The saved radar's setting as the file has it, for savedFromSetting. The file
+ * reader drops a setting that is not text without a word, so when it kept none
+ * but the file's text names the key, the file's own settings are looked at
+ * (rarely; a parse of a big file) and whatever is there comes back as it is,
+ * so the debrief can say it left it out. `text`: the file's text. `settings`:
+ * what readDebriefFile kept. undefined when the file has none.
+ */
+export function weatherSettingOf(text, settings) {
+  if (Object.hasOwn(settings, WEATHER_KEY)) return settings[WEATHER_KEY];
+  if (!text.includes(`"${WEATHER_KEY}"`)) return undefined;
+  try {
+    const own = JSON.parse(text).settings;
+    return own && typeof own === 'object' && Object.hasOwn(own, WEATHER_KEY) ? own[WEATHER_KEY] : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

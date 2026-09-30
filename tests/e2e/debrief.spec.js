@@ -2032,3 +2032,88 @@ test('saved radar: a button left on screen as the 3 hours pass says "Not kept" w
   await expect(savedWxStatus(page)).toHaveText('Not kept: radar is only available for 3 hours after the flight.');
   await expect(saveWxButton(page)).toBeHidden();
 });
+
+// A debrief file saved from the example flight, its saved radar block swapped for `block` (F4).
+async function openWithWeatherSetting(page, file, value) {
+  const tampered = { ...file, settings: { ...file.settings, savedWeather: value } };
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles({ name: 'tampered.dadsdebrief.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(tampered)) });
+  await expect(status(page)).toHaveText(/^4 tracks loaded/, { timeout: 30_000 });
+}
+async function savedExampleFile(page) {
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  return JSON.parse(readFileSync(await download.path(), 'utf8'));
+}
+const closeFlight = async (page) => {
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  await expect(status(page)).toHaveText('No flight loaded');
+};
+
+test('saved radar: a block over 36 MiB, a setting that is not text and pictures outside the flight are each left out with a line (F4a, F4b)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { startT, endT } = await flightWindow(page);
+  await setNow(page, endT + 5 * 3600);
+  const file = await savedExampleFile(page);
+  await closeFlight(page);
+  const message = page.locator('.debrief-message');
+  const box = { minLat: 50, maxLat: 51, minLon: -106, maxLon: -105 };
+  const rain = ECCC_PICTURES.RADAR_1KM_RRAI.toString('base64');
+
+  // (a) A block a byte over 36 MiB, and one that is not text: the file used to open with no word about either.
+  await openWithWeatherSetting(page, file, 'x'.repeat(36 * 1024 * 1024 + 1));
+  await expect(message).toHaveText(/^The radar and lightning saved in this file couldn't be read \(it is too big\), so they were left out\. The rest of the debrief is as saved\.$/);
+  await closeFlight(page);
+  await openWithWeatherSetting(page, file, 12345);
+  await expect(message).toHaveText(/couldn't be read \(it is not text\), so they were left out/);
+  await closeFlight(page);
+
+  // (b) One picture outside the flight's window in an otherwise good block: kept 1, and the line says one was left out.
+  const frames = [{ layer: 'rain', t: Math.ceil(startT), mime: 'image/png', data: rain }, { layer: 'rain', t: 1000, mime: 'image/png', data: rain }];
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames }));
+  await expect(message).toHaveText('The saved radar and lightning has 1 picture outside the flight, so it was left out.');
+  await openWeather(page);
+  await expect(savedWxStatus(page)).toHaveText(/^Kept with this debrief: 1 radar and lightning picture, /);
+  await closeFlight(page);
+  // Nothing outside: no line.
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames: frames.slice(0, 1) }));
+  await expect(message).toBeHidden();
+});
+
+// A PNG whose header says 64 by 64 and whose body is nothing: it passes the checks and cannot be decoded.
+function undecodablePng() {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(64, 0);
+  ihdr.writeUInt32BE(64, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(13);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), length, Buffer.from('IHDR'), ihdr, Buffer.alloc(4), Buffer.alloc(200, 7)]);
+}
+
+test('saved radar: a picture that cannot be decoded is not named by the line under the map, and gets no credit (F4c)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, startT, endT } = await flightWindow(page);
+  await setNow(page, endT + 5 * 3600);
+  const file = await savedExampleFile(page);
+  await closeFlight(page);
+  const box = { minLat: 50, maxLat: 51, minLon: -106, maxLon: -105 };
+  const t0 = Math.ceil(startT);
+  const frames = [{ layer: 'rain', t: t0, mime: 'image/png', data: undecodablePng().toString('base64') }];
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames }));
+  await scrubber.fill(String(t0 + 60));
+  const credit = page.locator('.map-credit');
+  await openWeather(page);
+  await page.getByLabel('Radar', { exact: true }).check();
+  await expect(credit).toHaveText("Radar: the picture couldn't be drawn.");
+  await expect(credit).not.toContainText('Data Source');
+  await expect(credit).not.toContainText(hhmm(t0));
+  // A picture that does decode is named as before.
+  await closeFlight(page);
+  const good = [{ layer: 'rain', t: t0, mime: 'image/png', data: ECCC_PICTURES.RADAR_1KM_RRAI.toString('base64') }];
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames: good }));
+  await scrubber.fill(String(t0 + 60));
+  await expect(credit).toHaveText(new RegExp(`^Radar ${hhmm(t0)}Z, 1 min before · Data Source: Environment and Climate Change Canada$`));
+});
+

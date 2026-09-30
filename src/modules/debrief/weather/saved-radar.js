@@ -387,6 +387,18 @@ export function savedFromSetting(text, { startT, endT }) {
 }
 
 /**
+ * The line for pictures in a file that fall outside the flight's window and were
+ * left out (savedFromSetting's `dropped`): '' for none. They are not in a file
+ * saved again, so the words say they were left out.
+ */
+export function droppedNotice(count) {
+  if (!(count > 0)) return '';
+  return count === 1
+    ? 'The saved radar and lightning has 1 picture outside the flight, so it was left out.'
+    : `The saved radar and lightning has ${count} pictures outside the flight, so they were left out.`;
+}
+
+/**
  * What goes into the debrief file for a kept set: { text } once it has been read
  * back through the reader's own checks against this flight's window and comes
  * back whole, else { problem } (words for the user) and no text: what is written
@@ -466,9 +478,11 @@ export function savedSummary(saved) {
 /**
  * The words for one Weather item ('radar' or 'lightning') under the map. on:
  * whether its item is on. recent: whether the flight is within 3 hours
- * (radarKept). saved: the kept set or null. t: the playback time. '' when off.
+ * (radarKept). saved: the kept set or null. t: the playback time. notDrawn:
+ * the keys ("rain@1780000000") of pictures the browser could not draw, which
+ * the line never names a time for. '' when off.
  */
-export function radarNote({ item, on, recent, saved, t }) {
+export function radarNote({ item, on, recent, saved, t, notDrawn = new Set() }) {
   if (!on) return '';
   const label = ITEM_LABEL[item];
   if (!saved) {
@@ -479,18 +493,21 @@ export function radarNote({ item, on, recent, saved, t }) {
   if (!ITEM_LAYERS[item].some((layer) => saved.frames.some((f) => f.layer === layer))) return `${label}: none was saved with this debrief.`;
   const drawn = framesToDraw(saved, item, t);
   if (!drawn.length) return `${label}: no picture kept for this moment.`;
-  const newest = drawn.reduce((a, b) => (b.frame.t > a.frame.t ? b : a));
-  return `${label} ${hhmmZ(newest.frame.t)}, ${ageText(newest.ageS)}`;
+  const shown = drawn.filter((d) => !notDrawn.has(`${d.layer}@${d.frame.t}`));
+  if (!shown.length) return `${label}: the picture couldn't be drawn.`;
+  const newest = shown.reduce((a, b) => (b.frame.t > a.frame.t ? b : a));
+  const line = `${label} ${hhmmZ(newest.frame.t)}, ${ageText(newest.ageS)}`;
+  return shown.length < drawn.length ? `${line}; a picture couldn't be drawn` : line;
 }
 
 /**
  * The whole line under the map for the saved layers: each item that is on
  * (`radar`, `lightning`: booleans), joined, with ECCC's credit once after them
- * when a picture is showing. '' when both are off.
+ * when a picture is showing. notDrawn: as radarNote's. '' when both are off.
  */
-export function savedNoteLine({ radar, lightning, recent, saved, t }) {
+export function savedNoteLine({ radar, lightning, recent, saved, t, notDrawn = new Set() }) {
   const items = [['radar', radar], ['lightning', lightning]].filter(([, on]) => on).map(([item]) => item);
-  const parts = items.map((item) => radarNote({ item, on: true, recent, saved, t }));
-  const showing = items.some((item) => framesToDraw(saved, item, t).length > 0);
+  const parts = items.map((item) => radarNote({ item, on: true, recent, saved, t, notDrawn }));
+  const showing = items.some((item) => framesToDraw(saved, item, t).some((d) => !notDrawn.has(`${d.layer}@${d.frame.t}`)));
   return [...parts, ...(showing ? [ECCC_CREDIT] : [])].join(' · ');
 }
