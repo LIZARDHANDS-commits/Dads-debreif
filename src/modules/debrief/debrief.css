@@ -443,7 +443,7 @@
   margin-top: var(--space-2);
 }
 
-/* Save, open, examples */
+/* Save, open, CSV */
 [data-module='debrief'] .file-panel {
   margin-top: var(--space-3);
 }
