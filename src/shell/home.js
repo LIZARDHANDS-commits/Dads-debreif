@@ -5,10 +5,10 @@
 import { h } from '../ui-kit/dom.js';
 import { MODULES, isBuilt } from './registry.js';
 
-// 'system' follows the computer's reduced-motion setting; 'on' and 'off' override it.
+// 'system' follows the computer's reduced-motion setting; 'full' and 'reduced' override it.
 export function motionAllowed(setting, systemPrefersReduced) {
-  if (setting === 'on') return true;
-  if (setting === 'off') return false;
+  if (setting === 'full') return true;
+  if (setting === 'reduced') return false;
   return !systemPrefersReduced;
 }
 
@@ -78,7 +78,7 @@ export default {
     const videos = cards.map((c) => c.video).filter(Boolean);
     const visible = new Set();
     const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const allowed = () => motionAllowed(app.settings.get().reduceMotion, reduced?.matches ?? false);
+    const allowed = () => motionAllowed(app.settings.get().motion, reduced?.matches ?? false);
 
     const update = () => {
       for (const video of videos) {

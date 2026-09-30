@@ -31,7 +31,13 @@ export function createSettings(store, defaults, { version = 1, allowed = {}, mig
     if (!saved || typeof saved !== 'object') return clean(null);
     if (saved.version === version) return clean(saved.values);
     if (typeof migrate === 'function' && Number.isInteger(saved.version) && saved.version < version) {
-      const migrated = clean(migrate(saved.values ?? {}, saved.version));
+      let migrated;
+      try {
+        migrated = clean(migrate(saved.values ?? {}, saved.version));
+      } catch (err) {
+        console.error('Old settings could not be converted; using the defaults:', err);
+        return clean(null);
+      }
       save(migrated);
       return migrated;
     }

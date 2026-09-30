@@ -39,9 +39,9 @@ test('home files follow static imports and styles but not modules loaded on dema
   assert.deepEqual(files, ['assets/index.css', 'assets/index.js', 'assets/shared.js', 'index.html']);
 });
 
-test('measure adds up home files and card videos', () => {
+test('measure adds up home files, card stills and card videos', () => {
   const result = measure(fakeDist({ mediaBytes: 4321 }));
-  assert.equal(result.homeBytes, 100 + 200 + 50 + 25);
+  assert.equal(result.homeBytes, 100 + 200 + 50 + 25 + 1000); // the still counts toward the home screen
   assert.equal(result.mediaBytes, 4321 + 100);
   assert.deepEqual(check(result), []);
 });

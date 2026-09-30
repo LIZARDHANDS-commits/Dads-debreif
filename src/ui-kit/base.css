@@ -138,6 +138,9 @@ button:disabled {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
+/* Reduced motion: components take their durations from --motion-duration
+   (tokens.css), which is 0 here. This catch-all covers anything that doesn't,
+   but any class selector outranks it, so don't rely on it. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

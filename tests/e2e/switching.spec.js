@@ -29,3 +29,37 @@ test('Tab moves between controls instead of hiding panels (#35)', async ({ page 
   expect(new Set(focused).size).toBeGreaterThan(3);
   expect(await page.locator('main :visible').count()).toBe(visibleBefore);
 });
+
+test('the skip link moves focus to the page without changing it @smoke', async ({ page }) => {
+  await openRoute(page, '#/about');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.skip-link')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#\/about$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.locator('#route-notice')).toBeHidden();
+  await expect(page.locator('#view')).toBeFocused();
+});
+
+test('opening a page starts at its top, with focus on the new page', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 600 });
+  await openRoute(page, '#/');
+  const about = page.locator('a.card-about');
+  await about.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  await about.click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await expect(page.locator('#view')).toBeFocused();
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement.closest('#view') !== null)).toBe(true);
+});
+
+test('choosing still pictures turns transitions off too', async ({ page }) => {
+  await openRoute(page, '#/');
+  const duration = () => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-duration')));
+  expect(await duration()).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel('Card videos').selectOption('reduced');
+  expect(await duration()).toBe(0);
+});

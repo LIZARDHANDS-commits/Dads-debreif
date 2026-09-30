@@ -51,9 +51,9 @@ test('the Settings dialog controls change settings, and Done closes it', async (
   await openRoute(page, '#/');
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByLabel('Local first, Zulu beside it').check();
-  await page.getByLabel('Card videos').selectOption('off');
+  await page.getByLabel('Card videos').selectOption('reduced');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ooda:v1:app:settings')).values);
-  expect(saved).toEqual({ timePrimary: 'local', reduceMotion: 'off' });
+  expect(saved).toEqual({ timePrimary: 'local', motion: 'reduced' });
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
 });

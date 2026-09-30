@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
-const DEFAULTS = { timePrimary: 'zulu', reduceMotion: 'system', spacingFt: 6000, showLabels: true };
-const ALLOWED = { timePrimary: ['zulu', 'local'], reduceMotion: ['system', 'on', 'off'] };
+const DEFAULTS = { timePrimary: 'zulu', motion: 'system', spacingFt: 6000, showLabels: true };
+const ALLOWED = { timePrimary: ['zulu', 'local'], motion: ['system', 'full', 'reduced'] };
 
 const freshStore = () => createStore(undefined).scope('app');
 
@@ -26,7 +26,7 @@ test('values of the wrong type, outside the allowed list, or unknown are ignored
   store.set('settings', { version: 1, values: { timePrimary: 'mars', spacingFt: '6000', showLabels: 'yes', extra: 1 } });
   const settings = createSettings(store, DEFAULTS, { allowed: ALLOWED });
   assert.deepEqual(settings.get(), DEFAULTS);
-  settings.update({ reduceMotion: 'sometimes', extra: 2, spacingFt: Number.NaN });
+  settings.update({ motion: 'sometimes', extra: 2, spacingFt: Number.NaN });
   assert.deepEqual(settings.get(), DEFAULTS);
 });
 
@@ -76,5 +76,19 @@ test('an older saved version with no migrate function falls back to the defaults
   const store = freshStore();
   store.set('settings', { version: 1, values: { timePrimary: 'local' } });
   const settings = createSettings(store, DEFAULTS, { version: 2, allowed: ALLOWED });
+  assert.deepEqual(settings.get(), DEFAULTS);
+});
+
+test('a migrate function that throws falls back to the defaults instead of stopping the app', (t) => {
+  t.mock.method(console, 'error', () => {});
+  const store = freshStore();
+  store.set('settings', { version: 1, values: { odd: true } });
+  const settings = createSettings(store, DEFAULTS, {
+    version: 2,
+    allowed: ALLOWED,
+    migrate: () => {
+      throw new Error('unexpected shape');
+    },
+  });
   assert.deepEqual(settings.get(), DEFAULTS);
 });
