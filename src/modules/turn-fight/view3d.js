@@ -81,15 +81,25 @@ export function levelBankRad(g) {
 }
 
 /**
+ * Whether the MERGE mark is drawn: only when the jets pass each other at the centre, the same as the top-down
+ * view. A start with the turns at once, or with a range that is not closing, has no pass to mark.
+ */
+export function showsMergeMark(fight) {
+  return fight.mergeMark === true;
+}
+
+/**
  * Which way an aircraft is turning, for its bank: +1 left (counter-clockwise), -1 right, 0 not turning.
- * Before the merge both fly straight. After it, Blue turns left and Red turns left in a 2-circle fight
- * and right in a 1-circle fight (sim.js). With First nose chases, once someone has their nose on, each
+ * Before the merge both fly straight. After it each turns toward the other as the fight set it up
+ * (`fight.turnDir`, read when the turns start; Blue left and Red left at the head-on start), and Red
+ * the other way in a 1-circle fight (sim.js). With First nose chases, once someone has their nose on, each
  * turns toward the other; while it points within half a degree of the other it keeps `last`, so the bank
  * does not flicker from side to side.
  */
 export function turnDirection(fight, who, last = 0) {
   if (!fight.merged) return 0;
-  const fixed = who === 'red' && fight.setup.circles === 1 ? -1 : 1;
+  const set = fight.turnDir?.[who] ?? 1;
+  const fixed = who === 'red' && fight.setup.circles === 1 ? -set : set;
   if (!(fight.setup.chase && fight.firstNose)) return fixed;
   const other = who === 'blue' ? 'red' : 'blue';
   const a = fight[who];
@@ -461,6 +471,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
       altToZ(groundZ, ALT_SCALE),
     );
     gl.mark.scale.setScalar(MERGE_MARK_PX / pxPerFt);
+    gl.mark.visible = showsMergeMark(fight);
     if (gl.nose) {
       gl.nose.material.dashSize = DASH_PX[0] / pxPerFt;
       gl.nose.material.gapSize = DASH_PX[1] / pxPerFt;
@@ -476,6 +487,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     };
     at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, -22, -26, gl.labels.blue);
     at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, 12, -26, gl.labels.red);
+    gl.labels.merge.style.display = showsMergeMark(fight) ? '' : 'none';
     at({ x: 0, y: 0, z: 0 }, 8, 22, gl.labels.merge);
     const noseText = firstNoseText(fight.firstNose);
     if (gl.labels.firstNose.textContent !== noseText) gl.labels.firstNose.textContent = noseText;
@@ -585,7 +597,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
   host.setAttribute('role', 'img');
   host.setAttribute(
     'aria-label',
-    '3D view of the fight. Blue (B) and Red (R) start head-on and meet at the MERGE mark. Drag to turn it, scroll or pinch to zoom, press plus and minus to zoom and the arrow keys to turn it. The tables beside it give the numbers.',
+    '3D view of the fight. Blue (B) and Red (R) fly toward each other and pass at the MERGE mark. Drag to turn it, scroll or pinch to zoom, press plus and minus to zoom and the arrow keys to turn it. The tables beside it give the numbers.',
   );
   for (const [type, fn] of hands) host.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
 

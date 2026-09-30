@@ -5,11 +5,12 @@
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import { timeText, phaseText, resultRows, moreDetailRows } from './readouts.js';
+import { timeText, phaseText, resultRows, moreDetailRows, geometryRows } from './readouts.js';
 import { DEFAULTS, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults } from './state.js';
+import { START_DEFAULTS } from './geometry.js';
 import { createRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
-import { createTopDownView } from './view.js';
+import { createTopDownView, createStartPictureView } from './view.js';
 import { createProfileView } from './profile.js';
 import { createView3d } from './view3d.js';
 
@@ -73,12 +74,19 @@ function mount(root, app) {
         showSettingsInBoxes();
         resetFight();
       },
+      // Start geometry's own reset (R28): head-on, level, the turns at the pass.
+      headOn() {
+        settings.update({ ...START_DEFAULTS });
+        showSettingsInBoxes();
+      },
       moreToggled: (open) => open && renderReadouts(),
       cameraView: (name) => view3d.setView(name),
     },
   });
   root.append(ui.element);
   views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
+  // The picture in Turn Fight settings, Start geometry: drawn from the set numbers, so it follows them as they change.
+  views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => setupFrom(settings.get()) }));
   // The side view draws only while Climb and dive is on; its panel is hidden (and 0 px) otherwise.
   const profile = createProfileView(ui.profileCanvas, { timers: app.scheduler, run: () => run, scale: () => settings.get().heightScale });
   views.push({
@@ -126,7 +134,7 @@ function mount(root, app) {
       time: timeText(fight),
       phase: phaseText(fight),
       result: resultRows(fight),
-      more: ui.moreOpen ? moreDetailRows(fight) : null,
+      more: ui.moreOpen ? [...moreDetailRows(fight), ...geometryRows(fight)] : null,
     });
   }
 

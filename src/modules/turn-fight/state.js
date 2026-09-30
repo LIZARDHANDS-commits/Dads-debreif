@@ -4,6 +4,7 @@
 import { V6_DEFAULT_SETUP } from './sim.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
+import { START_DEFAULTS } from './geometry.js';
 
 /**
  * Every setting and its opening value (V6's where V6 had one). The fight's own
@@ -14,6 +15,7 @@ import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
  */
 export const DEFAULTS = Object.freeze({
   ...V6_DEFAULT_SETUP,
+  ...START_DEFAULTS, // R28: head-on, level, turns at the pass
   energy: false,
   heightScale: 2,
   playbackRate: 1,
@@ -24,7 +26,7 @@ export const DEFAULTS = Object.freeze({
 });
 
 /** The settings that make up a fight; changing one resets it (V6 `reset`, line 4294). */
-export const FIGHT_KEYS = Object.freeze(Object.keys(V6_DEFAULT_SETUP));
+export const FIGHT_KEYS = Object.freeze(Object.keys({ ...V6_DEFAULT_SETUP, ...START_DEFAULTS }));
 
 /** Values a saved setting may take besides "any number in range" (createSettings `allowed`). */
 export const ALLOWED = Object.freeze({
@@ -33,6 +35,10 @@ export const ALLOWED = Object.freeze({
   playbackRate: [0.5, 1, 2, 4],
   view: [...VIEW_ALLOWED],
   paint: PAINT_OPTIONS.map((option) => option.value),
+  // R28, Start geometry
+  startAtaSide: ['left', 'right'],
+  startAaSide: ['left', 'right'],
+  turnsAt: ['pass', 'once'],
 });
 
 /** The G box's label: plain "G" (the T-6 cannot sustain every G in the box at every speed, so not "Sustained G"). */
@@ -47,6 +53,10 @@ export const RANGES = Object.freeze({
   redG: { min: 1.1, max: 9, step: 0.1, unit: 'G' },
   bluePitchDeg: { min: -60, max: 60, step: 1, unit: '°' },
   redPitchDeg: { min: -60, max: 60, step: 1, unit: '°' },
+  // R28, Start geometry (SPEC-turn-fight, "The screen")
+  startAtaDeg: { min: 0, max: 180, step: 5, unit: '°' },
+  startAaDeg: { min: 0, max: 180, step: 5, unit: '°' },
+  redAboveFt: { min: -5000, max: 5000, step: 500, unit: 'ft' },
 });
 
 /** The setup sim.js's createFight takes, from the settings. */

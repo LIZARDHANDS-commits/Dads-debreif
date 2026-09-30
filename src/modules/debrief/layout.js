@@ -47,6 +47,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const picker = h('div', { class: 'debrief-picker', hidden: true });
   const busyLine = h('p', { class: 'debrief-busy', role: 'status' });
   const message = h('p', { class: 'debrief-message', role: 'alert', hidden: true });
+  // Why 3D can't start: by the 2D | 3D switch that was pressed, not in the Flight column (RC-3).
+  const viewMessage = h('p', { class: 'debrief-view-message', role: 'alert', hidden: true });
 
   const statusButton = h('button', { type: 'button', class: 'flight-status', disabled: true, 'aria-expanded': 'false', 'aria-controls': 'debrief-status-details' });
   const statusText = h('span', {}, flightSummary(null));
@@ -73,6 +75,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const fitButton = h('button', { type: 'button', class: 'button', disabled: true, onclick: () => handlers.fit?.() }, 'Fit');
   // A menu: a real button that opens a small panel over the map, and closes
   // again on Escape or a click elsewhere.
+  const menus = [];
   function menu(label, id, children) {
     const button = h('button', { type: 'button', class: 'button menu-button', 'aria-expanded': 'false', 'aria-controls': id }, label);
     const body = h('div', { class: 'debrief-menu-body', id, hidden: true }, ...children);
@@ -80,10 +83,21 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     const setOpen = (open) => {
       body.hidden = !open;
       button.setAttribute('aria-expanded', String(open));
-      // It ends above the map's bottom edge, so it never covers the playback
-      // bar or a panel below the map; a longer menu scrolls.
-      if (open) body.style.maxHeight = `${Math.max(160, mapWrap.getBoundingClientRect().bottom - body.getBoundingClientRect().top - 8)}px`;
+      if (open) place();
     };
+    // It stays over the map, as D183 asks from the 1280 px floor up: no wider than the map,
+    // and opened leftward from its button when it would pass the map's right edge, so it
+    // never scrolls the page sideways or covers a column. It ends above the map's bottom
+    // edge, so it never covers the playback bar or a panel below the map; a longer menu scrolls.
+    function place() {
+      const map = mapWrap.getBoundingClientRect();
+      body.style.left = '';
+      body.style.maxWidth = `${Math.max(0, map.width)}px`;
+      const box = body.getBoundingClientRect();
+      const over = box.right - map.right;
+      if (over > 0) body.style.left = `${-Math.min(over, Math.max(0, box.left - map.left))}px`;
+      body.style.maxHeight = `${Math.max(160, map.bottom - box.top - 8)}px`;
+    }
     button.addEventListener('click', () => setOpen(body.hidden));
     wrap.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || body.hidden) return;
@@ -94,6 +108,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     listen(document, 'pointerdown', (e) => {
       if (!wrap.contains(e.target)) setOpen(false);
     });
+    menus.push({ body, place });
     return { element: wrap, setOpen };
   }
 
@@ -228,10 +243,11 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const metarRawBox = h('details', { class: 'debrief-metar-details' }, h('summary', {}, 'Report as sent'), metarRaw);
   const metarLine = h('div', { class: 'debrief-metar', role: 'status', hidden: true }, metarText, metarRawBox);
   const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit);
+  const toolbar = h('div', { class: 'debrief-toolbar' }, viewSwitch, viewMessage, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element);
   const stage = h(
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
-    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element),
+    toolbar,
     mapWrap,
     bar.element,
     metarLine,
@@ -328,6 +344,23 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     message.hidden = !text;
   }
 
+  function setViewMessage(text) {
+    const next = text ?? '';
+    if (viewMessage.textContent !== next) viewMessage.textContent = next;
+    if (viewMessage.hidden === Boolean(next)) viewMessage.hidden = !next;
+  }
+
+  // An open menu is placed again whenever the map or the toolbar changes size (a column opened
+  // or closed, the EM panel, a window resize) and when the view switches, which moves the buttons
+  // without resizing the toolbar.
+  const placeOpenMenus = () => {
+    for (const m of menus) if (!m.body.hidden) m.place();
+  };
+  const resizer = globalThis.ResizeObserver ? new globalThis.ResizeObserver(placeOpenMenus) : null;
+  resizer?.observe(mapWrap);
+  resizer?.observe(toolbar);
+  let shownView = null;
+
   function applyLayout(values) {
     flightPanel.setCollapsed(!values.flightColumn);
     formationPanel.setCollapsed(!values.formationColumn);
@@ -336,6 +369,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
     // One view shows at a time; the other's canvas and tools hide (R12).
     const is3d = values.view === '3d';
+    if (is3d) setViewMessage(null); // a new try, so the old refusal goes
     canvas.hidden = is3d;
     canvas3d.hidden = !is3d;
     fitButton.hidden = is3d;
@@ -347,6 +381,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       chartsMenu.setOpen(false);
     } else view3dMenu.setOpen(false);
     credit.classList.toggle('is-3d', is3d);
+    if (values.view !== shownView) {
+      shownView = values.view;
+      placeOpenMenus();
+    }
     emPanel.hidden = !values.emOpen;
     const open = values.statusDetails && Boolean(flight);
     statusDetails.hidden = !open;
@@ -410,6 +448,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     renderReadouts: (r, extra) => readouts.render(r, flight, extra),
     showPicker,
     setMessage,
+    setViewMessage,
+    /** Stops watching the map's size. */
+    dispose: () => resizer?.disconnect(),
     setBusy(what) {
       busyLine.textContent = what ? `${what}…` : '';
       exampleButton.disabled = Boolean(what) || !canExample;

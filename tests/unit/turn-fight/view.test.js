@@ -8,6 +8,7 @@ import { toScreen } from '../../../src/ui-kit/canvas-view.js';
 import { createRun, advanceRun } from '../../../src/modules/turn-fight/playback.js';
 import {
   COLORS, MIN_REACH_FT, viewReachFt, topDownView, gridSpacingNm, gridLines, drawTopDown,
+  startPictureView, drawStartPicture,
 } from '../../../src/modules/turn-fight/view.js';
 
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
@@ -156,4 +157,45 @@ test('an empty box draws nothing and does not throw', () => {
   const ctx = recorder();
   assert.doesNotThrow(() => drawTopDown(ctx, { width: 0, height: 0 }, createRun({})));
   assert.equal(ctx.calls.length, 0);
+});
+
+// ── R28: the MERGE mark and the start picture ────────────────────────────────
+
+test('R28: the MERGE mark shows only when the jets pass each other at the centre: not with the turns at once', () => {
+  const at = (setup) => { const ctx = recorder(); drawTopDown(ctx, { width: 800, height: 500 }, createRun(setup)); return texts(ctx); };
+  assert.ok(at({ startAaDeg: 90 }).includes('MERGE'), 'a crossing start passes at the centre');
+  assert.ok(!at({ startAaDeg: 90, turnsAt: 'once' }).includes('MERGE'), 'the turns start at T+0, no pass');
+  assert.ok(!at({ startAaDeg: 0, redKt: 300 }).includes('MERGE'), 'the range is opening from the start');
+  assert.ok(at({}).includes('MERGE'), 'head-on, as V6');
+});
+
+const PICTURE_SIZE = { width: 240, height: 140 };
+const inside = (p, size = PICTURE_SIZE) => p[0] >= 0 && p[0] <= size.width && p[1] >= 0 && p[1] <= size.height;
+
+test('R28: the start picture puts both jets and their flight lines inside the box for any start', () => {
+  for (const change of [{}, { startAaDeg: 90 }, { startAtaDeg: 135, startAtaSide: 'right', startAaDeg: 20 }, { startAtaDeg: 90, startAaDeg: 90, separationNm: 10 }, { startAaDeg: 0, separationNm: 0.5 }]) {
+    const pic = startPictureView({ separationNm: 2, blueKt: 220, redKt: 220, startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 180, startAaSide: 'left', ...change }, PICTURE_SIZE);
+    for (const k of ['blue', 'red', 'blueAhead', 'redAhead']) assert.ok(inside(pic[k]), `${k} ${pic[k]} for ${JSON.stringify(change)}`);
+    assert.ok(pic.scale > 0 && Number.isFinite(pic.scale));
+  }
+});
+
+test('R28: head-on the picture is a level line: Blue on the left, Red on the right, flying toward each other', () => {
+  const pic = startPictureView({ separationNm: 2, blueKt: 220, redKt: 220, startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 180, startAaSide: 'left' }, PICTURE_SIZE);
+  near(pic.blue[1], pic.red[1], 1e-6);
+  assert.ok(pic.blue[0] < pic.red[0]);
+  assert.ok(pic.blueAhead[0] > pic.blue[0], 'Blue flies right');
+  assert.ok(pic.redAhead[0] < pic.red[0], 'Red flies left');
+});
+
+test('R28: the picture draws B, R and the range between them, in the aircraft colours', () => {
+  const ctx = recorder();
+  drawStartPicture(ctx, PICTURE_SIZE, { separationNm: 2, blueKt: 220, redKt: 220, startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 90, startAaSide: 'left' });
+  assert.ok(texts(ctx).includes('B') && texts(ctx).includes('R'));
+  assert.ok(texts(ctx).includes('2 NM'));
+  assert.ok(ctx.calls.some((c) => c.fn === 'fill' && c.style.fill === COLORS.blue));
+  assert.ok(ctx.calls.some((c) => c.fn === 'fill' && c.style.fill === COLORS.red));
+  const empty = recorder();
+  drawStartPicture(empty, { width: 0, height: 0 }, { separationNm: 2, blueKt: 220, redKt: 220, startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 180, startAaSide: 'left' });
+  assert.equal(empty.calls.length, 0, 'a closed menu has no size and draws nothing');
 });

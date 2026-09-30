@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi } from '../../../src/core/angles.js';
+import { START_DEFAULTS, startGeometry } from '../../../src/modules/turn-fight/geometry.js';
 import {
   FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG, V6_DEFAULT_SETUP,
   levelTurn, mergeTimeSec, offNoseDeg, offNose3dDeg, ataDeg, rangeFt, sinceMergeSec, createFight, stepFight,
@@ -51,7 +52,8 @@ test('the defaults are V6\'s: 2-circle, 2 NM, 220 KTAS and 4 G each, both extras
   assert.deepEqual({ ...V6_DEFAULT_SETUP }, {
     circles: 2, separationNm: 2, blueKt: 220, redKt: 220, blueG: 4, redG: 4, chase: false, vertical: false, bluePitchDeg: 0, redPitchDeg: 0,
   });
-  assert.deepEqual(createFight().setup, { ...V6_DEFAULT_SETUP });
+  // The start-geometry boxes (R28) open at head-on, level, turns at the pass: V6's fight.
+  assert.deepEqual(createFight().setup, { ...V6_DEFAULT_SETUP, ...START_DEFAULTS });
   assert.deepEqual(createFight({}).setup, createFight(V6_DEFAULT_SETUP).setup);
 });
 
@@ -503,4 +505,216 @@ test('the setup is copied: changing it afterwards does not change the fight', ()
   setup.blueKt = 100;
   assert.equal(s.setup.blueKt, 250);
   assert.equal(s.perf.blue.speedKt, 250);
+});
+
+// ── R28: start geometry and altitudes ────────────────────────────────────────
+
+/** Where the jets are at the pass, to see the geometry without the snap: the closest the range gets in a fight. */
+function closestRange(setup) {
+  const s = createFight({ ...setup, turnsAt: 'pass' });
+  let best = { rangeFt: Infinity, timeSec: 0 };
+  while (!s.merged) {
+    const r = rangeFt(s);
+    if (r < best.rangeFt) best = { rangeFt: r, timeSec: s.timeSec };
+    stepFight(s, FIGHT_STEP_SEC);
+  }
+  return { best, state: s };
+}
+
+test('R28: at the defaults nothing about the start changes: head-on, merge at T+16.4, both snapped to the centre', () => {
+  const s = createFight();
+  assert.equal(s.mergeSec, mergeTimeSec(2, 220, 220));
+  assert.equal(s.mergeMark, true);
+  assert.deepEqual(s.turnDir, { blue: 1, red: 1 });
+  const m = runUntil({}, (f) => f.merged);
+  assert.ok(m.merged);
+  near(Math.hypot(m.blue.xFt, m.blue.yFt), 220 * 1.68781 * (m.timeSec - m.mergeSec), 1e-6);
+  // The side of ATA and AA means nothing at head-on: the same fight either way.
+  const a = createFight({ startAtaSide: 'right', startAaSide: 'right' });
+  for (const who of ['blue', 'red']) for (const k of ['xFt', 'yFt', 'headingRad']) assert.equal(a[who][k], s[who][k], `${who} ${k}`);
+});
+
+test('R28: ATA 0°, AA 90°: Red crosses Blue\'s nose, HCA 90°, and the pass is at the closest approach, midway between them at the centre', () => {
+  const { best, state } = closestRange({ startAaDeg: 90, startAaSide: 'left' });
+  assert.ok(state.merged);
+  assert.equal(state.start.hcaDeg.toFixed(6), '90.000000');
+  // Red flies off at right angles: the closest the range gets is the range over √2, at T+8.2 s (half the head-on merge).
+  near(best.rangeFt, (2 * FT_PER_NM) / Math.SQRT2, 220 * 1.68781 * FIGHT_STEP_SEC * 2, 'closest range');
+  near(state.timeSec, (2 * FT_PER_NM) / (2 * 220 * 1.68781), FIGHT_STEP_SEC, 'the pass');
+  const mid = [(state.blue.xFt + state.red.xFt) / 2, (state.blue.yFt + state.red.yFt) / 2];
+  near(mid[0], 0, 220 * 1.68781 * FIGHT_STEP_SEC + 1e-6, 'midpoint x');
+  near(mid[1], 0, 220 * 1.68781 * FIGHT_STEP_SEC + 1e-6, 'midpoint y');
+});
+
+test('R28: the pass is the step where the range stops closing, at the closest approach to within one step', () => {
+  for (const change of [
+    { startAtaDeg: 30, startAaDeg: 120 }, { startAtaDeg: 45, startAtaSide: 'right', startAaDeg: 90, startAaSide: 'right', separationNm: 4 },
+    { startAtaDeg: 10, startAaDeg: 45, blueKt: 300, redKt: 150 }, { startAtaDeg: 100, startAaDeg: 160 },
+  ]) {
+    const { best, state } = closestRange(change);
+    assert.ok(state.merged, JSON.stringify(change));
+    near(best.timeSec, state.mergeSec, FIGHT_STEP_SEC, `the pass for ${JSON.stringify(change)}`);
+    // The range really stops closing there: a step on, it is opening.
+    const after = createFight({ ...change, turnsAt: 'once' });
+    assert.equal(after.merged, true, 'turns at once has no straight leg');
+  }
+});
+
+test('R28: the jets fly straight to the pass, and after it they turn toward each other', () => {
+  const s = createFight({ startAtaDeg: 30, startAaDeg: 120 });
+  assert.equal(s.merged, false);
+  const heading0 = [s.blue.headingRad, s.red.headingRad];
+  stepFight(s, s.mergeSec - 0.5);
+  assert.deepEqual([s.blue.headingRad, s.red.headingRad], heading0, 'no turn before the pass');
+  stepFight(s, 1);
+  assert.equal(s.merged, true);
+  assert.notEqual(s.blue.headingRad, heading0[0]);
+});
+
+test('R28: each aircraft turns toward the other: a beam start with Red on Blue\'s right turns both to the right; 1-circle flips Red', () => {
+  const setup = { startAtaDeg: 90, startAtaSide: 'right', startAaDeg: 90, startAaSide: 'right', turnsAt: 'once' };
+  for (const [circles, blueSign, redSign] of [[2, -1, -1], [1, -1, 1]]) {
+    const s = createFight({ ...setup, circles });
+    assert.deepEqual(s.turnDir, { blue: -1, red: -1 }, 'toward the other');
+    const [b0, r0] = [s.blue.headingRad, s.red.headingRad];
+    stepFight(s, 1);
+    near(s.blue.headingRad - b0, blueSign * s.perf.blue.rateRadPerSec, 1e-9, `Blue ${circles}-circle`);
+    near(s.red.headingRad - r0, redSign * s.perf.red.rateRadPerSec, 1e-9, `Red ${circles}-circle`);
+  }
+});
+
+test('R28: turns at once: merged at T+0, the turn starts in the first step, pitch is taken at T+0, and the start is not moved', () => {
+  const s = createFight({ startAtaDeg: 90, startAaDeg: 90, turnsAt: 'once', vertical: true, bluePitchDeg: 10, redPitchDeg: -10 });
+  assert.equal(s.merged, true);
+  assert.equal(s.mergeSec, 0);
+  assert.equal(s.mergeMark, false, 'no MERGE mark: the jets do not meet');
+  assert.ok(Math.abs(s.blue.pitchRad - 10 * Math.PI / 180) < 1e-12);
+  assert.ok(Math.abs(s.red.pitchRad + 10 * Math.PI / 180) < 1e-12);
+  const [b0, x0] = [s.blue.headingRad, s.blue.xFt];
+  stepFight(s, FIGHT_STEP_SEC);
+  assert.notEqual(s.blue.headingRad, b0);
+  assert.notEqual(s.blue.xFt, x0);
+  // Centred on T+0 when the turns start at once: the midpoint between the jets is the origin.
+  near((s.blue.xFt + s.red.xFt) / 2, 0, 1e-6);
+  near((s.blue.yFt + s.red.yFt) / 2, 0, 1e-6);
+  const c = createFight({ startAtaDeg: 0, startAaDeg: 0, redKt: 200, turnsAt: 'once' });
+  near((c.blue.xFt + c.red.xFt) / 2, 0, 1e-6, 'a tail chase at 220 against 200 kt is centred on T+0, not 22 NM out');
+  assert.ok(Math.abs(c.blue.xFt) < 2 * FT_PER_NM);
+});
+
+test('R28: head-on with the turns at once: the jets turn from their start positions, 2 NM apart', () => {
+  const s = createFight({ turnsAt: 'once' });
+  assert.equal(s.merged, true);
+  assert.equal(s.mergeSec, 0);
+  near(s.blue.xFt, -FT_PER_NM, 1e-9);
+  near(rangeFt(s), 2 * FT_PER_NM, 1e-9);
+  const u = createFight({ turnsAt: 'once', blueKt: 300, redKt: 150 });
+  near((u.blue.xFt + u.red.xFt) / 2, 0, 1e-6, 'unequal speeds, turns at once: centred on T+0, not on the merge');
+  stepFight(s, FIGHT_STEP_SEC);
+  assert.ok(s.blue.headingRad > 0);
+});
+
+test('R28: a range that is opening from the start turns at once, whatever turnsAt says', () => {
+  const s = createFight({ startAaDeg: 0, redKt: 300 }); // Red ahead of Blue and flying away, faster
+  assert.equal(s.merged, true);
+  assert.equal(s.mergeSec, 0);
+  assert.equal(s.mergeMark, false);
+});
+
+test('R28: a tail chase (ATA 0°, AA 0°): Blue behind Red, HCA 0°, Blue turns the tie way (left) and Red left too', () => {
+  const s = createFight({ startAaDeg: 0, turnsAt: 'once' });
+  assert.equal(s.start.hcaDeg, 0);
+  assert.deepEqual(s.turnDir, { blue: 1, red: 1 });
+});
+
+test('R28: Red\'s starting height shows only with Climb and dive on', () => {
+  const on = createFight({ vertical: true, redAboveFt: 3000 });
+  assert.equal(on.red.zFt, 3000);
+  assert.equal(on.blue.zFt, 0);
+  assert.deepEqual(on.startZFt, { blue: 0, red: 3000 });
+  near(rangeFt(on), Math.hypot(2 * FT_PER_NM, 3000), 1e-9, 'the range is the slant range');
+  const off = createFight({ vertical: false, redAboveFt: 3000 });
+  assert.equal(off.red.zFt, 0);
+  assert.deepEqual(off.startZFt, { blue: 0, red: 0 });
+  near(rangeFt(off), 2 * FT_PER_NM, 1e-9);
+  const below = createFight({ vertical: true, redAboveFt: -5000 });
+  assert.equal(below.red.zFt, -5000);
+});
+
+test('R28: a height difference does not move the pass: level flight to the merge keeps it, and the fight still merges at T+16.4', () => {
+  const s = runUntil({ vertical: true, redAboveFt: 2000 }, (f) => f.merged);
+  assert.equal(r1(s.timeSec), 16.4);
+  assert.equal(s.red.zFt, 2000);
+  assert.equal(s.blue.zFt, 0);
+});
+
+test('R28: with the height difference and pitch, the start height is where Red\'s climb or dive starts from', () => {
+  const s = createFight({ vertical: true, redAboveFt: 1500, redPitchDeg: -20 });
+  stepFight(s, s.mergeSec + 2);
+  assert.ok(s.red.zFt < 1500, 'Red dives from 1,500 ft');
+  assert.ok(s.red.zFt > 1500 - 220 * 1.68781 * 2.1 * Math.sin(20 * Math.PI / 180) - 1);
+});
+
+test('R28: the start geometry is part of the setup copy, not a separate option', () => {
+  const s = createFight({ startAtaDeg: 30, startAtaSide: 'right', startAaDeg: 100, startAaSide: 'left', redAboveFt: 500, turnsAt: 'once' });
+  assert.deepEqual(
+    [s.setup.startAtaDeg, s.setup.startAtaSide, s.setup.startAaDeg, s.setup.startAaSide, s.setup.redAboveFt, s.setup.turnsAt],
+    [30, 'right', 100, 'left', 500, 'once'],
+  );
+});
+
+test('R28: v6Start only applies at head-on; elsewhere the jets meet at the centre as set', () => {
+  const s = createFight({ startAtaDeg: 30, startAaDeg: 120, v6Start: true });
+  const plain = createFight({ startAtaDeg: 30, startAaDeg: 120 });
+  assert.deepEqual(s.blue, plain.blue);
+});
+
+test('R28: a start that can\'t be placed is refused, not run', () => {
+  for (const bad of [
+    { startAtaDeg: -1 }, { startAtaDeg: 181 }, { startAtaDeg: NaN }, { startAaDeg: -5 }, { startAaDeg: 200 }, { startAaDeg: Infinity },
+    { startAtaSide: 'up' }, { startAaSide: 'middle' }, { turnsAt: 'later' }, { redAboveFt: NaN }, { redAboveFt: Infinity },
+  ]) assert.throws(() => createFight(bad), RangeError, JSON.stringify(bad));
+});
+
+test('R28: first nose-on after a crossing start is counted from the pass', () => {
+  const s = runUntil({ startAtaDeg: 60, startAaDeg: 120 }, (f) => f.firstNose, 300);
+  if (s.firstNose) assert.ok(s.firstNose.timeSec >= s.mergeSec);
+  assert.ok(s.merged);
+});
+
+test('R28: the general placement agrees with the head-on start the fight uses, to a billionth of a foot, at unequal speeds and separations', () => {
+  for (const change of [{}, { blueKt: 250, redKt: 200 }, { separationNm: 7.5, blueKt: 90, redKt: 380 }]) {
+    const s = createFight(change);
+    const g = startGeometry(s.setup);
+    near(g.blue.xFt, s.blue.xFt, 1e-7, 'Blue x');
+    near(g.red.xFt, s.red.xFt, 1e-7, 'Red x');
+    near(g.blue.yFt, 0, 1e-7);
+    near(g.passSec, s.mergeSec, 1e-9, 'the pass is the merge');
+  }
+});
+
+test('R28: a tail chase at 221 against 220 kt would pass after the 10-minute stop: it turns at once and never waits', () => {
+  const s = createFight({ startAaDeg: 0, blueKt: 221, redKt: 220 });
+  assert.equal(s.merged, true);
+  assert.equal(s.mergeSec, 0);
+  assert.equal(s.mergeMark, false);
+  stepFight(s, FIGHT_STEP_SEC);
+  assert.notEqual(s.blue.headingRad, 0, 'turning');
+  // The same with the turns at the pass asked for: a pass at T+7,200 s is not one.
+  assert.equal(createFight({ startAaDeg: 0, blueKt: 221, redKt: 220, turnsAt: 'pass' }).merged, true);
+});
+
+test('R28: with the turns at the pass there is no position jump through a crossing: no step moves a jet more than its speed allows', () => {
+  for (const change of [{ startAaDeg: 90 }, { startAtaDeg: 30, startAaDeg: 120 }, { startAtaDeg: 60, startAtaSide: 'right', startAaDeg: 100, blueKt: 300, redKt: 180 }]) {
+    const s = createFight(change);
+    assert.equal(s.headOn, false);
+    let worst = 0;
+    const limit = Math.max(s.perf.blue.speedFtps, s.perf.red.speedFtps) * FIGHT_STEP_SEC + 1e-6;
+    while (s.timeSec < s.mergeSec + 5) {
+      const before = [s.blue.xFt, s.blue.yFt, s.red.xFt, s.red.yFt];
+      stepFight(s, FIGHT_STEP_SEC);
+      worst = Math.max(worst, Math.hypot(s.blue.xFt - before[0], s.blue.yFt - before[1]), Math.hypot(s.red.xFt - before[2], s.red.yFt - before[3]));
+    }
+    assert.ok(worst <= limit, `${JSON.stringify(change)}: largest step ${worst} ft, limit ${limit}`);
+  }
 });

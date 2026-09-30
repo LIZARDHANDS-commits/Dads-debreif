@@ -81,7 +81,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | Shown by default | Behind a checkbox (off by default), in the closed **Turn Fight settings** menu, or in a collapsed "More …" panel for extra readouts (R22) |
 |---|---|
 | Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6 |
-| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch beside their speed and G, and the side-view panel under the stage. The side view's height scale (1×, 2×, 4×) is in Turn Fight settings |
+| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, or TO THE PASS for other starts, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch beside their speed and G, and the side-view panel under the stage. The side view's height scale (1×, 2×, 4×) is in Turn Fight settings |
 | The top-down view: grid, trails, both aircraft, the MERGE mark, the first nose-on line | **More detail**: G, 360° time, each aircraft's off-nose angle (ATA), and true angle-off (one number), time since the merge, and with Climb and dive on, each aircraft's height change and the height between them |
 | Result: turn rate and turn radius for each aircraft, range, first nose-on | **Energy (T-6)**, off by default: see Energy mode for what it shows |
 | A warning beside a G box when that G is more than a T-6 can pull at that speed (see T-6 limit warning) | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
@@ -228,12 +228,13 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
 - **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
   - **Start altitude** for Blue and Red, each default 10,000 ft pressure altitude (see Start geometry and altitudes). That is the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and high enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
   - For Blue and Red: **merge speed** in KIAS (default 220).
-  - Beside each aircraft, the move the model chose and why, for example "Pitch back (220 KIAS, SMM entry 160 to 220)", then "MPT 160 KIAS" once it's there.
+  - Beside each aircraft, the move the model chose and why, for example "Pitch back: 220 KIAS, SMM entry 160 to 220", then "MPT 160 KIAS" once it's there.
 - **More energy settings**, the Energy section of Turn Fight settings:
   - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
   - **MPT speed**, default 160 KIAS (SMM 14.3 para 6).
   - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it; it's where the model changes to the level MPT (step 3).
   - **Pursuit** for the aircraft that gets its nose on first: Pure (default), Lead or Lag (see step 4).
+  - **Chase after a head-on pass**, off by default (pending Patrick's word): with it on, a head-on first nose-on starts the pursuit too (see step 4).
   - **Model settings for checking**, its own section at the bottom of Turn Fight settings, with its own "Reset to defaults" button: the numbers no manual gives, which Dad checks. A student never needs to open this.
     - Stall speed, default 86 KIAS.
     - Shaker, default 94 % of the stall-line G.
@@ -242,6 +243,11 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
     - Lead and lag points, default 1 s ahead and behind.
     - Roll rate, default 90°/s.
     - Pitch back bank, default 60° at a 160 KIAS entry, falling to 30° at 220. The rule is from EFIG p.441: more bank when slower, less when faster.
+    - Auto's split points, default 220 and 120 KIAS.
+    - Immelmann off-nose angle, default 120° (0 to 180): above 220 KIAS, when neither move gets a chase in the look-ahead, Auto flies the Immelmann when the other aircraft is more than this off the nose, else the pitch back.
+    - Lowest Immelmann top speed, default 120 KIAS (0 to VMO): an Immelmann that would be over the top slower than this is never picked.
+    - Look-ahead, default 60 s (0 to 120; 0 turns the race off): how far ahead Auto races the Immelmann against the pitch back above 220 KIAS.
+    - Deck margin, default 1,000 ft (0 to 10,000): under the MPT band and closer than this to the hard deck, Auto flies the MPT (level at the deck) instead of a slice or split S.
 - **Result** adds each aircraft's KIAS, altitude, G and current move, and the time and degrees of turn to reach the MPT. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
 - **Side view:** the side-view panel shows altitude against time for both aircraft, with the hard deck as a line for reference (no flag and no pause). It needs no height scale, because the heights are real.
 - **Two flags only** (Patrick, 2026-09-30), in the result card, words plus colour, per aircraft:
@@ -259,21 +265,24 @@ Every move is at full power (100 % torque), and the aircraft turns toward the ot
 
 | KIAS at the merge | Move | What the pilot does (SMM, EFIG) |
 |---|---|---|
-| above 220 | Immelmann | Wings level, a smooth pull to about 4 G, then held in the shaker up and over. Rolls upright approaching inverted (SMM 14.15 para 39, EFIG p.435) |
+| above 220 | Immelmann or pitch back | Whichever gets this aircraft's chase started sooner in a 60 s look-ahead of the real fight (Patrick: "whichever will get them into the position and win faster"). A run where the other's chase starts first, or this aircraft goes OVER G or STALLs, does not count, and a head-on pass is not a chase. On a tie, the move whose SMM band holds the entry speed (Immelmann 200 to 250, pitch back 160 to 220), else the pitch back. An Immelmann that would be over the top under 120 KIAS is never picked. With no chase for either in the look-ahead, the geometry decides: the Immelmann when the other is more than 120° off the nose, else the pitch back. Immelmann: wings level, a smooth pull to about 4 G, then held in the shaker up and over, rolling upright approaching inverted (SMM 14.15 para 39, EFIG p.435) |
 | 160 to 220 | Pitch back | Lift vector above the horizon: bank from the entry speed (setting above), pull to about 4 G, then held in the shaker (SMM 14.17 para 43, EFIG p.441) |
 | 120 to 160 | Slice | Lift vector past horizontal: 90° bank at 160 KIAS to 135° at 100 (SMM 14.18 para 46), squeezed to the shaker (EFIG p.444) |
-| below 120 | Split S | About 20° nose up, roll inverted at about 0.5 G, then pull through in the shaker to level (SMM 14.16 para 41). If that would take it below the hard deck (about 2,000 ft lost), it flies a slice instead |
+| below 120 | Split S | About 20° nose up, roll inverted at about 0.5 G, then pull through in the shaker, at most 5 G (Patrick, 2026-09-30 09:27Z; the SMM's Table 14.1 says about 4 G), to level (SMM 14.16 para 41). The split S uses core's shaker, 7 kt over the stall speed. If the height a split S loses from its top (core's, about 2,000 ft) would take it below the hard deck, it flies a slice instead |
 | 160 (within 5 kt) | MPT straight away | |
+| under the MPT band, within 1,000 ft of the hard deck | MPT (the level MPT at the deck) | No room to slice or split S (deck margin, a model setting); this comes before the slice and split S rows |
 
 The bands overlap in the SMM (the Immelmann is 200 to 250 and the pitch back 160 to 220; the split S is 100 to 120 and the slice 100 to 160). Auto takes the split points above, so the Immelmann is for speed the pitch back can't bleed, and the split S for speed the slice can't build.
 
-**2. Capture the MPT.** In a pitch back or slice, as KIAS nears the MPT speed, the pilot adjusts bank toward the MPT attitude, aiming to be there before 180° of turn (SMM 14.17 para 42, 14.18 para 44). After an Immelmann or split S rolls out, Auto looks at the speed again and picks the next move from step 1 (a "follow-on manoeuvre", SMM 14.15-14.16).
+**Both on Auto.** Each aircraft's race flies the other as it will really fly. Blue picks first, against the move Red would pick; Red then picks against Blue's plan. If Red's pick is not the one Blue raced against, Blue races again against Red's plan, and Red's race is run again against Blue's final pick. If Red's best move has then changed, the two picks answer each other in a circle, so Red keeps its pick, and its reason says "picked before the other's move was final", with both moves' times against Blue's final pick.
+
+**2. Capture the MPT.** In a pitch back or slice, as KIAS nears the MPT speed, the pilot adjusts bank toward the MPT attitude, aiming to be there before 180° of turn (SMM 14.17 para 42, 14.18 para 44). After an Immelmann or split S rolls out, Auto looks at the speed again and picks the next move from step 1 (a "follow-on manoeuvre", SMM 14.15-14.16). The model hands a pitch back or slice to the MPT when its speed 3 s ahead would reach the MPT speed. For a move entered above 220 KIAS (the top of the SMM pitch back band, fixed) the lead is 6 s: a pitch back from that fast climbs so steeply that a 3 s lead leaves the nose near vertical at the handover, and the speed then falls far under 160. A move that has not found the MPT speed by 170° of turn hands over anyway. These are model tuning, not boxes.
 
 **3. Hold the MPT.** There are two, from SMM 14.14:
-- **Above the hard deck: the constant-speed MPT** (CSMPT, para 37), the two-circle rate fight. It holds 160 KIAS and gives up height to do it. 70 to 75° bank, pulled to the shaker, with bank used to hold the speed. Speed rising: less bank, nose higher. Speed falling: more bank, nose lower (EFIG p.430, SMM 14.4 para 8). The model starts at 72.5° and trims bank within 60 to 85° to hold 160 ± 5 KIAS.
+- **Above the hard deck: the constant-speed MPT** (CSMPT, para 37), the two-circle rate fight. It holds 160 KIAS and gives up height to do it. 70 to 75° bank, pulled to the shaker, with bank used to hold the speed. Speed rising: less bank, nose higher. Speed falling: more bank, nose lower (EFIG p.430, SMM 14.4 para 8). The model has no fixed start bank: its speed-hold law sets the bank, kept within 60 to 85°, to hold 160 ± 5 KIAS; steady at 160 KIAS it settles at 72 to 73°.
 - **At the hard deck: the level MPT** (paras 34 to 36). When the aircraft gets down to the deck, the pilot raises the nose to level and holds it there by bank, not pitch, in the shaker at full power. The bank is about 75°. The model doesn't aim for a speed here: the speed settles wherever thrust meets drag. The SMM says that is about 150 KIAS minus the altitude in thousands of feet, 144 KIAS at a 6,000 ft deck, and the model must match it (see Checks).
 
-**4. Pursuit after first nose-on.** The aircraft that gets its nose on the other first stops its MPT and chases, in the pursuit picked under More energy settings (SMM 12.30 and 16.16):
+**4. Pursuit after first nose-on.** The first aircraft to get its nose within 5° of the other, with the other's aspect angle 150° or less (from behind, not a head-on pass), stops its MPT and chases, in the pursuit picked under More energy settings (SMM 12.30 and 16.16). A head-on first nose-on is still marked as first nose-on but starts no chase, unless Chase after a head-on pass is on:
 - **Pure:** nose on the other aircraft.
 - **Lead:** nose on where the other aircraft will be in 1 s, for a guns shot.
 - **Lag:** nose on where it was 1 s ago, to stop closing too fast and overshooting.
@@ -320,7 +329,11 @@ The defaults above that no manual gives, each a setting:
 - the lead and lag points: 1 s ahead and behind;
 - the roll rate: 90°/s;
 - the pitch back bank: 60° at 160 KIAS to 30° at 220;
-- Auto's split points: 220 and 120 KIAS.
+- Auto's split points: 220 and 120 KIAS;
+- Auto above 220 KIAS: the 60 s look-ahead, the 120° off-nose angle and the 120 KIAS lowest Immelmann top speed;
+- the deck margin: 1,000 ft;
+- the MPT handover lead: 3 s, and 6 s for a move entered above 220 KIAS;
+- chase after a head-on pass: off.
 
 Then a run from several merge speeds (100, 140, 180, 220 and 250 KIAS) against how the Harvard really flies. Until he answers, the defaults stand.
 
@@ -347,15 +360,15 @@ Any two of AA, HCA and ATA, with their sides, fix the third. The screen sets the
 - **Start geometry**, a section of the closed Turn Fight settings menu (R22). Its fields:
   - Red off Blue's nose (ATA): 0 to 180°, left or right, default 0°;
   - Red's aspect angle (AA): 0 to 180°, left or right, default 180°;
-  - the HCA, shown live;
+  - the HCA, shown live, with a line under it: "Pass at T+16.4 s", "Turns start at once (the jets pass at T+16.4 s)", or "No pass: the turns start at once" (no closing range, or a pass after the 10-minute stop);
   - a small picture of the start, drawn from the numbers;
-  - a "Head-on (V6)" button that puts back ATA 0° and AA 180°.
+  - a "Head-on (V6)" button that puts back the head-on defaults (ATA 0°, AA 180°, both sides left, Red level with Blue, turns at the pass).
   - For example: ATA 0° with AA 90° is Red crossing Blue's nose, HCA 90°. ATA 0° with AA 0° is Blue dead astern of Red, HCA 0°.
-- **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft, from the deck up to 25,000 ft. Above 15,000 ft a note beside the box says the model's sustained turn rate reads low up there (core's check found it up to 28 % low at 20,000 ft and above near 200 KIAS, and within 0.65°/s at 15,000 ft and below), and that the SMM recommends aerobatics below 16,000 ft MSL (SMM 14.5 para 10); it is one note, not two warnings, and it goes once core's high-altitude fix lands. Decision logged for Patrick's review, 2026-09-30. The range stays the slant range. In the simple mode with Climb and dive on, a "Red starts above Blue" height (−5,000 to +5,000 ft, default 0) sets the starting height difference.
-- **When the turns start**, under More detail:
+- **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft, from the deck up to 25,000 ft. Above 15,000 ft a note beside the box says the model's sustained turn rate reads low up there (core's check found it up to 28 % low at 20,000 ft and above near 200 KIAS, and within 0.65°/s at 15,000 ft and below), and that the SMM recommends aerobatics below 16,000 ft MSL (SMM 14.5 para 10); it is one note, not two warnings, and it goes once core's high-altitude fix lands. Decision logged for Patrick's review, 2026-09-30. The start separation is measured level, so the Range readout (the slant range, height included) reads a little more than the set separation when Red starts above or below. In the simple mode with Climb and dive on, a "Red starts above Blue" height (−5,000 to +5,000 ft, default 0) sets the starting height difference.
+- **When the turns start**, a choice in the Start geometry section (R22 keeps More detail for readouts):
   - At the pass (default): each aircraft flies straight until the range stops closing. At head-on that is V6's merge, T+16.4 s at the defaults. If the range is opening from the start, the turns start at once.
   - At once: the turns start at T+0, for a set-up like an offensive perch where the fight is already on.
-- **Result, More detail** adds the live AA, HCA and range, using the SMM's names.
+- **More detail** adds the live aspect angle (AA), and its one "Angle-off (HCA)" row is the heading crossing angle. Range stays in Result, always in view. Before the pass the phase reads TO THE PASS (HEAD-TO-HEAD at the head-on start, as V6).
 - Changing any of these resets the fight, like any other setup change.
 
 ### Which way each aircraft turns
@@ -369,7 +382,7 @@ Blue turns toward Red. In a 2-circle fight, Red turns toward Blue too. In a 1-ci
   - ATA 0°, AA 180° gives today's head-on start;
   - ATA 0°, AA 90° puts Red crossing Blue's nose, with HCA 90°;
   - the pass comes at the closest point of approach to within one step.
-- The view centres on the point midway between the two aircraft at the pass, the way Q49 centres the head-on merge.
+- The view centres on the point midway between the two aircraft at the pass, the way Q49 centres the head-on merge (or at T+0 when the turns start at once or there is no pass).
 
 ## Project structure
 
