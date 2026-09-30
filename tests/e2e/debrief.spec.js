@@ -1799,3 +1799,55 @@ test('saved radar: a hostile weather block in a debrief file is left out with a 
   }
   expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
 });
+
+const RADAR_LOSS = "Close this flight? The radar and lightning you saved aren't in a saved debrief file yet, and ECCC can't give them again after 3 hours.";
+
+test('saved radar: saving the debrief before the radar is fetched does not count the radar as saved (R1)', async ({ page }) => {
+  let nowT = 0;
+  await stubEccc(page, { now: () => nowT });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, endT } = await flightWindow(page);
+  nowT = endT + 3600;
+  await setNow(page, nowT);
+  await scrubber.fill(String(endT - 60));
+  // Save debrief first: nothing is kept yet, so nothing goes in the file.
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  expect(JSON.parse(readFileSync(await download.path(), 'utf8')).settings.savedWeather).toBeUndefined();
+  // Then the radar is fetched: it is not in any file, so closing must ask.
+  await openWeather(page);
+  await saveWxButton(page).click();
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
+  const messages = [];
+  page.once('dialog', (dialog) => { messages.push(dialog.message()); dialog.dismiss(); });
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  expect(messages).toEqual([RADAR_LOSS]);
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+});
+
+test('saved radar: saving the debrief while the fetch is still running does not count the radar as saved (R1)', async ({ page }) => {
+  let nowT = 0;
+  let release;
+  const hold = { promise: new Promise((resolve) => { release = resolve; }) };
+  await stubEccc(page, { now: () => nowT, hold });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, endT } = await flightWindow(page);
+  nowT = endT + 3600;
+  await setNow(page, nowT);
+  await scrubber.fill(String(endT - 60));
+  await openWeather(page);
+  await saveWxButton(page).click();
+  await expect(savedWxStatus(page)).toHaveText(/^Saving radar and lightning: 0 of \d+$/);
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  expect(JSON.parse(readFileSync(await download.path(), 'utf8')).settings.savedWeather).toBeUndefined();
+  release();
+  await openWeather(page);
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
+  const messages = [];
+  page.once('dialog', (dialog) => { messages.push(dialog.message()); dialog.dismiss(); });
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  expect(messages).toEqual([RADAR_LOSS]);
+});

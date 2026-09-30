@@ -98,10 +98,12 @@ function mount(root, app) {
   // flight, fetched only when the offer is pressed or read from an opened debrief file. Radar under
   // lightning, each the last kept frame at or before the playback time.
   const savedRadar = createSavedRadarFeed({ onChange: () => { renderSavedWeather(); redraw(); } });
-  let weatherWritten = false; // the kept pictures went into a saved debrief file
+  // The set of pictures that went into a saved debrief file. A set fetched later is a new object, so it
+  // is unsaved whatever was saved before, or while the fetch ran (R1).
+  let weatherWritten = null;
   const weatherUnsaved = () => {
     const s = savedRadar.state();
-    return Boolean(s.saved) && !s.fromFile && !weatherWritten;
+    return Boolean(s.saved) && !s.fromFile && s.saved !== weatherWritten;
   };
   const SAVED_ALPHA = { radar: 0.75, lightning: 1 };
   function savedWeatherItems() {
@@ -329,7 +331,7 @@ function mount(root, app) {
     stopClock = clock.onChange(onClock);
     metars.setFlight(flight);
     savedRadar.load(session.weather ?? null);
-    weatherWritten = false;
+    weatherWritten = null;
     windGrid = windGridPoints(flightLatLonBounds(flight));
     winds.setFlight(flight, windPoint(flight), windGrid);
     dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
@@ -354,7 +356,7 @@ function mount(root, app) {
     clock = null;
     metars.setFlight(null);
     savedRadar.setFlight(null);
-    weatherWritten = false;
+    weatherWritten = null;
     windGrid = [];
     winds.setFlight(null);
     dfpKey = null;
@@ -417,7 +419,7 @@ function mount(root, app) {
           const text = toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, kept ? savedToSetting(kept) : ''));
           downloadText(text, debriefFileName(flight.startT), { type: 'application/json' });
           unsaved = false;
-          weatherWritten = true;
+          weatherWritten = kept;
           renderSavedWeather();
           ui.setMessage(null);
         } catch (err) {
