@@ -23,6 +23,17 @@
   box-sizing: border-box;
 }
 
+/* The same look as the route editor's boxes. */
+[data-module='traffic'] .profiles-field input,
+[data-module='traffic'] .profiles-field select,
+[data-module='traffic'] .profiles-field textarea {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
 [data-module='traffic'] .profiles-field textarea {
   resize: vertical;
 }
