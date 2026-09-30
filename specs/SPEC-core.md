@@ -72,7 +72,7 @@ Changes made while porting, none of which changes a number:
 ## Things `core` will flag, not choose
 
 - **Two tennis-ball solvers disagree** (issue #19): the debrief's `getKmlTennisSolution` (line 3140) and the 3D view's `draw3DDogfightArc` (line 3970). The second PR pins both against V6 and records where they differ; which one survives is for Patrick and Dad.
-- **Fixes Dad approved (D39 to D47):** EM turn rate without the divide by 2 (D39); 3D bank from the real rate, correct wing down, G only in level turns (D40); Turn Sim toward/away (D41) and wide/tight (D42); auto timing (D43, D44); compass start heading (D45); true circular arcs in Traffic (D46); recorded bank and estimated blank pitch (D47). Under D10, each function is first ported and pinned to V6's number, and the fix then lands as its own change that updates the golden value. None of them touches PR 1's functions. Q31 (which side #2 flies in 4312) is still open, so V6's drawing stays until Dad answers.
+- **Fixes Dad approved (D39 to D47):** EM turn rate without the divide by 2 (D39); 3D bank from the real rate, correct wing down, G only in level turns (D40); Turn Sim toward/away (D41) and wide/tight (D42); auto timing (D43, D44); compass start heading (D45); true circular arcs in Traffic (D46); recorded bank and estimated blank pitch (D47). Under D10, each function is first ported and pinned to V6's number, and the fix then lands as its own change that updates the golden value. None of them touches PR 1's functions. Q31 is answered (Patrick, 2026-09-30): in 4312, #2 flies on lead's left, as V6 draws it. In real life it depends on how the formation joined, so the Turn Sim port should make the side a setting with left as the default.
 - **Infinite headings hang.** V6's angle-wrapping loops (`normDeg`, `normAngleRad` and their copies) never return for ±Infinity, and crawl on values past about 1e9. In V6, a huge number such as 1e20 typed into Turn Sim's Start heading box becomes the aircraft's heading (line 798), and with the clock or bearing cue trigger on, it reaches these loops (lines 1499 and 1528), so the page would freeze. This was read from the code, not run. `core` keeps the loops as they are. The fix is at the screen: `ui-kit` controls must reject non-finite and out-of-range numbers. A guard inside `core` would change no number V6 ever shows, but it would still change behaviour, so it needs a decision.
 
 ## Commands
@@ -118,7 +118,7 @@ export function headingCrossAngleDeg(h1, h2) {
 
 - **Always:** port unchanged; pin with a golden test first; cite the V6 line; run the tests before each commit.
 - **Ask first:** any change to a number V6 shows; adding a package (none are used; `node:test` only).
-- **Never:** edit `original/`; change a number without a logged decision (D39 to D47 are logged; Q31 is still open); fold a fix into the port that pins V6's number; loosen a golden tolerance to get green.
+- **Never:** edit `original/`; change a number without a logged decision (D39 to D47 and Q31 are settled); fold a fix into the port that pins V6's number; loosen a golden tolerance to get green.
 
 ## Success criteria
 
