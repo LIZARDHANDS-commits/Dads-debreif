@@ -124,3 +124,48 @@ test('plain coordinate lists take their times in order across all the lists (C5)
   const { fixes } = readKml(`<kml><Document>${when}${lists}</Document></kml>`);
   assert.deepEqual(fixes.map(f => [f.lon, f.t - fixes[0].t]), [[-105, 0], [-105.1, 1], [-105.2, 2], [-105.3, 3]]);
 });
+
+// Hostile files far under the size limit must still be read or refused
+// quickly: each of these took 13 to 35 s before the review fixes.
+const quick = (what, fn, budgetMs = 2000) => {
+  const start = performance.now();
+  fn();
+  const ms = performance.now() - start;
+  assert.ok(ms < budgetMs, `${what} took ${Math.round(ms)} ms`);
+};
+
+test('many namespace declarations do not make every element slow', () => {
+  const decl = Array.from({ length: 5000 }, (_, i) => ` xmlns:p${i}="u"`).join('');
+  quick('5,000 prefixes and 100,000 elements', () => parseXml(`<r${decl}>${'<a/>'.repeat(100_000)}</r>`));
+});
+
+test('a flood of "&" is refused at the first bad one', () => {
+  quick('29 MB of bare &', () => assert.equal(code(() => readKml(`<a>${'&'.repeat(29 * 1024 * 1024)}</a>`)), 'xml'));
+});
+
+test('only the five XML entities are understood, not names every JavaScript object has', () => {
+  for (const name of ['constructor', '__proto__', 'toString', 'valueOf', 'hasOwnProperty']) {
+    assert.equal(code(() => readKml(`<a>x&${name};y</a>`)), 'xml', name);
+  }
+  assert.equal(parseXml('<a>&lt;&gt;&amp;&quot;&apos;</a>').getElementsByTagName('a')[0].textContent, '<>&"\'');
+});
+
+test('track elements nested inside each other are refused, quickly', () => {
+  const nested = (open, close, inner, n) => open.repeat(n) + inner + close.repeat(n);
+  quick('250 nested <when>', () => assert.equal(code(() => readKml(`<kml>${nested('<when>', '</when>', 'x'.repeat(29 * 1024 * 1024), 250)}</kml>`)), 'xml'));
+  const values = '<gx:value>99</gx:value>'.repeat(400_000);
+  quick('250 nested columns', () => assert.equal(code(() => readKml(
+    `<kml xmlns:gx="g">${nested('<gx:SimpleArrayData name="g">', '</gx:SimpleArrayData>', values, 250)}</kml>`)), 'xml'));
+  for (const inner of ['<when><b/>2026-06-02T18:00:00Z</when>', '<gx:coord><b/>1 2 3</gx:coord>', '<coordinates><b/>1,2</coordinates>']) {
+    assert.equal(code(() => readKml(`<kml xmlns:gx="g">${inner}</kml>`)), 'xml', inner);
+  }
+});
+
+test('a time must be a full ISO 8601 date and time, not anything Date.parse accepts (C5)', () => {
+  for (const bad of ['1', 'x 1', '2026', '0', '2026-06-02', 'June 2 2026 18:00']) {
+    assert.equal(code(() => readKml(track(3).replace('2026-06-02T18:00:01Z', bad))), 'times', bad);
+  }
+  for (const good of ['2026-06-02T18:00:01Z', '2026-06-02T18:00:01.25Z', '2026-06-02T12:00:01-06:00', '2026-06-02T18:00:01+00:00']) {
+    assert.equal(readKml(track(3).replace('2026-06-02T18:00:01Z', good)).fixes.length, 3, good);
+  }
+});

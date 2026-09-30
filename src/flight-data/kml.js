@@ -53,14 +53,26 @@ export function readKml(text, name = '') {
     throw new KmlError('xml', `${label(name)} isn't a readable KML file.`);
   }
 
-  const whenText = xml.getElementsByTagName('when').map(n => n.textContent.trim());
-  const when = whenText.map(parseIsoSeconds);
+  // ForeFlight never nests these elements; a file that does is refused
+  // before any text is gathered, so nesting can't multiply the work.
+  const plain = tag => {
+    const nodes = xml.getElementsByTagName(tag);
+    if (nodes.some(n => n.children.some(c => typeof c !== 'string'))) throw nested(name, tag);
+    return nodes;
+  };
+  for (const column of xml.getElementsByTagName('gx:SimpleArrayData')) {
+    for (let up = column.parent; up; up = up.parent) if (up.name === 'gx:SimpleArrayData') throw nested(name, 'gx:SimpleArrayData');
+  }
+  plain('gx:value');
+
+  const whenText = plain('when').map(n => n.textContent.trim());
+  const when = whenText.map(w => (ISO_TIME.test(w) ? parseIsoSeconds(w) : NaN));
   const unreadable = when.findIndex(t => !Number.isFinite(t));
   if (unreadable >= 0) {
     throw new KmlError('times', `${label(name)} has a time that can't be read ("${whenText[unreadable].slice(0, 40)}", time ${unreadable + 1}).`);
   }
-  const gx = xml.getElementsByTagName('gx:coord').map(n => n.textContent.trim()).filter(Boolean);
-  const lists = gx.length ? [] : xml.getElementsByTagName('coordinates').map(n => n.textContent.trim().split(/\s+/).filter(Boolean));
+  const gx = plain('gx:coord').map(n => n.textContent.trim()).filter(Boolean);
+  const lists = gx.length ? [] : plain('coordinates').map(n => n.textContent.trim().split(/\s+/).filter(Boolean));
   const positions = gx.length || lists.reduce((n, l) => n + l.length, 0);
   if (positions > MAX_FIXES) throw tooMany(name);
   if (positions && positions !== when.length) {
@@ -101,6 +113,13 @@ export function readKml(text, name = '') {
     throw new KmlError('no-fixes', `${label(name)} has no usable timestamped positions (at least 2 are needed).`);
   }
   return { name, fixes };
+}
+
+/** A full ISO 8601 date and time (C5): Date.parse alone accepts "1" or "2026". */
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+
+function nested(name, tag) {
+  return new KmlError('xml', `${label(name)} isn't a track log KML file (it has <${tag}> elements inside each other).`);
 }
 
 function fix(a, t, gRecorded, pitchRecordedDeg, bankRecordedDeg) {

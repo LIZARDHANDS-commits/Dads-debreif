@@ -186,10 +186,13 @@ export function parseXml(text) {
       const selfClosing = text.startsWith('/>', i);
       i += selfClosing ? 2 : 1;
 
-      const declared = new Set(scopes[scopes.length - 1]);
+      // A new set of prefixes only where this element declares one, so a file
+      // with thousands of declarations doesn't copy them for every element.
+      let declared = scopes[scopes.length - 1];
       for (const [a, v] of attrs) {
         if (a.startsWith('xmlns:')) {
           if (!v) fail(`namespace prefix "${a.slice(6)}" is declared empty`, at);
+          if (declared === scopes[scopes.length - 1]) declared = new Set(declared);
           declared.add(a.slice(6));
         }
       }
@@ -210,19 +213,34 @@ export function parseXml(text) {
   if (!rootSeen) fail('no root element');
   return doc;
 
+  // Replaces entity references in text, stopping at the first bad one (a
+  // global replace would find every "&" in a hostile file before failing).
   function decode(chunk, offset) {
-    if (!chunk.includes('&')) return chunk;
-    return chunk.replace(/&([^;&]*)(;?)/g, (whole, ref, semi, pos) => {
-      if (!semi) fail('"&" must be written as &amp;', offset + pos);
-      if (ref in NAMED) return NAMED[ref];
-      const m = /^#(?:x([0-9A-Fa-f]+)|([0-9]+))$/.exec(ref);
-      if (!m) fail(`unknown entity &${ref};`, offset + pos);
-      const code = m[1] ? parseInt(m[1], 16) : parseInt(m[2], 10);
-      const ok = code === 0x9 || code === 0xa || code === 0xd
-        || (code >= 0x20 && code <= 0xd7ff) || (code >= 0xe000 && code <= 0xfffd) || (code >= 0x10000 && code <= 0x10ffff);
-      if (!ok) fail(`character reference &${ref}; is not allowed`, offset + pos);
-      return String.fromCodePoint(code);
-    });
+    let amp = chunk.indexOf('&');
+    if (amp < 0) return chunk;
+    let out = '';
+    let from = 0;
+    while (amp >= 0) {
+      const semi = chunk.indexOf(';', amp + 1);
+      const nextAmp = chunk.indexOf('&', amp + 1);
+      if (semi < 0 || (nextAmp >= 0 && nextAmp < semi)) fail('"&" must be written as &amp;', offset + amp);
+      const ref = chunk.slice(amp + 1, semi);
+      out += chunk.slice(from, amp) + entity(ref, offset + amp);
+      from = semi + 1;
+      amp = chunk.indexOf('&', from);
+    }
+    return out + chunk.slice(from);
+  }
+
+  function entity(ref, at) {
+    if (Object.hasOwn(NAMED, ref)) return NAMED[ref];
+    const m = /^#(?:x([0-9A-Fa-f]+)|([0-9]+))$/.exec(ref);
+    if (!m) fail(`unknown entity &${ref};`, at);
+    const code = m[1] ? parseInt(m[1], 16) : parseInt(m[2], 10);
+    const ok = code === 0x9 || code === 0xa || code === 0xd
+      || (code >= 0x20 && code <= 0xd7ff) || (code >= 0xe000 && code <= 0xfffd) || (code >= 0x10000 && code <= 0x10ffff);
+    if (!ok) fail(`character reference &${ref}; is not allowed`, at);
+    return String.fromCodePoint(code);
   }
 }
 
