@@ -421,7 +421,7 @@ test('standards: edit, refuse a bad value, keep after a reload, reset to V6 (R18
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
   await expect(page.getByLabel('Judge spread')).not.toBeChecked();
   await expect(page.getByLabel('Spread maximum')).toHaveValue('8000');
-  await page.getByRole('button', { name: 'Reset to V6 standards' }).click();
+  await page.getByRole('button', { name: 'Reset to the default standards' }).click();
   await expect(page.getByLabel('Spread maximum')).toHaveValue('6000');
   await expect(page.getByLabel('Judge spread')).toBeChecked();
   await expect(page.getByRole('list', { name: 'Standards in use' })).toContainText('Lead: 200 ±10 kt, 1.0 ±0.20 G');
@@ -514,7 +514,7 @@ test('save a debrief, close it, open it again: same tracks, DFPs, standards and 
   expect(asked).toBe(0);
   await expect(status(page)).toHaveText('No flight loaded');
   await expect(dfpRows(page)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Reset to V6 standards' }).click();
+  await page.getByRole('button', { name: 'Reset to the default standards' }).click();
   await expect(page.getByLabel('Spread maximum')).toHaveValue('6000');
 
   await page.locator('input[type="file"][accept^=".json"]').setInputFiles(saved);
