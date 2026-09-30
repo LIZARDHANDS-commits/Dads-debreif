@@ -77,13 +77,13 @@ test('the wind at an altitude blends the levels either side as a vector', () => 
   assert.equal(windAtAltitude(null, 5000), null);
 });
 
-test('the words: direction to 10°, 360 for north, then knots; the hour in force and the model', () => {
-  assert.equal(windWords({ dirDeg: 266, kt: 33.2 }), '270/33');
-  assert.equal(windWords({ dirDeg: 2, kt: 12 }), '360/12');
+test('the words: true direction to 10°, 360 for north, then knots; marked as model; the hour in force and the model', () => {
+  assert.equal(windWords({ dirDeg: 266, kt: 33.2 }), '270°T/33 kt');
+  assert.equal(windWords({ dirDeg: 2, kt: 12 }), '360°T/12 kt');
   assert.equal(windWords({ dirDeg: 45, kt: 0.2 }), 'calm');
   const hours = readWinds(reply());
-  assert.equal(windTextAt(hours, T('2026-09-29T18:40Z'), 1358 / FT, 'HRDPS'), 'wind 280/35 at 4,500 ft (HRDPS 18Z, Open-Meteo)');
-  assert.equal(windTextAt(hours, T('2026-09-29T19:05Z'), 1360 / FT, 'HRDPS'), 'wind 350/30 at 4,500 ft (HRDPS 19Z, Open-Meteo)');
+  assert.equal(windTextAt(hours, T('2026-09-29T18:40Z'), 1358 / FT, 'HRDPS'), 'model wind 280°T/35 kt at 4,500 ft (HRDPS 18Z, Open-Meteo)');
+  assert.equal(windTextAt(hours, T('2026-09-29T19:05Z'), 1360 / FT, 'HRDPS'), 'model wind 350°T/30 kt at 4,500 ft (HRDPS 19Z, Open-Meteo)');
   assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 2000, 'HRDPS'), 'no HRDPS wind at 2,000 ft: below the lowest model level (4,500 ft)');
   assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 12_000, 'HRDPS'), 'no HRDPS wind at 12,000 ft: above the highest model level (9,700 ft)');
   assert.equal(windTextAt(hours, T('2026-09-29T17:59Z'), 5000, 'HRRR'), 'no HRRR wind for this time');
@@ -121,7 +121,7 @@ test('the feed fetches once per model per flight, only when asked, and tells a d
 });
 
 test('three-figure directions, the top level itself, and a blend a quarter of the way up', () => {
-  assert.equal(windWords({ dirDeg: 45, kt: 12 }), '050/12');
+  assert.equal(windWords({ dirDeg: 45, kt: 12 }), '050°T/12 kt');
   const [h18] = readWinds(reply());
   const top = windAtAltitude(h18, 2957 / FT);
   assert.ok(Math.abs(top.dirDeg - 266) < 1e-9 && Math.abs(top.kt - 33.2) < 1e-9);
@@ -202,7 +202,9 @@ test('windTextAt on real replies gives a wind at flying heights and none above t
   for (const [id, label] of REAL_MODELS) {
     const hours = readWinds(real(id));
     const at = hours[18].t + 600; // 18:10Z
-    assert.match(windTextAt(hours, at, 12_600, label), new RegExp(`at 12,600 ft \\(${label} 18Z, Open-Meteo\\)$`));
+    const text = windTextAt(hours, at, 12_600, label);
+    assert.match(text, new RegExp(`^model wind \\d{3}°T/\\d+ kt at 12,600 ft \\(${label} 18Z, Open-Meteo\\)$`));
+    for (const word of ['model', 'kt', '°T']) assert.ok(text.includes(word), word); // true, in knots, and not observed (W1)
     assert.match(windTextAt(hours, at, 5500, label), /at 5,500 ft/);
     assert.match(windTextAt(hours, at, 31_500, label), /above the highest model level/);
   }

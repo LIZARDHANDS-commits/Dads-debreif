@@ -1073,7 +1073,7 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
 
   await page.getByRole('button', { name: 'Weather' }).click();
   await page.getByLabel('Winds aloft (model)').check();
-  await expect(leadLine.locator('.lead-wind')).toHaveText(/^ · wind 270\/20 at [\d,]+ ft \(HRDPS \d{2}Z, Open-Meteo\)$/);
+  await expect(leadLine.locator('.lead-wind')).toHaveText(/^ · model wind 270°T\/20 kt at [\d,]+ ft \(HRDPS \d{2}Z, Open-Meteo\)$/);
   expect(asked).toHaveLength(1);
   const q = new URL(asked[0]).searchParams;
   expect(q.get('models')).toBe('gem_hrdps_continental');

@@ -113,16 +113,21 @@ export function windAtAltitude(hour, altitudeFt) {
   return { dirDeg, kt };
 }
 
-/** A wind as pilots write it: direction to the nearest 10° (360 for north), then knots. "270/25" */
+/**
+ * A wind as pilots write it, but marked as true and in knots: direction to the
+ * nearest 10° (360 for north), then knots. "270°T/25 kt". The model's
+ * directions are true, about 8° from magnetic at Moose Jaw, and a bare
+ * "270/25" reads as magnetic, as ATIS winds do.
+ */
 export function windWords({ dirDeg, kt }) {
   if (Math.round(kt) === 0) return 'calm';
   const d = round(dirDeg, 10) % 360 || 360;
-  return `${String(d).padStart(3, '0')}/${Math.round(kt)}`;
+  return `${String(d).padStart(3, '0')}°T/${Math.round(kt)} kt`;
 }
 
 /**
- * The words for Lead's line at moment t: "wind 270/25 at 8,500 ft (HRDPS 14Z,
- * Open-Meteo)", crediting the source as its licence asks,
+ * The words for the wind line at moment t: "model wind 270°T/25 kt at 8,500 ft
+ * (HRDPS 14Z, Open-Meteo)", crediting the source as its licence asks,
  * or why there's none. hours: readWinds' result. modelLabel: "HRDPS" or "HRRR".
  */
 export function windTextAt(hours, t, altitudeFt, modelLabel) {
@@ -137,5 +142,5 @@ export function windTextAt(hours, t, altitudeFt, modelLabel) {
     const where = altitudeFt < levels[0].heightFt ? `below the lowest model level (${ft(levels[0])})` : `above the highest model level (${ft(levels[levels.length - 1])})`;
     return `no ${modelLabel} wind at ${at}: ${where}`;
   }
-  return `wind ${windWords(wind)} at ${at} (${modelLabel} ${hourZ}, Open-Meteo)`;
+  return `model wind ${windWords(wind)} at ${at} (${modelLabel} ${hourZ}, Open-Meteo)`;
 }
