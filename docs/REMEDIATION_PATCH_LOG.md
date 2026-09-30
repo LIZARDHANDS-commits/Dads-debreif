@@ -274,3 +274,37 @@
 * **Verification:**  
   `npm test` passed 100% green (`2,929 passed, 0 failed, 8 todo, 1 skipped` in 32.1s; 50 new unit tests). `npm run build` passed in 412ms with all size budgets intact.
 
+---
+
+### PATCH-013: Milestone 1 (PR 3) Traffic Core 4 Implementation & Plausibility Gate
+* **Date & Time:** 2026-09-30 23:15 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `traffic/pr-3-core-4` -> `main`
+* **Files Modified:**
+  * [`src/modules/traffic/types.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/types.js) (NEW)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/data/moose-jaw.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/data/moose-jaw.json)
+  * [`tests/unit/traffic/setup-diff.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/setup-diff.test.js)
+  * [`tests/unit/traffic/plausibility.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/plausibility.test.js)
+  * [`tests/crosscheck/traffic-measure.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/crosscheck/traffic-measure.js)
+  * [`tests/crosscheck/traffic-expected.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/crosscheck/traffic-expected.json)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+* **Problem / Flaw Addressed:**  
+  Traffic Core 4 required authentic 15 Wing aircraft performance profiles (`types.js`), wind vector integration (`groundSpeedKt`, `crabDeg`, `headingDeg`, `trackDeg`), closed-loop wind-adjusted perch guidance per D389, true circular turn arcs (`trueArcs: true`) per D46 eliminating quadratic Bézier G spikes, continuous descending final turn (13.7° slope) per D382/TR-02, break initiation 2,048 ft past threshold per TR-06, threshold landing decision per TR-08, and aligned split/join endpoints eliminating legacy 1,949 ft position jumps per TR-05.
+* **Changes Made:**
+  1. Created `src/modules/traffic/types.js` with authentic 15 Wing SMM circuit speeds for CT-156 Harvard II (default), CT-155 Hawk, CT-114 Tutor, CF-188 Hornet, CT-157, and CT-102.
+  2. Integrated wind triangle and true airspeed calculations into `sim.js`, exposing ground speed, crab angle, track, and heading on aircraft telemetry.
+  3. Formulated and recorded Decision D389: level 60°/2.0 G break turn regardless of wind, with closed-loop perch waypoint drift compensation $\Delta \vec{P}_{\text{wind}} = \vec{V}_{\text{wind}} \times T_{\text{turn}}$.
+  4. Implemented D46 true circular arcs (`circularArcPoints`) and linear final descent in `route.js`, eliminating flown G spikes and maintaining constant 13.7° slope ($\le 15^\circ$).
+  5. Calibrated `moose-jaw.json`: Break point at 2,048 ft past threshold (TR-06), restored D382 standards (Break exit 2.0 G, Perch 1.4142 G, Window 2,119 ft MSL), and aligned split/join endpoints (SPL2, SPL3, ENT3, ENT1) eliminating step jumps across 20 seeds (TR-05).
+  6. Converted all 8 `test.todo` stubs in `tests/unit/traffic/plausibility.test.js` to active passing green assertions (TR-02, TR-04, TR-05, TR-06, TR-07, TR-08, TR-20).
+  7. Regenerated `tests/crosscheck/traffic-expected.json` with authentic SMM circuit numbers.
+* **Reasoning / Rationale:**  
+  Completes Task 1.5 of Milestone 1 per the master execution roadmap. Prepares Traffic Sim module for Gate 1 Sign-Off.
+* **Verification:**  
+  `npm test` passed 100% green (`2,937 passed, 0 failed, 0 todo, 1 skipped` in 39.3s). `npm run build` passed in 401ms.
+
+

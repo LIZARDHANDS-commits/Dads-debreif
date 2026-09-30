@@ -14,8 +14,8 @@ import { MOST_AIRCRAFT } from './profile.js';
 /** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
 const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
 
-/** The aircraft types the spawner offers, in V6's order. */
-export const SPAWN_TYPES = Object.freeze(Object.keys(TYPE_COLORS));
+import { SPAWN_TYPES } from './types.js';
+export { SPAWN_TYPES };
 
 /** The most points a start-point box accepts (the engine's own check is the route's length). */
 const MOST_POINTS = 999;
