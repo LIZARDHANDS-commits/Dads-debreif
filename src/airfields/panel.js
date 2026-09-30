@@ -8,6 +8,7 @@ import { createPanel } from '../ui-kit/panel.js';
 import { utcOffsetMinutes } from '../core/time.js';
 import { formatMinimaLine, formatOffset, formatNm } from './format.js';
 import { MAX_ALTERNATES } from './airfields.js';
+import { CATALOG } from './catalog.js';
 
 const ICAO = /^[A-Z0-9]{4}$/;
 const APPROACH_LABELS = [
@@ -16,7 +17,9 @@ const APPROACH_LABELS = [
   ['one-precision', 'One precision (ILS or PAR)'],
   ['non-precision', 'Non-precision only (LOC, VOR, NDB)'],
   ['gnss-only', 'GNSS only (RNAV, LNAV minima)'],
+  ['no-ifr', 'No IFR approach (visual descent from MEA)'],
 ];
+const USES_MEA = new Set(['gnss-only', 'no-ifr']);
 
 let nextId = 1;
 const newId = (name) => `af-${nextId++}-${name}`;
@@ -78,6 +81,7 @@ export function createAirfieldsPanel({ airfields, now = () => new Date() }) {
   const more = createPanel({ title: 'More airfield settings', collapsed: true });
   more.body.append(moreBody);
   let shape = '';
+  let element = null;
 
   const home = icaoForm({
     label: 'Home field',
@@ -141,11 +145,14 @@ export function createAirfieldsPanel({ airfields, now = () => new Date() }) {
 
   function details(field, isHome) {
     const children = [h('legend', {}, isHome ? `${field.icao} (home)` : field.icao)];
+    const elevationBox = () => numberBox({ label: `${field.icao} elevation, feet`, value: field.elevationFt, min: -1500, max: 15000, step: 1, unit: 'ft', onValue: (v) => setField(field.icao, { elevationFt: v }) });
     if (field.builtIn) {
+      const fixedElevation = CATALOG[field.icao].elevationFt !== null;
       const bits = [field.name, `${field.lat}, ${field.lon}`];
-      if (field.elevationFt !== null) bits.push(`elevation ${field.elevationFt.toLocaleString('en-CA')} ft`);
+      if (fixedElevation) bits.push(`elevation ${field.elevationFt.toLocaleString('en-CA')} ft`);
       bits.push(field.timeZone);
       children.push(h('p', { class: 'af-note' }, bits.join(' · ')));
+      if (!fixedElevation) children.push(h('div', { class: 'af-grid' }, h('span', {}, 'Elevation'), elevationBox()));
     } else {
       const text = (key, label, value) => {
         const id = newId(key);
@@ -162,9 +169,18 @@ export function createAirfieldsPanel({ airfields, now = () => new Date() }) {
           h('span', {}, 'Name'), text('name', 'name', field.name),
           h('span', {}, 'Latitude'), numberBox({ label: `${field.icao} latitude`, value: field.lat, min: -90, max: 90, step: 'any', onValue: (v) => setField(field.icao, { lat: v }) }),
           h('span', {}, 'Longitude'), numberBox({ label: `${field.icao} longitude`, value: field.lon, min: -180, max: 180, step: 'any', onValue: (v) => setField(field.icao, { lon: v }) }),
-          h('span', {}, 'Elevation'), numberBox({ label: `${field.icao} elevation, feet`, value: field.elevationFt, min: -1500, max: 15000, step: 1, unit: 'ft', onValue: (v) => setField(field.icao, { elevationFt: v }) }),
+          h('span', {}, 'Elevation'), elevationBox(),
           h('span', {}, 'Time zone'), h('span', { class: 'af-number' }, zone, h('datalist', { id: zoneList }, zones.map((z) => h('option', { value: z })))),
         ),
+      );
+    }
+    if (USES_MEA.has(field.approach)) {
+      children.push(
+        h('div', { class: 'af-grid' },
+          h('span', {}, 'MEA'), numberBox({ label: `${field.icao} MEA, feet above sea level`, value: field.meaFt, min: 0, max: 20000, step: 100, unit: 'ft', onValue: (v) => setField(field.icao, { meaFt: v }) }),
+          h('span', {}, 'Visual descent visibility'), numberBox({ label: `${field.icao} visual descent visibility, statute miles`, value: field.visualDescentVisSm ?? 3, min: 0, max: 10, step: 0.25, unit: 'SM', onValue: (v) => setField(field.icao, { visualDescentVisSm: v }) }),
+        ),
+        h('p', { class: 'af-note' }, 'Visual descent (D80): the ceiling must be at least MEA + 500 ft minus the field elevation, over the arrival window.'),
       );
     }
     const gnssId = newId('gnss');
@@ -197,10 +213,13 @@ export function createAirfieldsPanel({ airfields, now = () => new Date() }) {
 
   function refresh() {
     const current = airfields.get();
-    const next = JSON.stringify([current.home, current.alternates, airfields.alternates().map((f) => f.builtIn)]);
+    const fields = [airfields.home(), ...airfields.alternates()];
+    const next = JSON.stringify([current.home, current.alternates, fields.map((f) => [f.builtIn, USES_MEA.has(f.approach)])]);
     if (next !== shape || !fromPanel) {
       shape = next;
+      const focused = element?.contains(document.activeElement) ? document.activeElement.getAttribute('aria-label') : null;
       rebuild();
+      if (focused) element.querySelector(`[aria-label="${CSS.escape(focused)}"]`)?.focus();
     }
     const h0 = airfields.home();
     if (!home.form.contains(document.activeElement)) home.input.value = h0.icao;
@@ -218,7 +237,7 @@ export function createAirfieldsPanel({ airfields, now = () => new Date() }) {
     storageNote.hidden = airfields.persistent !== false;
   }
 
-  const element = h(
+  element = h(
     'section',
     { class: 'af-section', 'aria-labelledby': 'af-title' },
     h('h3', { id: 'af-title' }, 'Airfields'),

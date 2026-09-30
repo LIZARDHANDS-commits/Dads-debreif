@@ -4,7 +4,8 @@
 // Pure: an airfield's settings in, plain numbers out. Whether the weather meets
 // them is wx's job (src/wx/alternates.js).
 
-export const APPROACH_TYPES = Object.freeze(['not-set', 'two-precision', 'one-precision', 'non-precision', 'gnss-only']);
+export const APPROACH_TYPES = Object.freeze(['not-set', 'two-precision', 'one-precision', 'non-precision', 'gnss-only', 'no-ifr']);
+const VISUAL_DESCENT_VIS_SM = 3; // D80 default
 
 // For each approach type: the standard minima (first) and their trade-offs, and
 // what is added to the lowest HAT and visibility for "whichever is greater".
@@ -15,6 +16,7 @@ const TABLE = {
   'one-precision': { standard: [[600, 2], [700, 1.5], [800, 1]], addFt: 300, addSm: 1 },
   'non-precision': NON_PRECISION,
   'gnss-only': NON_PRECISION, // LNAV minima; no LPV credit, and RNAV is never precision (D73)
+  'no-ifr': { standard: null }, // no table minima: the visual descent from the MEA is the whole test (D80)
 };
 
 const MAX_COMPUTED_VIS_SM = 3;
@@ -30,11 +32,13 @@ export function roundCeilingFt(ft) {
  * The alternate minima for an airfield: `options` is a list of equivalent
  * { ceilingFt, visSm } pairs (the standard minima and their trade-offs, or one
  * computed pair), in the shape wx's assessAlternate takes. `checked` is false
- * while the approach type is not set.
+ * while the approach type is not set. A no-IFR-approach field has no options
+ * (null); see visualDescent().
  */
 export function alternateMinima({ approach, lowestHatFt, lowestVisSm } = {}) {
   const type = Object.hasOwn(TABLE, approach) ? approach : 'not-set';
   const row = TABLE[type];
+  if (!row.standard) return { approach: type, checked: true, options: null };
   const [baseFt, baseSm] = row.standard[0];
   let ceilingFt = baseFt;
   let visSm = baseSm;
@@ -51,4 +55,20 @@ export function alternateMinima({ approach, lowestHatFt, lowestVisSm } = {}) {
 export function landingMinima({ lowestHatFt, lowestVisSm } = {}) {
   if (!Number.isFinite(lowestHatFt) || !Number.isFinite(lowestVisSm)) return null;
   return { ceilingFt: lowestHatFt, visSm: lowestVisSm };
+}
+
+/**
+ * The visual descent from the MEA (D80), as wx's assessAlternate takes it:
+ * { meaFt, elevationFt, visSm }. A GNSS-only field uses it once an MEA is
+ * entered; a no-IFR-approach field always does, so a missing MEA or elevation
+ * reads as incomplete in wx rather than falling back to 600-2. Null otherwise.
+ */
+export function visualDescent({ approach, meaFt, elevationFt, visualDescentVisSm } = {}) {
+  const hasMea = Number.isFinite(meaFt);
+  if (approach !== 'no-ifr' && !(approach === 'gnss-only' && hasMea)) return null;
+  return {
+    meaFt: hasMea ? meaFt : null,
+    elevationFt: Number.isFinite(elevationFt) ? elevationFt : null,
+    visSm: Number.isFinite(visualDescentVisSm) ? visualDescentVisSm : VISUAL_DESCENT_VIS_SM,
+  };
 }

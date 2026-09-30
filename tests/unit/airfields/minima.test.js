@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { APPROACH_TYPES, alternateMinima, landingMinima, roundCeilingFt } from '../../../src/airfields/minima.js';
+import { APPROACH_TYPES, alternateMinima, landingMinima, roundCeilingFt, visualDescent } from '../../../src/airfields/minima.js';
 
 const pair = (ceilingFt, visSm) => ({ ceilingFt, visSm });
 const opts = (field) => alternateMinima(field).options;
 
-test('approach types offered: not set, two precision, one precision, non-precision, GNSS only', () => {
-  assert.deepEqual(APPROACH_TYPES, ['not-set', 'two-precision', 'one-precision', 'non-precision', 'gnss-only']);
+test('approach types offered: not set, two precision, one precision, non-precision, GNSS only, no IFR approach', () => {
+  assert.deepEqual(APPROACH_TYPES, ['not-set', 'two-precision', 'one-precision', 'non-precision', 'gnss-only', 'no-ifr']);
 });
 
 test("not set (D71 fallback): exactly V6's single 600-2, marked not checked", () => {
@@ -85,4 +85,18 @@ test('D72: without both numbers there are no landing minima (wx then lists PROB 
 test('options returned are fresh copies, so a caller cannot change the table', () => {
   opts({ approach: 'one-precision' })[0].ceilingFt = 1;
   assert.deepEqual(opts({ approach: 'one-precision' })[0], pair(600, 2));
+});
+
+test('D80: no IFR approach gives no table minima; the visual descent from the MEA is the whole test', () => {
+  assert.ok(APPROACH_TYPES.includes('no-ifr'));
+  const m = alternateMinima({ approach: 'no-ifr', lowestHatFt: 300, lowestVisSm: 1 });
+  assert.deepEqual([m.approach, m.checked, m.options], ['no-ifr', true, null]);
+});
+
+test('D80: visual descent from the MEA, default 3 SM; GNSS-only only once an MEA is entered, no-IFR always (so wx says incomplete, never 600-2)', () => {
+  assert.deepEqual(visualDescent({ approach: 'gnss-only', meaFt: 4000, elevationFt: 1892 }), { meaFt: 4000, elevationFt: 1892, visSm: 3 });
+  assert.deepEqual(visualDescent({ approach: 'no-ifr', meaFt: 4000, elevationFt: null, visualDescentVisSm: 5 }), { meaFt: 4000, elevationFt: null, visSm: 5 });
+  assert.deepEqual(visualDescent({ approach: 'no-ifr' }), { meaFt: null, elevationFt: null, visSm: 3 });
+  assert.equal(visualDescent({ approach: 'gnss-only', elevationFt: 1892 }), null);
+  assert.equal(visualDescent({ approach: 'one-precision', meaFt: 4000, elevationFt: 1892 }), null);
 });

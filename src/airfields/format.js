@@ -14,7 +14,8 @@ export function formatSm(sm) {
 export const formatPair = ({ ceilingFt, visSm }) => `${ceilingFt}-${formatSm(visSm)}`;
 
 /** "CYQR 600-2 (or 700-1½, 800-1)", "CYYN 600-2, not checked". */
-export function formatMinimaLine(icao, { minima, minimaChecked }) {
+export function formatMinimaLine(icao, { minima, minimaChecked, visualDescent }) {
+  if (visualDescent) return formatVisualDescent(icao, visualDescent);
   const [first, ...rest] = minima;
   let text = `${icao} ${formatPair(first)}`;
   if (rest.length) text += ` (or ${rest.map(formatPair).join(', ')})`;
@@ -32,3 +33,13 @@ export function formatOffset(minutes) {
 }
 
 export const formatNm = (nm) => (nm === null ? 'unknown' : `${Math.round(nm)} NM`);
+
+const ft = (n) => n.toLocaleString('en-CA');
+
+// D80: the ceiling above the field is MEA + 500 ft − field elevation.
+function formatVisualDescent(icao, { meaFt, elevationFt, visSm }) {
+  if (meaFt === null) return `${icao} visual descent, needs MEA`;
+  const start = `${icao} visual descent from MEA ${ft(meaFt)} ft`;
+  if (elevationFt === null) return `${start}, needs field elevation`;
+  return `${start} (ceiling ${ft(meaFt + 500 - elevationFt)} ft, ${formatSm(visSm)} SM)`;
+}

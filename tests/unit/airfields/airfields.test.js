@@ -189,3 +189,38 @@ test('what callers get back is a copy, so they cannot change the setting behind 
   a.home().icao = 'KGTF';
   assert.deepEqual(a.stations(), ['CYMJ', 'CYQR', 'CYYN', 'CYXE']);
 });
+
+test('D80: MEA and visual-descent visibility are kept per airfield and reach wx as visualDescent', () => {
+  const a = fresh();
+  a.update({ fields: { CYYN: { approach: 'no-ifr', meaFt: 4500, visualDescentVisSm: 4, elevationFt: 2680 } } });
+  const o = a.checkOptions('CYYN');
+  assert.deepEqual(o.visualDescent, { meaFt: 4500, elevationFt: 2680, visSm: 4 });
+  assert.equal(o.minima, null);
+  assert.equal(a.checkOptions('CYQR').visualDescent, null);
+});
+
+test("a built-in airfield's elevation can be entered only where the built-in list has none", () => {
+  const a = fresh();
+  a.update({ fields: { CYQR: { elevationFt: 1894 }, CYMJ: { elevationFt: 1 } } });
+  assert.equal(a.alternates()[0].elevationFt, 1894);
+  assert.equal(a.home().elevationFt, 1892);
+  assert.equal(a.get().fields.CYMJ, undefined);
+});
+
+test('an MEA outside 0 to 20,000 ft is dropped', () => {
+  const a = fresh();
+  a.update({ fields: { CYYN: { approach: 'no-ifr', meaFt: 25000 } } });
+  assert.equal(a.checkOptions('CYYN').visualDescent.meaFt, null);
+});
+
+test('into wx (D80): a no-IFR field without an MEA is incomplete, never a pass; with one it is checked from sea level', () => {
+  const a = fresh();
+  a.update({ fields: { CYYN: { approach: 'no-ifr', elevationFt: 2680 } } });
+  const good = 'TAF CYYN 291120Z 2912/3012 27010KT P6SM SKC';
+  assert.equal(check(a, 'CYYN', good).status, 'incomplete');
+  a.update({ fields: { CYYN: { meaFt: 4500 } } });
+  assert.equal(check(a, 'CYYN', good).status, 'meets');
+  // 4500 + 500 - 2680 = 2320 ft needed above the field.
+  assert.equal(check(a, 'CYYN', 'TAF CYYN 291120Z 2912/3012 27010KT P6SM BKN022').status, 'below');
+  assert.equal(check(a, 'CYYN', 'TAF CYYN 291120Z 2912/3012 27010KT P6SM BKN024').status, 'meets');
+});

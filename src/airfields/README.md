@@ -5,7 +5,7 @@ The home airfield (default CYMJ) and the alternates list (default CYQR, CYYN, CY
 | File | What it does |
 |---|---|
 | `catalog.js` | `CATALOG`: V6's 15 airfields with names, positions and time zones (CYMJ also has its elevation). `DEFAULT_HOME`, `DEFAULT_ALTERNATES`. |
-| `minima.js` | `alternateMinima(field)`: the Canada Air Pilot (CAP GEN) alternate minima for the airfield's approach type, with trade-offs, "whichever is greater" and rounding. `landingMinima(field)` for PROB groups. `roundCeilingFt`. |
+| `minima.js` | `alternateMinima(field)`: the Canada Air Pilot (CAP GEN) alternate minima for the airfield's approach type, with trade-offs, "whichever is greater" and rounding. `landingMinima(field)` for PROB groups. `visualDescent(field)` for GNSS-only and no-IFR-approach fields (D80). `roundCeilingFt`. |
 | `distance.js` | `greatCircleNm(a, b)`, to 0.1 NM, or null without both positions. |
 | `format.js` | Text for the panel: `formatMinimaLine`, `formatSm`, `formatOffset`, `formatNm`. |
 | `airfields.js` | `createAirfields({ store })`: the setting (`home()`, `alternates()`, `stations()`, `update()`, `reset()`, `subscribe()`), and `checkOptions(icao)`, which is passed straight to `wx`'s `assessAlternate`. |

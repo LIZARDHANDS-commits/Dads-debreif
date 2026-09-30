@@ -1,6 +1,6 @@
 # Spec: `airfields`, the home field and its alternates
 
-Status: **approved by Patrick on 2026-09-30** ("approve", in the Airfields thread). Changes go through a pull request. Module id `airfields` in [`SPEC.md`](../SPEC.md). Requirements: R16 (home airfield and alternates are a setting), R10 (one Zulu/local switch, local is the home field's zone), R13 (SOF), R22 (essentials first). Decisions: the home airfield is a setting usable anywhere, default CYMJ (Patrick, 2026-09-29), D60 and D70 to D73 (Q30 alternate rules). Open questions: Q40 (RCAF orders), and Dad's GNSS visual-descent question. Decision, requirement and question numbers refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("approve", in the Airfields thread). Changes go through a pull request. Module id `airfields` in [`SPEC.md`](../SPEC.md). Requirements: R16 (home airfield and alternates are a setting), R10 (one Zulu/local switch, local is the home field's zone), R13 (SOF), R22 (essentials first). Decisions: the home airfield is a setting usable anywhere, default CYMJ (Patrick, 2026-09-29), D60 and D70 to D73 (Q30 alternate rules), D79 (military alternate rules are the same as these civil rules) and D80 (visual descent from the MEA), both Patrick's answers of 2026-09-30. Decision, requirement and question numbers refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
@@ -28,7 +28,6 @@ Out:
 - The home-weather trigger (2000 ft / 3 SM), the ± window margin and the refresh rate. Those are SOF settings, in the SOF spec.
 - Real runway data (FF20), SOF crosswind (FF21), NOTAMs, and any approach data shipped with the app. Approach charts change every 56 days, so the app never carries them. People enter the approach type and the lowest minima from the current Canada Air Pilot.
 - The VNC charts and the 19 route overlays. They are pinned to places, not to the home setting, so they stay with the debrief (`src/modules/debrief/data/cymj.js`).
-- "No IFR approach" alternates (500 ft above a minimum IFR altitude). That is V6's GNSS-only MEA branch, and it waits for Dad's answer on the GNSS visual descent. Until then it isn't offered.
 
 ## Behaviour
 
@@ -46,7 +45,7 @@ Out:
 ```
 
 - Stored with `src/storage/` under the scope `airfields`. If the browser won't store it, it lasts for the visit, as every other setting does.
-- Everything read back is checked: ICAO ids must be four letters or digits (upper-cased), numbers must be finite and in range (HAT 0 to 5,000 ft, visibility 0 to 10 SM, latitude ±90, longitude ±180, elevation −1,500 to 15,000 ft), the time zone must be one the browser knows, and the approach type must be one of the list below. Anything else is dropped, never guessed.
+- Everything read back is checked: ICAO ids must be four letters or digits (upper-cased), numbers must be finite and in range (HAT 0 to 5,000 ft, visibility 0 to 10 SM, latitude ±90, longitude ±180, elevation −1,500 to 15,000 ft, MEA 0 to 20,000 ft), the time zone must be one the browser knows, and the approach type must be one of the list below. Anything else is dropped, never guessed.
 - The home field can't also be an alternate. Duplicates are dropped. Up to 6 alternates (V6 showed 3).
 - Changing the home field changes local time everywhere at once (the shell's header clock, the SOF's clocks and wave times, debrief times) through `subscribe`.
 
@@ -61,11 +60,18 @@ Each airfield has one approach type. It says which row of the CAP GEN table appl
 | One precision approach (ILS or PAR) | 600-2, also 700-1½ or 800-1; or 300-1 above the lowest HAT and visibility | off |
 | Non-precision only (LOC, VOR, NDB) | 800-2, also 900-1½ or 1000-1; or 300-1 above the lowest HAT/HAA and visibility | off |
 | GNSS only (RNAV, LNAV minima) | as non-precision | on |
+| No IFR approach (visual descent from the MEA) | none from the table: the visual-descent check below is the whole test (D80) | off |
 
 - **"Whichever is greater"**, for each of ceiling and visibility separately: for one precision approach with a lowest HAT of 350 ft and visibility ¾ SM, the minima are the greater of 600 and 650 ft, and of 2 and 1¾ SM, so 700-2. The trade-offs (700-1½, 800-1 and so on) apply only when the standard values win. When the lowest HAT or visibility isn't entered, the standard values are used.
 - **Rounding** (CAP GEN): a computed ceiling up to 20 ft over a hundred rounds down, anything more rounds up (HAT 420 gives 400, 421 gives 500). A computed visibility is never more than 3 SM.
 - **No LPV credit** (D73): the GNSS-only row uses the LNAV minima, and RNAV with vertical guidance is not a precision approach. The panel's help line says so.
-- **PAR counts as a precision approach.** CAP GEN and military FLIP agree on this; Q40 asks Dad whether RCAF orders differ anywhere.
+- **PAR counts as a precision approach.** CAP GEN and military FLIP agree on this, and D79 says the military rules are the same as these.
+
+### Visual descent from the MEA (D80)
+
+- A GNSS-only or no-IFR-approach airfield can have an **MEA** (the minimum IFR altitude to reach it, feet above sea level) and a **visual-descent visibility** (default 3 SM). Both sit under More.
+- With an MEA entered, `checkOptions` returns `visualDescent: { meaFt, elevationFt, visSm }`, the names `wx` uses. `wx` checks that the ceiling (above the field) is at least MEA + 500 ft − field elevation, and the visibility at least `visSm`, over the arrival window. When the MEA or the elevation is missing, `wx` says "incomplete", never "meets".
+- Built-in airfields other than CYMJ have no elevation in V6, so their elevation can be entered under More (it is fixed only where the built-in list has one). Without an MEA, `visualDescent` is `null`; a no-IFR-approach airfield then shows "needs MEA".
 
 ### Landing minima (for PROB groups)
 
@@ -80,8 +86,7 @@ Each airfield has one approach type. It says which row of the CAP GEN table appl
 
 ### Questions this spec doesn't answer (defaults until answered)
 
-- **Q40, for Dad or a current SOF:** do RCAF orders (B-GA-100-001/AA-000, Vol 1, Ch 5) use the CAP GEN table, count PAR the same way, set other minima for 15 Wing, or add a GNSS rule for the Harvard II? Default: the civil CAP GEN rules above.
-- **GNSS visual descent (Dad):** what weather does a GNSS-only alternate need for the visual-descent-from-MEA branch? Default: that branch isn't offered.
+- **Answered:** Q40 (D79, the military rules are the civil rules above) and the GNSS visual descent (D80, above).
 - **Who fills in the four default airfields' approaches:** the app ships them as "Not set (600-2)", which is exactly V6. Anyone can enter the current approach type and lowest minima from the Canada Air Pilot, and they are kept in that browser.
 
 ## The screen (R22)
@@ -100,7 +105,7 @@ Airfields
   ▸ More airfield settings
 ```
 
-- **More airfield settings** (collapsed): per airfield, the name, position, elevation and time zone (filled in and read-only for built-in airfields, editable for added ones), and the "Plan uses a GNSS approach here" checkbox; the rounding and no-LPV notes; and "Reset airfields to defaults".
+- **More airfield settings** (collapsed): per airfield, the name, position, elevation and time zone (filled in and read-only for built-in airfields, editable for added ones, and elevation editable wherever the built-in list has none), the MEA and visual-descent visibility for GNSS-only and no-IFR-approach fields (D80), and the "Plan uses a GNSS approach here" checkbox; the rounding and no-LPV notes; and "Reset airfields to defaults".
 - An ICAO that isn't in the built-in list opens its row in More so the name, position and (for home) time zone can be entered. Until the home field has a time zone, local time stays on the last good zone and the row says so.
 - Built with `src/ui-kit/` (`createPanel`, `h`, controls). Text in, never HTML. Every input has a real label, works from the keyboard, and states errors in words, not only colour.
 
@@ -116,7 +121,7 @@ airfields.stations();      // ['CYMJ', 'CYQR', 'CYYN', 'CYXE'], for the weather 
 airfields.checkOptions('CYXE');
 // { minima: [{ ceilingFt: 600, visSm: 2 }],   // "not set": V6's 600-2 only
 //   minimaChecked: false, landingMinima: null,
-//   gnssApproach: false, homeGnssApproach: false, distanceNm: 119.x }
+//   gnssApproach: false, homeGnssApproach: false, distanceNm: 119.x, visualDescent: null }
 // → passed straight to wx's assessAlternate(taf, window, options)
 airfields.update({ alternates: ['CYQR', 'CYXE'] });
 const stop = airfields.subscribe((next) => { … });
@@ -182,7 +187,7 @@ performance-optimization doesn't apply: the module is a few kilobytes and does n
 ## Boundaries
 
 - **Always:** keep the minima functions pure; cite the CAP GEN rule in each test name; unknown stays unknown (a missing HAT or position is `null`, never a guess).
-- **Ask first:** shipping any approach or runway data; changing a CAP GEN rule, a default, or the "not set" fallback; anything that depends on Q40 or the GNSS visual-descent answer.
+- **Ask first:** shipping any approach or runway data; changing a CAP GEN rule, a default, or the "not set" fallback.
 - **Never:** decide pass or fail on weather here (that's `wx`); edit `original/`; put entered text into the page as HTML.
 
 ## Success criteria

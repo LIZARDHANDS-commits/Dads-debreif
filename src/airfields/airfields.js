@@ -5,7 +5,7 @@
 // (catalog.js) fills in the rest. Everything read back from storage or passed
 // to update() is checked here, and anything that fails is dropped, not guessed.
 import { CATALOG, DEFAULT_HOME, DEFAULT_ALTERNATES } from './catalog.js';
-import { APPROACH_TYPES, alternateMinima, landingMinima } from './minima.js';
+import { APPROACH_TYPES, alternateMinima, landingMinima, visualDescent } from './minima.js';
 import { greatCircleNm } from './distance.js';
 
 export const MAX_ALTERNATES = 6;
@@ -46,6 +46,8 @@ const CHECKS = {
   lowestHatFt: inRange(0, 5000),
   lowestVisSm: inRange(0, 10),
   gnssPlan: (v) => (v === true ? true : undefined),
+  meaFt: inRange(0, 20000),
+  visualDescentVisSm: inRange(0, 10),
   name: nameOf,
   lat: inRange(-90, 90),
   lon: inRange(-180, 180),
@@ -53,11 +55,19 @@ const CHECKS = {
   timeZone: knownZone,
 };
 
+// A built-in airfield's identity can't be overwritten, except an elevation the
+// built-in list doesn't have (needed for the visual descent, D80).
+function fixed(icao, key) {
+  const builtIn = CATALOG[icao];
+  if (!builtIn || !IDENTITY.includes(key)) return false;
+  return !(key === 'elevationFt' && builtIn.elevationFt === null);
+}
+
 function cleanField(icao, raw) {
   if (!raw || typeof raw !== 'object') return null;
   const out = {};
   for (const [key, check] of Object.entries(CHECKS)) {
-    if (Object.hasOwn(CATALOG, icao) && IDENTITY.includes(key)) continue;
+    if (fixed(icao, key)) continue;
     const value = check(raw[key]);
     if (value !== undefined) out[key] = value;
   }
@@ -99,13 +109,15 @@ export function createAirfields({ store }) {
       name: builtIn?.name ?? own.name ?? null,
       lat: builtIn?.lat ?? own.lat ?? null,
       lon: builtIn?.lon ?? own.lon ?? null,
-      elevationFt: builtIn?.elevationFt ?? own.elevationFt ?? null,
+      elevationFt: builtIn?.elevationFt ?? own.elevationFt ?? null, // own only where built-in has none
       timeZone: builtIn?.timeZone ?? own.timeZone ?? null,
       builtIn: Boolean(builtIn),
       approach: own.approach ?? 'not-set',
       lowestHatFt: own.lowestHatFt ?? null,
       lowestVisSm: own.lowestVisSm ?? null,
       gnssPlan: own.gnssPlan === true,
+      meaFt: own.meaFt ?? null,
+      visualDescentVisSm: own.visualDescentVisSm ?? null,
     };
     field.gnssApproach = field.approach === 'gnss-only' || field.gnssPlan;
     return field;
@@ -145,6 +157,7 @@ export function createAirfields({ store }) {
         gnssApproach: field.gnssApproach,
         homeGnssApproach: from.gnssApproach,
         distanceNm: greatCircleNm(from, field),
+        visualDescent: visualDescent(field),
       };
     },
     /**
