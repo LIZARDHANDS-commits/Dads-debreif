@@ -8,7 +8,7 @@ import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
   T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
-  T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, maxKiasT6A,
+  T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A,
 } from '../../../src/core/t6-performance.js';
 import {
   T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
@@ -58,7 +58,7 @@ test('IAS and TAS through the standard atmosphere: TAS = IAS ÷ √σ', () => {
   for (const alt of [0, 3500, 10000, 20000, 31000]) near(tasToIasKt(iasToTasKt(173, alt), alt), 173, 1e-12, `round trip at ${alt} ft`);
 });
 
-test('the Mach limit: Mmo 0.67 (NFM Fig 4-1-2), and the other limits unchanged', () => {
+test('the Mach limit: Mmo 0.67 (NFM Fig 5-3, p.5-9), and the other limits unchanged', () => {
   assert.equal(T6A_LIMITS.mmo, 0.67);
   assert.deepEqual(
     { maxG: T6A_LIMITS.maxG, minG: T6A_LIMITS.minG, stallKias: T6A_LIMITS.stallKias, voKias: T6A_LIMITS.voKias, vmoKias: T6A_LIMITS.vmoKias },
@@ -74,32 +74,27 @@ test('the speed of sound in the standard atmosphere: 661.5 kt at sea level, 573.
   for (const bad of [NaN, Infinity]) assert.throws(() => speedOfSoundKt(bad), RangeError);
 });
 
-// The NFM's Mach line (Fig 4-1-2) is in KIAS with compressibility: Mmo 0.67
-// meets VMO at 18,769 ft and falls to 244 KIAS at 31,000 ft. This test-only
-// formula (calibrated airspeed from Mach, standard day) shows 0.67 is that line.
-const chartKiasAtMach = (mach, altFt) => {
-  const theta = speedOfSoundKt(altFt) ** 2 / speedOfSoundKt(0) ** 2;
-  const delta = theta ** 5.2559;
-  const qcOverP0 = delta * ((1 + 0.2 * mach * mach) ** 3.5 - 1);
-  return speedOfSoundKt(0) * Math.sqrt(5 * ((qcOverP0 + 1) ** (2 / 7) - 1));
-};
-
-test('Mmo 0.67 is the NFM line: VMO at 18,769 ft, 244 KIAS at 31,000 ft', () => {
-  near(chartKiasAtMach(T6A_LIMITS.mmo, 18769), 316, 1, 'where Mach meets VMO');
-  near(chartKiasAtMach(T6A_LIMITS.mmo, 31000), 244, 1.5, '31,000 ft');
+test('the KIAS a Mach number reads: calibrated airspeed, standard day, with compressibility', () => {
+  for (const mach of [0.2, 0.5, 0.67]) near(machToKiasKt(mach, 0), mach * speedOfSoundKt(0), 1e-9, `M${mach} at sea level is its true airspeed`);
+  near(machToKiasKt(0.67, 25000), 279.1, 0.1, 'M0.67 at 25,000 ft');
+  near(machToKiasKt(0.67, 31000), 245.3, 0.1, 'M0.67 at 31,000 ft');
+  near(machToKiasKt(0.67, 40000), 199.3, 0.1, 'M0.67 at 40,000 ft (the stratosphere)');
+  near(machToKiasKt(0.67, 36089.2), machToKiasKt(0.67, 36089.3), 0.01, 'no step at the tropopause');
+  assert.ok(machToKiasKt(0.67, 25000) > tasToIasKt(0.67 * speedOfSoundKt(25000), 25000), 'above the no-compressibility IAS');
+  for (const bad of [NaN, Infinity]) assert.throws(() => machToKiasKt(0.67, bad), RangeError);
+  for (const bad of [-0.1, 1, NaN]) assert.throws(() => machToKiasKt(bad, 10000), RangeError);
 });
 
-test('the top speed: VMO 316 KIAS low down, Mach 0.67 high up, in the model\'s own IAS', () => {
-  for (const alt of [0, 5000, 10000, 15000, 17000]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
-  // The model's IAS has no compressibility (TAS = IAS ÷ √σ), so the Mach line
-  // sits a few knots under the NFM's KIAS: it starts near 17,600 ft, not 18,769.
-  near(maxKiasT6A(20000), 300.4, 0.2, '20,000 ft');
-  near(maxKiasT6A(25000), 270.0, 0.2, '25,000 ft (the NFM reads about 279)');
-  near(maxKiasT6A(31000), 236.0, 0.2, '31,000 ft (the NFM reads 244)');
-  for (const alt of [18000, 20000, 25000, 31000]) {
-    near(iasToTasKt(maxKiasT6A(alt), alt) / speedOfSoundKt(alt), 0.67, 1e-12, `${alt} ft is Mach 0.67 exactly`);
-    assert.ok(maxKiasT6A(alt) <= chartKiasAtMach(0.67, alt), `${alt} ft: on the safe side of the NFM line`);
-  }
+// The NFM's airspeed and Mach limits (Fig 5-3, p.5-9): VMO 316 KIAS to
+// 18,769 ft, then Mmo 0.67, which is 244 KIAS at 31,000 ft.
+test('the top speed follows the NFM line: VMO 316 KIAS to about 18,800 ft, then Mach 0.67', () => {
+  for (const alt of [0, 5000, 10000, 15000, 18000, 18769]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
+  near(maxKiasT6A(20000), 309.1, 0.1, '20,000 ft');
+  near(maxKiasT6A(25000), 279.1, 0.1, '25,000 ft');
+  // The standard formula gives 245.3 at the chart's top; the chart reads 244.
+  near(maxKiasT6A(31000), 244, 1.5, '31,000 ft: the NFM reads 244');
+  assert.ok(maxKiasT6A(19000) < 316, 'Mach is the limit by 19,000 ft');
+  for (const alt of [20000, 25000, 31000]) assert.equal(maxKiasT6A(alt), machToKiasKt(T6A_LIMITS.mmo, alt), `${alt} ft is Mach 0.67`);
   for (const bad of [NaN, -Infinity]) assert.throws(() => maxKiasT6A(bad), RangeError);
 });
 
