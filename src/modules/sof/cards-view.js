@@ -27,6 +27,16 @@ function report(kind, line) {
   );
 }
 
+const WAVE_SYMBOL = { ok: '✓', below: '▼', 'at-limit': '●', unknown: '?' };
+
+function waveResult(line) {
+  return h('p', { class: `sof-wave-result is-${line.tone}` },
+    h('span', { class: 'sof-wave-result-label' }, `${line.label}: `),
+    h('span', { class: 'sof-result-symbol', 'aria-hidden': 'true' }, WAVE_SYMBOL[line.tone] ?? '?'), ' ',
+    line.words,
+    line.reason ? h('span', { class: 'sof-wave-result-reason' }, `. ${line.reason}`) : null);
+}
+
 function children(card) {
   const badges = h(
     'div',
@@ -48,6 +58,8 @@ function children(card) {
     report('METAR', card.metar),
     report('TAF', card.taf),
     h('p', { class: `sof-result level-${card.result.level}` }, h('span', { class: 'sof-result-symbol', 'aria-hidden': 'true' }, LEVEL_SYMBOL[card.result.level] ?? ''), ' ', card.result.words),
+    // An alternate's result for the selected wave (waves-view-model.js's altLines), in words with its symbol.
+    card.waveLine ? waveResult(card.waveLine) : null,
     ...card.cautionReasons.map((reason) => h('p', { class: 'sof-caution' }, `Caution: ${reason}`)),
     note(card.watchText, 'info'),
   ];

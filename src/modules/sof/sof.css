@@ -350,3 +350,247 @@
 [data-module='sof'] .sof-banner-actions:has(.sof-banner-all[hidden]) {
   display: none;
 }
+
+/* Waves: one row per wave, its fields on the left and its call beside them. Every call is words and a symbol. */
+[data-module='sof'] .sof-waves {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+[data-module='sof'] .sof-waves-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+[data-module='sof'] .sof-waves-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+[data-module='sof'] .sof-day {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+[data-module='sof'] .sof-day-date,
+[data-module='sof'] .sof-waves-zone {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-waves-problem {
+  margin: 0 0 var(--space-2);
+  color: var(--bad);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-waves-problem[hidden],
+[data-module='sof'] .sof-waves-empty[hidden],
+[data-module='sof'] .sof-wave-detail[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-waves-empty {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-wave-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-wave {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-wave-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+[data-module='sof'] .sof-wave-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+[data-module='sof'] .sof-wave-label {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-wave-name {
+  width: 6rem;
+}
+
+[data-module='sof'] .sof-wave-note {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-wave-note:empty {
+  display: none;
+}
+
+[data-module='sof'] .sof-wave-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+[data-module='sof'] .sof-wave-chip[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-wave-chip.is-required {
+  border-left-color: var(--bad);
+}
+
+[data-module='sof'] .sof-wave-chip.is-at-limit {
+  border-left-color: var(--caution);
+}
+
+[data-module='sof'] .sof-wave-chip.is-ok {
+  border-left-color: var(--good);
+}
+
+[data-module='sof'] .sof-wave-chip.is-selected {
+  background: var(--bg-sunken);
+  border-color: var(--accent);
+}
+
+[data-module='sof'] .sof-chip-call {
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-chip-reason,
+[data-module='sof'] .sof-chip-alts {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-chip-reason[hidden],
+[data-module='sof'] .sof-chip-alts[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-waves-actions {
+  margin: 0;
+}
+
+[data-module='sof'] .sof-wave-add[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-module='sof'] .sof-wave-limit {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The list of hits for the selected wave. */
+[data-module='sof'] .sof-wave-detail {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='sof'] .sof-detail-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+}
+
+[data-module='sof'] .sof-detail-home,
+[data-module='sof'] .sof-detail-alts-title {
+  margin: 0 0 var(--space-1);
+}
+
+[data-module='sof'] .sof-hit-list,
+[data-module='sof'] .sof-alt-list {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-5);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-alt-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-alt-list .sof-hit-list {
+  margin-top: var(--space-1);
+}
+
+[data-module='sof'] .is-required .sof-detail-symbol,
+[data-module='sof'] .is-below .sof-detail-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .is-at-limit .sof-detail-symbol {
+  color: var(--caution);
+}
+
+[data-module='sof'] .is-ok .sof-detail-symbol,
+[data-module='sof'] .is-ok .sof-chip-symbol {
+  color: var(--good);
+}
+
+[data-module='sof'] .is-required .sof-chip-symbol,
+[data-module='sof'] .is-below .sof-chip-symbol {
+  color: var(--bad);
+}
+
+/* An alternate card's result for the selected wave. */
+[data-module='sof'] .sof-wave-result {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-wave-result-label {
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-wave-result.is-below .sof-result-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-wave-result.is-ok .sof-result-symbol {
+  color: var(--good);
+}
+
+[data-module='sof'] .sof-wave-result.is-at-limit .sof-result-symbol {
+  color: var(--caution);
+}
