@@ -6,7 +6,7 @@ import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { START_DEFAULTS } from './geometry.js';
 import { ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE } from './energy-sim.js';
-import { iasToTasKt } from '../../core/t6-performance.js';
+import { iasToTasKt, maxKiasT6A, T6A_LIMITS } from '../../core/t6-performance.js';
 import { FT_PER_NM } from '../../core/units.js';
 
 /**
@@ -169,24 +169,28 @@ export function energySetupFrom(values) {
 /**
  * The simple fight's setup, with each aircraft's speed as the true airspeed of its Energy merge speed, for the parts of the
  * screen that work out the start from speeds (the pass time, the start picture, which way each turns). Without Energy it
- * is setupFrom.
+ * is setupFrom. While the Energy start cannot fly (energyProblem) these are the settings the fight flies
+ * (usableEnergyValues), so the pass and the picture show what is flown.
  */
 export function startSetupFrom(values) {
-  const setup = setupFrom(values);
+  const usable = usableEnergyValues(values);
+  const setup = setupFrom(usable);
   if (!values.energy) return setup;
   return {
     ...setup,
-    blueKt: iasToTasKt(values.blueKias, values.blueAltFt),
-    redKt: iasToTasKt(values.redKias, values.redAltFt),
+    blueKt: iasToTasKt(usable.blueKias, usable.blueAltFt),
+    redKt: iasToTasKt(usable.redKias, usable.redAltFt),
   };
 }
 
 const feetText = (ft) => Math.round(ft).toLocaleString('en-US');
 
 /**
- * What a box cannot say on its own: an Energy setup the engine would refuse because of two numbers together (its
- * RangeError, worded for the screen), or '' when it is fine. Each start altitude runs from the hard deck to 25,000 ft, and
- * the range (the start separation) must be more than the height between the aircraft. A test holds this to the engine.
+ * What a box cannot say on its own: an Energy setup the engine would refuse because of numbers together (its RangeError,
+ * worded for the screen), or '' when it is fine. Each start altitude runs from the hard deck to 25,000 ft; each merge speed
+ * is at most the T-6A's top speed at that altitude (core's maxKiasT6A: VMO to about 18,900 ft, then the Mach limit, taken to
+ * the whole knot as the engine does); and the start separation must be more than the height between the aircraft. The
+ * engine's checks in the engine's order; a test holds this to the engine.
  */
 export function energyProblem(values) {
   if (!values.energy) return '';
@@ -196,11 +200,39 @@ export function energyProblem(values) {
       return `${who}'s start altitude (${feetText(alt)} ft) must be from the hard deck (${feetText(values.hardDeckFt)} ft) to ${feetText(ENERGY_MAX_START_FT)} ft.`;
     }
   }
+  for (const [who, kiasKey, altKey] of [['Blue', 'blueKias', 'blueAltFt'], ['Red', 'redKias', 'redAltFt']]) {
+    const exact = maxKiasT6A(values[altKey]);
+    const limit = Math.round(exact);
+    if (values[kiasKey] > limit) {
+      return `${who}'s merge speed (${values[kiasKey]} KIAS) is above the T-6A's limit at ${feetText(values[altKey])} ft (${limit} KIAS, ${exact >= T6A_LIMITS.vmoKias ? 'VMO' : `Mach ${T6A_LIMITS.mmo}`}).`;
+    }
+  }
   const between = Math.abs(values.redAltFt - values.blueAltFt);
   if (!(values.separationNm * FT_PER_NM > between)) {
     return `The start separation (${values.separationNm} NM) must be more than the height between the aircraft (${feetText(between)} ft).`;
   }
   return '';
+}
+
+/** The settings a start that cannot fly puts back to their defaults while it cannot: every one energyProblem's checks read. */
+export const START_FALLBACK_KEYS = Object.freeze(['blueAltFt', 'redAltFt', 'blueKias', 'redKias', 'hardDeckFt', 'separationNm']);
+
+const startFallbacks = () => Object.fromEntries(START_FALLBACK_KEYS.map((key) => [key, DEFAULTS[key]]));
+
+/** The settings the Energy fight flies: the person's, or, with a problem in energyProblem, those with the START_FALLBACK_KEYS at their defaults. */
+export function usableEnergyValues(values) {
+  return values.energy && energyProblem(values) ? { ...values, ...startFallbacks() } : values;
+}
+
+/**
+ * The line beside the boxes when the start cannot fly: the reason, then every setting the fight uses instead, with its
+ * value. '' when there is no reason. The reason is energyProblem's, or the engine's own message for a problem found
+ * some other way.
+ */
+export function energyProblemNote(values, reason = energyProblem(values)) {
+  if (!reason) return '';
+  const d = startFallbacks();
+  return `${reason} Until this is fixed the fight flies the default start altitudes (${feetText(d.blueAltFt)} ft), merge speeds (${d.blueKias} KIAS), hard deck (${feetText(d.hardDeckFt)} ft) and separation (${d.separationNm} NM).`;
 }
 
 /** Changes exactly when the fight would have to start again. Energy mode is a different fight with its own numbers, so with it on the key is Energy's. */

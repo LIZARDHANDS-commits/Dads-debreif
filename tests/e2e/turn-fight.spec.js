@@ -1613,7 +1613,7 @@ test('the start altitude and the hard deck have to go together: the reason is sh
   await settingsButton(page).click();
   await page.getByLabel('Hard deck (ft MSL)').fill('12000');
   const problem = page.locator('.tf-energy-problem');
-  await expect(problem).toHaveText('Blue\'s start altitude (10,000 ft) must be from the hard deck (12,000 ft) to 25,000 ft. The fight shows the default start heights until this is fixed.');
+  await expect(problem).toHaveText('Blue\'s start altitude (10,000 ft) must be from the hard deck (12,000 ft) to 25,000 ft. Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (2 NM).');
   await expect(problem).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('.tf-energy-summary')).toContainText('Hard deck 6,000 ft');
   await blue(page).getByLabel('Start altitude (ft)').fill('13000');
@@ -1630,6 +1630,29 @@ test('the start altitude and the hard deck have to go together: the reason is sh
   await blue(page).getByLabel('Merge speed (KIAS)').blur();
   await expect(blue(page).getByLabel('Merge speed (KIAS)')).toHaveAttribute('aria-invalid', 'true');
   await expect(blue(page)).toContainText('Enter a number from 40 to 316 KIAS.');
+});
+
+test('a merge speed above the top speed at its height is refused with the reason, and the fight, the pass and the start picture all fly the same default start: Blue at 25,000 ft and 300 KIAS', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await energyBox(page).check();
+  await settingsButton(page).click();
+  const problem = page.locator('.tf-energy-problem');
+  await blue(page).getByLabel('Start altitude (ft)').fill('25000');
+  await red(page).getByLabel('Start altitude (ft)').fill('25000');
+  await expect(problem).toBeEmpty();
+  await blue(page).getByLabel('Merge speed (KIAS)').fill('300');
+  await expect(problem).toHaveText('Blue\'s merge speed (300 KIAS) is above the T-6A\'s limit at 25,000 ft (279 KIAS, Mach 0.67). Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (2 NM).');
+  // The screen still shows a fight, and what shows is what flies: the default start (10,000 ft, 220 KIAS, the pass at T+14.1 s).
+  await expect(page.locator('.tf-energy-summary')).toHaveText('Altitude at T+0.0: Blue 10,000 ft, Red 10,000 ft. Hard deck 6,000 ft.');
+  await expect(resultRow(page, /Speed \(KIAS\)/)).toHaveText(/220 KIAS.*220 KIAS/);
+  await expect(page.locator('.tf-pass')).toHaveText('Pass at T+14.1 s');
+  await expect(words(blue(page))).toHaveText('Pitch back: 220 KIAS, SMM entry 160 to 220');
+  // At the limit as shown it flies, from 25,000 ft.
+  await blue(page).getByLabel('Merge speed (KIAS)').fill('279');
+  await expect(problem).toBeEmpty();
+  await expect(page.locator('.tf-energy-summary')).toHaveText('Altitude at T+0.0: Blue 25,000 ft, Red 25,000 ft. Hard deck 6,000 ft.');
+  await expect(resultRow(page, /Speed \(KIAS\)/)).toHaveText(/279 KIAS.*220 KIAS/);
+  await expect(page.locator('.tf-pass')).not.toHaveText('Pass at T+14.1 s'); // 25,000 ft is faster true airspeed
 });
 
 test('a start altitude over 15,000 ft gets one note beside its box, with SMM 14.5 para 10; the MPT bank is explained in About', async ({ page }) => {

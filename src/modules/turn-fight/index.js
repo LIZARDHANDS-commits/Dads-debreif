@@ -7,7 +7,7 @@ import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { timeText, phaseText, resultRows, moreDetailRows, geometryRows } from './readouts.js';
 import {
-  DEFAULTS, ALLOWED, setupFrom, startSetupFrom, energySetupFrom, energyProblem, setupKey, saneFix, v6Defaults, checkingDefaults,
+  DEFAULTS, ALLOWED, ENERGY_KEYS, START_FALLBACK_KEYS, setupFrom, startSetupFrom, energySetupFrom, usableEnergyValues, energyProblemNote, setupKey, saneFix, v6Defaults, checkingDefaults,
 } from './state.js';
 import { START_DEFAULTS } from './geometry.js';
 import { createRun, createEnergyRun, advanceRun, frameDtSec } from './playback.js';
@@ -30,9 +30,6 @@ const MESSAGES_3D = Object.freeze({
   load: '3D needs a connection the first time.',
 });
 const STOPPED_TEXT = 'Fight stopped at 10 minutes. Reset to fly it again.';
-
-// The settings an Energy setup can fail on together (state.js energyProblem); while they do, the fight flies these instead.
-const START_FALLBACK_KEYS = ['blueAltFt', 'redAltFt', 'hardDeckFt', 'separationNm'];
 
 function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
@@ -68,12 +65,27 @@ function mount(root, app) {
   let ui = null; // the layout, made below; newRun says nothing to it until then
   let problemText = '';
   function newRun(values) {
-    const problem = values.energy ? energyProblem(values) : '';
-    problemText = problem ? `${problem} The fight shows the default start heights until this is fixed.` : '';
+    problemText = '';
+    if (!values.energy) {
+      ui?.setEnergyProblem('');
+      return createRun(setupFrom(values));
+    }
+    let usable = usableEnergyValues(values); // the settings, or the default start when energyProblem finds one
+    problemText = energyProblemNote(values);
+    let run;
+    try {
+      run = createEnergyRun(energySetupFrom(usable));
+    } catch (error) {
+      // No check of the engine's can blank the screen: whatever it refuses is said beside the boxes, and the start
+      // (or, failing that, every Energy setting) is flown at its default.
+      if (!(error instanceof RangeError)) throw error;
+      const reason = error.message.replace(/^Turn Fight energy setup: /, '').replace(/, got .*$/, '');
+      problemText = energyProblemNote(values, `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`);
+      usable = { ...usable, ...Object.fromEntries(ENERGY_KEYS.map((key) => [key, DEFAULTS[key]])), ...Object.fromEntries(START_FALLBACK_KEYS.map((key) => [key, DEFAULTS[key]])) };
+      run = createEnergyRun(energySetupFrom(usable));
+    }
     ui?.setEnergyProblem(problemText);
-    if (!values.energy) return createRun(setupFrom(values));
-    const usable = problem ? { ...values, ...Object.fromEntries(START_FALLBACK_KEYS.map((key) => [key, DEFAULTS[key]])) } : values;
-    return createEnergyRun(energySetupFrom(usable));
+    return run;
   }
   let run = newRun(settings.get());
   let playing = false;
