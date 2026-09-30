@@ -29,8 +29,8 @@ The browser's Back and Forward buttons move between these. After a page change, 
 
 **Header** (on every screen): the title (links home), the time, Settings, and Report a problem.
 
-- **Time:** Zulu first with local beside it, or local first, as set in Settings (D18, R10). Local time is the home airfield's zone, America/Regina (UTC-6 all year) for CYMJ, until `airfields` lands in step 2. The formatting comes from `core/time.js` (owned by the flight-math workstream). The clock ticks once a second on the shell's scheduler scope and pauses while the tab is hidden.
-- **Settings** opens a dialog: time order (Zulu first / Local first) and card videos (follow this computer's setting / play them / still pictures only; the setting is `motion`, and "still pictures only" also turns off transitions). If the browser blocks storage, the dialog says settings won't be saved.
+- **Time:** Zulu first with local beside it, or local first, as set in Settings (D18, R10). Local time is the home airfield's zone (`airfields.home().timeZone`; America/Regina, UTC-6 all year, for CYMJ). It is read on every tick, and the clock redraws at once when the home field changes (SPEC-airfields). The formatting comes from `core/time.js` (owned by the flight-math workstream). The clock ticks once a second on the shell's scheduler scope and pauses while the tab is hidden.
+- **Settings** opens a dialog: time order (Zulu first / Local first) and card videos (follow this computer's setting / play them / still pictures only; the setting is `motion`, and "still pictures only" also turns off transitions). Below them, the Airfields section (`createAirfieldsPanel` from `src/airfields/panel.js`, SPEC-airfields), set apart by a rule. If the browser blocks storage, the dialog says settings won't be saved.
 - **Report a problem** (R20) opens GitHub's new-issue form for this repo, using the form in `.github/ISSUE_TEMPLATE/problem.yml`, with the current module and app version filled in.
 
 **About:** V6's About page content (the formation photo, Dad's text, contact, mission, and support links), with a link back home.
@@ -65,7 +65,8 @@ The registry lists each module's id, title, card text, card media and a `load()`
 | `app.scheduler` | A scheduler scope, disposed on unmount |
 | `app.listen(target, type, handler, options)` | Adds an event listener that's removed on unmount |
 | `app.keys({ 'KeyP': fn, … })` | Keyboard shortcuts that work only while this module is open and never while typing in a field |
-| `app.time` | Time from `core/time.js` for the home airfield: `zulu(date)` "18:00:00Z", `local(date)` "12:00:00 CST", `ordered(date)` both in the order Settings picked, `offsetMinutes(date)`, `zone`, `now()` |
+| `app.time` | Time from `core/time.js` for the home airfield: `zulu(date)` "18:00:00Z", `local(date)` "12:00:00 CST", `ordered(date)` both in the order Settings picked, `offsetMinutes(date)`, `zone` (read live, so it follows the home field), `now()` |
+| `app.airfields` | The home field and alternates, read-only: `home()`, `alternates()`, `stations()`, `checkOptions(icao)`, and `subscribe()` (subscriptions end on unmount). They're changed only in Settings. |
 | `app.status(text)` | Shows a short message in the module's status line |
 
 Opening a route: the shell unmounts the current module (calls its cleanup, disposes its scheduler scope, removes its listeners, shortcuts and subscriptions, empties its root), then mounts the next. If loading or mounting throws, the shell shows an error card with a Report a problem link and the Home button still works.
@@ -123,4 +124,4 @@ Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
 
 ## Out of scope for step 1
 
-Module content, the home airfield setting (step 2 with `airfields`), saving a debrief to a file (step 2 with `flight-data`).
+Module content, saving a debrief to a file (step 2 with `flight-data`).

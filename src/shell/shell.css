@@ -288,7 +288,7 @@ a.card:hover {
 
 /* Settings dialog */
 .settings-dialog {
-  width: min(28rem, calc(100vw - 2rem));
+  width: min(48rem, calc(100vw - 2rem));
   padding: var(--space-5);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
@@ -298,6 +298,18 @@ a.card:hover {
 
 .settings-dialog::backdrop {
   background: rgb(0 0 0 / 0.6);
+}
+
+.settings-dialog fieldset,
+.settings-dialog .field {
+  max-width: 28rem;
+}
+
+/* Parts of Settings from other modules, such as Airfields, each below a rule. */
+.settings-section {
+  margin: var(--space-5) 0 var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
 }
 
 .settings-dialog fieldset {
