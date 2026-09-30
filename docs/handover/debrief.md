@@ -3,7 +3,7 @@
 Replays ForeFlight KML tracks for up to four ships, with formation spacing, sweep, aspect, estimated G and speed, the lead's FAST/SLOW call, historical weather (METAR, radar, winds) and a 2D/3D switch.
 
 - Spec: `specs/SPEC-debrief.md`. Tasks: `tasks/debrief/`. Code: `src/modules/debrief/`. Checklist: `docs/checklists/debrief.md`.
-- Built and live through #237.
+- Built and live through #237; the final-check fix is PR #241 (below).
 
 ## Final check (30 Sep): pass, with three items being fixed
 
@@ -11,7 +11,15 @@ Replays ForeFlight KML tracks for up to four ships, with formation spacing, swee
 - F2: GPS spikes showed as real over-G or overspeed; a 5 s hole was not treated as a gap. Fix: a hole of 5 s or more is a gap, G above the stall line is suppressed, no verdict above 350 kt ground speed.
 - F3 (low): bank and G beside it could disagree at spikes.
 
-The fix is one PR from the Debrief thread (in progress when this was written). After it merges, re-check only F1-F3.
+The fix is PR #241 (branch `claude/debrief-spec-pydmhn`), open at handover. It was built test-first and passes locally (3,170 unit tests, 63 Debrief browser tests, typecheck); GitHub's `test` run was still going. The two CodeQL checks fail on every PR since the repo went private (code scanning needs a paid plan), so they are not this PR's failure.
+
+What it does:
+- F1: with **Winds aloft** on, Lead's est. IAS is corrected for the model wind and says "(wind-corrected)"; otherwise it says "(no wind)". The FAST/SLOW call follows the IAS shown. Wingmen stay "(no wind)".
+- F2: in the Debrief only, a fix hole of 5 s or more is a gap; est. G above the stall line (IAS/86)² shows "--"; ground speed over 350 kt blanks speed, G and bank, and Lead reads "not judged: GPS speed over 350 kt". Recorded G and bank are never blanked. flight-data's shared gap rule ("more than 5 s") and the 2D/3D glyphs are unchanged.
+- F3: bank uses the same 3 s speed as est. G, so they agree within 1°.
+- Judgement calls for all three are logged in `logs/decisions-for-review.md` (18:05 rows).
+
+Still to do: merge #241 when `test` is green, then Verification re-checks only F1-F3.
 
 ## Next
 
