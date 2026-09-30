@@ -12,7 +12,7 @@ import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { RANGES, ALLOWED, G_LABEL, setupFrom } from './state.js';
 import { VIEWS } from './view3d.js';
-import { startGeometry } from './geometry.js';
+import { startGeometry, passNote } from './geometry.js';
 import { limitWarning } from './t6-limit.js';
 
 // The choices come from state.js, so a saved value and a box can't disagree.
@@ -71,6 +71,7 @@ export function createLayout({ settings, controls, on }) {
   const startSection = menu.section('Start geometry');
   const startPicture = h('canvas', { class: 'tf-start-picture' });
   const hcaText = h('p', { class: 'tf-hca', 'aria-live': 'polite' });
+  const passText = h('p', { class: 'tf-hca tf-pass', 'aria-live': 'polite' });
   const headOnButton = h('button', { type: 'button', class: 'button', onclick: () => on.headOn() }, 'Head-on (V6)');
   const sideChoices = [['left', 'Left'], ['right', 'Right']];
   const redAbove = controls.number('redAboveFt', { label: 'Red starts above Blue (ft)', ...RANGES.redAboveFt });
@@ -85,9 +86,10 @@ export function createLayout({ settings, controls, on }) {
       controls.choice('startAaSide', { label: 'AA side', options: sideChoices })),
     h('p', { class: 'tf-hint' }, '0 to 180°, default 180° (Red points at Blue; 0° is Blue dead astern of Red). Side: which side of Red Blue is on. SMM 12.2.'),
     hcaText,
+    passText,
     h('div', { class: 'tf-start-picture-wrap' }, startPicture),
     redAbove,
-    h('p', { class: 'tf-hint' }, '-5,000 to +5,000 ft, default 0. It shows with Climb and dive.'),
+    h('p', { class: 'tf-hint' }, '-5,000 to +5,000 ft, default 0. It shows with Climb and dive. The start separation is measured level; Range includes height.'),
     controls.choice('turnsAt', { label: 'When the turns start', options: [['pass', 'At the pass'], ['once', 'At once']] }),
     h('p', { class: 'tf-hint' }, 'At the pass (default): each jet flies straight until the range stops closing. At once: the turns start at T+0.'),
     headOnButton,
@@ -107,6 +109,7 @@ export function createLayout({ settings, controls, on }) {
     h('p', {}, h('b', {}, '2-circle: '), 'same turn direction after the merge. A rate fight.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
     h('p', {}, 'With Climb and dive on, first nose-on needs the nose truly on the other jet; at a fixed climb or dive it may never come, and the chase then never starts.'),
+    h('p', {}, 'The aspect angle (AA) and off-nose angle (ATA) are measured in 3D with Climb and dive on, so with a height difference at T+0 the AA reads less than 180° even when Red points at Blue.'),
     h('p', {}, 'Level, coordinated turns, each aircraft a point.'),
   );
 
@@ -206,6 +209,8 @@ export function createLayout({ settings, controls, on }) {
       controls.setDisabled('redAboveFt', !values.vertical);
       const hca = `Heading crossing angle (HCA): ${startGeometry(setupFrom(values)).hcaDeg.toFixed(0)}°`;
       if (hcaText.textContent !== hca) hcaText.textContent = hca;
+      const pass = passNote(setupFrom(values));
+      if (passText.textContent !== pass) passText.textContent = pass;
       showWarning(blue, limitWarning(values.blueKt, values.blueG));
       showWarning(red, limitWarning(values.redKt, values.redG));
     },

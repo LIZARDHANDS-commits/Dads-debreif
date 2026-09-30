@@ -594,10 +594,12 @@ test('R28: turns at once: merged at T+0, the turn starts in the first step, pitc
   stepFight(s, FIGHT_STEP_SEC);
   assert.notEqual(s.blue.headingRad, b0);
   assert.notEqual(s.blue.xFt, x0);
-  // The start is the same as with the turns at the pass (the same picture); only when the turns start differs.
-  const pass = createFight({ startAtaDeg: 90, startAaDeg: 90 });
-  const once = createFight({ startAtaDeg: 90, startAaDeg: 90, turnsAt: 'once' });
-  for (const who of ['blue', 'red']) for (const k of ['xFt', 'yFt', 'headingRad']) assert.equal(once[who][k], pass[who][k]);
+  // Centred on T+0 when the turns start at once: the midpoint between the jets is the origin.
+  near((s.blue.xFt + s.red.xFt) / 2, 0, 1e-6);
+  near((s.blue.yFt + s.red.yFt) / 2, 0, 1e-6);
+  const c = createFight({ startAtaDeg: 0, startAaDeg: 0, redKt: 200, turnsAt: 'once' });
+  near((c.blue.xFt + c.red.xFt) / 2, 0, 1e-6, 'a tail chase at 220 against 200 kt is centred on T+0, not 22 NM out');
+  assert.ok(Math.abs(c.blue.xFt) < 2 * FT_PER_NM);
 });
 
 test('R28: head-on with the turns at once: the jets turn from their start positions, 2 NM apart', () => {
@@ -686,5 +688,31 @@ test('R28: the general placement agrees with the head-on start the fight uses, t
     near(g.red.xFt, s.red.xFt, 1e-7, 'Red x');
     near(g.blue.yFt, 0, 1e-7);
     near(g.passSec, s.mergeSec, 1e-9, 'the pass is the merge');
+  }
+});
+
+test('R28: a tail chase at 221 against 220 kt would pass after the 10-minute stop: it turns at once and never waits', () => {
+  const s = createFight({ startAaDeg: 0, blueKt: 221, redKt: 220 });
+  assert.equal(s.merged, true);
+  assert.equal(s.mergeSec, 0);
+  assert.equal(s.mergeMark, false);
+  stepFight(s, FIGHT_STEP_SEC);
+  assert.notEqual(s.blue.headingRad, 0, 'turning');
+  // The same with the turns at the pass asked for: a pass at T+7,200 s is not one.
+  assert.equal(createFight({ startAaDeg: 0, blueKt: 221, redKt: 220, turnsAt: 'pass' }).merged, true);
+});
+
+test('R28: with the turns at the pass there is no position jump through a crossing: no step moves a jet more than its speed allows', () => {
+  for (const change of [{ startAaDeg: 90 }, { startAtaDeg: 30, startAaDeg: 120 }, { startAtaDeg: 60, startAtaSide: 'right', startAaDeg: 100, blueKt: 300, redKt: 180 }]) {
+    const s = createFight(change);
+    assert.equal(s.headOn, false);
+    let worst = 0;
+    const limit = Math.max(s.perf.blue.speedFtps, s.perf.red.speedFtps) * FIGHT_STEP_SEC + 1e-6;
+    while (s.timeSec < s.mergeSec + 5) {
+      const before = [s.blue.xFt, s.blue.yFt, s.red.xFt, s.red.yFt];
+      stepFight(s, FIGHT_STEP_SEC);
+      worst = Math.max(worst, Math.hypot(s.blue.xFt - before[0], s.blue.yFt - before[1]), Math.hypot(s.red.xFt - before[2], s.red.yFt - before[3]));
+    }
+    assert.ok(worst <= limit, `${JSON.stringify(change)}: largest step ${worst} ft, limit ${limit}`);
   }
 });

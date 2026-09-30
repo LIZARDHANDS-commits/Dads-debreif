@@ -120,10 +120,10 @@ test('time since the merge counts up from the merge to one decimal and is 0.0 s 
   assert.equal(byId(moreDetailRows(s)).sinceMerge.text, '5.0 s');
 });
 
-test('Q51: the off-nose angle is labelled "Off-nose angle (ATA)", and true angle-off is added as "Angle-off"', () => {
+test('Q51: the off-nose angle is labelled "Off-nose angle (ATA)", and true angle-off is one row, "Angle-off (HCA)"', () => {
   const rows = byId(moreDetailRows(createFight()));
   assert.equal(rows.offNose.label, 'Off-nose angle (ATA)');
-  assert.equal(rows.angleOff.label, 'Angle-off');
+  assert.equal(rows.angleOff.label, 'Angle-off (HCA)');
   assert.equal(rows.angleOff.group, 'more');
 });
 
@@ -195,40 +195,51 @@ test('reading the state changes nothing in it', () => {
 
 // ── R28: live AA, HCA and range ──────────────────────────────────────────────
 
-test('R28: the start geometry rows read the SMM\'s names: aspect angle (AA), heading crossing angle (HCA), range', () => {
+test('R28: the one new More detail row is the aspect angle (AA); HCA is the "Angle-off (HCA)" row and Range stays in Result (no duplicates)', () => {
   const rows = geometryRows(createFight());
-  assert.deepEqual(rows.map((r) => r.id), ['aspect', 'hca', 'rangeLive']);
-  assert.deepEqual(rows.map((r) => r.label), ['Aspect angle (AA)', 'Heading crossing angle (HCA)', 'Range']);
+  assert.deepEqual(rows.map((r) => r.id), ['aspect']);
+  assert.deepEqual(rows.map((r) => r.label), ['Aspect angle (AA)']);
   assert.ok(rows.every((r) => r.group === 'more'));
+  const all = [...resultRows(createFight()), ...moreDetailRows(createFight()), ...rows].map((r) => r.id);
+  assert.equal(new Set(all).size, all.length, 'every row id is unique across both tables');
+  assert.equal(byId(moreDetailRows(createFight())).angleOff.label, 'Angle-off (HCA)');
 });
 
 test('R28: head-on at the start reads AA 180° for both, HCA 180°, range 2.00 NM', () => {
-  const m = byId(geometryRows(createFight()));
-  assert.deepEqual(pair(m.aspect), ['180°', '180°']);
-  assert.equal(m.hca.text, '180°');
-  assert.equal(m.rangeLive.text, '2.00 NM');
+  const s = createFight();
+  assert.deepEqual(pair(byId(geometryRows(s)).aspect), ['180°', '180°']);
+  assert.equal(byId(moreDetailRows(s)).angleOff.text, '180°');
+  assert.equal(byId(resultRows(s)).range.text, '2.00 NM');
 });
 
 test('R28: a 90° crossing reads HCA 90° and Red\'s AA 90°; Blue dead astern of Red (tail chase) reads Red\'s AA 0° and Blue\'s 180°', () => {
-  const crossing = byId(geometryRows(createFight({ startAaDeg: 90 })));
-  assert.equal(crossing.hca.text, '90°');
-  assert.equal(crossing.aspect.red, '90°');
-  const chase = byId(geometryRows(createFight({ startAaDeg: 0 })));
-  assert.equal(chase.hca.text, '0°');
-  assert.deepEqual(pair(chase.aspect), ['180°', '0°'], 'Red is on Blue\'s nose (Blue\'s AA 180°); Blue is on Red\'s tail (Red\'s AA 0°)');
+  const x = createFight({ startAaDeg: 90 });
+  assert.equal(byId(moreDetailRows(x)).angleOff.text, '90°');
+  assert.equal(byId(geometryRows(x)).aspect.red, '90°');
+  const chase = createFight({ startAaDeg: 0 });
+  assert.equal(byId(moreDetailRows(chase)).angleOff.text, '0°');
+  assert.deepEqual(pair(byId(geometryRows(chase)).aspect), ['180°', '0°'], 'Red is on Blue\'s nose (Blue\'s AA 180°); Blue is on Red\'s tail (Red\'s AA 0°)');
 });
 
-test('R28: the live AA, HCA and range move with the fight; the range is the same number as the Result card\'s', () => {
+test('R28: the live AA moves with the fight', () => {
   const s = createFight({ startAtaDeg: 30, startAaDeg: 120, circles: 1 });
   stepFight(s, 5);
   const now = byId(geometryRows(s));
-  assert.equal(now.rangeLive.text, byId(resultRows(s)).range.text);
-  assert.equal(now.hca.text, `${headingCrossAngleDeg(s.blue.headingRad, s.red.headingRad).toFixed(0)}°`);
   assert.equal(now.aspect.blue, `${(180 - ataDeg(s, s.blue, s.red)).toFixed(0)}°`);
   assert.equal(now.aspect.red, `${(180 - ataDeg(s, s.red, s.blue)).toFixed(0)}°`);
   const later = createFight({ startAtaDeg: 30, startAaDeg: 120, circles: 1 });
   stepFight(later, 25);
-  assert.notEqual(byId(geometryRows(later)).hca.text, now.hca.text, 'HCA changes once the jets turn in opposite directions (1-circle)');
+  assert.notEqual(byId(geometryRows(later)).aspect.red, now.aspect.red);
+});
+
+test('R28: before the pass the phase says TO THE PASS unless the start is head-on; once the turns start it is 1- or 2-CIRCLE', () => {
+  assert.equal(phaseText(createFight({ startAaDeg: 90 })), 'TO THE PASS');
+  assert.equal(phaseText(createFight({ startAtaDeg: 30 })), 'TO THE PASS');
+  assert.equal(phaseText(createFight({ startAtaSide: 'right', startAaSide: 'right' })), 'HEAD-TO-HEAD', 'head-on is V6\'s');
+  assert.equal(phaseText(createFight({ startAaDeg: 90, turnsAt: 'once' })), '2-CIRCLE');
+  const s = createFight({ startAaDeg: 90, circles: 1 });
+  stepFight(s, s.mergeSec + 1);
+  assert.equal(phaseText(s), '1-CIRCLE');
 });
 
 test('R28: the geometry rows are text only and change nothing in the state', () => {

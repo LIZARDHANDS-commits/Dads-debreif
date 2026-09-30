@@ -176,7 +176,7 @@ export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {
   const headOn = isHeadOn(s);
   const vertical = !!s.vertical;
   let blue = geometry.blue, red = geometry.red, passSec = geometry.passSec, closing = geometry.closing;
-  if (headOn) {
+  if (headOn && (s.turnsAt === 'pass' || v6Start)) {
     // V6's own start, in V6's own arithmetic (the golden test pins it bit for bit); the general placement agrees to a billionth of a foot.
     const separationFt = s.separationNm * FT_PER_NM;
     const closingKt = s.blueKt + s.redKt;
@@ -186,7 +186,7 @@ export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {
     closing = true;
   }
   // The turns start at the pass, or at T+0 when asked or when the range is not closing (nothing to fly to).
-  const turnsNow = s.turnsAt === 'once' || !closing;
+  const turnsNow = s.turnsAt === 'once' || !closing || passSec >= FIGHT_MAX_SEC;
   const redZFt = vertical ? s.redAboveFt : 0;
   const state = {
     setup: { ...s, chase: !!s.chase, vertical },

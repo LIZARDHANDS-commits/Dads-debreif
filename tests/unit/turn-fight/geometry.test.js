@@ -6,7 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FT_PER_NM, KT_TO_FTPS } from '../../../src/core/units.js';
 import { headingCrossAngleDeg, aspectAngleDeg, wrapPi, radToDeg } from '../../../src/core/angles.js';
-import { START_DEFAULTS, startGeometry, turnDirections, isHeadOn } from '../../../src/modules/turn-fight/geometry.js';
+import { FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
+import { START_DEFAULTS, MAX_PASS_SEC, startGeometry, turnDirections, isHeadOn, passNote } from '../../../src/modules/turn-fight/geometry.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected}`);
 /** A setup: V6's defaults (2 NM, 220 kt each, head-on) with changes. */
@@ -167,4 +168,52 @@ test('the defaults are head-on, turns at the pass, Red level with Blue', () => {
   assert.deepEqual({ ...START_DEFAULTS }, {
     startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 180, startAaSide: 'left', redAboveFt: 0, turnsAt: 'pass',
   });
+});
+
+test('with the turns at once the jets are centred on T+0, not on a pass that never comes: a tail chase at 200 kt against 220 kt', () => {
+  const g = startGeometry(setup({ startAaDeg: 0, redKt: 200, turnsAt: 'once' }));
+  near((g.blue.xFt + g.red.xFt) / 2, 0, 1e-6, 'midpoint x at T+0');
+  near((g.blue.yFt + g.red.yFt) / 2, 0, 1e-6);
+  // With the turns at the pass the same start is centred on the pass (T+360 s), far from the origin at T+0.
+  const pass = startGeometry(setup({ startAaDeg: 0, redKt: 200 }));
+  assert.ok(pass.closing);
+  assert.ok(Math.abs((pass.blue.xFt + pass.red.xFt) / 2) > 1e4);
+});
+
+test('a pass later than the 10-minute fight is no pass: a tail chase at 221 against 220 kt turns at once', () => {
+  assert.equal(MAX_PASS_SEC, FIGHT_MAX_SEC);
+  const g = startGeometry(setup({ startAaDeg: 0, blueKt: 221, redKt: 220 }));
+  assert.equal(g.closing, false);
+  assert.equal(g.passSec, 0);
+  near((g.blue.xFt + g.red.xFt) / 2, 0, 1e-6, 'centred on T+0');
+});
+
+test('rounding noise is not a pass: a beam start on either side reports no pass, not one at 2e-15 s', () => {
+  for (const side of ['left', 'right']) {
+    const g = startGeometry(setup({ startAtaDeg: 90, startAtaSide: side, startAaDeg: 90, startAaSide: side }));
+    assert.equal(g.closing, false, side);
+    assert.equal(g.passSec, 0, side);
+  }
+});
+
+test('on a collision course the side is the one set up: ATA 45 right with AA 135 left at equal speeds turns Blue right (toward Red) and Red left (toward Blue)', () => {
+  const s = setup({ startAtaDeg: 45, startAtaSide: 'right', startAaDeg: 135, startAaSide: 'left' });
+  const g = startGeometry(s);
+  assert.equal(g.closing, true);
+  // The jets meet at one point at the pass (a 0 ft miss), so the side cannot be read there.
+  const vb = 220 * KT_TO_FTPS;
+  const bx = g.blue.xFt + vb * g.passSec, by = g.blue.yFt;
+  const rx = g.red.xFt + vb * Math.cos(g.red.headingRad) * g.passSec, ry = g.red.yFt + vb * Math.sin(g.red.headingRad) * g.passSec;
+  assert.ok(Math.hypot(rx - bx, ry - by) < 1e-3, 'collision course');
+  assert.deepEqual(turnDirections(s, g), { blue: -1, red: 1 });
+  const mirror = setup({ startAtaDeg: 45, startAtaSide: 'left', startAaDeg: 135, startAaSide: 'right' });
+  assert.deepEqual(turnDirections(mirror, startGeometry(mirror)), { blue: 1, red: -1 });
+});
+
+test('the pass note says when the jets pass, or that there is no pass', () => {
+  assert.equal(passNote(setup()), 'Pass at T+16.4 s');
+  assert.equal(passNote(setup({ startAaDeg: 0, redKt: 200 })), 'Pass at T+360.0 s');
+  assert.equal(passNote(setup({ startAaDeg: 0 })), 'No pass: the turns start at once');
+  assert.equal(passNote(setup({ startAtaDeg: 90, startAaDeg: 90 })), 'No pass: the turns start at once');
+  assert.equal(passNote(setup({ turnsAt: 'once' })), 'Turns start at once (the jets pass at T+16.4 s)');
 });

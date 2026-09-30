@@ -33,6 +33,9 @@ export const START_DEFAULTS = Object.freeze({
 });
 
 /** +1 for a turn to the left (counter-clockwise), −1 to the right. */
+/** The fight stops after this long (sim.js FIGHT_MAX_SEC, pinned by a test): a pass later than this is never reached. */
+export const MAX_PASS_SEC = 600;
+
 export const sideSign = (side) => (side === 'right' ? -1 : 1);
 
 /** Head-on is ATA 0° with AA 180° exactly; the side is a tie there (V6's directions stand). */
@@ -48,11 +51,11 @@ export function isHeadOn(setup) {
  * Red's heading puts Blue `180° − AA` off Red's nose, on Red's side. Both fly
  * straight, so the pass is where the range is smallest: the time t = −(r·v)/|v|²,
  * with r the vector from Blue to Red and v Red's velocity relative to Blue.
- * Then both are moved, without turning, so the midpoint between them at the pass
- * is the origin (Q49 does this for the head-on merge).
+ * Then both are moved, without turning, so the midpoint between them where the turns
+ * start (the pass; T+0 with `turnsAt: 'once'`) is the origin (Q49 does this for the head-on merge).
  *
  * Returns { blue, red } as { xFt, yFt, headingRad }, `passSec` (0 when the
- * range is not closing), `closing`, and `hcaDeg`, 0 to 180°.
+ * range is not closing or the pass is after 10 minutes), `closing`, and `hcaDeg`, 0 to 180°.
  */
 export function startGeometry(setup) {
   const rangeFt = setup.separationNm * FT_PER_NM;
@@ -65,11 +68,15 @@ export function startGeometry(setup) {
   const vx = redSpeed * Math.cos(redHeading) - blueSpeed, vy = redSpeed * Math.sin(redHeading);
   const closeRate = -(rx * vx + ry * vy); // positive while the range is closing
   const speedSq = vx * vx + vy * vy;
-  const closing = closeRate > 0 && speedSq > 0;
+  // Closing only when it is more than rounding noise (a 90° beam start reports ~1e-15), and the pass comes within the fight.
+  const closingNow = speedSq > 0 && closeRate > 1e-9 * rangeFt * Math.sqrt(speedSq);
+  const closing = closingNow && closeRate / speedSq < MAX_PASS_SEC;
   const passSec = closing ? closeRate / speedSq : 0;
-  // The midpoint between the jets at the pass, to be the origin.
-  const midX = (blueSpeed * passSec + rx + redSpeed * Math.cos(redHeading) * passSec) / 2;
-  const midY = (ry + redSpeed * Math.sin(redHeading) * passSec) / 2;
+  // The midpoint between the jets where the turns start, to be the origin: at the pass, or at T+0
+  // with the turns at once (and when there is no pass, which is the same thing).
+  const t = setup.turnsAt === 'once' ? 0 : passSec;
+  const midX = (blueSpeed * t + rx + redSpeed * Math.cos(redHeading) * t) / 2;
+  const midY = (ry + redSpeed * Math.sin(redHeading) * t) / 2;
   return {
     blue: { xFt: -midX, yFt: -midY, headingRad: 0 },
     red: { xFt: rx - midX, yFt: ry - midY, headingRad: redHeading },
@@ -112,4 +119,15 @@ export function turnDirections(setup, geometry) {
     blue: sideOf(blue, rx - bx, ry - by) || fallback.blue,
     red: sideOf(red, bx - rx, by - ry) || fallback.red,
   };
+}
+
+/**
+ * One line for the Start geometry section: when the jets pass, or that there is no pass
+ * (the turns then start at once). `setup` has the range, speeds, ATA, AA and `turnsAt`.
+ */
+export function passNote(setup) {
+  const g = startGeometry(setup);
+  if (!g.closing) return 'No pass: the turns start at once';
+  const at = `T+${g.passSec.toFixed(1)} s`;
+  return setup.turnsAt === 'once' ? `Turns start at once (the jets pass at ${at})` : `Pass at ${at}`;
 }
