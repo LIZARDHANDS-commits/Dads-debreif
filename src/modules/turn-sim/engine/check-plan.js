@@ -1,12 +1,9 @@
-// The Delayed 45 with the check turn (SMM 16.19 Figure 16.17 for two aircraft, Figure 16.34 for spread 4, Figure 16.31 for the box).
+// The Delayed 45 with the check turn (SMM 16.19 Fig 16.17 two-ship, Fig 16.34 spread 4, Fig 16.31 box).
 //
-// A chain of aircraft turns 45 degrees in order. The first turns its standard 45 (70 degrees of bank, 3 G) at once. Each of the others
-// flies a CHECK turn of 10 to 15 degrees toward the first as soon as the first has established its 45, and then turns its 45 (the check
-// and the 45 together: 45 + check degrees the other way) once the aircraft before it in the chain has gone through its tail, at the
-// figure's clock position for it: 5 o'clock in a right turn, 7 in a left (not the plain Delayed 45's 4:30 and 7:30). The check turn moves it toward
-// that track, so the wait is a few seconds where the plain Delayed 45 (the second aircraft waits cot(22.5) x the 90's delay, 39 s a step)
-// makes a four-ship string 46,000 ft long. The price, which the figure also notes: the geometry needs extra speed to hold the sweep, so
-// the wingmen roll out a little aft of abreast and fix it on the roll-out.
+// The first aircraft turns its standard 45 (70 degrees of bank, 3 G) at once. Each other aircraft checks 10-15 degrees toward the first,
+// then turns 45 plus the check the other way when the aircraft before it in the chain reaches the figure's clock cue (5 o'clock right,
+// 7 left; the plain Delayed 45 uses 4:30 and 7:30). The wait is a few seconds, where the plain chain (cot(22.5) x the 90's delay, 39 s a step)
+// makes a four-ship string 46,000 ft long. The price: the wingmen roll out a little aft of abreast and fix it on the roll-out.
 //
 // The moment of each 45 is worked out here by flying a copy of the aircraft and its predecessor with the engine's own step (moveAircraft)
 // until the predecessor reaches the clock position, and is stored as the hold before the second leg (step.js stepLegs).

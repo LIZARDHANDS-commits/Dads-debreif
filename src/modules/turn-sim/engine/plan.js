@@ -601,17 +601,16 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   if (withCheck) {
     const opts = { goalRad: goal, checkRad: degToRad(+flight.checkTurnDeg || 0), speedFtps: ktToFtps(flight.speedKt), baseG: flight.baseG, cueHours: flight.direction === 'right' ? 5 : 7, direction: flight.direction, useErrors, spacingFt: flight.checkSolveSpacing ? Math.abs(+flight.spacingFt) || 0 : 0 };
     if (form === 'offsetBox') {
-      // Figure 16.31: the front element flies the chain; the rear element follows the same flow rearDelaySec (10 to 15 s) later. In each pair the
-      // aircraft on the first turner's side turns plain: #3 with Lead, #4 with #2.
+      // Fig 16.31: the front element flies the check chain and the rear element flies it again, shifted. The shift is solved (below), not the
+      // Rear element delay setting, which this plan ignores. In each pair the aircraft on the first turner's side turns plain: #3 with Lead, #4 with #2.
       const [f0, f1] = order;
       const r0 = aircraft.find((x) => x.id === (f0.id === 1 ? 3 : 4));
       const r1 = aircraft.find((x) => x.id === (f0.id === 1 ? 4 : 3));
       const front = [f0, f1].filter(Boolean);
       const rear = [r0, r1].filter(Boolean);
       planCheckChain(front, { ...opts, startSec: 0 });
-      // The rear element follows the same flow later. How much later puts #3 behind the front pair's middle and #4 outside #2, Box aft
-      // behind (Figure 16.31 says 10 to 15 s, which leaves the box collapsed after a 45; boxSlot's idea, solved for the check). The ends
-      // are linear in the shift, so two flights find it.
+      // The shift puts #3 behind the front pair's middle and #4 outside #2, Box aft behind (the figure's 10-15 s leaves the box collapsed
+      // after a 45; boxSlot's idea, solved for the check). The ends are linear in the shift, so two flights find it.
       const rearShift = boxCheckShiftSec(front, rear, opts, flight);
       planCheckChain(rear, { ...opts, startSec: rearShift });
       checkRear = { 3: rearShift, 4: rearShift };

@@ -1,21 +1,9 @@
-// The Delayed 45 with the check turn (verification N3; SMM 16.19 Figures 16.17, 16.34 and 16.31; decision D148). The figures are described
-// here in my own words, with no text copied from the manual.
-//
-// Reading of Figure 16.17 (two aircraft), both panels: the aircraft that turns first flies its standard 45 (70/3) toward the other.
-// The other flies a check turn of 10 to 15 degrees toward the first once the first has established its 45, then turns the rest of its 45
-// (45 plus the check) when the first has gone through its tail and reaches about 7 or 5 o'clock (5 in a right turn, 7 in a left). Both roll
-// out on the 45 heading. The figure marks two positions for the wingman at the end and notes that the geometry needs extra speed to hold the
-// sweep, and that spacing and sweep errors are fixed on the roll-out. So the end state is abreast but tight, not the plain turn's 6,000 ft,
-// and the turn takes less time.
-// Figure 16.34 (spread 4, right panel): the outside aircraft, #2, completes a standard 45 to the right; every other member then flies a check
-// of 10 to 15 degrees toward it, and Lead, #3 and #4 complete their standard 45 in turn as the aircraft before them passes the tail. The result
-// is a compact wedge, not the plain chain's string. The figure notes that #2, #3 and #4 fix spacing and sweep errors on the roll-out, and that
-// the aircraft need altitude separation to stay clear.
-// Figure 16.31 (offset box, right): #2 completes a standard 45 to the right, then Lead flies a 10 to 15 degree check into #2 and turns its 45.
-// The second element flies the same flow a little later and rolls out with the offset; the figure gives that delay as 10 to 15 s.
-// MIRRORED: in this engine's box #2 is on Lead's RIGHT, while the figure draws it on Lead's LEFT, so the picture is the mirror. The rule used
-// is the same: the outside aircraft of each pair turns its plain 45 and the other checks (Lead is the outside aircraft in a right turn here).
-// The rear element flies the same flow later by the shift that puts it in the box slots.
+// The Delayed 45 with the check turn (verification N3; SMM 16.19 Figs 16.17, 16.34 and 16.31; decision D148). Summaries in my own words:
+// - Fig 16.17 (two-ship): one aircraft turns its 45 at once; the other checks 10-15 degrees toward it, then turns 45 plus the check at the
+//   figure's clock cue (5 right, 7 left). Both end on the 45 heading, abreast and tighter than the plain turn's spacing, and quicker.
+// - Fig 16.34 (spread 4): the outside aircraft turns plain; the rest check 10-15 degrees, then turn in order. The result is a compact wedge.
+// - Fig 16.31 (box): the same rule for each pair; the rear element follows by a shift that keeps the box's shape.
+// In this engine's box #2 is on Lead's right, so the pictures are the mirror of the figure's: Lead is the outside aircraft in a right turn.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
