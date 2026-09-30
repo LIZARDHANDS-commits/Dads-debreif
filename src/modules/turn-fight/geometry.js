@@ -131,3 +131,17 @@ export function passNote(setup) {
   const at = `T+${g.passSec.toFixed(1)} s`;
   return setup.turnsAt === 'once' ? `Turns start at once (the jets pass at ${at})` : `Pass at ${at}`;
 }
+
+/**
+ * Which way each jet will turn, as a line for the Start geometry section: "Blue turns left, Red turns right".
+ * It is the rule of turnDirections (each toward the other from where the turns start) with the 1-circle
+ * flip for Red, the same the fight flies (sim.js), so the student sees what 1-circle and 2-circle will do
+ * from this start before pressing Play. `setup` has the start geometry, speeds and `circles`.
+ * With First nose chases on, each jet turns toward the other after first nose-on whatever this says.
+ */
+export function turnNote(setup) {
+  const dir = turnDirections(setup, startGeometry(setup));
+  const red = setup.circles === 1 ? -dir.red : dir.red;
+  const word = (d) => (d > 0 ? 'left' : 'right');
+  return `Blue turns ${word(dir.blue)}, Red turns ${word(red)}`;
+}

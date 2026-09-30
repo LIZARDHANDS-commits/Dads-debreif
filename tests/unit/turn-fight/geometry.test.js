@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { FT_PER_NM, KT_TO_FTPS } from '../../../src/core/units.js';
 import { headingCrossAngleDeg, aspectAngleDeg, wrapPi, radToDeg } from '../../../src/core/angles.js';
 import { FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
-import { START_DEFAULTS, MAX_PASS_SEC, startGeometry, turnDirections, isHeadOn, passNote } from '../../../src/modules/turn-fight/geometry.js';
+import { START_DEFAULTS, MAX_PASS_SEC, startGeometry, turnDirections, isHeadOn, passNote, turnNote } from '../../../src/modules/turn-fight/geometry.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected}`);
 /** A setup: V6's defaults (2 NM, 220 kt each, head-on) with changes. */
@@ -216,4 +216,30 @@ test('the pass note says when the jets pass, or that there is no pass', () => {
   assert.equal(passNote(setup({ startAaDeg: 0 })), 'No pass: the turns start at once');
   assert.equal(passNote(setup({ startAtaDeg: 90, startAaDeg: 90 })), 'No pass: the turns start at once');
   assert.equal(passNote(setup({ turnsAt: 'once' })), 'Turns start at once (the jets pass at T+16.4 s)');
+});
+
+// ---- the turn line (TF3-2) and the tail chase (TF3-1) ----------------------------------------------
+
+const base = { separationNm: 2, blueKt: 220, redKt: 220, ...START_DEFAULTS };
+const words = (setup) => [2, 1].map((circles) => turnNote({ ...base, ...setup, circles }));
+
+test('the turn line says which way each jet turns, with Red flipped in a 1-circle fight: head-on is V6\'s left and left, left and right', () => {
+  assert.deepEqual(words({}), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
+});
+
+test('the turn line follows the side: a beam start on the left turns left, on the right turns right, and 1-circle flips Red', () => {
+  assert.deepEqual(words({ startAtaDeg: 90, startAtaSide: 'left', startAaDeg: 90, startAaSide: 'left' }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
+  assert.deepEqual(words({ startAtaDeg: 90, startAtaSide: 'right', startAaDeg: 90, startAaSide: 'right' }), ['Blue turns right, Red turns right', 'Blue turns right, Red turns left']);
+  // Red crossing Blue's nose: the side Blue is on decides, as the fight flies it.
+  assert.deepEqual(words({ startAaDeg: 90, startAaSide: 'left' }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
+  assert.deepEqual(words({ startAaDeg: 90, startAaSide: 'right' }), ['Blue turns right, Red turns right', 'Blue turns right, Red turns left']);
+});
+
+test('from a tail chase the 2-circle directions differ: Blue left and Red right, so "same direction" is not what 2-circle means there', () => {
+  const tail = { startAtaDeg: 30, startAtaSide: 'left', startAaDeg: 20, startAaSide: 'right', redKt: 150 };
+  assert.deepEqual(words(tail), ['Blue turns left, Red turns right', 'Blue turns left, Red turns left']);
+  const dirs = turnDirections({ ...base, ...tail }, startGeometry({ ...base, ...tail }));
+  assert.notEqual(dirs.blue, dirs.red, 'each turns toward the other, from opposite sides');
+  // A stern chase (dead astern of a slower Red): both ties, so V6's directions stand.
+  assert.deepEqual(words({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
 });

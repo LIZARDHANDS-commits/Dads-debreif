@@ -402,7 +402,8 @@
   margin-bottom: var(--space-1);
 }
 
-[data-module='turn-fight'] .tf-hca {
+[data-module='turn-fight'] .tf-hca,
+[data-module='turn-fight'] .tf-turns {
   margin: 0 0 var(--space-2);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;

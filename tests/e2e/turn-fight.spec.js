@@ -99,7 +99,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
     await expect(who.getByLabel('Pitch (°)')).toBeHidden();
   }
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
-  await expect(page.getByText('Two aircraft meet head-on, then turn: who gets their nose on the other first?')).toBeVisible();
+  await expect(page.getByText('Two aircraft start apart, fly to the pass, then turn: who gets their nose on the other first?')).toBeVisible();
   // Energy mode isn't built yet, so there is no box for it.
   await expect(page.getByLabel('Energy (T-6)')).toHaveCount(0);
   await expect(page.getByText('coming soon')).toHaveCount(0);
@@ -388,11 +388,11 @@ test('About this model and the side columns open and close with real buttons', a
   const about = page.getByRole('button', { name: 'About this model' });
   await about.click();
   await expect(about).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByText('opposite turn directions after the merge')).toBeVisible();
-  await expect(page.getByText('same turn direction after the merge')).toBeVisible();
+  await expect(page.getByText('each jet turns toward the other')).toBeVisible();
+  await expect(page.getByText('Red turns the other way, so both turn to the same side')).toBeVisible();
   await expect(page.getByText('a yellow dashed line marks the first aircraft')).toBeVisible();
   await about.click();
-  await expect(page.getByText('opposite turn directions after the merge')).toBeHidden();
+  await expect(page.getByText('each jet turns toward the other')).toBeHidden();
   // The model statement is shown once, in the stage footer.
   await expect(page.getByText('Simplified: constant speed and turn rate')).toHaveCount(1);
 
@@ -801,6 +801,7 @@ const side = (page, group, name) => page.getByRole('group', { name: group }).get
 const turnsAt = (page, name) => page.getByRole('group', { name: 'When the turns start' }).getByRole('radio', { name });
 const hcaLine = (page) => page.locator('.tf-hca:not(.tf-pass)');
 const passLine = (page) => page.locator('.tf-pass');
+const turnsLine = (page) => page.locator('.tf-turns');
 const headOnButton = (page) => page.getByRole('button', { name: 'Head-on (V6)', exact: true });
 const moreButton = (page) => page.getByRole('button', { name: 'More detail' });
 const moreRow = (page, name) => page.getByRole('table', { name: 'More detail' }).getByRole('row', { name });
@@ -1102,4 +1103,24 @@ test('R28: in 3D the MERGE word shows where the jets pass, and not for a beam st
   await headOnButton(page).click();
   await expect(merge).toBeVisible();
   await expect(page.getByRole('img', { name: /fly toward each other and pass at the MERGE mark/ })).toHaveCount(1);
+});
+
+test('the intro, About and the turn line hold for any start: a tail chase never says head-on, the merge or same directions', async ({ page }) => {
+  await openStartGeometry(page);
+  await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns left'); // head-on, 2-circle: V6's
+  await page.getByRole('radio', { name: '1-circle' }).check();
+  await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns right');
+  await page.getByRole('radio', { name: '2-circle' }).check();
+  // A tail chase: ATA 30 left, AA 20 right, Red slow. Blue turns left and Red right in a 2-circle fight.
+  await ataBox(page).fill('30');
+  await aaBox(page).fill('20');
+  await side(page, 'AA side', 'Right').check();
+  await red(page).getByLabel('Speed (KTAS)').fill('150');
+  await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns right');
+  await page.getByRole('button', { name: 'About this model' }).click();
+  const text = await page.locator('.tf-col-setup').innerText();
+  expect(text).toContain('Two aircraft start apart, fly to the pass, then turn');
+  expect(text).toContain('each jet turns toward the other');
+  for (const wrong of ['head-on, then turn', 'same turn direction', 'opposite turn directions', 'after the merge']) expect(text).not.toContain(wrong);
+  await expect(page.getByText('a nose-on happens only if they come back exactly head-on')).toBeVisible();
 });

@@ -12,7 +12,7 @@ import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { RANGES, ALLOWED, G_LABEL, setupFrom } from './state.js';
 import { VIEWS } from './view3d.js';
-import { startGeometry, passNote } from './geometry.js';
+import { startGeometry, passNote, turnNote } from './geometry.js';
 import { limitWarning } from './t6-limit.js';
 
 // The choices come from state.js, so a saved value and a box can't disagree.
@@ -28,7 +28,7 @@ let nextId = 1;
  */
 export function createLayout({ settings, controls, on }) {
   // ── Fight setup column ──────────────────────────────────────────────
-  const intro = h('p', { class: 'tf-intro' }, 'Two aircraft meet head-on, then turn: who gets their nose on the other first?');
+  const intro = h('p', { class: 'tf-intro' }, 'Two aircraft start apart, fly to the pass, then turn: who gets their nose on the other first?');
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
@@ -72,6 +72,7 @@ export function createLayout({ settings, controls, on }) {
   const startPicture = h('canvas', { class: 'tf-start-picture' });
   const hcaText = h('p', { class: 'tf-hca', 'aria-live': 'polite' });
   const passText = h('p', { class: 'tf-hca tf-pass', 'aria-live': 'polite' });
+  const turnText = h('p', { class: 'tf-turns', 'aria-live': 'polite' });
   const headOnButton = h('button', { type: 'button', class: 'button', onclick: () => on.headOn() }, 'Head-on (V6)');
   const sideChoices = [['left', 'Left'], ['right', 'Right']];
   const redAbove = controls.number('redAboveFt', { label: 'Red starts above Blue (ft)', ...RANGES.redAboveFt });
@@ -87,6 +88,7 @@ export function createLayout({ settings, controls, on }) {
     h('p', { class: 'tf-hint' }, '0 to 180°, default 180° (Red points at Blue; 0° is Blue dead astern of Red). Side: which side of Red Blue is on. SMM 12.2.'),
     hcaText,
     passText,
+    turnText,
     h('div', { class: 'tf-start-picture-wrap' }, startPicture),
     h('div', { class: 'tf-red-above' }, redAbove),
     h('p', { class: 'tf-hint' }, '-5,000 to +5,000 ft, default 0. It shows with Climb and dive. The start separation is measured level; Range includes height.'),
@@ -105,11 +107,11 @@ export function createLayout({ settings, controls, on }) {
 
   const about = createPanel({ title: 'About this model', collapsed: true });
   about.body.append(
-    h('p', {}, h('b', {}, '1-circle: '), 'opposite turn directions after the merge. A radius fight.'),
-    h('p', {}, h('b', {}, '2-circle: '), 'same turn direction after the merge. A rate fight.'),
+    h('p', {}, h('b', {}, '2-circle: '), 'each jet turns toward the other. A rate fight. ', h('b', {}, '1-circle: '), 'Red turns the other way, so both turn to the same side. A radius fight. Head-on this is V6\'s same and opposite directions.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
     h('p', {}, 'With Climb and dive on, first nose-on needs the nose truly on the other jet; at a fixed climb or dive it may never come, and the chase then never starts.'),
     h('p', {}, 'The aspect angle (AA) and off-nose angle (ATA) are measured in 3D with Climb and dive on, so with a height difference at T+0 the AA reads less than 180° even when Red points at Blue.'),
+    h('p', {}, 'In a 2-circle fight between equal jets, a nose-on happens only if they come back exactly head-on; any offset gives none, which is what a rate fight between equals means.'),
     h('p', {}, 'Level, coordinated turns, each aircraft a point.'),
   );
 
@@ -211,6 +213,8 @@ export function createLayout({ settings, controls, on }) {
       if (hcaText.textContent !== hca) hcaText.textContent = hca;
       const pass = passNote(setupFrom(values));
       if (passText.textContent !== pass) passText.textContent = pass;
+      const turns = turnNote(setupFrom(values));
+      if (turnText.textContent !== turns) turnText.textContent = turns;
       showWarning(blue, limitWarning(values.blueKt, values.blueG));
       showWarning(red, limitWarning(values.redKt, values.redG));
     },
