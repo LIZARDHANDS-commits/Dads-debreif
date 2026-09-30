@@ -22,6 +22,7 @@ Skills: test-driven-development and incremental-implementation for every task; f
   - Files: `index.js`, `layout.js`, `view.js`, `turn-sim.css`, shell registry entry (through the coordinator). Size M.
 - [ ] **5. Readouts and standards.** Formation card, More detail, Lead 3/9 line, error labels, turn circles, Layers menu with V6's defaults. Standards read from their shared home and shown read-only (Q46); a switched-off standard gives no label.
   - Acceptance: with the default preset, labels from `core` `classifyTurnSimPosition` match V6 at every second of the task 3 runs; an edited standard changes the labels; turn circle G matches the flying G.
+  - The stall-limit G warning (D128): beside the G box and on a wingman's line when G plus its G error is above `core` `stallLimitG(speed)`, speed taken as IAS. Warning only; a test states it fires at 220 kt above about 6.5 G and not at 3 G.
   - SMM item 6: the "Under 300 ft" (or "Crossing: 300 ft vertical needed" in the shackle and cross turn) and "Mutual support lost" (over 9,000 ft) flags, as named engine constants with their SMM references. Readouts only.
   - Dependencies: the shared standards home, agreed with the debrief and app frame threads through the coordinator.
   - Files: `readouts.js`, `view.js`, `tests/unit/turn-sim/readouts.test.js`. Size M.
