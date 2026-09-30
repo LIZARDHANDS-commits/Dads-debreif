@@ -266,7 +266,8 @@ export function autoTimingStarts(aircraft, flight) {
  *
  * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingRad, clockCueAircraft,
  *   timing ('time', 'clock' or 'auto'), clockCueSequence ('outsideIn' or 'manual'), speedKt, spacingFt }
- * Returns { autoStepSec }: the auto step when the timing is auto and the turn is a delayed one, else null.
+ * Returns { autoStepSec, rearDelaysSec }: the auto step when the timing is auto and the turn is a delayed one, else null;
+ * and, in the offset box's delayed turns without the clock cue, the solved delays { 3: s, 4: s } of #3 and #4, else null.
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
@@ -370,5 +371,9 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.done = false;
     a.turnAccumRad = 0;
   }
-  return { autoStepSec: auto ? auto.stepSec : null };
+  return {
+    autoStepSec: auto ? auto.stepSec : null,
+    // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
+    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3], 4: offsetPlan.delaysSec[4] } : null,
+  };
 }

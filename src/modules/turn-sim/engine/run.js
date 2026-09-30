@@ -90,6 +90,12 @@ function newAircraft(slot, settings) {
   return a;
 }
 
+/** The solved delays of #3 and #4 against the SMM's band, or null when the turn has none (SMM item 5). */
+export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
+  if (!rearDelaysSec) return null;
+  return { minSec, maxSec, rear: [3, 4].map((id) => ({ id, delaySec: rearDelaysSec[id], outsideBand: rearDelaysSec[id] < minSec || rearDelaysSec[id] > maxSec })) };
+}
+
 /**
  * Starts a run from a settings object (settings.js; anything missing or undefined
  * takes its default). Settings from the screen or storage must come from
@@ -108,6 +114,9 @@ function newAircraft(slot, settings) {
  *            startHeadingDeg: the compass heading the run started on (000 north, 090 east); after startLeg
  *            it is Lead's compass heading, which V6 wrote into its Start heading box. The screen shows it,
  *            and must not write it back into the settings (that would reset the run).
+ *            offsetBox: in the offset box's delayed turns, the solved delays of #3 and #4 against the SMM's band
+ *            (16.41 para 112): { minSec, maxSec, rear: [{ id: 3, delaySec, outsideBand }, { id: 4, ... }] }, else null.
+ *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
  *            rearCheck: the offset box's rear element check, { enabled, phase ('off', 'waiting', 'turningOut',
  *            'holding', 'turningBack', 'complete'), startSec, dir, angleDeg, holdSec } (rear-check.js).
  *            cue: { mode: 'off' | 'start' | 'waiting' | 'triggered', targetId, clockPos (hours, 5.5 is
@@ -134,9 +143,9 @@ export function createRun(settings) {
   let rows = [];
   let tSec = 0;
   let planned = false;
-  let autoStepSec = null;
+  let planInfo = { autoStepSec: null, rearDelaysSec: null };
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, aircraft: [] };
+  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   const finished = () => tSec >= cfg.durationSec;
@@ -149,7 +158,9 @@ export function createRun(settings) {
     state.canStartLeg = tSec > 0 && (state.finished || state.turnComplete);
     // Before the first step nothing is planned yet, so the cue lines come from a plan made on copies.
     const preview = planned ? craft : craft.map((a) => ({ ...a }));
-    state.autoStepSec = planned ? autoStepSec : planTurn(preview, flight(), { useErrors: true }).autoStepSec;
+    const info = planned ? planInfo : planTurn(preview, flight(), { useErrors: true });
+    state.autoStepSec = info.autoStepSec;
+    state.offsetBox = offsetBoxStatus(info.rearDelaysSec, cfg.rearDelayMinSec, cfg.rearDelayMaxSec);
     state.rearCheck = rearCheckStatus(craft, rearCheck());
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {
@@ -215,7 +226,7 @@ export function createRun(settings) {
     rows = [];
     tSec = 0;
     planned = false;
-    autoStepSec = null;
+    planInfo = { autoStepSec: null, rearDelaysSec: null };
     publish();
   }
 
@@ -231,7 +242,7 @@ export function createRun(settings) {
       a.done = false;
     }
     syncFormation();
-    autoStepSec = planTurn(craft, flight(), { useErrors: true }).autoStepSec;
+    planInfo = planTurn(craft, flight(), { useErrors: true });
     record();
     planned = true;
   }
@@ -250,7 +261,7 @@ export function createRun(settings) {
       a.active = false;
       a.done = false;
     }
-    autoStepSec = planTurn(craft, flight(), { useErrors: true }).autoStepSec;
+    planInfo = planTurn(craft, flight(), { useErrors: true });
     record();
     planned = true;
     publish();

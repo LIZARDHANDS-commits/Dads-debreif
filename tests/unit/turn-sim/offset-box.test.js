@@ -74,3 +74,37 @@ test('Q44b: the solved delay fits #4 to the target as well as LATE or EARLY do (
     }
   }
 });
+
+test('SMM item 5: the solved delays of #3 and #4 are in the state, against the 10 to 15 s band, before the first step too', () => {
+  const run = createRun({ ...BASE, direction: 'right' });
+  const box = run.state.offsetBox;
+  assert.deepEqual([box.minSec, box.maxSec], [10, 15]);
+  assert.deepEqual(box.rear.map((r) => r.id), [3, 4]);
+  const solved = box.rear.map((r) => r.delaySec);
+  assert.ok(solved.every(Number.isFinite));
+  // The delays are what the planned turns start at (no delay errors here).
+  const started = {};
+  while (run.step()) for (const a of run.state.aircraft) if (a.turning && started[a.id] === undefined) started[a.id] = run.state.tSec;
+  assert.ok(Math.abs(started[3] - solved[0]) < 0.11 && Math.abs(started[4] - solved[1]) < 0.11, `${JSON.stringify(started)} vs ${solved}`);
+  for (const r of box.rear) assert.equal(r.outsideBand, r.delaySec < 10 || r.delaySec > 15);
+  assert.equal(run.state.offsetBox.rear[1].outsideBand, true, 'at these settings #4 is well past 15 s');
+  // The band is a setting, and the flag follows it.
+  const wide = createRun({ ...BASE, rearDelayMinSec: 0, rearDelayMaxSec: 60 });
+  assert.ok(wide.state.offsetBox.rear.every((r) => r.outsideBand === false));
+});
+
+test('SMM item 5: no solved delays for the other presets, the clock cue, or turns that start at once', () => {
+  assert.equal(createRun({ ...BASE, formation: 'weighted' }).state.offsetBox, null);
+  assert.equal(createRun({ ...BASE, timing: 'clock' }).state.offsetBox, null);
+  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) assert.equal(createRun({ ...BASE, maneuver }).state.offsetBox, null, maneuver);
+});
+
+test('SMM item 5: in-place, shackle, hook and cross turns in the offset box turn all four together, as V6 already does', () => {
+  for (const maneuver of ['inplace90', 'shackle45', 'hook90', 'cross180']) {
+    for (const rearCheckOn of [false, true]) {
+      const run = createRun({ ...BASE, maneuver, rearCheckOn, rearCheckStartSec: 60, durationSec: 30 });
+      run.step();
+      assert.ok(run.state.aircraft.every((a) => a.turning), `${maneuver}: all four turn on the first step`);
+    }
+  }
+});
