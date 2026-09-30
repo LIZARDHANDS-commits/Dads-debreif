@@ -19,6 +19,12 @@ const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
 /** Readouts update at most this far apart while playing (SPEC-turn-fight, "Readouts"), and at once for a reset or a pause. */
 const READOUT_MS = 100;
 
+// Why 3D did not start, by the reason view3d's start() gives.
+const MESSAGES_3D = Object.freeze({
+  gl: '3D needs WebGL, which this browser does not have.',
+  gl2: '3D needs WebGL 2, which this browser does not have.',
+  load: '3D needs a connection the first time.',
+});
 const STOPPED_TEXT = 'Fight stopped at 10 minutes. Reset to fly it again.';
 
 function mount(root, app) {
@@ -127,7 +133,7 @@ function mount(root, app) {
     if (turn !== switching) return; // a later choice came first, and has dealt with it
     if (!result.ok) {
       if (result.reason === 'closed') return;
-      stayIn2d(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      stayIn2d(MESSAGES_3D[result.reason] ?? MESSAGES_3D.load);
       return;
     }
     shown = '3d';

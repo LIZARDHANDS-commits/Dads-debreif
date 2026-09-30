@@ -370,7 +370,7 @@ test('an aircraft is at least its real length, and at least MIN_PLANE_PX long on
 // ---- starting and stopping ---------------------------------------------------------------------
 
 /** The least of a page the view touches, so its start and stop can be checked in Node. */
-function fakePage({ webgl = true } = {}) {
+function fakePage({ webgl = true, webgl1 = false } = {}) {
   resetWebglCheck(); // ui-kit remembers the answer; each fake page asks afresh
   const made = [];
   const element = (tag) => {
@@ -383,7 +383,11 @@ function fakePage({ webgl = true } = {}) {
       addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
       removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn); },
       // The sky paints a gradient on a spare 2D canvas; anything asked of that context does nothing.
-      getContext: (type) => (type === '2d' ? new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true }) : webgl ? { fake: 'context' } : null),
+      getContext: (type) => {
+        if (type === '2d') return new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true });
+        if (type === 'webgl2') return webgl ? { fake: 'context' } : null;
+        return webgl || webgl1 ? { fake: 'webgl 1', getExtension: () => ({ loseContext() { el.spareReleased = true; } }) } : null; // 'webgl'
+      },
       clientWidth: 800, clientHeight: 600,
     };
     made.push(el);
@@ -437,6 +441,23 @@ test('with no WebGL, starting says so ("gl") without asking three.js for a rende
     assert.deepEqual(await view.start(), { ok: false, reason: 'gl' });
     assert.equal(built, 0);
     assert.equal(view.stats().active, false);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test('TF3-7: with WebGL 1 only, starting says "gl2" (three.js needs WebGL 2) without asking three.js for a renderer, and frees the spare context', async () => {
+  let built = 0;
+  const THREE_STUB = { WebGLRenderer: class { constructor() { built++; } } };
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const page = fakePage({ webgl: false, webgl1: true });
+    const { view } = makeView({ page, load: async () => THREE_STUB });
+    assert.deepEqual(await view.start(), { ok: false, reason: 'gl2' });
+    assert.equal(built, 0);
+    assert.equal(view.stats().active, false);
+    assert.ok(page.made.some((el) => el.spareReleased), 'the WebGL 1 probe context is released');
   } finally {
     console.warn = warn;
   }

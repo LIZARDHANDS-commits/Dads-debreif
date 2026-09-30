@@ -319,14 +319,28 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     return el;
   }
 
+  /** What build() throws when there is no WebGL 2; `webgl1` says whether WebGL 1 is there, for the wording of the note. */
+  function noWebgl2() {
+    const err = /** @type {Error & { webgl1: boolean }} */ (new Error('no WebGL 2'));
+    err.webgl1 = false;
+    try {
+      const probe = doc.createElement('canvas');
+      const context = probe.getContext('webgl') || probe.getContext('experimental-webgl');
+      err.webgl1 = Boolean(context);
+      context?.getExtension?.('WEBGL_lose_context')?.loseContext(); // the spare context is released at once
+    } catch {
+      // no WebGL 1 either
+    }
+    return err;
+  }
   function build() {
     const canvas = doc.createElement('canvas');
     canvas.className = 'tf-3d-canvas';
     // Checked first (ui-kit's webglSupported, WebGL2 as three needs), so a browser with no WebGL is told apart
     // from any other failure without three.js logging an error.
-    if (!webglSupported({ document: doc })) throw new Error('no WebGL');
+    if (!webglSupported({ document: doc })) throw noWebgl2();
     const context = canvas.getContext('webgl2', { antialias: true });
-    if (!context) throw new Error('no WebGL');
+    if (!context) throw noWebgl2();
     const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true });
     try {
       buildScene(canvas, renderer);
@@ -628,7 +642,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
   return {
     /**
      * Starts the 3D picture, loading three.js the first time. Resolves { ok: true }, or { ok: false, reason }:
-     * 'load' when three.js could not be fetched (offline), 'gl' when the browser can't draw 3D, and 'closed'
+     * 'load' when three.js could not be fetched (offline), 'gl' when the browser can't draw 3D, 'gl2' when it has WebGL 1 only (three.js needs WebGL 2), and 'closed'
      * when stop() or dispose() came first. A later call after a failure tries again.
      */
     async start() {
@@ -647,7 +661,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       } catch (err) {
         console.warn('3D could not start:', err);
         teardown();
-        return { ok: false, reason: 'gl' };
+        return { ok: false, reason: err?.webgl1 ? 'gl2' : 'gl' };
       }
       if (win.ResizeObserver) {
         resizer = new win.ResizeObserver(() => requestDraw());

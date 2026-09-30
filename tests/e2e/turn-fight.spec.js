@@ -672,7 +672,7 @@ test('with WebGL 1 only (no WebGL 2, which three.js needs), the note says so and
   });
   await openRoute(page, '#/turn-fight');
   await viewChoice(page, '3D').click(); // not check(): the view goes back to 2D at once, before check() can see 3D stay checked
-  await expect(note(page)).toHaveText('3D needs WebGL, which this browser does not have.');
+  await expect(note(page)).toHaveText('3D needs WebGL 2, which this browser does not have.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(topdown(page)).toBeVisible();
 });
