@@ -9,6 +9,7 @@ import { SHIP_COLORS, OUTLINED_SHIPS, flightSummary, trackStatus, assignShips, s
 import { MAX_TRACKS } from '../../flight-data/load.js';
 import { createReadoutsPanel } from './readouts-panel.js';
 import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
+import { ROUTES } from './data/routes.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -79,6 +80,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('bubble', { label: 'Safety bubble' }),
     controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
     controls.checkbox('followLead', { label: 'Follow Lead' }),
+    controls.select('route', { label: 'Route', options: [{ value: '', label: 'None' }, ...ROUTES.map((r) => ({ value: r.name, label: r.name }))] }),
+    controls.slider('routeOpacity', { label: 'Route opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
     h('button', { type: 'button', class: 'button', onclick: () => handlers.reset?.() }, 'Reset layout'),
   );
   const layersMenu = h('div', { class: 'debrief-menu' }, layersButton, layersBody);

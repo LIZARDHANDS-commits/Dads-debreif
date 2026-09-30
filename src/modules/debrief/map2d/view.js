@@ -7,17 +7,27 @@ import { MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT, flightBounds, shipsAt } from '../stat
 import {
   trackPaths, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags,
 } from './layers.js';
+import { ROUTES } from '../data/routes.js';
+import { projectRoute, routeBounds, drawRoute } from './overlays.js';
 
 /**
  * canvas: the map's <canvas>. timers: the module's scheduler scope.
  * time(): the playback time to draw. layers(): the layout settings (grid,
  * trail, spacingLines, lead39, three39, cone, clockMarks, bubble, bubbleFt,
- * followLead). labels(flight, t): each ship's standards label,
+ * followLead, route, routeOpacity). labels(flight, t): each ship's standards label,
  * { slot: { text, tone } }. dfps(): the DFP flags, [{ x, y, label }].
  */
 export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [] }) {
   let flight = null;
   let paths = [];
+  let routeName = '';
+  let route = null; // the chosen route in this flight's map feet
+
+  // The route goes on the flight's map; with no flight, round its own first point.
+  function placeRoute() {
+    const chosen = ROUTES.find((r) => r.name === routeName);
+    route = chosen ? projectRoute(chosen, flight?.ref) : null;
+  }
 
   const map = createCanvasView(canvas, {
     timers,
@@ -33,6 +43,13 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
       // "Follow Lead" keeps Lead in the middle (V6 line 3017); zoom still works.
       // Drawing goes on with the new centre; the extra draw it asks for finds nothing changed.
       if (on.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
+      if (on.route !== routeName) {
+        routeName = on.route;
+        placeRoute();
+        // With no flight to show, the view goes to the route (V6 fitKmlOverlayToView).
+        if (route && !flight) map.fit(routeBounds(route));
+      }
+      if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
       if (on.lead39 && lead) draw39Line(ctx, map, lead, 'Lead 3/9');
@@ -53,6 +70,7 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
     setFlight(next) {
       flight = next;
       paths = trackPaths(next);
+      placeRoute();
       if (next) map.fit(flightBounds(next));
       else map.requestDraw();
     },

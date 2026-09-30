@@ -167,7 +167,9 @@ test('opened panels come back after a reload, and Reset layout restores the defa
   await expect(page.getByLabel('Grid (5,000 ft)')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Layers' })).toBeFocused();
   await page.getByRole('button', { name: 'Layers' }).click();
-  await page.locator('canvas.debrief-map').click();
+  const map = page.locator('canvas.debrief-map');
+  const box = await map.boundingBox();
+  await map.click({ position: { x: box.width - 10, y: box.height - 10 } }); // clear of the open menu
   await expect(page.getByLabel('Grid (5,000 ft)')).toBeHidden();
 });
 
@@ -438,6 +440,8 @@ test('every map layer redraws at once while paused, and comes back after a reloa
     await act();
     await expect.poll(() => mapPicture(page)).not.toBe(before);
   };
+  await changes(() => page.getByLabel('Route', { exact: true }).selectOption({ label: 'TACNAV 1' }));
+  await changes(() => page.getByLabel('Route opacity').fill('30'));
   // The cone is small, so it's checked zoomed in on Lead.
   await changes(() => page.getByLabel('Follow Lead').check());
   const zoomBefore = await mapPicture(page);
@@ -463,4 +467,15 @@ test('every map layer redraws at once while paused, and comes back after a reloa
   await page.getByRole('button', { name: 'Reset layout' }).click();
   await expect(page.getByLabel('Fighting-wing cone')).not.toBeChecked();
   await expect(page.getByLabel('Spacing lines')).toBeChecked();
+});
+
+test('a built-in route shows on its own before any flight is loaded', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await page.getByRole('button', { name: 'Layers' }).click();
+  const route = page.getByLabel('Route', { exact: true });
+  await expect(route.locator('option')).toHaveCount(20); // None and V6's 19
+  const before = await mapPicture(page);
+  await route.selectOption({ label: 'South A1' });
+  await expect.poll(() => mapPicture(page)).not.toBe(before);
+  await expect.poll(() => pixelsNear(page, [255, 204, 102])).toBeGreaterThan(50); // V6's amber
 });

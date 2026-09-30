@@ -57,3 +57,17 @@ test('fighting-wing cone: 500-1,000 ft, 30-60° off Lead\'s tail on both sides (
   near(Math.hypot(...left.labelAt), 750);
   assert.equal(coneOutlines({ xFt: 0, yFt: 0 }, null), null);
 });
+
+test('a route lands in the flight\'s map feet, or round its own first point with no flight', async () => {
+  const { projectRoute, routeBounds } = await import('../../../src/modules/debrief/map2d/overlays.js');
+  const { makeLocalRef, latLonToLocalFt } = await import('../../../src/core/geo.js');
+  const route = { name: 'R', paths: [[[-105.5, 50.3], [-105.4, 50.4]]] };
+  const alone = projectRoute(route, null);
+  assert.deepEqual(alone.paths[0][0], [0, 0]);
+  const ref = makeLocalRef(50, -105.6);
+  const onFlight = projectRoute(route, ref);
+  const { x, y } = latLonToLocalFt(ref, 50.4, -105.4);
+  assert.deepEqual(onFlight.paths[0][1], [x, y]);
+  const box = routeBounds(onFlight);
+  assert.ok(box.minX < box.maxX && box.minY < box.maxY);
+});
