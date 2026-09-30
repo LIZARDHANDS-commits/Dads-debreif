@@ -809,6 +809,21 @@ test('a scenario that arrives holding Shackle in a four-ship opens on Delayed 90
   await expect(page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByRole('radio').first()).toBeEnabled();
 });
 
+test('a scenario that arrives with a value out of range does not hang the page: it opens on the default (Y4)', async ({ page }) => {
+  await page.addInitScript(() => { window.__tsPreset = { durationSec: 1e9, spacingFt: -5 }; });
+  await open(page); // the run is planned at mount: a 1e9 second Duration would never finish
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Run length')).toHaveValue('75');
+  await expect(box(page, 'Spacing')).toHaveValue('6000');
+});
+
+test('a scenario that arrives with a Check turn of 90 degrees is corrected to the most a check turn can be (Y4)', async ({ page }) => {
+  await page.addInitScript(() => { window.__tsPreset = { maneuver: 'check30', turnDeg: 90 }; });
+  await open(page);
+  await expect(box(page, 'Turn').locator('option:checked')).toHaveText('Check turn');
+  await expect(box(page, 'Turn degrees')).toHaveValue('30');
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();

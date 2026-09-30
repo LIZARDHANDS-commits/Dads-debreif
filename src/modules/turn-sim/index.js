@@ -12,7 +12,7 @@ import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { availableG } from '../../core/t6-performance.js';
-import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_TURN_DEG, turnProblem, migrateSettings } from './settings.js';
+import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_TURN_DEG, turnProblem, migrateSettings, checkSettings } from './settings.js';
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
@@ -50,6 +50,12 @@ function mount(root, app) {
 
   // app.scenarioStore is where the scenario lives: memory by default, or a saved one the browser tests hand in (and profiles will).
   const scenario = createSettings(app.scenarioStore ?? memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION, migrate: migrateSettings });
+  // What arrives saved (a profile, the browser tests' scenario) is checked as a profile is: an out-of-range number goes back to its default
+  // (a 1e9 second Duration would never finish planning) and a turn its formation or degrees cannot fly is corrected. createSettings has
+  // already migrated an old version, and checked types and lists; this is the ranges.
+  const arrived = scenario.get();
+  const checked = { ...checkSettings(arrived), ...(turnProblem(arrived.formation, arrived.maneuver) ? { maneuver: arrived.maneuver, turnDeg: arrived.turnDeg } : {}) }; // a turn its formation cannot fly is settleTurn's, which says so
+  if (Object.keys(DEFAULTS).some((k) => checked[k] !== arrived[k])) scenario.update(checked);
   const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED });
   const controls = createControls(scenario);
   const layoutControls = createControls(layout);
