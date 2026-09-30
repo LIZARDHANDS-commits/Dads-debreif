@@ -208,12 +208,16 @@ export function tafResultsOfWaves(calls, homeIcao) {
 }
 
 const BANNER_AHEAD_MS = 12 * 3_600_000;
+// How far back the banner looks: a forecast caution that ended longer ago than this is over and is not raised
+// (it stays on the timeline). One hour keeps a period that has only just ended. Set to null to go back to the
+// old window, which began at midnight at home.
+const BANNER_BACK_MS = 3_600_000;
 
 /**
  * The window the banner watches TAFs over, whatever day the timeline is showing:
- * from the start of today at home to the later of the end of today and now + 12 h,
- * so an evening never shows an empty look-ahead. With no readable zone it is
- * now to now + 12 h. Null when the time now can't be read.
+ * from an hour before now (BANNER_BACK_MS) to the later of the end of today and
+ * now + 12 h, so an evening never shows an empty look-ahead. With no readable zone
+ * it is an hour before now to now + 12 h. Null when the time now can't be read.
  * Returns `{ from, to }`.
  * @param {{ now?: any, timeZone?: any }} [input]
  */
@@ -221,8 +225,9 @@ export function bannerWindow({ now, timeZone } = {}) {
   if (!validDate(now)) return null;
   const ahead = new Date(+now + BANNER_AHEAD_MS);
   const today = localDate(now, timeZone);
-  if (!today) return { from: now, to: ahead };
-  const start = localToUtc(today, 0, timeZone);
+  const back = BANNER_BACK_MS == null ? null : new Date(+now - BANNER_BACK_MS);
+  if (!today) return { from: back ?? now, to: ahead };
+  const start = back ?? localToUtc(today, 0, timeZone);
   const end = localToUtc({ ...today, day: today.day + 1 }, 0, timeZone);
   return { from: start, to: new Date(Math.max(+end, +ahead)) };
 }

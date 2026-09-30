@@ -509,21 +509,22 @@ test('every airfield\'s TAF is checked over the day, and a missing TAF says so i
   assert.deepEqual(evaluate({ tafs, acks, ...ctx() }).fresh, []);
 });
 
-test('the banner window is from the start of today at home to the later of the end of today and now + 12 h', () => {
+test('the banner window is from 1 h before now to the later of the end of today and now + 12 h', () => {
   const w = bannerWindow(ctx());
-  assert.equal(+w.from, +at(29, 6), 'midnight at Moose Jaw');
+  assert.equal(+w.from, +at(29, 17, 42), 'an hour before now, not midnight at Moose Jaw');
   assert.equal(+w.to, +at(30, 6, 42), 'now + 12 h is later than the end of today');
   const evening = bannerWindow(ctx(at(29, 23)));
-  assert.equal(+evening.from, +at(29, 6));
+  assert.equal(+evening.from, +at(29, 22));
   assert.equal(+evening.to, +at(30, 11), 'late in the day it reaches into tomorrow');
   const early = bannerWindow(ctx(at(29, 8)));
+  assert.equal(+early.from, +at(29, 7));
   assert.equal(+early.to, +at(30, 6), 'early in the day, the end of today');
-  assert.equal(+bannerWindow(ctx(at(30, 5, 59))).from, +at(29, 6), 'still the 29th at home');
+  assert.equal(+bannerWindow(ctx(at(30, 5, 59))).to, +at(30, 17, 59), 'still the 29th at home: now + 12 h is later than 06:00Z');
 });
 
 test('with no readable zone the banner window is now to now + 12 h; with no readable time there is none', () => {
   const w = bannerWindow({ now: NOW, timeZone: undefined });
-  assert.deepEqual([+w.from, +w.to], [+NOW, +NOW + 12 * 3_600_000]);
+  assert.deepEqual([+w.from, +w.to], [+NOW - 3_600_000, +NOW + 12 * 3_600_000]);
   assert.equal(bannerWindow({ now: undefined, timeZone: ZONE }), null);
   assert.equal(bannerWindow({}), null);
 });
@@ -536,7 +537,16 @@ test('the banner does not depend on the day being viewed: a TAF storm later toda
   assert.equal(raised(tempo('3010', '3013')), false, 'past now + 12 h (30/06:42Z)');
   assert.equal(raised(tempo('3010', '3013'), at(29, 23)), true, 'the same storm, once it is within 12 h');
   assert.equal(raised(tempo('2902', '2904')), false, 'before today began at home');
-  assert.equal(raised(tempo('2910', '2912')), true, 'earlier today, at home');
+  assert.equal(raised(tempo('2910', '2912')), false, 'earlier today, but over for hours');
+});
+
+test('a TAF caution that ended hours ago is not on the banner; one that ended 30 minutes ago still is', () => {
+  const tempo = (from, to) => `TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO ${from}/${to} 3SM TSRA BKN030CB`;
+  const raised = (raw, now = NOW) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }) }).length > 0;
+  const now = at(29, 18, 30);
+  assert.equal(raised(tempo('2913', '2915'), now), false, 'ended 3 h 30 min ago');
+  assert.equal(raised(tempo('2916', '2918'), now), true, 'ended 30 min ago');
+  assert.equal(raised(tempo('2916', '2918'), at(29, 19, 30)), false, 'an hour and a half after it ended it goes');
 });
 
 test('the banner window is cut at the TAF\'s end, and a TAF that ended before it says so and raises nothing', () => {
