@@ -233,7 +233,7 @@ Patrick said the Astra and Tutor numbers look about right (2026-09-30); Dad can 
 - **SOF crosswind (FF21).** The SOF's crosswind check against each type's limits would use the same wind-triangle function from `core` (below), so both screens agree. The type table could then carry each type's crosswind limit.
 - **Automatic sequencing** (an idea for later, not in this spec): aircraft that extend downwind or slow down to keep their spacing behind the one ahead, which is what the pattern really does with 10 to 12 aircraft in it.
 
-### The break, the final turn, PFLs and engine-outs (Patrick, 2026-09-30, 06:03Z)
+### The break, the final turn, PFLs and engine-outs (Patrick, 2026-09-30, 06:03Z; R24)
 
 Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descending final turn onto a 3° final, practice forced landings (PFLs) and simulated engine-outs from the pattern. The numbers come from the manuals (Patrick, 05:28Z: "all the info we need ... are in the flying manuals index"), cited by section; Patrick's own answers win where they differ. All of this is new behaviour, built after V6 is pinned and the wind and types work (tasks 15 to 17), and none of it changes V6's built-in setup until the redraw (T8).
 
@@ -272,6 +272,8 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
 | Zoom | 70 % of the speed-for-height trade | Placeholder (T10) |
+
+Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27), a touch-and-go into the closed pattern (FF28), and a check of landing spacing on the runway (FF29).
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
@@ -462,7 +464,7 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T8. The references for the redraw.** Which ground reference each point of the Moose Jaw pattern flies over (for example "downwind over the highway"), from Patrick and Dad. Default: V6's routes and 1.2 trim until they redraw them (see The built-in setup). Recommendation: send the list whenever it's handy; the redraw itself happens on screen once task 8 is built.
 
-**T9. Downwind height after the break.** With Moose Jaw's 3,500 ft pattern, is downwind after the break flown at 3,500 ft, so the final turn comes down about 1,370 ft to the Window (about 2,760 ft/min with a 4,000 ft spacing)? The manuals' 3,000 ft pattern gives about 1,750 ft/min. Default: downwind at pattern height, as V6's built-in Pattern 1 flies it (3,500 ft to 2,100 ft at the Window).
+**T9 (Q73). Downwind height after the break.** With Moose Jaw's 3,500 ft pattern, is downwind after the break flown at 3,500 ft, so the final turn comes down about 1,370 ft to the Window (about 2,760 ft/min with a 4,000 ft spacing)? The manuals' 3,000 ft pattern gives about 1,750 ft/min. Default: downwind at pattern height, as V6's built-in Pattern 1 flies it (3,500 ft to 2,100 ft at the Window).
 
 **For Dad (his flying knowledge)**
 
@@ -470,7 +472,7 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T5b. Tutor and Astra numbers.** The CT-114 has no published circuit speeds, and the Astra's Entry speed is V6's own number. Default: the type table as it stands (Patrick: "looks about right"). Recommendation: Dad corrects any number he knows better; each is one row of data.
 
-**T10. The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and how much height does the zoom from 220 KIAS really give (the default is 70 % of the speed-for-height trade, about 1,100 ft)? Recommendation: Dad gives a number for each, or they stay as placeholders.
+**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and how much height does the zoom from 220 KIAS really give (the default is 70 % of the speed-for-height trade, about 1,100 ft)? Recommendation: Dad gives a number for each, or they stay as placeholders.
 
 ## Answered questions
 
