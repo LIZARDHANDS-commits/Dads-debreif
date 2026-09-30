@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { openRoute } from './routes.js';
+import { serveMap } from './sof-map-feeds.js';
 
 const fixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
 const NOW = new Date('2026-09-29T18:42:00Z');
@@ -30,6 +31,12 @@ test.use({ serviceWorkers: 'block' });
  * For the same reason Datamask says "not found" in a 200 reply body, not a 404, for a station it lacks.
  */
 async function serveFeeds(page, overrides = {}) {
+  // The map's near-home lightning check runs on every visit: with nothing serving ECCC it fails, and (F1) a check that has never
+  // read anything puts a plain "Lightning: can't tell" line on the banner. These tests are about the weather, so ECCC answers with
+  // clear pictures, its layer times moved to this file's fixed day (18:30Z and 18:36Z on 29 September).
+  await serveMap(page, {
+    rewrite: (xml) => xml.replaceAll('2026-09-30T', '2026-09-29T').replaceAll('T07:00:00Z', 'T18:30:00Z').replaceAll('T07:12:00Z', 'T18:36:00Z'),
+  });
   const feed = {
     metar: fixture('screen-metno-metar.txt'),
     taf: fixture('screen-metno-taf.txt'),
