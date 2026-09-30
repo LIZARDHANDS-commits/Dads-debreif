@@ -8,9 +8,8 @@ import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi, radToDeg, degToRad } from '../../../src/core/angles.js';
 import { T6A_LIMITS, stallLimitG, availableG, splitST6A } from '../../../src/core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
-import { nfmTopKias, CHART_READ_KIAS } from './nfm-limit.js';
 import {
-  ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
+  ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, energyTopKias, MPT_KIAS_RANGE, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
 } from '../../../src/modules/turn-fight/energy-sim.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected} (±${tol})`);
@@ -1493,7 +1492,7 @@ test('a chaser that overshoots at the deck at 316 KIAS does not dip under it', (
 });
 
 test('the VMO guard works: a chaser dived at a low, slow target from 25,000 ft stays under VMO, having used the guard', () => {
-  // Without the guard (vmoMarginKias at -1000) this same dive peaks at 321 KIAS, past VMO (316); with it, 283.
+  // Without the guard (vmoMarginKias at -1000) this same dive peaks at 321 KIAS, past VMO (316); with it, 282.
   let maxKias = 0, chasing = 0;
   watch({ pursuit: 'pure', blueAltFt: 25000, redAltFt: 6000, blueKias: 250, redKias: 140, blueMove: 'mpt', redMove: 'mpt', turnsStart: 'now', ataDeg: 0, aaDeg: 0, separationNm: 30 }, (st) => {
     if (st.blue.move === 'pursuit') { chasing++; maxKias = Math.max(maxKias, st.blue.kias); }
@@ -1551,14 +1550,14 @@ test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive
       for (const a of [s.blue, s.red]) {
         assert.ok(Number.isFinite(a.kias) && Number.isFinite(a.altFt) && Number.isFinite(a.bankDeg) && Number.isFinite(a.g), `finite at ${s.timeSec.toFixed(2)} s`);
         minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
-        maxOver = Math.max(maxOver, a.kias - nfmTopKias(a.altFt)); // over the NFM line at its height
+        maxOver = Math.max(maxOver, a.kias - energyTopKias(a.altFt)); // over the engine's limit at its height
       }
       // Handed to the MPT with the nose within 15° of straight down: the bank rolls to 90° or less within 2 s (at 90°/s from 135°) and stays.
       if (s.blue.ctl.mode === 'mpt' && s.blue.climbDeg < -75) { lowSec += FIGHT_STEP_SEC; if (lowSec > 2) worstBank = Math.max(worstBank, Math.abs(s.blue.bankDeg)); } else lowSec = 0;
     }
     const what = `${JSON.stringify(setup)}: lowest ${minAlt.toFixed(0)} ft, fastest ${maxKias.toFixed(0)} KIAS`;
     assert.ok(minAlt >= s.setup.hardDeckFt - 500, what);
-    assert.ok(maxOver <= CHART_READ_KIAS, `${what}, ${maxOver.toFixed(0)} over the NFM limit`);
+    assert.ok(maxOver <= 0, `${what}, ${maxOver.toFixed(1)} over the engine's limit`);
     assert.ok(worstBank <= 91, `${what}: bank ${worstBank.toFixed(0)}° with the nose low near the vertical`);
   }
 });
@@ -1618,6 +1617,7 @@ test('F5: the stall reason never reads the same number twice ("needs 5.5 G; give
         stepEnergyFight(s, FIGHT_STEP_SEC);
         const m = /needs ([\d.]+) G; the stall line at \d+ KIAS gives ([\d.]+) G/.exec(s.blue.stallReason);
         if (m) { seen++; assert.notEqual(m[1], m[2], `${kias} KIAS, ${forceG} G: "${s.blue.stallReason}"`); }
+        for (const g of s.blue.stallReason.match(/\d+\.\d+ G/g) ?? []) assert.ok(/^\d+\.\d{1,2} G$/.test(g), `at most two decimals: "${s.blue.stallReason}"`);
       }
     }
   }
@@ -1626,6 +1626,11 @@ test('F5: the stall reason never reads the same number twice ("needs 5.5 G; give
   const s2 = createEnergyFight({ ...SOLO, blueKias: 190, redKias: 190, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: 4.9, turnsStart: 'now' });
   for (let i = 0; i < 5; i++) stepEnergyFight(s2, FIGHT_STEP_SEC);
   assert.match(s2.blue.stallReason, /^The pull needs 4\.90 G; the stall line at 190 KIAS gives 4\.88 G$/);
+  // Closer than two decimals (verification N5: 5.5 G against 5.4995 at 202 KIAS) it reads "just over", not four decimals.
+  const s3 = createEnergyFight({ ...SOLO, blueKias: 220, redKias: 220, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: 5.5 });
+  let reason = '';
+  for (let i = 0; i < 60 / FIGHT_STEP_SEC && !/just over/.test(reason); i++) { stepEnergyFight(s3, FIGHT_STEP_SEC); reason = s3.blue.stallReason || reason; }
+  assert.match(reason, /^The pull needs just over the \d\.\d\d G the stall line gives at \d+ KIAS$/);
 });
 
 test('F7: the pick reason never rounds a speed onto the boundary it is compared with ("120 KIAS, below 120")', () => {
@@ -1656,13 +1661,21 @@ test('F6: 8 G forced at 240 KIAS flags OVER G as well as STALL (the instant the 
   near(s.blue.g, 1, 1e-9, 'STALL still takes the turn');
 });
 
-test('F8: the MPT speed has a range, 120 to 175 KIAS', () => {
-  assert.throws(() => createEnergyFight({ mptKias: 119 }), /mptKias is from 120 to 175 KIAS, got 119/);
-  assert.throws(() => createEnergyFight({ mptKias: 176 }), /mptKias is from 120 to 175 KIAS, got 176/);
+test('F8: the MPT speed has a range, 125 to 175 KIAS', () => {
+  assert.throws(() => createEnergyFight({ mptKias: 124 }), /mptKias is from 125 to 175 KIAS, got 124/);
+  assert.throws(() => createEnergyFight({ mptKias: 176 }), /mptKias is from 125 to 175 KIAS, got 176/);
   assert.throws(() => createEnergyFight({ mptKias: 200 }), /mptKias/);
   assert.throws(() => createEnergyFight({ mptKias: NaN }), /mptKias/);
-  assert.doesNotThrow(() => createEnergyFight({ mptKias: 120 }));
+  assert.doesNotThrow(() => createEnergyFight({ mptKias: 125 }));
   assert.doesNotThrow(() => createEnergyFight({ mptKias: 175 }));
+});
+
+test('N2 (#227 verification): an MPT speed at each end of the range is held within 1.5 kt after 90 s at 10,000 ft', () => {
+  for (const mptKias of MPT_KIAS_RANGE) {
+    const s = createEnergyFight({ ...SOLO, mptKias, blueMove: 'mpt', redMove: 'mpt', hardDeckFt: 2000, blueKias: 160, redKias: 160 });
+    for (let i = 0; i < 90 / FIGHT_STEP_SEC; i++) stepEnergyFight(s, FIGHT_STEP_SEC);
+    near(s.blue.kias, mptKias, 1.5, `MPT ${mptKias}`);
+  }
 });
 
 test('F8: at the top of the range (175 KIAS) flown from 7,000 ft, the level MPT stays within 20 ft of the 6,000 ft deck, from every merge speed', () => {
