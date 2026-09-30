@@ -593,10 +593,26 @@ test('the Shackle and Cross turn are two-ship turns: greyed out in the four-ship
   await expect(page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByRole('radio').first()).toBeEnabled();
   await expect(note).toHaveText('Shackle and Cross turn are two-ship only, so this is now a Delayed 90.');
   await expect(cardLines(page)).toHaveCount(3);
+  await expect(note).toHaveAttribute('role', 'status'); // announced when it appears
   // The choice is kept: back in the two-ship it stays Delayed 90, and the note is gone.
   await box(page, 'Formation').selectOption({ label: 'Two-ship' });
   await expect(turn.locator('option:checked')).toHaveText('Delayed 90');
   await expect(note).toBeHidden();
+});
+
+test('with the Cross turn picked, a four-ship formation moves the menu to Delayed 90 with its note (N1)', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(box(page, 'Turn degrees')).toHaveValue('180');
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  await expect(direction.getByRole('radio').first()).toBeDisabled();
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, 'Turn').locator('option:checked')).toHaveText('Delayed 90');
+  await expect(box(page, 'Turn degrees')).toHaveValue('90');
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await expect(page.locator('.ts-direction-note')).toBeHidden();
+  await expect(page.locator('.ts-turn-note')).toHaveText('Shackle and Cross turn are two-ship only, so this is now a Delayed 90.');
 });
 
 test('the Cross turn greys out Direction and says which way Lead turns', async ({ page }) => {
@@ -610,9 +626,11 @@ test('the Cross turn greys out Direction and says which way Lead turns', async (
   await expect(direction.getByRole('radio').first()).toBeDisabled();
   await expect(note).toContainText('Lead always turns toward #2');
   await expect(note).toContainText(/: (left|right) in this run/);
+  await expect(direction).toHaveAccessibleDescription(/Lead always turns toward #2/);
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
   await expect(direction.getByRole('radio').first()).toBeEnabled();
   await expect(note).toBeHidden();
+  await expect(direction).not.toHaveAttribute('aria-describedby', /.+/);
 });
 
 test('the Shackle greys out Direction: both aircraft turn toward each other', async ({ page }) => {
@@ -623,6 +641,7 @@ test('the Shackle greys out Direction: both aircraft turn toward each other', as
   await box(page, 'Turn').selectOption({ label: 'Shackle' });
   await expect(direction.getByRole('radio').first()).toBeDisabled();
   await expect(note).toHaveText("Both turn toward each other; direction doesn't apply.");
+  await expect(direction).toHaveAccessibleDescription("Both turn toward each other; direction doesn't apply.");
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
   await expect(direction.getByRole('radio').first()).toBeEnabled();
   await expect(note).toBeHidden();

@@ -94,12 +94,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const heading = field(START_HEADING);
   const maneuver = field(MANEUVER);
   // Why some turns are greyed out (settings.js turnProblem), or why the turn asked for was not the one flown (state.maneuverFallback).
-  const turnNote = h('p', { class: 'ts-hint ts-turn-note', hidden: true });
+  const turnNote = h('p', { class: 'ts-hint ts-turn-note', role: 'status', hidden: true });
   let turnFallback = null;
   let turnSwitched = null; // set when picking a four-ship formation moved the Turn menu off the shackle or cross turn
   const direction = field(DIRECTION, 'choice');
   // In the cross turn Lead always turns toward #2 whatever the Direction says (SMM 16.19 para 64), so the choice is greyed out.
-  const directionNote = h('p', { class: 'ts-hint ts-direction-note', hidden: true });
+  const directionNote = h('p', { class: 'ts-hint ts-direction-note', id: 'ts-direction-note', hidden: true });
   let leadTurns = null;
   const legHeading = h('p', { class: 'ts-hint ts-leg-heading', hidden: true });
   const speed = field(SPEED);
@@ -318,6 +318,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.`
       : shackle ? 'Both turn toward each other; direction doesn\'t apply.' : '';
     directionNote.hidden = !(cross || shackle);
+    // The greyed-out Direction says why to a screen reader too.
+    const fieldset = direction.built?.control;
+    if (cross || shackle) fieldset?.setAttribute('aria-describedby', directionNote.id);
+    else fieldset?.removeAttribute('aria-describedby');
   }
 
   function applyScenario(values) {
