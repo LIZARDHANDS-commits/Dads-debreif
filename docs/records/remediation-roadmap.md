@@ -306,8 +306,8 @@ flowchart TD
 #### Milestone 1: Traffic Pattern Sim Module Build (PR 1 to 3)
 - [x] **Task 1.1:** Rebase `origin/claude/traffic-spec-j17uqw` (PR #229) onto `main`. (Cleanly fast-forwarded and merged at `64cc09a`).
 - [x] **Task 1.2 (Series PR 1):** Merge PR #229 (Traffic 3D view & satellite tiles) to `main`.
-- [ ] **Task 1.3 (Parallel Agent A):** Consolidate `origin/handover/traffic-polish` and `origin/handover/traffic-rewind-fix` onto single branch `traffic-polish-rewind`. Preserve `tests/unit/traffic/rewind.test.js` (+422 lines) to verify callsign indexing safety under rapid rewind.
-- [ ] **Task 1.4 (Series PR 2):** Merge consolidated Traffic polish & rewind fix to `main`.
+- [x] **Task 1.3:** Consolidate `origin/handover/traffic-polish` and `origin/handover/traffic-rewind-fix` onto single branch `traffic-polish-rewind`. Preserve `tests/unit/traffic/rewind.test.js` (+422 lines) to verify callsign indexing safety under rapid rewind.
+- [x] **Task 1.4 (Series PR 2):** Merge consolidated Traffic polish & rewind fix to `main` (commit `4405cd9`).
 - [ ] **Task 1.5 (Series PR 3):** Implement Traffic Core 4 (wind vector integration, 4 aircraft types flying manual speeds, 60° break turn at 3,500 ft MSL, 45° descending final turn to threshold / straight-in at 2,700 ft MSL on Runway 29L left-hand per D378).
   - Flip 8 `test.todo` stubs in `tests/unit/traffic/plausibility.test.js` to passing green assertions.
   - Run `UPDATE_CROSSCHECK=1 node tests/crosscheck/traffic-scenarios.test.js` to regenerate `traffic-expected.json` with authentic SMM circuit numbers (Gap 2 resolved).

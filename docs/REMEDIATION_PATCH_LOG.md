@@ -243,3 +243,34 @@
   Completes Task 1.1 and Task 1.2 of Milestone 1 per the master execution roadmap.
 * **Verification:**  
   `npm test` passed 100% green (`2,879 passed, 0 failed, 8 todo, 1 skipped` in 31.2s; 54 new unit tests). `npm run build` passed in 354ms with all size budgets intact.
+
+---
+
+### PATCH-012: Milestone 1 (PR 2) Consolidated Traffic Polish & Rewind Fix
+* **Date & Time:** 2026-09-30 22:43 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main` (commits `74372d4`, `e214f63`, `4405cd9`)
+* **Files Modified:**
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+  * [`src/modules/traffic/profile-store.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/profile-store.js)
+  * [`src/modules/traffic/profiles-panel.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/profiles-panel.js)
+  * [`src/modules/traffic/clock.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/clock.js)
+  * [`src/modules/traffic/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/layout.js)
+  * [`src/modules/traffic/playback-bar.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/playback-bar.js)
+  * [`tests/unit/traffic/rewind.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/rewind.test.js) (+422 lines)
+  * [`tests/unit/traffic/profile-store.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/profile-store.test.js)
+  * [`tests/unit/traffic/fake-dom-extras.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/fake-dom-extras.test.js) (NEW)
+* **Problem / Flaw Addressed:**  
+  Previous separate branches `traffic-polish` and `traffic-rewind-fix` modified overlapping files (`aircraft.js`, `sim.js`, `index.js`), risking Git collision and lost callsign state during timeline scrubbing. Additionally, an obsolete damaged-text assertion in `profile-store.test.js` failed against PR-03's hardened `foreign: true` security standard.
+* **Changes Made:**
+  1. Consolidated both branches cleanly onto `traffic/pr-2-polish-rewind`.
+  2. Preserved the full 422 lines of rewind tests in `tests/unit/traffic/rewind.test.js`.
+  3. Integrated event-based timeline scrubbing, timed spawns, and single-row playback bar layout.
+  4. Fixed `profile-store.test.js` to correctly expect `foreign: true` and unreadable warning message when damaged non-JSON storage is encountered.
+  5. Merged consolidated PR 2 cleanly into `main` via `4405cd9`.
+* **Reasoning / Rationale:**  
+  Completes Tasks 1.3 and 1.4 of Milestone 1 per the master execution roadmap.
+* **Verification:**  
+  `npm test` passed 100% green (`2,929 passed, 0 failed, 8 todo, 1 skipped` in 32.1s; 50 new unit tests). `npm run build` passed in 412ms with all size budgets intact.
+
