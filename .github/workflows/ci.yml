@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Module sign-off (Patrick, 30 Sep): run by hand from the Actions tab to add
+  # the Firefox and WebKit smoke tests to the Chromium run.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,9 +32,10 @@ jobs:
       - name: Build with size budget
         run: npm run build
       - name: Install browsers
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps ${{ github.event_name == 'workflow_dispatch' && 'chromium firefox webkit' || 'chromium' }}
+      # Each PR and push runs Chromium only; the manual run adds Firefox and WebKit.
       - name: Browser tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- ${{ github.event_name != 'workflow_dispatch' && '--project=chromium' || '' }}
       - name: Keep the browser test report
         if: failure()
         uses: actions/upload-artifact@v7
