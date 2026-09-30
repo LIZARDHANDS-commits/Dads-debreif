@@ -109,6 +109,16 @@ test('Reset stops the run and puts every aircraft back at its start at 0', () =>
   assert.ok(clock.simTime > 7.9, 'and it plays again from 0');
 });
 
+test('after Reset, play asks only for the time since the play: a 20 ms frame at 8x is 0.16 s, not the whole run again', () => {
+  const clock = createClock({ sim: newSim(), speed: 8 });
+  clock.play();
+  runFor(clock, 30, 50); // 240 s of sim time
+  clock.reset();
+  clock.play();
+  clock.tick(20);
+  assert.ok(clock.simTime <= 0.2, `simTime is ${clock.simTime}`);
+});
+
 test('Reset then play flies the same run again: the dice start over', () => {
   const sim = newSim();
   const clock = createClock({ sim, speed: 8 });
