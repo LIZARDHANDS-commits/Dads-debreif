@@ -1,0 +1,271 @@
+// The SOF's cautions: what the banner lists, which of them are new, and how
+// acknowledging works (SPEC-sof, "Caution banner"; SOF-4). Pure: cards, wx's
+// TAF results and "now" go in, plain data comes out. The banner's DOM and the
+// storing of acknowledgements are the caller's (task 3, layout.js and storage).
+//
+// A caution is a report below its limits, or dangerous weather (wx's D58 list).
+// Every reason is wx's own words; nothing here reads a report's text. "At the
+// limit" and information-only weather raise nothing.
+//
+// Acknowledgements are one plain object, `{ version, day, keys }`, that the
+// caller keeps and passes back: `day` is the home zone's calendar day, so they
+// last for that day and no longer, and `keys` are the acknowledged cautions.
+// A key is the airfield, METAR or TAF, for a TAF the group and its times, and
+// wx's reason. It holds no report time, so the same weather in the next report
+// is the same caution. When a caution is no longer reported its key goes, so if
+// it returns it is new (SOF-4). A source that can't be read at all (no METAR,
+// no TAF) is not a caution that cleared, so its keys stay.
+
+import { localDate } from './waves.js';
+
+const VERSION = 1;
+// Storage is checked on the way back in: a day of cautions is never near these.
+const MAX_KEYS = 500;
+const MAX_KEY_CHARS = 300;
+
+const two = (n) => String(n).padStart(2, '0');
+
+// wx's reasons start with CEILING or VIS for the limit lines; the rest are cautions.
+const isLimitReason = (r) => /^(CEILING|VIS) /.test(r);
+const isAtLimit = (r) => / AT LIMIT /.test(r);
+// "Below" reasons: the limit lines that are not the at-limit ones (a piece can be
+// below on one thing and exactly on the limit on another).
+const belowReasons = (reasons) => (Array.isArray(reasons) ? reasons : []).filter((r) => isLimitReason(r) && !isAtLimit(r));
+const cautionReasons = (reasons) => (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === 'string' && !isLimitReason(r));
+
+const LEVELS = {
+  below: { rank: 0, words: 'Below limits' },
+  caution: { rank: 1, words: 'Caution' },
+};
+
+const validDate = (d) => d instanceof Date && !Number.isNaN(+d);
+
+/** "1800Z". */
+const hhmmZ = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}Z`;
+
+/** "29/22Z", or "29/2230Z" when the minutes matter. */
+const dayHourZ = (d) => `${two(d.getUTCDate())}/${two(d.getUTCHours())}${d.getUTCMinutes() ? two(d.getUTCMinutes()) : ''}Z`;
+
+/** "2026-09-29T22:00Z": unambiguous across days and months, for keys. */
+const isoMinute = (d) => `${d.toISOString().slice(0, 16)}Z`;
+
+/** The TAF group as the SOF says it: PREVAILING, TEMPO, BECMG, FM, "PROB30", "PROB30 TEMPO". */
+function groupName(piece) {
+  const kind = typeof piece.kind === 'string' && piece.kind ? piece.kind : 'PREVAILING';
+  if (kind === 'PROB') return `PROB${piece.probability}${piece.tempo ? ' TEMPO' : ''}`;
+  return kind === 'BASE' ? 'PREVAILING' : kind;
+}
+
+function make({ icao, source, level, reason, group = null, from = null, to = null, time = null, stale = false }) {
+  const where = source === 'METAR'
+    ? `${icao} METAR${time ? ` ${hhmmZ(time)}` : ''}`
+    : `${icao} TAF ${group} ${dayHourZ(from)}–${dayHourZ(to)}`;
+  const key = source === 'METAR'
+    ? [icao, 'METAR', reason]
+    : [icao, 'TAF', group, isoMinute(from), isoMinute(to), reason];
+  return {
+    key: key.join('|'),
+    icao,
+    source,
+    level,
+    levelWords: LEVELS[level].words,
+    group,
+    from,
+    to,
+    reason,
+    stale,
+    text: `${LEVELS[level].words}: ${where}: ${reason}${stale ? ' (STALE report)' : ''}`,
+    acknowledged: false,
+  };
+}
+
+// ---- Cautions from cards and TAF results --------------------------------------------------
+
+/** METAR cautions from one airfield card (cards.js's `cardModel`). */
+function metarCautions(card) {
+  const icao = card?.icao;
+  if (typeof icao !== 'string' || !icao) return [];
+  const time = validDate(card.metar?.time) ? card.metar.time : null;
+  const stale = card.result?.stale === true;
+  const one = (level, reason) => make({ icao, source: 'METAR', level, reason, time, stale });
+  return [
+    ...(card.result?.level === 'below' ? belowReasons(card.result.reasons).map((r) => one('below', r)) : []),
+    ...cautionReasons(card.cautionReasons).map((r) => one('caution', r)),
+  ];
+}
+
+/**
+ * TAF cautions from one of wx's results (`homeAlternateTrigger`,
+ * `assessAlternate`, or the `result` inside a wave call): the pieces below the
+ * limits (`hits`) and the pieces with dangerous weather (`cautions`). wx splits
+ * a group wherever the forecast under it changes, so one group can arrive as
+ * several pieces; they are joined back into one caution over the group's span.
+ * Prevailing pieces are joined when they touch, whichever group they came from.
+ */
+function tafCautions(icao, result) {
+  const found = [];
+  const add = (level, pieces, reasonsOf) => {
+    for (const piece of Array.isArray(pieces) ? pieces : []) {
+      if (!validDate(piece?.from) || !validDate(piece?.to)) continue;
+      const group = groupName(piece);
+      for (const reason of reasonsOf(piece.reasons)) found.push({ level, group, reason, from: piece.from, to: piece.to, index: piece.group });
+    }
+  };
+  add('below', result?.hits, belowReasons);
+  add('caution', result?.cautions, cautionReasons);
+  found.sort((a, b) => +a.from - +b.from);
+
+  const joined = [];
+  for (const piece of found) {
+    const same = joined.find((j) => j.level === piece.level && j.group === piece.group && j.reason === piece.reason
+      && (j.index === piece.index || (piece.group === 'PREVAILING' && +piece.from <= +j.to && +piece.to >= +j.from)));
+    if (same) {
+      same.from = new Date(Math.min(+same.from, +piece.from));
+      same.to = new Date(Math.max(+same.to, +piece.to));
+    } else {
+      joined.push({ ...piece });
+    }
+  }
+  return joined.map((j) => make({ icao, source: 'TAF', level: j.level, reason: j.reason, group: j.group, from: j.from, to: j.to }));
+}
+
+/**
+ * Every current caution, worst first (below the limits, then dangerous weather),
+ * then in the order the airfields were given, METAR before TAF, then by time.
+ *
+ * - `cards`: `cardModel` results, one per airfield.
+ * - `tafs`: `[{ icao, result }]`, `result` being wx's `homeAlternateTrigger` or
+ *   `assessAlternate` answer (see `tafResultsOfWaves`). What the TAF is checked
+ *   over is the caller's choice; this lists what those results found.
+ *
+ * Each caution is `{ key, icao, source: 'METAR' | 'TAF', level: 'below' | 'caution',
+ * levelWords, group, from, to, reason, stale, text, acknowledged: false }`.
+ * `text` is the line the banner shows, in words. The same key is listed once.
+ */
+export function cautionList({ cards = [], tafs = [] } = {}) {
+  const order = new Map();
+  const seen = (icao) => order.has(icao) || order.set(icao, order.size);
+  const all = [];
+  for (const card of Array.isArray(cards) ? cards : []) {
+    for (const c of metarCautions(card)) { seen(c.icao); all.push(c); }
+  }
+  for (const entry of Array.isArray(tafs) ? tafs : []) {
+    if (typeof entry?.icao !== 'string' || !entry.icao || !entry.result) continue;
+    for (const c of tafCautions(entry.icao, entry.result)) { seen(c.icao); all.push(c); }
+  }
+  const unique = [...new Map(all.map((c) => [c.key, c])).values()];
+  const time = (c) => (c.from ? +c.from : 0);
+  return unique
+    .map((c, index) => ({ c, index }))
+    .sort((a, b) => LEVELS[a.c.level].rank - LEVELS[b.c.level].rank
+      || order.get(a.c.icao) - order.get(b.c.icao)
+      || (a.c.source === b.c.source ? 0 : a.c.source === 'METAR' ? -1 : 1)
+      || time(a.c) - time(b.c)
+      || a.index - b.index)
+    .map(({ c }) => c);
+}
+
+/**
+ * wx's TAF results from a list of `waveCalls`, in the form `cautionList` takes:
+ * each wave's home result (under `homeIcao`) and each alternate's.
+ */
+export function tafResultsOfWaves(calls, homeIcao) {
+  return (Array.isArray(calls) ? calls : []).flatMap((call) => [
+    ...(typeof homeIcao === 'string' && homeIcao && call?.home?.result ? [{ icao: homeIcao, result: call.home.result }] : []),
+    ...(Array.isArray(call?.alternates) ? call.alternates : [])
+      .filter((a) => typeof a?.icao === 'string' && a.result)
+      .map((a) => ({ icao: a.icao, result: a.result })),
+  ]);
+}
+
+// ---- Acknowledgements ---------------------------------------------------------------------
+
+/**
+ * The calendar day in the home zone, "2026-09-29", or null when the time or the
+ * zone can't be read: it never uses this machine's clock or zone.
+ */
+export function ackDay(now, timeZone) {
+  if (!validDate(now)) return null;
+  const date = localDate(now, timeZone);
+  return date ? `${date.year}-${two(date.month)}-${two(date.day)}` : null;
+}
+
+/** An empty store for today at home. */
+export function emptyAcks({ now, timeZone } = {}) {
+  return { version: VERSION, day: ackDay(now, timeZone), keys: [] };
+}
+
+const validKeys = (keys) => Array.isArray(keys) && keys.length <= MAX_KEYS
+  && keys.every((k) => typeof k === 'string' && k.length > 0 && k.length <= MAX_KEY_CHARS);
+
+/**
+ * A stored acknowledgement object checked for shape and day. Anything wrong,
+ * or from another day, reads as nothing acknowledged. Returns a copy.
+ */
+export function readAcks(stored, { now, timeZone } = {}) {
+  const today = ackDay(now, timeZone);
+  const good = stored != null && typeof stored === 'object' && !Array.isArray(stored)
+    && stored.version === VERSION && (stored.day === null || typeof stored.day === 'string')
+    && validKeys(stored.keys) && stored.day === today;
+  return good ? { version: VERSION, day: stored.day, keys: [...stored.keys] } : { version: VERSION, day: today, keys: [] };
+}
+
+/** A store with `key` acknowledged. A copy; a key that isn't text, or is too long, is ignored. */
+export function acknowledge(acks, key) {
+  const keys = Array.isArray(acks?.keys) ? acks.keys.filter((k) => typeof k === 'string') : [];
+  const day = typeof acks?.day === 'string' ? acks.day : null;
+  const add = typeof key === 'string' && key && key.length <= MAX_KEY_CHARS && !keys.includes(key) ? [key] : [];
+  return { version: VERSION, day, keys: [...keys, ...add].slice(-MAX_KEYS) };
+}
+
+/** A store with every caution in `cautions` acknowledged (the banner's Acknowledge). */
+export function acknowledgeAll(acks, cautions) {
+  return (Array.isArray(cautions) ? cautions : []).reduce((next, c) => acknowledge(next, c?.key), acknowledge(acks));
+}
+
+// A key's source: "CYMJ|METAR" or "CYMJ|TAF".
+const sourceOf = (key) => key.split('|', 2).join('|');
+
+/** The sources that gave an answer this time: a missing or NIL METAR, or no TAF, gave none. */
+function readableSources(cards, tafs) {
+  const out = new Set();
+  for (const card of Array.isArray(cards) ? cards : []) {
+    if (typeof card?.icao === 'string' && card.result?.level && card.result.level !== 'none') out.add(`${card.icao}|METAR`);
+  }
+  for (const entry of Array.isArray(tafs) ? tafs : []) {
+    const status = entry?.result?.status;
+    if (typeof entry?.icao === 'string' && status && status !== 'no-taf' && status !== 'no-time') out.add(`${entry.icao}|TAF`);
+  }
+  return out;
+}
+
+/**
+ * The whole answer for one refresh: the current cautions, which are new and
+ * which are acknowledged, and the acknowledgement object to keep.
+ *
+ * `acks` is what the caller stored (or nothing). It is checked, moved to
+ * today, and cleared of cautions that are no longer reported (so one that comes
+ * back is new). `changed` says whether the result differs from what was stored,
+ * so the caller writes only when it must (nothing stored counts as empty).
+ *
+ * Returns `{ cautions, fresh, acknowledged, acks, changed }`; every caution
+ * has `acknowledged` true or false. Nothing passed in is changed.
+ */
+export function evaluate({ cards, tafs, acks, now, timeZone } = {}) {
+  const current = readAcks(acks, { now, timeZone });
+  const found = cautionList({ cards, tafs });
+  const active = new Set(found.map((c) => c.key));
+  const readable = readableSources(cards, tafs);
+  const kept = current.keys.filter((k) => active.has(k) || !readable.has(sourceOf(k)));
+  const next = { version: VERSION, day: current.day, keys: kept };
+  const acknowledged = new Set(kept);
+  const cautions = found.map((c) => ({ ...c, acknowledged: acknowledged.has(c.key) }));
+  const stored = acks == null ? emptyAcks({ now, timeZone }) : acks;
+  return {
+    cautions,
+    fresh: cautions.filter((c) => !c.acknowledged),
+    acknowledged: cautions.filter((c) => c.acknowledged),
+    acks: next,
+    changed: JSON.stringify(stored) !== JSON.stringify(next),
+  };
+}
