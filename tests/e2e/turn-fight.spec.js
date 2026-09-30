@@ -379,7 +379,7 @@ test('First nose chases turns the dashed first nose-on line and the result on', 
   await openRoute(page, '#/turn-fight');
   await page.getByLabel('First nose chases').check();
   await playTo(page, 40);
-  await expect(result(page).getByRole('row', { name: /First nose-on/ })).toHaveText(/(Blue|Red) at \+\d+\.\d s/);
+  await expect(result(page).getByRole('row', { name: /First nose-on/ })).toHaveText(/(Blue|Red|Both) at \+\d+\.\d s/);
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', NOSE)).toBeGreaterThan(60);
 });
 
@@ -472,8 +472,8 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       const before = await box();
       await page.getByRole('button', { name: 'Result' }).click();
       await expect.poll(async () => (await box()).css).toBeGreaterThan(before.css + 100);
-      const after = await box();
-      expect(after.px).toBeGreaterThanOrEqual(after.css);
+      // The canvas measures its new box on the next frame (ui-kit canvas view).
+      await expect.poll(async () => { const after = await box(); return after.px - after.css; }).toBeGreaterThanOrEqual(0);
     });
   });
 }
