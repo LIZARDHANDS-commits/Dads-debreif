@@ -378,14 +378,14 @@ test('in flight the Formation card judges each wingman; More detail opens the nu
   const card = page.getByRole('list', { name: 'Formation' }).getByRole('listitem');
   await expect(card).toHaveCount(4);
   await expect(card.nth(0)).toHaveText(/^#2 (On parameters|((WIDE|TIGHT|FORE|AFT) by [\d,]+ ft(, )?)+|GPS gap)$/);
-  await expect(card.nth(3)).toHaveText(/^Lead \d+ kt est\. IAS, \d\.\d G/);
+  await expect(card.nth(3)).toHaveText(/^Lead \d+ kt est\. IAS \(no wind\), \d\.\d G/);
 
   const more = page.getByRole('button', { name: 'More detail' });
   await expect(more).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByText('Live data')).toBeHidden();
   await more.click();
   await expect(page.getByRole('heading', { name: 'Live data' })).toBeVisible();
-  await expect(page.locator('.more-detail .detail-lines').first()).toContainText(/Alt [\d,]+ ft, GS \d+ kt, est\. IAS \d+ kt/);
+  await expect(page.locator('.more-detail .detail-lines').first()).toContainText(/Alt [\d,]+ ft, GS \d+ kt, est\. IAS \d+ kt \(no wind\)/);
   await expect(page.getByRole('heading', { name: 'From Lead' })).toBeVisible();
   await expect(page.locator('.more-detail')).toContainText(/#3–#4: [\d,]+ ft horizontal, [\d,]+ ft 3D, closure/);
   await page.reload();
@@ -1150,16 +1150,20 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   const wind = page.locator('.formation-card li.lead-wind');
   await expect(leadLine).toBeVisible();
   await expect(wind).toHaveCount(0);
+  await expect(leadLine).toContainText('est. IAS (no wind)'); // F1: the Lead line says so while there is no model wind
   expect(asked).toEqual([]); // nothing fetched while it's off (R5)
 
   await page.getByRole('button', { name: 'Weather' }).click();
   await page.getByLabel('Winds aloft (model)').check();
   // On the ramp Lead is under the lowest model level above the field: no blended below-ground wind (W4).
   await expect(wind).toHaveText("no HRDPS wind at 1,900 ft (below the model's lowest level: see the METAR)");
+  await expect(leadLine).toContainText('est. IAS (no wind)');
   const scrubber = page.getByLabel('Flight time');
   await scrubber.fill(String(Number(await scrubber.inputValue()) + 1750));
   // Its own line straight after Lead's, so the verdict's words are not lengthened (W2).
   await expect(wind).toHaveText(/^model wind 270°T\/20 kt at [\d,]+ ft \(HRDPS \d{2}(–\d{2})?Z, Open-Meteo\)$/);
+  // F1: with that wind, Lead's est. IAS is wind-corrected, and says so.
+  await expect(leadLine).toContainText(/est\. IAS \(wind-corrected\)/);
   await expect(leadLine).not.toContainText('model wind');
   await expect(leadLine.locator('xpath=following-sibling::li[1]')).toHaveClass(/lead-wind/);
   expect(asked).toHaveLength(1);
@@ -1195,6 +1199,7 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   // Off again: the words go.
   await page.getByLabel('Winds aloft (model)').uncheck();
   await expect(wind).toHaveCount(0);
+  await expect(leadLine).toContainText('est. IAS (no wind)');
 });
 
 // Wind arrows on the 2D map (task 12e-2): Open-Meteo answers the grid's one request with a list, one reply per point.
