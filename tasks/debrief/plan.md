@@ -64,4 +64,4 @@ Skills are in [`.claude/skills/`](../../.claude/skills/README.md). Each PR descr
 | The 3D view is slow or wrong on the Canvas 2D | Pin V6's projection first; profile before any rewrite; no 3D library without asking (SPEC.md). |
 | VNC charts (about 9.7 MB) hurt first use | Load only when turned on; measure re-encoding before proposing it. |
 | The ui-kit pieces arrive late | Task 1 can start with a thin local pan/zoom behind the same interface and swap to ui-kit's when it lands. |
-| Q39 (#3 under two standards) stays open | The debrief keeps V6's labels; the change is one line in `core` when decided. |
+| `core`'s D78 change (#3 fore/aft by the offset standard alone) lands after task 4 | Task 4 uses whatever `standards.js` on main says; the labels follow with no debrief change. |
