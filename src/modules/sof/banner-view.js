@@ -6,6 +6,11 @@
 // changes nothing is never read out again. Caution text is text, never HTML.
 import { h } from '../../ui-kit/dom.js';
 
+// The words of the report that triggered a line, each in a <mark> of its level (a fixed word from marks.js, never from data).
+const words = (l) => (l.marks?.length
+  ? h('span', { class: 'sof-banner-words' }, 'In the report: ', ...l.marks.flatMap((m, i) => [i ? ' ' : null, h('mark', { class: `sof-mark is-${m.level}` }, m.text)]))
+  : null);
+
 /**
  * onAcknowledge(key), onAcknowledgeAll(): the buttons' actions.
  * focusAfter(): where keyboard focus goes when the banner empties while it holds focus.
@@ -24,9 +29,10 @@ export function createBannerView({ onAcknowledge, onAcknowledgeAll, focusAfter =
   let pendingFocus = null;
 
   const line = (l, index) =>
-    h('li', { class: `sof-banner-line is-${l.level}`, dataset: { key: l.key } },
+    h('li', { class: `sof-banner-line is-${l.level}${l.stale ? ' is-stale' : ''}`, dataset: { key: l.key } },
       h('span', { class: 'sof-banner-symbol', 'aria-hidden': 'true' }, l.symbol),
       h('span', { class: 'sof-banner-text' }, l.text),
+      words(l),
       h('button', {
         type: 'button',
         class: 'sof-banner-ack',
