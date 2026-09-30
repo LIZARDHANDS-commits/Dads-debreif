@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  WIND_MODELS, WIND_LEVELS_HPA, windModelFor, windsUrl, readWinds, windAtAltitude, windAt, windWords, windTextAt,
+  WIND_MODELS, WIND_LEVELS_HPA, windModelFor, windsUrl, readWinds, windAtAltitude, windAt, windWords, windTextAt, windFailureText,
 } from '../../../src/modules/debrief/weather/winds.js';
 import { createWindsFeed } from '../../../src/modules/debrief/weather/winds-feed.js';
 
@@ -306,4 +306,35 @@ test('W4: above the top level the line names it, and the time blend keeps the ru
   assert.equal(blended.hoursT.length, 2);
   const no950 = hours.map((h) => ({ ...h, levels: h.levels.slice(1) }));
   assert.deepEqual(blended.wind, windAt(no950, half, ft).wind);
+});
+
+test('W5: the feed tells a server error, an unreadable reply and no connection apart, and the words match', async () => {
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const flight = { startT: T('2026-09-29T18:00Z'), endT: T('2026-09-29T19:00Z') };
+  const point = { lat: 50.33, lon: -105.56 };
+  const failure = async (fetch) => {
+    const feed = createWindsFeed({ fetch, onChange: () => {} });
+    feed.setFlight(flight, point);
+    feed.get('hrdps');
+    await settle();
+    const entry = feed.get('hrdps');
+    feed.dispose();
+    return entry;
+  };
+  const server = await failure(() => Promise.resolve({ ok: false, status: 500 }));
+  assert.equal(server.state, 'failed');
+  assert.deepEqual(server.failure, { kind: 'http', status: 500 });
+  const html = await failure(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('Unexpected token <')) }));
+  assert.equal(html.state, 'failed');
+  assert.deepEqual(html.failure, { kind: 'reply', status: 200 });
+  const offline = await failure(() => Promise.reject(new TypeError('Failed to fetch')));
+  assert.equal(offline.state, 'failed');
+  assert.deepEqual(offline.failure, { kind: 'network', status: null });
+
+  assert.equal(windFailureText('HRDPS', server.failure), 'HRDPS winds: Open-Meteo answered with an error (500). Turn Winds aloft off and on to try again.');
+  assert.equal(windFailureText('HRDPS', html.failure), "HRDPS winds: Open-Meteo's answer wasn't wind data. Turn Winds aloft off and on to try again.");
+  assert.equal(windFailureText('HRDPS', offline.failure), "HRDPS winds couldn't load. They need a connection.");
+  assert.ok(!/connection/i.test(windFailureText('HRDPS', server.failure)));
+  assert.ok(!/connection/i.test(windFailureText('HRDPS', html.failure)));
+  assert.match(windFailureText('HRRR', null), /^HRRR winds couldn't load/);
 });

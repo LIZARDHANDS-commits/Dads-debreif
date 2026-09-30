@@ -199,3 +199,15 @@ export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt } = {}) {
   const hoursZ = found.hoursT.length === 2 ? `${hourZ(found.hoursT[0])}–${hourZ(found.hoursT[1])}Z` : `${hourZ(found.hoursT[0])}Z`;
   return `model wind ${windWords(found.wind)} at ${at} (${modelLabel} ${hoursZ}, Open-Meteo)`;
 }
+
+/**
+ * Why the winds couldn't load, for the wind line: the feed's `failure`
+ * ({ kind, status }). Only a missing answer blames the connection; a server
+ * error or an unreadable reply says Open-Meteo answered. label: "HRDPS" or "HRRR".
+ */
+export function windFailureText(label, failure) {
+  const retry = 'Turn Winds aloft off and on to try again.';
+  if (failure?.kind === 'http') return `${label} winds: Open-Meteo answered with an error (${failure.status}). ${retry}`;
+  if (failure?.kind === 'reply') return `${label} winds: Open-Meteo's answer wasn't wind data. ${retry}`;
+  return `${label} winds couldn't load. They need a connection.`;
+}

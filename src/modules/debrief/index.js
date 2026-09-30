@@ -33,7 +33,7 @@ import {
 import { CATALOG } from '../../airfields/catalog.js';
 import { createMetarFeed } from './weather/metar-feed.js';
 import { createWindsFeed } from './weather/winds-feed.js';
-import { WIND_MODELS, windModelFor, windTextAt } from './weather/winds.js';
+import { WIND_MODELS, windModelFor, windTextAt, windFailureText } from './weather/winds.js';
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
@@ -194,7 +194,7 @@ function mount(root, app) {
     if (entry.state === 'loading') return `loading ${label} winds…`;
     if (entry.state === 'busy' && entry.daily) return `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow`;
     if (entry.state === 'busy') return `${label} winds: Open-Meteo is busy. Turn Winds aloft off and on to try again.`;
-    if (entry.state === 'failed') return `${label} winds couldn't load. They need a connection.`;
+    if (entry.state === 'failed') return windFailureText(label, entry.failure);
     const lead = sampleAt(flight.tracks[1], clock.t);
     // Levels under the field are not blended in (W4): the home field's elevation, or Moose Jaw's until one is set.
     const fieldFt = app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT;

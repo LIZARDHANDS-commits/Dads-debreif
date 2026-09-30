@@ -389,6 +389,17 @@ test('in flight the Formation card judges each wingman; More detail opens the nu
   await expect(page.getByRole('button', { name: 'More detail' })).toHaveAttribute('aria-expanded', 'true');
 });
 
+test('winds aloft: an error page instead of winds is not blamed on the connection (W5; a 500 is in the unit tests, as the browser logs it as an error)', async ({ page }) => {
+  await page.route(OPEN_METEO, (route) => route.fulfill({ status: 200, contentType: 'text/html', headers: { 'Access-Control-Allow-Origin': '*' }, body: '<html>oops</html>' }));
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('Winds aloft (model)').check();
+  const wind = page.locator('.formation-card li.lead-wind');
+  await expect(wind).toHaveText("HRDPS winds: Open-Meteo's answer wasn't wind data. Turn Winds aloft off and on to try again.");
+  await expect(wind).not.toContainText('connection');
+});
+
 test('standards: edit, refuse a bad value, keep after a reload, reset to the defaults (R18, D114-D116)', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
@@ -1074,6 +1085,10 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
 
   await page.getByRole('button', { name: 'Weather' }).click();
   await page.getByLabel('Winds aloft (model)').check();
+  // On the ramp Lead is under the lowest model level above the field: no blended below-ground wind (W4).
+  await expect(wind).toHaveText("no HRDPS wind at 1,900 ft (below the model's lowest level: see the METAR)");
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.inputValue()) + 1750));
   // Its own line straight after Lead's, so the verdict's words are not lengthened (W2).
   await expect(wind).toHaveText(/^model wind 270°T\/20 kt at [\d,]+ ft \(HRDPS \d{2}(–\d{2})?Z, Open-Meteo\)$/);
   await expect(leadLine).not.toContainText('model wind');
