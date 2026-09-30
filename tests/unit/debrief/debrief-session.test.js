@@ -8,8 +8,9 @@ import { loadExampleFlight } from '../../../src/flight-data/examples.js';
 import { toDebriefFile, readDebriefFile } from '../../../src/flight-data/debrief-file.js';
 import { addDfp, renameDfp, setDfpNote, dfpLabel } from '../../../src/modules/debrief/dfp.js';
 import {
-  TIME_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName,
+  TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName,
 } from '../../../src/modules/debrief/debrief-session.js';
+import { makeSaved, savedBox, savedToSetting, savedFromSetting, MAX_SAVED_CHARS } from '../../../src/modules/debrief/weather/saved-radar.js';
 
 const fromRepo = async (asset) => readFileSync(new URL(`../../../original/assets/${asset}`, import.meta.url), 'utf8');
 
@@ -68,4 +69,117 @@ test('a file\'s bad standard is dropped, not used, and so are V6-shaped fields f
 
 test('the saved file is named for the flight\'s start, in Zulu', () => {
   assert.equal(debriefFileName(Date.UTC(2026, 5, 2, 18, 17, 42) / 1000), 'debrief-2026-06-02-1817Z.dadsdebrief.json');
+});
+
+// --- Saved radar and lightning (12f): one string under the file's settings ------
+
+const PNG64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+const savedFor = (flight) => makeSaved({
+  box: savedBox({ minLat: 50, maxLat: 50.5, minLon: -106, maxLon: -105.5 }),
+  fetchedT: flight.endT + 600,
+  frames: [
+    { layer: 'rain', t: Math.floor(flight.startT / 360) * 360, mime: 'image/png', data: PNG64 },
+    { layer: 'lightning', t: Math.floor(flight.endT / 600) * 600, mime: 'image/png', data: PNG64 },
+  ],
+});
+
+test('the saved weather has its own setting key, a string rule as long as the block may be, and only when the debrief has some', () => {
+  assert.equal(WEATHER_KEY, 'savedWeather');
+  assert.equal(settingsRules(STANDARD_LIMITS)[WEATHER_KEY], undefined, 'not unless asked (the keys still match what is saved)');
+  assert.deepEqual(settingsRules(STANDARD_LIMITS, { weather: true })[WEATHER_KEY], { type: 'string', max: MAX_SAVED_CHARS });
+  assert.equal(Object.hasOwn(sessionSettings(DEFAULT_STANDARDS, 5), WEATHER_KEY), false);
+  assert.equal(Object.hasOwn(sessionSettings(DEFAULT_STANDARDS, 5, ''), WEATHER_KEY), false);
+  assert.equal(sessionSettings(DEFAULT_STANDARDS, 5, 'text')[WEATHER_KEY], 'text');
+  const withWeather = sessionSettings(DEFAULT_STANDARDS, 5, 'text');
+  assert.deepEqual(Object.keys(withWeather).sort(), Object.keys(settingsRules(STANDARD_LIMITS, { weather: true })).sort());
+  assert.equal(Object.hasOwn(standardsPatch(withWeather), WEATHER_KEY), false, 'the block is not a standard');
+});
+
+test('saved radar and lightning go through flight-data\'s file untouched and come back the same (12f)', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const saved = savedFor(flight);
+  const text = toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, flight.startT + 90, savedToSetting(saved)));
+  const opened = readDebriefFile(text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+  assert.equal(opened.settings[TIME_KEY], flight.startT + 90, 'the rest of the settings are as before');
+  const back = savedFromSetting(opened.settings[WEATHER_KEY], { startT: flight.startT, endT: flight.endT });
+  assert.equal(back.problem, undefined);
+  assert.deepEqual(back.saved, saved);
+});
+
+test('a debrief saved without weather opens without any, and an older tool opening one with it ignores it', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const plain = toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5));
+  const opened = readDebriefFile(plain, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+  assert.deepEqual(savedFromSetting(opened.settings[WEATHER_KEY], { startT: flight.startT, endT: flight.endT }), { saved: null });
+  const withWeather = toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, savedToSetting(savedFor(flight))));
+  const oldTool = readDebriefFile(withWeather, { settings: settingsRules(STANDARD_LIMITS) });
+  assert.equal(Object.hasOwn(oldTool.settings, WEATHER_KEY), false, 'a reader that doesn\'t list it drops it');
+});
+
+test('a weather block over its rule is dropped by the file reader, and a hostile one is refused by the debrief\'s own checks', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const tooLong = toDebriefFile(flight, [], { ...sessionSettings(DEFAULT_STANDARDS, 5), [WEATHER_KEY]: 'x'.repeat(2000) });
+  const rules = settingsRules(STANDARD_LIMITS, { weather: true });
+  rules[WEATHER_KEY] = { ...rules[WEATHER_KEY], max: 1000 };
+  assert.equal(Object.hasOwn(readDebriefFile(tooLong, { settings: rules }).settings, WEATHER_KEY), false);
+  const hostile = JSON.stringify({ v: 1, box: { minLat: 50, maxLat: 51, minLon: -106, maxLon: -105 }, fetchedT: 1, frames: [{ layer: 'rain', t: flight.startT, mime: 'image/svg+xml', data: 'PHN2Zy8+' }] });
+  const text = toDebriefFile(flight, [], { ...sessionSettings(DEFAULT_STANDARDS, 5), [WEATHER_KEY]: hostile });
+  const opened = readDebriefFile(text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+  const got = savedFromSetting(opened.settings[WEATHER_KEY], { startT: flight.startT, endT: flight.endT });
+  assert.match(got.problem, /couldn't be read/);
+});
+
+// --- Writing the file: what is written is read back first (Y2) ------------------------------------
+
+test('a debrief with kept radar is written with it, after the block has been read back against the flight\'s window', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const saved = savedFor(flight);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const got = buildDebriefFile({ write, weather: saved, window: { startT: flight.startT, endT: flight.endT } });
+  assert.equal(got.left, null);
+  assert.equal(got.wrote, true);
+  const opened = readDebriefFile(got.text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+  assert.deepEqual(savedFromSetting(opened.settings[WEATHER_KEY], { startT: flight.startT, endT: flight.endT }).saved, saved);
+});
+
+test('with nothing kept there is nothing to write and nothing to say', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const got = buildDebriefFile({ write, weather: null, window: { startT: flight.startT, endT: flight.endT } });
+  assert.deepEqual([got.wrote, got.left], [false, null]);
+  assert.equal(Object.hasOwn(JSON.parse(got.text).settings, WEATHER_KEY), false);
+});
+
+test('a kept set the reader would not read back whole is not written, and the debrief says so', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const stray = makeSaved({ box: savedBox({ minLat: 50, maxLat: 50.5, minLon: -106, maxLon: -105.5 }), fetchedT: 1, frames: [{ layer: 'rain', t: Math.ceil(flight.endT) + 7200, mime: 'image/png', data: PNG64 }] });
+  const got = buildDebriefFile({ write, weather: stray, window: { startT: flight.startT, endT: flight.endT } });
+  assert.equal(got.wrote, false);
+  assert.match(got.left, /couldn't be put in the file/);
+  assert.equal(Object.hasOwn(JSON.parse(got.text).settings, WEATHER_KEY), false, 'the rest of the debrief is still saved');
+});
+
+// --- The file's size limit (Y7) ---------------------------------------------------------------------
+
+test('a debrief that would be over the size the tool opens is saved without the radar, and says so; under it, with', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const saved = savedFor(flight);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const window = { startT: flight.startT, endT: flight.endT };
+  const withRadar = write(savedToSetting(saved)).length;
+  const without = write('').length;
+  assert.ok(withRadar > without);
+  const fits = buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar });
+  assert.equal(fits.wrote, true, 'exactly at the limit is fine');
+  const over = buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar - 1 });
+  assert.equal(over.wrote, false);
+  assert.match(over.left, /^This debrief file would be over the size this tool opens \(\d+(\.\d)? MB\), so it was saved without the radar and lightning\. They stay here until you close the flight\.$/);
+  assert.equal(over.text.length, without);
+  assert.equal(Object.hasOwn(JSON.parse(over.text).settings, WEATHER_KEY), false);
+  // The size is what the opener checks: bytes, so a non-ASCII character counts as more than one.
+  const bytes = (t) => Buffer.byteLength(t);
+  assert.equal(buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar, sizeOf: bytes }).wrote, true);
+  const multi = (t) => bytes(t) + 1;
+  assert.equal(buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar, sizeOf: multi }).wrote, false);
 });

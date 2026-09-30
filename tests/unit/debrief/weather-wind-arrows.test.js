@@ -202,6 +202,13 @@ test('the caption names the height, the model, the hours and the source; the sta
   const raised = raisedGround();
   assert.equal(arrowStatus(windArrowsAt(raised, points, t, 3000), 3000, 'HRDPS'), 'no model wind at 3,000 ft at 1 of 9 points (below the model\'s lowest level)');
   assert.equal(arrowStatus([], 8000, 'HRDPS'), '');
+  // Some points drawn and the rest missing: never "no wind" for the whole map (verification re-check of #213, W1).
+  const w = { wind: { dirDeg: 200, kt: 20 }, why: null };
+  const noHour = { wind: null, why: 'time' };
+  const below = { wind: null, why: 'below' };
+  assert.equal(arrowStatus([w, noHour, noHour], 8000, 'HRDPS'), 'no HRDPS wind for this time at 2 of 3 points');
+  assert.equal(arrowStatus([w, below, noHour], 8000, 'HRDPS'), '1 of 3 points have model wind');
+  assert.equal(arrowStatus([below, noHour], 2000, 'HRDPS'), 'no model wind at 2,000 ft here');
 });
 
 test('the feed asks for the grid once per model, in one request, only when asked, and the Lead line\'s request is its own', async () => {
