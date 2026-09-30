@@ -118,10 +118,12 @@ test('a bigger conflict bubble redraws the map, and the layers menu switches tra
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
   await page.getByLabel('Conflict: lateral').fill('1500');
   await expect.poll(() => picture(page)).not.toBe(before);
+  const withTrails = await picture(page);
   await page.getByRole('button', { name: /^Layers/ }).click();
   await expect(page.getByLabel('Trails')).toBeChecked();
   await page.getByLabel('Trails').uncheck();
   await expect(page.getByLabel('Trails')).not.toBeChecked();
+  await expect.poll(() => picture(page)).not.toBe(withTrails); // the trails are gone from the map
 });
 
 test('spawn an aircraft and it appears in the list, waits for its delay, and flies; a bad start point says what to change', async ({ page }) => {
