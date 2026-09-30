@@ -2,7 +2,7 @@
 // and the zoom matches the map's (SPEC-sof, ADS-B Exchange view, Security).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adsbExchangeUrl, zoomForScale, ADSBX_ORIGIN, FRAME_SANDBOX } from '../../../src/modules/sof/adsbx.js';
+import { adsbExchangeUrl, zoomForScale, frameIsCrossOrigin, ADSBX_ORIGIN, FRAME_SANDBOX } from '../../../src/modules/sof/adsbx.js';
 import { pxPerFtForZoom } from '../../../src/modules/sof/map-view.js';
 
 test('the address is the one fixed site with the home field\'s position and a zoom, and nothing else', () => {
@@ -45,4 +45,12 @@ test('the frame\'s powers are its own scripts and storage; no pop-ups, no naviga
   for (const never of ['allow-popups', 'allow-top-navigation', 'allow-forms', 'allow-modals', 'allow-popups-to-escape-sandbox', 'allow-top-navigation-by-user-activation']) {
     assert.ok(!powers.includes(never), never);
   }
+});
+
+test('the frame must never be the same origin as our own page: with allow-same-origin that would lift the sandbox altogether', () => {
+  assert.equal(frameIsCrossOrigin('https://dads-ooda-loop.example'), true);
+  assert.equal(frameIsCrossOrigin('http://localhost:5173'), true);
+  assert.equal(frameIsCrossOrigin(ADSBX_ORIGIN), false, 'served from ADS-B Exchange\'s own origin it would be same-origin');
+  assert.equal(frameIsCrossOrigin('null'), true);
+  assert.equal(frameIsCrossOrigin(undefined), true);
 });

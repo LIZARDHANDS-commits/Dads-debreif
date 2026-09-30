@@ -11,8 +11,19 @@ import { pxPerFtForZoom } from './map-view.js';
 
 export const ADSBX_ORIGIN = 'https://globe.adsbexchange.com';
 
-/** The frame's powers: its own scripts and its own site's storage (it is another site, so it cannot reach this page either way). Nothing else. */
+/**
+ * The frame's powers: its own scripts and its own site's storage (it is another site, so it cannot reach this page either way). Nothing else.
+ *
+ * SECURITY: `allow-scripts` together with `allow-same-origin` is only safe because the frame is a DIFFERENT origin from
+ * this page. A frame of our own origin with both could remove its own sandbox attribute and run with our page's powers.
+ * So the frame's origin must never be ours: `show` refuses any address that is not ADSBX_ORIGIN's or that is our own origin.
+ */
 export const FRAME_SANDBOX = 'allow-scripts allow-same-origin';
+
+/** True when a frame from ADSBX_ORIGIN is a different origin from `pageOrigin` (our page's `location.origin`). It must always be. */
+export function frameIsCrossOrigin(pageOrigin) {
+  return typeof pageOrigin !== 'string' || pageOrigin !== ADSBX_ORIGIN;
+}
 
 /** How long the frame has to load before the link is offered beside it. */
 export const LOAD_WAIT_MS = 15_000;
@@ -65,6 +76,7 @@ export function createAdsbFrame({ timers, onSlow = () => {} }) {
     show(url) {
       hide();
       if (typeof url !== 'string' || !url.startsWith(`${ADSBX_ORIGIN}/?`)) return false; // only ever our one fixed address
+      if (!frameIsCrossOrigin(globalThis.location?.origin)) return false; // never same-origin with this page (see FRAME_SANDBOX)
       link.href = url;
       frame = h('iframe', {
         class: 'sof-adsbx-frame',
