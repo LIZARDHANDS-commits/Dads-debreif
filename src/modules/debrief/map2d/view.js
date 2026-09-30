@@ -40,6 +40,8 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * wind blows from), or null/empty for none. savedWeather(): the saved radar
  * and lightning pictures to lay over the base map, [{ key, mime, data, box,
  * alpha }] bottom first (saved-weather.js), or empty for none.
+ * onSavedWeather(state): after each draw, the saved pictures' { wanted, ready,
+ * failed, failedKeys }, or null when there are none.
  */
 export function createMapView(canvas, {
   timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null,
@@ -48,6 +50,7 @@ export function createMapView(canvas, {
   onImagery = /** @type {(state: any) => void} */ (() => {}),
   onCharts = /** @type {(state: any) => void} */ (() => {}),
   onWeather = /** @type {(state: any) => void} */ (() => {}),
+  onSavedWeather = /** @type {(state: any) => void} */ (() => {}),
 }) {
   let flight = null;
   let paths = [];
@@ -166,6 +169,7 @@ export function createMapView(canvas, {
       onWeather(drawWeather(ctx));
       const saved = savedWeather();
       if (saved.length) savedLayer.draw(ctx, { items: saved, toScreen: tileView().toScreen });
+      onSavedWeather(saved.length ? savedLayer.state() : null);
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;

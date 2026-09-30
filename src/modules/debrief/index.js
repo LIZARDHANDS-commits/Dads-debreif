@@ -40,9 +40,9 @@ import {
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks, tickLabel } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
-import { TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
+import { TIME_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
-import { radarKept, framesToDraw, savedNoteLine, savedFromSetting } from './weather/saved-radar.js';
+import { radarKept, framesToDraw, savedNoteLine, savedFromSetting, droppedNotice, SAVED_ALPHA } from './weather/saved-radar.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
 
@@ -100,6 +100,10 @@ function mount(root, app) {
   // flight, fetched only when the offer is pressed or read from an opened debrief file. Radar under
   // lightning, each the last kept frame at or before the playback time.
   const savedRadar = createSavedRadarFeed({ onChange: () => { renderSavedWeather(); redraw(); } });
+  // The saved pictures the browser could not draw (a picture that passes the checks but does not decode): the line
+  // under the map names no time for them (F4c). Set from the map's draw, and only when the set changes.
+  let notDrawn = new Set();
+  let notDrawnKey = '';
   // The set of pictures that went into a saved debrief file. A set fetched later is a new object, so it
   // is unsaved whatever was saved before, or while the fetch ran (R1).
   let weatherWritten = null;
@@ -114,7 +118,10 @@ function mount(root, app) {
     event.returnValue = '';
   };
   window.addEventListener('beforeunload', onBeforeUnload);
-  const SAVED_ALPHA = { radar: 0.75, lightning: 1 };
+  // Switching to another tool in the app asks the same (the shell's leave check, app frame #233).
+  app.canLeave?.(() => (weatherUnsaved()
+    ? "Leave the Debrief? The radar and lightning you saved aren't in a saved debrief file yet, and ECCC can't give them again after 3 hours."
+    : null));
   function savedWeatherItems() {
     const on = layout.get();
     const { saved } = savedRadar.state();
@@ -131,12 +138,14 @@ function mount(root, app) {
   function renderSavedWeather() {
     const on = layout.get();
     const recent = flight ? radarKept(flight.endT, Date.now() / 1000) : false;
-    const offer = offerState({ flight: Boolean(flight), recent, pressed: offerPressed, ...savedRadar.state() });
+    const state = savedRadar.state();
+    // Once the set is in a saved file, the line stops asking to save the debrief (F3).
+    const offer = offerState({ flight: Boolean(flight), recent, pressed: offerPressed, inFile: Boolean(state.saved) && state.saved === weatherWritten, ...state });
     let note = '';
     if (flight && clock) {
       // While fetching, the menu's line is the one place progress is written and announced (Y5).
       note = offer.button === 'cancel' ? ''
-        : savedNoteLine({ radar: on.wxRadar, lightning: on.wxLightning, recent, saved: savedRadar.state().saved, t: clock.t });
+        : savedNoteLine({ radar: on.wxRadar, lightning: on.wxLightning, recent, saved: savedRadar.state().saved, t: clock.t, notDrawn });
     }
     ui.setSavedWeather({ offer, note });
   }
@@ -152,6 +161,14 @@ function mount(root, app) {
     weather: () => satelliteWanted(),
     windArrows: () => windArrowsNow().arrows,
     savedWeather: () => savedWeatherItems(),
+    onSavedWeather: (state) => {
+      const keys = state?.failedKeys ?? [];
+      const key = keys.join();
+      if (key === notDrawnKey) return;
+      notDrawnKey = key;
+      notDrawn = new Set(keys);
+      renderSavedWeather();
+    },
     onWeather: (state) => {
       const on = layout.get();
       const source = satelliteWanted()?.source;
@@ -450,16 +467,19 @@ function mount(root, app) {
           return;
         }
         run('Opening the debrief', async () => {
-          const opened = readDebriefFile(await file.text(), { settings: settingsRules(app.standards?.limits ?? {}, { weather: true }) });
+          const text = await file.text();
+          const opened = readDebriefFile(text, { settings: settingsRules(app.standards?.limits ?? {}, { weather: true }) });
           const next = loadFlight(opened.files);
-          return { flight: next, opened };
-        }, ({ flight: next, opened }) => {
+          return { flight: next, opened, text };
+        }, ({ flight: next, opened, text }) => {
           flight = next; // leadAt reads it for the DFP flags
           const patch = standardsPatch(opened.settings);
           if (patch && app.standards) app.standards.update(patch);
           // The saved radar is checked against this flight's own window; a bad block is left out, the rest opens.
-          const wx = savedFromSetting(opened.settings[WEATHER_KEY], { startT: next.startT, endT: next.endT });
-          return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem };
+          // Pictures outside the flight's window are left out and counted in a line (F4b); a block over the length or not
+          // text (which the file reader drops unseen) is left out with a line too (F4a).
+          const wx = savedFromSetting(weatherSettingOf(text, opened.settings), { startT: next.startT, endT: next.endT });
+          return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem ?? (droppedNotice(wx.dropped) || undefined) };
         });
       },
       csv() {

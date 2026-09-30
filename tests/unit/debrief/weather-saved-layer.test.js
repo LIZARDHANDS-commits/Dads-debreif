@@ -99,17 +99,36 @@ test('only the last few are kept in memory; the oldest go first, and are read ag
   assert.equal(made[0].onload, null, 'a dropped image no longer calls back');
 });
 
+test('the same key for other bytes is another picture, not the old one\'s image or its failure (F4c)', () => {
+  const { made, makeImage } = fakeImages();
+  const layer = createSavedWeatherLayer({ makeImage, onChange: () => {} });
+  layer.draw(fakeCtx(), { items: [item('rain@1', { data: 'AAAA' })], toScreen });
+  made[0].onerror();
+  layer.draw(fakeCtx(), { items: [item('rain@1', { data: 'AAAA' })], toScreen });
+  assert.equal(made.length, 1, 'the same bytes are not asked again');
+  layer.draw(fakeCtx(), { items: [item('rain@1', { data: 'BBBB' })], toScreen });
+  assert.equal(made.length, 2);
+  assert.equal(made[0].onerror, null);
+  assert.deepEqual(layer.state().failedKeys, []);
+  made[1].onload();
+  const ctx = fakeCtx();
+  layer.draw(ctx, { items: [item('rain@1', { data: 'BBBB' })], toScreen });
+  assert.equal(ctx.calls.some((c) => c[0] === 'drawImage'), true);
+});
+
 test('a picture the browser cannot decode is left out, quietly, and not asked again', () => {
   const { made, makeImage } = fakeImages();
   let redraws = 0;
   const layer = createSavedWeatherLayer({ makeImage, onChange: () => redraws++ });
   layer.draw(fakeCtx(), { items: [item('rain@1')], toScreen });
   made[0].onerror();
+  assert.equal(redraws, 1, 'a redraw is asked for, so the words under the map can say so (F4c)');
   const ctx = fakeCtx();
   layer.draw(ctx, { items: [item('rain@1')], toScreen });
   assert.equal(ctx.calls.some((c) => c[0] === 'drawImage'), false);
   assert.equal(made.length, 1);
   assert.equal(layer.state().failed, 1);
+  assert.deepEqual(layer.state().failedKeys, ['rain@1'], 'which picture, so the line names only what is drawn');
 });
 
 test('a picture that decodes larger than a picture we asked for is left out, and nothing is drawn from it', () => {
@@ -120,7 +139,7 @@ test('a picture that decodes larger than a picture we asked for is left out, and
   made[0].naturalWidth = 16000;
   made[0].naturalHeight = 16000;
   made[0].onload();
-  assert.equal(redraws, 0);
+  assert.equal(redraws, 1, 'a redraw is asked for so the line can say it was not drawn');
   const ctx = fakeCtx();
   layer.draw(ctx, { items: [item('rain@1')], toScreen });
   assert.equal(ctx.calls.some((c) => c[0] === 'drawImage'), false);
@@ -129,17 +148,17 @@ test('a picture that decodes larger than a picture we asked for is left out, and
   made[1].naturalWidth = 1024;
   made[1].naturalHeight = 1024;
   made[1].onload();
-  assert.equal(redraws, 1, 'a picture at the limit is fine');
+  assert.equal(redraws, 2, 'a picture at the limit is fine: it asks for a redraw to be drawn, not to be left out');
 });
 
 test('what the last draw found, and disposing lets go of everything', () => {
   const { made, makeImage } = fakeImages();
   const layer = createSavedWeatherLayer({ makeImage, onChange: () => {} });
   layer.draw(fakeCtx(), { items: [item('a'), item('b')], toScreen });
-  assert.deepEqual(layer.state(), { wanted: 2, ready: 0, failed: 0 });
+  assert.deepEqual(layer.state(), { wanted: 2, ready: 0, failed: 0, failedKeys: [] });
   made[0].onload();
   layer.draw(fakeCtx(), { items: [item('a'), item('b')], toScreen });
-  assert.deepEqual(layer.state(), { wanted: 2, ready: 1, failed: 0 });
+  assert.deepEqual(layer.state(), { wanted: 2, ready: 1, failed: 0, failedKeys: [] });
   layer.dispose();
   assert.equal(made[0].onload, null);
   assert.equal(made[1].onload, null);

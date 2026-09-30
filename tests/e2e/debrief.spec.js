@@ -1653,11 +1653,14 @@ test('saved radar and lightning: offered for a flight that ended an hour ago, fe
 
   // Offered, off at first, and nothing is fetched by ticking the items (R5): only the button fetches.
   await expect(saveWxButton(page)).toBeVisible();
-  await expect(savedWxStatus(page)).toHaveText('ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.');
+  await expect(savedWxStatus(page)).toHaveText('ECCC keeps radar for only 3 hours after a flight.');
+  // What the button does is its description (and tooltip), not a second line in the menu (F1).
+  await expect(saveWxButton(page)).toHaveAccessibleDescription(/only 3 hours after a flight\. This fetches every picture from the flight and keeps them in the debrief file\./);
+  await expect(saveWxButton(page)).toHaveAttribute('title', 'This fetches every picture from the flight and keeps them in the debrief file.');
   await expect(page.getByLabel('Radar', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Lightning', { exact: true })).not.toBeChecked();
   await page.getByLabel('Radar', { exact: true }).check();
-  await expect(credit).toHaveText('Radar not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+  await expect(credit).toHaveText('Radar not saved yet: see Weather.');
   expect(asked).toEqual([]);
 
   // Fetch: every frame covering the flight, as plain GETs to ECCC, the exact times, plain latitude and longitude.
@@ -1708,6 +1711,9 @@ test('saved radar and lightning: offered for a flight that ended an hour ago, fe
   await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
   const saved = await download.path();
+  // Once they are in a saved file the menu no longer asks to save the debrief (F3).
+  await expect(savedWxStatus(page)).toHaveText(new RegExp(`${KEPT_LINE.source}$`));
+  await expect(savedWxStatus(page)).not.toContainText('Save the debrief');
   const file = JSON.parse(readFileSync(saved, 'utf8'));
   const block = JSON.parse(file.settings.savedWeather);
   expect(block.frames.length).toBe(Number(count));
@@ -1758,7 +1764,7 @@ test('saved radar: a fetch shows its progress and can be cancelled, and closing 
   await expect(page.locator('#debrief-saved-wx')).toHaveText('Cancel');
   await page.locator('#debrief-saved-wx').click();
   await expect(saveWxButton(page)).toBeVisible();
-  await expect(savedWxStatus(page)).toHaveText(/^ECCC keeps radar for 3 hours\./);
+  await expect(savedWxStatus(page)).toHaveText(/^ECCC keeps radar for only 3 hours/);
   release();
   const askedAtCancel = asked.length;
   await scrubber.fill(String(endT - 120)); // the page draws again, and nothing was kept
@@ -1776,6 +1782,11 @@ test('saved radar: a fetch shows its progress and can be cancelled, and closing 
     return event.defaultPrevented;
   });
   expect(await leaveAsks()).toBe(true);
+  // switching to another tool asks, and Cancel keeps the Debrief and its pictures,
+  page.once('dialog', (dialog) => { expect(dialog.message()).toMatch(/^Leave the Debrief\? The radar and lightning/); dialog.dismiss(); });
+  await page.evaluate(() => { location.hash = '#/sof'; });
+  await expect(page).toHaveURL(/#\/debrief$/);
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE);
   // and closing the flight asks.
   await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const messages = [];
@@ -1807,7 +1818,7 @@ test('saved radar: a flight more than 3 hours old says "Not kept", fetches nothi
   await page.getByLabel('Radar', { exact: true }).check();
   await expect(credit).toHaveText('Not kept: radar is only available for 3 hours after the flight.');
   await page.getByLabel('Lightning', { exact: true }).check();
-  await expect(credit).toHaveText('Not kept: radar is only available for 3 hours after the flight. · Not kept: lightning is only available for 3 hours after the flight.');
+  await expect(credit).toHaveText('Not kept: radar and lightning are only available for 3 hours after the flight.'); // one line, not two (recheck F1)
   await expect.poll(() => pixelsNear(page, RAIN_RGB)).toBeLessThan(20);
   // Off again: the line goes; the words in the menu stay for the flight.
   await page.getByLabel('Radar', { exact: true }).uncheck();
@@ -2029,3 +2040,150 @@ test('saved radar: a button left on screen as the 3 hours pass says "Not kept" w
   await expect(savedWxStatus(page)).toHaveText('Not kept: radar is only available for 3 hours after the flight.');
   await expect(saveWxButton(page)).toBeHidden();
 });
+
+// A debrief file saved from the example flight, its saved radar block swapped for `block` (F4).
+async function openWithWeatherSetting(page, file, value) {
+  const tampered = { ...file, settings: { ...file.settings, savedWeather: value } };
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles({ name: 'tampered.dadsdebrief.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(tampered)) });
+  await expect(status(page)).toHaveText(/^4 tracks loaded/, { timeout: 30_000 });
+}
+async function savedExampleFile(page) {
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  return JSON.parse(readFileSync(await download.path(), 'utf8'));
+}
+const closeFlight = async (page) => {
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  await expect(status(page)).toHaveText('No flight loaded');
+};
+
+test('saved radar: a block over 36 MiB, a setting that is not text and pictures outside the flight are each left out with a line (F4a, F4b)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { startT, endT } = await flightWindow(page);
+  await setNow(page, endT + 5 * 3600);
+  const file = await savedExampleFile(page);
+  await closeFlight(page);
+  const message = page.locator('.debrief-message');
+  const box = { minLat: 50, maxLat: 51, minLon: -106, maxLon: -105 };
+  const rain = ECCC_PICTURES.RADAR_1KM_RRAI.toString('base64');
+
+  // (a) A block a byte over 36 MiB, and one that is not text: the file used to open with no word about either.
+  await openWithWeatherSetting(page, file, 'x'.repeat(36 * 1024 * 1024 + 1));
+  await expect(message).toHaveText(/^The radar and lightning saved in this file couldn't be read \(it is too big\), so they were left out\. The rest of the debrief is as saved\.$/);
+  await closeFlight(page);
+  await openWithWeatherSetting(page, file, 12345);
+  await expect(message).toHaveText(/couldn't be read \(it is not text\), so they were left out/);
+  await closeFlight(page);
+
+  // (b) One picture outside the flight's window in an otherwise good block: kept 1, and the line says one was left out.
+  const frames = [{ layer: 'rain', t: Math.ceil(startT), mime: 'image/png', data: rain }, { layer: 'rain', t: 1000, mime: 'image/png', data: rain }];
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames }));
+  await expect(message).toHaveText('The saved radar and lightning has 1 picture outside the flight, so it was left out.');
+  await openWeather(page);
+  await expect(savedWxStatus(page)).toHaveText(/^Kept with this debrief: 1 radar and lightning picture, /);
+  await closeFlight(page);
+  // Nothing outside: no line.
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames: frames.slice(0, 1) }));
+  await expect(message).toBeHidden();
+});
+
+// A PNG whose header says 64 by 64 and whose body is nothing: it passes the checks and cannot be decoded.
+function undecodablePng() {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(64, 0);
+  ihdr.writeUInt32BE(64, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(13);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), length, Buffer.from('IHDR'), ihdr, Buffer.alloc(4), Buffer.alloc(200, 7)]);
+}
+
+test('saved radar: a picture that cannot be decoded is not named by the line under the map, and gets no credit (F4c)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, startT, endT } = await flightWindow(page);
+  await setNow(page, endT + 5 * 3600);
+  const file = await savedExampleFile(page);
+  await closeFlight(page);
+  const box = { minLat: 50, maxLat: 51, minLon: -106, maxLon: -105 };
+  const t0 = Math.ceil(startT);
+  const frames = [{ layer: 'rain', t: t0, mime: 'image/png', data: undecodablePng().toString('base64') }];
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames }));
+  await scrubber.fill(String(t0 + 60));
+  const credit = page.locator('.map-credit');
+  await openWeather(page);
+  await page.getByLabel('Radar', { exact: true }).check();
+  await expect(credit).toHaveText("Radar: the picture couldn't be drawn.");
+  await expect(credit).not.toContainText('Data Source');
+  await expect(credit).not.toContainText(hhmm(t0));
+  // A picture that does decode is named as before.
+  await closeFlight(page);
+  const good = [{ layer: 'rain', t: t0, mime: 'image/png', data: ECCC_PICTURES.RADAR_1KM_RRAI.toString('base64') }];
+  await openWithWeatherSetting(page, file, JSON.stringify({ v: 1, box, fetchedT: 1, frames: good }));
+  await scrubber.fill(String(t0 + 60));
+  await expect(credit).toHaveText(new RegExp(`^Radar ${hhmm(t0)}Z, 1 min before · Data Source: Environment and Climate Change Canada$`));
+});
+
+// The Weather menu with a flight under 3 hours old (the saved radar offer showing) and every item ticked is its
+// tallest: its bottom row must be readable, not under the line beneath the map, and it must not scroll inside
+// (verification re-check of #224, F1).
+async function stubEveryWeatherSource(page, now) {
+  await stubEccc(page, { now });
+  await page.route(IEM, (route) => route.fulfill({ status: 200, contentType: 'text/plain', headers: ECCC_CORS, body: iemReply(route.request().url()) }));
+  await page.route(OPEN_METEO, (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: ECCC_CORS, body: openMeteoGridReply(route.request().url()) }));
+  await page.route(GIBS, (route) => route.fulfill({ status: 200, contentType: 'image/png', headers: ECCC_CORS, body: GREEN_TILE }));
+}
+
+for (const [size, age] of [
+  [{ width: 1280, height: 720 }, 'recent'], [{ width: 1366, height: 768 }, 'recent'],
+  [{ width: 1280, height: 720 }, 'old'], [{ width: 1366, height: 768 }, 'old'],
+]) {
+  test(`at ${size.width} × ${size.height} the Weather menu of a ${age} flight with every item ticked fits: last row readable, under no line, no inner scroll (F1)`, async ({ page }) => {
+    let nowT = 0;
+    await stubEveryWeatherSource(page, () => nowT);
+    await page.setViewportSize(size);
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+    const { scrubber, startT, endT } = await flightWindow(page);
+    nowT = age === 'recent' ? endT + 3600 : endT + 5 * 3600;
+    await setNow(page, nowT);
+    await scrubber.fill(String(startT + 25 * 60));
+    await openWeather(page);
+    if (age === 'recent') await expect(saveWxButton(page)).toBeVisible(); // the offer is showing
+    for (const label of ['METAR', 'Satellite (GOES-West)', 'Radar', 'Lightning', 'Winds aloft (model)', 'Wind arrows (model)']) {
+      await page.getByLabel(label, { exact: true }).check();
+    }
+    await expect(page.locator('#debrief-wind-arrow-status')).toBeVisible();
+    const credit = page.locator('.map-credit');
+    await expect(credit).toBeVisible();
+    await expect(credit).toContainText(age === 'recent' ? 'Radar and lightning not saved yet: see Weather.' : 'Not kept: radar and lightning are only available for 3 hours after the flight.');
+
+    const found = await page.evaluate(() => {
+      const body = [...document.querySelectorAll('.debrief-menu-body')].find((el) => !el.hidden);
+      const box = body.getBoundingClientRect();
+      const map = document.querySelector('.debrief-map-wrap').getBoundingClientRect();
+      const shown = [...body.children].filter((el) => el.getClientRects().length > 0);
+      const last = shown.at(-1).getBoundingClientRect();
+      // What is on top along the last row's bottom line, and at the menu's own bottom corners: the menu's own, never the line under the map.
+      const points = [last.left + 4, last.left + last.width / 2, last.right - 4].map((x) => [x, last.bottom - 3]);
+      points.push([box.left + 3, box.bottom - 3], [box.right - 3, box.bottom - 3]);
+      const covered = points.map(([x, y]) => document.elementFromPoint(x, y)).filter((el) => !el || !body.contains(el)).map((el) => (el ? `${el.tagName}.${el.className}` : 'nothing'));
+      return {
+        scrolls: body.scrollHeight > body.clientHeight,
+        lastBottom: last.bottom,
+        boxBottom: box.bottom,
+        mapBottom: map.bottom,
+        covered,
+        // The line under the map takes no clicks, so what is on top is read from the stacking: the menu's is above it.
+        menuZ: Number(getComputedStyle(body).zIndex),
+        lineZ: Number(getComputedStyle(document.querySelector('.map-credit')).zIndex),
+      };
+    });
+    expect(found.scrolls, 'the menu scrolls inside its box').toBe(false);
+    expect(found.covered, 'the last row is covered').toEqual([]);
+    expect(found.menuZ, 'the line under the map is drawn over the open menu').toBeGreaterThan(found.lineZ);
+    expect(found.lastBottom).toBeLessThanOrEqual(found.boxBottom);
+    expect(found.boxBottom, 'the menu runs below the map').toBeLessThanOrEqual(found.mapBottom + 1);
+  });
+}

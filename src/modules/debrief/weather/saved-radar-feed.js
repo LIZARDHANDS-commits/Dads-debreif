@@ -6,7 +6,7 @@
 // debrief stops it and keeps nothing. Network and clock come in as arguments.
 import {
   SAVED_LAYERS, LIMITS, notKeptText, inWindow, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl, layerTimes,
-  frameFromReply, fitCap, makeSaved, savedSummary, hhmmZ,
+  frameFromReply, fitCap, makeSaved, savedSummary, hhmmZ, thinningNote,
 } from './saved-radar.js';
 
 const LAYER_NAMES = Object.freeze({ rain: 'rain radar', snow: 'snow radar', lightning: 'lightning' });
@@ -15,8 +15,12 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /** How many requests are open at once: a few, so it is quick without hammering ECCC. */
 const CONCURRENCY = 3;
 
+/** The menu's one line under the offer button; what the button does is the button's own description (layout.js). */
+export const OFFER_LINE = 'ECCC keeps radar for only 3 hours after a flight.';
 const OFFLINE = "ECCC couldn't be reached. Check the connection and try again.";
 const NONE_LEFT = 'ECCC had no pictures for this flight any more.';
+const errorText = (status) => `ECCC gave an error (HTTP ${status}).`;
+const tooLargeText = `the pictures are too large to keep (${LIMITS.maxFrameBytes / 1024 / 1024} MB each at most).`;
 
 /**
  * fetch: the browser's fetch (replaceable in tests). now(): seconds since 1970.
@@ -61,6 +65,10 @@ export function createSavedRadarFeed({
     const size = imageSize(box);
     const { signal } = mine.abort;
     let reached = false; // ECCC answered something, so a failure isn't only a missing connection
+    let errorStatus = null; // the first HTTP error ECCC answered with, so the failure can say so
+    let tooLarge = false; // a picture came back over one frame's limit
+    // Why nothing was kept, when every request came to nothing: an error, then too large, then none left.
+    const whyNone = () => (errorStatus ? errorText(errorStatus) : tooLarge ? tooLargeText : reached ? NONE_LEFT : OFFLINE);
 
     // Which pictures ECCC still has, layer by layer.
     const plan = []; // { layer, t }
@@ -73,6 +81,7 @@ export function createSavedRadarFeed({
         reached = true;
         if (!live()) return;
         if (res.ok) times = layerTimes(layer, await res.text());
+        else errorStatus ??= res.status;
       } catch {
         if (!live()) return;
       }
@@ -84,7 +93,7 @@ export function createSavedRadarFeed({
     }
     total = plan.length;
     emit();
-    if (!total) return fail(reached ? NONE_LEFT : OFFLINE);
+    if (!total) return fail(whyNone());
 
     // The pictures, a few at a time.
     const got = [];
@@ -96,9 +105,14 @@ export function createSavedRadarFeed({
         try {
           const res = await fetch(frameUrl(layer, box, t, size), { signal });
           reached = true;
-          const frame = res.ok
-            ? frameFromReply({ contentType: res.headers.get('content-type'), bytes: new Uint8Array(await res.arrayBuffer()) })
-            : null;
+          let frame = null;
+          if (res.ok) {
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            frame = frameFromReply({ contentType: res.headers.get('content-type'), bytes });
+            if (!frame && bytes.length > LIMITS.maxFrameBytes) tooLarge = true;
+          } else {
+            errorStatus ??= res.status;
+          }
           if (!live()) return;
           if (frame) got.push({ layer, t, ...frame });
           else missed[layer] += 1;
@@ -112,7 +126,7 @@ export function createSavedRadarFeed({
     }
     await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
     if (!live()) return;
-    if (!got.length) return fail(reached ? NONE_LEFT : OFFLINE);
+    if (!got.length) return fail(whyNone());
 
     // What it says about what it kept.
     let skipped = 0;
@@ -132,7 +146,7 @@ export function createSavedRadarFeed({
       ...layerNotes,
       ...startNotes,
       ...(skipped ? [`${plural(skipped, 'picture', 'pictures')} couldn't be fetched.`] : []),
-      ...(kept.factor > 1 ? [`Every ${Math.round(kept.maxGapS / 60)} min kept to fit the size limit.`] : []),
+      ...(kept.factor > 1 ? [thinningNote(kept.gapsS)] : []),
     ];
     saved = makeSaved({ box, frames: kept.frames, fetchedT: now(), thin: kept.factor });
     phase = 'done';
@@ -202,9 +216,11 @@ export function createSavedRadarFeed({
  * forty announcements. Nothing is announced until the offer is pressed, so
  * loading a flight or opening a file reads nothing out. flight: whether one
  * is loaded. recent: whether it ended within 3 hours (radarKept). pressed:
- * whether the offer was pressed for this flight. The rest is the feed's state().
+ * whether the offer was pressed for this flight. inFile: whether this set went
+ * into a saved debrief file (then, as for a set read from a file, the line no
+ * longer asks to save the debrief). The rest is the feed's state().
  */
-export function offerState({ flight, recent, pressed = false, phase, done, total, saved, notes, failure, fromFile }) {
+export function offerState({ flight, recent, pressed = false, inFile = false, phase, done, total, saved, notes, failure, fromFile }) {
   const heard = pressed || phase === 'fetching' || phase === 'failed' || (phase === 'done' && !fromFile);
   const say = (button, status) => ({ button, status, live: heard ? status : '' });
   if (!flight) return say('hidden', '');
@@ -215,10 +231,10 @@ export function offerState({ flight, recent, pressed = false, phase, done, total
     return { button: 'cancel', status: `Saving radar and lightning: ${done} of ${total}`, live };
   }
   if (saved) {
-    return say('hidden', [savedSummary(saved), ...notes, fromFile ? '' : 'Save the debrief to put them in the file.'].filter(Boolean).join(' '));
+    return say('hidden', [savedSummary(saved), ...notes, fromFile || inFile ? '' : 'Save the debrief to put them in the file.'].filter(Boolean).join(' '));
   }
   if (!recent) return say('hidden', notKeptText('radar'));
   if (phase === 'failed') return say('save', `Couldn't save radar and lightning: ${failure}`);
-  return say('save', 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.');
+  return say('save', OFFER_LINE);
 }
 

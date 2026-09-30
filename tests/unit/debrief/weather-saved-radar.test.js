@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   KEPT_S, LIMITS, SAVED_LAYERS, MAX_SAVED_CHARS, radarKept, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl,
   bytesToBase64, mimeOfBase64, frameFromReply, frameBytes, fitCap, makeSaved, savedToSetting, savedFromSetting,
-  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64, inWindow, weatherForFile,
+  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64, inWindow, weatherForFile, SAVED_ALPHA, thinningNote, droppedNotice,
 } from '../../../src/modules/debrief/weather/saved-radar.js';
 import { sliceAt, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
 
@@ -448,7 +448,7 @@ test('the line under the map for each item', () => {
   assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T06:01:00Z') }), 'Radar: no picture kept for this moment.');
   assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T07:00:00Z') }), 'Radar: no picture kept for this moment.');
   // Nothing saved: within 3 hours it can still be, later, it can't.
-  assert.equal(radarNote({ ...base, item: 'radar', saved: null }), 'Radar not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+  assert.equal(radarNote({ ...base, item: 'radar', saved: null }), 'Radar not saved yet: see Weather.');
   assert.equal(radarNote({ ...base, item: 'radar', saved: null, recent: false }), 'Not kept: radar is only available for 3 hours after the flight.');
   assert.equal(radarNote({ ...base, item: 'lightning', saved: null, recent: false }), 'Not kept: lightning is only available for 3 hours after the flight.');
   // A set that has this flight's radar but no lightning says so.
@@ -466,8 +466,11 @@ test('the line under the map joins the items that are on, with ECCC\'s credit on
     'Radar 06:12Z, 2 min before · Lightning 06:10Z, 4 min before · Data Source: Environment and Climate Change Canada');
   assert.equal(line({ radar: true, t: at('2026-09-30T05:00:00Z') }), 'Radar: no picture kept for this moment.', 'no credit for a picture that isn\'t shown');
   assert.equal(line({ radar: true, lightning: true, saved: null, recent: false }),
-    'Not kept: radar is only available for 3 hours after the flight. · Not kept: lightning is only available for 3 hours after the flight.');
-  assert.equal(line({ lightning: true, saved: null }), 'Lightning not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+    'Not kept: radar and lightning are only available for 3 hours after the flight.');
+  assert.equal(line({ lightning: true, saved: null }), 'Lightning not saved yet: see Weather.');
+  // Both on with nothing kept is one short sentence (F1: the line under the map stays short).
+  assert.equal(line({ radar: true, lightning: true, saved: null }), 'Radar and lightning not saved yet: see Weather.');
+  assert.equal(line({ radar: true, saved: null, recent: false }), 'Not kept: radar is only available for 3 hours after the flight.');
 });
 
 // --- Only PNG, and only small ones (a small file can decode to a huge picture) --------------------
@@ -581,4 +584,53 @@ test('what goes in the file is read back by the same checks first, and refused i
   const after = weatherForFile(justAfter, { startT: START, endT: END });
   assert.equal(after.text, undefined);
   assert.match(after.problem, /\(some pictures fall outside the flight\)/);
+});
+
+test('radar is drawn at 90 % and lightning at full opacity (real rain is faint at 75 %; F9)', () => {
+  assert.deepEqual({ ...SAVED_ALPHA }, { radar: 0.9, lightning: 1 });
+});
+
+test('fitCap gives each layer its own widest gap, and thinningNote names them by item (F5)', () => {
+  const rain = [0, 1, 2, 3, 4, 5, 6].map((i) => frame('rain', START + i * 360));
+  const snow = [0, 1, 2, 3, 4, 5, 6].map((i) => frame('snow', START + i * 360));
+  const light = [0, 1, 2, 3].map((i) => frame('lightning', START + i * 600));
+  const got = fitCap([...rain, ...snow, ...light], 11 * frameBytes(rain[0]));
+  assert.equal(got.factor, 2);
+  assert.deepEqual({ ...got.gapsS }, { rain: 12 * 60, snow: 12 * 60, lightning: 20 * 60 });
+  assert.equal(thinningNote(got.gapsS), 'Radar every 12 min and lightning every 20 min kept to fit the size limit.');
+  // Only the layers that have a gap are named; rain and snow are one item, the wider of the two.
+  assert.equal(thinningNote({ rain: 720, snow: 1080, lightning: 0 }), 'Radar every 18 min kept to fit the size limit.');
+  assert.equal(thinningNote({ rain: 0, snow: 0, lightning: 1200 }), 'Lightning every 20 min kept to fit the size limit.');
+  assert.equal(thinningNote({ rain: 0, snow: 0, lightning: 0 }), '');
+});
+
+test('pictures left out because they fall outside the flight are counted in words (F4b)', () => {
+  assert.equal(droppedNotice(0), '');
+  assert.equal(droppedNotice(1), 'The saved radar and lightning has 1 picture outside the flight, so it was left out.');
+  assert.equal(droppedNotice(3), 'The saved radar and lightning has 3 pictures outside the flight, so they were left out.');
+  // What the reader counts is what the notice says.
+  const good = [frame('rain', START), frame('rain', START + 360)];
+  const stray = frame('rain', 1000);
+  const text = savedToSetting(makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [...good, stray] }));
+  const got = savedFromSetting(text, { startT: START, endT: END });
+  assert.equal(got.saved.frames.length, 2);
+  assert.equal(droppedNotice(got.dropped), 'The saved radar and lightning has 1 picture outside the flight, so it was left out.');
+});
+
+test('a picture that could not be drawn is not named by the line under the map, and gets no credit (F4c)', () => {
+  const saved = goodSaved();
+  const t = at('2026-09-30T06:14:00Z');
+  const base = { on: true, recent: true, saved, t };
+  // Rain and snow both fail at this moment: nothing is drawn, so no time is named.
+  const drawn = framesToDraw(saved, 'radar', t);
+  assert.ok(drawn.length >= 1);
+  const allFailed = new Set(drawn.map((d) => `${d.layer}@${d.frame.t}`));
+  assert.equal(radarNote({ ...base, item: 'radar', notDrawn: allFailed }), "Radar: the picture couldn't be drawn.");
+  assert.equal(radarNote({ ...base, item: 'radar', notDrawn: new Set() }), 'Radar 06:12Z, 2 min before');
+  const line = (o) => savedNoteLine({ radar: true, lightning: true, recent: true, saved, t, ...o });
+  const failed = new Set(framesToDraw(saved, 'radar', t).map((d) => `${d.layer}@${d.frame.t}`));
+  assert.equal(line({ notDrawn: failed }),
+    "Radar: the picture couldn't be drawn. · Lightning 06:10Z, 4 min before · Data Source: Environment and Climate Change Canada");
+  const every = new Set([...failed, ...framesToDraw(saved, 'lightning', t).map((d) => `${d.layer}@${d.frame.t}`)]);
+  assert.equal(line({ notDrawn: every }), "Radar: the picture couldn't be drawn. · Lightning: the picture couldn't be drawn.");
 });

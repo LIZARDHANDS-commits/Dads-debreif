@@ -5,10 +5,10 @@ import { readFileSync } from 'node:fs';
 import { DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { STANDARD_LIMITS } from '../../../src/storage/standards.js';
 import { loadExampleFlight } from '../../../src/flight-data/examples.js';
-import { toDebriefFile, readDebriefFile } from '../../../src/flight-data/debrief-file.js';
+import { toDebriefFile, readDebriefFile, MAX_DEBRIEF_BYTES } from '../../../src/flight-data/debrief-file.js';
 import { addDfp, renameDfp, setDfpNote, dfpLabel } from '../../../src/modules/debrief/dfp.js';
 import {
-  TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName,
+  TIME_KEY, WEATHER_KEY, weatherSettingOf, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName,
 } from '../../../src/modules/debrief/debrief-session.js';
 import { makeSaved, savedBox, savedToSetting, savedFromSetting, MAX_SAVED_CHARS } from '../../../src/modules/debrief/weather/saved-radar.js';
 
@@ -86,7 +86,8 @@ const savedFor = (flight) => makeSaved({
 test('the saved weather has its own setting key, a string rule as long as the block may be, and only when the debrief has some', () => {
   assert.equal(WEATHER_KEY, 'savedWeather');
   assert.equal(settingsRules(STANDARD_LIMITS)[WEATHER_KEY], undefined, 'not unless asked (the keys still match what is saved)');
-  assert.deepEqual(settingsRules(STANDARD_LIMITS, { weather: true })[WEATHER_KEY], { type: 'string', max: MAX_SAVED_CHARS });
+  // As long as any file the tool opens can be, so a block over the debrief's own limit reaches its checks and gets a line (F4a).
+  assert.deepEqual(settingsRules(STANDARD_LIMITS, { weather: true })[WEATHER_KEY], { type: 'string', max: MAX_DEBRIEF_BYTES });
   assert.equal(Object.hasOwn(sessionSettings(DEFAULT_STANDARDS, 5), WEATHER_KEY), false);
   assert.equal(Object.hasOwn(sessionSettings(DEFAULT_STANDARDS, 5, ''), WEATHER_KEY), false);
   assert.equal(sessionSettings(DEFAULT_STANDARDS, 5, 'text')[WEATHER_KEY], 'text');
@@ -182,4 +183,34 @@ test('a debrief that would be over the size the tool opens is saved without the 
   assert.equal(buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar, sizeOf: bytes }).wrote, true);
   const multi = (t) => bytes(t) + 1;
   assert.equal(buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar, sizeOf: multi }).wrote, false);
+});
+
+test('a block over 36 MiB reaches the debrief\'s own checks and is left out with a line, not dropped unseen (F4a)', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const over = 'x'.repeat(MAX_SAVED_CHARS + 1);
+  const text = toDebriefFile(flight, [], { ...sessionSettings(DEFAULT_STANDARDS, 5), [WEATHER_KEY]: over });
+  const opened = readDebriefFile(text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+  const got = savedFromSetting(weatherSettingOf(text, opened.settings), { startT: flight.startT, endT: flight.endT });
+  assert.equal(got.saved, undefined);
+  assert.match(got.problem, /^The radar and lightning saved in this file couldn't be read \(it is too big\), so they were left out\./);
+});
+
+test('a weather setting that is not text is found in the file and left out with a line (F4a)', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const window = { startT: flight.startT, endT: flight.endT };
+  for (const value of [12345, { frames: [] }, [1, 2], true]) {
+    const text = toDebriefFile(flight, [], { ...sessionSettings(DEFAULT_STANDARDS, 5), [WEATHER_KEY]: value });
+    const opened = readDebriefFile(text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+    assert.equal(Object.hasOwn(opened.settings, WEATHER_KEY), false, 'flight-data drops it');
+    assert.match(savedFromSetting(weatherSettingOf(text, opened.settings), window).problem, /\(it is not text\)/);
+  }
+  // A null is "none"; a string the reader kept comes as it is; no setting at all is none.
+  const asNull = toDebriefFile(flight, [], { ...sessionSettings(DEFAULT_STANDARDS, 5), [WEATHER_KEY]: null });
+  assert.deepEqual(savedFromSetting(weatherSettingOf(asNull, readDebriefFile(asNull, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) }).settings), window), { saved: null });
+  const plain = toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5));
+  assert.equal(weatherSettingOf(plain, readDebriefFile(plain, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) }).settings), undefined);
+  assert.equal(weatherSettingOf('{}', { [WEATHER_KEY]: 'text' }), 'text');
+  // The key's name inside a note is not a setting.
+  const noted = toDebriefFile(flight, [{ t: flight.startT, label: '', note: `"${WEATHER_KEY}"` }], sessionSettings(DEFAULT_STANDARDS, 5));
+  assert.equal(weatherSettingOf(noted, readDebriefFile(noted, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) }).settings), undefined);
 });
