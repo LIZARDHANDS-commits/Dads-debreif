@@ -150,14 +150,13 @@ export function autoTimingStarts(aircraft, flight) {
  * place, each with xFt, yFt, headingRad, delayErrSec, turnLogic and clockTarget.
  *
  * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingDeg, clockCueAircraft,
- *   timing ('time' or 'auto'), speedKt, spacingFt }
+ *   timing ('time', 'clock' or 'auto'), speedKt, spacingFt }
  * Returns { autoStepSec }: the auto step when the timing is auto and the turn is a delayed one, else null.
  * `formation` and `startHeadingDeg` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
- * Not yet here, so flown as V6's plain time delay: the clock cue and auto timing
- * (tasks 8 and 9) and, in the offset box's delayed turns, V6's solved delays for
- * #3 and #4 (task 11), which use the time delay index x base delay meanwhile.
+ * Not yet here: in the offset box's delayed turns, V6's solved delays for #3 and
+ * #4 (task 11), which use the time delay index x base delay meanwhile.
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
@@ -169,7 +168,9 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const auto = flight.timing === 'auto' && delayed ? autoTimingStarts(aircraft, flight) : null;
   // In the offset box V6's Base delay box holds the auto step, rounded to 2 places (line 1397), and its plan reads it.
   const base = auto ? Number(auto.stepSec.toFixed(2)) : flight.baseDelaySec;
+  const clockMode = flight.timing === 'clock' && delayed;
   const order = turningOrder(aircraft, flight);
+  const cascade = clockMode ? order : []; // V6 clockCascadeOrder (line 1152) is the same order as the delay order
   const delayIndex = {};
   order.forEach((a, i) => { delayIndex[a.id] = i; });
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
@@ -179,37 +180,50 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     let dir = selectedDir;
     let g = goal;
 
-    if (delayed) d = auto && form !== 'offsetBox' ? +auto.startsSec[a.id] || 0 : delayIndex[a.id] * base;
-
-    if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
-
-    if (man === 'shackle45') {
+    if (clockMode) {
+      // The clock cue (V6 lines 1187 and 1196): each aircraft but the first waits for the aircraft just outside it.
+      dir = selectedDir;
+      const idx = cascade.findIndex((x) => x.id === a.id);
+      const cueTarget = idx > 0 ? cascade[idx - 1] : null;
+      a.autoClockTargetId = cueTarget ? cueTarget.id : null;
+      a.cueArmed = !!cueTarget;
       d = 0;
-      if (form === 'twoShip') {
-        const wing = aircraft.find((x) => x.id !== 1) || aircraft.find((x) => x.id === 2);
-        const side = wing ? sideOfLead(aircraft, wing, flight.startHeadingDeg) : -1;
-        dir = a.id === 1 ? -side : side;
-      } else {
-        const side = sideOfLead(aircraft, a, flight.startHeadingDeg);
-        dir = a.id === 1 || side === 0 ? selectedDir : side;
+    } else {
+      if (delayed) d = auto && form !== 'offsetBox' ? +auto.startsSec[a.id] || 0 : delayIndex[a.id] * base;
+
+      if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
+
+      if (man === 'shackle45') {
+        d = 0;
+        if (form === 'twoShip') {
+          const wing = aircraft.find((x) => x.id !== 1) || aircraft.find((x) => x.id === 2);
+          const side = wing ? sideOfLead(aircraft, wing, flight.startHeadingDeg) : -1;
+          dir = a.id === 1 ? -side : side;
+        } else {
+          const side = sideOfLead(aircraft, a, flight.startHeadingDeg);
+          dir = a.id === 1 || side === 0 ? selectedDir : side;
+        }
+        g = degToRad(45);
       }
-      g = degToRad(45);
-    }
 
-    if (man === 'cross180') {
-      d = 0;
-      dir = sideOfLead(aircraft, a, flight.startHeadingDeg) < 0 ? 1 : -1;
+      if (man === 'cross180') {
+        d = 0;
+        dir = sideOfLead(aircraft, a, flight.startHeadingDeg) < 0 ? 1 : -1;
+        if (a.id === 1) dir = selectedDir;
+      }
+
       if (a.id === 1) dir = selectedDir;
+      else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
+
+      // In the offset box's delayed turns every aircraft turns the selected way (V6 line 1241).
+      if (form === 'offsetBox' && delayed) dir = selectedDir;
+
+      a.autoClockTargetId = null;
+      a.cueArmed = flight.timing !== 'time' && delayed && a.id !== 1;
     }
-
-    if (a.id === 1) dir = selectedDir;
-    else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
-
-    // In the offset box's delayed turns every aircraft turns the selected way (V6 line 1241).
-    if (form === 'offsetBox' && delayed) dir = selectedDir;
-
-    a.cueArmed = flight.timing !== 'time' && delayed && a.id !== 1;
-    a.turnStartSec = d + (useErrors ? a.delayErrSec : 0);
+    a.turnStartSec = clockMode ? 0 : d + (useErrors ? a.delayErrSec : 0); // V6 line 1253: a clock cue has no delay
+    a.prevClockCueRelDeg = null;
+    a.clockCueTriggered = false;
     a.turnDir = dir;
     a.turnGoalRad = g;
     a.originalHeadingRad = a.headingRad;

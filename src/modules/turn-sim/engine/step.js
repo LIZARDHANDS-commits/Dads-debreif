@@ -9,6 +9,8 @@
 // (0 = east, counter-clockwise). See formation.js.
 import { limitG, turnRateRadPerSec } from '../../../core/flight-math.js';
 import { degToRad } from '../../../core/angles.js';
+import { clockCueCrossed, V6_CLOCK_TOLERANCE_DEG } from './cues.js';
+import { cueTargetForAircraft } from './plan.js';
 
 /** The step, in seconds: V6's `dt` (line 784). It never depends on the frame rate (#17). */
 export const STEP_SEC = 0.05;
@@ -27,14 +29,18 @@ export function flownG(baseG, gError) {
 
 /**
  * Whether an aircraft may turn now (V6 `cueSatisfied`, line 1511). Once it has
- * started it stays turning; before that it waits for its start time, which is the
- * time delay or, with auto timing, its own place in the sequence. V6 held every
- * auto-timed aircraft but Lead until Lead had started (line 1525), so the planned
- * order was never flown; D43 takes that wait away. The clock cue comes in task 9.
+ * started it stays turning. With the clock cue an aircraft that has an aircraft to
+ * watch waits until that aircraft reaches the clock position (V6 line 1519); every
+ * other aircraft waits for its start time, which is the time delay or, with auto
+ * timing, its own place in the sequence. V6 held every auto-timed aircraft but
+ * Lead until Lead had started (line 1525); D43 took that wait away.
  */
-function mayTurn(a, tSec) {
+function mayTurn(a, aircraft, tSec, flight) {
   if (a.active) return true;
-  return tSec >= a.turnStartSec;
+  if (flight.timing !== 'clock' || !a.cueArmed) return tSec >= a.turnStartSec;
+  const target = a.autoClockTargetId ? aircraft.find((x) => x.id === a.autoClockTargetId) : cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
+  if (!target || target.id === a.id) return tSec >= a.turnStartSec;
+  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, toleranceDeg: V6_CLOCK_TOLERANCE_DEG });
 }
 
 /**
@@ -47,7 +53,7 @@ function mayTurn(a, tSec) {
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
  *   active, done, shackleReturn, turnPhase, originalHeadingRad.
- * flight: { tSec, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
+ * flight: { tSec, timing, clockCueAircraft, clockCuePos, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
  *
@@ -61,7 +67,7 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     const g = flownG(flight.baseG, a.gError);
     a.gFlown = g;
     const omega = turnRateRadPerSec(v, g);
-    if (mayTurn(a, flight.tSec) && !a.done) {
+    if (mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
       // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
       a.active = true;
       const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);

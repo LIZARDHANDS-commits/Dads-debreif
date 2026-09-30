@@ -227,3 +227,66 @@ test('auto timing with other turns (no effect) and seeded speed, spacing, G, tur
     compareRun(s, `auto seeded ${i}`, { legs: i % 4 === 0 ? 2 : 1 });
   }
 });
+
+test('clock cue at V6\'s defaults (5:30, tolerance 4°, Outside-in): 4312, 2134, two-ship × delayed 90 and 45 × right and left, two legs', () => {
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const maneuver of ['delayed90away', 'delayed45away']) {
+      for (const direction of DIRECTIONS) {
+        compareRun(scenario({ formation, maneuver, direction, timing: 'clock' }), `clock ${formation} ${maneuver} ${direction}`, { legs: 2 });
+      }
+    }
+  }
+});
+
+test('clock cue: every clock position, the offset box, and the other turns (which start at once, as V6 does)', () => {
+  const positions = Array.from({ length: 24 }, (_, i) => (i === 0 ? 12 : i / 2));
+  for (const clockCuePos of positions) {
+    compareRun(scenario({ timing: 'clock', clockCuePos, direction: clockCuePos > 6 ? 'left' : 'right' }), `clock pos ${clockCuePos}`);
+  }
+  for (const direction of DIRECTIONS) compareRun(scenario({ timing: 'clock', formation: 'offsetBox', maneuver: 'inplace90', direction }), `clock offset box ${direction}`);
+  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) compareRun(scenario({ timing: 'clock', maneuver }), `clock ${maneuver}`);
+});
+
+test('clock cue with seeded numbers, per-aircraft clock positions and targets, delay errors, and a tolerance setting V6 ignores', () => {
+  const r = seeded(0xc10c);
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  const positions = ['global', ...Array.from({ length: 24 }, (_, i) => String(i === 0 ? 12 : i / 2))];
+  let triggered = 0;
+  for (let i = 0; i < 60; i++) {
+    const s = scenario({
+      formation: pick(['weighted', 'weightedReverse', 'twoShip']),
+      maneuver: pick(['delayed90away', 'delayed45away']),
+      direction: pick(DIRECTIONS),
+      timing: 'clock',
+      clockCuePos: pick([3, 4.5, 5, 5.5, 6.5, 7, 8, 9, 10.5]),
+      clockCueAircraft: pick([1, 2, 3, 4]),
+      // V6 reads the box itself, not its value, so it always uses 4°: the port pins that until the tolerance commit.
+      clockCueTolDeg: pick([4, 4, 1, 10, 25]),
+      spacingFt: Math.round(3000 + 6000 * r()),
+      speedKt: Math.round(150 + 150 * r()),
+      baseG: Math.round((1.5 + 3 * r()) * 100) / 100,
+      durationSec: 90,
+      startHeadingDeg: Math.round(360 * r()),
+    });
+    for (const id of [1, 2, 3, 4]) {
+      if (r() < 0.5) s[aircraftKey(id, 'clockPos')] = pick(positions);
+      if (r() < 0.5) s[aircraftKey(id, 'clockTarget')] = pick(['global', '1', '2', '3', '4']);
+      if (r() < 0.4) s[aircraftKey(id, 'delayErrSec')] = Math.round((10 * r() - 5) * 10) / 10;
+      if (r() < 0.3) s[aircraftKey(id, 'turnLogic')] = pick(['selected', 'right', 'left', 'toward', 'away']);
+      if (r() < 0.3) s[aircraftKey(id, 'gError')] = Math.round((2 * r() - 1) * 100) / 100;
+    }
+    const steps = compareRun(s, `clock seeded ${i}`, { legs: i % 4 === 0 ? 2 : 1 });
+    if (steps > 0) triggered++;
+  }
+  assert.equal(triggered, 60);
+});
+
+test('the clock cue really is flown: in a left turn at 5:30 the outside aircraft starts at once and the rest follow in order', () => {
+  const run = createRun(scenario({ timing: 'clock', direction: 'left', durationSec: 90 }));
+  const first = {};
+  while (run.step()) for (const a of run.state.aircraft) if (a.turning && first[a.id] === undefined) first[a.id] = run.state.tSec;
+  // 4312 turning left: #4 is the outside aircraft, then #3, Lead and #2, each watching the one before it.
+  assert.deepEqual(Object.entries(first).sort((x, y) => x[1] - y[1]).map(([id]) => +id), [4, 3, 1, 2], JSON.stringify(first));
+  assert.ok(first[4] < 0.1, 'the first aircraft starts at once');
+  assert.ok(first[3] > 1 && first[1] > first[3] && first[2] > first[1], JSON.stringify(first));
+});

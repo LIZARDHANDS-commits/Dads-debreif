@@ -68,6 +68,7 @@ function newAircraft(slot, settings) {
     delayErrSec: own.delayErrSec,
     turnLogic: own.turnLogic,
     clockTarget: own.clockTarget,
+    clockPos: own.clockPos,
     turnStartSec: 0,
     turnDir: undefined,
     turnGoalRad: undefined,
@@ -76,6 +77,10 @@ function newAircraft(slot, settings) {
     done: false,
     shackleReturn: false,
     turnPhase: 0,
+    autoClockTargetId: null,
+    cueArmed: false,
+    clockCueTriggered: false,
+    prevClockCueRelDeg: null,
     originalHeadingRad: undefined,
     gFlown: 0,
   };
@@ -147,9 +152,6 @@ export function createRun(settings) {
     }
   }
 
-  // The clock cue is not flown yet (task 9): it flies as a plain time delay.
-  const effectiveTiming = () => (cfg.timing === 'auto' ? 'auto' : 'time');
-
   function flight() {
     return {
       formation,
@@ -159,7 +161,7 @@ export function createRun(settings) {
       turnDeg: cfg.turnDeg,
       baseDelaySec: cfg.baseDelaySec,
       clockCueAircraft: cfg.clockCueAircraft,
-      timing: effectiveTiming(),
+      timing: cfg.timing,
       speedKt: cfg.speedKt,
       spacingFt: cfg.spacingFt,
     };
@@ -238,6 +240,9 @@ export function createRun(settings) {
     }
     moveAircraft(craft, {
       tSec,
+      timing: cfg.timing,
+      clockCueAircraft: cfg.clockCueAircraft,
+      clockCuePos: cfg.clockCuePos,
       speedFtps: speedFtps(),
       baseG: cfg.baseG,
       turnDegDefault: cfg.turnDeg,
