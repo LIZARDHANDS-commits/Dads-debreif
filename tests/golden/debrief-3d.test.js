@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { loadV6 } from './v6-source.js';
 import { seeded } from './inputs.js';
 import {
-  formationCenter, projectPoint, drawOrderV6, bankFromTrack, t6PointsV6,
+  formationCenter, projectPoint, drawOrderV6, bankFromTrack, t6Points,
 } from '../../src/modules/debrief/view3d/scene.js';
 
 const MARKER = "const canvas=$('threeDCanvas')";
@@ -177,18 +177,55 @@ test('D47: recorded bank wins, with flight-data\'s right-wing-down sign turned t
 const T6_ORDER = ['centre', 'nose', 'spinner', 'tail', 'fuseL', 'fuseR', 'aftL', 'aftR', 'wingL', 'wingR',
   'wingRootL', 'wingRootR', 'stabL', 'stabR', 'canopy', 'propL', 'propR', 'fin'];
 
-test('t6PointsV6 gives the corner points V6 projects for the low-poly T-6', () => {
+test('t6Points at wings level and zero pitch are exactly V6\'s low-poly T-6 corners', () => {
   const v6 = v6T6();
   const r = seeded(35);
   for (let i = 0; i < 1000; i++) {
     const p = { ...randomPoint(r), hdg: 2 * Math.PI * r() - Math.PI };
-    const bankDeg = -85 + 170 * r(), size = 50 + 600 * r();
-    const calls = v6.runT6(p, bankDeg, size);
+    const size = 50 + 600 * r();
+    const calls = v6.runT6(p, 0, size);
     assert.equal(calls.length, T6_ORDER.length);
-    const got = t6PointsV6(p, p.hdg, (bankDeg * Math.PI) / 180, size);
+    const got = t6Points(p, p.hdg, 0, 0, size);
     T6_ORDER.forEach((name, k) => {
       if (name === 'centre') return assert.equal(calls[k], p);
       assert.deepEqual(got[name], { x: calls[k].x, y: calls[k].y, altFt: calls[k].altFt }, name);
     });
+  }
+});
+
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.altFt - b.altFt);
+
+test('#14, D40: in a left bank the left wing goes down by the full half-span × sin(bank); V6 raised it by 0.20', () => {
+  const v6 = v6T6();
+  const p = { x: 0, y: 0, altFt: 5000 }, s = 260, hdg = Math.PI / 2;
+  const got = t6Points(p, hdg, Math.PI / 6, 0, s);
+  const drop = 0.66 * s * 0.5;
+  assert.ok(Math.abs(got.wingL.altFt - (5000 - drop)) < 1e-9);
+  assert.ok(Math.abs(got.wingR.altFt - (5000 + drop)) < 1e-9);
+  assert.ok(got.fin.x < 0, 'heading north in a left bank, the fin leans west, into the turn');
+  const calls = v6.runT6({ ...p, hdg }, 30, s);
+  assert.ok(Math.abs(calls[T6_ORDER.indexOf('wingL')].altFt - (5000 + 0.2 * s * 0.5)) < 1e-9);
+});
+
+test('#27: pitch raises the nose and lowers the tail, instead of sliding the drawing up the screen', () => {
+  const p = { x: 0, y: 0, altFt: 5000 }, s = 260;
+  const got = t6Points(p, 0, 0, (10 * Math.PI) / 180, s);
+  assert.ok(Math.abs(got.spinner.altFt - (5000 + 1.02 * s * Math.sin((10 * Math.PI) / 180))) < 1e-9);
+  assert.ok(got.tail.altFt < 5000);
+});
+
+test('t6Points turns the T-6 as one rigid body at any bank, pitch and heading', () => {
+  const r = seeded(36);
+  const names = Object.keys(t6Points({ x: 0, y: 0 }, 0, 0, 0, 1));
+  for (let i = 0; i < 300; i++) {
+    const p = randomPoint(r), s = 50 + 600 * r();
+    const flat = t6Points(p, 0, 0, 0, s);
+    const turned = t6Points(p, 2 * Math.PI * r(), (r() - 0.5) * 3, (r() - 0.5) * 3, s);
+    for (let a = 0; a < names.length; a++) {
+      for (let b = a + 1; b < names.length; b++) {
+        const d0 = dist(flat[names[a]], flat[names[b]]), d1 = dist(turned[names[a]], turned[names[b]]);
+        assert.ok(Math.abs(d0 - d1) < 1e-6 * s, `${names[a]}-${names[b]}`);
+      }
+    }
   }
 });

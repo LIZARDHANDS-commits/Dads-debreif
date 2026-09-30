@@ -91,37 +91,51 @@ export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg }) 
   return { bankDeg: turn < 0 ? -bankDeg : bankDeg, source: 'estimated' };
 }
 
+/** V6's low-poly T-6 (drawLowPolyT6, line 3828) in body terms: forward, left and up, as fractions of the plane size. */
+const T6_SHAPE = Object.freeze({
+  nose: [0.82, 0, 0.04],
+  spinner: [1.02, 0, 0],
+  tail: [-0.76, 0, -0.02],
+  fuseL: [0.35, 0.12, 0.02],
+  fuseR: [0.35, -0.12, 0.02],
+  aftL: [-0.58, 0.09, 0],
+  aftR: [-0.58, -0.09, 0],
+  wingL: [0.02, 0.66, 0],
+  wingR: [0.02, -0.66, 0],
+  wingRootL: [0.16, 0.13, 0],
+  wingRootR: [0.16, -0.13, 0],
+  stabL: [-0.62, 0.34, 0],
+  stabR: [-0.62, -0.34, 0],
+  canopy: [0.22, 0, 0.1],
+  fin: [-0.46, 0, 0.25],
+  propL: [0.92, 0.25, 0],
+  propR: [0.92, -0.25, 0],
+});
+
 /**
- * World corner points of V6's low-poly T-6 (drawLowPolyT6, line 3828) for an
- * aircraft at `p` heading `hdg`, banked `bankRad`, `sizeFt` long (V6's "plane
- * size"). `right` in V6 is hdg + 90°, which points to the aircraft's left, and
- * the wingtips rise by only 0.20 of the size times sin(bank) against a 0.66
- * half-span: the halved and mirrored bank of #14.
+ * World corner points of the low-poly T-6 for an aircraft at `p` heading `hdg`,
+ * rolled `bankRad` (left wing down positive) and pitched `pitchRad` (nose up
+ * positive), `sizeFt` long (the "plane size" setting).
+ *
+ * The shape is V6's, turned as one rigid body: roll about the fuselage, then
+ * pitch about the wings, then heading. V6 instead lifted the wingtips by 0.20
+ * of the size times sin(bank) against a 0.66 half-span, on the wrong side
+ * (#14, D40), and slid the whole drawing up the screen for pitch (#27).
+ * Wings level at zero pitch, the points are exactly V6's.
  */
-export function t6PointsV6(p, hdg, bankRad, sizeFt) {
-  const s = sizeFt;
+export function t6Points(p, hdg, bankRad, pitchRad, sizeFt) {
   const f = { x: Math.cos(hdg), y: Math.sin(hdg) };
-  const r = { x: Math.cos(hdg + Math.PI / 2), y: Math.sin(hdg + Math.PI / 2) };
+  const l = { x: Math.cos(hdg + Math.PI / 2), y: Math.sin(hdg + Math.PI / 2) };
+  const cb = Math.cos(bankRad), sb = Math.sin(bankRad);
+  const cq = Math.cos(pitchRad), sq = Math.sin(pitchRad);
   const alt0 = p.altFt || 0;
-  const wp = (fwd, right, alt = 0) => ({ x: p.x + f.x * fwd + r.x * right, y: p.y + f.y * fwd + r.y * right, altFt: alt0 + alt });
-  const sb = Math.sin(bankRad);
-  return {
-    nose: wp(s * 0.82, 0, s * 0.04),
-    spinner: wp(s * 1.02, 0, 0),
-    tail: wp(-s * 0.76, 0, -s * 0.02),
-    fuseL: wp(s * 0.35, s * 0.12, s * 0.02),
-    fuseR: wp(s * 0.35, -s * 0.12, s * 0.02),
-    aftL: wp(-s * 0.58, s * 0.09, 0),
-    aftR: wp(-s * 0.58, -s * 0.09, 0),
-    wingL: wp(s * 0.02, s * 0.66, sb * s * 0.2),
-    wingR: wp(s * 0.02, -s * 0.66, -sb * s * 0.2),
-    wingRootL: wp(s * 0.16, s * 0.13, 0),
-    wingRootR: wp(s * 0.16, -s * 0.13, 0),
-    stabL: wp(-s * 0.62, s * 0.34, sb * s * 0.08),
-    stabR: wp(-s * 0.62, -s * 0.34, -sb * s * 0.08),
-    canopy: wp(s * 0.22, 0, s * 0.1),
-    fin: wp(-s * 0.46, 0, s * 0.25),
-    propL: wp(s * 0.92, s * 0.25),
-    propR: wp(s * 0.92, -s * 0.25),
-  };
+  const out = {};
+  for (const [name, [fwd0, left0, up0]] of Object.entries(T6_SHAPE)) {
+    const left = (left0 * cb + up0 * sb) * sizeFt;
+    const upRolled = -left0 * sb + up0 * cb;
+    const fwd = (fwd0 * cq - upRolled * sq) * sizeFt;
+    const up = (fwd0 * sq + upRolled * cq) * sizeFt;
+    out[name] = { x: p.x + f.x * fwd + l.x * left, y: p.y + f.y * fwd + l.y * left, altFt: alt0 + up };
+  }
+  return out;
 }
