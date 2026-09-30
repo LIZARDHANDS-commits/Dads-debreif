@@ -140,3 +140,8 @@ test('a GPS glitch on the last fixes is dropped too (review)', () => {
   assert.deepEqual(kept(withJumps(10, [5, 6, 7, 8, 9])), range(0, 5));
   assert.equal(kept(withJumps(12, [6, 7, 8, 9, 10, 11])).length, 12);
 });
+
+test('a glitch on the second fix drops only that fix, not the good first one', () => {
+  assert.deepEqual(kept(withJumps(20, [1])), range(0, 20).filter(i => i !== 1));
+  assert.deepEqual(kept(withJumps(20, [1, 2])), range(0, 20).filter(i => i !== 1 && i !== 2));
+});

@@ -103,3 +103,10 @@ test('ship numbers in a debrief file are checked: 1 to 4, each once (review)', (
     assert.equal(err(() => readDebriefFile(JSON.stringify({ ...f, tracks })))?.code, 'debrief-file', String(slots));
   }
 });
+
+test('five tracks are refused for being five (review)', () => {
+  const f = JSON.parse(toDebriefFile(flight, [], {}));
+  const tracks = [1, 2, 3, 4, 4].map(slot => ({ ...f.tracks[0], slot }));
+  assert.match(err(() => readDebriefFile(JSON.stringify({ ...f, tracks }))).message, /1 to 4 tracks/);
+  assert.match(err(() => toDebriefFile({ files: [] }, [], {})).message, /can't be saved: it needs 1 to 4 tracks/);
+});

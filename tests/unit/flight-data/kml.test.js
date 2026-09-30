@@ -170,3 +170,20 @@ test('a time must be a full ISO 8601 date and time, not anything Date.parse acce
     assert.equal(readKml(track(3).replace('2026-06-02T18:00:01Z', good)).fixes.length, 3, good);
   }
 });
+
+test('a recorded column given as plain tags needs at least 2 good values, as in V6', () => {
+  assert.equal(readKml(track(3).replace(TAIL, '<GForce>1.5</GForce>' + TAIL)).fixes[0].gRecorded, null);
+  assert.equal(readKml(track(3).replace(TAIL, '<GForce>1.5</GForce><GForce>2</GForce>' + TAIL)).fixes[0].gRecorded, 1.5);
+});
+
+test('an empty coordinate list holds no positions, so it needs no time (C5)', () => {
+  const when = [0, 1].map(s => `<when>2026-06-02T18:00:0${s}Z</when>`).join('');
+  const kml = `<kml><Document>${when}<coordinates>-105.0,50,1 -105.1,50,1</coordinates><coordinates>  </coordinates></Document></kml>`;
+  assert.equal(readKml(kml).fixes.length, 2);
+});
+
+test('a bare "&" is reported as one, even with a reference after it', () => {
+  const e = (() => { try { parseXml('<a>x &b &amp; y</a>'); } catch (err) { return err; } return null; })();
+  assert.match(e.reason, /"&" must be written as &amp;/);
+  assert.throws(() => parseXml('<a>&#65x</a>'), { name: 'XmlError' });
+});

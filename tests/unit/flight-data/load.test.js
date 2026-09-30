@@ -41,3 +41,9 @@ test('a long file name is shortened on loading, so the flight can be saved (revi
   assert.equal(flight.files[0].name, flight.tracks[1].name);
   assert.doesNotThrow(() => toDebriefFile(flight, [], {}));
 });
+
+test('five files are refused for being five, before any is read (C9)', () => {
+  const good = { slot: 1, name: 'lead.kml', text: text(1) };
+  const five = [1, 2, 3, 4, 4].map(slot => ({ ...good, slot }));
+  assert.match(err(() => loadFlight(five)).message, /between 1 and 4 track files/);
+});

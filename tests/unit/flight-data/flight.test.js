@@ -148,3 +148,18 @@ test('a track whose fixes all have the same time is refused, not played for zero
   assert.equal(e?.code, 'no-overlap');
   assert.match(e.message, /"still\.kml" covers no time/);
 });
+
+test('the ends of a track are never "in a gap", even when the first or last segment is one (C4)', () => {
+  const track = buildFlight({ 1: { name: 'a', fixes: [fix(0), fix(10), fix(11), fix(21)] } }).tracks[1];
+  assert.equal(sampleAt(track, 0).inGap, false);
+  assert.equal(sampleAt(track, 21).inGap, false);
+  assert.equal(sampleAt(track, 5).inGap, true);
+  // A lone fix has no segment: its sample after it is the fix, with no speed.
+  assert.equal(sampleAt({ fixes: [{ ...fix(0), xFt: 0, yFt: 0, altFt: 0 }] }, 1).speedKt, undefined);
+});
+
+test('tracks that only touch are not counted as overlapping when naming the misfit (C8)', () => {
+  // a ends when b starts; c overlaps b only. a is the one that fits nowhere.
+  const e = err(() => buildFlight({ 1: { name: 'a', fixes: fixesFrom(0) }, 2: { name: 'b', fixes: fixesFrom(2) }, 3: { name: 'c', fixes: fixesFrom(3) } }));
+  assert.match(e.message, /^"a"/);
+});

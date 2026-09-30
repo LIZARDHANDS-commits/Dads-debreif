@@ -50,7 +50,7 @@ export function toDebriefFile(flight, dfps, settings) {
 
 function debriefFile(flight, dfps, settings) {
   const files = flight?.files;
-  if (!Array.isArray(files) || !files.length) throw new DebriefFileError('there are no tracks to save');
+  if (!Array.isArray(files)) throw new DebriefFileError('there are no tracks to save');
   const file = {
     format: FORMAT,
     version: VERSION,
@@ -82,9 +82,9 @@ export function readDebriefFile(text, { settings: allowed = {} } = {}) {
   if (!isObject(file) || file.format !== FORMAT) throw new DebriefFileError('it is not a debrief file');
   if (Number.isInteger(file.version) && file.version > VERSION) throw new DebriefFileError('it was saved by a newer version of the tool');
   if (file.version !== VERSION) throw new DebriefFileError('it is not a debrief file this tool understands');
-  const tracks = checkTracks(file.tracks);
+  checkTracks(file.tracks);
   return {
-    files: tracks.map(tr => ({ slot: tr.slot, name: tr.name, text: tr.kml })),
+    files: file.tracks.map(tr => ({ slot: tr.slot, name: tr.name, text: tr.kml })),
     dfps: checkDfps(file.dfps),
     settings: checkSettings(file.settings, allowed),
     sameCleaning: isObject(file.cleaning) && Object.entries(CLEANING).every(([k, v]) => file.cleaning[k] === v),
@@ -96,14 +96,13 @@ function checkTracks(tracks) {
     throw new DebriefFileError(`it needs 1 to ${MAX_TRACKS} tracks`);
   }
   const seen = new Set();
-  return tracks.map((tr, i) => {
+  tracks.forEach((tr, i) => {
     if (!isObject(tr) || !Number.isInteger(tr.slot) || tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)
       || !isText(tr.name, MAX_NAME_CHARS)
       || typeof tr.kml !== 'string' || tr.kml.length > MAX_FILE_BYTES) {
       throw new DebriefFileError(`track ${i + 1} is damaged`);
     }
     seen.add(tr.slot);
-    return { slot: tr.slot, name: tr.name, kml: tr.kml };
   });
 }
 

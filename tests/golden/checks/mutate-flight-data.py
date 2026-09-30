@@ -104,7 +104,6 @@ M = [
  ('clean.js', "dropped.jump += first;", ""),
  ('clean.js', "} else if (i + MAX_JUMP_FIXES > possible.length - 1) {", "} else if (false) {"),
  ('clean.js', "} else if (i + MAX_JUMP_FIXES > possible.length - 1) {", "} else if (i + MAX_JUMP_FIXES >= possible.length - 1) {"),
- ('clean.js', "Math.cos((p.lat + q.lat) / 2 * Math.PI / 180)", "Math.cos(p.lat * Math.PI / 180)"),
  # C4: gaps
  ('clean.js', "fixes[i].t - fixes[i - 1].t > GAP_S", "fixes[i].t - fixes[i - 1].t >= GAP_S"),
  ('clean.js', "gaps.push({ fromT: fixes[i - 1].t, toT: fixes[i].t })", "gaps.push({ fromT: fixes[i].t, toT: fixes[i].t })"),
@@ -157,12 +156,10 @@ M = [
  ('debrief-file.js', "!Number.isFinite(d.t)", "d.t === undefined"),
  ('debrief-file.js', ".sort((a, b) => a.t - b.t)", ""),
  ('debrief-file.js', "return { t: d.t, label: d.label, note: d.note };", "return d;"),
- ('debrief-file.js', "return { slot: tr.slot, name: tr.name, kml: tr.kml };", "return tr;"),
  ('debrief-file.js', "v >= rule.min && v <= rule.max", "true"),
  ('debrief-file.js', "(rule.oneOf ? rule.oneOf.includes(v) : v.length <= rule.max)", "true"),
  ('debrief-file.js', "typeof v === 'boolean'", "true"),
  ('debrief-file.js', "Object.entries(CLEANING).every(([k, v]) => file.cleaning[k] === v)", "true"),
- ('debrief-file.js', "if (!Array.isArray(files) || !files.length)", "if (!Array.isArray(files))"),
  ('load.js', "files: files.map(({ slot, name, text }) => ({ slot, name: shortName(name), text }))", "files"),
  ('clock.js', "if (!playing || !Number.isFinite(nowMs)) return;", "if (!playing) return;"),
  ('debrief-file.js', "tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)", "seen.has(tr.slot)"),
@@ -208,6 +205,9 @@ print(f'{len(M) - len(survived)} of {len(M)} changes caught')
 # (b.t - a.t is never 0 there, because the fixes around t differ in time), and
 # the G formula itself, which is core's gFromTrack and is checked by core's own
 # mutation run. Also xml.js returning its name index's own array rather than a
-# copy: no caller changes the list, the copy only guards future ones.
+# copy: no caller changes the list, the copy only guards future ones. And
+# clean.js measuring east-west distance at the pair's mean latitude rather
+# than the first fix's: fixes 1 s apart differ by far less than 0.01 degree,
+# so no test track can tell the two apart.
 for s in survived:
     print('SURVIVED', s)

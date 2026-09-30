@@ -106,3 +106,35 @@ test('a frame with no usable time is ignored (review)', () => {
   clock.tick(100);
   assert.equal(clock.t, 0.1);
 });
+
+test('step from between seconds goes to the next or previous whole second', () => {
+  const clock = createClock({ startT: 0, endT: 100 });
+  clock.seek(10);
+  clock.play();
+  clock.tick(0);
+  clock.tick(250);
+  clock.tick(500); // 10.5
+  clock.pause();
+  clock.step(1);
+  assert.equal(clock.t, 11);
+  clock.seek(10);
+  clock.play();
+  clock.tick(1000);
+  clock.tick(1250);
+  clock.tick(1500); // 10.5
+  clock.step(-1);
+  assert.equal(clock.t, 10);
+});
+
+test('the last frame never runs past the end', () => {
+  const clock = createClock({ startT: 0, endT: 1 });
+  clock.seek(1);
+  clock.seek(0.9); // rounds to 1: use playback instead
+  clock.reset();
+  clock.setSpeed(4);
+  clock.play();
+  clock.tick(0);
+  clock.tick(200); // 0.8
+  clock.tick(400); // would be 1.6
+  assert.deepEqual([clock.t, clock.playing], [1, false]);
+});
