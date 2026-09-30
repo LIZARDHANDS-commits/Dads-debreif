@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>File test page</title>
+  </head>
+  <body>
+    <h1>File test page</h1>
+    <button id="save" type="button">Save</button>
+    <button id="open" type="button">Open</button>
+    <output id="result"></output>
+    <script type="module">
+      // A page for tests/e2e/file.spec.js, loading src/storage/file.js as a plain module.
+      import { downloadText, pickTextFiles } from '/src/storage/file.js';
+
+      const result = document.getElementById('result');
+      document.getElementById('save').addEventListener('click', () => {
+        downloadText('{"hello":"é"}', 'my/sortie.dadsdebrief.json', { type: 'application/json' });
+      });
+      document.getElementById('open').addEventListener('click', async () => {
+        try {
+          const files = await pickTextFiles({ accept: '.kml,.json', multiple: true, maxBytes: 1024 });
+          result.textContent = JSON.stringify(files);
+        } catch (err) {
+          result.textContent = err.message;
+        }
+      });
+      window.__fileReady = true;
+    </script>
+  </body>
+</html>
