@@ -85,7 +85,7 @@ test('Patrick 09:28Z: the cross turn is a two-ship turn too', () => {
   }
 });
 
-test('the roll-out spacing: #2 solves its second-stage G so the turn ends spacingFt apart, sides swapped, both directions; Lead\'s stages are unchanged', () => {
+test('the roll-out spacing: both fly 2 G then the same solved G, and end spacingFt apart, abreast, sides swapped, both directions', () => {
   for (const direction of ['right', 'left']) {
     const run = createRun({ ...BASE, direction, crossTurnSolveSpacing: true });
     const start = run.state.aircraft.map((a) => ({ ...a }));
@@ -93,15 +93,25 @@ test('the roll-out spacing: #2 solves its second-stage G so the turn ends spacin
     while (run.step()) for (const a of run.state.aircraft) if (a.turning) gs[a.id].add(a.g);
     const end = fromLead(run.state.aircraft, 2);
     assert.ok(Math.abs(end.right - 6000) < 200, `${direction}: #2 ends ${end.right.toFixed(0)} ft to Lead's right, want 6,000`);
+    assert.ok(Math.abs(end.ahead) < 200, `${direction}: abreast, #2 ${end.ahead.toFixed(0)} ft ahead`);
     for (const a of run.state.aircraft) assert.ok(Math.abs(Math.abs(a.headingRad - start.find((s) => s.id === a.id).headingRad) - Math.PI) < 2e-4, `${direction} #${a.id} reversed`);
-    assert.deepEqual([...gs[1]].sort(), [2, 3], `${direction}: Lead flies 2 G then the G setting`);
-    assert.equal(gs[2].size, 2, '#2 flies 2 G, then its solved G');
-    const solved = [...gs[2]].find((g) => g !== 2);
-    assert.ok(solved > 1.1 && solved < 3, `#2's solved G ${solved}`);
+    assert.equal(gs[1].size, 2, 'Lead: 2 G, then the solved G');
+    assert.deepEqual([...gs[1]].sort(), [...gs[2]].sort(), 'both aircraft fly the same G set');
+    const solved = [...gs[1]].find((g) => g !== 2);
+    assert.ok(Math.abs(solved - 1.57) < 0.05, `solved G ${solved} at 6,000 ft (about 1.6)`);
     assert.equal(run.state.crossTurnSpacingNote.clamped, false);
     assert.ok(Math.abs(run.state.crossTurnSpacingNote.solvedG - solved) < 1e-9);
     assert.ok(Math.abs(run.state.crossTurnSpacingNote.spacingFt - 6000) < 1, 'the note gives the spacing it reached');
   }
+});
+
+test('the SMM check: at 220 kt and 4,000 ft (the LAB minimum) the solved G is 3.0, the SMM\'s 60/2 then 70/3, within 0.05 G', () => {
+  const run = createRun({ ...BASE, spacingFt: 4000, speedKt: 220, crossTurnSolveSpacing: true });
+  const g = run.state.crossTurnSpacingNote.solvedG;
+  assert.ok(Math.abs(g - 3) < 0.05, `solved G ${g}`);
+  while (run.step());
+  const end = fromLead(run.state.aircraft, 2);
+  assert.ok(Math.abs(end.right - 4000) < 200 && Math.abs(end.ahead) < 200, `ends ${end.right.toFixed(0)} right, ${end.ahead.toFixed(0)} ahead`);
 });
 
 test('the solve can be turned off (about 2,000 ft as before), and the G is clamped with a note when the spacing cannot be reached', () => {
@@ -115,7 +125,7 @@ test('the solve can be turned off (about 2,000 ft as before), and the G is clamp
   assert.equal(far.state.crossTurnSpacingNote.clamped, true);
   assert.equal(far.state.crossTurnSpacingNote.solvedG, 1.1);
   assert.ok(far.state.crossTurnSpacingNote.spacingFt < 20000);
-  // 200 ft: the first 90 degrees at 2 G alone already carry #2 past that, so no G is tight enough: clamped at the top G.
+  // 200 ft: the first 90 degrees at 2 G alone already carry each aircraft past that, so no G is tight enough: clamped at the top G.
   const tight = createRun({ ...BASE, spacingFt: 200, crossTurnSolveSpacing: true });
   assert.equal(tight.state.crossTurnSpacingNote.clamped, true, 'a small spacing needs more G than is available');
   assert.ok(tight.state.crossTurnSpacingNote.solvedG > 3);
