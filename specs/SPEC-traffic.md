@@ -482,8 +482,9 @@ With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed a
 
 Two more pieces come from other threads, through the coordinator:
 
-- **The satellite tile loader.** The debrief builds one (SPEC-debrief, `tiles.js`: tile limits, retries, Esri credit). Modules never import each other (SPEC.md), so it moves to `ui-kit` before this module's satellite task, through the app frame thread.
-- **The `#/traffic` entry** in `src/shell/registry.js` and `tests/e2e/traffic.spec.js`, through the app frame thread.
+- **The satellite tile loader** is on main in `ui-kit` (#133): `import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js'` (tile limits, retries, Esri credit; SPEC-ui-kit).
+- **The 3D aircraft piece.** Patrick approved three.js for every 3D aircraft view; the app frame is building a shared T-6 piece in `ui-kit`. The Traffic 3D view (task 8) uses it once it's on main, and ui-kit's canvas surface until then.
+- **The `#/traffic` entry** in `src/shell/registry.js`, with `prototype: true` until the combined sign-off (#132), and `tests/e2e/traffic.spec.js`, through the app frame thread.
 
 ## Project structure
 

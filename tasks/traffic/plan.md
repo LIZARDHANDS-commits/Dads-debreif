@@ -11,7 +11,7 @@ Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), approved by Patric
 | Tasks 4 to 8 | ui-kit `createControls`, `createPanel`, `createCanvasView`, `createCanvasSurface`, `h` (merged) | App frame thread (done) |
 | Task 4 | The module's `load` in `src/shell/registry.js`, and `tests/e2e/traffic.spec.js` | App frame thread, through the coordinator |
 | Task 4 | `app.airfields.home()` for the home field (merged) | App frame thread (done) |
-| Task 8 | The debrief's satellite tile loader moved into `ui-kit` | Debrief and app frame threads, through the coordinator |
+| Task 8 | The satellite tile loader in `ui-kit` (`src/ui-kit/map-tiles.js`, merged #133); the shared three.js 3D piece when it lands | App frame thread (tile loader done) |
 | Task 10 | `windTriangle` in `src/core/wind.js`, with known-answer tests (merged, #120) | Flight math core thread (done) |
 | Tasks 10, 17 and 23 | `core`'s shared T-6A performance model: `iasToTasKt`, `T6A_GLIDE`, `glideSinkFpm`, `zoomT6A` (SPEC-core, "API, fifth PR"; core tasks 14 to 17, built at the Turn Fight's turn) | Flight math core thread, through the coordinator |
 | Task 12 | T2 to T6, T11 answered by Patrick (2026-09-30); T5b, T6b and T10 closed on the defaults (Patrick 07:21Z); T1 builds on its default (decision points and plans) | Patrick (done) |
