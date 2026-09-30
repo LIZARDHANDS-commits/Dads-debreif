@@ -456,10 +456,6 @@ const changed = async (page, act) => {
   await expect.poll(async () => !(await shot3d(page)).equals(before), { timeout: 10_000 }).toBe(true);
 };
 const stats = (page) => page.evaluate(() => window.__tr.stats());
-// Geometries, textures the renderer still counts once it is let go: none, and exactly one texture, the render target
-// of three.js's own PMREM generator, which the ui-kit's T-6 reflection map is made with and three.js keeps for reuse
-// (a ui-kit note explains it; it is not this view's). It is pinned to 1 so a texture the view leaks shows.
-const GPU_LEFT = /^0,1$/;
 
 test('a 2D visit loads no three.js: 2D is what opens, with no 3D canvas and no camera buttons', async ({ page }) => {
   const seen = threeRequests(page);
@@ -507,10 +503,7 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await viewChoice(page, '2D').check();
   await expect(map(page)).toBeVisible();
   await expect(canvas3d(page)).toHaveCount(0);
-  // What the renderer still counts after it is let go: no geometry and the one PMREM generator target (GPU_LEFT).
-  // Every geometry, material and texture the view made is disposed (tests/unit/traffic/view3d.test.js pins that one by one).
-  await expect(stage3d(page)).toHaveAttribute('data-gpu', GPU_LEFT);
-  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
+  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed'); // (what the renderer still counts is checked in the round-trip test below)
   expect(await seconds(page)).toBe(timeNow);
   await expect.poll(() => stats(page)).toEqual(baseline); // no frame, timer or listener kept (the map's one redraw has run)
   await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
@@ -521,8 +514,40 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
   expect(seen.length).toBe(fetched);
   await viewChoice(page, '2D').check();
-  await expect(stage3d(page)).toHaveAttribute('data-gpu', GPU_LEFT);
   await expect.poll(() => stats(page)).toEqual(baseline);
+});
+
+// What three.js still counts (geometries, textures) once the renderer is let go. Some of it is three.js's own and stays after
+// the first shiny material (a lookup table, and the PMREM reflection converter's texture and planes), so the first round makes
+// that baseline and every later round must come back to exactly it: a texture or geometry the view leaks shows as one more.
+test('each 3D round, the full Harvard model or the plain T-6, leaves on the graphics card what the first left and no more', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await playButton(page).click();
+  const closeIn = async () => {
+    await cameraButton(page, 'Low chase').click();
+    const box = await canvas3d(page).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let notch = 0; notch < 40; notch++) await page.mouse.wheel(0, -100);
+    await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), { timeout: 10_000 }).toBeGreaterThan(120);
+  };
+  const round = async (zoomedIn) => {
+    await viewChoice(page, '3D').check();
+    await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+    if (zoomedIn) await closeIn();
+    await page.waitForTimeout(200);
+    await viewChoice(page, '2D').check();
+    await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
+    return stage3d(page).getAttribute('data-gpu');
+  };
+  const harvard = await round(true);
+  expect(harvard).toMatch(/^\d+,\d+$/);
+  expect(await round(true)).toBe(harvard);
+  expect(await round(true)).toBe(harvard);
+  const plain = await round(false);
+  expect(await round(false)).toBe(plain);
+  expect(await round(true)).toBe(harvard);
 });
 
 test('the 3D picture shows the run: the camera buttons, a drag, the wheel and Fit each change it, and so does time', async ({ page }) => {

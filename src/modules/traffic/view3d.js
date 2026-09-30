@@ -455,18 +455,10 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
-      // The shared T-6's own geometry and textures are kept by the ui-kit for the next ship, and it lets go of
-      // only some of them when the last ship goes; whatever the scene still holds is freed here too (a second dispose is harmless).
-      const leftovers = new Set();
-      root.traverse((o) => {
-        if (o.geometry) leftovers.add(o.geometry);
-        for (const m of [].concat(o.material ?? [])) for (const value of Object.values(m)) if (value?.isTexture) leftovers.add(value);
-      });
       for (const { line } of routeLines.values()) freeLine(line);
       routeLines.clear();
       for (const { mesh } of planes.values()) disposeAircraftMesh(mesh);
       planes.clear();
-      for (const item of leftovers) item.dispose();
       for (const ring of rings.values()) ring.removeFromParent();
       rings.clear();
       ringGeometry.dispose();
@@ -617,8 +609,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     kit.dispose();
     sky.dispose();
     renderer.dispose();
-    // What is left on the graphics card, for the leak check: no geometry, and one texture, the render target of three.js's own
-    // PMREM generator (it makes the T-6's reflection map and is kept for reuse; a ui-kit note explains it). The e2e pins the count.
+    // What three.js still counts on the graphics card, for the leak check. The ui-kit's T-6 frees everything it made; what stays
+    // is three.js's own, kept for its next shiny material (a lookup table, and the PMREM reflection converter's texture and
+    // planes). It is the same after every round, which the e2e pins after a first round has made it.
     const { memory } = renderer.info;
     host.dataset.gpu = `${memory.geometries},${memory.textures}`;
     if (!lost) renderer.forceContextLoss?.();
