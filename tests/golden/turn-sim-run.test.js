@@ -174,6 +174,8 @@ test('seeded settings: speed, G, spacing, heading, turn degrees, errors, turn lo
       rearCheckAngleDeg: pick([20, Math.round(1 + 89 * r())]),
       rearCheckHoldSec: pick([0, 5, round(15 * r(), 1)]),
     });
+    // The check turn is 30 degrees at most in the rebuild (settings.js turnDegProblem): V6 gets the same.
+    if (s.maneuver === 'check30' && s.turnDeg > 30) s.turnDeg = 30;
     // V6 gives NaN below 1 G after the correction (D74 changes that later); keep the seeds above it.
     if (s.correction === 'gfix') s.baseG = Math.max(s.baseG, 3);
     for (const id of [1, 2, 3, 4]) {

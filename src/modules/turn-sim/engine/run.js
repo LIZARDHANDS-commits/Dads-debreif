@@ -17,7 +17,7 @@
 import { degToRad, radToDeg, compassDegToHeadingRad, headingRadToCompassDeg } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
 import { bankDegFromG } from '../../../core/flight-math.js';
-import { DEFAULTS, MANEUVER_TURN_DEG, aircraftSettings, turnProblem } from '../settings.js';
+import { CHECK_TURN_MAX_DEG, DEFAULTS, MANEUVER_TURN_DEG, aircraftSettings, turnDegProblem, turnProblem } from '../settings.js';
 import { startPositions, activeIds, inferLineAbreastForm } from './formation.js';
 import { planTurn } from './plan.js';
 import { cueStatus } from './cues.js';
@@ -59,6 +59,9 @@ export function historyRow(tSec, aircraft, previous, stepSec = STEP_SEC) {
   const closure13Ftps = aircraft.length > 2 && previous ? (previous.pairs['1-3'] - pairs['1-3']) / stepSec : 0;
   return { tSec, pairs, minSepFt, closure13Ftps };
 }
+
+/** The longest a run on the clock cue waits for the cues, in seconds. */
+const CLOCK_CAP_SEC = 300;
 
 function newAircraft(slot, settings) {
   const own = aircraftSettings(settings, slot.id);
@@ -159,7 +162,11 @@ export function createRun(settings) {
   const speedFtps = () => ktToFtps(cfg.speedKt);
   // How long the run lasts: the Duration, or longer when durationCoversTurn and the plan needs it (see settings.js).
   let coverSec = 0;
-  const durationSec = () => Math.max(cfg.durationSec, cfg.durationCoversTurn ? coverSec : 0);
+  // On the clock cue the starts are not known in advance (each waits for its cue), so the run waits until every aircraft has turned,
+  // and 10 s more, up to CLOCK_CAP_SEC: a cue that never comes must not run for ever.
+  let clockDoneAtSec = null;
+  const clockWaiting = () => cfg.durationCoversTurn && cfg.timing === 'clock' && tSec < CLOCK_CAP_SEC && !allAircraftFinishedTurn(craft);
+  const durationSec = () => Math.max(cfg.durationSec, cfg.durationCoversTurn ? coverSec : 0, clockWaiting() ? tSec + STEP_SEC : 0, cfg.durationCoversTurn && clockDoneAtSec !== null ? clockDoneAtSec + 10 : 0);
   const finished = () => tSec >= durationSec();
 
   // The time the plan needs: each aircraft's start, its legs, holds, and the turn's own time, and 10 s more to see it end.
@@ -263,6 +270,11 @@ export function createRun(settings) {
         cfg.maneuver = DEFAULTS.maneuver;
         cfg.turnDeg = MANEUVER_TURN_DEG[DEFAULTS.maneuver];
       }
+      const degProblem = turnDegProblem(cfg.maneuver, cfg.turnDeg);
+      if (degProblem) {
+        cfg.maneuverFallback = degProblem;
+        cfg.turnDeg = CHECK_TURN_MAX_DEG;
+      }
     }
     formation = cfg.formation;
     startHeadingRad = compassDegToHeadingRad(cfg.startHeadingDeg);
@@ -272,6 +284,7 @@ export function createRun(settings) {
     tSec = 0;
     planned = false;
     coverSec = 0;
+    clockDoneAtSec = null;
     planInfo = { autoStepSec: null, rearDelaysSec: null, crossSolve: null };
     publish();
   }
@@ -312,6 +325,7 @@ export function createRun(settings) {
     }
     planInfo = planTurn(craft, flight(), { useErrors: true });
     coverSec = timeNeededSec();
+    clockDoneAtSec = null;
     record();
     planned = true;
     publish();
@@ -340,6 +354,7 @@ export function createRun(settings) {
       correctionStrength: cfg.correctionStrength,
     }, STEP_SEC);
     tSec += STEP_SEC;
+    if (cfg.timing === 'clock' && clockDoneAtSec === null && allAircraftFinishedTurn(craft)) clockDoneAtSec = tSec;
     record();
     publish();
     return true;

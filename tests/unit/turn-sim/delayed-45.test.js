@@ -130,3 +130,16 @@ test('the clock cue with Auto for the Delayed 90 is unchanged: 7 o\'clock in a r
     assert.equal(run.state.aircraft[1].cue.clockPos, direction === 'right' ? 7 : 5);
   }
 });
+
+test('the clock cue: the run waits for every aircraft to turn, however short the Duration, up to a hard cap of 300 s (audit yellow)', () => {
+  for (const formation of ['twoShip', 'weighted']) {
+    const run = createRun({ ...BASE, formation, timing: 'clock', clockCuePos: 'auto', direction: 'right', durationSec: 20 });
+    while (run.step());
+    assert.equal(run.state.turnComplete, true, `${formation}: all turned though the Duration is 20 s`);
+  }
+  // A cue that never comes (a cue position the other aircraft never reaches) stops at the cap instead of running for ever.
+  const stuck = createRun({ ...BASE, formation: 'twoShip', timing: 'clock', clockCuePos: '1', direction: 'right', durationSec: 20 });
+  while (stuck.step());
+  assert.equal(stuck.state.turnComplete, false);
+  assert.ok(stuck.state.tSec >= 299 && stuck.state.tSec < 301, `stopped at ${stuck.state.tSec}`);
+});

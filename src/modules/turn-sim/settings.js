@@ -277,6 +277,17 @@ export function turnProblem(formation, maneuver) {
   return null;
 }
 
+/** The check turn is through 30 degrees or less (SMM 16.19 para 58): the largest Turn degrees it takes. */
+export const CHECK_TURN_MAX_DEG = 30;
+
+/** Why the Turn degrees cannot be flown in this turn, or null: a check turn is 30 degrees at most (it goes back to 30). */
+export function turnDegProblem(maneuver, turnDeg) {
+  if (maneuver === 'check30' && turnDeg > CHECK_TURN_MAX_DEG) {
+    return `The check turn is ${CHECK_TURN_MAX_DEG} degrees at most (SMM 16.19 para 58): use In-place 90 for a bigger turn. Turn degrees is set to ${CHECK_TURN_MAX_DEG}.`;
+  }
+  return null;
+}
+
 /**
  * A clean settings object from anything: every key present, each value the
  * given one when it is good and the default otherwise, unknown keys dropped.
@@ -300,6 +311,7 @@ export function checkSettings(obj) {
     out.maneuver = DEFAULTS.maneuver;
     out.turnDeg = MANEUVER_TURN_DEG[DEFAULTS.maneuver];
   }
+  if (turnDegProblem(out.maneuver, out.turnDeg)) out.turnDeg = CHECK_TURN_MAX_DEG;
   return Object.freeze(out);
 }
 

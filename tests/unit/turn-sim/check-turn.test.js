@@ -2,7 +2,7 @@
 // out, keeping LAB with the line swung round. V6 had no button for it (In-place 90 with the degrees typed in flew it).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, MANEUVER_TURN_DEG, checkSettings } from '../../../src/modules/turn-sim/settings.js';
+import { DEFAULTS, MANEUVER_TURN_DEG, checkSettings, turnDegProblem } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
 const BASE = { ...DEFAULTS, maneuver: 'check30', turnDeg: MANEUVER_TURN_DEG.check30, startHeadingDeg: 0, durationSec: 30 };
@@ -10,7 +10,7 @@ const BASE = { ...DEFAULTS, maneuver: 'check30', turnDeg: MANEUVER_TURN_DEG.chec
 test('the check turn is 30 degrees by default and the Turn degrees box goes down to 5', () => {
   assert.equal(MANEUVER_TURN_DEG.check30, 30);
   assert.equal(checkSettings({ maneuver: 'check30', turnDeg: 5 }).turnDeg, 5);
-  assert.equal(checkSettings({ maneuver: 'check30', turnDeg: 4 }).turnDeg, DEFAULTS.turnDeg);
+  assert.equal(checkSettings({ maneuver: 'check30', turnDeg: 4 }).turnDeg, 30, 'below 5: the default, 90, brought back to the check turn\'s 30');
   assert.equal(checkSettings({ maneuver: 'check30' }).maneuver, 'check30');
 });
 
@@ -46,4 +46,18 @@ test('two-ship right check: #2 ends 5,196 ft to Lead\'s right and 3,000 ft ahead
   const ahead = dx * Math.cos(h) + dy * Math.sin(h);
   // Both turn by the same angle, so #2 keeps its 6,000 ft at 30 degrees to the new heading's line.
   assert.ok(Math.abs(right - 5196) < 150 && Math.abs(ahead - 3000) < 150, `${right.toFixed(0)} right, ${ahead.toFixed(0)} ahead`);
+});
+
+test('the check turn is 30 degrees at most: a larger Turn degrees is brought back to 30 with the reason (audit yellow)', () => {
+  const out = checkSettings({ maneuver: 'check30', turnDeg: 90 });
+  assert.equal(out.maneuver, 'check30');
+  assert.equal(out.turnDeg, 30);
+  assert.equal(checkSettings({ maneuver: 'check30', turnDeg: 30 }).turnDeg, 30);
+  assert.equal(checkSettings({ maneuver: 'check30', turnDeg: 12 }).turnDeg, 12);
+  assert.equal(checkSettings({ maneuver: 'inplace90', turnDeg: 90 }).turnDeg, 90, 'the in-place turn keeps its own');
+  assert.match(turnDegProblem('check30', 90), /30/);
+  assert.equal(turnDegProblem('check30', 30), null);
+  const run = createRun({ ...BASE, turnDeg: 90 });
+  assert.match(run.state.maneuverFallback, /30/);
+  assert.equal(createRun({ ...BASE, turnDeg: 30 }).state.maneuverFallback, null);
 });
