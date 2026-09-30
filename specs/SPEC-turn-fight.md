@@ -91,7 +91,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 - **Settings are remembered** in this browser (`app.storage`), and "Reset to V6 defaults" in Turn Fight settings puts back V6's setup: 2-circle, 2 NM, both 220 KTAS and 4 G, both extras off, pitch 0°, height scale 2×, 1×.
 - **Keyboard** (through `app.keys`, only while the Turn Fight is open and never while typing): Space plays or pauses, Home resets. Tab moves between controls as normal.
 - **Colours** stay V6's: Blue #58a6ff, Red #ff6b6b, the first nose-on line #ffcc66. Each aircraft is also labelled B or R on the view and in every table, so colour is never the only signal.
-- **T-6 limit warning (simple mode).** When a set G is above what a T-6 can pull at the set speed, a warning shows beside the G box: "4.0 G is above the T-6's stall limit at 120 kt (2.0 G)" or "Above the T-6's 7 G limit". The fight still flies what was set, as V6 does, so the tool can still show a generic fight. The stall limit is G = (speed ÷ 86 kt)², the sea-level stall line of the T-6A V-n diagram (manuals: formation-and-turn-numbers.md). The simple mode has no altitude, so its speed is taken as sea level, where true and indicated airspeed agree. V6's default, 220 KTAS at 4 G, is inside the limit (6.5 G), so no warning shows by default.
+- **T-6 limit warning (simple mode).** When a set G is above what a T-6 can pull at the set speed, a warning shows beside the G box: "4.0 G is above the T-6's stall limit at 120 kt (1.9 G)" (the limit is rounded down, so the warning never understates it) or "Above the T-6's 7 G limit". The fight still flies what was set, as V6 does, so the tool can still show a generic fight. The stall limit is G = (speed ÷ 86 kt)², the sea-level stall line of the T-6A V-n diagram (manuals: formation-and-turn-numbers.md). The simple mode has no altitude, so its speed is taken as sea level, where true and indicated airspeed agree. V6's default, 220 KTAS at 4 G, is inside the limit (6.5 G), so no warning shows by default.
 - **Number boxes** use ui-kit's number rule, so a blank, zero, infinite or out-of-range entry is refused with a message and the last good value stays. The ranges are: speed 60 to 400 KTAS, G 1.1 to 9, start separation 0.5 to 10 NM, pitch −60° to +60°. V6 read a blank or 0 as its default (220 kt, 4 G, 2 NM) and had no limits except on pitch.
 
 ## What V6 does, and what the rebuild keeps
@@ -186,17 +186,18 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 
 Patrick asked on 2026-09-30 (07:51Z, in the project chat) for a 2D/3D switch in every simulator, now. So the Turn Fight gets a 3D view of the fight beside its 2D views, as part of this build.
 
-- **The switch.** A 2D/3D switch sits on the stage toolbar next to Play. It is a real button with its state announced (`aria-pressed`). **2D is the default** and the choice is remembered in this browser. Switching never resets the fight or changes a number: both views draw the same fight state.
+- **The switch.** ui-kit's shared View switch, `controls.viewSwitch()` (SPEC-ui-kit, "2D/3D switch", D141), sits on the stage toolbar next to Play: a "View" choice of 2D or 3D, seeded with `VIEW_DEFAULT` and checked against `VIEW_ALLOWED`. **2D is the default** and the choice is remembered in this browser. Switching never resets the fight or changes a number: both views draw the same fight state.
 - **2D** is the top-down view and, with Climb and dive or Energy on, the side view, exactly as specified above.
-- **3D** replaces the stage's drawing area with one 3D scene:
-  - both T-6s at their positions, headings and pitch, from the shared T-6 model and camera helper in `src/ui-kit/three-aircraft.js` (built by the app frame thread), in their ship colours (Blue #58a6ff, Red #ff6b6b) until a Harvard paint scheme is chosen;
-  - bank: in the simple fight, the level-turn bank for the set G (cos bank = 1 ÷ G), toward the turn; in Energy mode, the model's own bank;
+- **3D** replaces the stage's drawing area with one 3D scene built from ui-kit's shared pieces (SPEC-ui-kit, "3D aircraft (three.js, D138)"):
+  - both aircraft are ui-kit's CT-156 model (`createCt156Model`) at their positions, headings and pitch, painted as a Harvard by default. A **Paint** choice (Harvard or Ship colours, from `PAINT_OPTIONS`, default `PAINT_DEFAULT`) sits in the Display section of Turn Fight settings. With ship colours, Blue is #58a6ff and Red #ff6b6b; either way each aircraft keeps its B or R label;
+  - bank: in the simple fight, the level-turn bank for the set G (cos bank = 1 ÷ G), toward the turn; in Energy mode, the model's own bank. The attitude goes in exactly as ui-kit says (rotation order 'ZYX', `rotation.set(-bank, -pitch, hdg)`, heading in radians from east, counter-clockwise);
+  - the camera uses only ui-kit's `matchProjection`, with points placed through `altToZ`; scene light and sky come from `addLights` and `addSky`;
   - trails as lines, a ground grid, the MERGE mark and the first nose-on line; in Energy mode, the hard deck as a see-through plane;
   - heights are real: flat when Climb and dive and Energy are off, and without the 2D side view's height scale;
   - the camera orbits by drag and zooms by wheel or pinch, with three one-click views: Overhead, Chase Blue, Chase Red. It follows the fight's centre.
-- **Loading.** three.js and the 3D code load only when 3D is first switched on (a dynamic import), so the 2D screen stays as fast as before.
-- **No WebGL.** If the browser can't draw 3D, the switch says so in one line and stays on 2D.
-- **Clean up (R4).** The 3D view draws only while the fight plays or the camera moves. Switching back to 2D or leaving the module stops its drawing and frees its WebGL resources.
+- **Loading.** three.js loads only when 3D is first switched on, through ui-kit's `loadThree()`, never a static import, so the 2D screen stays as fast as before.
+- **When 3D can't start.** If `loadThree()` fails, the switch says "3D needs a connection the first time"; if the browser can't draw 3D (no WebGL), it says so. Either way it stays on 2D, which keeps working.
+- **Clean up (R4).** The 3D view draws only while the fight plays or the camera moves. Switching back to 2D or leaving the module stops its drawing and frees its WebGL resources (`disposeCt156Model` for each aircraft, `sky.dispose()`, the renderer).
 - **What doesn't change.** The fight engine, the turn math and every readout are the same in both views. The 3D view only reads the fight state. Its drawing lives in its own file (`view3d.js`), apart from the engine.
 - **Tests.** Unit tests cover the attitude it draws (bank from G, heading and pitch into the scene's axes) and the trail conversion. The e2e spec switches to 3D and back while a fight plays, with no console errors, and checks that the WebGL context is released on leaving.
 
