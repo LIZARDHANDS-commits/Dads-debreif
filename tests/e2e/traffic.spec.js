@@ -6,6 +6,7 @@
 import { test, expect } from './fixtures.js';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
+import { openRoute } from './routes.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -142,6 +143,54 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await expect(rows).toHaveCount(8);
 });
 
+test('the Traffic settings menu opens, and a route point can be changed on the left', async ({ page }) => {
+  await open(page);
+  const menu = page.getByRole('button', { name: /^Traffic settings/ });
+  await menu.click();
+  await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  await menu.click();
+  // Pick Pattern 1: its points show, with every box filled in.
+  await page.locator('[data-route-id="PAT1"]').click();
+  await expect(page.locator('.point-table-title')).toHaveText('Pattern 1');
+  const rows = page.locator('.point-row');
+  await expect(rows).toHaveCount(13);
+  const alt = rows.nth(2).getByLabel('Alt ft', { exact: true });
+  await expect(alt).toHaveValue('3500');
+  const before = await picture(page);
+  await alt.fill('3400');
+  await expect(rows.nth(2).locator('.point-data')).toContainText('3400ft');
+  await expect(alt).toHaveValue('3400');
+  await page.waitForTimeout(100);
+  expect(await picture(page)).not.toBe(before); // the map shows the new height label
+  // An out-of-range height is refused in words and the last good value stays.
+  await alt.fill('99999');
+  await alt.blur();
+  await expect(rows.nth(2).locator('.control-message').first()).toContainText('from -1,000 to 20,000');
+  await expect(rows.nth(2).locator('.point-data')).toContainText('3400ft');
+});
+
+test('+ Point and Delete point change the number of points; a new route is picked and its points show', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-route-id="PAT1"]').click();
+  const rows = page.locator('.point-row');
+  await rows.nth(3).getByLabel('Point 4 label').focus();
+  await button(page, '+ Point').click();
+  await expect(rows).toHaveCount(14);
+  await expect(page.locator('.editor-message')).toContainText('Added point 5');
+  await expect(rows.nth(4).getByLabel('Point 5 label')).toHaveValue('New Point');
+  await button(page, 'Delete point').click();
+  await expect(rows).toHaveCount(13);
+  // + New route > Entry makes Entry 5, joined to Pattern 1, and picks it.
+  await button(page, '+ New route').click();
+  await button(page, 'Entry').click();
+  await expect(page.locator('[data-route-id]')).toHaveCount(10);
+  await expect(page.locator('.point-table-title')).toHaveText('Entry 5');
+  await expect(rows).toHaveCount(4);
+  await expect(page.locator('.editor-link select').first()).toHaveValue('PAT1');
+  // The spawner can send an aircraft down it.
+  await expect(page.locator('#traffic-spawn-route option')).toHaveCount(10);
+});
+
 test('the Conflicts list says "No conflicts." until two aircraft are close, then names the pair with a word and a symbol', async ({ page }) => {
   await open(page);
   const list = page.getByRole('region', { name: 'Conflicts' });
@@ -188,4 +237,30 @@ test('nothing overlaps or sticks out at 1366 x 768', async ({ page }) => {
     return out;
   });
   expect(problems).toEqual([]);
+});
+
+// The route tests wait for the Traffic Sim's entry in src/shell/registry.js
+// (load: () => import('../modules/traffic/index.js')); until then its card says "Coming soon".
+// The header's own button is named exactly 'Settings': the sim's menu is "Traffic settings".
+test.skip('opens from its card on the home screen', async ({ page }) => { // unskip when the registry entry lands
+  await openRoute(page, '#/');
+  await page.locator('a.card[href="#/traffic"]').click();
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
+  await expect(playButton(page)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
+});
+
+test.skip('the route opens from a direct link and plays, spawns and edits a point', async ({ page }) => { // unskip when the registry entry lands
+  await openRoute(page, '#/traffic');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
+  await expect(status(page)).toHaveText('Paused');
+  await playButton(page).click();
+  await expect(status(page)).toHaveText('Running');
+  await playButton(page).click();
+  await button(page, '+ Spawn').click();
+  await expect(page.locator('.aircraft-row')).toHaveCount(8);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  await page.locator('[data-route-id="PAT1"]').click();
+  await page.locator('.point-row').nth(2).getByLabel('Alt ft', { exact: true }).fill('3400');
+  await expect(page.locator('.point-row').nth(2).locator('.point-data')).toContainText('3400ft');
 });
