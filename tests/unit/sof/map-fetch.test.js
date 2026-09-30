@@ -194,3 +194,24 @@ test('a picture without its IEND trailer in the last 12 bytes (cut off in transi
   wrongTrailer[wrongTrailer.length - 1] ^= 1;
   assert.equal(isPng('image/png', wrongTrailer, { width: 900, height: 700 }), false);
 });
+
+// ---- Redirects (Y5) ----------------------------------------------------------------------------------
+
+test('a request is never allowed to follow a redirect: the browser is told to fail on one', async () => {
+  let seen;
+  await guardedFetch(async (url, init) => { seen = init; return new Response('x'); }, 'https://x.test/a', { timers: fakeTimers(), ...LIMIT });
+  assert.equal(seen.redirect, 'error');
+});
+
+test('a reply that came from another origin than the one asked is refused, in case a redirect got through', async () => {
+  const from = (url) => async () => {
+    const r = new Response('secret', { status: 200 });
+    Object.defineProperty(r, 'url', { value: url });
+    return r;
+  };
+  assert.equal(await code(guardedFetch(from('https://evil.test/a'), 'https://x.test/a', { timers: fakeTimers(), ...LIMIT })), 'redirect');
+  assert.equal(await code(guardedFetch(from('http://x.test/a'), 'https://x.test/a', { timers: fakeTimers(), ...LIMIT })), 'redirect');
+  // the same origin (a different path is fine: only the origin must not change) and an unset url (a test double) are accepted
+  assert.equal(await code(guardedFetch(from('https://x.test/b'), 'https://x.test/a', { timers: fakeTimers(), ...LIMIT })), 'none');
+  assert.equal(await code(guardedFetch(ok('x'), 'https://x.test/a', { timers: fakeTimers(), ...LIMIT })), 'none');
+});

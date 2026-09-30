@@ -14,7 +14,7 @@ export const FETCH_LIMITS = Object.freeze({
   traffic: Object.freeze({ timeoutMs: 30_000, maxBytes: Math.ceil(1.25 * 1024 * 1024) }), // the relay's own cap is 1 MB
 });
 
-/** Why a request failed: 'timeout', 'too-big', 'status', 'aborted' or 'network'. */
+/** Why a request failed: 'timeout', 'too-big', 'status', 'redirect', 'aborted' or 'network'. */
 export class MapFetchError extends Error {
   constructor(code, message) {
     super(message ?? code);
@@ -53,12 +53,17 @@ export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxB
         signal: controller.signal,
         credentials: 'omit',
         cache: 'default',
-        redirect: 'follow',
+        redirect: 'error', // none of the feeds redirects; an unexpected hop to another place is a failure, not something to follow
         referrerPolicy: 'no-referrer',
         headers: accept ? { accept } : undefined,
       });
     } catch (err) {
       throw new MapFetchError(why ?? 'network', String(err?.message ?? err));
+    }
+    // Belt and braces: even if a redirect got through, the reply must come from the origin that was asked.
+    if (typeof response.url === 'string' && response.url !== '' && originOf(response.url) !== originOf(url)) {
+      response.body?.cancel?.().catch?.(() => {});
+      throw new MapFetchError('redirect', 'reply came from another origin');
     }
     if (!response.ok) {
       response.body?.cancel?.().catch?.(() => {});
@@ -76,6 +81,14 @@ export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxB
     signal?.removeEventListener('abort', onAbort);
   }
 }
+
+const originOf = (address) => {
+  try {
+    return new URL(address).origin;
+  } catch {
+    return null;
+  }
+};
 
 async function readCapped(response, maxBytes, why) {
   const reader = response.body?.getReader?.();
