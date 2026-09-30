@@ -2,14 +2,14 @@
 // "Airfield cards"). Pure: reports, limits and "now" go in, plain data comes out.
 // The card DOM comes later (task 2) and only draws this.
 //
-// Every weather answer is wx's: the category, NATO state, limit check and
-// cautions. Nothing here reads a report's text, except that a METAR's remarks
-// (wx's own `remarks` field) are searched for LAST OBS/NXT, which wx has no
-// field for.
+// Every weather answer is wx's: the category, NATO state, limit check (wx's
+// `checkOptions(conditions, minima)`) and cautions, and a METAR's LAST OBS/NXT
+// remark (`lastObservation`, `nextObservation`). Nothing here reads a report's text.
 
-import { checkConditions, flightCategory, natoColour, DEFAULT_LIMITS } from '../../wx/limits.js';
+import { flightCategory, natoColour, DEFAULT_LIMITS } from '../../wx/limits.js';
+import { checkOptions } from '../../wx/alternates.js';
 import { staleness, SOURCES } from '../../wx/sources.js';
-import { ageMinutes, resolveDay, toDate, MINUTE_MS } from '../../wx/dates.js';
+import { ageMinutes, toDate, MINUTE_MS } from '../../wx/dates.js';
 import { describeTrigger, minimaText, descentText } from './waves.js';
 
 const two = (n) => String(n).padStart(2, '0');
@@ -44,8 +44,6 @@ function missingWords(kind, lastTry) {
   return `No ${kind} from MET Norway or Datamask${tried ? ` (last tried ${hhmmZ(tried)})` : ''}`;
 }
 
-const LAST_OBS = /LAST OBS\/NXT (\d{2})(\d{2})(\d{2})Z/;
-
 // ---- METAR line ---------------------------------------------------------------------------
 
 function metarModel(entry, now, feed) {
@@ -68,8 +66,7 @@ function metarModel(entry, now, feed) {
   const stale = !now || staleness('metar', report, now) === 'stale';
 
   // "LAST OBS/NXT 011000Z": the field is closed until then (CYMJ, overnight). Not an error.
-  const next = report.remarks?.match(LAST_OBS);
-  const noObsUntil = next && now ? resolveDay(Number(next[1]), Number(next[2]), Number(next[3]), now, time) : null;
+  const noObsUntil = report.lastObservation && now ? (report.nextObservation ?? null) : null;
   const closed = stale && noObsUntil && +noObsUntil > +now;
   const noObs = noObsUntil && +noObsUntil > +now ? `No obs until ${hhmmZ(noObsUntil)}` : null;
 
@@ -120,17 +117,6 @@ function tafModel(entry, now, feed) {
 
 // ---- Limit result ------------------------------------------------------------------------------------
 
-/**
- * wx's check against one limit or a list of equivalent options: below only when
- * below every option, at the limit when the best option is exactly met. This is
- * the choice alternates.js makes for its own pieces (its `checkOptions` isn't
- * exported), so an alternate's card and its wave call read a report the same way.
- */
-function checkAgainst(conditions, limits) {
-  const checks = limits.map((l) => checkConditions(conditions, l));
-  return checks.find((c) => !c.belowLimits && !c.atLimit) ?? checks.find((c) => !c.belowLimits) ?? checks[0];
-}
-
 function unknownWords(check, conditions) {
   const parts = [];
   if (check.ceilingUnknown) parts.push((conditions?.sky ?? []).length ? 'cloud base not reported' : 'no ceiling reported');
@@ -146,7 +132,7 @@ function resultModel(metar, conditions, limits, now, descent) {
   // A visual descent (D80) is checked over the arrival window by the wave call; a
   // METAR against 600-2 would say the wrong thing here.
   if (descent) return { level: 'unknown', words: `Visual descent from MEA: see the wave call${note}`, reasons: [], stale };
-  const check = checkAgainst(conditions, limits);
+  const check = checkOptions(conditions, limits);
   // Limits first, as wx orders them; cautions are listed apart and don't change this.
   const reasons = check.reasons.filter(limitReason);
   if (check.belowLimits) return { level: 'below', words: `Below limits: ${reasons.join(', ')}${note}`, reasons, stale };
@@ -168,7 +154,7 @@ const limitReason = (r) => /^(CEILING|VIS) /.test(r);
  *   `{ raw, report, source }`, or null when there is none. Staleness is decided
  *   here from `now`, never from a status stored earlier.
  * - `limits`: home limits `{ ceilingFt, visSm }` (default Local (MTCA) 2000/3).
- * - `options`: for an alternate, the whole `airfields.checkOptions(icao)` object.
+ * - `options`: for an alternate, the whole airfields' `checkOptions(icao)` object (not wx's `checkOptions(conditions, minima)`).
  *   Its minima are used (default V6's 600-2); when it has a `visualDescent` (D80)
  *   600-2 is never used and the result is 'unknown', for the wave call to decide.
  * - `feed`: `{ lastTry, failed }` for the words about a missing or failed refresh.
@@ -193,7 +179,7 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
 
   const metarLine = metarModel(metar, at, feed ?? {});
   const conditions = metarLine.state === 'missing' || metarLine.state === 'nil' ? null : metar.report.conditions;
-  const check = conditions ? checkAgainst(conditions, used) : null;
+  const check = conditions ? checkOptions(conditions, used) : null;
   const watch = check ? [...check.watch.vicinity, ...check.watch.snow, ...check.watch.shallowFog] : [];
 
   return {

@@ -18,6 +18,9 @@ function shortcutAllowed(event) {
   return true;
 }
 
+/**
+ * @param {{ root: any, scheduler: any, store: any, settings: any, time: any, airfields?: any, standards?: any, exampleText?: any, keyTarget?: any, onStatus?: (text: string) => void }} options
+ */
 export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, exampleText = null, keyTarget = globalThis, onStatus = () => {} }) {
   let current = null; // { id, cleanups: Set, scope, unmount }
   let openToken = 0;

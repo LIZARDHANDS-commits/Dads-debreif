@@ -99,6 +99,15 @@ function coveredStatus(taf, { hits, atLimit, incomplete }) {
   return atLimit.length ? 'at-limit' : 'meets';
 }
 
+/**
+ * The status when the TAF does not cover the whole window: below when the part it
+ * covers is already below limits (Patrick, 2026-09-30 07:36Z), else not-covered.
+ * `covered: false` still tells the SOF that the TAF ends early.
+ */
+function shortStatus({ hits }) {
+  return hits.length ? 'below' : 'not-covered';
+}
+
 const byTime = (a, b) => +a.from - +b.from;
 
 /**
@@ -120,7 +129,7 @@ export function homeAlternateTrigger(taf, window, limits) {
   const f = forecastAt(taf, w);
   const options = toOptions(limits) ?? [DEFAULT_LIMITS.home];
   const found = hitsIn(f, () => options, options);
-  const status = f.covered ? coveredStatus(taf, found) : 'not-covered';
+  const status = f.covered ? coveredStatus(taf, found) : shortStatus(found);
   const { hits, atLimit, cautions } = found;
   return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, atLimit, cautions, problems: taf.problems ?? [] };
 }
@@ -174,7 +183,7 @@ export function assessAlternate(taf, when, { minima, landingMinima, visualDescen
   const alternate = descent ?? toOptions(minima) ?? [DEFAULT_LIMITS.alternate];
   const landing = toOptions(landingMinima);
   const found = hitsIn(f, (p) => (p.kind === 'PROB' ? landing : alternate), alternate);
-  const status = f.covered ? coveredStatus({ problems }, found) : 'not-covered';
+  const status = f.covered ? coveredStatus({ problems }, found) : shortStatus(found);
   const worst = [...found.hits].sort(byTime)[0] ?? [...found.atLimit].sort(byTime)[0] ?? null;
   return {
     ...base,

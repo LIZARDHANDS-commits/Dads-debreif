@@ -22,7 +22,7 @@ Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6)
 
 1. `flight-data` owns loading, cleaning, the flight model, the clock and the debrief file format ([`SPEC-flight-data.md`](SPEC-flight-data.md)). The debrief never parses KML or keeps a clock of its own.
 2. `core` owns every number: aspect, HCA, closure, estimated G, the EM point, the tennis-ball solver and (in core PR 3) the standards classifier. The debrief picks the moments, calls `core`, and draws the answer.
-3. The 3D view stays **hand-drawn on a Canvas 2D**, as V6 does. No WebGL and no three.js, so no new package (SPEC.md "ask first") and nothing to download.
+3. The 3D view is drawn with **three.js** (Patrick approved 2026-09-30 07:41Z, D138), using ui-kit's shared CT-156 Harvard model and `matchProjection` camera, which lands every point where `scene.js` `projectPoint` puts it. three.js downloads only when 3D is first shown (D141). Before that, the view was hand-drawn on a Canvas 2D, as V6's was.
 4. Map imagery (Esri satellite tiles) needs the network. Everything else, including the VNC charts once viewed, works offline (R6).
 5. Until `airfields` lands, CYMJ values the debrief needs (field elevation 1,892 ft, the VNC chart anchor, the 19 route overlays) sit in one file, `src/modules/debrief/data/cymj.js`, so they move to `airfields` in one step (R16).
 6. The ui-kit's `controls.js` (inputs bound to settings) and `canvas-view.js` (pan and zoom) are written for this module, by the app-frame thread, which owns `src/ui-kit/`. The debrief is their first user.
@@ -122,6 +122,7 @@ Changes:
 - **Altitude sticks** work with both models and drop to the datum (#26).
 - **Readouts** are the same right-hand panel as the map, not the thinner 3D list.
 - The 3D view has its own playback bar (the shared one), and stops drawing when the debrief is closed or the other view is showing (#39).
+- **Drawn with three.js (D138, D141).** The picture (sky, ground, datum plane, grid, trails, sticks and aircraft) is three.js on a WebGL canvas. The labels, altitude ruler, heights, compass, caption, tennis ball and the dot for a ship with no heading are drawn flat over it (`view3d/overlay.js`), placed with `projectPoint`. The aircraft is ui-kit's CT-156 Harvard in the Moose Jaw paint with the ship's colour on the fin and its number on the tail and nose; **Paint: Ship colours** in 3D settings gives the plain look. If three.js can't load (offline on the first visit) or WebGL is off, the debrief says so and stays in 2D.
 
 ### Readouts and standards (R9, R18)
 
@@ -185,13 +186,12 @@ Patrick asked for "the historical METAR of the nearest airfield as well as overl
 | Toggle | What it shows | Source (no key, read by the browser, no proxy, D69) | How far back |
 |---|---|---|---|
 | METAR | The report in force at the playback time, from the airfield nearest the formation (nearest to Lead, from `app.airfields`; any other airfield can be picked). It shows as one line under the playback bar, decoded by `src/wx` (`parseMetar`, `flightCategory`), with the raw text a click away. The scrubber gets a small tick at each new report or SPECI. | Iowa Environmental Mesonet METAR archive (to be confirmed for CYMJ and browser access; if it fails, METARs saved with the debrief as below) | Years |
-| Satellite | The GOES-West picture nearest the playback time under the tracks: visible colour by day, infrared at night. A corner label gives its time and age, for example "Satellite 14:30Z, 2 min before". | NASA GIBS (GOES GeoColor / infrared tiles, 10-minute steps) | To be confirmed at build start; well beyond a week |
-| Winds aloft | Model wind at Lead's altitude on the Lead line of the Formation card ("wind 270/25 at 8,500 ft, model"), and wind arrows on the map at a height you choose. | Open-Meteo historical forecast (Canada's HRDPS 2.5 km, or HRRR, the model Herbie reads), pressure levels, hourly or 15-minute | Since about 2022 |
-| Cloud and visibility | Model cloud base, cover and visibility along the route, for the time between METARs, labelled "model". | Open-Meteo, as above | Since about 2022 |
+| Satellite | The GOES-West picture at or before the playback time, over the base map and under the tracks: GeoColor (colour by day, infrared-based at night) or infrared alone. The line under the map gives its time and age, for example "Satellite 14:30Z, 2 min before". | NASA GIBS WMTS tiles (GeoColor to zoom 7, infrared to zoom 6, 10-minute steps) | About 90 days. Older flights say "Satellite not kept" (live only, Patrick 2026-09-30 08:03Z) |
+| Winds aloft | Model wind at Lead's altitude on the Lead line of the Formation card ("wind 270/25 at 8,500 ft, model"), and wind arrows on the map at a height you choose. | Open-Meteo historical forecast (Canada's HRDPS 2.5 km, or HRRR, the model Herbie reads), pressure levels, hourly or 15-minute | HRDPS since 2023-03-03, HRRR since 2018 |
 | Radar | ECCC's 1 km radar composite (rain or snow) under the tracks, the frame nearest the playback time with its time and age. | ECCC GeoMet, **saved into the debrief** (below) | Only 3 hours live |
 | Lightning | ECCC's lightning density, as the SOF shows it. | ECCC GeoMet, saved into the debrief | Only 3 hours live |
 
-**Saved radar and lightning.** ECCC keeps only the last 3 hours (RainViewer 2), so these can't be fetched later. When a flight is loaded and its end is less than 3 hours ago, the debrief offers "Save radar and lightning with this debrief". It fetches every frame covering the flight window around the formation and keeps them with the flight. **Save debrief** then writes them into the file, and opening the file plays them back with no network. When the flight is older, the Radar and Lightning items say "Not kept: radar is only available for 3 hours after the flight." The METARs and model values shown are saved in the file too, so a saved debrief shows the same weather offline and years later.
+**Saved radar and lightning.** ECCC keeps only the last 3 hours (RainViewer 2), so these can't be fetched later. When a flight is loaded and its end is less than 3 hours ago, the debrief offers "Save radar and lightning with this debrief". It fetches every frame covering the flight window around the formation and keeps them with the flight. **Save debrief** then writes them into the file, and opening the file plays them back with no network. When the flight is older, the Radar and Lightning items say "Not kept: radar is only available for 3 hours after the flight." Satellite pictures are not saved (Patrick chose "Live only" at 08:03Z). Cloud and visibility come from the METARs only; the model gives winds aloft only (Patrick chose "Drop it" at 08:03Z, as Open-Meteo has no cloud base and HRDPS no visibility). The METARs and model winds shown are saved in the file too, so a saved debrief shows the same weather offline and years later.
 
 **Against the timeline.** Each layer shows the slice nearest the playback time and never one from the future beyond a small step: satellite and radar take the last frame at or before the moment, METARs the report in force, model values the nearest hour or quarter hour. Each slice carries its own time, so no picture is mistaken for the exact moment. Scrubbing changes the slice at once; playing fetches frames just ahead so it doesn't stall.
 
@@ -204,12 +204,7 @@ Patrick asked for "the historical METAR of the nearest airfield as well as overl
 - Adding weather to the debrief file is a change to `flight-data`'s file format, so it goes through the coordinator to the owner of `src/flight-data/`.
 - The new hosts (NASA GIBS, Open-Meteo, IEM, ECCC GeoMet) join the site's CSP through the app frame.
 
-**Checks at build start** (this container can't reach those hosts):
-- Each source answers a browser request from the live site with no key.
-- IEM has CYMJ's archive.
-- GIBS has GOES-West frames for the flight's date.
-
-A source that fails is swapped or dropped with Patrick's word.
+**Checks at build start** (done 2026-09-30 07:35Z to 07:51Z; results in the project's wx-sources notes): every source answers a browser on the live site's address with no key (`Access-Control-Allow-Origin: *`). IEM has CYMJ back to 2003 or earlier (no reports overnight, about 00:30Z to 10:00Z). GIBS keeps GOES-West frames for about 90 days. ECCC keeps 3 hours, needs the exact frame TIME, and answers a missing one with 200 and XML, so the content type is checked.
 
 **Skills used:** spec-driven-development, incremental-implementation, test-driven-development (the time slicing and nearest-airfield pick are pure and tested in Node), frontend-ui-engineering, security-and-hardening (outside data shown only as text or images), performance-optimization (frames fetched only when on).
 
@@ -229,7 +224,9 @@ src/modules/debrief/
     overlays.js      the built-in route overlays
   view3d/
     scene.js         projection, depth order, ground datum, attitude: pure functions, tested
-    view.js          drawing the scene on the canvas
+    view.js          the three.js picture (loaded when 3D is first shown)
+    overlay.js       labels, ruler, compass, tennis ball drawn flat over it
+    input.js         drag to orbit, wheel and keys to zoom
   readouts.js        builds the readout rows from core results; no page access
   standards-panel.js
   em.js              the EM chart

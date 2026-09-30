@@ -35,7 +35,7 @@ class FakeRegistration extends EventTarget {
   }
 }
 
-function fakeContainer({ controller = {}, fails = false } = {}) {
+function fakeContainer({ controller = {}, fails = false, empty = false } = {}) {
   const container = new EventTarget();
   container.controller = controller;
   container.registration = new FakeRegistration();
@@ -43,7 +43,7 @@ function fakeContainer({ controller = {}, fails = false } = {}) {
   container.register = async (url) => {
     container.registered.push(url);
     if (fails) throw new Error('blocked');
-    return container.registration;
+    return empty ? undefined : container.registration;
   };
   return container;
 }
@@ -147,6 +147,13 @@ test('a blocked registration warns and carries on', async (t) => {
   const { ready } = setup({ fails: true });
   assert.equal(await ready, null);
   assert.equal(warn.mock.callCount(), 1);
+});
+
+// Some browsers and test runners that block service workers hand back no
+// registration instead of refusing, so the page must still open.
+test('a registration that comes back empty carries on without offline mode', async () => {
+  const { ready } = setup({ empty: true });
+  assert.equal(await ready, null);
 });
 
 test('when Reload was pressed in another tab, this tab offers a plain reload', async () => {

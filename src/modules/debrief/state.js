@@ -51,9 +51,13 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   vncNorthNm: 0,
   vncScalePct: 100,
   // Weather at the time of the flight, all off (R22): the METAR line, from
-  // the airfield nearest Lead or one picked by hand.
+  // the airfield nearest Lead or one picked by hand, and the satellite picture.
   wxMetar: false,
   wxMetarField: 'nearest',
+  // The GOES-West picture under the tracks: GeoColor, 70 % opaque.
+  wxSatellite: false,
+  wxSatelliteLayer: 'geocolor',
+  wxSatelliteOpacity: 70,
   // Tools, closed at first (R22): the EM chart, with V6's automatic chart and 60 s trail.
   emOpen: false,
   emChart: 'auto',
@@ -78,6 +82,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   zoom3d: 70,
   altScale3d: 2,
   model3d: 't6',
+  paint3d: 'harvard', // ui-kit PAINT_DEFAULT: the Moose Jaw CT-156 scheme (D138)
   planeSize3d: 260,
   attLabels3d: true,
   trailSec3d: 90,
