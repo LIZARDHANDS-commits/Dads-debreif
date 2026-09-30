@@ -1278,7 +1278,7 @@ function readAims(state) {
   }
 }
 
-/** Before the turns nothing is pulled, but a jet under the stall speed is stalled: STALL reads from T+0 (verification F3). */
+/** Before the turns nothing is pulled, but a jet under the stall speed is stalled: STALL reads from T+0 (verification F3). Read once when the aircraft is made; the straight flight keeps the speed, so it keeps the flag. */
 function readSlow(ac, p) {
   ac.stall = ac.kias < p.stallKias;
   if (ac.stall) { ac.stallEver = true; ac.stallReason = belowStallText(ac.kias, p); } else ac.stallReason = '';
@@ -1290,7 +1290,6 @@ function flyStraight(state, d) {
     const pm = ac.pm;
     ac.pm = { ...pm, x: pm.x + pm.vx * d, y: pm.y + pm.vy * d, z: pm.z + pm.vz * d };
     readOut(ac, 1, 1, state.setup, null, !state.dry);
-    readSlow(ac, state.setup);
   }
 }
 
