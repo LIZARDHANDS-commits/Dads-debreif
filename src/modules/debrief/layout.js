@@ -16,6 +16,7 @@ import { CAMERA_LIMITS } from './view3d/frame.js';
 import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';
 import { SATELLITE_LAYERS } from './weather/satellite.js';
+import { WIND_MODELS } from './weather/winds.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 function shipSwatch(slot) {
@@ -146,6 +147,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       ),
     ),
   ]);
+  const WIND_MODEL_OPTIONS = [
+    { value: 'hrdps', label: `${WIND_MODELS.hrdps.label} (Canada, from March 2023)` },
+    { value: 'hrrr', label: `${WIND_MODELS.hrrr.label} (US, from 2018)` },
+  ];
   // Weather at the time of the flight: every item off at first (R22), and
   // fetched only while on (SPEC-debrief: Weather at the time of the flight).
   const weatherMenu = menu('Weather', 'debrief-weather', [
@@ -157,6 +162,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('wxSatellite', { label: 'Satellite (GOES-West)' }),
     controls.select('wxSatelliteLayer', { label: 'Satellite picture', options: Object.entries(SATELLITE_LAYERS).map(([value, l]) => ({ value, label: l.label })) }),
     controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
+    controls.checkbox('wxWinds', { label: 'Winds aloft (model)' }),
+    controls.select('wxWindModel', { label: 'Wind model', options: WIND_MODEL_OPTIONS }),
   ]);
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
@@ -400,7 +407,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       showNotes();
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
-    renderReadouts: (r) => readouts.render(r, flight),
+    renderReadouts: (r, extra) => readouts.render(r, flight, extra),
     showPicker,
     setMessage,
     setBusy(what) {
