@@ -84,6 +84,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
         needsFit = null;
         map.fit(bounds, FIT_PADDING_PX);
       }
+      if (selected !== null && mover && !mover.canMove()) selected = null; // Play or Step began: the pick, and its ring, go
       const state = source.state();
       const layers = source.layers();
       const settings = source.settings();

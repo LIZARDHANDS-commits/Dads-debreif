@@ -439,6 +439,25 @@ test('keyboard moves are announced to the end: the clamp says so, and losing foc
   await expect(page.locator('#module-status')).toContainText('Stopped moving #4');
 });
 
+test('a picked aircraft is let go when Play or Step starts, so after Reset the arrows pan again (audit yellow 3)', async ({ page }) => {
+  await open(page);
+  await canvas(page).focus();
+  await page.keyboard.press('3');
+  await expect(page.locator('#module-status')).toContainText('Moving #3');
+  // By the keys, so the canvas keeps focus (a click on a button would blur it and drop the pick by itself): Space plays and pauses, Home resets.
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Space');
+  await page.keyboard.press('Home');
+  const three = await shipAt(page, 3);
+  const lead = await shipAt(page, 1);
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => (await shipAt(page, 1)).x).not.toBe(lead.x); // the picture panned
+  const now = await shipAt(page, 3);
+  const leadNow = await shipAt(page, 1);
+  expect(Math.abs((now.x - leadNow.x) - (three.x - lead.x))).toBeLessThan(2); // #3 did not move relative to Lead
+});
+
 test('the layers: V6\'s stay on, clock marks, breadcrumbs, NM distances and NM rings are off, and each toggle changes the picture (task 12c)', async ({ page }) => {
   await open(page);
   // Some flying first, so breadcrumbs have something to show.
