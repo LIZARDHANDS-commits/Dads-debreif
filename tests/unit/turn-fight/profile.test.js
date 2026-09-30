@@ -7,16 +7,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRun, advanceRun } from '../../../src/modules/turn-fight/playback.js';
+import { ALLOWED } from '../../../src/modules/turn-fight/state.js';
 import {
-  MIN_HEIGHT_RANGE_FT, HEIGHT_SCALES, heightRangeFt, plotArea, heightOffsetPx, edgeHeightFt, xSpanFt, xToPx, drawProfile,
+  MIN_HEIGHT_RANGE_FT, heightRangeFt, plotArea, heightOffsetPx, edgeHeightFt, xSpanFt, xToPx, drawProfile,
 } from '../../../src/modules/turn-fight/profile.js';
 
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b}`);
 const play = (run, sec) => { for (let t = 0; t < sec - 1e-9; t += 0.02) advanceRun(run, 0.02); return run; };
 const size = { width: 800, height: 176 };
 
+const HEIGHT_SCALES = ALLOWED.heightScale;
+
 test('the height scales are 1×, 2× and 4×', () => {
-  assert.deepEqual([...HEIGHT_SCALES], [1, 2, 4]);
+  assert.deepEqual(HEIGHT_SCALES, [1, 2, 4]);
 });
 
 test('the height range starts at 1,000 ft and only grows with the biggest height so far', () => {
@@ -97,7 +100,8 @@ function recorder() {
   return new Proxy({ calls }, {
     get(target, prop) {
       if (prop in target) return target[prop];
-      return (...args) => { calls.push({ fn: prop, args, style: { stroke: target.strokeStyle, fill: target.fillStyle } }); };
+      if (prop === 'measureText') return (text) => ({ width: 7 * String(text).length });
+      return (...args) => { calls.push({ fn: prop, args, style: { stroke: target.strokeStyle, fill: target.fillStyle, align: target.textAlign } }); };
     },
     set(target, prop, value) { target[prop] = value; return true; },
   });
@@ -134,6 +138,27 @@ test('with no pitch the traces lie along the level line', () => {
   const area = plotArea(size);
   near(dotY(ctx, '#58a6ff'), area.midY);
   near(dotY(ctx, '#ff6b6b'), area.midY);
+});
+
+test('a letter at the right edge flips to the left of its dot, and none goes above the plot', () => {
+  const run = createRun({ vertical: true }); // at the start Red is at the east end of the span, at the plot's right edge
+  const area = plotArea(size);
+  const ctx = recorder();
+  drawProfile(ctx, size, run, 2);
+  const letter = ctx.calls.find((c) => c.fn === 'fillText' && c.args[0] === 'R');
+  const [, y] = letter.args.slice(1);
+  near(dotY(ctx, '#ff6b6b'), area.midY);
+  if (letter.style.align === 'right') assert.ok(letter.args[1] - 7 >= 0 && letter.args[1] <= size.width - 2, 'flipped, inside');
+  else assert.ok(letter.args[1] + 7 <= size.width - 2, 'not flipped, inside');
+  assert.equal(letter.style.align, 'right');
+  assert.ok(y >= area.top + 12);
+  // Blue sits at the left end and keeps its letter to the right of the dot.
+  assert.equal(ctx.calls.find((c) => c.fn === 'fillText' && c.args[0] === 'B').style.align, 'left');
+  // A dot high in the plot never has its letter above the plot's top.
+  const climbed = play(createRun({ vertical: true, bluePitchDeg: 60, redPitchDeg: -60 }), 60);
+  const tall = recorder();
+  drawProfile(tall, { width: 800, height: 60 }, climbed, 4);
+  for (const t of ['B', 'R']) assert.ok(tall.calls.find((c) => c.fn === 'fillText' && c.args[0] === t).args[2] >= plotArea({ width: 800, height: 60 }).top + 12);
 });
 
 test('a box with no size draws nothing', () => {

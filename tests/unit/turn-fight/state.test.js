@@ -59,9 +59,9 @@ test('changing the setup changes its key; playback speed, height scale and colum
   }
 });
 
-test('Reset to V6 defaults puts back the fight and the display settings, not the open columns', () => {
+test('Reset to V6 defaults puts back the fight, Energy and the display settings, not the open columns', () => {
   const patch = v6Defaults();
-  for (const key of ['circles', 'separationNm', 'blueKt', 'redKt', 'blueG', 'redG', 'chase', 'vertical', 'bluePitchDeg', 'redPitchDeg', 'heightScale', 'playbackRate']) {
+  for (const key of ['circles', 'separationNm', 'blueKt', 'redKt', 'blueG', 'redG', 'chase', 'vertical', 'bluePitchDeg', 'redPitchDeg', 'energy', 'heightScale', 'playbackRate']) {
     assert.equal(patch[key], DEFAULTS[key], key);
   }
   assert.ok(!('setupOpen' in patch) && !('resultOpen' in patch));

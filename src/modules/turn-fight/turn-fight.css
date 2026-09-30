@@ -113,6 +113,13 @@
   font-size: var(--text-sm);
 }
 
+/* The warning's box is always on the page (it is a live region); with no words it takes no room. */
+[data-module='turn-fight'] .tf-warning:empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 [data-module='turn-fight'] .tf-hint {
   margin: 0 0 var(--space-3);
   color: var(--text-muted);
@@ -127,11 +134,14 @@
   margin-bottom: var(--space-2);
 }
 
-[data-module='turn-fight'] .tf-model {
-  font-weight: 600;
+/* The plain line at the top of Fight setup. */
+[data-module='turn-fight'] .tf-intro {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
-/* The stage: toolbar, then the drawing area that takes whatever room is left. */
+/* The stage: toolbar, then the views, which take whatever room is left. */
 [data-module='turn-fight'] .tf-stage {
   display: flex;
   flex-direction: column;
@@ -145,10 +155,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-}
-
-[data-module='turn-fight'] .tf-view-switch:empty {
-  display: none;
 }
 
 [data-module='turn-fight'] .tf-toolbar .control {
@@ -181,26 +187,16 @@
   font-size: var(--text-sm);
 }
 
-[data-module='turn-fight'] .tf-drawing {
+[data-module='turn-fight'] .tf-views {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
-}
-
-[data-module='turn-fight'] .tf-flat,
-[data-module='turn-fight'] .tf-3d {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-}
-
-[data-module='turn-fight'] .tf-flat {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   gap: var(--space-2);
 }
 
-/* V6's dark stage (#071018). */
+/* V6's dark stage: --bg-raised, which is V6's #071018. */
 [data-module='turn-fight'] .tf-topdown-wrap,
 [data-module='turn-fight'] .tf-profile {
   position: relative;

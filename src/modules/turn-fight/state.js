@@ -6,7 +6,7 @@ import { V6_DEFAULT_SETUP } from './sim.js';
 /**
  * Every setting and its opening value (V6's where V6 had one). The fight's own
  * numbers use the same names as sim.js's setup, so a number box can be bound
- * straight to the setting. `energy` is saved but its box stays greyed out until
+ * straight to the setting. `energy` is saved, but has no box on screen until
  * Energy mode is built. `setupOpen` and `resultOpen` remember the side columns.
  */
 export const DEFAULTS = Object.freeze({
@@ -49,10 +49,10 @@ export function setupKey(values) {
   return JSON.stringify(setupFrom(values));
 }
 
-/** What "Reset to V6 defaults" puts back: the fight and the display settings, not which columns are open. */
+/** What "Reset to V6 defaults" puts back: the fight, Energy and the display settings, not which columns are open. */
 export function v6Defaults() {
   const patch = {};
-  for (const key of [...FIGHT_KEYS, 'heightScale', 'playbackRate']) patch[key] = DEFAULTS[key];
+  for (const key of [...FIGHT_KEYS, 'energy', 'heightScale', 'playbackRate']) patch[key] = DEFAULTS[key];
   return patch;
 }
 

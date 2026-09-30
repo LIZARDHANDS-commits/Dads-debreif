@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, createFight, stepFight } from '../../../src/modules/turn-fight/sim.js';
 import {
-  MAX_FRAME_SEC, TRAIL_INTERVAL_SEC, frameDtSec, createRun, advanceRun, trailExtent,
+  MAX_FRAME_SEC, TRAIL_INTERVAL_SEC, frameDtSec, createRun, advanceRun,
 } from '../../../src/modules/turn-fight/playback.js';
 
 const play = (run, seconds, frameSec) => {
@@ -91,9 +91,9 @@ test('the trail never grows past the ten-minute fight: 6,001 points at most', ()
 
 test('extent follows every trail point: the widest reach, the x range and the tallest height', () => {
   const run = createRun({ separationNm: 2, vertical: true, bluePitchDeg: 30, redPitchDeg: -10 });
-  assert.equal(trailExtent(run.trails).maxAbsFt, 6076.12); // 2 NM apart: each 1 NM from the centre, the furthest point
+  assert.equal(run.trails.extent.maxAbsFt, 6076.12); // 2 NM apart: each 1 NM from the centre, the furthest point
   play(run, 25, 0.02);
-  const e = trailExtent(run.trails);
+  const e = run.trails.extent;
   const pts = [...run.trails.blue, ...run.trails.red];
   assert.equal(e.maxAbsFt, Math.max(...pts.map((p) => Math.max(Math.abs(p.xFt), Math.abs(p.yFt)))));
   assert.equal(e.minXFt, Math.min(...pts.map((p) => p.xFt)));

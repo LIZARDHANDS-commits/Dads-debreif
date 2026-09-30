@@ -54,8 +54,3 @@ export function advanceRun(run, dtSec) {
   }
   return run;
 }
-
-/** The reach of the trails so far: { minXFt, maxXFt, maxAbsFt, maxAbsZFt }. */
-export function trailExtent(trails) {
-  return trails.extent;
-}

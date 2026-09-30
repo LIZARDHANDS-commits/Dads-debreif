@@ -94,7 +94,7 @@ function recorder() {
   const ctx = new Proxy({ calls }, {
     get(target, prop) {
       if (prop in target) return target[prop];
-      return (...args) => { calls.push({ fn: prop, args, style: { stroke: target.strokeStyle, fill: target.fillStyle } }); };
+      return (...args) => { calls.push({ fn: prop, args, style: { stroke: target.strokeStyle, fill: target.fillStyle, align: target.textAlign } }); };
     },
     set(target, prop, value) { target[prop] = value; return true; },
   });
@@ -118,6 +118,10 @@ test('drawing shows the dashed first nose-on line in #ffcc66 with its label once
   const ctx = recorder();
   drawTopDown(ctx, { width: 800, height: 500 }, run);
   assert.ok(texts(ctx).includes('FIRST NOSE — RED'));
+  // The words sit in the bottom-right corner, apart from the aircraft, MERGE and "Grid" (bottom-left).
+  const label = ctx.calls.find((c) => c.fn === 'fillText' && c.args[0] === 'FIRST NOSE — RED');
+  assert.deepEqual(label.args.slice(1), [800 - 8, 500 - 8]);
+  assert.equal(label.style.align, 'right');
   const dash = ctx.calls.find((c) => c.fn === 'setLineDash' && c.args[0].length);
   assert.deepEqual(dash.args[0], [7, 5]);
   assert.ok(ctx.calls.some((c) => c.fn === 'stroke' && c.style.stroke === COLORS.nose));

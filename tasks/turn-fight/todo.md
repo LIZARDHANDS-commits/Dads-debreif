@@ -15,17 +15,17 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 **Checkpoint A:** tests pass; code-review-and-quality; open PR A.
 
-- [ ] **3. The screen and playback.** Module registered; three columns with collapsible panels; setup controls with the spec's ranges; Play, Pause, Reset, speed, T+ and phase; the Result card; settings remembered with Reset to V6 defaults; Space and Home; the T-6 limit warning beside each G box.
+- [x] **3. The screen and playback.** Module registered; three columns with collapsible panels; setup controls with the spec's ranges; Play, Pause, Reset, speed, T+ and phase; the Result card; settings remembered with Reset to V6 defaults; Space and Home; the T-6 limit warning beside each G box.
   - Acceptance: R22 (only the essentials show by default); nothing overlaps at 1366 × 768 (R2); closing the module stops the fight clock (R4); a bad number is refused and the fight keeps its last good setup.
   - Verify: `npm test`; `npm run dev` and play a fight; accessibility checklist.
   - Dependencies: 2. Size M.
   - Files: src/modules/turn-fight/{index,layout}.js, turn-fight.css, README.md, src/shell/registry.js (via the app frame thread)
-- [ ] **4. The top-down view.** Grid, trails every 0.1 s, arrowheads labelled B and R, MERGE mark, first nose-on line; draws on change only; follows its box size.
+- [x] **4. The top-down view.** Grid, trails every 0.1 s, arrowheads labelled B and R, MERGE mark, first nose-on line; draws on change only; follows its box size.
   - Acceptance: a paused fight draws nothing; a 4× fight is smooth at 1920 × 1080 on a local build (performance log in the PR); matches V6's picture side by side.
   - Verify: e2e play, pause, reset, module switch (no frames or timers left, R4; no console errors, R7).
   - Dependencies: 3. Size M.
   - Files: src/modules/turn-fight/view.js, tests/unit/turn-fight/view.test.js (view scale), tests/e2e/turn-fight.spec.js (via the app frame thread)
-- [ ] **5. The extras.** First nose chases; Climb and dive with pitch boxes, the side view and a working height scale; About this model.
+- [x] **5. The extras.** First nose chases; Climb and dive with pitch boxes, the side view and a working height scale; About this model.
   - Acceptance: each checkbox shows and hides only its own controls; the height scale changes the side view and doesn't reset the fight (#20); every control does something (R3).
   - Verify: e2e click-through; look at each against V6.
   - Dependencies: 4. Size M.

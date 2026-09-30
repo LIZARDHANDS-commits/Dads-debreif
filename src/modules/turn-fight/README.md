@@ -12,7 +12,7 @@ Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each o
 | `playback.js` | What one screen frame does: the 0.08 s frame limit, whole fight steps, the trail points. Pure, so the screen only calls `advanceRun`. |
 | `view.js` | The top-down drawing on a ui-kit canvas surface: grid that fills the box, trails, arrowheads labelled B and R, the MERGE mark, the first nose-on line. The scale and grid maths (`viewReachFt`, `topDownView`, `gridLines`) is pure and tested. It only reads the run (`{ fight, trails }`), so another view can read the same one. |
 | `profile.js` | The side view for Climb and dive: height against east-west position, level in the middle. The height is drawn against a range that only grows with the fight, times the scale (1×, 2×, 4×), and is kept inside the panel, so the scale works (V6's cancelled out, #20). The label is still V6's "VERTICAL PROFILE"; Q50 changes it (task 6). |
-| `layout.js` | The three columns, the stage toolbar and the controls. The stage's drawing area and a toolbar slot are separate elements, so a 3D view and a 2D \| 3D switch can be dropped in. |
+| `layout.js` | The three columns, the stage toolbar and the controls. It knows nothing about the fight: it is handed settings and readout rows, so a 3D view can sit beside the 2D views without touching the engine. |
 | `readouts-panel.js` | A readout table built with `h()`; rewrites only the text that changed. |
 | `index.js` | `mount(root, app)`: wires the settings, the fight, the frame loop, the keys (Space, Home) and the readout rate (at most 10 a second while playing). |
 | `turn-fight.css` | Everything is scoped under `[data-module='turn-fight']`. |

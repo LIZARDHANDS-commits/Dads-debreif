@@ -5,19 +5,15 @@
 // columns collapse with a real button (#34, #35). Everything on screen goes in
 // as text through h(), never as HTML.
 //
-// The stage's drawing area is its own element (`drawing`) with the flat 2D
-// views in one child and an empty, hidden slot for a 3D view in the other, and
-// the toolbar has a slot (`viewSwitch`) for a 2D | 3D switch, so a 3D view can
-// be dropped in without touching the readouts or the fight.
 import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
-import { RANGES } from './state.js';
+import { RANGES, ALLOWED } from './state.js';
 import { limitWarning } from './t6-limit.js';
 
-const RATES = [[0.5, '0.5×'], [1, '1×'], [2, '2×'], [4, '4×']];
-const HEIGHT_SCALES = [[1, '1×'], [2, '2×'], [4, '4×']];
+// The choices come from state.js, so a saved value and a box can't disagree.
+const times = (values) => values.map((v) => [v, `${v}×`]);
 
 let nextId = 1;
 
@@ -27,16 +23,18 @@ let nextId = 1;
  */
 export function createLayout({ settings, controls, on }) {
   // ── Fight setup column ──────────────────────────────────────────────
+  const intro = h('p', { class: 'tf-intro' }, 'Two aircraft meet head-on, then turn: who gets their nose on the other first?');
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
   // One aircraft's boxes: speed and G, with pitch beside them (Climb and dive
   // only), and the T-6 limit warning right under them.
   function aircraft(who, letter, name) {
-    const warning = h('p', { class: 'tf-warning', id: `tf-warning-${nextId++}`, hidden: true });
+    // Always on the page, so a screen reader hears the words when they appear; only its text changes.
+    const warning = h('p', { class: 'tf-warning', id: `tf-warning-${nextId++}`, 'aria-live': 'polite' });
     // The unit is in the label, to keep the three boxes in one row (the refusal message still names it).
     const speed = controls.number(`${who}Kt`, { label: 'Speed (KTAS)', ...RANGES[`${who}Kt`] });
-    const g = controls.number(`${who}G`, { label: 'G', ...RANGES[`${who}G`] });
+    const g = controls.number(`${who}G`, { label: 'Sustained G', ...RANGES[`${who}G`] });
     const gInput = g.querySelector('input');
     gInput.setAttribute('aria-describedby', `${gInput.getAttribute('aria-describedby')} ${warning.id}`);
     const pitchBox = h('div', { class: 'tf-pitch', hidden: true }, controls.number(`${who}PitchDeg`, { label: 'Pitch (°)', ...RANGES[`${who}PitchDeg`] }));
@@ -54,10 +52,6 @@ export function createLayout({ settings, controls, on }) {
 
   const chase = controls.checkbox('chase', { label: 'First nose chases' });
   const vertical = controls.checkbox('vertical', { label: 'Climb and dive' });
-  const energy = controls.checkbox('energy', { label: 'Energy (T-6)' });
-  controls.setDisabled('energy', true); // Energy mode is a later change; the box keeps its place
-  const energyHint = h('p', { class: 'tf-hint', id: 'tf-energy-hint' }, 'Energy mode is coming soon.');
-  energy.querySelector('input').setAttribute('aria-describedby', energyHint.id);
 
   // The one closed settings menu. Start geometry and Energy sections are made
   // here ahead of Display when those arrive (most-used first).
@@ -70,13 +64,12 @@ export function createLayout({ settings, controls, on }) {
   });
   const display = menu.section('Display');
   display.append(
-    controls.choice('heightScale', { label: 'Side view height scale', options: HEIGHT_SCALES }),
+    controls.choice('heightScale', { label: 'Side view height scale', options: times(ALLOWED.heightScale) }),
     h('p', { class: 'tf-hint' }, 'Stretches heights in the side view. It shows with Climb and dive.'),
   );
 
   const about = createPanel({ title: 'About this model', collapsed: true });
   about.body.append(
-    h('p', { class: 'tf-model' }, 'Simplified: constant speed and turn rate'),
     h('p', {}, h('b', {}, '1-circle: '), 'opposite turn directions after the merge. A radius fight.'),
     h('p', {}, h('b', {}, '2-circle: '), 'same turn direction after the merge. A rate fight.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
@@ -85,8 +78,8 @@ export function createLayout({ settings, controls, on }) {
 
   const setupPanel = createPanel({ title: 'Fight setup', onToggle: (collapsed) => settings.update({ setupOpen: !collapsed }) });
   setupPanel.body.append(
-    fightType, separation, blue.element, red.element,
-    h('div', { class: 'tf-extras' }, chase, vertical, energy, energyHint),
+    intro, fightType, separation, blue.element, red.element,
+    h('div', { class: 'tf-extras' }, chase, vertical),
     menu.element, about.element,
   );
   const setupCol = h('aside', { class: 'tf-col tf-col-setup', 'aria-label': 'Fight setup' }, setupPanel.element);
@@ -94,14 +87,13 @@ export function createLayout({ settings, controls, on }) {
   // ── Stage ───────────────────────────────────────────────────────────
   const playButton = h('button', { type: 'button', class: 'button primary tf-play', onclick: () => on.playPause() }, 'Play');
   const resetButton = h('button', { type: 'button', class: 'button', onclick: () => on.reset() }, 'Reset');
-  const viewSwitch = h('span', { class: 'tf-view-switch' }); // the 2D | 3D switch goes here
   const timeText = h('span', { class: 'tf-pill tf-time' }, 'T+0.0');
   const phaseText = h('span', { class: 'tf-pill tf-phase' }, 'HEAD-TO-HEAD');
   const toolbar = h(
     'div',
     { class: 'tf-toolbar' },
-    playButton, resetButton, viewSwitch,
-    controls.select('playbackRate', { label: 'Playback speed', options: RATES }),
+    playButton, resetButton,
+    controls.select('playbackRate', { label: 'Playback speed', options: times(ALLOWED.playbackRate) }),
     timeText, phaseText,
   );
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
@@ -109,15 +101,13 @@ export function createLayout({ settings, controls, on }) {
   const canvas = h('canvas', { class: 'tf-topdown' });
   const profileCanvas = h('canvas', { class: 'tf-profile-canvas' });
   const profile = h('section', { class: 'tf-profile', 'aria-label': 'Side view', hidden: true }, profileCanvas);
-  const flat = h('div', { class: 'tf-flat' }, h('div', { class: 'tf-topdown-wrap' }, canvas), profile);
-  const slot3d = h('div', { class: 'tf-3d', hidden: true });
-  const drawing = h('div', { class: 'tf-drawing' }, flat, slot3d);
+  const views = h('div', { class: 'tf-views' }, h('div', { class: 'tf-topdown-wrap' }, canvas), profile);
   const stage = h(
     'section',
     { class: 'tf-stage', 'aria-label': 'Fight' },
     toolbar,
     stopped,
-    drawing,
+    views,
     h('p', { class: 'tf-footer' }, 'Simplified: constant speed and turn rate'),
   );
 
@@ -134,17 +124,12 @@ export function createLayout({ settings, controls, on }) {
 
   function showWarning(box, text) {
     if (box.warning.textContent !== (text ?? '')) box.warning.textContent = text ?? '';
-    box.warning.hidden = !text;
   }
 
   return {
     element,
     canvas,
     profileCanvas,
-    /** The stage's drawing area: `flat` holds the 2D views, `slot3d` is where a 3D view mounts. */
-    drawing: { element: drawing, flat, slot3d },
-    /** An empty spot on the toolbar, next to Play, for the 2D | 3D switch. */
-    viewSwitch,
     /** Shows the side view, and which controls go with each checkbox, from the settings. */
     applyLayout(values) {
       setupPanel.setCollapsed(!values.setupOpen);
@@ -165,6 +150,8 @@ export function createLayout({ settings, controls, on }) {
     setStopped(text) {
       stopped.textContent = text ?? '';
       stopped.hidden = !text;
+      // A disabled button drops keyboard focus, so Reset takes it first.
+      if (text && document.activeElement === playButton) resetButton.focus();
       playButton.disabled = Boolean(text);
     },
     get moreOpen() {

@@ -12,9 +12,6 @@
 import { createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { COLORS } from './view.js';
 
-/** The choices in the settings menu. */
-export const HEIGHT_SCALES = Object.freeze([1, 2, 4]);
-
 /** The height range never starts smaller than this (V6 `Math.max(1000, …)`). */
 export const MIN_HEIGHT_RANGE_FT = 1000;
 
@@ -122,9 +119,11 @@ export function drawProfile(ctx, size, run, scale) {
     ctx.beginPath();
     ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fill();
+    // The letter sits up and to the right of the dot; at the right edge it flips to the left, and never goes above the plot.
     ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(letter, x + 9, y - 7);
+    const flip = x + 9 + ctx.measureText(letter).width > size.width - 2;
+    ctx.textAlign = flip ? 'right' : 'left';
+    ctx.fillText(letter, flip ? x - 9 : x + 9, Math.max(y - 7, area.top + 12));
   }
 }
 

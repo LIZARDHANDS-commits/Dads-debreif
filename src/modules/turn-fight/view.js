@@ -105,7 +105,7 @@ function drawTrail(ctx, points, colour, project, now) {
 /**
  * Paints the whole top-down picture for a run ({ fight, trails }, see
  * playback.js) in a box of `size` CSS pixels. The canvas is cleared already;
- * its CSS background is V6's #071018.
+ * its CSS background is var(--bg-raised), V6's dark stage.
  */
 export function drawTopDown(ctx, size, run) {
   if (!(size.width > 0 && size.height > 0)) return;
@@ -155,8 +155,10 @@ export function drawTopDown(ctx, size, run) {
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = COLORS.nose;
+    // The words go in the bottom-right corner, like "Grid" at the bottom-left, so they never cover an aircraft or MERGE.
     ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(`FIRST NOSE — ${by.toUpperCase()}`, (x1 + x2) / 2 + 8, (y1 + y2) / 2 - 8);
+    ctx.textAlign = 'right';
+    ctx.fillText(`FIRST NOSE — ${by.toUpperCase()}`, size.width - 8, size.height - 8);
     ctx.restore();
   }
 
