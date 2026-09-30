@@ -94,3 +94,13 @@ test('Patrick 09:28Z: the shackle is a two-ship turn; a four-ship formation does
   assert.equal(checkSettings({ ...BASE, formation: 'twoShip' }).maneuver, 'shackle45');
   assert.equal(createRun({ ...BASE, formation: 'twoShip' }).state.maneuverFallback, null);
 });
+
+test('a short Duration does not cut the shackle off: the run lasts through the hold and the reversal (audit yellow)', () => {
+  for (const durationSec of [5, 20, 30]) {
+    const run = createRun({ ...BASE, formation: 'twoShip', durationSec });
+    while (run.step());
+    assert.equal(run.state.turnComplete, true, `Duration ${durationSec}: both aircraft finished`);
+    assert.ok(run.state.durationSec > 30, `Duration ${durationSec}: the run is ${run.state.durationSec.toFixed(1)} s, past the hold`);
+    for (const a of run.state.aircraft) assert.ok(Math.abs(a.headingRad - Math.PI / 2) < 2e-4, `Duration ${durationSec} #${a.id}: rolled out on the start heading`);
+  }
+});

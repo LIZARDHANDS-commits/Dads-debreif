@@ -98,3 +98,48 @@ test('a Duration longer than the plan needs is kept', () => {
   const run = createRun({ ...DEFAULTS, maneuver: 'inplace90', durationSec: 200 });
   assert.equal(run.state.durationSec, 200);
 });
+
+// Audit R2. The Auto clock position is the Delayed 90 cue (7 o'clock in a right turn: the second aircraft turns BEFORE the first passes
+// the tail, Fig 16.15). In the Delayed 45 (Fig 16.16) it turns AFTER the first has gone through the tail: 5 o'clock in a right turn, 7 in a
+// left. With the 90's cue the second aircraft turned early and ended near trail.
+test('the clock cue with Auto: the Delayed 45 waits for 4:30 in a right turn and 7:30 in a left (the figure\'s 5 and 7, nearest the 38.6 s that rolls out LAB), and ends in LAB on the 45 heading in every formation', () => {
+  const LAB_TOLERANCE_FT = 1000; // the cue tolerance is 4 degrees of bearing, about 400 ft of timing either way at 6,000 ft, plus the roll-in step
+  for (const formation of ['twoShip', 'weighted', 'weightedReverse', 'offsetBox']) {
+    for (const direction of ['right', 'left']) {
+      const label = `${formation} ${direction}`;
+      const { run, start } = fly({ ...BASE, timing: 'clock', clockCuePos: 'auto', formation, direction });
+      assert.equal(run.state.turnComplete, true, `${label}: all turned`);
+      const turn = direction === 'right' ? -1 : 1;
+      for (const a of run.state.aircraft) assert.ok(Math.abs(a.headingRad - (start[0].headingRad + turn * Math.PI / 4)) < 2e-4, `${label} #${a.id}: on the 45 heading`);
+      const ids = formation === 'twoShip' ? [2] : formation === 'offsetBox' ? [2] : [2, 3, 4];
+      for (const id of ids) {
+        const was = fromLead(start, id);
+        const now = fromLead(run.state.aircraft, id);
+        assert.ok(Math.abs(now.ahead) < LAB_TOLERANCE_FT, `${label} #${id}: ${now.ahead.toFixed(0)} ft ahead, want abreast`);
+        assert.ok(Math.sign(now.right) === -Math.sign(was.right), `${label} #${id}: sides swapped`);
+      }
+      const cue = run.state.aircraft[1].cue;
+      assert.equal(cue.clockPos, direction === 'right' ? 4.5 : 7.5, `${label}: the cue is ${cue.clockPos} o'clock`);
+    }
+  }
+});
+
+test('the clock cue with Auto for the Delayed 90 is unchanged: 7 o\'clock in a right turn, 5 in a left', () => {
+  for (const direction of ['right', 'left']) {
+    const run = createRun({ ...BASE, maneuver: 'delayed90away', turnDeg: 90, timing: 'clock', clockCuePos: 'auto', formation: 'twoShip', direction });
+    assert.equal(run.state.aircraft[1].cue.clockPos, direction === 'right' ? 7 : 5);
+  }
+});
+
+test('the clock cue: the run waits for every aircraft to turn, however short the Duration, up to a hard cap of 300 s (audit yellow)', () => {
+  for (const formation of ['twoShip', 'weighted']) {
+    const run = createRun({ ...BASE, formation, timing: 'clock', clockCuePos: 'auto', direction: 'right', durationSec: 20 });
+    while (run.step());
+    assert.equal(run.state.turnComplete, true, `${formation}: all turned though the Duration is 20 s`);
+  }
+  // A cue that never comes (a cue position the other aircraft never reaches) stops at the cap instead of running for ever.
+  const stuck = createRun({ ...BASE, formation: 'twoShip', timing: 'clock', clockCuePos: '1', direction: 'right', durationSec: 20 });
+  while (stuck.step());
+  assert.equal(stuck.state.turnComplete, false);
+  assert.ok(stuck.state.tSec >= 299 && stuck.state.tSec < 301, `stopped at ${stuck.state.tSec}`);
+});

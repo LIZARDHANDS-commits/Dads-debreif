@@ -44,7 +44,7 @@ function mayTurn(a, aircraft, tSec, flight) {
   if (flight.timing !== 'clock' || !a.cueArmed) return tSec >= a.turnStartSec;
   const target = a.autoClockTargetId ? aircraft.find((x) => x.id === a.autoClockTargetId) : cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
   if (!target || target.id === a.id) return tSec >= a.turnStartSec;
-  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, direction: flight.direction, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
+  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, direction: flight.direction, maneuver: flight.maneuver, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
 }
 
 /**

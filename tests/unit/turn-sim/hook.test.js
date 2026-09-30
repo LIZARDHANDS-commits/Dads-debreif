@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-const BASE = { ...DEFAULTS, maneuver: 'hook90', turnDeg: MANEUVER_TURN_DEG.hook90, startHeadingDeg: 0, durationSec: 60 };
+const BASE = { ...DEFAULTS, offsetBox4Timing: 'rearDelay', maneuver: 'hook90', turnDeg: MANEUVER_TURN_DEG.hook90, startHeadingDeg: 0, durationSec: 60 };
 const TOLERANCE_FT = 100;
 const fly = (settings) => { const run = createRun(settings); const start = run.state.aircraft.map((a) => ({ ...a })); while (run.step()); return { run, start }; };
 /** `id` from Lead in Lead's own frame at the end: feet to Lead's right and feet ahead. */

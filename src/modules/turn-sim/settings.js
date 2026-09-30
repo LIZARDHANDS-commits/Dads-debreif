@@ -120,7 +120,7 @@ export const DEFAULTS = Object.freeze({
   // after the front element has started. 'groundTrack' (Q44b, Patrick): #4 solves its own delay to roll out 3,000 ft
   // outside #2 and Box aft behind the front element. V6's 'late' (#3's delay + base delay) and 'early' (#3's delay - base
   // delay) stay as choices.
-  offsetBox4Timing: 'rearDelay',
+  offsetBox4Timing: 'boxSlot',
   // SMM 16.41 para 112a: in the offset box #3 and #4 delay 10 to 15 s after the front element turns, so they miss #1 and #2.
   // The middle of the band. Used by the hook (and, as its own commit, the delayed turns). V6: no delay for the hook.
   rearDelaySec: 12.5,
@@ -181,7 +181,7 @@ export const SETTINGS_RULES = Object.freeze({
   startHeadingDeg: number(0, 360), // compass degrees
   showNm: bool,
 
-  offsetBox4Timing: oneOf(['rearDelay', 'groundTrack', 'late', 'early']),
+  offsetBox4Timing: oneOf(['boxSlot', 'rearDelay', 'groundTrack', 'late', 'early']),
   rearCheckOn: bool,
   rearCheckStartSec: number(0, 600),
   rearCheckDir: oneOf(['left', 'right']),
@@ -277,6 +277,17 @@ export function turnProblem(formation, maneuver) {
   return null;
 }
 
+/** The check turn is through 30 degrees or less (SMM 16.19 para 58): the largest Turn degrees it takes. */
+export const CHECK_TURN_MAX_DEG = 30;
+
+/** Why the Turn degrees cannot be flown in this turn, or null: a check turn is 30 degrees at most (it goes back to 30). */
+export function turnDegProblem(maneuver, turnDeg) {
+  if (maneuver === 'check30' && turnDeg > CHECK_TURN_MAX_DEG) {
+    return `The check turn is ${CHECK_TURN_MAX_DEG} degrees at most (SMM 16.19 para 58): use In-place 90 for a bigger turn. Turn degrees is set to ${CHECK_TURN_MAX_DEG}.`;
+  }
+  return null;
+}
+
 /**
  * A clean settings object from anything: every key present, each value the
  * given one when it is good and the default otherwise, unknown keys dropped.
@@ -300,6 +311,7 @@ export function checkSettings(obj) {
     out.maneuver = DEFAULTS.maneuver;
     out.turnDeg = MANEUVER_TURN_DEG[DEFAULTS.maneuver];
   }
+  if (turnDegProblem(out.maneuver, out.turnDeg)) out.turnDeg = CHECK_TURN_MAX_DEG;
   return Object.freeze(out);
 }
 

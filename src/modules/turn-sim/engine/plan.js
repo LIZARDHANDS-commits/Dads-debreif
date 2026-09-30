@@ -148,6 +148,45 @@ export function searchDelayToTarget(a, dir, goalRad, target, speedFtps, radiusFt
 }
 
 /**
+ * +1 or -1: which side of Lead #2 ends on, across the final heading (+1 left of it), the side "outside #2" is on. Compared at one
+ * clock time, so a delay of d s takes v d off the final heading's ahead.
+ */
+function outsideSide(one, two, delayOneSec, delayTwoSec, dir, goalRad, speedFtps, radiusFt) {
+  const hNew = one.headingRad + dir * goalRad;
+  const at = (a, d) => {
+    const f = simulateDelayedTurnFinalPos(a, dir, goalRad, speedFtps, radiusFt, d);
+    return { x: f.xFt - Math.cos(hNew) * speedFtps * d, y: f.yFt - Math.sin(hNew) * speedFtps * d };
+  };
+  const p1 = at(one, delayOneSec);
+  const p2 = at(two, delayTwoSec);
+  return Math.sign(-(p2.x - p1.x) * Math.sin(hNew) + (p2.y - p1.y) * Math.cos(hNew)) || 1;
+}
+
+/** The midpoint of two aircraft's start positions. */
+function mid0(a, b) {
+  return { xFt: (a.xFt + b.xFt) / 2, yFt: (a.yFt + b.yFt) / 2 };
+}
+
+/**
+ * Seconds a rear aircraft turns after its front reference so it ends `aftFt` behind the reference, in the reference's final
+ * heading (the offset box's 'boxSlot' timing, audit R1). At the end of a turn of `dir * goalRad`, two aircraft that fly the same turn
+ * and differ only by `k` seconds of delay differ by k v (old heading - new heading) (the later one has flown k s longer on the old heading
+ * and k s less on the new). So the offset after the turn is e + k w with e the start offset from the reference and w = v (old - new);
+ * the least squares k for the wanted offset (aftFt straight behind on the new heading, and `leftFt` to its left) is
+ * ((want - e) . w) / (w . w). At the default box (aftFt aft, #3 in the middle, #4 3,000 ft outside #2) the wanted offset is on the line
+ * e + k w exactly, and k is aftFt / v for #3 and for #4 in a 90, whatever the turn angle for #3.
+ */
+export function boxSlotShiftSec(rear, ref, dir, goalRad, speedFtps, aftFt, leftFt = 0) {
+  const h = rear.headingRad;
+  const hNew = h + dir * goalRad;
+  const w = { x: speedFtps * (Math.cos(h) - Math.cos(hNew)), y: speedFtps * (Math.sin(h) - Math.sin(hNew)) };
+  const wantX = -aftFt * Math.cos(hNew) - leftFt * Math.sin(hNew) - (rear.xFt - ref.xFt);
+  const wantY = -aftFt * Math.sin(hNew) + leftFt * Math.cos(hNew) - (rear.yFt - ref.yFt);
+  const ww = w.x * w.x + w.y * w.y;
+  return ww < 1e-9 ? aftFt / speedFtps : (wantX * w.x + wantY * w.y) / ww;
+}
+
+/**
  * The offset box's delayed turn: each aircraft's delay in seconds (V6
  * `computeOffsetBoxPlan`, line 994). The front element goes first, far side
  * first (0 s), then the other one after the base delay; every aircraft turns
@@ -158,7 +197,7 @@ export function searchDelayToTarget(a, dir, goalRad, target, speedFtps, radiusFt
  *
  * aircraft: the active aircraft (xFt, yFt, headingRad, id).
  * cfg: { baseDelaySec, selectedDir, goalRad, direction ('right'|'left'), speedFtps, baseG, boxAftFt,
- *   startHeadingRad, rearDelaySec, timing4 ('rearDelay'|'groundTrack'|'late'|'early') }
+ *   startHeadingRad, rearDelaySec, timing4 ('boxSlot'|'rearDelay'|'groundTrack'|'late'|'early') }
  * Returns { delaysSec: { id: s }, dirs: { id: +1|-1 }, fitErrFt: { 3: ft, 4: ft } }: fitErrFt is how far #3 (and #4 when
  * by ground track) ends from its target at the solved delay.
  */
@@ -189,7 +228,12 @@ export function offsetBoxPlan(aircraft, cfg) {
   if (oneFinal && twoFinal) {
     const mid = { xFt: (oneFinal.xFt + twoFinal.xFt) / 2, yFt: (oneFinal.yFt + twoFinal.yFt) / 2 };
     const slotTarget = { xFt: mid.xFt - fwd.x * aftFt, yFt: mid.yFt - fwd.y * aftFt };
-    if (cfg.timing4 === 'rearDelay') {
+    if (cfg.timing4 === 'boxSlot') {
+      // The default (audit R1): each rear aircraft's delay ends it boxAftFt behind the front element in its slot, #3 between Lead
+      // and #2 (behind the pair's midpoint), #4 outside #2 (behind #2), in both directions (boxSlotShiftSec).
+      if (three) plan.delaysSec[3] = Math.max(0, ((plan.delaysSec[1] || 0) + (plan.delaysSec[2] || 0)) / 2 + boxSlotShiftSec(three, mid0(one, two), selectedDir, goalRad, speedFtps, aftFt));
+      if (four) plan.delaysSec[4] = Math.max(0, (plan.delaysSec[2] || 0) + boxSlotShiftSec(four, two, selectedDir, goalRad, speedFtps, aftFt, OFFSET_BOX_OUTSIDE_FT * outsideSide(one, two, plan.delaysSec[1] || 0, plan.delaysSec[2] || 0, selectedDir, goalRad, speedFtps, radiusFt)));
+    } else if (cfg.timing4 === 'rearDelay') {
       // SMM 16.41 para 112a and Figure 16.30 (default): the rear element flies the same delayed turn as the front element,
       // shifted by rearDelaySec: #3 starts that long after #1 and #4 after #2, so #4 turns on the standard LAB cue
       // from #3 whichever way the turn goes, and none starts before its front counterpart. V6 chained all four a base delay apart.
@@ -201,7 +245,7 @@ export function offsetBoxPlan(aircraft, cfg) {
       plan.delaysSec[3] = solved.delaySec;
       plan.fitErrFt[3] = solved.errFt;
     }
-    if (four && cfg.timing4 !== 'rearDelay') {
+    if (four && cfg.timing4 !== 'rearDelay' && cfg.timing4 !== 'boxSlot') {
       // V6 also worked out inner and outer targets for #4 here (lines 1035 to 1060) and never used them:
       // its selector alone (LATE or EARLY) set #4's delay. Q44b's ground track finishes what they started.
       const frontSecondDelay = Math.max(plan.delaysSec[1] || 0, plan.delaysSec[2] || 0);
@@ -373,6 +417,21 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
 
   let crossSolve = null;
+  // The hook in the box with the 'boxSlot' timing: the rear element turns about boxAftFt / speed after the front (they turn together)
+  // so the box stays in trail, instead of the fixed rearDelaySec (which left it 2,283 ft aft and #2 and #4 465 ft apart).
+  let hookRearDelaysSec = null;
+  if (man === 'hook90' && form === 'offsetBox' && flight.offsetBox4Timing === 'boxSlot') {
+    const front1 = aircraft.find((x) => x.id === 1);
+    const front2 = aircraft.find((x) => x.id === 2);
+    const v = ktToFtps(flight.speedKt);
+    const aft = Number.isFinite(+flight.boxAftFt) ? +flight.boxAftFt : 8000;
+    const r3 = aircraft.find((x) => x.id === 3);
+    const r4 = aircraft.find((x) => x.id === 4);
+    hookRearDelaysSec = {
+      3: r3 && front1 && front2 ? Math.max(0, boxSlotShiftSec(r3, mid0(front1, front2), selectedDir, goal, v, aft)) : flight.rearDelaySec,
+      4: r4 && front1 && front2 ? Math.max(0, boxSlotShiftSec(r4, front2, selectedDir, goal, v, aft, OFFSET_BOX_OUTSIDE_FT * outsideSide(front1, front2, 0, 0, selectedDir, goal, v, turnRadiusFt(v, Math.max(1.01, flight.baseG))))) : flight.rearDelaySec,
+    };
+  }
   for (const a of aircraft) {
     let d = 0;
     let dir = selectedDir;
@@ -409,7 +468,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       // The check turn (SMM para 58) is the in-place turn through 30 degrees or less: Turn degrees does the rest.
       if (man === 'hook90' || man === 'inplace90' || man === 'check30') { d = 0; dir = selectedDir; }
       // SMM 16.41 para 112a: in the offset box the rear element turns a delay after the front element (V6: all together).
-      if (man === 'hook90' && form === 'offsetBox' && (a.id === 3 || a.id === 4)) d = flight.rearDelaySec;
+      if (man === 'hook90' && form === 'offsetBox' && (a.id === 3 || a.id === 4)) d = hookRearDelaysSec ? hookRearDelaysSec[a.id] : flight.rearDelaySec;
 
       if (man === 'shackle45') {
         // The shackle (SMM 16.19 paras 61 and 62), a two-ship turn.
@@ -478,6 +537,6 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     crossSolve,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
-    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - offsetPlan.delaysSec[1], 4: offsetPlan.delaysSec[4] - offsetPlan.delaysSec[2] } : man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null,
+    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - offsetPlan.delaysSec[1], 4: offsetPlan.delaysSec[4] - offsetPlan.delaysSec[2] } : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null),
   };
 }
