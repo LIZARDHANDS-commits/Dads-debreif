@@ -63,8 +63,9 @@ export function createSettingsView({ settings }) {
 
 let nextRelayId = 1;
 
-// A text box for the relay's address, bound to the setting. Text goes straight to the setting as it is typed (checked and
-// trimmed when it is read); a message says when the address is not one the layer will use.
+// A text box for the relay's address, bound to the setting. The address is committed when the box is left or Enter is
+// pressed (the `change` event), never per keystroke: half-typed addresses such as https://relay.exam are valid origins,
+// and the layer would ask each of them. While typing, the message alone follows the text. It is checked and trimmed when read.
 function relayField(settings) {
   const id = `sof-relay-${nextRelayId++}`;
   const messageId = `${id}-message`;
@@ -73,15 +74,16 @@ function relayField(settings) {
     maxlength: MAX_RELAY_CHARS, placeholder: 'https://', 'aria-describedby': messageId,
   });
   const message = h('span', { class: 'control-message', id: messageId });
-  const show = (value) => {
-    if (input.value !== value) input.value = value;
+  const show = (value, { keepText = false } = {}) => {
+    if (!keepText && input.value !== value) input.value = value;
     const bad = value.trim() !== '' && !relayAccepted(value);
     if (bad) input.setAttribute('aria-invalid', 'true');
     else input.removeAttribute('aria-invalid');
     const text = bad ? 'Not used: it needs https:// and only the address, nothing after it.' : '';
     if (message.textContent !== text) message.textContent = text;
   };
-  input.addEventListener('input', () => settings.update({ trafficRelay: input.value }));
+  input.addEventListener('input', () => show(input.value, { keepText: true }));
+  input.addEventListener('change', () => settings.update({ trafficRelay: input.value }));
   show(settings.editing.get().trafficRelay);
   const stop = settings.editing.subscribe((values) => show(values.trafficRelay));
   return {

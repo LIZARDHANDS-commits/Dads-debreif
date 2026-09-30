@@ -515,6 +515,9 @@ export function createSofMap({ app, settings }) {
       }
       if (relay !== lastRelay) {
         lastRelay = relay;
+        // A new address starts the layer over: off drops the old relay's aircraft and cancels its request still out,
+        // and applyLayers turns it on again for the new one (or leaves it off when the address is not one we use).
+        trafficFeed.setOn(false);
         applyLayers();
         controls.sync({ layers, relay: relayOn(), adsbOn });
         view.requestDraw();

@@ -437,3 +437,34 @@ test('the picture is decoded against the box that was asked for, which is passed
   assert.deepEqual(w.state().image.coverage.bounds, box.bounds);
   w.stop();
 });
+
+// ---- A new relay address starts the layer over (Y3) ---------------------------------------------------------
+
+test('switching the layer off and on for a new relay address drops the old aircraft and the request still out, and asks the new address', async () => {
+  const { clock, f, feed, state } = traffic({ serve: { mode: 'hang' } });
+  feed.setOn(true);
+  await clock.settle();
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.requests[0].url.startsWith('https://relay.example.test/'), true);
+  // The address changes while that request is out: the map turns the layer off and on again.
+  state.relay = 'https://other.example.test';
+  state.mode = 'ok';
+  feed.setOn(false);
+  await clock.settle();
+  assert.equal(f.requests[0].init.signal.aborted, true, 'the old request is cancelled');
+  assert.equal(feed.view().status, 'off');
+  feed.setOn(true);
+  await clock.settle();
+  assert.equal(f.requests.length, 2);
+  assert.equal(f.requests[1].url.startsWith('https://other.example.test/traffic?'), true);
+  assert.ok(feed.view().count > 0);
+  // Changing the address again: the aircraft from the old one are gone at once, before the new one answers.
+  state.relay = 'https://third.example.test';
+  state.mode = 'hang';
+  feed.setOn(false);
+  feed.setOn(true);
+  await clock.settle();
+  assert.equal(feed.view().count, 0, 'no aircraft from the old relay');
+  assert.equal(f.requests.at(-1).url.startsWith('https://third.example.test/'), true);
+  feed.stop();
+});
