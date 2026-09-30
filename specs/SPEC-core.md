@@ -1,6 +1,6 @@
 # Spec: `core`, the shared flight math
 
-Status: **draft, waiting for Patrick's approval.** Module id `core` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-core approved", in the Flight math core thread). Changes go through a pull request. Module id `core` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
@@ -133,6 +133,5 @@ The tasks, checkpoints and risks are in [`tasks/flight-math/plan.md`](../tasks/f
 
 ## Open questions
 
-1. Approve this spec (Patrick).
-2. The tennis-ball solvers: which one the rebuild keeps (Patrick or Dad, after the second PR shows the difference).
-3. Guard against infinite input inside `core`, or only at the screen (see above)? The default is at the screen only.
+1. The tennis-ball solvers: which one the rebuild keeps (Patrick or Dad, after the second PR shows the difference).
+2. Guard against infinite input inside `core`, or only at the screen (see above)? The default is at the screen only.

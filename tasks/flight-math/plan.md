@@ -26,7 +26,8 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 - [x] `node --test "tests/**/*.test.js"` passes (51 tests)
 - [x] Mutation check: 56 of 58 caught, 2 equivalent
 - [x] Browser check: Chromium matches Node (25 of 10,517 differ in the last digit, all trig)
-- [ ] Patrick approves SPEC-core.md and this plan, then merges PR #51
+- [x] Patrick approves SPEC-core.md (2026-09-30)
+- [ ] Patrick merges PR #51 (after #52 and #54)
 
 ### Phase 2: turn performance (PR 2)
 - [ ] Task 6: turn radius, turn rate and bank from G
