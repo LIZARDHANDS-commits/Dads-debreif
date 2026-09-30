@@ -1,6 +1,6 @@
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23) is a draft addition** for Patrick to approve (see Energy mode); the rest of the spec stays approved. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) is a draft addition** for Patrick to approve (see Energy mode); the rest of the spec stays approved. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
 
@@ -187,9 +187,9 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 - With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
 - Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
-## Energy mode (FF23, draft for Patrick to approve)
+## Energy mode (FF23, D112, draft for Patrick to approve)
 
-Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bring the future feature "climbing and diving turns" (FF23) into this spec as an **Energy** mode. It gets built at the Turn Fight's turn, after the simple fight. It's new flight math, so it needs his approval words before it merges, and Dad checks the result against how the Harvard flies. The D number comes from the plan doc.
+Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bring the future feature "climbing and diving turns" (FF23) into this spec as an **Energy** mode. It gets built at the Turn Fight's turn, after the simple fight. The plan doc logs it as D112 (which also answers the manuals' Q68). It's new flight math, so it needs his approval words before it merges, and Dad checks the result against how the Harvard flies. Its numbers come from the flying manuals index (`/mnt/project-files/manuals/`, private; only numbers and references go in the repo).
 
 ### What it's for
 
@@ -198,27 +198,27 @@ In the simple fight, speed never changes. In a real T-6, pulling more G than the
 ### The screen
 
 - **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
-  - **Start altitude**, shared, default 10,000 ft pressure altitude.
+  - **Start altitude**, shared, default 10,000 ft pressure altitude, the altitude the SMM's entry speeds assume (SMM 14.5 para 10).
   - For Blue and Red: **start speed** in KIAS (default 220) and **move** (default Level turn).
-- **More energy settings** (collapsed): hard deck (default 5,000 ft pressure altitude, about 3,000 ft above Moose Jaw's 1,892 ft field, after Gen Book p.11's 3,000 ft AGL), roll rate (default 90°/s), and the bank used by Pitch back (45°) and Slice (135°).
+- **More energy settings** (collapsed): hard deck (default 6,000 ft MSL: 3,000 ft AGL in the Moose Jaw areas, SMM 14.6-14.7), soft deck (default 7,000 ft, at least 1,000 ft above the hard deck), the Hold best turn speed target (default 160 KIAS, SMM 14.3 para 6), roll rate (default 90°/s), the G for Pitch back, Immelmann and Split S (default 4 G, SMM Table 14.1), and the bank used by Pitch back (45°) and Slice (135°).
 - **Result** adds each aircraft's KIAS, altitude and G. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
 - **Side view:** the side-view panel shows altitude against time for both aircraft, with the hard deck as a line. It needs no height scale, because the heights are real.
-- **Flags** in the result card, words plus colour: AT STALL LIMIT, OVER VMO (316 KIAS), BELOW HARD DECK. The fight pauses with a message if an aircraft goes below the hard deck, or drops below 60 KIAS.
+- **Flags** in the result card, words plus colour: AT STALL LIMIT, OVER VMO (316 KIAS), BELOW SOFT DECK, BELOW HARD DECK, and ENTRY SPEED when a move starts outside its SMM entry speed (for example "Split S at 220 KIAS; SMM entry 100 to 120"). The fight pauses with a message if an aircraft goes below the hard deck, or drops below 60 KIAS.
 
 ### The moves (picked per aircraft, applied from the merge)
 
 The user picks each aircraft's move. There's no automatic tactics; that's a later feature. Each move is the pilot's bank and G, with the aircraft's turn direction taken from the fight type (1-circle or 2-circle), as in the simple fight.
 
-| Move | What the pilot does |
-|---|---|
-| Level turn | Pulls the most G available and banks to hold the nose on the horizon (G × cos bank = 1). Speed bleeds while that G is above what the T-6 can sustain |
-| Hold best turn speed | Pulls hard until it reaches the speed of its best sustained turn rate, then eases to the G it can sustain there, level (EFIG p.428 and 430 describe the max-performance turn) |
-| Pitch back | Lift vector above the horizon (default 45° bank), most G available: a nose-high turn that trades speed for height |
-| Slice | Lift vector below the horizon (default 135° bank), most G available: a nose-low turn that trades height for speed and rate |
-| Immelmann | Wings level, most G available, up through the vertical to inverted, then rolls upright and flies a level turn |
-| Split S | Rolls inverted, most G available, down through the vertical to level, then flies a level turn |
+| Move | What the pilot does | SMM entry speed (Table 14.1, at about 10,000 ft) |
+|---|---|---|
+| Level turn | Pulls the most G available and banks to hold the nose on the horizon (G × cos bank = 1). Speed bleeds while that G is above what the T-6 can sustain | none |
+| Hold best turn speed | Pulls the most G available until it slows to the target speed (160 KIAS, the SMM's training max-performance point, 17 units AOA, 14.3 para 6 and 14.4 para 8), then eases to the G that holds that speed, level | none |
+| Pitch back | Lift vector above the horizon (default 45° bank) at about 4 G: a nose-high turn that trades speed for height | 160 to 220 KIAS |
+| Slice | Lift vector below the horizon (default 135° bank), most G available: a nose-low turn that trades height for speed and rate | 100 to 160 KIAS |
+| Immelmann | Wings level at about 4 G, up through the vertical to inverted, then rolls upright and flies a level turn | 200 to 250 KIAS |
+| Split S | Rolls inverted, about 4 G, down through the vertical to level, then flies a level turn | 100 to 120 KIAS |
 
-"Most G available" is the smallest of: +7 G, the stall limit at the current speed, and +4.7 G while the bank is still changing (the rolling limit). Bank changes at the roll rate, never instantly.
+All at maximum power, as in the SMM. "Most G available" is the smallest of: +7 G, the stall limit at the current speed, and +4.7 G while the bank is still changing (the rolling limit). Bank changes at the roll rate, never instantly.
 
 ### The model (T-6A, point mass)
 
@@ -246,7 +246,7 @@ The user picks each aircraft's move. There's no automatic tactics; that's a late
 
 ### For Dad to check
 
-The defaults above that no manual gives, each a setting: the stall speed (86 kt from the V-n diagram, or about 83 kt from the turn chart), the roll rate (90°/s), the Pitch back and Slice banks (45° and 135°), the hard deck (5,000 ft) and the start altitude (10,000 ft). Then a run of each move against how the Harvard really flies. Until he answers, the defaults stand.
+The defaults above that no manual gives, each a setting: the stall speed (86 kt from the V-n diagram, or about 83 kt from the turn chart), the roll rate (90°/s), and the Pitch back and Slice banks (45° and 135°). Then a run of each move against how the Harvard really flies. Until he answers, the defaults stand.
 
 ### What stays the same
 
