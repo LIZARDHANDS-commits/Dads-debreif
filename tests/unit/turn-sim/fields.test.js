@@ -56,6 +56,8 @@ test('the offset box band lines say in the band or outside it, and are null with
   assert.equal(offsetBandLines({ offsetBox: null }), null);
   const lines = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12.5, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } });
   assert.deepEqual(lines.map((l) => [l.id, l.outside, l.text]), [[3, false, '12.5 s, in the 10-15 s band'], [4, true, '18.0 s, outside 10-15 s']]);
+  const solved = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 26.9, outsideBand: true }] } }, 'boxSlot');
+  assert.equal(solved[0].text, '26.9 s, outside the SMM 10-15 s; solved so the box keeps its shape');
 });
 
 test('the cross turn note says the second-half G and the roll-out spacing, and flags a clamp', async () => {

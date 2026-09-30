@@ -266,16 +266,17 @@ export function crossTurnNote(state) {
 
 /**
  * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
- * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag).
+ * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag). With `timing` 'boxSlot' the delays are
+ * solved to keep the box's shape, so an outside delay is not an error and the flag says so.
  */
-export function offsetBandLines(state) {
+export function offsetBandLines(state, timing = null) {
   const box = state?.offsetBox;
   if (!box) return null;
   const band = `${box.minSec}-${box.maxSec} s`;
   return box.rear.map((r) => ({
     id: r.id,
     outside: Boolean(r.outsideBand),
-    text: `${r.delaySec.toFixed(1)} s, ${r.outsideBand ? 'outside' : 'in the'} ${band}${r.outsideBand ? '' : ' band'}`,
+    text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : timing === 'boxSlot' ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
   }));
 }
 
@@ -308,7 +309,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
-    offsetBand: offsetBandLines(state),
+    offsetBand: offsetBandLines(state, settings.offsetBox4Timing),
     crossNote: crossTurnNote(state),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,

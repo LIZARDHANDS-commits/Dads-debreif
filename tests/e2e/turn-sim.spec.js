@@ -609,8 +609,8 @@ test('the SMM settings sit in the closed Turn Sim settings menu, each at its def
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, "#2's side")).toBeHidden();
   await expect(box(page, 'Rear element delay')).toHaveValue('12.5');
-  await expect(box(page, '#4 timing').locator('option')).toHaveText(['Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
-  await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Rear element delay (SMM)');
+  await expect(box(page, '#4 timing').locator('option')).toHaveText(['Fly to the box slot (solved)', 'Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
+  await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Fly to the box slot (solved)');
   await expect(box(page, 'Wait for #3 and #4 to finish turning')).toBeChecked();
   await expect(box(page, 'Rear element check')).not.toBeChecked();
   // The cross turn.
@@ -626,9 +626,13 @@ test('the offset box shows #3 and #4 delays against the 10-15 s band in More det
   await panel(page, 'More detail').click();
   const band = page.locator('.ts-detail li', { hasText: /^#[34] .* s, / });
   await expect(band).toHaveCount(2);
-  await expect(band.first()).toHaveText('#3 12.5 s, in the 10-15 s band');
-  // A rear delay of 20 s is outside the band.
+  // The default, the solved box slot, needs about 27 s and 38 s in a right turn: outside the SMM band, and the flag says it is on purpose.
+  await expect(band.first()).toHaveText(/^#3 \d+\.\d s, outside the SMM 10-15 s; solved so the box keeps its shape$/);
+  await expect(band.first()).toHaveClass(/tone-caution/);
+  // The SMM's fixed rear delay: 12.5 s is in the band, and 20 s is outside it.
   await panel(page, 'Turn Sim settings').click();
+  await box(page, '#4 timing').selectOption({ label: 'Rear element delay (SMM)' });
+  await expect(band.first()).toHaveText('#3 12.5 s, in the 10-15 s band');
   await box(page, 'Rear element delay').fill('20');
   await expect(page.locator('.ts-detail li', { hasText: 'outside 10-15 s' }).first()).toBeVisible();
   // Not in the offset box: no band lines.

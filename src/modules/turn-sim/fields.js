@@ -23,7 +23,7 @@ const OPTION_LABELS = {
   clockTarget: { global: 'Same as setup', 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueAircraft: { 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueSequence: { outsideIn: 'Outside-in', manual: 'Manual targets' },
-  offsetBox4Timing: { rearDelay: 'Rear element delay (SMM)', groundTrack: 'Solve by ground track', late: 'Late (V6)', early: 'Early (V6)' },
+  offsetBox4Timing: { boxSlot: 'Fly to the box slot (solved)', rearDelay: 'Rear element delay (SMM)', groundTrack: 'Solve by ground track', late: 'Late (V6)', early: 'Early (V6)' },
   twoSide: { left: 'Left', right: 'Right' },
   rearCheckDir: { left: 'Left', right: 'Right' },
   correction: { none: 'None', lag: 'Lag to regain spacing', lead: 'Lead to close spacing', gfix: 'G adjustment' },
