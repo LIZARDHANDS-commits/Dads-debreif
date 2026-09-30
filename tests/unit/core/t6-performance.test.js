@@ -150,7 +150,7 @@ function sustainedRate(kias, altFt, stallKias = T6A_LIMITS.stallKias) {
 }
 
 // More points off Fig 4-10-1, read by pixel in the independent check (verification/core.md, Table 1):
-// the speeds between the chart points above, where the curves fall steeply. [KIAS, ft, °/s]
+// 175, 230 and 250 KIAS, where the curves fall steeply, and fresh reads at 200 KIAS. [KIAS, ft, °/s]
 const PIXEL_POINTS = [
   [200, 0, 15.36], [230, 0, 11.46], [250, 0, 7.32], [200, 5000, 13.35], [250, 5000, 4.51],
   [200, 10000, 11.5], [175, 15000, 11.9], [200, 15000, 9.75], [200, 20000, 6.86],
@@ -177,8 +177,8 @@ test('turn rate against the chart, sea level to 15,000 ft: within 0.65°/s, or 3
   assert.ok(!(Math.abs(sustainedRate(256.6, 0) - 4.48) <= 0.65) && reachesWithin(256.6, 0, 4.48, 3));
 });
 
-test('turn rate against the chart, 20,000 ft and up: a known shortfall, up to 0.95°/s low above 175 KIAS', () => {
-  // Kept as it is (a judgement call logged for review): the Turn Fight flies at 15,500 ft and below.
+test('turn rate against the chart, 20,000 ft and up: a known shortfall, up to 0.95°/s low from 175 KIAS', () => {
+  // Kept as it is (a judgement call logged for review): the MTCA working blocks are 6,000 to 15,500 ft.
   for (const [kias, alt, rate] of [...T6A_TURN_150_200, ...PIXEL_POINTS].filter(([, a]) => a >= 20000)) {
     const miss = sustainedRate(kias, alt) - rate;
     const allowed = kias <= 150 ? 0.4 : 0.95;
@@ -196,7 +196,7 @@ test('zero sustained turn: the model reaches it within 6 kt of each chart line',
 });
 
 test('the tops of the chart lines: within 0.35°/s with an 83 kt stall, and 1.1 to 1.6°/s low with the 86 kt default', () => {
-  for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT.filter(([, a]) => [0, 10000, 20000, 31000].includes(a))) {
+  for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
     const at83 = sustainedRate(kias, alt, 83) - rate;
     const at86 = sustainedRate(kias, alt, 86) - rate;
     assert.ok(Math.abs(at83) <= 0.35, `${alt} ft at 83 kt: ${at83.toFixed(2)}°/s`);
