@@ -73,7 +73,9 @@ export function clockPosHours(a, globalClockPos, direction) {
  *         'waiting' (watching targetId for clockPos), 'triggered' (the cue came, or the aircraft is already turning)
  *   targetId: the aircraft it watches, or null
  *   clockPos: the position it watches for, in hours (5.5 is 5:30)
- *   cantSee: true for #3 and #4 in the offset box at 5:30, which V6 never turns (issue #16, Q44c); the screen says so.
+ *   cantSee: true for #3 and #4 in the offset box whenever they have an aircraft to watch, at any clock position: the
+ *   cue aircraft is ahead of them and they never see it come to the position, so they never turn (issue #16, Q44c; V6 warned
+ *   at 5:30 only, and the Auto position, 7 or 5 o'clock, got no warning). The screen says so.
  *
  * `aircraft` is an internal aircraft; cue: { timing, clockCuePos, direction, formation }.
  */
@@ -82,5 +84,5 @@ export function cueStatus(a, cue) {
   if (cue.timing !== 'clock') return { mode: 'off', targetId: null, clockPos, cantSee: false };
   const targetId = a.autoClockTargetId || null;
   const mode = !targetId ? 'start' : a.clockCueTriggered || a.active || a.done ? 'triggered' : 'waiting';
-  return { mode, targetId, clockPos, cantSee: cue.formation === 'offsetBox' && (a.id === 3 || a.id === 4) && targetId !== null && clockPos === 5.5 };
+  return { mode, targetId, clockPos, cantSee: cue.formation === 'offsetBox' && (a.id === 3 || a.id === 4) && targetId !== null };
 }
