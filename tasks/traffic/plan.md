@@ -6,13 +6,14 @@ Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), approved by Patric
 
 | Needed for | What | Owner |
 |---|---|---|
-| Any code | Patrick approves the spec, and the coordinator says it's the Traffic Sim's turn (after the debrief, the Turn Sim and the Turn Fight) | Patrick, coordinator |
+| Any code | Patrick approved the spec (2026-09-30 06:43Z); the coordinator says it's the Traffic Sim's turn (after the debrief, the Turn Sim and the Turn Fight) | Patrick, coordinator |
 | Tasks 1 and 2 | Nothing new from `core`: `ktToFtps`, `limitG`, `turnRadiusFt`, `bankDegFromG`, `unitVectorFromCompassDeg` and `lonLatToWorldPixel` are merged and pinned against the Traffic page's copies | Flight math core thread (done) |
 | Tasks 4 to 8 | ui-kit `createControls`, `createPanel`, `createCanvasView`, `createCanvasSurface`, `h` (merged) | App frame thread (done) |
 | Task 4 | The module's `load` in `src/shell/registry.js`, and `tests/e2e/traffic.spec.js` | App frame thread, through the coordinator |
 | Task 4 | `app.airfields.home()` for the home field (merged) | App frame thread (done) |
 | Task 8 | The debrief's satellite tile loader moved into `ui-kit` | Debrief and app frame threads, through the coordinator |
-| Task 10 | `windTriangle` in `src/core/wind.js`, with known-answer tests (drafted as PR #100, held until this spec is approved; its `groundTurnG` isn't needed now turns hold a steady bank) | Flight math core thread, through the coordinator |
+| Task 10 | `windTriangle` in `src/core/wind.js`, with known-answer tests (merged, #120) | Flight math core thread (done) |
+| Tasks 10, 17 and 23 | `core`'s shared T-6A performance model: `iasToTasKt`, `T6A_GLIDE`, `glideSinkFpm`, `zoomT6A` (SPEC-core, "API, fifth PR"; core tasks 14 to 17, built at the Turn Fight's turn) | Flight math core thread, through the coordinator |
 | Task 12 | T2 to T6 answered by Patrick (2026-09-30); T1 (decision points) waits on his word, T5b and T6b on Dad; each defaults as the spec says | Patrick, Dad |
 | Task 14 | Patrick and Dad at the screen to redraw the Moose Jaw routes over the true-scale photo, and their list of ground references (T8) | Patrick, Dad |
 
