@@ -41,7 +41,7 @@ The screen follows Patrick's rule (2026-09-30, R22): show the essentials by defa
 │                     ││          map or 3D view               ││ Lead 201 kt est IAS │
 │ ▸ Save, open, CSV   ││                                       ││ ▸ More detail       │
 │                     ││                                       ││ DFPs  + Add         │
-│                     ││ ▶ −1s +1s  1× ▾  ──●──── 14:32:07Z    ││ ▸ Standards         │
+│                     ││ ▶ −1s +1s  1× ▾  ──●──── 14:32:07Z    ││ ▸ Debrief settings  │
 └─────────────────────┘└───────────────────────────────────────┘└─────────────────────┘
 ```
 
@@ -52,7 +52,7 @@ The screen follows Patrick's rule (2026-09-30, R22): show the essentials by defa
 | Playback bar: Play/Pause, step ±1 s, speed, scrubber, the time in the shared Zulu/local order | Reset and the second time zone sit in the bar's small "more" menu at 1366 px wide, and show at full width on bigger screens |
 | **Formation** card: one line per wingman (standards label and the one number that's off), one line for Lead (est. IAS and G against the lead standard) | **More detail**: altitude, speed, G, pitch and bank with their sources, lat/lon, aspect, HCA, closure, and spacing for every pair |
 | DFPs: the list and "+ Add" | Each DFP's note opens when its row is opened |
-| | **Standards**: the editor with the preset and Reset |
+| | **Debrief settings** (ui-kit's settings menu, the screen's one closed menu of tuning numbers): the standards editor with the preset and Reset |
 | | **Tools** menu: EM chart, Tennis ball. Each opens its own panel and closes it again |
 | | **Save, open, CSV**: Save debrief, Open debrief, Export CSV, example downloads |
 | | **3D settings** (in 3D only): camera, altitude ×, model, plane size, labels, trail, ground and grid options, Reset view |
@@ -130,7 +130,7 @@ The right column shows, for the current time, the same panels in both views. By 
 
 - **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47). Pitch and G are worked out from the track's own motion by default, because the iPad's recorded pitch and G look like the tablet tilting; recorded bank is still used (D47, Patrick answering Q32). If `flight-data` later adds an option to reference the iPad's attitude to a straight-and-level or on-the-runway baseline, the debrief shows it as a setting, and latitude/longitude (interpolated, D51).
 - **Aspect, HCA and closure versus Lead**, and **spacing** for every pair. Each range says whether it is **horizontal** or **3D** (#18, SPEC.md). The numbers stay V6's (D29).
-- **Standards**: the spread, offset and lead standards, editable, with a one-click reset to the default preset (R18, D23). The default preset is the SMM's (D114 to D116, core's `DEFAULT_STANDARDS`): spread 4,000 to 6,000 ft with 0 to 10° of sweep behind the 3/9 line of the aircraft the interval is measured from ("AFT by 7°"), #3 7,000 ± 1,000 ft back, and Lead 220 kt in the low block and 200 kt in the mid block, the target picked from Lead's altitude and shown on the Lead line. V6's values stay in core as `V6_STANDARDS`, pinned by the golden tests. They are saved with the module's settings and in the debrief file.
+- **Standards**, in the closed **Debrief settings** menu (ui-kit `createSettingsMenu`, R22): the spread, offset and lead standards, editable, with a one-click reset to the default preset (R18, D23). The default preset is the SMM's (D114 to D116, core's `DEFAULT_STANDARDS`): spread 4,000 to 6,000 ft with 0 to 10° of sweep behind the 3/9 line of the aircraft the interval is measured from ("AFT by 7°"), #3 7,000 ± 1,000 ft back, and Lead 220 kt in the low block and 200 kt in the mid block, the target picked from Lead's altitude and shown on the Lead line. V6's values stay in core as `V6_STANDARDS`, pinned by the golden tests. They are saved with the module's settings and in the debrief file.
 - **Lead desired parameters** compare **est. IAS** with the target (V6's 200 kt; the SMM's 220 low / 200 mid, D115), not ground speed (D31).
 
 Standards fixes from #21 (the classifier itself is `core/standards.js`, core PR 3):

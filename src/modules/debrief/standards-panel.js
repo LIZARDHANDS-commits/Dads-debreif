@@ -1,11 +1,12 @@
-// The Standards panel (R18, D23): the spread, offset and lead standards,
-// each with an on/off box and its numbers, and a reset to the default preset
-// (the SMM's numbers, D114 to D116, once app.standards starts from them). It
-// edits the app's one shared copy (app.standards), which the Turn Sim reads
-// too (D89). Closed by default (R22). A value outside its limits is refused
-// with a message under its box; the saved standard stays as it was.
+// The Debrief settings menu (R22): the screen's one closed menu of tuning
+// numbers, built on ui-kit's settings menu like every module's. It holds the
+// standards (R18, D23): spread, offset and lead, each with an on/off box and
+// its numbers, and a reset to the default preset (the SMM's numbers, D114 to
+// D116). It edits the app's one shared copy (app.standards), which the Turn
+// Sim reads too (D89). A value outside its limits is refused with a message
+// under its box; the saved standard stays as it was.
 import { h } from '../../ui-kit/dom.js';
-import { createPanel } from '../../ui-kit/panel.js';
+import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { standardsSummaryLines } from '../../core/standards.js';
 
 const GROUPS = [
@@ -22,13 +23,20 @@ let nextId = 1;
  * Returns { element, setCollapsed, dispose }.
  */
 export function createStandardsPanel({ standards, layout }) {
-  const panel = createPanel({ title: 'Standards', collapsed: !layout.get().standardsOpen, onToggle: (collapsed) => layout.update({ standardsOpen: !collapsed }) });
-  panel.element.classList.add('standards-panel');
+  const menu = createSettingsMenu({
+    title: 'Debrief settings',
+    collapsed: !layout.get().standardsOpen,
+    onToggle: (collapsed) => layout.update({ standardsOpen: !collapsed }),
+    onReset: () => standards.reset(),
+    resetLabel: 'Reset to the default standards',
+  });
+  menu.element.classList.add('standards-panel');
   const summary = h('ul', { class: 'detail-lines standards-summary', 'aria-label': 'Standards in use' });
   const boxes = []; // { group, key, input, message }
   const switches = []; // { group, input }
 
-  const fieldsets = GROUPS.map(({ key: group, title, on }) => {
+  menu.body.append(summary);
+  for (const { key: group, title, on } of GROUPS) {
     const id = `std-${nextId++}`;
     const toggle = h('input', { type: 'checkbox', id: `${id}-on` });
     toggle.addEventListener('change', () => standards.update({ [group]: { on: toggle.checked } }));
@@ -58,17 +66,10 @@ export function createStandardsPanel({ standards, layout }) {
         message,
       );
     });
-    return h(
-      'fieldset',
-      { class: 'standards-group' },
-      h('legend', {}, title),
-      h('div', { class: 'control control-checkbox' }, toggle, h('label', { for: toggle.id }, on)),
-      fields,
-    );
-  });
-
-  const reset = h('button', { type: 'button', class: 'button', onclick: () => standards.reset() }, 'Reset to the default standards');
-  panel.body.append(summary, ...fieldsets, reset);
+    const section = menu.section(title);
+    section.classList.add('standards-group');
+    section.append(h('div', { class: 'control control-checkbox' }, toggle, h('label', { for: toggle.id }, on)), ...fields);
+  }
 
   function sync(values) {
     summary.replaceChildren(...standardsSummaryLines(values).map((line) => h('li', {}, line)));
@@ -84,8 +85,8 @@ export function createStandardsPanel({ standards, layout }) {
   const stop = standards.subscribe(sync);
 
   return {
-    element: panel.element,
-    setCollapsed: panel.setCollapsed,
+    element: menu.element,
+    setCollapsed: menu.setCollapsed,
     dispose: stop,
   };
 }
