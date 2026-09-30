@@ -24,14 +24,6 @@ const CROSSING_TURNS = new Set(['shackle45', 'cross180']);
 
 export const STALL_G_WARNING = 'More G than a T-6 can pull at this speed';
 
-/**
- * Each turn's own degrees: V6's boxes fill Turn degrees in when the turn changes
- * (updateManeuverDefaults, line 2030). The check turn is SMM item 1, not built yet.
- */
-export const TURN_DEGREES = Object.freeze({
-  delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90,
-});
-
 const MINUS = '−';
 
 /** 6420 -> "6,420 ft", with a real minus sign. */

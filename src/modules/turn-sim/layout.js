@@ -156,6 +156,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     groups[id] = fieldset;
   }
   section('turn', 'Turn and run', [TURN_DEG, DURATION, MOA]);
+  const turnDegInput = groups.turn.querySelector('input[type=number]'); // the first box in Turn and run
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING], 'Used when Formation is the offset box.');
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
   // The Correction model is a checkbox, off by default (Q41). On, it opens the model (G adjustment first, as it is
@@ -286,6 +287,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     groups.clock.hidden = values.timing !== 'clock';
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
+    if (turnDegInput) turnDegInput.max = values.maneuver === 'check30' ? '30' : '180'; // the check turn is 30 degrees or less (SMM 16.19 para 58)
     correctionOn.checked = values.correction !== 'none';
     for (const el of correctionBoxes) el.hidden = values.correction === 'none';
     // A two-ship has no #3 or #4 to give errors to, and position boxes show when the position error is on.

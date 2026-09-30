@@ -14,7 +14,7 @@ const field = (key, meta) => ({ key, ...meta });
 const OPTION_LABELS = {
   formation: { weighted: '4312', weightedReverse: '2134', offsetBox: 'Offset box', twoShip: 'Two-ship' },
   maneuver: {
-    delayed90away: 'Delayed 90', delayed45away: 'Delayed 45', hook90: 'Hook turn', inplace90: 'In-place 90', shackle45: 'Shackle', cross180: 'Cross turn',
+    delayed90away: 'Delayed 90', delayed45away: 'Delayed 45', hook90: 'Hook turn', inplace90: 'In-place 90', check30: 'Check turn', shackle45: 'Shackle', cross180: 'Cross turn',
   },
   direction: { right: 'Right', left: 'Left' },
   timing: { time: 'Time delay', clock: 'Clock position cue', auto: 'Auto timing' },

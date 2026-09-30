@@ -544,6 +544,17 @@ test('a setup change made in 3D still fits the 2D picture when 2D comes back (au
   await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
 });
 
+test('the Check turn is in the Turn menu with 30 degrees, and the hook is 180 (SMM items 1 and 4)', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Turn').selectOption({ label: 'Check turn' });
+  await expect(box(page, 'Turn degrees')).toHaveValue('30');
+  await expect(box(page, 'Turn degrees')).toHaveAttribute('max', '30');
+  await box(page, 'Turn').selectOption({ label: 'Hook turn' });
+  await expect(box(page, 'Turn degrees')).toHaveValue('180');
+  await expect(box(page, 'Turn degrees')).toHaveAttribute('max', '180');
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {
