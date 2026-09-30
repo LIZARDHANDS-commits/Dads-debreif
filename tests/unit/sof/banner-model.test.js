@@ -11,6 +11,7 @@ import { buildScreen } from '../../../src/modules/sof/screen-model.js';
 import {
   buildBanner, acksAfterOne, acksAfterAll, newKeys, tafInputs, ACKS_KEY,
 } from '../../../src/modules/sof/banner-model.js';
+import { buildWaves } from '../../../src/modules/sof/waves-view-model.js';
 import { HOME_TAF } from '../../fixtures/sof/reports.js';
 
 const NOW = new Date('2026-09-29T18:42:00Z');
@@ -177,4 +178,19 @@ test('the banner says whether what is stored has to change, so the screen writes
   const acks = acksAfterAll(first);
   assert.equal(banner({ metars, acks }).write, false, 'unchanged');
   assert.equal(banner({ metars: FINE, acks }).write, true, 'the cleared caution is pruned from what is stored');
+});
+
+// ---- One line for one caution, however many looks at the TAF found it -------------------------------------------
+
+test('two FM groups with the same fog, seen by the banner window and by a wave, are one line', () => {
+  const raw = 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM SKC FM292000 22010KT 1/2SM FG VV002 FM300000 22010KT 1/4SM FG VV001';
+  const reports = { CYMJ: parseTaf(raw, { now: NOW }) };
+  const fields = airfields();
+  const wavePlan = { version: 1, day: 'today', dayChosen: null, waves: [{ id: 'w1', name: '', takeoff: '12:30', land: '16:00' }] };
+  const waves = buildWaves({ plan: wavePlan, airfields: fields, tafs: reports, limits: LIMITS, now: NOW, timeZone: ZONE });
+  const snapshot = { metar: FINE, taf: { CYMJ: taf(raw) }, newestAt: NOW, lastRound: null, busy: false, stopped: false };
+  const cards = buildScreen({ airfields: fields, snapshot, limits: LIMITS, now: NOW }).cards;
+  const b = buildBanner({ cards, tafs: tafInputs({ tafs: reports, calls: waves.calls, homeIcao: 'CYMJ', now: NOW, timeZone: ZONE }), now: NOW, timeZone: ZONE });
+  const fog = b.lines.filter((l) => /FG/.test(l.text));
+  assert.equal(fog.length, 1, fog.map((l) => l.text).join(' | '));
 });

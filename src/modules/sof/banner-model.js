@@ -19,7 +19,16 @@ const SYMBOL = { below: '▼', caution: '⚠' };
  * wx's parsed TAF (or null); `calls` is `waveCalls`' answer; `homeIcao` names home.
  */
 export function tafInputs({ tafs, calls = [], homeIcao, now, timeZone }) {
-  return [...tafCautionsForBanner({ tafs, now, timeZone }), ...tafResultsOfWaves(calls, homeIcao)];
+  // One result per airfield, its pieces from every look at its TAF. cautions.js joins the pieces of a group into one
+  // caution over their whole span; looked at one result at a time, the same fog would be a line for each look.
+  const byIcao = new Map();
+  for (const { icao, result } of [...tafCautionsForBanner({ tafs, now, timeZone }), ...tafResultsOfWaves(calls, homeIcao)]) {
+    const one = byIcao.get(icao) ?? { icao, result: { status: result?.status, hits: [], cautions: [] } };
+    one.result.hits.push(...(Array.isArray(result?.hits) ? result.hits : []));
+    one.result.cautions.push(...(Array.isArray(result?.cautions) ? result.cautions : []));
+    byIcao.set(icao, one);
+  }
+  return [...byIcao.values()];
 }
 
 /** The keys in `lines` that are not in `before`: what has newly appeared. */
