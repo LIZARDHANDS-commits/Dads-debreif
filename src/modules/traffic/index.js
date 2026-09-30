@@ -50,6 +50,8 @@ function mount(root, app) {
     on: {
       play,
       pause,
+      rewind,
+      step: (seconds) => stepBy(seconds),
       reset: resetRun,
       fit: () => map.fit(),
       speed: (x) => settings.update({ speed: x }),
@@ -74,6 +76,7 @@ function mount(root, app) {
     setup,
     onChange: ({ structure, routeId, remap }) => {
       if (remap) sim.remapStarts(routeId, remap); // aircraft that start on this route keep their starting place
+      sim.forgetHistory(); // the route was edited: going back flies the edited route from 0
       if (structure) routesChanged();
       else changed();
     },
@@ -96,7 +99,7 @@ function mount(root, app) {
     cached = null;
     bar.setState({ mode: clock.mode, clockText: clockText(clock.simTime) });
     ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length }));
-    aircraftPanel.update(state(), { playing: clock.mode === 'running', now: performance.now() });
+    aircraftPanel.update(state(), { playing: clock.mode !== 'paused', now: performance.now() });
     map.requestDraw();
   }
 
@@ -131,13 +134,28 @@ function mount(root, app) {
   // ---- playback ----------------------------------------------------------------------
   // If a frame throws, the run is paused first so the bar never says Running over a stopped sim; the error still surfaces.
   const onFrame = pauseOnThrow((dtMs) => {
-    if (clock.tick(dtMs)) changed();
+    const moved = clock.tick(dtMs);
+    if (clock.mode === 'paused') pause(); // a rewind that reached 0:00 stops itself
+    else if (moved) changed();
   }, () => pause());
+
+  function startFrames() {
+    stopFrames?.();
+    stopFrames = app.scheduler.frame(onFrame);
+  }
 
   function play() {
     if (clock.mode === 'running') return;
     clock.play();
-    stopFrames = app.scheduler.frame(onFrame);
+    startFrames();
+    changed();
+  }
+
+  /** Rewind plays the run backward at the playback speed, until 0:00 or Pause. */
+  function rewind() {
+    if (clock.mode === 'rewinding') return;
+    clock.rewind();
+    startFrames();
     changed();
   }
 
@@ -145,6 +163,17 @@ function mount(root, app) {
     stopFrames?.();
     stopFrames = null;
     clock.pause();
+    changed();
+  }
+
+  /** -10 s and +10 s (the buttons, [ and ]): 10 s of sim time exactly, at any speed. Playing carries on; a rewind stops. */
+  function stepBy(seconds) {
+    const wasRewinding = clock.mode === 'rewinding';
+    clock.stepBy(seconds);
+    if (wasRewinding) {
+      stopFrames?.();
+      stopFrames = null;
+    }
     changed();
   }
 
@@ -157,7 +186,9 @@ function mount(root, app) {
 
   // Any setting change reaches the engine's setup and the picture; the speed goes to the clock.
   const stopSettings = settings.subscribe((values) => {
+    const before = JSON.stringify(setup.routeOptions);
     applyToSetup(setup, values);
+    if (JSON.stringify(setup.routeOptions) !== before) sim.forgetHistory(); // the turns are flown differently now
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
     editor.refresh();
@@ -172,10 +203,17 @@ function mount(root, app) {
     stylesheet.addEventListener('error', ready, { once: true });
   }
 
-  // Space plays or pauses and Home resets: only while the Traffic Sim is open and never while typing (app.keys).
+  // Space plays or pauses, Home resets, [ and ] step back and ahead 10 s: only while the Traffic Sim is open and
+  // never while typing (app.keys). The bracket keys are matched by the character and by the key's place, for other layouts.
+  const back10 = () => stepBy(-10);
+  const ahead10 = () => stepBy(10);
   app.keys({
-    Space: () => (clock.mode === 'running' ? pause() : play()),
+    Space: () => (clock.mode === 'paused' ? play() : pause()),
     Home: resetRun,
+    '[': back10,
+    ']': ahead10,
+    BracketLeft: back10,
+    BracketRight: ahead10,
   });
 
   bar.setState({ speed: settings.get().speed });

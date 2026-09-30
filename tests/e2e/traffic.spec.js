@@ -378,3 +378,70 @@ test('the route opens from a direct link and plays, spawns and edits a point', a
   await page.locator('.point-row').nth(2).getByLabel('Alt ft', { exact: true }).fill('3400');
   await expect(page.locator('.point-row').nth(2).locator('.point-data')).toContainText('3400ft');
 });
+
+// Rewind and the 10-second steps (task 9, #46): going back lands on the very picture the run had.
+test('-10 s and +10 s move the clock 10 s and land on the same picture the run had, at 8× and 0.25×', async ({ page }) => {
+  await open(page);
+  for (const speed of ['8', '0.25']) {
+    await button(page, 'Reset').click();
+    await page.locator('.bar-speed select').selectOption(speed);
+    await button(page, '+10 s').click();
+    await button(page, '+10 s').click();
+    await button(page, '+10 s').click(); // 30 s: aircraft A1 is flying
+    await expect(status(page)).toHaveText('Paused');
+    const at30 = await picture(page);
+    const at30s = await seconds(page);
+    await button(page, '−10 s').click();
+    expect(await seconds(page)).toBeLessThan(at30s);
+    expect(await picture(page)).not.toBe(at30);
+    await button(page, '+10 s').click();
+    expect(await picture(page)).toBe(at30);
+    await button(page, '−10 s').click();
+    await button(page, '−10 s').click();
+    await button(page, '−10 s').click();
+    await button(page, '−10 s').click(); // past the start: stops at 0
+    await expect(clock(page)).toContainText('0:00:00');
+  }
+});
+
+test('the [ and ] keys step back and ahead 10 s, and not while typing in a box', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press(']');
+  await page.keyboard.press(']');
+  const at20 = await picture(page);
+  const at20s = await seconds(page);
+  expect(at20s).toBeGreaterThanOrEqual(19);
+  await page.keyboard.press('[');
+  expect(await seconds(page)).toBeLessThan(at20s);
+  await page.keyboard.press(']');
+  expect(await picture(page)).toBe(at20);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  await page.getByLabel('Conflict: lateral').focus();
+  await page.keyboard.press(']');
+  expect(await picture(page)).toBe(at20);
+});
+
+test('Rewind plays the run backward to 0:00:00 and stops; Pause holds it; Play then goes forward', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page), { timeout: 20000 }).toBeGreaterThan(60);
+  await playButton(page).click();
+  const top = await seconds(page);
+  await button(page, 'Rewind').click();
+  await expect(status(page)).toHaveText('Rewinding');
+  await expect(button(page, 'Rewind')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => seconds(page)).toBeLessThan(top - 5);
+  await playButton(page).click(); // Pause
+  await expect(status(page)).toHaveText('Paused');
+  const held = await seconds(page);
+  await page.waitForTimeout(300);
+  expect(await seconds(page)).toBe(held);
+  // Back to the start.
+  await button(page, 'Rewind').click();
+  await expect(clock(page)).toContainText('0:00:00', { timeout: 20000 });
+  await expect(status(page)).toHaveText('Paused');
+  await expect(page.getByText('Press Play to watch the Moose Jaw traffic.')).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+});
