@@ -93,6 +93,8 @@ It follows Patrick's rule (2026-09-30, R22): essentials by default, and everythi
 
 Dragging an aircraft before Play moves its start position, as in V6, stored as that aircraft's position error (so the Aircraft errors boxes show it and a profile carries it). "Follow lead" no longer breaks dragging (#31). The keyboard does the same: 2 to 4 picks a wingman (Lead stays in place), the arrows move it 100 ft (Shift: 1,000 ft), Escape stops.
 
+**Three resets, three jobs.** The playback bar's **Reset** (and Home) rewinds the run to t = 0 and leaves the settings alone, so a dragged position stays. **Reset aircraft errors** (inside More …) puts every wingman's delay, G and position errors back to none, which also undoes any drag. The Turn Sim settings menu's **Reset to defaults** puts its tuning numbers and the aircraft errors back.
+
 V6's code-only `fluid` and `trail` layouts, never in the menu, are not ported.
 
 ### Turns
