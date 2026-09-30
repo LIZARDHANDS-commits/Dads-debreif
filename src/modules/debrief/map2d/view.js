@@ -5,7 +5,7 @@
 import { createCanvasView } from '../../../ui-kit/canvas-view.js';
 import { MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT, flightBounds, shipsAt } from '../state.js';
 import {
-  trackPaths, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags,
+  trackPaths, drawTennis, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags,
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
@@ -29,8 +29,9 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * onImagery(state): after each draw with satellite on, the tiles' { wanted,
  * ready, failed }, or null when it's off. onCharts(state): the same for the
  * VNC charts ({ wanted, ready, failed }), or null when they're off.
+ * tennis(): the tennis-ball solution to draw (tennis.js), or null.
  */
-export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {}, onCharts = () => {} }) {
+export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {}, onCharts = () => {}, tennis = () => null }) {
   let flight = null;
   let paths = [];
   let needsFit = false; // a flight arrived while the map was hidden (3D showing)
@@ -121,6 +122,8 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
       drawDfpFlags(ctx, map, dfps());
       if (on.bubble) drawBubbles(ctx, map, ships, on.bubbleFt);
       if (on.clockMarks) drawClockMarks(ctx, map, ships);
+      const ball = tennis();
+      if (ball?.points) drawTennis(ctx, map, ball);
       drawShips(ctx, map, ships, labels(flight, t));
     },
   });

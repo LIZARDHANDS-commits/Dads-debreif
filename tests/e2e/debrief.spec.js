@@ -242,6 +242,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Tools' }).click();
     await page.getByRole('checkbox', { name: 'EM chart' }).check();
+    await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
     expect(await overlaps()).toEqual([]);
     await page.keyboard.press('Escape');
     await page.screenshot({ path: test.info().outputPath('debrief-em.png') });
@@ -713,4 +714,43 @@ test('EM chart: closed at first, opened from Tools below the map, charts fetched
   const still = await emPicture(page);
   await page.waitForTimeout(300);
   expect(await emPicture(page)).toBe(still);
+});
+
+test('tennis ball: opened from Tools, one answer in the panel, on the map and in 3D (#19)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  const panel = page.locator('.tennis-panel');
+  await expect(panel).toBeHidden();
+  const before = await mapPicture(page);
+  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  const status = page.locator('.tennis-status');
+  await expect(status).toHaveText(/^(INTERCEPT|IN CONE|OUT OF CONE|GPS GAP|NOT MOVING)$/);
+  // #2 is in a GPS gap here, so #3 throws at Lead, and the map shows it.
+  await page.getByLabel('Shooter', { exact: true }).selectOption({ label: '#3' });
+  await expect(status).toHaveText(/^(INTERCEPT|IN CONE|OUT OF CONE)$/);
+  await expect.poll(() => mapPicture(page)).not.toBe(before);
+  // V6's settings.
+  await expect(page.getByLabel('Ball speed')).toHaveValue('350');
+  await expect(page.getByLabel('Cone width')).toHaveValue('6');
+  await expect(page.getByLabel('Time of flight')).toHaveValue('3');
+  await expect(page.getByLabel('Hit radius')).toHaveValue('250');
+  await expect(page.getByLabel('Gravity drop')).toBeChecked();
+  // Lead at #3: the words follow the choice.
+  await page.getByLabel('Shooter', { exact: true }).selectOption({ label: '#1 Lead' });
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#3' });
+  await expect(page.locator('.tennis-lines li').first()).toHaveText(/^#1 at #3, range [\d,]+ ft$/);
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#1 Lead' });
+  await expect(status).toHaveText('PICK TWO');
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#3' });
+  // The same solution in 3D.
+  await page.getByText('3D', { exact: true }).click();
+  const with3d = await picture3d(page);
+  await page.getByRole('button', { name: 'Close tennis ball' }).click();
+  await expect(panel).toBeHidden();
+  await expect.poll(() => picture3d(page)).not.toBe(with3d);
 });

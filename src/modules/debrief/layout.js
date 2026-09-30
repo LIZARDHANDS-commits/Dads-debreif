@@ -146,6 +146,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
     controls.checkbox('emOpen', { label: 'EM chart' }),
+    controls.checkbox('tennisOpen', { label: 'Tennis ball' }),
   ]);
 
   // The EM chart's panel, below the stage so it never covers the map (#37).
