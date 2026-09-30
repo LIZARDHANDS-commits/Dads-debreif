@@ -682,6 +682,18 @@ test('the Cross turn shows its second-half G and roll-out spacing, in the cautio
   await expect(note).toBeHidden();
 });
 
+test('the offset box hook shows which pairs cross: 300 ft vertical needed', async ({ page }) => {
+  await open(page);
+  const flags = page.locator('.ts-flags li');
+  await expect(flags).toHaveCount(0);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Turn').selectOption({ label: 'Hook turn' });
+  // Right turn: #1 with #3 and #2 with #4 pass nose to nose. It is known before Play.
+  await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(flags).toHaveCount(0);
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {

@@ -68,3 +68,12 @@ test('the cross turn note says the second-half G and the roll-out spacing, and f
   assert.equal(held.clamped, true);
   assert.match(held.text, /^Second half held at 1\.1 G, the most it can use: rolls out 18,500 ft apart$/);
 });
+
+test('planned crossings (state.crossings) read "Crossing: 300 ft vertical needed" for each pair, before anything is closer than 300 ft', async () => {
+  const { separationFlags } = await import('../../../src/modules/turn-sim/readouts.js');
+  const state = { aircraft: [], crossings: [{ a: 1, b: 3, minFt: 31 }, { a: 2, b: 4, minFt: 31 }] };
+  assert.deepEqual(separationFlags(state, { formation: 'offsetBox', maneuver: 'hook90' }, []), [
+    'Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4',
+  ]);
+  assert.deepEqual(separationFlags({ aircraft: [], crossings: [] }, { formation: 'offsetBox', maneuver: 'hook90' }, []), []);
+});

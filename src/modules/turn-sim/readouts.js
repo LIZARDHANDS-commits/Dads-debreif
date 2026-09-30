@@ -180,7 +180,11 @@ function abreastPairs(formation) {
 export function separationFlags(state, settings, pairs = pairDistances(state)) {
   const flags = [];
   const min = minSeparationFt(pairs);
-  if (min !== null && min < UNDER_SEPARATION_FT) {
+  // Pairs the plan passes within 300 ft (state.crossings, known before the first step, such as the offset box hook's rear
+  // aircraft nose to nose with the front element's outbound leg): the sim is flat, so the SMM's vertical margin is needed.
+  const crossing = (state?.crossings ?? []).map((c) => `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed, #${c.a} and #${c.b}`);
+  flags.push(...crossing);
+  if (min !== null && min < UNDER_SEPARATION_FT && !crossing.length) {
     flags.push(CROSSING_TURNS.has(settings.maneuver) ? `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed` : `Under ${UNDER_SEPARATION_FT} ft`);
   }
   const byId = new Map((state?.aircraft ?? []).map((a) => [a.id, a]));
