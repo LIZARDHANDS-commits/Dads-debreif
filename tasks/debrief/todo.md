@@ -75,5 +75,6 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 - [ ] **11. Browser tests and sign-off.** The e2e list in the spec; `docs/checklists/debrief.md`; README.
   - Acceptance: all browser tests pass in CI; checklist run on the live link (R21).
   - Files: tests/e2e/debrief.spec.js, docs/checklists/debrief.md, src/modules/debrief/README.md
+  - Browser tests and checklist done: added every control with a flight loaded (R3, a fresh page per click, default layout then every panel open), leaving from 3D with the EM chart and tennis ball open (R4), offline after one visit (R6), and a hostile debrief file (10 MB note refused, script only text). docs/checklists/debrief.md written. Left open until Patrick (or anyone, D28) runs the checklist on the live link.
 
 **Checkpoint E:** open PR E; Patrick (or anyone, D28) runs the checklist.
