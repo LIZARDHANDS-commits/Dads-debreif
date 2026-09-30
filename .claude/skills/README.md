@@ -29,8 +29,9 @@ Note: code-review-and-quality links to `security-checklist.md` and `performance-
 ## Looked at and not added
 
 - webapp-testing (anthropics/skills): Python Playwright; this repo already uses JavaScript Playwright and `/run`.
-- browser-testing-with-devtools: needs a Chrome DevTools MCP server installed; Playwright covers the same ground.
+- browser-testing-with-devtools: test-driven-development points to it for browser code, but it needs a Chrome DevTools MCP server installed (`npx chrome-devtools-mcp@latest`). The repo's Playwright tests and `/run` cover the same ground without it.
+- api-and-interface-design: spec-driven-development points to it for the contract a module publishes. Its useful rules (decide what a module exports on purpose, add rather than change, check data where it enters) are already in SPEC.md's one-way dependencies and module lifecycle. The rest is REST endpoints, pagination and idempotency keys, which a static app doesn't have.
 - ci-cd-and-automation: CI and the Pages deploy already exist; its examples are Vercel and Prisma.
 - documentation-and-adrs: the plan doc's tabs are the decision log, and ADRs would make a second one.
 - constraint-driven-development: installs Lighthouse, axe and other tools up front; revisit alongside performance-optimization.
-- doubt-driven-development, idea-refine, interview-me, context-engineering, api-and-interface-design, deprecation-and-migration, observability-and-instrumentation, git-workflow-and-versioning, source-driven-development, using-agent-skills: overlap with the above or don't fit a static single-user app.
+- doubt-driven-development, idea-refine, interview-me, context-engineering, deprecation-and-migration, observability-and-instrumentation, git-workflow-and-versioning, source-driven-development, using-agent-skills: overlap with the above or don't fit a static single-user app.
