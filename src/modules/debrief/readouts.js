@@ -103,6 +103,9 @@ export function formationAt(flight, t, standards) {
  * options.standards: shaped like core's DEFAULT_STANDARDS or V6_STANDARDS (app.standards.get()).
  * options.recordedG: use the recorded G where there is one (off by default, D61).
  * Returns { ships, formation, lead, vsLead, pairs }; see each below.
+ * @param {any} flight
+ * @param {number} t
+ * @param {{ standards?: any, recordedG?: boolean }} [options]
  */
 export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
   if (!flight) return { ships: [], formation: [], lead: null, vsLead: [], pairs: [] };
