@@ -302,6 +302,18 @@ export function turnDegProblem(maneuver, turnDeg) {
 }
 
 /**
+ * Why the Delayed 45's check turn is not flown with these settings, or null when it is (or when the turn is not the Delayed 45, whose boxes are
+ * hidden). The same rule as the engine's plan (engine/plan.js withCheck), so the boxes that only the check uses are greyed exactly when they do nothing.
+ */
+export function delayed45CheckReason(values) {
+  if (values.maneuver !== 'delayed45away') return null;
+  if (values.timing === 'clock') return 'The clock cue flies the plain 45, so the check turn is not used.';
+  if (values.delayed45Check === 'none') return 'The style is Plain, so the check turn is not used.';
+  if (values.delayed45Check === 'auto' && values.formation === 'twoShip') return 'In the two-ship, Auto flies the plain 45 (the check is optional there, Fig 16.17). Pick With check turn to use it.';
+  return null;
+}
+
+/**
  * A clean settings object from anything: every key present, each value the
  * given one when it is good and the default otherwise, unknown keys dropped.
  * Never throws, never returns a blank. A delay band whose minimum is above its

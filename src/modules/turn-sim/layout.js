@@ -7,7 +7,7 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { turnProblem, TWO_SHIP_ONLY_TURNS } from './settings.js';
+import { turnProblem, TWO_SHIP_ONLY_TURNS, delayed45CheckReason } from './settings.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
@@ -182,8 +182,11 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const turnDegInput = groups.turn.querySelector('input[type=number]'); // the first box in Turn and run
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER], 'Used when Formation is the offset box.');
   groups.offset.append(checkRearNote);
+  // The check turn's and roll-in's boxes do nothing when the check is not flown (Plain, the clock cue, or Auto in the two-ship): grey, with the reason.
+  const checkUnusedNote = h('p', { class: 'ts-hint ts-check-unused', id: 'ts-check-unused', role: 'status', hidden: true });
   section('cross', 'Cross turn', [CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE], 'Used when Turn is the cross turn.');
   section('delayed45', 'Delayed 45', [DELAYED45_CHECK, CHECK_DEG, CHECK_SOLVE], 'Used when Turn is the Delayed 45.');
+  groups.delayed45.append(checkUnusedNote);
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
   // The Correction model is a checkbox, off by default (Q41). On, it opens the model (G adjustment first, as it is
   // the one that corrects spacing) and its strength; off is the setting 'none'.
@@ -357,6 +360,16 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       else el?.removeAttribute('aria-describedby');
     }
     checkRearNote.hidden = !rearIgnored;
+    // The Delayed 45's own boxes: Check turn and Roll in only act when the check is flown (settings.js delayed45CheckReason).
+    const unused = delayed45CheckReason(values);
+    for (const key of ['checkTurnDeg', 'checkSolveSpacing']) {
+      controls.setDisabled(key, unused !== null);
+      const el = menuFields[key]?.control.querySelector('select, input');
+      if (unused !== null) el?.setAttribute('aria-describedby', checkUnusedNote.id);
+      else el?.removeAttribute('aria-describedby');
+    }
+    checkUnusedNote.textContent = unused ?? '';
+    checkUnusedNote.hidden = unused === null;
   }
 
   function applyScenario(values) {
