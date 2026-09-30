@@ -43,7 +43,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: unit tests of the profile checks; e2e save, reload, load.
   - Dependencies: 6. Size M.
   - Files: src/modules/traffic/profile.js, src/modules/traffic/index.js, tests/unit/traffic/profile.test.js
-- [ ] **8. Satellite photo and 3D view.** The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view with a true perspective camera, framed on the routes, drag, wheel and three buttons, caution rings in 3D.
+- [ ] **8. Satellite photo and 3D view.** The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view on ui-kit's shared `three-aircraft.js` (Patrick 07:51Z), loaded only when 3D is switched on: routes at their heights, the shared T-6 for the CT-156 and CT-157 and a simple shape for the other types, banking with their turns, framed on the routes, drag, wheel and three buttons, caution rings in 3D; 2D stays the default.
   - Acceptance: fixes the photo and 3D parts of #49; with the network off the map says the photo needs a connection; smooth at 8× on 1920 × 1080 (performance log in the PR).
   - Verify: e2e offline; look at both against V6.
   - Dependencies: 4; the tile loader is in ui-kit (`map-tiles.js`, #133); the 3D view uses the shared three.js piece once the app frame lands it. Size M.

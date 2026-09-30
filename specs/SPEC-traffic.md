@@ -36,7 +36,7 @@ V6 does all this in its Traffic Pattern Sim, "Moose Jaw Traffic Sim V37", a sepa
 
 ## Tech stack
 
-Plain JavaScript ES modules, no framework and no new packages (SPEC.md). Drawing is Canvas 2D through ui-kit's `createCanvasView` (2D map, pan and zoom) and `createCanvasSurface` (3D view). Tests use Node's `node:test` and the Playwright set-up the app frame already has.
+Plain JavaScript ES modules, no framework and no new packages (SPEC.md). Drawing is Canvas 2D through ui-kit's `createCanvasView` (2D map, pan and zoom); the 3D view uses the shared three.js T-6 and camera in `src/ui-kit/three-aircraft.js` (Patrick approved three.js for every 3D aircraft view; the app frame adds the package), loaded only when 3D is switched on. Tests use Node's `node:test` and the Playwright set-up the app frame already has.
 
 ## Commands
 
@@ -102,7 +102,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | **Spawner:** aircraft type, route, start point (numbered from 1, as everywhere else), delay from now (s), plan (Random, which follows the shares, or a plan picked from the list, see T1), + Spawn, + Pair (15 s apart, same route), Clear finished | **Edit** on an aircraft row: type, route, start time, plan, delete; **Plans** (under More): make or change a plan, a list of what the aircraft does at each decision point it meets, in order ("2 circuits, then Split 4 to the inner circuit, then land"); **More detail**: each aircraft's leg number, and with a wind set its true airspeed, heading, track, headwind or tailwind, crosswind, and the bank and G it's pulling now; **Aircraft types**: the type table (indicated airspeeds by phase, with where each number came from), read-only |
 | **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done; a **Command** menu on each row (see How you set up and control the traffic) | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4); final spacing and the chance of missing traffic (T11); the **Rules** list, a checkbox each, on by default |
 | **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes:** profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
-| The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch): drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
+| The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch; 2D is the default): the routes as lines at their heights, the aircraft as 3D models (the shared T-6 for the CT-156 and CT-157, a simple shape for the other types until they have their own), banking with their turns; drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
 
 - **Colour is never the only signal.** Conflict lines start with ⚠ CONFLICT or △ CAUTION; routes are also told apart by line style and their name labels; aircraft carry their callsign.
 - **Settings are remembered** with the profile (`app.storage`, scope `traffic`), and the last profile used opens next time. Loading the built-in profile puts back V6's setup.
@@ -483,7 +483,7 @@ With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed a
 Two more pieces come from other threads, through the coordinator:
 
 - **The satellite tile loader** is on main in `ui-kit` (#133): `import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js'` (tile limits, retries, Esri credit; SPEC-ui-kit).
-- **The 3D aircraft piece.** Patrick approved three.js for every 3D aircraft view; the app frame is building a shared T-6 piece in `ui-kit`. The Traffic 3D view (task 8) uses it once it's on main, and ui-kit's canvas surface until then.
+- **The 3D view (Patrick, 2026-09-30 07:51Z: "can we just do them all in 3d/2d switch on and off now?").** Every simulator gets a 2D/3D switch. The Traffic 3D view (task 8) uses the shared T-6 and camera from `src/ui-kit/three-aircraft.js`, which the app frame is building; the other types get a simple shape until they have their own models. 2D stays the default, three.js loads only when 3D is switched on, and the engine doesn't change: the 3D view draws the same state as the 2D map.
 - **The `#/traffic` entry** in `src/shell/registry.js`, with `prototype: true` until the combined sign-off (#132), and `tests/e2e/traffic.spec.js`, through the app frame thread.
 
 ## Project structure
@@ -501,7 +501,7 @@ src/modules/traffic/
   conflict-setup.js  finds start points and delays so two aircraft meet (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
-  view3d.js        the 3D view on a ui-kit canvas surface
+  view3d.js        the 3D view on ui-kit's three-aircraft.js (loaded only when 3D is on)
   editor.js        the left column: routes list, selected route, point table
   aircraft.js      the right column: spawner, aircraft list, conflicts
   layout.js        the columns, playback bar, Layers menu
