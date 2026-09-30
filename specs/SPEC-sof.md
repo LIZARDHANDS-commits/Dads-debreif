@@ -144,6 +144,21 @@ V6 had three separate sets of wave inputs, two of them hidden and dead, assumed 
 ### Map (fixes #6, #9, #11)
 
 - **Base map, as in ForeFlight: Satellite or VNC.** Satellite is Esri's world imagery, the same satellite picture the debrief uses (Patrick, 2026-09-30), through the shared tile loader the debrief's code moves into ui-kit. VNC is the two VNC charts the debrief already carries (South: Moose Jaw and Regina; North: Saskatoon and Moose Jaw), with V6's alignment; together they cover CYMJ, CYQR, CYYN and CYXE. Outside the charts, the VNC view shows the satellite picture, and the map says so. The base map is dimmed a little (a setting) so radar stands out. Each is credited on screen, and the VNC carries "Not for navigation". Pan by dragging, zoom with the wheel or the + and − buttons, and a Home button that returns to the home field. The view opens centred on the home field, at V6's zoom level (6), which shows southern Saskatchewan and the fields around it.
+- **Layers menu, like ForeFlight's.** Layers stack; each has its own switch, and the image layers have an opacity slider. Checked from a browser on 2026-09-30; every image layer is from ECCC's map service, which the SOF already uses. Only the layers marked "on" start on (R22); the menu remembers the SOF's choices.
+
+  | Layer | Source | Starts |
+  |---|---|---|
+  | Base: Satellite, VNC, or VNC over satellite with the chart's opacity (as the debrief does) | Esri imagery; the debrief's VNC charts | Satellite |
+  | Radar (rain or snow) | ECCC 1 km, every 6 min | on |
+  | Radar coverage: hatches areas no working radar covers, so an empty patch isn't read as "no rain" | ECCC `RADAR_COVERAGE_RRAI.INV` | on |
+  | Lightning, last 10 min | ECCC CLDN | on |
+  | Airfields coloured by flight category, with wind barbs from their METARs | the SOF's own reports | on |
+  | 25 and 50 NM rings around home, and the lightning radius if SOF-3 is yes | drawn by the SOF | on |
+  | Satellite cloud picture: visible by day, infrared by night | ECCC GOES-West 1 km `DayVis-NightIR`, every 10 min | off |
+  | Weather warnings in force (thunderstorm, snow squall, fog and others) | ECCC `Current-Alerts` | off |
+  | The training routes and areas the debrief already carries (TACNAV 1 to 4, North and South routes) | the debrief's route overlays, moved to a shared place | off |
+
+  Not available without a relay (D69): SIGMETs, PIREPs, NOTAMs, the GFA, and traffic drawn on this map (SOF-7). ECCC's capability list is 40 MB, so the SOF only ever asks for one named layer's times, never the whole list.
 - **Live traffic switch** (SOF-7). No free live-traffic feed lets a web page read aircraft positions directly (checked 2026-09-30: ADS-B Exchange's data needs a paid key, Airplanes.live and adsb.one refuse, adsb.fi, adsb.lol and OpenSky don't allow browser reads), so traffic can't be drawn on our own map without a relay (D69). What does work: ADS-B Exchange's own live map can be shown inside the page. The switch swaps the map area for ADS-B Exchange's map, centred on the home field at the same zoom, with its own controls, and back again. It loads only while switched on and is removed when switched off or when the module closes (R4). If it won't load, the map area says so and offers the same map in a new tab. This revisits D68 (traffic as a link out) and becomes a new decision once Patrick answers SOF-7.
 - **Airfields:** home and alternates as dots in their flight-category colour with the ICAO beside them and the category in the dot's label, so it isn't colour alone. 25 and 50 NM rings around home (V6's "reference" circles, line 569).
 - **Radar** (D65): ECCC's 1 km radar (`RADAR_1KM_RRAI` rain, `RADAR_1KM_RSNO` snow), one image for the view, refreshed every 6 minutes (D67), stale after 20 minutes. Rain or Snow is a choice, snow by default from November to March. The image time comes from ECCC's own layer time, so the age shown is the radar's, not the fetch's. If ECCC fails twice in a row, RainViewer's tiles take over (max zoom 7, credited, "backup" in the feed status) until ECCC answers again.
