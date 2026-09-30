@@ -20,6 +20,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
+import { planCheckChain } from '../../../src/modules/turn-sim/engine/check-plan.js';
 
 // The tests below fly the figure's cue as it falls (the default, about 3,900 ft apart); the solved spacing has its own tests at the end.
 const BASE = { ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, startHeadingDeg: 0, durationSec: 20, timing: 'time', formation: 'twoShip' };
@@ -70,7 +71,7 @@ test('two-ship with the check, both directions: the first turns 45 at once, the 
     const turn = direction === 'right' ? -1 : 1;
     const [first, second] = startedAt[1] < startedAt[2] ? [1, 2] : [2, 1];
     assert.ok(startedAt[first] < 0.1, `${direction}: #${first} turns at once`);
-    assert.ok(startedAt[second] > 2.5 && startedAt[second] < 4, `${direction}: #${second} checks as #${first} establishes its 45, at ${startedAt[second]}`);
+    assert.ok(Math.abs(startedAt[second] - 3.3) < 0.2, `${direction}: #${second} checks as #${first} establishes its 45 (45 degrees takes 3.2 s at 3 G), at ${startedAt[second]}`);
     // The check is toward the first: against the 45's way, 12.5 degrees. Nobody turns more than the 45.
     const against = turn === -1 ? swing[second].max : -swing[second].min;
     assert.ok(Math.abs(against - 12.5) < 0.6, `${direction}: the check is ${against.toFixed(1)} degrees toward the first`);
@@ -90,7 +91,7 @@ test('two-ship with the check: rolls out abreast (within 300 ft), sides swapped,
     assert.ok(Math.abs(end.ahead) < 300, `${direction}: ${end.ahead.toFixed(0)} ft ahead, want abreast`);
     assert.ok(Math.sign(end.right) === -Math.sign(fromLead(start, 2).right), `${direction}: sides swapped`);
     // Measured 3,924 ft at 6,000: the check moves the wingman toward the track it then flies. The figure says to fix it on the roll-out.
-    assert.ok(Math.abs(end.right) > 3000 && Math.abs(end.right) < 4500, `${direction}: ${Math.abs(end.right).toFixed(0)} ft apart`);
+    assert.ok(Math.abs(Math.abs(end.right) - 3924) < 150, `${direction}: ${Math.abs(end.right).toFixed(0)} ft apart, want 3,924`);
     assert.ok(minSepFt >= 1000, `${direction}: closest pass ${minSepFt.toFixed(0)} ft`);
     assert.deepEqual(run.state.crossings, [], 'no designed crossing');
   }
@@ -135,7 +136,7 @@ test('4312 and 2134, both directions (Fig 16.34): the outside aircraft turns its
       const first = Number(Object.entries(startedAt).sort((a, b) => a[1] - b[1])[0][0]);
       assert.ok(startedAt[first] < 0.1, `${label}: #${first} turns at once`);
       for (const id of [1, 2, 3, 4].filter((x) => x !== first)) {
-        assert.ok(startedAt[id] > 2.5 && startedAt[id] < 4, `${label} #${id}: checks as #${first} establishes, at ${startedAt[id]}`);
+        assert.ok(Math.abs(startedAt[id] - 3.3) < 0.2, `${label} #${id}: checks as #${first} establishes (3.2 s), at ${startedAt[id]}`);
         const against = turn === -1 ? swing[id].max : -swing[id].min;
         assert.ok(Math.abs(against - 12.5) < 0.6, `${label} #${id}: check ${against.toFixed(1)} degrees toward the first`);
       }
@@ -299,4 +300,55 @@ test('at the default 6,000 ft and 12.5 degrees nothing is close: closePasses is 
   for (const formation of ['twoShip', 'weighted', 'weightedReverse', 'offsetBox']) {
     for (const direction of ['right', 'left']) assert.deepEqual(four(formation, direction, { delayed45Check: 'check' }).run.state.closePasses, [], `${formation} ${direction}`);
   }
+});
+
+test('no step turns an aircraft faster than the 3 G rate (omega x 0.05 s) plus the roll-out snap, in every check run', () => {
+  const omega = 220 * 1.68781 / (220 * 1.68781 * 220 * 1.68781 / (32.174 * Math.sqrt(8))); // v / R at 3 G
+  const perStep = omega * 0.05;
+  for (const formation of ['twoShip', 'weighted', 'offsetBox']) {
+    for (const direction of ['right', 'left']) {
+      const run = createRun({ ...BASE, formation, direction, delayed45Check: 'check', durationSec: 20 });
+      let last = run.state.aircraft.map((a) => a.headingRad);
+      let worst = 0;
+      while (run.step()) {
+        run.state.aircraft.forEach((a, i) => { worst = Math.max(worst, Math.abs(a.headingRad - last[i])); });
+        last = run.state.aircraft.map((a) => a.headingRad);
+      }
+      // The end snaps onto the exact heading, which is within 0.0001 rad of where the step left it.
+      assert.ok(worst <= perStep + 2e-4, `${formation} ${direction}: the biggest step ${worst.toFixed(5)} rad against ${perStep.toFixed(5)}`);
+    }
+  }
+});
+
+test('the box with the check: the rear shift is in state.offsetBox (36.7 s right, 1.0 s left) for both rear aircraft', () => {
+  for (const [direction, want] of [['right', 36.74], ['left', 0.96]]) {
+    const run = createRun({ ...BASE, formation: 'offsetBox', direction, delayed45Check: 'check' });
+    assert.deepEqual(run.state.offsetBox.rear.map((r) => r.id), [3, 4]);
+    for (const r of run.state.offsetBox.rear) assert.ok(Math.abs(r.delaySec - want) < 0.1, `${direction} #${r.id}: ${r.delaySec}`);
+    assert.deepEqual(run.state.offsetBox.rear.map((r) => r.outsideBand), [true, true], 'outside the 10 to 15 s band, and flagged');
+  }
+});
+
+test('Auto timing flies the check too: the same check turn and the same 45 heading as the Time timing', () => {
+  for (const formation of ['twoShip', 'weighted']) {
+    const timed = fly({ ...BASE, formation, direction: 'right', delayed45Check: 'check', timing: 'time', durationSec: 20 });
+    const auto = fly({ ...BASE, formation, direction: 'right', delayed45Check: 'check', timing: 'auto', durationSec: 20 });
+    for (const id of Object.keys(timed.swing)) {
+      assert.ok(Math.abs(auto.swing[id].max - timed.swing[id].max) < 0.1 && Math.abs(auto.swing[id].min - timed.swing[id].min) < 0.1, `${formation} #${id}: the same swings`);
+    }
+    assert.ok(Math.abs(auto.run.state.durationSec - timed.run.state.durationSec) < 0.11, `${formation}: the same run`);
+    assert.ok(Math.max(...Object.values(auto.swing).map((w) => w.max)) > 12, `${formation}: the check is flown`);
+  }
+});
+
+test('no cue found: a chain that starts too late for the search to see the predecessor gets no hold (the roll-in follows the check at once)', () => {
+  const mk = (id, x) => ({ id, xFt: x, yFt: 0, headingRad: Math.PI / 2, turnDir: -1, delayErrSec: 0, gError: 0, active: false, done: false, legIndex: 0, legAccumRad: 0, legReadySec: 0, turnAccumRad: 0 });
+  const chain = [mk(1, 0), mk(2, 6000)];
+  const opts = { goalRad: Math.PI / 4, checkRad: 12.5 * Math.PI / 180, speedFtps: 220 * 1.68781, baseG: 3, cueHours: 5, direction: 'right', useErrors: false, spacingFt: 0 };
+  planCheckChain(chain, { ...opts, startSec: 0 });
+  assert.ok(chain[1].legs[1].holdSec > 15 && chain[1].legs[1].holdSec < 40, `a normal plan waits for the cue: ${chain[1].legs[1].holdSec}`);
+  planCheckChain(chain, { ...opts, startSec: 450 });
+  assert.equal(chain[1].legs[1].holdSec, 0, 'the search ends at 400 s before the check has even started: hold 0, not the placeholder');
+  planCheckChain(chain, { ...opts, startSec: 0, spacingFt: 6000 });
+  assert.ok(chain[1].legs[1].holdSec > 0 && chain[1].legs[1].holdSec < 100, 'the spacing solve keeps the hold in range');
 });
