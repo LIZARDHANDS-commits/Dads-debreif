@@ -1,0 +1,24 @@
+# Turn Fight
+
+Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each one's speed and G and watch who gets their nose on first. The spec is [`specs/SPEC-turn-fight.md`](../../../specs/SPEC-turn-fight.md); the task list is [`tasks/turn-fight/`](../../../tasks/turn-fight/todo.md). The fight is V6's, pinned to V6's own code by `tests/golden/turn-fight-sim.test.js`.
+
+| File | What's in it |
+|---|---|
+| `sim.js` | The fight, pure (no page access): `createFight`, `stepFight` in whole 0.02 s steps, the merge, the turns, first nose-on, the chase, Climb and dive, the 10-minute stop. Every line names the V6 line it comes from. |
+| `readouts.js` | The Result and More detail lines from a fight state, with V6's rounding, as text (`resultRows`, `moreDetailRows`, `timeText`, `phaseText`). |
+| `state.js` | Plain values: every setting and its V6 default, the number boxes' ranges, what "Reset to V6 defaults" puts back, and the check on settings read back from storage. |
+| `t6-limit.js` | The T-6 limit warning beside each G box: stall line G = (speed ÷ 86)², capped at 7 G. The one place these numbers live until core's T-6A model lands. |
+| `trails.js` | The trail points, one per aircraft every 0.1 s of fight time, and the reach of everything drawn so far. |
+| `playback.js` | What one screen frame does: the 0.08 s frame limit, whole fight steps, the trail points. Pure, so the screen only calls `advanceRun`. |
+| `layout.js` | The three columns, the stage toolbar and the controls. The stage's drawing area and a toolbar slot are separate elements, so a 3D view and a 2D \| 3D switch can be dropped in. |
+| `readouts-panel.js` | A readout table built with `h()`; rewrites only the text that changed. |
+| `index.js` | `mount(root, app)`: wires the settings, the fight, the frame loop, the keys (Space, Home) and the readout rate (at most 10 a second while playing). |
+| `turn-fight.css` | Everything is scoped under `[data-module='turn-fight']`. |
+
+## Where to change common things
+
+- **A default or a range:** `state.js` (`DEFAULTS`, `RANGES`). The e2e and unit tests read them from there.
+- **The T-6 limit:** `t6-limit.js`.
+- **A colour:** V6's Blue `#58a6ff`, Red `#ff6b6b` and the first nose-on line `#ffcc66` are in `turn-fight.css`.
+- **What a readout says:** `readouts.js`; how it is laid out: `readouts-panel.js` and the `.tf-readout` rules.
+- **A new setting:** add its default to `state.js`, its control in `layout.js` (in the Turn Fight settings menu if it is a tuning number), and, if it changes the fight, its name to `sim.js`'s setup so `setupKey` resets the fight when it changes.
