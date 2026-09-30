@@ -1,17 +1,17 @@
 // The SOF screen (SPEC-sof, "The screen", R22): the SOF bar, the one closed
-// settings menu, the every-feed-failing message, the airfield cards and the credits
-// line. It draws what screen-model.js decided. Nothing sits fixed over the
+// settings menu, the every-feed-failing message, the airfield cards beside the map,
+// and the credits line. It draws what screen-model.js decided. Nothing sits fixed over the
 // controls, and the message and the menu take their own rows in the page flow.
 import { h } from '../../ui-kit/dom.js';
 import { createCardsView } from './cards-view.js';
 
 /**
- * settingsElement: the settings menu's element. onRefresh: the Refresh button's action.
+ * settingsElement: the settings menu's element. mapElement: the map's (map.js). onRefresh: the Refresh button's action.
  * bannerElement, wavesElement, timelineElement: the other screen parts' elements, each
  * in its own row (optional; each part draws itself).
  * Returns { element, render(screen), setBusy(on) }.
  */
-export function createLayout({ settingsElement, onRefresh, bannerElement = null, wavesElement = null, timelineElement = null }) {
+export function createLayout({ settingsElement, mapElement = null, onRefresh, bannerElement = null, wavesElement = null, timelineElement = null }) {
   const dtg = h('time', { class: 'sof-dtg' });
   const feedWords = h('span', { class: 'sof-feed-words' });
   const feedSymbol = h('span', { class: 'sof-feed-symbol', 'aria-hidden': 'true' });
@@ -37,7 +37,8 @@ export function createLayout({ settingsElement, onRefresh, bannerElement = null,
     alert,
     bannerElement, // the new-caution banner: its own row, in the page flow
     wavesElement, // the waves and their calls
-    cards.element,
+    // The cards and the map side by side; the map comes first when the screen is narrow.
+    h('div', { class: 'sof-main' }, cards.element, mapElement),
     timelineElement, // the 24-hour timeline
     credits,
   );

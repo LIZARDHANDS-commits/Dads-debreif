@@ -11,6 +11,7 @@
 // What is stored, shown and checked is always the snapped number.
 import { createSettings } from '../../storage/settings.js';
 import { triggerLimits, describeTrigger } from './waves.js';
+import { trafficUrl } from './traffic.js';
 
 const LOCAL = triggerLimits('local');
 
@@ -18,14 +19,21 @@ const LOCAL = triggerLimits('local');
  * ceilingFt, visSm: the home alternate trigger, Local (MTCA) 2000/3 to begin with (V6, D59, D111).
  * banner: the new-caution banner (V6's "New-alert caution box"); its switch is in the menu (task 3).
  * lightningNm: the radius for lightning near home (V6's `lightningNm`), used from task 7.
- * The radius has no control until that task; its default is kept here.
+ * trafficRelay: the address of our traffic relay (SPEC-sof, Live traffic layer); empty, so the Traffic layer is hidden.
  */
 export const SETTINGS_DEFAULTS = Object.freeze({
   ceilingFt: LOCAL.ceilingFt,
   visSm: LOCAL.visSm,
   banner: true,
   lightningNm: 20,
+  trafficRelay: '',
 });
+
+/** The longest relay address kept; anything longer is the default (empty). */
+export const MAX_RELAY_CHARS = 200;
+
+/** Whether the traffic relay's address is one the layer will use (https, or http on localhost; the origin alone). Empty is not. */
+export const relayAccepted = (text) => typeof text === 'string' && trafficUrl({ baseUrl: text }) !== null;
 
 // The ranges and steps from SPEC-sof, "Settings".
 const RANGES = Object.freeze({
@@ -64,6 +72,7 @@ export function cleanSettings(values, { snap = true } = {}) {
   if (inRange('visSm', v.visSm)) out.visSm = snap ? snapVisibility(v.visSm) : v.visSm;
   if (inRange('lightningNm', v.lightningNm)) out.lightningNm = v.lightningNm;
   if (typeof v.banner === 'boolean') out.banner = v.banner;
+  if (typeof v.trafficRelay === 'string' && v.trafficRelay.length <= MAX_RELAY_CHARS) out.trafficRelay = snap ? v.trafficRelay.trim() : v.trafficRelay;
   return Object.freeze(out);
 }
 
@@ -83,6 +92,8 @@ export function createSofSettings(store) {
     for (const [key, value] of Object.entries(patch)) {
       if (key in RANGES) {
         if (inRange(key, value)) next[key] = value;
+      } else if (key === 'trafficRelay') {
+        if (typeof value === 'string' && value.length <= MAX_RELAY_CHARS) next[key] = value;
       } else next[key] = value;
     }
     inner.update(next);

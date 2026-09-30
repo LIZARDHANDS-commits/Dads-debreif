@@ -383,7 +383,7 @@ test('no bank from a window that touches a GPS gap: "bank --" on the card and wi
     assert.equal(turnRateAt(tr, t), null, `turn rate at start+${s.toFixed(1)}`);
     assert.equal(readoutsAt(flight, t).ships[0].bankDeg, null, `bank at start+${s.toFixed(1)}`);
     const ship = readoutsAt(flight, t).ships[0];
-    if (!ship.inGap) assert.match(shipDetailText(ship)[1], /bank -- est\.$/);
+    if (!ship.inGap) assert.match(shipDetailText(ship)[1], /^G --, pitch .*, bank --$/); // no source word on an unknown value
     assert.equal(shipsIn3d(flight, t)[0].bankDeg, 0, 'wings level in 3D');
   }
   assert.equal(turnRateAt(tr, T(29.5)), null); // starts on the fix that ends the gap

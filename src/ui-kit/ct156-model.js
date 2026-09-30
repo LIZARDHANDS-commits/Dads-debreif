@@ -19,7 +19,9 @@
 //
 // Shared geometry, textures and materials are built once per THREE module and
 // reference-counted: disposeCt156Model frees a ship's own materials and textures, and the
-// shared kit only when the last ship is gone. Every material has fog: false (fog is for
+// shared kit only when the last ship is gone, leaving nothing behind. (three.js keeps a lookup table and its
+// reflection-map converter once it has drawn one; those are its own, so a leak check
+// measures from a baseline taken after one ship has come and gone.) Every material has fog: false (fog is for
 // the ground only, never the aircraft). The decals are drawn on 2D canvases, so this
 // needs a document (a browser).
 
