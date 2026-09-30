@@ -11,7 +11,7 @@ One safe place for everything the app remembers in the browser. V6 used four fam
 `src/storage/store.js`
 
 ```js
-const store = createStore(globalThis.localStorage); // backend is optional
+const store = createStore(browserStorage); // a function returning the backend; optional
 store.get('settings', fallback);  // parsed JSON, or fallback if missing, blocked or corrupt
 store.set('settings', value);     // returns true if it was saved to the browser
 store.remove('settings');
@@ -19,6 +19,7 @@ store.persistent;                 // false when the browser refuses storage
 const turnSim = store.scope('turn-sim'); // same API, keys kept separate
 ```
 
+- The backend is passed as a function (`browserStorage = () => globalThis.localStorage`) because in a browser that blocks storage, merely reading `localStorage` throws. The store calls it inside its own guard, so nothing outside `storage/` ever touches `localStorage`.
 - Every key is stored as `ooda:v1:<scope>:<name>`. The shell's own data uses the scope `app`.
 - Every backend call is wrapped. If the backend is missing or throws (blocked, full, disabled), the store keeps working from memory for the rest of the visit and `persistent` becomes `false`, so the settings screen can say "settings won't be saved in this browser".
 - Values are JSON. A value that fails to parse counts as missing and falls back.
@@ -36,7 +37,7 @@ const stop = settings.subscribe(next => { … }); // called after every change
 - One settings document per scope, saved with its `version`. An older version is passed through `migrate(saved, fromVersion)` if given; otherwise it's dropped for defaults.
 - Each saved field is checked against its default: a field whose type differs from the default, or that isn't in the defaults, is ignored. Allowed values can be listed per field (`{ timePrimary: ['zulu', 'local'] }`).
 
-Step 1's shared settings: `timePrimary` (`'zulu'` or `'local'`, default `'zulu'`, D18) and `reduceMotion` (`'system'`, `'on'` or `'off'`, default `'system'`, issue #41).
+Step 1's shared settings: `timePrimary` (`'zulu'` or `'local'`, default `'zulu'`, D18) and `motion` (`'system'` follows the computer's reduced-motion setting, `'full'` plays card videos and animations, `'reduced'` shows stills only; default `'system'`, issue #41).
 
 Later, not in step 1: `file.js` (save and open a file) arrives with the debrief file (R17) in step 2.
 

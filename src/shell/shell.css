@@ -171,7 +171,7 @@ a.card:hover {
 
 .card-video {
   opacity: 0;
-  transition: opacity 0.4s ease;
+  transition: opacity var(--motion-duration) ease;
 }
 
 .card-video.is-playing {
@@ -349,4 +349,24 @@ a.card:hover {
 
 .update-bar[hidden] {
   display: none;
+
+/* A page that failed to open */
+.error-card {
+  max-width: 40rem;
+  margin: var(--space-6) auto;
+  padding: var(--space-5);
+  border: 1px solid var(--border-strong);
+  border-left: 4px solid var(--bad);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+}
+
+.error-card h1 {
+  font-size: var(--text-lg);
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }

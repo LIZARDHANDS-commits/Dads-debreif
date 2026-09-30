@@ -25,6 +25,10 @@ test('props set classes, data, listeners, properties and attributes', () => {
   assert.equal(clicked, 1);
 });
 
+test('an on* prop that is not a function is refused, so it can never become inline script', () => {
+  assert.throws(() => h('button', { onclick: 'alert(1)' }), /onclick must be a function/);
+});
+
 test('children can be nested arrays, numbers and nodes; empty ones are skipped', () => {
   const el = h('ul', {}, [h('li', {}, 1), [h('li', {}, 2)]], null, false, undefined);
   assert.equal(el.childNodes.length, 2);

@@ -16,7 +16,9 @@ export function h(tag, props = {}, ...children) {
       if (value) el.setAttribute('class', value);
     } else if (key === 'dataset') {
       for (const [k, v] of Object.entries(value ?? {})) el.dataset[k] = v;
-    } else if (key.startsWith('on') && typeof value === 'function') {
+    } else if (key.startsWith('on')) {
+      // Only functions: a string here would become inline script.
+      if (typeof value !== 'function') throw new TypeError(`h(): ${key} must be a function`);
       el.addEventListener(key.slice(2).toLowerCase(), value);
     } else if (PROPERTIES.has(key)) {
       el[key] = value;

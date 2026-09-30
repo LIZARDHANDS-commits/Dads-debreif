@@ -7,7 +7,7 @@
   --bg-raised: #071018;
   --bg-sunken: #03080d;
   --border: #17384a;
-  --border-strong: #2c5d78;
+  --border-strong: #3a7394; /* at least 3:1 on every background, for control edges (WCAG 1.4.11) */
   --text: #e3eef5;
   --text-muted: #9bb8c6;
   --text-faint: #6f8e9d;
@@ -40,4 +40,22 @@
   --shadow: 0 10px 30px rgb(0 0 0 / 0.35);
   --header-height: 3.25rem;
   --content-max: 76rem;
+
+  /* Use for every transition and animation, so reduced motion turns them all off. */
+  --motion-duration: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0s;
+  }
+}
+
+/* The Settings choice (data-motion on <html>) overrides the computer's setting. */
+:root[data-motion='reduced'] {
+  --motion-duration: 0s;
+}
+
+:root[data-motion='full'] {
+  --motion-duration: 0.4s;
 }

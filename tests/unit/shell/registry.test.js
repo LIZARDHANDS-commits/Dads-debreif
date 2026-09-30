@@ -35,6 +35,6 @@ test('card videos follow the motion setting, or the computer when set to follow 
   const { motionAllowed } = await import('../../../src/shell/home.js');
   assert.equal(motionAllowed('system', false), true);
   assert.equal(motionAllowed('system', true), false);
-  assert.equal(motionAllowed('on', true), true);
-  assert.equal(motionAllowed('off', false), false);
+  assert.equal(motionAllowed('full', true), true);
+  assert.equal(motionAllowed('reduced', false), false);
 });

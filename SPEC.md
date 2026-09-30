@@ -144,7 +144,7 @@ export function turnRadiusFt(tasKt, loadG) {
 
 ## Build order
 
-Pieces are built in dependency order, up to three workstreams at once, each in its own thread, branch and pull request (D14, changed from one at a time on 2026-09-29).
+Pieces are built in dependency order, up to three workstreams at once, each in its own thread, branch and pull request (D14).
 
 1. **Now, side by side:**
    - App frame: `storage`, `ui-kit`, `shell`, an empty app live on GitHub Pages with CI, size budget and the browser tests (`tasks/app-frame/`).

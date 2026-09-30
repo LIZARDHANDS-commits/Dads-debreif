@@ -142,3 +142,54 @@ test('if the user navigates away while a module is loading, it never mounts', as
   assert.equal(mounted, false);
   assert.equal(host.current, null);
 });
+
+test('shortcuts stay out of the way of dialogs, pressed buttons and handled keys', async () => {
+  const { host, win } = setup();
+  const log = [];
+  await host.open({ id: 'keys', load: async () => ({ default: { id: 'keys', mount(r, app) { app.keys({ Space: () => log.push('space'), KeyP: () => log.push('P') }); } } }) });
+  const inside = (selector) => ({ closest: (s) => (s.includes(selector) ? {} : null) });
+  let prevented = 0;
+  const key = (code, k, target, extra = {}) => win.fire('keydown', { code, key: k, target, preventDefault() { prevented += 1; }, ...extra });
+  key('KeyP', 'p', inside('dialog[open]')); // behind the open Settings dialog
+  key('Space', ' ', inside('button')); // Space is pressing a focused button
+  key('Space', ' ', {}, { defaultPrevented: true }); // something else already handled it
+  assert.deepEqual(log, []);
+  assert.equal(prevented, 0, 'the button still gets its Space');
+  key('KeyP', 'p', inside('button')); // letters still work with a button focused
+  key('Space', ' ', {});
+  assert.deepEqual(log, ['P', 'space']);
+});
+
+test('stopping a listener twice does not hide a leak, and keys works when app is destructured', async () => {
+  const { host } = setup();
+  const extra = target();
+  let stopTwice;
+  await host.open({
+    id: 'm',
+    load: async () => ({
+      default: {
+        id: 'm',
+        mount(root, { listen, keys }) {
+          stopTwice = listen(extra, 'click', () => {});
+          listen(extra, 'input', () => {}); // left for the host to clean up
+          keys({ KeyP: () => {} });
+        },
+      },
+    }),
+  });
+  stopTwice();
+  stopTwice();
+  assert.equal(host.stats().listeners, 2);
+  host.close();
+  assert.equal(extra.listeners.size, 0);
+});
+
+test('a load that fails after the user has moved on is ignored', async () => {
+  const { host } = setup();
+  let fail;
+  const slow = host.open({ id: 'slow', load: () => new Promise((resolve, reject) => { fail = () => reject(new Error('offline')); }) });
+  await host.open({ id: 'quiet', load: async () => ({ default: { id: 'quiet', mount() {} } }) });
+  fail();
+  await slow; // resolves quietly instead of reporting an error for a page nobody is on
+  assert.equal(host.current, 'quiet');
+});

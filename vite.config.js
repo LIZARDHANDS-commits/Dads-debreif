@@ -5,13 +5,13 @@ import { serviceWorker } from './tools/service-worker.mjs';
 // The version shown in the footer and sent with bug reports: build date plus commit.
 function appVersion() {
   const date = new Date().toISOString().slice(0, 10);
-  let commit = process.env.GITHUB_SHA?.slice(0, 7);
-  if (!commit) {
-    try {
-      commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-    } catch {
-      commit = 'local';
-    }
+  // The checked-out commit first: in the Pages deploy, GITHUB_SHA is main's latest
+  // commit, which can be newer than the one CI passed and that is being built.
+  let commit;
+  try {
+    commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    commit = process.env.GITHUB_SHA?.slice(0, 7) ?? 'local';
   }
   return `${date} ${commit}`;
 }

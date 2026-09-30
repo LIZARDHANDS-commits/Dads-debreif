@@ -14,10 +14,10 @@ export function createSettingsDialog({ settings, storagePersistent }) {
   );
   const motion = h(
     'select',
-    { id: 'setting-reduce-motion', name: 'reduceMotion' },
+    { id: 'setting-motion', name: 'motion' },
     h('option', { value: 'system' }, "Follow this computer's setting"),
-    h('option', { value: 'on' }, 'Play card videos'),
-    h('option', { value: 'off' }, 'Show still pictures only'),
+    h('option', { value: 'full' }, 'Play card videos'),
+    h('option', { value: 'reduced' }, 'Show still pictures only'),
   );
   const storageNote = h(
     'p',
@@ -34,7 +34,7 @@ export function createSettingsDialog({ settings, storagePersistent }) {
       { method: 'dialog' },
       h('h2', { id: 'settings-title' }, 'Settings'),
       timeGroup,
-      h('div', { class: 'field' }, h('label', { for: 'setting-reduce-motion' }, 'Card videos'), motion),
+      h('div', { class: 'field' }, h('label', { for: 'setting-motion' }, 'Card videos'), motion),
       storageNote,
       h('div', { class: 'dialog-actions' }, close),
     ),
@@ -43,12 +43,12 @@ export function createSettingsDialog({ settings, storagePersistent }) {
   const show = () => {
     const current = settings.get();
     for (const input of timeGroup.querySelectorAll('input')) input.checked = input.value === current.timePrimary;
-    motion.value = current.reduceMotion;
+    motion.value = current.motion;
     storageNote.hidden = storagePersistent();
   };
 
   timeGroup.addEventListener('change', (e) => settings.update({ timePrimary: e.target.value }));
-  motion.addEventListener('change', () => settings.update({ reduceMotion: motion.value }));
+  motion.addEventListener('change', () => settings.update({ motion: motion.value }));
 
   return {
     element: dialog,
