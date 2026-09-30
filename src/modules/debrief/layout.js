@@ -10,6 +10,7 @@ import { MAX_TRACKS } from '../../flight-data/load.js';
 import { createReadoutsPanel } from './readouts-panel.js';
 import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
 import { ROUTES } from './data/routes.js';
+import { ESRI_IMAGERY } from './map2d/tiles.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -58,6 +59,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
 
   // Stage
   const canvas = h('canvas', { class: 'debrief-map' });
+  // Esri's credit while its imagery shows, and why none shows when it can't load.
+  const credit = h('p', { class: 'map-credit', hidden: true, 'aria-live': 'polite' });
   const empty = h('p', { class: 'debrief-empty' }, 'Load up to four track files, or the example flight, to start.');
   const fitButton = h('button', { type: 'button', class: 'button', disabled: true, onclick: () => handlers.fit?.() }, 'Fit');
   // The Layers menu: a real button that opens a small panel over the map, and
@@ -66,6 +69,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const layersBody = h(
     'div',
     { class: 'debrief-menu-body', id: 'debrief-layers', hidden: true },
+    controls.checkbox('satellite', { label: 'Satellite imagery' }),
     controls.select('trail', { label: 'Trail', options: [
       { value: 'full', label: 'Full tracks' },
       { value: 'history', label: 'History only' },
@@ -103,7 +107,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
     h('div', { class: 'debrief-toolbar' }, fitButton, layersMenu),
-    h('div', { class: 'debrief-map-wrap' }, canvas, empty),
+    h('div', { class: 'debrief-map-wrap' }, canvas, empty, credit),
     bar.element,
   );
 
@@ -213,6 +217,14 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       fitButton.disabled = !flight;
       renderStatus();
       applyLayout(layout.get());
+    },
+    /** The satellite line under the map: Esri's credit, or that the imagery needs a connection. */
+    setImagery(state) {
+      const text = !state ? ''
+        : state.wanted && state.failed === state.wanted ? 'Satellite imagery needs a connection. The grid still shows where things are.'
+          : ESRI_IMAGERY.credit;
+      if (credit.textContent !== text) credit.textContent = text;
+      credit.hidden = !text;
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r) => readouts.render(r, flight),

@@ -46,6 +46,8 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Acceptance: VNC warp matches V6 (golden); charts load only when turned on (R5); tiles retry and repaint only their area (#28).
   - Verify: golden warp test; network log in the browser; performance log.
   - Files: src/modules/debrief/map2d/{tiles,vnc}.js, public/media/debrief/*, tests/golden/debrief-vnc.test.js
+  - 7a done: "Satellite imagery" (off at first) draws Esri World Imagery under everything, darkened as in V6, with Esri's credit on the map. Tiles are fetched only while it's on, tried three times, and a redraw waits for the next frame however many arrive at once. With no connection the map says so and keeps the grid. With no flight the map's feet start at Moose Jaw (V6's anchor), so routes and imagery line up before any track loads. The loader (`map2d/tiles.js`) knows nothing of the debrief, ready to move to the ui-kit.
+  - 7b (VNC charts) waits on where the chart images go in `public/` and on the service worker skipping them until used (asked the app frame through the coordinator).
 
 **Checkpoint C:** open PR C.
 

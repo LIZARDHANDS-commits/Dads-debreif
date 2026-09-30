@@ -61,6 +61,7 @@ function mount(root, app) {
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
     dfps: () => dfps.map((d) => ({ x: d.x, y: d.y, label: dfpLabel(dfps, d) })),
+    onImagery: (state) => ui.setImagery(state),
     labels: (shown, t) => {
       const out = {};
       for (const row of formationAt(shown, t, currentStandards())) {
