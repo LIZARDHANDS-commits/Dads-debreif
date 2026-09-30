@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../src/core/units.js';
 import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
-import { loadV6 } from './v6-source.js';
+import { loadV6, v6Number } from './v6-source.js';
 import { seeded, spread, recordedTrack } from './inputs.js';
 
 const TURN_SIM = 'const FT_PER_NM=6076.12, KTS_TO_FPS';
@@ -25,7 +25,7 @@ function* pairs() {
 }
 
 test('Turn Sim: bank, radius and rate match bankFromG, turnRadius and turnRate', () => {
-  const v6 = loadV6(['rad2deg', 'bankFromG', 'turnRadius', 'turnRate'], { marker: TURN_SIM, prelude: 'const G0=32.174;' });
+  const v6 = loadV6(['rad2deg', 'bankFromG', 'turnRadius', 'turnRate'], { marker: TURN_SIM, prelude: `const G0=${v6Number('G0')};` });
   for (const g of G_VALUES) assert.equal(bankDegFromG(g), v6.bankFromG(g), `g=${g}`);
   for (const [kt, g] of pairs()) {
     const v = ktToFtps(kt);
@@ -35,7 +35,7 @@ test('Turn Sim: bank, radius and rate match bankFromG, turnRadius and turnRate',
 });
 
 test('Turn Fight: M gives the same speed, G, radius and degrees per second', () => {
-  const { M } = loadV6(['M'], { marker: BFM, prelude: 'const KT=1.68781,G=32.174;' });
+  const { M } = loadV6(['M'], { marker: BFM, prelude: `const KT=${v6Number('KT', { marker: BFM })},G=${v6Number('G', { marker: BFM })};` });
   let lastDigit = 0;
   for (const [kt, g] of pairs()) {
     const m = M(kt, g);
@@ -69,8 +69,8 @@ test('Traffic page: bankFromG and turnRadiusFromG are limitG(+g || 2, 9) then th
 });
 
 test('below 1 G there is no turn: NaN, as in V6', () => {
-  // Turn Sim's G-correction (line 1583) adds up to −0.8 G after limiting, so a
-  // base G under 1.81 can reach this (flagged in SPEC-core).
+  // Turn Sim's G correction (line 1583) adds up to −0.8 G after limiting, so
+  // base G plus a G error under 1.8 can reach this (flagged in SPEC-core).
   assert.ok(Number.isNaN(turnRateRadPerSec(ktToFtps(200), 0.5)));
   assert.ok(Number.isNaN(bankDegFromG(0.5)));
   assert.equal(turnRadiusFt(ktToFtps(200), 1), Infinity);
@@ -126,7 +126,7 @@ test('emPoint is null when a moment is missing, as metrics is', () => {
 
 function debriefV6() {
   return loadV6(['interpTrack', 'headingAtTrack', 'offsetKmlPoint', 'interpTrackWithError', 'normAngleRad', 'closureRateKt', 'estimatedGAtTrack', 'fmtClosureKt'], {
-    prelude: `const KML_KT_PER_FPS=0.592484; let tracks={}, kmlT=0, kmlStart=0, kmlErrors={};
+    prelude: `const KML_KT_PER_FPS=${v6Number('KML_KT_PER_FPS')}; let tracks={}, kmlT=0, kmlStart=0, kmlErrors={};
       function setDebrief(s){ tracks=s.tracks; kmlT=s.kmlT; kmlStart=s.kmlStart; kmlErrors=s.kmlErrors||{}; }`,
     expose: ['setDebrief'],
   });

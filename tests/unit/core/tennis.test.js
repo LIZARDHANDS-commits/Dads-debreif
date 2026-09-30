@@ -30,7 +30,7 @@ test('nose 10° up: the 3D arc also pitches the shooter\'s own speed, so the ans
   assert.deepEqual(bothSolvers({ pitchDeg: 10 }), { debrief: 'INTERCEPT', debriefFt: 158, threeD: 'NO INTERCEPT', threeDFt: 308 });
 });
 
-test('nose 10° up, target 300 ft higher: in V6 the 3D arc never gets the pitch estimate', () => {
+test('nose 10° up, target 300 ft higher: in V6 the 3D arc never gets the shooter\'s pitch', () => {
   // The debrief uses the 10° estimate; the 3D view gets only the bias setting, 0.
   assert.deepEqual(bothSolvers({ above: 300, pitchDeg: 10, pitchDeg3D: 0 }), { debrief: 'INTERCEPT', debriefFt: 144, threeD: 'NO INTERCEPT', threeDFt: 400 });
 });

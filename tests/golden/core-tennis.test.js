@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tennisDebrief, tennis3D } from '../../src/core/tennis.js';
-import { loadV6 } from './v6-source.js';
+import { loadV6, v6Number } from './v6-source.js';
 import { seeded, recordedTrack } from './inputs.js';
 
 /**
@@ -41,7 +41,7 @@ function box(s) {
 
 function debriefV6() {
   return loadV6(['deg2rad', 'rad2deg', 'numSetting', 'interpTrack', 'headingAtTrack', 'aircraftPitchAtTrack', 'angleDiffRad', 'getKmlTennisSolution'], {
-    prelude: `const KTS_TO_FPS=1.68781, G0=32.174, KML_KT_PER_FPS=0.592484;
+    prelude: `const KTS_TO_FPS=${v6Number('KTS_TO_FPS')}, G0=${v6Number('G0')}, KML_KT_PER_FPS=${v6Number('KML_KT_PER_FPS')};
       let tracks={}, kmlT=0, dom={};
       const el=id=>dom[id]||null;
       function setDebrief(s){ tracks=s.tracks; kmlT=s.kmlT; dom=s.dom; }`,
@@ -87,7 +87,7 @@ test('tennisDebrief matches getKmlTennisSolution', () => {
 function threeDV6() {
   return loadV6(['val', 'api', 'dpr', 'withHeading', 'draw3DDogfightArc'], {
     marker: 'function dpr(){return window.devicePixelRatio||1}',
-    prelude: `let dom={}, theApi=null, paths=[];
+    prelude: `let dom={}, paths=[];
       const document={ getElementById: id=>dom[id]||null };
       const window={ devicePixelRatio: 1, DADS3DAPI: null };
       const $=id=>document.getElementById(id);
@@ -112,7 +112,7 @@ test('tennis3D matches draw3DDogfightArc', () => {
     const api = { getTracks: () => tracks, getTime: () => now, getInterp: (id, t) => (tracks[id] ? interpTrack(tracks[id], t) : null) };
     // Like the 3D view: heading from where the aircraft was a second ago (withHeading, line 3940).
     const live = { 1: v6.withHeading(api.getInterp(1, now), api.getInterp(1, now - 1)), 2: v6.withHeading(api.getInterp(2, now), api.getInterp(2, now - 1)) };
-    // In V6 the pitch estimate never reaches the 3D view; every fifth case pretends it does.
+    // In V6 no shooter pitch, recorded or estimated, reaches the 3D view; every fifth case pretends the estimate does.
     const estimate = -20 + 40 * r();
     const pitchFn = i % 5 ? undefined : () => ({ deg: estimate, source: 'test' });
     const dom = box(s);

@@ -7,7 +7,7 @@ V6 works out the tennis ball twice: once for the debrief map (`getKmlTennisSolut
 | | Debrief map | 3D view |
 |---|---|---|
 | Ball speed | Ball speed tilted by pitch, plus the shooter's speed flat | Ball speed plus shooter's speed, both tilted by pitch |
-| Shooter pitch | Recorded pitch, or estimated from the climb | Pitch bias setting only: the estimate never reaches the 3D view |
+| Shooter pitch | Recorded pitch, or estimated from the climb | Pitch bias setting only: neither the recorded nor the estimated pitch reaches the 3D view |
 | Shooter heading | Direction of the track segment now | Direction flown over the last second |
 | Target's path | Straight on at its current heading and speed, never climbing | Its actual recorded track over the next seconds |
 | Cone, for "Cone width" 6 | ±3° | ±6°, drawn twice as wide |

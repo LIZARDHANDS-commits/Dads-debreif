@@ -88,7 +88,7 @@ export function tennisDebrief({ shooter, target, shooterHdg, targetHdg, pitchDeg
  * @param {object} o.target    { x, y, altFt } now
  * @param {(t: number) => object|null} [o.targetAt] target position t seconds ahead
  * @param {number} o.pitchDeg  shooter pitch plus the pitch bias setting
- *   (in V6 the pitch estimate never reaches the 3D view, so this is the bias alone)
+ *   (in V6 no shooter pitch, recorded or estimated, reaches the 3D view, so this is the bias alone)
  * @param {number} o.ballKt    ball speed setting
  * @param {number} o.coneDeg   cone setting (at least 0.1)
  * @param {number} o.tofSec    time of flight (at least 0.25)
