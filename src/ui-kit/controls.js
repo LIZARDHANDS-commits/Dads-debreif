@@ -65,7 +65,8 @@ export function createControls(settings) {
         'aria-describedby': messageId,
       });
       const message = h('span', { class: 'control-message', id: messageId });
-      const unitText = unit ? ` ${unit}` : '';
+      // Degrees sit on the number ("45°", "270°T"); other units take a space (TF3-9).
+      const unitText = unit ? `${unit.startsWith('°') ? '' : ' '}${unit}` : '';
       const rule =
         Number.isFinite(min) && Number.isFinite(max)
           ? `Enter a number from ${formatNumber(min)} to ${formatNumber(max)}${unitText}.`

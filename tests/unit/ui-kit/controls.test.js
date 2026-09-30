@@ -121,3 +121,19 @@ test('guard turns an action button off while a number box it uses refuses what w
   assert.equal(any.disabled, true, 'a stopped guard no longer changes its button');
   controls.dispose();
 });
+
+test('the refusal message puts degrees on the number and a space before other units (TF3-9)', () => {
+  const settings = fakeSettings({ bank: 45, gapS: 20 });
+  const controls = createControls(settings);
+  const bank = controls.number('bank', { label: 'Bank', unit: '°', min: 0, max: 90 });
+  const gap = controls.number('gapS', { label: 'Gap', unit: 's', min: 5, max: 60 });
+  for (const el of [bank, gap]) {
+    const [box] = all(el, 'INPUT');
+    box.value = '999';
+    box.dispatch('change');
+  }
+  const message = (el) => all(el, 'SPAN').find((n) => n.getAttribute('class') === 'control-message').textContent;
+  assert.equal(message(bank), 'Enter a number from 0 to 90°.');
+  assert.equal(message(gap), 'Enter a number from 5 to 60 s.');
+  controls.dispose();
+});

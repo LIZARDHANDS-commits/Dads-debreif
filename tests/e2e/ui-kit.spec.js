@@ -86,6 +86,24 @@ test.describe('controls', () => {
   });
 });
 
+test.describe('controls, guarding an action (TR-14)', () => {
+  test('an action waits while the number box it uses refuses what was typed', async ({ page }) => {
+    await open(page);
+    const box = page.getByLabel('Safety bubble');
+    const add = page.getByRole('button', { name: 'Add bubble' });
+    await box.fill('20');
+    await add.click({ force: true }); // leaving the box refuses 20, which turns the button off first
+    await expect(box).toHaveAttribute('aria-invalid', 'true');
+    await expect(add).toBeDisabled();
+    expect(await page.evaluate(() => window.__kit.bubbleActions())).toBe(0);
+    expect(await page.evaluate(() => window.__kit.controls.invalid())).toEqual(['bubbleFt']);
+    await box.fill('300');
+    await expect(add).toBeEnabled();
+    await add.click();
+    expect(await page.evaluate(() => window.__kit.bubbleActions())).toBe(1);
+  });
+});
+
 test.describe('controls, turned off', () => {
   test('setDisabled greys out a control and keeps its setting', async ({ page }) => {
     await open(page);
