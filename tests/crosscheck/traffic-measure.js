@@ -180,6 +180,12 @@ export function makeMeasures(setup, seed) {
     const a = r.points[from], b = r.points[to];
     return Math.atan((a.alt - b.alt) / Math.hypot(b.x - a.x, b.y - a.y)) * DEG;
   };
+  /** Angle of the last straight bit of the flown path (from where the last turn rolls out to the end). */
+  const flownGlide = (r) => {
+    const leg = straightLeg(r, r.points.length - (r.kind === 'pattern' ? 1 : 2));
+    return Math.atan((leg.a.alt - leg.b.alt) / leg.len) * DEG;
+  };
+  const windowHeight = (r) => positionAt(r, routePath(r).lengthFt - WINDOW_FT).alt;
   const initial = () => straightLeg(pat, 8);
   const downwind = () => straightLeg(pat, 10);
   const finalLeg = () => straightLeg(pat, 12);
@@ -190,10 +196,16 @@ export function makeMeasures(setup, seed) {
     'h-closed-height': () => ({ value: spl3.points[spl3.points.length - 1].alt }),
     'h-straight-in-base': () => ({ value: spl1.points[2].alt }),
     'h-straight-in-drop': () => ({ value: min(alts(pat, range(3, 11))) - spl1.points[2].alt }),
-    'h-window-height': () => ({ value: positionAt(pat, routePath(pat).lengthFt - WINDOW_FT).alt }),
+    'h-window-height': () => ({ value: windowHeight(pat) }),
+    'h-window-height-si1': () => ({ value: windowHeight(spl1) }),
+    'h-window-height-si2': () => ({ value: windowHeight(ent2) }),
     'g-glide-pattern': () => ({ value: legGlide(pat, 12, 0) }),
+    'g-glide-pattern-flown': () => ({ value: flownGlide(pat) }),
     'g-glide-straight-in-1': () => ({ value: legGlide(spl1, 5, 6) }),
     'g-glide-straight-in-2': () => ({ value: legGlide(ent2, 3, 4) }),
+
+    'g-glide-straight-in-1-flown': () => ({ value: flownGlide(spl1) }),
+    'g-glide-straight-in-2-flown': () => ({ value: flownGlide(ent2) }),
 
     's-pattern-speed': () => ({ value: min(kts(pat, range(3, 9))) }),
     's-break-exit-speed': () => ({ value: P[10].kt }),

@@ -102,6 +102,32 @@
       "note": "The manual gives about 2,100 to 2,200 ft; 2,150 is the middle."
     },
     {
+      "id": "h-window-height-si1",
+      "group": "Heights",
+      "title": "Height at the window (3/4 NM out on final, Split 1 straight-in)",
+      "checks": "Height on final 4,557 ft (0.75 NM) before the threshold, along Split 1.",
+      "manual": 2150,
+      "unit": "ft MSL",
+      "page": "SMM 4.7 para 12; EFIG p.397",
+      "source": "manual",
+      "tolerance": 50,
+      "mode": "within",
+      "measure": "positionAt(SPL1, lengthFt - 0.75 NM).alt"
+    },
+    {
+      "id": "h-window-height-si2",
+      "group": "Heights",
+      "title": "Height at the window (3/4 NM out on final, Entry 2 straight-in)",
+      "checks": "Height on final 4,557 ft (0.75 NM) before the threshold, along Entry 2.",
+      "manual": 2150,
+      "unit": "ft MSL",
+      "page": "SMM 4.7 para 12; EFIG p.397",
+      "source": "manual",
+      "tolerance": 50,
+      "mode": "within",
+      "measure": "positionAt(ENT2, lengthFt - 0.75 NM).alt"
+    },
+    {
       "id": "h-grob-pattern",
       "group": "Heights",
       "title": "Grob pattern height",
@@ -118,8 +144,8 @@
     {
       "id": "g-glide-pattern",
       "group": "Heights",
-      "title": "Glide angle on final, Pattern 1 (last leg)",
-      "checks": "Angle from the last pattern point to the threshold: 2,100 ft down to 1,880 ft over the last leg.",
+      "title": "Glide angle on final, Pattern 1 (last point to threshold)",
+      "checks": "Angle from the last pattern point to the threshold: 2,100 ft down to 1,880 ft over the last leg, from the last route point (the corner) to the threshold.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.399",
@@ -129,10 +155,23 @@
       "measure": "atan((alt[12] - alt[0]) / leg 13 to 1 length), PAT1"
     },
     {
+      "id": "g-glide-pattern-flown",
+      "group": "Heights",
+      "title": "Glide angle on final, Pattern 1 (flown, from the roll-out)",
+      "checks": "Angle over the last straight bit of the flown path, from where the last turn rolls out to the threshold. The row above measures from the corner point, which is further out than the roll-out.",
+      "manual": 3.0,
+      "unit": "deg",
+      "page": "SMM 4.7 para 10; EFIG p.399",
+      "source": "manual",
+      "tolerance": 0.25,
+      "mode": "within",
+      "measure": "atan(height drop / length) of the last straight bit of the flown path (routePath segs)"
+    },
+    {
       "id": "g-glide-straight-in-1",
       "group": "Heights",
-      "title": "Glide angle on final, Split 1 straight-in (last leg)",
-      "checks": "Angle over the last leg of Split 1, 2,700 ft down to the threshold.",
+      "title": "Glide angle on final, Split 1 straight-in (last point to threshold)",
+      "checks": "Angle over the last leg, from the last route point (the corner) to the threshold of Split 1, 2,700 ft down to the threshold.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.130",
@@ -142,10 +181,23 @@
       "measure": "atan((alt[5] - alt[6]) / last leg length), SPL1"
     },
     {
+      "id": "g-glide-straight-in-1-flown",
+      "group": "Heights",
+      "title": "Glide angle on final, Split 1 straight-in (flown, from the roll-out)",
+      "checks": "Angle over the last straight bit of the flown path, from where the last turn rolls out to the threshold. The row above measures from the corner point, which is further out than the roll-out.",
+      "manual": 3.0,
+      "unit": "deg",
+      "page": "SMM 4.7 para 10; EFIG p.130",
+      "source": "manual",
+      "tolerance": 0.25,
+      "mode": "within",
+      "measure": "atan(height drop / length) of the last straight bit of the flown path (routePath segs)"
+    },
+    {
       "id": "g-glide-straight-in-2",
       "group": "Heights",
-      "title": "Glide angle on final, Entry 2 straight-in (last leg)",
-      "checks": "Angle over the last leg of Entry 2, 2,700 ft down to the threshold.",
+      "title": "Glide angle on final, Entry 2 straight-in (last point to threshold)",
+      "checks": "Angle over the last leg, from the last route point (the corner) to the threshold of Entry 2, 2,700 ft down to the threshold.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.130",
@@ -153,6 +205,19 @@
       "tolerance": 0.25,
       "mode": "within",
       "measure": "atan((alt[3] - alt[4]) / last leg length), ENT2"
+    },
+    {
+      "id": "g-glide-straight-in-2-flown",
+      "group": "Heights",
+      "title": "Glide angle on final, Entry 2 straight-in (flown, from the roll-out)",
+      "checks": "Angle over the last straight bit of the flown path, from where the last turn rolls out to the threshold. The row above measures from the corner point, which is further out than the roll-out.",
+      "manual": 3.0,
+      "unit": "deg",
+      "page": "SMM 4.7 para 10; EFIG p.130",
+      "source": "manual",
+      "tolerance": 0.25,
+      "mode": "within",
+      "measure": "atan(height drop / length) of the last straight bit of the flown path (routePath segs)"
     },
     {
       "id": "s-pattern-speed",
