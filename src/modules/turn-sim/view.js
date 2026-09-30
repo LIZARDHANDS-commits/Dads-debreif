@@ -187,7 +187,7 @@ function drawLead39(ctx, map, lead) {
   ctx.lineTo(bx, by);
   ctx.stroke();
   ctx.restore();
-  text(ctx, 'Lead 3/9', cx + 18, cy + 32, '#b9d8f5', 11);
+  text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
 }
 
 function drawTrails(ctx, map, trail) {
@@ -278,7 +278,8 @@ function drawTurnCircles(ctx, map, state, settings) {
     ctx.stroke();
     ctx.restore();
     // Under the circle, so it never sits on the spacing lines through the aircraft.
-    text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14, color, 11, 'center');
+    // Neighbours in a tight picture stagger by a row, so their words do not run together.
+    text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14 + (a.id % 2 === 0 ? 13 : 0), color, 11, 'center');
   }
 }
 
