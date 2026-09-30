@@ -1,4 +1,4 @@
-// Browser tests for the SOF Dashboard, task 2, "a screen with live weather"
+// Browser tests for the SOF Dashboard, tasks 2 to 5: the screen with live weather, the caution banner, the waves and the timeline
 // (SPEC-sof: The screen, Testing strategy). To go in tests/e2e/sof.spec.js once the
 // registry entry is in (see registry-entry.md). Every weather reply is served from
 // tests/fixtures/sof/screen-*, never from a live feed, and the clock is fixed at
@@ -137,6 +137,22 @@ test('each card shows the report as text, its age, and the state in words', asyn
 
 });
 
+test('a card whose METAR is stale has no green tick and no green category chip', async ({ page }) => {
+  await openSof(page);
+  const swift = card(page, 'CYYN'); // its METAR is 2 h 42 min old
+  await expect(swift.locator('.sof-result')).toHaveText('? Unknown: report is 2 h 42 min old');
+  await expect(swift.locator('.sof-result')).not.toContainText('✓');
+  await expect(swift).not.toHaveClass(/level-within/);
+  // The chip keeps its words but is grey, unlike the same VFR on a fresh report.
+  await expect(swift.locator('.sof-category')).toContainText('VFR');
+  await expect(swift.locator('.sof-category')).toHaveClass(/is-stale/);
+  const colour = (loc) => loc.evaluate((el) => getComputedStyle(el).color);
+  const fresh = await colour(card(page, 'CYMJ').locator('.sof-category'));
+  expect(await colour(swift.locator('.sof-category'))).not.toBe(fresh);
+  // A fresh report is as before.
+  await expect(card(page, 'CYMJ').locator('.sof-result')).toContainText('✓ Within limits');
+});
+
 test('a station neither source has a report for says so, with the time of the last try', async ({ page }) => {
   // The other three have reports; Saskatoon has none from either source.
   const without = (text) => text.split('\n').filter((line) => line && !line.startsWith('CYXE')).join('\n');
@@ -257,8 +273,8 @@ test('the settings menu holds every tuning number, starts at the defaults, and c
   await expect(page.getByLabel('Trigger', { exact: true }).locator('option:checked')).toHaveText('Local (MTCA) 2000/3');
   await expect(page.getByLabel('Home ceiling below')).toHaveValue('2000');
   await expect(page.getByLabel('Home visibility below')).toHaveValue('3');
-  // The banner switch and the lightning radius have no controls until tasks 3 and 7.
-  await expect(page.getByLabel('Show the new-caution banner')).toHaveCount(0);
+  // The banner switch is here from task 3, on to begin with; the lightning radius has no control until task 7.
+  await expect(page.getByLabel('Show the new-caution banner')).toBeChecked();
   await expect(page.getByLabel('Lightning radius around home')).toHaveCount(0);
 
   // Home's METAR has a 2,500 ft ceiling: within Local's 2,000, below Cross-country's 3,000.
@@ -329,8 +345,12 @@ for (const size of SIZES) {
       await settingsButton(page).click();
       expect(await layoutProblems(page)).toEqual([]);
       await settingsButton(page).click();
-      // The bar, the cards and the credits line fit on one screen without scrolling.
-      if (size.width === 1920) expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
+      // The bar, the banner and the waves are on the first screen of a desk monitor. (The whole page, with the
+      // cards and the timeline, is taller than 1080 px until the map is beside the cards; that is scrolled, not overlapped.)
+      if (size.width === 1920) {
+        const bottom = await page.locator('.sof-waves').evaluate((el) => el.getBoundingClientRect().bottom);
+        expect(bottom).toBeLessThanOrEqual(1080);
+      }
     });
   });
 
@@ -350,3 +370,660 @@ for (const size of SIZES) {
     });
   });
 }
+
+// ---- Task 3: the caution banner (SPEC-sof, "Caution banner"), by keyboard alone --------------------------------
+
+const banner = (page) => page.locator('.sof-banner');
+const bannerLines = (page) => page.locator('.sof-banner-line .sof-banner-text');
+const focusedClass = (page) => page.evaluate(() => document.activeElement?.className ?? '');
+
+// Presses Tab until the focused element matches `selector`, so the walk is the keyboard's own.
+async function tabTo(page, selector, limit = 12) {
+  for (let i = 0; i < limit; i++) {
+    if (await page.evaluate((s) => document.activeElement?.matches(s) ?? false, selector)) return;
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`Tab never reached ${selector}`);
+}
+
+test('the banner lists each new caution in words, in the page flow, and is announced as an alert', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await expect(banner(page)).toBeVisible();
+  await expect(banner(page)).toHaveAttribute('role', 'alert');
+  await expect(banner(page).locator('.sof-banner-title')).toContainText('2 new cautions');
+  await expect(bannerLines(page)).toHaveText([
+    'Below limits: CYQR METAR 1800Z: CEILING 400 FT < 600 FT',
+    'Caution: CYMJ METAR 1800Z: THUNDERSTORM / SEVERE WX (VCTS)',
+  ]);
+  // A symbol and words, never colour alone.
+  await expect(banner(page).locator('.sof-banner-line').first().locator('.sof-banner-symbol')).toHaveText('▼');
+  await expect(banner(page).locator('.sof-banner-line').nth(1).locator('.sof-banner-symbol')).toHaveText('⚠');
+  // It takes its own row above the cards and never sits over them.
+  const [b, cards] = await Promise.all([banner(page).boundingBox(), page.locator('.sof-cards').boundingBox()]);
+  expect(b.y + b.height).toBeLessThanOrEqual(cards.y);
+  // The cards still list every caution.
+  await expect(card(page, 'CYMJ').locator('.sof-caution')).toContainText('Caution: THUNDERSTORM / SEVERE WX (VCTS)');
+});
+
+test('a caution in a TAF is on the banner with its group and times', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') });
+  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+});
+
+test('no cautions, no banner', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt') });
+  await expect(banner(page)).toBeHidden();
+});
+
+test('the banner flow by keyboard: Acknowledge one, then the last, a reload, the same weather again, and a new caution', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await expect(bannerLines(page)).toHaveCount(2);
+  await feedStatus(page).focus();
+  await tabTo(page, '.sof-banner-ack'); // Refresh, the settings menu, then the first Acknowledge
+  await expect(page.locator('.sof-banner-ack').first()).toBeFocused();
+  await expect(page.locator('.sof-banner-ack').first()).toHaveAccessibleName('Acknowledge: Below limits: CYQR METAR 1800Z: CEILING 400 FT < 600 FT');
+
+  // Enter acknowledges the first line; focus stays in the banner, on the line now in its place.
+  await page.keyboard.press('Enter');
+  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ METAR 1800Z: THUNDERSTORM / SEVERE WX (VCTS)']);
+  await expect(page.locator('.sof-banner-ack')).toBeFocused();
+  await expect(banner(page).locator('.sof-banner-all')).toBeHidden(); // one line left: Acknowledge all isn't needed
+  await page.keyboard.press('Enter');
+  await expect(banner(page)).toBeHidden();
+  expect(await focusedClass(page), 'focus is not lost to the page').not.toBe('');
+
+  // Acknowledged stays acknowledged after a reload, and when the same weather comes in the next report.
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'sof');
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('Below limits');
+  await expect(banner(page)).toBeHidden();
+  feed.metar = fixture('ui-metno-metar-storm.txt').replaceAll('291800Z', '291830Z');
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(card(page, 'CYMJ').locator('.sof-metar .sof-report-title')).toContainText('METAR 1830Z');
+  await expect(banner(page)).toBeHidden();
+
+  // A different caution is new: only it is on the banner, and the alert role is back for it.
+  feed.metar = fixture('ui-metno-metar-storm-yyn.txt');
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(bannerLines(page)).toHaveText([
+    'Caution: CYYN METAR 1830Z: THUNDERSTORM / SEVERE WX (TSRA)',
+    'Caution: CYYN METAR 1830Z: CB/TCU (BKN040CB)',
+  ]);
+  await expect(banner(page)).toHaveAttribute('role', 'alert');
+});
+
+test('Acknowledge all clears every line at once, by keyboard, and the banner stays gone until something new', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await feedStatus(page).focus();
+  await tabTo(page, '.sof-banner-all');
+  await expect(banner(page).locator('.sof-banner-all')).toHaveText('Acknowledge all');
+  await page.keyboard.press('Enter');
+  await expect(banner(page)).toBeHidden();
+  expect(await focusedClass(page)).not.toBe('');
+  // The same reports again: nothing new, and the banner is no longer an alert.
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(feedStatus(page)).toHaveText('Weather just now ✓');
+  await expect(banner(page)).toBeHidden();
+  await expect(banner(page)).not.toHaveAttribute('role', 'alert');
+  // A caution that clears and comes back is new again (SOF-4).
+  feed.metar = fixture('ui-metno-metar-clear.txt');
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('Within limits');
+  feed.metar = fixture('ui-metno-metar-storm.txt');
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(bannerLines(page)).toHaveCount(2);
+});
+
+test('the banner switch in settings turns the banner off and on, is kept, and the cards still show the cautions', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await expect(banner(page)).toBeVisible();
+  await settingsButton(page).click();
+  const switchBox = page.getByLabel('Show the new-caution banner');
+  await expect(switchBox).toBeChecked();
+  await switchBox.focus();
+  await page.keyboard.press('Space');
+  await expect(switchBox).not.toBeChecked();
+  await expect(banner(page)).toBeHidden();
+  await expect(card(page, 'CYMJ').locator('.sof-caution')).toBeVisible();
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'sof');
+  await expect(banner(page)).toBeHidden();
+  await settingsButton(page).click();
+  await page.getByLabel('Show the new-caution banner').check();
+  await expect(banner(page)).toBeVisible();
+  await expect(bannerLines(page)).toHaveCount(2);
+});
+
+for (const size of SIZES) {
+  test.describe(`at ${size.width} × ${size.height}, with the banner up`, () => {
+    test.use({ viewport: size });
+
+    test('nothing overlaps and the banner pushes the screen down instead of covering it', async ({ page }) => {
+      await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+      await expect(banner(page)).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      await settingsButton(page).click();
+      expect(await layoutProblems(page)).toEqual([]);
+    });
+  });
+}
+
+// ---- Task 4: waves on screen (SPEC-sof, "Waves and the alternate call") -----------------------------------------
+// The clock is 1842Z on the 29th, 12:42 at home (CST, UTC-6). The fog TAF has a TEMPO of 1/2SM FG from 22Z to 24Z.
+
+const CLEAR_FOG = { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') };
+const waveRow = (page, n) => page.locator('.sof-wave').nth(n);
+const addButton = (page) => page.getByRole('button', { name: 'Add wave' });
+
+// Adds a wave by the Add wave button and fills it in.
+async function addWave(page, name, takeoff, land) {
+  const at = await page.locator('.sof-wave').count();
+  await addButton(page).click();
+  const row = waveRow(page, at);
+  await row.locator('.sof-wave-name').fill(name);
+  await row.locator('.sof-wave-takeoff').fill(takeoff);
+  await row.locator('.sof-wave-land').fill(land);
+  return row;
+}
+
+test('the waves part starts with no waves, the zone and the date said, and Today chosen', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await expect(page.locator('.sof-waves-title')).toHaveText('Waves');
+  await expect(page.locator('.sof-waves-zone')).toHaveText('Times are home local time (CST)');
+  await expect(page.locator('.sof-day-date')).toHaveText('Tue 29 Sep');
+  await expect(page.getByLabel('Today')).toBeChecked();
+  await expect(page.locator('.sof-waves-empty')).toBeVisible();
+  await expect(page.locator('.sof-wave')).toHaveCount(0);
+  // Nothing about a wave shows on the alternate cards until there is one.
+  await expect(page.locator('.sof-wave-result')).toHaveCount(0);
+});
+
+test('a wave has a chip with its call in words, a symbol and the first reason; the list of hits is for the selected wave', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, 'Aft', '15:30', '17:00');
+  const chip = row.locator('.sof-wave-chip');
+  await expect(chip).toContainText('ALTERNATE REQUIRED');
+  await expect(chip.locator('.sof-chip-symbol')).toHaveText('⚠');
+  await expect(chip.locator('.sof-chip-reason')).toContainText('CYMJ TEMPO');
+  await expect(chip.locator('.sof-chip-reason')).toContainText('from 22Z');
+  await expect(chip.locator('.sof-chip-alts')).toHaveText('3 of 3 alternates meet');
+  await expect(chip).toHaveAccessibleName(/^Aft: ALTERNATE REQUIRED/);
+  // The list of every hit is closed until the chip is pressed, then it lists the hits and each alternate's result.
+  const detail = page.locator('.sof-wave-detail');
+  await expect(detail).toBeHidden();
+  await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  await chip.click();
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await expect(detail.locator('.sof-detail-title')).toHaveText('Aft 1530–1700 CST (2130–2300Z)');
+  await expect(detail.locator('.sof-hit').first()).toContainText('Below limits: CYMJ TEMPO');
+  await expect(detail.locator('.sof-detail-home')).toContainText('Home, Local (MTCA) 2000/3: ALTERNATE REQUIRED');
+  await expect(detail.locator('.sof-alt')).toHaveCount(3);
+  await expect(detail.locator('.sof-alt').first()).toContainText('CYQR, 600-2: Meets minima');
+  // Each alternate card shows its own result for the wave, home's does not.
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toHaveText('Aft arrival 2200–0000Z: ✓ Meets minima');
+  await expect(card(page, 'CYMJ').locator('.sof-wave-result')).toHaveCount(0);
+  expect(await page.locator('.sof-waves').textContent(), 'no stray "null" text').not.toContain('null');
+});
+
+test('an alternate that does not meet its minima says so on its card for the selected wave', async ({ page }) => {
+  // Regina's TAF has fog until 00Z: a wave landing at 17:00 local (23Z) is inside it.
+  const taf = fixture('ui-metno-taf-fog.txt').replace(/^CYQR .*$/m, 'CYQR 291740Z 2918/3018 00000KT M1/4SM FG BKN002 FM300000 27010KT P6SM FEW040 RMK NXT FCST BY 300000Z=');
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+  await addWave(page, '', '15:30', '17:00');
+  await expect(page.locator('.sof-wave-chip .sof-chip-alts')).toHaveText('2 of 3 alternates meet');
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toContainText('W1 arrival 2200–0000Z: ▼ Below minima');
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toContainText('CYQR');
+  await expect(card(page, 'CYYN').locator('.sof-wave-result')).toContainText('✓ Meets minima');
+});
+
+test('selecting another wave by keyboard switches the list of hits and the alternate cards', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await addWave(page, 'Early', '12:30', '14:00');
+  await addWave(page, 'Aft', '15:30', '17:00');
+  await expect(waveRow(page, 0).locator('.sof-wave-chip')).toContainText('No alternate needed');
+  // The first wave is the one the alternate cards show, and its list of hits is closed.
+  await expect(waveRow(page, 0).locator('.sof-wave-chip')).toHaveClass(/is-selected/);
+  await expect(page.locator('.sof-wave-detail')).toBeHidden();
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toContainText('Early arrival');
+  // Pressing the second wave's chip from the keyboard selects it and opens its hits.
+  await waveRow(page, 1).locator('.sof-wave-chip').focus();
+  await page.keyboard.press('Enter');
+  await expect(waveRow(page, 1).locator('.sof-wave-chip')).toHaveAttribute('aria-pressed', 'true');
+  await expect(waveRow(page, 0).locator('.sof-wave-chip')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.sof-detail-title')).toContainText('Aft 1530–1700 CST');
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toContainText('Aft arrival');
+  await expect(waveRow(page, 1).locator('.sof-wave-chip')).toBeFocused();
+  // Pressing it again closes the list; the cards keep showing that wave.
+  await page.keyboard.press('Space');
+  await expect(page.locator('.sof-wave-detail')).toBeHidden();
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toContainText('Aft arrival');
+});
+
+test('every input does something: the name, both times, the day and Remove', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, 'Aft', '15:30', '17:00');
+  // The name is in the chip's name, the list, and the cards.
+  await row.locator('.sof-wave-name').fill('Late');
+  await expect(row.locator('.sof-wave-chip')).toHaveAccessibleName(/^Late: /);
+  await row.locator('.sof-wave-chip').click();
+  await expect(page.locator('.sof-detail-title')).toContainText('Late 1530–1700 CST');
+  await expect(card(page, 'CYQR').locator('.sof-wave-result')).toContainText('Late arrival');
+  // Times move the wave: an hour earlier is before the fog, so no alternate is needed.
+  await row.locator('.sof-wave-takeoff').fill('12:30');
+  await row.locator('.sof-wave-land').fill('14:00');
+  await expect(row.locator('.sof-wave-chip')).toContainText('No alternate needed');
+  await expect(page.locator('.sof-detail-title')).toContainText('Late 1230–1400 CST (1830–2000Z)');
+  // The day moves it to tomorrow's date, where this TAF has ended.
+  await page.getByLabel('Tomorrow').check();
+  await expect(page.locator('.sof-day-date')).toHaveText('Wed 30 Sep');
+  await expect(row.locator('.sof-wave-chip')).toContainText("TAF doesn't cover the wave");
+  await page.getByLabel('Today').check();
+  await expect(row.locator('.sof-wave-chip')).toContainText('No alternate needed');
+  // Remove takes it away, and focus is not lost.
+  await row.locator('.sof-wave-remove').click();
+  await expect(page.locator('.sof-wave')).toHaveCount(0);
+  await expect(addButton(page)).toBeFocused();
+});
+
+test('a wave that lands after midnight is shown and checked, not dropped (#7)', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, 'Night', '22:00', '00:30');
+  await expect(row.locator('.sof-wave-note')).toHaveText('Lands the next day');
+  await expect(row.locator('.sof-wave-chip')).toBeVisible();
+  await row.locator('.sof-wave-chip').click();
+  await expect(page.locator('.sof-detail-title')).toHaveText('Night 2200–0030 CST (0400–0630Z)');
+});
+
+test('a wave with no times says what is missing instead of a call', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await addButton(page).click();
+  await expect(waveRow(page, 0).locator('.sof-wave-note')).toHaveText('Takeoff time not set');
+  await expect(waveRow(page, 0).locator('.sof-wave-chip')).toBeHidden();
+  await waveRow(page, 0).locator('.sof-wave-takeoff').fill('08:00');
+  await expect(waveRow(page, 0).locator('.sof-wave-note')).toHaveText('Landing time not set');
+  // Something that is not a time is said, and does not make a call.
+  await page.evaluate(() => {
+    const input = document.querySelector('.sof-wave-land');
+    input.type = 'text';
+    input.value = 'later';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(waveRow(page, 0).locator('.sof-wave-note')).toHaveText('Enter the time as HH:MM, for example 08:30.');
+  await expect(waveRow(page, 0).locator('.sof-wave-land')).toHaveAttribute('aria-invalid', 'true');
+});
+
+test('editing a wave never loses focus, even as the screen redraws around it', async ({ page }) => {
+  const feed = await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, '', '15:30', '17:00');
+  const name = row.locator('.sof-wave-name');
+  await name.focus();
+  await page.keyboard.type('Aft');
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue('Aft');
+  // A new time changes the chip, the list, the cards and the banner; the box being typed in keeps focus and its text.
+  const takeoff = row.locator('.sof-wave-takeoff');
+  await takeoff.fill('15:00');
+  await expect(takeoff).toBeFocused();
+  await expect(takeoff).toHaveValue('15:00');
+  // A refresh with new weather while focus is in the box changes the words around it, not the box.
+  await name.focus();
+  feed.taf = fixture('screen-metno-taf.txt');
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(row.locator('.sof-wave-chip')).toContainText('No alternate needed');
+  await name.focus();
+  await page.keyboard.type('X');
+  await expect(name).toHaveValue('AftX');
+  await expect(name).toBeFocused();
+});
+
+test('the plan survives a reload, and Tomorrow chosen today is still Tomorrow', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await addWave(page, 'Early', '12:30', '14:00');
+  await addWave(page, 'Night', '22:00', '00:30');
+  await page.getByLabel('Tomorrow').check();
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'sof');
+  await expect(page.locator('.sof-wave')).toHaveCount(2);
+  await expect(waveRow(page, 0).locator('.sof-wave-name')).toHaveValue('Early');
+  await expect(waveRow(page, 0).locator('.sof-wave-takeoff')).toHaveValue('12:30');
+  await expect(waveRow(page, 1).locator('.sof-wave-land')).toHaveValue('00:30');
+  await expect(page.getByLabel('Tomorrow')).toBeChecked();
+  await expect(page.locator('.sof-day-date')).toHaveText('Wed 30 Sep');
+});
+
+test('no old date is ever used: Tomorrow chosen yesterday is Today now, and the waves are today\'s', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await addWave(page, 'Aft', '15:30', '17:00');
+  await page.getByLabel('Tomorrow').check();
+  await expect(page.locator('.sof-day-date')).toHaveText('Wed 30 Sep');
+  // The next day at home (the 30th, 12:42 there): what was Tomorrow is Today.
+  await page.clock.setFixedTime(new Date('2026-09-30T18:42:00Z'));
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'sof');
+  await expect(page.getByLabel('Today')).toBeChecked();
+  await expect(page.locator('.sof-day-date')).toHaveText('Wed 30 Sep');
+  await expect(waveRow(page, 0).locator('.sof-wave-takeoff')).toHaveValue('15:30');
+});
+
+test('up to 5 waves: Add wave stops there, says why, and keeps focus', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  for (let i = 0; i < 5; i++) await addButton(page).click();
+  await expect(page.locator('.sof-wave')).toHaveCount(5);
+  await expect(page.locator('.sof-wave-limit')).toHaveText('Up to 5 waves');
+  await expect(addButton(page)).toHaveAttribute('aria-disabled', 'true');
+  await addButton(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.sof-wave')).toHaveCount(5);
+  await expect(addButton(page)).toBeFocused();
+  // Removing one by keyboard hands focus to the wave that took its place, and Add wave works again.
+  await waveRow(page, 1).locator('.sof-wave-remove').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.sof-wave')).toHaveCount(4);
+  await expect(waveRow(page, 1).locator('.sof-wave-name')).toBeFocused();
+  await expect(addButton(page)).not.toHaveAttribute('aria-disabled', 'true');
+});
+
+test('acknowledging the last caution hands focus to the Waves heading', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await banner(page).locator('.sof-banner-all').focus();
+  await page.keyboard.press('Enter');
+  await expect(banner(page)).toBeHidden();
+  await expect(page.locator('.sof-waves-title')).toBeFocused();
+});
+
+test('a wave whose TAF is below the limits raises a new line on the banner, and the same one is not raised twice', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  await addWave(page, '', '15:30', '17:00');
+  await expect(bannerLines(page)).toHaveCount(3);
+  await expect(bannerLines(page).filter({ hasText: 'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT' })).toHaveCount(1);
+  await expect(banner(page)).toHaveAttribute('role', 'alert');
+  // A second wave over the same fog adds no second line for it.
+  await addWave(page, '', '16:00', '17:30');
+  await expect(bannerLines(page)).toHaveCount(3);
+});
+
+for (const size of SIZES) {
+  test.describe(`at ${size.width} × ${size.height}, with waves`, () => {
+    test.use({ viewport: size });
+
+    test('nothing overlaps or is cut off with five waves and the list of hits open', async ({ page }) => {
+      await openSof(page, CLEAR_FOG);
+      for (const [name, a, b] of [['Early', '12:30', '14:00'], ['Aft', '15:30', '17:00'], ['Night', '22:00', '00:30'], ['', '13:00', '14:30'], ['Long name', '18:00', '19:30']]) {
+        await addWave(page, name, a, b);
+      }
+      await expect(page.locator('.sof-wave')).toHaveCount(5);
+      await waveRow(page, 1).locator('.sof-wave-chip').click();
+      await expect(page.locator('.sof-wave-detail')).toBeVisible();
+      expect(await layoutProblems(page)).toEqual([]);
+      await settingsButton(page).click();
+      expect(await layoutProblems(page)).toEqual([]);
+    });
+  });
+}
+
+// ---- Task 5: the 24-hour timeline (SPEC-sof, "24-hour timeline") ---------------------------------------------------
+// Home's day is 06Z on the 29th to 06Z on the 30th. The TAFs start at 18Z, so pieces are in the right half of the day.
+
+const timeline = (page) => page.locator('.sof-timeline');
+const pieces = (page, icao) => page.locator(`.sof-tl-row[data-icao="${icao}"] .sof-tl-piece`);
+const tlInfo = (page) => page.locator('.sof-tl-info');
+
+test('the timeline draws a row for each airfield, with labelled pieces, Zulu first and a local row, and the now line', async ({ page }) => {
+  await openSof(page);
+  await expect(timeline(page).locator('.panel-title')).toHaveText('24-hour timeline, Tue 29 Sep (CST)');
+  await expect(page.locator('.sof-tl-row .sof-tl-icao')).toHaveText(['CYMJ', 'CYQR', 'CYYN', 'CYXE']);
+  await expect(page.locator('.sof-tl-axis-row').nth(0).locator('.sof-tl-axis-label')).toHaveText('Zulu');
+  await expect(page.locator('.sof-tl-axis-row').nth(1).locator('.sof-tl-axis-label')).toHaveText('CST');
+  await expect(page.locator('.sof-tl-axis-row').nth(0)).toContainText('18Z');
+  await expect(page.locator('.sof-tl-axis-row').nth(1)).toContainText('12:00');
+  // Home's TAF: prevailing to 21Z, then the FM group. Each piece is labelled with its NATO colour state.
+  const home = pieces(page, 'CYMJ');
+  await expect(home).toHaveCount(2);
+  await expect(home.first().locator('.sof-tl-piece-label')).toHaveText(/^[A-Z0-9]+$/);
+  // The METAR marks and the now line.
+  await expect(page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-metar')).toHaveAccessibleName('METAR 1800Z');
+  await expect(page.locator('.sof-tl-now')).toBeVisible();
+  await expect(page.locator('.sof-tl-now-label')).toHaveText('Now 1842Z');
+  expect(await page.locator('.sof-timeline').textContent(), 'no stray "null" text').not.toContain('null');
+});
+
+test('a piece below the limits is hatched and says below in its label; a row with no TAF says so', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt').split('\n').filter((l) => !l.startsWith('CYYN')).join('\n') });
+  const tempo = pieces(page, 'CYMJ').filter({ hasText: 'TEMPO' });
+  await expect(tempo).toHaveCount(1);
+  await expect(tempo).toHaveClass(/is-hatched/);
+  await expect(tempo.locator('.sof-tl-piece-label')).toContainText('below');
+  await expect(pieces(page, 'CYMJ').first()).not.toHaveClass(/is-hatched/);
+  await expect(page.locator('.sof-tl-row[data-icao="CYYN"] .sof-tl-words')).toHaveText('No TAF');
+});
+
+test('each wave is a band with landing and landing + 1 h marks, and an evening wave is on the day (#7)', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await addWave(page, 'Aft', '15:30', '17:00');
+  await addWave(page, 'Night', '21:30', '23:00');
+  await expect(page.locator('.sof-tl-band')).toHaveCount(2);
+  await expect(page.locator('.sof-tl-band-label')).toHaveText(['Aft', 'Night']);
+  await expect(page.locator('.sof-tl-mark.is-landing')).toHaveCount(2);
+  await expect(page.locator('.sof-tl-mark.is-plus1')).toHaveCount(2);
+  // The evening wave is near the end of the Zulu-first day and is not dropped.
+  const left = await page.locator('.sof-tl-band').nth(1).evaluate((el) => parseFloat(el.style.left));
+  expect(left).toBeGreaterThan(85); // 21:30 local is 21.5 h into the 24 h window: 89.6%
+  await expect(page.locator('.sof-tl-waves')).toContainText('Night 0330Z–0500Z, local 21:30–23:00 CST. Landing 0500Z, landing + 1 h 0600Z.');
+  // Bands never take the pointer or a tab stop.
+  expect(await page.locator('.sof-tl-overlay').evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none');
+});
+
+test('the keyboard walk: one tab stop, arrows step through pieces and rows, and the card is in words', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') });
+  await expect(tlInfo(page)).toContainText('Hover over or focus a piece');
+  await timeline(page).locator('.panel-toggle').focus();
+  await page.keyboard.press('Tab'); // the timeline's single tab stop: its first piece
+  const first = pieces(page, 'CYMJ').first();
+  await expect(first).toBeFocused();
+  await expect(tlInfo(page)).toHaveText(/^CYMJ PREVAILING 29\/18Z–30\/06Z: \w+\. Zulu 1800–0600, local 12:00–00:00 CST\. Conditions: 22010KT P6SM\.$/);
+  await expect(first).toHaveAccessibleName(/^CYMJ PREVAILING 29\/18Z–30\/06Z/);
+  // Right steps along the row in time order: the prevailing piece, then the TEMPO that is below the limits.
+  await page.keyboard.press('ArrowRight');
+  await expect(pieces(page, 'CYMJ').nth(1)).toBeFocused();
+  await expect(tlInfo(page)).toContainText('TEMPO 29/22Z–30/00Z');
+  await expect(tlInfo(page)).toContainText('below limits');
+  await expect(tlInfo(page)).toContainText('local 16:00–18:00 CST');
+  // Down goes to the next row, at the same time; Up comes back.
+  await page.keyboard.press('ArrowDown');
+  await expect(pieces(page, 'CYQR').first()).toBeFocused();
+  await expect(tlInfo(page)).toContainText('CYQR');
+  await page.keyboard.press('ArrowUp');
+  await expect(page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-piece:focus')).toHaveCount(1);
+  await page.keyboard.press('End');
+  await expect(pieces(page, 'CYMJ').last()).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(first).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(first).toBeFocused(); // at the start it stays put
+  // The arrows do not scroll the page.
+  const y = await page.evaluate(() => scrollY);
+  await page.keyboard.press('ArrowDown');
+  expect(await page.evaluate(() => scrollY)).toBe(y);
+  // Tab leaves the timeline whole, and the card goes back to its hint.
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.classList.contains('sof-tl-piece'))).toBe(false);
+  await expect(tlInfo(page)).toContainText('Hover over or focus a piece');
+});
+
+test('hovering a piece or the METAR mark shows its card in words', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const tempo = pieces(page, 'CYMJ').filter({ hasText: 'TEMPO' });
+  await tempo.hover();
+  await expect(tlInfo(page)).toContainText('CYMJ TEMPO 29/22Z–30/00Z');
+  await expect(tlInfo(page)).toContainText('Conditions: 22010KT 1/2SM FG VV002.');
+  await page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-metar').hover();
+  await expect(tlInfo(page)).toHaveText('CYMJ METAR 1800Z');
+  await page.mouse.move(5, 5);
+  await expect(tlInfo(page)).toContainText('Hover over or focus a piece');
+});
+
+test('the timeline is redrawn only when what it shows changes; the now line moves on its own', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  await addWave(page, 'Aft', '15:30', '17:00');
+  const mark = () => page.evaluate(() => { window.__piece = document.querySelector('.sof-tl-piece'); return true; });
+  await mark();
+  const still = () => page.evaluate(() => window.__piece.isConnected);
+  const nowLeft = () => page.locator('.sof-tl-now').evaluate((el) => el.style.left);
+  const before = await nowLeft();
+  // Five minutes later, with the same reports: the same nodes, and the now line has moved.
+  await page.clock.setFixedTime(new Date('2026-09-29T18:47:00Z'));
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(page.locator('.sof-tl-now-label')).toHaveText('Now 1847Z');
+  expect(await nowLeft()).not.toBe(before);
+  expect(await still(), 'not redrawn for the clock').toBe(true);
+  // A wave changes what is drawn.
+  await waveRow(page, 0).locator('.sof-wave-land').fill('17:30');
+  await expect.poll(still).toBe(false);
+});
+
+test('editing a wave redraws the timeline without taking focus from the box being typed in', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, '', '15:30', '17:00');
+  const name = row.locator('.sof-wave-name');
+  await name.focus();
+  await page.keyboard.type('Aft');
+  await expect(page.locator('.sof-tl-band-label')).toHaveText('Aft');
+  await expect(name).toBeFocused();
+  const land = row.locator('.sof-wave-land');
+  await land.fill('18:00');
+  await expect(land).toBeFocused();
+  await expect(page.locator('.sof-tl-waves')).toContainText('Aft 2130Z–0000Z');
+});
+
+test('a piece that has focus keeps it when the timeline is redrawn by a new report', async ({ page }) => {
+  const feed = await openSof(page, CLEAR_FOG);
+  await timeline(page).locator('.panel-toggle').focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowRight');
+  const second = pieces(page, 'CYMJ').nth(1);
+  await expect(second).toBeFocused();
+  feed.taf = fixture('ui-metno-taf-fog.txt').replace('P6SM SKC TEMPO', 'P6SM FEW100 TEMPO');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click'); // a real click would move focus
+  await expect(pieces(page, 'CYMJ').first().locator('.sof-tl-piece-label')).toBeVisible();
+  await expect(pieces(page, 'CYMJ').nth(1)).toBeFocused();
+  await expect(tlInfo(page)).toContainText('TEMPO 29/22Z–30/00Z');
+});
+
+test('the timeline can be closed and the choice is kept; Tomorrow shows tomorrow\'s day', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const toggle = timeline(page).locator('.panel-toggle');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.sof-tl-rows')).toBeHidden();
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'sof');
+  await expect(timeline(page).locator('.panel-toggle')).toHaveAttribute('aria-expanded', 'false');
+  await timeline(page).locator('.panel-toggle').click();
+  await page.getByLabel('Tomorrow').check();
+  await expect(timeline(page).locator('.panel-title')).toHaveText('24-hour timeline, Wed 30 Sep (CST)');
+  await expect(page.locator('.sof-tl-now')).toBeHidden(); // now is not on tomorrow
+});
+
+test('Local first in the app Settings puts the local row first on the timeline axis', async ({ page }) => {
+  await openSof(page);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Local first, Zulu beside it').check();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.sof-tl-axis-row').nth(0).locator('.sof-tl-axis-label')).toHaveText('CST');
+  await expect(page.locator('.sof-tl-axis-row').nth(1).locator('.sof-tl-axis-label')).toHaveText('Zulu');
+});
+
+for (const size of SIZES) {
+  test.describe(`at ${size.width} × ${size.height}, with the timeline`, () => {
+    test.use({ viewport: size });
+
+    test('nothing overlaps or is cut off with waves on the timeline, a piece focused and the card open', async ({ page }) => {
+      await openSof(page, CLEAR_FOG);
+      await addWave(page, 'Aft', '15:30', '17:00');
+      await addWave(page, 'Night', '21:30', '23:00');
+      await timeline(page).locator('.panel-toggle').focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('ArrowRight');
+      await expect(tlInfo(page)).toContainText('TEMPO');
+      expect(await layoutProblems(page)).toEqual([]);
+      // Bands and marks are drawn over the rows, but never over a control: the pieces are the only tab stop and sit under nothing that takes the pointer.
+      expect(await page.locator('.sof-timeline').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    });
+  });
+}
+
+// ---- Focus and the switch survive a redraw (audit) ------------------------------------------------------------
+
+const STORM_NO_LOW_CYQR = () => fixture('ui-metno-metar-storm.txt').replace('2SM BR BKN004', '15SM FEW080');
+
+test('an Acknowledge button that has focus keeps it when a refresh redraws the banner, and focus moves on after the last', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await feedStatus(page).focus();
+  await tabTo(page, '.sof-banner-ack');
+  await page.keyboard.press('Tab'); // the second line's button: the thunderstorm at home
+  await expect(page.locator('.sof-banner-ack').nth(1)).toBeFocused();
+  // The low ceiling at Regina clears: the banner is redrawn with one line, and focus stays on the same caution's button.
+  feed.metar = STORM_NO_LOW_CYQR();
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click'); // a real click would move focus
+  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ METAR 1800Z: THUNDERSTORM / SEVERE WX (VCTS)']);
+  await expect(page.locator('.sof-banner-ack')).toBeFocused();
+  // The last Acknowledge: the banner goes and focus moves on to the Waves heading, never to the page.
+  await page.keyboard.press('Enter');
+  await expect(banner(page)).toBeHidden();
+  await expect(page.locator('.sof-waves-title')).toBeFocused();
+});
+
+test('when the line that had focus goes, focus takes the line now in its place', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await feedStatus(page).focus();
+  await tabTo(page, '.sof-banner-ack');
+  await expect(page.locator('.sof-banner-ack').first()).toBeFocused(); // the low ceiling at Regina
+  feed.metar = STORM_NO_LOW_CYQR();
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(bannerLines(page)).toHaveCount(1);
+  await expect(page.locator('.sof-banner-ack')).toBeFocused();
+  // And when there is nothing left to take, focus goes past the banner, not to the page.
+  feed.metar = fixture('ui-metno-metar-clear.txt');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(banner(page)).toBeHidden();
+  await expect(page.locator('.sof-waves-title')).toBeFocused();
+});
+
+test('a timeline piece that has focus and then goes gives focus to the piece that is the tab stop now', async ({ page }) => {
+  const feed = await openSof(page, CLEAR_FOG);
+  await timeline(page).locator('.panel-toggle').focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowRight');
+  await expect(pieces(page, 'CYMJ').nth(1)).toBeFocused(); // the fog TEMPO
+  feed.taf = fixture('ui-metno-taf-fog.txt').replace(' TEMPO 2922/2924 1/2SM FG VV002', '');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(pieces(page, 'CYMJ')).toHaveCount(1);
+  await expect(pieces(page, 'CYMJ').first()).toBeFocused();
+  await expect(tlInfo(page)).toContainText('CYMJ PREVAILING');
+});
+
+test('the banner switched off and on again does not bring back what was acknowledged', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await banner(page).locator('.sof-banner-all').press('Enter');
+  await expect(banner(page)).toBeHidden();
+  await settingsButton(page).click();
+  const switchBox = page.getByLabel('Show the new-caution banner');
+  await switchBox.uncheck();
+  // The same weather comes in while the banner is off, and once with a caution gone: acknowledgements are kept right.
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(feedStatus(page)).toHaveText('Weather just now ✓');
+  await switchBox.check();
+  await expect(banner(page)).toBeHidden();
+  // A caution that goes while it is off is new when it comes back, which is the rule with the banner on.
+  await switchBox.uncheck();
+  feed.metar = fixture('ui-metno-metar-clear.txt');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('Within limits');
+  feed.metar = fixture('ui-metno-metar-storm.txt');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await switchBox.check();
+  await expect(bannerLines(page)).toHaveCount(2);
+});

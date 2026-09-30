@@ -164,10 +164,11 @@ function tafCautions(icao, result) {
  * levelWords, group, from, to, reason, stale, text, acknowledged: false }`.
  * `text` is the line the banner shows, in words. The same key is listed once.
  *
+ * - `notEndedBefore`: a Date; TAF cautions (dangerous weather, not limits) whose joined span ended before it are left out.
  * - `extra`: cautions from other sources in the same shape, such as lightning.js's; they are
  *   checked, sorted and de-duplicated with the rest. Entries that aren't cautions are ignored.
  */
-export function cautionList({ cards = [], tafs = [], extra = [] } = {}) {
+export function cautionList({ cards = [], tafs = [], extra = [], notEndedBefore = null } = {}) {
   const order = new Map();
   const seen = (icao) => order.has(icao) || order.set(icao, order.size);
   const all = [];
@@ -176,7 +177,12 @@ export function cautionList({ cards = [], tafs = [], extra = [] } = {}) {
   }
   for (const entry of Array.isArray(tafs) ? tafs : []) {
     if (typeof entry?.icao !== 'string' || !entry.icao || !entry.result) continue;
-    for (const c of tafCautions(entry.icao, entry.result)) { seen(c.icao); all.push(c); }
+    for (const c of tafCautions(entry.icao, entry.result)) {
+      // The cut is after the join, so a spell keeps one span (and one key) while any of it is still to come.
+      if (validDate(notEndedBefore) && c.level === 'caution' && c.to && +c.to < +notEndedBefore) continue;
+      seen(c.icao);
+      all.push(c);
+    }
   }
   for (const c of Array.isArray(extra) ? extra : []) {
     const one = extraCaution(c);
@@ -208,12 +214,23 @@ export function tafResultsOfWaves(calls, homeIcao) {
 }
 
 const BANNER_AHEAD_MS = 12 * 3_600_000;
+// How far back the banner looks: a forecast caution that ended longer ago than this is over and is not raised
+// (it stays on the timeline). One hour keeps a period that has only just ended. Set to null for no cut, the old
+// behaviour. The cut is made after the pieces of a spell are joined (cautionList's `notEndedBefore`), so the
+// forecast window itself still starts at midnight at home and a spell keeps one key all day.
+const BANNER_BACK_MS = 3_600_000;
+
+/** The `notEndedBefore` the banner uses: a TAF caution that ended before this is over. Null when there is no cut. */
+export function bannerNotEndedBefore(now) {
+  return BANNER_BACK_MS == null || !validDate(now) ? null : new Date(+now - BANNER_BACK_MS);
+}
 
 /**
  * The window the banner watches TAFs over, whatever day the timeline is showing:
- * from the start of today at home to the later of the end of today and now + 12 h,
- * so an evening never shows an empty look-ahead. With no readable zone it is
- * now to now + 12 h. Null when the time now can't be read.
+ * from local midnight at home (or an hour before now, if that is earlier, so the
+ * cut reaches back across midnight) to the later of the end of today and now + 12 h,
+ * so an evening never shows an empty look-ahead. With no readable zone it is an hour
+ * before now to now + 12 h. Null when the time now can't be read.
  * Returns `{ from, to }`.
  * @param {{ now?: any, timeZone?: any }} [input]
  */
@@ -221,8 +238,10 @@ export function bannerWindow({ now, timeZone } = {}) {
   if (!validDate(now)) return null;
   const ahead = new Date(+now + BANNER_AHEAD_MS);
   const today = localDate(now, timeZone);
-  if (!today) return { from: now, to: ahead };
-  const start = localToUtc(today, 0, timeZone);
+  const back = BANNER_BACK_MS == null ? null : new Date(+now - BANNER_BACK_MS);
+  if (!today) return { from: back ?? now, to: ahead };
+  const midnight = localToUtc(today, 0, timeZone);
+  const start = back && +back < +midnight ? back : midnight;
   const end = localToUtc({ ...today, day: today.day + 1 }, 0, timeZone);
   return { from: start, to: new Date(Math.max(+end, +ahead)) };
 }
@@ -332,11 +351,11 @@ function readableSources(cards, tafs) {
  *
  * Returns `{ cautions, fresh, acknowledged, acks, changed, storable }`; every caution
  * has `acknowledged` true or false. Nothing passed in is changed.
- * @param {{ cards?: any, tafs?: any, extra?: any, acks?: any, now?: any, timeZone?: any }} [input]
+ * @param {{ cards?: any, tafs?: any, extra?: any, acks?: any, now?: any, timeZone?: any, notEndedBefore?: any }} [input]
  */
-export function evaluate({ cards, tafs, extra, acks, now, timeZone } = {}) {
+export function evaluate({ cards, tafs, extra, acks, now, timeZone, notEndedBefore = null } = {}) {
   const current = readAcks(acks, { now, timeZone });
-  const found = cautionList({ cards, tafs, extra });
+  const found = cautionList({ cards, tafs, extra, notEndedBefore });
   const active = new Set(found.map((c) => c.key));
   const readable = readableSources(cards, tafs);
   const kept = current.keys.filter((k) => active.has(k) || !readable.has(sourceOf(k)));
