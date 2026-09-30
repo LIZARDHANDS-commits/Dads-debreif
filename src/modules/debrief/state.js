@@ -40,6 +40,8 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   bubble: false,
   bubbleFt: 500, // V6's safety bubble radius
   followLead: false,
+  route: '', // none, or one of V6's built-in routes by name
+  routeOpacity: 80,
 });
 
 /** The whole sortie down to about 500 ft across (SPEC-debrief, #23). */

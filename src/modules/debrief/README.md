@@ -13,6 +13,8 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `map2d/view.js` | The map canvas (ui-kit pan and zoom). Draws only when the time, view, a layer or the size changes. |
 | `map2d/layers.js` | Each layer's drawing: grid, 3/9 lines, fighting-wing cone, tracks with their trail mode, spacing lines, DFP flags, safety bubbles, clock marks, and the ships (T-6 silhouettes) with their labels. |
 | `map2d/geometry.js` | Where the layers go, in map feet, tested in Node against V6's numbers: trail parts, spacing pairs, 3/9 line ends, the cone's outline. |
+| `map2d/overlays.js` | The built-in routes: placed on the flight's map (or round their own first point with no flight) and drawn dashed under the tracks. |
+| `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
 | `map2d/vnc.js` | The VNC charts' bounds and warp, pinned to V6 (not drawn yet). |
 | `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6 (not drawn yet). |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
