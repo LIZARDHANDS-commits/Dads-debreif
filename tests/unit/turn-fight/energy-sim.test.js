@@ -386,22 +386,33 @@ function bestMsPerCall(fn, runs, batches) {
   return best;
 }
 
-test('the look-ahead is quick: a pick costs 50 ms or less warm, at the start and in mid-fight', (t) => {
+test('the look-ahead is quick: a pick costs no more than five 60 s fights flown step by step, at the start, with a second round and in mid-fight', (t) => {
+  // Measured against this machine's own speed, not a fixed number of ms: a slower computer (or a CI runner) makes both
+  // sides slower alike. A pick races two moves for up to 60 s each, so about two fights' worth; five leaves room for the
+  // copying and the reason text, and still catches a pick that starts running extra races. Here, about 15 ms a fight and
+  // 30 to 40 ms a pick.
+  const fight60 = () => {
+    const s = createEnergyFight({ ...SOLO, blueKias: 250, redKias: 250, blueMove: 'pitchBack', redMove: 'pitchBack' });
+    for (let i = 0; i < 60 / FIGHT_STEP_SEC; i++) stepEnergyFight(s, FIGHT_STEP_SEC);
+  };
+  const fightMs = bestMsPerCall(fight60, 3, 5);
+  const limit = 5 * fightMs;
+  t.diagnostic(`a 60 s fight: ${fightMs.toFixed(1)} ms, so the limit is ${limit.toFixed(1)} ms per pick`);
   const setup = { blueKias: 250, redKias: 250 };
   // Two aircraft pick in each new fight, each racing the Immelmann against the pitch back; nothing scores here, so every run goes the whole 60 s.
   const perPick = bestMsPerCall(() => createEnergyFight(setup), 3, 5) / 2;
   t.diagnostic(`look-ahead at the start: ${perPick.toFixed(1)} ms per pick`);
-  assert.ok(perPick < 50, `${perPick.toFixed(1)} ms per pick at the start`);
+  assert.ok(perPick < limit, `${perPick.toFixed(1)} ms per pick at the start, limit ${limit.toFixed(1)}`);
   // A fight where Blue's pick is raced again against Red's plan (and Red's race is run again): four picks, each the same cost.
   const again = { blueKias: 250, redKias: 250, turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 };
   const perRacedPick = bestMsPerCall(() => createEnergyFight(again), 3, 5) / 4;
   t.diagnostic(`look-ahead in a fight with a second round: ${perRacedPick.toFixed(1)} ms per pick`);
-  assert.ok(perRacedPick < 50, `${perRacedPick.toFixed(1)} ms per pick with a second round`);
+  assert.ok(perRacedPick < limit, `${perRacedPick.toFixed(1)} ms per pick with a second round, limit ${limit.toFixed(1)}`);
   // Mid-fight: the pick after a move ends, here a second after the merge of the default 250 KIAS head-on, where nothing scores, so both runs go the whole 60 s.
   const mid = runUntil(setup, (st) => st.merged && st.timeSec > st.mergeSec + 1, 60);
   const midMs = bestMsPerCall(() => lookAheadPick(mid, 'blue'), 3, 5);
   t.diagnostic(`look-ahead mid-fight: ${midMs.toFixed(1)} ms per pick`);
-  assert.ok(midMs < 50, `${midMs.toFixed(1)} ms per pick mid-fight`);
+  assert.ok(midMs < limit, `${midMs.toFixed(1)} ms per pick mid-fight, limit ${limit.toFixed(1)}`);
 });
 
 // ── Steps 2 and 3: from every merge speed to 160 ± 5 KIAS, then hold it ────
