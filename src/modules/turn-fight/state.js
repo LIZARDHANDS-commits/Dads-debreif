@@ -2,18 +2,23 @@
 // (SPEC-turn-fight, "The screen"): V6's defaults, the number ranges, and the
 // few helpers that turn settings into the fight's setup. No page access.
 import { V6_DEFAULT_SETUP } from './sim.js';
+import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 /**
  * Every setting and its opening value (V6's where V6 had one). The fight's own
  * numbers use the same names as sim.js's setup, so a number box can be bound
  * straight to the setting. `energy` is saved, but has no box on screen until
  * Energy mode is built. `setupOpen` and `resultOpen` remember the side columns.
+ * `view` is the 2D or 3D choice (2D first) and `paint` the 3D aircraft's paint (Harvard first).
  */
 export const DEFAULTS = Object.freeze({
   ...V6_DEFAULT_SETUP,
   energy: false,
   heightScale: 2,
   playbackRate: 1,
+  view: VIEW_DEFAULT,
+  paint: PAINT_DEFAULT,
   setupOpen: true,
   resultOpen: true,
 });
@@ -26,7 +31,12 @@ export const ALLOWED = Object.freeze({
   circles: [1, 2],
   heightScale: [1, 2, 4],
   playbackRate: [0.5, 1, 2, 4],
+  view: [...VIEW_ALLOWED],
+  paint: PAINT_OPTIONS.map((option) => option.value),
 });
+
+/** The G box's label: plain "G" (the T-6 cannot sustain every G in the box at every speed, so not "Sustained G"). */
+export const G_LABEL = 'G';
 
 /** The number boxes' limits (SPEC-turn-fight, "Number boxes"); `step` is V6's arrow step. */
 export const RANGES = Object.freeze({
@@ -49,10 +59,10 @@ export function setupKey(values) {
   return JSON.stringify(setupFrom(values));
 }
 
-/** What "Reset to V6 defaults" puts back: the fight, Energy and the display settings, not which columns are open. */
+/** What "Reset to V6 defaults" puts back: the fight, Energy and the display settings (paint too), not which columns are open or whether the 3D view is showing. */
 export function v6Defaults() {
   const patch = {};
-  for (const key of [...FIGHT_KEYS, 'energy', 'heightScale', 'playbackRate']) patch[key] = DEFAULTS[key];
+  for (const key of [...FIGHT_KEYS, 'energy', 'heightScale', 'playbackRate', 'paint']) patch[key] = DEFAULTS[key];
   return patch;
 }
 
