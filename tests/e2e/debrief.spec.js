@@ -1268,6 +1268,40 @@ test.describe('3D that cannot start', () => {
     await expect(page.locator('canvas.debrief-3d')).toBeHidden();
   });
 
+  // A browser keeps a failed module fetch for the life of the page, so "three.js arrives on the second try" can't
+  // be shown here. The second try that can work is the graphics context: the first is refused (three.js logs
+  // that, which the test swallows), the next is given. The old message must go when 3D is tried again.
+  test('trying 3D again clears the old message and works once the graphics context is given (RC-3)', async ({ page }) => {
+    await page.addInitScript(() => {
+      let refused = false;
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+        if (type === 'webgl2' && this.classList.contains('debrief-3d-picture') && !refused) {
+          refused = true;
+          return null;
+        }
+        return getContext.call(this, type, ...rest);
+      };
+      const error = console.error;
+      console.error = (...args) => {
+        if (!refused || !String(args[0]).startsWith('THREE.WebGLRenderer')) error.apply(console, args);
+      };
+    });
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+    const alert = page.locator('.debrief-toolbar').getByRole('alert');
+    await page.getByText('3D', { exact: true }).click();
+    await expectNextToViewSwitch(page, /3D needs WebGL 2/);
+    await expect(page.locator('canvas.debrief-3d')).toBeHidden();
+    await page.getByText('3D', { exact: true }).click();
+    await expect(alert).toBeHidden();
+    await expect(page.locator('canvas.debrief-3d')).toBeVisible();
+    await expect(page.locator('canvas.debrief-3d-picture')).toBeVisible();
+    // The second try worked, so nothing brings the message back.
+    await page.getByRole('button', { name: 'Ahead 1 second' }).click();
+    await expect(alert).toBeHidden();
+  });
+
   test('no WebGL 2 (WebGL 1 only): says 3D needs WebGL 2 and goes back to 2D, with no console error', async ({ page }) => {
     await page.addInitScript(() => {
       const getContext = HTMLCanvasElement.prototype.getContext;
