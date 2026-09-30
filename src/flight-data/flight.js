@@ -9,13 +9,16 @@ import { FT_PER_M, FTPS_TO_KT } from '../core/units.js';
 import { radToDeg, wrapDeg180 } from '../core/angles.js';
 import { gFromTrack } from '../core/flight-math.js';
 import { GAP_S } from './clean.js';
+import { KmlError } from './kml.js';
 
 /**
  * Puts tracks on one map and one time window (V6 projectAll, line 2376).
- * `tracks` is { slot: { name, fixes } } with slots 1 to 4. The map's origin is
- * the first fix of the lowest slot. Playback runs from the latest start to the
- * earliest end; if the tracks don't overlap, from the earliest start to the
- * latest end.
+ * `tracks` is { slot: { name, fixes, ... } } with slots 1 to 4; anything else
+ * on a track (gaps, dropped counts) is kept. The map's origin is the first fix
+ * of the lowest slot. Playback runs from the latest start to the earliest end,
+ * and `cutTracks` says how many seconds of each track fall outside it. Tracks
+ * that don't all overlap are refused with a KmlError naming the one that
+ * doesn't fit (C8; V6 silently played the whole span instead).
  */
 export function buildFlight(tracks) {
   const slots = Object.keys(tracks).map(Number).sort((a, b) => a - b);
@@ -24,24 +27,34 @@ export function buildFlight(tracks) {
   const ref = makeLocalRef(first.lat, first.lon);
   const out = {};
   for (const slot of slots) {
-    const { name, fixes } = tracks[slot];
     out[slot] = {
+      ...tracks[slot],
       slot,
-      name,
-      fixes: fixes.map(f => {
+      fixes: tracks[slot].fixes.map(f => {
         const { x, y } = latLonToLocalFt(ref, f.lat, f.lon);
         return { ...f, xFt: x, yFt: y, altFt: f.altM * FT_PER_M };
       }),
     };
   }
-  const list = slots.map(s => out[s].fixes);
-  let startT = Math.max(...list.map(f => f[0].t));
-  let endT = Math.min(...list.map(f => f[f.length - 1].t));
-  if (!Number.isFinite(startT) || !Number.isFinite(endT) || endT <= startT) {
-    startT = Math.min(...list.map(f => f[0].t));
-    endT = Math.max(...list.map(f => f[f.length - 1].t));
+  const span = slot => [out[slot].fixes[0].t, out[slot].fixes[out[slot].fixes.length - 1].t];
+  const startT = Math.max(...slots.map(s => span(s)[0]));
+  const endT = Math.min(...slots.map(s => span(s)[1]));
+  if (!(endT > startT) && slots.length > 1) throw noOverlap(out, slots, span);
+  const cutTracks = [];
+  for (const slot of slots) {
+    const [a, b] = span(slot);
+    if (a < startT || b > endT) cutTracks.push({ slot, beforeS: startT - a, afterS: b - endT });
   }
-  return { tracks: out, ref, startT, endT };
+  return { tracks: out, ref, startT, endT, cutTracks };
+}
+
+/** Names the track that overlaps the fewest others (the later ship on a tie). */
+function noOverlap(tracks, slots, span) {
+  const overlaps = slot => slots.filter(o => o !== slot
+    && Math.min(span(slot)[1], span(o)[1]) > Math.max(span(slot)[0], span(o)[0])).length;
+  const misfit = slots.reduce((worst, slot) => (overlaps(slot) <= overlaps(worst) ? slot : worst));
+  const name = tracks[misfit].name ? `"${String(tracks[misfit].name).slice(0, 80)}"` : `Track #${misfit}`;
+  return new KmlError('no-overlap', `${name} doesn't overlap in time with the other tracks, so they can't be played back together. Check it's from the same flight.`);
 }
 
 /** Index of the fix at or before t, for a t strictly inside the track (V6's binary search). */

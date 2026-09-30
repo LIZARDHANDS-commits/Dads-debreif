@@ -134,16 +134,14 @@ for (const slots of [[1, 2, 3, 4], [3], [2, 4]]) {
   });
 }
 
-test('the playback window falls back to the whole span when tracks do not overlap, as in V6', () => {
+test('tracks that do not overlap: V6 played the whole span; now they are refused (C8)', () => {
   const a = readKml(read(EXAMPLES[1])).fixes;
   const moved = a.map(f => ({ ...f, t: f.t + 86400 }));
-  const ours = buildFlight({ 1: { name: 'a', fixes: a }, 2: { name: 'b', fixes: moved } });
   v6.setTracks({ 1: { id: 1, raw: a.map(toV6), pts: [] }, 2: { id: 2, raw: moved.map(toV6), pts: [] } });
   v6.projectAll();
   const s = v6.state();
-  assert.equal(ours.startT, s.kmlStart);
-  assert.equal(ours.endT, s.kmlEnd);
-  assert.ok(ours.endT - ours.startT > 86400);
+  assert.ok(s.kmlEnd - s.kmlStart > 86400);
+  assert.throws(() => buildFlight({ 1: { name: 'a', fixes: a }, 2: { name: 'b', fixes: moved } }), { code: 'no-overlap' });
 });
 
 test('short and single-fix tracks give V6\'s defaults', () => {
@@ -186,13 +184,12 @@ test('edge-case tracks match V6: tiny spans, steep dives, slow movers, two fixes
   }
 });
 
-test('tracks that meet at one instant fall back to the whole span, as in V6', () => {
+test('tracks that meet at one instant: V6 played the whole span; now they are refused (C8)', () => {
   const at = (t0) => [0, 1, 2].map(k => ({ t: t0 + k, lat: 50 + k * 1e-3, lon: -105, altM: 1000, gRecorded: null, pitchRecordedDeg: null }));
   const a = at(0);
   const b = at(2); // a ends when b starts
-  const ours = buildFlight({ 1: { name: 'a', fixes: a }, 2: { name: 'b', fixes: b } });
   v6.setTracks({ 1: { id: 1, raw: a.map(toV6), pts: [] }, 2: { id: 2, raw: b.map(toV6), pts: [] } });
   v6.projectAll();
-  assert.deepEqual([ours.startT, ours.endT], [v6.state().kmlStart, v6.state().kmlEnd]);
-  assert.deepEqual([ours.startT, ours.endT], [0, 4]);
+  assert.deepEqual([v6.state().kmlStart, v6.state().kmlEnd], [0, 4]);
+  assert.throws(() => buildFlight({ 1: { name: 'a', fixes: a }, 2: { name: 'b', fixes: b } }), { code: 'no-overlap' });
 });

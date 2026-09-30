@@ -98,3 +98,25 @@ test('no G is estimated where the heading is unknown (C7)', () => {
   assert.equal(estimatedGAt(track, 2), null);
   assert.ok(estimatedGAt(track, 3) > 1);
 });
+
+const fixesFrom = (t0, n = 3) => Array.from({ length: n }, (_, k) => ({ t: t0 + k, lat: 50 + k * 1e-3, lon: -105, altM: 1000, gRecorded: null, pitchRecordedDeg: null, bankRecordedDeg: null }));
+const err = fn => { try { fn(); } catch (e) { return e; } return null; };
+
+test('tracks that do not overlap in time are refused, naming the one that does not fit (C8)', () => {
+  const e = err(() => buildFlight({ 1: { name: 'lead.kml', fixes: fixesFrom(0, 10) }, 2: { name: 'two.kml', fixes: fixesFrom(5, 10) }, 3: { name: 'tuesday.kml', fixes: fixesFrom(86400) } }));
+  assert.equal(e?.code, 'no-overlap');
+  assert.match(e.message, /"tuesday\.kml".*doesn't overlap/);
+  assert.doesNotMatch(e.message, /lead\.kml|two\.kml/);
+  // Meeting at one instant is not an overlap either.
+  assert.equal(err(() => buildFlight({ 1: { name: 'a', fixes: fixesFrom(0) }, 2: { name: 'b', fixes: fixesFrom(2) } }))?.code, 'no-overlap');
+  // With two tracks neither fits better, so the later ship is named.
+  assert.match(err(() => buildFlight({ 1: { name: 'a', fixes: fixesFrom(0) }, 4: { name: 'b', fixes: fixesFrom(100) } })).message, /"b"/);
+});
+
+test('the window is the time all tracks share, and says how much of each was cut (C8)', () => {
+  const flight = buildFlight({ 1: { name: 'a', fixes: fixesFrom(0, 10) }, 2: { name: 'b', fixes: fixesFrom(3, 4) }, 3: { name: 'c', fixes: fixesFrom(2, 12) } });
+  assert.deepEqual([flight.startT, flight.endT], [3, 6]);
+  assert.deepEqual(flight.cutTracks, [{ slot: 1, beforeS: 3, afterS: 3 }, { slot: 3, beforeS: 1, afterS: 7 }]);
+  assert.deepEqual(buildFlight({ 1: { name: 'a', fixes: fixesFrom(0) } }).cutTracks, []);
+});
+

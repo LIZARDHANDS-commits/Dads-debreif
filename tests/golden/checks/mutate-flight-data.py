@@ -112,6 +112,11 @@ M = [
  ('flight.js', "if (!f || f.length < 2) return null;\n  const n = f.length;\n  const [a, b]", "if (!f || f.length < 2) return 0;\n  const n = f.length;\n  const [a, b]"),
  ('flight.js', "|| h0 === null || h1 === null) return null;", ") return null;"),
  ('flight.js', "|| h0 === null || h1 === null) return null;", "|| h0 === null) return null;"),
+ # C8: tracks that don't overlap
+ ('flight.js', "if (!(endT > startT) && slots.length > 1)", "if (!(endT >= startT) && slots.length > 1)"),
+ ('flight.js', "if (a < startT || b > endT)", "if (a < startT)"),
+ ('flight.js', "overlaps(slot) <= overlaps(worst)", "overlaps(slot) < overlaps(worst)"),
+ ('flight.js', "Math.min(span(slot)[1], span(o)[1]) > Math.max", "Math.min(span(slot)[1], span(o)[1]) >= Math.max"),
 ]
 
 
