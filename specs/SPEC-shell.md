@@ -75,6 +75,8 @@ Opening a route: the shell unmounts the current module (calls its cleanup, dispo
 - A web app manifest and icons, so browsers offer to install it.
 - A service worker (`sw.js`, generated at build time with the list of built files) caches the app on the first visit, so after that every built module opens with the network off. Live weather and map tiles are never cached as if they were fresh.
 - When a new version is published, the service worker downloads it in the background and the shell shows the "new version" bar. Nobody is left on an old version without being told.
+- Card videos aren't kept for offline use (their stills show instead), which keeps the first visit about 2 MB lighter.
+- An open app looks for a new version every hour, since the SOF screen stays open all day.
 
 ## Files
 
@@ -89,9 +91,10 @@ src/shell/about.js       About page
 src/shell/header.js      title, time, Settings, Report a problem
 src/shell/settings-dialog.js
 src/shell/update-bar.js  new-version bar and service-worker registration
+src/shell/sw.js          the service worker; the build fills in its file list (tools/service-worker.mjs)
 src/shell/README.md      where to change common things (R8)
 public/media/cards/      card videos and stills
-public/manifest.webmanifest, public/icons/
+public/manifest.webmanifest, public/icons/   (icons drawn by tools/make_icons.mjs)
 .github/ISSUE_TEMPLATE/problem.yml
 ```
 
@@ -110,7 +113,7 @@ Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
 - Click-through (R3): every visible button and link on every route does something: the route changes, a dialog opens, or the page changes. External links are checked by address instead of being opened.
 - Module switching (R4): after visiting every route and coming back home, no module frames, timers or listeners remain.
 - Storage blocked: the app opens and says settings won't be saved.
-- Offline (R6): after one visit, with the network off, a reload shows the home screen and About.
+- Offline (R6): after one visit, with the network off, a reload shows the home screen and About. A new build shows the new-version bar, and Reload switches to it and removes the old copy.
 - Size (R5): the build fails if the home screen needs more than 3 MB, or card videos total more than 3 MB (R15).
 
 ## Sign-off checklist (R21)
