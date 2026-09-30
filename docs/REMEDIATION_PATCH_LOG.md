@@ -307,4 +307,29 @@
 * **Verification:**  
   `npm test` passed 100% green (`2,937 passed, 0 failed, 0 todo, 1 skipped` in 39.3s). `npm run build` passed in 401ms.
 
+---
+
+### PATCH-014: Interactive Wind UI Inputs & Dynamic Simulation Updates
+* **Date & Time:** 2026-09-30 23:25 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/glue.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/glue.js)
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/index.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/index.js)
+  * [`tests/unit/traffic/glue.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/glue.test.js)
+* **Problem / Flaw Addressed:**  
+  Wind direction and speed inputs were previously hidden in the playback bar (`wind: false`). In addition, `createSim` captured `setup.windFromDeg` and `setup.windKt` as static initial constants at simulation initialization time, meaning runtime wind adjustments via UI settings had zero effect on already-flying aircraft ground speeds, crabbing angles, and heading pointers.
+* **Changes Made:**
+  1. Enabled interactive wind controls in the playback bar: `available: { photo: true, view3d: true, wind: true }` in `src/modules/traffic/index.js`.
+  2. Subscribed `settings.subscribe()` in `index.js` to reset flight trail history (`sim.forgetHistory()`) on wind value change, preserving timeline scrub/rewind integrity.
+  3. Modified `src/modules/traffic/glue.js` `applyToSetup()` to forward `windFromDeg` and `windKt` clamped within valid limits to the simulation setup object, with updated JSDoc typings.
+  4. Converted `sim.js` static wind constants to dynamic accessors (`getWindFromDeg()` and `getWindKt()`) evaluated on each 0.05 s step, immediately updating crabbing, ground speed, and heading pointers for flying aircraft without restarting the simulation.
+  5. Added unit test `wind settings reach the setup and update a running sim` in `tests/unit/traffic/glue.test.js` verifying dynamic crabbing and speed changes.
+* **Reasoning / Rationale:**  
+  Provides interactive wind control for Patrick's Gate 1 inspection and ensures wind physics respond dynamically to user input.
+* **Verification:**  
+  `npm test` passed 100% green (`2,938 passed, 0 failed, 0 todo, 1 skipped` in 40.5s). `npm run typecheck` passed cleanly (0 errors). `npm run build` passed in 304ms.
+
+
 

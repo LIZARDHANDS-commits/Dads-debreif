@@ -56,6 +56,22 @@ test('a bigger conflict limit reaches a sim that is already running, and makes i
   assert.ok(sim.state().conflicts.some((c) => c.level === 'conflict'));
 });
 
+test('wind settings reach the setup and update a running sim', () => {
+  const setup = structuredClone(MOOSE_JAW);
+  applyToSetup(setup, { ...DEFAULTS, windFromDeg: 270, windKt: 30 });
+  assert.equal(setup.windFromDeg, 270);
+  assert.equal(setup.windKt, 30);
+  const sim = createSim(setup, { seed: 1 });
+  sim.stepTo(20);
+  const a1Before = sim.state().aircraft[0];
+  assert.ok(a1Before.crabDeg !== 0 || a1Before.groundSpeedKt !== a1Before.kt);
+  applyToSetup(setup, { ...DEFAULTS, windFromDeg: 360, windKt: 0 });
+  sim.stepTo(20.05);
+  const a1After = sim.state().aircraft[0];
+  assert.equal(a1After.crabDeg, 0);
+  assert.ok(Math.abs(a1After.groundSpeedKt - a1After.kt) <= 0.1);
+});
+
 test('the settings the screen keeps start filled in from DEFAULTS, and a value of the wrong kind is refused', () => {
   const settings = createSettings(memoryStore(), DEFAULTS);
   assert.deepEqual({ ...settings.get() }, { ...DEFAULTS });

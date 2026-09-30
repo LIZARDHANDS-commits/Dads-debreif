@@ -58,7 +58,7 @@ function mount(root, app) {
   const bar = createPlaybackBar({
     controls,
     listen: app.listen,
-    available: { photo: true, view3d: true },
+    available: { photo: true, view3d: true, wind: true },
     on: {
       play,
       pause,
@@ -355,9 +355,12 @@ function mount(root, app) {
 
   // Any setting change reaches the engine's setup and the picture; the speed goes to the clock.
   const stopSettings = settings.subscribe((values) => {
-    const before = JSON.stringify(setup.routeOptions);
+    const beforeOpts = JSON.stringify(setup.routeOptions);
+    const beforeWind = `${setup.windFromDeg}_${setup.windKt}`;
     applyToSetup(setup, values);
-    if (JSON.stringify(setup.routeOptions) !== before) sim.forgetHistory(); // the turns are flown differently now
+    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind) {
+      sim.forgetHistory(); // the turns and flight are flown differently now
+    }
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
     editor.refresh();

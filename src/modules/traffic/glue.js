@@ -20,8 +20,8 @@ export function within(value, range, fallback) {
 
 /**
  * Copies the traffic settings the engine reads into the setup: the conflict and caution
- * distances (`setup.conflictLimits`) and the route options (`setup.routeOptions`).
- * @param {{ conflictLimits?: any, routeOptions?: any }} setup
+ * distances (`setup.conflictLimits`), the route options (`setup.routeOptions`), and wind.
+ * @param {{ conflictLimits?: any, routeOptions?: any, windFromDeg?: number, windKt?: number }} setup
  * @param {Record<string, any>} values the traffic settings (settings.get())
  */
 export function applyToSetup(setup, values) {
@@ -37,6 +37,8 @@ export function applyToSetup(setup, values) {
     radiusFromG: values.radiusFromG === true,
     manualRadiusFt: within(values.manualRadiusFt, LIMITS.manualRadiusFt, DEFAULTS.manualRadiusFt),
   };
+  if (values.windFromDeg !== undefined) setup.windFromDeg = within(values.windFromDeg, LIMITS.windFromDeg, DEFAULTS.windFromDeg);
+  if (values.windKt !== undefined) setup.windKt = within(values.windKt, LIMITS.windKt, DEFAULTS.windKt);
 }
 
 /** The settings aren't remembered between visits yet (profiles are a later task), so they live in memory. */

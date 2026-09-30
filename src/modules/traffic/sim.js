@@ -163,8 +163,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── One step ───────────────────────────────────────────────────────────────
 
-  const windFromDeg = setup.windFromDeg ?? 360;
-  const windKt = setup.windKt ?? 0;
+  const getWindFromDeg = () => setup.windFromDeg ?? 360;
+  const getWindKt = () => setup.windKt ?? 0;
 
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
   function checkDecisions(a, oldDist, newDist) {
@@ -228,6 +228,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     let crabDeg = 0;
     let headingDeg = p.headingDeg;
 
+    const windKt = getWindKt();
+    const windFromDeg = getWindFromDeg();
     if (windKt > 0 && iasKt > 0) {
       const altFt = p.alt ?? a.fallbackAlt;
       const tasKt = iasToTasKt(iasKt, altFt);
