@@ -39,7 +39,7 @@ Vertical slices, each leaving a working screen:
 
 - PR A: tasks 1 to 5 (engine base, first screen, readouts).
 - PR B: tasks 6 to 10 (turn logic and timing, with D41, D43, D44, D45, D74, and the clock cue selectors from Q45).
-- PR C: tasks 11, 12, 15 and 16 (offset box with #4 by ground track, rear check, errors, layers, hook and shackle, graph and solver; D42, D48, Q41, Q43, Q44, Q47).
+- PR C: tasks 11, 12, 15, 16 and 19 (19: the 2D/3D switch, once ui-kit three-aircraft.js lands) (offset box with #4 by ground track, rear check, errors, layers, hook and shackle, graph and solver; D42, D48, Q41, Q43, Q44, Q47).
 - PR D: tasks 13 to 14 (profiles, CSV, browser tests, checklist).
 - PR E: tasks 17 and 18 (G-warm, with sequences in the engine).
 

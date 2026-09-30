@@ -287,6 +287,41 @@
   align-items: center;
 }
 
+/* The METAR line under the playback bar; its edge shows the flight category. */
+[data-module='debrief'] .debrief-metar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--border);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .debrief-metar[hidden] {
+  display: none;
+}
+
+[data-module='debrief'] .debrief-metar[data-category='VFR'] {
+  border-left-color: var(--good);
+}
+
+[data-module='debrief'] .debrief-metar[data-category='MVFR'] {
+  border-left-color: var(--caution);
+}
+
+[data-module='debrief'] .debrief-metar[data-category='IFR'],
+[data-module='debrief'] .debrief-metar[data-category='LIFR'] {
+  border-left-color: var(--bad);
+}
+
+[data-module='debrief'] .debrief-metar-raw {
+  display: block;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
 [data-module='debrief'] .playback-play {
   min-width: 3rem;
 }
