@@ -57,6 +57,7 @@ export function utcOffsetMinutes(date, timeZone) {
     year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
   }).formatToParts(date).map(p => [p.type, p.value]));
   const wall = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  // The parts have no milliseconds, so compare whole seconds (this also keeps UTC at 0, not -0).
   return Math.round((wall - Math.floor(date.getTime() / 1000) * 1000) / 60000);
 }
 

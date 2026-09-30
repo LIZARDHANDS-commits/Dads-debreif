@@ -63,9 +63,9 @@ test('tiles match V6 lonLatToTile and tileBounds', () => {
 });
 
 test('pickTileZoom matches V6 at every zoom the viewer allows', () => {
-  for (const zoom of [0.0005, 0.001, 0.01, 0.05, 0.1, 0.5, 1, 5, 50, ...spread(100, 0.0001, 10, 23)]) {
+  for (const zoom of [0.0005, 0.001, 0.01, 0.05, 0.1, 0.5, 1, 5, 50, 1000, ...spread(100, 0.0001, 10, 23)]) {
     debrief.setZoom(zoom);
-    for (const lat of [0, 45, CYMJ.lat, 70, -33]) assert.equal(geo.pickTileZoom(lat, zoom), debrief.pickTileZoom(lat));
+    for (const lat of [0, 45, CYMJ.lat, 70, -33, 85, 89.9]) assert.equal(geo.pickTileZoom(lat, zoom), debrief.pickTileZoom(lat));
   }
 });
 

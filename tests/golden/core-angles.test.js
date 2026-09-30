@@ -78,7 +78,9 @@ test('aspectAngleDeg and headingCrossAngleDeg are the debrief versions, includin
   }
   assert.equal(angles.aspectAngleDeg(null, { x: 0, y: 0 }, 0), debrief.aspectAngleDeg(null, { x: 0, y: 0 }, 0));
   assert.equal(angles.aspectAngleDeg({ x: 0, y: 0 }, { x: 1, y: 0 }, NaN), null);
-  assert.equal(angles.headingCrossAngleDeg(undefined, 1), debrief.headingCrossAngleDeg(undefined, 1));
+  for (const [h1, h2] of [[undefined, 1], [1, undefined], [NaN, 1], [1, NaN], [Infinity, 1], [1, -Infinity], [null, null]]) {
+    assert.equal(angles.headingCrossAngleDeg(h1, h2), debrief.headingCrossAngleDeg(h1, h2), `${h1}, ${h2}`);
+  }
 });
 
 test('relativeBearingDeg is Turn Sim relativeBearingDeg', () => {

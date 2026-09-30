@@ -27,6 +27,17 @@ test('a zone with clock changes follows them', () => {
   assert.equal(time.utcOffsetMinutes(AFTER_SPRING, 'UTC'), 0);
 });
 
+test('offsets are whole minutes, and exactly 0 for UTC, when the time has milliseconds', () => {
+  const d = new Date('2026-09-29T17:54:07.999Z');
+  assert.ok(Object.is(time.utcOffsetMinutes(d, 'UTC'), 0));
+  assert.equal(time.utcOffsetMinutes(d, 'America/Regina'), -360);
+});
+
+test('an offset is right when the local time is midnight', () => {
+  assert.equal(time.utcOffsetMinutes(new Date('2026-07-01T06:00:00Z'), 'America/Regina'), -360);
+  assert.equal(time.formatInZone(new Date('2026-07-01T06:00:00Z'), 'America/Regina'), '00:00:00');
+});
+
 test('offsets east of UTC and on the half hour work', () => {
   assert.equal(time.utcOffsetMinutes(new Date('2026-01-15T00:00:00Z'), 'Asia/Kolkata'), 330);
   assert.equal(time.utcOffsetMinutes(new Date('2026-01-15T00:00:00Z'), 'America/St_Johns'), -210);
