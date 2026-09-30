@@ -33,10 +33,10 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 **Checkpoint B:** tests pass, build under budget; code-review-and-quality; open PR B.
 
-- [ ] **5b. 2D/3D switch and the 3D view (Patrick 07:51Z).** `view3d.js` on ui-kit's `three-aircraft.js`, loaded only when 3D is switched on; the switch on the stage toolbar, 2D by default and remembered; Overhead, Chase Blue and Chase Red views; no-WebGL message; frees WebGL on switch-back and unmount.
+- [ ] **5b. 2D/3D switch and the 3D view (Patrick 07:51Z).** `view3d.js` on ui-kit's `three-aircraft.js` and `ct156-model.js` (loaded through `loadThree()` only when 3D is switched on); ui-kit's `controls.viewSwitch()` on the stage toolbar, 2D by default and remembered; the Paint choice (Harvard default) in Turn Fight settings; Overhead, Chase Blue and Chase Red views; the no-connection and no-WebGL messages; frees WebGL on switch-back and unmount.
   - Acceptance: the spec's "2D and 3D views"; switching never resets the fight; the 2D bundle doesn't grow by three.js.
   - Verify: unit tests of attitude and trail conversion; e2e switch while playing, no console errors, context released.
-  - Dependencies: 4, and the app frame's `src/ui-kit/three-aircraft.js`. Size M.
+  - Dependencies: 4; ui-kit's 3D pieces are on main (#145). Size M.
   - Files: src/modules/turn-fight/{view3d,layout}.js, tests/unit/turn-fight/view3d.test.js, tests/e2e/turn-fight.spec.js
 - [ ] **6. The decided changes (Q48 to Q51).** One commit each, each starting from a failing test that states exactly what differs from V6: Q48 a tie shows "Both"; Q49 the jets start weighted by speed and meet in the centre (the golden test's pre-merge expectation changes, everything after the merge stays V6's); Q50 the side view's "Simplified: constant speed and turn rate" label; Q51 "Off-nose angle (ATA)", true angle-off in More detail, and a 3D off-nose angle with Climb and dive on.
   - Acceptance: the golden test still matches V6 everywhere these decisions don't touch.
