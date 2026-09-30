@@ -11,6 +11,7 @@ Building starts after the debrief screen, when the coordinator says it's the Tur
 | Any code | The coordinator's go (after the debrief screen) | Coordinator |
 | Task 4 on | ui-kit `controls.js`, `panel.js`, `canvas-view.js` and the scheduler (merged in #65) | App frame thread |
 | Task 7 | SPEC-core Task 12: the Turn Sim G correction pinned to V6, then D74's 1.01 floor | Flight math core thread |
+| Task 5 | A shared home for the edited standards, read by the debrief and the Turn Sim (Q46) | Debrief and app frame threads, through the coordinator |
 | Task 5 | `core/standards.js` `classifyTurnSimPosition`, `formationAxes`, `V6_STANDARDS` (merged in #67) | Flight math core thread |
 
 Anything the Turn Sim needs changed in `core`, `ui-kit`, `storage` or the shell goes through the coordinator.
@@ -36,8 +37,8 @@ Vertical slices, each leaving a working screen:
 ## Pull requests
 
 - PR A: tasks 1 to 5 (engine base, first screen, readouts).
-- PR B: tasks 6 to 10 (turn logic and timing, with D41, D43, D44, D45, D74).
-- PR C: tasks 11 to 12 (offset box, rear check, errors, layers, D42, D48).
+- PR B: tasks 6 to 10 (turn logic and timing, with D41, D43, D44, D45, D74, and the clock cue selectors from Q45).
+- PR C: tasks 11, 12, 15 and 16 (offset box with #4 by ground track, rear check, errors, layers, hook and shackle, graph and solver; D42, D48, Q41, Q43, Q44, Q47).
 - PR D: tasks 13 to 14 (profiles, CSV, browser tests, checklist).
 
 Each PR lists the skills it applied, is reviewed with code-review-and-quality before it leaves draft, and merges on green under the merge rule once the spec is approved. PR D also runs `/security-review` (saved profiles). A and D log performance measurements.
@@ -48,10 +49,12 @@ Each PR lists the skills it applied, is reviewed with code-review-and-quality be
 |---|---|---|
 | V6's functions read the page everywhere, so golden tests need a big fake | Medium | One shared fake `$` from a settings object, in the test folder; whole-run tests reuse it. |
 | A decision's fix interacts with another (for example D43 and D44 both change auto timing) | Medium | Separate commits in a fixed order, each with its own stated test; the whole-run golden shows exactly what changed. |
-| Dad's answers to TS4 or TS5 change the offset box or clock cue after they're built | Low | V6's behaviour is kept and pinned; each answer becomes one more commit. |
+| The hook and 4-ship shackle pictures are read differently from what Patrick means | Medium | Draw them from the engine and check with Patrick before those commits (task 15). |
+| The standards need a home shared with the debrief | Medium | Agree it through the coordinator before task 5; until then the default preset. |
+| Dad's answer on the offset box clock cue (Q44c) arrives after it's built | Low | The message stays; his answer becomes one more commit. |
 | Core Task 12 arrives late | Low | Task 7 is the only one waiting; the correction model stays at None until it lands. |
 | Drawing trails and breadcrumb labels at 4× drops frames | Low | Measure in task 4 and task 14; draw trails as one path; readouts at most 10 times a second. |
 
 ## Open questions
 
-TS1 to TS7 in the spec (Q41 to Q47 in the plan doc). Each has a default, so none blocks the build.
+Q41 to Q47 answered by Patrick on 2026-09-30 (see the spec's "Answered questions"). Left: Q44c for Dad, and the hook and shackle pictures for Patrick at task 15.

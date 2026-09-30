@@ -17,7 +17,7 @@ Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), approved by 
 2. **Readouts next**, as pure functions against the same golden runs, so every number on screen is checked before layout.
 3. **Then the screen**: columns, controls, the top-down view and the playback bar, essentials only (R22).
 4. **Then the extras** behind their checkboxes: the chase, Climb and dive with the side view.
-5. **Answered questions last**, each as its own commit after V6's behaviour is pinned (D10).
+5. **The decided changes last** (Q48 to Q51), each as its own commit after V6's behaviour is pinned (D10).
 
 ## Pull requests
 
@@ -33,5 +33,5 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, lists t
 |---|---|
 | V6's script can't run outside a page | Already tried: it runs in Node with a stand-in page, and its fight state can be read after each step (checked while writing the spec). |
 | `core`'s turn rate differs from V6's `M` in the last digit, so long fights drift | Compare within 1e-9 ft over 10 minutes; if drift grows past that, compare per step from V6's state instead. |
-| An even fight's first nose-on is decided by rounding noise (Q-TF1) | Leave exact ties out of the golden grid; test them only after Q-TF1 is answered. |
+| An even fight's first nose-on is decided by rounding noise | Leave exact ties out of the golden grid; the "Both" rule (Q48) gets its own unit tests. |
 | Long trails slow the drawing | A point every 0.1 s and the 10-minute stop cap it at 6,000 points per aircraft; measure at 4× on 1920 × 1080. |

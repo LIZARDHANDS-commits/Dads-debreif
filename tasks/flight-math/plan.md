@@ -31,7 +31,7 @@ Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening
 
 ### For the remaining work
 
-- **Task 11 (3D attitude, D40, D47)** and **Task 12 (Turn Sim G correction, D74):** test-driven-development and incremental-implementation. Pin V6 in a golden test, then land each decision as its own commit, with the test changed first. Use debugging-and-error-recovery if the pin won't match. Run code-review-and-quality before the PR leaves draft.
+- **Task 12 (Turn Sim G correction, D74):** test-driven-development and incremental-implementation. Pin V6 in a golden test, then land each decision as its own commit, with the test changed first. Use debugging-and-error-recovery if the pin won't match. Run code-review-and-quality before the PR leaves draft.
 - **Ports the Turn Sim and Turn Fight specs ask for:** spec-driven-development first, adding the API to SPEC-core. Then planning-and-task-breakdown for new tasks here, and the same build loop. Use code-simplification where a Turn Sim or Turn Fight copy duplicates a function already in `core`.
 
 ## Task list
@@ -66,7 +66,7 @@ Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening
 - [x] Tennis ball: Patrick's answers (D62, D63), one change each, then one solver
 
 ### Later, with the screens that use them
-- [ ] Task 11: 3D attitude estimate, then D40 and D47
+- [x] Task 11: 3D attitude estimate, then D40 and D47 (built by the debrief, #81)
 
 ### Checkpoint: complete
 - [x] Every function in SPEC-core's tables is ported and pinned
