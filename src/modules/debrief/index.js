@@ -4,7 +4,8 @@
 // together; everything it starts is stopped by the shell when it closes (R4).
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
-import { createControls } from '../../ui-kit/controls.js';
+import { createControls, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { loadFlight } from '../../flight-data/load.js';
 import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
@@ -42,7 +43,10 @@ function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
   document.head.append(stylesheet);
 
-  const layout = createSettings(app.storage, LAYOUT_DEFAULTS);
+  // The view and paint are checked against their lists (D141, D138); other values fall back to the defaults.
+  const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
+    allowed: { view: VIEW_ALLOWED, paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS) },
+  });
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
   const canExample = typeof app.exampleText === 'function';
@@ -117,6 +121,11 @@ function mount(root, app) {
     // The field datum is the home field's elevation, or Moose Jaw's until one is set.
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
     setCamera: (patch) => layout.update(patch),
+    // three.js couldn't load (offline on a first visit) or WebGL is off: say so and stay in 2D (D141).
+    onUnavailable: (message) => {
+      ui.setMessage(message);
+      layout.update({ view: '2d' });
+    },
   });
   const em = createEmView(ui.emCanvas, {
     timers: app.scheduler,

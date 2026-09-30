@@ -36,9 +36,9 @@ test('limits are an input (R16): 1000 ft / 1 SM home limits let the BKN015CB wav
   assert.equal(homeAlternateTrigger(taf(TAF.cbCeiling), WAVE, { ceilingFt: 1000, visSm: 1 }).status, 'meets');
 });
 
-test('a TAF that does not cover the whole window says so, and still lists what it knows', () => {
+test('a short TAF already below limits in the part it covers is below, and says it is short', () => {
   const r = homeAlternateTrigger(taf(TAF.overnightFog), { from: at(30, 6), to: at(30, 13) });
-  assert.equal(r.status, 'not-covered');
+  assert.equal(r.status, 'below');
   assert.equal(r.covered, false);
   assert.equal(r.hits.length, 1);
 });
@@ -261,4 +261,13 @@ test('checkOptions and visualDescentMinima are exported for the SOF card', () =>
   assert.equal(checkOptions(conditions, { ceilingFt: 600, visSm: 2 }).belowLimits, false);
   assert.equal(checkOptions(conditions, null), null);
   assert.equal(visualDescentMinima({ meaFt: 5200 }), null);
+});
+
+test('short TAF: below when the covered part is below, not-covered when it is not', () => {
+  const r = assessAlternate(taf(TAF.altFogLifting), { from: at(29, 11), to: at(29, 13) });
+  assert.equal(r.status, 'below');
+  assert.equal(r.covered, false);
+  assert.ok(r.hits.length > 0);
+  assert.equal(assessAlternate(taf(TAF.altFogLifting), arrivalWindow(at(30, 11, 30))).status, 'not-covered');
+  assert.equal(homeAlternateTrigger(taf(TAF.overnightFog), { from: at(29, 11), to: at(29, 14) }).status, 'not-covered');
 });
