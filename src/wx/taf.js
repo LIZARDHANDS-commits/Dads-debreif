@@ -2,7 +2,7 @@
 // conditions for every moment of the valid period, plus the TEMPO, PROB and
 // BECMG overlays on top of them. Never throws.
 
-import { readConditions, mergeConditions, tokenize } from './conditions.js';
+import { readConditions, mergeConditions, tokenize, joinSpans } from './conditions.js';
 import { resolveDay, resolvePast, toDate, HOUR_MS, DAY_MS } from './dates.js';
 
 const STATION = /^[A-Z][A-Z0-9]{3}$/;
@@ -29,7 +29,8 @@ const hhmm = (d) => d.toISOString().slice(8, 16).replace('T', ' ');
  */
 export function parseTaf(raw, { now } = {}) {
   now = now ?? new Date();
-  const { tokens, remarks } = tokenize(raw);
+  // Spans are offsets into taf.raw (the trimmed text), which the screen shows.
+  const { tokens, spans, remarks } = tokenize(String(raw ?? '').trim());
   const taf = {
     raw: String(raw ?? '').trim(),
     station: null,
@@ -73,8 +74,9 @@ export function parseTaf(raw, { now } = {}) {
   // Split the rest into groups by their keywords. Group times resolve to the date
   // nearest the valid period, so a group starting just before it stays in its month.
   const ref = taf.validFrom || now;
-  const pieces = [{ kind: 'BASE', probability: null, tempo: false, from: taf.validFrom, to: null, tokens: [], head: [] }];
-  const start = (g) => { pieces.push({ tokens: [], ...g }); };
+  const pieces = [{ kind: 'BASE', probability: null, tempo: false, from: taf.validFrom, to: null, tokens: [], idx: [], head: [], at: i }];
+  // `at` is the index of the group's first word, `idx` those of its condition words.
+  const start = (g) => { pieces.push({ tokens: [], idx: [], at: i, ...g }); };
   const undated = (kind, head) => {
     taf.problems.push(`${head.join(' ')} has no time that can be read`);
     start({ kind, probability: null, tempo: kind === 'TEMPO', from: null, to: null, head });
@@ -113,6 +115,7 @@ export function parseTaf(raw, { now } = {}) {
       }
     } else {
       pieces.at(-1).tokens.push(t);
+      pieces.at(-1).idx.push(i);
     }
   }
 
@@ -123,7 +126,8 @@ export function parseTaf(raw, { now } = {}) {
   inOrder.forEach((p, k) => { p.to = inOrder[k + 1]?.from ?? taf.validTo; });
 
   for (const p of pieces) {
-    const read = readConditions(p.tokens);
+    const read = readConditions(p.tokens, p.idx.map((k) => spans[k]));
+    const words = [...spans.slice(p.at, p.at + p.head.length), ...p.idx.map((k) => spans[k])];
     taf.unread.push(...read.unread);
     if (p.kind !== 'BASE' && p.from && taf.validTo && (+p.from >= +taf.validTo || (p.to && +p.to <= +taf.validFrom))) {
       taf.problems.push(`${p.head.join(' ')} is outside the valid period ${hhmm(taf.validFrom)}Z to ${hhmm(taf.validTo)}Z`);
@@ -142,6 +146,7 @@ export function parseTaf(raw, { now } = {}) {
       to: p.to,
       conditions: read.conditions,
       raw: [...p.head, ...p.tokens].join(' '),
+      span: joinSpans(words),
     });
   }
   if (taf.unread.length) taf.problems.push(`Could not read: ${taf.unread.join(' ')}`);
