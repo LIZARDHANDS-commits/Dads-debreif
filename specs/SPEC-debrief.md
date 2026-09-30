@@ -1,8 +1,8 @@
 # Spec: `debrief`, the debrief screen (2D map and 3D view)
 
-Status: **draft, waiting for Patrick's approval.** Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37, #4 drawn white with a dark outline, and the trims listed below. Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
-The build starts only after this spec is approved **and** flight data (PR #58) and flight math core part 2 (PR #61) are merged.
+The build starts once flight data (PR #58) and flight math core part 2 (PR #61) are merged.
 
 ## Objective
 
