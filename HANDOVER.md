@@ -74,6 +74,8 @@ Ground rules:
 | Module status | `docs/handover/<module>.md` |
 | Merges | a note on the PR; git history is the log |
 
+Where work kept going wrong, and what to simplify: [docs/records/verification/FRICTION.md](docs/records/verification/FRICTION.md).
+
 `/sync` at the start of a session and `/save` at the end keep these up to date (`.agent/skills/`).
 
 About 220 judgement calls (D147 to D356) are in the decisions log and count as accepted unless Patrick rejects one.
