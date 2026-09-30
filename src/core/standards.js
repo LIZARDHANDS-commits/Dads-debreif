@@ -33,6 +33,24 @@
 // standard with a number in lead.lowTargetKt gets it.
 import { radToDeg } from './angles.js';
 
+/**
+ * The spread standard. V6's kind has foreAftTolFt; the SMM's has sweepMinDeg and sweepMaxDeg.
+ * @typedef {{ on: boolean, minFt: number, maxFt: number, foreAftTolFt?: number,
+ *   sweepMinDeg?: number, sweepMaxDeg?: number }} SpreadStandard
+ */
+/** @typedef {{ on: boolean, aftTargetFt: number, aftTolFt: number }} OffsetStandard */
+/**
+ * The lead standard. V6's kind has targetKt; the SMM's has lowTargetKt, midTargetKt and lowBlockTopFt.
+ * @typedef {{ on: boolean, targetKt?: number, lowTargetKt?: number, midTargetKt?: number,
+ *   lowBlockTopFt?: number, speedTolKt: number, targetG: number, gTol: number }} LeadStandard
+ */
+/** @typedef {{ spread: SpreadStandard, offset: OffsetStandard, lead: LeadStandard }} Standards */
+/**
+ * One aircraft: position in feet (x east, y north), and what the caller has of the rest.
+ * @typedef {{ id?: number, x: number, y: number, hdg?: number, altFt?: number, spdKt?: number,
+ *   gNative?: number }} FormationAircraft
+ */
+
 /** V6's standards: the debrief's default settings, and Turn Sim's fixed numbers. */
 export const V6_STANDARDS = Object.freeze({
   spread: Object.freeze({ on: true, minFt: 4000, maxFt: 6000, foreAftTolFt: 250 }),
@@ -62,7 +80,7 @@ const SLOT_MARGIN_FT = 500;
 /**
  * The spread standard's fore/aft label, or null when within it.
  *
- * @param {object} spread     the spread standard
+ * @param {SpreadStandard} spread     the spread standard
  * @param {number} foreAftFt  along Lead's heading from Lead's 3/9 line (+ ahead): V6's check
  * @param {number} sweepDeg   degrees behind the reference's 3/9 line (+ aft): the sweep check
  */
@@ -109,9 +127,9 @@ function along(p, ref, fwd) {
  * with D78: when the offset standard is on, it alone judges #3's fore/aft.
  *
  * @param {number} id        2, 3 or 4 (Lead, 1, gets null)
- * @param {object} live      positions now, by id: { 1: lead, 2: …, 3: …, 4: … }
+ * @param {Object<number, FormationAircraft>} live  positions now, by id: { 1: lead, 2: …, 3: …, 4: … }
  * @param {number} leadHdg   Lead's track heading now (V6 uses 0 with no Lead track)
- * @param {object} [std]     standards, shaped like V6_STANDARDS
+ * @param {Standards} [std]  standards, shaped like V6_STANDARDS
  * @returns {{labels: string[], intervalFt: number, foreAftFt: number, sweepDeg: number,
  *   offsetAftFt: number|null, offsetStatus: string|null}|null} null for Lead or a missing aircraft;
  *   sweepDeg is behind the 3/9 line of the aircraft the interval is from (+ aft)
@@ -154,7 +172,7 @@ export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
  * lowBlockTopFt, midTargetKt above it or when the altitude is unknown.
  * A V6-shaped lead standard has one targetKt and no block.
  *
- * @param {object} leadStd  the lead standard
+ * @param {LeadStandard} leadStd  the lead standard
  * @param {number} [altFt]  Lead's altitude, feet MSL
  * @returns {{targetKt: number, block: 'low'|'mid'|null}}
  */
@@ -170,6 +188,9 @@ export function leadTargetKt(leadStd, altFt) {
  * Speed is lead.spdKt, ground speed as in V6 (D31 changes this at the screen).
  * The target speed is leadTargetKt's, from lead.altFt.
  *
+ * @param {{ spdKt?: number, altFt?: number, gNative?: number }} lead  Lead now
+ * @param {number|null|undefined} estG  G estimated from the track
+ * @param {Standards} [std]  standards, shaped like V6_STANDARDS
  * @returns {{labels: string[], spd: number, targetKt: number, block: 'low'|'mid'|null, speedTol: number,
  *   gVal: number|null, targetG: number, gTol: number, nativeG: number|undefined, estG: number|null}|null}
  *   null when the lead standard is off or Lead is missing
@@ -193,7 +214,10 @@ export function classifyLeadParameters(lead, estG, std = V6_STANDARDS) {
   return { labels, spd, targetKt, block, speedTol, gVal, targetG, gTol, nativeG, estG };
 }
 
-/** One line per standard that is on, for the standards panel (debrief `kmlStandardsSummary`, line 3110). */
+/**
+ * One line per standard that is on, for the standards panel (debrief `kmlStandardsSummary`, line 3110).
+ * @param {Standards} [std]
+ */
 export function standardsSummaryLines(std = V6_STANDARDS) {
   const { spread, offset, lead } = std;
   const lines = [];
@@ -220,11 +244,11 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
  * V6's Turn Sim wrote V6_STANDARDS' numbers in; the rebuilt Turn Sim passes app.standards
  * (D89, Q46), so it judges by the same standards as the debrief.
  *
- * @param {object} a          the aircraft: { id, x, y }
- * @param {object[]} fleet    all four aircraft, Lead first ({ id, x, y, hdg })
+ * @param {FormationAircraft} a    the aircraft: { id, x, y }
+ * @param {FormationAircraft[]} fleet  all four aircraft, Lead first ({ id, x, y, hdg })
  * @param {string} [formation] Turn Sim's formation setting; 'offsetBox' judges by the offset box,
  *   anything else by spread (V6 reads 'weighted' when the setting is missing)
- * @param {object} [std]      standards, shaped like V6_STANDARDS
+ * @param {Standards} [std]  standards, shaped like V6_STANDARDS
  * @returns {{labels: string[], intervalFt: number, foreAftFt: number, sweepDeg: number|null,
  *   lateralFromLead: number, measureNote: string, aftDistanceFt?: number}} sweepDeg as for the
  *   debrief (#3 in the offset box, judged by the offset standard, has none)

@@ -26,7 +26,8 @@ async function open(page) {
 }
 
 const simTime = async (page) => Number(await page.locator('.ts-time').getAttribute('data-sec'));
-const canvas = (page) => page.locator('canvas.ts-canvas');
+const canvas = (page) => page.locator('canvas.ts-canvas:not(.ts-canvas3d)');
+const canvas3d = (page) => page.locator('canvas.ts-canvas3d');
 const playButton = (page) => page.locator('.ts-play');
 const cardLines = (page) => page.getByRole('list', { name: 'Formation', exact: true }).getByRole('listitem');
 // A panel's header is a real button; its ▾ or ▸ is part of its name, so match the start.
@@ -241,15 +242,15 @@ test('the turn changes Turn degrees to its own value, and a setting only shows w
   await expect(box(page, 'Turn degrees')).toHaveValue('180');
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, 'Aft spacing')).toHaveValue('7000');
-  // Timing: only the working choice can be picked for now.
+  // Timing: all three ways work, so none is greyed out.
   const timing = box(page, 'Timing');
   await expect(timing.locator('option')).toHaveCount(3);
-  await expect(timing.locator('option:disabled')).toHaveCount(2);
+  await expect(timing.locator('option:disabled')).toHaveCount(0);
 });
 
 test('the G box warns in words above what a T-6 can pull at this speed, and still flies it (D128)', async ({ page }) => {
   await open(page);
-  const warning = page.locator('.ts-warning');
+  const warning = page.locator('.ts-col-setup .ts-warning');
   await expect(warning).toBeHidden();
   await box(page, 'G').fill('7');
   await expect(warning).toHaveText('More G than a T-6 can pull at this speed');
@@ -371,9 +372,181 @@ test('leaving the Turn Sim leaves no frames, timers, listeners or shortcuts behi
   await expect(page.locator('.turn-sim')).toHaveCount(1);
 });
 
+// ---- 2D | 3D switch (SPEC-turn-sim: 2D/3D switch, task 19) --------------------------------------
+const viewChoice = (page, name) => page.getByRole('radio', { name, exact: true });
+const threeRequests = (page) => {
+  const seen = [];
+  page.on('request', (r) => {
+    if (/\/three\/build\/|\/three\.(module|core)\b/.test(new URL(r.url()).pathname)) seen.push(r.url()); // three.js itself, not the ui-kit's three-aircraft.js
+  });
+  return seen;
+};
+const draws3d = async (page) => Number((await canvas3d(page).getAttribute('data-draws')) ?? 0);
+
+test('a 2D visit loads no three.js, and 2D is what opens (task 19)', async ({ page }) => {
+  const seen = threeRequests(page);
+  await open(page);
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas3d(page)).toBeHidden();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  expect(seen).toEqual([]);
+});
+
+test('switching to 3D mid-run keeps the time, loads three.js once, and the choice is remembered (task 19)', async ({ page }) => {
+  const seen = threeRequests(page);
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(1);
+  const before = await simTime(page);
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect(canvas(page)).toBeHidden();
+  // The run went on: the time didn't go back to 0, and it still advances in 3D.
+  expect(await simTime(page)).toBeGreaterThanOrEqual(before);
+  await expect.poll(() => simTime(page)).toBeGreaterThan(before + 0.5);
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(3);
+  expect(seen.length).toBeGreaterThan(0);
+
+  // Paused, the picture is still and 3D asks for no frames.
+  await playButton(page).click();
+  const paused = await simTime(page);
+  await page.waitForTimeout(200);
+  const still = await draws3d(page);
+  await page.waitForTimeout(300);
+  expect(await draws3d(page)).toBe(still);
+  expect(await simTime(page)).toBe(paused);
+
+  // Back to 2D: the same time, and 3D draws nothing more.
+  await viewChoice(page, '2D').check();
+  await expect(canvas(page)).toBeVisible();
+  expect(await simTime(page)).toBe(paused);
+  const atSwitch = await draws3d(page);
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(paused + 0.5);
+  await playButton(page).click();
+  expect(await draws3d(page)).toBe(atSwitch);
+
+  // 3D again does not fetch three.js a second time.
+  const fetched = seen.length;
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  expect(seen.length).toBe(fetched);
+
+  // The choice is kept with the other layout choices: after a reload it opens in 3D.
+  await page.reload();
+  await page.waitForFunction(() => window.__tsReady);
+  await expect(viewChoice(page, '3D')).toBeChecked();
+  await expect(canvas3d(page)).toBeVisible();
+});
+
+test('the 3D picture draws the same run, and a step moves it (task 19)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const first = await canvas3d(page).screenshot();
+  // Paint is a choice in the closed settings menu, not on the bar.
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Paint').selectOption({ label: 'Ship colours' });
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await button(page, 'Step').click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0);
+  const second = await canvas3d(page).screenshot();
+  expect(second.equals(first)).toBe(false);
+});
+
+test('when three.js will not load, the note says so and 2D keeps working (task 19)', async ({ page }) => {
+  // A script that fails the way an offline load does: the import rejects, and nothing is drawn.
+  // (A later try after a real network failure loads; that retry is pinned in the ui-kit's loadThree test.)
+  await page.route('**/three.module.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await expect(page.locator('.ts-note')).toHaveText('3D needs a connection the first time.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas(page)).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+});
+
+test('leaving the Turn Sim while in 3D leaves no frames behind (task 19, R4)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await playButton(page).click();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
+  await page.evaluate(() => window.__ts.close());
+  expect(await page.evaluate(() => window.__ts.stats())).toEqual({ mounted: null, listeners: 0, subscriptions: 0, frames: 0, timers: 0 });
+});
+
+// ---- Clock and Auto timing (todo tasks 8 and 9) ----------------------------------------------------
+test('the clock cue shows its position box and live status lines, and says when #3 and #4 cannot see it', async ({ page }) => {
+  await open(page);
+  await expect(box(page, 'Clock position').first()).toBeHidden();
+  await box(page, 'Timing').selectOption({ label: 'Clock position cue' });
+  await expect(box(page, 'Clock position').first()).toBeVisible();
+  await expect(box(page, 'Clock position').first().locator('option:checked')).toHaveText('Auto (7 right, 5 left)'); // the default
+  const cues = page.getByRole('list', { name: 'Clock cue status' });
+  await expect(cues.getByRole('listitem').first()).toContainText('#1');
+  await expect(cues).toContainText('watching');
+  // Q44c: at 5:30 in the offset box, #3 and #4 have nothing to see.
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Clock position').first().selectOption({ label: '5:30' });
+  await expect(page.getByText("can't see a 5:30 cue")).toHaveText("#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay");
+  // Time delay again: the cue lines and the message are gone.
+  await box(page, 'Timing').selectOption({ label: 'Time delay' });
+  await expect(cues).toBeHidden();
+  await expect(page.getByText("can't see a 5:30 cue")).toBeHidden();
+});
+
+test('Auto timing shows the engine\'s step read-only and leaves Base delay alone', async ({ page }) => {
+  await open(page);
+  const before = await box(page, 'Base delay').inputValue();
+  await box(page, 'Timing').selectOption({ label: 'Auto timing' });
+  await expect(page.locator('.ts-auto')).toHaveText(/^Auto step \d+\.\d s$/);
+  await expect(box(page, 'Base delay')).toBeHidden();
+  await box(page, 'Timing').selectOption({ label: 'Time delay' });
+  await expect(box(page, 'Base delay')).toHaveValue(before);
+});
+
+test('Start heading is a compass heading, north by default', async ({ page }) => {
+  await open(page);
+  await expect(page.getByText('Compass: 0 north, 90 east.')).toBeVisible();
+  await expect(box(page, 'Start heading')).toHaveValue('0');
+});
+
+test('the Correction model is a checkbox in the settings menu, off by default, and opens the model and its strength', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  const on = page.getByRole('checkbox', { name: 'Correction model', exact: true });
+  await expect(on).not.toBeChecked();
+  await expect(box(page, 'Model')).toBeHidden();
+  await expect(box(page, 'Correction strength')).toBeHidden();
+  await on.check();
+  await expect(box(page, 'Model').locator('option:checked')).toHaveText('G adjustment');
+  await expect(box(page, 'Correction strength')).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  await on.uncheck();
+  await expect(box(page, 'Model')).toBeHidden();
+});
+
+test('a setup change made in 3D still fits the 2D picture when 2D comes back (audit)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await box(page, 'Spacing').fill('2500'); // refits: the 2D canvas is hidden right now
+  await expect.poll(() => simTime(page)).toBe(0);
+  await viewChoice(page, '2D').check();
+  await expect(canvas(page)).toBeVisible();
+  // Lead (blue) is on the picture without pressing Fit.
+  await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
-test.skip('opens from its card on the home screen', async ({ page }) => {
+test('opens from its card on the home screen', async ({ page }) => {
   await openRoute(page, '#/');
   await page.locator('a.card[href="#/turn-sim"]').click();
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
@@ -382,13 +555,17 @@ test.skip('opens from its card on the home screen', async ({ page }) => {
   await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
 });
 
-test.skip('the route opens and plays from a direct link, then leaves nothing running', async ({ page }) => {
-  await openRoute(page, '#/turn-sim');
+test('the route opens and plays from a direct link, then leaves nothing running', async ({ page }) => {
+  // The home screen keeps a few listeners of its own, so count them before going in and compare after coming back.
+  await openRoute(page, '#/');
+  const home = await page.evaluate(() => window.__ooda.stats());
+  await page.evaluate(() => { location.hash = '#/turn-sim'; });
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
   await playButton(page).click();
   await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'home');
   const stats = await page.evaluate(() => window.__ooda.stats());
   expect(stats.frames).toBe(0);
-  expect(stats.listeners).toBe(0);
+  expect(stats.listeners).toBe(home.listeners);
 });

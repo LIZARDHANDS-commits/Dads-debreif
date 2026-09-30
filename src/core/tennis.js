@@ -14,6 +14,12 @@
 import { KT_TO_FTPS, G_FTPS2 } from './units.js';
 import { degToRad, radToDeg, angleDiffRad } from './angles.js';
 
+/** @typedef {{ x: number, y: number, altFt?: number, spdKt?: number }} TennisPoint */
+/**
+ * A point on the ball's or the target's path, tau seconds from now.
+ * @typedef {{ x: number, y: number, altFt: number, tau: number }} PathPoint
+ */
+
 /**
  * The tennis-ball solution (from V6's getKmlTennisSolution, line 3140).
  *
@@ -25,9 +31,9 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  * so (at least 8 steps).
  *
  * @param {object} o
- * @param {object} o.shooter    { x, y, altFt, spdKt } now
- * @param {object} o.target     { x, y, altFt } now
- * @param {(t: number) => object|null} o.targetAt where the target is t seconds from now, from its
+ * @param {TennisPoint} o.shooter    { x, y, altFt, spdKt } now
+ * @param {TennisPoint} o.target     { x, y, altFt } now
+ * @param {(t: number) => TennisPoint|null} o.targetAt where the target is t seconds from now, from its
  *   recorded track ({ x, y, altFt }); null means it stays where it is now
  * @param {number} o.shooterHdg heading of the shooter's track now, radians
  * @param {number} [o.shooterClimbFps] the shooter's climb from its track, feet per second (+ up; 0 if unknown)
@@ -37,8 +43,8 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  * @param {number} o.tofSec     time of flight (V6 default 3, at least 0.25)
  * @param {number} o.hitRadiusFt hit radius (V6 default 250, at least 10)
  * @param {boolean} o.gravity   whether the ball drops
- * @returns {{status: 'INTERCEPT'|'IN CONE'|'OUT OF CONE', points: object[], targetPoints: object[],
- *   best: {dist: number, t: number, ball: object|null, target: object|null}, losAngle: number,
+ * @returns {{status: 'INTERCEPT'|'IN CONE'|'OUT OF CONE', points: PathPoint[], targetPoints: PathPoint[],
+ *   best: {dist: number, t: number, ball: PathPoint|null, target: PathPoint|null}, losAngle: number,
  *   rangeNow: number, tofSec: number, hitRadiusFt: number}}
  */
 export function tennisBall({ shooter, target, targetAt, shooterHdg, shooterClimbFps = 0, pitchDeg, ballKt, coneDeg, tofSec, hitRadiusFt, gravity }) {
@@ -70,6 +76,7 @@ export function tennisBall({ shooter, target, targetAt, shooterHdg, shooterClimb
   }
 
   // INTERCEPT needs the target in the cone now (Q36, D77; V6 ignored the cone).
+  /** @type {'INTERCEPT'|'IN CONE'|'OUT OF CONE'} */
   let status = 'OUT OF CONE';
   if (inConeNow) status = best.dist <= hitRadius ? 'INTERCEPT' : 'IN CONE';
   const rangeNow = Math.hypot(target.x - shooter.x, target.y - shooter.y, (target.altFt || 0) - (shooter.altFt || 0));

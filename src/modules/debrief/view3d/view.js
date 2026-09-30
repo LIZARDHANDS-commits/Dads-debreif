@@ -42,7 +42,7 @@ const rad = (d) => (d * Math.PI) / 180;
  */
 export function createView3d(canvas, {
   timers, flight, time, settings, fieldFt, setCamera, tennis = () => null,
-  onUnavailable = () => {}, loadThree = loadThreeModule,
+  onUnavailable = /** @type {(message: string) => void} */ (() => {}), loadThree = loadThreeModule,
 }) {
   const glCanvas = document.createElement('canvas');
   glCanvas.className = 'debrief-3d-picture';

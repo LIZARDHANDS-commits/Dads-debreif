@@ -36,8 +36,11 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * failed }, or null when there's none.
  */
 export function createMapView(canvas, {
-  timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {}, onCharts = () => {}, tennis = () => null,
-  weather = () => null, onWeather = () => {},
+  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null,
+  labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
+  onImagery = /** @type {(state: any) => void} */ (() => {}),
+  onCharts = /** @type {(state: any) => void} */ (() => {}),
+  onWeather = /** @type {(state: any) => void} */ (() => {}),
 }) {
   let flight = null;
   let paths = [];

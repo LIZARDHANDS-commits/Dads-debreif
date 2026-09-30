@@ -139,6 +139,7 @@ export function checkConditions(conditions, limits) {
   };
 }
 
+/** @type {Array<[string, number, number]>} */
 const NATO = [
   // [colour, cloud base below (ft), visibility below (m)]; V6 nato(), sof.html line 2009.
   ['RED', 200, 800],

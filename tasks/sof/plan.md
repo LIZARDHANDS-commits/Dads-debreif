@@ -8,7 +8,7 @@ Spec: [`specs/SPEC-sof.md`](../../specs/SPEC-sof.md), approved by Patrick on 202
 |---|---|---|
 | Any code | Patrick approves the spec, and the coordinator says it's the SOF's turn (after the debrief, Turn Sim, Turn Fight and Traffic) | Patrick, coordinator |
 | Tasks 1 to 5 | `wx` parsing, limits, alternates and sources; `app.airfields`; `app.time` | Weather parser and Airfields threads (merged) |
-| Task 2 | The registry entry `#/sof`, `tests/e2e/sof.spec.js`, and the SOF section in the Settings dialog | App frame thread, through the coordinator |
+| Task 2 | The registry entry `#/sof`, `tests/e2e/sof.spec.js` (the SOF keeps its settings in its own "SOF settings" menu) | App frame thread, through the coordinator |
 | Task 3 | Where each caution's words sit in the raw report text, from `wx` (small addition) | Weather parser thread, through the coordinator |
 | Task 6 | The page's Content Security Policy allowing the SOF's sources (listed in the spec) | App frame thread, through the coordinator |
 | Task 7 | SOF-3's answer decides whether the lightning-near-home caution is built; the default is yes | Patrick |
@@ -43,4 +43,4 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, lists t
 | A wave call is read as an instruction | The chip always carries its reason, and the "not for flight planning, confirm with NAV CANADA" line stays on screen. |
 | Too much on one screen (R22) | Only the table's defaults show; SOF-1 asks Patrick to confirm them; the layout test checks 1366 × 768. |
 | The traffic relay goes down or adsb.lol changes | The layer says so and the rest of the SOF carries on; the relay's tests use a captured adsb.lol reply; switching to adsb.fi is a one-line change in the relay. |
-| Map tiles and radar images drawn twice, once here and once in the debrief | If the debrief's tile code lands first, ask the coordinator to move a shared tile layer into ui-kit; otherwise the SOF keeps a small one of its own. |
+| Map tiles and radar images drawn twice, once here and once in the debrief | The tile loader is now shared, in `src/ui-kit/map-tiles.js` (`createTileLayer`, `ESRI_IMAGERY`, `tilesFor`), so the SOF's map uses it and keeps none of its own. The VNC layer (`map2d/vnc.js`) still has to move at task 6. |
