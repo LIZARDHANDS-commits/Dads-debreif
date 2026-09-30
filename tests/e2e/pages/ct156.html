@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Harvard model test page</title>
+  </head>
+  <body>
+    <canvas id="c" width="300" height="200" aria-label="Harvard models"></canvas>
+    <!-- Straight from src/, the bare name "three" needs a map to the installed copy. -->
+    <script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js" } }</script>
+    <script type="module">
+      // Counts what the renderer holds on the GPU (renderer.info.memory) while Harvard
+      // models come and go (tests/e2e/ui-kit.spec.js, "Harvard model memory").
+      import * as THREE from 'three';
+      import { createCt156Model, disposeCt156Model } from '/src/ui-kit/ct156-model.js';
+
+      try {
+        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c') });
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, 1.5, 0.1, 1000);
+        camera.position.set(0, 5, 30);
+        const count = () => ({ ...renderer.info.memory });
+        const out = { start: count(), rounds: [] };
+
+        // Warm-up: one Harvard drawn and disposed. three.js then keeps a lookup table and its
+        // converter for reflection maps, which it reuses; the baseline is taken after that.
+        function round() {
+          const ships = [1, 2, 3].map((n) => createCt156Model(THREE, { color: '#c03030', number: n, paint: n === 3 ? 'ship' : 'harvard' }));
+          scene.add(...ships);
+          renderer.render(scene, camera);
+          const shown = count();
+          ships.forEach(disposeCt156Model);
+          renderer.render(scene, camera);
+          return { shown, after: count(), inScene: scene.children.length };
+        }
+        out.warmUp = round();
+        out.baseline = count();
+
+        // Three rounds of three ships, both paints, each drawn and then disposed.
+        for (let i = 0; i < 3; i++) out.rounds.push(round());
+        window.__ct156 = out;
+      } catch (e) {
+        window.__ct156 = { error: String(e) }; // e.g. no WebGL: fail with the reason, not a timeout
+      }
+    </script>
+  </body>
+</html>

@@ -333,3 +333,22 @@ test.describe('canvas view on a high-density screen', () => {
     expect(await page.evaluate(() => document.getElementById('map').width)).toBe(Math.round(cssWidth * ratio));
   });
 });
+
+// ct156-model.js on a real WebGL renderer (tests/e2e/pages/ct156.html). Once three.js has
+// drawn a shiny, reflective material it keeps a lookup table and its reflection-map
+// converter, so the page takes its baseline after one Harvard has come and gone.
+test.describe('Harvard model memory', () => {
+  test('disposing the models returns the renderer to the baseline, round after round', async ({ page }) => {
+    await page.goto(`${site.url}tests/e2e/pages/ct156.html`);
+    await page.waitForFunction(() => window.__ct156, null, { timeout: 30_000 });
+    const { error, baseline, rounds } = await page.evaluate(() => window.__ct156);
+    expect(error).toBeUndefined();
+    expect(rounds).toHaveLength(3);
+    for (const { shown, after, inScene } of rounds) {
+      expect(shown.textures).toBeGreaterThan(baseline.textures); // the ships were really drawn
+      expect(shown.geometries).toBeGreaterThan(baseline.geometries);
+      expect(after).toEqual(baseline); // nothing left over, so nothing for a module to sweep
+      expect(inScene).toBe(0);
+    }
+  });
+});
