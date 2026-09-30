@@ -34,7 +34,7 @@ export const MODULES = [
     title: 'Turn Fight',
     blurb: '1-circle, 2-circle and vertical fights',
     media: media('turn-fight'),
-    load: null,
+    load: () => import('../modules/turn-fight/index.js'),
     prototype: true,
   },
   {
@@ -43,7 +43,7 @@ export const MODULES = [
     title: 'Traffic Pattern Sim',
     blurb: 'Define patterns, then fly aircraft through them',
     media: media('traffic'),
-    load: null,
+    load: () => import('../modules/traffic/index.js'),
     prototype: true,
   },
   {

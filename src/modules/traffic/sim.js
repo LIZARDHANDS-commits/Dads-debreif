@@ -227,6 +227,7 @@ export function createSim(setup, { seed = 1 } = {}) {
      * Adds an aircraft. `type` is a V6 type name (default CT-156), `routeId` a route (default the first),
      * `startPoint` counts from 1 as on screen (default 1; past the last point it is the last), `delaySec`
      * is from now (default 0). Returns its callsign. `id` picks the callsign.
+     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string }} [spec]
      */
     spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id } = {}) {
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
@@ -239,6 +240,28 @@ export function createSim(setup, { seed = 1 } = {}) {
       const a = makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec });
       aircraft.push(a);
       return a.id;
+    },
+
+    /**
+     * A point was added to or deleted from route `routeId`: every aircraft that starts on it starts at
+     * the same place as before. `mapIndex(oldIndex) → newIndex` (0-based) says where each point number
+     * went; it moves the start point of each aircraft on that route (spawned ones and the setup's own).
+     * An aircraft that has not left yet is put at its moved start; one that is flying keeps its distance
+     * along the route, as V6's does, and takes the new start when it is next reset.
+     */
+    remapStarts(routeId, mapIndex) {
+      const moved = (i) => {
+        const to = mapIndex(+i || 0);
+        if (!Number.isInteger(to) || to < 0) throw new RangeError(`a start point cannot move to ${to}`);
+        return to;
+      };
+      const wanted = aircraft.filter((a) => a.startRouteId === routeId).map((a) => [a, moved(a.startIndex)]);
+      const specs = (setup.aircraft ?? []).filter((spec) => spec.routeId === routeId).map((spec) => [spec, moved(spec.startIndex)]);
+      for (const [a, to] of wanted) {
+        a.startIndex = to;
+        if (t < a.startsAt) toStart(a);
+      }
+      for (const [spec, to] of specs) spec.startIndex = to;
     },
 
     /** Removes an aircraft from the run (true if it was there). */

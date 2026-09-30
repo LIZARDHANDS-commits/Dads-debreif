@@ -143,7 +143,7 @@ export function drawTopDown(ctx, size, run) {
 
   // First nose-on: the dashed line between the two at that moment, and who had it.
   if (fight.firstNose) {
-    const { from, to, by } = fight.firstNose;
+    const { from, to, by, both } = fight.firstNose;
     const [x1, y1] = project(from);
     const [x2, y2] = project(to);
     ctx.save();
@@ -159,7 +159,7 @@ export function drawTopDown(ctx, size, run) {
     // The words go in the bottom-right corner, like "Grid" at the bottom-left, so they never cover an aircraft or MERGE.
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`FIRST NOSE — ${by.toUpperCase()}`, size.width - 8, size.height - 8);
+    ctx.fillText(`FIRST NOSE — ${both ? 'BOTH' : by.toUpperCase()}`, size.width - 8, size.height - 8);
     ctx.restore();
   }
 

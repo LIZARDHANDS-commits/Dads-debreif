@@ -2,7 +2,7 @@
 // tests/golden/turn-fight-sim.test.js compares every one with the text V6 writes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFight, stepFight } from '../../../src/modules/turn-fight/sim.js';
+import { createFight, stepFight, ataDeg } from '../../../src/modules/turn-fight/sim.js';
 import {
   timeText, phaseText, resultRows, moreDetailRows, firstNoseText, formatWholeFt,
 } from '../../../src/modules/turn-fight/readouts.js';
@@ -27,7 +27,7 @@ test('More detail at the start: speed, G, 360° time, off-nose angle, time since
   assert.deepEqual(pair(m.time360), ['18.7 s', '18.7 s']);
   assert.deepEqual(pair(m.offNose), ['0°', '0°']);
   assert.equal(m.sinceMerge.text, '0.0 s');
-  assert.deepEqual(moreDetailRows(createFight()).map((x) => x.id), ['speed', 'g', 'time360', 'offNose', 'sinceMerge']);
+  assert.deepEqual(moreDetailRows(createFight()).map((x) => x.id), ['speed', 'g', 'time360', 'offNose', 'angleOff', 'sinceMerge']);
 });
 
 test('every row says what it is and which card it belongs to: a label, plain text, never HTML', () => {
@@ -101,12 +101,55 @@ test('first nose-on reads "Blue at +18.2 s", counted from the merge, or "Red at 
   assert.equal(firstNoseText(b), 'Blue at +12.6 s');
 });
 
+test('Q48: a tie reads "Both at +18.2 s", in the card and in firstNoseText', () => {
+  const s = createFight();
+  while (!s.firstNose) stepFight(s, 0.02);
+  assert.equal(firstNoseText(s), 'Both at +18.2 s');
+  assert.equal(byId(resultRows(s)).firstNose.text, 'Both at +18.2 s');
+  const one = createFight({ circles: 1 });
+  while (!one.firstNose) stepFight(one, 0.02);
+  assert.equal(firstNoseText(one), 'Both at +9.1 s');
+});
+
 test('time since the merge counts up from the merge to one decimal and is 0.0 s before it', () => {
   const s = createFight();
   stepFight(s, 10);
   assert.equal(byId(moreDetailRows(s)).sinceMerge.text, '0.0 s');
   stepFight(s, s.mergeSec - 10 + 5);
   assert.equal(byId(moreDetailRows(s)).sinceMerge.text, '5.0 s');
+});
+
+test('Q51: the off-nose angle is labelled "Off-nose angle (ATA)", and true angle-off is added as "Angle-off"', () => {
+  const rows = byId(moreDetailRows(createFight()));
+  assert.equal(rows.offNose.label, 'Off-nose angle (ATA)');
+  assert.equal(rows.angleOff.label, 'Angle-off');
+  assert.equal(rows.angleOff.group, 'more');
+});
+
+test('Q51: true angle-off is the difference in headings: 180° head-on where the off-nose angle is 0°, and the same for both aircraft', () => {
+  const s = createFight();
+  const m = byId(moreDetailRows(s));
+  assert.equal(m.angleOff.text, '180°');
+  assert.deepEqual(pair(m.offNose), ['0°', '0°']);
+  // After the merge at 19.2°/s each way the headings differ by 38.4° more each second (2-circle: both turn left, so they keep 180° apart).
+  stepFight(s, s.mergeSec + 5);
+  assert.equal(byId(moreDetailRows(s)).angleOff.text, '180°', '2-circle: both turn left at the same rate');
+  const one = createFight({ circles: 1 });
+  stepFight(one, one.mergeSec + 5);
+  const gap = Math.abs(((one.red.headingRad - one.blue.headingRad + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI) * 180 / Math.PI;
+  assert.equal(byId(moreDetailRows(one)).angleOff.text, `${gap.toFixed(0)}°`);
+  assert.notEqual(byId(moreDetailRows(one)).angleOff.text, '180°', '1-circle: they turn opposite ways');
+});
+
+test('Q51: with Climb and dive on the off-nose angle in More detail is the 3D angle, nose to line of sight including height', () => {
+  const s = createFight({ vertical: true, bluePitchDeg: 30, redPitchDeg: -20 });
+  const flat = createFight();
+  while (!flat.firstNose) { stepFight(flat, 0.02); stepFight(s, 0.02); }
+  const m = byId(moreDetailRows(s)), f = byId(moreDetailRows(flat));
+  assert.deepEqual(pair(f.offNose), ['5°', '5°'], 'level, V6\'s number');
+  assert.notEqual(m.offNose.blue, '5°');
+  assert.equal(m.offNose.blue, `${ataDeg(s, s.blue, s.red).toFixed(0)}°`);
+  assert.equal(m.offNose.red, `${ataDeg(s, s.red, s.blue).toFixed(0)}°`);
 });
 
 test('off-nose angle: 0° head-on, and after the merge whatever the aircraft measure', () => {

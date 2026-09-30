@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createV6Fight, parseV6Readouts } from './turn-fight-v6.js';
 import { seeded } from './inputs.js';
 import { createFight, stepFight, FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../src/modules/turn-fight/sim.js';
+import { FT_PER_NM } from '../../src/core/units.js';
 import { timeText, phaseText, resultRows, moreDetailRows } from '../../src/modules/turn-fight/readouts.js';
 
 const STEP = 0.02;
@@ -76,6 +77,28 @@ const GRID = [
   for (const g of GRID) g.name ??= JSON.stringify(g);
 }
 
+/**
+ * The grid runs three times, so each decision is pinned on its own:
+ *  1. V6's start and V6's off-nose angle (`v6Start`, `v6OffNose`): V6 exactly, apart from Q48 (a tie is "Both").
+ *  2. Q49, the centre start. V6 starts both aircraft the same distance from the centre, the rebuild weights the start
+ *     by speed so they meet in the centre. Before the merge that moves both aircraft along x by the same amount; from
+ *     the merge on both are put at the centre, so nothing else differs. Expected: V6's pre-merge positions shifted by
+ *     `startShiftFt`.
+ *  3. Everything decided, nothing switched back (Q51 as well). Without Climb and dive this is bit-identical to 2, so
+ *     only the rows with Climb and dive on run. With it on, the off-nose angle is measured in 3D, so first nose-on can come at another time or not at all, and the
+ *     fight can only be followed up to the first step where either V6 or the rebuild marks it (`threeD`).
+ */
+const MODES = [
+  { label: 'V6 start', options: { v6Start: true, v6OffNose: true }, shifted: false, threeD: false },
+  { label: 'centre start (Q49)', options: { v6OffNose: true }, shifted: true, threeD: false, afterMergeSec: 1 },
+  { label: 'all decisions (Q48 to Q51)', options: {}, shifted: true, threeD: true, verticalOnly: true },
+];
+/** How far the centre start moves both aircraft along x before the merge, against V6's: sep × (V2 − V1) / (2 (V1 + V2)). */
+const startShiftFt = (g) => {
+  const v1 = g.blueKt ?? 220, v2 = g.redKt ?? 220;
+  return ((g.separationNm ?? 2) * FT_PER_NM * (v2 - v1)) / (2 * (v1 + v2));
+};
+
 function near(actual, expected, tol, what, stepNo, name) {
   // Not assert.ok(...) with a template string: this runs 30,000 times a setup.
   if (!(Math.abs(actual - expected) <= tol)) {
@@ -84,17 +107,20 @@ function near(actual, expected, tol, what, stepNo, name) {
 }
 
 /** Both aircraft, V6's `S.a` and `S.b` against the port's blue and red. */
-function compareAircraft(mine, v6p, stepNo, name, who) {
-  near(mine.xFt, v6p.x, FT_TOL, `${who} x`, stepNo, name);
+function compareAircraft(mine, v6p, stepNo, name, who, shiftFt = 0) {
+  near(mine.xFt, v6p.x + shiftFt, FT_TOL, `${who} x`, stepNo, name);
   near(mine.yFt, v6p.y, FT_TOL, `${who} y`, stepNo, name);
   near(mine.zFt, v6p.z, FT_TOL, `${who} height`, stepNo, name);
   near(mine.headingRad, v6p.h, RAD_TOL, `${who} heading`, stepNo, name);
   near(mine.pitchRad, v6p.pitch, RAD_TOL, `${who} pitch`, stepNo, name);
 }
 
-/** Exact ties (same speed, G and pitch) are decided by rounding noise in V6, so who is named, in the marked line and in the "Blue at / Red at" readout, isn't pinned (Q48). */
-const isTie = (g) => (g.blueKt ?? 220) === (g.redKt ?? 220) && (g.blueG ?? 4) === (g.redG ?? 4)
-  && (!g.vertical || (g.bluePitchDeg ?? 0) === (g.redPitchDeg ?? 0));
+/**
+ * Q48, the one difference on a tie. When both noses come within 5° in the same step V6 names one aircraft, in an even
+ * fight by rounding noise. The rebuild marks it `both`, and the readout says "Both at +18.2 s" where V6 names one.
+ * V6's own two angles at that step say whether it was a tie; everything else (the time, the line, the chase) is V6's.
+ */
+const isBothAtMark = (v6) => v6.ao(v6.S.a, v6.S.b) <= 5 && v6.ao(v6.S.b, v6.S.a) <= 5;
 
 // ── The readouts against the text V6 writes on the page ──────────────────────
 
@@ -137,16 +163,27 @@ function ourReadouts(state) {
   return out;
 }
 
+/** True angle-off (Q51), the difference between the two headings in whole degrees, from V6's own headings: a new line, V6 has none. */
+function trueAngleOffText(v6) {
+  const twoPi = 2 * Math.PI;
+  const gap = Math.abs((((v6.S.b.h - v6.S.a.h + Math.PI) % twoPi) + twoPi) % twoPi - Math.PI);
+  return `${((gap * 180) / Math.PI).toFixed(0)}°`;
+}
+
 let readoutsCompared = 0;
-function compareReadouts(v6, mine, stepNo, name) {
+function compareReadouts(v6, mine, stepNo, name, v6Both, threeD) {
   const want = v6InRebuildWords(v6.text);
   const got = ourReadouts(mine);
-  if (isTie(mine.setup) && mine.firstNose) {
-    // Who is named on a tie isn't pinned (Q48); "--" before first nose-on still is, and so is the time.
-    const when = (text) => text.replace(/^(Blue|Red) at /, '');
-    assert.equal(when(got.firstNose), when(want.firstNose), `${name}: first nose-on time at step ${stepNo}`);
-    delete got.firstNose;
-    delete want.firstNose;
+  if (v6Both) {
+    // Q48, the one readout difference on a tie: V6 names an aircraft, the rebuild says "Both".
+    want.firstNose = want.firstNose.replace(/^(Blue|Red) at /, 'Both at ');
+  }
+  // Q51: true angle-off is a new line, worked out here from V6's headings.
+  want.angleOff = trueAngleOffText(v6);
+  if (threeD && mine.setup.vertical) {
+    // Q51: with Climb and dive on, the off-nose angle is measured in 3D, so it isn't V6's number (the unit tests pin it).
+    delete want.offNose;
+    delete got.offNose;
   }
   if (!mine.setup.vertical) {
     // With Climb and dive off the rebuild doesn't show height, and V6 shows zero.
@@ -159,46 +196,61 @@ function compareReadouts(v6, mine, stepNo, name) {
 }
 
 /** What the grid has exercised, so the last test can say it was not all trivial. */
-const covered = { firstNose: 0, chaseAfterNoseOn: 0, vertical: 0, verticalChase: 0, oneCircle: 0, twoCircle: 0, unequalSpeed: 0, unequalG: 0 };
+const covered = { threeDDiffers: 0, firstNose: 0, chaseAfterNoseOn: 0, vertical: 0, verticalChase: 0, oneCircle: 0, twoCircle: 0, unequalSpeed: 0, unequalG: 0 };
 
-for (const setup of GRID) {
-  const { name, ...fightSetup } = setup;
+for (const mode of MODES) for (const setup of GRID) {
+  if (mode.verticalOnly && !setup.vertical) continue;
+  const { name: gridName, ...fightSetup } = setup;
+  const name = mode.shifted ? `${gridName} [${mode.label}]` : gridName;
   test(`matches V6 for 10 minutes, step by step: ${name}`, () => {
     const v6 = createV6Fight(fightSetup);
-    const mine = createFight(fightSetup);
+    const mine = createFight({ ...fightSetup, ...mode.options });
+    const shiftFt = mode.shifted ? startShiftFt(fightSetup) : 0;
     near(mine.mergeSec, v6.S.merge, 1e-12, 'merge time', 0, name);
-    let seenNose = false, seenMerge = false;
-    compareReadouts(v6, mine, 0, name);
+    let seenNose = false, seenMerge = false, v6Both = false, cutShort = false;
+    compareReadouts(v6, mine, 0, name, v6Both, mode.threeD);
     for (let i = 1; i <= STEPS; i++) {
       v6.step(FIGHT_STEP_SEC);
       stepFight(mine, FIGHT_STEP_SEC);
+      if (mode.threeD && fightSetup.vertical && (v6.S.firstNose || mine.firstNose)) {
+        // Q51: from the first step where V6 or the rebuild marks first nose-on, the 3D angle can make it another fight.
+        // Up to and including this step the aircraft are still V6's; the unit tests pin what 3D does after.
+        compareAircraft(mine.blue, v6.S.a, i, name, 'Blue');
+        compareAircraft(mine.red, v6.S.b, i, name, 'Red');
+        if (!v6.S.firstNose !== !mine.firstNose || v6.S.firstNose.t !== mine.firstNose.timeSec) covered.threeDDiffers++;
+        cutShort = true;
+        break;
+      }
+      if (v6.S.firstNose && !seenNose) v6Both = isBothAtMark(v6);
       // Every 25th step, every step around the merge and first nose-on, and the last one.
       const nearMerge = Math.abs(mine.timeSec - mine.mergeSec) < 0.1;
       const nearNose = mine.firstNose && mine.timeSec - mine.firstNose.timeSec < 0.1;
       const readoutsDue = i % 25 === 0 || i === STEPS || nearMerge || nearNose;
-      if (readoutsDue) compareReadouts(v6, mine, i, name);
+      if (readoutsDue) compareReadouts(v6, mine, i, name, v6Both, mode.threeD);
       near(mine.timeSec, v6.t, 1e-12, 'fight time', i, name);
       if (mine.merged !== v6.S.done) assert.fail(`${name}: merged is ${mine.merged}, V6 ${v6.S.done}, at step ${i}`);
       seenMerge ||= mine.merged;
-      compareAircraft(mine.blue, v6.S.a, i, name, 'Blue');
-      compareAircraft(mine.red, v6.S.b, i, name, 'Red');
+      // Until the merge the centre start is V6's path moved along x; after it both are V6's.
+      const moved = v6.S.done ? 0 : shiftFt;
+      compareAircraft(mine.blue, v6.S.a, i, name, 'Blue', moved);
+      compareAircraft(mine.red, v6.S.b, i, name, 'Red', moved);
       const want = v6.S.firstNose, got = mine.firstNose;
+      const lastStep = mode.afterMergeSec !== undefined && mine.merged && mine.timeSec - mine.mergeSec > mode.afterMergeSec;
       if (!want !== !got) assert.fail(`${name}: first nose-on ${got ? 'marked' : 'not marked'}, V6 ${want ? 'marked' : 'not marked'}, at step ${i}`);
       if (want && !seenNose) {
         seenNose = true;
         near(got.timeSec, want.t, 1e-12, 'first nose-on time', i, name);
-        if (isTie(fightSetup)) {
-          // A tie: either aircraft may be named (see isTie); the pair of points is the same.
-          const pts = (a, b) => [a.xFt ?? a.x, a.yFt ?? a.y, b.xFt ?? b.x, b.yFt ?? b.y].map(Math.abs);
-          pts(got.from, got.to).forEach((v, k) => near(v, pts(want.from, want.to)[k], FT_TOL, 'first nose-on line', i, name));
+        assert.equal(got.both, v6Both, `${name}: a tie is marked as both (Q48), nothing else is, at step ${i}`);
+        const close = (p, q) => Math.abs(p.xFt - q.x) <= FT_TOL && Math.abs(p.yFt - q.y) <= FT_TOL;
+        if (v6Both) {
+          // A tie: V6 names either aircraft, the rebuild draws the line from Blue; it is the same two points.
+          assert.ok((close(got.from, want.from) && close(got.to, want.to)) || (close(got.from, want.to) && close(got.to, want.from)), `${name}: first nose-on line, at step ${i}`);
         } else {
           assert.equal(got.by, want.id === 'a' ? 'blue' : 'red', `${name}: who got first nose-on, at step ${i}`);
-          near(got.from.xFt, want.from.x, FT_TOL, 'first nose-on line', i, name);
-          near(got.from.yFt, want.from.y, FT_TOL, 'first nose-on line', i, name);
-          near(got.to.xFt, want.to.x, FT_TOL, 'first nose-on line', i, name);
-          near(got.to.yFt, want.to.y, FT_TOL, 'first nose-on line', i, name);
+          assert.ok(close(got.from, want.from) && close(got.to, want.to), `${name}: first nose-on line, at step ${i}`);
         }
       }
+      if (lastStep) { cutShort = true; break; }
     }
     assert.ok(seenMerge, `${name}: the aircraft merged`);
     if (seenNose) covered.firstNose++;
@@ -208,8 +260,10 @@ for (const setup of GRID) {
     covered[fightSetup.circles === 1 ? 'oneCircle' : 'twoCircle']++;
     if ((fightSetup.blueKt ?? 220) !== (fightSetup.redKt ?? 220)) covered.unequalSpeed++;
     if ((fightSetup.blueG ?? 4) !== (fightSetup.redG ?? 4)) covered.unequalG++;
-    assert.equal(mine.stopped, true, `${name}: stopped at 10 minutes`);
-    near(mine.timeSec, FIGHT_MAX_SEC, 1e-6, 'stop time', STEPS, name);
+    if (!cutShort) {
+      assert.equal(mine.stopped, true, `${name}: stopped at 10 minutes`);
+      near(mine.timeSec, FIGHT_MAX_SEC, 1e-6, 'stop time', STEPS, name);
+    }
   });
 }
 
@@ -223,6 +277,7 @@ test('the grid was not trivial: it reached first nose-on, the chase, climb and d
   assert.ok(covered.vertical >= 10, `${covered.vertical} used Climb and dive`);
   assert.ok(covered.verticalChase >= 3, `${covered.verticalChase} chased in 3D`);
   assert.ok(covered.oneCircle >= 15 && covered.twoCircle >= 15, `${covered.oneCircle} one-circle, ${covered.twoCircle} two-circle`);
+  assert.ok(covered.threeDDiffers >= 3, `${covered.threeDDiffers} Climb and dive setups where the 3D off-nose angle changed first nose-on`);
   assert.ok(covered.unequalSpeed >= 15 && covered.unequalG >= 15, `${covered.unequalSpeed} with unequal speeds, ${covered.unequalG} with unequal G`);
 });
 
@@ -241,7 +296,7 @@ test('with the chase on and a rate that differs from V6 in the last digit, the f
   ];
   for (const setup of setups) {
     const v6 = createV6Fight(setup);
-    const mine = createFight(setup);
+    const mine = createFight({ ...setup, v6Start: true, v6OffNose: true });
     const differs = v6.M(setup.blueKt, setup.blueG).w !== mine.perf.blue.rateRadPerSec || v6.M(setup.redKt, setup.redG).w !== mine.perf.red.rateRadPerSec;
     assert.ok(differs, 'this setup should have a rate that differs from V6 in the last digit');
     for (let i = 1; i <= 40 / FIGHT_STEP_SEC; i++) {

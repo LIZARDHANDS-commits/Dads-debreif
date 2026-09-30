@@ -21,7 +21,7 @@ export const WIND_MODELS = Object.freeze({
   hrrr: Object.freeze({ id: 'ncep_hrrr_conus', label: 'HRRR', fromT: day(2018, 1, 1) }),
 });
 
-/** Pressure levels asked for: from about 1,800 ft (just above Moose Jaw's field) to about 30,000 ft, where the T-6 flies. */
+/** Pressure levels asked for: from 950 hPa (about 1,400 ft, under Moose Jaw's field, so left out there: see usableLevels) to 300 hPa (about 30,000 ft), where the T-6 flies. */
 export const WIND_LEVELS_HPA = Object.freeze([950, 925, 850, 800, 700, 600, 500, 400, 300]);
 
 const M_TO_FT = 1 / 0.3048;
@@ -50,7 +50,7 @@ export function windsUrl({ lat, lon, startT, endT, model }) {
     latitude: lat.toFixed(2),
     longitude: lon.toFixed(2),
     start_date: isoDay(startT - MAX_AGE_S.model), // the hour in force at take-off may be the day before
-    end_date: isoDay(endT),
+    end_date: isoDay(endT + 3600), // the hour after the last one, to blend towards: past 23:00Z that is the next day
     hourly: hourly.join(','),
     models: WIND_MODELS[model].id,
     wind_speed_unit: 'kn',
@@ -63,6 +63,10 @@ export function windsUrl({ lat, lon, startT, endT, model }) {
  * Reads Open-Meteo's JSON reply into hours in time order:
  * [{ t, levels: [{ hPa, heightFt, dirDeg, kt }] }], each hour's levels low to
  * high, leaving out any level with a missing value and any hour with none.
+ * The list also carries `groundFt`, the ground under the point asked for
+ * (the reply's `elevation`, metres, as feet), when the reply gives one:
+ * windAt leaves out the levels under it. It doesn't show in a comparison
+ * or a loop, so the result is still just the list of hours.
  */
 export function readWinds(json) {
   const h = json?.hourly;
@@ -82,30 +86,26 @@ export function readWinds(json) {
     }
     if (levels.length) hours.push({ t, levels: levels.sort((a, b) => a.heightFt - b.heightFt) });
   });
-  return hours.sort((a, b) => a.t - b.t);
+  hours.sort((a, b) => a.t - b.t);
+  if (hours.length && typeof json.elevation === 'number' && Number.isFinite(json.elevation)) {
+    Object.defineProperty(hours, 'groundFt', { value: json.elevation * M_TO_FT });
+  }
+  return hours;
 }
 
 /**
- * The wind at altitudeFt (above sea level) in one model hour, blended between
- * the two levels either side by height, as a vector so 350° and 010° give
- * 360°, not 180°. Returns { dirDeg, kt }, or null outside the levels given.
- * dirDeg is where the wind blows from, degrees true.
+ * The wind's "from" direction and speed as components, so winds can be blended:
+ * 350° and 010° halfway give 360°, not 180°.
  */
-export function windAtAltitude(hour, altitudeFt) {
-  const levels = hour?.levels ?? [];
-  if (!levels.length || !Number.isFinite(altitudeFt)) return null;
-  if (altitudeFt < levels[0].heightFt || altitudeFt > levels[levels.length - 1].heightFt) return null;
-  const i = Math.max(0, levels.findIndex((l) => l.heightFt >= altitudeFt) - 1);
-  const a = levels[i];
-  const b = levels[Math.min(i + 1, levels.length - 1)];
-  const k = b.heightFt === a.heightFt ? 0 : (altitudeFt - a.heightFt) / (b.heightFt - a.heightFt);
-  // Components of the wind's "from" direction: blending these gives the blended direction.
-  const vec = (l) => {
-    const r = (l.dirDeg * Math.PI) / 180;
-    return [l.kt * Math.sin(r), l.kt * Math.cos(r)];
-  };
-  const [ax, ay] = vec(a);
-  const [bx, by] = vec(b);
+const toVec = ({ dirDeg, kt }) => {
+  const r = (dirDeg * Math.PI) / 180;
+  return [kt * Math.sin(r), kt * Math.cos(r)];
+};
+
+/** Blends two winds a fraction k of the way from a to b, as vectors. */
+function mixWinds(a, b, k) {
+  const [ax, ay] = toVec(a);
+  const [bx, by] = toVec(b);
   const x = ax + (bx - ax) * k;
   const y = ay + (by - ay) * k;
   const kt = Math.hypot(x, y);
@@ -113,29 +113,114 @@ export function windAtAltitude(hour, altitudeFt) {
   return { dirDeg, kt };
 }
 
-/** A wind as pilots write it: direction to the nearest 10° (360 for north), then knots. "270/25" */
-export function windWords({ dirDeg, kt }) {
-  if (Math.round(kt) === 0) return 'calm';
-  const d = round(dirDeg, 10) % 360 || 360;
-  return `${String(d).padStart(3, '0')}/${Math.round(kt)}`;
+/**
+ * An hour's levels that are above the ground, low to high. The model's lowest
+ * levels can lie under the field (950 hPa is about 1,400 ft, Moose Jaw's field
+ * 1,892 ft), and their winds are extrapolated below the surface, so they are
+ * left out. fieldFt (above sea level) is optional: without it nothing is.
+ */
+function usableLevels(hour, fieldFt) {
+  const levels = hour?.levels ?? [];
+  return Number.isFinite(fieldFt) ? levels.filter((l) => l.heightFt >= fieldFt) : levels;
 }
 
 /**
- * The words for Lead's line at moment t: "wind 270/25 at 8,500 ft (HRDPS 14Z,
- * Open-Meteo)", crediting the source as its licence asks,
- * or why there's none. hours: readWinds' result. modelLabel: "HRDPS" or "HRRR".
+ * The wind at altitudeFt (above sea level) in one model hour, blended between
+ * the two levels either side by height, as a vector so 350° and 010° give
+ * 360°, not 180°. Returns { dirDeg, kt }, or null outside the levels given.
+ * dirDeg is where the wind blows from, degrees true. Options: { fieldFt }, the
+ * field's elevation, below which levels are not used (see usableLevels).
  */
-export function windTextAt(hours, t, altitudeFt, modelLabel) {
+export function windAtAltitude(hour, altitudeFt, { fieldFt = NaN } = {}) {
+  const levels = usableLevels(hour, fieldFt);
+  if (!levels.length || !Number.isFinite(altitudeFt)) return null;
+  if (altitudeFt < levels[0].heightFt || altitudeFt > levels[levels.length - 1].heightFt) return null;
+  const i = Math.max(0, levels.findIndex((l) => l.heightFt >= altitudeFt) - 1);
+  const a = levels[i];
+  const b = levels[Math.min(i + 1, levels.length - 1)];
+  const k = b.heightFt === a.heightFt ? 0 : (altitudeFt - a.heightFt) / (b.heightFt - a.heightFt);
+  return mixWinds(a, b, k);
+}
+
+/**
+ * The wind at altitudeFt at moment t. The model gives one value per hour, so
+ * between the hour at or before t and the next one the wind is blended by time
+ * as a vector (D176 asked for the hour at or before; a step at each hour lagged
+ * by up to 59 minutes). The next hour is left out when it isn't there, is more
+ * than 90 minutes on, or has no wind at this height, and then the hour at or
+ * before stands alone. Returns null when no hour is in force at t (older than
+ * 90 minutes or none yet); otherwise { wind, hoursT, levels }: the wind or null
+ * outside the levels, the hour(s) it came from (seconds), and the earlier
+ * hour's usable levels for saying why there is none. The levels under the
+ * ground are left out: the ground under the point the winds were asked for
+ * (hours.groundFt, from readWinds) when the reply gave it, else the option
+ * { fieldFt }, the caller's field elevation, else none.
+ */
+export function windAt(hours, t, altitudeFt, { fieldFt: fallbackFt = NaN } = {}) {
+  const fieldFt = Number.isFinite(hours?.groundFt) ? hours.groundFt : fallbackFt;
   const slice = sliceAt(hours, t, MAX_AGE_S.model);
-  if (!slice) return `no ${modelLabel} wind for this time`;
-  const at = `${round(altitudeFt, 100).toLocaleString('en-US')} ft`;
-  const wind = windAtAltitude(slice.item, altitudeFt);
-  const hourZ = `${new Date(slice.item.t * 1000).toISOString().slice(11, 13)}Z`;
-  if (!wind) {
-    const { levels } = slice.item;
-    const ft = (l) => `${round(l.heightFt, 100).toLocaleString('en-US')} ft`;
-    const where = altitudeFt < levels[0].heightFt ? `below the lowest model level (${ft(levels[0])})` : `above the highest model level (${ft(levels[levels.length - 1])})`;
-    return `no ${modelLabel} wind at ${at}: ${where}`;
+  if (!slice) return null;
+  const { item: before } = slice;
+  const levels = usableLevels(before, fieldFt);
+  const w0 = windAtAltitude(before, altitudeFt, { fieldFt });
+  if (!w0) return { wind: null, hoursT: [before.t], levels };
+  const after = hours[hours.indexOf(before) + 1];
+  if (t > before.t && after && after.t > t && after.t - before.t <= MAX_AGE_S.model) {
+    const w1 = windAtAltitude(after, altitudeFt, { fieldFt });
+    if (w1) return { wind: mixWinds(w0, w1, (t - before.t) / (after.t - before.t)), hoursT: [before.t, after.t], levels };
   }
-  return `wind ${windWords(wind)} at ${at} (${modelLabel} ${hourZ}, Open-Meteo)`;
+  return { wind: w0, hoursT: [before.t], levels };
+}
+
+/**
+ * A wind as pilots write it, but marked as true and in knots: direction to the
+ * nearest 10° (360 for north), then knots. "270°T/25 kt". The model's
+ * directions are true, about 8° from magnetic at Moose Jaw, and a bare
+ * "270/25" reads as magnetic, as ATIS winds do.
+ */
+export function windWords({ dirDeg, kt }) {
+  if (Math.round(kt) === 0) return 'calm';
+  const d = round(dirDeg, 10) % 360 || 360;
+  return `${String(d).padStart(3, '0')}°T/${Math.round(kt)} kt`;
+}
+
+/**
+ * The words for the wind line at moment t: "model wind 270°T/25 kt at 8,500 ft
+ * (HRDPS 14Z, Open-Meteo)", crediting the source as its licence asks, or why
+ * there's none. Between two model hours the wind is blended and both hours are
+ * named: "(HRDPS 14–15Z, Open-Meteo)". hours: readWinds' result. modelLabel:
+ * "HRDPS" or "HRRR". Levels under the ground are not used, and below the
+ * lowest one left the line says to see the METAR (D176: no guessing below the
+ * model's lowest level). The ground is the reply's own (see windAt); options:
+ * { fieldFt }, the home field's elevation, for a reply that gave none.
+ */
+export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt = NaN } = {}) {
+  const found = windAt(hours, t, altitudeFt, { fieldFt });
+  if (!found) return `no ${modelLabel} wind for this time`;
+  const at = `${round(altitudeFt, 100).toLocaleString('en-US')} ft`;
+  if (!found.wind) {
+    const { levels } = found;
+    let where = 'no model level above the field';
+    if (levels.length) {
+      where = altitudeFt < levels[0].heightFt
+        ? "below the model's lowest level: see the METAR"
+        : `above the model's highest level, ${round(levels[levels.length - 1].heightFt, 100).toLocaleString('en-US')} ft`;
+    }
+    return `no ${modelLabel} wind at ${at} (${where})`;
+  }
+  const hourZ = (s) => new Date(s * 1000).toISOString().slice(11, 13);
+  const hoursZ = found.hoursT.length === 2 ? `${hourZ(found.hoursT[0])}–${hourZ(found.hoursT[1])}Z` : `${hourZ(found.hoursT[0])}Z`;
+  return `model wind ${windWords(found.wind)} at ${at} (${modelLabel} ${hoursZ}, Open-Meteo)`;
+}
+
+/**
+ * Why the winds couldn't load, for the wind line: the feed's `failure`
+ * ({ kind, status }). Only a missing answer blames the connection; a server
+ * error or an unreadable reply says Open-Meteo answered. label: "HRDPS" or "HRRR".
+ */
+export function windFailureText(label, failure) {
+  const retry = 'Turn Winds aloft off and on to try again.';
+  if (failure?.kind === 'http') return `${label} winds: Open-Meteo answered with an error (${failure.status}). ${retry}`;
+  if (failure?.kind === 'reply') return `${label} winds: Open-Meteo's answer wasn't wind data. ${retry}`;
+  return `${label} winds couldn't load. They need a connection.`;
 }

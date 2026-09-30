@@ -75,6 +75,7 @@ export function createMenu({ label, children = [], listen }) {
  * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
  * listen: app.listen.
  * Returns { element, setState({ mode, clockText, speed }) }.
+ * @param {{ controls: any, on: Record<string, any>, available?: { wind?: boolean, view3d?: boolean, photo?: boolean, reach?: boolean }, listen: any }} options
  */
 export function createPlaybackBar({ controls, on, available = {}, listen }) {
   let mode = 'paused';
@@ -129,7 +130,7 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
   return {
     element,
     /** Shows the clock's state: mode 'paused' | 'running' | 'rewinding', the clock as text, the speed. */
-    setState({ mode: nextMode, clockText, speed: nextSpeed } = {}) {
+    setState({ mode: nextMode, clockText, speed: nextSpeed } = /** @type {{ mode?: string, clockText?: string, speed?: number }} */ ({})) {
       if (nextMode !== undefined && STATUS_TEXT[nextMode]) {
         mode = nextMode;
         write(status, STATUS_TEXT[mode]);

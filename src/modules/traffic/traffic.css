@@ -273,6 +273,141 @@
   white-space: nowrap;
 }
 
+/* The right column: the spawner, the aircraft list and the conflicts. */
+[data-module='traffic'] .traffic-subtitle {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='traffic'] .spawner .control {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='traffic'] .spawner .control:not(.control-checkbox) {
+  display: grid;
+  grid-template-columns: 1fr 6.5rem auto;
+  align-items: center;
+}
+
+[data-module='traffic'] .spawner .control > label {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawner .control input,
+[data-module='traffic'] .spawner .control select {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-module='traffic'] .spawner .control-select {
+  grid-template-columns: 1fr 9rem;
+}
+
+[data-module='traffic'] .spawner .control-message {
+  grid-column: 1 / -1;
+}
+
+[data-module='traffic'] .spawn-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .spawn-message {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawn-message:empty {
+  display: none;
+}
+
+[data-module='traffic'] .aircraft,
+[data-module='traffic'] .conflicts {
+  margin-top: var(--space-4);
+}
+
+[data-module='traffic'] .aircraft-list,
+[data-module='traffic'] .conflict-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='traffic'] .aircraft-list:empty,
+[data-module='traffic'] .conflict-list:empty {
+  display: none;
+}
+
+[data-module='traffic'] .aircraft-row {
+  display: grid;
+  gap: 0 var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .aircraft-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+[data-module='traffic'] .aircraft-swatch {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--ac);
+}
+
+[data-module='traffic'] .aircraft-detail {
+  color: var(--text-muted);
+  padding-left: 1rem;
+}
+
+[data-module='traffic'] .aircraft-row.status-landed,
+[data-module='traffic'] .aircraft-row.status-done {
+  opacity: 0.7;
+}
+
+[data-module='traffic'] .aircraft-empty,
+[data-module='traffic'] .conflict-none {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .aircraft-empty[hidden],
+[data-module='traffic'] .conflict-none[hidden] {
+  display: none;
+}
+
+/* A conflict or caution starts with its word and symbol, so colour is never the only signal. */
+[data-module='traffic'] .conflict-line {
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--caution);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='traffic'] .conflict-line.level-conflict {
+  border-left-color: var(--bad);
+  color: var(--bad);
+}
+
+[data-module='traffic'] .conflict-line.level-caution {
+  color: var(--caution);
+}
+
 /* Menus: a button that opens a small panel, closed at first. In the bar the panel drops under
    the bar; in a column it drops under its button. */
 [data-module='traffic'] .traffic-menu {
@@ -370,12 +505,201 @@
   font-size: var(--text-sm);
 }
 
+/* The hint floats under its box instead of pushing the controls below it down: if it took room, the
+   Reset button would move when a box lost focus on mousedown, and the click would miss it. */
+[data-module='traffic'] .settings-item {
+  position: relative;
+}
+
 [data-module='traffic'] .settings-item .settings-hint {
   display: none;
-  margin: calc(-1 * var(--space-2)) 0 var(--space-2);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  pointer-events: none;
 }
 
 [data-module='traffic'] .settings-item:hover .settings-hint,
 [data-module='traffic'] .settings-item:focus-within .settings-hint {
   display: block;
+}
+
+/* The left column's route editor: the name, where the route joins, the points, and the
+   leg distances. Each point is two short lines so the column stays narrow. */
+[data-module='traffic'] .route-editor .control {
+  margin: 0;
+}
+
+[data-module='traffic'] .editor-name {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+[data-module='traffic'] .editor-name input,
+[data-module='traffic'] .editor-link select,
+[data-module='traffic'] .point-label {
+  min-width: 0;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  box-sizing: border-box;
+}
+
+[data-module='traffic'] .editor-link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .point-list {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='traffic'] .point-row {
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  margin-bottom: var(--space-1);
+}
+
+[data-module='traffic'] .point-row.is-selected {
+  border-color: var(--accent);
+  background: var(--bg-raised);
+}
+
+[data-module='traffic'] .point-line {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1);
+}
+
+[data-module='traffic'] .point-number {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+[data-module='traffic'] .point-values {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+[data-module='traffic'] .point-values .control {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .point-values .control > label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+[data-module='traffic'] .point-values input {
+  min-width: 0;
+  width: 100%;
+}
+
+[data-module='traffic'] .point-values .control-unit {
+  display: none;
+}
+
+[data-module='traffic'] .point-values .control-message {
+  grid-column: 1 / -1;
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .point-data {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .point-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+[data-module='traffic'] .editor-message {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .editor-message:empty {
+  display: none;
+}
+
+[data-module='traffic'] .leg-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='traffic'] .leg-name {
+  display: inline-block;
+  min-width: 3.5rem;
+  color: var(--text-muted);
+}
+
+/* A control that is turned off fades its box and label only: fading the unit beside it as well
+   would drop its text below the contrast the page needs (axe: color-contrast). */
+[data-module='traffic'] .control:has(:disabled) {
+  opacity: 1;
+}
+
+[data-module='traffic'] .control:has(:disabled) > :is(input, select, label) {
+  opacity: 0.5;
+}
+
+/* Narrow screens: one column, the map and its bar first, then the routes and the aircraft, so the
+   map keeps a useful size (a phone, or a small window). The page scrolls instead of each column. */
+@media (max-width: 900px) {
+  [data-module='traffic'] .traffic {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  [data-module='traffic'] .traffic-col {
+    width: auto;
+    overflow-y: visible;
+  }
+
+  [data-module='traffic'] .traffic-stage {
+    order: -1;
+  }
+
+  [data-module='traffic'] .traffic-map-wrap {
+    flex: none;
+    height: min(70vh, 32rem);
+    min-height: 18rem;
+  }
 }
