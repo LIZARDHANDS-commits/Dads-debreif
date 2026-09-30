@@ -357,3 +357,11 @@ test('Y1: the next hour is blended in only with its own above-ground levels, and
   assert.equal(label(91), 'HRDPS 18Z');
 });
 
+test('N1: a level exactly at the field is above the ground and is kept', () => {
+  const hour = { t: T('2026-09-29T18:00Z'), levels: [level(925, 2000, 270, 20), level(850, 4000, 270, 30)] };
+  const atField = windAtAltitude(hour, 2000, { fieldFt: 2000 });
+  assert.ok(atField && Math.abs(atField.kt - 20) < 1e-9);
+  assert.equal(windAtAltitude(hour, 1999, { fieldFt: 2000 }), null);
+  assert.equal(windAtAltitude(hour, 2000, { fieldFt: 2001 }), null); // one foot higher and the level is under the ground
+});
+
