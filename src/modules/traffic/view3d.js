@@ -39,6 +39,8 @@ export const MIN_PLANE_PX = 44;
 
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
+/** The arrow keys turn and tilt the view as a drag of this many pixels would, for anyone who can't drag. */
+const KEY_ORBIT_PX = Object.freeze({ ArrowLeft: [-30, 0], ArrowRight: [30, 0], ArrowUp: [0, -30], ArrowDown: [0, 30] });
 
 /** The bank the picture never goes past, and the pitch it never goes past, in degrees. */
 const MAX_BANK_DEG = 75;
@@ -540,7 +542,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     canvas.className = 'traffic-map3d';
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', '3D view of the traffic. Drag to turn it, scroll or press + and − to zoom, or use the camera buttons.');
+    canvas.setAttribute('aria-label', '3D view of the traffic. Drag or press the arrow keys to turn it, scroll or press + and − to zoom, or use the camera buttons.');
     const labels = win.document.createElement('canvas');
     labels.className = 'traffic-labels3d';
     labels.setAttribute('aria-hidden', 'true');
@@ -763,6 +765,14 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     }],
     ['keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const turn = KEY_ORBIT_PX[e.key];
+      if (turn) {
+        e.preventDefault();
+        if (follow) follow.autoYaw = false;
+        view = { ...view, cam: orbit(view.cam, turn[0], turn[1]) };
+        requestDraw();
+        return;
+      }
       const deltaY = e.key === '+' || e.key === '=' ? -1 : e.key === '-' || e.key === '_' ? 1 : 0;
       if (!deltaY) return;
       e.preventDefault();

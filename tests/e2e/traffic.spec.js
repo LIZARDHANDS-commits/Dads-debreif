@@ -617,3 +617,23 @@ test('switching 3D on and straight off again ends in 2D with nothing left over (
   await expect(canvas3d(page)).toHaveCount(0);
   await expect.poll(() => stats(page)).toEqual(baseline);
 });
+
+test('the 3D view works from the keyboard (arrow keys turn it, + and - zoom) and has no accessibility violations', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await playButton(page).click();
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await expectNoA11yViolations(page);
+  await canvas3d(page).focus();
+  await changed(page, () => page.keyboard.press('ArrowRight'));
+  await changed(page, () => page.keyboard.press('ArrowUp'));
+  await changed(page, () => page.keyboard.press('+'));
+  await changed(page, () => page.keyboard.press('-'));
+  // The camera buttons are real buttons, reachable with Tab.
+  await cameraButton(page, 'Fit').focus();
+  await page.keyboard.press('Tab');
+  await expect(cameraButton(page, 'High look-down')).toBeFocused();
+  await changed(page, () => page.keyboard.press('Enter'));
+});
