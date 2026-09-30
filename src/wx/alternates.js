@@ -1,11 +1,17 @@
 // Alternate calls: the home-weather trigger over a wave window, and the check of
-// an alternate airfield's forecast at ETA. Replaces V6's tafHazards() and its two
-// alternate badges, which showed green whatever the weather (audit issue #4).
+// an alternate airfield's forecast over an arrival window. Replaces V6's
+// tafHazards() and its two alternate badges, which showed green whatever the
+// weather (audit issue #4). The alternate rules are Canada's (CAP GEN, TC AIM
+// RAC 3.13) with Patrick's window (Q30, D60); see SPEC-wx, "Alternates".
 
 import { forecastAt, toWindow } from './taf.js';
 import { checkConditions, DEFAULT_LIMITS } from './limits.js';
+import { toDate, MINUTE_MS } from './dates.js';
 
 const usable = (taf) => Boolean(taf?.validFrom && taf?.validTo && !taf.cancelled && !taf.nil);
+
+/** Satellite approaches at home and at the alternate must be this far apart (CAP GEN). */
+export const GNSS_SEPARATION_NM = 100;
 
 function describe(p, check) {
   return {
@@ -21,11 +27,31 @@ function describe(p, check) {
   };
 }
 
+const isLimit = (m) => m != null && Number.isFinite(m.ceilingFt) && Number.isFinite(m.visSm);
+
+/** One `{ ceilingFt, visSm }` or a list of equivalent options; null when none is usable. */
+function toOptions(minima) {
+  const list = (Array.isArray(minima) ? minima : [minima]).filter(isLimit);
+  return list.length ? list : null;
+}
+
+/**
+ * Check conditions against equivalent minima options: below only when below
+ * every option, at-limit when the best option is exactly met. Reasons come from
+ * the option that decides: the first one met, else the first one.
+ */
+function checkOptions(conditions, options) {
+  const checks = options.map((m) => checkConditions(conditions, m));
+  return checks.find((c) => !c.belowLimits && !c.atLimit) ?? checks.find((c) => !c.belowLimits) ?? checks[0];
+}
+
 /**
  * Every piece of the forecast in the window, sorted into those below the limits
  * (hits), exactly at them (atLimit, Q27) and with dangerous weather (cautions, Q28).
+ * `optionsFor(piece)` gives the minima to use for a piece, or null to skip the
+ * limit test for it (the piece is then returned in `unchecked` if it is below `fallback`).
  */
-function hitsIn(forecast, limits) {
+function hitsIn(forecast, optionsFor, fallback) {
   const pieces = [
     ...forecast.prevailing.map((p) => ({ kind: 'PREVAILING', probability: null, tempo: false, ...p })),
     ...forecast.overlays,
@@ -33,15 +59,19 @@ function hitsIn(forecast, limits) {
   const hits = [];
   const atLimit = [];
   const cautions = [];
+  const unchecked = [];
   let incomplete = false;
   for (const p of pieces) {
-    const check = checkConditions(p.conditions, limits);
+    const options = optionsFor(p);
+    const check = checkOptions(p.conditions, options ?? fallback);
     if (p.kind === 'PREVAILING' && (check.visibilityUnknown || check.ceilingUnknown)) incomplete = true;
-    if (check.belowLimits) hits.push(describe(p, check));
+    if (!options) {
+      if (check.belowLimits) unchecked.push(describe(p, check));
+    } else if (check.belowLimits) hits.push(describe(p, check));
     else if (check.atLimit) atLimit.push(describe(p, check));
     if (check.cautions.length) cautions.push({ ...describe(p, check), cautions: check.cautions });
   }
-  return { hits, atLimit, cautions, incomplete };
+  return { hits, atLimit, cautions, unchecked, incomplete };
 }
 
 /** The status once a TAF covers the time: below, then unreadable, then at a limit. */
@@ -50,6 +80,8 @@ function coveredStatus(taf, { hits, atLimit, incomplete }) {
   if (incomplete || taf.problems?.length) return 'incomplete';
   return atLimit.length ? 'at-limit' : 'meets';
 }
+
+const byTime = (a, b) => +a.from - +b.from;
 
 /**
  * Is the home forecast below the home limits at any time in the wave window
@@ -68,33 +100,57 @@ export function homeAlternateTrigger(taf, window, limits) {
   if (!w) return { ...empty, status: 'no-time' };
   if (!usable(taf)) return { ...empty, status: 'no-taf' };
   const f = forecastAt(taf, w);
-  const found = hitsIn(f, limits ?? DEFAULT_LIMITS.home);
+  const options = toOptions(limits) ?? [DEFAULT_LIMITS.home];
+  const found = hitsIn(f, () => options, options);
   const status = f.covered ? coveredStatus(taf, found) : 'not-covered';
   const { hits, atLimit, cautions } = found;
   return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, atLimit, cautions, problems: taf.problems ?? [] };
 }
 
 /**
- * Check an alternate's forecast at the ETA against the alternate limits,
- * prevailing plus any overlay active at that time.
- *
- * For a GNSS-only alternate V6 had no rule and said so; this keeps that
- * (question WX-4): the status is 'needs-mea' without an MEA, else 'gnss-check'.
- *
- * status: 'no-time' | 'no-taf' | 'not-covered' | 'needs-mea' | 'gnss-check' | 'below' | 'incomplete' | 'at-limit' | 'meets'.
+ * The window to check alternates over (D60): the earliest ETA minus `marginMin`
+ * to the latest ETA plus `marginMin`. Takes one ETA or a list; unreadable ETAs
+ * are skipped. Null when none can be read.
  */
-export function assessAlternate(taf, eta, { limits, gnssOnly = false, meaFt = null } = {}) {
-  const w = toWindow(eta);
-  const base = { gnssOnly, meaFt, eta: w?.from ?? null, problems: taf?.problems ?? [] };
-  const empty = { ...base, covered: false, prevailing: null, overlays: [], hits: [], atLimit: [], cautions: [] };
+export function arrivalWindow(etas, { marginMin = 60 } = {}) {
+  const times = (Array.isArray(etas) ? etas : [etas]).map(toDate).filter(Boolean).map(Number);
+  if (!times.length) return null;
+  const margin = (Number.isFinite(marginMin) && marginMin > 0 ? marginMin : 0) * MINUTE_MS;
+  return { from: new Date(Math.min(...times) - margin), to: new Date(Math.max(...times) + margin) };
+}
+
+/**
+ * Check an alternate's forecast over an arrival window (or at one ETA) against
+ * that airfield's alternate minima (CAP GEN, D60).
+ *
+ * - `minima`: `{ ceilingFt, visSm }` or a list of equivalent options (600-2,
+ *   700-1.5, 800-1); a piece passes when it meets any option. V6's 600/2 when missing.
+ * - Prevailing, FM, BECMG and TEMPO pieces are checked against the alternate
+ *   minima; PROB pieces against `landingMinima`. Without landing minima a PROB
+ *   below the alternate minima is listed in `probUnchecked` and leaves the status alone.
+ * - `gnssApproach`, `homeGnssApproach`, `distanceNm`: when both rely on a satellite
+ *   approach and are under 100 NM apart (or the distance is unknown), `warnings` says so.
+ *
+ * status: 'no-time' | 'no-taf' | 'not-covered' | 'below' | 'incomplete' | 'at-limit' | 'meets'.
+ * `worst` is the earliest hit, else the earliest at-limit piece, else null.
+ */
+export function assessAlternate(taf, when, { minima, landingMinima, gnssApproach = false, homeGnssApproach = false, distanceNm = null } = {}) {
+  const w = toWindow(when);
+  const warnings = [];
+  if (gnssApproach && homeGnssApproach) {
+    if (!Number.isFinite(distanceNm)) warnings.push(`GNSS APPROACH AT HOME AND ALTERNATE: distance unknown, must be ${GNSS_SEPARATION_NM} NM or more`);
+    else if (distanceNm < GNSS_SEPARATION_NM) warnings.push(`GNSS APPROACH AT HOME AND ALTERNATE ${Math.round(distanceNm)} NM APART, LESS THAN ${GNSS_SEPARATION_NM} NM`);
+  }
+  const base = { from: w?.from ?? null, to: w?.to ?? null, warnings, problems: taf?.problems ?? [] };
+  const empty = { ...base, covered: false, prevailing: null, overlays: [], hits: [], atLimit: [], cautions: [], probUnchecked: [], worst: null };
   if (!w) return { ...empty, status: 'no-time' };
   if (!usable(taf)) return { ...empty, status: 'no-taf' };
   const f = forecastAt(taf, w);
-  const found = hitsIn(f, limits ?? DEFAULT_LIMITS.alternate);
-  let status;
-  if (!f.covered) status = 'not-covered';
-  else if (gnssOnly) status = meaFt ? 'gnss-check' : 'needs-mea';
-  else status = coveredStatus(taf, found);
+  const alternate = toOptions(minima) ?? [DEFAULT_LIMITS.alternate];
+  const landing = toOptions(landingMinima);
+  const found = hitsIn(f, (p) => (p.kind === 'PROB' ? landing : alternate), alternate);
+  const status = f.covered ? coveredStatus(taf, found) : 'not-covered';
+  const worst = [...found.hits].sort(byTime)[0] ?? [...found.atLimit].sort(byTime)[0] ?? null;
   return {
     ...base,
     status,
@@ -104,5 +160,7 @@ export function assessAlternate(taf, eta, { limits, gnssOnly = false, meaFt = nu
     hits: found.hits,
     atLimit: found.atLimit,
     cautions: found.cautions,
+    probUnchecked: found.unchecked,
+    worst,
   };
 }
