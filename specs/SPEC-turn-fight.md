@@ -182,6 +182,24 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 - With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
 - Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
+## 2D and 3D views (Patrick, 2026-09-30)
+
+Patrick asked on 2026-09-30 (07:51Z, in the project chat) for a 2D/3D switch in every simulator, now. So the Turn Fight gets a 3D view of the fight beside its 2D views, as part of this build.
+
+- **The switch.** A 2D/3D switch sits on the stage toolbar next to Play. It is a real button with its state announced (`aria-pressed`). **2D is the default** and the choice is remembered in this browser. Switching never resets the fight or changes a number: both views draw the same fight state.
+- **2D** is the top-down view and, with Climb and dive or Energy on, the side view, exactly as specified above.
+- **3D** replaces the stage's drawing area with one 3D scene:
+  - both T-6s at their positions, headings and pitch, from the shared T-6 model and camera helper in `src/ui-kit/three-aircraft.js` (built by the app frame thread), in their ship colours (Blue #58a6ff, Red #ff6b6b) until a Harvard paint scheme is chosen;
+  - bank: in the simple fight, the level-turn bank for the set G (cos bank = 1 ÷ G), toward the turn; in Energy mode, the model's own bank;
+  - trails as lines, a ground grid, the MERGE mark and the first nose-on line; in Energy mode, the hard deck as a see-through plane;
+  - heights are real: flat when Climb and dive and Energy are off, and without the 2D side view's height scale;
+  - the camera orbits by drag and zooms by wheel or pinch, with three one-click views: Overhead, Chase Blue, Chase Red. It follows the fight's centre.
+- **Loading.** three.js and the 3D code load only when 3D is first switched on (a dynamic import), so the 2D screen stays as fast as before.
+- **No WebGL.** If the browser can't draw 3D, the switch says so in one line and stays on 2D.
+- **Clean up (R4).** The 3D view draws only while the fight plays or the camera moves. Switching back to 2D or leaving the module stops its drawing and frees its WebGL resources.
+- **What doesn't change.** The fight engine, the turn math and every readout are the same in both views. The 3D view only reads the fight state. Its drawing lives in its own file (`view3d.js`), apart from the engine.
+- **Tests.** Unit tests cover the attitude it draws (bank from G, heading and pitch into the scene's axes) and the trail conversion. The e2e spec switches to 3D and back while a fight plays, with no console errors, and checks that the WebGL context is released on leaving.
+
 ## Every setting has a default, and the screen stays simple (Patrick, 2026-09-30)
 
 Patrick asked on 2026-09-30 (07:13Z, in this thread): every parameter starts with a default entry, and the interface is user friendly, intuitive and not overwhelming. So, for everything in this spec, including Energy mode and Start geometry:
@@ -361,6 +379,7 @@ src/modules/turn-fight/
   energy-sim.js   Energy mode: the moves, stepping both aircraft with core's point-mass step
   readouts.js     turns a fight state into readout lines (pure)
   view.js         top-down drawing on a ui-kit canvas surface
+  view3d.js       the 3D view (three.js, loaded only when 3D is switched on), on ui-kit's three-aircraft.js
   profile.js      the side view (Climb and dive)
   layout.js       the three columns, panels and controls
   turn-fight.css
