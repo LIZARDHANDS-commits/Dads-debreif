@@ -35,7 +35,7 @@ In `core`:
 | `tennis.js` | The tennis ball: one solver for both views, V6's debrief solver changed as Patrick decided (D62, D63) | 2, 3 |
 | `standards.js` | Formation standards classifier (debrief and Turn Sim), V6's standards (pinned) and the SMM default preset (R18, D114-D116); #3's fore/aft per D78 | 3 |
 | `wind.js` | The wind triangle (crab, heading, ground speed): new, for the Traffic Sim (SPEC-traffic) and later the SOF crosswind (FF21) | 4 |
-| `t6-performance.js`, `point-mass.js`, `t6a-turn-charts.js` | The one T-6A performance model every module reads (Patrick, 2026-09-30 06:58Z): limits and stall line, IAS↔TAS, thrust and drag, energy height, glide, zoom, and the point-mass step. New; built at the Turn Fight's turn | 5 |
+| `t6-performance.js`, `point-mass.js`, `t6a-turn-charts.js` | The one T-6A performance model every module reads (Patrick, 2026-09-30 06:58Z): limits and stall line, IAS↔TAS, thrust and drag, energy height, glide, zoom, and the point-mass step. New; tasks 14 to 17 | 5 |
 
 Not in `core`: resolving a TAF's day-of-month into a date (`wx` owns it, in `src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
 
@@ -122,7 +122,7 @@ V6 has no wind, so there is nothing to pin: this is new, checked against known a
 
 ## API, fifth PR: T-6A performance (shared by the Turn Fight, Traffic and Turn Sim)
 
-**Decided by Patrick on 2026-09-30 (06:58Z, "Yess hared model"):** one T-6A performance model in `core`, which every module reads. Each module keeps its own flying: the Turn Fight its moves (Energy mode, D112, SPEC-turn-fight), the Traffic Sim its pattern at the SMM speeds and its engine-out glide (SPEC-traffic), and the Turn Sim its V6 formation turns. Nothing a module shows today changes because of this: the model only puts the numbers in one place and checks them against each other. It is built test-first at the Turn Fight's turn in the roadmap, before the Traffic build needs it. V6 has none of this, so there is nothing to pin; it is checked against the T-6A's own charts.
+**Decided by Patrick on 2026-09-30 (06:58Z, "Yess hared model"):** one T-6A performance model in `core`, which every module reads. Each module keeps its own flying: the Turn Fight its moves (Energy mode, D112, SPEC-turn-fight), the Traffic Sim its pattern at the SMM speeds and its engine-out glide (SPEC-traffic), and the Turn Sim its V6 formation turns. Nothing a module shows today changes because of this: the model only puts the numbers in one place and checks them against each other. It is built test-first (tasks 14 to 17 in `tasks/flight-math/todo.md`) when Patrick's build order reaches it; until he picks, that is the Turn Fight's turn, before the Traffic build needs it. V6 has none of this, so there is nothing to pin; it is checked against the T-6A's own charts.
 
 | Function or data | What it gives | First used by |
 |---|---|---|
@@ -178,7 +178,7 @@ Note for the app frame: on Node 22, `node --test tests/unit tests/golden` fails 
 ```
 src/core/            README.md (what's here, the heading rule, how to change a number)
                      units.js angles.js geo.js time.js (PR 1); flight-math.js tennis.js (PR 2); standards.js (PR 3); wind.js (PR 4);
-                     t6-performance.js point-mass.js t6a-turn-charts.js (PR 5, at the Turn Fight's turn)
+                     t6-performance.js point-mass.js t6a-turn-charts.js (PR 5)
 tests/golden/        v6-source.js  loads V6's own functions from original/shell.html
                      inputs.js     fixed edge cases plus seeded random inputs
                      core-*.test.js  V6 vs core, function by function
