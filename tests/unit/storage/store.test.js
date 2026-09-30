@@ -110,3 +110,28 @@ test('after the browser fills up, values saved earlier can still be read', () =>
   assert.equal(store.get('old'), 'saved earlier');
   assert.equal(store.get('new'), 'too big');
 });
+
+test('raw gives the saved text as it is, so damaged text can be told from a missing key', () => {
+  const backend = memoryBackend();
+  backend.setItem(`${KEY_PREFIX}traffic:bad`, '{not json');
+  const store = createStore(backend);
+  const traffic = store.scope('traffic');
+  assert.equal(traffic.get('bad', 'fallback'), 'fallback');
+  assert.equal(traffic.raw('bad'), '{not json');
+  assert.equal(traffic.raw('missing'), null);
+  traffic.set('good', { a: 1 });
+  assert.equal(traffic.raw('good'), '{"a":1}');
+  assert.equal(store.scope('turn-sim').raw('bad'), null, 'scopes stay separate');
+  store.set('x', 2);
+  assert.equal(store.raw('x'), '2');
+});
+
+test('raw never throws when storage is blocked and sees values kept for the visit', () => {
+  const store = createStore(throwingBackend());
+  const traffic = store.scope('traffic');
+  assert.equal(traffic.raw('missing'), null);
+  traffic.set('p', [1]);
+  assert.equal(traffic.raw('p'), '[1]');
+  traffic.remove('p');
+  assert.equal(traffic.raw('p'), null);
+});

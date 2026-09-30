@@ -14,6 +14,7 @@ One safe place for everything the app remembers in the browser. V6 used four fam
 const store = createStore(browserStorage); // a function returning the backend; optional
 store.get('settings', fallback);  // parsed JSON, or fallback if missing, blocked or corrupt
 store.set('settings', value);     // returns true if it was saved to the browser
+store.raw('settings');             // the saved text as it is, or null if missing or blocked
 store.remove('settings');
 store.persistent;                 // false when the browser refuses storage
 const turnSim = store.scope('turn-sim'); // same API, keys kept separate
@@ -60,7 +61,7 @@ const dropped = await readTextFiles(event.dataTransfer.files, { maxBytes }); // 
 
 ## Tests (`tests/unit/storage/`)
 
-- Round trip of values; `get` fallback for missing, corrupt and blocked keys.
+- Round trip of values; `get` fallback for missing, corrupt and blocked keys; `raw` gives corrupt text back as it is and null for a missing key.
 - A backend that throws on every call: nothing throws, values are kept for the visit, `persistent` is `false`.
 - A backend that fills up (`QuotaExceededError`) on `set`: returns `false`, value kept in memory.
 - Scopes don't see each other's keys, and nothing is written outside the `ooda:v1:` prefix.
