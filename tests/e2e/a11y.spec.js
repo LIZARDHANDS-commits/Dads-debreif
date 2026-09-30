@@ -39,3 +39,24 @@ test('the Traffic Sim has no accessibility violations', async ({ page }) => {
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
   await expectNoA11yViolations(page);
 });
+
+test('the Turn Sim has no accessibility violations', async ({ page }) => {
+  await openRoute(page, '#/turn-sim');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
+  await expectNoA11yViolations(page);
+});
+
+test('SOF has no accessibility violations with its recorded weather', async ({ page }) => {
+  // fixtures.js answers MET Norway and Datamask from tests/fixtures/sof for every spec.
+  await openRoute(page, '#/sof');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'sof');
+  await expect(page.locator('article.sof-card').first()).toBeVisible();
+  await expectNoA11yViolations(page);
+});
+
+test('Turn Fight has no accessibility violations', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-fight');
+  await expect(page.locator('.tf-play')).toBeVisible();
+  await expectNoA11yViolations(page);
+});

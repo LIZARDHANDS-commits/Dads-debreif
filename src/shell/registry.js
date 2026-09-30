@@ -34,7 +34,7 @@ export const MODULES = [
     title: 'Turn Fight',
     blurb: '1-circle, 2-circle and vertical fights',
     media: media('turn-fight'),
-    load: null,
+    load: () => import('../modules/turn-fight/index.js'),
     prototype: true,
   },
   {
