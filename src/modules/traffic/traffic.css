@@ -322,10 +322,15 @@
   align-items: flex-start;
 }
 
+/* In a column a menu opens in the flow, under its button, and pushes what follows down (the
+   route's ✕ and point table), so it never covers a control (R2). */
 [data-module='traffic'] .traffic-col .traffic-menu-body {
+  position: static;
   grid-template-columns: 1fr;
-  width: 100%;
-  max-height: 16rem;
+  width: auto;
+  max-height: none;
+  margin-top: var(--space-1);
+  box-shadow: none;
 }
 
 [data-module='traffic'] .menu-item {

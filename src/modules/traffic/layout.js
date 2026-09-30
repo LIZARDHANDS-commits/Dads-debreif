@@ -53,6 +53,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     children: newRouteChoices(available).map((choice) =>
       h('button', { type: 'button', class: 'button menu-item', onclick: () => {
         newRoute.setOpen(false);
+        newRoute.button.focus(); // the choice is gone, so keyboard focus goes back to the button
         on.newRoute?.(choice.kind);
       } }, choice.label)),
   });

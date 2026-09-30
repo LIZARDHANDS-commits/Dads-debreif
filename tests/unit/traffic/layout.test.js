@@ -194,6 +194,7 @@ test('+ New route offers Pattern, Entry and Split (PFL once it exists), and choo
   pressable(body, 'Entry').dispatch('click');
   assert.deepEqual(calls, [['new', 'entry']]);
   assert.equal(body.hidden, true);
+  assert.equal(document.activeElement, pressable(menu, '+ New route'), 'focus goes back to the + New route button');
 
   const withPfl = setup({ available: { pfl: true } });
   const pflBody = one(withPfl.ui.element.childNodes[1], 'traffic-menu-body');
