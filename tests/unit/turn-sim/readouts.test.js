@@ -203,9 +203,9 @@ test('an aircraft exactly abreast is on spacing even when the engine leaves a ha
   // cos(pi/2) is 6e-17, so a 6,000 ft slot starts about 4e-13 ft off the 3/9 line.
   const rows = formationRows(four({ 2: { xFt: 3.7e-13 }, 3: { xFt: -3.7e-13 } }), SETTINGS);
   assert.deepEqual(rows.map((r) => r.labels), [['ON SPACING'], ['ON SPACING'], ['ON SPACING']]);
-  // A real 2 ft ahead is still FORE, as the standard says, and prints as +2 ft (never -0).
-  const ahead = formationRows(four({ 2: { xFt: 2 } }), SETTINGS);
-  assert.equal(formationLine(row(ahead, 2)).text, 'FORE  fore/aft +2 ft');
+  // A real 300 ft ahead is still FORE, and prints with a plus (never -0). Under 1 degree is not flagged (N4).
+  const ahead = formationRows(four({ 2: { xFt: 300 } }), SETTINGS);
+  assert.equal(formationLine(row(ahead, 2)).text, 'FORE  fore/aft +300 ft');
   assert.equal(signedFt(-0.4), '0 ft');
 });
 
@@ -271,4 +271,25 @@ test('the offset box reads the same on every start heading, and never FORE or AF
   const north = at(0);
   for (const deg of [45, 90, 180, 270, 300]) assert.deepEqual(at(deg), north, `heading ${deg}`);
   for (const [id, labels] of north) assert.ok(!labels.includes('FORE'), `#${id} reads ${labels}`);
+});
+
+test('N4: a perfect turn ends ON SPACING: under 1 degree fore and within 1 percent of the spacing are not flagged, the numbers still show', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  // The report's cases: +59 ft fore at 6,000 ft (0.56 degrees) and a 6,039 ft interval (0.65 percent).
+  const fore = formationRows(four({ 2: { xFt: 59 } }), settings);
+  assert.deepEqual(row(fore, 2).labels, ['ON SPACING']);
+  assert.equal(row(fore, 2).foreAftFt, 59);
+  const wide = formationRows(four({ 2: { yFt: 6039 } }), settings);
+  assert.deepEqual(row(wide, 2).labels, ['ON SPACING']);
+  assert.equal(row(wide, 2).intervalFt, 6039);
+});
+
+test('N4: real errors are still flagged: 300 ft fore, 7,000 ft out, 5,000 ft in and an aft wingman', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: 300 } }), settings), 2).labels, ['FORE']);
+  assert.deepEqual(row(formationRows(four({ 3: { yFt: -7000 } }), settings), 3).labels, ['WIDE']);
+  assert.deepEqual(row(formationRows(four({ 2: { yFt: 3900 } }), settings), 2).labels, ['TIGHT']);
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: -1200 } }), settings), 2).labels, ['AFT']);
+  // Inside the standard's band it stays ON SPACING.
+  assert.deepEqual(row(formationRows(four({ 2: { yFt: 4500 } }), settings), 2).labels, ['ON SPACING']);
 });

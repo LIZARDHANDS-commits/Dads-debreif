@@ -78,6 +78,27 @@ export function judgedBy(id, formation) {
   return formation === 'offsetBox' && id === 3 ? 'offset' : 'spread';
 }
 
+/** A perfect turn ends a hair off its slot: under 1 degree of forward sweep is not FORE (N4). */
+export const FORE_TOLERANCE_DEG = 1;
+/** ... and an interval within 1 percent of the set spacing is not WIDE or TIGHT. The numbers still show. */
+export const SPACING_TOLERANCE = 0.01;
+
+/** Degrees the wingman is swept forward of the 3/9 line (+ ahead). */
+const forwardSweepDeg = (c) => (Number.isFinite(c.sweepDeg) ? -c.sweepDeg : Math.atan2(c.foreAftFt, c.intervalFt) * 180 / Math.PI);
+
+/**
+ * The labels of a spread-standard row with the Turn Sim's small tolerance applied (N4; core's standard is shared with the
+ * Debrief and is left as it is). Only FORE, WIDE and TIGHT are relaxed; AFT and the rest are as the standard says.
+ */
+function withinPilotTolerance(c, spacingFt) {
+  const kept = c.labels.filter((label) => {
+    if (label === 'FORE') return !(forwardSweepDeg(c) < FORE_TOLERANCE_DEG);
+    if ((label === 'WIDE' || label === 'TIGHT') && spacingFt > 0) return !(Math.abs(c.intervalFt - spacingFt) <= SPACING_TOLERANCE * spacingFt);
+    return true;
+  });
+  return kept.length || !c.labels.length ? kept : ['ON SPACING'];
+}
+
 /**
  * One row per wingman: its labels and the numbers behind them. A switched-off
  * standard judges nothing, so that aircraft has no labels (judged: false);
@@ -95,12 +116,13 @@ export function formationRows(state, settings, standards) {
     const key = judgedBy(a.id, settings.formation);
     if (!std[key]?.on) return { id: a.id, judged: false, labels: [], standard: key };
     const c = classifyTurnSimPosition(a, fleet, settings.formation, std);
+    const labels = key === 'spread' ? withinPilotTolerance(c, settings.spacingFt) : c.labels;
     return {
       id: a.id,
       judged: true,
       standard: key,
-      labels: c.labels,
-      onSpacing: c.labels.length === 1 && c.labels[0] === 'ON SPACING',
+      labels,
+      onSpacing: labels.length === 1 && labels[0] === 'ON SPACING',
       intervalFt: c.intervalFt,
       foreAftFt: c.foreAftFt,
       aftDistanceFt: c.aftDistanceFt ?? null,
