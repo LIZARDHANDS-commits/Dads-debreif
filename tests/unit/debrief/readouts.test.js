@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { buildFlight } from '../../../src/flight-data/flight.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
 import { emPoint } from '../../../src/core/flight-math.js';
-import { V6_STANDARDS } from '../../../src/core/standards.js';
+import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
   estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
@@ -154,4 +154,42 @@ test('the map labels a wingman green when on parameters, and not at all without 
   assert.equal(mapLabel({ state: 'gap', labels: [] }), null);
   assert.equal(mapLabel({ state: 'no-standard', labels: [] }), null);
   assert.deepEqual(mapLabel({ state: 'ok', labels: ['WIDE', 'AFT'] }), { text: 'WIDE / AFT', tone: 'caution' });
+});
+
+test('the SMM standards (D116, D114): sweep off the 3/9 line in degrees, #3 in the 6,000-8,000 ft box', () => {
+  const at = (two, three) => buildFlight({
+    1: track('Lead', (t) => [v * t, 0]),
+    2: track('Two', (t) => [v * t + two, 5000]),
+    3: track('Three', (t) => [v * t - three, -5000]),
+  });
+  const text = (flight) => readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS }).formation.map((row) => formationText(row).text);
+  // 500 ft back at 5,000 ft is 5.7° of sweep: inside 0 to 10°. #3 7,000 ft back: inside 7,000 ± 1,000.
+  assert.deepEqual(text(at(-500, 7000)), ['On parameters', 'On parameters']);
+  // 1,500 ft back is 16.7°: AFT by 7°. #3 8,500 ft back: AFT by 500 ft.
+  assert.deepEqual(text(at(-1500, 8500)), ['AFT by 7°', 'AFT by 500 ft']);
+  // 500 ft ahead is 5.7° forward of the line: FORE by 6°. #3 5,500 ft back: FORE by 500 ft.
+  assert.deepEqual(text(at(500, 5500)), ['FORE by 6°', 'FORE by 500 ft']);
+  // Just past 10°: said as under a degree, not "by 0°".
+  assert.deepEqual(text(at(-Math.tan((10.3 * Math.PI) / 180) * 5000, 7000)), ['AFT by under 1°', 'On parameters']);
+  const row = readoutsAt(at(-1500, 7000), T(30), { standards: DEFAULT_STANDARDS }).formation[0];
+  assert.ok(Math.abs(row.sweepDeg - 16.70) < 0.05, String(row.sweepDeg));
+  // V6's standards still say it in feet (± 250 ft of the 3/9 line).
+  assert.deepEqual(readoutsAt(at(-1500, 8000), T(30), { standards: V6_STANDARDS }).formation.map((r) => formationText(r).text),
+    ['AFT by 1,250 ft', 'On parameters']);
+});
+
+test('the SMM lead standard (D115): 220 kt in the low block, 200 kt in the mid block, from Lead\'s altitude', () => {
+  const lead = (altFt, kt) => buildFlight({ 1: track('Lead', (t) => [kt * KT_TO_FTPS * t, 0], { altFt }) });
+  const low = readoutsAt(lead(8000, 240), T(30), { standards: DEFAULT_STANDARDS }).lead;
+  assert.equal(low.block, 'low');
+  assert.equal(low.targetKt, 220);
+  assert.match(leadText(low).text, /^Lead 2[12]\d kt est\. IAS, 1\.0 G, on parameters \(target 220 kt, low block\)$/);
+  const mid = readoutsAt(lead(12_000, 240), T(30), { standards: DEFAULT_STANDARDS }).lead;
+  assert.equal(mid.block, 'mid');
+  assert.equal(mid.targetKt, 200);
+  assert.match(leadText(mid).text, /, on parameters \(target 200 kt, mid block\)$/);
+  const slow = readoutsAt(lead(8000, 200), T(30), { standards: DEFAULT_STANDARDS }).lead;
+  assert.match(leadText(slow).text, /, SLOW \(target 220 kt, low block\)$/);
+  // V6's one 200 kt target shows no block.
+  assert.equal(readoutsAt(lead(8000, 240), T(30), { standards: V6_STANDARDS }).lead.block, null);
 });

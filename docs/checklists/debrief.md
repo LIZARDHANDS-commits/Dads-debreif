@@ -26,10 +26,10 @@ You'll want two or more of your own ForeFlight track files (.kml) from one forma
 
 ## Readouts and standards
 
-- [ ] The Formation card has one line per wingman, with its label (for example On parameters, WIDE or AFT) and the one number that's off. Lead's line shows est. IAS and G.
+- [ ] The Formation card has one line per wingman, with its label (for example On parameters, WIDE or AFT) and the one number that's off: feet for interval and #3's offset, degrees for sweep (0 to 10° behind the 3/9 line passes, per the SMM). Lead's line shows est. IAS and G, and the target it's judged against: 220 kt in the low block, 200 kt in the mid block.
 - [ ] **More detail** opens altitude, speed, G, pitch and bank with where each came from, plus aspect, HCA, closure and spacing for every pair. It stays open after a reload.
-- [ ] **Standards** opens the editor. Change "Spread maximum", then reload: the change is kept. A silly value (a letter, or a negative number) is refused with a message. **Reset to V6 standards** puts the preset back.
-- [ ] Compare three moments with V6 side by side (same file, same time): spacing between #1 and #2, #2's aspect and HCA, and Lead's speed. They match, except where a decision changed a number on purpose (est. IAS instead of ground speed, D31; turn rate without V6's divide by 2, D39). Note any difference and the time.
+- [ ] **Standards** opens the editor. Change "Spread maximum", then reload: the change is kept. A silly value (a letter, or a negative number) is refused with a message. **Reset to the default standards** puts the SMM's numbers back: spread 4,000 to 6,000 ft with 0 to 10° of sweep, #3 7,000 ± 1,000 ft back, and Lead 220 kt low / 200 kt mid, ±10 kt, 1.0 ± 0.2 G.
+- [ ] Compare three moments with V6 side by side (same file, same time): spacing between #1 and #2, #2's aspect and HCA, and Lead's speed. They match, except where a decision changed a number on purpose (est. IAS instead of ground speed, D31; turn rate without V6's divide by 2, D39; the SMM's sweep, offset box and lead speeds instead of V6's, D114 to D116). Note any difference and the time.
 
 ## The map
 

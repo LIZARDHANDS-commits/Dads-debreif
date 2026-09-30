@@ -10,7 +10,7 @@ import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
 import { sampleAt } from '../../flight-data/flight.js';
 import { toDebriefFile, readDebriefFile, MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
-import { V6_STANDARDS } from '../../core/standards.js';
+import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
 import { readoutsAt, formationAt, mapLabel } from './readouts.js';
 import { createStandardsPanel } from './standards-panel.js';
@@ -50,7 +50,7 @@ function mount(root, app) {
     flightExtras: [filePanel.element],
     formationExtras: [tennisPanel.element, dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
   });
-  const currentStandards = () => app.standards?.get() ?? V6_STANDARDS;
+  const currentStandards = () => app.standards?.get() ?? DEFAULT_STANDARDS;
   root.append(ui.element);
 
   let flight = null;
