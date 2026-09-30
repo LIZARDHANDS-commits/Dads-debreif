@@ -270,20 +270,22 @@ test('the zoom refuses speeds and heights it cannot fly, rather than hang', () =
 
 // ── The stick shaker and the split S (Patrick, 2026-09-30 09:27Z) ──
 // Manoeuvre pulls fly in the shaker, not on the stall line: the shaker comes
-// on about 5 to 10 kt above the stall (NFM p.1-53), taken as 7 kt, so the G is
+// on about 5 to 10 kt above the stall (NFM p.1-52), taken as 7 kt, so the G is
 // (KIAS ÷ 93)². Split S pulls go up to 5 G (Patrick; AIF 2410's maximum).
 
-test('the manoeuvre numbers: shaker 7 kt above the stall, 5 G, 90°/s roll, 20° nose up, 0.5 G roll', () => {
-  assert.deepEqual({ ...T6A_MANOEUVRE }, { shakerMarginKt: 7, maxG: 5, rollRateDegPerSec: 90, splitSNoseUpDeg: 20, splitSRollG: 0.5 });
+test('the manoeuvre numbers: shaker 7 kt above the stall, split S 5 G, 90°/s roll, 20° nose up, 0.5 G roll', () => {
+  assert.deepEqual({ ...T6A_MANOEUVRE }, { shakerMarginKt: 7, splitSMaxG: 5, rollRateDegPerSec: 90, splitSNoseUpDeg: 20, splitSRollG: 0.5 });
   assert.ok(Object.isFrozen(T6A_MANOEUVRE));
 });
 
-test('shakerG: 1 G at 93 KIAS, (KIAS ÷ 93)² above it, capped at 5 G', () => {
+test('shakerG: 1 G at 93 KIAS, (KIAS ÷ 93)² above it, capped at the V-n 7 G unless told', () => {
   near(shakerG(93), 1, 1e-12, 'shaker at 93 KIAS');
   near(shakerG(110), (110 / 93) ** 2, 1e-12, 'shaker at 110 KIAS');
   near(shakerG(186), 4, 1e-12, 'shaker at 186 KIAS');
-  assert.equal(shakerG(250), 5);
-  assert.equal(shakerG(316), 5);
+  near(shakerG(240), (240 / 93) ** 2, 1e-12, 'shaker at 240 KIAS');
+  assert.equal(shakerG(250), 7);
+  assert.equal(shakerG(316), 7);
+  assert.equal(shakerG(250, { maxG: T6A_MANOEUVRE.splitSMaxG }), 5);
   // Settings: another stall speed, margin or cap.
   near(shakerG(110, { stallKias: 83 }), (110 / 90) ** 2, 1e-12, 'shaker, 83 kt stall');
   near(shakerG(110, { marginKt: 0 }), stallLimitG(110), 1e-12, 'no margin is the stall line');
@@ -304,13 +306,14 @@ test('the split S from 110 KIAS at 10,000 ft: about 1,690 ft below the entry, 1,
   near(r.exitKias, 206.3, 0.2, 'exit speed');
   near(r.peakG, 5, 1e-9, 'peak G');
   near(r.timeSec, 16.6, 0.1, 'time');
-  near(Math.abs(r.turnDeg), 174, 1, 'heading change');
+  near(r.turnDeg, 174.4, 0.2, 'heading change (rolling right: 186° clockwise, read as +174)');
+  assert.equal(r.completed, true);
 });
 
 test('the split S against the SMM (14.16 para 40, about 2,000 ft) over its 100 to 120 KIAS entries', () => {
   for (const kias of [100, 110, 120]) {
     const r = splitST6A(kias, 10000);
-    // From the entry altitude the model loses 15 to 18 % less; from the top it is within 2 %.
+    // From the entry altitude the model loses 14 to 18 % less; from the top it is within 2 %.
     assert.ok(r.lossFt > 1600 && r.lossFt < 1750, `${kias} KIAS: ${r.lossFt} ft from the entry`);
     assert.ok(Math.abs(r.fromTopFt - 2000) < 40, `${kias} KIAS: ${r.fromTopFt} ft from the top`);
     assert.ok(r.peakG <= 5 + 1e-9, `${kias} KIAS: peak ${r.peakG} G`);
@@ -318,7 +321,7 @@ test('the split S against the SMM (14.16 para 40, about 2,000 ft) over its 100 t
 });
 
 test('the split S in the shaker loses more height than the old pull on the stall line', () => {
-  // The stall line (no margin, 7 G cap) is how the model pulled before 09:27Z: about 1,470 ft.
+  // Pulled on the stall line (no margin, 7 G cap) instead, it loses about 1,470 ft.
   const stallLine = splitST6A(110, 10000, { marginKt: 0, maxG: 7 });
   near(stallLine.lossFt, 1473, 2, 'stall-line loss');
   assert.ok(splitST6A(110, 10000).lossFt > stallLine.lossFt + 200);
@@ -338,12 +341,36 @@ test('the split S loses more the faster it starts, and ends level and upright', 
   assert.ok(r.exitUpright, 'upright at the exit');
 });
 
-test('the split S flies from a slow or a fast entry and refuses what it cannot fly, rather than hang', () => {
+test('below the shaker speed the nose cannot come up, so the split S starts with the roll', () => {
+  const slow = splitST6A(90, 10000);
+  near(slow.fromTopFt, slow.lossFt, 1e-9, 'no height gained first');
+  near(slow.lossFt, 1965, 2, 'loss from 90 KIAS');
+  // About 300 ft more from the entry than a 100 KIAS entry, which climbs first; the same from the top.
+  const r100 = splitST6A(100, 10000);
+  assert.ok(slow.lossFt > r100.lossFt + 250, `${slow.lossFt} vs ${r100.lossFt}`);
+  near(slow.fromTopFt, r100.fromTopFt, 20, 'loss from the top');
+});
+
+test('the split S settings: roll left, roll rate, nose up, roll G, stall speed', () => {
+  const base = splitST6A(110, 10000);
+  const left = splitST6A(110, 10000, { rollLeft: true });
+  near(left.lossFt, base.lossFt, 1e-6, 'a left roll loses the same');
+  near(left.turnDeg, -base.turnDeg, 1e-6, 'a left roll mirrors the heading');
+  near(splitST6A(110, 10000, { noseUpDeg: 0 }).lossFt, 1996, 2, 'no nose-up');
+  near(splitST6A(110, 10000, { rollRateDegPerSec: 45 }).lossFt, 1681, 2, 'a 45°/s roll');
+  near(splitST6A(110, 10000, { rollG: 1 }).lossFt, 1675, 2, 'a 1 G roll');
+  assert.ok(splitST6A(110, 10000, { stallKias: 83 }).lossFt < base.lossFt - 50, 'an 83 kt stall pulls harder');
+});
+
+test('the split S flies from a slow or a fast entry, says when it cannot finish, and refuses what it cannot fly', () => {
   for (const kias of [1, 60, 93, 316]) {
     const r = splitST6A(kias, 10000);
-    assert.ok(Number.isFinite(r.lossFt) && r.timeSec < 120, `${kias} KIAS`);
+    assert.ok(Number.isFinite(r.lossFt) && r.timeSec < 120 && r.completed, `${kias} KIAS`);
   }
-  for (const [kias, alt] of [[0, 10000], [-1, 10000], [317, 10000], [NaN, 10000], [110, NaN], [110, Infinity]]) {
+  const stuck = splitST6A(110, 10000, { maxG: 1 });
+  assert.equal(stuck.completed, false, 'a 1 G pull never comes level');
+  near(stuck.timeSec, 120, 0.05, 'stopped at the guard');
+  for (const [kias, alt] of [[0.5, 10000], [0, 10000], [-1, 10000], [317, 10000], [NaN, 10000], [110, NaN], [110, Infinity]]) {
     assert.throws(() => splitST6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft`);
   }
 });
