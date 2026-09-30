@@ -13,15 +13,15 @@ export function createLayout({ settingsElement, onRefresh }) {
   const dtg = h('time', { class: 'sof-dtg' });
   const feedWords = h('span', { class: 'sof-feed-words' });
   const feedSymbol = h('span', { class: 'sof-feed-symbol', 'aria-hidden': 'true' });
-  const feed = h('p', { class: 'sof-feed' }, h('span', { class: 'sof-feed-label' }, 'Weather'), ' ', feedWords, ' ', feedSymbol);
+  // Reachable by keyboard: focusing the status reads out where the weather came from and when it asks again.
+  const feedDetail = h('span', { class: 'visually-hidden', id: 'sof-feed-detail' });
+  const feed = h(
+    'p',
+    { class: 'sof-feed', tabindex: '0', role: 'group', 'aria-label': 'Weather feed', 'aria-describedby': 'sof-feed-detail' },
+    h('span', { class: 'sof-feed-label' }, 'Weather'), ' ', feedWords, ' ', feedSymbol,
+  );
   // aria-disabled, not disabled, so keyboard focus stays on the button while a round is out.
   const refresh = h('button', { type: 'button', class: 'sof-refresh', onclick: () => onRefresh() }, 'Refresh');
-  const traffic = h(
-    'a',
-    { class: 'button sof-traffic', target: '_blank', rel: 'noopener noreferrer', hidden: true },
-    'Traffic ↗',
-    h('span', { class: 'visually-hidden' }, ' (opens in a new tab)'),
-  );
   const alert = h('p', { class: 'sof-alert', role: 'alert', hidden: true });
   const credits = h('p', { class: 'sof-credits' });
   const cards = createCardsView();
@@ -30,7 +30,7 @@ export function createLayout({ settingsElement, onRefresh }) {
     'div',
     { class: 'sof' },
     h('h1', { class: 'visually-hidden' }, 'SOF Dashboard'),
-    h('section', { class: 'sof-bar', 'aria-label': 'SOF bar' }, dtg, feed, h('div', { class: 'sof-bar-actions' }, refresh, traffic)),
+    h('section', { class: 'sof-bar', 'aria-label': 'SOF bar' }, dtg, feed, feedDetail, h('div', { class: 'sof-bar-actions' }, refresh)),
     settingsElement,
     alert,
     cards.element,
@@ -51,13 +51,7 @@ export function createLayout({ settingsElement, onRefresh }) {
       setText(feedSymbol, screen.feed.symbol);
       feed.className = `sof-feed is-${screen.feed.tone}`;
       feed.title = screen.feed.title;
-      if (screen.trafficUrl) {
-        traffic.href = screen.trafficUrl;
-        traffic.hidden = false;
-      } else {
-        traffic.removeAttribute('href');
-        traffic.hidden = true;
-      }
+      setText(feedDetail, screen.feed.detail);
       const text = screen.alert ? `⚠ ${screen.alert}` : '';
       if (alert.textContent !== text) alert.textContent = text; // re-announced only when it changes
       alert.hidden = !screen.alert;

@@ -4,9 +4,8 @@
 // the clock to the screen; everything it starts is stopped when the module
 // closes, because every timer is on the module's scheduler scope and every
 // request is cancelled by unmount (R4, audit #11).
-import { createSettings } from '../../storage/settings.js';
 import { h } from '../../ui-kit/dom.js';
-import { SETTINGS_DEFAULTS } from './settings-model.js';
+import { createSofSettings } from './settings-model.js';
 import { createSettingsView } from './settings-view.js';
 import { createWeather } from './weather.js';
 import { buildScreen } from './screen-model.js';
@@ -20,7 +19,7 @@ function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
   document.head.append(stylesheet);
 
-  const settings = createSettings(app.storage, SETTINGS_DEFAULTS);
+  const settings = createSofSettings(app.storage);
   const settingsView = createSettingsView({ settings });
   const weather = createWeather({
     stations: () => app.airfields.stations(),
@@ -46,7 +45,10 @@ function mount(root, app) {
       weather.restartIfChanged();
       render();
     }),
-    app.scheduler.every(TICK_MS, render),
+    // A hidden tab draws nothing; the visibilitychange handler below redraws when it comes back.
+    app.scheduler.every(TICK_MS, () => {
+      if (!document.hidden) render();
+    }),
   ];
   // Back from a hidden tab or a sleeping computer: ask at once if a round is due, and redraw the ages.
   app.listen(document, 'visibilitychange', () => {

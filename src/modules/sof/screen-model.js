@@ -1,6 +1,6 @@
 // What the SOF screen says, decided without a page (SPEC-sof, "The screen"):
 // the SOF bar's date-time group and feed status in words, the message for every
-// feed failing, the airfield cards' models and the Traffic link. Pure: the
+// feed failing, the airfield cards' models. Pure: the
 // weather snapshot, the airfields, the limits and "now" go in, plain data comes
 // out. The page code (layout.js, cards-view.js) only draws it.
 //
@@ -9,7 +9,8 @@ import { formatDtgZulu } from '../../core/time.js';
 import { SOURCES } from '../../wx/sources.js';
 import { MINUTE_MS, toDate } from '../../wx/dates.js';
 import { cardModel, formatAge, formatDuration } from './cards.js';
-import { cleanLimits } from './waves.js';
+import { REFRESH_MS } from './weather.js';
+import { snapLimits } from './settings-model.js';
 
 /** The line under the screen: what it is not, and where the weather comes from. */
 export const CREDITS = 'Not for flight planning. Confirm with NAV CANADA. '
@@ -47,8 +48,11 @@ export function feedStatus(snapshot, now) {
     [words, symbol, tone] = [stale ? `STALE ${formatDuration(age)}` : formatAge(age), stale ? '⚠' : '✓', stale ? 'bad' : 'ok'];
   }
   const answered = [...new Set([...Object.values(snapshot.metar), ...Object.values(snapshot.taf)].map((e) => nameOf(e.source)).filter(Boolean))];
-  const title = `${answered.length ? `Answered by ${answered.join(' and ')}. ` : ''}METARs and TAFs are asked for again every 5 minutes.`;
-  return { label: 'Weather', words, symbol, tone, text: `Weather ${words} ${symbol}`, title };
+  // When it will try again: the last round plus the refresh interval. Off, it won't.
+  const next = stopped ? '' : lastRound ? `Asks again about ${hhmmZ(new Date(+lastRound.at + REFRESH_MS))}.` : 'METARs and TAFs are asked for every 5 minutes.';
+  const title = [answered.length ? `Answered by ${answered.join(' and ')}.` : '', next].filter(Boolean).join(' ');
+  // `detail` is the same words for the page to keep beside the status, so a keyboard user can reach them.
+  return { label: 'Weather', words, symbol, tone, text: `Weather ${words} ${symbol}`, title, detail: title };
 }
 
 /**
@@ -64,31 +68,17 @@ export function alertText(snapshot, now) {
   return `Weather feeds are not answering (${who} at ${hhmmZ(toDate(lastRound.at))}). ${shown}`;
 }
 
-// ---- The Traffic link -------------------------------------------------------------------------
-
-/**
- * ADS-B Exchange's live map centred on the home field (a link out; its terms
- * for showing it inside the page are read before the map layer, task 7). Built from two
- * checked numbers, so nothing else can reach the address. Null without a usable position.
- */
-export function trafficUrl(home) {
-  const { lat, lon } = home ?? {};
-  const ok = (v, limit) => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= limit;
-  if (!ok(lat, 90) || !ok(lon, 180)) return null;
-  return `https://globe.adsbexchange.com/?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&zoom=6`;
-}
-
 // ---- The cards ------------------------------------------------------------------------------------
 
 /**
- * The whole screen: { dtg, dtgIso, feed, alert, cards, trafficUrl, credits }.
+ * The whole screen: { dtg, dtgIso, feed, alert, cards, credits }.
  * `airfields` is app.airfields; `snapshot` is createWeather's; `limits` the home
  * limits from Settings; `now` a Date. Cards are home first, then each alternate,
  * one per airfield.
  */
 export function buildScreen({ airfields, snapshot, limits, now }) {
   const home = airfields.home();
-  const homeLimits = cleanLimits(limits);
+  const homeLimits = snapLimits(limits); // a typed limit is checked snapped up, the safe side (R1)
   const round = snapshot.lastRound;
   const cards = [];
   const seen = new Set();
@@ -122,7 +112,6 @@ export function buildScreen({ airfields, snapshot, limits, now }) {
     feed: feedStatus(snapshot, now),
     alert: alertText(snapshot, now),
     cards,
-    trafficUrl: trafficUrl(home),
     credits: CREDITS,
   };
 }

@@ -8,7 +8,7 @@ Spec: [`specs/SPEC-sof.md`](../../specs/SPEC-sof.md), approved by Patrick on 202
 |---|---|---|
 | Any code | Patrick approves the spec, and the coordinator says it's the SOF's turn (after the debrief, Turn Sim, Turn Fight and Traffic) | Patrick, coordinator |
 | Tasks 1 to 5 | `wx` parsing, limits, alternates and sources; `app.airfields`; `app.time` | Weather parser and Airfields threads (merged) |
-| Task 2 | The registry entry `#/sof`, `tests/e2e/sof.spec.js`, and the SOF section in the Settings dialog | App frame thread, through the coordinator |
+| Task 2 | The registry entry `#/sof`, `tests/e2e/sof.spec.js` (the SOF keeps its settings in its own "SOF settings" menu) | App frame thread, through the coordinator |
 | Task 3 | Where each caution's words sit in the raw report text, from `wx` (small addition) | Weather parser thread, through the coordinator |
 | Task 6 | The page's Content Security Policy allowing the SOF's sources (listed in the spec) | App frame thread, through the coordinator |
 | Task 7 | SOF-3's answer decides whether the lightning-near-home caution is built; the default is yes | Patrick |

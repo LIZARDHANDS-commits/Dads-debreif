@@ -5,13 +5,14 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, withTrigger } from './settings-model.js';
+import { TRIGGER_OPTIONS, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
-/** settings: the SOF's settings (storage/settings.js). Returns { element, dispose }. */
+/** settings: the SOF's settings (createSofSettings). Returns { element, dispose }. */
 export function createSettingsView({ settings }) {
-  const view = withTrigger(settings);
+  // The boxes see the numbers as typed; everything else sees them snapped (settings-model.js).
+  const view = withTrigger(settings.editing);
   const controls = createControls(view);
   const menu = createSettingsMenu({ title: 'SOF settings', onReset: () => settings.reset() });
 
@@ -23,19 +24,21 @@ export function createSettingsView({ settings }) {
   select.addEventListener('change', () => {
     select.value = String(TRIGGER_OPTIONS.findIndex((o) => o.value === view.get().trigger));
   });
+  const ceiling = controls.number('ceilingFt', { label: 'Home ceiling below', unit: 'ft', min: 0, max: 10000, step: 100 });
+  const visibility = controls.number('visSm', { label: 'Home visibility below', unit: 'SM', min: 0, max: 10, step: 0.25 });
+  // Typing writes good numbers straight through; on commit (Enter, or leaving the box) the number snaps UP to its
+  // step, the safe side, and the box shows what the check uses.
+  for (const [field, key, snap] of [[ceiling, 'ceilingFt', snapCeiling], [visibility, 'visSm', snapVisibility]]) {
+    field.querySelector('input').addEventListener('change', () => {
+      const value = settings.editing.get()[key];
+      if (snap(value) !== value) settings.update({ [key]: snap(value) }); // the control's own sync rewrites the box
+    });
+  }
   menu.section('Alternate trigger').append(
     trigger,
-    controls.number('ceilingFt', { label: 'Home ceiling below', unit: 'ft', min: 0, max: 10000, step: 100 }),
-    controls.number('visSm', { label: 'Home visibility below', unit: 'SM', min: 0, max: 10, step: 0.25 }),
-    hint('Home needs an alternate when its forecast is below either number. Choosing a trigger fills both in.'),
-  );
-  menu.section('Cautions').append(
-    controls.checkbox('banner', { label: 'Show the new-caution banner' }),
-    hint('Saved now. The banner itself arrives with the cautions.'),
-  );
-  menu.section('Lightning').append(
-    controls.number('lightningNm', { label: 'Lightning radius around home', unit: 'NM', min: 5, max: 50, step: 1 }),
-    hint('Saved now. Used once the lightning check is added.'),
+    ceiling,
+    visibility,
+    hint('Home needs an alternate when its forecast is below either number. Choosing a trigger fills both in; a typed number goes up to the next 100 ft or quarter mile.'),
   );
 
   return { element: menu.element, dispose: controls.dispose };

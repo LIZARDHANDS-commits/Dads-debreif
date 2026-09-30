@@ -7,7 +7,7 @@ import { parseMetar } from '../../../src/wx/metar.js';
 import { parseTaf } from '../../../src/wx/taf.js';
 import { createStore } from '../../../src/storage/store.js';
 import { createAirfields } from '../../../src/airfields/airfields.js';
-import { buildScreen, feedStatus, alertText, trafficUrl, CREDITS, STALE_FEED_MIN } from '../../../src/modules/sof/screen-model.js';
+import { buildScreen, feedStatus, alertText, CREDITS, STALE_FEED_MIN } from '../../../src/modules/sof/screen-model.js';
 import { METAR, HOME_TAF } from '../../fixtures/sof/reports.js';
 
 const MIN = 60_000;
@@ -84,6 +84,21 @@ test('feed status names the sources that answered', () => {
   assert.match(feedStatus(s, NOW).title, /MET Norway/);
   assert.match(feedStatus(s, NOW).title, /Datamask/);
   assert.match(feedStatus(snap(), NOW).title, /every 5 minutes/);
+});
+
+test('feed status says when it will try again: the last round plus 5 minutes, in Zulu', () => {
+  const at = new Date(+NOW - 2 * MIN);
+  const status = feedStatus(snap({ lastRound: round('ok', at), newestAt: at }), NOW);
+  assert.match(status.title, /Asks again about 1845Z\./);
+  assert.equal(status.detail, status.title, 'the same words are on the page, not only in a tooltip');
+  assert.doesNotMatch(feedStatus(snap({ stopped: true }), NOW).title, /Asks again/);
+});
+
+test('the home limits are checked as snapped up: a hand-typed 2049 is checked as 2100 (R1)', () => {
+  const s = snap({ metar: { CYMJ: metar('METAR CYMJ 291800Z 27010KT 15SM BKN021 15/02 A2952') }, lastRound: round('ok', NOW, { metars: ['CYMJ'] }), newestAt: NOW });
+  const card = screen({ snapshot: s, limits: { ceilingFt: 2049, visSm: 2.8 } }).cards[0];
+  assert.equal(card.limitsText, 'Custom 2100/3');
+  assert.equal(card.result.level, 'at-limit', 'a 2100 ft ceiling is exactly on the snapped limit; rounding to the nearest would have said within');
 });
 
 // ---- Every feed failing ---------------------------------------------------------------------------
@@ -214,18 +229,4 @@ test('nothing in the model is HTML: report text passes through as plain strings'
 test('a home field with no name is not shown as "null"', () => {
   const fake = { home: () => ({ icao: 'ZZZZ', name: null }), alternates: () => [], checkOptions: () => ({}) };
   assert.equal(buildScreen({ airfields: fake, snapshot: snap(), limits: {}, now: NOW }).cards[0].name, '');
-});
-
-// ---- The Traffic link ------------------------------------------------------------------------------------
-
-test('the Traffic link is ADS-B Exchange centred on home, built from numbers only', () => {
-  const url = screen().trafficUrl;
-  assert.equal(url, 'https://globe.adsbexchange.com/?lat=50.3303&lon=-105.5590&zoom=6');
-  assert.equal(trafficUrl({ lat: 52.1708, lon: -106.6997 }), 'https://globe.adsbexchange.com/?lat=52.1708&lon=-106.6997&zoom=6');
-});
-
-test('with no usable position there is no Traffic link', () => {
-  for (const bad of [null, {}, { lat: null, lon: null }, { lat: 'x', lon: 1 }, { lat: 91, lon: 0 }, { lat: 0, lon: 181 }, { lat: NaN, lon: 0 }]) {
-    assert.equal(trafficUrl(bad), null);
-  }
 });

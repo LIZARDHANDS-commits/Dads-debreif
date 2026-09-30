@@ -103,7 +103,7 @@ export function createWeather({ stations, fetch, timers, store, now = () => new 
     controller = mine;
     // Every request ends when the module does, and the first of a round says a round is out.
     const guarded = async (url, init) => {
-      if (!roundOpen) {
+      if (!roundOpen && mine === controller) { // a round for stations no longer shown must not say one is out
         roundOpen = true;
         changed();
       }

@@ -31,6 +31,10 @@ function fakeFetch(state = {}) {
     if (state.hang) {
       await new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
     }
+    if (state.gate) {
+      await state.gate; // an answer that only fails once the test lets it, whatever the signal says
+      throw new Error('late failure');
+    }
     if (state.down) throw new Error('network down');
     if (url.startsWith('https://api.met.no/') && url.includes('/metar?')) return reply(200, state.metar ?? metarText());
     if (url.startsWith('https://api.met.no/') && url.includes('/taf?')) return reply(200, state.taf ?? tafText);
@@ -354,5 +358,22 @@ test('reports from a stored round survive a restart to the same stations even wh
   const s = t.weather.snapshot();
   assert.equal(s.lastRound.kind, 'failed');
   assert.equal(s.metar.CYMJ.report.station, 'CYMJ');
+  t.weather.stop();
+});
+
+test('a round still finishing for the old stations cannot leave the screen stuck on Refreshing', async () => {
+  let release;
+  const t = setup({ state: { gate: new Promise((resolve) => { release = resolve; }) } });
+  t.weather.start();
+  await flush();
+  t.state.gate = null;
+  t.setStations(['CYMJ']);
+  t.weather.restart();
+  await flush();
+  assert.equal(t.weather.snapshot().busy, false, 'the new round is done');
+  release(); // now the old round's requests fail, and it goes on to ask Datamask
+  await flush();
+  await flush();
+  assert.equal(t.weather.snapshot().busy, false);
   t.weather.stop();
 });
