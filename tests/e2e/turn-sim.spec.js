@@ -313,6 +313,9 @@ test('a finished In-place 90 reads in trail and ON SPACING, and a finished Check
   await page.getByLabel('Playback speed').selectOption('4');
   await playButton(page).click();
   await expect(cardLines(page).first()).toHaveText('#2 ON SPACING in trail 6,000 ft', { timeout: 60000 });
+  await panel(page, 'More detail').click(); // its numbers are the trail's too (R2), not "interval 0 ft, fore/aft 0 ft"
+  await expect(page.getByText('#2: in trail 6,000 ft from #1, across 0 ft')).toBeVisible();
+  await expect(page.getByText(/interval 0 ft/)).toHaveCount(0);
   await box(page, 'Turn').selectOption({ label: 'Check turn' });
   await expect(cardLines(page).first()).toHaveText('#2 ON SPACING'); // the start is judged as always
   await playButton(page).click();

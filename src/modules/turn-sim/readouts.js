@@ -306,6 +306,7 @@ export function pairText(pair, withNm = false) {
 /** One wingman's numbers for More detail. */
 export function wingmanDetail(row) {
   if (!row.judged) return row.reason ? `#${row.id}: not judged (${row.reason})` : `#${row.id}: not judged (standard switched off)`;
+  if (row.trailFt != null) return `#${row.id}: in trail ${ft(row.trailFt)} from #${row.trailRefId}, across ${ft(row.acrossFt)}`;
   const from = row.measureNote ? ` (${row.measureNote})` : '';
   const aft = row.aftDistanceFt !== null ? `, aft ${ft(row.aftDistanceFt)}` : '';
   return `#${row.id}: interval ${ft(row.intervalFt)}, fore/aft ${signedFt(row.foreAftFt)}${aft}${from}`;

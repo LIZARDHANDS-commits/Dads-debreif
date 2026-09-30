@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { stallLimitG, availableG } from '../../../src/core/t6-performance.js';
 import {
-  checkTurnNote, formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
+  checkTurnNote, wingmanDetail, formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
 } from '../../../src/modules/turn-sim/readouts.js';
 import { MANEUVER_TURN_DEG, DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
@@ -434,4 +434,44 @@ test('R1: 6,000 ft wide (#3 12,000 ft from Lead) is WIDE too, in 4312 and 2134, 
   const box = { ...DEFAULTS, formation: 'offsetBox', maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0, ...withWide([4], 3000) };
   const rows = readoutsAt(endOf(box), box).rows;
   assert.deepEqual([2, 3, 4].map((id) => row(rows, id).trailRefId), [1, 4, 3]);
+});
+
+// R2: More detail on a trail row shows the in-trail distance and the offset across, not "interval 0 ft, fore/aft 0 ft".
+test('R2: More detail for a trail row gives the in-trail distance, its reference and the offset across', () => {
+  const done = (across) => ({ ...state([ac(1, 0, 0), ac(2, 6000, across)], 30), turnComplete: true });
+  assert.equal(wingmanDetail(formationRows(done(0), IN_PLACE)[0]), '#2: in trail 6,000 ft from #1, across 0 ft');
+  assert.equal(wingmanDetail(formationRows(done(-300), IN_PLACE)[0]), '#2: in trail 6,000 ft from #1, across 300 ft');
+  const settings = { ...DEFAULTS, formation: 'weighted', maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0 };
+  const details = readoutsAt(endOf(settings), settings).wingmen;
+  assert.deepEqual(details, ['#2: in trail 6,000 ft from #1, across 0 ft', '#3: in trail 6,000 ft from #1, across 0 ft', '#4: in trail 6,000 ft from #3, across 0 ft']);
+  for (const text of details) assert.ok(!/interval 0 ft|fore\/aft 0 ft/.test(text), text);
+});
+
+// Y1: the guard. Mid-turn (time has passed, the turn is not complete) there is no trail judge and no "Not judged".
+test('Y1: a mid-turn state (tSec above 0, turn not complete) gets the line-abreast judge, in an In-place 90 and a Check turn alike', () => {
+  const mid = (over = {}) => ({ ...state([ac(1, 0, 0), ac(2, 6000, 0)], 12), turnComplete: false, ...over });
+  const inPlace = formationRows(mid(), IN_PLACE)[0];
+  assert.equal(inPlace.judged, true);
+  assert.equal(inPlace.trailFt, undefined); // no trail judge
+  assert.ok(inPlace.labels.includes('TIGHT')); // the line-abreast judge: #2 is 6,000 ft ahead of Lead, not 6,000 across
+  const check = formationRows(mid(), { ...IN_PLACE, maneuver: 'check30' })[0];
+  assert.equal(check.judged, true); // and no "Not judged"
+  assert.equal(check.reason, undefined);
+  assert.notEqual(formationLine(check).text.slice(0, 10), 'Not judged');
+  // Once complete, the same state is the trail judge and the Check turn's Not judged.
+  assert.equal(formationRows(mid({ turnComplete: true }), IN_PLACE)[0].trailFt, 6000);
+  assert.equal(formationRows(mid({ turnComplete: true }), { ...IN_PLACE, maneuver: 'check30' })[0].judged, false);
+  // At t = 0 a set-up state is never "ended" either, even if turnComplete were set.
+  assert.equal(formationRows({ ...mid({ turnComplete: true }), tSec: 0 }, IN_PLACE)[0].trailFt, undefined);
+});
+
+// Y2: the trail band's edges at 6,000 ft spacing: the standard's 4,000 to 6,000 ft with the 1 percent (60 ft) slack, so 3,940 and 6,060.
+test('Y2: the trail band edges at 6,000 ft spacing: just inside and just outside 3,940 and 6,060 ft', () => {
+  const at = (gap) => formationRows({ ...state([ac(1, 0, 0), ac(2, gap, 0)], 30), turnComplete: true }, IN_PLACE)[0].labels;
+  assert.deepEqual(at(3940), ['ON SPACING']);
+  assert.deepEqual(at(3939), ['TIGHT']);
+  assert.deepEqual(at(6060), ['ON SPACING']);
+  assert.deepEqual(at(6061), ['WIDE']);
+  assert.deepEqual(at(-3941), ['ON SPACING']); // behind Lead is the same distance
+  assert.deepEqual(at(-6061), ['WIDE']);
 });
