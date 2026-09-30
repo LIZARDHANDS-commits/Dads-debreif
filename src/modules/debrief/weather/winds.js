@@ -123,7 +123,7 @@ function usableLevels(hour, fieldFt) {
  * dirDeg is where the wind blows from, degrees true. Options: { fieldFt }, the
  * field's elevation, below which levels are not used (see usableLevels).
  */
-export function windAtAltitude(hour, altitudeFt, { fieldFt } = {}) {
+export function windAtAltitude(hour, altitudeFt, { fieldFt = NaN } = {}) {
   const levels = usableLevels(hour, fieldFt);
   if (!levels.length || !Number.isFinite(altitudeFt)) return null;
   if (altitudeFt < levels[0].heightFt || altitudeFt > levels[levels.length - 1].heightFt) return null;
@@ -145,7 +145,7 @@ export function windAtAltitude(hour, altitudeFt, { fieldFt } = {}) {
  * outside the levels, the hour(s) it came from (seconds), and the earlier
  * hour's usable levels for saying why there is none. Options: { fieldFt }.
  */
-export function windAt(hours, t, altitudeFt, { fieldFt } = {}) {
+export function windAt(hours, t, altitudeFt, { fieldFt = NaN } = {}) {
   const slice = sliceAt(hours, t, MAX_AGE_S.model);
   if (!slice) return null;
   const { item: before } = slice;
@@ -181,7 +181,7 @@ export function windWords({ dirDeg, kt }) {
  * under it are not used, and below the lowest one left the line says to see
  * the METAR (D176: no guessing below the model's lowest level).
  */
-export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt } = {}) {
+export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt = NaN } = {}) {
   const found = windAt(hours, t, altitudeFt, { fieldFt });
   if (!found) return `no ${modelLabel} wind for this time`;
   const at = `${round(altitudeFt, 100).toLocaleString('en-US')} ft`;
