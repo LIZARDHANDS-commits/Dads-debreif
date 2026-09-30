@@ -658,6 +658,21 @@ test('the Auto clock position label follows the turn (Delayed 45 is 4:30 right, 
   await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (7 right, 5 left)');
 });
 
+test('the Delayed 45 style, check turn and roll-in boxes sit in the settings menu and show only for the Delayed 45', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Delayed 45 style')).toBeHidden();
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(box(page, 'Delayed 45 style').locator('option')).toHaveText(['Auto (check in 4-ship, plain in two-ship)', 'Plain', 'With check turn']);
+  await expect(box(page, 'Delayed 45 style').locator('option:checked')).toHaveText('Auto (check in 4-ship, plain in two-ship)');
+  await expect(box(page, 'Check turn')).toHaveValue('12.5');
+  await expect(box(page, 'Roll in to hold the set spacing')).not.toBeChecked();
+  await box(page, 'Check turn').fill('15');
+  await expect(box(page, 'Check turn')).toHaveValue('15');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(box(page, 'Check turn')).toBeHidden();
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
