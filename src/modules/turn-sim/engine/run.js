@@ -22,6 +22,7 @@ import { startPositions, activeIds, inferLineAbreastForm } from './formation.js'
 import { planTurn } from './plan.js';
 import { cueStatus } from './cues.js';
 import { moveAircraft, flownG, STEP_SEC } from './step.js';
+import { rearCheckConfig, resetRearCheckState, rearCheckStatus } from './rear-check.js';
 
 /** The pairs of aircraft the spacing is kept for, in the order V6 lists them (line 1699). */
 const PAIRS = [[1, 2], [1, 3], [1, 4], [3, 4], [2, 3], [2, 4]];
@@ -60,7 +61,7 @@ export function historyRow(tSec, aircraft, previous, stepSec = STEP_SEC) {
 
 function newAircraft(slot, settings) {
   const own = aircraftSettings(settings, slot.id);
-  return {
+  const a = {
     id: slot.id,
     xFt: slot.xFt,
     yFt: slot.yFt,
@@ -85,6 +86,8 @@ function newAircraft(slot, settings) {
     originalHeadingRad: undefined,
     gFlown: flownG(settings.baseG, own.gError),
   };
+  resetRearCheckState(a);
+  return a;
 }
 
 /**
@@ -105,6 +108,8 @@ function newAircraft(slot, settings) {
  *            startHeadingDeg: the compass heading the run started on (000 north, 090 east); after startLeg
  *            it is Lead's compass heading, which V6 wrote into its Start heading box. The screen shows it,
  *            and must not write it back into the settings (that would reset the run).
+ *            rearCheck: the offset box's rear element check, { enabled, phase ('off', 'waiting', 'turningOut',
+ *            'holding', 'turningBack', 'complete'), startSec, dir, angleDeg, holdSec } (rear-check.js).
  *            cue: { mode: 'off' | 'start' | 'waiting' | 'triggered', targetId, clockPos (hours, 5.5 is
  *            5:30), cantSee }: who this aircraft waits on and for which clock position (cues.js cueStatus).
  *            aircraft has the aircraft that exist (a two-ship has ids 1 and 2). g is the G it
@@ -131,7 +136,7 @@ export function createRun(settings) {
   let planned = false;
   let autoStepSec = null;
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, aircraft: [] };
+  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   const finished = () => tSec >= cfg.durationSec;
@@ -145,6 +150,7 @@ export function createRun(settings) {
     // Before the first step nothing is planned yet, so the cue lines come from a plan made on copies.
     const preview = planned ? craft : craft.map((a) => ({ ...a }));
     state.autoStepSec = planned ? autoStepSec : planTurn(preview, flight(), { useErrors: true }).autoStepSec;
+    state.rearCheck = rearCheckStatus(craft, rearCheck());
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {
       const g = a.gFlown;
@@ -175,8 +181,14 @@ export function createRun(settings) {
       clockCueSequence: cfg.clockCueSequence,
       speedKt: cfg.speedKt,
       spacingFt: cfg.spacingFt,
+      baseG: cfg.baseG,
+      boxAftFt: cfg.boxAftFt,
+      offsetBox4Timing: cfg.offsetBox4Timing,
     };
   }
+
+  // The rear element check's settings; it reads the preset now in force, as V6 does (line 1534).
+  const rearCheck = () => rearCheckConfig({ ...cfg, formation });
 
   // V6 syncFormationDropdownToCurrentState (line 1399): a line abreast that has swapped sides is now the other preset.
   function syncFormation() {
@@ -251,6 +263,7 @@ export function createRun(settings) {
       return false;
     }
     moveAircraft(craft, {
+      rearCheck: rearCheck(),
       tSec,
       spacingFt: cfg.spacingFt,
       timing: cfg.timing,

@@ -138,8 +138,7 @@ test('seeded settings: speed, G, spacing, heading, turn degrees, errors, turn lo
   const round = (x, places) => Math.round(x * 10 ** places) / 10 ** places;
   for (let i = 0; i < 90; i++) {
     const maneuver = pick(Object.keys(TURN_DEG));
-    // The offset box's delayed turns use V6's solved plan (task 11), which the port doesn't have yet.
-    const formation = pick(/^delayed/.test(maneuver) ? ['weighted', 'weightedReverse', 'twoShip'] : ['weighted', 'weightedReverse', 'twoShip', 'offsetBox']);
+    const formation = pick(['weighted', 'weightedReverse', 'twoShip', 'offsetBox']);
     const s = scenario({
       formation,
       maneuver,
@@ -155,6 +154,12 @@ test('seeded settings: speed, G, spacing, heading, turn degrees, errors, turn lo
       turnDeg: pick([undefined, undefined, Math.round(20 + 160 * r())]),
       correction: pick(['none', 'none', 'lag', 'lead', 'gfix']),
       correctionStrength: round(2 * r(), 2),
+      offsetBox4Timing: pick(['late', 'early']),
+      rearCheckOn: pick([false, true]),
+      rearCheckStartSec: pick([0, 10, 40, round(60 * r(), 1)]),
+      rearCheckDir: pick(DIRECTIONS),
+      rearCheckAngleDeg: pick([20, Math.round(1 + 89 * r())]),
+      rearCheckHoldSec: pick([0, 5, round(15 * r(), 1)]),
     });
     // V6 gives NaN below 1 G after the correction (D74 changes that later); keep the seeds above it.
     if (s.correction === 'gfix') s.baseG = Math.max(s.baseG, 3);
@@ -351,4 +356,34 @@ test('Correction model "G fix": the wingman\'s G is nudged toward its slot, up t
       }
     }
   }
+});
+
+test('offset box × delayed 90 and 45 × right and left × #4 LATE and EARLY × rear check off and on, two legs (V6\'s solved delays and its check)', () => {
+  let n = 0;
+  for (const maneuver of ['delayed90away', 'delayed45away']) {
+    for (const direction of DIRECTIONS) {
+      for (const offsetBox4Timing of ['late', 'early']) {
+        for (const rearCheckOn of [false, true]) {
+          const steps = compareRun(scenario({ formation: 'offsetBox', maneuver, direction, offsetBox4Timing, rearCheckOn }), `box ${maneuver} ${direction} ${offsetBox4Timing} check ${rearCheckOn}`, { legs: 2 });
+          assert.ok(steps > 3000);
+          n++;
+        }
+      }
+    }
+  }
+  assert.equal(n, 16);
+});
+
+test('the rear check: every direction, angle, start and hold, in the offset box only, with the turns that start at once', () => {
+  for (const rearCheckDir of DIRECTIONS) {
+    for (const [rearCheckAngleDeg, rearCheckStartSec, rearCheckHoldSec] of [[20, 40, 5], [1, 0, 0], [90, 5, 12.5], [45, 25, 3]]) {
+      compareRun(scenario({ formation: 'offsetBox', maneuver: 'delayed90away', rearCheckOn: true, rearCheckDir, rearCheckAngleDeg, rearCheckStartSec, rearCheckHoldSec }), `check ${rearCheckDir} ${rearCheckAngleDeg}`);
+    }
+  }
+  // In-place, hook, shackle and cross turns: #3 and #4 are taken over by the check too.
+  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+    for (const rearCheckStartSec of [0, 40]) compareRun(scenario({ formation: 'offsetBox', maneuver, rearCheckOn: true, rearCheckStartSec }), `check ${maneuver} ${rearCheckStartSec}`, { legs: 2 });
+  }
+  // Only the offset box has the check.
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) compareRun(scenario({ formation, rearCheckOn: true, rearCheckStartSec: 5 }), `no check in ${formation}`);
 });

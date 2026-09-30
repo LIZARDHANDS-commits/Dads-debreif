@@ -1,8 +1,7 @@
 // The turn plan: who turns which way, how far, and when. Only the time-delay
 // timing is here (V6 `setupTurnStartsFor`, line 1174, with the trigger 'time').
-// The clock cue, auto timing and the offset box's solved delays come in tasks
-// 8, 9 and 11, so until then those timings fly as a plain time delay (see
-// planTurn). Ported from V6; D41 (toward and away) is fixed, D43 and D44 (auto
+// The clock cue, auto timing and the offset box's solved delays (offsetBoxPlan)
+// are here too. Ported from V6; D41 (toward and away) is fixed, D43 and D44 (auto
 // timing) and the others are their own commits later.
 //
 // Coordinates and headings are V6's (see formation.js). V6's "right" vector is
@@ -10,7 +9,8 @@
 // (counter-clockwise) and -1 for a right turn, as V6 has it (line 1179).
 import { degToRad } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
-import { rightVector } from './formation.js';
+import { turnRadiusFt, turnRateRadPerSec, limitG } from '../../../core/flight-math.js';
+import { rightVector, forwardVector } from './formation.js';
 
 /** The turn direction sign for the Direction box: right is -1 (clockwise), left is +1 (V6 line 1179). */
 export function selectedDirSign(direction) {
@@ -100,6 +100,105 @@ export function offsetFrontElementOrder(aircraft, turnRight, startHeadingRad) {
 }
 
 /**
+ * Where an aircraft ends up if it flies straight for `delaySec` and then turns
+ * `goalRad` in direction `dir` at radius `radiusFt` (V6 `simulateDelayedTurnFinalPos`,
+ * line 946). Its own heading at the plan; the position when the turn is done.
+ */
+export function simulateDelayedTurnFinalPos(a, dir, goalRad, speedFtps, radiusFt, delaySec) {
+  const h = a.headingRad;
+  const fwd = { x: Math.cos(h), y: Math.sin(h) };
+  const right = { x: Math.cos(h + Math.PI / 2), y: Math.sin(h + Math.PI / 2) };
+  const xStraight = a.xFt + fwd.x * speedFtps * delaySec;
+  const yStraight = a.yFt + fwd.y * speedFtps * delaySec;
+  const delta = dir * goalRad;
+  const turnX = fwd.x * radiusFt * Math.sin(delta) + right.x * radiusFt * (1 - Math.cos(delta));
+  const turnY = fwd.y * radiusFt * Math.sin(delta) + right.y * radiusFt * (1 - Math.cos(delta));
+  return { xFt: xStraight + turnX, yFt: yStraight + turnY };
+}
+
+/**
+ * The delay, in seconds, whose final position lands nearest `target` (V6
+ * `searchDelayToTarget`, line 979): 121 delays evenly from `minDelaySec` to the
+ * longest one, the first best one wins. The longest is V6's own (|centerGuess| or
+ * 20 s, whichever is more, plus 1.25 turn times), or `maxDelaySec` when given.
+ * Returns { delaySec, errFt }: V6 kept only the delay.
+ */
+export function searchDelayToTarget(a, dir, goalRad, target, speedFtps, radiusFt, centerGuessSec, { baseG, minDelaySec = 0, maxDelaySec = null } = {}) {
+  const turnTime = goalRad / Math.max(1e-6, turnRateRadPerSec(speedFtps, limitG(baseG)));
+  const longest = maxDelaySec !== null && Number.isFinite(maxDelaySec)
+    ? maxDelaySec
+    : Math.max(minDelaySec + 4, Math.abs(centerGuessSec || 0) + Math.max(20, turnTime * 1.25));
+  const steps = 120;
+  let best = { delaySec: minDelaySec, errFt: Infinity };
+  for (let i = 0; i <= steps; i++) {
+    const delaySec = minDelaySec + (longest - minDelaySec) * i / steps;
+    const pos = simulateDelayedTurnFinalPos(a, dir, goalRad, speedFtps, radiusFt, delaySec);
+    const errFt = Math.hypot(pos.xFt - target.xFt, pos.yFt - target.yFt);
+    if (errFt < best.errFt) best = { delaySec, errFt };
+  }
+  return best;
+}
+
+/**
+ * The offset box's delayed turn: each aircraft's delay in seconds (V6
+ * `computeOffsetBoxPlan`, line 994). The front element goes first, far side
+ * first (0 s), then the other one after the base delay; every aircraft turns
+ * the selected way. #3 searches the delay that puts it in the slot centred aft
+ * of the front element's final positions (Box aft feet behind their midpoint).
+ * #4 turns one base delay after #3 (LATE) or before it (EARLY).
+ *
+ * aircraft: the active aircraft (xFt, yFt, headingRad, id).
+ * cfg: { baseDelaySec, selectedDir, goalRad, direction ('right'|'left'), speedFtps, baseG, boxAftFt,
+ *   startHeadingRad, timing4 ('late'|'early') }
+ * Returns { delaysSec: { id: s }, dirs: { id: +1|-1 } }.
+ */
+export function offsetBoxPlan(aircraft, cfg) {
+  const one = aircraft.find((a) => a.id === 1);
+  const two = aircraft.find((a) => a.id === 2);
+  const three = aircraft.find((a) => a.id === 3);
+  const four = aircraft.find((a) => a.id === 4);
+  const { selectedDir, goalRad, speedFtps } = cfg;
+  const base = cfg.baseDelaySec;
+  const radiusFt = turnRadiusFt(speedFtps, Math.max(1.01, cfg.baseG));
+  const plan = { delaysSec: {}, dirs: {} };
+
+  const front = offsetFrontElementOrder(aircraft, cfg.direction === 'right', cfg.startHeadingRad);
+  const frontFirst = front[0] || one;
+  const frontSecond = front[1] || two;
+  if (frontFirst) plan.delaysSec[frontFirst.id] = 0;
+  if (frontSecond) plan.delaysSec[frontSecond.id] = Math.max(0, base);
+  aircraft.forEach((a) => { plan.dirs[a.id] = selectedDir; });
+
+  const finalHeading = (one ? one.headingRad : cfg.startHeadingRad) + selectedDir * goalRad;
+  const fwd = forwardVector(finalHeading);
+  const aftFt = Number.isFinite(+cfg.boxAftFt) ? +cfg.boxAftFt : 8000; // V6 line 1010: only an empty box reads as 8,000 (a typed 0 is 0)
+
+  const oneFinal = one ? simulateDelayedTurnFinalPos(one, selectedDir, goalRad, speedFtps, radiusFt, plan.delaysSec[1] || 0) : null;
+  const twoFinal = two ? simulateDelayedTurnFinalPos(two, selectedDir, goalRad, speedFtps, radiusFt, plan.delaysSec[2] || 0) : null;
+
+  if (oneFinal && twoFinal) {
+    const mid = { xFt: (oneFinal.xFt + twoFinal.xFt) / 2, yFt: (oneFinal.yFt + twoFinal.yFt) / 2 };
+    const slotTarget = { xFt: mid.xFt - fwd.x * aftFt, yFt: mid.yFt - fwd.y * aftFt };
+    if (three) {
+      plan.delaysSec[3] = searchDelayToTarget(three, selectedDir, goalRad, slotTarget, speedFtps, radiusFt, base * 1.5, { baseG: cfg.baseG }).delaySec;
+    }
+    if (four) {
+      // V6 also worked out inner and outer targets for #4 here (lines 1035 to 1060) and never used them:
+      // the selector below alone sets #4's delay. Task 11's Q44b uses them.
+      const frontSecondDelay = Math.max(plan.delaysSec[1] || 0, plan.delaysSec[2] || 0);
+      const threeDelay = plan.delaysSec[3] !== undefined ? plan.delaysSec[3] : frontSecondDelay + base;
+      plan.delaysSec[4] = cfg.timing4 === 'early' ? Math.max(0, threeDelay - Math.max(0, base)) : Math.max(0, threeDelay + Math.max(0, base));
+    }
+  }
+  // V6's fallbacks if a target solve was not possible (line 1085).
+  if (plan.delaysSec[1] === undefined) plan.delaysSec[1] = 0;
+  if (plan.delaysSec[2] === undefined) plan.delaysSec[2] = base;
+  if (plan.delaysSec[3] === undefined) plan.delaysSec[3] = base * 1.5;
+  if (plan.delaysSec[4] === undefined) plan.delaysSec[4] = base * 2.0;
+  return plan;
+}
+
+/**
  * The order the aircraft start their turns in, first to last (V6
  * `tacticalOrderForDelayIn`, line 1132): outside aircraft first; in the offset
  * box the front element first (far side first), then #3, then #4.
@@ -155,8 +254,7 @@ export function autoTimingStarts(aircraft, flight) {
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
- * Not yet here: in the offset box's delayed turns, V6's solved delays for #3 and
- * #4 (task 11), which use the time delay index x base delay meanwhile.
+ * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing.
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
@@ -171,6 +269,17 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const clockMode = flight.timing === 'clock' && delayed;
   const order = turningOrder(aircraft, flight);
   const cascade = clockMode ? order : []; // V6 clockCascadeOrder (line 1152) is the same order as the delay order
+  const offsetPlan = form === 'offsetBox' && delayed && !clockMode ? offsetBoxPlan(aircraft, {
+    baseDelaySec: base,
+    selectedDir,
+    goalRad: goal,
+    direction: flight.direction,
+    speedFtps: ktToFtps(flight.speedKt),
+    baseG: flight.baseG,
+    boxAftFt: flight.boxAftFt,
+    startHeadingRad: flight.startHeadingRad,
+    timing4: flight.offsetBox4Timing,
+  }) : null;
   const delayIndex = {};
   order.forEach((a, i) => { delayIndex[a.id] = i; });
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
@@ -198,7 +307,10 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       a.cueArmed = !!cueTarget;
       d = 0;
     } else {
-      if (delayed) d = auto && form !== 'offsetBox' ? +auto.startsSec[a.id] || 0 : delayIndex[a.id] * base;
+      if (delayed) {
+        if (form === 'offsetBox') d = offsetPlan && offsetPlan.delaysSec[a.id] !== undefined ? offsetPlan.delaysSec[a.id] : delayIndex[a.id] * base;
+        else d = auto ? +auto.startsSec[a.id] || 0 : delayIndex[a.id] * base;
+      }
 
       if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
 
@@ -225,7 +337,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
 
       // In the offset box's delayed turns every aircraft turns the selected way (V6 line 1241).
-      if (form === 'offsetBox' && delayed) dir = selectedDir;
+      if (form === 'offsetBox' && delayed) dir = offsetPlan && offsetPlan.dirs[a.id] !== undefined ? offsetPlan.dirs[a.id] : selectedDir;
 
       a.autoClockTargetId = null;
       a.cueArmed = flight.timing !== 'time' && delayed && a.id !== 1;

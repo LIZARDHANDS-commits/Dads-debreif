@@ -1,8 +1,7 @@
 // One fixed step of the flying (pure: aircraft and numbers in, aircraft moved).
 // Ported unchanged from V6 `moveAircraftList` (line 1579) and `stepSim` (line
-// 1687), without the G correction (Correction model "G adjustment", task 7) and
-// without the rear element check (task 11): both are pinned later, each on its
-// own. The golden test tests/golden/turn-sim-run.test.js runs V6's own code next
+// 1687), with the G correction (task 7) and the offset box's rear element check
+// (rear-check.js). The golden test tests/golden/turn-sim-run.test.js runs V6's own code next
 // to this.
 //
 // Coordinates and headings are V6's: feet, x east, y north, heading in radians
@@ -11,6 +10,7 @@ import { turnSimG, turnRateRadPerSec } from '../../../core/flight-math.js';
 import { degToRad } from '../../../core/angles.js';
 import { clockCueCrossed, V6_CLOCK_TOLERANCE_DEG } from './cues.js';
 import { cueTargetForAircraft } from './plan.js';
+import { stepRearCheckTurn } from './rear-check.js';
 
 /** The step, in seconds: V6's `dt` (line 784). It never depends on the frame rate (#17). */
 export const STEP_SEC = 0.05;
@@ -53,7 +53,7 @@ function mayTurn(a, aircraft, tSec, flight) {
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
  *   active, done, shackleReturn, turnPhase, originalHeadingRad.
- * flight: { tSec, spacingFt, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
+ * flight: { rearCheck (rear-check.js rearCheckConfig), tSec, spacingFt, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
  *
@@ -80,7 +80,9 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     });
     a.gFlown = g;
     const omega = turnRateRadPerSec(v, g);
-    if (mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
+    // The rear element check (V6 line 1583) takes #3 and #4 over from the planned turn while it runs.
+    const rearCheckOverride = !!flight.rearCheck && stepRearCheckTurn(a, omega, stepSec, flight.tSec, flight.rearCheck);
+    if (!rearCheckOverride && mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
       // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
       a.active = true;
       const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);
