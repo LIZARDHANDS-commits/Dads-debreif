@@ -209,12 +209,12 @@ test('a huge list is not scanned to the end: a hit inside still raises, but "cle
 
 // ---- Stale data never says "no lightning" --------------------------------------------------
 
-test('stale data (over 30 minutes by the layer\'s own time) says it can\'t tell, never "no lightning"', () => {
-  const r = check({ samples: [], layerTime: at(31) });
+test('stale data (over 40 minutes by the layer\'s own time) says it can\'t tell, never "no lightning"', () => {
+  const r = check({ samples: [], layerTime: at(41) });
   assert.equal(r.state, 'unknown');
   assert.equal(r.near, null);
   assert.equal(r.caution, null);
-  assert.equal(r.words, 'Can\'t tell: lightning data is 31 min old');
+  assert.equal(r.words, 'Can\'t tell: lightning data is 41 min old');
   assert.doesNotMatch(r.words, /^No lightning/);
 });
 
@@ -224,9 +224,9 @@ test('stale data does not raise either, even with lightning in it', () => {
   assert.equal(r.caution, null);
 });
 
-test('exactly 30 minutes old is still current, 30 minutes and a second is stale (feedAge\'s limit)', () => {
-  assert.equal(check({ samples: [], layerTime: at(30) }).state, 'clear');
-  assert.equal(check({ samples: [], layerTime: new Date(+NOW - 30 * MIN - 1000) }).state, 'unknown');
+test('exactly 40 minutes old is still current, 40 minutes and a second is stale (feedAge\'s limit)', () => {
+  assert.equal(check({ samples: [], layerTime: at(40) }).state, 'clear');
+  assert.equal(check({ samples: [], layerTime: new Date(+NOW - 40 * MIN - 1000) }).state, 'unknown');
 });
 
 test('the age is the layer\'s own time, not when it was fetched: a fresh fetch of an old layer is stale', () => {
@@ -390,7 +390,7 @@ test('a new episode after a clear has a new key', () => {
 test('data that can\'t tell (stale, missing) is not a clear: the episode carries on and keeps its key', () => {
   const first = check();
   const later = new Date(+NOW + 25 * MIN);
-  const unsure = check({ samples: [], now: later, layerTime: at(10), episode: first.episode });
+  const unsure = check({ samples: [], now: later, layerTime: at(20), episode: first.episode });
   assert.equal(unsure.state, 'unknown');
   assert.deepEqual(unsure.episode, first.episode);
   const back = new Date(+NOW + 29 * MIN);

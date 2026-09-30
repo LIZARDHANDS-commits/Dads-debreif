@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { lightningBox } from '../../../src/modules/sof/map-lightning.js';
 import { trafficUrl } from '../../../src/modules/sof/traffic.js';
 import { createLightningWatch, createTrafficFeed } from '../../../src/modules/sof/map-loops.js';
+import { evaluate } from '../../../src/modules/sof/cautions.js';
 import { virtualClock, fakeFetch, text, png, pngBytes, json, fail, fixture } from './map-testkit.js';
 
 const MIN = 60_000;
@@ -15,14 +16,16 @@ const HOME = { icao: 'CYMJ', lat: 50.3303, lon: -105.559 };
 
 function watch({ lit = [], radius = 20, picture = 'ok' } = {}) {
   const clock = virtualClock('2026-09-30T07:05:00Z'); // the fixture's layer time is 0700Z
-  const state = { lit, radius, picture };
+  const state = { lit, radius, picture, layerTime: null, home: null };
   const f = fakeFetch((url) => {
     if (state.picture === 'down') return fail();
-    return url.includes('GetCapabilities') ? text(fixture('geomet-caps-Lightning_2.5km_Density.xml')) : png(url);
+    // `state.layerTime` (an ISO time) moves the layer's own time, which the fixture fixes at 0700Z.
+    const caps = () => fixture('geomet-caps-Lightning_2.5km_Density.xml').replaceAll('2026-09-30T07:00:00Z', state.layerTime ?? '2026-09-30T07:00:00Z');
+    return url.includes('GetCapabilities') ? text(caps()) : png(url);
   });
   const changes = [];
   const w = createLightningWatch({
-    home: () => HOME,
+    home: () => state.home ?? HOME,
     radiusNm: () => state.radius,
     readPixels: async () => {
       const box = lightningBox({ home: HOME, radiusNm: state.radius });
@@ -91,7 +94,7 @@ test('before anything has been read, and after a failed picture, the answer is "
   const r = w.result();
   assert.equal(r.state, 'unknown');
   assert.match(r.words, /^Can't tell: no lightning data/);
-  assert.equal(r.caution, null);
+  assert.equal(r.caution?.text, "Lightning: can't tell", 'F1: with no earlier good reading the banner gets a plain can\'t-tell line');
   assert.equal(w.line().text, 'Lightning failed, nothing to show');
   // It recovers on the next good round.
   state.picture = 'ok';
@@ -486,8 +489,8 @@ test('when the canvas cannot be read (a SecurityError from getImageData) the che
   await clock.settle();
   const r = w.result();
   assert.equal(r.state, 'unknown');
-  assert.equal(r.caution, null);
   assert.equal(w.line().text, 'Lightning failed, nothing to show');
+  assert.equal(r.caution?.text, "Lightning: can't tell");
   w.stop();
 });
 
@@ -514,21 +517,167 @@ test('when the pixel data is short or missing the check says it cannot tell', as
   }
 });
 
-test('when the layer time is more than 30 minutes old the check says it cannot tell, even with a clean picture', async () => {
+test('when the layer time is more than 40 minutes old the check says it cannot tell, even with a clean picture', async () => {
   const box = lightningBox({ home: HOME, radiusNm: 20 });
   const clean = async () => ({ data: new Uint8ClampedArray(box.width * box.height * 4), width: box.width, height: box.height });
-  // the layer's time is 0700Z: at 0729 it is 29 minutes old (fine), at 0731 it is 31 (stale)
-  const fresh = watchWith({ readPixels: clean, at: '2026-09-30T07:29:00Z' });
+  // the layer's time is 0700Z: at 0739 it is 39 minutes old (fine), at 0741 it is 41 (stale)
+  const fresh = watchWith({ readPixels: clean, at: '2026-09-30T07:39:00Z' });
   fresh.w.start();
   await fresh.clock.settle();
   assert.equal(fresh.w.result().state, 'clear');
   fresh.w.stop();
-  const old = watchWith({ readPixels: clean, at: '2026-09-30T07:31:00Z' });
+  const old = watchWith({ readPixels: clean, at: '2026-09-30T07:41:00Z' });
   old.w.start();
   await old.clock.settle();
   const r = old.w.result();
   assert.equal(r.state, 'unknown');
   assert.match(r.words, /old|stale/i);
-  assert.equal(r.caution, null);
+  assert.equal(r.caution?.text, "Lightning: can't tell", 'no earlier good reading: the plain can\'t-tell line, never a clear');
   old.w.stop();
+});
+
+// ---- F1 (sof-recheck-207, HIGH): a live near-home caution is never dropped by a bad or old reading -------------------
+
+const banner = (r) => (r.caution ? [r.caution.text] : []);
+// ECCC serving a picture 5 minutes behind the clock again (the fixture's layer time is fixed at 0700Z).
+const followClock = (clock, state) => { state.layerTime = new Date(Math.floor(+clock.now() / MIN) * MIN - 5 * MIN).toISOString().replace('.000Z', 'Z'); };
+
+test('F1: a caution is raised, the next refresh fails, and it is still on the banner, marked old, with the same key', async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const first = w.result();
+  assert.equal(first.state, 'near');
+  state.picture = 'down';
+  await clock.advance(10 * MIN + 1000); // the 10 minute round fails, and so does the 20 s retry
+  const during = w.result();
+  assert.equal(during.state, 'unknown', "the strip still says it can't tell");
+  assert.equal(during.caution.key, first.caution.key, 'the same key, so an acknowledgement survives');
+  assert.equal(during.caution.level, 'caution');
+  assert.equal(during.caution.text, "Caution: CYMJ lightning: within 20 NM (can't tell now, last seen 15 min ago)");
+  assert.equal(during.caution.reason, "Lightning within 20 NM (can't tell now, last seen 15 min ago)");
+  assert.deepEqual(banner(during), ["Caution: CYMJ lightning: within 20 NM (can't tell now, last seen 15 min ago)"]);
+  w.stop();
+});
+
+test('F1: an acknowledged caution stays acknowledged through a failed refresh (the key does not change)', async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const first = w.result().caution;
+  const acks = { version: 1, day: '2026-09-30', keys: [first.key] };
+  state.picture = 'down';
+  await clock.advance(10 * MIN + 1000);
+  const held = w.result().caution;
+  const built = evaluate({ extra: [held], acks, now: clock.now(), timeZone: 'America/Regina' });
+  assert.equal(built.cautions.length, 1);
+  assert.equal(built.cautions[0].acknowledged, true, 'still acknowledged');
+  assert.equal(built.fresh.length, 0, 'nothing new to raise the banner again');
+  w.stop();
+});
+
+test('F1: a stale picture (no failure, but the layer time is past the limit) keeps the caution too, and the age grows', async () => {
+  const { clock, w } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const first = w.result();
+  // Nothing refreshes (the timers are not run); the clock alone carries the picture past 40 minutes.
+  const later = new Date(+clock.now() + 41 * MIN);
+  const r = w.result(later);
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.caution.key, first.caution.key);
+  assert.equal(r.caution.text, "Caution: CYMJ lightning: within 20 NM (can't tell now, last seen 46 min ago)");
+  const later2 = new Date(+later + 5 * MIN);
+  assert.match(w.result(later2).caution.text, /last seen 51 min ago/);
+  w.stop();
+});
+
+test('F1: the caution keeps its key through a long outage, and a good near reading after it is the same caution', async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const key = w.result().caution.key;
+  state.picture = 'down';
+  for (let i = 0; i < 8; i++) {
+    await clock.advance(10 * MIN);
+    assert.equal(w.result().caution.key, key, `after ${(i + 1) * 10} min of outage`);
+  }
+  state.picture = 'ok';
+  followClock(clock, state);
+  await clock.advance(10 * MIN);
+  const back = w.result();
+  assert.equal(back.state, 'near');
+  assert.equal(back.caution.key, key);
+  assert.doesNotMatch(back.caution.text, /can't tell/);
+  w.stop();
+});
+
+test('F1: a good clear reading removes the held caution, and a new cell later is a new caution', async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const first = w.result().caution;
+  state.picture = 'down';
+  await clock.advance(10 * MIN + 1000);
+  assert.ok(w.result().caution);
+  state.picture = 'ok';
+  state.lit = [];
+  followClock(clock, state);
+  await clock.advance(10 * MIN);
+  const clear = w.result();
+  assert.equal(clear.state, 'clear');
+  assert.equal(clear.caution, null, 'a good clear reading clears it');
+  assert.deepEqual(banner(clear), []);
+  // The same failure after a clear reading does not bring the old caution back.
+  state.picture = 'down';
+  await clock.advance(10 * MIN + 1000);
+  assert.equal(w.result().caution, null, 'nothing was live when it failed');
+  state.picture = 'ok';
+  state.lit = [pixelEast(12)];
+  followClock(clock, state);
+  await clock.advance(10 * MIN);
+  const again = w.result();
+  assert.equal(again.state, 'near');
+  assert.notEqual(again.caution.key, first.key, 'lightning that comes back after a clear is a new caution');
+  w.stop();
+});
+
+test("F1: with no earlier good reading, a failure gives a plain \"Lightning: can't tell\" line: not red, never clear, one key for the outage", async () => {
+  const { clock, w, state } = watch({ picture: 'down' });
+  assert.equal(w.result().caution, null, 'nothing has failed yet, and nothing has been read: no line while it is still loading');
+  w.start();
+  await clock.settle();
+  const r = w.result();
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.caution.text, "Lightning: can't tell");
+  assert.equal(r.caution.level, 'caution', 'amber, not the red "below limits" level');
+  assert.equal(r.caution.source, 'LIGHTNING');
+  assert.notEqual(r.state, 'clear');
+  const key = r.caution.key;
+  await clock.advance(30 * MIN);
+  assert.equal(w.result().caution.key, key, 'one outage is one line');
+  // It goes when a good reading comes, clear or not.
+  state.picture = 'ok';
+  followClock(clock, state);
+  await clock.advance(10 * MIN);
+  const ok = w.result();
+  assert.equal(ok.state, 'clear');
+  assert.equal(ok.caution, null);
+  w.stop();
+});
+
+test("F1: the held caution belongs to the place it was read for: a new home field drops it to the plain can't-tell line", async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  assert.equal(w.result().state, 'near');
+  state.picture = 'down';
+  state.home = { icao: 'CYQR', lat: 50.4319, lon: -104.6658 };
+  w.setPlace();
+  await clock.advance(30 * 1000);
+  const r = w.result();
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.caution.text, "Lightning: can't tell", 'lightning near CYMJ says nothing about CYQR');
+  assert.equal(r.caution.icao, 'CYQR');
+  w.stop();
 });

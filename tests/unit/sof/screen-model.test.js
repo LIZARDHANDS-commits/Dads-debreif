@@ -320,3 +320,16 @@ test('feed status: uses only the clock it is given, never the real one (a month 
     mock.timers.reset();
   }
 });
+
+test("F1: a held lightning caution (the reading is failed or old, state 'unknown') stays in the caution list, same key, and a plain can't-tell line too", () => {
+  const found = nearby();
+  const held = { ...lightningNearHome({ samples: null, home: HOME, layerTime: LAYER_TIME, now: NOW }), caution: { ...found.caution, reason: "Lightning within 20 NM (can't tell now, last seen 12 min ago)", text: "Caution: CYMJ lightning: within 20 NM (can't tell now, last seen 12 min ago)", stale: true } };
+  assert.equal(held.state, 'unknown');
+  const line = screen({ lightning: held }).cautions.find((c) => c.source === 'LIGHTNING');
+  assert.equal(line.key, found.caution.key);
+  assert.equal(line.text, "Caution: CYMJ lightning: within 20 NM (can't tell now, last seen 12 min ago)");
+  const plain = { ...held, caution: { ...held.caution, key: 'CYMJ|LIGHTNING|CANT-TELL|2026-09-29T18:42Z', text: "Lightning: can't tell", reason: "Lightning: can't tell" } };
+  const plainLine = screen({ lightning: plain }).cautions.find((c) => c.source === 'LIGHTNING');
+  assert.equal(plainLine.level, 'caution', 'amber, never the red below-limits level');
+  assert.equal(plainLine.text, "Lightning: can't tell");
+});

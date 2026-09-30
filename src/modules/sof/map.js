@@ -147,7 +147,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
   const feeds = {
     coverage: picture(LAYERS.coverage, 'radar', REFRESH_MS.radar),
     lightning: picture(LAYERS.lightning, 'lightning', REFRESH_MS.lightning),
-    cloud: picture(EXTRA_LAYERS.cloud, 'lightning', REFRESH_MS.lightning, { external: true }),
+    cloud: picture(EXTRA_LAYERS.cloud, 'cloud', REFRESH_MS.lightning, { external: true }),
     warnings: picture(EXTRA_LAYERS.warnings, 'lightning', REFRESH_MS.lightning, { external: true, timeless: true }),
   };
   const watch = createLightningWatch({
@@ -448,7 +448,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       return { text: `Warnings as fetched ${hhmmZ(s.fetchedAt)} (${age < 1 ? 'just now' : `${age} min ago`})`, symbol: '✓', tone: 'ok', stale: false };
     }
     const label = { coverage: 'Radar coverage', lightning: 'Lightning map', cloud: 'Cloud' }[id];
-    return feedLine({ label, kind: id === 'coverage' ? 'radar' : 'lightning', on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
+    return feedLine({ label, kind: { coverage: 'radar', cloud: 'cloud' }[id] ?? 'lightning', on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
   }
 
   function syncMessage() {

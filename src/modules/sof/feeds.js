@@ -22,8 +22,12 @@ export const LAYERS = Object.freeze({
 });
 const LAYER_NAMES = new Set(Object.values(LAYERS));
 
-/** Radar stale after 20 minutes, lightning after 30 (D67); the age is the layer's own. */
-export const STALE_MS = Object.freeze({ radar: 20 * MINUTE_MS, lightning: 30 * MINUTE_MS });
+/**
+ * Radar stale after 20 minutes (D67), lightning after 40 and the GOES cloud picture after 60; the age is the layer's own.
+ * Lightning's real lag is 12 to 18 minutes plus the 10-minute refresh, so 30 was reached in normal running; cloud's real
+ * lag is 25 to 38 minutes (sof-recheck-207 F3), so it has its own, longer limit and nothing else depends on it.
+ */
+export const STALE_MS = Object.freeze({ radar: 20 * MINUTE_MS, lightning: 40 * MINUTE_MS, cloud: 60 * MINUTE_MS });
 /** How often each feed is asked again (D67). */
 export const REFRESH_MS = Object.freeze({ radar: 6 * MINUTE_MS, lightning: 10 * MINUTE_MS });
 
@@ -235,7 +239,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
 
 /**
  * A feed's age, taken from the layer's own time (not when it was fetched).
- * kind 'radar' (default; also the coverage layer) or 'lightning'; layerTime a Date or ms.
+ * kind 'radar' (default; also the coverage layer), 'lightning' or 'cloud'; layerTime a Date or ms.
  * Returns { ageMs, ageMin, stale, state } with state 'fresh', 'stale' or 'unknown'
  * (no usable time: age null, and counted stale so it is never shown as current).
  * A time up to 5 minutes ahead of the clock is age 0; further ahead is 'unknown'. Throws RangeError for another kind.
@@ -243,7 +247,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
  */
 export function feedAge({ kind = 'radar', layerTime, now = new Date() } = {}) {
   const limit = STALE_MS[kind];
-  if (limit === undefined || !Object.hasOwn(STALE_MS, kind)) throw new RangeError('kind must be radar or lightning');
+  if (limit === undefined || !Object.hasOwn(STALE_MS, kind)) throw new RangeError('kind must be radar, lightning or cloud');
   const then = layerTime instanceof Date ? +layerTime : layerTime;
   const clock = +now;
   if (!isNumber(then) || !isNumber(clock)) return { ageMs: null, ageMin: null, stale: true, state: 'unknown' };

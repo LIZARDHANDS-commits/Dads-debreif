@@ -17,7 +17,8 @@
 //
 // The one rule that matters: data that can't be read, or is stale, never says
 // "no lightning". It says it can't tell, raises nothing, and leaves an episode
-// that is open as it was.
+// that is open as it was. (Keeping a caution that is already on the banner while the
+// reading is bad, F1 of sof-recheck-207, is the caller's part: map-loops.js `createLightningWatch`.)
 //
 // An episode is one spell of lightning near home. The caution's key holds the
 // episode's first minute, so the same lightning is the same caution on every
@@ -149,7 +150,7 @@ function covers(coverage, home, radius) {
  * - `home`: `{ icao, lat, lon }`, default CYMJ.
  * - `radiusNm`: default 20, kept within 5 to 50.
  * - `layerTime`: the lightning layer's own time, a Date or ms (from ECCC's layer time,
- *   not when it was fetched). `now`: the clock. Stale after 30 min by feeds.js `feedAge`.
+ *   not when it was fetched). `now`: the clock. Stale after 40 min by feeds.js `feedAge`.
  * - `enabled`: default true (SOF-3); false says nothing and raises nothing.
  * - `episode`: what the last call returned, so the same lightning keeps the same key.
  * - `clearHoldMs`: see LIGHTNING_DEFAULTS.

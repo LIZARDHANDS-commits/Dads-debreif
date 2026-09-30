@@ -102,7 +102,7 @@ const hhmmZ = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}Z`;
 
 /**
  * The feed's line, in words and a symbol (never colour alone): { text, symbol, tone, stale }.
- * - label: 'Radar', 'Lightning' or 'Cloud'. kind: 'radar' or 'lightning' (the stale limit, 20 or 30 min).
+ * - label: 'Radar', 'Lightning' or 'Cloud'. kind: 'radar', 'lightning' or 'cloud' (the stale limit, 20, 40 or 60 min, feeds.js STALE_MS).
  * - on: whether the layer is on. hasImage, layerTime (Date or null), failed, busy, backup (RainViewer), now.
  * The age is the layer's own time, never when it was fetched.
  */
@@ -128,7 +128,7 @@ export function feedLine({ label, kind = 'radar', on = true, hasImage = false, l
  * A layer's time and its picture for one box, kept fresh on a timer.
  *
  * - layer: the ECCC layer name, or a function returning it (radar rain or snow).
- * - kind: 'radar' or 'lightning': how long until it is stale (feeds.js).
+ * - kind: 'radar', 'lightning' or 'cloud': how long until it is stale (feeds.js).
  * - urlFor({ layer, request, time }): the picture's address (built from numbers only).
  * - decode(bytes, asked): the picture as the caller uses it (a bitmap), a promise; null or a throw is a failure. `asked` is the
  *   request the picture was fetched for (which can differ from the current one by now).
