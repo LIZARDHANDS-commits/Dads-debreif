@@ -24,8 +24,8 @@ export function createSettingsView({ settings }) {
   select.addEventListener('change', () => {
     select.value = String(TRIGGER_OPTIONS.findIndex((o) => o.value === view.get().trigger));
   });
-  const ceiling = controls.number('ceilingFt', { label: 'Home ceiling below', unit: 'ft', min: 0, max: 10000, step: 100 });
-  const visibility = controls.number('visSm', { label: 'Home visibility below', unit: 'SM', min: 0, max: 10, step: 0.25 });
+  const ceiling = controls.number('ceilingFt', { label: 'Home ceiling below', unit: 'ft', min: 0, max: 10000, step: /** @type {any} */ (100) });
+  const visibility = controls.number('visSm', { label: 'Home visibility below', unit: 'SM', min: 0, max: 10, step: /** @type {any} */ (0.25) });
   // Typing writes good numbers straight through; on commit (Enter, or leaving the box) the number snaps UP to its
   // step, the safe side, and the box shows what the check uses.
   for (const [field, key, snap] of [[ceiling, 'ceilingFt', snapCeiling], [visibility, 'visSm', snapVisibility]]) {

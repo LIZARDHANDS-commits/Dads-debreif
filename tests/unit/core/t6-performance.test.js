@@ -8,8 +8,11 @@ import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
   T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
+  T6A_MANOEUVRE, shakerG, splitST6A,
 } from '../../../src/core/t6-performance.js';
-import { T6A_TURN_POINTS, T6A_FIT } from '../../../src/core/t6a-turn-charts.js';
+import {
+  T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
+} from '../../../src/core/t6a-turn-charts.js';
 import { isaDensityRatio, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../../src/core/units.js';
 
@@ -24,18 +27,20 @@ test('the V-n limits: +7/−3.5 G, +4.7 G rolling, VO 227, VMO 316 KIAS, 5,168 l
   assert.equal(T6A_LIMITS.voKias, 227);
   assert.equal(T6A_LIMITS.vmoKias, 316);
   assert.equal(T6A_LIMITS.weightLb, 5168);
-  assert.equal(T6A_LIMITS.stallKias, 86, 'the V-n stall line, the agreed default (Dad may pick 83)');
+  assert.equal(T6A_LIMITS.stallKias, 86, 'the agreed default (Patrick kept it, 09:29Z)');
   assert.throws(() => { T6A_LIMITS.maxG = 8; }, TypeError);
 });
 
-test('the stall line: (KIAS ÷ 86)², reaching 7 G at 227.5 KIAS, VO', () => {
+test('the stall line: (KIAS ÷ 86)², reaching 7 G at 227.5 KIAS', () => {
   near(stallLimitG(86), 1, 1e-12, '1 G at the stall speed');
   near(stallLimitG(100), 1.352, 0.001, '100 KIAS');
   near(stallLimitG(150), 3.042, 0.001, '150 KIAS');
   near(stallLimitG(200), 5.408, 0.001, '200 KIAS');
   near(stallLimitG(86 * Math.sqrt(7)), 7, 1e-12, 'corner');
   near(86 * Math.sqrt(7), 227.5, 0.05, 'corner speed');
-  near(stallLimitG(139.6, 83), 2.829, 0.001, 'the turn charts\' lighter jet stalls near 83 kt');
+  near(stallLimitG(139.6, 83), 2.829, 0.001, 'the turn charts\' max-power stall is near 83 kt');
+  // The V-n diagram's own curve is (KIAS ÷ 89.4)², reaching 7 G near 236 KIAS; 227.5 matching VO (227) is a coincidence of the 86.
+  near(89.4 * Math.sqrt(7), 236.5, 0.1, 'the V-n curve\'s corner');
 });
 
 test('available G: the stall line, capped at +7 G, or +4.7 G while rolling', () => {
@@ -135,6 +140,70 @@ test('every chart point: thrust within 10 % of drag at the chart\'s G', () => {
   assert.ok(worst > 0.01, 'read off by eye: not a perfect fit');
 });
 
+// Turn rate against the chart directly (verification of 2026-09-30, finding F2): a point's
+// thrust within 10 % of its drag can still be a rate 28 % low where the curve falls steeply.
+
+/** The model's sustained turn rate, °/s, at kias and altFt: thrust equal to drag, capped by the stall line. */
+function sustainedRate(kias, altFt, stallKias = T6A_LIMITS.stallKias) {
+  const g = Math.min(sustainedG(kias, altFt), availableG(kias, false, stallKias));
+  return g > 1 ? turnRateRadPerSec(iasToTasKt(kias, altFt) * KT_TO_FTPS, g) * DEG : 0;
+}
+
+// More points off Fig 4-10-1, read by pixel in the independent check (verification/core.md, Table 1):
+// 175, 230 and 250 KIAS, where the curves fall steeply, and fresh reads at 200 KIAS. [KIAS, ft, °/s]
+const PIXEL_POINTS = [
+  [200, 0, 15.36], [230, 0, 11.46], [250, 0, 7.32], [200, 5000, 13.35], [250, 5000, 4.51],
+  [200, 10000, 11.5], [175, 15000, 11.9], [200, 15000, 9.75], [200, 20000, 6.86],
+  [175, 25000, 6.27], [200, 25000, 3.17], [175, 31000, 2.31],
+];
+
+/** Whether the model reaches the chart's rate within kt knots of the chart's speed. */
+function reachesWithin(kias, altFt, rate, kt) {
+  const lo = sustainedRate(kias - kt, altFt), hi = sustainedRate(kias + kt, altFt);
+  return Math.min(lo, hi) <= rate && rate <= Math.max(lo, hi);
+}
+
+test('turn rate against the chart, sea level to 15,000 ft: within 0.65°/s, or 3 kt where the curve is steep', () => {
+  const points = [...T6A_TURN_150_200, ...T6A_TURN_OTHER, ...PIXEL_POINTS].filter(([, alt]) => alt <= 15000);
+  assert.equal(points.length, 20);
+  let worst = 0;
+  for (const [kias, alt, rate] of points) {
+    const miss = sustainedRate(kias, alt) - rate;
+    assert.ok(Math.abs(miss) <= 0.65 || reachesWithin(kias, alt, rate, 3), `${kias} KIAS at ${alt} ft: model ${sustainedRate(kias, alt).toFixed(2)}°/s, chart ${rate}`);
+    worst = Math.max(worst, Math.abs(miss));
+  }
+  assert.ok(worst > 0.3, 'read off a chart: not a perfect fit');
+  // Near zero turn at sea level the curve is steep: 0.75°/s high, but only 2 kt.
+  assert.ok(!(Math.abs(sustainedRate(256.6, 0) - 4.48) <= 0.65) && reachesWithin(256.6, 0, 4.48, 3));
+});
+
+test('turn rate against the chart, 20,000 ft and up: a known shortfall, up to 0.95°/s low from 175 KIAS', () => {
+  // Kept as it is (a judgement call logged for review): the MTCA working blocks are 6,000 to 15,500 ft.
+  for (const [kias, alt, rate] of [...T6A_TURN_150_200, ...PIXEL_POINTS].filter(([, a]) => a >= 20000)) {
+    const miss = sustainedRate(kias, alt) - rate;
+    const allowed = kias <= 150 ? 0.4 : 0.95;
+    assert.ok(miss <= 0.1 && miss >= -allowed, `${kias} KIAS at ${alt} ft: model ${sustainedRate(kias, alt).toFixed(2)}°/s, chart ${rate}`);
+  }
+  near(sustainedRate(200, 25000), 2.27, 0.02, 'the worst: 200 KIAS at 25,000 ft, chart 3.17');
+});
+
+test('zero sustained turn: the model reaches it within 6 kt of each chart line', () => {
+  for (const [kias, alt] of T6A_TURN_ZERO) {
+    let zero = 0;
+    for (let k = 150; k <= 300; k += 0.1) if (sustainedG(k, alt) >= 1) zero = k;
+    assert.ok(Math.abs(zero - kias) <= 6, `${alt} ft: model ${zero.toFixed(1)} KIAS, chart ${kias}`);
+  }
+});
+
+test('the tops of the chart lines: within 0.35°/s with an 83 kt stall, and 1.1 to 1.6°/s low with the 86 kt default', () => {
+  for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
+    const at83 = sustainedRate(kias, alt, 83) - rate;
+    const at86 = sustainedRate(kias, alt, 86) - rate;
+    assert.ok(Math.abs(at83) <= 0.35, `${alt} ft at 83 kt: ${at83.toFixed(2)}°/s`);
+    assert.ok(at86 < -1.1 && at86 > -1.6, `${alt} ft at 86 kt: ${at86.toFixed(2)}°/s (verification finding F1, logged for review)`);
+  }
+});
+
 test('the fitted constants are the fit\'s best for these chart points (tests/golden/checks/t6a-fit.mjs)', () => {
   assert.equal(T6A_TURN_POINTS.length, 31);
   let sum = 0;
@@ -157,7 +226,7 @@ for (const stallKias of [86, 83]) {
   });
 }
 
-test('the corner: 7 G first at 227.5 KIAS; 33.3°/s on a 659 ft radius at 227 KIAS, sea level', () => {
+test('the model\'s corner: 7 G first at 227.5 KIAS (86 kt × √7); 33.3°/s on a 659 ft radius at 227 KIAS, sea level', () => {
   near(T6A_LIMITS.stallKias * Math.sqrt(T6A_LIMITS.maxG), 227.5, 0.05, 'corner speed');
   const v = iasToTasKt(227, 0) * KT_TO_FTPS;
   near(turnRateRadPerSec(v, 7) * DEG, 33.3, 0.1, 'instantaneous rate at 7 G');
@@ -265,4 +334,111 @@ test('the zoom refuses speeds and heights it cannot fly, rather than hang', () =
   }
   assert.ok(zoomT6A(316, 3000).gainFt > zoomT6A(250, 3000).gainFt, 'up to VMO');
   assert.deepEqual(zoomT6A(0, 3000), { gainFt: 0, timeSec: 0, distanceFt: 0 }, 'standing still: nothing to trade');
+});
+
+// ── The stick shaker and the split S (Patrick, 2026-09-30 09:27Z) ──
+// Manoeuvre pulls fly in the shaker, not on the stall line: the shaker comes
+// on about 5 to 10 kt above the stall (NFM p.1-52), taken as 7 kt, so the G is
+// (KIAS ÷ 93)². Split S pulls go up to 5 G (Patrick; AIF 2410's maximum).
+
+test('the manoeuvre numbers: shaker 7 kt above the stall, split S 5 G, 90°/s roll, 20° nose up, 0.5 G roll', () => {
+  assert.deepEqual({ ...T6A_MANOEUVRE }, { shakerMarginKt: 7, splitSMaxG: 5, rollRateDegPerSec: 90, splitSNoseUpDeg: 20, splitSRollG: 0.5 });
+  assert.ok(Object.isFrozen(T6A_MANOEUVRE));
+});
+
+test('shakerG: 1 G at 93 KIAS, (KIAS ÷ 93)² above it, capped at the V-n 7 G unless told', () => {
+  near(shakerG(93), 1, 1e-12, 'shaker at 93 KIAS');
+  near(shakerG(110), (110 / 93) ** 2, 1e-12, 'shaker at 110 KIAS');
+  near(shakerG(186), 4, 1e-12, 'shaker at 186 KIAS');
+  near(shakerG(240), (240 / 93) ** 2, 1e-12, 'shaker at 240 KIAS');
+  assert.equal(shakerG(250), 7);
+  assert.equal(shakerG(316), 7);
+  assert.equal(shakerG(250, { maxG: T6A_MANOEUVRE.splitSMaxG }), 5);
+  // Settings: another stall speed, margin or cap.
+  near(shakerG(110, { stallKias: 83 }), (110 / 90) ** 2, 1e-12, 'shaker, 83 kt stall');
+  near(shakerG(110, { marginKt: 0 }), stallLimitG(110), 1e-12, 'no margin is the stall line');
+  assert.equal(shakerG(250, { maxG: 4 }), 4);
+});
+
+test('shakerG is always below the stall line and never above availableG', () => {
+  for (let kias = 60; kias <= 316; kias += 1) {
+    assert.ok(shakerG(kias) < stallLimitG(kias), `${kias} KIAS`);
+    assert.ok(shakerG(kias) <= availableG(kias), `${kias} KIAS`);
+  }
+});
+
+test('the split S from 110 KIAS at 10,000 ft: about 1,690 ft below the entry, 1,980 below the top', () => {
+  const r = splitST6A(110, 10000);
+  near(r.lossFt, 1688, 2, 'loss from the entry altitude');
+  near(r.fromTopFt, 1976, 2, 'loss from the top');
+  near(r.exitKias, 206.3, 0.2, 'exit speed');
+  near(r.peakG, 5, 1e-9, 'peak G');
+  near(r.timeSec, 16.6, 0.1, 'time');
+  near(r.turnDeg, 174.4, 0.2, 'heading change (rolling right: 186° clockwise, read as +174)');
+  assert.equal(r.completed, true);
+});
+
+test('the split S against the SMM (14.16 para 40, about 2,000 ft) over its 100 to 120 KIAS entries', () => {
+  for (const kias of [100, 110, 120]) {
+    const r = splitST6A(kias, 10000);
+    // From the entry altitude the model loses 14 to 18 % less; from the top it is within 2 %.
+    assert.ok(r.lossFt > 1600 && r.lossFt < 1750, `${kias} KIAS: ${r.lossFt} ft from the entry`);
+    assert.ok(Math.abs(r.fromTopFt - 2000) < 40, `${kias} KIAS: ${r.fromTopFt} ft from the top`);
+    assert.ok(r.peakG <= 5 + 1e-9, `${kias} KIAS: peak ${r.peakG} G`);
+  }
+});
+
+test('the split S in the shaker loses more height than the old pull on the stall line', () => {
+  // Pulled on the stall line (no margin, 7 G cap) instead, it loses about 1,470 ft.
+  const stallLine = splitST6A(110, 10000, { marginKt: 0, maxG: 7 });
+  near(stallLine.lossFt, 1473, 2, 'stall-line loss');
+  assert.ok(splitST6A(110, 10000).lossFt > stallLine.lossFt + 200);
+  // A lower G cap loses more still.
+  assert.ok(splitST6A(110, 10000, { maxG: 4 }).lossFt > splitST6A(110, 10000).lossFt + 100);
+});
+
+test('the split S loses more the faster it starts, and ends level and upright', () => {
+  let last = 0;
+  for (const kias of [100, 120, 140, 160, 220]) {
+    const r = splitST6A(kias, 10000);
+    assert.ok(r.lossFt > last, `${kias} KIAS: ${r.lossFt} ft`);
+    last = r.lossFt;
+  }
+  const r = splitST6A(110, 10000);
+  near(r.exitClimbDeg, 0, 0.5, 'exit climb angle');
+  assert.ok(r.exitUpright, 'upright at the exit');
+});
+
+test('below the shaker speed the nose cannot come up, so the split S starts with the roll', () => {
+  const slow = splitST6A(90, 10000);
+  near(slow.fromTopFt, slow.lossFt, 1e-9, 'no height gained first');
+  near(slow.lossFt, 1965, 2, 'loss from 90 KIAS');
+  // About 300 ft more from the entry than a 100 KIAS entry, which climbs first; the same from the top.
+  const r100 = splitST6A(100, 10000);
+  assert.ok(slow.lossFt > r100.lossFt + 250, `${slow.lossFt} vs ${r100.lossFt}`);
+  near(slow.fromTopFt, r100.fromTopFt, 20, 'loss from the top');
+});
+
+test('the split S settings: roll left, roll rate, nose up, roll G, stall speed', () => {
+  const base = splitST6A(110, 10000);
+  const left = splitST6A(110, 10000, { rollLeft: true });
+  near(left.lossFt, base.lossFt, 1e-6, 'a left roll loses the same');
+  near(left.turnDeg, -base.turnDeg, 1e-6, 'a left roll mirrors the heading');
+  near(splitST6A(110, 10000, { noseUpDeg: 0 }).lossFt, 1996, 2, 'no nose-up');
+  near(splitST6A(110, 10000, { rollRateDegPerSec: 45 }).lossFt, 1681, 2, 'a 45°/s roll');
+  near(splitST6A(110, 10000, { rollG: 1 }).lossFt, 1675, 2, 'a 1 G roll');
+  assert.ok(splitST6A(110, 10000, { stallKias: 83 }).lossFt < base.lossFt - 50, 'an 83 kt stall pulls harder');
+});
+
+test('the split S flies from a slow or a fast entry, says when it cannot finish, and refuses what it cannot fly', () => {
+  for (const kias of [1, 60, 93, 316]) {
+    const r = splitST6A(kias, 10000);
+    assert.ok(Number.isFinite(r.lossFt) && r.timeSec < 120 && r.completed, `${kias} KIAS`);
+  }
+  const stuck = splitST6A(110, 10000, { maxG: 1 });
+  assert.equal(stuck.completed, false, 'a 1 G pull never comes level');
+  near(stuck.timeSec, 120, 0.05, 'stopped at the guard');
+  for (const [kias, alt] of [[0.5, 10000], [0, 10000], [-1, 10000], [317, 10000], [NaN, 10000], [110, NaN], [110, Infinity]]) {
+    assert.throws(() => splitST6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft`);
+  }
 });

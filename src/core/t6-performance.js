@@ -12,9 +12,11 @@ import { T6A_FIT } from './t6a-turn-charts.js';
 import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js';
 
 /**
- * The T-6A V-n diagram and airspeed limits (clean, 5,168 lb, maximum take-off weight).
- * stallKias is the V-n stall line's 1 G stall speed; the turn charts' lighter jet
- * stalls near 83 kt instead, which Dad is to pick between (SPEC-turn-fight).
+ * The T-6A V-n diagram and airspeed limits (clean, at the V-n diagram's 5,168 lb).
+ * stallKias is the 1 G stall speed: 86 kt, which Patrick kept (2026-09-30
+ * 09:29Z). The V-n curve itself reads about 89 kt (7 G near 236 KIAS), and the
+ * turn charts imply about 83 kt at maximum power (likely because power on
+ * lowers the stall speed, NFM p.6-6). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,
@@ -205,4 +207,103 @@ export function zoomT6A(kias, altFt, weightLb = ZOOM_DEFAULT_LB) {
   const gainFt = share * idealZoomFt(kias, altFt);
   // Rounded to 1e-9 ft so the table's own points come back exact, not a float step off.
   return { gainFt: Math.round(gainFt * 1e9) / 1e9, timeSec, distanceFt };
+}
+
+/**
+ * How the model flies a manoeuvre (Patrick, 2026-09-30 09:27Z; SMM 14.16).
+ * - shakerMarginKt: pulls fly in the stick shaker, not on the stall line. The
+ *   shaker comes on about 5 to 10 kt above the stall (NFM p.1-52); 7 kt here.
+ * - splitSMaxG: the most G the split S pulls; Patrick: "Split S goes up to 5 G"
+ *   (AIF 2410's maximum; SMM Table 14.1 gives about 4 G).
+ * - rollRateDegPerSec: the roll inverted, at SPEC-turn-fight's 90°/s default
+ *   (no manual gives one).
+ * - splitSNoseUpDeg, splitSRollG: the split S raises the nose to about 20° up,
+ *   then rolls inverted at about 0.5 G (SMM 14.16 para 41).
+ */
+export const T6A_MANOEUVRE = Object.freeze({
+  shakerMarginKt: 7, splitSMaxG: 5, rollRateDegPerSec: 90, splitSNoseUpDeg: 20, splitSRollG: 0.5,
+});
+
+const SPLIT_S_MIN_KIAS = 1;     // the point-mass step needs a speed; slower than this is a tail slide
+const SPLIT_S_STEP_SEC = 0.02;
+const SPLIT_S_MAX_SEC = 120;    // a guard: the slowest entry takes about 30 s (at 30,000 ft)
+
+/**
+ * The G a pull in the stick shaker gives at this speed: 1 G at the shaker
+ * speed (stall + margin, 93 KIAS), growing with KIAS², at most maxG (the V-n
+ * diagram's 7 G unless told). With no margin it is the stall line.
+ */
+export function shakerG(kias, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A_MANOEUVRE.shakerMarginKt, maxG = T6A_LIMITS.maxG } = {}) {
+  return Math.min((kias / (stallKias + marginKt)) ** 2, maxG);
+}
+
+/**
+ * The split S as the SMM flies it (14.16 para 41), at full power: raise the
+ * nose to 20° up in the shaker, roll inverted at 0.5 G at the roll rate, then
+ * pull through in the shaker, up to 5 G, until level. Below the shaker speed
+ * (93 KIAS) the nose can't come up without stalling, so the split S starts
+ * with the roll: it gains no height first and loses about 300 ft more from
+ * the entry, while the loss from the top hardly changes.
+ *
+ * options (each defaults to T6A_LIMITS or T6A_MANOEUVRE): stallKias,
+ * marginKt, maxG (the pull's cap, default splitSMaxG), rollRateDegPerSec,
+ * noseUpDeg, rollG, and rollLeft (default false: rolls right).
+ * kias from 1 to VMO (316) and a finite altFt, or it throws a RangeError.
+ *
+ * Returns lossFt (the height lost from the entry altitude, Patrick's measure),
+ * fromTopFt (from the top of the nose-up), exitKias, peakG, timeSec, turnDeg
+ * (the heading change, −180 to 180°, + counter-clockwise: near ±180°, since
+ * the split S reverses the heading), exitClimbDeg, exitUpright, and completed
+ * (false when it could not pull through to level, for example with maxG at
+ * 1 G, and stopped after 120 s). About 800 steps: fine for a readout or a
+ * deck check, not once per frame.
+ */
+export function splitST6A(kias, altFt, options = {}) {
+  if (!(kias >= SPLIT_S_MIN_KIAS && kias <= T6A_LIMITS.vmoKias && Number.isFinite(altFt))) {
+    throw new RangeError(`split S from ${kias} KIAS at ${altFt} ft: needs ${SPLIT_S_MIN_KIAS} to ${T6A_LIMITS.vmoKias} KIAS and a finite height`);
+  }
+  const m = T6A_MANOEUVRE;
+  const {
+    stallKias = T6A_LIMITS.stallKias, marginKt = m.shakerMarginKt, maxG = m.splitSMaxG,
+    rollRateDegPerSec = m.rollRateDegPerSec, noseUpDeg = m.splitSNoseUpDeg, rollG = m.splitSRollG, rollLeft = false,
+  } = options;
+  const shaker = { stallKias, marginKt, maxG };
+  let s = pointMassState({ altFt, ktas: iasToTasKt(kias, altFt), headingRad: 0 });
+  let t = 0, peakG = 0, topFt = altFt, bank = 0;
+  const now = () => pointMassFlight(s);
+  const pull = () => { const f = now(); return shakerG(tasToIasKt(f.ktas, f.altFt), shaker); };
+  const fly = (g, bankRad) => {
+    s = stepPointMass(s, { g, bankRad }, SPLIT_S_STEP_SEC, t6aExcessFn);
+    t += SPLIT_S_STEP_SEC;
+    peakG = Math.max(peakG, g);
+    topFt = Math.max(topFt, s.z);
+  };
+  const going = () => t < SPLIT_S_MAX_SEC;
+  const noseUp = noseUpDeg * Math.PI / 180;
+  while (now().climbRad < noseUp && pull() > 1 && going()) fly(pull(), 0);
+  const side = rollLeft ? -1 : 1;
+  while (bank < Math.PI && going()) {
+    bank = Math.min(Math.PI, bank + rollRateDegPerSec * Math.PI / 180 * SPLIT_S_STEP_SEC);
+    fly(rollG, side * bank);
+  }
+  let down = false, completed = false;
+  while (going()) {
+    const climb = now().climbRad;
+    if (climb < 0) down = true;
+    if (down && climb >= 0) { completed = true; break; }
+    fly(pull(), side * Math.PI);
+  }
+  const f = now();
+  return {
+    lossFt: altFt - s.z,
+    fromTopFt: topFt - s.z,
+    exitKias: tasToIasKt(f.ktas, f.altFt),
+    peakG,
+    timeSec: t,
+    turnDeg: f.headingRad * 180 / Math.PI,
+    exitClimbDeg: f.climbRad * 180 / Math.PI,
+    // With the bank at 180°, the lift points up (upright) when the carried up points down.
+    exitUpright: Math.cos(bank) * s.up.z > 0,
+    completed,
+  };
 }

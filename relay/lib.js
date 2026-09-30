@@ -194,6 +194,7 @@ function allowedOrigins(env) {
 }
 
 function reply(status, body, { origin = null, cache = 'no-store', extra = {}, vary = true } = {}) {
+  /** @type {Record<string, string>} */
   const headers = {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': cache,
@@ -264,10 +265,11 @@ async function askUpstream(fetchFn, q) {
  * if there is one). The first level is always an in-memory cache in this handler, because
  * the Cache API stores nothing on workers.dev (it works only on custom domains and routes).
  * Returns async (request, env, ctx) => Response. Never throws.
+ * @param {{ fetch?: typeof fetch, cache?: any, now?: () => number }} [deps]
  */
 export function createHandler({ fetch: fetchFn = globalThis.fetch, cache, now = Date.now } = {}) {
   const memory = createMemoryCache({ now });
-  const second = () => cache ?? globalThis.caches?.default ?? null;
+  const second = () => cache ?? /** @type {any} */ (globalThis.caches)?.default ?? null;
 
   return async function handle(request, env = {}, ctx = {}) {
     try {
