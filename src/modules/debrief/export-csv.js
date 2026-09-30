@@ -7,6 +7,7 @@ import { headingRadToCompassDeg } from '../../core/angles.js';
 import { readoutsAt } from './readouts.js';
 
 /** Each ship's columns, in order: the header after "#n " and how the value is written. */
+/** @type {Array<[string, (ship: any) => string]>} */
 const SHIP_COLUMNS = [
   ['lat', (s) => fixed(s.lat, 6)],
   ['lon', (s) => fixed(s.lon, 6)],

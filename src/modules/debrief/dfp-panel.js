@@ -90,7 +90,7 @@ export function createDfpPanel({ time, on }) {
     list = nextList;
     enabled = isEnabled;
     if (!list.some((d) => d.id === openId)) openId = null;
-    const focused = document.activeElement?.dataset?.focusKey;
+    const focused = /** @type {HTMLElement | null} */ (document.activeElement)?.dataset?.focusKey;
     if (shape() === drawn) relabel();
     else {
       drawn = shape();

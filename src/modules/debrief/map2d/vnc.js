@@ -94,6 +94,7 @@ export function vncWarpGrid(key, ref, align = VNC_DEFAULT_ALIGN, cells = VNC_MES
  * The canvas transform [a, b, c, d, e, f] that maps image triangle s0 s1 s2
  * onto screen triangle d0 d1 d2 (V6 drawTri, line 2640), or null when the
  * image triangle is flat.
+ * @returns {[number, number, number, number, number, number] | null}
  */
 export function triangleTransform(s0, s1, s2, d0, d1, d2) {
   const den = s0.x * (s1.y - s2.y) + s1.x * (s2.y - s0.y) + s2.x * (s0.y - s1.y);
