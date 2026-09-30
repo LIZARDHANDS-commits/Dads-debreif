@@ -141,3 +141,13 @@ test('state.crossings is worked out only when read (a preview run is a whole run
   run.reset();
   assert.equal(run.state.crossings.length, 2);
 });
+
+test('state.crossings after startLeg: the leg\'s own steps only, not the first leg\'s preview (a second box hook crosses #2 with #3)', () => {
+  const run = createRun({ ...BASE, maneuver: 'hook90', turnDeg: 180, direction: 'right', durationSec: 120 });
+  while (run.step());
+  assert.deepEqual(run.state.crossings.map((c) => `${c.a}-${c.b}`).sort(), ['1-3', '2-4']);
+  run.startLeg();
+  assert.deepEqual(run.state.crossings, [], 'nothing flown yet in the new leg');
+  while (run.step());
+  assert.deepEqual(run.state.crossings.map((c) => `${c.a}-${c.b}`), ['2-3']);
+});
