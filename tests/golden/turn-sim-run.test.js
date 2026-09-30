@@ -5,6 +5,7 @@
 // history row are compared, exact, no tolerance. Timing is the time delay.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { degToRad } from '../../src/core/angles.js';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../src/modules/turn-sim/engine/run.js';
 import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
@@ -83,6 +84,11 @@ function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
     probe.reset();
     autoStep = autoStepFor(settings, probe);
     Object.assign(v6Settings, { timing: 'time', baseDelaySec: autoStep });
+  }
+  // Delayed 45 (SMM paras 56 and 57): with Time delay the second aircraft waits the Base delay x cot(theta / 2), the delay that
+  // rolls it out in LAB. That is V6's time-delay flight with that as its Base delay.
+  if (settings.timing === 'time' && settings.maneuver === 'delayed45away') {
+    v6Settings.baseDelaySec = settings.baseDelaySec * (1 / Math.tan(degToRad(settings.turnDeg) / 2));
   }
   // The Clock tolerance box is read as V6 meant to (it read the box itself and got 4 whatever it said, issue #32).
   const page = createV6Page(v6Settings, { readsClockTolerance: true });

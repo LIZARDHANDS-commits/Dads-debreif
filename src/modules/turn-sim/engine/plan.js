@@ -312,7 +312,10 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const delayed = man === 'delayed90away' || man === 'delayed45away';
   const auto = flight.timing === 'auto' && delayed ? autoTimingStarts(aircraft, flight) : null;
   // In the offset box V6's Base delay box holds the auto step, rounded to 2 places (line 1397), and its plan reads it.
-  const base = auto ? Number(auto.stepSec.toFixed(2)) : flight.baseDelaySec;
+  // The Base delay is the delay for a 90 (SMM 16.19 paras 52 to 54). A Delayed 45 waits longer for the same spacing: the
+  // aircraft that turns second starts once the first has flown through its tail (paras 56 and 57, Figure 16.16), which for a
+  // turn of theta takes cot(theta / 2) times the 90's delay (D44's step). V6 used the 90's delay, and the wingman rolled out in trail.
+  const base = auto ? Number(auto.stepSec.toFixed(2)) : man === 'delayed45away' ? flight.baseDelaySec * (1 / Math.tan(goal / 2)) : flight.baseDelaySec;
   const clockMode = flight.timing === 'clock' && delayed;
   const order = turningOrder(aircraft, flight);
   const cascade = clockMode ? order : []; // V6 clockCascadeOrder (line 1152) is the same order as the delay order

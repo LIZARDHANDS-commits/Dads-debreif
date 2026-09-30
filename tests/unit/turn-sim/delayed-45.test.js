@@ -1,0 +1,69 @@
+// The Delayed 45 as the SMM flies it (16.19 paras 55 to 57, Figures 16.16 and 16.17): the aircraft that turns first turns 45
+// degrees and flies on; the other flies straight until the first has gone through its tail, then turns 45 degrees too, and
+// they roll out in LAB on the new heading with the sides swapped. V6 used the 90's delay (16 s) for the 45, so the second
+// aircraft turned too early and ended in trail, 2,500 ft ahead, nowhere near LAB.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DEFAULTS, MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
+import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
+
+const BASE = { ...DEFAULTS, maneuver: 'delayed45away', turnDeg: MANEUVER_TURN_DEG.delayed45away, startHeadingDeg: 0, durationSec: 200 };
+/** The base delay is a 90's, 16 s; a 45 waits 16 x cot 22.5 = 38.6 s where LAB needs 39.05 s: the end is within about 200 ft. */
+const TOLERANCE_FT = 250;
+
+const fromLead = (list, id) => {
+  const lead = list.find((a) => a.id === 1);
+  const b = list.find((a) => a.id === id);
+  const h = lead.headingRad;
+  const dx = b.xFt - lead.xFt;
+  const dy = b.yFt - lead.yFt;
+  return { right: dx * Math.sin(h) - dy * Math.cos(h), ahead: dx * Math.cos(h) + dy * Math.sin(h) };
+};
+
+function fly(settings) {
+  const run = createRun(settings);
+  const start = run.state.aircraft.map((a) => ({ ...a }));
+  const startedAt = {};
+  while (run.step()) for (const a of run.state.aircraft) if (a.turning && startedAt[a.id] === undefined) startedAt[a.id] = run.state.tSec;
+  return { run, start, startedAt };
+}
+
+test('two-ship, right and left: the outside aircraft goes first, the other about 39 s later, and they end in LAB on the new heading with the sides swapped', () => {
+  for (const direction of ['right', 'left']) {
+    const { run, start, startedAt } = fly({ ...BASE, formation: 'twoShip', direction });
+    const label = direction;
+    const startHeading = start[0].headingRad;
+    const turn = direction === 'right' ? -1 : 1;
+    for (const a of run.state.aircraft) assert.ok(Math.abs(a.headingRad - (startHeading + turn * Math.PI / 4)) < 2e-4, `${label} #${a.id}: on the new heading, 45 degrees round`);
+    const [first, second] = startedAt[1] < startedAt[2] ? [1, 2] : [2, 1];
+    assert.ok(startedAt[first] < 0.1, `${label}: the first goes at once`);
+    assert.ok(Math.abs(startedAt[second] - 38.6) < 0.2, `${label}: the second waits 38.6 s, ${startedAt[second]}`);
+    const end = fromLead(run.state.aircraft, 2);
+    assert.ok(Math.abs(Math.abs(end.right) - 6000) < TOLERANCE_FT, `${label}: 6,000 ft abeam, ${end.right.toFixed(0)}`);
+    assert.ok(Math.abs(end.ahead) < TOLERANCE_FT, `${label}: in LAB, ${end.ahead.toFixed(0)} ft ahead`);
+    assert.ok(Math.sign(fromLead(start, 2).right) === -Math.sign(end.right), `${label}: the sides swapped`);
+  }
+});
+
+test('4312: the four go one after another, 38.6 s apart, and end in LAB on the new heading with the order reversed', () => {
+  for (const direction of ['right', 'left']) {
+    const { run, start, startedAt } = fly({ ...BASE, formation: 'weighted', direction });
+    const order = Object.entries(startedAt).sort((a, b) => a[1] - b[1]);
+    order.forEach(([, at], i) => assert.ok(Math.abs(at - i * 38.6) < 0.3, `${direction}: start ${i} at ${at}`));
+    assert.equal(run.state.turnComplete, true, `${direction}: all four have finished their turns`);
+    for (const id of [2, 3, 4]) {
+      const was = fromLead(start, id);
+      const now = fromLead(run.state.aircraft, id);
+      assert.ok(Math.abs(now.right + was.right) < 2 * TOLERANCE_FT && Math.abs(now.ahead) < 2 * TOLERANCE_FT, `${direction} #${id}: ${was.right.toFixed(0)} became ${now.right.toFixed(0)}, ${now.ahead.toFixed(0)} ahead`);
+    }
+  }
+});
+
+test('the Base delay is still a 90\'s: the Delayed 90 is untouched, the 45 waits cot(22.5) = 2.41 times as long', () => {
+  const start = (maneuver, turnDeg) => {
+    const { startedAt } = fly({ ...BASE, maneuver, turnDeg, formation: 'twoShip', direction: 'right', durationSec: 90 });
+    return Math.max(...Object.values(startedAt));
+  };
+  assert.ok(Math.abs(start('delayed90away', 90) - 16) < 0.1);
+  assert.ok(Math.abs(start('delayed45away', 45) - 16 * 2.41421356) < 0.1);
+});
