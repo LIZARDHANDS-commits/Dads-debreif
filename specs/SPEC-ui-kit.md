@@ -36,6 +36,8 @@ scheduler.stats();                         // { frames, timers } still active
 
 Later, when the first module needs them: `controls.js` (binds inputs to settings, so math never reads input boxes) and `canvas-view.js` (pan and zoom for the 2D views).
 
+Number controls in `controls.js` accept only finite numbers inside each control's own range. Anything else (blank, `Infinity`, a huge value) is refused with a message beside the box and the setting keeps its last good value. V6's angle loops never return for `Infinity`, so a huge Turn Sim start heading could freeze the page (from the flight math workstream, PR #51).
+
 ## Boundaries
 
 - `ui-kit` depends only on `core`. It never imports a module.
