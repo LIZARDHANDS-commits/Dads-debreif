@@ -144,3 +144,9 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Files: src/modules/traffic/{glide,map2d,aircraft,readouts}.js, tests/unit/traffic/glide.test.js
 
 **Checkpoint I:** tests pass; code-review-and-quality; open PR I.
+
+- [ ] **24. Cross-check against the manuals (Patrick, 2026-09-30 07:35Z).** After the Traffic engine and core's T-6A model are both merged: fly the sim through set scenarios and compare the results with the manuals' numbers. The scenarios are the spacing on final (the 3,000 ft gap and the extensions it causes, T11), the break timing (220 to 120 KIAS, the time and distance from the break to the perch, the downwind spacing), and the PFL key heights (High, Low and Final Key; 2,600 ft per circle). Core's thread does the glide and zoom scenarios. The output is a report table (scenario, sim, manual with page reference, difference) and it only reports: differences go to Patrick and Dad through the coordinator, and no number in the math changes without their sign-off.
+  - Acceptance: every scenario runs from a fresh setup with fixed dice and gives the same report each time; each manual number carries its page reference (numbers only, no manual text, since the manuals are private).
+  - Verify: `npm test` runs the scenarios; the report is attached to the PR.
+  - Dependencies: 16, 18, and core's T-6A model. Size S.
+  - Files: tests/crosscheck/traffic-scenarios.test.js, src/modules/traffic/data/crosscheck-scenarios.json
