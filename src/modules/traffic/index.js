@@ -19,6 +19,7 @@ import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
 import { createMap2d, hintFor } from './map2d.js';
 import { createSettingsPanel } from './settings-panel.js';
+import { createAircraftPanel } from './aircraft.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
 
@@ -73,6 +74,10 @@ function mount(root, app) {
       toggleColumn: () => app.scheduler.after(0, () => map.requestDraw()),
     },
   });
+  const aircraftPanel = createAircraftPanel({ controls, settings, sim, setup, onChange: () => changed() });
+  ui.slots.spawner.append(aircraftPanel.elements.spawner);
+  ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
+  ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
   const settingsPanel = createSettingsPanel({ controls, settings });
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
@@ -89,6 +94,7 @@ function mount(root, app) {
     cached = null;
     bar.setState({ mode: clock.mode, clockText: clockText(clock.simTime) });
     ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length }));
+    aircraftPanel.update(state(), { playing: clock.mode === 'running', now: performance.now() });
     map.requestDraw();
   }
 

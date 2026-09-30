@@ -123,6 +123,35 @@ test('a bigger conflict bubble redraws the map, and the layers menu switches tra
   await expect(page.getByLabel('Trails')).not.toBeChecked();
 });
 
+test('spawn an aircraft and it appears in the list, waits for its delay, and flies; a bad start point says what to change', async ({ page }) => {
+  await open(page);
+  const rows = page.locator('.aircraft-row');
+  await expect(rows).toHaveCount(7);
+  await page.getByLabel('Delay', { exact: true }).fill('5');
+  await button(page, '+ Spawn').click();
+  await expect(rows).toHaveCount(8);
+  await expect(rows.last()).toContainText('A8 CT-156 on Entry 1');
+  await expect(rows.last()).toContainText('Waiting, starts at 0:05');
+  await expect(page.locator('.spawn-message')).toHaveText('Added A8.');
+  await playButton(page).click();
+  await expect(rows.last()).toContainText('Flying');
+  await playButton(page).click();
+  await page.getByLabel('Start at point', { exact: true }).fill('9');
+  await button(page, '+ Spawn').click();
+  await expect(page.locator('.spawn-message')).toContainText('Entry 1 has 4 points');
+  await expect(rows).toHaveCount(8);
+});
+
+test('the Conflicts list says "No conflicts." until two aircraft are close, then names the pair with a word and a symbol', async ({ page }) => {
+  await open(page);
+  const list = page.getByRole('region', { name: 'Conflicts' });
+  await expect(list).toContainText('No conflicts.');
+  await button(page, '+ Spawn').click();
+  await button(page, '+ Spawn').click(); // two aircraft at the same point at the same moment
+  await expect(list).toContainText('⚠ CONFLICT A8/A9: 0 ft lat, 0 ft vert');
+  await expect(list.locator('.conflict-none')).toBeHidden();
+});
+
 test('closing the sim stops its frames, timers and listeners', async ({ page }) => {
   await open(page);
   await playButton(page).click();

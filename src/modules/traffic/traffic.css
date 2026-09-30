@@ -273,6 +273,141 @@
   white-space: nowrap;
 }
 
+/* The right column: the spawner, the aircraft list and the conflicts. */
+[data-module='traffic'] .traffic-subtitle {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='traffic'] .spawner .control {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='traffic'] .spawner .control:not(.control-checkbox) {
+  display: grid;
+  grid-template-columns: 1fr 6.5rem auto;
+  align-items: center;
+}
+
+[data-module='traffic'] .spawner .control > label {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawner .control input,
+[data-module='traffic'] .spawner .control select {
+  width: 100%;
+  min-width: 0;
+}
+
+[data-module='traffic'] .spawner .control-select {
+  grid-template-columns: 1fr 9rem;
+}
+
+[data-module='traffic'] .spawner .control-message {
+  grid-column: 1 / -1;
+}
+
+[data-module='traffic'] .spawn-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .spawn-message {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .spawn-message:empty {
+  display: none;
+}
+
+[data-module='traffic'] .aircraft,
+[data-module='traffic'] .conflicts {
+  margin-top: var(--space-4);
+}
+
+[data-module='traffic'] .aircraft-list,
+[data-module='traffic'] .conflict-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='traffic'] .aircraft-list:empty,
+[data-module='traffic'] .conflict-list:empty {
+  display: none;
+}
+
+[data-module='traffic'] .aircraft-row {
+  display: grid;
+  gap: 0 var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .aircraft-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+[data-module='traffic'] .aircraft-swatch {
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--ac);
+}
+
+[data-module='traffic'] .aircraft-detail {
+  color: var(--text-muted);
+  padding-left: 1rem;
+}
+
+[data-module='traffic'] .aircraft-row.status-landed,
+[data-module='traffic'] .aircraft-row.status-done {
+  opacity: 0.7;
+}
+
+[data-module='traffic'] .aircraft-empty,
+[data-module='traffic'] .conflict-none {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .aircraft-empty[hidden],
+[data-module='traffic'] .conflict-none[hidden] {
+  display: none;
+}
+
+/* A conflict or caution starts with its word and symbol, so colour is never the only signal. */
+[data-module='traffic'] .conflict-line {
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--caution);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='traffic'] .conflict-line.level-conflict {
+  border-left-color: var(--bad);
+  color: var(--bad);
+}
+
+[data-module='traffic'] .conflict-line.level-caution {
+  color: var(--caution);
+}
+
 /* Menus: a button that opens a small panel, closed at first. In the bar the panel drops under
    the bar; in a column it drops under its button. */
 [data-module='traffic'] .traffic-menu {
