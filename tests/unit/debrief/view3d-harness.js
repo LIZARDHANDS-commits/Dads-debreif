@@ -84,14 +84,33 @@ export function manualTimers() {
 /** The real three module with a fake renderer, a canvas, a scheduler and the layout values. */
 export async function viewKit(settings = {}) {
   const realThree = await import('three');
-  const THREE = { ...realThree, WebGLRenderer: FakeRenderer };
+  const made = { basic: [], line: [], standard: [] };
+  // The materials the view makes itself are counted, and so are their disposals.
+  const counted = (Base, list) => class extends Base {
+    disposed = 0;
+    constructor(...args) {
+      super(...args);
+      list.push(this);
+    }
+    dispose() {
+      this.disposed++;
+      super.dispose();
+    }
+  };
+  const THREE = {
+    ...realThree,
+    WebGLRenderer: FakeRenderer,
+    MeshBasicMaterial: counted(realThree.MeshBasicMaterial, made.basic),
+    LineBasicMaterial: counted(realThree.LineBasicMaterial, made.line),
+    MeshStandardMaterial: counted(realThree.MeshStandardMaterial, made.standard),
+  };
   const ctx = recordingContext();
   const state = {
     view: '3d', cam3d: 'followLead', yaw3d: -35, pitch3d: 52, zoom3d: 70, altScale3d: 2, model3d: 't6', paint3d: 'harvard',
     planeSize3d: 240, attLabels3d: true, trailSec3d: 0, landscape3d: false, groundRef3d: false, datum3d: 'min',
     grid3d: false, sticks3d: true, altMarks3d: false, ...settings,
   };
-  return { THREE, timers: manualTimers(), ctx, canvas: fakeCanvas(ctx), state };
+  return { THREE, made, timers: manualTimers(), ctx, canvas: fakeCanvas(ctx), state };
 }
 
 const readAsset = async (asset) => readFileSync(new URL(`../../../original/assets/${asset}`, import.meta.url), 'utf8');

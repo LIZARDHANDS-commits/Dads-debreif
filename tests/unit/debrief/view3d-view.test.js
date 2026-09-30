@@ -49,3 +49,76 @@ test('a ship in a GPS gap shows no bank, pitch or height in 3D (D32)', async () 
     k.close();
   }
 });
+
+// The WebGL side: materials made once, the renderer told only what changed, a clean teardown (auditor #169).
+
+const EVERYTHING = { landscape3d: true, groundRef3d: true, grid3d: true, trailSec3d: 120, sticks3d: true };
+const allMaterials = (made) => [...made.basic, ...made.line, ...made.standard];
+
+test('materials are made once and kept across draws, and freed only when the view goes', async () => {
+  const flight = await exampleFlight();
+  const k = await open({ flight, t: flight.startT + START_S, settings: EVERYTHING });
+  try {
+    const after1 = allMaterials(k.made).length;
+    assert.ok(after1 > 0);
+    k.time.t += 30;
+    k.view.requestDraw();
+    await k.settle();
+    k.time.t += 30;
+    k.view.requestDraw();
+    await k.settle();
+    assert.equal(allMaterials(k.made).length, after1, 'later draws make no new materials');
+    assert.ok(k.renderer().count('render') >= 3);
+    assert.ok(allMaterials(k.made).every((m) => m.disposed === 0), 'and dispose none between draws');
+    k.close();
+    assert.ok(allMaterials(k.made).every((m) => m.disposed >= 1), 'each is disposed when the view is disposed');
+  } finally {
+    k.close();
+  }
+});
+
+test('on dispose the renderer is disposed, then its context is lost', async () => {
+  const flight = await exampleFlight();
+  const k = await open({ flight, t: flight.startT + START_S });
+  const r = k.renderer();
+  k.close();
+  const names = r.calls.map((c) => c[0]).filter((n) => n === 'dispose' || n === 'forceContextLoss');
+  assert.deepEqual(names, ['dispose', 'forceContextLoss']);
+});
+
+test('the renderer is sized only when the size or pixel ratio changes', async () => {
+  const seen = { observer: null };
+  globalThis.ResizeObserver = class {
+    constructor(fn) { seen.observer = fn; }
+    observe() {}
+    disconnect() {}
+  };
+  const oldRatio = globalThis.devicePixelRatio;
+  const flight = await exampleFlight();
+  const k = await open({ flight, t: flight.startT + START_S });
+  try {
+    const r = k.renderer();
+    assert.deepEqual([r.count('setSize'), r.count('setPixelRatio')], [1, 1]);
+    for (let i = 0; i < 3; i++) {
+      k.time.t += 10;
+      k.view.requestDraw();
+      await k.settle();
+    }
+    assert.deepEqual([r.count('setSize'), r.count('setPixelRatio')], [1, 1], 'more draws at the same size: no change');
+    k.canvas.clientWidth = 640;
+    seen.observer();
+    await k.settle();
+    assert.deepEqual([r.count('setSize'), r.count('setPixelRatio')], [2, 1], 'a new size sets the size only');
+    assert.deepEqual(r.calls.filter((c) => c[0] === 'setSize').at(-1), ['setSize', 640, 600]);
+    globalThis.devicePixelRatio = 2;
+    k.view.requestDraw();
+    await k.settle();
+    assert.equal(r.count('setPixelRatio'), 2);
+    assert.equal(r.calls.filter((c) => c[0] === 'setPixelRatio').at(-1)[1], 2);
+  } finally {
+    k.close();
+    delete globalThis.ResizeObserver;
+    if (oldRatio === undefined) delete globalThis.devicePixelRatio;
+    else globalThis.devicePixelRatio = oldRatio;
+  }
+});

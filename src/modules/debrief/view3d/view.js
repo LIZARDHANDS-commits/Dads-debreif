@@ -142,14 +142,30 @@ function createPicture(THREE, glCanvas) {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
   const world = new THREE.Group();
   scene.add(world);
-  return { renderer, scene, camera, world, ships: new Map(), sky: null };
+  // materials: one of each kind, colour and opacity, made when first wanted and kept.
+  // size: what the renderer was last told, so it is told again only when it changes.
+  return { renderer, scene, camera, world, ships: new Map(), sky: null, materials: new Map(), size: null };
 }
 
+// A material of `kind` (basic, line or standard) made once and kept in the
+// picture, so a draw reuses it instead of building and freeing a dozen.
+function material(gl, THREE, kind, color, extra = {}) {
+  const key = `${kind}|${color}|${JSON.stringify(extra)}`;
+  let m = gl.materials.get(key);
+  if (!m) {
+    if (kind === 'basic') m = new THREE.MeshBasicMaterial({ color, fog: false, ...extra });
+    else if (kind === 'line') m = new THREE.LineBasicMaterial({ color, transparent: true, fog: false, ...extra });
+    else m = new THREE.MeshStandardMaterial({ color, ...extra });
+    gl.materials.set(key, m);
+  }
+  return m;
+}
+
+// Frees what a draw built: the geometries. Its materials are shared and kept (see material).
 function clearGroup(group) {
   for (const o of [...group.children]) {
     group.remove(o);
     o.geometry?.dispose();
-    o.material?.dispose();
   }
 }
 
@@ -158,14 +174,22 @@ function disposePicture(gl) {
   for (const { mesh } of gl.ships.values()) disposeAircraftMesh(mesh);
   gl.ships.clear();
   gl.sky?.dispose();
+  for (const m of gl.materials.values()) m.dispose();
+  gl.materials.clear();
   gl.renderer.dispose();
+  gl.renderer.forceContextLoss(); // hand the GPU context back now, not when the page collects it
 }
 
 /** Draws the picture; returns the slots drawn as a model (the rest get a 2D marker). */
 function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum }) {
   const { renderer, scene, world } = gl;
-  renderer.setPixelRatio(globalThis.devicePixelRatio || 1);
-  renderer.setSize(size.width, size.height, false);
+  const ratio = globalThis.devicePixelRatio || 1;
+  const told = gl.size;
+  if (told?.ratio !== ratio) renderer.setPixelRatio(ratio);
+  if (told?.ratio !== ratio || told.width !== size.width || told.height !== size.height) {
+    renderer.setSize(size.width, size.height, false); // the ratio changes the canvas's pixels too
+    gl.size = { ratio, width: size.width, height: size.height };
+  }
   matchProjection(THREE, gl.camera, ctr, camera, size);
 
   // V6's sky and far ground, fading to the horizon (#27).
@@ -185,11 +209,12 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   const Z = (altFt) => altToZ(altFt, camera.altScale);
   const dz = Z(datum);
   const ftPerPx = 1000 / camera.zoom;
-  const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, fog: false, ...extra });
+  const basic = (color, extra = {}) => material(gl, THREE, 'basic', color, extra);
+  const line = (color, opacity) => material(gl, THREE, 'line', color, { opacity });
 
   if (on.landscape3d) {
     const extent = GROUND_EXTENT_FT * 4;
-    const land = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), new THREE.MeshStandardMaterial({ color: LAND, roughness: 1, metalness: 0 }));
+    const land = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), material(gl, THREE, 'standard', LAND, { roughness: 1, metalness: 0 }));
     land.position.set(ctr.x, ctr.y, dz - 2 * camera.altScale);
     world.add(land);
   }
@@ -205,7 +230,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     const edge = new THREE.BufferGeometry().setFromPoints(
       [[min.x, min.y], [max.x, min.y], [max.x, max.y], [min.x, max.y]].map(([x, y]) => new THREE.Vector3(x, y, dz + 2)),
     );
-    world.add(new THREE.LineLoop(edge, new THREE.LineBasicMaterial({ color: DATUM_EDGE, transparent: true, opacity: 0.65, fog: false })));
+    world.add(new THREE.LineLoop(edge, line(DATUM_EDGE, 0.65)));
   }
   if (on.grid3d) {
     const { xs, ys, min, max } = groundGrid(ctr);
@@ -214,7 +239,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     for (const y of ys) pts.push(min.x, y, dz + 4, max.x, y, dz + 4);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    world.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: DATUM_EDGE, transparent: true, opacity: 0.22, fog: false })));
+    world.add(new THREE.LineSegments(g, line(DATUM_EDGE, 0.22)));
   }
 
   // Each ship's last trailSec3d seconds, broken where it's in a GPS gap (V6 drawTrails).
@@ -236,7 +261,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       if (!pos.length) continue;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      world.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: SHIP_COLORS[tr.slot], transparent: true, opacity: 0.7, fog: false })));
+      world.add(new THREE.LineSegments(g, line(SHIP_COLORS[tr.slot], 0.7)));
     }
   }
 
