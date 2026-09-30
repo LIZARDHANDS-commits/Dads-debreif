@@ -10,4 +10,6 @@ Commands:
 - `/sync` at the start of a session (`.agent/skills/sync/SKILL.md`).
 - `/save` at the end of each piece of work (`.agent/skills/save/SKILL.md`).
 
+The workflow skills (spec-driven-development, test-driven-development and the rest) are in `.agent/skills/`, with their checklists in `.agent/references/`; `.agent/skills/README.md` says which to use when.
+
 Never edit `original/`. The flying manuals are in `../manuals` (next to the repo; `manuals/README.md` is the index). Never copy manual text or images into the repo; page references only. No new libraries without Patrick's word.
