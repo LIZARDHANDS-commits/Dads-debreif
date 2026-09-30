@@ -124,8 +124,14 @@ show(location.hash);
 if (import.meta.env?.PROD) {
   const updateBar = createUpdateBar();
   document.querySelector('.app-header').after(updateBar.element);
+  let container;
+  try {
+    container = navigator.serviceWorker; // Firefox throws here when site data is blocked
+  } catch {
+    container = undefined;
+  }
   watchForUpdates({
-    container: navigator.serviceWorker,
+    container,
     timers: scheduler.scope('updates'),
     onUpdate: (apply) => updateBar.show(apply),
     reload: () => location.reload(),

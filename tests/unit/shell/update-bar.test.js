@@ -125,3 +125,37 @@ test('a blocked registration warns and carries on', async (t) => {
   assert.equal(await ready, null);
   assert.equal(warn.mock.callCount(), 1);
 });
+
+test('when Reload was pressed in another tab, this tab offers a plain reload', async () => {
+  const { container, offers, ready, reloads } = setup();
+  await ready;
+  const worker = container.registration.startInstall();
+  worker.become('installed');
+  assert.equal(offers.length, 1);
+  // Another tab pressed Reload: the new worker takes over every tab.
+  worker.become('activated');
+  container.dispatchEvent(new Event('controllerchange'));
+  assert.equal(reloads(), 0, 'this tab never reloads by itself');
+  assert.equal(offers.length, 2, 'the bar stays, now as a plain reload');
+  offers[1]();
+  assert.equal(reloads(), 1);
+});
+
+test('pressing an earlier Reload after the worker is already active just reloads', async () => {
+  const { container, offers, ready, reloads } = setup();
+  await ready;
+  const worker = container.registration.startInstall();
+  worker.become('installed');
+  worker.become('activated');
+  offers[0]();
+  assert.deepEqual(worker.messages, [], 'no message to a worker that is already active');
+  assert.equal(reloads(), 1);
+});
+
+test('the first install taking control does not show the bar', async () => {
+  const { container, offers, ready } = setup({ controller: null });
+  await ready;
+  container.controller = {};
+  container.dispatchEvent(new Event('controllerchange'));
+  assert.equal(offers.length, 0);
+});

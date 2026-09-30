@@ -335,7 +335,8 @@ a.card:hover {
   font-size: var(--text-sm);
 }
 
-/* New-version bar */
+/* New-version bar. Its status region is always on the page (empty and
+   zero-height until needed), so screen readers announce the bar when it appears. */
 .update-bar {
   display: flex;
   flex-wrap: wrap;
@@ -346,9 +347,6 @@ a.card:hover {
   border-bottom: 1px solid var(--accent);
   background: var(--bg-raised);
 }
-
-.update-bar[hidden] {
-  display: none;
 
 /* A page that failed to open */
 .error-card {

@@ -8,7 +8,8 @@ const PRECACHE = '__PRECACHE__';
 // Pages on the same site share cache storage, so names carry this app's scope.
 const PREFIX = `ooda:${self.registration.scope}:`;
 const CACHE = PREFIX + BUILD_ID;
-const INDEX = new URL('index.html', self.registration.scope).href;
+const SCOPE = self.registration.scope;
+const INDEX = new URL('index.html', SCOPE).href;
 
 self.addEventListener('install', (event) => {
   // cache: 'reload' skips the browser's HTTP cache, so the copy matches this build.
@@ -31,9 +32,15 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
+  const url = new URL(request.url);
   // Other sites (live weather, maps) always go to the network and are never kept.
-  if (new URL(request.url).origin !== self.location.origin) return;
-  const lookup = request.mode === 'navigate' ? INDEX : request;
+  if (url.origin !== self.location.origin) return;
+  // Card videos stream in pieces (range requests); leave them to the browser.
+  if (request.headers.has('range') || request.destination === 'video') return;
+  // Opening the app itself gets the kept copy; any other page or file opened
+  // directly (a PDF, a checklist) is looked up as itself.
+  const page = url.origin + url.pathname;
+  const lookup = request.mode === 'navigate' && (page === SCOPE || page === INDEX) ? INDEX : request;
   event.respondWith(
     caches
       .open(CACHE)

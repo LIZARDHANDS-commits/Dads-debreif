@@ -6,22 +6,18 @@ import { h } from '../ui-kit/dom.js';
 const HOUR = 60 * 60 * 1000;
 
 export function createUpdateBar() {
-  const reload = h('button', { type: 'button', class: 'primary' }, 'Reload');
-  const element = h(
-    'div',
-    { class: 'update-bar', role: 'status', hidden: true },
-    h('span', {}, 'A new version is ready.'),
-    reload,
-  );
+  // The live region stays in the page; only its contents come and go.
+  const element = h('div', { class: 'update-region', role: 'status' });
   return {
     element,
-    // Shows the bar; onReload runs when Reload is pressed.
+    // Shows the bar (or refreshes it); onReload runs when Reload is pressed.
     show(onReload) {
-      reload.onclick = () => {
+      const reload = h('button', { type: 'button', class: 'primary' }, 'Reload');
+      reload.addEventListener('click', () => {
         reload.disabled = true;
         onReload();
-      };
-      element.hidden = false;
+      });
+      element.replaceChildren(h('div', { class: 'update-bar' }, h('span', {}, 'A new version is ready.'), reload));
     },
   };
 }
@@ -49,11 +45,15 @@ export async function watchForUpdates({ container, url = './sw.js', timers, onUp
     offered = worker;
     onUpdate(() => {
       reloading = true;
-      worker.postMessage({ type: 'skip-waiting' });
+      // Still waiting: tell it to take over, then reload on controllerchange.
+      // Already active (Reload was pressed in another tab) or replaced: just reload.
+      if (worker.state === 'installed') worker.postMessage({ type: 'skip-waiting' });
+      else reload();
     });
   };
   // With no controller yet this is the first install, not an update.
   const isUpdate = () => Boolean(container.controller);
+  let controlled = isUpdate();
 
   if (registration.waiting && isUpdate()) offer(registration.waiting);
   registration.addEventListener('updatefound', () => {
@@ -63,7 +63,20 @@ export async function watchForUpdates({ container, url = './sw.js', timers, onUp
     });
   });
   container.addEventListener('controllerchange', () => {
-    if (reloading) reload();
+    if (reloading) {
+      reload();
+      return;
+    }
+    // A new version took over without this tab asking (Reload was pressed in
+    // another tab). This page's code is now older than the cache, so offer a reload.
+    if (controlled) {
+      offered = null;
+      onUpdate(() => {
+        reloading = true;
+        reload();
+      });
+    }
+    controlled = true;
   });
   return registration;
 }
