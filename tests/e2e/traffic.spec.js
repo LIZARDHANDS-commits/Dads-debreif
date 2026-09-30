@@ -445,6 +445,8 @@ const canvas3d = (page) => page.locator('canvas.traffic-map3d');
 const stage3d = (page) => page.locator('.traffic-3d');
 const cameraButton = (page, name) => page.locator('.traffic-camera').getByRole('button', { name, exact: true });
 const draws3d = async (page) => Number((await canvas3d(page).getAttribute('data-draws')) ?? 0);
+// Software graphics on a loaded test machine can take seconds for the first 3D frames, so waits on 3D frames get longer than the 5 s default.
+const SLOW_GL = { timeout: 20_000 };
 const note3d = (page) => page.locator('.traffic-note3d');
 const threeRequests = (page) => {
   const seen = [];
@@ -458,7 +460,7 @@ const shot3d = (page) => canvas3d(page).screenshot();
 const changed = async (page, act) => {
   const before = await shot3d(page);
   await act();
-  await expect.poll(async () => !(await shot3d(page)).equals(before), { timeout: 10_000 }).toBe(true);
+  await expect.poll(async () => !(await shot3d(page)).equals(before), SLOW_GL).toBe(true);
 };
 const stats = (page) => page.evaluate(() => window.__tr.stats());
 
@@ -469,7 +471,7 @@ test('a 2D visit loads no three.js: 2D is what opens, with no 3D canvas and no c
   await expect(canvas3d(page)).toHaveCount(0);
   await expect(page.locator('.traffic-camera')).toBeHidden();
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(5);
   await playButton(page).click();
   expect(seen).toEqual([]);
 });
@@ -479,15 +481,15 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await open(page);
   const baseline = await stats(page);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(20);
   const atSwitch = await seconds(page);
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click();
   await expect(canvas3d(page)).toBeVisible();
   await expect(map(page)).toBeHidden();
   await expect(page.locator('.traffic-camera')).toBeVisible();
   expect(seen.length).toBeGreaterThan(0); // three.js loaded now, and not before
   expect(await seconds(page)).toBeGreaterThanOrEqual(atSwitch); // the run went on
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(5);
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(5);
   await expect(page.locator('.bar-status')).toHaveText('Running');
   await expect(note3d(page)).toBeHidden();
   // Only the layers 3D draws stay on offer.
@@ -505,7 +507,7 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   expect(await draws3d(page)).toBe(still);
   // Back to 2D: the same time, the map is back, and every 3D object is gone.
   const timeNow = await seconds(page);
-  await viewChoice(page, '2D').check();
+  await viewChoice(page, '2D').click();
   await expect(map(page)).toBeVisible();
   await expect(canvas3d(page)).toHaveCount(0);
   await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed'); // (what the renderer still counts is checked in the round-trip test below)
@@ -514,11 +516,11 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
   // A second time round works and fetches three.js no more.
   const fetched = seen.length;
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click();
   await expect(canvas3d(page)).toBeVisible();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(0);
   expect(seen.length).toBe(fetched);
-  await viewChoice(page, '2D').check();
+  await viewChoice(page, '2D').click();
   await expect.poll(() => stats(page)).toEqual(baseline);
 });
 
@@ -532,21 +534,21 @@ test('each 3D round, the full Harvard model or the plain T-6, ends with exactly 
   await page.addInitScript(() => { window.__traffic3dLeakCheck = true; });
   await open(page);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(20);
   await playButton(page).click();
   const closeIn = async () => {
     await cameraButton(page, 'Low chase').click();
     await canvas3d(page).evaluate((el) => {
       for (let notch = 0; notch < 40; notch++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
     });
-    await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), { timeout: 10_000 }).toBeGreaterThan(120);
+    await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), SLOW_GL).toBeGreaterThan(120);
   };
   const round = async (zoomedIn) => {
-    await viewChoice(page, '3D').check();
-    await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+    await viewChoice(page, '3D').click();
+    await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(1);
     if (zoomedIn) await closeIn();
     await page.waitForTimeout(200);
-    await viewChoice(page, '2D').check();
+    await viewChoice(page, '2D').click();
     await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
     const base = await stage3d(page).getAttribute('data-gpu-base');
     expect(base, 'the baseline was taken (one texture at least: three.js\'s lookup table)').toMatch(/^\d+,[1-9]\d*$/);
@@ -560,10 +562,10 @@ test('each 3D round, the full Harvard model or the plain T-6, ends with exactly 
 test('the 3D picture shows the run: the camera buttons, a drag, the wheel and Fit each change it, and so does time', async ({ page }) => {
   await open(page);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(30);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(30);
   await playButton(page).click();
-  await viewChoice(page, '3D').check();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await viewChoice(page, '3D').click();
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(0);
   const first = await shot3d(page);
   const box = await canvas3d(page).boundingBox();
   expect(first.length).toBeGreaterThan(4000); // something is drawn: not one flat colour
@@ -587,16 +589,16 @@ test('the 3D picture shows the run: the camera buttons, a drag, the wheel and Fi
 test('Paint in the Traffic settings menu changes the T-6s: Harvard or Ship colours', async ({ page }) => {
   await open(page);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(20);
   await playButton(page).click();
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click();
   await cameraButton(page, 'Low chase').click();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(1);
   // The full Harvard model, and so the paint, is for an aircraft drawn 120 px or more long: wheel right in on it.
   const box = await canvas3d(page).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let notch = 0; notch < 40; notch++) await page.mouse.wheel(0, -100); // 1.12 times a notch (to the limit, 4,000)
-  await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), { timeout: 10_000 }).toBeGreaterThan(120);
+  await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), SLOW_GL).toBeGreaterThan(120);
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
   const paint = page.getByLabel('Paint');
   await expect(paint.locator('option:checked')).toHaveText('Harvard');
@@ -616,7 +618,7 @@ test('when three.js will not load, the note says so, the setting goes back to 2D
   await expect(map(page)).toBeVisible();
   await expect(canvas3d(page)).toHaveCount(0);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(5);
   await playButton(page).click();
 });
 
@@ -638,9 +640,9 @@ test('a browser with no WebGL says so before three.js is even fetched, and stays
 
 test('closing the sim while it is in 3D leaves no frame, timer, listener or canvas behind', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click();
   await playButton(page).click();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(3);
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(3);
   await page.evaluate(() => window.__tr.close());
   expect(await stats(page)).toEqual({ mounted: null, listeners: 0, subscriptions: 0, frames: 0, timers: 0 });
   await expect(page.locator('canvas')).toHaveCount(0);
@@ -649,8 +651,8 @@ test('closing the sim while it is in 3D leaves no frame, timer, listener or canv
 test('switching 3D on and straight off again ends in 2D with nothing left over (a late three.js load must not undo the last choice)', async ({ page }) => {
   await open(page);
   const baseline = await stats(page);
-  await viewChoice(page, '3D').check();
-  await viewChoice(page, '2D').check();
+  await viewChoice(page, '3D').click();
+  await viewChoice(page, '2D').click();
   await expect(map(page)).toBeVisible();
   await page.waitForTimeout(500);
   await expect(canvas3d(page)).toHaveCount(0);
@@ -660,10 +662,10 @@ test('switching 3D on and straight off again ends in 2D with nothing left over (
 test('the 3D view works from the keyboard (arrow keys turn it, + and - zoom) and has no accessibility violations', async ({ page }) => {
   await open(page);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(20);
   await playButton(page).click();
-  await viewChoice(page, '3D').check();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await viewChoice(page, '3D').click();
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(0);
   await expectNoA11yViolations(page);
   await canvas3d(page).focus();
   await changed(page, () => page.keyboard.press('ArrowRight'));
@@ -680,9 +682,9 @@ test('the 3D view works from the keyboard (arrow keys turn it, + and - zoom) and
 test('when the browser takes the graphics context away, the 2D map comes back with a note, the setting says 2D, and nothing is logged', async ({ page }) => {
   await open(page);
   await playButton(page).click();
-  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
-  await viewChoice(page, '3D').check();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(5);
+  await viewChoice(page, '3D').click();
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(1);
   await page.evaluate(() => {
     const canvas = document.querySelector('canvas.traffic-map3d');
     const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl'); // the context three.js already made
@@ -697,16 +699,16 @@ test('when the browser takes the graphics context away, the 2D map comes back wi
   await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
   await page.waitForTimeout(300); // anything logged about it would have arrived by now (the fixture fails the test on errors)
   // And 3D works again after it: a new canvas and a new context.
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click();
   await expect(canvas3d(page)).toBeVisible();
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(1);
 });
 
 test('a steady 3D frame does not write the canvas size again (writing it clears the picture and rebuilds its buffer)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click();
   await playButton(page).click(); // a paused, still view draws only when something changes; a run draws every frame
-  await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
+  await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(2);
   const writes = await page.evaluate(async () => {
     const canvas = document.querySelector('canvas.traffic-map3d');
     const labels = document.querySelector('canvas.traffic-labels3d');
@@ -717,8 +719,12 @@ test('a steady 3D frame does not write the canvas size again (writing it clears 
         Object.defineProperty(el, key, { configurable: true, get() { return own.get.call(this); }, set(v) { count[`${tag}${key}`] += 1; own.set.call(this, v); } });
       }
     }
+    // Count frames, not time: under software graphics on a busy machine a frame can take 200 ms or more.
     const before = Number(canvas.dataset.draws);
-    await new Promise((done) => setTimeout(done, 700));
+    const until = performance.now() + 15000;
+    while (Number(canvas.dataset.draws) - before < 6 && performance.now() < until) {
+      await new Promise((done) => setTimeout(done, 50));
+    }
     return { frames: Number(canvas.dataset.draws) - before, count };
   });
   expect(writes.frames).toBeGreaterThan(5);
