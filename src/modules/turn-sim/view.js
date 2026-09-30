@@ -8,6 +8,7 @@ import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { turnRadiusFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { pairDistances, ft } from './readouts.js';
+import { stackRows, ROW_PX } from './label-rows.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 
 const FT_PER_NM = 6076.11549;
@@ -287,16 +288,23 @@ export function circleG(aircraft, settings) {
 
 /** Each aircraft's turn circle at the G it flies, labelled with G and radius (V6 drawTurnCircles, line 1851). */
 function drawTurnCircles(ctx, map, state, settings) {
-  const rects = [];
   const v = ktToFtps(settings.speedKt);
   const scale = map.view.scale;
-  for (const a of state.aircraft) {
+  const circles = state.aircraft.map((a) => {
     const g = circleG(a, settings);
     const r = turnRadiusFt(v, g);
     // The engine's state doesn't say which way each aircraft turns yet (a wingman may turn away from Lead's side),
     // so the circle is on the set direction's side. TODO: draw a.turnDir once the engine's state carries it.
     const dir = a.turnDir ?? (settings.direction === 'right' ? -1 : 1); // V6: -1 right, +1 left
     const [cx, cy] = map.worldToScreen(a.xFt + Math.cos(a.headingRad + dir * Math.PI / 2) * r, a.yFt + Math.sin(a.headingRad + dir * Math.PI / 2) * r);
+    return { a, r, cx, cy, str: `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}` };
+  });
+  // Under each circle, so it never sits on the spacing lines through the aircraft. Even numbers start a row lower, and any two that would still
+  // run together (a 4312 In-place 90 ends with #1 and #3 side by side) go down a row until they clear.
+  ctx.font = `11px ${FONT}`;
+  const rows = stackRows(circles.map(({ a, r, cx, cy, str }) => ({ x: cx, y: cy + r * scale + 14, w: ctx.measureText(str).width, row: a.id % 2 === 0 ? 1 : 0 })));
+  const rects = [];
+  circles.forEach(({ a, r, cx, cy, str }, i) => {
     const color = SHIP_COLORS[a.id];
     ctx.save();
     ctx.globalAlpha = 0.28;
@@ -307,10 +315,8 @@ function drawTurnCircles(ctx, map, state, settings) {
     ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
-    // Under the circle, so it never sits on the spacing lines through the aircraft.
-    // Neighbours in a tight picture stagger by a row, so their words do not run together.
-    rects.push(text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14 + (a.id % 2 === 0 ? 13 : 0), color, 11, 'center'));
-  }
+    rects.push(text(ctx, str, cx, cy + r * scale + 14 + rows[i] * ROW_PX, color, 11, 'center'));
+  });
   return rects;
 }
 
