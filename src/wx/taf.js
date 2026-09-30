@@ -23,6 +23,8 @@ const hhmm = (d) => d.toISOString().slice(8, 16).replace('T', ' ');
  * A PROB group followed by TEMPO has kind 'PROB' and tempo true. A group whose
  * time can't be read keeps null times. Anything that makes the forecast less than
  * fully readable is listed in `problems`.
+ * @param {string} raw
+ * @param {{ now?: Date }} [options]
  */
 export function parseTaf(raw, { now } = {}) {
   now = now ?? new Date();
