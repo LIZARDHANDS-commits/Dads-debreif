@@ -164,7 +164,7 @@ function tafCautions(icao, result) {
  * levelWords, group, from, to, reason, stale, text, acknowledged: false }`.
  * `text` is the line the banner shows, in words. The same key is listed once.
  *
- * - `notEndedBefore`: a Date; TAF cautions (dangerous weather, not limits) whose joined span ended before it are left out.
+ * - `notEndedBefore`: a Date; TAF cautions and TAF pieces below the limits whose joined span ended before it are left out.
  * - `extra`: cautions from other sources in the same shape, such as lightning.js's; they are
  *   checked, sorted and de-duplicated with the rest. Entries that aren't cautions are ignored.
  */
@@ -179,7 +179,7 @@ export function cautionList({ cards = [], tafs = [], extra = [], notEndedBefore 
     if (typeof entry?.icao !== 'string' || !entry.icao || !entry.result) continue;
     for (const c of tafCautions(entry.icao, entry.result)) {
       // The cut is after the join, so a spell keeps one span (and one key) while any of it is still to come.
-      if (validDate(notEndedBefore) && c.level === 'caution' && c.to && +c.to < +notEndedBefore) continue;
+      if (validDate(notEndedBefore) && c.to && +c.to < +notEndedBefore) continue;
       seen(c.icao);
       all.push(c);
     }
