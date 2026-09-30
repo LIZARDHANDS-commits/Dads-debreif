@@ -160,6 +160,10 @@
   height: 100%;
 }
 
+[data-module='traffic'] .traffic-map[hidden] {
+  display: none;
+}
+
 [data-module='traffic'] .traffic-hint {
   position: absolute;
   left: 50%;
@@ -176,6 +180,87 @@
 }
 
 [data-module='traffic'] .traffic-hint[hidden] {
+  display: none;
+}
+
+/* The 3D view: its canvases fill the map's box, the callsign labels sit over the picture and pass every click
+   through to it, and the three camera buttons sit in the corner. */
+[data-module='traffic'] .traffic-3d {
+  position: absolute;
+  inset: 0;
+}
+
+[data-module='traffic'] .traffic-3d[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .traffic-map3d {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-module='traffic'] .traffic-map3d.is-dragging {
+  cursor: grabbing;
+}
+
+[data-module='traffic'] .traffic-labels3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+[data-module='traffic'] .traffic-camera {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-2);
+  left: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  max-width: calc(100% - var(--space-4));
+}
+
+[data-module='traffic'] .traffic-camera[hidden],
+[data-module='traffic'] .traffic-note3d[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .traffic-note3d {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-2);
+  right: var(--space-2);
+  max-width: calc(100% - var(--space-4));
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(2 10 16 / 0.85);
+  font-size: var(--text-sm);
+}
+
+/* The photo's credit (Esri asks for it wherever the imagery shows), or that it needs a connection. */
+[data-module='traffic'] .traffic-credit {
+  position: absolute;
+  z-index: 2;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  max-width: calc(100% - var(--space-2));
+  margin: 0;
+  padding: 0 var(--space-1);
+  border-radius: 4px;
+  background: rgb(2 6 10 / 0.7);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  pointer-events: none;
+}
+
+[data-module='traffic'] .traffic-credit[hidden] {
   display: none;
 }
 

@@ -137,6 +137,11 @@ test('traffic, first look', async ({ page }) => {
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
   await expect(page.getByText('Press Play to watch the Moose Jaw traffic.')).toBeVisible();
   await page.clock.runFor(1000); // the frozen clock also holds back the map's animation frames
+  // The satellite photo is on from the start: wait for every tile of it to be drawn (each arrival asks for a frame).
+  await expect.poll(async () => {
+    await page.clock.runFor(200);
+    return page.locator('canvas.traffic-map').getAttribute('data-photo-tiles');
+  }).toMatch(/^([1-9]\d*)\/\1$/);
   await shot(page, 'traffic.png');
 });
 

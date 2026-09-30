@@ -33,9 +33,10 @@ export const routeDetail = (row) => row.link || row.kind;
 
 /**
  * bar: the playback bar (playback-bar.js). listen: app.listen.
- * on: { selectRoute(id | null), newRoute(kind), toggleColumn(name, open) } where name is 'routes' or 'aircraft'.
+ * on: { selectRoute(id | null), newRoute(kind), toggleColumn(name, open), camera(name) } where name is 'routes' or 'aircraft'
+ * for a column and 'fit', 'high' or 'low' for a camera button (the 3D view's; they show only while 3D does).
  * available: { pfl } (the PFL choice in + New route).
- * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void }, available?: { pfl?: boolean } }} options
+ * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void }, available?: { pfl?: boolean } }} options
  */
 export function createLayout({ bar, listen, on = {}, available = {} }) {
   let selectedId = null;
@@ -71,11 +72,20 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
   // Middle: the bar, then the map with its one-line hint, then the note under it.
   const canvas = h('canvas', { class: 'traffic-map' });
   const hint = h('p', { class: 'traffic-hint', role: 'status', hidden: true });
+  const credit = h('p', { class: 'traffic-credit', 'aria-live': 'polite', hidden: true }); // Esri's credit, or that the photo needs a connection
+  // The 3D view: a box the size of the map for its canvases (made when 3D opens), the three camera buttons over
+  // it, and a line for "Loading 3D…" or why 3D can't start (that one shows in 2D too, where the person stays).
+  const stage3d = h('div', { class: 'traffic-3d', hidden: true });
+  const cameraButton = (name, label) => h('button', { type: 'button', class: 'button', onclick: () => on.camera?.(name) }, label);
+  const camera = h('div', { class: 'traffic-camera', role: 'group', 'aria-label': 'Camera', hidden: true }, cameraButton('fit', 'Fit'), cameraButton('high', 'High look-down'), cameraButton('low', 'Low chase'));
+  const note3d = h('p', { class: 'traffic-note3d', role: 'status', hidden: true });
+  let photoText = '';
+  let view = '2d';
   const stage = h(
     'section',
     { class: 'traffic-stage', 'aria-label': 'Map and playback' },
     bar.element,
-    h('div', { class: 'traffic-map-wrap' }, canvas, hint),
+    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, camera, hint, credit, note3d),
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
@@ -140,6 +150,28 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     setColumnOpen(name, open) {
       columns[name].panel.setCollapsed(!open);
       columns[name].col.classList.toggle('is-collapsed', !open);
+    },
+    /** The photo's line in the map's corner: Esri's credit, or that the photo needs a connection; '' hides it. */
+    setPhotoNote(text) {
+      photoText = text || '';
+      if (credit.textContent !== photoText) credit.textContent = photoText;
+      credit.hidden = !photoText || view === '3d'; // the photo is under the 2D map only
+    },
+    /** The box the 3D view puts its canvases in (createView3d's `host`). */
+    stage3d,
+    /** Which picture is on screen: '2d' (the map) or '3d'. The View setting is what the person chose; this is what shows. */
+    setView(next) {
+      view = next === '3d' ? '3d' : '2d';
+      canvas.hidden = view === '3d';
+      stage3d.hidden = view !== '3d';
+      camera.hidden = view !== '3d';
+      credit.hidden = !photoText || view === '3d';
+    },
+    /** A short line on the map ("Loading 3D…", "3D needs WebGL"), or '' for none. */
+    setNote3d(text) {
+      const words = text || '';
+      if (note3d.textContent !== words) note3d.textContent = words;
+      note3d.hidden = !words;
     },
     /** The one line on the map ("Press Play to watch the Moose Jaw traffic."); nothing hides it. */
     setHint(text) {
