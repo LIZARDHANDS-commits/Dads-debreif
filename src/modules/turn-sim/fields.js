@@ -24,7 +24,7 @@ const OPTION_LABELS = {
   clockCueAircraft: { 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueSequence: { outsideIn: 'Outside-in', manual: 'Manual targets' },
   offsetBox4Timing: { boxSlot: 'Fly to the box slot (solved)', rearDelay: 'Rear element delay (SMM)', groundTrack: 'Solve by ground track', late: 'Late (V6)', early: 'Early (V6)' },
-  delayed45Check: { auto: 'Auto (check in 4-ship, plain in two-ship)', none: 'Plain', check: 'With check turn' },
+  delayed45Check: { auto: 'Auto', none: 'Plain', check: 'With check turn' },
   twoSide: { left: 'Left', right: 'Right' },
   rearCheckDir: { left: 'Left', right: 'Right' },
   correction: { none: 'None', lag: 'Lag to regain spacing', lead: 'Lead to close spacing', gfix: 'G adjustment' },
@@ -60,7 +60,7 @@ export const CROSS_SWITCH = field('crossTurnSwitchDeg', { label: 'Cross turn swi
 export const CROSS_SOLVE = field('crossTurnSolveSpacing', { label: 'Set second-half G for LAB roll-out', hint: 'Off flies the G setting all the way, as V6 did.' });
 export const DURATION_COVERS = field('durationCoversTurn', { label: 'Run at least until the turn is done' });
 export const TWO_SIDE = field('twoSide', { label: '#2\'s side', hint: 'Which side of Lead #2 flies on, in 4312 and 2134. The two-ship and the offset box have their own places.' });
-export const DELAYED45_CHECK = field('delayed45Check', { label: 'Delayed 45 style', hint: 'The figures draw the check turn for a four-ship; the plain turn is the slower chain.' });
+export const DELAYED45_CHECK = field('delayed45Check', { label: 'Delayed 45 style', hint: 'Auto: check in 4-ship formations; plain in the two-ship (the check is optional there, Fig 16.17).' });
 export const CHECK_DEG = field('checkTurnDeg', { label: 'Check turn', unit: '°', step: 0.5, hint: 'The figure gives 10 to 15 degrees.' });
 export const CHECK_SOLVE = field('checkSolveSpacing', { label: 'Roll in to hold the set spacing', hint: 'Off flies the figure\'s cue: abreast, about 3,900 ft apart. On solves each roll-in for the Spacing, rolling out aft of abreast.' });
 export const REAR_CHECK_ON = field('rearCheckOn', { label: 'Rear element check' });

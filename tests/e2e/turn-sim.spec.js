@@ -663,8 +663,8 @@ test('the Delayed 45 style, check turn and roll-in boxes sit in the settings men
   await panel(page, 'Turn Sim settings').click();
   await expect(box(page, 'Delayed 45 style')).toBeHidden();
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
-  await expect(box(page, 'Delayed 45 style').locator('option')).toHaveText(['Auto (check in 4-ship, plain in two-ship)', 'Plain', 'With check turn']);
-  await expect(box(page, 'Delayed 45 style').locator('option:checked')).toHaveText('Auto (check in 4-ship, plain in two-ship)');
+  await expect(box(page, 'Delayed 45 style').locator('option')).toHaveText(['Auto', 'Plain', 'With check turn']);
+  await expect(box(page, 'Delayed 45 style').locator('option:checked')).toHaveText('Auto');
   await expect(box(page, 'Check turn')).toHaveValue('12.5');
   await expect(box(page, 'Roll in to hold the set spacing')).not.toBeChecked();
   await box(page, 'Check turn').fill('15');
@@ -705,7 +705,7 @@ test('a 15 degree check at 4,000 ft spacing in 4312 shows the close pass before 
   await expect(flags).toHaveCount(0); // at the defaults nothing is close
   await box(page, 'Check turn').fill('15');
   await box(page, 'Spacing').fill('4000');
-  await expect(flags).toHaveText(["Close pass: 894 ft, #1 and #3", "Close pass: 894 ft, #3 and #4"]); // measured: the two four-ship pairs
+  await expect(flags).toHaveText(["Close pass: 894 ft, #1 and #3: altitude separation needed", "Close pass: 894 ft, #3 and #4: altitude separation needed"]); // measured: the two four-ship pairs
   await box(page, 'Spacing').fill('6000');
   await expect(flags).toHaveCount(0);
 });
@@ -845,7 +845,7 @@ test('the offset box hook shows which pairs cross: 300 ft vertical needed', asyn
   await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
   // No crossing now; the box's Delayed 90 has one close pass (#1 and #4, 954 ft) that the engine reports.
-  await expect(flags).toHaveText(['Close pass: 954 ft, #1 and #4']);
+  await expect(flags).toHaveText(["Close pass: 954 ft, #1 and #4: altitude separation needed"]);
 });
 
 test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads three.js', async ({ page }) => {
