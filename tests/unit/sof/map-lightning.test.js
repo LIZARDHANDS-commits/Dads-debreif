@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { greatCircleNm } from '../../../src/airfields/distance.js';
 import { lightningNearHome, MAX_CELLS } from '../../../src/modules/sof/lightning.js';
 import { getMapUrl, LAYERS } from '../../../src/modules/sof/feeds.js';
-import { lightningBox, decodeDensity, CELL_KM } from '../../../src/modules/sof/map-lightning.js';
+import { lightningBox, decodeDensity, CELL_KM, recolourLightning, LIGHTNING_MARK } from '../../../src/modules/sof/map-lightning.js';
 
 const HOME = { icao: 'CYMJ', lat: 50.3303, lon: -105.559 };
 const NOW = new Date('2026-09-29T18:42:00Z');
@@ -164,4 +164,87 @@ test('an isolated 2.5 km cell that sits off the sampling grid still reads near (
   corner[((py + 1) * box.width + px + 1) * 4 + 3] = 255;
   const one = decodeDensity({ data: corner, width: box.width, height: box.height }, box);
   assert.equal(lightningNearHome({ samples: one.samples, coverage: one.coverage, home: HOME, radiusNm: 20, layerTime: LAYER_TIME, now: NOW }).state, 'near');
+});
+
+// ---- F4 (sof-recheck-207, HIGH): lightning is drawn as a mark that can be seen on every base map -------------------------
+
+// WCAG relative luminance and contrast ratio (sRGB), the measure the audit used for 1.4.11 (3 : 1 for graphics that carry meaning).
+const lin = (v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+const contrast = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const over = (top, under, alpha) => top.map((v, i) => Math.round(v * alpha + under[i] * (1 - alpha)));
+
+// Representative colours of each base map as drawn (the satellite is dimmed by BASE_DIM; the first two satellite colours
+// are the audit's measured surroundings of a real cell), from dark forest and water to bright snow, cloud and bare fields;
+// the VNC chart's pale paper, tinted land and water, and its magenta lines; VNC over satellite at its 70% default.
+const SATELLITE = [[49, 50, 69], [69, 75, 36], [20, 30, 40], [90, 100, 80], [128, 128, 128], [170, 165, 140], [215, 215, 205], [250, 250, 250]];
+const VNC = [[236, 232, 214], [200, 225, 190], [180, 205, 228], [240, 215, 170], [170, 60, 150], [90, 120, 160], [255, 255, 255]];
+const VNC_OVER_SATELLITE = VNC.flatMap((chart) => SATELLITE.slice(0, 4).map((sat) => over(chart, sat, 0.7)));
+const BASES = { satellite: SATELLITE, vnc: VNC, 'vnc over satellite': VNC_OVER_SATELLITE };
+
+test('SPEC-sof line ~314 (audit #9, "lightning is visible"): a lightning cell is at least 3 : 1 against the satellite, the VNC chart and VNC over satellite, at the default and full opacity', () => {
+  for (const opacity of [0.85, 1]) {
+    // What is seen at this opacity: each part of the mark over the base.
+    for (const [name, colours] of Object.entries(BASES)) {
+      for (const base of colours) {
+        const f = over(LIGHTNING_MARK.fill, base, opacity);
+        const o = over(LIGHTNING_MARK.outline, base, opacity);
+        // A cell reads if its fill or its outline stands out from the base, and the fill from the outline (so the shape holds on any ground).
+        const best = Math.max(contrast(f, base), contrast(o, base));
+        assert.ok(best >= 3, `${name} ${base} at ${opacity * 100}%: ${best.toFixed(2)} : 1`);
+        assert.ok(contrast(f, o) >= 3, `${name} ${base} at ${opacity * 100}%: fill against its outline ${contrast(f, o).toFixed(2)} : 1`);
+      }
+    }
+  }
+  // The satellite is mostly dark: there the bright fill itself carries it, at 3 : 1 or better against the dark colours (the first four).
+  for (const base of SATELLITE.slice(0, 4)) {
+    assert.ok(contrast(over(LIGHTNING_MARK.fill, base, 0.85), base) >= 3, `fill on satellite ${base}`);
+  }
+});
+
+test('the old colour did not pass: ECCC\'s (0,0,190) at 85% over the audit\'s satellite surroundings is 1.02 to 1.41 : 1', () => {
+  for (const base of [[49, 50, 69], [69, 75, 36]]) {
+    const old = contrast(over([0, 0, 190], base, 0.85), base);
+    assert.ok(old < 3 && old < 1.5, `${old.toFixed(2)}`);
+  }
+});
+
+test('recolourLightning: each lit pixel becomes a bright fill with a dark outline, at least 3 pixels across, and nothing else is drawn', () => {
+  const box = { width: 20, height: 20 };
+  const image = picture(box, [[10, 10]]);
+  const out = recolourLightning(image);
+  assert.equal(out.width, 20);
+  assert.equal(out.height, 20);
+  const px = (x, y) => Array.from(out.data.slice((y * 20 + x) * 4, (y * 20 + x) * 4 + 4));
+  assert.deepEqual(px(10, 10), [...LIGHTNING_MARK.fill, 255], 'the cell itself is the fill');
+  assert.deepEqual(px(9, 9), [...LIGHTNING_MARK.fill, 255], 'the fill is at least 3 pixels across');
+  assert.deepEqual(px(11, 11), [...LIGHTNING_MARK.fill, 255]);
+  assert.deepEqual(px(12, 10), [...LIGHTNING_MARK.outline, 255], 'a dark outline round it');
+  assert.deepEqual(px(8, 8), [...LIGHTNING_MARK.outline, 255]);
+  assert.equal(px(13, 10)[3], 0, 'and nothing beyond');
+  assert.equal(px(0, 0)[3], 0);
+});
+
+test('recolourLightning: an empty picture stays empty, a cell at the edge stays inside the picture, and the input is not changed', () => {
+  const empty = picture({ width: 8, height: 8 });
+  assert.ok(recolourLightning(empty).data.every((v) => v === 0));
+  const edge = picture({ width: 8, height: 8 }, [[0, 0], [7, 7]]);
+  const before = Array.from(edge.data);
+  const out = recolourLightning(edge);
+  assert.equal(out.data.length, 8 * 8 * 4);
+  assert.deepEqual(Array.from(out.data.slice(0, 4)), [...LIGHTNING_MARK.fill, 255]);
+  assert.deepEqual(Array.from(edge.data), before);
+});
+
+test('recolourLightning: two neighbouring cells share one outline (the fill of one is never overdrawn by the other\'s outline)', () => {
+  const out = recolourLightning(picture({ width: 20, height: 8 }, [[8, 4], [10, 4]]));
+  const px = (x, y) => Array.from(out.data.slice((y * 20 + x) * 4, (y * 20 + x) * 4 + 3));
+  for (const x of [7, 8, 9, 10, 11]) assert.deepEqual(px(x, 4), [...LIGHTNING_MARK.fill], `x=${x}`);
+  assert.deepEqual(px(12, 4), [...LIGHTNING_MARK.outline]);
+});
+
+test('recolourLightning: a picture that is not readable gives null rather than a blank one', () => {
+  for (const bad of [null, undefined, {}, { width: 2, height: 2 }, { width: 2, height: 2, data: new Uint8ClampedArray(3) }]) {
+    assert.equal(recolourLightning(bad), null);
+  }
 });

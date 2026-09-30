@@ -21,6 +21,7 @@ import { ROUTES } from '../debrief/data/routes.js';
 import { LAYERS, getMapUrl, rainViewerTileUrl, REFRESH_MS } from './feeds.js';
 import { createImageFeed, createRadarFeed, extraMapUrl, feedLine, EXTRA_LAYERS } from './map-feeds.js';
 import { createLightningWatch, createTrafficFeed } from './map-loops.js';
+import { recolourLightning } from './map-lightning.js';
 import { trafficUrl } from './traffic.js';
 import {
   createProjection, homeView, cornersOf, radarImageRequest, imageStillFits, nearestWithin, RING_NM, SPAN_LIMITS,
@@ -136,17 +137,28 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       bitmap.close();
     }
   }
+  // The lightning layer is drawn as a bright, outlined mark (map-lightning.js `recolourLightning`), not in ECCC's dark blue,
+  // which is 1.02 to 1.41 : 1 on the satellite. The near-home check reads the picture as ECCC drew it (`readPixels`), not this.
+  async function decodeLightning(bytes) {
+    const marked = recolourLightning(await readPixels(bytes));
+    if (!marked) return null;
+    const scratch = document.createElement('canvas');
+    scratch.width = marked.width;
+    scratch.height = marked.height;
+    scratch.getContext('2d').putImageData(new ImageData(marked.data, marked.width, marked.height), 0, 0);
+    return createImageBitmap(scratch);
+  }
   const paused = () => document.hidden || adsbOn;
   const shared = { fetch: fetchNet, timers, now, onChange: () => redraw() };
 
   const radar = createRadarFeed({ precip: () => layers.precip, decode, paused, ...shared });
   // One picture feed for the layers that follow the view. `external`: a layer feeds.js does not list (map-feeds.js EXTRA_LAYERS).
-  const picture = (layer, kind, refreshMs, { external = false, timeless = false } = {}) => createImageFeed({
-    layer, kind, urlFor: external ? extraUrl : ecccUrl, timeless, decode, refreshMs, paused, ...shared,
+  const picture = (layer, kind, refreshMs, { external = false, timeless = false, decodeWith = decode } = {}) => createImageFeed({
+    layer, kind, urlFor: external ? extraUrl : ecccUrl, timeless, decode: decodeWith, refreshMs, paused, ...shared,
   });
   const feeds = {
     coverage: picture(LAYERS.coverage, 'radar', REFRESH_MS.radar),
-    lightning: picture(LAYERS.lightning, 'lightning', REFRESH_MS.lightning),
+    lightning: picture(LAYERS.lightning, 'lightning', REFRESH_MS.lightning, { decodeWith: decodeLightning }),
     cloud: picture(EXTRA_LAYERS.cloud, 'cloud', REFRESH_MS.lightning, { external: true }),
     warnings: picture(EXTRA_LAYERS.warnings, 'lightning', REFRESH_MS.lightning, { external: true, timeless: true }),
   };
