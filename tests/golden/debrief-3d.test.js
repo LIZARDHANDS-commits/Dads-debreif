@@ -1,12 +1,13 @@
 // Golden test (R9, D10): the 3D view's geometry in src/modules/debrief/view3d/
 // scene.js against V6's own 3D Debrief code, run unchanged. These pin V6 before
-// D40 (bank) and the #27 drawing fixes change it on purpose.
+// D40 (bank) and the #27 drawing fixes change it on purpose; each change has
+// its own test below saying exactly how it differs from V6.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadV6 } from './v6-source.js';
 import { seeded } from './inputs.js';
 import {
-  formationCenter, projectPoint, drawOrderV6, attitudeV6, t6PointsV6,
+  formationCenter, projectPoint, drawOrder, bankFromTrack, t6Points,
 } from '../../src/modules/debrief/view3d/scene.js';
 
 const MARKER = "const canvas=$('threeDCanvas')";
@@ -86,7 +87,7 @@ test('formationCenter matches V6 centerOf, following Lead or the whole formation
   assert.deepEqual(formationCenter({}, 'followLead'), v6.centerOf({}));
 });
 
-test('drawOrderV6 is V6\'s ascending-depth order', () => {
+test('#27: drawOrder paints far aircraft first, the reverse of V6\'s ascending-depth order', () => {
   const v6 = v6Scene();
   const r = seeded(33);
   for (let i = 0; i < 200; i++) {
@@ -94,10 +95,20 @@ test('drawOrderV6 is V6\'s ascending-depth order', () => {
     const live = { 1: randomPoint(r), 2: randomPoint(r), 3: randomPoint(r), 4: randomPoint(r) };
     const ctr = formationCenter(live, 'center');
     v6.setScene({ dom: slider(camera), canvas: size });
-    const want = Object.entries(live).sort((A, B) => v6.project(A[1], ctr).depth - v6.project(B[1], ctr).depth).map(e => e[0]);
-    const got = drawOrderV6(Object.entries(live), ([, p]) => projectPoint(p, ctr, camera, size).depth).map(e => e[0]);
-    assert.deepEqual(got, want);
+    const depths = Object.entries(live).map(([id, p]) => v6.project(p, ctr).depth);
+    if (new Set(depths).size < depths.length) continue; // ties keep insertion order both ways
+    const v6Order = Object.entries(live).sort((A, B) => v6.project(A[1], ctr).depth - v6.project(B[1], ctr).depth).map(e => e[0]);
+    const got = drawOrder(Object.entries(live), ([, p]) => projectPoint(p, ctr, camera, size).depth).map(e => e[0]);
+    assert.deepEqual(got, [...v6Order].reverse());
   }
+});
+
+test('#27: looking straight down, the higher of two stacked aircraft is drawn last', () => {
+  const camera = { yawDeg: 0, pitchDeg: 0, zoom: 70, altScale: 2 }, size = { width: 800, height: 600 };
+  const live = { 1: { x: 0, y: 0, altFt: 8000 }, 2: { x: 0, y: 0, altFt: 7500 } };
+  const ctr = formationCenter(live, 'center');
+  const order = drawOrder(Object.entries(live), ([, p]) => projectPoint(p, ctr, camera, size).depth).map(e => e[0]);
+  assert.deepEqual(order, ['2', '1']);
 });
 
 /** A turning aircraft sampled at t−1, t and t+1, as DADS3DAPI.getInterp would give it. */
@@ -114,38 +125,117 @@ function turning(r) {
   return { p, before, after, t };
 }
 
-test('attitudeV6 matches V6 attitudeFor (bank from the turn or recorded G, recorded pitch or 0)', () => {
+test('D40: bank from the real turn rate is V6\'s with the rate doubled', () => {
   const v6 = v6Scene();
   const r = seeded(34);
   for (let i = 0; i < 3000; i++) {
     const { p, before, after, t } = turning(r);
+    if (before && !Number.isFinite(before.t)) continue; // V6's missing-time fallback is kept; checked below
+    const noG = { ...p };
+    delete noG.gNative;
     v6.setScene({ api: { getTime: () => t, getTracks: () => ({ 2: {} }), getInterp: (id, tt) => (tt < t ? before : after) } });
-    const want = v6.attitudeFor(2, p);
-    const got = attitudeV6(p, before, after, t);
-    assert.equal(got.bankDeg, want.bank);
-    assert.equal(got.pitchDeg, want.pitch);
-    assert.equal(got.pitchSource, want.src === 'native pitch' ? 'recorded' : 'estimated');
+    const v6Bank = v6.attitudeFor(2, noG).bank;
+    const got = bankFromTrack({ before, now: p, after, speedKt: p.spdKt, recordedBankDeg: null });
+    assert.equal(got.source, 'estimated');
+    if (v6Bank === 0) { assert.equal(got.bankDeg, 0); continue; }
+    assert.equal(Math.sign(got.bankDeg), Math.sign(v6Bank));
+    const want = Math.min(85, (Math.atan(2 * Math.tan((Math.abs(v6Bank) * Math.PI) / 180)) * 180) / Math.PI);
+    assert.ok(Math.abs(Math.abs(got.bankDeg) - want) < 1e-9, `${got.bankDeg} vs ${want}`);
   }
-  v6.setScene({ api: null });
-  assert.deepEqual(v6.attitudeFor(1, { x: 0, y: 0 }), { bank: 0, pitch: 0, src: 'estimated' });
-  assert.deepEqual(attitudeV6(null), { bankDeg: 0, pitchDeg: 0, pitchSource: 'estimated' });
+  assert.deepEqual(bankFromTrack({}), { bankDeg: 0, source: 'estimated' });
+});
+
+/** A steady level turn flown at `kt` and `g`, sampled a second apart; left turns when dir is +1. */
+function levelTurn(kt, g, dir) {
+  const v = kt * 1.68781, rate = dir * (32.174 * Math.sqrt(g * g - 1)) / v, R = v / Math.abs(rate);
+  const at = (t) => ({ t, x: R * Math.sin(Math.abs(rate) * t), y: dir * R * (1 - Math.cos(Math.abs(rate) * t)) });
+  return { before: at(9), now: at(10), after: at(11), speedKt: kt };
+}
+
+test('D40: a 4 G level turn reads 75.5° with the turning wing down; V6 read about 63°', () => {
+  const trueBank = (Math.acos(1 / 4) * 180) / Math.PI;
+  const left = bankFromTrack(levelTurn(200, 4, 1));
+  const right = bankFromTrack(levelTurn(200, 4, -1));
+  // The chord headings of a circle sampled a second apart turn by exactly rate × 1 s,
+  // but ground speed over a chord is a hair under the arc speed; well under 0.1°.
+  assert.ok(Math.abs(left.bankDeg - trueBank) < 0.1, `${left.bankDeg}`);
+  assert.ok(Math.abs(right.bankDeg + trueBank) < 0.1, `${right.bankDeg}`);
+  const v6 = v6Scene();
+  const turn = levelTurn(200, 4, 1);
+  v6.setScene({ api: { getTime: () => 10, getTracks: () => ({ 2: {} }), getInterp: (id, tt) => (tt < 10 ? turn.before : turn.after) } });
+  assert.ok(Math.abs(v6.attitudeFor(2, { ...turn.now, spdKt: 200 }).bank - 62.69) < 0.01);
+});
+
+test('D40: a wings-level 3 G pull with recorded G draws wings level; V6 drew 70.5°', () => {
+  const pull = { before: { t: 9, x: 0, y: 2700 }, now: { t: 10, x: 0, y: 3000 }, after: { t: 11, x: 0, y: 3300 }, speedKt: 178 };
+  assert.deepEqual(bankFromTrack(pull), { bankDeg: 0, source: 'estimated' });
+  const v6 = v6Scene();
+  v6.setScene({ api: { getTime: () => 10, getTracks: () => ({ 2: {} }), getInterp: (id, tt) => (tt < 10 ? pull.before : pull.after) } });
+  assert.ok(Math.abs(v6.attitudeFor(2, { ...pull.now, spdKt: 178, gNative: 3 }).bank - 70.53) < 0.01);
+});
+
+test('D47: recorded bank wins, with flight-data\'s right-wing-down sign turned to left-wing-down', () => {
+  const turn = levelTurn(200, 4, 1);
+  assert.deepEqual(bankFromTrack({ ...turn, recordedBankDeg: 30 }), { bankDeg: -30, source: 'recorded' });
+  assert.deepEqual(bankFromTrack({ ...turn, recordedBankDeg: -60 }), { bankDeg: 60, source: 'recorded' });
+  assert.deepEqual(bankFromTrack({ recordedBankDeg: 0 }), { bankDeg: -0, source: 'recorded' });
+  // A missing time on either side falls back to a second, as V6 did.
+  const noT = { ...turn, before: { x: turn.before.x, y: turn.before.y }, now: { ...turn.now } };
+  assert.deepEqual(bankFromTrack(noT), bankFromTrack(turn));
 });
 
 const T6_ORDER = ['centre', 'nose', 'spinner', 'tail', 'fuseL', 'fuseR', 'aftL', 'aftR', 'wingL', 'wingR',
   'wingRootL', 'wingRootR', 'stabL', 'stabR', 'canopy', 'propL', 'propR', 'fin'];
 
-test('t6PointsV6 gives the corner points V6 projects for the low-poly T-6', () => {
+test('t6Points at wings level and zero pitch are exactly V6\'s low-poly T-6 corners', () => {
   const v6 = v6T6();
   const r = seeded(35);
   for (let i = 0; i < 1000; i++) {
     const p = { ...randomPoint(r), hdg: 2 * Math.PI * r() - Math.PI };
-    const bankDeg = -85 + 170 * r(), size = 50 + 600 * r();
-    const calls = v6.runT6(p, bankDeg, size);
+    const size = 50 + 600 * r();
+    const calls = v6.runT6(p, 0, size);
     assert.equal(calls.length, T6_ORDER.length);
-    const got = t6PointsV6(p, p.hdg, (bankDeg * Math.PI) / 180, size);
+    const got = t6Points(p, p.hdg, 0, 0, size);
     T6_ORDER.forEach((name, k) => {
       if (name === 'centre') return assert.equal(calls[k], p);
       assert.deepEqual(got[name], { x: calls[k].x, y: calls[k].y, altFt: calls[k].altFt }, name);
     });
+  }
+});
+
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.altFt - b.altFt);
+
+test('#14, D40: in a left bank the left wing goes down by the full half-span × sin(bank); V6 raised it by 0.20', () => {
+  const v6 = v6T6();
+  const p = { x: 0, y: 0, altFt: 5000 }, s = 260, hdg = Math.PI / 2;
+  const got = t6Points(p, hdg, Math.PI / 6, 0, s);
+  const drop = 0.66 * s * 0.5;
+  assert.ok(Math.abs(got.wingL.altFt - (5000 - drop)) < 1e-9);
+  assert.ok(Math.abs(got.wingR.altFt - (5000 + drop)) < 1e-9);
+  assert.ok(got.fin.x < 0, 'heading north in a left bank, the fin leans west, into the turn');
+  const calls = v6.runT6({ ...p, hdg }, 30, s);
+  assert.ok(Math.abs(calls[T6_ORDER.indexOf('wingL')].altFt - (5000 + 0.2 * s * 0.5)) < 1e-9);
+});
+
+test('#27: pitch raises the nose and lowers the tail, instead of sliding the drawing up the screen', () => {
+  const p = { x: 0, y: 0, altFt: 5000 }, s = 260;
+  const got = t6Points(p, 0, 0, (10 * Math.PI) / 180, s);
+  assert.ok(Math.abs(got.spinner.altFt - (5000 + 1.02 * s * Math.sin((10 * Math.PI) / 180))) < 1e-9);
+  assert.ok(got.tail.altFt < 5000);
+});
+
+test('t6Points turns the T-6 as one rigid body at any bank, pitch and heading', () => {
+  const r = seeded(36);
+  const names = Object.keys(t6Points({ x: 0, y: 0 }, 0, 0, 0, 1));
+  for (let i = 0; i < 300; i++) {
+    const p = randomPoint(r), s = 50 + 600 * r();
+    const flat = t6Points(p, 0, 0, 0, s);
+    const turned = t6Points(p, 2 * Math.PI * r(), (r() - 0.5) * 3, (r() - 0.5) * 3, s);
+    for (let a = 0; a < names.length; a++) {
+      for (let b = a + 1; b < names.length; b++) {
+        const d0 = dist(flat[names[a]], flat[names[b]]), d1 = dist(turned[names[a]], turned[names[b]]);
+        assert.ok(Math.abs(d0 - d1) < 1e-6 * s, `${names[a]}-${names[b]}`);
+      }
+    }
   }
 });

@@ -43,6 +43,8 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Acceptance: R12 (switch while playing keeps the time; never blank); each fix is its own commit updating the golden value.
   - Verify: golden scene tests; e2e view switch; performance log.
   - Files: src/modules/debrief/view3d/{scene,view}.js, tests/golden/debrief-3d.test.js, tests/unit/debrief/scene.test.js
+  - Done so far: scene pinned to V6 (#74); bank from the real turn rate, recorded bank first (D40, D47); the T-6 rolls and pitches as one body (#14, #27); near aircraft drawn over far ones (#27). Pitch comes from flight-data's `pitchAt` (D61).
+  - Field-elevation datum: `app.airfields.home().elevationFt`, or 1892 ft while that's null or not wired in yet (Airfields #79).
 
 **Checkpoint D:** open PR D.
 
