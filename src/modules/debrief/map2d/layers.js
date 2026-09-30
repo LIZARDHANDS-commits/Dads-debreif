@@ -7,6 +7,7 @@
 import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR, trackRuns } from '../state.js';
 import { spacingPairs, line39, coneOutlines, trailRuns } from './geometry.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
+import { arrowVector } from '../weather/wind-arrows.js';
 
 /** V6's grid spacing (line 2690). */
 export const GRID_FT = 5000;
@@ -209,6 +210,77 @@ function outlinedText(ctx, text, x, y, color) {
   ctx.strokeText(text, x, y);
   ctx.fillStyle = color;
   ctx.fillText(text, x, y);
+}
+
+// The model's wind arrows: the ui-kit's --text-muted, so they read as background information under the tracks (SPEC-debrief: Winds aloft).
+const WIND_COLOR = '#9bb8c6';
+const WIND_BARB_PX = 8;
+const WIND_LABEL_GAP_PX = 9;
+const WIND_CALM_RING_PX = 5;
+
+/**
+ * The model wind at the grid points, under the tracks: one arrow per point,
+ * from the point's place downwind (the way the air moves), its length in
+ * pixels from the speed (wind-arrows.js), a small dot on the point and the
+ * wind in words ("280°T/38 kt") beside it, as canvas text. arrows:
+ * [{ x, y, dirDeg, kt, label }], x and y in map feet, so they move with pan
+ * and zoom; dirDeg is where the wind blows from.
+ */
+export function drawWindArrows(ctx, map, arrows) {
+  const drawn = arrows.filter((a) => [a.x, a.y, a.dirDeg, a.kt].every(Number.isFinite));
+  if (!drawn.length) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  for (const a of drawn) {
+    const [x, y] = map.worldToScreen(a.x, a.y);
+    const { dx, dy, lengthPx, calm } = arrowVector(a);
+    if (calm) { // no direction to point: a ring on the point, with the word beside it
+      ctx.beginPath();
+      ctx.arc(x, y, WIND_CALM_RING_PX, 0, Math.PI * 2);
+      ctx.strokeStyle = OUTLINE_COLOR;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.strokeStyle = WIND_COLOR;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.textAlign = 'left';
+      outlinedText(ctx, a.label, x + WIND_CALM_RING_PX + 5, y, WIND_COLOR);
+      continue;
+    }
+    const hx = x + dx;
+    const hy = y + dy;
+    const ux = dx / lengthPx; // the unit vector of the way it points
+    const uy = dy / lengthPx;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(hx, hy);
+    for (const side of [-1, 1]) { // two barbs back from the head, 25 degrees either side of the shaft
+      const c = Math.cos(Math.PI / 7.2);
+      const s = side * Math.sin(Math.PI / 7.2);
+      ctx.moveTo(hx, hy);
+      ctx.lineTo(hx - WIND_BARB_PX * (ux * c - uy * s), hy - WIND_BARB_PX * (uy * c + ux * s));
+    }
+    ctx.strokeStyle = OUTLINE_COLOR;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.strokeStyle = WIND_COLOR;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = WIND_COLOR;
+    ctx.fill();
+    // The words beside the middle of the shaft, on the side that is up (or right).
+    let px = -uy;
+    let py = ux;
+    if (py > 0 || (py === 0 && px < 0)) { px = -px; py = -py; }
+    ctx.textAlign = Math.abs(px) < 0.5 ? 'center' : px > 0 ? 'left' : 'right';
+    outlinedText(ctx, a.label, x + dx / 2 + px * WIND_LABEL_GAP_PX, y + dy / 2 + py * WIND_LABEL_GAP_PX, WIND_COLOR);
+  }
+  ctx.restore();
 }
 
 const CONE_FILL = 'rgba(255, 204, 102, 0.16)';

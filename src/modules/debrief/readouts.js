@@ -322,14 +322,14 @@ export function leadText(lead) {
   return { text: `${numbers}, ${lead.labels.join(', ')}${target}`, tone: 'caution' };
 }
 
-/** "More detail" lines for one ship's live data (D47, D61: each value says where it came from). */
+/** "More detail" lines for one ship's live data (D47, D61: each value says where it came from; an unknown one is just "--"). */
 export function shipDetailText(ship) {
   if (ship.inGap) return ['GPS gap: no numbers until the track resumes'];
   let bank = '--';
   if (Number.isFinite(ship.bankDeg)) bank = Math.round(ship.bankDeg) !== 0 ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}` : '0°';
   return [
     `Alt ${ft(ship.altFt)}, GS ${kt(ship.gsKt)}, est. IAS ${kt(ship.iasKt)}`,
-    `G ${Number.isFinite(ship.g) ? ship.g.toFixed(2) : '--'} ${src(ship.gSource)}, pitch ${deg(ship.pitchDeg)} ${src(ship.pitchSource)}, bank ${bank} ${src(ship.bankSource)}`,
+    `G ${Number.isFinite(ship.g) ? `${ship.g.toFixed(2)} ${src(ship.gSource)}` : '--'}, pitch ${deg(ship.pitchDeg)} ${src(ship.pitchSource)}, bank ${bank === '--' ? bank : `${bank} ${src(ship.bankSource)}`}`,
     `Lat ${ship.lat.toFixed(5)}, Lon ${ship.lon.toFixed(5)}`,
   ];
 }

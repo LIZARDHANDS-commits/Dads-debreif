@@ -39,16 +39,20 @@ export function windModelFor(choice, startT) {
 }
 
 /**
- * The archive address for one point's hourly winds over the flight's days:
- * speed (kt), direction and height at each pressure level. Built only from
- * numbers and a model key from WIND_MODELS.
+ * The archive address for the hourly winds over the flight's days at one or
+ * more points, in one request: speed (kt), direction and height at each
+ * pressure level. Built only from numbers and a model key from WIND_MODELS.
+ * points: [{ lat, lon }], rounded to 0.01° (about 1 km) and sent as
+ * comma-separated lists, which the API answers with one reply per point, in
+ * this order (see readWindsGrid).
  */
-export function windsUrl({ lat, lon, startT, endT, model }) {
-  if (![lat, lon, startT, endT].every(Number.isFinite) || !Object.hasOwn(WIND_MODELS, model)) throw new TypeError('windsUrl: a point, two times and a model');
+export function windsGridUrl({ points, startT, endT, model }) {
+  const good = Array.isArray(points) && points.length > 0 && points.every((p) => Number.isFinite(p?.lat) && Number.isFinite(p?.lon));
+  if (!good || ![startT, endT].every(Number.isFinite) || !Object.hasOwn(WIND_MODELS, model)) throw new TypeError('windsGridUrl: points, two times and a model');
   const hourly = WIND_LEVELS_HPA.flatMap((p) => [`wind_speed_${p}hPa`, `wind_direction_${p}hPa`, `geopotential_height_${p}hPa`]);
   const q = new URLSearchParams({
-    latitude: lat.toFixed(2),
-    longitude: lon.toFixed(2),
+    latitude: points.map((p) => p.lat.toFixed(2)).join(','),
+    longitude: points.map((p) => p.lon.toFixed(2)).join(','),
     start_date: isoDay(startT - MAX_AGE_S.model), // the hour in force at take-off may be the day before
     end_date: isoDay(endT + 3600), // the hour after the last one, to blend towards: past 23:00Z that is the next day
     hourly: hourly.join(','),
@@ -57,6 +61,12 @@ export function windsUrl({ lat, lon, startT, endT, model }) {
     timezone: 'GMT',
   });
   return `${OPEN_METEO_URL}?${q}`;
+}
+
+/** The archive address for one point's hourly winds (the Lead line's). */
+export function windsUrl({ lat, lon, startT, endT, model }) {
+  if (![lat, lon, startT, endT].every(Number.isFinite) || !Object.hasOwn(WIND_MODELS, model)) throw new TypeError('windsUrl: a point, two times and a model');
+  return windsGridUrl({ points: [{ lat, lon }], startT, endT, model });
 }
 
 /**
@@ -91,6 +101,18 @@ export function readWinds(json) {
     Object.defineProperty(hours, 'groundFt', { value: json.elevation * M_TO_FT });
   }
   return hours;
+}
+
+/**
+ * Reads a multi-point reply: Open-Meteo answers several points with a list,
+ * one reply per point in the order asked, and a single point with the reply
+ * itself. Returns `count` lists of hours (readWinds' result, each with its own
+ * ground), one per point asked: a point with no reply is an empty list, so
+ * the points never shift.
+ */
+export function readWindsGrid(json, count) {
+  const replies = Array.isArray(json) ? json : json ? [json] : [];
+  return Array.from({ length: count }, (_, i) => readWinds(replies[i]));
 }
 
 /**
@@ -218,8 +240,7 @@ export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt = NaN } =
  * ({ kind, status }). Only a missing answer blames the connection; a server
  * error or an unreadable reply says Open-Meteo answered. label: "HRDPS" or "HRRR".
  */
-export function windFailureText(label, failure) {
-  const retry = 'Turn Winds aloft off and on to try again.';
+export function windFailureText(label, failure, retry = 'Turn Winds aloft off and on to try again.') {
   if (failure?.kind === 'http') return `${label} winds: Open-Meteo answered with an error (${failure.status}). ${retry}`;
   if (failure?.kind === 'reply') return `${label} winds: Open-Meteo's answer wasn't wind data. ${retry}`;
   return `${label} winds couldn't load. They need a connection.`;
