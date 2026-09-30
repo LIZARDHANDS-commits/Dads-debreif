@@ -15,7 +15,7 @@ import { createProfileStore } from './profile-store.js';
 import { createProfilesPanel } from './profiles-panel.js';
 import { createSim } from './sim.js';
 import { clockText } from './readouts.js';
-import { createClock } from './clock.js';
+import { createClock, TEN_SECONDS_STEPS } from './clock.js';
 import { buildScene, routeRows } from './scene.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
@@ -177,7 +177,27 @@ function mount(root, app) {
 
   // ---- playback ----------------------------------------------------------------------
   // If a frame throws, the run is paused first so the bar never says Running over a stopped sim; the error still surfaces.
+  // After an edit the snapshots are stale, and the first step back flies the run again from 0 (about 0.5 s for an hour
+  // of sim time). A stretch that long says "Replaying…" in the bar first, and is run a moment later so the words are on screen.
+  const REPLAY_NOTICE_STEPS = 4000; // 200 s of sim time, about 30 ms
+  let replaying = false;
+  function afterNotice(targetStep, go) {
+    if (replaying) return;
+    if (sim.replayCost(targetStep) <= REPLAY_NOTICE_STEPS) return go();
+    replaying = true;
+    bar.setState({ note: 'Replaying…' });
+    app.scheduler.after(50, () => {
+      try {
+        go();
+      } finally {
+        replaying = false;
+        bar.setState({ note: null });
+      }
+    });
+  }
+
   const onFrame = pauseOnThrow((dtMs) => {
+    if (replaying) return;
     const moved = clock.tick(dtMs);
     if (clock.mode === 'paused') pause(); // a rewind that reached 0:00 stops itself
     else if (moved) changed();
@@ -198,9 +218,12 @@ function mount(root, app) {
   /** Rewind plays the run backward at the playback speed, until 0:00 or Pause. */
   function rewind() {
     if (clock.mode === 'rewinding') return;
-    clock.rewind();
-    startFrames();
-    changed();
+    afterNotice(sim.steps - 1, () => {
+      sim.seekSteps(sim.steps - 1); // the first step back, which after an edit is the replay from 0; the frames then find snapshots
+      clock.rewind();
+      startFrames();
+      changed();
+    });
   }
 
   function pause() {
@@ -212,13 +235,15 @@ function mount(root, app) {
 
   /** -10 s and +10 s (the buttons, [ and ]): 10 s of sim time exactly, at any speed. Playing carries on; a rewind stops. */
   function stepBy(seconds) {
-    const wasRewinding = clock.mode === 'rewinding';
-    clock.stepBy(seconds);
-    if (wasRewinding) {
-      stopFrames?.();
-      stopFrames = null;
-    }
-    changed();
+    afterNotice(Math.max(0, sim.steps + Math.sign(seconds) * TEN_SECONDS_STEPS), () => {
+      const wasRewinding = clock.mode === 'rewinding';
+      clock.stepBy(seconds);
+      if (wasRewinding) {
+        stopFrames?.();
+        stopFrames = null;
+      }
+      changed();
+    });
   }
 
   function resetRun() {

@@ -329,6 +329,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       remember();
     },
 
+    /**
+     * How many steps `seekSteps(n)` would fly: the steps ahead, or from the nearest snapshot before `n` (all of
+     * them from 0 once an edit has made the snapshots stale). The screen says "Replaying…" before a long one.
+     */
+    replayCost(n) {
+      const wanted = Math.max(0, n);
+      if (wanted >= steps) return wanted - steps;
+      let best = 0;
+      for (const step of history.keys()) if (step <= wanted && step > best) best = step;
+      return wanted - best;
+    },
+
     /** How many snapshots the run holds now (about one every 10 s of sim time). */
     historySize: () => history.size,
 

@@ -648,6 +648,7 @@ test('a split added mid-run: -10 s and +10 s show the same picture as flying the
   await page.getByRole('button', { name: 'Split', exact: true }).click();
   await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('[');
+  await expect(status(page)).toHaveText('Paused'); // after "Replaying…"
   await page.keyboard.press(']');
   const stepped = await picture(page);
   const at = await seconds(page);
@@ -655,4 +656,27 @@ test('a split added mid-run: -10 s and +10 s show the same picture as flying the
   for (let i = 0; i < 60; i++) await page.keyboard.press(']');
   expect(await seconds(page)).toBe(at);
   expect(await picture(page)).toBe(stepped);
+});
+
+// After an edit the first step back flies the run again from 0: the bar says "Replaying…" while it does, and then goes back to normal.
+test('the first step back after an edit says Replaying… in the bar, and the next one does not', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 40; i++) await page.keyboard.press(']'); // 400 s, past what is replayed without a word
+  await page.locator('[data-route-id="PAT1"]').click();
+  await button(page, '+ New route').click();
+  await page.getByRole('button', { name: 'Split', exact: true }).click();
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  await page.evaluate(() => {
+    window.__seen = [];
+    const el = document.querySelector('.bar-status');
+    new MutationObserver(() => window.__seen.push(el.textContent)).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  await page.keyboard.press('[');
+  await expect(status(page)).toHaveText('Paused');
+  expect(await page.evaluate(() => window.__seen)).toContain('Replaying…');
+  await page.evaluate(() => { window.__seen.length = 0; });
+  await page.keyboard.press('[');
+  await expect(clock(page)).toBeVisible();
+  expect(await page.evaluate(() => window.__seen)).not.toContain('Replaying…');
 });

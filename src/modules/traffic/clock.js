@@ -14,7 +14,7 @@ import { SPEEDS } from './defaults.js';
 import { STEP_SEC } from './sim.js';
 
 /** The ±10 s buttons and the [ and ] keys move this many whole steps (10 s of sim time). */
-const TEN_SECONDS_STEPS = Math.round(10 / STEP_SEC);
+export const TEN_SECONDS_STEPS = Math.round(10 / STEP_SEC);
 
 /** The most sim time one frame may ask for, so a tab that was hidden can't freeze the page catching up. */
 const MAX_ADVANCE_SEC = 2;

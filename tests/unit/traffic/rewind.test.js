@@ -419,3 +419,25 @@ test('the frames of a Rewind at 8× each take a small fraction of a 60 fps frame
   t.diagnostic(`worst Rewind frame at 8×, 300 frames from 1 hour: ${worst.toFixed(2)} ms`);
   assert.ok(worst < 16, `${worst} ms`);
 });
+
+// ── What a step back will cost, so the screen can say "Replaying…" first ─────
+
+test('replayCost is the steps a seek would fly: at most 10 s behind a snapshot, everything from 0 after an edit, 0 for where it is', () => {
+  const sim = createSim(fresh(), { seed: 1 });
+  sim.seek(3600);
+  const hour = sim.steps;
+  assert.equal(sim.replayCost(hour), 0);
+  assert.equal(sim.replayCost(hour + 200), 200, 'ahead costs the steps ahead');
+  assert.ok(sim.replayCost(hour - 200) < 200);
+  assert.ok(sim.replayCost(12345) < 200);
+  assert.equal(sim.replayCost(-5), 0, 'before 0 is 0, where it goes');
+  // An edit forgets the snapshots: the first step back replays the run from 0.
+  sim.forgetHistory();
+  assert.equal(sim.replayCost(hour - 200), hour - 200);
+  const t0 = performance.now();
+  sim.seekSteps(hour - 200);
+  const cost = performance.now() - t0;
+  assert.equal(sim.steps, hour - 200);
+  assert.ok(sim.replayCost(hour - 400) < 200, 'and the replay left snapshots behind, so the next step back is cheap');
+  assert.ok(cost < 5000);
+});
