@@ -172,9 +172,17 @@ export function createControls(settings) {
     },
 
     // Greys out every control bound to `key`, for example 3D-only options in 2D.
-    // The setting keeps its value.
+    // The setting keeps its value. The whole control (label, box, unit) is
+    // marked aria-disabled too, so contrast checks treat the dimmed text as
+    // inactive, which WCAG 1.4.3 exempts.
     setDisabled(key, disabled) {
-      for (const el of byKey.get(key) ?? []) el.disabled = Boolean(disabled);
+      for (const el of byKey.get(key) ?? []) {
+        el.disabled = Boolean(disabled);
+        const control = el.tagName === 'FIELDSET' ? el : el.parentNode;
+        if (!control) continue;
+        if (disabled) control.setAttribute('aria-disabled', 'true');
+        else control.removeAttribute('aria-disabled');
+      }
     },
 
     dispose() {

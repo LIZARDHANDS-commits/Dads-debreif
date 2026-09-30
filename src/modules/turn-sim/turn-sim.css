@@ -391,3 +391,52 @@
 [data-module='turn-sim'] .ts-canvas3d.is-dragging {
   cursor: grabbing;
 }
+
+[data-module='turn-sim'] .ts-lines .tone-caution {
+  color: var(--caution);
+}
+
+/* Narrow screens (a phone, a small window): one column, so nothing sits over anything else (TS-11).
+   The playback bar and picture come first, then Setup, then the Formation card. */
+@media (max-width: 900px) {
+  [data-module='turn-sim'] .turn-sim {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+
+  [data-module='turn-sim'] .ts-stage {
+    order: 1;
+  }
+
+  [data-module='turn-sim'] .ts-col-setup {
+    order: 2;
+  }
+
+  [data-module='turn-sim'] .ts-col-formation {
+    order: 3;
+  }
+
+  [data-module='turn-sim'] .ts-col-setup,
+  [data-module='turn-sim'] .ts-col-formation,
+  [data-module='turn-sim'] .ts-col.is-collapsed {
+    width: auto;
+  }
+
+  [data-module='turn-sim'] .ts-col {
+    overflow-y: visible;
+  }
+
+  [data-module='turn-sim'] .ts-canvas-wrap {
+    flex: none;
+    height: clamp(16rem, 80vw, 32rem);
+  }
+}
+
+[data-module='turn-sim'] .ts-cross-note[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-cross-note.is-clamped {
+  color: var(--caution);
+}

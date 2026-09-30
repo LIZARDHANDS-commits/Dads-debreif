@@ -5,16 +5,19 @@
 // history row are compared, exact, no tolerance. Timing is the time delay.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { degToRad } from '../../src/core/angles.js';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../src/modules/turn-sim/engine/run.js';
-import { createV6Page } from './turn-sim-fake-page.js';
+import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
-const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90 };
+const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 180, inplace90: 90, check30: 30 }; // the shackle (SMM 16.19 paras 61-62) and the cross turn (para 64) are no longer V6's
 const DIRECTIONS = ['right', 'left'];
 
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
-const scenario = (over) => ({ ...V6_DEFAULTS, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
+// Q47 has the check wait for #3 and #4's turns, and the hook's offset box rear delay (SMM 112a) starts #3 and #4 late; V6 did
+// neither, and it stopped at the Duration whatever was waiting, so V6's runs are flown with the wait off, no delay and no extension. V6's hook is 90 degrees; the SMM's is 180, and V6 flies 180 when told.
+const scenario = (over) => ({ ...V6_DEFAULTS, rearCheckAfterTurns: false, rearDelaySec: 0, durationCoversTurn: false, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
 
 /**
  * The auto step in seconds, D44: spacing / speed x cot(half the turn angle), written out here from the spec
@@ -66,7 +69,8 @@ function compareLeg(page, run, label, autoStep) {
 /** V6 next to the port through a first leg and, when asked, a second one that continues from where the aircraft are. */
 function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   // D41 swapped "toward" and "away" back to what they say, so V6 is given the swapped names to fly the same turn.
-  const v6Settings = { ...v6From };
+  // D42 measures Wide and Tight from Lead on either side; V6 gets them swapped where its fixed direction differs.
+  const v6Settings = v6SettingsForD42(v6SettingsForD48(v6From));
   for (const id of [1, 2, 3, 4]) {
     const key = aircraftKey(id, 'turnLogic');
     v6Settings[key] = { toward: 'away', away: 'toward' }[v6From[key]] ?? v6From[key];
@@ -81,6 +85,13 @@ function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
     autoStep = autoStepFor(settings, probe);
     Object.assign(v6Settings, { timing: 'time', baseDelaySec: autoStep });
   }
+  // Delayed 45 (SMM paras 56 and 57): with Time delay the second aircraft waits the Base delay x cot(theta / 2), the delay that
+  // rolls it out in LAB. That is V6's time-delay flight with that as its Base delay.
+  if (settings.timing === 'time' && settings.maneuver === 'delayed45away') {
+    v6Settings.baseDelaySec = settings.baseDelaySec * (1 / Math.tan(degToRad(settings.turnDeg) / 2));
+  }
+  // The check turn (SMM para 58) is V6's in-place turn through its Turn degrees.
+  if (v6Settings.maneuver === 'check30') v6Settings.maneuver = 'inplace90';
   // The Clock tolerance box is read as V6 meant to (it read the box itself and got 4 whatever it said, issue #32).
   const page = createV6Page(v6Settings, { readsClockTolerance: true });
   page.reset();
@@ -89,6 +100,8 @@ function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   let steps = compareLeg(page, run, `${label} leg 1`, autoStep);
   for (let leg = 2; leg <= legs; leg++) {
     page.continueLeg();
+    // The port clears the rear element check on every new leg; V6 did it only on Reset, so V6 is cleared here too.
+    page.aircraft().forEach((a) => page.v6.resetRearCheckState(a));
     assert.equal(run.state.canStartLeg, true, `${label}: the leg can be continued`);
     run.startLeg();
     assert.equal(run.state.tSec, 0, label);
@@ -111,17 +124,17 @@ test('4312, 2134 and two-ship × delayed 90 and 45 × right and left, at V6\'s d
   assert.equal(n, 12);
 });
 
-test('hook, in-place 90, shackle and cross turn × every preset × right and left, at V6\'s defaults', () => {
+test('hook and in-place 90 × every preset × right and left, at V6\'s defaults', () => {
   let n = 0;
   for (const formation of ['weighted', 'weightedReverse', 'offsetBox', 'twoShip']) {
-    for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+    for (const maneuver of ['hook90', 'inplace90', 'check30']) {
       for (const direction of DIRECTIONS) {
         compareRun(scenario({ formation, maneuver, direction }), `${formation} ${maneuver} ${direction}`, { legs: 2 });
         n++;
       }
     }
   }
-  assert.equal(n, 32);
+  assert.equal(n, 24);
 });
 
 test('time delay: a different base delay moves each start, and V6 and the port agree on the rollout', () => {
@@ -138,8 +151,7 @@ test('seeded settings: speed, G, spacing, heading, turn degrees, errors, turn lo
   const round = (x, places) => Math.round(x * 10 ** places) / 10 ** places;
   for (let i = 0; i < 90; i++) {
     const maneuver = pick(Object.keys(TURN_DEG));
-    // The offset box's delayed turns use V6's solved plan (task 11), which the port doesn't have yet.
-    const formation = pick(/^delayed/.test(maneuver) ? ['weighted', 'weightedReverse', 'twoShip'] : ['weighted', 'weightedReverse', 'twoShip', 'offsetBox']);
+    const formation = pick(['weighted', 'weightedReverse', 'twoShip', 'offsetBox']);
     const s = scenario({
       formation,
       maneuver,
@@ -155,7 +167,15 @@ test('seeded settings: speed, G, spacing, heading, turn degrees, errors, turn lo
       turnDeg: pick([undefined, undefined, Math.round(20 + 160 * r())]),
       correction: pick(['none', 'none', 'lag', 'lead', 'gfix']),
       correctionStrength: round(2 * r(), 2),
+      offsetBox4Timing: pick(['late', 'early']),
+      rearCheckOn: pick([false, true]),
+      rearCheckStartSec: pick([0, 10, 40, round(60 * r(), 1)]),
+      rearCheckDir: pick(DIRECTIONS),
+      rearCheckAngleDeg: pick([20, Math.round(1 + 89 * r())]),
+      rearCheckHoldSec: pick([0, 5, round(15 * r(), 1)]),
     });
+    // The check turn is 30 degrees at most in the rebuild (settings.js turnDegProblem): V6 gets the same.
+    if (s.maneuver === 'check30' && s.turnDeg > 30) s.turnDeg = 30;
     // V6 gives NaN below 1 G after the correction (D74 changes that later); keep the seeds above it.
     if (s.correction === 'gfix') s.baseG = Math.max(s.baseG, 3);
     for (const id of [1, 2, 3, 4]) {
@@ -207,7 +227,7 @@ test('auto timing after D43 and D44 (step = spacing / speed x cot(half the turn)
 test('auto timing with other turns (no effect) and seeded speed, spacing, G, turn degrees and errors', () => {
   const r = seeded(0xa070);
   const pick = (list) => list[Math.floor(r() * list.length)];
-  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+  for (const maneuver of ['hook90', 'inplace90']) {
     compareRun(scenario({ maneuver, timing: 'auto' }), `auto ${maneuver}`);
   }
   for (let i = 0; i < 40; i++) {
@@ -247,7 +267,7 @@ test('clock cue: every clock position, the offset box, and the other turns (whic
     compareRun(scenario({ timing: 'clock', clockCuePos, direction: clockCuePos > 6 ? 'left' : 'right' }), `clock pos ${clockCuePos}`);
   }
   for (const direction of DIRECTIONS) compareRun(scenario({ timing: 'clock', formation: 'offsetBox', maneuver: 'inplace90', direction }), `clock offset box ${direction}`);
-  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) compareRun(scenario({ timing: 'clock', maneuver }), `clock ${maneuver}`);
+  for (const maneuver of ['hook90', 'inplace90']) compareRun(scenario({ timing: 'clock', maneuver }), `clock ${maneuver}`);
 });
 
 test('clock cue with seeded numbers, per-aircraft clock positions and targets, delay errors, and the Clock tolerance setting', () => {
@@ -324,12 +344,13 @@ test('Q45, Manual targets: when each aircraft is told to watch the aircraft just
   }
 });
 
-test('SMM item 2, Auto: the flight is V6\'s clock cue flown at 7 o\'clock in a right turn and 5 o\'clock in a left turn', () => {
+test('SMM item 2, Auto: the flight is V6\'s clock cue flown at 7 o\'clock in a right turn and 5 o\'clock in a left turn (the Delayed 45: 4:30 and 7:30, audit R2)', () => {
   for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
     for (const maneuver of ['delayed90away', 'delayed45away']) {
       for (const direction of DIRECTIONS) {
         const auto = scenario({ formation, maneuver, direction, timing: 'clock', clockCuePos: 'auto' });
-        const v6 = { ...auto, clockCuePos: direction === 'right' ? '7' : '5' };
+        const cue45 = maneuver === 'delayed45away';
+        const v6 = { ...auto, clockCuePos: direction === 'right' ? (cue45 ? '4.5' : '7') : (cue45 ? '7.5' : '5') };
         compareRun(auto, `clock auto ${formation} ${maneuver} ${direction}`, { v6From: v6, legs: 2 });
       }
     }
@@ -351,4 +372,76 @@ test('Correction model "G fix": the wingman\'s G is nudged toward its slot, up t
       }
     }
   }
+});
+
+test('offset box × delayed 90 and 45 × right and left × #4 LATE and EARLY × rear check off and on, two legs (V6\'s solved delays and its check)', () => {
+  let n = 0;
+  for (const maneuver of ['delayed90away', 'delayed45away']) {
+    for (const direction of DIRECTIONS) {
+      for (const offsetBox4Timing of ['late', 'early']) {
+        for (const rearCheckOn of [false, true]) {
+          const steps = compareRun(scenario({ formation: 'offsetBox', maneuver, direction, offsetBox4Timing, rearCheckOn }), `box ${maneuver} ${direction} ${offsetBox4Timing} check ${rearCheckOn}`, { legs: 2 });
+          assert.ok(steps > 3000);
+          n++;
+        }
+      }
+    }
+  }
+  assert.equal(n, 16);
+});
+
+test('the rear check: every direction, angle, start and hold, in the offset box only, with the turns that start at once', () => {
+  for (const rearCheckDir of DIRECTIONS) {
+    for (const [rearCheckAngleDeg, rearCheckStartSec, rearCheckHoldSec] of [[20, 40, 5], [1, 0, 0], [90, 5, 12.5], [45, 25, 3]]) {
+      compareRun(scenario({ formation: 'offsetBox', maneuver: 'delayed90away', rearCheckOn: true, rearCheckDir, rearCheckAngleDeg, rearCheckStartSec, rearCheckHoldSec }), `check ${rearCheckDir} ${rearCheckAngleDeg}`);
+    }
+  }
+  // In-place, hook, shackle and cross turns: #3 and #4 are taken over by the check too.
+  for (const maneuver of ['hook90', 'inplace90']) {
+    for (const rearCheckStartSec of [0, 40]) compareRun(scenario({ formation: 'offsetBox', maneuver, rearCheckOn: true, rearCheckStartSec }), `check ${maneuver} ${rearCheckStartSec}`, { legs: 2 });
+  }
+  // Only the offset box has the check.
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) compareRun(scenario({ formation, rearCheckOn: true, rearCheckStartSec: 5 }), `no check in ${formation}`);
+});
+
+test('D48: #2 on Lead\'s right flies as V6 flies the mirror layout, 4312 and 2134 × every turn × right and left, two legs, with position errors', () => {
+  const r = seeded(0xd48);
+  let n = 0;
+  for (const formation of ['weighted', 'weightedReverse']) {
+    for (const maneuver of Object.keys(TURN_DEG)) {
+      for (const direction of DIRECTIONS) {
+        const s = scenario({ formation, maneuver, direction, twoSide: 'right', durationSec: 75 });
+        if (n % 2) {
+          for (const id of [2, 3, 4]) {
+            s[aircraftKey(id, 'positionErrorOn')] = true;
+            s[aircraftKey(id, 'lateralDir')] = ['tight', 'wide'][Math.floor(2 * r())];
+            s[aircraftKey(id, 'lateralFt')] = Math.round(1500 * r());
+          }
+        }
+        compareRun(s, `right side ${formation} ${maneuver} ${direction}`, { legs: 2 });
+        n++;
+      }
+    }
+  }
+  assert.equal(n, 20);
+});
+
+test('V6 itself: the rear check runs in leg 1 and never again in leg 2 (it clears the check only on Reset)', () => {
+  const settings = scenario({ formation: 'offsetBox', maneuver: 'inplace90', rearCheckOn: true, rearCheckStartSec: 10, rearCheckHoldSec: 2, durationSec: 60 });
+  const page = createV6Page(settings);
+  page.reset();
+  page.play();
+  const legHeadings = () => {
+    const out = [];
+    while (page.time() < 60) { page.step(); out.push(page.aircraft().map((a) => a.hdg)); }
+    return out;
+  };
+  const first = legHeadings();
+  assert.ok(page.aircraft().every((a) => a.rearCheckComplete === (a.id === 3 || a.id === 4)), 'the check completed in leg 1');
+  page.continueLeg();
+  const second = legHeadings();
+  // Leg 2 is an in-place turn from the leg 1 heading: #3 turns 90 degrees at once and only that, no 20 degree swing first.
+  const start = first[first.length - 1][2];
+  assert.ok(second.every((h) => Math.abs(h[2] - start) <= Math.PI / 2 + 1e-3), 'no swing beyond the planned turn');
+  assert.ok(second[0][2] !== start && Math.abs(second[0][2] - start) < 0.1, 'the planned turn starts on the first step');
 });

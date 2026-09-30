@@ -24,14 +24,6 @@ const CROSSING_TURNS = new Set(['shackle45', 'cross180']);
 
 export const STALL_G_WARNING = 'More G than a T-6 can pull at this speed';
 
-/**
- * Each turn's own degrees: V6's boxes fill Turn degrees in when the turn changes
- * (updateManeuverDefaults, line 2030). The check turn is SMM item 1, not built yet.
- */
-export const TURN_DEGREES = Object.freeze({
-  delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90,
-});
-
 const MINUS = '−';
 
 /** 6420 -> "6,420 ft", with a real minus sign. */
@@ -60,6 +52,27 @@ function fleetOf(state) {
     .sort(byNumber);
 }
 
+/**
+ * The fleet in Lead's own frame for the classifier: Lead at the origin heading 0, every other aircraft turned to match
+ * and rounded to a hundredth of a foot. The classifier measures fore/aft and lateral from Lead's heading with cos and
+ * sin, so on a heading such as 000 or 300 a perfect formation comes out a hair off (1e-13 to 1e-7 ft) and reads FORE or
+ * WIDE. Turned into Lead's frame first, the numbers are exact where the formation is exact (TS-06). The picture and the
+ * distances are unchanged: only the judging sees this frame.
+ */
+function leadFrameFleet(state) {
+  const fleet = fleetOf(state);
+  const lead = fleet[0];
+  if (!lead) return fleet;
+  const c = Math.cos(lead.hdg);
+  const s = Math.sin(lead.hdg);
+  const round = (v) => Math.round(v * 100) / 100 + 0; // + 0: no -0
+  return fleet.map((a) => {
+    const dx = a.x - lead.x;
+    const dy = a.y - lead.y;
+    return { id: a.id, x: round(dx * c + dy * s), y: round(-dx * s + dy * c), hdg: a.id === lead.id ? 0 : a.hdg - lead.hdg };
+  });
+}
+
 /** Which standard judges aircraft `id` in this formation: #3 in the offset box by the offset standard, all others by spread. */
 export function judgedBy(id, formation) {
   return formation === 'offsetBox' && id === 3 ? 'offset' : 'spread';
@@ -70,13 +83,13 @@ export function judgedBy(id, formation) {
  * standard judges nothing, so that aircraft has no labels (judged: false);
  * core's classifier ignores the `on` switches, so this is where they count.
  *
- * @param {object} state      { aircraft: [{ id, xFt, yFt, headingRad }] }
- * @param {object} settings   the Turn Sim settings (formation: V6's 'weighted', 'weightedReverse', 'offsetBox', 'twoShip')
- * @param {object} [standards] app.standards.get(); falls back to DEFAULT_STANDARDS
+ * @param {any} state      { aircraft: [{ id, xFt, yFt, headingRad }] }
+ * @param {any} settings   the Turn Sim settings (formation: V6's 'weighted', 'weightedReverse', 'offsetBox', 'twoShip')
+ * @param {any} [standards] app.standards.get(); falls back to DEFAULT_STANDARDS
  */
 export function formationRows(state, settings, standards) {
   const std = standards ?? DEFAULT_STANDARDS;
-  const fleet = fleetOf(state);
+  const fleet = leadFrameFleet(state);
   if (fleet.length < 2 || fleet[0].id !== 1) return [];
   return fleet.slice(1).map((a) => {
     const key = judgedBy(a.id, settings.formation);
@@ -167,7 +180,11 @@ function abreastPairs(formation) {
 export function separationFlags(state, settings, pairs = pairDistances(state)) {
   const flags = [];
   const min = minSeparationFt(pairs);
-  if (min !== null && min < UNDER_SEPARATION_FT) {
+  // Pairs the plan passes within 300 ft (state.crossings, known before the first step, such as the offset box hook's rear
+  // aircraft nose to nose with the front element's outbound leg): the sim is flat, so the SMM's vertical margin is needed.
+  const crossing = (state?.crossings ?? []).map((c) => `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed, #${c.a} and #${c.b}`);
+  flags.push(...crossing);
+  if (min !== null && min < UNDER_SEPARATION_FT && !crossing.length) {
     flags.push(CROSSING_TURNS.has(settings.maneuver) ? `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed` : `Under ${UNDER_SEPARATION_FT} ft`);
   }
   const byId = new Map((state?.aircraft ?? []).map((a) => [a.id, a]));
@@ -212,15 +229,8 @@ export function wingmanDetail(row) {
 }
 
 /**
- * Everything the Formation column shows for one state.
- *
- * @param {object} state      the engine's state: { tSec, finished, aircraft }
- * @param {object} settings   the Turn Sim settings
- * @param {object} [options]  { standards, stallLimitG, distNm }
- */
-/**
  * Each aircraft's clock-cue status, live from the engine (state.aircraft[i].cue), for Timing = clock cue; empty otherwise.
- * `warning` is Q44c: in the offset box #3 and #4 can't see a 5:30 cue (V6 never turns them), so the screen says so.
+ * `warning` is Q44c: in the offset box #3 and #4 can't see their clock cue, so they turn on the rear element timing instead, and the screen says so.
  */
 export function cueStatus(state) {
   const lines = [];
@@ -238,10 +248,57 @@ export function cueStatus(state) {
       blindPos = at;
     }
   }
-  const warning = blind.length ? `${blind.map((id) => `#${id}`).join(' and ')} can't see a ${blindPos} cue in the offset box; pick Time delay` : null;
+  const many = blind.length > 1;
+  const warning = blind.length
+    ? `${blind.map((id) => `#${id}`).join(' and ')} can't see ${many ? 'their' : 'its'} clock cue in the box, so ${many ? 'they turn' : 'it turns'} on the rear element timing instead.`
+    : null;
   return { lines, warning };
 }
 
+/**
+ * The cross turn's second-stage G, from state.crossTurnSpacingNote ({ solvedG, clamped, spacingFt }), or null in any other turn.
+ * `clamped` means the G hit its limit, so the roll-out spacing is not the one asked for (the screen shows it in the caution colour).
+ */
+export function crossTurnNote(state) {
+  const n = state?.crossTurnSpacingNote;
+  if (!n) return null;
+  const g = `${n.solvedG.toFixed(1)} G`;
+  return n.clamped
+    ? { clamped: true, text: `Second half held at ${g}, the most it can use: rolls out ${ft(n.spacingFt)} apart` }
+    : { clamped: false, text: `Second half at ${g} to roll out ${ft(n.spacingFt)} apart` };
+}
+
+/**
+ * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
+ * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag). With `timing` 'boxSlot' the delays are
+ * solved to keep the box's shape, so an outside #3 delay is not an error and the flag says so, and #4 (which turns on the LAB cue
+ * off #3) is an information line with no flag.
+ */
+export function offsetBandLines(state, timing = null) {
+  const box = state?.offsetBox;
+  if (!box) return null;
+  const band = `${box.minSec}-${box.maxSec} s`;
+  return box.rear.map((r) => {
+    // Box slot (Fig 16.30): only #3 delays 10 to 15 s; #4 turns on the normal LAB cue off #3, so its time from #3 is information, never a flag.
+    if (timing === 'boxSlot' && r.id === 4) {
+      const secs = Math.abs(r.delaySec).toFixed(1);
+      return { id: r.id, outside: false, info: true, text: `turns ${secs} s ${r.delaySec < 0 ? 'before' : 'after'} #3` };
+    }
+    return {
+      id: r.id,
+      outside: Boolean(r.outsideBand),
+      text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : timing === 'boxSlot' ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
+    };
+  });
+}
+
+/**
+ * Everything the Formation column shows for one state.
+ *
+ * @param {any} state      the engine's state: { tSec, finished, aircraft }
+ * @param {any} settings   the Turn Sim settings
+ * @param {{ standards?: any, stallLimitG?: (kt: number) => number, distNm?: boolean }} [options]
+ */
 export function readoutsAt(state, settings, { standards, stallLimitG, distNm = false } = {}) {
   const std = standards ?? DEFAULT_STANDARDS;
   const gById = new Map((state?.aircraft ?? []).map((a) => [a.id, a.g]));
@@ -264,7 +321,11 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
+    offsetBand: offsetBandLines(state, settings.offsetBox4Timing),
+    crossNote: crossTurnNote(state),
     autoStepSec: state?.autoStepSec ?? null,
+    maneuverFallback: state?.maneuverFallback ?? null,
+    leadTurnDirection: state?.leadTurnDirection ?? null,
     gWarning: stallWarning(settings.baseG, settings.speedKt, stallLimitG),
     summary: [
       ['Turn radius', ft(numbers.radiusFt)],
