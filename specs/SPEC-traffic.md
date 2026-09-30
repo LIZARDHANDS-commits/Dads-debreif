@@ -131,7 +131,7 @@ Patrick: "Make sure all the parameters start with a default entry and that the i
 | Playback speed | 8×, as V6's built-in setup |
 | 2D or 3D | 2D; the 3D camera starts at Fit |
 | Wind | calm: 360°T at 0 kt |
-| Layers | trails, height and speed labels, route points, conflict bubbles, caution rings and the satellite photo on (V6's built-in setup); leg distances, turn data and Engine-out reach off |
+| Layers | trails, height and speed labels, route points, conflict bubbles, caution rings and the satellite photo on (V6's built-in setup); leg distances, turn data and Engine-out reach off; a bubble and a ring are drawn true size, but never smaller than 8 px and 12 px on screen, so they can be seen zoomed out |
 | Photo (More in Layers) | opacity 100 %, drawn above the grid, the setup's own alignment (1.2 trim until the redraw, T8) |
 | Route options | rounded turns on, radius from speed and G on, manual radius 1,800 ft |
 | New pattern | V6's generic pattern (see Routes above), left-hand, its first point a decision point at V6's odds (Land 20 %, Stay 80 %); at another home field, the runway box starts at 29, V6's generic runway, until you type the real one (T2). *Engine port note:* V6's builder draws a right-hand circuit despite its "left" label (its `perp('left')` is the right-hand side on the north-up map); the port pins that, and task 12 flips it to left-hand as its own commit (decision logged for Patrick's review, 09:34Z) |
