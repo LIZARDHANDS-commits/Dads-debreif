@@ -116,14 +116,14 @@ test('cue status: an aircraft with its own clock position shows it, and other ti
   for (const a of time.state.aircraft) assert.equal(a.cue.mode, 'off');
 });
 
-test('cue status: #3 and #4 in the offset box are flagged at every clock position, because they never turn (issue #16, Q44c)', () => {
+test('cue status: #3 and #4 in the offset box are flagged at every clock position, because they cannot see the cue (issue #16, Q44c)', () => {
   for (const direction of ['right', 'left']) {
     const run = createRun({ ...V6_DEFAULTS, formation: 'offsetBox', timing: 'clock', direction, durationSec: 200 });
     const flags = () => run.state.aircraft.map((a) => a.cue.cantSee);
     assert.deepEqual(flags(), [false, false, true, true]);
     while (run.step());
-    // The engine agrees: only the front element ever turned.
-    assert.deepEqual(run.state.aircraft.map((a) => a.done), [true, true, false, false], direction);
+    // They fall back to the rear delay instead of waiting for ever: everyone turns, #3 after #1 and #4 after #2 by 12.5 s.
+    assert.deepEqual(run.state.aircraft.map((a) => a.done), [true, true, true, true], direction);
   }
   // The Auto position (7 right, 5 left) and every other position, in both directions, warn just the same.
   for (const clockCuePos of ['auto', 7, 5, 12, 3, 9.5]) {
