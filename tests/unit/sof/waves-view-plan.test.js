@@ -165,3 +165,12 @@ test('listeners are told of a change and can stop listening; an unchanged plan t
   store.add();
   assert.equal(told, 2);
 });
+
+test('bidirectional overrides and isolates are stripped from a name, so it cannot reverse the text around it', () => {
+  const tricky = '\u202Eabc\u202A\u202B\u202C\u202D\u2066\u2067\u2068\u2069def';
+  const read = cleanPlan(stored({ waves: [{ id: 'w1', name: tricky, takeoff: '08:00', land: '09:30' }] }));
+  assert.equal(read.waves[0].name, 'abcdef');
+  const edited = editWave(stored({ waves: [wave('w1')] }), 'w1', { name: tricky });
+  assert.equal(edited.waves[0].name, 'abcdef');
+  assert.equal(cleanPlan(stored({ waves: [{ id: 'w1', name: 'Early', takeoff: '', land: '' }] })).waves[0].name, 'Early', 'ordinary names are unchanged');
+});

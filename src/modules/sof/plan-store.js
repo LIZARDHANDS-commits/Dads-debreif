@@ -20,7 +20,9 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** A plan with no waves, for Today. */
 export const emptyPlan = () => ({ version: VERSION, day: 'today', dayChosen: null, waves: [] });
 
-const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, MAX_NAME) : '');
+// Control characters and the bidirectional overrides and isolates go: a name is drawn as plain text and must not
+// be able to reverse or reorder the text around it.
+const cleanName = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u202A-\u202E\u2066-\u2069]/g, '').trim().slice(0, MAX_NAME) : '');
 const cleanClock = (v) => (parseClock(v) == null ? '' : v);
 
 function nextId(waves) {

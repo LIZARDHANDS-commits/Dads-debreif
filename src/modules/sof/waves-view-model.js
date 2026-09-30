@@ -121,9 +121,9 @@ function altLinesOf(row, call, notes) {
 export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, selectedId, tafNotes = {} } = {}) {
   const homeIcao = airfields.home().icao;
   const entries = plan.waves;
-  const planned = /** @type {any} */ (planToUtc)(entries, { now, timeZone, day: plan.day });
-  const skipped = new Map(planned.skipped.map((s) => [s.index, s]));
-  const calls = planned.problem ? [] : /** @type {any} */ (waveCalls)({ waves: planned.waves, airfields, tafs, limits });
+  const planned = planToUtc(entries, { now, timeZone, day: plan.day });
+  const skipped = new Map(planned.skipped.map((s) => /** @type {[number, any]} */ ([s.index, s])));
+  const calls = planned.problem ? [] : waveCalls({ waves: planned.waves, airfields, tafs, limits });
 
   let placed = 0;
   const rows = entries.slice(0, MAX_WAVES).map((entry, index) => {

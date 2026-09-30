@@ -114,7 +114,7 @@ function waveView(w, timeZone) {
  * @param {any} [args]
  */
 export function buildTimelineView({ airfields, snapshot, limits, waves = [], day = 'today', now, timeZone, timePrimary = 'zulu', tafNotes = {} } = {}) {
-  const model = /** @type {any} */ (timelineModel)({
+  const model = timelineModel({
     rows: timelineRows({ airfields, snapshot, limits }),
     waves,
     now,

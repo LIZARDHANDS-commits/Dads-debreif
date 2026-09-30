@@ -41,7 +41,7 @@ export function createBannerView({ onAcknowledge, onAcknowledgeAll, focusAfter =
     const active = document.activeElement;
     const hadFocus = element.contains(active);
     // Which button had focus, before a redraw takes it away: its line's key and place, or Acknowledge all.
-    const lineOfFocus = hadFocus ? active.closest?.('.sof-banner-line') : null;
+    const lineOfFocus = hadFocus ? /** @type {HTMLElement | null} */ (active.closest?.('.sof-banner-line')) : null;
     const heldKey = lineOfFocus?.dataset.key ?? null;
     const heldIndex = lineOfFocus ? [...list.children].indexOf(lineOfFocus) : -1;
     const heldAll = hadFocus && active === all;
