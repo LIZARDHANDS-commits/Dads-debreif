@@ -29,7 +29,7 @@ export function visualDescentMinima({ meaFt, elevationFt, visSm = VISUAL_DESCENT
   return [{ ceilingFt: meaFt + VISUAL_DESCENT_MARGIN_FT - elevationFt, visSm: vis }];
 }
 
-function describe(p, check) {
+function describe(p, check, groups) {
   return {
     kind: p.kind,
     probability: p.probability,
@@ -40,6 +40,8 @@ function describe(p, check) {
     ceilingFt: check.ceilingFt,
     visibility: check.visibility,
     reasons: check.reasons,
+    reasonSpans: check.reasonSpans,
+    span: groups?.[p.group]?.span ?? null,
   };
 }
 
@@ -70,7 +72,7 @@ export function checkOptions(conditions, minima) {
  * `optionsFor(piece)` gives the minima to use for a piece, or null to skip the
  * limit test for it (the piece is then returned in `unchecked` if it is below `fallback`).
  */
-function hitsIn(forecast, optionsFor, fallback) {
+function hitsIn(forecast, optionsFor, fallback, groups) {
   const pieces = [
     ...forecast.prevailing.map((p) => ({ kind: 'PREVAILING', probability: null, tempo: false, ...p })),
     ...forecast.overlays,
@@ -85,10 +87,10 @@ function hitsIn(forecast, optionsFor, fallback) {
     const check = checkOptions(p.conditions, options ?? fallback);
     if (p.kind === 'PREVAILING' && (check.visibilityUnknown || check.ceilingUnknown)) incomplete = true;
     if (!options) {
-      if (check.belowLimits) unchecked.push(describe(p, check));
-    } else if (check.belowLimits) hits.push(describe(p, check));
-    else if (check.atLimit) atLimit.push(describe(p, check));
-    if (check.cautions.length) cautions.push({ ...describe(p, check), cautions: check.cautions });
+      if (check.belowLimits) unchecked.push(describe(p, check, groups));
+    } else if (check.belowLimits) hits.push(describe(p, check, groups));
+    else if (check.atLimit) atLimit.push(describe(p, check, groups));
+    if (check.cautions.length) cautions.push({ ...describe(p, check, groups), cautions: check.cautions });
   }
   return { hits, atLimit, cautions, unchecked, incomplete };
 }
@@ -132,7 +134,7 @@ export function homeAlternateTrigger(taf, window, limits) {
   const options = given ?? [DEFAULT_LIMITS.home];
   const problems = [...(taf.problems ?? [])];
   if (limits != null && !given) problems.push('Home limits could not be read');
-  const found = hitsIn(f, () => options, options);
+  const found = hitsIn(f, () => options, options, taf.groups);
   const status = f.covered ? coveredStatus({ problems }, found) : shortStatus(found);
   const { hits, atLimit, cautions } = found;
   return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, atLimit, cautions, problems };
@@ -193,7 +195,7 @@ export function assessAlternate(taf, when, { minima, landingMinima, visualDescen
   const f = forecastAt(taf, w);
   const alternate = descent ?? toOptions(minima) ?? [DEFAULT_LIMITS.alternate];
   const landing = toOptions(landingMinima);
-  const found = hitsIn(f, (p) => (p.kind === 'PROB' ? landing : alternate), alternate);
+  const found = hitsIn(f, (p) => (p.kind === 'PROB' ? landing : alternate), alternate, taf.groups);
   const status = f.covered ? coveredStatus({ problems }, found) : shortStatus(found);
   const worst = [...found.hits].sort(byTime)[0] ?? [...found.atLimit].sort(byTime)[0] ?? null;
   return {
