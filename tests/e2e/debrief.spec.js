@@ -224,6 +224,9 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     });
     expect(await overlaps()).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('debrief.png') });
+    await page.getByRole('button', { name: 'Routes and charts' }).click();
+    await page.getByText('Chart alignment').click();
+    expect(await overlaps()).toEqual([]);
     // The same in 3D, with its settings open.
     await page.keyboard.press('Escape');
     await page.getByText('3D', { exact: true }).click();
@@ -446,8 +449,10 @@ test('every map layer redraws at once while paused, and comes back after a reloa
     await act();
     await expect.poll(() => mapPicture(page)).not.toBe(before);
   };
+  await page.getByRole('button', { name: 'Routes and charts' }).click();
   await changes(() => page.getByLabel('Route', { exact: true }).selectOption({ label: 'TACNAV 1' }));
   await changes(() => page.getByLabel('Route opacity').fill('30'));
+  await page.getByRole('button', { name: 'Layers' }).click();
   // The cone is small, so it's checked zoomed in on Lead.
   await changes(() => page.getByLabel('Follow Lead').check());
   const zoomBefore = await mapPicture(page);
@@ -477,7 +482,7 @@ test('every map layer redraws at once while paused, and comes back after a reloa
 
 test('a built-in route shows on its own before any flight is loaded', async ({ page }) => {
   await openRoute(page, '#/debrief');
-  await page.getByRole('button', { name: 'Layers' }).click();
+  await page.getByRole('button', { name: 'Routes and charts' }).click();
   const route = page.getByLabel('Route', { exact: true });
   await expect(route.locator('option')).toHaveCount(20); // None and V6's 19
   const before = await mapPicture(page);
@@ -609,3 +614,37 @@ test('3D: drag turns it, the wheel zooms, settings are kept, Reset view goes bac
   await expect(page.getByLabel('Zoom', { exact: true })).toHaveValue('70');
   await expect(page.getByLabel('Altitude sticks')).not.toBeChecked(); // Reset view is the camera only
 });
+
+test('VNC charts: off at first, fetched only when chosen, "Not for navigation", opacity and alignment redraw (#43, R5)', async ({ page }) => {
+  const asked = [];
+  page.on('request', (req) => req.url().includes('/media/debrief/') && asked.push(new URL(req.url()).pathname.split('/').pop()));
+  await openRoute(page, '#/debrief');
+  await page.getByRole('button', { name: 'Routes and charts' }).click();
+  const chart = page.getByLabel('VNC chart');
+  await expect(chart.locator('option:checked')).toHaveText('Off');
+  expect(asked).toEqual([]);
+  const credit = page.locator('.map-credit');
+  const before = await mapPicture(page);
+  await chart.selectOption({ label: 'South (Moose Jaw, Regina)' });
+  await expect(credit).toHaveText(/not for navigation/i, { timeout: 15_000 });
+  await expect.poll(() => mapPicture(page)).not.toBe(before);
+  expect(asked).toEqual(['vnc-south.webp']);
+
+  const changes = async (act) => {
+    const b = await mapPicture(page);
+    await act();
+    await expect.poll(() => mapPicture(page)).not.toBe(b);
+  };
+  await changes(() => page.getByLabel('Chart opacity').fill('30'));
+  await page.getByText('Chart alignment').click();
+  await changes(() => page.getByLabel('East / West').fill('5'));
+  await changes(() => page.getByLabel('Chart scale').fill('101'));
+  await page.getByRole('button', { name: 'Reset alignment' }).click();
+  await expect(page.getByLabel('East / West')).toHaveValue('0');
+  await expect(page.getByLabel('Chart scale')).toHaveValue('100');
+  await chart.selectOption({ label: 'Both' });
+  await expect.poll(() => asked.length).toBe(2);
+  await chart.selectOption({ label: 'Off' });
+  await expect(credit).toBeHidden();
+});
+

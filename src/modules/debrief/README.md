@@ -16,7 +16,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `map2d/overlays.js` | The built-in routes: placed on the map (the flight's, or Moose Jaw's with no flight) and drawn dashed under the tracks. |
 | `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
 | `map2d/tiles.js` | Web map tiles (Esri World Imagery) under the map: which tiles a view needs, fetching with retries, and drawing. Knows nothing of the debrief, so it can move to the ui-kit. |
-| `map2d/vnc.js` | The VNC charts' bounds and warp, pinned to V6 (not drawn yet). |
+| `map2d/vnc.js` | The VNC charts: bounds and warp pinned to V6, and the layer that fetches each chart when first shown and warps it once per alignment. |
 | `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6. |
 | `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
 | `view3d/view.js` | Draws the 3D view on its canvas and turns and zooms it with the mouse and keys. |

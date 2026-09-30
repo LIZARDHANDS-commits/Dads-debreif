@@ -10,6 +10,7 @@ import { MAX_TRACKS } from '../../flight-data/load.js';
 import { createReadoutsPanel } from './readouts-panel.js';
 import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
 import { ROUTES } from './data/routes.js';
+import { VNC_ALIGN_LIMITS, VNC_DEFAULT_ALIGN } from './map2d/vnc.js';
 import { ESRI_IMAGERY } from './map2d/tiles.js';
 import { CAMERA_LIMITS } from './view3d/frame.js';
 import { V6_CAMERA } from './view3d/scene.js';
@@ -90,6 +91,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   }
 
   const resetLayout = () => h('button', { type: 'button', class: 'button', onclick: () => handlers.reset?.() }, 'Reset layout');
+  const { nudgeNm: NUDGE, scalePct: SCALE } = VNC_ALIGN_LIMITS;
   const layersMenu = menu('Layers', 'debrief-layers', [
     controls.checkbox('satellite', { label: 'Satellite imagery' }),
     controls.select('trail', { label: 'Trail', options: [
@@ -106,9 +108,37 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('bubble', { label: 'Safety bubble' }),
     controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
     controls.checkbox('followLead', { label: 'Follow Lead' }),
+    resetLayout(),
+  ]);
+  // Routes and VNC charts under the tracks, in a menu of their own so each stays short.
+  const chartsMenu = menu('Routes and charts', 'debrief-charts', [
     controls.select('route', { label: 'Route', options: [{ value: '', label: 'None' }, ...ROUTES.map((r) => ({ value: r.name, label: r.name }))] }),
     controls.slider('routeOpacity', { label: 'Route opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
-    resetLayout(),
+    controls.select('vnc', { label: 'VNC chart', options: [
+      { value: 'off', label: 'Off' },
+      { value: 'south', label: 'South (Moose Jaw, Regina)' },
+      { value: 'north', label: 'North (Saskatoon, Moose Jaw)' },
+      { value: 'both', label: 'Both' },
+    ] }),
+    controls.slider('vncOpacity', { label: 'Chart opacity', min: 10, max: 100, step: 1, format: (v) => `${v}%` }),
+    // V6's fine alignment, closed at first (R22).
+    h(
+      'details',
+      { class: 'debrief-menu-wide' },
+      h('summary', {}, 'Chart alignment'),
+      h(
+        'div',
+        { class: 'debrief-menu-group' },
+        controls.slider('vncEastNm', { label: 'East / West', min: NUDGE[0], max: NUDGE[1], format: (v) => `${v} NM` }),
+        controls.slider('vncNorthNm', { label: 'North / South', min: NUDGE[0], max: NUDGE[1], format: (v) => `${v} NM` }),
+        controls.slider('vncScalePct', { label: 'Chart scale', min: SCALE[0], max: SCALE[1], step: 0.1, format: (v) => `${Number(v).toFixed(1)}%` }),
+        h('button', {
+          type: 'button',
+          class: 'button',
+          onclick: () => layout.update({ vncEastNm: VNC_DEFAULT_ALIGN.nudgeEastNm, vncNorthNm: VNC_DEFAULT_ALIGN.nudgeNorthNm, vncScalePct: VNC_DEFAULT_ALIGN.scalePct }),
+        }, 'Reset alignment'),
+      ),
+    ),
   ]);
   // The 3D view's settings, in 3D only (SPEC-debrief: The screen).
   const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
@@ -140,7 +170,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const stage = h(
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
-    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, view3dMenu.element),
+    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, view3dMenu.element),
     h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit),
     bar.element,
   );
@@ -222,6 +252,14 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     clear(picker);
   }
 
+  // The lines under the map, satellite first.
+  const notes = { imagery: '', charts: '' };
+  function showNotes() {
+    const text = [notes.imagery, notes.charts].filter(Boolean).join(' · ');
+    if (credit.textContent !== text) credit.textContent = text;
+    credit.hidden = !text;
+  }
+
   function setMessage(text) {
     message.textContent = text ?? '';
     message.hidden = !text;
@@ -239,9 +277,12 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     canvas3d.hidden = !is3d;
     fitButton.hidden = is3d;
     layersMenu.element.hidden = is3d;
+    chartsMenu.element.hidden = is3d;
     view3dMenu.element.hidden = !is3d;
-    if (is3d) layersMenu.setOpen(false);
-    else view3dMenu.setOpen(false);
+    if (is3d) {
+      layersMenu.setOpen(false);
+      chartsMenu.setOpen(false);
+    } else view3dMenu.setOpen(false);
     credit.classList.toggle('is-3d', is3d);
     const open = values.statusDetails && Boolean(flight);
     statusDetails.hidden = !open;
@@ -265,11 +306,18 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     },
     /** The satellite line under the map: Esri's credit, or that the imagery needs a connection. */
     setImagery(state) {
-      const text = !state ? ''
+      notes.imagery = !state ? ''
         : state.wanted && state.failed === state.wanted ? 'Satellite imagery needs a connection. The grid still shows where things are.'
           : ESRI_IMAGERY.credit;
-      if (credit.textContent !== text) credit.textContent = text;
-      credit.hidden = !text;
+      showNotes();
+    },
+    /** The chart line under the map: loading, can't load, or "Not for navigation" (#43). */
+    setCharts(state) {
+      notes.charts = !state || !state.wanted ? ''
+        : state.failed === state.wanted ? 'The VNC chart couldn\'t load. It needs a connection the first time it\'s shown.'
+          : state.ready < state.wanted ? 'Loading the VNC chart…'
+            : 'VNC chart: not for navigation. Its alignment is fitted by hand.';
+      showNotes();
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r) => readouts.render(r, flight),

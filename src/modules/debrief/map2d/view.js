@@ -10,6 +10,7 @@ import {
 import { ROUTES } from '../data/routes.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
 import { createTileLayer, ESRI_IMAGERY } from './tiles.js';
+import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../../core/geo.js';
 import { VNC_ANCHOR } from '../data/cymj.js';
 
@@ -26,9 +27,10 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * followLead, route, routeOpacity). labels(flight, t): each ship's standards label,
  * { slot: { text, tone } }. dfps(): the DFP flags, [{ x, y, label }].
  * onImagery(state): after each draw with satellite on, the tiles' { wanted,
- * ready, failed }, or null when it's off.
+ * ready, failed }, or null when it's off. onCharts(state): the same for the
+ * VNC charts ({ wanted, ready, failed }), or null when they're off.
  */
-export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {} }) {
+export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {}, onCharts = () => {} }) {
   let flight = null;
   let paths = [];
   let needsFit = false; // a flight arrived while the map was hidden (3D showing)
@@ -41,6 +43,10 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
     const chosen = ROUTES.find((r) => r.name === routeName);
     route = chosen ? projectRoute(chosen, mapRef()) : null;
   }
+
+  const charts = createVncLayer({ base: document.baseURI, onChange: () => map.requestDraw() });
+  let chartChoice = 'off';
+  const chartAlign = (on) => ({ nudgeEastNm: on.vncEastNm, nudgeNorthNm: on.vncNorthNm, scalePct: on.vncScalePct });
 
   const imagery = createTileLayer({ source: ESRI_IMAGERY, timers, onChange: () => map.requestDraw() });
 
@@ -93,8 +99,16 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
         // With no flight to show, the view goes to the route (V6 fitKmlOverlayToView).
         if (route && !flight) map.fit(routeBounds(route));
       }
+      const chartKeys = VNC_CHOICES[on.vnc] ?? [];
+      if (on.vnc !== chartChoice) {
+        chartChoice = on.vnc;
+        // With no flight to show, the view goes to the charts (V6 fitEmbeddedVncToView).
+        if (chartKeys.length && !flight) map.fit(chartsBounds(chartKeys, mapRef(), chartAlign(on)));
+      }
       if (on.satellite) drawImagery(ctx);
       onImagery(on.satellite ? imagery.state() : null);
+      if (chartKeys.length) charts.draw(ctx, { keys: chartKeys, map, ref: mapRef(), align: chartAlign(on), opacityPct: on.vncOpacity });
+      onCharts(chartKeys.length ? charts.state() : null);
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
@@ -134,6 +148,7 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
     },
     dispose() {
       imagery.dispose();
+      charts.dispose();
       map.dispose();
     },
   };

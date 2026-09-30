@@ -493,3 +493,20 @@
 [data-module='debrief'] .debrief-menu-body select {
   max-width: 100%;
 }
+
+/* A group that spans both columns of a menu (the chart alignment). */
+[data-module='debrief'] .debrief-menu-wide {
+  grid-column: 1 / -1;
+}
+
+[data-module='debrief'] .debrief-menu-wide > summary {
+  cursor: pointer;
+  padding-block: var(--space-1);
+}
+
+[data-module='debrief'] .debrief-menu-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(12rem, 1fr));
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
+}

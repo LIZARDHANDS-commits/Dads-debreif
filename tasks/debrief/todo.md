@@ -42,12 +42,12 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 - [x] **6b. Route overlays.** V6's 19 built-in routes (TACNAV 1 to 4, North and South A/B/ED, Stds and TAC test routes) with opacity, drawn under the tracks.
   - Acceptance: each route is V6's (golden test against V6's own KML) and draws on the flight's map, or on its own before a flight is loaded.
   - Done: "Route" and "Route opacity" in the Layers menu, remembered. The routes are only their points (about 6 kB, in `data/routes.js`), so they come with the debrief rather than as separate downloads.
-- [ ] **7. Map layers, part 2.** Satellite tiles with Esri attribution and offline message; embedded VNC charts with alignment, pinned warp, off-screen cache, "Not for navigation".
+- [x] **7. Map layers, part 2.** Satellite tiles with Esri attribution and offline message; embedded VNC charts with alignment, pinned warp, off-screen cache, "Not for navigation".
   - Acceptance: VNC warp matches V6 (golden); charts load only when turned on (R5); tiles retry and repaint only their area (#28).
   - Verify: golden warp test; network log in the browser; performance log.
   - Files: src/modules/debrief/map2d/{tiles,vnc}.js, public/media/debrief/*, tests/golden/debrief-vnc.test.js
   - 7a done: "Satellite imagery" (off at first) draws Esri World Imagery under everything, darkened as in V6, with Esri's credit on the map. Tiles are fetched only while it's on, tried three times, and a redraw waits for the next frame however many arrive at once. With no connection the map says so and keeps the grid. With no flight the map's feet start at Moose Jaw (V6's anchor), so routes and imagery line up before any track loads. The loader (`map2d/tiles.js`) knows nothing of the debrief, ready to move to the ui-kit.
-  - 7b (VNC charts) waits on where the chart images go in `public/` and on the service worker skipping them until used (asked the app frame through the coordinator).
+  - 7b done: "Routes and charts" (a menu of its own, so neither menu runs over the playback bar) has V6's route choice and opacity, then "VNC chart" (Off, South, North, Both) at V6's 78 % opacity, with V6's fine alignment (east/west and north/south nudge, scale, Reset alignment) closed under "Chart alignment". A chart is fetched the first time it's shown, warped once per alignment into an off-screen image and then drawn with one drawImage a frame (#43). With no flight the view fits the charts, as V6 did. The map says "not for navigation" while a chart shows, "Loading" before it arrives, and that it needs a connection if it can't load. The images are V6's PNGs re-encoded as lossless WebP: the same pixels (checked), 5.4 MB instead of 9.7 MB. The service worker keeps them only once shown (app frame's change, made here at its request).
 
 **Checkpoint C:** open PR C.
 
