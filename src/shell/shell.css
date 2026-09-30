@@ -86,6 +86,21 @@ body {
   margin: var(--space-3) 0;
 }
 
+/* One quiet line on windows narrower than the smallest supported width (D183,
+   D225). It blocks nothing; wider windows never show it. */
+.narrow-note {
+  display: none;
+  margin: var(--space-2) var(--space-5) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 1179.98px) {
+  .narrow-note {
+    display: block;
+  }
+}
+
 .status-line {
   margin: 0;
   padding: var(--space-2) var(--space-5);

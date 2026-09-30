@@ -72,6 +72,19 @@ test('the scene has every route with its drawn path, the aircraft, the conflicts
   assert.equal(scene.aircraft[0].id, 'A1');
 });
 
+test('an aircraft called __proto__, constructor or prototype still gets its trail, and no object changes', () => {
+  const setup = fresh();
+  const scene = buildScene({
+    setup, selectedRouteId: null,
+    state: { aircraft: ['__proto__', 'constructor', 'prototype'].map((id) => ({ id })), conflicts: [] },
+    trailOf: (id) => [{ x: id.length, y: 0 }],
+  });
+  assert.deepEqual(Object.keys(scene.trails).sort(), ['__proto__', 'constructor', 'prototype']);
+  assert.deepEqual(Object.entries(scene.trails).map(([id, trail]) => [id, trail[0].x]).sort(), [['__proto__', 9], ['constructor', 11], ['prototype', 9]]);
+  assert.equal(Object.getPrototypeOf(scene.trails), null);
+  assert.equal(({}).length, undefined);
+});
+
 test('turn data is the engine\'s: a radius and bank where V6 shows turn data, none at the first point of a pattern or the ends of an entry or split', () => {
   const setup = fresh();
   const scene = buildScene({ setup, state: createSim(setup).state(), selectedRouteId: null, trailOf: () => [] });
