@@ -162,6 +162,23 @@ tasks/airfields/   plan.md and todo.md, once this spec is approved
 4. **The setting.** Defaults are V6's (CYMJ; CYQR, CYYN, CYXE; 600-2). Bad ICAO ids, out-of-range numbers, unknown time zones and unknown approach types are dropped; home is never an alternate; blocked storage works for the visit; `subscribe` fires on every change.
 5. **Screen** (Playwright): the default view shows only the rows above; More opens and closes; changing the home field to an airfield with a different zone changes the header's local time; everything reachable by keyboard; nothing overlaps at 1366 × 768 (R2).
 
+## Skills used
+
+From `.claude/skills/` (which one when: `.claude/skills/README.md`). Each PR lists the skills it applied.
+
+| Step | Skill | What it means here |
+|---|---|---|
+| This spec | spec-driven-development | Nothing is built until Patrick approves it. |
+| Plan | planning-and-task-breakdown | `tasks/airfields/plan.md` and `todo.md`: small, ordered tasks, each with its own tests. |
+| Build | incremental-implementation | One working, committed slice at a time: catalog and distance, then minima, then the setting, then the panel. |
+| Build | test-driven-development | A failing test first for every minima row, trade-off, rounding case, distance and dropped bad value, each citing its CAP GEN rule. The window logic stays in `wx`, which already tests it. |
+| The Settings panel | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled inputs, keyboard access, errors in words, essentials first (R22). |
+| Entered and stored airfields | security-and-hardening, with `.claude/references/security-checklist.md` | Typed ICAO ids, names and numbers, and whatever comes back from storage, are untrusted: checked where they enter, shown as text only (`h()`), never `innerHTML`. |
+| Anything that breaks | debugging-and-error-recovery | Reproduce, find the cause, fix, add a regression test. |
+| Before a PR leaves draft | code-review-and-quality, then code-simplification | Five-axis review with `/code-review` and `/security-review`, then `/simplify`. |
+
+performance-optimization doesn't apply: the module is a few kilobytes and does no work while it's idle.
+
 ## Boundaries
 
 - **Always:** keep the minima functions pure; cite the CAP GEN rule in each test name; unknown stays unknown (a missing HAT or position is `null`, never a guess).
