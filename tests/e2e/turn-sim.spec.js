@@ -400,6 +400,23 @@ test('an aircraft can be moved from the keyboard: 1 to 4 picks it, the arrows mo
   expect(panned.x).not.toBe(lead.x);
 });
 
+test('the layers: V6\'s stay on, clock marks, breadcrumbs, NM distances and NM rings are off, and each toggle changes the picture (task 12c)', async ({ page }) => {
+  await open(page);
+  // Some flying first, so breadcrumbs have something to show.
+  for (let i = 0; i < 40; i++) await button(page, 'Step').click();
+  await panelMenu(page).click();
+  for (const label of ['Lead 3/9 line', 'Turn circles', 'Error labels', 'Spacing lines']) await expect(page.getByLabel(label)).toBeChecked();
+  for (const label of ['Follow Lead', 'Clock marks', 'Breadcrumbs', 'Distances in NM', 'NM rings']) await expect(page.getByLabel(label)).not.toBeChecked();
+  for (const label of ['NM rings', 'Clock marks', 'Breadcrumbs', 'Distances in NM']) {
+    const off = await picture(page);
+    await page.getByLabel(label).check();
+    await expect.poll(() => picture(page), { message: `${label} changes the picture` }).not.toBe(off);
+    await page.getByLabel(label).uncheck();
+    await expect.poll(() => picture(page), { message: `${label} off puts it back` }).toBe(off);
+  }
+  await page.getByLabel('NM rings').check();
+});
+
 test('space plays and pauses, the right arrow steps once, Home resets, and typing is left alone (R14)', async ({ page }) => {
   await open(page);
   await page.locator('body').click({ position: { x: 5, y: 5 } });

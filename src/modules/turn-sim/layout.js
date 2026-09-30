@@ -38,6 +38,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   breadcrumbs: false,
   crumbSec: 10,
   distNm: false,
+  nmRings: false, // rings round Lead a whole number of NM out
   view: VIEW_DEFAULT, // '2d' or '3d': 2D is the default, and the choice is remembered
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
@@ -46,7 +47,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
-const LAYERS_2D = ['lead39', 'turnCircles', 'errorLabels', 'spacingLines', 'clockMarks', 'breadcrumbs', 'crumbSec', 'distNm'];
+const LAYERS_2D = ['lead39', 'turnCircles', 'errorLabels', 'spacingLines', 'clockMarks', 'breadcrumbs', 'crumbSec', 'distNm', 'nmRings'];
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
@@ -268,6 +269,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     lc.checkbox('breadcrumbs', { label: 'Breadcrumbs' }),
     lc.number('crumbSec', { label: 'Breadcrumb every', unit: 's', min: 1, max: 60, step: 1 }),
     lc.checkbox('distNm', { label: 'Distances in NM' }),
+    lc.checkbox('nmRings', { label: 'NM rings' }),
     h('button', { type: 'button', class: 'button', onclick: () => handlers.resetLayout?.() }, 'Reset layout'),
   ]);
 
