@@ -65,10 +65,6 @@ test('six bad fixes in a row are kept: the aircraft may really be there', () => 
   assert.deepEqual(kept(withJumps(20, [5, 6, 7, 8, 9, 10])), range(0, 20));
 });
 
-test('a jump at the very end has no fix to come back to, so it is kept', () => {
-  assert.deepEqual(kept(withJumps(10, [9])), range(0, 10));
-  assert.deepEqual(kept(withJumps(10, [8, 9])), range(0, 10));
-});
 
 test('speed is measured over at least 1 s, so fixes 0.5 s apart are not a jump', () => {
   // 400 kt, logged every half second: naively 400 kt, but a 0.5 s pair nudged 30 % further reads 520 kt.
@@ -126,4 +122,21 @@ test('more than 5 s between good fixes is a gap (C4)', () => {
   // A dropped fix doesn't hide a gap: the gap runs between the good fixes either side.
   fixes[2] = { ...fixes[2], altM: -100000 };
   assert.deepEqual(cleanTrack({ name: 'test', fixes }).gaps, [{ fromT: 1, toT: 11.001 }, { fromT: 12, toT: 20 }]);
+});
+
+test('a GPS glitch on the first fixes is dropped, not made the map origin (review)', () => {
+  const glitch = f => ({ ...f, lat: 10, lon: 10 });
+  const one = straight(12).map((f, i) => (i === 0 ? glitch(f) : f));
+  assert.deepEqual(kept(one), range(1, 12));
+  assert.deepEqual(cleanTrack({ name: 'test', fixes: one }).dropped, { altitude: 0, position: 0, jump: 1 });
+  // A run of up to 5 at the start, like one in the middle.
+  assert.deepEqual(kept(straight(12).map((f, i) => (i < 5 ? glitch(f) : f))), range(5, 12));
+  // Six agreeing fixes at the start are a real place, as in the middle: kept.
+  assert.equal(kept(straight(12).map((f, i) => (i < 6 ? glitch(f) : f))).length, 12);
+});
+
+test('a GPS glitch on the last fixes is dropped too (review)', () => {
+  assert.deepEqual(kept(withJumps(10, [9])), range(0, 9));
+  assert.deepEqual(kept(withJumps(10, [5, 6, 7, 8, 9])), range(0, 5));
+  assert.equal(kept(withJumps(12, [6, 7, 8, 9, 10, 11])).length, 12);
 });

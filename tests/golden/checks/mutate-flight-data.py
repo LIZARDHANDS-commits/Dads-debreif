@@ -100,6 +100,13 @@ M = [
  ('clean.js', "dropped.jump += back - i;", "dropped.jump += 1;"),
  ('clean.js', "      last = i;\n", "\n"),
  ('clean.js', "if (fixes.length < 2)", "if (fixes.length < 1)"),
+ ('clean.js', "if (!reachable(s - 1, s) && !reachable(0, s) && agree(s))", "if (!reachable(s - 1, s) && agree(s))"),
+ ('clean.js', "if (!reachable(s - 1, s) && !reachable(0, s) && agree(s))", "if (!reachable(s - 1, s) && !reachable(0, s))"),
+ ('clean.js', "j <= s + MAX_JUMP_FIXES; j++", "j < s + MAX_JUMP_FIXES; j++"),
+ ('clean.js', "dropped.jump += first;", ""),
+ ('clean.js', "} else if (i + MAX_JUMP_FIXES > possible.length - 1) {", "} else if (false) {"),
+ ('clean.js', "} else if (i + MAX_JUMP_FIXES > possible.length - 1) {", "} else if (i + MAX_JUMP_FIXES >= possible.length - 1) {"),
+ ('clean.js', "Math.cos((p.lat + q.lat) / 2 * Math.PI / 180)", "Math.cos(p.lat * Math.PI / 180)"),
  # C4: gaps
  ('clean.js', "fixes[i].t - fixes[i - 1].t > GAP_S", "fixes[i].t - fixes[i - 1].t >= GAP_S"),
  ('clean.js', "gaps.push({ fromT: fixes[i - 1].t, toT: fixes[i].t })", "gaps.push({ fromT: fixes[i].t, toT: fixes[i].t })"),

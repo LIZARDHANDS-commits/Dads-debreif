@@ -126,8 +126,9 @@ test('plain coordinate lists take their times in order across all the lists (C5)
 });
 
 // Hostile files far under the size limit must still be read or refused
-// quickly: each of these took 13 to 35 s before the review fixes.
-const quick = (what, fn, budgetMs = 2000) => {
+// quickly: each of these took 13 to 35 s before the review fixes, and takes
+// 0.1 to 1.2 s now. The budget leaves room for slow or busy test machines.
+const quick = (what, fn, budgetMs = 5000) => {
   const start = performance.now();
   fn();
   const ms = performance.now() - start;

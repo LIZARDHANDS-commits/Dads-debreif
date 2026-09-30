@@ -6,8 +6,10 @@
 // The rule and what it does to the real tracks are in specs/SPEC-flight-data.md
 // (Data quality). The numbers are here, in one place.
 import { KmlError } from './kml.js';
-import { makeLocalRef, latLonToLocalFt } from '../core/geo.js';
-import { FTPS_TO_KT } from '../core/units.js';
+import { FTPS_TO_KT, FT_PER_M, EARTH_RADIUS_M } from '../core/units.js';
+
+/** Feet per degree of latitude (core's flat-map scale, geo.js). */
+const FT_PER_DEG = Math.PI / 180 * EARTH_RADIUS_M * FT_PER_M;
 
 /** Lowest and highest believable altitude, in metres. */
 export const MIN_ALT_M = -500;
@@ -39,24 +41,46 @@ export function cleanTrack(raw) {
 
   const fixes = [];
   if (possible.length) {
-    const ref = makeLocalRef(possible[0].lat, possible[0].lon);
-    const at = possible.map(f => latLonToLocalFt(ref, f.lat, f.lon));
+    // Each pair's distance is measured on a flat map centred between them, so
+    // a wild first fix can't distort every other distance.
     const reachable = (a, b) => {
-      const ft = Math.hypot(at[b].x - at[a].x, at[b].y - at[a].y);
-      const s = Math.max(possible[b].t - possible[a].t, MIN_SPEED_TIME_S);
-      return ft / s * FTPS_TO_KT <= MAX_GROUND_SPEED_KT;
+      const p = possible[a];
+      const q = possible[b];
+      const xFt = (q.lon - p.lon) * Math.cos((p.lat + q.lat) / 2 * Math.PI / 180) * FT_PER_DEG;
+      const yFt = (q.lat - p.lat) * FT_PER_DEG;
+      const s = Math.max(q.t - p.t, MIN_SPEED_TIME_S);
+      return Math.hypot(xFt, yFt) / s * FTPS_TO_KT <= MAX_GROUND_SPEED_KT;
     };
-    let last = 0;
-    fixes.push(possible[0]);
-    for (let i = 1; i < possible.length; i++) {
+    // A glitch on the first fixes: a run of up to MAX_JUMP_FIXES that the
+    // next fix can't be reached from, followed by more fixes that agree with
+    // each other than the run is allowed to be long.
+    const agree = s => {
+      for (let j = s; j <= s + MAX_JUMP_FIXES; j++) if (!reachable(j, j + 1)) return false;
+      return true;
+    };
+    let first = 0;
+    for (let s = 1; s <= MAX_JUMP_FIXES && s + MAX_JUMP_FIXES + 1 < possible.length; s++) {
+      if (!reachable(s - 1, s) && !reachable(0, s) && agree(s)) {
+        first = s;
+        break;
+      }
+    }
+    dropped.jump += first;
+    let last = first;
+    fixes.push(possible[first]);
+    for (let i = first + 1; i < possible.length; i++) {
       if (!reachable(last, i)) {
-        // A jump if the aircraft is back where it could be within the next few fixes.
+        // A jump if the aircraft is back where it could be within the next few
+        // fixes, or if the track ends within them (a glitch on the last fixes).
         const end = Math.min(i + MAX_JUMP_FIXES, possible.length - 1);
         let back = i + 1;
         while (back <= end && !reachable(last, back)) back++;
         if (back <= end) {
           dropped.jump += back - i;
           i = back;
+        } else if (i + MAX_JUMP_FIXES > possible.length - 1) {
+          dropped.jump += possible.length - i;
+          break;
         }
       }
       fixes.push(possible[i]);
