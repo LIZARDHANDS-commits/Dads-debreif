@@ -47,3 +47,7 @@
   - Acceptance: identical to V6's files once un-gzipped; nothing downloads until asked (R5); once downloaded, kept for offline use (R6).
   - Verify: tests/unit/shell/examples.test.js; the example test in tests/e2e/offline.spec.js.
   - Files: public/examples/*, src/shell/examples.js, src/shell/sw.js, tools/service-worker.mjs, src/shell/host.js, src/app.js
+- [x] **13. Save and open files (`storage/file.js`).** Shared by the debrief file (R17) and the Turn Sim and Traffic setups.
+  - Acceptance: a download keeps the text exactly under a safe name; picked or dropped files are read as text in order; a file over the limit is refused before any is read; cancelling the picker gives an empty list.
+  - Verify: tests/unit/storage/file.test.js, tests/e2e/file.spec.js.
+  - Files: src/storage/file.js, specs/SPEC-storage.md
