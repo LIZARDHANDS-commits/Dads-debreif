@@ -13,6 +13,13 @@
 // different frame rates and speeds. `stepTo` takes as many whole steps as fit in the
 // time it is asked for and stops there, so the caller keeps the remainder; at 1x and
 // 20 frames a second it is V6's own run, and it is the same on every screen.
+//
+// Going back (Rewind, -10 s, task 9, bug #46): every 10 s of sim time the run keeps a snapshot
+// of everything a later step depends on (the aircraft, the clock and the dice). `seek` goes to
+// any moment by restoring the nearest snapshot before it and flying on from there, so any
+// rewind costs at most 10 s of stepping and lands exactly where the forward run was: same
+// numbers, same dice, same trails. V6 rebuilt the whole run from 0 at every rewind frame, at
+// speed times the real distance, and re-rolled every choice.
 import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
@@ -41,6 +48,15 @@ const TRAIL_POINTS = 240;
 /** Guard against a step count that could never finish (a caller passing a bad time). */
 const MOST_STEPS_AT_ONCE = 1e7;
 
+/** A snapshot every 10 s of sim time (200 steps). */
+const SNAPSHOT_EVERY_STEPS = 200;
+
+/**
+ * The most snapshots kept. An hour is 361; past this many the run keeps every other one
+ * (every 20 s, then 40 s, ...), so a very long run's memory stays bounded and a rewind is still quick.
+ */
+const MOST_SNAPSHOTS = 720;
+
 /**
  * Has the aircraft's distance along a pattern gone past `target` between two steps
  * (V6 `crossedProg`, line 380)? A step longer than a whole lap counts as crossing.
@@ -59,10 +75,13 @@ const NO_ROUTES = 'the setup needs at least one route';
  * `setup.conflictLimits` are read each step, so a route edited while it runs is flown
  * as edited (as in V6). The seed makes the run repeatable.
  */
-export function createSim(setup, { seed = 1 } = {}) {
+export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAPSHOTS } = {}) {
+  let seed = firstSeed;
   let dice = createDice(seed);
   let t = 0, steps = 0;
   let aircraft = [];
+  const history = new Map(); // step -> snapshot
+  let every = SNAPSHOT_EVERY_STEPS;
 
   const routeOptions = () => setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
   const routeById = (id) => setup.routes.find((r) => r.id === id);
@@ -95,6 +114,9 @@ export function createSim(setup, { seed = 1 } = {}) {
   function makeAircraft({ id, type, routeId, startIndex, startsAt }) {
     return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt });
   }
+
+  /** An aircraft from a `setup.aircraft` entry. */
+  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec });
 
   /** V6's `nextCallsign` (line 233): the first A1, A2, … not in use. */
   function nextCallsign() {
@@ -172,6 +194,73 @@ export function createSim(setup, { seed = 1 } = {}) {
       if (!a.active || t < a.startsAt) continue;
       fly(a);
     }
+    if (steps % every === 0 && !history.has(steps)) remember();
+  }
+
+  // ── Snapshots ──────────────────────────────────────────────────────────────
+
+  /** Everything a later step depends on. The trail is kept flat (x, y, x, y, ...): it is up to 240 points an aircraft. */
+  function takeSnapshot() {
+    return {
+      t, steps, dice: dice.getState(),
+      aircraft: aircraft.map((a) => {
+        const { trail, splitTaken, ...rest } = a;
+        const flat = new Float64Array(trail.length * 2);
+        trail.forEach((p, i) => { flat[2 * i] = p.x; flat[2 * i + 1] = p.y; });
+        return { ...rest, splitTaken: { ...splitTaken }, trail: flat };
+      }),
+    };
+  }
+
+  function putBack(snap) {
+    t = snap.t;
+    steps = snap.steps;
+    dice.setState(snap.dice);
+    aircraft = snap.aircraft.map(({ trail, splitTaken, ...rest }) => ({
+      ...rest,
+      splitTaken: { ...splitTaken },
+      trail: Array.from({ length: trail.length / 2 }, (_, i) => ({ x: trail[2 * i], y: trail[2 * i + 1] })),
+    }));
+  }
+
+  /** Keeps a snapshot of this moment, and thins the history out if it has grown past its limit. */
+  function remember() {
+    history.set(steps, takeSnapshot());
+    if (history.size <= maxSnapshots) return;
+    every *= 2;
+    for (const step of history.keys()) if (step % every !== 0) history.delete(step);
+  }
+
+  /** The run's beginning again: every aircraft at its start, the dice from the seed, and a fresh history. */
+  function startOver() {
+    t = 0;
+    steps = 0;
+    dice = createDice(seed);
+    aircraft.forEach(toStart);
+    history.clear();
+    every = SNAPSHOT_EVERY_STEPS;
+    remember();
+  }
+
+  /** Something changed that earlier snapshots don't know about (an aircraft added or removed, a route edited): they no longer say what the run was. */
+  function forgetHistory() {
+    history.clear();
+    every = SNAPSHOT_EVERY_STEPS;
+  }
+
+  /** Flies on, or goes back, to a step (a whole number of steps from 0). */
+  function goToStep(wanted) {
+    if (!Number.isInteger(wanted)) throw new RangeError(`seekSteps needs a whole number of steps, not ${wanted}`);
+    wanted = Math.max(0, wanted);
+    if (Math.abs(wanted - steps) > MOST_STEPS_AT_ONCE) throw new RangeError(`going to step ${wanted} is too far`);
+    if (wanted < steps) {
+      let best = -1;
+      for (const step of history.keys()) if (step <= wanted && step > best) best = step;
+      if (best >= 0) putBack(history.get(best));
+      else startOver();
+    }
+    while (steps < wanted) stepOnce();
+    return t;
   }
 
   // ── What the screen asks ───────────────────────────────────────────────────
@@ -203,9 +292,11 @@ export function createSim(setup, { seed = 1 } = {}) {
     /** Sim time in seconds; always a whole number of steps. */
     get t() { return t; },
     get seed() { return seed; },
+    /** How many whole steps the run has taken (t is these added up). */
+    get steps() { return steps; },
     setup,
 
-    /** Flies on in whole steps of 0.05 s up to `tSec` (not past it) and returns how many it took. Going back is not possible: `reset` and fly again. */
+    /** Flies on in whole steps of 0.05 s up to `tSec` (not past it) and returns how many it took. To go back, use `seek`. */
     stepTo(tSec) {
       if (!Number.isFinite(tSec)) throw new RangeError(`stepTo needs a time in seconds, not ${tSec}`);
       const wanted = Math.floor(tSec / STEP_SEC + 1e-9);
@@ -215,12 +306,59 @@ export function createSim(setup, { seed = 1 } = {}) {
       return taken;
     },
 
+    /**
+     * Goes to the moment `tSec`, forward or back (not before 0): the nearest snapshot before it, then whole steps on.
+     * The run there is exactly the one the forward run had, dice and trails included. Returns the sim time.
+     */
+    seek(tSec) {
+      if (!Number.isFinite(tSec)) throw new RangeError(`seek needs a time in seconds, not ${tSec}`);
+      return goToStep(Math.floor(tSec / STEP_SEC + 1e-9));
+    },
+
+    /** Like `seek`, but by a whole number of steps from 0, which is exact at any length of run (a time in seconds is added up from steps, so it can be a hair under). */
+    seekSteps: goToStep,
+
+    /** Where the run is, to keep and `restore` later: the aircraft, the time and the dice. Read only. */
+    snapshot: takeSnapshot,
+
+    /** Puts the run back to a `snapshot` of a sim made from this setup and seed. The history starts again from there. */
+    restore(snap) {
+      if (!snap || !Array.isArray(snap.aircraft) || !Number.isInteger(snap.steps) || !Number.isFinite(snap.t)) throw new TypeError('restore needs a snapshot from sim.snapshot()');
+      putBack(snap);
+      forgetHistory();
+      remember();
+    },
+
+    /**
+     * How many steps `seekSteps(n)` would fly: the steps ahead, or from the nearest snapshot before `n` (all of
+     * them from 0 once an edit has made the snapshots stale). The screen says "Replaying…" before a long one.
+     */
+    replayCost(n) {
+      const wanted = Math.max(0, n);
+      if (wanted >= steps) return wanted - steps;
+      let best = 0;
+      for (const step of history.keys()) if (step <= wanted && step > best) best = step;
+      return wanted - best;
+    },
+
+    /** How many snapshots the run holds now (about one every 10 s of sim time). */
+    historySize: () => history.size,
+
+    /** Tells the run that the setup was edited (a point, a link, an option): going back then flies the edited setup from 0. */
+    forgetHistory,
+
     /** Back to 0 s, every aircraft (spawned ones too) at its start, the dice from the seed again. */
-    reset() {
-      t = 0;
-      steps = 0;
-      dice = createDice(seed);
-      aircraft.forEach(toStart);
+    reset: startOver,
+
+    /**
+     * Starts again from `setup.aircraft` (a profile was loaded, or its aircraft changed), at 0 s, with
+     * the dice from `seed` (default: the one it has).
+     */
+    rebuild({ seed: next = seed } = {}) {
+      if (!Number.isFinite(next)) throw new RangeError(`the seed must be a number, not ${next}`);
+      seed = next;
+      aircraft = (setup.aircraft ?? []).map(aircraftFromSpec);
+      startOver();
     },
 
     /**
@@ -239,6 +377,7 @@ export function createSim(setup, { seed = 1 } = {}) {
       if (id !== undefined && aircraft.some((a) => a.id === id)) throw new RangeError(`callsign ${id} is in use`);
       const a = makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec });
       aircraft.push(a);
+      forgetHistory();
       return a.id;
     },
 
@@ -262,18 +401,21 @@ export function createSim(setup, { seed = 1 } = {}) {
         if (t < a.startsAt) toStart(a);
       }
       for (const [spec, to] of specs) spec.startIndex = to;
+      forgetHistory();
     },
 
     /** Removes an aircraft from the run (true if it was there). */
     remove(id) {
       const before = aircraft.length;
       aircraft = aircraft.filter((a) => a.id !== id);
+      forgetHistory();
       return aircraft.length < before;
     },
 
     /** Removes every aircraft that has landed or is done (V6 "Clear inactive"). */
     clearFinished() {
       aircraft = aircraft.filter((a) => a.active);
+      forgetHistory();
     },
 
     /** The aircraft as `setup.aircraft` has them, so a profile can be saved with what was spawned. */
@@ -303,6 +445,7 @@ export function createSim(setup, { seed = 1 } = {}) {
     },
   };
 
-  aircraft = (setup.aircraft ?? []).map((spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec }));
+  aircraft = (setup.aircraft ?? []).map(aircraftFromSpec);
+  remember(); // the run at 0 s: the snapshot every rewind can fall back on
   return sim;
 }
