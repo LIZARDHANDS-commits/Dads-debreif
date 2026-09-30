@@ -44,7 +44,7 @@ Below is the definitive triage of every decision influenced by V6, classified in
 | **D182** | Debrief | Estimated G upper cutoff | Capped at 9 G (allowed GPS glitches) | Caps at +7 G (T-6 limit); shows "G --" on spikes | ✅ **AGREE.** Prevents false G readings from GPS jumps. | **Approved** |
 | **D186** | Turn Fight | UI Reset button label | Reset to "V6 defaults" | Kept button labeled "Reset to V6 defaults" | ❌ **DISAGREE.** V6 defaults load uncertified numbers (2.0 G). **Superseded by D384** ("Reset to Standard Defaults"). | **Superseded** |
 | **D187** | Turn Fight | First nose-on time display | Measured from merge (+18.2 s) | Kept "+18.2 s after merge" display | ✅ **AGREE with UI readout**, but decoupled underlying timing from V6 frame ticks. | **Approved** |
-| **D188** | Turn Fight | 3D off-nose angle in climb/dive | Flat 2D check; ignored pitch | Measured 3D ATA from pitched nose (0 of 168 pitch pairs triggered) | ⚠️ **CONFUSION POINT 1 (See below).** Pure 3D prevents nose-on when both jets climb level. | **Needs Input** |
+| **D188** | Turn Fight | 3D off-nose angle in climb/dive | Flat 2D check; ignored pitch | Measured 3D ATA from pitched nose (0 of 168 pitch pairs triggered) | 3D line-of-sight pointing with 10° elevation capture cone for Climb/Dive merges. **Ratified in D386.** | **Ratified (D386)** |
 | **D190** | SOF | Missing weather cloud group | Showed VFR / BLU | Shows UNK (Unknown) | ✅ **AGREE.** Safety-critical SOF must never guess missing data. | **Approved** |
 | **D198** | Traffic | V6 setup preservation | Used V6 setup as default | Kept V6 data in `moose-jaw-v6.json` | ❌ **DISAGREE.** V6 setup had wrong altitudes. Quarantined to archive. | **Quarantined** |
 | **D199** | Traffic | Break turn G (60° bank) | 1 G flat turn | Attempted 2 G / 60° break, then withdrew it in D209 | ✅ **AGREE with D199 / D382.** Restores true 60° (2 G) break at 3,500 ft MSL per D373/D378; D209 reversed. | **Restored (D382)** |
@@ -145,6 +145,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D215** | Hourly wind model blending | Decided | Blends model wind across adjacent hours to eliminate step jumps. |
 | **D226** | Parked ramp state readout | Decided | Parked aircraft read "bank --" and "G --" rather than false 0° est. |
 | **D321** | Debrief file size cap (189 MiB) | Decided | Accommodates 4 full tracks plus high-res radar/lightning weather blocks. |
+| **D383** | Median Filtering of GPS Jitter / G Dips | Decided | 3-point median filtering authorized; eliminates spurious G spikes without locking to V6 sensor noise (overrides D219). |
 
 ---
 
@@ -204,6 +205,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D373** | CYMJ Moose Jaw pattern truth | Decided | Break at 3,500 ft MSL; straight-in at 2,700 ft MSL; elevation 1,892 ft. |
 | **D377** | Traffic end-to-end build order | Decided | Traffic module completely built and signed off before Turn Fight/Sim. |
 | **D378** | Active runway ground truth | Decided | Default runway is Runway 29L (298° true) left-hand circuits. |
+| **D382** | 60° Overhead Break & 45° Final Turn | Decided | Restores true 60° (2.0 G) break at 3,500 ft MSL and 45° descending final turn to 2,700 ft MSL straight-in on Runway 29L left-hand (reverses D209/D210). |
 
 ---
 
@@ -284,6 +286,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D343** | Check turn end judging display | Decided | Displays "Not judged: wingman corrects after check turn" per SMM. |
 | **D346** | Delayed 45 check turn angle guard | Decided | Guarded strictly to 45° angle; falls back with explanatory note at other angles. |
 | **D380** | Turn Sim Spacing Closed-Loop Logic | Decided | Spacing is not based on rigid time delays; wingmen turn when it makes spacing work (closed-loop solver). |
+| **D385** | Spacing Solver Rollout Scoring | Decided | Solver scores trials at maneuver rollout completion, not arbitrary clock duration (overrides D325). |
 
 ---
 
