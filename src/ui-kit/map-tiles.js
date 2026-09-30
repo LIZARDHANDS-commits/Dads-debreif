@@ -1,8 +1,8 @@
 // Web map tiles (Esri World Imagery) drawn under a flat map in local feet.
-// Shared by the debrief, Traffic and SOF maps. Self-contained on purpose: it
-// knows nothing of any one module's state. It takes
-// a place-to-screen function and the view's corners, and asks for a redraw
-// when a tile arrives; redraws are one per frame however many tiles land.
+// Used by the debrief today, and by the Traffic and SOF maps as they are built.
+// Self-contained on purpose: it knows nothing of any one module's state. It
+// takes a place-to-screen function and the view's corners, and asks for a
+// redraw when a tile arrives; redraws are one per frame however many tiles land.
 import { lonLatToTile, tileBounds, pickTileZoom } from '../core/geo.js';
 
 /** Esri World Imagery, built from numbers only (SPEC-debrief: Security). */

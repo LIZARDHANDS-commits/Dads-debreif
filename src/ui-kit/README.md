@@ -9,6 +9,6 @@ The shared look and building blocks (spec: `specs/SPEC-ui-kit.md`).
 - `panel.js`: a collapsible section with a proper header button.
 - `controls.js`: number boxes, sliders, checkboxes, lists and 2D | 3D style choices, each tied to one setting, and `setDisabled(key, true)` to grey them out. A number box only accepts finite numbers in range; anything else is refused with a message and the last good value stays.
 - `canvas-view.js`: `createCanvasView` is a map canvas with drag to pan, wheel or +/- to zoom and arrow keys to move. `createCanvasSurface` is the same sharp, draw-on-request canvas without pan and zoom, for the 3D view and charts. Both draw only when something changes. `toScreen`, `toWorld`, `zoomAbout`, `fitBounds` and `visibleBounds` are the plain math behind them.
-- `map-tiles.js`: `createTileLayer` draws satellite tiles (Esri World Imagery) under a flat map, fetching each tile with retries and repainting as they arrive. Shared by the debrief, Traffic and SOF maps. `tilesFor` is the pure part that says which tiles a view needs.
+- `map-tiles.js`: `createTileLayer` draws satellite tiles (Esri World Imagery) under a flat map, fetching each tile with retries and repainting as they arrive. Used by the debrief today, and by the Traffic and SOF maps as they are built. `tilesFor` is the pure part that says which tiles a view needs.
 
 Rules, checked by `tests/unit/source-rules.test.js`: no `!important`, no `setInterval`, no `requestAnimationFrame` outside `scheduler.js`, no `innerHTML`.
