@@ -18,12 +18,11 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Verify: `npm test`; e2e with fixtures (app frame's `tests/e2e/sof.spec.js`); `npm run dev` against the live feeds once.
   - Dependencies: 1. Size M.
   - Files: src/modules/sof/{index,layout}.js, src/modules/sof/cards.js (DOM), sof.css, README.md
-- [ ] **3. Limit marks and the caution banner.** Marked report words from `wx`'s positions; result lines; `cautions.js` for which cautions are new, acknowledging, and when one comes back (SOF-4 default); acknowledgements kept for the day; the banner setting.
+- [x] **3. Limit marks and the caution banner.** Marked report words from `wx`'s positions; result lines; `cautions.js` for which cautions are new, acknowledging, and when one comes back (SOF-4 default); acknowledgements kept for the day; the banner setting.
   - Acceptance: a below-limit report and each D58 caution raise the banner, Acknowledge clears it, the same caution in the next report doesn't re-raise, and a new one does (#5); marks never use colour alone; report text is only ever text.
   - Verify: unit tests for `cautions.js`; e2e banner flow with the keyboard alone.
   - Dependencies: 2; `wx` word positions (Weather parser thread). Size M.
   - Files: src/modules/sof/cautions.js, src/modules/sof/cards.js, tests/unit/sof/cautions.test.js, src/modules/sof/layout.js
-  - Open item: marked report words wait on wx word positions. The banner, its lines in words, Acknowledge and Acknowledge all, the acknowledgements and the switch are built (screen half, `banner-*.js`); this task stays unticked until the marks are.
 
 **Checkpoint A:** tests pass; code-review-and-quality; `/security-review`; open PR A.
 

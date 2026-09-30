@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadFlight } from '../../../src/flight-data/load.js';
-import { toDebriefFile, readDebriefFile, MAX_DFPS, MAX_NOTE_CHARS, MAX_LABEL_CHARS } from '../../../src/flight-data/debrief-file.js';
+import { toDebriefFile, readDebriefFile, MAX_DFPS, MAX_NOTE_CHARS, MAX_LABEL_CHARS, MAX_DEBRIEF_BYTES, SAVED_WEATHER_BYTES } from '../../../src/flight-data/debrief-file.js';
 
 const EXAMPLES = { 1: '585aab2601b787ed', 3: '3085ab3861e2bae6' };
 const files = Object.entries(EXAMPLES).map(([slot, id]) => ({
@@ -109,4 +109,13 @@ test('five tracks are refused for being five (review)', () => {
   const tracks = [1, 2, 3, 4, 4].map(slot => ({ ...f.tracks[0], slot }));
   assert.match(err(() => readDebriefFile(JSON.stringify({ ...f, tracks }))).message, /1 to 4 tracks/);
   assert.match(err(() => toDebriefFile({ files: [] }, [], {})).message, /can't be saved: it needs 1 to 4 tracks/);
+});
+
+test('the size limit fits four full tracks and a full set of saved radar (189 MiB), and one character more is refused', () => {
+  const MiB = 1024 * 1024;
+  assert.equal(SAVED_WEATHER_BYTES, 37 * MiB);
+  assert.equal(MAX_DEBRIEF_BYTES, 152 * MiB + 37 * MiB);
+  assert.equal(err(() => readDebriefFile(' '.repeat(MAX_DEBRIEF_BYTES + 1)))?.reason, 'it is too big');
+  // At the limit the size check passes and the text is judged on what it is.
+  assert.equal(err(() => readDebriefFile(' '.repeat(MAX_DEBRIEF_BYTES)))?.reason, 'it is damaged or not a debrief file');
 });

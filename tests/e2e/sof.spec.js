@@ -412,6 +412,69 @@ test('the banner lists each new caution in words, in the page flow, and is annou
   await expect(card(page, 'CYMJ').locator('.sof-caution')).toContainText('Caution: THUNDERSTORM / SEVERE WX (VCTS)');
 });
 
+test('the words behind a limit are marked on the card and on the banner, in words as well as colour', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  // Regina's visibility is exactly on its minimum and its ceiling is below; Moose Jaw's thunderstorm is a caution.
+  const regina = card(page, 'CYQR').locator('.sof-metar .sof-raw mark');
+  await expect(regina).toHaveText(['2SM', 'BKN004']);
+  // ...and each says its level in words for a screen reader, drawn by the stylesheet so it is never copied.
+  const said = (loc) => loc.evaluate((el) => getComputedStyle(el, '::before').content);
+  expect(await said(regina.nth(0))).toBe('"at the limit: "');
+  expect(await said(regina.nth(1))).toBe('"below limits: "');
+  await expect(regina.nth(0)).toHaveClass(/is-at-limit/);
+  await expect(regina.nth(1)).toHaveClass(/is-below/);
+  const storm = card(page, 'CYMJ').locator('.sof-metar .sof-raw mark');
+  await expect(storm).toHaveText('VCTS');
+  expect(await said(storm)).toBe('"caution: "');
+  await expect(storm).toHaveClass(/is-caution/);
+  // The report's own text is exactly as issued.
+  await expect(card(page, 'CYMJ').locator('.sof-metar .sof-raw')).toContainText('CYMJ 291800Z 22008KT 6SM VCTS BKN050');
+  // Colour, weight and a line style, so it is never colour alone; and not the browser's own yellow highlight.
+  const style = await storm.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return { bg: c.backgroundColor, line: c.textDecorationLine, weight: c.fontWeight };
+  });
+  expect(style.bg).toBe('rgba(0, 0, 0, 0)');
+  expect(style.line).toContain('underline');
+  expect(Number(style.weight)).toBeGreaterThanOrEqual(700);
+  // The banner shows the same words, marked the same way.
+  const lines = page.locator('.sof-banner-line');
+  await expect(lines.first().locator('.sof-banner-words')).toContainText('In the report:');
+  await expect(lines.first().locator('.sof-banner-words mark.is-below')).toHaveText('BKN004');
+  await expect(lines.nth(1).locator('.sof-banner-words mark.is-caution')).toHaveText('VCTS');
+  await expectNoA11yViolations(page);
+});
+
+test('copying a marked report gives the report as issued, without the hidden level words', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  // A real triple-click selection, as a person would make it, not a range set from script.
+  const box = await page.locator('article[data-icao="CYQR"] .sof-metar .sof-raw').boundingBox();
+  await page.mouse.move(box.x + 1, box.y + 3);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 1, box.y + box.height - 3, { steps: 8 });
+  await page.mouse.up();
+  const copied = await page.evaluate(() => window.getSelection().toString());
+  expect(copied).toContain('2SM BR BKN004');
+  expect(copied).not.toMatch(/below limits:|at the limit:|caution:/);
+});
+
+test('a stale report\'s marks are grey, not bright', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt').replaceAll('291800Z', '291000Z') });
+  await expect(card(page, 'CYQR').locator('.sof-metar')).toHaveAttribute('data-state', 'stale');
+  const mark = card(page, 'CYQR').locator('.sof-metar .sof-raw mark.is-below');
+  await expect(mark).toHaveText(/BKN004/);
+  expect(await mark.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(111, 142, 157)'); // --text-faint
+  await expectNoA11yViolations(page);
+});
+
+test('report text with markup in it stays text, marks and all', async ({ page }) => {
+  const others = fixture('ui-metno-metar-storm.txt').split('\n').filter((l) => !l.startsWith('CYQR')).join('\n');
+  const hostile = `CYQR 291800Z 26005KT 2SM <script>window.__pwned=1</script> BKN004 10/08 A2995=\n${others}`;
+  await openSof(page, { metar: hostile });
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await page.locator('.sof-raw script, .sof-banner script').count()).toBe(0);
+});
+
 test('a caution in a TAF is on the banner with its group and times', async ({ page }) => {
   await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') });
   // With no wave entered the home forecast below the home limits is on the banner too (R3), before the caution.
