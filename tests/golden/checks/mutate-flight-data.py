@@ -18,7 +18,7 @@ TESTS = ['tests/golden/flight-data-*.test.js', 'tests/unit/flight-data/*.test.js
 M = [
  # kml.js: V6's reader
  ('kml.js', ".filter(Boolean);", ";"),
- ('kml.js', "a.length >= 2 && Number.isFinite(a[0])", "a.length >= 3 && Number.isFinite(a[0])"),
+ ('kml.js', "a.length >= 2 && Number.isFinite(a[0]) && Number.isFinite(a[1])) {\n        fixes.push(fix(a, when[i]", "a.length >= 3 && Number.isFinite(a[0]) && Number.isFinite(a[1])) {\n        fixes.push(fix(a, when[i]"),
  ('kml.js', "altM: Number.isFinite(a[2]) ? a[2] : 0", "altM: Number.isFinite(a[2]) ? a[2] : null"),
  ('kml.js', "nativeG[idx] ?? nativeG[i] ?? null", "nativeG[i] ?? nativeG[idx] ?? null"),
  ('kml.js', ".sort((a, b) => a.t - b.t)", ".sort((a, b) => b.t - a.t)"),
@@ -67,23 +67,21 @@ M = [
  # flight.js: V6's projection and sampling
  ('flight.js', "altFt: f.altM * FT_PER_M", "altFt: f.altM * 3.28"),
  ('flight.js', "const first = tracks[slots[0]].fixes[0];", "const first = tracks[slots[slots.length - 1]].fixes[0];"),
- ('flight.js', "let startT = Math.max(", "let startT = Math.min("),
- ('flight.js', "let endT = Math.min(", "let endT = Math.max("),
- ('flight.js', "endT <= startT", "endT < startT"),
+ ('flight.js', "const startT = Math.max(", "const startT = Math.min("),
+ ('flight.js', "const endT = Math.min(", "const endT = Math.max("),
  ('flight.js', "if (fixes[mid].t < t) lo = mid;", "if (fixes[mid].t <= t) lo = mid;"),
- ('flight.js', "if (t <= f[0].t) return { ...f[0] };", "if (t < f[0].t) return { ...f[0] };"),
- ('flight.js', "* FTPS_TO_KT,", "/ 1.68781,"),
+ ('flight.js', "if (t <= f[0].t) return n < 2", "if (t < f[0].t) return n < 2"),
+ ('flight.js', "/ (b.t - a.t || 1) * FTPS_TO_KT;", "/ (b.t - a.t || 1) / 1.68781;"),
  ('flight.js', "if (Number.isFinite(a)) return a;", "if (Number.isFinite(a)) return b;"),
- ('flight.js', "if (!f || f.length < 2) return 0;", "if (!f || f.length < 2) return null;"),
  ('flight.js', "return Math.atan2(b.yFt - a.yFt, b.xFt - a.xFt);", "return Math.atan2(b.xFt - a.xFt, b.yFt - a.yFt);"),
  ('flight.js', "if (t1 - t0 < 0.25)", "if (t1 - t0 < 0.3)"),
  ('flight.js', "horizFt < 20) return", "horizFt < 19) return"),
  ('flight.js', "Math.max(-30, Math.min(30,", "Math.max(-31, Math.min(30,"),
  ('flight.js', "if (!f || f.length < 3) return null;", "if (!f || f.length < 2) return null;"),
  ('flight.js', "if (t1 - t0 < 0.5) return null;", "if (t1 - t0 < 0.6) return null;"),
- ('flight.js', "export function pitchAt(track, t, windowS = 1.5)", "export function pitchAt(track, t, windowS = 2)"),
+ ('flight.js', "{ recorded = false, windowS = 1.5 } = {}", "{ recorded = false, windowS = 2 } = {}"),
  ('flight.js', "export function estimatedGAt(track, t, windowS = 1.5)", "export function estimatedGAt(track, t, windowS = 2)"),
- ('flight.js', "headingAt(track, t0), { x: p1.xFt", "headingAt(track, t1), { x: p1.xFt"),
+ ('flight.js', "const h0 = headingAt(track, t0);", "const h0 = headingAt(track, t1);"),
  ('flight.js', ", t1 - t0);\n}", ", t1 - t0 + 0.1);\n}"),
  ('flight.js', "return wrapDeg180(a + wrapDeg180(b - a) * k);", "return a + (b - a) * k;"),
  # clean.js: C3, impossible fixes
@@ -92,7 +90,7 @@ M = [
  ('clean.js', "f.altM >= MIN_ALT_M", "f.altM > MIN_ALT_M"),
  ('clean.js', "f.altM <= MAX_ALT_M", "f.altM < MAX_ALT_M"),
  ('clean.js', "dropped.position++", "dropped.altitude++"),
- ('clean.js', "possible[b].t - possible[a].t, MIN_SPEED_TIME_S", "possible[b].t - possible[a].t, 0.5"),
+ ('clean.js', "Math.max(q.t - p.t, MIN_SPEED_TIME_S)", "Math.max(q.t - p.t, 0.5)"),
  ('clean.js', "<= MAX_GROUND_SPEED_KT", "< MAX_GROUND_SPEED_KT + 5"),
  ('clean.js', "i + MAX_JUMP_FIXES,", "i + MAX_JUMP_FIXES - 1,"),
  ('clean.js', "i + MAX_JUMP_FIXES,", "i + MAX_JUMP_FIXES + 1,"),
@@ -122,7 +120,7 @@ M = [
  # C7: heading unknown when still
  ('flight.js', "if (segmentKt(a, b) < STILL_KT) return null;", ""),
  ('flight.js', "if (segmentKt(a, b) < STILL_KT) return null;", "if (segmentKt(a, b) <= STILL_KT + 0.1) return null;"),
- ('flight.js', "if (!f || f.length < 2) return null;\n  const n = f.length;\n  const [a, b]", "if (!f || f.length < 2) return 0;\n  const n = f.length;\n  const [a, b]"),
+ ('flight.js', "if (!f || f.length < 2) return null;\n  const n = f.length;\n  const lo", "if (!f || f.length < 2) return 0;\n  const n = f.length;\n  const lo"),
  ('flight.js', "|| h0 === null || h1 === null) return null;", ") return null;"),
  ('flight.js', "|| h0 === null || h1 === null) return null;", "|| h0 === null) return null;"),
  # C8: tracks that don't overlap
@@ -155,7 +153,7 @@ M = [
  ('debrief-file.js', "dfps.length > MAX_DFPS)", "dfps.length > MAX_DFPS + 1)"),
  ('debrief-file.js', "!isText(d.note, MAX_NOTE_CHARS)", "!isText(d.note, Infinity)"),
  ('debrief-file.js', "!isText(d.label, MAX_LABEL_CHARS)", "!isText(d.label, Infinity)"),
- ('debrief-file.js', "!isText(tr.name, MAX_LABEL_CHARS)", "!isText(tr.name, Infinity)"),
+ ('debrief-file.js', "!isText(tr.name, MAX_NAME_CHARS)", "!isText(tr.name, Infinity)"),
  ('debrief-file.js', "!Number.isFinite(d.t)", "d.t === undefined"),
  ('debrief-file.js', ".sort((a, b) => a.t - b.t)", ""),
  ('debrief-file.js', "return { t: d.t, label: d.label, note: d.note };", "return d;"),
@@ -165,7 +163,7 @@ M = [
  ('debrief-file.js', "typeof v === 'boolean'", "true"),
  ('debrief-file.js', "Object.entries(CLEANING).every(([k, v]) => file.cleaning[k] === v)", "true"),
  ('debrief-file.js', "if (!Array.isArray(files) || !files.length)", "if (!Array.isArray(files))"),
- ('load.js', "files: files.map(({ slot, name, text }) => ({ slot, name, text }))", "files"),
+ ('load.js', "files: files.map(({ slot, name, text }) => ({ slot, name: shortName(name), text }))", "files"),
  ('clock.js', "if (!playing || !Number.isFinite(nowMs)) return;", "if (!playing) return;"),
  ('debrief-file.js', "tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)", "seen.has(tr.slot)"),
  ('debrief-file.js', "tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)", "tr.slot < 1 || tr.slot > MAX_TRACKS"),
@@ -179,7 +177,7 @@ M = [
  ('load.js', "|| tracks[slot])", ")"),
  ('load.js', "slot > MAX_TRACKS ||", "slot > MAX_TRACKS + 1 ||"),
  ('load.js', "!Number.isInteger(slot) ||", ""),
- ('load.js', "cleanTrack(readKml(text, name))", "readKml(text, name)"),
+ ('load.js', "cleanTrack(readKml(text, shortName(name)))", "readKml(text, shortName(name))"),
 ]
 
 
@@ -191,6 +189,8 @@ def run():
         return 'timeout'
 
 
+for fname, old, new in M:
+    assert (SRC / fname).read_text().count(old) == 1, f'{fname}: not found once: {old}'
 assert run() == 0, 'tests must pass before mutating'
 survived = []
 for fname, old, new in M:
