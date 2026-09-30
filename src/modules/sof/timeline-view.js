@@ -37,7 +37,7 @@ export function createTimelineView({ collapsed = false, onToggle } = {}) {
   const legend = h(
     'p',
     { class: 'sof-tl-legend' },
-    'Each piece shows its NATO colour state in words. Hatched and marked "below": below the limits for that airfield. ◆ latest METAR. L landing, +1 landing plus one hour. The line is now.',
+    'Each piece shows its NATO colour state in words. Hatched, and ▼ marks a piece below the limits for that airfield (a short piece shows only the ▼; its full words are on hover, on focus and to a screen reader). ◆ latest METAR. L landing, +1 landing plus one hour. The line is now.',
   );
   panel.body.append(problem, axis, rows, info, waveWords, legend);
   const element = panel.element;

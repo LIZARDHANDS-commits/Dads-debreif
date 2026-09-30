@@ -1127,7 +1127,7 @@ test('no accessibility violations with a wave and its list of hits open', async 
 
 // ---- R5: a piece's label is never wider than the piece, and "below" comes first ------------------------------
 
-for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }]) {
+for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }]) {
   test.describe(`at ${size.width} × ${size.height}, timeline labels`, () => {
     test.use({ viewport: size });
 
@@ -1140,6 +1140,10 @@ for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }])
       const hatched = page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-piece.is-hatched');
       expect(await hatched.count()).toBeGreaterThan(1);
       for (const label of await hatched.locator('.sof-tl-piece-label').all()) await expect(label).toContainText('▼');
+      // N1: a 1 h piece cannot fit the word before 1920 px, so the symbol alone is explained under the timeline
+      // and the whole word is in the piece's accessible name.
+      await expect(page.locator('.sof-tl-legend')).toContainText('▼ marks a piece below the limits');
+      for (const piece of await hatched.all()) await expect(piece).toHaveAttribute('aria-label', /below/);
     });
   });
 }
