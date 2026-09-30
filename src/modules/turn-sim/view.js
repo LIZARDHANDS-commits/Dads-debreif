@@ -91,15 +91,17 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       ctx.fillRect(0, 0, width, height);
       drawGrid(ctx, map);
       drawMoa(ctx, map, settings.moaBoundaryNm);
-      if (layers.lead39 && lead) drawLead39(ctx, map, lead);
+      const used = []; // the rectangles of the words drawn so far, so the pair distances can keep clear of them
+      if (layers.lead39 && lead) used.push(drawLead39(ctx, map, lead));
       const { trail, marks } = source.trails();
       drawTrails(ctx, map, trail);
       if (layers.breadcrumbs) drawBreadcrumbs(ctx, map, marks, layers.crumbSec, state.tSec);
       if (layers.spacingLines) drawSpacingLines(ctx, map, state, layers.distNm);
-      if (layers.turnCircles && !state.finished) drawTurnCircles(ctx, map, state, settings);
+      if (layers.turnCircles && !state.finished) used.push(...drawTurnCircles(ctx, map, state, settings));
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
-      for (const a of state.aircraft) drawAircraft(ctx, map, a);
-      if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels());
+      for (const a of state.aircraft) used.push(drawAircraft(ctx, map, a));
+      if (layers.errorLabels) used.push(...drawErrorLabels(ctx, map, state, source.labels()));
+      if (layers.spacingLines) drawPairLabels(ctx, map, state, layers.distNm, used);
     },
   });
 
@@ -132,6 +134,10 @@ function text(ctx, str, x, y, color, size = 12, align = 'left') {
   ctx.fillStyle = color;
   ctx.fillText(str, x, y);
   ctx.textAlign = 'left';
+  // Where the words landed (CSS px), so a later label can keep clear of them.
+  const w = ctx.measureText(str).width;
+  const x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  return { x0, y0: y - size, x1: x0 + w, y1: y + 3 };
 }
 
 function drawGrid(ctx, map) {
@@ -187,7 +193,7 @@ function drawLead39(ctx, map, lead) {
   ctx.lineTo(bx, by);
   ctx.stroke();
   ctx.restore();
-  text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
+  return text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
 }
 
 function drawTrails(ctx, map, trail) {
@@ -240,15 +246,38 @@ function drawSpacingLines(ctx, map, state, withNm) {
     ctx.moveTo(ax, ay);
     ctx.lineTo(bx, by);
     ctx.stroke();
-    ctx.setLineDash([]);
-    // A pair whose middle is on a third aircraft (#1 to #4 passes over #3) prints above that aircraft's "#3" tag, not on it.
-    const mx = (ax + bx) / 2;
-    const my = (ay + by) / 2;
-    const onShip = state.aircraft.some((c) => c.id !== pair.a && c.id !== pair.b && Math.hypot(map.worldToScreen(c.xFt, c.yFt)[0] - mx, map.worldToScreen(c.xFt, c.yFt)[1] - my) < 30);
-    text(ctx, withNm ? formatNm(pair.distFt) : ft(pair.distFt), mx, my - (onShip ? 24 : 6), '#c9d1d9', 11, 'center');
-    ctx.setLineDash([6, 6]);
   }
   ctx.restore();
+}
+
+/**
+ * The distance of each spacing pair, at the middle of its line, moved up or down a row until it is clear of the words already drawn
+ * (aircraft tags, labels, circle labels) and of the earlier distances (F2).
+ */
+function drawPairLabels(ctx, map, state, withNm, used) {
+  const byId = new Map(state.aircraft.map((a) => [a.id, a]));
+  const overlaps = (r) => used.some((u) => r.x0 < u.x1 && r.x1 > u.x0 && r.y0 < u.y1 && r.y1 > u.y0);
+  for (const pair of pairDistances(state)) {
+    if (!SPACING_LINES.has(pair.label)) continue;
+    const a = byId.get(pair.a);
+    const b = byId.get(pair.b);
+    const [ax, ay] = map.worldToScreen(a.xFt, a.yFt);
+    const [bx, by] = map.worldToScreen(b.xFt, b.yFt);
+    const str = withNm ? formatNm(pair.distFt) : ft(pair.distFt);
+    ctx.font = `11px ${FONT}`;
+    const w = ctx.measureText(str).width;
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    let rect = { x0: mx - w / 2, y0: my - 6 - 11, x1: mx + w / 2, y1: my - 6 + 3 };
+    for (const dy of [0, -14, 14, -28, 28, -42, 42]) {
+      const tryRect = { x0: rect.x0, y0: rect.y0 + dy, x1: rect.x1, y1: rect.y1 + dy };
+      if (!overlaps(tryRect)) {
+        rect = tryRect;
+        break;
+      }
+    }
+    used.push(text(ctx, str, mx, rect.y1 - 3, '#c9d1d9', 11, 'center'));
+  }
 }
 
 /** The G an aircraft is flying, so its circle is the circle it flies (never below the 1.01 G floor). */
@@ -258,6 +287,7 @@ export function circleG(aircraft, settings) {
 
 /** Each aircraft's turn circle at the G it flies, labelled with G and radius (V6 drawTurnCircles, line 1851). */
 function drawTurnCircles(ctx, map, state, settings) {
+  const rects = [];
   const v = ktToFtps(settings.speedKt);
   const scale = map.view.scale;
   for (const a of state.aircraft) {
@@ -279,8 +309,9 @@ function drawTurnCircles(ctx, map, state, settings) {
     ctx.restore();
     // Under the circle, so it never sits on the spacing lines through the aircraft.
     // Neighbours in a tight picture stagger by a row, so their words do not run together.
-    text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14 + (a.id % 2 === 0 ? 13 : 0), color, 11, 'center');
+    rects.push(text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14 + (a.id % 2 === 0 ? 13 : 0), color, 11, 'center'));
   }
+  return rects;
 }
 
 /** A 12-position clock ring around an aircraft, with its nose at 12 (V6 drawClockMarks, line 1716). */
@@ -336,15 +367,17 @@ function drawAircraft(ctx, map, a) {
   ctx.stroke();
   ctx.fill();
   ctx.restore();
-  text(ctx, `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
+  return text(ctx, `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
 }
 
 /** Each wingman's label in words, beside it (V6 drawErrorLabels, line 1947). */
 function drawErrorLabels(ctx, map, state, labels) {
+  const rects = [];
   for (const a of state.aircraft) {
     const label = labels[a.id];
     if (!label) continue;
     const [x, y] = map.worldToScreen(a.xFt, a.yFt);
-    text(ctx, label.text, x + 14, y + 20, LABEL_TONES[label.tone] ?? LABEL_TONES.none, 11);
+    rects.push(text(ctx, label.text, x + 14, y + 20, LABEL_TONES[label.tone] ?? LABEL_TONES.none, 11));
   }
+  return rects;
 }

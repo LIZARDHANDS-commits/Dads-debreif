@@ -100,6 +100,16 @@ test('turn sim, ready to play', async ({ page }) => {
   await shot(page, 'turn-sim.png');
 });
 
+// The offset box at 1280 x 720, where its pair distances once printed over the circle labels (F2).
+test('turn sim, offset box at 1280', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await openRoute(page, '#/turn-sim');
+  await expect(page.getByRole('button', { name: /^Play/ })).toBeVisible();
+  await page.locator('.ts-col-setup').getByLabel('Formation', { exact: true }).selectOption({ label: 'Offset box' });
+  await page.clock.runFor(1000);
+  await shot(page, 'turn-sim-box-1280.png');
+});
+
 // The SOF with the recorded reports sof.spec.js uses, at the time they were
 // written for (1842Z, 29 September 2026), so every card, age and state is fixed.
 const sofFixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
