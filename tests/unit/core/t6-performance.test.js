@@ -10,7 +10,9 @@ import {
   T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
   T6A_MANOEUVRE, shakerG, splitST6A,
 } from '../../../src/core/t6-performance.js';
-import { T6A_TURN_POINTS, T6A_FIT } from '../../../src/core/t6a-turn-charts.js';
+import {
+  T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
+} from '../../../src/core/t6a-turn-charts.js';
 import { isaDensityRatio, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
 import { KT_TO_FTPS, G_FTPS2, FT_PER_NM } from '../../../src/core/units.js';
 
@@ -25,18 +27,20 @@ test('the V-n limits: +7/−3.5 G, +4.7 G rolling, VO 227, VMO 316 KIAS, 5,168 l
   assert.equal(T6A_LIMITS.voKias, 227);
   assert.equal(T6A_LIMITS.vmoKias, 316);
   assert.equal(T6A_LIMITS.weightLb, 5168);
-  assert.equal(T6A_LIMITS.stallKias, 86, 'the V-n stall line, the agreed default (Dad may pick 83)');
+  assert.equal(T6A_LIMITS.stallKias, 86, 'the agreed default (Patrick kept it, 09:29Z)');
   assert.throws(() => { T6A_LIMITS.maxG = 8; }, TypeError);
 });
 
-test('the stall line: (KIAS ÷ 86)², reaching 7 G at 227.5 KIAS, VO', () => {
+test('the stall line: (KIAS ÷ 86)², reaching 7 G at 227.5 KIAS', () => {
   near(stallLimitG(86), 1, 1e-12, '1 G at the stall speed');
   near(stallLimitG(100), 1.352, 0.001, '100 KIAS');
   near(stallLimitG(150), 3.042, 0.001, '150 KIAS');
   near(stallLimitG(200), 5.408, 0.001, '200 KIAS');
   near(stallLimitG(86 * Math.sqrt(7)), 7, 1e-12, 'corner');
   near(86 * Math.sqrt(7), 227.5, 0.05, 'corner speed');
-  near(stallLimitG(139.6, 83), 2.829, 0.001, 'the turn charts\' lighter jet stalls near 83 kt');
+  near(stallLimitG(139.6, 83), 2.829, 0.001, 'the turn charts\' max-power stall is near 83 kt');
+  // The V-n diagram's own curve is (KIAS ÷ 89.4)², reaching 7 G near 236 KIAS; 227.5 matching VO (227) is a coincidence of the 86.
+  near(89.4 * Math.sqrt(7), 236.5, 0.1, 'the V-n curve\'s corner');
 });
 
 test('available G: the stall line, capped at +7 G, or +4.7 G while rolling', () => {
@@ -136,6 +140,70 @@ test('every chart point: thrust within 10 % of drag at the chart\'s G', () => {
   assert.ok(worst > 0.01, 'read off by eye: not a perfect fit');
 });
 
+// Turn rate against the chart directly (verification of 2026-09-30, finding F2): a point's
+// thrust within 10 % of its drag can still be a rate 28 % low where the curve falls steeply.
+
+/** The model's sustained turn rate, °/s, at kias and altFt: thrust equal to drag, capped by the stall line. */
+function sustainedRate(kias, altFt, stallKias = T6A_LIMITS.stallKias) {
+  const g = Math.min(sustainedG(kias, altFt), availableG(kias, false, stallKias));
+  return g > 1 ? turnRateRadPerSec(iasToTasKt(kias, altFt) * KT_TO_FTPS, g) * DEG : 0;
+}
+
+// More points off Fig 4-10-1, read by pixel in the independent check (verification/core.md, Table 1):
+// 175, 230 and 250 KIAS, where the curves fall steeply, and fresh reads at 200 KIAS. [KIAS, ft, °/s]
+const PIXEL_POINTS = [
+  [200, 0, 15.36], [230, 0, 11.46], [250, 0, 7.32], [200, 5000, 13.35], [250, 5000, 4.51],
+  [200, 10000, 11.5], [175, 15000, 11.9], [200, 15000, 9.75], [200, 20000, 6.86],
+  [175, 25000, 6.27], [200, 25000, 3.17], [175, 31000, 2.31],
+];
+
+/** Whether the model reaches the chart's rate within kt knots of the chart's speed. */
+function reachesWithin(kias, altFt, rate, kt) {
+  const lo = sustainedRate(kias - kt, altFt), hi = sustainedRate(kias + kt, altFt);
+  return Math.min(lo, hi) <= rate && rate <= Math.max(lo, hi);
+}
+
+test('turn rate against the chart, sea level to 15,000 ft: within 0.65°/s, or 3 kt where the curve is steep', () => {
+  const points = [...T6A_TURN_150_200, ...T6A_TURN_OTHER, ...PIXEL_POINTS].filter(([, alt]) => alt <= 15000);
+  assert.equal(points.length, 20);
+  let worst = 0;
+  for (const [kias, alt, rate] of points) {
+    const miss = sustainedRate(kias, alt) - rate;
+    assert.ok(Math.abs(miss) <= 0.65 || reachesWithin(kias, alt, rate, 3), `${kias} KIAS at ${alt} ft: model ${sustainedRate(kias, alt).toFixed(2)}°/s, chart ${rate}`);
+    worst = Math.max(worst, Math.abs(miss));
+  }
+  assert.ok(worst > 0.3, 'read off a chart: not a perfect fit');
+  // Near zero turn at sea level the curve is steep: 0.75°/s high, but only 2 kt.
+  assert.ok(!(Math.abs(sustainedRate(256.6, 0) - 4.48) <= 0.65) && reachesWithin(256.6, 0, 4.48, 3));
+});
+
+test('turn rate against the chart, 20,000 ft and up: a known shortfall, up to 0.95°/s low from 175 KIAS', () => {
+  // Kept as it is (a judgement call logged for review): the MTCA working blocks are 6,000 to 15,500 ft.
+  for (const [kias, alt, rate] of [...T6A_TURN_150_200, ...PIXEL_POINTS].filter(([, a]) => a >= 20000)) {
+    const miss = sustainedRate(kias, alt) - rate;
+    const allowed = kias <= 150 ? 0.4 : 0.95;
+    assert.ok(miss <= 0.1 && miss >= -allowed, `${kias} KIAS at ${alt} ft: model ${sustainedRate(kias, alt).toFixed(2)}°/s, chart ${rate}`);
+  }
+  near(sustainedRate(200, 25000), 2.27, 0.02, 'the worst: 200 KIAS at 25,000 ft, chart 3.17');
+});
+
+test('zero sustained turn: the model reaches it within 6 kt of each chart line', () => {
+  for (const [kias, alt] of T6A_TURN_ZERO) {
+    let zero = 0;
+    for (let k = 150; k <= 300; k += 0.1) if (sustainedG(k, alt) >= 1) zero = k;
+    assert.ok(Math.abs(zero - kias) <= 6, `${alt} ft: model ${zero.toFixed(1)} KIAS, chart ${kias}`);
+  }
+});
+
+test('the tops of the chart lines: within 0.35°/s with an 83 kt stall, and 1.1 to 1.6°/s low with the 86 kt default', () => {
+  for (const [kias, alt, rate] of T6A_TURN_STALL_LIMIT) {
+    const at83 = sustainedRate(kias, alt, 83) - rate;
+    const at86 = sustainedRate(kias, alt, 86) - rate;
+    assert.ok(Math.abs(at83) <= 0.35, `${alt} ft at 83 kt: ${at83.toFixed(2)}°/s`);
+    assert.ok(at86 < -1.1 && at86 > -1.6, `${alt} ft at 86 kt: ${at86.toFixed(2)}°/s (verification finding F1, logged for review)`);
+  }
+});
+
 test('the fitted constants are the fit\'s best for these chart points (tests/golden/checks/t6a-fit.mjs)', () => {
   assert.equal(T6A_TURN_POINTS.length, 31);
   let sum = 0;
@@ -158,7 +226,7 @@ for (const stallKias of [86, 83]) {
   });
 }
 
-test('the corner: 7 G first at 227.5 KIAS; 33.3°/s on a 659 ft radius at 227 KIAS, sea level', () => {
+test('the model\'s corner: 7 G first at 227.5 KIAS (86 kt × √7); 33.3°/s on a 659 ft radius at 227 KIAS, sea level', () => {
   near(T6A_LIMITS.stallKias * Math.sqrt(T6A_LIMITS.maxG), 227.5, 0.05, 'corner speed');
   const v = iasToTasKt(227, 0) * KT_TO_FTPS;
   near(turnRateRadPerSec(v, 7) * DEG, 33.3, 0.1, 'instantaneous rate at 7 G');
