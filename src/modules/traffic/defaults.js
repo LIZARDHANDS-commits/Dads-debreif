@@ -9,12 +9,14 @@
 // route a new entry joins) are kept as short words; the code that does the
 // work reads them and names the row it follows.
 
+import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+
 export const DEFAULTS = Object.freeze({
   // Playback speed: 8×, as V6's built-in setup.
   speed: 8,
 
-  // 2D or 3D: 2D; the 3D camera starts at Fit.
-  view: '2d',
+  // 2D or 3D: 2D (the ui-kit's shared default); the 3D camera starts at Fit.
+  view: VIEW_DEFAULT,
   camera3d: 'fit',
 
   // Wind: calm, 360°T at 0 kt.
@@ -152,6 +154,10 @@ export const DEFAULTS = Object.freeze({
   newProfileName: 'Setup 1',
   newProfileNotes: '',
 });
+
+// The values a setting may hold besides its type, for createSettings(store, DEFAULTS, { allowed: ALLOWED }).
+// The 2D | 3D switch is the ui-kit's shared one, so its values come from there.
+export const ALLOWED = Object.freeze({ view: VIEW_ALLOWED });
 
 // The playback speeds on offer (the spec's "0.25× to 8×"), and the speed the
 // bar starts at.

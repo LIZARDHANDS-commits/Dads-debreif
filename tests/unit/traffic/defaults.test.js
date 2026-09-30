@@ -2,7 +2,8 @@
 // specs/SPEC-traffic.md ("Every setting starts filled in"), and its number-box limits.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, LIMITS, SPEEDS } from '../../../src/modules/traffic/defaults.js';
+import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../../src/ui-kit/controls.js';
+import { ALLOWED, DEFAULTS, LIMITS, SPEEDS } from '../../../src/modules/traffic/defaults.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 // Checks a group of settings against the values the table gives for them.
@@ -184,4 +185,15 @@ test('every default that has a limit sits inside it, so a fresh box is never ref
   for (const key of ['newPatternLandPct', 'newPatternStayPct', 'missChancePct']) {
     assert.ok(DEFAULTS[key] >= LIMITS.sharePct[0] && DEFAULTS[key] <= LIMITS.sharePct[1], key);
   }
+});
+
+test('the 2D | 3D setting is the ui-kit\'s shared one: it starts at VIEW_DEFAULT and may hold only VIEW_ALLOWED', () => {
+  assert.equal(DEFAULTS.view, VIEW_DEFAULT);
+  assert.deepEqual([...ALLOWED.view], [...VIEW_ALLOWED]);
+  const kept = new Map();
+  const settings = createSettings({ get: (k, f) => (kept.has(k) ? kept.get(k) : f), set: (k, v) => kept.set(k, v) }, DEFAULTS, { allowed: ALLOWED });
+  settings.update({ view: '3d' });
+  assert.equal(settings.get().view, '3d');
+  settings.update({ view: 'sideways' });
+  assert.equal(settings.get().view, '3d', 'anything else is refused');
 });

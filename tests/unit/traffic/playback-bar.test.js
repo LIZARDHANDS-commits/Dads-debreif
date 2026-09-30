@@ -56,7 +56,8 @@ function stubControls() {
     asked.push({ kind, key, ...options });
     return h('div', { class: `control control-${kind}`, dataset: { key } }, options.label);
   };
-  return { asked, number: make('number'), checkbox: make('checkbox'), choice: make('choice') };
+  const choice = make('choice');
+  return { asked, number: make('number'), checkbox: make('checkbox'), choice, viewSwitch: () => choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] }) };
 }
 
 function setup(options = {}) {

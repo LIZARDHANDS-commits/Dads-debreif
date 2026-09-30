@@ -100,9 +100,7 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
       controls.number('windKt', { label: 'Wind speed', unit: 'kt', min: LIMITS.windKt[0], max: LIMITS.windKt[1], step: 1 }),
     )
     : null;
-  const viewSwitch = available.view3d
-    ? controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] })
-    : null;
+  const viewSwitch = available.view3d ? controls.viewSwitch() : null; // the ui-kit's shared 2D | 3D switch
   const layers = createMenu({ label: 'Layers', listen, children: layerItems(available).map((item) => controls.checkbox(item.key, { label: item.label })) });
   const fit = button('Fit', () => on.fit());
 
