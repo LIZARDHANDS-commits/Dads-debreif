@@ -389,7 +389,7 @@ test('in flight the Formation card judges each wingman; More detail opens the nu
   await expect(page.getByRole('button', { name: 'More detail' })).toHaveAttribute('aria-expanded', 'true');
 });
 
-test('standards: edit, refuse a bad value, keep after a reload, reset to V6 (R18)', async ({ page }) => {
+test('standards: edit, refuse a bad value, keep after a reload, reset to the defaults (R18, D114-D116)', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
   const scrubber = page.getByLabel('Flight time');
@@ -398,7 +398,7 @@ test('standards: edit, refuse a bad value, keep after a reload, reset to V6 (R18
   await expect(open).toHaveAttribute('aria-expanded', 'false'); // closed at first (R22)
   await open.click();
   const summary = page.getByRole('list', { name: 'Standards in use' });
-  await expect(summary).toContainText('Spread: 4000-6000 ft, 3/9 ±250 ft');
+  await expect(summary).toContainText('Spread: 4000-6000 ft, sweep 0 to 10°');
 
   const max = page.getByLabel('Spread maximum');
   await max.fill('8000');
@@ -424,7 +424,7 @@ test('standards: edit, refuse a bad value, keep after a reload, reset to V6 (R18
   await page.getByRole('button', { name: 'Reset to the default standards' }).click();
   await expect(page.getByLabel('Spread maximum')).toHaveValue('6000');
   await expect(page.getByLabel('Judge spread')).toBeChecked();
-  await expect(page.getByRole('list', { name: 'Standards in use' })).toContainText('Lead: 200 ±10 kt, 1.0 ±0.20 G');
+  await expect(page.getByRole('list', { name: 'Standards in use' })).toContainText('Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G');
 });
 
 const dfpRows = (page) => page.getByRole('list', { name: 'DFPs' }).getByRole('listitem');
