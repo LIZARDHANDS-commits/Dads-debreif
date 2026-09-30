@@ -30,6 +30,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   filesOpen: false,
   // Map layers, with V6's defaults: full tracks, spacing lines, grid and
   // Lead's 3/9 line on, everything else off.
+  satellite: false,
   grid: true,
   trail: 'full',
   spacingLines: true,

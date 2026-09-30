@@ -479,3 +479,40 @@ test('a built-in route shows on its own before any flight is loaded', async ({ p
   await expect.poll(() => mapPicture(page)).not.toBe(before);
   await expect.poll(() => pixelsNear(page, [255, 204, 102])).toBeGreaterThan(50); // V6's amber
 });
+
+// A 1 × 1 green PNG (0, 200, 60), served in place of Esri's tiles so the tests don't need the network.
+const GREEN_TILE = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgOGEDAAHQAQV8fabtAAAAAElFTkSuQmCC', 'base64');
+const ESRI = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/**';
+
+test('satellite imagery: off at first, Esri\'s tiles under the tracks with Esri\'s credit (#28)', async ({ page }) => {
+  const asked = [];
+  await page.route(ESRI, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: GREEN_TILE });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const credit = page.locator('.map-credit');
+  await expect(credit).toBeHidden();
+  expect(asked).toEqual([]); // nothing fetched while it's off (R5)
+  await page.getByRole('button', { name: 'Layers' }).click();
+  await page.getByLabel('Satellite imagery').check();
+  await expect(credit).toHaveText(/^Imagery: Esri/);
+  // The green tiles, a little darkened as in V6, fill the map.
+  await expect.poll(() => pixelsNear(page, [1, 158, 51]), { timeout: 10_000 }).toBeGreaterThan(10_000);
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.every((url) => /\/tile\/\d+\/\d+\/\d+$/.test(url))).toBe(true);
+  await page.getByLabel('Satellite imagery').uncheck();
+  await expect(credit).toBeHidden();
+});
+
+test('with no connection, the map says satellite imagery needs one and keeps the grid', async ({ page }) => {
+  // A broken picture fails the same way as no connection, without the browser's own error line.
+  await page.route(ESRI, (route) => route.fulfill({ status: 200, contentType: 'image/png', body: 'not a picture' }));
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Layers' }).click();
+  await page.getByLabel('Satellite imagery').check();
+  // Each tile is tried three times over about 8 s before the map gives up on it.
+  await expect(page.locator('.map-credit')).toHaveText(/needs a connection/, { timeout: 20_000 });
+});

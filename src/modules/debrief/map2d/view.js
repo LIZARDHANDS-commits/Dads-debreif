@@ -9,24 +9,63 @@ import {
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
+import { createTileLayer, ESRI_IMAGERY } from './tiles.js';
+import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../../core/geo.js';
+import { VNC_ANCHOR } from '../data/cymj.js';
+
+// Where the map's feet start with no flight loaded: Moose Jaw, as in V6, so
+// routes and imagery line up before any track does.
+const HOME_REF = makeLocalRef(VNC_ANCHOR.lat, VNC_ANCHOR.lon);
+const SATELLITE_BACKGROUND = '#05090d';
+const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand out
 
 /**
  * canvas: the map's <canvas>. timers: the module's scheduler scope.
  * time(): the playback time to draw. layers(): the layout settings (grid,
- * trail, spacingLines, lead39, three39, cone, clockMarks, bubble, bubbleFt,
+ * satellite, trail, spacingLines, lead39, three39, cone, clockMarks, bubble, bubbleFt,
  * followLead, route, routeOpacity). labels(flight, t): each ship's standards label,
  * { slot: { text, tone } }. dfps(): the DFP flags, [{ x, y, label }].
+ * onImagery(state): after each draw with satellite on, the tiles' { wanted,
+ * ready, failed }, or null when it's off.
  */
-export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [] }) {
+export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {} }) {
   let flight = null;
   let paths = [];
   let routeName = '';
   let route = null; // the chosen route in this flight's map feet
 
-  // The route goes on the flight's map; with no flight, round its own first point.
+  const mapRef = () => flight?.ref ?? HOME_REF;
+
   function placeRoute() {
     const chosen = ROUTES.find((r) => r.name === routeName);
-    route = chosen ? projectRoute(chosen, flight?.ref) : null;
+    route = chosen ? projectRoute(chosen, mapRef()) : null;
+  }
+
+  const imagery = createTileLayer({ source: ESRI_IMAGERY, timers, onChange: () => map.requestDraw() });
+
+  function drawImagery(ctx) {
+    const ref = mapRef();
+    const { minX, minY, maxX, maxY } = map.visibleBounds();
+    const cornersLl = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]].map(([x, y]) => localFtToLatLon(ref, x, y));
+    const corners = {
+      north: Math.max(...cornersLl.map((c) => c.lat)),
+      south: Math.min(...cornersLl.map((c) => c.lat)),
+      west: Math.min(...cornersLl.map((c) => c.lon)),
+      east: Math.max(...cornersLl.map((c) => c.lon)),
+    };
+    const { width, height } = map.size;
+    ctx.fillStyle = SATELLITE_BACKGROUND;
+    ctx.fillRect(0, 0, width, height);
+    imagery.draw(ctx, {
+      corners,
+      pxPerFt: map.view.scale,
+      toScreen: (lat, lon) => {
+        const { x, y } = latLonToLocalFt(ref, lat, lon);
+        return map.worldToScreen(x, y);
+      },
+    });
+    ctx.fillStyle = SATELLITE_DARKEN;
+    ctx.fillRect(0, 0, width, height);
   }
 
   const map = createCanvasView(canvas, {
@@ -49,6 +88,8 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
         // With no flight to show, the view goes to the route (V6 fitKmlOverlayToView).
         if (route && !flight) map.fit(routeBounds(route));
       }
+      if (on.satellite) drawImagery(ctx);
+      onImagery(on.satellite ? imagery.state() : null);
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
@@ -82,6 +123,9 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
     get view() {
       return map.view;
     },
-    dispose: map.dispose,
+    dispose() {
+      imagery.dispose();
+      map.dispose();
+    },
   };
 }

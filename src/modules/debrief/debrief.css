@@ -459,3 +459,17 @@
   color: var(--text-faint);
   cursor: default;
 }
+
+[data-module='debrief'] .map-credit {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  max-width: calc(100% - var(--space-2));
+  margin: 0;
+  padding: 0 var(--space-1);
+  border-radius: 4px;
+  background: rgb(2 6 10 / 0.7);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  pointer-events: none;
+}

@@ -1,18 +1,14 @@
 // The built-in route overlays (V6's 19 routes): projected into the flight's
 // map feet and drawn dashed under the tracks with the route's name (V6
 // projectKmlOverlay and drawSelectedKmlOverlay, lines 2257-2305).
-import { makeLocalRef, latLonToLocalFt } from '../../../core/geo.js';
+import { latLonToLocalFt } from '../../../core/geo.js';
 
-/**
- * A route's paths in map feet. `ref` is the flight's map origin; with no
- * flight, the route's first point is the origin, as in V6.
- */
+/** A route's paths in map feet from `ref`, the map's origin (core makeLocalRef). */
 export function projectRoute(route, ref) {
-  const origin = ref ?? makeLocalRef(route.paths[0][0][1], route.paths[0][0][0]);
   return {
     name: route.name,
     paths: route.paths.map((path) => path.map(([lon, lat]) => {
-      const { x, y } = latLonToLocalFt(origin, lat, lon);
+      const { x, y } = latLonToLocalFt(ref, lat, lon);
       return [x, y];
     })),
   };
