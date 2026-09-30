@@ -1,6 +1,6 @@
 # Spec: `sof`, the SOF Dashboard
 
-Status: **draft for Patrick's approval**. Module id `sof` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("sof spec approved", 04:49Z, in the SOF dashboard spec thread), with SOF-7 answered (traffic as a layer through our own relay). Changes go through a pull request. Module id `sof` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The SOF is built last, after the debrief, Turn Sim, Turn Fight and Traffic, and only when the coordinator says it's its turn. Until then this spec and [`tasks/sof/`](../tasks/sof/plan.md) are the work.
 

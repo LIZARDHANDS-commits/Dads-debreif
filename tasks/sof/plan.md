@@ -1,6 +1,6 @@
 # SOF Dashboard: plan
 
-Spec: [`specs/SPEC-sof.md`](../../specs/SPEC-sof.md), a draft waiting for Patrick's approval. Tasks: [`todo.md`](todo.md).
+Spec: [`specs/SPEC-sof.md`](../../specs/SPEC-sof.md), approved by Patrick on 2026-09-30. Tasks: [`todo.md`](todo.md).
 
 ## Waits on
 

@@ -1,9 +1,9 @@
 # SOF Dashboard: tasks
 
-Spec: draft waiting for Patrick's approval. Build starts once he approves it and the coordinator says it's the SOF's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
+Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says it's the SOF's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
 
 - [x] SPEC-sof.md drafted, with SOF-1 to SOF-7
-- [ ] Patrick approves SPEC-sof.md
+- [x] Patrick approves SPEC-sof.md (2026-09-30 04:49Z)
 - [ ] SOF-1 to SOF-7 logged in the plan doc's Questions tab (through the coordinator)
 
 ## Build
