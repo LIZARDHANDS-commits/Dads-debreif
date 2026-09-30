@@ -71,14 +71,14 @@ export function isaDensityRatio(altFt) {
  * the two seconds. Altitude defaults to 6,500 ft. Indicated airspeed is
  * estimated as ground speed × √(density ratio), with the ratio at least 0.15.
  *
- * turnRateDeg is halved, as in V6: the headings of the two one-second legs are
- * one second apart, but V6 divides their difference by 2. Dad confirmed this is
- * wrong (D39); the fix lands as its own change.
+ * turnRateDeg is the change between the headings of the two one-second legs,
+ * whose middles are one second apart. V6 divided it by 2, showing half the real
+ * rate; Dad confirmed that was wrong, and it is fixed here (D39).
  */
 export function emPoint(before, now, after) {
   if (!now || !before || !after) return null;
   const h0 = headingRad(before, now), h1 = headingRad(now, after);
-  const turnRateDeg = Math.abs(wrapPi(h1 - h0)) * 180 / Math.PI / 2;
+  const turnRateDeg = Math.abs(wrapPi(h1 - h0)) * 180 / Math.PI;
   const gsKt = Number.isFinite(now.spdKt) ? now.spdKt : (Math.hypot(after.x - before.x, after.y - before.y) / 2 / KT_TO_FTPS);
   const altFt = Number.isFinite(now.altFt) ? now.altFt : 6500;
   const iasKt = gsKt * Math.sqrt(Math.max(.15, isaDensityRatio(altFt)));

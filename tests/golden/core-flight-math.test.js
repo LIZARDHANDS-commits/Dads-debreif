@@ -100,14 +100,15 @@ function turningTrack(r, { spdKt, altFt } = {}) {
   return [at(-1), at(0), at(1)];
 }
 
-test('emPoint matches the EM chart metrics, turn rate still halved', () => {
+test('emPoint matches the EM chart metrics, except the turn rate is doubled (D39)', () => {
   const { metrics } = emChartV6();
   const r = seeded(14);
   const extras = [{}, { spdKt: 210 }, { altFt: 8000 }, { spdKt: 180, altFt: 13000 }, { altFt: 45000 }, { spdKt: NaN, altFt: NaN }];
   for (let i = 0; i < 300; i++) {
     const [a, p, b] = turningTrack(r, extras[i % extras.length]);
     const m = metrics(trackApi(a, p, b), 1, 10);
-    assert.deepEqual(emPoint(a, p, b), { iasKt: m.ias, turnRateDeg: m.tr, altFt: m.alt, gsKt: m.gs });
+    // D39: V6 halved the rate. Doubling is exact in floating point, so this stays an exact match.
+    assert.deepEqual(emPoint(a, p, b), { iasKt: m.ias, turnRateDeg: m.tr * 2, altFt: m.alt, gsKt: m.gs });
   }
 });
 

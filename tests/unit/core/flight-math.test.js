@@ -46,9 +46,11 @@ function steadyTurn(kt, rateDeg) {
   return [-1, 0, 1].map(k => ({ x: R * Math.sin(w * k), y: R - R * Math.cos(w * k) }));
 }
 
-test('emPoint shows half the real turn rate, as V6 does (D39 fixes this)', () => {
-  const [a, p, b] = steadyTurn(200, 10);
-  near(emPoint(a, p, b).turnRateDeg, 5, 1e-9);
+test('emPoint shows the real turn rate (D39: V6 showed half)', () => {
+  for (const rate of [3, 10, 19.2, -15]) {
+    const [a, p, b] = steadyTurn(200, rate);
+    near(emPoint(a, p, b).turnRateDeg, Math.abs(rate), 1e-9);
+  }
 });
 
 test('emPoint: sea-level density ratio is 1, so IAS equals ground speed there', () => {
