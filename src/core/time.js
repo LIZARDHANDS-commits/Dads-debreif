@@ -75,16 +75,3 @@ export function utcOffsetMinutes(date, timeZone) {
   // The parts have no milliseconds, so compare whole seconds (this also keeps UTC at 0, not -0).
   return Math.round((wall.getTime() - Math.floor(date.getTime() / 1000) * 1000) / 60000);
 }
-
-/**
- * The UTC moment for a report's day-of-month and time (as in "2916/2920"),
- * choosing the month (previous, same or next) that lands closest to ref.
- * (SOF page `utcFor`, sof line 1431.)
- */
-export function resolveDayOfMonthUtc(day, hour, min, ref) {
-  const cand = [];
-  for (let dm = -1; dm <= 1; dm++) {
-    cand.push(new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + dm, day, hour, min || 0)));
-  }
-  return cand.sort((a, b) => Math.abs(a - ref) - Math.abs(b - ref))[0];
-}

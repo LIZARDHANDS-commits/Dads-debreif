@@ -30,11 +30,11 @@ In `core`:
 | `units.js` | V6's constants (ft/NM, kt↔ft/s, ft/m, g, Earth radius) and small conversions | 1 |
 | `angles.js` | The one heading convention, wrapping, relative bearing, clock positions, aspect, HCA, compass conversions | 1 |
 | `geo.js` | The debrief's flat local map (lat/lon ↔ feet), map tiles, Mercator | 1 |
-| `time.js` | Zulu and zone-aware formatting, KML time parsing, the Zulu DTG, TAF day resolution | 1 |
+| `time.js` | Zulu and zone-aware formatting, KML time parsing, the Zulu DTG | 1 |
 | `flight-math.js` | Turn radius and rate, bank from G, ISA density ratio and IAS estimate, closure, estimated G, the EM chart point | 2 |
 | `standards.js` | Formation standards classifier (debrief and Turn Sim) and V6's default standards preset (R18) | 3 |
 
-Not in `core`: anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
+Not in `core`: resolving a TAF's day-of-month into a date (`wx` owns it, in `src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
 
 ## The heading convention (pinned by `tests/unit/core/angles.test.js`)
 
@@ -60,7 +60,7 @@ Every function is pure: plain numbers and `{x, y}` objects in, plain values out.
 | `makeLocalRef`, `latLonToLocalFt`, `localFtToLatLon`, `distance` | 2376–2379, 2500, 2507, 1688 |
 | `lonLatToTile`, `tileBounds`, `pickTileZoom`, `mercatorY`, `invMercatorY`, `lonLatToWorldPixel` | 2514–2525, 2585–2589, traffic 250 |
 | `formatZuluSeconds`, `formatZulu`, `parseIsoSeconds` | 2429, 4432, 2321 |
-| `formatDtgZulu`, `formatInZone`, `zoneAbbreviation`, `resolveDayOfMonthUtc` | sof 743–745, sof 1431 |
+| `formatDtgZulu`, `formatInZone`, `zoneAbbreviation` | sof 743–745 |
 | `utcOffsetMinutes` | new (V6 hard-coded UTC-6; R10 needs any home airfield's zone) |
 
 Changes made while porting, none of which changes a number:
@@ -111,8 +111,8 @@ export function headingCrossAngleDeg(h1, h2) {
 1. **Golden tests** (`tests/golden/core-*.test.js`, R9). `v6-source.js` cuts each V6 function out of `original/shell.html` by name (or out of the SOF and Traffic pages V6 embeds as base64) and runs it unchanged. Globals V6 reads are supplied by a small prelude. Each test runs V6 and `core` on the same inputs: fixed edge cases (±π, month ends, both 2026 clock changes, bad input) and a few hundred seeded random values around Moose Jaw.
 2. **Exact match by default.** A tolerance is allowed only where V6 itself has two copies that disagree, and the test says why.
 3. **Unit tests** (`tests/unit/core/`) check meaning against known answers: a minute of latitude is a nautical mile, 3 o'clock is on the right, Moose Jaw stays UTC-6 across both clock changes while Denver moves (R10).
-4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). For PR 1, 58 of 60 changes turned a test red. The other two are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`, and 0.3048 for 1/3.28084 inside the tile-zoom rounding. Line coverage of `src/core` is 100%.
-5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 11,000 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 25 results, all from `sin`, `cos` and `atan2`, differ in the last digit (at most 4e-16 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
+4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). For PR 1, 56 of 58 changes turned a test red. The other two are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`, and 0.3048 for 1/3.28084 inside the tile-zoom rounding. Line coverage of `src/core` is 100%.
+5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 10,500 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 25 results, all from `sin`, `cos` and `atan2`, differ in the last digit (at most 4e-16 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
 
 ## Boundaries
 

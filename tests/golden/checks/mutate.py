@@ -72,8 +72,6 @@ M = [
  ('time.js','return Math.round((wall.getTime() - Math.floor(date.getTime() / 1000) * 1000) / 60000);','return Math.round((wall.getTime() - date.getTime()) / 60000);'),
  ('time.js','wall.setUTCFullYear(+parts.year, +parts.month - 1, +parts.day);','wall.setTime(Date.UTC(+parts.year, +parts.month - 1, +parts.day));'),
  ('time.js','let formatter = byZone.get(timeZone);','let formatter = byZone.values().next().value;'),
- ('time.js','for (let dm = -1; dm <= 1; dm++) {','for (let dm = -1; dm <= 0; dm++) {'),
- ('time.js','return cand.sort((a, b) => Math.abs(a - ref) - Math.abs(b - ref))[0];','return cand.sort((a, b) => Math.abs(b - ref) - Math.abs(a - ref))[0];'),
 ]
 
 

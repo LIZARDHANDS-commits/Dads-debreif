@@ -8,7 +8,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 - [x] **Task 2: `units.js`.** V6's constants and conversions. Size S.
 - [x] **Task 3: `angles.js`.** Wrapping, bearings, clock positions, aspect, HCA and compass conversion, plus unit tests pinning the heading convention. Size S.
 - [x] **Task 4: `geo.js`.** Local map projection, tiles and Mercator. Size S.
-- [x] **Task 5: `time.js`.** Zulu and zone formatting, KML time, DTG, TAF day resolution, UTC offset (R10). Size S.
+- [x] **Task 5: `time.js`.** Zulu and zone formatting, KML time, DTG, UTC offset (R10). TAF day resolution was dropped from core: `wx` owns it. Size S.
 
 ## Phase 2: turn performance (PR 2)
 

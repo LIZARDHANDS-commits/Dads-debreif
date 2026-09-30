@@ -14,7 +14,6 @@ const FIXED_NOW = `
 
 const debrief = loadV6(['fmtTime'], { marker: 'function updateKmlStatus(' });
 const sofClock = loadV6(['timeAt', 'zoneAt', 'dtgZulu'], { page: 'sof', prelude: FIXED_NOW, expose: ['setNow'] });
-const sofTaf = loadV6(['utcFor'], { page: 'sof' });
 
 // Around Dad's example flights, both clock changes, month and year ends, and leap day.
 const MOMENTS = [
@@ -57,16 +56,4 @@ test('parseIsoSeconds is how the debrief reads a KML <when>', () => {
   assert.ok(v6FunctionText('parseKmlText').includes('Date.parse(n.textContent.trim())/1000'));
   const whens = ['2025-06-12T15:04:05Z', ' 2025-06-12T15:04:05.250Z\n', '2025-06-12T15:04:05-06:00', '2025-06-12T15:04:05+00:00', 'garbage', ''];
   for (const w of whens) assert.ok(Object.is(time.parseIsoSeconds(w), Date.parse(w.trim()) / 1000), w);
-});
-
-test('resolveDayOfMonthUtc is the SOF utcFor, including month and year ends', () => {
-  const refs = [Date.UTC(2026, 0, 1, 3), Date.UTC(2026, 0, 31, 22), Date.UTC(2026, 1, 28, 23), Date.UTC(2026, 11, 31, 20), ...MOMENTS.slice(7, 60)];
-  for (const r of refs) {
-    const ref = new Date(r);
-    for (const day of [1, 2, 15, 28, 29, 30, 31]) {
-      for (const [h, m] of [[0, 0], [6, 30], [23, 59], [24, 0]]) {
-        assert.equal(+time.resolveDayOfMonthUtc(day, h, m, ref), +sofTaf.utcFor(day, h, m, ref), `${day} ${h}:${m} ref ${ref.toISOString()}`);
-      }
-    }
-  }
 });

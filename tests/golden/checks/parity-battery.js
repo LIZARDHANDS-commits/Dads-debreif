@@ -43,7 +43,6 @@ export async function battery(base) {
     for (const tz of zones) {
       rec(`formatInZone(${ms},${tz})`, time.formatInZone(d, tz)); rec(`zoneAbbreviation(${ms},${tz})`, time.zoneAbbreviation(d, tz)); rec(`utcOffsetMinutes(${ms},${tz})`, time.utcOffsetMinutes(d, tz));
     }
-    for (const day of [1, 15, 28, 31]) rec(`resolveDayOfMonthUtc(${day},${ms})`, +time.resolveDayOfMonthUtc(day, 18, 30, d));
   }
   for (const w of ['2025-06-12T15:04:05-06:00', 'garbage', '']) rec(`parseIsoSeconds(${w})`, time.parseIsoSeconds(w));
   rec('formatZuluSeconds(NaN)', time.formatZuluSeconds(NaN));

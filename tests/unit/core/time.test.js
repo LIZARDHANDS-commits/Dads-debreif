@@ -64,9 +64,3 @@ test('Zulu formatting', () => {
   assert.equal(time.formatDtgZulu(d), '291754Z SEP 26');
   assert.equal(time.formatZuluSeconds(NaN), '--');
 });
-
-test('a TAF day just after month end resolves into the next month', () => {
-  const ref = new Date('2026-09-30T22:00:00Z');
-  assert.equal(time.resolveDayOfMonthUtc(1, 6, 0, ref).toISOString(), '2026-10-01T06:00:00.000Z');
-  assert.equal(time.resolveDayOfMonthUtc(30, 18, 0, ref).toISOString(), '2026-09-30T18:00:00.000Z');
-});
