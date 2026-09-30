@@ -41,7 +41,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 ## Later, with the screens that use them
 
 - [x] **Task 11: 3D attitude estimate, then D40 and D47.** Built by the debrief thread in its own module as `bankFromTrack` (`src/modules/debrief/view3d/scene.js`, #81): V6's bank pinned first, then D40 (real rate, correct wing down) and D47 (recorded bank first) as separate commits. It never uses recorded G for bank. **Level turn, decided by Patrick (2026-09-30, open-questions item G, option 1):** a turn counts as level when the nose is within 10° of the horizon and the heading is changing by more than about 1° a second. Only then may recorded G set the bank (acos(1/G)). This last part of D40 belongs in `bankFromTrack`, with a test first, and is the debrief thread's to build.
-- [ ] **Task 12: Turn Sim's G correction, then D74.** Port the G correction (line 1583) with the Turn Sim screen. Pin V6's order first: limit to 1.01, then the correction of up to −0.8 G, so G below 1 gives NaN. Then, as its own commit, limit G to 1.01 after the correction (D74), so the wingman flies almost straight. Size S.
+- [x] **Task 12: Turn Sim's G correction, then D74.** Port the G correction (line 1583) with the Turn Sim screen. Pin V6's order first: limit to 1.01, then the correction of up to −0.8 G, so G below 1 gives NaN. Then, as its own commit, limit G to 1.01 after the correction (D74), so the wingman flies almost straight. Size S. Built as `turnSimG` (`flight-math.js`), two commits.
 
 ## Decisions landed after PR 3
 
