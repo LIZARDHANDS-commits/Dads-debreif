@@ -411,7 +411,7 @@ test('the [ and ] keys step back and ahead 10 s, and not while typing in a box',
   await page.keyboard.press(']');
   const at20 = await picture(page);
   const at20s = await seconds(page);
-  expect(at20s).toBeGreaterThanOrEqual(19);
+  expect(at20s).toBe(20);
   await page.keyboard.press('[');
   expect(await seconds(page)).toBeLessThan(at20s);
   await page.keyboard.press(']');
@@ -636,4 +636,23 @@ test('a home field that is not Moose Jaw opens V6\'s generic pattern there, and 
   await profileName(page).fill('Regina circuit');
   await button(page, 'Save').click();
   await expect(profileList(page).locator('option').nth(2)).toHaveText('Regina circuit (CYQR)');
+});
+
+// A route added mid-run changes the run, so -10 s and +10 s after it land on the run that has it from 0 (#46).
+test('a split added mid-run: -10 s and +10 s show the same picture as flying the new setup from the start', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 60; i++) await page.keyboard.press(']'); // 10 minutes
+  await page.locator('[data-route-id="PAT1"]').click();
+  await button(page, '+ New route').click();
+  await page.getByRole('button', { name: 'Split', exact: true }).click();
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('[');
+  await page.keyboard.press(']');
+  const stepped = await picture(page);
+  const at = await seconds(page);
+  await button(page, 'Reset').click();
+  for (let i = 0; i < 60; i++) await page.keyboard.press(']');
+  expect(await seconds(page)).toBe(at);
+  expect(await picture(page)).toBe(stepped);
 });

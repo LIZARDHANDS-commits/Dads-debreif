@@ -134,6 +134,7 @@ function mount(root, app) {
 
   /** Routes, names, links or points were added or changed: the lists follow, and the picture. */
   function routesChanged() {
+    sim.forgetHistory(); // a route added, deleted or re-linked changes the run: going back flies the new setup from 0
     showRoutes();
     aircraftPanel.routesChanged();
     changed();

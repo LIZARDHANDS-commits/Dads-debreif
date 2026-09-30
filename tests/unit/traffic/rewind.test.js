@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
 import { createClock } from '../../../src/modules/traffic/clock.js';
+import { newSplit } from '../../../src/modules/traffic/route.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const fresh = () => structuredClone(MOOSE_JAW);
@@ -208,6 +209,41 @@ test('after a route is edited, forgetHistory makes going back fly the edited rou
   const other = createSim(structuredClone(setup), { seed: 1 });
   other.seek(200);
   assert.deepEqual(edited, everything(other));
+});
+
+test('a split added mid-run: after forgetHistory, -10 s and +10 s land on the run that has the split from 0 (#46)', () => {
+  const build = (setup) => {
+    const split = newSplit('SPLX', 'Split X', 'PAT1', setup.routes);
+    setup.routes.push(split);
+  };
+  const setup = fresh();
+  const sim = createSim(setup, { seed: 3 });
+  sim.seek(700);
+  build(setup);
+  sim.forgetHistory();
+  // The run with the split from the start, flown straight through.
+  const reference = createSim((() => { const s = fresh(); build(s); return s; })(), { seed: 3 });
+  const wanted = new Map();
+  for (const step of [10000, 14000]) {
+    reference.seekSteps(step);
+    wanted.set(step, everything(reference));
+  }
+  sim.seekSteps(14000);
+  sim.seekSteps(14000 - STEPS_10S); // -10 s
+  sim.seekSteps(14000); // +10 s
+  assert.deepEqual(everything(sim), wanted.get(14000));
+  sim.seekSteps(10000);
+  assert.deepEqual(everything(sim), wanted.get(10000));
+
+  // Without forgetHistory the snapshots from before the split are kept, and the run is a mix of the two.
+  const stale = fresh();
+  const mixed = createSim(stale, { seed: 3 });
+  mixed.seek(700);
+  build(stale);
+  mixed.seekSteps(14000);
+  mixed.seekSteps(14000 - STEPS_10S);
+  mixed.seekSteps(14000);
+  assert.notDeepEqual(everything(mixed), wanted.get(14000), 'the negative control: stale snapshots give a different run');
 });
 
 test('reset starts a new history from 0, and rebuild takes the aircraft the setup has now, with a seed', () => {
