@@ -1,0 +1,42 @@
+{
+ "note": "Lightning cells as task 6 would read them from ECCC Lightning_2.5km_Density: only cells with lightning, centre point and density. Made up for the tests, placed by great-circle distance and compass bearing from CYMJ (50.3303, -105.559).",
+ "home": {
+  "icao": "CYMJ",
+  "lat": 50.3303,
+  "lon": -105.559
+ },
+ "inside": [
+  {
+   "lat": 50.4714,
+   "lon": -105.337,
+   "value": 3
+  },
+  {
+   "lat": 50.0485,
+   "lon": -105.7187,
+   "value": 1
+  },
+  {
+   "lat": 50.3277,
+   "lon": -104.7763,
+   "value": 6
+  }
+ ],
+ "outside": [
+  {
+   "lat": 50.7403,
+   "lon": -105.4447,
+   "value": 2
+  },
+  {
+   "lat": 50.3256,
+   "lon": -106.6026,
+   "value": 4
+  },
+  {
+   "lat": 49.7617,
+   "lon": -104.6839,
+   "value": 1
+  }
+ ]
+}

@@ -1,0 +1,293 @@
+/* The SOF Dashboard's screen (SPEC-sof: The screen). Everything is scoped to the
+   SOF, so nothing here reaches another module. Colours and spacing come from the
+   ui-kit tokens; the flight-category colours below are the only additions, and
+   each is always beside its words (never colour alone). */
+
+[data-module='sof'] {
+  --sof-vfr: var(--good);
+  --sof-mvfr: #6db3ff;
+  --sof-ifr: var(--bad);
+  --sof-lifr: #e08bff;
+}
+
+[data-module='sof'] .sof {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 120rem;
+  margin: 0 auto;
+  padding: var(--space-3);
+}
+
+/* The SOF bar: the DTG, the feed's state in words, and the two buttons. */
+[data-module='sof'] .sof-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+[data-module='sof'] .sof-dtg {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-feed {
+  flex: 1 1 16rem;
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+[data-module='sof'] .sof-feed-label {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-feed-words {
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-feed.is-ok .sof-feed-symbol {
+  color: var(--good);
+}
+
+[data-module='sof'] .sof-feed.is-bad .sof-feed-words,
+[data-module='sof'] .sof-feed.is-bad .sof-feed-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-feed.is-off .sof-feed-words {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-bar-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+[data-module='sof'] .sof-refresh[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+/* Every feed failing: its own row, above the cards, which keep the last reports. */
+[data-module='sof'] .sof-alert {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--bad);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-alert[hidden] {
+  display: none;
+}
+
+/* The one settings menu, in the page flow, closed until opened. */
+[data-module='sof'] .sof .panel {
+  margin: 0;
+}
+
+[data-module='sof'] .sof-hint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Airfield cards */
+[data-module='sof'] .sof-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+}
+
+[data-module='sof'] .sof-card {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+[data-module='sof'] .sof-card.level-below {
+  border-left-color: var(--bad);
+}
+
+[data-module='sof'] .sof-card.level-at-limit {
+  border-left-color: var(--caution);
+}
+
+[data-module='sof'] .sof-card.level-within {
+  border-left-color: var(--good);
+}
+
+/* A stale report is never shown as good news: its bar goes grey (below limits stays red). */
+[data-module='sof'] .sof-card.is-stale.level-within,
+[data-module='sof'] .sof-card.is-stale.level-at-limit {
+  border-left-color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-module='sof'] .sof-card-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+[data-module='sof'] .sof-icao {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-name {
+  color: var(--text-muted);
+  font-size: var(--text-md);
+  font-weight: 400;
+}
+
+[data-module='sof'] .sof-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+[data-module='sof'] .sof-badge {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+[data-module='sof'] .sof-role.is-home {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+[data-module='sof'] .cat-vfr {
+  border-color: var(--sof-vfr);
+  color: var(--sof-vfr);
+}
+
+[data-module='sof'] .cat-mvfr {
+  border-color: var(--sof-mvfr);
+  color: var(--sof-mvfr);
+}
+
+[data-module='sof'] .cat-ifr {
+  border-color: var(--sof-ifr);
+  color: var(--sof-ifr);
+}
+
+[data-module='sof'] .cat-lifr {
+  border-color: var(--sof-lifr);
+  color: var(--sof-lifr);
+}
+
+[data-module='sof'] .sof-limits {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-report {
+  margin-bottom: var(--space-3);
+}
+
+[data-module='sof'] .sof-report-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-md);
+}
+
+[data-module='sof'] .sof-source {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+/* The report as issued, as text, in a fixed-width face so it reads like the report. */
+[data-module='sof'] .sof-raw {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* A stale report is greyed, and its words say STALE beside it. */
+[data-module='sof'] .sof-report.is-stale .sof-raw {
+  color: var(--text-faint);
+}
+
+[data-module='sof'] .sof-note {
+  margin: 0 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-note.is-bad {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-note.is-info {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-result {
+  margin: 0 0 var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-result.level-below .sof-result-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-result.level-at-limit .sof-result-symbol {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-result.level-within .sof-result-symbol {
+  color: var(--good);
+}
+
+[data-module='sof'] .sof-caution {
+  margin: 0 0 var(--space-1);
+  color: var(--caution);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-credits {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

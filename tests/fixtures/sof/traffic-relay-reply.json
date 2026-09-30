@@ -1,0 +1,78 @@
+{
+ "source": "adsb.lol",
+ "now": 1790793720000,
+ "aircraft": [
+  {
+   "hex": "c05edf",
+   "callsign": "ACA154",
+   "reg": "C-GJYC",
+   "type": "BCS3",
+   "lat": 50.855806,
+   "lon": -106.725464,
+   "alt": 35000,
+   "gs": 595.3,
+   "track": 91.73,
+   "squawk": "1304",
+   "seen": 0,
+   "mil": false
+  },
+  {
+   "hex": "c1e985",
+   "callsign": "BLUE613",
+   "reg": "SERV",
+   "type": "SERV",
+   "lat": 43.688793,
+   "lon": -79.63028,
+   "alt": "ground",
+   "gs": 0,
+   "track": null,
+   "squawk": null,
+   "seen": 0.3,
+   "mil": false
+  },
+  {
+   "hex": "c1e887",
+   "callsign": "BUS294",
+   "reg": null,
+   "type": null,
+   "lat": 43.680663,
+   "lon": -79.633304,
+   "alt": "ground",
+   "gs": 13.8,
+   "track": 45,
+   "squawk": null,
+   "seen": 0.1,
+   "mil": false
+  },
+  {
+   "hex": "c080d9",
+   "callsign": "ACA172",
+   "reg": "C-GWUQ",
+   "type": "BCS3",
+   "lat": 43.69023,
+   "lon": -79.626814,
+   "alt": "ground",
+   "gs": 0,
+   "track": null,
+   "squawk": "1367",
+   "seen": 3.2,
+   "mil": false
+  },
+  {
+   "hex": "c1e8be",
+   "callsign": "BLUE370",
+   "reg": null,
+   "type": null,
+   "lat": 43.67531,
+   "lon": -79.611789,
+   "alt": "ground",
+   "gs": 16.5,
+   "track": 270,
+   "squawk": null,
+   "seen": 3.9,
+   "mil": false
+  }
+ ],
+ "count": 5,
+ "truncated": false
+}
