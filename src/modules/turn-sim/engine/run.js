@@ -125,8 +125,8 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  *            startHeadingDeg: the compass heading the run started on (000 north, 090 east); after startLeg
  *            it is Lead's compass heading, which V6 wrote into its Start heading box. The screen shows it,
  *            and must not write it back into the settings (that would reset the run).
- *            offsetBox: in the offset box's delayed turns, the solved delays of #3 and #4 against the SMM's band
- *            (16.41 para 112): { minSec, maxSec, rear: [{ id: 3, delaySec, outsideBand }, { id: 4, ... }] }, else null.
+ *            offsetBox: in the offset box's delayed turns and the hook, the delays of #3 and #4 against the SMM's band, measured as Fig 16.30 does:
+ *            #3 from the later front start, #4 from #3's start (the hook: both from the front element; 'rearDelay': #3 from #1, #4 from #2). Shape (16.41 para 112): { minSec, maxSec, rear: [{ id: 3, delaySec, outsideBand }, { id: 4, ... }] }, else null.
  *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
  *            maneuverFallback: null, or the reason the turn asked for could not be flown (the shackle and the cross turn are
  *            two-ship turns, settings.js turnProblem) and the default turn was flown instead.
