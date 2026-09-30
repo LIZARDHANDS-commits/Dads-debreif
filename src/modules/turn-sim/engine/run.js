@@ -268,6 +268,7 @@ export function createRun(settings, options = {}) {
       crossTurnSolveSpacing: cfg.crossTurnSolveSpacing,
       delayed45Check: cfg.delayed45Check,
       checkTurnDeg: cfg.checkTurnDeg,
+      checkSolveSpacing: cfg.checkSolveSpacing,
     };
   }
 

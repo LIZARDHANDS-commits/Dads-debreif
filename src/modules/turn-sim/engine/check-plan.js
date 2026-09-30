@@ -73,6 +73,7 @@ export function planCheckChain(chain, opts) {
       }
     }
     legs[1].holdSec = checkEndedAt !== null && crossedAt !== null ? Math.max(0, crossedAt - checkEndedAt) : 0;
+    if (opts.spacingFt > 0 && checkEndedAt !== null && crossedAt !== null) legs[1].holdSec = solveRollInHold(chain.slice(0, k + 1), legs[1], k * opts.spacingFt, opts);
   });
 }
 
@@ -86,4 +87,32 @@ export function flyPlanTo(list, opts, atSec) {
     moveAircraft(copies, { rearCheck: null, tSec, timing: 'time', direction: opts.direction, maneuver: 'delayed45away', speedFtps: opts.speedFtps, baseG: opts.baseG, turnDegDefault: opts.goalRad * 180 / Math.PI, correction: 'none', correctionStrength: 0, spacingFt: 0 }, STEP_SEC);
   }
   return Object.fromEntries(copies.map((a) => [a.id, { xFt: a.xFt, yFt: a.yFt }]));
+}
+
+/** The end time the roll-in solve flies to, in seconds: past the end of the longest chain (a four-ship's last aircraft is done by about 100 s). */
+const SOLVE_FLY_SEC = 200;
+
+/**
+ * The roll-in hold that puts the last aircraft of `chain` `targetFt` from the first, across the final heading (the Delayed 45 with the check
+ * ends about 3,900 ft apart on the figure's cue, where the SMM's LAB is 4,000 to 6,000: the spacing setting is what it is asked for). The end is linear
+ * in the hold, so two flights (this hold and 10 s more) give it. The aircraft then rolls out abreast to within a few hundred feet; the fore and aft
+ * is what is left. The hold stays between 0 and the cue's own plus 60 s.
+ */
+function solveRollInHold(chain, leg, targetFt, opts) {
+  const own = leg.holdSec;
+  const ends = (hold) => {
+    leg.holdSec = hold;
+    const p = flyPlanTo(chain, opts, SOLVE_FLY_SEC);
+    const first = p[chain[0].id];
+    const last = p[chain[chain.length - 1].id];
+    const h = chain[0].headingRad + chain[0].turnDir * opts.goalRad;
+    return -(last.xFt - first.xFt) * Math.sin(h) + (last.yFt - first.yFt) * Math.cos(h); // to the left of the final heading
+  };
+  const a = ends(own);
+  const b = ends(own + 10);
+  leg.holdSec = own;
+  const slope = (b - a) / 10;
+  if (Math.abs(slope) < 1) return own;
+  const want = Math.sign(a) * targetFt;
+  return Math.min(own + 60, Math.max(0, own + (want - a) / slope));
 }

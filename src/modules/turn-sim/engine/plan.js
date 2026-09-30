@@ -599,7 +599,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   // box and the plain turn in the two-ship. Under the clock cue the plain turn is flown (its cue is the plan).
   const withCheck = man === 'delayed45away' && flight.timing !== 'clock' && (flight.delayed45Check === 'check' || (flight.delayed45Check === 'auto' && form !== 'twoShip'));
   if (withCheck) {
-    const opts = { goalRad: goal, checkRad: degToRad(+flight.checkTurnDeg || 0), speedFtps: ktToFtps(flight.speedKt), baseG: flight.baseG, cueHours: flight.direction === 'right' ? 5 : 7, direction: flight.direction, useErrors };
+    const opts = { goalRad: goal, checkRad: degToRad(+flight.checkTurnDeg || 0), speedFtps: ktToFtps(flight.speedKt), baseG: flight.baseG, cueHours: flight.direction === 'right' ? 5 : 7, direction: flight.direction, useErrors, spacingFt: flight.checkSolveSpacing ? Math.abs(+flight.spacingFt) || 0 : 0 };
     if (form === 'offsetBox') {
       // Figure 16.31: the front element flies the chain; the rear element follows the same flow rearDelaySec (10 to 15 s) later. In each pair the
       // aircraft on the first turner's side turns plain: #3 with Lead, #4 with #2.

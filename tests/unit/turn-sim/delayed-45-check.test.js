@@ -21,7 +21,8 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-const BASE = { ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, startHeadingDeg: 0, durationSec: 20, timing: 'time', formation: 'twoShip' };
+// The tests below fly the figure's cue as it falls (checkSolveSpacing false, about 3,900 ft apart); the solved spacing has its own tests at the end.
+const BASE = { ...DEFAULTS, checkSolveSpacing: false, maneuver: 'delayed45away', turnDeg: 45, startHeadingDeg: 0, durationSec: 20, timing: 'time', formation: 'twoShip' };
 
 function fly(settings) {
   const run = createRun(settings);
@@ -210,4 +211,60 @@ test('offset box with the check is shorter than the plain chain in a right turn 
   const left = { plain: four('offsetBox', 'left', { delayed45Check: 'none' }), check: four('offsetBox', 'left') };
   assert.ok(left.check.run.state.durationSec <= left.plain.run.state.durationSec + 1, 'left: not longer');
   assert.ok(Object.values(plain.startedAt).sort((a, b) => a - b).at(-1) > 70, 'the plain box chain still ends at 77 s');
+});
+
+// The roll-in solve (checkSolveSpacing, default true): the check version's ends 3,900 ft apart on the figure's cue, under the SMM's 4,000 to 6,000 ft LAB.
+// Each aircraft's roll-in is solved so the spacing is the Spacing setting. One parameter cannot also zero the fore and aft: with the check at 12.5 degrees
+// the wingman rolls out 1,231 ft aft of abreast in the two-ship and #4 of a four-ship 2,751 ft aft (the figure draws it about 2,000 ft aft and says the
+// errors are fixed on the roll-out); the aft error is proportional to the check angle (486 ft at 5 degrees, 3,081 at 30).
+const SOLVED = { checkSolveSpacing: true, delayed45Check: 'check' };
+
+test('the solve is on by default, and a wingman rolls out at the Spacing setting: two-ship, 4312, 2134 and the box front pair, within 1%', () => {
+  assert.equal(DEFAULTS.checkSolveSpacing, true);
+  for (const spacingFt of [4000, 6000]) {
+    for (const [formation, ids] of [['twoShip', [2]], ['weighted', [2, 3, 4]], ['weightedReverse', [2, 3, 4]], ['offsetBox', [2]]]) {
+      for (const direction of ['right', 'left']) {
+        const { run, minSepFt } = four(formation, direction, { ...SOLVED, spacingFt });
+        const label = `${formation} ${direction} ${spacingFt}`;
+        const across = [1, ...ids].map((id) => fromLead(run.state.aircraft, id).right).sort((a, b) => a - b);
+        const steps = ids.length === 1 || formation === 'offsetBox' ? [Math.abs(across[1] - across[0])] : across.slice(1).map((r, i) => r - across[i]);
+        for (const gap of steps) assert.ok(Math.abs(gap - spacingFt) < spacingFt * 0.01, `${label}: ${gap.toFixed(0)} ft between neighbours, want ${spacingFt}`);
+        assert.ok(minSepFt >= 900, `${label}: closest pass ${minSepFt.toFixed(0)} ft`);
+      }
+    }
+  }
+});
+
+test('the aft error the solve leaves is stated: two-ship about 1,200 ft, a four-ship\'s #4 under 3,000 ft, all behind the first turner; the fixed version is abreast', () => {
+  for (const direction of ['right', 'left']) {
+    const two = four('twoShip', direction, SOLVED);
+    const back = Math.abs(fromLead(two.run.state.aircraft, 2).ahead);
+    assert.ok(back > 800 && back < 1600, `two-ship ${direction}: ${back.toFixed(0)} ft off abreast`);
+    for (const formation of ['weighted', 'weightedReverse']) {
+      const { run } = four(formation, direction, SOLVED);
+      for (const id of [2, 3, 4]) assert.ok(Math.abs(fromLead(run.state.aircraft, id).ahead) < 3000, `${formation} ${direction} #${id}: ${fromLead(run.state.aircraft, id).ahead.toFixed(0)} ft off abreast`);
+      assert.deepEqual(run.state.crossings, []);
+    }
+  }
+  const fixed = four('twoShip', 'right', { checkSolveSpacing: false, delayed45Check: 'check' });
+  assert.ok(Math.abs(fromLead(fixed.run.state.aircraft, 2).ahead) < 300 && Math.abs(fromLead(fixed.run.state.aircraft, 2).right) < 4500, 'false: the figure\'s cue as it falls');
+});
+
+test('the solved check version is still shorter than the plain chain (two-ship 46 s against 52, 4312 112 s against 129) and turns no aircraft past 45', () => {
+  for (const [formation, gain] of [['twoShip', 4], ['weighted', 12]]) {
+    const plain = four(formation, 'right', { delayed45Check: 'none' });
+    const check = four(formation, 'right', SOLVED);
+    assert.ok(check.run.state.durationSec < plain.run.state.durationSec - gain, `${formation}: check ${check.run.state.durationSec.toFixed(1)} s, plain ${plain.run.state.durationSec.toFixed(1)} s`);
+    for (const id of Object.keys(check.swing)) assert.ok(Math.max(check.swing[id].max, -check.swing[id].min) < 45.1);
+  }
+});
+
+test('under the clock cue the plain 45 is flown in every formation: no aircraft turns toward the others first, whatever the check setting says', () => {
+  for (const formation of ['twoShip', 'weighted', 'offsetBox']) {
+    const run = createRun({ ...BASE, formation, direction: 'right', delayed45Check: 'check', timing: 'clock', clockCuePos: 'auto', durationSec: 250 });
+    const h0 = run.state.aircraft.map((a) => a.headingRad);
+    let most = 0;
+    while (run.step()) run.state.aircraft.forEach((a, i) => { most = Math.max(most, a.headingRad - h0[i]); });
+    assert.ok(most < 0.001, `${formation}: no check turn to the left (most ${most})`);
+  }
 });
