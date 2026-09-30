@@ -227,6 +227,7 @@ export function createSim(setup, { seed = 1 } = {}) {
      * Adds an aircraft. `type` is a V6 type name (default CT-156), `routeId` a route (default the first),
      * `startPoint` counts from 1 as on screen (default 1; past the last point it is the last), `delaySec`
      * is from now (default 0). Returns its callsign. `id` picks the callsign.
+     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string }} [spec]
      */
     spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id } = {}) {
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);

@@ -7,8 +7,14 @@
 // number the sim can use.
 import { DEFAULTS, LIMITS } from './defaults.js';
 
-/** A number held to its range; anything that is not a finite number becomes `fallback`. */
-export function within(value, [least, most], fallback) {
+/**
+ * A number held to its range; anything that is not a finite number becomes `fallback`.
+ * @param {unknown} value
+ * @param {readonly number[]} range [least, most]
+ * @param {number} fallback
+ */
+export function within(value, range, fallback) {
+  const [least, most] = range;
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(most, Math.max(least, value)) : fallback;
 }
 

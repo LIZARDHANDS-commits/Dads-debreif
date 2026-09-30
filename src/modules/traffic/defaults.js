@@ -157,7 +157,7 @@ export const DEFAULTS = Object.freeze({
 
 // The values a setting may hold besides its type, for createSettings(store, DEFAULTS, { allowed: ALLOWED }).
 // The 2D | 3D switch is the ui-kit's shared one, so its values come from there.
-export const ALLOWED = Object.freeze({ view: VIEW_ALLOWED });
+export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown} */ (Object.freeze({ view: VIEW_ALLOWED })));
 
 // The playback speeds on offer (the spec's "0.25× to 8×"), and the speed the
 // bar starts at.

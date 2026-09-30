@@ -60,6 +60,7 @@ function withHint(control, text) {
  * available: { rules, photo }. photoHome: the alignment "Reset photo alignment" and Reset to
  * defaults go back to ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
  * Returns { element, collapsed, setCollapsed(bool), dispose() }.
+ * @param {{ controls: any, settings: any, onToggle: (collapsed: boolean) => void, available?: { rules?: boolean, photo?: boolean }, photoHome?: Record<string, any> }} options
  */
 export function createSettingsPanel({ controls, settings, onToggle, available = {}, photoHome = defaultsFor(HOME_KEYS) }) {
   const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => settings.update({ ...defaultsFor(PANEL_KEYS), ...pickHome(photoHome) }) });

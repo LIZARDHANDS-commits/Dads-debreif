@@ -33,7 +33,7 @@ function mount(root, app) {
   const controls = createControls(settings);
 
   // A copy of the built-in setup: the person edits this one, and the module's own copy stays as it shipped.
-  const setup = structuredClone(MOOSE_JAW);
+  const setup = /** @type {any} */ (structuredClone(MOOSE_JAW)); // the engine's setup: the built-in data has no seed, so it is read as any
   applyToSetup(setup, settings.get());
   const sim = createSim(setup, { seed: setup.seed ?? 1 });
   const clock = createClock({ sim, speed: settings.get().speed });
@@ -79,7 +79,7 @@ function mount(root, app) {
   });
   ui.slots.pointTable.append(editor.element);
   ui.slots.leftExtras.append(editor.message);
-  const settingsPanel = createSettingsPanel({ controls, settings });
+  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {} }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
 

@@ -35,6 +35,7 @@ export const routeDetail = (row) => row.link || row.kind;
  * bar: the playback bar (playback-bar.js). listen: app.listen.
  * on: { selectRoute(id | null), newRoute(kind), toggleColumn(name, open) } where name is 'routes' or 'aircraft'.
  * available: { pfl } (the PFL choice in + New route).
+ * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void }, available?: { pfl?: boolean } }} options
  */
 export function createLayout({ bar, listen, on = {}, available = {} }) {
   let selectedId = null;
@@ -95,7 +96,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
   function renderRoutes(rows) {
     // A rebuilt list keeps keyboard focus on the row that had it.
     const active = document.activeElement;
-    const kept = active && list.contains(active) ? active.dataset.routeId : null;
+    const kept = active && list.contains(active) ? /** @type {HTMLElement} */ (active).dataset.routeId : null;
     clear(list);
     const buttons = new Map();
     for (const row of rows) {

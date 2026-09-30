@@ -325,9 +325,9 @@ export function createRouteEditor({ setup, onChange }) {
         h(
           'div',
           { class: 'point-values' },
-          controls.number('alt', { label: 'Alt ft', unit: 'ft', min: LIMITS.pointAltFt[0], max: LIMITS.pointAltFt[1], step: 100 }),
-          controls.number('kt', { label: 'KT', min: LIMITS.pointKias[0], max: LIMITS.pointKias[1], step: 5 }),
-          controls.number('g', { label: 'G', min: LIMITS.pointG[0], max: LIMITS.pointG[1], step: 0.1 }),
+          controls.number('alt', { label: 'Alt ft', unit: 'ft', min: LIMITS.pointAltFt[0], max: LIMITS.pointAltFt[1], step: '100' }),
+          controls.number('kt', { label: 'KT', min: LIMITS.pointKias[0], max: LIMITS.pointKias[1], step: '5' }),
+          controls.number('g', { label: 'G', min: LIMITS.pointG[0], max: LIMITS.pointG[1], step: '0.1' }),
         ),
         data,
       );
