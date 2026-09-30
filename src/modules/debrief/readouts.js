@@ -35,17 +35,27 @@ export function standardApplies(slot, std) {
   return std.spread.on || (std.offset.on && slot === 3);
 }
 
-/** How far outside its band a label is, in feet, for the Formation card. */
-function beyondFt(label, pos, slot, std) {
+/**
+ * How far outside its band a label is, for the Formation card, as { value, unit }:
+ * feet, or degrees for the SMM's sweep (D116), which is measured from the
+ * aircraft #n's interval is measured from.
+ */
+function beyond(label, pos, slot, std) {
   const { spread, offset } = std;
-  if (label === 'WIDE') return pos.intervalFt - spread.maxFt;
-  if (label === 'TIGHT') return spread.minFt - pos.intervalFt;
+  const feet = (value) => ({ value, unit: 'ft' });
+  if (label === 'WIDE') return feet(pos.intervalFt - spread.maxFt);
+  if (label === 'TIGHT') return feet(spread.minFt - pos.intervalFt);
   if (slot === 3 && offset.on) {
-    if (label === 'FORE') return offset.aftTargetFt - offset.aftTolFt - pos.offsetAftFt;
-    if (label === 'AFT') return pos.offsetAftFt - (offset.aftTargetFt + offset.aftTolFt);
+    if (label === 'FORE') return feet(offset.aftTargetFt - offset.aftTolFt - pos.offsetAftFt);
+    if (label === 'AFT') return feet(pos.offsetAftFt - (offset.aftTargetFt + offset.aftTolFt));
   }
-  if (label === 'FORE') return pos.foreAftFt - spread.foreAftTolFt;
-  if (label === 'AFT') return -spread.foreAftTolFt - pos.foreAftFt;
+  if (Number.isFinite(spread.sweepMaxDeg)) {
+    const min = Number.isFinite(spread.sweepMinDeg) ? spread.sweepMinDeg : 0;
+    if (label === 'FORE') return { value: min - pos.sweepDeg, unit: 'deg' };
+    if (label === 'AFT') return { value: pos.sweepDeg - spread.sweepMaxDeg, unit: 'deg' };
+  }
+  if (label === 'FORE') return feet(pos.foreAftFt - spread.foreAftTolFt);
+  if (label === 'AFT') return feet(-spread.foreAftTolFt - pos.foreAftFt);
   return null;
 }
 
@@ -66,8 +76,8 @@ function judgeFormation(tracks, live, inGap, leadHdg, standards) {
       if (!standards || !standardApplies(slot, standards)) return { ...row, state: 'no-standard' };
       const pos = classifyDebriefPosition(slot, live, leadHdg, standards);
       const labels = pos.labels;
-      const offBy = labels.map((label) => beyondFt(label, pos, slot, standards));
-      return { ...row, labels, offBy, intervalFt: pos.intervalFt, foreAftFt: pos.foreAftFt, offsetAftFt: pos.offsetAftFt };
+      const offBy = labels.map((label) => beyond(label, pos, slot, standards));
+      return { ...row, labels, offBy, intervalFt: pos.intervalFt, foreAftFt: pos.foreAftFt, sweepDeg: pos.sweepDeg, offsetAftFt: pos.offsetAftFt };
     });
 }
 
@@ -90,7 +100,7 @@ export function formationAt(flight, t, standards) {
 
 /**
  * Everything the readouts show at time t.
- * options.standards: shaped like core's V6_STANDARDS (app.standards.get()).
+ * options.standards: shaped like core's DEFAULT_STANDARDS or V6_STANDARDS (app.standards.get()).
  * options.recordedG: use the recorded G where there is one (off by default, D61).
  * Returns { ships, formation, lead, vsLead, pairs }; see each below.
  */
@@ -147,10 +157,14 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
   let lead = null;
   if (live[1]) {
     const leadShip = bySlot[1];
+    // Lead's altitude picks the target speed by block (D115: 220 kt low, 200 kt mid).
     const judged = standards && !leadShip.inGap
-      ? classifyLeadParameters({ spdKt: leadShip.iasKt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
+      ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
       : null;
-    lead = { iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null };
+    lead = {
+      iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null,
+      targetKt: judged?.targetKt ?? null, block: judged?.block ?? null,
+    };
   }
 
   const leadHdg = heading[1];
@@ -212,7 +226,8 @@ export function formationText(row) {
   if (row.state === 'no-heading') return { text: '– (Lead not moving)', tone: 'none' };
   if (row.state === 'no-standard') return { text: '– (no standard on)', tone: 'none' };
   if (row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS') return { text: 'On parameters', tone: 'good' };
-  const parts = row.labels.map((label, i) => (Number.isFinite(row.offBy[i]) ? `${label} by ${ft(row.offBy[i])}` : label));
+  const by = (off) => (off.unit !== 'deg' ? ft(off.value) : off.value < 1 ? 'under 1°' : `${Math.round(off.value)}°`);
+  const parts = row.labels.map((label, i) => (Number.isFinite(row.offBy[i]?.value) ? `${label} by ${by(row.offBy[i])}` : label));
   return { text: parts.join(', '), tone: 'caution' };
 }
 
@@ -223,8 +238,10 @@ export function leadText(lead) {
   const g = Number.isFinite(lead.g) ? `${lead.g.toFixed(1)} G` : 'G --';
   const numbers = `Lead ${kt(lead.iasKt)} est. IAS, ${g}`;
   if (!lead.labels) return { text: numbers, tone: 'none' };
-  if (lead.labels[0] === 'LEAD ON PARAMETERS') return { text: `${numbers}, on parameters`, tone: 'good' };
-  return { text: `${numbers}, ${lead.labels.join(', ')}`, tone: 'caution' };
+  // With the SMM's two blocks (D115), the target Lead is judged against, so a change at 10,250 ft isn't a surprise.
+  const target = lead.block ? ` (target ${kt(lead.targetKt)}, ${lead.block} block)` : '';
+  if (lead.labels[0] === 'LEAD ON PARAMETERS') return { text: `${numbers}, on parameters${target}`, tone: 'good' };
+  return { text: `${numbers}, ${lead.labels.join(', ')}${target}`, tone: 'caution' };
 }
 
 /** "More detail" lines for one ship's live data (D47, D61: each value says where it came from). */
