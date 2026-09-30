@@ -41,3 +41,4 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 ## Later, with the screens that use them
 
 - [ ] **Task 11: 3D attitude estimate, then D40 and D47.** Port the pure part of `attitudeFor` (line 3788): bank from heading rate and speed, with recorded G overriding it. Pin it to V6, including the halved rate (the legs are 1 s apart but it divides by about 2 s) and the sign. Then land D40 (real rate, correct wing down, G only in level turns) and D47 (recorded bank, estimated pitch when blank) as separate commits. "Level turn" needs a threshold from Dad before D40's last part. Size S.
+- [ ] **Task 12: Turn Sim's G correction, then D74.** Port the G correction (line 1583) with the Turn Sim screen. Pin V6's order first: limit to 1.01, then the correction of up to −0.8 G, so G below 1 gives NaN. Then, as its own commit, limit G to 1.01 after the correction (D74), so the wingman flies almost straight. Size S.

@@ -71,5 +71,4 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 
 - Tennis ball: review the cone width and the in-cone rule for INTERCEPT later (D63).
 - Q39: whether the offset standard alone judges #3's fore/aft.
-- Whether Turn Sim limits G after its correction, so G never drops below 1 (SPEC-core, flagged).
 - Whether `core` should also guard against infinite input (default: only the screens do).
