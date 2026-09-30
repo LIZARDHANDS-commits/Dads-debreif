@@ -89,6 +89,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   // What a replay from 0 starts from: the aircraft the run began with, unflown, and the timed events after that.
   let base = [];
   let events = []; // { step, kind: 'spawn', rec } | { step, kind: 'remove', ids }, in step order
+  let job = null; // a replay being done in slices (`seekStepsSlice`): { target, stale }
   let nextEvent = 0; // how many events have been applied: those at or before `steps`
   const history = new Map(); // step -> snapshot (taken before the events at that step)
   let every = SNAPSHOT_EVERY_STEPS;
@@ -295,6 +296,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   /** Reset and rebuild: a new run from 0 with `list` as its aircraft, no events and a fresh history. */
   function startOver(list) {
+    job = null;
     base = list.map((rec) => ({ ...rec }));
     events = [];
     history.clear();
@@ -302,10 +304,21 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     fromBase();
   }
 
-  /** Something changed that earlier snapshots don't know about (an aircraft added or removed, a route edited): they no longer say what the run was. */
+  /** A route, point or option was edited: the snapshots no longer say what the run was. (Spawns and removals don't come here: they are timed events.) */
   function forgetHistory() {
     history.clear();
     every = SNAPSHOT_EVERY_STEPS;
+    if (job) job.stale = true; // a replay half done was flown on the old setup
+  }
+
+  /** Goes back to the nearest snapshot at or before `wanted`, or to the run's beginning when there is none. */
+  function restoreNearest(wanted) {
+    let best = -1;
+    for (const step of history.keys()) if (step <= wanted && step > best) best = step;
+    if (best >= 0) {
+      putBack(history.get(best));
+      applyDue();
+    } else fromBase();
   }
 
   /** Flies on, or goes back, to a step (a whole number of steps from 0). */
@@ -313,16 +326,35 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (!Number.isInteger(wanted)) throw new RangeError(`seekSteps needs a whole number of steps, not ${wanted}`);
     wanted = Math.max(0, wanted);
     if (Math.abs(wanted - steps) > MOST_STEPS_AT_ONCE) throw new RangeError(`going to step ${wanted} is too far`);
-    if (wanted < steps) {
-      let best = -1;
-      for (const step of history.keys()) if (step <= wanted && step > best) best = step;
-      if (best >= 0) {
-        putBack(history.get(best));
-        applyDue();
-      } else fromBase();
-    }
+    const stale = job?.stale;
+    job = null;
+    if (stale) fromBase();
+    else if (wanted < steps) restoreNearest(wanted);
     while (steps < wanted) advance();
     return t;
+  }
+
+  /** Like `goToStep`, but takes at most `most` steps and says whether it has arrived; asked again for the same step, it carries on. */
+  function goToStepSlice(wanted, most) {
+    if (!Number.isInteger(wanted)) throw new RangeError(`seekStepsSlice needs a whole number of steps, not ${wanted}`);
+    if (!Number.isInteger(most) || most < 1) throw new RangeError(`seekStepsSlice needs a whole number of steps to take, not ${most}`);
+    wanted = Math.max(0, wanted);
+    if (!job || job.target !== wanted) {
+      if (Math.abs(wanted - steps) > MOST_STEPS_AT_ONCE) throw new RangeError(`going to step ${wanted} is too far`);
+      job = { target: wanted, stale: false };
+    }
+    if (job.stale) {
+      job.stale = false;
+      fromBase();
+    } else if (wanted < steps) restoreNearest(wanted);
+    for (let n = 0; n < most && steps < wanted; n++) advance();
+    if (steps === wanted) job = null;
+    return steps === wanted;
+  }
+
+  /** Finishes a replay that was left between slices, so an edit is made at the moment it was going to. */
+  function settle() {
+    if (job) goToStep(job.target);
   }
 
   // ── What the screen asks ───────────────────────────────────────────────────
@@ -360,6 +392,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** Flies on in whole steps of 0.05 s up to `tSec` (not past it) and returns how many it took. To go back, use `seek`. */
     stepTo(tSec) {
+      settle();
       if (!Number.isFinite(tSec)) throw new RangeError(`stepTo needs a time in seconds, not ${tSec}`);
       const wanted = Math.floor(tSec / STEP_SEC + 1e-9);
       if (wanted - steps > MOST_STEPS_AT_ONCE) throw new RangeError(`stepTo ${tSec} s is too far ahead`);
@@ -380,12 +413,22 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /** Like `seek`, but by a whole number of steps from 0, which is exact at any length of run (a time in seconds is added up from steps, so it can be a hair under). */
     seekSteps: goToStep,
 
+    /**
+     * `seekSteps(n)` in slices: flies at most `most` steps toward step `n` (from the nearest snapshot before it, when
+     * going back) and returns true once it is there. The screen calls it once a frame while it says "Replaying…", so
+     * the first step back after an edit (a replay from 0, seconds at 30 aircraft and an hour) doesn't freeze the page.
+     * Until it returns true the run is part way (`t`, `state()` say where); an edit made then (a spawn, a removal) first
+     * finishes the replay, and a route edit starts it again from 0.
+     */
+    seekStepsSlice: goToStepSlice,
+
     /** Where the run is, to keep and `restore` later: the aircraft, the time and the dice. Read only. */
     snapshot: takeSnapshot,
 
     /** Puts the run back to a `snapshot` of a sim made from this setup and seed. The history starts again from there. */
     restore(snap) {
       if (!snap || !Array.isArray(snap.aircraft) || !Number.isInteger(snap.steps) || !Number.isFinite(snap.t)) throw new TypeError('restore needs a snapshot from sim.snapshot()');
+      job = null;
       events = [];
       putBack(snap);
       base = aircraft.map(baseOf);
@@ -433,6 +476,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
      * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string }} [spec]
      */
     spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id } = {}) {
+      settle();
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
       const route = routeId === undefined ? setup.routes[0] : routeById(routeId);
       if (!route && !setup.routes.length) throw new RangeError(NO_ROUTES);
@@ -453,6 +497,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
      * along the route, as V6's does, and takes the new start when it is next reset.
      */
     remapStarts(routeId, mapIndex) {
+      settle();
       const moved = (i) => {
         const to = mapIndex(+i || 0);
         if (!Number.isInteger(to) || to < 0) throw new RangeError(`a start point cannot move to ${to}`);
@@ -473,6 +518,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** Removes an aircraft from the run, from this step on (true if it was there): going back to before it shows the aircraft. */
     remove(id) {
+      settle();
       if (!aircraft.some((a) => a.id === id)) return false;
       happen({ kind: 'remove', ids: [id] });
       return true;
@@ -480,6 +526,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** Removes every aircraft that has landed or is done (V6 "Clear inactive"), from this step on. A replay removes those same aircraft at the same step. */
     clearFinished() {
+      settle();
       const ids = aircraft.filter((a) => !a.active).map((a) => a.id);
       if (ids.length) happen({ kind: 'remove', ids });
     },

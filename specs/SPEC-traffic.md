@@ -556,6 +556,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 - The map draws only when something moves or changes (ui-kit), and the side columns update at most 5 times a second while playing (V6 rebuilt every table 60 times a second, even when paused, #49).
 - Snapshots every 10 s of sim time make any rewind or ±10 s cost at most 10 s of stepping.
 - Target: the built-in setup at 8× with 30 aircraft stays smooth at 1920 × 1080 on a local build; rewind at 1 hour of sim time takes under 50 ms.
+- **After an edit of a route, a point or an option** the snapshots are stale (they no longer say what the run was), so the first step back flies the run again from 0 with the edit, recording snapshots as it goes; the 50 ms target holds for every step after it. That replay costs about 0.6 s for the built-in 7 aircraft at 1 hour, about 5 s for 30 aircraft and about 36 s for 200 (measured, RW-03), so it is done in slices of a few milliseconds a frame while the bar says "Replaying…": the page keeps drawing and answering (Reset and Load drop the replay; other presses wait until it is done). A spawn, an aircraft's ✕ and Clear finished are timed events and never trigger it.
 
 ## Security
 

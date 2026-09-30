@@ -640,3 +640,147 @@ test('replayCost is the steps a seek would fly: at most 10 s behind a snapshot, 
   assert.ok(sim.replayCost(hour - 400) < 200, 'and the replay left snapshots behind, so the next step back is cheap');
   assert.ok(cost < 5000);
 });
+
+// ── RW-03: a replay from 0 after an edit is done in slices, so the page can draw between them ──────────────────
+
+/** The built-in setup with `n` aircraft spawned on it (30 in the spec's own performance line). */
+function crowded(n, seed = 1) {
+  const sim = createSim(fresh(), { seed });
+  const routes = ['PAT1', 'ENT1', 'ENT2', 'ENT3', 'ENT4', 'SPL1'];
+  for (let i = sim.state().aircraft.length; i < n; i++) sim.spawn({ routeId: routes[i % routes.length], delaySec: i * 3 });
+  return sim;
+}
+
+test('seekStepsSlice flies at most the steps it is given, says when it has arrived, and ends on exactly what seekSteps gives', () => {
+  const sim = createSim(fresh(), { seed: 5 });
+  sim.seekSteps(6000);
+  sim.forgetHistory(); // the first step back is now a replay from 0
+  const target = 5800;
+  const whole = createSim(fresh(), { seed: 5 });
+  whole.seekSteps(target);
+  let calls = 0;
+  let arrived = false;
+  let last = sim.steps;
+  while (!arrived) {
+    arrived = sim.seekStepsSlice(target, 250);
+    calls++;
+    assert.ok(Math.abs(sim.steps - last) <= 250 || calls === 1, `a slice took ${sim.steps - last} steps`);
+    last = sim.steps;
+    assert.ok(calls < 100, 'it gets there');
+  }
+  assert.ok(calls >= target / 250, `${calls} slices: it did not fly it all at once`);
+  assert.equal(sim.steps, target);
+  assert.deepEqual(everything(sim), everything(whole));
+  assert.equal(sim.seekStepsSlice(target, 250), true, 'asked again at the target, it is there');
+});
+
+test('seekStepsSlice needs a whole number of steps and a whole number of steps to take', () => {
+  const sim = createSim(fresh());
+  assert.throws(() => sim.seekStepsSlice(1.5, 10), RangeError);
+  assert.throws(() => sim.seekStepsSlice(10, 0), RangeError);
+  assert.throws(() => sim.seekStepsSlice(10, 2.5), RangeError);
+});
+
+test('going forward and back with seekStepsSlice uses the snapshots, as seekSteps does', () => {
+  const sim = createSim(fresh(), { seed: 2 });
+  sim.seekSteps(9000);
+  const before = sim.steps;
+  assert.equal(sim.seekStepsSlice(9000 - STEPS_10S, 300), true, 'a step back from a snapshot is one slice');
+  assert.ok(before - sim.steps === STEPS_10S);
+});
+
+test('an edit made while a replay is between slices finishes it first, and the edit lands on the moment the replay was going to', () => {
+  const sim = createSim(fresh(), { seed: 1 });
+  sim.seekSteps(4000);
+  sim.forgetHistory();
+  assert.equal(sim.seekStepsSlice(3000, 100), false);
+  const id = sim.spawn({ routeId: 'PAT1' });
+  assert.equal(sim.steps, 3000, 'the replay finished, and the spawn was made at its end');
+  const reference = createSim(fresh(), { seed: 1 });
+  reference.seekSteps(3000);
+  assert.equal(reference.spawn({ routeId: 'PAT1' }), id);
+  reference.seekSteps(4000);
+  sim.seekSteps(4000);
+  assert.deepEqual(everything(sim), everything(reference));
+});
+
+test('a route edited while a replay is between slices starts the replay again, so it flies the edited route from 0 and no mix of the two', () => {
+  const setup = fresh();
+  const sim = createSim(setup, { seed: 1 });
+  sim.seekSteps(4000);
+  sim.forgetHistory();
+  assert.equal(sim.seekStepsSlice(3000, 400), false);
+  setup.routes.find((r) => r.id === 'PAT1').points[1].kt = 95;
+  sim.forgetHistory();
+  while (!sim.seekStepsSlice(3000, 400));
+  const edited = fresh();
+  edited.routes.find((r) => r.id === 'PAT1').points[1].kt = 95;
+  const reference = createSim(edited, { seed: 1 });
+  reference.seekSteps(3000);
+  assert.deepEqual(everything(sim), everything(reference));
+});
+
+test('a stepTo, a Reset or a seek while a replay is between slices is not confused by it', () => {
+  const sim = createSim(fresh(), { seed: 1 });
+  sim.seekSteps(4000);
+  sim.forgetHistory();
+  sim.seekStepsSlice(2000, 100);
+  sim.seekSteps(500);
+  assert.equal(sim.steps, 500);
+  sim.seekSteps(4000);
+  sim.forgetHistory();
+  sim.seekStepsSlice(2000, 100);
+  sim.reset();
+  assert.equal(sim.steps, 0);
+  assert.equal(sim.seekStepsSlice(0, 10), true);
+});
+
+test('after an edit at 30 aircraft, one slice of the replay takes a few milliseconds, where the whole replay takes seconds (RW-03)', (t) => {
+  const sim = crowded(30);
+  sim.seekSteps(72000 / 3); // 20 minutes
+  const target = sim.steps - 1;
+  sim.forgetHistory();
+  assert.equal(sim.replayCost(target), target, 'the whole run again');
+  const sliceMs = [];
+  let arrived = false;
+  const t0 = performance.now();
+  while (!arrived) {
+    const s0 = performance.now();
+    arrived = sim.seekStepsSlice(target, 25);
+    sliceMs.push(performance.now() - s0);
+  }
+  const total = performance.now() - t0;
+  sliceMs.sort((a, b) => a - b);
+  const median = sliceMs[Math.floor(sliceMs.length / 2)];
+  t.diagnostic(`30 aircraft, 20 minutes: ${sliceMs.length} slices of 25 steps, median ${median.toFixed(2)} ms, worst ${sliceMs.at(-1).toFixed(2)} ms, ${total.toFixed(0)} ms in all`);
+  assert.equal(sim.steps, target);
+  assert.ok(sliceMs.length > 900, 'in many small slices');
+  assert.ok(median < 10, `a slice of 25 steps takes ${median} ms (a frame is 16 ms)`);
+  assert.ok(sim.replayCost(target - STEPS_10S) < STEPS_10S, 'and the replay left snapshots behind, so the next step back is cheap');
+});
+
+test('clock.seekSteps goes to a step exactly, the mode stays (a rewind stops), and it is a no-op for a sim a slice replay already put there', () => {
+  const sim = createSim(fresh(), { seed: 1 });
+  const clock = createClock({ sim, speed: 4 });
+  clock.seekSteps(3000);
+  assert.equal(sim.steps, 3000);
+  assert.equal(clock.mode, 'paused');
+  clock.play();
+  clock.seekSteps(2800);
+  assert.equal(clock.mode, 'running');
+  clock.rewind();
+  clock.seekSteps(2600);
+  assert.equal(clock.mode, 'paused');
+  const there = everything(sim);
+  sim.forgetHistory();
+  while (!sim.seekStepsSlice(2400, 300));
+  clock.seekSteps(2400); // the screen's last move after its slices
+  assert.equal(sim.steps, 2400);
+  assert.equal(clock.simTime, sim.t);
+  const whole = createSim(fresh(), { seed: 1 });
+  whole.seekSteps(2400);
+  assert.deepEqual(everything(sim), everything(whole));
+  assert.notDeepEqual(everything(sim), there);
+  clock.stepBy(10);
+  assert.equal(sim.steps, 2600);
+});

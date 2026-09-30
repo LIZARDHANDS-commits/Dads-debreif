@@ -114,6 +114,7 @@ function mount(root, app) {
   // ---- keeping the screen up to date ------------------------------------------------
   /** Something in the run or the setup changed: redraw, and tell the bar. */
   function changed() {
+    if (replaying) return; // the run is part way through a replay: the screen keeps the moment it shows until the replay is there (then `go` calls this)
     cached = null;
     bar.setState({ mode: clock.mode, clockText: clockText(clock.simTime) });
     ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length, place }));
@@ -145,6 +146,7 @@ function mount(root, app) {
    * paused at 0:00. The profile is copied, so editing it leaves the saved one alone.
    */
   function loadProfile(profile, entry) {
+    cancelReplay();
     stopFrames?.();
     stopFrames = null;
     setup.name = profile.name;
@@ -177,21 +179,41 @@ function mount(root, app) {
 
   // ---- playback ----------------------------------------------------------------------
   // If a frame throws, the run is paused first so the bar never says Running over a stopped sim; the error still surfaces.
-  // After an edit the snapshots are stale, and the first step back flies the run again from 0 (about 0.5 s for an hour
-  // of sim time). A stretch that long says "Replaying…" in the bar first, and is run a moment later so the words are on screen.
-  const REPLAY_NOTICE_STEPS = 4000; // 200 s of sim time, about 30 ms
+  // After an edit of a route, a point or an option the snapshots are stale, and the first step back flies the run again
+  // from 0 (0.6 s for an hour of the built-in setup, about 5 s at 30 aircraft). A stretch over 200 s of sim time says
+  // "Replaying…" in the bar and is flown a slice at a time, a few milliseconds of each frame, so the page stays alive
+  // (RW-03). Presses meanwhile are ignored, except Reset and Load, which drop the replay.
+  const REPLAY_NOTICE_STEPS = 4000; // 200 s of sim time, about 30 ms at 7 aircraft
+  const REPLAY_SLICE_STEPS = 25; // 1.25 s of sim time: about 2 ms at 30 aircraft, 12 ms at 200
+  const REPLAY_FRAME_MS = 8; // how long one frame works on the replay before it lets the page draw
   let replaying = false;
+  let stopReplay = null;
+  function cancelReplay() {
+    stopReplay?.();
+    stopReplay = null;
+    if (replaying) {
+      replaying = false;
+      bar.setState({ note: null });
+    }
+  }
+  /** Gets the run to `targetStep` (which `go` then settles on: it must find the run there, or be able to fly there itself), saying "Replaying…" and flying it in frames when it is long. */
   function afterNotice(targetStep, go) {
     if (replaying) return;
     if (sim.replayCost(targetStep) <= REPLAY_NOTICE_STEPS) return go();
     replaying = true;
     bar.setState({ note: 'Replaying…' });
-    app.scheduler.after(50, () => {
+    stopReplay = app.scheduler.frame(() => {
       try {
+        const began = performance.now();
+        let there = false;
+        while (!there && performance.now() - began < REPLAY_FRAME_MS) there = sim.seekStepsSlice(targetStep, REPLAY_SLICE_STEPS);
+        if (!there) return;
+        cancelReplay();
         go();
-      } finally {
-        replaying = false;
-        bar.setState({ note: null });
+      } catch (err) {
+        cancelReplay();
+        pause();
+        throw err;
       }
     });
   }
@@ -218,8 +240,9 @@ function mount(root, app) {
   /** Rewind plays the run backward at the playback speed, until 0:00 or Pause. */
   function rewind() {
     if (clock.mode === 'rewinding') return;
-    afterNotice(sim.steps - 1, () => {
-      sim.seekSteps(sim.steps - 1); // the first step back, which after an edit is the replay from 0; the frames then find snapshots
+    const back = Math.max(0, sim.steps - 1);
+    afterNotice(back, () => {
+      sim.seekSteps(back); // the first step back, which after an edit is the replay from 0; the frames then find snapshots
       clock.rewind();
       startFrames();
       changed();
@@ -235,9 +258,10 @@ function mount(root, app) {
 
   /** -10 s and +10 s (the buttons, [ and ]): 10 s of sim time exactly, at any speed. Playing carries on; a rewind stops. */
   function stepBy(seconds) {
-    afterNotice(Math.max(0, sim.steps + Math.sign(seconds) * TEN_SECONDS_STEPS), () => {
+    const wanted = Math.max(0, sim.steps + Math.sign(seconds) * TEN_SECONDS_STEPS);
+    afterNotice(wanted, () => {
       const wasRewinding = clock.mode === 'rewinding';
-      clock.stepBy(seconds);
+      clock.seekSteps(wanted);
       if (wasRewinding) {
         stopFrames?.();
         stopFrames = null;
@@ -247,6 +271,7 @@ function mount(root, app) {
   }
 
   function resetRun() {
+    cancelReplay();
     stopFrames?.();
     stopFrames = null;
     clock.reset();
@@ -290,6 +315,7 @@ function mount(root, app) {
   changed();
 
   return () => {
+    stopReplay?.();
     stopFrames?.();
     stopSettings();
     settingsPanel.dispose();
