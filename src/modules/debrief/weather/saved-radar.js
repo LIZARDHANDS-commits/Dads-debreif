@@ -366,7 +366,8 @@ export function framesToDraw(saved, item, t) {
 
 // --- The words ------------------------------------------------------------------
 
-const hhmmZ = (t) => {
+/** A time as "14:30Z". */
+export const hhmmZ = (t) => {
   const d = new Date(t * 1000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}Z`;
 };
