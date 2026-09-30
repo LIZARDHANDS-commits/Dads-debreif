@@ -6,7 +6,7 @@ import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi } from '../../../src/core/angles.js';
 import {
   FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG, V6_DEFAULT_SETUP,
-  levelTurn, mergeTimeSec, offNoseDeg, rangeFt, sinceMergeSec, createFight, stepFight,
+  levelTurn, mergeTimeSec, offNoseDeg, offNose3dDeg, ataDeg, rangeFt, sinceMergeSec, createFight, stepFight,
 } from '../../../src/modules/turn-fight/sim.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected}`);
@@ -97,11 +97,65 @@ test('the merge puts both aircraft at the centre, exactly: the step that merges 
   near(Math.hypot(s.red.xFt, s.red.yFt), speedFtps * remainderSec, 1e-6);
 });
 
-test('at different speeds the jets still end up together at the merge (V6 moves them to the centre)', () => {
+test('at different speeds the jets end up together at the merge (Q49: they meet there; V6 moved them)', () => {
   const s = runUntil({ blueKt: 250, redKt: 200 }, (f) => f.merged);
   assert.equal(r1(s.timeSec), 16);
   near(Math.hypot(s.blue.xFt, s.blue.yFt), 250 * 1.68781 * (s.timeSec - s.mergeSec), 1e-6);
   near(Math.hypot(s.red.xFt, s.red.yFt), 200 * 1.68781 * (s.timeSec - s.mergeSec), 1e-6);
+});
+
+/** Where each aircraft would be at the merge if it flew on straight from the last whole step before it: its x, in feet. */
+function pointAtMerge(setup) {
+  const s = createFight(setup);
+  stepFight(s, Math.floor(s.mergeSec / FIGHT_STEP_SEC) * FIGHT_STEP_SEC);
+  assert.equal(s.merged, false);
+  const left = s.mergeSec - s.timeSec;
+  return {
+    blueXFt: s.blue.xFt + s.perf.blue.speedFtps * left,
+    redXFt: s.red.xFt - s.perf.red.speedFtps * left,
+  };
+}
+
+test('Q49: the jets start weighted by speed: Blue at -V1 / (V1 + V2) of the separation, Red at +V2 / (V1 + V2)', () => {
+  const s = createFight({ blueKt: 250, redKt: 200, separationNm: 2 });
+  near(s.blue.xFt, (-250 / 450) * 2 * FT_PER_NM, 1e-9);
+  near(s.red.xFt, (200 / 450) * 2 * FT_PER_NM, 1e-9);
+  near(rangeFt(s), 2 * FT_PER_NM, 1e-9, 'the separation is still the range');
+  // Equal speeds: the same start as V6's, half the separation each side.
+  const even = createFight({ blueKt: 220, redKt: 220 });
+  near(even.blue.xFt, -FT_PER_NM, 1e-9);
+  near(even.red.xFt, FT_PER_NM, 1e-9);
+  // The faster aircraft starts further from the centre.
+  const fast = createFight({ blueKt: 300, redKt: 100 });
+  assert.ok(-fast.blue.xFt > fast.red.xFt);
+});
+
+test('Q49: at 250 and 200 kt the jets meet at the centre, with no jump; V6 met 675 ft off and then moved both', () => {
+  const now = pointAtMerge({ blueKt: 250, redKt: 200 });
+  near(now.blueXFt, 0, 1e-6, 'Blue at the merge');
+  near(now.redXFt, 0, 1e-6, 'Red at the merge');
+  const v6 = pointAtMerge({ blueKt: 250, redKt: 200, v6Start: true });
+  near(v6.blueXFt, 675.1, 0.1, 'V6: Blue 675 ft off the centre');
+  near(v6.redXFt, 675.1, 0.1, 'V6: Red 675 ft off the centre');
+});
+
+test('Q49: v6Start keeps V6\'s start (equal distance from the centre) and is not part of the setup boxes', () => {
+  const s = createFight({ blueKt: 250, redKt: 200, v6Start: true });
+  near(s.blue.xFt, -FT_PER_NM, 1e-9);
+  near(s.red.xFt, FT_PER_NM, 1e-9);
+  assert.deepEqual(s.setup, createFight({ blueKt: 250, redKt: 200 }).setup, 'the setup copy has only the boxes');
+  assert.ok(!('v6Start' in V6_DEFAULT_SETUP));
+});
+
+test('Q49: everything from the merge on is the same in both starts', () => {
+  for (const setup of [{ blueKt: 250, redKt: 200 }, { circles: 1, blueKt: 150, redKt: 300, vertical: true, bluePitchDeg: 30, redPitchDeg: -20 }]) {
+    const now = createFight(setup), v6 = createFight({ ...setup, v6Start: true });
+    const steps = Math.ceil((now.mergeSec + 5) / FIGHT_STEP_SEC);
+    for (let i = 0; i < steps; i++) { stepFight(now, FIGHT_STEP_SEC); stepFight(v6, FIGHT_STEP_SEC); }
+    assert.ok(now.merged && v6.merged);
+    for (const who of ['blue', 'red']) for (const k of ['xFt', 'yFt', 'zFt', 'headingRad', 'pitchRad']) near(now[who][k], v6[who][k], 1e-9, `${who} ${k}`);
+    assert.equal(now.mergeSec, v6.mergeSec);
+  }
 });
 
 test('after the merge Blue turns left, and Red turns left in a 2-circle fight and right in a 1-circle fight', () => {
@@ -125,9 +179,45 @@ test('a 360° turn takes 360 ÷ rate seconds: heading is back where it started a
   assert.equal(r1(turnSec), 18.7);
 });
 
-test('first nose-on at V6\'s defaults: +18.2 s in a 2-circle fight, +9.1 s in a 1-circle fight (a tie, either aircraft may be named)', () => {
+test('first nose-on at V6\'s defaults: +18.2 s in a 2-circle fight, +9.1 s in a 1-circle fight (a tie, so it is marked as both)', () => {
   assert.equal(r1(sinceMerge(runUntil({ circles: 2 }, (s) => s.firstNose))), 18.2);
   assert.equal(r1(sinceMerge(runUntil({ circles: 1 }, (s) => s.firstNose))), 9.1);
+});
+
+test('Q48: a tie is marked as both: an even fight has `both` true in either fight type, and an uneven one has it false', () => {
+  for (const circles of [1, 2]) {
+    const tie = runUntil({ circles }, (s) => s.firstNose);
+    assert.equal(tie.firstNose.both, true, `${circles}-circle, even`);
+    assert.ok(offNoseDeg(tie.blue, tie.red) <= 5 && offNoseDeg(tie.red, tie.blue) <= 5, 'both noses are within 5°');
+    // `by` stays a valid aircraft for code that reads the old field: Blue, never rounding noise.
+    assert.equal(tie.firstNose.by, 'blue');
+  }
+  assert.equal(runUntil({ blueKt: 250, redKt: 200 }, (s) => s.firstNose).firstNose.both, false);
+  assert.equal(runUntil({ blueG: 5 }, (s) => s.firstNose).firstNose.both, false);
+});
+
+test('Q48: both within 5° in the same step is "both" even when the fight is uneven; the line still runs Blue to Red', () => {
+  // Noses on each other from the merge point's two sides, then one step: neither leaves 5° in 0.02 s.
+  const s = createFight({ blueKt: 250, redKt: 200 });
+  s.merged = true;
+  s.timeSec = s.mergeSec;
+  Object.assign(s.blue, { xFt: -1000, yFt: 0, headingRad: 0 });
+  Object.assign(s.red, { xFt: 1000, yFt: 0, headingRad: Math.PI });
+  stepFight(s, FIGHT_STEP_SEC);
+  assert.equal(s.firstNose.both, true);
+  assert.deepEqual(s.firstNose.from, { xFt: s.blue.xFt, yFt: s.blue.yFt });
+  assert.deepEqual(s.firstNose.to, { xFt: s.red.xFt, yFt: s.red.yFt });
+});
+
+test('Q48: with First nose chases a tie chases the same as V6 does: both turn toward each other at their own rate', () => {
+  const s = createFight({ chase: true });
+  while (!s.firstNose) stepFight(s, FIGHT_STEP_SEC);
+  assert.equal(s.firstNose.both, true);
+  const before = [s.blue.headingRad, s.red.headingRad];
+  stepFight(s, FIGHT_STEP_SEC);
+  // Turning toward each other, neither more than rate × step.
+  const maxTurn = s.perf.blue.rateRadPerSec * FIGHT_STEP_SEC + 1e-12;
+  assert.ok(Math.abs(wrapPi(s.blue.headingRad - before[0])) <= maxTurn && Math.abs(wrapPi(s.red.headingRad - before[1])) <= maxTurn);
 });
 
 test('first nose-on in an uneven 2-circle fight goes to the faster turn: Red at 200 kt beats Blue at 250 kt, at +14.4 s', () => {
@@ -318,6 +408,86 @@ test('offNoseDeg: dead ahead is 0°, abeam 90°, dead astern 180°, whichever si
   near(offNoseDeg(at(0, 0, 0), at(0, -100, 0)), 90, 1e-12);
   near(offNoseDeg(at(0, 0, 0), at(-100, 0, 0)), 180, 1e-12);
   near(offNoseDeg(at(0, 0, 4 * Math.PI + 0.5), at(100, 0, 0)), 28.6479, 1e-3, 'heading goes past 2π in a long fight');
+});
+
+const at3 = (x, y, z, headingRad, pitchRad) => ({ xFt: x, yFt: y, zFt: z, headingRad, pitchRad });
+
+test('Q51: offNose3dDeg is the angle from the nose (heading and pitch) to the line of sight, height included', () => {
+  const deg = (d) => (d * Math.PI) / 180;
+  // Level, same height: the ground-plane angle, the same as offNoseDeg.
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(100, 0, 0, 0, 0)), 0, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(0, 100, 0, 0, 0)), 90, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(-100, 0, 0, 0, 0)), 180, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, deg(20), 0), at3(100, 0, 0, 0, 0)), 20, 1e-9);
+  // Nose 30° up at a jet level and dead ahead: 30° off. The ground plane says 0°.
+  near(offNose3dDeg(at3(0, 0, 0, 0, deg(30)), at3(1000, 0, 0, 0, 0)), 30, 1e-9);
+  assert.equal(offNoseDeg(at3(0, 0, 0, 0, deg(30)), at3(1000, 0, 0, 0, 0)), 0);
+  // A jet 1,000 ft above at 1,000 ft ahead is 45° up; nose level: 45° off. Nose on it: 0°.
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(1000, 0, 1000, 0, 0)), 45, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, deg(45)), at3(1000, 0, 1000, 0, 0)), 0, 1e-6);
+  // Straight above, nose level: 90°. Below with the nose down 60°: 30°.
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(0, 0, 500, 0, 0)), 90, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, deg(-60)), at3(0, 0, -500, 0, 0)), 30, 1e-9);
+  // A heading that has gone past 2π in a long fight.
+  near(offNose3dDeg(at3(0, 0, 0, 4 * Math.PI + 0.5, 0), at3(100, 0, 0, 0, 0)), 28.6479, 1e-3);
+  // On top of each other: no line of sight, so the ground-plane answer, never NaN.
+  assert.equal(offNose3dDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)), offNoseDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)));
+});
+
+test('Q51: ataDeg measures in 3D only with Climb and dive on (and not with v6OffNose); otherwise it is V6\'s ground-plane angle', () => {
+  const pitched = (extra) => {
+    const s = createFight({ vertical: true, bluePitchDeg: 30, redPitchDeg: -20, ...extra });
+    s.merged = true;
+    Object.assign(s.blue, { xFt: 0, yFt: 0, zFt: 0 });
+    Object.assign(s.red, { xFt: 3000, yFt: 0, zFt: 0 });
+    return s;
+  };
+  const on = pitched({});
+  on.blue.pitchRad = Math.PI / 6;
+  near(ataDeg(on, on.blue, on.red), 30, 1e-9, 'Climb and dive on: 3D');
+  on.red.pitchRad = -Math.PI / 9;
+  near(ataDeg(on, on.red, on.blue), 20, 1e-9, 'Red nose 20° down at a jet level with it');
+  const v6 = pitched({ v6OffNose: true });
+  v6.blue.pitchRad = Math.PI / 6;
+  assert.equal(ataDeg(v6, v6.blue, v6.red), 0, 'v6OffNose: the ground-plane angle');
+  const level = createFight({ bluePitchDeg: 30 });
+  level.blue.pitchRad = Math.PI / 6;
+  assert.equal(ataDeg(level, level.blue, level.red), offNoseDeg(level.blue, level.red), 'Climb and dive off: pitch is ignored');
+});
+
+test('Q51: with Climb and dive on, first nose-on is not called on a jet that is high above or below: climbing at 30° against diving at 20° none comes in 10 minutes, where V6 called it at +18.2 s', () => {
+  const setup = { vertical: true, bluePitchDeg: 30, redPitchDeg: -20 };
+  const v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
+  assert.equal(r1(sinceMerge(v6)), 18.2);
+  assert.equal(v6.firstNose.both, true);
+  const now = runUntil(setup, () => false, FIGHT_MAX_SEC);
+  assert.equal(now.firstNose, null);
+  assert.equal(now.stopped, true);
+});
+
+test('Q51: a small pitch only delays first nose-on: both climbing at 3° is marked at +18.3 s in 3D, V6 had +18.2 s', () => {
+  const setup = { vertical: true, bluePitchDeg: 3, redPitchDeg: 3 };
+  assert.equal(r1(sinceMerge(runUntil(setup, (f) => f.firstNose))), 18.3);
+  assert.equal(r1(sinceMerge(runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose))), 18.2);
+});
+
+test('Q51: with Climb and dive on but both pitches 0, nothing changes: first nose-on is V6\'s, +18.2 s', () => {
+  const setup = { vertical: true };
+  const now = runUntil(setup, (f) => f.firstNose), v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
+  assert.equal(r1(sinceMerge(now)), 18.2);
+  assert.equal(now.firstNose.timeSec, v6.firstNose.timeSec);
+});
+
+test('Q51: with Climb and dive off the pitch boxes and v6OffNose change nothing: the same fight, step for step', () => {
+  const a = createFight({ bluePitchDeg: 40, blueG: 5 }), b = createFight({ bluePitchDeg: 40, blueG: 5, v6OffNose: true });
+  for (let i = 0; i < 1500; i++) { stepFight(a, FIGHT_STEP_SEC); stepFight(b, FIGHT_STEP_SEC); }
+  assert.deepEqual({ ...a, v6OffNose: null }, { ...b, v6OffNose: null });
+  assert.ok(a.firstNose);
+});
+
+test('Q51: v6OffNose is an option, not one of the boxes: it is not kept in the setup', () => {
+  assert.deepEqual(createFight({ v6OffNose: true }).setup, createFight().setup);
+  assert.ok(!('v6OffNose' in V6_DEFAULT_SETUP));
 });
 
 test('a setup that can\'t fly is refused, not run', () => {

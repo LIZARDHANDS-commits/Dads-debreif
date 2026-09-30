@@ -7,8 +7,9 @@
 // only grows as the fight does, times the scale, and is kept inside the panel.
 //
 // Like view.js it only reads the run ({ fight, trails }), draws on change only,
-// and leaves the fight alone. The label keeps V6's wording; the decided
-// "Simplified: constant speed and turn rate" label is task 6 (Q50).
+// and leaves the fight alone. The label keeps V6's wording. The decided
+// "Simplified: constant speed and turn rate" label (Q50) is the one line in the
+// stage footer (layout.js), so it shows once for the whole fight, whichever view is up.
 import { createCanvasSurface } from '../../ui-kit/canvas-view.js';
 import { COLORS } from './view.js';
 

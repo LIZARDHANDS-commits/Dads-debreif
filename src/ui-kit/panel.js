@@ -30,6 +30,8 @@ export function createPanel({ title, collapsed = false, onToggle } = {}) {
   return {
     element,
     body,
+    /** The header button, for callers that move focus back to it. */
+    button,
     get collapsed() {
       return isCollapsed;
     },

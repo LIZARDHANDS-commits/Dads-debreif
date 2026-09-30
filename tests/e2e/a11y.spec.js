@@ -34,6 +34,12 @@ test('the Debrief Viewer has no accessibility violations with the example flight
   await expectNoA11yViolations(page);
 });
 
+test('the Traffic Sim has no accessibility violations', async ({ page }) => {
+  await openRoute(page, '#/traffic');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
+  await expectNoA11yViolations(page);
+});
+
 test('the Turn Sim has no accessibility violations', async ({ page }) => {
   await openRoute(page, '#/turn-sim');
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
