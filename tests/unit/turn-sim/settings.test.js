@@ -86,7 +86,7 @@ test('the rules say what the todo says: Speed at least 1 kt, Turn degrees 10 to 
 
 test('bad values are refused and the default is used instead', () => {
   const clean = checkSettings({
-    speedKt: 0, turnDeg: 5, spacingFt: NaN, baseG: '3', formation: 'trail', direction: 'up', showNm: 'yes',
+    speedKt: 0, turnDeg: 4, spacingFt: NaN, baseG: '3', formation: 'trail', direction: 'up', showNm: 'yes',
     clockCuePos: '5.7', clockCueAircraft: 9, 'aircraft2.turnLogic': 'sideways', 'aircraft3.gError': Infinity, extra: 1,
   });
   assert.equal(clean.speedKt, DEFAULTS.speedKt);
