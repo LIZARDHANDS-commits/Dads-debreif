@@ -43,6 +43,46 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   followLead: false,
   route: '', // none, or one of V6's built-in routes by name
   routeOpacity: 80,
+  // V6's embedded VNC charts: off, south, north or both, at 78 % opacity,
+  // with its fine alignment (nudge in NM, scale in per cent) at rest.
+  vnc: 'off',
+  vncOpacity: 78,
+  vncEastNm: 0,
+  vncNorthNm: 0,
+  vncScalePct: 100,
+  // Tools, closed at first (R22): the EM chart, with V6's automatic chart and 60 s trail.
+  emOpen: false,
+  emChart: 'auto',
+  emTrail: true,
+  // The tennis ball, with V6's settings: #2 throws at Lead, 350 kt, a 6° cone
+  // (±3°), 3 s, a 250 ft hit radius, with gravity.
+  tennisOpen: false,
+  tennisShooter: 2,
+  tennisTarget: 1,
+  tennisBallKt: 350,
+  tennisPitchBias: 0,
+  tennisConeDeg: 6,
+  tennisTofSec: 3,
+  tennisRadiusFt: 250,
+  tennisGravity: true,
+  // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
+  // is gone: it was the same as Centre formation (#26).
+  view: '2d',
+  cam3d: 'followLead',
+  yaw3d: -35,
+  pitch3d: 52,
+  zoom3d: 70,
+  altScale3d: 2,
+  model3d: 't6',
+  planeSize3d: 260,
+  attLabels3d: true,
+  trailSec3d: 90,
+  landscape3d: true,
+  groundRef3d: true,
+  datum3d: 'min',
+  grid3d: true,
+  sticks3d: true,
+  altMarks3d: true,
 });
 
 /** The whole sortie down to about 500 ft across (SPEC-debrief, #23). */

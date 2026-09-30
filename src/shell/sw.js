@@ -11,8 +11,8 @@ const CACHE = PREFIX + BUILD_ID;
 const SCOPE = self.registration.scope;
 const INDEX = new URL('index.html', SCOPE).href;
 // Files kept the first time they're fetched rather than at install (the example
-// flight, tools/service-worker.mjs).
-const ON_USE = new URL('examples/', SCOPE).href;
+// flight and the debrief's VNC charts, tools/service-worker.mjs).
+const ON_USE = ['examples/', 'media/debrief/'].map((p) => new URL(p, SCOPE).href);
 
 self.addEventListener('install', (event) => {
   // cache: 'reload' skips the browser's HTTP cache, so the copy matches this build.
@@ -48,7 +48,7 @@ self.addEventListener('fetch', (event) => {
     caches
       .open(CACHE)
       .then((cache) => cache.match(lookup, { ignoreSearch: true }))
-      .then((hit) => hit ?? (page.startsWith(ON_USE) ? fetchAndKeep(request) : fetch(request))),
+      .then((hit) => hit ?? (ON_USE.some((p) => page.startsWith(p)) ? fetchAndKeep(request) : fetch(request))),
   );
 });
 

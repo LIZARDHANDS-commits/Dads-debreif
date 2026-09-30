@@ -16,13 +16,19 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `map2d/overlays.js` | The built-in routes: placed on the map (the flight's, or Moose Jaw's with no flight) and drawn dashed under the tracks. |
 | `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
 | `map2d/tiles.js` | Web map tiles (Esri World Imagery) under the map: which tiles a view needs, fetching with retries, and drawing. Knows nothing of the debrief, so it can move to the ui-kit. |
-| `map2d/vnc.js` | The VNC charts' bounds and warp, pinned to V6 (not drawn yet). |
-| `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6 (not drawn yet). |
+| `map2d/vnc.js` | The VNC charts: bounds and warp pinned to V6, and the layer that fetches each chart when first shown and warps it once per alignment. |
+| `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6. |
+| `em.js` | The EM chart: which chart to show, where a point lands on it (pinned to V6), each ship's point and 60 s trail from its track, and the panel's canvas. |
+| `tennis.js` | The tennis ball at a moment: reads the two tracks and asks core's one solver (Q33 to Q37). |
+| `tennis-panel.js` | The tennis ball's panel: shooter, target, V6's settings and the answer in words. |
+| `export-csv.js` | The CSV export's rows: one a second across the shared window, every ship side by side, with sources and GPS gap flags. No page access. |
+| `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
+| `view3d/view.js` | Draws the 3D view on its canvas and turns and zooms it with the mouse and keys. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
 | `standards-panel.js` | The Standards panel (closed at first): edits `app.standards`, the one copy the Turn Sim reads too. |
 | `debrief-session.js` | What a saved debrief carries besides the tracks (DFPs, standards, time), flattened for flight-data's debrief file and read back. Tested in Node. |
-| `file-panel.js` | "Save, open, examples": Save debrief, Open debrief, Close flight, and the example track files as downloads. |
+| `file-panel.js` | "Save, open, CSV": Save debrief, Open debrief, Export CSV, Close flight, and the example track files as downloads. |
 | `data/cymj.js` | Moose Jaw values the debrief still needs: field elevation and the VNC chart anchor. |
 | `debrief.css` | The screen's styles, all under `[data-module='debrief']`. Loaded when the debrief opens and removed when it closes. |
 

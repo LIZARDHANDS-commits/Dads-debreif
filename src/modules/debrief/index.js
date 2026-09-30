@@ -16,10 +16,16 @@ import { readoutsAt, formationAt, mapLabel } from './readouts.js';
 import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
+import { createView3d } from './view3d/view.js';
+import { createEmView } from './em.js';
+import { tennisAt } from './tennis.js';
+import { createTennisPanel } from './tennis-panel.js';
+import { FIELD_ELEVATION_FT } from './data/cymj.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createDfpPanel } from './dfp-panel.js';
 import { createFilePanel } from './file-panel.js';
 import { downloadText } from '../../storage/file.js';
+import { toCsv, csvFileName } from './export-csv.js';
 import {
   addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps, dfpLabel,
 } from './dfp.js';
@@ -38,10 +44,11 @@ function mount(root, app) {
   const standardsPanel = app.standards && createStandardsPanel({ standards: app.standards, layout });
   const dfpPanel = createDfpPanel({ time: app.time, on: dfpActions() });
   const filePanel = createFilePanel({ layout, canExample, on: fileActions() });
+  const tennisPanel = createTennisPanel({ controls, layout });
   const ui = createLayout({
     layout, controls, bar, canExample, listen: app.listen,
     flightExtras: [filePanel.element],
-    formationExtras: [dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
+    formationExtras: [tennisPanel.element, dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
   });
   const currentStandards = () => app.standards?.get() ?? V6_STANDARDS;
   root.append(ui.element);
@@ -56,12 +63,20 @@ function mount(root, app) {
   let busy = false;
   let closed = false; // a load still running when the debrief closes must not land
 
+  // The one tennis-ball solution both views draw and the panel describes (#19), while it's open.
+  const tennisNow = () => {
+    const on = layout.get();
+    return on.tennisOpen && flight && clock ? tennisAt(flight, clock.t, on) : null;
+  };
+
   const map = createMapView(ui.canvas, {
+    tennis: tennisNow,
     timers: app.scheduler,
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
     dfps: () => dfps.map((d) => ({ x: d.x, y: d.y, label: dfpLabel(dfps, d) })),
     onImagery: (state) => ui.setImagery(state),
+    onCharts: (state) => ui.setCharts(state),
     labels: (shown, t) => {
       const out = {};
       for (const row of formationAt(shown, t, currentStandards())) {
@@ -71,6 +86,31 @@ function mount(root, app) {
       return out;
     },
   });
+
+  const view3d = createView3d(ui.canvas3d, {
+    tennis: tennisNow,
+    timers: app.scheduler,
+    flight: () => flight,
+    time: () => clock?.t ?? 0,
+    settings: () => layout.get(),
+    // The field datum is the home field's elevation, or Moose Jaw's until one is set.
+    fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
+    setCamera: (patch) => layout.update(patch),
+  });
+  const em = createEmView(ui.emCanvas, {
+    timers: app.scheduler,
+    base: document.baseURI,
+    flight: () => flight,
+    time: () => clock?.t ?? 0,
+    settings: () => layout.get(),
+    onChart: (altitude) => ui.setEmChart(altitude),
+  });
+  // Only the view that's showing draws, and the EM chart only while open (#39).
+  const redraw = () => {
+    const on = layout.get();
+    (on.view === '3d' ? view3d : map).requestDraw();
+    if (on.emOpen) em.requestDraw();
+  };
 
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
@@ -82,6 +122,7 @@ function mount(root, app) {
     pendingReadout = null;
     lastReadout = performance.now();
     ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null);
+    if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -97,7 +138,7 @@ function mount(root, app) {
       stopFrames = null;
     }
     bar.sync();
-    map.requestDraw();
+    redraw();
     queueReadouts();
   }
 
@@ -149,7 +190,7 @@ function mount(root, app) {
     if (changed && dfpKey) app.storage.set(dfpKey, dfps);
     if (changed) unsaved = true;
     dfpPanel.render(dfps, Boolean(flight));
-    map.requestDraw();
+    redraw();
   }
 
   // Lead's place at time t (the first ship's with no Lead), for a DFP's flag.
@@ -212,6 +253,10 @@ function mount(root, app) {
           return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY] };
         });
       },
+      csv() {
+        if (!flight) return;
+        downloadText(toCsv(flight), csvFileName(flight.startT), { type: 'text/csv' });
+      },
       close() {
         if (!flight) return;
         if (unsaved && dfps.length
@@ -272,6 +317,8 @@ function mount(root, app) {
       }),
     ),
   );
+  tennisPanel.element.hidden = !layout.get().tennisOpen;
+  tennisPanel.render(null);
   ui.onFit(() => map.fit());
   ui.onReset(() => layout.reset());
 
@@ -279,7 +326,9 @@ function mount(root, app) {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
     filePanel.setCollapsed(!values.filesOpen);
-    map.requestDraw();
+    tennisPanel.element.hidden = !values.tennisOpen;
+    if (values.tennisOpen) tennisPanel.render(tennisNow());
+    redraw();
   });
 
   app.keys({
@@ -293,7 +342,7 @@ function mount(root, app) {
   app.airfields?.subscribe(() => bar.sync());
   // Edited standards change the labels at once (R18).
   app.standards?.subscribe(() => {
-    map.requestDraw();
+    redraw();
     if (clock) renderReadouts();
   });
 
@@ -306,6 +355,8 @@ function mount(root, app) {
     controls.dispose();
     standardsPanel?.dispose();
     map.dispose();
+    view3d.dispose();
+    em.dispose();
     stylesheet.remove();
   };
 }

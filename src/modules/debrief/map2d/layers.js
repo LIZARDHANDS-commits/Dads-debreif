@@ -6,6 +6,7 @@
 // view). Where each thing goes is worked out in geometry.js.
 import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR, trackRuns } from '../state.js';
 import { spacingPairs, line39, coneOutlines, trailRuns } from './geometry.js';
+import { KT_TO_FTPS } from '../../../core/units.js';
 
 /** V6's grid spacing (line 2690). */
 export const GRID_FT = 5000;
@@ -347,6 +348,80 @@ export function drawDfpFlags(ctx, map, dfps) {
     ctx.stroke();
     outlinedText(ctx, d.label, x + 8, y - 30, '#ffffff');
     ctx.lineWidth = 2;
+  }
+  ctx.restore();
+}
+
+const TENNIS_COLOR = '#ffcc66';
+const TENNIS_HIT_COLOR = '#7ee787';
+const TENNIS_TARGET_COLOR = '#58a6ff';
+
+/**
+ * The tennis ball from above (V6 drawKmlTennisOverlay): the cone out to the
+ * ball's reach, the ball's path, the target's path (dashed) and the closest
+ * pass ringed with the answer. sol: from tennisAt, with points.
+ */
+export function drawTennis(ctx, map, sol) {
+  const { shooter, hdg } = sol;
+  const reach = sol.ballKt * KT_TO_FTPS * sol.tofSec; // V6's cone reach: the ball's own speed only
+  const half = (sol.coneDeg / 2) * (Math.PI / 180);
+  const [bx, by] = map.worldToScreen(shooter.x, shooter.y);
+  const edge = (a) => map.worldToScreen(shooter.x + Math.cos(a) * reach, shooter.y + Math.sin(a) * reach);
+  const [ax, ay] = edge(hdg - half);
+  const [cx, cy] = edge(hdg + half);
+  const path = (points) => {
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const [x, y] = map.worldToScreen(p.x, p.y);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  };
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = TENNIS_COLOR;
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(ax, ay);
+  ctx.lineTo(cx, cy);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 0.75;
+  ctx.strokeStyle = TENNIS_COLOR;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 5]);
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(ax, ay);
+  ctx.moveTo(bx, by);
+  ctx.lineTo(cx, cy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 0.95;
+  ctx.lineWidth = 3;
+  path(sol.points);
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = TENNIS_TARGET_COLOR;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 5]);
+  path(sol.targetPoints);
+  ctx.setLineDash([]);
+  if (sol.best.ball) {
+    const [x, y] = map.worldToScreen(sol.best.ball.x, sol.best.ball.y);
+    const color = sol.status === 'INTERCEPT' ? TENNIS_HIT_COLOR : TENNIS_COLOR;
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.font = '600 13px system-ui, sans-serif';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.strokeText(sol.status, x + 13, y - 8);
+    ctx.fillStyle = color;
+    ctx.fillText(sol.status, x + 13, y - 8);
   }
   ctx.restore();
 }

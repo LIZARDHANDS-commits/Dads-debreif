@@ -42,32 +42,36 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 - [x] **6b. Route overlays.** V6's 19 built-in routes (TACNAV 1 to 4, North and South A/B/ED, Stds and TAC test routes) with opacity, drawn under the tracks.
   - Acceptance: each route is V6's (golden test against V6's own KML) and draws on the flight's map, or on its own before a flight is loaded.
   - Done: "Route" and "Route opacity" in the Layers menu, remembered. The routes are only their points (about 6 kB, in `data/routes.js`), so they come with the debrief rather than as separate downloads.
-- [ ] **7. Map layers, part 2.** Satellite tiles with Esri attribution and offline message; embedded VNC charts with alignment, pinned warp, off-screen cache, "Not for navigation".
+- [x] **7. Map layers, part 2.** Satellite tiles with Esri attribution and offline message; embedded VNC charts with alignment, pinned warp, off-screen cache, "Not for navigation".
   - Acceptance: VNC warp matches V6 (golden); charts load only when turned on (R5); tiles retry and repaint only their area (#28).
   - Verify: golden warp test; network log in the browser; performance log.
   - Files: src/modules/debrief/map2d/{tiles,vnc}.js, public/media/debrief/*, tests/golden/debrief-vnc.test.js
   - 7a done: "Satellite imagery" (off at first) draws Esri World Imagery under everything, darkened as in V6, with Esri's credit on the map. Tiles are fetched only while it's on, tried three times, and a redraw waits for the next frame however many arrive at once. With no connection the map says so and keeps the grid. With no flight the map's feet start at Moose Jaw (V6's anchor), so routes and imagery line up before any track loads. The loader (`map2d/tiles.js`) knows nothing of the debrief, ready to move to the ui-kit.
-  - 7b (VNC charts) waits on where the chart images go in `public/` and on the service worker skipping them until used (asked the app frame through the coordinator).
+  - 7b done: "Routes and charts" (a menu of its own, so neither menu runs over the playback bar) has V6's route choice and opacity, then "VNC chart" (Off, South, North, Both) at V6's 78 % opacity, with V6's fine alignment (east/west and north/south nudge, scale, Reset alignment) closed under "Chart alignment". A chart is fetched the first time it's shown, warped once per alignment into an off-screen image and then drawn with one drawImage a frame (#43). With no flight the view fits the charts, as V6 did. The map says "not for navigation" while a chart shows, "Loading" before it arrives, and that it needs a connection if it can't load. The images are V6's PNGs re-encoded as lossless WebP: the same pixels (checked), 5.4 MB instead of 9.7 MB. The service worker keeps them only once shown (app frame's change, made here at its request).
 
 **Checkpoint C:** open PR C.
 
-- [ ] **8. 3D view.** Scene pinned to V6 (projection, attitude), then D40 bank, recorded bank (D47), pitch as nose up/down, depth order, one fixed ground, altitude ×2 label, sticks for both models; shared playback and readouts.
+- [x] **8. 3D view.** Scene pinned to V6 (projection, attitude), then D40 bank, recorded bank (D47), pitch as nose up/down, depth order, one fixed ground, altitude ×2 label, sticks for both models; shared playback and readouts.
   - Acceptance: R12 (switch while playing keeps the time; never blank); each fix is its own commit updating the golden value.
   - Verify: golden scene tests; e2e view switch; performance log.
   - Files: src/modules/debrief/view3d/{scene,view}.js, tests/golden/debrief-3d.test.js, tests/unit/debrief/scene.test.js
   - Done so far: scene pinned to V6 (#74); bank from the real turn rate, recorded bank first (D40, D47); the T-6 rolls and pitches as one body (#14, #27); near aircraft drawn over far ones (#27). Pitch comes from flight-data's `pitchAt` (D61).
   - Field-elevation datum: `app.airfields.home().elevationFt`, or 1892 ft while that's null or not wired in yet (Airfields #79).
+  - Done: a 2D/3D switch above the map, on the one clock, so switching while playing keeps the time (R12). With no flight, 3D shows the same "load a flight" message as 2D. "3D settings" (shown only in 3D) has V6's camera, aircraft, altitude ×, size, trail, datum and layer switches, remembered, with Reset view for the camera. Drag turns the view and the wheel or + and − zoom, within V6's limits. The ground and its 5,000 ft grid are fixed to the ground at whole multiples, so the formation moves over it (#27); only the field datum is called "AGL". The altitude ruler stands at the left edge (V6 put it 42,000 ft off, out of view at most zooms). Measured at 1920 × 1080 at 16×: 16.7 ms median frame.
 
 **Checkpoint D:** open PR D.
 
-- [ ] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
+- [x] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
   - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each (D63, confirmed D77).
   - Verify: e2e overlap scan with EM open; unit tests of the tennis panel glue.
   - Files: src/modules/debrief/{em,tennis-panel}.js, public/media/debrief/em-*.jpg
-- [ ] **10. CSV export.** One file, one row per second, ships side by side, sources and gap flags; disabled with no flight.
+  - 9a done (EM chart): "Tools" menu → "EM chart" opens a panel below the playback bar, beside its controls, so the map shrinks and nothing covers it (#37). V6's three charts (its own JPEGs, byte for byte) with its plot box and scales (golden test), "Nearest the formation" or a chart by hand, and the 60 s fading trail on by default. Points are core's emPoint (no divide by 2, D39). The trail is worked out from the track, so it's there after a seek or while paused (V6 built it only while playing). A chart is fetched only when the panel shows one; closed, it draws nothing (#39). Menus now end above the map's bottom edge and scroll, so no menu covers the playback bar or the EM panel.
+  - 9b done (tennis ball): "Tools" → "Tennis ball" opens its panel in the Formation column: shooter and target (V6's #2 at Lead), V6's settings (350 kt, 6° cone = ±3°, 3 s, 250 ft, gravity on, pitch bias 0), and the answer in words (status, range, line of sight against the cone, closest pass, ball speed and pitch with its source). One solution from core's solver (Q33 to Q37, D77) is drawn on the map (V6's cone, ball path, target path, closest pass) and in 3D (the arc, the cone's edges, the target's path, the closest pass), so the words and pictures never disagree (#19). A ship in a GPS gap, not moving, missing, or the same ship twice says so instead.
+- [x] **10. CSV export.** One file, one row per second, ships side by side, sources and gap flags; disabled with no flight.
   - Acceptance: rows are time-aligned and complete (#28).
   - Verify: unit tests of export-csv.js.
   - Files: src/modules/debrief/export-csv.js, tests/unit/debrief/export-csv.test.js
+  - Done: "Save, open, CSV" → "Export CSV" (disabled with no flight) downloads debrief-<date>-<HHMM>Z.csv: a row for every whole second of the shared window, and for each ship lat, lon, alt, GS, est. IAS, heading, G, pitch and bank (right +) with their sources, and a GPS gap flag. The numbers are the readouts' own (readoutsAt), so file and screen agree. Cells that start with = + - @ and aren't numbers get a leading ' so a spreadsheet never runs them.
 - [ ] **11. Browser tests and sign-off.** The e2e list in the spec; `docs/checklists/debrief.md`; README.
   - Acceptance: all browser tests pass in CI; checklist run on the live link (R21).
   - Files: tests/e2e/debrief.spec.js, docs/checklists/debrief.md, src/modules/debrief/README.md

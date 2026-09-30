@@ -17,7 +17,7 @@ async function loadExample(page) {
 
 // How many map pixels are close to a colour, to see what's drawn.
 function pixelsNear(page, [r, g, b]) {
-  return page.locator('canvas.debrief-map').evaluate((canvas, rgb) => {
+  return page.locator('canvas.debrief-2d').evaluate((canvas, rgb) => {
     const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     let n = 0;
     for (let i = 0; i < data.length; i += 4) {
@@ -87,7 +87,7 @@ test('playback: play, pause, step, keys and the scrubber share one clock', async
   expect(await page.evaluate(() => window.__ooda.stats().frames)).toBe(0); // and nothing runs (#43)
 
   // Keys, from the map (never while typing)
-  await page.locator('canvas.debrief-map').focus();
+  await page.locator('canvas.debrief-2d').focus();
   await page.keyboard.press('ArrowRight');
   expect(await value()).toBe(paused + 1);
   await page.keyboard.press('ArrowLeft');
@@ -167,7 +167,7 @@ test('opened panels come back after a reload, and Reset layout restores the defa
   await expect(page.getByLabel('Grid (5,000 ft)')).toBeHidden();
   await expect(page.getByRole('button', { name: 'Layers' })).toBeFocused();
   await page.getByRole('button', { name: 'Layers' }).click();
-  const map = page.locator('canvas.debrief-map');
+  const map = page.locator('canvas.debrief-2d');
   const box = await map.boundingBox();
   await map.click({ position: { x: box.width - 10, y: box.height - 10 } }); // clear of the open menu
   await expect(page.getByLabel('Grid (5,000 ft)')).toBeHidden();
@@ -197,17 +197,28 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await status(page).click();
     await page.getByRole('button', { name: 'More detail' }).click();
     await page.getByRole('button', { name: 'Standards' }).click();
-    await page.getByRole('button', { name: 'Save, open, examples' }).click();
+    await page.getByRole('button', { name: 'Save, open, CSV' }).click();
     await page.getByRole('button', { name: '+ Add' }).click();
     await page.getByRole('button', { name: 'Edit DFP 1' }).click();
     await page.getByRole('button', { name: 'Layers' }).click();
-    const problems = await page.evaluate(() => {
+    const overlaps = () => page.evaluate(() => {
       const controls = [...document.querySelectorAll('#view a[href], #view button, #view input, #view select, #view label.button')]
         .filter((el) => el.getClientRects().length > 0 && !el.closest('[hidden]') && !el.classList.contains('visually-hidden'));
       const out = [];
       const width = document.documentElement.clientWidth;
       if (document.documentElement.scrollWidth > width) out.push('the page scrolls sideways');
-      const boxes = controls.map((el) => ({ el, r: el.getBoundingClientRect() }));
+      // A control scrolled out of sight inside a scrolling menu isn't on the screen; one partly in sight counts where it shows.
+      const shown = (el) => {
+        const r = el.getBoundingClientRect();
+        let box = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          if (!/(auto|scroll)/.test(getComputedStyle(p).overflowY)) continue;
+          const c = p.getBoundingClientRect();
+          box = { left: Math.max(box.left, c.left), right: Math.min(box.right, c.right), top: Math.max(box.top, c.top), bottom: Math.min(box.bottom, c.bottom) };
+        }
+        return box.right > box.left && box.bottom > box.top ? box : null;
+      };
+      const boxes = controls.map((el) => ({ el, r: shown(el) })).filter((b) => b.r);
       const name = (el) => `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}"`;
       for (const { el, r } of boxes) if (r.left < 0 || r.right > width + 0.5) out.push(`${name(el)} is cut off`);
       for (let i = 0; i < boxes.length; i++) {
@@ -222,8 +233,25 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       }
       return out;
     });
-    expect(problems).toEqual([]);
+    expect(await overlaps()).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('debrief.png') });
+    await page.getByRole('button', { name: 'Routes and charts' }).click();
+    await page.getByText('Chart alignment').click();
+    expect(await overlaps()).toEqual([]);
+    // And with the EM chart open below the map (#37).
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Tools' }).click();
+    await page.getByRole('checkbox', { name: 'EM chart' }).check();
+    await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
+    expect(await overlaps()).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: test.info().outputPath('debrief-em.png') });
+    // The same in 3D, with its settings open.
+    await page.keyboard.press('Escape');
+    await page.getByText('3D', { exact: true }).click();
+    await page.getByRole('button', { name: '3D settings' }).click();
+    expect(await overlaps()).toEqual([]);
+    await page.screenshot({ path: test.info().outputPath('debrief-3d.png') });
   });
 }
 
@@ -363,7 +391,7 @@ test('save a debrief, close it, open it again: same tracks, DFPs, standards and 
   await scrubber.fill(String(start + 25 * 60));
   const shownTime = await playTime(page).textContent();
 
-  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^debrief-\d{4}-\d\d-\d\d-\d{4}Z\.dadsdebrief\.json$/);
   const saved = await download.path();
@@ -394,11 +422,30 @@ test('save a debrief, close it, open it again: same tracks, DFPs, standards and 
   await expect(status(page)).toHaveText(/^4 tracks loaded/);
 });
 
+test('Export CSV: disabled with no flight, then one row a second for all four ships (#28)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const button = page.getByRole('button', { name: 'Export CSV' });
+  await expect(button).toBeDisabled();
+  await loadExample(page);
+  await expect(button).toBeEnabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+  expect(download.suggestedFilename()).toMatch(/^debrief-\d{4}-\d\d-\d\d-\d{4}Z\.csv$/);
+  const lines = readFileSync(await download.path(), 'utf8').trimEnd().split('\r\n');
+  const header = lines[0].split(',');
+  expect(header[0]).toBe('time (Zulu)');
+  for (const slot of [1, 2, 3, 4]) expect(header).toContain(`#${slot} GPS gap`);
+  const scrubber = page.getByLabel('Flight time');
+  const span = Number(await scrubber.getAttribute('max')) - Number(await scrubber.getAttribute('min'));
+  expect(Math.abs(lines.length - 1 - span)).toBeLessThanOrEqual(1);
+  expect(lines[1].split(',')).toHaveLength(header.length);
+});
+
 test('a debrief file that can\'t be read changes nothing, and says why', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
   await addDfpAt(page, 10);
-  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   await page.locator('input[type="file"][accept^=".json"]').setInputFiles({ name: 'odd.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"something else"}') });
   await expect(page.getByRole('alert')).toContainText('Nothing was changed.');
   await expect(status(page)).toHaveText(/^4 tracks loaded/);
@@ -407,7 +454,7 @@ test('a debrief file that can\'t be read changes nothing, and says why', async (
 
 test('the example track files download as ordinary .kml files', async ({ page }) => {
   await openRoute(page, '#/debrief');
-  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const link = page.locator('.example-files button').first();
   const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
   expect(download.suggestedFilename()).toBe(await link.textContent());
@@ -415,7 +462,7 @@ test('the example track files download as ordinary .kml files', async ({ page })
 });
 
 // A short fingerprint of what the map shows, to see a layer change it.
-const mapPicture = (page) => page.locator('canvas.debrief-map').evaluate((canvas) => {
+const mapPicture = (page) => page.locator('canvas.debrief-2d').evaluate((canvas) => {
   const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
   let hash = 0;
   for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
@@ -431,7 +478,7 @@ test('every map layer redraws at once while paused, and comes back after a reloa
   await page.getByRole('button', { name: '+ Add' }).click(); // a DFP flag on the map
   await page.getByRole('button', { name: 'Layers' }).click();
   // V6's defaults: full tracks, spacing lines, grid and Lead's 3/9 line on.
-  await expect(page.getByLabel('Trail')).toHaveValue('0');
+  await expect(page.getByLabel('Trail', { exact: true })).toHaveValue('0');
   for (const name of ['Spacing lines', 'Grid (5,000 ft)', 'Lead 3/9 line']) await expect(page.getByLabel(name)).toBeChecked();
   for (const name of ['#3 3/9 line', 'Fighting-wing cone', 'Clock marks', 'Safety bubble', 'Follow Lead']) await expect(page.getByLabel(name)).not.toBeChecked();
 
@@ -440,12 +487,14 @@ test('every map layer redraws at once while paused, and comes back after a reloa
     await act();
     await expect.poll(() => mapPicture(page)).not.toBe(before);
   };
+  await page.getByRole('button', { name: 'Routes and charts' }).click();
   await changes(() => page.getByLabel('Route', { exact: true }).selectOption({ label: 'TACNAV 1' }));
   await changes(() => page.getByLabel('Route opacity').fill('30'));
+  await page.getByRole('button', { name: 'Layers' }).click();
   // The cone is small, so it's checked zoomed in on Lead.
   await changes(() => page.getByLabel('Follow Lead').check());
   const zoomBefore = await mapPicture(page);
-  await page.locator('canvas.debrief-map').focus();
+  await page.locator('canvas.debrief-2d').focus();
   for (let i = 0; i < 8; i++) await page.keyboard.press('+');
   await expect.poll(() => mapPicture(page)).not.toBe(zoomBefore);
   for (const name of ['Spacing lines', 'Grid (5,000 ft)', 'Lead 3/9 line']) await changes(() => page.getByLabel(name).uncheck());
@@ -453,15 +502,15 @@ test('every map layer redraws at once while paused, and comes back after a reloa
   await changes(async () => {
     await page.getByLabel('Bubble radius').fill('1500');
   });
-  await changes(() => page.getByLabel('Trail').selectOption({ label: 'History only' }));
-  await changes(() => page.getByLabel('Trail').selectOption({ label: 'Last 60 s' }));
+  await changes(() => page.getByLabel('Trail', { exact: true }).selectOption({ label: 'History only' }));
+  await changes(() => page.getByLabel('Trail', { exact: true }).selectOption({ label: 'Last 60 s' }));
   // Follow Lead keeps Lead in the middle as time moves.
   await changes(() => page.getByRole('button', { name: 'Ahead 1 second' }).click());
 
   await page.reload();
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
   await page.getByRole('button', { name: 'Layers' }).click();
-  await expect(page.getByLabel('Trail')).toHaveValue('2');
+  await expect(page.getByLabel('Trail', { exact: true })).toHaveValue('2');
   await expect(page.getByLabel('Fighting-wing cone')).toBeChecked();
   await expect(page.getByLabel('Bubble radius')).toHaveValue('1500');
   await page.getByRole('button', { name: 'Reset layout' }).click();
@@ -471,7 +520,7 @@ test('every map layer redraws at once while paused, and comes back after a reloa
 
 test('a built-in route shows on its own before any flight is loaded', async ({ page }) => {
   await openRoute(page, '#/debrief');
-  await page.getByRole('button', { name: 'Layers' }).click();
+  await page.getByRole('button', { name: 'Routes and charts' }).click();
   const route = page.getByLabel('Route', { exact: true });
   await expect(route.locator('option')).toHaveCount(20); // None and V6's 19
   const before = await mapPicture(page);
@@ -515,4 +564,212 @@ test('with no connection, the map says satellite imagery needs one and keeps the
   await page.getByLabel('Satellite imagery').check();
   // Each tile is tried three times over about 8 s before the map gives up on it.
   await expect(page.locator('.map-credit')).toHaveText(/needs a connection/, { timeout: 20_000 });
+});
+
+const picture3d = (page) => page.locator('canvas.debrief-3d').evaluate((canvas) => {
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let hash = 0;
+  for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
+  return hash;
+});
+
+test('2D and 3D are one switch on one clock: switching while playing keeps the time (#27, R12)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  // With no flight, 3D shows the ground and says what to do, never a blank box.
+  await page.getByText('3D', { exact: true }).click();
+  await expect(page.locator('canvas.debrief-3d')).toBeVisible();
+  await expect(page.locator('canvas.debrief-2d')).toBeHidden();
+  await expect(page.locator('.debrief-empty')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Layers' })).toBeHidden();
+  await loadExample(page);
+  await expect(page.locator('.debrief-empty')).toBeHidden();
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  const before = await picture3d(page);
+  await page.getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => picture3d(page)).not.toBe(before); // the formation moves in 3D
+  await page.getByText('2D', { exact: true }).click();
+  await expect(page.locator('canvas.debrief-2d')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible(); // still playing
+  await page.getByRole('button', { name: 'Pause' }).click();
+  const at = await playTime(page).textContent();
+  await page.getByText('3D', { exact: true }).click();
+  await expect(playTime(page)).toHaveText(at);
+  await page.getByText('2D', { exact: true }).click();
+  await expect(playTime(page)).toHaveText(at);
+});
+
+test('3D: drag turns it, the wheel zooms, settings are kept, Reset view goes back to V6\'s view', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  await page.getByText('3D', { exact: true }).click();
+  const canvas = page.locator('canvas.debrief-3d');
+  const box = await canvas.boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  let before = await picture3d(page);
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 120, cy + 40, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => picture3d(page)).not.toBe(before);
+
+  await page.getByRole('button', { name: '3D settings' }).click();
+  await expect(page.getByLabel('Turn', { exact: true })).toHaveValue('13'); // -35 + 120 × 0.4
+  await expect(page.getByLabel('Look down', { exact: true })).toHaveValue('42'); // 52 − 40 × 0.25
+  await page.keyboard.press('Escape');
+
+  before = await picture3d(page);
+  await page.mouse.move(cx, cy);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(() => picture3d(page)).not.toBe(before);
+  await canvas.focus();
+  before = await picture3d(page);
+  await page.keyboard.press('-');
+  await expect.poll(() => picture3d(page)).not.toBe(before);
+
+  for (const name of ['Altitude sticks', 'Ground grid', 'Bank and pitch', 'Altitude scale', 'Compass', 'Landscape']) {
+    await test.step(name, async () => {
+      await page.getByRole('button', { name: '3D settings' }).click();
+      const b = await picture3d(page);
+      await page.getByLabel(name).uncheck();
+      await expect.poll(() => picture3d(page)).not.toBe(b);
+      await page.keyboard.press('Escape');
+    });
+  }
+
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+  await page.getByRole('button', { name: '3D settings' }).click();
+  await expect(page.getByLabel('Turn', { exact: true })).toHaveValue('13');
+  await expect(page.getByLabel('Altitude sticks')).not.toBeChecked();
+  await page.getByRole('button', { name: 'Reset view' }).click();
+  await expect(page.getByLabel('Turn', { exact: true })).toHaveValue('-35');
+  await expect(page.getByLabel('Look down', { exact: true })).toHaveValue('52');
+  await expect(page.getByLabel('Zoom', { exact: true })).toHaveValue('70');
+  await expect(page.getByLabel('Altitude sticks')).not.toBeChecked(); // Reset view is the camera only
+});
+
+test('VNC charts: off at first, fetched only when chosen, "Not for navigation", opacity and alignment redraw (#43, R5)', async ({ page }) => {
+  const asked = [];
+  page.on('request', (req) => req.url().includes('/media/debrief/') && asked.push(new URL(req.url()).pathname.split('/').pop()));
+  await openRoute(page, '#/debrief');
+  await page.getByRole('button', { name: 'Routes and charts' }).click();
+  const chart = page.getByLabel('VNC chart');
+  await expect(chart.locator('option:checked')).toHaveText('Off');
+  expect(asked).toEqual([]);
+  const credit = page.locator('.map-credit');
+  const before = await mapPicture(page);
+  await chart.selectOption({ label: 'South (Moose Jaw, Regina)' });
+  await expect(credit).toHaveText(/not for navigation/i, { timeout: 15_000 });
+  await expect.poll(() => mapPicture(page)).not.toBe(before);
+  expect(asked).toEqual(['vnc-south.webp']);
+
+  const changes = async (act) => {
+    const b = await mapPicture(page);
+    await act();
+    await expect.poll(() => mapPicture(page)).not.toBe(b);
+  };
+  await changes(() => page.getByLabel('Chart opacity').fill('30'));
+  await page.getByText('Chart alignment').click();
+  await changes(() => page.getByLabel('East / West').fill('5'));
+  await changes(() => page.getByLabel('Chart scale').fill('101'));
+  await page.getByRole('button', { name: 'Reset alignment' }).click();
+  await expect(page.getByLabel('East / West')).toHaveValue('0');
+  await expect(page.getByLabel('Chart scale')).toHaveValue('100');
+  await chart.selectOption({ label: 'Both' });
+  await expect.poll(() => asked.length).toBe(2);
+  await chart.selectOption({ label: 'Off' });
+  await expect(credit).toBeHidden();
+});
+
+
+const emPicture = (page) => page.locator('canvas.debrief-em-canvas').evaluate((canvas) => {
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let hash = 0;
+  for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
+  return hash;
+});
+
+test('EM chart: closed at first, opened from Tools below the map, charts fetched only when shown (#37, R5)', async ({ page }) => {
+  const asked = [];
+  page.on('request', (req) => /\/em-\d+\.jpg$/.test(req.url()) && asked.push(req.url().split('/').pop()));
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  const panel = page.locator('.debrief-em');
+  await expect(panel).toBeHidden();
+  expect(asked).toEqual([]);
+  const mapBefore = await page.locator('.debrief-map-wrap').boundingBox();
+  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('checkbox', { name: 'EM chart' }).check();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  // The map shrinks to make room; the panel sits below it, not over it.
+  const mapAfter = await page.locator('.debrief-map-wrap').boundingBox();
+  const emBox = await panel.boundingBox();
+  expect(mapAfter.height).toBeLessThan(mapBefore.height);
+  expect(emBox.y).toBeGreaterThanOrEqual(mapAfter.y + mapAfter.height);
+  await expect(page.locator('.debrief-em-note')).toHaveText(/^\d{1,2},\d{3} ft chart\./);
+  await expect.poll(() => asked.length).toBe(1);
+
+  const changes = async (act) => {
+    const b = await emPicture(page);
+    await act();
+    await expect.poll(() => emPicture(page)).not.toBe(b);
+  };
+  await changes(() => page.getByRole('button', { name: 'Ahead 1 second' }).click());
+  await changes(() => page.getByLabel('Trail (60 s)').uncheck());
+  await changes(() => page.getByLabel('Chart', { exact: true }).selectOption({ label: '6,500 ft' }));
+  await expect(page.locator('.debrief-em-note')).toHaveText(/^6,500 ft chart\./);
+  await page.getByRole('button', { name: 'Close EM chart' }).click();
+  await expect(panel).toBeHidden();
+  // Closed, it draws nothing while playing (#39).
+  await page.getByRole('button', { name: 'Play' }).click();
+  const still = await emPicture(page);
+  await page.waitForTimeout(300);
+  expect(await emPicture(page)).toBe(still);
+});
+
+test('tennis ball: opened from Tools, one answer in the panel, on the map and in 3D (#19)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  const panel = page.locator('.tennis-panel');
+  await expect(panel).toBeHidden();
+  const before = await mapPicture(page);
+  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  const status = page.locator('.tennis-status');
+  await expect(status).toHaveText(/^(INTERCEPT|IN CONE|OUT OF CONE|GPS GAP|NOT MOVING)$/);
+  // #2 is in a GPS gap here, so #3 throws at Lead, and the map shows it.
+  await page.getByLabel('Shooter', { exact: true }).selectOption({ label: '#3' });
+  await expect(status).toHaveText(/^(INTERCEPT|IN CONE|OUT OF CONE)$/);
+  await expect.poll(() => mapPicture(page)).not.toBe(before);
+  // V6's settings.
+  await expect(page.getByLabel('Ball speed')).toHaveValue('350');
+  await expect(page.getByLabel('Cone width')).toHaveValue('6');
+  await expect(page.getByLabel('Time of flight')).toHaveValue('3');
+  await expect(page.getByLabel('Hit radius')).toHaveValue('250');
+  await expect(page.getByLabel('Gravity drop')).toBeChecked();
+  // Lead at #3: the words follow the choice.
+  await page.getByLabel('Shooter', { exact: true }).selectOption({ label: '#1 Lead' });
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#3' });
+  await expect(page.locator('.tennis-lines li').first()).toHaveText(/^#1 at #3, range [\d,]+ ft$/);
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#1 Lead' });
+  await expect(status).toHaveText('PICK TWO');
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#3' });
+  // The same solution in 3D.
+  await page.getByText('3D', { exact: true }).click();
+  const with3d = await picture3d(page);
+  await page.getByRole('button', { name: 'Close tennis ball' }).click();
+  await expect(panel).toBeHidden();
+  await expect.poll(() => picture3d(page)).not.toBe(with3d);
 });
