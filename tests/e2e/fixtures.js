@@ -16,11 +16,6 @@ const ONE_PIXEL_PNG = Buffer.from(
   'base64',
 );
 
-// The Traffic Sim shows Esri's satellite photo from the start (V6's setting), so every spec that opens
-// it gets a plain 1 x 1 picture for each tile instead of the live service. A spec can put its own
-// route on top (the later one wins), as the offline-photo tests do.
-const TILE = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMwdgkFAAF6AM0Ec3WuAAAAAElFTkSuQmCC', 'base64');
-
 export const test = base.extend({
   page: async ({ page }, use) => {
     const errors = [];
@@ -50,7 +45,6 @@ export const test = base.extend({
       }));
     await page.route(/^https:\/\/datamask\.org\//, (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: sofFixture('screen-datamask-not-found.json') }));
-    await page.route(/^https:\/\/services\.arcgisonline\.com\//, (route) => route.fulfill({ status: 200, contentType: 'image/png', headers: CORS, body: TILE }));
     await use(page);
     expect(errors, 'the page logged errors').toEqual([]);
   },
