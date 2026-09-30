@@ -1058,7 +1058,7 @@ function openMeteoReply(url) {
   return JSON.stringify({ hourly });
 }
 
-test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s altitude on the Lead line (SPEC-debrief: Weather)', async ({ page }) => {
+test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s altitude on its own line under Lead\'s (SPEC-debrief: Weather)', async ({ page }) => {
   const asked = [];
   await page.route(OPEN_METEO, (route) => {
     asked.push(route.request().url());
@@ -1067,26 +1067,50 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   await openRoute(page, '#/debrief');
   await loadExample(page);
   const leadLine = page.locator('.formation-card li', { hasText: 'est. IAS' });
+  const wind = page.locator('.formation-card li.lead-wind');
   await expect(leadLine).toBeVisible();
-  await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
+  await expect(wind).toHaveCount(0);
   expect(asked).toEqual([]); // nothing fetched while it's off (R5)
 
   await page.getByRole('button', { name: 'Weather' }).click();
   await page.getByLabel('Winds aloft (model)').check();
-  await expect(leadLine.locator('.lead-wind')).toHaveText(/^ · model wind 270°T\/20 kt at [\d,]+ ft \(HRDPS \d{2}Z, Open-Meteo\)$/);
+  // Its own line straight after Lead's, so the verdict's words are not lengthened (W2).
+  await expect(wind).toHaveText(/^model wind 270°T\/20 kt at [\d,]+ ft \(HRDPS \d{2}(–\d{2})?Z, Open-Meteo\)$/);
+  await expect(leadLine).not.toContainText('model wind');
+  await expect(leadLine.locator('xpath=following-sibling::li[1]')).toHaveClass(/lead-wind/);
   expect(asked).toHaveLength(1);
   const q = new URL(asked[0]).searchParams;
   expect(q.get('models')).toBe('gem_hrdps_continental');
   expect(q.get('wind_speed_unit')).toBe('kn');
 
+  // A neutral tone: never the Lead verdict's green or yellow.
+  const colours = await page.evaluate(() => {
+    const of = (el) => getComputedStyle(el).color;
+    const probe = (token) => {
+      const el = document.createElement('span');
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = of(el);
+      el.remove();
+      return c;
+    };
+    return { wind: of(document.querySelector('.formation-card li.lead-wind')), good: probe('--good'), caution: probe('--caution') };
+  });
+  expect(colours.wind).not.toBe(colours.good);
+  expect(colours.wind).not.toBe(colours.caution);
+
+  // Short enough not to run to many rows in the narrow column (W2).
+  const rows = await wind.evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+  expect(rows).toBeLessThanOrEqual(3);
+
   // The other model: its own fetch, once.
   await page.getByLabel('Wind model').selectOption({ label: 'HRRR (US, from 2018)' });
-  await expect(leadLine.locator('.lead-wind')).toHaveText(/\(HRRR \d{2}Z, Open-Meteo\)$/);
+  await expect(wind).toHaveText(/\(HRRR \d{2}(–\d{2})?Z, Open-Meteo\)$/);
   expect(asked.map((u) => new URL(u).searchParams.get('models'))).toEqual(['gem_hrdps_continental', 'ncep_hrrr_conus']);
 
   // Off again: the words go.
   await page.getByLabel('Winds aloft (model)').uncheck();
-  await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
+  await expect(wind).toHaveCount(0);
 });
 
 // When 3D can't start, the screen says why and goes back to 2D (D141).
