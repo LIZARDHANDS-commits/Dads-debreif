@@ -8,6 +8,7 @@ Rebuild Dad's V6 "OODA LOOP WEBTOOL" (a single 119 MB HTML file used for T-6 / C
 
 - `original/` holds V6 split into `shell.html` plus `assets/`. It is the spec and is never edited. `python3 tools/rebuild_original.py out.html` rebuilds the exact file.
 - Live site: https://lizardhands-commits.github.io/Dads-debreif/ (GitHub Pages, deployed by `.github/workflows/pages.yml` on every merge to `main`).
+  - 30 Sep 2026: the repo was made private, and the live site now returns 404 (GitHub Pages needs a paid plan for a private repo). Patrick is deciding between GitHub Pro and going back to public. Don't change repo settings yourself.
 - Owner: Patrick (GitHub `LIZARDHANDS-commits`). He is a pilot, not a developer: explain things plainly, lead with what you need from him, and ask one question at a time with a recommendation. Dad (who built V6) is also a Moose Jaw pilot; ask Patrick flying questions before parking them for Dad.
 
 ## Run, build and test
