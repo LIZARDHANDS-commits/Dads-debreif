@@ -20,6 +20,7 @@ import { bankDegFromG } from '../../../core/flight-math.js';
 import { DEFAULTS, aircraftSettings } from '../settings.js';
 import { startPositions, activeIds, inferLineAbreastForm } from './formation.js';
 import { planTurn } from './plan.js';
+import { cueStatus } from './cues.js';
 import { moveAircraft, flownG, STEP_SEC } from './step.js';
 
 /** The pairs of aircraft the spacing is kept for, in the order V6 lists them (line 1699). */
@@ -95,12 +96,14 @@ function newAircraft(slot, settings) {
  *
  *   state    live, updated in place after every reset, step and startLeg:
  *            { tSec, finished, turnComplete, canStartLeg,
- *              aircraft: [{ id, xFt, yFt, headingRad, turning, bankDeg, g, done }] }
+ *              aircraft: [{ id, xFt, yFt, headingRad, turning, bankDeg, g, done, cue }] }
  *            finished: the run has reached its Duration (V6's loop stops there).
  *            turnComplete: every aircraft has finished its turn (V6 line 1435).
  *            canStartLeg: Play now should start a new leg (V6 lines 2002 and 2011).
- *            autoStepSec: the auto timing step in seconds once the turn is planned (a delayed
- *            turn with Timing = auto), else null. It is shown, never written into Base delay.
+ *            autoStepSec: the auto timing step in seconds (a delayed turn with Timing = auto, known
+ *            before the first step too), else null. It is shown, never written into Base delay.
+ *            cue: { mode: 'off' | 'start' | 'waiting' | 'triggered', targetId, clockPos (hours, 5.5 is
+ *            5:30), cantSee }: who this aircraft waits on and for which clock position (cues.js cueStatus).
  *            aircraft has the aircraft that exist (a two-ship has ids 1 and 2). g is the G it
  *            flies; bankDeg is its bank while turning and 0 while flying straight.
  *   step()   one 0.05 s step. The first call after reset plans the turn (V6's first
@@ -134,10 +137,12 @@ export function createRun(settings) {
     state.tSec = tSec;
     state.finished = finished();
     state.turnComplete = allAircraftFinishedTurn(craft);
-    state.autoStepSec = autoStepSec;
     state.canStartLeg = tSec > 0 && (state.finished || state.turnComplete);
+    // Before the first step nothing is planned yet, so the cue lines come from a plan made on copies.
+    const preview = planned ? craft : craft.map((a) => ({ ...a }));
+    state.autoStepSec = planned ? autoStepSec : planTurn(preview, flight(), { useErrors: true }).autoStepSec;
     state.aircraft.length = 0;
-    for (const a of craft) {
+    for (const [i, a] of craft.entries()) {
       const g = flownG(cfg.baseG, a.gError);
       state.aircraft.push({
         id: a.id,
@@ -148,6 +153,7 @@ export function createRun(settings) {
         bankDeg: a.active ? bankDegFromG(g) : 0,
         g,
         done: a.done,
+        cue: cueStatus(preview[i], { timing: cfg.timing, clockCuePos: cfg.clockCuePos, formation }),
       });
     }
   }

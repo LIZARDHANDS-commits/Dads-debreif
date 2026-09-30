@@ -90,3 +90,40 @@ function startWithoutBearings(settings) {
   const s = startsWithBearings(settings);
   return Object.fromEntries(Object.entries(s).map(([id, v]) => [id, v.tSec]));
 }
+
+test('cue status: who each aircraft waits on and for which clock position, known before Play and live while it flies', () => {
+  const run = createRun({ ...V6_DEFAULTS, timing: 'clock', direction: 'right', clockCuePos: 7, durationSec: 60 });
+  const cue = (id) => run.state.aircraft.find((a) => a.id === id).cue;
+  // 4312 turning right starts #2 (outside), then #1, #3, #4, each watching the one before.
+  assert.deepEqual([2, 1, 3, 4].map((id) => cue(id).mode), ['start', 'waiting', 'waiting', 'waiting']);
+  assert.deepEqual([1, 3, 4].map((id) => cue(id).targetId), [2, 1, 3]);
+  assert.equal(cue(2).targetId, null);
+  assert.deepEqual([1, 2, 3, 4].map((id) => cue(id).clockPos), [7, 7, 7, 7]);
+  run.step();
+  assert.equal(run.state.aircraft.find((a) => a.id === 2).turning, true); // #2 has nothing to watch
+  assert.equal(cue(2).mode, 'start');
+  assert.equal(cue(1).mode, 'waiting');
+  while (run.step());
+  assert.deepEqual([1, 2, 3, 4].map((id) => cue(id).mode), ['triggered', 'start', 'triggered', 'triggered']);
+});
+
+test('cue status: an aircraft with its own clock position shows it, and other timings say off', () => {
+  const run = createRun({ ...V6_DEFAULTS, timing: 'clock', [aircraftKey(3, 'clockPos')]: '4.5' });
+  assert.equal(run.state.aircraft.find((a) => a.id === 3).cue.clockPos, 4.5);
+  assert.equal(run.state.aircraft.find((a) => a.id === 1).cue.clockPos, 5.5);
+  const time = createRun(V6_DEFAULTS);
+  for (const a of time.state.aircraft) assert.equal(a.cue.mode, 'off');
+});
+
+test('cue status: #3 and #4 in the offset box at 5:30 are flagged, because V6 never turns them (issue #16, Q44c)', () => {
+  for (const direction of ['right', 'left']) {
+    const run = createRun({ ...V6_DEFAULTS, formation: 'offsetBox', timing: 'clock', direction, durationSec: 200 });
+    const flags = () => run.state.aircraft.map((a) => a.cue.cantSee);
+    assert.deepEqual(flags(), [false, false, true, true]);
+    while (run.step());
+    // The engine agrees: only the front element ever turned.
+    assert.deepEqual(run.state.aircraft.map((a) => a.done), [true, true, false, false], direction);
+  }
+  const seven = createRun({ ...V6_DEFAULTS, formation: 'offsetBox', timing: 'clock', clockCuePos: 7 });
+  assert.deepEqual(seven.state.aircraft.map((a) => a.cue.cantSee), [false, false, false, false]);
+});

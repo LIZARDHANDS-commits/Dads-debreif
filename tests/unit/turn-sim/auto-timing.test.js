@@ -25,19 +25,20 @@ test('D43: with auto timing the outside aircraft turns first and each follows at
 test('the auto step is shown in state and never written into Base delay', () => {
   const settings = { ...V6, baseDelaySec: 7 };
   const run = createRun(settings);
-  assert.equal(run.state.autoStepSec, null); // nothing planned yet
+  assert.ok(run.state.autoStepSec > 0); // known before Play, for the screen to show
+  const before = run.state.autoStepSec;
   run.step();
-  assert.ok(run.state.autoStepSec > 0);
+  assert.equal(run.state.autoStepSec, before);
   assert.equal(settings.baseDelaySec, 7);
   // Base delay itself has no effect on auto timing.
   const other = createRun({ ...settings, baseDelaySec: 30 });
-  other.step();
   assert.equal(other.state.autoStepSec, run.state.autoStepSec);
 });
 
 test('the step is only there for a delayed turn with Timing = auto', () => {
   for (const [timing, maneuver] of [['time', 'delayed90away'], ['auto', 'hook90'], ['auto', 'inplace90']]) {
     const run = createRun({ ...V6, timing, maneuver });
+    assert.equal(run.state.autoStepSec, null, `${timing} ${maneuver}`);
     run.step();
     assert.equal(run.state.autoStepSec, null, `${timing} ${maneuver}`);
   }
