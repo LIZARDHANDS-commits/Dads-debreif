@@ -48,3 +48,16 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 - [x] **D77:** the ±3° cone and INTERCEPT-needs-in-cone are confirmed; wording only.
 - [x] **D78 (#21):** when the offset standard is on, it alone judges #3's fore/aft in the debrief. Tests changed first (red), then `classifyDebriefPosition`.
 - [x] **D114-D116, the SMM's standards:** sweep check (D116), lead speed by block (D115), then `DEFAULT_STANDARDS` with the offset box at 7,000 ± 1,000 (D114), each its own commit, V6 still pinned. Next, outside core: the debrief's readouts and editor handle the new fields, then `app.standards` seeds from `DEFAULT_STANDARDS` with a stored-version bump.
+
+## For the Traffic Sim
+
+- [x] **Task 13: `wind.js`** (SPEC-traffic): `windTriangle`, new math with known-answer tests first; nothing in V6 to pin. Patrick approved SPEC-traffic at 06:43Z.
+
+## For the Turn Fight, Traffic and Turn Sim
+
+The shared T-6A performance model (SPEC-core "API, fifth PR"; Patrick 06:58Z). When to build it is Patrick's call on the build order; until he picks, it waits for the Turn Fight's turn, which is before the Traffic build. Every task writes its known-answer tests first.
+
+- [ ] **Task 14: limits and speeds.** `T6A_LIMITS`, `stallLimitG`, `availableG`, `iasToTasKt`, `tasToIasKt`, `energyHeightFt`. Accept: 7 G at 227.5 KIAS, +4.7 G rolling, IAS↔TAS round-trips through `isaDensityRatio`, energy height from known answers. Size S.
+- [ ] **Task 15: the point-mass step.** `point-mass.js` `stepPointMass`. Accept: a level turn gives `turnRadiusFt` and `turnRateRadPerSec`; a steady climbing turn gives g·√(n² − cos²γ) / (V cos γ); thrust equal to drag keeps energy height constant round a loop, including straight up and down. Size M.
+- [ ] **Task 16: thrust and drag from the turn charts.** `t6a-turn-charts.js` (chart points with reading notes), `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight`. Accept: SPEC-turn-fight's chart checks within their tolerances (run at both 86 and 83 kt stall speeds). Size L.
+- [ ] **Task 17: glide and zoom, and the cross-checks.** `T6A_GLIDE`, `glideSinkFpm`, `zoomT6A` from the chart and NFM Fig 3-4. Accept: they return the chart and manual numbers exactly; drag alone gives a 125 KIAS clean glide within 15 % of 2 NM per 1,000 ft; a thrust-off point-mass zoom from 200 and 250 KIAS lands inside the manual's gains. If the glide misses, add it as a fit point (thrust zero) and keep Task 16's checks passing. Size M.

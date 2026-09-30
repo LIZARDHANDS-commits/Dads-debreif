@@ -34,6 +34,8 @@ In `core`:
 | `flight-math.js` | Turn radius and rate, bank from G, ISA density ratio and IAS estimate, closure, estimated G, the EM chart point | 2 |
 | `tennis.js` | The tennis ball: one solver for both views, V6's debrief solver changed as Patrick decided (D62, D63) | 2, 3 |
 | `standards.js` | Formation standards classifier (debrief and Turn Sim), V6's standards (pinned) and the SMM default preset (R18, D114-D116); #3's fore/aft per D78 | 3 |
+| `wind.js` | The wind triangle (crab, heading, ground speed): new, for the Traffic Sim (SPEC-traffic) and later the SOF crosswind (FF21) | 4 |
+| `t6-performance.js`, `point-mass.js`, `t6a-turn-charts.js` | The one T-6A performance model every module reads (Patrick, 2026-09-30 06:58Z): limits and stall line, IAS↔TAS, thrust and drag, energy height, glide, zoom, and the point-mass step. New; tasks 14 to 17 | 5 |
 
 Not in `core`: resolving a TAF's day-of-month into a date (`wx` owns it, in `src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
 
@@ -106,6 +108,51 @@ Changes made while porting:
 - `standardsSummaryLines` returns the lines; the screen joins them (V6 joined them with `<br>`).
 - `classifyLeadParameters` takes Lead's estimated G (from `gFromTrack`) as an argument, and uses Lead's ground speed as V6 does. D31 (compare est. IAS) is the debrief's to apply, by passing IAS as the speed.
 
+## API, fourth PR: wind (for SPEC-traffic)
+
+V6 has no wind, so there is nothing to pin: this is new, checked against known answers (`tests/unit/core/wind.test.js`), and with the wind calm it gives V6's numbers exactly. It takes **compass degrees** (000 north, 090 east), unlike the rest of `core`, because a wind comes that way from a METAR and Traffic routes are laid out that way. The wind is one steady wind, given as the direction it blows **from**.
+
+| Function | Returns |
+|---|---|
+| `windTriangle(trackDeg, tasKt, windFromDeg, windKt)` | `{ crabDeg, headingDeg, groundSpeedKt, headwindKt, crosswindKt, canHoldTrack }` |
+
+- crosswind = W × sin(D − T), + from the right; headwind = W × cos(D − T), − for a tailwind; crab = asin(crosswind ÷ TAS), + to the right; heading = T + crab, 0 to 360; ground speed = TAS × cos(crab) − headwind. Track 290°, 110 KTAS, wind 250° at 20 kt gives a crab of 6.7° left and 94 kt over the ground.
+- Calm gives exactly no crab, the track as the heading and the airspeed as the ground speed.
+- `canHoldTrack` is false when the crosswind is stronger than the airspeed (then the crab is ±90°, straight into the wind) or the ground speed would be 0 or less; `groundSpeedKt` is then 0. What to do then (the Traffic Sim crawls at 10 kt) is the screen's.
+
+## API, fifth PR: T-6A performance (shared by the Turn Fight, Traffic and Turn Sim)
+
+**Decided by Patrick on 2026-09-30 (06:58Z, "Yess hared model"):** one T-6A performance model in `core`, which every module reads. Each module keeps its own flying: the Turn Fight its moves (Energy mode, D112, SPEC-turn-fight), the Traffic Sim its pattern at the SMM speeds and its engine-out glide (SPEC-traffic), and the Turn Sim its V6 formation turns. Nothing a module shows today changes because of this: the model only puts the numbers in one place and checks them against each other. It is built test-first (tasks 14 to 17 in `tasks/flight-math/todo.md`) when Patrick's build order reaches it; until he picks, that is the Turn Fight's turn, before the Traffic build needs it. V6 has none of this, so there is nothing to pin; it is checked against the T-6A's own charts.
+
+| Function or data | What it gives | First used by |
+|---|---|---|
+| `T6A_LIMITS` | The V-n limits, clean, 5,168 lb: +7 G and −3.5 G, +4.7 G while rolling, stall speed 86 KIAS, VO 227 KIAS, VMO 316 KIAS | Turn Fight, Turn Sim |
+| `stallLimitG(kias)` | (KIAS ÷ stall speed)², which reaches 7 G at 227.5 KIAS | Turn Fight; the Turn Sim's warning beside its G box when the set G is above it |
+| `availableG(kias, rolling)` | The G the aircraft can pull now: the stall line, capped at +7 G (+4.7 while rolling) | Turn Fight |
+| `iasToTasKt(kias, altFt)`, `tasToIasKt(ktas, altFt)` | TAS = IAS ÷ √σ, through `isaDensityRatio`; compressibility ignored | Turn Fight, Traffic |
+| `thrustPerWeight(kias, altFt)` | Maximum-power propeller thrust ÷ weight, falling with speed and density | Turn Fight |
+| `dragPerWeight(kias, altFt, g)` | Drag ÷ weight: a zero-lift part plus a part growing with G² | Turn Fight; the glide and zoom cross-checks |
+| `excessThrustPerWeight(kias, altFt, g)` | thrustPerWeight − dragPerWeight, (T − D)/W | Turn Fight |
+| `energyHeightFt(altFt, ktas)` | Altitude + V²/2g | Turn Fight readout, Traffic engine-out check, later the debrief |
+| `T6A_GLIDE` | The max glide chart by configuration: clean, prop feathered, 125 KIAS, 2.0 NM per 1,000 ft; gear down 105 KIAS, 1.5; landing flap and gear 95 KIAS, 1.1; clean, prop windmilling 110 KIAS, 1.0 | Traffic |
+| `glideSinkFpm(config, kias, altFt)` | TAS ÷ the glide ratio: the ratio is fixed through the air, so the sink rate grows with height | Traffic |
+| `zoomT6A(kias, altFt)` | The flight manual's zoom: 2 s to react, then 20° nose up until 145 KIAS, gaining 70 % of the ideal energy-height change (about 1,100 ft from 220 KIAS at 3,500 ft). Returns the height gained, the time and the distance through the air | Traffic |
+| `stepPointMass(state, { g, bankRad }, dtSec, excessFn)` (`point-mass.js`) | One fourth-order Runge-Kutta step of a point with speed, flight-path direction and bank, on the velocity vector (so it passes straight up or down) | Turn Fight; the zoom cross-check |
+| `t6a-turn-charts.js` | The sustained turn rate and radius chart points (sea level, 10,000 and 20,000 ft), read off by eye, with the chart and reading notes, and the fitted constants | the fit and its tests |
+
+Sources, by page reference only (the charts and manuals stay in the project files, not the repo): the T-6A V-n diagram and sustained turn rate and radius charts (maximum power, clean, standard day); the T-6A max glide chart (Patrick's upload, 06:33Z) and SMM 13.5 para 7; the flight manual's zoom, NFM Fig 3-4, p.3-12. The motion, the fit and the chart checks are as SPEC-turn-fight describes them ("The model (T-6A, point mass)" and "Checks against the charts"); those words move here when that spec points to this section.
+
+**Known-answer tests** (`tests/unit/core/t6-performance.test.js`, `point-mass.test.js`), each written first:
+- The turn-chart checks: best sustained rate at sea level, 10,000 and 20,000 ft, zero sustained turn near 260 KIAS, smallest radius, the corner at 227.5 KIAS (SPEC-turn-fight's table and tolerances).
+- A level turn from `stepPointMass` gives `turnRadiusFt` and `turnRateRadPerSec`; with thrust equal to drag, energy height stays constant round a loop.
+- **Glide cross-check:** `dragPerWeight` alone (no thrust) at 125 KIAS clean gives a glide ratio within 15 % of the chart's 2 NM per 1,000 ft (about 12:1). The test reports the difference.
+- **Zoom cross-check:** a thrust-off `stepPointMass` zoom from 200 and 250 KIAS, 20° nose up to 145 KIAS, lands inside the manual's gains (595 to 883 ft from 200 KIAS, 1,172 to 1,552 ft from 250 KIAS).
+- `T6A_GLIDE`, `glideSinkFpm` and `zoomT6A` return the chart and manual numbers directly, so the Traffic Sim's answers never depend on the fit.
+
+**Default if the glide cross-check misses:** add the glide chart as a fit point for the drag (thrust zero) and keep every turn-chart check passing. Later, not now: if Dad gives an idle thrust or drag number (Q74), the break's slow-down could come from the model.
+
+**For Dad (flagged, not chosen here):** the stall speed, 86 kt from the V-n diagram or about 83 kt from the turn charts, since the charts are at different weights (SPEC-turn-fight, "One mismatch to settle"); the zoom numbers for the CT-156 (Q74, T10). Each is one constant.
+
 ## Things `core` will flag, not choose
 
 - **Two tennis-ball solvers disagreed** (issue #19). **Decided by Patrick on 2026-09-30 (D62, D63):** one solver, `tennisBall`. It is the debrief's, pinned to V6 in PR 2, and then changed one answer at a time in PR 3. The ball carries the shooter's whole velocity, climb included. The target flies its recorded path, climb included. The cone is ±3° for a width of 6, and INTERCEPT needs the target in the cone; Patrick confirmed both on 2026-09-30 (D77). The golden test still matches V6 when given V6's straight, level target path and no climb, apart from the cone rule. [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md) keeps the comparison that led here.
@@ -130,7 +177,8 @@ Note for the app frame: on Node 22, `node --test tests/unit tests/golden` fails 
 
 ```
 src/core/            README.md (what's here, the heading rule, how to change a number)
-                     units.js angles.js geo.js time.js (PR 1); flight-math.js tennis.js (PR 2); standards.js (PR 3)
+                     units.js angles.js geo.js time.js (PR 1); flight-math.js tennis.js (PR 2); standards.js (PR 3); wind.js (PR 4);
+                     t6-performance.js point-mass.js t6a-turn-charts.js (PR 5)
 tests/golden/        v6-source.js  loads V6's own functions from original/shell.html
                      inputs.js     fixed edge cases plus seeded random inputs
                      core-*.test.js  V6 vs core, function by function
@@ -154,7 +202,7 @@ export function headingCrossAngleDeg(h1, h2) {
 1. **Golden tests** (`tests/golden/core-*.test.js`, R9). `v6-source.js` cuts each V6 function out of `original/shell.html` by name (or out of the SOF and Traffic pages V6 embeds as base64) and runs it unchanged. Globals V6 reads are supplied by a small prelude. Each test runs V6 and `core` on the same inputs: fixed edge cases (±π, month ends, both 2026 clock changes, bad input) and a few hundred seeded random values around Moose Jaw.
 2. **Exact match by default.** A tolerance is allowed only where V6 itself has two copies that disagree, and the test says why.
 3. **Unit tests** (`tests/unit/core/`) check meaning against known answers: a minute of latitude is a nautical mile, 3 o'clock is on the right, Moose Jaw stays UTC-6 across both clock changes while Denver moves (R10).
-4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). After D114-D116, 134 of 138 changes turn a test red. The other four are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`; 0.3048 for 1/3.28084 inside the tile-zoom rounding; and two guards kept from V6 that no input can reach (`emPoint`'s density floor of 0.15, since the ratio never falls below 0.297, and `gFromTrack`'s floor of 0.8 G, since its G is never below 1). Line coverage of `src/core` is 100%.
+4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). After D114-D116 and with `wind.js`, 143 of 148 changes turn a test red. The other five are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`; 0.3048 for 1/3.28084 inside the tile-zoom rounding; and two guards kept from V6 that no input can reach (`emPoint`'s density floor of 0.15, since the ratio never falls below 0.297, and `gFromTrack`'s floor of 0.8 G, since its G is never below 1); and `wind.js`'s `<` for `<=` where the crosswind equals the airspeed, since a crosswind exactly equal to the airspeed leaves no headway either way. Line coverage of `src/core` is 100%.
 5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 14,700 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 248 results that use `sin`, `cos`, `atan2` or `Math.pow` differ in the last digits (at most 3.2e-15 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
 
 ## Boundaries
