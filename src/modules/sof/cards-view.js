@@ -38,8 +38,8 @@ function waveResult(line) {
 }
 
 function children(card) {
-  // The category and colour chips are the METAR's: a stale one is grey, its words kept, never coloured as current.
-  const staleChips = card.metar?.state === 'stale';
+  // The category and colour chips are the METAR's: a stale one, or one from a closed field's last observation, is grey, its words kept.
+  const staleChips = card.metar?.state === 'stale' || card.metar?.state === 'closed';
   const badges = h(
     'div',
     { class: 'sof-badges' },

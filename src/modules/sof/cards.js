@@ -139,6 +139,11 @@ function resultModel(metar, conditions, limits, now, descent) {
   if (check.ceilingUnknown || check.visibilityUnknown) return { level: 'unknown', words: `Unknown: ${unknownWords(check, conditions)}${note}`, reasons: [], stale };
   if (check.atLimit) return { level: 'at-limit', words: `At the limit: ${reasons.join(', ')}${note}`, reasons, stale };
   if (staleIsUnknown(metar)) return { level: 'unknown', words: `Unknown: ${metar.ageMin != null ? `report is ${formatDuration(metar.ageMin)} old` : 'report age unknown'}`, reasons: [], stale };
+  // A field closed for the night: what its last observation said, and until when it is closed.
+  if (metar.state === 'closed') {
+    const until = toDate(metar.noObsUntil);
+    return { level: 'within', words: until ? `Within limits at last observation (field closed until ${hhmmZ(until)})` : `Within limits${note}`, reasons: [], stale };
+  }
   return { level: 'within', words: `Within limits${note}`, reasons: [], stale };
 }
 

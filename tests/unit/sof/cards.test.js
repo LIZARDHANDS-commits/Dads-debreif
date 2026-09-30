@@ -346,7 +346,8 @@ test('a stale or closed METAR never reads as plain "Within limits"', () => {
   assert.equal(stale.stale, true);
   const now = new Date('2026-09-30T03:00:00Z');
   const closed = home({ now, metar: metarEntry(REAL.metar.CYMJ, now) }).result;
-  assert.equal(closed.words, 'Within limits (last observation)');
+  assert.match(closed.words, /^Within limits at last observation \(field closed until 1000Z\)$/);
+  assert.equal(home({ now, metar: metarEntry(REAL.metar.CYMJ, now) }).metar.state, 'closed');
   assert.equal(home({ metar: metarEntry(METAR.fresh) }).result.words, 'Within limits');
 });
 
