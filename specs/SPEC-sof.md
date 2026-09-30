@@ -74,7 +74,7 @@ One screen, no tabs, sized for a 1920 × 1080 desk monitor and still with nothin
 
 ```
 ┌ SOF bar ───────────────────────────────────────────────────────────────────────────────────┐
-│ 301842Z SEP 26    Weather 2 min ago ✓  Radar 4 min ✓  Lightning 8 min ✓    ⟳ Refresh  Traffic ↗ │
+│ 301842Z SEP 26    Weather 2 min ago ✓  Radar 4 min ✓  Lightning 8 min ✓    ⟳ Refresh           │
 ├ ⚠ NEW CAUTION  CYMJ TAF: TEMPO 1/2SM FG 16–20Z  CYQR METAR: VCTS           [Acknowledge]  ┤
 ├ Waves  Today ▾ ───────────────────────────────────────────────────────────────────────────┤
 │ W1 0800–0930 CST  No alternate needed │ W2 1030–1200 CST  ALTERNATE REQUIRED: CYMJ below │ + Wave │
@@ -90,16 +90,16 @@ One screen, no tabs, sized for a 1920 × 1080 desk monitor and still with nothin
 │ CYMJ ████ GRN ████▒▒ YLO1 ▒▒████  (TEMPO row)  ▕wave 1▏  ▕wave 2▏   │now                      │
 │ CYQR …                                                                                      │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
-  Not for flight planning. Confirm with NAV CANADA. Weather: MET Norway (CC BY 4.0), NOAA via Datamask; radar and lightning: ECCC; map © OpenStreetMap.
+  Not for flight planning. Confirm with NAV CANADA. Weather: MET Norway (CC BY 4.0), NOAA via Datamask; radar and lightning: ECCC; map: Esri imagery, VNC © NAV CANADA (not for navigation).
 ```
 
 | Shown by default | Behind a checkbox (off) or a collapsed "More …" panel (R22) |
 |---|---|
-| **SOF bar:** the date-time group (DTG), each feed's age and state in words, Refresh, and the Traffic link | **World clocks:** Pacific, Mountain and Eastern, as V6's top bar had them (the header already shows Zulu and home local) |
+| **SOF bar:** the date-time group (DTG), each feed's age and state in words, and Refresh | **World clocks:** Pacific, Mountain and Eastern, as V6's top bar had them (the header already shows Zulu and home local) |
 | **Caution banner** when there's something new to acknowledge; it takes its own row and pushes the screen down, never covering it | **Other airfields:** the rest of V6's 15 fields as short rows (ICAO, name, category, ceiling and visibility, age). Fetched only while the panel is open |
 | **Waves:** today's waves, each with its alternate call and the reason in words; Today or Tomorrow; add, edit and remove a wave | **NATO colour state chart:** V6's grid with each airfield placed on it, and a hover or focus card with its ceiling, visibility and wind |
 | **Airfield cards** for home and each alternate: name and role, flight category and NATO colour state as words, report times and age, the raw METAR and TAF with the words behind a limit marked, the limit result in words, and for alternates their result over the arrival window | **Radar loop:** the last hour of ECCC frames, played in a loop (off: the latest frame only) |
-| **Map:** latest radar, ECCC lightning, home and alternates coloured by category with their ICAO, 25 and 50 NM rings around home, pan and zoom | **Large text:** a bigger type size for a screen across the room |
+| **Map:** a satellite picture of the area, switchable to the VNC chart (like ForeFlight's map choice), with the latest radar, ECCC lightning, home and alternates coloured by category with their ICAO, 25 and 50 NM rings around home, pan and zoom; a **Live traffic** switch that turns the map area into ADS-B Exchange's live traffic map centred on home (SOF-7) | **Large text:** a bigger type size for a screen across the room |
 | **24-hour timeline** for home and the alternates, collapsible | **About this screen:** where each feed comes from, how often it refreshes, when it counts as stale, and the rules behind the calls |
 | **Credits and the "not for flight planning" line** | |
 
@@ -108,7 +108,7 @@ One screen, no tabs, sized for a 1920 × 1080 desk monitor and still with nothin
 - **DTG** in V6's form, `301842Z SEP 26` (V6's `dtgZulu`, sof.html line 745; it never showed in V6 because the script crashed first, #6). It comes from `core/time.js`'s `formatDtgZulu`.
 - **Feed status** for weather, radar and lightning, each as words and a symbol, never colour alone: `2 min ago ✓`, `Refreshing…`, `STALE 48 min`, `Failed, showing 12 min old`, `Off`. Hovering or focusing it says which source answered (MET Norway or Datamask; ECCC or RainViewer) and when it will try again.
 - **Refresh** asks every feed now. It's never needed for normal use.
-- **Traffic ↗** opens a live traffic map centred on the home field in a new tab (D68). V6 embedded Airplanes.live, which now refuses to be embedded, and asked a server this site doesn't have (#6, #11). The default is `globe.airplanes.live` (V6's choice), opened with `rel="noopener noreferrer"`.
+- Live traffic is a switch on the map (see Map), not a link here (SOF-7).
 
 ### Caution banner (fixes #5)
 
@@ -143,7 +143,8 @@ V6 had three separate sets of wave inputs, two of them hidden and dead, assumed 
 
 ### Map (fixes #6, #9, #11)
 
-- A canvas map with OpenStreetMap tiles (V6's base map), dimmed so the weather stands out, credited on screen. Pan by dragging, zoom with the wheel or the + and − buttons, and a Home button that returns to the home field. The view opens centred on the home field, at V6's zoom level (6), which shows southern Saskatchewan and the fields around it.
+- **Base map, as in ForeFlight: Satellite or VNC.** Satellite is Esri's world imagery, the same satellite picture the debrief uses (Patrick, 2026-09-30), through the shared tile loader the debrief's code moves into ui-kit. VNC is the two VNC charts the debrief already carries (South: Moose Jaw and Regina; North: Saskatoon and Moose Jaw), with V6's alignment; together they cover CYMJ, CYQR, CYYN and CYXE. Outside the charts, the VNC view shows the satellite picture, and the map says so. The base map is dimmed a little (a setting) so radar stands out. Each is credited on screen, and the VNC carries "Not for navigation". Pan by dragging, zoom with the wheel or the + and − buttons, and a Home button that returns to the home field. The view opens centred on the home field, at V6's zoom level (6), which shows southern Saskatchewan and the fields around it.
+- **Live traffic switch** (SOF-7). No free live-traffic feed lets a web page read aircraft positions directly (checked 2026-09-30: ADS-B Exchange's data needs a paid key, Airplanes.live and adsb.one refuse, adsb.fi, adsb.lol and OpenSky don't allow browser reads), so traffic can't be drawn on our own map without a relay (D69). What does work: ADS-B Exchange's own live map can be shown inside the page. The switch swaps the map area for ADS-B Exchange's map, centred on the home field at the same zoom, with its own controls, and back again. It loads only while switched on and is removed when switched off or when the module closes (R4). If it won't load, the map area says so and offers the same map in a new tab. This revisits D68 (traffic as a link out) and becomes a new decision once Patrick answers SOF-7.
 - **Airfields:** home and alternates as dots in their flight-category colour with the ICAO beside them and the category in the dot's label, so it isn't colour alone. 25 and 50 NM rings around home (V6's "reference" circles, line 569).
 - **Radar** (D65): ECCC's 1 km radar (`RADAR_1KM_RRAI` rain, `RADAR_1KM_RSNO` snow), one image for the view, refreshed every 6 minutes (D67), stale after 20 minutes. Rain or Snow is a choice, snow by default from November to March. The image time comes from ECCC's own layer time, so the age shown is the radar's, not the fetch's. If ECCC fails twice in a row, RainViewer's tiles take over (max zoom 7, credited, "backup" in the feed status) until ECCC answers again.
 - **Lightning** (D66): ECCC's 10-minute lightning density (`Lightning_2.5km_Density`), refreshed every 10 minutes and stale after 30, on by default with an opacity slider (V6's, line 543). **Lightning map ↗** opens Blitzortung in a new tab; its terms allow private use and prefer a link to an embed, so it's never embedded or read (D34 revised by D66).
@@ -180,8 +181,8 @@ V6's "alternate highlights" (600 ft and 2 SM) aren't a SOF setting any more: eac
 |---|---|
 | World clocks and DTG (lines 512 to 518 and 745) | DTG in the SOF bar; Zulu and home local in the app header; the other three zones behind World clocks |
 | ⟳ WX button | Refresh in the SOF bar |
-| ⟳ TRAFFIC button and LIVE TRAFFIC tab (dead, #6) | Traffic ↗ link |
-| Airplanes.live globe and Windy radar swapping every 10 s, no pause (#11, audit b#22) | Removed. Radar is on the SOF's own map and traffic is a link. The two embeds never both worked, and neither can be paused or read |
+| ⟳ TRAFFIC button and LIVE TRAFFIC tab (dead, #6) | The Live traffic switch on the map |
+| Airplanes.live globe and Windy radar swapping every 10 s, no pause (#11, audit b#22) | Removed. Radar is on the SOF's own map and traffic is a switch on it (SOF-7), so neither swaps on a timer. |
 | Priority weather cards, left and right rails (lines 532 and 546) | Airfield cards, one column |
 | SHOW OTHER AIRFIELDS (always empty, #6) | Other airfields panel that works |
 | Raw Aviation Weather and Setup tabs (unreachable, #6) | Raw text is on every card; the setup text becomes About this screen |
@@ -208,8 +209,8 @@ V6's "alternate highlights" (600 ft and 2 SM) aren't a SOF setting any more: eac
 | `app.airfields` (Airfields thread) | `home()`, `alternates()`, `stations()`, `checkOptions(icao)`, `subscribe()`, and the catalog's positions and names for the map and Other airfields | Merged |
 | `app.time`, `core/time.js` | Home zone, `formatDtgZulu`, the Zulu or local order | Merged |
 | ui-kit (app frame) | `h()`, `createPanel`, `createControls`, `createCanvasView`, the scheduler | Merged |
-| App frame | The registry entry `#/sof`, the SOF section in the Settings dialog, `tests/e2e/sof.spec.js`, and the page's Content Security Policy allowing `api.met.no`, `datamask.org`, `geo.weather.gc.ca`, `api.rainviewer.com`, `tilecache.rainviewer.com` and `tile.openstreetmap.org` | Asked for through the coordinator at the task that needs it |
-| Debrief | If the debrief's satellite tile code lands first, the coordinator may move a shared tile layer into ui-kit so both maps use it | Only if it helps; the SOF otherwise keeps its own small tile layer |
+| App frame | The registry entry `#/sof`, the SOF section in the Settings dialog, `tests/e2e/sof.spec.js`, and the page's Content Security Policy allowing `api.met.no`, `datamask.org`, `geo.weather.gc.ca`, `api.rainviewer.com`, `tilecache.rainviewer.com` and `server.arcgisonline.com`, and frames from `globe.adsbexchange.com` only | Asked for through the coordinator at the task that needs it |
+| Debrief and app frame | The satellite tile loader, moving from the debrief into ui-kit before Traffic task 8 (coordinator, 2026-09-30), and the VNC charts and their alignment (`src/modules/debrief/map2d/vnc.js` and its images), which need the same move so the SOF can use them | Planned for the tile loader; the VNC move is asked for through the coordinator at task 6. |
 
 ## Security (untrusted replies)
 
@@ -217,7 +218,7 @@ security-and-hardening, with `.claude/references/security-checklist.md`. Every w
 
 - METAR and TAF text arrives through `wx`'s `sources.js`, which already refuses oversized replies, reports for the wrong station and bad station ids. The SOF puts that text on the page only as text nodes, and the marked words are built as separate text spans.
 - Radar and lightning images are built from fixed addresses with only numbers (view bounds, size, a time read from ECCC's own reply and checked to be a time) in the query. ECCC's layer-time reply is read with a size cap and a strict pattern. RainViewer's list is checked for shape and its paths must match its documented pattern before they go in a tile address.
-- There are no embedded outside pages. Links out are fixed addresses with numbers only (the home field's position), opened with `noopener noreferrer`.
+- The one embedded outside page is ADS-B Exchange's map (SOF-7). It's loaded only while Live traffic is on, from a fixed address with only the home field's position and a zoom in it, in a sandboxed frame that may run its own scripts but can't open pop-ups over the SOF or reach the SOF's page, and the page's CSP allows frames from that one site only. Links out are fixed addresses with numbers only, opened with `noopener noreferrer`.
 - Stored waves, settings and acknowledgements are checked for shape and range when read back, and anything wrong falls back to the defaults.
 - Nothing is sent anywhere except the weather requests, which carry only station ids or map bounds. No cookies (`credentials: 'omit'`).
 
@@ -297,11 +298,11 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 
 - **NOTAMs, PIREPs and the GFA.** Checked again on 2026-09-30: NAV CANADA's weather site answers but doesn't allow a browser page to read it, the FAA NOTAM service needs a key, and aviationweather.gov doesn't allow browser reads. They would need a relay (a small proxy), which D69 rules out. They can come back as a future feature if a relay is ever set up.
 - **Favoured runway and crosswind** (FF21), which need runway data (FF20).
-- **Embedded traffic.** Link out only (D68).
+- **Traffic drawn on our own map.** It needs a relay (D69), so the SOF shows ADS-B Exchange's own map instead (SOF-7).
 
 ## Open questions
 
-Labelled SOF-1 to SOF-6 here; they get Q numbers when they're logged in the plan doc's Questions tab. None blocks the build: each default is what gets built until it's answered.
+Labelled SOF-1 to SOF-7 here; they get Q numbers when they're logged in the plan doc's Questions tab. None blocks the build: each default is what gets built until it's answered.
 
 - **SOF-1 (Patrick): is the default screen right?** Shown by default: the SOF bar, caution banner, waves with their calls, airfield cards, map with radar and lightning, and the timeline. Behind checkboxes: world clocks, other airfields, the NATO chart, radar loop and large text. **Default and my recommendation:** as in the table under The screen. It covers everything a SOF uses every few minutes and nothing they don't.
 - **SOF-2 (a current SOF): keep a manual "alternate required" switch?** V6 let you click the call to flip it, and the flip was saved and looked exactly like a computed call. **Default and my recommendation:** no switch. The call is always computed and always shows its reasons, and the SOF decides. If SOFs want to record their own call, it should look different from the computed one (for example `SOF: ALTERNATE REQUIRED` beside the computed chip).
@@ -309,6 +310,8 @@ Labelled SOF-1 to SOF-6 here; they get Q numbers when they're logged in the plan
 - **SOF-4 (a current SOF): when should an acknowledged caution come back?** **Default and my recommendation:** it stays acknowledged while the same airfield keeps reporting the same thing (so a thunderstorm in every METAR for three hours alerts once), and comes back if it clears and returns, or if a new kind of caution appears there. The other choice is to re-alert on every new report, which would ring every hour through a long spell of weather.
 - **SOF-5 (Patrick): the METAR.CLOUD runway and wind picture.** V6 embedded metar.cloud's page for the selected airfield. It still loads in a frame, but it's a third-party site whose terms we haven't checked, and it's a second view of the same METAR. **Default and my recommendation:** a small `Runway view ↗` link on each card that opens it in a new tab. Drawing our own runway and wind picture is part of FF20 and FF21.
 - **SOF-6 (a current SOF): do the wave times stay the same from day to day?** **Default:** yes. The SOF enters up to 5 waves once, they apply to Today (or Tomorrow when picked), and they stay until changed. **My recommendation:** the default, because it removes V6's bug of keeping an old date. If waves change daily, a "Clear waves at the end of the day" option is a small addition.
+
+- **SOF-7 (Patrick): live traffic on the map.** Patrick asked for a traffic switch on the map (2026-09-30). No free feed lets a web page draw aircraft on our own map (details under Map). **Options:** (a) the switch shows ADS-B Exchange's own live map in the map area, centred on home, and switches back to satellite, radar and lightning; (b) a free relay (a small program on a free Cloudflare account that fetches adsb.lol's data for us) so aircraft are drawn on our satellite map with the radar, which reverses D69 and is one more thing to keep running; (c) keep V6's approach of a link that opens the traffic map in a new tab (D68). **Default and my recommendation:** (a). It needs no server, and ADS-B Exchange's terms are read before it ships (task 7); if they don't allow it, it falls back to (c).
 
 Also for the plan doc, not questions: the refresh timings and stale limits here are D67's; Blitzortung stays a link (D34 as revised by D66), and its terms are read again when task 7 is built.
 

@@ -2,9 +2,9 @@
 
 Spec: draft waiting for Patrick's approval. Build starts once he approves it and the coordinator says it's the SOF's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
 
-- [x] SPEC-sof.md drafted, with SOF-1 to SOF-6
+- [x] SPEC-sof.md drafted, with SOF-1 to SOF-7
 - [ ] Patrick approves SPEC-sof.md
-- [ ] SOF-1 to SOF-6 logged in the plan doc's Questions tab (through the coordinator)
+- [ ] SOF-1 to SOF-7 logged in the plan doc's Questions tab (through the coordinator)
 
 ## Build
 
@@ -39,12 +39,12 @@ Spec: draft waiting for Patrick's approval. Build starts once he approves it and
 
 **Checkpoint B:** tests pass; code-review-and-quality; open PR B.
 
-- [ ] **6. The map with radar.** Canvas map with dimmed OpenStreetMap tiles and credit, airfield dots with labels, 25 and 50 NM rings, pan, zoom and Home; ECCC radar image with its own layer time, Rain or Snow, stale after 20 min; RainViewer backup after two ECCC failures; offline message.
+- [ ] **6. The map with radar.** Canvas map with Satellite or VNC base (shared tile loader and VNC charts from ui-kit) and credits, airfield dots with labels, 25 and 50 NM rings, pan, zoom and Home; ECCC radar image with its own layer time, Rain or Snow, stale after 20 min; RainViewer backup after two ECCC failures; offline message.
   - Acceptance: the age shown is the radar's time, not the fetch's; ECCC failing switches to RainViewer and back; image addresses are built from numbers only; drawn on change only.
   - Verify: `node --test tests/unit/sof/feeds.test.js`; e2e with fixture images; performance log in the PR.
   - Dependencies: 2; CSP entries (app frame). Size M.
   - Files: src/modules/sof/map.js, src/modules/sof/feeds.js, tests/unit/sof/feeds.test.js, tests/fixtures/sof/
-- [ ] **7. Lightning and links.** ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map and Traffic links; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
+- [ ] **7. Lightning, traffic and links.** Live traffic switch showing ADS-B Exchange's map (SOF-7 default; read their terms first, fall back to a link); ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map link; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
   - Acceptance: lightning is visible by default (#9); the near-home check finds lightning in a fixture inside the radius and none outside it; links open in a new tab with `noopener noreferrer`.
   - Verify: `node --test tests/unit/sof/lightning.test.js`; e2e.
   - Dependencies: 6. Size S to M.
