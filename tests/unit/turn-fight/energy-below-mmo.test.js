@@ -40,10 +40,10 @@ test('a merge at 316 KIAS is accepted from the deck to 17,560 ft, and 317 is ref
   }
 });
 
-test('just above the crossover the limit is 315 and it says Mach 0.67, not VMO: the label is VMO only when the limit really is 316', () => {
-  for (const altFt of [CROSSOVER_FT, 17600]) {
+test('from 17,566 ft, the first whole foot over the crossover, the limit is 315 and says Mach 0.67, not VMO; the NFM is not quoted there, its line is still VMO', () => {
+  for (const altFt of [17566, 17567, CROSSOVER_FT, 17600]) {
     assert.doesNotThrow(() => createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: 315 }), `315 at ${altFt} ft`);
-    assert.throws(() => createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: 316 }), /Blue's merge speed is above the T-6A's limit at 17,\d\d\d ft \(315 KIAS, Mach 0\.67\), got 316/, `316 at ${altFt} ft`);
+    assert.throws(() => createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: 316 }), /Blue's merge speed is above the T-6A's limit at 17,\d\d\d ft \(315 KIAS in the model, Mach 0\.67\), got 316/, `316 at ${altFt} ft`);
   }
 });
 
@@ -72,8 +72,8 @@ test('the engine\'s limit in the model\'s IAS: about 300 at 20,000 ft, 270 at 25
 });
 
 test('at 25,000 ft a merge at 300 KIAS is refused, at either aircraft, and the message names the limit there; 269 is accepted and 270 refused', () => {
-  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 300, redKias: 220 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS, Mach 0\.67\), got 300/);
-  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 220, redKias: 300 }), /Red's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS, Mach 0\.67\), got 300/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 300, redKias: 220 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS in the model, Mach 0\.67; the NFM's 279 is the same Mach on the gauge\), got 300/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 220, redKias: 300 }), /Red's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS in the model, Mach 0\.67; the NFM's 279 is the same Mach on the gauge\), got 300/);
   assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 270 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS/);
   // The NFM's 279 is refused: in the model it would be Mach 0.69.
   assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: nfm25 }), /limit at 25,000 ft \(269 KIAS/);
@@ -90,7 +90,6 @@ const modelMach = (kias, altFt) => iasToTasKt(kias, altFt) / speedOfSoundKt(altF
 test('at every start height from the deck to 25,000 ft (500 ft steps, and 25,000) the highest merge speed accepted flies at Mach 0.67 or less in the model, and one knot more is refused', () => {
   const heights = [];
   for (let h = ENERGY_DEFAULT_SETUP.hardDeckFt; h <= ENERGY_MAX_START_FT; h += 500) heights.push(h);
-  if (!heights.includes(25000)) heights.push(25000);
   for (const altFt of heights) {
     let top = 316;
     while (top > 40 && !accepts(altFt, top)) top--;
@@ -108,7 +107,7 @@ test('each aircraft is checked at its own start height: Blue 316 at 10,000 ft is
 
 test('at 20,000 ft the limit is 300 KIAS: 300 is accepted, 301 refused (the NFM line reads 309)', () => {
   assert.doesNotThrow(() => createEnergyFight({ blueAltFt: 20000, redAltFt: 20000, blueKias: 300, redKias: 300 }));
-  assert.throws(() => createEnergyFight({ blueAltFt: 20000, redAltFt: 20000, blueKias: 301 }), /Blue's merge speed is above the T-6A's limit at 20,000 ft \(300 KIAS, Mach 0\.67\), got 301/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 20000, redAltFt: 20000, blueKias: 301 }), /Blue's merge speed is above the T-6A's limit at 20,000 ft \(300 KIAS in the model, Mach 0\.67; the NFM's 309 is the same Mach on the gauge\), got 301/);
   assert.throws(() => createEnergyFight({ blueAltFt: 20000, redAltFt: 20000, blueKias: nfm20 }), /limit at 20,000 ft/);
   assert.throws(() => createEnergyFight({ blueAltFt: 20000, redAltFt: 20000, blueKias: 316 }), /limit at 20,000 ft/);
 });
@@ -117,8 +116,8 @@ test('the height check comes first: a speed over the limit is refused with the l
   assert.throws(() => createEnergyFight({ blueKias: 317 }), /Blue's merge speed is above the T-6A's limit at 10,000 ft \(316 KIAS, VMO\), got 317/);
   assert.throws(() => createEnergyFight({ redKias: 400 }), /Red's merge speed is above the T-6A's limit at 10,000 ft \(316 KIAS, VMO\), got 400/);
   // Above the crossover a speed over VMO gets the Mach limit's message, not "40 to 316".
-  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, redKias: 400 }), /Red's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS, Mach 0\.67\), got 400/);
-  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 317 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS, Mach 0\.67\), got 317/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, redKias: 400 }), /Red's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS in the model, Mach 0\.67; the NFM's 279 is the same Mach on the gauge\), got 400/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 317 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(269 KIAS in the model, Mach 0\.67; the NFM's 279 is the same Mach on the gauge\), got 317/);
 });
 
 test('a speed under 40 or not a number still names the box and the range at that height', () => {
@@ -129,7 +128,8 @@ test('a speed under 40 or not a number still names the box and the range at that
 
 /**
  * Flies ten minutes and returns the most any aircraft went over energyTopKias at its own height, and the moves seen.
- * Auto flies (both blue and red), so this is what the model pilot does, not a forced what-if.
+ * Auto flies (both blue and red) unless the setup forces a move, so most of these are what the model pilot does; the forced
+ * Immelmann is a what-if.
  */
 function overTheLimit(setup) {
   const s = createEnergyFight(setup);
@@ -147,23 +147,34 @@ function overTheLimit(setup) {
 }
 
 const HIGH_FIGHTS = {
-  'a forced Immelmann from the merge (at the top speed, against the same)': { setup: (alt) => ({ blueKias: Math.floor(energyTopKias(alt)), redKias: Math.floor(energyTopKias(alt)), blueMove: 'immelmann', redMove: 'immelmann' }), moves: ['immelmann'] },
-  'a split S from the merge (100 against 100)': { setup: () => ({ blueKias: 100, redKias: 100 }), moves: ['splitS'] },
-  'a pursuit dive (Blue 100 against Red 220)': { setup: () => ({ blueKias: 100 }), moves: ['pursuit'] },
-  'a pursuit dive (Blue 220 against Red 180)': { setup: () => ({ redKias: 180 }), moves: ['pursuit'] },
-  'a fast one-circle chase after a head-on pass (265 against 133)': { setup: () => ({ blueKias: 265, redKias: 133, ataDeg: 161, aaDeg: 37, circles: 1, chaseAfterHeadOn: true, separationNm: 3.5 }), moves: ['pursuit'] },
+  // Auto at the top speed: an Immelmann at 20,000 ft (300 KIAS, over the top at 142 KIAS), but a pitch back at 25,000 ft, where 269 KIAS
+  // would be over the top at only 119 KIAS (the reason is pinned in its own test below).
+  'Auto from the merge at the top speed against the same': { setup: (alt) => ({ blueKias: Math.floor(energyTopKias(alt)), redKias: Math.floor(energyTopKias(alt)) }), moves: (alt) => (alt === 20000 ? ['immelmann'] : ['pitchBack']) },
+  'a forced Immelmann from the merge (a what-if, at the top speed against the same)': { setup: (alt) => ({ blueKias: Math.floor(energyTopKias(alt)), redKias: Math.floor(energyTopKias(alt)), blueMove: 'immelmann', redMove: 'immelmann' }), moves: () => ['immelmann'] },
+  'a split S from the merge (100 against 100)': { setup: () => ({ blueKias: 100, redKias: 100 }), moves: () => ['splitS'] },
+  'a pursuit dive (Blue 100 against Red 220)': { setup: () => ({ blueKias: 100 }), moves: () => ['pursuit'] },
+  'a pursuit dive (Blue 220 against Red 180)': { setup: () => ({ redKias: 180 }), moves: () => ['pursuit'] },
+  'a fast one-circle chase after a head-on pass (265 against 133)': { setup: () => ({ blueKias: 265, redKias: 133, ataDeg: 161, aaDeg: 37, circles: 1, chaseAfterHeadOn: true, separationNm: 3.5 }), moves: () => ['pursuit'] },
 };
 for (const altFt of [25000, 20000]) {
   for (const pursuit of altFt === 25000 ? ['pure', 'lead', 'lag'] : ['pure']) {
     for (const [name, { setup, moves }] of Object.entries(HIGH_FIGHTS)) {
       test(`from ${altFt.toLocaleString('en-US')} ft, ${name}, ${pursuit} pursuit, ten minutes: never over the model's own limit at its height (regression guard)`, () => {
         const r = overTheLimit({ blueAltFt: altFt, redAltFt: altFt, pursuit, ...setup(altFt) });
-        for (const m of moves) assert.ok(r.moves.has(m), `the fight flew ${m} (${[...r.moves].join(', ')})`);
+        for (const m of moves(altFt)) assert.ok(r.moves.has(m), `the fight flew ${m} (${[...r.moves].join(', ')})`);
         assert.ok(r.over <= 0, `${r.over.toFixed(1)} KIAS over the limit at its height (fastest ${r.fastest.toFixed(0)})`);
       });
     }
   }
 }
+
+test('Auto at 269 KIAS at 25,000 ft picks a pitch back, not an Immelmann, and says why: the Immelmann would be over the top at only 119 KIAS', () => {
+  const s = createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 269, redKias: 269, pursuit: 'pure' });
+  for (const ac of [s.blue, s.red]) {
+    assert.equal(ac.move, 'pitchBack');
+    assert.match(ac.why, /^Pitch back: 269 KIAS, an Immelmann would be over the top at only 119 KIAS/);
+  }
+});
 
 test('a chaser diving from 25,000 ft is held near the guard at its height (energyTopKias there less 40 KIAS), not near VMO less 40 or the NFM line less 40', () => {
   // The guard is the engine's top speed at the chaser's own height less 40 KIAS: at 22,000 ft (energyTopKias is 288 there) it starts at 248,

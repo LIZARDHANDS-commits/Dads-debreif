@@ -31,7 +31,7 @@ import { FT_PER_NM, G_FTPS2, KT_TO_FTPS } from '../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../core/angles.js';
 import {
   T6A_LIMITS, T6A_MANOEUVRE, stallLimitG, availableG, shakerG as coreShakerG, splitST6A, iasToTasKt, tasToIasKt, t6aExcessFn,
-  speedOfSoundKt, thrustPerWeight, dragPerWeight, energyHeightFt,
+  maxKiasT6A, speedOfSoundKt, thrustPerWeight, dragPerWeight, energyHeightFt,
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
@@ -50,7 +50,7 @@ export const ENERGY_ACCURATE_MAX_FT = 15000;
 /**
  * The top speed the Energy engine allows at altFt, in the model's own IAS: VMO (316), or true Mach 0.67, whichever is slower.
  * The model's IAS has no compressibility (IAS = TAS x sqrt(density ratio)), so this sits about 9 kt under the NFM's KIAS line
- * up high (25,000 ft: about 270, where the NFM reads 279), and the model never flies faster than VMO or Mmo. The screen uses it too.
+ * up high (25,000 ft: about 270, where the NFM reads 279), and Auto keeps the model under VMO and Mmo (a forced move may go over). It is here for the screen to use.
  */
 export function energyTopKias(altFt) {
   return Math.min(T6A_LIMITS.vmoKias, tasToIasKt(T6A_LIMITS.mmo * speedOfSoundKt(altFt), altFt));
@@ -332,7 +332,12 @@ function checkedSetup(setup) {
     const vmoGoverns = exactLimit >= T6A_LIMITS.vmoKias;
     const limitKias = vmoGoverns ? T6A_LIMITS.vmoKias : Math.floor(exactLimit);
     need(Number.isFinite(s[kiasKey]) && s[kiasKey] >= 40, `${kiasKey} is from 40 to ${limitKias} KIAS`, s[kiasKey]);
-    need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitKias} KIAS, ${vmoGoverns ? 'VMO' : `Mach ${T6A_LIMITS.mmo}`})`, s[kiasKey]);
+    // Where Mach governs, say it is the model's figure: a pilot knows the NFM's number, which is the same Mach on the gauge. Above the
+    // crossover but under 18,879 ft the NFM line is still VMO (316), so there is no NFM Mach number to quote.
+    const nfmKias = Math.round(maxKiasT6A(s[altKey]));
+    const limitText = vmoGoverns ? `${limitKias} KIAS, VMO`
+      : `${limitKias} KIAS in the model, Mach ${T6A_LIMITS.mmo}${nfmKias < T6A_LIMITS.vmoKias ? `; the NFM's ${nfmKias} is the same Mach on the gauge` : ''}`;
+    need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitText})`, s[kiasKey]);
   }
   need(Number.isFinite(s.ataDeg) && s.ataDeg >= 0 && s.ataDeg <= 180, 'ataDeg is 0 to 180', s.ataDeg);
   need(Number.isFinite(s.aaDeg) && s.aaDeg >= 0 && s.aaDeg <= 180, 'aaDeg is 0 to 180', s.aaDeg);
