@@ -2,7 +2,7 @@
 // fix for #21 (D78), with what V6 said instead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { V6_STANDARDS, formationAxes, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../../src/core/standards.js';
+import { V6_STANDARDS, leadTargetKt, formationAxes, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../../src/core/standards.js';
 
 const NORTH = Math.PI / 2;
 const lead = { x: 0, y: 0, spdKt: 200 };
@@ -161,4 +161,24 @@ test('D116 sweep in the Turn Sim: spread, and the offset box\'s #2 and #4', () =
   assert.equal(lab({ id: 4, ...at(7500, 8500) }, [leadN, three], 'offsetBox'), 'ON SPACING', '5.7° off #3');
   assert.equal(lab({ id: 4, ...at(7500, 7990) }, [leadN, three], 'offsetBox'), 'FORE', 'ahead of #3\'s 3/9 line');
   assert.equal(classifyTurnSimPosition(three, [leadN, three], 'offsetBox', SWEEP).sweepDeg, null, '#3 in the box is the offset standard\'s');
+});
+
+// D115: 220 KIAS in the low block (6,000-10,000 ft MSL), 200 in the mid block (10,500-15,500), Gen Book p.12.
+const BLOCKS = { ...V6_STANDARDS, lead: { on: true, lowTargetKt: 220, midTargetKt: 200, lowBlockTopFt: 10250, speedTolKt: 10, targetG: 1.0, gTol: 0.2 } };
+
+test('D115 lead speed by block: 220 up to 10,250 ft, 200 above it or with no altitude', () => {
+  assert.deepEqual(leadTargetKt(BLOCKS.lead, 8000), { targetKt: 220, block: 'low' });
+  assert.deepEqual(leadTargetKt(BLOCKS.lead, 10250), { targetKt: 220, block: 'low' });
+  assert.deepEqual(leadTargetKt(BLOCKS.lead, 10251), { targetKt: 200, block: 'mid' });
+  assert.deepEqual(leadTargetKt(BLOCKS.lead, undefined), { targetKt: 200, block: 'mid' });
+  assert.deepEqual(leadTargetKt(V6_STANDARDS.lead, 8000), { targetKt: 200, block: null }, 'V6: one target');
+  const lab = (l) => classifyLeadParameters(l, 1.0, BLOCKS).labels.join(' / ');
+  assert.equal(lab({ spdKt: 220, altFt: 8000 }), 'LEAD ON PARAMETERS');
+  assert.equal(lab({ spdKt: 200, altFt: 8000 }), 'SLOW', '200 in the low block');
+  assert.equal(lab({ spdKt: 220, altFt: 12000 }), 'FAST', '220 in the mid block');
+  assert.equal(lab({ spdKt: 205, altFt: 12000 }), 'LEAD ON PARAMETERS');
+  const r = classifyLeadParameters({ spdKt: 215, altFt: 9000 }, 1.0, BLOCKS);
+  assert.equal(r.targetKt, 220);
+  assert.equal(r.block, 'low');
+  assert.equal(standardsSummaryLines(BLOCKS)[2], 'Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G');
 });

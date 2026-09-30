@@ -25,6 +25,11 @@
 // sweep behind the 3/9 line, measured from the aircraft the interval is
 // measured from: less is FORE, more is AFT. A standards object with a number
 // in spread.sweepMaxDeg gets the sweep check; one without keeps V6's.
+//
+// The lead standard's speed comes in two kinds too. V6's is one targetKt. The
+// SMM's (D115: 220 KIAS in the low block, 200 in the mid block, Gen Book p.12)
+// picks lowTargetKt at or below lowBlockTopFt and midTargetKt above it; a lead
+// standard with a number in lead.lowTargetKt gets it.
 import { radToDeg } from './angles.js';
 
 /** V6's standards: the debrief's default settings, and Turn Sim's fixed numbers. */
@@ -130,18 +135,35 @@ export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
 }
 
 /**
+ * Lead's target speed (D115). With lowTargetKt set: lowTargetKt at or below
+ * lowBlockTopFt, midTargetKt above it or when the altitude is unknown.
+ * A V6-shaped lead standard has one targetKt and no block.
+ *
+ * @param {object} leadStd  the lead standard
+ * @param {number} [altFt]  Lead's altitude, feet MSL
+ * @returns {{targetKt: number, block: 'low'|'mid'|null}}
+ */
+export function leadTargetKt(leadStd, altFt) {
+  if (!Number.isFinite(leadStd.lowTargetKt)) return { targetKt: leadStd.targetKt, block: null };
+  if (Number.isFinite(altFt) && altFt <= leadStd.lowBlockTopFt) return { targetKt: leadStd.lowTargetKt, block: 'low' };
+  return { targetKt: leadStd.midTargetKt, block: 'mid' };
+}
+
+/**
  * Lead's speed and G against the lead standard (debrief `classifyLeadDesired`, line 3088).
  * G is the recorded G (lead.gNative) when there is one, else estG (from gFromTrack).
  * Speed is lead.spdKt, ground speed as in V6 (D31 changes this at the screen).
+ * The target speed is leadTargetKt's, from lead.altFt.
  *
- * @returns {{labels: string[], spd: number, targetKt: number, speedTol: number, gVal: number|null,
- *   targetG: number, gTol: number, nativeG: number|undefined, estG: number|null}|null}
+ * @returns {{labels: string[], spd: number, targetKt: number, block: 'low'|'mid'|null, speedTol: number,
+ *   gVal: number|null, targetG: number, gTol: number, nativeG: number|undefined, estG: number|null}|null}
  *   null when the lead standard is off or Lead is missing
  */
 export function classifyLeadParameters(lead, estG, std = V6_STANDARDS) {
-  const { on, targetKt, speedTolKt: speedTol, targetG, gTol } = std.lead;
+  const { on, speedTolKt: speedTol, targetG, gTol } = std.lead;
   if (!on) return null;
   if (!lead) return null;
+  const { targetKt, block } = leadTargetKt(std.lead, lead.altFt);
   const nativeG = lead.gNative;
   const gVal = Number.isFinite(nativeG) ? nativeG : estG;
   const labels = [];
@@ -153,7 +175,7 @@ export function classifyLeadParameters(lead, estG, std = V6_STANDARDS) {
     else if (gVal > targetG + gTol) labels.push('HIGH G');
   }
   if (!labels.length) labels.push('LEAD ON PARAMETERS');
-  return { labels, spd, targetKt, speedTol, gVal, targetG, gTol, nativeG, estG };
+  return { labels, spd, targetKt, block, speedTol, gVal, targetG, gTol, nativeG, estG };
 }
 
 /** One line per standard that is on, for the standards panel (debrief `kmlStandardsSummary`, line 3110). */
@@ -167,7 +189,12 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
     lines.push(`Spread: ${Math.round(spread.minFt)}-${Math.round(spread.maxFt)} ft, ${foreAft}`);
   }
   if (offset.on) lines.push(`Offset #3 aft: ${Math.round(offset.aftTargetFt)} ±${Math.round(offset.aftTolFt)} ft`);
-  if (lead.on) lines.push(`Lead: ${Math.round(lead.targetKt)} ±${Math.round(lead.speedTolKt)} kt, ${lead.targetG.toFixed(1)} ±${lead.gTol.toFixed(2)} G`);
+  if (lead.on) {
+    const speed = Number.isFinite(lead.lowTargetKt)
+      ? `${Math.round(lead.lowTargetKt)} kt low block, ${Math.round(lead.midTargetKt)} kt mid, ±${Math.round(lead.speedTolKt)} kt`
+      : `${Math.round(lead.targetKt)} ±${Math.round(lead.speedTolKt)} kt`;
+    lines.push(`Lead: ${speed}, ${lead.targetG.toFixed(1)} ±${lead.gTol.toFixed(2)} G`);
+  }
   return lines;
 }
 

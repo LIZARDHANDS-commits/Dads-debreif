@@ -9,10 +9,10 @@ import { gFromTrack } from '../../src/core/flight-math.js';
 import { loadV6, v6Number, v6Page, v6FunctionText } from './v6-source.js';
 import { seeded, recordedTrack } from './inputs.js';
 
-/** V6 gives no sweep angle (D116 added it), so the comparison leaves it out; V6's own fore/aft check is pinned. */
-function withoutSweep(result) {
+/** V6 gives no sweep angle (D116) or speed block (D115), so the comparison leaves them out; V6's own checks are pinned. */
+function v6Fields(result) {
   if (!result) return result;
-  const { sweepDeg, ...rest } = result;
+  const { sweepDeg, block, ...rest } = result;
   return rest;
 }
 
@@ -101,13 +101,13 @@ test('classifyDebriefPosition matches classifyKmlError, and the lead and summary
       if (d78) dom.kmlForeAftTol = { value: '1e300' };
       const want = v6.classifyKmlError(id, live);
       dom.kmlForeAftTol = faTol;
-      assert.deepEqual(withoutSweep(classifyDebriefPosition(id, live, leadHdg, std)), want, `case ${i}, #${id}`);
+      assert.deepEqual(v6Fields(classifyDebriefPosition(id, live, leadHdg, std)), want, `case ${i}, #${id}`);
       if (want) seen.add(`${d78 ? '#3 both on: ' : ''}${want.labels.join(' / ')}`);
       if (want && want.labels.join(' / ') !== v6Labels) seen.add(`D78 changed ${v6Labels} to ${want.labels.join(' / ')}`);
     }
     // Lead's G: recorded if there is one, else estimated from Lead's track the way the debrief does it.
     const estG = tracks[1] ? v6.estimatedGAtTrack(leadTrack, kmlT) : null;
-    assert.deepEqual(classifyLeadParameters(live[1], estG, std), v6.classifyLeadDesired(live), `case ${i}, lead`);
+    assert.deepEqual(v6Fields(classifyLeadParameters(live[1], estG, std)), v6.classifyLeadDesired(live), `case ${i}, lead`);
     assert.equal(standardsSummaryLines(std).join('<br>'), v6.kmlStandardsSummary(live));
   }
   for (const labels of ['ON PARAMETERS', 'TIGHT', 'WIDE / AFT', 'TIGHT / FORE', '#3 both on: ON PARAMETERS', '#3 both on: FORE',
@@ -122,7 +122,7 @@ test('the lead standard matches V6 exactly on its edges', () => {
   for (const spdKt of [189.99, 190, 190.01, 200, 209.99, 210, 210.01, 0, undefined]) {
     for (const gNative of [0.79, 0.8, 0.81, 1.2, 1.21, NaN, undefined]) {
       const lead = { x: 0, y: 0, spdKt, gNative };
-      assert.deepEqual(classifyLeadParameters(lead, null), v6.classifyLeadDesired({ 1: lead }), `${spdKt} kt, ${gNative} G`);
+      assert.deepEqual(v6Fields(classifyLeadParameters(lead, null)), v6.classifyLeadDesired({ 1: lead }), `${spdKt} kt, ${gNative} G`);
     }
   }
 });
@@ -164,7 +164,7 @@ test('classifyTurnSimPosition matches classifyFormationError with V6\'s numbers'
     for (const a of fleet) {
       const want = v6.classifyFormationError(a);
       const got = formation === undefined ? classifyTurnSimPosition(a, fleet) : classifyTurnSimPosition(a, fleet, formation);
-      assert.deepEqual(withoutSweep(got), want, `case ${i}, ${formation}, #${a.id}`);
+      assert.deepEqual(v6Fields(got), want, `case ${i}, ${formation}, #${a.id}`);
       seen.add(`${formation === 'offsetBox' ? 'box' : 'spread'} ${want.labels.join(' / ')}`);
     }
   }
