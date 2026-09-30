@@ -18,7 +18,8 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 2. Vite is used only as the dev server and bundler (D13). The source still runs as plain modules.
 3. Hosting is GitHub Pages from this repo (D12). A service worker makes it work offline after one visit (D15, R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
-5. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
+5. Runtime libraries are few, small and approved one by one (Boundaries: ask first). Approved so far: `uplot` for time-series graphs (D137), loaded only inside the module that draws a graph, with a text readout beside each graph for screen readers. `three` for 3D drawing waits on Patrick's look at a demo (D138).
+6. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
 
 ## Why the code is split this way
 
@@ -34,10 +35,10 @@ So the map below has one shared `core` of pure, tested functions, one `ui-kit`, 
 
 | Module id | What it owns | Depends on | Replaces in V6 |
 |---|---|---|---|
-| `core` | Pure functions, no page access: units and conversions, angles and vectors, one heading convention, turn radius/rate, G and bank, ISA density and IAS estimate, aspect/HCA/closure, formation standards classifier, time formatting (Zulu/local). | none | Duplicated helpers across Turn Sim, KML, 3D, EM and BFM |
+| `core` | Pure functions, no page access: units and conversions, angles and vectors, one heading convention, turn radius/rate, G and bank, ISA density and IAS estimate, aspect/HCA/closure, formation standards classifier, time formatting (Zulu/local), the wind triangle (`wind.js`, #120), and one shared T-6A performance model (D128: V-n and stall line, IAS to TAS, thrust and drag fitted from the turn charts, the point-mass step, energy height, the max glide and the NFM zoom) that the Turn Fight, Traffic and Turn Sim all use. | none | Duplicated helpers across Turn Sim, KML, 3D, EM and BFM |
 | `storage` | Safe browser storage (never crashes when storage is blocked), one key naming scheme, versioned settings, named profiles, and file export/import. | `core` | Four key families; unguarded reads that can stop the whole page |
 | `airfields` | Home airfield and alternates as a setting: ICAO, position, elevation, time zone, charts, weather stations. Defaults to CYMJ. | `core`, `storage` | Moose Jaw hard-coded in about 15 places, with 3 different coordinates (R16) |
-| `ui-kit` | Shared look (colour tokens, cards, collapsible panels, toolbar), a control registry that binds inputs to settings, a pan/zoom canvas view, and one animation scheduler that runs only the open module. | `core` | Six CSS patch layers, 348 `!important`, side rails that cover controls, a Tab key that hides panels |
+| `ui-kit` | Shared look (colour tokens, cards, collapsible panels, toolbar), a control registry that binds inputs to settings, a pan/zoom canvas view, one animation scheduler that runs only the open module, and the map layers more than one module draws: the satellite tile loader (moved from the debrief for Traffic and the SOF) and, from SOF task 6, the VNC charts. | `core` | Six CSS patch layers, 348 `!important`, side rails that cover controls, a Tab key that hides panels |
 | `shell` | Home screen and module cards, routing (`#/debrief`, `#/turn-sim` …), module mount/unmount, the one Zulu/local switch, settings, About, Report a problem. | `ui-kit`, `storage`, `airfields`, `core` | Splash, launcher, tab bar, About, two hidden splash buttons, debug badges |
 | `flight-data` | ForeFlight KML parsing (with data-quality checks), projection, interpolation, derived speed/G/pitch, the Flight and Debrief data model, the playback clock, and the save/open debrief file. | `core`, `storage`, `airfields` | KML parsing, `DADS3DAPI`, four separate clocks, one global DFP list (R11, R17) |
 | `debrief` | The debrief viewer: 2D map and 3D view of the same flight (switch, not a separate tab), spacing and standards readouts, EM diagram, one tennis-ball solver, DFPs, map layers and charts, CSV export. | `flight-data`, `ui-kit`, `airfields`, `core` | KML viewer + 3D viewer + EM card (R11, R12, R17, R18) |
@@ -74,10 +75,12 @@ index.html              home screen
 src/
   app.js                entry: starts the shell
   shell/                router.js registry.js host.js home.js about.js header.js …
-  core/                 units.js angles.js geo.js flight-math.js standards.js time.js
+  core/                 units.js angles.js geo.js flight-math.js standards.js time.js tennis.js wind.js
+                        t6-performance.js t6a-turn-charts.js point-mass.js (the T-6A model, D128)
   storage/              store.js settings.js file.js
   airfields/            airfields.js  data/CYMJ.json …
-  ui-kit/               tokens.css panel.js controls.js canvas-view.js scheduler.js
+  ui-kit/               tokens.css base.css dom.js panel.js controls.js canvas-view.js scheduler.js
+                        map-tiles.js vnc.js (satellite tiles, moved from the debrief; the VNC charts follow at SOF task 6)
   flight-data/          kml.js flight.js clock.js debrief-file.js
   wx/                   metar.js taf.js limits.js sources.js
   modules/
@@ -86,7 +89,7 @@ src/
     turn-fight/         index.js … README.md
     traffic/            index.js … README.md
     sof/                index.js … README.md
-public/media/           card videos (WebM, about 2.3 MB total), chart images
+public/media/           card videos (WebM, about 2.3 MB total); charts/ the VNC chart images
 original/               untouched V6 reference (never edited)
 tests/
   unit/                 node --test, one file per core/wx/flight-data file
@@ -144,17 +147,17 @@ export function turnRadiusFt(tasKt, loadG) {
 
 ## Build order
 
-Pieces are built in dependency order, up to three workstreams at once, each in its own thread, branch and pull request (D14).
+Pieces are built in dependency order, each workstream in its own thread, branch and pull requests (D14). Once the data pieces have landed, all the module screens build at once (D133).
 
 1. **Now, side by side:**
    - App frame: `storage`, `ui-kit`, `shell`, an empty app live on GitHub Pages with CI, size budget and the browser tests (`tasks/app-frame/`).
    - Flight math: `core`, ported function by function under golden tests (`tasks/flight-math/`).
    - Weather parser: `wx` parsing and limits, no live sources yet (`tasks/wx/`).
 2. **After flight math's first pull request** (units, angles, geo, time): `airfields`, `flight-data`, KML loading and the clock, pinned against V6.
-3. **Module screens**, two or three at a time, each once the app frame and its data pieces have landed: `debrief` (2D and 3D together), `turn-sim`, `turn-fight`, `traffic`.
-4. **`sof` last**, after `wx` and once an environment that can reach the weather sites is set up.
+3. **The debrief** (2D and 3D together), once the app frame and its data pieces have landed.
+4. **Everything else at once** (Patrick, 2026-09-30, D133): `turn-sim`, `turn-fight`, `traffic` and `sof` in parallel. Their one shared dependency, core's T-6A performance model (D128), comes first. Each slice merges to main as it passes, and the four are integrated and tested together at the end. The SOF also needs an environment that can reach the weather sites.
 
-Only the app frame edits `package.json`, `vite.config.js` and CI. Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
+Only the app frame edits `package.json`, `vite.config.js` and CI. Each step ends with Patrick's (or Dad's) sign-off on its checklist; step 4's modules are tested together.
 
 ## Success criteria
 

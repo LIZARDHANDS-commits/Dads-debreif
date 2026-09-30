@@ -78,7 +78,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 │ Pattern 1   pattern          ││                                                                              ││ Spawn  CT-156 ▾  on Entry 1 ▾  │
 │ Entry 1     → Pattern 1 P8   ││                                                                              ││ Start at point 1  Delay 0 s    │
 │ Split 1     P6 → P1          ││                                                                              ││ Plan  Random ▾                 │
-│ + Pattern  + Entry  + Split  ││                                                                              ││ [+ Spawn]  [+ Pair, 15 s apart]│
+│ + New route ▾                ││                                                                              ││ [+ Spawn]  [+ Pair, 15 s apart]│
 │                              ││                map: satellite, grid, routes, aircraft, bubbles               ││                                │
 │ Pattern 1 (selected)         ││                                                                              ││ A1 CT-157 Pattern 1 2,500 ft   │
 │ Name [Pattern 1]             ││                                                                              ││    GS 162 kt crab 7° R  Flying │
@@ -97,7 +97,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | Shown by default | Behind a checkbox (off by default) or a collapsed "More …" panel (R22) |
 |---|---|
 | **Playback bar:** Play or Pause, Rewind, −10 s, +10 s, Reset, speed (0.25× to 8×), the sim clock, Running / Paused / Rewinding, the 2D or 3D switch, Layers, Fit. **Wind:** direction (°T) and speed (kt), default calm, with a wind arrow and "Wind 250°T 20 kt" in the map corner whenever it isn't calm | **Layers** menu: trails, height and speed labels, route points, leg distances on the map, turn data (radius and bank at each point, and with a wind set the most G each turn needs), conflict bubbles, caution rings, satellite photo; under its **More**: photo opacity, draw photo above the grid, and photo alignment (scale trim, east/west and north/south offset, 100 ft nudges, Reset photo alignment) |
-| **Routes list:** one line per route with its colour, kind and link ("Entry 1 → Pattern 1 P8", "Split 1 P6 → P1"); + Pattern, + Entry, + Split | **Route options** (per setup): fly rounded turns (on), radius from speed and G (on), manual turn radius (1,800 ft); Duplicate route, Delete route, show or hide a route on the map |
+| **Routes list:** one line per route with its colour, kind and link ("Entry 1 → Pattern 1 P8", "Split 1 P6 → P1"); **+ New route** (Pattern, Entry, Split or PFL) | **Route options** (per setup): fly rounded turns (on), radius from speed and G (on), manual turn radius (1,800 ft); Duplicate route, Delete route, show or hide a route on the map |
 | **Selected route:** name; for an entry the pattern and point it joins; for a split the pattern and point it leaves and the pattern and point it rejoins. The point table: number, label, altitude (ft), speed, G. Speed is a phase (Entry, Pattern, Closed, Inner downwind, Straight-in base, Approach, Landing), so each aircraft flies its own type's indicated airspeed for that phase, or a fixed number every type flies (V6's way). **Decision points** are marked ◆ in the table and on the map; selecting one shows its choices (Stay on the pattern, Land, each split leaving there) with their shares, which must add up to 100 % | **Point table's More columns:** each point's position (east and north, ft); **Leg distances** (ft and NM, for the selected route, and with a wind set, each leg's headwind or tailwind and crosswind) |
 | **Spawner:** aircraft type, route, start point (numbered from 1, as everywhere else), delay from now (s), plan (Random, which follows the shares, or a plan picked from the list, see T1), + Spawn, + Pair (15 s apart, same route), Clear finished | **Edit** on an aircraft row: type, route, start time, plan, delete; **Plans** (under More): make or change a plan, a list of what the aircraft does at each decision point it meets, in order ("2 circuits, then Split 4 to the inner circuit, then land"); **More detail**: each aircraft's leg number, and with a wind set its true airspeed, heading, track, headwind or tailwind, crosswind, and the bank and G it's pulling now; **Aircraft types**: the type table (indicated airspeeds by phase, with where each number came from), read-only |
 | **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done; a **Command** menu on each row (see How you set up and control the traffic) | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4); final spacing and the chance of missing traffic (T11); the **Rules** list, a checkbox each, on by default |
@@ -110,6 +110,49 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 - **Number boxes** use ui-kit's number rule, so a blank, zero where zero makes no sense, infinite or out-of-range entry is refused with a message and the last good value stays: altitude −1,000 to 20,000 ft, speed 40 to 400 KIAS, G 1.0 to 9 (V6 limits G to 1.01 to 9 before turning), shares 0 to 100 %, delay 0 to 86,400 s, conflict distances 0 to 20,000 ft, manual radius 100 to 20,000 ft, wind direction 1° to 360° true, wind speed 0 to 60 kt. V6 had no limits and read a blank speed as 120 kt and a blank G as 2.
 - Shares are typed as percentages ("25 %"); V6 typed its odds as fractions (0.25).
 
+### Every setting starts filled in, and the first look stays simple (Patrick, 2026-09-30, 07:13Z)
+
+Patrick: "Make sure all the parameters start with a default entry and that the interface is user friendly, intuitive, and not overwhelming."
+
+**The first look.**
+- On a first open at Moose Jaw the built-in setup is loaded with its seven aircraft ready, paused at 0:00, with one line on the map: "Press Play to watch the Moose Jaw traffic." One click shows traffic, and nothing has to be typed first.
+- No route is selected when the sim opens, so the left column shows only the routes list. The point table appears when you pick a route, and closes again with its ✕.
+- One **+ New route** menu (Pattern, Entry, Split, PFL) replaces a row of buttons, so the routes list stays one short column.
+- Everything added after V6 (the break, PFLs, plans, rules, Set up a conflict, the engine-out check and reach) lives in a menu, the Command menu or a collapsed More, so the default screen is only what the drawing above shows.
+- Every control has a plain label in pilots' words, and the less obvious ones (decision point, plan, rule, perch, Window) show a one-line hint when you hover or tab to them.
+- Messages say what to do next: "Shares add up to 90 %: add 10 % to one of them", not "invalid".
+- Loading the built-in setup puts every setting back to the defaults below.
+
+**Defaults.** Every box, menu and checkbox starts with the value in this table, so any control can be left alone. The built-in setup's own values are V6's (line 613).
+
+| Setting | Starts at |
+|---|---|
+| Playback speed | 8×, as V6's built-in setup |
+| 2D or 3D | 2D; the 3D camera starts at Fit |
+| Wind | calm: 360°T at 0 kt |
+| Layers | trails, height and speed labels, route points, conflict bubbles, caution rings and the satellite photo on (V6's built-in setup); leg distances, turn data and Engine-out reach off |
+| Photo (More in Layers) | opacity 100 %, drawn above the grid, the setup's own alignment (1.2 trim until the redraw, T8) |
+| Route options | rounded turns on, radius from speed and G on, manual radius 1,800 ft |
+| New pattern | V6's generic pattern (see Routes above), left-hand, its first point a decision point at V6's odds (Land 20 %, Stay 80 %); at another home field, the runway box starts at 29, V6's generic runway, until you type the real one (T2) |
+| New entry, new split | V6's builders, linked to the selected pattern, or the first pattern if none is selected |
+| New PFL | at the threshold the pattern lands on, orbiting on the pattern's side; High Key 5,000 ft MSL at Moose Jaw, 3,000 ft above the field elsewhere (SMM 13.5) |
+| New point (+ Point) | V6's rule: halfway to the next point, with the average height and G of the two; the speed phase is the selected point's, or Blend between two different phases; labelled "New point" |
+| A new split's share | half of Stay's share at that point, so the shares still add up to 100 % and the new split gets flown |
+| Break | none until a point is marked Break; the slow-down then ends abeam the threshold |
+| Spawner | type CT-156, the first entry (or the first pattern if there are no entries), start at point 1, delay 0 s, plan Random |
+| + Pair | 15 s apart, on the same route |
+| New plan | named "Plan 1", no steps yet; when it runs out, Land (as Flying says) |
+| Engine out (Command menu) | prop feathered, clean until the runway is assured |
+| Dice | the setup's own seed, so the first run is the same for everyone; New traffic picks a new one |
+| Conflict limits | 200 ft and 200 ft; caution 500 ft and 500 ft (T4) |
+| Final spacing, missing traffic | 3,000 ft; 10 % (T11) |
+| Rules | every rule on |
+| Set up a conflict | the first two aircraft in the list (or two new CT-156s on Random), the first crossing on its list, 1 minute from now, arriving at the same moment; rules left as they are until you pick "switch them off" |
+| Engine-out check | the selected aircraft's state; with none selected, the downwind example (3,500 ft, 220 KIAS, abeam the threshold, clean, prop feathered); airstart attempt off |
+| Engine-out reach | off; CT-156; 200 ft margin for green |
+| New profile | named "Setup 1", with an empty notes box |
+
+
 ## What V6 does, and what the rebuild keeps
 
 ### Routes (`route.js`)
@@ -120,7 +163,7 @@ All of this is V6's, ported as it is and pinned by a golden test (R9):
 - **Each point** has a label, a position, an altitude, a speed (KT) and a G (line 143). Between points, altitude and speed change evenly along the leg (`lerp`, line 145).
 - **Rounded turns** (lines 194 to 214). At each point where the route turns by more than about 4.6° (0.08 rad), the aircraft starts turning a distance d before the point and finishes d after it, where d = R × tan(turn ÷ 2), but never more than 45 % of either leg. R comes from the point's speed and G (V² ÷ (g√(G² − 1)), G limited to 1.01 to 9) or, with "radius from speed and G" off, the manual radius. The first and last points of an entry or split don't round.
 - **Where an aircraft is** (lines 215 to 223): its distance flown along the route, looked up on the rounded path.
-- **New routes** (+ Pattern, + Entry, + Split): V6's builders (lines 160 to 176). A new pattern is V6's generic one: an 8,000 ft runway on 290° centred on the airfield, 9,000 ft upwind, 5,000 ft out, at 2,000 to 2,500 ft and 95 to 130 kt. A new entry joins the selected pattern; a new split leaves it.
+- **New routes** (+ New route: Pattern, Entry, Split): V6's builders (lines 160 to 176). A new pattern is V6's generic one: an 8,000 ft runway on 290° centred on the airfield, 9,000 ft upwind, 5,000 ft out, at 2,000 to 2,500 ft and 95 to 130 kt. A new entry joins the selected pattern; a new split leaves it.
 
 **Changed (D46, Dad).** V6 draws each rounded turn as a curve (a quadratic Bézier) between the start and end of the turn. That curve is tighter than the radius it shows: a 90° turn at 120 kt and 2 G is set at 736 ft but flown at 523 ft, which needs 2.6 G (a 135° turn needs 4.6 G). The rebuild flies a true circular arc between the **same** start and end of turn, so:
 
@@ -167,7 +210,7 @@ V6 has no wind. Patrick asked for winds and their effect on each aircraft's crab
 
 **The wind.** One steady wind for the whole map, at every height: a direction it blows **from**, in degrees true as a METAR gives it, and a speed in knots. Default calm. It's saved with the profile. Wind that changes with height, gusts and turbulence are out of scope.
 
-**Speeds are indicated airspeeds (Patrick, T5).** Every speed in the sim, in the type table and on a route point, is indicated airspeed, as pilots fly it. The sim converts it to true airspeed at the aircraft's height with the standard atmosphere: TAS = IAS ÷ √σ, with σ from `core`'s `isaDensityRatio`. That's about 3 % more at 2,000 ft and 5 % more at 3,500 ft, so a 220 KIAS downwind at 3,500 ft is flown at about 231 KTAS. This makes every lap a few percent quicker than V6's, even in calm air, so it lands as its own logged change after the golden tests pin V6.
+**Speeds are indicated airspeeds (Patrick, T5).** Every speed in the sim, in the type table and on a route point, is indicated airspeed, as pilots fly it. The sim converts it to true airspeed at the aircraft's height with the standard atmosphere: TAS = IAS ÷ √σ, through `core`'s `iasToTasKt` (σ from `isaDensityRatio`; SPEC-core, T-6A performance). That's about 3 % more at 2,000 ft and 5 % more at 3,500 ft, so a 220 KIAS downwind at 3,500 ft is flown at about 231 KTAS. This makes every lap a few percent quicker than V6's, even in calm air, so it lands as its own logged change after the golden tests pin V6.
 
 **Straight legs: crab to hold the track.** Routes are ground tracks, as a pattern is flown. For an aircraft with true airspeed TAS on a leg whose track is T, with wind W from direction D:
 
@@ -215,7 +258,7 @@ The straight-in, as Patrick describes it for the CT-156 (2026-09-30, 05:04Z): fr
 - A split can **join any route**, not only a pattern: the Grob's straight-in leaves the Grob pattern and joins the shared straight-in base legs at the level-off point, where the CT-156's straight-in joins too. The base legs, the final turn and the Window are then drawn once and shared, and moving a point moves it for every type.
 - Aircraft of different types on different patterns meet on the shared legs, which is exactly where the sim's conflict check earns its keep.
 
-A route point's speed is a **phase** (each aircraft flies its own type's speed there), **Blend** (the speed is blended from the points either side, for a point where the aircraft is speeding up or slowing down, as in "slow down gradually to 140"), or a **fixed number** every type flies (V6's way). Speeds blend evenly along each leg, as in V6. Routes made with + Pattern, + Entry and + Split get phases from V6's own point labels (Threshold / Final is Landing; Departure End, Upwind, Crosswind, Downwind and Final Entry are Pattern; entry points are Entry), and the user sets the other phases on the splits that fly them.
+A route point's speed is a **phase** (each aircraft flies its own type's speed there), **Blend** (the speed is blended from the points either side, for a point where the aircraft is speeding up or slowing down, as in "slow down gradually to 140"), or a **fixed number** every type flies (V6's way). Speeds blend evenly along each leg, as in V6. Routes made with + New route get phases from V6's own point labels (Threshold / Final is Landing; Departure End, Upwind, Crosswind, Downwind and Final Entry are Pattern; entry points are Entry), and the user sets the other phases on the splits that fly them.
 
 | Type (V6 name) | What it is | Entry | Pattern | Closed | Inner downwind | Straight-in base | Approach | Landing | Where the numbers come from |
 |---|---|---|---|---|---|---|---|---|---|
@@ -271,26 +314,23 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
-- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it (NFM Fig 3-4, p.3-12): 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). Speed alone would give about 1,600 ft from 220 KIAS at 3,500 ft; the manual's own zooms gain 64 % to 71 % of that ideal (595 to 883 ft from 200 KIAS, 1,172 to 1,552 ft from 250 KIAS), so the sim uses 70 %, about 1,100 ft. Dad confirms these for the CT-156 (T10).
-- It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered (T-6A max glide chart; SMM 13.5 para 7), or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling, with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
+- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 1,100 ft. The zoom's numbers are `core`'s `zoomT6A` (SPEC-core, T-6A performance, from NFM Fig 3-4), shared with the other modules; Dad confirms them for the CT-156 (T10).
+- It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered, or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling (`core`'s `T6A_GLIDE`, from the T-6A max glide chart), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
 
 | Glide data | CT-156 (and CT-157 for now) | Where from |
 |---|---|---|
-| Best glide, clean, prop feathered | 125 KIAS, 2 NM per 1,000 ft | T-6A max glide chart (flight test; Patrick, 06:33Z); SMM 13.5 para 7 |
-| Gear down, prop feathered | 105 KIAS, 1.5 NM per 1,000 ft | T-6A max glide chart |
-| Landing flap and gear down, prop feathered | 95 KIAS, 1.1 NM per 1,000 ft | T-6A max glide chart |
-| Clean, prop **windmilling** (engine not shut down) | 110 KIAS, 1 NM per 1,000 ft: half the feathered glide | T-6A max glide chart; SMM 13.17 para 34c (PCL to OFF as soon as possible) |
+| Glide by configuration: clean or gear down or landing flap and gear, prop feathered or **windmilling** (half the feathered reach; SMM 13.17 para 34c, PCL to OFF as soon as possible) | `core`'s `T6A_GLIDE` and `glideSinkFpm` (SPEC-core, T-6A performance) | T-6A max glide chart (Patrick, 06:33Z); SMM 13.5 para 7 |
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
 | Clean turn while gliding | about 1,700 ft per 360° at 30° of bank, 125 KIAS | SMM 13.5 para 11 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
-| Zoom | 2 s delay, 20° nose up until 145 KIAS, 70 % of the speed-for-height trade | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
+| Zoom | `core`'s `zoomT6A` (SPEC-core, T-6A performance) | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
 | Airstart attempt | costs about 1,200 ft; not below 2,000 ft above the field | NFM Fig 3-5 notes, p.3-13; SMM 13.17 para 36 |
 
 Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
 
-**How the glide is flown.** The glide ratio (NM per 1,000 ft) is fixed through the air for each configuration, so the rate of descent is the true airspeed divided by it and grows with height, and the wind then stretches or shrinks the distance over the ground. The chart's distance lines agree (about 2 NM per 1,000 ft from any height, and weight makes almost no difference); its sink-rate column (1,350, 1,500, 1,850 and 2,350 ft/min) matches those ratios at a true airspeed about a quarter above the indicated one, so it isn't used directly. The engine-out check and the Engine out command have a **prop** choice: feathered (the default, as after PCL OFF) or windmilling, which halves the reach and shows why the SMM says to shut it down. Gear and flap follow the SMM: clean until the runway is assured (13.17 para 39), then gear down, then flap. Down the keys (a PFL, or an engine-out once it has joined one) the aircraft flies the SMM's taught 120 KIAS with the gear down, not the chart's 105 KIAS best-distance speed, and comes down at the rate the SMM's 2,600 ft per circle gives (about 2,150 ft/min); a straight gear-down stretch, such as carrying on from a high High Key, uses the same rate, which is slightly on the safe side (SMM 13.4 to 13.8).
+**How the glide is flown.** The glide ratio (NM per 1,000 ft) is fixed through the air for each configuration, so the rate of descent is the true airspeed divided by it and grows with height (`core`'s `glideSinkFpm`), and the wind then stretches or shrinks the distance over the ground. The chart's distance lines agree (about 2 NM per 1,000 ft from any height, and weight makes almost no difference); its sink-rate column (1,350, 1,500, 1,850 and 2,350 ft/min) matches those ratios at a true airspeed about a quarter above the indicated one, so it isn't used directly. The engine-out check and the Engine out command have a **prop** choice: feathered (the default, as after PCL OFF) or windmilling, which halves the reach and shows why the SMM says to shut it down. Gear and flap follow the SMM: clean until the runway is assured (13.17 para 39), then gear down, then flap. Down the keys (a PFL, or an engine-out once it has joined one) the aircraft flies the SMM's taught 120 KIAS with the gear down, not the chart's 105 KIAS best-distance speed, and comes down at the rate the SMM's 2,600 ft per circle gives (about 2,150 ft/min); a straight gear-down stretch, such as carrying on from a high High Key, uses the same rate, which is slightly on the safe side (SMM 13.4 to 13.8).
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
@@ -333,7 +373,7 @@ The triggers all use the same prediction: where each aircraft will be a few seco
 
 **Engine-out check.** A "what if" that works out, without flying it, whether an aircraft would make High Key, Low Key, Final Key or the runway if its engine quit now:
 - From any aircraft row (the Command menu's **Engine-out check**), or from an energy state you type in: a point on the map, heading, height, speed (KIAS), configuration (clean, gear down, or landing flap and gear down) and prop (feathered or windmilling).
-- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (NFM Fig 3-4: 2 s, 20° nose up to 145 KIAS, 70 % of the ideal trade), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air, stretched or shrunk by the wind; joining the key's circle at a tangent.
+- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (`core`'s `zoomT6A`), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air (`T6A_GLIDE`), stretched or shrunk by the wind; joining the key's circle at a tangent.
 - An **airstart attempt** option subtracts about 1,200 ft first (NFM), and is refused below 2,000 ft above the field (SMM 13.17 para 36), so an instructor can show what trying a restart costs.
 - The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
 - Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
@@ -369,7 +409,7 @@ Each lands as its own commit after the golden test pins V6's behaviour, and that
 | Rewind gets slow (#46) | Every rewind frame replays the whole run from 0: 1.7 s for one +10 s at 30 minutes | Snapshots every 10 s of sim time; rewind starts from the nearest one |
 | Two splits from one point (#47) | Each split rolls in turn and a later one can override an earlier one, so the odds on screen aren't the odds flown | Decision points: one roll per point, with shares that add up to 100 %, or the aircraft's plan (T1) |
 | Jumps at splits and joins (#47) | An aircraft jumps up to 1,944 ft sideways when it leaves for a split, and up to 892 ft when it joins a pattern | The aircraft flies one joined-up path (pattern, split, pattern), rounded as one route, so it never jumps and never changes heading in one step |
-| Build buttons wreck the selected route (#44) | "Build Entry to Selected Pattern" turns the selected pattern itself into an entry, with no undo | + Entry and + Split always make a new route linked to the selected pattern. "Build Default Pattern" (which reset the selected route) goes |
+| Build buttons wreck the selected route (#44) | "Build Entry to Selected Pattern" turns the selected pattern itself into an entry, with no undo | + New route's Entry and Split always make a new route linked to the selected pattern. "Build Default Pattern" (which reset the selected route) goes |
 | Links break when points are added or removed (#44) | Entries and splits point at a pattern point by its number, so inserting a point makes them point at a different one; their ends are copies, so dragging a pattern point leaves them behind | Links point at the point itself. Adding or removing points keeps them right, and dragging a linked pattern point moves the entry or split end with it. The Snap buttons go, because the ends are always joined |
 | Deleted routes come back (#44) | Deleting a route leaves aircraft and links pointing at it, and a new route can reuse its name and pick them up | Route ids are never reused. Delete asks first and names what uses the route; aircraft on it are removed and entries or splits linked to it are marked "Not linked" |
 | Pair spawns on two routes (#45) | The second aircraft of "+ Pair 15 sec" goes on whatever route the left panel has selected | Both go on the spawner's route |
@@ -392,7 +432,7 @@ Each lands as its own commit after the golden test pins V6's behaviour, and that
 | Follow-aircraft list in the toolbar | Filled in but never read; choosing one did nothing (#45) |
 | Closed loop checkbox | Did nothing: patterns are always loops, entries and splits never (#44) |
 | Route type list on an existing route | Changing a pattern into an entry broke every link to it (#44). The kind is set when the route is made; Duplicate copies one |
-| Build Default Pattern / Entry / Split | Overwrote the selected route (#44). + Pattern, + Entry and + Split do the useful part |
+| Build Default Pattern / Entry / Split | Overwrote the selected route (#44). + New route does the useful part |
 | Snap entry end / Snap split start / end / both | Linked ends are always joined now (#44) |
 | Split Probability Manager | A second, stale copy of the split odds (#45) |
 | Export JSON, Import JSON | No sharing (Patrick, 2026-09-29), and Import could run script (#48) |
@@ -422,19 +462,23 @@ Everything V6's Traffic page does is already in `core` and pinned against its ow
 | `bankFromG`, `turnRadiusFromG` (lines 147 and 148), G limited to 1.01 to 9 | `bankDegFromG`, `turnRadiusFt`, `limitG(g, 9)` | `core-flight-math.test.js` |
 | `vFromHdg` (line 150) | `unitVectorFromCompassDeg` (north up) | `core-angles.test.js` |
 | `lonLatToPixel` (line 250) | `lonLatToWorldPixel` | `core-geo.test.js` |
-| (new) indicated to true airspeed | `isaDensityRatio` (TAS = IAS ÷ √σ) | `core-flight-math.test.js` |
+| (new) indicated to true airspeed | `iasToTasKt` (TAS = IAS ÷ √σ, through `isaDensityRatio`) | `tests/unit/core/t6-performance.test.js` |
+| (new) glide by configuration, and the sink rate | `T6A_GLIDE`, `glideSinkFpm` | `tests/unit/core/t6-performance.test.js` |
+| (new) the zoom | `zoomT6A` | `tests/unit/core/t6-performance.test.js` |
+
+The new rows are `core`'s one shared T-6A performance model (SPEC-core, "API, fifth PR: T-6A performance"; Patrick, 2026-09-30 06:58Z), which the Turn Fight and the Turn Sim also read. It holds the chart and manual numbers and checks them against each other; this module uses the numbers directly, so its answers never depend on the Turn Fight's drag fit.
 
 The route geometry (rounded turns, the arc, the steady-bank turn in a wind, the joined path), the flying, the dice and the conflict check are this module's own `route.js` and `sim.js`, as the Turn Sim owns its engine. If the Flight math core thread would rather own them, they move to `core` unchanged.
 
 **New in `core` for the wind** (asked of the Flight math core thread through the coordinator, because the debrief and the SOF crosswind (FF21) can use the same math):
 
 ```js
-// src/core/wind.js (proposed)
+// src/core/wind.js
 windTriangle(trackDeg, tasKt, windFromDeg, windKt)
   // → { crabDeg, headingDeg, groundSpeedKt, headwindKt, crosswindKt, canHoldTrack }
 ```
 
-With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed and no crab, exactly, which a test pins. Unit tests use known answers (the final example above, a pure headwind, a pure crosswind, a crosswind stronger than the airspeed). The Flight math core thread has drafted it (PR #100), held until this spec is approved. Its `groundTurnG` (the G needed to hold a ground-track circle) isn't needed any more, because turns hold a steady bank (T6); the steady-bank turn uses `turnRadiusFt` and `bankDegFromG`, which `core` already has.
+With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed and no crab, exactly, which a test pins. Unit tests use known answers (the final example above, a pure headwind, a pure crosswind, a crosswind stronger than the airspeed). It's on main (#120, 18ebeb8). Its `groundTurnG` (the G needed to hold a ground-track circle) isn't needed any more, because turns hold a steady bank (T6); the steady-bank turn uses `turnRadiusFt` and `bankDegFromG`, which `core` already has.
 
 Two more pieces come from other threads, through the coordinator:
 
@@ -452,7 +496,7 @@ src/modules/traffic/
   types.js         the aircraft type table and phase speeds (pure data)
   profile.js       profile shape, V6 import of the built-in data, checks on read-back (pure)
   predict.js       where each aircraft will be a few seconds ahead, for the rules (pure)
-  glide.js         zoom, glide and key reach for engine-outs, PFLs and the check (pure)
+  glide.js         engine-out path and key reach for engine-outs, PFLs and the check, with core's zoom and glide (pure)
   conflict-setup.js  finds start points and delays so two aircraft meet (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
@@ -523,6 +567,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 
 - The golden tests pass on V6's behaviour first, and every change from V6 is one of the listed fixes, D46 or an answered question, each in its own commit.
 - A user can define a pattern and an entry on the left, spawn aircraft on the right, and watch them fly, split, join, land and conflict, with only the default controls showing (R22, R14).
+- Every box, menu and checkbox starts at the value in the Defaults table, and from a first open one click (Play) shows traffic (Patrick, 07:13Z).
 - Rewind and ±10 s show exactly what happened, at every speed.
 - With a wind set, each aircraft shows its crab angle and ground speed from its own type's airspeed, holds its route, and flies its turns at a steady bank, rolling in earlier with a tailwind and later with a headwind (Patrick's wind requirement, T6).
 - With the wind calm, every number is V6's (or a listed change).

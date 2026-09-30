@@ -27,7 +27,7 @@ test('the header shows Zulu first, Moose Jaw local beside it, and ticks @smoke',
 test('Local first in Settings swaps the order at once and after a reload', async ({ page }) => {
   await freezeAtNoon(page);
   await openRoute(page, '#/');
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Local first, Zulu beside it').check();
   const first = page.locator('#app-clock .clock-first');
   await expect(first).toHaveText(/^12:00:0\d CST$/);
@@ -42,7 +42,7 @@ test('local time follows the home field set in Settings, at once and after a rel
   await openRoute(page, '#/');
   const second = page.locator('#app-clock .clock-second');
   await expect(second).toHaveText('12:00:00 CST');
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const home = page.getByLabel('Home field');
   await home.fill('CYXH'); // Medicine Hat, Mountain time: daylight time in September
   await home.press('Enter');
@@ -55,7 +55,7 @@ test('local time follows the home field set in Settings, at once and after a rel
 test('the clock stays in the header row on every page and never overlaps the buttons', async ({ page }) => {
   await openRoute(page, '#/about');
   const clock = await page.locator('#app-clock').boundingBox();
-  const settings = await page.getByRole('button', { name: 'Settings' }).boundingBox();
+  const settings = await page.getByRole('button', { name: 'Settings', exact: true }).boundingBox();
   const overlaps = clock.x < settings.x + settings.width && settings.x < clock.x + clock.width &&
     clock.y < settings.y + settings.height && settings.y < clock.y + clock.height;
   expect(overlaps).toBe(false);

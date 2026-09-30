@@ -25,7 +25,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: `npm test`; `npm run dev`; e2e smoke and switching.
   - Dependencies: 3. Size M.
   - Files: src/modules/traffic/{index,layout,map2d}.js, traffic.css, src/shell/registry.js (via the app frame thread)
-- [ ] **5. The left side: define routes.** Routes list; + Pattern, + Entry, + Split as new routes linked to the selected pattern; selected route setup per kind; the labelled point table (keeps focus); + Point and Delete point; drag points on the map; links by point, not number, with linked ends moving together; an entry or split may join a point on any route (a type's own pattern joining shared straight-in legs); Duplicate, Delete with its warning; Route options; Leg distances; turn-data flags for turns that don't fit.
+- [ ] **5. The left side: define routes.** Routes list; + New route (Pattern, Entry, Split) making new routes linked to the selected pattern, no route selected on open; selected route setup per kind; the labelled point table (keeps focus); + Point and Delete point; drag points on the map; links by point, not number, with linked ends moving together; an entry or split may join a point on any route (a type's own pattern joining shared straight-in legs); Duplicate, Delete with its warning; Route options; Leg distances; turn-data flags for turns that don't fit.
   - Acceptance: fixes #44 and the editor parts of #45 and #49 as the spec lists; the map redraws on each edit; keyboard-only editing works.
   - Verify: unit tests of links through insert, delete and drag; e2e: define a pattern and an entry.
   - Dependencies: 4. Size M.
@@ -56,10 +56,10 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
 
 **Checkpoint C:** tests pass; code-review-and-quality; open PR C.
 
-- [ ] **10. Wind in the sim.** Indicated airspeed to true with `core`'s `isaDensityRatio`; `core`'s `windTriangle` (from the Flight math core thread); aircraft crab on the legs and move at ground speed; steady-bank turns with the roll-in moved for the wind, worked out in closed form, one path per route, type and wind; heading and crab on each aircraft state; turns that don't fit flagged with the bank and G they need; "can't hold this track" legs. Starts from failing tests (test-driven-development).
+- [ ] **10. Wind in the sim.** Indicated airspeed to true with `core`'s `iasToTasKt`; `core`'s `windTriangle` (from the Flight math core thread); aircraft crab on the legs and move at ground speed; steady-bank turns with the roll-in moved for the wind, worked out in closed form, one path per route, type and wind; heading and crab on each aircraft state; turns that don't fit flagged with the bank and G they need; "can't hold this track" legs. Starts from failing tests (test-driven-development).
   - Acceptance: with the wind at 0 kt and fixed speeds the golden tests still pass unchanged; known answers (100 KIAS landing at 1,900 ft, 250°/20 kt, track 290°: crab 7.2° left, GS 87 kt; 220 KIAS at 3,500 ft, 60°, downwind to base with a 20 kt tailwind: roll-in 3,127 ft before the corner, 2,744 ft calm); every turn rolls out on its next leg in every wind direction; rewind still exact with a wind.
   - Verify: `npm test`; unit tests of a square pattern in each wind direction.
-  - Dependencies: 2, 9, and `core/wind.js`. Size L (split into IAS, legs and turns if it grows past 5 files).
+  - Dependencies: 2, 9, `core/wind.js` and `core`'s `iasToTasKt`. Size L (split into IAS, legs and turns if it grows past 5 files).
   - Files: src/modules/traffic/sim.js, src/modules/traffic/route.js, tests/unit/traffic/wind.test.js
 - [ ] **11. Aircraft types and wind on screen.** `types.js` with the spec's type table and sources; the spawner's type sets the aircraft's speeds; the point table's speed as a phase (Entry, Pattern, Closed, Inner downwind, Straight-in base, Approach, Landing), Blend or a number, with + Pattern, + Entry and + Split setting phases from V6's labels; the wind boxes, wind arrow and corner label; GS and crab in the aircraft rows; crabbed aircraft symbols; the More detail wind readouts and rate of climb or descent (ft/min); wind per leg in Leg distances; the most-G flags in the turn data.
   - Acceptance: the built-in setup opens exactly as V6 until task 12 switches it to phases; a point set to Landing flies each type's Landing speed at its true airspeed; R22 (wind readouts only when a wind is set; the rest under More); colour never the only signal.
@@ -74,8 +74,8 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: `npm test`.
   - Dependencies: 2 (and 9 for the dice). Size S each.
   - Files: src/modules/traffic/{route,sim,dice,aircraft,profile}.js, the golden tests, data/moose-jaw.json (T1's shares, T5's phases)
-- [ ] **13. Polish and sign-off checklist.** code-simplification and `/simplify` with the golden tests still green; README (R8); `docs/checklists/traffic.md` for Patrick or Dad to run against V6 (R21).
-  - Acceptance: definition of done; the checklist covers every row of the spec's screen table, every fix, and the wind.
+- [ ] **13. Polish and sign-off checklist.** code-simplification and `/simplify` with the golden tests still green; README (R8); `docs/checklists/traffic.md` for Patrick or Dad to run against V6 (R21); a test that a fresh open has every value in the spec's Defaults table (Patrick, 07:13Z).
+  - Acceptance: definition of done; the checklist covers every row of the spec's screen table, every fix, and the wind, and starts with a first open: press Play and traffic flies, with nothing typed and only the default controls showing.
   - Verify: `npm test`, `npm run test:e2e`, `npm run build`.
   - Dependencies: 12. Size S.
   - Files: src/modules/traffic/README.md, docs/checklists/traffic.md
@@ -100,10 +100,10 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: `npm test`; e2e: build a PFL, spawn a CT-156 on it.
   - Dependencies: 15. Size M.
   - Files: src/modules/traffic/{route,sim,types,editor,map2d}.js, tests/unit/traffic/pfl.test.js
-- [ ] **17. Simulated engine-outs.** Engine out on an aircraft row and as a plan step; the zoom (NFM Fig 3-4: 2 s delay, 20° nose up to 145 KIAS, 70 % of the ideal trade) easing into the 125 KIAS glide; the glide by configuration and prop (feathered 2 NM per 1,000 ft, windmilling 1 NM) with wind; picking the reachable key and joining at a tangent; no zoom in the final turn or on a straight-in final; "can't make the runway: eject".
-  - Acceptance: from 220 KIAS at 3,500 ft the zoom gains 70 % of about 1,600 ft; an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
+- [ ] **17. Simulated engine-outs.** Engine out on an aircraft row and as a plan step; the zoom (`core`'s `zoomT6A`) easing into the 125 KIAS glide; the glide by configuration and prop (`core`'s `T6A_GLIDE` and `glideSinkFpm`: feathered 2 NM per 1,000 ft, windmilling 1 NM) with wind; picking the reachable key and joining at a tangent; no zoom in the final turn or on a straight-in final; "can't make the runway: eject".
+  - Acceptance: from 220 KIAS at 3,500 ft the aircraft climbs by what `zoomT6A` gives (about 1,100 ft); an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
   - Verify: `npm test`; e2e: engine out on downwind, watch it land.
-  - Dependencies: 16. Size M.
+  - Dependencies: 16, and `core`'s T-6A performance model (core tasks 14 to 17). Size M.
   - Files: src/modules/traffic/{sim,aircraft,readouts}.js, tests/unit/traffic/engine-out.test.js
 
 - [ ] **18. Traffic on final.** Extending downwind while the roll-out would be inside the final spacing of the aircraft ahead, rolling out on the 3° glide path wherever it meets it; the chance of missing the traffic (and a plan step for it); the aircraft on final moving over between the runways, flying a low approach at 200 ft and 120 KIAS and rejoining at the departure end.

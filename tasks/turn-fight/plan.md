@@ -24,7 +24,7 @@ Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), approved by 
 - PR A: tasks 1 and 2 (the fight and readouts, golden-tested; no screen yet).
 - PR B: tasks 3 to 5 (the screen, the view, the extras, browser tests, README).
 - PR C: task 6 (answered questions, one commit each) and task 7 (polish and checklist).
-- PR D: tasks 8 to 10 (Energy mode, FF23, approved by Patrick 2026-09-30). Tasks 8 and 9 are new `core` math, owned by the Flight math core thread unless the coordinator says otherwise.
+- PR D: task 10 (Energy mode, FF23, approved by Patrick 2026-09-30). The T-6A performance model and point-mass step (tasks 8-9) are built by the Flight math core thread as its tasks 14 to 17 (D128); PR D waits on them.
 
 Each PR is reviewed with code-review-and-quality before it leaves draft, lists the skills it applied (see the spec's Skills used), and merges on green under the merge rule once this spec is approved.
 

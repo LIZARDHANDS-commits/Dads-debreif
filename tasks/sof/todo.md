@@ -4,7 +4,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 - [x] SPEC-sof.md drafted, with SOF-1 to SOF-7
 - [x] Patrick approves SPEC-sof.md (2026-09-30 04:49Z)
-- [ ] SOF-1 to SOF-7 logged in the plan doc's Questions tab (through the coordinator)
+- [x] SOF-1 to SOF-7 logged in the plan doc (D102 to D108)
 
 ## Build
 
@@ -54,7 +54,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Acceptance: the relay refuses anything but three in-range numbers; a hostile reply (huge, wrong shape, script in a callsign) draws nothing or plain text; the layer stops asking when off or unmounted (R4); the rest of the SOF works with the relay down.
   - Verify: `node --test tests/unit/relay/traffic.test.js`; `node --test tests/unit/sof/traffic.test.js`; e2e with a fixture reply; one live check against the deployed relay.
   - Dependencies: 6; Patrick's Cloudflare account. Size M.
-  - Files: relay/traffic.js, relay/README.md, tests/unit/relay/traffic.test.js, src/modules/sof/traffic.js, tests/unit/sof/traffic.test.js
+  - Files: relay/traffic.js, relay/lib.js, relay/README.md, tests/unit/relay/traffic.test.js, src/modules/sof/traffic.js, tests/unit/sof/traffic.test.js
 
 **Checkpoint C:** tests pass; code-review-and-quality; `/security-review`; open PR C.
 

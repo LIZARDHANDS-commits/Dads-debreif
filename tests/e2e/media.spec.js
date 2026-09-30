@@ -31,7 +31,7 @@ test('with reduced motion no videos load, unless Settings turns them on (#41)', 
   await openRoute(page, '#/');
   await page.waitForTimeout(500);
   expect(await loadedVideos(page)).toEqual([]);
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Card videos').selectOption('full');
   await expect.poll(() => loadedVideos(page)).toEqual(['debrief', 'turn-sim', 'turn-fight']);
 });
