@@ -367,6 +367,8 @@ function wingGroup(THREE, kit, side, materials) {
  * color: CSS colour of the ship (the whole tail in 'harvard', everything in 'ship').
  * number: the ship number, drawn on the fin and nose ('harvard' only).
  * paint: 'harvard' (default, and for any unknown value) or 'ship'.
+ * @param {any} THREE
+ * @param {{ color?: string, number?: string | number, paint?: string, lengthFt?: number }} [options]
  */
 export function createCt156Model(THREE, { color, number, paint = 'harvard', lengthFt = CT156_UNIT_LENGTH } = {}) {
   const kit = getKit(THREE);

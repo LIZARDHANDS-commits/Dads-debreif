@@ -7,6 +7,11 @@ const DOC = 'settings';
 // defaults: every setting and its default value; saved values must match the default's type
 // options.allowed: optional list of allowed values per setting
 // options.version / options.migrate(values, fromVersion): for renaming or reshaping later
+/**
+ * @param {any} store
+ * @param {Record<string, any>} defaults
+ * @param {{ version?: number, allowed?: Record<string, any[]>, migrate?: (values: any, fromVersion: number) => any }} [options]
+ */
 export function createSettings(store, defaults, { version = 1, allowed = {}, migrate } = {}) {
   const listeners = new Set();
 

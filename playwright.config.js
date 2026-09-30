@@ -9,6 +9,12 @@ export default defineConfig({
   testDir: 'tests/e2e',
   forbidOnly: CI,
   retries: 0,
+  // Screenshot comparison (tests/e2e/visual.spec.js, D142). The reference
+  // pictures are made on Linux and CI is Linux, so the file names carry no
+  // platform. A small tolerance absorbs anti-aliasing differences between
+  // machines; a moved or covered control is far larger than 1% of the page.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
+  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.2 } },
   reporter: CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}/`,

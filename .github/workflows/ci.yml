@@ -24,6 +24,8 @@ jobs:
       - run: npm ci
       - name: Unit and golden tests
         run: npm test
+      - name: Type check
+        run: npm run typecheck
       - name: Build with size budget
         run: npm run build
       - name: Install browsers
