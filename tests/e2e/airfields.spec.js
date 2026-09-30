@@ -109,6 +109,7 @@ test('making an alternate the home field says it was taken off the alternates (A
   await home.press('Enter');
   await expect(page.getByText('CYQR is now home, so it was taken off the alternates.')).toBeVisible();
   await expect(home).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator('.control-message.is-note')).toHaveText('CYQR is now home, so it was taken off the alternates.');
   expect((await setup(page)).alternates).toEqual(['CYYN', 'CYXE']);
   await home.fill('CYMJ');
   await home.press('Enter');

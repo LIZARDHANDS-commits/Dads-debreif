@@ -19,6 +19,8 @@ Step 1 ends with this shell live on GitHub Pages (D12) with no modules built yet
 | `#/<module-id>` | That module, e.g. `#/debrief` |
 | anything else | Home screen with a one-line "page not found" note |
 
+Ids match without regard to case, so `#/SOF` opens the SOF (AF-4). The not-found note shows the address as it was typed.
+
 The browser's Back and Forward buttons move between these. After a page change, the new page opens at its top with keyboard focus on it, so Tab and screen readers carry on from there. The "Skip to content" link moves focus to the page without changing the address.
 
 **Browsers:** current Chrome, Edge and Firefox, and Safari 15.4 or newer (the Settings dialog and `Object.hasOwn` need it). Nothing to install (R1).

@@ -339,7 +339,17 @@ test('webglSupported: false when no context comes back, or when asking throws', 
   const none = { createElement: () => ({ getContext: () => null }) };
   assert.equal(webglSupported({ document: none }), false);
   resetWebglCheck();
+  const webgl1Only = { createElement: () => ({ getContext: (kind) => (kind === 'webgl' ? {} : null) }) };
+  assert.equal(webglSupported({ document: webgl1Only }), false, 'three needs WebGL2');
+  resetWebglCheck();
   const throws = { createElement: () => { throw new Error('no canvas'); } };
   assert.equal(webglSupported({ document: throws }), false);
+  resetWebglCheck();
+});
+
+test('webglSupported: a context that cannot be released early still counts', () => {
+  resetWebglCheck();
+  const doc = { createElement: () => ({ getContext: () => ({ getExtension: () => { throw new Error('no extension'); } }) }) };
+  assert.equal(webglSupported({ document: doc }), true);
   resetWebglCheck();
 });

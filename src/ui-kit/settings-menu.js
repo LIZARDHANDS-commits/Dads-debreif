@@ -26,7 +26,7 @@ export function createSettingsMenu({ title = 'Module settings', collapsed = true
   // Escape inside the open menu closes it and puts focus back on its header,
   // as a dialog would. The listener lives on the menu, so it goes with it.
   panel.element.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || panel.collapsed) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || panel.collapsed) return;
     event.preventDefault();
     panel.setCollapsed(true);
     onToggle?.(true);

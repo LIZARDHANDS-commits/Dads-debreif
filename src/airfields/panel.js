@@ -61,6 +61,7 @@ function icaoForm({ label, buttonLabel, value = '', onSubmit }) {
   // A string from onSubmit is a refusal; { note } is a plain remark, not an error.
   const say = (text, invalid = true) => {
     message.textContent = text;
+    message.classList.toggle('is-note', Boolean(text) && !invalid);
     if (text && invalid) input.setAttribute('aria-invalid', 'true');
     else input.removeAttribute('aria-invalid');
   };

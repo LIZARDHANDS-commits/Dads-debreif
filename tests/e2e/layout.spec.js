@@ -80,3 +80,14 @@ for (const size of SIZES) {
     });
   });
 }
+
+test('openRoute waits for a module stylesheet that is slow to arrive', async ({ page }) => {
+  await page.route(/\/assets\/.*\.css$/, async (route) => {
+    await new Promise((done) => setTimeout(done, 1500));
+    await route.continue();
+  });
+  await openRoute(page, '#/debrief');
+  const unloaded = await page.evaluate(() => [...document.querySelectorAll('link[rel="stylesheet"]')].filter((l) => !l.sheet).length);
+  expect(unloaded).toBe(0);
+  expect(await layoutProblems(page)).toEqual([]);
+});

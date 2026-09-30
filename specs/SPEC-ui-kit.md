@@ -194,7 +194,7 @@ controls.viewSwitch('mode')                        // or to another setting key
 - `controls.viewSwitch(key = 'view')` is exactly `controls.choice(key, { label: 'View', options: 2D, 3D })`; `VIEW_DEFAULT` is `'2d'` and `VIEW_ALLOWED` is `['2d', '3d']`, so every module seeds and validates the setting the same way.
 - **2D is the default.** three loads only when 3D is switched on: the module awaits `loadThree()` then, never at start-up.
 - If `loadThree()` fails (offline on the first visit), the module shows "3D needs a connection the first time." beside the switch, puts the setting back to `2d`, and the 2D view keeps working. A later try loads it (a failed load is not cached).
-- Before building a renderer, the module checks `webglSupported()` (from `three-aircraft.js`). When it is false (WebGL switched off or blocked), the module shows "3D needs WebGL, which this browser has turned off." beside the switch, puts the setting back to `2d`, and never creates a renderer, so three logs no "Error creating WebGL context". The answer is worked out once per page.
+- `webglSupported()` (from `three-aircraft.js`) says whether this browser can draw WebGL2, which three needs, checked once per page on a spare canvas. A 3D view should check it before building a renderer and, when it is false, stay in 2D with its "3D needs WebGL" message, so three never logs "Error creating WebGL context". Each module wires it in its own view (a follow-up for the module owners); until then their existing try/catch around the renderer still falls back to 2D.
 - The 3D view uses `matchProjection` for its camera (no camera maths of its own) and `createAircraftMesh` or `createStandInMesh` for its aircraft; no flight math changes.
 
 ## Not overwhelming (R22)
