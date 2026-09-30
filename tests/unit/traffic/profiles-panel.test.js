@@ -207,6 +207,16 @@ test('Delete asks first, then removes the saved profile and says so; a built-in 
   assert.equal(button(el, 'Delete').disabled, true);
 });
 
+test('after a Delete is confirmed, focus goes to the list, not to the Delete button that has just been disabled (PR-01)', () => {
+  const { el, list, confirmBox } = setup({ prefill: [saved('Alpha')] });
+  list().value = 'saved:Alpha';
+  list().dispatch('change');
+  press(el, 'Delete');
+  press(confirmBox(), 'Delete');
+  assert.equal(button(el, 'Delete').disabled, true);
+  assert.equal(globalThis.document.activeElement, list(), 'the list has focus, so the next Tab moves on from inside the section');
+});
+
 test('Escape closes a question and puts focus back on the button that asked', () => {
   const { el, confirmBox } = setup();
   press(el, 'Load');

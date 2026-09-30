@@ -617,6 +617,22 @@ test('save a profile, reload the page: it opens on the last profile, and Load br
   await expect(profileList(page)).toHaveValue('built-in:moose-jaw-v6');
 });
 
+test('after a keyboard Delete, focus stays inside Profiles and notes (PR-01)', async ({ page }) => {
+  await open(page);
+  await openProfiles(page);
+  await profileName(page).fill('Keyboard one');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText('Saved "Keyboard one".');
+  await button(page, 'Delete').focus();
+  await page.keyboard.press('Enter');
+  await expect(confirmBox(page)).toBeVisible();
+  await page.keyboard.press('Shift+Tab'); // from Cancel (which has focus) to the question's Delete
+  await page.keyboard.press('Enter');
+  await expect(profileMessage(page)).toHaveText('Deleted "Keyboard one".');
+  expect(await page.evaluate(() => document.activeElement?.closest('.profiles') !== null)).toBe(true);
+  await expect(profileList(page)).toBeFocused();
+});
+
 test('no accessibility violations with the Profiles and notes section open, and with a confirm showing', async ({ page }) => {
   await open(page);
   await openProfiles(page);

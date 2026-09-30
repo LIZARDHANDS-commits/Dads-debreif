@@ -170,6 +170,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     ask(`Remove ${what}? This can't be undone.`, 'Remove', button, () => {
       const result = store.discardUnreadable();
       fillList();
+      if (unreadableBox.hidden) list.focus(); // the button that asked has just gone
       say(result.removed ? `Removed ${result.removed} unreadable profile${result.removed === 1 ? '' : 's'}.` : 'Removed the profiles that could not be read.');
     });
   }
@@ -180,6 +181,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     ask(`Delete the saved profile "${entry.name}"? This can't be undone.`, 'Delete', deleteButton, () => {
       const result = store.remove(entry.name);
       fillList();
+      if (deleteButton.disabled) list.focus(); // Delete has just been disabled under the focus: keep it in the section (PR-01)
       if (!result.ok) return say(result.problem);
       say(result.persisted ? `Deleted "${entry.name}".` : `Deleted "${entry.name}" for this visit, but ${KEPT_FOR_NOW}.`);
     });
