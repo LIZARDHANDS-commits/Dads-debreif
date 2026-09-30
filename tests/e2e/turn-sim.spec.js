@@ -534,7 +534,7 @@ test('the Correction model is a checkbox in the settings menu, off by default, a
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
-test.skip('opens from its card on the home screen', async ({ page }) => {
+test('opens from its card on the home screen', async ({ page }) => {
   await openRoute(page, '#/');
   await page.locator('a.card[href="#/turn-sim"]').click();
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
@@ -543,7 +543,7 @@ test.skip('opens from its card on the home screen', async ({ page }) => {
   await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
 });
 
-test.skip('the route opens and plays from a direct link, then leaves nothing running', async ({ page }) => {
+test('the route opens and plays from a direct link, then leaves nothing running', async ({ page }) => {
   // The home screen keeps a few listeners of its own, so count them before going in and compare after coming back.
   await openRoute(page, '#/');
   const home = await page.evaluate(() => window.__ooda.stats());
