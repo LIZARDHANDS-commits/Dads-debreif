@@ -26,3 +26,21 @@ test('recorded bank is interpolated the short way round (C2)', () => {
   const oneSided = buildFlight({ 1: { name: 'a', fixes: [fix(0, { bankRecordedDeg: 30 }), fix(1)] } });
   assert.equal(sampleAt(oneSided.tracks[1], 0.5).bankRecordedDeg, 30);
 });
+
+const kmlWith = (body, bank) => `<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2"><Document><Placemark>
+  ${body}<gx:SimpleArrayData name="bank">${bank.map(v => `<gx:value>${v}</gx:value>`).join('')}</gx:SimpleArrayData></Placemark></Document></kml>`;
+const WHEN = ['2026-09-25T15:00:00Z', '2026-09-25T15:00:01Z', '2026-09-25T15:00:02Z', '2026-09-25T15:00:03Z'].map(w => `<when>${w}</when>`).join('');
+
+test('recorded bank up to ±180° is kept, beyond it is missing (C2)', () => {
+  const coords = [0, 1, 2, 3].map(i => `<gx:coord>-105.${i} 50 1000</gx:coord>`).join('');
+  const fixes = readKml(kmlWith(WHEN + coords, [180, -180, 180.5, 30])).fixes;
+  assert.deepEqual(fixes.map(f => f.bankRecordedDeg), [180, -180, null, 30]);
+});
+
+test('with plain coordinate lists, bank lines up by the running fix count, as G and pitch do in V6 (C2)', () => {
+  const lists = '<LineString><coordinates>-105.0,50,1000 -105.1,50,1000</coordinates></LineString>'
+    + '<LineString><coordinates>-105.2,50,1000 -105.3,50,1000</coordinates></LineString>';
+  const fixes = readKml(kmlWith(WHEN + lists, [10, 20, 30, 40])).fixes;
+  const byLon = Object.fromEntries(fixes.map(f => [f.lon, f.bankRecordedDeg]));
+  assert.deepEqual(byLon, { '-105': 10, '-105.1': 20, '-105.2': 30, '-105.3': 40 });
+});
