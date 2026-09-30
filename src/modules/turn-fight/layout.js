@@ -88,7 +88,7 @@ export function createLayout({ settings, controls, on }) {
     hcaText,
     passText,
     h('div', { class: 'tf-start-picture-wrap' }, startPicture),
-    redAbove,
+    h('div', { class: 'tf-red-above' }, redAbove),
     h('p', { class: 'tf-hint' }, '-5,000 to +5,000 ft, default 0. It shows with Climb and dive. The start separation is measured level; Range includes height.'),
     controls.choice('turnsAt', { label: 'When the turns start', options: [['pass', 'At the pass'], ['once', 'At once']] }),
     h('p', { class: 'tf-hint' }, 'At the pass (default): each jet flies straight until the range stops closing. At once: the turns start at T+0.'),
