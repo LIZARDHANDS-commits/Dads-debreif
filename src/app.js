@@ -25,7 +25,7 @@ import { h } from './ui-kit/dom.js';
 export const SHARED_DEFAULTS = { timePrimary: 'zulu', motion: 'system' };
 const SHARED_ALLOWED = { timePrimary: ['zulu', 'local'], motion: ['system', 'full', 'reduced'] };
 
-const version = document.querySelector('meta[name="app-version"]')?.content ?? 'dev';
+const version = /** @type {HTMLMetaElement | null} */ (document.querySelector('meta[name="app-version"]'))?.content ?? 'dev';
 const $ = (id) => document.getElementById(id);
 
 const store = createStore(browserStorage);
@@ -88,7 +88,7 @@ async function show(hash) {
   const { entry, note } = pageFor(parseRoute(hash, moduleIds()), pages, findModule);
   notice(note);
 
-  $('report-problem').href = reportUrl({ page: entry.title, version });
+  /** @type {HTMLAnchorElement} */ ($('report-problem')).href = reportUrl({ page: entry.title, version });
   document.title = entry === pages.home ? "DAD's OODA LOOP" : `${entry.title} · DAD's OODA LOOP`;
   statusLine.hidden = true;
   try {
@@ -114,7 +114,7 @@ const dialog = createSettingsDialog({
 document.body.append(dialog.element);
 $('open-settings').addEventListener('click', () => dialog.open());
 const updated = $('app-updated');
-updated.textContent = updatedLabel(document.querySelector('meta[name="app-built"]')?.content);
+updated.textContent = updatedLabel(/** @type {HTMLMetaElement | null} */ (document.querySelector('meta[name="app-built"]'))?.content);
 updated.title = `Version ${version}`;
 
 // The skip link moves focus without touching the address, which picks the page.
@@ -153,7 +153,8 @@ show(location.hash);
 
 // Offline copy and the new-version bar, in built copies only: `npm run dev`
 // always serves the latest files, and a service worker would get in the way.
-if (import.meta.env?.PROD) {
+// import.meta.env is Vite's; the typecheck doesn't load Vite's types.
+if (/** @type {any} */ (import.meta).env?.PROD) {
   const updateBar = createUpdateBar();
   document.querySelector('.app-header').after(updateBar.element);
   let container;
@@ -171,7 +172,7 @@ if (import.meta.env?.PROD) {
 }
 
 // Read-only view for the browser tests (R4): what's mounted and still running.
-window.__ooda = Object.freeze({
+/** @type {any} */ (window).__ooda = Object.freeze({
   stats: () => ({ ...host.stats(), ...scheduler.stats() }),
   modules: MODULES.map((m) => m.id),
   exampleText,

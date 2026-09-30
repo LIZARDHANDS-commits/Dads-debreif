@@ -90,7 +90,7 @@ Opening a route: the shell unmounts the current module (calls its cleanup, dispo
 index.html               the page: header, main view, footer; loads src/app.js
 src/app.js               entry: creates store, settings, scheduler, host; starts the router
 src/shell/registry.js    the module list (ids, titles, card text and media, load())
-src/shell/router.js      parses the hash into a route
+src/shell/router.js      parses the hash into a route; pageFor picks the page and the note ("coming soon", "no page")
 src/shell/host.js        mounts and unmounts modules, builds the app object
 src/shell/home.js        home screen and cards
 src/shell/about.js       About page

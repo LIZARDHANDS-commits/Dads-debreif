@@ -9,6 +9,7 @@ export const HOME_ZONE = 'America/Regina';
 // settings: the shared settings ({ get }). zone: a time zone, or a function that
 // returns one, read on every call so local time follows the home airfield
 // (app.js passes `() => airfields.home().timeZone`). now: the clock, replaceable in tests.
+/** @param {{ settings: { get: () => { timePrimary?: string } }, zone?: string | (() => string), now?: () => Date }} options */
 export function createTime({ settings, zone = HOME_ZONE, now = () => new Date() }) {
   const currentZone = typeof zone === 'function' ? zone : () => zone;
   const zulu = (date = now()) => formatZulu(date);
