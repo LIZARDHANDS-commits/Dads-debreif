@@ -389,3 +389,20 @@ test('no bank from a window that touches a GPS gap: "bank --" on the card and wi
   assert.equal(turnRateAt(tr, T(29.5)), null); // starts on the fix that ends the gap
   assert.ok(turnRateAt(tr, T(30)) > 0);
 });
+
+// Verification re-check N2 (audit): a recorded bank is kept, and known, where est. G and the turn rate are unknown (D47).
+test('a recorded bank stays known beside a GPS gap, in the readouts and the 3D view', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const tr = track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))], { skip: [21, 22, 23, 24, 25, 26, 27] });
+  tr.fixes = tr.fixes.map((f) => ({ ...f, bankRecordedDeg: -23 })); // 23° left, as the recording writes it
+  const flight = buildFlight({ 1: tr });
+  const t = T(29.5); // the window starts on the fix that ends the gap: no turn rate, no est. G
+  assert.equal(turnRateAt(flight.tracks[1], t), null);
+  const ship = readoutsAt(flight, t).ships[0];
+  assert.equal(ship.bankDeg, 23);
+  assert.equal(ship.bankSource, 'recorded');
+  assert.match(shipDetailText(ship)[1], /bank 23° left recorded$/);
+  assert.deepEqual([shipsIn3d(flight, t)[0].bankDeg, shipsIn3d(flight, t)[0].bankKnown], [23, true]);
+});

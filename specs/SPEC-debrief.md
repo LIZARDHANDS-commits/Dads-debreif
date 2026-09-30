@@ -177,7 +177,7 @@ Debrief focus points belong to the flight, not to the browser:
 
 ### CSV export (#28)
 
-One file, one row per second across the common window, with each ship's columns side by side: time (Zulu), latitude, longitude, altitude, ground speed, est. IAS, heading, G, pitch and bank with their sources, and a gap flag. The button is disabled with no flight loaded, and the download link is released after use.
+One file, one row per second across the common window, with each ship's columns side by side: time (Zulu), latitude, longitude, altitude, ground speed, est. IAS, heading, G, pitch and bank with their sources, and a gap flag. A value the readouts show as "--" (G or bank unknown) is a blank cell. The button is disabled with no flight loaded, and the download link is released after use.
 
 ### Weather at the time of the flight (Patrick chose the scope 2026-09-30 06:42Z and approved this section 07:21Z, "Approved")
 

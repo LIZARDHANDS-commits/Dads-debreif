@@ -81,6 +81,25 @@ export function turnRateAt(track, t, windowS = TURN_WINDOW_S) {
   return wrapPi(h1 - h0) / (t1 - t0);
 }
 
+/**
+ * A ship's bank at t, as the readouts and the 3D view both show it (D40, D47,
+ * item G, M2): { bankDeg (left wing down positive), source, known }. Recorded
+ * bank first; otherwise from the turn rate over the same ±1.5 s as est. G.
+ * With neither, the bank is unknown (known false, bankDeg 0 so the 3D view
+ * draws wings level), not 0° (verification re-check N2). sample: sampleAt(tr, t).
+ */
+export function shipBank(tr, t, { sample, pitchDeg, recordedG = null }) {
+  const turnRate = turnRateAt(tr, t);
+  const bank = bankFromTrack({
+    turnRateRadPerS: turnRate,
+    speedKt: sample.speedKt,
+    recordedBankDeg: sample.bankRecordedDeg,
+    pitchDeg,
+    recordedG,
+  });
+  return { ...bank, known: bank.source === 'recorded' || turnRate !== null };
+}
+
 /** A ship's place for core's formulas: { x, y } in map feet, plus V6's names for speed and altitude. */
 const at = (s) => (s ? { x: s.xFt, y: s.yFt, altFt: s.altFt, spdKt: s.speedKt } : null);
 
@@ -187,17 +206,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     const s = now[tr.slot];
     const g = gAt(tr, t, { recorded: recordedG });
     const pitch = pitchAt(tr, t);
-    // The bank of the turn over the same ±1.5 s as est. G, as the 3D view draws it (D40, item G, M2).
-    const turnRate = turnRateAt(tr, t);
-    const bank = bankFromTrack({
-      turnRateRadPerS: turnRate,
-      speedKt: s.speedKt,
-      recordedBankDeg: s.bankRecordedDeg,
-      pitchDeg: pitch.deg,
-      recordedG: g.source === 'recorded' ? g.g : null,
-    });
-    // No turn rate and nothing recorded: the bank is unknown, not 0° (the 3D view still draws wings level).
-    const bankKnown = bank.source === 'recorded' || turnRate !== null;
+    const bank = shipBank(tr, t, { sample: s, pitchDeg: pitch.deg, recordedG: g.source === 'recorded' ? g.g : null });
     return {
       slot: tr.slot,
       inGap: s.inGap,
@@ -209,7 +218,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
       gSource: g.source,
       pitchDeg: pitch.deg,
       pitchSource: pitch.source,
-      bankDeg: bankKnown ? bank.bankDeg : null, // left wing down positive; null when unknown
+      bankDeg: bank.known ? bank.bankDeg : null, // left wing down positive; null when unknown
       bankSource: bank.source,
       lat: s.lat,
       lon: s.lon,
