@@ -12,6 +12,20 @@ import { bankFromTrack } from './view3d/scene.js';
 export const CLOSURE_LOOKBACK_S = 1;
 
 /**
+ * Airborne: est. IAS 80 kt or more; a judgement call logged for review
+ * (verification M1). Below it Lead is on the ground or taxiing, so the
+ * standards (built for formation flight) give no wingman labels and no Lead
+ * verdict; Lead's line shows its numbers alone.
+ */
+export const AIRBORNE_IAS_KT = 80;
+
+/** Is Lead (a { spdKt, altFt } place, or null) airborne by est. IAS? No number, no verdict. */
+function leadAirborne(leadPlace) {
+  const ias = leadPlace ? estIasKt(leadPlace.spdKt, leadPlace.altFt) : null;
+  return Number.isFinite(ias) && ias >= AIRBORNE_IAS_KT;
+}
+
+/**
  * Estimated indicated airspeed from ground speed and altitude: ground speed ×
  * √(density ratio), the ratio at least 0.15, as core's emPoint does (V6 EM
  * chart, line 4158). Used for Lead's speed standard instead of ground speed
@@ -73,6 +87,7 @@ function judgeFormation(tracks, live, inGap, leadHdg, standards) {
       if (!live[1]) return { ...row, state: 'no-lead' };
       if (inGap[slot].inGap || inGap[1].inGap) return { ...row, state: 'gap' };
       if (leadHdg === null) return { ...row, state: 'no-heading' };
+      if (!leadAirborne(live[1])) return { ...row, state: 'ground' };
       if (!standards || !standardApplies(slot, standards)) return { ...row, state: 'no-standard' };
       const pos = classifyDebriefPosition(slot, live, leadHdg, standards);
       const labels = pos.labels;
@@ -161,7 +176,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
   if (live[1]) {
     const leadShip = bySlot[1];
     // Lead's altitude picks the target speed by block (D115: 220 kt low, 200 kt mid).
-    const judged = standards && !leadShip.inGap
+    const judged = standards && !leadShip.inGap && leadAirborne(live[1])
       ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
       : null;
     lead = {
@@ -227,6 +242,7 @@ export function formationText(row) {
   if (row.state === 'gap') return { text: 'GPS gap', tone: 'none' };
   if (row.state === 'no-lead') return { text: 'No Lead track', tone: 'none' };
   if (row.state === 'no-heading') return { text: '– (Lead not moving)', tone: 'none' };
+  if (row.state === 'ground') return { text: '– (Lead on the ground)', tone: 'none' };
   if (row.state === 'no-standard') return { text: '– (no standard on)', tone: 'none' };
   if (row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS') return { text: 'On parameters', tone: 'good' };
   const by = (off) => (off.unit !== 'deg' ? ft(off.value) : off.value < 1 ? 'under 1°' : `${Math.round(off.value)}°`);

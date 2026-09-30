@@ -1,12 +1,15 @@
 // The readout rows (SPEC-debrief: Readouts and standards, #18, #21, D31, D32, D47, D52, D78).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildFlight } from '../../../src/flight-data/flight.js';
+import { loadExampleFlight } from '../../../src/flight-data/examples.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
 import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
+  AIRBORNE_IAS_KT,
   estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
@@ -192,4 +195,56 @@ test('the SMM lead standard (D115): 220 kt in the low block, 200 kt in the mid b
   assert.match(leadText(slow).text, /, SLOW \(target 220 kt, low block\)$/);
   // V6's one 200 kt target shows no block.
   assert.equal(readoutsAt(lead(8000, 240), T(30), { standards: V6_STANDARDS }).lead.block, null);
+});
+
+// ── M1(a): no verdicts on the ground (verification M1; a judgement call logged for review) ──
+
+const fromRepo = async (asset) => readFileSync(new URL(`../../../original/assets/${asset}`, import.meta.url), 'utf8');
+
+test('airborne means est. IAS of 80 kt or more', () => {
+  assert.equal(AIRBORNE_IAS_KT, 80);
+});
+
+test('Lead taxiing at 10 kt: no wingman labels and no Lead verdict, just its numbers', () => {
+  const kt = 10 * KT_TO_FTPS;
+  const taxi = buildFlight({
+    1: track('Lead', (t) => [kt * t, 0], { altFt: 8000 }),
+    2: track('Two', (t) => [kt * t, 5000], { altFt: 8000 }),
+    3: track('Three', (t) => [kt * t - 8000, -5000], { altFt: 8000 }),
+  });
+  for (const std of [V6_STANDARDS, DEFAULT_STANDARDS]) {
+    const r = readoutsAt(taxi, T(30), { standards: std });
+    assert.deepEqual(r.formation.map((row) => row.labels), [[], []]);
+    assert.deepEqual(r.formation.map((row) => row.state), ['ground', 'ground']);
+    assert.equal(mapLabel(r.formation[0]), null);
+    assert.equal(formationAt(taxi, T(30), std).every((row) => row.labels.length === 0), true);
+    assert.equal(r.lead.labels, null);
+    assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW|parameters/);
+    assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS, (1\.0 G|G --)$/);
+    assert.match(formationText(r.formation[0]).text, /on the ground/);
+  }
+});
+
+test('the gate is est. IAS 80 kt: just under gets no verdict, at 80 gets one', () => {
+  // At 8,000 ft est. IAS is about 0.86 of ground speed (density ratio 0.786 square-rooted, ~0.887).
+  const flightAt = (iasKt) => {
+    const gs = iasKt / estIasKt(1, 8000);
+    return buildFlight({ 1: track('Lead', (t) => [gs * KT_TO_FTPS * t, 0], { altFt: 8000 }) });
+  };
+  assert.equal(readoutsAt(flightAt(79.5), T(30), { standards: DEFAULT_STANDARDS }).lead.labels, null);
+  assert.deepEqual(readoutsAt(flightAt(80.5), T(30), { standards: DEFAULT_STANDARDS }).lead.labels, ['SLOW']);
+});
+
+test('the example flight\'s taxi: no SLOW, no wingman labels, while Lead is under 80 kt est. IAS', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  let taxiSeconds = 0;
+  for (let s = 0; s < 20 * 60; s += 5) {
+    const r = readoutsAt(flight, flight.startT + s, { standards: DEFAULT_STANDARDS });
+    if (!(r.lead.iasKt < AIRBORNE_IAS_KT)) continue;
+    taxiSeconds++;
+    assert.equal(r.lead.labels, null, `Lead verdict at +${s} s`);
+    assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW/);
+    assert.ok(r.formation.every((row) => row.labels.length === 0), `wingman label at +${s} s`);
+  }
+  assert.ok(taxiSeconds > 20, `${taxiSeconds} taxi samples`);
 });
