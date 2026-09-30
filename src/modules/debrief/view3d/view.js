@@ -9,7 +9,7 @@
 // when something changed and only while it's the view showing (#39, #43).
 import { createCanvasSurface } from '../../../ui-kit/canvas-view.js';
 import {
-  loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh,
+  loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh, webglSupported,
 } from '../../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { SHIP_COLORS } from '../state.js';
@@ -55,7 +55,7 @@ export function createView3d(canvas, {
 
   function start() {
     if (gl || loading) return;
-    if (!webGlWorks()) { // asked first: three.js would write a console error, and needn't be fetched
+    if (!webglSupported()) { // asked first: three.js would write a console error, and needn't be fetched
       onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
       return;
     }
@@ -133,16 +133,6 @@ export function createView3d(canvas, {
       glCanvas.remove();
     },
   };
-}
-
-// Whether this browser can make a WebGL 2 context, the only kind three.js
-// asks for, tried on a canvas of its own and let go again.
-function webGlWorks() {
-  const probe = document.createElement('canvas');
-  const context = probe.getContext('webgl2');
-  if (!context) return false;
-  context.getExtension?.('WEBGL_lose_context')?.loseContext();
-  return true;
 }
 
 // The WebGL side: renderer, scene, camera, lights, and a group rebuilt each
