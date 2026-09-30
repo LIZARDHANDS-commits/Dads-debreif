@@ -425,7 +425,7 @@ test('standards: a refusal names its own box and limit, and only the latest refu
   // The other way round: a minimum above the maximum names the maximum.
   await min.fill('7000');
   await min.press('Tab');
-  await expect(await messageOf('Spread minimum')).toHaveText('Spread minimum must not be more than the spread maximum. Kept 4000 ft.');
+  await expect(await messageOf('Spread minimum')).toHaveText('Spread minimum must not be more than the spread maximum (6000 ft). Kept 4000 ft.');
 
   // The sweep pair says the same in its own words, with the degree sign attached.
   const most = page.getByLabel('Sweep, most', { exact: true });

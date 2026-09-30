@@ -19,16 +19,17 @@ const GROUPS = [
 
 let nextId = 1;
 
-// Pairs that must not cross (src/storage/standards.js): each box's partner, and
-// which is the lower one. The storage reports a crossed pair under the lower
-// box's path with words about the lower box, so a refused Spread maximum would
-// carry a message about the minimum; it is reworded here from the box's side.
-const PAIRS = {
+// Pairs that must not cross (src/storage/standards.js): each box's partner and
+// how it must not compare with it. The storage reports a crossed pair under the
+// lower box's path with words about the lower box, so a refused Spread maximum
+// would carry a message about the minimum; both boxes are reworded here from
+// their own side, with the partner's value.
+const PARTNERS = {
   spread: {
-    minFt: ['maxFt', 'low', 'the spread maximum'],
-    maxFt: ['minFt', 'high', 'the spread minimum'],
-    sweepMinDeg: ['sweepMaxDeg', 'low', 'the most sweep'],
-    sweepMaxDeg: ['sweepMinDeg', 'high', 'the least sweep'],
+    minFt: { key: 'maxFt', rule: 'more', words: 'the spread maximum' },
+    maxFt: { key: 'minFt', rule: 'less', words: 'the spread minimum' },
+    sweepMinDeg: { key: 'sweepMaxDeg', rule: 'more', words: 'the most sweep' },
+    sweepMaxDeg: { key: 'sweepMinDeg', rule: 'less', words: 'the least sweep' },
   },
 };
 const withUnit = (value, unit) => `${value}${unit === '°' ? '' : ' '}${unit}`;
@@ -57,20 +58,20 @@ export function createStandardsPanel({ standards, layout }) {
     message.textContent = '';
   }
 
-  /** What to say under a refused box. */
-  function refusal(group, key, limit, result) {
-    const own = `${group}.${key}`;
+  /**
+   * What to say under a refused box. A value inside the box's own limits that
+   * is still refused can only have crossed its partner (the storage checks the
+   * order only when every value is in range).
+   */
+  function refusal(group, key, limit, value, result) {
     const kept = `Kept ${withUnit(standards.get()[group][key], limit.unit)}.`;
-    const pair = PAIRS[group]?.[key];
-    const problem = result.errors.find((e) => e.path === own);
-    const crossed = pair && result.errors.find((e) => e.path === `${group}.${pair[1] === 'low' ? key : pair[0]}` && e.path !== own);
-    if (!problem && crossed) {
-      const [partner, side, words] = pair;
-      const partnerLimit = standards.limits[group][partner];
-      const rule = side === 'high' ? 'less' : 'more';
-      return `${limit.label} must not be ${rule} than ${words} (${withUnit(standards.get()[group][partner], partnerLimit.unit)}). ${kept}`;
+    const partner = PARTNERS[group]?.[key];
+    if (partner && Number.isFinite(value) && value >= limit.min && value <= limit.max) {
+      const other = standards.limits[group][partner.key];
+      return `${limit.label} must not be ${partner.rule} than ${partner.words} (${withUnit(standards.get()[group][partner.key], other.unit)}). ${kept}`;
     }
-    return `${(problem ?? result.errors[0]).message} ${kept}`;
+    const problem = result.errors.find((e) => e.path === `${group}.${key}`) ?? result.errors[0];
+    return `${problem.message} ${kept}`;
   }
   const switches = []; // { group, input }
 
@@ -94,7 +95,7 @@ export function createStandardsPanel({ standards, layout }) {
         for (const other of boxes) if (other.input !== input) settle(other, standards.get());
         const result = standards.update({ [group]: { [key]: value } });
         input.setAttribute('aria-invalid', String(!result.ok));
-        message.textContent = result.ok ? '' : refusal(group, key, limit, result);
+        message.textContent = result.ok ? '' : refusal(group, key, limit, value, result);
       });
       boxes.push({ group, key, input, message });
       return h(
