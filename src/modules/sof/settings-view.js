@@ -5,7 +5,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
+import { TRIGGER_OPTIONS, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
@@ -41,5 +41,51 @@ export function createSettingsView({ settings }) {
     hint('Home needs an alternate when its forecast is below either number. Choosing a trigger fills both in; a typed number goes up to the next 100 ft or quarter mile.'),
   );
 
-  return { element: menu.element, dispose: controls.dispose };
+  // Lightning near home (SOF-3): the radius the check and its ring on the map use.
+  const radius = controls.number('lightningNm', { label: 'Lightning radius around home', unit: 'NM', min: 5, max: 50, step: 1 });
+  menu.section('Lightning near home').append(
+    radius,
+    hint('A caution is raised when ECCC\'s 10-minute lightning map shows lightning within this distance of home. It is an estimate on a 2.5 km grid, not individual strikes.'),
+  );
+
+  // Traffic relay (SOF-7): empty until Patrick's relay is set up; the Traffic layer stays hidden until it is a good address.
+  const relay = relayField(settings);
+  menu.section('Traffic').append(relay.element, hint('Leave empty to keep the Traffic layer hidden. The address is the relay only, such as https://traffic.example.workers.dev.'));
+
+  return {
+    element: menu.element,
+    dispose() {
+      relay.dispose();
+      controls.dispose();
+    },
+  };
+}
+
+let nextRelayId = 1;
+
+// A text box for the relay's address, bound to the setting. Text goes straight to the setting as it is typed (checked and
+// trimmed when it is read); a message says when the address is not one the layer will use.
+function relayField(settings) {
+  const id = `sof-relay-${nextRelayId++}`;
+  const messageId = `${id}-message`;
+  const input = h('input', {
+    type: 'text', id, class: 'sof-relay-input', inputmode: 'url', autocomplete: 'off', spellcheck: 'false',
+    maxlength: MAX_RELAY_CHARS, placeholder: 'https://', 'aria-describedby': messageId,
+  });
+  const message = h('span', { class: 'control-message', id: messageId });
+  const show = (value) => {
+    if (input.value !== value) input.value = value;
+    const bad = value.trim() !== '' && !relayAccepted(value);
+    if (bad) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+    const text = bad ? 'Not used: it needs https:// and only the address, nothing after it.' : '';
+    if (message.textContent !== text) message.textContent = text;
+  };
+  input.addEventListener('input', () => settings.update({ trafficRelay: input.value }));
+  show(settings.editing.get().trafficRelay);
+  const stop = settings.editing.subscribe((values) => show(values.trafficRelay));
+  return {
+    element: h('div', { class: 'control control-text' }, h('label', { for: id }, 'Traffic relay address'), input, message),
+    dispose: stop,
+  };
 }

@@ -1,6 +1,6 @@
-// The SOF Dashboard (specs/SPEC-sof.md): the weather at home and the alternates.
-// This is task 2, "a screen with live weather": the SOF bar, the airfield cards
-// and the refresh. mount() wires the weather feed, the airfields, the settings and
+// The SOF Dashboard (specs/SPEC-sof.md): the weather at home and the alternates, and the map.
+// Tasks 2 and 6: the SOF bar, the airfield cards, the refresh, and the map with radar, lightning
+// and traffic. mount() wires the weather feed, the map, the airfields, the settings and
 // the clock to the screen; everything it starts is stopped when the module
 // closes, because every timer is on the module's scheduler scope and every
 // request is cancelled by unmount (R4, audit #11).
@@ -10,6 +10,7 @@ import { createSettingsView } from './settings-view.js';
 import { createWeather } from './weather.js';
 import { buildScreen } from './screen-model.js';
 import { createLayout } from './layout.js';
+import { createSofMap } from './map.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -29,13 +30,18 @@ function mount(root, app) {
     now: () => app.time.now(),
     onChange: () => render(),
   });
-  const ui = createLayout({ settingsElement: settingsView.element, onRefresh: () => weather.refresh() });
+  const map = createSofMap({ app, settings });
+  const ui = createLayout({ settingsElement: settingsView.element, mapElement: map.element, onRefresh: () => weather.refresh() });
   root.append(ui.element);
 
   function render() {
     const snapshot = weather.snapshot();
+    const now = app.time.now();
     ui.setBusy(snapshot.busy);
-    ui.render(buildScreen({ airfields: app.airfields, snapshot, limits: settings.get(), now: app.time.now() }));
+    // The near-home lightning reading is the map's; its caution goes into the screen's list.
+    const screen = buildScreen({ airfields: app.airfields, snapshot, limits: settings.get(), now, lightning: map.lightning(now) });
+    ui.render(screen);
+    map.update({ snapshot, screen });
   }
 
   const stops = [
@@ -54,6 +60,7 @@ function mount(root, app) {
   app.listen(document, 'visibilitychange', () => {
     if (document.hidden) return;
     weather.wake();
+    map.wake();
     render();
   });
 
@@ -61,6 +68,7 @@ function mount(root, app) {
   weather.start();
 
   return () => {
+    map.dispose();
     weather.stop();
     for (const stop of stops) stop();
     settingsView.dispose();

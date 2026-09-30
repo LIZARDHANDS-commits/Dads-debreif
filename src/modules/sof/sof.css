@@ -104,10 +104,28 @@
   font-size: var(--text-sm);
 }
 
+/* The cards beside the map: the cards stack in a column, the map takes the rest; narrow, the map comes first. */
+[data-module='sof'] .sof-main {
+  display: grid;
+  grid-template-columns: minmax(19rem, 26rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+@media (max-width: 62rem) {
+  [data-module='sof'] .sof-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-module='sof'] .sof-map {
+    order: -1;
+  }
+}
+
 /* Airfield cards */
 [data-module='sof'] .sof-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
 }
@@ -290,4 +308,239 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+
+/* The map (SPEC-sof: Map) */
+[data-module='sof'] .sof-map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+[data-module='sof'] .sof-map-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='sof'] .sof-map-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-map-btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+[data-module='sof'] .sof-map-btn[hidden],
+[data-module='sof'] .sof-layers-traffic[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-map-zoom {
+  min-width: 2.5rem;
+  font-weight: 700;
+}
+
+[data-module='sof'] .sof-map-stage {
+  position: relative;
+  height: clamp(24rem, 66vh, 46rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-map-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-module='sof'] .sof-map-canvas[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-map-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+/* The Layers menu sits over the top left of the map, and scrolls inside itself when the map is short. */
+[data-module='sof'] .sof-layers-panel {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: min(22rem, calc(100% - 2 * var(--space-2)));
+  max-height: calc(100% - 2 * var(--space-2));
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+[data-module='sof'] .sof-layers-panel[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-layers-panel fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+[data-module='sof'] .sof-layers-panel legend,
+[data-module='sof'] .sof-layers-title {
+  margin-bottom: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-layer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+[data-module='sof'] .sof-layer-slider label:first-child {
+  flex: 1 1 8rem;
+}
+
+[data-module='sof'] .sof-layer-slider input[type='range'] {
+  flex: 1 1 6rem;
+  min-width: 0;
+}
+
+[data-module='sof'] .sof-layer-value {
+  min-width: 3ch;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+/* Hover and keyboard facts for a dot or an aircraft */
+[data-module='sof'] .sof-map-tip {
+  position: absolute;
+  z-index: 1;
+  max-width: 16rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-map-tip[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-map-message {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--bad);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-map-message[hidden] {
+  display: none;
+}
+
+/* What each map feed says about itself, in words and a symbol */
+[data-module='sof'] .sof-map-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-map-feed.is-ok .sof-map-feed-symbol {
+  color: var(--good);
+}
+
+[data-module='sof'] .sof-map-feed.is-bad {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-map-feed.is-off {
+  color: var(--text-muted);
+}
+
+[data-module='sof'] .sof-map-credits,
+[data-module='sof'] .sof-map-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-map-note[hidden] {
+  display: none;
+}
+
+/* The ADS-B Exchange view takes the map's place */
+[data-module='sof'] .sof-adsbx {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+[data-module='sof'] .sof-adsbx[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-adsbx-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-adsbx-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='sof'] .sof-adsbx.is-slow .sof-adsbx-note {
+  color: var(--text);
+  font-weight: 600;
+}
+
+[data-module='sof'] .sof-relay-input {
+  width: 100%;
+  max-width: 24rem;
 }

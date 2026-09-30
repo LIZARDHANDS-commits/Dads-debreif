@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BASES, OVERLAYS, OPACITY_RANGE, defaultLayers, defaultPrecip, cleanLayers, setLayerOn, setLayerOpacity,
-  setBase, setPrecip, stackOrder, menuRows, baseLayers,
+  setBase, setPrecip, stackOrder, menuRows, baseLayers, setTrafficOption, TRAFFIC_LABELS,
 } from '../../../src/modules/sof/map-layers.js';
 
 const SUMMER = new Date('2026-09-29T18:42:00Z');
@@ -80,11 +80,19 @@ test('base, rain or snow, and layer switches ignore anything not on the list', (
   assert.equal(setLayerOn(s, 'radar', 'yes'), s);
 });
 
-test('what the base draws: satellite, the VNC chart, or the chart over the satellite at its opacity', () => {
-  assert.deepEqual(baseLayers({ base: 'satellite' }), { satellite: true, vnc: null });
-  assert.deepEqual(baseLayers({ base: 'vnc' }), { satellite: false, vnc: 100 });
-  assert.deepEqual(baseLayers({ base: 'vnc-satellite' }), { satellite: true, vnc: 70 });
-  assert.deepEqual(baseLayers({ base: 'vnc-satellite' }, { vncOpacityPct: 40 }), { satellite: true, vnc: 40 });
+test('what the base draws: satellite always (it shows outside the VNC charts), the chart at 100 or at its slider', () => {
+  assert.deepEqual(baseLayers(defaultLayers()), { satellite: true, vnc: null });
+  assert.deepEqual(baseLayers(setBase(defaultLayers(), 'vnc')), { satellite: true, vnc: 100 });
+  assert.deepEqual(baseLayers(setBase(defaultLayers(), 'vnc-satellite')), { satellite: true, vnc: 70 });
+  const slid = setLayerOpacity(setBase(defaultLayers(), 'vnc-satellite'), 'vnc', 40);
+  assert.deepEqual(baseLayers(slid), { satellite: true, vnc: 40 });
+});
+
+test('the VNC chart has an opacity slider but is not an overlay: it cannot be switched on as a layer', () => {
+  assert.equal(defaultLayers().opacity.vnc, 70);
+  assert.equal(setLayerOn(defaultLayers(), 'vnc', true).on.vnc, undefined);
+  assert.equal(cleanLayers({ opacity: { vnc: 33 } }).opacity.vnc, 35);
+  assert.equal(cleanLayers({ opacity: { vnc: 'x' } }).opacity.vnc, 70);
 });
 
 test('stored state is checked: junk, wrong types and unknown layers give the defaults', () => {
@@ -108,4 +116,18 @@ test('stored state keeps what is good: a switch, an opacity snapped to its step,
 test('a stored state that has gone through JSON comes back the same', () => {
   const s = setLayerOpacity(setLayerOn(setBase(defaultLayers(), 'vnc'), 'warnings', true), 'lightning', 50);
   assert.deepEqual(cleanLayers(JSON.parse(JSON.stringify(s))), s);
+});
+
+test('traffic labels are off and military-only is off to begin with, and the choices are kept to the list', () => {
+  const s = defaultLayers();
+  assert.deepEqual(s.traffic, { label: 'off', militaryOnly: false });
+  assert.deepEqual(ids(TRAFFIC_LABELS), ['off', 'callsign', 'callsign-altitude', 'full']);
+  assert.equal(setTrafficOption(s, { label: 'callsign' }).traffic.label, 'callsign');
+  assert.equal(setTrafficOption(s, { label: 'nope' }), s);
+  assert.equal(setTrafficOption(s, { militaryOnly: true }).traffic.militaryOnly, true);
+  assert.equal(setTrafficOption(s, { militaryOnly: 'yes' }), s);
+  assert.equal(setTrafficOption(s, { label: 'off' }), s, 'no change is the same object');
+  assert.deepEqual(cleanLayers({ traffic: { label: 'full', militaryOnly: true } }).traffic, { label: 'full', militaryOnly: true });
+  assert.deepEqual(cleanLayers({ traffic: { label: 'x', militaryOnly: 1 } }).traffic, { label: 'off', militaryOnly: false });
+  assert.deepEqual(cleanLayers({ traffic: 5 }).traffic, { label: 'off', militaryOnly: false });
 });

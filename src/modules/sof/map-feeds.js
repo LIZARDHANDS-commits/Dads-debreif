@@ -218,7 +218,7 @@ export function createImageFeed({
           return;
         }
         release(held?.image);
-        held = { image, key: asked.key, layer: name, time: timeless ? null : time };
+        held = { image, key: asked.key, layer: name, time: timeless ? null : time, at: now() };
       }
       ok = true;
       failures = 0;
@@ -300,8 +300,11 @@ export function createImageFeed({
       release(held?.image);
       held = null;
     },
-    /** { enabled, busy, failures, layerTime (of the picture on screen), image, imageKey, layer } */
-    state: () => ({ enabled, busy, failures, layerTime: held?.time ?? null, image: held?.image ?? null, imageKey: held?.key ?? null, layer: held?.layer ?? null }),
+    /** { enabled, busy, failures, layerTime (of the picture on screen), fetchedAt, image, imageKey, layer } */
+    state: () => ({
+      enabled, busy, failures, layerTime: held?.time ?? null, fetchedAt: held?.at ?? null,
+      image: held?.image ?? null, imageKey: held?.key ?? null, layer: held?.layer ?? null,
+    }),
   };
 }
 

@@ -3,7 +3,7 @@
 // the base map choice, and the order they stack in. The state is one plain object
 // that is checked on the way in from storage; anything wrong is the default.
 //
-//   { base, precip, on: { radar: true, … }, opacity: { radar: 75, … } }
+//   { base, precip, on: { radar: true, … }, traffic: { label, militaryOnly }, opacity: { radar: 75, … } }
 //
 // The ADS-B Exchange view is not a layer: it swaps the whole map area, always starts
 // off, and is not kept (map.js).
@@ -35,6 +35,15 @@ export const OVERLAYS = Object.freeze([
 const BY_ID = new Map(OVERLAYS.map((o) => [o.id, o]));
 const BASE_IDS = new Set(BASES.map((b) => b.id));
 
+/** The traffic layer's label choices (SPEC-sof: labels off by default; V6's callsign, altitude and military-only choices come back as options). */
+export const TRAFFIC_LABELS = Object.freeze([
+  Object.freeze({ id: 'off', label: 'No labels' }),
+  Object.freeze({ id: 'callsign', label: 'Callsign' }),
+  Object.freeze({ id: 'callsign-altitude', label: 'Callsign and altitude' }),
+  Object.freeze({ id: 'full', label: 'Callsign, altitude, speed and type' }),
+]);
+const LABEL_IDS = new Set(TRAFFIC_LABELS.map((l) => l.id));
+
 /** The opacity slider's range, in percent. */
 export const OPACITY_RANGE = Object.freeze({ min: 10, max: 100, step: 5 });
 
@@ -58,7 +67,9 @@ export function defaultLayers({ now } = {}) {
     base: 'satellite',
     precip: defaultPrecip(now),
     on: Object.fromEntries(OVERLAYS.map((o) => [o.id, o.on])),
-    opacity: Object.fromEntries(OVERLAYS.filter((o) => o.opacity !== undefined).map((o) => [o.id, o.opacity])),
+    traffic: { label: 'off', militaryOnly: false },
+    // The VNC chart's own slider is for when it is over the satellite picture.
+    opacity: { ...Object.fromEntries(OVERLAYS.filter((o) => o.opacity !== undefined).map((o) => [o.id, o.opacity])), vnc: VNC_OVER_SATELLITE_PCT },
   };
 }
 
@@ -77,8 +88,12 @@ export function cleanLayers(raw, { now } = {}) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return out;
   if (typeof raw.base === 'string' && BASE_IDS.has(raw.base)) out.base = raw.base;
   if (raw.precip === 'rain' || raw.precip === 'snow') out.precip = raw.precip;
+  const t = raw.traffic !== null && typeof raw.traffic === 'object' ? raw.traffic : {};
+  if (typeof t.label === 'string' && LABEL_IDS.has(t.label)) out.traffic.label = t.label;
+  if (typeof t.militaryOnly === 'boolean') out.traffic.militaryOnly = t.militaryOnly;
   const on = raw.on !== null && typeof raw.on === 'object' ? raw.on : {};
   const opacity = raw.opacity !== null && typeof raw.opacity === 'object' ? raw.opacity : {};
+  if (Object.hasOwn(opacity, 'vnc') && isNumber(opacity.vnc)) out.opacity.vnc = snapPct(opacity.vnc);
   for (const id of BY_ID.keys()) {
     if (Object.hasOwn(on, id) && typeof on[id] === 'boolean') out.on[id] = on[id];
     if (id in out.opacity && Object.hasOwn(opacity, id) && isNumber(opacity[id])) out.opacity[id] = snapPct(opacity[id]);
@@ -101,6 +116,14 @@ export function setLayerOpacity(state, id, percent) {
 /** The base map chosen. Anything not on the list changes nothing. */
 export function setBase(state, base) {
   return BASE_IDS.has(base) ? { ...state, base } : state;
+}
+
+/** The traffic layer's label choice, or military only. Anything not on the list changes nothing. */
+export function setTrafficOption(state, { label, militaryOnly } = {}) {
+  const next = { ...state.traffic };
+  if (typeof label === 'string' && LABEL_IDS.has(label)) next.label = label;
+  if (typeof militaryOnly === 'boolean') next.militaryOnly = militaryOnly;
+  return next.label === state.traffic.label && next.militaryOnly === state.traffic.militaryOnly ? state : { ...state, traffic: next };
 }
 
 /** Rain or Snow. */
@@ -126,10 +149,14 @@ export function menuRows(state, { relay = false } = {}) {
   }));
 }
 
-/** Whether the satellite picture is drawn, and the VNC chart with its opacity (percent, or null when not drawn). */
-export function baseLayers(state, { vncOpacityPct = VNC_OVER_SATELLITE_PCT } = {}) {
+/**
+ * What the base draws: `satellite` is always true (under the VNC chart too, since outside the charts the
+ * satellite picture shows, SPEC-sof), and `vnc` is the chart's opacity in percent, or null when it is not
+ * drawn: 100 for the VNC chart, the slider's for VNC over satellite.
+ */
+export function baseLayers(state) {
   return {
-    satellite: state.base !== 'vnc',
-    vnc: state.base === 'vnc' ? 100 : state.base === 'vnc-satellite' ? vncOpacityPct : null,
+    satellite: true,
+    vnc: state.base === 'vnc' ? 100 : state.base === 'vnc-satellite' ? state.opacity?.vnc ?? VNC_OVER_SATELLITE_PCT : null,
   };
 }
