@@ -205,7 +205,7 @@ export const SETTINGS_RULES = Object.freeze({
   crossTurnSwitchDeg: number(10, 180),
   crossTurnSolveSpacing: bool,
   delayed45Check: oneOf(['auto', 'none', 'check']),
-  checkTurnDeg: number(5, 30),
+  checkTurnDeg: number(10, 15), // the figure's check turn: 10 to 15 degrees
   checkSolveSpacing: bool,
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),

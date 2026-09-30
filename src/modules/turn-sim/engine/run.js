@@ -62,6 +62,8 @@ export function historyRow(tSec, aircraft, previous, stepSec = STEP_SEC) {
 
 /** Closest pass, in feet, that state.crossings reports. */
 const CROSSING_FT = 300;
+/** Closest pass, in feet, under which a pair that is not a crossing is reported in state.closePasses. */
+const CLOSE_PASS_FT = 1000;
 
 /** The longest a run on the clock cue waits for the cues, in seconds. */
 const CLOCK_CAP_SEC = 300;
@@ -130,6 +132,8 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
  *            maneuverFallback: null, or the reason the turn asked for could not be flown (the shackle and the cross turn are
  *            two-ship turns, settings.js turnProblem) and the default turn was flown instead.
+ *            closePasses: [{ a, b, minFt }] (a getter like crossings), the pairs that pass between 300 and 1,000 ft: not a designed crossing, but too close
+ *            to fly without altitude separation (a four-ship Delayed 45 with a 15 degree check at 4,000 ft spacing).
  *            crossings: [{ a, b, minFt }] (a getter, worked out the first time it is read), the pairs whose closest pass is under 300 ft (the box hook's rear aircraft fly nose to nose
  *            through their front aircraft's outbound leg), known before the first step (the screen: "300 ft vertical needed").
  *            leadTurnDirection: 'left' or 'right', the way Lead turns: the Direction box, except in the cross turn, where
@@ -165,6 +169,7 @@ export function createRun(settings, options = {}) {
   const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, crossTurnSpacingNote: null, aircraft: [] };
   // The crossings preview is a whole run made on a copy, so it is made the first time state.crossings is read (a fit-to-screen run never reads it).
   Object.defineProperty(state, 'crossings', { enumerable: true, get: () => crossings() });
+  Object.defineProperty(state, 'closePasses', { enumerable: true, get: () => closePasses() });
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   // How long the run lasts: the Duration, or longer when durationCoversTurn and the plan needs it (see settings.js).
@@ -181,12 +186,14 @@ export function createRun(settings, options = {}) {
   // (the leg after a startLeg has only the steps flown).
   let previewCrossings = null;
   let pairMinFt = {};
-  const crossings = () => {
+  const passesBetween = (loFt, hiFt) => {
     if (previewCrossings === null) previewCrossings = crossingsPreview();
     const seen = { ...previewCrossings };
     for (const [k, ft] of Object.entries(pairMinFt)) seen[k] = Math.min(seen[k] ?? Infinity, ft);
-    return Object.entries(seen).filter(([, ft]) => ft < CROSSING_FT).map(([k, ft]) => ({ a: +k.split('-')[0], b: +k.split('-')[1], minFt: ft })).sort((x, y) => x.a - y.a || x.b - y.b);
+    return Object.entries(seen).filter(([, ft]) => ft >= loFt && ft < hiFt).map(([k, ft]) => ({ a: +k.split('-')[0], b: +k.split('-')[1], minFt: ft })).sort((x, y) => x.a - y.a || x.b - y.b);
   };
+  const crossings = () => passesBetween(0, CROSSING_FT);
+  const closePasses = () => passesBetween(CROSSING_FT, CLOSE_PASS_FT);
   function crossingsPreview() {
     if (options.noPreview) return {};
     const copy = createRun({ ...cfg }, { noPreview: true });

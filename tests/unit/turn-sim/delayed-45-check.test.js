@@ -268,3 +268,35 @@ test('under the clock cue the plain 45 is flown in every formation: no aircraft 
     assert.ok(most < 0.001, `${formation}: no check turn to the left (most ${most})`);
   }
 });
+
+test('the check turn setting is the figure\'s 10 to 15 degrees: anything else goes back to 12.5', () => {
+  for (const ok of [10, 12.5, 15]) assert.equal(checkSettings({ checkTurnDeg: ok }).checkTurnDeg, ok);
+  for (const bad of [5, 9.9, 15.1, 30, 'wide']) assert.equal(checkSettings({ checkTurnDeg: bad }).checkTurnDeg, 12.5, `${bad}`);
+});
+
+test('a 15 degree check at 4,000 ft spacing: every pair is 1,000 ft apart or more, or the close pass is reported in state.closePasses', () => {
+  let reported = 0;
+  for (const formation of ['twoShip', 'weighted', 'weightedReverse', 'offsetBox']) {
+    for (const direction of ['right', 'left']) {
+      for (const checkSolveSpacing of [false, true]) {
+        const { run, minSepFt } = four(formation, direction, { delayed45Check: 'check', spacingFt: 4000, checkTurnDeg: 15, checkSolveSpacing });
+        const label = `${formation} ${direction} solve ${checkSolveSpacing}`;
+        const close = run.state.closePasses;
+        if (minSepFt >= 1000) assert.deepEqual(close, [], `${label}: nothing to report at ${minSepFt.toFixed(0)} ft`);
+        else {
+          assert.ok(close.length > 0 && close.every((c) => c.minFt < 1000 && c.minFt >= 300), `${label}: closest ${minSepFt.toFixed(0)} ft is reported: ${JSON.stringify(close)}`);
+          assert.ok(Math.abs(Math.min(...close.map((c) => c.minFt)) - minSepFt) < 1, `${label}: the reported pass is the closest`);
+          reported++;
+        }
+      }
+    }
+  }
+  // Measured: the four-ship formations pass 894 ft apart (4312 and 2134); the two-ship and the box 1,058 ft.
+  assert.ok(reported >= 8, `the four-ship close passes are reported (${reported} runs)`);
+});
+
+test('at the default 6,000 ft and 12.5 degrees nothing is close: closePasses is empty in every formation', () => {
+  for (const formation of ['twoShip', 'weighted', 'weightedReverse', 'offsetBox']) {
+    for (const direction of ['right', 'left']) assert.deepEqual(four(formation, direction, { delayed45Check: 'check' }).run.state.closePasses, [], `${formation} ${direction}`);
+  }
+});
