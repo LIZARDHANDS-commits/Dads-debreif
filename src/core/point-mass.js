@@ -11,6 +11,9 @@
 // square to the flight path. Straight up or down the horizon gives no
 // reference, so the step keeps the last one (`up`); that is also how it knows,
 // coming over the top of a loop, that the aircraft is upside down (up.z < 0).
+//
+// The speed must stay above zero: the flight path has no direction at rest,
+// so a caller that can stall to a stop (a tail slide) must floor the speed.
 import { G_FTPS2, KT_TO_FTPS } from './units.js';
 
 const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;

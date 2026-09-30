@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
-  T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A,
+  T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
 } from '../../../src/core/t6-performance.js';
 import { T6A_TURN_POINTS, T6A_FIT } from '../../../src/core/t6a-turn-charts.js';
 import { isaDensityRatio, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
@@ -119,6 +119,10 @@ test('excess thrust: thrust minus drag', () => {
   }
 });
 
+test('t6aExcessFn: excess thrust for stepPointMass, which passes true airspeed', () => {
+  near(t6aExcessFn(iasToTasKt(180, 12000), 12000, 3), excessThrustPerWeight(180, 12000, 3), 1e-12, '180 KIAS at 12,000 ft, 3 G');
+});
+
 test('every chart point: thrust within 10 % of drag at the chart\'s G', () => {
   let worst = 0;
   for (const [kias, alt, rate] of T6A_TURN_POINTS) {
@@ -179,6 +183,7 @@ test('glide sink rate: true airspeed ÷ the glide ratio, so it grows with height
   near(glideSinkFpm('clean', 125, 0), 125 * KT_TO_FTPS * 60 / (2 * FT_PER_NM / 1000), 1e-9, 'clean at sea level');
   near(glideSinkFpm('clean', 125, 0), 1042, 1, 'about 1,040 ft/min at sea level');
   assert.ok(glideSinkFpm('clean', 125, 10000) > glideSinkFpm('clean', 125, 0), 'faster sink higher up');
+  assert.throws(() => glideSinkFpm('Clean', 125, 0), { name: 'RangeError', message: /clean, gearDown, landing, windmilling/ });
   near(glideSinkFpm('gearDown', 120, 3500), iasToTasKt(120, 3500) * KT_TO_FTPS * 60 / (1.5 * FT_PER_NM / 1000), 1e-9, 'the SMM\'s 120 KIAS gear down');
   // The chart's own sink rates are the same sums at about 16,000 ft, all four rows alike.
   for (const [config, c] of Object.entries(T6A_GLIDE)) {
@@ -245,4 +250,13 @@ test('the zoom cross-check: the model, thrust off, flies the NFM zoom within 10 
       assert.ok(gain >= lo && gain <= hi, `inside the manual's ${lo} to ${hi} ft`);
     }
   }
+});
+
+test('the zoom refuses speeds and heights it cannot fly, rather than hang', () => {
+  for (const [kias, alt] of [[-200, 3000], [NaN, 3000], [Infinity, 3000], [317, 3000], [200, NaN], [200, -Infinity]]) {
+    assert.throws(() => zoomT6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft`);
+    assert.throws(() => flyZoomT6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft, flown`);
+  }
+  assert.ok(zoomT6A(316, 3000).gainFt > zoomT6A(250, 3000).gainFt, 'up to VMO');
+  assert.deepEqual(zoomT6A(0, 3000), { gainFt: 0, timeSec: 0, distanceFt: 0 }, 'standing still: nothing to trade');
 });

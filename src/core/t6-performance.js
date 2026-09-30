@@ -73,6 +73,11 @@ export function excessThrustPerWeight(kias, altFt, g) {
   return thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
 }
 
+/** excessThrustPerWeight as stepPointMass's excessFn, which passes true airspeed. */
+export function t6aExcessFn(ktas, altFt, g) {
+  return excessThrustPerWeight(tasToIasKt(ktas, altFt), altFt, g);
+}
+
 /**
  * The T-6A max glide chart (engine inoperative, IAS; PT6A-68, flight test,
  * June 1998; Patrick's upload 06:33Z; SMM 13.5 para 7 agrees on 2 NM at 125).
@@ -92,6 +97,7 @@ export const T6A_GLIDE = Object.freeze({
  * ratio is fixed through the air, so the sink rate grows with height.
  */
 export function glideSinkFpm(config, kias, altFt) {
+  if (!Object.hasOwn(T6A_GLIDE, config)) throw new RangeError(`glide configuration ${config}: use one of ${Object.keys(T6A_GLIDE).join(', ')}`);
   const ratio = T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
   return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / ratio;
 }
@@ -115,6 +121,10 @@ export const NFM_ZOOM = Object.freeze({
 const ZOOM_DEFAULT_LB = 5800;   // NFM example 1: a two-seat jet part way through a sortie; for Dad
 const ZOOM_MIN_KIAS = 150;      // below it the NFM slows down level instead (p.3-9)
 const ZOOM_GLIDE_KIAS = 125;
+const ZOOM_PUSH_G = 0.25;       // the middle of the NFM's 0 to +0.5 G push
+const ZOOM_STEP_SEC = 0.02;
+const ZOOM_PITCH_GAIN = 5;      // extra G per radian off the 20° climb, to hold it
+const ZOOM_MAX_SEC = 120;       // no zoom or slow-down takes this long; a guard, never reached
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
@@ -135,29 +145,35 @@ function idealZoomFt(kias, altFt) {
 /**
  * The NFM zoom procedure flown by the model with the engine off (drag only):
  * 2 s straight and level, a 2 G pull to 20° nose up held to 145 KIAS, then a
- * pushG push until 125 KIAS or the clean glide path. At or below 150 KIAS, a
- * level slow-down to 125 KIAS instead. Returns the height gained, the time and
- * the distance over the ground in still air.
+ * 0.25 G push until 125 KIAS or the clean glide path. At or below 150 KIAS, a
+ * level slow-down to 125 KIAS instead. kias from 0 to VMO (316) and a finite
+ * altFt, or it throws a RangeError. Returns the height gained, the time and
+ * the distance over the ground in still air. About 1,000 steps: fine once per
+ * engine failure, not once per frame.
  */
-export function flyZoomT6A(kias, altFt, pushG = 0.25, dtSec = 0.02) {
+export function flyZoomT6A(kias, altFt) {
+  if (!(kias >= 0 && kias <= T6A_LIMITS.vmoKias && Number.isFinite(altFt))) {
+    throw new RangeError(`zoom from ${kias} KIAS at ${altFt} ft: needs 0 to ${T6A_LIMITS.vmoKias} KIAS and a finite height`);
+  }
   const engineOff = (ktas, alt, g) => -dragPerWeight(tasToIasKt(ktas, alt), alt, g);
   let s = pointMassState({ altFt, ktas: iasToTasKt(kias, altFt), headingRad: 0 });
   let t = 0;
   const now = () => pointMassFlight(s);
   const nowKias = () => { const f = now(); return tasToIasKt(f.ktas, f.altFt); };
-  const fly = (control) => { s = stepPointMass(s, control, dtSec, engineOff); t += dtSec; };
+  const fly = (control) => { s = stepPointMass(s, control, ZOOM_STEP_SEC, engineOff); t += ZOOM_STEP_SEC; };
+  const going = () => t < ZOOM_MAX_SEC;
   if (kias <= ZOOM_MIN_KIAS) {
-    while (nowKias() > ZOOM_GLIDE_KIAS) fly({ g: 1, bankRad: 0 });
+    while (nowKias() > ZOOM_GLIDE_KIAS && going()) fly({ g: 1, bankRad: 0 });
   } else {
     const climb = 20 * Math.PI / 180;
     const glidePath = -Math.atan(1 / (T6A_GLIDE.clean.nmPer1000Ft * FT_PER_NM / 1000));
     while (t < 2 - 1e-9) fly({ g: 1, bankRad: 0 });
-    while (now().climbRad < climb) fly({ g: 2, bankRad: 0 });
-    while (nowKias() > 145) {
+    while (now().climbRad < climb && going()) fly({ g: 2, bankRad: 0 });
+    while (nowKias() > 145 && going()) {
       const f = now();
-      fly({ g: Math.cos(f.climbRad) + 5 * (climb - f.climbRad), bankRad: 0 });
+      fly({ g: Math.cos(f.climbRad) + ZOOM_PITCH_GAIN * (climb - f.climbRad), bankRad: 0 });
     }
-    while (nowKias() > ZOOM_GLIDE_KIAS && now().climbRad > glidePath) fly({ g: pushG, bankRad: 0 });
+    while (nowKias() > ZOOM_GLIDE_KIAS && now().climbRad > glidePath && going()) fly({ g: ZOOM_PUSH_G, bankRad: 0 });
   }
   return { gainFt: s.z - altFt, timeSec: t, distanceFt: Math.hypot(s.x, s.y) };
 }
@@ -168,8 +184,10 @@ export function flyZoomT6A(kias, altFt, pushG = 0.25, dtSec = 0.02) {
  * table's 5,400 to 6,500 lb, held at its ends). At 200 and 250 KIAS between
  * 500 and 6,000 ft it is the table; elsewhere, the same share of the energy
  * height from kias down to 125 KIAS as the table's nearest speed and altitude.
- * At or below 150 KIAS there is no zoom (the NFM slows down level). The time
+ * At or below 150 KIAS there is no zoom (the NFM slows down level), so the
+ * gain steps from 0 to about 200 ft there, as the NFM's rule does. The time
  * and distance are the model's (flyZoomT6A), which the NFM does not give.
+ * kias from 0 to VMO (316) and a finite altFt, or it throws a RangeError.
  * Returns { gainFt, timeSec, distanceFt }.
  */
 export function zoomT6A(kias, altFt, weightLb = ZOOM_DEFAULT_LB) {
