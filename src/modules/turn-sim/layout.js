@@ -96,6 +96,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const turnNote = h('p', { class: 'ts-hint ts-turn-note', hidden: true });
   let turnFallback = null;
   const direction = field(DIRECTION, 'choice');
+  // In the cross turn Lead always turns toward #2 whatever the Direction says (SMM 16.19 para 64), so the choice is greyed out.
+  const directionNote = h('p', { class: 'ts-hint ts-direction-note', hidden: true });
+  let leadTurns = null;
   const legHeading = h('p', { class: 'ts-hint ts-leg-heading', hidden: true });
   const speed = field(SPEED);
   const g = field(G);
@@ -106,7 +109,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
-  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, speed, g].map((f) => f.element);
+  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, { element: directionNote }, speed, g].map((f) => f.element);
 
   // ---- Aircraft errors (closed) -------------------------------------------
   const errorKeys = [];
@@ -299,8 +302,16 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     turnNote.hidden = !why;
   }
 
+  function applyDirection(values) {
+    const cross = values.maneuver === 'cross180';
+    controls.setDisabled('direction', cross);
+    directionNote.textContent = cross ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.` : '';
+    directionNote.hidden = !cross;
+  }
+
   function applyScenario(values) {
     lastValues = values;
+    applyDirection(values);
     applyTurnChoices(values);
     if (baseDelay.element) baseDelay.element.hidden = values.timing !== 'time';
     clockPos.element.hidden = values.timing !== 'clock';
@@ -393,6 +404,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       if ((r.maneuverFallback ?? null) !== turnFallback) {
         turnFallback = r.maneuverFallback ?? null;
         if (lastValues) applyTurnChoices(lastValues);
+      }
+      if ((r.leadTurnDirection ?? null) !== leadTurns) {
+        leadTurns = r.leadTurnDirection ?? null;
+        if (lastValues) applyDirection(lastValues);
       }
       clear(cueList);
       for (const { id, text } of r.cue.lines) cueList.append(line(id, { text, tone: 'none' }));

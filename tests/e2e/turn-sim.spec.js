@@ -577,6 +577,22 @@ test('the Shackle and Cross turn are two-ship turns: greyed out in the four-ship
   await expect(cardLines(page)).toHaveCount(3);
 });
 
+test('the Cross turn greys out Direction and says which way Lead turns', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  const note = page.locator('.ts-direction-note');
+  await expect(note).toBeHidden();
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(direction.getByRole('radio').first()).toBeDisabled();
+  await expect(note).toContainText('Lead always turns toward #2');
+  await expect(note).toContainText(/: (left|right) in this run/);
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await expect(note).toBeHidden();
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {
