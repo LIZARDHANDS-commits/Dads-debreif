@@ -146,6 +146,32 @@ charts.dispose();
 - It is done when `npm test` and the debrief's browser tests pass unchanged, including "VNC charts: off at first, fetched only when chosen".
 - It lands with the SOF's task 6, which needs the VNC layer.
 
+## 3D aircraft (three.js, D138)
+
+three.js draws every 3D aircraft view: the Debrief's 3D view (its `view3d` moves onto this next), Turn Fight's 3D view, and any later Turn Sim or Traffic 3D view. The shared pieces live in `src/ui-kit/three-aircraft.js` so each view draws the same aircraft with the same camera.
+
+```js
+import { loadThree, createAircraftMesh, matchProjection, worldToScreen, altToZ, addLights, addSky } from '../../ui-kit/three-aircraft.js';
+
+const THREE = await loadThree();                       // dynamic import('three'), cached; call when the 3D view opens
+addLights(THREE, scene);                               // { hemisphere, sun }
+addSky(THREE, scene);                                  // gradient background and horizon fog (any view can use it)
+const plane = createAircraftMesh(THREE, { color: SHIP_COLORS[slot], outline: OUTLINE_COLOR });
+plane.position.set(s.x, s.y, altToZ(s.altFt, cam.altScale));   // the model is not scaled by altScale
+plane.scale.setScalar(planeSizeFt);
+plane.rotation.order = 'ZYX';
+plane.rotation.set(-bankRad, -pitchRad, hdgRad);       // heading about Z (0 = east), then pitch, then bank
+matchProjection(THREE, camera, ctr, cam, { width, height });    // camera: THREE.OrthographicCamera
+const p = worldToScreen(THREE, camera, { x, y, z: altToZ(altFt, cam.altScale) }, width, height); // for 2D labels
+disposeAircraftMesh(plane);                            // when the view closes
+```
+
+- **Parity rule (the flight-math guard).** `matchProjection(THREE, camera, ctr, cam, size, pxRatio = 1)` takes the same inputs as `scene.js projectPoint(p, ctr, cam, size, pxRatio)`: the centre `ctr` `{ x, y, z }` (feet), the view `cam` `{ yawDeg, pitchDeg, zoom, altScale }`, and the canvas `size`. A world point `{ x, y, z: altToZ(altFt, altScale) }` then lands on the same CSS-pixel position the projection gives, within 1e-6 px, and nearer to the viewer agrees with a smaller `depth`. The camera is orthographic, so nothing about the flight geometry changes; only who draws it. `scene.js` stays the reference, and `tests/unit/ui-kit/three-aircraft.test.js` pins the match over many views, centres, canvas sizes and points. Any new 3D view uses `matchProjection` and does not build its own camera maths.
+- **Dynamic import only.** Nothing may import `three` statically (a test checks this file). A 3D view awaits `loadThree()` when it opens, so the home screen and modules that draw no 3D never download it. If the load fails (offline, first visit), the view shows a message and the 2D view keeps working.
+- **Plain paint.** The aircraft is the T-6-like model in ship colours only: fuselage in the ship colour, wings and stabiliser a shade darker, fin a shade lighter, dark spinner, translucent canopy and prop disc. No paint scheme until a Harvard scheme is agreed with Patrick. `outline` is optional edge lines on wings, stabiliser and fin.
+- **Model frame.** Nose +X, left +Y, up +Z; about 1.44 long (tail to spinner) and 1.32 across the wings, so `scale` is set to the plane size in feet. It is the Debrief spike's model, not V6's `t6Points`.
+- No timers and no animation frames: the view draws when the scheduler's frame callback asks it to.
+
 ## Not overwhelming (R22)
 
 Each screen shows only the essentials by default. Every setting the module has goes in its one settings menu (`createSettingsMenu`), closed by default. Extra detail goes behind a switch the person turns on: a `controls.checkbox` for a layer or graph (off by default), or a `createPanel({ collapsed: true })` section titled "More …" for extra readouts. A module's spec lists what shows by default and what sits behind a switch, and its sign-off checklist opens it fresh and checks nothing optional is on.
@@ -187,6 +213,7 @@ menu.body;                                   // the container the sections live 
 - `tests/unit/ui-kit/canvas-view.test.js`: the transform maths: round trips, zoom keeps the point under the pointer still, the span limits, fit, and the visible bounds.
 - `tests/unit/ui-kit/map-tiles.test.js` (moved from the debrief) and `vnc.test.js` (moves at SOF task 6): which tiles a view needs and the 64-tile limit, retries and giving up, the least-recently-drawn cache, nothing loaded after `dispose`; the VNC warp and bounds, and each chart fetched only when first shown.
 - `tests/unit/ui-kit/settings-menu.test.js`: closed by default and opens with `collapsed: false`; a section title is inserted as text; sections keep their order; the Reset button exists only with `onReset`, calls it on click, and takes a custom label.
+- `tests/unit/ui-kit/three-aircraft.test.js`: the three.js camera projects points to the same screen position as `scene.js projectPoint` (many views, canvas sizes and points, 1e-6 px); the aircraft mesh's axes, size, colours and outline; `loadThree` returns one cached module and is never a static import. three runs in Node without WebGL.
 - Browser (with the shell): panels open and close with the mouse and the keyboard, and Tab moves between controls.
 - Browser (`tests/e2e/ui-kit.spec.js`, on a test page that loads the modules): each control updates its setting, follows outside changes, and refuses bad numbers with a message; the canvas view pans, zooms and uses the keys, draws only when asked, leaves the arrows to the page with `arrowKeys: false`, and stops listening after `dispose`; `setDisabled` greys out a control; the Settings menu starts closed, opens from the keyboard, holds a working number control, calls Reset and closes again; the canvas surface redraws only on request or resize.
 
