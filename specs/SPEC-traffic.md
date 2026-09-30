@@ -134,7 +134,7 @@ Patrick: "Make sure all the parameters start with a default entry and that the i
 | Layers | trails, height and speed labels, route points, conflict bubbles, caution rings and the satellite photo on (V6's built-in setup); leg distances, turn data and Engine-out reach off |
 | Photo (More in Layers) | opacity 100 %, drawn above the grid, the setup's own alignment (1.2 trim until the redraw, T8) |
 | Route options | rounded turns on, radius from speed and G on, manual radius 1,800 ft |
-| New pattern | V6's generic pattern (see Routes above), left-hand, its first point a decision point at V6's odds (Land 20 %, Stay 80 %); at another home field, the runway box starts at 29, V6's generic runway, until you type the real one (T2) |
+| New pattern | V6's generic pattern (see Routes above), left-hand, its first point a decision point at V6's odds (Land 20 %, Stay 80 %); at another home field, the runway box starts at 29, V6's generic runway, until you type the real one (T2). *Engine port note:* V6's builder draws a right-hand circuit despite its "left" label (its `perp('left')` is the right-hand side on the north-up map); the port pins that, and task 12 flips it to left-hand as its own commit (decision logged for Patrick's review, 09:34Z) |
 | New entry, new split | V6's builders, linked to the selected pattern, or the first pattern if none is selected |
 | New PFL | at the threshold the pattern lands on, orbiting on the pattern's side; High Key 5,000 ft MSL at Moose Jaw, 3,000 ft above the field elsewhere (SMM 13.5) |
 | New point (+ Point) | V6's rule: halfway to the next point, with the average height and G of the two; the speed phase is the selected point's, or Blend between two different phases; labelled "New point" |
@@ -185,7 +185,7 @@ Measured on V6's own code, built-in Pattern 1 (line 613), turn points only:
 
 Kept from V6 (lines 234 to 244 and 365 to 454), and pinned by a golden test:
 
-- **Spawning.** An aircraft starts at the chosen point of its route after its delay, and moves at the speed of the route where it is (V6's `acProfile`). Its altitude is the route's altitude where it is.
+- **Spawning.** An aircraft starts at the chosen point of its route after its delay, and moves at the speed of the route where it is (V6's `acProfile`). Its altitude is the route's altitude where it is. *Engine port note:* V6 reads a missing speed as 120 kt and a missing height as 2,500 ft; the aircraft type's own speed (CT-157 125 kt, CT-156 180, CT-102 150, CT-114 230) is used only on a route with no legs (one point or none), and the height its start point had when it was made there too. The app never makes a point with no speed.
 - **Patterns loop.** Each time an aircraft crosses the pattern's first point it may land and leave, with the pattern's land odds (V6's built-in: 20 %).
 - **Splits.** When an aircraft on a pattern reaches a split's point, it takes the split with the split's odds. At the end of an entry or split it joins the pattern at the linked point. An entry or split with no pattern to join ends there ("Done").
 - These two rules are pinned as V6 has them, then replaced by decision points (below, T1).
@@ -200,7 +200,7 @@ Kept from V6 (lines 234 to 244 and 365 to 454), and pinned by a golden test:
 
 Changes that don't change a number:
 
-- **One fixed step.** V6 moves aircraft by the frame time (at most 0.05 s) × the playback speed, so a run comes out slightly differently at different frame rates and speeds. The rebuild moves in whole 0.05 s steps of sim time and carries the remainder to the next frame, so at 1× and 20 frames a second it's V6's own run, and the same on every screen.
+- **One fixed step.** V6 moves aircraft by the frame time (at most 0.05 s) × the playback speed, so a run comes out slightly differently at different frame rates and speeds. The rebuild moves in whole 0.05 s steps of sim time and carries the remainder to the next frame, so at 1× and 20 frames a second it's V6's own run, and the same on every screen. *Engine port note:* V6 (and the port, for now) add the clock up 0.05 s at a time, so it drifts: about half of the whole seconds come out a hair short (3 s is 2.9999999999999973), the clock text reads the earlier second on those ticks (00:02 at the 3 s mark), and an aircraft due at a whole second starts one step late. Task 12 fixes the display as its own commit (decision logged for Patrick's review).
 - **Routes are worked out once.** V6 rebuilt every rounded route several times per aircraft per frame; the rebuild caches each route's path and redoes it only when that route changes (#49).
 - **The sim clock runs only while the Traffic Sim is open** (#39, R4), and the clock reads H:MM:SS, so it no longer wraps to 00:00 after an hour (#46).
 - **Trails** keep a point every 0.5 s for the last 2 minutes of sim time, whatever the frame rate. V6 kept the last 500 screen frames, so trail length depended on the frame rate and speed.
@@ -445,7 +445,7 @@ Each lands as its own commit after the golden test pins V6's behaviour, and that
 
 ### The built-in setup
 
-V6 opens with its "Moose Jaw Dynamic" profile (line 613), and so does the rebuild at first when the home field is CYMJ: Pattern 1 (13 points), Entries 1 to 4, Splits 1 to 4, aircraft A1 to A7, 8× speed, satellite on at 1.2 trim, conflict limits 200 ft / 200 ft and caution 500 ft / 500 ft (Patrick, T4). Its data moves into `src/modules/traffic/data/moose-jaw.json` with a version number, y flipped to point north, and the aircraft start times rounded to whole seconds (V6 stores 12.000000000000005 s). That's what the golden tests pin.
+V6 opens with its "Moose Jaw Dynamic" profile (line 613), and so does the rebuild at first when the home field is CYMJ: Pattern 1 (13 points), Entries 1 to 4, Splits 1 to 4, aircraft A1 to A7, 8× speed, satellite on at 1.2 trim, conflict limits 200 ft / 200 ft and caution 500 ft / 500 ft (Patrick, T4). Its data moves into `src/modules/traffic/data/moose-jaw.json` with a version number, y flipped to point north, and the aircraft start times rounded to whole seconds (V6 stores 12.000000000000005 s). That's what the golden tests pin. *Engine port note:* the rounding moves A2 from 136.68 s to 137 (+0.32 s), A4 from 591.87 s to 592 (+0.13 s), A6 from 884.13 s to 884 (-0.13 s), A5 -0.10 s, A7 -0.09 s and A3 -0.002 s; A1 is unmoved. One golden run flies V6's raw times on both sides.
 
 Then, each as its own logged change: its land and split odds become decision points (T1), its speeds become indicated airspeeds (T5), and its points are switched to phases (T5): 220 kt points become Entry or Pattern, the 100 kt threshold points Landing, the 120 kt points after the final turn Approach, Split 1 (from 3,500 ft down to 2,700 ft and in to the threshold) becomes the straight-in Patrick describes, Split 3 (from the departure end back to downwind at 140 to 150 kt) Closed, and the other in-between points Blend. Final-turn and straight-in turn points get 45° (1.41 G). Patrick and Dad check that mapping when they redraw the routes.
 
