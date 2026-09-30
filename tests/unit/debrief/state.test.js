@@ -31,7 +31,7 @@ test('ship colours are V6\'s, except #4, which is white with an outline (#29)', 
 });
 
 test('the layout starts with extra detail closed, both columns open and the grid on (R22)', () => {
-  assert.deepEqual({ ...LAYOUT_DEFAULTS }, { statusDetails: false, flightColumn: true, formationColumn: true, moreDetail: false, standardsOpen: false, grid: true });
+  assert.deepEqual({ ...LAYOUT_DEFAULTS }, { statusDetails: false, flightColumn: true, formationColumn: true, moreDetail: false, standardsOpen: false, filesOpen: false, grid: true });
   assert.ok(Object.isFrozen(LAYOUT_DEFAULTS));
 });
 
