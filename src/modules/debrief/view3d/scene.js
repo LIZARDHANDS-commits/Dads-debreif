@@ -54,7 +54,11 @@ export function drawOrderV6(entries, depthOf) {
   return [...entries].sort((a, b) => depthOf(a) - depthOf(b));
 }
 
-/** Signed heading change a − b in (−π, π] (V6 headingDelta, line 3781). */
+/**
+ * Signed heading change a − b in (−π, π] (V6 headingDelta, line 3781). Kept
+ * instead of core's wrapPi: the modulo gives different last digits, and the
+ * golden test pins V6 exactly.
+ */
 function headingDelta(a, b) {
   let d = ((a - b + Math.PI) % (Math.PI * 2)) - Math.PI;
   if (d < -Math.PI) d += Math.PI * 2;
