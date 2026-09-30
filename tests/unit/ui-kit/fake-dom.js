@@ -50,6 +50,9 @@ class FakeElement extends FakeNode {
   setAttribute(name, value) {
     this.attributes[name] = String(value);
   }
+  removeAttribute(name) {
+    delete this.attributes[name];
+  }
   getAttribute(name) {
     return this.attributes[name] ?? null;
   }
