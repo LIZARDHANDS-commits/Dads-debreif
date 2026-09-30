@@ -81,6 +81,7 @@ const fixed = (n, places) => String(Number(n.toFixed(places)));
  * east order for EPSG:4326. time (a Date, ms, or ISO seconds) is left out to get ECCC's
  * latest. Throws RangeError for a layer not on the list or any number that isn't
  * finite, ordered and in range, so nothing odd reaches the address.
+ * @param {{ layer?: any, bbox?: readonly number[], width?: number, height?: number, time?: any, crs?: string }} [input]
  */
 export function getMapUrl({
   layer = LAYERS.radarRain, bbox = DEFAULT_BBOX, width = 1024, height = 768, time, crs = 'EPSG:3857',
@@ -95,7 +96,7 @@ export function getMapUrl({
     throw new RangeError('bbox must be [west, south, east, north] degrees, in order and in range');
   }
   const box = crs === 'EPSG:3857'
-    ? bboxToMercator(bbox).map((n) => fixed(n, 2))
+    ? bboxToMercator(/** @type {[number, number, number, number]} */ (bbox)).map((n) => fixed(n, 2))
     : [south, west, north, east].map((n) => fixed(n, 6));
   const when = time == null ? '' : `&time=${timeParam(time)}`;
   const query = `service=WMS&version=1.3.0&request=GetMap&layers=${layer}&styles=&crs=${crs}&bbox=${box.join(',')}`
@@ -238,6 +239,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
  * Returns { ageMs, ageMin, stale, state } with state 'fresh', 'stale' or 'unknown'
  * (no usable time: age null, and counted stale so it is never shown as current).
  * A time up to 5 minutes ahead of the clock is age 0; further ahead is 'unknown'. Throws RangeError for another kind.
+ * @param {{ kind?: string, layerTime?: any, now?: any }} [input]
  */
 export function feedAge({ kind = 'radar', layerTime, now = new Date() } = {}) {
   const limit = STALE_MS[kind];

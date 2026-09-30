@@ -159,6 +159,7 @@ const limitReason = (r) => /^(CEILING|VIS) /.test(r);
  *   600-2 is never used and the result is 'unknown', for the wave call to decide.
  * - `feed`: `{ lastTry, failed }` for the words about a missing or failed refresh.
  * - `now`: a Date. Without one every age is unknown and every report reads as stale.
+ * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any }} [input]
  */
 export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {} } = {}) {
   const at = toDate(now);
