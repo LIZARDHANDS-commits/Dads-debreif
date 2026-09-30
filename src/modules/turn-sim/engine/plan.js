@@ -400,7 +400,10 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const clockMode = flight.timing === 'clock' && delayed;
   const order = turningOrder(aircraft, flight);
   const cascade = clockMode ? order : []; // V6 clockCascadeOrder (line 1152) is the same order as the delay order
-  const offsetPlan = form === 'offsetBox' && delayed && !clockMode ? offsetBoxPlan(aircraft, {
+  // Under the clock cue the front aircraft start on their cues, but the box slot delays of #3 and #4 relative to their front counterparts
+  // (the plan's, as if timed) are what the rear fallback flies after the counterpart has actually started (step.js mayTurn).
+  const slotForClock = clockMode && form === 'offsetBox' && flight.offsetBox4Timing === 'boxSlot';
+  const offsetPlan = form === 'offsetBox' && delayed && (!clockMode || slotForClock) ? offsetBoxPlan(aircraft, {
     baseDelaySec: base,
     selectedDir,
     goalRad: goal,
@@ -438,6 +441,8 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     let g = goal;
     let legs;
     let followId = null;
+    let followIds = null;
+    let followDelay = Math.max(0, +flight.rearDelaySec || 0);
 
     if (clockMode) {
       // The clock cue (V6 line 1197): with Outside-in, each aircraft but the first waits for the aircraft just outside it.
@@ -459,6 +464,13 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       // In the offset box #3 and #4 cannot see the cue aircraft (cues.js cantSee): they fly the rear delay instead, rearDelaySec
       // after their front counterpart (#3 after #1, #4 after #2) has started (step.js mayTurn).
       followId = form === 'offsetBox' && (a.id === 3 || a.id === 4) ? a.id - 2 : null;
+      // The box slot fallback: #3 turns its shift after the MIDDLE of the front pair's actual starts, #4 its shift after #2's, so the slot
+      // holds whatever the cues gave the front pair (the shift is the plan's delay less the plan's reference delay).
+      if (followId && slotForClock && offsetPlan) {
+        followIds = a.id === 3 ? [1, 2] : [2];
+        const ref = followIds.reduce((sum, id) => sum + offsetPlan.delaysSec[id], 0) / followIds.length;
+        followDelay = offsetPlan.delaysSec[a.id] - ref;
+      }
     } else {
       if (delayed) {
         if (form === 'offsetBox') d = offsetPlan && offsetPlan.delaysSec[a.id] !== undefined ? offsetPlan.delaysSec[a.id] : delayIndex[a.id] * base;
@@ -522,7 +534,8 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.originalHeadingRad = a.headingRad;
     // A turn in several legs (the shackle): each leg its own way and angle, with a hold before it (step.js).
     a.followId = followId;
-    a.followDelaySec = Math.max(0, +flight.rearDelaySec || 0);
+    a.followIds = followIds;
+    a.followDelaySec = followIds ? followDelay : Math.max(0, followDelay);
     a.startedAtSec = undefined;
     a.legs = legs;
     a.legIndex = 0;
