@@ -4,7 +4,7 @@
   - Acceptance: `npm test`, `npm run build` and `npm run test:e2e` pass locally and in CI; the build fails if the home screen needs more than 3 MB.
   - Verify: run all three locally; CI green on the pull request.
   - Files: package.json, vite.config.js, index.html, src/app.js, playwright.config.js, tools/check-size.mjs, .github/workflows/ci.yml, .github/workflows/pages.yml
-- [ ] **2. Storage.** `store.js` and `settings.js`.
+- [x] **2. Storage.** `store.js` and `settings.js`.
   - Acceptance: every storage test in SPEC-storage.md passes.
   - Verify: `npm test`
   - Files: src/storage/store.js, src/storage/settings.js, src/storage/README.md, tests/unit/storage/*.test.js
