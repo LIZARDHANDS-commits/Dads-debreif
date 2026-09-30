@@ -72,8 +72,9 @@ test('materials are made once and kept across draws, and freed only when the vie
     assert.ok(allMaterials(k.made).every((m) => m.disposed === 0), 'and dispose none between draws');
     k.close();
     assert.ok(allMaterials(k.made).every((m) => m.disposed >= 1), 'each is disposed when the view is disposed');
-  } finally {
+  } catch (err) {
     k.close();
+    throw err;
   }
 });
 
@@ -141,9 +142,9 @@ test('with no WebGL the view says so, and never builds a renderer (no console er
     kit.timers.flush();
     await Promise.resolve();
     await Promise.resolve();
-    assert.deepEqual(said, ['3D needs WebGL, which is turned off in this browser.']);
+    assert.deepEqual(said, ['3D needs WebGL 2, which this browser doesn\'t have or has turned off.']);
     assert.equal(FakeRenderer.all.length, 0, 'no WebGLRenderer was made');
-    assert.ok(asked.includes('webgl2') && asked.includes('webgl'), 'both kinds were tried');
+    assert.deepEqual(asked, ['webgl2'], 'only WebGL 2 is asked for, as three.js needs it');
   } finally {
     view.dispose();
     restore();

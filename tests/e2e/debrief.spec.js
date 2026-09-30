@@ -1106,18 +1106,18 @@ test.describe('3D that cannot start', () => {
     await expect(page.locator('canvas.debrief-3d')).toBeHidden();
   });
 
-  test('WebGL is off: says 3D needs WebGL and goes back to 2D, with no console error', async ({ page }) => {
+  test('no WebGL 2 (WebGL 1 only): says 3D needs WebGL 2 and goes back to 2D, with no console error', async ({ page }) => {
     await page.addInitScript(() => {
       const getContext = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
-        if (type === 'webgl' || type === 'webgl2') return null;
+        if (type === 'webgl2') return null;
         return getContext.call(this, type, ...rest);
       };
     });
     await openRoute(page, '#/debrief');
     await loadExample(page);
     await page.getByText('3D', { exact: true }).click();
-    await expect(page.locator('.debrief-message')).toHaveText(/3D needs WebGL/);
+    await expect(page.locator('.debrief-message')).toHaveText(/3D needs WebGL 2/);
     await expect(page.locator('canvas.debrief-2d')).toBeVisible();
     await expect(page.locator('canvas.debrief-3d')).toBeHidden();
   });

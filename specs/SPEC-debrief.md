@@ -122,7 +122,7 @@ Changes:
 - **Altitude sticks** work with both models and drop to the datum (#26).
 - **Readouts** are the same right-hand panel as the map, not the thinner 3D list.
 - The 3D view has its own playback bar (the shared one), and stops drawing when the debrief is closed or the other view is showing (#39).
-- **Drawn with three.js (D138, D141).** The picture (sky, ground, datum plane, grid, trails, sticks and aircraft) is three.js on a WebGL canvas. The labels, altitude ruler, heights, compass, caption, tennis ball and the dot for a ship with no heading are drawn flat over it (`view3d/overlay.js`), placed with `projectPoint`. The aircraft is ui-kit's CT-156 Harvard in the Moose Jaw paint with the ship's colour on the fin and its number on the tail and nose; **Paint: Ship colours** in 3D settings gives the plain look. If three.js can't load (offline on the first visit) or WebGL is off, the debrief says so and stays in 2D.
+- **Drawn with three.js (D138, D141).** The picture (sky, ground, datum plane, grid, trails, sticks and aircraft) is three.js on a WebGL canvas. The labels, altitude ruler, heights, compass, caption, tennis ball, the dot for a ship with no heading and the hollow marker for a ship in a GPS gap are drawn flat over it (`view3d/overlay.js`), placed with `projectPoint`. The aircraft is ui-kit's CT-156 Harvard in the Moose Jaw paint with the ship's colour on the fin and its number on the tail and nose; **Paint: Ship colours** in 3D settings gives the plain look. If three.js can't load (offline on the first visit) or the browser has no WebGL 2 (three.js needs it; the view asks first so three.js is never fetched for nothing), the debrief says so and stays in 2D.
 
 ### Readouts and standards (R9, R18)
 

@@ -123,7 +123,7 @@ function mount(root, app) {
     // The field datum is the home field's elevation, or Moose Jaw's until one is set.
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
     setCamera: (patch) => layout.update(patch),
-    // three.js couldn't load (offline on a first visit) or WebGL is off: say so and stay in 2D (D141).
+    // three.js couldn't load (offline on a first visit) or there's no WebGL 2: say so and stay in 2D (D141).
     onUnavailable: (message) => {
       ui.setMessage(message);
       layout.update({ view: '2d' });

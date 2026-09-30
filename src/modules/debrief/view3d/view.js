@@ -56,7 +56,7 @@ export function createView3d(canvas, {
   function start() {
     if (gl || loading) return;
     if (!webGlWorks()) { // asked first: three.js would write a console error, and needn't be fetched
-      onUnavailable('3D needs WebGL, which is turned off in this browser.');
+      onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
       return;
     }
     loading = true;
@@ -67,7 +67,7 @@ export function createView3d(canvas, {
         gl = createPicture(module, glCanvas);
         THREE = module;
       } catch {
-        onUnavailable('3D needs WebGL, which is turned off in this browser.');
+        onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
         return;
       }
       surface.requestDraw();
@@ -135,10 +135,11 @@ export function createView3d(canvas, {
   };
 }
 
-// Whether this browser can make a WebGL context, tried on a canvas of its own and let go again.
+// Whether this browser can make a WebGL 2 context, the only kind three.js
+// asks for, tried on a canvas of its own and let go again.
 function webGlWorks() {
   const probe = document.createElement('canvas');
-  const context = probe.getContext('webgl2') || probe.getContext('webgl');
+  const context = probe.getContext('webgl2');
   if (!context) return false;
   context.getExtension?.('WEBGL_lose_context')?.loseContext();
   return true;
