@@ -105,7 +105,8 @@ export function debriefFileName(startT) {
  * `left` the words for why it was left out (or null).
  *
  * The file the reader will open is limited to `maxBytes` (flight-data's
- * MAX_DEBRIEF_BYTES, which was sized for the tracks alone), measured by
+ * MAX_DEBRIEF_BYTES, 189 MiB since #226: four full tracks plus a full
+ * radar set, SAVED_WEATHER_BYTES), measured by
  * `sizeOf(text)`, which should count bytes as the opener does. With the radar
  * in, a file over it would not open again, so it is saved without the radar.
  */
