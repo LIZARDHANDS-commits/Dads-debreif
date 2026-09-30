@@ -10,7 +10,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { RANGES, ALLOWED } from './state.js';
+import { RANGES, ALLOWED, G_LABEL } from './state.js';
 import { VIEWS } from './view3d.js';
 import { limitWarning } from './t6-limit.js';
 
@@ -37,7 +37,7 @@ export function createLayout({ settings, controls, on }) {
     const warning = h('p', { class: 'tf-warning', id: `tf-warning-${nextId++}`, 'aria-live': 'polite' });
     // The unit is in the label, to keep the three boxes in one row (the refusal message still names it).
     const speed = controls.number(`${who}Kt`, { label: 'Speed (KTAS)', ...RANGES[`${who}Kt`] });
-    const g = controls.number(`${who}G`, { label: 'Sustained G', ...RANGES[`${who}G`] });
+    const g = controls.number(`${who}G`, { label: G_LABEL, ...RANGES[`${who}G`] });
     const gInput = g.querySelector('input');
     gInput.setAttribute('aria-describedby', `${gInput.getAttribute('aria-describedby')} ${warning.id}`);
     const pitchBox = h('div', { class: 'tf-pitch', hidden: true }, controls.number(`${who}PitchDeg`, { label: 'Pitch (°)', ...RANGES[`${who}PitchDeg`] }));
@@ -68,7 +68,7 @@ export function createLayout({ settings, controls, on }) {
   const display = menu.section('Display');
   display.append(
     controls.choice('heightScale', { label: 'Side view height scale', options: times(ALLOWED.heightScale) }),
-    h('p', { class: 'tf-hint' }, 'Stretches heights in the side view. It shows with Climb and dive.'),
+    h('p', { class: 'tf-hint' }, 'Stretches heights in the side view (2D, with Climb and dive).'),
     controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }),
     h('p', { class: 'tf-hint' }, 'How the aircraft are painted in the 3D view. Ship colours are Blue and Red.'),
   );
@@ -105,7 +105,7 @@ export function createLayout({ settings, controls, on }) {
   );
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
   // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.
-  const note = h('p', { class: 'tf-note', role: 'status', hidden: true });
+  const note = h('p', { class: 'tf-note', role: 'status' });
 
   const canvas = h('canvas', { class: 'tf-topdown' });
   const profileCanvas = h('canvas', { class: 'tf-profile-canvas' });
@@ -151,6 +151,7 @@ export function createLayout({ settings, controls, on }) {
     // The 3D scene replaces the whole drawing area, the side view with it.
     profile.hidden = in3d || !sideViewWanted;
     controls.setDisabled('paint', !in3d); // the paint shows only in 3D
+    controls.setDisabled('heightScale', in3d || !sideViewWanted); // the height scale is for the 2D side view only
   };
 
   function showWarning(box, text) {
@@ -172,7 +173,6 @@ export function createLayout({ settings, controls, on }) {
       red.pitchBox.hidden = !values.vertical;
       sideViewWanted = values.vertical;
       showPictures();
-      controls.setDisabled('heightScale', !values.vertical);
       showWarning(blue, limitWarning(values.blueKt, values.blueG));
       showWarning(red, limitWarning(values.redKt, values.redG));
     },
@@ -183,8 +183,7 @@ export function createLayout({ settings, controls, on }) {
     },
     /** A short note under the toolbar ("3D needs a connection the first time."), or '' for none. */
     setNote(text) {
-      note.textContent = text ?? '';
-      note.hidden = !text;
+      note.textContent = text ?? ''; // the element stays on the page, so a screen reader hears the words when they appear
     },
     setPlaying(playing) {
       playButton.textContent = playing ? 'Pause' : 'Play';

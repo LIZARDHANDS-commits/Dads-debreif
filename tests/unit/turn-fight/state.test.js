@@ -6,7 +6,7 @@ import { V6_DEFAULT_SETUP, createFight } from '../../../src/modules/turn-fight/s
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../../src/ui-kit/controls.js';
 import { PAINT_DEFAULT } from '../../../src/ui-kit/ct156-model.js';
 import {
-  DEFAULTS, FIGHT_KEYS, RANGES, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults,
+  DEFAULTS, FIGHT_KEYS, G_LABEL, RANGES, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults,
 } from '../../../src/modules/turn-fight/state.js';
 
 test('every setting opens at V6\'s value: 2-circle, 2 NM, 220 KTAS, 4 G, extras off, pitch 0°, height 2×, playback 1×', () => {
@@ -38,6 +38,10 @@ test('every default is inside its own range, so the fight plays straight away', 
   assert.doesNotThrow(() => createFight(setupFrom(DEFAULTS)));
 });
 
+test('the G box is labelled plain "G", not "Sustained G" (the T-6 cannot sustain every G at every speed)', () => {
+  assert.equal(G_LABEL, 'G');
+});
+
 test('choices are limited to the ones on screen', () => {
   assert.deepEqual(ALLOWED.circles, [1, 2]);
   assert.deepEqual(ALLOWED.heightScale, [1, 2, 4]);
@@ -51,7 +55,7 @@ test('the view opens in 2D and the paint as a Harvard, and a saved value outside
   assert.equal(DEFAULTS.view, '2d');
   assert.equal(DEFAULTS.paint, PAINT_DEFAULT);
   assert.equal(DEFAULTS.paint, 'harvard');
-  assert.equal(ALLOWED.view, VIEW_ALLOWED);
+  assert.deepEqual(ALLOWED.view, [...VIEW_ALLOWED]);
 });
 
 test('setupFrom picks only the fight\'s numbers; display settings are not part of it', () => {

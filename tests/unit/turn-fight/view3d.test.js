@@ -10,7 +10,7 @@ import { createRun, advanceRun } from '../../../src/modules/turn-fight/playback.
 import {
   ALT_SCALE, CAMERA_LIMITS, MIN_PLANE_PX, T6_LENGTH_FT, CHASE_PITCH_DEG,
   levelBankRad, turnDirection, firstNoseText, aircraftPose, applyAttitude, fillTrail, heightAtTime, trailCapacity,
-  emptyBounds, extendBounds, yawBehind, orbit, zoomBy, zoomByRatio, fitZoom, planeLengthFt, cameraFor, VIEWS, cameraForButton,
+  emptyBounds, extendBounds, DEFAULT_CAMERA, yawBehind, orbit, zoomBy, zoomByRatio, fitZoom, planeLengthFt, cameraFor, VIEWS, cameraForButton,
   createView3d,
 } from '../../../src/modules/turn-fight/view3d.js';
 
@@ -228,6 +228,36 @@ test('the camera keeps the fight\'s centre mid-screen and every point of the fig
   for (const [x, y] of [[-6076, 0], [6076, 0], [500, 4000]]) {
     const p = screenOf(view, { x, y });
     assert.ok(p.x > 0 && p.x < SIZE.width && p.y > 0 && p.y < SIZE.height, `(${x}, ${y}) is at ${p.x}, ${p.y}`);
+  }
+});
+
+test('a climbing or diving fight stays whole on screen under the default camera, out to T+240 s (the fit counts height too)', () => {
+  const size = { width: 708, height: 605 };
+  for (const pitch of [20, 45]) {
+    for (const [bluePitchDeg, redPitchDeg] of [[pitch, -pitch], [pitch, pitch], [-pitch, -pitch]]) {
+      const run = createRun({ vertical: true, bluePitchDeg, redPitchDeg });
+      const bounds = emptyBounds();
+      let written = 0;
+      let checked = -1;
+      for (let t = 0; t < 240 && !run.fight.stopped; t += 0.08) {
+        advanceRun(run, 0.08);
+        if (Math.floor(run.fight.timeSec / 10) === checked) continue; // look every 10 s of fight time
+        checked = Math.floor(run.fight.timeSec / 10);
+        for (; written < run.trails.blue.length; written++) {
+          extendBounds(bounds, run.trails.blue[written]);
+          extendBounds(bounds, run.trails.red[written]);
+        }
+        const now = { ...bounds };
+        for (const who of ['blue', 'red']) extendBounds(now, run.fight[who]);
+        const view = cameraFor(DEFAULT_CAMERA, { bounds: now, fight: run.fight, size });
+        for (const who of ['blue', 'red']) {
+          const a = run.fight[who];
+          const p = screenOf(view, { x: a.xFt, y: a.yFt, z: a.zFt }, size);
+          assert.ok(p.x > 0 && p.x < size.width && p.y > 0 && p.y < size.height,
+            `pitch ${bluePitchDeg}/${redPitchDeg}, T+${run.fight.timeSec.toFixed(0)}: ${who} is at ${p.x.toFixed(0)}, ${p.y.toFixed(0)}`);
+        }
+      }
+    }
   }
 });
 

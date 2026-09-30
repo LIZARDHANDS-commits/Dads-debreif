@@ -66,7 +66,8 @@ const VIEW_LABELS = Object.freeze({ overhead: 'Overhead', blue: 'Chase Blue', re
 /** The three one-click views, in the order of their buttons: { id: { label } }. */
 export const VIEWS = Object.freeze(Object.fromEntries(Object.entries(VIEW_LABELS).map(([id, label]) => [id, Object.freeze({ label })])));
 
-const clamp = (v, [min, max]) => Math.max(min, Math.min(max, v));
+/** @param {number} v @param {readonly number[]} range [min, max] */
+const clamp = (v, range) => Math.max(range[0], Math.min(range[1], v));
 const wrapDeg = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
 const deg = (r) => (r * 180) / Math.PI;
 
@@ -229,12 +230,13 @@ export function zoomByRatio(cam, ratio) {
 /**
  * The zoom (pixels per 1,000 ft) that shows the whole of `bounds` in a box of `size`, at least 3,000 ft
  * each way from the middle as the 2D view does (view.js MIN_REACH_FT). The picture turns with the yaw, so
- * it fits the diagonal, which holds whichever way it is turned.
+ * it fits the 3D diagonal (height too), which holds whichever way it is turned or tilted.
  */
 export function fitZoom(bounds, size) {
   const spanX = Math.max(bounds.maxX - bounds.minX, 2 * MIN_REACH_FT);
   const spanY = Math.max(bounds.maxY - bounds.minY, 2 * MIN_REACH_FT);
-  const pxPerFt = (FIT_FILL * Math.max(1, Math.min(size.width, size.height))) / Math.hypot(spanX, spanY);
+  const spanZ = Math.max(bounds.maxZ - bounds.minZ, 0);
+  const pxPerFt = (FIT_FILL * Math.max(1, Math.min(size.width, size.height))) / Math.hypot(spanX, spanY, spanZ);
   return clamp(pxPerFt * 1000, CAMERA_LIMITS.zoom);
 }
 
@@ -358,7 +360,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose);
     gl = {
       canvas, renderer, scene, camera, sky, grid, mark, lines, labels,
-      planes: {}, paint: null, nose: null, noseFor: null,
+      planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
     };
@@ -429,8 +431,11 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     const theRun = run();
     const { fight } = theRun;
     const box = size();
-    renderer.setPixelRatio(Math.min(win.devicePixelRatio || 1, 2));
-    renderer.setSize(box.width, box.height, false);
+    // Each of these resets the drawing buffer, so only when the box or the screen's pixel ratio has changed.
+    const ratio = Math.min(win.devicePixelRatio || 1, 2);
+    if (gl.ratio !== ratio) renderer.setPixelRatio(ratio);
+    if (gl.ratio !== ratio || gl.width !== box.width || gl.height !== box.height) renderer.setSize(box.width, box.height, false);
+    Object.assign(gl, { ratio, width: box.width, height: box.height });
 
     placePlanes(paint());
     const bounds = readRun(theRun);

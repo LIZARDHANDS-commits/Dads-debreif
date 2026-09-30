@@ -31,9 +31,12 @@ export const ALLOWED = Object.freeze({
   circles: [1, 2],
   heightScale: [1, 2, 4],
   playbackRate: [0.5, 1, 2, 4],
-  view: VIEW_ALLOWED,
+  view: [...VIEW_ALLOWED],
   paint: PAINT_OPTIONS.map((option) => option.value),
 });
+
+/** The G box's label: plain "G" (the T-6 cannot sustain every G in the box at every speed, so not "Sustained G"). */
+export const G_LABEL = 'G';
 
 /** The number boxes' limits (SPEC-turn-fight, "Number boxes"); `step` is V6's arrow step. */
 export const RANGES = Object.freeze({

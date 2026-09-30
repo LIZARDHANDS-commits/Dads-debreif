@@ -280,7 +280,18 @@
   white-space: nowrap;
 }
 
-/* Why 3D did not start. */
+/* Why 3D did not start. Always on the page (it is a live region); with no words it is out of the way and takes no room. */
+[data-module='turn-fight'] .tf-note:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+}
+
 [data-module='turn-fight'] .tf-note {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -297,6 +308,11 @@
   overflow: hidden;
   cursor: grab;
   touch-action: none;
+}
+
+/* The focus ring goes inside the box, where the box's own clipping can't cut it off. */
+[data-module='turn-fight'] .tf-3d:focus-visible {
+  outline-offset: -3px;
 }
 
 [data-module='turn-fight'] .tf-3d.is-dragging {
