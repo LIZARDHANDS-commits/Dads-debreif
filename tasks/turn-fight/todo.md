@@ -1,6 +1,6 @@
 # Turn Fight: tasks
 
-Build starts once the spec is approved and the coordinator says it's the Turn Fight's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
+Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says it's the Turn Fight's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
 
 - [ ] **1. The fight (`sim.js`), pinned to V6.** `createFight(setup)` and `stepFight(state, dtSec)` in whole 0.02 s steps: start, merge, 1-circle and 2-circle turns, first nose-on, the chase, Climb and dive, the 10-minute stop. Turn math only from `core`. The golden test is written first and fails until `sim.js` exists (test-driven-development).
   - Acceptance: matches V6's `bfmFight` step by step on the golden grid within 1e-9 ft and 1e-12 rad for 10 minutes of fight time (R9); the same result at any frame rate.

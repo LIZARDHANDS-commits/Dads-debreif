@@ -1,12 +1,11 @@
 # Turn Fight: plan
 
-Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), draft for Patrick to approve. Tasks: [`todo.md`](todo.md).
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), approved by Patrick on 2026-09-30. Tasks: [`todo.md`](todo.md).
 
 ## Waits on
 
 | Needed for | What | Owner |
 |---|---|---|
-| Any code | Patrick approves the spec | Patrick |
 | Any code | The coordinator says it's the Turn Fight's turn (after the debrief and the Turn Sim) | Coordinator |
 | Task 1 | Nothing new from `core`: `limitG`, `turnRadiusFt`, `turnRateRadPerSec`, `wrapPi`, `absAngleDeg`, `headingRad` and the units are merged and pinned against Turn Fight's copies | Flight math core thread (done) |
 | Tasks 3 to 5 | ui-kit `createControls`, `createPanel`, `createCanvasSurface` (merged in #65) | App frame thread (done) |

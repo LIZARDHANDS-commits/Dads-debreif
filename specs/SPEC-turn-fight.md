@@ -1,6 +1,6 @@
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **draft, for Patrick to approve.** Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Q-TF1 to Q-TF4 are still open, so each stays V6's behaviour until answered. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
 
