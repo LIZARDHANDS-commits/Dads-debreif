@@ -16,8 +16,9 @@ const setText = (el, text) => {
 };
 
 /**
- * actions: { onAdd(), onEdit(id, patch), onRemove(id), onDay('today' | 'tomorrow'), onSelect(id | null) }.
- * Returns { element, title, render(model) }.
+ * actions: { onAdd(), onEdit(id, patch), onRemove(id), onDay('today' | 'tomorrow'), onSelect(id) }: a press on a
+ * wave's chip. Returns { element, title, render(model, { detailOpen }) }: the list of hits for the selected
+ * wave shows only while `detailOpen`, so the screen is not crowded until asked.
  */
 export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
   const title = h('h2', { class: 'sof-waves-title', id: 'sof-waves-title', tabindex: '-1' }, 'Waves');
@@ -104,7 +105,7 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
     const alts = h('span', { class: 'sof-chip-alts' });
     const chip = h(
       'button',
-      { type: 'button', class: 'sof-wave-chip', hidden: true, onclick: () => onSelect(row.model.id === row.selected ? null : id) },
+      { type: 'button', class: 'sof-wave-chip', hidden: true, onclick: () => onSelect(id) },
       chipName, h('span', { class: 'sof-chip-call' }, symbol, ' ', words), reason, alts,
     );
     // The note says what the wave needs: a local error in a time box first, then the model's words.
@@ -131,7 +132,7 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
     return row;
   }
 
-  function render(model) {
+  function render(model, { detailOpen = false } = {}) {
     zone.textContent = model.zone ? `Times are home local time (${model.zone})` : '';
     zone.hidden = !model.zone;
     setText(date, model.dayLabel);
@@ -152,7 +153,6 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
         rows.set(m.id, row);
       }
       row.model = m;
-      row.selected = model.selectedId;
       if (list.children[index] !== row.li) list.insertBefore(row.li, list.children[index] ?? null);
       // Only the words around the inputs change; the inputs stay as they are, so typing is never interrupted.
       row.name.placeholder = `W${index + 1}`;
@@ -166,9 +166,10 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
       row.chip.hidden = !m.chip;
       if (m.chip) {
         const { chip } = m;
-        const pressed = m.id === model.selectedId;
-        row.chip.setAttribute('aria-pressed', String(pressed));
-        row.chip.className = `sof-wave-chip is-${chip.tone}${pressed ? ' is-selected' : ''}`;
+        // Pressed means its list of hits is open; the selected wave is the one the alternate cards show.
+        const selected = m.id === model.selectedId;
+        row.chip.setAttribute('aria-pressed', String(selected && detailOpen));
+        row.chip.className = `sof-wave-chip is-${chip.tone}${selected ? ' is-selected' : ''}`;
         setText(row.chipName, `${m.name}: `);
         setText(row.symbol, chip.symbol);
         setText(row.words, chip.words);
@@ -182,7 +183,7 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
     if (model.canAdd) add.removeAttribute('aria-disabled');
     else add.setAttribute('aria-disabled', 'true');
     setText(limit, model.limitNote);
-    renderDetail(model.detail);
+    renderDetail(detailOpen ? model.detail : null);
   }
 
   // The list of hits for the selected wave. It holds no controls, so it is rewritten whenever it changes.

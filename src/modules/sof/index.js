@@ -1,9 +1,9 @@
 // The SOF Dashboard (specs/SPEC-sof.md): the weather at home and the alternates.
-// This is task 2, "a screen with live weather": the SOF bar, the airfield cards
-// and the refresh. mount() wires the weather feed, the airfields, the settings and
-// the clock to the screen; everything it starts is stopped when the module
-// closes, because every timer is on the module's scheduler scope and every
-// request is cancelled by unmount (R4, audit #11).
+// The SOF bar and airfield cards (task 2), the caution banner (task 3), the waves
+// (task 4) and the 24-hour timeline (task 5). mount() wires the weather feed, the
+// airfields, the settings, the wave plan and the clock to the screen; everything it
+// starts is stopped when the module closes, because every timer is on the module's
+// scheduler scope and every request is cancelled by unmount (R4, audit #11).
 import { h } from '../../ui-kit/dom.js';
 import { createSofSettings } from './settings-model.js';
 import { createSettingsView } from './settings-view.js';
@@ -15,6 +15,8 @@ import { ACKS_KEY, buildBanner, tafInputs, acksAfterOne, acksAfterAll } from './
 import { createPlanStore } from './plan-store.js';
 import { buildWaves } from './waves-view-model.js';
 import { createWavesView } from './waves-view.js';
+import { buildTimelineView } from './timeline-view-model.js';
+import { createTimelineView } from './timeline-view.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -44,22 +46,35 @@ function mount(root, app) {
   });
   // The waves (task 4): the daily plan in home local time, kept in the module's storage.
   const plan = createPlanStore({ store: app.storage, context: () => ({ now: app.time.now(), timeZone: app.time.zone }) });
-  let selectedId; // undefined is the first wave with a call, null is none
+  let selectedId; // undefined is the first wave with a call; the alternate cards show this wave's result
+  let detailOpen = false; // the list of every hit, opened by pressing a wave's chip
+  let selectedNow = null; // the wave selected as last drawn
   const wavesView = createWavesView({
     onAdd: () => plan.add(),
     onEdit: (id, patch) => plan.edit(id, patch),
     onRemove: (id) => plan.remove(id),
     onDay: (day) => plan.setDay(day),
+    // Pressing a chip selects its wave and opens its hits; pressing the selected wave's chip again closes them.
     onSelect: (id) => {
-      selectedId = id;
+      if (id === selectedNow && detailOpen) detailOpen = false;
+      else {
+        selectedId = id;
+        detailOpen = true;
+      }
       render();
     },
+  });
+  // The 24-hour timeline (task 5). Open or closed is kept as a convenience, open to begin with.
+  const timelineView = createTimelineView({
+    collapsed: app.storage.get('timelineCollapsed', false) === true,
+    onToggle: (collapsed) => app.storage.set('timelineCollapsed', collapsed),
   });
   const ui = createLayout({
     settingsElement: settingsView.element,
     onRefresh: () => weather.refresh(),
     bannerElement: bannerView.element,
     wavesElement: wavesView.element,
+    timelineElement: timelineView.element,
   });
   root.append(ui.element);
 
@@ -89,7 +104,19 @@ function mount(root, app) {
     if (banner.write) app.storage.set(ACKS_KEY, banner.acks); // only when it changed, and only when it can be told which day
     shownKeys = banner.show ? banner.lines.map((l) => l.key) : [];
     bannerView.render(banner);
-    wavesView.render(waves);
+    selectedNow = waves.selectedId;
+    wavesView.render(waves, { detailOpen });
+    // Redrawn only when its picture changes (its signature); the now line moves on its own.
+    timelineView.render(buildTimelineView({
+      airfields: app.airfields,
+      snapshot,
+      limits,
+      waves: waves.waves,
+      day: waves.day,
+      now,
+      timeZone: app.time.zone,
+      timePrimary: app.settings?.get().timePrimary, // Settings' time order: Zulu first unless local is chosen
+    }));
     ui.setBusy(snapshot.busy);
     // Each alternate card shows its result for the selected wave.
     ui.render({ ...screen, cards: screen.cards.map((c) => (waves.altLines.has(c.icao) ? { ...c, waveLine: waves.altLines.get(c.icao) } : c)) });
@@ -98,6 +125,7 @@ function mount(root, app) {
   const stops = [
     settings.subscribe(render),
     plan.subscribe(render),
+    ...(app.settings ? [app.settings.subscribe(render)] : []), // the app-wide time order (Zulu or local first) sets the timeline's axis
     // New stations mean a new list to ask for; anything else (minima, names) only changes the cards.
     app.airfields.subscribe(() => {
       weather.restartIfChanged();
