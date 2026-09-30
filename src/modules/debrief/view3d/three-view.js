@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { SHIP_COLORS, OUTLINE_COLOR } from '../state.js';
 import { sampleAt } from '../../../flight-data/flight.js';
 import { formationCenter, projectPoint } from './scene.js';
+import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH } from './ct156-model.js';
 import { shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT } from './frame.js';
 
 const D = 500_000; // camera distance, ft (orthographic, so it only has to be far)
@@ -15,63 +16,6 @@ const TEXT = '#d9e6f2';
 const HORIZON = '#1a3a55';
 const rad = (d) => (d * Math.PI) / 180;
 const ft = (n) => Math.round(n).toLocaleString('en-US');
-
-// One T-6-like aircraft in unit length: nose +X, left +Y, up +Z.
-function buildAircraftGeometry() {
-  // Fuselage: lathe profile (radius, axial) around Y, then turned so the axis is +X.
-  const profile = [
-    [0.004, -0.78], [0.02, -0.72], [0.034, -0.55], [0.05, -0.3], [0.072, -0.05],
-    [0.085, 0.15], [0.088, 0.3], [0.085, 0.42], [0.07, 0.5], [0.06, 0.52], [0.001, 0.52],
-  ].map(([r, y]) => new THREE.Vector2(r, y));
-  const fuselage = new THREE.LatheGeometry(profile, 20);
-  fuselage.rotateZ(-Math.PI / 2);
-
-  const flat = (pts, depth, z0) => {
-    const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
-    const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-    g.translate(0, 0, z0);
-    return g;
-  };
-  // Straight, tapered, low wing (plan view: x forward, y left).
-  const wing = flat([[0.16, 0.66], [0.33, 0.07], [0.33, -0.07], [0.16, -0.66], [0.06, -0.66], [0.03, -0.07], [0.03, 0.07], [0.06, 0.66]], 0.022, -0.05);
-  // Horizontal stab.
-  const stab = flat([[-0.6, 0.3], [-0.5, 0.05], [-0.5, -0.05], [-0.6, -0.3], [-0.7, -0.3], [-0.72, -0.03], [-0.72, 0.03], [-0.7, 0.3]], 0.014, 0.0);
-  // Vertical fin: shape in (x, up), extruded across.
-  const finShape = new THREE.Shape([[-0.42, 0.03], [-0.6, 0.24], [-0.72, 0.24], [-0.72, 0.03]].map(([x, z]) => new THREE.Vector2(x, z)));
-  const fin = new THREE.ExtrudeGeometry(finShape, { depth: 0.014, bevelEnabled: false });
-  fin.translate(0, 0, -0.007);
-  fin.rotateX(Math.PI / 2);
-  fin.translate(0, 0, 0);
-
-  const canopy = new THREE.SphereGeometry(1, 16, 10);
-  canopy.scale(0.17, 0.062, 0.062);
-  canopy.translate(0.17, 0, 0.075);
-
-  const spinner = new THREE.ConeGeometry(0.045, 0.14, 14);
-  spinner.rotateZ(-Math.PI / 2);
-  spinner.translate(0.59, 0, 0);
-
-  const disc = new THREE.CircleGeometry(0.26, 32);
-  disc.rotateY(Math.PI / 2);
-  disc.translate(0.53, 0, 0);
-
-  return { fuselage, wing, stab, fin, canopy, spinner, disc };
-}
-
-function buildAircraft(geo, colorHex) {
-  const base = new THREE.Color(colorHex);
-  const mat = (color, extra) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.55, metalness: 0.1, ...extra });
-  const g = new THREE.Group();
-  const add = (geometry, material) => g.add(new THREE.Mesh(geometry, material));
-  add(geo.fuselage, mat(base));
-  add(geo.wing, mat(base.clone().multiplyScalar(0.82)));
-  add(geo.stab, mat(base.clone().multiplyScalar(0.82)));
-  add(geo.fin, mat(base.clone().lerp(new THREE.Color('#ffffff'), 0.15)));
-  add(geo.canopy, mat('#8fc4ff', { transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.4 }));
-  add(geo.spinner, mat('#20242a', { roughness: 0.4 }));
-  add(geo.disc, new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
-  return g;
-}
 
 function skyTexture() {
   const c = document.createElement('canvas');
@@ -96,7 +40,7 @@ function skyTexture() {
  * Returns { render(), dispose(), projectToScreen(p) } (the last is for checking
  * the camera against scene.js).
  */
-export function createThreeView3d(canvas, { flight, time, settings, fieldFt }) {
+export function createThreeView3d(canvas, { flight, time, settings, fieldFt, paint = 'harvard' }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.setClearColor(HORIZON);
   const scene = new THREE.Scene();
@@ -109,7 +53,6 @@ export function createThreeView3d(canvas, { flight, time, settings, fieldFt }) {
   scene.add(sun, sun.target);
 
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, D - 250_000, D + 250_000);
-  const geo = buildAircraftGeometry();
   const ships = new Map(); // slot -> group
   const dynamic = new THREE.Group(); // ground, grid, trails, sticks: rebuilt each render
   scene.add(dynamic);
@@ -233,7 +176,7 @@ export function createThreeView3d(canvas, { flight, time, settings, fieldFt }) {
       seen.add(s.slot);
       let m = ships.get(s.slot);
       if (!m) {
-        m = buildAircraft(geo, SHIP_COLORS[s.slot]);
+        m = createCt156Model(THREE, { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt: CT156_UNIT_LENGTH });
         ships.set(s.slot, m);
         scene.add(m);
       }
@@ -304,6 +247,9 @@ export function createThreeView3d(canvas, { flight, time, settings, fieldFt }) {
     },
     dispose() {
       clearDynamic();
+      for (const m of ships.values()) disposeCt156Model(m);
+      ships.clear();
+      scene.background?.dispose();
       overlay.remove();
       renderer.dispose();
     },

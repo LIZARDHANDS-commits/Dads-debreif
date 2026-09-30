@@ -32,9 +32,13 @@ const timers = {
     return () => cancelAnimationFrame(id);
   },
 };
-const common = { flight: () => flight, time: () => t, settings: () => settings, fieldFt: () => 1892 };
+// ?only=1 shows just that ship (used for the single-aircraft hero shot).
+const only = params.has('only') ? +params.get('only') : null;
+const shown = only ? { ...flight, tracks: Object.fromEntries(Object.entries(flight.tracks).filter(([, tr]) => tr.slot === only)) } : flight;
+const common = { flight: () => shown, time: () => t, settings: () => settings, fieldFt: () => 1892 };
 const today = createView3d(document.getElementById('today'), { timers, ...common, setCamera: () => {} });
-const three = createThreeView3d(document.getElementById('three'), common);
+const paint = params.get('paint') === 'ship' ? 'ship' : 'harvard';
+const three = createThreeView3d(document.getElementById('three'), { ...common, paint });
 const draw = () => { today.requestDraw(); three.render(); };
 draw();
 addEventListener('resize', draw);
@@ -48,6 +52,7 @@ slider.addEventListener('input', () => {
 
 window.demo = {
   flight, three, settings,
+  ships: () => shipsIn3d(flight, t),
   set(patch) { Object.assign(settings, patch); draw(); },
   setTime(v) { t = v; draw(); },
   get t() { return t; },
