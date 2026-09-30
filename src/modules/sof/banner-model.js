@@ -49,14 +49,19 @@ export function newKeys(before, lines) {
  * - `shown`: the keys that were on the banner the last time, to tell which are new.
  *
  * Returns `{ enabled, show, count, heading, lines, ackAllLabel, announce, acknowledgedCount,
- * acks, storable, write, fresh, signature }`. A line is `{ key, icao, level, symbol, levelWords,
+ * acks, memory, storable, write, fresh, signature }`. A line is `{ key, icao, level, symbol, levelWords,
  * text, stale }`. `announce` is the keys to announce to a screen reader: lines new since `shown`.
- * `acks` is the object to keep and `write` says it differs from what was stored (and can be stored).
+ * `memory` (keys acknowledged this visit) is used only when nothing can be stored; `banner.memory` is what to keep. `acks` is the object to keep and `write` says it differs from what was stored (and can be stored).
  * @param {any} [args]
  */
-export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled = true, shown = [] } = {}) {
+export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled = true, shown = [], memory = [] } = {}) {
   const result = evaluate({ cards, tafs, extra, acks, now, timeZone });
-  const lines = result.fresh.map((c) => ({
+  // With no readable day nothing can be stored (an acknowledgement with no day never expires), but Acknowledge
+  // must still work: the keys acknowledged this visit are kept in memory by the caller and hide those lines.
+  const remembered = new Set(result.storable ? [] : Array.isArray(memory) ? memory : []);
+  const fresh = result.fresh.filter((c) => !remembered.has(c.key));
+  const active = new Set(result.cautions.map((c) => c.key));
+  const lines = fresh.map((c) => ({
     key: c.key,
     icao: c.icao,
     level: c.level,
@@ -75,11 +80,12 @@ export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled =
     lines,
     ackAllLabel: lines.length > 1 ? 'Acknowledge all' : null,
     announce: show ? newKeys(shown, lines) : [],
-    acknowledgedCount: result.acknowledged.length,
+    acknowledgedCount: result.acknowledged.length + (result.fresh.length - fresh.length),
     acks: result.acks,
     storable: result.storable,
     write: result.storable && result.changed,
-    fresh: result.fresh,
+    fresh,
+    memory: result.storable ? [] : [...remembered].filter((k) => active.has(k)), // still reported, so still acknowledged
     signature: JSON.stringify([show, lines.map((l) => [l.key, l.text])]),
   };
 }
@@ -92,4 +98,16 @@ export function acksAfterOne(banner, key) {
 /** The acknowledgements to keep after Acknowledge all; null when they can't be kept. */
 export function acksAfterAll(banner) {
   return banner?.storable ? acknowledgeAll(banner.acks, banner.fresh) : null;
+}
+
+/** The keys to keep in memory after acknowledging one line when nothing can be stored; null when it can be stored. */
+export function memoryAfterOne(banner, key) {
+  if (!banner || banner.storable) return null;
+  return banner.memory.includes(key) ? [...banner.memory] : [...banner.memory, key];
+}
+
+/** The keys to keep in memory after Acknowledge all when nothing can be stored; null when it can be stored. */
+export function memoryAfterAll(banner) {
+  if (!banner || banner.storable) return null;
+  return [...new Set([...banner.memory, ...banner.lines.map((l) => l.key)])];
 }

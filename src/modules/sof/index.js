@@ -11,7 +11,7 @@ import { createWeather } from './weather.js';
 import { buildScreen } from './screen-model.js';
 import { createLayout } from './layout.js';
 import { createBannerView } from './banner-view.js';
-import { ACKS_KEY, buildBanner, tafInputs, acksAfterOne, acksAfterAll } from './banner-model.js';
+import { ACKS_KEY, buildBanner, tafInputs, acksAfterOne, acksAfterAll, memoryAfterOne, memoryAfterAll } from './banner-model.js';
 import { createPlanStore } from './plan-store.js';
 import { buildWaves } from './waves-view-model.js';
 import { createWavesView } from './waves-view.js';
@@ -40,9 +40,10 @@ function mount(root, app) {
   // The caution banner (task 3). Acknowledgements are kept for the day in the module's storage.
   let banner = null; // the last banner model, for the buttons
   let shownKeys = []; // what was on the banner last time, to announce only what is new
+  let sessionAcks = []; // acknowledged this visit when nothing can be stored (no readable day)
   const bannerView = createBannerView({
-    onAcknowledge: (key) => keepAcks(acksAfterOne(banner, key)),
-    onAcknowledgeAll: () => keepAcks(acksAfterAll(banner)),
+    onAcknowledge: (key) => keepAcks(acksAfterOne(banner, key), memoryAfterOne(banner, key)),
+    onAcknowledgeAll: () => keepAcks(acksAfterAll(banner), memoryAfterAll(banner)),
     focusAfter: () => ui.focusAfterBanner(),
   });
   // The waves (task 4): the daily plan in home local time, kept in the module's storage.
@@ -79,8 +80,10 @@ function mount(root, app) {
   });
   root.append(ui.element);
 
-  function keepAcks(acks) {
+  // Stored for the day when it can be, else kept in memory for the visit, so Acknowledge always works.
+  function keepAcks(acks, memory) {
     if (acks) app.storage.set(ACKS_KEY, acks);
+    else if (memory) sessionAcks = memory;
     render();
   }
 
@@ -102,7 +105,9 @@ function mount(root, app) {
       timeZone: app.time.zone,
       enabled: limits.banner,
       shown: shownKeys,
+      memory: sessionAcks,
     });
+    sessionAcks = banner.memory; // pruned to what is still reported
     if (banner.write) app.storage.set(ACKS_KEY, banner.acks); // only when it changed, and only when it can be told which day
     shownKeys = banner.show ? banner.lines.map((l) => l.key) : [];
     bannerView.render(banner);

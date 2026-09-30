@@ -9,7 +9,7 @@ import { createStore } from '../../../src/storage/store.js';
 import { createAirfields } from '../../../src/airfields/airfields.js';
 import { buildScreen } from '../../../src/modules/sof/screen-model.js';
 import {
-  buildBanner, acksAfterOne, acksAfterAll, newKeys, tafInputs, ACKS_KEY,
+  buildBanner, acksAfterOne, acksAfterAll, memoryAfterOne, memoryAfterAll, newKeys, tafInputs, ACKS_KEY,
 } from '../../../src/modules/sof/banner-model.js';
 import { buildWaves } from '../../../src/modules/sof/waves-view-model.js';
 import { HOME_TAF } from '../../fixtures/sof/reports.js';
@@ -30,12 +30,12 @@ const FINE = {
 const LOW_REGINA = metar('CYQR 291800Z 26005KT 2SM BR BKN004 10/08 A2995');
 const STORM_HOME = metar('CYMJ 291800Z 25010KT 6SM VCTS BKN050 18/02 A2952');
 
-function banner({ metars = FINE, tafs = {}, acks, enabled, extra, shown, now = NOW, timeZone = ZONE } = {}) {
+function banner({ metars = FINE, tafs = {}, acks, enabled, extra, shown, memory, now = NOW, timeZone = ZONE } = {}) {
   const fields = airfields();
   const snapshot = { metar: metars, taf: tafs, newestAt: NOW, lastRound: null, busy: false, stopped: false };
   const cards = buildScreen({ airfields: fields, snapshot, limits: LIMITS, now }).cards;
   const reports = Object.fromEntries(Object.entries(tafs).map(([icao, e]) => [icao, e.report]));
-  return buildBanner({ cards, tafs: tafInputs({ tafs: reports, calls: [], homeIcao: 'CYMJ', now, timeZone }), extra, acks, now, timeZone, enabled, shown });
+  return buildBanner({ cards, tafs: tafInputs({ tafs: reports, calls: [], homeIcao: 'CYMJ', now, timeZone }), extra, acks, now, timeZone, enabled, shown, memory });
 }
 
 test('nothing below limits and nothing dangerous: no banner, nothing to store', () => {
@@ -193,4 +193,38 @@ test('two FM groups with the same fog, seen by the banner window and by a wave, 
   const b = buildBanner({ cards, tafs: tafInputs({ tafs: reports, calls: waves.calls, homeIcao: 'CYMJ', now: NOW, timeZone: ZONE }), now: NOW, timeZone: ZONE });
   const fog = b.lines.filter((l) => /FG/.test(l.text));
   assert.equal(fog.length, 1, fog.map((l) => l.text).join(' | '));
+});
+
+// ---- With no readable day nothing can be stored, but Acknowledge still works for the visit ---------------------
+
+test('with no readable zone Acknowledge still works, kept in memory for the visit', () => {
+  const metars = { ...FINE, CYQR: LOW_REGINA, CYMJ: STORM_HOME };
+  const first = banner({ metars, timeZone: 'Not/AZone' });
+  assert.equal(first.storable, false);
+  assert.equal(first.lines.length, 2);
+  const one = memoryAfterOne(first, first.lines[0].key);
+  const next = banner({ metars, timeZone: 'Not/AZone', memory: one });
+  assert.deepEqual(next.lines.map((l) => l.key), [first.lines[1].key]);
+  assert.equal(next.acknowledgedCount, 1);
+  assert.equal(next.write, false, 'nothing is written');
+  const all = banner({ metars, timeZone: 'Not/AZone', memory: memoryAfterAll(next) });
+  assert.equal(all.show, false);
+  assert.equal(all.lines.length, 0);
+});
+
+test('a caution acknowledged in memory that goes away and comes back is new again', () => {
+  const metars = { ...FINE, CYQR: LOW_REGINA };
+  const first = banner({ metars, timeZone: 'Not/AZone' });
+  const memory = memoryAfterAll(first);
+  const gone = banner({ metars: FINE, timeZone: 'Not/AZone', memory });
+  assert.deepEqual(gone.memory, [], 'no longer reported, so no longer remembered');
+  assert.equal(banner({ metars, timeZone: 'Not/AZone', memory: gone.memory }).show, true);
+});
+
+test('when the day is readable, memory is not used and Acknowledge is stored as before', () => {
+  const metars = { ...FINE, CYQR: LOW_REGINA };
+  const first = banner({ metars });
+  assert.equal(memoryAfterAll(first), null);
+  assert.equal(memoryAfterOne(first, first.lines[0].key), null);
+  assert.equal(banner({ metars, memory: ['CYQR|METAR|whatever'] }).show, true, 'a stray memory does not hide a stored-day caution');
 });
