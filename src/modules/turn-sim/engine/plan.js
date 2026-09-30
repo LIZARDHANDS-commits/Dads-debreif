@@ -11,6 +11,7 @@ import { degToRad } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
 import { turnRadiusFt, turnRateRadPerSec, limitG } from '../../../core/flight-math.js';
 import { rightVector, forwardVector, OFFSET_BOX_OUTSIDE_FT } from './formation.js';
+import { planCheckChain, flyPlanTo } from './check-plan.js';
 
 /** The turn direction sign for the Direction box: right is -1 (clockwise), left is +1 (V6 line 1179). */
 export function selectedDirSign(direction) {
@@ -170,6 +171,42 @@ function outsideSide(one, two, delayOneSec, delayTwoSec, dir, goalRad, speedFtps
 function rearDelaysAsMeasured(delaysSec, timing4) {
   if (timing4 === 'rearDelay') return { 3: delaysSec[3] - delaysSec[1], 4: delaysSec[4] - delaysSec[2] };
   return { 3: delaysSec[3] - Math.max(delaysSec[1], delaysSec[2]), 4: delaysSec[4] - delaysSec[3] };
+}
+
+/**
+ * The offset box's rear shift for the check version: the seconds after the front element's start that put #3 behind the middle of the front
+ * pair and #4 outside #2 (3,000 ft beyond, on the far side from Lead), Box aft behind, by least squares over both. Two flights of the plan give the
+ * end positions at a shift of 0 and of 10 s, which are linear in the shift.
+ */
+function boxCheckShiftSec(front, rear, opts, flight) {
+  const all = [...front, ...rear];
+  const atSec = 260;
+  const at = (shift) => {
+    planCheckChain(rear, { ...opts, startSec: shift });
+    return flyPlanTo(all, opts, atSec);
+  };
+  const p0 = at(0);
+  const p1 = at(10);
+  const hFinal = front[0].headingRad + front[0].turnDir * opts.goalRad;
+  const fwd = { x: Math.cos(hFinal), y: Math.sin(hFinal) };
+  const aft = Number.isFinite(+flight.boxAftFt) ? +flight.boxAftFt : 8000;
+  const one = p0[1];
+  const two = p0[2];
+  const span = Math.hypot(two.xFt - one.xFt, two.yFt - one.yFt) || 1;
+  const u = { x: (two.xFt - one.xFt) / span, y: (two.yFt - one.yFt) / span };
+  const target = {
+    3: { x: (one.xFt + two.xFt) / 2 - fwd.x * aft, y: (one.yFt + two.yFt) / 2 - fwd.y * aft },
+    4: { x: two.xFt + u.x * OFFSET_BOX_OUTSIDE_FT - fwd.x * aft, y: two.yFt + u.y * OFFSET_BOX_OUTSIDE_FT - fwd.y * aft },
+  };
+  let num = 0;
+  let den = 0;
+  for (const id of [3, 4]) {
+    if (!p0[id]) continue;
+    const w = { x: (p1[id].xFt - p0[id].xFt) / 10, y: (p1[id].yFt - p0[id].yFt) / 10 };
+    num += (target[id].x - p0[id].xFt) * w.x + (target[id].y - p0[id].yFt) * w.y;
+    den += w.x * w.x + w.y * w.y;
+  }
+  return den < 1e-9 ? Math.max(0, +flight.rearDelaySec || 0) : Math.max(0, num / den);
 }
 
 /** The midpoint of two aircraft's start positions. */
@@ -392,7 +429,8 @@ export function autoTimingStarts(aircraft, flight) {
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
- * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; rearDelaySec (the hook); crossTurnFirstG and crossTurnSwitchDeg (the cross turn).
+ * flight also has delayed45Check ('auto', 'none' or 'check') and checkTurnDeg for the Delayed 45 (check-plan.js);
+ * for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; rearDelaySec (the hook); crossTurnFirstG and crossTurnSwitchDeg (the cross turn).
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
@@ -430,6 +468,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
 
   let crossSolve = null;
+  let checkRear = null;
   // The hook in the box with the 'boxSlot' timing: the rear element turns about boxAftFt / speed after the front (they turn together)
   // so the box stays in trail, instead of the fixed rearDelaySec (which left it 2,283 ft aft and #2 and #4 465 ft apart).
   let hookRearDelaysSec = null;
@@ -556,10 +595,34 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.done = false;
     a.turnAccumRad = 0;
   }
+  // The Delayed 45 with the check turn (check-plan.js; Figures 16.17, 16.34 and 16.31). 'auto' is the check in the four-ship formations and the
+  // box and the plain turn in the two-ship. Under the clock cue the plain turn is flown (its cue is the plan).
+  const withCheck = man === 'delayed45away' && flight.timing !== 'clock' && (flight.delayed45Check === 'check' || (flight.delayed45Check === 'auto' && form !== 'twoShip'));
+  if (withCheck) {
+    const opts = { goalRad: goal, checkRad: degToRad(+flight.checkTurnDeg || 0), speedFtps: ktToFtps(flight.speedKt), baseG: flight.baseG, cueHours: flight.direction === 'right' ? 5 : 7, direction: flight.direction, useErrors, spacingFt: flight.checkSolveSpacing ? Math.abs(+flight.spacingFt) || 0 : 0 };
+    if (form === 'offsetBox') {
+      // Fig 16.31: the front element flies the check chain and the rear element flies it again, shifted. The shift is solved (below), not the
+      // Rear element delay setting, which this plan ignores. In each pair the aircraft on the first turner's side turns plain: #3 with Lead, #4 with #2.
+      const [f0, f1] = order;
+      const r0 = aircraft.find((x) => x.id === (f0.id === 1 ? 3 : 4));
+      const r1 = aircraft.find((x) => x.id === (f0.id === 1 ? 4 : 3));
+      const front = [f0, f1].filter(Boolean);
+      const rear = [r0, r1].filter(Boolean);
+      planCheckChain(front, { ...opts, startSec: 0 });
+      // The shift puts #3 behind the front pair's middle and #4 outside #2, Box aft behind (the figure's 10-15 s leaves the box collapsed
+      // after a 45; boxSlot's idea, solved for the check). The ends are linear in the shift, so two flights find it.
+      const rearShift = boxCheckShiftSec(front, rear, opts, flight);
+      planCheckChain(rear, { ...opts, startSec: rearShift });
+      checkRear = { 3: rearShift, 4: rearShift };
+    } else {
+      planCheckChain(order, { ...opts, startSec: 0 });
+    }
+  }
   return {
     crossSolve,
+    checkFlown: withCheck,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
-    rearDelaysSec: offsetPlan ? rearDelaysAsMeasured(offsetPlan.delaysSec, flight.offsetBox4Timing) : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null),
+    rearDelaysSec: checkRear || (offsetPlan ? rearDelaysAsMeasured(offsetPlan.delaysSec, flight.offsetBox4Timing) : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null)),
   };
 }

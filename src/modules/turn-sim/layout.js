@@ -12,7 +12,7 @@ import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
   buildField, errorFields, clockAutoLabel, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
-  REAR_DELAY, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
+  REAR_DELAY, DELAYED45_CHECK, CHECK_DEG, CHECK_SOLVE, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
   CLOCK_POS, CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL, TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
 } from './fields.js';
 
@@ -112,6 +112,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   clockPos.element?.classList.add('ts-wide');
   timing.element?.classList.add('ts-wide');
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
+  // With the check turn the aircraft time themselves off each other, so Base delay and the Auto step do not apply.
+  const checkTimingNote = h('p', { class: 'ts-hint ts-check-timing', id: 'ts-check-timing', hidden: true }, 'Base delay and Auto step do not apply: the check turn times itself off the aircraft before it.');
+  let checkFlown = false;
+  const checkRearNote = h('p', { class: 'ts-hint ts-check-rear', id: 'ts-check-rear', hidden: true }, 'The check turn solves the rear element\'s delay so the box keeps its shape.');
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
   const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, { element: directionNote }, speed, g].map((f) => f.element);
@@ -149,7 +153,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   );
 
   // ---- Turn Sim settings: every tuning number, in the ui-kit's one closed menu (R22) ----
-  const tuningKeys = [TURN_DEG, DURATION, DURATION_COVERS, MOA, TWO_SIDE, BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, CORRECTION, CORR_STRENGTH].map((def) => def.key).filter((k) => rules[k]);
+  const tuningKeys = [TURN_DEG, DURATION, DURATION_COVERS, MOA, TWO_SIDE, BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DELAYED45_CHECK, CHECK_DEG, CHECK_SOLVE, CORRECTION, CORR_STRENGTH].map((def) => def.key).filter((k) => rules[k]);
   const settingsMenu = createSettingsMenu({
     title: 'Turn Sim settings',
     collapsed: !layout.get().settingsOpen,
@@ -162,17 +166,24 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // The clock cue's tolerance, the rear element check, the solver, the cross turn's stages and #2's side join
   // these sections as the engine flies them (todo tasks 8 to 12): no box here is a dead one.
   const groups = {};
+  const menuFields = {}; // the built boxes in the settings menu, by setting name
   function section(id, title, defs, hint) {
     const fieldset = settingsMenu.section(title);
     if (hint) fieldset.append(h('p', { class: 'ts-hint' }, hint));
-    for (const def of defs) fieldset.append(...[wrap(build(def))].filter(Boolean));
+    for (const def of defs) {
+      const built = build(def);
+      if (built) menuFields[def.key] = built;
+      fieldset.append(...[wrap(built)].filter(Boolean));
+    }
     groups[id] = fieldset;
   }
   section('turn', 'Turn and run', [TURN_DEG, DURATION, DURATION_COVERS, MOA]);
   section('twoSide', 'Line abreast', [TWO_SIDE]);
   const turnDegInput = groups.turn.querySelector('input[type=number]'); // the first box in Turn and run
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER], 'Used when Formation is the offset box.');
+  groups.offset.append(checkRearNote);
   section('cross', 'Cross turn', [CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE], 'Used when Turn is the cross turn.');
+  section('delayed45', 'Delayed 45', [DELAYED45_CHECK, CHECK_DEG, CHECK_SOLVE], 'Used when Turn is the Delayed 45.');
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
   // The Correction model is a checkbox, off by default (Q41). On, it opens the model (G adjustment first, as it is
   // the one that corrects spacing) and its strength; off is the setting 'none'.
@@ -197,6 +208,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       gWarning,
       timing.element,
       baseDelay.element,
+      checkTimingNote,
       clockPos.element,
       autoNote,
       resetButton(used),
@@ -274,6 +286,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const card = h('ul', { class: 'ts-card', 'aria-label': 'Formation' });
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
+  const checkNote = h('p', { class: 'ts-line ts-check-note', hidden: true });
   const crossNote = h('p', { class: 'ts-line ts-cross-note', hidden: true });
   const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
   let lastFlags = null;
@@ -282,7 +295,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
   detail.element.classList.add('ts-subpanel', 'ts-detail');
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
-  formationPanel.body.append(card, minSep, turnLine, crossNote, flags, cueWarning, cueList, detail.element);
+  formationPanel.body.append(card, minSep, turnLine, checkNote, crossNote, flags, cueWarning, cueList, detail.element);
 
   const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Setup' }, setupPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
@@ -324,8 +337,28 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     else fieldset?.removeAttribute('aria-describedby');
   }
 
+  // With the check turn flown, Base delay is greyed out and says why (aria-describedby), and the Auto step line says it does not apply.
+  function applyCheckTiming(values) {
+    const applies = checkFlown && (values.timing === 'time' || values.timing === 'auto');
+    controls.setDisabled('baseDelaySec', applies);
+    const input = baseDelay.built?.control.querySelector('input');
+    if (applies) input?.setAttribute('aria-describedby', checkTimingNote.id);
+    else input?.removeAttribute('aria-describedby');
+    checkTimingNote.hidden = !applies;
+    // In the box the check plan solves the rear element's shift itself, so #4 timing and Rear element delay are ignored.
+    const rearIgnored = checkFlown && values.formation === 'offsetBox';
+    for (const key of ['offsetBox4Timing', 'rearDelaySec']) {
+      controls.setDisabled(key, rearIgnored);
+      const el = menuFields[key]?.control.querySelector('select, input');
+      if (rearIgnored) el?.setAttribute('aria-describedby', checkRearNote.id);
+      else el?.removeAttribute('aria-describedby');
+    }
+    checkRearNote.hidden = !rearIgnored;
+  }
+
   function applyScenario(values) {
     lastValues = values;
+    applyCheckTiming(values);
     applyDirection(values);
     applyTurnChoices(values);
     if (baseDelay.element) baseDelay.element.hidden = values.timing !== 'time';
@@ -339,6 +372,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
     groups.cross.hidden = values.maneuver !== 'cross180';
+    groups.delayed45.hidden = values.maneuver !== 'delayed45away';
     groups.twoSide.hidden = values.formation !== 'weighted' && values.formation !== 'weightedReverse'; // it only mirrors 4312 and 2134
     if (turnDegInput) turnDegInput.max = values.maneuver === 'check30' ? '30' : '180'; // the check turn is 30 degrees or less (SMM 16.19 para 58)
     correctionOn.checked = values.correction !== 'none';
@@ -418,6 +452,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       minSep.textContent = r.minSepText ?? '';
       minSep.hidden = !r.minSepText;
       turnLine.textContent = r.turnText;
+      checkNote.textContent = r.checkNote ?? '';
+      checkNote.hidden = !r.checkNote;
+      if (Boolean(r.checkNote) !== checkFlown) {
+        checkFlown = Boolean(r.checkNote);
+        if (lastValues) applyCheckTiming(lastValues);
+      }
       crossNote.textContent = r.crossNote?.text ?? '';
       crossNote.hidden = !r.crossNote;
       crossNote.classList.toggle('is-clamped', Boolean(r.crossNote?.clamped));
@@ -442,7 +482,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       cueList.hidden = r.cue.lines.length === 0;
       if ((r.cue.warning ?? '') !== cueWarning.textContent) cueWarning.textContent = r.cue.warning ?? '';
       cueWarning.hidden = !r.cue.warning;
-      autoNote.textContent = r.autoStepSec == null ? 'Auto timing works out each aircraft\'s delay itself.' : `Auto step ${r.autoStepSec.toFixed(1)} s`;
+      autoNote.textContent = checkFlown ? 'Auto step does not apply to the check turn.' : r.autoStepSec == null ? 'Auto timing works out each aircraft\'s delay itself.' : `Auto step ${r.autoStepSec.toFixed(1)} s`;
 
       clear(detail.body);
       detail.body.append(

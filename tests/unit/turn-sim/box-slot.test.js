@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-const BASE = { ...DEFAULTS, formation: 'offsetBox', startHeadingDeg: 0, durationSec: 250, timing: 'time' };
+const BASE = { ...DEFAULTS, delayed45Check: 'none', formation: 'offsetBox', startHeadingDeg: 0, durationSec: 250, timing: 'time' };
 const AFT_TOLERANCE_FT = 500;
 
 function fly(settings) {

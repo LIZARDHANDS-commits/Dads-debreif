@@ -131,6 +131,16 @@ export const DEFAULTS = Object.freeze({
   // The Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart. #2 solves its second-stage G so the roll-out spacing is Spacing.
   // false is V6's fixed G (about 2,000 ft apart).
   crossTurnSolveSpacing: true,
+  // The Delayed 45 with the check turn (SMM 16.19 Figure 16.17 two-ship, Figure 16.34 spread 4, Figure 16.31 the box): the first aircraft turns its
+  // 45, the others check 10 to 15 degrees toward it and turn their 45 as the aircraft before them passes the tail, so a four-ship is a wedge
+  // where the plain chain is a string 46,000 ft long. 'auto' is the check in 4312, 2134 and the box and the plain turn in the two-ship (as before);
+  // 'check' and 'none' force it. Not with the clock cue. V6: the plain chain only.
+  delayed45Check: 'auto',
+  checkTurnDeg: 12.5,
+  // The check version rolls out about 3,900 ft apart on the figure's cue, under the SMM's 4,000 to 6,000 ft LAB. false (the default, Patrick):
+  // the figure's cue as it falls, abreast and quicker. true: each aircraft's roll-in is solved so the spacing is the Spacing setting, at the price
+  // of rolling out 1,200 ft (two-ship) to 2,750 ft (#4 of a four-ship) aft of abreast.
+  checkSolveSpacing: false,
   // A run lasts at least until the last aircraft has finished its turn and 10 s more, so a slow plan (a four-ship
   // Delayed 45 with Auto timing starts its last aircraft at 117 s) is never cut off at the Duration with aircraft
   // that have not turned. V6 stopped at the Duration whatever was still waiting: false gives that back.
@@ -194,6 +204,9 @@ export const SETTINGS_RULES = Object.freeze({
   crossTurnFirstG: number(1.01, 9),
   crossTurnSwitchDeg: number(10, 180),
   crossTurnSolveSpacing: bool,
+  delayed45Check: oneOf(['auto', 'none', 'check']),
+  checkTurnDeg: number(10, 15), // the figure's check turn: 10 to 15 degrees
+  checkSolveSpacing: bool,
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 
