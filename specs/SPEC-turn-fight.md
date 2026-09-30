@@ -81,7 +81,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | Shown by default | Behind a checkbox (off by default), in the closed **Turn Fight settings** menu, or in a collapsed "More …" panel for extra readouts (R22) |
 |---|---|
 | Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6 |
-| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch beside their speed and G, and the side-view panel under the stage. The side view's height scale (1×, 2×, 4×) is in Turn Fight settings |
+| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, or TO THE PASS for other starts, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch beside their speed and G, and the side-view panel under the stage. The side view's height scale (1×, 2×, 4×) is in Turn Fight settings |
 | The top-down view: grid, trails, both aircraft, the MERGE mark, the first nose-on line | **More detail**: G, 360° time, each aircraft's off-nose angle (ATA), and true angle-off (one number), time since the merge, and with Climb and dive on, each aircraft's height change and the height between them |
 | Result: turn rate and turn radius for each aircraft, range, first nose-on | **Energy (T-6)**, off by default: see Energy mode for what it shows |
 | A warning beside a G box when that G is more than a T-6 can pull at that speed (see T-6 limit warning) | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
@@ -347,15 +347,15 @@ Any two of AA, HCA and ATA, with their sides, fix the third. The screen sets the
 - **Start geometry**, a section of the closed Turn Fight settings menu (R22). Its fields:
   - Red off Blue's nose (ATA): 0 to 180°, left or right, default 0°;
   - Red's aspect angle (AA): 0 to 180°, left or right, default 180°;
-  - the HCA, shown live;
+  - the HCA, shown live, with a line under it: "Pass at T+16.4 s", "Turns start at once (the jets pass at T+16.4 s)", or "No pass: the turns start at once" (no closing range, or a pass after the 10-minute stop);
   - a small picture of the start, drawn from the numbers;
-  - a "Head-on (V6)" button that puts back ATA 0° and AA 180°.
+  - a "Head-on (V6)" button that puts back the head-on defaults (ATA 0°, AA 180°, both sides left, Red level with Blue, turns at the pass).
   - For example: ATA 0° with AA 90° is Red crossing Blue's nose, HCA 90°. ATA 0° with AA 0° is Blue dead astern of Red, HCA 0°.
 - **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft, from the deck up to 25,000 ft. Above 15,000 ft a note beside the box says the model's sustained turn rate reads low up there (core's check found it up to 28 % low at 20,000 ft and above near 200 KIAS, and within 0.65°/s at 15,000 ft and below), and that the SMM recommends aerobatics below 16,000 ft MSL (SMM 14.5 para 10); it is one note, not two warnings, and it goes once core's high-altitude fix lands. Decision logged for Patrick's review, 2026-09-30. The start separation is measured level, so the Range readout (the slant range, height included) reads a little more than the set separation when Red starts above or below. In the simple mode with Climb and dive on, a "Red starts above Blue" height (−5,000 to +5,000 ft, default 0) sets the starting height difference.
 - **When the turns start**, a choice in the Start geometry section (R22 keeps More detail for readouts):
   - At the pass (default): each aircraft flies straight until the range stops closing. At head-on that is V6's merge, T+16.4 s at the defaults. If the range is opening from the start, the turns start at once.
   - At once: the turns start at T+0, for a set-up like an offensive perch where the fight is already on.
-- **More detail** adds the live aspect angle (AA), and its one "Angle-off (HCA)" row is the heading crossing angle. Range stays in Result, always in view. Before the pass the phase reads TO THE PASS (HEAD-TO-HEAD at the head-on start, as V6). A line beside the HCA says "Pass at T+16.4 s", or "No pass: the turns start at once" (no closing range, or a pass after the 10-minute stop).
+- **More detail** adds the live aspect angle (AA), and its one "Angle-off (HCA)" row is the heading crossing angle. Range stays in Result, always in view. Before the pass the phase reads TO THE PASS (HEAD-TO-HEAD at the head-on start, as V6).
 - Changing any of these resets the fight, like any other setup change.
 
 ### Which way each aircraft turns
@@ -369,7 +369,7 @@ Blue turns toward Red. In a 2-circle fight, Red turns toward Blue too. In a 1-ci
   - ATA 0°, AA 180° gives today's head-on start;
   - ATA 0°, AA 90° puts Red crossing Blue's nose, with HCA 90°;
   - the pass comes at the closest point of approach to within one step.
-- The view centres on the point midway between the two aircraft at the pass, the way Q49 centres the head-on merge.
+- The view centres on the point midway between the two aircraft at the pass, the way Q49 centres the head-on merge (or at T+0 when the turns start at once or there is no pass).
 
 ## Project structure
 

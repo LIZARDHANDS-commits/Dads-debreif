@@ -32,10 +32,10 @@ export const START_DEFAULTS = Object.freeze({
   turnsAt: 'pass',
 });
 
-/** +1 for a turn to the left (counter-clockwise), −1 to the right. */
 /** The fight stops after this long (sim.js FIGHT_MAX_SEC, pinned by a test): a pass later than this is never reached. */
 export const MAX_PASS_SEC = 600;
 
+/** +1 for a turn to the left (counter-clockwise), −1 to the right. */
 export const sideSign = (side) => (side === 'right' ? -1 : 1);
 
 /** Head-on is ATA 0° with AA 180° exactly; the side is a tie there (V6's directions stand). */

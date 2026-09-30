@@ -608,6 +608,8 @@ test('R28: head-on with the turns at once: the jets turn from their start positi
   assert.equal(s.mergeSec, 0);
   near(s.blue.xFt, -FT_PER_NM, 1e-9);
   near(rangeFt(s), 2 * FT_PER_NM, 1e-9);
+  const u = createFight({ turnsAt: 'once', blueKt: 300, redKt: 150 });
+  near((u.blue.xFt + u.red.xFt) / 2, 0, 1e-6, 'unequal speeds, turns at once: centred on T+0, not on the merge');
   stepFight(s, FIGHT_STEP_SEC);
   assert.ok(s.blue.headingRad > 0);
 });
