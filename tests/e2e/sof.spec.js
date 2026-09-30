@@ -137,6 +137,22 @@ test('each card shows the report as text, its age, and the state in words', asyn
 
 });
 
+test('a card whose METAR is stale has no green tick and no green category chip', async ({ page }) => {
+  await openSof(page);
+  const swift = card(page, 'CYYN'); // its METAR is 2 h 42 min old
+  await expect(swift.locator('.sof-result')).toHaveText('? Unknown: report is 2 h 42 min old');
+  await expect(swift.locator('.sof-result')).not.toContainText('✓');
+  await expect(swift).not.toHaveClass(/level-within/);
+  // The chip keeps its words but is grey, unlike the same VFR on a fresh report.
+  await expect(swift.locator('.sof-category')).toContainText('VFR');
+  await expect(swift.locator('.sof-category')).toHaveClass(/is-stale/);
+  const colour = (loc) => loc.evaluate((el) => getComputedStyle(el).color);
+  const fresh = await colour(card(page, 'CYMJ').locator('.sof-category'));
+  expect(await colour(swift.locator('.sof-category'))).not.toBe(fresh);
+  // A fresh report is as before.
+  await expect(card(page, 'CYMJ').locator('.sof-result')).toContainText('✓ Within limits');
+});
+
 test('a station neither source has a report for says so, with the time of the last try', async ({ page }) => {
   // The other three have reports; Saskatoon has none from either source.
   const without = (text) => text.split('\n').filter((line) => line && !line.startsWith('CYXE')).join('\n');

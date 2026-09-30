@@ -38,15 +38,17 @@ function waveResult(line) {
 }
 
 function children(card) {
+  // The category and colour chips are the METAR's: a stale one is grey, its words kept, never coloured as current.
+  const staleChips = card.metar?.state === 'stale';
   const badges = h(
     'div',
     { class: 'sof-badges' },
     h('span', { class: `sof-badge sof-role is-${card.role.toLowerCase()}` }, card.role),
     card.category
-      ? h('span', { class: `sof-badge sof-category cat-${card.category.toLowerCase()}` }, h('span', { class: 'visually-hidden' }, 'Flight category '), card.category)
+      ? h('span', { class: `sof-badge sof-category cat-${card.category.toLowerCase()}${staleChips ? ' is-stale' : ''}` }, h('span', { class: 'visually-hidden' }, 'Flight category '), card.category)
       : null,
     card.nato
-      ? h('span', { class: 'sof-badge sof-nato' }, h('span', { class: 'visually-hidden' }, 'NATO colour state '), card.nato)
+      ? h('span', { class: `sof-badge sof-nato${staleChips ? ' is-stale' : ''}` }, h('span', { class: 'visually-hidden' }, 'NATO colour state '), card.nato)
       : null,
   );
   const parts = [
