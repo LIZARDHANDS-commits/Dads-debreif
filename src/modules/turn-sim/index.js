@@ -11,12 +11,15 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
-import { stallLimitG } from '../../core/t6-performance.js';
+import { availableG } from '../../core/t6-performance.js';
 import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION } from './settings.js';
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers, TURN_DEGREES } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS } from './layout.js';
 import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
+
+/** The most G a T-6 can pull at a speed (stall line, capped at +7 G), for the warning. */
+const tMaxG = (kt) => availableG(kt, false);
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
 
@@ -128,7 +131,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    const r = readoutsAt(state(), scenario.get(), { standards: standards(), stallLimitG, distNm: layout.get().distNm });
+    const r = readoutsAt(state(), scenario.get(), { standards: standards(), stallLimitG: tMaxG, distNm: layout.get().distNm });
     ui.renderReadouts(r);
     ui.setGWarning(r.gWarning);
   }
