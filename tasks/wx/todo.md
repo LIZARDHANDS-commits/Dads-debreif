@@ -10,6 +10,6 @@
 - [x] Patrick approves SPEC-wx.md (2026-09-30)
 - [x] WX-1 to WX-4 logged in the plan doc as Q27 to Q30
 - [x] Q27 at-limit is yellow, Q28 dangerous weather cautions, Q29 label 2000/3 (Patrick, 2026-09-30)
-- [ ] Q30 alternate window, once the Canadian IFR alternate rules are in
+- [x] Q30 alternate window and Canadian minima (D60)
 - [ ] Swap to core/units.js after the core PR merges
 - [ ] sources.js (needs network)
