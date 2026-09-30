@@ -31,7 +31,7 @@ import { FT_PER_NM, G_FTPS2, KT_TO_FTPS } from '../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../core/angles.js';
 import {
   T6A_LIMITS, T6A_MANOEUVRE, stallLimitG, availableG, shakerG as coreShakerG, splitST6A, iasToTasKt, tasToIasKt, t6aExcessFn,
-  maxKiasT6A, speedOfSoundKt, thrustPerWeight, dragPerWeight, energyHeightFt,
+  maxKiasT6A, modelMaxIasT6A, thrustPerWeight, dragPerWeight, energyHeightFt,
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
@@ -50,10 +50,10 @@ export const ENERGY_ACCURATE_MAX_FT = 15000;
 /**
  * The top speed the Energy engine allows at altFt, in the model's own IAS: VMO (316), or true Mach 0.67, whichever is slower.
  * The model's IAS has no compressibility (IAS = TAS x sqrt(density ratio)), so this sits about 9 kt under the NFM's KIAS line
- * up high (25,000 ft: about 270, where the NFM reads 279), and Auto keeps the model under VMO and Mmo (a forced move may go over). It is here for the screen to use.
+ * up high (25,000 ft: about 270, where the NFM reads 279); it is core's modelMaxIasT6A. Auto keeps the model under VMO and Mmo (a forced move may go over). It is here for the screen to use.
  */
 export function energyTopKias(altFt) {
-  return Math.min(T6A_LIMITS.vmoKias, tasToIasKt(T6A_LIMITS.mmo * speedOfSoundKt(altFt), altFt));
+  return modelMaxIasT6A(altFt); // core's own model-basis limit (#232)
 }
 const PURSUITS_ACCEPTED = Object.freeze([...PURSUITS, 'none']);
 
