@@ -57,7 +57,7 @@ export const V6_DEFAULTS = Object.freeze({
   showNm: true, // "Show NM secondary"
 
   // Offset box #4 timing and the rear element check (lines 543 to 558)
-  offsetBox4Timing: 'late', // 'late' | 'early'
+  offsetBox4Timing: 'late', // 'late' | 'early' (V6's two; the rebuild adds 'groundTrack', see DEFAULTS)
   rearCheckOn: false,
   rearCheckStartSec: 40,
   rearCheckDir: 'left', // 'left' | 'right'
@@ -106,6 +106,9 @@ export const DEFAULTS = Object.freeze({
   // SMM item 2 (16.19 paras 52 and 54, Patrick 06:40Z): the inside aircraft turns when the wingman reaches 7 o'clock
   // in a right turn and 5 o'clock in a left turn. V6: 5:30.
   clockCuePos: 'auto',
+  // Q44b (Patrick): #4 solves its own delay by ground track, to roll out 3,000 ft outside #2 and Box aft behind the
+  // front element. V6 only had 'late' (#3's delay + base delay) and 'early' (#3's delay - base delay), which stay as choices.
+  offsetBox4Timing: 'groundTrack',
   // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
   // The band is a setting; nothing flies with it yet (task 11).
   rearDelayMinSec: 10,
@@ -144,7 +147,7 @@ export const SETTINGS_RULES = Object.freeze({
   startHeadingDeg: number(0, 360), // compass degrees
   showNm: bool,
 
-  offsetBox4Timing: oneOf(['late', 'early']),
+  offsetBox4Timing: oneOf(['groundTrack', 'late', 'early']),
   rearCheckOn: bool,
   rearCheckStartSec: number(0, 600),
   rearCheckDir: oneOf(['left', 'right']),

@@ -10,7 +10,7 @@
 import { degToRad } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
 import { turnRadiusFt, turnRateRadPerSec, limitG } from '../../../core/flight-math.js';
-import { rightVector, forwardVector } from './formation.js';
+import { rightVector, forwardVector, OFFSET_BOX_OUTSIDE_FT } from './formation.js';
 
 /** The turn direction sign for the Direction box: right is -1 (clockwise), left is +1 (V6 line 1179). */
 export function selectedDirSign(direction) {
@@ -145,12 +145,14 @@ export function searchDelayToTarget(a, dir, goalRad, target, speedFtps, radiusFt
  * first (0 s), then the other one after the base delay; every aircraft turns
  * the selected way. #3 searches the delay that puts it in the slot centred aft
  * of the front element's final positions (Box aft feet behind their midpoint).
- * #4 turns one base delay after #3 (LATE) or before it (EARLY).
+ * #4 turns one base delay after #3 (LATE) or before it (EARLY), or, by ground track (Q44b), at the
+ * delay that puts it nearest 3,000 ft outside #2, Box aft behind the front element.
  *
  * aircraft: the active aircraft (xFt, yFt, headingRad, id).
  * cfg: { baseDelaySec, selectedDir, goalRad, direction ('right'|'left'), speedFtps, baseG, boxAftFt,
- *   startHeadingRad, timing4 ('late'|'early') }
- * Returns { delaysSec: { id: s }, dirs: { id: +1|-1 } }.
+ *   startHeadingRad, timing4 ('groundTrack'|'late'|'early') }
+ * Returns { delaysSec: { id: s }, dirs: { id: +1|-1 }, fitErrFt: { 3: ft, 4: ft } }: fitErrFt is how far #3 (and #4 when
+ * by ground track) ends from its target at the solved delay.
  */
 export function offsetBoxPlan(aircraft, cfg) {
   const one = aircraft.find((a) => a.id === 1);
@@ -160,7 +162,7 @@ export function offsetBoxPlan(aircraft, cfg) {
   const { selectedDir, goalRad, speedFtps } = cfg;
   const base = cfg.baseDelaySec;
   const radiusFt = turnRadiusFt(speedFtps, Math.max(1.01, cfg.baseG));
-  const plan = { delaysSec: {}, dirs: {} };
+  const plan = { delaysSec: {}, dirs: {}, fitErrFt: {} };
 
   const front = offsetFrontElementOrder(aircraft, cfg.direction === 'right', cfg.startHeadingRad);
   const frontFirst = front[0] || one;
@@ -180,14 +182,28 @@ export function offsetBoxPlan(aircraft, cfg) {
     const mid = { xFt: (oneFinal.xFt + twoFinal.xFt) / 2, yFt: (oneFinal.yFt + twoFinal.yFt) / 2 };
     const slotTarget = { xFt: mid.xFt - fwd.x * aftFt, yFt: mid.yFt - fwd.y * aftFt };
     if (three) {
-      plan.delaysSec[3] = searchDelayToTarget(three, selectedDir, goalRad, slotTarget, speedFtps, radiusFt, base * 1.5, { baseG: cfg.baseG }).delaySec;
+      const solved = searchDelayToTarget(three, selectedDir, goalRad, slotTarget, speedFtps, radiusFt, base * 1.5, { baseG: cfg.baseG });
+      plan.delaysSec[3] = solved.delaySec;
+      plan.fitErrFt[3] = solved.errFt;
     }
     if (four) {
       // V6 also worked out inner and outer targets for #4 here (lines 1035 to 1060) and never used them:
-      // the selector below alone sets #4's delay. Task 11's Q44b uses them.
+      // its selector alone (LATE or EARLY) set #4's delay. Q44b's ground track finishes what they started.
       const frontSecondDelay = Math.max(plan.delaysSec[1] || 0, plan.delaysSec[2] || 0);
       const threeDelay = plan.delaysSec[3] !== undefined ? plan.delaysSec[3] : frontSecondDelay + base;
-      plan.delaysSec[4] = cfg.timing4 === 'early' ? Math.max(0, threeDelay - Math.max(0, base)) : Math.max(0, threeDelay + Math.max(0, base));
+      if (cfg.timing4 === 'groundTrack') {
+        // Q44b: the delay that ends #4 nearest 3,000 ft outside #2 (on #2's side of the slot line), Box aft behind
+        // the front element. The best delay only slides #4 along its old heading, so the fit is as close as that allows.
+        const right = rightVector(finalHeading);
+        const frontSepFt = Math.hypot(oneFinal.xFt - twoFinal.xFt, oneFinal.yFt - twoFinal.yFt);
+        const twoSide = Math.sign((twoFinal.xFt - mid.xFt) * right.x + (twoFinal.yFt - mid.yFt) * right.y) || 1;
+        const outsideTwo = { xFt: slotTarget.xFt + right.x * twoSide * (frontSepFt / 2 + OFFSET_BOX_OUTSIDE_FT), yFt: slotTarget.yFt + right.y * twoSide * (frontSepFt / 2 + OFFSET_BOX_OUTSIDE_FT) };
+        const solved = searchDelayToTarget(four, selectedDir, goalRad, outsideTwo, speedFtps, radiusFt, threeDelay + Math.max(0, base), { baseG: cfg.baseG });
+        plan.delaysSec[4] = solved.delaySec;
+        plan.fitErrFt[4] = solved.errFt;
+      } else {
+        plan.delaysSec[4] = cfg.timing4 === 'early' ? Math.max(0, threeDelay - Math.max(0, base)) : Math.max(0, threeDelay + Math.max(0, base));
+      }
     }
   }
   // V6's fallbacks if a target solve was not possible (line 1085).
