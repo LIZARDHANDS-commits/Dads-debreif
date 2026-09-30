@@ -68,3 +68,20 @@ test('viewSwitch(key) binds another setting, and setDisabled greys it out', () =
   assert.equal(el.disabled, true);
   controls.dispose();
 });
+
+test('setDisabled marks the whole control aria-disabled, and clears it when turned back on', () => {
+  const settings = fakeSettings({ bubbleFt: 1000, mode: '2d', on: true });
+  const controls = createControls(settings);
+  // A select sits in the same labelled wrapper as a number box (the fake DOM has no typing).
+  const number = controls.select('bubbleFt', { label: 'Safety bubble', options: [500, 1000] });
+  const check = controls.checkbox('on', { label: 'On' });
+  const choice = controls.viewSwitch('mode');
+  const [box] = all(number, 'SELECT');
+  for (const key of ['bubbleFt', 'on', 'mode']) controls.setDisabled(key, true);
+  assert.equal(box.disabled, true);
+  for (const el of [number, check, choice]) assert.equal(el.getAttribute('aria-disabled'), 'true');
+  for (const key of ['bubbleFt', 'on', 'mode']) controls.setDisabled(key, false);
+  assert.equal(box.disabled, false);
+  for (const el of [number, check, choice]) assert.equal(el.getAttribute('aria-disabled'), null);
+  controls.dispose();
+});

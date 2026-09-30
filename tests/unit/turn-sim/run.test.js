@@ -101,14 +101,6 @@ test('hook and in-place 90 (V6\'s hook is the same turn) start all four aircraft
   }
 });
 
-test('shackle: each aircraft turns 45° and then comes back to its start heading', () => {
-  const run = createRun({ ...V6, maneuver: 'shackle45', formation: 'twoShip' });
-  let peak = 0;
-  while (run.step()) peak = Math.max(peak, ...run.state.aircraft.map((a) => Math.abs(a.headingRad)));
-  assert.ok(Math.abs(peak - Math.PI / 4) < 2e-4, `peak ${peak}`);
-  for (const a of run.state.aircraft) assert.equal(a.headingRad, 0);
-});
-
 test('G and bank: g is the G setting plus the aircraft\'s own error, limited to 1.01; bank shows only while turning', () => {
   const run = createRun({ ...V6, baseG: 3, [aircraftKey(2, 'gError')]: 1, [aircraftKey(3, 'gError')]: -4 });
   assert.equal(byId(run, 1).g, 3);

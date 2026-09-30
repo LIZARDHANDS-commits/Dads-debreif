@@ -6,7 +6,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { degToRad } from '../../src/core/angles.js';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
-import { displayedOutsideInOrder, turningOrder, sideOfLead, sideOfAircraftFrom, turnDirFromLogic, cueTargetForAircraft, selectedDirSign } from '../../src/modules/turn-sim/engine/plan.js';
+import { displayedOutsideInOrder, turningOrder, offsetFrontElementOrder, simulateDelayedTurnFinalPos, searchDelayToTarget, offsetBoxPlan, sideOfLead, sideOfAircraftFrom, turnDirFromLogic, cueTargetForAircraft, selectedDirSign } from '../../src/modules/turn-sim/engine/plan.js';
+import { ktToFtps } from '../../src/core/units.js';
+import { turnRadiusFt } from '../../src/core/flight-math.js';
 import { createV6Page } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
@@ -90,4 +92,79 @@ test('the cue aircraft and turnDirFromLogic match V6 for every turn logic, excep
     assert.equal(selectedDirSign(settings.direction), settings.direction === 'right' ? -1 : 1);
   }
   for (const logic of ['toward', 'away']) assert.ok(seen.has(`${logic}1`) && seen.has(`${logic}-1`), `${logic} reaches both directions`);
+});
+
+/** Offset box layouts: seeded settings and the aircraft scattered anywhere, in V6's page and in the port's shape. */
+function* boxLayouts(count = 200) {
+  const r = seeded(0x0ff5);
+  const round = (x, places) => Math.round(x * 10 ** places) / 10 ** places;
+  for (let i = 0; i < count; i++) {
+    const settings = {
+      ...V6_DEFAULTS,
+      formation: 'offsetBox',
+      maneuver: pick(r, ['delayed90away', 'delayed45away']),
+      direction: pick(r, ['right', 'left']),
+      turnDeg: pick(r, [90, 45, Math.round(20 + 160 * r())]),
+      startHeadingDeg: Math.round(360 * r()),
+      speedKt: Math.round(120 + 200 * r()),
+      baseG: round(1.02 + 5 * r(), 2),
+      baseDelaySec: round(30 * r(), 1),
+      boxAftFt: pick(r, [0, Math.round(3000 + 9000 * r())]),
+      offsetBox4Timing: pick(r, ['late', 'early']),
+    };
+    const page = createV6Page(settings);
+    page.aircraft().forEach((a) => {
+      a.x = i % 3 === 0 ? [0, 6000, -6000, 12000][a.id - 1] : 20000 * (r() - 0.5);
+      a.y = i % 3 === 0 ? [0, 0, 0, 0][a.id - 1] : 20000 * (r() - 0.5);
+      a.hdg = i % 3 === 0 ? degToRad(90 - settings.startHeadingDeg) : 2 * Math.PI * r() - Math.PI;
+    });
+    const mine = page.aircraft().map((a) => ({ id: a.id, xFt: a.x, yFt: a.y, headingRad: a.hdg }));
+    yield { settings, page, mine, v6All: page.aircraft() };
+  }
+}
+
+test('offsetFrontElementOrder, simulateDelayedTurnFinalPos and searchDelayToTarget match V6', () => {
+  const r = seeded(0x0ff6);
+  for (const { settings, page, mine, v6All } of boxLayouts()) {
+    const turnRight = settings.direction === 'right';
+    const startRad = degToRad(90 - settings.startHeadingDeg);
+    assert.deepEqual(ids(offsetFrontElementOrder(mine, turnRight, startRad)), ids(page.v6.offsetFrontElementOrder(v6All, turnRight)));
+    const v = ktToFtps(settings.speedKt);
+    assert.equal(v, page.v6.speedfps());
+    const R = turnRadiusFt(v, Math.max(1.01, settings.baseG));
+    const goal = degToRad(settings.turnDeg);
+    for (let k = 0; k < 4; k++) {
+      const dir = r() < 0.5 ? -1 : 1;
+      const delay = 40 * r();
+      const a = mine[k];
+      const mineFinal = simulateDelayedTurnFinalPos(a, dir, goal, v, R, delay);
+      const v6Final = page.v6.simulateDelayedTurnFinalPos(v6All[k], dir, goal, v, R, delay);
+      assert.deepEqual([mineFinal.xFt, mineFinal.yFt], [v6Final.x, v6Final.y]);
+      const target = { xFt: 30000 * (r() - 0.5), yFt: 30000 * (r() - 0.5) };
+      for (const [minDelay, maxOverride] of [[0, null], [3, null], [0, 20], [2, 12.5]]) {
+        const guess = 30 * r();
+        const got = searchDelayToTarget(a, dir, goal, target, v, R, guess, { baseG: settings.baseG, minDelaySec: minDelay, maxDelaySec: maxOverride });
+        assert.equal(got.delaySec, page.v6.searchDelayToTarget(v6All[k], dir, goal, { x: target.xFt, y: target.yFt }, v, R, guess, minDelay, maxOverride));
+        assert.ok(Number.isFinite(got.errFt));
+      }
+    }
+  }
+});
+
+test('offsetBoxPlan: the delays and directions are V6 computeOffsetBoxPlan\'s, for #4 LATE and EARLY, Box aft 0 and every layout', () => {
+  const seen = new Set();
+  for (const { settings, page, mine, v6All } of boxLayouts()) {
+    const selectedDir = selectedDirSign(settings.direction);
+    const goal = degToRad(settings.turnDeg);
+    const base = settings.baseDelaySec;
+    const v6 = page.v6.computeOffsetBoxPlan(v6All, base, selectedDir, goal);
+    const got = offsetBoxPlan(mine, {
+      baseDelaySec: base, selectedDir, goalRad: goal, direction: settings.direction, speedFtps: ktToFtps(settings.speedKt),
+      baseG: settings.baseG, boxAftFt: settings.boxAftFt, startHeadingRad: degToRad(90 - settings.startHeadingDeg), timing4: settings.offsetBox4Timing,
+    });
+    assert.deepEqual(got.delaysSec, v6.delays, JSON.stringify(settings));
+    assert.deepEqual(got.dirs, v6.dirs);
+    seen.add(`${settings.offsetBox4Timing} ${settings.direction}`);
+  }
+  assert.equal(seen.size, 4);
 });
