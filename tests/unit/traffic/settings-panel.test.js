@@ -324,6 +324,11 @@ test('the 3D view\'s Paint choice is in the menu, Harvard first and by default, 
   const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint');
   assert.ok(label, 'a "Paint" label');
   assert.equal(selects[0].id, label.getAttribute('for'));
+  const hintId = selects[0].getAttribute('aria-describedby');
+  assert.ok(hintId, 'the hint is tied to the select, so a screen reader reads it');
+  const hint = tagged(panel.element, 'P').find((p) => p.getAttribute('id') === hintId);
+  assert.match(words(hint), /zoomed right in/, 'and says when the paint shows');
+  assert.ok(words(hint).length <= 60);
   const options = tagged(selects[0], 'OPTION').map(words);
   assert.deepEqual(options, ['Harvard', 'Ship colours']);
   assert.equal(settings.get().paint, 'harvard');

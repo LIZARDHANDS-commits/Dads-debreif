@@ -51,7 +51,7 @@ const pickHome = (home) => Object.fromEntries(HOME_KEYS.map((key) => [key, home?
 // The hint shows on screen only while the pointer is over the control or it has focus (traffic.css).
 function withHint(control, text) {
   const id = `traffic-settings-hint-${nextHint++}`;
-  const input = [...control.childNodes].find((node) => node.tagName === 'INPUT');
+  const input = [...control.childNodes].find((node) => node.tagName === 'INPUT' || node.tagName === 'SELECT');
   if (input) input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), id].filter(Boolean).join(' '));
   return h('div', { class: 'settings-item' }, control, h('p', { class: 'settings-hint', id }, text));
 }
@@ -107,7 +107,7 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
 
   if (available.view3d) {
     // "Paint: Harvard / Ship colours" for the 3D T-6 (SPEC-ui-kit, "Paint"); the other types have no scheme.
-    menu.section('3D view').append(controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }));
+    menu.section('3D view').append(withHint(controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }), 'Shows zoomed right in; from further off, a plain T-6.'));
   }
 
   // The manual radius is used only when rounded turns are on and the radius isn't worked out from speed and G.

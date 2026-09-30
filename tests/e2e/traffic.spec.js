@@ -456,7 +456,10 @@ const changed = async (page, act) => {
   await expect.poll(async () => !(await shot3d(page)).equals(before), { timeout: 10_000 }).toBe(true);
 };
 const stats = (page) => page.evaluate(() => window.__tr.stats());
-const GPU_LEFT = /^0,[0-2]$/; // geometries, textures the renderer still counts once it is let go
+// Geometries, textures the renderer still counts once it is let go: none, and exactly one texture, the render target
+// of three.js's own PMREM generator, which the ui-kit's T-6 reflection map is made with and three.js keeps for reuse
+// (a ui-kit note explains it; it is not this view's). It is pinned to 1 so a texture the view leaks shows.
+const GPU_LEFT = /^0,1$/;
 
 test('a 2D visit loads no three.js: 2D is what opens, with no 3D canvas and no camera buttons', async ({ page }) => {
   const seen = threeRequests(page);
@@ -504,9 +507,8 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await viewChoice(page, '2D').check();
   await expect(map(page)).toBeVisible();
   await expect(canvas3d(page)).toHaveCount(0);
-  // What the renderer still counts after it is let go: no geometry, and at most the two textures three.js itself
-  // keeps for the T-6's reflection map (its PMREM copy), which go with the context. Every geometry, material and
-  // texture the view made is disposed (tests/unit/traffic/view3d.test.js pins that one by one).
+  // What the renderer still counts after it is let go: no geometry and the one PMREM generator target (GPU_LEFT).
+  // Every geometry, material and texture the view made is disposed (tests/unit/traffic/view3d.test.js pins that one by one).
   await expect(stage3d(page)).toHaveAttribute('data-gpu', GPU_LEFT);
   await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
   expect(await seconds(page)).toBe(timeNow);
@@ -556,8 +558,13 @@ test('Paint in the Traffic settings menu changes the T-6s: Harvard or Ship colou
   await expect.poll(() => seconds(page)).toBeGreaterThan(20);
   await playButton(page).click();
   await viewChoice(page, '3D').check();
-  await cameraButton(page, 'Low chase').click(); // close enough to see the paint
+  await cameraButton(page, 'Low chase').click();
   await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  // The full Harvard model, and so the paint, is for an aircraft drawn 120 px or more long: wheel right in on it.
+  const box = await canvas3d(page).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let notch = 0; notch < 40; notch++) await page.mouse.wheel(0, -100); // 1.12 times a notch (to the limit, 4,000)
+  await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), { timeout: 10_000 }).toBeGreaterThan(120);
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
   const paint = page.getByLabel('Paint');
   await expect(paint.locator('option:checked')).toHaveText('Harvard');
@@ -636,4 +643,52 @@ test('the 3D view works from the keyboard (arrow keys turn it, + and - zoom) and
   await page.keyboard.press('Tab');
   await expect(cameraButton(page, 'High look-down')).toBeFocused();
   await changed(page, () => page.keyboard.press('Enter'));
+});
+
+test('when the browser takes the graphics context away, the 2D map comes back with a note, the setting says 2D, and nothing is logged', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await page.evaluate(() => {
+    const canvas = document.querySelector('canvas.traffic-map3d');
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl'); // the context three.js already made
+    gl.getExtension('WEBGL_lose_context').loseContext();
+  });
+  await expect(map(page)).toBeVisible();
+  await expect(canvas3d(page)).toHaveCount(0);
+  await expect(note3d(page)).toBeVisible();
+  await expect(note3d(page)).not.toBeEmpty();
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
+  await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
+  await page.waitForTimeout(300); // anything logged about it would have arrived by now (the fixture fails the test on errors)
+  // And 3D works again after it: a new canvas and a new context.
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+});
+
+test('a steady 3D frame does not write the canvas size again (writing it clears the picture and rebuilds its buffer)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await playButton(page).click(); // a paused, still view draws only when something changes; a run draws every frame
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
+  const writes = await page.evaluate(async () => {
+    const canvas = document.querySelector('canvas.traffic-map3d');
+    const labels = document.querySelector('canvas.traffic-labels3d');
+    const count = { cwidth: 0, cheight: 0, lwidth: 0, lheight: 0 };
+    for (const [el, tag] of [[canvas, 'c'], [labels, 'l']]) {
+      for (const key of ['width', 'height']) {
+        const own = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, key);
+        Object.defineProperty(el, key, { configurable: true, get() { return own.get.call(this); }, set(v) { count[`${tag}${key}`] += 1; own.set.call(this, v); } });
+      }
+    }
+    const before = Number(canvas.dataset.draws);
+    await new Promise((done) => setTimeout(done, 700));
+    return { frames: Number(canvas.dataset.draws) - before, count };
+  });
+  expect(writes.frames).toBeGreaterThan(5);
+  expect(writes.count).toEqual({ cwidth: 0, cheight: 0, lwidth: 0, lheight: 0 });
 });

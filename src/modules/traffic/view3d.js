@@ -18,13 +18,13 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
-import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS } from './map2d.js';
+import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX } from './map2d.js';
 
 /** Every axis is drawn at the same scale: a foot of height is a foot of ground (SPEC-traffic: the 3D view). */
 export const ALT_SCALE = 1;
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
-export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 400] });
+export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
 
 /** The pitch of each camera button: Fit, High look-down and Low chase. */
 export const PRESET_PITCH_DEG = Object.freeze({ fit: 45, high: 20, low: 72 });
@@ -244,6 +244,22 @@ const DASH_FT = Object.freeze({ entry: [500, 350], split: [120, 380] });
 
 /** How many T-6s flying at once get the full Harvard model (55 draw calls each); later ones get the ui-kit's plain T-6 (about 10). */
 export const MAX_FULL_T6 = 8;
+/**
+ * The full Harvard model is only worth its draw calls when the aircraft is drawn this many pixels long or more
+ * (zoomed right in on it); smaller than that the plain T-6 looks the same. Once full it is kept until it is under
+ * FULL_MODEL_KEEP_PX, so a wheel notch across the line does not build it over and over.
+ */
+export const FULL_MODEL_PX = 120;
+export const FULL_MODEL_KEEP_PX = 100;
+
+/** How long an aircraft is drawn on screen, in pixels, at a zoom. */
+export const planePx = (zoom) => (planeLengthFt(zoom) * zoom) / 1000;
+
+/** Whether an aircraft drawn `px` long gets the full model, given whether it has it now. */
+export const wantsFullModel = (px, wasFull) => px > (wasFull ? FULL_MODEL_KEEP_PX : FULL_MODEL_PX);
+
+/** The caution ring's radius in feet: the caution distance, or MIN_RING_PX on screen (as on the 2D map) if that is smaller. */
+export const ringRadiusFt = (cautionLatFt, zoom) => Math.max(cautionLatFt, MIN_RING_PX / (zoom / 1000));
 
 const RING_SEGMENTS = 64;
 const RING_COLORS = Object.freeze({ calm: '#9bb8c6', caution: '#f5c542', conflict: '#ff6b6b' });
@@ -273,16 +289,22 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   const ringGeometry = new THREE.BufferGeometry().setFromPoints(ringPoints);
   const ringMaterials = Object.fromEntries(Object.entries(RING_COLORS).map(([level, color]) => [level, new THREE.LineBasicMaterial({ color, transparent: level === 'calm', opacity: level === 'calm' ? 0.45 : 1, fog: false })]));
 
-  // One line-segment object for every drop line, its buffer grown when there are more aircraft than room.
-  let dropCapacity = 48; // floats: 8 aircraft to start with
-  const dropGeometry = new THREE.BufferGeometry();
-  dropGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dropCapacity), 3));
-  dropGeometry.setDrawRange(0, 0);
+  // One line-segment object for every drop line, its geometry built again, bigger, when there are more aircraft than room.
+  const DROP_FLOATS = 6; // two ends of three numbers, per aircraft
+  let dropCapacity = 64 * DROP_FLOATS; // room for 64 aircraft to start with
+  const newDropGeometry = (floats) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(floats), 3));
+    geometry.setDrawRange(0, 0);
+    return geometry;
+  };
+  let dropGeometry = newDropGeometry(dropCapacity);
   const dropMaterial = new THREE.LineBasicMaterial({ color: DROP_COLOR, transparent: true, opacity: 0.5, fog: false });
   const drops = new THREE.LineSegments(dropGeometry, dropMaterial);
   drops.frustumCulled = false;
   root.add(drops);
   let dropCount = 0;
+  let fullModels = false; // the zoom is close enough for the full Harvard model
 
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
@@ -344,14 +366,19 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     const lengthFt = planeLengthFt(options.zoom);
     const present = new Set();
     const wantRings = options.layerCautionRings !== false;
-    if (flying.length * 6 > dropCapacity) {
-      dropCapacity = Math.max(flying.length * 6, dropCapacity * 2, 48);
-      dropGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dropCapacity), 3));
+    if (flying.length * DROP_FLOATS > dropCapacity) {
+      // A new geometry, not a new attribute on the old one: the old buffer on the graphics card goes with dispose().
+      dropCapacity = Math.max(flying.length * DROP_FLOATS, dropCapacity * 2);
+      dropGeometry.dispose();
+      dropGeometry = newDropGeometry(dropCapacity);
+      drops.geometry = dropGeometry;
     }
     const dropAt = dropGeometry.attributes.position;
     const floor = altToZ(options.groundFt ?? 0, ALT_SCALE);
     let n = 0;
-    let fullLeft = MAX_FULL_T6; // the full model is some 55 draw calls; the first few T-6s flying get it, the rest the plain one
+    // The full model is some 55 draw calls, so only a T-6 drawn big enough to show it gets it, and only the first few of those.
+    fullModels = wantsFullModel(planePx(options.zoom), fullModels);
+    let fullLeft = fullModels ? MAX_FULL_T6 : 0;
     for (const ac of flying) {
       present.add(ac.id);
       const kind = modelKindFor(ac.type) === 'ct156' ? (fullLeft-- > 0 ? 'ct156' : 't6plain') : 'standin';
@@ -376,7 +403,8 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
         const level = levels.get(ac.id);
         ring.material = ringMaterials[level ?? 'calm'];
         ring.position.set(ac.x, ac.y, z);
-        ring.scale.set(options.cautionLatFt, options.cautionLatFt, 1);
+        const radiusFt = ringRadiusFt(options.cautionLatFt, options.zoom);
+        ring.scale.set(radiusFt, radiusFt, 1);
       } else if (ring) {
         ring.removeFromParent();
         rings.delete(ac.id);
@@ -570,11 +598,12 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
 
   function contextLost(e) {
     e.preventDefault();
-    teardown();
+    teardown({ lost: true });
     onLost();
   }
 
-  function teardown() {
+  // `lost`: the browser has already lost the graphics context, so it is not asked to lose it again (that logs a warning).
+  function teardown({ lost = false } = {}) {
     stopFrame();
     visible = false;
     resizer?.disconnect();
@@ -588,10 +617,11 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     kit.dispose();
     sky.dispose();
     renderer.dispose();
-    // What is left on the graphics card, for the leak check: nothing.
+    // What is left on the graphics card, for the leak check: no geometry, and one texture, the render target of three.js's own
+    // PMREM generator (it makes the T-6's reflection map and is kept for reuse; a ui-kit note explains it). The e2e pins the count.
     const { memory } = renderer.info;
     host.dataset.gpu = `${memory.geometries},${memory.textures}`;
-    renderer.forceContextLoss?.();
+    if (!lost) renderer.forceContextLoss?.();
     canvas.remove();
     labels.remove();
     host.dataset.gl = 'closed';
@@ -603,12 +633,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const { canvas, labels, ctx, renderer, scene: threeScene, camera, kit, palette } = gl;
     const size = sizeOf(canvas);
     if (canvas.clientWidth < 2 || canvas.clientHeight < 2) return; // hidden: the observer draws when it has a size
+    // Sizes are set only when they change: writing a canvas's width, even to the same number, clears it and
+    // rebuilds its drawing buffer. Floor, as three.js does.
     const ratio = Math.min(win.devicePixelRatio || 1, 2);
-    renderer.setPixelRatio(ratio);
-    if (canvas.width !== Math.round(size.width * ratio) || canvas.height !== Math.round(size.height * ratio)) {
-      renderer.setSize(size.width, size.height, false);
-      labels.width = Math.round(size.width * ratio);
-      labels.height = Math.round(size.height * ratio);
+    if (renderer.getPixelRatio() !== ratio) renderer.setPixelRatio(ratio);
+    const [w, h] = [Math.floor(size.width * ratio), Math.floor(size.height * ratio)];
+    if (canvas.width !== w || canvas.height !== h) renderer.setSize(size.width, size.height, false);
+    if (labels.width !== w || labels.height !== h) {
+      labels.width = w;
+      labels.height = h;
     }
 
     const data = source.scene();
@@ -656,6 +689,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     canvas.dataset.drawMs = averageMs.toFixed(2);
     canvas.dataset.calls = String(renderer.info.render.calls); // draw calls and triangles of the last frame, for finding what a slow frame costs
     canvas.dataset.triangles = String(renderer.info.render.triangles);
+    canvas.dataset.planePx = String(Math.round(planePx(shown.zoom))); // how long an aircraft is drawn; over FULL_MODEL_PX the T-6s are the full Harvard model
   }
 
   // The callsigns and, with the layer on, heights and speeds, written over the picture; a word for a conflict too (colour is never the only signal).

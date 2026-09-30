@@ -11,6 +11,7 @@ import { PAINT_DEFAULT } from '../../../src/ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../../src/core/units.js';
 import {
   hdgRadOf, turnRateRadPerS, bankRadFromTurn, createAttitude, applyPose, planeLengthFt, modelKindFor,
+  planePx, wantsFullModel, ringRadiusFt, FULL_MODEL_PX, FULL_MODEL_KEEP_PX,
   routeSignature, groundFt, sceneBox, fitCamera, orbit, zoomBy, cameraFor, chaseCamera, CAMERA_LIMITS,
   T6_LENGTH_FT, MIN_PLANE_PX, ALT_SCALE, MAX_FULL_T6, createSceneKit, threeStats, softwareRenderer, resetSoftwareCheck,
 } from '../../../src/modules/traffic/view3d.js';
@@ -316,7 +317,9 @@ const scene = (extra = {}) => ({
   conflicts: [{ a: 'A1', b: 'A2', latFt: 111, vertFt: 50, level: 'conflict' }],
   ...extra,
 });
-const OPTIONS = { paint: PAINT_DEFAULT, layerCautionRings: true, cautionLatFt: 500, zoom: 20, groundFt: 1880, time: 10 };
+const OPTIONS = { paint: PAINT_DEFAULT, layerCautionRings: true, cautionLatFt: 500, zoom: 200, groundFt: 1880, time: 10 };
+// Close in (chase or zoomed in), where a T-6 is more than FULL_MODEL_PX long on screen and gets the full Harvard model.
+const CLOSE = { ...OPTIONS, zoom: 5000 };
 
 test('the scene kit draws each route once, each flying aircraft once, and a caution ring and a drop line for each', (t) => {
   const kit = createSceneKit(THREE, { models });
@@ -377,14 +380,14 @@ test('dispose frees every geometry and material the kit made, leaves nothing in 
 test('switching the caution rings off frees the rings, and a paint change replaces only the T-6s', (t) => {
   const tracker = trackDisposals(t);
   const kit = createSceneKit(THREE, { models });
-  kit.sync(scene(), OPTIONS);
-  kit.sync(scene(), { ...OPTIONS, layerCautionRings: false });
+  kit.sync(scene(), CLOSE);
+  kit.sync(scene(), { ...CLOSE, layerCautionRings: false });
   assert.equal(kit.counts().rings, 0);
-  kit.sync(scene(), OPTIONS);
+  kit.sync(scene(), CLOSE);
   assert.equal(kit.counts().rings, 2, 'and back');
   const stand = kit.aircraftMesh('A2');
   const t6 = kit.aircraftMesh('A1');
-  kit.sync(scene(), { ...OPTIONS, paint: 'ship' });
+  kit.sync(scene(), { ...CLOSE, paint: 'ship' });
   assert.equal(kit.aircraftMesh('A2'), stand, 'the stand-in is the same object');
   assert.notEqual(kit.aircraftMesh('A1'), t6, 'the T-6 was rebuilt in the new paint');
   assert.ok(tracker.disposed.has(t6.children[0].geometry), 'and the old one freed');
@@ -394,7 +397,7 @@ test('switching the caution rings off frees the rings, and a paint change replac
 test('the ring is the caution distance in true feet, level with the aircraft, and is the word\'s own colour: yellow for caution, red for conflict', () => {
   const kit = createSceneKit(THREE, { models });
   const cautionScene = scene({ conflicts: [{ a: 'A1', b: 'A2', latFt: 400, vertFt: 50, level: 'caution' }] });
-  kit.sync(cautionScene, OPTIONS);
+  kit.sync(cautionScene, OPTIONS); // 200 px to 1,000 ft: 500 ft is 100 px, well above the smallest ring
   const ring = kit.ringOf('A1');
   assert.equal(ring.scale.x, 500);
   assert.equal(ring.scale.y, 500);
@@ -441,13 +444,13 @@ test('only the first few T-6s flying get the full Harvard model; the rest get th
   const kit = createSceneKit(THREE, { models });
   const fleet = Array.from({ length: MAX_FULL_T6 + 5 }, (_, i) => ({ id: `A${i + 1}`, type: 'CT-156', x: i * 100, y: 0, alt: 2500, kt: 120, headingDeg: 90, status: 'flying', color: '#7ee787' }));
   const other = { id: 'A99', type: 'CT-114', x: 0, y: 500, alt: 2500, kt: 150, headingDeg: 90, status: 'flying', color: '#ff6b6b' };
-  kit.sync(scene({ aircraft: [...fleet, other], conflicts: [] }), OPTIONS);
+  kit.sync(scene({ aircraft: [...fleet, other], conflicts: [] }), CLOSE);
   assert.deepEqual({ ...made }, { ct156: MAX_FULL_T6, t6plain: 5, standin: 1 }, 'the budget, then the plain T-6; another type is always its stand-in');
-  kit.sync(scene({ aircraft: [...fleet, other], conflicts: [] }), OPTIONS);
+  kit.sync(scene({ aircraft: [...fleet, other], conflicts: [] }), CLOSE);
   assert.deepEqual({ ...made }, { ct156: MAX_FULL_T6, t6plain: 5, standin: 1 }, 'nothing is rebuilt while nobody lands');
   const first = kit.aircraftMesh('A1');
   const landed = fleet.map((a) => (a.id === 'A1' ? { ...a, status: 'landed' } : a));
-  kit.sync(scene({ aircraft: [...landed, other], conflicts: [] }), OPTIONS);
+  kit.sync(scene({ aircraft: [...landed, other], conflicts: [] }), CLOSE);
   assert.equal(kit.aircraftMesh('A1'), first, 'the landed one is put away, not rebuilt');
   assert.equal(made.ct156, MAX_FULL_T6 + 1, 'the first plain one moved up to the full model');
   assert.equal(made.t6plain, 5);
@@ -476,4 +479,65 @@ test('a renderer that draws on the CPU is told from a graphics card, once, and t
   resetSoftwareCheck();
   assert.equal(softwareRenderer({ createElement: () => { throw new Error('no canvas'); } }), false, 'a page that cannot say is treated as having a card');
   resetSoftwareCheck();
+});
+
+test('the full Harvard model is for a T-6 drawn more than FULL_MODEL_PX long, and is kept until it is under FULL_MODEL_KEEP_PX', () => {
+  assert.equal(FULL_MODEL_PX, 120);
+  assert.ok(FULL_MODEL_KEEP_PX < FULL_MODEL_PX);
+  near(planePx(20), MIN_PLANE_PX);
+  near(planePx(5000), (T6_LENGTH_FT * 5000) / 1000);
+  assert.equal(wantsFullModel(FULL_MODEL_PX + 1, false), true);
+  assert.equal(wantsFullModel(FULL_MODEL_PX - 1, false), false);
+  assert.equal(wantsFullModel(FULL_MODEL_PX - 1, true), true, 'once full, kept a little below the line, so a wheel notch there does not rebuild it');
+  assert.equal(wantsFullModel(FULL_MODEL_KEEP_PX - 1, true), false);
+  assert.equal(wantsFullModel(FULL_MODEL_PX, false), false, 'over the line, not on it');
+});
+
+test('zoomed out, every T-6 is the plain one; zoomed in, the full model; and the swap happens once, not at every frame', () => {
+  for (const key of Object.keys(made)) made[key] = 0;
+  const kit = createSceneKit(THREE, { models });
+  kit.sync(scene(), OPTIONS);
+  kit.sync(scene(), OPTIONS);
+  assert.deepEqual({ ...made }, { ct156: 0, t6plain: 1, standin: 1 }, 'zoom 200 (44 px): the plain T-6, one stand-in');
+  kit.sync(scene(), CLOSE);
+  kit.sync(scene(), CLOSE);
+  assert.deepEqual({ ...made }, { ct156: 1, t6plain: 1, standin: 1 }, 'zoom 5,000 (167 px): the full model, built once');
+  const full = kit.aircraftMesh('A1');
+  kit.sync(scene(), { ...CLOSE, zoom: (110 / T6_LENGTH_FT) * 1000 }); // the zoom that makes the plane 110 px long
+  assert.equal(kit.aircraftMesh('A1'), full, '110 px: still the full model');
+  kit.sync(scene(), OPTIONS);
+  assert.equal(made.t6plain, 2, 'zoomed out again: the plain one');
+  assert.notEqual(kit.aircraftMesh('A1'), full);
+  kit.dispose();
+});
+
+test('the caution ring is at least 12 px across on screen, like the 2D ring, and the real caution distance when that is more', () => {
+  near(ringRadiusFt(500, 200), 500); // 100 px
+  near(ringRadiusFt(500, 20), 600); // 10 px would be too small: 12 px at 20 px to 1,000 ft
+  near(ringRadiusFt(500, 1), 12000);
+  near(ringRadiusFt(0, 20), 600, 1e-9);
+  const kit = createSceneKit(THREE, { models });
+  kit.sync(scene(), { ...OPTIONS, zoom: 20 });
+  assert.equal(kit.ringOf('A1').scale.x, 600);
+  kit.sync(scene(), { ...OPTIONS, zoom: 2000 });
+  assert.equal(kit.ringOf('A1').scale.x, 500);
+  kit.dispose();
+});
+
+test('when there are more aircraft than the drop lines have room for, the old buffer is freed and a bigger one built; 64 fit to begin with', (t) => {
+  const tracker = trackDisposals(t);
+  const kit = createSceneKit(THREE, { models });
+  const drops = kit.root.children.find((o) => o.isLineSegments);
+  const first = drops.geometry;
+  const fleet = (n) => Array.from({ length: n }, (_, i) => ({ id: `A${i + 1}`, type: 'CT-114', x: i * 100, y: 0, alt: 2500, kt: 120, headingDeg: 90, status: 'flying', color: '#7ee787' }));
+  kit.sync(scene({ aircraft: fleet(64), conflicts: [] }), OPTIONS);
+  assert.equal(drops.geometry, first, '64 aircraft need no new buffer');
+  assert.equal(tracker.disposed.has(first), false);
+  kit.sync(scene({ aircraft: fleet(65), conflicts: [] }), OPTIONS);
+  assert.notEqual(drops.geometry, first, 'the 65th needs room');
+  assert.equal(tracker.disposed.has(first), true, 'and the old geometry is freed, buffer and all');
+  assert.equal(drops.geometry.drawRange.count, 130);
+  assert.equal(drops.geometry.attributes.position.count >= 130, true);
+  kit.dispose();
+  assert.equal(tracker.disposed.has(drops.geometry), true, 'the new one is freed with the kit');
 });
