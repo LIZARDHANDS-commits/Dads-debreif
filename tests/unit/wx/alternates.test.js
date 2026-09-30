@@ -210,3 +210,32 @@ test('D60: bad minima fall back to V6\'s 600/2 rather than passing everything', 
     assert.equal(assessAlternate(t, at(29, 18), { minima }).status, 'below', JSON.stringify(minima));
   }
 });
+
+// D80: an alternate with a GNSS-only visual descent. MEA is above sea level and
+// a ceiling is above the field, so the field elevation converts one to the other.
+const VD = 'TAF CYYN 291140Z 2912/3012 27010KT 4SM BR OVC035';
+
+test('D80: without visualDescent, the usual alternate minima apply (pinned)', () => {
+  assert.equal(assessAlternate(taf(VD), at(29, 18)).status, 'meets');
+});
+
+test('D80: visual descent passes at MEA + 500 ft above sea level and 3 SM, over the window', () => {
+  // CYYN is at 2,677 ft. MEA 5,200 ft needs a ceiling of 5,700 ft MSL, 3,023 ft above the field.
+  const vd = (meaFt, visSm) => ({ visualDescent: { meaFt, elevationFt: 2677, visSm } });
+  assert.equal(assessAlternate(taf(VD), at(29, 18), vd(5200)).status, 'meets');
+  assert.equal(assessAlternate(taf(VD), at(29, 18), vd(6200)).status, 'below');
+  const r = assessAlternate(taf(VD), at(29, 18), vd(5200, 5));
+  assert.equal(r.status, 'below');
+  assert.deepEqual(r.hits[0].reasons, ['VIS 4 SM < 5 SM']);
+  assert.equal(assessAlternate(taf('TAF CYYN 291140Z 2912/3012 27010KT 3SM BR OVC035'), at(29, 18), vd(5200)).status, 'at-limit');
+  const early = assessAlternate(taf('TAF CYYN 291140Z 2912/3012 27010KT 1SM BR OVC010 FM291800 27010KT P6SM OVC040'), arrivalWindow(at(29, 18, 30)), vd(5200));
+  assert.equal(early.status, 'below');
+});
+
+test('D80: visual descent without a usable MEA or field elevation is incomplete, never a pass', () => {
+  for (const visualDescent of [{ meaFt: 5200 }, { elevationFt: 2677 }, { meaFt: 'x', elevationFt: 2677 }, {}]) {
+    const r = assessAlternate(taf(VD), at(29, 18), { visualDescent });
+    assert.equal(r.status, 'incomplete', JSON.stringify(visualDescent));
+    assert.match(r.problems.at(-1), /MEA/);
+  }
+});
