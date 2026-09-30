@@ -44,11 +44,17 @@ Spec: draft waiting for Patrick's approval. Build starts once he approves it and
   - Verify: `node --test tests/unit/sof/feeds.test.js`; e2e with fixture images; performance log in the PR.
   - Dependencies: 2; CSP entries (app frame). Size M.
   - Files: src/modules/sof/map.js, src/modules/sof/feeds.js, tests/unit/sof/feeds.test.js, tests/fixtures/sof/
-- [ ] **7. Lightning, traffic and links.** Live traffic switch showing ADS-B Exchange's map (SOF-7 default; read their terms first, fall back to a link); ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map link; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
+- [ ] **7. Lightning and links.** ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map link; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
   - Acceptance: lightning is visible by default (#9); the near-home check finds lightning in a fixture inside the radius and none outside it; links open in a new tab with `noopener noreferrer`.
   - Verify: `node --test tests/unit/sof/lightning.test.js`; e2e.
   - Dependencies: 6. Size S to M.
   - Files: src/modules/sof/lightning.js, src/modules/sof/map.js, tests/unit/sof/lightning.test.js, src/modules/sof/cards.js
+
+- [ ] **7b. The traffic relay and layer (SOF-7).** `relay/traffic.js` (Cloudflare Worker) with its tests first: number checks, 5 s cache, trimmed reply, CORS for the site only, size caps; adsb.lol terms read. Patrick sets up the free Cloudflare account with steps given then; the relay address goes into the build settings and the CSP (app frame, through the coordinator). The layer: symbols by track, military mark, stale fade, label options, hover facts, 10 s refresh while on, `Traffic unavailable` on failure.
+  - Acceptance: the relay refuses anything but three in-range numbers; a hostile reply (huge, wrong shape, script in a callsign) draws nothing or plain text; the layer stops asking when off or unmounted (R4); the rest of the SOF works with the relay down.
+  - Verify: `node --test tests/unit/relay/traffic.test.js`; `node --test tests/unit/sof/traffic.test.js`; e2e with a fixture reply; one live check against the deployed relay.
+  - Dependencies: 6; Patrick's Cloudflare account. Size M.
+  - Files: relay/traffic.js, relay/README.md, tests/unit/relay/traffic.test.js, src/modules/sof/traffic.js, tests/unit/sof/traffic.test.js
 
 **Checkpoint C:** tests pass; code-review-and-quality; `/security-review`; open PR C.
 

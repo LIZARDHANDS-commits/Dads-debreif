@@ -12,6 +12,7 @@ Spec: [`specs/SPEC-sof.md`](../../specs/SPEC-sof.md), a draft waiting for Patric
 | Task 3 | Where each caution's words sit in the raw report text, from `wx` (small addition) | Weather parser thread, through the coordinator |
 | Task 6 | The page's Content Security Policy allowing the SOF's sources (listed in the spec) | App frame thread, through the coordinator |
 | Task 7 | SOF-3's answer decides whether the lightning-near-home caution is built; the default is yes | Patrick |
+| Task 7b | A free Cloudflare account for the traffic relay (steps given at that task), and the relay's address in the CSP; any deploy workflow or `package.json` change goes to the app frame | Patrick; app frame through the coordinator |
 
 ## Order and why
 
@@ -26,7 +27,7 @@ Each slice leaves the SOF working, behind the registry entry, so a half-built SO
 
 - PR A: tasks 1 to 3 (the pure pieces, a screen with cards and the SOF bar, the caution banner).
 - PR B: tasks 4 and 5 (waves with their calls, the timeline).
-- PR C: tasks 6 and 7 (the map, radar, lightning and links).
+- PR C: tasks 6, 7 and 7b (the map, radar, lightning, links, and the traffic relay and layer).
 - PR D: tasks 8 to 10 (the extras, the all-day run, polish and the checklist).
 
 Each PR is reviewed with code-review-and-quality before it leaves draft, lists the skills it applied (see the spec's Skills used), and merges on green under the merge rule once this spec is approved.
@@ -41,4 +42,5 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, lists t
 | The computer sleeps and timers fire late or all at once | On wake or when the tab shows again, refresh what's due once; ages come from report times, so a late refresh never looks fresh. |
 | A wave call is read as an instruction | The chip always carries its reason, and the "not for flight planning, confirm with NAV CANADA" line stays on screen. |
 | Too much on one screen (R22) | Only the table's defaults show; SOF-1 asks Patrick to confirm them; the layout test checks 1366 × 768. |
+| The traffic relay goes down or adsb.lol changes | The layer says so and the rest of the SOF carries on; the relay's tests use a captured adsb.lol reply; switching to adsb.fi is a one-line change in the relay. |
 | Map tiles and radar images drawn twice, once here and once in the debrief | If the debrief's tile code lands first, ask the coordinator to move a shared tile layer into ui-kit; otherwise the SOF keeps a small one of its own. |
