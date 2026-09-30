@@ -481,10 +481,13 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       savedWxMode = offer.button;
       const label = offer.button === 'cancel' ? 'Cancel' : SAVE_WX_LABEL;
       if (savedWxButton.textContent !== label) savedWxButton.textContent = label;
+      // A focused button that goes away would drop focus to the page: it goes to the line that says what happened (Y6).
+      const hadFocus = savedWxButton.ownerDocument.activeElement === savedWxButton;
       if (savedWxButton.hidden !== (offer.button === 'hidden')) savedWxButton.hidden = offer.button === 'hidden';
       if (savedWxStatus.textContent !== offer.status) savedWxStatus.textContent = offer.status;
       if (savedWxLive.textContent !== offer.live) savedWxLive.textContent = offer.live;
       if (savedWxStatus.hidden === Boolean(offer.status)) savedWxStatus.hidden = !offer.status;
+      if (hadFocus && offer.button === 'hidden' && offer.status) savedWxStatus.focus();
       if (notes.saved !== note) {
         notes.saved = note;
         showNotes();

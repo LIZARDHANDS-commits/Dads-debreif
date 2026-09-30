@@ -1947,3 +1947,21 @@ test('saved radar: progress is written once, in the Weather menu, and told to a 
   const credit = await page.evaluate(() => window.__credit);
   expect(credit.filter((t) => /Saving/.test(t))).toEqual([]);
 });
+
+test('saved radar: when the button goes away, keyboard focus moves to the status line instead of being lost (Y6)', async ({ page }) => {
+  let nowT = 0;
+  await stubEccc(page, { now: () => nowT });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, endT } = await flightWindow(page);
+  nowT = endT + 3600;
+  await setNow(page, nowT);
+  await scrubber.fill(String(endT - 60));
+  await openWeather(page);
+  // From the keyboard: focus the button, press Enter. It becomes Cancel (still focused), then goes when the pictures are kept.
+  await saveWxButton(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
+  await expect(saveWxButton(page)).toBeHidden();
+  await expect(savedWxStatus(page)).toBeFocused();
+});
