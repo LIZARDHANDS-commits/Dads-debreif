@@ -3,7 +3,7 @@
 Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 
 ## Last updated
-30 Sep 2026, 23:20Z (Antigravity).
+30 Sep 2026, 23:25Z (Antigravity).
 
 ## Current State
 - **Branch:** `main` (cleanly compiling, 100% green test suite).
@@ -22,11 +22,15 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
     - Threshold join landing roll (TR-08) and trailing pair spacing (TR-04).
     - All 8 `test.todo` stubs in `tests/unit/traffic/plausibility.test.js` converted to active passing green assertions.
     - Crosscheck expected table regenerated (`tests/crosscheck/traffic-expected.json`).
-- **Test Baseline:** `npm test` passes 100% green (`2,937 passed, 0 failed, 0 todo, 1 skipped`). `npm run typecheck` passes with zero errors. `npm run build` compiles in ~300ms.
-- **Ledgers & Docs:** Logged `PATCH-013` in `docs/REMEDIATION_PATCH_LOG.md` and checked off Task 1.5 in `docs/REMEDIATION_ROADMAP.md`.
+  - **PATCH-014 (Interactive Wind UI & Real-Time Sim Updates):**
+    - Bottom playback bar wind inputs wired (`available: { photo: true, view3d: true, wind: true }`).
+    - Dynamic simulation wind accessors (`getWindFromDeg()` and `getWindKt()`) updating flying aircraft crabbing, ground speeds, and headings on each 0.05 s step.
+    - Gate 1 Sign-Off Checklist created at `docs/checklists/traffic.md`.
+- **Test Baseline:** `npm test` passes 100% green (`2,938 passed, 0 failed, 0 todo, 1 skipped`). `npm run typecheck` passes with zero errors. `npm run build` compiles in ~300ms.
+- **Ledgers & Docs:** Logged `PATCH-013` and `PATCH-014` in `docs/REMEDIATION_PATCH_LOG.md` and `docs/records/remediation-patch-log.md`.
 
 ## Immediate Next Step
-1. **Gate 1 Sign-Off:** Patrick verifies Traffic Pattern Sim module on `localhost:5173` using `docs/checklists/traffic.md`.
+1. **Gate 1 Sign-Off:** Patrick verifies Traffic Pattern Sim module on `http://localhost:5173/#/traffic` (or live) using [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 2. **Milestone 2 (PR 4: Turn Fight Energy Screen):**
    - Rebase `origin/handover/turn-fight-energy-screen` (commit `226729d`) onto `main`.
    - Maintain Simple 2D flat 1v1 fight as default view on launch, with toggle switch to Energy Mode (uPlot altitude profile) per D379 (R22).
@@ -35,4 +39,4 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
    - Run tests, merge PR 4 to `main`, and pause for Gate 2 Sign-Off.
 
 ## Waiting on Patrick
-- Gate 1 Sign-Off verification run (`docs/checklists/traffic.md`) or Patrick's go-ahead to begin Milestone 2 (Turn Fight).
+- Gate 1 Sign-Off verification run ([`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md)) or Patrick's go-ahead to begin Milestone 2 (Turn Fight).
