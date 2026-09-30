@@ -1073,3 +1073,23 @@ test('a wave flown this morning does not keep its fog on the banner all day', as
   await expect(waveRow(page, 0)).toBeVisible();
   await expect(banner(page)).toBeHidden();
 });
+
+test('a stale METAR greys the at-the-limit edge and the chips, and keeps the red edge for below the limits (D220)', async ({ page }) => {
+  // CYMJ fresh below, CYQR stale at the limit (600-2), CYYN stale below, CYXE fresh at the limit.
+  const metar = [
+    'CYMJ 291800Z 25010KT 1SM BR BKN003 15/14 A2952',
+    'CYQR 290900Z 26005KT 2SM BKN006 10/08 A2995',
+    'CYYN 290900Z 24010KT 1SM BR BKN003 15/14 A2951',
+    'CYXE 291800Z 28010KT 2SM BKN006 16/03 A2952',
+  ].join('\n');
+  await openSof(page, { metar });
+  const edge = (icao) => card(page, icao).evaluate((el) => getComputedStyle(el).borderLeftColor);
+  const chip = (icao) => card(page, icao).locator('.sof-category').evaluate((el) => getComputedStyle(el).color);
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('At the limit');
+  await expect(card(page, 'CYYN').locator('.sof-result')).toContainText('Below limits');
+  expect(await edge('CYQR'), 'the at-the-limit edge greys when stale').not.toBe(await edge('CYXE'));
+  expect(await edge('CYYN'), 'below keeps its red edge when stale').toBe(await edge('CYMJ'));
+  expect(await chip('CYQR'), 'the chips grey too').not.toBe(await chip('CYXE'));
+  expect(await chip('CYYN')).not.toBe(await chip('CYMJ'));
+  await expect(card(page, 'CYYN').locator('.sof-category')).toContainText('LIFR');
+});
