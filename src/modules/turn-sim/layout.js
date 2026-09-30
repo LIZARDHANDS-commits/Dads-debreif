@@ -7,6 +7,7 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
+import { turnProblem, TWO_SHIP_ONLY_TURNS } from './settings.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
@@ -91,6 +92,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const spacing = field(SPACING);
   const heading = field(START_HEADING);
   const maneuver = field(MANEUVER);
+  // Why some turns are greyed out (settings.js turnProblem), or why the turn asked for was not the one flown (state.maneuverFallback).
+  const turnNote = h('p', { class: 'ts-hint ts-turn-note', hidden: true });
+  let turnFallback = null;
   const direction = field(DIRECTION, 'choice');
   const legHeading = h('p', { class: 'ts-hint ts-leg-heading', hidden: true });
   const speed = field(SPEED);
@@ -102,11 +106,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
-  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, direction, speed, g].map((f) => f.element);
+  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, speed, g].map((f) => f.element);
 
   // ---- Aircraft errors (closed) -------------------------------------------
   const errorKeys = [];
   const positionGroups = new Map(); // wingman id -> { key, element }: the position boxes, shown when it's turned on
+  let lastValues = null;
   const clockGroups = []; // each wingman's own clock cue boxes: shown when Timing is the clock cue
   const errorSections = [2, 3, 4].map((id) => {
     const f = errorFields(id);
@@ -280,7 +285,23 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   );
 
   // Only the fields that apply are shown (#32): the offset box's only with the offset box, and so on.
+  // Shackle and Cross turn are two-ship turns (Patrick 09:28Z): grey them out in the four-ship formations, and say why.
+  function applyTurnChoices(values) {
+    const select = maneuver.built?.control.querySelector('select');
+    if (select) {
+      Array.from(select.options).forEach((option, i) => {
+        const value = rules.maneuver.oneOf[i];
+        option.disabled = TWO_SHIP_ONLY_TURNS.includes(value) && turnProblem(values.formation, value) !== null;
+      });
+    }
+    const why = turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
+    turnNote.textContent = why ?? '';
+    turnNote.hidden = !why;
+  }
+
   function applyScenario(values) {
+    lastValues = values;
+    applyTurnChoices(values);
     if (baseDelay.element) baseDelay.element.hidden = values.timing !== 'time';
     clockPos.element.hidden = values.timing !== 'clock';
     autoNote.hidden = values.timing !== 'auto';
@@ -369,6 +390,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
         for (const text of r.flags) flags.append(h('li', {}, text));
       }
       flags.hidden = r.flags.length === 0;
+      if ((r.maneuverFallback ?? null) !== turnFallback) {
+        turnFallback = r.maneuverFallback ?? null;
+        if (lastValues) applyTurnChoices(lastValues);
+      }
       clear(cueList);
       for (const { id, text } of r.cue.lines) cueList.append(line(id, { text, tone: 'none' }));
       cueList.hidden = r.cue.lines.length === 0;

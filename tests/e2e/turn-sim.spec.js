@@ -238,7 +238,7 @@ test('the turn changes Turn degrees to its own value, and a setting only shows w
   await expect(box(page, 'Aft spacing')).toBeHidden(); // the offset box's, only with the offset box
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
   await expect(box(page, 'Turn degrees')).toHaveValue('45');
-  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await box(page, 'Turn').selectOption({ label: 'Hook turn' });
   await expect(box(page, 'Turn degrees')).toHaveValue('180');
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, 'Aft spacing')).toHaveValue('7000');
@@ -553,6 +553,28 @@ test('the Check turn is in the Turn menu with 30 degrees, and the hook is 180 (S
   await box(page, 'Turn').selectOption({ label: 'Hook turn' });
   await expect(box(page, 'Turn degrees')).toHaveValue('180');
   await expect(box(page, 'Turn degrees')).toHaveAttribute('max', '180');
+});
+
+test('the Shackle and Cross turn are two-ship turns: greyed out in the four-ship formations, with the reason beside the menu', async ({ page }) => {
+  await open(page);
+  const turn = box(page, 'Turn');
+  const note = page.locator('.ts-turn-note');
+  for (const formation of ['4312', '2134', 'Offset box']) {
+    await box(page, 'Formation').selectOption({ label: formation });
+    await expect(turn.locator('option:disabled')).toHaveText(['Shackle', 'Cross turn']);
+    await expect(note).toHaveText('The shackle and the cross turn are two-ship turns: pick the two-ship formation to fly them.');
+  }
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(turn.locator('option:disabled')).toHaveCount(0);
+  await expect(note).toBeHidden();
+  await turn.selectOption({ label: 'Shackle' });
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  // Back to four aircraft with the shackle picked: the note says the default turn is what flies.
+  await box(page, 'Formation').selectOption({ label: '4312' });
+  await expect(note).toBeVisible();
+  await expect(cardLines(page)).toHaveCount(3);
 });
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js

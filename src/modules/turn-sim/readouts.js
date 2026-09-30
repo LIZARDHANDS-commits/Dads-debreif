@@ -257,6 +257,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
     autoStepSec: state?.autoStepSec ?? null,
+    maneuverFallback: state?.maneuverFallback ?? null,
     gWarning: stallWarning(settings.baseG, settings.speedKt, stallLimitG),
     summary: [
       ['Turn radius', ft(numbers.radiusFt)],
