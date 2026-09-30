@@ -38,7 +38,7 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
 
 **Checkpoint B:** tests pass, build under budget; code-review-and-quality; open PR B.
 
-- [ ] **7. Profiles and notes.** Save, Load, Delete with confirms; the built-in setup listed read-only; the last profile opens next time; each profile remembers its airfield; home field not CYMJ opens V6's generic pattern there (T2 default); profiles checked on read-back.
+- [ ] **7. Profiles and notes.** Save, Load, Delete with confirms; the built-in setup listed read-only; the last profile opens next time; each profile remembers its airfield; home field not CYMJ opens V6's generic pattern there (its runway-number box and runway handles come in task 12, T2); profiles checked on read-back.
   - Acceptance: fixes #48; a blocked or full storage says so and nothing breaks; a hostile or oversized profile is refused with a message (security-and-hardening, `/security-review`).
   - Verify: unit tests of the profile checks; e2e save, reload, load.
   - Dependencies: 6. Size M.
@@ -56,24 +56,24 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
 
 **Checkpoint C:** tests pass; code-review-and-quality; open PR C.
 
-- [ ] **10. Wind in the sim.** `core`'s `windTriangle` and `groundTurnG` (from the Flight math core thread); aircraft move at ground speed along their routes; heading and crab on each aircraft state; the most G each turn needs in this wind; "can't hold this track" legs. Starts from failing tests (test-driven-development).
-  - Acceptance: with the wind at 0 kt the golden tests still pass unchanged; known answers (final at 110 KTAS, 250°/20 kt, track 290°: crab 6.7° left, GS 94 kt; a 180 KTAS 2 G turn with a 20 kt tailwind needs 2.4 G); rewind still exact with a wind.
+- [ ] **10. Wind in the sim.** Indicated airspeed to true with `core`'s `isaDensityRatio`; `core`'s `windTriangle` (from the Flight math core thread); aircraft crab on the legs and move at ground speed; steady-bank turns with the roll-in moved for the wind, worked out in closed form, one path per route, type and wind; heading and crab on each aircraft state; turns that don't fit flagged with the bank and G they need; "can't hold this track" legs. Starts from failing tests (test-driven-development).
+  - Acceptance: with the wind at 0 kt and fixed speeds the golden tests still pass unchanged; known answers (110 KIAS final at 1,900 ft, 250°/20 kt, track 290°: crab 6.5° left, GS 97 kt; 220 KIAS at 3,500 ft, 60°, downwind to base with a 20 kt tailwind: roll-in 3,127 ft before the corner, 2,744 ft calm); every turn rolls out on its next leg in every wind direction; rewind still exact with a wind.
   - Verify: `npm test`; unit tests of a square pattern in each wind direction.
-  - Dependencies: 2, 9, and `core/wind.js`. Size M.
+  - Dependencies: 2, 9, and `core/wind.js`. Size L (split into IAS, legs and turns if it grows past 5 files).
   - Files: src/modules/traffic/sim.js, src/modules/traffic/route.js, tests/unit/traffic/wind.test.js
-- [ ] **11. Aircraft types and wind on screen.** `types.js` with the spec's type table and sources; the spawner's type sets the aircraft's speeds; the point table's speed as a number or a phase (Entry, Pattern, Final), with + Pattern, + Entry and + Split setting phases from V6's labels; the wind boxes, wind arrow and corner label; GS and crab in the aircraft rows; crabbed aircraft symbols; the More detail wind readouts; wind per leg in Leg distances; the most-G flags in the turn data.
-  - Acceptance: the built-in setup opens exactly as V6 (fixed speeds, calm); a point set to Final flies each type's Final speed; R22 (wind readouts only when a wind is set; the rest under More); colour never the only signal.
+- [ ] **11. Aircraft types and wind on screen.** `types.js` with the spec's type table and sources; the spawner's type sets the aircraft's speeds; the point table's speed as a phase (Entry, Pattern, Inner, Straight-in, Final), Blend or a number, with + Pattern, + Entry and + Split setting phases from V6's labels; the wind boxes, wind arrow and corner label; GS and crab in the aircraft rows; crabbed aircraft symbols; the More detail wind readouts; wind per leg in Leg distances; the most-G flags in the turn data.
+  - Acceptance: the built-in setup opens exactly as V6 until task 12 switches it to phases; a point set to Final flies each type's Final speed at its true airspeed; R22 (wind readouts only when a wind is set; the rest under More); colour never the only signal.
   - Verify: e2e: set a wind, spawn a CT-156 and a CT-114 on a new pattern, see different ground speeds and crab angles; accessibility checklist.
   - Dependencies: 6, 10. Size M.
   - Files: src/modules/traffic/{types,editor,aircraft,map2d,readouts}.js
 
 **Checkpoint D:** tests pass; code-review-and-quality; open PR D.
 
-- [ ] **12. The decided changes.** One commit each, each starting from a failing test that states exactly what differs from V6: D46 true arcs between V6's turn points; the dice per aircraft, with Reset keeping the seed and New traffic picking a new one; one roll per split point (T1); the joined path at splits and joins; then any answers to T2 to T7 (T5's type speeds and built-in phases, T4's conflict limits, T7's scale).
+- [ ] **12. The decided changes.** One commit each, each starting from a failing test that states exactly what differs from V6: D46 true arcs between V6's turn points; the dice per aircraft, with Reset keeping the seed and New traffic picking a new one; decision points with shares, and plans per aircraft in the spawner and Edit (T1); the joined path at splits and joins; indicated airspeed (T5); the built-in setup's points switched to phases (T5); the home-field starter pattern with its runway-number box and draggable runway ends (T2).
   - Acceptance: the golden tests change only where the commit says; odds tests over 20,000 crossings; no aircraft moves more than one step's distance at a split or join.
   - Verify: `npm test`.
   - Dependencies: 2 (and 9 for the dice). Size S each.
-  - Files: src/modules/traffic/{route,sim,dice}.js, the golden tests, data/moose-jaw.json (T1's odds)
+  - Files: src/modules/traffic/{route,sim,dice,aircraft,profile}.js, the golden tests, data/moose-jaw.json (T1's shares, T5's phases)
 - [ ] **13. Polish and sign-off checklist.** code-simplification and `/simplify` with the golden tests still green; README (R8); `docs/checklists/traffic.md` for Patrick or Dad to run against V6 (R21).
   - Acceptance: definition of done; the checklist covers every row of the spec's screen table, every fix, and the wind.
   - Verify: `npm test`, `npm run test:e2e`, `npm run build`.
@@ -81,3 +81,9 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Files: src/modules/traffic/README.md, docs/checklists/traffic.md
 
 **Checkpoint E:** tests pass; code-review-and-quality; open PR E; Patrick or Dad runs the checklist.
+
+- [ ] **14. Redraw the Moose Jaw routes (T8).** Photo alignment at true scale (trim 1.0, checked against the runway length in the CFS); **Copy setup as text** under Profiles and notes; Patrick and Dad drag each point onto its ground reference and name it, set every pattern turn to 60°, 2 G (T6b), and paste the text in the Traffic thread; it becomes `data/moose-jaw.json`.
+  - Acceptance: the redrawn setup lines up with the photo at trim 1.0; the change lists every route's lap time and length before and after; golden tests still pin V6's own setup from V6's data.
+  - Verify: `npm test`; Patrick and Dad look at it on the live site.
+  - Dependencies: 8, 12, and Patrick and Dad's time. Size S.
+  - Files: src/modules/traffic/data/moose-jaw.json, src/modules/traffic/{profile,editor}.js, tests/unit/traffic/profile.test.js
