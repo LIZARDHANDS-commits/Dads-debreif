@@ -1,12 +1,16 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { homeFiles, measure, check, HOME_CODE_BUDGET_BYTES, CARD_MEDIA_BUDGET_BYTES } from '../../../tools/check-size.mjs';
 
+const tempDirs = [];
+after(() => tempDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+
 function fakeDist({ mediaBytes = 0 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'dist-'));
+  tempDirs.push(dir);
   mkdirSync(join(dir, '.vite'));
   mkdirSync(join(dir, 'assets'));
   const manifest = {
