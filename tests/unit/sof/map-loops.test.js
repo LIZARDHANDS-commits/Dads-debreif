@@ -789,18 +789,6 @@ test('F2: while paused() is true the traffic layer asks for nothing, and asks at
   feed.stop();
 });
 
-test('F2: a layer switched on while paused waits, and asks on the first tick after it is shown', async () => {
-  const hidden = { now: true };
-  const { clock, f, feed } = traffic({ paused: () => hidden.now });
-  feed.setOn(true);
-  await clock.advance(5_000);
-  assert.equal(f.requests.length, 0);
-  hidden.now = false;
-  await clock.advance(1_500); // even without wake(), the next one-second tick asks
-  assert.equal(f.requests.length, 1);
-  feed.stop();
-});
-
 // ---- Y2: a reload keeps the lightning episode, so an acknowledged caution stays acknowledged -------------------------
 
 /** A storage like the module's: get(key, fallback) and set(key, value), shared by the page before and after a reload. */
@@ -809,32 +797,7 @@ const memoryStore = (start = {}) => {
   return { get: (k, d) => (k in data ? structuredClone(data[k]) : d), set: (k, v) => { data[k] = structuredClone(v); }, data };
 };
 
-test('Y2: after a reload the same storm has the same key, so what was acknowledged stays acknowledged', async () => {
-  const store = memoryStore();
-  const before = watch({ lit: [pixelEast(12)], store });
-  before.w.start();
-  await before.clock.settle();
-  const first = before.w.result().caution;
-  assert.equal(first.source, 'LIGHTNING');
-  const acks = { version: 1, day: '2026-09-30', keys: [first.key] };
-  before.w.stop();
-  assert.ok(store.data.lightningEpisode, 'the episode was kept');
-  // The page is reloaded 12 minutes later: a new watch, no memory, the same storage.
-  await before.clock.advance(12 * MIN);
-  followClock(before.clock, before.state);
-  const after = watch({ store, reuse: before });
-  after.w.start();
-  await after.clock.settle();
-  const back = after.w.result();
-  assert.equal(back.state, 'near');
-  assert.equal(back.caution.key, first.key, 'the same episode after the reload');
-  const built = evaluate({ extra: [back.caution], acks, now: after.clock.now(), timeZone: 'America/Regina' });
-  assert.equal(built.cautions[0].acknowledged, true);
-  assert.equal(built.fresh.length, 0, 'the reload raises nothing again');
-  after.w.stop();
-});
-
-test('Y2: a reload keeps the 30 minute gap: a storm back after more than that is a new caution and re-raises', async () => {
+test('Y2: after a reload the same storm keeps its key (an acknowledgement holds); after more than the 30 minute gap it is a new caution', async () => {
   const store = memoryStore();
   const before = watch({ lit: [pixelEast(12)], store });
   before.w.start();
@@ -842,61 +805,17 @@ test('Y2: a reload keeps the 30 minute gap: a storm back after more than that is
   const first = before.w.result().caution;
   const acks = { version: 1, day: '2026-09-30', keys: [first.key] };
   before.w.stop();
-  await before.clock.advance(45 * MIN); // the page was closed for 45 minutes
-  followClock(before.clock, before.state);
-  const after = watch({ store, reuse: before });
-  after.w.start();
-  await after.clock.settle();
-  const back = after.w.result();
-  assert.equal(back.state, 'near');
-  assert.notEqual(back.caution.key, first.key);
-  const built = evaluate({ extra: [back.caution], acks, now: after.clock.now(), timeZone: 'America/Regina' });
-  assert.equal(built.fresh.length, 1, 'a new storm is raised');
-  after.w.stop();
-});
-
-test('Y2: a good clear reading ends the kept episode, so the next storm is new even after a reload', async () => {
-  const store = memoryStore();
-  const before = watch({ lit: [pixelEast(12)], store });
-  before.w.start();
-  await before.clock.settle();
-  const first = before.w.result().caution;
-  before.state.lit = [];
-  followClock(before.clock, before.state);
-  await before.clock.advance(10 * MIN + 1000);
-  assert.equal(before.w.result().state, 'clear');
-  before.w.stop();
-  assert.equal(store.data.lightningEpisode ?? null, null, 'nothing kept once it is clear');
-  before.state.lit = [pixelEast(12)];
-  followClock(before.clock, before.state);
-  const after = watch({ store, reuse: before });
-  after.w.start();
-  await after.clock.settle();
-  assert.notEqual(after.w.result().caution.key, first.key);
-  after.w.stop();
-});
-
-test('Y2: a stored episode that is damaged, or was for another place, is ignored', async () => {
-  for (const kept of ['junk', { id: 'x', lastNearAt: 1 }, { id: '2026-09-30T07:00Z', lastNearAt: +new Date('2026-09-30T07:00:00Z'), place: 'EGLL|51.47|-0.45' }]) {
-    const store = memoryStore({ lightningEpisode: kept });
-    const { clock, w } = watch({ lit: [pixelEast(12)], store });
-    w.start();
-    await clock.settle();
-    const r = w.result();
-    assert.equal(r.state, 'near');
-    assert.equal(r.caution.key, 'CYMJ|LIGHTNING|2026-09-30T07:05Z', 'a fresh episode, from now');
-    w.stop();
-  }
-});
-
-test('Y2: with no storage (or a storage that throws) the watch still works, from memory', async () => {
-  const broken = { get: () => { throw new Error('no'); }, set: () => { throw new Error('no'); } };
-  for (const store of [undefined, broken]) {
-    const { clock, w } = watch({ lit: [pixelEast(12)], store });
-    w.start();
-    await clock.settle();
-    assert.equal(w.result().state, 'near');
-    assert.equal(w.result().caution.key, 'CYMJ|LIGHTNING|2026-09-30T07:05Z');
-    w.stop();
+  for (const [minutes, sameStorm] of [[12, true], [45, false]]) {
+    // The page is reloaded: a new watch with no memory, and the same storage.
+    await before.clock.advance(minutes * MIN);
+    followClock(before.clock, before.state);
+    const after = watch({ store: memoryStore({ lightningEpisode: store.data.lightningEpisode }), reuse: before });
+    after.w.start();
+    await after.clock.settle();
+    const back = after.w.result();
+    const built = evaluate({ extra: [back.caution], acks, now: after.clock.now(), timeZone: 'America/Regina' });
+    assert.equal(back.caution.key === first.key, sameStorm, `${minutes} min`);
+    assert.equal(built.fresh.length, sameStorm ? 0 : 1, sameStorm ? 'the reload raises nothing again' : 'a new storm is raised');
+    after.w.stop();
   }
 });

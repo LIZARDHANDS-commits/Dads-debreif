@@ -29,7 +29,7 @@ import {
 import {
   cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
 } from './map-layers.js';
-import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem } from './map-model.js';
+import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems } from './map-model.js';
 import { drawGeoImage, drawRings, drawAirfields, drawTraffic } from './map-draw.js';
 import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
@@ -110,7 +110,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     onMilitaryOnly: (militaryOnly) => change(setTrafficOption(layers, { militaryOnly })),
   });
 
-  const stage = h('div', { class: 'sof-map-stage' }, canvas, adsbFrame.element, controls.panel, tip, message, live);
+  const stage = h('div', { class: 'sof-map-stage' }, canvas, adsbFrame.element, tip, message, live);
   const element = h(
     'section',
     { class: 'sof-map', 'aria-label': 'Weather map' },
@@ -118,6 +118,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     controls.bar,
     stage,
     controls.status,
+    controls.legend,
     controls.note,
     controls.credits,
   );
@@ -480,6 +481,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       ]);
       controls.setCredits('Traffic map: ADS-B Exchange (globe.adsbexchange.com), shown in a frame and opened in a new tab on request.');
       controls.setNote(null);
+      controls.setLegend(null);
       return;
     }
     const lines = {};
@@ -492,6 +494,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     controls.setStatus(items);
     controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: layers.on.traffic && relayOn() }));
     controls.setNote(baseNote(layers));
+    controls.setLegend(legendItems(layers, { radarBackup: radar.state().source === 'rainviewer' }));
   }
 
   function nearHome(t) {
@@ -505,6 +508,8 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
 
   // ---- Listeners the module owns (counted, and ended with it) -----------------------------------------------
   const stops = [
+    // Escape closes the Layers menu from anywhere on the map (the canvas, the zoom buttons) and puts focus back on its button.
+    app.listen(element, 'keydown', controls.escape),
     app.listen(globalThis, 'online', () => {
       online = true;
       syncMessage();

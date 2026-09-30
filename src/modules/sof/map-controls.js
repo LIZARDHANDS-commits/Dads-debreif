@@ -4,6 +4,7 @@
 // The Layers menu is its own control, apart from the "SOF settings" menu (R22, R3).
 import { h } from '../../ui-kit/dom.js';
 import { BASES, OPACITY_RANGE, TRAFFIC_LABELS, menuRows } from './map-layers.js';
+import { RADAR_COLOURS } from './map-model.js';
 
 let nextId = 1;
 
@@ -14,8 +15,9 @@ const setText = (el, text) => {
 /**
  * handlers: { onLayer(id, on), onOpacity(id, percent), onBase(id), onPrecip('rain' | 'snow'), onHome(),
  * onZoom(factor), onAdsb(on), onTraffic(on), onTrafficLabel(id), onMilitaryOnly(on) }.
- * Returns { bar, panel, status, credits, note, sync(state), setStatus(items), setCredits(text),
- * setNote(text), closePanel() }.
+ * Returns { bar, panel, status, legend, credits, note, sync(state), setStatus(items), setCredits(text),
+ * setNote(text), setLegend(items), escape(event), closePanel() }. `panel` is inside `bar`, straight after the Layers button, so the menu is
+ * next in the tab order after its button; CSS draws it over the top left of the map (F8 of sof-recheck-207).
  */
 export function createMapControls(handlers) {
   const uid = `sof-map-${nextId++}`;
@@ -32,6 +34,7 @@ export function createMapControls(handlers) {
   const precipField = h('div', { class: 'sof-map-field' }, h('label', { for: precipId }, 'Radar shows'), precip);
   const adsb = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'false', onclick: () => handlers.onAdsb(adsb.getAttribute('aria-pressed') !== 'true') }, 'ADS-B Exchange view');
   const traffic = h('button', { type: 'button', class: 'sof-map-btn', 'aria-pressed': 'false', hidden: true, onclick: () => handlers.onTraffic(traffic.getAttribute('aria-pressed') !== 'true') }, 'Traffic');
+  // The Layers menu (`panel`, below) is put in the bar straight after its button, so Tab goes from the button into the menu (F8).
   const bar = h('div', { class: 'sof-map-bar', role: 'toolbar', 'aria-label': 'Map controls' }, layersButton, home, zoomIn, zoomOut, precipField, traffic, adsb);
 
   // ---- The Layers menu ------------------------------------------------------------------------------
@@ -93,6 +96,8 @@ export function createMapControls(handlers) {
     trafficOptions,
   );
 
+  layersButton.after(panel);
+
   function setPanel(open) {
     panel.hidden = !open;
     layersButton.setAttribute('aria-expanded', String(open));
@@ -114,13 +119,46 @@ export function createMapControls(handlers) {
   const note = h('p', { class: 'sof-map-note', hidden: true });
   const itemEls = new Map();
 
+  // ---- The map key: closed to begin with (R22), what each colour on the map means --------------------------------
+  const legendBody = h('div', { class: 'sof-map-legend-body' });
+  const legend = h('details', { class: 'sof-map-legend', hidden: true }, h('summary', {}, 'Map key'), legendBody);
+  let legendSig = '';
+  function drawLegend(items) {
+    const parts = [];
+    if (items.radar) {
+      const r = items.radar;
+      const bar = h('div', { class: 'sof-legend-bar', 'aria-hidden': 'true', style: `background: linear-gradient(to right, ${RADAR_COLOURS.join(', ')})` });
+      const ticks = h('div', { class: 'sof-legend-ticks', 'aria-hidden': 'true' },
+        r.ticks.map(([text, at]) => h('span', { style: `left: ${at}%`, class: at === 0 ? 'is-first' : at === 100 ? 'is-last' : '' }, at === 100 ? `${text} ${r.unit}` : text)));
+      parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, r.words), bar, ticks));
+    }
+    if (items.lightning) {
+      parts.push(h('div', { class: 'sof-legend-item sof-legend-row' }, h('span', { class: 'sof-legend-lightning', 'aria-hidden': 'true' }), h('p', {}, items.lightning)));
+    }
+    if (items.rings) parts.push(h('div', { class: 'sof-legend-item' }, h('p', {}, items.rings)));
+    legendBody.replaceChildren(...parts);
+  }
+
   return {
     bar,
     panel,
     status,
+    legend,
     credits,
     note,
     closePanel: () => setPanel(false),
+    /** Escape anywhere on the map closes the Layers menu and returns focus to its button. */
+    escape: closeOnEscape,
+    /** The key for what is showing (map-model.js `legendItems`), or null to hide it (the ADS-B Exchange view). Redrawn only when it changes. */
+    setLegend(items) {
+      const shown = items && (items.radar || items.lightning || items.rings);
+      legend.hidden = !shown;
+      const sig = shown ? JSON.stringify(items) : '';
+      if (sig === legendSig) return;
+      legendSig = sig;
+      if (shown) drawLegend(items);
+      else legendBody.replaceChildren();
+    },
     /** The state to show: { layers, relay, adsbOn }. Only what differs is touched. */
     sync({ layers, relay, adsbOn }) {
       if (builtWithRelay !== relay) {
