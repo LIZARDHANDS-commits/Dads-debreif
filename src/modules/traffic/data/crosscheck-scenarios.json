@@ -1,0 +1,606 @@
+{
+  "version": 1,
+  "about": "Points in checks and titles count from 1 as on screen; in measure, index counts from 0 as the engine does (screen point 10 is index 9). Traffic Sim cross-check against the T-6 manuals (task 24, part 1). Numbers and page references only: the manuals are private. Each scenario names the manual number, its unit and page, the tolerance and how it is measured in the built-in Moose Jaw setup (moose-jaw.json, seed 1). tests/crosscheck/traffic-scenarios.test.js flies them and compares the table with tests/crosscheck/traffic-expected.json. It only reports: nothing here changes a number in the engine or the setup.",
+  "setup": "moose-jaw.json",
+  "seed": 1,
+  "modes": {
+    "within": "sim value must be within the tolerance of the manual number",
+    "atLeast": "sim value must be at least the manual number, less the tolerance",
+    "atMost": "sim value must be at most the manual number, plus the tolerance",
+    "info": "no manual number to compare with: the sim value is shown for a pilot to judge",
+    "overridden": "the manual number as printed, which Patrick has overridden: shown so the difference is visible, not judged",
+    "waits": "the setup cannot express this yet: waits on the task named in waitsOn"
+  },
+  "sources": {
+    "manual": "printed in the manuals",
+    "patrick": "Patrick's logged answer, which wins over the manual (questions-for-patrick.md, decisions)",
+    "derived": "worked out from a manual number with core's flight math or T-6A model",
+    "spec": "SPEC-traffic (a setting Patrick chose, not a manual number)"
+  },
+  "scenarios": [
+    {
+      "id": "h-pattern-height",
+      "group": "Heights",
+      "title": "Harvard pattern height (upwind to downwind after the break)",
+      "checks": "Lowest height over Pattern 1 points 4 to 12, the outer pattern, initial, break and downwind.",
+      "manual": 3500, "unit": "ft MSL", "page": "Patrick Q1 (05:03Z); SPEC-traffic T9 (D118)", "source": "patrick",
+      "tolerance": 50, "mode": "within",
+      "measure": "min of route.points[3..11].alt on PAT1",
+      "note": "Patrick kept 3,500 ft. The manuals print 3,000 (next row)."
+    },
+    {
+      "id": "h-pattern-height-printed",
+      "group": "Heights",
+      "title": "Harvard pattern height as the manuals print it",
+      "checks": "Same height as the row above, against the printed manual number that Patrick overrode.",
+      "manual": 3000, "unit": "ft MSL", "page": "SMM 4.14 para 32; EFIG p.212, p.151", "source": "manual",
+      "tolerance": 50, "mode": "overridden",
+      "measure": "same as h-pattern-height",
+      "note": "Overridden by Patrick Q1: 3,500 ft."
+    },
+    {
+      "id": "h-closed-height",
+      "group": "Heights",
+      "title": "Closed pattern level-off height",
+      "checks": "Height where the closed-pattern split (Split 3) rejoins downwind.",
+      "manual": 3500, "unit": "ft MSL", "page": "Patrick Q1 (05:03Z); EFIG p.134 prints 3,000", "source": "patrick",
+      "tolerance": 50, "mode": "within",
+      "measure": "SPL3 last point .alt",
+      "note": "The closed pattern levels at pattern height, so it follows Patrick's 3,500."
+    },
+    {
+      "id": "h-straight-in-base",
+      "group": "Heights",
+      "title": "Straight-in base leg height",
+      "checks": "Height of the level straight-in base leg (Split 1).",
+      "manual": 2700, "unit": "ft MSL", "page": "SMM 4.5 para 8; EFIG p.131; Patrick Q3 (05:03Z)", "source": "manual",
+      "tolerance": 50, "mode": "within",
+      "measure": "SPL1 route.points[2].alt"
+    },
+    {
+      "id": "h-straight-in-drop",
+      "group": "Heights",
+      "title": "Descent from pattern height to the straight-in base",
+      "checks": "How far below the pattern the straight-in base sits (Split 1: 3,500 to 2,700).",
+      "manual": 300, "unit": "ft", "page": "SMM 4.16 para 36", "source": "manual",
+      "tolerance": 50, "mode": "overridden",
+      "measure": "PAT1 pattern height minus SPL1 route.points[2].alt",
+      "note": "The manual says 300 ft below the pattern (2,700 from a 3,000 pattern). Patrick flies a 3,500 pattern and the 2,700 base (Q3, 05:04Z), so the drop is 800 ft."
+    },
+    {
+      "id": "h-window-height",
+      "group": "Heights",
+      "title": "Height at the window (3/4 NM out on final, Pattern 1)",
+      "checks": "Height on final 4,557 ft (0.75 NM) before the threshold.",
+      "manual": 2150, "unit": "ft MSL", "page": "SMM 4.7 para 12; EFIG p.397", "source": "manual",
+      "tolerance": 50, "mode": "within",
+      "measure": "positionAt(PAT1, lengthFt - 0.75 NM).alt",
+      "note": "The manual gives about 2,100 to 2,200 ft; 2,150 is the middle."
+    },
+    {
+      "id": "h-grob-pattern",
+      "group": "Heights",
+      "title": "Grob pattern height",
+      "checks": "The Grob flies its own closer pattern at 3,000 ft and 180 KIAS.",
+      "manual": 3000, "unit": "ft MSL", "page": "Patrick D117 (05:50Z); SPEC-traffic types table", "source": "patrick",
+      "tolerance": 50, "mode": "waits", "waitsOn": 14,
+      "measure": "not expressible: the built-in setup has one pattern, and an aircraft type is only a colour (task 11 gives types their own speeds, task 14 adds the Grob pattern)"
+    },
+    {
+      "id": "g-glide-pattern",
+      "group": "Heights",
+      "title": "Glide angle on final, Pattern 1 (last leg)",
+      "checks": "Angle from the last pattern point to the threshold: 2,100 ft down to 1,880 ft over the last leg.",
+      "manual": 3.0, "unit": "deg", "page": "SMM 4.7 para 10; EFIG p.399", "source": "manual",
+      "tolerance": 0.25, "mode": "within",
+      "measure": "atan((alt[12] - alt[0]) / leg 13 to 1 length), PAT1"
+    },
+    {
+      "id": "g-glide-straight-in-1",
+      "group": "Heights",
+      "title": "Glide angle on final, Split 1 straight-in (last leg)",
+      "checks": "Angle over the last leg of Split 1, 2,700 ft down to the threshold.",
+      "manual": 3.0, "unit": "deg", "page": "SMM 4.7 para 10; EFIG p.130", "source": "manual",
+      "tolerance": 0.25, "mode": "within",
+      "measure": "atan((alt[5] - alt[6]) / last leg length), SPL1"
+    },
+    {
+      "id": "g-glide-straight-in-2",
+      "group": "Heights",
+      "title": "Glide angle on final, Entry 2 straight-in (last leg)",
+      "checks": "Angle over the last leg of Entry 2, 2,700 ft down to the threshold.",
+      "manual": 3.0, "unit": "deg", "page": "SMM 4.7 para 10; EFIG p.130", "source": "manual",
+      "tolerance": 0.25, "mode": "within",
+      "measure": "atan((alt[3] - alt[4]) / last leg length), ENT2"
+    },
+
+    {
+      "id": "s-pattern-speed",
+      "group": "Speeds",
+      "title": "Pattern and initial speed",
+      "checks": "Lowest speed set on Pattern 1 points 4 to 10 (upwind to the break).",
+      "manual": 220, "unit": "kt", "page": "SMM 4.14 para 32; EFIG p.212, p.151, p.185", "source": "manual",
+      "tolerance": 5, "mode": "within",
+      "measure": "min of route.points[3..9].kt on PAT1"
+    },
+    {
+      "id": "s-break-exit-speed",
+      "group": "Speeds",
+      "title": "Speed at the end of the break",
+      "checks": "Speed set where the break rolls out on downwind (must be below the gear limit).",
+      "manual": 147, "unit": "kt", "page": "SMM 4.17 paras 40-41; SMM 4.16 para 36 (gear limit)", "source": "manual",
+      "tolerance": 0, "mode": "atMost",
+      "measure": "PAT1 route.points[10].kt"
+    },
+    {
+      "id": "s-downwind-speed",
+      "group": "Speeds",
+      "title": "Downwind speed at the perch",
+      "checks": "Speed set at the end of downwind.",
+      "manual": 120, "unit": "kt", "page": "SMM 4.17 para 41; EFIG p.151", "source": "manual",
+      "tolerance": 5, "mode": "within",
+      "measure": "PAT1 route.points[11].kt"
+    },
+    {
+      "id": "s-final-turn-min-speed",
+      "group": "Speeds",
+      "title": "Slowest speed in the final turn",
+      "checks": "Lowest speed set on the two final-turn corners (points 12 and 13).",
+      "manual": 110, "unit": "kt", "page": "SMM 4.19 paras 43, 48; SMM Table 4.1", "source": "manual",
+      "tolerance": 0, "mode": "atLeast",
+      "measure": "min of PAT1 route.points[11..12].kt",
+      "note": "The manual's floor is the threshold crossing speed plus 10 kt."
+    },
+    {
+      "id": "s-window-speed",
+      "group": "Speeds",
+      "title": "Speed at the window",
+      "checks": "Speed set at the last pattern point before the threshold.",
+      "manual": 100, "unit": "kt", "page": "SMM 4.1 para 1, 4.8 para 13, Table 4.1; Patrick Q2 (05:03Z)", "source": "patrick",
+      "tolerance": 5, "mode": "within",
+      "measure": "PAT1 route.points[12].kt",
+      "note": "SPEC-traffic reads Patrick's answer as a gradual slow-down from 120 at the window to 100 at the threshold."
+    },
+    {
+      "id": "s-threshold-speed",
+      "group": "Speeds",
+      "title": "Speed at the threshold",
+      "checks": "Landing speed set at the threshold point.",
+      "manual": 100, "unit": "kt", "page": "SMM Table 4.1; Patrick Q2 (05:03Z)", "source": "patrick",
+      "tolerance": 5, "mode": "within",
+      "measure": "PAT1 route.points[0].kt"
+    },
+    {
+      "id": "s-straight-in-base-speed",
+      "group": "Speeds",
+      "title": "Straight-in speed at the base turn",
+      "checks": "Speed set at the base-turn point of Split 1.",
+      "manual": 140, "unit": "kt", "page": "SMM 4.6 para 9, 4.16 para 36; Patrick Q3 (05:03Z)", "source": "patrick",
+      "tolerance": 5, "mode": "within",
+      "measure": "SPL1 route.points[2].kt"
+    },
+    {
+      "id": "s-straight-in-final-turn-speed",
+      "group": "Speeds",
+      "title": "Straight-in speed at the final turn",
+      "checks": "Lowest speed on the two corners after base on Split 1.",
+      "manual": 120, "unit": "kt", "page": "SMM 4.7 para 10; Patrick Q3 (05:03Z)", "source": "patrick",
+      "tolerance": 5, "mode": "within",
+      "measure": "min of SPL1 route.points[3..4].kt"
+    },
+    {
+      "id": "s-closed-speed",
+      "group": "Speeds",
+      "title": "Closed pattern speed",
+      "checks": "Lowest speed set on the closed-pattern split (Split 3).",
+      "manual": 140, "unit": "kt", "page": "EFIG p.134; SMM 4.24 para 57", "source": "manual",
+      "tolerance": 0, "mode": "atLeast",
+      "measure": "min of SPL3 points .kt",
+      "note": "The manual's number is a minimum."
+    },
+    {
+      "id": "k-initial-tas",
+      "group": "Speeds",
+      "title": "220 KIAS at 3,500 ft, as a true speed",
+      "checks": "The sim flies the route's number as ground speed with no wind. 220 KIAS at 3,500 ft is a faster true speed.",
+      "manual": 231.7, "unit": "kt", "page": "SMM 4.14 para 32 (220 KIAS) with core iasToTasKt at 3,500 ft", "source": "derived",
+      "tolerance": 5, "mode": "within",
+      "measure": "sim speed on the outer pattern, against iasToTasKt(220, 3500)",
+      "note": "Task 10 (wind) adds the indicated-to-true step."
+    },
+    {
+      "id": "k-downwind-tas",
+      "group": "Speeds",
+      "title": "120 KIAS at 3,500 ft, as a true speed",
+      "checks": "Same for the downwind after the break.",
+      "manual": 126.4, "unit": "kt", "page": "SMM 4.17 para 41 (120 KIAS) with core iasToTasKt at 3,500 ft", "source": "derived",
+      "tolerance": 5, "mode": "within",
+      "measure": "sim speed at the perch point, against iasToTasKt(120, 3500)"
+    },
+
+    {
+      "id": "t-pattern-bank-asked",
+      "group": "Turns",
+      "title": "Pattern corner bank (G asked at the corner)",
+      "checks": "Lowest bank asked at the big pattern corners (points 4, 5, 7, 8, 9, 10).",
+      "manual": 60, "unit": "deg", "page": "SMM 4.14 para 33", "source": "manual",
+      "tolerance": 1, "mode": "within",
+      "measure": "min of pointTurn(PAT1, i).bankDeg for index i = 3, 4, 6, 7, 8, 9"
+    },
+    {
+      "id": "t-break-bank-first",
+      "group": "Turns",
+      "title": "Break, first half: bank asked",
+      "checks": "Bank asked at the first break corner (point 10).",
+      "manual": 60, "unit": "deg", "page": "SMM 4.14 para 33, 4.17 para 39; EFIG p.183", "source": "manual",
+      "tolerance": 1, "mode": "within",
+      "measure": "pointTurn(PAT1, 9).bankDeg"
+    },
+    {
+      "id": "t-break-bank-second",
+      "group": "Turns",
+      "title": "Break, second half: bank asked",
+      "checks": "Bank asked at the second break corner (point 11), where the speed is 140 kt and the G is set to 1.",
+      "manual": 60, "unit": "deg", "page": "SMM 4.17 para 39; EFIG p.183", "source": "manual",
+      "tolerance": 1, "mode": "within",
+      "measure": "pointTurn(PAT1, 10).bankDeg"
+    },
+    {
+      "id": "t-break-bank-first-flown",
+      "group": "Turns",
+      "title": "Break, first half: bank actually flown",
+      "checks": "The turn is cut short by the legs on each side, so it is flown tighter than asked. Bank of the circle that turn is equal to, at the corner's speed.",
+      "manual": 60, "unit": "deg", "page": "SMM 4.17 para 39; EFIG p.183", "source": "manual",
+      "tolerance": 5, "mode": "within",
+      "measure": "flown-equivalent bank: radius = d / tan(turn / 2), d from the rounded path (routePath), bank = atan(v squared / (g R)) at the point's speed"
+    },
+    {
+      "id": "t-break-bank-second-flown",
+      "group": "Turns",
+      "title": "Break, second half: bank actually flown",
+      "checks": "Same measure at the second break corner.",
+      "manual": 60, "unit": "deg", "page": "SMM 4.17 para 39; EFIG p.183", "source": "manual",
+      "tolerance": 5, "mode": "within",
+      "measure": "flown-equivalent bank at PAT1 index 10"
+    },
+    {
+      "id": "t-break-heading-change",
+      "group": "Turns",
+      "title": "Break: total heading change",
+      "checks": "Turn from the initial track to the downwind track.",
+      "manual": 180, "unit": "deg", "page": "SMM 4.17 para 39; EFIG p.183", "source": "manual",
+      "tolerance": 5, "mode": "within",
+      "measure": "heading of the initial leg minus heading of the downwind leg, from routePath segs"
+    },
+    {
+      "id": "t-break-level",
+      "group": "Turns",
+      "title": "Break: height change (level turn)",
+      "checks": "Height lost between the start of the break and downwind.",
+      "manual": 0, "unit": "ft", "page": "SMM 4.17 para 39", "source": "manual",
+      "tolerance": 50, "mode": "within",
+      "measure": "alt[9] minus alt[10] on PAT1"
+    },
+    {
+      "id": "t-final-turn-bank-asked",
+      "group": "Turns",
+      "title": "Final turn: bank asked",
+      "checks": "Highest bank asked at the two final-turn corners, where the G is set to 1.",
+      "manual": 45, "unit": "deg", "page": "SMM 4.19 para 43; EFIG p.150-152; Patrick Q3", "source": "patrick",
+      "tolerance": 5, "mode": "within",
+      "measure": "max of pointTurn(PAT1, 11..12).bankDeg"
+    },
+    {
+      "id": "t-final-turn-bank-flown",
+      "group": "Turns",
+      "title": "Final turn: bank actually flown",
+      "checks": "The same two corners, worked out from the shape actually flown. The manual says up to 45.",
+      "manual": 45, "unit": "deg", "page": "SMM 4.19 paras 43, 47", "source": "manual",
+      "tolerance": 0, "mode": "atMost",
+      "measure": "max flown-equivalent bank at PAT1 index 11 and 12"
+    },
+    {
+      "id": "t-final-turn-heading-change",
+      "group": "Turns",
+      "title": "Final turn: total heading change",
+      "checks": "Turn from downwind to the final track.",
+      "manual": 180, "unit": "deg", "page": "SMM 4.19 para 43", "source": "manual",
+      "tolerance": 5, "mode": "within",
+      "measure": "heading of the downwind leg minus heading of the final leg"
+    },
+    {
+      "id": "t-final-turn-straight",
+      "group": "Turns",
+      "title": "Final turn: straight bit in the middle",
+      "checks": "The manual's final turn is one continuous descending 180 degrees. Pattern 1 flies two corners with a short straight (the base leg) between them.",
+      "manual": 0, "unit": "ft", "page": "SMM 4.19 para 43", "source": "manual",
+      "tolerance": 100, "mode": "within",
+      "measure": "length of the straight part of the leg between the two final-turn corners, from routePath segs"
+    },
+    {
+      "id": "t-straight-in-bank-asked",
+      "group": "Turns",
+      "title": "Straight-in turns: bank asked",
+      "checks": "Highest bank asked at the corners of Split 1 (onto base, onto the 45-degree leg and onto final).",
+      "manual": 45, "unit": "deg", "page": "SMM 4.6 para 9, 4.16 para 36; EFIG p.131; Patrick Q3 (05:04Z)", "source": "patrick",
+      "tolerance": 5, "mode": "within",
+      "measure": "max of pointTurn(SPL1, 2..5).bankDeg"
+    },
+    {
+      "id": "t-corner-g-margin",
+      "group": "Turns",
+      "title": "Corners: G asked against the G the aircraft can pull",
+      "checks": "Worst corner on any route: G set at the corner minus the G the T-6A can pull at that speed (stall line). Zero or less is fine.",
+      "manual": 0, "unit": "G", "page": "core T6A_LIMITS (stall 86 KIAS, Patrick 09:29Z); NFM Fig 6-3, V-n", "source": "derived",
+      "tolerance": 0.05, "mode": "atMost",
+      "measure": "max over every route corner of (g - availableG(kt)), speed read as KIAS"
+    },
+
+    {
+      "id": "a-initial-alignment",
+      "group": "Alignment and spacing",
+      "title": "Initial: heading against the runway",
+      "checks": "Heading of the straight initial leg minus the runway heading (threshold to departure end).",
+      "manual": 0, "unit": "deg", "page": "SMM 4.17 para 38", "source": "manual",
+      "tolerance": 2, "mode": "within",
+      "measure": "heading of the initial leg (routePath) minus runway heading from PAT1 points 1 and 2"
+    },
+    {
+      "id": "a-initial-offset",
+      "group": "Alignment and spacing",
+      "title": "Initial: sideways offset from the extended centreline",
+      "checks": "Sideways distance of the initial leg's end (the break point) from the centreline.",
+      "manual": 0, "unit": "ft", "page": "SMM 4.17 para 38", "source": "manual",
+      "tolerance": 200, "mode": "within",
+      "measure": "cross-track distance of PAT1 index 9 from the runway line"
+    },
+    {
+      "id": "a-final-alignment",
+      "group": "Alignment and spacing",
+      "title": "Final: heading against the runway",
+      "checks": "Heading of the final leg minus the runway heading.",
+      "manual": 0, "unit": "deg", "page": "SMM 4.19 para 45", "source": "manual",
+      "tolerance": 2, "mode": "within",
+      "measure": "heading of the last leg of PAT1 minus runway heading"
+    },
+    {
+      "id": "a-downwind-parallel",
+      "group": "Alignment and spacing",
+      "title": "Downwind: parallel to the runway",
+      "checks": "Downwind heading minus the runway's reciprocal.",
+      "manual": 0, "unit": "deg", "page": "SMM 4.17 para 39; EFIG p.183", "source": "manual",
+      "tolerance": 2, "mode": "within",
+      "measure": "heading of the straight downwind leg minus (runway heading + 180)"
+    },
+    {
+      "id": "a-downwind-spacing",
+      "group": "Alignment and spacing",
+      "title": "Downwind: distance from the runway centreline",
+      "checks": "Sideways distance of the downwind leg. The manual gives no number (fuel cap over the runway, EFIG p.134, 183); the least spacing a 180-degree turn at 45 degrees of bank and 120 kt allows is worked out from the manual's 45-degree limit.",
+      "manual": 2550, "unit": "ft", "page": "SMM 4.19 para 43 (45 deg limit) with core turnRadiusFt at 120 kt; EFIG p.134, p.183", "source": "derived",
+      "tolerance": 0, "mode": "atLeast",
+      "measure": "mean cross-track distance of the ends of the straight downwind leg from the runway line"
+    },
+    {
+      "id": "a-downwind-length",
+      "group": "Alignment and spacing",
+      "title": "Downwind leg length (break to perch)",
+      "checks": "Length between the downwind points (11 to 12 on screen), the Leg distances figure. The manual gives no number.",
+      "manual": null, "unit": "ft", "page": "no number in the manuals (SMM Fig 4.9, EFIG p.211 are diagrams)", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "legDistances(PAT1) leg 11 to 12, .ft"
+    },
+    {
+      "id": "a-break-point",
+      "group": "Alignment and spacing",
+      "title": "Break point: distance past the threshold",
+      "checks": "Where the break starts, along the runway from the threshold, with no wind.",
+      "manual": 2000, "unit": "ft", "page": "SMM 4.17 para 39, 4.18 para 42; EFIG p.183", "source": "manual",
+      "tolerance": 500, "mode": "within",
+      "measure": "along-runway distance of the start of the rounded turn at PAT1 index 9",
+      "note": "The manual's 2,000 ft is for a 10 kt headwind; with less wind the break is earlier."
+    },
+    {
+      "id": "a-rollout-abeam",
+      "group": "Alignment and spacing",
+      "title": "Break roll-out: before abeam the threshold",
+      "checks": "Along-runway distance of the break roll-out, past the threshold (must not be short of it).",
+      "manual": 0, "unit": "ft", "page": "SMM 4.17 para 39", "source": "manual",
+      "tolerance": 0, "mode": "atLeast",
+      "measure": "along-runway distance of the end of the rounded turn at PAT1 index 10"
+    },
+    {
+      "id": "a-perch",
+      "group": "Alignment and spacing",
+      "title": "Perch: distance before the threshold",
+      "checks": "Where the final turn starts, measured back from the threshold. The manual starts it abeam the window.",
+      "manual": 4557, "unit": "ft", "page": "SMM 4.19 para 43, 4.7 para 12", "source": "manual",
+      "tolerance": 608, "mode": "within",
+      "measure": "along-runway distance of the start of the rounded turn at PAT1 index 11, before the threshold",
+      "note": "3/4 NM is 4,557 ft. Tolerance 0.1 NM."
+    },
+    {
+      "id": "a-final-rollout",
+      "group": "Alignment and spacing",
+      "title": "Final turn roll-out: distance before the threshold",
+      "checks": "Where the final turn rolls out on the centreline. The manual rolls out through the window.",
+      "manual": 4557, "unit": "ft", "page": "SMM 4.19 para 45, 4.7 para 12", "source": "manual",
+      "tolerance": 608, "mode": "within",
+      "measure": "along-runway distance of the end of the rounded turn at PAT1 index 12, before the threshold"
+    },
+    {
+      "id": "f-final-spacing",
+      "group": "Alignment and spacing",
+      "title": "Spacing on final: closest two aircraft at the threshold",
+      "checks": "Fly the built-in traffic for an hour; the shortest gap between two aircraft crossing the threshold, in feet at 100 kt. There is no extension in the engine yet.",
+      "manual": 3000, "unit": "ft", "page": "SPEC-traffic T11 (Patrick, 07:20Z); EFIG p.393 gives 2,000 for stream landing", "source": "spec",
+      "tolerance": 0, "mode": "atLeast",
+      "measure": "createSim(moose-jaw, seed 1), 3,600 s sampled every 0.25 s; crossing times of the threshold line interpolated; gap seconds times 100 kt"
+    },
+
+    {
+      "id": "e-break-to-perch-time",
+      "group": "Timing",
+      "title": "Time from the break to the perch",
+      "checks": "Time from the start of the break to the start of the final turn.",
+      "manual": null, "unit": "s", "page": "no number in the manuals", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "one aircraft on PAT1 (landOdds 0), sim time between the distances where the rounded turns at PAT1 index 9 and index 11 start"
+    },
+    {
+      "id": "e-break-to-perch-distance",
+      "group": "Timing",
+      "title": "Distance flown from the break to the perch",
+      "checks": "Ground track length from the start of the break to the start of the final turn.",
+      "manual": null, "unit": "ft", "page": "no number in the manuals", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "pointDistFt(PAT1, 11) minus pointDistFt(PAT1, 9)"
+    },
+    {
+      "id": "e-final-turn-time",
+      "group": "Timing",
+      "title": "Time in the final turn",
+      "checks": "Time from the start of the final turn to its roll-out.",
+      "manual": null, "unit": "s", "page": "no number in the manuals", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "sim time from the start of the rounded turn at PAT1 index 11 to the end of the one at index 12"
+    },
+    {
+      "id": "e-initial-to-threshold",
+      "group": "Timing",
+      "title": "Time from initial to the threshold",
+      "checks": "Time from the start of the turn onto initial to the threshold, the whole overhead-break circuit.",
+      "manual": null, "unit": "s", "page": "no number in the manuals", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "one aircraft on PAT1 (landOdds 0) started at index 8, to the end of the lap"
+    },
+    {
+      "id": "e-pattern-lap",
+      "group": "Timing",
+      "title": "Time round the whole Pattern 1 loop",
+      "checks": "Time for one lap of the whole loop from the threshold, outer pattern included.",
+      "manual": null, "unit": "s", "page": "no number in the manuals", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "one aircraft on PAT1 (landOdds 0) from the threshold to the end of the lap"
+    },
+    {
+      "id": "e-closed-pattern-time",
+      "group": "Timing",
+      "title": "Closed pattern: time from the departure end to downwind",
+      "checks": "Time for the closed-pattern split (Split 3) from its start to where it rejoins downwind.",
+      "manual": null, "unit": "s", "page": "no number in the manuals (fuel about 15 lb, SMM 4.3 para 4)", "source": "manual",
+      "tolerance": 0, "mode": "info",
+      "measure": "one aircraft started on SPL3 until it joins PAT1"
+    },
+
+    {
+      "id": "w-break-wind",
+      "group": "Waits on later tasks",
+      "title": "Break point moves with the wind",
+      "checks": "Later with a strong headwind, earlier with a light one.",
+      "manual": 2000, "unit": "ft past threshold at 10 kt headwind", "page": "SMM 4.17 para 39, 4.18 para 42", "source": "manual",
+      "tolerance": 0, "mode": "waits", "waitsOn": 15,
+      "measure": "no wind and no break rule in the engine yet (tasks 10 and 15)"
+    },
+    {
+      "id": "w-break-slowdown",
+      "group": "Waits on later tasks",
+      "title": "Slowing from 220 to 120 KIAS through the break",
+      "checks": "Idle power in the break, then about 35 percent torque on downwind.",
+      "manual": 120, "unit": "KIAS", "page": "SMM 4.17 paras 39-41; EFIG p.183", "source": "manual",
+      "tolerance": 5, "mode": "waits", "waitsOn": 15,
+      "measure": "the engine blends the route's speeds along the leg; the break's own deceleration comes with task 15"
+    },
+    {
+      "id": "w-final-turn-continuous",
+      "group": "Waits on later tasks",
+      "title": "Continuous descending 180-degree final turn",
+      "checks": "One turn from the perch to the window at up to 45 degrees of bank and 120 KIAS, rolling out on the 3-degree glide path.",
+      "manual": 180, "unit": "deg", "page": "SMM 4.19 paras 43, 45", "source": "manual",
+      "tolerance": 5, "mode": "waits", "waitsOn": 15,
+      "measure": "Pattern 1 flies it as two corners; the true turn comes with task 15 (the corner rows above show today's shape)"
+    },
+    {
+      "id": "w-perch-wind",
+      "group": "Waits on later tasks",
+      "title": "Perch moves with the wind",
+      "checks": "Along the runway for headwind, sideways for crosswind.",
+      "manual": null, "unit": "", "page": "SMM 4.20 para 49; SMM Fig 4.16", "source": "manual",
+      "tolerance": 0, "mode": "waits", "waitsOn": 15,
+      "measure": "no wind in the engine yet (tasks 10 and 15)"
+    },
+    {
+      "id": "w-pfl-high-key",
+      "group": "Waits on later tasks",
+      "title": "PFL High Key height",
+      "checks": "High Key at Moose Jaw.",
+      "manual": 5000, "unit": "ft MSL", "page": "SMM 13.5 paras 7-8", "source": "manual",
+      "tolerance": 100, "mode": "waits", "waitsOn": 16,
+      "measure": "no PFL route in the engine yet"
+    },
+    {
+      "id": "w-pfl-low-key",
+      "group": "Waits on later tasks",
+      "title": "PFL Low Key height",
+      "checks": "Low Key, 180 degrees round from High Key.",
+      "manual": 3700, "unit": "ft MSL", "page": "SMM 13.8 para 17", "source": "manual",
+      "tolerance": 100, "mode": "waits", "waitsOn": 16,
+      "measure": "no PFL route in the engine yet"
+    },
+    {
+      "id": "w-pfl-final-key",
+      "group": "Waits on later tasks",
+      "title": "PFL Final Key height",
+      "checks": "Final Key, 270 degrees round from High Key.",
+      "manual": 3000, "unit": "ft MSL", "page": "SMM 13.9 para 18", "source": "manual",
+      "tolerance": 100, "mode": "waits", "waitsOn": 16,
+      "measure": "no PFL route in the engine yet",
+      "note": "SPEC-traffic says about 3,050; the manual says 3,000."
+    },
+    {
+      "id": "w-pfl-circle-loss",
+      "group": "Waits on later tasks",
+      "title": "PFL height lost in a full circle",
+      "checks": "360 degrees at 120 KIAS, 30 degrees of bank, gear down.",
+      "manual": 2600, "unit": "ft", "page": "SMM 13.6 para 13", "source": "manual",
+      "tolerance": 100, "mode": "waits", "waitsOn": 16,
+      "measure": "no PFL route in the engine yet"
+    },
+    {
+      "id": "w-pfl-circle-size",
+      "group": "Waits on later tasks",
+      "title": "PFL circle diameter",
+      "checks": "The forced-landing pattern is a descending circle about 1 NM across.",
+      "manual": 1, "unit": "NM", "page": "SMM 13.6 para 13", "source": "manual",
+      "tolerance": 0.1, "mode": "waits", "waitsOn": 16,
+      "measure": "no PFL route in the engine yet"
+    },
+    {
+      "id": "w-glide-and-zoom",
+      "group": "Waits on later tasks",
+      "title": "Engine-out zoom and glide",
+      "checks": "Zoom then glide by configuration. Core's thread runs the glide and zoom scenarios; this row waits for the sim to use them.",
+      "manual": 125, "unit": "KIAS clean glide", "page": "SMM 13.5 para 7; NFM Fig 3-4, Fig 3-5", "source": "manual",
+      "tolerance": 5, "mode": "waits", "waitsOn": 17,
+      "measure": "no engine-out in the engine yet"
+    },
+    {
+      "id": "w-final-extension",
+      "group": "Waits on later tasks",
+      "title": "Extending downwind for traffic on final",
+      "checks": "The roll-out is held back until it is at least the final spacing behind the aircraft ahead.",
+      "manual": 3000, "unit": "ft", "page": "SPEC-traffic T11 (Patrick, 07:20Z)", "source": "spec",
+      "tolerance": 0, "mode": "waits", "waitsOn": 18,
+      "measure": "no extension logic in the engine yet; the spacing row above shows what the setup gives without it"
+    },
+    {
+      "id": "w-stream-spacing",
+      "group": "Waits on later tasks",
+      "title": "Minimum landing spacing for a stream landing",
+      "checks": "Formation stream landing.",
+      "manual": 2000, "unit": "ft", "page": "EFIG p.393", "source": "manual",
+      "tolerance": 0, "mode": "waits", "waitsOn": 18,
+      "measure": "needs traffic on final (task 18)"
+    }
+  ]
+}
