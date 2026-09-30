@@ -12,7 +12,7 @@
   - Acceptance: every ui-kit test in SPEC-ui-kit.md passes.
   - Verify: `npm test`
   - Files: src/ui-kit/*, tests/unit/ui-kit/*.test.js, tests/unit/source-rules.test.js
-- [ ] **4. Shell core.** router.js, registry.js, host.js.
+- [x] **4. Shell core.** router.js, registry.js, host.js.
   - Acceptance: router, registry and host unit tests in SPEC-shell.md pass, including clean unmount of a fake module.
   - Verify: `npm test`
   - Files: src/shell/router.js, src/shell/registry.js, src/shell/host.js, tests/unit/shell/*.test.js
