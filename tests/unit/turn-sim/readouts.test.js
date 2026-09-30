@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { stallLimitG, availableG } from '../../../src/core/t6-performance.js';
 import {
-  formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
+  checkTurnNote, formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
 } from '../../../src/modules/turn-sim/readouts.js';
 import { MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
@@ -312,4 +312,14 @@ test('N4: the FORE tolerance is 1 degree of the standard\'s own FORE edge, not o
   const close = (xFt) => formationRows(four({ 2: { xFt, yFt: 1000 } }), { ...settings, spacingFt: 1000 }, v6);
   assert.deepEqual(row(close(90), 2).labels, ['FORE']);
   assert.deepEqual(row(close(60), 2).labels, ['ON SPACING']);
+});
+
+test('the check turn is named in the summary only when it is flown, with the figure for the formation', () => {
+  const set = (formation) => ({ ...SETTINGS, formation, checkTurnDeg: 12.5 });
+  assert.equal(checkTurnNote({ delayed45CheckFlown: false }, set('weighted')), null);
+  assert.equal(checkTurnNote({}, set('weighted')), null);
+  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('weighted')), 'Delayed 45 with a 12.5° check (SMM Fig 16.34)');
+  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('twoShip')), 'Delayed 45 with a 12.5° check (SMM Fig 16.17)');
+  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('offsetBox')), 'Delayed 45 with a 12.5° check (SMM Fig 16.31)');
+  assert.equal(readoutsAt({ ...four(), delayed45CheckFlown: true }, set('weighted')).checkNote, 'Delayed 45 with a 12.5° check (SMM Fig 16.34)');
 });

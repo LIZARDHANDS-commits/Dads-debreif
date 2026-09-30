@@ -112,6 +112,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   clockPos.element?.classList.add('ts-wide');
   timing.element?.classList.add('ts-wide');
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
+  // With the check turn the aircraft time themselves off each other, so Base delay and the Auto step do not apply.
+  const checkTimingNote = h('p', { class: 'ts-hint ts-check-timing', id: 'ts-check-timing', hidden: true }, 'Base delay and Auto step do not apply: the check turn times itself off the aircraft before it.');
+  let checkFlown = false;
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
   const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, { element: directionNote }, speed, g].map((f) => f.element);
@@ -198,6 +201,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       gWarning,
       timing.element,
       baseDelay.element,
+      checkTimingNote,
       clockPos.element,
       autoNote,
       resetButton(used),
@@ -275,6 +279,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const card = h('ul', { class: 'ts-card', 'aria-label': 'Formation' });
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
+  const checkNote = h('p', { class: 'ts-line ts-check-note', hidden: true });
   const crossNote = h('p', { class: 'ts-line ts-cross-note', hidden: true });
   const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
   let lastFlags = null;
@@ -283,7 +288,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
   detail.element.classList.add('ts-subpanel', 'ts-detail');
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
-  formationPanel.body.append(card, minSep, turnLine, crossNote, flags, cueWarning, cueList, detail.element);
+  formationPanel.body.append(card, minSep, turnLine, checkNote, crossNote, flags, cueWarning, cueList, detail.element);
 
   const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Setup' }, setupPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
@@ -325,8 +330,19 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     else fieldset?.removeAttribute('aria-describedby');
   }
 
+  // With the check turn flown, Base delay is greyed out and says why (aria-describedby), and the Auto step line says it does not apply.
+  function applyCheckTiming(values) {
+    const applies = checkFlown && (values.timing === 'time' || values.timing === 'auto');
+    controls.setDisabled('baseDelaySec', applies);
+    const input = baseDelay.built?.control.querySelector('input');
+    if (applies) input?.setAttribute('aria-describedby', checkTimingNote.id);
+    else input?.removeAttribute('aria-describedby');
+    checkTimingNote.hidden = !applies;
+  }
+
   function applyScenario(values) {
     lastValues = values;
+    applyCheckTiming(values);
     applyDirection(values);
     applyTurnChoices(values);
     if (baseDelay.element) baseDelay.element.hidden = values.timing !== 'time';
@@ -420,6 +436,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       minSep.textContent = r.minSepText ?? '';
       minSep.hidden = !r.minSepText;
       turnLine.textContent = r.turnText;
+      checkNote.textContent = r.checkNote ?? '';
+      checkNote.hidden = !r.checkNote;
+      if (Boolean(r.checkNote) !== checkFlown) {
+        checkFlown = Boolean(r.checkNote);
+        if (lastValues) applyCheckTiming(lastValues);
+      }
       crossNote.textContent = r.crossNote?.text ?? '';
       crossNote.hidden = !r.crossNote;
       crossNote.classList.toggle('is-clamped', Boolean(r.crossNote?.clamped));
@@ -444,7 +466,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       cueList.hidden = r.cue.lines.length === 0;
       if ((r.cue.warning ?? '') !== cueWarning.textContent) cueWarning.textContent = r.cue.warning ?? '';
       cueWarning.hidden = !r.cue.warning;
-      autoNote.textContent = r.autoStepSec == null ? 'Auto timing works out each aircraft\'s delay itself.' : `Auto step ${r.autoStepSec.toFixed(1)} s`;
+      autoNote.textContent = checkFlown ? 'Auto step does not apply to the check turn.' : r.autoStepSec == null ? 'Auto timing works out each aircraft\'s delay itself.' : `Auto step ${r.autoStepSec.toFixed(1)} s`;
 
       clear(detail.body);
       detail.body.append(

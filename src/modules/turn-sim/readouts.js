@@ -328,6 +328,16 @@ export function offsetBandLines(state, timing = null, maneuver = null) {
 }
 
 /**
+ * The words that say the Delayed 45 is flown with its check turn, or null for the plain turn. The figure is the one the SMM draws for
+ * the formation: 16.17 for two aircraft, 16.34 for spread 4 and 16.31 for the box.
+ */
+export function checkTurnNote(state, settings) {
+  if (!state?.delayed45CheckFlown) return null;
+  const fig = settings.formation === 'twoShip' ? '16.17' : settings.formation === 'offsetBox' ? '16.31' : '16.34';
+  return `Delayed 45 with a ${settings.checkTurnDeg}° check (SMM Fig ${fig})`;
+}
+
+/**
  * Everything the Formation column shows for one state.
  *
  * @param {any} state      the engine's state: { tSec, finished, aircraft }
@@ -358,6 +368,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     cue: cueStatus(state),
     offsetBand: offsetBandLines(state, settings.offsetBox4Timing, settings.maneuver),
     crossNote: crossTurnNote(state),
+    checkNote: checkTurnNote(state, settings),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
     leadTurnDirection: state?.leadTurnDirection ?? null,

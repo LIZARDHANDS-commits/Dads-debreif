@@ -673,6 +673,30 @@ test('the Delayed 45 style, check turn and roll-in boxes sit in the settings men
   await expect(box(page, 'Check turn')).toBeHidden();
 });
 
+test('when the Delayed 45 flies its check turn, the summary says so and Base delay and Auto step say they do not apply', async ({ page }) => {
+  await open(page);
+  const note = page.locator('.ts-check-note');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.34)'); // 4312: auto is the check
+  await expect(box(page, 'Base delay')).toBeDisabled();
+  await expect(box(page, 'Base delay')).toHaveAccessibleDescription(/do not apply/);
+  await box(page, 'Timing').selectOption({ label: 'Auto timing' });
+  await expect(page.locator('.ts-auto')).toHaveText('Auto step does not apply to the check turn.');
+  await box(page, 'Timing').selectOption({ label: 'Time delay' });
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(note).toBeHidden(); // auto is the plain turn in the two-ship
+  await expect(box(page, 'Base delay')).toBeEnabled();
+  await expect(box(page, 'Base delay')).not.toHaveAttribute('aria-describedby', /.+/);
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Delayed 45 style').selectOption({ label: 'With check turn' });
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.17)');
+  await expect(box(page, 'Base delay')).toBeDisabled();
+  await box(page, 'Delayed 45 style').selectOption({ label: 'Plain' });
+  await box(page, 'Formation').selectOption({ label: '4312' });
+  await expect(note).toBeHidden();
+  await expect(box(page, 'Base delay')).toBeEnabled();
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
