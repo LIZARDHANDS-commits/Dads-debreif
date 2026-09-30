@@ -88,8 +88,8 @@
 [data-module='turn-fight'] .tf-aircraft-row {
   display: grid;
   grid-auto-flow: column;
-  /* Each column is at least as wide as its label, so "Speed (KTAS)" stays on one line beside Pitch (TF-5). */
-  grid-auto-columns: minmax(max-content, 1fr);
+  /* Each column is at least as wide as its label (which does not wrap), so "Speed (KTAS)" stays on one line beside Pitch (TF-5) without pushing the row out of its frame. */
+  grid-auto-columns: minmax(min-content, 1fr);
   align-items: end; /* boxes line up even when a label wraps */
   gap: 0 var(--space-2);
 }

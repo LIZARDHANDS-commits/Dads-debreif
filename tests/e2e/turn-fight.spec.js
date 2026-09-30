@@ -1186,5 +1186,17 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, 
       expect(pitch[1]).toBe(g[1]);
     }
     expect(await layoutProblems(page)).toEqual([]);
+    // Nothing is pushed out of its row: not the Pitch box, with or without a G limit warning showing.
+    const rowsFit = () => page.locator('.tf-aircraft-row').evaluateAll((rows) => rows.map((row) => [row.scrollWidth - row.clientWidth, row.closest('fieldset').getBoundingClientRect().right - Math.max(...[...row.querySelectorAll('input')].map((i) => i.getBoundingClientRect().right))]));
+    for (const [over, room] of await rowsFit()) {
+      expect(over).toBeLessThanOrEqual(0);
+      expect(room).toBeGreaterThanOrEqual(0); // the last box ends inside the aircraft's frame
+    }
+    await blue(page).getByLabel('G', { exact: true }).fill('9');
+    await expect(blue(page).locator('.tf-warning')).not.toBeEmpty();
+    for (const [over, room] of await rowsFit()) {
+      expect(over).toBeLessThanOrEqual(0);
+      expect(room).toBeGreaterThanOrEqual(0);
+    }
   });
 }
