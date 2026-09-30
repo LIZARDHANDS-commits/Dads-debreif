@@ -59,7 +59,7 @@ Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening
 ### Checkpoint: turn performance
 - [x] Suite, mutation check (97 of 101, 4 equivalent) and browser check pass
 - [x] Tennis-ball disagreement written up for Patrick and Dad (#19): [`tennis-ball.md`](tennis-ball.md)
-- [ ] Patrick reviews PR 2
+- [x] Patrick reviews PR 2 ("Go when able", 2026-09-30)
 
 ### Phase 3: standards (PR 3)
 - [x] Task 10: formation standards classifiers and V6's default preset
