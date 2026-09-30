@@ -745,8 +745,14 @@
   font-size: var(--text-sm);
 }
 
+/* Empty, it takes no room but stays in the page: the note is a live region, and one that is hidden does not speak. */
 [data-module='sof'] .sof-wave-note:empty {
-  display: none;
+  margin: 0;
+}
+
+[data-module='sof'] .sof-wave-note.is-problem {
+  color: var(--bad);
+  font-weight: 600;
 }
 
 [data-module='sof'] .sof-wave-chip {

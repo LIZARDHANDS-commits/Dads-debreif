@@ -736,6 +736,33 @@ test('a wave with no times says what is missing instead of a call', async ({ pag
   await expect(waveRow(page, 0).locator('.sof-wave-land')).toHaveAttribute('aria-invalid', 'true');
 });
 
+test('N2: equal takeoff and landing marks both boxes invalid, and the note is announced and readable', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, '', '08:00', '08:00');
+  const note = row.locator('.sof-wave-note');
+  await expect(note).toContainText('Landing is the same time as takeoff');
+  await expect(note).toHaveAttribute('role', 'status'); // a polite live region, present before the words come
+  await expect(row.locator('.sof-wave-takeoff')).toHaveAttribute('aria-invalid', 'true');
+  await expect(row.locator('.sof-wave-land')).toHaveAttribute('aria-invalid', 'true');
+  // At least 4.5:1 against what is behind it (WCAG 1.4.3), and not the muted grey of an ordinary note.
+  const ratio = await note.evaluate((el) => {
+    const parse = (c) => c.match(/[\d.]+/g).map(Number);
+    const lum = ([r, g, b]) => [r, g, b].map((v) => (v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+    let bg = null;
+    for (let e = el; e && !bg; e = e.parentElement) {
+      const c = parse(getComputedStyle(e).backgroundColor);
+      if (c.length < 4 || c[3] > 0.99) if (c[3] !== 0) bg = c;
+    }
+    const [a, b] = [lum(parse(getComputedStyle(el).color)), lum(bg ?? [0, 0, 0])].sort((x, y) => y - x);
+    return (a + 0.05) / (b + 0.05);
+  });
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+  // Fixing the landing time clears the marks.
+  await row.locator('.sof-wave-land').fill('09:00');
+  await expect(row.locator('.sof-wave-land')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(row.locator('.sof-wave-takeoff')).not.toHaveAttribute('aria-invalid', 'true');
+});
+
 test('editing a wave never loses focus, even as the screen redraws around it', async ({ page }) => {
   const feed = await openSof(page, CLEAR_FOG);
   const row = await addWave(page, '', '15:30', '17:00');

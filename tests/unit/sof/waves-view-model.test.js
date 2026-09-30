@@ -72,6 +72,11 @@ test('a wave with no times has no call, and says what is missing', () => {
   assert.deepEqual(m.calls, []);
 });
 
+test('N2: a wave with a time not set yet, or one that lands the next day, is not a problem', () => {
+  const m = model({ waves: [w('w1', '08:00', ''), w('w2', '23:00', '01:00')] });
+  assert.deepEqual(m.rows.map((r) => r.problem), [false, false]);
+});
+
 test('no waves is an empty list that can be added to', () => {
   const m = model();
   assert.deepEqual(m.rows, []);
@@ -315,5 +320,6 @@ test('a landing at the same time as takeoff has no call, and the row says why', 
   const m = model({ waves: [w('w1', '08:00', '08:00')] });
   assert.equal(m.rows[0].chip, null);
   assert.equal(m.rows[0].note, 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day');
+  assert.equal(m.rows[0].problem, true, 'N2: the boxes are marked invalid, not just given a note');
   assert.deepEqual(m.calls, []);
 });

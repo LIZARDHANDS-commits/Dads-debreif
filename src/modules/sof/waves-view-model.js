@@ -118,7 +118,7 @@ function altLinesOf(row, call, notes) {
  * - `selectedId`: `undefined` (the first wave with a call), `null` (none) or a wave's id.
  *
  * Returns `{ problem, day, dayLabel, zone, rows, canAdd, limitNote, selectedId, detail, altLines,
- * waves, calls }`. A row is `{ id, entryName (as typed), name (as said), title, zulu, takeoff, land, nextDay, note, chip }` and
+ * waves, calls }`. A row is `{ id, entryName (as typed), name (as said), title, zulu, takeoff, land, nextDay, note, problem, chip }` and
  * `chip` is `{ words, tone, symbol, reason, limits, alternates }`, or null when the wave has no
  * call (times not set, or no zone). `altLines` is a Map from an alternate's ICAO to its result
  * for the selected wave. `waves` and `calls` are the UTC waves and `waveCalls`' answer, for the
@@ -153,6 +153,8 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
       land: entry.land,
       nextDay: Boolean(wave?.nextDay),
       note: skip ? skip.problem : wave?.nextDay ? 'Lands the next day' : '',
+      // True when the times themselves are refused (equal), so the boxes are marked invalid; "not set yet" is not an error.
+      problem: Boolean(skip?.equal),
       chip: null,
     };
     if (call) row.chip = chipOf(row, call, tafNotes, homeIcao);
