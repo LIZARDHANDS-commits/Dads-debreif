@@ -72,7 +72,8 @@ function mount(root, app) {
   const nextId = createIdMaker(setup.routes);
   const editor = createRouteEditor({
     setup,
-    onChange: ({ structure }) => {
+    onChange: ({ structure, routeId, remap }) => {
+      if (remap) sim.remapStarts(routeId, remap); // aircraft that start on this route keep their starting place
       if (structure) routesChanged();
       else changed();
     },

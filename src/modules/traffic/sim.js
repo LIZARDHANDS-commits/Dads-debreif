@@ -242,6 +242,28 @@ export function createSim(setup, { seed = 1 } = {}) {
       return a.id;
     },
 
+    /**
+     * A point was added to or deleted from route `routeId`: every aircraft that starts on it starts at
+     * the same place as before. `mapIndex(oldIndex) → newIndex` (0-based) says where each point number
+     * went; it moves the start point of each aircraft on that route (spawned ones and the setup's own).
+     * An aircraft that has not left yet is put at its moved start; one that is flying keeps its distance
+     * along the route, as V6's does, and takes the new start when it is next reset.
+     */
+    remapStarts(routeId, mapIndex) {
+      const moved = (i) => {
+        const to = mapIndex(+i || 0);
+        if (!Number.isInteger(to) || to < 0) throw new RangeError(`a start point cannot move to ${to}`);
+        return to;
+      };
+      const wanted = aircraft.filter((a) => a.startRouteId === routeId).map((a) => [a, moved(a.startIndex)]);
+      const specs = (setup.aircraft ?? []).filter((spec) => spec.routeId === routeId).map((spec) => [spec, moved(spec.startIndex)]);
+      for (const [a, to] of wanted) {
+        a.startIndex = to;
+        if (t < a.startsAt) toStart(a);
+      }
+      for (const [spec, to] of specs) spec.startIndex = to;
+    },
+
     /** Removes an aircraft from the run (true if it was there). */
     remove(id) {
       const before = aircraft.length;

@@ -381,7 +381,9 @@ test('+ Point adds a row after the picked point and says so', () => {
   assert.equal(setup.routes[0].points.length, 14);
   assert.equal(setup.routes[0].points[5].label, NEW_POINT_LABEL);
   assert.equal(rowsOf(editor).length, 14);
-  assert.deepEqual(changes.at(-1), { structure: true });
+  assert.equal(changes.at(-1).structure, true);
+  assert.equal(changes.at(-1).routeId, 'PAT1');
+  assert.deepEqual([3, 4, 5, 6].map(changes.at(-1).remap), [3, 4, 6, 7], 'the start points after the new point move up');
   assert.match(words(editor.message), /Added point 6/);
   assert.equal(rowsOf(editor)[5].getAttribute('aria-current'), 'true');
 });

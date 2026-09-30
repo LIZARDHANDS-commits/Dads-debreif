@@ -133,6 +133,15 @@ function linksTo(routes, route) {
 
 const average = (a, b) => (a + b) / 2;
 
+/** Where a point number (from 0) goes when a point is added at `at`: the ones from there on move up by one. */
+export const indexAfterInsert = (at) => (i) => (i >= at ? i + 1 : i);
+
+/**
+ * Where a point number (from 0) goes when point `deleted` is taken out of a route that now has `count`
+ * points: later ones move down by one, and one that was on the deleted point goes to the point before it.
+ */
+export const indexAfterDelete = (deleted, count) => (i) => (i > deleted ? i - 1 : i === deleted ? Math.min(Math.max(0, deleted - 1), count - 1) : i);
+
 /** Says why a point cannot be added to the route, or returns '' when one can. */
 export const addPointProblem = (route) => (route.points.length >= MOST_POINTS ? `${route.name} already has ${MOST_POINTS} points, the most a route can have.` : '');
 
@@ -155,7 +164,8 @@ export function insertPoint(routes, route, afterIndex) {
   };
   const at = after + 1;
   route.points.splice(at, 0, placed);
-  for (const { other, indexKey } of linksTo(routes, route)) if (other[indexKey] >= at) other[indexKey] += 1;
+  const move = indexAfterInsert(at);
+  for (const { other, indexKey } of linksTo(routes, route)) other[indexKey] = move(other[indexKey]);
   return at;
 }
 
@@ -170,13 +180,11 @@ export function deletePoint(routes, route, index) {
   if (route.points.length <= least) return { problem: `${route.name} needs at least ${least} points, so this one stays.` };
   route.points.splice(index, 1);
   const count = route.points.length;
+  const move = indexAfterDelete(index, count);
   const moved = [];
   for (const { other, indexKey } of linksTo(routes, route)) {
-    if (other[indexKey] > index) other[indexKey] -= 1;
-    else if (other[indexKey] === index) {
-      other[indexKey] = Math.min(Math.max(0, index - 1), count - 1);
-      moved.push(other);
-    }
+    if (other[indexKey] === index) moved.push(other);
+    other[indexKey] = move(other[indexKey]);
   }
   for (const other of moved) joinEnds(routes, other);
   // An entry or split starts and ends where it is linked, so whichever point is now first or last goes back there.
@@ -220,8 +228,10 @@ function pointStore(point, changed) {
 
 /**
  * The editor for the selected route. `setup` is the engine's setup (edited in place);
- * `onChange({ structure })` is called after every change so the screen can redraw:
- * `structure` is true when routes, names, links or the number of points changed.
+ * `onChange({ structure, routeId?, remap? })` is called after every change so the screen can redraw:
+ * `structure` is true when routes, names, links or the number of points changed; when a point was added or
+ * deleted, `routeId` and `remap(oldIndex) → newIndex` say how that route's point numbers moved, so the sim
+ * can move the start points of its aircraft the same way.
  * Returns { element, message, show(routeId), refresh(), say(text), dispose() }: `element` is the
  * point table for the layout's slot, `message` is the line the editor writes to, and `refresh()`
  * rewrites the readouts after the route options changed.
@@ -365,7 +375,7 @@ export function createRouteEditor({ setup, onChange }) {
     showLegs();
     rows[at]?.li.querySelector?.('input')?.focus();
     say(`Added point ${at + 1}. Give it a name, height and speed.`);
-    onChange({ structure: true });
+    onChange({ structure: true, routeId: route.id, remap: indexAfterInsert(at) });
   }
 
   function removePoint() {
@@ -379,7 +389,7 @@ export function createRouteEditor({ setup, onChange }) {
     showLinks();
     showLegs();
     say(`Deleted point ${index + 1}.`);
-    onChange({ structure: true });
+    onChange({ structure: true, routeId: route.id, remap: indexAfterDelete(index, route.points.length) });
   }
 
   const buttons = h(

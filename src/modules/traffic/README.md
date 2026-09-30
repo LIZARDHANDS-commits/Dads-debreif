@@ -102,7 +102,10 @@ sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a p
 sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first. V6 also adds the split point to the trail when a split is taken; this does not (display only)
 sim.diceState()       // where the dice are (changes with every roll; the golden tests compare it with V6's)
 sim.state()           // what is where right now
+sim.remapStarts(routeId, mapIndex)  // a point was added to or deleted from a route: move the start points of its aircraft the same way
 ```
+
+`remapStarts(routeId, mapIndex)` is for the editor: when a point is added to or deleted from a route, `mapIndex(oldIndex) → newIndex` (0-based) says where each point number went, and every aircraft that starts on that route (spawned ones and `setup.aircraft`) starts at the same place as before. An aircraft that has not left yet is moved to its new start; one that is flying keeps its distance along the route (as V6's does).
 
 `setup.routes` must not be emptied while there are aircraft (V6's Delete route refuses the last one): `createSim`, `reset` and `spawn` throw a `RangeError` ("the setup needs at least one route") when there is no route to put an aircraft on. `reset` clears `landed`, as V6's `resetAircraftToStarts` does (V6's Reset button left it set).
 
