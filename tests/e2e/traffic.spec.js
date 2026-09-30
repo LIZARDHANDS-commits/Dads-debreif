@@ -610,6 +610,29 @@ test('save a profile, reload the page: it opens on the last profile, and Load br
   await expect(profileList(page)).toHaveValue('built-in:moose-jaw-v6');
 });
 
+test('no accessibility violations with the Profiles and notes section open, and with a confirm showing', async ({ page }) => {
+  await open(page);
+  await openProfiles(page);
+  await expectNoA11yViolations(page);
+  // Save over a name that is there: the confirm shows in the section.
+  await profileName(page).fill('Alpha');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText('Saved "Alpha".');
+  await page.getByLabel('Notes', { exact: true }).fill('second version');
+  await button(page, 'Save').click();
+  await expect(confirmBox(page)).toBeVisible();
+  await expectNoA11yViolations(page);
+  await button(page, 'Cancel').click();
+  await expect(confirmBox(page)).toBeHidden();
+  // Delete: the same, for its confirm.
+  await profileList(page).selectOption({ label: 'Alpha (CYMJ)' });
+  await button(page, 'Delete').click();
+  await expect(confirmBox(page)).toContainText('Delete the saved profile "Alpha"?');
+  await expectNoA11yViolations(page);
+  await page.keyboard.press('Escape');
+  await expect(confirmBox(page)).toBeHidden();
+});
+
 test('a loaded profile plays, and its routes, edits and settings come back as saved', async ({ page }) => {
   await open(page);
   await page.locator('[data-route-id="PAT1"]').click();
