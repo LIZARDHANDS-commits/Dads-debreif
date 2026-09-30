@@ -8,6 +8,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { SHIP_COLORS, OUTLINED_SHIPS, flightSummary, trackStatus, assignShips, setShip, shipName } from './state.js';
 import { MAX_TRACKS } from '../../flight-data/load.js';
 import { createReadoutsPanel } from './readouts-panel.js';
+import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -64,7 +65,20 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const layersBody = h(
     'div',
     { class: 'debrief-menu-body', id: 'debrief-layers', hidden: true },
+    controls.select('trail', { label: 'Trail', options: [
+      { value: 'full', label: 'Full tracks' },
+      { value: 'history', label: 'History only' },
+      { value: 'window', label: 'Last 60 s' },
+    ] }),
+    controls.checkbox('spacingLines', { label: 'Spacing lines' }),
     controls.checkbox('grid', { label: 'Grid (5,000 ft)' }),
+    controls.checkbox('lead39', { label: 'Lead 3/9 line' }),
+    controls.checkbox('three39', { label: '#3 3/9 line' }),
+    controls.checkbox('cone', { label: 'Fighting-wing cone' }),
+    controls.checkbox('clockMarks', { label: 'Clock marks' }),
+    controls.checkbox('bubble', { label: 'Safety bubble' }),
+    controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
+    controls.checkbox('followLead', { label: 'Follow Lead' }),
     h('button', { type: 'button', class: 'button', onclick: () => handlers.reset?.() }, 'Reset layout'),
   );
   const layersMenu = h('div', { class: 'debrief-menu' }, layersButton, layersBody);

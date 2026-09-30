@@ -21,7 +21,7 @@ import { createDfpPanel } from './dfp-panel.js';
 import { createFilePanel } from './file-panel.js';
 import { downloadText } from '../../storage/file.js';
 import {
-  addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps,
+  addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps, dfpLabel,
 } from './dfp.js';
 import { TIME_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 
@@ -60,6 +60,7 @@ function mount(root, app) {
     timers: app.scheduler,
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
+    dfps: () => dfps.map((d) => ({ x: d.x, y: d.y, label: dfpLabel(dfps, d) })),
     labels: (shown, t) => {
       const out = {};
       for (const row of formationAt(shown, t, currentStandards())) {
@@ -147,6 +148,7 @@ function mount(root, app) {
     if (changed && dfpKey) app.storage.set(dfpKey, dfps);
     if (changed) unsaved = true;
     dfpPanel.render(dfps, Boolean(flight));
+    map.requestDraw();
   }
 
   // Lead's place at time t (the first ship's with no Lead), for a DFP's flag.

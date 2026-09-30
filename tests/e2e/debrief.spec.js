@@ -411,3 +411,56 @@ test('the example track files download as ordinary .kml files', async ({ page })
   expect(download.suggestedFilename()).toBe(await link.textContent());
   expect(download.suggestedFilename()).toMatch(/\.kml$/);
 });
+
+// A short fingerprint of what the map shows, to see a layer change it.
+const mapPicture = (page) => page.locator('canvas.debrief-map').evaluate((canvas) => {
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let hash = 0;
+  for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
+  return hash;
+});
+
+test('every map layer redraws at once while paused, and comes back after a reload (#26, R3)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60)); // airborne, paused
+  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Add' }).click(); // a DFP flag on the map
+  await page.getByRole('button', { name: 'Layers' }).click();
+  // V6's defaults: full tracks, spacing lines, grid and Lead's 3/9 line on.
+  await expect(page.getByLabel('Trail')).toHaveValue('0');
+  for (const name of ['Spacing lines', 'Grid (5,000 ft)', 'Lead 3/9 line']) await expect(page.getByLabel(name)).toBeChecked();
+  for (const name of ['#3 3/9 line', 'Fighting-wing cone', 'Clock marks', 'Safety bubble', 'Follow Lead']) await expect(page.getByLabel(name)).not.toBeChecked();
+
+  const changes = async (act) => {
+    const before = await mapPicture(page);
+    await act();
+    await expect.poll(() => mapPicture(page)).not.toBe(before);
+  };
+  // The cone is small, so it's checked zoomed in on Lead.
+  await changes(() => page.getByLabel('Follow Lead').check());
+  const zoomBefore = await mapPicture(page);
+  await page.locator('canvas.debrief-map').focus();
+  for (let i = 0; i < 8; i++) await page.keyboard.press('+');
+  await expect.poll(() => mapPicture(page)).not.toBe(zoomBefore);
+  for (const name of ['Spacing lines', 'Grid (5,000 ft)', 'Lead 3/9 line']) await changes(() => page.getByLabel(name).uncheck());
+  for (const name of ['#3 3/9 line', 'Fighting-wing cone', 'Clock marks', 'Safety bubble']) await test.step(name, () => changes(() => page.getByLabel(name).check()));
+  await changes(async () => {
+    await page.getByLabel('Bubble radius').fill('1500');
+  });
+  await changes(() => page.getByLabel('Trail').selectOption({ label: 'History only' }));
+  await changes(() => page.getByLabel('Trail').selectOption({ label: 'Last 60 s' }));
+  // Follow Lead keeps Lead in the middle as time moves.
+  await changes(() => page.getByRole('button', { name: 'Ahead 1 second' }).click());
+
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+  await page.getByRole('button', { name: 'Layers' }).click();
+  await expect(page.getByLabel('Trail')).toHaveValue('2');
+  await expect(page.getByLabel('Fighting-wing cone')).toBeChecked();
+  await expect(page.getByLabel('Bubble radius')).toHaveValue('1500');
+  await page.getByRole('button', { name: 'Reset layout' }).click();
+  await expect(page.getByLabel('Fighting-wing cone')).not.toBeChecked();
+  await expect(page.getByLabel('Spacing lines')).toBeChecked();
+});

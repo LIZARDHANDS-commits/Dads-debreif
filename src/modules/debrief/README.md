@@ -11,7 +11,8 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `readouts-panel.js` | The Formation card and the "More detail" panel, redrawn at most 10 times a second while playing. |
 | `playback-bar.js` | Play or Pause, −1 s, +1 s, speed, the scrubber and the time, bound to flight-data's clock. |
 | `map2d/view.js` | The map canvas (ui-kit pan and zoom). Draws only when the time, view, a layer or the size changes. |
-| `map2d/layers.js` | The grid, the tracks (one path per ship, built once per flight) and the ship markers. |
+| `map2d/layers.js` | Each layer's drawing: grid, 3/9 lines, fighting-wing cone, tracks with their trail mode, spacing lines, DFP flags, safety bubbles, clock marks, and the ships (T-6 silhouettes) with their labels. |
+| `map2d/geometry.js` | Where the layers go, in map feet, tested in Node against V6's numbers: trail parts, spacing pairs, 3/9 line ends, the cone's outline. |
 | `map2d/vnc.js` | The VNC charts' bounds and warp, pinned to V6 (not drawn yet). |
 | `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6 (not drawn yet). |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
