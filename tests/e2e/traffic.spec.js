@@ -717,3 +717,305 @@ test('a steady 3D frame does not write the canvas size again (writing it clears 
   expect(writes.frames).toBeGreaterThan(5);
   expect(writes.count).toEqual({ cwidth: 0, cheight: 0, lwidth: 0, lheight: 0 });
 });
+
+// Rewind and the 10-second steps (task 9, #46): going back lands on the very picture the run had.
+test('-10 s and +10 s move the clock 10 s and land on the same picture the run had, at 8× and 0.25×', async ({ page }) => {
+  await open(page);
+  for (const speed of ['8', '0.25']) {
+    await button(page, 'Reset').click();
+    await page.locator('.bar-speed select').selectOption(speed);
+    await button(page, '+10 s').click();
+    await button(page, '+10 s').click();
+    await button(page, '+10 s').click(); // 30 s: aircraft A1 is flying
+    await expect(status(page)).toHaveText('Paused');
+    const at30 = await picture(page);
+    const at30s = await seconds(page);
+    await button(page, '−10 s').click();
+    expect(await seconds(page)).toBeLessThan(at30s);
+    expect(await picture(page)).not.toBe(at30);
+    await button(page, '+10 s').click();
+    expect(await picture(page)).toBe(at30);
+    await button(page, '−10 s').click();
+    await button(page, '−10 s').click();
+    await button(page, '−10 s').click();
+    await button(page, '−10 s').click(); // past the start: stops at 0
+    await expect(clock(page)).toContainText('0:00:00');
+  }
+});
+
+test('the [ and ] keys step back and ahead 10 s, and not while typing in a box', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press(']');
+  await page.keyboard.press(']');
+  const at20 = await picture(page);
+  const at20s = await seconds(page);
+  expect(at20s).toBe(20);
+  await page.keyboard.press('[');
+  expect(await seconds(page)).toBeLessThan(at20s);
+  await page.keyboard.press(']');
+  expect(await picture(page)).toBe(at20);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  await page.getByLabel('Conflict: lateral').focus();
+  await page.keyboard.press(']');
+  expect(await picture(page)).toBe(at20);
+});
+
+test('Rewind plays the run backward to 0:00:00 and stops; Pause holds it; Play then goes forward', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page), { timeout: 20000 }).toBeGreaterThan(60);
+  await playButton(page).click();
+  const top = await seconds(page);
+  await button(page, 'Rewind').click();
+  await expect(status(page)).toHaveText('Rewinding');
+  await expect(button(page, 'Rewind')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => seconds(page)).toBeLessThan(top - 5);
+  await playButton(page).click(); // Pause
+  await expect(status(page)).toHaveText('Paused');
+  const held = await seconds(page);
+  await page.waitForTimeout(300);
+  expect(await seconds(page)).toBe(held);
+  // Back to the start.
+  await button(page, 'Rewind').click();
+  await expect(clock(page)).toContainText('0:00:00', { timeout: 20000 });
+  await expect(status(page)).toHaveText('Paused');
+  await expect(page.getByText('Press Play to watch the Moose Jaw traffic.')).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+});
+
+// Profiles and notes (task 7, #48): save, reload the page, load; the last profile opens next time; a browser
+// that blocks storage; a hostile stored profile is refused; another home field opens V6's generic pattern.
+const profilesToggle = (page) => page.getByRole('button', { name: /^Profiles and notes/ });
+const profileName = (page) => page.getByLabel('Profile name', { exact: true });
+const profileList = (page) => page.getByLabel('Profiles', { exact: true });
+const profileMessage = (page) => page.locator('.profiles-message');
+const aircraftRows = (page) => page.locator('.aircraft-row');
+const confirmBox = (page) => page.locator('.profiles-confirm');
+
+async function openProfiles(page) {
+  if ((await profilesToggle(page).getAttribute('aria-expanded')) !== 'true') await profilesToggle(page).click();
+}
+
+test('Profiles and notes is closed at first, the built-in setups are listed first, and every box starts filled in', async ({ page }) => {
+  await open(page);
+  await expect(profilesToggle(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(profileName(page)).toBeHidden();
+  await openProfiles(page);
+  await expect(profileName(page)).toHaveValue('Setup 1');
+  await expect(page.getByLabel('Notes', { exact: true })).toHaveValue('');
+  const options = await profileList(page).locator('option').allTextContents();
+  expect(options).toEqual(['Moose Jaw (built-in)', 'Moose Jaw (V6 original)']);
+  await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeDisabled();
+});
+
+test('save a profile, reload the page: it opens on the last profile, and Load brings back either setup', async ({ page }) => {
+  await open(page);
+  await button(page, '+ Spawn').click(); // an eighth aircraft
+  await expect(aircraftRows(page)).toHaveCount(8);
+  await openProfiles(page);
+  await profileName(page).fill('Busy Tuesday');
+  await page.getByLabel('Notes', { exact: true }).fill('8 aircraft, calm');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText('Saved "Busy Tuesday".');
+  // The browser has it: after a reload the sim opens on it, with its notes.
+  await open(page);
+  await expect(aircraftRows(page)).toHaveCount(8);
+  await openProfiles(page);
+  await expect(profileName(page)).toHaveValue('Busy Tuesday');
+  await expect(page.getByLabel('Notes', { exact: true })).toHaveValue('8 aircraft, calm');
+  await expect(profileList(page)).toHaveValue('saved:Busy Tuesday');
+  // Load the built-in setup: it asks first, and Cancel changes nothing.
+  await profileList(page).selectOption({ label: 'Moose Jaw (built-in)' });
+  await button(page, 'Load').click();
+  await expect(confirmBox(page)).toBeVisible();
+  await button(page, 'Cancel').click();
+  await expect(aircraftRows(page)).toHaveCount(8);
+  await button(page, 'Load').click();
+  await confirmBox(page).getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(aircraftRows(page)).toHaveCount(7);
+  await expect(clock(page)).toContainText('0:00:00');
+  await expect(status(page)).toHaveText('Paused');
+  await expect(profileName(page)).toHaveValue('Setup 1'); // the built-in is read-only: the box offers a name of its own
+  // And back to the saved one.
+  await profileList(page).selectOption({ label: 'Busy Tuesday (CYMJ)' });
+  await button(page, 'Load').click();
+  await confirmBox(page).getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(aircraftRows(page)).toHaveCount(8);
+  await expect(profileName(page)).toHaveValue('Busy Tuesday');
+  // V6's own setup is there to load, too.
+  await profileList(page).selectOption({ label: 'Moose Jaw (V6 original)' });
+  await button(page, 'Load').click();
+  await confirmBox(page).getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(aircraftRows(page)).toHaveCount(7);
+  // After the reload it opens on V6's setup, the last one loaded.
+  await open(page);
+  await openProfiles(page);
+  await expect(profileList(page)).toHaveValue('built-in:moose-jaw-v6');
+});
+
+test('a loaded profile plays, and its routes, edits and settings come back as saved', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-route-id="PAT1"]').click();
+  await page.locator('.point-row').nth(2).getByLabel('Alt ft', { exact: true }).fill('3400');
+  await page.locator('.bar-speed select').selectOption('2');
+  await openProfiles(page);
+  await profileName(page).fill('Edited');
+  await button(page, 'Save').click();
+  await button(page, 'Reset').click();
+  // Load the built-in setup: the point is back at 3,500 ft and the speed at 8×.
+  await profileList(page).selectOption({ label: 'Moose Jaw (built-in)' });
+  await button(page, 'Load').click();
+  await confirmBox(page).getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(page.locator('.bar-speed select')).toHaveValue('8');
+  await page.locator('[data-route-id="PAT1"]').click();
+  await expect(page.locator('.point-row').nth(2).locator('.point-data')).toContainText('3500ft');
+  // Load the edited one: the edit and the speed are back, and it plays.
+  await profileList(page).selectOption({ label: 'Edited (CYMJ)' });
+  await button(page, 'Load').click();
+  await confirmBox(page).getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(page.locator('.bar-speed select')).toHaveValue('2');
+  await page.locator('[data-route-id="PAT1"]').click();
+  await expect(page.locator('.point-row').nth(2).locator('.point-data')).toContainText('3400ft');
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(2);
+  await playButton(page).click();
+});
+
+test('Save over a name that is there asks first; Delete asks first and removes it; the built-in setups can be neither replaced nor deleted', async ({ page }) => {
+  await open(page);
+  await openProfiles(page);
+  await profileName(page).fill('Alpha');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText('Saved "Alpha".');
+  await page.getByLabel('Notes', { exact: true }).fill('second version');
+  await button(page, 'Save').click();
+  await expect(confirmBox(page)).toContainText('Replace the saved profile "Alpha"');
+  await confirmBox(page).getByRole('button', { name: 'Replace', exact: true }).click();
+  await expect(confirmBox(page)).toBeHidden();
+  await expect(profileMessage(page)).toHaveText('Saved "Alpha".');
+  await profileName(page).fill('Moose Jaw (built-in)');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toContainText("is a built-in setup and can't be replaced");
+  // Delete.
+  await profileList(page).selectOption({ label: 'Alpha (CYMJ)' });
+  await button(page, 'Delete').click();
+  await expect(confirmBox(page)).toContainText('Delete the saved profile "Alpha"?');
+  await page.keyboard.press('Escape');
+  await expect(confirmBox(page)).toBeHidden();
+  await expect(profileList(page).locator('option')).toHaveCount(3);
+  await button(page, 'Delete').click();
+  await confirmBox(page).getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(profileMessage(page)).toHaveText('Deleted "Alpha".');
+  await expect(profileList(page).locator('option')).toHaveCount(2);
+});
+
+test('a browser that blocks storage: the sim opens, profiles work for the visit, and the section says they will not be kept', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Storage is disabled', 'SecurityError'); } });
+  });
+  await open(page);
+  await openProfiles(page);
+  await expect(page.locator('.profiles-note')).toHaveText("Profiles won't be saved in this browser: they are kept only until this page is closed.");
+  await profileName(page).fill('Temporary');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toContainText("this browser wouldn't keep it");
+  await expect(profileList(page).locator('option')).toHaveCount(3);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(1);
+});
+
+test('a hostile or oversized profile in storage is skipped with a message, the good one still loads, and the sim opens as usual', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem('ooda:v1:traffic:profiles')) return;
+    const point = (i) => ({ label: `P${i}`, x: i * 100, y: 0, alt: 2500, kt: 120, g: 2 });
+    const route = (id, points) => ({ id, name: id, kind: 'pattern', visible: true, color: '#58a6ff', landOdds: 0.2, points });
+    const ok = (name) => ({ version: 1, name, airfield: 'CYMJ', notes: '', seed: 1, anchor: { lat: 50.33, lon: -105.56 }, routes: [route('PAT1', [point(0), point(1), point(2), point(3)])], aircraft: [], settings: {} });
+    const tooManyPoints = ok('Too many points');
+    tooManyPoints.routes[0].points = Array.from({ length: 101 }, (_, i) => point(i));
+    const script = ok('<img src=x onerror=alert(1)>');
+    script.routes[0].points[0].kt = 5000;
+    localStorage.setItem('ooda:v1:traffic:profiles', JSON.stringify({ version: 1, profiles: [ok('Good one'), tooManyPoints, script, { version: 1, name: 'x'.repeat(500) }] }));
+  });
+  await open(page);
+  await expect(aircraftRows(page)).toHaveCount(7); // the built-in Moose Jaw opened
+  await openProfiles(page);
+  await expect(profileList(page).locator('option')).toHaveText(['Moose Jaw (built-in)', 'Moose Jaw (V6 original)', 'Good one (CYMJ)']);
+  const skipped = page.locator('.profiles-skipped li');
+  await expect(skipped).toHaveCount(3);
+  await expect(skipped.nth(0)).toHaveText('"Too many points" was skipped: PAT1 has 101 points (the most is 100).');
+  await expect(skipped.nth(1)).toContainText('was skipped: point 1 of PAT1 has a speed outside 40 to 400 kt.');
+  await expect(page.locator('img')).toHaveCount(0);
+  // The good one loads.
+  await profileList(page).selectOption({ label: 'Good one (CYMJ)' });
+  await button(page, 'Load').click();
+  await confirmBox(page).getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(aircraftRows(page)).toHaveCount(0);
+  await expect(page.getByText('No aircraft yet. Use + Spawn on the right to add one.').first()).toBeVisible();
+});
+
+test('a home field that is not Moose Jaw opens V6\'s generic pattern there, and Moose Jaw stays in the list', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('ooda:v1:airfields:setup', JSON.stringify({ version: 1, home: 'CYQR', alternates: [], fields: {} }));
+  });
+  await open(page);
+  await expect(page.locator('[data-route-id]')).toHaveCount(1);
+  await expect(page.locator('[data-route-id="PAT1"]')).toContainText('Pattern 1');
+  await expect(aircraftRows(page)).toHaveCount(0);
+  await expect(page.getByText('No aircraft yet. Use + Spawn on the right to add one.').first()).toBeVisible();
+  await button(page, '+ Spawn').click();
+  await expect(aircraftRows(page)).toHaveCount(1);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(1);
+  await playButton(page).click();
+  await openProfiles(page);
+  await expect(profileList(page).locator('option')).toHaveText(['Moose Jaw (built-in)', 'Moose Jaw (V6 original)']);
+  // Saved, it remembers its airfield.
+  await profileName(page).fill('Regina circuit');
+  await button(page, 'Save').click();
+  await expect(profileList(page).locator('option').nth(2)).toHaveText('Regina circuit (CYQR)');
+});
+
+// A route added mid-run changes the run, so -10 s and +10 s after it land on the run that has it from 0 (#46).
+test('a split added mid-run: -10 s and +10 s show the same picture as flying the new setup from the start', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 60; i++) await page.keyboard.press(']'); // 10 minutes
+  await page.locator('[data-route-id="PAT1"]').click();
+  await button(page, '+ New route').click();
+  await page.getByRole('button', { name: 'Split', exact: true }).click();
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('[');
+  await expect(status(page)).toHaveText('Paused'); // after "Replaying…"
+  await page.keyboard.press(']');
+  const stepped = await picture(page);
+  const at = await seconds(page);
+  await button(page, 'Reset').click();
+  for (let i = 0; i < 60; i++) await page.keyboard.press(']');
+  expect(await seconds(page)).toBe(at);
+  expect(await picture(page)).toBe(stepped);
+});
+
+// After an edit the first step back flies the run again from 0: the bar says "Replaying…" while it does, and then goes back to normal.
+test('the first step back after an edit says Replaying… in the bar, and the next one does not', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 40; i++) await page.keyboard.press(']'); // 400 s, past what is replayed without a word
+  await page.locator('[data-route-id="PAT1"]').click();
+  await button(page, '+ New route').click();
+  await page.getByRole('button', { name: 'Split', exact: true }).click();
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  await page.evaluate(() => {
+    window.__seen = [];
+    const el = document.querySelector('.bar-status');
+    new MutationObserver(() => window.__seen.push(el.textContent)).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  await page.keyboard.press('[');
+  await expect(status(page)).toHaveText('Paused');
+  expect(await page.evaluate(() => window.__seen)).toContain('Replaying…');
+  await page.evaluate(() => { window.__seen.length = 0; });
+  await page.keyboard.press('[');
+  await expect(clock(page)).toBeVisible();
+  expect(await page.evaluate(() => window.__seen)).not.toContain('Replaying…');
+});

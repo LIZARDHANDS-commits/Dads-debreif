@@ -645,7 +645,7 @@ test.describe('three.js offline', () => {
   test('when three.js will not load, the note says so, it stays on 2D, and 2D keeps working', async ({ page }) => {
     await page.route('**/three.module*.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
     await openRoute(page, '#/turn-fight');
-    await viewChoice(page, '3D').check();
+    await viewChoice(page, '3D').click(); // not check(): the view goes back to 2D at once, before check() can see 3D stay checked
     await expect(note(page)).toHaveText('3D needs a connection the first time.');
     await expect(viewChoice(page, '2D')).toBeChecked();
     await expect(topdown(page)).toBeVisible();
@@ -671,7 +671,7 @@ test('with WebGL 1 only (no WebGL 2, which three.js needs), the note says so and
     };
   });
   await openRoute(page, '#/turn-fight');
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click(); // not check(): the view goes back to 2D at once, before check() can see 3D stay checked
   await expect(note(page)).toHaveText('3D needs WebGL, which this browser does not have.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(topdown(page)).toBeVisible();
@@ -685,7 +685,7 @@ test('with no WebGL, the note says so and it stays on 2D', async ({ page }) => {
     };
   });
   await openRoute(page, '#/turn-fight');
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click(); // not check(): the view goes back to 2D at once, before check() can see 3D stay checked
   await expect(note(page)).toHaveText('3D needs WebGL, which this browser does not have.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(topdown(page)).toBeVisible();

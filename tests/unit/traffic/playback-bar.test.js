@@ -298,3 +298,17 @@ test('a layer checkbox in the menu writes its setting, and follows the setting w
   // Leg distances and turn data start off, as the spec says.
   assert.deepEqual([boxes[3].checked, boxes[4].checked], [false, false]);
 });
+
+test('a note replaces the status words while it is set ("Replaying…"), and clearing it brings the mode back', () => {
+  const { bar } = setup();
+  const status = () => all(bar.element, (n) => n.getAttribute?.('role') === 'status')[0].textContent;
+  bar.setState({ mode: 'running' });
+  bar.setState({ note: 'Replaying…' });
+  assert.equal(status(), 'Replaying…');
+  bar.setState({ mode: 'paused' });
+  assert.equal(status(), 'Replaying…', 'a mode change does not hide the note');
+  bar.setState({ note: null });
+  assert.equal(status(), 'Paused');
+  bar.setState({ note: '' });
+  assert.equal(status(), 'Paused');
+});

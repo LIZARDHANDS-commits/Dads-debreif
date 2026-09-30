@@ -9,11 +9,13 @@
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import MOOSE_JAW from './data/moose-jaw.json' with { type: 'json' };
 import { DEFAULTS, ALLOWED } from './defaults.js';
+import { captureProfile, nextProfileName, profileSettingDefaults, startingProfile } from './profile.js';
+import { createProfileStore } from './profile-store.js';
+import { createProfilesPanel } from './profiles-panel.js';
 import { createSim } from './sim.js';
 import { clockText } from './readouts.js';
-import { createClock } from './clock.js';
+import { createClock, TEN_SECONDS_STEPS } from './clock.js';
 import { buildScene, routeRows } from './scene.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
@@ -25,18 +27,26 @@ import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
+const PROFILES_STYLESHEET = new URL('./profiles.css', import.meta.url).href;
 
 function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
-  document.head.append(stylesheet);
+  const profilesStylesheet = h('link', { rel: 'stylesheet', href: PROFILES_STYLESHEET });
+  document.head.append(stylesheet, profilesStylesheet);
 
   const settings = createSettings(memoryStore(), DEFAULTS, { allowed: ALLOWED });
   const controls = createControls(settings);
 
-  // A copy of the built-in setup: the person edits this one, and the module's own copy stays as it shipped.
-  const setup = /** @type {any} */ (structuredClone(MOOSE_JAW)); // the engine's setup: the built-in data has no seed, so it is read as any
+  // What opens: the last profile used, else the built-in Moose Jaw (V6's generic pattern at another home field).
+  // A profile is copied, never used as it is: the person edits the copy, and the saved one stays as saved.
+  const profileStore = createProfileStore(app.storage);
+  const start = startingProfile({ last: profileStore.lastUsed(), saved: profileStore.list().profiles, home: app.airfields?.home() });
+  let place = start.place; // what the map's hint calls the setup ("Moose Jaw"), empty for one of the person's own
+  let airfield = start.profile.airfield; // where the setup is, saved with it
+  settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
+  const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
-  const sim = createSim(setup, { seed: setup.seed ?? 1 });
+  const sim = createSim(setup, { seed: start.profile.seed });
   const clock = createClock({ sim, speed: settings.get().speed });
   let selectedRouteId = null; // no route is selected when the sim opens
   let stopFrames = null;
@@ -52,6 +62,8 @@ function mount(root, app) {
     on: {
       play,
       pause,
+      rewind,
+      step: (seconds) => stepBy(seconds),
       reset: resetRun,
       fit: () => (shown === '3d' ? view3d.preset('fit') : map.fit()),
       speed: (x) => settings.update({ speed: x }),
@@ -72,11 +84,12 @@ function mount(root, app) {
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
   // The left column: the selected route's points (the layout shows it under the routes list).
-  const nextId = createIdMaker(setup.routes);
+  let nextId = createIdMaker(setup.routes);
   const editor = createRouteEditor({
     setup,
     onChange: ({ structure, routeId, remap }) => {
       if (remap) sim.remapStarts(routeId, remap); // aircraft that start on this route keep their starting place
+      sim.forgetHistory(); // the route was edited: going back flies the edited route from 0
       if (structure) routesChanged();
       else changed();
     },
@@ -86,6 +99,14 @@ function mount(root, app) {
   // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
   const photo = setup.view?.photo ?? {};
   const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
+  // Profiles and notes: a closed section at the foot of the left column (profiles-panel.js, profile.js).
+  const profilesPanel = createProfilesPanel({
+    store: profileStore,
+    current: { name: start.entry?.kind === 'saved' ? start.profile.name : nextProfileName(profileStore.list().profiles.map((p) => p.name)), notes: start.profile.notes },
+    capture: (name, notes) => captureProfile({ name, airfield, notes, setup, aircraft: sim.aircraftSpecs(), seed: sim.seed, settings: settings.get() }),
+    load: (profile, entry) => loadProfile(profile, entry),
+  });
+  ui.slots.leftExtras.append(profilesPanel.element);
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
@@ -169,8 +190,8 @@ function mount(root, app) {
   function changed() {
     cached = null;
     bar.setState({ mode: clock.mode, clockText: clockText(clock.simTime) });
-    ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length }));
-    aircraftPanel.update(state(), { playing: clock.mode === 'running', now: performance.now() });
+    ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length, place }));
+    aircraftPanel.update(state(), { playing: clock.mode !== 'paused', now: performance.now() });
     redraw();
   }
 
@@ -187,8 +208,34 @@ function mount(root, app) {
 
   /** Routes, names, links or points were added or changed: the lists follow, and the picture. */
   function routesChanged() {
+    sim.forgetHistory(); // a route added, deleted or re-linked changes the run: going back flies the new setup from 0
     showRoutes();
     aircraftPanel.routesChanged();
+    changed();
+  }
+
+  /**
+   * Puts a profile on the screen (Load, or the built-in setup): its routes, aircraft, dice seed and settings,
+   * paused at 0:00. The profile is copied, so editing it leaves the saved one alone.
+   */
+  function loadProfile(profile, entry) {
+    stopFrames?.();
+    stopFrames = null;
+    setup.name = profile.name;
+    setup.anchor = structuredClone(profile.anchor);
+    setup.routes = structuredClone(profile.routes);
+    setup.aircraft = structuredClone(profile.aircraft);
+    nextId = createIdMaker(setup.routes);
+    sim.rebuild({ seed: profile.seed });
+    clock.reset();
+    airfield = profile.airfield;
+    place = entry?.kind === 'built-in' ? 'Moose Jaw' : '';
+    selectedRouteId = null;
+    editor.show(null);
+    settings.update({ ...profileSettingDefaults(), ...profile.settings }); // the subscriber below copies them into the setup
+    showRoutes();
+    aircraftPanel.routesChanged();
+    map.fit();
     changed();
   }
 
@@ -204,15 +251,53 @@ function mount(root, app) {
 
   // ---- playback ----------------------------------------------------------------------
   // If a frame throws, the run is paused first so the bar never says Running over a stopped sim; the error still surfaces.
+  // After an edit the snapshots are stale, and the first step back flies the run again from 0 (about 0.5 s for an hour
+  // of sim time). A stretch that long says "Replaying…" in the bar first, and is run a moment later so the words are on screen.
+  const REPLAY_NOTICE_STEPS = 4000; // 200 s of sim time, about 30 ms
+  let replaying = false;
+  function afterNotice(targetStep, go) {
+    if (replaying) return;
+    if (sim.replayCost(targetStep) <= REPLAY_NOTICE_STEPS) return go();
+    replaying = true;
+    bar.setState({ note: 'Replaying…' });
+    app.scheduler.after(50, () => {
+      try {
+        go();
+      } finally {
+        replaying = false;
+        bar.setState({ note: null });
+      }
+    });
+  }
+
   const onFrame = pauseOnThrow((dtMs) => {
-    if (clock.tick(dtMs)) changed();
+    if (replaying) return;
+    const moved = clock.tick(dtMs);
+    if (clock.mode === 'paused') pause(); // a rewind that reached 0:00 stops itself
+    else if (moved) changed();
   }, () => pause());
+
+  function startFrames() {
+    stopFrames?.();
+    stopFrames = app.scheduler.frame(onFrame);
+  }
 
   function play() {
     if (clock.mode === 'running') return;
     clock.play();
-    stopFrames = app.scheduler.frame(onFrame);
+    startFrames();
     changed();
+  }
+
+  /** Rewind plays the run backward at the playback speed, until 0:00 or Pause. */
+  function rewind() {
+    if (clock.mode === 'rewinding') return;
+    afterNotice(sim.steps - 1, () => {
+      sim.seekSteps(sim.steps - 1); // the first step back, which after an edit is the replay from 0; the frames then find snapshots
+      clock.rewind();
+      startFrames();
+      changed();
+    });
   }
 
   function pause() {
@@ -220,6 +305,19 @@ function mount(root, app) {
     stopFrames = null;
     clock.pause();
     changed();
+  }
+
+  /** -10 s and +10 s (the buttons, [ and ]): 10 s of sim time exactly, at any speed. Playing carries on; a rewind stops. */
+  function stepBy(seconds) {
+    afterNotice(Math.max(0, sim.steps + Math.sign(seconds) * TEN_SECONDS_STEPS), () => {
+      const wasRewinding = clock.mode === 'rewinding';
+      clock.stepBy(seconds);
+      if (wasRewinding) {
+        stopFrames?.();
+        stopFrames = null;
+      }
+      changed();
+    });
   }
 
   function resetRun() {
@@ -231,7 +329,9 @@ function mount(root, app) {
 
   // Any setting change reaches the engine's setup and the picture; the speed goes to the clock.
   const stopSettings = settings.subscribe((values) => {
+    const before = JSON.stringify(setup.routeOptions);
     applyToSetup(setup, values);
+    if (JSON.stringify(setup.routeOptions) !== before) sim.forgetHistory(); // the turns are flown differently now
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
     editor.refresh();
@@ -247,10 +347,17 @@ function mount(root, app) {
     stylesheet.addEventListener('error', ready, { once: true });
   }
 
-  // Space plays or pauses and Home resets: only while the Traffic Sim is open and never while typing (app.keys).
+  // Space plays or pauses, Home resets, [ and ] step back and ahead 10 s: only while the Traffic Sim is open and
+  // never while typing (app.keys). The bracket keys are matched by the character and by the key's place, for other layouts.
+  const back10 = () => stepBy(-10);
+  const ahead10 = () => stepBy(10);
   app.keys({
-    Space: () => (clock.mode === 'running' ? pause() : play()),
+    Space: () => (clock.mode === 'paused' ? play() : pause()),
     Home: resetRun,
+    '[': back10,
+    ']': ahead10,
+    BracketLeft: back10,
+    BracketRight: ahead10,
   });
 
   bar.setState({ speed: settings.get().speed });
@@ -266,6 +373,7 @@ function mount(root, app) {
     view3d.dispose(); // three.js, the renderer and everything drawn with it
     map.dispose();
     stylesheet.remove();
+    profilesStylesheet.remove();
   };
 }
 

@@ -10,7 +10,7 @@ Routes on the left, aircraft on the right, a map in the middle. The spec is [`sp
 |---|---|
 | `layout.js` | The three columns (Routes, map with the playback bar above it, Aircraft), the routes list and the "+ New route" menu. Below 900 px the map comes first and the columns stack. |
 | `playback-bar.js` | Play or Pause, Reset, speed, the clock, Layers, Fit. |
-| `clock.js` | Turns frame time into whole 0.05 s engine steps. Playback speed changes how many steps a frame asks for, never their size, so a run is the same at any frame rate. |
+| `clock.js` | Turns frame time into whole 0.05 s engine steps. Playback speed changes how many steps a frame asks for, never their size, so a run is the same at any frame rate. It also plays Rewind (backward at the same speeds) and does the -10 s and +10 s steps: exactly 10 s of sim time at any speed, through the sim's snapshots. |
 | `scene.js` | The plain data the map draws: routes with their path, decision points and turn data, leg lengths, aircraft, conflicts and trails. |
 | `map2d.js` | The 2D map on the canvas (grid, routes, aircraft, labels, trails, bubbles) and the satellite photo under it. |
 | `view3d.js` | The 3D view on the ui-kit's shared three.js pieces: routes as lines at their heights, the T-6s, caution rings, the camera. Loaded only when 3D is switched on. |
@@ -18,15 +18,16 @@ Routes on the left, aircraft on the right, a map in the middle. The spec is [`sp
 | `aircraft.js` | The right column: the spawner, the aircraft list and the conflicts. |
 | `settings-panel.js`, `defaults.js` | The one closed "Traffic settings" menu and every setting's starting value and range. |
 | `glue.js` | Copies the settings the engine reads into the setup, holding each number to its range. |
+| `profile.js`, `profile-store.js`, `profiles-panel.js`, `profiles.css` | Profiles and notes (task 7): the profile shape and the two built-in setups, the checks on everything read back from storage, the store on `app.storage`, and the closed "Profiles and notes" section at the foot of the left column. |
 
 How it behaves:
 
 - Every change goes into the setup the engine flies, so the map and the aircraft follow at once. Point values, names and labels are checked (range, length, a most of 30 routes and 100 points a route) and refused in plain words; names go on the page as text, never as HTML.
 - "+ Point" adds a point halfway to the next one with the average height, speed and G, called "New Point". "Delete point" leaves a pattern at least 3 points and an entry or split at least 2. Links between routes are by point number, so adding or deleting a point moves the links of routes that join it, and a route joined to a deleted point is moved to the point before it.
 - "+ New route" makes a pattern, entry or split from the engine's builders and picks it. An entry or split joins the selected pattern, or the first pattern. Route ids are never reused.
-- Space plays or pauses and Home resets, never while typing. Escape closes an open menu and puts focus back on its button.
+- Space plays or pauses, Home resets, and `[` and `]` step back and ahead 10 s, never while typing. Escape closes an open menu and puts focus back on its button.
 
-Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, Rewind and the ±10 s buttons, profiles, PFLs and the rules.
+Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, PFLs and the rules.
 
 ### The satellite photo
 
@@ -58,7 +59,7 @@ The engine is `route.js`, `sim.js`, `dice.js` and `readouts.js` (PR A, tasks 1 t
 
 ### The setup
 
-`src/modules/traffic/data/moose-jaw-v6.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape, unchanged; the golden tests and the engine's unit tests read it, so the V6 pins stay on V6's own data. `src/modules/traffic/data/moose-jaw.json` is the default setup: the same routes with the numbers the manuals clearly differ on corrected, each change its own commit (see the manual cross-check, `tests/crosscheck/`). When profiles land (task 7) the V6 setup becomes a selectable built-in profile beside the default. `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
+`src/modules/traffic/data/moose-jaw-v6.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape, unchanged; the golden tests and the engine's unit tests read it, so the V6 pins stay on V6's own data. `src/modules/traffic/data/moose-jaw.json` is the default setup: the same routes with the numbers the manuals clearly differ on corrected, each change its own commit (see the manual cross-check, `tests/crosscheck/`). The V6 setup is a read-only built-in profile, "Moose Jaw (V6 original)", beside the default "Moose Jaw (built-in)" (see Profiles below). `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
 
 ```js
 {
@@ -110,6 +111,11 @@ const sim = createSim(setup, { seed: 1 });   // aircraft from setup.aircraft, di
 sim.t                 // sim time in seconds (0 at the start; always a whole number of steps)
 sim.seed, sim.setup   // what it was made with
 sim.stepTo(tSec)      // fly on to tSec in whole 0.05 s steps; returns how many steps it took
+sim.seek(tSec)        // go to that moment, forward or back, exactly as the forward run had it (see Rewind below)
+sim.seekSteps(n)      // the same by a whole number of steps from 0 (exact at any length of run); sim.steps is where the run is
+sim.snapshot() / sim.restore(snap)  // the aircraft, clock and dice, to keep and put back
+sim.rebuild({ seed }) // start again from setup.aircraft (a profile was loaded), at 0 s, with a seed
+sim.forgetHistory()   // the setup was edited: going back now flies the edited setup from 0
 sim.reset()           // back to 0 s, every aircraft (spawned ones too) at its start and no longer landed, the dice from the seed again
 sim.spawn({ type, routeId, startPoint, delaySec, id })  // returns the new callsign
 sim.remove(id)        // true if it was there
@@ -125,7 +131,7 @@ sim.remapStarts(routeId, mapIndex)  // a point was added to or deleted from a ro
 
 `setup.routes` must not be emptied while there are aircraft (V6's Delete route refuses the last one): `createSim`, `reset` and `spawn` throw a `RangeError` ("the setup needs at least one route") when there is no route to put an aircraft on. `reset` clears `landed`, as V6's `resetAircraftToStarts` does (V6's Reset button left it set).
 
-The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is asked for, and stops there, so the caller keeps the remainder (ask for `sim.t` plus the frame time times the speed each frame). The same run comes out at any frame rate and any speed. At 1× and 20 frames a second it is V6's own run. Time only goes forward: to go back, `reset()` and fly again. `stepTo` throws a `RangeError` for a time that is not a number.
+The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is asked for, and stops there, so the caller keeps the remainder (ask for `sim.t` plus the frame time times the speed each frame). The same run comes out at any frame rate and any speed. At 1× and 20 frames a second it is V6's own run. `stepTo` only goes forward; to go back use `seek`. `stepTo` throws a `RangeError` for a time that is not a number.
 
 `spawn`: `type` is a V6 type name (default `CT-156`), `routeId` a route (default the first), `startPoint` counts from 1 (default 1; past the last point it is the last), `delaySec` is from now (default 0). `id` picks the callsign; without it the first free `A1`, `A2`, … is used, as in V6. An unknown type or route, a start point that is not a whole number from 1, a delay that is not a number, or a callsign in use throws a `RangeError`.
 
@@ -180,3 +186,21 @@ Everything is plain text: put it on the page with `textContent`. These strings (
 ### Gluing the screen's settings to the setup
 
 The settings store (`defaults.js`) and the setup name the same things differently, so the screen's glue copies them across when it starts a sim and whenever a box changes: `conflictLatFt` to `setup.conflictLimits.latFt`, `conflictVertFt` to `.vertFt`, `cautionLatFt` to `.cautionLatFt` and `cautionVertFt` to `.cautionVertFt`; `flyRoundedTurns`, `radiusFromG` and `manualRadiusFt` to `setup.routeOptions` (same names). The sim reads them each step, so a change takes effect at once.
+
+### Rewind, -10 s and +10 s (task 9, #46)
+
+Every 10 s of sim time (200 steps) the sim keeps a snapshot of everything a later step depends on: each aircraft (where it is, its trail and which splits it has passed), the clock (the steps and the time as added up) and the dice. `seek` and `seekSteps` go back by restoring the nearest snapshot before the moment and flying on from there, so any rewind costs at most 10 s of stepping and lands exactly where the forward run was (the tests compare `state()`, the dice and the trails with `deepEqual`, at 0.25× and 8×, from many moments in a shuffled order). V6 rebuilt the whole run from 0 at every rewind frame, at speed times the real distance, and re-rolled every choice. At 1 hour of sim time a rewind takes about 1 ms (`tests/unit/traffic/rewind.test.js` logs it).
+
+- The history holds at most 720 snapshots (2 hours); past that it keeps every other one, then every fourth, so memory stays bounded and a rewind is still quick. A trail is kept flat, so an hour with 7 aircraft is about 10 MB.
+- Adding or removing an aircraft, or editing a route, point or route option, makes the snapshots stale (they no longer say what the run was). The sim then forgets them, and the next rewind flies the run again from 0 with the edited setup (about 0.6 s at 1 hour), recording snapshots as it goes. An aircraft added at a time flies as if it had been there from 0, waiting until its start time.
+- The clock's `rewind()` runs backward at the playback speed until 0:00 (then it pauses itself) or Pause. `stepBy(-10)` and `stepBy(10)` move 10 s exactly by steps, whatever the speed; playing carries on, a rewind stops. The bar's Rewind, -10 s and +10 s and the `[` and `]` keys (`app.keys`, never while typing) call these.
+- The clock text drops the fraction (V6's rule, `readouts.js`), so after +10 s from 0 it can read 0:00:09 (the time is 9.99999999999998 s); the true-second clock is task 12 (D157).
+
+## Profiles (task 7, #48)
+
+A profile is `{ version: 1, name, airfield, notes, seed, anchor, routes, aircraft, settings }`: a whole setup under a name. `settings` holds the ones a profile keeps (`PROFILE_SETTING_KEYS`: speed, wind, layers, photo alignment, route options, conflict limits); the spawner's boxes and 2D or 3D are not part of it. The setups that come with the page are profiles too, made from the data files by `profile.js` and never stored: "Moose Jaw (built-in)" and "Moose Jaw (V6 original)", listed first and read-only.
+
+- **Storage.** Saved profiles are one document (`profiles`) in `app.storage` (scope `traffic`), and `last` says which profile opened last. `profile-store.js` is the only place that touches it; the browser's storage is never used directly. A blocked or full browser still works: profiles are kept for the visit, the section says "Profiles won't be saved in this browser", and a Save that could not be kept says so.
+- **Checks on read-back (untrusted input).** `checkProfile` never uses what it is given: it checks every field against an allowlist and a range and builds a new object (unknown fields dropped, so `__proto__` and script-like extras go nowhere), and refuses the profile at the first thing wrong, in plain words: known version, at most 400,000 characters, a name of 1 to 40 characters (control and direction-changing characters removed), at most 30 routes of 3 (pattern) or 2 (entry, split) to 100 points, ids and colours from fixed patterns, every point's position, height, speed and G a finite number in its box's range, links to a pattern that is there at a point it has, aircraft of a known type on a route that is there at a point it has, at most 200 aircraft, a whole-number seed, a four-letter airfield, notes up to 2,000 characters, and each setting the type and range of its default. `readProfiles` skips a bad profile with one sentence and keeps the others (at most 20). Everything shows with `textContent`.
+- **What opens.** The last profile used, if it is still there; else the built-in Moose Jaw when the home field (`app.airfields.home()`) is CYMJ or has no position; else V6's generic pattern (`newPattern`) at the home field, with no aircraft (its runway-number box is task 12). Each saved profile remembers its airfield and opens there.
+- **The section.** Closed at first. Save under a new name saves at once; over an existing name, Load and Delete ask first (an inline question, Cancel has focus, Escape cancels). Load fills in the name box (so the next Save can't overwrite another profile) and the notes; loading a built-in setup fills in the next free "Setup N" instead, since a built-in name can't be saved over.
