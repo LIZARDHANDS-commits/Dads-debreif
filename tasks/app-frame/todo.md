@@ -32,7 +32,7 @@
   - Acceptance: after one visit the app reloads offline; a new build shows the bar.
   - Verify: e2e offline test.
   - Files: public/manifest.webmanifest, public/icons/*, vite.config.js, src/shell/update-bar.js, src/shell/sw.js, tools/service-worker.mjs, tools/make_icons.mjs, tests/e2e/offline.spec.js
-- [ ] **9. Clock.** header time from core/time.js, following the Zulu/local setting. Waits on the flight-math workstream.
+- [x] **9. Clock.** header time from core/time.js, following the Zulu/local setting. Waits on the flight-math workstream.
   - Acceptance: shows Zulu and America/Regina local in the chosen order; ticks once a second; pauses while hidden.
   - Verify: unit test of the formatting glue; e2e with a fixed clock.
   - Files: src/shell/header.js, tests/e2e/clock.spec.js
