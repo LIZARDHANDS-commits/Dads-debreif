@@ -40,7 +40,7 @@
   - Acceptance: Patrick (or anyone, D28) runs the checklist on the live link.
   - Files: src/*/README.md, docs/checklists/shell.md
 - [x] **11. Shared standards (`app.standards`).** One copy of the formation standards for the debrief and the Turn Sim (R18, D89).
-  - Acceptance: starts at V6's values; update() refuses out-of-range values with a message per field; reset() goes back to V6; saved values survive a reload and are checked field by field; module subscriptions end on close.
+  - Acceptance: starts at the default preset (V6's values at first; the SMM's since D114-D116, stored version 2, with older saves falling back); update() refuses out-of-range values with a message per field; reset() goes back to the default; saved values survive a reload and are checked field by field; module subscriptions end on close.
   - Verify: tests/unit/storage/standards.test.js, the standards test in tests/unit/shell/host.test.js.
   - Files: src/storage/standards.js, src/shell/host.js, src/app.js, specs/SPEC-shell.md, specs/SPEC-storage.md
 - [x] **12. Example flight files.** V6's four example tracks served from `public/examples/<asset>.gz` for flight-data's `loadExampleFlight`, as `app.exampleText(asset)`.
