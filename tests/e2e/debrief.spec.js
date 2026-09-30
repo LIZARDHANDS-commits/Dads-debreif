@@ -1267,6 +1267,16 @@ test('wind arrows: off at first, one request for nine points when on, a caption,
   await page.getByLabel('Wind arrow height').fill('12500');
   await expect(caption).toHaveText(`Model wind at 12,500 ft (HRDPS ${hours}, Open-Meteo)`);
   expect(asked).toHaveLength(1);
+  // A height between the steps is drawn at the nearest step, and the box says so (re-check of #213, W2).
+  await page.getByLabel('Wind arrow height').fill('8250');
+  await page.getByLabel('Wind arrow height').press('Tab');
+  await expect(page.getByLabel('Wind arrow height')).toHaveValue('8500');
+  await expect(caption).toHaveText(`Model wind at 8,500 ft (HRDPS ${hours}, Open-Meteo)`);
+  // The arrows' checkbox sits on the same row as its height box (re-check of #213, W5).
+  const rowOf = async (label) => Math.round((await page.getByLabel(label).boundingBox()).y);
+  expect(Math.abs((await rowOf('Wind arrows (model)')) - (await rowOf('Wind arrow height')))).toBeLessThan(24);
+  await page.getByLabel('Wind arrow height').fill('12500');
+  await expect(caption).toHaveText(`Model wind at 12,500 ft (HRDPS ${hours}, Open-Meteo)`);
 
   // The model choice is shared with the Lead line: the other model is its own single request.
   await page.getByLabel('Wind model').selectOption({ label: 'HRRR (US, from 2018)' });

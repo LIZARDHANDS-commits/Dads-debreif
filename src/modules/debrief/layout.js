@@ -17,7 +17,7 @@ import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';
 import { SATELLITE_LAYERS } from './weather/satellite.js';
 import { WIND_MODELS } from './weather/winds.js';
-import { ARROW_HEIGHT } from './weather/wind-arrows.js';
+import { ARROW_HEIGHT, clampArrowFt } from './weather/wind-arrows.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
@@ -175,6 +175,15 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const windArrowHeight = controls.number('wxWindArrowFt', { label: 'Wind arrow height', unit: 'ft', min: ARROW_HEIGHT.min, max: ARROW_HEIGHT.max, step: ARROW_HEIGHT.step });
   const heightInput = windArrowHeight.querySelector('input');
   heightInput?.setAttribute('aria-describedby', `${heightInput.getAttribute('aria-describedby') ?? ''} ${windArrowStatus.id}`.trim());
+  // A height between the 500 ft steps is drawn at the nearest step, so the box shows that step too
+  // (verification re-check of #213, W2). Runs after the box has committed its own value.
+  if (heightInput) {
+    listen(heightInput, 'change', () => {
+      const typed = layout.get().wxWindArrowFt;
+      const used = clampArrowFt(typed);
+      if (Number.isFinite(typed) && typed !== used) layout.update({ wxWindArrowFt: used });
+    });
+  }
   // Saved radar and lightning: the offer to fetch them, and what is kept or why not. The button is
   // Save while a fetch can start and Cancel while one is under way (setSavedWeather).
   let savedWxMode = 'hidden';
