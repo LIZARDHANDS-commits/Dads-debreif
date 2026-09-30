@@ -65,6 +65,7 @@ function ticksOn(zone, from, to, step, timeZone) {
  * whole hours on each clock, every `stepHours` (1, 2, 3, 4, 6 or 12; else 3).
  * Returns `[{ zone: 'utc' | 'local', label, ticks: [{ at, x, label, dayLabel }] }]`,
  * or `[]` when the span can't be read.
+ * @param {{ from?: any, to?: any, timeZone?: any, stepHours?: number, first?: string, showLocal?: boolean }} [input]
  */
 export function axisTicks({ from, to, timeZone, stepHours = 3, first = 'utc', showLocal = true } = {}) {
   if (!validDate(from) || !validDate(to) || +to < +from) return [];
@@ -264,6 +265,7 @@ function waveModel(wave, index, axis, timeZone) {
  * a mark or piece off the day has `visible: false` or is cut to it (`clippedStart`,
  * `clippedEnd`) and keeps its full times. Returns
  * `{ problem, date, zone, axis: { from, to, rows }, rows, waves, now }`.
+ * @param {{ rows?: any[], waves?: any[], now?: any, timeZone?: any, day?: string, date?: any, first?: string, showLocal?: boolean, stepHours?: number }} [input]
  */
 export function timelineModel({ rows = [], waves = [], now, timeZone, day = 'today', date, first, showLocal, stepHours } = {}) {
   const problem = !validDate(now) ? 'The time now is not known' : !localDate(now, timeZone) ? 'The home time zone is not known' : null;
@@ -305,7 +307,7 @@ export function stepPiece(pieces, from = null, direction = 'next', { wrap = fals
 
   if (validDate(from) || typeof from === 'number') {
     const t = +from;
-    return around(forward ? list.find((p) => +p.from > t) : list.findLast((p) => +p.from < t));
+    return around(forward ? list.find((p) => +p.from > t) : /** @type {any} */ (list).findLast((p) => +p.from < t));
   }
   const id = typeof from === 'string' ? from : from?.id;
   const at = typeof id === 'string' ? list.findIndex((p) => p.id === id) : -1;

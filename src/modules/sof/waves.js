@@ -84,6 +84,8 @@ const knownZone = (zone) => {
  * Only the first MAX_WAVES are read; a wave without two readable times is
  * listed in `skipped` with the reason.
  * Returns { date, zone, waves: [{ name, takeoff, land, nextDay }], skipped, problem }.
+ * @param {any} plan
+ * @param {{ now?: any, timeZone?: any, day?: string, date?: any }} [input]
  */
 export function planToUtc(plan, { now, timeZone, day = 'today', date } = {}) {
   const entries = (Array.isArray(plan) ? plan : []).slice(0, MAX_WAVES);
@@ -344,6 +346,7 @@ export function alternateCall(wave, icao, taf, options = {}) {
  * alternates can be used (meeting or exactly at their minima).
  * `airfields` is app.airfields; `tafs` maps ICAO to a parsed TAF (or null);
  * `limits` are the home limits from Settings.
+ * @param {{ waves?: any, airfields?: any, tafs?: any, limits?: any }} [input]
  */
 export function waveCalls({ waves, airfields, tafs = {}, limits } = {}) {
   const home = airfields.home();
