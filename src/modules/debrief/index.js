@@ -33,7 +33,7 @@ import {
 import { CATALOG } from '../../airfields/catalog.js';
 import { createMetarFeed } from './weather/metar-feed.js';
 import { createWindsFeed } from './weather/winds-feed.js';
-import { WIND_MODELS, windModelFor, windTextAt, windFailureText } from './weather/winds.js';
+import { WIND_MODELS, windModelFor, windAt, windTextAt, windFailureText } from './weather/winds.js';
 import {
   clampArrowFt, windGridPoints, flightLatLonBounds, windArrowsAt, arrowLabel, arrowCaption, arrowStatus, lastResult,
 } from './weather/wind-arrows.js';
@@ -275,6 +275,21 @@ function mount(root, app) {
     const fieldFt = homeFieldFt();
     return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label, { fieldFt }) : null;
   }
+  // The same wind as numbers, { dirDeg, kt } (true "from", knots), for Lead's est. IAS (final verification F1):
+  // windAt's own value at Lead's altitude at time t, or null while Winds aloft is off, loading, failed, or has none there.
+  function leadWindVector(t, altFt) {
+    const on = layout.get();
+    if (!on.wxWinds || !flight) return null;
+    const model = windModelFor(on.wxWindModel, flight.startT);
+    const entry = model ? winds.get(model) : null;
+    if (entry?.state !== 'ready') return null;
+    return windAt(entry.hours, t, altFt, { fieldFt: homeFieldFt() })?.wind ?? null;
+  }
+  function readoutsNow() {
+    if (!flight || !clock) return null;
+    const lead = flight.tracks[1] ? sampleAt(flight.tracks[1], clock.t) : null;
+    return readoutsAt(flight, clock.t, { standards: currentStandards(), leadWind: lead ? leadWindVector(clock.t, lead.altFt) : null });
+  }
 
   // Wind arrows on the 2D map (SPEC-debrief: Winds aloft): the model wind at
   // each grid point at the chosen height, at the playback time. Returns the
@@ -322,7 +337,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null, { leadWind: leadWind() });
+    ui.renderReadouts(readoutsNow(), { leadWind: leadWind() });
     if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
     renderMetar();
     renderWindArrows();
@@ -484,7 +499,7 @@ function mount(root, app) {
       },
       csv() {
         if (!flight) return;
-        downloadText(toCsv(flight), csvFileName(flight.startT), { type: 'text/csv' });
+        downloadText(toCsv(flight, { leadWindAt: leadWindVector }), csvFileName(flight.startT), { type: 'text/csv' });
       },
       close() {
         if (!flight) return;

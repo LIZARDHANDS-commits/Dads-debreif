@@ -11,7 +11,7 @@ import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js'
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
   AIRBORNE_IAS_KT, LOW_BLOCK_FLOOR_FT, MID_BLOCK_CEILING_FT,
-  turnRateAt, estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
+  turnRateAt, estIasKt, estIasWithWindKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
 const ref = makeLocalRef(50, -105);
@@ -132,7 +132,7 @@ test('aspect, HCA, closure and ranges versus Lead; ranges say horizontal or 3D (
 test('live data says where each value came from: est. by default, recorded when switched on (D47, D61)', () => {
   const r = readoutsAt(box, T(30), { standards: V6_STANDARDS });
   const lines = shipDetailText(r.ships[0]);
-  assert.match(lines[0], /^Alt 5,000 ft, GS 200 kt, est\. IAS 1\d\d kt$/);
+  assert.match(lines[0], /^Alt 5,000 ft, GS 200 kt, est\. IAS 1\d\d kt \(no wind\)$/);
   assert.equal(lines[1], 'G 1.00 est., pitch 0° est., bank 0° est.');
   assert.match(lines[2], /^Lat 50\.\d{5}, Lon -10\d\.\d{5}$/);
   assert.equal(shipDetailText({ ...r.ships[0], bankDeg: -30, bankSource: 'recorded' })[1].includes('bank 30° right recorded'), true);
@@ -405,4 +405,78 @@ test('a recorded bank stays known beside a GPS gap, in the readouts and the 3D v
   assert.equal(ship.bankSource, 'recorded');
   assert.match(shipDetailText(ship)[1], /bank 23° left recorded$/);
   assert.deepEqual([shipsIn3d(flight, t)[0].bankDeg, shipsIn3d(flight, t)[0].bankKnown], [23, true]);
+});
+
+// ── Final verification F1: Lead's est. IAS with the model wind ──
+
+// Lead flying due east (heading 090) at `gsKt` over the ground, at `altFt`, with #2 abreast.
+function eastbound(gsKt, altFt) {
+  const gs = gsKt * KT_TO_FTPS;
+  return buildFlight({ 1: track('Lead', (t) => [gs * t, 0], { altFt }), 2: track('Two', (t) => [gs * t, 5000], { altFt }) });
+}
+// The wind "from" 090 is a headwind for an eastbound Lead; from 270 a tailwind.
+const HEAD_24 = { dirDeg: 90, kt: 24 };
+const TAIL_24 = { dirDeg: 270, kt: 24 };
+
+test('est. IAS with wind: TAS is the ground velocity minus the wind vector, then × √(density ratio) as estIasKt has it (F1)', () => {
+  const at = 12_000;
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  near(estIasWithWindKt(250, 0, at, HEAD_24), estIasKt(274, at)); // heading east, wind from the east: headwind
+  near(estIasWithWindKt(250, 0, at, TAIL_24), estIasKt(226, at));
+  // From the north (360°), 24 kt, on an eastbound 250 kt: a pure crosswind, TAS = √(250² + 24²).
+  near(estIasWithWindKt(250, 0, at, { dirDeg: 360, kt: 24 }), estIasKt(Math.hypot(250, 24), at));
+  // A northbound Lead (heading π/2 radians, counter-clockwise from east) in a wind from the north: headwind too.
+  near(estIasWithWindKt(250, Math.PI / 2, at, { dirDeg: 0, kt: 24 }), estIasKt(274, at));
+  // Calm: the ground-speed figure. No number: none.
+  near(estIasWithWindKt(250, 0, at, { dirDeg: 90, kt: 0 }), estIasKt(250, at));
+  assert.equal(estIasWithWindKt(NaN, 0, at, HEAD_24), null);
+});
+
+test('a 24 kt headwind raises Lead\'s est. IAS and flips "on parameters" to FAST; a 24 kt tailwind lowers it to SLOW (F1)', () => {
+  const flight = eastbound(250, 12_000); // mid block: target 200 kt, ± 10
+  const none = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS });
+  const head = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
+  const tail = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: TAIL_24 });
+  assert.ok(Math.abs(none.lead.iasKt - estIasKt(250, 12_000)) < 0.01);
+  assert.deepEqual(none.lead.labels, ['LEAD ON PARAMETERS']); // the ground-speed figure is on speed …
+  assert.ok(Math.abs(head.lead.iasKt - estIasKt(274, 12_000)) < 0.05); // … with the air against it, TAS 274 kt
+  assert.ok(Math.abs(tail.lead.iasKt - estIasKt(226, 12_000)) < 0.05);
+  assert.deepEqual(head.lead.labels, ['FAST']);
+  assert.deepEqual(tail.lead.labels, ['SLOW']);
+  assert.ok(head.lead.iasKt > none.lead.iasKt && none.lead.iasKt > tail.lead.iasKt);
+  // The ship row, the card line and the More detail row all carry the same number.
+  assert.equal(head.ships[0].iasKt, head.lead.iasKt);
+  assert.match(leadText(head.lead).text, /^Lead 2\d\d kt est\. IAS \(wind-corrected\), 1\.0 G, FAST \(target 200 kt, mid block\)$/);
+  assert.match(leadText(tail.lead).text, /^Lead 1\d\d kt est\. IAS \(wind-corrected\), 1\.0 G, SLOW \(target 200 kt, mid block\)$/);
+  assert.match(shipDetailText(head.ships[0])[0], /^Alt 12,000 ft, GS 250 kt, est\. IAS \d+ kt \(wind-corrected\)$/);
+});
+
+test('with no wind Lead\'s est. IAS stays ground speed based and says "(no wind)"; a wingman never takes Lead\'s wind (F1)', () => {
+  const flight = eastbound(250, 12_000);
+  const none = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS });
+  assert.match(leadText(none.lead).text, /^Lead \d+ kt est\. IAS \(no wind\), /);
+  assert.match(shipDetailText(none.ships[0])[0], /est\. IAS \d+ kt \(no wind\)$/);
+  assert.match(shipDetailText(none.ships[1])[0], /est\. IAS \d+ kt \(no wind\)$/);
+  const head = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
+  assert.equal(head.ships[1].iasKt, none.ships[1].iasKt);
+  assert.match(shipDetailText(head.ships[1])[0], /\(no wind\)$/);
+  // A wind of null, or a missing one, is no wind.
+  for (const leadWind of [null, undefined]) assert.equal(readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind }).lead.iasKt, none.lead.iasKt);
+});
+
+test('Lead not moving has no heading, so no wind correction even with a wind (F1)', () => {
+  const still = buildFlight({ 1: track('Lead', () => [0, 0], { altFt: 8000 }), 2: track('Two', () => [0, 5000], { altFt: 8000 }) });
+  const r = readoutsAt(still, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
+  assert.match(leadText(r.lead).text, /\(no wind\)/);
+  assert.equal(r.lead.windCorrected, false);
+});
+
+test('the verdict follows the IAS shown: target and block are as before (F1)', () => {
+  const low = readoutsAt(eastbound(225, 8000), T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 }).lead;
+  assert.equal(low.block, 'low');
+  assert.equal(low.targetKt, 220);
+  assert.equal(low.windCorrected, true);
+  // 249 kt TAS at 8,000 ft is about 220 kt est. IAS: on parameters by the shown number, where 225 kt ground speed alone reads about 200.
+  assert.deepEqual(low.labels, ['LEAD ON PARAMETERS']);
+  assert.deepEqual(readoutsAt(eastbound(225, 8000), T(30), { standards: DEFAULT_STANDARDS }).lead.labels, ['SLOW']);
 });

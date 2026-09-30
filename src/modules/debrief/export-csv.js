@@ -2,7 +2,7 @@
 // the shared playback window, each ship's columns side by side. Every number
 // is the one the readouts show at that second (readoutsAt), so the file and
 // the screen never disagree. No page access, so it's tested in Node.
-import { headingAt } from '../../flight-data/flight.js';
+import { headingAt, sampleAt } from '../../flight-data/flight.js';
 import { headingRadToCompassDeg } from '../../core/angles.js';
 import { readoutsAt } from './readouts.js';
 
@@ -51,14 +51,17 @@ const isoZ = (t) => new Date(t * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 /**
  * The rows, header first, as arrays of cells: one row per whole second from
  * the start of the shared window to its end. options.recordedG as the readouts.
+ * options.leadWindAt(t, leadAltFt): the model wind { dirDeg, kt } at that
+ * second, or null, so #1's est. IAS is the one the Lead line shows (F1).
  */
-export function csvRows(flight, { recordedG = false } = {}) {
+export function csvRows(flight, { recordedG = false, leadWindAt = null } = {}) {
   if (!flight) return [];
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   const header = ['time (Zulu)', ...tracks.flatMap((tr) => SHIP_COLUMNS.map(([name]) => `#${tr.slot} ${name}`))];
   const rows = [header];
   for (let t = Math.ceil(flight.startT); t <= flight.endT; t++) {
-    const { ships } = readoutsAt(flight, t, { recordedG });
+    const leadSample = leadWindAt && flight.tracks[1] ? sampleAt(flight.tracks[1], t) : null;
+    const { ships } = readoutsAt(flight, t, { recordedG, leadWind: leadSample ? leadWindAt(t, leadSample.altFt) : null });
     const cells = [isoZ(t)];
     for (const tr of tracks) {
       const ship = ships.find((s) => s.slot === tr.slot);

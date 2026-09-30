@@ -3,7 +3,7 @@
 // and core (aspect, HCA, closure, standards); this file only picks the
 // moments and puts the answers in rows. No page access, so it's tested in Node.
 import { sampleAt, headingAt, pitchAt, gAt, estimatedGAt } from '../../flight-data/flight.js';
-import { aspectAngleDeg, headingCrossAngleDeg, wrapPi } from '../../core/angles.js';
+import { aspectAngleDeg, headingCrossAngleDeg, wrapPi, degToRad } from '../../core/angles.js';
 import { closureKt, formatClosureKt as formatClosure, isaDensityRatio } from '../../core/flight-math.js';
 import { classifyDebriefPosition, classifyLeadParameters } from '../../core/standards.js';
 import { bankFromTrack } from './view3d/scene.js';
@@ -54,6 +54,24 @@ function leadAirborne(leadPlace) {
 export function estIasKt(gsKt, altFt) {
   if (!Number.isFinite(gsKt)) return null;
   return gsKt * Math.sqrt(Math.max(0.15, isaDensityRatio(Number.isFinite(altFt) ? altFt : 6500)));
+}
+
+/**
+ * Est. IAS with the wind (final verification F1): true airspeed is the length
+ * of the ground velocity minus the wind vector, then × √(density ratio) as
+ * estIasKt has it. The ground velocity is gsKt along headingRad (0 = east,
+ * counter-clockwise, as flight-data's headingAt); the wind { dirDeg, kt } is
+ * where it blows FROM, degrees true, so the air moves the opposite way and a
+ * 24 kt headwind adds 24 kt to the airspeed. With no wind, a calm one, or no
+ * heading (still), it is estIasKt's ground-speed figure.
+ */
+export function estIasWithWindKt(gsKt, headingRad, altFt, wind) {
+  if (!Number.isFinite(gsKt)) return null;
+  if (!wind || !Number.isFinite(wind.dirDeg) || !Number.isFinite(wind.kt) || !Number.isFinite(headingRad)) return estIasKt(gsKt, altFt);
+  const from = degToRad(wind.dirDeg);
+  const east = gsKt * Math.cos(headingRad) + wind.kt * Math.sin(from);
+  const north = gsKt * Math.sin(headingRad) + wind.kt * Math.cos(from);
+  return estIasKt(Math.hypot(east, north), altFt);
 }
 
 /** Est. G's window, seconds either side of t (flight-data's estimatedGAt); the bank's turn rate uses the same one (M2). */
@@ -181,12 +199,15 @@ export function formationAt(flight, t, standards) {
  * Everything the readouts show at time t.
  * options.standards: shaped like core's DEFAULT_STANDARDS or V6_STANDARDS (app.standards.get()).
  * options.recordedG: use the recorded G where there is one (off by default, D61).
+ * options.leadWind: { dirDeg, kt }, the model wind at Lead's altitude and this
+ * moment (true "from" direction, knots), or null: Lead's est. IAS is then
+ * wind-corrected (F1). Wingmen's never is.
  * Returns { ships, formation, lead, vsLead, pairs }; see each below.
  * @param {any} flight
  * @param {number} t
- * @param {{ standards?: any, recordedG?: boolean }} [options]
+ * @param {{ standards?: any, recordedG?: boolean, leadWind?: { dirDeg: number, kt: number } | null }} [options]
  */
-export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
+export function readoutsAt(flight, t, { standards, recordedG = false, leadWind = null } = {}) {
   if (!flight) return { ships: [], formation: [], lead: null, vsLead: [], pairs: [] };
   const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
   const prevT = Math.max(flight.startT, t - CLOSURE_LOOKBACK_S);
@@ -207,13 +228,16 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     const g = gAt(tr, t, { recorded: recordedG });
     const pitch = pitchAt(tr, t);
     const bank = shipBank(tr, t, { sample: s, pitchDeg: pitch.deg, recordedG: g.source === 'recorded' ? g.g : null });
+    // Lead's est. IAS takes the wind when there is one and Lead is moving; nobody else's does (F1).
+    const windCorrected = tr.slot === 1 && !!leadWind && heading[1] !== null && Number.isFinite(s.speedKt);
     return {
       slot: tr.slot,
       inGap: s.inGap,
       headingKnown: heading[tr.slot] !== null,
       altFt: s.altFt,
       gsKt: s.speedKt,
-      iasKt: estIasKt(s.speedKt, s.altFt),
+      iasKt: windCorrected ? estIasWithWindKt(s.speedKt, heading[1], s.altFt, leadWind) : estIasKt(s.speedKt, s.altFt),
+      windCorrected,
       g: g.g,
       gSource: g.source,
       pitchDeg: pitch.deg,
@@ -238,7 +262,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
       ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
       : null;
     lead = {
-      iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null,
+      iasKt: leadShip.iasKt, windCorrected: leadShip.windCorrected, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null,
       targetKt: judged?.targetKt ?? null, block: judged?.block ?? null, notJudged: outside,
     };
   }
@@ -313,7 +337,7 @@ export function leadText(lead) {
   if (!lead) return null;
   if (lead.inGap) return { text: 'Lead: GPS gap', tone: 'none' };
   const g = Number.isFinite(lead.g) ? `${lead.g.toFixed(1)} G` : 'G --';
-  const numbers = `Lead ${kt(lead.iasKt)} est. IAS, ${g}`;
+  const numbers = `Lead ${kt(lead.iasKt)} est. IAS (${lead.windCorrected ? 'wind-corrected' : 'no wind'}), ${g}`;
   if (lead.notJudged) return { text: `${numbers}, not judged: ${lead.notJudged}`, tone: 'none' };
   if (!lead.labels) return { text: numbers, tone: 'none' };
   // With the SMM's two blocks (D115), the target Lead is judged against, so a change at 10,250 ft isn't a surprise.
@@ -328,7 +352,7 @@ export function shipDetailText(ship) {
   let bank = '--';
   if (Number.isFinite(ship.bankDeg)) bank = Math.round(ship.bankDeg) !== 0 ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}` : '0°';
   return [
-    `Alt ${ft(ship.altFt)}, GS ${kt(ship.gsKt)}, est. IAS ${kt(ship.iasKt)}`,
+    `Alt ${ft(ship.altFt)}, GS ${kt(ship.gsKt)}, est. IAS ${kt(ship.iasKt)} (${ship.windCorrected ? 'wind-corrected' : 'no wind'})`,
     `G ${Number.isFinite(ship.g) ? `${ship.g.toFixed(2)} ${src(ship.gSource)}` : '--'}, pitch ${deg(ship.pitchDeg)} ${src(ship.pitchSource)}, bank ${bank === '--' ? bank : `${bank} ${src(ship.bankSource)}`}`,
     `Lat ${ship.lat.toFixed(5)}, Lon ${ship.lon.toFixed(5)}`,
   ];

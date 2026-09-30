@@ -103,3 +103,21 @@ test('the bank cell is blank where the bank is unknown, and a number where it is
   assert.equal(at(29), '');
   assert.equal(at(10), '0.0');
 });
+
+// Final verification F1: #1's est. IAS column is the number the Lead line shows, wind-corrected when the screen's is.
+test('#1 est. IAS uses the model wind when one is given, #2\'s never does', () => {
+  const flight = buildFlight({ 1: { name: 'lead', fixes: east() }, 2: { name: 'two', fixes: east({ northM: 300 }) } });
+  const asked = [];
+  const headwind = (t, altFt) => { asked.push([t, Math.round(altFt)]); return { dirDeg: 90, kt: 24 }; }; // from the east, Lead flies east
+  const plain = csvRows(flight);
+  const windy = csvRows(flight, { leadWindAt: headwind });
+  const col = (name) => plain[0].indexOf(name);
+  const at = (rows, s) => rows.find((r) => Date.parse(r[0]) / 1000 === T0 + s);
+  const lead = (s) => Number(at(windy, s)[col('#1 est. IAS kt')]) - Number(at(plain, s)[col('#1 est. IAS kt')]);
+  assert.ok(lead(20) > 18 && lead(20) < 24, String(lead(20))); // 24 kt of headwind × √σ at 8,200 ft
+  assert.equal(at(windy, 20)[col('#2 est. IAS kt')], at(plain, 20)[col('#2 est. IAS kt')]);
+  assert.equal(at(windy, 20)[col('#1 est. IAS kt')], readoutsAt(flight, T0 + 20, { leadWind: { dirDeg: 90, kt: 24 } }).ships[0].iasKt.toFixed(1));
+  assert.ok(asked.length > 0 && asked.every(([, alt]) => Math.abs(alt - 8202) <= 1)); // asked with Lead's own altitude, each second
+  // No wind from the provider: the plain column.
+  assert.deepEqual(csvRows(flight, { leadWindAt: () => null }), plain);
+});
