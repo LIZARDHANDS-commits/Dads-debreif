@@ -222,13 +222,17 @@ test('skipped sentences past five are summarised in one line (PR-06)', () => {
   storage.set('profiles', { version: PROFILE_VERSION, profiles: names.map((n) => profile(n)) }); // 20 are kept, 20 more are read and skipped, and the rest are only carried
   const listed = profiles.list();
   assert.equal(listed.profiles.length, MOST_SAVED);
-  assert.equal(listed.skipped.length, 6, 'five sentences and one line for the rest');
+  assert.equal(listed.skipped.length, 7, 'five sentences, one line counting the rest, and the overflow sentence');
   assert.match(listed.skipped[0], /"Profile 21" was skipped: only 20 profiles are kept\./);
-  assert.equal(listed.skipped[5], 'And 16 more were skipped.', '20 sentences for entries 21 to 40 and one for the rest, less the five shown');
+  assert.equal(listed.skipped[5], 'And 35 more were skipped.', '40 entries are not profiles (21 to 60), five of them shown');
+  assert.equal(listed.skipped[6], 'More profiles were saved than this page keeps, and the rest were skipped.', 'always last, never swallowed by the count');
   // Five or fewer are all shown, as they were.
   storage.set('profiles', { version: PROFILE_VERSION, profiles: names.slice(0, 25).map((n) => profile(n)) }); // 20 kept, 5 skipped
   assert.equal(profiles.list().skipped.length, 5);
   assert.ok(!profiles.list().skipped.some((s) => /^And /.test(s)));
+  // Six sentences, no overflow: five and a line for the one more.
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: names.slice(0, 26).map((n) => profile(n)) });
+  assert.deepEqual(profiles.list().skipped.slice(5), ['And 1 more were skipped.']);
 });
 
 test('Remove unreadable drops only the entries that can\'t be read; on another version\'s list it clears the list', () => {
