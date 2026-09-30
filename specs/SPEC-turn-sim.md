@@ -316,7 +316,7 @@ Each PR description lists the skills it applied.
 
 - Every engine function and whole-run scenario has a golden test against V6, and each of D41 to D45, D48, D74 and the flight changes from Q43 (hook), Q44 (shackle, #4 solver), Q45 (clock cue selectors) and Q47 (rear check) is its own commit with a test that states it.
 - R2, R3, R4, R7 and R22 pass their browser tests on the Turn Sim route; results are the same at any frame rate and playback speed.
-- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the item still with Dad (the offset box clock cue, Q44c), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
+- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the offset box clock cue message (Q44c, D87: #3 and #4 use the 10-15 s delay), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
 - Each SMM formation addition being built (items 1 to 7) has a test that states it, and the changes to V6's turns (items 2 to 5) are each their own commit after the V6 pin.
 - Patrick or Dad signs off the checklist on the live site.
 
@@ -331,12 +331,11 @@ Patrick answered all seven on 2026-09-30 (in the "Open questions explained" thre
 | Q43 (TS3) hook and in-place 90 | Don't merge. Hook: same direction through 180°, fuselages lined up in the middle. In-place 90: a 90° turn. | Turns |
 | Q44a (TS4) shackle | Ends on the original heading, same spacing, each aircraft on the opposite side: an X from above. | Turns |
 | Q44b (TS4) offset box #4 | Finish the ground-track solver so #4 works out its own timing. | Timing |
-| Q44c (TS4) offset box clock cue | Keep the on-screen message; ask Dad which cue #3 and #4 should use; revise later. | Timing |
+| Q44c (TS4) offset box clock cue | Keep the on-screen message. Closed by Patrick 07:21Z (D87, "Keep those. go"): #3 and #4 use the SMM 10-15 s delay (16.41 para 112) as a setting; no question to Dad. | Timing |
 | Q45 (TS5) clock cue selectors | Wire them up. | Timing |
 | Q46 (TS6) standards | Follow the debrief's edited standards. | Assumptions; Readouts |
 | Q47 (TS7) rear check | Start at the set time or once #3 and #4 finish turning, whichever is later. | Timing |
 
 ## Open questions
 
-- **For Dad (Q44c):** which cue should #3 and #4 use in the offset box, since they never see 5:30? Until then, the on-screen message.
 - **For Patrick, before those commits:** the rollout pictures for the hook, the 4-ship shackle, the delayed 45 into and away from the wingman, and the 4-ship G-warm, drawn from the rebuilt engine.
