@@ -1,15 +1,19 @@
 // Fetches the model winds for the loaded flight, once per model, while the
 // Winds aloft item is on (SPEC-debrief: Weather at the time of the flight,
-// R5). Nothing is fetched until asked; closing the flight or the debrief
-// stops whatever is still loading.
-import { windsUrl, readWinds } from './winds.js';
+// R5), and the grid of points the wind arrows on the map use, in one request
+// (task 12e-2). Nothing is fetched until asked; closing the flight or the
+// debrief stops whatever is still loading.
+import { windsUrl, windsGridUrl, readWinds, readWindsGrid } from './winds.js';
 
 /**
  * fetch: the browser's fetch (replaceable in tests). onChange: called when a
  * fetch finishes, so the line can redraw.
  * Returns { get(model) → { state: 'loading' | 'ready' | 'busy' | 'failed', daily, failure, hours },
- * retry(), setFlight(flight, point), dispose() }. point is { lat, lon }, where
- * the winds are taken for the whole flight. 'busy' is Open-Meteo's rate limit;
+ * getGrid(model) → the same with `grid` (one list of hours per grid point)
+ * in place of `hours`, retry(), setFlight(flight, point, gridPoints), dispose() }.
+ * point is { lat, lon }, where the Lead line's winds are taken for the whole
+ * flight; gridPoints is [{ lat, lon }], where the map's arrows are, all asked
+ * for in one request. The two are fetched and cached apart. 'busy' is Open-Meteo's rate limit;
  * `daily` says it's the day's allowance rather than the minute's. 'failed' says
  * why in `failure`: { kind: 'network' } (no answer at all), { kind: 'http',
  * status } (a server error) or { kind: 'reply', status } (an answer that isn't
@@ -21,15 +25,16 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
   const cache = new Map();
   let flight = null;
   let point = null;
+  let gridPoints = [];
   let aborts = new Set();
 
-  function start(model) {
-    const entry = { state: 'loading', daily: false, failure: null, hours: [] };
-    cache.set(model, entry);
+  // Asks for `url` and files the answer under `key`, read by `read` into the entry.
+  function start(key, url, read) {
+    const entry = { state: 'loading', daily: false, failure: null, hours: [], grid: [] };
+    cache.set(key, entry);
     const abort = new AbortController();
     aborts.add(abort);
     const forFlight = flight;
-    const url = windsUrl({ ...point, startT: flight.startT, endT: flight.endT, model });
     fetch(url, { signal: abort.signal })
       .then((res) => {
         // Open-Meteo answers 429 with a reason once a browser has used its free
@@ -47,7 +52,7 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
           })));
       })
       .then((json) => {
-        entry.hours = readWinds(json);
+        read(entry, json);
         entry.state = 'ready';
       })
       .catch((err) => {
@@ -70,22 +75,30 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
   return {
     get(model) {
       if (!flight || !point) return null;
-      return cache.get(model) ?? start(model);
+      return cache.get(model) ?? start(model, windsUrl({ ...point, startT: flight.startT, endT: flight.endT, model }), (entry, json) => { entry.hours = readWinds(json); });
+    },
+    getGrid(model) {
+      if (!flight || !gridPoints.length) return null;
+      const key = `grid ${model}`;
+      const points = gridPoints;
+      return cache.get(key) ?? start(key, windsGridUrl({ points, startT: flight.startT, endT: flight.endT, model }), (entry, json) => { entry.grid = readWindsGrid(json, points.length); });
     },
     retry() {
       for (const [model, entry] of cache) if (entry.state === 'busy' || entry.state === 'failed') cache.delete(model);
     },
-    setFlight(next, nextPoint = null) {
+    setFlight(next, nextPoint = null, nextGrid = []) {
       stopAll();
       cache.clear();
       flight = next;
       point = nextPoint;
+      gridPoints = nextGrid;
     },
     dispose() {
       stopAll();
       cache.clear();
       flight = null;
       point = null;
+      gridPoints = [];
     },
   };
 }
