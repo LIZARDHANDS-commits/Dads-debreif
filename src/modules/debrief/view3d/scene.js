@@ -1,6 +1,7 @@
 // The 3D view's geometry: camera projection, formation centre, aircraft attitude
 // and the low-poly T-6's corner points. Pure functions, no page access, so they
-// run in Node and are pinned to V6 by tests/golden/debrief-3d.test.js.
+// run in Node. tests/golden/debrief-3d.test.js pins them to V6 and says
+// exactly where the approved fixes (D40, D47, #14, #27) differ from it.
 //
 // World frame as everywhere in the debrief: x east, y north, in feet; altitude
 // in feet. Headings are math angles in radians (0 = east, D35).
@@ -33,7 +34,7 @@ export function formationCenter(live, mode = 'followLead') {
  * `camera` holds the slider values (yaw and pitch in degrees, zoom as the
  * slider's 10 to 300, altitude scale); `size` is the canvas in the same pixels
  * the result is in, and `pxRatio` is V6's devicePixelRatio (1 when drawing in
- * CSS pixels, as ui-kit canvases do). `depth` is V6's sort key.
+ * CSS pixels, as ui-kit canvases do). `depth` grows away from the viewer.
  */
 export function projectPoint(p, ctr, camera, size, pxRatio = 1) {
   const yaw = deg(camera.yawDeg), pitch = deg(camera.pitchDeg);
@@ -48,11 +49,13 @@ export function projectPoint(p, ctr, camera, size, pxRatio = 1) {
 }
 
 /**
- * The order to draw aircraft in, as V6 does it (line 4085): ascending `depth`.
- * The audit found this paints far aircraft over near ones (#27).
+ * The order to draw aircraft in: far first, so near ones are painted over them
+ * (#27). A smaller `depth` from projectPoint is nearer the viewer: looking
+ * straight down, depth is minus the scaled altitude, so the higher aircraft is
+ * nearer. V6 (line 4085) sorted the other way and drew far aircraft on top.
  */
-export function drawOrderV6(entries, depthOf) {
-  return [...entries].sort((a, b) => depthOf(a) - depthOf(b));
+export function drawOrder(entries, depthOf) {
+  return [...entries].sort((a, b) => depthOf(b) - depthOf(a));
 }
 
 /** Most bank the 3D view draws, as V6 (a turn-rate spike near a gap can't flip the model). */

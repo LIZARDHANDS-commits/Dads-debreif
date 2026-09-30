@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { loadV6 } from './v6-source.js';
 import { seeded } from './inputs.js';
 import {
-  formationCenter, projectPoint, drawOrderV6, bankFromTrack, t6Points,
+  formationCenter, projectPoint, drawOrder, bankFromTrack, t6Points,
 } from '../../src/modules/debrief/view3d/scene.js';
 
 const MARKER = "const canvas=$('threeDCanvas')";
@@ -87,7 +87,7 @@ test('formationCenter matches V6 centerOf, following Lead or the whole formation
   assert.deepEqual(formationCenter({}, 'followLead'), v6.centerOf({}));
 });
 
-test('drawOrderV6 is V6\'s ascending-depth order', () => {
+test('#27: drawOrder paints far aircraft first, the reverse of V6\'s ascending-depth order', () => {
   const v6 = v6Scene();
   const r = seeded(33);
   for (let i = 0; i < 200; i++) {
@@ -95,10 +95,20 @@ test('drawOrderV6 is V6\'s ascending-depth order', () => {
     const live = { 1: randomPoint(r), 2: randomPoint(r), 3: randomPoint(r), 4: randomPoint(r) };
     const ctr = formationCenter(live, 'center');
     v6.setScene({ dom: slider(camera), canvas: size });
-    const want = Object.entries(live).sort((A, B) => v6.project(A[1], ctr).depth - v6.project(B[1], ctr).depth).map(e => e[0]);
-    const got = drawOrderV6(Object.entries(live), ([, p]) => projectPoint(p, ctr, camera, size).depth).map(e => e[0]);
-    assert.deepEqual(got, want);
+    const depths = Object.entries(live).map(([id, p]) => v6.project(p, ctr).depth);
+    if (new Set(depths).size < depths.length) continue; // ties keep insertion order both ways
+    const v6Order = Object.entries(live).sort((A, B) => v6.project(A[1], ctr).depth - v6.project(B[1], ctr).depth).map(e => e[0]);
+    const got = drawOrder(Object.entries(live), ([, p]) => projectPoint(p, ctr, camera, size).depth).map(e => e[0]);
+    assert.deepEqual(got, [...v6Order].reverse());
   }
+});
+
+test('#27: looking straight down, the higher of two stacked aircraft is drawn last', () => {
+  const camera = { yawDeg: 0, pitchDeg: 0, zoom: 70, altScale: 2 }, size = { width: 800, height: 600 };
+  const live = { 1: { x: 0, y: 0, altFt: 8000 }, 2: { x: 0, y: 0, altFt: 7500 } };
+  const ctr = formationCenter(live, 'center');
+  const order = drawOrder(Object.entries(live), ([, p]) => projectPoint(p, ctr, camera, size).depth).map(e => e[0]);
+  assert.deepEqual(order, ['2', '1']);
 });
 
 /** A turning aircraft sampled at t−1, t and t+1, as DADS3DAPI.getInterp would give it. */
