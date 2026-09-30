@@ -97,11 +97,11 @@ chart.dispose();
 - The canvas follows its box size (a `ResizeObserver`) and the screen's pixel ratio, and redraws only when the size really changed.
 - The transform maths (`toScreen`, `toWorld`, `zoomAbout`, `fitBounds`) is exported as pure functions and unit-tested.
 
-## Map layers: satellite tiles and VNC charts (moving from the debrief)
+## Map layers: satellite tiles and VNC charts (from the debrief)
 
-The debrief built these two layers and kept them free of debrief state so they could be shared. Modules never import each other (`SPEC.md`), so they move into ui-kit before the Traffic Sim's satellite task (Traffic task 8) and the SOF's base map (SOF task 6). The move changes where the code lives and nothing it does: every number stays as the debrief has it, and `tests/golden/debrief-vnc.test.js` still pins the VNC warp to V6.
+The debrief built these two layers and kept them free of debrief state so they could be shared. Modules never import each other (`SPEC.md`), so they move into ui-kit. The tile loader has moved already, ahead of the Traffic Sim's satellite task (Traffic task 8). The VNC layer moves at the SOF's base map (SOF task 6). Each move changes where the code lives and nothing it does: every number stays as the debrief has it, and `tests/golden/debrief-vnc.test.js` still pins the VNC warp to V6.
 
-`src/ui-kit/map-tiles.js` (today `src/modules/debrief/map2d/tiles.js`) draws web map tiles under a flat map in local feet.
+`src/ui-kit/map-tiles.js` (moved from the debrief) draws web map tiles under a flat map in local feet.
 
 ```js
 import { ESRI_IMAGERY, createTileLayer } from '../../ui-kit/map-tiles.js';
@@ -118,7 +118,7 @@ imagery.dispose();                                  // in the module's cleanup
 - Each tile that arrives calls `onChange` once. The canvas view already draws at most once a frame, however many tiles land (#43).
 - `tilesFor(corners, pxPerFt)` is the pure part (which tiles, at which zoom) and is unit-tested. `makeImage` is there for tests.
 
-`src/ui-kit/vnc.js` (today `src/modules/debrief/map2d/vnc.js`) holds the two embedded VNC charts, South (Moose Jaw and Regina) and North (Saskatoon and Moose Jaw), with V6's bounds, its 3 × 3 correction mesh and its alignment controls.
+`src/ui-kit/vnc.js` (today still `src/modules/debrief/map2d/vnc.js`, until SOF task 6) holds the two embedded VNC charts, South (Moose Jaw and Regina) and North (Saskatoon and Moose Jaw), with V6's bounds, its 3 × 3 correction mesh and its alignment controls.
 
 ```js
 import { VNC_CHOICES, VNC_DEFAULT_ALIGN, VNC_ALIGN_LIMITS, chartsBounds, createVncLayer } from '../../ui-kit/vnc.js';
@@ -135,14 +135,16 @@ charts.dispose();
 - The pure parts (`vncBaseLatLon`, `vncWarpLatLon`, `vncWarpGrid`, `triangleTransform`, `chartsBounds`) run in Node and stay pinned by the golden test.
 - A module that shows the charts says "Not for navigation" beside them, as the debrief's chart line does. Credits beyond that (the SOF's "VNC © NAV CANADA") are the module's own.
 
-**The move is one pull request by the app frame, agreed with the debrief thread:**
+**The tile loader move is done.** It was one pull request by the app frame, agreed with the debrief thread: `tiles.js` and its test went to `src/ui-kit/map-tiles.js` and `tests/unit/ui-kit/map-tiles.test.js` with `git mv`, and the debrief's imports (`layout.js`, `map2d/view.js`) point at the new file.
 
-- It moves `tiles.js` to `src/ui-kit/map-tiles.js` and `vnc.js` to `src/ui-kit/vnc.js`, with `git mv` so the history follows. The debrief's imports (`layout.js`, `map2d/view.js`) point at the new files.
+**The VNC layer moves in its own pull request when the SOF reaches task 6, agreed with the debrief thread:**
+
+- It moves `vnc.js` to `src/ui-kit/vnc.js`, with `git mv` so the history follows. The debrief's imports point at the new file.
 - It moves the chart images from `public/media/debrief/` to `public/media/charts/`, changes `VNC_FILES` to match, and changes the service worker's skip rule (`tools/service-worker.mjs`) from `media/debrief/` to `media/charts/`.
-- It moves `tests/unit/debrief/tiles.test.js` and `vnc.test.js` to `tests/unit/ui-kit/map-tiles.test.js` and `vnc.test.js`. The golden test keeps its name and changes only its import (a one-line change in core's folder, agreed with the flight math core thread).
-- It updates the debrief's README and SPEC-debrief's file tree, the ui-kit README, and `SPEC.md`'s structure, which already lists the two files.
+- It moves `tests/unit/debrief/vnc.test.js` to `tests/unit/ui-kit/vnc.test.js`. The golden test keeps its name and changes only its import (a one-line change in core's folder, agreed with the flight math core thread).
+- It updates the debrief's README and SPEC-debrief's file tree, the ui-kit README, and `SPEC.md`'s structure.
 - It is done when `npm test` and the debrief's browser tests pass unchanged, including "VNC charts: off at first, fetched only when chosen".
-- It lands before Traffic task 8. The SOF needs both layers at its task 6.
+- It lands with the SOF's task 6, which needs the VNC layer.
 
 ## Not overwhelming (R22)
 
@@ -159,7 +161,7 @@ Each screen shows only the essentials by default. Extra detail goes behind a swi
 - `tests/unit/ui-kit/dom.test.js`: text children are inserted as text (a string with `<b>` shows the characters, not bold). Uses a minimal fake document.
 - `tests/unit/source-rules.test.js`: no `!important`, `setInterval` or bare `requestAnimationFrame` outside `ui-kit/scheduler.js`, and no `localStorage` outside `storage/`.
 - `tests/unit/ui-kit/canvas-view.test.js`: the transform maths: round trips, zoom keeps the point under the pointer still, the span limits, fit, and the visible bounds.
-- `tests/unit/ui-kit/map-tiles.test.js` and `vnc.test.js` (moved from the debrief): which tiles a view needs and the 64-tile limit, retries and giving up, the least-recently-drawn cache, nothing loaded after `dispose`; the VNC warp and bounds, and each chart fetched only when first shown.
+- `tests/unit/ui-kit/map-tiles.test.js` (moved from the debrief) and `vnc.test.js` (moves at SOF task 6): which tiles a view needs and the 64-tile limit, retries and giving up, the least-recently-drawn cache, nothing loaded after `dispose`; the VNC warp and bounds, and each chart fetched only when first shown.
 - Browser (with the shell): panels open and close with the mouse and the keyboard, and Tab moves between controls.
 - Browser (`tests/e2e/ui-kit.spec.js`, on a test page that loads the modules): each control updates its setting, follows outside changes, and refuses bad numbers with a message; the canvas view pans, zooms and uses the keys, draws only when asked, leaves the arrows to the page with `arrowKeys: false`, and stops listening after `dispose`; `setDisabled` greys out a control; the canvas surface redraws only on request or resize.
 

@@ -220,6 +220,14 @@ a.card:hover {
   font-size: var(--text-sm);
 }
 
+/* Built but not signed off yet (D135): a caution, not a status. */
+.badge-prototype {
+  border-color: var(--caution);
+  color: var(--caution);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+}
+
 /* About */
 .about {
   max-width: 60rem;
