@@ -753,7 +753,7 @@ test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads thr
   const seen = threeRequests(page);
   await open(page);
   await viewChoice(page, '3D').click(); // the choice goes back to 2D by itself, so no checked-state wait here
-  await expect(page.locator('.ts-note')).toHaveText('3D needs a connection the first time.');
+  await expect(page.locator('.ts-note')).toHaveText('3D needs WebGL, which this browser does not have.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(canvas(page)).toBeVisible();
   await playButton(page).click();
