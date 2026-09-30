@@ -7,10 +7,10 @@ Spec: [`specs/SPEC-debrief.md`](../../specs/SPEC-debrief.md), approved by Patric
 | Needed for | What | Owner |
 |---|---|---|
 | Any code | Flight data PR #58 merged (reading, cleaning, flight model, clock, debrief file) | Flight data thread |
-| Any code | Flight math core PR #61 merged (turn math, EM point with D39, closure, estimated G) | Flight math core thread |
-| Task 1 | ui-kit `controls.js` and `canvas-view.js` | App frame thread |
-| Task 4 | `core/standards.js` (core PR 3): `V6_STANDARDS`, `classifyDebriefPosition(id, live, leadHdg, std)`, `classifyLeadParameters(lead, estG, std)` with est. IAS as `lead.spdKt` (D31), `standardsSummaryLines(std)`, `formationAxes(lead, hdg)` returning `{fwd, left}` | Flight math core thread |
-| Task 9 | `core` tennis-ball changes for D62 and D63 (Q33 to Q37) | Flight math core thread |
+| Any code | Flight math core PR #61 (turn math, EM point with D39, closure, estimated G): merged as 647645f | Flight math core thread |
+| Task 1 | ui-kit PR #65 merged, plus the gaps sent to the app frame thread: arrow keys vs playback shortcuts, a visible-area getter, sizing for canvases that don't pan | App frame thread |
+| Task 4 | `core/standards.js` (core PR 3, #67): `V6_STANDARDS`, `classifyDebriefPosition(id, live, leadHdg, std)`, `classifyLeadParameters(lead, estG, std)` with est. IAS as `lead.spdKt` (D31), `standardsSummaryLines(std)`, `formationAxes(lead, hdg)` returning `{fwd, left}` | Flight math core thread |
+| Task 9 | `core` `tennisBall` (core PR 3, #67, with D62 and D63): one solver replacing `tennisDebrief` and `tennis3D`; the target is read through `targetAt(t)` from its track, and the shooter's climb is passed as `shooterClimbFps` | Flight math core thread |
 
 Anything the debrief needs changed in those files goes through the coordinator.
 
