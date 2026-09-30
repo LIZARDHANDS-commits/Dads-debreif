@@ -385,6 +385,15 @@ test('once kept, the offer is gone and the line says what is kept, even for a fl
   assert.equal(offerState({ ...base, recent: false, phase: 'done', saved, fromFile: true }).status, 'Kept with this debrief: 2 radar and lightning pictures, 06:10Z to 06:50Z.');
 });
 
+test('once the pictures are in a saved file the line stops asking to save the debrief (F3)', () => {
+  const saved = { box: {}, fetchedT: 1, thin: 1, frames: [{ layer: 'rain', t: START, mime: 'image/png', data: 'AAAA' }] };
+  const before = offerState({ ...base, phase: 'done', saved });
+  assert.match(before.status, /Save the debrief to put them in the file\.$/);
+  const after = offerState({ ...base, phase: 'done', saved, inFile: true });
+  assert.equal(after.status, 'Kept with this debrief: 1 radar and lightning picture, 06:10Z.');
+  assert.equal(after.button, 'hidden');
+});
+
 test('a failed fetch offers the button again with the reason', () => {
   const failed = offerState({ ...base, phase: 'failed', failure: 'ECCC had no pictures for this flight any more.' });
   assert.deepEqual(failed, {

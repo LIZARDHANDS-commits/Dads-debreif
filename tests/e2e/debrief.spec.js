@@ -1708,6 +1708,9 @@ test('saved radar and lightning: offered for a flight that ended an hour ago, fe
   await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
   const saved = await download.path();
+  // Once they are in a saved file the menu no longer asks to save the debrief (F3).
+  await expect(savedWxStatus(page)).toHaveText(new RegExp(`${KEPT_LINE.source}$`));
+  await expect(savedWxStatus(page)).not.toContainText('Save the debrief');
   const file = JSON.parse(readFileSync(saved, 'utf8'));
   const block = JSON.parse(file.settings.savedWeather);
   expect(block.frames.length).toBe(Number(count));

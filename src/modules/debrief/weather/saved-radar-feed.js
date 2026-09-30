@@ -214,9 +214,11 @@ export function createSavedRadarFeed({
  * forty announcements. Nothing is announced until the offer is pressed, so
  * loading a flight or opening a file reads nothing out. flight: whether one
  * is loaded. recent: whether it ended within 3 hours (radarKept). pressed:
- * whether the offer was pressed for this flight. The rest is the feed's state().
+ * whether the offer was pressed for this flight. inFile: whether this set went
+ * into a saved debrief file (then, as for a set read from a file, the line no
+ * longer asks to save the debrief). The rest is the feed's state().
  */
-export function offerState({ flight, recent, pressed = false, phase, done, total, saved, notes, failure, fromFile }) {
+export function offerState({ flight, recent, pressed = false, inFile = false, phase, done, total, saved, notes, failure, fromFile }) {
   const heard = pressed || phase === 'fetching' || phase === 'failed' || (phase === 'done' && !fromFile);
   const say = (button, status) => ({ button, status, live: heard ? status : '' });
   if (!flight) return say('hidden', '');
@@ -227,7 +229,7 @@ export function offerState({ flight, recent, pressed = false, phase, done, total
     return { button: 'cancel', status: `Saving radar and lightning: ${done} of ${total}`, live };
   }
   if (saved) {
-    return say('hidden', [savedSummary(saved), ...notes, fromFile ? '' : 'Save the debrief to put them in the file.'].filter(Boolean).join(' '));
+    return say('hidden', [savedSummary(saved), ...notes, fromFile || inFile ? '' : 'Save the debrief to put them in the file.'].filter(Boolean).join(' '));
   }
   if (!recent) return say('hidden', notKeptText('radar'));
   if (phase === 'failed') return say('save', `Couldn't save radar and lightning: ${failure}`);

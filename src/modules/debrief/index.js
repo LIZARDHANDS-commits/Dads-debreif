@@ -130,7 +130,9 @@ function mount(root, app) {
   function renderSavedWeather() {
     const on = layout.get();
     const recent = flight ? radarKept(flight.endT, Date.now() / 1000) : false;
-    const offer = offerState({ flight: Boolean(flight), recent, pressed: offerPressed, ...savedRadar.state() });
+    const state = savedRadar.state();
+    // Once the set is in a saved file, the line stops asking to save the debrief (F3).
+    const offer = offerState({ flight: Boolean(flight), recent, pressed: offerPressed, inFile: Boolean(state.saved) && state.saved === weatherWritten, ...state });
     let note = '';
     if (flight && clock) {
       // While fetching, the menu's line is the one place progress is written and announced (Y5).
