@@ -367,20 +367,22 @@ test('Lead cannot be picked up: a drag on it pans the picture, and the key 1 pic
   expect(Math.abs((await shipAt(page, 2)).x - after.x - (twoAfter.x - leadAfter.x))).toBeLessThan(2);
 });
 
-test('dragging works with Follow Lead on, and moving Lead does not run away', async ({ page }) => {
+test('dragging a wingman works with Follow Lead on: it moves relative to Lead, and the picture stays on Lead (audit yellow 1)', async ({ page }) => {
   await open(page);
   await panelMenu(page).click();
   await page.getByLabel('Follow Lead').check();
+  await page.keyboard.press('Escape');
   const lead = await shipAt(page, 1);
-  await page.mouse.move(lead.x, lead.y);
-  await page.mouse.down();
-  await page.mouse.move(lead.x + 30, lead.y + 30, { steps: 3 });
-  await page.mouse.up();
   const two = await shipAt(page, 2);
-  const now = await shipAt(page, 1);
-  // Lead is dragged 30 px and the view follows it once let go: #2 is where it was, so Lead moved right of it and down.
-  expect(Math.abs(now.x - lead.x)).toBeLessThan(2);
-  expect(two.x).toBeLessThan(now.x);
+  await page.mouse.move(two.x, two.y);
+  await page.mouse.down();
+  await page.mouse.move(two.x + 30, two.y + 10, { steps: 4 });
+  await page.mouse.up();
+  const leadAfter = await shipAt(page, 1);
+  const twoAfter = await shipAt(page, 2);
+  expect(Math.abs(leadAfter.x - lead.x)).toBeLessThan(2); // the picture stayed on Lead
+  expect(Math.abs(leadAfter.y - lead.y)).toBeLessThan(2);
+  expect(Math.abs((twoAfter.x - leadAfter.x) - (two.x - lead.x) - 30)).toBeLessThan(3); // #2 went 30 px across, relative to Lead
 });
 
 test('the picture pans as before when no aircraft is grabbed, and after Play begins an aircraft cannot be moved', async ({ page }) => {
