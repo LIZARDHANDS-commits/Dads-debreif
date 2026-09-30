@@ -21,7 +21,7 @@ export const WIND_MODELS = Object.freeze({
   hrrr: Object.freeze({ id: 'ncep_hrrr_conus', label: 'HRRR', fromT: day(2018, 1, 1) }),
 });
 
-/** Pressure levels asked for: from about 1,800 ft (just above Moose Jaw's field) to about 30,000 ft, where the T-6 flies. */
+/** Pressure levels asked for: from 950 hPa (about 1,400 ft, under Moose Jaw's field, so left out there: see usableLevels) to 300 hPa (about 30,000 ft), where the T-6 flies. */
 export const WIND_LEVELS_HPA = Object.freeze([950, 925, 850, 800, 700, 600, 500, 400, 300]);
 
 const M_TO_FT = 1 / 0.3048;
