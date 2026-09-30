@@ -46,7 +46,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
 - [ ] **8. Satellite photo and 3D view.** The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view with a true perspective camera, framed on the routes, drag, wheel and three buttons, caution rings in 3D.
   - Acceptance: fixes the photo and 3D parts of #49; with the network off the map says the photo needs a connection; smooth at 8× on 1920 × 1080 (performance log in the PR).
   - Verify: e2e offline; look at both against V6.
-  - Dependencies: 4, and the tile loader in ui-kit. Size M.
+  - Dependencies: 4; the tile loader is in ui-kit (`map-tiles.js`, #133); the 3D view uses the shared three.js piece once the app frame lands it. Size M.
   - Files: src/modules/traffic/{map2d,view3d}.js, tests/unit/traffic/view3d.test.js
 - [ ] **9. Rewind and ±10 s.** Snapshots every 10 s of sim time; Rewind plays backward; −10 s and +10 s; `[` and `]`.
   - Acceptance: fixes #46: any rewind or step lands exactly on the state the run had at that time, at 0.25× and 8×; rewind at 1 hour of sim time under 50 ms.
@@ -144,3 +144,9 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Files: src/modules/traffic/{glide,map2d,aircraft,readouts}.js, tests/unit/traffic/glide.test.js
 
 **Checkpoint I:** tests pass; code-review-and-quality; open PR I.
+
+- [ ] **24. Cross-check against the manuals (Patrick, 2026-09-30 07:35Z).** After the Traffic engine and core's T-6A model are both merged: fly the sim through set scenarios and compare the results with the manuals' numbers. The scenarios are the spacing on final (the 3,000 ft gap and the extensions it causes, T11), the break timing (220 to 120 KIAS, the time and distance from the break to the perch, the downwind spacing), and the PFL key heights (High, Low and Final Key; 2,600 ft per circle). Core's thread does the glide and zoom scenarios. The output is a report table (scenario, sim, manual with page reference, difference) and it only reports: differences go to Patrick and Dad through the coordinator, and no number in the math changes without their sign-off.
+  - Acceptance: every scenario runs from a fresh setup with fixed dice and gives the same report each time; each manual number carries its page reference (numbers only, no manual text, since the manuals are private).
+  - Verify: `npm test` runs the scenarios; the report is attached to the PR.
+  - Dependencies: 16, 18, and core's T-6A model. Size S.
+  - Files: tests/crosscheck/traffic-scenarios.test.js, src/modules/traffic/data/crosscheck-scenarios.json
