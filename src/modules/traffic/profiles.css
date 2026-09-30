@@ -1,0 +1,66 @@
+/* "Profiles and notes" at the foot of the Traffic Sim's left column (profiles-panel.js). Closed until asked for, so
+   the first look is unchanged (R22). Kept in its own file so it doesn't touch traffic.css. */
+[data-module='traffic'] .profiles {
+  display: grid;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .profiles-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+[data-module='traffic'] .profiles-field > label {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .profiles-field input,
+[data-module='traffic'] .profiles-field select,
+[data-module='traffic'] .profiles-field textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+[data-module='traffic'] .profiles-field textarea {
+  resize: vertical;
+}
+
+[data-module='traffic'] .profiles-buttons,
+[data-module='traffic'] .profiles-confirm-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .profiles-confirm {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .profiles-confirm[hidden],
+[data-module='traffic'] .profiles-skipped[hidden],
+[data-module='traffic'] .profiles-note[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .profiles-message,
+[data-module='traffic'] .profiles-note,
+[data-module='traffic'] .profiles-skipped {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .profiles-message:empty {
+  display: none;
+}
+
+[data-module='traffic'] .profiles-skipped {
+  padding-left: var(--space-4);
+}

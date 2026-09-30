@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   BUILT_IN, MOST_AIRCRAFT, MOST_POINTS, MOST_ROUTES, MOST_SAVED, NAME_MAX, NOTES_MAX, PROFILE_SETTING_KEYS, PROFILE_VERSION,
-  captureProfile, checkProfile, cleanName, isBuiltInName, newSetupAt, nextProfileName, profileSettingDefaults, readProfiles, settingsFromSetup,
+  captureProfile, checkProfile, cleanName, isBuiltInName, newSetupAt, nextProfileName, profileSettingDefaults, readProfiles, settingsFromSetup, startingProfile,
 } from '../../../src/modules/traffic/profile.js';
 import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
 
@@ -393,4 +393,35 @@ test('captureProfile takes the setup, the aircraft, the seed, the notes and the 
   assert.deepEqual(result.profile.routes, setup.routes);
   assert.equal(result.profile.seed, 7);
   assert.equal(result.profile.notes, 'wind 250/20');
+});
+
+// ── What opens first ─────────────────────────────────────────────────────────
+
+test('the profile that opens: the last one used, else the built-in Moose Jaw at CYMJ, else V6\'s generic pattern at the home field', () => {
+  const alpha = { ...good(), name: 'Alpha' };
+  const cymj = { icao: 'CYMJ', lat: 50.3303, lon: -105.559 };
+  const cyqr = { icao: 'CYQR', lat: 50.4319, lon: -104.6658 };
+
+  // Nothing remembered: the home field decides.
+  assert.equal(startingProfile({ last: null, saved: [], home: cymj }).profile, BUILT_IN[0].profile);
+  assert.equal(startingProfile({ last: null, saved: [], home: cymj }).place, 'Moose Jaw');
+  assert.equal(startingProfile({ last: null, saved: [], home: undefined }).profile, BUILT_IN[0].profile, 'no home field known: Moose Jaw');
+  const generic = startingProfile({ last: null, saved: [], home: cyqr });
+  assert.equal(generic.entry, null, 'a new setup is not any saved profile');
+  assert.equal(generic.profile.airfield, 'CYQR');
+  assert.deepEqual(generic.profile.anchor, { lat: 50.4319, lon: -104.6658 });
+  assert.equal(generic.profile.routes.length, 1);
+  assert.equal(generic.place, '');
+  assert.ok(checkProfile(generic.profile).ok);
+  // A home field with no position known can't have a pattern drawn on it: Moose Jaw opens.
+  assert.equal(startingProfile({ last: null, saved: [], home: { icao: 'ZZZZ', lat: null, lon: null } }).profile, BUILT_IN[0].profile);
+
+  // The last one used wins, whatever the home field.
+  assert.equal(startingProfile({ last: { kind: 'saved', name: 'Alpha' }, saved: [alpha], home: cyqr }).profile, alpha);
+  assert.deepEqual(startingProfile({ last: { kind: 'saved', name: 'Alpha' }, saved: [alpha], home: cyqr }).entry, { kind: 'saved', name: 'Alpha' });
+  assert.equal(startingProfile({ last: { kind: 'saved', name: 'Alpha' }, saved: [alpha], home: cyqr }).place, '');
+  assert.equal(startingProfile({ last: { kind: 'built-in', id: 'moose-jaw-v6' }, saved: [], home: cyqr }).profile, BUILT_IN[1].profile);
+  assert.equal(startingProfile({ last: { kind: 'built-in', id: 'moose-jaw-v6' }, saved: [], home: cyqr }).place, 'Moose Jaw');
+  // The last one is gone (deleted, or it failed the checks): back to the home field's setup.
+  assert.equal(startingProfile({ last: { kind: 'saved', name: 'Gone' }, saved: [alpha], home: cymj }).profile, BUILT_IN[0].profile);
 });

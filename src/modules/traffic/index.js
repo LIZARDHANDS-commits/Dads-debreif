@@ -9,8 +9,10 @@
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import MOOSE_JAW from './data/moose-jaw.json' with { type: 'json' };
 import { DEFAULTS, ALLOWED } from './defaults.js';
+import { captureProfile, nextProfileName, profileSettingDefaults, startingProfile } from './profile.js';
+import { createProfileStore } from './profile-store.js';
+import { createProfilesPanel } from './profiles-panel.js';
 import { createSim } from './sim.js';
 import { clockText } from './readouts.js';
 import { createClock } from './clock.js';
@@ -24,18 +26,26 @@ import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
+const PROFILES_STYLESHEET = new URL('./profiles.css', import.meta.url).href;
 
 function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
-  document.head.append(stylesheet);
+  const profilesStylesheet = h('link', { rel: 'stylesheet', href: PROFILES_STYLESHEET });
+  document.head.append(stylesheet, profilesStylesheet);
 
   const settings = createSettings(memoryStore(), DEFAULTS, { allowed: ALLOWED });
   const controls = createControls(settings);
 
-  // A copy of the built-in setup: the person edits this one, and the module's own copy stays as it shipped.
-  const setup = /** @type {any} */ (structuredClone(MOOSE_JAW)); // the engine's setup: the built-in data has no seed, so it is read as any
+  // What opens: the last profile used, else the built-in Moose Jaw (V6's generic pattern at another home field).
+  // A profile is copied, never used as it is: the person edits the copy, and the saved one stays as saved.
+  const profileStore = createProfileStore(app.storage);
+  const start = startingProfile({ last: profileStore.lastUsed(), saved: profileStore.list().profiles, home: app.airfields?.home() });
+  let place = start.place; // what the map's hint calls the setup ("Moose Jaw"), empty for one of the person's own
+  let airfield = start.profile.airfield; // where the setup is, saved with it
+  settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
+  const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
-  const sim = createSim(setup, { seed: setup.seed ?? 1 });
+  const sim = createSim(setup, { seed: start.profile.seed });
   const clock = createClock({ sim, speed: settings.get().speed });
   let selectedRouteId = null; // no route is selected when the sim opens
   let stopFrames = null;
@@ -71,7 +81,7 @@ function mount(root, app) {
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
   // The left column: the selected route's points (the layout shows it under the routes list).
-  const nextId = createIdMaker(setup.routes);
+  let nextId = createIdMaker(setup.routes);
   const editor = createRouteEditor({
     setup,
     onChange: ({ structure, routeId, remap }) => {
@@ -83,6 +93,14 @@ function mount(root, app) {
   });
   ui.slots.pointTable.append(editor.element);
   ui.slots.leftExtras.append(editor.message);
+  // Profiles and notes: a closed section at the foot of the left column (profiles-panel.js, profile.js).
+  const profilesPanel = createProfilesPanel({
+    store: profileStore,
+    current: { name: start.entry?.kind === 'saved' ? start.profile.name : nextProfileName(profileStore.list().profiles.map((p) => p.name)), notes: start.profile.notes },
+    capture: (name, notes) => captureProfile({ name, airfield, notes, setup, aircraft: sim.aircraftSpecs(), seed: sim.seed, settings: settings.get() }),
+    load: (profile, entry) => loadProfile(profile, entry),
+  });
+  ui.slots.leftExtras.append(profilesPanel.element);
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {} }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
@@ -98,7 +116,7 @@ function mount(root, app) {
   function changed() {
     cached = null;
     bar.setState({ mode: clock.mode, clockText: clockText(clock.simTime) });
-    ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length }));
+    ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length, place }));
     aircraftPanel.update(state(), { playing: clock.mode !== 'paused', now: performance.now() });
     map.requestDraw();
   }
@@ -118,6 +136,31 @@ function mount(root, app) {
   function routesChanged() {
     showRoutes();
     aircraftPanel.routesChanged();
+    changed();
+  }
+
+  /**
+   * Puts a profile on the screen (Load, or the built-in setup): its routes, aircraft, dice seed and settings,
+   * paused at 0:00. The profile is copied, so editing it leaves the saved one alone.
+   */
+  function loadProfile(profile, entry) {
+    stopFrames?.();
+    stopFrames = null;
+    setup.name = profile.name;
+    setup.anchor = structuredClone(profile.anchor);
+    setup.routes = structuredClone(profile.routes);
+    setup.aircraft = structuredClone(profile.aircraft);
+    nextId = createIdMaker(setup.routes);
+    sim.rebuild({ seed: profile.seed });
+    clock.reset();
+    airfield = profile.airfield;
+    place = entry?.kind === 'built-in' ? 'Moose Jaw' : '';
+    selectedRouteId = null;
+    editor.show(null);
+    settings.update({ ...profileSettingDefaults(), ...profile.settings }); // the subscriber below copies them into the setup
+    showRoutes();
+    aircraftPanel.routesChanged();
+    map.fit();
     changed();
   }
 
@@ -228,6 +271,7 @@ function mount(root, app) {
     controls.dispose();
     map.dispose();
     stylesheet.remove();
+    profilesStylesheet.remove();
   };
 }
 

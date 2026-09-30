@@ -294,6 +294,27 @@ export function newSetupAt({ icao, lat, lon }, name = 'Setup 1') {
   return { version: PROFILE_VERSION, name, airfield: icao, notes: '', seed: 1, anchor: { lat, lon }, routes: [newPattern('PAT1', 'Pattern 1')], aircraft: [], settings: {} };
 }
 
+/**
+ * The profile the sim opens with: the last one used (if it is still there), else the built-in Moose Jaw when
+ * the home field is Moose Jaw (or has no position to draw a pattern at), else V6's generic pattern at the home
+ * field (Patrick, T2; its runway box is task 12). `entry` says which profile it is ({ kind, id | name }), or is
+ * null for a new setup that is not any saved profile. `place` is what the map's hint calls it ("Moose Jaw").
+ * @param {{ last: any, saved: any[], home?: { icao?: string, lat?: number | null, lon?: number | null } | null }} options
+ */
+export function startingProfile({ last, saved, home }) {
+  if (last?.kind === 'saved') {
+    const profile = saved.find((p) => p.name === last.name);
+    if (profile) return { profile, entry: { kind: 'saved', name: profile.name }, place: '' };
+  }
+  if (last?.kind === 'built-in') {
+    const found = BUILT_IN.find((b) => b.id === last.id);
+    if (found) return { profile: found.profile, entry: { kind: 'built-in', id: found.id }, place: 'Moose Jaw' };
+  }
+  const other = home && home.icao && home.icao !== 'CYMJ' && isNumber(home.lat) && isNumber(home.lon);
+  if (other) return { profile: newSetupAt({ icao: home.icao, lat: home.lat, lon: home.lon }), entry: null, place: '' };
+  return { profile: BUILT_IN[0].profile, entry: null, place: 'Moose Jaw' };
+}
+
 /** "Setup 1", or the first "Setup N" that no name in the list uses (the spec's "New profile"). */
 export function nextProfileName(names) {
   const used = new Set(names);
