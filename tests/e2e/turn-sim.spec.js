@@ -606,6 +606,19 @@ test('the Cross turn greys out Direction and says which way Lead turns', async (
   await expect(note).toBeHidden();
 });
 
+test('the Shackle greys out Direction: both aircraft turn toward each other', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  const note = page.locator('.ts-direction-note');
+  await box(page, 'Turn').selectOption({ label: 'Shackle' });
+  await expect(direction.getByRole('radio').first()).toBeDisabled();
+  await expect(note).toHaveText("Both turn toward each other; direction doesn't apply.");
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await expect(note).toBeHidden();
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();

@@ -309,9 +309,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
 
   function applyDirection(values) {
     const cross = values.maneuver === 'cross180';
-    controls.setDisabled('direction', cross);
-    directionNote.textContent = cross ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.` : '';
-    directionNote.hidden = !cross;
+    const shackle = values.maneuver === 'shackle45';
+    controls.setDisabled('direction', cross || shackle);
+    directionNote.textContent = cross
+      ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.`
+      : shackle ? 'Both turn toward each other; direction doesn\'t apply.' : '';
+    directionNote.hidden = !(cross || shackle);
   }
 
   function applyScenario(values) {
