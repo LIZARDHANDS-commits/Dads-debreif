@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { V6_DEFAULTS, aircraftKey } from '../../../src/modules/turn-sim/settings.js';
 import { relativeBearingDeg } from '../../../src/core/angles.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
+import { clockCueCrossed } from '../../../src/modules/turn-sim/engine/cues.js';
 
 const V6 = { ...V6_DEFAULTS, timing: 'clock', direction: 'left', durationSec: 120 };
 
@@ -151,4 +152,31 @@ test('SMM item 2, Auto: an aircraft can pick Auto for itself while the rest use 
   const run = createRun({ ...V6_DEFAULTS, timing: 'clock', clockCuePos: '5.5', direction: 'left', [aircraftKey(2, 'clockPos')]: 'auto' });
   assert.equal(run.state.aircraft.find((a) => a.id === 2).cue.clockPos, 5);
   assert.equal(run.state.aircraft.find((a) => a.id === 1).cue.clockPos, 5.5);
+});
+
+test('clockCueCrossed: a target that passes through the clock position between two readings counts, even outside the tolerance', () => {
+  const at = (deg) => ({ id: 2, xFt: 1000 * Math.cos(deg * Math.PI / 180), yFt: 1000 * Math.sin(deg * Math.PI / 180) });
+  const cue = { clockPos: 12, direction: 'right', toleranceDeg: 1 }; // 12 o'clock is straight ahead, 0°
+  const fresh = () => ({ id: 1, xFt: 0, yFt: 0, headingRad: 0, clockPos: 'global', clockCueTriggered: false, prevClockCueRelDeg: null });
+  // 20° to the left, then 20° to the right: both readings are far outside 1°, but the target went through 12 o'clock.
+  const a = fresh();
+  assert.equal(clockCueCrossed(a, at(20), cue), false);
+  assert.equal(clockCueCrossed(a, at(-20), cue), true);
+  assert.equal(a.clockCueTriggered, true);
+  assert.equal(clockCueCrossed(a, at(90), cue), true); // once triggered it stays triggered
+  // The other way through works too.
+  const b = fresh();
+  assert.equal(clockCueCrossed(b, at(-20), cue), false);
+  assert.equal(clockCueCrossed(b, at(20), cue), true);
+  // Two readings on the same side do not count, and neither does a jump across the back (more than 180° apart).
+  const c = fresh();
+  assert.equal(clockCueCrossed(c, at(30), cue), false);
+  assert.equal(clockCueCrossed(c, at(20), cue), false);
+  const d = fresh();
+  assert.equal(clockCueCrossed(d, at(-10), { ...cue, clockPos: 6 }), false); // 6 o'clock is 180°: the wrap
+  assert.equal(clockCueCrossed(d, at(10), { ...cue, clockPos: 6 }), false);
+  // Being within the tolerance counts at once.
+  assert.equal(clockCueCrossed(fresh(), at(0.5), cue), true);
+  // An aircraft never watches itself.
+  assert.equal(clockCueCrossed(fresh(), { id: 1, xFt: 5, yFt: 5 }, cue), false);
 });

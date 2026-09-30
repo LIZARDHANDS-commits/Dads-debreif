@@ -181,11 +181,14 @@ export const SETTINGS_VERSION = 2;
 
 /**
  * For createSettings' `options.migrate`: settings saved by version 1 kept the clock position as a number (5.5);
- * from version 2 it is text, because it can also be 'auto'. The saved choice is kept.
+ * from version 2 it is text, because it can also be 'auto'. The saved choice is kept. The start heading also
+ * moves from V6's math heading to a compass heading.
  */
 export function migrateSettings(values, fromVersion) {
   const out = { ...values };
   if (fromVersion < 2 && typeof out.clockCuePos === 'number') out.clockCuePos = String(out.clockCuePos);
+  // Version 1 kept V6's math heading (0 = east, counter-clockwise); from version 2 it is a compass heading (D45).
+  if (fromVersion < 2 && typeof out.startHeadingDeg === 'number' && Number.isFinite(out.startHeadingDeg)) out.startHeadingDeg = (((90 - out.startHeadingDeg) % 360) + 360) % 360;
   return out;
 }
 
