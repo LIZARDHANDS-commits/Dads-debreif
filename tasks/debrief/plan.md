@@ -33,7 +33,28 @@ Vertical slices, each leaving a working screen behind it:
 - PR D: task 8 (3D view).
 - PR E: tasks 9 to 11 (EM, tennis ball, CSV, browser tests, checklist).
 
-Each PR is reviewed with code-review-and-quality before it leaves draft, uses `/security-review` where files or network come in (A, B, C), and logs performance measurements (A, C, D).
+Each PR is reviewed with code-review-and-quality before it leaves draft, uses `/security-review` where files or network come in (A, B, C), and logs performance measurements (A, C, D). PR D starts early as PR #74, which only pins V6's 3D geometry (it needs nothing but `core`).
+
+## Skills used
+
+Skills are in [`.claude/skills/`](../../.claude/skills/README.md). Each PR description lists the skills applied to it.
+
+| Task | Skills |
+|---|---|
+| Every task | incremental-implementation, test-driven-development (golden test pins V6 before any number changes, D10) |
+| 1 Screen and loading | frontend-ui-engineering (R22 layout, keyboard, empty and error states), security-and-hardening (KML files are untrusted: size and shape checks, no `innerHTML`), performance-optimization (fit and draw of four tracks) |
+| 2 Playback bar | frontend-ui-engineering, performance-optimization (smooth playback at 16×, measured) |
+| 3 Readouts | frontend-ui-engineering ("More detail" collapsed, gap and unknown states) |
+| 4 Standards | frontend-ui-engineering (colour is never the only signal) |
+| 5 DFPs and the debrief file | security-and-hardening (reading a debrief file), frontend-ui-engineering |
+| 6 and 7 Map layers | performance-optimization (VNC warp cache, load on demand), security-and-hardening (outside tiles), frontend-ui-engineering |
+| 8 3D view | performance-optimization (Canvas 2D frame time), frontend-ui-engineering |
+| 9 EM chart and tennis ball | frontend-ui-engineering (off by default, opened from Tools), performance-optimization (images loaded on open) |
+| 10 CSV export | security-and-hardening (cells starting with `=`, `+`, `-`, `@` are escaped) |
+| 11 Browser tests and sign-off | frontend-ui-engineering (accessibility checklist) |
+| Before a PR leaves draft | code-review-and-quality (`/code-review`, `/security-review` for A, B, C) |
+| CI red or a golden mismatch | debugging-and-error-recovery |
+| Polish at the end | code-simplification (`/simplify`) |
 
 ## Risks
 
@@ -43,4 +64,4 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, uses `/
 | The 3D view is slow or wrong on the Canvas 2D | Pin V6's projection first; profile before any rewrite; no 3D library without asking (SPEC.md). |
 | VNC charts (about 9.7 MB) hurt first use | Load only when turned on; measure re-encoding before proposing it. |
 | The ui-kit pieces arrive late | Task 1 can start with a thin local pan/zoom behind the same interface and swap to ui-kit's when it lands. |
-| Q39 (#3 under two standards) stays open | The debrief keeps V6's labels; the change is one line in `core` when decided. |
+| `core`'s D78 change (#3 fore/aft by the offset standard alone) lands after task 4 | Task 4 uses whatever `standards.js` on main says; the labels follow with no debrief change. |
