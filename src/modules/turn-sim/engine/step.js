@@ -27,16 +27,13 @@ export function flownG(baseG, gError) {
 
 /**
  * Whether an aircraft may turn now (V6 `cueSatisfied`, line 1511). Once it has
- * started it stays turning. With the time delay it waits for its start time.
- * With auto timing every aircraft but Lead first waits until Lead has started
- * turning (V6 line 1525) and then for its own start time; D43 takes that wait
- * away in its own commit. The clock cue comes in task 9.
+ * started it stays turning; before that it waits for its start time, which is the
+ * time delay or, with auto timing, its own place in the sequence. V6 held every
+ * auto-timed aircraft but Lead until Lead had started (line 1525), so the planned
+ * order was never flown; D43 takes that wait away. The clock cue comes in task 9.
  */
-function mayTurn(a, aircraft, tSec, timing) {
+function mayTurn(a, tSec) {
   if (a.active) return true;
-  if (timing === 'time' || !a.cueArmed) return tSec >= a.turnStartSec;
-  const lead = aircraft.find((x) => x.id === 1);
-  if (!lead || (!lead.done && lead.turnAccumRad <= 0)) return false;
   return tSec >= a.turnStartSec;
 }
 
@@ -50,7 +47,7 @@ function mayTurn(a, aircraft, tSec, timing) {
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
  *   active, done, shackleReturn, turnPhase, originalHeadingRad.
- * flight: { tSec, timing ('time' or 'auto'), speedFtps, baseG, turnDegDefault, correction, correctionStrength }
+ * flight: { tSec, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
  *
@@ -64,7 +61,7 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     const g = flownG(flight.baseG, a.gError);
     a.gFlown = g;
     const omega = turnRateRadPerSec(v, g);
-    if (mayTurn(a, aircraft, flight.tSec, flight.timing) && !a.done) {
+    if (mayTurn(a, flight.tSec) && !a.done) {
       // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
       a.active = true;
       const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);

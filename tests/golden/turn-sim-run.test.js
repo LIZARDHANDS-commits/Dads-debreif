@@ -16,20 +16,18 @@ const DIRECTIONS = ['right', 'left'];
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
 const scenario = (over) => ({ ...V6_DEFAULTS, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
 
+/** The auto step in seconds: V6's own computeAutoDelay, until D44 changes the formula. */
+const autoStepFor = (settings, probe) => probe.v6.computeAutoDelay();
+
 /** Steps V6 and the port together for one leg, comparing every step. Returns the number of steps. */
-function compareLeg(page, run, label) {
+function compareLeg(page, run, label, autoStep) {
   const duration = +page.$('duration').value;
   let steps = 0;
   while (page.time() < duration) {
     page.step();
     assert.equal(run.step(), true, `${label}: the port stopped early at step ${steps}`);
     steps++;
-    if (steps === 1) {
-      // V6 writes its auto step into the Base delay box (2 places); the port keeps it in state.autoStepSec instead.
-      const auto = page.$('triggerMode').value === 'auto' && /^delayed/.test(page.$('maneuver').value);
-      assert.equal(run.state.autoStepSec === null, !auto, `${label}: autoStepSec`);
-      if (auto) assert.equal(run.state.autoStepSec.toFixed(2), (+page.$('baseDelay').value).toFixed(2), `${label}: auto step`);
-    }
+    if (steps === 1) assert.equal(run.state.autoStepSec, autoStep, `${label}: the auto step is in state and not in Base delay`);
     const where = `${label}: step ${steps} t=${page.time()}`;
     assert.equal(run.state.tSec, page.time(), where);
     const v6 = page.aircraft();
@@ -67,17 +65,26 @@ function compareRun(settings, label, { legs = 1 } = {}) {
     const key = aircraftKey(id, 'turnLogic');
     v6Settings[key] = { toward: 'away', away: 'toward' }[settings[key]] ?? settings[key];
   }
+  // D43: with auto timing every aircraft starts at its own time, index x step, without waiting for Lead (V6 waited).
+  // That is exactly V6's TIME-delay flight with the step as the Base delay, so V6 flies it that way here.
+  let autoStep = null;
+  if (settings.timing === 'auto' && /^delayed/.test(settings.maneuver)) {
+    const probe = createV6Page(settings);
+    probe.reset();
+    autoStep = autoStepFor(settings, probe);
+    Object.assign(v6Settings, { timing: 'time', baseDelaySec: autoStep });
+  }
   const page = createV6Page(v6Settings);
   page.reset();
   page.play();
   const run = createRun(settings);
-  let steps = compareLeg(page, run, `${label} leg 1`);
+  let steps = compareLeg(page, run, `${label} leg 1`, autoStep);
   for (let leg = 2; leg <= legs; leg++) {
     page.continueLeg();
     assert.equal(run.state.canStartLeg, true, `${label}: the leg can be continued`);
     run.startLeg();
     assert.equal(run.state.tSec, 0, label);
-    steps += compareLeg(page, run, `${label} leg ${leg}`);
+    steps += compareLeg(page, run, `${label} leg ${leg}`, autoStep);
   }
   return steps;
 }
@@ -177,7 +184,7 @@ test('the closure over the real step is V6\'s: the change in the 1-3 distance ov
   assert.ok(rows.some((row) => Math.abs(row.closure13Ftps) > 1), 'the aircraft do close on each other in a delayed turn');
 });
 
-test('auto timing (V6\'s spacing x angle / speed, and its wait for Lead to start): 4312, 2134, two-ship × delayed 90 and 45 × right and left, two legs', () => {
+test('auto timing after D43 (V6\'s spacing x angle / speed, no wait for Lead): 4312, 2134, two-ship × delayed 90 and 45 × right and left, two legs', () => {
   for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
     for (const maneuver of ['delayed90away', 'delayed45away']) {
       for (const direction of DIRECTIONS) {

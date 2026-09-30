@@ -238,7 +238,6 @@ export function createRun(settings) {
     }
     moveAircraft(craft, {
       tSec,
-      timing: effectiveTiming(),
       speedFtps: speedFtps(),
       baseG: cfg.baseG,
       turnDegDefault: cfg.turnDeg,
