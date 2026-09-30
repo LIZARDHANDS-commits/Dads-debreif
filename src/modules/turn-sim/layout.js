@@ -259,6 +259,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
   const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
+  let lastFlags = null;
   const cueList = h('ul', { class: 'ts-card ts-cues', 'aria-label': 'Clock cue status' });
   const cueWarning = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
@@ -358,13 +359,18 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       minSep.textContent = r.minSepText ?? '';
       minSep.hidden = !r.minSepText;
       turnLine.textContent = r.turnText;
-      clear(flags);
-      for (const text of r.flags) flags.append(h('li', {}, text));
+      // The flags are a live region: rebuild only when they change, or a screen reader says them again on every refresh.
+      const flagKey = r.flags.join('|');
+      if (flagKey !== lastFlags) {
+        lastFlags = flagKey;
+        clear(flags);
+        for (const text of r.flags) flags.append(h('li', {}, text));
+      }
       flags.hidden = r.flags.length === 0;
       clear(cueList);
       for (const { id, text } of r.cue.lines) cueList.append(line(id, { text, tone: 'none' }));
       cueList.hidden = r.cue.lines.length === 0;
-      cueWarning.textContent = r.cue.warning ?? '';
+      if ((r.cue.warning ?? '') !== cueWarning.textContent) cueWarning.textContent = r.cue.warning ?? '';
       cueWarning.hidden = !r.cue.warning;
       autoNote.textContent = r.autoStepSec == null ? 'Auto timing works out each aircraft\'s delay itself.' : `Auto step ${r.autoStepSec.toFixed(1)} s`;
 
