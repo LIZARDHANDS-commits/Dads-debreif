@@ -3,9 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../src/core/units.js';
-import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec } from '../../src/core/flight-math.js';
+import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint } from '../../src/core/flight-math.js';
 import { loadV6 } from './v6-source.js';
-import { spread } from './inputs.js';
+import { seeded, spread } from './inputs.js';
 
 const TURN_SIM = 'const FT_PER_NM=6076.12, KTS_TO_FPS';
 const BFM = '<script id="bfmFight">';
@@ -75,4 +75,47 @@ test('below 1 G there is no turn: NaN, as in V6', () => {
   assert.ok(Number.isNaN(bankDegFromG(0.5)));
   assert.equal(turnRadiusFt(ktToFtps(200), 1), Infinity);
   assert.equal(turnRateRadPerSec(ktToFtps(200), 1), 0);
+});
+
+test('isaDensityRatio matches the EM chart isaRhoRatio', () => {
+  const { isaRhoRatio } = loadV6(['isaRhoRatio']);
+  for (const ft of [0, 6500, 8000, 13000, 36088, 36089, 36090, 40000, -1000, NaN, ...spread(200, -2000, 50000, 13)]) {
+    assert.equal(isaDensityRatio(ft), isaRhoRatio(ft), `ft=${ft}`);
+  }
+});
+
+/** V6's EM `metrics` reads three moments of a track through the 3D API; this stub serves them. */
+function emChartV6() {
+  return loadV6(['isaRhoRatio', 'hdg', 'dAng', 'metrics'], { marker: 'function isaRhoRatio(' });
+}
+function trackApi(before, now, after) {
+  return { getInterp: (id, t) => (t === 9 ? before : t === 10 ? now : t === 11 ? after : null) };
+}
+
+/** Three moments one second apart: a turn at `rateDeg` per second, with optional speed and altitude. */
+function turningTrack(r, { spdKt, altFt } = {}) {
+  const kt = 90 + 250 * r(), rateDeg = -30 + 60 * r(), h = 2 * Math.PI * r();
+  const v = ktToFtps(kt), w = rateDeg * Math.PI / 180;
+  const at = k => ({ x: 1000 * r() + v * Math.cos(h + w * k) * k, y: v * Math.sin(h + w * k) * k, spdKt, altFt });
+  return [at(-1), at(0), at(1)];
+}
+
+test('emPoint matches the EM chart metrics, turn rate still halved', () => {
+  const { metrics } = emChartV6();
+  const r = seeded(14);
+  const extras = [{}, { spdKt: 210 }, { altFt: 8000 }, { spdKt: 180, altFt: 13000 }, { altFt: 45000 }, { spdKt: NaN, altFt: NaN }];
+  for (let i = 0; i < 300; i++) {
+    const [a, p, b] = turningTrack(r, extras[i % extras.length]);
+    const m = metrics(trackApi(a, p, b), 1, 10);
+    assert.deepEqual(emPoint(a, p, b), { iasKt: m.ias, turnRateDeg: m.tr, altFt: m.alt, gsKt: m.gs });
+  }
+});
+
+test('emPoint is null when a moment is missing, as metrics is', () => {
+  const { metrics } = emChartV6();
+  const p = { x: 0, y: 0 }, q = { x: 300, y: 10 };
+  for (const [a, b, c] of [[null, p, q], [p, null, q], [p, q, null], [undefined, p, q]]) {
+    assert.equal(emPoint(a, b, c), null);
+    assert.equal(metrics(trackApi(a, b, c), 1, 10), null);
+  }
 });

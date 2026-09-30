@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -38,4 +38,30 @@ test('limitG keeps G at least 1.01 and at most the cap', () => {
   assert.equal(limitG(12), 12);
   assert.equal(limitG(12, 9), 9);
   assert.ok(Number.isNaN(limitG(NaN)));
+});
+
+/** Three moments one second apart on a steady turn of rateDeg per second at kt knots. */
+function steadyTurn(kt, rateDeg) {
+  const v = ktToFtps(kt), w = rateDeg * Math.PI / 180, R = v / w;
+  return [-1, 0, 1].map(k => ({ x: R * Math.sin(w * k), y: R - R * Math.cos(w * k) }));
+}
+
+test('emPoint shows half the real turn rate, as V6 does (D39 fixes this)', () => {
+  const [a, p, b] = steadyTurn(200, 10);
+  near(emPoint(a, p, b).turnRateDeg, 5, 1e-9);
+});
+
+test('emPoint: sea-level density ratio is 1, so IAS equals ground speed there', () => {
+  near(isaDensityRatio(0), 1, 1e-15);
+  const [a, p, b] = steadyTurn(200, 10);
+  const m = emPoint(a, { ...p, spdKt: 200, altFt: 0 }, b);
+  near(m.iasKt, 200, 1e-12);
+  assert.ok(emPoint(a, { ...p, spdKt: 200, altFt: 8000 }, b).iasKt < 200);
+});
+
+test('emPoint without a recorded speed uses the distance flown over two seconds', () => {
+  const m = emPoint({ x: 0, y: 0 }, { x: 337.562, y: 0 }, { x: 675.124, y: 0 });
+  near(m.gsKt, 200, 1e-9);
+  assert.equal(m.turnRateDeg, 0);
+  assert.equal(m.altFt, 6500);
 });
