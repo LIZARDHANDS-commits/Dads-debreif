@@ -176,7 +176,7 @@ Debrief focus points belong to the flight, not to the browser:
 
 One file, one row per second across the common window, with each ship's columns side by side: time (Zulu), latitude, longitude, altitude, ground speed, est. IAS, heading, G, pitch and bank with their sources, and a gap flag. The button is disabled with no flight loaded, and the download link is released after use.
 
-### Weather at the time of the flight (new, Patrick 2026-09-30 06:42Z, R number to be logged)
+### Weather at the time of the flight (Patrick chose the scope 2026-09-30 06:42Z and approved this section 07:21Z, "Approved")
 
 Patrick asked for "the historical METAR of the nearest airfield as well as overlays for radar/satellite … toggleable on the replay", and chose "Plus saved radar". Every layer is display only: it changes no flight math and no readout.
 
@@ -324,7 +324,7 @@ The tasks go in `tasks/debrief/` once this spec is approved. The expected order,
 4. Map layers: satellite, VNC charts, route overlays, 3/9, cone, clock marks, bubble.
 5. The 3D view (V6 pinned, then D40 and the #27 fixes).
 6. EM chart, tennis ball, CSV export.
-7. Weather at the time of the flight, after Patrick signs off the checklist and approves this section.
+7. Weather at the time of the flight (approved 07:21Z).
 
 It needs, from other threads: ui-kit `controls.js` and `canvas-view.js` before slice 1, `standards.js` (core PR 3) before slice 2, and `core`'s tennis-ball changes (Q33 to Q37) before slice 6.
 
