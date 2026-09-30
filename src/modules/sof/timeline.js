@@ -5,7 +5,7 @@
 // Replaces V6's five timelines, which each read TAFs themselves. The pieces are
 // wx's `tafTimeline`, whole; the colour is wx's `natoColour`, and "below" is
 // wx's own check over the day (`homeAlternateTrigger` for the home row,
-// `assessAlternate` with the alternate's whole `checkOptions` for an alternate:
+// `assessAlternate` with the alternate's whole airfields' `checkOptions(icao)` for an alternate:
 // its minima, landing minima and visual descent), so the timeline can't
 // disagree with the calls above it. A PROB piece wx leaves unchecked (below an
 // alternate's minima, with no landing minima to test it against) is labelled
@@ -14,10 +14,10 @@
 
 import { utcOffsetMinutes, zoneAbbreviation, formatInZone } from '../../core/time.js';
 import { tafTimeline } from '../../wx/taf.js';
-import { assessAlternate, homeAlternateTrigger } from '../../wx/alternates.js';
+import { assessAlternate, homeAlternateTrigger, visualDescentMinima } from '../../wx/alternates.js';
 import { natoColour } from '../../wx/limits.js';
 import { HOUR_MS, MINUTE_MS } from '../../wx/dates.js';
-import { localDate, localToUtc } from './waves.js';
+import { localDate, localToUtc, describeTrigger } from './waves.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const validDate = (d) => d instanceof Date && !Number.isNaN(+d);
@@ -79,20 +79,32 @@ export function axisTicks({ from, to, timeZone, stepHours = 3, first = 'utc', sh
 // ---- Rows and pieces ----------------------------------------------------------------------------
 
 /**
- * What wx says about the row over the day: the pieces below the limits (hits)
- * and the PROB pieces it left unchecked. Home: the trigger limits (`limits`,
- * one or a list; Local (MTCA) 2000/3 when none). Alternate: `options`, the
- * whole `airfields.checkOptions(icao)` object, passed to wx as it is (a list
- * given as `limits` counts as its `minima`; 600-2 when neither).
+ * What wx says about the row over the day: its status and problems, the pieces
+ * below the limits (hits) and the PROB pieces it left unchecked.
+ * Home: the trigger limits as the wave call reads them (`waves.js`'s
+ * `describeTrigger`: ceiling to 100 ft, visibility to a quarter mile, Local
+ * (MTCA) 2000/3 when unusable), so the timeline and the call use the same
+ * numbers. Alternate: `options`, the whole `airfields.checkOptions(icao)` object
+ * (the airfields' one, not wx's `checkOptions(conditions, minima)`), passed to wx
+ * as it is (a list given as `limits` counts as its `minima`; 600-2 when neither).
+ * A visual descent that can't be worked out (no MEA or elevation) is incomplete,
+ * and nothing is hatched: wx would fall back to 600-2 for the hits, which is
+ * not the minima that alternate uses.
  */
 function assessRow(entry, parsed, window) {
   if (entry?.role === 'HOME') {
-    return { hits: homeAlternateTrigger(parsed, window, entry.limits).hits, unchecked: [] };
+    const used = describeTrigger(Array.isArray(entry.limits) ? entry.limits[0] : entry.limits);
+    const result = homeAlternateTrigger(parsed, window, { ceilingFt: used.ceilingFt, visSm: used.visSm });
+    return { status: result.status, problems: result.problems ?? [], hits: result.hits, unchecked: [] };
   }
   const options = entry?.options != null && typeof entry.options === 'object' ? entry.options
     : entry?.limits != null ? { minima: entry.limits } : {};
   const result = assessAlternate(parsed, window, options);
-  return { hits: result.hits, unchecked: result.probUnchecked };
+  const problems = result.problems ?? [];
+  if (options.visualDescent && !visualDescentMinima(options.visualDescent)) {
+    return { status: 'incomplete', problems, hits: [], unchecked: [] };
+  }
+  return { status: result.status, problems, hits: result.hits, unchecked: result.probUnchecked ?? [] };
 }
 
 // A compact reading of the weather under a piece, so a change to it changes what is drawn.
@@ -108,14 +120,13 @@ const groupName = (piece) => {
 
 const pieceKey = (kind, group, from, to) => `${kind}|${group}|${+from}|${+to}`;
 
-function piecesOf(icao, parsed, axis, entry) {
+function piecesOf(icao, parsed, axis, found) {
   const tl = tafTimeline(parsed);
   const flat = [
     ...tl.prevailing.map((p) => ({ lane: 'prevailing', kind: 'PREVAILING', ...p })),
     ...tl.overlays.map((o) => ({ lane: 'overlay', ...o })),
   ].filter((p) => +p.to > +axis.from && +p.from < +axis.to);
   // Below is wx's, over the whole day.
-  const found = assessRow(entry, parsed, { from: axis.from, to: axis.to });
   const keys = (list) => new Set((list ?? []).map((h) => pieceKey(h.kind, h.group, h.from, h.to)));
   const hits = keys(found.hits);
   const unchecked = keys(found.unchecked);
@@ -168,6 +179,8 @@ function rowModel(entry, axis) {
     icao,
     role: entry?.role === 'HOME' ? 'HOME' : 'ALT',
     state: 'ok',
+    status: null,
+    problems: [],
     words: null,
     validFrom: null,
     validTo: null,
@@ -185,12 +198,18 @@ function rowModel(entry, axis) {
   const covers = +parsed.validTo > +axis.from && +parsed.validFrom < +axis.to;
   const from = new Date(Math.max(+parsed.validFrom, +axis.from));
   const to = new Date(Math.min(+parsed.validTo, +axis.to));
+  const found = assessRow(entry, parsed, { from: axis.from, to: axis.to });
+  const incomplete = found.status === 'incomplete';
   return {
     ...base,
+    state: incomplete ? 'incomplete' : 'ok',
+    status: found.status,
+    problems: found.problems,
+    words: incomplete ? (found.problems[0] ?? "A ceiling or visibility in the TAF can't be read") : null,
     validFrom: parsed.validFrom,
     validTo: parsed.validTo,
     coverage: covers ? { x0: (+from - +axis.from) / span, x1: (+to - +axis.from) / span, from, to } : null,
-    pieces: piecesOf(icao ?? '', parsed, axis, entry),
+    pieces: piecesOf(icao ?? '', parsed, axis, found),
   };
 }
 
@@ -227,9 +246,12 @@ function waveModel(wave, index, axis, timeZone) {
  *
  * - `rows`: one per airfield, home first: `{ icao, role: 'HOME' | 'ALT', taf, limits?, options?, metar? }`.
  *   `taf` is wx's parsed TAF (or null); `metar` is wx's parsed METAR, for the mark.
- *   Home: `limits`, `{ ceilingFt, visSm }` or a list (Local (MTCA) 2000/3 when none).
- *   Alternate: `options`, the whole `airfields.checkOptions(icao)` object (minima,
- *   landing minima, visual descent), which wx reads; 600-2 when none.
+ *   Home: `limits`, `{ ceilingFt, visSm }` (cleaned as the wave call cleans it;
+ *   Local (MTCA) 2000/3 when none). Alternate: `options`, the whole airfields'
+ *   `checkOptions(icao)` object (minima, landing minima, visual descent), which
+ *   wx reads; 600-2 when none. Each row carries wx's `status` and `problems`; an
+ *   `incomplete` row (a visual descent with no MEA, or a ceiling or visibility
+ *   that can't be read) has `state: 'incomplete'` and `words` saying why.
  * - `waves`: `planToUtc(...).waves`, as they are.
  * - `now` (a Date) and `timeZone` (the home field's IANA zone) are required:
  *   there is no hidden clock and no default zone. Without them nothing is
@@ -308,7 +330,7 @@ export function timelineSignature(model, { now = true } = {}) {
     t(model.axis.from), t(model.axis.to), model.zone,
     model.axis.rows.map((r) => [r.zone, r.label, r.ticks.map((k) => [+k.at, k.label, k.dayLabel])]),
     model.rows.map((r) => [
-      r.icao, r.role, r.state, t(r.validFrom), t(r.validTo), r.metar && [+r.metar.at, r.metar.label],
+      r.icao, r.role, r.state, r.status, r.words, t(r.validFrom), t(r.validTo), r.metar && [+r.metar.at, r.metar.label],
       r.pieces.map((p) => [p.id, +p.from, +p.to, +p.fullFrom, +p.fullTo, p.nato, p.below, p.unchecked, p.label, p.text, p.summary]),
     ]),
     model.waves.map((w) => [w.name, +w.from, +w.to, +w.landing.at, +w.landingPlus1.at]),

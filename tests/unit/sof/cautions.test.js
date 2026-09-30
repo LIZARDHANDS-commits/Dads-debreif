@@ -12,7 +12,7 @@ import { homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternate
 import { cardModel } from '../../../src/modules/sof/cards.js';
 import { homeCall, alternateCall, waveCalls } from '../../../src/modules/sof/waves.js';
 import {
-  ackDay, emptyAcks, readAcks, cautionList, evaluate, acknowledge, acknowledgeAll, tafResultsOfWaves, tafCautionsForDay,
+  ackDay, emptyAcks, readAcks, cautionList, evaluate, acknowledge, acknowledgeAll, tafResultsOfWaves, tafCautionsForBanner, bannerWindow,
 } from '../../../src/modules/sof/cautions.js';
 import { METAR, HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
 
@@ -475,12 +475,11 @@ test('evaluate never changes the acks or cards it is given', () => {
 
 // ---- Cautions from the TAF do not depend on waves (RED 2) -------------------------------------------------
 
-const DAY = { from: at(29, 6), to: at(30, 6) }; // Moose Jaw's 29 Sep
 const STORM_TAF = 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM SKC TEMPO 2922/3002 3SM TSRA BKN030CB';
 
 test('with no waves planned a TEMPO TSRA at home still raises a caution', () => {
   assert.deepEqual(tafResultsOfWaves([], 'CYMJ'), [], 'no waves, no wave results');
-  const tafs = tafCautionsForDay({ tafs: { CYMJ: homeTaf(STORM_TAF) }, day: DAY });
+  const tafs = tafCautionsForBanner({ tafs: { CYMJ: homeTaf(STORM_TAF) }, ...ctx() });
   const list = cautionList({ tafs });
   assert.ok(list.length >= 1);
   assert.ok(list.every((c) => c.level === 'caution' && c.group === 'TEMPO' && c.icao === 'CYMJ'));
@@ -489,16 +488,16 @@ test('with no waves planned a TEMPO TSRA at home still raises a caution', () => 
 });
 
 test('the day check takes only wx\'s cautions: below-limit TAF pieces stay tied to the waves', () => {
-  const tafs = tafCautionsForDay({ tafs: { CYMJ: homeTaf(HOME_TAF.lowFromEvening), CYQR: homeTaf(ALT_TAF.fog) }, day: DAY });
+  const tafs = tafCautionsForBanner({ tafs: { CYMJ: homeTaf(HOME_TAF.lowFromEvening), CYQR: homeTaf(ALT_TAF.fog) }, ...ctx() });
   const list = cautionList({ tafs });
   assert.deepEqual(list.map((c) => [c.icao, c.level, c.reason]), [['CYQR', 'caution', 'SIGNIFICANT WX (FG)']], 'the fog is a caution; the low ceiling and visibility are not raised');
   assert.ok(tafs.every((t) => t.result.hits.length === 0));
 });
 
 test('every airfield\'s TAF is checked over the day, and a missing TAF says so instead of clearing', () => {
-  const tafs = tafCautionsForDay({
+  const tafs = tafCautionsForBanner({
     tafs: { CYMJ: homeTaf(STORM_TAF), CYQR: homeTaf('TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 TEMPO 3000/3003 FZRA OVC010'), CYYN: null },
-    day: DAY,
+    ...ctx(),
   });
   assert.deepEqual(tafs.map((t) => t.icao), ['CYMJ', 'CYQR', 'CYYN']);
   assert.equal(tafs[2].result.status, 'no-taf');
@@ -510,19 +509,52 @@ test('every airfield\'s TAF is checked over the day, and a missing TAF says so i
   assert.deepEqual(evaluate({ tafs, acks, ...ctx() }).fresh, []);
 });
 
-test('a TAF caution outside the displayed day is not raised, and the wave results and the day results agree on keys', () => {
-  const late = 'TAF CYMJ 291740Z 2918/3018 22010KT P6SM SKC TEMPO 3012/3015 3SM TSRA BKN030CB';
-  assert.deepEqual(cautionList({ tafs: tafCautionsForDay({ tafs: { CYMJ: homeTaf(late) }, day: DAY }) }), []);
-  const wave = homeResult(STORM_TAF, { from: at(29, 22), to: at(30, 1) });
-  const dayResults = tafCautionsForDay({ tafs: { CYMJ: homeTaf(STORM_TAF) }, day: DAY });
-  const both = [...dayResults, { icao: 'CYMJ', result: wave }];
-  assert.deepEqual(cautionList({ tafs: both }).map((c) => c.key), cautionList({ tafs: dayResults }).map((c) => c.key));
+test('the banner window is from the start of today at home to the later of the end of today and now + 12 h', () => {
+  const w = bannerWindow(ctx());
+  assert.equal(+w.from, +at(29, 6), 'midnight at Moose Jaw');
+  assert.equal(+w.to, +at(30, 6, 42), 'now + 12 h is later than the end of today');
+  const evening = bannerWindow(ctx(at(29, 23)));
+  assert.equal(+evening.from, +at(29, 6));
+  assert.equal(+evening.to, +at(30, 11), 'late in the day it reaches into tomorrow');
+  const early = bannerWindow(ctx(at(29, 8)));
+  assert.equal(+early.to, +at(30, 6), 'early in the day, the end of today');
+  assert.equal(+bannerWindow(ctx(at(30, 5, 59))).from, +at(29, 6), 'still the 29th at home');
 });
 
-test('the day check never throws on nothing or a bad day', () => {
-  assert.deepEqual(tafCautionsForDay(), []);
-  assert.deepEqual(tafCautionsForDay({ tafs: { CYMJ: homeTaf(STORM_TAF) }, day: null }), []);
-  assert.deepEqual(tafCautionsForDay({ tafs: null, day: DAY }), []);
+test('with no readable zone the banner window is now to now + 12 h; with no readable time there is none', () => {
+  const w = bannerWindow({ now: NOW, timeZone: undefined });
+  assert.deepEqual([+w.from, +w.to], [+NOW, +NOW + 12 * 3_600_000]);
+  assert.equal(bannerWindow({ now: undefined, timeZone: ZONE }), null);
+  assert.equal(bannerWindow({}), null);
+});
+
+test('the banner does not depend on the day being viewed: a TAF storm later today or in the next 12 h is raised, one after that is not', () => {
+  const tempo = (from, to) => `TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO ${from}/${to} 3SM TSRA BKN030CB`;
+  const raised = (raw, now = NOW) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }) }).length > 0;
+  assert.equal(raised(tempo('2920', '2923')), true, 'this evening');
+  assert.equal(raised(tempo('3004', '3006')), true, 'tonight, within 12 h of now');
+  assert.equal(raised(tempo('3010', '3013')), false, 'past now + 12 h (30/06:42Z)');
+  assert.equal(raised(tempo('3010', '3013'), at(29, 23)), true, 'the same storm, once it is within 12 h');
+  assert.equal(raised(tempo('2902', '2904')), false, 'before today began at home');
+  assert.equal(raised(tempo('2910', '2912')), true, 'earlier today, at home');
+});
+
+test('the banner window is cut at the TAF\'s end, and a TAF that ended before it says so and raises nothing', () => {
+  const ended = 'TAF CYMJ 281740Z 2818/2906 22010KT P6SM SKC TEMPO 2822/2902 3SM TSRA BKN030CB';
+  const [one] = tafCautionsForBanner({ tafs: { CYMJ: homeTaf(ended) }, ...ctx(at(29, 12)) });
+  assert.equal(one.result.status, 'no-time', 'nothing of it falls in the window');
+  assert.deepEqual(cautionList({ tafs: [one] }), []);
+  const kept = evaluate({ tafs: [one], acks: { version: 1, day: '2026-09-29', keys: ['CYMJ|TAF|TEMPO|x|y|z'] }, ...ctx(at(29, 12)) });
+  assert.deepEqual(kept.acks.keys, ['CYMJ|TAF|TEMPO|x|y|z'], 'an unreadable TAF does not clear acknowledgements');
+  // A TAF valid to 06Z is asked about only up to 06Z: nothing after it is invented.
+  const [two] = tafCautionsForBanner({ tafs: { CYMJ: homeTaf(STORM_TAF) }, ...ctx(at(30, 3)) });
+  assert.notEqual(two.result.status, 'no-time');
+});
+
+test('the banner check never throws on nothing or no clock', () => {
+  assert.deepEqual(tafCautionsForBanner(), []);
+  assert.deepEqual(tafCautionsForBanner({ tafs: { CYMJ: homeTaf(STORM_TAF) } }), []);
+  assert.deepEqual(tafCautionsForBanner({ tafs: null, ...ctx() }), []);
 });
 
 // ---- Below with no reason we can name (YELLOW 3) -----------------------------------------------------------------

@@ -17,7 +17,7 @@
 // no TAF) is not a caution that cleared, so its keys stay.
 
 import { assessAlternate } from '../../wx/alternates.js';
-import { localDate } from './waves.js';
+import { localDate, localToUtc } from './waves.js';
 
 const VERSION = 1;
 // Storage is checked on the way back in: a day of cautions is never near these.
@@ -184,19 +184,43 @@ export function tafResultsOfWaves(calls, homeIcao) {
   ]);
 }
 
+const BANNER_AHEAD_MS = 12 * 3_600_000;
+
 /**
- * TAF cautions over a whole day, whatever the waves: each airfield's TAF is
- * checked by wx over `day` (`{ from, to }`, the timeline's axis) and only wx's
- * `cautions` are kept, in the form `cautionList` takes. Pieces below the limits
- * are not taken here; they stay tied to the wave windows. A missing TAF gives
- * wx's status ('no-taf') and no cautions, so its acknowledgements stay.
+ * The window the banner watches TAFs over, whatever day the timeline is showing:
+ * from the start of today at home to the later of the end of today and now + 12 h,
+ * so an evening never shows an empty look-ahead. With no readable zone it is
+ * now to now + 12 h. Null when the time now can't be read.
+ * Returns `{ from, to }`.
+ */
+export function bannerWindow({ now, timeZone } = {}) {
+  if (!validDate(now)) return null;
+  const ahead = new Date(+now + BANNER_AHEAD_MS);
+  const today = localDate(now, timeZone);
+  if (!today) return { from: now, to: ahead };
+  const start = localToUtc(today, 0, timeZone);
+  const end = localToUtc({ ...today, day: today.day + 1 }, 0, timeZone);
+  return { from: start, to: new Date(Math.max(+end, +ahead)) };
+}
+
+/**
+ * The banner's TAF cautions, whatever the waves and whatever day is on the
+ * timeline: each airfield's TAF is checked by wx over `bannerWindow`, cut at the
+ * TAF's own end, and only wx's `cautions` are kept, in the form `cautionList`
+ * takes. Pieces below the limits are not taken here; they stay tied to the wave
+ * windows. A TAF missing, or ended before the window starts, gives wx's status
+ * ('no-taf', 'no-time') and no cautions, so its acknowledgements stay.
  * `tafs` maps ICAO to wx's parsed TAF (or null), as `waveCalls` takes it.
  */
-export function tafCautionsForDay({ tafs, day } = {}) {
-  if (tafs == null || typeof tafs !== 'object' || !validDate(day?.from) || !validDate(day?.to) || +day.to < +day.from) return [];
+export function tafCautionsForBanner({ tafs, now, timeZone } = {}) {
+  const window = bannerWindow({ now, timeZone });
+  if (tafs == null || typeof tafs !== 'object' || !window) return [];
   return Object.entries(tafs).map(([icao, taf]) => {
+    const to = validDate(taf?.validTo) ? new Date(Math.min(+window.to, +taf.validTo)) : window.to;
+    // Nothing of the TAF is in the window: no answer, not a clear sky.
+    if (validDate(taf?.validTo) && +to <= +window.from) return { icao, result: { status: 'no-time', hits: [], cautions: [] } };
     // Cautions don't depend on the minima, so wx's defaults are enough.
-    const { status, cautions } = assessAlternate(taf, { from: day.from, to: day.to }, {});
+    const { status, cautions } = assessAlternate(taf, { from: window.from, to }, {});
     return { icao, result: { status, hits: [], cautions } };
   });
 }

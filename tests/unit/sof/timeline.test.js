@@ -12,6 +12,7 @@ import { checkConditions, natoColour, DEFAULT_LIMITS } from '../../../src/wx/lim
 import { assessAlternate } from '../../../src/wx/alternates.js';
 import { createStore } from '../../../src/storage/store.js';
 import { createAirfields } from '../../../src/airfields/airfields.js';
+import { homeCall } from '../../../src/modules/sof/waves.js';
 import { planToUtc, localDate, localToUtc } from '../../../src/modules/sof/waves.js';
 import {
   timelineModel, axisTicks, stepPiece, timelineSignature, sameTimeline,
@@ -27,6 +28,7 @@ const DAY29 = { year: 2026, month: 9, day: 29 };
 const TAF_NOW = new Date('2026-09-29T20:00:00Z');
 
 const taf = (raw) => parseTaf(raw, { now: TAF_NOW });
+const plan = (entries, extra = {}) => planToUtc(entries, { now: NOW, timeZone: ZONE, ...extra }).waves;
 const HOME_LIMITS = [DEFAULT_LIMITS.home];
 const ALT_LIMITS = [DEFAULT_LIMITS.alternate];
 const model = (extra = {}) => timelineModel({ now: NOW, timeZone: ZONE, ...extra });
@@ -305,6 +307,64 @@ test('coverage is the TAF\'s valid period on the axis, so a gap shows', () => {
   assert.deepEqual([m.rows[0].validFrom, m.rows[0].validTo].map(Number), [+at(29, 18), +at(30, 6)]);
 });
 
+// ---- wx's status and problems come through to the row ---------------------------------------------------------------
+
+test('a no-IFR alternate with no MEA reads incomplete, says why in wx\'s words, and is not hatched', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'no-ifr' } } });
+  assert.equal(a.checkOptions('CYQR').visualDescent.meaFt, null);
+  for (const raw of [ALT_TAF.good, ALT_TAF.fog]) { // fog would be below 600-2, which must not be used
+    const r = model({ rows: [altRow(a, raw)] }).rows[0];
+    assert.equal(r.state, 'incomplete');
+    assert.equal(r.status, 'incomplete');
+    assert.equal(r.words, 'Visual descent needs the MEA and the field elevation');
+    assert.equal(r.words, r.problems[0]);
+    assert.ok(r.pieces.length > 0, 'the forecast is still drawn');
+    assert.ok(r.pieces.every((p) => !p.below && !p.unchecked));
+  }
+});
+
+test('a TAF with a ceiling that can\'t be read is incomplete too, and an ordinary one carries wx\'s status', () => {
+  const r = model({ rows: [row('CYMJ', 'TAF CYMJ 290540Z 2900/3006 22010KT P6SM OVC///')] }).rows[0]; // covers the whole day
+  assert.deepEqual([r.state, r.status], ['incomplete', 'incomplete']);
+  assert.equal(r.words, "A ceiling or visibility in the TAF can't be read");
+  const fine = model({ rows: [row('CYMJ', HOME_TAF.good)] }).rows[0];
+  assert.deepEqual([fine.state, fine.status, fine.words, fine.problems], ['ok', 'not-covered', null, []]);
+  const alt = model({ rows: [altRow(airfields(), 'TAF CYQR 290540Z 2900/3006 25015KT P6SM FEW080')] }).rows[0];
+  assert.deepEqual([alt.state, alt.status], ['ok', 'meets']);
+  const none = model({ rows: [row('CYMJ', null)] }).rows[0];
+  assert.deepEqual([none.status, none.problems], [null, []]);
+});
+
+test('the signature changes when a row becomes incomplete', () => {
+  const a = airfields();
+  const before = timelineSignature(model({ rows: [altRow(a, ALT_TAF.good)] }));
+  a.update({ fields: { CYQR: { approach: 'no-ifr' } } });
+  assert.notEqual(timelineSignature(model({ rows: [altRow(a, ALT_TAF.good)] })), before);
+});
+
+// ---- The home row uses the same numbers as the wave call ---------------------------------------------------------------
+
+test('home limits are cleaned as the wave call cleans them, so the timeline and the call agree (2549 ft with BKN025)', () => {
+  const limits = { ceilingFt: 2549, visSm: 3 }; // Settings rounds 2549 to 2500
+  const [wave] = plan([{ takeoff: '14:00', land: '16:00' }]);
+  const call = homeCall(wave, taf(HOME_TAF.ceiling2500), limits);
+  assert.equal(call.status, 'at-limit', '2500 ft is not below a 2500 ft limit');
+  const m = model({ rows: [row('CYMJ', HOME_TAF.ceiling2500, { limits })] });
+  assert.deepEqual(m.rows[0].pieces.map((p) => p.below), [false]);
+  assert.equal(call.hasHit, m.rows[0].pieces.some((p) => p.below));
+  // Cross-country 3000/3 puts both over the limit.
+  const cross = { ceilingFt: 3000, visSm: 3 };
+  assert.equal(homeCall(wave, taf(HOME_TAF.ceiling2500), cross).hasHit, true);
+  assert.equal(model({ rows: [row('CYMJ', HOME_TAF.ceiling2500, { limits: cross })] }).rows[0].pieces[0].below, true);
+  // Nonsense and missing numbers are Local's, in both.
+  for (const bad of [{ ceilingFt: 'x', visSm: NaN }, null, undefined, [], 'x']) {
+    const c = homeCall(wave, taf(HOME_TAF.lowFromEvening), bad);
+    const t = model({ rows: [row('CYMJ', HOME_TAF.lowFromEvening, { limits: bad })] }).rows[0].pieces;
+    assert.equal(c.hasHit, t.some((p) => p.below), JSON.stringify(bad));
+  }
+});
+
 // ---- The day and the axis ------------------------------------------------------------------------------
 
 test('the axis is the home zone\'s day: 06Z to 06Z for Moose Jaw, Today or Tomorrow', () => {
@@ -410,7 +470,6 @@ test('axisTicks works on its own for any span', () => {
 
 // ---- Waves, marks, METAR, now -----------------------------------------------------------------------------------
 
-const plan = (entries, extra = {}) => planToUtc(entries, { now: NOW, timeZone: ZONE, ...extra }).waves;
 
 test('a wave is a band with its own place on the axis and landing and landing + 1 h marks', () => {
   const m = model({ waves: plan([{ name: 'W1', takeoff: '08:00', land: '09:30' }]) });

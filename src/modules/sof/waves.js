@@ -8,7 +8,7 @@
 // "Waves and the alternate call").
 
 import { utcOffsetMinutes, zoneAbbreviation } from '../../core/time.js';
-import { homeAlternateTrigger, arrivalWindow, assessAlternate } from '../../wx/alternates.js';
+import { homeAlternateTrigger, arrivalWindow, assessAlternate, visualDescentMinima, VISUAL_DESCENT_MARGIN_FT } from '../../wx/alternates.js';
 import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../wx/limits.js';
 import { HOUR_MS } from '../../wx/dates.js';
 import { formatPair, formatSm } from '../../airfields/format.js';
@@ -185,8 +185,10 @@ export function minimaText(options) {
 export function descentText({ meaFt, elevationFt, visSm }) {
   if (!Number.isFinite(meaFt)) return 'Visual descent, needs MEA';
   const ft = (n) => n.toLocaleString('en-CA');
-  const start = `Visual descent from MEA ${ft(meaFt)} ft + 500 ft`;
-  if (Number.isFinite(elevationFt)) return `${start} (ceiling ${ft(meaFt + 500 - elevationFt)} ft, ${formatSm(visSm)} SM)`;
+  const start = `Visual descent from MEA ${ft(meaFt)} ft + ${VISUAL_DESCENT_MARGIN_FT} ft`;
+  // wx works out the ceiling (MEA + 500 ft above the field) and the visibility it will check.
+  const [minima] = visualDescentMinima({ meaFt, elevationFt, visSm }) ?? [];
+  if (minima) return `${start} (ceiling ${ft(minima.ceilingFt)} ft, ${formatSm(minima.visSm)} SM)`;
   return `${start}, ${formatSm(visSm)} SM`;
 }
 
@@ -307,7 +309,7 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
 /**
  * One alternate's call for a wave: wx's assessAlternate over the landing time
  * plus or minus 60 minutes (D70), with the options from
- * `airfields.checkOptions(icao)`. `note` says when the approaches aren't set
+ * the airfields' `checkOptions(icao)`. `note` says when the approaches aren't set
  * and 600-2 was used (D95).
  */
 export function alternateCall(wave, icao, taf, options = {}) {
