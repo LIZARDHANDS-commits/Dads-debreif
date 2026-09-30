@@ -16,9 +16,11 @@
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
+    "fast-check": "4.10.2",
     "vite": "8.3.1"
   },
   "dependencies": {
+    "three": "0.186.1",
     "uplot": "1.6.32"
   }
 }

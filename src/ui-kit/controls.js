@@ -11,6 +11,14 @@ const formatNumber = (n) => n.toLocaleString('en-CA', { maximumFractionDigits: 6
 // options: [[value, label], …] or [{ value, label }, …]
 const normalise = (options) => options.map((o) => (Array.isArray(o) ? { value: o[0], label: o[1] } : o));
 
+/**
+ * The 2D | 3D switch every simulator shares (D141): the Debrief, Turn Fight, Turn Sim and
+ * Traffic (the SOF stays 2D). A module seeds its `view` setting with VIEW_DEFAULT and lists
+ * VIEW_ALLOWED as that setting's allowed values, and puts `controls.viewSwitch()` on screen.
+ */
+export const VIEW_DEFAULT = '2d';
+export const VIEW_ALLOWED = Object.freeze(['2d', '3d']);
+
 // settings: { get, update, subscribe }, such as storage/settings.js
 export function createControls(settings) {
   const syncs = new Set();
@@ -33,7 +41,7 @@ export function createControls(settings) {
   const field = (kind, label, input, ...extra) =>
     h('div', { class: `control control-${kind}` }, h('label', { for: input.id }, label), input, ...extra);
 
-  return {
+  const api = {
     // A number box: only finite numbers from min to max are accepted.
     number(key, { label, unit = '', min = -Infinity, max = Infinity, step = 'any' }) {
       const id = newId('number');
@@ -158,6 +166,11 @@ export function createControls(settings) {
       return fieldset;
     },
 
+    // The shared 2D | 3D switch: a "View" choice with 2D then 3D, bound to `key` (default 'view').
+    viewSwitch(key = 'view') {
+      return api.choice(key, { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] });
+    },
+
     // Greys out every control bound to `key`, for example 3D-only options in 2D.
     // The setting keeps its value.
     setDisabled(key, disabled) {
@@ -171,4 +184,5 @@ export function createControls(settings) {
       byKey.clear();
     },
   };
+  return api;
 }

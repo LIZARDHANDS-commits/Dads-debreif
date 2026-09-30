@@ -43,10 +43,10 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: unit tests of the profile checks; e2e save, reload, load.
   - Dependencies: 6. Size M.
   - Files: src/modules/traffic/profile.js, src/modules/traffic/index.js, tests/unit/traffic/profile.test.js
-- [ ] **8. Satellite photo and 3D view.** The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view with a true perspective camera, framed on the routes, drag, wheel and three buttons, caution rings in 3D.
+- [ ] **8. Satellite photo and 3D view.** The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view on ui-kit's shared `three-aircraft.js` (Patrick 07:51Z), loaded only when 3D is switched on: routes at their heights, the shared T-6 for the CT-156 and CT-157 and a simple shape for the other types, banking with their turns, framed on the routes, drag, wheel and three buttons, caution rings in 3D; 2D stays the default.
   - Acceptance: fixes the photo and 3D parts of #49; with the network off the map says the photo needs a connection; smooth at 8× on 1920 × 1080 (performance log in the PR).
   - Verify: e2e offline; look at both against V6.
-  - Dependencies: 4, and the tile loader in ui-kit. Size M.
+  - Dependencies: 4; the tile loader is in ui-kit (`map-tiles.js`, #133); the 3D view uses the shared three.js piece once the app frame lands it. Size M.
   - Files: src/modules/traffic/{map2d,view3d}.js, tests/unit/traffic/view3d.test.js
 - [ ] **9. Rewind and ±10 s.** Snapshots every 10 s of sim time; Rewind plays backward; −10 s and +10 s; `[` and `]`.
   - Acceptance: fixes #46: any rewind or step lands exactly on the state the run had at that time, at 0.25× and 8×; rewind at 1 hour of sim time under 50 ms.
@@ -101,7 +101,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Dependencies: 15. Size M.
   - Files: src/modules/traffic/{route,sim,types,editor,map2d}.js, tests/unit/traffic/pfl.test.js
 - [ ] **17. Simulated engine-outs.** Engine out on an aircraft row and as a plan step; the zoom (`core`'s `zoomT6A`) easing into the 125 KIAS glide; the glide by configuration and prop (`core`'s `T6A_GLIDE` and `glideSinkFpm`: feathered 2 NM per 1,000 ft, windmilling 1 NM) with wind; picking the reachable key and joining at a tangent; no zoom in the final turn or on a straight-in final; "can't make the runway: eject".
-  - Acceptance: from 220 KIAS at 3,500 ft the aircraft climbs by what `zoomT6A` gives (about 1,100 ft); an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
+  - Acceptance: from 220 KIAS at 3,500 ft the aircraft climbs by what `zoomT6A` gives (about 960 ft at 5,800 lb, NFM Fig 3-4); an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
   - Verify: `npm test`; e2e: engine out on downwind, watch it land.
   - Dependencies: 16, and `core`'s T-6A performance model (core tasks 14 to 17). Size M.
   - Files: src/modules/traffic/{sim,aircraft,readouts}.js, tests/unit/traffic/engine-out.test.js
@@ -138,9 +138,15 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Dependencies: 19. Size M.
   - Files: src/modules/traffic/{conflict-setup,aircraft}.js, tests/unit/traffic/conflict-setup.test.js
 - [ ] **23. Engine-out check and reach.** The what-if from a row or a typed energy state (zoom, optional airstart attempt costing about 1,200 ft, 30° turn, glide by configuration and prop in wind, tangent join), the per-key heights and margins and the verdict, drawn on the map; the Engine-out reach layer (green, yellow, red dashed with text) every 500 ft along each route.
-  - Acceptance: the check agrees with flying the Engine out command from the same state to within 20 ft at each key; the downwind example gives about 4,600 ft after the zoom at T10's defaults; the layer redraws when the wind or type changes.
+  - Acceptance: the check agrees with flying the Engine out command from the same state to within 20 ft at each key; the downwind example gives about 4,460 ft after the zoom (`zoomT6A`, 5,800 lb); the layer redraws when the wind or type changes.
   - Verify: `npm test`; accessibility checklist for the layer.
   - Dependencies: 17. Size M.
   - Files: src/modules/traffic/{glide,map2d,aircraft,readouts}.js, tests/unit/traffic/glide.test.js
 
 **Checkpoint I:** tests pass; code-review-and-quality; open PR I.
+
+- [ ] **24. Cross-check against the manuals (Patrick, 2026-09-30 07:35Z).** After the Traffic engine and core's T-6A model are both merged: fly the sim through set scenarios and compare the results with the manuals' numbers. The scenarios are the spacing on final (the 3,000 ft gap and the extensions it causes, T11), the break timing (220 to 120 KIAS, the time and distance from the break to the perch, the downwind spacing), and the PFL key heights (High, Low and Final Key; 2,600 ft per circle). Core's thread does the glide and zoom scenarios. The output is a report table (scenario, sim, manual with page reference, difference) and it only reports: differences go to Patrick and Dad through the coordinator, and no number in the math changes without their sign-off.
+  - Acceptance: every scenario runs from a fresh setup with fixed dice and gives the same report each time; each manual number carries its page reference (numbers only, no manual text, since the manuals are private).
+  - Verify: `npm test` runs the scenarios; the report is attached to the PR.
+  - Dependencies: 16, 18, and core's T-6A model. Size S.
+  - Files: tests/crosscheck/traffic-scenarios.test.js, src/modules/traffic/data/crosscheck-scenarios.json
