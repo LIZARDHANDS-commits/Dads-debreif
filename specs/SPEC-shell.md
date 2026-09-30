@@ -29,13 +29,13 @@ The browser's Back and Forward buttons move between these. After a page change, 
 
 **Header** (on every screen): the title (links home), the time, Settings, and Report a problem.
 
-- **Time:** Zulu first with local beside it, or local first, as set in Settings (D18, R10). Local time is the home airfield's zone, America/Regina (UTC-6 all year) for CYMJ, until `airfields` lands in step 2. The formatting comes from `core/time.js` (owned by the flight-math workstream). The clock ticks once a second on the shell's scheduler scope and pauses while the tab is hidden.
-- **Settings** opens a dialog: time order (Zulu first / Local first) and card videos (follow this computer's setting / play them / still pictures only; the setting is `motion`, and "still pictures only" also turns off transitions). If the browser blocks storage, the dialog says settings won't be saved.
+- **Time:** Zulu first with local beside it, or local first, as set in Settings (D18, R10). Local time is the home airfield's zone (`airfields.home().timeZone`; America/Regina, UTC-6 all year, for CYMJ). It is read on every tick, and the clock redraws at once when the home field changes (SPEC-airfields). The formatting comes from `core/time.js` (owned by the flight-math workstream). The clock ticks once a second on the shell's scheduler scope and pauses while the tab is hidden.
+- **Settings** opens a dialog: time order (Zulu first / Local first) and card videos (follow this computer's setting / play them / still pictures only; the setting is `motion`, and "still pictures only" also turns off transitions). Below them, the Airfields section (`createAirfieldsPanel` from `src/airfields/panel.js`, SPEC-airfields), set apart by a rule. If the browser blocks storage, the dialog says settings won't be saved.
 - **Report a problem** (R20) opens GitHub's new-issue form for this repo, using the form in `.github/ISSUE_TEMPLATE/problem.yml`, with the current module and app version filled in.
 
 **About:** V6's About page content (the formation photo, Dad's text, contact, mission, and support links), with a link back home.
 
-**Footer:** the app version (build date and commit) so bug reports say which version they're about.
+**Footer:** when this copy was published, in plain words ("Updated 30 Sep 2026, 02:01Z", R22). The version (build date and commit) sits in its tooltip and goes with every bug report, so reports say which version they're about.
 
 **New version available:** when an updated version has been published, a bar says so with a Reload button (see Offline).
 
@@ -65,7 +65,9 @@ The registry lists each module's id, title, card text, card media and a `load()`
 | `app.scheduler` | A scheduler scope, disposed on unmount |
 | `app.listen(target, type, handler, options)` | Adds an event listener that's removed on unmount |
 | `app.keys({ 'KeyP': fn, … })` | Keyboard shortcuts that work only while this module is open and never while typing in a field |
-| `app.time` | Time from `core/time.js` for the home airfield: `zulu(date)` "18:00:00Z", `local(date)` "12:00:00 CST", `ordered(date)` both in the order Settings picked, `offsetMinutes(date)`, `zone`, `now()` |
+| `app.time` | Time from `core/time.js` for the home airfield: `zulu(date)` "18:00:00Z", `local(date)` "12:00:00 CST", `ordered(date)` both in the order Settings picked, `offsetMinutes(date)`, `zone` (read live, so it follows the home field), `now()` |
+| `app.airfields` | The home field and alternates, read-only: `home()`, `alternates()`, `stations()`, `checkOptions(icao)`, and `subscribe()` (subscriptions end on unmount). They're changed only in Settings. |
+| `app.standards` | The formation standards the debrief and the Turn Sim judge by (R18, D89), one shared copy kept in the `standards` storage scope. `get()` returns a frozen object shaped like core's `V6_STANDARDS`, ready for `core/standards.js`. `update(patch)` merges per group (`{ spread: { minFt: 4500 } }`) and saves only if every value is in range; it returns `{ ok, errors }`, each error `{ path: 'spread.minFt', message }` for showing beside that box. `reset()` goes back to V6's values. `limits` gives each number's label, unit, min, max and step; `check(value)` lists the problems with a whole standards object (for a debrief file). `subscribe()` ends on unmount. The debrief owns the editor. |
 | `app.status(text)` | Shows a short message in the module's status line |
 
 Opening a route: the shell unmounts the current module (calls its cleanup, disposes its scheduler scope, removes its listeners, shortcuts and subscriptions, empties its root), then mounts the next. If loading or mounting throws, the shell shows an error card with a Report a problem link and the Home button still works.
@@ -76,7 +78,7 @@ Opening a route: the shell unmounts the current module (calls its cleanup, dispo
 - A service worker (`sw.js`, generated at build time with the list of built files) caches the app on the first visit, so after that every built module opens with the network off. Live weather and map tiles are never cached as if they were fresh.
 - When a new version is published, the service worker downloads it in the background and the shell shows the "new version" bar. Nobody is left on an old version without being told.
 - Card videos aren't kept for offline use (their stills show instead), which keeps the first visit about 2 MB lighter.
-- An open app looks for a new version every hour, since the SOF screen stays open all day.
+- An open app looks for a new version every hour, since the SOF screen stays open all day, and again when its tab comes back into view (at most every five minutes).
 
 ## Files
 
@@ -91,6 +93,7 @@ src/shell/about.js       About page
 src/shell/header.js      the header clock and app.time
 src/shell/settings-dialog.js
 src/shell/update-bar.js  new-version bar and service-worker registration
+src/shell/version.js     the footer's "Updated …" line
 src/shell/sw.js          the service worker; the build fills in its file list (tools/service-worker.mjs)
 src/shell/README.md      where to change common things (R8)
 public/media/cards/      card videos and stills
@@ -122,4 +125,4 @@ Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
 
 ## Out of scope for step 1
 
-Module content, the home airfield setting (step 2 with `airfields`), saving a debrief to a file (step 2 with `flight-data`).
+Module content, saving a debrief to a file (step 2 with `flight-data`).

@@ -1,10 +1,13 @@
-// Golden test (R9): both tennis-ball solvers in src/core/tennis.js against the
-// V6 functions they came from, run on the same recorded tracks.
+// Golden test (R9): src/core/tennis.js against the debrief's tennis ball
+// (getKmlTennisSolution), run on the same recorded tracks. Given V6's straight,
+// level target path and no shooter climb, the only difference left from V6 is
+// Patrick's cone rule for INTERCEPT (Q36).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tennisDebrief, tennis3D } from '../../src/core/tennis.js';
+import { tennisBall } from '../../src/core/tennis.js';
 import { loadV6, v6Number } from './v6-source.js';
 import { seeded, recordedTrack } from './inputs.js';
+import { KT_TO_FTPS as KTS_TO_FPS } from '../../src/core/units.js';
 
 /**
  * A target track, a moment `now` on it, and a shooter track flying the same
@@ -37,8 +40,6 @@ function box(s) {
   };
 }
 
-// ── The debrief overlay ──
-
 function debriefV6() {
   return loadV6(['deg2rad', 'rad2deg', 'numSetting', 'interpTrack', 'headingAtTrack', 'aircraftPitchAtTrack', 'angleDiffRad', 'getKmlTennisSolution'], {
     prelude: `const KTS_TO_FPS=${v6Number('KTS_TO_FPS')}, G0=${v6Number('G0')}, KML_KT_PER_FPS=${v6Number('KML_KT_PER_FPS')};
@@ -49,7 +50,7 @@ function debriefV6() {
   });
 }
 
-test('tennisDebrief matches getKmlTennisSolution', () => {
+test('tennisBall matches getKmlTennisSolution when given V6\'s target path', () => {
   const v6 = debriefV6();
   const r = seeded(21);
   const seen = new Set();
@@ -62,81 +63,29 @@ test('tennisDebrief matches getKmlTennisSolution', () => {
     const want = v6.getKmlTennisSolution(live);
     // What the screen passes in: the track headings now and the pitch estimate plus the bias.
     const pitch = v6.aircraftPitchAtTrack(shooter, kmlT);
-    const got = tennisDebrief({
-      shooter: live[2], target: live[1],
-      shooterHdg: v6.headingAtTrack(shooter, kmlT), targetHdg: v6.headingAtTrack(target, kmlT),
+    // Q34, Q37: the target now flies its recorded path. Given V6's straight-on, level path
+    // instead, the answer is exactly V6's, so that is the only change.
+    const targetHdg = v6.headingAtTrack(target, kmlT), tv = (live[1].spdKt || 0) * KTS_TO_FPS;
+    const straightOn = tau => ({ x: live[1].x + Math.cos(targetHdg) * tv * tau, y: live[1].y + Math.sin(targetHdg) * tv * tau, altFt: live[1].altFt || 0 });
+    const got = tennisBall({
+      shooter: live[2], target: live[1], targetAt: straightOn,
+      shooterHdg: v6.headingAtTrack(shooter, kmlT),
       pitchDeg: (Number.isFinite(pitch.deg) ? pitch.deg : 0) + s.bias,
       ballKt: s.ballKt, coneDeg: s.coneDeg, tofSec: s.tofSec, hitRadiusFt: s.radius, gravity: s.gravity,
     });
+    // Q36: INTERCEPT now also needs the target in the cone; V6 ignored the cone.
+    const inCone = want.losAngle <= s.coneDeg / 2;
     assert.deepEqual(got, {
-      status: want.status, points: want.points, targetPoints: want.targetPoints, best: want.best,
+      status: want.status === 'INTERCEPT' && !inCone ? 'OUT OF CONE' : want.status, points: want.points, targetPoints: want.targetPoints, best: want.best,
       losAngle: want.losAngle, rangeNow: want.rangeNow, tofSec: want.tof, hitRadiusFt: want.hitRadius,
     });
-    seen.add(want.status);
+    seen.add(want.status === 'INTERCEPT' && !inCone ? 'V6 INTERCEPT out of the cone' : want.status);
   }
-  assert.deepEqual([...seen].sort(), ['IN CONE', 'INTERCEPT', 'OUT OF CONE']);
+  assert.deepEqual([...seen].sort(), ['IN CONE', 'INTERCEPT', 'OUT OF CONE', 'V6 INTERCEPT out of the cone']);
 });
 
-// ── The 3D arc ──
-
-/**
- * Runs V6's draw3DDogfightArc against a canvas that records what it draws.
- * `project` hands each world point to the canvas unchanged, so the recording
- * holds the ball path, the two cone edges and the closest-pass line.
- */
-function threeDV6() {
-  return loadV6(['val', 'api', 'dpr', 'withHeading', 'draw3DDogfightArc'], {
-    marker: 'function dpr(){return window.devicePixelRatio||1}',
-    prelude: `let dom={}, paths=[];
-      const document={ getElementById: id=>dom[id]||null };
-      const window={ devicePixelRatio: 1, DADS3DAPI: null };
-      const $=id=>document.getElementById(id);
-      const project=p=>({ x: p, y: 0 });
-      const ctx=new Proxy({}, { get: (o, k) => k==='beginPath' ? ()=>paths.push([]) : (k==='moveTo'||k==='lineTo') ? x=>paths.at(-1).push(x) : ()=>{}, set: ()=>true });
-      function setThreeD(s){ dom=s.dom; window.DADS3DAPI=s.api; window.aircraftPitchAtTrack=s.pitchFn; paths=[]; }
-      function aircraftPitchAtTrack(tr,t){ return window.aircraftPitchAtTrack(tr,t); }
-      function drawn(){ return paths; }`,
-    expose: ['setThreeD', 'drawn'],
-  });
-}
-
-test('tennis3D matches draw3DDogfightArc', () => {
-  const v6 = threeDV6();
-  const { interpTrack } = debriefV6();
-  const r = seeded(22);
-  let hits = 0;
-  for (let i = 0; i < 300; i++) {
-    const { shooter, target, now } = engagement(r);
-    const s = settings(r);
-    const tracks = { 1: target, 2: shooter };
-    const api = { getTracks: () => tracks, getTime: () => now, getInterp: (id, t) => (tracks[id] ? interpTrack(tracks[id], t) : null) };
-    // Like the 3D view: heading from where the aircraft was a second ago (withHeading, line 3940).
-    const live = { 1: v6.withHeading(api.getInterp(1, now), api.getInterp(1, now - 1)), 2: v6.withHeading(api.getInterp(2, now), api.getInterp(2, now - 1)) };
-    // In V6 no shooter pitch, recorded or estimated, reaches the 3D view; every fifth case pretends the estimate does.
-    const estimate = -20 + 40 * r();
-    const pitchFn = i % 5 ? undefined : () => ({ deg: estimate, source: 'test' });
-    const dom = box(s);
-    v6.setThreeD({ dom, api, pitchFn });
-    v6.draw3DDogfightArc(live, null);
-    const [arc, left, right, pass] = v6.drawn();
-
-    const got = tennis3D({
-      shooter: live[2], target: live[1], targetAt: t => api.getInterp(1, now + t),
-      pitchDeg: (pitchFn ? estimate : 0) + s.bias,
-      ballKt: s.ballKt, coneDeg: s.coneDeg, tofSec: s.tofSec, radiusFt: s.radius, gravity: s.gravity,
-    });
-    assert.deepEqual(got.points, arc);
-    assert.deepEqual(got.coneEdges, [left, right]);
-    assert.deepEqual([got.closest.ball, got.closest.target], pass);
-    assert.equal(dom.kmlTennisReadout.innerHTML.includes('NO INTERCEPT'), !got.hit);
-    assert.ok(dom.kmlTennisReadout.innerHTML.includes(`Closest pass ${got.minDist.toFixed(0)} ft at ${got.closest.t.toFixed(1)} sec`));
-    if (got.hit) hits++;
-  }
-  assert.ok(hits >= 15 && hits <= 285, `${hits} of 300 cases hit; the inputs should give both answers`);
-});
-
-test('both match V6 on exact ties, a pass exactly at the hit radius, tiny radii and a missing heading', () => {
-  const dbg = debriefV6(), v3 = threeDV6();
+test('matches V6 on exact ties, a pass exactly at the hit radius and tiny radii', () => {
+  const dbg = debriefV6();
   const still = (id, x) => ({ id, pts: [0, 1, 2, 3].map(t => ({ t, x, y: 0, altFt: 5000 })) });
   // A ball that doesn't move and a target that doesn't either: every step is the same distance.
   const cases = [
@@ -148,27 +97,9 @@ test('both match V6 on exact ties, a pass exactly at the hit radius, tiny radii 
     const live = { 1: dbg.interpTrack(tracks[1], 1.5), 2: { ...dbg.interpTrack(tracks[2], 1.5), spdKt: 0 } };
     dbg.setDebrief({ tracks, kmlT: 1.5, dom: box(s) });
     const want = dbg.getKmlTennisSolution(live);
-    const got = tennisDebrief({ shooter: live[2], target: live[1], shooterHdg: 0, targetHdg: 0, pitchDeg: 0, ballKt: 0, coneDeg: 6, tofSec: 3, hitRadiusFt: radius, gravity: false });
+    const got = tennisBall({ shooter: live[2], target: live[1], targetAt: () => live[1], shooterHdg: 0, pitchDeg: 0, ballKt: 0, coneDeg: 6, tofSec: 3, hitRadiusFt: radius, gravity: false });
     assert.equal(got.status, want.status, `gap ${gap}, radius ${radius}`);
     assert.deepEqual(got.best, want.best);
 
-    for (const hdg of [0, undefined]) {
-      const api = { getTracks: () => tracks, getTime: () => 1.5, getInterp: (id, t) => dbg.interpTrack(tracks[id], t) };
-      const shooter = { ...live[2], hdg, spdKt: hdg === undefined ? 200 : 0 };
-      const dom = box({ ...s, ballKt: hdg === undefined ? 350 : 0 });
-      v3.setThreeD({ dom, api });
-      v3.draw3DDogfightArc({ 1: live[1], 2: shooter }, null);
-      const [arc, , , pass] = v3.drawn();
-      const got3 = tennis3D({ shooter, target: live[1], targetAt: t => api.getInterp(1, 1.5 + t), pitchDeg: 0, ballKt: hdg === undefined ? 350 : 0, coneDeg: 6, tofSec: 3, radiusFt: radius, gravity: false });
-      assert.deepEqual(got3.points, arc);
-      assert.deepEqual([got3.closest.ball, got3.closest.target], pass, `gap ${gap}, radius ${radius}, hdg ${hdg}`);
-      assert.equal(dom.kmlTennisReadout.innerHTML.includes('NO INTERCEPT'), !got3.hit, `gap ${gap}, radius ${radius}`);
-    }
   }
-});
-
-test('tennis3D without a target track keeps the target where it is', () => {
-  const got = tennis3D({ shooter: { x: 0, y: 0, altFt: 5000, spdKt: 200, hdg: 0 }, target: { x: 1500, y: 0, altFt: 5000 }, pitchDeg: 0, ballKt: 350, coneDeg: 6, tofSec: 3, radiusFt: 250, gravity: false });
-  assert.ok(got.hit);
-  assert.deepEqual(got.closest.target, { x: 1500, y: 0, altFt: 5000 });
 });

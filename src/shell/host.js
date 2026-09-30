@@ -18,7 +18,7 @@ function shortcutAllowed(event) {
   return true;
 }
 
-export function createHost({ root, scheduler, store, settings, time, keyTarget = globalThis, onStatus = () => {} }) {
+export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, keyTarget = globalThis, onStatus = () => {} }) {
   let current = null; // { id, cleanups: Set, scope, unmount }
   let openToken = 0;
 
@@ -37,18 +37,35 @@ export function createHost({ root, scheduler, store, settings, time, keyTarget =
         session.listeners -= 1;
       });
     };
+    // A subscription that ends when the module closes, like a timer.
+    const tracked = (source) => (fn) => {
+      const unsubscribe = source.subscribe(fn);
+      session.subscriptions += 1;
+      return track(() => {
+        unsubscribe();
+        session.subscriptions -= 1;
+      });
+    };
     return {
       id: session.id,
-      settings: {
-        get: settings.get,
-        subscribe: (fn) => {
-          const unsubscribe = settings.subscribe(fn);
-          session.subscriptions += 1;
-          return track(() => {
-            unsubscribe();
-            session.subscriptions -= 1;
-          });
-        },
+      settings: { get: settings.get, subscribe: tracked(settings) },
+      // Read-only: the home field and alternates are changed in Settings.
+      airfields: airfields && {
+        home: airfields.home,
+        alternates: airfields.alternates,
+        stations: airfields.stations,
+        checkOptions: airfields.checkOptions,
+        subscribe: tracked(airfields),
+      },
+      // The formation standards (R18, D89): get() is frozen; the debrief's editor
+      // changes them with update() and reset().
+      standards: standards && {
+        get: standards.get,
+        limits: standards.limits,
+        check: standards.check,
+        update: standards.update,
+        reset: standards.reset,
+        subscribe: tracked(standards),
       },
       storage: store.scope(session.id),
       scheduler: session.scope,

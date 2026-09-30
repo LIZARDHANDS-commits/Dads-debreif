@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>ui-kit test page</title>
+    <link rel="stylesheet" href="/src/ui-kit/tokens.css">
+    <link rel="stylesheet" href="/src/ui-kit/base.css">
+    <style>
+      body { display: grid; grid-template-columns: 20rem 1fr; gap: 1rem; padding: 1rem; }
+      #stage { width: 600px; height: 400px; border: 1px solid var(--border); }
+      #side { display: grid; gap: 1rem; grid-column: 2; }
+      #side canvas { width: 300px; height: 150px; border: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <main id="controls"></main>
+    <div id="stage"><canvas id="map"></canvas></div>
+    <div id="side"><canvas id="replay"></canvas><canvas id="chart"></canvas></div>
+    <script type="module">
+      // A page for the browser tests of controls.js and canvas-view.js, loaded
+      // straight from src/ (tests/e2e/ui-kit.spec.js).
+      import { createStore } from '/src/storage/store.js';
+      import { createSettings } from '/src/storage/settings.js';
+      import { createScheduler } from '/src/ui-kit/scheduler.js';
+      import { createControls } from '/src/ui-kit/controls.js';
+      import { createCanvasView, createCanvasSurface } from '/src/ui-kit/canvas-view.js';
+
+      const settings = createSettings(
+        createStore(null).scope('kit'),
+        { bubbleFt: 1000, opacity: 0.5, grid: true, trail: 60, view: '2d' },
+        { allowed: { view: ['2d', '3d'] } },
+      );
+      const controls = createControls(settings);
+      document.getElementById('controls').append(
+        controls.number('bubbleFt', { label: 'Safety bubble', unit: 'ft', min: 100, max: 5000, step: 50 }),
+        controls.slider('opacity', { label: 'Chart opacity', min: 0, max: 1, step: 0.05, format: (v) => `${Math.round(v * 100)}%` }),
+        controls.checkbox('grid', { label: '5,000 ft grid' }),
+        controls.select('trail', { label: 'Trail', options: [[0, 'Full'], [60, 'Last 60 s']] }),
+        controls.choice('view', { label: 'View', options: [['2d', '2D'], ['3d', '3D']] }),
+      );
+
+      const scheduler = createScheduler();
+      let draws = 0;
+      let userMoves = 0;
+      const view = createCanvasView(document.getElementById('map'), {
+        timers: scheduler.scope('map'),
+        minSpan: 500,
+        maxSpan: 300000,
+        label: 'Test map',
+        onUserMove: () => userMoves++,
+        draw(ctx, v) {
+          draws++;
+          const [x, y] = v.worldToScreen(0, 0);
+          ctx.fillStyle = '#42bfe9';
+          ctx.fillRect(x - 5, y - 5, 10, 10);
+        },
+      });
+      view.fit({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 }, 0);
+
+      // A map that leaves the arrows to the page, as the debrief does for playback.
+      const replay = createCanvasView(document.getElementById('replay'), {
+        timers: scheduler.scope('replay'),
+        label: 'Replay map',
+        arrowKeys: false,
+        draw() {},
+      });
+      // What app.keys does: skip keys something else already handled.
+      const shortcuts = [];
+      document.addEventListener('keydown', (e) => {
+        if (!e.defaultPrevented && e.key.startsWith('Arrow')) shortcuts.push(e.key);
+      });
+
+      // A sharp canvas without pan and zoom, like the EM chart.
+      let chartDraws = 0;
+      const chart = createCanvasSurface(document.getElementById('chart'), {
+        timers: scheduler.scope('chart'),
+        label: 'Test chart',
+        draw(ctx, surface) {
+          chartDraws++;
+          ctx.fillRect(0, 0, surface.size.width / 2, 10);
+        },
+      });
+
+      window.__kit = {
+        settings,
+        controls,
+        view,
+        replay,
+        chart,
+        shortcuts: () => shortcuts.slice(),
+        chartDraws: () => chartDraws,
+        draws: () => draws,
+        userMoves: () => userMoves,
+        stats: () => scheduler.stats(),
+      };
+    </script>
+  </body>
+</html>

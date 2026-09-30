@@ -19,9 +19,25 @@ This is one of three workstreams running side by side (D14). The others are flig
 
 Tasks 2 and 3 don't depend on each other. Task 9 waits on the flight-math workstream; everything else here depends only on earlier tasks.
 
+## Skills used
+
+From `.claude/skills/` (see its README for when each applies). Each pull request lists the ones it applied.
+
+| Skill | Used for |
+|---|---|
+| spec-driven-development | SPEC-shell, SPEC-storage and SPEC-ui-kit, approved by Patrick before the code |
+| planning-and-task-breakdown | This plan and `todo.md` |
+| incremental-implementation, test-driven-development | One task per pull request, with its unit and browser tests |
+| frontend-ui-engineering, with the accessibility checklist | Every screen and control: keyboard access, labels, focus, empty and error states, not overwhelming (R22) |
+| performance-optimization, with the performance checklist | Home screen size budget (R5), card videos (R15), the offline cache and update checks, drawing only on change |
+| security-and-hardening, with the security checklist | Text-safe `h()` instead of `innerHTML`, and a Content Security Policy when one is added |
+| debugging-and-error-recovery | Red CI and flaky tests: reproduce first, then fix the cause (the clock test in #66) |
+| code-review-and-quality | A five-axis review of every pull request before it leaves draft, with `/code-review` |
+| code-simplification | The polish step, with `/simplify` |
+
 ## Risks
 
-- **Pages isn't on yet.** The deploy job fails until Patrick switches Pages to GitHub Actions. It's one setting, asked for in the setup pull request.
+- **Pages.** Resolved: Pages deploys from GitHub Actions on every merge to `main`, and the site is live (step 1 signed off on it, 2026-09-30).
 - **Browser versions.** Local runs use the sandbox's Chromium, so `@playwright/test` is pinned to 1.56.1 to match it. CI installs its own browsers, including Firefox and WebKit.
 - **Service worker caching an old version.** Mitigated by the new-version bar and a build id in the cache name; the offline test also checks that a new build replaces the old one.
 - **Shared files.** If another workstream needs a script or CI change, it asks here rather than editing `package.json` itself.

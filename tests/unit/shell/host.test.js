@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDocument } from '../ui-kit/fake-dom.js';
+import { createAirfields } from '../../../src/airfields/airfields.js';
 import { createHost } from '../../../src/shell/host.js';
 import { createScheduler } from '../../../src/ui-kit/scheduler.js';
 import { createStore } from '../../../src/storage/store.js';
+import { createStandards } from '../../../src/storage/standards.js';
+import { V6_STANDARDS } from '../../../src/core/standards.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 const doc = installFakeDocument();
@@ -192,4 +195,48 @@ test('a load that fails after the user has moved on is ignored', async () => {
   fail();
   await slow; // resolves quietly instead of reporting an error for a page nobody is on
   assert.equal(host.current, 'quiet');
+});
+
+test('modules read the airfields setting, and their airfields subscriptions end on close (R4)', async () => {
+  const scheduler = createScheduler({ raf: () => 1, caf: () => {}, setTimeout: () => 1, clearTimeout: () => {} });
+  const store = createStore(undefined);
+  const settings = createSettings(store.scope('app'), { timePrimary: 'zulu' });
+  const airfields = createAirfields({ store: store.scope('airfields') });
+  const host = createHost({ root: doc.createElement('main'), scheduler, store, settings, time: {}, airfields, keyTarget: target() });
+  const seen = [];
+  let app;
+  await host.open({ id: 'sof', load: async () => ({ default: { id: 'sof', mount: (r, a) => { app = a; a.airfields.subscribe((af) => seen.push(af.home().icao)); } } }) });
+  assert.equal(app.airfields.home().icao, 'CYMJ');
+  assert.deepEqual(app.airfields.stations(), ['CYMJ', 'CYQR', 'CYYN', 'CYXE']);
+  assert.equal(app.airfields.update, undefined, 'modules read the setting; Settings changes it');
+  airfields.update({ home: 'CYXH' });
+  assert.deepEqual(seen, ['CYXH']);
+  assert.equal(host.stats().subscriptions, 1);
+  host.close();
+  airfields.update({ home: 'CYMJ' });
+  assert.deepEqual(seen, ['CYXH'], 'no calls after closing');
+  assert.equal(host.stats().subscriptions, 0);
+});
+
+test('modules share one set of standards, can change and reset them, and their subscriptions end on close (R4, D89)', async () => {
+  const scheduler = createScheduler({ raf: () => 1, caf: () => {}, setTimeout: () => 1, clearTimeout: () => {} });
+  const store = createStore(undefined);
+  const settings = createSettings(store.scope('app'), { timePrimary: 'zulu' });
+  const standards = createStandards({ store: store.scope('standards') });
+  const host = createHost({ root: doc.createElement('main'), scheduler, store, settings, time: {}, standards, keyTarget: target() });
+  const seen = [];
+  let app;
+  await host.open({ id: 'debrief', load: async () => ({ default: { id: 'debrief', mount: (r, a) => { app = a; a.standards.subscribe((s) => seen.push(s.offset.aftTargetFt)); } } }) });
+  assert.deepEqual(app.standards.get(), V6_STANDARDS);
+  assert.ok(Object.isFrozen(app.standards.get().offset));
+  assert.equal(app.standards.limits.offset.aftTargetFt.step, 100);
+  assert.equal(app.standards.update({ offset: { aftTargetFt: -1 } }).ok, false);
+  assert.equal(app.standards.update({ offset: { aftTargetFt: 9000 } }).ok, true);
+  assert.equal(standards.get().offset.aftTargetFt, 9000, 'one shared copy');
+  assert.equal(host.stats().subscriptions, 1);
+  host.close();
+  standards.reset();
+  assert.deepEqual(seen, [9000], 'no calls after closing');
+  assert.equal(host.stats().subscriptions, 0);
+  assert.deepEqual(standards.get(), V6_STANDARDS);
 });

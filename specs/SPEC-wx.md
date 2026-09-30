@@ -1,6 +1,6 @@
 # Spec: `wx`, weather parsing and limit checks
 
-Status: **approved by Patrick on 2026-09-30.** Module id `wx` in [`SPEC.md`](../SPEC.md). Requirements: R13 (SOF), R16 (home airfield and alternates are a setting), R7 (no browser errors), R9 (numbers match V6 unless a logged decision says otherwise).
+Status: **approved by Patrick on 2026-09-30**; the Q30 alternate rules (D60) approved 2026-09-30. Module id `wx` in [`SPEC.md`](../SPEC.md). Requirements: R13 (SOF), R16 (home airfield and alternates are a setting), R7 (no browser errors), R9 (numbers match V6 unless a logged decision says otherwise).
 
 ## Objective
 
@@ -18,11 +18,11 @@ In:
 - `taf.js`: parse a TAF into dated change groups, and build its timeline (prevailing conditions plus TEMPO, PROB and BECMG overlays).
 - `conditions.js`: the shared parts (wind, visibility, weather, cloud), merging a change group into what it changes, and display formatting.
 - `limits.js`: limit checks, the V6 default limits, NATO colour state and flight category.
-- `alternates.js`: the home-weather alternate trigger over a wave window, and the alternate airfield check at ETA.
+- `alternates.js`: the home-weather alternate trigger over a wave window, and the alternate airfield check over an arrival window.
+- `sources.js`: fetching METARs and TAFs from MET Norway, with Datamask as the backup, refreshing them, and saying when a report is stale. See "Sources".
 
 Out, for now:
 
-- `sources.js` (live fetching from aviationweather.gov and the backup, D33) waits for an environment whose network reaches those sites.
 - Lightning (D34), radar and anything that touches the page.
 - Deciding what a limit should be. `wx` takes limits as input; the SOF gets them from settings.
 
@@ -31,7 +31,7 @@ Out, for now:
 1. Reports are in North American format as the SOF shows them today: visibility in statute miles (`15SM`, `1 1/2SM`, `M1/4SM`, `P6SM`), with metric visibility (`9999`, `0800`) and `CAVOK` also understood.
 2. A raw report string is the input. JSON from a feed is the adapter's job; the adapter passes the raw text through.
 3. A report only carries day-of-month. Every parse takes a reference time (`now`) and resolves days to the nearest matching month, so reports around month ends work.
-4. Nothing in `wx` imports `src/core/` until the flight-math thread's first PR merges. The one conversion it needs (metres to statute miles, 1609.344) is a local constant, to be swapped for `core/units.js` later.
+4. `wx` does not import `src/core/`. The one conversion it needs (metres to statute miles, 1609.344, exact by definition) is a local constant, because `core/units.js` holds only the flight-math constants V6 uses and has no statute mile.
 5. `node --test` only, no packages.
 
 ## Behaviour
@@ -87,17 +87,40 @@ Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600
 ### Alternates
 
 - **Home trigger.** For a wave window (takeoff to landing plus one hour, as V6), every prevailing period and every overlay touching the window is checked against the home limits. Status is `no-time` when the window can't be read, `no-taf` when there is no usable TAF (missing, `NIL` or `CNL`), `not-covered` when the TAF's valid period does not cover the whole window, else `below` if anything is below, else `incomplete` if a prevailing ceiling or visibility is unknown or the TAF has problems, else `at-limit` if anything is exactly on a limit (Q27, yellow), else `meets`. Hits, at-limit pieces and caution pieces are returned either way, each with the group, its times and the reasons. `TEMPO` and `PROB` count, as in V6. Cautions (Q28) are listed but never change the status, which stays about ceiling and visibility.
-- **Alternate airfield at ETA.** The same check at the ETA with the alternate limits, prevailing plus any overlay active at that time. This replaces V6's alternate cards, which showed green whatever the weather (issue #4). If the ETA is missing, the TAF is missing or cancelled, does not cover the ETA, or part of it cannot be read, the status says so (`no-time`, `no-taf`, `not-covered`, `incomplete`) instead of passing. Exactly on the alternate limits is `at-limit`. An ETA exactly where one period ends and the next begins is checked against both.
-- **GNSS-only alternates.** V6 lets the SOF mark an alternate GNSS-only with an MEA. V6 never computed a result for it and said so on the card. `wx` keeps that: the result carries `gnssOnly` and `meaFt`, and a status of `needs-mea` when the MEA is missing. No visual-descent rule is invented (question WX-4).
+- **Alternate airfield over an arrival window (Q30, D60).** Patrick's answer: check alternates over a window, not only at the ETA. The civil rule (CAR 602.123) checks only at the ETA, so a window is stricter. Sources are in `/mnt/project-files/wx-sources/canada-ifr-alternate-rules.md`.
+  - **Window.** By default, the wave's earliest ETA minus 60 minutes to its latest ETA plus 60 minutes. `arrivalWindow(etas, { marginMin = 60 })` builds it, and the margin is a setting. A single ETA with a margin of 0 gives V6's point check.
+  - **Minima per airfield, as input.** Each alternate brings its own `minima`: one `{ ceilingFt, visSm }` or a list of equivalent options. Conditions **at or above** the minima pass (CAR 602.123); exactly at them shows yellow (D57). The Canada Air Pilot's table: 400-1 (or 200-½ above the lowest HAT) with two or more precision approaches to separate runways; 600-2 with one usable precision approach (also 700-1½ or 800-1); 800-2 with non-precision only (also 900-1½ or 1000-1); 500 ft above the lowest HAT/HAA and 3 SM with only an advisory forecast; no cloud below 1000 ft above it, no CB and 3 SM with only a GFA. Which row applies, and any "300-1 above HAT" values, are the Airfields piece's to enter; `wx` just checks the numbers it is given. A piece passes when it meets any one option. It is below only when it is below every option. It is at-limit when its best option is exactly met. The airfield list and its values belong to the Airfields piece; until it exists, the fallback is V6's single 600/2.
+  - **How each part of the TAF counts** (CAP GEN, TC AIM RAC 3.13):
+    - Prevailing conditions and FM groups: against the alternate minima.
+    - BECMG: against the alternate minima, taking the worse of the before and after conditions over the change period.
+    - TEMPO: against the alternate minima.
+    - PROB30/40: against the airfield's **landing minima** (`landingMinima`, from its approach plates), not the alternate minima. Without landing minima, a PROB below the alternate minima is listed in `probUnchecked` as a warning and does not change the status.
+  - **Status**, worst first: `no-time`, `no-taf`, `not-covered` (the TAF doesn't cover the whole window), `below`, `incomplete`, `at-limit`, `meets`. The result lists every hit, at-limit piece and caution with its times. `worst` names the first-in-time piece with the worst result, so the SOF can show "below from 17Z".
+  - **GNSS.** An alternate can be marked `gnssApproach` (it relies on a satellite approach). When home also relies on one (`homeGnssApproach`) and the two are under 100 NM apart (`distanceNm`), or the distance is unknown, `warnings` says so. From Moose Jaw only Saskatoon qualifies. For alternates, no credit is given for LPV, and RNAV with vertical guidance is not a precision approach; both belong in the minima the Airfields piece enters. V6's `needs-mea` and `gnss-check` statuses go away.
+  - **Military alternates (D79).** 15 Wing uses the same alternate rules as above, with no exceptions (Patrick, 2026-09-30, closing WX-5).
+  - **GNSS-only visual descent (D80).** An alternate reached by a GNSS-only visual descent passes when the ceiling is at least MEA + 500 ft and the visibility at least 3 SM over the arrival window. `visualDescent: { meaFt, elevationFt, visSm = 3 }` replaces `minima` for that airfield. The MEA is above sea level and a ceiling is above the field, so the check reads the rule at sea level: the cloud base must be at least MEA + 500 ft above sea level, which is a ceiling above the field of MEA + 500 ft minus the field elevation. Worked example: CYYN is at 2,677 ft and the MEA is 5,200 ft. The cloud base must be at 5,700 ft above sea level, so a ceiling of at least 3,023 ft above the field passes: `OVC035` passes, and `OVC030` is below. (Patrick chose this sea-level reading over the other one, a ceiling of MEA + 500 ft above the field, on 2026-09-30: D81.) Without a readable MEA and elevation the status is `incomplete`, never a pass. The Airfields piece supplies the values per airfield.
 
 ### Classifications (V6 thresholds, unchanged)
 
 - NATO colour state from the lowest `SCT` or thicker layer and the visibility in metres: RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500, YLO1 700/3700, GRN 1500/5000, WHT 2500/8000, else BLU. V6's `nato()` at sof.html line 2009; its parsing bugs are fixed, not its thresholds. `UNK` when a layer's base is unknown and the colour isn't already RED.
 - Flight category, used only when the feed does not supply one: LIFR ceiling below 500 ft or visibility below 1 SM; IFR below 1000 ft or 3 SM; MVFR 3000 ft or 5 SM and below; else VFR. V6's `cat()` at sof.html line 576. `UNK` when nothing is known, or when a ceiling layer's base is unknown and the category isn't already LIFR.
 
+### Sources
+
+Patrick's choice, 2026-09-30: MET Norway first, Datamask as the backup. No proxy and no keys, because the site is static and a key in the page is public. Tested from a browser on the live site (`/mnt/project-files/wx-sources/sof-weather-sources.md`).
+
+- **MET Norway tafmetar.** `https://api.met.no/weatherapi/tafmetar/1.0/metar?icao=CYMJ,CYQR` and `.../taf?icao=...`. One request covers every airfield. The response is plain text, one report per line ending in `=`, oldest first, for the whole day. `wx` keeps the newest report per station. Reports carry no `METAR`, `SPECI`, `TAF` or `AMD` prefix, so an unmarked SPECI reads as a METAR. An unknown station is simply missing (HTTP 200, empty body). Licence CC BY 4.0, credited on screen as "MET Norway".
+- **Datamask.** `https://datamask.org/api/v1/metar/CYQR` and `.../taf/CYQR`, one airfield per request. JSON; `wx` uses only `raw` and ignores Datamask's own decoding and times. HTTP 404 means no report. A doubled `TAF AMD TAF AMD` prefix is read once by `parseTaf`. Credited as "NOAA NWS via Datamask".
+- **Order.** MET Norway is asked for every airfield in one request. Any airfield it has nothing for, or every airfield if it fails, is asked of Datamask one at a time. Each report says which source it came from.
+- **Requests.** Plain `GET` with no custom headers, so the browser sends no preflight (MET Norway allows only simple requests). `cache: 'no-cache'` lets the browser revalidate with `If-Modified-Since` itself where the source sends `Last-Modified`. Each request gives up after 10 seconds. Station ids must be four letters or digits before they go in a URL; anything else is refused.
+- **Refresh.** Every 5 minutes by default (a setting, never faster than once a minute), with timers passed in so tests control time. A failed refresh keeps the last good report and reports the error; it never clears data.
+- **Stale.** A METAR is stale when it is more than 75 minutes old by its own observation time. A TAF is stale when its valid period has ended. A cancelled TAF reads as `cancelled`, not stale or unreadable. A report with no readable time is stale. The fetch time never counts: Datamask has served a 12-day-old METAR as current.
+- **Untrusted replies.** A reply over 256 KB, or a report over 4000 characters, is refused, not parsed. A Datamask report for a different station than the one asked for is refused. Only `metar` or `taf` and at most 30 valid station ids ever reach a URL, and requests send no cookies (`credentials: 'omit'`). Raw report text goes to the page as data: the SOF must show it as text, never as HTML.
+- `sources.js` is the only module in `wx` that talks to the network. `fetch` and the timers are passed in, so every other rule in this spec (pure functions, no throwing) still holds and it can be tested without a network.
+
 ### Data age
 
-- `ageMinutes(report, now)` (in `dates.js`) from the report's observation or issue time, never the fetch time: a feed can serve a report days old as if it were current. What counts as stale is the SOF's call (R13) and lives in its spec.
+- `ageMinutes(report, now)` (in `dates.js`) from the report's observation or issue time, never the fetch time: a feed can serve a report days old as if it were current. The stale rules for METAR and TAF are under "Sources"; how the SOF shows them is its own spec (R13).
 
 ## Interface
 
@@ -105,7 +128,7 @@ Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600
 import { parseMetar } from './src/wx/metar.js';
 import { parseTaf, tafTimeline, forecastAt } from './src/wx/taf.js';
 import { checkConditions, DEFAULT_LIMITS, natoColour, flightCategory } from './src/wx/limits.js';
-import { homeAlternateTrigger, assessAlternate } from './src/wx/alternates.js';
+import { arrivalWindow, homeAlternateTrigger, assessAlternate } from './src/wx/alternates.js';
 
 const now = new Date('2026-09-29T15:30:00Z');
 const taf = parseTaf('TAF CYMJ 291120Z 2912/3012 27010KT P6SM SKC TEMPO 2916/2920 1/2SM FG', { now });
@@ -114,6 +137,12 @@ taf.groups[1];          // { kind: 'TEMPO', from: Date(29 16Z), to: Date(29 20Z)
 homeAlternateTrigger(taf, { from: takeoff, to: landPlus1h }, DEFAULT_LIMITS.home);
 // { status: 'below', covered: true, hits: [{ kind: 'TEMPO', from, to, reasons: ['VIS 1/2 SM < 3 SM', 'SIGNIFICANT WX (FG)'] }],
 //   atLimit: [], cautions: [{ kind: 'TEMPO', ..., cautions: ['FG'] }] }
+
+assessAlternate(taf, arrivalWindow([eta1, eta2]), {
+  minima: [{ ceilingFt: 600, visSm: 2 }, { ceilingFt: 700, visSm: 1.5 }, { ceilingFt: 800, visSm: 1 }],
+  landingMinima: { ceilingFt: 300, visSm: 0.75 },
+});
+// { status: 'below' | 'incomplete' | 'at-limit' | 'meets' | ..., hits, atLimit, cautions, probUnchecked, worst, warnings }
 ```
 
 Every function is pure: plain values in, plain values out, times as `Date` in UTC. Functions never throw on bad text, missing times or missing limits (missing limits fall back to the defaults); they return what they could read plus what they could not.
@@ -150,7 +179,7 @@ tests/unit/wx/
 
 ## Boundaries
 
-- **Always:** keep functions pure; add a test case for every report that ever parses wrong; cite the audit issue in the test name.
+- **Always:** keep functions pure (only `sources.js` fetches, with `fetch` passed in); add a test case for every report that ever parses wrong; cite the audit issue in the test name.
 - **Ask first:** changing a default limit, the `<` rule, or which weather raises a caution; adding a data source.
 - **Never:** touch the page from `wx`; guess a value the report does not give (unknown stays unknown).
 
@@ -161,4 +190,5 @@ Logged as Q27 (WX-1) to Q30 (WX-4). Patrick answered all four on 2026-09-30.
 - **WX-1 / Q27, answered (D57).** Below stays strictly below (`<`); exactly at a limit is yellow. See "Limit checks".
 - **WX-2 / Q28, answered (D58).** `VCTS`, `CB`/`TCU`, `FC`, `+FC` and other dangerous weather raise an acknowledgeable caution; snow and shallow fog stay information only. The list is under "Limit checks".
 - **WX-3 / Q29, answered (D59).** The home trigger is 2000 ft / 3 SM, and its label must read 2000/3 to match the check. V6's fixed "DEST TRIGGER <3000 FT / 3 SM" label was wrong; `wx` has no 3000 ft figure, and the SOF builds its label from the limits it passes in, so the label can never drift from the check again.
-- **WX-4 / Q30, answered (D60), not built yet.** Alternates are checked over a window, not only at the ETA, following the Canadian IFR alternate rules. Until those rules are written into this spec, `assessAlternate` keeps V6's point-in-time check and the GNSS-only `needs-mea` status.
+- **WX-4 / Q30, answered (D60).** Alternates are checked over an arrival window (±1 hour by default) with the Canadian alternate rules. See "Alternates"; Patrick approved this spec change on 2026-09-30.
+- **WX-5 / Q40, answered (D79).** Military alternates follow the same rules as the SOF's civil rules, with no exceptions. The GNSS-only visual descent rule is D80, under "Alternates".

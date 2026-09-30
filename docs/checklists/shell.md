@@ -6,7 +6,7 @@ Link: https://lizardhands-commits.github.io/Dads-debreif/
 
 ## Opening it
 
-- [ ] The link opens the home screen, titled "DAD's OODA LOOP".
+- [ ] The link opens the home screen, titled "DAD's OODA LOOP". The footer says when the site was last updated, for example "Updated 30 Sep 2026, 02:01Z". If you visited before and a bar says "A new version is ready", press **Reload** first.
 - [ ] There are six cards. The five modules say "Coming soon" and do nothing when clicked. The About card opens About.
 - [ ] Card videos play quietly on their own, unless your computer is set to reduce motion, in which case you see still pictures. Nothing makes a sound.
 - [ ] **About** in the header opens the About Dad page. **Home** brings you back.
@@ -36,7 +36,7 @@ Link: https://lizardhands-commits.github.io/Dads-debreif/
 
 ## Updates (only when a new version has just gone out)
 
-- [ ] With the app open, a bar appears within the hour saying "A new version is ready". Nothing changes until you press **Reload**, and after that the version number in the footer is the new one.
+- [ ] With the app open, a bar appears saying "A new version is ready": within the hour, or as soon as you come back to the tab. Nothing changes until you press **Reload**, and after that the "Updated" time in the footer is the new one.
 
 ## Sign-off
 

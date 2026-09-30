@@ -2,6 +2,9 @@
 // See specs/SPEC-shell.md.
 import { createStore, browserStorage } from './storage/store.js';
 import { createSettings } from './storage/settings.js';
+import { createAirfields } from './airfields/airfields.js';
+import { createAirfieldsPanel } from './airfields/panel.js';
+import { createStandards } from './storage/standards.js';
 import { createScheduler } from './ui-kit/scheduler.js';
 import { createHost } from './shell/host.js';
 import { parseRoute } from './shell/router.js';
@@ -10,6 +13,7 @@ import { reportUrl } from './shell/report.js';
 import { createSettingsDialog } from './shell/settings-dialog.js';
 import { createTime, startClock } from './shell/header.js';
 import { createUpdateBar, watchForUpdates } from './shell/update-bar.js';
+import { updatedLabel } from './shell/version.js';
 import home from './shell/home.js';
 import about from './shell/about.js';
 import { h } from './ui-kit/dom.js';
@@ -25,8 +29,12 @@ const $ = (id) => document.getElementById(id);
 
 const store = createStore(browserStorage);
 const settings = createSettings(store.scope('app'), SHARED_DEFAULTS, { allowed: SHARED_ALLOWED });
+// The home field and alternates (SPEC-airfields). Local time follows the home field.
+const airfields = createAirfields({ store: store.scope('airfields') });
+// The formation standards the debrief and the Turn Sim judge by (R18, D89).
+const standards = createStandards({ store: store.scope('standards') });
 const scheduler = createScheduler();
-const time = createTime({ settings });
+const time = createTime({ settings, zone: () => airfields.home().timeZone });
 const statusLine = $('module-status');
 const view = $('view');
 const host = createHost({
@@ -35,6 +43,8 @@ const host = createHost({
   store,
   settings,
   time,
+  airfields,
+  standards,
   onStatus: (text) => {
     statusLine.textContent = text;
     statusLine.hidden = !text;
@@ -100,10 +110,16 @@ async function show(hash) {
   firstShow = false;
 }
 
-const dialog = createSettingsDialog({ settings, storagePersistent: () => store.persistent });
+const dialog = createSettingsDialog({
+  settings,
+  storagePersistent: () => store.persistent,
+  sections: [createAirfieldsPanel({ airfields })],
+});
 document.body.append(dialog.element);
 $('open-settings').addEventListener('click', () => dialog.open());
-$('app-version').textContent = version;
+const updated = $('app-updated');
+updated.textContent = updatedLabel(document.querySelector('meta[name="app-built"]')?.content);
+updated.title = `Version ${version}`;
 
 // The skip link moves focus without touching the address, which picks the page.
 document.querySelector('.skip-link').addEventListener('click', (event) => {
@@ -121,6 +137,7 @@ startClock({
   time,
   settings,
   timers: scheduler.scope('clock'),
+  watch: [airfields],
   render(first, second, date) {
     clockFirst.textContent = first;
     clockFirst.dateTime = date.toISOString();

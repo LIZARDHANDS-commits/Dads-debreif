@@ -9,7 +9,8 @@ The small functions behind every number the tool shows: units, angles and headin
 | `geo.js` | The debrief map: latitude/longitude to feet and back, map tiles |
 | `time.js` | Zulu and local time, KML times, the Zulu date-time group |
 | `flight-math.js` | Turn radius, rate and bank from G; the EM chart point; closure; G estimated from a track |
-| `tennis.js` | V6's two tennis-ball solvers, kept side by side until one is chosen |
+| `tennis.js` | The tennis ball, one solver for the map and the 3D view |
+| `standards.js` | Formation standards (spread, offset, lead) and V6's values as the default preset |
 
 ## One heading rule
 
