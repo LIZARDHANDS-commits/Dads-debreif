@@ -12,7 +12,8 @@ Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), a draft waiting fo
 | Task 4 | The module's `load` in `src/shell/registry.js`, and `tests/e2e/traffic.spec.js` | App frame thread, through the coordinator |
 | Task 4 | `app.airfields.home()` for the home field (merged) | App frame thread (done) |
 | Task 8 | The debrief's satellite tile loader moved into `ui-kit` | Debrief and app frame threads, through the coordinator |
-| Task 10 | Answers to T1 to T6 (each defaults to V6 until answered) | Patrick (T1, T2), Dad (T3 to T6) |
+| Task 10 | `windTriangle` and `groundTurnG` in `src/core/wind.js`, with known-answer tests | Flight math core thread, through the coordinator |
+| Task 12 | Answers to T1 to T7 (each defaults to V6 until answered) | Patrick (T1 to T3), Dad (T4 to T7) |
 
 ## Order and why
 
@@ -21,14 +22,16 @@ Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), a draft waiting fo
 3. **Readouts** as pure text from a sim state, so every number on screen is checked before layout.
 4. **Then the screen in slices that each work**: playback and the map with the built-in setup; the left-side editor; the right-side spawner and conflicts; profiles; the satellite photo and 3D view.
 5. **Rewind and ±10 s** once the sim is deterministic, with snapshots.
-6. **The changes last** (D46's arcs, the dice per aircraft, one roll per split point, the joined path, and each answered question), one commit each after V6 is pinned (D10). The bug fixes that aren't about flying (links, buttons, spawner, profiles, layout) are built right in the screen tasks, because V6's behaviour there isn't a number to pin.
+6. **Wind and aircraft types** (Patrick's requirement, 2026-09-30), as new behaviour on top of the pinned port: the wind in the sim first, with the calm-wind golden tests as the guard, then types and the wind on screen.
+7. **The changes last** (D46's arcs, the dice per aircraft, one roll per split point, the joined path, and each answered question), one commit each after V6 is pinned (D10). The bug fixes that aren't about flying (links, buttons, spawner, profiles, layout) are built right in the screen tasks, because V6's behaviour there isn't a number to pin.
 
 ## Pull requests
 
 - PR A: tasks 1 to 3 (routes, flying and readouts, golden-tested; no screen yet).
 - PR B: tasks 4 to 6 (the module on screen: playback, map, editor, spawner, conflicts; browser tests; README).
 - PR C: tasks 7 to 9 (profiles, satellite photo and 3D, rewind).
-- PR D: task 10 (D46 and the decided changes, one commit each) and task 11 (polish and checklist).
+- PR D: tasks 10 and 11 (wind and aircraft types).
+- PR E: task 12 (D46 and the decided changes, one commit each) and task 13 (polish and checklist).
 
 Each PR is reviewed with code-review-and-quality before it leaves draft, lists the skills it applied (see the spec's Skills used), and merges on green under the merge rule once the spec is approved.
 
@@ -41,4 +44,6 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, lists t
 | V6's step length depends on the frame rate | Pin V6 at 1× with 0.05 s frames, which is V6's own largest step; the port's fixed 0.05 s step matches it exactly. |
 | Splits and joins behave differently after the joined-path fix, so the golden run parts at the first split | That commit narrows the golden comparison to "same until the first split or join", and unit tests cover the rest (no jumps, same odds). |
 | The satellite loader isn't in ui-kit when task 8 starts | Build task 8's 3D half first and ask the coordinator; the map works without the photo. |
+| Wind math disagrees between the Traffic Sim and, later, the SOF crosswind (FF21) | One `core/wind.js` for both, with known-answer tests. |
+| Type speeds are placeholders until Dad answers T5 | The built-in setup keeps V6's fixed speeds, so nothing it shows depends on the placeholders; the type table cites where each number came from. |
 | Long runs with many aircraft slow the page | Route paths cached, snapshots every 10 s, side columns updated at most 5 times a second; measured at 8× with 30 aircraft. |
