@@ -39,7 +39,7 @@ export function buildFlight(tracks) {
   const span = slot => [out[slot].fixes[0].t, out[slot].fixes[out[slot].fixes.length - 1].t];
   const startT = Math.max(...slots.map(s => span(s)[0]));
   const endT = Math.min(...slots.map(s => span(s)[1]));
-  if (!(endT > startT) && slots.length > 1) throw noOverlap(out, slots, span);
+  if (!(endT > startT)) throw noOverlap(out, slots, span);
   const cutTracks = [];
   for (const slot of slots) {
     const [a, b] = span(slot);
@@ -48,12 +48,16 @@ export function buildFlight(tracks) {
   return { tracks: out, ref, startT, endT, cutTracks };
 }
 
-/** Names the track that overlaps the fewest others (the later ship on a tie). */
+/**
+ * Names the track that overlaps the fewest others (the later ship on a tie),
+ * or, for one track, says it covers no time.
+ */
 function noOverlap(tracks, slots, span) {
   const overlaps = slot => slots.filter(o => o !== slot
     && Math.min(span(slot)[1], span(o)[1]) > Math.max(span(slot)[0], span(o)[0])).length;
   const misfit = slots.reduce((worst, slot) => (overlaps(slot) <= overlaps(worst) ? slot : worst));
   const name = tracks[misfit].name ? `"${String(tracks[misfit].name).slice(0, 80)}"` : `Track #${misfit}`;
+  if (slots.length === 1) return new KmlError('no-overlap', `${name} covers no time: all its positions have the same time.`);
   return new KmlError('no-overlap', `${name} doesn't overlap in time with the other tracks, so they can't be played back together. Check it's from the same flight.`);
 }
 
@@ -142,9 +146,9 @@ export function headingAt(track, t) {
   const f = track.fixes;
   if (!f || f.length < 2) return null;
   const n = f.length;
-  const [a, b] = t <= f[0].t ? [f[0], f[1]]
-    : t >= f[n - 1].t ? [f[n - 2], f[n - 1]]
-      : [f[bracket(f, t)], f[bracket(f, t) + 1]];
+  const lo = t <= f[0].t ? 0 : t >= f[n - 1].t ? n - 2 : bracket(f, t);
+  const a = f[lo];
+  const b = f[lo + 1];
   if (segmentKt(a, b) < STILL_KT) return null;
   return Math.atan2(b.yFt - a.yFt, b.xFt - a.xFt);
 }

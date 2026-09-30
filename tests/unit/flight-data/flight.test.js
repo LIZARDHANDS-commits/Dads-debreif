@@ -61,7 +61,7 @@ test('the first and last frame show the speed of the nearest segment, not none (
   for (const t of [-10, 0]) assert.equal(sampleAt(track, t).speedKt, first);
   for (const t of [3, 10]) assert.equal(sampleAt(track, t).speedKt, last);
   // A single fix has no segment, so no speed.
-  assert.equal(sampleAt(buildFlight({ 1: { name: 'a', fixes: [fix(0)] } }).tracks[1], 0).speedKt, undefined);
+  assert.equal(sampleAt({ fixes: [{ ...fix(0), xFt: 0, yFt: 0, altFt: 0 }] }, 0).speedKt, undefined);
 });
 
 test('latitude and longitude are interpolated like x and y (C6)', () => {
@@ -141,4 +141,10 @@ test('pitch and G are estimated from the track by default; recorded values only 
   assert.deepEqual(gAt(bare, 5, { recorded: true }), { g: estimatedGAt(bare, 5), source: 'estimated' });
   // The recorded values are still kept on the samples.
   assert.equal(sampleAt(track, 5.5).pitchRecordedDeg, 12);
+});
+
+test('a track whose fixes all have the same time is refused, not played for zero seconds (review)', () => {
+  const e = err(() => buildFlight({ 1: { name: 'still.kml', fixes: [fix(5), fix(5, { lon: -105.001 })] } }));
+  assert.equal(e?.code, 'no-overlap');
+  assert.match(e.message, /"still\.kml" covers no time/);
 });

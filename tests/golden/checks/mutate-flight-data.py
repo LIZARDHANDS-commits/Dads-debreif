@@ -126,7 +126,8 @@ M = [
  ('flight.js', "|| h0 === null || h1 === null) return null;", ") return null;"),
  ('flight.js', "|| h0 === null || h1 === null) return null;", "|| h0 === null) return null;"),
  # C8: tracks that don't overlap
- ('flight.js', "if (!(endT > startT) && slots.length > 1)", "if (!(endT >= startT) && slots.length > 1)"),
+ ('flight.js', "if (!(endT > startT)) throw", "if (!(endT >= startT)) throw"),
+ ('flight.js', "if (slots.length === 1) return new KmlError(", "if (false) return new KmlError("),
  ('flight.js', "if (a < startT || b > endT)", "if (a < startT)"),
  ('flight.js', "overlaps(slot) <= overlaps(worst)", "overlaps(slot) < overlaps(worst)"),
  ('flight.js', "Math.min(span(slot)[1], span(o)[1]) > Math.max", "Math.min(span(slot)[1], span(o)[1]) >= Math.max"),
@@ -165,6 +166,13 @@ M = [
  ('debrief-file.js', "Object.entries(CLEANING).every(([k, v]) => file.cleaning[k] === v)", "true"),
  ('debrief-file.js', "if (!Array.isArray(files) || !files.length)", "if (!Array.isArray(files))"),
  ('load.js', "files: files.map(({ slot, name, text }) => ({ slot, name, text }))", "files"),
+ ('clock.js', "if (!playing || !Number.isFinite(nowMs)) return;", "if (!playing) return;"),
+ ('debrief-file.js', "tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)", "seen.has(tr.slot)"),
+ ('debrief-file.js', "tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)", "tr.slot < 1 || tr.slot > MAX_TRACKS"),
+ ('debrief-file.js', "if (Number.isInteger(file.version) && file.version > VERSION)", "if (file.version !== VERSION)"),
+ ('debrief-file.js', "throw new DebriefFileError(e.reason, true);", "throw e;"),
+ ('load.js', "s.length > MAX_NAME_CHARS ?", "false ?"),
+ ('load.js', "s.slice(0, MAX_NAME_CHARS - 1) + '…'", "s.slice(0, MAX_NAME_CHARS)"),
  # C9: all-or-nothing load
  ('load.js', "files.length > MAX_TRACKS", "files.length > MAX_TRACKS + 1"),
  ('load.js', "|| !files.length ||", "||"),

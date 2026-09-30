@@ -31,3 +31,13 @@ test('if any file fails, nothing loads and the message names that file (C9, #23)
   assert.equal(err(() => loadFlight([]))?.code, 'slots');
   assert.equal(MAX_TRACKS, 4);
 });
+
+test('a long file name is shortened on loading, so the flight can be saved (review)', async () => {
+  const { toDebriefFile } = await import('../../../src/flight-data/debrief-file.js');
+  const name = `tracklog-${'x'.repeat(90)}.kml`;
+  const flight = loadFlight([{ slot: 1, name, text: text(1) }]);
+  assert.equal(flight.tracks[1].name.length, 80);
+  assert.equal(flight.tracks[1].name, name.slice(0, 79) + '…');
+  assert.equal(flight.files[0].name, flight.tracks[1].name);
+  assert.doesNotThrow(() => toDebriefFile(flight, [], {}));
+});

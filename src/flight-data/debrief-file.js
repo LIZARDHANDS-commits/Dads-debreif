@@ -9,14 +9,14 @@
 // must be finite and in range, strings are length-capped, and any problem
 // gives one plain message.
 import { MAX_FILE_BYTES } from './kml.js';
-import { MAX_TRACKS } from './load.js';
+import { MAX_TRACKS, MAX_NAME_CHARS } from './load.js';
 import { GAP_S, MAX_GROUND_SPEED_KT, MAX_JUMP_FIXES, MIN_ALT_M, MAX_ALT_M, MIN_SPEED_TIME_S } from './clean.js';
 import { STILL_KT } from './flight.js';
 
 export const FORMAT = 'dads-debrief';
 export const VERSION = 1;
 export const MAX_DFPS = 500;
-export const MAX_LABEL_CHARS = 80;
+export const MAX_LABEL_CHARS = MAX_NAME_CHARS;
 export const MAX_NOTE_CHARS = 2000;
 /** Four track files at their limit, allowing for JSON escaping, plus DFPs and settings. */
 export const MAX_DEBRIEF_BYTES = MAX_TRACKS * MAX_FILE_BYTES * 1.25 + 2 * 1024 * 1024;
@@ -27,8 +27,9 @@ const CLEANING = { gapS: GAP_S, maxGroundSpeedKt: MAX_GROUND_SPEED_KT, maxJumpFi
 
 /** A debrief file that can't be saved or opened. `message` is for the user. */
 export class DebriefFileError extends Error {
-  constructor(reason) {
-    super(`This debrief file can't be opened: ${reason}.`);
+  constructor(reason, saving = false) {
+    super(saving ? `This debrief can't be saved: ${reason}.` : `This debrief file can't be opened: ${reason}.`);
+    this.reason = reason;
     this.name = 'DebriefFileError';
     this.code = 'debrief-file';
   }
@@ -39,6 +40,15 @@ export class DebriefFileError extends Error {
  * ([{ t, label, note }]) and the debrief's settings (plain values).
  */
 export function toDebriefFile(flight, dfps, settings) {
+  try {
+    return JSON.stringify(debriefFile(flight, dfps, settings));
+  } catch (e) {
+    if (e instanceof DebriefFileError) throw new DebriefFileError(e.reason, true);
+    throw e;
+  }
+}
+
+function debriefFile(flight, dfps, settings) {
   const files = flight?.files;
   if (!Array.isArray(files) || !files.length) throw new DebriefFileError('there are no tracks to save');
   const file = {
@@ -50,7 +60,7 @@ export function toDebriefFile(flight, dfps, settings) {
     settings: settings ?? {},
   };
   checkTracks(file.tracks);
-  return JSON.stringify(file);
+  return file;
 }
 
 /**
@@ -70,7 +80,8 @@ export function readDebriefFile(text, { settings: allowed = {} } = {}) {
     throw new DebriefFileError('it is damaged or not a debrief file');
   }
   if (!isObject(file) || file.format !== FORMAT) throw new DebriefFileError('it is not a debrief file');
-  if (file.version !== VERSION) throw new DebriefFileError('it was saved by a newer version of the tool');
+  if (Number.isInteger(file.version) && file.version > VERSION) throw new DebriefFileError('it was saved by a newer version of the tool');
+  if (file.version !== VERSION) throw new DebriefFileError('it is not a debrief file this tool understands');
   const tracks = checkTracks(file.tracks);
   return {
     files: tracks.map(tr => ({ slot: tr.slot, name: tr.name, text: tr.kml })),
@@ -84,11 +95,14 @@ function checkTracks(tracks) {
   if (!Array.isArray(tracks) || !tracks.length || tracks.length > MAX_TRACKS) {
     throw new DebriefFileError(`it needs 1 to ${MAX_TRACKS} tracks`);
   }
+  const seen = new Set();
   return tracks.map((tr, i) => {
-    if (!isObject(tr) || !Number.isInteger(tr.slot) || !isText(tr.name, MAX_LABEL_CHARS)
+    if (!isObject(tr) || !Number.isInteger(tr.slot) || tr.slot < 1 || tr.slot > MAX_TRACKS || seen.has(tr.slot)
+      || !isText(tr.name, MAX_NAME_CHARS)
       || typeof tr.kml !== 'string' || tr.kml.length > MAX_FILE_BYTES) {
       throw new DebriefFileError(`track ${i + 1} is damaged`);
     }
+    seen.add(tr.slot);
     return { slot: tr.slot, name: tr.name, kml: tr.kml };
   });
 }

@@ -85,3 +85,21 @@ test('saving checks what it writes too', () => {
   assert.equal(err(() => toDebriefFile(flight, [{ t: NaN, label: '', note: '' }], {}))?.code, 'debrief-file');
   assert.equal(err(() => toDebriefFile({ tracks: {} }, [], {}))?.code, 'debrief-file');
 });
+
+test('problems saving say "saved", and an unknown version is not called newer (review)', () => {
+  const e = err(() => toDebriefFile(flight, [{ t: NaN, label: '', note: '' }], {}));
+  assert.match(e.message, /^This debrief can't be saved: DFP 1/);
+  const f = JSON.parse(toDebriefFile(flight, [], {}));
+  for (const version of [0, '1', undefined]) {
+    assert.match(err(() => readDebriefFile(JSON.stringify({ ...f, version }))).message, /not a debrief file this tool understands/, String(version));
+  }
+  assert.match(err(() => readDebriefFile(JSON.stringify({ ...f, version: 2 }))).message, /newer version/);
+});
+
+test('ship numbers in a debrief file are checked: 1 to 4, each once (review)', () => {
+  const f = JSON.parse(toDebriefFile(flight, [], {}));
+  for (const slots of [[0], [5], [1, 1]]) {
+    const tracks = slots.map(slot => ({ ...f.tracks[0], slot }));
+    assert.equal(err(() => readDebriefFile(JSON.stringify({ ...f, tracks })))?.code, 'debrief-file', String(slots));
+  }
+});

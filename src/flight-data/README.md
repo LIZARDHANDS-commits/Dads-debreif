@@ -16,7 +16,7 @@ Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one p
 ## Changing something
 
 - **Every number here matches V6 except the approved changes.** Each function names the V6 line it came from, and `tests/golden/flight-data-*.test.js` runs that V6 code next to it. The changes the spec approved (C1 to C10: blank columns, recorded bank, bad fixes, gaps and so on) each landed as their own commit, and the golden tests say exactly where each one differs from V6.
-- **A track file is untrusted.** Never put anything from it (a name, a note) into `innerHTML`; the screen uses `textContent`. Size limits live at the top of `kml.js` and `xml.js`.
+- **A track file is untrusted.** Never put anything from it (a name, a note) into `innerHTML`; the screen uses `textContent`. Size limits live at the top of `kml.js`, `xml.js` and `debrief-file.js`. They count characters of text, not bytes on disk (a 30-million-character file can be larger on disk), so whoever opens the file should also check its size first.
 - **Units are in the names:** `altM` metres, `altFt` feet, `xFt`/`yFt` feet east/north of the map's origin, `t` seconds since 1970, `speedKt` knots of ground speed. Headings are radians, 0 = east, counter-clockwise (`core`'s rule).
 
 ## Tests

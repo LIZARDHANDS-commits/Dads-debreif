@@ -96,3 +96,13 @@ test('reset pauses at the start; views hear every change once', () => {
   clock.seek(7);
   assert.deepEqual(heard, [5, 5, 5.1, 0]);
 });
+
+test('a frame with no usable time is ignored (review)', () => {
+  const clock = createClock({ startT: 0, endT: 10 });
+  clock.play();
+  clock.tick(0);
+  clock.tick(NaN);
+  clock.tick(undefined);
+  clock.tick(100);
+  assert.equal(clock.t, 0.1);
+});

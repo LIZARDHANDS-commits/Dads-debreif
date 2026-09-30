@@ -7,6 +7,13 @@ import { buildFlight } from './flight.js';
 
 /** Up to four ships: lead and #2 to #4. */
 export const MAX_TRACKS = 4;
+/** The longest track name kept; longer file names are shortened with "…". */
+export const MAX_NAME_CHARS = 80;
+
+function shortName(name) {
+  const s = String(name ?? '');
+  return s.length > MAX_NAME_CHARS ? s.slice(0, MAX_NAME_CHARS - 1) + '…' : s;
+}
 
 /**
  * `files` is [{ slot, name, text }] with slots 1 to MAX_TRACKS, each once.
@@ -23,7 +30,7 @@ export function loadFlight(files) {
     if (!Number.isInteger(slot) || slot < 1 || slot > MAX_TRACKS || tracks[slot]) {
       throw new KmlError('slots', `Each track needs its own ship number, 1 to ${MAX_TRACKS}.`);
     }
-    tracks[slot] = cleanTrack(readKml(text, name));
+    tracks[slot] = cleanTrack(readKml(text, shortName(name)));
   }
-  return { ...buildFlight(tracks), files: files.map(({ slot, name, text }) => ({ slot, name, text })) };
+  return { ...buildFlight(tracks), files: files.map(({ slot, name, text }) => ({ slot, name: shortName(name), text })) };
 }

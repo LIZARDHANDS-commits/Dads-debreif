@@ -69,7 +69,7 @@ export function createClock({ startT, endT }) {
     },
     /** Called once a frame with the frame's time in milliseconds. Stops at the end. */
     tick(nowMs) {
-      if (!playing) return;
+      if (!playing || !Number.isFinite(nowMs)) return;
       const dtS = lastMs === null ? 0 : Math.min(MAX_FRAME_S, Math.max(0, (nowMs - lastMs) / 1000));
       lastMs = nowMs;
       if (dtS === 0) return;
