@@ -319,10 +319,10 @@ test('the check turn is named in the summary only when it is flown, with the fig
   const set = (formation) => ({ ...SETTINGS, formation, checkTurnDeg: 12.5 });
   assert.equal(checkTurnNote({ delayed45CheckFlown: false }, set('weighted')), null);
   assert.equal(checkTurnNote({}, set('weighted')), null);
-  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('weighted')), 'Delayed 45 with a 12.5° check (SMM Fig 16.34)');
-  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('twoShip')), 'Delayed 45 with a 12.5° check (SMM Fig 16.17)');
-  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('offsetBox')), 'Delayed 45 with a 12.5° check (SMM Fig 16.31)');
-  assert.equal(readoutsAt({ ...four(), delayed45CheckFlown: true }, set('weighted')).checkNote, 'Delayed 45 with a 12.5° check (SMM Fig 16.34)');
+  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('weighted')), 'Delayed 45 with a 12.5° check (SMM Fig 16.34). Wingmen fix spacing and sweep on the roll-out.');
+  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('twoShip')), 'Delayed 45 with a 12.5° check (SMM Fig 16.17). Wingmen fix spacing and sweep on the roll-out.');
+  assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('offsetBox')), 'Delayed 45 with a 12.5° check (SMM Fig 16.31). Wingmen fix spacing and sweep on the roll-out.');
+  assert.equal(readoutsAt({ ...four(), delayed45CheckFlown: true }, set('weighted')).checkNote, 'Delayed 45 with a 12.5° check (SMM Fig 16.34). Wingmen fix spacing and sweep on the roll-out.');
 });
 
 test('a close pass (300 to 1,000 ft) is flagged with its distance and pair, after any crossing', () => {

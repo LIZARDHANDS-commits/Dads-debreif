@@ -739,7 +739,7 @@ test('when the Delayed 45 flies its check turn, the summary says so and Base del
   await open(page);
   const note = page.locator('.ts-check-note');
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
-  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.34)'); // 4312: auto is the check
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.34). Wingmen fix spacing and sweep on the roll-out.'); // 4312: auto is the check
   await expect(box(page, 'Base delay')).toBeDisabled();
   await expect(box(page, 'Base delay')).toHaveAccessibleDescription(/do not apply/);
   await box(page, 'Timing').selectOption({ label: 'Auto timing' });
@@ -751,7 +751,7 @@ test('when the Delayed 45 flies its check turn, the summary says so and Base del
   await expect(box(page, 'Base delay')).not.toHaveAttribute('aria-describedby', /.+/);
   await panel(page, 'Turn Sim settings').click();
   await box(page, 'Delayed 45 style').selectOption({ label: 'With check turn' });
-  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.17)');
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.17). Wingmen fix spacing and sweep on the roll-out.');
   await expect(box(page, 'Base delay')).toBeDisabled();
   await box(page, 'Delayed 45 style').selectOption({ label: 'Plain' });
   await box(page, 'Formation').selectOption({ label: '4312' });
