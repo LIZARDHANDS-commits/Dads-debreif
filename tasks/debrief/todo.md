@@ -25,6 +25,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Acceptance: R17 (save, close, open: same tracks, DFPs, standards, time); DFPs never show on another flight (#25); hostile labels show as text.
   - Verify: unit tests of dfp.js; e2e save/open round trip.
   - Files: src/modules/debrief/dfp.js, index.js, tests/unit/debrief/dfp.test.js
+  - Done so far: the list logic in `dfp.js` (add, time order, automatic and custom labels, notes, previous/next, fingerprint, reading back from browser storage with the debrief file's limits).
 
 **Checkpoint B:** open PR B.
 
