@@ -186,6 +186,7 @@ Measured on V6's own code, built-in Pattern 1 (line 613), turn points only:
 Kept from V6 (lines 234 to 244 and 365 to 454), and pinned by a golden test:
 
 - **Spawning.** An aircraft starts at the chosen point of its route after its delay, and moves at the speed of the route where it is (V6's `acProfile`). Its altitude is the route's altitude where it is. *Engine port note:* V6 reads a missing speed as 120 kt and a missing height as 2,500 ft; the aircraft type's own speed (CT-157 125 kt, CT-156 180, CT-102 150, CT-114 230) is used only on a route with no legs (one point or none), and the height its start point had when it was made there too. The app never makes a point with no speed.
+- **Spawning and removing are timed (RW-02, RW-01).** A spawn is recorded at the step it was made in and the replay puts the aircraft on its route in that same step, so a spawn with delay 0 is exactly where it was after a rewind (a delay of 0.05 s or more was already exact). Going back to before a spawn shows the run without that aircraft. The snapshots up to the spawn stay valid.
 - **Patterns loop.** Each time an aircraft crosses the pattern's first point it may land and leave, with the pattern's land odds (V6's built-in: 20 %).
 - **Splits.** When an aircraft on a pattern reaches a split's point, it takes the split with the split's odds. At the end of an entry or split it joins the pattern at the linked point. An entry or split with no pattern to join ends there ("Done").
 - These two rules are pinned as V6 has them, then replaced by decision points (below, T1).

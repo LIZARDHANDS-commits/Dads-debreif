@@ -99,7 +99,7 @@ sim.seek(tSec)        // go to that moment, forward or back, exactly as the forw
 sim.seekSteps(n)      // the same by a whole number of steps from 0 (exact at any length of run); sim.steps is where the run is
 sim.snapshot() / sim.restore(snap)  // the aircraft, clock and dice, to keep and put back
 sim.rebuild({ seed }) // start again from setup.aircraft (a profile was loaded), at 0 s, with a seed
-sim.forgetHistory()   // the setup was edited: going back now flies the edited setup from 0
+sim.forgetHistory()   // a route, point or option was edited: going back now flies the edited setup from 0 (spawns stay timed events)
 sim.reset()           // back to 0 s, every aircraft (spawned ones too) at its start and no longer landed, the dice from the seed again
 sim.spawn({ type, routeId, startPoint, delaySec, id })  // returns the new callsign
 sim.remove(id)        // true if it was there
@@ -176,7 +176,8 @@ The settings store (`defaults.js`) and the setup name the same things differentl
 Every 10 s of sim time (200 steps) the sim keeps a snapshot of everything a later step depends on: each aircraft (where it is, its trail and which splits it has passed), the clock (the steps and the time as added up) and the dice. `seek` and `seekSteps` go back by restoring the nearest snapshot before the moment and flying on from there, so any rewind costs at most 10 s of stepping and lands exactly where the forward run was (the tests compare `state()`, the dice and the trails with `deepEqual`, at 0.25× and 8×, from many moments in a shuffled order). V6 rebuilt the whole run from 0 at every rewind frame, at speed times the real distance, and re-rolled every choice. At 1 hour of sim time a rewind takes about 1 ms (`tests/unit/traffic/rewind.test.js` logs it).
 
 - The history holds at most 720 snapshots (2 hours); past that it keeps every other one, then every fourth, so memory stays bounded and a rewind is still quick. A trail is kept flat, so an hour with 7 aircraft is about 10 MB.
-- Adding or removing an aircraft, or editing a route, point or route option, makes the snapshots stale (they no longer say what the run was). The sim then forgets them, and the next rewind flies the run again from 0 with the edited setup (about 0.6 s at 1 hour), recording snapshots as it goes. An aircraft added at a time flies as if it had been there from 0, waiting until its start time.
+- **Spawning is a timed event.** `spawn` records the aircraft at the step it was made in (`{ step, kind: 'spawn' }`) and keeps every snapshot up to that step; only later ones are dropped. A replay applies the event at that step, after the step's own snapshot, so the aircraft is put on its route in the very step the live run did (a spawn with delay 0 was one step out after a rewind before, RW-02) and going back to before the spawn shows the run without it.
+- Removing an aircraft, or editing a route, point or route option, makes the snapshots stale (they no longer say what the run was). The sim then forgets them, and the next rewind flies the run again from 0 with the edited setup (about 0.6 s at 1 hour), recording snapshots as it goes.
 - The clock's `rewind()` runs backward at the playback speed until 0:00 (then it pauses itself) or Pause. `stepBy(-10)` and `stepBy(10)` move 10 s exactly by steps, whatever the speed; playing carries on, a rewind stops. The bar's Rewind, -10 s and +10 s and the `[` and `]` keys (`app.keys`, never while typing) call these.
 - The clock text drops the fraction (V6's rule, `readouts.js`), so after +10 s from 0 it can read 0:00:09 (the time is 9.99999999999998 s); the true-second clock is task 12 (D157).
 

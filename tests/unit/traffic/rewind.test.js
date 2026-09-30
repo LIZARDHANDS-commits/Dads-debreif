@@ -179,12 +179,67 @@ test('after an aircraft is added, going back replays the run with it in, and the
   sim.seek(400);
   const at400 = everything(sim);
   sim.seek(50);
+  assert.equal(sim.state().aircraft.some((a) => a.id === id), false, 'a spawn is an event: before it, the aircraft is not there (was: waiting from 0)');
+  sim.seek(121);
   assert.equal(sim.state().aircraft.find((a) => a.id === id).status, 'waiting');
   sim.seek(400);
   assert.deepEqual(everything(sim), at400);
   sim.seek(0);
   sim.seek(400);
   assert.deepEqual(everything(sim), at400);
+});
+
+// RW-02: a spawn is an event at the step it was made in, and the replay flies it in the very same steps as the live run.
+const distAndTrail = (sim, id) => ({ distFt: sim.state().aircraft.find((a) => a.id === id).distFt, trail: sim.trailOf(id).length });
+
+for (const delaySec of [0, 0.05, 0.04, 12.3]) {
+  test(`an aircraft spawned mid-run with a delay of ${delaySec} s is where it was after going back and forward (RW-02)`, () => {
+    const sim = createSim(fresh(), { seed: 1 });
+    sim.seekSteps(2000);
+    const id = sim.spawn({ type: 'CT-156', routeId: 'PAT1', startPoint: 1, delaySec });
+    sim.seekSteps(2400);
+    const forward = everything(sim);
+    const at2400 = distAndTrail(sim, id);
+    sim.seekSteps(1000);
+    sim.seekSteps(2400);
+    assert.deepEqual(distAndTrail(sim, id), at2400);
+    assert.deepEqual(everything(sim), forward);
+    sim.seekSteps(2200); // -10 s
+    sim.seekSteps(2400); // +10 s
+    assert.deepEqual(everything(sim), forward);
+    sim.seekSteps(0);
+    sim.seekSteps(2400);
+    assert.deepEqual(everything(sim), forward);
+    sim.seekSteps(2000); // the step of the spawn itself: the aircraft is there, at its start
+    assert.equal(sim.state().aircraft.some((a) => a.id === id), true);
+  });
+}
+
+test('going back to before a spawn shows the run without that aircraft, and the spawn step shows it at its start', () => {
+  const sim = createSim(fresh(), { seed: 1 });
+  sim.seekSteps(2000);
+  const id = sim.spawn({ routeId: 'PAT1', delaySec: 30 });
+  const at2000 = everything(sim);
+  sim.seekSteps(4000);
+  sim.seekSteps(1999);
+  assert.equal(sim.state().aircraft.some((a) => a.id === id), false, 'not there yet before the spawn');
+  sim.seekSteps(2000);
+  assert.deepEqual(everything(sim), at2000);
+  assert.equal(sim.state().aircraft.find((a) => a.id === id).status, 'waiting');
+});
+
+test('spawns at the same step (a pair) and at different steps replay in order, with the callsigns they had', () => {
+  const sim = createSim(fresh(), { seed: 2 });
+  sim.seekSteps(700);
+  const ids = [sim.spawn({ routeId: 'ENT1' }), sim.spawn({ routeId: 'PAT1', delaySec: 3 })];
+  sim.seekSteps(1500);
+  const third = sim.spawn({ routeId: 'ENT2' });
+  sim.seekSteps(4000);
+  const forward = everything(sim);
+  for (const step of shuffled([0, 100, 699, 700, 701, 1499, 1500, 1501, 3000, 4000], 3)) sim.seekSteps(step);
+  sim.seekSteps(4000);
+  assert.deepEqual(everything(sim), forward);
+  assert.deepEqual(forward.state.aircraft.slice(-3).map((a) => a.id), [...ids, third]);
 });
 
 test('after an aircraft is removed it stays gone when going back', () => {

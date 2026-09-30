@@ -20,6 +20,11 @@
 // rewind costs at most 10 s of stepping and lands exactly where the forward run was: same
 // numbers, same dice, same trails. V6 rebuilt the whole run from 0 at every rewind frame, at
 // speed times the real distance, and re-rolled every choice.
+//
+// Spawning and removing aircraft are timed events (RW-01, RW-02): each is recorded at the step it happened
+// in, the snapshots up to that step stay valid, and a replay applies it at that step exactly as the live run
+// did. So going back to before a spawn or a removal shows the run as it was, and going forward again flies it
+// in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0.
 import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
@@ -80,7 +85,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   let dice = createDice(seed);
   let t = 0, steps = 0;
   let aircraft = [];
-  const history = new Map(); // step -> snapshot
+  // What a replay from 0 starts from: the aircraft the run began with, unflown, and the timed events after that.
+  let base = [];
+  let events = []; // { step, kind: 'spawn', rec } | { step, kind: 'remove', ids }, in step order
+  let nextEvent = 0; // how many events have been applied: those at or before `steps`
+  const history = new Map(); // step -> snapshot (taken before the events at that step)
   let every = SNAPSHOT_EVERY_STEPS;
 
   const routeOptions = () => setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
@@ -117,6 +126,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   /** An aircraft from a `setup.aircraft` entry. */
   const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec });
+
+  /** What an aircraft is before it flies: enough to make it again with `toStart`. */
+  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt });
+  const freshFrom = (rec) => toStart({ ...rec });
 
   /** V6's `nextCallsign` (line 233): the first A1, A2, … not in use. */
   function nextCallsign() {
@@ -197,6 +210,41 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (steps % every === 0 && !history.has(steps)) remember();
   }
 
+  // ── Timed events ───────────────────────────────────────────────────────────
+
+  function applyEvent(ev) {
+    if (ev.kind === 'spawn') aircraft.push(freshFrom(ev.rec));
+    else aircraft = aircraft.filter((a) => !ev.ids.includes(a.id));
+  }
+
+  /** Applies the events that belong at this step (after the step's own snapshot, which is taken before them). */
+  function applyDue() {
+    while (nextEvent < events.length && events[nextEvent].step <= steps) applyEvent(events[nextEvent++]);
+  }
+
+  /** One step, then whatever was done at the end of it. */
+  function advance() {
+    stepOnce();
+    applyDue();
+  }
+
+  /** An edit made now, at this step: the snapshots up to here stay, the later ones no longer say what the run was. */
+  function happen(ev) {
+    events.splice(nextEvent, 0, { step: steps, ...ev });
+    for (const step of history.keys()) if (step > steps) history.delete(step);
+    applyDue();
+  }
+
+  /** The aircraft the run has once every event has happened, unflown (what Reset and a saved profile keep). */
+  function rosterAtEnd() {
+    let list = base.map((rec) => ({ ...rec }));
+    for (const ev of events) {
+      if (ev.kind === 'spawn') list.push({ ...ev.rec });
+      else list = list.filter((rec) => !ev.ids.includes(rec.id));
+    }
+    return list;
+  }
+
   // ── Snapshots ──────────────────────────────────────────────────────────────
 
   /** Everything a later step depends on. The trail is kept flat (x, y, x, y, ...): it is up to 240 points an aircraft. */
@@ -215,6 +263,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function putBack(snap) {
     t = snap.t;
     steps = snap.steps;
+    nextEvent = events.findIndex((ev) => ev.step >= steps);
+    if (nextEvent < 0) nextEvent = events.length;
     dice.setState(snap.dice);
     aircraft = snap.aircraft.map(({ trail, splitTaken, ...rest }) => ({
       ...rest,
@@ -231,15 +281,31 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     for (const step of history.keys()) if (step % every !== 0) history.delete(step);
   }
 
-  /** The run's beginning again: every aircraft at its start, the dice from the seed, and a fresh history. */
-  function startOver() {
+  /** The run's beginning again from `base`: every aircraft at its start, the dice from the seed. */
+  function fromBase() {
     t = 0;
     steps = 0;
     dice = createDice(seed);
-    aircraft.forEach(toStart);
+    aircraft = base.map(freshFrom);
+    nextEvent = 0;
+    if (!history.has(0)) remember();
+    applyDue();
+  }
+
+  /** Reset and rebuild: a new run from 0 with `list` as its aircraft, no events and a fresh history. */
+  function startOver(list) {
+    base = list.map((rec) => ({ ...rec }));
+    events = [];
     history.clear();
     every = SNAPSHOT_EVERY_STEPS;
-    remember();
+    fromBase();
+  }
+
+  /** (Until removals are timed events too.) The aircraft is gone from every replay as well. */
+  function dropFromReplays(gone) {
+    base = base.filter((rec) => !gone(rec));
+    events = events.filter((ev) => ev.kind !== 'spawn' || !gone(ev.rec));
+    nextEvent = Math.min(nextEvent, events.length);
   }
 
   /** Something changed that earlier snapshots don't know about (an aircraft added or removed, a route edited): they no longer say what the run was. */
@@ -256,10 +322,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (wanted < steps) {
       let best = -1;
       for (const step of history.keys()) if (step <= wanted && step > best) best = step;
-      if (best >= 0) putBack(history.get(best));
-      else startOver();
+      if (best >= 0) {
+        putBack(history.get(best));
+        applyDue();
+      } else fromBase();
     }
-    while (steps < wanted) stepOnce();
+    while (steps < wanted) advance();
     return t;
   }
 
@@ -302,7 +370,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const wanted = Math.floor(tSec / STEP_SEC + 1e-9);
       if (wanted - steps > MOST_STEPS_AT_ONCE) throw new RangeError(`stepTo ${tSec} s is too far ahead`);
       let taken = 0;
-      while (steps < wanted) { stepOnce(); taken++; }
+      while (steps < wanted) { advance(); taken++; }
       return taken;
     },
 
@@ -324,7 +392,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /** Puts the run back to a `snapshot` of a sim made from this setup and seed. The history starts again from there. */
     restore(snap) {
       if (!snap || !Array.isArray(snap.aircraft) || !Number.isInteger(snap.steps) || !Number.isFinite(snap.t)) throw new TypeError('restore needs a snapshot from sim.snapshot()');
+      events = [];
       putBack(snap);
+      base = aircraft.map(baseOf);
       forgetHistory();
       remember();
     },
@@ -348,7 +418,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     forgetHistory,
 
     /** Back to 0 s, every aircraft (spawned ones too) at its start, the dice from the seed again. */
-    reset: startOver,
+    reset() {
+      startOver(rosterAtEnd());
+    },
 
     /**
      * Starts again from `setup.aircraft` (a profile was loaded, or its aircraft changed), at 0 s, with
@@ -357,8 +429,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     rebuild({ seed: next = seed } = {}) {
       if (!Number.isFinite(next)) throw new RangeError(`the seed must be a number, not ${next}`);
       seed = next;
-      aircraft = (setup.aircraft ?? []).map(aircraftFromSpec);
-      startOver();
+      startOver((setup.aircraft ?? []).map((spec) => baseOf(aircraftFromSpec(spec))));
     },
 
     /**
@@ -375,10 +446,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
       if (id !== undefined && aircraft.some((a) => a.id === id)) throw new RangeError(`callsign ${id} is in use`);
-      const a = makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec });
-      aircraft.push(a);
-      forgetHistory();
-      return a.id;
+      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec }));
+      happen({ kind: 'spawn', rec });
+      return rec.id;
     },
 
     /**
@@ -396,6 +466,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       };
       const wanted = aircraft.filter((a) => a.startRouteId === routeId).map((a) => [a, moved(a.startIndex)]);
       const specs = (setup.aircraft ?? []).filter((spec) => spec.routeId === routeId).map((spec) => [spec, moved(spec.startIndex)]);
+      // The starts a replay from 0 uses (the run's own and the spawns still to come) move the same way.
+      const records = [...base, ...events.filter((ev) => ev.kind === 'spawn').map((ev) => ev.rec)].filter((rec) => rec.startRouteId === routeId).map((rec) => [rec, moved(rec.startIndex)]);
+      for (const [rec, to] of records) rec.startIndex = to;
       for (const [a, to] of wanted) {
         a.startIndex = to;
         if (t < a.startsAt) toStart(a);
@@ -408,19 +481,22 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     remove(id) {
       const before = aircraft.length;
       aircraft = aircraft.filter((a) => a.id !== id);
+      dropFromReplays((rec) => rec.id === id);
       forgetHistory();
       return aircraft.length < before;
     },
 
     /** Removes every aircraft that has landed or is done (V6 "Clear inactive"). */
     clearFinished() {
+      const finished = new Set(aircraft.filter((a) => !a.active).map((a) => a.id));
       aircraft = aircraft.filter((a) => a.active);
+      dropFromReplays((rec) => finished.has(rec.id));
       forgetHistory();
     },
 
     /** The aircraft as `setup.aircraft` has them, so a profile can be saved with what was spawned. */
     aircraftSpecs() {
-      return aircraft.map((a) => ({ id: a.id, type: a.type, routeId: a.startRouteId, startIndex: a.startIndex, startsAtSec: a.startsAt }));
+      return rosterAtEnd().map((rec) => ({ id: rec.id, type: rec.type, routeId: rec.startRouteId, startIndex: rec.startIndex, startsAtSec: rec.startsAt }));
     },
 
     /** Where the dice are in their sequence (a number that changes with every roll). */
@@ -445,7 +521,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     },
   };
 
-  aircraft = (setup.aircraft ?? []).map(aircraftFromSpec);
+  base = (setup.aircraft ?? []).map((spec) => baseOf(aircraftFromSpec(spec)));
+  aircraft = base.map(freshFrom);
   remember(); // the run at 0 s: the snapshot every rewind can fall back on
   return sim;
 }
