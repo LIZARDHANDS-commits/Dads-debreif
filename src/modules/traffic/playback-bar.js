@@ -109,7 +109,7 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
     : null;
   const viewSwitch = available.view3d ? controls.viewSwitch() : null; // the ui-kit's shared 2D | 3D switch
   const layers = createMenu({ label: 'Layers', listen, children: layerItems(available).map((item) => controls.checkbox(item.key, { label: item.label })) });
-  const fit = button('Fit', () => on.fit(), { title: 'Frame Pattern 1 and the aircraft' });
+  const fit = button('Fit', () => on.fit(), { title: 'Frame the first pattern shown and the aircraft near it' });
   const fitAll = on.fitAll ? button('Fit all', () => on.fitAll(), { title: 'Frame every route, the long entries too' }) : null;
 
   const element = h(
