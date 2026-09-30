@@ -8,6 +8,7 @@ import { parseRoute } from './shell/router.js';
 import { MODULES, moduleIds, findModule, isBuilt } from './shell/registry.js';
 import { reportUrl } from './shell/report.js';
 import { createSettingsDialog } from './shell/settings-dialog.js';
+import { createTime, startClock } from './shell/header.js';
 import { createUpdateBar, watchForUpdates } from './shell/update-bar.js';
 import home from './shell/home.js';
 import about from './shell/about.js';
@@ -25,6 +26,7 @@ const $ = (id) => document.getElementById(id);
 const store = createStore(browserStorage);
 const settings = createSettings(store.scope('app'), SHARED_DEFAULTS, { allowed: SHARED_ALLOWED });
 const scheduler = createScheduler();
+const time = createTime({ settings });
 const statusLine = $('module-status');
 const view = $('view');
 const host = createHost({
@@ -32,7 +34,7 @@ const host = createHost({
   scheduler,
   store,
   settings,
-  time: null, // core/time.js formatters, wired in with the clock (tasks/app-frame/todo.md, task 9)
+  time,
   onStatus: (text) => {
     statusLine.textContent = text;
     statusLine.hidden = !text;
@@ -107,6 +109,23 @@ $('app-version').textContent = version;
 document.querySelector('.skip-link').addEventListener('click', (event) => {
   event.preventDefault();
   view.focus();
+});
+
+// Header clock: the first choice in bold, the other beside it (Settings: time order).
+const clock = $('app-clock');
+const clockFirst = h('time', { class: 'clock-first' });
+const clockSecond = h('span', { class: 'clock-second' });
+clock.replaceChildren(clockFirst, ' ', clockSecond);
+clock.hidden = false;
+startClock({
+  time,
+  settings,
+  timers: scheduler.scope('clock'),
+  render(first, second, date) {
+    clockFirst.textContent = first;
+    clockFirst.dateTime = date.toISOString();
+    clockSecond.textContent = second;
+  },
 });
 
 // Lets the stylesheet follow the "Card videos" choice as well (tokens.css).

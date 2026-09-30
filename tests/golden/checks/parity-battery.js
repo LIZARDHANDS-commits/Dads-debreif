@@ -5,6 +5,8 @@ export async function battery(base) {
   const angles = await import(base + '/src/core/angles.js');
   const geo = await import(base + '/src/core/geo.js');
   const time = await import(base + '/src/core/time.js');
+  const fm = await import(base + '/src/core/flight-math.js');
+  const tennis = await import(base + '/src/core/tennis.js');
   const out = [];
   const show = v => (typeof v === 'number' ? (Object.is(v, -0) ? '-0' : String(v)) : JSON.stringify(v, (k, x) => (typeof x === 'number' && !Number.isFinite(x) ? String(x) : x)));
   const rec = (name, v) => out.push(name + ' = ' + show(v));
@@ -32,6 +34,20 @@ export async function battery(base) {
     rec(`pickTileZoom(${n})`, geo.pickTileZoom(50.33 + n, Math.abs(n) / 10 + 0.001));
     rec(`mercatorY(${n})`, geo.mercatorY(n * 2)); rec(`invMercatorY(${n})`, geo.invMercatorY(n / 20));
     rec(`lonLatToWorldPixel(${n})`, geo.lonLatToWorldPixel(-105.56 + n, 50.33 + n / 2, z));
+  }
+  for (const n of nums) {
+    const kt = 100 + Math.abs(n) * 5, g = 1 + Math.abs(n) / 5, v = units.ktToFtps(kt);
+    rec(`limitG(${n})`, fm.limitG(n, 9)); rec(`bankDegFromG(${n})`, fm.bankDegFromG(g));
+    rec(`turnRadiusFt(${n})`, fm.turnRadiusFt(v, g)); rec(`turnRateRadPerSec(${n})`, fm.turnRateRadPerSec(v, g));
+    rec(`isaDensityRatio(${n})`, fm.isaDensityRatio(n * 800));
+    const a = { x: n * 30, y: n * 7 }, p = { x: n * 30 + v, y: n * 9 }, b = { x: n * 30 + 2 * v, y: n * 17 + 40, spdKt: n > 0 ? kt : undefined, altFt: n * 900 };
+    rec(`emPoint(${n})`, fm.emPoint(a, { ...p, spdKt: b.spdKt, altFt: b.altFt }, b));
+    rec(`closureKt(${n})`, fm.closureKt(a, { x: 3000, y: 100 }, p, { x: 3000 - n * 20, y: 90 }, 1)); rec(`formatClosureKt(${n})`, fm.formatClosureKt(n * 7));
+    rec(`gFromTrack(${n})`, fm.gFromTrack(a, n / 10, b, n / 10 + g / 10, 2));
+    const shooter = { x: 0, y: 0, altFt: 5000, spdKt: kt, hdg: n / 20 }, target = { x: 1500 + n * 20, y: n * 15, altFt: 5000 + n * 10, spdKt: 200 };
+    const settings = { pitchDeg: n / 4, ballKt: 350, coneDeg: 6, tofSec: 3, gravity: n > 0 };
+    rec(`tennisDebrief(${n})`, tennis.tennisDebrief({ ...settings, shooter, target, shooterHdg: n / 20, targetHdg: n / 7, hitRadiusFt: 250 }));
+    rec(`tennis3D(${n})`, tennis.tennis3D({ ...settings, shooter, target, targetAt: t => ({ x: target.x + 300 * t, y: target.y + n * t, altFt: target.altFt }), radiusFt: 250 }));
   }
   const zones = ['America/Regina', 'America/Denver', 'America/Toronto', 'America/Los_Angeles', 'America/Edmonton', 'America/St_Johns', 'Asia/Kolkata', 'Europe/London', 'UTC'];
   const moments = [Date.UTC(2026, 2, 8, 8, 30), Date.UTC(2026, 2, 8, 9, 30), Date.UTC(2026, 10, 1, 6, 30), Date.UTC(2026, 10, 1, 8, 30), Date.UTC(2026, 6, 1, 6, 0), Date.UTC(2028, 1, 29, 23, 59, 59, 999),
