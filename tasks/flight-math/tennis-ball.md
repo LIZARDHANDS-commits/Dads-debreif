@@ -4,8 +4,8 @@
 
 - The ball carries the shooter's whole velocity, climb included (Q33, D62).
 - The target flies its recorded path, climb included (Q34 and Q37, D62).
-- The cone is ±3° for a width of 6 (Q35, D63). This is flagged for review later.
-- INTERCEPT needs the target in the cone (Q36, D63). This is flagged for review later.
+- The cone is ±3° for a width of 6 (Q35, D63, confirmed as D77).
+- INTERCEPT needs the target in the cone (Q36, D63, confirmed as D77).
 
 The 3D arc's solver is not kept. Both views show this one solution. What follows is the comparison that led here.
 

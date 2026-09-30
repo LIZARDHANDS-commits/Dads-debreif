@@ -70,7 +70,7 @@ Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening
 
 ### Checkpoint: complete
 - [x] Every function in SPEC-core's tables is ported and pinned
-- [ ] Patrick reviews PR 3
+- [x] Patrick reviews PR 3 ("go for 67", 2026-09-30)
 
 ## Risks and mitigations
 
@@ -90,6 +90,5 @@ Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening
 
 ## Open questions
 
-- Tennis ball: review the cone width and the in-cone rule for INTERCEPT later (D63).
 - Q39: whether the offset standard alone judges #3's fore/aft.
 - Whether `core` should also guard against infinite input (default: only the screens do).
