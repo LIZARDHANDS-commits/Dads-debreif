@@ -7,6 +7,7 @@ export async function battery(base) {
   const time = await import(base + '/src/core/time.js');
   const fm = await import(base + '/src/core/flight-math.js');
   const tennis = await import(base + '/src/core/tennis.js');
+  const standards = await import(base + '/src/core/standards.js');
   const out = [];
   const show = v => (typeof v === 'number' ? (Object.is(v, -0) ? '-0' : String(v)) : JSON.stringify(v, (k, x) => (typeof x === 'number' && !Number.isFinite(x) ? String(x) : x)));
   const rec = (name, v) => out.push(name + ' = ' + show(v));
@@ -46,8 +47,17 @@ export async function battery(base) {
     rec(`gFromTrack(${n})`, fm.gFromTrack(a, n / 10, b, n / 10 + g / 10, 2));
     const shooter = { x: 0, y: 0, altFt: 5000, spdKt: kt, hdg: n / 20 }, target = { x: 1500 + n * 20, y: n * 15, altFt: 5000 + n * 10, spdKt: 200 };
     const settings = { pitchDeg: n / 4, ballKt: 350, coneDeg: 6, tofSec: 3, gravity: n > 0 };
-    rec(`tennisDebrief(${n})`, tennis.tennisDebrief({ ...settings, shooter, target, shooterHdg: n / 20, targetHdg: n / 7, hitRadiusFt: 250 }));
-    rec(`tennis3D(${n})`, tennis.tennis3D({ ...settings, shooter, target, targetAt: t => ({ x: target.x + 300 * t, y: target.y + n * t, altFt: target.altFt }), radiusFt: 250 }));
+    rec(`tennisBall(${n})`, tennis.tennisBall({ ...settings, shooter, target, targetAt: t => ({ x: target.x + 300 * t, y: target.y + n * t, altFt: target.altFt + 20 * t }), shooterHdg: n / 20, hitRadiusFt: 250 }));
+  }
+  for (const n of nums) {
+    const hdg = n / 9, lead = { id: 1, x: n * 10, y: -n * 20, hdg, spdKt: 200 + n };
+    const fleet = [lead, { id: 2, x: n * 130, y: 4800 - n * 40 }, { id: 3, x: -n * 90 + 900, y: -7800 + n * 60 }, { id: 4, x: n * 170 + 5100, y: -8100 }];
+    const live = Object.fromEntries(fleet.map(a => [a.id, a]));
+    for (const id of [2, 3, 4]) {
+      rec(`classifyDebriefPosition(${n},${id})`, standards.classifyDebriefPosition(id, live, hdg));
+      for (const f of ['weighted', 'offsetBox']) rec(`classifyTurnSimPosition(${n},${id},${f})`, standards.classifyTurnSimPosition(fleet[id - 1], fleet, f));
+    }
+    rec(`classifyLeadParameters(${n})`, standards.classifyLeadParameters(lead, 1 + n / 50));
   }
   const zones = ['America/Regina', 'America/Denver', 'America/Toronto', 'America/Los_Angeles', 'America/Edmonton', 'America/St_Johns', 'Asia/Kolkata', 'Europe/London', 'UTC'];
   const moments = [Date.UTC(2026, 2, 8, 8, 30), Date.UTC(2026, 2, 8, 9, 30), Date.UTC(2026, 10, 1, 6, 30), Date.UTC(2026, 10, 1, 8, 30), Date.UTC(2026, 6, 1, 6, 0), Date.UTC(2028, 1, 29, 23, 59, 59, 999),
