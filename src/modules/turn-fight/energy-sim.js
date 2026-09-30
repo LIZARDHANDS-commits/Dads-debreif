@@ -968,7 +968,7 @@ function physicalBankCommand(ctx, bankDeg, g, throttle) {
   const { ac } = ctx;
   const fr = horizonFrame(ac.pm);
   if (fr.nearVertical) {
-    if (fr.vHat.z < 0 && Math.abs(fr.vHat.z) < 0.9995) {
+    if (fr.vHat.z < 0 && Math.abs(fr.vHat.z) < 1 - 1e-12) {
       // The true horizon's up and left, square to the path (the frame gives the carried up here, which turns with the roll).
       const upTrue = unit({ x: -fr.vHat.z * fr.vHat.x, y: -fr.vHat.z * fr.vHat.y, z: 1 - fr.vHat.z * fr.vHat.z });
       const leftTrue = cross(upTrue, fr.vHat);

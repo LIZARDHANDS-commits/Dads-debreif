@@ -1533,26 +1533,32 @@ test('when the nose is already on at the pick the reason says so, not "about 0 s
 
 // ── Verification of #209, F1: a slow forced slice from high up (verification/turn-fight-energy-209.md) ──
 
-test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive for good: above the deck and under the speed limit for 150 s', () => {
+test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive for good: above the deck, under the speed limit and never NaN for 200 s, and once the MPT has the nose low near the vertical the bank comes to 90° or less', () => {
   const fights = [];
   for (const altFt of [15000, 20000, 25000]) for (const kias of [40, 60, 86, 90]) fights.push({ blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias });
   // Two from the verification's own sweep: the MPT speed and the deck set higher.
   fights.push({ blueKias: 92, redKias: 92, blueAltFt: 22300, redAltFt: 22300, mptKias: 180, hardDeckFt: 7500 });
   fights.push({ blueKias: 70, redKias: 70, blueAltFt: 14000, redAltFt: 14000, mptKias: 180 });
+  // The audit's two: the nose passes exactly through the vertical (the gate once stopped at 0.9995 of it, and the dive held).
+  fights.push({ blueKias: 46, redKias: 46, blueAltFt: 17000, redAltFt: 17000, mptKias: 180 });
+  fights.push({ blueKias: 80, redKias: 80, blueAltFt: 15000, redAltFt: 15000, mptKias: 200 });
   for (const setup of fights) {
     const s = createEnergyFight({ ...SOLO, blueMove: 'slice', redMove: 'slice', ...setup });
-    let minAlt = Infinity, maxOver = -Infinity, maxKias = 0;
-    for (let i = 0; i < 150 / FIGHT_STEP_SEC; i++) {
+    let minAlt = Infinity, maxOver = -Infinity, maxKias = 0, lowSec = 0, worstBank = 0;
+    for (let i = 0; i < 200 / FIGHT_STEP_SEC; i++) {
       stepEnergyFight(s, FIGHT_STEP_SEC);
       for (const a of [s.blue, s.red]) {
-        assert.ok(Number.isFinite(a.kias) && Number.isFinite(a.altFt), 'finite');
+        assert.ok(Number.isFinite(a.kias) && Number.isFinite(a.altFt) && Number.isFinite(a.bankDeg) && Number.isFinite(a.g), `finite at ${s.timeSec.toFixed(2)} s`);
         minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
         maxOver = Math.max(maxOver, a.kias - modelTopKias(a.altFt)); // over the top speed (Mach 0.67 in the model's IAS) at its height
       }
+      // Handed to the MPT with the nose within 15° of straight down: the bank rolls to 90° or less within 2 s (at 90°/s from 135°) and stays.
+      if (s.blue.ctl.mode === 'mpt' && s.blue.climbDeg < -75) { lowSec += FIGHT_STEP_SEC; if (lowSec > 2) worstBank = Math.max(worstBank, Math.abs(s.blue.bankDeg)); } else lowSec = 0;
     }
     const what = `${JSON.stringify(setup)}: lowest ${minAlt.toFixed(0)} ft, fastest ${maxKias.toFixed(0)} KIAS`;
     assert.ok(minAlt >= s.setup.hardDeckFt - 500, what);
     assert.ok(maxOver <= 2, `${what}, ${maxOver.toFixed(0)} over the top speed`);
+    assert.ok(worstBank <= 91, `${what}: bank ${worstBank.toFixed(0)}° with the nose low near the vertical`);
   }
 });
 
