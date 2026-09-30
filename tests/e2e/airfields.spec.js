@@ -128,3 +128,20 @@ test('everything is reachable with the keyboard, and nothing overflows at 1366 w
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
 });
+
+test('D80: no IFR approach asks for the MEA under More, keeps focus on the list, and shows the ceiling it needs', async ({ page }) => {
+  await open(page);
+  const type = page.getByLabel('CYYN approaches');
+  await type.focus();
+  await type.selectOption('no-ifr');
+  await expect(type).toBeFocused();
+  await expect(page.getByTestId('minima-used')).toContainText('CYYN visual descent, needs MEA');
+  await more(page).click();
+  await page.getByLabel('CYYN MEA, feet above sea level').fill('4500');
+  await page.getByLabel('CYYN MEA, feet above sea level').press('Tab');
+  await expect(page.getByTestId('minima-used')).toContainText('CYYN visual descent from MEA 4,500 ft, needs field elevation');
+  await page.getByLabel('CYYN elevation, feet').fill('2680');
+  await page.getByLabel('CYYN elevation, feet').press('Tab');
+  await expect(page.getByTestId('minima-used')).toContainText('CYYN visual descent from MEA 4,500 ft (ceiling 2,320 ft, 3 SM)');
+  await expect(page.getByLabel('CYMJ elevation, feet')).toHaveCount(0); // CYMJ's is built in
+});

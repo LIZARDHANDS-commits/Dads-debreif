@@ -21,3 +21,18 @@ test('UTC offsets read UTC−6, UTC+5:30, UTC', () => {
 test('distances are whole NM, or unknown', () => {
   assert.deepEqual([118.5, null].map(formatNm), ['119 NM', 'unknown']);
 });
+
+test('D80: the minima line for a visual descent names the MEA, the ceiling it needs, and anything missing', () => {
+  assert.equal(
+    formatMinimaLine('CYYN', { minima: null, minimaChecked: true, visualDescent: { meaFt: 4500, elevationFt: 2680, visSm: 3 } }),
+    'CYYN visual descent from MEA 4,500 ft (ceiling 2,320 ft, 3 SM)',
+  );
+  assert.equal(
+    formatMinimaLine('CYYN', { minima: null, minimaChecked: true, visualDescent: { meaFt: 4500, elevationFt: null, visSm: 3 } }),
+    'CYYN visual descent from MEA 4,500 ft, needs field elevation',
+  );
+  assert.equal(
+    formatMinimaLine('CYYN', { minima: null, minimaChecked: true, visualDescent: { meaFt: null, elevationFt: null, visSm: 3 } }),
+    'CYYN visual descent, needs MEA',
+  );
+});
