@@ -156,7 +156,8 @@ export function createTimelineView({ collapsed = false, onToggle } = {}) {
     const stop = all.find((el) => el.dataset.id === (focusedId ?? currentId)) ?? all[0] ?? null;
     currentId = stop?.dataset.id ?? null;
     if (stop) stop.tabIndex = 0;
-    if (focusedId && stop?.dataset.id === focusedId) stop.focus({ preventScroll: true });
+    // The piece that had focus is drawn again, or has gone: focus goes to the tab stop now, never to the page.
+    if (focusedId && stop) stop.focus({ preventScroll: true });
     else showInfo('');
   }
 

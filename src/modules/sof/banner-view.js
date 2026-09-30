@@ -38,7 +38,13 @@ export function createBannerView({ onAcknowledge, onAcknowledgeAll, focusAfter =
       }, 'Acknowledge'));
 
   function render(banner) {
-    const hadFocus = element.contains(document.activeElement);
+    const active = document.activeElement;
+    const hadFocus = element.contains(active);
+    // Which button had focus, before a redraw takes it away: its line's key and place, or Acknowledge all.
+    const lineOfFocus = hadFocus ? active.closest?.('.sof-banner-line') : null;
+    const heldKey = lineOfFocus?.dataset.key ?? null;
+    const heldIndex = lineOfFocus ? [...list.children].indexOf(lineOfFocus) : -1;
+    const heldAll = hadFocus && active === all;
     // The alert role is only on while something new is on the banner.
     if (banner.announce.length) element.setAttribute('role', 'alert');
     else element.removeAttribute('role');
@@ -50,6 +56,16 @@ export function createBannerView({ onAcknowledge, onAcknowledgeAll, focusAfter =
       all.hidden = !banner.ackAllLabel;
     }
     element.hidden = !banner.show;
+    if (pendingFocus === null && hadFocus && banner.show && !element.contains(document.activeElement)) {
+      // A redraw took focus from a button it did not press: the same caution's button, else the one in its place,
+      // else past the banner. Acknowledge all keeps focus if it is still there.
+      const buttons = [...list.children].map((li) => li.querySelector('.sof-banner-ack'));
+      const same = heldKey === null ? null : buttons.find((b) => b.closest('.sof-banner-line').dataset.key === heldKey);
+      const target = heldAll && !all.hidden ? all : same ?? (heldIndex >= 0 ? buttons[Math.min(heldIndex, buttons.length - 1)] : null) ?? (all.hidden ? null : all);
+      if (target) target.focus();
+      else focusAfter();
+      return;
+    }
     if (pendingFocus === null && !(hadFocus && !banner.show)) return;
     // Focus never falls to the page: it goes to the next line's button, or on past the banner.
     const buttons = [...list.querySelectorAll('.sof-banner-ack')];

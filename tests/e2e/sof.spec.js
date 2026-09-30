@@ -938,3 +938,76 @@ for (const size of SIZES) {
     });
   });
 }
+
+// ---- Focus and the switch survive a redraw (audit) ------------------------------------------------------------
+
+const STORM_NO_LOW_CYQR = () => fixture('ui-metno-metar-storm.txt').replace('2SM BR BKN004', '15SM FEW080');
+
+test('an Acknowledge button that has focus keeps it when a refresh redraws the banner, and focus moves on after the last', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await feedStatus(page).focus();
+  await tabTo(page, '.sof-banner-ack');
+  await page.keyboard.press('Tab'); // the second line's button: the thunderstorm at home
+  await expect(page.locator('.sof-banner-ack').nth(1)).toBeFocused();
+  // The low ceiling at Regina clears: the banner is redrawn with one line, and focus stays on the same caution's button.
+  feed.metar = STORM_NO_LOW_CYQR();
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click'); // a real click would move focus
+  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ METAR 1800Z: THUNDERSTORM / SEVERE WX (VCTS)']);
+  await expect(page.locator('.sof-banner-ack')).toBeFocused();
+  // The last Acknowledge: the banner goes and focus moves on to the Waves heading, never to the page.
+  await page.keyboard.press('Enter');
+  await expect(banner(page)).toBeHidden();
+  await expect(page.locator('.sof-waves-title')).toBeFocused();
+});
+
+test('when the line that had focus goes, focus takes the line now in its place', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await feedStatus(page).focus();
+  await tabTo(page, '.sof-banner-ack');
+  await expect(page.locator('.sof-banner-ack').first()).toBeFocused(); // the low ceiling at Regina
+  feed.metar = STORM_NO_LOW_CYQR();
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(bannerLines(page)).toHaveCount(1);
+  await expect(page.locator('.sof-banner-ack')).toBeFocused();
+  // And when there is nothing left to take, focus goes past the banner, not to the page.
+  feed.metar = fixture('ui-metno-metar-clear.txt');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(banner(page)).toBeHidden();
+  await expect(page.locator('.sof-waves-title')).toBeFocused();
+});
+
+test('a timeline piece that has focus and then goes gives focus to the piece that is the tab stop now', async ({ page }) => {
+  const feed = await openSof(page, CLEAR_FOG);
+  await timeline(page).locator('.panel-toggle').focus();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowRight');
+  await expect(pieces(page, 'CYMJ').nth(1)).toBeFocused(); // the fog TEMPO
+  feed.taf = fixture('ui-metno-taf-fog.txt').replace(' TEMPO 2922/2924 1/2SM FG VV002', '');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(pieces(page, 'CYMJ')).toHaveCount(1);
+  await expect(pieces(page, 'CYMJ').first()).toBeFocused();
+  await expect(tlInfo(page)).toContainText('CYMJ PREVAILING');
+});
+
+test('the banner switched off and on again does not bring back what was acknowledged', async ({ page }) => {
+  const feed = await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await banner(page).locator('.sof-banner-all').press('Enter');
+  await expect(banner(page)).toBeHidden();
+  await settingsButton(page).click();
+  const switchBox = page.getByLabel('Show the new-caution banner');
+  await switchBox.uncheck();
+  // The same weather comes in while the banner is off, and once with a caution gone: acknowledgements are kept right.
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(feedStatus(page)).toHaveText('Weather just now ✓');
+  await switchBox.check();
+  await expect(banner(page)).toBeHidden();
+  // A caution that goes while it is off is new when it comes back, which is the rule with the banner on.
+  await switchBox.uncheck();
+  feed.metar = fixture('ui-metno-metar-clear.txt');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('Within limits');
+  feed.metar = fixture('ui-metno-metar-storm.txt');
+  await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
+  await switchBox.check();
+  await expect(bannerLines(page)).toHaveCount(2);
+});
