@@ -21,7 +21,7 @@ From [`.claude/skills/`](../../.claude/skills/README.md). Each PR description li
 |---|---|
 | spec-driven-development | SPEC-core.md came first and Patrick approved it before any code. New ports that other specs ask for (Turn Sim, Turn Fight) are added to SPEC-core first. |
 | planning-and-task-breakdown | This plan and [`todo.md`](todo.md): small tasks, each with acceptance, verification and size. |
-| test-driven-development | Golden tests run V6's own function next to each port and must pass before the port counts (R9). A fix (D39, D62, D63, D74) first changes the test to the new expected number, sees it fail, then changes the code. |
+| test-driven-development | Golden tests run V6's own function next to each port and must pass before the port counts (R9). A fix (D39, D62, D63, D74) first changes the test to the new expected number, sees it fail, then changes the code. New math V6 doesn't have (wind, the T-6A performance model) starts from failing known-answer tests taken from the charts and manuals. |
 | incremental-implementation | One function or one decision per commit: port and pin first, then each fix as its own commit (D10). |
 | debugging-and-error-recovery | When a golden test stops matching V6, or CI goes red: reproduce, find the root cause, never loosen a tolerance to pass. |
 | code-review-and-quality | An independent review of each PR's diff before it leaves draft. The mutation check and the browser check are part of that review. |
