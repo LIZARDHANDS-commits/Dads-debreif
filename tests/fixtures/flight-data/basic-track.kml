@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+<Document><Placemark><name>Basic &amp; small</name><gx:Track>
+<when>2026-06-02T18:00:00Z</when><gx:coord>-105.5 50.3 500</gx:coord>
+<when>2026-06-02T18:00:01.5Z</when><gx:coord>-105.501 50.3005 510.25</gx:coord>
+<when>2026-06-02T18:00:03Z</when><gx:coord>  -105.502   50.301   520  </gx:coord>
+<when>2026-06-02T18:00:04Z</when><gx:coord>-105.503 50.3015</gx:coord>
+</gx:Track></Placemark>
+<ExtendedData><SchemaData>
+<gx:SimpleArrayData name="g_load"><gx:value>1.0</gx:value><gx:value>2.5</gx:value><gx:value>15</gx:value><gx:value>-1</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="pitch"><gx:value>5</gx:value><gx:value></gx:value><gx:value>95</gx:value><gx:value> -10 </gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="bank"><gx:value>30</gx:value><gx:value>-45</gx:value><gx:value>120</gx:value><gx:value></gx:value></gx:SimpleArrayData>
+</SchemaData></ExtendedData></Document></kml>
