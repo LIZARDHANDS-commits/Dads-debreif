@@ -67,3 +67,34 @@ test('the Base delay is still a 90\'s: the Delayed 90 is untouched, the 45 waits
   assert.ok(Math.abs(start('delayed90away', 90) - 16) < 0.1);
   assert.ok(Math.abs(start('delayed45away', 45) - 16 * 2.41421356) < 0.1);
 });
+
+test('no aircraft turns further than the 45 (the 90 the wingman starts for is never completed), to within the roll-in step', () => {
+  for (const formation of ['twoShip', 'weighted']) {
+    for (const direction of ['right', 'left']) {
+      const run = createRun({ ...BASE, formation, direction });
+      const start = run.state.aircraft.map((a) => a.headingRad);
+      let most = 0;
+      while (run.step()) run.state.aircraft.forEach((a, i) => { most = Math.max(most, Math.abs(a.headingRad - start[i])); });
+      assert.ok(most < Math.PI / 4 + 2e-4 && most > Math.PI / 4 - 2e-4, `${formation} ${direction}: the most any aircraft turned was ${(most * 180 / Math.PI).toFixed(3)} degrees`);
+    }
+  }
+});
+
+test('the run lasts until the last aircraft has turned and 10 s more, so a four-ship Delayed 45 with Auto timing is not cut off at 75 s', () => {
+  const run = createRun({ ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, timing: 'auto', formation: 'weighted', direction: 'right', durationSec: 75 });
+  while (run.step());
+  assert.equal(run.state.turnComplete, true, 'all four turned');
+  // The last start is 3 x 39.05 = 117.2 s, its turn takes 3.2 s, and then 10 s.
+  assert.ok(run.state.durationSec > 130 && run.state.durationSec < 132, `${run.state.durationSec}`);
+  assert.ok(Math.abs(run.state.tSec - run.state.durationSec) < 0.06);
+  // V6's stop at the Duration is one setting away, and leaves two aircraft that never turned.
+  const v6 = createRun({ ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, timing: 'auto', formation: 'weighted', direction: 'right', durationSec: 75, durationCoversTurn: false });
+  while (v6.step());
+  assert.equal(v6.state.durationSec, 75);
+  assert.equal(v6.state.aircraft.filter((a) => !a.done).length, 2);
+});
+
+test('a Duration longer than the plan needs is kept', () => {
+  const run = createRun({ ...DEFAULTS, maneuver: 'inplace90', durationSec: 200 });
+  assert.equal(run.state.durationSec, 200);
+});

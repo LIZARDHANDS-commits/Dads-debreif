@@ -16,8 +16,8 @@ const DIRECTIONS = ['right', 'left'];
 
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
 // Q47 has the check wait for #3 and #4's turns, and the hook's offset box rear delay (SMM 112a) starts #3 and #4 late; V6 did
-// neither, so V6's runs are flown with the wait off and no delay. V6's hook is 90 degrees; the SMM's is 180, and V6 flies 180 when told.
-const scenario = (over) => ({ ...V6_DEFAULTS, rearCheckAfterTurns: false, rearDelaySec: 0, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
+// neither, and it stopped at the Duration whatever was waiting, so V6's runs are flown with the wait off, no delay and no extension. V6's hook is 90 degrees; the SMM's is 180, and V6 flies 180 when told.
+const scenario = (over) => ({ ...V6_DEFAULTS, rearCheckAfterTurns: false, rearDelaySec: 0, durationCoversTurn: false, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
 
 /**
  * The auto step in seconds, D44: spacing / speed x cot(half the turn angle), written out here from the spec

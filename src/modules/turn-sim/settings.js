@@ -124,6 +124,10 @@ export const DEFAULTS = Object.freeze({
   // The G setting is the second stage. V6 flew the whole turn at the G setting.
   crossTurnFirstG: 2.0,
   crossTurnSwitchDeg: 90,
+  // A run lasts at least until the last aircraft has finished its turn and 10 s more, so a slow plan (a four-ship
+  // Delayed 45 with Auto timing starts its last aircraft at 117 s) is never cut off at the Duration with aircraft
+  // that have not turned. V6 stopped at the Duration whatever was still waiting: false gives that back.
+  durationCoversTurn: true,
   // D48 (Q31, Patrick): which side #2 flies on in 4312 and 2134, left by default. V6 drew #2 on Lead's left in 4312
   // (2134 is its mirror); 'right' mirrors both. V6 had no such box, and 'left' is what it flew.
   twoSide: 'left',
@@ -178,6 +182,7 @@ export const SETTINGS_RULES = Object.freeze({
   rearCheckAfterTurns: bool,
   twoSide: oneOf(['left', 'right']),
   rearDelaySec: number(0, 60),
+  durationCoversTurn: bool,
   crossTurnFirstG: number(1.01, 9),
   crossTurnSwitchDeg: number(10, 180),
   rearDelayMinSec: number(0, 60),

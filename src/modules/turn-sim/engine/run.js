@@ -22,6 +22,7 @@ import { startPositions, activeIds, inferLineAbreastForm } from './formation.js'
 import { planTurn } from './plan.js';
 import { cueStatus } from './cues.js';
 import { moveAircraft, flownG, STEP_SEC } from './step.js';
+import { turnRateRadPerSec } from '../../../core/flight-math.js';
 import { rearCheckConfig, resetRearCheckState, rearCheckStatus } from './rear-check.js';
 
 /** The pairs of aircraft the spacing is kept for, in the order V6 lists them (line 1699). */
@@ -106,7 +107,8 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  * out-of-range values on purpose). A non-finite Duration falls back to the
  * default, so a run always ends. Returns:
  *
- *   state    live, updated in place after every reset, step and startLeg:
+ *   state    live, updated in place after every reset, step and startLeg (durationSec is how long the run lasts: the
+ *            Duration, or longer when durationCoversTurn and the plan needs it; a finished run is at durationSec):
  *            { tSec, finished, turnComplete, canStartLeg,
  *              aircraft: [{ id, xFt, yFt, headingRad, turning, bankDeg, g, done, cue }] }
  *            finished: the run has reached its Duration (V6's loop stops there).
@@ -152,13 +154,33 @@ export function createRun(settings) {
   let planned = false;
   let planInfo = { autoStepSec: null, rearDelaysSec: null };
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, aircraft: [] };
+  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
-  const finished = () => tSec >= cfg.durationSec;
+  // How long the run lasts: the Duration, or longer when durationCoversTurn and the plan needs it (see settings.js).
+  let coverSec = 0;
+  const durationSec = () => Math.max(cfg.durationSec, cfg.durationCoversTurn ? coverSec : 0);
+  const finished = () => tSec >= durationSec();
+
+  // The time the plan needs: each aircraft's start, its legs, holds, and the turn's own time, and 10 s more to see it end.
+  function timeNeededSec() {
+    const v = speedFtps();
+    let latest = 0;
+    for (const a of craft) {
+      const legs = a.legs || [{ goalRad: a.turnGoalRad || degToRad(cfg.turnDeg) }];
+      let end = a.turnStartSec;
+      for (const leg of legs) {
+        const omega = turnRateRadPerSec(v, flownG(leg.gSetting !== undefined ? leg.gSetting : cfg.baseG, a.gError));
+        end += (leg.holdSec || 0) + leg.goalRad / omega;
+      }
+      latest = Math.max(latest, end);
+    }
+    return latest + 10;
+  }
 
   function publish() {
     state.tSec = tSec;
+    state.durationSec = durationSec();
     state.finished = finished();
     state.turnComplete = allAircraftFinishedTurn(craft);
     state.startHeadingDeg = headingRadToCompassDeg(startHeadingRad);
@@ -245,6 +267,7 @@ export function createRun(settings) {
     rows = [];
     tSec = 0;
     planned = false;
+    coverSec = 0;
     planInfo = { autoStepSec: null, rearDelaysSec: null };
     publish();
   }
@@ -262,6 +285,7 @@ export function createRun(settings) {
     }
     syncFormation();
     planInfo = planTurn(craft, flight(), { useErrors: true });
+    coverSec = timeNeededSec();
     record();
     planned = true;
   }
@@ -283,6 +307,7 @@ export function createRun(settings) {
       resetRearCheckState(a);
     }
     planInfo = planTurn(craft, flight(), { useErrors: true });
+    coverSec = timeNeededSec();
     record();
     planned = true;
     publish();
