@@ -86,6 +86,26 @@ export function readWinds(json) {
 }
 
 /**
+ * The wind's "from" direction and speed as components, so winds can be blended:
+ * 350° and 010° halfway give 360°, not 180°.
+ */
+const toVec = ({ dirDeg, kt }) => {
+  const r = (dirDeg * Math.PI) / 180;
+  return [kt * Math.sin(r), kt * Math.cos(r)];
+};
+
+/** Blends two winds a fraction k of the way from a to b, as vectors. */
+function mixWinds(a, b, k) {
+  const [ax, ay] = toVec(a);
+  const [bx, by] = toVec(b);
+  const x = ax + (bx - ax) * k;
+  const y = ay + (by - ay) * k;
+  const kt = Math.hypot(x, y);
+  const dirDeg = kt < 1e-9 ? 0 : ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
+  return { dirDeg, kt };
+}
+
+/**
  * The wind at altitudeFt (above sea level) in one model hour, blended between
  * the two levels either side by height, as a vector so 350° and 010° give
  * 360°, not 180°. Returns { dirDeg, kt }, or null outside the levels given.
@@ -99,18 +119,33 @@ export function windAtAltitude(hour, altitudeFt) {
   const a = levels[i];
   const b = levels[Math.min(i + 1, levels.length - 1)];
   const k = b.heightFt === a.heightFt ? 0 : (altitudeFt - a.heightFt) / (b.heightFt - a.heightFt);
-  // Components of the wind's "from" direction: blending these gives the blended direction.
-  const vec = (l) => {
-    const r = (l.dirDeg * Math.PI) / 180;
-    return [l.kt * Math.sin(r), l.kt * Math.cos(r)];
-  };
-  const [ax, ay] = vec(a);
-  const [bx, by] = vec(b);
-  const x = ax + (bx - ax) * k;
-  const y = ay + (by - ay) * k;
-  const kt = Math.hypot(x, y);
-  const dirDeg = kt < 1e-9 ? 0 : ((Math.atan2(x, y) * 180) / Math.PI + 360) % 360;
-  return { dirDeg, kt };
+  return mixWinds(a, b, k);
+}
+
+/**
+ * The wind at altitudeFt at moment t. The model gives one value per hour, so
+ * between the hour at or before t and the next one the wind is blended by time
+ * as a vector (D176 asked for the hour at or before; a step at each hour lagged
+ * by up to 59 minutes). The next hour is left out when it isn't there, is more
+ * than 90 minutes on, or has no wind at this height, and then the hour at or
+ * before stands alone. Returns null when no hour is in force at t (older than
+ * 90 minutes or none yet); otherwise { wind, hoursT, levels }: the wind or null
+ * outside the levels, the hour(s) it came from (seconds), and the earlier
+ * hour's levels for saying why there is none.
+ */
+export function windAt(hours, t, altitudeFt) {
+  const slice = sliceAt(hours, t, MAX_AGE_S.model);
+  if (!slice) return null;
+  const { item: before } = slice;
+  const levels = before.levels;
+  const w0 = windAtAltitude(before, altitudeFt);
+  if (!w0) return { wind: null, hoursT: [before.t], levels };
+  const after = hours[hours.indexOf(before) + 1];
+  if (t > before.t && after && after.t > t && after.t - before.t <= MAX_AGE_S.model) {
+    const w1 = windAtAltitude(after, altitudeFt);
+    if (w1) return { wind: mixWinds(w0, w1, (t - before.t) / (after.t - before.t)), hoursT: [before.t, after.t], levels };
+  }
+  return { wind: w0, hoursT: [before.t], levels };
 }
 
 /**
@@ -127,20 +162,22 @@ export function windWords({ dirDeg, kt }) {
 
 /**
  * The words for the wind line at moment t: "model wind 270°T/25 kt at 8,500 ft
- * (HRDPS 14Z, Open-Meteo)", crediting the source as its licence asks,
- * or why there's none. hours: readWinds' result. modelLabel: "HRDPS" or "HRRR".
+ * (HRDPS 14Z, Open-Meteo)", crediting the source as its licence asks, or why
+ * there's none. Between two model hours the wind is blended and both hours are
+ * named: "(HRDPS 14–15Z, Open-Meteo)". hours: readWinds' result. modelLabel:
+ * "HRDPS" or "HRRR".
  */
 export function windTextAt(hours, t, altitudeFt, modelLabel) {
-  const slice = sliceAt(hours, t, MAX_AGE_S.model);
-  if (!slice) return `no ${modelLabel} wind for this time`;
+  const found = windAt(hours, t, altitudeFt);
+  if (!found) return `no ${modelLabel} wind for this time`;
   const at = `${round(altitudeFt, 100).toLocaleString('en-US')} ft`;
-  const wind = windAtAltitude(slice.item, altitudeFt);
-  const hourZ = `${new Date(slice.item.t * 1000).toISOString().slice(11, 13)}Z`;
-  if (!wind) {
-    const { levels } = slice.item;
+  if (!found.wind) {
+    const { levels } = found;
     const ft = (l) => `${round(l.heightFt, 100).toLocaleString('en-US')} ft`;
     const where = altitudeFt < levels[0].heightFt ? `below the lowest model level (${ft(levels[0])})` : `above the highest model level (${ft(levels[levels.length - 1])})`;
     return `no ${modelLabel} wind at ${at}: ${where}`;
   }
-  return `model wind ${windWords(wind)} at ${at} (${modelLabel} ${hourZ}, Open-Meteo)`;
+  const hourZ = (s) => new Date(s * 1000).toISOString().slice(11, 13);
+  const hoursZ = found.hoursT.length === 2 ? `${hourZ(found.hoursT[0])}–${hourZ(found.hoursT[1])}Z` : `${hourZ(found.hoursT[0])}Z`;
+  return `model wind ${windWords(found.wind)} at ${at} (${modelLabel} ${hoursZ}, Open-Meteo)`;
 }

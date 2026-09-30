@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  WIND_MODELS, WIND_LEVELS_HPA, windModelFor, windsUrl, readWinds, windAtAltitude, windWords, windTextAt,
+  WIND_MODELS, WIND_LEVELS_HPA, windModelFor, windsUrl, readWinds, windAtAltitude, windAt, windWords, windTextAt,
 } from '../../../src/modules/debrief/weather/winds.js';
 import { createWindsFeed } from '../../../src/modules/debrief/weather/winds-feed.js';
 
@@ -203,9 +203,57 @@ test('windTextAt on real replies gives a wind at flying heights and none above t
     const hours = readWinds(real(id));
     const at = hours[18].t + 600; // 18:10Z
     const text = windTextAt(hours, at, 12_600, label);
-    assert.match(text, new RegExp(`^model wind \\d{3}°T/\\d+ kt at 12,600 ft \\(${label} 18Z, Open-Meteo\\)$`));
+    assert.match(text, new RegExp(`^model wind \\d{3}°T/\\d+ kt at 12,600 ft \\(${label} 18–19Z, Open-Meteo\\)$`));
     for (const word of ['model', 'kt', '°T']) assert.ok(text.includes(word), word); // true, in knots, and not observed (W1)
     assert.match(windTextAt(hours, at, 5500, label), /at 5,500 ft/);
     assert.match(windTextAt(hours, at, 31_500, label), /above the highest model level/);
   }
+});
+
+// Two model hours with the same levels, to see the blend in time.
+const level = (hPa, heightFt, dirDeg, kt) => ({ hPa, heightFt, dirDeg, kt });
+const twoHours = (dir18, dir19, kt18 = 40, kt19 = 40) => [
+  { t: T('2026-09-29T18:00Z'), levels: [level(850, 4000, dir18, kt18), level(700, 8000, dir18, kt18)] },
+  { t: T('2026-09-29T19:00Z'), levels: [level(850, 4000, dir19, kt19), level(700, 8000, dir19, kt19)] },
+];
+
+test('W3: between two model hours the wind is blended by time as a vector, not a step at the hour', () => {
+  const hours = twoHours(90, 180);
+  // Halfway: 40 kt from the east and 40 kt from the south make 28.3 kt from 135°.
+  const mid = windAt(hours, T('2026-09-29T18:30Z'), 6000);
+  assert.ok(Math.abs(mid.wind.dirDeg - 135) < 1e-9 && Math.abs(mid.wind.kt - Math.hypot(20, 20)) < 1e-9, JSON.stringify(mid));
+  assert.deepEqual(mid.hoursT, [T('2026-09-29T18:00Z'), T('2026-09-29T19:00Z')]);
+  // A quarter of the way: 30 kt from the east, 10 kt from the south.
+  const q = windAt(hours, T('2026-09-29T18:15Z'), 6000);
+  assert.ok(Math.abs(q.wind.kt - Math.hypot(30, 10)) < 1e-9);
+  // On the hour, that hour alone; 350° and 010° halfway is 360°, not 180°.
+  assert.deepEqual(windAt(hours, T('2026-09-29T18:00Z'), 6000).hoursT, [T('2026-09-29T18:00Z')]);
+  assert.equal(windAt(hours, T('2026-09-29T19:00Z'), 6000).hoursT[0], T('2026-09-29T19:00Z'));
+  const north = windAt(twoHours(350, 10), T('2026-09-29T18:30Z'), 6000).wind;
+  assert.ok(Math.abs(((north.dirDeg + 180) % 360) - 180) < 1e-9 && north.kt > 39 && north.kt < 40);
+});
+
+test('W3: no jump one second either side of the hour, on a real reply', () => {
+  for (const [id] of REAL_MODELS) {
+    const hours = readWinds(real(id));
+    const before = windAt(hours, hours[19].t - 1, 12_600).wind;
+    const after = windAt(hours, hours[19].t, 12_600).wind;
+    assert.ok(Math.abs(before.kt - after.kt) < 0.05, `${id} ${before.kt} vs ${after.kt}`);
+    assert.ok(Math.abs(before.dirDeg - after.dirDeg) < 0.5, `${id} ${before.dirDeg} vs ${after.dirDeg}`);
+  }
+});
+
+test('W3: the label names both hours while blending, one hour when only one is used', () => {
+  const hours = twoHours(90, 180);
+  assert.equal(windTextAt(hours, T('2026-09-29T18:30Z'), 6000, 'HRDPS'), 'model wind 140°T/28 kt at 6,000 ft (HRDPS 18–19Z, Open-Meteo)');
+  assert.equal(windTextAt(hours, T('2026-09-29T18:00Z'), 6000, 'HRDPS'), 'model wind 090°T/40 kt at 6,000 ft (HRDPS 18Z, Open-Meteo)');
+  // The last hour has none after it: that hour alone, while it is under 90 minutes old.
+  assert.match(windTextAt(hours, T('2026-09-29T19:30Z'), 6000, 'HRDPS'), /\(HRDPS 19Z, Open-Meteo\)$/);
+  assert.equal(windTextAt(hours, T('2026-09-29T20:31Z'), 6000, 'HRDPS'), 'no HRDPS wind for this time');
+  // Hours more than 90 minutes apart are not blended across the gap.
+  const gap = [twoHours(90, 180)[0], { ...twoHours(90, 180)[1], t: T('2026-09-29T21:00Z') }];
+  assert.match(windTextAt(gap, T('2026-09-29T18:30Z'), 6000, 'HRDPS'), /\(HRDPS 18Z, Open-Meteo\)$/);
+  // The next hour has no wind at this height (its levels are higher): the earlier hour alone.
+  const raised = [twoHours(90, 180)[0], { t: T('2026-09-29T19:00Z'), levels: [level(700, 8000, 180, 40)] }];
+  assert.match(windTextAt(raised, T('2026-09-29T18:30Z'), 6000, 'HRDPS'), /\(HRDPS 18Z, Open-Meteo\)$/);
 });
