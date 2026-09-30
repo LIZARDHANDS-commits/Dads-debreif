@@ -79,7 +79,8 @@ test('below 1 G there is no turn: NaN, as in V6', () => {
 
 test('isaDensityRatio matches the EM chart isaRhoRatio', () => {
   const { isaRhoRatio } = loadV6(['isaRhoRatio']);
-  for (const ft of [0, 6500, 8000, 13000, 36088, 36089, 36090, 40000, -1000, NaN, ...spread(200, -2000, 50000, 13)]) {
+  // 36089.238845144355 ft is exactly 11,000 m, where V6 switches to 0.297.
+  for (const ft of [0, 6500, 8000, 13000, 36088, 36089, 36089.238845144355, 36090, 40000, -1000, NaN, ...spread(200, -2000, 50000, 13)]) {
     assert.equal(isaDensityRatio(ft), isaRhoRatio(ft), `ft=${ft}`);
   }
 });

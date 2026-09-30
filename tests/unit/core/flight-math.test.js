@@ -86,4 +86,6 @@ test('gFromTrack reads back the G of a steady level turn', () => {
   near(g, 4, 0.03); // a little under 4: the straight line between the points is shorter than the arc
   assert.equal(gFromTrack(p0, 0, { x: R + 10, y: 0 }, 0, 1), null, 'too slow to tell');
   assert.equal(gFromTrack(p0, 0, p1, 3, 1), null, 'over 9 G is noise');
+  assert.equal(gFromTrack(null, 0, p1, 0, 1), null, 'a missing moment');
+  assert.equal(gFromTrack(p0, 0, undefined, 0, 1), null);
 });

@@ -135,6 +135,38 @@ test('tennis3D matches draw3DDogfightArc', () => {
   assert.ok(hits >= 15 && hits <= 285, `${hits} of 300 cases hit; the inputs should give both answers`);
 });
 
+test('both match V6 on exact ties, a pass exactly at the hit radius, tiny radii and a missing heading', () => {
+  const dbg = debriefV6(), v3 = threeDV6();
+  const still = (id, x) => ({ id, pts: [0, 1, 2, 3].map(t => ({ t, x, y: 0, altFt: 5000 })) });
+  // A ball that doesn't move and a target that doesn't either: every step is the same distance.
+  const cases = [
+    { gap: 250, radius: 250 }, { gap: 250.5, radius: 250 }, { gap: 7, radius: 5 }, { gap: 0.8, radius: 0.5 }, { gap: 3, radius: 0 },
+  ];
+  for (const { gap, radius } of cases) {
+    const s = { ballKt: 0, coneDeg: 6, tofSec: 3, radius, bias: 0, gravity: false };
+    const tracks = { 1: still(1, gap), 2: still(2, 0) };
+    const live = { 1: dbg.interpTrack(tracks[1], 1.5), 2: { ...dbg.interpTrack(tracks[2], 1.5), spdKt: 0 } };
+    dbg.setDebrief({ tracks, kmlT: 1.5, dom: box(s) });
+    const want = dbg.getKmlTennisSolution(live);
+    const got = tennisDebrief({ shooter: live[2], target: live[1], shooterHdg: 0, targetHdg: 0, pitchDeg: 0, ballKt: 0, coneDeg: 6, tofSec: 3, hitRadiusFt: radius, gravity: false });
+    assert.equal(got.status, want.status, `gap ${gap}, radius ${radius}`);
+    assert.deepEqual(got.best, want.best);
+
+    for (const hdg of [0, undefined]) {
+      const api = { getTracks: () => tracks, getTime: () => 1.5, getInterp: (id, t) => dbg.interpTrack(tracks[id], t) };
+      const shooter = { ...live[2], hdg, spdKt: hdg === undefined ? 200 : 0 };
+      const dom = box({ ...s, ballKt: hdg === undefined ? 350 : 0 });
+      v3.setThreeD({ dom, api });
+      v3.draw3DDogfightArc({ 1: live[1], 2: shooter }, null);
+      const [arc, , , pass] = v3.drawn();
+      const got3 = tennis3D({ shooter, target: live[1], targetAt: t => api.getInterp(1, 1.5 + t), pitchDeg: 0, ballKt: hdg === undefined ? 350 : 0, coneDeg: 6, tofSec: 3, radiusFt: radius, gravity: false });
+      assert.deepEqual(got3.points, arc);
+      assert.deepEqual([got3.closest.ball, got3.closest.target], pass, `gap ${gap}, radius ${radius}, hdg ${hdg}`);
+      assert.equal(dom.kmlTennisReadout.innerHTML.includes('NO INTERCEPT'), !got3.hit, `gap ${gap}, radius ${radius}`);
+    }
+  }
+});
+
 test('tennis3D without a target track keeps the target where it is', () => {
   const got = tennis3D({ shooter: { x: 0, y: 0, altFt: 5000, spdKt: 200, hdg: 0 }, target: { x: 1500, y: 0, altFt: 5000 }, pitchDeg: 0, ballKt: 350, coneDeg: 6, tofSec: 3, radiusFt: 250, gravity: false });
   assert.ok(got.hit);
