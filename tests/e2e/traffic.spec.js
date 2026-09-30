@@ -371,19 +371,21 @@ test('Reset to defaults works on the first real click after typing in a settings
   const lateral = page.getByLabel('Conflict: lateral');
   const reset = page.getByRole('button', { name: 'Reset to defaults' });
   await reset.scrollIntoViewIfNeeded();
-  const topWithout = (await reset.boundingBox()).y;
+  // How far the button is below the box, so the page scrolling to a focused box (the menu is no longer last in the column) doesn't count as a move.
+  const below = async () => (await reset.boundingBox()).y - (await lateral.boundingBox()).y;
+  const gapWithout = await below();
   await lateral.focus();
   await expect(page.locator('.settings-item:focus-within .settings-hint')).toBeVisible();
-  expect((await reset.boundingBox()).y, 'the hint takes no room').toBe(topWithout);
+  expect(await below(), 'the hint takes no room').toBe(gapWithout);
   await lateral.fill('350');
   await expect(lateral).toHaveValue('350');
-  expect((await reset.boundingBox()).y).toBe(topWithout);
+  expect(await below()).toBe(gapWithout);
   await reset.click(); // one real mouse click
   await expect(lateral).toHaveValue('200');
   // The same after Enter.
   await lateral.fill('350');
   await lateral.press('Enter');
-  expect((await reset.boundingBox()).y).toBe(topWithout);
+  expect(await below()).toBe(gapWithout);
   await reset.click();
   await expect(lateral).toHaveValue('200');
 });
