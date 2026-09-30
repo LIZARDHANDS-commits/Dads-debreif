@@ -11,7 +11,7 @@ Keep V6 (the old single-file tool) open in another tab for the side-by-side line
 - [ ] On the home screen, the **Turn Fight** card has the small BFM heading, a short line reading "1-circle, 2-circle and vertical fights" and a PROTOTYPE badge. Clicking it opens the Turn Fight. **Home** in the header brings you back.
 - [ ] Nothing is set up or typed, and the fight is ready to play. Three columns show: **Fight setup** on the left, the fight picture in the middle with the toolbar above it, and **Result** on the right. The toolbar says **Play**, **Reset**, a **View** choice (2D, 3D), **Playback speed** (1×), the time **T+0.0** and the word HEAD-TO-HEAD. Nothing covers anything else.
 - [ ] The opening settings are V6's: **2-circle**, **Start separation** 2 NM, both aircraft **Speed** 220 KTAS and **G** 4, **First nose chases** and **Climb and dive** both off. In the picture Blue (B) and Red (R) face each other, 2 NM apart.
-- [ ] **Turn Fight settings** is closed. Open it once: under **Start geometry** a line reads "Pass at T+16.4 s", the same time V6's jets merge. Close it again.
+- [ ] **Turn Fight settings** is closed. Open it once: under **Start geometry** a line reads "Pass at T+16.4 s", the same time V6's jets merge. A second line says "Blue turns left, Red turns left" (2-circle, which way each jet will turn). Close it again.
 
 ## Play, Pause and Reset
 
@@ -25,11 +25,11 @@ Keep V6 (the old single-file tool) open in another tab for the side-by-side line
 
 ## 1-circle, 2-circle and the chase
 
-- [ ] **Fight type** → **1-circle** starts the fight again at T+0.0. After the merge the two jets turn opposite ways (Blue left, Red right, as seen from above) and the word says 1-CIRCLE. **2-circle** puts them back turning the same way.
+- [ ] **Fight type** → **1-circle** starts the fight again at T+0.0. The line in Start geometry now says "Blue turns left, Red turns right". After the merge the two jets turn opposite ways (Blue left, Red right, as seen from above) and the word says 1-CIRCLE. **2-circle** puts them back turning the same way (head-on, this is V6's same and opposite directions).
 - [ ] Play a 2-circle fight to about T+40. In the Result column **First nose-on** reads a time such as "Both at +18.2 s" (both jets are equal, so it's a tie) and a yellow dashed line shows in the picture. With 1-circle it reads "Both at +9.1 s".
 - [ ] Set Blue's **G** to 5 and play a 2-circle fight past T+30. **First nose-on** now names Blue ("Blue at +12.6 s") and shows how long after the merge.
 - [ ] Put Blue's **G** back to 4 first. Then tick **First nose chases**. After first nose-on each jet turns toward the other, so the fight closes up: on the opening settings the Range at T+40 is about 0.36 NM, against about 0.53 NM without it. Untick it: the fight starts again.
-- [ ] Open **About this model** below the settings menu. It explains 1-circle, 2-circle and first nose in plain words.
+- [ ] Open **About this model** below the settings menu. It explains 1-circle, 2-circle and first nose in plain words. It says 2-circle is each jet turning toward the other, 1-circle is Red turning the other way, and that in a 2-circle fight between equal jets a nose-on happens only if they come back exactly head-on. Try it: ATA 1° with AA 179° in a 2-circle fight gives **First nose-on** "--" for the whole fight, while in 1-circle it still comes (about +8.3 s).
 
 ## Climb and dive, and the side view
 
@@ -53,9 +53,10 @@ Open **Turn Fight settings** (it is closed at first).
 Each change here starts the fight again at T+0.0.
 
 - [ ] **Head-on (V6)**, the opening one: ATA 0°, AA 180°, HCA 180°, "Pass at T+16.4 s". The MERGE cross shows in the picture.
-- [ ] **Crossing**: set AA to 90. HCA reads 90°, the note says "Pass at T+16.4 s", and the jets pass at the centre while flying at right angles. The small picture shows the new start.
-- [ ] **Beam**: set ATA to 90 and AA to 90. The note says "No pass: the turns start at once" and no MERGE cross is drawn, because the range isn't closing.
-- [ ] **Tail chase**: set ATA to 0 and AA to 0 (Blue dead astern of Red). HCA reads 0°, and with equal speeds the note says "No pass: the turns start at once". Set Blue's **Speed** to 260: now the note says "Pass at T+180.0 s", the time Blue takes to catch up.
+- [ ] **Crossing**: set AA to 90. HCA reads 90°, the note says "Pass at T+16.4 s", and the jets cross at right angles. The small picture shows the new start. The turn line says which way each jet will turn: set AA side to Right and it says "Blue turns right, Red turns right". Play to the pass: the jets go by about 1.4 NM apart, so the yellow mark is labelled PASS, not MERGE. Put AA side back to Left.
+- [ ] **Beam**: set ATA to 90 and AA to 90. The note says "No pass: the turns start at once" and no MERGE or PASS mark is drawn, because the range isn't closing.
+- [ ] **Tail chase**: set ATA to 0 and AA to 0 (Blue dead astern of Red). HCA reads 0°, and with equal speeds the note says "No pass: the turns start at once". Set Blue's **Speed** to 260: now the note says "Pass at T+180.0 s", the time Blue takes to catch up. At 4× speed play to the pass: **First nose-on** reads "Blue at +0.0 s", because Blue has had Red on its nose the whole way (it never reads Red at that moment).
+- [ ] At ATA 0° or 180°, and AA 0° or 180°, the side buttons mean nothing: flipping one while the fight plays doesn't restart it. At any other angle, flipping a side restarts the fight.
 - [ ] Put Blue's **Speed** back to 220 and press **Head-on (V6)**, then set **When the turns start** → **At once**. It starts the turns at T+0 even at the head-on start. Back to **At the pass** and they wait for the pass.
 - [ ] With **Climb and dive** on, **Red starts above Blue (ft)** works (it is greyed out otherwise). Set 2,000: the fight starts again, the side view shows Red above Blue, and **Height between** in More detail reads 2,000 ft at T+0.
 - [ ] Press **Head-on (V6)**: ATA, AA, height and the turns go back to head-on, level and at the pass. It doesn't touch your speeds, G or fight type.
