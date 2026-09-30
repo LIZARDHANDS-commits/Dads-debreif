@@ -122,8 +122,8 @@ const MPT_BANK_MAX_DEG = 85;
 const SLICE_BANK_AT_MPT_DEG = 90; // SMM 14.18: the slice bank is 90° at the MPT speed ...
 const SLICE_BANK_AT_100_DEG = 135; // ... and 135° at 100 KIAS
 const IMMELMANN_BAND_KIAS = Object.freeze([200, 250]);   // SMM 14.15: the Immelmann is flown from 200 to 250 KIAS
-/** The MPT speed box: 120 to 200 KIAS. Above that, at the deck, the level MPT sinks under it (verification F8); the SMM's speed is 160 and the level MPT's about 150 minus thousands of feet. */
-const MPT_KIAS_RANGE = Object.freeze([120, 200]);
+/** The MPT speed box: 120 to 175 KIAS. Above that, at the deck, the level MPT sinks under it (verification F8: 180 gave 5,937 ft, 200 gave 5,495 ft from 7,000 ft; 175 stays within 20 ft); the SMM's speed is 160 and the level MPT's about 150 minus thousands of feet. */
+const MPT_KIAS_RANGE = Object.freeze([120, 175]);
 const PITCH_BACK_BAND_KIAS = Object.freeze([160, 220]);   // SMM 14.15: and the pitch back from 160 to 220 KIAS
 const SLICE_ENTRY_LOW_KIAS = 100; // SMM 14.18: the slice is flown from 100 to 160 KIAS (Auto hands to a split S below the split point)
 // The split S is core's (splitST6A; the technique is SMM 14.16 para 41): nose to about 20° up in the shaker, roll inverted

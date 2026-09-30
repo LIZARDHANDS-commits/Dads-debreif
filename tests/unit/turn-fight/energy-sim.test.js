@@ -1537,11 +1537,11 @@ test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive
   const fights = [];
   for (const altFt of [15000, 20000, 25000]) for (const kias of [40, 60, 86, 90]) fights.push({ blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias });
   // Two from the verification's own sweep: the MPT speed and the deck set higher.
-  fights.push({ blueKias: 92, redKias: 92, blueAltFt: 22300, redAltFt: 22300, mptKias: 180, hardDeckFt: 7500 });
-  fights.push({ blueKias: 70, redKias: 70, blueAltFt: 14000, redAltFt: 14000, mptKias: 180 });
+  fights.push({ blueKias: 92, redKias: 92, blueAltFt: 22300, redAltFt: 22300, mptKias: 175, hardDeckFt: 7500 });
+  fights.push({ blueKias: 70, redKias: 70, blueAltFt: 14000, redAltFt: 14000, mptKias: 175 });
   // The audit's two: the nose passes exactly through the vertical (the gate once stopped at 0.9995 of it, and the dive held).
-  fights.push({ blueKias: 46, redKias: 46, blueAltFt: 17000, redAltFt: 17000, mptKias: 180 });
-  fights.push({ blueKias: 80, redKias: 80, blueAltFt: 15000, redAltFt: 15000, mptKias: 200 });
+  fights.push({ blueKias: 46, redKias: 46, blueAltFt: 17000, redAltFt: 17000, mptKias: 175 });
+  fights.push({ blueKias: 80, redKias: 80, blueAltFt: 15000, redAltFt: 15000, mptKias: 175 });
   for (const setup of fights) {
     const s = createEnergyFight({ ...SOLO, blueMove: 'slice', redMove: 'slice', ...setup });
     let minAlt = Infinity, maxOver = -Infinity, maxKias = 0, lowSec = 0, worstBank = 0;
@@ -1643,10 +1643,20 @@ test('F6: 8 G forced at 240 KIAS flags OVER G as well as STALL (the instant the 
   near(s.blue.g, 1, 1e-9, 'STALL still takes the turn');
 });
 
-test('F8: the MPT speed has a range, 120 to 200 KIAS', () => {
-  assert.throws(() => createEnergyFight({ mptKias: 119 }), /mptKias is from 120 to 200 KIAS, got 119/);
-  assert.throws(() => createEnergyFight({ mptKias: 201 }), /mptKias is from 120 to 200 KIAS, got 201/);
+test('F8: the MPT speed has a range, 120 to 175 KIAS', () => {
+  assert.throws(() => createEnergyFight({ mptKias: 119 }), /mptKias is from 120 to 175 KIAS, got 119/);
+  assert.throws(() => createEnergyFight({ mptKias: 176 }), /mptKias is from 120 to 175 KIAS, got 176/);
+  assert.throws(() => createEnergyFight({ mptKias: 200 }), /mptKias/);
   assert.throws(() => createEnergyFight({ mptKias: NaN }), /mptKias/);
   assert.doesNotThrow(() => createEnergyFight({ mptKias: 120 }));
-  assert.doesNotThrow(() => createEnergyFight({ mptKias: 200 }));
+  assert.doesNotThrow(() => createEnergyFight({ mptKias: 175 }));
+});
+
+test('F8: at the top of the range (175 KIAS) flown from 7,000 ft, the level MPT stays within 20 ft of the 6,000 ft deck, from every merge speed', () => {
+  for (const kias of [100, 120, 140, 160, 175, 200, 220]) {
+    const s = createEnergyFight({ ...SOLO, mptKias: 175, blueAltFt: 7000, redAltFt: 7000, blueKias: kias, redKias: kias });
+    let minAlt = Infinity;
+    for (let i = 0; i < FIGHT_MAX_SEC / FIGHT_STEP_SEC; i++) { stepEnergyFight(s, FIGHT_STEP_SEC); minAlt = Math.min(minAlt, s.blue.altFt, s.red.altFt); }
+    assert.ok(minAlt >= 6000 - 20, `${kias} KIAS: lowest ${minAlt.toFixed(0)} ft against the 6,000 ft deck`);
+  }
 });
