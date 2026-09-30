@@ -80,7 +80,7 @@ function mount(root, app) {
   });
   ui.slots.pointTable.append(editor.element);
   ui.slots.leftExtras.append(editor.message);
-  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {} }); // opening the menu moves nothing on the map
+  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, listen: app.listen }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
 
