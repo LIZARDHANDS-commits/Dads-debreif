@@ -73,13 +73,15 @@ test('tennisDebrief matches getKmlTennisSolution when given V6\'s target path', 
       pitchDeg: (Number.isFinite(pitch.deg) ? pitch.deg : 0) + s.bias,
       ballKt: s.ballKt, coneDeg: s.coneDeg, tofSec: s.tofSec, hitRadiusFt: s.radius, gravity: s.gravity,
     });
+    // Q36: INTERCEPT now also needs the target in the cone; V6 ignored the cone.
+    const inCone = want.losAngle <= s.coneDeg / 2;
     assert.deepEqual(got, {
-      status: want.status, points: want.points, targetPoints: want.targetPoints, best: want.best,
+      status: want.status === 'INTERCEPT' && !inCone ? 'OUT OF CONE' : want.status, points: want.points, targetPoints: want.targetPoints, best: want.best,
       losAngle: want.losAngle, rangeNow: want.rangeNow, tofSec: want.tof, hitRadiusFt: want.hitRadius,
     });
-    seen.add(want.status);
+    seen.add(want.status === 'INTERCEPT' && !inCone ? 'V6 INTERCEPT out of the cone' : want.status);
   }
-  assert.deepEqual([...seen].sort(), ['IN CONE', 'INTERCEPT', 'OUT OF CONE']);
+  assert.deepEqual([...seen].sort(), ['IN CONE', 'INTERCEPT', 'OUT OF CONE', 'V6 INTERCEPT out of the cone']);
 });
 
 // ── The 3D arc ──

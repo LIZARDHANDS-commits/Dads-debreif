@@ -53,12 +53,15 @@ test('the same "Cone width" setting draws the 3D cone twice as wide', () => {
   assert.ok(Math.abs(edgeDeg(left) + 6) < 1e-9 && Math.abs(edgeDeg(right) - 6) < 1e-9);
 });
 
-test('INTERCEPT does not depend on the cone in either solver', () => {
+test('INTERCEPT needs the target in the cone (Q36; V6 ignored the cone)', () => {
   const shooter = { x: 0, y: 0, altFt: 5000, spdKt: 200, hdg: 0 };
   const target = { x: 1000, y: 150, altFt: 5000, spdKt: 0 };
-  const flat = tennisDebrief({ ...V6_DEFAULTS, gravity: false, coneDeg: 0.1, shooter, target, targetAt: () => null, shooterHdg: 0, pitchDeg: 0, hitRadiusFt: 250 });
-  assert.equal(flat.status, 'INTERCEPT');
-  assert.ok(flat.losAngle > 8, 'the target is well outside a ±0.05° cone');
+  const shot = coneDeg => tennisDebrief({ ...V6_DEFAULTS, gravity: false, coneDeg, shooter, target, targetAt: () => null, shooterHdg: 0, pitchDeg: 0, hitRadiusFt: 250 });
+  assert.ok(shot(0.1).losAngle > 8, 'the target is well outside a ±0.05° cone');
+  assert.ok(shot(0.1).best.dist <= 250, 'but the ball passes within the hit radius');
+  assert.equal(shot(0.1).status, 'OUT OF CONE');
+  assert.equal(shot(20).status, 'INTERCEPT', 'inside a ±10° cone');
+  // The 3D arc, still V6's, calls it a hit either way.
   assert.ok(tennis3D({ ...V6_DEFAULTS, gravity: false, coneDeg: 0.1, shooter, target, pitchDeg: 0, radiusFt: 250 }).hit);
 });
 
