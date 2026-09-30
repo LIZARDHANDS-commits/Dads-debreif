@@ -85,6 +85,22 @@ function make({ icao, source, level, reason, group = null, from = null, to = nul
   };
 }
 
+// METAR first, then TAF, then anything else (lightning), so the order is the same whichever pair is compared.
+const sourceRank = (source) => (source === 'METAR' ? 0 : source === 'TAF' ? 1 : 2);
+
+/** A caution handed in from outside, checked for shape and copied; null if it isn't one. */
+function extraCaution(c) {
+  if (c === null || typeof c !== 'object' || Array.isArray(c)) return null;
+  const { key, icao, source, level, text } = c;
+  if (typeof key !== 'string' || !key || key.length > MAX_KEY_CHARS || typeof icao !== 'string' || !icao) return null;
+  if (typeof source !== 'string' || !source || typeof text !== 'string' || !text || !Object.hasOwn(LEVELS, level)) return null;
+  return {
+    key, icao, source, level, levelWords: LEVELS[level].words, group: typeof c.group === 'string' ? c.group : null,
+    from: validDate(c.from) ? c.from : null, to: validDate(c.to) ? c.to : null,
+    reason: typeof c.reason === 'string' ? c.reason : text, stale: c.stale === true, text, acknowledged: false,
+  };
+}
+
 // ---- Cautions from cards and TAF results --------------------------------------------------
 
 /** METAR cautions from one airfield card (cards.js's `cardModel`). */
@@ -147,8 +163,11 @@ function tafCautions(icao, result) {
  * Each caution is `{ key, icao, source: 'METAR' | 'TAF', level: 'below' | 'caution',
  * levelWords, group, from, to, reason, stale, text, acknowledged: false }`.
  * `text` is the line the banner shows, in words. The same key is listed once.
+ *
+ * - `extra`: cautions from other sources in the same shape, such as lightning.js's; they are
+ *   checked, sorted and de-duplicated with the rest. Entries that aren't cautions are ignored.
  */
-export function cautionList({ cards = [], tafs = [] } = {}) {
+export function cautionList({ cards = [], tafs = [], extra = [] } = {}) {
   const order = new Map();
   const seen = (icao) => order.has(icao) || order.set(icao, order.size);
   const all = [];
@@ -159,13 +178,17 @@ export function cautionList({ cards = [], tafs = [] } = {}) {
     if (typeof entry?.icao !== 'string' || !entry.icao || !entry.result) continue;
     for (const c of tafCautions(entry.icao, entry.result)) { seen(c.icao); all.push(c); }
   }
+  for (const c of Array.isArray(extra) ? extra : []) {
+    const one = extraCaution(c);
+    if (one) { seen(one.icao); all.push(one); }
+  }
   const unique = [...new Map(all.map((c) => [c.key, c])).values()];
   const time = (c) => (c.from ? +c.from : 0);
   return unique
     .map((c, index) => ({ c, index }))
     .sort((a, b) => LEVELS[a.c.level].rank - LEVELS[b.c.level].rank
       || order.get(a.c.icao) - order.get(b.c.icao)
-      || (a.c.source === b.c.source ? 0 : a.c.source === 'METAR' ? -1 : 1)
+      || sourceRank(a.c.source) - sourceRank(b.c.source)
       || time(a.c) - time(b.c)
       || a.index - b.index)
     .map(({ c }) => c);
@@ -290,6 +313,9 @@ function readableSources(cards, tafs) {
  * The whole answer for one refresh: the current cautions, which are new and
  * which are acknowledged, and the acknowledgement object to keep.
  *
+ * `extra` is `cautionList`'s: cautions from other sources, such as lightning. Their keys are never
+ * pruned here (their source is not one of the readable ones), so an acknowledgement stays for the day.
+ *
  * `acks` is what the caller stored (or nothing). It is checked, moved to
  * today, and cleared of cautions that are no longer reported (so one that comes
  * back is new). `changed` says whether the result differs from what was stored,
@@ -300,9 +326,9 @@ function readableSources(cards, tafs) {
  * Returns `{ cautions, fresh, acknowledged, acks, changed, storable }`; every caution
  * has `acknowledged` true or false. Nothing passed in is changed.
  */
-export function evaluate({ cards, tafs, acks, now, timeZone } = {}) {
+export function evaluate({ cards, tafs, extra, acks, now, timeZone } = {}) {
   const current = readAcks(acks, { now, timeZone });
-  const found = cautionList({ cards, tafs });
+  const found = cautionList({ cards, tafs, extra });
   const active = new Set(found.map((c) => c.key));
   const readable = readableSources(cards, tafs);
   const kept = current.keys.filter((k) => active.has(k) || !readable.has(sourceOf(k)));
