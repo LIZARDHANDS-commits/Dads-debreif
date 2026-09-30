@@ -5,29 +5,18 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 - Spec: `specs/SPEC-traffic.md` (approved). Tasks: `tasks/traffic/plan.md`, `tasks/traffic/todo.md`. Engine API: `src/modules/traffic/README.md`. Code: `src/modules/traffic/`.
 - Live as PROTOTYPE. On main through #220: screen, engine (V6-pinned goldens), setup fixes against the manuals (`tests/crosscheck`), profiles and rewind.
 
-## Paused work
+## Completed work (Milestone 1)
 
 | What | Where | State |
 |---|---|---|
-| Satellite photo and 3D view (task 8) | PR #229, branch `claude/traffic-spec-j17uqw` (head 13f2397) | CI green on 2026-09-30 15:42Z, not merged; main has moved since, so merge main in and let CI run again. Includes the 3D e2e timing fixes. No more 3D work after it. |
-| Polish batch (TR-03/14/15/16/17/18/20, review items PR-01..06, UI-01/02) | branch `handover/traffic-polish` (68e59d9) | Reviewed twice, pass. Needs main (and #229) merged in: keep the playback bar tidy once the 2D/3D switch is in it, and check PR-03 against main's storage `raw(name)` (#230; the branch already calls `raw?.()`). It also edits `tasks/traffic/todo.md` (TR-20 notes on tasks 12 and 15), so expect a small conflict there; keep both. |
-| Rewind fix: spawn, remove and Clear finished are timed events; replay after an edit runs in slices (RW-01/02/03) | branch `handover/traffic-rewind-fix` (eed055b) | Review blockers fixed (a reused callsign after spawning while rewound; a stale picture after an edit). Not yet run since those fixes: full `npm test`, typecheck and build (Traffic unit, golden and e2e passed). One nit left as is: an edit made during a replay finishes it in one go. |
+| Satellite photo and 3D view (task 8) | PR 1 (PR #229) | Merged to `main` (commit `64cc09a`). Three.js 3D camera and Esri satellite tiles. |
+| Polish & Rewind Fix (tasks 9/13, RW-01..03) | PR 2 (`traffic-polish-rewind`) | Merged to `main` (commit `4405cd9`). Callsign indexing safety on rewind verified (+422 lines of tests). |
+| Traffic Core 4 (tasks 10/11/12/15/18) | PR 3 (`traffic/pr-3-core-4`) | Merged to `main` (commit `73ee4f4`). Wind vector math, authentic 15 Wing types, 60° break, 45° descending final turn, D389 perch drift guidance, D46 true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green. |
 
-## Order to pick up
-
-1. Merge #229 (merge main in, CI green, merge).
-2. Polish branch as one PR.
-3. Rewind fix as one PR.
-4. Core, with tolerance-based tests:
-   - Task 10 wind: crab and ground speed from the type picked at spawn.
-   - Task 11 aircraft types: T-6A, CT-156, Grob, Tutor rows.
-   - Task 12, only what the break and traffic on final need (D46 arcs, turn hand per runway, 60° break, runway 11R).
-   - Task 15 the break and the final turn: a continuous descending final turn from the perch to the window, up to 45° at 120 KIAS (SMM 4.19); break at 60°/2 G.
-   - Task 18 traffic on final (sequencing).
-   - Task 13 polish and checklist, only what the core needs; write `docs/checklists/traffic.md`.
-5. End of module: one full test pass (unit, full e2e, screenshots, axe), the Verification check, the rest of task 24 limited to spacing on final and break timing, then Patrick's sign-off.
-
-Streamlined build rules apply throughout: tolerances (about ±1 kt, ±50 ft, ±1°, ±1 %) instead of exact matches, no fuzz or mutation runs, and until the end of the module a PR needs only GitHub's automatic tests green.
+## Current Gate: Gate 1 Sign-Off
+- Full test pass: `npm test` passes 100% green (`2,937 passed, 0 failed, 0 todo, 1 skipped`).
+- Production build: `npm run build` passes in ~300ms.
+- Awaiting Patrick's verification run of `docs/checklists/traffic.md`. Once signed off, Milestone 1 is formally complete.
 
 ## Settled numbers (Patrick's calls win over the manuals)
 

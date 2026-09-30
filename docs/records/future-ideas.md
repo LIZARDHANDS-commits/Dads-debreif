@@ -17,3 +17,4 @@ Numbers are the plan doc's FF numbers.
 
 | FF | Date | Module | Idea | Why |
 |---|---|---|---|---|
+| FF44 | 30 Sep 2026 | Traffic Sim | Live wind input controls in playback bar | Expose wind from/speed number inputs in the bottom playback bar so users can interactively adjust wind direction/speed and observe aircraft crabbing live. |

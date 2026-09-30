@@ -86,7 +86,7 @@ About 220 judgement calls (D147 to D356) are in the decisions log and count as a
 |---|---|---|---|
 | Debrief (2D/3D KML viewer) | Built and live, through #241. Final check's 3 items fixed in #241 and re-checked (pass). | Patrick's checklist run, then sign-off | [debrief.md](docs/handover/debrief.md) |
 | SOF dashboard | Built and live, through #238. Final check passed with no findings. | Patrick's checklist run, then sign-off | [sof.md](docs/handover/sof.md) |
-| Traffic Pattern Sim | Part-built, through #220. #229 (photo + 3D) open and green; two paused branches. | Merge #229, then the core four | [traffic.md](docs/handover/traffic.md) |
+| Traffic Pattern Sim | Built through PR 1 (#229), PR 2 (polish & rewind), and PR 3 (Core 4). All plausibility guards passed. | Patrick's Gate 1 checklist run (docs/checklists/traffic.md), then sign-off | [traffic.md](docs/handover/traffic.md) |
 | Turn Fight | Built, through #235, except the Energy screen. | Finish the Energy screen branch, then checklist | [turn-fight.md](docs/handover/turn-fight.md) |
 | Turn Sim (formation) | Built, through #234; four paused branches. | Land the branches, then spacing graph, profiles, sequences, G-warm | [turn-sim.md](docs/handover/turn-sim.md) |
 | Flight math core | Done, through #232. | None | [core.md](docs/handover/core.md) |

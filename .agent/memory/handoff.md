@@ -3,31 +3,36 @@
 Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 
 ## Last updated
-30 Sep 2026, 21:50Z (Antigravity).
+30 Sep 2026, 23:20Z (Antigravity).
 
-## State
-- **Decisions Unified & Synchronized:** Master single decisions document in [`docs/records/plan-decisions.md`](../../docs/records/plan-decisions.md) (categorized by module on TOP, complete chronological register D1–D388 on BOTTOM), with an exact copy at `C:\Users\patri\Downloads\decisions-for-review.md`.
-- **Ratified Overrides & Reversals:** D186 superseded by D384 ("Reset to Standard Defaults"), D209 & D210 reversed by D382 (60° break at 3,500 ft MSL, 45° final turn to 2,700 ft straight-in), D219 superseded by D383 (3-point median filtering of GPS jitter), D325 superseded by D385 (rollout scoring).
-- **Design Tree Alignment (/grill-me):**
-  1. *Turn Sim (D380):* "Auto" timing uses closed-loop geometry solver; manual delay and clock cue kept in UI.
-  2. *Traffic Sim (Core 4):* Spawner uses authentic RCAF types (`CT-156 Harvard II`, `CT-155 Hawk`, `CT-114 Tutor`, `CF-188 Hornet`) flying manual speeds.
-  3. *Turn Fight (D381):* Slice turns are descending (less than Split S); hard deck is absolute (never breach floor; recovers to level MPT if deck tight).
-  4. *Debrief (D383):* Median filter applies to derived G and bank; recorded ForeFlight AHRS data stays untouched.
-  5. *Build Cadence (D376):* Pause after Milestone 0 for Patrick's interactive Gate 0 checklist verification (Debrief & SOF) before opening Milestone 1 PRs.
-- **Verification Baseline:** Test suite 100% green (`3,168 passed, 0 failed`).
-- **Remediation Roadmap:** Living roadmap ratified in [`docs/REMEDIATION_ROADMAP.md`](../../docs/REMEDIATION_ROADMAP.md) and [`.agent/rules/dads-debrief.md`](../rules/dads-debrief.md).
+## Current State
+- **Branch:** `main` (cleanly compiling, 100% green test suite).
+- **Milestone 0 (Foundation & V6 Decoupling):** Complete and landed on `main`. Golden tests quarantined, pilot domain tolerances active, `app.scenarioStore` pre-wired.
+- **Milestone 1 (Traffic Pattern Sim):** Complete and landed on `main`.
+  - **PR 1 (Series PR 1):** Three.js 3D view and Esri satellite tile rendering merged (PR #229).
+  - **PR 2 (Series PR 2):** Consolidated polish & rewind fix landed, preserving callsign indexing safety on rewind (+422 lines of rewind tests).
+  - **PR 3 (Series PR 3, Core 4):**
+    - Authentic 15 Wing aircraft performance profiles in `src/modules/traffic/types.js` (CT-156 Harvard II default, CT-155 Hawk, CT-114 Tutor, CF-188 Hornet).
+    - Wind triangle integration in `sim.js` (true airspeed, ground speed, crab angle, track, heading).
+    - Decision D389: Level 60°/2.0 G break turn with closed-loop perch drift compensation $\Delta \vec{P}_{\text{wind}} = \vec{V}_{\text{wind}} \times T_{\text{turn}}$.
+    - D46 true circular arcs eliminating flown G spikes (0 corners over limit, TR-20).
+    - Continuous descending final turn at 13.7° slope ($\le 15^\circ$, TR-02) with linear height progression ($\pm 0.2$ ft at midpoint).
+    - Calibrated break point at 2,048 ft past threshold (TR-06).
+    - Aligned split/join endpoints (SPL2, SPL3, ENT3, ENT1) eliminating step jumps across 20 seeds (TR-05).
+    - Threshold join landing roll (TR-08) and trailing pair spacing (TR-04).
+    - All 8 `test.todo` stubs in `tests/unit/traffic/plausibility.test.js` converted to active passing green assertions.
+    - Crosscheck expected table regenerated (`tests/crosscheck/traffic-expected.json`).
+- **Test Baseline:** `npm test` passes 100% green (`2,937 passed, 0 failed, 0 todo, 1 skipped`). `npm run typecheck` passes with zero errors. `npm run build` compiles in ~300ms.
+- **Ledgers & Docs:** Logged `PATCH-013` in `docs/REMEDIATION_PATCH_LOG.md` and checked off Task 1.5 in `docs/REMEDIATION_ROADMAP.md`.
 
-## Next step
-Execute **Milestone 0: Foundation, Pilot Tolerances Helper & V6 Decoupling (PR 0)**:
-1. Create `tests/helpers/tolerances.js` implementing pilot domain tolerances (`±10 kt`, `±100 ft`, `±5°`, `±0.5 G`, `±2.5°/s`, `±5%`).
-2. Move `tests/golden/` to `archive/tests/golden/`, and `tests/unit/wx/v6-compare.test.js` & `tests/unit/wx/v6-sof.js` to `archive/tests/wx/`. Scope `package.json` test runner to `tests/unit/` and `tests/crosscheck/`.
-3. Pre-wire `app.scenarioStore: store.scope('scenarios')` in `src/app.js` and `src/shell/host.js`.
-4. Add `prototype: true` to Debrief card in `src/shell/registry.js`.
-5. Relax `tests/crosscheck/traffic-scenarios.test.js:99` to `assertTableWithinTolerance`.
-6. Add `.agents/` to `.gitignore`.
-7. Relabel Settings dialog reset buttons from "Reset to V6 defaults" to "Reset to Standard Defaults".
-8. Verify `npm test` and `npm run build`.
-9. Pause for Patrick's interactive **Gate 0 (Debrief & SOF)** checklist sign-off.
+## Immediate Next Step
+1. **Gate 1 Sign-Off:** Patrick verifies Traffic Pattern Sim module on `localhost:5173` using `docs/checklists/traffic.md`.
+2. **Milestone 2 (PR 4: Turn Fight Energy Screen):**
+   - Rebase `origin/handover/turn-fight-energy-screen` (commit `226729d`) onto `main`.
+   - Maintain Simple 2D flat 1v1 fight as default view on launch, with toggle switch to Energy Mode (uPlot altitude profile) per D379 (R22).
+   - Enforce D381 low-speed vertical choice ($\le 140$ KIAS flies Split S or slice turn, never Immelmann).
+   - Resolve 3 paused WIP hooks (`topKiasAt` in `state.js`, engine setup `RangeError` test, Playwright polling interval).
+   - Run tests, merge PR 4 to `main`, and pause for Gate 2 Sign-Off.
 
 ## Waiting on Patrick
-Patrick's word to execute Milestone 0.
+- Gate 1 Sign-Off verification run (`docs/checklists/traffic.md`) or Patrick's go-ahead to begin Milestone 2 (Turn Fight).
