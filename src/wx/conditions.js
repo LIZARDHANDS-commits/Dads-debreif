@@ -84,11 +84,6 @@ export function readConditions(tokens) {
       c.visibility = metres === 9999 ? { ...TEN_KM, raw: t } : { sm: metres / METRES_PER_SM, qualifier: null, metres, raw: t };
     } else if (t === 'CAVOK') {
       c.cavok = true;
-      c.visibility = { ...TEN_KM, raw: t };
-      c.sky = [];
-      c.skyClear = true;
-      c.weather = [];
-      c.nsw = true;
     } else if (RVR.test(t)) {
       // Runway visual range: not used by any check.
     } else if ((m = t.match(SKY))) {
@@ -116,6 +111,18 @@ export function readConditions(tokens) {
       out.altimeter = m[1] === 'A' ? { inHg: Number(m[2]) / 100 } : { hPa: Number(m[2]) };
     } else if (!IGNORED.some((re) => re.test(t))) {
       out.unread.push(t);
+    }
+  }
+  if (c.cavok) {
+    // CAVOK beside a stated visibility, cloud or weather contradicts it: keep what
+    // is stated (never the better CAVOK values) and list CAVOK as unread.
+    if (c.visibility || c.sky.length || c.weather.length) {
+      c.cavok = false;
+      out.unread.push('CAVOK');
+    } else {
+      c.visibility = { ...TEN_KM, raw: 'CAVOK' };
+      c.skyClear = true;
+      c.nsw = true;
     }
   }
   return out;

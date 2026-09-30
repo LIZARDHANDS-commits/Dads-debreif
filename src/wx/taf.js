@@ -12,6 +12,7 @@ const FROM = /^FM(\d{2})(\d{2})(\d{2})$/;
 const FROM_UNREADABLE = /^FM\d+$/;
 const PROB = /^PROB(\d{2})$/;
 const MAX_VALID_HOURS = 30;
+const CHANGE_KINDS = new Set(['BECMG', 'TEMPO', 'PROB']);
 
 const hhmm = (d) => d.toISOString().slice(8, 16).replace('T', ' ');
 
@@ -126,6 +127,11 @@ export function parseTaf(raw, { now } = {}) {
     taf.unread.push(...read.unread);
     if (p.kind !== 'BASE' && p.from && taf.validTo && (+p.from >= +taf.validTo || (p.to && +p.to <= +taf.validFrom))) {
       taf.problems.push(`${p.head.join(' ')} is outside the valid period ${hhmm(taf.validFrom)}Z to ${hhmm(taf.validTo)}Z`);
+    } else if (CHANGE_KINDS.has(p.kind) && p.from && p.to && taf.validFrom && taf.validTo
+      && (+p.to - +p.from > +taf.validTo - +taf.validFrom || +p.to > +taf.validTo)) {
+      // A period that ends before it starts (TEMPO 2920/2916) resolves a month on,
+      // so it is caught here as longer than the TAF or running past its end.
+      taf.problems.push(`${p.head.join(' ')} is not a plausible period for this TAF`);
     }
     taf.groups.push({
       kind: p.kind,

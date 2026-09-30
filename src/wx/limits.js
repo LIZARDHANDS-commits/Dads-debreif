@@ -139,6 +139,9 @@ export function checkConditions(conditions, limits) {
   };
 }
 
+/** No cloud group and no SKC/CLR/NSC/NCD/CAVOK: the cloud is not stated, so it isn't known (WX-5). */
+const noSkyGroup = (conditions) => !conditions?.sky?.length && !conditions?.skyClear;
+
 /** @type {Array<[string, number, number]>} */
 const NATO = [
   // [colour, cloud base below (ft), visibility below (m)]; V6 nato(), sof.html line 2009.
@@ -162,7 +165,7 @@ export function natoColour(conditions) {
   const metres = vis ? (vis.metres ?? vis.sm * METRES_PER_SM) : Infinity;
   const found = NATO.find(([, ft, m]) => base < ft || (vis && belowWithQualifier(metres, vis.qualifier, m)));
   const colour = found ? found[0] : 'BLU';
-  const unknownBase = layers.some((l) => l.baseFt == null);
+  const unknownBase = layers.some((l) => l.baseFt == null) || noSkyGroup(conditions);
   return unknownBase && colour !== 'RED' ? 'UNK' : colour;
 }
 
@@ -182,6 +185,6 @@ export function flightCategory(conditions) {
   else if ((c != null && c <= 3000) || visLe(5)) category = 'MVFR';
   const unknownBase = (conditions?.sky ?? []).some((l) => l.cover !== 'FEW' && l.cover !== 'SCT' && l.baseFt == null);
   if (category === 'LIFR') return category;
-  if ((c == null && !vis) || unknownBase) return 'UNK';
+  if ((c == null && !vis) || unknownBase || noSkyGroup(conditions)) return 'UNK';
   return category;
 }
