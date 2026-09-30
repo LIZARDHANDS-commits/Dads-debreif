@@ -188,7 +188,6 @@ src/modules/debrief/
   map2d/
     view.js          canvas, pan and zoom, redraw-on-change
     layers.js        tracks, grid, spacing lines, 3/9, cone, clock marks, bubble, DFP flags, labels
-    tiles.js         satellite tiles and attribution
     vnc.js           embedded VNC charts: bounds, warp mesh, off-screen cache
     overlays.js      the built-in route overlays
   view3d/

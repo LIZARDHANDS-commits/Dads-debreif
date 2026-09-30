@@ -79,7 +79,7 @@ src/
   storage/              store.js settings.js file.js
   airfields/            airfields.js  data/CYMJ.json …
   ui-kit/               tokens.css base.css dom.js panel.js controls.js canvas-view.js scheduler.js
-                        map-tiles.js vnc.js (satellite tiles and VNC charts, from the debrief)
+                        map-tiles.js vnc.js (satellite tiles, moved from the debrief; the VNC charts follow at SOF task 6)
   flight-data/          kml.js flight.js clock.js debrief-file.js
   wx/                   metar.js taf.js limits.js sources.js
   modules/

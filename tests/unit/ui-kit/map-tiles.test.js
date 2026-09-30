@@ -1,7 +1,7 @@
 // The satellite tile layer: which tiles cover a view, retries, and giving up.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tilesFor, createTileLayer, ESRI_IMAGERY } from '../../../src/modules/debrief/map2d/tiles.js';
+import { tilesFor, createTileLayer, ESRI_IMAGERY } from '../../../src/ui-kit/map-tiles.js';
 import { pickTileZoom } from '../../../src/core/geo.js';
 
 const CYMJ = { north: 50.45, south: 50.33, west: -105.65, east: -105.42 };
