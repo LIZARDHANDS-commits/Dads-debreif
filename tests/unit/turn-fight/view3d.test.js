@@ -379,8 +379,11 @@ function fakePage({ webgl = true } = {}) {
       listeners: {},
       append(...kids) { this.children.push(...kids); },
       replaceChildren(...kids) { this.children = kids; },
-      setAttribute() {}, remove() { this.removed = true; }, addEventListener() {}, removeEventListener() {},
-      getContext: () => (webgl ? { fake: 'context' } : null),
+      setAttribute() {}, remove() { this.removed = true; },
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); },
+      removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn); },
+      // The sky paints a gradient on a spare 2D canvas; anything asked of that context does nothing.
+      getContext: (type) => (type === '2d' ? new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true }) : webgl ? { fake: 'context' } : null),
       clientWidth: 800, clientHeight: 600,
     };
     made.push(el);
@@ -485,4 +488,102 @@ test('R28: the bank follows the way each jet turns toward the other, and a 1-cir
   // And at V6's head-on start nothing changed.
   const v6 = fightAt(25);
   assert.deepEqual([turnDirection(v6, 'blue'), turnDirection(v6, 'red')], [1, 1]);
+});
+
+// ---- WebGL context loss (task 7) ---------------------------------------------------------------
+
+/** The real three.js with a renderer that draws nothing, so a start can build its whole scene in Node. */
+async function threeWithFakeRenderer() {
+  const real = await import('three');
+  const renderers = [];
+  class FakeRenderer {
+    constructor() { this.calls = []; renderers.push(this); }
+    setPixelRatio() {}
+    setSize() {}
+    render() { this.calls.push('render'); }
+    dispose() { this.calls.push('dispose'); }
+    forceContextLoss() { this.calls.push('forceContextLoss'); }
+  }
+  return { THREE: { ...real, WebGLRenderer: FakeRenderer }, renderers };
+}
+
+/** Runs `fn` with the page's fake document as the global one, which ui-kit's sky reads; puts the old one back. */
+async function withPageDocument(page, fn) {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  globalThis.document = page.doc;
+  try {
+    await fn();
+  } finally {
+    if (before) Object.defineProperty(globalThis, 'document', before);
+    else delete globalThis.document;
+  }
+}
+
+/** Sends `type` to every listener on `el`, as the browser does, and returns what preventDefault was called. */
+function fire(el, type) {
+  const event = { type, target: el, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } };
+  for (const fn of [...(el.listeners[type] ?? [])]) fn(event);
+  return event;
+}
+
+test('a lost WebGL context is handled: preventDefault, everything freed, drawing stopped, and the screen told once', async () => {
+  const { THREE, renderers } = await threeWithFakeRenderer();
+  const page = fakePage();
+  await withPageDocument(page, async () => {
+    let lost = 0;
+    let frames = 0;
+    const { view } = makeView({ page, load: async () => THREE, onLost: () => lost++, timers: { frame: () => { frames++; return () => { frames--; }; }, after: () => () => {} } });
+    assert.deepEqual(await view.start(), { ok: true });
+    const canvas = page.host.children[0];
+    assert.equal(view.stats().active, true);
+    assert.equal(canvas.listeners.webglcontextlost.length, 1);
+
+    const event = fire(canvas, 'webglcontextlost');
+    assert.equal(event.defaultPrevented, true, 'the loss is marked handled');
+    assert.equal(lost, 1);
+    assert.equal(view.stats().active, false);
+    assert.equal(view.stats().pending, false);
+    assert.equal(frames, 0, 'no frame is left asked for');
+    assert.equal(page.host.children.length, 0, 'the canvas and labels are gone');
+    assert.deepEqual(canvas.listeners.webglcontextlost, [], 'the listener goes with the canvas');
+    assert.ok(renderers[0].calls.includes('dispose'), 'the renderer is freed');
+
+    // Nothing draws after the loss, and a second loss message changes nothing.
+    view.requestDraw();
+    assert.equal(view.stats().pending, false);
+    fire(canvas, 'webglcontextlost');
+    assert.equal(lost, 1);
+    view.stop();
+    view.dispose(); // leaving the page still frees what is left, and does not complain
+  });
+});
+test('after a lost context, 3D can start again on a new canvas, and the camera choice is kept', async () => {
+  const { THREE } = await threeWithFakeRenderer();
+  const page = fakePage();
+  await withPageDocument(page, async () => {
+    const { view } = makeView({ page, load: async () => THREE });
+    await view.start();
+    view.setView('blue');
+    fire(page.host.children[0], 'webglcontextlost');
+    assert.equal(view.stats().camera.mode, 'blue');
+    assert.deepEqual(await view.start(), { ok: true });
+    assert.equal(view.stats().active, true);
+    assert.equal(page.host.children[0].listeners.webglcontextlost.length, 1);
+    view.dispose();
+  });
+});
+test('stopping 3D on purpose releases the context without calling it a loss', async () => {
+  const { THREE, renderers } = await threeWithFakeRenderer();
+  const page = fakePage();
+  await withPageDocument(page, async () => {
+    let lost = 0;
+    const { view } = makeView({ page, load: async () => THREE, onLost: () => lost++ });
+    await view.start();
+    const canvas = page.host.children[0];
+    view.stop();
+    assert.ok(renderers[0].calls.includes('forceContextLoss'), 'the context is released on purpose');
+    fire(canvas, 'webglcontextlost'); // the browser reports that release a moment later
+    assert.equal(lost, 0, 'and that report is not a loss');
+    view.dispose();
+  });
 });

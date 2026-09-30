@@ -9,7 +9,9 @@
 // stop() frees every model, the sky, the renderer and its WebGL context and stops
 // the frame, so a paused or 2D screen holds no GPU resources (R4). The canvas is
 // made new for each start, because a WebGL context that was released cannot be
-// used again. The view draws one frame when asked (requestDraw): while the fight
+// used again. If the browser takes the context away while 3D shows (the graphics card was reset), the view
+// frees everything and tells the screen (onLost), which shows 2D with a note; the fight is not touched. The
+// view draws one frame when asked (requestDraw): while the fight
 // plays, or when the camera moves, and never otherwise.
 //
 // The camera is ui-kit's matchProjection, with points placed through altToZ;
@@ -290,9 +292,11 @@ export function cameraFor(cam, { bounds, fight, size }) {
  *   handlers stay on it while each start() puts a new canvas inside).
  * timers: the module's scheduler scope (frame). run(): the run to draw now, { fight, trails }.
  * paint(): 'harvard' or 'ship'. load: how three.js is fetched (ui-kit's loadThree; a test gives its own).
+ * onLost(): called once when the browser takes the WebGL context away while 3D is showing (the graphics card
+ *   was reset). By then the view has freed everything and stopped drawing, so the screen only has to show 2D.
  * win: for tests. Returns { start, stop, requestDraw, setView, stats, dispose }.
  */
-export function createView3d(host, { timers, run, paint, load = loadThree, win = globalThis }) {
+export function createView3d(host, { timers, run, paint, onLost = () => {}, load = loadThree, win = globalThis }) {
   const doc = host.ownerDocument;
   let THREE = null;
   let gl = null; // the scene and everything that holds GPU resources, only between start() and stop()
@@ -330,6 +334,20 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
       renderer.forceContextLoss?.();
       throw err;
     }
+    canvas.addEventListener('webglcontextlost', contextLost);
+  }
+  /**
+   * The browser took the context away (the graphics card was reset). preventDefault says the loss is handled,
+   * so nothing waits for a restore. Everything is freed and the drawing stops, and the screen falls back to 2D:
+   * the fight is not touched. A loss that teardown() itself caused (it releases the context on purpose) is
+   * ignored, because by then the canvas is no longer the current one.
+   */
+  function contextLost(event) {
+    event.preventDefault?.();
+    if (!gl || event.target !== gl.canvas) return;
+    generation++;
+    teardown();
+    onLost();
   }
 
   function buildScene(canvas, renderer) {
@@ -519,6 +537,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     if (!gl) return;
     const scene = gl;
     gl = null;
+    scene.canvas.removeEventListener('webglcontextlost', contextLost);
     for (const mesh of Object.values(scene.planes)) disposeCt156Model(mesh);
     for (const line of Object.values(scene.lines)) {
       line.geometry.dispose();

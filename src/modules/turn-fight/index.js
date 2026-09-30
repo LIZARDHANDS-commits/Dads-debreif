@@ -95,7 +95,21 @@ function mount(root, app) {
   });
 
   // The 3D picture reads the same run as the 2D ones. Only the object is made now: three.js loads when 3D is switched on.
-  const view3d = createView3d(ui.canvas3d, { timers: app.scheduler, run: () => run, paint: () => settings.get().paint });
+  // If the browser takes its WebGL context away, it has freed everything by the time this runs: show 2D with a note.
+  const view3d = createView3d(ui.canvas3d, {
+    timers: app.scheduler,
+    run: () => run,
+    paint: () => settings.get().paint,
+    onLost: () => stayIn2d('3D stopped (the graphics card was reset); showing 2D.'),
+  });
+
+  // Goes back to 2D and says why. The fight is not touched: it plays on in 2D.
+  function stayIn2d(message) {
+    ui.setNote(message);
+    keepNote = true;
+    settings.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
+    keepNote = false;
+  }
 
   // Shows 2D, or 3D once three.js has loaded and WebGL has started. Neither touches the fight: no reset, no number changes.
   async function applyView(want) {
@@ -113,10 +127,7 @@ function mount(root, app) {
     if (turn !== switching) return; // a later choice came first, and has dealt with it
     if (!result.ok) {
       if (result.reason === 'closed') return;
-      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
-      keepNote = true;
-      settings.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
-      keepNote = false;
+      stayIn2d(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
       return;
     }
     shown = '3d';

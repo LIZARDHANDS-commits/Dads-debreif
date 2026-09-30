@@ -694,6 +694,46 @@ test('with no WebGL, the note says so and it stays on 2D', async ({ page }) => {
   await playButton(page).click();
 });
 
+test('when the browser takes the WebGL context away (graphics card reset), it falls back to 2D with a note and the fight plays on', async ({ page }) => {
+  await trackWebGl(page);
+  await openRoute(page, '#/turn-fight');
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(1);
+  expect(await liveContexts(page)).toBe(1);
+  const before = await seconds(page);
+
+  // The graphics card resets: the browser takes the context from the 3D canvas.
+  await canvas3d(page).evaluate((canvas) => canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await expect(note(page)).toHaveText('3D stopped (the graphics card was reset); showing 2D.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(topdown(page)).toBeVisible();
+  await expect(canvas3d(page)).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Camera views' })).toBeHidden();
+  expect(await liveContexts(page)).toBe(0);
+
+  // The fight never stopped or reset: it is still playing, and goes on in 2D.
+  await expect(playButton(page)).toHaveText('Pause');
+  await expect.poll(() => seconds(page)).toBeGreaterThan(before + 0.5);
+  await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', BLUE)).toBeGreaterThan(30);
+
+  // 3D can be switched on again: a new canvas and context, and the note goes.
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await expect(note(page)).toHaveText('');
+  expect(await liveContexts(page)).toBe(1);
+  await expect(playButton(page)).toHaveText('Pause');
+
+  // Leaving the page still frees everything (R4).
+  await page.evaluate(() => { location.hash = '#/about'; });
+  await expect.poll(() => page.evaluate(() => window.__ooda.stats()))
+    .toMatchObject({ mounted: 'about', frames: 0, listeners: 0, subscriptions: 0 });
+  expect(await liveContexts(page)).toBe(0);
+});
+
 test('leaving the Turn Fight while 3D plays releases WebGL and stops every frame (R4)', async ({ page }) => {
   await trackWebGl(page);
   await openRoute(page, '#/turn-fight');
