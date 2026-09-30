@@ -272,18 +272,24 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
 - The aircraft **zooms** straight ahead to 125 KIAS, trading speed for height. Speed alone would give about 1,600 ft from 220 KIAS at 3,500 ft; drag takes some of that, so the sim uses a share of it, 70 % for now (T10 asks Dad).
-- It then turns towards the runway and **glides** at 125 KIAS, about 2 NM per 1,000 ft in still air (SMM 13.5 para 7), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
+- It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered (T-6A max glide chart; SMM 13.5 para 7), or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling, with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
 
 | Glide data | CT-156 (and CT-157 for now) | Where from |
 |---|---|---|
-| Best glide, clean | 125 KIAS, about 2 NM per 1,000 ft | SMM 13.5 para 7, 13.14 para 26 |
+| Best glide, clean, prop feathered | 125 KIAS, 2 NM per 1,000 ft | T-6A max glide chart (flight test; Patrick, 06:33Z); SMM 13.5 para 7 |
+| Gear down, prop feathered | 105 KIAS, 1.5 NM per 1,000 ft | T-6A max glide chart |
+| Landing flap and gear down, prop feathered | 95 KIAS, 1.1 NM per 1,000 ft | T-6A max glide chart |
+| Clean, prop **windmilling** (engine not shut down) | 110 KIAS, 1 NM per 1,000 ft: half the feathered glide | T-6A max glide chart; SMM 13.17 para 34c (PCL to OFF as soon as possible) |
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
+| Clean turn while gliding | about 1,700 ft per 360° at 30° of bank, 125 KIAS | SMM 13.5 para 11 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
 | Zoom | 70 % of the speed-for-height trade | Placeholder (T10) |
 
 Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
+
+**How the glide is flown.** The glide ratio (NM per 1,000 ft) is fixed through the air for each configuration, so the rate of descent is the true airspeed divided by it and grows with height, and the wind then stretches or shrinks the distance over the ground. The chart's distance lines agree (about 2 NM per 1,000 ft from any height, and weight makes almost no difference); its sink-rate column (1,350, 1,500, 1,850 and 2,350 ft/min) matches those ratios at a true airspeed about a quarter above the indicated one, so it isn't used directly. The engine-out check and the Engine out command have a **prop** choice: feathered (the default, as after PCL OFF) or windmilling, which halves the reach and shows why the SMM says to shut it down. Gear and flap follow the SMM: clean until the runway is assured (13.17 para 39), then gear down, then flap.
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
@@ -325,7 +331,7 @@ The triggers all use the same prediction: where each aircraft will be a few seco
 - It's saved in the setup like any other aircraft, so the same conflict plays every time.
 
 **Engine-out check.** A "what if" that works out, without flying it, whether an aircraft would make High Key, Low Key, Final Key or the runway if its engine quit now:
-- From any aircraft row (the Command menu's **Engine-out check**), or from an energy state you type in: a point on the map, heading, height, speed (KIAS), and clean or gear down.
+- From any aircraft row (the Command menu's **Engine-out check**), or from an energy state you type in: a point on the map, heading, height, speed (KIAS), configuration (clean, gear down, or landing flap and gear down) and prop (feathered or windmilling).
 - It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead to 125 KIAS (share of the speed-for-height trade, T10); then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air, stretched or shrunk by the wind; joining the key's circle at a tangent.
 - The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
 - Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
