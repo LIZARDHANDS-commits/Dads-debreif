@@ -6,7 +6,7 @@
 // from a data address of its own type and bytes (the file's block was checked
 // before it got here), never as a link or as markup. A few decoded pictures
 // are kept, so playing back and forth doesn't decode them again.
-import { ALLOWED_MIMES } from '../weather/saved-radar.js';
+import { ALLOWED_MIMES, LIMITS } from '../weather/saved-radar.js';
 
 /** How many decoded pictures stay in memory (a 1,024 px picture is 4 MB decoded). */
 export const IMAGES_KEPT = 8;
@@ -37,6 +37,11 @@ export function createSavedWeatherLayer({ onChange, makeImage = () => new Image(
       entry = { image: makeImage(), ready: false, failed: false };
       const { image } = entry;
       image.onload = () => {
+        // A small file can decode to a huge picture: whatever the file said, nothing bigger than we asked for is drawn.
+        if (image.naturalWidth > LIMITS.maxPixels || image.naturalHeight > LIMITS.maxPixels) {
+          entry.failed = true;
+          return;
+        }
         entry.ready = true;
         onChange();
       };

@@ -50,8 +50,8 @@ export const MAX_SAVED_CHARS = 36 * 1024 * 1024;
 export const PAD_NM = 30;
 /** The ECCC attribution its licence asks for. */
 export const ECCC_CREDIT = 'Data Source: Environment and Climate Change Canada';
-/** Picture types a file may hold. SVG is never one. */
-export const ALLOWED_MIMES = Object.freeze(['image/png', 'image/jpeg', 'image/webp']);
+/** Picture types kept or read: PNG only (what ECCC is asked for), whose size can be read from its header. */
+export const ALLOWED_MIMES = Object.freeze(['image/png']);
 const FORMAT_VERSION = 1;
 const MAX_TIMES_PER_LAYER = 1000;
 const KM_PER_DEG = 111.32;
@@ -172,19 +172,33 @@ export function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-/** The picture type a base64 string's first bytes show (PNG, JPEG or WebP), or null. */
-export function mimeOfBase64(data) {
-  if (typeof data !== 'string' || data.length < 16) return null;
+const PNG_SIGNATURE = '\x89PNG\r\n\x1a\n';
+
+/**
+ * The size a PNG says it is, read from its header (its first chunk must be
+ * IHDR): { width, height }, or null for anything that is not a PNG. A small
+ * file can decode to a huge picture, so the size is checked before a picture
+ * is ever decoded.
+ */
+export function pngSizeOfBase64(data) {
+  if (typeof data !== 'string' || data.length < 32) return null;
   let head;
   try {
-    head = atob(data.slice(0, 16)); // 12 bytes
+    head = atob(data.slice(0, 32)); // 24 bytes: signature, chunk length, 'IHDR', width, height
   } catch {
     return null;
   }
-  if (head.startsWith('\x89PNG\r\n\x1a\n')) return 'image/png';
-  if (head.startsWith('\xff\xd8\xff')) return 'image/jpeg';
-  if (head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP') return 'image/webp';
-  return null;
+  if (!head.startsWith(PNG_SIGNATURE) || head.slice(12, 16) !== 'IHDR') return null;
+  const u32 = (at) => ((head.charCodeAt(at) << 24) | (head.charCodeAt(at + 1) << 16) | (head.charCodeAt(at + 2) << 8) | head.charCodeAt(at + 3)) >>> 0;
+  return { width: u32(16), height: u32(20) };
+}
+
+/** True when a PNG's size (pngSizeOfBase64) is a real one no larger than the biggest picture asked for. */
+const sizeOk = (size) => size !== null && size.width >= 1 && size.height >= 1 && size.width <= LIMITS.maxPixels && size.height <= LIMITS.maxPixels;
+
+/** The picture type a base64 string's first bytes show (PNG only), or null. */
+export function mimeOfBase64(data) {
+  return pngSizeOfBase64(data) ? 'image/png' : null;
 }
 
 /** The bytes a base64 string decodes to. */
@@ -202,7 +216,7 @@ export function frameFromReply({ contentType, bytes }) {
   const type = typeof contentType === 'string' ? contentType.split(';')[0].trim().toLowerCase() : '';
   if (!ALLOWED_MIMES.includes(type) || !bytes?.length || bytes.length > LIMITS.maxFrameBytes) return null;
   const data = bytesToBase64(bytes);
-  return mimeOfBase64(data) === type ? { mime: type, data } : null;
+  return mimeOfBase64(data) === type && sizeOk(pngSizeOfBase64(data)) ? { mime: type, data } : null;
 }
 
 // --- The size limit -------------------------------------------------------------
@@ -302,9 +316,10 @@ export function savedFromSetting(text, { startT, endT }) {
   for (const f of block.frames) {
     if (!isObject(f) || !hasLayer(f.layer)) return problem('a picture is for a layer this tool does not know');
     if (!Number.isInteger(f.t) || f.t < startT - LIMITS.leadS || f.t > endT) return problem("a picture's time is outside the flight");
-    if (!ALLOWED_MIMES.includes(f.mime)) return problem('a picture is not a PNG, JPEG or WebP');
+    if (!ALLOWED_MIMES.includes(f.mime)) return problem('a picture is not a PNG');
     if (typeof f.data !== 'string' || f.data.length > MAX_FRAME_CHARS || f.data.length % 4 !== 0 || !BASE64.test(f.data)) return problem('a picture is damaged');
     if (mimeOfBase64(f.data) !== f.mime) return problem('a picture is not the kind it says');
+    if (!sizeOk(pngSizeOfBase64(f.data))) return problem('a picture is too large');
     const key = `${f.layer}@${f.t}`;
     if (seen.has(key)) return problem('a picture is in twice');
     seen.add(key);

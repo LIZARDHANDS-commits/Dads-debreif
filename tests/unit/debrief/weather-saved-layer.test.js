@@ -32,7 +32,7 @@ const toScreen = (lat, lon) => [(lon - BOX.minLon) * 100, (BOX.maxLat - lat) * 1
 
 test('a picture is an image from a data address of its own type and bytes, never a link', () => {
   assert.equal(imageAddress({ mime: 'image/png', data: 'AAAA' }), 'data:image/png;base64,AAAA');
-  assert.equal(imageAddress({ mime: 'image/webp', data: 'AAAA' }), 'data:image/webp;base64,AAAA');
+  assert.throws(() => imageAddress({ mime: 'image/webp', data: 'AAAA' }), 'PNG only');
   assert.throws(() => imageAddress({ mime: 'image/svg+xml', data: 'AAAA' }));
   assert.throws(() => imageAddress({ mime: 'image/png', data: 'AA"><script>' }));
   assert.throws(() => imageAddress({ mime: 'text/html', data: 'AAAA' }));
@@ -110,6 +110,26 @@ test('a picture the browser cannot decode is left out, quietly, and not asked ag
   assert.equal(ctx.calls.some((c) => c[0] === 'drawImage'), false);
   assert.equal(made.length, 1);
   assert.equal(layer.state().failed, 1);
+});
+
+test('a picture that decodes larger than a picture we asked for is left out, and nothing is drawn from it', () => {
+  const { made, makeImage } = fakeImages();
+  let redraws = 0;
+  const layer = createSavedWeatherLayer({ makeImage, onChange: () => redraws++ });
+  layer.draw(fakeCtx(), { items: [item('rain@1')], toScreen });
+  made[0].naturalWidth = 16000;
+  made[0].naturalHeight = 16000;
+  made[0].onload();
+  assert.equal(redraws, 0);
+  const ctx = fakeCtx();
+  layer.draw(ctx, { items: [item('rain@1')], toScreen });
+  assert.equal(ctx.calls.some((c) => c[0] === 'drawImage'), false);
+  assert.equal(layer.state().failed, 1);
+  layer.draw(fakeCtx(), { items: [item('rain@2')], toScreen });
+  made[1].naturalWidth = 1024;
+  made[1].naturalHeight = 1024;
+  made[1].onload();
+  assert.equal(redraws, 1, 'a picture at the limit is fine');
 });
 
 test('what the last draw found, and disposing lets go of everything', () => {

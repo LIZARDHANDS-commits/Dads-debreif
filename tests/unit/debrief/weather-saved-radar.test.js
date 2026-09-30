@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   KEPT_S, LIMITS, SAVED_LAYERS, MAX_SAVED_CHARS, radarKept, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl,
   bytesToBase64, mimeOfBase64, frameFromReply, frameBytes, fitCap, makeSaved, savedToSetting, savedFromSetting,
-  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText,
+  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64,
 } from '../../../src/modules/debrief/weather/saved-radar.js';
 import { sliceAt, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
 
@@ -18,6 +18,17 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const PNG64 = PNG.toString('base64');
 const JPEG64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1]).toString('base64');
 const WEBP64 = Buffer.concat([Buffer.from('RIFF'), Buffer.from([26, 0, 0, 0]), Buffer.from('WEBPVP8 '), Buffer.alloc(20)]).toString('base64');
+// A PNG header that says it is 16,000 x 16,000 (about 1 GB decoded) in a file of about 1 MB.
+function pngHeader(width, height) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(13);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), length, Buffer.from('IHDR'), ihdr, Buffer.alloc(4), Buffer.alloc(1000)]);
+}
+const BOMB64 = pngHeader(16000, 16000).toString('base64');
 const SVG64 = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>').toString('base64');
 
 const flightBox = { minLat: 50.0, maxLat: 50.6, minLon: -106.0, maxLon: -105.2 };
@@ -137,8 +148,8 @@ test('bytes to base64 and the type from the first bytes', () => {
   assert.equal(bytesToBase64(big), Buffer.from(big).toString('base64'), 'longer than one chunk');
   assert.equal(bytesToBase64(new Uint8Array(0)), '');
   assert.equal(mimeOfBase64(PNG64), 'image/png');
-  assert.equal(mimeOfBase64(JPEG64), 'image/jpeg');
-  assert.equal(mimeOfBase64(WEBP64), 'image/webp');
+  assert.equal(mimeOfBase64(JPEG64), null, 'only PNG is kept');
+  assert.equal(mimeOfBase64(WEBP64), null);
   assert.equal(mimeOfBase64(SVG64), null);
   assert.equal(mimeOfBase64('AAAA'), null);
   assert.equal(mimeOfBase64(''), null);
@@ -272,8 +283,8 @@ test('untrusted: a frame\'s layer, time, type and picture are each checked', () 
   assert.ok(one(frame('rain', START - 20 * 60 - 1)).problem, 'more than 20 minutes before it');
   assert.equal(one(frame('rain', START - 20 * 60)).problem, undefined, 'the frame at or before the start may come before it');
   assert.equal(one(frame('rain', END)).problem, undefined);
-  assert.equal(one(frame('rain', START, JPEG64, 'image/jpeg')).problem, undefined);
-  assert.equal(one(frame('rain', START, WEBP64, 'image/webp')).problem, undefined);
+  assert.ok(one(frame('rain', START, JPEG64, 'image/jpeg')).problem, 'only PNG (its size is read from its header)');
+  assert.ok(one(frame('rain', START, WEBP64, 'image/webp')).problem);
   assert.ok(one(frame('rain', START, SVG64, 'image/svg+xml')).problem, 'never SVG');
   assert.ok(one(frame('rain', START, PNG64, 'image/gif')).problem);
   assert.ok(one(frame('rain', START, SVG64, 'image/png')).problem, 'a type the picture doesn\'t bear out');
@@ -408,4 +419,35 @@ test('the line under the map joins the items that are on, with ECCC\'s credit on
   assert.equal(line({ radar: true, lightning: true, saved: null, recent: false }),
     'Not kept: radar is only available for 3 hours after the flight. · Not kept: lightning is only available for 3 hours after the flight.');
   assert.equal(line({ lightning: true, saved: null }), 'Lightning not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+});
+
+// --- Only PNG, and only small ones (a small file can decode to a huge picture) --------------------
+
+test('a PNG\'s size is read from its header, and nothing else has one to read', () => {
+  assert.deepEqual(pngSizeOfBase64(PNG64), { width: 1, height: 1 });
+  assert.deepEqual(pngSizeOfBase64(BOMB64), { width: 16000, height: 16000 });
+  assert.deepEqual(pngSizeOfBase64(pngHeader(1024, 768).toString('base64')), { width: 1024, height: 768 });
+  assert.equal(pngSizeOfBase64(JPEG64), null);
+  assert.equal(pngSizeOfBase64(SVG64), null);
+  assert.equal(pngSizeOfBase64(''), null);
+  assert.equal(pngSizeOfBase64(PNG64.slice(0, 28)), null, 'too short to hold the header');
+  const notIhdr = pngHeader(4, 4);
+  notIhdr.write('IDAT', 12);
+  assert.equal(pngSizeOfBase64(notIhdr.toString('base64')), null, 'the first chunk must be IHDR');
+});
+
+test('untrusted: a small file that decodes to a huge picture is refused, and the limit is the largest picture asked for', () => {
+  const one = (data) => read(block({ frames: [frame('rain', START, data)] }));
+  assert.equal(pngHeader(16000, 16000).length < 2000, true, 'the bomb is tiny on disk');
+  assert.match(one(BOMB64).problem, /too large|too big/);
+  assert.equal(one(pngHeader(LIMITS.maxPixels, LIMITS.maxPixels).toString('base64')).problem, undefined, 'the largest picture asked for is fine');
+  assert.ok(one(pngHeader(LIMITS.maxPixels + 1, 10).toString('base64')).problem);
+  assert.ok(one(pngHeader(10, LIMITS.maxPixels + 1).toString('base64')).problem);
+  assert.ok(one(pngHeader(0, 10).toString('base64')).problem, 'a picture with no width');
+});
+
+test('a fetched reply that decodes to a huge picture is not kept either', () => {
+  assert.equal(frameFromReply({ contentType: 'image/png', bytes: new Uint8Array(pngHeader(16000, 16000)) }), null);
+  assert.deepEqual(frameFromReply({ contentType: 'image/png', bytes: new Uint8Array(pngHeader(1024, 1024)) })?.mime, 'image/png');
+  assert.equal(frameFromReply({ contentType: 'image/jpeg', bytes: new Uint8Array(Buffer.from(JPEG64, 'base64')) }), null, 'PNG only, as asked for');
 });
