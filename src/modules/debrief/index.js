@@ -473,6 +473,8 @@ function mount(root, app) {
   // Runs a load; `work` returns what `prepare` turns into a session for show().
   async function run(what, work, prepare = (flightOnly) => ({ flight: flightOnly })) {
     if (busy) return;
+    // A new flight replaces this one, and with it the radar that can't be fetched again (Y4).
+    if (weatherUnsaved() && !confirm("Replace this flight? The radar and lightning you saved aren't in a saved debrief file yet, and ECCC can't give them again after 3 hours.")) return;
     busy = true;
     ui.setBusy(what);
     filePanel.setBusy(true);

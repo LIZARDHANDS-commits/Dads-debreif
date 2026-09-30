@@ -1851,3 +1851,62 @@ test('saved radar: saving the debrief while the fetch is still running does not 
   await page.getByRole('button', { name: 'Close flight' }).click();
   expect(messages).toEqual([RADAR_LOSS]);
 });
+
+test('saved radar: replacing the flight (Load tracks, Open debrief, Example flight) asks first while the radar is not in a saved file (Y4)', async ({ page }) => {
+  let nowT = 0;
+  await stubEccc(page, { now: () => nowT });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, endT } = await flightWindow(page);
+  nowT = endT + 3600;
+  await setNow(page, nowT);
+  await scrubber.fill(String(endT - 60));
+  // A debrief file saved before the radar was fetched, to open later.
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  const plain = await download.path();
+  await openWeather(page);
+  await saveWxButton(page).click();
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
+
+  const REPLACE = "Replace this flight? The radar and lightning you saved aren't in a saved debrief file yet, and ECCC can't give them again after 3 hours.";
+  const messages = [];
+  page.on('dialog', (dialog) => { messages.push(dialog.message()); dialog.dismiss(); });
+  const stillHere = async () => {
+    await expect(status(page)).toHaveText(/^4 tracks loaded/);
+    await expect(savedWxStatus(page)).toHaveText(KEPT_LINE);
+  };
+
+  // Declined each time: nothing is replaced, and the pictures are still kept.
+  await page.getByRole('button', { name: 'Example flight' }).click();
+  await expect.poll(() => messages.length).toBe(1);
+  await stillHere();
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles(plain);
+  await expect.poll(() => messages.length).toBe(2);
+  await stillHere();
+  await fileInput(page).setInputFiles([kml('lead.kml')]);
+  await page.getByRole('button', { name: 'Load', exact: true }).click();
+  await expect.poll(() => messages.length).toBe(3);
+  await stillHere();
+  expect(messages).toEqual([REPLACE, REPLACE, REPLACE]);
+
+  // Accepted: it goes ahead.
+  page.removeAllListeners('dialog');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles(plain);
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+  await expect(savedWxStatus(page)).not.toHaveText(KEPT_LINE); // the file had none
+
+  // With the pictures in a saved file, nothing asks: fetch again, save, then replace.
+  await openWeather(page);
+  await saveWxButton(page).click();
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
+  const [withRadar] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  let asked = 0;
+  page.on('dialog', (dialog) => { asked++; dialog.dismiss(); });
+  await page.getByRole('button', { name: 'Example flight' }).click();
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles(await withRadar.path());
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+  expect(asked).toBe(0);
+});
