@@ -75,3 +75,15 @@ export function planCheckChain(chain, opts) {
     legs[1].holdSec = checkEndedAt !== null && crossedAt !== null ? Math.max(0, crossedAt - checkEndedAt) : 0;
   });
 }
+
+/**
+ * Where each aircraft of `list` is at time `atSec` (the plan flown with the engine's own step, no G errors): { id: { xFt, yFt } }. Aircraft that
+ * have all finished their turns fly on straight, so the positions at one time are comparable whatever each aircraft's own timing.
+ */
+export function flyPlanTo(list, opts, atSec) {
+  const copies = list.map((a) => ({ ...a, gError: 0, followId: null, followIds: null, turnStartSec: a.planStartSec ?? a.turnStartSec, active: false, done: false, legIndex: 0, legAccumRad: 0, legReadySec: 0, turnAccumRad: 0, headingRad: a.originalHeadingRad ?? a.headingRad }));
+  for (let tSec = 0; tSec < atSec; tSec += STEP_SEC) {
+    moveAircraft(copies, { rearCheck: null, tSec, timing: 'time', direction: opts.direction, maneuver: 'delayed45away', speedFtps: opts.speedFtps, baseG: opts.baseG, turnDegDefault: opts.goalRad * 180 / Math.PI, correction: 'none', correctionStrength: 0, spacingFt: 0 }, STEP_SEC);
+  }
+  return Object.fromEntries(copies.map((a) => [a.id, { xFt: a.xFt, yFt: a.yFt }]));
+}
