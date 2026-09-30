@@ -5,7 +5,7 @@
 import { createCanvasView } from '../../../ui-kit/canvas-view.js';
 import { MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT, flightBounds, shipsAt } from '../state.js';
 import {
-  trackPaths, drawTennis, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags,
+  trackPaths, drawTennis, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags, drawWindArrows,
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
@@ -33,10 +33,12 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * weather(): a weather picture to lay over the base map, { source, opacityPct }
  * (source as the ui-kit tile layer takes it, with a `key` naming its frame),
  * or null. onWeather(state): after each draw, its tiles' { wanted, ready,
- * failed }, or null when there's none.
+ * failed }, or null when there's none. windArrows(): the model wind arrows to
+ * draw under the tracks, [{ lat, lon, dirDeg, kt, label }] (dirDeg is where the
+ * wind blows from), or null/empty for none.
  */
 export function createMapView(canvas, {
-  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null,
+  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null,
   labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
   onImagery = /** @type {(state: any) => void} */ (() => {}),
   onCharts = /** @type {(state: any) => void} */ (() => {}),
@@ -155,6 +157,11 @@ export function createMapView(canvas, {
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
+      const arrows = windArrows();
+      if (arrows?.length) {
+        const ref = mapRef();
+        drawWindArrows(ctx, map, arrows.map((a) => ({ ...a, ...latLonToLocalFt(ref, a.lat, a.lon) })));
+      }
       if (on.lead39 && lead) draw39Line(ctx, map, lead, 'Lead 3/9');
       const three = ships.find((s) => s.slot === 3);
       if (on.three39 && three) draw39Line(ctx, map, three, '#3 3/9');

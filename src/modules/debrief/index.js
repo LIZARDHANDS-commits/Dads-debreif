@@ -34,6 +34,9 @@ import { CATALOG } from '../../airfields/catalog.js';
 import { createMetarFeed } from './weather/metar-feed.js';
 import { createWindsFeed } from './weather/winds-feed.js';
 import { WIND_MODELS, windModelFor, windTextAt, windFailureText } from './weather/winds.js';
+import {
+  clampArrowFt, windGridPoints, flightLatLonBounds, windArrowsAt, arrowLabel, arrowCaption, arrowStatus,
+} from './weather/wind-arrows.js';
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
@@ -98,6 +101,7 @@ function mount(root, app) {
     onImagery: (state) => ui.setImagery(state),
     onCharts: (state) => ui.setCharts(state),
     weather: () => satelliteWanted(),
+    windArrows: () => windArrowsNow().arrows,
     onWeather: (state) => {
       const on = layout.get();
       const source = satelliteWanted()?.source;
@@ -177,7 +181,11 @@ function mount(root, app) {
   // Winds aloft on the Lead line (SPEC-debrief: Weather at the time of the
   // flight): the model wind at Lead's altitude, taken at one point for the
   // whole flight (Lead's position halfway through).
-  const winds = createWindsFeed({ onChange: () => renderReadouts() });
+  // The same feed also asks for the 3 x 3 grid of points the wind arrows on the map use, in one request.
+  const winds = createWindsFeed({ onChange: () => { renderReadouts(); redraw(); } });
+  let windGrid = []; // the grid's points for this flight, [{ lat, lon }]
+  // The home field's elevation, or Moose Jaw's until one is set: the ground for a reply that gave none (W4).
+  const homeFieldFt = () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT;
   function windPoint(shown) {
     const lead = shown.tracks[1] ?? Object.values(shown.tracks)[0];
     const s = lead && sampleAt(lead, (shown.startT + shown.endT) / 2);
@@ -197,8 +205,42 @@ function mount(root, app) {
     if (entry.state === 'failed') return windFailureText(label, entry.failure);
     const lead = sampleAt(flight.tracks[1], clock.t);
     // Levels under the ground are not blended in (W4). The reply's own ground height decides; the home field's elevation, or Moose Jaw's until one is set, is for a reply without one.
-    const fieldFt = app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT;
+    const fieldFt = homeFieldFt();
     return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label, { fieldFt }) : null;
+  }
+
+  // Wind arrows on the 2D map (SPEC-debrief: Winds aloft): the model wind at
+  // each grid point at the chosen height, at the playback time. Returns the
+  // arrows to draw, the caption under the map and the Weather menu's status
+  // line. Asks Open-Meteo for the grid only while the item is on and the 2D
+  // map is showing (R5).
+  function windArrowsNow() {
+    const none = { arrows: [], caption: '', status: '' };
+    const on = layout.get();
+    if (!on.wxWindArrows || !flight || !clock) return none;
+    if (on.view === '3d') return { ...none, status: 'Wind arrows show in the 2D map only.' };
+    const model = windModelFor(on.wxWindModel, flight.startT);
+    if (!model) return { ...none, status: 'no model winds go back this far' };
+    const { label } = WIND_MODELS[model];
+    const entry = winds.getGrid(model);
+    if (!entry) return { ...none, status: "no model wind: the flight's tracks have no position" };
+    const retry = 'Turn Wind arrows off and on to try again.';
+    if (entry.state === 'loading') return { ...none, status: `loading ${label} winds for the map…` };
+    if (entry.state === 'busy' && entry.daily) return { ...none, status: `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow` };
+    if (entry.state === 'busy') return { ...none, status: `${label} winds: Open-Meteo is busy. ${retry}` };
+    if (entry.state === 'failed') return { ...none, status: windFailureText(label, entry.failure, retry) };
+    const altFt = clampArrowFt(on.wxWindArrowFt);
+    const found = windArrowsAt(entry.grid, windGrid, clock.t, altFt, { fieldFt: homeFieldFt() });
+    const shown = found.filter((a) => a.wind);
+    return {
+      arrows: shown.map((a) => ({ lat: a.lat, lon: a.lon, dirDeg: a.wind.dirDeg, kt: a.wind.kt, label: arrowLabel(a.wind) })),
+      caption: shown.length ? arrowCaption(altFt, label, shown[0].hoursT) : '',
+      status: arrowStatus(found, altFt, label),
+    };
+  }
+  function renderWindArrows() {
+    const { caption, status } = windArrowsNow();
+    ui.setWindArrows({ caption, status });
   }
 
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
@@ -213,6 +255,7 @@ function mount(root, app) {
     ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null, { leadWind: leadWind() });
     if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
     renderMetar();
+    renderWindArrows();
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -243,7 +286,8 @@ function mount(root, app) {
     if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
     metars.setFlight(flight);
-    winds.setFlight(flight, windPoint(flight));
+    windGrid = windGridPoints(flightLatLonBounds(flight));
+    winds.setFlight(flight, windPoint(flight), windGrid);
     dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
@@ -265,6 +309,7 @@ function mount(root, app) {
     flight = null;
     clock = null;
     metars.setFlight(null);
+    windGrid = [];
     winds.setFlight(null);
     dfpKey = null;
     setDfps([], { changed: false });
@@ -424,14 +469,18 @@ function mount(root, app) {
     filePanel.setCollapsed(!values.filesOpen);
     tennisPanel.element.hidden = !values.tennisOpen;
     if (values.tennisOpen) tennisPanel.render(tennisNow());
-    // Turning Winds aloft on or picking a model redraws the Lead line and asks
-    // again for any that failed; anything else only touches the METAR line.
-    const windKey = `${values.wxWinds} ${values.wxWindModel}`;
+    // Turning Winds aloft or the wind arrows on, or picking a model, redraws
+    // the Lead line and asks again for any that failed; anything else only
+    // touches the METAR line and the arrows' words.
+    const windKey = `${values.wxWinds} ${values.wxWindModel} ${values.wxWindArrows}`;
     if (windKey !== lastWindKey) {
       lastWindKey = windKey;
       winds.retry();
       renderReadouts();
-    } else renderMetar();
+    } else {
+      renderMetar();
+      renderWindArrows();
+    }
     redraw();
   });
 

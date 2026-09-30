@@ -1176,6 +1176,129 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   await expect(wind).toHaveCount(0);
 });
 
+// Wind arrows on the 2D map (task 12e-2): Open-Meteo answers the grid's one request with a list, one reply per point.
+function openMeteoGridReply(url) {
+  const q = new URL(url).searchParams;
+  const base = JSON.parse(openMeteoReply(url));
+  const lats = q.get('latitude').split(',');
+  const lons = q.get('longitude').split(',');
+  return JSON.stringify(lats.length > 1 ? lats.map((lat, i) => ({ ...base, latitude: Number(lat), longitude: Number(lons[i]) })) : base);
+}
+
+// The arrows' colour (the ui-kit's --text-muted, #9bb8c6), as it is on the canvas: counted only where it is
+// solid, since the grid's faint lines are the same colour at 16 % (the canvas is transparent under them).
+const ARROW_RGB = [155, 184, 198];
+const arrowPixels = (page) => page.locator('canvas.debrief-2d').evaluate((canvas, rgb) => {
+  const { data, width } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let n = 0;
+  let sx = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 200 && Math.abs(data[i] - rgb[0]) < 6 && Math.abs(data[i + 1] - rgb[1]) < 6 && Math.abs(data[i + 2] - rgb[2]) < 6) {
+      n++;
+      sx += (i / 4) % width;
+    }
+  }
+  return { n, x: n ? sx / n : 0 };
+}, ARROW_RGB);
+
+test('wind arrows: off at first, one request for nine points when on, a caption, arrows at the chosen height, none where the model has none (SPEC-debrief: Winds aloft)', async ({ page }) => {
+  const asked = [];
+  await page.route(OPEN_METEO, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: openMeteoGridReply(route.request().url()) });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  const at = Number(await scrubber.getAttribute('min')) + 1750;
+  await scrubber.fill(String(at));
+  const hour = new Date(at * 1000).getUTCHours();
+  const two = (n) => String(n % 24).padStart(2, '0');
+  const hours = at % 3600 === 0 ? `${two(hour)}Z` : `${two(hour)}–${two(hour + 1)}Z`;
+  const caption = page.locator('.map-credit');
+  const note = page.locator('.debrief-menu-note');
+  await expect(caption).toBeHidden();
+  const before = (await arrowPixels(page)).n;
+  expect(asked).toEqual([]); // nothing is fetched while it's off (R5)
+
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await expect(page.getByLabel('Wind arrows (model)')).not.toBeChecked();
+  await expect(page.getByLabel('Wind arrow height')).toHaveValue('8000');
+  await expect(page.getByLabel('Winds aloft (model)')).not.toBeChecked(); // arrows need nothing from the Lead line's item
+  await page.getByLabel('Wind arrows (model)').check();
+  await expect(caption).toHaveText(`Model wind at 8,000 ft (HRDPS ${hours}, Open-Meteo)`);
+  await expect(note).toHaveText('9 of 9 points have model wind');
+  // One request, for all nine points, in the Lead line's form; and no Lead line.
+  expect(asked).toHaveLength(1);
+  const q = new URL(asked[0]).searchParams;
+  expect(q.get('latitude').split(',')).toHaveLength(9);
+  expect(q.get('longitude').split(',')).toHaveLength(9);
+  expect([...q.get('latitude').split(','), ...q.get('longitude').split(',')].every((v) => /^-?\d+\.\d\d$/.test(v))).toBe(true);
+  expect(q.get('models')).toBe('gem_hrdps_continental');
+  await expect(page.locator('.formation-card li.lead-wind')).toHaveCount(0);
+  await expect.poll(async () => (await arrowPixels(page)).n).toBeGreaterThan(before + 200);
+  const drawn = (await arrowPixels(page)).n;
+
+  // Moving the map moves the arrows with it.
+  const centre = async () => (await arrowPixels(page)).x;
+  const x0 = await centre();
+  await page.keyboard.press('Escape');
+  // For the report: WIND_ARROWS_SHOT=<file> keeps a picture of the map with the arrows on.
+  if (process.env.WIND_ARROWS_SHOT) await page.locator('.debrief-map-wrap').screenshot({ path: process.env.WIND_ARROWS_SHOT });
+  const box = await page.locator('canvas.debrief-2d').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await centre()) - x0).toBeGreaterThan(20);
+  await page.getByRole('button', { name: 'Fit' }).click();
+  await expect.poll(async () => Math.abs((await centre()) - x0)).toBeLessThan(2);
+
+  // A height under the model's lowest level above the ground has no wind: nothing drawn, and the status says why. No new request.
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('Wind arrow height').fill('2000');
+  await expect(note).toHaveText("no model wind at 2,000 ft here (below the model's lowest level)");
+  await expect(caption).toBeHidden();
+  await expect.poll(async () => (await arrowPixels(page)).n).toBeLessThan(drawn / 2);
+  await page.getByLabel('Wind arrow height').fill('12500');
+  await expect(caption).toHaveText(`Model wind at 12,500 ft (HRDPS ${hours}, Open-Meteo)`);
+  expect(asked).toHaveLength(1);
+
+  // The model choice is shared with the Lead line: the other model is its own single request.
+  await page.getByLabel('Wind model').selectOption({ label: 'HRRR (US, from 2018)' });
+  await expect(caption).toHaveText(`Model wind at 12,500 ft (HRRR ${hours}, Open-Meteo)`);
+  expect(asked.map((u) => new URL(u).searchParams.get('models'))).toEqual(['gem_hrdps_continental', 'ncep_hrrr_conus']);
+
+  // Off again: the words and the arrows go, and nothing more is asked.
+  await page.getByLabel('Wind arrows (model)').uncheck();
+  await expect(caption).toBeHidden();
+  await expect(note).toBeHidden();
+  await expect.poll(async () => (await arrowPixels(page)).n).toBeLessThanOrEqual(before + 50);
+  expect(asked).toHaveLength(2);
+});
+
+test('wind arrows: an answer that is not wind data is said in the menu (not blamed on the connection), and turning the item off and on asks again (a 429 or 500 is in the unit tests, as the browser logs it as an error)', async ({ page }) => {
+  let answer = 'html';
+  const asked = [];
+  await page.route(OPEN_METEO, (route) => {
+    asked.push(route.request().url());
+    return answer === 'wind'
+      ? route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: openMeteoGridReply(route.request().url()) })
+      : route.fulfill({ status: 200, contentType: 'text/html', headers: { 'Access-Control-Allow-Origin': '*' }, body: '<html>oops</html>' });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('Wind arrows (model)').check();
+  await expect(page.locator('.debrief-menu-note')).toHaveText("HRDPS winds: Open-Meteo's answer wasn't wind data. Turn Wind arrows off and on to try again.");
+  await expect(page.locator('.map-credit')).toBeHidden();
+  answer = 'wind';
+  await page.getByLabel('Wind arrows (model)').uncheck();
+  await page.getByLabel('Wind arrows (model)').check();
+  await expect(page.locator('.debrief-menu-note')).toHaveText('9 of 9 points have model wind');
+  expect(asked).toHaveLength(2);
+});
+
 // RC-1 (verification re-check 195): from the 1280 px floor up (D183), an open toolbar menu
 // stays over the map: it never makes the page scroll sideways, leaves the window, or
 // covers a control in the Flight or Formation column. Measured for the one menu that is open.
