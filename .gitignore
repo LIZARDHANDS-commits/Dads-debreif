@@ -3,3 +3,5 @@ __pycache__/
 Dads_OODA_LOOP_Webtool_V6.html
 node_modules/
 dist/
+test-results/
+playwright-report/
