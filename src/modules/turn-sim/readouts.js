@@ -90,10 +90,16 @@ const forwardSweepDeg = (c) => (Number.isFinite(c.sweepDeg) ? -c.sweepDeg : Math
  * The labels of a spread-standard row with the Turn Sim's small tolerance applied (N4; core's standard is shared with the
  * Debrief and is left as it is). Only FORE, WIDE and TIGHT are relaxed; AFT and the rest are as the standard says.
  */
-function withinPilotTolerance(c, spacingFt) {
+function withinPilotTolerance(c, spacingFt, spread) {
   const kept = c.labels.filter((label) => {
     if (label === 'FORE') return !(forwardSweepDeg(c) < FORE_TOLERANCE_DEG);
-    if ((label === 'WIDE' || label === 'TIGHT') && spacingFt > 0) return !(Math.abs(c.intervalFt - spacingFt) <= SPACING_TOLERANCE * spacingFt);
+    // Within 1 percent of the set spacing, and no more than that past the band's edge: a formation at the set spacing is
+    // still TIGHT when the standard is edited to want more than that.
+    if ((label === 'WIDE' || label === 'TIGHT') && spacingFt > 0) {
+      const slack = SPACING_TOLERANCE * spacingFt;
+      const past = label === 'WIDE' ? c.intervalFt - spread.maxFt : spread.minFt - c.intervalFt;
+      return !(Math.abs(c.intervalFt - spacingFt) <= slack && past <= slack);
+    }
     return true;
   });
   return kept.length || !c.labels.length ? kept : ['ON SPACING'];
@@ -116,7 +122,7 @@ export function formationRows(state, settings, standards) {
     const key = judgedBy(a.id, settings.formation);
     if (!std[key]?.on) return { id: a.id, judged: false, labels: [], standard: key };
     const c = classifyTurnSimPosition(a, fleet, settings.formation, std);
-    const labels = key === 'spread' ? withinPilotTolerance(c, settings.spacingFt) : c.labels;
+    const labels = key === 'spread' ? withinPilotTolerance(c, settings.spacingFt, std.spread) : c.labels;
     return {
       id: a.id,
       judged: true,

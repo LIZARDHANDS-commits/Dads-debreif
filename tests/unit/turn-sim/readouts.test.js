@@ -290,6 +290,9 @@ test('N4: real errors are still flagged: 300 ft fore, 7,000 ft out, 5,000 ft in 
   assert.deepEqual(row(formationRows(four({ 3: { yFt: -7000 } }), settings), 3).labels, ['WIDE']);
   assert.deepEqual(row(formationRows(four({ 2: { yFt: 3900 } }), settings), 2).labels, ['TIGHT']);
   assert.deepEqual(row(formationRows(four({ 2: { xFt: -1200 } }), settings), 2).labels, ['AFT']);
+  // Only a hair past the band's edge is excused: a standard edited to want 6,500 ft still calls 6,000 ft TIGHT.
+  const tightened = { ...DEFAULT_STANDARDS, spread: { ...DEFAULT_STANDARDS.spread, minFt: 6500, maxFt: 9000 } };
+  assert.deepEqual(row(formationRows(four(), settings, tightened), 2).labels, ['TIGHT']);
   // Inside the standard's band it stays ON SPACING.
   assert.deepEqual(row(formationRows(four({ 2: { yFt: 4500 } }), settings), 2).labels, ['ON SPACING']);
 });
