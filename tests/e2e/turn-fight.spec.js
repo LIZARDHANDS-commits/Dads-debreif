@@ -1170,3 +1170,21 @@ test('TF3-4: flipping a side at 0° or 180° (where it means nothing) does not r
   await side(page, 'ATA side', 'Left').check();
   await expect(time(page)).toHaveText('T+0.0');
 });
+
+for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
+  test(`TF3-10: with Climb and dive on the Speed (KTAS) label stays on one line, as tall as G's and Pitch's, at ${size.width} × ${size.height}`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await openRoute(page, '#/turn-fight');
+    await page.getByLabel('Climb and dive').check();
+    for (const who of [blue(page), red(page)]) {
+      await expect(who.getByLabel('Pitch (°)')).toBeVisible();
+      const heights = await who.evaluate((fieldset) => [...fieldset.querySelectorAll('label')].map((l) => [l.textContent, Math.round(l.getBoundingClientRect().height)]));
+      const speed = heights.find(([text]) => text === 'Speed (KTAS)');
+      const g = heights.find(([text]) => text === 'G');
+      const pitch = heights.find(([text]) => text === 'Pitch (°)');
+      expect(speed[1], `Speed label height, ${JSON.stringify(heights)}`).toBe(g[1]);
+      expect(pitch[1]).toBe(g[1]);
+    }
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+}
