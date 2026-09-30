@@ -17,6 +17,11 @@ async function tagControls(page) {
 
 for (const route of ROUTES) {
   test(`every control on ${route} does something`, async ({ page }) => {
+    // Each click starts from a fresh page, so nothing remembered from the last
+    // one (a collapsed panel, say) moves the controls around.
+    await page.addInitScript(() => {
+      if (location.protocol.startsWith('http')) localStorage.clear(); // not on about:blank
+    });
     await openRoute(page, route);
     const list = await tagControls(page);
     expect(list.length).toBeGreaterThan(0);

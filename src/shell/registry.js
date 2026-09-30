@@ -16,7 +16,7 @@ export const MODULES = [
     title: 'Debrief Viewer',
     blurb: 'Tracks, DFPs, EM and geometry, in 2D and 3D',
     media: media('debrief'),
-    load: null,
+    load: () => import('../modules/debrief/index.js'),
   },
   {
     id: 'turn-sim',
