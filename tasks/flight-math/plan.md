@@ -1,27 +1,68 @@
-# Plan: flight math (`core`)
+# Implementation plan: flight math (`core`)
 
-Spec: [`specs/SPEC-core.md`](../../specs/SPEC-core.md). Owner: the "Flight math core" thread. Owns `src/core/`, `tests/unit/core/`, `tests/golden/` (except `v6-baseline.json`, recorded by `tools/record_v6_baseline.js`) and `specs/SPEC-core.md`.
+Spec: [`specs/SPEC-core.md`](../../specs/SPEC-core.md). Tasks: [`todo.md`](todo.md). Owner: the "Flight math core" thread, which owns `src/core/`, `tests/unit/core/`, `tests/golden/` (except `v6-baseline.json`, which `tools/record_v6_baseline.js` records) and `specs/SPEC-core.md`.
 
-## PR 1: units, angles, geo, time (flight data waits on this)
+## Overview
 
-- [x] Harness that runs V6's own functions (`tests/golden/v6-source.js`)
-- [x] `units.js` + golden test
-- [x] `angles.js` + golden test + heading-convention unit test
-- [x] `geo.js` + golden test + known-distance unit test
-- [x] `time.js` + golden test + R10 clock-change unit test
-- [ ] Patrick approves SPEC-core.md
+Move V6's flight math into `src/core/` one function at a time. Each port is pinned by a golden test that runs V6's own function next to it (R9). The work lands as three PRs: the base pieces other threads wait on, then turn performance, then formation standards. No number changes until Dad signs off (Q18, Q24 to Q26).
 
-## PR 2: flight-math.js
+## Architecture decisions
 
-- [ ] Turn radius/rate and bank from G (Turn Sim 786–789, Turn Fight `M`, Traffic 147–148)
-- [ ] ISA density ratio, IAS estimate, EM chart point (4154–4158), still halved (Q18)
-- [ ] Closure rate (3119) and estimated G (2462), taking tracks as arguments
-- [ ] Both tennis-ball solvers (3140, 3970) pinned; report where they disagree (#19)
+- **One heading convention:** math radians, 0 = east, counter-clockwise, north up. V6 already uses this everywhere except the Traffic page, so ports need no conversion. Compass headings appear only on screen.
+- **Pure functions only:** V6 functions that read page globals or input boxes take those values as arguments. The golden test supplies the same values to V6 through a prelude.
+- **Duplicates collapse into one function** only when a golden test shows every V6 copy agrees, or pins exactly where they differ. Copies that disagree in a way people could see are flagged, not merged (the tennis-ball solvers).
+- **Exact match by default:** tolerances only where V6's own copies differ, or when comparing with numbers recorded in a browser (1e-12 relative, because engines round `sin`, `cos` and `atan2` differently in the last digit).
 
-## PR 3: standards.js
+## Task list
 
-- [ ] Debrief classifier (3051, 3088, 3110) and Turn Sim classifier (1881); V6 default preset (R18)
+### Phase 1: base pieces (PR #51)
+- [x] Task 1: golden-test harness
+- [x] Task 2: `units.js`
+- [x] Task 3: `angles.js` and the heading convention
+- [x] Task 4: `geo.js`
+- [x] Task 5: `time.js`
 
-## Waiting on Dad
+### Checkpoint: base pieces
+- [x] `node --test "tests/**/*.test.js"` passes (49 tests)
+- [x] Mutation check: 53 of 55 caught, 2 equivalent
+- [x] Browser check: Chromium matches Node (25 of 11,141 differ in the last digit, all trig)
+- [ ] Patrick approves SPEC-core.md and this plan, then merges PR #51
 
-Q18 items, Q24 (compass start heading), Q25 (Traffic radius), Q26 (recorded bank, blank pitch). None blocks a port.
+### Phase 2: turn performance (PR 2)
+- [ ] Task 6: turn radius, turn rate and bank from G
+- [ ] Task 7: air data and the EM chart point
+- [ ] Task 8: closure and estimated G
+- [ ] Task 9: both tennis-ball solvers
+
+### Checkpoint: turn performance
+- [ ] Suite, mutation check and browser check pass
+- [ ] Tennis-ball disagreement written up for Patrick and Dad (#19)
+- [ ] Patrick reviews PR 2
+
+### Phase 3: standards (PR 3)
+- [ ] Task 10: formation standards classifiers and V6's default preset
+
+### Checkpoint: complete
+- [ ] Every function in SPEC-core's tables is ported and pinned
+- [ ] Patrick reviews PR 3
+
+## Risks and mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| A prelude stub makes V6 behave differently from the real page | High | Stub only values V6 reads, never V6's code. Cross-check module results against `v6-baseline.json`, recorded in a real browser. |
+| The tennis-ball solvers are tangled with drawing and input boxes | High | Pull out only the math, with settings as arguments. If that isn't possible without edits, pin by running V6 in a browser page instead. Do this task early in PR 2. |
+| Engines round trig differently in the last digit | Low | Exact comparisons stay within one engine. Browser-recorded numbers are compared at 1e-12 relative. |
+| Infinite or huge inputs hang V6's angle loops | Medium | Documented in SPEC-core and the core README. The screens validate typed numbers (asked of `ui-kit`). A guard in `core` needs a decision. |
+| Dad's answers change numbers later | Medium | Each fix is its own change, updating the golden value, with a logged decision. |
+| Other threads build on `core`'s function names | Medium | PR 1 first. Any later rename goes through a PR and a note to the coordinator. |
+
+## Parallel and sequential
+
+- Tasks 6, 7, 8 and 10 don't depend on each other and could run in parallel. Task 9 uses Task 6's turn math and V6's pitch estimate.
+- `flight-data` (another thread) needs only Phase 1. Turn Sim needs Phases 2 and 3. The debrief needs Phase 2 for the EM chart and the tennis ball.
+
+## Open questions
+
+- Which tennis-ball solver the rebuild keeps (after Task 9 shows the difference).
+- Whether `core` should also guard against infinite input (default: only the screens do).
