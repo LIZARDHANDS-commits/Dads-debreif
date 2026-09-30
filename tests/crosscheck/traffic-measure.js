@@ -201,8 +201,8 @@ export function makeMeasures(setup, seed) {
     'h-window-height-si2': () => ({ value: windowHeight(ent2) }),
     'g-glide-pattern': () => ({ value: legGlide(pat, 12, 0) }),
     'g-glide-pattern-flown': () => ({ value: flownGlide(pat) }),
-    'g-glide-straight-in-1': () => ({ value: legGlide(spl1, 5, 6) }),
-    'g-glide-straight-in-2': () => ({ value: legGlide(ent2, 3, 4) }),
+    'g-glide-straight-in-1': () => ({ value: legGlide(spl1, spl1.points.length - 2, spl1.points.length - 1) }),
+    'g-glide-straight-in-2': () => ({ value: legGlide(ent2, ent2.points.length - 2, ent2.points.length - 1) }),
 
     'g-glide-straight-in-1-flown': () => ({ value: flownGlide(spl1) }),
     'g-glide-straight-in-2-flown': () => ({ value: flownGlide(ent2) }),

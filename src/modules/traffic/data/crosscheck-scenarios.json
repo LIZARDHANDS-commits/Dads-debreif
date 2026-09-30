@@ -145,7 +145,7 @@
       "id": "g-glide-pattern",
       "group": "Heights",
       "title": "Glide angle on final, Pattern 1 (last point to threshold)",
-      "checks": "Angle from the last pattern point to the threshold: 2,100 ft down to 1,880 ft over the last leg, from the last route point (the corner) to the threshold.",
+      "checks": "Angle over the leg from the last route point before the threshold to the threshold, Pattern 1.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.399",
@@ -171,14 +171,14 @@
       "id": "g-glide-straight-in-1",
       "group": "Heights",
       "title": "Glide angle on final, Split 1 straight-in (last point to threshold)",
-      "checks": "Angle over the last leg, from the last route point (the corner) to the threshold of Split 1, 2,700 ft down to the threshold.",
+      "checks": "Angle over the leg from the last route point before the threshold to the threshold, Split 1.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.130",
       "source": "manual",
       "tolerance": 0.25,
       "mode": "within",
-      "measure": "atan((alt[5] - alt[6]) / last leg length), SPL1"
+      "measure": "atan(height drop / length) of the leg from the last route point before the threshold, SPL1"
     },
     {
       "id": "g-glide-straight-in-1-flown",
@@ -197,14 +197,14 @@
       "id": "g-glide-straight-in-2",
       "group": "Heights",
       "title": "Glide angle on final, Entry 2 straight-in (last point to threshold)",
-      "checks": "Angle over the last leg, from the last route point (the corner) to the threshold of Entry 2, 2,700 ft down to the threshold.",
+      "checks": "Angle over the leg from the last route point before the threshold to the threshold, Entry 2.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.130",
       "source": "manual",
       "tolerance": 0.25,
       "mode": "within",
-      "measure": "atan((alt[3] - alt[4]) / last leg length), ENT2"
+      "measure": "atan(height drop / length) of the leg from the last route point before the threshold, ENT2"
     },
     {
       "id": "g-glide-straight-in-2-flown",
