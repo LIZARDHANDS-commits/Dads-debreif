@@ -8,6 +8,7 @@
 // standard day. G is the load factor.
 import { G_FTPS2, KT_TO_FTPS } from './units.js';
 import { isaDensityRatio } from './flight-math.js';
+import { T6A_FIT } from './t6a-turn-charts.js';
 
 /**
  * The T-6A V-n diagram and airspeed limits (clean, 5,168 lb, maximum take-off weight).
@@ -43,4 +44,30 @@ export function tasToIasKt(ktas, altFt) {
 export function energyHeightFt(altFt, ktas) {
   const v = ktas * KT_TO_FTPS;
   return altFt + v * v / (2 * G_FTPS2);
+}
+
+/**
+ * Maximum-power propeller thrust ÷ weight (fitted to the sustained turn chart,
+ * T6A_FIT): falls with true airspeed, holds its sea-level value up to about
+ * 14,000 ft, then falls with density.
+ */
+export function thrustPerWeight(kias, altFt) {
+  const f = T6A_FIT;
+  const sigma = Math.min(isaDensityRatio(altFt), f.thrustFlatSigma);
+  return f.thrustK * sigma ** f.thrustDensityExp / (iasToTasKt(kias, altFt) + f.thrustV0Kt);
+}
+
+/**
+ * Drag ÷ weight, clean: a zero-lift part growing with KIAS² and a part growing
+ * with G² ÷ KIAS² (set by the max glide chart, T6A_FIT). At a given IAS it is
+ * the same at any height; altFt is there so every function reads alike.
+ */
+export function dragPerWeight(kias, altFt, g) {
+  const f = T6A_FIT;
+  return f.dragA * kias * kias + f.dragB * g * g / (kias * kias);
+}
+
+/** (Thrust − drag) ÷ weight at maximum power: what is left to climb or speed up with. */
+export function excessThrustPerWeight(kias, altFt, g) {
+  return thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
 }
