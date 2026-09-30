@@ -211,6 +211,7 @@ export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {
     state.blue.pitchRad = degToRad(s.bluePitchDeg);
     state.red.pitchRad = degToRad(s.redPitchDeg);
   }
+  if (turnsNow) checkNoseAtStart(state);
   return state;
 }
 
@@ -238,21 +239,54 @@ function fly(p, perf, d, vertical) {
  */
 function checkFirstNose(state) {
   if (!state.merged || state.firstNose) return;
-  const blueOff = ataDeg(state, state.blue, state.red);
-  const redOff = ataDeg(state, state.red, state.blue);
-  if (blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG) {
-    const both = blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG;
-    const byBlue = both || blueOff <= FIRST_NOSE_DEG;
-    const by = byBlue ? 'blue' : 'red';
-    const other = byBlue ? 'red' : 'blue';
-    state.firstNose = {
-      by,
-      both,
-      timeSec: state.timeSec,
-      from: { xFt: state[by].xFt, yFt: state[by].yFt },
-      to: { xFt: state[other].xFt, yFt: state[other].yFt },
-    };
+  markFirstNose(state, ataDeg(state, state.blue, state.red), ataDeg(state, state.red, state.blue));
+}
+
+/** Marks first nose-on from the two off-nose angles when either is within FIRST_NOSE_DEG (both: a tie, Q48). */
+function markFirstNose(state, blueOff, redOff) {
+  if (!(blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG)) return;
+  const both = blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG;
+  const byBlue = both || blueOff <= FIRST_NOSE_DEG;
+  const by = byBlue ? 'blue' : 'red';
+  const other = byBlue ? 'red' : 'blue';
+  state.firstNose = {
+    by,
+    both,
+    timeSec: state.timeSec,
+    from: { xFt: state[by].xFt, yFt: state[by].yFt },
+    to: { xFt: state[other].xFt, yFt: state[other].yFt },
+  };
+}
+
+/** Closer than this (feet, straight line) at the moment the turns start, the jets are at one point and their line of sight is noise. */
+export const COINCIDENT_FT = 10;
+
+/**
+ * First nose-on at the moment the turns start (TF3-3), for a start that is not head-on: a jet whose
+ * off-nose angle is already within FIRST_NOSE_DEG counts at +0.0 s (Both if both), as in a stern chase,
+ * where Blue has had Red on its nose the whole way. The head-on start is left alone, so V6's fight and
+ * a head-on start with the turns at once are as they were. If the jets are within COINCIDENT_FT of each
+ * other (a stern chase passes exactly through), the line of sight is the one from just before they
+ * coincide: along the relative velocity, which straight flight makes exact.
+ */
+function checkNoseAtStart(state) {
+  if (state.headOn || state.firstNose) return;
+  const { blue, red, perf } = state;
+  let blueOff, redOff;
+  if (rangeFt(state) >= COINCIDENT_FT) {
+    blueOff = ataDeg(state, blue, red);
+    redOff = ataDeg(state, red, blue);
+  } else {
+    const dx = perf.blue.speedFtps * Math.cos(blue.headingRad) - perf.red.speedFtps * Math.cos(red.headingRad);
+    const dy = perf.blue.speedFtps * Math.sin(blue.headingRad) - perf.red.speedFtps * Math.sin(red.headingRad);
+    const length = Math.hypot(dx, dy);
+    if (!(length > 0)) return;
+    // Before the pass Red is ahead of Blue along (dx, dy), and Blue ahead of Red along the opposite.
+    const toward = (p, sign) => ({ ...p, xFt: p.xFt + (sign * dx / length) * 100, yFt: p.yFt + (sign * dy / length) * 100 });
+    blueOff = ataDeg(state, blue, toward(blue, 1));
+    redOff = ataDeg(state, red, toward(red, -1));
   }
+  markFirstNose(state, blueOff, redOff);
 }
 
 /**
@@ -303,6 +337,7 @@ function stepOnce(state) {
         } else {
           blue.pitchRad = 0; red.pitchRad = 0;
         }
+        checkNoseAtStart(state);
       }
     } else {
       const oneCircle = setup.circles === 1;

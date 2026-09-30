@@ -718,3 +718,61 @@ test('R28: with the turns at the pass there is no position jump through a crossi
     assert.ok(worst <= limit, `${JSON.stringify(change)}: largest step ${worst} ft, limit ${limit}`);
   }
 });
+
+// ---- first nose-on at the start (TF3-3) and the knife edge of a 2-circle fight (Observation A) ----
+
+const firstNoseAt = (setup, limitSec = 120) => runUntil(setup, (s) => s.firstNose, limitSec).firstNose;
+
+test('TF3-3: a stern chase (ATA 0°, AA 0°, Red 150 kt, Blue 220) names Blue at +0.0 s, never a jet decided by coincident positions', () => {
+  const stern = { startAtaDeg: 0, startAaDeg: 0, redKt: 150 };
+  for (const circles of [2, 1]) {
+    const s = runUntil({ ...stern, circles }, (f) => f.firstNose, 130);
+    assert.ok(s.firstNose, `circles ${circles}: first nose-on is marked`);
+    assert.equal(s.firstNose.by, 'blue');
+    assert.equal(s.firstNose.both, false);
+    near(s.firstNose.timeSec - s.mergeSec, 0, 1e-9, 'counted from the pass');
+    assert.ok(s.mergeSec > 100 && s.mergeSec < 110, `the pass is at about T+103: ${s.mergeSec}`);
+    // The mark's line runs from Blue to Red, which are 1 ft apart or less at the pass, but is marked once and not moved.
+    assert.ok(Number.isFinite(s.firstNose.from.xFt) && Number.isFinite(s.firstNose.to.yFt));
+  }
+  // It is decided at the pass, not a step later: the mark is there the moment the turns start.
+  const s = createFight({ ...stern });
+  for (let i = 0; i < 110 / FIGHT_STEP_SEC && !s.merged; i++) stepFight(s, FIGHT_STEP_SEC);
+  assert.equal(s.merged, true);
+  assert.equal(s.firstNose?.by, 'blue');
+});
+
+test('TF3-3: a jet already nose-on when the turns start counts at +0.0 s (Both if both); a start with the turns at once too', () => {
+  // Red directly behind Blue pointing at it (ATA 180, AA 180), turns at once: Red has Blue on its nose.
+  const behind = firstNoseAt({ startAtaDeg: 180, startAaDeg: 180, turnsAt: 'once' });
+  assert.equal(behind.by, 'red');
+  assert.equal(behind.both, false);
+  near(behind.timeSec, 0, 1e-9);
+  // A collision course, both noses within 5° of each other at once: Both.
+  const both = firstNoseAt({ startAtaDeg: 3, startAaDeg: 177, startAtaSide: 'left', startAaSide: 'left', turnsAt: 'once' });
+  assert.equal(both.both, true);
+  near(both.timeSec, 0, 1e-9);
+  // Not nose-on at the start (a beam start): nothing at +0.0 s.
+  const beam = createFight({ startAtaDeg: 90, startAaDeg: 90, turnsAt: 'once' });
+  assert.equal(beam.firstNose, null);
+});
+
+test('TF3-3: a head-on start is not touched: with the turns at once it does not read Both at +0.0 s, and at the pass it is V6\'s +18.2 s', () => {
+  const once = createFight({ turnsAt: 'once' });
+  assert.equal(once.firstNose, null, 'head-on at once: no mark at T+0');
+  const pass = firstNoseAt({});
+  assert.equal(pass.both, true);
+  assert.equal(((pass.timeSec - mergeTimeSec(2, 220, 220))).toFixed(1), '18.2');
+});
+
+test('Observation A: a 2-circle fight between equal jets has a nose-on only if they come back exactly head-on; 1-circle changes smoothly', () => {
+  const since = (setup, limit = 120) => {
+    const s = runUntil(setup, (f) => f.firstNose, limit);
+    return s.firstNose ? s.firstNose.timeSec - s.mergeSec : null;
+  };
+  near(since({}), 18.2, 0.05, 'ATA 0, 2-circle');
+  assert.equal(since({ startAtaDeg: 1, startAaDeg: 179 }, 200), null, 'ATA 1 AA 179, 2-circle: none');
+  near(since({}) , 18.2, 0.05);
+  near(since({ circles: 1 }), 9.1, 0.05, 'ATA 0, 1-circle');
+  near(since({ circles: 1, startAtaDeg: 1, startAaDeg: 179 }), 8.3, 0.1, 'ATA 1 AA 179, 1-circle');
+});
