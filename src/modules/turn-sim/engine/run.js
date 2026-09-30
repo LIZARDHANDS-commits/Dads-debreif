@@ -208,7 +208,7 @@ export function createRun(settings) {
         bankDeg: a.active ? bankDegFromG(g) : 0,
         g,
         done: a.done,
-        cue: cueStatus(preview[i], { timing: cfg.timing, clockCuePos: cfg.clockCuePos, direction: cfg.direction, formation }),
+        cue: cueStatus(preview[i], { timing: cfg.timing, clockCuePos: cfg.clockCuePos, direction: cfg.direction, formation, maneuver: cfg.maneuver }),
       });
     }
   }
@@ -329,6 +329,7 @@ export function createRun(settings) {
       spacingFt: cfg.spacingFt,
       timing: cfg.timing,
       direction: cfg.direction,
+      maneuver: cfg.maneuver,
       clockCueAircraft: cfg.clockCueAircraft,
       clockCuePos: cfg.clockCuePos,
       clockCueTolDeg: cfg.clockCueTolDeg,

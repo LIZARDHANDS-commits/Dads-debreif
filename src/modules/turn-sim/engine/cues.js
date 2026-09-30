@@ -19,13 +19,19 @@ export const V6_CLOCK_TOLERANCE_DEG = 4;
  * far side: on the left in a right turn (7 o'clock), on the right in a left turn (5 o'clock). The engine's own
  * runs confirm it (tests/unit/turn-sim/cues.test.js).
  */
-export function autoClockPosHours(direction) {
+export function autoClockPosHours(direction, maneuver) {
+  // The Delayed 45 (SMM 16.19 paras 56 and 57, Figure 16.16): the second aircraft turns AFTER the first has gone through its tail,
+  // the other side of the tail from the Delayed 90's cue (audit R2). The figure says about 5 o'clock in a right turn, 7 in a left;
+  // the Base delay's own timing (cot 22.5 x the 90's delay, 38.6 s, which is what rolls out LAB) is the cue at 4:34 and 7:26 at 6,000 ft
+  // and 220 kt, so the Auto position is the nearer half hour, 4:30 and 7:30, which rolls out in LAB where 5 and 7 left it about 1,000 ft
+  // ahead (about 2,000 ft by #4 of a four-ship, each cue starting a little early on the last). The setting takes any position.
+  if (maneuver === 'delayed45away') return direction === 'right' ? 4.5 : 7.5;
   return direction === 'right' ? 7 : 5;
 }
 
-/** A clock position setting as hours: 'auto' by the turn direction, otherwise the number in the text (V6 `parseFloat`). */
-export function resolveClockPos(value, direction) {
-  return value === 'auto' ? autoClockPosHours(direction) : parseFloat(value);
+/** A clock position setting as hours: 'auto' by the turn direction and the turn, otherwise the number in the text (V6 `parseFloat`). */
+export function resolveClockPos(value, direction, maneuver) {
+  return value === 'auto' ? autoClockPosHours(direction, maneuver) : parseFloat(value);
 }
 
 const asCore = (a) => ({ x: a.xFt, y: a.yFt, hdg: a.headingRad });
@@ -36,14 +42,14 @@ const asCore = (a) => ({ x: a.xFt, y: a.yFt, hdg: a.headingRad });
  * through it since the last check. `a` keeps its own last reading (prevClockCueRelDeg) and whether it has
  * triggered (clockCueTriggered), so call it once per step while a waits.
  *
- * cue: { clockPos, direction, toleranceDeg }: the clock position to watch ('auto' or hours, 5.5 is 5:30) unless `a` has
+ * cue: { clockPos, direction, maneuver, toleranceDeg }: the clock position to watch ('auto' or hours, 5.5 is 5:30) unless `a` has
  * its own (a.clockPos, when not 'global'), the turn direction ('auto' depends on it), and the tolerance in degrees.
  */
 export function clockCueCrossed(a, target, cue) {
   if (!a || !target || a.id === target.id) return false;
   if (a.clockCueTriggered) return true;
   const cueClock = a.clockPos && a.clockPos !== 'global' ? a.clockPos : cue.clockPos;
-  const targetDeg = clockToRelativeDeg(resolveClockPos(cueClock, cue.direction));
+  const targetDeg = clockToRelativeDeg(resolveClockPos(cueClock, cue.direction, cue.maneuver));
   const tol = cue.toleranceDeg;
   const cur = wrapDeg180(relativeBearingDeg(asCore(a), asCore(target)) - targetDeg);
   const prev = Number.isFinite(a.prevClockCueRelDeg) ? a.prevClockCueRelDeg : null;
@@ -62,9 +68,9 @@ export function clockCueCrossed(a, target, cue) {
  * The clock position an aircraft watches for, as a number of hours (5.5 is 5:30):
  * its own when it has one, else the global setting.
  */
-export function clockPosHours(a, globalClockPos, direction) {
+export function clockPosHours(a, globalClockPos, direction, maneuver) {
   const own = a.clockPos && a.clockPos !== 'global' ? a.clockPos : globalClockPos;
-  return resolveClockPos(own, direction);
+  return resolveClockPos(own, direction, maneuver);
 }
 
 /**
@@ -74,13 +80,14 @@ export function clockPosHours(a, globalClockPos, direction) {
  *   targetId: the aircraft it watches, or null
  *   clockPos: the position it watches for, in hours (5.5 is 5:30)
  *   cantSee: true for #3 and #4 in the offset box whenever they have an aircraft to watch, at any clock position: the
- *   cue aircraft is ahead of them and they never see it come to the position, so they never turn (issue #16, Q44c; V6 warned
- *   at 5:30 only, and the Auto position, 7 or 5 o'clock, got no warning). The screen says so.
+ *   cue aircraft is ahead of them and they never see it come to the position (issue #16, Q44c; V6 warned at 5:30 only, and
+ *   the Auto position got no warning), and V6 never turned them. The rebuild does: they fly the rear delay instead (plan.js, step.js
+ *   mayTurn), and the screen says so.
  *
- * `aircraft` is an internal aircraft; cue: { timing, clockCuePos, direction, formation }.
+ * `aircraft` is an internal aircraft; cue: { timing, clockCuePos, direction, formation, maneuver }.
  */
 export function cueStatus(a, cue) {
-  const clockPos = clockPosHours(a, cue.clockCuePos, cue.direction);
+  const clockPos = clockPosHours(a, cue.clockCuePos, cue.direction, cue.maneuver);
   if (cue.timing !== 'clock') return { mode: 'off', targetId: null, clockPos, cantSee: false };
   const targetId = a.autoClockTargetId || null;
   const mode = !targetId ? 'start' : a.clockCueTriggered || a.active || a.done ? 'triggered' : 'waiting';
