@@ -198,12 +198,12 @@ In the simple fight, speed never changes. In a real T-6, pulling more G than the
 ### The screen
 
 - **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
-  - **Start altitude**, shared, default 10,000 ft pressure altitude, the altitude the SMM's entry speeds assume (SMM 14.5 para 10).
+  - **Start altitude**, shared, default 10,000 ft pressure altitude, the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
   - For Blue and Red: **start speed** in KIAS (default 220) and **move** (default Level turn).
-- **More energy settings** (collapsed): hard deck (default 6,000 ft MSL: 3,000 ft AGL in the Moose Jaw areas, SMM 14.6-14.7), soft deck (default 7,000 ft, at least 1,000 ft above the hard deck), the Hold best turn speed target (default 160 KIAS, SMM 14.3 para 6), roll rate (default 90°/s), the G for Pitch back, Immelmann and Split S (default 4 G, SMM Table 14.1), and the bank used by Pitch back (45°) and Slice (135°).
+- **More energy settings** (collapsed): hard deck (default 6,000 ft MSL: 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills, SMM 14.6 para 16), soft deck (default 7,000 ft, at least 1,000 ft above the hard deck, SMM 14.7 para 17), the Hold best turn speed target (default 160 KIAS, SMM 14.3 para 6), roll rate (default 90°/s, no manual gives it), the G for Pitch back, Immelmann and Split S (default 4 G, SMM Table 14.1), and the bank used by Pitch back (45°) and Slice (135°). No manual gives those banks: SMM 14.17-14.18 and EFIG p.441-445 say to roll the lift vector as required (more bank at low speed, less at high speed) and pull about 4 G, aiming to reach the max-performance turn before 180° of turn. So they're settings for Dad to check.
 - **Result** adds each aircraft's KIAS, altitude and G. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
 - **Side view:** the side-view panel shows altitude against time for both aircraft, with the hard deck as a line. It needs no height scale, because the heights are real.
-- **Flags** in the result card, words plus colour: AT STALL LIMIT, OVER VMO (316 KIAS), BELOW SOFT DECK, BELOW HARD DECK, and ENTRY SPEED when a move starts outside its SMM entry speed (for example "Split S at 220 KIAS; SMM entry 100 to 120"). The fight pauses with a message if an aircraft goes below the hard deck, or drops below 60 KIAS.
+- **Flags** in the result card, words plus colour: AT STALL LIMIT, ROLLING G LIMIT, OVER VMO (316 KIAS), BELOW SOFT DECK, BELOW HARD DECK, and ENTRY SPEED when a move starts outside its SMM entry speed (for example "Split S at 220 KIAS; SMM entry 100 to 120"). The fight pauses with a message if an aircraft goes below the hard deck, or drops below 60 KIAS.
 
 ### The moves (picked per aircraft, applied from the merge)
 
@@ -218,7 +218,7 @@ The user picks each aircraft's move. There's no automatic tactics; that's a late
 | Immelmann | Wings level at about 4 G, up through the vertical to inverted, then rolls upright and flies a level turn | 200 to 250 KIAS |
 | Split S | Rolls inverted, about 4 G, down through the vertical to level, then flies a level turn | 100 to 120 KIAS |
 
-All at maximum power, as in the SMM. "Most G available" is the smallest of: +7 G, the stall limit at the current speed, and +4.7 G while the bank is still changing (the rolling limit). Bank changes at the roll rate, never instantly.
+All at maximum power, as in the SMM. A Pitch back entered above 190 KIAS makes it easy to pass the 4.7 G rolling limit (SMM 14.17); the stepper caps G at 4.7 while rolling, and the result card shows ROLLING G LIMIT when the cap holds the pull back. "Most G available" is the smallest of: +7 G, the stall limit at the current speed, and +4.7 G while the bank is still changing (the rolling limit). Bank changes at the roll rate, never instantly.
 
 ### The model (T-6A, point mass)
 
@@ -242,7 +242,7 @@ All at maximum power, as in the SMM. "Most G available" is the smallest of: +7 G
 | Corner (7 G first available) | 227 KIAS (VO) | 227.5 KIAS from the stall limit |
 | Instantaneous turn at the corner, sea level | not on a chart | 33.3°/s on a 659 ft radius (7 G at 227 KIAS) |
 
-**One mismatch to settle.** The sustained-turn chart's peak (20.6°/s at 140 KIAS) needs about 2.8 G, but the V-n stall line gives 2.65 G at 140 KIAS, which caps the peak at about 19.1°/s. The turn chart is at a lighter weight with power on, and both lower the stall speed (an 86 kt stall line becomes about 83 kt). **Default:** keep the V-n stall line (86 kt, as agreed) and accept a best sustained rate about 1.5°/s low at the stall limit. The stall speed is one constant, so it can change to about 83 kt if Dad prefers the turn chart. This is flagged for his check.
+**One mismatch to settle.** The sustained-turn chart's peak (20.6°/s at 140 KIAS) needs about 2.8 G, but the V-n stall line gives 2.65 G at 140 KIAS, which caps the peak at about 19.1°/s. The reason is weight: the V-n diagram is at maximum take-off weight (5,168 lb), while the sustained-turn charts are at maximum take-off weight less climb fuel, and stall speed goes with the square root of weight, so the lighter jet stalls near 83 kt. **Default:** keep the V-n stall line (86 kt, as agreed) and accept a best sustained rate about 1.5°/s low at the stall limit. The stall speed is one constant, so it can change to about 83 kt if Dad prefers the turn chart. The chart checks run with it at 83 kt. This is flagged for his check.
 
 ### For Dad to check
 
