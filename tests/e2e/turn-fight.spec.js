@@ -136,6 +136,8 @@ test('play, pause and reset, and a paused fight runs nothing', async ({ page }) 
   await expect.poll(() => seconds(page)).toBeGreaterThan(1.5);
   await playButton(page).click();
   await expect(playButton(page)).toHaveText('Play');
+  // The frame already asked for when Pause was pressed may still draw; wait for it, then nothing more may.
+  await expect.poll(() => page.evaluate(() => window.__ooda.stats().frames)).toBe(0);
   const paused = await time(page).textContent();
   const pausedPicture = await picture(page, 'canvas.tf-topdown');
   await page.waitForTimeout(600);
