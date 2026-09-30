@@ -652,6 +652,14 @@ test('the focus box is the first showing pattern and the flying aircraft near it
   assert.deepEqual(focusBounds([far, p1]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'the entry leg is left out');
   const near = { status: 'flying', x: 1400, y: -300 }, distant = { status: 'flying', x: -50_000, y: 0 }, waiting = { status: 'waiting', x: 1200, y: 900 };
   assert.deepEqual(focusBounds([far, p1], [near, distant, waiting]), { minX: 0, minY: -300, maxX: 1400, maxY: 400 }, 'a flying aircraft near the pattern is in; far or waiting ones are not');
+  // "Near" is within half the pattern's longer side (500 ft here), on every side.
+  const flying = (x, y) => ({ status: 'flying', x, y });
+  assert.deepEqual(focusBounds([p1], [flying(1500, 200)]), { minX: 0, minY: 0, maxX: 1500, maxY: 400 }, 'just inside on the right');
+  assert.deepEqual(focusBounds([p1], [flying(1501, 200)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside on the right');
+  assert.deepEqual(focusBounds([p1], [flying(-501, 200)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside on the left');
+  assert.deepEqual(focusBounds([p1], [flying(500, 901)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside above');
+  assert.deepEqual(focusBounds([p1], [flying(500, -501)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside below');
+  assert.deepEqual(focusBounds([p1], [flying(-500, 900)]), { minX: -500, minY: 0, maxX: 1000, maxY: 900 }, 'a corner exactly on the limit is in');
   assert.deepEqual(focusBounds([far, { ...p1, visible: false }]), sceneBounds([far, { ...p1, visible: false }]), 'no pattern showing: every route');
   assert.deepEqual(focusBounds([far]), sceneBounds([far]));
   assert.equal(focusBounds([], []), null);
