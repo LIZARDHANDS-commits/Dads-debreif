@@ -9,11 +9,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   TRAFFIC_DEFAULTS, MAX_AIRCRAFT, readReply, trafficUrl, altitudeWords, opacityForAge, layerModel, layerSignature,
-  initialTraffic, setTrafficOn, trafficDue, trafficRequested, trafficSucceeded, trafficFailed, trafficView,
+  initialTraffic, setTrafficOn, trafficDue, trafficRequested, trafficSucceeded as answerOk, trafficFailed as answerFailed, trafficView,
 } from '../../../src/modules/sof/traffic.js';
 
 const REPLY = JSON.parse(readFileSync(new URL('../../fixtures/sof/traffic-relay-reply.json', import.meta.url), 'utf8'));
 const NOW = REPLY.now + 2000; // the reply is 2 s old
+
+// Answers must carry the id of the request they answer. These helpers answer the request that is out
+// (making one first if none is), so most tests can stay about what they are testing; the id tests use
+// answerOk and answerFailed directly.
+const answering = (s, now) => (s.pendingId != null ? s : trafficRequested(s, { now }));
+const trafficSucceeded = (s, a) => { const r = answering(s, a.now); return answerOk(r, { ...a, id: r.pendingId }); };
+const trafficFailed = (s, a) => { const r = answering(s, a.now); return answerFailed(r, { ...a, id: r.pendingId }); };
 const BASE = 'https://relay.example.workers.dev';
 
 const one = (over = {}) => ({
@@ -47,8 +54,12 @@ test('a reply with no time is unusable (its age would be a guess)', () => {
   for (const now of [undefined, null, 'soon', NaN, Infinity, -1, 1e20]) assert.equal(readReply({ ...reply([one()]), now }), null, String(now));
 });
 
-test('huge text is refused without parsing', () => {
-  assert.equal(readReply(`{"pad":"${'x'.repeat(2 * 1024 * 1024)}"}`), null);
+test('huge text is refused without parsing, even when it is otherwise a good reply', () => {
+  const good = JSON.stringify({ ...reply([one()]), pad: 'x'.repeat(1.3 * 1024 * 1024) });
+  assert.ok(good.length > 1.25 * 1024 * 1024);
+  assert.equal(readReply(good), null);
+  // The same reply without the padding reads fine, so it is the size that refuses it.
+  assert.notEqual(readReply(JSON.stringify(reply([one()]))), null);
 });
 
 test('a huge list is capped, not drawn, and says it was cut', () => {
@@ -268,10 +279,20 @@ test('an aircraft past the limit is gone from the model', () => {
   assert.deepEqual(model.aircraft.map((a) => a.hex), ['aaaaaa', 'cccccc']); // exactly at the limit still shows, faintly
 });
 
-test('an unknown seen counts as just seen, and the reply age still applies', () => {
+test('an unknown seen is drawn faded, never solid, and the hover says the age is unknown', () => {
   const a = layerModel({ reply: reply([one({ seen: null })]), receivedAt: NOW - 3000, now: NOW }).aircraft[0];
-  assert.equal(a.ageS, 3);
-  assert.match(a.description, /age unknown/i);
+  assert.equal(a.ageS, 3); // only the reply's age is known
+  assert.equal(a.opacity, TRAFFIC_DEFAULTS.unknownSeenOpacity);
+  assert.ok(a.opacity < 1);
+  assert.deepEqual(a.facts.at(-1), { label: 'Position age', value: 'unknown' });
+  assert.match(a.description, /Position age unknown\./);
+});
+
+test('an unknown seen still goes when the reply is too old, and fades no less than a known one', () => {
+  const old = layerModel({ reply: reply([one({ seen: null })]), receivedAt: NOW - 61_000, now: NOW });
+  assert.equal(old.aircraft.length, 0);
+  const stale = layerModel({ reply: reply([one({ seen: null })]), receivedAt: NOW - 50_000, now: NOW }).aircraft[0];
+  assert.equal(stale.opacity, TRAFFIC_DEFAULTS.minOpacity);
 });
 
 test('a reply that arrives "from the future" is age 0, not negative', () => {
@@ -371,6 +392,18 @@ test('hover facts leave out what is not known, and never say "null" or "undefine
   assert.doesNotMatch(a.description, /null|undefined|NaN/);
 });
 
+test('below FL180 the hover says the altitude is pressure altitude (not height above the field)', () => {
+  const fact = (alt) => layerModel({ reply: reply([one({ alt })]), receivedAt: NOW, now: NOW }).aircraft[0].facts.find((f) => f.label === 'Altitude').value;
+  assert.equal(fact(4500), '4,500 ft pressure altitude');
+  assert.equal(fact(17000), '17,000 ft pressure altitude');
+  assert.equal(fact(35000), 'FL350');
+  assert.equal(fact('ground'), 'GND');
+  assert.equal(fact(null), 'altitude unknown');
+  const a = layerModel({ reply: reply([one({ alt: 4500 })]), receivedAt: NOW, now: NOW, label: 'callsign-altitude' }).aircraft[0];
+  assert.equal(a.label, 'ACA154 4,500 ft', 'the short label stays short');
+  assert.match(a.description, /Altitude 4,500 ft pressure altitude\./);
+});
+
 test('with no reply, or an unusable one, the model is empty and says so', () => {
   for (const bad of [null, undefined, {}, 'nope']) {
     const m = layerModel({ reply: bad, now: NOW });
@@ -456,15 +489,54 @@ test('no requests while the layer is off, however long it has been', () => {
 });
 
 test('turning the layer off drops the aircraft, and an answer that arrives late is ignored', () => {
-  let s = trafficRequested(setTrafficOn(initialTraffic(), true, { now: NOW }), { now: NOW });
-  s = setTrafficOn(s, false, { now: NOW + 1000 });
-  s = trafficSucceeded(s, { reply: REPLY, now: NOW + 2000 });
-  assert.equal(s.on, false);
-  assert.equal(trafficView(s, { now: NOW + 2000 }).aircraft.length, 0);
-  assert.equal(trafficView(s, { now: NOW + 2000 }).status, 'off');
-  const f = trafficFailed(s, { now: NOW + 3000 });
-  assert.equal(f.on, false);
+  const out = trafficRequested(setTrafficOn(initialTraffic(), true, { now: NOW }), { now: NOW });
+  const off = setTrafficOn(out, false, { now: NOW + 1000 });
+  const late = answerOk(off, { reply: REPLY, now: NOW + 2000, id: out.pendingId });
+  assert.deepEqual(late, off, 'the state is exactly as it was');
+  assert.equal(late.on, false);
+  assert.equal(late.lastGood, null);
+  assert.equal(trafficView(late, { now: NOW + 2000 }).aircraft.length, 0);
+  assert.equal(trafficView(late, { now: NOW + 2000 }).status, 'off');
+  const f = answerFailed(off, { now: NOW + 3000, id: out.pendingId });
+  assert.deepEqual(f, off);
   assert.equal(trafficView(f, { now: NOW + 3000 }).status, 'off');
+});
+
+test('an answer carries its request\'s id: a wrong, missing or old one is ignored', () => {
+  const on = setTrafficOn(initialTraffic(), true, { now: NOW });
+  const out = trafficRequested(on, { now: NOW });
+  assert.equal(typeof out.pendingId, 'number');
+  for (const id of [undefined, null, out.pendingId + 1, out.pendingId - 1, String(out.pendingId), NaN]) {
+    assert.deepEqual(answerOk(out, { reply: REPLY, now: NOW, id }), out, 'ok with ' + String(id));
+    assert.deepEqual(answerFailed(out, { now: NOW, id }), out, 'failed with ' + String(id));
+  }
+  assert.equal(answerOk(out, { reply: REPLY, now: NOW, id: out.pendingId }).lastGood.count, 5);
+  assert.equal(answerFailed(out, { now: NOW, id: out.pendingId }).failed, true);
+});
+
+test('an answer with no request out is ignored', () => {
+  const on = setTrafficOn(initialTraffic(), true, { now: NOW });
+  assert.deepEqual(answerOk(on, { reply: REPLY, now: NOW, id: null }), on);
+  assert.deepEqual(answerOk(on, { reply: REPLY, now: NOW, id: 0 }), on);
+});
+
+test('an answer from before an off and on again is ignored, even if it would have the same number', () => {
+  let s = trafficRequested(setTrafficOn(initialTraffic(), true, { now: NOW }), { now: NOW });
+  const oldId = s.pendingId;
+  s = setTrafficOn(setTrafficOn(s, false, { now: NOW + 1000 }), true, { now: NOW + 2000 });
+  s = trafficRequested(s, { now: NOW + 2000 });
+  assert.notEqual(s.pendingId, oldId, 'ids are never reused');
+  const after = answerOk(s, { reply: REPLY, now: NOW + 3000, id: oldId });
+  assert.deepEqual(after, s);
+  assert.equal(after.lastGood, null);
+  assert.equal(answerOk(s, { reply: REPLY, now: NOW + 3000, id: s.pendingId }).lastGood.count, 5);
+});
+
+test('a request given up on (out over 30 s) and asked again ignores the first one\'s answer', () => {
+  const first = trafficRequested(setTrafficOn(initialTraffic(), true, { now: NOW }), { now: NOW });
+  const second = trafficRequested(first, { now: NOW + 31_000 });
+  assert.notEqual(second.pendingId, first.pendingId);
+  assert.deepEqual(answerOk(second, { reply: REPLY, now: NOW + 32_000, id: first.pendingId }), second);
 });
 
 test('setting the layer on when it is already on changes nothing', () => {

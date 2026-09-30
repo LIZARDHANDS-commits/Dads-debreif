@@ -30,6 +30,9 @@ const MAX_REPLY_CHARS = 1.25 * 1024 * 1024; // the relay's own cap is 1 MB
  * - fadeStartS: positions older than this are stale (V6, 20 s); they fade over the next
  *   (fadeEndS - fadeStartS) seconds down to minOpacity, and are gone after goneAfterS
  *   (not in the spec, chosen so a failed relay never leaves frozen aircraft for long).
+
+ * - unknownSeenOpacity: the most an aircraft is drawn at when the relay gave no age for its
+ *   position, so an unknown age is never shown as fresh.
  * - label: labels off by default (SPEC-sof); militaryOnly: V6's "military only" choice, off.
  * - pendingLimitMs: a request out longer than this is given up on and asked again.
  */
@@ -40,6 +43,7 @@ export const TRAFFIC_DEFAULTS = Object.freeze({
   fadeEndS: 40,
   goneAfterS: 60,
   minOpacity: 0.25,
+  unknownSeenOpacity: 0.5,
   label: 'off',
   militaryOnly: false,
   pendingLimitMs: 30 * SECOND_MS,
@@ -238,7 +242,7 @@ function present(a, { ageS, opacity, label }) {
     a.callsign && { label: 'Callsign', value: a.callsign },
     a.reg && { label: 'Registration', value: a.reg },
     a.type && { label: 'Type', value: a.type },
-    { label: 'Altitude', value: altitudeText },
+    { label: 'Altitude', value: isNumber(a.alt) && altitudeText.endsWith(' ft') ? `${altitudeText} pressure altitude` : altitudeText },
     gsText && { label: 'Ground speed', value: gsText },
     a.track !== null && { label: 'Track', value: `${trackWords(a.track)}°` },
     a.squawk && { label: 'Squawk', value: a.squawk },
@@ -293,7 +297,8 @@ export function layerModel({ reply, receivedAt, now, label = TRAFFIC_DEFAULTS.la
   for (const a of read.aircraft) {
     if (militaryOnly === true && !a.mil) continue;
     const ageS = Math.round(((a.seen ?? 0) + replyAgeS) * 10) / 10;
-    const opacity = opacityForAge(ageS);
+    // No age for the position: only the reply's is known, so it is never drawn solid.
+    const opacity = a.seen === null ? Math.min(opacityForAge(ageS), TRAFFIC_DEFAULTS.unknownSeenOpacity) : opacityForAge(ageS);
     if (opacity === 0) continue;
     aircraft.push(present(a, { ageS, opacity, label: chosen }));
   }
@@ -315,49 +320,60 @@ export function layerSignature(view) {
 }
 
 // ---- On, off and refreshing ----------------------------------------------------------------
-// One plain object the caller keeps: { on, pendingSince, nextAt, lastGood, receivedAt, failed }.
+// One plain object the caller keeps: { on, seq, pendingId, pendingSince, nextAt, lastGood, receivedAt, failed }.
+// Each request gets a number (`pendingId`, from `seq`, which off and on again never resets), and an
+// answer is taken only if it carries the number of the request that is out.
 // Every function returns a new object and leaves the old one alone. Off keeps nothing, so
 // there are no requests, no aircraft and no memory while the layer is off (R4).
 
 /** The layer before it has been switched on. */
-export const initialTraffic = () => ({ on: false, pendingSince: null, nextAt: null, lastGood: null, receivedAt: null, failed: false });
+export const initialTraffic = () => ({ on: false, seq: 0, pendingId: null, pendingSince: null, nextAt: null, lastGood: null, receivedAt: null, failed: false });
 
 /** The layer switched on (asks at once) or off (forgets everything). The same object back if nothing changes. */
 export function setTrafficOn(state, on, { now } = {}) {
   const want = on === true;
   if (state?.on === want) return state;
-  return want ? { ...initialTraffic(), on: true, nextAt: ms(now) } : initialTraffic();
+  const seq = Number.isInteger(state?.seq) ? state.seq : 0; // kept, so an old answer can never match a new request
+  return want ? { ...initialTraffic(), seq, on: true, nextAt: ms(now) } : { ...initialTraffic(), seq };
 }
 
 /** Whether to ask the relay now: on, nothing already out (or one out far too long), and the next time reached. */
 export function trafficDue(state, now) {
   const t = ms(now);
   if (state?.on !== true || !isNumber(t)) return false;
-  if (state.pendingSince !== null) return t - state.pendingSince > TRAFFIC_DEFAULTS.pendingLimitMs;
+  if (state.pendingId !== null) return t - state.pendingSince > TRAFFIC_DEFAULTS.pendingLimitMs;
   return isNumber(state.nextAt) && t >= state.nextAt;
 }
 
 /** A request has gone out. */
 export function trafficRequested(state, { now } = {}) {
-  return state?.on === true ? { ...state, pendingSince: ms(now) } : state;
+  if (state?.on !== true) return state;
+  const seq = state.seq + 1;
+  return { ...state, seq, pendingId: seq, pendingSince: ms(now) };
 }
 
-/** A failed request: keep the last good aircraft (they fade and go), try again in 10 s. Ignored while off. */
-export function trafficFailed(state, { now } = {}) {
-  return state?.on === true ? { ...state, failed: true, pendingSince: null, nextAt: ms(now) + TRAFFIC_DEFAULTS.refreshMs } : state;
+/** Whether an answer with this `id` is for the request that is out (and the layer is still on). */
+const answers = (state, id) => state?.on === true && state.pendingId !== null && id === state.pendingId;
+
+/**
+ * A failed request: keep the last good aircraft (they fade and go), try again in 10 s. `id` is the
+ * `pendingId` of the request; an answer to any other request, or while off, is ignored.
+ */
+export function trafficFailed(state, { now, id } = {}) {
+  return answers(state, id) ? { ...state, failed: true, pendingId: null, pendingSince: null, nextAt: ms(now) + TRAFFIC_DEFAULTS.refreshMs } : state;
 }
 
 /**
  * The relay answered with `reply` (raw). A reply that can't be read counts as a failure.
- * A reply with no aircraft is a good answer. Ignored while off, so a late answer never
- * brings the layer back.
+ * A reply with no aircraft is a good answer. `id` is the `pendingId` of the request; it is ignored
+ * while off or for any other request, so a late answer never brings the layer back.
  */
-export function trafficSucceeded(state, { reply, now } = {}) {
-  if (state?.on !== true) return state;
+export function trafficSucceeded(state, { reply, now, id } = {}) {
+  if (!answers(state, id)) return state;
   const read = readReply(reply);
-  if (!read) return trafficFailed(state, { now });
+  if (!read) return trafficFailed(state, { now, id });
   const t = ms(now);
-  return { ...state, lastGood: read, receivedAt: t, failed: false, pendingSince: null, nextAt: t + TRAFFIC_DEFAULTS.refreshMs };
+  return { ...state, lastGood: read, receivedAt: t, failed: false, pendingId: null, pendingSince: null, nextAt: t + TRAFFIC_DEFAULTS.refreshMs };
 }
 
 const two = (n) => String(n).padStart(2, '0');

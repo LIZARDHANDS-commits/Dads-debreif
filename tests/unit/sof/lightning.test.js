@@ -24,7 +24,9 @@ const at = (minutesAgo) => new Date(+NOW - minutesAgo * MIN);
 const NM_PER_DEG = (Math.PI / 180) * (6371000 / 1852); // what greatCircleNm uses
 const north = (nm) => ({ lat: HOME.lat + nm / NM_PER_DEG, lon: HOME.lon, value: 1 });
 
-const check = (over = {}) => lightningNearHome({ samples: FIXTURE.inside, home: HOME, layerTime: at(5), now: NOW, ...over });
+// The area the caller read: a box around home wider than the biggest radius (50 NM), at ECCC's native grid.
+const COVER = { bounds: { west: HOME.lon - 2, south: HOME.lat - 1, east: HOME.lon + 2, north: HOME.lat + 1 }, cellsRead: 5000 };
+const check = (over = {}) => lightningNearHome({ samples: FIXTURE.inside, home: HOME, layerTime: at(5), now: NOW, coverage: COVER, ...over });
 
 // ---- Defaults and the radius ---------------------------------------------------------------
 
@@ -42,11 +44,11 @@ test('the radius is kept within 5 to 50, and junk gives the default 20', () => {
 
 test('a radius outside the range is clamped in the answer, and it is what decides', () => {
   // A cell 3 NM away: outside a 1 NM ask, but the smallest radius is 5, so it is near.
-  const r = lightningNearHome({ samples: [north(3)], home: HOME, radiusNm: 1, layerTime: at(1), now: NOW });
+  const r = check({ samples: [north(3)], radiusNm: 1, layerTime: at(1) });
   assert.equal(r.radiusNm, 5);
   assert.equal(r.state, 'near');
   // A cell 55 NM away is never near, even for an ask of 500 (clamped to 50).
-  const far = lightningNearHome({ samples: [north(55)], home: HOME, radiusNm: 500, layerTime: at(1), now: NOW });
+  const far = check({ samples: [north(55)], radiusNm: 500, layerTime: at(1) });
   assert.equal(far.radiusNm, 50);
   assert.equal(far.state, 'clear');
 });
@@ -83,14 +85,78 @@ test('the same cells with a bigger radius bring the outside fixture in', () => {
   assert.equal(r.nearestNm, 25);
 });
 
-test('the boundary: exactly the radius is near, a tenth of a mile more is not', () => {
-  const exactly = lightningNearHome({ samples: [north(20)], home: HOME, layerTime: at(1), now: NOW });
+test('the boundary: exactly the radius is near; a cell centre more than half a cell diagonal (1 NM) beyond is not', () => {
+  const exactly = check({ samples: [north(20)] });
   assert.equal(exactly.state, 'near');
   assert.equal(exactly.nearestNm, 20);
-  const beyond = lightningNearHome({ samples: [north(20.1)], home: HOME, layerTime: at(1), now: NOW });
+  const beyond = check({ samples: [north(21.1)] });
   assert.equal(beyond.state, 'clear');
-  assert.equal(beyond.nearestNm, 20.1);
+  assert.equal(beyond.nearestNm, 21.1);
   assert.equal(beyond.caution, null);
+});
+
+test('an edge cell partly inside the radius counts as inside: centre up to 1 NM (half the cell diagonal) beyond is near', () => {
+  assert.equal(check({ samples: [north(20.9)] }).state, 'near');
+  assert.equal(check({ samples: [north(20.9)] }).cells, 1);
+  assert.equal(check({ samples: [north(21)] }).state, 'near');
+});
+
+test('in the clear case a nearest cell within 2 NM of the radius is shown to a tenth', () => {
+  assert.equal(check({ samples: [north(21.1)] }).words, 'No lightning within 20 NM of home (nearest about 21.1 NM north)');
+  assert.equal(check({ samples: [north(21.9)] }).words, 'No lightning within 20 NM of home (nearest about 21.9 NM north)');
+  assert.equal(check({ samples: [north(22.2)] }).words, 'No lightning within 20 NM of home (nearest about 22 NM north)');
+  assert.equal(check({ samples: [north(23.4)] }).words, 'No lightning within 20 NM of home (nearest about 23 NM north)');
+  });
+
+test('partly unreadable data with nothing near can\'t tell: it is never "clear"', () => {
+  const r = check({ samples: [FIXTURE.outside[0], { lat: NaN, lon: 1, value: 1 }] });
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.caution, null);
+  assert.equal(r.words, 'Can\'t tell: some lightning readings unreadable');
+  const nullEntry = check({ samples: [...FIXTURE.outside, null] });
+  assert.equal(nullEntry.state, 'unknown');
+});
+
+test('partly unreadable data with a near cell still stands as near', () => {
+  const r = check({ samples: [{ lat: NaN, lon: 1, value: 1 }, FIXTURE.inside[0]] });
+  assert.equal(r.state, 'near');
+  assert.ok(r.caution);
+});
+
+// ---- Clear needs proof the area was read ---------------------------------------------------
+
+test('an empty list with no coverage is not clear: it can\'t tell', () => {
+  const r = lightningNearHome({ samples: [], home: HOME, layerTime: at(1), now: NOW });
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.near, null);
+  assert.match(r.words, /^Can't tell: .*area/);
+});
+
+test('clear needs coverage that reaches home plus the radius (and a cell), else can\'t tell', () => {
+  const box = (d) => ({ bounds: { west: HOME.lon - d.lon, south: HOME.lat - d.lat, east: HOME.lon + d.lon, north: HOME.lat + d.lat }, cellsRead: 900 });
+  // 21 NM (radius plus the edge cell) is 0.35 degrees of latitude and 0.547 of longitude here.
+  assert.equal(check({ samples: [], coverage: box({ lat: 0.36, lon: 0.6 }) }).state, 'clear');
+  assert.equal(check({ samples: [], coverage: box({ lat: 0.33, lon: 0.6 }) }).state, 'unknown');
+  assert.equal(check({ samples: [], coverage: box({ lat: 0.36, lon: 0.5 }) }).state, 'unknown');
+  assert.equal(check({ samples: [], radiusNm: 50, coverage: box({ lat: 0.36, lon: 0.6 }) }).state, 'unknown');
+  assert.equal(check({ samples: [], radiusNm: 50, coverage: box({ lat: 0.9, lon: 1.4 }) }).state, 'clear');
+});
+
+test('bad coverage never counts: wrong shape, reversed or out-of-range bounds, no cells read', () => {
+  const good = COVER.bounds;
+  for (const coverage of [undefined, null, 5, 'x', {}, { bounds: good }, { bounds: good, cellsRead: 0 }, { bounds: good, cellsRead: -1 }, { bounds: good, cellsRead: 1.5 }, { bounds: good, cellsRead: NaN },
+    { bounds: { ...good, west: good.east }, cellsRead: 10 }, { bounds: { ...good, south: good.north + 1 }, cellsRead: 10 }, { bounds: { ...good, west: '1' }, cellsRead: 10 }, { bounds: { ...good, north: NaN }, cellsRead: 10 }]) {
+    assert.equal(check({ samples: [], coverage }).state, 'unknown', JSON.stringify(coverage));
+  }
+});
+
+test('lightning found stands even when the coverage box is missing or small', () => {
+  assert.equal(check({ coverage: undefined }).state, 'near');
+  assert.equal(check({ coverage: { bounds: { west: 0, south: 0, east: 1, north: 1 }, cellsRead: 4 } }).state, 'near');
+});
+
+test('an outside-only list with no coverage can\'t tell either', () => {
+  assert.equal(check({ samples: FIXTURE.outside, coverage: undefined }).state, 'unknown');
 });
 
 test('distance is the app\'s one great-circle distance (to 0.1 NM), not a second formula', () => {
@@ -323,13 +389,52 @@ test('a new episode after a clear has a new key', () => {
 
 test('data that can\'t tell (stale, missing) is not a clear: the episode carries on and keeps its key', () => {
   const first = check();
-  const later = new Date(+NOW + 60 * MIN);
-  const unsure = check({ samples: [], now: later, layerTime: NOW, episode: first.episode });
+  const later = new Date(+NOW + 25 * MIN);
+  const unsure = check({ samples: [], now: later, layerTime: at(10), episode: first.episode });
   assert.equal(unsure.state, 'unknown');
   assert.deepEqual(unsure.episode, first.episode);
-  const back = new Date(+NOW + 70 * MIN);
+  const back = new Date(+NOW + 29 * MIN);
   const second = check({ now: back, layerTime: new Date(+back - MIN), episode: unsure.episode });
   assert.equal(second.caution.key, first.caution.key);
+});
+
+test('a long outage ends the episode: a storm after 5 hours of can\'t-tell is a new caution', () => {
+  const first = check();
+  const later = new Date(+NOW + 5 * 60 * MIN);
+  const unsure = check({ samples: [], now: later, layerTime: NOW, episode: first.episode });
+  assert.equal(unsure.state, 'unknown');
+  assert.equal(unsure.episode, null, 'nothing is known about a storm 5 hours ago');
+  const second = check({ now: later, layerTime: new Date(+later - MIN), episode: first.episode });
+  assert.equal(second.state, 'near');
+  assert.notEqual(second.caution.key, first.caution.key);
+});
+
+test('the gap that ends an episode is the longer of 30 minutes and clearHoldMs', () => {
+  const first = check();
+  const at40 = new Date(+NOW + 40 * MIN);
+  const short = check({ now: at40, layerTime: new Date(+at40 - MIN), episode: first.episode });
+  assert.notEqual(short.caution.key, first.caution.key);
+  const held = check({ now: at40, layerTime: new Date(+at40 - MIN), episode: first.episode, clearHoldMs: 60 * MIN });
+  assert.equal(held.caution.key, first.caution.key);
+  const exactly = new Date(+NOW + 30 * MIN);
+  assert.equal(check({ now: exactly, layerTime: new Date(+exactly - MIN), episode: first.episode }).caution.key, first.caution.key);
+});
+
+test('the lightning caution joins cautionList and evaluate through `extra`, sorted and listed once', () => {
+  const card = cardModel({ icao: 'CYMJ', name: 'CYMJ', role: 'HOME', metar: { raw: METAR.belowLimits, report: parseMetar(METAR.belowLimits, { now: NOW }), source: 'metno', status: 'fresh' }, limits: { ceilingFt: 2000, visSm: 3 }, now: NOW });
+  const c = check().caution;
+  const list = cautionList({ cards: [card], extra: [c, c] });
+  assert.equal(list.filter((x) => x.key === c.key).length, 1);
+  assert.deepEqual(list.map((x) => x.level), ['below', 'below', 'caution'], 'below the limits first, then the lightning caution');
+  assert.equal(list.at(-1).text, c.text);
+  assert.equal(cautionList({ cards: [card] }).length, 2, 'without extra nothing changes');
+  const junk = cautionList({ cards: [card], extra: [null, 5, {}, { key: 'x' }, { ...c, level: 'red' }, { ...c, key: 5 }] });
+  assert.equal(junk.length, 2, 'entries that are not cautions are ignored');
+  const first = evaluate({ cards: [card], extra: [c], now: NOW, timeZone: 'America/Regina' });
+  assert.equal(first.fresh.filter((x) => x.source === 'LIGHTNING').length, 1);
+  const acked = evaluate({ cards: [card], extra: [c], acks: acknowledge(first.acks, c.key), now: NOW, timeZone: 'America/Regina' });
+  assert.equal(acked.acknowledged.filter((x) => x.source === 'LIGHTNING').length, 1);
+  assert.equal(acked.fresh.filter((x) => x.source === 'LIGHTNING').length, 0);
 });
 
 test('turning the check off ends the episode, so switching it on again is a new one', () => {
