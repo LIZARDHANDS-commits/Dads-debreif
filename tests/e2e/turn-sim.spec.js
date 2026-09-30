@@ -414,6 +414,7 @@ test('an aircraft can be moved from the keyboard: 2 to 4 picks it, the arrows mo
   await page.keyboard.press('3');
   await expect(page.locator('#module-status')).toContainText('Moving #3');
   for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp');
+  await expect(page.locator('#module-status')).toContainText(/#3 .*[\d,]+ ft/); // each nudge says where it is now (audit yellow 2)
   const after = await shipAt(page, 3);
   expect(after.y).toBeLessThan(before.y); // north is up the screen
   expect(Math.abs(after.x - before.x)).toBeLessThan(2);
@@ -425,8 +426,17 @@ test('an aircraft can be moved from the keyboard: 2 to 4 picks it, the arrows mo
   // With nothing picked the arrows pan the picture, as before.
   const lead = await shipAt(page, 1);
   await page.keyboard.press('ArrowLeft');
-  const panned = await shipAt(page, 1);
-  expect(panned.x).not.toBe(lead.x);
+  await expect.poll(async () => (await shipAt(page, 1)).x).not.toBe(lead.x);
+});
+
+test('keyboard moves are announced to the end: the clamp says so, and losing focus says the pick is dropped (audit yellow 2)', async ({ page }) => {
+  await open(page);
+  await canvas(page).focus();
+  await page.keyboard.press('4');
+  for (let i = 0; i < 40; i++) await page.keyboard.press('Shift+ArrowLeft');
+  await expect(page.locator('#module-status')).toContainText('as far as it goes');
+  await canvas(page).blur();
+  await expect(page.locator('#module-status')).toContainText('Stopped moving #4');
 });
 
 test('the layers: V6\'s stay on, clock marks, breadcrumbs, NM distances and NM rings are off, and each toggle changes the picture (task 12c)', async ({ page }) => {

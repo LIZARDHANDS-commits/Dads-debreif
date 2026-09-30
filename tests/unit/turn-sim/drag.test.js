@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { startPositions } from '../../../src/modules/turn-sim/engine/formation.js';
-import { positionErrorFor, nudgeSettings, startOf, MOVABLE_IDS } from '../../../src/modules/turn-sim/drag.js';
+import { positionErrorFor, nudgeSettings, startOf, MOVABLE_IDS, describePlacement, atLimit } from '../../../src/modules/turn-sim/drag.js';
 
 const near = (a, b, why) => assert.ok(Math.abs(a - b) <= 1, `${why}: ${a} against ${b}`);
 
@@ -54,6 +54,25 @@ test('the keyboard nudge moves an aircraft by the step from where it starts now,
   const [x, y] = startOf(settings, 3);
   near(x, x0 - 100, 'west');
   near(y, y0 + 100, 'north');
+});
+
+test('describePlacement says where an aircraft is put, in words: wide or tight, fore or aft, feet (audit yellow 2)', () => {
+  const put = (lat, latFt, fa, faFt) => ({ ...DEFAULTS, 'aircraft3.positionErrorOn': true, 'aircraft3.lateralDir': lat, 'aircraft3.lateralFt': latFt, 'aircraft3.foreAftDir': fa, 'aircraft3.foreAftFt': faFt });
+  assert.equal(describePlacement(put('wide', 300, 'aft', 100), 3), '#3 wide 300 ft, aft 100 ft');
+  assert.equal(describePlacement(put('tight', 1500, 'none', 0), 3), '#3 tight 1,500 ft');
+  assert.equal(describePlacement(put('none', 0, 'fore', 20000), 3), '#3 fore 20,000 ft');
+  assert.equal(describePlacement(put('none', 0, 'none', 0), 3), '#3 in its slot');
+  assert.equal(describePlacement({ ...put('wide', 300, 'aft', 100), 'aircraft3.positionErrorOn': false }, 3), '#3 in its slot');
+});
+
+test('atLimit is true when a move has been held at the 20,000 ft most (audit yellow 2)', () => {
+  assert.equal(atLimit(positionErrorFor(DEFAULTS, 2, 900000, 0), 2), true);
+  assert.equal(atLimit(positionErrorFor(DEFAULTS, 2, 100, 100), 2), false);
+});
+
+test('a position error is always whole feet, however the drag lands (audit note)', () => {
+  const patch = positionErrorFor(DEFAULTS, 3, 1234.567, -987.654);
+  for (const key of ['aircraft3.lateralFt', 'aircraft3.foreAftFt']) assert.equal(patch[key], Math.round(patch[key]), key);
 });
 
 test('Lead is never movable: only #2 to #4 can be placed', () => {

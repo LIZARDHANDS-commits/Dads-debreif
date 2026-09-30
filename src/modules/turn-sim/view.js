@@ -182,7 +182,9 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
       e.stopImmediatePropagation(); // not a pan of the picture, and not an app shortcut
     }, true);
     canvas.addEventListener('blur', () => {
-      if (selected !== null) setSelected(null);
+      if (selected === null) return;
+      mover.say(`Stopped moving #${selected}.`);
+      setSelected(null);
     });
   }
 

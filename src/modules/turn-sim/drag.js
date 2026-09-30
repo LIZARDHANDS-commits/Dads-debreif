@@ -43,6 +43,24 @@ export function positionErrorFor(settings, id, xFt, yFt) {
   };
 }
 
+/** True when a move was held at the most a position error can be (so the aircraft is not where the pointer or key asked). */
+export function atLimit(patch, id) {
+  return patch[aircraftKey(id, 'lateralFt')] >= MAX_ERROR_FT || patch[aircraftKey(id, 'foreAftFt')] >= MAX_ERROR_FT;
+}
+
+/** Where aircraft `id` is put, in words for the status line: "#3 wide 300 ft, aft 100 ft", or "#3 in its slot". */
+export function describePlacement(settings, id) {
+  const parts = [];
+  if (settings[aircraftKey(id, 'positionErrorOn')]) {
+    for (const [dir, ftKey] of [['lateralDir', 'lateralFt'], ['foreAftDir', 'foreAftFt']]) {
+      const d = settings[aircraftKey(id, dir)];
+      const n = settings[aircraftKey(id, ftKey)];
+      if (d !== 'none' && n > 0) parts.push(`${d} ${n.toLocaleString('en-US')} ft`);
+    }
+  }
+  return `#${id} ${parts.length ? parts.join(', ') : 'in its slot'}`;
+}
+
 /** Where aircraft `id` starts now, errors included: [xFt, yFt]. */
 export function startOf(settings, id) {
   const a = startPositions(settings).find((s) => s.id === id);

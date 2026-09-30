@@ -16,7 +16,7 @@ import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
-import { positionErrorFor, nudgeSettings } from './drag.js';
+import { positionErrorFor, nudgeSettings, describePlacement, atLimit } from './drag.js';
 import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
 import { createView3d, turnSign } from './view3d.js';
 
@@ -107,7 +107,12 @@ function mount(root, app) {
     mover: {
       canMove: () => !playing && state().tSec === 0,
       move: (id, x, y) => scenario.update(positionErrorFor(scenario.get(), id, x, y)),
-      nudge: (id, dx, dy) => scenario.update(nudgeSettings(scenario.get(), id, dx, dy)),
+      nudge: (id, dx, dy) => {
+        const patch = nudgeSettings(scenario.get(), id, dx, dy);
+        scenario.update(patch);
+        // A key press has no picture-side feedback for a screen reader, so each one says where the aircraft is now.
+        app.status(`${describePlacement(scenario.get(), id)}${atLimit(patch, id) ? '. That is as far as it goes.' : ''}`);
+      },
       say: (text) => app.status(text),
     },
     source: {
