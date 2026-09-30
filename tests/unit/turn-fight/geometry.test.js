@@ -6,8 +6,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FT_PER_NM, KT_TO_FTPS } from '../../../src/core/units.js';
 import { headingCrossAngleDeg, aspectAngleDeg, wrapPi, radToDeg } from '../../../src/core/angles.js';
-import { FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
-import { START_DEFAULTS, MAX_PASS_SEC, startGeometry, turnDirections, isHeadOn, passNote, turnNote } from '../../../src/modules/turn-fight/geometry.js';
+import { createFight, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
+import { START_DEFAULTS, MAX_PASS_SEC, startGeometry, turnDirections, isHeadOn, passNote, turnNote, passMarkWord, MERGE_WORD_MAX_NM } from '../../../src/modules/turn-fight/geometry.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected}`);
 /** A setup: V6's defaults (2 NM, 220 kt each, head-on) with changes. */
@@ -242,4 +242,18 @@ test('from a tail chase the 2-circle directions differ: Blue left and Red right,
   assert.notEqual(dirs.blue, dirs.red, 'each turns toward the other, from opposite sides');
   // A stern chase (dead astern of a slower Red): both ties, so V6's directions stand.
   assert.deepEqual(words({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
+});
+
+// ---- the word at the pass (TF3-5) -----------------------------------------------------------------
+
+test('the word at the pass is MERGE when the jets meet and PASS when they go by more than 0.25 NM apart', () => {
+  const word = (setup) => passMarkWord(createFight({ ...setup }));
+  assert.equal(MERGE_WORD_MAX_NM, 0.25);
+  assert.equal(word({}), 'MERGE', 'head-on, V6\'s merge');
+  assert.equal(word({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), 'MERGE', 'a stern chase passes through');
+  assert.equal(word({ startAtaDeg: 5, startAaDeg: 175 }), 'MERGE', '2 NM x sin 5° = 0.17 NM apart');
+  assert.equal(word({ startAtaDeg: 20, startAaDeg: 160 }), 'PASS', '0.68 NM apart');
+  assert.equal(word({ startAaDeg: 90 }), 'PASS', 'crossing Blue\'s nose: 1.4 NM apart at the closest');
+  near(startGeometry({ ...base, startAaDeg: 90 }).passRangeFt / FT_PER_NM, 2 * Math.SQRT1_2, 1e-9);
+  assert.equal(startGeometry({ ...base, startAtaDeg: 90, startAaDeg: 90 }).passRangeFt, 0, 'no pass, no range');
 });

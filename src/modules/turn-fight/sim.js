@@ -201,7 +201,7 @@ export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {
     carrySec: 0,
     v6OffNose: !!v6OffNose,
     firstNose: null,
-    start: { hcaDeg: geometry.hcaDeg, passSec: closing ? passSec : 0, closing },
+    start: { hcaDeg: geometry.hcaDeg, passSec: closing ? passSec : 0, closing, passRangeFt: geometry.passRangeFt },
     startZFt: { blue: 0, red: redZFt },
     turnDir: turnDirections(s, geometry),
     blue: { xFt: blue.xFt, yFt: blue.yFt, zFt: 0, headingRad: blue.headingRad, pitchRad: 0 },

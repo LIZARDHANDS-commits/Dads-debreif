@@ -10,7 +10,7 @@
 // Units: feet in the fight, CSS pixels on screen.
 import { FT_PER_NM } from '../../core/units.js';
 import { toScreen, visibleBounds, fitBounds, createCanvasSurface } from '../../ui-kit/canvas-view.js';
-import { startGeometry } from './geometry.js';
+import { startGeometry, passMarkWord } from './geometry.js';
 
 /** V6's picture colours. The same three are in turn-fight.css for the page. */
 export const COLORS = Object.freeze({
@@ -193,7 +193,7 @@ export function drawTopDown(ctx, size, run) {
   ctx.fillStyle = COLORS.nose;
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('MERGE', mx + 8, my + 18);
+  ctx.fillText(passMarkWord(fight), mx + 8, my + 18);
   ctx.restore();
 }
 

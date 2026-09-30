@@ -1105,6 +1105,24 @@ test('R28: in 3D the MERGE word shows where the jets pass, and not for a beam st
   await expect(page.getByRole('img', { name: /fly toward each other and pass at the MERGE mark/ })).toHaveCount(1);
 });
 
+test('TF3-5: the mark says PASS when the jets go by more than 0.25 NM apart (a crossing start), MERGE when they meet, and nothing for a beam start', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const mark = page.locator('.tf-3d-label-nose');
+  await expect(mark).toHaveText('MERGE'); // V6's head-on start
+  await settingsButton(page).click();
+  await aaBox(page).fill('90'); // Red crosses Blue's nose: the closest approach is 1.4 NM
+  await expect(passLine(page)).toHaveText('Pass at T+16.4 s');
+  await expect(mark).toBeVisible();
+  await expect(mark).toHaveText('PASS');
+  await ataBox(page).fill('90'); // a beam start: no pass at all
+  await expect(mark).toBeHidden();
+  await headOnButton(page).click();
+  await expect(mark).toHaveText('MERGE');
+  await expect(mark).toBeVisible();
+});
+
 test('the intro, About and the turn line hold for any start: a tail chase never says head-on, the merge or same directions', async ({ page }) => {
   await openStartGeometry(page);
   await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns left'); // head-on, 2-circle: V6's

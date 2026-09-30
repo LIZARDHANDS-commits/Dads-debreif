@@ -55,7 +55,8 @@ export function isHeadOn(setup) {
  * start (the pass; T+0 with `turnsAt: 'once'`) is the origin (Q49 does this for the head-on merge).
  *
  * Returns { blue, red } as { xFt, yFt, headingRad }, `passSec` (0 when the
- * range is not closing or the pass is after 10 minutes), `closing`, and `hcaDeg`, 0 to 180°.
+ * range is not closing or the pass is after 10 minutes), `closing`, `passRangeFt` (the level distance
+ * between the jets at the pass) and `hcaDeg`, 0 to 180°.
  */
 export function startGeometry(setup) {
   const rangeFt = setup.separationNm * FT_PER_NM;
@@ -82,6 +83,8 @@ export function startGeometry(setup) {
     red: { xFt: rx - midX, yFt: ry - midY, headingRad: redHeading },
     passSec,
     closing,
+    // How far apart the jets are, level, at the pass (0 when there is none): a head-on merge is 0, a crossing start is not.
+    passRangeFt: closing ? Math.hypot(rx + vx * passSec, ry + vy * passSec) : 0,
     hcaDeg: headingCrossAngleDeg(0, redHeading),
   };
 }
@@ -144,4 +147,15 @@ export function turnNote(setup) {
   const red = setup.circles === 1 ? -dir.red : dir.red;
   const word = (d) => (d > 0 ? 'left' : 'right');
   return `Blue turns ${word(dir.blue)}, Red turns ${word(red)}`;
+}
+
+/** The jets pass closer than this (nautical miles, level) and the mark is V6's MERGE; farther, it is a PASS (TF3-5). */
+export const MERGE_WORD_MAX_NM = 0.25;
+
+/**
+ * The word at the pass, in 2D and 3D: MERGE when the jets meet (within MERGE_WORD_MAX_NM, which the head-on
+ * default does), PASS when they go by farther apart, as a crossing start does. `fight` is a fight state.
+ */
+export function passMarkWord(fight) {
+  return fight.start.passRangeFt > MERGE_WORD_MAX_NM * FT_PER_NM ? 'PASS' : 'MERGE';
 }

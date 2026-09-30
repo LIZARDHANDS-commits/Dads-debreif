@@ -27,6 +27,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
 import { MIN_REACH_FT } from './view.js';
+import { passMarkWord } from './geometry.js';
 
 /** The fight's heights go in as they are: no height scale in 3D (the 2D side view's scale is for that view only). */
 export const ALT_SCALE = 1;
@@ -508,6 +509,8 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, -22, -26, gl.labels.blue);
     at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, 12, -26, gl.labels.red);
     gl.labels.merge.style.display = showsMergeMark(fight) ? '' : 'none';
+    const markWord = passMarkWord(fight);
+    if (gl.labels.merge.textContent !== markWord) gl.labels.merge.textContent = markWord;
     at({ x: 0, y: 0, z: 0 }, 8, 22, gl.labels.merge);
     const noseText = firstNoseText(fight.firstNose);
     if (gl.labels.firstNose.textContent !== noseText) gl.labels.firstNose.textContent = noseText;
