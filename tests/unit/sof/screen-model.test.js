@@ -332,4 +332,37 @@ test("F1: a held lightning caution (the reading is failed or old, state 'unknown
   const plainLine = screen({ lightning: plain }).cautions.find((c) => c.source === 'LIGHTNING');
   assert.equal(plainLine.level, 'caution', 'amber, never the red below-limits level');
   assert.equal(plainLine.text, "Lightning: can't tell");
+
+// ---- N3 and N4: the observation age, beside the closed-field rule and a failed round -----------------------------
+
+const OLD = 'METAR CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952';
+const CLOSED = 'METAR CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952 RMK LAST OBS/NXT 300000Z';
+
+test('N3: the newest METAR is a closed field\'s last observation with the next one still ahead: no warning', () => {
+  const s = snap({ metar: { CYMJ: metar(CLOSED) }, lastRound: round('ok', NOW), newestAt: NOW });
+  assert.equal(words(s), 'Weather just now ✓');
+  // The same report once the next observation was due is old like any other.
+  assert.match(words(s, new Date('2026-09-30T00:30:00Z')), /newest METAR observed/);
+});
+
+test('N3: a closed field that is the newest is not warned about, but a stale open one still is', () => {
+  const both = snap({ metar: { CYMJ: metar(CLOSED), CYQR: metar('METAR CYQR 290900Z 26005KT 15SM FEW080 16/08 A2995') }, lastRound: round('ok', NOW), newestAt: NOW });
+  assert.equal(words(both), 'Weather just now ✓', 'the closed field is the newest, and it is accepted');
+  assert.match(words(snap({ metar: { CYMJ: metar(OLD) }, lastRound: round('ok', NOW), newestAt: NOW })), /observed 8 h 42 min ago/);
+});
+
+test('N4: a failed round with stale METARs says how old the newest observation is, on the bar and in the alert', () => {
+  const at = new Date(+NOW - 5 * MIN);
+  const failed = snap({ metar: { CYMJ: metar(OLD) }, lastRound: round('failed', NOW, { sources: ['metno', 'datamask'] }), newestAt: at });
+  assert.equal(words(failed), 'Weather Failed, showing 5 min old, newest METAR observed 8 h 42 min ago ⚠');
+  assert.match(alertText(failed, NOW), /Showing the last reports, 5 min old\. The newest METAR was observed 8 h 42 min ago\.$/);
+});
+
+test('N4: a failed round with a current METAR, or a closed field, keeps the plain words', () => {
+  const at = new Date(+NOW - 5 * MIN);
+  const fresh = snap({ metar: { CYMJ: metar('METAR CYMJ 291800Z 25010KT 15SM FEW100 15/02 A2952') }, lastRound: round('failed', NOW, { sources: ['metno'] }), newestAt: at });
+  assert.equal(words(fresh), 'Weather Failed, showing 5 min old ⚠');
+  assert.doesNotMatch(alertText(fresh, NOW), /observed/);
+  const closed = snap({ metar: { CYMJ: metar(CLOSED) }, lastRound: round('failed', NOW, { sources: ['metno'] }), newestAt: at });
+  assert.equal(words(closed), 'Weather Failed, showing 5 min old ⚠');
 });

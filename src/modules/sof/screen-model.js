@@ -25,6 +25,18 @@ const hhmmZ = (date) => `${two(date.getUTCHours())}${two(date.getUTCMinutes())}Z
 const minutesSince = (then, now) => (+now - +then) / MINUTE_MS;
 const nameOf = (source) => SOURCES[source]?.name ?? null;
 
+/**
+ * How long ago the newest METAR was observed, as words, when it is stale; else null. Observation times, not fetch
+ * times. A closed field's last observation with the next one still ahead is accepted, as on the cards (N3).
+ */
+function staleObservation(snapshot, now) {
+  const seen = Object.values(snapshot.metar ?? {}).map((e) => e?.report).filter((r) => r && !r.nil && r.time && !Number.isNaN(+r.time));
+  const newest = seen.sort((a, b) => +b.time - +a.time)[0];
+  if (!newest || staleness('metar', newest, now) !== 'stale') return null;
+  if (newest.lastObservation && newest.nextObservation && +newest.nextObservation > +now) return null;
+  return formatDuration(minutesSince(newest.time, now));
+}
+
 // ---- The weather feed, in words -----------------------------------------------------------
 
 /**
@@ -41,18 +53,20 @@ export function feedStatus(snapshot, now) {
   if (stopped) [words, symbol, tone] = ['Off', '–', 'off'];
   else if (busy) [words, symbol, tone] = [`Refreshing…${showing ? ` (showing ${showing} old)` : ''}`, '⟳', 'busy'];
   else if (!lastRound) [words, symbol, tone] = ['Starting…', '⟳', 'busy'];
-  else if (lastRound.kind === 'failed') [words, symbol, tone] = [showing ? `Failed, showing ${showing} old` : 'Failed, no reports yet', '⚠', 'bad'];
+  else if (lastRound.kind === 'failed') {
+    // The fetch age is not the weather's age: name the newest observation's too when it is old (N4).
+    const old = staleObservation(snapshot, now);
+    [words, symbol, tone] = [showing ? `Failed, showing ${showing} old${old ? `, newest METAR observed ${old} ago` : ''}` : 'Failed, no reports yet', '⚠', 'bad'];
+  }
   else if (lastRound.kind === 'empty') [words, symbol, tone] = ['No reports found', '⚠', 'bad'];
   else {
     const age = minutesSince(lastRound.at, now);
     const stale = age > STALE_FEED_MIN;
     [words, symbol, tone] = [stale ? `STALE ${formatDuration(age)}` : formatAge(age), stale ? '⚠' : '✓', stale ? 'bad' : 'ok'];
-    // The tick is about the fetch. When the newest METAR observed is itself stale it says that too, from the
-    // observation times (not newestAt, which is fetch time).
-    const seen = Object.values(snapshot.metar ?? {}).map((e) => e?.report).filter((r) => r && !r.nil && r.time && !Number.isNaN(+r.time));
-    const newest = seen.sort((a, b) => +b.time - +a.time)[0];
-    if (newest && staleness('metar', newest, now) === 'stale') {
-      words = `${words}, newest METAR observed ${formatDuration(minutesSince(newest.time, now))} ago`;
+    // The tick is about the fetch. When the newest METAR observed is itself stale it says that too.
+    const old = staleObservation(snapshot, now);
+    if (old) {
+      words = `${words}, newest METAR observed ${old} ago`;
       [symbol, tone] = ['⚠', 'bad'];
     }
   }
@@ -74,7 +88,8 @@ export function alertText(snapshot, now) {
   const names = lastRound.sources.map(nameOf).filter(Boolean);
   const who = names.length === 2 ? `${names[0]} and ${names[1]} both failed` : names.length ? `${names.join(', ')} failed` : 'failed';
   const shown = newestAt ? `Showing the last reports, ${formatDuration(minutesSince(newestAt, now))} old.` : 'No reports are being shown yet.';
-  return `Weather feeds are not answering (${who} at ${hhmmZ(toDate(lastRound.at))}). ${shown}`;
+  const old = staleObservation(snapshot, now);
+  return `Weather feeds are not answering (${who} at ${hhmmZ(toDate(lastRound.at))}). ${shown}${old ? ` The newest METAR was observed ${old} ago.` : ''}`;
 }
 
 // ---- The cards ------------------------------------------------------------------------------------
