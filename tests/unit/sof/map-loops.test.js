@@ -14,9 +14,9 @@ const HOME = { icao: 'CYMJ', lat: 50.3303, lon: -105.559 };
 
 // ---- Lightning near home ------------------------------------------------------------------------
 
-function watch({ lit = [], radius = 20, picture = 'ok' } = {}) {
-  const clock = virtualClock('2026-09-30T07:05:00Z'); // the fixture's layer time is 0700Z
-  const state = { lit, radius, picture, layerTime: null, home: null };
+function watch({ lit = [], radius = 20, picture = 'ok', store, reuse } = {}) {
+  const clock = reuse?.clock ?? virtualClock('2026-09-30T07:05:00Z'); // the fixture's layer time is 0700Z
+  const state = reuse?.state ?? { lit, radius, picture, layerTime: null, home: null };
   const f = fakeFetch((url) => {
     if (state.picture === 'down') return fail();
     // `state.layerTime` (an ISO time) moves the layer's own time, which the fixture fixes at 0700Z.
@@ -36,6 +36,7 @@ function watch({ lit = [], radius = 20, picture = 'ok' } = {}) {
     fetch: f,
     timers: clock.timers,
     now: clock.now,
+    store,
     onChange: () => changes.push(1),
   });
   return { clock, f, w, state, changes };
@@ -160,7 +161,7 @@ const RELAY = 'https://relay.example.test';
 const REPLY = fixture('traffic-relay-reply.json');
 const REPLY_NOW = new Date(JSON.parse(REPLY).now);
 
-function traffic({ relay = RELAY, serve } = {}) {
+function traffic({ relay = RELAY, serve, paused } = {}) {
   const clock = virtualClock(REPLY_NOW.toISOString());
   const state = { relay, mode: 'ok', options: {}, ...serve };
   const f = fakeFetch((url, init) => {
@@ -173,6 +174,7 @@ function traffic({ relay = RELAY, serve } = {}) {
   const feed = createTrafficFeed({
     address: () => trafficUrl({ baseUrl: state.relay, lat: HOME.lat, lon: HOME.lon }),
     options: () => state.options,
+    ...(paused ? { paused } : {}),
     fetch: f,
     timers: clock.timers,
     now: clock.now,
@@ -767,4 +769,134 @@ test('Y1: a bigger radius during an outage keeps the held caution and its key ("
   assert.equal(smaller.caution.text, "Lightning: can't tell", 'lightning inside 20 NM may be outside 10 NM: the held line is replaced at once by the plain can\'t-tell line');
   assert.notEqual(smaller.caution.key, first.key);
   w.stop();
+});
+
+// ---- F2: the traffic layer pauses while the tab is hidden --------------------------------------------------------
+
+test('F2: while paused() is true the traffic layer asks for nothing, and asks at once when it turns false and wake() is called', async () => {
+  const hidden = { now: false };
+  const { clock, f, feed } = traffic({ paused: () => hidden.now });
+  feed.setOn(true);
+  await clock.settle();
+  assert.equal(f.requests.length, 1);
+  hidden.now = true;
+  await clock.advance(10 * MIN);
+  assert.equal(f.requests.length, 1, 'nothing asked in ten hidden minutes');
+  hidden.now = false;
+  feed.wake();
+  await clock.settle();
+  assert.equal(f.requests.length, 2, 'asked at once on showing the tab again');
+  feed.stop();
+});
+
+test('F2: a layer switched on while paused waits, and asks on the first tick after it is shown', async () => {
+  const hidden = { now: true };
+  const { clock, f, feed } = traffic({ paused: () => hidden.now });
+  feed.setOn(true);
+  await clock.advance(5_000);
+  assert.equal(f.requests.length, 0);
+  hidden.now = false;
+  await clock.advance(1_500); // even without wake(), the next one-second tick asks
+  assert.equal(f.requests.length, 1);
+  feed.stop();
+});
+
+// ---- Y2: a reload keeps the lightning episode, so an acknowledged caution stays acknowledged -------------------------
+
+/** A storage like the module's: get(key, fallback) and set(key, value), shared by the page before and after a reload. */
+const memoryStore = (start = {}) => {
+  const data = { ...start };
+  return { get: (k, d) => (k in data ? structuredClone(data[k]) : d), set: (k, v) => { data[k] = structuredClone(v); }, data };
+};
+
+test('Y2: after a reload the same storm has the same key, so what was acknowledged stays acknowledged', async () => {
+  const store = memoryStore();
+  const before = watch({ lit: [pixelEast(12)], store });
+  before.w.start();
+  await before.clock.settle();
+  const first = before.w.result().caution;
+  assert.equal(first.source, 'LIGHTNING');
+  const acks = { version: 1, day: '2026-09-30', keys: [first.key] };
+  before.w.stop();
+  assert.ok(store.data.lightningEpisode, 'the episode was kept');
+  // The page is reloaded 12 minutes later: a new watch, no memory, the same storage.
+  await before.clock.advance(12 * MIN);
+  followClock(before.clock, before.state);
+  const after = watch({ store, reuse: before });
+  after.w.start();
+  await after.clock.settle();
+  const back = after.w.result();
+  assert.equal(back.state, 'near');
+  assert.equal(back.caution.key, first.key, 'the same episode after the reload');
+  const built = evaluate({ extra: [back.caution], acks, now: after.clock.now(), timeZone: 'America/Regina' });
+  assert.equal(built.cautions[0].acknowledged, true);
+  assert.equal(built.fresh.length, 0, 'the reload raises nothing again');
+  after.w.stop();
+});
+
+test('Y2: a reload keeps the 30 minute gap: a storm back after more than that is a new caution and re-raises', async () => {
+  const store = memoryStore();
+  const before = watch({ lit: [pixelEast(12)], store });
+  before.w.start();
+  await before.clock.settle();
+  const first = before.w.result().caution;
+  const acks = { version: 1, day: '2026-09-30', keys: [first.key] };
+  before.w.stop();
+  await before.clock.advance(45 * MIN); // the page was closed for 45 minutes
+  followClock(before.clock, before.state);
+  const after = watch({ store, reuse: before });
+  after.w.start();
+  await after.clock.settle();
+  const back = after.w.result();
+  assert.equal(back.state, 'near');
+  assert.notEqual(back.caution.key, first.key);
+  const built = evaluate({ extra: [back.caution], acks, now: after.clock.now(), timeZone: 'America/Regina' });
+  assert.equal(built.fresh.length, 1, 'a new storm is raised');
+  after.w.stop();
+});
+
+test('Y2: a good clear reading ends the kept episode, so the next storm is new even after a reload', async () => {
+  const store = memoryStore();
+  const before = watch({ lit: [pixelEast(12)], store });
+  before.w.start();
+  await before.clock.settle();
+  const first = before.w.result().caution;
+  before.state.lit = [];
+  followClock(before.clock, before.state);
+  await before.clock.advance(10 * MIN + 1000);
+  assert.equal(before.w.result().state, 'clear');
+  before.w.stop();
+  assert.equal(store.data.lightningEpisode ?? null, null, 'nothing kept once it is clear');
+  before.state.lit = [pixelEast(12)];
+  followClock(before.clock, before.state);
+  const after = watch({ store, reuse: before });
+  after.w.start();
+  await after.clock.settle();
+  assert.notEqual(after.w.result().caution.key, first.key);
+  after.w.stop();
+});
+
+test('Y2: a stored episode that is damaged, or was for another place, is ignored', async () => {
+  for (const kept of ['junk', { id: 'x', lastNearAt: 1 }, { id: '2026-09-30T07:00Z', lastNearAt: +new Date('2026-09-30T07:00:00Z'), place: 'EGLL|51.47|-0.45' }]) {
+    const store = memoryStore({ lightningEpisode: kept });
+    const { clock, w } = watch({ lit: [pixelEast(12)], store });
+    w.start();
+    await clock.settle();
+    const r = w.result();
+    assert.equal(r.state, 'near');
+    assert.equal(r.caution.key, 'CYMJ|LIGHTNING|2026-09-30T07:05Z', 'a fresh episode, from now');
+    w.stop();
+  }
+});
+
+test('Y2: with no storage (or a storage that throws) the watch still works, from memory', async () => {
+  const broken = { get: () => { throw new Error('no'); }, set: () => { throw new Error('no'); } };
+  for (const store of [undefined, broken]) {
+    const { clock, w } = watch({ lit: [pixelEast(12)], store });
+    w.start();
+    await clock.settle();
+    assert.equal(w.result().state, 'near');
+    assert.equal(w.result().caution.key, 'CYMJ|LIGHTNING|2026-09-30T07:05Z');
+    w.stop();
+  }
 });

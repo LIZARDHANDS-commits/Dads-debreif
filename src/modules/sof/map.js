@@ -166,11 +166,13 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     home: () => ({ icao: home.icao, lat: home.lat, lon: home.lon }),
     radiusNm: () => settings.get().lightningNm,
     readPixels,
+    store: app.storage, // the lightning episode survives a reload, so an acknowledged caution stays acknowledged
     ...shared,
   });
   const trafficFeed = createTrafficFeed({
     address: relayAddress,
     options: () => layers.traffic,
+    paused, // nothing asked while the tab is hidden or the ADS-B view has the map
     ...shared,
     onChange() {
       const v = trafficFeed.view();
@@ -509,6 +511,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       radar.wake();
       for (const feed of Object.values(feeds)) feed.wake();
       watch.wake();
+      trafficFeed.wake();
     }),
     app.listen(globalThis, 'offline', () => {
       online = false;
@@ -580,6 +583,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       radar.wake();
       for (const feed of Object.values(feeds)) feed.wake();
       watch.wake();
+      trafficFeed.wake();
       view.requestDraw();
     },
     /** Stops every request and timer, drops the frame and the pictures. */
