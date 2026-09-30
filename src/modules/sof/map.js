@@ -185,10 +185,19 @@ export function createSofMap({ app, settings }) {
   }
 
   // ---- The canvas view ---------------------------------------------------------------------------------
+  // The colours come from the page's tokens, read once and again only when the light/dark choice changes (a style read
+  // on every draw would force a style recalculation each time the map moves).
+  let paletteCache = null;
   function palette() {
+    if (paletteCache) return paletteCache;
     const cs = getComputedStyle(canvas);
-    const v = (name, fallback) => cs.getPropertyValue(name).trim() || fallback;
-    return {
+    let missing = false; // a token not there yet (sof.css still loading): use the fallback, but do not keep it
+    const v = (name, fallback) => {
+      const value = cs.getPropertyValue(name).trim();
+      if (!value) missing = true;
+      return value || fallback;
+    };
+    const made = {
       text: v('--text', '#e3eef5'),
       halo: 'rgba(2, 10, 16, 0.85)',
       ring: v('--accent-strong', '#8adfff'),
@@ -201,6 +210,8 @@ export function createSofMap({ app, settings }) {
       traffic: v('--accent-strong', '#8adfff'),
       military: v('--caution', '#f5c542'),
     };
+    if (!missing) paletteCache = made;
+    return made;
   }
 
   const project = (lat, lon) => view.worldToScreen(...projection.toXY(lat, lon));
@@ -481,6 +492,13 @@ export function createSofMap({ app, settings }) {
       syncMessage();
     }),
   ];
+  const scheme = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
+  if (scheme) {
+    stops.push(app.listen(scheme, 'change', () => {
+      paletteCache = null;
+      view.requestDraw();
+    }));
+  }
 
   goHome();
   applyLayers();
