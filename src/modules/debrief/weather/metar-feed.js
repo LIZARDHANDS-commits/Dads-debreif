@@ -5,8 +5,8 @@
 //
 // IEM's CSV doesn't say which report is a SPECI, so once the full list is in
 // a second call asks for specials alone (report_type=4) to mark them. It goes
-// out a second after the first has finished (IEM's throttle), never at the
-// same time, and if it fails the reports are simply left unmarked.
+// out a second after every other IEM call has finished (IEM's throttle, across
+// airfields), never at the same time as another, and if it fails the reports are simply left unmarked.
 import { metarArchiveUrl, speciArchiveUrl, readArchive, markSpecials } from './metar.js';
 
 /** The pause between IEM's two calls for one airfield. */
@@ -23,7 +23,6 @@ export function createMetarFeed({ fetch = (input, init) => globalThis.fetch(inpu
   const cache = new Map();
   let flight = null;
   let aborts = new Set();
-  let waits = new Set();
 
   function start(icao) {
     const entry = { state: 'loading', reports: [] };
@@ -43,39 +42,62 @@ export function createMetarFeed({ fetch = (input, init) => globalThis.fetch(inpu
       })
       .finally(() => {
         aborts.delete(abort);
-        if (!abort.signal.aborted && forFlight === flight) onChange();
+        if (!abort.signal.aborted && forFlight === flight) {
+          onChange();
+          pump();
+        }
       });
     return entry;
   }
 
-  // The second call, after the gap. Its failure is not an error: nothing changes.
+  // The second calls, one at a time, each a gap after every other IEM call has finished (IEM's
+  // throttle is per browser, not per airfield). Their failure is not an error: nothing changes.
+  let pending = []; // { icao, entry, forFlight }
+  let waiting = null; // cancel for the gap under way
+  const busy = () => aborts.size > 0;
+
   function askSpecials(icao, entry, forFlight) {
     if (!timers || !entry.reports.length) return;
-    const cancel = timers.after(SPECI_GAP_MS, () => {
-      waits.delete(cancel);
-      const abort = new AbortController();
-      aborts.add(abort);
-      fetch(speciArchiveUrl(icao, forFlight.startT, forFlight.endT), { signal: abort.signal })
-        .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`METAR archive answered ${res.status}`))))
-        .then((text) => {
-          if (abort.signal.aborted || forFlight !== flight) return;
-          const marked = markSpecials(entry.reports, readArchive(text));
-          if (marked.some((r, i) => r !== entry.reports[i])) {
-            entry.reports = marked;
-            onChange();
-          }
-        })
-        .catch(() => {})
-        .finally(() => aborts.delete(abort));
+    pending.push({ icao, entry, forFlight });
+    pump();
+  }
+
+  function pump() {
+    if (waiting || busy() || !pending.length) return;
+    waiting = timers.after(SPECI_GAP_MS, () => {
+      waiting = null;
+      if (busy()) return; // another call went out meanwhile: its end pumps again, a full gap later
+      const job = pending.shift();
+      if (job) sendSpecials(job);
     });
-    waits.add(cancel);
+  }
+
+  function sendSpecials({ icao, entry, forFlight }) {
+    const abort = new AbortController();
+    aborts.add(abort);
+    fetch(speciArchiveUrl(icao, forFlight.startT, forFlight.endT), { signal: abort.signal })
+      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`METAR archive answered ${res.status}`))))
+      .then((text) => {
+        if (abort.signal.aborted || forFlight !== flight) return;
+        const marked = markSpecials(entry.reports, readArchive(text));
+        if (marked.some((r, i) => r !== entry.reports[i])) {
+          entry.reports = marked;
+          onChange();
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        aborts.delete(abort);
+        if (!abort.signal.aborted) pump();
+      });
   }
 
   function stopAll() {
     for (const abort of aborts) abort.abort();
     aborts = new Set();
-    for (const cancel of waits) cancel();
-    waits = new Set();
+    waiting?.();
+    waiting = null;
+    pending = [];
   }
 
   return {

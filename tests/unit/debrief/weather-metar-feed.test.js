@@ -216,3 +216,55 @@ test('specials: a late reply for a flight that has gone marks nothing and redraw
   assert.deepEqual(stale.reports.map((r) => r.type), ['METAR', 'METAR']);
   assert.equal(changes, 1);
 });
+
+test('specials: across airfields no IEM call overlaps a specials call, and each waits a full gap after the last call ends', async () => {
+  const timers = fakeTimers();
+  let inFlight = 0;
+  let overlapWithSpecials = false;
+  const held = [];
+  const { fetch, calls } = fakeFetch((url) => {
+    inFlight++;
+    if (inFlight > 1 && (isSpeciCall(url) || calls.some((c) => isSpeciCall(c.url) && !c.done))) overlapWithSpecials = true;
+    const call = calls.at(-1);
+    return new Promise((resolve) => held.push(() => resolve()))
+      .then(() => ok(isSpeciCall(url) ? SPECIALS : PLAIN.replaceAll('CYMJ', new URL(url).searchParams.get('station'))))
+      .finally(() => { inFlight--; call.done = true; });
+  });
+  const feed = createMetarFeed({ fetch, timers, onChange: () => {} });
+  feed.setFlight(flight);
+  feed.get('CYMJ');
+  held.shift()();
+  await settle(); await settle();
+  assert.equal(timers.waiting.length, 1, 'CYMJ specials waiting out the gap');
+  feed.get('CYQR'); // Lead crosses to the next nearest field during the gap
+  timers.fire(); // the gap ends while CYQR's list is still out: nothing is sent
+  assert.equal(calls.filter((c) => isSpeciCall(c.url)).length, 0);
+  held.shift()();
+  await settle(); await settle();
+  assert.equal(timers.waiting.length, 1, 'a fresh gap after CYQR ends');
+  timers.fire();
+  assert.equal(calls.filter((c) => isSpeciCall(c.url)).length, 1);
+  held.shift()();
+  await settle(); await settle();
+  timers.fire();
+  assert.equal(calls.filter((c) => isSpeciCall(c.url)).length, 2, 'then CYQR specials, one at a time');
+  held.shift()();
+  await settle(); await settle();
+  assert.equal(overlapWithSpecials, false);
+  assert.equal(timers.waiting.length, 0);
+});
+
+test('specials: a reply that marks nothing redraws nothing', async () => {
+  const timers = fakeTimers();
+  const none = 'station,valid,metar\nCYMJ,2026-09-30 14:50,CYMJ 301450Z 28018KT 1SM +SHRA OVC008 09/08 A2991\n';
+  const { fetch } = fakeFetch((url) => ok(isSpeciCall(url) ? none : PLAIN));
+  let changes = 0;
+  const feed = createMetarFeed({ fetch, timers, onChange: () => changes++ });
+  feed.setFlight(flight);
+  feed.get('CYMJ');
+  await settle();
+  timers.fire();
+  await settle(); await settle();
+  assert.deepEqual(types(feed, 'CYMJ'), ['METAR', 'METAR']);
+  assert.equal(changes, 1);
+});
