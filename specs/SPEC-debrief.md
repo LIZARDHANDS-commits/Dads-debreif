@@ -1,6 +1,6 @@
 # Spec: `debrief`, the debrief screen (2D map and 3D view)
 
-Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37, #4 drawn white with a dark outline, and the trims listed below. Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts once flight data (PR #58) and flight math core part 2 (PR #61) are merged.
 
@@ -106,7 +106,7 @@ Changes:
 
 The right column shows, for the current time, the same panels in both views:
 
-- **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47). Recorded pitch and G are used by default when a track has them (Patrick, answering Q32). If `flight-data` later adds an option to reference the iPad's attitude to a straight-and-level or on-the-runway baseline, the debrief shows it as a setting, and latitude/longitude (interpolated, D51).
+- **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47). Pitch and G are worked out from the track's own motion by default, because the iPad's recorded pitch and G look like the tablet tilting; recorded bank is still used (D47, Patrick answering Q32). If `flight-data` later adds an option to reference the iPad's attitude to a straight-and-level or on-the-runway baseline, the debrief shows it as a setting, and latitude/longitude (interpolated, D51).
 - **Aspect, HCA and closure versus Lead**, and **spacing** for every pair. Each range says whether it is **horizontal** or **3D** (#18, SPEC.md). The numbers stay V6's (D29).
 - **Standards**: V6's spread, offset and lead standards, editable, with V6's values as the default preset and a one-click reset (R18, D23). They are saved with the module's settings and in the debrief file.
 - **Lead desired parameters** compare **est. IAS** with the 200 kt target, not ground speed (D31).
