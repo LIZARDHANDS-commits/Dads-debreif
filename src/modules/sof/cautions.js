@@ -16,7 +16,7 @@
 // it returns it is new (SOF-4). A source that can't be read at all (no METAR,
 // no TAF) is not a caution that cleared, so its keys stay.
 
-import { assessAlternate } from '../../wx/alternates.js';
+import { assessAlternate, homeAlternateTrigger } from '../../wx/alternates.js';
 import { localDate, localToUtc } from './waves.js';
 
 const VERSION = 1;
@@ -164,7 +164,7 @@ function tafCautions(icao, result) {
  * levelWords, group, from, to, reason, stale, text, acknowledged: false }`.
  * `text` is the line the banner shows, in words. The same key is listed once.
  *
- * - `notEndedBefore`: a Date; TAF cautions (dangerous weather, not limits) whose joined span ended before it are left out.
+ * - `notEndedBefore`: a Date; TAF cautions and TAF pieces below the limits whose joined span ended before it are left out.
  * - `extra`: cautions from other sources in the same shape, such as lightning.js's; they are
  *   checked, sorted and de-duplicated with the rest. Entries that aren't cautions are ignored.
  */
@@ -179,7 +179,7 @@ export function cautionList({ cards = [], tafs = [], extra = [], notEndedBefore 
     if (typeof entry?.icao !== 'string' || !entry.icao || !entry.result) continue;
     for (const c of tafCautions(entry.icao, entry.result)) {
       // The cut is after the join, so a spell keeps one span (and one key) while any of it is still to come.
-      if (validDate(notEndedBefore) && c.level === 'caution' && c.to && +c.to < +notEndedBefore) continue;
+      if (validDate(notEndedBefore) && c.to && +c.to < +notEndedBefore) continue;
       seen(c.icao);
       all.push(c);
     }
@@ -214,6 +214,9 @@ export function tafResultsOfWaves(calls, homeIcao) {
 }
 
 const BANNER_AHEAD_MS = 12 * 3_600_000;
+// Whether the banner also lists a home forecast below the home limits inside its window, with no wave needed
+// (R3, logged for review). Off, below-limit TAF pieces are only the waves'. Alternates stay tied to waves.
+const BANNER_HOME_BELOW = true;
 // How far back the banner looks: a forecast caution that ended longer ago than this is over and is not raised
 // (it stays on the timeline). One hour keeps a period that has only just ended. Set to null for no cut, the old
 // behaviour. The cut is made after the pieces of a spell are joined (cautionList's `notEndedBefore`), so the
@@ -250,13 +253,14 @@ export function bannerWindow({ now, timeZone } = {}) {
  * The banner's TAF cautions, whatever the waves and whatever day is on the
  * timeline: each airfield's TAF is checked by wx over `bannerWindow`, cut at the
  * TAF's own end, and only wx's `cautions` are kept, in the form `cautionList`
- * takes. Pieces below the limits are not taken here; they stay tied to the wave
- * windows. A TAF missing, or ended before the window starts, gives wx's status
+ * takes. Pieces below the limits are not taken here, except home's when `home`
+ * (`{ icao, limits: { ceilingFt, visSm } }`) is given (BANNER_HOME_BELOW); the
+ * alternates' stay tied to the wave windows. A TAF missing, or ended before the window starts, gives wx's status
  * ('no-taf', 'no-time') and no cautions, so its acknowledgements stay.
  * `tafs` maps ICAO to wx's parsed TAF (or null), as `waveCalls` takes it.
- * @param {{ tafs?: any, now?: any, timeZone?: any }} [input]
+ * @param {{ tafs?: any, now?: any, timeZone?: any, home?: any }} [input]
  */
-export function tafCautionsForBanner({ tafs, now, timeZone } = {}) {
+export function tafCautionsForBanner({ tafs, now, timeZone, home } = {}) {
   const window = bannerWindow({ now, timeZone });
   if (tafs == null || typeof tafs !== 'object' || !window) return [];
   return Object.entries(tafs).map(([icao, taf]) => {
@@ -265,6 +269,11 @@ export function tafCautionsForBanner({ tafs, now, timeZone } = {}) {
     if (validDate(taf?.validTo) && +to <= +window.from) return { icao, result: { status: 'no-time', hits: [], cautions: [] } };
     // Cautions don't depend on the minima, so wx's defaults are enough.
     const { status, cautions } = assessAlternate(taf, { from: window.from, to }, {});
+    // Home only: its pieces below the home limits, from wx's own home check over the same window.
+    if (BANNER_HOME_BELOW && home?.icao === icao && home.limits) {
+      const found = homeAlternateTrigger(taf, { from: window.from, to }, home.limits);
+      return { icao, result: { status, hits: found.hits, cautions } };
+    }
     return { icao, result: { status, hits: [], cautions } };
   });
 }

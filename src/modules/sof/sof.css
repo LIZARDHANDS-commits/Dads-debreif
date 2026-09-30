@@ -1062,6 +1062,12 @@
   font-weight: 700;
   line-height: 1.25rem;
   white-space: nowrap;
+  /* Never wider than its piece: a short piece cuts the end of the label (the full words are on the card). */
+  display: block;
+  box-sizing: border-box;
+  max-width: calc(100% - 2px);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 [data-module='sof'] .sof-tl-piece:focus-visible {

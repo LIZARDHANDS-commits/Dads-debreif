@@ -14,6 +14,12 @@ const MET_NO = /^https:\/\/api\.met\.no\//;
 const DATAMASK = /^https:\/\/datamask\.org\//;
 const CORS = { 'access-control-allow-origin': '*' };
 
+// page.route() cannot see a request once a service worker controls the page, and WebKit (which CI runs
+// for @smoke) lets the worker's own network layer answer even a worker that never calls respondWith.
+// The real MET Norway then answered in CI: reports observed "30 d 5 h" before the fixed clock. Blocking
+// the worker keeps every weather reply a fixture; the offline behaviour is tested in the shell's own specs.
+test.use({ serviceWorkers: 'block' });
+
 /**
  * Serves MET Norway and Datamask from fixtures. The returned object is live:
  * change `metar`, `taf` or `down` between steps, and read `requests` for every address asked.
@@ -408,7 +414,12 @@ test('the banner lists each new caution in words, in the page flow, and is annou
 
 test('a caution in a TAF is on the banner with its group and times', async ({ page }) => {
   await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') });
-  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  // With no wave entered the home forecast below the home limits is on the banner too (R3), before the caution.
+  await expect(bannerLines(page)).toHaveText([
+    'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT',
+    'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: VIS 1/2 SM < 3 SM',
+    'Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)',
+  ]);
 });
 
 test('no cautions, no banner', async ({ page }) => {
@@ -732,13 +743,12 @@ test('acknowledging the last caution hands focus to the Waves heading', async ({
   await expect(page.locator('.sof-waves-title')).toBeFocused();
 });
 
-test('a wave whose TAF is below the limits raises a new line on the banner, and the same one is not raised twice', async ({ page }) => {
+test('a wave over the same fog adds no second banner line for it, however many waves cover it', async ({ page }) => {
   await openSof(page, CLEAR_FOG);
-  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  await expect(bannerLines(page)).toHaveCount(3);
   await addWave(page, '', '15:30', '17:00');
   await expect(bannerLines(page)).toHaveCount(3);
   await expect(bannerLines(page).filter({ hasText: 'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT' })).toHaveCount(1);
-  await expect(banner(page)).toHaveAttribute('role', 'alert');
   // A second wave over the same fog adds no second line for it.
   await addWave(page, '', '16:00', '17:30');
   await expect(bannerLines(page)).toHaveCount(3);
@@ -1041,4 +1051,51 @@ test('no accessibility violations with a wave and its list of hits open', async 
   await row.locator('.sof-wave-chip').click();
   await expect(page.locator('.sof-wave-detail')).toBeVisible();
   await expectNoA11yViolations(page);
+});
+
+// ---- R5: a piece's label is never wider than the piece, and "below" comes first ------------------------------
+
+for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }]) {
+  test.describe(`at ${size.width} × ${size.height}, timeline labels`, () => {
+    test.use({ viewport: size });
+
+    test('no piece is cut off by its own label, and a narrow hatched piece still shows the symbol and below first', async ({ page }) => {
+      // A 1 h TEMPO and a 2 h TEMPO, both below the limits.
+      const taf = 'CYMJ 291740Z 2918/3006 22010KT P6SM SKC TEMPO 2922/2923 1SM BR OVC003 TEMPO 3001/3003 1/2SM FG VV002\n';
+      await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+      const over = await page.locator('.sof-tl-piece').evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => `${el.dataset.id}: ${el.scrollWidth} > ${el.clientWidth}`));
+      expect(over).toEqual([]);
+      const hatched = page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-piece.is-hatched');
+      expect(await hatched.count()).toBeGreaterThan(1);
+      for (const label of await hatched.locator('.sof-tl-piece-label').all()) await expect(label).toContainText('▼');
+    });
+  });
+}
+
+test('a wave flown this morning does not keep its fog on the banner all day', async ({ page }) => {
+  const taf = 'CYMJ 291140Z 2912/3006 22010KT P6SM SKC TEMPO 2914/2916 1/2SM FG VV002\n';
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+  await addWave(page, '', '08:00', '09:30'); // 1400Z to 1530Z; the fog ended at 1600Z, 2 h 42 min ago
+  await expect(waveRow(page, 0)).toBeVisible();
+  await expect(banner(page)).toBeHidden();
+});
+
+test('a stale METAR greys the at-the-limit edge and the chips, and keeps the red edge for below the limits (D220)', async ({ page }) => {
+  // CYMJ fresh below, CYQR stale at the limit (600-2), CYYN stale below, CYXE fresh at the limit.
+  const metar = [
+    'CYMJ 291800Z 25010KT 1SM BR BKN003 15/14 A2952',
+    'CYQR 290900Z 26005KT 2SM BKN006 10/08 A2995',
+    'CYYN 290900Z 24010KT 1SM BR BKN003 15/14 A2951',
+    'CYXE 291800Z 28010KT 2SM BKN006 16/03 A2952',
+  ].join('\n');
+  await openSof(page, { metar });
+  const edge = (icao) => card(page, icao).evaluate((el) => getComputedStyle(el).borderLeftColor);
+  const chip = (icao) => card(page, icao).locator('.sof-category').evaluate((el) => getComputedStyle(el).color);
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('At the limit');
+  await expect(card(page, 'CYYN').locator('.sof-result')).toContainText('Below limits');
+  expect(await edge('CYQR'), 'the at-the-limit edge greys when stale').not.toBe(await edge('CYXE'));
+  expect(await edge('CYYN'), 'below keeps its red edge when stale').toBe(await edge('CYMJ'));
+  expect(await chip('CYQR'), 'the chips grey too').not.toBe(await chip('CYXE'));
+  expect(await chip('CYYN')).not.toBe(await chip('CYMJ'));
+  await expect(card(page, 'CYYN').locator('.sof-category')).toContainText('LIFR');
 });

@@ -80,7 +80,8 @@ test('each piece has its NATO colour and a label in words, and a piece below the
   assert.equal(early.below, false);
   assert.match(early.label, /^[A-Z0-9]+$/, 'the prevailing piece is labelled with its NATO state');
   assert.equal(late.below, true);
-  assert.match(late.label, /\bbelow$/);
+  assert.match(late.label, /^▼ below /, 'the symbol and the word come first, so a narrow piece that cuts its label keeps them');
+  assert.match(late.label, /YLO1$/);
   assert.equal(late.nato, 'YLO1');
   assert.ok(late.hatch, 'a hatch as well as the label');
   assert.equal(early.hatch, false);

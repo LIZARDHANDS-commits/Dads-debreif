@@ -75,6 +75,7 @@ for (const year of [2026, 2028]) {
       const [Y, M, D] = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
       const date = { year: Y, month: M, day: D };
       for (const [a, b] of PAIRS) {
+        if (a === b) continue; // V6 made this a 24 h wave; the rebuild refuses it (below)
         const v6 = v6Wave(Y, M, D, a, b);
         const [wave] = planToUtc([{ takeoff: a, land: b }], { now: NOW, timeZone: 'America/Regina', date }).waves;
         assert.equal(wave.takeoff.toISOString(), v6.s.toISOString(), `${Y}-${M}-${D} ${a}`);
@@ -85,6 +86,15 @@ for (const year of [2026, 2028]) {
     assert.ok(days >= 365);
   });
 }
+
+test('the same takeoff and landing time is refused, not turned into a 24 h wave (deliberately unlike V6)', () => {
+  const r = planToUtc([{ takeoff: '12:00', land: '12:00' }, { takeoff: '12:00', land: '11:59' }], { now: NOW, timeZone: 'America/Regina' });
+  assert.equal(r.skipped.length, 1);
+  assert.equal(r.skipped[0].index, 0);
+  assert.equal(r.skipped[0].problem, 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day');
+  assert.equal(r.waves.length, 1, 'one minute earlier is the next day, as V6');
+  assert.equal(r.waves[0].nextDay, true);
+});
 
 // ---- Clock and date helpers ------------------------------------------------
 

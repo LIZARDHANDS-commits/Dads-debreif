@@ -101,7 +101,7 @@ function mount(root, app) {
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
     banner = buildBanner({
       cards: screen.cards,
-      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, now, timeZone: app.time.zone }),
+      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: limits, now, timeZone: app.time.zone }),
       // Other writers' cautions (lightning near home) arrive on the screen model in cautions.js's shape.
       extra: screen.extraCautions ?? [],
       acks: app.storage.get(ACKS_KEY, null),

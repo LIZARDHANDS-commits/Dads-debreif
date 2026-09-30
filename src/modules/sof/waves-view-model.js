@@ -57,8 +57,15 @@ function chipOf(row, call, notes, homeIcao) {
     symbol: symbolOf(tone),
     reason: withTafNote(reasonOf(home), state),
     limits: home.label,
-    alternates: call.of ? `${call.meeting} of ${call.of} alternate${call.of === 1 ? '' : 's'} meet` : null,
+    alternates: call.of ? alternatesWords(call) : null,
   };
+}
+
+/** "2 of 3 alternates meet", with "(1 with caution)" for those that meet but have dangerous weather forecast. */
+function alternatesWords(call) {
+  const meets = (a) => a.status === 'meets' || a.status === 'at-limit';
+  const cautioned = call.alternates.filter((a) => meets(a) && (a.result?.cautions?.length ?? 0) > 0).length;
+  return `${call.meeting} of ${call.of} alternate${call.of === 1 ? '' : 's'} meet${cautioned ? ` (${cautioned} with caution)` : ''}`;
 }
 
 function detailOf(row, call, notes, homeIcao) {
@@ -86,7 +93,7 @@ function detailOf(row, call, notes, homeIcao) {
       warnings: a.warnings ?? [],
       lines: a.details.map(lineOf),
     })),
-    summary: call.of ? `${call.meeting} of ${call.of} alternate${call.of === 1 ? '' : 's'} meet` : 'No alternates set',
+    summary: call.of ? alternatesWords(call) : 'No alternates set',
   };
 }
 

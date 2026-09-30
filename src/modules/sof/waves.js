@@ -107,7 +107,12 @@ export function planToUtc(plan, { now, timeZone, day = 'today', date } = {}) {
       skipped.push({ index, name, problem: take == null ? 'Takeoff time not set' : 'Landing time not set' });
       return;
     }
-    const nextDay = land <= take;
+    // The same time is a slip more often than a 24 h flight: refused (V6 made it a 24 h wave). Earlier is the next day.
+    if (land === take) {
+      skipped.push({ index, name, problem: 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day' });
+      return;
+    }
+    const nextDay = land < take;
     waves.push({
       name,
       takeoff: localToUtc(on, take, timeZone),
