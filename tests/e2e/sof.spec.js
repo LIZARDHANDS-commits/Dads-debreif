@@ -198,6 +198,22 @@ test('Refresh asks again and the new report replaces the old', async ({ page }) 
   expect(feed.requests.length).toBeGreaterThan(before);
 });
 
+test.describe('at 1280 × 800, a failed refresh over old METARs', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test('N4: the bar and the alert give the observation age, and the longer words still fit on one line, with no overlap or sideways scroll', async ({ page }) => {
+    const old = 'CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952\nCYQR 290900Z 26005KT 15SM FEW080 16/08 A2995\n';
+    const feed = await openSof(page, { metar: old });
+    feed.down = true;
+    await page.clock.setFixedTime(new Date('2026-09-29T18:47:00Z'));
+    await page.getByRole('button', { name: 'Refresh' }).click();
+    await expect(feedStatus(page)).toHaveText('Weather Failed, showing 5 min old, newest METAR observed 8 h 47 min ago ⚠');
+    await expect(page.getByRole('alert').filter({ hasText: 'Weather feeds are not answering' })).toContainText('The newest METAR was observed 8 h 47 min ago.');
+    expect((await feedStatus(page).boundingBox()).height).toBeLessThan(30); // still one line at 1280
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+});
+
 test('every feed failing says so in words and keeps the last reports (#8)', async ({ page }) => {
   const feed = await openSof(page);
   await expect(card(page, 'CYMJ').locator('.sof-metar .sof-raw')).toBeVisible();

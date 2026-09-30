@@ -171,6 +171,14 @@ test('N5: an alternate that meets with a caution is not "Meets minima" alone on 
   assert.equal(lines.get('CYYN').words, 'Meets minima', 'no caution, no added words');
 });
 
+test('N5: an alternate at its limit with a caution reads "At the limit (with caution)", and the chip counts it', () => {
+  const limitStorm = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM BKN006 TEMPO 2920/2922 4SM TSRA BKN040CB';
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS, CYQR: taf(limitStorm) };
+  const m = model({ waves: [w('w1', '15:00', '16:30')], tafs });
+  assert.equal(m.altLines.get('CYQR').words, 'At the limit (with caution)');
+  assert.equal(m.rows[0].chip.alternates, '3 of 3 alternates meet (1 with caution)');
+});
+
 // ---- Selecting a wave lists every hit -----------------------------------------------------------------
 
 test('the first wave with a call is selected until another is chosen, and none can be chosen', () => {

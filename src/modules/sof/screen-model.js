@@ -27,13 +27,14 @@ const nameOf = (source) => SOURCES[source]?.name ?? null;
 
 /**
  * How long ago the newest METAR was observed, as words, when it is stale; else null. Observation times, not fetch
- * times. A closed field's last observation with the next one still ahead is accepted, as on the cards (N3).
+ * times. A closed field's last observation with the next one still ahead is accepted, as on the cards, so it is
+ * left out before the newest is taken: it must not hide an older open field that is stale (N3).
  */
 function staleObservation(snapshot, now) {
-  const seen = Object.values(snapshot.metar ?? {}).map((e) => e?.report).filter((r) => r && !r.nil && r.time && !Number.isNaN(+r.time));
-  const newest = seen.sort((a, b) => +b.time - +a.time)[0];
+  const closed = (r) => r.lastObservation && r.nextObservation && +r.nextObservation > +now;
+  const seen = Object.values(snapshot.metar ?? {}).map((e) => e?.report).filter((r) => r && !r.nil && r.time && !Number.isNaN(+r.time) && !closed(r));
+  const newest = seen.sort((x, y) => +y.time - +x.time)[0];
   if (!newest || staleness('metar', newest, now) !== 'stale') return null;
-  if (newest.lastObservation && newest.nextObservation && +newest.nextObservation > +now) return null;
   return formatDuration(minutesSince(newest.time, now));
 }
 

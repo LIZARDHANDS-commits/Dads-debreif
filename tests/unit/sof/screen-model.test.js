@@ -345,10 +345,29 @@ test('N3: the newest METAR is a closed field\'s last observation with the next o
   assert.match(words(s, new Date('2026-09-30T00:30:00Z')), /newest METAR observed/);
 });
 
-test('N3: a closed field that is the newest is not warned about, but a stale open one still is', () => {
+test('N3: a closed field that is the newest does not hide an older open field that is stale', () => {
   const both = snap({ metar: { CYMJ: metar(CLOSED), CYQR: metar('METAR CYQR 290900Z 26005KT 15SM FEW080 16/08 A2995') }, lastRound: round('ok', NOW), newestAt: NOW });
-  assert.equal(words(both), 'Weather just now ✓', 'the closed field is the newest, and it is accepted');
+  assert.equal(words(both), 'Weather just now, newest METAR observed 9 h 42 min ago ⚠');
   assert.match(words(snap({ metar: { CYMJ: metar(OLD) }, lastRound: round('ok', NOW), newestAt: NOW })), /observed 8 h 42 min ago/);
+});
+
+// 0855Z on the 30th: CYMJ closed (last observation 0027Z, next 1000Z), two open fields old.
+const LATER = new Date('2026-09-30T08:55:00Z');
+const THREE = () => ({
+  CYMJ: metar('METAR CYMJ 300027Z 25010KT 15SM FEW100 15/02 A2952 RMK LAST OBS/NXT 301000Z', LATER),
+  CYQR: metar('METAR CYQR 292300Z 26005KT 15SM FEW080 16/08 A2995', LATER),
+  CYXE: metar('METAR CYXE 292200Z 26005KT 15SM FEW080 16/08 A2995', LATER),
+});
+
+test('N3: three stations, one closed and two open and old: the newest open one is named, on every branch', () => {
+  const ok = snap({ metar: THREE(), lastRound: round('ok', LATER), newestAt: LATER });
+  assert.equal(words(ok, LATER), 'Weather just now, newest METAR observed 9 h 55 min ago ⚠');
+  const failed = snap({ metar: THREE(), lastRound: round('failed', LATER, { sources: ['metno'] }), newestAt: new Date(+LATER - 5 * MIN) });
+  assert.equal(words(failed, LATER), 'Weather Failed, showing 5 min old, newest METAR observed 9 h 55 min ago ⚠');
+  assert.match(alertText(failed, LATER), /The newest METAR was observed 9 h 55 min ago\.$/);
+  // Only the closed field left: nothing to warn about.
+  const only = snap({ metar: { CYMJ: THREE().CYMJ }, lastRound: round('ok', LATER), newestAt: LATER });
+  assert.equal(words(only, LATER), 'Weather just now ✓');
 });
 
 test('N4: a failed round with stale METARs says how old the newest observation is, on the bar and in the alert', () => {
