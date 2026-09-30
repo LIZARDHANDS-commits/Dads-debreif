@@ -631,6 +631,28 @@ test('the offset box shows #3 and #4 delays against the 10-15 s band in More det
   await expect(page.locator('.ts-detail li', { hasText: /10-15 s/ })).toHaveCount(0);
 });
 
+// TS-11: below the design width the columns stack, so the playback buttons are never covered.
+for (const [width, height] of [[1024, 768], [390, 844]]) {
+  test(`at ${width} x ${height} Play, Step and Reset are visible, not covered, and nothing sticks out sideways`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+    for (const name of ['Play', 'Step', 'Reset']) {
+      const el = name === 'Play' ? playButton(page) : button(page, name);
+      await el.scrollIntoViewIfNeeded();
+      const covered = await el.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(top === node || node.contains(top));
+      });
+      expect(covered, `${name} is covered`).toBe(false);
+    }
+    await playButton(page).click(); // a real click: Playwright refuses if something is over it
+    await expect.poll(() => simTime(page)).toBeGreaterThan(0.3);
+    await playButton(page).click();
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+}
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {
