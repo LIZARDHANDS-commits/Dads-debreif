@@ -11,7 +11,7 @@
 import { createSim, STEP_SEC } from '../../src/modules/traffic/sim.js';
 import { routePath, positionAt, legDistances, pointTurn, pointDistFt } from '../../src/modules/traffic/route.js';
 import { FT_PER_NM, G_FTPS2, ktToFtps } from '../../src/core/units.js';
-import { availableG, iasToTasKt } from '../../src/core/t6-performance.js';
+import { availableG, stallLimitG, iasToTasKt } from '../../src/core/t6-performance.js';
 import { turnRadiusFt, limitG } from '../../src/core/flight-math.js';
 
 const DEG = 180 / Math.PI;
@@ -102,6 +102,29 @@ function peakBankDeg(route, i) {
     peak = Math.max(peak, Math.atan(v * v * (turn / ((l1 + l2) / 2)) / G_FTPS2) * DEG);
   }
   return peak;
+}
+
+/** Id of the cross-check row for the flown G at one corner: route id and the point as it counts on screen (from 1). */
+export const cornerRowId = (routeId, point) => `t-corner-flown-${routeId}-p${point}`;
+
+/**
+ * Every corner of every route (a turn of 10 degrees or more), with the G its flown curve needs at its tightest
+ * (from the peak bank) and the stall-line G at the point's speed (`stallLimitG`, speed read as KIAS).
+ * `margin` is flown minus the stall line: zero or less is fine.
+ * @param {object} setup the built-in setup
+ * @returns {{ id: string, routeId: string, point: number, kt: number, asked: number, flownG: number, stallG: number, margin: number }[]}
+ */
+export function flownCorners(setup) {
+  const rows = [];
+  for (const r of setup.routes) {
+    r.points.forEach((p, i) => {
+      if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
+      const flownG = 1 / Math.cos(peakBankDeg(r, i) / DEG);
+      const stallG = stallLimitG(p.kt);
+      rows.push({ id: cornerRowId(r.id, i + 1), routeId: r.id, point: i + 1, kt: p.kt, asked: p.g, flownG, stallG, margin: flownG - stallG });
+    });
+  }
+  return rows;
 }
 
 /** One aircraft flown alone round a pattern that never lands; the sim time at which each distance is reached. */
@@ -195,7 +218,13 @@ export function makeMeasures(setup, seed) {
   const downwind = () => straightLeg(pat, 10);
   const finalLeg = () => straightLeg(pat, 12);
 
+  const cornerMeasures = Object.fromEntries(flownCorners(setup).map((c) => [c.id, () => ({
+    value: c.margin,
+    where: `${c.flownG.toFixed(2)} G flown at ${c.kt} kt, stall line ${c.stallG.toFixed(2)} G (${c.asked} G asked)`,
+  })]));
+
   return {
+    ...cornerMeasures,
     'h-pattern-height': () => ({ value: min(alts(pat, range(3, 11))) }),
     'h-pattern-height-printed': () => ({ value: min(alts(pat, range(3, 11))) }),
     'h-closed-height': () => ({ value: spl3.points[spl3.points.length - 1].alt }),
