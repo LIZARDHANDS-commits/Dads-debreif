@@ -113,7 +113,9 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  * takes its default). Settings from the screen or storage must come from
  * checkSettings: the engine does not check ranges itself (the golden runs pass
  * out-of-range values on purpose). A non-finite Duration falls back to the
- * default, so a run always ends. Returns:
+ * default, so a run always ends. `options`: noPreview (no crossings preview run), continueFrom ([{ id, xFt, yFt, headingRad }]: the aircraft start
+ * there, on those headings, and Lead's heading is the start heading; a sequence's next leg, sequence.js) and level (with continueFrom: nothing is planned,
+ * every aircraft is done and flies straight on: a wings-level leg). Returns:
  *
  *   state    live, updated in place after every reset, step and startLeg (durationSec is how long the run lasts: the
  *            Duration, or longer when durationCoversTurn and the plan needs it; a finished run is at durationSec):
@@ -319,6 +321,16 @@ export function createRun(settings, options = {}) {
     startHeadingRad = compassDegToHeadingRad(cfg.startHeadingDeg);
     const ids = activeIds(cfg.formation);
     craft = startPositions(cfg).filter((s) => ids.includes(s.id)).map((s) => newAircraft(s, cfg));
+    // A run that carries on from where other aircraft are (a sequence's next leg): they take the given position and heading, and Lead's
+    // heading is the start heading, as after startLeg. Exact: nothing is converted.
+    if (options.continueFrom) {
+      for (const a of craft) {
+        const from = options.continueFrom.find((f) => f.id === a.id);
+        if (from) [a.xFt, a.yFt, a.headingRad] = [from.xFt, from.yFt, from.headingRad];
+      }
+      const lead = craft.find((a) => a.id === 1);
+      if (lead) startHeadingRad = lead.headingRad;
+    }
     rows = [];
     tSec = 0;
     planned = false;
@@ -336,12 +348,19 @@ export function createRun(settings, options = {}) {
     rows = [];
     // Starting from a reset: every aircraft points at the start heading.
     for (const a of craft) {
-      a.headingRad = startHeadingRad;
+      if (!options.continueFrom) a.headingRad = startHeadingRad; // a run that carries on keeps every heading it was given
       a.turnAccumRad = 0;
       a.active = false;
       a.done = false;
     }
     syncFormation();
+    if (options.level) {
+      // Wings level (a sequence's push or gap): no turn is planned, every aircraft is done and flies straight on.
+      for (const a of craft) a.done = true;
+      record();
+      planned = true;
+      return;
+    }
     planInfo = planTurn(craft, flight(), { useErrors: true });
     coverSec = timeNeededSec();
     record();
