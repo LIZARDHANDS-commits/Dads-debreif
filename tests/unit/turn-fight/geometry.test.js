@@ -257,3 +257,10 @@ test('the word at the pass is MERGE when the jets meet and PASS when they go by 
   near(startGeometry({ ...base, startAaDeg: 90 }).passRangeFt / FT_PER_NM, 2 * Math.SQRT1_2, 1e-9);
   assert.equal(startGeometry({ ...base, startAtaDeg: 90, startAaDeg: 90 }).passRangeFt, 0, 'no pass, no range');
 });
+
+test('TF3-2: with First nose chases on the turn line says the turns are only until first nose-on, then each chases the other', () => {
+  const chase = { ...base, chase: true, circles: 2 };
+  assert.equal(turnNote(chase), 'Blue turns left, Red turns left (until first nose-on; then each chases the other)');
+  assert.equal(turnNote({ ...chase, circles: 1 }), 'Blue turns left, Red turns right (until first nose-on; then each chases the other)');
+  assert.equal(turnNote({ ...chase, chase: false }), 'Blue turns left, Red turns left');
+});

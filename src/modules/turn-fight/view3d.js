@@ -635,7 +635,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
   host.setAttribute('role', 'img');
   host.setAttribute(
     'aria-label',
-    '3D view of the fight. Blue (B) and Red (R) fly toward each other and pass at the MERGE mark. Drag to turn it, scroll or pinch to zoom, press plus and minus to zoom and the arrow keys to turn it. The tables beside it give the numbers.',
+    '3D view of the fight. Blue (B) and Red (R) fly toward each other and turn at the MERGE or PASS mark, or at once. Drag to turn it, scroll or pinch to zoom, press plus and minus to zoom and the arrow keys to turn it. The tables beside it give the numbers.',
   );
   for (const [type, fn] of hands) host.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
 

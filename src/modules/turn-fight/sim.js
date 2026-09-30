@@ -258,6 +258,9 @@ function markFirstNose(state, blueOff, redOff) {
   };
 }
 
+/** Rounding noise in an off-nose angle at the start (degrees): 5° less this counts as within 5°. */
+const NOSE_EPS_DEG = 1e-9;
+
 /** Closer than this (feet, straight line) at the moment the turns start, the jets are at one point and their line of sight is noise. */
 export const COINCIDENT_FT = 10;
 
@@ -286,7 +289,8 @@ function checkNoseAtStart(state) {
     blueOff = ataDeg(state, blue, toward(blue, 1));
     redOff = ataDeg(state, red, toward(red, -1));
   }
-  markFirstNose(state, blueOff, redOff);
+  // An angle within rounding noise of 5° counts as within it, so a start and its mirror image agree.
+  markFirstNose(state, blueOff - NOSE_EPS_DEG, redOff - NOSE_EPS_DEG);
 }
 
 /**

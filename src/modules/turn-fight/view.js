@@ -205,7 +205,7 @@ export function drawTopDown(ctx, size, run) {
 export function createTopDownView(canvas, { timers, run }) {
   return createCanvasSurface(canvas, {
     timers,
-    label: 'Top-down view of the fight. Blue (B) and Red (R) fly toward each other and pass at the MERGE mark; the tables beside it give the numbers.',
+    label: 'Top-down view of the fight. Blue (B) and Red (R) fly toward each other and turn at the MERGE or PASS mark, or at once; the tables beside it give the numbers.',
     draw: (ctx, surface) => drawTopDown(ctx, surface.size, run()),
   });
 }

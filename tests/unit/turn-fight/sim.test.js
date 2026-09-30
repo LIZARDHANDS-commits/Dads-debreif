@@ -757,9 +757,11 @@ test('TF3-3: a jet already nose-on when the turns start counts at +0.0 s (Both i
   assert.equal(beam.firstNose, null);
 });
 
-test('TF3-3: a head-on start is not touched: with the turns at once it does not read Both at +0.0 s, and at the pass it is V6\'s +18.2 s', () => {
+test('TF3-3: a head-on start is not touched: with the turns at once it is marked a step after T+0 as before (not at T+0 by the new rule), and at the pass it is V6\'s +18.2 s', () => {
   const once = createFight({ turnsAt: 'once' });
-  assert.equal(once.firstNose, null, 'head-on at once: no mark at T+0');
+  assert.equal(once.firstNose, null, 'head-on at once: no mark at T+0 from the start rule');
+  stepFight(once, FIGHT_STEP_SEC);
+  assert.equal(once.firstNose.both, true, 'marked one step later, as before: Both at +0.0 s');
   const pass = firstNoseAt({});
   assert.equal(pass.both, true);
   assert.equal(((pass.timeSec - mergeTimeSec(2, 220, 220))).toFixed(1), '18.2');
@@ -775,4 +777,19 @@ test('Observation A: a 2-circle fight between equal jets has a nose-on only if t
   near(since({}) , 18.2, 0.05);
   near(since({ circles: 1 }), 9.1, 0.05, 'ATA 0, 1-circle');
   near(since({ circles: 1, startAtaDeg: 1, startAaDeg: 179 }), 8.3, 0.1, 'ATA 1 AA 179, 1-circle');
+});
+
+test('TF3-3: a start and its mirror image agree at exactly 5°: ATA 0 with AA 175 gives the same first nose-on on either side', () => {
+  for (const startAaDeg of [175, 174.9999999999, 175.0000000001]) {
+    for (const turnsAt of ['once', 'pass']) {
+      const seen = ['left', 'right'].map((startAaSide) => {
+        const f = createFight({ startAtaDeg: 0, startAaDeg, startAaSide, turnsAt });
+        for (let i = 0; i < 40 / FIGHT_STEP_SEC && !f.merged; i++) stepFight(f, FIGHT_STEP_SEC);
+        return f.firstNose ? [f.firstNose.by, f.firstNose.both] : null;
+      });
+      assert.deepEqual(seen[0], seen[1], `AA ${startAaDeg}, turns ${turnsAt}`);
+    }
+  }
+  // Red's nose is 5° off Blue at the start: within 5° counts, so it is marked (Both if both are).
+  assert.deepEqual(firstNoseAt({ startAtaDeg: 0, startAaDeg: 175, turnsAt: 'once' })?.both, true);
 });

@@ -99,7 +99,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
     await expect(who.getByLabel('Pitch (°)')).toBeHidden();
   }
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
-  await expect(page.getByText('Two aircraft start apart, fly to the pass, then turn: who gets their nose on the other first?')).toBeVisible();
+  await expect(page.getByText('Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?')).toBeVisible();
   // Energy mode isn't built yet, so there is no box for it.
   await expect(page.getByLabel('Energy (T-6)')).toHaveCount(0);
   await expect(page.getByText('coming soon')).toHaveCount(0);
@@ -389,7 +389,7 @@ test('About this model and the side columns open and close with real buttons', a
   await about.click();
   await expect(about).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByText('each jet turns toward the other')).toBeVisible();
-  await expect(page.getByText('Red turns the other way, so both turn to the same side')).toBeVisible();
+  await expect(page.getByText('Red turns away from Blue, so the two share one circle')).toBeVisible();
   await expect(page.getByText('a yellow dashed line marks the first aircraft')).toBeVisible();
   await about.click();
   await expect(page.getByText('each jet turns toward the other')).toBeHidden();
@@ -416,10 +416,10 @@ test('More detail holds the extra numbers and updates while playing', async ({ p
   await expect(page.getByRole('row', { name: /^Speed/ })).toHaveText(/220 kt.*220 kt/);
   await expect(page.getByRole('row', { name: /^G/ })).toHaveText(/4\.0.*4\.0/);
   await expect(page.getByRole('row', { name: /360° time/ })).toHaveText(/18\.7 s.*18\.7 s/);
-  await expect(page.getByRole('row', { name: /Time since merge/ })).toContainText('0.0 s');
+  await expect(page.getByRole('row', { name: /Time since the pass/ })).toContainText('0.0 s');
   await expect(page.getByRole('row', { name: /Height change/ })).toHaveCount(0); // level fight: no height lines
   await playTo(page, 17.5);
-  await expect(page.getByRole('row', { name: /Time since merge/ })).toContainText(/[1-9]\.\d s/); // merge at 16.4 s
+  await expect(page.getByRole('row', { name: /Time since the pass/ })).toContainText(/[1-9]\.\d s/); // merge at 16.4 s
 });
 
 test('leaving the Turn Fight while it plays stops every frame, timer and listener (R4)', async ({ page }) => {
@@ -1102,7 +1102,7 @@ test('R28: in 3D the MERGE word shows where the jets pass, and not for a beam st
   await expect(merge).toBeHidden();
   await headOnButton(page).click();
   await expect(merge).toBeVisible();
-  await expect(page.getByRole('img', { name: /fly toward each other and pass at the MERGE mark/ })).toHaveCount(1);
+  await expect(page.getByRole('img', { name: /fly toward each other and turn at the MERGE or PASS mark/ })).toHaveCount(1);
 });
 
 test('TF3-5: the mark says PASS when the jets go by more than 0.25 NM apart (a crossing start), MERGE when they meet, and nothing for a beam start', async ({ page }) => {
@@ -1137,10 +1137,10 @@ test('the intro, About and the turn line hold for any start: a tail chase never 
   await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns right');
   await page.getByRole('button', { name: 'About this model' }).click();
   const text = await page.locator('.tf-col-setup').innerText();
-  expect(text).toContain('Two aircraft start apart, fly to the pass, then turn');
+  expect(text).toContain('Two aircraft start apart and turn, at the pass or at once');
   expect(text).toContain('each jet turns toward the other');
   for (const wrong of ['head-on, then turn', 'same turn direction', 'opposite turn directions', 'after the merge']) expect(text).not.toContain(wrong);
-  await expect(page.getByText('a nose-on happens only if they come back exactly head-on')).toBeVisible();
+  await expect(page.getByText('from a head-on start a nose-on happens only if they come back exactly head-on')).toBeVisible();
 });
 
 test('TF3-6, TF3-8: the hints say what ATA, AA and HCA are and where they come from, that no side counts at 0° or 180°, and that the height is used with Climb and dive on', async ({ page }) => {
