@@ -106,14 +106,23 @@ export function hintFor({ timeS, mode, aircraftCount, place = HOME_SETUP }) {
 // ---------------------------------------------------------------------------
 // Where things go (pure)
 
-/** The box round every route (or, with no routes, every aircraft), or null when there is nothing. */
+/**
+ * The box round every route that is showing (or, with none, every aircraft), or null when there
+ * is nothing. A plain loop, because Math.min(...list) fails on a very long list.
+ */
 export function sceneBounds(routes, aircraft = []) {
-  const dots = routes.flatMap((r) => r.path ?? r.points);
-  const all = dots.length ? dots : aircraft;
-  if (!all.length) return null;
-  const xs = all.map((p) => p.x);
-  const ys = all.map((p) => p.y);
-  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+  const box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  const take = (dots) => {
+    for (const { x, y } of dots) {
+      if (x < box.minX) box.minX = x;
+      if (x > box.maxX) box.maxX = x;
+      if (y < box.minY) box.minY = y;
+      if (y > box.maxY) box.maxY = y;
+    }
+  };
+  for (const route of routes) if (route.visible !== false) take(route.path ?? route.points);
+  if (box.minX === Infinity) take(aircraft);
+  return box.minX === Infinity ? null : box;
 }
 
 const GRID_STEPS_FT = [100, 200, 500, 1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000];

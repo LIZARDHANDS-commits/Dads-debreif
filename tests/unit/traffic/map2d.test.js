@@ -85,6 +85,19 @@ test('the box round several routes is the box round all of them, using the drawn
   assert.deepEqual(sceneBounds(routes), { minX: -20, minY: -30, maxX: 40, maxY: 60 });
 });
 
+test('a hidden route is left out of the box, and the aircraft are used when no route is showing', () => {
+  const shown = { points: [{ x: 0, y: 0 }, { x: 10, y: 5 }] };
+  const hidden = { visible: false, points: [{ x: -900, y: -900 }, { x: 900, y: 900 }] };
+  assert.deepEqual(sceneBounds([shown, hidden]), { minX: 0, minY: 0, maxX: 10, maxY: 5 });
+  assert.deepEqual(sceneBounds([hidden], [{ x: 3, y: 4 }]), { minX: 3, minY: 4, maxX: 3, maxY: 4 });
+  assert.equal(sceneBounds([hidden]), null);
+});
+
+test('a route with 300,000 points still gets its box (a spread list would throw)', () => {
+  const points = Array.from({ length: 300_000 }, (_, i) => ({ x: i - 100, y: 50_000 - i }));
+  assert.deepEqual(sceneBounds([{ points }]), { minX: -100, minY: 50_000 - 299_999, maxX: 299_899, maxY: 50_000 });
+});
+
 test('the grid takes the smallest neat spacing that keeps its lines 40 px apart', () => {
   assert.equal(gridStepFt(0.028), 2000); // 1,000 ft would be 28 px
   assert.equal(gridStepFt(0.05), 1000);
