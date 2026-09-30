@@ -47,8 +47,7 @@ export async function battery(base) {
     rec(`gFromTrack(${n})`, fm.gFromTrack(a, n / 10, b, n / 10 + g / 10, 2));
     const shooter = { x: 0, y: 0, altFt: 5000, spdKt: kt, hdg: n / 20 }, target = { x: 1500 + n * 20, y: n * 15, altFt: 5000 + n * 10, spdKt: 200 };
     const settings = { pitchDeg: n / 4, ballKt: 350, coneDeg: 6, tofSec: 3, gravity: n > 0 };
-    rec(`tennisDebrief(${n})`, tennis.tennisDebrief({ ...settings, shooter, target, targetAt: t => ({ x: target.x + 300 * t, y: target.y + n * t, altFt: target.altFt + 20 * t }), shooterHdg: n / 20, hitRadiusFt: 250 }));
-    rec(`tennis3D(${n})`, tennis.tennis3D({ ...settings, shooter, target, targetAt: t => ({ x: target.x + 300 * t, y: target.y + n * t, altFt: target.altFt }), radiusFt: 250 }));
+    rec(`tennisBall(${n})`, tennis.tennisBall({ ...settings, shooter, target, targetAt: t => ({ x: target.x + 300 * t, y: target.y + n * t, altFt: target.altFt + 20 * t }), shooterHdg: n / 20, hitRadiusFt: 250 }));
   }
   for (const n of nums) {
     const hdg = n / 9, lead = { id: 1, x: n * 10, y: -n * 20, hdg, spdKt: 200 + n };
