@@ -23,6 +23,8 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `tennis-panel.js` | The tennis ball's panel: shooter, target, V6's settings and the answer in words. |
 | `export-csv.js` | The CSV export's rows: one a second across the shared window, every ship side by side, with sources and GPS gap flags. No page access. |
 | `weather/slices.js` | Weather at the time of the flight: the slice (frame, METAR, model hour) at or before the playback moment with its age, frame times to fetch, scrubber ticks, the nearest airfield. No page access. |
+| `weather/metar.js` | The METAR line: the IEM archive address, reading its reply, and the decoded line at a moment (decoding is `src/wx`'s `parseMetar`). No page access. |
+| `weather/metar-feed.js` | Fetches each airfield's METARs for the loaded flight once, only while the METAR item is on, and stops when the flight or the debrief closes. |
 | `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
 | `view3d/view.js` | Draws the 3D view's picture on its canvas: ground, trails, sticks and aircraft. |
 | `view3d/overlay.js` | What's drawn flat over the 3D picture, placed with `projectPoint`: altitude ruler, ship labels and markers, stick heights, compass, caption, tennis ball. Any renderer whose camera matches `projectPoint` can use it. |
