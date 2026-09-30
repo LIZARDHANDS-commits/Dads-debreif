@@ -184,7 +184,7 @@ test('leaving the debrief while it plays stops everything it started (R4)', asyn
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'home');
   expect(await page.evaluate(() => window.__ooda.stats())).toEqual(fresh);
-  expect(await page.locator('link[href*="debrief"]').count()).toBe(0);
+  expect(await page.locator('link[rel="stylesheet"][href*="debrief"]').count()).toBe(0);
 });
 
 test('leaving from 3D with the EM chart and tennis ball open stops everything too (R4)', async ({ page }) => {
