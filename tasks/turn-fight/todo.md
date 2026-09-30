@@ -54,8 +54,8 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Verify: `node --test tests/unit/core/point-mass.test.js`.
   - Dependencies: none. Size S.
   - Files: src/core/point-mass.js, tests/unit/core/point-mass.test.js
-- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with the six moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), and the altitude side view with the hard deck as a reference line.
-  - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
+- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), and the altitude side view with the hard deck as a reference line.
+  - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); Auto picks the move from the merge speed as the spec table says, and from every merge speed between 100 and 250 KIAS reaches 160 ± 5 KIAS, then holds it; the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
   - Verify: `npm test`; e2e toggle; Dad flies each move.
   - Dependencies: 5, 8, 9. Size M.
   - Files: src/modules/turn-fight/{energy-sim,layout,profile,readouts}.js, tests/unit/turn-fight/energy-sim.test.js

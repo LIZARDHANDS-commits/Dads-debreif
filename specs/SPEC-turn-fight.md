@@ -14,7 +14,7 @@ Users are T-6 instructors and students, on a desktop or laptop (D6). They should
 2. Play, pause and reset the fight, at 0.5× to 4×.
 3. Read each aircraft's turn rate and turn radius, and see who gets their nose on first and when.
 4. Optionally let the first aircraft to get its nose on chase the other, and optionally fly the fight with climb or dive angles and see a side view.
-5. Optionally switch on **Energy** mode, where each T-6 trades speed and height the way the real aircraft does, and pick each aircraft's move (see Energy mode).
+5. Optionally switch on **Energy** mode, where each T-6 uses the vertical at full power (pitch back, slice, Immelmann or split S) to reach the 160 KIAS max-performance turn, trading speed and height the way the real aircraft does (see Energy mode).
 
 V6 does all of this in its "Turn Fight" tab (lines 778 and 4232 to 4294 of `original/shell.html`). The rebuild keeps V6's fight and its numbers, fixes the bugs the audit found (issue #20, and #34, #35, #39 on every screen), and shows only the essentials by default (R22).
 
@@ -193,35 +193,52 @@ Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bri
 
 ### What it's for
 
-In the simple fight, speed never changes. In a real T-6, pulling more G than the aircraft can sustain bleeds speed, climbing trades speed for height, and diving trades it back. Energy mode shows that trade. A student can see why a jet that pulls 6 G at 220 kt is at 150 kt a turn later, and what a pitch back or a split S buys and costs.
+The SMM's advanced handling is about energy management: "achieve the desired exit parameters regardless of the entry parameters". For training, those exit parameters are **160 KIAS and 17 units AOA**, the max-performance turn (MPT) against a simulated threat (SMM 14.3 para 6, 14.4 para 8). Energy mode flies that. Each T-6, at full power, uses the vertical and G to get from its merge speed to the 160 KIAS best turn, then holds that turn:
+- too fast: a pitch back or Immelmann trades speed for height;
+- too slow: a slice or split S trades height for speed.
+
+The simple fight never changes speed, so it can't show this. Energy mode shows how many degrees of turn and how much height each way of getting to 160 costs, and who wins the turn after.
 
 ### The screen
 
 - **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
   - **Start altitude**, shared, default 10,000 ft pressure altitude, the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
-  - For Blue and Red: **start speed** in KIAS (default 220) and **move** (default Level turn).
-- **More energy settings** (collapsed): hard deck line (default 6,000 ft MSL: 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills, SMM 14.6 para 16), the Hold best turn speed target (default 160 KIAS, SMM 14.3 para 6), roll rate (default 90°/s, no manual gives it), the G for Pitch back, Immelmann and Split S (default 4 G, SMM Table 14.1), and the bank used by Pitch back (45°) and Slice (135°). No manual gives those banks: SMM 14.17-14.18 and EFIG p.441-445 say to roll the lift vector as required (more bank at low speed, less at high speed) and pull about 4 G, aiming to reach the max-performance turn before 180° of turn. So they're settings for Dad to check.
-- **Result** adds each aircraft's KIAS, altitude and G. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
+  - For Blue and Red: **merge speed** in KIAS (default 220).
+  - Beside each aircraft, the move the model chose and why, for example "Pitch back (220 KIAS, SMM entry 160 to 220)", then "MPT 160 KIAS" once it's there.
+- **More energy settings** (collapsed):
+  - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
+  - **MPT speed**, default 160 KIAS (SMM 14.3 para 6).
+  - **Hard deck line**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16).
+  - **Roll rate**, default 90°/s. No manual gives it.
+  - **Pitch back bank**, default 60° at a 160 KIAS entry, falling to 30° at 220. The rule is from EFIG p.441: more bank when slower, less when faster. The numbers are for Dad to check.
+- **Result** adds each aircraft's KIAS, altitude, G and current move, and the time and degrees of turn to reach the MPT. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
 - **Side view:** the side-view panel shows altitude against time for both aircraft, with the hard deck as a line for reference (no flag and no pause). It needs no height scale, because the heights are real.
 - **Two flags only** (Patrick, 2026-09-30), in the result card, words plus colour, per aircraft:
-  - **OVER G** when the aircraft pulls more than +7 G, or more than +4.7 G while rolling. The aircraft still flies the G that was set, as the simple mode does, so the flag shows what the move would cost.
-  - **STALL** when the set G needs more lift than the wing has at that speed (above the stall line), or the speed falls below the 1 G stall speed (for example at the top of an Immelmann entered too slow). The aircraft gets only the G the stall line allows while the flag is on.
-  Nothing else is flagged: no deck, VMO or entry-speed warnings. The SMM entry speeds show as help text beside the move list.
+  - **OVER G** when the aircraft pulls more than +7 G, or more than +4.7 G while rolling (SMM 14.17 cautions that this is easy in a pitch back above 190 KIAS). The aircraft still flies the G it pulled, so the flag shows what the move would cost.
+  - **STALL** when the pull needs more lift than the wing has at that speed (above the stall line), or the speed falls below the 1 G stall speed, for example at the top of an Immelmann entered too slow. The aircraft gets only the G the stall line allows while the flag is on.
+  - Nothing else is flagged: no deck, VMO or entry-speed warnings.
 
-### The moves (picked per aircraft, applied from the merge)
+### How the model flies (Auto)
 
-The user picks each aircraft's move. There's no automatic tactics; that's a later feature. Each move is the pilot's bank and G, with the aircraft's turn direction taken from the fight type (1-circle or 2-circle), as in the simple fight.
+Every move is at full power (100 % torque), and the aircraft turns toward the other aircraft, from the fight type (1-circle or 2-circle), as in the simple fight. "Pull to the shaker" means pulling to 17 units AOA: the stall-limit G at the current speed, at most 7 G. Bank changes at the roll rate, never instantly.
 
-| Move | What the pilot does | SMM entry speed (Table 14.1, at about 10,000 ft) |
+**1. Pick the move at the merge.** The move comes from the aircraft's KIAS and the SMM entry speeds (Table 14.1, at about 10,000 ft):
+
+| KIAS at the merge | Move | What the pilot does (SMM, EFIG) |
 |---|---|---|
-| Level turn | Pulls the most G available and banks to hold the nose on the horizon (G × cos bank = 1). Speed bleeds while that G is above what the T-6 can sustain | none |
-| Hold best turn speed | Pulls the most G available until it slows to the target speed (160 KIAS, the SMM's training max-performance point, 17 units AOA, 14.3 para 6 and 14.4 para 8), then eases to the G that holds that speed, level | none |
-| Pitch back | Lift vector above the horizon (default 45° bank) at about 4 G: a nose-high turn that trades speed for height | 160 to 220 KIAS |
-| Slice | Lift vector below the horizon (default 135° bank), most G available: a nose-low turn that trades height for speed and rate | 100 to 160 KIAS |
-| Immelmann | Wings level at about 4 G, up through the vertical to inverted, then rolls upright and flies a level turn | 200 to 250 KIAS |
-| Split S | Rolls inverted, about 4 G, down through the vertical to level, then flies a level turn | 100 to 120 KIAS |
+| above 220 | Immelmann | Wings level, a smooth pull to about 4 G, then held in the shaker up and over. Rolls upright approaching inverted (SMM 14.15 para 39, EFIG p.435) |
+| 160 to 220 | Pitch back | Lift vector above the horizon: bank from the entry speed (setting above), pull to about 4 G, then held in the shaker (SMM 14.17 para 43, EFIG p.441) |
+| 120 to 160 | Slice | Lift vector past horizontal: 90° bank at 160 KIAS to 135° at 100 (SMM 14.18 para 46), squeezed to the shaker (EFIG p.444) |
+| below 120 | Split S | About 20° nose up, roll inverted at about 0.5 G, then pull through in the shaker to level (SMM 14.16 para 41). If that would take it below the hard deck (about 2,000 ft lost), it flies a slice instead |
+| 160 (within 5 kt) | MPT straight away | |
 
-All at maximum power, as in the SMM. "Most G available" means pulling to the shaker: the smaller of +7 G and the stall limit at the current speed, so those moves never raise a flag on their own. Pitch back, Immelmann and Split S pull their set G (default 4 G); set higher, they can raise OVER G or STALL. A Pitch back entered above 190 KIAS makes it easy to pass the 4.7 G rolling limit (SMM 14.17), which is when OVER G can show at the default. Bank changes at the roll rate, never instantly.
+The bands overlap in the SMM (the Immelmann is 200 to 250 and the pitch back 160 to 220; the split S is 100 to 120 and the slice 100 to 160). Auto takes the split points above, so the Immelmann is for speed the pitch back can't bleed, and the split S for speed the slice can't build.
+
+**2. Capture the MPT.** In a pitch back or slice, as KIAS nears the MPT speed, the pilot adjusts bank toward the MPT attitude, aiming to be there before 180° of turn (SMM 14.17 para 42, 14.18 para 44). After an Immelmann or split S rolls out, Auto looks at the speed again and picks the next move from step 1 (a "follow-on manoeuvre", SMM 14.15-14.16).
+
+**3. Hold the MPT.** 70 to 75° bank, pulled to the shaker, with bank used to hold the speed. Speed rising: less bank, nose higher. Speed falling: more bank, nose lower (EFIG p.430, SMM 14.4 para 8). The model starts at 72.5° and trims bank within 60 to 85° to hold 160 ± 5 KIAS.
+
+**Forced moves** (from More energy settings) fly the same way from the merge whatever the speed. The move still exits into the MPT, so a split S at 220 KIAS shows what it costs.
 
 ### The model (T-6A, point mass)
 
@@ -249,7 +266,13 @@ All at maximum power, as in the SMM. "Most G available" means pulling to the sha
 
 ### For Dad to check
 
-The defaults above that no manual gives, each a setting: the stall speed (86 kt from the V-n diagram, or about 83 kt from the turn chart), the roll rate (90°/s), and the Pitch back and Slice banks (45° and 135°). Then a run of each move against how the Harvard really flies. Until he answers, the defaults stand.
+The defaults above that no manual gives, each a setting:
+- the stall speed: 86 kt from the V-n diagram, or about 83 kt from the turn chart;
+- the roll rate: 90°/s;
+- the pitch back bank: 60° at 160 KIAS to 30° at 220;
+- Auto's split points: 220 and 120 KIAS.
+
+Then a run from several merge speeds (100, 140, 180, 220 and 250 KIAS) against how the Harvard really flies. Until he answers, the defaults stand.
 
 ### What stays the same
 
@@ -318,7 +341,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 - The golden test passes on every setup in its grid, and every change from V6 is a logged decision.
 - A student can set up, play and read a fight with only the default controls showing (R22).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
-- Energy mode meets its chart checks, and Dad agrees each move flies like a Harvard.
+- Energy mode meets its chart checks. From any merge speed between 100 and 250 KIAS, Auto reaches and holds the 160 KIAS max-performance turn, and Dad agrees each move flies like a Harvard.
 - Patrick or Dad signs off the checklist (R21).
 
 ## Plan
