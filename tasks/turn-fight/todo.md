@@ -1,13 +1,17 @@
 # Turn Fight: tasks
 
-Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says it's the Turn Fight's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
+Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md) and the handover note [`docs/handover/turn-fight.md`](../../docs/handover/turn-fight.md). The skill for each step is in the spec's Skills used.
 
-- [ ] **1. The fight (`sim.js`), pinned to V6.** `createFight(setup)` and `stepFight(state, dtSec)` in whole 0.02 s steps: start, merge, 1-circle and 2-circle turns, first nose-on, the chase, Climb and dive, the 10-minute stop. Turn math only from `core`. The golden test is written first and fails until `sim.js` exists (test-driven-development).
+**Streamlined build (Patrick, 2026-09-30 16:37Z).** Until the module is finished, a PR needs only GitHub's automatic tests to pass. The full local run, screenshots, accessibility checks and the Verification check happen once, at the end of the module. New numbers may be within a tolerance (about ±1 kt, ±50 ft, ±1° or ±1%); V6's math that already matches stays exact. No mutation runs, fuzzing or stress runs. 3D is a bonus: keep what is built, no more 3D tests or polish.
+
+**Where it stands:** tasks 1 to 7 and the Energy engine are on main (through #235). Left: task 10's screen half, on branch `handover/turn-fight-energy-screen`, then Checkpoint D and the end-of-module test.
+
+- [x] **1. The fight (`sim.js`), pinned to V6.** (#141) `createFight(setup)` and `stepFight(state, dtSec)` in whole 0.02 s steps: start, merge, 1-circle and 2-circle turns, first nose-on, the chase, Climb and dive, the 10-minute stop. Turn math only from `core`. The golden test is written first and fails until `sim.js` exists (test-driven-development).
   - Acceptance: matches V6's `bfmFight` step by step on the golden grid within 1e-9 ft and 1e-12 rad for 10 minutes of fight time (R9); the same result at any frame rate.
   - Verify: `npm test`; `node --test tests/golden/turn-fight-sim.test.js`.
   - Dependencies: none. Size M.
   - Files: src/modules/turn-fight/sim.js, tests/golden/turn-fight-v6.js, tests/golden/turn-fight-sim.test.js, tests/unit/turn-fight/sim.test.js
-- [ ] **2. Readouts.** Result and More detail lines from a fight state, with V6's rounding, built as text.
+- [x] **2. Readouts.** (#141) Result and More detail lines from a fight state, with V6's rounding, built as text.
   - Acceptance: every number V6 writes to `bfmPerf`, `bfmLive`, `bfmTime` and `bfmPhase` matches on the golden grid.
   - Verify: golden comparison of V6's readout text; unit tests of rounding.
   - Dependencies: 1. Size S.
@@ -49,19 +53,20 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Built: `geometry.js` (`startGeometry`, `turnDirections`, `START_DEFAULTS`), `createFight` takes the six new settings (head-on keeps V6's own start arithmetic, so the golden test is unchanged), the Start geometry section and picture in the settings menu, `geometryRows` in More detail, the MERGE mark only when there is a pass. Judgement calls for the finalizer: the "When the turns start" choice sits in the Start geometry section of the settings menu (the spec's screen table lists it there; R22 keeps More detail for readouts); "Head-on (V6)" resets all six start settings, not just the two angles; the turn side is read when the turns start, a tie (dead ahead or astern) keeps V6's way; HCA shows twice in More detail (Q51's "Angle-off" is the same number).
   - Dependencies: 6. Size M.
   - Files: src/modules/turn-fight/{geometry,sim,layout,readouts}.js, tests/unit/turn-fight/geometry.test.js
-- [ ] **7. Polish and sign-off checklist.** code-simplification pass with the golden test still green; `docs/checklists/turn-fight.md` for Patrick or Dad, side by side with V6 (R21), including the spec's first-time-user check (default fight and Energy fight play with nothing typed and no panel opened).
+- [x] **7. Polish and sign-off checklist.** (#219: the 3D graphics-reset fallback and `docs/checklists/turn-fight.md`) code-simplification pass with the golden test still green; `docs/checklists/turn-fight.md` for Patrick or Dad, side by side with V6 (R21), including the spec's first-time-user check (default fight and Energy fight play with nothing typed and no panel opened).
+  - Left from the #219 re-check (small): label More detail's time row "Time since the turns started" when the turns start at once or there is no pass; fix three checklist sentences (trails are blue and red; the side view splits only after the pass; after a graphics reset View stays 2D until 3D is chosen again). The other 3D fallback items are cut (3D is a bonus).
   - Dependencies: 5. Size S.
 
 **Checkpoint C:** open PR C; Patrick or Dad runs the checklist.
 
 ## Energy mode (FF23), approved 2026-09-30
 
-- [ ] **8-9. T-6A performance and the point-mass step: built by `core`, not here.** The Flight math core thread builds them as tasks 14 to 17 in `tasks/flight-math/todo.md` (SPEC-core, "API, fifth PR: T-6A performance"; D128). The Turn Fight uses them. The chart checks and known answers in the spec's Energy mode are those tasks' tests.
+- [x] **8-9. T-6A performance and the point-mass step: built by `core`, not here.** The Flight math core thread builds them as tasks 14 to 17 in `tasks/flight-math/todo.md` (SPEC-core, "API, fifth PR: T-6A performance"; D128). The Turn Fight uses them. The chart checks and known answers in the spec's Energy mode are those tasks' tests.
   - Dependencies: none here; task 10 waits on them.
-- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), the altitude side view with the hard deck as a reference line, the 3D view's two Energy pieces (the see-through hard-deck plane, and each aircraft's own bank from the energy state in place of the level-turn bank, in `view3d.js`'s `aircraftPose`), and the level MPT at the hard deck, the stall cost, the mid-range throttle for straight MPT entries, per-aircraft start altitudes, and Pure, Lead or Lag pursuit after first nose-on.
+- [ ] **10. Energy mode in the Turn Fight.** Engine done (#209, #227, #235: `energy-sim.js`, top speed `energyTopKias` = core's `modelMaxIasT6A`, MPT 125 to 175, `evenFight`). Screen built on `handover/turn-fight-energy-screen`; to finish it: merge main in, point `topKiasAt` in `state.js` at `energyTopKias` and match the engine's refusal wording, tests for the WIP error-catch commit, the Split S e2e pause (`intervals: [50]`), wrap the Energy e2e tests in `test.describe('Energy (T-6)')`, re-read the checklist's Energy numbers. Details in the handover note. `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), the altitude side view with the hard deck as a reference line, the 3D view's two Energy pieces (the see-through hard-deck plane, and each aircraft's own bank from the energy state in place of the level-turn bank, in `view3d.js`'s `aircraftPose`), and the level MPT at the hard deck, the stall cost, the mid-range throttle for straight MPT entries, per-aircraft start altitudes, and Pure, Lead or Lag pursuit after first nose-on.
   - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); Auto picks the move from the merge speed as the spec table says, and from every merge speed between 100 and 250 KIAS reaches 160 ± 5 KIAS, then holds it; at the hard deck the level MPT settles at 150 KIAS minus altitude in thousands, within 5 kt; a stall gives 1 G for 1 s; the pursuit chaser never pulls past the shaker or 7 G; the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
   - Verify: `npm test`; e2e toggle; Dad flies each move.
   - Dependencies: 5, and core's tasks 14 to 17 (tasks 8-9 above). Size M.
   - Files: src/modules/turn-fight/{energy-sim,layout,profile,readouts}.js, tests/unit/turn-fight/energy-sim.test.js
 
-**Checkpoint D:** open PR D; add the Energy mode lines to the sign-off checklist.
+**Checkpoint D:** open PR D (the Energy lines are already in the branch's checklist); CI green; merge. Then the end-of-module test once: full local unit and e2e run, screenshots, axe, the Verification check, and Patrick's or Dad's checklist run.
