@@ -15,8 +15,8 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 ## Assumptions
 
 1. It stays a static website: HTML, CSS and plain JavaScript ES modules, no framework, no server of our own (CLAUDE.md, R1).
-2. Vite is used only as the dev server and bundler (D13, proposed). The source still runs as plain modules.
-3. Hosting is GitHub Pages from this repo (D12, proposed). A service worker makes it work offline after one visit (D15, proposed; R6).
+2. Vite is used only as the dev server and bundler (D13). The source still runs as plain modules.
+3. Hosting is GitHub Pages from this repo (D12). A service worker makes it work offline after one visit (D15, R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
 5. Live weather comes from an official source first (aviationweather.gov) with a backup, both tested from a real browser (D33).
 
@@ -72,7 +72,8 @@ export default {
 ```
 index.html              home screen
 src/
-  app.js                shell: router, mount/unmount, settings, time switch
+  app.js                entry: starts the shell
+  shell/                router.js registry.js host.js home.js about.js header.js …
   core/                 units.js angles.js geo.js flight-math.js standards.js time.js
   storage/              store.js settings.js file.js
   airfields/            airfields.js  data/CYMJ.json …
@@ -143,14 +144,17 @@ export function turnRadiusFt(tasKt, loadG) {
 
 ## Build order
 
-1. `core`, `storage`, `ui-kit`, `shell`: an empty app live on GitHub Pages with CI, size budget and the browser tests.
-2. `airfields`, `flight-data`: KML loading and the clock, pinned against V6.
-3. `debrief` (2D and 3D together, D14).
-4. `turn-sim`, then `turn-fight`.
-5. `traffic`.
-6. `wx`, then `sof` last (D14).
+Pieces are built in dependency order, up to three workstreams at once, each in its own thread, branch and pull request (D14, changed from one at a time on 2026-09-29).
 
-Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
+1. **Now, side by side:**
+   - App frame: `storage`, `ui-kit`, `shell`, an empty app live on GitHub Pages with CI, size budget and the browser tests (`tasks/app-frame/`).
+   - Flight math: `core`, ported function by function under golden tests (`tasks/flight-math/`).
+   - Weather parser: `wx` parsing and limits, no live sources yet (`tasks/wx/`).
+2. **After flight math's first pull request** (units, angles, geo, time): `airfields`, `flight-data`, KML loading and the clock, pinned against V6.
+3. **Module screens**, two or three at a time, each once the app frame and its data pieces have landed: `debrief` (2D and 3D together), `turn-sim`, `turn-fight`, `traffic`.
+4. **`sof` last**, after `wx` and once an environment that can reach the weather sites is set up.
+
+Only the app frame edits `package.json`, `vite.config.js` and CI. Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
 
 ## Success criteria
 
