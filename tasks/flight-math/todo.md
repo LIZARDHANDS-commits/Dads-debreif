@@ -52,3 +52,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 ## For the Traffic Sim
 
 - [x] **Task 13: `wind.js`** (SPEC-traffic): `windTriangle`, new math with known-answer tests first; nothing in V6 to pin. Patrick approved SPEC-traffic at 06:43Z.
+
+## For the Turn Fight, Traffic and Turn Sim
+
+- [ ] **Task 14: the shared T-6A performance model** (SPEC-core "API, fifth PR"; Patrick 06:58Z). At the Turn Fight's turn, before the Traffic build: known-answer tests first (turn-chart checks, glide and zoom cross-checks), then `t6-performance.js`, `point-mass.js` and `t6a-turn-charts.js`. Size L.
