@@ -215,6 +215,8 @@ export function separationFlags(state, settings, pairs = pairDistances(state)) {
   // aircraft nose to nose with the front element's outbound leg): the sim is flat, so the SMM's vertical margin is needed.
   const crossing = (state?.crossings ?? []).map((c) => `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed, #${c.a} and #${c.b}`);
   flags.push(...crossing);
+  // Passes between 300 and 1,000 ft (state.closePasses): not a designed crossing, but too close to fly without altitude separation.
+  flags.push(...(state?.closePasses ?? []).map((c) => `Close pass: ${ft(c.minFt)}, #${c.a} and #${c.b}`));
   if (min !== null && min < UNDER_SEPARATION_FT && !crossing.length) {
     flags.push(CROSSING_TURNS.has(settings.maneuver) ? `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed` : `Under ${UNDER_SEPARATION_FT} ft`);
   }

@@ -323,3 +323,9 @@ test('the check turn is named in the summary only when it is flown, with the fig
   assert.equal(checkTurnNote({ delayed45CheckFlown: true }, set('offsetBox')), 'Delayed 45 with a 12.5° check (SMM Fig 16.31)');
   assert.equal(readoutsAt({ ...four(), delayed45CheckFlown: true }, set('weighted')).checkNote, 'Delayed 45 with a 12.5° check (SMM Fig 16.34)');
 });
+
+test('a close pass (300 to 1,000 ft) is flagged with its distance and pair, after any crossing', () => {
+  const st = { ...four(), crossings: [{ a: 1, b: 3, minFt: 120 }], closePasses: [{ a: 1, b: 2, minFt: 893.6 }] };
+  assert.deepEqual(separationFlags(st, SETTINGS), ['Crossing: 300 ft vertical needed, #1 and #3', 'Close pass: 894 ft, #1 and #2']);
+  assert.deepEqual(separationFlags({ ...four(), closePasses: [] }, SETTINGS), []);
+});

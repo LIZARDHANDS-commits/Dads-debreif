@@ -697,6 +697,19 @@ test('when the Delayed 45 flies its check turn, the summary says so and Base del
   await expect(box(page, 'Base delay')).toBeEnabled();
 });
 
+test('a 15 degree check at 4,000 ft spacing in 4312 shows the close pass before Play', async ({ page }) => {
+  await open(page);
+  const flags = page.locator('.ts-flags li');
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(flags).toHaveCount(0); // at the defaults nothing is close
+  await box(page, 'Check turn').fill('15');
+  await box(page, 'Spacing').fill('4000');
+  await expect(flags).toHaveText(["Close pass: 894 ft, #1 and #3", "Close pass: 894 ft, #3 and #4"]); // measured: the two four-ship pairs
+  await box(page, 'Spacing').fill('6000');
+  await expect(flags).toHaveCount(0);
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
