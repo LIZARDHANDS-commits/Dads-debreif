@@ -10,7 +10,8 @@ import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
 import { V6_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
-import { readoutsAt } from './readouts.js';
+import { readoutsAt, formationAt, mapLabel } from './readouts.js';
+import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createPlaybackBar } from './playback-bar.js';
@@ -24,7 +25,12 @@ function mount(root, app) {
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS);
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
-  const ui = createLayout({ layout, controls, bar, canExample: typeof app.exampleText === 'function', listen: app.listen });
+  const standardsPanel = app.standards && createStandardsPanel({ standards: app.standards, layout });
+  const ui = createLayout({
+    layout, controls, bar, canExample: typeof app.exampleText === 'function', listen: app.listen,
+    formationExtras: standardsPanel ? [standardsPanel.element] : [],
+  });
+  const currentStandards = () => app.standards?.get() ?? V6_STANDARDS;
   root.append(ui.element);
 
   let flight = null;
@@ -38,6 +44,14 @@ function mount(root, app) {
     timers: app.scheduler,
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
+    labels: (shown, t) => {
+      const out = {};
+      for (const row of formationAt(shown, t, currentStandards())) {
+        const label = mapLabel(row);
+        if (label) out[row.slot] = label;
+      }
+      return out;
+    },
   });
 
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
@@ -49,8 +63,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    const standards = app.standards?.get() ?? V6_STANDARDS;
-    ui.renderReadouts(flight && readoutsAt(flight, clock.t, { standards }));
+    ui.renderReadouts(flight && readoutsAt(flight, clock.t, { standards: currentStandards() }));
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -133,6 +146,7 @@ function mount(root, app) {
 
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
+    standardsPanel?.setCollapsed(!values.standardsOpen);
     map.requestDraw();
   });
 
@@ -146,7 +160,10 @@ function mount(root, app) {
   app.settings.subscribe(() => bar.sync());
   app.airfields?.subscribe(() => bar.sync());
   // Edited standards change the labels at once (R18).
-  app.standards?.subscribe(() => clock && renderReadouts());
+  app.standards?.subscribe(() => {
+    map.requestDraw();
+    if (clock) renderReadouts();
+  });
 
   return () => {
     closed = true;
@@ -155,6 +172,7 @@ function mount(root, app) {
     stopClock?.();
     stopLayout();
     controls.dispose();
+    standardsPanel?.dispose();
     map.dispose();
     stylesheet.remove();
   };

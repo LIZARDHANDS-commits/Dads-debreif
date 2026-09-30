@@ -50,6 +50,45 @@ function beyondFt(label, pos, slot, std) {
 }
 
 /**
+ * Each wingman against the standards (#21, D78). No label with no Lead, no
+ * Lead heading (D52), a gap on either ship (D32), or no standard for it.
+ * `inGap` is by slot; `live` holds core's { x, y } places.
+ */
+function judgeFormation(tracks, live, inGap, leadHdg, standards) {
+  return tracks
+    .filter((tr) => tr.slot !== 1)
+    .map((tr) => {
+      const slot = tr.slot;
+      const row = { slot, state: 'ok', labels: [], offBy: [] };
+      if (!live[1]) return { ...row, state: 'no-lead' };
+      if (inGap[slot].inGap || inGap[1].inGap) return { ...row, state: 'gap' };
+      if (leadHdg === null) return { ...row, state: 'no-heading' };
+      if (!standards || !standardApplies(slot, standards)) return { ...row, state: 'no-standard' };
+      const pos = classifyDebriefPosition(slot, live, leadHdg, standards);
+      const labels = pos.labels;
+      const offBy = labels.map((label) => beyondFt(label, pos, slot, standards));
+      return { ...row, labels, offBy, intervalFt: pos.intervalFt, foreAftFt: pos.foreAftFt, offsetAftFt: pos.offsetAftFt };
+    });
+}
+
+/**
+ * Just the Formation-card rows at time t, for the labels on the map: the same
+ * as readoutsAt(...).formation, without the rest of the readouts.
+ */
+export function formationAt(flight, t, standards) {
+  if (!flight) return [];
+  const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
+  const live = {};
+  const gap = {};
+  for (const tr of tracks) {
+    const s = sampleAt(tr, t);
+    live[tr.slot] = at(s);
+    gap[tr.slot] = { inGap: s.inGap };
+  }
+  return judgeFormation(tracks, live, gap, live[1] ? headingAt(flight.tracks[1], t) : null, standards);
+}
+
+/**
  * Everything the readouts show at time t.
  * options.standards: shaped like core's V6_STANDARDS (app.standards.get()).
  * options.recordedG: use the recorded G where there is one (off by default, D61).
@@ -114,23 +153,8 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     lead = { iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null };
   }
 
-  // Each wingman against the standards (#21, D78). No label with no Lead,
-  // no Lead heading (D52), a gap on either ship (D32), or no standard for it.
   const leadHdg = heading[1];
-  const formation = tracks
-    .filter((tr) => tr.slot !== 1)
-    .map((tr) => {
-      const slot = tr.slot;
-      const row = { slot, state: 'ok', labels: [], offBy: [] };
-      if (!live[1]) return { ...row, state: 'no-lead' };
-      if (bySlot[slot].inGap || bySlot[1].inGap) return { ...row, state: 'gap' };
-      if (leadHdg === null) return { ...row, state: 'no-heading' };
-      if (!standards || !standardApplies(slot, standards)) return { ...row, state: 'no-standard' };
-      const pos = classifyDebriefPosition(slot, live, leadHdg, standards);
-      const labels = pos.labels;
-      const offBy = labels.map((label) => beyondFt(label, pos, slot, standards));
-      return { ...row, labels, offBy, intervalFt: pos.intervalFt, foreAftFt: pos.foreAftFt, offsetAftFt: pos.offsetAftFt };
-    });
+  const formation = judgeFormation(tracks, live, bySlot, leadHdg, standards);
 
   // Aspect, HCA, closure and range from Lead to each wingman (V6 line 3212).
   const vsLead = live[1]
@@ -226,4 +250,14 @@ export function vsLeadText(row) {
 export function pairText(pair) {
   if (pair.inGap) return `#${pair.a}–#${pair.b}: GPS gap`;
   return `#${pair.a}–#${pair.b}: ${ft(pair.horizontalFt)} horizontal, ${ft(pair.slantFt)} 3D, closure ${formatClosure(pair.closureKt)}`;
+}
+
+/**
+ * The label the map draws beside a wingman: V6's words ("WIDE / AFT", "ON
+ * PARAMETERS") and a tone. Nothing where the card shows no label (#21, D32, D52).
+ */
+export function mapLabel(row) {
+  if (row.state !== 'ok' || !row.labels.length) return null;
+  const on = row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS';
+  return { text: row.labels.join(' / '), tone: on ? 'good' : 'caution' };
 }

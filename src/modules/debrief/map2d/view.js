@@ -9,8 +9,9 @@ import { trackPaths, drawGrid, drawTracks, drawShips } from './layers.js';
 /**
  * canvas: the map's <canvas>. timers: the module's scheduler scope.
  * time(): the playback time to draw. layers(): { grid } from the layout settings.
+ * labels(flight, t): each ship's standards label, { slot: { text, tone } }.
  */
-export function createMapView(canvas, { timers, time, layers }) {
+export function createMapView(canvas, { timers, time, layers, labels = () => ({}) }) {
   let flight = null;
   let paths = [];
 
@@ -24,7 +25,8 @@ export function createMapView(canvas, { timers, time, layers }) {
       if (layers().grid) drawGrid(ctx, map);
       if (!flight) return;
       drawTracks(ctx, map, paths);
-      drawShips(ctx, map, shipsAt(flight, time()));
+      const t = time();
+      drawShips(ctx, map, shipsAt(flight, t), labels(flight, t));
     },
   });
 

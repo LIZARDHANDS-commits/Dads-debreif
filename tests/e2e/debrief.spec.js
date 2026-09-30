@@ -194,6 +194,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await loadExample(page);
     await status(page).click();
     await page.getByRole('button', { name: 'More detail' }).click();
+    await page.getByRole('button', { name: 'Standards' }).click();
     await page.getByRole('button', { name: 'Layers' }).click();
     const problems = await page.evaluate(() => {
       const controls = [...document.querySelectorAll('#view a[href], #view button, #view input, #view select, #view label.button')]
@@ -242,4 +243,42 @@ test('in flight the Formation card judges each wingman; More detail opens the nu
   await page.reload();
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
   await expect(page.getByRole('button', { name: 'More detail' })).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('standards: edit, refuse a bad value, keep after a reload, reset to V6 (R18)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.inputValue()) + 30 * 60));
+  const open = page.getByRole('button', { name: 'Standards' });
+  await expect(open).toHaveAttribute('aria-expanded', 'false'); // closed at first (R22)
+  await open.click();
+  const summary = page.getByRole('list', { name: 'Standards in use' });
+  await expect(summary).toContainText('Spread: 4000-6000 ft, 3/9 ±250 ft');
+
+  const max = page.getByLabel('Spread maximum');
+  await max.fill('8000');
+  await max.press('Tab');
+  await expect(summary).toContainText('Spread: 4000-8000 ft');
+  await max.fill('50000');
+  await max.press('Tab');
+  await expect(max).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.locator(`#${await max.getAttribute('aria-describedby')}`)).toHaveText('Spread maximum must be between 0 and 20,000 ft. Kept 8000 ft.');
+  await expect(summary).toContainText('Spread: 4000-8000 ft');
+
+  // With every standard off, no wingman gets a label (#21).
+  for (const name of ['Judge spread', 'Judge the offset', 'Judge Lead']) await page.getByLabel(name).uncheck();
+  await expect(summary).toHaveText('All standards are off: no labels are shown.');
+  const card = page.getByRole('list', { name: 'Formation' }).getByRole('listitem');
+  await expect(card.nth(0)).toHaveText(/^#2 (– \(no standard on\)|GPS gap)$/);
+  await expect(card.nth(3)).not.toContainText('on parameters');
+
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+  await expect(page.getByLabel('Judge spread')).not.toBeChecked();
+  await expect(page.getByLabel('Spread maximum')).toHaveValue('8000');
+  await page.getByRole('button', { name: 'Reset to V6 standards' }).click();
+  await expect(page.getByLabel('Spread maximum')).toHaveValue('6000');
+  await expect(page.getByLabel('Judge spread')).toBeChecked();
+  await expect(page.getByRole('list', { name: 'Standards in use' })).toContainText('Lead: 200 ±10 kt, 1.0 ±0.20 G');
 });

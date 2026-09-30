@@ -15,8 +15,11 @@ function shipSwatch(slot) {
   return el;
 }
 
-/** listen: app.listen, so the page-wide listener ends when the debrief closes. */
-export function createLayout({ layout, controls, bar, canExample, listen }) {
+/**
+ * listen: app.listen, so the page-wide listener ends when the debrief closes.
+ * formationExtras: panels under the readouts in the Formation column (Standards).
+ */
+export function createLayout({ layout, controls, bar, canExample, listen, formationExtras = [] }) {
   const handlers = {};
   let flight = null;
 
@@ -89,7 +92,7 @@ export function createLayout({ layout, controls, bar, canExample, listen }) {
   // Formation column: the Formation card and More detail (readouts-panel.js).
   const readouts = createReadoutsPanel({ layout, swatch: shipSwatch });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (collapsed) => layout.update({ formationColumn: !collapsed }) });
-  formationPanel.body.append(readouts.element);
+  formationPanel.body.append(readouts.element, ...formationExtras);
 
   const flightCol = h('aside', { class: 'debrief-col debrief-col-flight', 'aria-label': 'Flight' }, flightPanel.element);
   const formationCol = h('aside', { class: 'debrief-col debrief-col-formation', 'aria-label': 'Formation' }, formationPanel.element);

@@ -7,7 +7,7 @@ import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
-  estIasKt, standardApplies, readoutsAt, formationText, leadText, shipDetailText, vsLeadText, pairText,
+  estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
 const ref = makeLocalRef(50, -105);
@@ -137,4 +137,21 @@ test('live data says where each value came from: est. by default, recorded when 
 test('no flight, no readouts', () => {
   assert.deepEqual(readoutsAt(null, 0), { ships: [], formation: [], lead: null, vsLead: [], pairs: [] });
   assert.equal(leadText(null), null);
+});
+
+test('the map\'s labels are the Formation card\'s rows', () => {
+  for (const t of [T(0), T(15), T(30), T(60)]) {
+    assert.deepEqual(formationAt(box, t, V6_STANDARDS), readoutsAt(box, t, { standards: V6_STANDARDS }).formation);
+  }
+  assert.deepEqual(formationAt(null, 0, V6_STANDARDS), []);
+});
+
+test('the map labels a wingman green when on parameters, and not at all without a judgement (#21)', () => {
+  const [two, three, four] = formationAt(box, T(30), V6_STANDARDS);
+  assert.deepEqual(mapLabel(two), { text: 'ON PARAMETERS', tone: 'good' });
+  assert.deepEqual(mapLabel(three), { text: 'ON PARAMETERS', tone: 'good' });
+  assert.deepEqual(mapLabel(four), { text: 'WIDE', tone: 'caution' });
+  assert.equal(mapLabel({ state: 'gap', labels: [] }), null);
+  assert.equal(mapLabel({ state: 'no-standard', labels: [] }), null);
+  assert.deepEqual(mapLabel({ state: 'ok', labels: ['WIDE', 'AFT'] }), { text: 'WIDE / AFT', tone: 'caution' });
 });
