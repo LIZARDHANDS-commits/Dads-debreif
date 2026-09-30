@@ -12,6 +12,13 @@ export function motionAllowed(setting, systemPrefersReduced) {
   return !systemPrefersReduced;
 }
 
+// The badge on a module card: 'Coming soon' until it is hooked in, then
+// 'PROTOTYPE' until the combined sign-off (D135), else none.
+export function cardBadge(entry) {
+  if (!isBuilt(entry)) return 'Coming soon';
+  return entry.prototype ? 'PROTOTYPE' : null;
+}
+
 function cardMedia(media) {
   const still = h('img', { class: 'card-still', src: media.still, alt: '', loading: 'lazy', decoding: 'async' });
   if (!media.webm) return { element: h('div', { class: 'card-media' }, still), video: null };
@@ -22,13 +29,14 @@ function cardMedia(media) {
 
 function moduleCard(entry) {
   const { element: media, video } = cardMedia(entry.media);
+  const badge = cardBadge(entry);
   const text = h(
     'span',
     { class: 'card-text' },
     h('span', { class: 'eyebrow' }, entry.eyebrow),
     h('span', { class: 'card-title' }, entry.title),
     h('span', { class: 'card-blurb' }, entry.blurb),
-    isBuilt(entry) ? null : h('span', { class: 'badge' }, 'Coming soon'),
+    badge ? h('span', { class: isBuilt(entry) ? 'badge badge-prototype' : 'badge' }, badge) : null,
   );
   const card = isBuilt(entry)
     ? h('a', { class: 'card', href: `#/${entry.id}`, dataset: { module: entry.id } }, media, text)

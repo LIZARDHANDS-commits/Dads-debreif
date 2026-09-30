@@ -23,7 +23,7 @@ The browser's Back and Forward buttons move between these. After a page change, 
 
 **Browsers:** current Chrome, Edge and Firefox, and Safari 15.4 or newer (the Settings dialog and `Object.hasOwn` need it). Nothing to install (R1).
 
-**Home screen:** the title "DAD's OODA LOOP" (D27), then one card per module in `src/shell/registry.js`, in build order: Debrief, Formation Turn Sim, Turn Fight, Traffic Pattern Sim, SOF Dashboard, then About. A module that isn't built yet shows as a plain card marked "Coming soon". It isn't a button and can't be clicked (R3). PT-PT Sim and the Briefing Board don't appear (R19).
+**Home screen:** the title "DAD's OODA LOOP" (D27), then one card per module in `src/shell/registry.js`, in build order: Debrief, Formation Turn Sim, Turn Fight, Traffic Pattern Sim, SOF Dashboard, then About. A module that isn't built yet shows as a plain card marked "Coming soon". It isn't a button and can't be clicked (R3). A module hooked in before the combined sign-off opens as usual and its card carries a PROTOTYPE badge (D135); the flag comes off at sign-off. PT-PT Sim and the Briefing Board don't appear (R19).
 
 **Card videos:** each module's card plays its V6 loop, re-encoded silent at 640 px (D9, R15; about 1 MB for all five, made by `tools/make_card_media.py`). A card shows a still until its video is needed. A video loads only when its card is on screen, plays only while visible, and doesn't play at all when the user or the system asks for reduced motion (#41).
 
@@ -54,7 +54,7 @@ export default {
 };
 ```
 
-The registry lists each module's id, title, card text, card media and a `load()` that dynamically imports its `index.js`, so a module's code downloads only when it opens (R5).
+The registry lists each module's id, title, card text, card media and a `load()` that dynamically imports its `index.js`, so a module's code downloads only when it opens (R5). It also carries `prototype: true` for every module except Debrief, which puts the PROTOTYPE badge on the card once the module is hooked in; the flag is removed at the combined sign-off (D135).
 
 `app` handed to a module:
 
