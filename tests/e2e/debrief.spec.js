@@ -1965,3 +1965,19 @@ test('saved radar: when the button goes away, keyboard focus moves to the status
   await expect(saveWxButton(page)).toBeHidden();
   await expect(savedWxStatus(page)).toBeFocused();
 });
+
+test('saved radar: a button left on screen as the 3 hours pass says "Not kept" when pressed and fetches nothing (Y8)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, endT } = await flightWindow(page);
+  await setNow(page, endT + 3 * 3600 - 60);
+  await scrubber.fill(String(endT - 60));
+  await openWeather(page);
+  await expect(saveWxButton(page)).toBeVisible();
+  // The clock crosses the 3 hours while nothing redraws; the button is still there. No ECCC stub: any request fails the test.
+  await setNow(page, endT + 3 * 3600 + 60);
+  await expect(saveWxButton(page)).toBeVisible();
+  await saveWxButton(page).click();
+  await expect(savedWxStatus(page)).toHaveText('Not kept: radar is only available for 3 hours after the flight.');
+  await expect(saveWxButton(page)).toBeHidden();
+});

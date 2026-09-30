@@ -525,7 +525,10 @@ function mount(root, app) {
   tennisPanel.render(null);
   ui.onFit(() => map.fit());
   ui.onSaveWx(() => {
-    if (flight && radarKept(flight.endT, Date.now() / 1000)) savedRadar.start({ startT: flight.startT, endT: flight.endT, bounds: flightLatLonBounds(flight) });
+    if (!flight) return;
+    // The 3 hours may have passed while the button was on screen: say "Not kept" instead of doing nothing (Y8).
+    if (!radarKept(flight.endT, Date.now() / 1000)) renderSavedWeather();
+    else savedRadar.start({ startT: flight.startT, endT: flight.endT, bounds: flightLatLonBounds(flight) });
   });
   ui.onCancelWx(() => savedRadar.cancel());
   ui.onReset(() => layout.reset());
