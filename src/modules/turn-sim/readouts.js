@@ -9,13 +9,16 @@ import { turnRadiusFt, turnRateRadPerSec, bankDegFromG, limitG } from '../../cor
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { radToDeg, degToRad } from '../../core/angles.js';
 import { distance } from '../../core/geo.js';
+import { clockLabel } from './fields.js';
 
 /** Closer than this (ft) between any two aircraft is flagged (SMM 16.13 para 31; also 16.23). */
 export const UNDER_SEPARATION_FT = 300;
 /** A line-abreast pair farther apart than this (ft) has lost mutual support (SMM 16.18 para 49). */
 export const MUTUAL_SUPPORT_FT = 9000;
-/** Two aircraft are "line abreast" for that flag when neither is turning and their headings differ by no more than this (degrees). */
+/** Two aircraft are "line abreast" for that flag when neither is turning and their headings differ by no more than this (degrees)... */
 export const LINE_ABREAST_HEADING_DEG = 10;
+/** ...and each is within this many degrees of the other's 3/9 line, so a pair in trail isn't flagged. */
+export const LINE_ABREAST_BEARING_DEG = 30;
 /** The turns where the aircraft cross by design, so the flag says a vertical margin is needed instead. */
 const CROSSING_TURNS = new Set(['shackle45', 'cross180']);
 
@@ -95,9 +98,9 @@ export function formationRows(state, settings, standards) {
 }
 
 /**
- * The stall-limit G warning, or null (D128, Patrick 06:58Z, the shared T-6A model). `stallLimitG(kt)`
- * is core's stallLimitG (t6-performance.js), and the Turn Sim treats its Speed box as indicated
- * airspeed (it has no altitude and no wind). It's a warning only: the aircraft still fly the set G,
+ * The G warning, or null (D128, Patrick 06:58Z, the shared T-6A model). `stallLimitG(kt)` is the most G
+ * the T-6 can pull at that speed: core's availableG(kt, false), the stall line capped at +7 G
+ * (t6-performance.js). The Turn Sim treats its Speed box as indicated airspeed (no altitude, no wind). It's a warning only: the aircraft still fly the set G,
  * so the V6 turns stay pinned. Without a limit function there is never a warning.
  */
 export function stallWarning(g, speedKt, stallLimitG) {
@@ -143,6 +146,13 @@ export function pairDistances(state) {
 
 export const minSeparationFt = (pairs) => (pairs.length ? Math.min(...pairs.map((p) => p.distFt)) : null);
 
+/** Degrees the direction from p to q is off p's 3/9 line (0 = straight out the left or right wing, 90 = dead ahead or astern). */
+function offThreeNine(p, q) {
+  const rel = radToDeg(Math.atan2(q.yFt - p.yFt, q.xFt - p.xFt) - p.headingRad);
+  const wrapped = ((rel % 360) + 540) % 360 - 180; // -180 to 180
+  return Math.min(Math.abs(wrapped - 90), Math.abs(wrapped + 90));
+}
+
 /** The pairs that count as line abreast for a formation: neighbours across the front. */
 function abreastPairs(formation) {
   if (formation === 'twoShip') return [[1, 2]];
@@ -166,7 +176,8 @@ export function separationFlags(state, settings, pairs = pairDistances(state)) {
     const q = byId.get(b);
     if (!p || !q || p.turning || q.turning) return false;
     const apart = Math.abs(radToDeg(Math.atan2(Math.sin(p.headingRad - q.headingRad), Math.cos(p.headingRad - q.headingRad))));
-    return apart <= LINE_ABREAST_HEADING_DEG && distance({ x: p.xFt, y: p.yFt }, { x: q.xFt, y: q.yFt }) > MUTUAL_SUPPORT_FT;
+    const apartFt = distance({ x: p.xFt, y: p.yFt }, { x: q.xFt, y: q.yFt });
+    return apart <= LINE_ABREAST_HEADING_DEG && offThreeNine(p, q) <= LINE_ABREAST_BEARING_DEG && apartFt > MUTUAL_SUPPORT_FT;
   });
   if (lost) flags.push('Mutual support lost');
   return flags;
@@ -207,6 +218,30 @@ export function wingmanDetail(row) {
  * @param {object} settings   the Turn Sim settings
  * @param {object} [options]  { standards, stallLimitG, distNm }
  */
+/**
+ * Each aircraft's clock-cue status, live from the engine (state.aircraft[i].cue), for Timing = clock cue; empty otherwise.
+ * `warning` is Q44c: in the offset box #3 and #4 can't see a 5:30 cue (V6 never turns them), so the screen says so.
+ */
+export function cueStatus(state) {
+  const lines = [];
+  const blind = [];
+  let blindPos = null;
+  for (const a of state?.aircraft ?? []) {
+    const cue = a.cue;
+    if (!cue || cue.mode === 'off') continue;
+    const at = clockLabel(cue.clockPos);
+    if (cue.mode === 'start') lines.push({ id: a.id, text: 'starts the turn, nothing to wait for' });
+    else if (cue.mode === 'waiting') lines.push({ id: a.id, text: `watching #${cue.targetId} for ${at}` });
+    else lines.push({ id: a.id, text: `cue came from #${cue.targetId}, turning` });
+    if (cue.cantSee) {
+      blind.push(a.id);
+      blindPos = at;
+    }
+  }
+  const warning = blind.length ? `${blind.map((id) => `#${id}`).join(' and ')} can't see a ${blindPos} cue in the offset box; pick Time delay` : null;
+  return { lines, warning };
+}
+
 export function readoutsAt(state, settings, { standards, stallLimitG, distNm = false } = {}) {
   const std = standards ?? DEFAULT_STANDARDS;
   const gById = new Map((state?.aircraft ?? []).map((a) => [a.id, a.g]));
@@ -228,6 +263,8 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     minSepText: min === null ? null : `Min sep ${ft(min)}`,
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
+    cue: cueStatus(state),
+    autoStepSec: state?.autoStepSec ?? null,
     gWarning: stallWarning(settings.baseG, settings.speedKt, stallLimitG),
     summary: [
       ['Turn radius', ft(numbers.radiusFt)],
