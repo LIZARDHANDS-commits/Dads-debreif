@@ -1,5 +1,5 @@
 // The NM rings layer (task 12c): circles round Lead a whole number of nautical miles out, to read distances off the picture.
-const FT_PER_NM = 6076.11549;
+import { FT_PER_NM } from '../../core/units.js';
 
 /** The steps between rings, in NM: the first that keeps the rings a fair way apart on screen is used. */
 export const RING_STEPS_NM = Object.freeze([1, 2, 5, 10, 20, 50, 100, 200, 500]);

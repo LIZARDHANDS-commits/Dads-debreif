@@ -252,18 +252,19 @@ function drawNmRings(ctx, map, lead) {
   const { width, height } = map.size;
   const reachPx = Math.max(Math.hypot(cx, cy), Math.hypot(width - cx, cy), Math.hypot(cx, height - cy), Math.hypot(width - cx, height - cy));
   const scale = map.view.scale;
+  const rings = ringsNm({ pxPerFt: scale, reachFt: reachPx / scale });
   ctx.save();
   ctx.strokeStyle = RING_STROKE;
   ctx.lineWidth = 1;
   ctx.setLineDash([2, 5]);
-  for (const nm of ringsNm({ pxPerFt: scale, reachFt: reachPx / scale })) {
+  for (const nm of rings) {
     const r = nm * FT_PER_NM * scale;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.restore();
-  for (const nm of ringsNm({ pxPerFt: scale, reachFt: reachPx / scale })) {
+  for (const nm of rings) {
     text(ctx, `${nm} NM`, cx + 4, cy - nm * FT_PER_NM * scale - 3, RING_LABEL, 10);
   }
 }

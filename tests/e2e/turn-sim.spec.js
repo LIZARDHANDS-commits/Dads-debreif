@@ -508,7 +508,6 @@ test('the layers: V6\'s stay on, clock marks, breadcrumbs, NM distances and NM r
     await page.getByLabel(label).uncheck();
     await expect.poll(() => picture(page), { message: `${label} off puts it back` }).toBe(off);
   }
-  await page.getByLabel('NM rings').check();
 });
 
 test('space plays and pauses, the right arrow steps once, Home resets, and typing is left alone (R14)', async ({ page }) => {
