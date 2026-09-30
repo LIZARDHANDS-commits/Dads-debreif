@@ -214,6 +214,36 @@ export function offsetBoxPlan(aircraft, cfg) {
   return plan;
 }
 
+/** Who each aircraft turns with in the shackle and the cross turn: #1 with #2 and #3 with #4 (a two-ship has one pair). */
+const PARTNER_ID = { 1: 2, 2: 1, 3: 4, 4: 3 };
+
+/** The aircraft `a` flies its pair with, or null if it has none in the list. */
+export function pairPartner(aircraft, a) {
+  return aircraft.find((x) => x.id === PARTNER_ID[a.id]) || null;
+}
+
+/** The turn direction that takes `a` toward `partner` (+1 left, -1 right); `fallback` when it is dead ahead or astern. */
+export function towardDir(a, partner, fallback) {
+  const side = sideOfAircraftFrom(a, partner);
+  return side === 0 ? fallback : side > 0 ? 1 : -1;
+}
+
+/** Feet between `a` and `partner` across a's heading. */
+export function lateralGapFt(a, partner) {
+  const r = rightVector(a.headingRad);
+  return Math.abs((partner.xFt - a.xFt) * r.x + (partner.yFt - a.yFt) * r.y);
+}
+
+/**
+ * The shackle's hold between its two legs, in seconds (SMM 16.19 para 62: lead times the reversal to arrive in LAB).
+ * Each aircraft turns `legRad` toward the other, holds that heading, and turns back. Across the original heading each
+ * moves 2 R (1 - cos leg) in the two turns and v sin(leg) hold on the straight, and together they must close twice the
+ * gap: hold = (gap - 2 R (1 - cos leg)) / (v sin leg). Never below 0.
+ */
+export function shackleHoldSec(gapFt, legRad, speedFtps, radiusFt) {
+  return Math.max(0, (gapFt - 2 * radiusFt * (1 - Math.cos(legRad))) / (speedFtps * Math.sin(legRad)));
+}
+
 /**
  * The order the aircraft start their turns in, first to last (V6
  * `tacticalOrderForDelayIn`, line 1132): outside aircraft first; in the offset
@@ -305,6 +335,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     let d = 0;
     let dir = selectedDir;
     let g = goal;
+    let legs;
 
     if (clockMode) {
       // The clock cue (V6 line 1197): with Outside-in, each aircraft but the first waits for the aircraft just outside it.
@@ -332,26 +363,29 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
 
       if (man === 'shackle45') {
+        // The shackle (SMM 16.19 paras 61 and 62), flown by each pair about itself: #1 and #2, and #3 and #4.
+        // Both turn into each other together, cross, and reverse back to the original heading, timed to arrive in
+        // LAB on swapped sides. V6 (line 1219) turned each wingman by its side on V6's "right" vector, which is the
+        // map's left, so every wingman turned away from Lead. The legs are stepped in step.js.
         d = 0;
-        if (form === 'twoShip') {
-          const wing = aircraft.find((x) => x.id !== 1) || aircraft.find((x) => x.id === 2);
-          const side = wing ? sideOfLead(aircraft, wing, flight.startHeadingRad) : -1;
-          dir = a.id === 1 ? -side : side;
-        } else {
-          const side = sideOfLead(aircraft, a, flight.startHeadingRad);
-          dir = a.id === 1 || side === 0 ? selectedDir : side;
-        }
-        g = degToRad(45);
+        const partner = pairPartner(aircraft, a);
+        dir = towardDir(a, partner, selectedDir);
+        g = goal;
+        const hold = partner ? shackleHoldSec(lateralGapFt(a, partner), goal, ktToFtps(flight.speedKt), turnRadiusFt(ktToFtps(flight.speedKt), Math.max(1.01, flight.baseG))) : 0;
+        legs = [{ dir, goalRad: goal }, { dir: -dir, goalRad: goal, holdSec: hold }];
       }
 
       if (man === 'cross180') {
+        // Still V6's cross turn until its own commit: sides turn opposite ways.
         d = 0;
         dir = sideOfLead(aircraft, a, flight.startHeadingRad) < 0 ? 1 : -1;
         if (a.id === 1) dir = selectedDir;
       }
 
-      if (a.id === 1) dir = selectedDir;
-      else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
+      if (man !== 'shackle45') {
+        if (a.id === 1) dir = selectedDir;
+        else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
+      }
 
       // In the offset box's delayed turns every aircraft turns the selected way (V6 line 1241).
       if (form === 'offsetBox' && delayed) dir = offsetPlan && offsetPlan.dirs[a.id] !== undefined ? offsetPlan.dirs[a.id] : selectedDir;
@@ -365,8 +399,12 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.turnDir = dir;
     a.turnGoalRad = g;
     a.originalHeadingRad = a.headingRad;
-    a.shackleReturn = man === 'shackle45';
-    a.turnPhase = 0;
+    // A turn in several legs (the shackle): each leg its own way and angle, with a hold before it (step.js).
+    a.legs = legs;
+    a.legIndex = 0;
+    a.legAccumRad = 0;
+    a.legReadySec = 0;
+    a.finalHeadingRad = man === 'shackle45' ? a.headingRad : undefined; // the shackle rolls out exactly on its start heading
     a.active = false;
     a.done = false;
     a.turnAccumRad = 0;

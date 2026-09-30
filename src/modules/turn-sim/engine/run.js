@@ -35,7 +35,7 @@ const distanceFt = (a, b) => Math.hypot(a.xFt - b.xFt, a.yFt - b.yFt);
  * internal list; the screen reads state.turnComplete instead.
  */
 export function allAircraftFinishedTurn(aircraft) {
-  return aircraft.length > 0 && aircraft.every((a) => a.done || (a.turnAccumRad > 0 && !a.active));
+  return aircraft.length > 0 && aircraft.every((a) => a.done || (!a.legs && a.turnAccumRad > 0 && !a.active));
 }
 
 /**
@@ -77,8 +77,11 @@ function newAircraft(slot, settings) {
     turnAccumRad: 0,
     active: false,
     done: false,
-    shackleReturn: false,
-    turnPhase: 0,
+    legs: undefined,
+    legIndex: 0,
+    legAccumRad: 0,
+    legReadySec: 0,
+    finalHeadingRad: undefined,
     autoClockTargetId: null,
     cueArmed: false,
     clockCueTriggered: false,
@@ -117,6 +120,8 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  *            offsetBox: in the offset box's delayed turns, the solved delays of #3 and #4 against the SMM's band
  *            (16.41 para 112): { minSec, maxSec, rear: [{ id: 3, delaySec, outsideBand }, { id: 4, ... }] }, else null.
  *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
+ *            perElement: true in the shackle and the cross turn in a four-ship: #1 and #2, and #3 and #4, each fly the
+ *            turn about their own pair (SMM 16.19 paras 61 to 64, and para 118 for spread 4). False otherwise.
  *            rearCheck: the offset box's rear element check, { enabled, phase ('off', 'waiting', 'turningOut',
  *            'holding', 'turningBack', 'complete'), startSec, dir, angleDeg, holdSec } (rear-check.js).
  *            cue: { mode: 'off' | 'start' | 'waiting' | 'triggered', targetId, clockPos (hours, 5.5 is
@@ -145,7 +150,7 @@ export function createRun(settings) {
   let planned = false;
   let planInfo = { autoStepSec: null, rearDelaysSec: null };
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, aircraft: [] };
+  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, perElement: false, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   const finished = () => tSec >= cfg.durationSec;
@@ -162,6 +167,8 @@ export function createRun(settings) {
     state.autoStepSec = info.autoStepSec;
     state.offsetBox = offsetBoxStatus(info.rearDelaysSec, cfg.rearDelayMinSec, cfg.rearDelayMaxSec);
     state.rearCheck = rearCheckStatus(craft, rearCheck());
+    // In the shackle and the cross turn the two-ship elements of a four-ship each fly the turn about themselves.
+    state.perElement = (cfg.maneuver === 'shackle45' || cfg.maneuver === 'cross180') && formation !== 'twoShip';
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {
       const g = a.gFlown;

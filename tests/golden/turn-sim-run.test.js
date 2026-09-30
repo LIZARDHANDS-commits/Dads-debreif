@@ -10,7 +10,7 @@ import { createRun } from '../../src/modules/turn-sim/engine/run.js';
 import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
-const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90 };
+const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, cross180: 180, inplace90: 90 }; // the shackle is no longer V6's: SMM 16.19 paras 61-62
 const DIRECTIONS = ['right', 'left'];
 
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
@@ -115,17 +115,17 @@ test('4312, 2134 and two-ship × delayed 90 and 45 × right and left, at V6\'s d
   assert.equal(n, 12);
 });
 
-test('hook, in-place 90, shackle and cross turn × every preset × right and left, at V6\'s defaults', () => {
+test('hook, in-place 90 and cross turn × every preset × right and left, at V6\'s defaults', () => {
   let n = 0;
   for (const formation of ['weighted', 'weightedReverse', 'offsetBox', 'twoShip']) {
-    for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+    for (const maneuver of ['hook90', 'inplace90', 'cross180']) {
       for (const direction of DIRECTIONS) {
         compareRun(scenario({ formation, maneuver, direction }), `${formation} ${maneuver} ${direction}`, { legs: 2 });
         n++;
       }
     }
   }
-  assert.equal(n, 32);
+  assert.equal(n, 24);
 });
 
 test('time delay: a different base delay moves each start, and V6 and the port agree on the rollout', () => {
@@ -216,7 +216,7 @@ test('auto timing after D43 and D44 (step = spacing / speed x cot(half the turn)
 test('auto timing with other turns (no effect) and seeded speed, spacing, G, turn degrees and errors', () => {
   const r = seeded(0xa070);
   const pick = (list) => list[Math.floor(r() * list.length)];
-  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+  for (const maneuver of ['hook90', 'inplace90', 'cross180']) {
     compareRun(scenario({ maneuver, timing: 'auto' }), `auto ${maneuver}`);
   }
   for (let i = 0; i < 40; i++) {
@@ -256,7 +256,7 @@ test('clock cue: every clock position, the offset box, and the other turns (whic
     compareRun(scenario({ timing: 'clock', clockCuePos, direction: clockCuePos > 6 ? 'left' : 'right' }), `clock pos ${clockCuePos}`);
   }
   for (const direction of DIRECTIONS) compareRun(scenario({ timing: 'clock', formation: 'offsetBox', maneuver: 'inplace90', direction }), `clock offset box ${direction}`);
-  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) compareRun(scenario({ timing: 'clock', maneuver }), `clock ${maneuver}`);
+  for (const maneuver of ['hook90', 'inplace90', 'cross180']) compareRun(scenario({ timing: 'clock', maneuver }), `clock ${maneuver}`);
 });
 
 test('clock cue with seeded numbers, per-aircraft clock positions and targets, delay errors, and the Clock tolerance setting', () => {
@@ -385,7 +385,7 @@ test('the rear check: every direction, angle, start and hold, in the offset box 
     }
   }
   // In-place, hook, shackle and cross turns: #3 and #4 are taken over by the check too.
-  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+  for (const maneuver of ['hook90', 'inplace90', 'cross180']) {
     for (const rearCheckStartSec of [0, 40]) compareRun(scenario({ formation: 'offsetBox', maneuver, rearCheckOn: true, rearCheckStartSec }), `check ${maneuver} ${rearCheckStartSec}`, { legs: 2 });
   }
   // Only the offset box has the check.
@@ -411,7 +411,7 @@ test('D48: #2 on Lead\'s right flies as V6 flies the mirror layout, 4312 and 213
       }
     }
   }
-  assert.equal(n, 24);
+  assert.equal(n, 20);
 });
 
 test('V6 itself: the rear check runs in leg 1 and never again in leg 2 (it clears the check only on Reset)', () => {

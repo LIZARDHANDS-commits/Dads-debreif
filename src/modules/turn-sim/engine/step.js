@@ -44,6 +44,34 @@ function mayTurn(a, aircraft, tSec, flight) {
 }
 
 /**
+ * One step of a turn in several legs (the shackle): turn the current leg's way toward its angle; when it is done, wait its
+ * successor's hold (`holdSec`) and start the next leg; after the last leg the aircraft is done, and on its
+ * `finalHeadingRad` if it has one. Between legs the aircraft flies straight and is not turning.
+ */
+function stepLegs(a, omega, stepSec, tSec) {
+  const leg = a.legs[a.legIndex];
+  a.turnDir = leg.dir;
+  if (tSec < a.legReadySec) {
+    a.active = false;
+    return;
+  }
+  a.active = true;
+  const dth = Math.min(omega * stepSec, leg.goalRad - a.legAccumRad);
+  a.headingRad += leg.dir * dth;
+  a.legAccumRad += dth;
+  if (a.legAccumRad < leg.goalRad - GOAL_TOLERANCE_RAD) return;
+  a.active = false;
+  if (a.legIndex === a.legs.length - 1) {
+    if (typeof a.finalHeadingRad === 'number') a.headingRad = a.finalHeadingRad;
+    a.done = true;
+    return;
+  }
+  a.legIndex++;
+  a.legAccumRad = 0;
+  a.legReadySec = tSec + stepSec + (a.legs[a.legIndex].holdSec || 0);
+}
+
+/**
  * Moves every aircraft one step (V6 `moveAircraftList`, line 1579). Per aircraft:
  * turn toward its goal at the rate its speed and G give, if its start time has
  * come; the shackle's first leg hands over to the reverse leg; then fly straight
@@ -52,7 +80,7 @@ function mayTurn(a, aircraft, tSec, flight) {
  *
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
- *   active, done, shackleReturn, turnPhase, originalHeadingRad.
+ *   active, done, and for a turn in several legs legs, legIndex, legAccumRad, legReadySec, finalHeadingRad.
  * flight: { rearCheck (rear-check.js rearCheckConfig), tSec, spacingFt, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
@@ -86,22 +114,14 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     // The rear element check (V6 line 1583) takes #3 and #4 over from the planned turn while it runs.
     const rearCheckOverride = !!flight.rearCheck && stepRearCheckTurn(a, omega, stepSec, flight.tSec, flight.rearCheck, turnsDone);
     if (!rearCheckOverride && mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
-      // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
-      a.active = true;
-      const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);
-      const dth = Math.min(omega * stepSec, goal - a.turnAccumRad);
-      a.headingRad += (a.turnDir || 1) * dth;
-      a.turnAccumRad += dth;
-      if (a.turnAccumRad >= goal - GOAL_TOLERANCE_RAD) {
-        // The shackle has two legs: 45° in, then the same 45° back to the original heading.
-        if (a.shackleReturn && a.turnPhase === 0) {
-          a.turnPhase = 1;
-          a.turnAccumRad = 0;
-          a.turnDir = -(a.turnDir || 1);
-          a.done = false;
-          a.active = false;
-        } else {
-          if (a.shackleReturn && typeof a.originalHeadingRad === 'number') a.headingRad = a.originalHeadingRad;
+      if (a.legs) stepLegs(a, omega, stepSec, flight.tSec);
+      else {
+        a.active = true;
+        const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);
+        const dth = Math.min(omega * stepSec, goal - a.turnAccumRad);
+        a.headingRad += (a.turnDir || 1) * dth;
+        a.turnAccumRad += dth;
+        if (a.turnAccumRad >= goal - GOAL_TOLERANCE_RAD) {
           a.done = true;
           a.active = false;
         }
