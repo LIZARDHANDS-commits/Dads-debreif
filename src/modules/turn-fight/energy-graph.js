@@ -33,8 +33,10 @@ export async function loadUplot() {
 
 /**
  * The graph's data as uPlot wants it: [times (s), Blue's altitude, Red's altitude, the hard deck], each an array as long
- * as the times. From the trails (a point every 0.1 s), and the fight's own present moment last so the lines end at the
- * aircraft. Never empty: a new run has its T+0 point.
+ * as the times. From the trails (a point every 0.1 s), and the fight's own present moment so the lines end at the
+ * aircraft. Never empty: a new run has its T+0 point. While the fight is younger than MIN_TIME_SPAN_SEC one more point,
+ * for the deck only (the aircraft's are null there), stretches the dashed deck line across the whole time axis, so it
+ * shows from the first moment.
  */
 export function altitudeData(run) {
   const { fight, trails } = run;
@@ -52,6 +54,11 @@ export function altitudeData(run) {
     blue.push(fight.blue.altFt);
     red.push(fight.red.altFt);
   }
+  if (times[times.length - 1] < MIN_TIME_SPAN_SEC) {
+    times.push(MIN_TIME_SPAN_SEC);
+    blue.push(null);
+    red.push(null);
+  }
   return [times, blue, red, times.map(() => fight.setup.hardDeckFt)];
 }
 
@@ -65,6 +72,19 @@ export function heightRange(min, max) {
 /** The time axis range: from 0 to the fight so far, at least MIN_TIME_SPAN_SEC. */
 export function timeRange(max) {
   return [0, Math.max(MIN_TIME_SPAN_SEC, Number.isFinite(max) ? max : 0)];
+}
+
+/** The steps between the altitude axis's labelled ticks, in feet, from a level fight's 100 to a climb through 25,000. */
+export const HEIGHT_TICK_STEPS_FT = Object.freeze([100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000]);
+
+/** A dot at each aircraft's point while it has only one (the first moment, T+0), and none once there is a line. */
+function startDot(color) {
+  return {
+    show: (u, seriesIndex) => u.data[seriesIndex].filter((value) => value !== null && value !== undefined).length < 2,
+    size: 7,
+    fill: color,
+    stroke: color,
+  };
 }
 
 /** uPlot's options for a box of `size` pixels; `colors` are the text and grid colours read from the page. */
@@ -93,12 +113,15 @@ export function graphOptions(size, colors = FALLBACK) {
     },
     axes: [
       axis('Time (s)', (u, ticks) => ticks.map((t) => String(t))),
-      axis('Altitude (ft)', (u, ticks) => ticks.map((t) => Math.round(t).toLocaleString('en-US')), { size: 56 }),
+      // A tick every 24 px or so, at round numbers, so a short box still has several labels (a level fight, 500 ft of range, is 100 ft apart).
+      axis('Altitude (ft)', (u, ticks) => ticks.map((t) => Math.round(t).toLocaleString('en-US')), { size: 56, space: 24, incrs: HEIGHT_TICK_STEPS_FT }),
     ],
     series: [
       {},
-      { label: 'Blue', stroke: COLORS.blue, width: 2, points: { show: false } },
-      { label: 'Red', stroke: COLORS.red, width: 2, points: { show: false } },
+      // Blue is drawn wider and under Red, so where the two fly together Blue's outline shows round Red's line, and each
+      // shows a dot while it has a single point (T+0).
+      { label: 'Blue', stroke: COLORS.blue, width: 4, points: startDot(COLORS.blue) },
+      { label: 'Red', stroke: COLORS.red, width: 2, points: startDot(COLORS.red) },
       { label: 'Hard deck', stroke: DECK_COLOR, width: 1, dash: [6, 4], points: { show: false } },
     ],
   };

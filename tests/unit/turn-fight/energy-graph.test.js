@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEnergyRun, advanceRun } from '../../../src/modules/turn-fight/playback.js';
 import {
-  altitudeData, heightRange, timeRange, graphOptions, createAltitudeGraph, MIN_TIME_SPAN_SEC, HEIGHT_MARGIN_FT, UPLOT_STYLESHEET,
+  altitudeData, heightRange, timeRange, graphOptions, createAltitudeGraph, MIN_TIME_SPAN_SEC, HEIGHT_MARGIN_FT, HEIGHT_TICK_STEPS_FT, UPLOT_STYLESHEET,
 } from '../../../src/modules/turn-fight/energy-graph.js';
 import { COLORS } from '../../../src/modules/turn-fight/view.js';
 
@@ -26,16 +26,28 @@ test('the data is time, Blue\'s altitude, Red\'s altitude and the hard deck, eac
   assert.equal(blue[0], 10000);
   assert.ok(deck.every((d) => d === 7000));
   assert.ok(time.every((t, i) => i === 0 || t > time[i - 1]), 'time only goes forward');
-  // The lines end at the aircraft now, not at the last 0.1 s point.
-  assert.ok(Math.abs(time.at(-1) - run.fight.timeSec) < 1e-9);
-  assert.equal(blue.at(-1), run.fight.blue.altFt);
-  assert.equal(red.at(-1), run.fight.red.altFt);
+  // The lines end at the aircraft now, not at the last 0.1 s point; the point after it (under 30 s) is the deck's alone.
+  const last = time.length - 2;
+  assert.ok(Math.abs(time[last] - run.fight.timeSec) < 1e-9);
+  assert.equal(blue[last], run.fight.blue.altFt);
+  assert.equal(red[last], run.fight.red.altFt);
+  assert.deepEqual([time.at(-1), blue.at(-1), red.at(-1), deck.at(-1)], [MIN_TIME_SPAN_SEC, null, null, 7000]);
 });
 
-test('a new run has its T+0 point, so the graph is never empty', () => {
-  const [time, blue] = altitudeData(createEnergyRun({}));
-  assert.deepEqual(time, [0]);
-  assert.deepEqual(blue, [10000]);
+test('a new run has its T+0 point, and the deck line runs across the time axis from the start, so the graph is never empty', () => {
+  const [time, blue, red, deck] = altitudeData(createEnergyRun({}));
+  assert.deepEqual(time, [0, MIN_TIME_SPAN_SEC]);
+  assert.deepEqual(blue, [10000, null]);
+  assert.deepEqual(red, [10000, null]);
+  assert.deepEqual(deck, [6000, 6000]);
+});
+
+test('after 30 s the deck-only point is gone: the data ends at the aircraft', () => {
+  const run = play(createEnergyRun({}), 35);
+  const [time, blue, , deck] = altitudeData(run);
+  assert.ok(Math.abs(time.at(-1) - run.fight.timeSec) < 1e-9);
+  assert.equal(blue.at(-1), run.fight.blue.altFt);
+  assert.equal(deck.at(-1), 6000);
 });
 
 test('the axes: time from 0 and at least 30 s wide; height a little under and over the lines, never below 0', () => {
@@ -63,6 +75,18 @@ test('the options: the fight\'s colours, the deck dashed, no legend, no cursor, 
   assert.deepEqual(o.scales.x.range(null, 0, 12), [0, 30]);
   assert.deepEqual(o.scales.y.range(null, 6000, 10000), [5500, 10500]);
   assert.deepEqual(o.axes[1].values(null, [6000, 10000]), ['6,000', '10,000']);
+  // The height axis has room for several labelled ticks in a short box (one every 24 px, at round steps), not one or two.
+  assert.equal(o.axes[1].space, 24);
+  assert.deepEqual(o.axes[1].incrs, [...HEIGHT_TICK_STEPS_FT]);
+  assert.ok(o.axes[1].incrs.includes(500) && o.axes[1].incrs.includes(1000) && o.axes[1].incrs.includes(2000));
+  // Each aircraft shows a dot while it has one point (T+0), and none once it has a line; Blue is drawn wider so Red does not hide it.
+  const dot = (series, values) => o.series[series].points.show({ data: [null, values, values] }, series);
+  assert.equal(dot(1, [10000, null]), true);
+  assert.equal(dot(2, [10000, null]), true);
+  assert.equal(dot(1, [10000, 10010, null]), false);
+  assert.equal(o.series[2].points.show({ data: [[], [1, 2], [null, null]] }, 2), true, 'no point at all is no line either');
+  assert.ok(o.series[1].width > o.series[2].width);
+  assert.equal(o.series[3].points.show, false);
   assert.equal(o.axes[0].stroke, '#9bb8c6');
   assert.equal(graphOptions({ width: 1, height: 1 }, { text: '#123456', grid: '#654321' }).axes[0].stroke, '#123456');
 });
@@ -130,7 +154,7 @@ test('start loads uPlot once, draws the run into the host with the page\'s own c
   assert.deepEqual([calls.made[0].options.width, calls.made[0].options.height], [640, 140]);
   assert.equal(calls.made[0].options.axes[0].stroke, '#aaaaaa', 'the text colour is the page\'s --text-muted');
   assert.equal(calls.made[0].options.axes[0].grid.stroke, '#222222');
-  assert.deepEqual(calls.made[0].data[0], [0]);
+  assert.deepEqual(calls.made[0].data[0], [0, MIN_TIME_SPAN_SEC]);
   assert.equal(host.head.children.length, 1);
   assert.equal(host.head.children[0].href, UPLOT_STYLESHEET);
   assert.equal(host.head.children[0].rel, 'stylesheet');
@@ -151,7 +175,7 @@ test('update puts the run\'s newest numbers in; before it starts, or after it st
   play(run, 5);
   graph.update();
   assert.equal(calls.setData, 1);
-  assert.ok(Math.abs(calls.lastData[0].at(-1) - 5) < 0.03, 'the chart now holds T+5');
+  assert.ok(Math.abs(calls.lastData[0].at(-2) - 5) < 0.03, 'the chart now holds T+5 (its last aircraft point; the deck runs on to 30 s)');
   assert.equal(host.dataset.draws, '2');
   graph.stop();
   graph.update();
