@@ -1,5 +1,5 @@
 // R2: from 1280 wide (the smallest supported width, D183) up to 1920 × 1080, nothing is cut off and no control covers another.
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { ROUTES, openRoute } from './routes.js';
 
 const SIZES = [
@@ -90,4 +90,24 @@ test('openRoute waits for a module stylesheet that is slow to arrive', async ({ 
   const unloaded = await page.evaluate(() => [...document.querySelectorAll('link[rel="stylesheet"]')].filter((l) => !l.sheet).length);
   expect(unloaded).toBe(0);
   expect(await layoutProblems(page)).toEqual([]);
+});
+
+test.describe('narrow-window note (D225)', () => {
+  const note = (page) => page.locator('#narrow-note');
+
+  test('shows one quiet line below 1180 px and blocks nothing', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await openRoute(page, '#/');
+    await expect(note(page)).toBeVisible();
+    await expect(note(page)).toHaveText(/laid out for screens 1280 px or wider/);
+    await expectNoA11yViolations(page);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+  });
+
+  test('is hidden at 1180 px and wider', async ({ page }) => {
+    await page.setViewportSize({ width: 1180, height: 800 });
+    await openRoute(page, '#/');
+    await expect(note(page)).toBeHidden();
+  });
 });
