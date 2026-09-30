@@ -101,7 +101,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Dependencies: 15. Size M.
   - Files: src/modules/traffic/{route,sim,types,editor,map2d}.js, tests/unit/traffic/pfl.test.js
 - [ ] **17. Simulated engine-outs.** Engine out on an aircraft row and as a plan step; the zoom (`core`'s `zoomT6A`) easing into the 125 KIAS glide; the glide by configuration and prop (`core`'s `T6A_GLIDE` and `glideSinkFpm`: feathered 2 NM per 1,000 ft, windmilling 1 NM) with wind; picking the reachable key and joining at a tangent; no zoom in the final turn or on a straight-in final; "can't make the runway: eject".
-  - Acceptance: from 220 KIAS at 3,500 ft the aircraft climbs by what `zoomT6A` gives (about 1,100 ft); an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
+  - Acceptance: from 220 KIAS at 3,500 ft the aircraft climbs by what `zoomT6A` gives (about 960 ft at 5,800 lb, NFM Fig 3-4); an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
   - Verify: `npm test`; e2e: engine out on downwind, watch it land.
   - Dependencies: 16, and `core`'s T-6A performance model (core tasks 14 to 17). Size M.
   - Files: src/modules/traffic/{sim,aircraft,readouts}.js, tests/unit/traffic/engine-out.test.js
@@ -138,7 +138,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Dependencies: 19. Size M.
   - Files: src/modules/traffic/{conflict-setup,aircraft}.js, tests/unit/traffic/conflict-setup.test.js
 - [ ] **23. Engine-out check and reach.** The what-if from a row or a typed energy state (zoom, optional airstart attempt costing about 1,200 ft, 30° turn, glide by configuration and prop in wind, tangent join), the per-key heights and margins and the verdict, drawn on the map; the Engine-out reach layer (green, yellow, red dashed with text) every 500 ft along each route.
-  - Acceptance: the check agrees with flying the Engine out command from the same state to within 20 ft at each key; the downwind example gives about 4,600 ft after the zoom at T10's defaults; the layer redraws when the wind or type changes.
+  - Acceptance: the check agrees with flying the Engine out command from the same state to within 20 ft at each key; the downwind example gives about 4,460 ft after the zoom (`zoomT6A`, 5,800 lb); the layer redraws when the wind or type changes.
   - Verify: `npm test`; accessibility checklist for the layer.
   - Dependencies: 17. Size M.
   - Files: src/modules/traffic/{glide,map2d,aircraft,readouts}.js, tests/unit/traffic/glide.test.js

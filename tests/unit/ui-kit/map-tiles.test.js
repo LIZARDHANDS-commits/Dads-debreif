@@ -19,6 +19,29 @@ test('the tiles for a view use V6\'s zoom and cover its corners', () => {
   assert.deepEqual(tilesFor({ north: 60, south: 40, west: -120, east: -90 }, 5), []); // far too many: none
 });
 
+test('a source with maxZoom caps the zoom, so coarse sources (GOES) still cover a close view', () => {
+  const pxPerFt = 0.5; // close in: V6's zoom is well past 7
+  const z = pickTileZoom((CYMJ.north + CYMJ.south) / 2, pxPerFt);
+  assert.ok(z > 7);
+  const tiles = tilesFor(CYMJ, pxPerFt, 7);
+  assert.ok(tiles.length > 0 && tiles.every((t) => t.z === 7));
+  assert.ok(Math.max(...tiles.map((t) => t.bounds.north)) >= CYMJ.north);
+  assert.ok(Math.min(...tiles.map((t) => t.bounds.west)) <= CYMJ.west);
+  // Below the cap, and with no cap, nothing changes.
+  assert.deepEqual(tilesFor(CYMJ, 0.01, 20), tilesFor(CYMJ, 0.01));
+  assert.deepEqual(tilesFor(CYMJ, pxPerFt, undefined), tilesFor(CYMJ, pxPerFt));
+});
+
+test('the layer asks for tiles at its source\'s maxZoom', () => {
+  const asked = [];
+  const source = { maxZoom: 6, url: (z, x, y) => { asked.push(z); return `t/${z}/${x}/${y}`; } };
+  const layer = createTileLayer({ source, timers: { after: () => () => {} }, onChange: () => {}, makeImage: () => ({}) });
+  const ctx = { drawImage() {} };
+  layer.draw(ctx, { corners: CYMJ, pxPerFt: 0.5, toScreen: () => [0, 0] });
+  assert.ok(asked.length > 0 && asked.every((z) => z === 6));
+  layer.dispose();
+});
+
 test('the address is Esri\'s, built from numbers only', () => {
   assert.equal(ESRI_IMAGERY.url(12, 845, 1373), 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1373/845');
 });

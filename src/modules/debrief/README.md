@@ -26,7 +26,9 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `weather/metar.js` | The METAR line: the IEM archive address, reading its reply, and the decoded line at a moment (decoding is `src/wx`'s `parseMetar`). No page access. |
 | `weather/metar-feed.js` | Fetches each airfield's METARs for the loaded flight once, only while the METAR item is on, and stops when the flight or the debrief closes. |
 | `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
-| `view3d/view.js` | Draws the 3D view on its canvas and turns and zooms it with the mouse and keys. |
+| `view3d/view.js` | Draws the 3D view's picture on its canvas: ground, trails, sticks and aircraft. |
+| `view3d/overlay.js` | What's drawn flat over the 3D picture, placed with `projectPoint`: altitude ruler, ship labels and markers, stick heights, compass, caption, tennis ball. Any renderer whose camera matches `projectPoint` can use it. |
+| `view3d/input.js` | Turning the 3D view by hand: drag to orbit, the wheel or + and − to zoom. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
 | `standards-panel.js` | The Standards panel (closed at first): edits `app.standards`, the one copy the Turn Sim reads too. |
