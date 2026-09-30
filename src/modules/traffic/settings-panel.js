@@ -5,17 +5,16 @@
 // final spacing and the chance of missing traffic), Rules, Route options and
 // Photo. Its Reset to defaults puts every one back to defaults.js.
 //
-//   const panel = createSettingsPanel({ values, onChange, onToggle, available });
+//   const panel = createSettingsPanel({ controls, settings, onToggle, available, photoHome });
 //   panel.element        put it in the layout's settings slot
-//   panel.set(values)    show new values (a profile loaded); it doesn't call onChange
-//   onChange(patch, all) called with just the settings that changed, and every value
+//   controls, settings   the same ui-kit controls and settings the playback bar uses, so a box
+//                        writes straight into the module's settings and follows them when they
+//                        change from elsewhere (a profile loaded); this file keeps no copy
 //   onToggle(collapsed)  called when the person opens or closes the menu
 //
-// `values` may be partial: anything left out starts at its default. A section
-// whose feature isn't on the screen yet is left out, so no box sits there doing
+// A section whose feature isn't on the screen yet is left out, so no box sits there doing
 // nothing (R3): available = { rules, photo }, each true once it is.
 import { h } from '../../ui-kit/dom.js';
-import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { DEFAULTS, LIMITS } from './defaults.js';
 
@@ -46,35 +45,6 @@ const defaultsFor = (keys) => Object.fromEntries(keys.map((key) => [key, DEFAULT
 const HOME_KEYS = ['photoTrim', 'photoEastFt', 'photoNorthFt'];
 const pickHome = (home) => Object.fromEntries(HOME_KEYS.map((key) => [key, home?.[key] ?? DEFAULTS[key]]));
 
-// Only the settings this menu edits.
-const pick = (values) => Object.fromEntries(PANEL_KEYS.filter((key) => values?.[key] !== undefined).map((key) => [key, values[key]]));
-
-// The store the ui-kit controls bind to: the menu's own values. A box changed by the user
-// goes to onChange; replace() shows new values without calling it.
-function createLocalSettings(initial, onChange) {
-  let current = { ...initial };
-  const listeners = new Set();
-  const notify = () => listeners.forEach((fn) => fn(current));
-  return {
-    get: () => current,
-    update(patch) {
-      const changed = Object.fromEntries(Object.entries(patch).filter(([key, value]) => current[key] !== value));
-      if (!Object.keys(changed).length) return;
-      current = { ...current, ...changed };
-      notify();
-      onChange?.(changed, current);
-    },
-    replace(values) {
-      current = { ...current, ...values };
-      notify();
-    },
-    subscribe(fn) {
-      listeners.add(fn);
-      return () => listeners.delete(fn);
-    },
-  };
-}
-
 // Puts a one-line hint with a control and ties it to the control's input, so a screen reader reads it too.
 // The hint shows on screen only while the pointer is over the control or it has focus (traffic.css).
 function withHint(control, text) {
@@ -85,16 +55,14 @@ function withHint(control, text) {
 }
 
 /**
- * values: the current settings (partial is fine). onChange(patch, values): a box was changed.
+ * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
  * onToggle(collapsed): the menu was opened or closed by the person.
- * available: { rules, photo }. photoHome: the alignment "Reset photo alignment" goes back to
- * ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
- * Returns { element, set(values), collapsed, setCollapsed(bool) }.
+ * available: { rules, photo }. photoHome: the alignment "Reset photo alignment" and Reset to
+ * defaults go back to ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
+ * Returns { element, collapsed, setCollapsed(bool), dispose() }.
  */
-export function createSettingsPanel({ values = {}, onChange, onToggle, available = {}, photoHome = defaultsFor(HOME_KEYS) } = {}) {
-  const store = createLocalSettings({ ...defaultsFor(PANEL_KEYS), ...pick(values) }, onChange);
-  const controls = createControls(store);
-  const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => store.update({ ...defaultsFor(PANEL_KEYS), ...pickHome(photoHome) }) });
+export function createSettingsPanel({ controls, settings, onToggle, available = {}, photoHome = defaultsFor(HOME_KEYS) }) {
+  const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => settings.update({ ...defaultsFor(PANEL_KEYS), ...pickHome(photoHome) }) });
   const feet = (key, label, step = 50) => controls.number(key, { label, unit: 'ft', min: LIMITS[key][0], max: LIMITS[key][1], step });
 
   const limits = menu.section('Conflict limits');
@@ -123,7 +91,7 @@ export function createSettingsPanel({ values = {}, onChange, onToggle, available
   );
 
   if (available.photo) {
-    const home = () => store.update(pickHome(photoHome));
+    const home = () => settings.update(pickHome(photoHome));
     menu.section('Photo').append(
       controls.number('photoOpacityPct', { label: 'Photo opacity', unit: '%', min: LIMITS.photoOpacityPct[0], max: LIMITS.photoOpacityPct[1], step: 5 }),
       controls.checkbox('photoAboveGrid', { label: 'Draw the photo above the grid' }),
@@ -139,15 +107,15 @@ export function createSettingsPanel({ values = {}, onChange, onToggle, available
     controls.setDisabled('radiusFromG', !now.roundedTurns);
     controls.setDisabled('manualRadiusFt', !now.roundedTurns || now.radiusFromG);
   };
-  store.subscribe(greyOut);
-  greyOut(store.get());
+  const stopGreying = settings.subscribe(greyOut);
+  greyOut(settings.get());
 
   return {
     element: menu.element,
-    set: (next) => store.replace(pick(next)),
     get collapsed() {
       return menu.collapsed;
     },
     setCollapsed: menu.setCollapsed,
+    dispose: stopGreying,
   };
 }

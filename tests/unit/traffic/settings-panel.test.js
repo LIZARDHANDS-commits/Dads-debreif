@@ -6,6 +6,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDocument } from '../ui-kit/fake-dom.js';
+import { createSettings } from '../../../src/storage/settings.js';
+import { createControls } from '../../../src/ui-kit/controls.js';
 import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
 import { PANEL_KEYS, RULES, TITLE, createSettingsPanel } from '../../../src/modules/traffic/settings-panel.js';
 
@@ -62,10 +64,21 @@ const messageFor = (input) => {
   return all(input.parentNode, (n) => n.getAttribute?.('id') === id)[0].textContent;
 };
 
-function setup(options = {}) {
+// The panel on the real ui-kit controls and settings, kept in memory. `changes` lists each change the
+// settings reported: just what moved, and every value. `start` is applied before the panel is built.
+function setup({ start, ...options } = {}) {
+  const kept = new Map();
+  const memory = { get: (key, fallback) => (kept.has(key) ? kept.get(key) : fallback), set: (key, value) => kept.set(key, value) };
+  const settings = createSettings(memory, DEFAULTS);
+  if (start) settings.update(start);
   const changes = [];
-  const panel = createSettingsPanel({ values: DEFAULTS, onChange: (patch, values) => changes.push({ patch, values }), ...options });
-  return { panel, changes };
+  let before = settings.get();
+  settings.subscribe((values) => {
+    changes.push({ patch: Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== before[key])), values });
+    before = values;
+  });
+  const panel = createSettingsPanel({ controls: createControls(settings), settings, ...options });
+  return { panel, changes, settings };
 }
 
 test('the panel edits only settings that have a default', () => {
@@ -186,10 +199,8 @@ test('every box starts at its default, as the spec\'s table says', () => {
   for (const label of ['Fly rounded turns', 'Turn radius from speed and G', 'Draw the photo above the grid']) assert.equal(box(panel, label).checked, true, label);
 });
 
-test('a panel given nothing starts at the defaults, and the values it is given win; settings it doesn\'t edit are ignored', () => {
-  const bare = createSettingsPanel({});
-  assert.equal(box(bare, 'Conflict: lateral').value, '200');
-  const partial = createSettingsPanel({ values: { conflictLatFt: 350, windKt: 30, roundedTurns: false } });
+test('the boxes start at the settings\' values, so a saved or loaded setting shows', () => {
+  const partial = setup({ start: { conflictLatFt: 350, windKt: 30, roundedTurns: false } }).panel;
   assert.equal(box(partial, 'Conflict: lateral').value, '350');
   assert.equal(box(partial, 'Caution: lateral').value, '500');
   assert.equal(box(partial, 'Fly rounded turns').checked, false);
@@ -260,20 +271,21 @@ test('a value that is set to what it already is is not a change', () => {
   assert.equal(changes.length, 0);
 });
 
-test('set() shows new values in the boxes without calling onChange, and leaves the rest alone', () => {
-  const { panel, changes } = setup({ available: { rules: true } });
-  panel.set({ conflictLatFt: 1500, ruleFlyThrough: false, windKt: 12 });
+test('the boxes follow the settings when they change from elsewhere, and a box writes straight into them', () => {
+  const { panel, changes, settings } = setup({ available: { rules: true } });
+  settings.update({ conflictLatFt: 1500, ruleFlyThrough: false, windKt: 12 });
   assert.equal(box(panel, 'Conflict: lateral').value, '1500');
   assert.equal(box(panel, RULES[2].label).checked, false);
   assert.equal(box(panel, 'Caution: lateral').value, '500');
-  assert.equal(changes.length, 0);
+  changes.length = 0;
   type(box(panel, 'Conflict: vertical'), '250');
-  assert.equal(changes[0].values.conflictLatFt, 1500, 'later changes report the values that were set');
+  assert.equal(settings.get().conflictVertFt, 250, 'the module\'s own settings hold it; the panel keeps no copy');
+  assert.equal(changes[0].values.conflictLatFt, 1500);
   assert.equal(changes[0].values.ruleFlyThrough, false);
 });
 
 test('the manual radius is greyed out while the radius comes from speed and G, and everything about turns while they are not rounded', () => {
-  const { panel } = setup();
+  const { panel, settings } = setup();
   const manual = box(panel, 'Manual turn radius');
   const fromG = box(panel, 'Turn radius from speed and G');
   assert.equal(manual.disabled, true, 'radius from speed and G is on at first');
@@ -285,7 +297,7 @@ test('the manual radius is greyed out while the radius comes from speed and G, a
   tick(box(panel, 'Fly rounded turns'), true);
   assert.equal(fromG.disabled, false);
   assert.equal(manual.disabled, false, 'still off, so the manual radius is used');
-  panel.set({ radiusFromG: true });
+  settings.update({ radiusFromG: true });
   assert.equal(manual.disabled, true);
   // The greyed-out value keeps its number.
   assert.equal(manual.value, '1800');
