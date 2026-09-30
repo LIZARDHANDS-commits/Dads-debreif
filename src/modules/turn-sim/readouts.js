@@ -95,11 +95,10 @@ export function formationRows(state, settings, standards) {
 }
 
 /**
- * The stall-limit G warning, or null (D128, Patrick 06:58Z). `stallLimitG(kt)`
- * is core's T-6A limit for a speed, taken as indicated airspeed.
- * TODO(D128): core's stallLimitG isn't merged yet. Until index.js passes it in
- * this is always null and nothing warns. It's a warning only: the aircraft
- * still fly the set G.
+ * The stall-limit G warning, or null (D128, Patrick 06:58Z, the shared T-6A model). `stallLimitG(kt)`
+ * is core's stallLimitG (t6-performance.js), and the Turn Sim treats its Speed box as indicated
+ * airspeed (it has no altitude and no wind). It's a warning only: the aircraft still fly the set G,
+ * so the V6 turns stay pinned. Without a limit function there is never a warning.
  */
 export function stallWarning(g, speedKt, stallLimitG) {
   if (typeof stallLimitG !== 'function' || !Number.isFinite(g)) return null;

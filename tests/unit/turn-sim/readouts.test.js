@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
+import { stallLimitG } from '../../../src/core/t6-performance.js';
 import {
   formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, TURN_DEGREES, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
@@ -205,4 +206,21 @@ test('an aircraft exactly abreast is on spacing even when the engine leaves a ha
   const ahead = formationRows(four({ 2: { xFt: 2 } }), SETTINGS);
   assert.equal(formationLine(row(ahead, 2)).text, 'FORE  fore/aft +2 ft');
   assert.equal(signedFt(-0.4), '0 ft');
+});
+
+test('with core\'s stall limit, the G warning fires above about 6.5 G at 220 kt and not at 3 G (D128)', () => {
+  assert.ok(Math.abs(stallLimitG(220) - 6.54) < 0.01);
+  // The G box: 3 G (the default) is fine, 7 G is over the limit at this speed.
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 3 }, { stallLimitG }).gWarning, null);
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 6.5 }, { stallLimitG }).gWarning, null);
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 7 }, { stallLimitG }).gWarning, STALL_G_WARNING);
+  // Slower, the same G is over the limit: 4 G at 150 kt.
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 4, speedKt: 150 }, { stallLimitG }).gWarning, STALL_G_WARNING);
+  // A wingman's line: its own G (the set G plus its G error, as the engine reports it) over the limit.
+  const st = four({ 4: { g: 7.2 } });
+  const rows = readoutsAt(st, { ...SETTINGS, baseG: 3 }, { stallLimitG }).rows;
+  assert.equal(row(rows, 2).line.text, 'ON SPACING');
+  assert.equal(row(rows, 4).line.text, `ON SPACING ${STALL_G_WARNING}.`);
+  // Only a warning: the readouts carry the set G unchanged.
+  assert.match(readoutsAt(st, { ...SETTINGS, baseG: 7 }, { stallLimitG }).turnText, /^R /);
 });

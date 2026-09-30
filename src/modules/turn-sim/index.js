@@ -11,6 +11,7 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
+import { stallLimitG } from '../../core/t6-performance.js';
 import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION } from './settings.js';
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers, TURN_DEGREES } from './readouts.js';
@@ -27,12 +28,6 @@ const MAX_STEPS_PER_FRAME = 40;
 const READOUT_MS = 100;
 /** The trail shows this much of the run (V6 kept 800 points; here it's by time, #17). */
 const TRAIL_SEC = 60;
-
-/**
- * TODO(D128): core's stallLimitG(kt) isn't merged yet. When it is, import it and set this to it:
- * the G warning beside the G box and on a wingman's line then switches on (readouts.js stallWarning).
- */
-const STALL_LIMIT_G = null;
 
 /** The scenario isn't remembered between visits yet (profiles are a later task), so it lives in memory. */
 function memoryStore() {
@@ -133,7 +128,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    const r = readoutsAt(state(), scenario.get(), { standards: standards(), stallLimitG: STALL_LIMIT_G, distNm: layout.get().distNm });
+    const r = readoutsAt(state(), scenario.get(), { standards: standards(), stallLimitG, distNm: layout.get().distNm });
     ui.renderReadouts(r);
     ui.setGWarning(r.gWarning);
   }
@@ -192,6 +187,7 @@ function mount(root, app) {
     if (!playing) return;
     playing = false;
     ui.setPlaying(false);
+    renderReadouts(); // a readout still waiting its turn must not show a step behind the picture
   }
 
   function resetRun() {

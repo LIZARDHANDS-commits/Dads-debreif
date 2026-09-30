@@ -247,6 +247,21 @@ test('the turn changes Turn degrees to its own value, and a setting only shows w
   await expect(timing.locator('option:disabled')).toHaveCount(2);
 });
 
+test('the G box warns in words above what a T-6 can pull at this speed, and still flies it (D128)', async ({ page }) => {
+  await open(page);
+  const warning = page.locator('.ts-warning');
+  await expect(warning).toBeHidden();
+  await box(page, 'G').fill('7');
+  await expect(warning).toHaveText('More G than a T-6 can pull at this speed');
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5); // a warning only: it flies
+  await playButton(page).click();
+  await box(page, 'Speed').fill('300');
+  await expect(warning).toBeHidden(); // faster, the wing gives more
+  await box(page, 'G').fill('3');
+  await expect(warning).toBeHidden();
+});
+
 test('a two-ship has one wingman and no NaN anywhere (#17)', async ({ page }) => {
   await open(page);
   await box(page, 'Formation').selectOption({ label: 'Two-ship' });
