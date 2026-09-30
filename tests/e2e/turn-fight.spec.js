@@ -656,6 +656,27 @@ test.describe('three.js offline', () => {
   });
 });
 
+test('axe is clean with the 3D view on', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await expectNoA11yViolations(page);
+});
+
+test('with WebGL 1 only (no WebGL 2, which three.js needs), the note says so and it stays on 2D', async ({ page }) => {
+  await page.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function getContext(type, ...rest) {
+      return type === 'webgl2' ? null : real.call(this, type, ...rest);
+    };
+  });
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect(note(page)).toHaveText('3D needs WebGL, which this browser does not have.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(topdown(page)).toBeVisible();
+});
+
 test('with no WebGL, the note says so and it stays on 2D', async ({ page }) => {
   await page.addInitScript(() => {
     const real = HTMLCanvasElement.prototype.getContext;
@@ -930,9 +951,8 @@ for (const scheme of ['light', 'dark']) {
       if (climb) await page.getByLabel('Climb and dive').check();
       await ataBox(page).fill('45');
       await aaBox(page).fill('100');
-      // TODO(ui-kit): the greyed "ft" after the disabled Red height box fails axe's color-contrast (ui-kit's .control-unit
-      // colour on a disabled control, routed to the app frame). Skipped for that one element, only while it is disabled.
-      await expectNoA11yViolations(page, { exclude: climb ? [] : ['.tf-red-above .control-unit'] });
+      // The disabled Red height box is marked aria-disabled by ui-kit (#202), so its greyed "ft" is exempt.
+      await expectNoA11yViolations(page);
     });
   }
 }
