@@ -109,6 +109,7 @@ Unit (`tests/unit/shell/`, Node):
 
 - Router: every route in the table, including unknown ones.
 - Registry: ids are unique kebab-case and match the approved map; no PT-PT or Briefing Board (R19).
+- Home cards: `cardBadge` gives "Coming soon" until a module is hooked in, then "PROTOTYPE" while its registry entry has `prototype: true` (D135), then nothing; only turn-sim, turn-fight, traffic and sof carry the flag.
 - Host, with a fake module that starts frames, timers, listeners, shortcuts and a settings subscription: after unmount, all are gone and `scheduler.stats()` is zero (R4). A module whose `mount` throws leaves the host usable.
 
 Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):

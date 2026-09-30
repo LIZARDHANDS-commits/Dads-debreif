@@ -36,7 +36,7 @@ function moduleCard(entry) {
     h('span', { class: 'eyebrow' }, entry.eyebrow),
     h('span', { class: 'card-title' }, entry.title),
     h('span', { class: 'card-blurb' }, entry.blurb),
-    badge ? h('span', { class: isBuilt(entry) ? 'badge badge-prototype' : 'badge' }, badge) : null,
+    badge ? h('span', { class: badge === 'PROTOTYPE' ? 'badge badge-prototype' : 'badge' }, badge) : null,
   );
   const card = isBuilt(entry)
     ? h('a', { class: 'card', href: `#/${entry.id}`, dataset: { module: entry.id } }, media, text)
