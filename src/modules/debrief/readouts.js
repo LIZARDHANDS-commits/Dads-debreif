@@ -19,6 +19,24 @@ export const CLOSURE_LOOKBACK_S = 1;
  */
 export const AIRBORNE_IAS_KT = 80;
 
+/**
+ * Lead's speed is judged only inside the SMM's two blocks (Gen Book p.12):
+ * the Low block from 6,000 ft MSL (it runs to 10,000 ft) and the Mid block up
+ * to 15,500 ft MSL (it starts at 10,500 ft). Which of the two targets applies
+ * stays core's split (lowBlockTopFt). Outside them Lead's line says "not
+ * judged". A judgement call logged for review (verification M1).
+ */
+export const LOW_BLOCK_FLOOR_FT = 6000;
+export const MID_BLOCK_CEILING_FT = 15_500;
+
+/** Why Lead is outside the blocks at `altFt`, or null inside them (or with no altitude: core's default block applies). */
+function outsideBlocks(altFt) {
+  if (!Number.isFinite(altFt)) return null;
+  if (altFt < LOW_BLOCK_FLOOR_FT) return 'below the low block';
+  if (altFt > MID_BLOCK_CEILING_FT) return 'above the mid block';
+  return null;
+}
+
 /** Is Lead (a { spdKt, altFt } place, or null) airborne by est. IAS? No number, no verdict. */
 function leadAirborne(leadPlace) {
   const ias = leadPlace ? estIasKt(leadPlace.spdKt, leadPlace.altFt) : null;
@@ -175,13 +193,16 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
   let lead = null;
   if (live[1]) {
     const leadShip = bySlot[1];
+    // No verdict on the ground (M1a) or outside the blocks (M1b), checked before core's classifier is asked.
+    const eligible = standards && !leadShip.inGap && leadAirborne(live[1]);
+    const outside = eligible && standards.lead?.on ? outsideBlocks(leadShip.altFt) : null;
     // Lead's altitude picks the target speed by block (D115: 220 kt low, 200 kt mid).
-    const judged = standards && !leadShip.inGap && leadAirborne(live[1])
+    const judged = eligible && !outside
       ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
       : null;
     lead = {
       iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null,
-      targetKt: judged?.targetKt ?? null, block: judged?.block ?? null,
+      targetKt: judged?.targetKt ?? null, block: judged?.block ?? null, notJudged: outside,
     };
   }
 
@@ -256,6 +277,7 @@ export function leadText(lead) {
   if (lead.inGap) return { text: 'Lead: GPS gap', tone: 'none' };
   const g = Number.isFinite(lead.g) ? `${lead.g.toFixed(1)} G` : 'G --';
   const numbers = `Lead ${kt(lead.iasKt)} est. IAS, ${g}`;
+  if (lead.notJudged) return { text: `${numbers}, not judged: ${lead.notJudged}`, tone: 'none' };
   if (!lead.labels) return { text: numbers, tone: 'none' };
   // With the SMM's two blocks (D115), the target Lead is judged against, so a change at 10,250 ft isn't a surprise.
   const target = lead.block ? ` (target ${kt(lead.targetKt)}, ${lead.block} block)` : '';

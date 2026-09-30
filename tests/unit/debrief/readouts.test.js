@@ -9,7 +9,7 @@ import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
-  AIRBORNE_IAS_KT,
+  AIRBORNE_IAS_KT, LOW_BLOCK_FLOOR_FT, MID_BLOCK_CEILING_FT,
   estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
@@ -247,4 +247,45 @@ test('the example flight\'s taxi: no SLOW, no wingman labels, while Lead is unde
     assert.ok(r.formation.every((row) => row.labels.length === 0), `wingman label at +${s} s`);
   }
   assert.ok(taxiSeconds > 20, `${taxiSeconds} taxi samples`);
+});
+
+// ── M1(b): Lead is judged only inside the blocks (Gen Book p.12) ──
+
+test('the blocks: low from 6,000 ft, mid up to 15,500 ft (Gen Book p.12)', () => {
+  assert.equal(LOW_BLOCK_FLOOR_FT, 6000);
+  assert.equal(MID_BLOCK_CEILING_FT, 15_500);
+});
+
+test('Lead is judged from 6,000 ft to 15,500 ft and not outside them', () => {
+  const at = (altFt) => readoutsAt(
+    buildFlight({ 1: track('Lead', (t) => [240 * KT_TO_FTPS * t, 0], { altFt }) }), T(30), { standards: DEFAULT_STANDARDS },
+  ).lead;
+  const below = at(5999);
+  assert.equal(below.labels, null);
+  assert.equal(below.notJudged, 'below the low block');
+  assert.match(leadText(below).text, /^Lead \d+ kt est\. IAS, 1\.0 G, not judged: below the low block$/);
+  assert.equal(leadText(below).tone, 'none');
+  for (const altFt of [6000, 8000, 10_250, 15_500]) {
+    const judged = at(altFt);
+    assert.ok(Array.isArray(judged.labels), `${altFt} ft`);
+    assert.equal(judged.notJudged, null);
+  }
+  assert.equal(at(6000).block, 'low');
+  assert.equal(at(15_500).block, 'mid');
+  const above = at(15_501);
+  assert.equal(above.labels, null);
+  assert.equal(above.notJudged, 'above the mid block');
+  assert.match(leadText(above).text, /, not judged: above the mid block$/);
+  assert.doesNotMatch(leadText(above).text, /FAST|SLOW/);
+  assert.equal(at(2790).labels, null); // the example flight's 19:44 descent
+});
+
+test('V6\'s one-target standard is gated by the same blocks; a standard that is off says nothing', () => {
+  const at = (altFt, std) => readoutsAt(
+    buildFlight({ 1: track('Lead', (t) => [240 * KT_TO_FTPS * t, 0], { altFt }) }), T(30), { standards: std },
+  ).lead;
+  assert.equal(at(3000, V6_STANDARDS).notJudged, 'below the low block');
+  const off = { ...V6_STANDARDS, lead: { ...V6_STANDARDS.lead, on: false } };
+  assert.equal(at(3000, off).notJudged, null);
+  assert.doesNotMatch(leadText(at(3000, off)).text, /not judged/);
 });
