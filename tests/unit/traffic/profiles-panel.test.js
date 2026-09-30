@@ -266,3 +266,50 @@ test('every box has a label, and the notes box is capped', () => {
   }
   assert.equal(notes().getAttribute('maxlength'), '2000');
 });
+
+test('profiles that can\'t be read are counted, kept as they are, and can be removed after asking', () => {
+  const browser = fakeBrowser();
+  createStore(browser).scope('traffic').set('profiles', { version: 1, profiles: [saved('Good'), { junk: true }, { also: 'junk' }] });
+  const { el, store, confirmBox, message } = setup({ browser });
+  const box = withClass(el, 'profiles-unreadable')[0];
+  assert.equal(box.hidden, false);
+  assert.equal(words(withClass(box, 'profiles-unreadable-text')[0]), "2 saved profiles can't be read. They are kept as they are until you remove them.");
+  press(el, 'Remove unreadable');
+  assert.match(words(confirmBox()), /Remove the 2 saved profiles that can't be read\? This can't be undone\./);
+  press(confirmBox(), 'Remove');
+  assert.equal(box.hidden, true);
+  assert.equal(message(), 'Removed 2 unreadable profiles.');
+  assert.deepEqual(store.list().profiles.map((p) => p.name), ['Good']);
+  assert.equal(store.list().unreadable, 0);
+});
+
+test('one unreadable profile is said in the singular, and with none the section is hidden', () => {
+  const browser = fakeBrowser();
+  createStore(browser).scope('traffic').set('profiles', { version: 1, profiles: [{ junk: true }] });
+  const { el } = setup({ browser });
+  assert.equal(words(withClass(el, 'profiles-unreadable-text')[0]), "1 saved profile can't be read. It is kept as it is until you remove it.");
+  assert.equal(withClass(setup().el, 'profiles-unreadable')[0].hidden, true);
+});
+
+test('profiles from another version of the page are left alone: the section says so and Save says why nothing was saved', () => {
+  const browser = fakeBrowser();
+  const foreign = { version: 2, profiles: [saved('Future')] };
+  createStore(browser).scope('traffic').set('profiles', foreign);
+  const { el, nameBox, message, store } = setup({ browser });
+  assert.match(words(withClass(el, 'profiles-unreadable-text')[0]), /^The profiles saved in this browser are from a different version of this page and can't be read\./);
+  nameBox().value = 'Mine';
+  press(el, 'Save');
+  assert.match(message(), /different version of this page, so nothing was saved/);
+  assert.deepEqual(createStore(browser).scope('traffic').get('profiles'), foreign);
+  assert.equal(store.list().profiles.length, 0);
+});
+
+test('a Save that would take the stored list past its cap says so in words', () => {
+  const storage = createStore(fakeBrowser()).scope('traffic');
+  const store = createProfileStore(storage);
+  const panel = createProfilesPanel({ store, capture: (name) => ({ ...structuredClone(BUILT_IN[0].profile), name, notes: 'x'.repeat(10) }), load: () => {} });
+  store.save = () => ({ ok: false, problem: 'The saved profiles would take more than 2,000,000 characters in this browser (2,100,000). Delete a profile to make room.' });
+  tagged(panel.element, 'INPUT')[0].value = 'Big';
+  press(panel.element, 'Save');
+  assert.match(words(withClass(panel.element, 'profiles-message')[0]), /more than 2,000,000 characters/);
+});

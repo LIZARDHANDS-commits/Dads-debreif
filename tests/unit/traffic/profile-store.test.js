@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
 import { createProfileStore } from '../../../src/modules/traffic/profile-store.js';
-import { BUILT_IN, MOST_SAVED, PROFILE_VERSION } from '../../../src/modules/traffic/profile.js';
+import { BUILT_IN, MOST_CHARS, MOST_SAVED, MOST_STORED_CHARS, PROFILE_VERSION } from '../../../src/modules/traffic/profile.js';
 
 /** A browser storage stand-in; `full` refuses every write, `blocked` throws on any use. */
 function fakeBrowser({ full = false, blocked = false } = {}) {
@@ -99,7 +99,7 @@ test('what is stored is checked on the way back: bad profiles are skipped with a
   assert.match(skipped[0], /^"Bad" was skipped: it has 31 routes \(the most is 30\)\.$/);
   // Text that is not JSON at all reads as nothing, and does not throw.
   browser.items.set('ooda:v1:traffic:profiles', '{not json');
-  assert.deepEqual(open(browser).profiles.list(), { profiles: [], skipped: [] });
+  assert.deepEqual(open(browser).profiles.list(), { profiles: [], skipped: [], unreadable: 0, foreign: false });
 });
 
 test('a browser that will not store: saving works for the visit, says it was not kept, and persistent is false', () => {
@@ -117,8 +117,91 @@ test('a browser that will not store: saving works for the visit, says it was not
 
 test('no storage at all (a missing app.storage backend) does not throw', () => {
   const profiles = createProfileStore({ get: () => { throw new Error('gone'); }, set: () => { throw new Error('gone'); } });
-  assert.deepEqual(profiles.list(), { profiles: [], skipped: [] });
+  assert.deepEqual(profiles.list(), { profiles: [], skipped: [], unreadable: 0, foreign: false });
   assert.equal(profiles.save(profile()).persisted, false);
   assert.equal(profiles.lastUsed(), null);
   assert.equal(profiles.persistent, false);
+});
+
+// ── Profiles this page can't read are never lost by a Save or a Delete ───────
+
+const stored = (storage) => storage.get('profiles', null);
+
+test('Save and Delete carry the entries that were skipped through unchanged, in place', () => {
+  const { profiles, storage } = open();
+  const unreadable = { version: PROFILE_VERSION, name: 'From a newer page', routes: 'a new shape' };
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: [profile('Good'), unreadable, profile('Other')] });
+  assert.equal(profiles.list().unreadable, 1);
+  assert.equal(profiles.list().foreign, false);
+
+  assert.ok(profiles.save({ ...profile('Good'), notes: 'changed' }).ok);
+  assert.ok(profiles.save(profile('New')).ok);
+  let raw = stored(storage).profiles;
+  assert.deepEqual(raw.map((p) => p.name), ['Good', 'From a newer page', 'Other', 'New']);
+  assert.deepEqual(raw[1], unreadable, 'the skipped entry is exactly as it was');
+  assert.equal(raw[0].notes, 'changed');
+
+  assert.ok(profiles.remove('Other').ok);
+  raw = stored(storage).profiles;
+  assert.deepEqual(raw.map((p) => p.name), ['Good', 'From a newer page', 'New']);
+  assert.deepEqual(raw[1], unreadable);
+  assert.equal(profiles.list().unreadable, 1);
+});
+
+test('profiles from another version of the page are left alone: Save and Delete refuse in words and write nothing', () => {
+  const { profiles, storage } = open();
+  const foreign = { version: 2, profiles: [profile('Future one')] };
+  storage.set('profiles', foreign);
+  const listed = profiles.list();
+  assert.equal(listed.foreign, true);
+  assert.deepEqual(listed.profiles, []);
+  assert.match(listed.skipped[0], /could not be read/);
+  const saved = profiles.save(profile('Mine'));
+  assert.equal(saved.ok, false);
+  assert.match(saved.problem, /different version of this page, so nothing was saved/);
+  const removed = profiles.remove('Future one');
+  assert.equal(removed.ok, false);
+  assert.match(removed.problem, /different version of this page/);
+  assert.deepEqual(stored(storage), foreign, 'nothing was written');
+  // Text that is not a list at all is the same.
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: 'x' });
+  assert.equal(profiles.save(profile('Mine')).ok, false);
+});
+
+test('Remove unreadable drops only the entries that can\'t be read; on another version\'s list it clears the list', () => {
+  const { profiles, storage } = open();
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: [profile('Good'), { junk: true }, profile('Also good'), 5] });
+  assert.deepEqual(profiles.discardUnreadable(), { ok: true, persisted: true, removed: 2 });
+  assert.deepEqual(stored(storage).profiles.map((p) => p.name), ['Good', 'Also good']);
+  assert.equal(profiles.list().unreadable, 0);
+  assert.deepEqual(profiles.discardUnreadable(), { ok: true, persisted: true, removed: 0 });
+  storage.set('profiles', { version: 9, profiles: [profile('x')] });
+  assert.equal(profiles.discardUnreadable().ok, true);
+  assert.deepEqual(stored(storage), { version: PROFILE_VERSION, profiles: [] });
+  assert.ok(profiles.save(profile('Fresh')).ok);
+});
+
+test('the whole stored list is capped at 2,000,000 characters: a Save that would pass it is refused in words and writes nothing', () => {
+  const { profiles, storage } = open();
+  const big = (name) => {
+    const p = profile(name);
+    const pat = p.routes.find((r) => r.kind === 'pattern');
+    p.routes = Array.from({ length: 30 }, (_, i) => ({ ...structuredClone(pat), id: `R${i}`, name: `Route ${i}`, points: Array.from({ length: 100 }, (_, k) => ({ ...pat.points[k % pat.points.length], label: `Point number ${k}`, x: k * 10.123456789, y: k * 7.987654321 })) }));
+    p.aircraft = [];
+    return p;
+  };
+  const one = JSON.stringify(big('n0')).length;
+  assert.ok(one < MOST_CHARS && one > 100_000, `a big profile is ${one} characters`);
+  const fits = Math.floor((MOST_STORED_CHARS - 200) / one);
+  for (let i = 0; i < fits; i++) assert.ok(profiles.save(big(`n${i}`)).ok, `profile ${i}`);
+  const before = JSON.stringify(stored(storage));
+  const over = profiles.save(big('one too many'));
+  assert.equal(over.ok, false);
+  assert.match(over.problem, /more than 2,000,000 characters/);
+  assert.match(over.problem, /Delete a profile/);
+  assert.equal(JSON.stringify(stored(storage)), before, 'nothing was written');
+  assert.ok(JSON.stringify(stored(storage)).length <= MOST_STORED_CHARS);
+  // Replacing one with a smaller one still works, and so does Delete.
+  assert.ok(profiles.save(profile('n0')).ok);
+  assert.ok(profiles.remove('n1').ok);
 });

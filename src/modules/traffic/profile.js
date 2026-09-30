@@ -26,6 +26,8 @@ export const NAME_MAX = 40;
 export const LABEL_MAX = 40;
 export const NOTES_MAX = 2000;
 export const MOST_CHARS = 400_000;
+/** The most characters all the saved profiles may take together in this browser's storage (the app's store shares its quota with every module). */
+export const MOST_STORED_CHARS = 2_000_000;
 
 /** The fewest points a route may have, as the editor holds it to. */
 const MIN_POINTS = Object.freeze({ pattern: 3, entry: 2, split: 2 });
@@ -215,28 +217,42 @@ export function checkProfile(raw) {
 }
 
 /**
- * The saved profiles from what the store holds (`{ version, profiles: [...] }`): the ones that pass, in order,
- * and one sentence for each that was skipped. A repeated name keeps the first.
+ * What the store holds (`{ version, profiles: [...] }`), entry by entry, so a Save or Delete can carry the entries
+ * it can't read through unchanged. `state` is 'empty' (nothing stored), 'foreign' (not a list of this version: leave
+ * it alone) or 'ok'. Each entry is `{ raw, profile, skipped }`: the checked profile, or null with one sentence saying
+ * why it was skipped (null too for the entries past the most read, which are only carried). A repeated name keeps the first.
+ * @param {any} stored
+ * @returns {{ state: 'empty' | 'foreign' | 'ok', entries: { raw: any, profile: any, skipped: string | null }[] }}
+ */
+export function readEntries(stored) {
+  if (stored === null || stored === undefined) return { state: 'empty', entries: [] };
+  if (!plain(stored) || stored.version !== PROFILE_VERSION || !Array.isArray(stored.profiles)) return { state: 'foreign', entries: [] };
+  const entries = [];
+  let kept = 0;
+  stored.profiles.forEach((raw, i) => {
+    if (i >= MOST_SAVED * 2) return entries.push({ raw, profile: null, skipped: null });
+    const shown = plain(raw) && typeof raw.name === 'string' ? `"${cleanName(raw.name).slice(0, NAME_MAX)}"` : 'A profile';
+    const result = checkProfile(raw);
+    if (!result.ok) return entries.push({ raw, profile: null, skipped: `${shown} was skipped: ${result.problem}.` });
+    if (entries.some((e) => e.profile?.name === result.profile.name)) return entries.push({ raw, profile: null, skipped: `${shown} was skipped: another profile has the same name.` });
+    if (kept >= MOST_SAVED) return entries.push({ raw, profile: null, skipped: `${shown} was skipped: only ${MOST_SAVED} profiles are kept.` });
+    kept++;
+    return entries.push({ raw, profile: result.profile, skipped: null });
+  });
+  return { state: 'ok', entries };
+}
+
+/**
+ * The saved profiles from what the store holds: the ones that pass, in order, and one sentence for each that was skipped.
  * @param {any} stored
  * @returns {{ profiles: any[], skipped: string[] }}
  */
 export function readProfiles(stored) {
-  if (stored === null || stored === undefined) return { profiles: [], skipped: [] };
-  if (!plain(stored) || stored.version !== PROFILE_VERSION || !Array.isArray(stored.profiles)) {
-    return { profiles: [], skipped: ["The saved profiles in this browser could not be read, so they were skipped."] };
-  }
-  const profiles = [];
-  const skipped = [];
-  for (const raw of stored.profiles.slice(0, MOST_SAVED * 2)) {
-    const shown = plain(raw) && typeof raw.name === 'string' ? `"${cleanName(raw.name).slice(0, NAME_MAX)}"` : 'A profile';
-    const result = checkProfile(raw);
-    if (!result.ok) skipped.push(`${shown} was skipped: ${result.problem}.`);
-    else if (profiles.some((p) => p.name === result.profile.name)) skipped.push(`${shown} was skipped: another profile has the same name.`);
-    else if (profiles.length >= MOST_SAVED) skipped.push(`${shown} was skipped: only ${MOST_SAVED} profiles are kept.`);
-    else profiles.push(result.profile);
-  }
-  if (stored.profiles.length > MOST_SAVED * 2) skipped.push('More profiles were saved than this page keeps, and the rest were skipped.');
-  return { profiles, skipped };
+  const { state, entries } = readEntries(stored);
+  if (state === 'foreign') return { profiles: [], skipped: ['The saved profiles in this browser could not be read, so they were skipped.'] };
+  const skipped = entries.map((e) => e.skipped).filter((s) => s !== null);
+  if (entries.length > MOST_SAVED * 2) skipped.push('More profiles were saved than this page keeps, and the rest were skipped.');
+  return { profiles: entries.filter((e) => e.profile).map((e) => e.profile), skipped };
 }
 
 // ── Making profiles ──────────────────────────────────────────────────────────

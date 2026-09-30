@@ -44,6 +44,10 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
   const message = h('p', { class: 'profiles-message', role: 'status' });
   const kept = h('p', { class: 'profiles-note' }, NOT_KEPT);
   const skippedList = h('ul', { class: 'profiles-skipped' });
+  // What this page can't read is kept as it is, and said so; Remove unreadable clears it, after asking.
+  const unreadableText = h('span', { class: 'profiles-unreadable-text' });
+  const unreadableBox = h('div', { class: 'profiles-unreadable', hidden: true }, unreadableText, h('button', { type: 'button', class: 'button', onclick: (e) => removeUnreadable(e.currentTarget) }, 'Remove unreadable'));
+  let unreadableCount = 0;
 
   const say = (text) => {
     if (message.textContent !== text) message.textContent = text;
@@ -59,7 +63,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
   let saved = [];
 
   function fillList(select) {
-    const { profiles, skipped } = store.list();
+    const { profiles, skipped, unreadable, foreign } = store.list();
     saved = profiles;
     clear(list);
     list.appendChild(h('optgroup', { label: 'Built-in (read-only)' }, BUILT_IN.map((b) => h('option', { value: keyOf({ kind: 'built-in', id: b.id }) }, b.name))));
@@ -72,6 +76,11 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     clear(skippedList);
     for (const sentence of skipped) skippedList.appendChild(h('li', {}, sentence));
     skippedList.hidden = skipped.length === 0;
+    unreadableCount = unreadable;
+    unreadableBox.hidden = unreadable === 0 && !foreign;
+    unreadableText.textContent = foreign
+      ? "The profiles saved in this browser are from a different version of this page and can't be read. They are kept as they are until you remove them."
+      : `${unreadable} saved profile${unreadable === 1 ? '' : 's'} can't be read. ${unreadable === 1 ? 'It is' : 'They are'} kept as ${unreadable === 1 ? 'it is' : 'they are'} until you remove ${unreadable === 1 ? 'it' : 'them'}.`;
     kept.hidden = store.persistent;
     showSelection();
   }
@@ -155,13 +164,23 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     });
   }
 
+  function removeUnreadable(button) {
+    const many = unreadableCount !== 1;
+    const what = unreadableCount ? `the ${unreadableCount} saved profile${many ? 's' : ''} that can't be read` : "the saved profiles that can't be read";
+    ask(`Remove ${what}? This can't be undone.`, 'Remove', button, () => {
+      const result = store.discardUnreadable();
+      fillList();
+      say(result.removed ? `Removed ${result.removed} unreadable profile${result.removed === 1 ? '' : 's'}.` : 'Removed the profiles that could not be read.');
+    });
+  }
+
   function deleteSelected() {
     const entry = selected();
     if (entry.kind === 'built-in') return say("Built-in setups are read-only and can't be deleted.");
     ask(`Delete the saved profile "${entry.name}"? This can't be undone.`, 'Delete', deleteButton, () => {
       const result = store.remove(entry.name);
       fillList();
-      if (!result.ok) return say('That profile is not in the list any more.');
+      if (!result.ok) return say(result.problem);
       say(result.persisted ? `Deleted "${entry.name}".` : `Deleted "${entry.name}" for this visit, but ${KEPT_FOR_NOW}.`);
     });
   }
@@ -178,6 +197,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
       confirmBox,
       message,
       kept,
+      unreadableBox,
       skippedList,
       h('div', { class: 'profiles-field' }, h('label', { for: notesId }, 'Notes'), notes),
     ),
