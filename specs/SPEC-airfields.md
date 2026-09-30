@@ -114,8 +114,8 @@ airfields.home();          // { icao: 'CYMJ', name: 'Moose Jaw', lat: 50.3303, l
 airfields.alternates();    // [{ icao: 'CYQR', ... }, ...] in the user's order
 airfields.stations();      // ['CYMJ', 'CYQR', 'CYYN', 'CYXE'], for the weather sources
 airfields.checkOptions('CYXE');
-// { minima: [{ ceilingFt: 600, visSm: 2 }, { ceilingFt: 700, visSm: 1.5 }, { ceilingFt: 800, visSm: 1 }],
-//   minimaSource: 'not-set', landingMinima: null,
+// { minima: [{ ceilingFt: 600, visSm: 2 }],   // "not set": V6's 600-2 only
+//   minimaChecked: false, landingMinima: null,
 //   gnssApproach: false, homeGnssApproach: false, distanceNm: 119.x }
 // → passed straight to wx's assessAlternate(taf, window, options)
 airfields.update({ alternates: ['CYQR', 'CYXE'] });
