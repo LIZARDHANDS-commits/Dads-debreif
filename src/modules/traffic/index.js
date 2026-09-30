@@ -20,6 +20,7 @@ import { createLayout } from './layout.js';
 import { createMap2d, hintFor } from './map2d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
+import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
 
@@ -70,7 +71,7 @@ function mount(root, app) {
     listen: app.listen,
     on: {
       selectRoute,
-      newRoute: () => {},
+      newRoute: (kind) => newRoute(kind),
       toggleColumn: () => app.scheduler.after(0, () => map.requestDraw()),
     },
   });
@@ -78,6 +79,17 @@ function mount(root, app) {
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
+  // The left column: the selected route's points (the layout shows it under the routes list).
+  const nextId = createIdMaker(setup.routes);
+  const editor = createRouteEditor({
+    setup,
+    onChange: ({ structure }) => {
+      if (structure) routesChanged();
+      else changed();
+    },
+  });
+  ui.slots.pointTable.append(editor.element);
+  ui.slots.leftExtras.append(editor.message);
   const settingsPanel = createSettingsPanel({ controls, settings });
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
@@ -105,7 +117,25 @@ function mount(root, app) {
   function selectRoute(id) {
     selectedRouteId = id;
     showRoutes();
+    editor.show(id);
     map.requestDraw();
+  }
+
+  /** Routes, names, links or points were added or changed: the lists follow, and the picture. */
+  function routesChanged() {
+    showRoutes();
+    aircraftPanel.routesChanged();
+    changed();
+  }
+
+  /** + New route: makes the route, adds it, and picks it so its points show. */
+  function newRoute(kind) {
+    const made = makeRoute(kind, { routes: setup.routes, selectedId: selectedRouteId, nextId });
+    if (made.problem) return editor.say(made.problem);
+    setup.routes.push(made.route);
+    selectRoute(made.route.id);
+    editor.say(`Added ${made.route.name}.`);
+    routesChanged();
   }
 
   // ---- playback ----------------------------------------------------------------------
@@ -139,6 +169,7 @@ function mount(root, app) {
     applyToSetup(setup, values);
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
+    editor.refresh();
     changed();
   });
 
@@ -164,6 +195,7 @@ function mount(root, app) {
     stopFrames?.();
     stopSettings();
     settingsPanel.dispose();
+    editor.dispose();
     controls.dispose();
     map.dispose();
     stylesheet.remove();
