@@ -9,7 +9,7 @@ import { createSettings } from '../../../src/storage/settings.js';
 import { createControls } from '../../../src/ui-kit/controls.js';
 import { DEFAULTS } from '../../../src/modules/traffic/defaults.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
-import { SPAWN_TYPES, createAircraftPanel, defaultSpawnRouteId, detailText, engineProblem, spawnRouteId, spawnSpec } from '../../../src/modules/traffic/aircraft.js';
+import { SPAWN_TYPES, createAircraftPanel, defaultSpawnRouteId, detailText, engineProblem, pairSpec, spawnRouteId, spawnSpec } from '../../../src/modules/traffic/aircraft.js';
 
 installFakeDom();
 
@@ -65,8 +65,20 @@ test('a start point that is not a whole number from 1, past the route\'s last po
   assert.match(ask({ spawnStartPoint: 2.5 }).problem, /whole number from 1/);
   assert.match(ask({ spawnStartPoint: 5 }).problem, /Entry 1 has 4 points: choose a start point from 1 to 4/);
   assert.match(ask({ spawnDelayS: -1 }).problem, /delay/);
+  assert.match(ask({ spawnDelayS: 86401 }).problem, /from 0 to 86,400/);
+  assert.match(ask({ spawnDelayS: Infinity }).problem, /delay/);
+  assert.match(ask({ spawnDelayS: NaN }).problem, /delay/);
+  assert.equal(ask({ spawnDelayS: 86400 }).spec.delaySec, 86400);
   assert.match(spawnSpec({ ...DEFAULTS }, []).problem, /no routes/);
   assert.equal(ask({ spawnStartPoint: 4 }).spec.startPoint, 4);
+});
+
+test('the second aircraft of a pair is the same, later by the gap; a gap that makes no sense is refused in words', () => {
+  const spec = { type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 10 };
+  assert.deepEqual(pairSpec(spec, { pairGapS: 15 }), { spec: { ...spec, delaySec: 25 } });
+  assert.match(pairSpec(spec, { pairGapS: -1 }).problem, /gap between a pair/);
+  assert.match(pairSpec(spec, { pairGapS: NaN }).problem, /gap between a pair/);
+  assert.match(pairSpec(spec, { pairGapS: 86400 }).problem, /gap between a pair/); // 10 + 86,400 is past a day
 });
 
 test('engine problems are said in words, and an unknown one is not passed on', () => {
@@ -132,6 +144,14 @@ test('+ Pair adds two aircraft on the same route, 15 s apart', () => {
   assert.deepEqual([first.routeId, second.routeId], ['PAT1', 'PAT1']);
   assert.equal(second.startsAt - first.startsAt, 15);
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'Added A8 and A9.');
+});
+
+test('+ Pair with a gap that makes no sense adds neither aircraft', () => {
+  const { spawner, sim, settings } = setup();
+  settings.update({ pairGapS: -3 });
+  assert.doesNotThrow(() => buttonNamed(spawner, '+ Pair, 15 s apart').dispatch('click'));
+  assert.equal(sim.state().aircraft.length, 7);
+  assert.match(words(withClass(spawner, 'spawn-message')[0]), /gap between a pair/);
 });
 
 test('a refused spawn adds nothing, says why, and never throws', () => {

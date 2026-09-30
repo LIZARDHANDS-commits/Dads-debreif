@@ -81,6 +81,18 @@ test('changing the speed changes the steps per frame, never their size, and keep
   assert.ok(Math.abs(clock.simTime - (t + 20)) < 0.051);
 });
 
+test('a speed that is not on the bar\'s list of 0.25x to 8x is ignored', () => {
+  const clock = createClock({ sim: newSim(), speed: 2 });
+  for (const bad of [0, -1, 9, 1e9, NaN, Infinity, undefined, '4']) {
+    clock.setSpeed(bad);
+    assert.equal(clock.speed, 2);
+  }
+  clock.setSpeed(0.25);
+  assert.equal(clock.speed, 0.25);
+  clock.setSpeed(8);
+  assert.equal(clock.speed, 8);
+});
+
 test('Reset stops the run and puts every aircraft back at its start at 0', () => {
   const sim = newSim();
   const before = JSON.stringify(sim.state());

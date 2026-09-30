@@ -39,8 +39,16 @@ export function spawnSpec(values, routes) {
   const { spawnStartPoint: startPoint, spawnDelayS: delaySec } = values;
   if (!Number.isInteger(startPoint) || startPoint < 1) return { problem: 'The start point is a whole number from 1: point 1 is the first point.' };
   if (startPoint > route.points.length) return { problem: `${route.name} has ${route.points.length} points: choose a start point from 1 to ${route.points.length}.` };
-  if (!Number.isFinite(delaySec) || delaySec < 0) return { problem: 'The delay is a number of seconds from now, 0 or more.' };
+  const [, mostDelay] = LIMITS.spawnDelayS;
+  if (!Number.isFinite(delaySec) || delaySec < 0 || delaySec > mostDelay) return { problem: `The delay is a number of seconds from now, from 0 to ${feet(mostDelay)}.` };
   return { spec: { type: values.spawnType, routeId, startPoint, delaySec } };
+}
+
+/** The second aircraft of a pair: the same as the first, `pairGapS` seconds later, or { problem } when that gap doesn't make sense. */
+export function pairSpec(spec, values) {
+  const gap = values.pairGapS, [, mostDelay] = LIMITS.spawnDelayS;
+  if (!Number.isFinite(gap) || gap < 0 || spec.delaySec + gap > mostDelay) return { problem: `The gap between a pair is a number of seconds from 0 up to ${feet(mostDelay - spec.delaySec)} more than the delay.` };
+  return { spec: { ...spec, delaySec: spec.delaySec + gap } };
 }
 
 /** A problem the engine reported, in words a pilot can act on. */
@@ -83,10 +91,11 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
   function spawn(pair) {
     const asked = spawnSpec(settings.get(), setup.routes);
     if (asked.problem) return say(asked.problem);
-    const { pairGapS } = settings.get();
+    const second = pair ? pairSpec(asked.spec, settings.get()) : null;
+    if (second?.problem) return say(second.problem);
     try {
       const ids = [sim.spawn(asked.spec)];
-      if (pair) ids.push(sim.spawn({ ...asked.spec, delaySec: asked.spec.delaySec + pairGapS })); // the same route, as the spawner has it
+      if (second) ids.push(sim.spawn(second.spec)); // the same route, as the spawner has it
       say(`Added ${ids.join(' and ')}.`);
     } catch (err) {
       if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);

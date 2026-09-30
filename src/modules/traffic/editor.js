@@ -21,6 +21,12 @@ export const NEW_POINT_LABEL = 'New Point';
 /** The fewest points a route keeps: a pattern needs a loop, an entry or split needs two ends. */
 export const MIN_POINTS = Object.freeze({ pattern: 3, entry: 2, split: 2 });
 
+/** The most routes, points on a route, and characters in a name or label: nothing typed can make the screen or the sim unmanageable. */
+export const MOST_ROUTES = 30;
+export const MOST_POINTS = 100;
+export const NAME_MAX = 40;
+export const LABEL_MAX = 40;
+
 const KIND_WORD = Object.freeze({ pattern: 'Pattern', entry: 'Entry', split: 'Split' });
 const ID_PREFIX = Object.freeze({ pattern: 'PAT', entry: 'ENT', split: 'SPL' });
 
@@ -62,6 +68,7 @@ export function newRouteName(kind, routes) {
  */
 export function makeRoute(kind, { routes, selectedId = null, nextId }) {
   if (!KIND_WORD[kind]) return { problem: 'That kind of route cannot be made yet.' };
+  if (routes.length >= MOST_ROUTES) return { problem: `There are already ${MOST_ROUTES} routes, the most the sim keeps.` };
   const id = nextId(kind, routes);
   const name = newRouteName(kind, routes);
   if (kind === 'pattern') return { route: newPattern(id, name, { color: nextRouteColor(routes) }) };
@@ -75,6 +82,7 @@ export function makeRoute(kind, { routes, selectedId = null, nextId }) {
 export function checkName(routes, route, text) {
   const name = String(text).trim();
   if (!name) return { problem: 'A route needs a name.' };
+  if (name.length > NAME_MAX) return { problem: `A route name is at most ${NAME_MAX} characters.` };
   if (routes.some((r) => r !== route && r.name.toLowerCase() === name.toLowerCase())) return { problem: `Another route is already called ${name}.` };
   return { name };
 }
@@ -125,6 +133,9 @@ function linksTo(routes, route) {
 
 const average = (a, b) => (a + b) / 2;
 
+/** Says why a point cannot be added to the route, or returns '' when one can. */
+export const addPointProblem = (route) => (route.points.length >= MOST_POINTS ? `${route.name} already has ${MOST_POINTS} points, the most a route can have.` : '');
+
 /**
  * Adds a point after point `afterIndex` (V6's rule): halfway to the next point, with the average
  * height, speed and G of the two, labelled "New Point". After the last point of a pattern it goes
@@ -174,15 +185,28 @@ export function deletePoint(routes, route, index) {
 
 // ── On the page ──────────────────────────────────────────────────────────────
 
-/** A store for one point's boxes: reads and writes the point itself, so the boxes are always its values. */
+/** What each of a point's number boxes accepts, as [min, max]. */
+const POINT_LIMITS = Object.freeze({ alt: LIMITS.pointAltFt, kt: LIMITS.pointKias, g: LIMITS.pointG });
+
+/**
+ * A store for one point's boxes: reads and writes the point itself, so the boxes are always its
+ * values. A value that is not a number in the box's range is dropped here as well, so the setup
+ * never holds one whatever called this.
+ */
 function pointStore(point, changed) {
   let values = { alt: point.alt ?? 2500, kt: point.kt ?? 120, g: point.g ?? 2 };
   const listeners = new Set();
   return {
     get: () => values,
     update(patch) {
-      values = { ...values, ...patch };
-      Object.assign(point, patch);
+      const good = {};
+      for (const [key, value] of Object.entries(patch ?? {})) {
+        const [least, most] = POINT_LIMITS[key] ?? [];
+        if (typeof value === 'number' && Number.isFinite(value) && value >= least && value <= most) good[key] = value;
+      }
+      if (!Object.keys(good).length) return;
+      values = { ...values, ...good };
+      Object.assign(point, good);
       for (const fn of [...listeners]) fn(values);
       changed();
     },
@@ -213,7 +237,7 @@ export function createRouteEditor({ setup, onChange }) {
   };
 
   // ---- the name and the links ----
-  const nameInput = h('input', { type: 'text', id: 'traffic-route-name', autocomplete: 'off' });
+  const nameInput = h('input', { type: 'text', id: 'traffic-route-name', autocomplete: 'off', maxlength: NAME_MAX });
   nameInput.addEventListener('input', () => {
     if (!route) return;
     const checked = checkName(setup.routes, route, nameInput.value);
@@ -287,10 +311,10 @@ export function createRouteEditor({ setup, onChange }) {
         onChange({ structure: false });
       });
       const controls = createControls(store);
-      const label = h('input', { type: 'text', class: 'point-label', 'aria-label': `Point ${i + 1} label`, autocomplete: 'off' });
+      const label = h('input', { type: 'text', class: 'point-label', 'aria-label': `Point ${i + 1} label`, autocomplete: 'off', maxlength: LABEL_MAX });
       label.value = point.label ?? '';
       label.addEventListener('input', () => {
-        point.label = label.value;
+        point.label = label.value.slice(0, LABEL_MAX);
         onChange({ structure: false });
       });
       const data = h('p', { class: 'point-data' });
@@ -331,6 +355,8 @@ export function createRouteEditor({ setup, onChange }) {
   // ---- + Point and Delete point ----
   function addPoint() {
     if (!route) return;
+    const problem = addPointProblem(route);
+    if (problem) return say(problem);
     const at = insertPoint(setup.routes, route, selected ?? route.points.length - 1);
     selected = at;
     showPoints();

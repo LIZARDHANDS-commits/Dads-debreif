@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { installFakeDom } from './fake-dom-extras.js';
 import {
-  MIN_POINTS, NEW_POINT_LABEL, checkName, createIdMaker, createRouteEditor, deletePoint, insertPoint, joinEnds, linkFields, makeRoute, newRouteName, setLink,
+  LABEL_MAX, MIN_POINTS, MOST_POINTS, MOST_ROUTES, NAME_MAX, NEW_POINT_LABEL, addPointProblem, checkName, createIdMaker, createRouteEditor, deletePoint, insertPoint, joinEnds, linkFields, makeRoute, newRouteName, setLink,
 } from '../../../src/modules/traffic/editor.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 
@@ -74,6 +74,24 @@ test('names are trimmed, and an empty or used name is refused', () => {
   assert.match(checkName(routes, routes[0], '   ').problem, /needs a name/);
   assert.match(checkName(routes, routes[0], 'entry 1').problem, /already called entry 1/);
   assert.deepEqual(checkName(routes, routes[0], 'pattern 1'), { name: 'pattern 1' }); // a route's own name is fine
+});
+
+test('a name longer than the limit is refused in words', () => {
+  const routes = fresh().routes;
+  assert.match(checkName(routes, routes[0], 'x'.repeat(NAME_MAX + 1)).problem, /at most 40 characters/);
+  assert.equal(checkName(routes, routes[0], 'x'.repeat(NAME_MAX)).name.length, NAME_MAX);
+});
+
+test('there is a most to the routes, and a new route past it is refused in words', () => {
+  const routes = Array.from({ length: MOST_ROUTES }, (_, i) => ({ id: `PAT${i + 1}`, name: `Pattern ${i + 1}`, kind: 'pattern', points: [] }));
+  const made = makeRoute('pattern', { routes, nextId: createIdMaker(routes) });
+  assert.match(made.problem, /already 30 routes/);
+});
+
+test('there is a most to the points on a route', () => {
+  const route = newPatternOf(MOST_POINTS);
+  assert.match(addPointProblem(route), /already has 100 points/);
+  assert.equal(addPointProblem(newPatternOf(MOST_POINTS - 1)), '');
 });
 
 // ---- + Point ------------------------------------------------------------------------------
@@ -299,6 +317,36 @@ test('a height outside the range is refused and the last good value stays', () =
   type(boxFor(row, 'Alt ft'), '99999');
   assert.equal(setup.routes[0].points[2].alt, before);
   assert.match(words(withClass(row, 'control-message')[0]), /from -1,000 to 20,000/);
+});
+
+test('the point itself refuses a value that is not a number in range, even if the box let it through', () => {
+  const { editor, setup } = screen();
+  editor.show('PAT1');
+  const row = rowsOf(editor)[2];
+  const before = { ...setup.routes[0].points[2] };
+  for (const bad of ['-5', '401', '1e9', 'abc', '']) type(boxFor(row, 'KT'), bad);
+  type(boxFor(row, 'G'), '0.5');
+  type(boxFor(row, 'G'), '10');
+  assert.deepEqual(setup.routes[0].points[2], before);
+});
+
+test('a label is held to its length limit', () => {
+  const { editor, setup } = screen();
+  editor.show('PAT1');
+  const label = tagged(rowsOf(editor)[1], 'INPUT').find((i) => i.getAttribute('aria-label') === 'Point 2 label');
+  assert.equal(label.getAttribute('maxlength'), String(LABEL_MAX));
+  type(label, 'y'.repeat(LABEL_MAX + 30));
+  assert.equal(setup.routes[0].points[1].label.length, LABEL_MAX);
+});
+
+test('+ Point past the most points says so and adds nothing', () => {
+  const { editor, setup } = screen();
+  const pattern = setup.routes[0];
+  while (pattern.points.length < MOST_POINTS) pattern.points.push({ label: '', x: pattern.points.length, y: 0, alt: 2500, kt: 120, g: 2 });
+  editor.show('PAT1');
+  buttonNamed(editor.element, '+ Point').dispatch('click');
+  assert.equal(pattern.points.length, MOST_POINTS);
+  assert.match(words(editor.message), /already has 100 points/);
 });
 
 test('changing the label and the speed changes the point', () => {

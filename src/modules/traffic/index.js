@@ -21,20 +21,9 @@ import { createMap2d, hintFor } from './map2d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
 import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
+import { applyToSetup, memoryStore } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
-
-/** The settings aren't remembered between visits yet (profiles are a later task), so they live in memory. */
-function memoryStore() {
-  const docs = new Map();
-  return { get: (name, fallback) => (docs.has(name) ? docs.get(name) : fallback), set: (name, value) => docs.set(name, value) };
-}
-
-/** The settings the engine reads from the setup (V6 keeps them there), copied from the screen's settings. */
-function applyToSetup(setup, values) {
-  setup.conflictLimits = { latFt: values.conflictLatFt, vertFt: values.conflictVertFt, cautionLatFt: values.cautionLatFt, cautionVertFt: values.cautionVertFt };
-  setup.routeOptions = { flyRoundedTurns: values.flyRoundedTurns, radiusFromG: values.radiusFromG, manualRadiusFt: values.manualRadiusFt };
-}
 
 function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });

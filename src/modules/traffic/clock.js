@@ -6,6 +6,7 @@
 //
 // It knows the engine and nothing about the page: the screen calls tick() from the
 // scheduler's frame and reads the clock and the mode back.
+import { SPEEDS } from './defaults.js';
 
 /** The most sim time one frame may ask for, so a tab that was hidden can't freeze the page catching up. */
 const MAX_ADVANCE_SEC = 2;
@@ -44,7 +45,7 @@ export function createClock({ sim, speed = 1, maxAdvanceSec = MAX_ADVANCE_SEC })
       target = 0;
     },
     setSpeed(x) {
-      if (Number.isFinite(x) && x > 0) rate = x;
+      if (Number.isFinite(x) && x >= SPEEDS[0] && x <= SPEEDS[SPEEDS.length - 1]) rate = x; // only speeds on the bar's list
     },
     tick(dtMs) {
       if (mode !== 'running' || !(dtMs > 0)) return false;
