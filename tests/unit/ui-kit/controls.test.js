@@ -85,3 +85,88 @@ test('setDisabled marks the whole control aria-disabled, and clears it when turn
   for (const el of [number, check, choice]) assert.equal(el.getAttribute('aria-disabled'), null);
   controls.dispose();
 });
+
+test('guard holds back an action while a number box it uses refuses what was typed (TR-14)', () => {
+  const settings = fakeSettings({ gapS: 20, turnG: 4 });
+  const controls = createControls(settings);
+  const [gap] = all(controls.number('gapS', { label: 'Gap', unit: 's', min: 5, max: 60 }), 'INPUT');
+  const [turnG] = all(controls.number('turnG', { label: 'Turn G', min: 1, max: 6 }), 'INPUT');
+  let pairs = 0;
+  const pair = document.createElement('button');
+  pair.addEventListener('click', () => pairs++);
+  const any = document.createElement('button');
+  controls.guard(pair, ['gapS']);
+  const stopAny = controls.guard(any);
+  assert.equal(pair.getAttribute('aria-disabled'), null);
+
+  gap.value = '2';
+  gap.dispatch('change');
+  assert.deepEqual(controls.invalid(), ['gapS']);
+  assert.equal(pair.getAttribute('aria-disabled'), 'true', 'the action reads as unavailable');
+  assert.equal(any.getAttribute('aria-disabled'), 'true');
+  assert.equal(pair.dispatch('click').defaultPrevented, true);
+  assert.equal(pairs, 0, 'the click never reaches the action');
+  assert.equal(settings.get().gapS, 20, 'the setting keeps its last good value');
+
+  gap.value = '30';
+  gap.dispatch('input');
+  assert.equal(pair.getAttribute('aria-disabled'), null, 'a good gap lets the action run again');
+  pair.dispatch('click');
+  assert.equal(pairs, 1);
+
+  turnG.value = '9';
+  turnG.dispatch('change');
+  assert.equal(pair.getAttribute('aria-disabled'), null, 'a keyed guard ignores other boxes');
+  assert.equal(any.getAttribute('aria-disabled'), 'true', 'the unkeyed guard sees Turn G');
+
+  stopAny();
+  assert.equal(any.getAttribute('aria-disabled'), null, 'stopping a guard frees its button');
+  controls.dispose();
+});
+
+test('guard reads the box again at the click, before "change" has fired', () => {
+  const settings = fakeSettings({ gapS: 20 });
+  const controls = createControls(settings);
+  const [gap] = all(controls.number('gapS', { label: 'Gap', min: 5, max: 60 }), 'INPUT');
+  let pairs = 0;
+  const pair = document.createElement('button');
+  pair.addEventListener('click', () => pairs++);
+  controls.guard(pair, ['gapS']);
+  gap.value = '2'; // typed, focus still in the box
+  pair.dispatch('click');
+  assert.equal(pairs, 0);
+  assert.equal(gap.getAttribute('aria-invalid'), 'true', 'the box now shows why');
+  controls.dispose();
+});
+
+test('guard leaves the button\'s own disabled state to the module', () => {
+  const settings = fakeSettings({ gapS: 20 });
+  const controls = createControls(settings);
+  const [gap] = all(controls.number('gapS', { label: 'Gap', min: 5, max: 60 }), 'INPUT');
+  const pair = document.createElement('button');
+  pair.disabled = true; // the module's own limit
+  controls.guard(pair, ['gapS']);
+  gap.value = '2';
+  gap.dispatch('change');
+  gap.value = '30';
+  gap.dispatch('input');
+  assert.equal(pair.disabled, true);
+  controls.dispose();
+  assert.equal(pair.getAttribute('aria-disabled'), null, 'dispose frees guarded buttons');
+});
+
+test('the refusal message puts degrees on the number and a space before other units (TF3-9)', () => {
+  const settings = fakeSettings({ bank: 45, gapS: 20 });
+  const controls = createControls(settings);
+  const bank = controls.number('bank', { label: 'Bank', unit: '°', min: 0, max: 90 });
+  const gap = controls.number('gapS', { label: 'Gap', unit: 's', min: 5, max: 60 });
+  for (const el of [bank, gap]) {
+    const [box] = all(el, 'INPUT');
+    box.value = '999';
+    box.dispatch('change');
+  }
+  const message = (el) => all(el, 'SPAN').find((n) => n.getAttribute('class') === 'control-message').textContent;
+  assert.equal(message(bank), 'Enter a number from 0 to 90°.');
+  assert.equal(message(gap), 'Enter a number from 5 to 60 s.');
+  controls.dispose();
+});

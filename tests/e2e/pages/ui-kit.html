@@ -42,6 +42,15 @@
         controls.viewSwitch(),
       );
 
+      // An action that uses the safety bubble, as Traffic's + Spawn uses its gap.
+      let bubbleActions = 0;
+      const addBubble = document.createElement('button');
+      addBubble.type = 'button';
+      addBubble.textContent = 'Add bubble';
+      addBubble.addEventListener('click', () => bubbleActions++);
+      controls.guard(addBubble, ['bubbleFt']);
+      document.getElementById('controls').append(addBubble);
+
       // The Settings menu a module keeps its tuning numbers in (starts closed).
       let resets = 0;
       const menu = createSettingsMenu({ title: 'Turn settings', onReset: () => { resets++; settings.reset(); } });
@@ -98,6 +107,7 @@
         chart,
         menu,
         resets: () => resets,
+        bubbleActions: () => bubbleActions,
         shortcuts: () => shortcuts.slice(),
         chartDraws: () => chartDraws,
         draws: () => draws,

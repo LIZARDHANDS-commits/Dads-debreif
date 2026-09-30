@@ -82,7 +82,8 @@ button.primary,
   font-weight: 600;
 }
 
-button:disabled {
+button:disabled,
+button[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
 }
