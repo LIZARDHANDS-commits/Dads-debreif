@@ -87,7 +87,7 @@ test('the KIAS a Mach number reads: calibrated airspeed, standard day, with comp
 
 // The NFM's airspeed and Mach limits (Fig 5-3, p.5-9): VMO 316 KIAS to
 // 18,769 ft, then Mmo 0.67, which is 244 KIAS at 31,000 ft.
-test('the top speed follows the NFM line: VMO 316 KIAS to about 18,800 ft, then Mach 0.67', () => {
+test('the top speed follows the NFM line: VMO 316 KIAS to about 18,900 ft, then Mach 0.67', () => {
   for (const alt of [0, 5000, 10000, 15000, 18000, 18769]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
   near(maxKiasT6A(20000), 309.1, 0.1, '20,000 ft');
   near(maxKiasT6A(25000), 279.1, 0.1, '25,000 ft');
