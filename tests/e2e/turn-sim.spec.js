@@ -739,7 +739,7 @@ test('when the Delayed 45 flies its check turn, the summary says so and Base del
   await open(page);
   const note = page.locator('.ts-check-note');
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
-  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.34). Wingmen fix spacing and sweep on the roll-out.'); // 4312: auto is the check
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.34). Tracks cross: stack the altitudes. Wingmen fix spacing and sweep on the roll-out.'); // 4312: auto is the check
   await expect(box(page, 'Base delay')).toBeDisabled();
   await expect(box(page, 'Base delay')).toHaveAccessibleDescription(/do not apply/);
   await box(page, 'Timing').selectOption({ label: 'Auto timing' });

@@ -389,7 +389,9 @@ export function offsetBandLines(state, timing = null, maneuver = null, checkFlow
 export function checkTurnNote(state, settings) {
   if (!state?.delayed45CheckFlown) return null;
   const fig = settings.formation === 'twoShip' ? '16.17' : settings.formation === 'offsetBox' ? '16.31' : '16.34';
-  return `Delayed 45 with a ${settings.checkTurnDeg}° check (SMM Fig ${fig}). Wingmen fix spacing and sweep on the roll-out.`; // the figure's own point: the cue ends a little off, and the wingman fixes it (C3)
+  // The four-ship tracks cross (every pair in 4312, and the box's): the figures ask for an altitude stack, and this sim is flat (C7). Figure numbers only.
+  const stack = settings.formation === 'twoShip' ? '' : ' Tracks cross: stack the altitudes.';
+  return `Delayed 45 with a ${settings.checkTurnDeg}° check (SMM Fig ${fig}).${stack} Wingmen fix spacing and sweep on the roll-out.`; // the figure's own point: the cue ends a little off, and the wingman fixes it (C3)
 }
 
 /**
