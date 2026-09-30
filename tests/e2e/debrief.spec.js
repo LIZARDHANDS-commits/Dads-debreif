@@ -275,27 +275,31 @@ test('with a flight loaded, every control on show does something (R3)', async ({
 });
 
 // R6: after one visit the debrief opens with the network off, and the example
-// flight plays again if it was loaded before.
-test('offline after one visit: the debrief opens and the example flight loads again (R6)', async ({ page, context }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' }); // no card videos mid-download when the network drops
-  await openRoute(page, '#/debrief');
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-    if (!navigator.serviceWorker.controller) {
-      await new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
-    }
+// flight plays again if it was loaded before. Needs the service worker, which
+// the config blocks by default.
+test.describe('offline copy', () => {
+  test.use({ serviceWorkers: 'allow' });
+  test('offline after one visit: the debrief opens and the example flight loads again (R6)', async ({ page, context }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' }); // no card videos mid-download when the network drops
+    await openRoute(page, '#/debrief');
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller) {
+        await new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+      }
+    });
+    await loadExample(page);
+    await context.setOffline(true);
+    await page.reload();
+    await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+    await expect(status(page)).toHaveText('No flight loaded');
+    await loadExample(page);
+    const scrubber = page.getByLabel('Flight time');
+    const before = await scrubber.inputValue();
+    await page.getByRole('button', { name: 'Ahead 1 second' }).click();
+    await expect(scrubber).toHaveValue(String(Number(before) + 1));
+    await context.setOffline(false);
   });
-  await loadExample(page);
-  await context.setOffline(true);
-  await page.reload();
-  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
-  await expect(status(page)).toHaveText('No flight loaded');
-  await loadExample(page);
-  const scrubber = page.getByLabel('Flight time');
-  const before = await scrubber.inputValue();
-  await page.getByRole('button', { name: 'Ahead 1 second' }).click();
-  await expect(scrubber).toHaveValue(String(Number(before) + 1));
-  await context.setOffline(false);
 });
 
 // R2: with a flight loaded and every panel open, no control covers another

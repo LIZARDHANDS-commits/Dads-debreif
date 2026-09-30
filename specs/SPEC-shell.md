@@ -114,7 +114,7 @@ Unit (`tests/unit/shell/`, Node):
 - Home cards: `cardBadge` gives "Coming soon" until a module is hooked in, then "PROTOTYPE" while its registry entry has `prototype: true` (D135), then nothing; only turn-sim, turn-fight, traffic and sof carry the flag.
 - Host, with a fake module that starts frames, timers, listeners, shortcuts and a settings subscription: after unmount, all are gone and `scheduler.stats()` is zero (R4). A module whose `mount` throws leaves the host usable.
 
-Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7, and on any request to another site that has no stub in `fixtures.js` or the spec; the failure names the URL. `PW_PORT` picks the preview port so two checkouts can test at once):
+Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7, and on any request to another site that has no stub in `fixtures.js` or the spec; the failure names the URL. Service workers are blocked unless a spec opts in with `test.use({ serviceWorkers: 'allow' })` (the offline tests do), because a worker's requests get past those stubs. `PW_PORT` picks the preview port so two checkouts can test at once):
 
 - Smoke (R1): home, About, Settings and every route open in Chromium, Firefox and WebKit.
 - Accessibility (D142): axe checks for WCAG 2.0 A and AA on home, About, the Settings dialog and the Debrief Viewer (empty, and with the example flight); each module route is added as it is hooked into the registry. Known problems in another thread's files are excluded by selector with a `TODO(owner)` comment, never by turning a rule off.
