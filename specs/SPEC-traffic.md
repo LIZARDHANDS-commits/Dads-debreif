@@ -283,11 +283,11 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
 | Zoom | 70 % of the speed-for-height trade | Placeholder (T10) |
 
-Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27), a touch-and-go into the closed pattern (FF28), and a check of landing spacing on the runway (FF29).
+Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
-### More pattern procedures from the SMM (Patrick, 2026-09-30, 06:15Z)
+### More pattern procedures from the SMM (Patrick, 2026-09-30, 06:15Z; R27)
 
 Patrick asked what else from the SMM's traffic pattern and abnormal procedures the sim should fly, naming break-outs and fly-throughs. The SMM's chapter 4 gives these. The sim has no controller, so each one is a **rule** that fires on its trigger, the way the extension and the move-over do (task 18). The rules are listed under Conflict limits with a checkbox each, all on by default because they're how the pattern really works, and each aircraft row says when one fired ("Broke out: conflict joining downwind").
 
@@ -306,9 +306,9 @@ Patrick asked what else from the SMM's traffic pattern and abnormal procedures t
 
 **Later (Future features, not in this spec's tasks):**
 
-- **Slide over or break to the inner runway** (SMM 4.28 paras 80, 81): needs the inner runway drawn and a second set of final routes.
-- **Early left or right** (SMM 4.28 para 75): an early climbing turn to crosswind for staff.
-- **The square circuit at uncontrolled airfields** (SMM 4.29): downwind a little further out, base when the threshold is about 45° behind, 3° glide path. This would make a better starter pattern for a home field other than Moose Jaw (T2) than V6's generic one.
+- **Slide over or break to the inner runway** (FF31; SMM 4.28 paras 80, 81): needs the inner runway drawn and a second set of final routes.
+- **Early left or right** (FF32; SMM 4.28 para 75): an early climbing turn to crosswind for staff.
+- **The square circuit at uncontrolled airfields** (FF33; SMM 4.29): downwind a little further out, base when the threshold is about 45° behind, 3° glide path. This would make a better starter pattern for a home field other than Moose Jaw (T2) than V6's generic one.
 - **Automatic sequencing** (already noted): speed control and spacing along the whole pattern, not just on final.
 
 The triggers all use the same prediction: where each aircraft will be a few seconds ahead on its current path, with the wind, checked against the conflict limits. That's one function, tested once, and every rule above calls it.
