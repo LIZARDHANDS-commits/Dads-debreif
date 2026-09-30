@@ -1,7 +1,7 @@
 // The Turn Sim's words (fields.js) and the clock-cue status lines (readouts.js), for the clock and auto timing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { optionsOf, clockLabel, errorFields, CHECK_SOLVE } from '../../../src/modules/turn-sim/fields.js';
+import { optionsOf, clockLabel, errorFields, CHECK_SOLVE, CHECK_DEG } from '../../../src/modules/turn-sim/fields.js';
 import { cueStatus } from '../../../src/modules/turn-sim/readouts.js';
 import { SETTINGS_RULES } from '../../../src/modules/turn-sim/settings.js';
 
@@ -113,4 +113,11 @@ test('N7: the Auto clock position reads 4:30 right and 7:30 left for the Delayed
 test('the Roll in hint quotes no distance, since the spacing it ends at follows the set Spacing (C4)', () => {
   assert.ok(!/\d/.test(CHECK_SOLVE.hint), CHECK_SOLVE.hint);
   assert.match(CHECK_SOLVE.hint, /two thirds of the set spacing/);
+});
+
+// C6: the Turn menu's Check turn (a 30 degree in-place check) and the Delayed 45's own check are different things, so they have different names.
+test('the Delayed 45 setting is not called "Check turn", which is a choice in the Turn menu (C6)', () => {
+  const turnMenu = optionsOf('maneuver', SETTINGS_RULES.maneuver).map((o) => o.label);
+  assert.ok(turnMenu.includes('Check turn'));
+  assert.equal(CHECK_DEG.label, 'Check before the 45');
 });

@@ -703,12 +703,12 @@ test('the Delayed 45 style, check turn and roll-in boxes sit in the settings men
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
   await expect(box(page, 'Delayed 45 style').locator('option')).toHaveText(['Auto', 'Plain', 'With check turn']);
   await expect(box(page, 'Delayed 45 style').locator('option:checked')).toHaveText('Auto');
-  await expect(box(page, 'Check turn')).toHaveValue('12.5');
+  await expect(box(page, 'Check before the 45')).toHaveValue('12.5');
   await expect(box(page, 'Roll in to hold the set spacing')).not.toBeChecked();
-  await box(page, 'Check turn').fill('15');
-  await expect(box(page, 'Check turn')).toHaveValue('15');
+  await box(page, 'Check before the 45').fill('15');
+  await expect(box(page, 'Check before the 45')).toHaveValue('15');
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
-  await expect(box(page, 'Check turn')).toBeHidden();
+  await expect(box(page, 'Check before the 45')).toBeHidden();
 });
 
 test('the Check turn and Roll in boxes are greyed with the reason when the check is not flown: the clock cue, Plain, and Auto in the two-ship (C2, C5)', async ({ page }) => {
@@ -716,22 +716,22 @@ test('the Check turn and Roll in boxes are greyed with the reason when the check
   await panel(page, 'Turn Sim settings').click();
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
   const note = page.locator('.ts-check-unused');
-  await expect(box(page, 'Check turn')).toBeEnabled(); // 4312, Auto: the check is flown
+  await expect(box(page, 'Check before the 45')).toBeEnabled(); // 4312, Auto: the check is flown
   await expect(note).toBeHidden();
   await box(page, 'Delayed 45 style').selectOption({ label: 'With check turn' });
   await box(page, 'Timing').selectOption({ label: 'Clock position cue' });
-  await expect(box(page, 'Check turn')).toBeDisabled();
+  await expect(box(page, 'Check before the 45')).toBeDisabled();
   await expect(box(page, 'Roll in to hold the set spacing')).toBeDisabled();
   await expect(note).toHaveText('The clock cue flies the plain 45, so the check turn is not used.');
-  await expect(box(page, 'Check turn')).toHaveAccessibleDescription(/clock cue flies the plain 45/);
+  await expect(box(page, 'Check before the 45')).toHaveAccessibleDescription(/clock cue flies the plain 45/);
   await box(page, 'Timing').selectOption({ label: 'Time delay' });
-  await expect(box(page, 'Check turn')).toBeEnabled();
+  await expect(box(page, 'Check before the 45')).toBeEnabled();
   await box(page, 'Delayed 45 style').selectOption({ label: 'Plain' });
-  await expect(box(page, 'Check turn')).toBeDisabled();
+  await expect(box(page, 'Check before the 45')).toBeDisabled();
   await expect(note).toContainText('Plain');
   await box(page, 'Delayed 45 style').selectOption({ label: 'Auto' });
   await box(page, 'Formation').selectOption({ label: 'Two-ship' });
-  await expect(box(page, 'Check turn')).toBeDisabled();
+  await expect(box(page, 'Check before the 45')).toBeDisabled();
   await expect(note).toContainText('two-ship');
 });
 
@@ -765,7 +765,7 @@ test('a 15 degree check at 4,000 ft spacing in 4312 shows the close pass before 
   await panel(page, 'Turn Sim settings').click();
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
   await expect(flags).toHaveCount(0); // at the defaults nothing is close
-  await box(page, 'Check turn').fill('15');
+  await box(page, 'Check before the 45').fill('15');
   await box(page, 'Spacing').fill('4000');
   await expect(flags).toHaveText(["Close pass: 894 ft, #1 and #3: altitude separation needed", "Close pass: 894 ft, #3 and #4: altitude separation needed"]); // measured: the two four-ship pairs
   await box(page, 'Spacing').fill('6000');
