@@ -468,3 +468,67 @@ test('switching the layer off and on for a new relay address drops the old aircr
   assert.equal(f.requests.at(-1).url.startsWith('https://third.example.test/'), true);
   feed.stop();
 });
+
+// ---- Whatever goes wrong reading the picture, the answer is "can't tell" (Y4) --------------------------------
+
+function watchWith({ readPixels, at = '2026-09-30T07:05:00Z' }) {
+  const clock = virtualClock(at);
+  const f = fakeFetch((url) => (url.includes('GetCapabilities') ? text(fixture('geomet-caps-Lightning_2.5km_Density.xml')) : png(url)));
+  const w = createLightningWatch({ home: () => HOME, radiusNm: () => 20, readPixels, fetch: f, timers: clock.timers, now: clock.now });
+  return { clock, w };
+}
+
+test('when the canvas cannot be read (a SecurityError from getImageData) the check says it cannot tell, and shows the failure in words', async () => {
+  const { clock, w } = watchWith({
+    readPixels: async () => { throw new DOMException('The canvas has been tainted by cross-origin data.', 'SecurityError'); },
+  });
+  w.start();
+  await clock.settle();
+  const r = w.result();
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.caution, null);
+  assert.equal(w.line().text, 'Lightning failed, nothing to show');
+  w.stop();
+});
+
+test('when the picture is not the size that was asked for the check says it cannot tell', async () => {
+  const box = lightningBox({ home: HOME, radiusNm: 20 });
+  for (const [width, height] of [[box.width - 1, box.height], [box.width, box.height + 1], [1, 1]]) {
+    const { clock, w } = watchWith({ readPixels: async () => ({ data: new Uint8ClampedArray(width * height * 4), width, height }) });
+    w.start();
+    await clock.settle();
+    assert.equal(w.result().state, 'unknown', `${width} x ${height}`);
+    assert.equal(w.state().image, null);
+    w.stop();
+  }
+});
+
+test('when the pixel data is short or missing the check says it cannot tell', async () => {
+  const box = lightningBox({ home: HOME, radiusNm: 20 });
+  for (const image of [{ data: new Uint8ClampedArray(10), width: box.width, height: box.height }, { width: box.width, height: box.height }, null]) {
+    const { clock, w } = watchWith({ readPixels: async () => image });
+    w.start();
+    await clock.settle();
+    assert.equal(w.result().state, 'unknown');
+    w.stop();
+  }
+});
+
+test('when the layer time is more than 30 minutes old the check says it cannot tell, even with a clean picture', async () => {
+  const box = lightningBox({ home: HOME, radiusNm: 20 });
+  const clean = async () => ({ data: new Uint8ClampedArray(box.width * box.height * 4), width: box.width, height: box.height });
+  // the layer's time is 0700Z: at 0729 it is 29 minutes old (fine), at 0731 it is 31 (stale)
+  const fresh = watchWith({ readPixels: clean, at: '2026-09-30T07:29:00Z' });
+  fresh.w.start();
+  await fresh.clock.settle();
+  assert.equal(fresh.w.result().state, 'clear');
+  fresh.w.stop();
+  const old = watchWith({ readPixels: clean, at: '2026-09-30T07:31:00Z' });
+  old.w.start();
+  await old.clock.settle();
+  const r = old.w.result();
+  assert.equal(r.state, 'unknown');
+  assert.match(r.words, /old|stale/i);
+  assert.equal(r.caution, null);
+  old.w.stop();
+});
