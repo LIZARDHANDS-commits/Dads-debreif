@@ -131,25 +131,25 @@ test('the spawner keeps its own route when a route is picked elsewhere, and foll
   assert.equal(words(tagged(inputFor(spawner, 'Route'), 'OPTION').at(-1)), 'Entry 9');
 });
 
-test('+ Pair adds two aircraft on the same route, 15 s apart', () => {
+test('+ Pair adds two aircraft on the same route, 20 s apart', () => {
   const { spawner, sim } = setup();
   const route = inputFor(spawner, 'Route');
   route.value = 'PAT1';
   route.dispatch('change');
   type(inputFor(spawner, 'Delay'), '10');
-  const pair = buttonNamed(spawner, '+ Pair, 15 s apart');
+  const pair = buttonNamed(spawner, '+ Pair, 20 s apart');
   assert.ok(pair);
   pair.dispatch('click');
   const [first, second] = sim.state().aircraft.slice(-2);
   assert.deepEqual([first.routeId, second.routeId], ['PAT1', 'PAT1']);
-  assert.equal(second.startsAt - first.startsAt, 15);
+  assert.equal(second.startsAt - first.startsAt, 20);
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'Added A8 and A9.');
 });
 
 test('+ Pair with a gap that makes no sense adds neither aircraft', () => {
   const { spawner, sim, settings } = setup();
   settings.update({ pairGapS: -3 });
-  assert.doesNotThrow(() => buttonNamed(spawner, '+ Pair, 15 s apart').dispatch('click'));
+  assert.doesNotThrow(() => buttonNamed(spawner, '+ Pair, 20 s apart').dispatch('click'));
   assert.equal(sim.state().aircraft.length, 7);
   assert.match(words(withClass(spawner, 'spawn-message')[0]), /gap between a pair/);
 });

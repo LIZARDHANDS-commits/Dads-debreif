@@ -93,8 +93,8 @@ export const DEFAULTS = Object.freeze({
   spawnDelayS: 0,
   spawnPlan: 'random',
 
-  // + Pair: 15 s apart, on the same route.
-  pairGapS: 15,
+  // + Pair: 20 s apart, on the same route (15 s leaves 2,536 ft on final at 100 kt, under the 3,000 ft final spacing; about 18 s is needed).
+  pairGapS: 20,
   pairRoute: 'same',
 
   // New plan: named "Plan 1", no steps yet; when it runs out, Land.
