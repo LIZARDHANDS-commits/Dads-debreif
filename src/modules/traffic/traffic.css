@@ -653,3 +653,37 @@
   min-width: 3.5rem;
   color: var(--text-muted);
 }
+
+/* A control that is turned off fades its box and label only: fading the unit beside it as well
+   would drop its text below the contrast the page needs (axe: color-contrast). */
+[data-module='traffic'] .control:has(:disabled) {
+  opacity: 1;
+}
+
+[data-module='traffic'] .control:has(:disabled) > :is(input, select, label) {
+  opacity: 0.5;
+}
+
+/* Narrow screens: one column, the map and its bar first, then the routes and the aircraft, so the
+   map keeps a useful size (a phone, or a small window). The page scrolls instead of each column. */
+@media (max-width: 900px) {
+  [data-module='traffic'] .traffic {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+
+  [data-module='traffic'] .traffic-col {
+    width: auto;
+    overflow-y: visible;
+  }
+
+  [data-module='traffic'] .traffic-stage {
+    order: -1;
+  }
+
+  [data-module='traffic'] .traffic-map-wrap {
+    flex: none;
+    height: min(70vh, 32rem);
+    min-height: 18rem;
+  }
+}

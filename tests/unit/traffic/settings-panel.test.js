@@ -91,6 +91,24 @@ test('onToggle is told when the person opens or closes the menu, but not when th
   assert.equal(panel.collapsed, true);
 });
 
+test('Escape closes an open menu and tells onToggle; while it is closed Escape does nothing, and other keys do nothing', () => {
+  const toggles = [];
+  const { panel } = setup({ onToggle: (collapsed) => toggles.push(collapsed) });
+  const press = (key) => {
+    let prevented = false;
+    for (const fn of panel.element.listeners.keydown ?? []) fn({ key, preventDefault: () => (prevented = true) });
+    return prevented;
+  };
+  assert.equal(press('Escape'), false, 'a closed menu leaves Escape alone');
+  header(panel).dispatch('click');
+  assert.equal(press('a'), false);
+  assert.equal(panel.collapsed, false);
+  assert.equal(press('Escape'), true);
+  assert.equal(panel.collapsed, true);
+  assert.equal(header(panel).getAttribute('aria-expanded'), 'false');
+  assert.deepEqual(toggles, [false, true]);
+});
+
 test('at first it shows only the conflict limits and the route options', () => {
   const { panel } = setup();
   assert.deepEqual(legends(panel), ['Conflict limits', 'Route options']);

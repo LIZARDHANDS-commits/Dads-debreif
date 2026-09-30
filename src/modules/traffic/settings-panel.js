@@ -111,6 +111,15 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
   const stopGreying = settings.subscribe(greyOut);
   greyOut(settings.get());
 
+  // Escape closes the menu, and focus goes back to its button so the keyboard doesn't lose its place.
+  menu.element.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || menu.collapsed) return;
+    e.preventDefault();
+    menu.setCollapsed(true);
+    onToggle?.(true);
+    /** @type {HTMLElement | null} */ (menu.element.querySelector?.('.panel-toggle') ?? null)?.focus();
+  });
+
   return {
     element: menu.element,
     get collapsed() {

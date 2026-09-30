@@ -33,3 +33,11 @@ test('the Debrief Viewer has no accessibility violations with the example flight
   await expect(page.locator('.flight-status')).toHaveText(/^4 tracks loaded/, { timeout: 20_000 });
   await expectNoA11yViolations(page);
 });
+
+// Skipped until the Traffic Sim's entry in src/shell/registry.js lands (tests/e2e/traffic.spec.js
+// runs the same check on its test page in the meantime).
+test.skip('the Traffic Sim has no accessibility violations', async ({ page }) => { // unskip when the registry entry lands
+  await openRoute(page, '#/traffic');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
+  await expectNoA11yViolations(page);
+});

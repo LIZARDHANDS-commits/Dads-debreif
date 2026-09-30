@@ -3,7 +3,7 @@
 // on the real shell host, straight from src/ (pages/traffic.html), so they don't wait for
 // the sim's entry in src/shell/registry.js. The tests that go through the route are skipped
 // until that entry lands.
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
 import { openRoute } from './routes.js';
@@ -191,6 +191,83 @@ test('+ Point and Delete point change the number of points; a new route is picke
   await expect(page.locator('#traffic-spawn-route option')).toHaveCount(10);
 });
 
+// Keyboard only: Tab goes left to right (routes, the bar, then the aircraft column), Space and Enter
+// press Play, and Escape closes an open menu and gives focus back to its button.
+test('keyboard only: Tab order, Space and Enter on Play, Escape closes the Layers and Traffic settings menus', async ({ page }) => {
+  await open(page);
+  const focused = () => page.evaluate(() => {
+    const el = document.activeElement;
+    return el?.getAttribute('aria-label') || el?.textContent?.trim().replace(/\s+/g, ' ').slice(0, 30) || el?.tagName;
+  });
+  await page.locator('body').click({ position: { x: 2, y: 2 } });
+  const order = [];
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    order.push(await focused());
+  }
+  const at = (name) => order.findIndex((n) => n.includes(name));
+  const inOrder = ['Routes', 'Pattern 1', 'Entry 1', '+ New route', 'Play', 'Reset', 'Layers', 'Fit', 'Aircraft'];
+  const places = inOrder.map(at);
+  expect(places.every((n) => n >= 0), `every stop is reached: ${order.join(' | ')}`).toBe(true);
+  expect(places, `in this order: ${order.join(' | ')}`).toEqual([...places].sort((a, b) => a - b));
+  // Enter and Space on the focused Play button.
+  await playButton(page).focus();
+  await page.keyboard.press('Enter');
+  await expect(status(page)).toHaveText('Running');
+  await page.keyboard.press('Space');
+  await expect(status(page)).toHaveText('Paused');
+  await page.keyboard.press('Space');
+  await expect(status(page)).toHaveText('Running');
+  await page.keyboard.press('Enter');
+  await expect(status(page)).toHaveText('Paused');
+  // Escape closes the Layers menu, and focus goes back to its button.
+  const layers = page.getByRole('button', { name: /^Layers/ });
+  await layers.focus();
+  await page.keyboard.press('Enter');
+  await expect(layers).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Escape');
+  await expect(layers).toHaveAttribute('aria-expanded', 'false');
+  await expect(layers).toBeFocused();
+  // The same for the Traffic settings menu, opened and used from the keyboard.
+  const menu = page.getByRole('button', { name: /^Traffic settings/ });
+  await menu.focus();
+  await page.keyboard.press('Enter');
+  await expect(menu).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Conflict: lateral')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveAttribute('aria-expanded', 'false');
+  await expect(menu).toBeFocused();
+});
+
+test('the routes and points are reachable and changeable from the keyboard alone', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-route-id="ENT1"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.point-table-title')).toHaveText('Entry 1');
+  await page.locator('.point-row').nth(1).getByLabel('Alt ft', { exact: true }).focus();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('3200');
+  await expect(page.locator('.point-row').nth(1).locator('.point-data')).toContainText('3200ft');
+  await button(page, '+ Point').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.point-row')).toHaveCount(5);
+  await expect(page.locator('.point-row').nth(2).getByLabel('Point 3 label')).toBeFocused();
+});
+
+test('no accessibility violations at first, with a route picked, and with the settings menu open', async ({ page }) => {
+  await open(page);
+  await expectNoA11yViolations(page);
+  await page.locator('[data-route-id="SPL1"]').click();
+  await expect(page.locator('.point-row')).toHaveCount(7);
+  await expectNoA11yViolations(page);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  await page.getByRole('button', { name: /^Layers/ }).click();
+  await button(page, '+ Spawn').click();
+  await expectNoA11yViolations(page);
+});
+
 test('the Conflicts list says "No conflicts." until two aircraft are close, then names the pair with a word and a symbol', async ({ page }) => {
   await open(page);
   const list = page.getByRole('region', { name: 'Conflicts' });
@@ -237,6 +314,18 @@ test('nothing overlaps or sticks out at 1366 x 768', async ({ page }) => {
     return out;
   });
   expect(problems).toEqual([]);
+});
+
+test('on a phone (390 px wide) the page does not scroll sideways and the map keeps a useful size', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await open(page);
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+  expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  const box = await map(page).boundingBox();
+  expect(box.height).toBeGreaterThan(250);
+  expect(box.width).toBeGreaterThan(300);
+  await page.locator('[data-route-id="PAT1"]').click();
+  await expect(page.locator('.point-row').first()).toBeVisible();
 });
 
 // The route tests wait for the Traffic Sim's entry in src/shell/registry.js
