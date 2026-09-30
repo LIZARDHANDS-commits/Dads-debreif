@@ -1,13 +1,11 @@
-// Wind: the crab and ground speed that hold a track, and the G that holds a
-// ground-track turn. V6 has no wind; this is new for the Traffic Sim
-// (SPEC-traffic, "Wind and aircraft types") and later the SOF crosswind (FF21).
-// With the wind calm both give V6's numbers exactly.
+// Wind: the crab and ground speed that hold a track. V6 has no wind; this is
+// new for the Traffic Sim (SPEC-traffic, "Wind and aircraft types") and later
+// the SOF crosswind (FF21). With the wind calm it gives V6's numbers exactly.
 //
 // Unlike the rest of core, these take compass degrees (000 north, 090 east),
 // because a wind is given that way in a METAR and routes are laid out that
-// way. Speeds are in knots, distances in feet. One steady wind: a direction it
+// way. Speeds are in knots. One steady wind: a direction it
 // blows FROM, and a speed.
-import { KT_TO_FTPS, G_FTPS2 } from './units.js';
 import { degToRad, radToDeg } from './angles.js';
 
 /** 0 to 360. */
@@ -51,13 +49,3 @@ export function windTriangle(trackDeg, tasKt, windFromDeg, windKt) {
   return { crabDeg, headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack ? groundSpeedKt : 0, headwindKt, crosswindKt, canHoldTrack };
 }
 
-/**
- * G needed to hold a ground-track arc of radiusFt at groundSpeedKt, in a
- * level, coordinated turn: √(1 + (GS² ÷ (g × radius))²). With no wind it is the
- * G the arc was drawn for (it undoes turnRadiusFt); a tailwind needs more, a
- * headwind less.
- */
-export function groundTurnG(groundSpeedKt, radiusFt) {
-  const v = groundSpeedKt * KT_TO_FTPS;
-  return Math.sqrt(1 + (v * v / (G_FTPS2 * radiusFt)) ** 2);
-}

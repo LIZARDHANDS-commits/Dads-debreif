@@ -50,4 +50,4 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 
 ## For the Traffic Sim
 
-- [x] **Task 13: `wind.js`** (SPEC-traffic): `windTriangle` and `groundTurnG`, new math with known-answer tests first; nothing in V6 to pin. Merges once Patrick approves SPEC-traffic.
+- [x] **Task 13: `wind.js`** (SPEC-traffic): `windTriangle`, new math with known-answer tests first; nothing in V6 to pin. Merges once Patrick approves SPEC-traffic.

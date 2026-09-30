@@ -147,7 +147,6 @@ M = [
  ('wind.js','const canHoldTrack = groundSpeedKt > 0;','const canHoldTrack = groundSpeedKt >= 0;'),
  ('wind.js','headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack','headingDeg: wrap360(trackDeg - crabDeg), groundSpeedKt: canHoldTrack'),
  ('wind.js','return ((deg % 360) + 360) % 360;','return deg % 360;'),
- ('wind.js','return Math.sqrt(1 + (v * v / (G_FTPS2 * radiusFt)) ** 2);','return Math.sqrt(1 + v * v / (G_FTPS2 * radiusFt));'),
 ]
 
 

@@ -1,11 +1,9 @@
-// The wind triangle and the G to hold a ground-track turn, against known
-// answers (SPEC-traffic, "Wind and aircraft types"). V6 has no wind, so there
-// is no golden test: with the wind calm these must give V6's numbers exactly.
+// The wind triangle, against known answers (SPEC-traffic, "Wind and aircraft
+// types"). V6 has no wind, so there is no golden test: with the wind calm it
+// must give V6's numbers exactly.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ktToFtps } from '../../../src/core/units.js';
-import { turnRadiusFt } from '../../../src/core/flight-math.js';
-import { windTriangle, groundTurnG } from '../../../src/core/wind.js';
+import { windTriangle } from '../../../src/core/wind.js';
 
 const near = (actual, expected, tol, what) => assert.ok(Math.abs(actual - expected) <= tol, `${what}: ${actual} is not ${expected} ± ${tol}`);
 
@@ -70,22 +68,4 @@ test('a crosswind stronger than the airspeed, or a headwind that stops it, can\'
   assert.equal(windTriangle(0, 40, 0, 40).canHoldTrack, false, 'standing still over the ground');
   assert.deepEqual(windTriangle(0, 0, 0, 0),
     { crabDeg: 0, headingDeg: 0, groundSpeedKt: 0, headwindKt: 0, crosswindKt: 0, canHoldTrack: false }, 'no airspeed, and no NaN');
-});
-
-test('the G to hold a ground-track arc: the spec\'s tailwind turn', () => {
-  // 180 KTAS at 2 G in still air turns on a 1,656 ft radius.
-  const r = turnRadiusFt(ktToFtps(180), 2);
-  near(r, 1656, 1, 'radius');
-  // With a 20 kt tailwind (200 kt over the ground) holding that arc takes about 2.4 G.
-  near(groundTurnG(200, r), 2.36, 0.01, 'G with a tailwind');
-  // Calm: the G it was flown at.
-  near(groundTurnG(180, r), 2, 1e-12, 'G in still air');
-  // Into a headwind it takes less.
-  assert.ok(groundTurnG(160, r) < 2);
-});
-
-test('groundTurnG undoes turnRadiusFt at any speed and G', () => {
-  for (const kt of [60, 110, 200, 300]) {
-    for (const g of [1.01, 1.5, 2, 4, 6.5]) near(groundTurnG(kt, turnRadiusFt(ktToFtps(kt), g)), g, 1e-12 * g, `${kt} kt, ${g} G`);
-  }
 });
