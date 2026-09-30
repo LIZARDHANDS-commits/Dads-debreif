@@ -23,6 +23,7 @@ const place = (el, left, width) => {
 /**
  * `collapsed` and `onToggle(collapsed)`: the panel's start state and its callback, so the choice can be kept.
  * Returns { element, render(view) } where `view` is buildTimelineView's answer.
+ * @param {{ collapsed?: boolean, onToggle?: (collapsed: boolean) => void }} [args]
  */
 export function createTimelineView({ collapsed = false, onToggle } = {}) {
   const panel = createPanel({ title: '24-hour timeline', collapsed, onToggle });

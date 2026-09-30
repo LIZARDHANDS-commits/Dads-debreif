@@ -104,12 +104,13 @@ function altLinesOf(row, call) {
  * call (times not set, or no zone). `altLines` is a Map from an alternate's ICAO to its result
  * for the selected wave. `waves` and `calls` are the UTC waves and `waveCalls`' answer, for the
  * timeline and the banner.
+ * @param {any} [args]
  */
 export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, selectedId } = {}) {
   const entries = plan.waves;
-  const planned = planToUtc(entries, { now, timeZone, day: plan.day });
+  const planned = /** @type {any} */ (planToUtc)(entries, { now, timeZone, day: plan.day });
   const skipped = new Map(planned.skipped.map((s) => [s.index, s]));
-  const calls = planned.problem ? [] : waveCalls({ waves: planned.waves, airfields, tafs, limits });
+  const calls = planned.problem ? [] : /** @type {any} */ (waveCalls)({ waves: planned.waves, airfields, tafs, limits });
 
   let placed = 0;
   const rows = entries.slice(0, MAX_WAVES).map((entry, index) => {

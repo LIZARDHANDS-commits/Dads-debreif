@@ -43,6 +43,7 @@ export function newKeys(before, lines) {
  * acks, storable, write, fresh, signature }`. A line is `{ key, icao, level, symbol, levelWords,
  * text, stale }`. `announce` is the keys to announce to a screen reader: lines new since `shown`.
  * `acks` is the object to keep and `write` says it differs from what was stored (and can be stored).
+ * @param {any} [args]
  */
 export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled = true, shown = [] } = {}) {
   const result = evaluate({ cards, tafs, extra, acks, now, timeZone });

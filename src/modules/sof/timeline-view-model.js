@@ -107,9 +107,10 @@ function waveView(w) {
  * 'local' (Zulu first by default). Returns `{ problem, title, signature, axis, rows, waves, now }`:
  * every position is a percentage of the day, `signature` changes only when what is drawn
  * changes (not when the now line moves), and `now` is `{ left, minute, label }` or null.
+ * @param {any} [args]
  */
 export function buildTimelineView({ airfields, snapshot, limits, waves = [], day = 'today', now, timeZone, timePrimary = 'zulu' } = {}) {
-  const model = timelineModel({
+  const model = /** @type {any} */ (timelineModel)({
     rows: timelineRows({ airfields, snapshot, limits }),
     waves,
     now,

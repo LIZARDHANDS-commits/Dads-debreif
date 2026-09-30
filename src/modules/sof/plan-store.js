@@ -49,7 +49,10 @@ export function cleanPlan(raw) {
   };
 }
 
-/** The plan as it is to be used now: a Tomorrow chosen on an earlier day reads as Today. */
+/** The plan as it is to be used now: a Tomorrow chosen on an earlier day reads as Today.
+ * @param {any} plan
+ * @param {{ now?: Date, timeZone?: string }} [context]
+ */
 export function resolvePlan(plan, { now, timeZone } = {}) {
   if (plan.day !== 'tomorrow') return plan;
   const today = ackDay(now, timeZone);
@@ -84,7 +87,11 @@ export function removeWave(plan, id) {
   return { ...plan, waves: plan.waves.filter((w) => w.id !== id) };
 }
 
-/** A plan for Today or Tomorrow (anything else is Today). Tomorrow remembers the day it was chosen. */
+/** A plan for Today or Tomorrow (anything else is Today). Tomorrow remembers the day it was chosen.
+ * @param {any} plan
+ * @param {string} day
+ * @param {{ now?: Date, timeZone?: string }} [context]
+ */
 export function setDay(plan, day, { now, timeZone } = {}) {
   return day === 'tomorrow'
     ? { ...plan, day: 'tomorrow', dayChosen: ackDay(now, timeZone) }
