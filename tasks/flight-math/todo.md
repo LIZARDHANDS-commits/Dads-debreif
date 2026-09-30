@@ -31,13 +31,14 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 
   - Done: the disagreement is written up in [`tennis-ball.md`](tennis-ball.md).
 
-## Phase 3: standards (PR 3)
+## Phase 3: standards (PR 3), done
 
-- [ ] **Task 10: formation standards**
-  - Acceptance: the debrief classifiers (`classifyKmlError`, `classifyLeadDesired`, `kmlStandardsSummary`, lines 3051 to 3110) and Turn Sim's `classifyFormationError` (line 1881) match V6, including the #21 behaviour, with V6's values as the default preset (R18).
+- [x] **Task 10: formation standards**
+  - Acceptance: the debrief classifiers (`classifyKmlError`, `classifyLeadDesired`, `kmlStandardsSummary`, lines 3051 to 3117) and Turn Sim's `classifyFormationError` (line 1881) match V6, including the #21 behaviour, with V6's values as the default preset (R18).
   - Verify: golden tests; unit tests for the preset.
   - Dependencies: Phase 1. Files: `src/core/standards.js`, its tests. Size M.
 
 ## Later, with the screens that use them
 
 - [ ] **Task 11: 3D attitude estimate, then D40 and D47.** Port the pure part of `attitudeFor` (line 3788): bank from heading rate and speed, with recorded G overriding it. Pin it to V6, including the halved rate (the legs are 1 s apart but it divides by about 2 s) and the sign. Then land D40 (real rate, correct wing down, G only in level turns) and D47 (recorded bank, estimated pitch when blank) as separate commits. "Level turn" needs a threshold from Dad before D40's last part. Size S.
+- [ ] **Task 12: Turn Sim's G correction, then D74.** Port the G correction (line 1583) with the Turn Sim screen. Pin V6's order first: limit to 1.01, then the correction of up to −0.8 G, so G below 1 gives NaN. Then, as its own commit, limit G to 1.01 after the correction (D74), so the wingman flies almost straight. Size S.
