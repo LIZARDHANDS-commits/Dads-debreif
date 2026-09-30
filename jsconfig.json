@@ -1,0 +1,26 @@
+{
+  // Type-checks the plain JavaScript by reading the JSDoc comments (D142).
+  // Nothing is emitted and no code is converted to TypeScript. Run: npm run typecheck
+  //
+  // Folders are added to "include" one at a time, as their owners clear them.
+  // Add a folder only when tsc reports zero errors for it and everything it imports.
+  "compilerOptions": {
+    "checkJs": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Not strict yet: strict mode on untyped JS gives thousands of "implicit any" errors
+    // that say nothing about bugs. This still catches wrong property names, wrong argument
+    // counts and misuse of known types. Turn "strict" (or just "noImplicitAny") on later,
+    // folder by folder, once the folder has JSDoc types.
+    "strict": false,
+    // Skips checking .d.ts files, which are not ours.
+    "skipLibCheck": true,
+    // three.js ships no types and its source is JavaScript, so tsc would check all of
+    // three.js. This stand-in makes every three.js value "any" until we add @types/three.
+    "paths": { "three": ["./types/three.d.ts"] }
+  },
+  "include": ["src/ui-kit"]
+}
