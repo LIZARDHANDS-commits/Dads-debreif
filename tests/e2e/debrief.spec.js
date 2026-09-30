@@ -1299,6 +1299,41 @@ test('wind arrows: an answer that is not wind data is said in the menu (not blam
   expect(asked).toHaveLength(2);
 });
 
+test('wind arrows: in 3D nothing is fetched and the menu says they show in 2D only; back in 2D one request is made (SPEC-debrief: Winds aloft)', async ({ page }) => {
+  const asked = [];
+  await page.route(OPEN_METEO, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: openMeteoGridReply(route.request().url()) });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByText('3D', { exact: true }).click();
+  await expect(page.locator('canvas.debrief-3d')).toBeVisible();
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('Wind arrows (model)').check();
+  const note = page.locator('.debrief-menu-note');
+  await expect(note).toHaveText('Wind arrows show in the 2D map only.');
+  await expect(page.locator('.map-credit')).toBeHidden();
+  // The status is drawn in the same step as the check, so a request would already be out.
+  expect(asked).toEqual([]);
+  // A height change in 3D still asks for nothing.
+  await page.getByLabel('Wind arrow height').fill('10000');
+  await expect(note).toHaveText('Wind arrows show in the 2D map only.');
+  expect(asked).toEqual([]);
+
+  await page.getByText('2D', { exact: true }).click();
+  await expect(page.locator('canvas.debrief-2d')).toBeVisible();
+  await expect(page.locator('.map-credit')).toHaveText(/^Model wind at 10,000 ft \(HRDPS \d{2}(–\d{2})?Z, Open-Meteo\)$/);
+  expect(asked).toHaveLength(1);
+  expect(new URL(asked[0]).searchParams.get('latitude').split(',')).toHaveLength(9);
+  // Round again: 3D drops the caption, and 2D brings it back from what it has, with no second request.
+  await page.getByText('3D', { exact: true }).click();
+  await expect(page.locator('.map-credit')).toBeHidden();
+  await page.getByText('2D', { exact: true }).click();
+  await expect(page.locator('.map-credit')).toBeVisible();
+  expect(asked).toHaveLength(1);
+});
+
 // RC-1 (verification re-check 195): from the 1280 px floor up (D183), an open toolbar menu
 // stays over the map: it never makes the page scroll sideways, leaves the window, or
 // covers a control in the Flight or Formation column. Measured for the one menu that is open.
