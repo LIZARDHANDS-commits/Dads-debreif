@@ -146,17 +146,17 @@ export function turnRadiusFt(tasKt, loadG) {
 
 ## Build order
 
-Pieces are built in dependency order, up to three workstreams at once, each in its own thread, branch and pull request (D14).
+Pieces are built in dependency order, each workstream in its own thread, branch and pull requests (D14). Once the data pieces have landed, all the module screens build at once (D133).
 
 1. **Now, side by side:**
    - App frame: `storage`, `ui-kit`, `shell`, an empty app live on GitHub Pages with CI, size budget and the browser tests (`tasks/app-frame/`).
    - Flight math: `core`, ported function by function under golden tests (`tasks/flight-math/`).
    - Weather parser: `wx` parsing and limits, no live sources yet (`tasks/wx/`).
 2. **After flight math's first pull request** (units, angles, geo, time): `airfields`, `flight-data`, KML loading and the clock, pinned against V6.
-3. **Module screens**, two or three at a time, each once the app frame and its data pieces have landed: `debrief` (2D and 3D together), `turn-sim`, `turn-fight`, `traffic`.
-4. **`sof` last**, after `wx` and once an environment that can reach the weather sites is set up.
+3. **The debrief** (2D and 3D together), once the app frame and its data pieces have landed.
+4. **Everything else at once** (Patrick, 2026-09-30, D133): `turn-sim`, `turn-fight`, `traffic` and `sof` in parallel. Their one shared dependency, core's T-6A performance model (D128), comes first. Each slice merges to main as it passes, and the four are integrated and tested together at the end. The SOF also needs an environment that can reach the weather sites.
 
-Only the app frame edits `package.json`, `vite.config.js` and CI. Each step ends with Patrick's (or Dad's) sign-off on that module's checklist.
+Only the app frame edits `package.json`, `vite.config.js` and CI. Each step ends with Patrick's (or Dad's) sign-off on its checklist; step 4's modules are tested together.
 
 ## Success criteria
 
