@@ -21,7 +21,7 @@ import { createMap2d, hintFor } from './map2d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
 import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
-import { applyToSetup, memoryStore } from './glue.js';
+import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
 
@@ -129,9 +129,10 @@ function mount(root, app) {
   }
 
   // ---- playback ----------------------------------------------------------------------
-  function onFrame(dtMs) {
+  // If a frame throws, the run is paused first so the bar never says Running over a stopped sim; the error still surfaces.
+  const onFrame = pauseOnThrow((dtMs) => {
     if (clock.tick(dtMs)) changed();
-  }
+  }, () => pause());
 
   function play() {
     if (clock.mode === 'running') return;

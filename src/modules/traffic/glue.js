@@ -44,3 +44,22 @@ export function memoryStore() {
   const docs = new Map();
   return { get: (name, fallback) => (docs.has(name) ? docs.get(name) : fallback), set: (name, value) => docs.set(name, value) };
 }
+
+/**
+ * Wraps a frame's work so that if it throws, `pause()` runs first and the error is thrown again:
+ * the bar never keeps saying Running over a sim that has stopped, and the error is not hidden.
+ * @template {any[]} A
+ * @param {(...args: A) => void} work
+ * @param {() => void} pause
+ * @returns {(...args: A) => void}
+ */
+export function pauseOnThrow(work, pause) {
+  return (...args) => {
+    try {
+      work(...args);
+    } catch (err) {
+      pause();
+      throw err;
+    }
+  };
+}

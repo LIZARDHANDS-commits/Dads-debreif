@@ -3,9 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { applyToSetup, memoryStore, within } from '../../../src/modules/traffic/glue.js';
+import { applyToSetup, memoryStore, pauseOnThrow, within } from '../../../src/modules/traffic/glue.js';
 import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
+import { createClock } from '../../../src/modules/traffic/clock.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
@@ -68,4 +69,28 @@ test('the in-memory store keeps what it is given and answers with the fallback f
   assert.equal(store.get('settings', 'none'), 'none');
   store.set('settings', { a: 1 });
   assert.deepEqual(store.get('settings', 'none'), { a: 1 });
+});
+
+test('a frame that throws pauses the run first and the error still comes out', () => {
+  const seen = [];
+  const boom = new Error('frame failed');
+  const frame = pauseOnThrow((dt) => {
+    seen.push(`work ${dt}`);
+    if (dt > 100) throw boom;
+  }, () => seen.push('pause'));
+  frame(16);
+  assert.deepEqual(seen, ['work 16'], 'a good frame does not pause');
+  assert.throws(() => frame(500), (err) => err === boom);
+  assert.deepEqual(seen, ['work 16', 'work 500', 'pause']);
+});
+
+test('the frame wrapper hands its arguments on and pauses through the real clock and sim: a throwing engine leaves the clock paused', () => {
+  const setup = structuredClone(MOOSE_JAW);
+  const sim = createSim(setup, { seed: 1 });
+  const clock = createClock({ sim, speed: 8 });
+  clock.play();
+  setup.routes = []; // the engine throws when the routes are emptied while aircraft exist
+  const frame = pauseOnThrow((dt) => clock.tick(dt), () => clock.pause());
+  assert.throws(() => { for (let i = 0; i < 300; i++) frame(50); });
+  assert.equal(clock.mode, 'paused');
 });
