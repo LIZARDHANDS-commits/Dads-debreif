@@ -18,7 +18,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 **Checkpoint A:** tests pass, build under budget, example flight plays smoothly; open PR A.
 
 - [ ] **4. Standards.** Standards panel with V6's preset, edit, reset, saved in module settings; labels on the map, green when on parameters; no label where no standard applies (#21).
-  - Acceptance: R18 (edit, reset, reload); #3 keeps V6's labels until Q39 is decided.
+  - Acceptance: R18 (edit, reset, reload); #3's fore/aft judged by the offset standard alone and its interval by spread (D78), once `core`'s `standards.js` change is on main.
   - Verify: unit tests of label rules; e2e edit/reset/reload.
   - Files: src/modules/debrief/standards-panel.js, readouts.js, tests/unit/debrief/standards.test.js
 - [ ] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
@@ -47,7 +47,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 **Checkpoint D:** open PR D.
 
 - [ ] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
-  - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each, as both are flagged for review (D63).
+  - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each (D63, confirmed D77).
   - Verify: e2e overlap scan with EM open; unit tests of the tennis panel glue.
   - Files: src/modules/debrief/{em,tennis-panel}.js, public/media/debrief/em-*.jpg
 - [ ] **10. CSV export.** One file, one row per second, ships side by side, sources and gap flags; disabled with no flight.

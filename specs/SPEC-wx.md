@@ -31,7 +31,7 @@ Out, for now:
 1. Reports are in North American format as the SOF shows them today: visibility in statute miles (`15SM`, `1 1/2SM`, `M1/4SM`, `P6SM`), with metric visibility (`9999`, `0800`) and `CAVOK` also understood.
 2. A raw report string is the input. JSON from a feed is the adapter's job; the adapter passes the raw text through.
 3. A report only carries day-of-month. Every parse takes a reference time (`now`) and resolves days to the nearest matching month, so reports around month ends work.
-4. Nothing in `wx` imports `src/core/` until the flight-math thread's first PR merges. The one conversion it needs (metres to statute miles, 1609.344) is a local constant, to be swapped for `core/units.js` later.
+4. `wx` does not import `src/core/`. The one conversion it needs (metres to statute miles, 1609.344, exact by definition) is a local constant, because `core/units.js` holds only the flight-math constants V6 uses and has no statute mile.
 5. `node --test` only, no packages.
 
 ## Behaviour
@@ -112,8 +112,9 @@ Patrick's choice, 2026-09-30: MET Norway first, Datamask as the backup. No proxy
 - **Datamask.** `https://datamask.org/api/v1/metar/CYQR` and `.../taf/CYQR`, one airfield per request. JSON; `wx` uses only `raw` and ignores Datamask's own decoding and times. HTTP 404 means no report. A doubled `TAF AMD TAF AMD` prefix is read once by `parseTaf`. Credited as "NOAA NWS via Datamask".
 - **Order.** MET Norway is asked for every airfield in one request. Any airfield it has nothing for, or every airfield if it fails, is asked of Datamask one at a time. Each report says which source it came from.
 - **Requests.** Plain `GET` with no custom headers, so the browser sends no preflight (MET Norway allows only simple requests). `cache: 'no-cache'` lets the browser revalidate with `If-Modified-Since` itself where the source sends `Last-Modified`. Each request gives up after 10 seconds. Station ids must be four letters or digits before they go in a URL; anything else is refused.
-- **Refresh.** Every 5 minutes by default (a setting), with timers passed in so tests control time. A failed refresh keeps the last good report and reports the error; it never clears data.
+- **Refresh.** Every 5 minutes by default (a setting, never faster than once a minute), with timers passed in so tests control time. A failed refresh keeps the last good report and reports the error; it never clears data.
 - **Stale.** A METAR is stale when it is more than 75 minutes old by its own observation time. A TAF is stale when its valid period has ended. A cancelled TAF reads as `cancelled`, not stale or unreadable. A report with no readable time is stale. The fetch time never counts: Datamask has served a 12-day-old METAR as current.
+- **Untrusted replies.** A reply over 256 KB, or a report over 4000 characters, is refused, not parsed. A Datamask report for a different station than the one asked for is refused. Only `metar` or `taf` and at most 30 valid station ids ever reach a URL, and requests send no cookies (`credentials: 'omit'`). Raw report text goes to the page as data: the SOF must show it as text, never as HTML.
 - `sources.js` is the only module in `wx` that talks to the network. `fetch` and the timers are passed in, so every other rule in this spec (pure functions, no throwing) still holds and it can be tested without a network.
 
 ### Data age
