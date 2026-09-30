@@ -63,7 +63,10 @@ for (const size of SIZES) {
       });
       expect(inDialog, 'dialog fits on screen').toBe(true);
       expect(await layoutProblems(page)).toEqual([]);
-      // Nothing sticks out past the dialog's own padding, where it would be clipped.
+      // With every "More" panel in it open too, nothing sticks out past the
+      // dialog's own padding, where it would be clipped.
+      for (const toggle of await page.locator('dialog[open] [aria-expanded="false"]').all()) await toggle.click();
+      expect(await layoutProblems(page)).toEqual([]);
       const clipped = await page.evaluate(() => {
         const d = document.querySelector('dialog[open]');
         const box = d.getBoundingClientRect();
