@@ -21,6 +21,7 @@ const VISUAL_DESCENT_VIS_SM = 3;
  * Minima for a GNSS-only visual descent (D80): ceiling at least MEA + 500 ft,
  * converted from above sea level to above the field, and visSm (default 3 SM).
  * Null when the MEA or the field elevation can't be read.
+ * @param {{ meaFt?: number, elevationFt?: number, visSm?: number }} [descent]
  */
 export function visualDescentMinima({ meaFt, elevationFt, visSm = VISUAL_DESCENT_VIS_SM } = {}) {
   if (!Number.isFinite(meaFt) || !Number.isFinite(elevationFt)) return null;
@@ -164,6 +165,10 @@ export function arrivalWindow(etas, { marginMin = 60 } = {}) {
  *
  * status: 'no-time' | 'no-taf' | 'not-covered' | 'below' | 'incomplete' | 'at-limit' | 'meets'.
  * `worst` is the earliest hit, else the earliest at-limit piece, else null.
+ * @param {any} taf  a parsed TAF (parseTaf)
+ * @param {any} when  one ETA or a { from, to } window
+ * @param {{ minima?: any, landingMinima?: any, visualDescent?: { meaFt?: number, elevationFt?: number, visSm?: number },
+ *   gnssApproach?: boolean, homeGnssApproach?: boolean, distanceNm?: number | null }} [options]
  */
 export function assessAlternate(taf, when, { minima, landingMinima, visualDescent, gnssApproach = false, homeGnssApproach = false, distanceNm = null } = {}) {
   const w = toWindow(when);

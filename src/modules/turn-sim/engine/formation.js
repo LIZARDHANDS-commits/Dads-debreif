@@ -13,7 +13,7 @@
 // of the heading, which on this north-up map is the LEFT of the aircraft. V6's
 // code and comments call it "right" throughout, and its numbers depend on it,
 // so it keeps that name here (rightVector) and this note says what it is.
-import { degToRad } from '../../../core/angles.js';
+import { compassDegToHeadingRad } from '../../../core/angles.js';
 import { aircraftSettings } from '../settings.js';
 
 /** #4's distance outside #2 in the offset box, in feet (V6 line 815: "fixed 3000 ft outside of #2"). */
@@ -48,13 +48,13 @@ export function forwardVector(headingRad) {
  * layouts are not ported). Returns all four aircraft, as V6 does:
  * [{ id, xFt, yFt, headingRad }].
  *
- * Uses: formation, spacingFt, startHeadingDeg, boxAftFt, boxStaggerFt.
+ * Uses: formation, spacingFt, startHeadingDeg (compass, D45), boxAftFt, boxStaggerFt.
  * Each aircraft sits `lat` along the "right" vector and `long` along the
  * heading from Lead. 4312 is 4 | 3 | 1 | 2 with #2 on that vector's side.
  */
 export function formationSlots(settings) {
   const s = settings.spacingFt;
-  const h = degToRad(settings.startHeadingDeg);
+  const h = compassDegToHeadingRad(settings.startHeadingDeg);
   const form = settings.formation;
   const right = rightVector(h);
   const fwd = forwardVector(h);
@@ -106,7 +106,7 @@ export function positionErrorsFt(settings) {
  * it is left as it is until that decision's own commit.
  */
 export function startPositions(settings) {
-  const h = degToRad(settings.startHeadingDeg);
+  const h = compassDegToHeadingRad(settings.startHeadingDeg);
   const right = rightVector(h);
   const fwd = forwardVector(h);
   const errors = positionErrorsFt(settings);
