@@ -36,7 +36,19 @@
         root: document.getElementById('view'), scheduler, store, settings, time, standards,
         onStatus: (text) => { statusLine.textContent = text; statusLine.hidden = !text; },
       });
-      const entry = { id: 'turn-sim', title: 'Formation Turn Sim', load: () => import('/src/modules/turn-sim/index.js') };
+      // window.__tsPreset (set by a test before load) is a scenario the Turn Sim finds already saved, as a profile will give it one.
+      const { SETTINGS_VERSION } = await import('/src/modules/turn-sim/settings.js');
+      const presetStore = () => (window.__tsPreset
+        ? { get: (name, fallback) => (name === 'settings' ? { version: SETTINGS_VERSION, values: window.__tsPreset } : fallback), set: () => {} }
+        : undefined);
+      const entry = {
+        id: 'turn-sim',
+        title: 'Formation Turn Sim',
+        load: async () => {
+          const mod = (await import('/src/modules/turn-sim/index.js')).default;
+          return { default: { ...mod, mount: (root, app) => mod.mount(root, { ...app, scenarioStore: presetStore() }) } };
+        },
+      };
 
       window.__ts = {
         host,

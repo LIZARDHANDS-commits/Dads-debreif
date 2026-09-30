@@ -48,7 +48,8 @@ function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
   document.head.append(stylesheet);
 
-  const scenario = createSettings(memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION, migrate: migrateSettings });
+  // app.scenarioStore is where the scenario lives: memory by default, or a saved one the browser tests hand in (and profiles will).
+  const scenario = createSettings(app.scenarioStore ?? memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION, migrate: migrateSettings });
   const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED });
   const controls = createControls(scenario);
   const layoutControls = createControls(layout);
@@ -301,16 +302,20 @@ function mount(root, app) {
   });
 
   // Any setup change stops the run and goes back to t = 0 with the new plan (#31). Layers and speed don't.
+  /**
+   * A four-ship formation with Shackle or Cross turn chosen moves the menu to the default turn for good (the stored setting too), and
+   * says so, rather than keeping a turn the formation cannot fly. Returns true when it did (the change comes back through the subscription).
+   */
+  function settleTurn(values) {
+    if (!turnProblem(values.formation, values.maneuver)) return false;
+    lastManeuver = DEFAULTS.maneuver;
+    lastFormation = values.formation;
+    ui.setTurnSwitched(TURN_SWITCHED_NOTE);
+    scenario.update({ maneuver: DEFAULTS.maneuver, turnDeg: MANEUVER_TURN_DEG[DEFAULTS.maneuver] });
+    return true;
+  }
   const stopScenario = scenario.subscribe((values) => {
-    // Picking a four-ship formation while Shackle or Cross turn is chosen moves the menu to the default turn for good
-    // (the stored setting too), and says so, rather than keeping a turn the formation cannot fly.
-    if (turnProblem(values.formation, values.maneuver)) {
-      lastManeuver = DEFAULTS.maneuver;
-      lastFormation = values.formation;
-      ui.setTurnSwitched(TURN_SWITCHED_NOTE);
-      scenario.update({ maneuver: DEFAULTS.maneuver, turnDeg: MANEUVER_TURN_DEG[DEFAULTS.maneuver] }); // comes back here
-      return;
-    }
+    if (settleTurn(values)) return;
     if (values.formation !== lastFormation || values.maneuver !== lastManeuver) ui.setTurnSwitched(null);
     lastFormation = values.formation;
     // Turn degrees follow the turn, as V6's boxes fill them in when the turn changes (line 2030).
@@ -325,6 +330,7 @@ function mount(root, app) {
     resetRun();
     if (!userMoved) fit();
   });
+  settleTurn(scenario.get()); // and at mount too: a scenario that arrives already holding a turn its formation cannot fly (a saved profile)
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
     if (values.view !== wantView) {

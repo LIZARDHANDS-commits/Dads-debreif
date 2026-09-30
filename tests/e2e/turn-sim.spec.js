@@ -796,6 +796,16 @@ test('a greyed Direction shows the side that is flown, and gives the chosen side
   await expect(direction.getByRole('radio', { name: 'Left' })).toBeChecked(); // the choice was never lost
 });
 
+test('a scenario that arrives holding Shackle in a four-ship opens on Delayed 90 with its note (F4)', async ({ page }) => {
+  await page.addInitScript(() => { window.__tsPreset = { formation: 'weighted', maneuver: 'shackle45', turnDeg: 45, direction: 'left' }; });
+  await open(page);
+  await expect(box(page, 'Turn').locator('option:checked')).toHaveText('Delayed 90');
+  await expect(box(page, 'Turn degrees')).toHaveValue('90');
+  await expect(page.locator('.ts-turn-note')).toHaveText('Shackle and Cross turn are two-ship only, so this is now a Delayed 90.');
+  await expect(page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByRole('radio', { name: 'Left' })).toBeChecked();
+  await expect(page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByRole('radio').first()).toBeEnabled();
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
