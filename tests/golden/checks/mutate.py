@@ -41,9 +41,12 @@ M = [
  ('angles.js','if (!Number.isFinite(h1) || !Number.isFinite(h2)) return null;','if (!Number.isFinite(h1)) return null;'),
  ('angles.js','return absAngleDeg(h2 - h1);','return absAngleDeg(h1 - h2);'),
  ('angles.js','return degToRad(90 - compassDeg);','return degToRad(compassDeg - 90);'),
- ('angles.js','return deg < 0 ? deg + 360 : deg;','return deg;'),
+ ('angles.js','const wrapped = deg < 0 ? deg + 360 : deg;','const wrapped = deg;'),
+ ('angles.js','return wrapped >= 360 || wrapped === 0 ? 0 : wrapped;','return wrapped;'),
  ('angles.js','return { x: Math.cos(r), y: Math.sin(r) };','return { x: Math.cos(r), y: -Math.sin(r) };'),
  ('geo.js','lat0: lat * Math.PI / 180,','lat0: lat * Math.PI / 180.0001,'),
+ ('geo.js','export function latLonToLocalFt(ref, lat, lon) {\n  if (!ref) return null;','export function latLonToLocalFt(ref, lat, lon) {'),
+ ('geo.js','export function localFtToLatLon(ref, x, y) {\n  if (!ref) return null;','export function localFtToLatLon(ref, x, y) {'),
  ('geo.js','x: (lon - ref.lon) * Math.PI / 180 * Math.cos(ref.lat0) * ref.R * FT_PER_M,','x: (lon - ref.lon) * Math.PI / 180 * Math.cos(ref.lat0 + 1e-9) * ref.R * FT_PER_M,'),
  ('geo.js','lat: ref.lat + (y / (FT_PER_M * ref.R)) * 180 / Math.PI,','lat: ref.lat + (y / (FT_PER_M * ref.R)) * 180.0001 / Math.PI,'),
  ('geo.js','lon: ref.lon + (x / (FT_PER_M * ref.R * Math.cos(ref.lat0))) * 180 / Math.PI,','lon: ref.lon + (x / (FT_PER_M * ref.R * Math.cos(ref.lat0))) * 180.0001 / Math.PI,'),
@@ -63,25 +66,41 @@ M = [
  ('time.js',"return date.toISOString().slice(11, 19) + 'Z';","return date.toISOString().slice(11, 16) + 'Z';"),
  ('time.js','return Date.parse(String(text).trim()) / 1000;','return Date.parse(String(text)) / 1000;'),
  ('time.js','String(date.getUTCFullYear()).slice(-2)','String(date.getUTCFullYear()).slice(-4)'),
- ('time.js',"timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,","timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,"),
- ('time.js',"{ timeZone, timeZoneName: 'short' }","{ timeZone, timeZoneName: 'long' }"),
- ('time.js',"timeZone, hourCycle: 'h23',","timeZone, hourCycle: 'h24',"),
- ('time.js','return Math.round((wall - Math.floor(date.getTime() / 1000) * 1000) / 60000);','return Math.round((wall - date.getTime()) / 60000);'),
+ ('time.js',"second: '2-digit', hour12: false }]","second: '2-digit', hour12: true }]"),
+ ('time.js',"{ timeZoneName: 'short' }","{ timeZoneName: 'long' }"),
+ ('time.js',"hourCycle: 'h23',","hourCycle: 'h24',"),
+ ('time.js','return Math.round((wall.getTime() - Math.floor(date.getTime() / 1000) * 1000) / 60000);','return Math.round((wall.getTime() - date.getTime()) / 60000);'),
+ ('time.js','wall.setUTCFullYear(+parts.year, +parts.month - 1, +parts.day);','wall.setTime(Date.UTC(+parts.year, +parts.month - 1, +parts.day));'),
+ ('time.js','let formatter = byZone.get(timeZone);','let formatter = byZone.values().next().value;'),
  ('time.js','for (let dm = -1; dm <= 1; dm++) {','for (let dm = -1; dm <= 0; dm++) {'),
  ('time.js','return cand.sort((a, b) => Math.abs(a - ref) - Math.abs(b - ref))[0];','return cand.sort((a, b) => Math.abs(b - ref) - Math.abs(a - ref))[0];'),
 ]
+
+
+def suite_passes():
+    try:
+        run = subprocess.run(['node', '--test', 'tests/**/*.test.js'], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return False  # a change that makes the suite hang counts as caught
+    return run.returncode == 0
+
+
+if not suite_passes():
+    raise SystemExit('The suite fails before any change; fix it before running the mutation check.')
 
 caught, survived = 0, []
 for f, a, b in M:
     p = ROOT / 'src/core' / f
     orig = p.read_text()
-    assert orig.count(a) == 1, (f, a)
+    assert orig.count(a) == 1, f'{f}: expected exactly one {a!r}; update this list'
     p.write_text(orig.replace(a, b))
     try:
-        r = subprocess.run(['timeout', '120', 'node', '--test', 'tests/**/*.test.js'], cwd=ROOT, capture_output=True, text=True)
-        if r.returncode != 0: caught += 1
-        else: survived.append((f, a, b))
+        if suite_passes():
+            survived.append((f, a, b))
+        else:
+            caught += 1
     finally:
         p.write_text(orig)
 print(f'{caught} of {len(M)} mutations caught')
-for s in survived: print('SURVIVED', s)
+for s in survived:
+    print('SURVIVED', s)

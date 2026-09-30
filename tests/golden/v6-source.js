@@ -36,10 +36,11 @@ export function v6FunctionText(name, { page = 'shell', marker } = {}) {
   if (start < 0) throw new Error(`marker not found in ${page}: ${marker}`);
   const i = src.indexOf('function ' + name + '(', start);
   if (i < 0) throw new Error(`function not found in ${page}: ${name}`);
+  const from = src.startsWith('async ', i - 6) ? i - 6 : i;
   let depth = 0;
   for (let k = src.indexOf('{', i); k < src.length; k++) {
     if (src[k] === '{') depth++;
-    else if (src[k] === '}' && --depth === 0) return src.slice(i, k + 1);
+    else if (src[k] === '}' && --depth === 0) return src.slice(from, k + 1);
   }
   throw new Error(`unbalanced braces in ${name}`);
 }
@@ -58,8 +59,9 @@ export function loadV6(names, { page = 'shell', marker, prelude = '', expose = [
 export function v6Number(name, { page = 'shell', marker } = {}) {
   const src = v6Page(page);
   const start = marker ? src.indexOf(marker) : 0;
+  if (start < 0) throw new Error(`marker not found in ${page}: ${marker}`);
   const re = new RegExp(`\\b${name}\\s*=\\s*(-?[0-9.]+)`, 'g');
-  re.lastIndex = Math.max(start, 0);
+  re.lastIndex = start;
   const m = re.exec(src);
   if (!m) throw new Error(`constant not found in ${page}: ${name}`);
   return Number(m[1]);
