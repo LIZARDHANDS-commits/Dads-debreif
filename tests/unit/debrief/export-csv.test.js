@@ -92,3 +92,14 @@ test('the file: CRLF lines, and a name from the flight\'s start', () => {
   assert.ok(!/-0\.0\b/.test(text));
   assert.equal(csvFileName(T0 + 5.4), 'debrief-2026-09-30-1432Z.csv');
 });
+
+// Verification re-check N2: an unknown bank is a blank cell, not 0.0.
+test('the bank cell is blank where the bank is unknown, and a number where it is known', () => {
+  const flight = buildFlight({ 1: { name: 'lead', fixes: east({ from: 0, to: 60, skip: [31, 32, 33, 34, 35, 36, 37] }) } });
+  const [header, ...data] = csvRows(flight);
+  const col = header.indexOf('#1 bank deg (right +)');
+  const at = (s) => data.find((row) => Date.parse(row[0]) / 1000 === T0 + s)[col];
+  assert.equal(readoutsAt(flight, T0 + 29).ships[0].bankDeg, null); // its ±1.5 s window touches the gap after 30 s
+  assert.equal(at(29), '');
+  assert.equal(at(10), '0.0');
+});

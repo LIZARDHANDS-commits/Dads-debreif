@@ -31,7 +31,7 @@ export function timeText(state) {
 
 /** The phase: HEAD-TO-HEAD until the merge, then 1-CIRCLE or 2-CIRCLE (V6 bfmPhase, line 4277, which writes "1 CIRCLE" and "2 CIRCLE"). */
 export function phaseText(state) {
-  if (!state.merged) return 'HEAD-TO-HEAD';
+  if (!state.merged) return state.headOn ? 'HEAD-TO-HEAD' : 'TO THE PASS';
   return state.setup.circles === 1 ? '1-CIRCLE' : '2-CIRCLE';
 }
 
@@ -85,14 +85,29 @@ export function moreDetailRows(state) {
     pairRow('g', 'G', 'more', blue.g.toFixed(1), red.g.toFixed(1)),
     pairRow('time360', '360° time', 'more', `${(360 / blue.rateDegPerSec).toFixed(1)} s`, `${(360 / red.rateDegPerSec).toFixed(1)} s`),
     pairRow('offNose', 'Off-nose angle (ATA)', 'more', `${ataDeg(state, state.blue, state.red).toFixed(0)}°`, `${ataDeg(state, state.red, state.blue).toFixed(0)}°`),
-    textRow('angleOff', 'Angle-off', 'more', `${headingCrossAngleDeg(state.blue.headingRad, state.red.headingRad).toFixed(0)}°`),
+    textRow('angleOff', 'Angle-off (HCA)', 'more', `${headingCrossAngleDeg(state.blue.headingRad, state.red.headingRad).toFixed(0)}°`),
     textRow('sinceMerge', 'Time since merge', 'more', `${sinceMergeSec(state).toFixed(1)} s`),
   ];
   if (state.setup.vertical) {
     rows.push(
-      pairRow('heightChange', 'Height change', 'more', `${formatWholeFt(state.blue.zFt)} ft`, `${formatWholeFt(state.red.zFt)} ft`),
+      // From each aircraft's own start height (R28: Red may start above or below Blue).
+      pairRow('heightChange', 'Height change', 'more', `${formatWholeFt(state.blue.zFt - state.startZFt.blue)} ft`, `${formatWholeFt(state.red.zFt - state.startZFt.red)} ft`),
       textRow('heightBetween', 'Height between', 'more', `${formatWholeFt(Math.abs(state.blue.zFt - state.red.zFt))} ft`),
     );
   }
   return rows;
+}
+
+/**
+ * The live aspect angle for More detail (R28, SMM 12.2): each aircraft's AA, where
+ * the other sits off its tail, 180° when it points at the other and 0° when the
+ * other is dead astern. The HCA is the "Angle-off (HCA)" row of `moreDetailRows`
+ * (one row, not two), and the range is the Result card's, always in view. Kept
+ * apart from `moreDetailRows` so V6's own lines and their golden test stay as they
+ * were; the screen shows both in the one More detail table. The AA is measured like
+ * the off-nose angle (`ataDeg`), in 3D with Climb and dive on.
+ */
+export function geometryRows(state) {
+  const aspect = (from, other) => `${(180 - ataDeg(state, from, other)).toFixed(0)}°`;
+  return [pairRow('aspect', 'Aspect angle (AA)', 'more', aspect(state.blue, state.red), aspect(state.red, state.blue))];
 }

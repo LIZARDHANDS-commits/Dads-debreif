@@ -10,7 +10,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "ES2023.Array", "DOM", "DOM.Iterable"],
     // Not strict yet: strict mode on untyped JS gives thousands of "implicit any" errors
     // that say nothing about bugs. This still catches wrong property names, wrong argument
     // counts and misuse of known types. Turn "strict" (or just "noImplicitAny") on later,
@@ -22,5 +22,5 @@
     // three.js. This stand-in makes every three.js value "any" until we add @types/three.
     "paths": { "three": ["./types/three.d.ts"] }
   },
-  "include": ["src/ui-kit", "src/core", "src/flight-data", "src/airfields", "src/wx", "src/modules/debrief", "src/modules/sof", "relay", "src/modules/turn-fight", "src/modules/traffic"]
+  "include": ["src/ui-kit", "src/core", "src/flight-data", "src/airfields", "src/wx", "src/modules/debrief", "src/modules/sof", "relay", "src/modules/turn-fight", "src/modules/traffic", "src/modules/turn-sim", "src/shell", "src/storage", "src/app.js"]
 }

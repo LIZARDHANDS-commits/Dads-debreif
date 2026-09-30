@@ -3,8 +3,7 @@
 // fixed ground grid. The drawing is in view.js; the projection and the T-6's
 // shape are V6's, pinned in scene.js.
 import { sampleAt, headingAt, pitchAt } from '../../../flight-data/flight.js';
-import { bankFromTrack } from './scene.js';
-import { turnRateAt } from '../readouts.js';
+import { shipBank } from '../readouts.js';
 
 /** V6's camera limits (its Yaw, Pitch and Zoom sliders and its mouse handlers). */
 export const CAMERA_LIMITS = Object.freeze({ yaw: [-180, 180], pitch: [5, 80], zoom: [10, 300] });
@@ -36,8 +35,9 @@ export function wheelZoom(camera, deltaY) {
 
 /**
  * Each ship at time t: { slot, x, y, altFt, hdg (radians, null when not
- * moving), bankDeg (left wing down positive), pitchDeg, inGap }. Bank and
- * pitch are the ones the readouts show (D40, D47, D61).
+ * moving), bankDeg (left wing down positive), bankKnown, pitchDeg, inGap }.
+ * Bank and pitch are the ones the readouts show (D40, D47, D61); where the
+ * bank is unknown it is drawn wings level and bankKnown is false.
  */
 export function shipsIn3d(flight, t) {
   if (!flight) return [];
@@ -46,15 +46,10 @@ export function shipsIn3d(flight, t) {
     .map((tr) => {
       const s = sampleAt(tr, t);
       const pitch = pitchAt(tr, t);
-      const bank = bankFromTrack({
-        turnRateRadPerS: turnRateAt(tr, t), // over the same ±1.5 s as est. G (M2)
-        speedKt: s.speedKt,
-        recordedBankDeg: s.bankRecordedDeg,
-        pitchDeg: pitch.deg,
-      });
+      const bank = shipBank(tr, t, { sample: s, pitchDeg: pitch.deg });
       return {
         slot: tr.slot, x: s.xFt, y: s.yFt, altFt: s.altFt, hdg: headingAt(tr, t),
-        bankDeg: bank.bankDeg, pitchDeg: pitch.deg, inGap: s.inGap,
+        bankDeg: bank.bankDeg, bankKnown: bank.known, pitchDeg: pitch.deg, inGap: s.inGap,
       };
     });
 }

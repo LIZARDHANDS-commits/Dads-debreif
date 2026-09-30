@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { formationSlots, positionErrorsFt, startPositions, inferLineAbreastForm, isTwoShip } from '../../src/modules/turn-sim/engine/formation.js';
 import { degToRad } from '../../src/core/angles.js';
-import { createV6Page } from './turn-sim-fake-page.js';
+import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
 const FORMATIONS = ['weighted', 'weightedReverse', 'offsetBox', 'twoShip'];
@@ -74,9 +74,9 @@ test('position errors: the wide/tight and fore/aft feet match syncAircraftErrorV
   }
 });
 
-test('start positions: slots with the enabled position errors added match V6 after applyErrors', () => {
+test('start positions: slots with the enabled position errors added match V6 after applyErrors (D42: V6 is given Wide and Tight swapped for aircraft on its negative side)', () => {
   for (const settings of cases()) {
-    const page = createV6Page(settings);
+    const page = createV6Page(v6SettingsForD42(settings));
     page.reset(); // desiredFormationAircraft, then applyErrors
     const mine = startPositions(settings);
     for (const a of page.aircraft()) {
@@ -84,6 +84,62 @@ test('start positions: slots with the enabled position errors added match V6 aft
       assert.deepEqual([got.xFt, got.yFt, got.headingRad], [a.x, a.y, a.hdg], `${settings.formation} #${a.id} ${JSON.stringify(settings)}`);
     }
   }
+});
+
+test('D48: with #2 on Lead\'s right, 4312 is V6\'s 2134 and 2134 is V6\'s 4312, slots and start positions (with errors), exact', () => {
+  let n = 0;
+  for (const settings of cases()) {
+    if (settings.formation !== 'weighted' && settings.formation !== 'weightedReverse') continue;
+    const mine = { ...settings, twoSide: 'right' };
+    const page = createV6Page(v6SettingsForD42(v6SettingsForD48(mine)));
+    page.reset();
+    const got = startPositions(mine);
+    for (const a of page.aircraft()) {
+      const g = got.find((m) => m.id === a.id);
+      assert.deepEqual([g.xFt, g.yFt, g.headingRad], [a.x, a.y, a.hdg], `${settings.formation} #${a.id}`);
+    }
+    // And it is the mirror of the left layout across Lead's line.
+    const left = formationSlots({ ...settings, twoSide: 'left' });
+    const right = formationSlots(mine);
+    const h = (90 - settings.startHeadingDeg) * Math.PI / 180;
+    for (const id of [2, 3, 4]) {
+      const across = (list) => { const a = list.find((x) => x.id === id); return a.xFt * Math.cos(h + Math.PI / 2) + a.yFt * Math.sin(h + Math.PI / 2); };
+      assert.ok(Math.abs(across(left) + across(right)) < 1e-6, `#${id} mirrored`);
+    }
+    n++;
+  }
+  assert.ok(n > 80);
+});
+
+test('D48: other presets ignore the side, and "left" is V6 itself', () => {
+  for (const settings of cases()) {
+    const other = settings.formation === 'offsetBox' || settings.formation === 'twoShip';
+    assert.deepEqual(formationSlots({ ...settings, twoSide: 'left' }), formationSlots(settings));
+    if (other) assert.deepEqual(formationSlots({ ...settings, twoSide: 'right' }), formationSlots(settings));
+  }
+});
+
+test('D48: inferLineAbreastForm swaps its answers with #2 on the right', () => {
+  const r = seeded(0x1f4f);
+  let answered = 0;
+  for (let i = 0; i < 300; i++) {
+    const formation = pick(r, ['weighted', 'weightedReverse']);
+    const page = createV6Page({ ...V6_DEFAULTS, formation });
+    const heading = r() * 2 * Math.PI - Math.PI;
+    const order = [1, 2, 3, 4].sort(() => r() - 0.5);
+    const right = { x: Math.cos(heading + Math.PI / 2), y: Math.sin(heading + Math.PI / 2) };
+    const craft = page.aircraft();
+    craft.forEach((a) => { const slot = order.indexOf(a.id) * 6000 - 9000; a.x = right.x * slot; a.y = right.y * slot; a.hdg = heading; });
+    const swap = { weighted: 'weightedReverse', weightedReverse: 'weighted' };
+    // V6 asked with the swapped name answers in V6's names; the port's names are the swap of those.
+    const v6Page = createV6Page({ ...V6_DEFAULTS, formation: swap[formation] });
+    v6Page.aircraft().forEach((a, k) => { a.x = craft[k].x; a.y = craft[k].y; a.hdg = craft[k].hdg; });
+    const want = swap[v6Page.v6.inferLineAbreastFormFromCurrentState()];
+    const got = inferLineAbreastForm(craft.map((a) => ({ id: a.id, xFt: a.x, yFt: a.y, headingRad: a.hdg })), formation, 'right');
+    assert.equal(got, want, `${formation} order ${order}`);
+    if (got !== formation) answered++;
+  }
+  assert.ok(answered > 0);
 });
 
 test('the errors are added along the start heading, from the start heading box (V6 does not use Lead\'s heading)', () => {

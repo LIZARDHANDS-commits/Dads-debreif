@@ -5,9 +5,10 @@ import assert from 'node:assert/strict';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { stallLimitG, availableG } from '../../../src/core/t6-performance.js';
 import {
-  formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, TURN_DEGREES, pairText, ft, signedFt,
+  formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
 } from '../../../src/modules/turn-sim/readouts.js';
+import { MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
 
 // Lead at the origin flying east (heading 0), so its left is north (+y).
 const ac = (id, xFt, yFt, extra = {}) => ({ id, xFt, yFt, headingRad: 0, turning: false, bankDeg: 0, g: 1, ...extra });
@@ -123,8 +124,8 @@ test('the turn line and summary use the set speed and G, limited as the flying l
   assert.deepEqual(summary.map((s) => s[0]), ['Turn radius', 'Turn rate', 'Time to 90°', 'Bank angle', 'Speed']);
   assert.equal(summary.at(-1)[1], '220 KTAS');
   assert.equal(readoutsAt(four(), { ...SETTINGS, turnDeg: 45 }).summary[2][0], 'Time to 45\u00b0');
-  // Turn degrees follow the turn, as V6's boxes fill them in.
-  assert.deepEqual(TURN_DEGREES, { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90 });
+  // Turn degrees follow the turn (settings.js MANEUVER_TURN_DEG): the hook is 180 (SMM 16.19 para 60) and the check turn 30.
+  assert.deepEqual(MANEUVER_TURN_DEG, { delayed90away: 90, delayed45away: 45, hook90: 180, shackle45: 45, cross180: 180, inplace90: 90, check30: 30 });
 });
 
 test('the stall-limit G warning fires above the limit and is a words-only warning (D128)', () => {
@@ -244,4 +245,30 @@ test('mutual support is only lost for a pair across the front, not one in trail'
   // 45 degrees off the wing line is a stagger, not abreast.
   const far = state([ac(1, 0, 0), ac(2, -9000, 9000)]);
   assert.deepEqual(separationFlags(far, { ...SETTINGS, formation: 'twoShip' }), []);
+});
+
+// TS-06: a perfect formation must never read FORE or WIDE from floating-point noise, whatever way it faces.
+test('every formation reads ON SPACING at t = 0 on any start heading (TS-06)', async () => {
+  const { createRun } = await import('../../../src/modules/turn-sim/engine/run.js');
+  const { DEFAULTS } = await import('../../../src/modules/turn-sim/settings.js');
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const startHeadingDeg of [0, 45, 90, 180, 270, 300]) {
+      const settings = { ...DEFAULTS, formation, startHeadingDeg };
+      const rows = formationRows(createRun(settings).state, settings);
+      assert.ok(rows.length >= 1);
+      for (const row of rows) assert.deepEqual(row.labels, ['ON SPACING'], `${formation} at ${startHeadingDeg}: #${row.id} reads ${row.labels}`);
+    }
+  }
+});
+
+test('the offset box reads the same on every start heading, and never FORE or AFT at t = 0 (TS-06)', async () => {
+  const { createRun } = await import('../../../src/modules/turn-sim/engine/run.js');
+  const { DEFAULTS } = await import('../../../src/modules/turn-sim/settings.js');
+  const at = (startHeadingDeg) => {
+    const settings = { ...DEFAULTS, formation: 'offsetBox', startHeadingDeg };
+    return formationRows(createRun(settings).state, settings).map((r) => [r.id, r.labels, r.foreAftFt]);
+  };
+  const north = at(0);
+  for (const deg of [45, 90, 180, 270, 300]) assert.deepEqual(at(deg), north, `heading ${deg}`);
+  for (const [id, labels] of north) assert.ok(!labels.includes('FORE'), `#${id} reads ${labels}`);
 });

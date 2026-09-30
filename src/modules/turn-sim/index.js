@@ -12,9 +12,9 @@ import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { availableG } from '../../core/t6-performance.js';
-import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, migrateSettings } from './settings.js';
+import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_TURN_DEG, migrateSettings } from './settings.js';
 import { createRun } from './engine/run.js';
-import { readoutsAt, formationRows, mapLabel, turnNumbers, TURN_DEGREES } from './readouts.js';
+import { readoutsAt, formationRows, mapLabel, turnNumbers } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
 import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
 import { createView3d, turnSign } from './view3d.js';
@@ -161,7 +161,7 @@ function mount(root, app) {
     }
     if (!result.ok) {
       if (result.reason === 'closed') return;
-      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      ui.setNote('3D needs a connection the first time.'); // one message for a failed load and for no WebGL
       keepNote = true;
       layout.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
       keepNote = false;
@@ -303,8 +303,8 @@ function mount(root, app) {
     // Turn degrees follow the turn, as V6's boxes fill them in when the turn changes (line 2030).
     if (values.maneuver !== lastManeuver) {
       lastManeuver = values.maneuver;
-      if (values.turnDeg !== TURN_DEGREES[values.maneuver]) {
-        scenario.update({ turnDeg: TURN_DEGREES[values.maneuver] }); // comes back here, and does the reset
+      if (values.turnDeg !== MANEUVER_TURN_DEG[values.maneuver]) {
+        scenario.update({ turnDeg: MANEUVER_TURN_DEG[values.maneuver] }); // comes back here, and does the reset
         return;
       }
     }

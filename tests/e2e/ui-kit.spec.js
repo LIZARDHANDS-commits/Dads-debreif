@@ -1,6 +1,6 @@
 // Browser tests for ui-kit controls.js and canvas-view.js (SPEC-ui-kit), on a
 // test page that loads them straight from src/.
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
 
@@ -92,13 +92,25 @@ test.describe('controls, turned off', () => {
     await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', true); window.__kit.controls.setDisabled('view', true); });
     await expect(page.getByLabel('Safety bubble')).toBeDisabled();
     await expect(page.getByRole('radio', { name: '3D' })).toBeDisabled();
+    // The wrapper says so too, so the dimmed label and unit count as inactive text.
+    await expect(page.locator('.control', { has: page.getByLabel('Safety bubble') })).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('group', { name: 'View' })).toHaveAttribute('aria-disabled', 'true');
     await page.getByRole('radio', { name: '3D' }).click({ force: true });
     expect(await setting(page, 'view')).toBe('2d');
     expect(await setting(page, 'bubbleFt')).toBe(1000);
     await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', false); window.__kit.controls.setDisabled('view', false); });
     await expect(page.getByLabel('Safety bubble')).toBeEnabled();
+    await expect(page.locator('.control', { has: page.getByLabel('Safety bubble') })).not.toHaveAttribute('aria-disabled');
+    await expect(page.getByRole('group', { name: 'View' })).not.toHaveAttribute('aria-disabled');
     await page.getByRole('radio', { name: '3D' }).check();
     expect(await setting(page, 'view')).toBe('3d');
+  });
+
+  test('turned-off controls and their dimmed text pass the contrast check', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', true); window.__kit.controls.setDisabled('view', true); });
+    await expect(page.getByLabel('Safety bubble')).toBeDisabled();
+    await expectNoA11yViolations(page);
   });
 });
 

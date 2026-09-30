@@ -81,6 +81,25 @@ export function turnRateAt(track, t, windowS = TURN_WINDOW_S) {
   return wrapPi(h1 - h0) / (t1 - t0);
 }
 
+/**
+ * A ship's bank at t, as the readouts and the 3D view both show it (D40, D47,
+ * item G, M2): { bankDeg (left wing down positive), source, known }. Recorded
+ * bank first; otherwise from the turn rate over the same ±1.5 s as est. G.
+ * With neither, the bank is unknown (known false, bankDeg 0 so the 3D view
+ * draws wings level), not 0° (verification re-check N2). sample: sampleAt(tr, t).
+ */
+export function shipBank(tr, t, { sample, pitchDeg, recordedG = null }) {
+  const turnRate = turnRateAt(tr, t);
+  const bank = bankFromTrack({
+    turnRateRadPerS: turnRate,
+    speedKt: sample.speedKt,
+    recordedBankDeg: sample.bankRecordedDeg,
+    pitchDeg,
+    recordedG,
+  });
+  return { ...bank, known: bank.source === 'recorded' || turnRate !== null };
+}
+
 /** A ship's place for core's formulas: { x, y } in map feet, plus V6's names for speed and altitude. */
 const at = (s) => (s ? { x: s.xFt, y: s.yFt, altFt: s.altFt, spdKt: s.speedKt } : null);
 
@@ -187,14 +206,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     const s = now[tr.slot];
     const g = gAt(tr, t, { recorded: recordedG });
     const pitch = pitchAt(tr, t);
-    // The bank of the turn over the same ±1.5 s as est. G, as the 3D view draws it (D40, item G, M2).
-    const bank = bankFromTrack({
-      turnRateRadPerS: turnRateAt(tr, t),
-      speedKt: s.speedKt,
-      recordedBankDeg: s.bankRecordedDeg,
-      pitchDeg: pitch.deg,
-      recordedG: g.source === 'recorded' ? g.g : null,
-    });
+    const bank = shipBank(tr, t, { sample: s, pitchDeg: pitch.deg, recordedG: g.source === 'recorded' ? g.g : null });
     return {
       slot: tr.slot,
       inGap: s.inGap,
@@ -206,7 +218,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
       gSource: g.source,
       pitchDeg: pitch.deg,
       pitchSource: pitch.source,
-      bankDeg: bank.bankDeg, // left wing down positive
+      bankDeg: bank.known ? bank.bankDeg : null, // left wing down positive; null when unknown
       bankSource: bank.source,
       lat: s.lat,
       lon: s.lon,
@@ -313,9 +325,8 @@ export function leadText(lead) {
 /** "More detail" lines for one ship's live data (D47, D61: each value says where it came from). */
 export function shipDetailText(ship) {
   if (ship.inGap) return ['GPS gap: no numbers until the track resumes'];
-  const bank = Number.isFinite(ship.bankDeg) && Math.round(ship.bankDeg) !== 0
-    ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}`
-    : '0°';
+  let bank = '--';
+  if (Number.isFinite(ship.bankDeg)) bank = Math.round(ship.bankDeg) !== 0 ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}` : '0°';
   return [
     `Alt ${ft(ship.altFt)}, GS ${kt(ship.gsKt)}, est. IAS ${kt(ship.iasKt)}`,
     `G ${Number.isFinite(ship.g) ? ship.g.toFixed(2) : '--'} ${src(ship.gSource)}, pitch ${deg(ship.pitchDeg)} ${src(ship.pitchSource)}, bank ${bank} ${src(ship.bankSource)}`,
