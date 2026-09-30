@@ -8,6 +8,7 @@ import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi, radToDeg, degToRad } from '../../../src/core/angles.js';
 import { T6A_LIMITS, stallLimitG, availableG, splitST6A } from '../../../src/core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
+import { nfmTopKias } from './nfm-limit.js';
 import {
   ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
 } from '../../../src/modules/turn-fight/energy-sim.js';
@@ -1501,4 +1502,29 @@ test('when the nose is already on at the pick the reason says so, not "about 0 s
   const r = pickMove(245, 10000, P, { offNoseDeg: 3, topKias: 140, noseOnSec: { immelmann: 0, pitchBack: 0 } });
   assert.doesNotMatch(r.why, /about 0 s|0 s vs 0 s/);
   assert.match(r.why, /nose already on/i);
+});
+
+// ── Verification of #209, F1: a slow forced slice from high up (verification/turn-fight-energy-209.md) ──
+
+test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive for good: above the deck and under the speed limit for 150 s', () => {
+  const fights = [];
+  for (const altFt of [15000, 20000, 25000]) for (const kias of [40, 60, 86, 90]) fights.push({ blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias });
+  // Two from the verification's own sweep: the MPT speed and the deck set higher.
+  fights.push({ blueKias: 92, redKias: 92, blueAltFt: 22300, redAltFt: 22300, mptKias: 180, hardDeckFt: 7500 });
+  fights.push({ blueKias: 70, redKias: 70, blueAltFt: 14000, redAltFt: 14000, mptKias: 180 });
+  for (const setup of fights) {
+    const s = createEnergyFight({ ...SOLO, blueMove: 'slice', redMove: 'slice', ...setup });
+    let minAlt = Infinity, maxOver = -Infinity, maxKias = 0;
+    for (let i = 0; i < 150 / FIGHT_STEP_SEC; i++) {
+      stepEnergyFight(s, FIGHT_STEP_SEC);
+      for (const a of [s.blue, s.red]) {
+        assert.ok(Number.isFinite(a.kias) && Number.isFinite(a.altFt), 'finite');
+        minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
+        maxOver = Math.max(maxOver, a.kias - nfmTopKias(a.altFt)); // over the NFM line at its height
+      }
+    }
+    const what = `${JSON.stringify(setup)}: lowest ${minAlt.toFixed(0)} ft, fastest ${maxKias.toFixed(0)} KIAS`;
+    assert.ok(minAlt >= s.setup.hardDeckFt - 500, what);
+    assert.ok(maxOver <= 2, `${what}, ${maxOver.toFixed(0)} over the NFM limit`);
+  }
 });

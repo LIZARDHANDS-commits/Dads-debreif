@@ -1,12 +1,13 @@
 // The Energy engine and the T-6A's Mach limit (core #211; SPEC-turn-fight, "Limits").
 // Part 1 pins the engine at 17,000 ft and below, where the speed limit is still VMO and nothing may change.
-// Part 2 is the new behaviour above about 17,600 ft, where the limit is Mach 0.67 (maxKiasT6A).
+// Part 2 is the new behaviour above 18,769 ft, where the limit is Mach 0.67 (maxKiasT6A; expected values from the NFM figure, see below).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { T6A_LIMITS, maxKiasT6A } from '../../../src/core/t6-performance.js';
 import { createEnergyFight, stepEnergyFight } from '../../../src/modules/turn-fight/energy-sim.js';
 import { FIGHT_STEP_SEC } from '../../../src/modules/turn-fight/sim.js';
+import { nfmTopKias } from './nfm-limit.js';
 import { trajectoryDigest, pinCases, PIN_STEPS } from './energy-pin.js';
 
 // ── Part 1: nothing moves at 17,000 ft and below ─────────────────────────────
@@ -50,13 +51,6 @@ for (const c of pinned.cases) {
 // 300 at 20,000 ft and 270 at 25,000 ft). Core is fixing it, keeping the signature. Every test marked "[needs Core's
 // maxKiasT6A fix]" below leans on the figure's numbers, so it fails until that fix lands; that is expected, and this PR waits for it.
 // The tests not so marked hold either way (nothing goes over the figure's line).
-const NFM_LIMIT = Object.freeze({ vmoKias: 316, kneeFt: 18769, topKias: 244, topFt: 31000 });
-/** The NFM Fig 4-1-2 limit, in KIAS, at altFt (from 18,769 ft to 31,000 ft the straight line from 316 to 244). */
-function nfmTopKias(altFt) {
-  if (altFt <= NFM_LIMIT.kneeFt) return NFM_LIMIT.vmoKias;
-  const frac = Math.min(1, (altFt - NFM_LIMIT.kneeFt) / (NFM_LIMIT.topFt - NFM_LIMIT.kneeFt));
-  return NFM_LIMIT.vmoKias + frac * (NFM_LIMIT.topKias - NFM_LIMIT.vmoKias);
-}
 /** How closely a straight line read off a printed figure is taken: 2 KIAS. */
 const CHART_READ_KIAS = 2;
 const nfm25 = Math.round(nfmTopKias(25000)); // 279
