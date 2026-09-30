@@ -396,3 +396,12 @@ test('Y2: the ground under the wind point, from the reply, decides which levels 
   assert.deepEqual(readWinds({ hourly: {}, elevation: 500 }), []); // no hours: still a plain empty list
 });
 
+test('N5: a body that fails as a TypeError is the connection; one that fails as a SyntaxError is the reply', async () => {
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const feed = createWindsFeed({ fetch: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new TypeError('network error')) }), onChange: () => {} });
+  feed.setFlight({ startT: T('2026-09-29T18:00Z'), endT: T('2026-09-29T19:00Z') }, { lat: 50.33, lon: -105.56 });
+  feed.get('hrdps');
+  await settle();
+  assert.deepEqual(feed.get('hrdps').failure, { kind: 'network', status: null });
+  feed.dispose();
+});

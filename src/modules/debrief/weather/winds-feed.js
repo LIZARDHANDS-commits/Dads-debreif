@@ -41,7 +41,10 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
         if (!res.ok) return Promise.reject(Object.assign(new Error(`Open-Meteo answered ${res.status}`), { failure: { kind: 'http', status: res.status } }));
         return Promise.resolve()
           .then(() => res.json())
-          .catch((err) => Promise.reject(Object.assign(err ?? new Error('unreadable'), { failure: { kind: 'reply', status: res.status } })));
+          // A body cut off mid-way fails as a TypeError (the connection); text that isn't JSON as a SyntaxError (the reply).
+          .catch((err) => Promise.reject(Object.assign(err ?? new Error('unreadable'), {
+            failure: err instanceof TypeError ? { kind: 'network', status: null } : { kind: 'reply', status: res.status },
+          })));
       })
       .then((json) => {
         entry.hours = readWinds(json);
