@@ -215,6 +215,8 @@ export function separationFlags(state, settings, pairs = pairDistances(state)) {
   // aircraft nose to nose with the front element's outbound leg): the sim is flat, so the SMM's vertical margin is needed.
   const crossing = (state?.crossings ?? []).map((c) => `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed, #${c.a} and #${c.b}`);
   flags.push(...crossing);
+  // Passes between 300 and 1,000 ft (state.closePasses): not a designed crossing, but too close to fly without altitude separation.
+  flags.push(...(state?.closePasses ?? []).map((c) => `Close pass: ${ft(c.minFt)}, #${c.a} and #${c.b}: altitude separation needed`));
   if (min !== null && min < UNDER_SEPARATION_FT && !crossing.length) {
     flags.push(CROSSING_TURNS.has(settings.maneuver) ? `Crossing: ${UNDER_SEPARATION_FT} ft vertical needed` : `Under ${UNDER_SEPARATION_FT} ft`);
   }
@@ -305,15 +307,17 @@ export function crossTurnNote(state) {
  * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
  * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag). With `timing` 'boxSlot' the delays are
  * solved to keep the box's shape, so an outside #3 delay is not an error and the flag says so, and #4 (which turns on the LAB cue
- * off #3) is an information line with no flag; in the hook (`maneuver` 'hook90') #3 and #4 start together, so it reads "turns with #3".
+ * off #3) is an information line with no flag (with the Delayed 45's check turn, `checkFlown`, both rear aircraft start from one solved shift and read as #3 does); in the hook (`maneuver` 'hook90') #3 and #4 start together, so it reads "turns with #3".
  */
-export function offsetBandLines(state, timing = null, maneuver = null) {
+export function offsetBandLines(state, timing = null, maneuver = null, checkFlown = false) {
   const box = state?.offsetBox;
   if (!box) return null;
   const band = `${box.minSec}-${box.maxSec} s`;
+  // The check plan's rear shift is solved to keep the box's shape too, and both rear aircraft start from it (#4 is not timed off #3).
+  const solved = timing === 'boxSlot' || checkFlown;
   return box.rear.map((r) => {
     // Box slot (Fig 16.30): only #3 delays 10 to 15 s; #4 turns on the normal LAB cue off #3, so its time from #3 is information, never a flag.
-    if (timing === 'boxSlot' && r.id === 4) {
+    if (timing === 'boxSlot' && !checkFlown && r.id === 4) {
       // The hook: #3 and #4 start together, so there is no time between them to print (N6).
       if (maneuver === 'hook90') return { id: r.id, outside: false, info: true, text: 'turns with #3' };
       const secs = Math.abs(r.delaySec).toFixed(1);
@@ -322,9 +326,19 @@ export function offsetBandLines(state, timing = null, maneuver = null) {
     return {
       id: r.id,
       outside: Boolean(r.outsideBand),
-      text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : timing === 'boxSlot' ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
+      text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : solved ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
     };
   });
+}
+
+/**
+ * The words that say the Delayed 45 is flown with its check turn, or null for the plain turn. The figure is the one the SMM draws for
+ * the formation: 16.17 for two aircraft, 16.34 for spread 4 and 16.31 for the box.
+ */
+export function checkTurnNote(state, settings) {
+  if (!state?.delayed45CheckFlown) return null;
+  const fig = settings.formation === 'twoShip' ? '16.17' : settings.formation === 'offsetBox' ? '16.31' : '16.34';
+  return `Delayed 45 with a ${settings.checkTurnDeg}° check (SMM Fig ${fig})`;
 }
 
 /**
@@ -356,8 +370,9 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
-    offsetBand: offsetBandLines(state, settings.offsetBox4Timing, settings.maneuver),
+    offsetBand: offsetBandLines(state, settings.offsetBox4Timing, settings.maneuver, Boolean(state?.delayed45CheckFlown)),
     crossNote: crossTurnNote(state),
+    checkNote: checkTurnNote(state, settings),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
     leadTurnDirection: state?.leadTurnDirection ?? null,

@@ -1,0 +1,115 @@
+// The Delayed 45 with the check turn (SMM 16.19 Fig 16.17 two-ship, Fig 16.34 spread 4, Fig 16.31 box).
+//
+// The first aircraft turns its standard 45 (70 degrees of bank, 3 G) at once. Each other aircraft checks 10-15 degrees toward the first,
+// then turns 45 plus the check the other way when the aircraft before it in the chain reaches the figure's clock cue (5 o'clock right,
+// 7 left; the plain Delayed 45 uses 4:30 and 7:30). The wait is a few seconds, where the plain chain (cot(22.5) x the 90's delay, 39 s a step)
+// makes a four-ship string 46,000 ft long. The price: the wingmen roll out a little aft of abreast and fix it on the roll-out.
+//
+// The moment of each 45 is worked out here by flying a copy of the aircraft and its predecessor with the engine's own step (moveAircraft)
+// until the predecessor reaches the clock position, and is stored as the hold before the second leg (step.js stepLegs).
+import { relativeBearingDeg, clockToRelativeDeg, wrapDeg180 } from '../../../core/angles.js';
+import { turnRateRadPerSec } from '../../../core/flight-math.js';
+import { moveAircraft, STEP_SEC } from './step.js';
+
+/** A hold that never ends, while the cue is searched for. */
+const NEVER_SEC = 1e6;
+/** The longest the search flies. */
+const SEARCH_SEC = 400;
+
+/** A copy of an aircraft for flying in the search: no G error, no following, its start without the delay error. */
+function simCopy(a) {
+  return { ...a, gError: 0, followId: null, followIds: null, turnStartSec: a.planStartSec };
+}
+
+/**
+ * Plans one chain. `chain` is the aircraft in turning order, changed in place: the first gets a plain turn at `startSec`; each of
+ * the others gets the check leg and the 45 leg (holdSec solved). `opts`: { startSec, goalRad, checkRad, speedFtps, baseG, cueHours,
+ * direction, useErrors }. Returns nothing; the aircraft carry legs, turnStartSec and finalHeadingRad.
+ */
+export function planCheckChain(chain, opts) {
+  const { startSec, goalRad, checkRad, speedFtps, baseG, cueHours, direction, useErrors } = opts;
+  const omega = turnRateRadPerSec(speedFtps, Math.max(1.01, baseG));
+  const establishedSec = startSec + goalRad / omega; // the first aircraft has turned its 45
+  const targetDeg = clockToRelativeDeg(cueHours);
+  const reset = (a, legs, startAt) => {
+    a.planStartSec = startAt;
+    a.turnStartSec = startAt + (useErrors ? a.delayErrSec : 0);
+    a.legs = legs;
+    a.legIndex = 0;
+    a.legAccumRad = 0;
+    a.legReadySec = 0;
+    a.finalHeadingRad = legs ? a.headingRad + a.turnDir * goalRad : undefined;
+    a.turnGoalRad = goalRad;
+    a.startedAtSec = undefined;
+  };
+  chain.forEach((a, k) => {
+    if (k === 0) {
+      reset(a, undefined, startSec);
+      return;
+    }
+    const dir = a.turnDir;
+    const legs = [{ dir: -dir, goalRad: checkRad }, { dir, goalRad: goalRad + checkRad, holdSec: NEVER_SEC }];
+    reset(a, legs, establishedSec);
+    // Fly the predecessor and this aircraft until the predecessor comes to the clock position after the check.
+    const before = simCopy(chain[k - 1]);
+    const me = simCopy(a);
+    const list = [before, me];
+    let checkEndedAt = null;
+    let previous = null;
+    let crossedAt = null;
+    for (let tSec = 0; tSec < SEARCH_SEC; tSec += STEP_SEC) {
+      moveAircraft(list, { rearCheck: null, tSec, timing: 'time', direction, maneuver: 'delayed45away', speedFtps, baseG, turnDegDefault: goalRad * 180 / Math.PI, correction: 'none', correctionStrength: 0, spacingFt: 0 }, STEP_SEC);
+      if (me.legIndex !== 1) continue;
+      if (checkEndedAt === null) checkEndedAt = me.legReadySec - NEVER_SEC; // when its second leg would start with no hold
+      const cur = wrapDeg180(relativeBearingDeg({ x: me.xFt, y: me.yFt, hdg: me.headingRad }, { x: before.xFt, y: before.yFt, hdg: before.headingRad }) - targetDeg);
+      const crossed = Math.abs(cur) <= 0.25 || (previous !== null && Math.abs(cur - previous) <= 180 && ((previous < 0 && cur > 0) || (previous > 0 && cur < 0)));
+      previous = cur;
+      if (crossed) {
+        crossedAt = tSec + STEP_SEC;
+        break;
+      }
+    }
+    legs[1].holdSec = checkEndedAt !== null && crossedAt !== null ? Math.max(0, crossedAt - checkEndedAt) : 0;
+    if (opts.spacingFt > 0 && checkEndedAt !== null && crossedAt !== null) legs[1].holdSec = solveRollInHold(chain.slice(0, k + 1), legs[1], k * opts.spacingFt, opts);
+  });
+}
+
+/**
+ * Where each aircraft of `list` is at time `atSec` (the plan flown with the engine's own step, no G errors): { id: { xFt, yFt } }. Aircraft that
+ * have all finished their turns fly on straight, so the positions at one time are comparable whatever each aircraft's own timing.
+ */
+export function flyPlanTo(list, opts, atSec) {
+  const copies = list.map((a) => ({ ...a, gError: 0, followId: null, followIds: null, turnStartSec: a.planStartSec ?? a.turnStartSec, active: false, done: false, legIndex: 0, legAccumRad: 0, legReadySec: 0, turnAccumRad: 0, headingRad: a.originalHeadingRad ?? a.headingRad }));
+  for (let tSec = 0; tSec < atSec; tSec += STEP_SEC) {
+    moveAircraft(copies, { rearCheck: null, tSec, timing: 'time', direction: opts.direction, maneuver: 'delayed45away', speedFtps: opts.speedFtps, baseG: opts.baseG, turnDegDefault: opts.goalRad * 180 / Math.PI, correction: 'none', correctionStrength: 0, spacingFt: 0 }, STEP_SEC);
+  }
+  return Object.fromEntries(copies.map((a) => [a.id, { xFt: a.xFt, yFt: a.yFt }]));
+}
+
+/** The end time the roll-in solve flies to, in seconds: past the end of the longest chain (a four-ship's last aircraft is done by about 100 s). */
+const SOLVE_FLY_SEC = 200;
+
+/**
+ * The roll-in hold that puts the last aircraft of `chain` `targetFt` from the first, across the final heading (the Delayed 45 with the check
+ * ends about 3,900 ft apart on the figure's cue, where the SMM's LAB is 4,000 to 6,000: the spacing setting is what it is asked for). The end is linear
+ * in the hold, so two flights (this hold and 10 s more) give it. The aircraft then rolls out abreast to within a few hundred feet; the fore and aft
+ * is what is left. The hold stays between 0 and the cue's own plus 60 s.
+ */
+function solveRollInHold(chain, leg, targetFt, opts) {
+  const own = leg.holdSec;
+  const ends = (hold) => {
+    leg.holdSec = hold;
+    const p = flyPlanTo(chain, opts, SOLVE_FLY_SEC);
+    const first = p[chain[0].id];
+    const last = p[chain[chain.length - 1].id];
+    const h = chain[0].headingRad + chain[0].turnDir * opts.goalRad;
+    return -(last.xFt - first.xFt) * Math.sin(h) + (last.yFt - first.yFt) * Math.cos(h); // to the left of the final heading
+  };
+  const a = ends(own);
+  const b = ends(own + 10);
+  leg.holdSec = own;
+  const slope = (b - a) / 10;
+  if (Math.abs(slope) < 1) return own;
+  const want = Math.sign(a) * targetFt;
+  return Math.min(own + 60, Math.max(0, own + (want - a) / slope));
+}
