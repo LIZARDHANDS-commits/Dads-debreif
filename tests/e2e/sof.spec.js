@@ -14,6 +14,12 @@ const MET_NO = /^https:\/\/api\.met\.no\//;
 const DATAMASK = /^https:\/\/datamask\.org\//;
 const CORS = { 'access-control-allow-origin': '*' };
 
+// page.route() cannot see a request once a service worker controls the page, and WebKit (which CI runs
+// for @smoke) lets the worker's own network layer answer even a worker that never calls respondWith.
+// The real MET Norway then answered in CI: reports observed "30 d 5 h" before the fixed clock. Blocking
+// the worker keeps every weather reply a fixture; the offline behaviour is tested in the shell's own specs.
+test.use({ serviceWorkers: 'block' });
+
 /**
  * Serves MET Norway and Datamask from fixtures. The returned object is live:
  * change `metar`, `taf` or `down` between steps, and read `requests` for every address asked.

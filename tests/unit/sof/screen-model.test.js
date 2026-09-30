@@ -1,7 +1,7 @@
 // Tests for src/modules/sof/screen-model.js: everything the SOF screen says,
 // decided without a page (SPEC-sof, "The screen": SOF bar, Airfield cards). The
 // page code only draws these answers.
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMetar } from '../../../src/wx/metar.js';
 import { parseTaf } from '../../../src/wx/taf.js';
@@ -307,4 +307,16 @@ test('feed status: the age is of the newest observation, not of the fetch; a fre
   const edge = snap({ metar: { CYMJ: metar('METAR CYMJ 291730Z 25010KT 15SM FEW100 15/02 A2952') }, lastRound: round('ok', NOW), newestAt: NOW });
   assert.equal(words(edge), 'Weather just now ✓', '72 min is not yet stale');
   assert.equal(words(snap({ lastRound: round('ok', NOW), newestAt: NOW })), 'Weather just now ✓', 'no METARs held: nothing to say about their age');
+});
+
+test('feed status: uses only the clock it is given, never the real one (a month away from it)', () => {
+  const fresh = 'METAR CYMJ 291800Z 25010KT 15SM FEW100 15/02 A2952';
+  const s = snap({ metar: { CYMJ: metar(fresh) }, lastRound: round('ok', NOW), newestAt: NOW });
+  mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-29T23:00:00Z') });
+  try {
+    assert.equal(feedStatus(s, NOW).text, 'Weather just now ✓');
+    assert.equal(screen({ snapshot: s }).feed.text, 'Weather just now ✓');
+  } finally {
+    mock.timers.reset();
+  }
 });
