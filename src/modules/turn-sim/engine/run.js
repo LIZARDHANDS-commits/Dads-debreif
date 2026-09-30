@@ -204,7 +204,7 @@ export function createRun(settings) {
   // V6 syncFormationDropdownToCurrentState (line 1399): a line abreast that has swapped sides is now the other preset.
   function syncFormation() {
     if (formation === 'weighted' || formation === 'weightedReverse') {
-      const inferred = inferLineAbreastForm(craft, formation);
+      const inferred = inferLineAbreastForm(craft, formation, cfg.twoSide);
       if (inferred === 'weighted' || inferred === 'weightedReverse') formation = inferred;
     }
   }

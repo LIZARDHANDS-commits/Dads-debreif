@@ -38,6 +38,18 @@ test('D42: on the far side V6 moved "wide" in (an example of what changed), and 
   assert.deepEqual([lead.xFt, lead.yFt].map((v) => Math.round(v)), [-1500, 0]);
 });
 
+test('D48: #2 flies on Lead\'s left by default, on his right when the side says so; 2134 is the mirror; the offset box and two-ship keep their sides', () => {
+  assert.equal(DEFAULTS.twoSide, 'left');
+  // Start heading north: west is Lead's left, east his right.
+  const xOf = (formation, id, twoSide) => formationSlots({ ...DEFAULTS, formation, twoSide, spacingFt: 6000 }).find((a) => a.id === id).xFt;
+  assert.equal(xOf('weighted', 2, 'left'), -6000);
+  assert.equal(xOf('weighted', 2, DEFAULTS.twoSide), -6000);
+  assert.deepEqual([2, 3, 4].map((id) => xOf('weighted', id, 'right')), [6000, -6000, -12000]);
+  assert.deepEqual([2, 3, 4].map((id) => xOf('weightedReverse', id, 'left')), [6000, -6000, -12000], '2134 is 4312 mirrored');
+  assert.deepEqual([2, 3, 4].map((id) => xOf('weightedReverse', id, 'right')), [-6000, 6000, 12000]);
+  for (const formation of ['offsetBox', 'twoShip']) assert.equal(xOf(formation, 2, 'right'), xOf(formation, 2, 'left'), formation);
+});
+
 test('the defaults still put the formation where V6 did', () => {
   assert.deepEqual(formationSlots(DEFAULTS).map((a) => [a.id, Math.round(a.xFt)]), [[1, 0], [2, -6000], [3, 6000], [4, 12000]]);
 });

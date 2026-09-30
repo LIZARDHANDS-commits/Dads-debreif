@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../src/modules/turn-sim/engine/run.js';
-import { createV6Page, v6SettingsForD42 } from './turn-sim-fake-page.js';
+import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
 const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90 };
@@ -68,7 +68,7 @@ function compareLeg(page, run, label, autoStep) {
 function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   // D41 swapped "toward" and "away" back to what they say, so V6 is given the swapped names to fly the same turn.
   // D42 measures Wide and Tight from Lead on either side; V6 gets them swapped where its fixed direction differs.
-  const v6Settings = v6SettingsForD42(v6From);
+  const v6Settings = v6SettingsForD42(v6SettingsForD48(v6From));
   for (const id of [1, 2, 3, 4]) {
     const key = aircraftKey(id, 'turnLogic');
     v6Settings[key] = { toward: 'away', away: 'toward' }[v6From[key]] ?? v6From[key];
@@ -390,6 +390,28 @@ test('the rear check: every direction, angle, start and hold, in the offset box 
   }
   // Only the offset box has the check.
   for (const formation of ['weighted', 'weightedReverse', 'twoShip']) compareRun(scenario({ formation, rearCheckOn: true, rearCheckStartSec: 5 }), `no check in ${formation}`);
+});
+
+test('D48: #2 on Lead\'s right flies as V6 flies the mirror layout, 4312 and 2134 × every turn × right and left, two legs, with position errors', () => {
+  const r = seeded(0xd48);
+  let n = 0;
+  for (const formation of ['weighted', 'weightedReverse']) {
+    for (const maneuver of Object.keys(TURN_DEG)) {
+      for (const direction of DIRECTIONS) {
+        const s = scenario({ formation, maneuver, direction, twoSide: 'right', durationSec: 75 });
+        if (n % 2) {
+          for (const id of [2, 3, 4]) {
+            s[aircraftKey(id, 'positionErrorOn')] = true;
+            s[aircraftKey(id, 'lateralDir')] = ['tight', 'wide'][Math.floor(2 * r())];
+            s[aircraftKey(id, 'lateralFt')] = Math.round(1500 * r());
+          }
+        }
+        compareRun(s, `right side ${formation} ${maneuver} ${direction}`, { legs: 2 });
+        n++;
+      }
+    }
+  }
+  assert.equal(n, 24);
 });
 
 test('V6 itself: the rear check runs in leg 1 and never again in leg 2 (it clears the check only on Reset)', () => {

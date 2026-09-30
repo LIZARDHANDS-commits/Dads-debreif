@@ -108,6 +108,15 @@ function v6Statement(start) {
 }
 
 /**
+ * D48 (#2's side): the settings V6 needs to fly the same layout. With #2 on Lead's right the port's 4312 is the mirror
+ * of V6's, which V6 calls 2134, and the port's 2134 is V6's 4312. V6 has no side box, so the swap is all it needs.
+ */
+export function v6SettingsForD48(settings) {
+  if (settings.twoSide !== 'right') return { ...settings };
+  return { ...settings, formation: { weighted: 'weightedReverse', weightedReverse: 'weighted' }[settings.formation] ?? settings.formation };
+}
+
+/**
  * D42 (wide and tight measured from Lead): the settings V6 needs to fly the same start positions. V6 moved every
  * aircraft along one fixed direction, so an aircraft whose slot is on the other side of Lead (a negative lateral along
  * V6's "right" vector) gets its Wide and Tight swapped. Lead and the aircraft on the positive side are as they were.

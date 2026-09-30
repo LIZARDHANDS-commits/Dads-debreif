@@ -48,9 +48,11 @@ export function forwardVector(headingRad) {
  * layouts are not ported). Returns all four aircraft, as V6 does:
  * [{ id, xFt, yFt, headingRad }].
  *
- * Uses: formation, spacingFt, startHeadingDeg (compass, D45), boxAftFt, boxStaggerFt.
+ * Uses: formation, spacingFt, startHeadingDeg (compass, D45), boxAftFt, boxStaggerFt, twoSide.
  * Each aircraft sits `lat` along the "right" vector and `long` along the
- * heading from Lead. 4312 is 4 | 3 | 1 | 2 with #2 on that vector's side.
+ * heading from Lead. 4312 is 4 | 3 | 1 | 2 with #2 on that vector's side, which
+ * is Lead's left as the pilot sees it. D48 (Q31): `twoSide` is 'left' (the default, and V6's
+ * layout) or 'right', which mirrors 4312 and 2134 so #2 flies on Lead's right.
  */
 export function formationSlots(settings) {
   const s = settings.spacingFt;
@@ -72,8 +74,10 @@ export function formationSlots(settings) {
   } else if (form === 'twoShip') { map[1] = 0; map[2] = -s; map[3] = ABSENT_LATERAL_FT; map[4] = ABSENT_LATERAL_FT; }
   else throw new RangeError(`unknown formation: ${form}`);
 
+  // D48: which side #2 flies on in 4312 and 2134. Left is V6's 4312 (and its 2134 is the mirror); right mirrors both.
+  const mirror = (form === 'weighted' || form === 'weightedReverse') && settings.twoSide === 'right' ? -1 : 1;
   return [1, 2, 3, 4].map((id) => {
-    const lat = map[id] || 0;
+    const lat = mirror * (map[id] || 0) || 0; // "|| 0": Lead's mirrored 0 is not -0
     let long = 0;
     if (form === 'offsetBox' && (id === 3 || id === 4)) long = -settings.boxAftFt;
     return { id, xFt: right.x * lat + fwd.x * long, yFt: right.y * lat + fwd.y * long, headingRad: h };
@@ -128,9 +132,10 @@ export function startPositions(settings) {
  * Whether a line abreast of four is now 4312 or 2134, from where the aircraft
  * are (V6 `inferLineAbreastFormFromCurrentState`, line 1407). Sorts the aircraft
  * along Lead's "right" vector; any other order, or fewer than four aircraft,
- * keeps `formation`. `aircraft` is [{ id, xFt, yFt, headingRad }].
+ * keeps `formation`. `aircraft` is [{ id, xFt, yFt, headingRad }]. `twoSide` is
+ * the D48 setting: with 'right' the answers swap (see formationSlots).
  */
-export function inferLineAbreastForm(aircraft, formation) {
+export function inferLineAbreastForm(aircraft, formation, twoSide = 'left') {
   const ids = activeIds(formation);
   const work = aircraft.filter((a) => ids.includes(a.id));
   if (work.length < 4) return formation;
@@ -140,7 +145,9 @@ export function inferLineAbreastForm(aircraft, formation) {
     .sort((a, b) => (a.xFt - lead.xFt) * r.x + (a.yFt - lead.yFt) * r.y - ((b.xFt - lead.xFt) * r.x + (b.yFt - lead.yFt) * r.y))
     .map((a) => a.id)
     .join('');
-  if (ordered === '4312') return 'weighted';
-  if (ordered === '2134') return 'weightedReverse';
+  // D48: with #2 on Lead's right the two layouts swap names (the mirror of 4312 is what V6 called 2134).
+  const [first, second] = twoSide === 'right' ? ['weightedReverse', 'weighted'] : ['weighted', 'weightedReverse'];
+  if (ordered === '4312') return first;
+  if (ordered === '2134') return second;
   return formation;
 }
