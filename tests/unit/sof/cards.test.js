@@ -174,6 +174,20 @@ test('a fresh METAR that carries LAST OBS still says when the next one is', () =
   assert.equal(m.words, 'No obs until 1000Z');
 });
 
+test('the LAST OBS remark is wx\'s: a time with no day, and "LAST STFD OBS", read the same way', () => {
+  const now = new Date('2026-09-30T03:00:00Z');
+  for (const remark of ['LAST OBS/NXT 1000Z', 'LAST STFD OBS/NXT 301000Z', 'LAST OBS/NXT 301000Z']) {
+    const raw = `METAR CYMJ 300027Z 27005KT 15SM FEW100 05/02 A2990 RMK ${remark}`;
+    const m = home({ now, metar: metarEntry(raw, now) }).metar;
+    assert.equal(m.state, 'closed', remark);
+    assert.equal(m.words, 'No obs until 1000Z', remark);
+    assert.equal(m.noObsUntil.toISOString(), '2026-09-30T10:00:00.000Z', remark);
+  }
+  const plain = home({ now, metar: metarEntry('METAR CYMJ 300027Z 27005KT 15SM FEW100 05/02 A2990 RMK AC1', now) }).metar;
+  assert.equal(plain.noObsUntil, null);
+  assert.equal(plain.words, null);
+});
+
 // ---- TAF ---------------------------------------------------------------------------------------------
 
 test('TAF line: issue time and valid period, with its age', () => {
