@@ -53,7 +53,51 @@ test('a two-ship has only the 1-2 pair: the other series are empty, and closure 
   assert.ok(by.closure.points.every((p) => p.value === 0));
 });
 
+test('V6 kept the last 2,000 rows; the port keeps and the graph draws the whole run', () => {
+  const { v6, rows } = bothRuns(scenario({ formation: 'weighted', maneuver: 'delayed90away', direction: 'right', durationSec: 120 }));
+  assert.equal(v6.length, 2000, 'V6 drops the oldest row past 2,000');
+  assert.ok(rows.length > 2000, 'more than 2,000 rows: 120 s of steps and the row of the first plan');
+  // What V6 still has is the end of the port's history, exactly.
+  assert.deepEqual(rows.slice(-2000).map((r) => [r.tSec, r.pairs['1-2'], r.minSepFt, r.closure13Ftps]), v6.map((r) => [r.t, r.d12, r.min, r.closure]));
+  const g = spacingSeries(rows, ['1-2', 'closure']);
+  assert.ok(g.series.every((s) => s.points.length === rows.length));
+  assert.equal(g.tStartSec, 0);
+  assert.equal(g.tEndSec, rows[rows.length - 1].tSec);
+});
+
+// Colour-vision simulation (Machado 2009, severity 1), to check the closure line stays apart from the other colours.
+const SIM = {
+  normal: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+  protan: [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]],
+  deutan: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]],
+};
+const linear = (c) => { const v = c / 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+function labOf(hex, matrix) {
+  const rgb = [1, 3, 5].map((i) => linear(parseInt(hex.slice(i, i + 2), 16)));
+  const [r, g, b] = matrix.map((row) => Math.min(1, Math.max(0, row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2])));
+  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+test('the closure line is dashed and its colour is well apart from every other metric, also under protan and deutan simulation', () => {
+  const closure = GRAPH_METRICS.find((m) => m.id === 'closure');
+  assert.equal(closure.dashed, true);
+  assert.ok(GRAPH_METRICS.filter((m) => m.id !== 'closure').every((m) => !m.dashed), 'only the closure is dashed');
+  for (const [name, matrix] of Object.entries(SIM)) {
+    for (const other of GRAPH_METRICS.filter((m) => m.id !== 'closure')) {
+      const a = labOf(closure.colour, matrix);
+      const b = labOf(other.colour, matrix);
+      const distance = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      assert.ok(distance >= 20, `${name}: closure against ${other.id} is only ${distance.toFixed(1)} apart`);
+    }
+  }
+});
+
 test('each metric has its own colour and label, the default is what V6 had ticked, and a short history draws nothing', () => {
+  assert.deepEqual([...DEFAULT_GRAPH_METRICS], ['1-2', '1-3', 'min']);
   assert.equal(new Set(GRAPH_METRICS.map((m) => m.colour)).size, GRAPH_METRICS.length);
   assert.ok(GRAPH_METRICS.every((m) => m.label && m.unit));
   assert.deepEqual(spacingSeries([]).series.map((s) => s.id), [...DEFAULT_GRAPH_METRICS]);

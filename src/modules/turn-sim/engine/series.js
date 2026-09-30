@@ -4,25 +4,27 @@
 // calls it only while the graph is open and draws the result itself (graph.js).
 //
 // What differs from V6: every metric has its own colour and a label for the legend (V6's colour table was keyed by
-// aircraft number, so all its lines came out white), and the six pairs of the history are all on offer, not only V6's
-// four. The axis rule is V6's.
+// aircraft number, so the four pair lines all came out white), the six pairs of the history are all on offer, not only
+// V6's four, and the whole run is drawn (V6 kept only the last 2,000 rows). The axis rule is V6's.
 //
-// Golden test: tests/golden/turn-sim-solver.test.js, against V6's own recorded history.
+// Golden test: tests/golden/turn-sim-series.test.js, against V6's own recorded history.
 
 /**
  * The metrics on offer, in the order of the graph's checkboxes: id (a pair key of the history's `pairs`, or 'min' and
- * 'closure'), the legend's label, its unit and its colour (Okabe-Ito, which stay apart for colour-blind viewers, and
- * show on V6's dark graph background).
+ * 'closure'), the legend's label, its unit, its colour and whether its line is dashed. The six pair colours are
+ * Okabe-Ito, which stay apart for colour-blind viewers. The minimum separation is grey, and the closure (a rate, in
+ * ft/s, on the same axis) is a dashed blue-violet that stays clear of the others under protan and deutan simulation
+ * (a test measures it), so it does not depend on colour alone. All show on V6's dark graph background.
  */
 export const GRAPH_METRICS = Object.freeze([
-  { id: '1-2', label: '1-2 spacing', unit: 'ft', colour: '#e69f00' },
-  { id: '1-3', label: '1-3 spacing', unit: 'ft', colour: '#56b4e9' },
-  { id: '1-4', label: '1-4 spacing', unit: 'ft', colour: '#009e73' },
-  { id: '3-4', label: '3-4 spacing', unit: 'ft', colour: '#f0e442' },
-  { id: '2-3', label: '2-3 spacing', unit: 'ft', colour: '#d55e00' },
-  { id: '2-4', label: '2-4 spacing', unit: 'ft', colour: '#cc79a7' },
-  { id: 'min', label: 'minimum sep', unit: 'ft', colour: '#c9d1d9' },
-  { id: 'closure', label: '1-3 closure', unit: 'ft/s', colour: '#d2a8ff' },
+  { id: '1-2', label: '1-2 spacing', unit: 'ft', colour: '#e69f00', dashed: false },
+  { id: '1-3', label: '1-3 spacing', unit: 'ft', colour: '#56b4e9', dashed: false },
+  { id: '1-4', label: '1-4 spacing', unit: 'ft', colour: '#009e73', dashed: false },
+  { id: '3-4', label: '3-4 spacing', unit: 'ft', colour: '#f0e442', dashed: false },
+  { id: '2-3', label: '2-3 spacing', unit: 'ft', colour: '#d55e00', dashed: false },
+  { id: '2-4', label: '2-4 spacing', unit: 'ft', colour: '#cc79a7', dashed: false },
+  { id: 'min', label: 'minimum sep', unit: 'ft', colour: '#c9d1d9', dashed: false },
+  { id: 'closure', label: '1-3 closure', unit: 'ft/s', colour: '#7f7fff', dashed: true },
 ]);
 
 /** What V6's graph had ticked at the start (line 615): the 1-2 and 1-3 spacing and the minimum separation. */
