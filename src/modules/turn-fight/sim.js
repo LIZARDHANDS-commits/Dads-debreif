@@ -110,14 +110,19 @@ function need(ok, what, value) {
 /**
  * A new fight at T+0 (V6 `reset`, line 4240): Blue and Red start the set
  * separation apart on the x axis, Blue on the left heading east, Red on the
- * right heading west, both level.
+ * right heading west, both level. Q49: the start is weighted by speed, Blue at
+ * -V1 ÷ (V1 + V2) of the separation and Red at +V2 ÷ (V1 + V2), so the jets
+ * meet at the centre. V6 started both half the separation out and moved them to
+ * the centre at the merge; `v6Start: true` brings that back (the golden test
+ * pins V6 with it). The two are the same with equal speeds.
  *
  * `setup` is { circles: 1 | 2, separationNm, blueKt, redKt, blueG, redG, chase,
  * vertical, bluePitchDeg, redPitchDeg }; anything left out is V6's default
  * (V6_DEFAULT_SETUP). The setup is checked here, because a blank or
  * infinite number would never merge. Returns the state that stepFight moves.
+ * `v6Start` is an option, not one of the boxes: it is not kept in `state.setup`.
  */
-export function createFight(setup = {}) {
+export function createFight({ v6Start = false, ...setup } = {}) {
   const s = { ...V6_DEFAULT_SETUP, ...setup };
   need(s.circles === 1 || s.circles === 2, 'circles is 1 or 2', s.circles);
   need(Number.isFinite(s.separationNm) && s.separationNm > 0, 'separationNm is above 0', s.separationNm);
@@ -128,6 +133,9 @@ export function createFight(setup = {}) {
   need(Number.isFinite(s.bluePitchDeg), 'bluePitchDeg is a number', s.bluePitchDeg);
   need(Number.isFinite(s.redPitchDeg), 'redPitchDeg is a number', s.redPitchDeg);
   const separationFt = s.separationNm * FT_PER_NM;
+  const closingKt = s.blueKt + s.redKt;
+  const blueStartFt = v6Start ? -separationFt / 2 : (-s.blueKt / closingKt) * separationFt;
+  const redStartFt = v6Start ? separationFt / 2 : (s.redKt / closingKt) * separationFt;
   return {
     setup: { ...s, chase: !!s.chase, vertical: !!s.vertical },
     perf: { blue: levelTurn(s.blueKt, s.blueG), red: levelTurn(s.redKt, s.redG) },
@@ -137,8 +145,8 @@ export function createFight(setup = {}) {
     stopped: false,
     carrySec: 0,
     firstNose: null,
-    blue: { xFt: -separationFt / 2, yFt: 0, zFt: 0, headingRad: 0, pitchRad: 0 },
-    red: { xFt: separationFt / 2, yFt: 0, zFt: 0, headingRad: Math.PI, pitchRad: 0 },
+    blue: { xFt: blueStartFt, yFt: 0, zFt: 0, headingRad: 0, pitchRad: 0 },
+    red: { xFt: redStartFt, yFt: 0, zFt: 0, headingRad: Math.PI, pitchRad: 0 },
   };
 }
 
@@ -204,7 +212,9 @@ function chaseOther(p, other, turnRateRadPerSec, d, vertical) {
  * One whole step of FIGHT_STEP_SEC (V6 `step`, lines 4242 to 4274). The step
  * that reaches the merge is cut there: the aircraft fly to the merge point,
  * meet at the centre, take their set pitch, and the rest of the step is flown
- * as the first step of the turns. V6 line 4251, `if(d===0){S.done=true;continue}`,
+ * as the first step of the turns (with the centre start they are there already,
+ * to the last digit; V6's start was off-centre at unequal speeds, and the move to
+ * the centre is what `v6Start` still needs). V6 line 4251, `if(d===0){S.done=true;continue}`,
  * has no effect (d is 0 only when the merge has been reached, which has already
  * set `done`, and the `continue` is the last statement), so it is not ported.
  */

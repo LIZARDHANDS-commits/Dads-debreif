@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createV6Fight, parseV6Readouts } from './turn-fight-v6.js';
 import { seeded } from './inputs.js';
 import { createFight, stepFight, FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../src/modules/turn-fight/sim.js';
+import { FT_PER_NM } from '../../src/core/units.js';
 import { timeText, phaseText, resultRows, moreDetailRows } from '../../src/modules/turn-fight/readouts.js';
 
 const STEP = 0.02;
@@ -76,6 +77,22 @@ const GRID = [
   for (const g of GRID) g.name ??= JSON.stringify(g);
 }
 
+/**
+ * The two starts (Q49). V6 starts both aircraft the same distance from the centre, the rebuild weights the start by
+ * speed so they meet in the centre. Before the merge that moves both aircraft along x by the same amount; from the
+ * merge on both are put at the centre, so nothing else differs. The grid runs both: with `v6Start` it pins V6 exactly,
+ * and without it it expects V6's pre-merge positions shifted by `startShiftFt`.
+ */
+const MODES = [
+  { label: 'V6 start', options: { v6Start: true }, shifted: false },
+  { label: 'centre start (Q49)', options: {}, shifted: true },
+];
+/** How far the centre start moves both aircraft along x before the merge, against V6's: sep × (V2 − V1) / (2 (V1 + V2)). */
+const startShiftFt = (g) => {
+  const v1 = g.blueKt ?? 220, v2 = g.redKt ?? 220;
+  return ((g.separationNm ?? 2) * FT_PER_NM * (v2 - v1)) / (2 * (v1 + v2));
+};
+
 function near(actual, expected, tol, what, stepNo, name) {
   // Not assert.ok(...) with a template string: this runs 30,000 times a setup.
   if (!(Math.abs(actual - expected) <= tol)) {
@@ -84,8 +101,8 @@ function near(actual, expected, tol, what, stepNo, name) {
 }
 
 /** Both aircraft, V6's `S.a` and `S.b` against the port's blue and red. */
-function compareAircraft(mine, v6p, stepNo, name, who) {
-  near(mine.xFt, v6p.x, FT_TOL, `${who} x`, stepNo, name);
+function compareAircraft(mine, v6p, stepNo, name, who, shiftFt = 0) {
+  near(mine.xFt, v6p.x + shiftFt, FT_TOL, `${who} x`, stepNo, name);
   near(mine.yFt, v6p.y, FT_TOL, `${who} y`, stepNo, name);
   near(mine.zFt, v6p.z, FT_TOL, `${who} height`, stepNo, name);
   near(mine.headingRad, v6p.h, RAD_TOL, `${who} heading`, stepNo, name);
@@ -161,11 +178,13 @@ function compareReadouts(v6, mine, stepNo, name, v6Both) {
 /** What the grid has exercised, so the last test can say it was not all trivial. */
 const covered = { firstNose: 0, chaseAfterNoseOn: 0, vertical: 0, verticalChase: 0, oneCircle: 0, twoCircle: 0, unequalSpeed: 0, unequalG: 0 };
 
-for (const setup of GRID) {
-  const { name, ...fightSetup } = setup;
+for (const mode of MODES) for (const setup of GRID) {
+  const { name: gridName, ...fightSetup } = setup;
+  const name = mode.shifted ? `${gridName} [${mode.label}]` : gridName;
   test(`matches V6 for 10 minutes, step by step: ${name}`, () => {
     const v6 = createV6Fight(fightSetup);
-    const mine = createFight(fightSetup);
+    const mine = createFight({ ...fightSetup, ...mode.options });
+    const shiftFt = mode.shifted ? startShiftFt(fightSetup) : 0;
     near(mine.mergeSec, v6.S.merge, 1e-12, 'merge time', 0, name);
     let seenNose = false, seenMerge = false, v6Both = false;
     compareReadouts(v6, mine, 0, name, v6Both);
@@ -181,8 +200,10 @@ for (const setup of GRID) {
       near(mine.timeSec, v6.t, 1e-12, 'fight time', i, name);
       if (mine.merged !== v6.S.done) assert.fail(`${name}: merged is ${mine.merged}, V6 ${v6.S.done}, at step ${i}`);
       seenMerge ||= mine.merged;
-      compareAircraft(mine.blue, v6.S.a, i, name, 'Blue');
-      compareAircraft(mine.red, v6.S.b, i, name, 'Red');
+      // Until the merge the centre start is V6's path moved along x; after it both are V6's.
+      const moved = v6.S.done ? 0 : shiftFt;
+      compareAircraft(mine.blue, v6.S.a, i, name, 'Blue', moved);
+      compareAircraft(mine.red, v6.S.b, i, name, 'Red', moved);
       const want = v6.S.firstNose, got = mine.firstNose;
       if (!want !== !got) assert.fail(`${name}: first nose-on ${got ? 'marked' : 'not marked'}, V6 ${want ? 'marked' : 'not marked'}, at step ${i}`);
       if (want && !seenNose) {
@@ -240,7 +261,7 @@ test('with the chase on and a rate that differs from V6 in the last digit, the f
   ];
   for (const setup of setups) {
     const v6 = createV6Fight(setup);
-    const mine = createFight(setup);
+    const mine = createFight({ ...setup, v6Start: true });
     const differs = v6.M(setup.blueKt, setup.blueG).w !== mine.perf.blue.rateRadPerSec || v6.M(setup.redKt, setup.redG).w !== mine.perf.red.rateRadPerSec;
     assert.ok(differs, 'this setup should have a rate that differs from V6 in the last digit');
     for (let i = 1; i <= 40 / FIGHT_STEP_SEC; i++) {

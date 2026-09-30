@@ -97,11 +97,65 @@ test('the merge puts both aircraft at the centre, exactly: the step that merges 
   near(Math.hypot(s.red.xFt, s.red.yFt), speedFtps * remainderSec, 1e-6);
 });
 
-test('at different speeds the jets still end up together at the merge (V6 moves them to the centre)', () => {
+test('at different speeds the jets end up together at the merge (Q49: they meet there; V6 moved them)', () => {
   const s = runUntil({ blueKt: 250, redKt: 200 }, (f) => f.merged);
   assert.equal(r1(s.timeSec), 16);
   near(Math.hypot(s.blue.xFt, s.blue.yFt), 250 * 1.68781 * (s.timeSec - s.mergeSec), 1e-6);
   near(Math.hypot(s.red.xFt, s.red.yFt), 200 * 1.68781 * (s.timeSec - s.mergeSec), 1e-6);
+});
+
+/** Where each aircraft would be at the merge if it flew on straight from the last whole step before it: its x, in feet. */
+function pointAtMerge(setup) {
+  const s = createFight(setup);
+  stepFight(s, Math.floor(s.mergeSec / FIGHT_STEP_SEC) * FIGHT_STEP_SEC);
+  assert.equal(s.merged, false);
+  const left = s.mergeSec - s.timeSec;
+  return {
+    blueXFt: s.blue.xFt + s.perf.blue.speedFtps * left,
+    redXFt: s.red.xFt - s.perf.red.speedFtps * left,
+  };
+}
+
+test('Q49: the jets start weighted by speed: Blue at -V1 / (V1 + V2) of the separation, Red at +V2 / (V1 + V2)', () => {
+  const s = createFight({ blueKt: 250, redKt: 200, separationNm: 2 });
+  near(s.blue.xFt, (-250 / 450) * 2 * FT_PER_NM, 1e-9);
+  near(s.red.xFt, (200 / 450) * 2 * FT_PER_NM, 1e-9);
+  near(rangeFt(s), 2 * FT_PER_NM, 1e-9, 'the separation is still the range');
+  // Equal speeds: the same start as V6's, half the separation each side.
+  const even = createFight({ blueKt: 220, redKt: 220 });
+  near(even.blue.xFt, -FT_PER_NM, 1e-9);
+  near(even.red.xFt, FT_PER_NM, 1e-9);
+  // The faster aircraft starts further from the centre.
+  const fast = createFight({ blueKt: 300, redKt: 100 });
+  assert.ok(-fast.blue.xFt > fast.red.xFt);
+});
+
+test('Q49: at 250 and 200 kt the jets meet at the centre, with no jump; V6 met 675 ft off and then moved both', () => {
+  const now = pointAtMerge({ blueKt: 250, redKt: 200 });
+  near(now.blueXFt, 0, 1e-6, 'Blue at the merge');
+  near(now.redXFt, 0, 1e-6, 'Red at the merge');
+  const v6 = pointAtMerge({ blueKt: 250, redKt: 200, v6Start: true });
+  near(v6.blueXFt, 675.1, 0.1, 'V6: Blue 675 ft off the centre');
+  near(v6.redXFt, 675.1, 0.1, 'V6: Red 675 ft off the centre');
+});
+
+test('Q49: v6Start keeps V6\'s start (equal distance from the centre) and is not part of the setup boxes', () => {
+  const s = createFight({ blueKt: 250, redKt: 200, v6Start: true });
+  near(s.blue.xFt, -FT_PER_NM, 1e-9);
+  near(s.red.xFt, FT_PER_NM, 1e-9);
+  assert.deepEqual(s.setup, createFight({ blueKt: 250, redKt: 200 }).setup, 'the setup copy has only the boxes');
+  assert.ok(!('v6Start' in V6_DEFAULT_SETUP));
+});
+
+test('Q49: everything from the merge on is the same in both starts', () => {
+  for (const setup of [{ blueKt: 250, redKt: 200 }, { circles: 1, blueKt: 150, redKt: 300, vertical: true, bluePitchDeg: 30, redPitchDeg: -20 }]) {
+    const now = createFight(setup), v6 = createFight({ ...setup, v6Start: true });
+    const steps = Math.ceil((now.mergeSec + 5) / FIGHT_STEP_SEC);
+    for (let i = 0; i < steps; i++) { stepFight(now, FIGHT_STEP_SEC); stepFight(v6, FIGHT_STEP_SEC); }
+    assert.ok(now.merged && v6.merged);
+    for (const who of ['blue', 'red']) for (const k of ['xFt', 'yFt', 'zFt', 'headingRad', 'pitchRad']) near(now[who][k], v6[who][k], 1e-9, `${who} ${k}`);
+    assert.equal(now.mergeSec, v6.mergeSec);
+  }
 });
 
 test('after the merge Blue turns left, and Red turns left in a 2-circle fight and right in a 1-circle fight', () => {
