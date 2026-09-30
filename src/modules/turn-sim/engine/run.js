@@ -260,6 +260,8 @@ export function createRun(settings) {
       a.turnAccumRad = 0;
       a.active = false;
       a.done = false;
+      // V6 cleared the rear element check only on Reset (line 1540), so a second leg never had one. Each leg does.
+      resetRearCheckState(a);
     }
     planInfo = planTurn(craft, flight(), { useErrors: true });
     record();

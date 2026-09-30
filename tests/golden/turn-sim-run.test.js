@@ -90,6 +90,8 @@ function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   let steps = compareLeg(page, run, `${label} leg 1`, autoStep);
   for (let leg = 2; leg <= legs; leg++) {
     page.continueLeg();
+    // The port clears the rear element check on every new leg; V6 did it only on Reset, so V6 is cleared here too.
+    page.aircraft().forEach((a) => page.v6.resetRearCheckState(a));
     assert.equal(run.state.canStartLeg, true, `${label}: the leg can be continued`);
     run.startLeg();
     assert.equal(run.state.tSec, 0, label);
@@ -387,4 +389,24 @@ test('the rear check: every direction, angle, start and hold, in the offset box 
   }
   // Only the offset box has the check.
   for (const formation of ['weighted', 'weightedReverse', 'twoShip']) compareRun(scenario({ formation, rearCheckOn: true, rearCheckStartSec: 5 }), `no check in ${formation}`);
+});
+
+test('V6 itself: the rear check runs in leg 1 and never again in leg 2 (it clears the check only on Reset)', () => {
+  const settings = scenario({ formation: 'offsetBox', maneuver: 'inplace90', rearCheckOn: true, rearCheckStartSec: 10, rearCheckHoldSec: 2, durationSec: 60 });
+  const page = createV6Page(settings);
+  page.reset();
+  page.play();
+  const legHeadings = () => {
+    const out = [];
+    while (page.time() < 60) { page.step(); out.push(page.aircraft().map((a) => a.hdg)); }
+    return out;
+  };
+  const first = legHeadings();
+  assert.ok(page.aircraft().every((a) => a.rearCheckComplete === (a.id === 3 || a.id === 4)), 'the check completed in leg 1');
+  page.continueLeg();
+  const second = legHeadings();
+  // Leg 2 is an in-place turn from the leg 1 heading: #3 turns 90 degrees at once and only that, no 20 degree swing first.
+  const start = first[first.length - 1][2];
+  assert.ok(second.every((h) => Math.abs(h[2] - start) <= Math.PI / 2 + 1e-3), 'no swing beyond the planned turn');
+  assert.ok(second[0][2] !== start && Math.abs(second[0][2] - start) < 0.1, 'the planned turn starts on the first step');
 });

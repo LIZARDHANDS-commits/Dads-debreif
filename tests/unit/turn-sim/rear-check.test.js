@@ -74,3 +74,17 @@ test('Q47 is the default; V6 starts the check at its set time', () => {
   assert.equal(createRun({ formation: 'offsetBox', rearCheckOn: true }).state.rearCheck.enabled, true);
   assert.equal(rearCheckConfig({ ...box, ...{ rearCheckAfterTurns: true } }).afterTurns, true);
 });
+
+test('a new leg clears the check: it runs again in leg 2 (V6 cleared it only on Reset, so leg 2 had none)', () => {
+  const run = createRun({ ...box, rearCheckAfterTurns: true, rearCheckStartSec: 20, durationSec: 60 });
+  const phasesOfLeg = () => {
+    const seen = [];
+    while (run.step()) if (seen[seen.length - 1] !== run.state.rearCheck.phase) seen.push(run.state.rearCheck.phase);
+    return seen;
+  };
+  const full = ['waiting', 'turningOut', 'holding', 'turningBack', 'complete'];
+  assert.deepEqual(phasesOfLeg(), full);
+  run.startLeg();
+  assert.equal(run.state.rearCheck.phase, 'waiting', 'cleared at the new leg');
+  assert.deepEqual(phasesOfLeg(), full);
+});
