@@ -17,6 +17,7 @@ import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';
 import { SATELLITE_LAYERS } from './weather/satellite.js';
 import { WIND_MODELS } from './weather/winds.js';
+import { ARROW_HEIGHT } from './weather/wind-arrows.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 function shipSwatch(slot) {
@@ -166,6 +167,12 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     { value: 'hrdps', label: `${WIND_MODELS.hrdps.label} (Canada, from March 2023)` },
     { value: 'hrrr', label: `${WIND_MODELS.hrrr.label} (US, from 2018)` },
   ];
+  // The wind arrows' small status line: how many points have a wind at the chosen height, or why none does.
+  const windArrowStatus = h('p', { class: 'debrief-menu-note', role: 'status', id: 'debrief-wind-arrow-status', hidden: true });
+  // The height box, read with the status line as well as its own range message.
+  const windArrowHeight = controls.number('wxWindArrowFt', { label: 'Wind arrow height', unit: 'ft', min: ARROW_HEIGHT.min, max: ARROW_HEIGHT.max, step: ARROW_HEIGHT.step });
+  const heightInput = windArrowHeight.querySelector('input');
+  heightInput?.setAttribute('aria-describedby', `${heightInput.getAttribute('aria-describedby') ?? ''} ${windArrowStatus.id}`.trim());
   // Weather at the time of the flight: every item off at first (R22), and
   // fetched only while on (SPEC-debrief: Weather at the time of the flight).
   const weatherMenu = menu('Weather', 'debrief-weather', [
@@ -179,6 +186,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
     controls.checkbox('wxWinds', { label: 'Winds aloft (model)' }),
     controls.select('wxWindModel', { label: 'Wind model', options: WIND_MODEL_OPTIONS }),
+    controls.checkbox('wxWindArrows', { label: 'Wind arrows (model)' }),
+    windArrowHeight,
+    windArrowStatus,
   ]);
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
@@ -332,9 +342,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   }
 
   // The lines under the map, satellite first.
-  const notes = { imagery: '', charts: '', weather: '' };
+  const notes = { imagery: '', charts: '', weather: '', arrows: '' };
   function showNotes() {
-    const text = [notes.imagery, notes.charts, notes.weather].filter(Boolean).join(' · ');
+    const text = [notes.imagery, notes.charts, notes.weather, notes.arrows].filter(Boolean).join(' · ');
     if (credit.textContent !== text) credit.textContent = text;
     credit.hidden = !text;
   }
@@ -443,6 +453,17 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     setWeatherNote(text) {
       notes.weather = text ?? '';
       showNotes();
+    },
+    /**
+     * The wind arrows' words: the caption under the map ("Model wind at
+     * 8,000 ft (HRDPS 18–19Z, Open-Meteo)"), empty when there are none, and
+     * the small status line in the Weather menu ('' hides it).
+     */
+    setWindArrows({ caption = '', status = '' } = {}) {
+      notes.arrows = caption;
+      showNotes();
+      if (windArrowStatus.textContent !== status) windArrowStatus.textContent = status;
+      windArrowStatus.hidden = !status;
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r, extra) => readouts.render(r, flight, extra),

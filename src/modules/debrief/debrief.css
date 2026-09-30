@@ -555,6 +555,14 @@
   max-width: 100%;
 }
 
+/* A small line that spans both columns of a menu (why the wind arrows show nothing). */
+[data-module='debrief'] .debrief-menu-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 /* A group that spans both columns of a menu (the chart alignment). */
 [data-module='debrief'] .debrief-menu-wide {
   grid-column: 1 / -1;
