@@ -9,11 +9,11 @@ import { FTPS_TO_KT } from '../../../src/core/units.js';
 
 const PATRICK = '/mnt/project-files/uploads/hearth/96e8c7f1-ef09-4848-ae5b-6014cbc26335';
 const TRACKS = {
-  '#1': { file: new URL('../../../original/assets/585aab2601b787ed.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 1 }, fastestKt: 426.5 },
-  '#2': { file: new URL('../../../original/assets/3ee2a7e81a74880c.kml', import.meta.url), dropped: { altitude: 1, position: 0, jump: 23 }, fastestKt: 445.0 },
-  '#3': { file: new URL('../../../original/assets/3085ab3861e2bae6.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 0 }, fastestKt: 381.7 },
-  '#4': { file: new URL('../../../original/assets/46e14716b39044c4.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 0 }, fastestKt: 403.7 },
-  "Patrick's": { file: PATRICK, dropped: { altitude: 21, position: 0, jump: 0 }, fastestKt: 438.9 },
+  '#1': { file: new URL('../../../original/assets/585aab2601b787ed.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 1 }, fastestKt: 426.5, gaps: 12 },
+  '#2': { file: new URL('../../../original/assets/3ee2a7e81a74880c.kml', import.meta.url), dropped: { altitude: 1, position: 0, jump: 23 }, fastestKt: 445.0, gaps: 25 },
+  '#3': { file: new URL('../../../original/assets/3085ab3861e2bae6.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 0 }, fastestKt: 381.7, gaps: 9 },
+  '#4': { file: new URL('../../../original/assets/46e14716b39044c4.kml', import.meta.url), dropped: { altitude: 0, position: 0, jump: 0 }, fastestKt: 403.7, gaps: 6 },
+  "Patrick's": { file: PATRICK, dropped: { altitude: 21, position: 0, jump: 0 }, fastestKt: 438.9, gaps: 6, longestGapS: 39 },
 };
 
 /** The fastest ground speed between consecutive fixes, measured over at least 1 s. */
@@ -37,6 +37,8 @@ for (const [label, want] of Object.entries(TRACKS)) {
     assert.equal(clean.fixes.length, raw.fixes.length - want.dropped.altitude - want.dropped.jump);
     assert.ok(clean.fixes.every(f => f.altM > -1000), 'no −100,000 m fix is left');
     assert.equal(Math.round(fastestKt(clean.fixes) * 10) / 10, want.fastestKt);
+    assert.equal(clean.gaps.length, want.gaps);
+    if (want.longestGapS) assert.equal(Math.max(...clean.gaps.map(g => g.toT - g.fromT)), want.longestGapS);
     // Kept fixes are the reader's own, unchanged and in order.
     let k = 0;
     for (const f of clean.fixes) {
@@ -115,4 +117,13 @@ test('a track with fewer than 2 believable fixes is refused, naming it', () => {
   const fixes = straight(3).map((f, i) => (i ? { ...f, altM: -100000 } : f));
   assert.throws(() => cleanTrack({ name: 'lead.kml', fixes }), { name: 'KmlError', code: 'no-fixes', message: /"lead\.kml"/ });
   assert.throws(() => cleanTrack({ name: '', fixes: [] }), { code: 'no-fixes' });
+});
+
+test('more than 5 s between good fixes is a gap (C4)', () => {
+  const at = [0, 1, 6, 11.001, 12, 20];
+  const fixes = at.map(t => ({ t, lat: 50, lon: -105 + t * KT200_DEG_LON, altM: 1000 }));
+  assert.deepEqual(cleanTrack({ name: 'test', fixes }).gaps, [{ fromT: 6, toT: 11.001 }, { fromT: 12, toT: 20 }]);
+  // A dropped fix doesn't hide a gap: the gap runs between the good fixes either side.
+  fixes[2] = { ...fixes[2], altM: -100000 };
+  assert.deepEqual(cleanTrack({ name: 'test', fixes }).gaps, [{ fromT: 1, toT: 11.001 }, { fromT: 12, toT: 20 }]);
 });

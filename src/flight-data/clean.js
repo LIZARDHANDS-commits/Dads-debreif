@@ -1,5 +1,5 @@
 // Cleans a track read by kml.js before it is shown: drops fixes no aircraft
-// could have flown (C3, D32). V6 drew every fix it read, so ForeFlight's
+// could have flown (C3) and finds the gaps in what is left (C4), both D32. V6 drew every fix it read, so ForeFlight's
 // −100,000 m "no altitude" value put #2 at −328,084 ft and GPS glitches showed
 // speeds over 1,000 kt.
 //
@@ -16,12 +16,15 @@ export const MAX_ALT_M = 20_000;
 export const MAX_GROUND_SPEED_KT = 450;
 /** The longest run of bad fixes dropped as one jump. */
 export const MAX_JUMP_FIXES = 5;
+/** More than this many seconds between good fixes is a gap in the GPS track. */
+export const GAP_S = 5;
 /** Speeds are measured over at least this long, so fixes logged 0.5 s apart don't look fast. */
 export const MIN_SPEED_TIME_S = 1;
 
 /**
- * Returns { name, fixes, dropped: { altitude, position, jump } }: the track
- * without impossible fixes, and how many were dropped for each reason. The
+ * Returns { name, fixes, dropped: { altitude, position, jump }, gaps }: the
+ * track without impossible fixes, how many were dropped for each reason, and
+ * each stretch of more than GAP_S seconds without a fix as { fromT, toT }. The
  * fixes kept are the same objects, in the same order. Throws a KmlError if
  * fewer than 2 fixes are left.
  */
@@ -64,5 +67,9 @@ export function cleanTrack(raw) {
     const name = raw.name ? `"${String(raw.name).slice(0, 80)}"` : 'This file';
     throw new KmlError('no-fixes', `${name} has fewer than 2 believable positions (the rest are off the map, underground or impossibly fast).`);
   }
-  return { name: raw.name, fixes, dropped };
+  const gaps = [];
+  for (let i = 1; i < fixes.length; i++) {
+    if (fixes[i].t - fixes[i - 1].t > GAP_S) gaps.push({ fromT: fixes[i - 1].t, toT: fixes[i].t });
+  }
+  return { name: raw.name, fixes, dropped, gaps };
 }

@@ -92,6 +92,12 @@ M = [
  ('clean.js', "dropped.jump += back - i;", "dropped.jump += 1;"),
  ('clean.js', "      last = i;\n", "\n"),
  ('clean.js', "if (fixes.length < 2)", "if (fixes.length < 1)"),
+ # C4: gaps
+ ('clean.js', "fixes[i].t - fixes[i - 1].t > GAP_S", "fixes[i].t - fixes[i - 1].t >= GAP_S"),
+ ('clean.js', "gaps.push({ fromT: fixes[i - 1].t, toT: fixes[i].t })", "gaps.push({ fromT: fixes[i].t, toT: fixes[i].t })"),
+ ('flight.js', "inGap: b.t - a.t > GAP_S && t < b.t", "inGap: b.t - a.t > GAP_S"),
+ ('flight.js', "inGap: b.t - a.t > GAP_S && t < b.t", "inGap: b.t - a.t >= GAP_S && t < b.t"),
+ ('flight.js', "{ ...f[0], inGap: false }", "{ ...f[0], inGap: true }"),
 ]
 
 

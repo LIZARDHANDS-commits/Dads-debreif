@@ -3,11 +3,12 @@
 //
 // Ported unchanged from V6's debrief (original/shell.html): tests/golden/
 // flight-data-flight.test.js runs V6's own functions next to these. The changes
-// decided in specs/SPEC-flight-data.md (C1 to C9) are made later, one at a time.
+// decided in specs/SPEC-flight-data.md land one at a time, each named where it is.
 import { makeLocalRef, latLonToLocalFt } from '../core/geo.js';
 import { FT_PER_M, FTPS_TO_KT } from '../core/units.js';
 import { radToDeg, wrapDeg180 } from '../core/angles.js';
 import { gFromTrack } from '../core/flight-math.js';
+import { GAP_S } from './clean.js';
 
 /**
  * Puts tracks on one map and one time window (V6 projectAll, line 2376).
@@ -61,13 +62,15 @@ function bracket(fixes, t) {
  * around t, and ground speed over that pair of fixes. Recorded bank (C2) is
  * interpolated the same way, the short way round. Before the first fix or
  * after the last, the end fix itself, with no speed. Latitude and longitude
- * are the earlier fix's, as in V6.
+ * are the earlier fix's, as in V6. `inGap` is true between two fixes more than
+ * GAP_S seconds apart (C4): the position there is a guess, so the debrief
+ * blanks spacing readouts and breaks the line.
  */
 export function sampleAt(track, t) {
   const f = track.fixes;
   if (!f.length) return null;
-  if (t <= f[0].t) return { ...f[0] };
-  if (t >= f[f.length - 1].t) return { ...f[f.length - 1] };
+  if (t <= f[0].t) return { ...f[0], inGap: false };
+  if (t >= f[f.length - 1].t) return { ...f[f.length - 1], inGap: false };
   const lo = bracket(f, t);
   const a = f[lo];
   const b = f[lo + 1];
@@ -83,6 +86,7 @@ export function sampleAt(track, t) {
     gRecorded: between(a.gRecorded, b.gRecorded, k),
     pitchRecordedDeg: between(a.pitchRecordedDeg, b.pitchRecordedDeg, k),
     bankRecordedDeg: bankBetween(a.bankRecordedDeg, b.bankRecordedDeg, k),
+    inGap: b.t - a.t > GAP_S && t < b.t,
   };
 }
 

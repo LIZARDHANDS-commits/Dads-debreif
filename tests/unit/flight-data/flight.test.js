@@ -44,3 +44,10 @@ test('with plain coordinate lists, bank lines up by the running fix count, as G 
   const byLon = Object.fromEntries(fixes.map(f => [f.lon, f.bankRecordedDeg]));
   assert.deepEqual(byLon, { '-105': 10, '-105.1': 20, '-105.2': 30, '-105.3': 40 });
 });
+
+test('sampleAt says when a time falls inside a gap of more than 5 s (C4)', () => {
+  const track = buildFlight({ 1: { name: 'a', fixes: [fix(0), fix(1), fix(6), fix(11.5), fix(12)] } }).tracks[1];
+  const inGap = t => sampleAt(track, t).inGap;
+  assert.deepEqual([-1, 0, 0.5, 1, 3, 6, 6.01, 11, 11.5, 11.8, 12, 13].map(inGap),
+    [false, false, false, false, false, false, true, true, false, false, false, false]);
+});

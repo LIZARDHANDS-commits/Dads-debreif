@@ -13,7 +13,7 @@ Plan: [`plan.md`](plan.md). Verify every task with `npm test`.
 - [x] C1 blank recorded values are missing, not 0 (D47).
 - [x] C2 read recorded bank (D47).
 - [x] C3 drop impossible fixes (D32, 450 kt rule).
-- [ ] C4 mark gaps over 5 s (D32).
+- [x] C4 mark gaps over 5 s (D32).
 - [ ] C5 every fix needs a time.
 - [ ] C6 end-frame speed; interpolated lat/lon (#24).
 - [ ] C7 heading unknown when stationary (#22).
