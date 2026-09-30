@@ -778,6 +778,24 @@ test('in the box the check turn greys out #4 timing and Rear element delay, and 
   await expect(box(page, 'Rear element delay')).not.toHaveAttribute('aria-describedby', /.+/);
 });
 
+test('a greyed Direction shows the side that is flown, and gives the chosen side back afterwards (F5)', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  await direction.getByText('Left', { exact: true }).click();
+  await expect(direction.getByRole('radio', { name: 'Left' })).toBeChecked();
+  for (const turn of ['Cross turn', 'Shackle']) {
+    await box(page, 'Turn').selectOption({ label: turn });
+    await expect(direction.getByRole('radio').first()).toBeDisabled();
+    // #2 flies on Lead's right in the two-ship, so Lead turns right toward it: that is the side shown, not the Left that was chosen.
+    await expect(direction.getByRole('radio', { name: 'Right' })).toBeChecked();
+    await expect(direction.getByRole('radio', { name: 'Left' })).not.toBeChecked();
+  }
+  await expect(page.locator('.ts-direction-note')).toContainText("Both turn toward each other");
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(direction.getByRole('radio', { name: 'Left' })).toBeChecked(); // the choice was never lost
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();

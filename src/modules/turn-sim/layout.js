@@ -331,6 +331,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.`
       : shackle ? 'Both turn toward each other; direction doesn\'t apply.' : '';
     directionNote.hidden = !(cross || shackle);
+    // A greyed-out Direction shows the side that is flown, not a stale choice; the chosen side is never lost and comes back with the turn (F5).
+    const shown = cross || shackle ? leadTurns ?? values.direction : values.direction;
+    for (const radio of direction.built?.control.querySelectorAll('input[type=radio]') ?? []) radio.checked = radio.value === shown;
     // The greyed-out Direction says why to a screen reader too.
     const fieldset = direction.built?.control;
     if (cross || shackle) fieldset?.setAttribute('aria-describedby', directionNote.id);
