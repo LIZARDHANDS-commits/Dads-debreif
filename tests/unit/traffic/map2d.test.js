@@ -445,7 +445,11 @@ function withMap(t, { width = 800, height = 600 } = {}) {
       return () => frames.includes(cb) && frames.splice(frames.indexOf(cb), 1);
     },
   };
-  globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
+  const styleReads = { count: 0 };
+  globalThis.getComputedStyle = () => {
+    styleReads.count++;
+    return { getPropertyValue: () => '' };
+  };
   globalThis.ResizeObserver = class {
     constructor(callback) {
       observers.push(callback);
@@ -463,7 +467,7 @@ function withMap(t, { width = 800, height = 600 } = {}) {
   const canvas = fakeCanvas(width, height, rec);
   const map = createMap2d(canvas, { timers, scene: () => data.current, settings: () => LAYERS_ON });
   return {
-    map, rec, data, canvas, frames,
+    map, rec, data, canvas, frames, styleReads,
     resize: () => observers.forEach((callback) => callback()),
     flush() {
       rec.calls.length = 0;
@@ -471,6 +475,19 @@ function withMap(t, { width = 800, height = 600 } = {}) {
     },
   };
 }
+
+test('the page\'s colours are read once, not on every frame, until refreshColours asks for them again', (t) => {
+  const { map, flush, styleReads } = withMap(t);
+  flush();
+  map.requestDraw();
+  flush();
+  map.requestDraw();
+  flush();
+  assert.equal(styleReads.count, 1, 'three frames, one read');
+  map.refreshColours();
+  flush();
+  assert.equal(styleReads.count, 2, 'a theme change reads them again, and redraws');
+});
 
 test('the first draw frames every route, so the whole pattern is on screen', (t) => {
   const { map, flush } = withMap(t);

@@ -422,11 +422,19 @@ function drawWind(ctx, map, settings, palette, text) {
  * canvas: the map's <canvas>. timers: the module's scheduler scope.
  * scene(): the routes, aircraft, conflicts and trails to draw now (see the top of this file).
  * settings(): the traffic settings (layers, conflict limits, wind).
- * Returns { requestDraw, fit, view, worldToScreen, screenToWorld, dispose }: ask for a draw
+ * Returns { requestDraw, refreshColours, fit, view, worldToScreen, screenToWorld, dispose }: ask for a draw
  * whenever the scene or a setting changes; the rest is the canvas view's own, for the editor.
  */
 export function createMap2d(canvas, { timers, scene, settings }) {
   let fitted = false;
+  let palette = null; // the page's colours, read once and kept until refreshColours()
+  const colours = () => {
+    if (!palette) {
+      const style = globalThis.getComputedStyle(canvas);
+      palette = paletteFrom((name) => style.getPropertyValue(name).trim());
+    }
+    return palette;
+  };
 
   const fitTo = (data) => {
     const bounds = sceneBounds(data.routes, data.aircraft);
@@ -445,8 +453,7 @@ export function createMap2d(canvas, { timers, scene, settings }) {
         fitted = true;
         fitTo(data);
       }
-      const style = globalThis.getComputedStyle(canvas);
-      drawScene(ctx, map, data, settings(), paletteFrom((name) => style.getPropertyValue(name).trim()));
+      drawScene(ctx, map, data, settings(), colours());
     },
   });
 
@@ -457,6 +464,11 @@ export function createMap2d(canvas, { timers, scene, settings }) {
     },
     worldToScreen: map.worldToScreen,
     screenToWorld: map.screenToWorld,
+    /** Reads the page's colours again and redraws; for when the theme changes. */
+    refreshColours() {
+      palette = null;
+      map.requestDraw();
+    },
     /** Frames every route. A map that has no size yet (hidden) does it at its next draw. */
     fit() {
       if (map.size.width > 1) fitTo(scene());
