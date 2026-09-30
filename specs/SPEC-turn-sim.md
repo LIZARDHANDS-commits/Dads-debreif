@@ -42,7 +42,7 @@ It follows Patrick's rule (2026-09-30, R22): essentials by default, and everythi
 │ Turn        Delayed 90 ▾││                                       ││ Min sep  5,980 ft        │
 │ Direction   Right  Left ││         formation picture             ││ R 3,610 ft  45.0°/…  60° │
 │ Speed       220 KTAS    ││                                       ││ ▸ More detail            │
-│ G           2.0         ││                                       │└─────────────────────────┘
+│ G           3.0         ││                                       │└─────────────────────────┘
 │ Timing  Time delay   ▾  ││                                       │
 │ Base delay  16.0 s      ││  drag an aircraft before Play to move │
 │ ▸ Aircraft errors       ││                                       │
@@ -72,13 +72,20 @@ It follows Patrick's rule (2026-09-30, R22): essentials by default, and everythi
 
 ## What V6 does, and what the rebuild keeps
 
+### Defaults changed from V6 (Patrick, 2026-09-30 05:37Z, following the SMM)
+
+- **G defaults to 3.0** (V6: 2.0). The SMM flies line-abreast turns at 3 G (SMM 16.18 para 50, 16.19).
+- **Offset box aft defaults to 7,000 ft** (V6: 8,000), matching the offset standard of 7,000 ± 1,000 ft (SMM 16.41 para 109). The standard itself is changed in `core` `V6_STANDARDS` by the Flight math core thread, and the Turn Sim reads it through `app.standards`.
+- Speed stays 220 (Patrick: 220 KIAS in the low block, 200 KIAS in the mid block). The box is the true airspeed V6 flies with no wind (Assumption 3).
+- As with every change (D10), the golden tests pin V6 at its own defaults (2.0 G, 8,000 ft) first, and each new default lands as its own commit.
+
 ### Formations
 
 | V6 formation | Slots (V6 `desiredFormationAircraft`, line 797; `s` is Spacing) | Rebuild |
 |---|---|---|
 | 4312 (default) | #2 `s` on Lead's left, #3 `s` right, #4 `2s` right | Kept. #2's side becomes a setting, **left by default** (D48). |
 | 2134 | the mirror of 4312 | Kept, with the same #2-side setting. |
-| Offset box | #1/#2 front element `s + stagger` apart; #3 in the slot `box aft` behind; #4 3,000 ft outside #2 and `box aft` behind | Kept, with V6's 1,000 ft stagger, 8,000 ft aft and 3,000 ft (named in one place). |
+| Offset box | #1/#2 front element `s + stagger` apart; #3 in the slot `box aft` behind; #4 3,000 ft outside #2 and `box aft` behind | Kept, with V6's 1,000 ft stagger and 3,000 ft, and **box aft 7,000 ft by default** (V6: 8,000; Patrick 05:37Z, SMM 16.41 para 109, matching the offset standard of 7,000 ± 1,000 ft) (named in one place). |
 | Two-ship | #2 `s` on Lead's right | Kept. CSV and readouts leave out the pairs that don't exist, instead of V6's "NaN" (#17). |
 
 Dragging an aircraft before Play moves its start position, as in V6. "Follow lead" no longer breaks dragging (#31).
@@ -143,7 +150,7 @@ Changes that don't change a number V6's Step button shows:
 
 ### Readouts and standards (R9)
 
-- **Formation card:** per wingman, V6's labels from `core` `classifyTurnSimPosition` (TIGHT, WIDE, FORE, AFT, ON SPACING) and the one number that's off. The standards line V6 printed ("4,000 to 6,000 ft interval, ±250 ft of Lead's 3/9; offset box 7,000 to 9,000 ft") is under More detail.
+- **Formation card:** per wingman, V6's labels from `core` `classifyTurnSimPosition` (TIGHT, WIDE, FORE, AFT, ON SPACING) and the one number that's off. The standards line is under More detail, built from the current standards (V6 printed a fixed "4,000 to 6,000 ft interval, ±250 ft of Lead's 3/9; offset box 7,000 to 9,000 ft").
 - **Wide and tight position errors are measured from Lead** (D42): "Wide 1,000 ft" moves a wingman 1,000 ft further out on whichever side it flies. V6 moved every aircraft along one fixed direction, so on one side "wide" came in tighter (#15).
 - The turn circles use the same G as the flying (with D74 they can no longer disagree).
 - **Spacing graph, Solver and Correction model** (Q41, Patrick): V6 hid all three. They come back, each behind its own checkbox, off by default (R22). The graph draws each metric in its own colour with a legend (V6 drew all four in white) and only while open. The solver's sweep is pinned to V6 and runs only when asked, not every frame.

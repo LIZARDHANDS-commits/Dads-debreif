@@ -9,7 +9,7 @@ Skills: test-driven-development and incremental-implementation for every task; f
 ## Phase 1: engine base and a first screen (PR A)
 
 - [ ] **1. Settings and the golden fake.** `settings.js`: every Turn Sim setting with V6's defaults, allowed values and ranges (Speed at least 1 kt, Turn degrees 10 to 180, finite numbers only). A test helper that turns a settings object into V6's `$('id').value` so V6's own functions run in Node.
-  - Acceptance: defaults equal V6's markup (lines 527 to 600); bad values refused; the fake drives V6's `speedfps`, `baseG`, `turnRadius` to the same numbers as the page.
+  - Acceptance: defaults equal V6's markup (lines 527 to 600); bad values refused; the fake drives V6's `speedfps`, `baseG`, `turnRadius` to the same numbers as the page. Then, as its own commit once the task 3 golden runs pin V6's defaults: G 3.0 and offset box aft 7,000 ft (Patrick 05:37Z, SMM 16.18/16.19 and 16.41). The golden tests keep passing V6's own values explicitly.
   - Files: `src/modules/turn-sim/settings.js`, `tests/unit/turn-sim/settings.test.js`, `tests/golden/turn-sim-fake-page.js`. Size S.
 - [ ] **2. Formation slots and position errors, pinned.** `engine/formation.js` from `desiredFormationAircraft` (797), `syncAircraftErrorValues` and `applyErrors` (905 to 914), `inferLineAbreastFormFromCurrentState` (1407).
   - Acceptance: every preset and error combination matches V6 exactly (golden). Nothing changed yet: D42 and D48 come in task 12.
