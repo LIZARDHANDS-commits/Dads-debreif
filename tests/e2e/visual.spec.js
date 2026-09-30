@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
 import { openRoute } from './routes.js';
+import { serveMap } from './sof-map-feeds.js';
 
 // Same instant as clock.spec.js: 18:00:00Z is noon in Moose Jaw.
 const NOON_Z = new Date('2026-09-30T18:00:00Z');
@@ -117,6 +118,11 @@ test('sof, recorded weather', async ({ page }) => {
   await page.route(/^https:\/\/datamask\.org\//, (route) => route.fulfill({
     status: 200, contentType: 'application/json', headers: CORS, body: sofFixture('screen-datamask-not-found.json'),
   }));
+  // ECCC answers too, with clear pictures and layer times fresh at the fixed clock (as sof.spec.js does), so the picture shows the
+  // normal state: with nothing serving ECCC the near-home check fails and the banner carries "Lightning: can't tell".
+  await serveMap(page, {
+    rewrite: (xml) => xml.replaceAll('2026-09-30T', '2026-09-29T').replaceAll('T07:00:00Z', 'T18:30:00Z').replaceAll('T07:12:00Z', 'T18:36:00Z'),
+  });
   await page.clock.setFixedTime(SOF_NOW);
   await openRoute(page, '#/sof');
   await expect(page.locator('.sof-feed')).toHaveText('Weather just now ✓');
