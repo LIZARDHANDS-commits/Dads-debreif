@@ -27,6 +27,8 @@ function fakeDist({ mediaBytes = 0 } = {}) {
   if (mediaBytes) {
     mkdirSync(join(dir, 'media', 'cards'), { recursive: true });
     writeFileSync(join(dir, 'media', 'cards', 'debrief.webm'), Buffer.alloc(mediaBytes));
+    writeFileSync(join(dir, 'media', 'cards', 'debrief.mp4'), Buffer.alloc(mediaBytes - 1)); // fallback: only the larger counts
+    writeFileSync(join(dir, 'media', 'cards', 'sof.mp4'), Buffer.alloc(100));
     writeFileSync(join(dir, 'media', 'cards', 'debrief.jpg'), Buffer.alloc(1000)); // stills don't count as video
   }
   return dir;
@@ -37,10 +39,10 @@ test('home files follow static imports and styles but not modules loaded on dema
   assert.deepEqual(files, ['assets/index.css', 'assets/index.js', 'assets/shared.js', 'index.html']);
 });
 
-test('measure adds up home files and card videos', () => {
+test('measure adds up home files, card stills and card videos', () => {
   const result = measure(fakeDist({ mediaBytes: 4321 }));
-  assert.equal(result.homeBytes, 100 + 200 + 50 + 25);
-  assert.equal(result.mediaBytes, 4321);
+  assert.equal(result.homeBytes, 100 + 200 + 50 + 25 + 1000); // the still counts toward the home screen
+  assert.equal(result.mediaBytes, 4321 + 100);
   assert.deepEqual(check(result), []);
 });
 

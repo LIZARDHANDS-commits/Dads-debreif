@@ -4,38 +4,38 @@
   - Acceptance: `npm test`, `npm run build` and `npm run test:e2e` pass locally and in CI; the build fails if the home screen needs more than 3 MB.
   - Verify: run all three locally; CI green on the pull request.
   - Files: package.json, vite.config.js, index.html, src/app.js, playwright.config.js, tools/check-size.mjs, .github/workflows/ci.yml, .github/workflows/pages.yml
-- [ ] **2. Storage.** `store.js` and `settings.js`.
+- [x] **2. Storage.** `store.js` and `settings.js`.
   - Acceptance: every storage test in SPEC-storage.md passes.
   - Verify: `npm test`
   - Files: src/storage/store.js, src/storage/settings.js, src/storage/README.md, tests/unit/storage/*.test.js
-- [ ] **3. ui-kit.** tokens.css, base.css, dom.js, scheduler.js, panel.js, source-rules test.
+- [x] **3. ui-kit.** tokens.css, base.css, dom.js, scheduler.js, panel.js, source-rules test.
   - Acceptance: every ui-kit test in SPEC-ui-kit.md passes.
   - Verify: `npm test`
   - Files: src/ui-kit/*, tests/unit/ui-kit/*.test.js, tests/unit/source-rules.test.js
-- [ ] **4. Shell core.** router.js, registry.js, host.js.
+- [x] **4. Shell core.** router.js, registry.js, host.js.
   - Acceptance: router, registry and host unit tests in SPEC-shell.md pass, including clean unmount of a fake module.
   - Verify: `npm test`
   - Files: src/shell/router.js, src/shell/registry.js, src/shell/host.js, tests/unit/shell/*.test.js
-- [ ] **5. Shell screens.** home, About, header, Settings dialog, Report a problem form, footer version.
+- [x] **5. Shell screens.** home, About, header, Settings dialog, Report a problem form, footer version.
   - Acceptance: every route in SPEC-shell.md renders; Coming soon cards aren't buttons.
   - Verify: `npm run dev` and look; e2e smoke test.
   - Files: index.html, src/app.js, src/shell/home.js, about.js, header.js, settings-dialog.js, .github/ISSUE_TEMPLATE/problem.yml
-- [ ] **6. Browser tests.** smoke (3 browsers in CI), overlap, click-through, module switching, storage blocked.
+- [x] **6. Browser tests.** smoke (3 browsers in CI), overlap, click-through, module switching, storage blocked.
   - Acceptance: all pass; any console error fails a test.
   - Verify: `npm run test:e2e`
   - Files: tests/e2e/*.spec.js, tests/e2e/helpers.js
-- [ ] **7. Card media.** re-encoded loops and stills, lazy loading, reduced motion.
+- [x] **7. Card media.** re-encoded loops and stills, lazy loading, reduced motion.
   - Acceptance: videos total 3 MB or less; none loads until its card is on screen; none plays with reduced motion.
   - Verify: size check in the build; e2e test for lazy loading and reduced motion.
   - Files: public/media/cards/*, src/shell/home.js, tools/check-size.mjs
-- [ ] **8. Offline.** manifest, icons, service worker generated at build, new-version bar.
+- [x] **8. Offline.** manifest, icons, service worker generated at build, new-version bar.
   - Acceptance: after one visit the app reloads offline; a new build shows the bar.
   - Verify: e2e offline test.
-  - Files: public/manifest.webmanifest, public/icons/*, vite.config.js, src/shell/update-bar.js, tests/e2e/offline.spec.js
-- [ ] **9. Clock.** header time from core/time.js, following the Zulu/local setting. Waits on the flight-math workstream.
+  - Files: public/manifest.webmanifest, public/icons/*, vite.config.js, src/shell/update-bar.js, src/shell/sw.js, tools/service-worker.mjs, tools/make_icons.mjs, tests/e2e/offline.spec.js
+- [x] **9. Clock.** header time from core/time.js, following the Zulu/local setting. Waits on the flight-math workstream.
   - Acceptance: shows Zulu and America/Regina local in the chosen order; ticks once a second; pauses while hidden.
   - Verify: unit test of the formatting glue; e2e with a fixed clock.
   - Files: src/shell/header.js, tests/e2e/clock.spec.js
-- [ ] **10. Sign-off.** READMEs, docs/checklists/shell.md, run on the live link.
+- [ ] **10. Sign-off.** READMEs, docs/checklists/shell.md, run on the live link. (READMEs and checklist written; waiting on a run on the live link.)
   - Acceptance: Patrick (or anyone, D28) runs the checklist on the live link.
   - Files: src/*/README.md, docs/checklists/shell.md
