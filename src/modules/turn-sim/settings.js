@@ -247,6 +247,22 @@ export function settingIsValid(key, value) {
   return true;
 }
 
+/** The turns the SMM flies with two aircraft only (Patrick 09:28Z: two-ship only): the shackle and the cross turn. */
+export const TWO_SHIP_ONLY_TURNS = Object.freeze(['shackle45', 'cross180']);
+
+/**
+ * Why a turn cannot be flown in a formation, or null when it can. The shackle and the cross turn are two-ship turns
+ * (SMM 16.19 paras 61 to 64; para 118 lists no shackle or cross turn for spread 4), so the four-ship formations (4312, 2134
+ * and the offset box) do not offer them. The screen greys them out with this text; checkSettings and createRun
+ * fall back to the default turn.
+ */
+export function turnProblem(formation, maneuver) {
+  if (formation !== 'twoShip' && TWO_SHIP_ONLY_TURNS.includes(maneuver)) {
+    return 'The shackle and the cross turn are two-ship turns: pick the two-ship formation to fly them.';
+  }
+  return null;
+}
+
 /**
  * A clean settings object from anything: every key present, each value the
  * given one when it is good and the default otherwise, unknown keys dropped.
@@ -264,6 +280,11 @@ export function checkSettings(obj) {
   if (out.rearDelayMinSec > out.rearDelayMaxSec) {
     out.rearDelayMinSec = DEFAULTS.rearDelayMinSec;
     out.rearDelayMaxSec = DEFAULTS.rearDelayMaxSec;
+  }
+  // A turn the formation cannot fly goes back to the default turn (turnProblem says why), with its Turn degrees.
+  if (turnProblem(out.formation, out.maneuver)) {
+    out.maneuver = DEFAULTS.maneuver;
+    out.turnDeg = MANEUVER_TURN_DEG[DEFAULTS.maneuver];
   }
   return Object.freeze(out);
 }

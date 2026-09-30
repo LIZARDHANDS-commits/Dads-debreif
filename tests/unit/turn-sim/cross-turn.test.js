@@ -3,7 +3,7 @@
 // one G, and with the Direction box pointing away from #2 both turned the same way and never crossed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
+import { DEFAULTS, checkSettings, turnProblem } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
 const BASE = { ...DEFAULTS, maneuver: 'cross180', turnDeg: 180, startHeadingDeg: 0, formation: 'twoShip', durationSec: 60 };
@@ -50,8 +50,9 @@ test('Lead turns toward #2 whichever way the Direction box points, and #2 toward
     const [one, two] = run.state.aircraft.map((a) => a.headingRad - Math.PI / 2);
     assert.ok(one < 0 && two > 0, `${direction}: Lead right, #2 left`);
   }
-  const mirrored = createRun({ ...BASE, formation: 'weighted', direction: 'left' }); // 4312 has #2 on Lead's left
-  assert.equal(mirrored.state.leadTurnDirection, 'left');
+  // With #2 on the other side (D48's setting does not reach the two-ship, so mirror the start heading's side by the heading): Lead follows #2.
+  const otherWay = createRun({ ...BASE, direction: 'left', startHeadingDeg: 180 });
+  assert.equal(otherWay.state.leadTurnDirection, 'right', 'the side is #2\'s side of Lead\'s nose, so it does not depend on the compass heading');
 });
 
 test('two stages: 2 G for the first 90 degrees, then the G setting; the settings say so', () => {
@@ -74,4 +75,12 @@ test('two stages: 2 G for the first 90 degrees, then the G setting; the settings
   const tight = createRun({ ...BASE, crossTurnFirstG: 4 });
   while (wide.step()); while (tight.step());
   assert.ok(fromLead(wide.state.aircraft, 2).right > fromLead(tight.state.aircraft, 2).right + 500, 'the first G changes where they end');
+});
+
+test('Patrick 09:28Z: the cross turn is a two-ship turn too', () => {
+  for (const formation of ['weighted', 'weightedReverse', 'offsetBox']) {
+    assert.match(turnProblem(formation, 'cross180'), /two-ship/);
+    assert.equal(checkSettings({ ...BASE, formation }).maneuver, DEFAULTS.maneuver);
+    assert.match(createRun({ ...BASE, formation }).state.maneuverFallback, /two-ship/);
+  }
 });

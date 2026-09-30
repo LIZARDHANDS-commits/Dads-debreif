@@ -1,9 +1,9 @@
-// The shackle as the SMM flies it (16.19 paras 61 and 62): both aircraft turn about 45 degrees INTO each other at once,
+// The shackle as the SMM flies it (16.19 paras 61 and 62; a two-ship turn): both aircraft turn about 45 degrees INTO each other at once,
 // cross, and reverse back to the original heading, timed to arrive in LAB on swapped sides. V6 turned every wingman away
 // (its "right" vector is the map's left), so nobody crossed; the V6 flight is in git history (commit 63fffa8 and before).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
+import { DEFAULTS, checkSettings, turnProblem } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 import { shackleHoldSec } from '../../../src/modules/turn-sim/engine/plan.js';
 
@@ -81,22 +81,16 @@ test('the hold between the legs is the SMM\'s timing: 19.5 s at 220 KTAS, 3 G an
   assert.equal(new Set(turning[2].map(String)).size, 2);
 });
 
-test('four-ship: each element flies the shackle about its own pair (#1 and #2, #3 and #4), in 4312, 2134 and the offset box', () => {
+test('Patrick 09:28Z: the shackle is a two-ship turn; a four-ship formation does not fly it', () => {
   for (const formation of ['weighted', 'weightedReverse', 'offsetBox']) {
-    for (const direction of ['right', 'left']) {
-      const { run, start, crossed, initial } = fly({ ...BASE, formation, direction });
-      const label = `${formation} ${direction}`;
-      assert.equal(run.state.perElement, true, label);
-      assert.ok(crossed.has('1-2') && crossed.has('3-4'), `${label}: both pairs cross`);
-      for (const a of run.state.aircraft) assert.equal(a.headingRad, start.find((s) => s.id === a.id).headingRad, `${label} #${a.id}`);
-      for (const [x, y] of [[1, 2], [3, 4]]) {
-        const pairGap = Math.abs(rel(start, y, x).across);
-        const got = rel(run.state.aircraft, y, x);
-        assert.equal(Math.sign(got.across), -initial[`${x}-${y}`], `${label}: ${x}-${y} swapped`);
-        assert.ok(Math.abs(Math.abs(got.across) - pairGap) < TOLERANCE_FT, `${label}: ${x}-${y} keeps its ${pairGap.toFixed(0)} ft gap, got ${got.across.toFixed(0)}`);
-        assert.ok(Math.abs(got.ahead - rel(start, y, x).ahead) < TOLERANCE_FT, `${label}: ${x}-${y} keeps its fore/aft`);
-      }
-    }
+    assert.match(turnProblem(formation, 'shackle45'), /two-ship/);
+    assert.equal(checkSettings({ ...BASE, formation }).maneuver, DEFAULTS.maneuver, `${formation}: settings fall back to the default turn`);
+    const run = createRun({ ...BASE, formation });
+    assert.match(run.state.maneuverFallback, /two-ship/);
+    run.step();
+    assert.equal(run.state.aircraft.filter((a) => a.turning).length, 1, `${formation}: flies the default delayed turn, not a shackle`);
   }
-  assert.equal(createRun({ ...BASE, formation: 'twoShip' }).state.perElement, false);
+  assert.equal(turnProblem('twoShip', 'shackle45'), null);
+  assert.equal(checkSettings({ ...BASE, formation: 'twoShip' }).maneuver, 'shackle45');
+  assert.equal(createRun({ ...BASE, formation: 'twoShip' }).state.maneuverFallback, null);
 });

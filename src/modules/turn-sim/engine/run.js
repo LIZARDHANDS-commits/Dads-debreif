@@ -17,7 +17,7 @@
 import { degToRad, radToDeg, compassDegToHeadingRad, headingRadToCompassDeg } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
 import { bankDegFromG } from '../../../core/flight-math.js';
-import { DEFAULTS, aircraftSettings } from '../settings.js';
+import { DEFAULTS, MANEUVER_TURN_DEG, aircraftSettings, turnProblem } from '../settings.js';
 import { startPositions, activeIds, inferLineAbreastForm } from './formation.js';
 import { planTurn } from './plan.js';
 import { cueStatus } from './cues.js';
@@ -120,8 +120,8 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  *            offsetBox: in the offset box's delayed turns, the solved delays of #3 and #4 against the SMM's band
  *            (16.41 para 112): { minSec, maxSec, rear: [{ id: 3, delaySec, outsideBand }, { id: 4, ... }] }, else null.
  *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
- *            perElement: true in the shackle and the cross turn in a four-ship: #1 and #2, and #3 and #4, each fly the
- *            turn about their own pair (SMM 16.19 paras 61 to 64, and para 118 for spread 4). False otherwise.
+ *            maneuverFallback: null, or the reason the turn asked for could not be flown (the shackle and the cross turn are
+ *            two-ship turns, settings.js turnProblem) and the default turn was flown instead.
  *            leadTurnDirection: 'left' or 'right', the way Lead turns: the Direction box, except in the cross turn, where
  *            Lead turns toward #2 whatever the box says (the screen can show it).
  *            rearCheck: the offset box's rear element check, { enabled, phase ('off', 'waiting', 'turningOut',
@@ -152,7 +152,7 @@ export function createRun(settings) {
   let planned = false;
   let planInfo = { autoStepSec: null, rearDelaysSec: null };
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, perElement: false, leadTurnDirection: 'right', aircraft: [] };
+  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   const finished = () => tSec >= cfg.durationSec;
@@ -172,7 +172,7 @@ export function createRun(settings) {
     // In the shackle and the cross turn the two-ship elements of a four-ship each fly the turn about themselves.
     const leadPlan = preview.find((x) => x.id === 1);
     state.leadTurnDirection = leadPlan && leadPlan.turnDir === -1 ? 'right' : leadPlan && leadPlan.turnDir === 1 ? 'left' : cfg.direction;
-    state.perElement = (cfg.maneuver === 'shackle45' || cfg.maneuver === 'cross180') && formation !== 'twoShip';
+    state.maneuverFallback = cfg.maneuverFallback;
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {
       const g = a.gFlown;
@@ -232,6 +232,11 @@ export function createRun(settings) {
       const given = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined));
       cfg = { ...DEFAULTS, ...given };
       if (!Number.isFinite(cfg.durationSec)) cfg.durationSec = DEFAULTS.durationSec;
+      cfg.maneuverFallback = turnProblem(cfg.formation, cfg.maneuver);
+      if (cfg.maneuverFallback) {
+        cfg.maneuver = DEFAULTS.maneuver;
+        cfg.turnDeg = MANEUVER_TURN_DEG[DEFAULTS.maneuver];
+      }
     }
     formation = cfg.formation;
     startHeadingRad = compassDegToHeadingRad(cfg.startHeadingDeg);

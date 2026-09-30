@@ -214,8 +214,8 @@ export function offsetBoxPlan(aircraft, cfg) {
   return plan;
 }
 
-/** Who each aircraft turns with in the shackle and the cross turn: #1 with #2 and #3 with #4 (a two-ship has one pair). */
-const PARTNER_ID = { 1: 2, 2: 1, 3: 4, 4: 3 };
+/** Who each aircraft turns with in the shackle and the cross turn: #1 with #2. Two-ship turns only (Patrick 09:28Z; settings.js turnProblem). */
+const PARTNER_ID = { 1: 2, 2: 1 };
 
 /** The aircraft `a` flies its pair with, or null if it has none in the list. */
 export function pairPartner(aircraft, a) {
@@ -365,7 +365,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       if (man === 'hook90' && form === 'offsetBox' && (a.id === 3 || a.id === 4)) d = flight.rearDelaySec;
 
       if (man === 'shackle45') {
-        // The shackle (SMM 16.19 paras 61 and 62), flown by each pair about itself: #1 and #2, and #3 and #4.
+        // The shackle (SMM 16.19 paras 61 and 62), a two-ship turn.
         // Both turn into each other together, cross, and reverse back to the original heading, timed to arrive in
         // LAB on swapped sides. V6 (line 1219) turned each wingman by its side on V6's "right" vector, which is the
         // map's left, so every wingman turned away from Lead. The legs are stepped in step.js.
@@ -378,7 +378,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       }
 
       if (man === 'cross180') {
-        // The cross turn (SMM 16.19 para 64, Figure 16.21): each pair turns toward each other at once, 2 G for the first
+        // The cross turn (SMM 16.19 para 64, Figure 16.21): a two-ship turn, both turn toward each other at once, 2 G for the first
         // 90 degrees (crossTurnFirstG, crossTurnSwitchDeg), then the G setting to the 180. Lead always turns toward
         // #2, whichever way the Direction box points (V6 line 1223 sent Lead the Direction way, so with #2 on the far side both
         // turned the same way and never crossed): the direction Lead flies is in state.leadTurnDirection.
