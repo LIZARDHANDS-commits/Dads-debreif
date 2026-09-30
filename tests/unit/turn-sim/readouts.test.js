@@ -326,6 +326,6 @@ test('the check turn is named in the summary only when it is flown, with the fig
 
 test('a close pass (300 to 1,000 ft) is flagged with its distance and pair, after any crossing', () => {
   const st = { ...four(), crossings: [{ a: 1, b: 3, minFt: 120 }], closePasses: [{ a: 1, b: 2, minFt: 893.6 }] };
-  assert.deepEqual(separationFlags(st, SETTINGS), ['Crossing: 300 ft vertical needed, #1 and #3', 'Close pass: 894 ft, #1 and #2']);
+  assert.deepEqual(separationFlags(st, SETTINGS), ['Crossing: 300 ft vertical needed, #1 and #3', 'Close pass: 894 ft, #1 and #2: altitude separation needed']);
   assert.deepEqual(separationFlags({ ...four(), closePasses: [] }, SETTINGS), []);
 });
