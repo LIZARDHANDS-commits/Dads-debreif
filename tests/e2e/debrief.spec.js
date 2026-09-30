@@ -1256,6 +1256,48 @@ for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, 
   });
 }
 
+// A menu that is open while the toolbar or the map changes size stays over the map: the view
+// switch from the keyboard hides Fit, Layers and Routes and charts, and a column opened from
+// the keyboard narrows the map (audit Y1). Neither is a window resize.
+test('an open menu stays over the map when the view is switched from the keyboard (RC-1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const weather = page.getByRole('button', { name: 'Weather' });
+  await weather.focus();
+  await page.keyboard.press('Enter');
+  await expect(weather).toHaveAttribute('aria-expanded', 'true');
+  await expectMenuOverMapOnly(page, '2D Weather');
+  await page.getByRole('radio', { name: '3D' }).focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('canvas.debrief-3d')).toBeVisible();
+  await expect(weather).toHaveAttribute('aria-expanded', 'true');
+  await expectMenuOverMapOnly(page, '3D Weather after the keyboard switch');
+  await page.getByRole('radio', { name: '2D' }).focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('canvas.debrief-2d')).toBeVisible();
+  await expectMenuOverMapOnly(page, '2D Weather after switching back');
+});
+
+test('an open menu stays over the map when a column is opened from the keyboard (RC-1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const column = page.locator('.debrief-col-formation .panel-toggle').first();
+  await column.focus();
+  await page.keyboard.press('Enter'); // closes the column, so the map takes its room
+  const wide = await page.locator('.debrief-map-wrap').evaluate((el) => el.getBoundingClientRect().width);
+  const weather = page.getByRole('button', { name: 'Weather' });
+  await weather.focus();
+  await page.keyboard.press('Enter');
+  await expect(weather).toHaveAttribute('aria-expanded', 'true');
+  await column.focus();
+  await page.keyboard.press('Enter'); // opens it again, over the room the menu was using
+  await expect.poll(() => page.locator('.debrief-map-wrap').evaluate((el) => el.getBoundingClientRect().width)).toBeLessThan(wide);
+  await expect(weather).toHaveAttribute('aria-expanded', 'true');
+  await expectMenuOverMapOnly(page, 'Weather after the Formation column opened');
+});
+
 // RC-3: the message that 3D can't start sits by the 2D | 3D switch that was just pressed,
 // not in the Flight column and not on the red file-error line.
 async function expectNextToViewSwitch(page, text) {

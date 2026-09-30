@@ -463,6 +463,7 @@ function mount(root, app) {
     map.dispose();
     view3d.dispose();
     em.dispose();
+    ui.dispose();
     stylesheet.remove();
   };
 }
