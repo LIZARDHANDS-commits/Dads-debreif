@@ -131,3 +131,16 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Files: src/modules/traffic/sim.js, tests/unit/traffic/closed.test.js
 
 **Checkpoint H:** tests pass; code-review-and-quality; open PR H.
+
+- [ ] **22. Set up a conflict.** The tool: two aircraft (existing or new) with type, route and plan; the list of places their paths cross or come inside the limits, or a clicked point; the time and the gap; start points and delays found by flying each aircraft ahead on its own; "can't meet then" with the nearest time that works; the rules that could fire, with the offer to switch them off.
+  - Acceptance: set-up conflicts happen at the chosen place within one step of the chosen time, calm and in wind, with an engine-out plan included; saved in the setup and replayed the same.
+  - Verify: `npm test`; e2e: set up a conflict on final, play, see ⚠ CONFLICT at the time.
+  - Dependencies: 19. Size M.
+  - Files: src/modules/traffic/{conflict-setup,aircraft}.js, tests/unit/traffic/conflict-setup.test.js
+- [ ] **23. Engine-out check and reach.** The what-if from a row or a typed energy state (zoom, 30° turn, glide in wind, tangent join), the per-key heights and margins and the verdict, drawn on the map; the Engine-out reach layer (green, yellow, red dashed with text) every 500 ft along each route.
+  - Acceptance: the check agrees with flying the Engine out command from the same state to within 20 ft at each key; the downwind example gives about 4,600 ft after the zoom at T10's defaults; the layer redraws when the wind or type changes.
+  - Verify: `npm test`; accessibility checklist for the layer.
+  - Dependencies: 17. Size M.
+  - Files: src/modules/traffic/{glide,map2d,aircraft,readouts}.js, tests/unit/traffic/glide.test.js
+
+**Checkpoint I:** tests pass; code-review-and-quality; open PR I.

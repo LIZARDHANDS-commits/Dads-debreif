@@ -314,6 +314,24 @@ Whiskey and Echo (SMM 4.28 para 76) are ordinary entries onto the extended downw
 
 The triggers all use the same prediction: where each aircraft will be a few seconds ahead on its current path, with the wind, checked against the conflict limits. That's one function, tested once, and every rule calls it, so the future ones are each a small addition.
 
+### Setting up a conflict, and checking an engine-out (Patrick, 2026-09-30, 06:30Z)
+
+**Set up a conflict.** A tool under the spawner (More) that places two aircraft so they meet where and when you choose, for a lesson on a particular conflict:
+- Pick two aircraft, each with a type, a route and a plan (existing ones, or new ones it spawns).
+- Pick where they meet: the tool lists the places their paths cross or come inside the conflict limits (for example "Split 1 base leg crosses Pattern 1 final turn"), or you click a point on the map near both paths.
+- Pick when (a time on the sim clock, default 1 minute from now) and how close (the same moment, or the second aircraft a set number of seconds behind).
+- The tool works out each aircraft's start point and delay so they arrive together. Because the sim is repeatable, it simply flies each aircraft ahead on its own, with the wind and its plan (an engine-out or an extension included), and reads when it reaches the spot. If there's no start point and delay that gets both there (for example the time is too soon), it says so and offers the nearest time that works.
+- The rules (extending, moving over, flying through) would normally stop the conflict happening, so the tool shows which of them could fire and offers to switch those off for this run.
+- It's saved in the setup like any other aircraft, so the same conflict plays every time.
+
+**Engine-out check.** A "what if" that works out, without flying it, whether an aircraft would make High Key, Low Key, Final Key or the runway if its engine quit now:
+- From any aircraft row (the Command menu's **Engine-out check**), or from an energy state you type in: a point on the map, heading, height, speed (KIAS), and clean or gear down.
+- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead to 125 KIAS (share of the speed-for-height trade, T10); then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air, stretched or shrunk by the wind; joining the key's circle at a tangent.
+- The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
+- Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
+- **Engine-out reach** (a Layers option, off by default): each route is coloured by what an engine-out there would reach, for the chosen type in today's wind: solid green where it makes a key with more than 200 ft to spare, yellow where it's closer than that, and red dashed where it can't, with "No key from here" written on the red stretches. It checks a point every 500 ft along the route with the same calculation.
+- The check and the Engine out command use the same functions, so what the check says is what the aircraft then does.
+
 ### How you set up and control the traffic (Patrick, 06:19Z)
 
 There's no code to write: everything is set up with the screen's own boxes and menus, in five layers, from what you plan before pressing Play to what you throw in while it runs.
@@ -325,7 +343,7 @@ There's no code to write: everything is set up with the screen's own boxes and m
    - *Events:* Engine out at (a point), Miss the traffic on the next final turn, Fly through at the next initial, Break at the departure end.
    - *When the plan runs out:* Random (follow the shares) or Land.
    Plans have names ("Student solo: 2 circuits, straight-in, land"), are saved with the setup, and one plan can go to any number of aircraft. A step that can't happen (a split this pattern doesn't have) is refused when the plan is made, with a message. The default plan is Random, so aircraft just follow the shares until you give them something else.
-4. **Commands: what you throw in while it runs.** Each aircraft row has a **Command** menu, used playing or paused: Engine out now, Extend downwind, Fly through at the next initial, Break at the departure end, Miss the traffic on the next final turn. It's how an instructor adds an emergency or plays controller mid-run. Commands are recorded with their time, so Rewind replays them exactly; rewinding to before a command and playing on runs it again, and "Clear commands after here" removes them.
+4. **Commands: what you throw in while it runs.** Each aircraft row has a **Command** menu, used playing or paused: Engine out now, Engine-out check (a what-if, see above), Extend downwind, Fly through at the next initial, Break at the departure end, Miss the traffic on the next final turn. It's how an instructor adds an emergency or plays controller mid-run. Commands are recorded with their time, so Rewind replays them exactly; rewinding to before a command and playing on runs it again, and "Clear commands after here" removes them.
 5. **Rules: what happens by itself.** Extending when final is busy, moving over, flying through, breaking at the departure end, and the closed-pattern extend or rejoin fire on their own triggers. Each can be switched off under Conflict limits, for a lesson where you want the conflict to happen.
 
 **A setup** (a profile) keeps all five together with the wind, under a name, for example "Busy Tuesday: 12 aircraft, 20 kt crosswind, one engine-out at 4:30". Load it and press Play, and it runs the same way every time, because the dice are seeded; New traffic gives a new roll of the same setup.
@@ -426,6 +444,8 @@ src/modules/traffic/
   types.js         the aircraft type table and phase speeds (pure data)
   profile.js       profile shape, V6 import of the built-in data, checks on read-back (pure)
   predict.js       where each aircraft will be a few seconds ahead, for the rules (pure)
+  glide.js         zoom, glide and key reach for engine-outs, PFLs and the check (pure)
+  conflict-setup.js  finds start points and delays so two aircraft meet (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
   view3d.js        the 3D view on a ui-kit canvas surface
@@ -500,7 +520,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 - With the wind calm, every number is V6's (or a listed change).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
 - The break, the final turn onto a 3° final, PFLs and engine-outs fly as the manuals describe, with the key heights and flags shown (tasks 15 to 18), and fly-throughs, breaks at the departure end and the closed-pattern rules fire on their triggers (tasks 19 to 21).
-- Traffic is set up and controlled without code: routes and decision points, plans, live commands and rules, saved together as a setup.
+- Traffic is set up and controlled without code: routes and decision points, plans, live commands and rules, saved together as a setup; a conflict can be set up on purpose, and an engine-out can be checked before it's flown (tasks 22 and 23).
 - Patrick or Dad signs off the checklist (R21).
 
 ## Plan
@@ -529,7 +549,7 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T5b. Tutor and Astra numbers.** The CT-114 has no published circuit speeds, and the Astra's Entry speed is V6's own number. Default: the type table as it stands (Patrick: "looks about right"). Recommendation: Dad corrects any number he knows better; each is one row of data.
 
-**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and how much height does the zoom from 220 KIAS really give (the default is 70 % of the speed-for-height trade, about 1,100 ft)? Recommendation: Dad gives a number for each, or they stay as placeholders.
+**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), how much height does the zoom from 220 KIAS really give (the default is 70 % of the speed-for-height trade, about 1,100 ft), and how far ahead does it travel in the zoom (the default flies it at 15° nose up)? The engine-out check depends on the last two. Recommendation: Dad gives a number for each, or they stay as placeholders.
 
 ## Answered questions
 
