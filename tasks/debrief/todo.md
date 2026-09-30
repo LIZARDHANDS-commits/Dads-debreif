@@ -12,10 +12,11 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Verify: `npm test`; e2e playback and module-switch tests.
   - Files: src/modules/debrief/playback-bar.js, map2d/view.js, tests/e2e/debrief.spec.js
   - Done: Reset and both times fit in the bar at 1366 px, so they show at every size instead of in a "more" menu. Measured at 1920 × 1080 on the example flight at 16×: 16.7 ms median frame (60 fps), example loads in 0.6 s (headless Chromium).
-- [ ] **3. Readouts.** The Formation card (one line per ship), and behind "More detail": live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
+- [x] **3. Readouts.** The Formation card (one line per ship), and behind "More detail": live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
   - Acceptance: numbers match V6 on the example flight (R9) except the logged changes; readouts update at most 10 times a second.
   - Verify: golden comparison of readout rows; performance log at 16×.
   - Files: src/modules/debrief/readouts.js, tests/unit/debrief/readouts.test.js, tests/golden/debrief-readouts.test.js
+  - Done: the Formation card judges each wingman with `app.standards` (the editor is task 4), shows how far outside the band it is, and shows no label where no standard applies (#21), in a gap (D32) or with Lead still (D52). Lead is judged on est. IAS (D31); est. IAS is core's EM-chart formula, pinned equal to `emPoint`. Bank in More detail is the 3D view's `bankFromTrack`, so both agree. The golden test runs V6's readout code on the example flight's cleaned fixes: range, aspect, HCA, closure and labels match exactly. Measured at 1366 × 768 at 16× with More detail open: 16.7 ms median frame.
 
 **Checkpoint A:** tests pass, build under budget, example flight plays smoothly; open PR A.
 

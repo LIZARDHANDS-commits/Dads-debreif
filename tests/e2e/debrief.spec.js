@@ -46,8 +46,10 @@ test('the example flight loads fitted to the map, with the status from what load
   await openRoute(page, '#/debrief');
   await loadExample(page);
   await expect(page.getByText('Load up to four track files')).toBeHidden();
-  await expect(page.getByRole('list', { name: 'Ships' }).getByRole('listitem')).toHaveText([
-    '#1 Lead - ED2F5', '#2 60DF66', '#3 8738A6C9', '#4 083AC',
+  // On the ramp Lead isn't moving, so nobody is judged yet (D52).
+  const card = page.getByRole('list', { name: 'Formation' }).getByRole('listitem');
+  await expect(card).toHaveText([
+    '#2 – (Lead not moving)', '#3 – (Lead not moving)', '#4 – (Lead not moving)', /^Lead \d+ kt est\. IAS/,
   ]);
   await status(page).click();
   await expect(status(page)).toHaveAttribute('aria-expanded', 'true');
@@ -112,7 +114,9 @@ test('picked files get ships in order, and a ship can be changed before loading'
   await page.getByLabel('Ship for wing.kml').selectOption('3');
   await page.getByRole('button', { name: 'Load', exact: true }).click();
   await expect(status(page)).toHaveText('2 tracks loaded');
-  await expect(page.getByRole('list', { name: 'Ships' }).getByRole('listitem')).toHaveText(['#1 lead.kml', '#3 wing.kml']);
+  await expect(page.getByRole('list', { name: 'Formation' }).getByRole('listitem').first()).toHaveText(/^#3 /);
+  await status(page).click();
+  await expect(page.locator('.status-details h3')).toHaveText(['#1 lead.kml', '#3 wing.kml']);
 });
 
 test('a file that can\'t be read changes nothing loaded (D54), and says which and why', async ({ page }) => {
@@ -189,6 +193,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await openRoute(page, '#/debrief');
     await loadExample(page);
     await status(page).click();
+    await page.getByRole('button', { name: 'More detail' }).click();
     await page.getByRole('button', { name: 'Layers' }).click();
     const problems = await page.evaluate(() => {
       const controls = [...document.querySelectorAll('#view a[href], #view button, #view input, #view select, #view label.button')]
@@ -215,3 +220,26 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await page.screenshot({ path: test.info().outputPath('debrief.png') });
   });
 }
+
+test('in flight the Formation card judges each wingman; More detail opens the numbers and stays open (R22)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.inputValue()) + 40 * 60)); // 40 minutes in: airborne
+  const card = page.getByRole('list', { name: 'Formation' }).getByRole('listitem');
+  await expect(card).toHaveCount(4);
+  await expect(card.nth(0)).toHaveText(/^#2 (On parameters|((WIDE|TIGHT|FORE|AFT) by [\d,]+ ft(, )?)+|GPS gap)$/);
+  await expect(card.nth(3)).toHaveText(/^Lead \d+ kt est\. IAS, \d\.\d G/);
+
+  const more = page.getByRole('button', { name: 'More detail' });
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByText('Live data')).toBeHidden();
+  await more.click();
+  await expect(page.getByRole('heading', { name: 'Live data' })).toBeVisible();
+  await expect(page.locator('.more-detail .detail-lines').first()).toContainText(/Alt [\d,]+ ft, GS \d+ kt, est\. IAS \d+ kt/);
+  await expect(page.getByRole('heading', { name: 'From Lead' })).toBeVisible();
+  await expect(page.locator('.more-detail')).toContainText(/#3–#4: [\d,]+ ft horizontal, [\d,]+ ft 3D, closure/);
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+  await expect(page.getByRole('button', { name: 'More detail' })).toHaveAttribute('aria-expanded', 'true');
+});

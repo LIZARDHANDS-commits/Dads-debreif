@@ -7,6 +7,7 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { SHIP_COLORS, OUTLINED_SHIPS, flightSummary, trackStatus, assignShips, setShip, shipName } from './state.js';
 import { MAX_TRACKS } from '../../flight-data/load.js';
+import { createReadoutsPanel } from './readouts-panel.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -85,10 +86,10 @@ export function createLayout({ layout, controls, bar, canExample, listen }) {
     bar.element,
   );
 
-  // Formation column: readouts arrive with task 3; until then, the ship key.
-  const formationBody = h('div', { class: 'formation' });
+  // Formation column: the Formation card and More detail (readouts-panel.js).
+  const readouts = createReadoutsPanel({ layout, swatch: shipSwatch });
   const formationPanel = createPanel({ title: 'Formation', onToggle: (collapsed) => layout.update({ formationColumn: !collapsed }) });
-  formationPanel.body.append(formationBody);
+  formationPanel.body.append(readouts.element);
 
   const flightCol = h('aside', { class: 'debrief-col debrief-col-flight', 'aria-label': 'Flight' }, flightPanel.element);
   const formationCol = h('aside', { class: 'debrief-col debrief-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
@@ -100,23 +101,6 @@ export function createLayout({ layout, controls, bar, canExample, listen }) {
     stage,
     formationCol,
   );
-
-  function renderFormation() {
-    clear(formationBody);
-    if (!flight) {
-      formationBody.append(h('p', { class: 'debrief-hint' }, 'The ships and their numbers show here once a flight is loaded.'));
-      return;
-    }
-    formationBody.append(
-      h(
-        'ul',
-        { class: 'ship-key', 'aria-label': 'Ships' },
-        Object.values(flight.tracks)
-          .sort((a, b) => a.slot - b.slot)
-          .map((tr) => h('li', {}, shipSwatch(tr.slot), h('strong', {}, `#${tr.slot}`), ' ', h('span', { class: 'ship-name' }, shipName(tr.slot, tr.name)))),
-      ),
-    );
-  }
 
   function renderStatus() {
     statusText.textContent = flightSummary(flight);
@@ -186,6 +170,7 @@ export function createLayout({ layout, controls, bar, canExample, listen }) {
   function applyLayout(values) {
     flightPanel.setCollapsed(!values.flightColumn);
     formationPanel.setCollapsed(!values.formationColumn);
+    readouts.setCollapsed(!values.moreDetail);
     flightCol.classList.toggle('is-collapsed', !values.flightColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
     const open = values.statusDetails && Boolean(flight);
@@ -193,7 +178,7 @@ export function createLayout({ layout, controls, bar, canExample, listen }) {
     statusButton.setAttribute('aria-expanded', String(open));
   }
 
-  renderFormation();
+  readouts.render(null, null);
   applyLayout(layout.get());
 
   return {
@@ -205,9 +190,10 @@ export function createLayout({ layout, controls, bar, canExample, listen }) {
       empty.hidden = Boolean(flight);
       fitButton.disabled = !flight;
       renderStatus();
-      renderFormation();
       applyLayout(layout.get());
     },
+    /** Shows the readouts for the current time (at most 10 times a second while playing). */
+    renderReadouts: (r) => readouts.render(r, flight),
     showPicker,
     setMessage,
     setBusy(what) {

@@ -26,6 +26,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   statusDetails: false,
   flightColumn: true,
   formationColumn: true,
+  moreDetail: false,
   grid: true,
 });
 

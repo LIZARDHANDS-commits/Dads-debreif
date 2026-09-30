@@ -145,14 +145,51 @@
   box-shadow: 0 0 0 2px #02060a, 0 0 0 3px var(--border-strong);
 }
 
-[data-module='debrief'] .ship-key {
-  margin: 0;
+/* Formation card and More detail */
+[data-module='debrief'] .formation-card {
+  margin: 0 0 var(--space-3);
   padding: 0;
   list-style: none;
 }
 
-[data-module='debrief'] .ship-key li {
+[data-module='debrief'] .formation-card li {
   padding: var(--space-1) 0;
+}
+
+/* The words say it too; colour only backs them up. */
+[data-module='debrief'] .formation-card .tone-good span {
+  color: var(--good);
+}
+
+[data-module='debrief'] .formation-card .tone-caution span {
+  color: var(--caution);
+}
+
+[data-module='debrief'] .formation-card .tone-none span {
+  color: var(--text-muted);
+}
+
+[data-module='debrief'] .more-detail h3,
+[data-module='debrief'] .more-detail h4 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .more-detail h4 {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+[data-module='debrief'] .detail-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='debrief'] .detail-lines li {
+  padding: 0.125rem 0;
 }
 
 /* Stage: toolbar, map, playback bar */
