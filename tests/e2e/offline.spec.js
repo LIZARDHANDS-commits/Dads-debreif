@@ -29,6 +29,22 @@ test('after one visit, home and About open with the network off', async ({ page,
   await context.setOffline(false);
 });
 
+test('offline, the home cards show their stills and fetch no videos', async ({ page, context }) => {
+  await openRoute(page, '#/');
+  await waitForOfflineCopy(page);
+  await context.setOffline(true);
+  const failed = [];
+  page.on('requestfailed', (req) => failed.push(req.url()));
+  await page.reload();
+  await expect(page.locator('.card')).toHaveCount(6);
+  // Give the cards' visibility checks a few frames to run.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 300)))));
+  await expect(page.locator('.card-video.is-playing')).toHaveCount(0);
+  await expect(page.locator('.card-video source')).toHaveCount(0);
+  expect(failed).toEqual([]);
+  await context.setOffline(false);
+});
+
 test('a newly published version shows the bar, and Reload switches to it', async ({ page }) => {
   // Stand-in for publishing a new build: the same worker with a different build id.
   let published = false;
