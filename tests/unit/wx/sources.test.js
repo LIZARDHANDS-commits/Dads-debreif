@@ -190,3 +190,47 @@ test('refresh: the interval is a setting; a bad value falls back to 5 minutes', 
   await startRefresh({ stations: ['CYMJ'], fetch, timers, everyMs: -5, onUpdate() {} }).ready;
   assert.deepEqual(seen, [120000, 300000]);
 });
+
+// Hardening (security-and-hardening skill): feed replies are untrusted input.
+test('hardening: a report for a different station than asked is ignored', async () => {
+  const wrong = JSON.stringify({ raw: 'CYYN 300100Z 27010KT 15SM SKC 10/02 A2990' });
+  const r = await fetchReports('metar', ['CYQR'], {
+    fetch: fakeFetch({ [metnoUrl('metar', ['CYQR'])]: { body: '' }, [dmUrl('metar', 'CYQR')]: { body: wrong } }),
+    now: NOW,
+  });
+  assert.deepEqual(r.reports, {});
+  assert.deepEqual(r.missing, ['CYQR']);
+  assert.match(r.errors[0].message, /CYYN/);
+});
+
+test('hardening: an oversized reply or report is refused, not parsed', async () => {
+  const huge = 'CYMJ 300000Z 28008KT 15SM FEW160 18/04 A2957=\n'.repeat(20000);
+  const r = await fetchReports('metar', ['CYMJ'], {
+    fetch: fakeFetch({ [metnoUrl('metar', ['CYMJ'])]: { body: huge } }),
+    now: NOW,
+  });
+  assert.deepEqual(r.reports, {});
+  assert.match(r.errors[0].message, /too large/);
+  const long = readMetNo(`CYMJ 300000Z ${'X '.repeat(3000)}=`);
+  assert.equal(long.size, 0);
+});
+
+test('hardening: only metar or taf reach a URL, and at most 30 airfields per call', async () => {
+  const fetch = fakeFetch({});
+  const bad = await fetchReports('../admin', ['CYMJ'], { fetch, now: NOW });
+  assert.equal(fetch.calls.length, 0);
+  assert.match(bad.errors[0].message, /kind/);
+  const many = Array.from({ length: 35 }, (_, i) => `C${String(i).padStart(3, '0')}`);
+  const r = await fetchReports('metar', many, { fetch: fakeFetch({}), now: NOW });
+  assert.equal(r.refused.length, 5);
+});
+
+test('hardening: requests send no cookies, and refresh never runs faster than once a minute', async () => {
+  const fetch = fakeFetch({ [metnoUrl('metar', ['CYMJ'])]: { body: '' } });
+  await fetchReports('metar', ['CYMJ'], { fetch, now: NOW });
+  assert.equal(fetch.calls[0].options.credentials, 'omit');
+  const seen = [];
+  const timers = { setTimeout: (fn, ms) => { seen.push(ms); return 1; }, clearTimeout: () => {} };
+  await startRefresh({ stations: ['CYMJ'], fetch: async () => response(200, ''), timers, everyMs: 1000, onUpdate() {} }).ready;
+  assert.deepEqual(seen, [60000]);
+});

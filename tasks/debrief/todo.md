@@ -18,13 +18,14 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 **Checkpoint A:** tests pass, build under budget, example flight plays smoothly; open PR A.
 
 - [ ] **4. Standards.** Standards panel with V6's preset, edit, reset, saved in module settings; labels on the map, green when on parameters; no label where no standard applies (#21).
-  - Acceptance: R18 (edit, reset, reload); #3 keeps V6's labels until Q39 is decided.
+  - Acceptance: R18 (edit, reset, reload); #3's fore/aft judged by the offset standard alone and its interval by spread (D78; on main since #80).
   - Verify: unit tests of label rules; e2e edit/reset/reload.
   - Files: src/modules/debrief/standards-panel.js, readouts.js, tests/unit/debrief/standards.test.js
 - [ ] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
   - Acceptance: R17 (save, close, open: same tracks, DFPs, standards, time); DFPs never show on another flight (#25); hostile labels show as text.
   - Verify: unit tests of dfp.js; e2e save/open round trip.
   - Files: src/modules/debrief/dfp.js, index.js, tests/unit/debrief/dfp.test.js
+  - Done so far: the list logic in `dfp.js` (add, time order, automatic and custom labels, notes, previous/next, fingerprint, reading back from browser storage with the debrief file's limits).
 
 **Checkpoint B:** open PR B.
 
@@ -43,11 +44,13 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Acceptance: R12 (switch while playing keeps the time; never blank); each fix is its own commit updating the golden value.
   - Verify: golden scene tests; e2e view switch; performance log.
   - Files: src/modules/debrief/view3d/{scene,view}.js, tests/golden/debrief-3d.test.js, tests/unit/debrief/scene.test.js
+  - Done so far: scene pinned to V6 (#74); bank from the real turn rate, recorded bank first (D40, D47); the T-6 rolls and pitches as one body (#14, #27); near aircraft drawn over far ones (#27). Pitch comes from flight-data's `pitchAt` (D61).
+  - Field-elevation datum: `app.airfields.home().elevationFt`, or 1892 ft while that's null or not wired in yet (Airfields #79).
 
 **Checkpoint D:** open PR D.
 
 - [ ] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
-  - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each, as both are flagged for review (D63).
+  - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each (D63, confirmed D77).
   - Verify: e2e overlap scan with EM open; unit tests of the tennis panel glue.
   - Files: src/modules/debrief/{em,tennis-panel}.js, public/media/debrief/em-*.jpg
 - [ ] **10. CSV export.** One file, one row per second, ships side by side, sources and gap flags; disabled with no flight.

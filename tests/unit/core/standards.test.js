@@ -1,5 +1,5 @@
-// What the standards labels mean, on simple formations, including the V6
-// behaviour #21 reports (kept until Q39 is decided).
+// What the standards labels mean, on simple formations, including Patrick's
+// fix for #21 (D78), with what V6 said instead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_STANDARDS, formationAxes, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../../src/core/standards.js';
@@ -33,18 +33,29 @@ test('#4 measures its interval from #3 when #3 is out on the same side', () => {
   assert.equal(classifyTurnSimPosition({ id: 4, ...at(10000, 0) }, [{ id: 1, ...lead, hdg: NORTH }, { id: 3, ...at(5000, 0) }]).intervalFt, 5000);
 });
 
-test('V6 (#21, Q39 open): with spread and offset both on, #3 can never be on parameters', () => {
-  // #3 exactly where the offset standard wants it: 8,000 ft aft.
-  assert.equal(labels(3, { 3: at(5000, 8000) }), 'AFT', 'spread calls it AFT');
-  assert.equal(labels(3, { 3: at(5000, 8000) }, only('offset')), 'ON PARAMETERS');
+test('D78 (#21): with spread and offset both on, the offset standard alone judges #3\'s fore/aft', () => {
+  // #3 where the offset standard wants it, 8,000 ft aft, is on parameters (V6: AFT).
+  assert.equal(labels(3, { 3: at(5000, 8000) }), 'ON PARAMETERS');
   assert.equal(classifyDebriefPosition(3, { 1: lead, 3: at(5000, 8000) }, NORTH).offsetStatus, 'OFFSET OK');
-  // #3 where the spread standard wants it: abeam.
-  assert.equal(labels(3, { 3: at(5000, 0) }), 'FORE', 'offset calls it FORE');
+  // Abeam is too far forward for the offset (V6: FORE, the same).
+  assert.equal(labels(3, { 3: at(5000, 0) }), 'FORE');
+  // One fore/aft label, never two (V6: FORE / FORE, AFT / AFT, AFT / FORE).
+  assert.equal(labels(3, { 3: at(5000, -500) }), 'FORE');
+  assert.equal(labels(3, { 3: at(5000, 10000) }), 'AFT');
+  assert.equal(labels(3, { 3: at(5000, 6000) }), 'FORE');
+  // Spread still judges #3's interval.
+  assert.equal(labels(3, { 3: at(3000, 8000) }), 'TIGHT');
+  assert.equal(labels(3, { 3: at(7000, 10000) }), 'WIDE / AFT');
+});
+
+test('D78 changes only #3 with both standards on', () => {
+  // With one standard on, #3 is judged by it alone, as in V6.
+  assert.equal(labels(3, { 3: at(5000, 8000) }, only('spread')), 'AFT');
   assert.equal(labels(3, { 3: at(5000, 0) }, only('spread')), 'ON PARAMETERS');
-  // The same label twice, or both at once.
-  assert.equal(labels(3, { 3: at(5000, -500) }), 'FORE / FORE');
-  assert.equal(labels(3, { 3: at(5000, 10000) }), 'AFT / AFT');
-  assert.equal(labels(3, { 3: at(5000, 6000) }), 'AFT / FORE');
+  assert.equal(labels(3, { 3: at(5000, 8000) }, only('offset')), 'ON PARAMETERS');
+  // #2 and #4 have no offset standard: spread judges their fore/aft.
+  assert.equal(labels(2, { 2: at(5000, 8000) }), 'AFT');
+  assert.equal(labels(4, { 4: at(5000, 8000) }), 'AFT');
 });
 
 test('V6 (#21): an aircraft no standard checks is still "ON PARAMETERS"; with both off, no label', () => {

@@ -2,9 +2,9 @@ import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import { serviceWorker } from './tools/service-worker.mjs';
 
-// The version shown in the footer and sent with bug reports: build date plus commit.
-function appVersion() {
-  const date = new Date().toISOString().slice(0, 10);
+// The version sent with bug reports and shown in the footer's tooltip: build date plus commit.
+function appVersion(built) {
+  const date = built.slice(0, 10);
   // The checked-out commit first: in the Pages deploy, GITHUB_SHA is main's latest
   // commit, which can be newer than the one CI passed and that is being built.
   let commit;
@@ -16,13 +16,18 @@ function appVersion() {
   return `${date} ${commit}`;
 }
 
-// Writes the version into index.html as <meta name="app-version">, so the source
-// still runs as plain modules without Vite (it then reads as "dev").
+// Writes the version and build time into index.html as <meta name="app-version">
+// and <meta name="app-built">, so the source still runs as plain modules without
+// Vite (it then reads as "dev" and "Development copy").
 function versionMeta() {
-  const version = appVersion();
+  const built = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const version = appVersion(built);
   return {
     name: 'app-version-meta',
-    transformIndexHtml: () => [{ tag: 'meta', attrs: { name: 'app-version', content: version }, injectTo: 'head' }],
+    transformIndexHtml: () => [
+      { tag: 'meta', attrs: { name: 'app-version', content: version }, injectTo: 'head' },
+      { tag: 'meta', attrs: { name: 'app-built', content: built }, injectTo: 'head' },
+    ],
   };
 }
 

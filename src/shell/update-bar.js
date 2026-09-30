@@ -4,6 +4,7 @@
 import { h } from '../ui-kit/dom.js';
 
 const HOUR = 60 * 60 * 1000;
+const FIVE_MINUTES = 5 * 60 * 1000;
 
 export function createUpdateBar() {
   // The live region stays in the page; only its contents come and go.
@@ -23,14 +24,24 @@ export function createUpdateBar() {
 }
 
 // container: navigator.serviceWorker. timers: a scheduler scope, used to look for
-// updates every hour while the app stays open (the SOF screen runs all day).
+// updates every hour while the app stays open (the SOF screen runs all day). It
+// also looks when the tab comes back into view, at most every five minutes, so
+// someone returning to a tab left open doesn't wait up to an hour for the bar.
 // Resolves to the registration, or null when this browser can't work offline.
-export async function watchForUpdates({ container, url = './sw.js', timers, onUpdate, reload, checkEveryMs = HOUR }) {
+export async function watchForUpdates({ container, url = './sw.js', timers, onUpdate, reload, checkEveryMs = HOUR, doc = globalThis.document, now = () => Date.now() }) {
   if (!container) return null;
   // Started before registering, so the shell's timer count is settled from the
   // first frame (the R4 browser test compares against it).
   let registration = null;
-  timers?.every(checkEveryMs, () => registration?.update().catch(() => {})); // offline: try next hour
+  let lastCheck = now();
+  const check = () => {
+    lastCheck = now();
+    registration?.update().catch(() => {}); // offline: try again later
+  };
+  timers?.every(checkEveryMs, check);
+  doc?.addEventListener('visibilitychange', () => {
+    if (doc.visibilityState === 'visible' && now() - lastCheck >= FIVE_MINUTES) check();
+  });
   try {
     registration = await container.register(url);
   } catch (err) {

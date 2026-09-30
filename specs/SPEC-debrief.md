@@ -136,7 +136,7 @@ Standards fixes from #21 (the classifier itself is `core/standards.js`, core PR 
 
 - A ship with no standard that applies to it shows no label, instead of "ON PARAMETERS".
 - The on-map label turns green when on parameters.
-- **#3 is judged by two standards at once** when both are on: spread says within ±250 ft of Lead's 3/9, offset says 8,000 ft aft, so #3 can never be on parameters. **Proposed fix: when the offset standard is on, it alone judges #3's fore/aft, and the spread standard still judges its interval.** This changes a V6 label, so it waits for a logged decision (open question 1, Q39). Until then the debrief keeps V6's labels.
+- **#3 is judged by two standards at once** when both are on: spread says within ±250 ft of Lead's 3/9, offset says 8,000 ft aft, so #3 can never be on parameters. **Decided (D78, Q39): when the offset standard is on, it alone judges #3's fore/aft, and the spread standard still judges its interval.** `core`'s `standards.js` makes the change with V6 pinned first; the debrief's #3 labels follow once that's on main.
 
 ### EM chart
 
@@ -156,11 +156,11 @@ Patrick answered Q33 to Q37 (2026-09-30):
 |---|---|---|
 | Q33 | The ball carries the shooter's full velocity, climb included. | As V6's 3D solver. |
 | Q34 | The target flies its recorded path. | The debrief is a replay, so the track ahead is known. |
-| Q35 | "Cone width" means ±3°. | Flagged for review later. |
-| Q36 | INTERCEPT needs the target inside the cone. | Flagged for review later. |
+| Q35 | "Cone width" means ±3°. | Confirmed by Patrick (D77). |
+| Q36 | INTERCEPT needs the target inside the cone. | Confirmed by Patrick (D77). |
 | Q37 | The target's climb or descent counts. | Follows from Q34. |
 
-`core` makes these changes after core PR 2 (#61), each as its own tested change against the pinned V6 solvers (D10). The debrief calls that one solver. The cone half-width and the "INTERCEPT needs the cone" rule are named settings in one place, so the two flagged answers are a one-line change if they're revisited. Until `core`'s change lands, the screen isn't built, so it never shows V6's two solvers side by side.
+`core` makes these changes after core PR 2 (#61), each as its own tested change against the pinned V6 solvers (D10). The debrief calls that one solver. The cone half-width and the "INTERCEPT needs the cone" rule are named settings in one place, so either is a one-line change if it's ever revisited. Until `core`'s change lands, the screen isn't built, so it never shows V6's two solvers side by side.
 
 ### DFPs (R17, #25)
 
@@ -291,5 +291,4 @@ It needs, from other threads: ui-kit `controls.js` and `canvas-view.js` before s
 
 ## Open questions
 
-1. **#3 under two standards (#21, Q39), for Patrick or Dad:** with both spread and offset on, V6 judges #3's fore/aft by both, so #3 is never on parameters. Proposed: the offset standard decides #3's fore/aft, and the spread standard its interval. Until decided, the debrief keeps V6's labels.
-2. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).
+1. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).

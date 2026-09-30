@@ -9,7 +9,13 @@ import { ageMinutes, MINUTE_MS } from './dates.js';
 const STATION = /^[A-Z0-9]{4}$/;
 const TIMEOUT_MS = 10_000;
 const REFRESH_MS = 5 * MINUTE_MS;
+const MIN_REFRESH_MS = MINUTE_MS;
 const METAR_STALE_MIN = 75;
+// Replies are untrusted input: cap their size and the number of airfields per call.
+const MAX_BODY_CHARS = 256 * 1024;
+const MAX_REPORT_CHARS = 4000;
+const MAX_STATIONS = 30;
+const KINDS = new Set(['metar', 'taf']);
 
 /** True for a four-character station id; anything else never reaches a URL. */
 export function validStation(id) {
@@ -22,7 +28,7 @@ export function readMetNo(text) {
   for (const line of String(text ?? '').split('\n')) {
     const raw = line.trim().replace(/=$/, '').trim();
     const station = raw.split(/\s+/)[0];
-    if (validStation(station)) newest.set(station.toUpperCase(), raw);
+    if (raw.length <= MAX_REPORT_CHARS && validStation(station)) newest.set(station.toUpperCase(), raw);
   }
   return newest;
 }
@@ -30,7 +36,8 @@ export function readMetNo(text) {
 /** Datamask JSON: its raw report, or null for a 404 or anything unreadable. */
 export function readDatamask(status, json) {
   if (status !== 200 || typeof json?.raw !== 'string') return null;
-  return json.raw.trim() || null;
+  const raw = json.raw.trim();
+  return raw && raw.length <= MAX_REPORT_CHARS ? raw : null;
 }
 
 export const SOURCES = Object.freeze({
@@ -63,7 +70,13 @@ export function staleness(kind, report, now) {
 // browser revalidate with If-Modified-Since where the source sends Last-Modified.
 async function get(fetch, url) {
   const signal = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined;
-  return fetch(url, { cache: 'no-cache', signal });
+  return fetch(url, { cache: 'no-cache', credentials: 'omit', signal });
+}
+
+async function readText(res) {
+  const text = await res.text();
+  if (text.length > MAX_BODY_CHARS) throw new Error(`reply too large (${text.length} characters)`);
+  return text;
 }
 
 const message = (e) => (e && e.message) || String(e);
@@ -71,12 +84,19 @@ const message = (e) => (e && e.message) || String(e);
 /**
  * Fetch reports of one kind ('metar' | 'taf') for a list of stations.
  * Returns { reports: { ICAO: { raw, report, source, status } }, missing, refused, errors }.
- * missing: stations neither source had; refused: ids that are not station ids.
+ * missing: stations neither source had; refused: ids that are not station ids, or past the first 30.
  */
 export async function fetchReports(kind, stations, { fetch, now = new Date() } = {}) {
-  const ids = [...new Set((stations ?? []).map((s) => (typeof s === 'string' ? s.toUpperCase() : s)))];
-  const wanted = ids.filter(validStation);
-  const result = { reports: {}, missing: [], refused: ids.filter((s) => !validStation(s)).map(String), errors: [] };
+  const ids = [...new Set((Array.isArray(stations) ? stations : []).map((s) => (typeof s === 'string' ? s.toUpperCase() : s)))];
+  const valid = ids.filter(validStation);
+  const wanted = valid.slice(0, MAX_STATIONS);
+  const refused = [...ids.filter((s) => !validStation(s)), ...valid.slice(MAX_STATIONS)].map(String);
+  const result = { reports: {}, missing: [], refused, errors: [] };
+  if (!KINDS.has(kind)) {
+    result.errors.push({ source: null, station: null, message: `unknown report kind "${String(kind).slice(0, 20)}"` });
+    result.missing = wanted;
+    return result;
+  }
   if (typeof fetch !== 'function') {
     result.errors.push({ source: null, station: null, message: 'no fetch available' });
     result.missing = wanted;
@@ -91,7 +111,7 @@ export async function fetchReports(kind, stations, { fetch, now = new Date() } =
     try {
       const res = await get(fetch, SOURCES.metno.url(kind, wanted));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const found = readMetNo(await res.text());
+      const found = readMetNo(await readText(res));
       for (const station of wanted) if (found.has(station)) add(station, found.get(station), 'metno');
     } catch (e) {
       result.errors.push({ source: 'metno', station: null, message: message(e) });
@@ -103,7 +123,9 @@ export async function fetchReports(kind, stations, { fetch, now = new Date() } =
       const res = await get(fetch, SOURCES.datamask.url(kind, station));
       if (res.status === 404) continue;
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw = readDatamask(res.status, await res.json());
+      const raw = readDatamask(res.status, JSON.parse(await readText(res)));
+      const said = raw?.replace(/^(?:(?:TAF|METAR|SPECI|AMD|COR|RTD)\s+)*/, '').split(/\s+/)[0];
+      if (raw && said !== station) throw new Error(`reply was for ${String(said).slice(0, 8)}, not ${station}`);
       if (raw) add(station, raw, 'datamask');
     } catch (e) {
       result.errors.push({ source: 'datamask', station, message: message(e) });
@@ -120,7 +142,7 @@ export async function fetchReports(kind, stations, { fetch, now = new Date() } =
  * Returns { ready, refresh, stop }; ready resolves after the first round.
  */
 export function startRefresh({ stations, fetch, onUpdate, everyMs = REFRESH_MS, timers = globalThis, now = () => new Date() }) {
-  const interval = Number.isFinite(everyMs) && everyMs > 0 ? everyMs : REFRESH_MS;
+  const interval = Number.isFinite(everyMs) && everyMs > 0 ? Math.max(everyMs, MIN_REFRESH_MS) : REFRESH_MS;
   const kept = { metar: {}, taf: {} };
   let timer = null;
   let stopped = false;

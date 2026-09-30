@@ -13,10 +13,11 @@
 // which is Lead's LEFT; here it is named `left`, and lateralFromLead is + to
 // Lead's left. Intervals are unsigned, so no label depends on this.
 //
-// Known V6 behaviour kept for now (#21, Q39): with both the spread and the
-// offset standard on, #3's fore/aft is judged by both, so #3 is never
-// "ON PARAMETERS". An aircraft no standard applies to is still labelled
-// "ON PARAMETERS".
+// One change from V6 (D78, #21): with both the spread and the offset standard
+// on, the offset standard alone judges #3's fore/aft and the spread standard
+// its interval. V6 judged #3's fore/aft by both, so #3 was never "ON
+// PARAMETERS". Kept from V6: an aircraft no standard applies to is still
+// labelled "ON PARAMETERS".
 
 /** V6's standards: the debrief's default settings, and Turn Sim's fixed numbers. */
 export const V6_STANDARDS = Object.freeze({
@@ -53,7 +54,8 @@ function along(p, ref, fwd) {
 }
 
 /**
- * Debrief position labels for aircraft `id` (debrief `classifyKmlError`, line 3051).
+ * Debrief position labels for aircraft `id` (debrief `classifyKmlError`, line 3051),
+ * with D78: when the offset standard is on, it alone judges #3's fore/aft.
  *
  * @param {number} id        2, 3 or 4 (Lead, 1, gets null)
  * @param {object} live      positions now, by id: { 1: lead, 2: …, 3: …, 4: … }
@@ -76,14 +78,17 @@ export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
   const interval = Math.abs(across(p, ref, left));
   const labels = [];
   const { spread, offset } = std;
+  const offsetJudges3 = offset.on && id === 3;
   if (spread.on) {
     if (interval < spread.minFt) labels.push('TIGHT');
     else if (interval > spread.maxFt) labels.push('WIDE');
-    if (foreAft > spread.foreAftTolFt) labels.push('FORE');
-    else if (foreAft < -spread.foreAftTolFt) labels.push('AFT');
+    if (!offsetJudges3) { // D78: #3's fore/aft is the offset standard's when it is on
+      if (foreAft > spread.foreAftTolFt) labels.push('FORE');
+      else if (foreAft < -spread.foreAftTolFt) labels.push('AFT');
+    }
   }
   let offsetAftFt = null, offsetStatus = null;
-  if (offset.on && id === 3) {
+  if (offsetJudges3) {
     offsetAftFt = -foreAft; // straight back from Lead's 3/9 line to #3's
     if (offsetAftFt < offset.aftTargetFt - offset.aftTolFt) { labels.push('FORE'); offsetStatus = 'FORE'; }
     else if (offsetAftFt > offset.aftTargetFt + offset.aftTolFt) { labels.push('AFT'); offsetStatus = 'AFT'; }
@@ -133,6 +138,7 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
 /**
  * Turn Sim position labels for aircraft `a` (Turn Sim `classifyFormationError`, line 1881).
  * Turn Sim always applies the spread and offset numbers; the `on` switches don't apply.
+ * D78 needs no change here: each Turn Sim formation judges #3 by one standard only.
  * V6's Turn Sim has no settings for these, so its screen passes V6_STANDARDS: letting it
  * follow the debrief's edited standards would change Turn Sim, and needs a decision.
  *
