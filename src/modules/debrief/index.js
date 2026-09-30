@@ -118,6 +118,10 @@ function mount(root, app) {
     event.returnValue = '';
   };
   window.addEventListener('beforeunload', onBeforeUnload);
+  // Switching to another tool in the app asks the same (the shell's leave check, app frame #233).
+  app.canLeave?.(() => (weatherUnsaved()
+    ? "Leave the Debrief? The radar and lightning you saved aren't in a saved debrief file yet, and ECCC can't give them again after 3 hours."
+    : null));
   function savedWeatherItems() {
     const on = layout.get();
     const { saved } = savedRadar.state();

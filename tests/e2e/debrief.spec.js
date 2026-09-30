@@ -1782,6 +1782,11 @@ test('saved radar: a fetch shows its progress and can be cancelled, and closing 
     return event.defaultPrevented;
   });
   expect(await leaveAsks()).toBe(true);
+  // switching to another tool asks, and Cancel keeps the Debrief and its pictures,
+  page.once('dialog', (dialog) => { expect(dialog.message()).toMatch(/^Leave the Debrief\? The radar and lightning/); dialog.dismiss(); });
+  await page.evaluate(() => { location.hash = '#/sof'; });
+  await expect(page).toHaveURL(/#\/debrief$/);
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE);
   // and closing the flight asks.
   await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const messages = [];
