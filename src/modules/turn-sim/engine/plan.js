@@ -11,6 +11,7 @@ import { degToRad } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
 import { turnRadiusFt, turnRateRadPerSec, limitG } from '../../../core/flight-math.js';
 import { rightVector, forwardVector, OFFSET_BOX_OUTSIDE_FT } from './formation.js';
+import { planCheckChain } from './check-plan.js';
 
 /** The turn direction sign for the Direction box: right is -1 (clockwise), left is +1 (V6 line 1179). */
 export function selectedDirSign(direction) {
@@ -392,7 +393,8 @@ export function autoTimingStarts(aircraft, flight) {
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
- * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; rearDelaySec (the hook); crossTurnFirstG and crossTurnSwitchDeg (the cross turn).
+ * flight also has delayed45Check ('auto', 'none' or 'check') and checkTurnDeg for the Delayed 45 (check-plan.js);
+ * for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; rearDelaySec (the hook); crossTurnFirstG and crossTurnSwitchDeg (the cross turn).
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
@@ -430,6 +432,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
 
   let crossSolve = null;
+  let checkRear = null;
   // The hook in the box with the 'boxSlot' timing: the rear element turns about boxAftFt / speed after the front (they turn together)
   // so the box stays in trail, instead of the fixed rearDelaySec (which left it 2,283 ft aft and #2 and #4 465 ft apart).
   let hookRearDelaysSec = null;
@@ -556,10 +559,28 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.done = false;
     a.turnAccumRad = 0;
   }
+  // The Delayed 45 with the check turn (check-plan.js; Figures 16.17, 16.34 and 16.31). 'auto' is the check in the four-ship formations and the
+  // box and the plain turn in the two-ship. Under the clock cue the plain turn is flown (its cue is the plan).
+  const withCheck = man === 'delayed45away' && flight.timing !== 'clock' && form === 'twoShip' && flight.delayed45Check === 'check';
+  if (withCheck) {
+    const opts = { goalRad: goal, checkRad: degToRad(+flight.checkTurnDeg || 0), speedFtps: ktToFtps(flight.speedKt), baseG: flight.baseG, cueHours: flight.direction === 'right' ? 5 : 7, direction: flight.direction, useErrors };
+    if (form === 'offsetBox') {
+      // Figure 16.31: the front element flies the chain; the rear element follows the same flow rearDelaySec (10 to 15 s) later. In each pair the
+      // aircraft on the first turner's side turns plain: #3 with Lead, #4 with #2.
+      const [f0, f1] = order;
+      const r0 = aircraft.find((x) => x.id === (f0.id === 1 ? 3 : 4));
+      const r1 = aircraft.find((x) => x.id === (f0.id === 1 ? 4 : 3));
+      planCheckChain([f0, f1].filter(Boolean), { ...opts, startSec: 0 });
+      planCheckChain([r0, r1].filter(Boolean), { ...opts, startSec: Math.max(0, +flight.rearDelaySec || 0) });
+      checkRear = { 3: Math.max(0, +flight.rearDelaySec || 0), 4: Math.max(0, +flight.rearDelaySec || 0) };
+    } else {
+      planCheckChain(order, { ...opts, startSec: 0 });
+    }
+  }
   return {
     crossSolve,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
-    rearDelaysSec: offsetPlan ? rearDelaysAsMeasured(offsetPlan.delaysSec, flight.offsetBox4Timing) : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null),
+    rearDelaysSec: checkRear || (offsetPlan ? rearDelaysAsMeasured(offsetPlan.delaysSec, flight.offsetBox4Timing) : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null)),
   };
 }
