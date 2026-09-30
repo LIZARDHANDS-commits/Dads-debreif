@@ -158,7 +158,13 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   section('turn', 'Turn and run', [TURN_DEG, DURATION, MOA]);
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING], 'Used when Formation is the offset box.');
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
-  section('correction', 'Correction model', [CORRECTION, CORR_STRENGTH]);
+  // The Correction model is a checkbox, off by default (Q41). On, it opens the model (G adjustment first, as it is
+  // the one that corrects spacing) and its strength; off is the setting 'none'.
+  section('correction', 'Correction model', [{ ...CORRECTION, label: 'Model', without: ['none'] }, CORR_STRENGTH]);
+  const correctionOn = h('input', { type: 'checkbox', id: 'ts-correction-on' });
+  correctionOn.addEventListener('change', () => scenario.update({ correction: correctionOn.checked ? 'gfix' : 'none' }));
+  groups.correction.prepend(h('div', { class: 'control control-checkbox' }, correctionOn, h('label', { for: 'ts-correction-on' }, 'Correction model')));
+  const correctionBoxes = [...groups.correction.querySelectorAll('.ts-field')];
   // The 3D view's paint lives with the other choices, in the same closed menu (a display choice, not a scenario one).
   settingsMenu.section('3D view').append(layoutControls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }));
 
@@ -279,7 +285,8 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     groups.clock.hidden = values.timing !== 'clock';
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
-    if (rules.correctionStrength) controls.setDisabled('correctionStrength', values.correction === 'none');
+    correctionOn.checked = values.correction !== 'none';
+    for (const el of correctionBoxes) el.hidden = values.correction === 'none';
     // A two-ship has no #3 or #4 to give errors to, and position boxes show when the position error is on.
     for (const section of errorsPanel.body.querySelectorAll('[data-aircraft]')) {
       section.hidden = values.formation === 'twoShip' && Number(section.dataset.aircraft) > 2;

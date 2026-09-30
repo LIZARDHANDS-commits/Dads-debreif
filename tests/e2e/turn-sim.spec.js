@@ -515,6 +515,23 @@ test('Start heading is a compass heading, north by default', async ({ page }) =>
   await expect(box(page, 'Start heading')).toHaveValue('0');
 });
 
+test('the Correction model is a checkbox in the settings menu, off by default, and opens the model and its strength', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  const on = page.getByRole('checkbox', { name: 'Correction model', exact: true });
+  await expect(on).not.toBeChecked();
+  await expect(box(page, 'Model')).toBeHidden();
+  await expect(box(page, 'Correction strength')).toBeHidden();
+  await on.check();
+  await expect(box(page, 'Model').locator('option:checked')).toHaveText('G adjustment');
+  await expect(box(page, 'Correction strength')).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  await on.uncheck();
+  await expect(box(page, 'Model')).toBeHidden();
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test.skip('opens from its card on the home screen', async ({ page }) => {
