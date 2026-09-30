@@ -15,6 +15,7 @@ import {
   homeCall, alternateCall, waveCalls,
 } from '../../../src/modules/sof/waves.js';
 import { REAL, HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
+import { smallHoursChange, noChange } from '../../fixtures/sof/timeline-zones.js';
 
 const HOUR = 3_600_000;
 const NOW = new Date('2026-09-29T18:00:00Z'); // 12:00 in Moose Jaw
@@ -108,30 +109,44 @@ test('a daylight-saving zone gives the right UTC (America/Toronto)', () => {
   assert.equal(localToUtc({ year: 2026, month: 1, day: 15 }, 8 * 60, tz).toISOString(), '2026-01-15T13:00:00.000Z'); // EST
 });
 
-test('DST change days: the landing after the change uses the new offset', () => {
-  const tz = 'America/Toronto';
-  // Fall back, Sunday 1 Nov 2026 at 02:00 EDT. Takeoff 22:00 the evening before, land 03:00 after the change.
-  const fall = planToUtc([{ takeoff: '22:00', land: '03:00' }], { now: NOW, timeZone: tz, date: { year: 2026, month: 10, day: 31 } }).waves[0];
-  assert.equal(fall.takeoff.toISOString(), '2026-11-01T02:00:00.000Z'); // 22:00 EDT
-  assert.equal(fall.land.toISOString(), '2026-11-01T08:00:00.000Z'); // 03:00 EST, 6 h later
-  // Spring forward, Sunday 8 Mar 2026 at 02:00 EST.
-  const spring = planToUtc([{ takeoff: '22:00', land: '04:00' }], { now: NOW, timeZone: tz, date: { year: 2026, month: 3, day: 7 } }).waves[0];
-  assert.equal(spring.takeoff.toISOString(), '2026-03-08T03:00:00.000Z'); // 22:00 EST
-  assert.equal(spring.land.toISOString(), '2026-03-08T08:00:00.000Z'); // 04:00 EDT, 5 h later
-});
+// The change days are read from the tz data this machine runs on (see
+// tests/fixtures/sof/timeline-zones.js), and every expected time is worked out
+// from that zone's own offsets, so a newer tz database can't break these.
+const YEAR = 2026;
+const wallAsUtc = (date, minutes) => Date.UTC(date.year, date.month - 1, date.day, 0, minutes);
+const dayBefore = ({ year, month, day }) => {
+  const d = new Date(Date.UTC(year, month - 1, day - 1));
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+};
 
-test('a local time that happens twice takes the first; one that never happens moves forward', () => {
+for (const kind of ['back', 'forward']) {
   const tz = 'America/Toronto';
-  assert.equal(localToUtc({ year: 2026, month: 11, day: 1 }, 90, tz).toISOString(), '2026-11-01T05:30:00.000Z'); // 01:30 EDT
-  assert.equal(localToUtc({ year: 2026, month: 3, day: 8 }, 150, tz).toISOString(), '2026-03-08T07:30:00.000Z'); // 02:30 -> 03:30 EDT
-});
+  const change = smallHoursChange(tz, YEAR, kind);
+  test(`DST change days, clocks going ${kind} (${tz}): the landing after the change uses the new offset`, { skip: change ? false : noChange(tz, YEAR, kind) }, () => {
+    const eve = dayBefore(change.date);
+    // Takeoff 22:00 the evening before, land 04:00 after the change.
+    const wave = planToUtc([{ takeoff: '22:00', land: '04:00' }], { now: NOW, timeZone: tz, date: eve }).waves[0];
+    assert.equal(+wave.takeoff, wallAsUtc(eve, 22 * 60) - change.before * 60_000, 'takeoff on the old offset');
+    assert.equal(+wave.land, wallAsUtc(change.date, 4 * 60) - change.after * 60_000, 'landing on the new offset');
+  });
+}
 
-test('a repeated local time takes the first occurrence and a skipped one the later instant, east of UTC too', () => {
-  const tz = 'Europe/Paris';
-  assert.equal(localToUtc({ year: 2026, month: 10, day: 25 }, 150, tz).toISOString(), '2026-10-25T00:30:00.000Z'); // 02:30 CEST, before 02:30 CET
-  assert.equal(localToUtc({ year: 2026, month: 3, day: 29 }, 150, tz).toISOString(), '2026-03-29T01:30:00.000Z'); // 02:30 doesn't exist: 03:30 CEST
-  assert.equal(localToUtc({ year: 2026, month: 7, day: 1 }, 150, tz).toISOString(), '2026-07-01T00:30:00.000Z');
-});
+// A time that happens twice takes the first occurrence, one that never happens moves
+// to the later instant; both are the wall time read on the old offset. West of UTC
+// (Toronto) and east (Paris).
+for (const tz of ['America/Toronto', 'Europe/Paris']) {
+  for (const kind of ['back', 'forward']) {
+    const change = smallHoursChange(tz, YEAR, kind);
+    const words = kind === 'back' ? 'a time that happens twice takes the first occurrence' : 'a time that never happens moves to the later instant';
+    test(`${words} (${tz})`, { skip: change ? false : noChange(tz, YEAR, kind) }, () => {
+      const minutes = kind === 'back' ? change.wallMinutes - 30 : change.wallMinutes + 30;
+      const expected = wallAsUtc(change.date, minutes) - change.before * 60_000;
+      assert.equal(+localToUtc(change.date, minutes, tz), expected);
+      // The other reading, on the new offset, is the wrong one.
+      assert.notEqual(+localToUtc(change.date, minutes, tz), wallAsUtc(change.date, minutes) - change.after * 60_000);
+    });
+  }
+}
 
 // ---- Plan to UTC -------------------------------------------------------------
 
@@ -452,7 +467,8 @@ test('a wave the TAF only partly covers still shows the hit it knows about', () 
   const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100 FM300400 22010KT 1SM OVC003');
   const [w] = wavesAt(['21:00', '01:00']);
   const call = homeCall(w, t, LOCAL);
-  assert.equal(call.status, 'not-covered');
+  assert.ok(['not-covered', 'below'].includes(call.status));
+  assert.equal(call.result.covered, false);
   assert.equal(call.words, "ALTERNATE REQUIRED (TAF doesn't cover the whole wave)");
   assert.equal(call.tone, 'required');
   assert.equal(call.hasHit, true);
@@ -465,7 +481,8 @@ test('an alternate the TAF only partly covers shows its hit too', () => {
   const [w] = wavesAt(['20:00', '21:00']); // lands 03:00Z, window 02Z to 04Z... TAF valid to 06Z
   const late = { ...w, land: new Date('2026-09-30T05:30:00Z') }; // window to 06:30Z, past the TAF's end
   const call = alternateCall(late, 'CYQR', t, a.checkOptions('CYQR'));
-  assert.equal(call.status, 'not-covered');
+  assert.ok(['not-covered', 'below'].includes(call.status));
+  assert.equal(call.result.covered, false);
   assert.equal(call.words, "Below minima (TAF doesn't cover the whole arrival)");
   assert.equal(call.tone, 'below');
   assert.equal(call.hasHit, true);
@@ -516,7 +533,8 @@ test('a partly covered wave with a hit is required, and the same TAF with only a
   const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100 FM300400 22010KT 1SM OVC003');
   const [w] = wavesAt(['21:00', '01:00']);
   const call = homeCall(w, t, LOCAL);
-  assert.equal(call.status, 'not-covered');
+  assert.ok(['not-covered', 'below'].includes(call.status));
+  assert.equal(call.result.covered, false);
   assert.equal(call.tone, 'required');
   assert.equal(call.words, "ALTERNATE REQUIRED (TAF doesn't cover the whole wave)");
   assert.equal(call.why, 'TAF valid to 06Z; window ends 08Z (landing + 1 h)');

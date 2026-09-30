@@ -8,7 +8,7 @@
 // "Waves and the alternate call").
 
 import { utcOffsetMinutes, zoneAbbreviation } from '../../core/time.js';
-import { homeAlternateTrigger, arrivalWindow, assessAlternate } from '../../wx/alternates.js';
+import { homeAlternateTrigger, arrivalWindow, assessAlternate, visualDescentMinima, VISUAL_DESCENT_MARGIN_FT } from '../../wx/alternates.js';
 import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../wx/limits.js';
 import { HOUR_MS } from '../../wx/dates.js';
 import { formatPair, formatSm } from '../../airfields/format.js';
@@ -185,8 +185,10 @@ export function minimaText(options) {
 export function descentText({ meaFt, elevationFt, visSm }) {
   if (!Number.isFinite(meaFt)) return 'Visual descent, needs MEA';
   const ft = (n) => n.toLocaleString('en-CA');
-  const start = `Visual descent from MEA ${ft(meaFt)} ft + 500 ft`;
-  if (Number.isFinite(elevationFt)) return `${start} (ceiling ${ft(meaFt + 500 - elevationFt)} ft, ${formatSm(visSm)} SM)`;
+  const start = `Visual descent from MEA ${ft(meaFt)} ft + ${VISUAL_DESCENT_MARGIN_FT} ft`;
+  // wx works out the ceiling (MEA + 500 ft above the field) and the visibility it will check.
+  const [minima] = visualDescentMinima({ meaFt, elevationFt, visSm }) ?? [];
+  if (minima) return `${start} (ceiling ${ft(minima.ceilingFt)} ft, ${formatSm(minima.visSm)} SM)`;
   return `${start}, ${formatSm(visSm)} SM`;
 }
 
@@ -261,7 +263,7 @@ function firstReason(details) {
 
 /** Why a call can't be made: what the TAF covers against what the wave needs, or what couldn't be read. */
 function whyUnknown(result, window, endWord) {
-  if (result.status === 'not-covered') {
+  if (result.status === 'not-covered' || (result.status === 'below' && result.covered === false)) {
     if (!result.validFrom || !result.validTo) return 'TAF valid period unknown';
     if (+result.validFrom > +window.from) return `TAF valid from ${zulu(result.validFrom)}; ${endWord.start} ${zulu(window.from)}`;
     return `TAF valid to ${zulu(result.validTo)}; ${endWord.end} ${zulu(endWord.at)}${endWord.suffix ?? ''}`;
@@ -287,7 +289,7 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
   let [words, tone] = HOME_WORDS[result.status] ?? HOME_WORDS['no-time'];
   // A hit in the part the TAF covers can only get worse with more TAF, so it is
   // never reported as unknown. At-limit pieces alone stay unknown.
-  if (result.status === 'not-covered' && result.hits.length) [words, tone] = ["ALTERNATE REQUIRED (TAF doesn't cover the whole wave)", 'required'];
+  if (result.covered === false && result.hits.length) [words, tone] = ["ALTERNATE REQUIRED (TAF doesn't cover the whole wave)", 'required'];
   const details = detailLines(icao, result, window.from);
   return {
     status: result.status,
@@ -307,14 +309,14 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
 /**
  * One alternate's call for a wave: wx's assessAlternate over the landing time
  * plus or minus 60 minutes (D70), with the options from
- * `airfields.checkOptions(icao)`. `note` says when the approaches aren't set
+ * the airfields' `checkOptions(icao)`. `note` says when the approaches aren't set
  * and 600-2 was used (D95).
  */
 export function alternateCall(wave, icao, taf, options = {}) {
   const window = arrivalWindow([wave.land]);
   const result = assessAlternate(taf, window, options);
   let [words, tone] = ALT_WORDS[result.status] ?? ALT_WORDS['no-time'];
-  if (result.status === 'not-covered' && result.hits.length) [words, tone] = ["Below minima (TAF doesn't cover the whole arrival)", 'below'];
+  if (result.covered === false && result.hits.length) [words, tone] = ["Below minima (TAF doesn't cover the whole arrival)", 'below'];
   const descent = options.visualDescent;
   const minima = options.minima ?? [DEFAULT_LIMITS.alternate];
   const usedText = descent ? descentText(descent) : minimaText(minima);

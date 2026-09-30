@@ -8,19 +8,19 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 ## Phase 1: engine base and a first screen (PR A)
 
-- [ ] **1. Settings and the golden fake.** `settings.js`: every Turn Sim setting with V6's defaults, allowed values and ranges (Speed at least 1 kt, Turn degrees 10 to 180, finite numbers only). A test helper that turns a settings object into V6's `$('id').value` so V6's own functions run in Node.
+- [x] **1. Settings and the golden fake.** `settings.js`: every Turn Sim setting with V6's defaults, allowed values and ranges (Speed at least 1 kt, Turn degrees 10 to 180, finite numbers only). A test helper that turns a settings object into V6's `$('id').value` so V6's own functions run in Node.
   - Acceptance: defaults equal V6's markup (lines 527 to 600); bad values refused; the fake drives V6's `speedfps`, `baseG`, `turnRadius` to the same numbers as the page. Then, as its own commit once the task 3 golden runs pin V6's defaults: G 3.0 (D113) and offset box aft 7,000 ft (D114) (Patrick 05:37Z, SMM 16.18/16.19 and 16.41). The golden tests keep passing V6's own values explicitly.
   - Files: `src/modules/turn-sim/settings.js`, `tests/unit/turn-sim/settings.test.js`, `tests/golden/turn-sim-fake-page.js`. Size S.
-- [ ] **2. Formation slots and position errors, pinned.** `engine/formation.js` from `desiredFormationAircraft` (797), `syncAircraftErrorValues` and `applyErrors` (905 to 914), `inferLineAbreastFormFromCurrentState` (1407).
+- [x] **2. Formation slots and position errors, pinned.** `engine/formation.js` from `desiredFormationAircraft` (797), `syncAircraftErrorValues` and `applyErrors` (905 to 914), `inferLineAbreastFormFromCurrentState` (1407).
   - Acceptance: every preset and error combination matches V6 exactly (golden). Nothing changed yet: D42 and D48 come in task 12.
   - Files: `engine/formation.js`, `tests/golden/turn-sim-formation.test.js`. Size S.
-- [ ] **3. One step and one run, pinned.** `engine/step.js` and `engine/run.js` from `moveAircraftList` (1579, without the G correction), `setupTurnStartsFor` for time delay (1174), the shackle legs, `stepSim`, `recordHist` (1689), `allAircraftFinishedTurn` (1435). History kept by time.
+- [x] **3. One step and one run, pinned.** `engine/step.js` and `engine/run.js` from `moveAircraftList` (1579, without the G correction), `setupTurnStartsFor` for time delay (1174), the shackle legs, `stepSim`, `recordHist` (1689), `allAircraftFinishedTurn` (1435). History kept by time.
   - Acceptance: whole runs (4312, 2134, two-ship × delayed 90/45, hook, shackle, cross × right/left, time delay) match V6's Step at 0.05 s, position by position each second. Closure over the real step equals V6's at 0.05 s. Two-ship has no NaN pairs.
   - Files: `engine/step.js`, `engine/run.js`, `engine/plan.js` (time delay only), `tests/golden/turn-sim-run.test.js`, `tests/unit/turn-sim/run.test.js`. Size M.
-- [ ] **4. First screen.** Mount and unmount, the three columns, the Setup essentials, the playback bar above the canvas, Fit, the picture (grid, MOA box, aircraft, trails), Play/Pause/Step/Reset and speed on the scheduler. #4 white with a dark outline.
+- [x] **4. First screen.** Mount and unmount, the three columns, the Setup essentials, the playback bar above the canvas, Fit, the picture (grid, MOA box, aircraft, trails), Play/Pause/Step/Reset and speed on the scheduler. #4 white with a dark outline.
   - Acceptance: opens fitted (#30); flies a time-delay turn; nothing overlaps at 1366 × 768 (R2); leaving leaves no frames or timers (R4); a setup change stops and resets the run (#31). First performance measurement logged.
   - Files: `index.js`, `layout.js`, `view.js`, `turn-sim.css`, shell registry entry (through the coordinator). Size M.
-- [ ] **5. Readouts and standards.** Formation card, More detail, Lead 3/9 line, error labels, turn circles, Layers menu with V6's defaults. Standards read from their shared home and shown read-only (Q46); a switched-off standard gives no label.
+- [x] **5. Readouts and standards.** Formation card, More detail, Lead 3/9 line, error labels, turn circles, Layers menu with V6's defaults. Standards read from their shared home and shown read-only (Q46); a switched-off standard gives no label.
   - Acceptance: with the default preset, labels from `core` `classifyTurnSimPosition` match V6 at every second of the task 3 runs; an edited standard changes the labels; turn circle G matches the flying G.
   - The stall-limit G warning (D128): beside the G box and on a wingman's line when G plus its G error is above `core` `stallLimitG(speed)`, speed taken as IAS. Warning only; a test states it fires at 220 kt above about 6.5 G and not at 3 G.
   - SMM item 6: the "Under 300 ft" (or "Crossing: 300 ft vertical needed" in the shackle and cross turn) and "Mutual support lost" (over 9,000 ft) flags, as named engine constants with their SMM references. Readouts only.
@@ -70,6 +70,10 @@ Skills: test-driven-development and incremental-implementation for every task; f
   - Files: `engine/solver.js`, `graph.js`, `layout.js`, tests. Size M.
 
 ### Checkpoint C: every V6 feature kept by the spec is on screen; D42, D48, Q43, Q44 and Q47 landed. PR C.
+
+- [ ] **19. 2D/3D switch (Patrick 07:51Z).** `view3d.js` on ui-kit `three-aircraft.js` (app frame): the 2D/3D switch on the Stage bar, 2D by default and remembered; the same engine state drawn in 3D (position, heading, bank, trails), camera behind Lead with orbit, zoom and follow; three.js loaded only on first switch to 3D; no frames when hidden or unmounted.
+  - Acceptance: a 2D visit loads no three.js (e2e network check); switching mid-run keeps time and positions; leaving leaves no frames; golden tests unchanged.
+  - Dependencies: ui-kit `three-aircraft.js` on main. Files: `view3d.js`, `layout.js`, `index.js`, e2e. Size M.
 
 ## Phase 4: profiles, CSV and sign-off (PR D)
 

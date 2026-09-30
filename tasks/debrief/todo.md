@@ -82,15 +82,10 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 ## Weather at the time of the flight (SPEC-debrief section, approved 2026-09-30 07:21Z)
 
 - [x] **12a. Time slices.** `weather/slices.js`: the last slice at or before the moment with its age, frame times for a window, scrubber ticks, the nearest airfield. Pure, tested in Node.
-- [ ] **12b. Source checks (needs a full-network environment).** Each source answers the live site's browser with no key:
-  - IEM METAR archive for CYMJ
-  - NASA GIBS GOES frames for a past date
-  - Open-Meteo historical forecast (HRDPS/HRRR, pressure levels)
-  - ECCC GeoMet radar and lightning with TIME
-
-  Record what works in /mnt/project-files/wx-sources/. Swap or drop a failing source with Patrick's word.
-- [ ] **12c. Weather menu and METAR line.** Weather menu beside Layers (all off, remembered). METAR line under the playback bar via `src/wx` `parseMetar`, and scrubber ticks.
-- [ ] **12d. Satellite layer.** Through the shared tile/WMS loader in ui-kit (app frame), with the corner label "Satellite HH:MMZ, N min before".
-- [ ] **12e. Winds aloft and model cloud.** Lead-line wind at Lead's altitude, and map arrows at a chosen height.
+- [x] **12b. Source checks.** Done 07:35Z to 07:51Z from a full-network environment: all four sources answer the browser with no key. GIBS keeps about 90 days (satellite live only, Patrick 08:03Z); no model cloud or visibility (Patrick 08:03Z). Results in /mnt/project-files/wx-sources/debrief-historical-sources-check.md.
+- [x] **12c. Weather menu and METAR line.** Weather menu beside Layers (all off, remembered). METAR line under the playback bar via `src/wx` `parseMetar`, and scrubber ticks. The METAR source (IEM) is still to be confirmed from a browser in 12b; the e2e test stubs it. Its host joins the CSP through the app frame.
+- [x] **12d. Satellite layer.** GIBS WMTS tiles through the ui-kit tile layer (`maxZoom`, #151), with the line "Satellite HH:MMZ, N min before" under the map; "not kept" after about 90 days. Still to do: fetch the next frame ahead while playing.
+- [ ] **12e. Winds aloft.** Lead-line wind at Lead's altitude, and map arrows at a chosen height. No model cloud or visibility (Patrick 08:03Z).
+- [ ] **12h. METAR vs SPECI ticks.** IEM's CSV doesn't say which is a SPECI: ask report_type=4 alone in a second call (1 s apart, IEM's throttle) to mark them.
 - [ ] **12f. Saved radar and lightning.** When the flight ended less than 3 h ago, fetch frames and keep them with the flight. The debrief file carries weather via flight-data's format (through the coordinator). There's a size limit.
 - [ ] **12g. Browser tests and checklist lines.** Sources are stubbed in e2e with no live network. Checklist lines are added for the real sources.

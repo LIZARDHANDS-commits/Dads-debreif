@@ -14,6 +14,8 @@ import { VNC_ALIGN_LIMITS, VNC_DEFAULT_ALIGN } from './map2d/vnc.js';
 import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { CAMERA_LIMITS } from './view3d/frame.js';
 import { V6_CAMERA } from './view3d/scene.js';
+import { CATALOG } from '../../airfields/catalog.js';
+import { SATELLITE_LAYERS } from './weather/satellite.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -143,6 +145,18 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       ),
     ),
   ]);
+  // Weather at the time of the flight: every item off at first (R22), and
+  // fetched only while on (SPEC-debrief: Weather at the time of the flight).
+  const weatherMenu = menu('Weather', 'debrief-weather', [
+    controls.checkbox('wxMetar', { label: 'METAR' }),
+    controls.select('wxMetarField', { label: 'METAR from', options: [
+      { value: 'nearest', label: 'Nearest airfield' },
+      ...Object.entries(CATALOG).map(([icao, f]) => ({ value: icao, label: `${icao} ${f.name}` })),
+    ] }),
+    controls.checkbox('wxSatellite', { label: 'Satellite (GOES-West)' }),
+    controls.select('wxSatelliteLayer', { label: 'Satellite picture', options: Object.entries(SATELLITE_LAYERS).map(([value, l]) => ({ value, label: l.label })) }),
+    controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
+  ]);
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
     controls.checkbox('emOpen', { label: 'EM chart' }),
@@ -199,13 +213,19 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   ]);
   const viewSwitch = controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] });
   viewSwitch.classList.add('view-switch');
+  // The METAR line under the playback bar, with the report as sent a click away.
+  const metarText = h('span', { class: 'debrief-metar-text' });
+  const metarRaw = h('code', { class: 'debrief-metar-raw' });
+  const metarRawBox = h('details', { class: 'debrief-metar-details' }, h('summary', {}, 'Report as sent'), metarRaw);
+  const metarLine = h('div', { class: 'debrief-metar', role: 'status', hidden: true }, metarText, metarRawBox);
   const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit);
   const stage = h(
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
-    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, view3dMenu.element, toolsMenu.element),
+    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element),
     mapWrap,
     bar.element,
+    metarLine,
     emPanel,
   );
 
@@ -287,9 +307,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   }
 
   // The lines under the map, satellite first.
-  const notes = { imagery: '', charts: '' };
+  const notes = { imagery: '', charts: '', weather: '' };
   function showNotes() {
-    const text = [notes.imagery, notes.charts].filter(Boolean).join(' · ');
+    const text = [notes.imagery, notes.charts, notes.weather].filter(Boolean).join(' · ');
     if (credit.textContent !== text) credit.textContent = text;
     credit.hidden = !text;
   }
@@ -358,6 +378,23 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
         : state.failed === state.wanted ? 'The VNC chart couldn\'t load. It needs a connection the first time it\'s shown.'
           : state.ready < state.wanted ? 'Loading the VNC chart…'
             : 'VNC chart: not for navigation. Its alignment is fitted by hand.';
+      showNotes();
+    },
+    /**
+     * The METAR line: null hides it; otherwise { text, raw, category }, with
+     * the category colouring its edge and the raw report behind "Report as sent".
+     */
+    setMetar(line) {
+      metarLine.hidden = !line;
+      if (!line) return;
+      if (metarText.textContent !== line.text) metarText.textContent = line.text;
+      if (metarRaw.textContent !== line.raw) metarRaw.textContent = line.raw;
+      metarRawBox.hidden = !line.raw;
+      metarLine.dataset.category = line.category ?? '';
+    },
+    /** The weather picture's line under the map: its time and age, or why there's none. */
+    setWeatherNote(text) {
+      notes.weather = text ?? '';
       showNotes();
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */

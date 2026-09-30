@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTaf } from '../../../src/wx/taf.js';
-import { arrivalWindow, homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternates.js';
+import { arrivalWindow, homeAlternateTrigger, assessAlternate, checkOptions, visualDescentMinima } from '../../../src/wx/alternates.js';
 import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../../src/wx/limits.js';
 import { TAF, NOW, at } from './reports.js';
 
@@ -250,4 +250,15 @@ test('Q4: local (MTCA) 2000/3 is the default trigger; cross-country 3000/3 needs
   assert.equal(homeAlternateTrigger(bkn025, WAVE).status, 'meets');
   assert.equal(homeAlternateTrigger(bkn025, WAVE, local).status, 'meets');
   assert.equal(homeAlternateTrigger(bkn025, WAVE, crossCountry).status, 'below');
+});
+
+test('checkOptions and visualDescentMinima are exported for the SOF card', () => {
+  const { conditions } = taf('TAF CYYN 291120Z 2912/3012 27010KT P6SM OVC030').groups[0];
+  const vd = visualDescentMinima({ meaFt: 5200, elevationFt: 2677 });
+  assert.deepEqual(vd, [{ ceilingFt: 3023, visSm: 3 }]);
+  assert.equal(checkOptions(conditions, vd).belowLimits, true);
+  assert.equal(checkOptions(conditions, [{ ceilingFt: 600, visSm: 2 }, { ceilingFt: 800, visSm: 2 }]).belowLimits, false);
+  assert.equal(checkOptions(conditions, { ceilingFt: 600, visSm: 2 }).belowLimits, false);
+  assert.equal(checkOptions(conditions, null), null);
+  assert.equal(visualDescentMinima({ meaFt: 5200 }), null);
 });
