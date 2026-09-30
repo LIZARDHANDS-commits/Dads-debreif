@@ -279,6 +279,7 @@ test('over the size limit the pictures are thinned and the words say how far apa
   assert.ok(s.saved.frames.length < 21);
   assert.ok(s.saved.frames.filter((f) => f.layer === 'rain').length >= 2, 'a layer\'s first and last stay');
   assert.match(s.notes.at(-1), /^Every \d+ min kept to fit the size limit\.$/);
+  assert.ok(s.saved.thin > 1 && s.saved.thin <= LIMITS.maxThin, 'the step is recorded for the age limit');
   const tooSmall = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {}, capBytes: 10 });
   tooSmall.start(flight);
   await done(tooSmall);

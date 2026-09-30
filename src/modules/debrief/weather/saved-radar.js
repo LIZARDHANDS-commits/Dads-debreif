@@ -42,6 +42,7 @@ export const LIMITS = Object.freeze({
   maxBoxDeg: 30, // no side of the picture's box is longer than this
   maxPixels: 1024, // no side of a picture is longer than this
   minPixels: 128,
+  maxThin: 12, // the most a thinning step can widen the age limit by (times the layer's own step)
   leadS: 60 * 60, // a frame may come this long before the flight's start (the one at or before it, even on a slow step)
 });
 /** The debrief file's block, as text: at most this many characters (25 MB as base64 is 33.4 million, and a little more for the rest). */
@@ -266,18 +267,26 @@ export function fitCap(frames, capBytes = LIMITS.maxTotalBytes) {
 
 // --- Into the file and back -----------------------------------------------------
 
-/** A saved set: the box the pictures cover and the frames, layer by layer, oldest first. */
-export function makeSaved({ box, frames, fetchedT }) {
+/** The thinning step kept in a set: a whole number from 1 (nothing dropped) to LIMITS.maxThin. */
+const thinStep = (thin) => (Number.isInteger(thin) && thin >= 1 ? Math.min(thin, LIMITS.maxThin) : 1);
+
+/**
+ * A saved set: the box the pictures cover, the frames, layer by layer, oldest
+ * first, and `thin`, the step the size limit thinned them to (1 for none),
+ * which widens each layer's age limit by that many of its own steps.
+ */
+export function makeSaved({ box, frames, fetchedT, thin = 1 }) {
   return {
     box: { minLat: box.minLat, maxLat: box.maxLat, minLon: box.minLon, maxLon: box.maxLon },
     frames: byLayer(frames).flat().map((f) => ({ layer: f.layer, t: f.t, mime: f.mime, data: f.data })),
     fetchedT: isFiniteNumber(fetchedT) ? fetchedT : null,
+    thin: thinStep(thin),
   };
 }
 
 /** The block as the text the debrief file keeps under its settings. */
 export function savedToSetting(saved) {
-  return JSON.stringify({ v: FORMAT_VERSION, box: saved.box, fetchedT: saved.fetchedT, frames: saved.frames });
+  return JSON.stringify({ v: FORMAT_VERSION, box: saved.box, fetchedT: saved.fetchedT, thin: saved.thin, frames: saved.frames });
 }
 
 const problem = (why) => ({ problem: `The radar and lightning saved in this file couldn't be read (${why}), so they were left out. The rest of the debrief is as saved.`, why });
@@ -348,7 +357,7 @@ export function savedFromSetting(text, { startT, endT }) {
     else dropped += 1;
   }
   if (!frames.length) return problem('none of its pictures fall inside the flight');
-  return { saved: makeSaved({ box, frames, fetchedT: block.fetchedT }), dropped };
+  return { saved: makeSaved({ box, frames, fetchedT: block.fetchedT, thin: block.thin }), dropped };
 }
 
 /**
@@ -375,10 +384,10 @@ function layerIndex(saved) {
     const lists = byLayer(saved.frames);
     for (const [i, layer] of LAYER_KEYS.entries()) {
       const frames = lists[i];
-      const widest = frames.slice(1).reduce((m, f, i) => Math.max(m, f.t - frames[i].t), 0);
-      const item = SAVED_LAYERS[layer].item;
-      // A thinned layer keeps showing across its wider gaps.
-      index[layer] = { frames, maxAgeS: Math.max(MAX_AGE_S[item], widest) };
+      const { item, stepS } = SAVED_LAYERS[layer];
+      // A thinned layer keeps showing across the gaps thinning made (the recorded step times its own step);
+      // a gap ECCC itself had is not bridged.
+      index[layer] = { frames, maxAgeS: Math.max(MAX_AGE_S[item], thinStep(saved.thin) * stepS) };
     }
     indexed.set(saved, index);
   }

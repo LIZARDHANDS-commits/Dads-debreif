@@ -326,7 +326,7 @@ test('untrusted: the box must be in range, in order and no bigger than 30°', ()
 test('untrusted: fields the block does not define are dropped, not passed on', () => {
   const dirty = block({ extra: '<script>', frames: [{ ...frame('rain', START), onload: 'x', href: 'javascript:1' }], fetchedT: 'soon' });
   const got = read(dirty);
-  assert.deepEqual(Object.keys(got.saved).sort(), ['box', 'fetchedT', 'frames']);
+  assert.deepEqual(Object.keys(got.saved).sort(), ['box', 'fetchedT', 'frames', 'thin']);
   assert.deepEqual(Object.keys(got.saved.frames[0]).sort(), ['data', 'layer', 'mime', 't']);
   assert.equal(got.saved.fetchedT, null, 'a fetch time that is not a number is not kept');
   assert.equal(got.saved.frames[0].data, PNG64);
@@ -362,11 +362,44 @@ test('it is the same rule as the live slices: sliceAt with the same age limits',
   }
 });
 
-test('thinned frames keep showing: the age limit is at least the layer\'s widest gap', () => {
+test('thinned frames keep showing: the age limit widens by the thinning step the set records, no more', () => {
   const t = (m) => START + m * 60;
-  const thinned = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', t(0)), frame('rain', t(30))] });
-  assert.equal(savedFrameAt(thinned, 'rain', t(28))?.frame.t, t(0), '28 min on is past the usual 20 but inside the 30-min gap');
+  const frames = [frame('rain', t(0)), frame('rain', t(30))];
+  const thinned = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames, thin: 5 }); // every 5th of 6-minute frames: 30 min
+  assert.equal(thinned.thin, 5);
+  assert.equal(savedFrameAt(thinned, 'rain', t(28))?.frame.t, t(0), '28 min on is past the usual 20 but inside 5 steps of 6 min');
   assert.equal(savedFrameAt(thinned, 'rain', t(31))?.frame.t, t(30));
+  assert.equal(savedFrameAt(thinned, 'rain', t(31 - 30 + 31))?.frame.t, t(30));
+  // The same two frames with no thinning recorded: an ordinary 20-minute limit.
+  const whole = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames });
+  assert.equal(whole.thin, 1);
+  assert.equal(savedFrameAt(whole, 'rain', t(19))?.frame.t, t(0));
+  assert.equal(savedFrameAt(whole, 'rain', t(21)), null);
+});
+
+test('a real gap in what ECCC had is not bridged: a 58-minute natural gap shows nothing after the usual age, thinned or not (Y3)', () => {
+  const t = (m) => START + m * 60;
+  const frames = [frame('rain', t(0)), frame('rain', t(58)), frame('lightning', t(0)), frame('lightning', t(58))];
+  for (const thin of [1, 2]) {
+    const saved = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames, thin });
+    assert.equal(savedFrameAt(saved, 'rain', t(19))?.frame.t, t(0), `thin ${thin}: shown while it is fresh`);
+    assert.equal(savedFrameAt(saved, 'rain', t(30)), null, `thin ${thin}: not 30 min on`);
+    assert.equal(savedFrameAt(saved, 'rain', t(57)), null);
+    assert.equal(savedFrameAt(saved, 'rain', t(58))?.frame.t, t(58));
+    assert.equal(savedFrameAt(saved, 'lightning', t(30)), null);
+  }
+});
+
+test('the thinning step is stored in the block, read back, and capped; nonsense reads as none', () => {
+  assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1, thin: 3 }).thin, 3);
+  assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1, thin: 500 }).thin, LIMITS.maxThin);
+  assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1, thin: 0 }).thin, 1);
+  assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1, thin: 2.5 }).thin, 1);
+  assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1 }).thin, 1);
+  const saved = makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: NOW, thin: 4 });
+  assert.equal(read(savedToSetting(saved)).saved.thin, 4);
+  for (const bad of [99999, -1, 'x', null, 1.5]) assert.equal(read(block({ thin: bad })).saved.thin, bad === 99999 ? LIMITS.maxThin : 1, String(bad));
+  assert.equal(read(block({ thin: undefined })).saved.thin, 1, 'a file from before the step was stored');
 });
 
 test('the Radar item draws a rain frame and a snow frame; Lightning its own', () => {

@@ -134,7 +134,7 @@ export function createSavedRadarFeed({
       ...(skipped ? [`${plural(skipped, 'picture', 'pictures')} couldn't be fetched.`] : []),
       ...(kept.factor > 1 ? [`Every ${Math.round(kept.maxGapS / 60)} min kept to fit the size limit.`] : []),
     ];
-    saved = makeSaved({ box, frames: kept.frames, fetchedT: now() });
+    saved = makeSaved({ box, frames: kept.frames, fetchedT: now(), thin: kept.factor });
     phase = 'done';
     run = null;
     emit();
