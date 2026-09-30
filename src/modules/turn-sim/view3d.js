@@ -9,7 +9,7 @@
 // (R4). The camera is the ui-kit's matchProjection; nothing here does camera maths
 // of its own beyond choosing yaw, pitch, zoom and centre.
 import {
-  loadThree, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 
@@ -321,6 +321,8 @@ export function createView3d(canvas, { timers, source, onUserMove = () => {}, wi
       if (disposed) return { ok: false, reason: 'closed' };
       if (!gl) {
         loading ??= (async () => {
+          // No WebGL2 (what three needs): stay in 2D without downloading three.js or logging a context error.
+          if (!webglSupported()) return { ok: false, reason: 'gl' };
           try {
             THREE = await loadThree();
           } catch (err) {

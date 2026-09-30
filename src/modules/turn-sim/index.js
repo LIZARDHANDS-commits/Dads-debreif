@@ -161,7 +161,7 @@ function mount(root, app) {
     }
     if (!result.ok) {
       if (result.reason === 'closed') return;
-      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      ui.setNote('3D needs a connection the first time.'); // one message for a failed load and for no WebGL
       keepNote = true;
       layout.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
       keepNote = false;
