@@ -106,13 +106,25 @@ function mixWinds(a, b, k) {
 }
 
 /**
+ * An hour's levels that are above the ground, low to high. The model's lowest
+ * levels can lie under the field (950 hPa is about 1,400 ft, Moose Jaw's field
+ * 1,892 ft), and their winds are extrapolated below the surface, so they are
+ * left out. fieldFt (above sea level) is optional: without it nothing is.
+ */
+function usableLevels(hour, fieldFt) {
+  const levels = hour?.levels ?? [];
+  return Number.isFinite(fieldFt) ? levels.filter((l) => l.heightFt >= fieldFt) : levels;
+}
+
+/**
  * The wind at altitudeFt (above sea level) in one model hour, blended between
  * the two levels either side by height, as a vector so 350° and 010° give
  * 360°, not 180°. Returns { dirDeg, kt }, or null outside the levels given.
- * dirDeg is where the wind blows from, degrees true.
+ * dirDeg is where the wind blows from, degrees true. Options: { fieldFt }, the
+ * field's elevation, below which levels are not used (see usableLevels).
  */
-export function windAtAltitude(hour, altitudeFt) {
-  const levels = hour?.levels ?? [];
+export function windAtAltitude(hour, altitudeFt, { fieldFt } = {}) {
+  const levels = usableLevels(hour, fieldFt);
   if (!levels.length || !Number.isFinite(altitudeFt)) return null;
   if (altitudeFt < levels[0].heightFt || altitudeFt > levels[levels.length - 1].heightFt) return null;
   const i = Math.max(0, levels.findIndex((l) => l.heightFt >= altitudeFt) - 1);
@@ -131,18 +143,18 @@ export function windAtAltitude(hour, altitudeFt) {
  * before stands alone. Returns null when no hour is in force at t (older than
  * 90 minutes or none yet); otherwise { wind, hoursT, levels }: the wind or null
  * outside the levels, the hour(s) it came from (seconds), and the earlier
- * hour's levels for saying why there is none.
+ * hour's usable levels for saying why there is none. Options: { fieldFt }.
  */
-export function windAt(hours, t, altitudeFt) {
+export function windAt(hours, t, altitudeFt, { fieldFt } = {}) {
   const slice = sliceAt(hours, t, MAX_AGE_S.model);
   if (!slice) return null;
   const { item: before } = slice;
-  const levels = before.levels;
-  const w0 = windAtAltitude(before, altitudeFt);
+  const levels = usableLevels(before, fieldFt);
+  const w0 = windAtAltitude(before, altitudeFt, { fieldFt });
   if (!w0) return { wind: null, hoursT: [before.t], levels };
   const after = hours[hours.indexOf(before) + 1];
   if (t > before.t && after && after.t > t && after.t - before.t <= MAX_AGE_S.model) {
-    const w1 = windAtAltitude(after, altitudeFt);
+    const w1 = windAtAltitude(after, altitudeFt, { fieldFt });
     if (w1) return { wind: mixWinds(w0, w1, (t - before.t) / (after.t - before.t)), hoursT: [before.t, after.t], levels };
   }
   return { wind: w0, hoursT: [before.t], levels };
@@ -165,17 +177,23 @@ export function windWords({ dirDeg, kt }) {
  * (HRDPS 14Z, Open-Meteo)", crediting the source as its licence asks, or why
  * there's none. Between two model hours the wind is blended and both hours are
  * named: "(HRDPS 14–15Z, Open-Meteo)". hours: readWinds' result. modelLabel:
- * "HRDPS" or "HRRR".
+ * "HRDPS" or "HRRR". Options: { fieldFt }, the field's elevation: levels
+ * under it are not used, and below the lowest one left the line says to see
+ * the METAR (D176: no guessing below the model's lowest level).
  */
-export function windTextAt(hours, t, altitudeFt, modelLabel) {
-  const found = windAt(hours, t, altitudeFt);
+export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt } = {}) {
+  const found = windAt(hours, t, altitudeFt, { fieldFt });
   if (!found) return `no ${modelLabel} wind for this time`;
   const at = `${round(altitudeFt, 100).toLocaleString('en-US')} ft`;
   if (!found.wind) {
     const { levels } = found;
-    const ft = (l) => `${round(l.heightFt, 100).toLocaleString('en-US')} ft`;
-    const where = altitudeFt < levels[0].heightFt ? `below the lowest model level (${ft(levels[0])})` : `above the highest model level (${ft(levels[levels.length - 1])})`;
-    return `no ${modelLabel} wind at ${at}: ${where}`;
+    let where = 'no model level above the field';
+    if (levels.length) {
+      where = altitudeFt < levels[0].heightFt
+        ? "below the model's lowest level: see the METAR"
+        : `above the model's highest level, ${round(levels[levels.length - 1].heightFt, 100).toLocaleString('en-US')} ft`;
+    }
+    return `no ${modelLabel} wind at ${at} (${where})`;
   }
   const hourZ = (s) => new Date(s * 1000).toISOString().slice(11, 13);
   const hoursZ = found.hoursT.length === 2 ? `${hourZ(found.hoursT[0])}–${hourZ(found.hoursT[1])}Z` : `${hourZ(found.hoursT[0])}Z`;

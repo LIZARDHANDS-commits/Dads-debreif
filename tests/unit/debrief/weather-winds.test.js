@@ -84,8 +84,8 @@ test('the words: true direction to 10°, 360 for north, then knots; marked as mo
   const hours = readWinds(reply());
   assert.equal(windTextAt(hours, T('2026-09-29T18:40Z'), 1358 / FT, 'HRDPS'), 'model wind 280°T/35 kt at 4,500 ft (HRDPS 18Z, Open-Meteo)');
   assert.equal(windTextAt(hours, T('2026-09-29T19:05Z'), 1360 / FT, 'HRDPS'), 'model wind 350°T/30 kt at 4,500 ft (HRDPS 19Z, Open-Meteo)');
-  assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 2000, 'HRDPS'), 'no HRDPS wind at 2,000 ft: below the lowest model level (4,500 ft)');
-  assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 12_000, 'HRDPS'), 'no HRDPS wind at 12,000 ft: above the highest model level (9,700 ft)');
+  assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 2000, 'HRDPS'), "no HRDPS wind at 2,000 ft (below the model's lowest level: see the METAR)");
+  assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 12_000, 'HRDPS'), "no HRDPS wind at 12,000 ft (above the model's highest level, 9,700 ft)");
   assert.equal(windTextAt(hours, T('2026-09-29T17:59Z'), 5000, 'HRRR'), 'no HRRR wind for this time');
   assert.equal(windTextAt(hours, T('2026-09-29T21:00Z'), 5000, 'HRRR'), 'no HRRR wind for this time'); // older than 90 minutes
 });
@@ -206,7 +206,7 @@ test('windTextAt on real replies gives a wind at flying heights and none above t
     assert.match(text, new RegExp(`^model wind \\d{3}°T/\\d+ kt at 12,600 ft \\(${label} 18–19Z, Open-Meteo\\)$`));
     for (const word of ['model', 'kt', '°T']) assert.ok(text.includes(word), word); // true, in knots, and not observed (W1)
     assert.match(windTextAt(hours, at, 5500, label), /at 5,500 ft/);
-    assert.match(windTextAt(hours, at, 31_500, label), /above the highest model level/);
+    assert.match(windTextAt(hours, at, 31_500, label), /above the model's highest level/);
   }
 });
 
@@ -256,4 +256,54 @@ test('W3: the label names both hours while blending, one hour when only one is u
   // The next hour has no wind at this height (its levels are higher): the earlier hour alone.
   const raised = [twoHours(90, 180)[0], { t: T('2026-09-29T19:00Z'), levels: [level(700, 8000, 180, 40)] }];
   assert.match(windTextAt(raised, T('2026-09-29T18:30Z'), 6000, 'HRDPS'), /\(HRDPS 18Z, Open-Meteo\)$/);
+});
+
+const FIELD_FT = 1892; // Moose Jaw, data/cymj.js
+
+test('W4: levels below the ground are not blended in: on the real replies 950 hPa is under Moose Jaw\'s field', () => {
+  for (const [id, label] of REAL_MODELS) {
+    const hours = readWinds(real(id));
+    const hour = hours[18];
+    assert.equal(hour.levels[0].hPa, 950);
+    assert.ok(hour.levels[0].heightFt < FIELD_FT, `${id}: 950 hPa is ${hour.levels[0].heightFt} ft`);
+    // Without the field, the old behaviour: a wind at 1,900 ft, made from the level under the ground.
+    assert.ok(windAtAltitude(hour, 1900));
+    // With it: none between the field and the 925 hPa level, and on the ramp.
+    const t = hour.t;
+    const seen = (ft) => windTextAt(hours, t, ft, label, { fieldFt: FIELD_FT });
+    assert.equal(seen(1900), `no ${label} wind at 1,900 ft (below the model's lowest level: see the METAR)`);
+    assert.equal(seen(1875), `no ${label} wind at 1,900 ft (below the model's lowest level: see the METAR)`); // ramp reading under the field
+    assert.match(seen(hour.levels[1].heightFt - 50), /below the model's lowest level: see the METAR/);
+    // At the 925 hPa level and above, the wind is the model's, with no 950 hPa in it.
+    const l925 = hour.levels[1];
+    const at925 = windAt(hours, t, l925.heightFt, { fieldFt: FIELD_FT }).wind;
+    assert.ok(Math.abs(at925.dirDeg - l925.dirDeg) < 1e-9 && Math.abs(at925.kt - l925.kt) < 1e-9);
+    const without950 = { ...hour, levels: hour.levels.slice(1) };
+    const above = l925.heightFt + 200;
+    assert.deepEqual(windAt(hours, t, above, { fieldFt: FIELD_FT }).wind, windAtAltitude(without950, above));
+    assert.match(seen(above), /^model wind \d{3}°T\/\d+ kt at /);
+  }
+});
+
+test('W4: with a lower field the 950 hPa level is used; with no field given, every level is', () => {
+  const hours = readWinds(real('gem_hrdps_continental'));
+  const l950 = hours[18].levels[0];
+  const inside = windAt(hours, hours[18].t, l950.heightFt + 100, { fieldFt: 500 }).wind;
+  assert.ok(inside);
+  assert.deepEqual(windAt(hours, hours[18].t, l950.heightFt + 100).wind, inside);
+  assert.equal(windAt(hours, hours[18].t, l950.heightFt - 100, { fieldFt: 500 }).wind, null);
+  // A field above every level: nothing to blend, and the words say so.
+  assert.equal(windTextAt(hours, hours[18].t, 40_000, 'HRDPS', { fieldFt: 35_000 }), 'no HRDPS wind at 40,000 ft (no model level above the field)');
+});
+
+test('W4: above the top level the line names it, and the time blend keeps the rule for the next hour too', () => {
+  const hours = readWinds(real('ncep_hrrr_conus'));
+  assert.match(windTextAt(hours, hours[18].t, 31_500, 'HRRR', { fieldFt: FIELD_FT }), /^no HRRR wind at 31,500 ft \(above the model's highest level, 30,500 ft\)$/);
+  // Half past the hour, just above the 925 hPa level: both hours give a wind and neither uses 950 hPa.
+  const half = hours[18].t + 1800;
+  const ft = hours[18].levels[1].heightFt + 100;
+  const blended = windAt(hours, half, ft, { fieldFt: FIELD_FT });
+  assert.equal(blended.hoursT.length, 2);
+  const no950 = hours.map((h) => ({ ...h, levels: h.levels.slice(1) }));
+  assert.deepEqual(blended.wind, windAt(no950, half, ft).wind);
 });

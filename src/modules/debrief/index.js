@@ -196,7 +196,9 @@ function mount(root, app) {
     if (entry.state === 'busy') return `${label} winds: Open-Meteo is busy. Turn Winds aloft off and on to try again.`;
     if (entry.state === 'failed') return `${label} winds couldn't load. They need a connection.`;
     const lead = sampleAt(flight.tracks[1], clock.t);
-    return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label) : null;
+    // Levels under the field are not blended in (W4): the home field's elevation, or Moose Jaw's until one is set.
+    const fieldFt = app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT;
+    return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label, { fieldFt }) : null;
   }
 
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
