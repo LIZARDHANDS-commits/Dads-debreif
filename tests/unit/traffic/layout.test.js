@@ -3,46 +3,14 @@
 // button, and only the routes list and + New route on the left until a route is picked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installFakeDocument } from '../ui-kit/fake-dom.js';
+import { installFakeDom } from './fake-dom-extras.js';
 import { h } from '../../../src/ui-kit/dom.js';
 import { createPlaybackBar } from '../../../src/modules/traffic/playback-bar.js';
 import {
   NEW_ROUTE_CHOICES, SIMPLIFIED_NOTE, createLayout, newRouteChoices, routeDetail,
 } from '../../../src/modules/traffic/layout.js';
 
-const document = installFakeDocument();
-
-// The stand-in DOM from the ui-kit tests only reads text. These few additions let a
-// test set text, look inside, move focus and set a style property, as a browser does.
-const nodeProto = Object.getPrototypeOf(Object.getPrototypeOf(document.createElement('div')));
-const readText = Object.getOwnPropertyDescriptor(nodeProto, 'textContent').get;
-Object.defineProperty(nodeProto, 'textContent', {
-  configurable: true,
-  get: readText,
-  set(value) {
-    this.childNodes = [];
-    if (value !== '') this.appendChild(document.createTextNode(value));
-  },
-});
-const elementProto = Object.getPrototypeOf(document.createElement('div'));
-elementProto.append = function append(...nodes) {
-  for (const node of nodes) this.appendChild(node);
-};
-elementProto.contains = function contains(node) {
-  return node === this || this.childNodes.some((child) => child.contains?.(node));
-};
-elementProto.focus = function focus() {
-  document.activeElement = this;
-};
-Object.defineProperty(elementProto, 'style', {
-  configurable: true,
-  get() {
-    this.styleProps ??= {};
-    return { setProperty: (name, value) => (this.styleProps[name] = value) };
-  },
-});
-elementProto.value = '';
-elementProto.checked = false;
+installFakeDom();
 
 const all = (root, test) => [root, ...root.childNodes.flatMap((child) => (child.childNodes ? all(child, test) : []))].filter(test);
 const tagged = (root, tag) => all(root, (n) => n.tagName === tag);
@@ -167,12 +135,12 @@ test('closing the details gives focus back to the route\'s line, and a rebuilt l
   ui.setRoutes(ROUTES, 'e1');
   pressable(one(ui.element, 'point-table-section'), '✕').dispatch('click');
   ui.setRoutes(ROUTES, null);
-  assert.equal(document.activeElement.dataset.routeId, 'e1');
+  assert.equal(globalThis.document.activeElement.dataset.routeId, 'e1');
 
   withClass(ui.element, 'route-row')[2].focus();
   ui.setRoutes(ROUTES, 's1');
-  assert.equal(document.activeElement.dataset.routeId, 's1', 'still on the line the keyboard was on');
-  assert.ok(withClass(ui.element, 'route-row').includes(document.activeElement), 'and it is the new line, not the old one');
+  assert.equal(globalThis.document.activeElement.dataset.routeId, 's1', 'still on the line the keyboard was on');
+  assert.ok(withClass(ui.element, 'route-row').includes(globalThis.document.activeElement), 'and it is the new line, not the old one');
 });
 
 test('route names go in as text, never as HTML', () => {
@@ -194,7 +162,7 @@ test('+ New route offers Pattern, Entry and Split (PFL once it exists), and choo
   pressable(body, 'Entry').dispatch('click');
   assert.deepEqual(calls, [['new', 'entry']]);
   assert.equal(body.hidden, true);
-  assert.equal(document.activeElement, pressable(menu, '+ New route'), 'focus goes back to the + New route button');
+  assert.equal(globalThis.document.activeElement, pressable(menu, '+ New route'), 'focus goes back to the + New route button');
 
   const withPfl = setup({ available: { pfl: true } });
   const pflBody = one(withPfl.ui.element.childNodes[1], 'traffic-menu-body');

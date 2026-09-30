@@ -3,7 +3,7 @@
 // control for a feature that isn't there yet is left out.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installFakeDocument } from '../ui-kit/fake-dom.js';
+import { installFakeDom } from './fake-dom-extras.js';
 import { h } from '../../../src/ui-kit/dom.js';
 import { createControls } from '../../../src/ui-kit/controls.js';
 import { createSettings } from '../../../src/storage/settings.js';
@@ -12,32 +12,7 @@ import {
   LAYER_ITEMS, STATUS_TEXT, layerItems, speedLabel, createMenu, createPlaybackBar,
 } from '../../../src/modules/traffic/playback-bar.js';
 
-const document = installFakeDocument();
-
-// The stand-in DOM from the ui-kit tests only reads text. These few additions let a
-// test set text, ask what's inside and move focus, as a browser does.
-const nodeProto = Object.getPrototypeOf(Object.getPrototypeOf(document.createElement('div')));
-const readText = Object.getOwnPropertyDescriptor(nodeProto, 'textContent').get;
-Object.defineProperty(nodeProto, 'textContent', {
-  configurable: true,
-  get: readText,
-  set(value) {
-    this.childNodes = [];
-    if (value !== '') this.appendChild(document.createTextNode(value));
-  },
-});
-const elementProto = Object.getPrototypeOf(document.createElement('div'));
-elementProto.contains = function contains(node) {
-  return node === this || this.childNodes.some((child) => child.contains?.(node));
-};
-elementProto.focus = function focus() {
-  document.activeElement = this;
-};
-elementProto.removeAttribute = function removeAttribute(name) {
-  delete this.attributes[name];
-};
-elementProto.value = ''; // a fresh input or select starts with an empty value, unchecked
-elementProto.checked = false;
+installFakeDom();
 
 const all = (root, test) => [root, ...root.childNodes.flatMap((child) => (child.childNodes ? all(child, test) : []))].filter(test);
 const tagged = (root, tag) => all(root, (n) => n.tagName === tag);
@@ -233,7 +208,7 @@ test('Escape closes an open menu and puts focus back on its button; a click else
   const listeners = [];
   const menu = createMenu({ label: 'Layers', children: [h('p', { class: 'inside' }, 'x')], listen: (target, type, fn) => listeners.push({ target, type, fn }) });
   assert.equal(listeners.length, 1);
-  assert.equal(listeners[0].target, document);
+  assert.equal(listeners[0].target, globalThis.document);
   assert.equal(listeners[0].type, 'pointerdown');
 
   menu.setOpen(true);
@@ -243,7 +218,7 @@ test('Escape closes an open menu and puts focus back on its button; a click else
   menu.element.listeners.keydown[0]({ key: 'Escape', preventDefault: () => prevented++ });
   assert.equal(menu.isOpen(), false);
   assert.equal(prevented, 1);
-  assert.equal(document.activeElement, menu.button);
+  assert.equal(globalThis.document.activeElement, menu.button);
 
   menu.setOpen(true);
   listeners[0].fn({ target: menu.body.childNodes[0] });

@@ -5,37 +5,13 @@
 // on the screen yet is left out.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { installFakeDocument } from '../ui-kit/fake-dom.js';
+import { installFakeDom } from './fake-dom-extras.js';
 import { createSettings } from '../../../src/storage/settings.js';
 import { createControls } from '../../../src/ui-kit/controls.js';
 import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
 import { PANEL_KEYS, RULES, TITLE, createSettingsPanel } from '../../../src/modules/traffic/settings-panel.js';
 
-const document = installFakeDocument();
-
-// The stand-in DOM from the ui-kit tests only reads text. These few additions let a
-// test set text, look up ids and clear attributes, as a browser does.
-const nodeProto = Object.getPrototypeOf(Object.getPrototypeOf(document.createElement('div')));
-const readText = Object.getOwnPropertyDescriptor(nodeProto, 'textContent').get;
-Object.defineProperty(nodeProto, 'textContent', {
-  configurable: true,
-  get: readText,
-  set(value) {
-    this.childNodes = [];
-    if (value !== '') this.appendChild(document.createTextNode(value));
-  },
-});
-const elementProto = Object.getPrototypeOf(document.createElement('div'));
-Object.defineProperty(elementProto, 'id', { configurable: true, get() { return this.attributes.id; } });
-elementProto.append = function append(...nodes) {
-  for (const node of nodes) this.appendChild(node);
-};
-elementProto.removeAttribute = function removeAttribute(name) {
-  delete this.attributes[name];
-};
-elementProto.value = ''; // a fresh input or select starts with an empty value, unchecked
-elementProto.checked = false;
-elementProto.disabled = false;
+installFakeDom();
 
 const all = (root, test) => [root, ...root.childNodes.flatMap((child) => (child.childNodes ? all(child, test) : []))].filter(test);
 const tagged = (root, tag) => all(root, (n) => n.tagName === tag);
