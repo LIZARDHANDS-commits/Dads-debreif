@@ -2,7 +2,7 @@
 // "GPS gap", never a bank, pitch or height, since the position there is a guess.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { labelShip, drawMarker } from '../../../src/modules/debrief/view3d/overlay.js';
+import { labelShip, drawMarker, attitudeText } from '../../../src/modules/debrief/view3d/overlay.js';
 import { recordingContext } from './view3d-harness.js';
 
 const P = (p) => ({ x: p.x, y: p.y });
@@ -40,4 +40,11 @@ test('drawMarker: a hollow marker for a gap ship, labelled once, with no numbers
   assert.deepEqual(filled, ['#2', 'GPS gap']);
   assert.ok(!words(ctx).some((s) => /bank|pitch|ft/i.test(s)));
   assert.ok(!ctx.calls.includes('fill'), 'hollow: outlined, not filled');
+});
+
+test('the 3D attitude label says "bank --" where the bank is unknown, and the side where it is known', () => {
+  assert.equal(attitudeText({ bankDeg: 0, bankKnown: false, pitchDeg: 2 }), 'bank --, pitch +2°');
+  assert.equal(attitudeText({ bankDeg: 0, bankKnown: true, pitchDeg: 0 }), 'bank 0°, pitch 0°');
+  assert.equal(attitudeText({ bankDeg: 46.4, bankKnown: true, pitchDeg: -3 }), 'bank 46° L, pitch -3°');
+  assert.equal(attitudeText({ bankDeg: -30, pitchDeg: 0 }), 'bank 30° R, pitch 0°');
 });

@@ -296,17 +296,20 @@ test('V6\'s one-target standard is gated by the same blocks; a standard that is 
 // #2 on the example flight at scrubber start+1676 to +1688, where the bank flickered while G read 1.0 to 2.1.
 // The readouts and the 3D view give the same bank (D40). Bank in degrees, left wing down positive.
 // The heading change over t±1.5 s, est. G's window (M2). At +1688 that window touches the GPS gap
-// after 1688.9 s, so G is "--" and the wings are level (audit of #194, Y2; it read −57.4° before).
+// after 1688.9 s, so G is "--" and the bank is unknown: "bank --", wings level in 3D (audit of #194, Y2;
+// verification re-check N2; it read −57.4° before).
 // The old ±1 s chord bank stays pinned on V6's path in tests/golden/debrief-3d.test.js.
-const EXAMPLE_BANK_PIN = [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, 0];
+const EXAMPLE_BANK_PIN = [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, null];
 
 test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same in the readouts and the 3D view', async () => {
   const flight = await loadExampleFlight(fromRepo);
   const got = [];
   for (let s = 1676; s <= 1688; s++) {
     const bank = readoutsAt(flight, flight.startT + s).ships[1].bankDeg;
-    assert.equal(shipsIn3d(flight, flight.startT + s)[1].bankDeg, bank);
-    got.push(+bank.toFixed(4));
+    const in3d = shipsIn3d(flight, flight.startT + s)[1];
+    assert.equal(in3d.bankDeg, bank ?? 0); // unknown: drawn wings level
+    assert.equal(in3d.bankKnown, bank !== null);
+    got.push(bank === null ? null : +bank.toFixed(4));
   }
   assert.deepEqual(got, EXAMPLE_BANK_PIN);
 });
@@ -365,7 +368,7 @@ test('turnRateAt at the ends of the track divides by the window it has, not the 
 });
 
 // Audit of #194, Y2: the bank used to be worked out across a gap while G said "--".
-test('no bank from a window that touches a GPS gap: wings level wherever est. G is unknown for the gap', () => {
+test('no bank from a window that touches a GPS gap: "bank --" on the card and wings level in 3D wherever est. G is unknown', () => {
   const speed = 200 * KT_TO_FTPS;
   const omega = 0.1;
   const radius = speed / omega;
@@ -378,8 +381,28 @@ test('no bank from a window that touches a GPS gap: wings level wherever est. G 
     const t = T(s);
     if (estimatedGAt(tr, t) !== null) continue;
     assert.equal(turnRateAt(tr, t), null, `turn rate at start+${s.toFixed(1)}`);
-    assert.equal(readoutsAt(flight, t).ships[0].bankDeg, 0, `bank at start+${s.toFixed(1)}`);
+    assert.equal(readoutsAt(flight, t).ships[0].bankDeg, null, `bank at start+${s.toFixed(1)}`);
+    const ship = readoutsAt(flight, t).ships[0];
+    if (!ship.inGap) assert.match(shipDetailText(ship)[1], /bank -- est\.$/);
+    assert.equal(shipsIn3d(flight, t)[0].bankDeg, 0, 'wings level in 3D');
   }
   assert.equal(turnRateAt(tr, T(29.5)), null); // starts on the fix that ends the gap
   assert.ok(turnRateAt(tr, T(30)) > 0);
+});
+
+// Verification re-check N2 (audit): a recorded bank is kept, and known, where est. G and the turn rate are unknown (D47).
+test('a recorded bank stays known beside a GPS gap, in the readouts and the 3D view', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const tr = track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))], { skip: [21, 22, 23, 24, 25, 26, 27] });
+  tr.fixes = tr.fixes.map((f) => ({ ...f, bankRecordedDeg: -23 })); // 23° left, as the recording writes it
+  const flight = buildFlight({ 1: tr });
+  const t = T(29.5); // the window starts on the fix that ends the gap: no turn rate, no est. G
+  assert.equal(turnRateAt(flight.tracks[1], t), null);
+  const ship = readoutsAt(flight, t).ships[0];
+  assert.equal(ship.bankDeg, 23);
+  assert.equal(ship.bankSource, 'recorded');
+  assert.match(shipDetailText(ship)[1], /bank 23° left recorded$/);
+  assert.deepEqual([shipsIn3d(flight, t)[0].bankDeg, shipsIn3d(flight, t)[0].bankKnown], [23, true]);
 });
