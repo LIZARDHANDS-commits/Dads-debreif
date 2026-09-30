@@ -46,6 +46,20 @@ test('the Turn Sim has no accessibility violations', async ({ page }) => {
   await expectNoA11yViolations(page);
 });
 
+test('the Turn Sim has no accessibility violations with its settings, More …, and Layers open and NM rings on (audit yellow 6)', async ({ page }) => {
+  await openRoute(page, '#/turn-sim');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
+  await page.getByRole('button', { name: 'Turn Sim settings' }).click();
+  await page.getByRole('button', { name: 'More …' }).click();
+  await expect(page.getByRole('heading', { name: 'Aircraft errors' })).toBeVisible();
+  await page.getByLabel('Put it out of position').first().check();
+  await expectNoA11yViolations(page);
+  await page.getByRole('button', { name: /^Layers/ }).click();
+  await page.getByLabel('NM rings').check();
+  await expect(page.getByLabel('NM rings')).toBeChecked();
+  await expectNoA11yViolations(page);
+});
+
 test('SOF has no accessibility violations with its recorded weather', async ({ page }) => {
   // fixtures.js answers MET Norway and Datamask from tests/fixtures/sof for every spec.
   await openRoute(page, '#/sof');
