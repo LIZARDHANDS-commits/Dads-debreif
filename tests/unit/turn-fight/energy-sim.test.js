@@ -8,7 +8,7 @@ import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi, radToDeg, degToRad } from '../../../src/core/angles.js';
 import { T6A_LIMITS, stallLimitG, availableG, splitST6A } from '../../../src/core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
-import { nfmTopKias } from './nfm-limit.js';
+import { modelTopKias } from './nfm-limit.js';
 import {
   ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
 } from '../../../src/modules/turn-fight/energy-sim.js';
@@ -1547,12 +1547,12 @@ test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive
       for (const a of [s.blue, s.red]) {
         assert.ok(Number.isFinite(a.kias) && Number.isFinite(a.altFt), 'finite');
         minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
-        maxOver = Math.max(maxOver, a.kias - nfmTopKias(a.altFt)); // over the NFM line at its height
+        maxOver = Math.max(maxOver, a.kias - modelTopKias(a.altFt)); // over the top speed (Mach 0.67 in the model's IAS) at its height
       }
     }
     const what = `${JSON.stringify(setup)}: lowest ${minAlt.toFixed(0)} ft, fastest ${maxKias.toFixed(0)} KIAS`;
     assert.ok(minAlt >= s.setup.hardDeckFt - 500, what);
-    assert.ok(maxOver <= 2, `${what}, ${maxOver.toFixed(0)} over the NFM limit`);
+    assert.ok(maxOver <= 2, `${what}, ${maxOver.toFixed(0)} over the top speed`);
   }
 });
 
