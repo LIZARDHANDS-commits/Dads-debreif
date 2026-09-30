@@ -12,8 +12,16 @@
 // altitude in feet times the altitude-scale setting (`altToZ`); the aircraft
 // model itself is not scaled by it.
 
-/** Distance from the camera to its target, in feet. The camera is orthographic, so it only has to be far. */
-export const CAMERA_DISTANCE_FT = 500_000;
+/**
+ * Distance from the camera to its target, in feet. The camera is orthographic, so it only
+ * has to be far. The near and far planes sit CLIP_RANGE_FT either side of the target: the
+ * Debrief lets altitude scale reach 10 and ground reach 70,000 ft out, so a formation at
+ * 31,000 ft with the ground at sea level is over 300,000 scene feet from it, and 900,000
+ * either way keeps all of that inside with room to spare (a 24-bit depth buffer still
+ * resolves about 0.1 ft over the 1.8 million ft range).
+ */
+export const CAMERA_DISTANCE_FT = 1_000_000;
+const CLIP_RANGE_FT = 900_000;
 
 const HORIZON = '#1a3a55';
 const rad = (d) => (d * Math.PI) / 180;
@@ -90,7 +98,8 @@ function buildGeometry(THREE) {
 export function createAircraftMesh(THREE, { color, outline = null }) {
   const geo = buildGeometry(THREE);
   const base = new THREE.Color(color);
-  const mat = (c, extra) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.55, metalness: 0.1, ...extra });
+  // fog: false on everything here: fog is for the ground only, never the aircraft.
+  const mat = (c, extra) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.55, metalness: 0.1, fog: false, ...extra });
   const group = new THREE.Group();
   const add = (geometry, material) => group.add(new THREE.Mesh(geometry, material));
   add(geo.fuselage, mat(base));
@@ -99,9 +108,9 @@ export function createAircraftMesh(THREE, { color, outline = null }) {
   add(geo.fin, mat(base.clone().lerp(new THREE.Color('#ffffff'), 0.15)));
   add(geo.canopy, mat('#8fc4ff', { transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.4 }));
   add(geo.spinner, mat('#20242a', { roughness: 0.4 }));
-  add(geo.disc, new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+  add(geo.disc, new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, fog: false }));
   if (outline) {
-    const edge = new THREE.LineBasicMaterial({ color: outline });
+    const edge = new THREE.LineBasicMaterial({ color: outline, fog: false });
     for (const part of [geo.wing, geo.stab, geo.fin]) {
       group.add(new THREE.LineSegments(new THREE.EdgesGeometry(part, 30), edge));
     }
@@ -150,8 +159,8 @@ export function matchProjection(THREE, camera, ctr, cam, size, pxRatio = 1) {
   camera.right = size.width / 2 / pxPerFt;
   camera.top = size.height / 2 / pxPerFt;
   camera.bottom = -size.height / 2 / pxPerFt;
-  camera.near = D - 250_000;
-  camera.far = D + 250_000;
+  camera.near = D - CLIP_RANGE_FT;
+  camera.far = D + CLIP_RANGE_FT;
   camera.updateProjectionMatrix();
   camera.lookAt(target);
   camera.updateMatrixWorld(true);
@@ -177,7 +186,8 @@ export function addLights(THREE, scene) {
  * A dark-blue sky gradient as the scene background, and fog in the horizon
  * colour beyond the camera's distance so a big ground plane fades out. Not tied
  * to the debrief; any 3D view can use it. `document` is only for tests.
- * Returns { texture, horizon }; dispose the texture with the view.
+ * Returns { texture, horizon, dispose() }; `dispose()` frees the texture and clears
+ * scene.background and scene.fog, so call it when the view closes.
  */
 export function addSky(THREE, scene, { horizon = HORIZON, document: doc = globalThis.document } = {}) {
   const canvas = doc.createElement('canvas');
@@ -195,5 +205,13 @@ export function addSky(THREE, scene, { horizon = HORIZON, document: doc = global
   texture.colorSpace = THREE.SRGBColorSpace;
   scene.background = texture;
   scene.fog = new THREE.Fog(horizon, CAMERA_DISTANCE_FT + 5_000, CAMERA_DISTANCE_FT + 70_000);
-  return { texture, horizon };
+  return {
+    texture,
+    horizon,
+    dispose() {
+      texture.dispose();
+      if (scene.background === texture) scene.background = null;
+      scene.fog = null;
+    },
+  };
 }
