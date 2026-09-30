@@ -277,3 +277,31 @@ test('a calm wind (the speed rounds to 0 kt, as the words say "calm") has no dir
   assert.equal(light.lengthPx, ARROW_PX.min);
   assert.equal(arrowLabel({ dirDeg: 270, kt: 0.4 }), 'calm');
 });
+
+test('the fallback ground height (fieldFt) is used only for a point whose reply gave no elevation, and it drops the levels under it', () => {
+  const points = windGridPoints(BOX);
+  const t = T('2026-09-29T18:30Z');
+  // 1,500 ft is between 950 hPa (about 1,370 ft) and 925 hPa (about 2,120 ft). Point 0's reply has no elevation.
+  const noElevation = () => {
+    const reply = fixture();
+    delete reply[0].elevation;
+    return readWindsGrid(reply, 9);
+  };
+  const grid = noElevation();
+  assert.equal(grid[0].groundFt, undefined);
+  assert.ok(grid[1].groundFt > 1800, 'the others keep their own ground');
+  // A low field keeps 950 hPa for that point, so there is a wind at 1,500 ft: blended between 950 and 925.
+  const low = windArrowsAt(grid, points, t, 1500, { fieldFt: 500 });
+  assert.ok(low[0].wind, 'the 950 hPa level is used');
+  // No field given: nothing is left out either.
+  assert.ok(windArrowsAt(grid, points, t, 1500)[0].wind);
+  // A field at Moose Jaw's 1,892 ft puts 950 hPa under the ground: dropped, so 1,500 ft is below the lowest level.
+  const high = windArrowsAt(grid, points, t, 1500, { fieldFt: 1892 });
+  assert.equal(high[0].wind, null);
+  assert.equal(high[0].why, 'below');
+  // The points that gave an elevation ignore the fallback: their own ground (about 1,870 ft) already drops 950 hPa, and a low fallback does not bring it back.
+  for (const i of [1, 4, 8]) {
+    assert.equal(windArrowsAt(grid, points, t, 1500, { fieldFt: 500 })[i].wind, null, `point ${i}`);
+    assert.equal(windArrowsAt(grid, points, t, 1500, { fieldFt: 500 })[i].why, 'below');
+  }
+});
