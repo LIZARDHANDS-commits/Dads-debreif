@@ -220,6 +220,10 @@ button:disabled {
   font-size: var(--text-sm);
 }
 
+.control-message.is-note {
+  color: var(--text-muted);
+}
+
 .control-message:empty {
   display: none;
 }

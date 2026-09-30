@@ -1,8 +1,9 @@
-// R2: at 1366 × 768 and 1920 × 1080, nothing is cut off and no control covers another.
+// R2: from 1280 wide (the smallest supported width, D183) up to 1920 × 1080, nothing is cut off and no control covers another.
 import { test, expect } from './fixtures.js';
 import { ROUTES, openRoute } from './routes.js';
 
 const SIZES = [
+  { width: 1280, height: 800 },
   { width: 1366, height: 768 },
   { width: 1920, height: 1080 },
 ];
@@ -79,3 +80,14 @@ for (const size of SIZES) {
     });
   });
 }
+
+test('openRoute waits for a module stylesheet that is slow to arrive', async ({ page }) => {
+  await page.route(/\/assets\/.*\.css$/, async (route) => {
+    await new Promise((done) => setTimeout(done, 1500));
+    await route.continue();
+  });
+  await openRoute(page, '#/debrief');
+  const unloaded = await page.evaluate(() => [...document.querySelectorAll('link[rel="stylesheet"]')].filter((l) => !l.sheet).length);
+  expect(unloaded).toBe(0);
+  expect(await layoutProblems(page)).toEqual([]);
+});
