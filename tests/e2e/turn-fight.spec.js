@@ -1416,14 +1416,19 @@ test('a forced move flies from the merge whatever the speed: Split S for Blue re
   await playButton(page).click();
   await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(19.9);
   await playButton(page).click();
-  // At T+20 the engine has Blue at 9,879 ft, and Red at 10,807 ft; Red's pitch back is done and it holds the MPT.
-  await expect(resultRow(page, /Move/)).toHaveText(/Split S.*MPT/);
+  // The pause lands a poll after T+20, and the moves change on their own (Red's pitch back ends near T+23, Blue's Split S
+  // goes on to an Immelmann near T+27), so no time window is pinned: the Move and Altitude rows are the engine's own at the
+  // time shown. At T+20 itself the engine has Blue at 9,879 ft and Red at 10,807 ft.
   const now = await seconds(page);
+  expect(now).toBeLessThan(26); // still Blue's Split S: the follow-on Immelmann starts near T+27
   const engine = engineAt({ blueMove: 'splitS' }, now);
+  await expect(resultRow(page, /Move/)).toHaveText(new RegExp(`${engine.blue.moveLabel}.*${engine.red.moveLabel}`));
+  expect(engine.blue.moveLabel).toBe('Split S');
   const heights = feetIn(await resultRow(page, /Altitude/).innerText());
   expect(Math.abs(heights[0] - engine.blue.altFt)).toBeLessThan(40);
   expect(Math.abs(heights[1] - engine.red.altFt)).toBeLessThan(40);
-  expect(heights[0]).toBeLessThan(heights[1] - 500); // the Split S costs Blue height; Red's pitch back does not
+  // The Split S costs Blue height that Red's pitch back does not (the engine, at T+20: Blue 9,879 ft, Red 10,807 ft).
+  expect(engineAt({ blueMove: 'splitS' }, 20).blue.altFt).toBeLessThan(engineAt({ blueMove: 'splitS' }, 20).red.altFt - 500);
   // Changing the move starts the fight again, paused.
   await page.getByLabel('Blue\'s move').selectOption({ label: 'MPT' });
   await expect(time(page)).toHaveText('T+0.0');
@@ -1464,12 +1469,29 @@ test('OVER G is a flag of its own, none at first, and Auto never causes it', asy
   await energyBox(page).check();
   await expect(resultRow(page, /Flags/)).toHaveText(/None.*None/);
   await expect(resultRow(page, /Flags/).locator('td.tf-flag')).toHaveCount(0);
+  // Watch the whole fight, not one moment: a page-side observer notes any flag that shows while it plays.
+  await page.evaluate(() => {
+    window.__flagSeen = [];
+    const note = () => {
+      const cells = [...document.querySelectorAll('tr[data-row="flags"] td')].map((td) => td.textContent);
+      const notes = document.querySelector('.tf-flag-notes')?.textContent ?? '';
+      if (cells.some((text) => text !== 'None') || document.querySelector('td.tf-flag') || notes) window.__flagSeen.push({ cells, notes });
+    };
+    new MutationObserver(note).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+  });
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await playButton(page).click();
   await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(29.9);
   await playButton(page).click();
   await expect(resultRow(page, /Flags/)).toHaveText(/None.*None/);
   await expect(page.locator('.tf-flag-notes li')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__flagSeen), 'no flag showed at any time while it played').toEqual([]);
+  // And the engine says the same over the whole 30 s: neither aircraft was ever over G or stalled.
+  const engine = engineAt({}, await seconds(page));
+  for (const who of [engine.blue, engine.red]) {
+    expect(who.overGEver).toBe(false);
+    expect(who.stallEver).toBe(false);
+  }
 });
 
 test('the side view is altitude against time with the hard deck as a dashed line, and has a text alternative: a line of numbers and a table', async ({ page }) => {
@@ -1487,8 +1509,16 @@ test('the side view is altitude against time with the hard deck as a dashed line
   await playButton(page).click();
   await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(24.9);
   await playButton(page).click();
-  // At T+25 the engine has Blue at 9,951 ft and Red at 10,749 ft.
-  await expect(page.locator('.tf-energy-summary')).toHaveText(/^Altitude at T\+2[5-9]\.\d: Blue 9,\d\d\d ft, Red 10,[67]\d\d ft\. Hard deck 6,000 ft\.$/);
+  // The pause lands a poll after T+25 (the engine has Blue at 9,951 ft and Red at 10,749 ft at T+25 itself), so the line is
+  // held to the engine's own numbers at the time it shows, to 40 ft (the time shows to 0.1 s).
+  const now = await seconds(page);
+  const engine = engineAt({ blueKias: 180 }, now);
+  const summary = await page.locator('.tf-energy-summary').innerText();
+  expect(summary).toMatch(new RegExp(`^Altitude at T\\+${now.toFixed(1).replace('.', '\\.')}: Blue [\\d,]+ ft, Red [\\d,]+ ft\\. Hard deck 6,000 ft\\.$`));
+  const [summaryBlue, summaryRed] = feetIn(summary);
+  expect(Math.abs(summaryBlue - engine.blue.altFt)).toBeLessThan(40);
+  expect(Math.abs(summaryRed - engine.red.altFt)).toBeLessThan(40);
+  expect(summaryBlue).not.toBe(summaryRed); // Blue's 180 KIAS start and Red's 220 fly different heights
   // The chart is drawn in the fight's colours, and the deck in the first nose-on line's.
   await expect.poll(() => pixelsNear(page, '.tf-energy-chart canvas', BLUE)).toBeGreaterThan(20);
   await expect.poll(() => pixelsNear(page, '.tf-energy-chart canvas', RED)).toBeGreaterThan(20);
@@ -1504,7 +1534,13 @@ test('the side view is altitude against time with the hard deck as a dashed line
   await expect(rows.nth(1)).toHaveText('0.010,00010,0006,000');
   await expect(rows.nth(2)).toHaveText(/^10\.010,0\d\d/);
   await expect(rows.nth(3)).toHaveText(/^20\.0/);
-  await expect(rows.last()).toHaveText(/^2[5-9]\.\d9,\d\d\d10,[67]\d\d6,000$/);
+  // The latest point last: the time shown, and the heights the line above gave (to 40 ft: the table's latest point is a trail point, 0.1 s apart).
+  const lastRow = (await rows.last().innerText()).split('\t').map((cell) => Number(cell.replace(/,/g, '')));
+  expect(lastRow[0]).toBeGreaterThan(now - 0.11);
+  expect(lastRow[0]).toBeLessThan(now + 0.11);
+  expect(Math.abs(lastRow[1] - engine.blue.altFt)).toBeLessThan(40);
+  expect(Math.abs(lastRow[2] - engine.red.altFt)).toBeLessThan(40);
+  expect(lastRow[3]).toBe(6000);
   // Leaving Energy takes the graph away and frees it; ticking it again draws it again.
   await energyBox(page).uncheck();
   await expect(page.locator('.tf-energy-panel')).toBeHidden();
@@ -1725,7 +1761,7 @@ test('the 3D view has the hard deck as a see-through plane in Energy mode, with 
 });
 
 test('Energy on at a wide and a narrow screen: nothing overlaps or is cut off, with the settings open', async ({ page }) => {
-  for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
+  for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
     await page.setViewportSize(size);
     await openRoute(page, '#/turn-fight');
     if (!(await energyBox(page).isChecked())) await energyBox(page).check();
