@@ -10,6 +10,8 @@ import { parseMetar } from '../../../src/wx/metar.js';
 import { tafTimeline } from '../../../src/wx/taf.js';
 import { checkConditions, natoColour, DEFAULT_LIMITS } from '../../../src/wx/limits.js';
 import { assessAlternate } from '../../../src/wx/alternates.js';
+import { createStore } from '../../../src/storage/store.js';
+import { createAirfields } from '../../../src/airfields/airfields.js';
 import { planToUtc, localDate, localToUtc } from '../../../src/modules/sof/waves.js';
 import {
   timelineModel, axisTicks, stepPiece, timelineSignature, sameTimeline,
@@ -151,20 +153,29 @@ test('a piece below the airfield\'s limits is flagged below, hatched by the scre
   assert.equal(+low.fullFrom, +at(29, 21));
 });
 
-test('below follows wx\'s limit check for every fixture, for one limit and for a list of options', () => {
+test('below follows wx\'s limit check for every fixture: home limits, alternate minima and a list of options', () => {
   const options = [{ ceilingFt: 600, visSm: 2 }, { ceilingFt: 700, visSm: 1.5 }, { ceilingFt: 800, visSm: 1 }];
+  const belowAll = (conditions, list) => list.every((l) => checkConditions(conditions, l).belowLimits);
   for (const [name, raw] of FIXTURE_TAFS) {
     const parsed = taf(raw);
     if (!parsed.validFrom || parsed.cancelled || parsed.nil) continue;
-    for (const limits of [HOME_LIMITS, ALT_LIMITS, options]) {
-      const pieces = timelineModel({
-        rows: [{ icao: 'CYMJ', role: 'ALT', taf: parsed, limits }], now: NOW, timeZone: ZONE, date: localDate(parsed.validFrom, ZONE),
-      }).rows[0].pieces;
+    const date = localDate(parsed.validFrom, ZONE);
+    const cases = [
+      ['HOME', { limits: HOME_LIMITS }, HOME_LIMITS],
+      ['ALT', { options: { minima: ALT_LIMITS } }, ALT_LIMITS],
+      ['ALT', { options: { minima: options } }, options],
+      ['ALT', { options: { minima: options, landingMinima: { ceilingFt: 200, visSm: 0.5 } } }, options],
+    ];
+    for (const [role, extra, list] of cases) {
+      const landing = extra.options?.landingMinima ? [extra.options.landingMinima] : null;
+      const pieces = timelineModel({ rows: [{ icao: 'CYMJ', role, taf: parsed, ...extra }], now: NOW, timeZone: ZONE, date }).rows[0].pieces;
       for (const p of pieces) {
         const source = wxPieces(parsed, p.fullFrom, p.fullTo).find((e) => shape(e) === shape(p));
-        // Below only when below every option (alternates.js).
-        const expected = limits.every((l) => checkConditions(source.conditions, l).belowLimits);
-        assert.equal(p.below, expected, `${name} ${p.name} ${p.fullFrom.toISOString()}`);
+        // Below only when below every option; a PROB piece at an alternate is tested against the landing minima.
+        const against = p.kind === 'PROB' && role === 'ALT' ? landing : list;
+        assert.equal(p.below, against ? belowAll(source.conditions, against) : false, `${name} ${role} ${p.name} ${p.fullFrom.toISOString()}`);
+        const unchecked = p.kind === 'PROB' && role === 'ALT' && !landing && belowAll(source.conditions, list);
+        assert.equal(p.unchecked, unchecked, `${name} ${role} ${p.name}: unchecked`);
       }
     }
   }
@@ -172,12 +183,75 @@ test('below follows wx\'s limit check for every fixture, for one limit and for a
 
 test('the hatched pieces are exactly the pieces wx\'s assessAlternate calls hits over the same day', () => {
   const parsed = taf(ALT_TAF.fog);
-  const date = DAY29;
-  const m = timelineModel({ rows: [{ icao: 'CYQR', role: 'ALT', taf: parsed, limits: ALT_LIMITS }], now: NOW, timeZone: ZONE, date });
-  const hits = assessAlternate(parsed, { from: m.axis.from, to: m.axis.to }, { minima: ALT_LIMITS, landingMinima: ALT_LIMITS }).hits;
+  const options = { minima: ALT_LIMITS };
+  const m = timelineModel({ rows: [{ icao: 'CYQR', role: 'ALT', taf: parsed, options }], now: NOW, timeZone: ZONE, date: DAY29 });
+  const hits = assessAlternate(parsed, { from: m.axis.from, to: m.axis.to }, options).hits;
   const below = m.rows[0].pieces.filter((p) => p.below);
   assert.ok(hits.length > 0);
   assert.deepEqual(below.map((p) => [p.kind, p.group, +p.fullFrom, +p.fullTo]), hits.map((h) => [h.kind, h.group, +h.from, +h.to]));
+});
+
+// ---- Alternates as the Airfields panel sets them (checkOptions), not just 600-2 ---------------------
+
+const memoryBackend = () => {
+  const map = new Map();
+  return { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => { map.set(k, String(v)); }, removeItem: (k) => { map.delete(k); } };
+};
+const airfields = () => createAirfields({ store: createStore(memoryBackend()).scope('airfields') });
+const altRow = (a, raw, icao = 'CYQR') => ({ icao, role: 'ALT', taf: taf(raw), options: a.checkOptions(icao) });
+const OVC020 = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM OVC020';
+
+test('a no-IFR alternate (MEA 4500, elevation 1900) is hatched against the visual descent, not 600-2 (RED 1)', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'no-ifr', meaFt: 4500, elevationFt: 1900 } } });
+  const options = a.checkOptions('CYQR');
+  assert.ok(options.visualDescent, 'the descent is what checkOptions gives');
+  const m = model({ rows: [altRow(a, OVC020)] });
+  const [p] = m.rows[0].pieces;
+  assert.equal(p.below, true, 'a 2000 ft ceiling is under MEA + 500 ft - elevation = 3100 ft');
+  assert.match(p.label, /below/);
+  // The same TAF at an alternate with plain 600-2 is fine, so this really is the descent.
+  assert.equal(model({ rows: [altRow(airfields(), OVC020)] }).rows[0].pieces[0].below, false);
+  // And it is wx's own answer.
+  const hits = assessAlternate(taf(OVC020), { from: m.axis.from, to: m.axis.to }, options).hits;
+  assert.deepEqual(m.rows[0].pieces.filter((x) => x.below).map((x) => +x.fullFrom), hits.map((h) => +h.from));
+});
+
+test('a GNSS-only alternate with an MEA is hatched against the visual descent; without one, against its minima', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'gnss-only', meaFt: 4500, elevationFt: 1900 } } });
+  assert.ok(a.checkOptions('CYQR').visualDescent);
+  assert.equal(model({ rows: [altRow(a, OVC020)] }).rows[0].pieces[0].below, true);
+  const noMea = airfields();
+  noMea.update({ fields: { CYQR: { approach: 'gnss-only' } } });
+  assert.equal(noMea.checkOptions('CYQR').visualDescent, null);
+  assert.equal(model({ rows: [altRow(noMea, OVC020)] }).rows[0].pieces[0].below, false);
+});
+
+test('an alternate with approaches set is hatched against its own minima from checkOptions', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'non-precision' } } });
+  const raw = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM BKN007'; // meets 600-2, below every non-precision option
+  assert.equal(model({ rows: [altRow(a, raw)] }).rows[0].pieces[0].below, true);
+  assert.equal(model({ rows: [altRow(airfields(), raw)] }).rows[0].pieces[0].below, false);
+});
+
+test('a PROB piece below an alternate\'s minima is "unchecked", not "below", until landing minima are set (YELLOW 1)', () => {
+  const raw = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM SKC PROB30 2922/3002 1SM FG VV002';
+  const a = airfields();
+  const [, prob] = model({ rows: [altRow(a, raw)] }).rows[0].pieces;
+  assert.equal(prob.kind, 'PROB');
+  assert.deepEqual([prob.below, prob.unchecked], [false, true]);
+  assert.match(prob.label, /unchecked/);
+  assert.doesNotMatch(prob.label, /below/);
+  // With landing minima that the piece is under, it is below.
+  a.update({ fields: { CYQR: { approach: 'non-precision', lowestHatFt: 600, lowestVisSm: 2 } } });
+  assert.ok(a.checkOptions('CYQR').landingMinima);
+  const [, prob2] = model({ rows: [altRow(a, raw)] }).rows[0].pieces;
+  assert.deepEqual([prob2.below, prob2.unchecked], [true, false]);
+  // Home checks PROB against its own limits.
+  const [, homeProb] = model({ rows: [row('CYMJ', raw.replace('CYQR', 'CYMJ'), { limits: HOME_LIMITS })] }).rows[0].pieces;
+  assert.deepEqual([homeProb.below, homeProb.unchecked], [true, false]);
 });
 
 test('with no limits given a home row uses Local (MTCA) 2000/3 and an alternate uses 600-2', () => {
@@ -510,6 +584,17 @@ const sig = (extra = {}) => timelineSignature(model({
   waves: plan([{ name: 'W1', takeoff: '08:00', land: '09:30' }]),
   ...extra,
 }));
+
+test('a change to the weather under a piece changes the signature even when colour and times do not (YELLOW 2)', () => {
+  const a = model({ rows: [row('CYMJ', 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW040')] });
+  const b = model({ rows: [row('CYMJ', 'TAF CYMJ 291740Z 2918/3006 35025G50KT P6SM FEW040CB')] });
+  assert.equal(a.rows[0].pieces[0].nato, b.rows[0].pieces[0].nato);
+  assert.equal(a.rows[0].pieces[0].summary, '22010KT P6SM FEW040');
+  assert.equal(b.rows[0].pieces[0].summary, '35025G50KT P6SM FEW040CB');
+  assert.notEqual(timelineSignature(a), timelineSignature(b));
+  const wind = model({ rows: [row('CYMJ', 'TAF CYMJ 291740Z 2918/3006 24010KT P6SM FEW040')] });
+  assert.notEqual(timelineSignature(a), timelineSignature(wind));
+});
 
 test('the same inputs give the same signature, even when built again from scratch', () => {
   assert.equal(sig(), sig());

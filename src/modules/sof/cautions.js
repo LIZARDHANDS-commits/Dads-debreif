@@ -16,6 +16,7 @@
 // it returns it is new (SOF-4). A source that can't be read at all (no METAR,
 // no TAF) is not a caution that cleared, so its keys stay.
 
+import { assessAlternate } from '../../wx/alternates.js';
 import { localDate } from './waves.js';
 
 const VERSION = 1;
@@ -29,8 +30,13 @@ const two = (n) => String(n).padStart(2, '0');
 const isLimitReason = (r) => /^(CEILING|VIS) /.test(r);
 const isAtLimit = (r) => / AT LIMIT /.test(r);
 // "Below" reasons: the limit lines that are not the at-limit ones (a piece can be
-// below on one thing and exactly on the limit on another).
-const belowReasons = (reasons) => (Array.isArray(reasons) ? reasons : []).filter((r) => isLimitReason(r) && !isAtLimit(r));
+// below on one thing and exactly on the limit on another). Below is always at
+// least one caution: with no such line it is wx's first reason, else "Below limits".
+const belowReasons = (reasons) => {
+  const all = (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === 'string' && r);
+  const named = all.filter((r) => isLimitReason(r) && !isAtLimit(r));
+  return named.length ? named : [all[0] ?? 'Below limits'];
+};
 const cautionReasons = (reasons) => (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === 'string' && !isLimitReason(r));
 
 const LEVELS = {
@@ -178,6 +184,23 @@ export function tafResultsOfWaves(calls, homeIcao) {
   ]);
 }
 
+/**
+ * TAF cautions over a whole day, whatever the waves: each airfield's TAF is
+ * checked by wx over `day` (`{ from, to }`, the timeline's axis) and only wx's
+ * `cautions` are kept, in the form `cautionList` takes. Pieces below the limits
+ * are not taken here; they stay tied to the wave windows. A missing TAF gives
+ * wx's status ('no-taf') and no cautions, so its acknowledgements stay.
+ * `tafs` maps ICAO to wx's parsed TAF (or null), as `waveCalls` takes it.
+ */
+export function tafCautionsForDay({ tafs, day } = {}) {
+  if (tafs == null || typeof tafs !== 'object' || !validDate(day?.from) || !validDate(day?.to) || +day.to < +day.from) return [];
+  return Object.entries(tafs).map(([icao, taf]) => {
+    // Cautions don't depend on the minima, so wx's defaults are enough.
+    const { status, cautions } = assessAlternate(taf, { from: day.from, to: day.to }, {});
+    return { icao, result: { status, hits: [], cautions } };
+  });
+}
+
 // ---- Acknowledgements ---------------------------------------------------------------------
 
 /**
@@ -206,7 +229,7 @@ export function readAcks(stored, { now, timeZone } = {}) {
   const today = ackDay(now, timeZone);
   const good = stored != null && typeof stored === 'object' && !Array.isArray(stored)
     && stored.version === VERSION && (stored.day === null || typeof stored.day === 'string')
-    && validKeys(stored.keys) && stored.day === today;
+    && validKeys(stored.keys) && today !== null && stored.day === today;
   return good ? { version: VERSION, day: stored.day, keys: [...stored.keys] } : { version: VERSION, day: today, keys: [] };
 }
 
@@ -247,8 +270,10 @@ function readableSources(cards, tafs) {
  * today, and cleared of cautions that are no longer reported (so one that comes
  * back is new). `changed` says whether the result differs from what was stored,
  * so the caller writes only when it must (nothing stored counts as empty).
+ * With no readable day (no zone or clock) nothing is kept and `storable` is
+ * false: an acknowledgement with no day could never expire, so it isn't stored.
  *
- * Returns `{ cautions, fresh, acknowledged, acks, changed }`; every caution
+ * Returns `{ cautions, fresh, acknowledged, acks, changed, storable }`; every caution
  * has `acknowledged` true or false. Nothing passed in is changed.
  */
 export function evaluate({ cards, tafs, acks, now, timeZone } = {}) {
@@ -266,6 +291,7 @@ export function evaluate({ cards, tafs, acks, now, timeZone } = {}) {
     fresh: cautions.filter((c) => !c.acknowledged),
     acknowledged: cautions.filter((c) => c.acknowledged),
     acks: next,
-    changed: JSON.stringify(stored) !== JSON.stringify(next),
+    storable: current.day !== null,
+    changed: current.day !== null && JSON.stringify(stored) !== JSON.stringify(next),
   };
 }

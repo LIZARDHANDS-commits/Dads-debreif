@@ -12,7 +12,7 @@ import { homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternate
 import { cardModel } from '../../../src/modules/sof/cards.js';
 import { homeCall, alternateCall, waveCalls } from '../../../src/modules/sof/waves.js';
 import {
-  ackDay, emptyAcks, readAcks, cautionList, evaluate, acknowledge, acknowledgeAll, tafResultsOfWaves,
+  ackDay, emptyAcks, readAcks, cautionList, evaluate, acknowledge, acknowledgeAll, tafResultsOfWaves, tafCautionsForDay,
 } from '../../../src/modules/sof/cautions.js';
 import { METAR, HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
 
@@ -471,4 +471,91 @@ test('evaluate never changes the acks or cards it is given', () => {
   const r = evaluate({ cards, acks, ...ctx() });
   assert.equal(JSON.stringify({ cards, acks }), copy);
   assert.deepEqual(r.acks.keys, ['CYMJ|METAR|CB/TCU (FEW040CB)']);
+});
+
+// ---- Cautions from the TAF do not depend on waves (RED 2) -------------------------------------------------
+
+const DAY = { from: at(29, 6), to: at(30, 6) }; // Moose Jaw's 29 Sep
+const STORM_TAF = 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM SKC TEMPO 2922/3002 3SM TSRA BKN030CB';
+
+test('with no waves planned a TEMPO TSRA at home still raises a caution', () => {
+  assert.deepEqual(tafResultsOfWaves([], 'CYMJ'), [], 'no waves, no wave results');
+  const tafs = tafCautionsForDay({ tafs: { CYMJ: homeTaf(STORM_TAF) }, day: DAY });
+  const list = cautionList({ tafs });
+  assert.ok(list.length >= 1);
+  assert.ok(list.every((c) => c.level === 'caution' && c.group === 'TEMPO' && c.icao === 'CYMJ'));
+  assert.ok(list.some((c) => c.reason.startsWith('THUNDERSTORM')));
+  assert.equal(evaluate({ tafs, ...ctx() }).fresh.length, list.length);
+});
+
+test('the day check takes only wx\'s cautions: below-limit TAF pieces stay tied to the waves', () => {
+  const tafs = tafCautionsForDay({ tafs: { CYMJ: homeTaf(HOME_TAF.lowFromEvening), CYQR: homeTaf(ALT_TAF.fog) }, day: DAY });
+  const list = cautionList({ tafs });
+  assert.deepEqual(list.map((c) => [c.icao, c.level, c.reason]), [['CYQR', 'caution', 'SIGNIFICANT WX (FG)']], 'the fog is a caution; the low ceiling and visibility are not raised');
+  assert.ok(tafs.every((t) => t.result.hits.length === 0));
+});
+
+test('every airfield\'s TAF is checked over the day, and a missing TAF says so instead of clearing', () => {
+  const tafs = tafCautionsForDay({
+    tafs: { CYMJ: homeTaf(STORM_TAF), CYQR: homeTaf('TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 TEMPO 3000/3003 FZRA OVC010'), CYYN: null },
+    day: DAY,
+  });
+  assert.deepEqual(tafs.map((t) => t.icao), ['CYMJ', 'CYQR', 'CYYN']);
+  assert.equal(tafs[2].result.status, 'no-taf');
+  const list = cautionList({ tafs });
+  assert.deepEqual([...new Set(list.map((c) => c.icao))], ['CYMJ', 'CYQR']);
+  assert.ok(list.some((c) => c.icao === 'CYQR' && c.reason.startsWith('SIGNIFICANT WX (FZRA')));
+  const first = evaluate({ tafs, ...ctx() });
+  const acks = acknowledgeAll(first.acks, first.fresh);
+  assert.deepEqual(evaluate({ tafs, acks, ...ctx() }).fresh, []);
+});
+
+test('a TAF caution outside the displayed day is not raised, and the wave results and the day results agree on keys', () => {
+  const late = 'TAF CYMJ 291740Z 2918/3018 22010KT P6SM SKC TEMPO 3012/3015 3SM TSRA BKN030CB';
+  assert.deepEqual(cautionList({ tafs: tafCautionsForDay({ tafs: { CYMJ: homeTaf(late) }, day: DAY }) }), []);
+  const wave = homeResult(STORM_TAF, { from: at(29, 22), to: at(30, 1) });
+  const dayResults = tafCautionsForDay({ tafs: { CYMJ: homeTaf(STORM_TAF) }, day: DAY });
+  const both = [...dayResults, { icao: 'CYMJ', result: wave }];
+  assert.deepEqual(cautionList({ tafs: both }).map((c) => c.key), cautionList({ tafs: dayResults }).map((c) => c.key));
+});
+
+test('the day check never throws on nothing or a bad day', () => {
+  assert.deepEqual(tafCautionsForDay(), []);
+  assert.deepEqual(tafCautionsForDay({ tafs: { CYMJ: homeTaf(STORM_TAF) }, day: null }), []);
+  assert.deepEqual(tafCautionsForDay({ tafs: null, day: DAY }), []);
+});
+
+// ---- Below with no reason we can name (YELLOW 3) -----------------------------------------------------------------
+
+test('a card below limits with no CEILING or VIS reason still raises one caution', () => {
+  const odd = { icao: 'CYMJ', result: { level: 'below', reasons: ['SOMETHING ELSE'], stale: false }, cautionReasons: [], metar: { time: at(29, 18) } };
+  assert.deepEqual(cautionList({ cards: [odd] }).map((c) => [c.level, c.reason]), [['below', 'SOMETHING ELSE']]);
+  const empty = { ...odd, result: { level: 'below', reasons: [], stale: false } };
+  assert.deepEqual(cautionList({ cards: [empty] }).map((c) => [c.level, c.reason, c.key]), [['below', 'Below limits', 'CYMJ|METAR|Below limits']]);
+  const missing = { icao: 'CYMJ', result: { level: 'below' } };
+  assert.deepEqual(cautionList({ cards: [missing] }).map((c) => c.reason), ['Below limits']);
+});
+
+test('a TAF piece below limits with no CEILING or VIS reason still raises one caution', () => {
+  const piece = { kind: 'TEMPO', probability: null, tempo: false, from: at(29, 22), to: at(30, 1), group: 1, reasons: [] };
+  const list = cautionList({ tafs: [{ icao: 'CYMJ', result: { status: 'below', hits: [piece], cautions: [] } }] });
+  assert.deepEqual(list.map((c) => [c.level, c.group, c.reason]), [['below', 'TEMPO', 'Below limits']]);
+  const named = cautionList({ tafs: [{ icao: 'CYMJ', result: { status: 'below', hits: [{ ...piece, reasons: ['ODD REASON'] }], cautions: [] } }] });
+  assert.deepEqual(named.map((c) => c.reason), ['ODD REASON']);
+});
+
+// ---- No readable day: nothing is stored ----------------------------------------------------------------------------
+
+test('with no readable day acknowledgements are not kept, so they can never outlive the day', () => {
+  const noZone = { now: NOW, timeZone: undefined };
+  const stored = { version: 1, day: null, keys: ['CYMJ|METAR|X'] };
+  assert.deepEqual(readAcks(stored, noZone), { version: 1, day: null, keys: [] }, 'a null-day store is not honoured');
+  const first = evaluate({ cards: storm(), ...noZone });
+  const acks = acknowledgeAll(first.acks, first.fresh);
+  const again = evaluate({ cards: storm(), acks, ...noZone });
+  assert.equal(again.fresh.length, 2, 'nothing acknowledged carries over');
+  assert.equal(again.storable, false);
+  assert.equal(again.changed, false, 'and there is nothing to write');
+  assert.equal(evaluate({ cards: storm(), acks: stored, ...noZone }).changed, false);
+  assert.equal(evaluate({ cards: storm(), ...ctx() }).storable, true);
 });

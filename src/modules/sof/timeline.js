@@ -4,14 +4,18 @@
 //
 // Replaces V6's five timelines, which each read TAFs themselves. The pieces are
 // wx's `tafTimeline`, whole; the colour is wx's `natoColour`, and "below" is
-// wx's own limit check (`assessAlternate`'s hits over the day), so the timeline
-// can't disagree with the calls above it. Positions are fractions (0 to 1) of
-// the day's real length, so a clock-change day is still drawn true.
+// wx's own check over the day (`homeAlternateTrigger` for the home row,
+// `assessAlternate` with the alternate's whole `checkOptions` for an alternate:
+// its minima, landing minima and visual descent), so the timeline can't
+// disagree with the calls above it. A PROB piece wx leaves unchecked (below an
+// alternate's minima, with no landing minima to test it against) is labelled
+// "unchecked", never "below". Positions are fractions (0 to 1) of the day's
+// real length, so a clock-change day is still drawn true.
 
 import { utcOffsetMinutes, zoneAbbreviation, formatInZone } from '../../core/time.js';
 import { tafTimeline } from '../../wx/taf.js';
-import { assessAlternate } from '../../wx/alternates.js';
-import { natoColour, DEFAULT_LIMITS } from '../../wx/limits.js';
+import { assessAlternate, homeAlternateTrigger } from '../../wx/alternates.js';
+import { natoColour } from '../../wx/limits.js';
 import { HOUR_MS, MINUTE_MS } from '../../wx/dates.js';
 import { localDate, localToUtc } from './waves.js';
 
@@ -74,12 +78,27 @@ export function axisTicks({ from, to, timeZone, stepHours = 3, first = 'utc', sh
 
 // ---- Rows and pieces ----------------------------------------------------------------------------
 
-const isLimit = (m) => m != null && Number.isFinite(m.ceilingFt) && Number.isFinite(m.visSm);
+/**
+ * What wx says about the row over the day: the pieces below the limits (hits)
+ * and the PROB pieces it left unchecked. Home: the trigger limits (`limits`,
+ * one or a list; Local (MTCA) 2000/3 when none). Alternate: `options`, the
+ * whole `airfields.checkOptions(icao)` object, passed to wx as it is (a list
+ * given as `limits` counts as its `minima`; 600-2 when neither).
+ */
+function assessRow(entry, parsed, window) {
+  if (entry?.role === 'HOME') {
+    return { hits: homeAlternateTrigger(parsed, window, entry.limits).hits, unchecked: [] };
+  }
+  const options = entry?.options != null && typeof entry.options === 'object' ? entry.options
+    : entry?.limits != null ? { minima: entry.limits } : {};
+  const result = assessAlternate(parsed, window, options);
+  return { hits: result.hits, unchecked: result.probUnchecked };
+}
 
-/** One `{ ceilingFt, visSm }` or a list of equivalent options; the airfield's default when none is usable. */
-function limitsOf(entry) {
-  const list = (Array.isArray(entry?.limits) ? entry.limits : [entry?.limits]).filter(isLimit);
-  return list.length ? list : [entry?.role === 'HOME' ? DEFAULT_LIMITS.home : DEFAULT_LIMITS.alternate];
+// A compact reading of the weather under a piece, so a change to it changes what is drawn.
+function summary(c) {
+  const words = [c?.wind?.raw, c?.visibility?.raw, ...(c?.weather ?? []).map((w) => w.raw), ...(c?.sky ?? []).map((l) => l.raw)];
+  return words.filter(Boolean).join(' ');
 }
 
 const groupName = (piece) => {
@@ -89,16 +108,17 @@ const groupName = (piece) => {
 
 const pieceKey = (kind, group, from, to) => `${kind}|${group}|${+from}|${+to}`;
 
-function piecesOf(icao, parsed, axis, limits) {
+function piecesOf(icao, parsed, axis, entry) {
   const tl = tafTimeline(parsed);
   const flat = [
     ...tl.prevailing.map((p) => ({ lane: 'prevailing', kind: 'PREVAILING', ...p })),
     ...tl.overlays.map((o) => ({ lane: 'overlay', ...o })),
   ].filter((p) => +p.to > +axis.from && +p.from < +axis.to);
-  // Below is wx's: the pieces its alternate check calls hits over the day. PROB pieces
-  // are checked against the same limits, so every hatched piece says so.
-  const hits = new Set(assessAlternate(parsed, { from: axis.from, to: axis.to }, { minima: limits, landingMinima: limits })
-    .hits.map((h) => pieceKey(h.kind, h.group, h.from, h.to)));
+  // Below is wx's, over the whole day.
+  const found = assessRow(entry, parsed, { from: axis.from, to: axis.to });
+  const keys = (list) => new Set((list ?? []).map((h) => pieceKey(h.kind, h.group, h.from, h.to)));
+  const hits = keys(found.hits);
+  const unchecked = keys(found.unchecked);
   const span = +axis.to - +axis.from;
   return flat
     .sort((a, b) => +a.from - +b.from || (a.lane === b.lane ? 0 : a.lane === 'prevailing' ? -1 : 1) || a.group - b.group)
@@ -108,6 +128,7 @@ function piecesOf(icao, parsed, axis, limits) {
       const name = groupName(p);
       const nato = natoColour(p.conditions);
       const below = hits.has(pieceKey(p.kind, p.group, p.from, p.to));
+      const notChecked = !below && unchecked.has(pieceKey(p.kind, p.group, p.from, p.to));
       return {
         id: `${icao}:${p.lane}:${p.group}:${+p.from}`,
         lane: p.lane,
@@ -124,8 +145,10 @@ function piecesOf(icao, parsed, axis, limits) {
         clippedEnd: +p.to > +axis.to,
         nato,
         below,
-        label: [p.lane === 'prevailing' ? null : name, nato, below ? 'below' : null].filter(Boolean).join(' '),
-        text: `${name} ${dayHourZ(p.from)}–${dayHourZ(p.to)}: ${nato}${below ? ', below limits' : ''}`,
+        unchecked: notChecked,
+        label: [p.lane === 'prevailing' ? null : name, nato, below ? 'below' : null, notChecked ? 'unchecked' : null].filter(Boolean).join(' '),
+        text: `${name} ${dayHourZ(p.from)}–${dayHourZ(p.to)}: ${nato}${below ? ', below limits' : ''}${notChecked ? ', PROB unchecked: below the minima but not tested against landing minima' : ''}`,
+        summary: summary(p.conditions),
         conditions: p.conditions,
       };
     });
@@ -167,7 +190,7 @@ function rowModel(entry, axis) {
     validFrom: parsed.validFrom,
     validTo: parsed.validTo,
     coverage: covers ? { x0: (+from - +axis.from) / span, x1: (+to - +axis.from) / span, from, to } : null,
-    pieces: piecesOf(icao ?? '', parsed, axis, limitsOf(entry)),
+    pieces: piecesOf(icao ?? '', parsed, axis, entry),
   };
 }
 
@@ -202,11 +225,11 @@ function waveModel(wave, index, axis, timeZone) {
 /**
  * The timeline for one day at home.
  *
- * - `rows`: one per airfield, home first: `{ icao, role: 'HOME' | 'ALT', taf, limits?, metar? }`.
- *   `taf` is wx's parsed TAF (or null); `limits` is `{ ceilingFt, visSm }` or a
- *   list of equivalent options (home: the trigger limits; alternate: its
- *   minima), else Local (MTCA) 2000/3 for home and 600-2 for an alternate;
- *   `metar` is wx's parsed METAR, for the mark.
+ * - `rows`: one per airfield, home first: `{ icao, role: 'HOME' | 'ALT', taf, limits?, options?, metar? }`.
+ *   `taf` is wx's parsed TAF (or null); `metar` is wx's parsed METAR, for the mark.
+ *   Home: `limits`, `{ ceilingFt, visSm }` or a list (Local (MTCA) 2000/3 when none).
+ *   Alternate: `options`, the whole `airfields.checkOptions(icao)` object (minima,
+ *   landing minima, visual descent), which wx reads; 600-2 when none.
  * - `waves`: `planToUtc(...).waves`, as they are.
  * - `now` (a Date) and `timeZone` (the home field's IANA zone) are required:
  *   there is no hidden clock and no default zone. Without them nothing is
@@ -286,7 +309,7 @@ export function timelineSignature(model, { now = true } = {}) {
     model.axis.rows.map((r) => [r.zone, r.label, r.ticks.map((k) => [+k.at, k.label, k.dayLabel])]),
     model.rows.map((r) => [
       r.icao, r.role, r.state, t(r.validFrom), t(r.validTo), r.metar && [+r.metar.at, r.metar.label],
-      r.pieces.map((p) => [p.id, +p.from, +p.to, +p.fullFrom, +p.fullTo, p.nato, p.below, p.label]),
+      r.pieces.map((p) => [p.id, +p.from, +p.to, +p.fullFrom, +p.fullTo, p.nato, p.below, p.unchecked, p.label, p.text, p.summary]),
     ]),
     model.waves.map((w) => [w.name, +w.from, +w.to, +w.landing.at, +w.landingPlus1.at]),
     now ? (model.now ? model.now.minute : null) : 'off',
