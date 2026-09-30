@@ -17,6 +17,9 @@
 //   aircraft: [{ id, type, x, y, alt, kt, headingDeg, status, color? }]   only 'flying' ones are drawn
 //   conflicts: [{ a, b, latFt, vertFt, level: 'conflict' | 'caution' }]
 //   trails: { [aircraftId]: [{ x, y }] }
+//   legs:     [{ routeId, x, y, ft }]   where each leg's length is written (its middle) and how long it is,
+//                                       worked out by the engine. Without it, the map measures the
+//                                       straight legs between each route's points itself.
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
 
 export const MAP_MIN_SPAN_FT = 300;
@@ -174,6 +177,17 @@ export function legLabels(route) {
   return legsOf(route.points, route.kind === 'pattern').map(([a, b]) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, ft: distance(a, b) }));
 }
 
+/**
+ * The leg-length labels to draw, each with the colour of its route: the scene's own legs (from the
+ * engine), or, when the scene gives none, the straight legs between each route's points.
+ * Only routes that are showing have labels.
+ */
+export function legsToLabel(routes, legs) {
+  if (!legs) return routes.flatMap((route) => legLabels(route).map((leg) => ({ ...leg, color: route.color })));
+  const colours = new Map(routes.map((route) => [route.id, route.color]));
+  return legs.filter((leg) => colours.has(leg.routeId)).map((leg) => ({ ...leg, color: colours.get(leg.routeId) }));
+}
+
 // Shapes are drawn about (0, 0) with a nose at (0, -1), so a heading turns them clockwise from north.
 const AIRCRAFT_SHAPE = [[0, -1], [0.65, 0.7], [0, 0.35], [-0.65, 0.7]]; // V6 line 295
 const WIND_ARROW_SHAPE = [[0, -1], [0.5, -0.3], [0.18, -0.3], [0.18, 1], [-0.18, 1], [-0.18, -0.3], [-0.5, -0.3]];
@@ -265,19 +279,17 @@ export function drawScene(ctx, map, scene, settings, palette) {
     }
   }
   if (settings.layerLegDistances) {
-    for (const route of routes) {
-      for (const leg of legLabels(route)) {
-        const [x, y] = at(leg);
-        const label = feetText(leg.ft);
-        ctx.font = `700 11px ${FONT}`;
-        const w = ctx.measureText(label).width + 10;
-        ctx.fillStyle = palette.halo;
-        ctx.fillRect(x - w / 2, y - 10, w, 20);
-        ctx.strokeStyle = route.color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x - w / 2, y - 10, w, 20);
-        text(label, x, y + 4, palette.text, { bold: true, align: 'center' });
-      }
+    for (const leg of legsToLabel(routes, scene.legs)) {
+      const [x, y] = at(leg);
+      const label = feetText(leg.ft);
+      ctx.font = `700 11px ${FONT}`;
+      const w = ctx.measureText(label).width + 10;
+      ctx.fillStyle = palette.halo;
+      ctx.fillRect(x - w / 2, y - 10, w, 20);
+      ctx.strokeStyle = leg.color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - w / 2, y - 10, w, 20);
+      text(label, x, y + 4, palette.text, { bold: true, align: 'center' });
     }
   }
   if (settings.layerTurnData) {

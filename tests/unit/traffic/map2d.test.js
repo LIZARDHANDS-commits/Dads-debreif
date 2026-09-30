@@ -8,7 +8,7 @@ import { toScreen, visibleBounds } from '../../../src/ui-kit/canvas-view.js';
 import {
   HINT_TEXT, LEVEL_MARKS, TYPE_COLORS, MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT,
   paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnDataText, hintFor,
-  sceneBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels,
+  sceneBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
   turnedShape, aircraftSymbol, conflictLevels, isFlying, aircraftColor, drawScene, createMap2d,
 } from '../../../src/modules/traffic/map2d.js';
 
@@ -389,6 +389,18 @@ test('leg distances show on every route when asked, and not otherwise', () => {
   const written = draw({}, { layerLegDistances: true }).written();
   assert.ok(written.includes('3,000 ft'), 'a pattern leg');
   assert.ok(written.includes('6,000 ft'), 'the entry');
+});
+
+test('leg lengths come from the scene\'s legs when it gives them, and the map\'s own measuring is only the fallback', () => {
+  const legs = [{ routeId: 'p1', x: -1500, y: 3000, ft: 12_345 }, { routeId: 'gone', x: 0, y: 0, ft: 777 }];
+  const written = draw({ legs }, { layerLegDistances: true }).written();
+  assert.ok(written.includes('12,345 ft'), 'the engine\'s length');
+  assert.ok(!written.includes('3,000 ft'), 'not the map\'s own sum');
+  assert.ok(!written.includes('777 ft'), 'a leg of a route that isn\'t there is left out');
+  assert.ok(!draw({ legs }).written().includes('12,345 ft'), 'and only when Leg distances is on');
+  assert.deepEqual(legsToLabel([pattern], undefined).map((l) => [l.color, Math.round(l.ft)]), [[pattern.color, 3000], [pattern.color, 3000], [pattern.color, 3000], [pattern.color, 3000]]);
+  const hidden = draw({ routes: [{ ...pattern, visible: false }], legs }, { layerLegDistances: true }).written();
+  assert.ok(!hidden.includes('12,345 ft'), 'a hidden route has no labels');
 });
 
 test('turn data shows at the rounded points when asked, and not otherwise', () => {
