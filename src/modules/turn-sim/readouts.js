@@ -108,23 +108,44 @@ function withinPilotTolerance(c, spacingFt, spread) {
   return kept.length || !c.labels.length ? kept : ['ON SPACING'];
 }
 
-/** An aircraft this near Lead's line (feet across it) counts as in trail with the others on it. */
-const IN_TRAIL_LATERAL_FT = 500;
 const CHECK_TURN_NOT_JUDGED = 'the wingman corrects after a check turn';
 
 /**
- * The end of an In-place 90 (SMM ch.16 para 59, a reference only) is a trail, not a line abreast: each wingman is judged by its distance
- * in trail from the nearest aircraft on its own line, by the spread standard's band and the same 1 percent of the spacing as the other
- * turns. Returns the row's fields, or null when no aircraft is on its line (the line-abreast judge then applies).
+ * The aircraft each wingman is measured from at the end of an In-place 90, as core measures it at the start: Lead for #2 and #3, and #4 from #3.
+ * Never the nearest aircraft: with #3 and #4 both wide, #3's nearest aircraft is #4, and the two would read ON SPACING together.
+ * The offset box's #3 is the one exception (a judgement call, SPEC-turn-sim): the turn leaves the rear element 7,000 ft across from Lead, so no
+ * distance from Lead's track means anything, and the spread band is applied to the rear element's own trail, #3 from #4.
  */
-function trailRow(a, fleet, settings, std) {
-  const mates = fleet.filter((o) => o.id !== a.id && Math.abs(o.y - a.y) <= IN_TRAIL_LATERAL_FT);
-  if (!mates.length) return null;
-  const trailFt = Math.min(...mates.map((o) => Math.abs(o.x - a.x)));
+function trailReference(a, fleet, formation) {
+  const other = (id) => fleet.find((o) => o.id === id);
+  if (a.id === 4) return other(3) ?? fleet[0];
+  if (a.id === 3 && formation === 'offsetBox') return other(4) ?? fleet[0];
+  return fleet[0];
+}
+
+/**
+ * The end of an In-place 90 (SMM ch.16 para 59, a reference only) is a trail, not a line abreast: each wingman is judged by its distance
+ * in trail from its own reference aircraft (trailReference), along that aircraft's track, by the spread standard's band and the same 1 percent
+ * of the spacing as the other turns. The offset across its track is flagged only when it is wider than the standard's own FORE edge (plus the
+ * same 1 degree as N4), seen from the reference's tail: the same rule, worded as an offset across, not as FORE.
+ */
+function trailRow(a, fleet, settings, std, formation) {
+  const ref = trailReference(a, fleet, formation);
+  const dx = a.x - ref.x;
+  const dy = a.y - ref.y;
+  const along = dx * Math.cos(ref.hdg) + dy * Math.sin(ref.hdg);
+  const across = -dx * Math.sin(ref.hdg) + dy * Math.cos(ref.hdg);
+  const trailFt = Math.abs(along);
+  const acrossFt = Math.abs(across);
   const slack = SPACING_TOLERANCE * (settings.spacingFt > 0 ? settings.spacingFt : 0);
-  const { minFt, maxFt } = std.spread;
-  const labels = trailFt < minFt - slack ? ['TIGHT'] : trailFt > maxFt + slack ? ['WIDE'] : ['ON SPACING'];
-  return { labels, onSpacing: labels[0] === 'ON SPACING', trailFt };
+  const { minFt, maxFt, sweepMinDeg } = std.spread;
+  const labels = trailFt < minFt - slack ? ['TIGHT'] : trailFt > maxFt + slack ? ['WIDE'] : [];
+  const edgeDeg = (Number.isFinite(sweepMinDeg) ? sweepMinDeg : 0) + FORE_TOLERANCE_DEG;
+  const offAngleDeg = radToDeg(Math.atan2(acrossFt, trailFt));
+  const offset = acrossFt > 0 && offAngleDeg > edgeDeg;
+  if (offset) labels.push('OFFSET ACROSS');
+  if (!labels.length) labels.push('ON SPACING');
+  return { labels, onSpacing: labels[0] === 'ON SPACING', trailFt, acrossFt, offset, refId: ref.id };
 }
 
 /**
@@ -146,8 +167,8 @@ export function formationRows(state, settings, standards) {
     const key = judgedBy(a.id, settings.formation);
     if (!std[key]?.on) return { id: a.id, judged: false, labels: [], standard: key };
     if (ended && settings.maneuver === 'check30') return { id: a.id, judged: false, labels: [], standard: key, reason: CHECK_TURN_NOT_JUDGED };
-    const trail = ended && settings.maneuver === 'inplace90' ? trailRow(a, fleet, settings, std) : null;
-    if (trail) return { id: a.id, judged: true, standard: key, labels: trail.labels, onSpacing: trail.onSpacing, trailFt: trail.trailFt, intervalFt: null, foreAftFt: null, aftDistanceFt: null, lateralFromLeadFt: null, measureNote: null };
+    const trail = ended && settings.maneuver === 'inplace90' ? trailRow(a, fleet, settings, std, settings.formation) : null;
+    if (trail) return { id: a.id, judged: true, standard: key, labels: trail.labels, onSpacing: trail.onSpacing, trailFt: trail.trailFt, acrossFt: trail.acrossFt, offsetAcross: trail.offset, trailRefId: trail.refId, intervalFt: null, foreAftFt: null, aftDistanceFt: null, lateralFromLeadFt: null, measureNote: null };
     const c = classifyTurnSimPosition(a, fleet, settings.formation, std);
     const labels = key === 'spread' ? withinPilotTolerance(c, settings.spacingFt, std.spread) : c.labels;
     return {
@@ -184,7 +205,8 @@ export function formationLine(row, warning = null) {
   if (!row.judged) return { text: row.reason ? `Not judged: ${row.reason}` : 'Not judged (that standard is switched off)', tone: 'none' };
   if (row.trailFt != null) {
     const tailT = warning ? ` ${warning}.` : '';
-    return { text: `${row.labels.join(' / ')} in trail ${ft(row.trailFt)}${tailT}`, tone: row.onSpacing ? 'good' : 'caution' };
+    const across = row.offsetAcross ? `, ${ft(row.acrossFt)} across` : '';
+    return { text: `${row.labels.join(' / ')} in trail ${ft(row.trailFt)}${across}${tailT}`, tone: row.onSpacing ? 'good' : 'caution' };
   }
   const tail = warning ? ` ${warning}.` : '';
   if (row.onSpacing) return { text: `ON SPACING${tail}`, tone: 'good' };

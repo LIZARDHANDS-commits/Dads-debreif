@@ -382,3 +382,56 @@ test('N4 edge: the FORE tolerance is exact at 6,000 ft: 104 ft ahead (0.99 degre
   assert.deepEqual(row(formationRows(four({ 2: { xFt: 104 } }), settings), 2).labels, ['ON SPACING']);
   assert.deepEqual(row(formationRows(four({ 2: { xFt: 106 } }), settings), 2).labels, ['FORE']);
 });
+
+// R1: each wingman is judged in trail from its own reference aircraft, as core does at the start, not from the nearest mate.
+const endOf = (settings) => {
+  const run = createRun(settings);
+  while (run.step());
+  return run.state;
+};
+const withWide = (ids, wideFt) => Object.fromEntries(ids.flatMap((id) => [[`aircraft${id}.positionErrorOn`, true], [`aircraft${id}.lateralDir`, 'wide'], [`aircraft${id}.lateralFt`, wideFt]]));
+
+test('R1: a 4312 In-place 90 with #3 and #4 each 3,000 ft wide ends with #3 WIDE (about 9,000 ft from Lead), and #4 ON SPACING from #3', () => {
+  const settings = { ...DEFAULTS, formation: 'weighted', maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0, ...withWide([3, 4], 3000) };
+  const rows = readoutsAt(endOf(settings), settings).rows;
+  assert.deepEqual(row(rows, 3).labels, ['WIDE']);
+  assert.equal(row(rows, 3).line.text, 'WIDE in trail 9,000 ft');
+  assert.deepEqual(row(rows, 4).labels, ['ON SPACING']); // 6,000 ft behind #3, its own reference
+  assert.deepEqual(row(rows, 2).labels, ['ON SPACING']);
+});
+
+// Y3: no 500 ft cliff. Once the turn is done every In-place 90 wingman reads in trail against its reference; the offset across is flagged only past the FORE edge's angle.
+test('Y3: #2 turning 3 s late reads in trail terms with its offset across, not TIGHT / FORE (4312, two-ship, box)', () => {
+  for (const formation of ['weighted', 'twoShip', 'offsetBox']) {
+    const settings = { ...DEFAULTS, formation, maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0, 'aircraft2.delayErrSec': 3 };
+    const two = readoutsAt(endOf(settings), settings).rows.find((r) => r.id === 2);
+    assert.match(two.line.text, /in trail [\d,]+ ft, [\d,]+ ft across/, formation);
+    assert.ok(two.labels.includes('OFFSET ACROSS'), formation);
+    assert.ok(!two.labels.includes('FORE') && !two.labels.includes('AFT'), formation);
+    assert.equal(two.line.tone, 'caution');
+  }
+});
+
+test('Y3: the offset across is flagged past the FORE edge angle plus 1 degree, from the reference\'s tail, and not before', () => {
+  const done = (across) => ({ ...state([ac(1, 0, 0), ac(2, 6000, across)], 30), turnComplete: true });
+  // Default standard: the FORE edge is 0 degrees, so 1 degree of tolerance: 6,000 ft x tan(1 degree) = 104.7 ft.
+  assert.deepEqual(formationRows(done(104), IN_PLACE)[0].labels, ['ON SPACING']);
+  assert.deepEqual(formationRows(done(-104), IN_PLACE)[0].labels, ['ON SPACING']);
+  assert.deepEqual(formationRows(done(106), IN_PLACE)[0].labels, ['OFFSET ACROSS']);
+  assert.equal(formationLine(formationRows(done(-300), IN_PLACE)[0]).text, 'OFFSET ACROSS in trail 6,000 ft, 300 ft across');
+  assert.deepEqual(formationRows(done(1000), { ...IN_PLACE, spacingFt: 6000 }, DEFAULT_STANDARDS)[0].labels, ['OFFSET ACROSS']); // far across: still in trail terms, never the 500 ft cliff
+  const tight = formationRows(done(300), IN_PLACE)[0];
+  assert.equal(formationLine({ ...tight, labels: ['TIGHT', 'OFFSET ACROSS'] }).text.startsWith('TIGHT / OFFSET ACROSS in trail'), true);
+});
+
+test('R1: 6,000 ft wide (#3 12,000 ft from Lead) is WIDE too, in 4312 and 2134, and the box judges #2 from Lead, #4 from #3 and #3 from its rear-element mate #4', () => {
+  for (const formation of ['weighted', 'weightedReverse']) {
+    const settings = { ...DEFAULTS, formation, maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0, ...withWide([3, 4], 6000) };
+    const rows = readoutsAt(endOf(settings), settings).rows;
+    assert.equal(row(rows, 3).line.text, 'WIDE in trail 12,000 ft', formation);
+    assert.deepEqual(row(rows, 4).labels, ['ON SPACING'], formation);
+  }
+  const box = { ...DEFAULTS, formation: 'offsetBox', maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0, ...withWide([4], 3000) };
+  const rows = readoutsAt(endOf(box), box).rows;
+  assert.deepEqual([2, 3, 4].map((id) => row(rows, id).trailRefId), [1, 4, 3]);
+});
