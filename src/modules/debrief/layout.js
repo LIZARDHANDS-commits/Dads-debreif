@@ -11,7 +11,7 @@ import { createReadoutsPanel } from './readouts-panel.js';
 import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
 import { ROUTES } from './data/routes.js';
 import { VNC_ALIGN_LIMITS, VNC_DEFAULT_ALIGN } from './map2d/vnc.js';
-import { ESRI_IMAGERY } from './map2d/tiles.js';
+import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { CAMERA_LIMITS } from './view3d/frame.js';
 import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';

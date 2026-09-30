@@ -2,7 +2,7 @@
 
 The home screen and the frame around every module (spec: `specs/SPEC-shell.md`).
 
-- `registry.js`: the list of module cards. **When a module is built,** set its `load` to `() => import('../modules/<id>/index.js')` and its card becomes clickable.
+- `registry.js`: the list of module cards. **When a module is built,** set its `load` to `() => import('../modules/<id>/index.js')` and its card becomes clickable. A module with `prototype: true` shows a PROTOTYPE badge on its card until the combined sign-off (D135); remove the flag then.
 - `router.js`: turns the address (`#/`, `#/about`, `#/<module-id>`) into a page.
 - `examples.js`: `app.exampleText(asset)`, the example flight's track files from `public/examples/` (gzipped, un-gzipped in the browser).
 - `host.js`: opens one module at a time and cleans up everything it started when it closes.

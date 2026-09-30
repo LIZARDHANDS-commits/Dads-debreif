@@ -59,7 +59,7 @@ test('choosing still pictures turns transitions off too', async ({ page }) => {
   await openRoute(page, '#/');
   const duration = () => page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-duration')));
   expect(await duration()).toBeGreaterThan(0);
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Card videos').selectOption('reduced');
   expect(await duration()).toBe(0);
 });

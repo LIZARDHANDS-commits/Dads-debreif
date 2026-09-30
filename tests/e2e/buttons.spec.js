@@ -54,7 +54,7 @@ for (const route of ROUTES) {
 
 test('the Settings dialog controls change settings, and Done closes it', async ({ page }) => {
   await openRoute(page, '#/');
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Local first, Zulu beside it').check();
   await page.getByLabel('Card videos').selectOption('reduced');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('ooda:v1:app:settings')).values);
