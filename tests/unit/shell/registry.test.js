@@ -30,3 +30,11 @@ test('findModule and isBuilt', () => {
   assert.equal(isBuilt({ load: null }), false);
   assert.equal(isBuilt({ load: () => {} }), true);
 });
+
+test('card videos follow the motion setting, or the computer when set to follow it', async () => {
+  const { motionAllowed } = await import('../../../src/shell/home.js');
+  assert.equal(motionAllowed('system', false), true);
+  assert.equal(motionAllowed('system', true), false);
+  assert.equal(motionAllowed('on', true), true);
+  assert.equal(motionAllowed('off', false), false);
+});

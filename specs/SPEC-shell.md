@@ -23,7 +23,7 @@ The browser's Back and Forward buttons move between these.
 
 **Home screen:** the title "DAD's OODA LOOP" (D27), then one card per module in `src/shell/registry.js`, in build order: Debrief, Formation Turn Sim, Turn Fight, Traffic Pattern Sim, SOF Dashboard, then About. A module that isn't built yet shows as a plain card marked "Coming soon". It isn't a button and can't be clicked (R3). PT-PT Sim and the Briefing Board don't appear (R19).
 
-**Card videos:** each built module's card plays its V6 loop, re-encoded silent (D9, about 2.3 MB for all of them, R15). A video loads only when its card is on screen, plays only while visible, and doesn't play at all when the user or the system asks for reduced motion (#41). Until a module is built, its card shows a still frame instead.
+**Card videos:** each module's card plays its V6 loop, re-encoded silent at 640 px (D9, R15; about 1 MB for all five, made by `tools/make_card_media.py`). A card shows a still until its video is needed. A video loads only when its card is on screen, plays only while visible, and doesn't play at all when the user or the system asks for reduced motion (#41).
 
 **Header** (on every screen): the title (links home), the time, Settings, and Report a problem.
 

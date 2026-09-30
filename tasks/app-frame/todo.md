@@ -16,7 +16,7 @@
   - Acceptance: router, registry and host unit tests in SPEC-shell.md pass, including clean unmount of a fake module.
   - Verify: `npm test`
   - Files: src/shell/router.js, src/shell/registry.js, src/shell/host.js, tests/unit/shell/*.test.js
-- [ ] **5. Shell screens.** home, About, header, Settings dialog, Report a problem form, footer version.
+- [x] **5. Shell screens.** home, About, header, Settings dialog, Report a problem form, footer version.
   - Acceptance: every route in SPEC-shell.md renders; Coming soon cards aren't buttons.
   - Verify: `npm run dev` and look; e2e smoke test.
   - Files: index.html, src/app.js, src/shell/home.js, about.js, header.js, settings-dialog.js, .github/ISSUE_TEMPLATE/problem.yml

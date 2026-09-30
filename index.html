@@ -4,21 +4,34 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="DAD's OODA LOOP: T-6 formation debrief, turn and traffic simulators, and SOF weather tools.">
+    <meta name="theme-color" content="#020a10">
     <title>DAD's OODA LOOP</title>
-    <style>
-      /* Placeholder until the shell lands (tasks/app-frame/todo.md, task 5). */
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #020a10; color: #e3eef5; font: 16px/1.5 system-ui, sans-serif; }
-      main { max-width: 36rem; padding: 2rem; text-align: center; }
-      h1 { letter-spacing: 0.08em; }
-      p { color: #9bb8c6; }
-    </style>
+    <link rel="stylesheet" href="./src/ui-kit/tokens.css">
+    <link rel="stylesheet" href="./src/ui-kit/base.css">
+    <link rel="stylesheet" href="./src/shell/shell.css">
   </head>
   <body>
-    <main id="view">
-      <h1>DAD's OODA LOOP</h1>
-      <p>The new version is being built, one module at a time.</p>
-      <p><small>Version <span id="app-version">dev</span></small></p>
-    </main>
+    <a class="skip-link" href="#view">Skip to content</a>
+    <header class="app-header">
+      <a class="brand" href="#/">DAD's OODA LOOP</a>
+      <nav class="app-nav" aria-label="Main">
+        <a href="#/">Home</a>
+        <a href="#/about">About</a>
+      </nav>
+      <div class="app-clock" id="app-clock" aria-live="off" hidden></div>
+      <div class="app-actions">
+        <button type="button" id="open-settings">Settings</button>
+        <a class="button" id="report-problem" href="#" target="_blank" rel="noopener noreferrer">Report a problem</a>
+      </div>
+    </header>
+    <p class="notice route-notice" id="route-notice" role="status" hidden></p>
+    <main id="view" tabindex="-1"></main>
+    <p class="status-line" id="module-status" role="status" aria-live="polite" hidden></p>
+    <footer class="app-footer">
+      <span>Version <span id="app-version">dev</span></span>
+      <a href="https://github.com/LIZARDHANDS-commits/Dads-debreif" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+    </footer>
+    <noscript><p class="notice">DAD's OODA LOOP needs JavaScript turned on.</p></noscript>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

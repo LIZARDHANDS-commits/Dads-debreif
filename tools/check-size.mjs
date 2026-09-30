@@ -42,9 +42,15 @@ function allFiles(dir) {
 
 export function measure(distDir) {
   const home = homeFiles(distDir).map((f) => ({ file: f, bytes: statSync(join(distDir, f)).size }));
-  const media = allFiles(join(distDir, 'media', 'cards'))
-    .filter((f) => /\.(webm|mp4)$/i.test(f))
-    .map((f) => ({ file: relative(distDir, f), bytes: statSync(f).size }));
+  // A browser downloads one format per card (WebM, or the MP4 fallback), so
+  // each card counts at the size of its larger file.
+  const byCard = new Map();
+  for (const f of allFiles(join(distDir, 'media', 'cards')).filter((f) => /\.(webm|mp4)$/i.test(f))) {
+    const card = f.replace(/\.(webm|mp4)$/i, '');
+    const bytes = statSync(f).size;
+    if (!byCard.has(card) || byCard.get(card).bytes < bytes) byCard.set(card, { file: relative(distDir, f), bytes });
+  }
+  const media = [...byCard.values()];
   const sum = (list) => list.reduce((n, x) => n + x.bytes, 0);
   return {
     home,
