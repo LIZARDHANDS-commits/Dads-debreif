@@ -99,3 +99,11 @@ test('starting straight up: the heading it started with says which way is back o
   assert.ok(f.climbRad < Math.PI / 2 && f.climbRad > 0, 'nose coming down from vertical');
   near(after.vy, 0, 1e-9, 'in the vertical plane');
 });
+
+test('exactly straight up, with no horizontal speed at all: the last up is carried across', () => {
+  const v = 200 * KT_TO_FTPS;
+  const s = { x: 0, y: 0, z: 10000, vx: 0, vy: 0, vz: v, up: { x: -1, y: 0, z: 0 } };
+  const f = pointMassFlight(stepPointMass(s, { g: 3, bankRad: 0 }, 0.02));
+  assert.ok(Number.isFinite(f.ktas), 'no NaN');
+  near(Math.abs(f.headingRad), Math.PI, 1e-9, 'pulling towards its up, the west');
+});

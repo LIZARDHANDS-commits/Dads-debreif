@@ -221,6 +221,7 @@ test('zoomT6A between and beyond the table: the same share of the ideal energy h
   const gains = [150.1, 175, 200, 220, 250, 280].map((k) => zoomT6A(k, 3500).gainFt);
   for (let i = 1; i < gains.length; i++) assert.ok(gains[i] > gains[i - 1], `rises with speed: ${gains.join(', ')}`);
   near(zoomT6A(220, 3500).gainFt, 959, 1, 'about 960 ft from 220 KIAS at 3,500 ft');
+  near(zoomT6A(280, 3500).gainFt, 1830.5, 0.5, 'above 250 KIAS: 250\'s share');
   assert.equal(zoomT6A(150, 3500).gainFt, 0, 'at or below 150 KIAS the NFM decelerates level');
   near(zoomT6A(200, 2250).gainFt, (zoomT6A(200, 1500).gainFt + zoomT6A(200, 3000).gainFt) / 2, 1e-9, 'straight line between altitudes');
   assert.ok(zoomT6A(250, 10000).gainFt > zoomT6A(250, 6000).gainFt, 'higher than the table: the same share of a bigger energy height');
@@ -230,6 +231,11 @@ test('zoomT6A between and beyond the table: the same share of the ideal energy h
 test('zoomT6A time and distance come from flying the NFM procedure in the model', () => {
   const z = zoomT6A(200, 500, 5400);
   const flown = flyZoomT6A(200, 500);
+  // Pinned, so a change to the flown procedure (the 2 G pull, holding 20°) shows.
+  near(flown.gainFt, 635.67, 0.5, 'height, 200 KIAS at 500 ft');
+  near(flown.timeSec, 13.04, 0.011, 'time');
+  near(flown.distanceFt, 3558.6, 1, 'distance');
+  near(flyZoomT6A(250, 6000).gainFt, 1486.03, 0.5, 'height, 250 KIAS at 6,000 ft');
   assert.equal(z.timeSec, flown.timeSec);
   assert.equal(z.distanceFt, flown.distanceFt);
   assert.ok(z.timeSec > 10 && z.timeSec < 16, `200 KIAS: ${z.timeSec.toFixed(1)} s`);
