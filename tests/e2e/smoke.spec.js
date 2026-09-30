@@ -1,10 +1,60 @@
 import { test, expect } from './fixtures.js';
+import { openRoute } from './routes.js';
 
-test('home page opens with its title and build version @smoke', async ({ page }) => {
-  await page.goto('./');
+test('home lists the five modules as coming soon, plus About @smoke', async ({ page }) => {
+  await openRoute(page, '#/');
   await expect(page).toHaveTitle("DAD's OODA LOOP");
   await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
+  const cards = page.locator('.card');
+  await expect(cards).toHaveCount(6);
+  await expect(page.locator('.card.is-planned')).toHaveCount(5);
+  await expect(page.locator('.card.is-planned a, a.card.is-planned')).toHaveCount(0); // not clickable (R3)
+  await expect(page.getByText('PT-PT', { exact: false })).toHaveCount(0); // R19
+  await expect(page.getByText('Briefing Board', { exact: false })).toHaveCount(0);
+});
+
+test('About opens from its card and links back home @smoke', async ({ page }) => {
+  await openRoute(page, '#/');
+  await page.locator('a.card-about').click();
+  await expect(page).toHaveURL(/#\/about$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await page.getByRole('link', { name: '← Home' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
+});
+
+test('a module that is not built yet says so and shows home @smoke', async ({ page }) => {
+  await openRoute(page, '#/sof');
+  await expect(page.locator('#route-notice')).toHaveText('SOF Dashboard is coming soon.');
+  await expect(page.locator('.home')).toBeVisible();
+});
+
+test('an unknown address says so and shows home', async ({ page }) => {
+  await openRoute(page, '#/ptpt');
+  await expect(page.locator('#route-notice')).toContainText('no page at "ptpt"');
+});
+
+test('the footer shows the build version, and Report a problem carries it @smoke', async ({ page }) => {
+  await openRoute(page, '#/about');
   const version = await page.locator('meta[name="app-version"]').getAttribute('content');
   expect(version).toMatch(/^\d{4}-\d{2}-\d{2} \S+$/);
   await expect(page.locator('#app-version')).toHaveText(version);
+  const href = await page.locator('#report-problem').getAttribute('href');
+  const url = new URL(href);
+  expect(url.pathname).toBe('/LIZARDHANDS-commits/Dads-debreif/issues/new');
+  expect(url.searchParams.get('page')).toBe('About Dad');
+  expect(url.searchParams.get('version')).toBe(version);
+});
+
+test('Settings changes the time order and it survives a reload @smoke', async ({ page }) => {
+  await openRoute(page, '#/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Local first, Zulu beside it').check();
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(dialog).toBeHidden();
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Local first, Zulu beside it')).toBeChecked();
+  await expect(page.locator('.settings-dialog .notice')).toBeHidden();
 });

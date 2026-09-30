@@ -1,0 +1,35 @@
+name: Report a problem
+description: Something in DAD's OODA LOOP doesn't work or shows a wrong number.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting it. A sentence or two is plenty.
+  - type: input
+    id: page
+    attributes:
+      label: Which part of the tool?
+      description: Filled in for you when you use the button in the app.
+      placeholder: Debrief Viewer
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we see it too?
+      description: The steps you took, and the track file or settings if it matters.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and computer
+      placeholder: Chrome on Windows laptop
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Filled in for you when you use the button in the app.

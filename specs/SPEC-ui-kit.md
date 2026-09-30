@@ -10,7 +10,7 @@ One shared look and one set of building blocks, so modules stop fighting over th
 
 `src/ui-kit/tokens.css`: colours, spacing, type and radii as CSS custom properties, taken from V6's palette (dark navy background, cyan accent). No module defines its own colours for shared things.
 
-`src/ui-kit/base.css`: page reset, typography, buttons, links, focus outlines, form controls, the `[hidden]` rule, and a `prefers-reduced-motion` rule. No `!important` anywhere in `src/` (checked by a test).
+`src/ui-kit/base.css`: page reset, typography, buttons, links, focus outlines, form controls, the `[hidden]` rule, and a `prefers-reduced-motion` rule. Transitions and animations take their length from the `--motion-duration` token, which is 0 when the computer asks for reduced motion or the Settings choice is "Show still pictures only" (`data-motion` on `<html>`). No `!important` anywhere in `src/` (checked by a test).
 
 `src/ui-kit/dom.js`: `h(tag, props, ...children)` builds elements. Text always goes in as text, never as HTML, so a track name or DFP label can't break the page (#25).
 
@@ -29,12 +29,14 @@ scheduler.stats();                         // { frames, timers } still active
 - One `requestAnimationFrame` loop for the whole app, running only while at least one frame callback exists.
 - Every frame callback and timer belongs to a scope. The shell gives each module its own scope and disposes it when the module closes, so nothing a module started can outlive it (R4).
 - A callback that throws is reported once to the console and removed, so one bad callback can't stop the others.
-- `createScheduler({ raf, caf, setTimeout, clearTimeout, now })` accepts fakes, so it's unit-tested in Node.
+- `createScheduler({ raf, caf, setTimeout, clearTimeout, onError })` accepts fakes, so it's unit-tested in Node. Frame times come from `requestAnimationFrame` itself.
 - No `setInterval` or `requestAnimationFrame` anywhere else in `src/` (checked by a test).
 
 `src/ui-kit/panel.js`: `createPanel({ title, collapsed, onToggle })` makes a collapsible section whose header is a real `<button>` with `aria-expanded`. Collapsing a panel never hides another panel's controls, and there are no side rails or Tab-key tricks.
 
 Later, when the first module needs them: `controls.js` (binds inputs to settings, so math never reads input boxes) and `canvas-view.js` (pan and zoom for the 2D views).
+
+Number controls in `controls.js` accept only finite numbers inside each control's own range. Anything else (blank, `Infinity`, a huge value) is refused with a message beside the box and the setting keeps its last good value. V6's angle loops never return for `Infinity`, so a huge Turn Sim start heading could freeze the page (from the flight math workstream, PR #51).
 
 ## Boundaries
 
