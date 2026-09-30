@@ -10,4 +10,4 @@ A browser-based T-6 flight training suite (debrief viewers, BFM, formation sim, 
 - Work spec-first: see `.claude/skills/spec-driven-development`. Specs live in `SPEC.md` (module map) and `specs/SPEC-<module>.md`.
 
 ## Skills in this repo
-Vetted copies from addyosmani/agent-skills (MIT) at commit 2686b62: spec-driven-development, planning-and-task-breakdown, incremental-implementation, test-driven-development, code-simplification, code-review-and-quality, debugging-and-error-recovery. Which skill to use in each phase, and which ones to add later, is in `.claude/skills/README.md`. Update them deliberately, reading any diff first.
+Vetted copies from addyosmani/agent-skills (MIT) at commit 2686b62: spec-driven-development, planning-and-task-breakdown, incremental-implementation, test-driven-development, code-simplification, code-review-and-quality, debugging-and-error-recovery, frontend-ui-engineering. Which skill to use in each phase, and which ones to add later, is in `.claude/skills/README.md`. Update them deliberately, reading any diff first.

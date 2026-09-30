@@ -14,6 +14,9 @@ Each module (shell, core, wx, flight-data, debrief, Turn Sim, Turn Fight, Traffi
 | Something breaks (red CI, golden mismatch, browser error) | debugging-and-error-recovery | |
 | PR review | code-review-and-quality | `/code-review`, `/security-review` |
 | Polish | code-simplification | `/simplify` |
+| Any screen (ui-kit, shell, module pages) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | `/run` |
+
+frontend-ui-engineering covers keyboard access, labelled controls, empty, error and stale states, colour never being the only signal (SOF cautions), and design tokens instead of `!important`. Its examples are React/Tailwind and mobile-first: take the rules, not the code, and target desktop.
 
 Note: code-review-and-quality links to `security-checklist.md` and `performance-checklist.md` under `.claude/references/`. Those are not vendored yet; they arrive with the skills below that need them.
 
@@ -21,7 +24,6 @@ Note: code-review-and-quality links to `security-checklist.md` and `performance-
 
 | When | Skill | Why, and what doesn't apply |
 |---|---|---|
-| ui-kit and each module screen | frontend-ui-engineering (+ accessibility-checklist) | Keyboard access, labelled controls, empty/error/stale states, colour never the only signal (SOF cautions), design tokens instead of `!important`. Its examples are React/Tailwind and mobile-first: take the rules, not the code, and target desktop. |
 | flight-data (opening KML files) and SOF (live feeds) | security-and-hardening (+ security-checklist) | A KML or weather reply is untrusted text: never put it into `innerHTML`, check it where it enters, audit dependencies, set a CSP. Most of the skill (logins, databases, rate limits) doesn't apply to a static site. |
 | After the first GitHub Pages deploy | performance-optimization (+ performance-checklist) | Load time and bundle size against V6's 119 MB, media budgets, offline cache size. |
 | Switchover from V6 | shipping-and-launch | Its pre-launch checklist and rollback plan. Feature flags and staged rollouts are overkill here. |
