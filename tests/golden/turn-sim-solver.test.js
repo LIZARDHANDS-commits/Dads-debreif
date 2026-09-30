@@ -5,7 +5,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
-import { solveSpacing } from '../../src/modules/turn-sim/engine/solver.js';
+import { createRun } from '../../src/modules/turn-sim/engine/run.js';
+import { solveSpacing, trialRun } from '../../src/modules/turn-sim/engine/solver.js';
 import { v6Solver } from './turn-sim-v6-solver.js';
 import { v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 
@@ -96,6 +97,53 @@ test('the mode and the target can be given, and default to the Solver card\'s se
   assert.equal(a.mode, 'g');
   assert.equal(a.targetFt, 8000);
   assert.throws(() => solveSpacing(settings, { mode: 'nope' }));
+});
+
+test('the port\'s own readout says the spacing is scored at the Duration; V6\'s string stays what the golden pins', () => {
+  const r = solveSpacing(solverScenario({ solveFor: 'delay', durationSec: 47.3, targetSpacingFt: 5000 }));
+  assert.equal(r.scoredAtSec, 47.3);
+  assert.equal(r.readout, `Best delay: ${r.valueText} sec. Error: ${r.errText} ft from 5000 ft, scored at Duration (47.3 s)`);
+  assert.ok(!r.readout.includes('<'), 'plain text, no markup');
+  // V6's string is still what valueText, unit and errText make.
+  assert.equal(`Best delay: <b>${r.valueText}</b>${r.unit}<br>Error: ${r.errText} ft`, v6Solver(solverScenario({ solveFor: 'delay', durationSec: 47.3, targetSpacingFt: 5000 })).html);
+});
+
+// Under Timing = auto the port works the auto step out afresh for every trial (D44: spacing / speed x cot(half the turn)).
+// V6 read stale page state there (computeAutoDelay is not called by its sweep), so V6 is not the reference: these tests
+// say what the port does. See the spec's list of where it differs from V6.
+const endingSpacing = (run, steps) => {
+  for (let k = 0; k < steps; k++) run.step();
+  const at = (id) => run.state.aircraft.find((a) => a.id === id);
+  const other = run.state.aircraft.length === 2 ? at(2) : at(3);
+  return Math.hypot(at(1).xFt - other.xFt, at(1).yFt - other.yFt);
+};
+
+test('auto timing, solving for the delay: the base delay is not used, so all 60 trials are identical', () => {
+  for (const formation of ['weighted', 'twoShip']) {
+    const r = solveSpacing(solverScenario({ solveFor: 'delay', timing: 'auto', formation }));
+    assert.equal(new Set(r.trials.map((t) => t.endingFt)).size, 1, formation);
+    assert.equal(r.value, -5, 'the first of equal trials wins');
+  }
+});
+
+test('auto timing, solving for the spacing: each trial is a run at that spacing with its own auto step', () => {
+  const settings = solverScenario({ solveFor: 'spacing', timing: 'auto', formation: 'weighted' });
+  const r = solveSpacing(settings);
+  const steps = +settings.durationSec / 0.05;
+  const autoSteps = [];
+  for (const i of [0, 1, 17, 30, 59]) {
+    const t = r.trials[i];
+    const run = createRun({ ...settings, spacingFt: t.value, durationCoversTurn: false });
+    autoSteps.push(run.state.autoStepSec);
+    assert.equal(t.endingFt, endingSpacing(run, steps), `trial ${i}`);
+  }
+  assert.ok(autoSteps.every(Number.isFinite) && new Set(autoSteps).size === autoSteps.length, 'the auto step follows the trial\'s spacing');
+});
+
+test('a trial run has no crossings preview: reading state.crossings never flies a copy of a 1e9 s run', () => {
+  const run = trialRun(solverScenario({}), 'baseDelaySec', 3);
+  assert.deepEqual(run.state.crossings, []);
+  assert.deepEqual(run.state.closePasses, []);
 });
 
 test('the solver leaves the settings alone', () => {

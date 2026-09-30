@@ -33,11 +33,18 @@ function endingSpacingFt(state) {
   return Math.hypot(lead.xFt - other.xFt, lead.yFt - other.yFt);
 }
 
+/**
+ * The run of one trial, not yet stepped. V6 flew exactly Duration / step steps and the Duration never grew to cover the
+ * turn, so the run is told not to stop or extend (the steps are counted by the caller). It has no crossings preview
+ * (noPreview): that preview flies a whole copy of the run, which with this Duration would never end.
+ */
+export function trialRun(settings, key, value) {
+  return createRun({ ...settings, [key]: value, durationCoversTurn: false, durationSec: 1e9 }, { noPreview: true });
+}
+
 /** One trial: the whole Duration flown with `value` in place of the setting, and the spacing it ends with. */
 function trialEndingFt(settings, key, value) {
-  // V6 flew exactly Duration / step steps and the Duration never grew to cover the turn, so the run is told not to stop
-  // or extend and the steps are counted here.
-  const run = createRun({ ...settings, [key]: value, durationCoversTurn: false, durationSec: 1e9 });
+  const run = trialRun(settings, key, value);
   const steps = +settings.durationSec / STEP_SEC;
   for (let k = 0; k < steps; k++) run.step();
   return endingSpacingFt(run.state);
@@ -52,8 +59,10 @@ function trialEndingFt(settings, key, value) {
  *
  * Returns { mode, targetFt, value, errFt, unit, valueText, errText, trials } where value is the best trial's value in the
  * unit of the mode (seconds, feet or G), errFt is how far its ending spacing is from the target, valueText and errText are
- * V6's readout (value to 2 decimals, or none for feet; error rounded to a foot), and trials is every trial
- * { value, endingFt, errFt } in the order tried.
+ * V6's readout (value to 2 decimals, or none for feet; error rounded to a foot), scoredAtSec is the Duration the ending
+ * spacing is read at (as in V6, the spacing at the end of the run, not at the turn's rollout), readout is the plain-text
+ * line for the screen that says so ("... scored at Duration (75 s)"; V6's own wording said only "Error"), and trials is
+ * every trial { value, endingFt, errFt } in the order tried.
  *
  * @param {Record<string, any>} settings
  * @param {{ mode?: 'delay' | 'spacing' | 'g', targetFt?: number }} [options]
@@ -80,6 +89,8 @@ export function solveSpacing(settings, options = {}) {
     unit: spec.unit,
     valueText: best.value.toFixed(spec.digits),
     errText: String(Math.round(best.errFt)),
+    scoredAtSec: +settings.durationSec,
+    readout: `Best ${mode}: ${best.value.toFixed(spec.digits)}${spec.unit}. Error: ${Math.round(best.errFt)} ft from ${targetFt} ft, scored at Duration (${+settings.durationSec} s)`,
     trials,
   };
 }
