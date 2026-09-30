@@ -254,6 +254,22 @@
   height: 100%;
 }
 
+/* In 3D, three.js draws the picture on a WebGL canvas under the view's own
+   canvas, which carries the labels and takes the mouse. */
+[data-module='debrief'] .debrief-3d {
+  position: relative;
+  z-index: 1;
+}
+
+[data-module='debrief'] .debrief-3d-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+[data-module='debrief'] .debrief-3d[hidden] + .debrief-3d-picture,
 [data-module='debrief'] .debrief-map[hidden],
 [data-module='debrief'] .debrief-toolbar [hidden],
 [data-module='debrief'] .map-credit.is-3d {
@@ -266,6 +282,7 @@
 
 [data-module='debrief'] .debrief-empty {
   position: absolute;
+  z-index: 2;
   inset: 0;
   display: grid;
   place-items: center;
@@ -509,6 +526,7 @@
 
 [data-module='debrief'] .map-credit {
   position: absolute;
+  z-index: 2;
   right: var(--space-1);
   bottom: var(--space-1);
   max-width: calc(100% - var(--space-2));

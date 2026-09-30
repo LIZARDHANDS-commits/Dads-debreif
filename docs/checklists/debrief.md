@@ -46,7 +46,7 @@ You'll want two or more of your own ForeFlight track files (.kml) from one forma
 
 ## 3D
 
-- [ ] The **3D** switch shows the same moment in 3D, and playback carries on without a jump. Switching back to 2D keeps the time.
+- [ ] The **3D** switch shows the same moment in 3D, and playback carries on without a jump. Each ship is a CT-156 Harvard in the Moose Jaw paint, with its number on the tail and nose; **3D settings** → **Paint** → **Ship colours** paints them plainly. Switching back to 2D keeps the time.
 - [ ] Drag turns the view and the wheel zooms. **3D settings** changes the camera, altitude scale, model, trail and ground options. **Reset view** goes back to V6's view.
 
 ## DFPs, save and open
