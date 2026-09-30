@@ -182,7 +182,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     type: 'button', class: 'button', id: 'debrief-saved-wx', hidden: true,
     onclick: () => (savedWxMode === 'cancel' ? handlers.cancelWx : handlers.saveWx)?.(),
   }, SAVE_WX_LABEL);
-  const savedWxStatus = h('p', { class: 'debrief-menu-note', role: 'status', id: 'debrief-saved-wx-status', hidden: true });
+  // The line shown updates with every picture and is not itself announced; a hidden live region beside
+  // the map is told only at the start, about every 25 % and at the end (Y5).
+  const savedWxStatus = h('p', { class: 'debrief-menu-note', id: 'debrief-saved-wx-status', tabindex: '-1', hidden: true });
+  const savedWxLive = h('p', { class: 'visually-hidden', id: 'debrief-saved-wx-live', role: 'status' });
   savedWxButton.setAttribute('aria-describedby', savedWxStatus.id);
   // Weather at the time of the flight: every item off at first (R22), and
   // fetched only while on (SPEC-debrief: Weather at the time of the flight).
@@ -276,6 +279,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     mapWrap,
     bar.element,
     metarLine,
+    savedWxLive,
     emPanel,
   );
 
@@ -479,6 +483,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       if (savedWxButton.textContent !== label) savedWxButton.textContent = label;
       if (savedWxButton.hidden !== (offer.button === 'hidden')) savedWxButton.hidden = offer.button === 'hidden';
       if (savedWxStatus.textContent !== offer.status) savedWxStatus.textContent = offer.status;
+      if (savedWxLive.textContent !== offer.live) savedWxLive.textContent = offer.live;
       if (savedWxStatus.hidden === Boolean(offer.status)) savedWxStatus.hidden = !offer.status;
       if (notes.saved !== note) {
         notes.saved = note;

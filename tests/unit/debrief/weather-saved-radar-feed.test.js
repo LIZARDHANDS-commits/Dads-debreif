@@ -291,16 +291,37 @@ test('over the size limit the pictures are thinned and the words say how far apa
 // --- What the menu offers -----------------------------------------------------
 
 const base = { flight: true, recent: true, phase: 'idle', done: 0, total: 0, saved: null, notes: [], failure: null, fromFile: false };
+const OFFER = 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.';
 
 test('the offer: hidden with no flight, a button for a recent flight, the not kept words for an old one', () => {
-  assert.deepEqual(offerState({ ...base, flight: false }), { button: 'hidden', status: '' });
-  assert.deepEqual(offerState(base), { button: 'save', status: 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.' });
-  assert.deepEqual(offerState({ ...base, recent: false }), { button: 'hidden', status: 'Not kept: radar is only available for 3 hours after the flight.' });
+  assert.deepEqual(offerState({ ...base, flight: false }), { button: 'hidden', status: '', live: '' });
+  assert.deepEqual(offerState(base), { button: 'save', status: OFFER, live: OFFER });
+  const old = 'Not kept: radar is only available for 3 hours after the flight.';
+  assert.deepEqual(offerState({ ...base, recent: false }), { button: 'hidden', status: old, live: old });
 });
 
-test('the offer while fetching is a cancel button with a progress line', () => {
-  assert.deepEqual(offerState({ ...base, phase: 'fetching' }), { button: 'cancel', status: 'Asking ECCC which pictures it has…' });
-  assert.deepEqual(offerState({ ...base, phase: 'fetching', done: 12, total: 39 }), { button: 'cancel', status: 'Saving radar and lightning: 12 of 39' });
+test('the offer while fetching is a cancel button with a progress line that counts each picture', () => {
+  assert.equal(offerState({ ...base, phase: 'fetching' }).button, 'cancel');
+  assert.equal(offerState({ ...base, phase: 'fetching' }).status, 'Asking ECCC which pictures it has…');
+  assert.equal(offerState({ ...base, phase: 'fetching', done: 12, total: 39 }).status, 'Saving radar and lightning: 12 of 39');
+});
+
+test('what is announced to a screen reader changes only at the start, about every 25 %, and at the end (Y5)', () => {
+  const live = (done, total = 40) => offerState({ ...base, phase: 'fetching', done, total }).live;
+  assert.equal(offerState({ ...base, phase: 'fetching' }).live, 'Asking ECCC which pictures it has…');
+  const seen = [];
+  for (let done = 0; done < 40; done++) if (live(done) !== seen.at(-1)) seen.push(live(done));
+  assert.deepEqual(seen, [
+    'Saving radar and lightning: 40 pictures',
+    'Saving radar and lightning: 25 percent',
+    'Saving radar and lightning: 50 percent',
+    'Saving radar and lightning: 75 percent',
+  ]);
+  // The end is the result, announced as a change once.
+  const saved = { box: {}, fetchedT: 1, thin: 1, frames: [{ layer: 'rain', t: START, mime: 'image/png', data: 'AAAA' }] };
+  const end = offerState({ ...base, phase: 'done', saved });
+  assert.equal(end.live, end.status);
+  assert.match(end.live, /^Kept with this debrief/);
 });
 
 test('once kept, the offer is gone and the line says what is kept, even for a flight that is now old', () => {
@@ -312,8 +333,10 @@ test('once kept, the offer is gone and the line says what is kept, even for a fl
 });
 
 test('a failed fetch offers the button again with the reason', () => {
-  assert.deepEqual(offerState({ ...base, phase: 'failed', failure: 'ECCC had no pictures for this flight any more.' }), {
+  const failed = offerState({ ...base, phase: 'failed', failure: 'ECCC had no pictures for this flight any more.' });
+  assert.deepEqual(failed, {
     button: 'save', status: "Couldn't save radar and lightning: ECCC had no pictures for this flight any more.",
+    live: "Couldn't save radar and lightning: ECCC had no pictures for this flight any more.",
   });
 });
 

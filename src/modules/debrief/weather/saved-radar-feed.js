@@ -195,21 +195,27 @@ export function createSavedRadarFeed({
 }
 
 /**
- * What the Weather menu shows for the offer: { button, status }. button is
- * 'hidden', 'save' or 'cancel'. flight: whether one is loaded. recent: whether
+ * What the Weather menu shows for the offer: { button, status, live }. button is
+ * 'hidden', 'save' or 'cancel'. status is the line shown (it counts every
+ * picture); live is what a screen reader is told, which changes only at the
+ * start, about every 25 % and at the end, so a fetch of forty pictures is not
+ * forty announcements. flight: whether one is loaded. recent: whether
  * it ended within 3 hours (radarKept). The rest is the feed's state().
  */
 export function offerState({ flight, recent, phase, done, total, saved, notes, failure, fromFile }) {
-  if (!flight) return { button: 'hidden', status: '' };
+  const say = (button, status) => ({ button, status, live: status });
+  if (!flight) return say('hidden', '');
   if (phase === 'fetching') {
-    return { button: 'cancel', status: total ? `Saving radar and lightning: ${done} of ${total}` : 'Asking ECCC which pictures it has…' };
+    if (!total) return say('cancel', 'Asking ECCC which pictures it has…');
+    const quarter = Math.min(3, Math.floor((4 * done) / total));
+    const live = quarter === 0 ? `Saving radar and lightning: ${total} pictures` : `Saving radar and lightning: ${quarter * 25} percent`;
+    return { button: 'cancel', status: `Saving radar and lightning: ${done} of ${total}`, live };
   }
   if (saved) {
-    const status = [savedSummary(saved), ...notes, fromFile ? '' : 'Save the debrief to put them in the file.'].filter(Boolean).join(' ');
-    return { button: 'hidden', status };
+    return say('hidden', [savedSummary(saved), ...notes, fromFile ? '' : 'Save the debrief to put them in the file.'].filter(Boolean).join(' '));
   }
-  if (!recent) return { button: 'hidden', status: notKeptText('radar') };
-  if (phase === 'failed') return { button: 'save', status: `Couldn't save radar and lightning: ${failure}` };
-  return { button: 'save', status: 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.' };
+  if (!recent) return say('hidden', notKeptText('radar'));
+  if (phase === 'failed') return say('save', `Couldn't save radar and lightning: ${failure}`);
+  return say('save', 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.');
 }
 

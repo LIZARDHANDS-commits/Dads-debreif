@@ -125,7 +125,8 @@ function mount(root, app) {
     const offer = offerState({ flight: Boolean(flight), recent, ...savedRadar.state() });
     let note = '';
     if (flight && clock) {
-      note = offer.button === 'cancel' ? offer.status
+      // While fetching, the menu's line is the one place progress is written and announced (Y5).
+      note = offer.button === 'cancel' ? ''
         : savedNoteLine({ radar: on.wxRadar, lightning: on.wxLightning, recent, saved: savedRadar.state().saved, t: clock.t });
     }
     ui.setSavedWeather({ offer, note });

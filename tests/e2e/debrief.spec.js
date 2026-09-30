@@ -1910,3 +1910,40 @@ test('saved radar: replacing the flight (Load tracks, Open debrief, Example flig
   await expect(status(page)).toHaveText(/^4 tracks loaded/);
   expect(asked).toBe(0);
 });
+
+test('saved radar: progress is written once, in the Weather menu, and told to a screen reader only at the start, about every 25 % and at the end (Y5)', async ({ page }) => {
+  let nowT = 0;
+  const asked = await stubEccc(page, { now: () => nowT });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const { scrubber, endT } = await flightWindow(page);
+  nowT = endT + 3600;
+  await setNow(page, nowT);
+  await scrubber.fill(String(endT - 60));
+  await openWeather(page);
+  await page.getByLabel('Radar', { exact: true }).check();
+  const live = page.locator('#debrief-saved-wx-live');
+  await expect(live).toHaveAttribute('role', 'status');
+  await expect(page.locator('#debrief-saved-wx-status')).not.toHaveAttribute('role', /./); // the shown line is not itself live
+  // What the live region is told, and what the map's line says, while the fetch runs.
+  await page.evaluate(() => {
+    window.__told = [];
+    window.__credit = [];
+    const live = document.querySelector('#debrief-saved-wx-live');
+    new MutationObserver(() => window.__told.push(live.textContent)).observe(live, { childList: true, characterData: true, subtree: true });
+    const credit = document.querySelector('.map-credit');
+    new MutationObserver(() => window.__credit.push(credit.textContent)).observe(credit, { childList: true, characterData: true, subtree: true });
+  });
+  await saveWxButton(page).click();
+  await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
+  const told = await page.evaluate(() => window.__told);
+  const maps = asked.filter((a) => new URL(a.url).searchParams.get('request') === 'GetMap').length;
+  expect(maps).toBeGreaterThan(20);
+  expect(told.length).toBeLessThanOrEqual(7); // not one for each of the pictures
+  expect(told.at(-1)).toMatch(KEPT_LINE);
+  expect(told.filter((t) => /^Saving radar and lightning: \d+ of \d+$/.test(t))).toEqual([]);
+  expect(told.filter((t) => /percent$/.test(t)).length).toBeLessThanOrEqual(3);
+  // The map's own line never carries the progress (it is a live region too).
+  const credit = await page.evaluate(() => window.__credit);
+  expect(credit.filter((t) => /Saving/.test(t))).toEqual([]);
+});
