@@ -37,7 +37,7 @@ From `.claude/skills/` (see its README for when each applies). Each pull request
 
 ## Risks
 
-- **Pages isn't on yet.** The deploy job fails until Patrick switches Pages to GitHub Actions. It's one setting, asked for in the setup pull request.
+- **Pages.** Resolved: Pages deploys from GitHub Actions on every merge to `main`, and the site is live (step 1 signed off on it, 2026-09-30).
 - **Browser versions.** Local runs use the sandbox's Chromium, so `@playwright/test` is pinned to 1.56.1 to match it. CI installs its own browsers, including Firefox and WebKit.
 - **Service worker caching an old version.** Mitigated by the new-version bar and a build id in the cache name; the offline test also checks that a new build replaces the old one.
 - **Shared files.** If another workstream needs a script or CI change, it asks here rather than editing `package.json` itself.
