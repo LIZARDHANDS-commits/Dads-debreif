@@ -8,7 +8,7 @@
   - Acceptance: every storage test in SPEC-storage.md passes.
   - Verify: `npm test`
   - Files: src/storage/store.js, src/storage/settings.js, src/storage/README.md, tests/unit/storage/*.test.js
-- [ ] **3. ui-kit.** tokens.css, base.css, dom.js, scheduler.js, panel.js, source-rules test.
+- [x] **3. ui-kit.** tokens.css, base.css, dom.js, scheduler.js, panel.js, source-rules test.
   - Acceptance: every ui-kit test in SPEC-ui-kit.md passes.
   - Verify: `npm test`
   - Files: src/ui-kit/*, tests/unit/ui-kit/*.test.js, tests/unit/source-rules.test.js

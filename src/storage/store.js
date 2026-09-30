@@ -99,3 +99,6 @@ export function createStore(source) {
     scope: scoped,
   };
 }
+
+// The browser's own storage, read lazily (reading it can throw when blocked).
+export const browserStorage = () => globalThis.localStorage;
