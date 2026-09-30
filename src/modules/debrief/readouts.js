@@ -1,0 +1,263 @@
+// The numbers the debrief shows for the current time (SPEC-debrief: Readouts
+// and standards). Every number comes from flight-data (where each ship is)
+// and core (aspect, HCA, closure, standards); this file only picks the
+// moments and puts the answers in rows. No page access, so it's tested in Node.
+import { sampleAt, headingAt, pitchAt, gAt } from '../../flight-data/flight.js';
+import { aspectAngleDeg, headingCrossAngleDeg } from '../../core/angles.js';
+import { closureKt, formatClosureKt as formatClosure, isaDensityRatio } from '../../core/flight-math.js';
+import { classifyDebriefPosition, classifyLeadParameters } from '../../core/standards.js';
+import { bankFromTrack } from './view3d/scene.js';
+
+/** V6 measured closure over the last second (closureRateKt, line 3119). */
+export const CLOSURE_LOOKBACK_S = 1;
+
+/**
+ * Estimated indicated airspeed from ground speed and altitude: ground speed ×
+ * √(density ratio), the ratio at least 0.15, as core's emPoint does (V6 EM
+ * chart, line 4158). Used for Lead's speed standard instead of ground speed
+ * (D31). No wind, so it's an estimate, and it's labelled "est. IAS".
+ */
+export function estIasKt(gsKt, altFt) {
+  if (!Number.isFinite(gsKt)) return null;
+  return gsKt * Math.sqrt(Math.max(0.15, isaDensityRatio(Number.isFinite(altFt) ? altFt : 6500)));
+}
+
+/** A ship's place for core's formulas: { x, y } in map feet, plus V6's names for speed and altitude. */
+const at = (s) => (s ? { x: s.xFt, y: s.yFt, altFt: s.altFt, spdKt: s.speedKt } : null);
+
+/**
+ * Does any standard judge ship `slot`? Spread judges #2 to #4; the offset
+ * standard only #3. With none, the ship gets no label, not V6's "ON
+ * PARAMETERS" (#21).
+ */
+export function standardApplies(slot, std) {
+  if (slot === 1) return false;
+  return std.spread.on || (std.offset.on && slot === 3);
+}
+
+/** How far outside its band a label is, in feet, for the Formation card. */
+function beyondFt(label, pos, slot, std) {
+  const { spread, offset } = std;
+  if (label === 'WIDE') return pos.intervalFt - spread.maxFt;
+  if (label === 'TIGHT') return spread.minFt - pos.intervalFt;
+  if (slot === 3 && offset.on) {
+    if (label === 'FORE') return offset.aftTargetFt - offset.aftTolFt - pos.offsetAftFt;
+    if (label === 'AFT') return pos.offsetAftFt - (offset.aftTargetFt + offset.aftTolFt);
+  }
+  if (label === 'FORE') return pos.foreAftFt - spread.foreAftTolFt;
+  if (label === 'AFT') return -spread.foreAftTolFt - pos.foreAftFt;
+  return null;
+}
+
+/**
+ * Each wingman against the standards (#21, D78). No label with no Lead, no
+ * Lead heading (D52), a gap on either ship (D32), or no standard for it.
+ * `inGap` is by slot; `live` holds core's { x, y } places.
+ */
+function judgeFormation(tracks, live, inGap, leadHdg, standards) {
+  return tracks
+    .filter((tr) => tr.slot !== 1)
+    .map((tr) => {
+      const slot = tr.slot;
+      const row = { slot, state: 'ok', labels: [], offBy: [] };
+      if (!live[1]) return { ...row, state: 'no-lead' };
+      if (inGap[slot].inGap || inGap[1].inGap) return { ...row, state: 'gap' };
+      if (leadHdg === null) return { ...row, state: 'no-heading' };
+      if (!standards || !standardApplies(slot, standards)) return { ...row, state: 'no-standard' };
+      const pos = classifyDebriefPosition(slot, live, leadHdg, standards);
+      const labels = pos.labels;
+      const offBy = labels.map((label) => beyondFt(label, pos, slot, standards));
+      return { ...row, labels, offBy, intervalFt: pos.intervalFt, foreAftFt: pos.foreAftFt, offsetAftFt: pos.offsetAftFt };
+    });
+}
+
+/**
+ * Just the Formation-card rows at time t, for the labels on the map: the same
+ * as readoutsAt(...).formation, without the rest of the readouts.
+ */
+export function formationAt(flight, t, standards) {
+  if (!flight) return [];
+  const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
+  const live = {};
+  const gap = {};
+  for (const tr of tracks) {
+    const s = sampleAt(tr, t);
+    live[tr.slot] = at(s);
+    gap[tr.slot] = { inGap: s.inGap };
+  }
+  return judgeFormation(tracks, live, gap, live[1] ? headingAt(flight.tracks[1], t) : null, standards);
+}
+
+/**
+ * Everything the readouts show at time t.
+ * options.standards: shaped like core's V6_STANDARDS (app.standards.get()).
+ * options.recordedG: use the recorded G where there is one (off by default, D61).
+ * Returns { ships, formation, lead, vsLead, pairs }; see each below.
+ */
+export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
+  if (!flight) return { ships: [], formation: [], lead: null, vsLead: [], pairs: [] };
+  const tracks = Object.values(flight.tracks).sort((a, b) => a.slot - b.slot);
+  const prevT = Math.max(flight.startT, t - CLOSURE_LOOKBACK_S);
+  const now = {};
+  const prev = {};
+  const heading = {};
+  for (const tr of tracks) {
+    now[tr.slot] = sampleAt(tr, t);
+    prev[tr.slot] = sampleAt(tr, prevT);
+    heading[tr.slot] = headingAt(tr, t);
+  }
+  const live = Object.fromEntries(tracks.map((tr) => [tr.slot, at(now[tr.slot])]));
+  const closure = (a, b) => (t > prevT ? closureKt(at(prev[a]), at(prev[b]), live[a], live[b], t - prevT) : null);
+
+  // Live data, one row per ship (D47, D61).
+  const ships = tracks.map((tr) => {
+    const s = now[tr.slot];
+    const g = gAt(tr, t, { recorded: recordedG });
+    const pitch = pitchAt(tr, t);
+    // The bank of the turn over ±1 s, as the 3D view draws it (D40, item G).
+    const bank = bankFromTrack({
+      before: { ...at(sampleAt(tr, t - 1)), t: t - 1 },
+      now: { ...live[tr.slot], t },
+      after: { ...at(sampleAt(tr, t + 1)), t: t + 1 },
+      speedKt: s.speedKt,
+      recordedBankDeg: s.bankRecordedDeg,
+      pitchDeg: pitch.deg,
+      recordedG: g.source === 'recorded' ? g.g : null,
+    });
+    return {
+      slot: tr.slot,
+      inGap: s.inGap,
+      headingKnown: heading[tr.slot] !== null,
+      altFt: s.altFt,
+      gsKt: s.speedKt,
+      iasKt: estIasKt(s.speedKt, s.altFt),
+      g: g.g,
+      gSource: g.source,
+      pitchDeg: pitch.deg,
+      pitchSource: pitch.source,
+      bankDeg: bank.bankDeg, // left wing down positive
+      bankSource: bank.source,
+      lat: s.lat,
+      lon: s.lon,
+    };
+  });
+  const bySlot = Object.fromEntries(ships.map((s) => [s.slot, s]));
+
+  // Lead against the lead standard, with est. IAS as the speed (D31).
+  let lead = null;
+  if (live[1]) {
+    const leadShip = bySlot[1];
+    const judged = standards && !leadShip.inGap
+      ? classifyLeadParameters({ spdKt: leadShip.iasKt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
+      : null;
+    lead = { iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null };
+  }
+
+  const leadHdg = heading[1];
+  const formation = judgeFormation(tracks, live, bySlot, leadHdg, standards);
+
+  // Aspect, HCA, closure and range from Lead to each wingman (V6 line 3212).
+  const vsLead = live[1]
+    ? tracks.filter((tr) => tr.slot !== 1).map((tr) => {
+      const slot = tr.slot;
+      const p = live[slot];
+      return {
+        slot,
+        inGap: bySlot[slot].inGap || bySlot[1].inGap,
+        rangeFt: Math.hypot(p.x - live[1].x, p.y - live[1].y),
+        aspectDeg: aspectAngleDeg(live[1], p, leadHdg),
+        hcaDeg: headingCrossAngleDeg(leadHdg, heading[slot]),
+        closureKt: closure(1, slot),
+      };
+    })
+    : [];
+
+  // Spacing for every pair, horizontal as V6 (#18), with the 3D range beside it.
+  const pairs = [];
+  for (let i = 0; i < tracks.length; i++) {
+    for (let j = i + 1; j < tracks.length; j++) {
+      const a = tracks[i].slot;
+      const b = tracks[j].slot;
+      const dx = live[a].x - live[b].x;
+      const dy = live[a].y - live[b].y;
+      const dz = (live[a].altFt || 0) - (live[b].altFt || 0);
+      pairs.push({
+        a,
+        b,
+        inGap: bySlot[a].inGap || bySlot[b].inGap,
+        horizontalFt: Math.hypot(dx, dy),
+        slantFt: Math.hypot(dx, dy, dz),
+        closureKt: closure(a, b),
+      });
+    }
+  }
+
+  return { ships, formation, lead, vsLead, pairs };
+}
+
+// ── Words for the screen ─────────────────────────────────────────────────────
+
+const ft = (n) => `${Math.round(n).toLocaleString('en-US')} ft`;
+const kt = (n) => (Number.isFinite(n) ? `${Math.round(n)} kt` : '--');
+const deg = (n) => (Number.isFinite(n) ? `${Math.round(n)}°` : '–');
+const src = (source) => (source === 'recorded' ? 'recorded' : 'est.');
+
+/**
+ * One Formation-card line for a wingman, and its tone ('good', 'caution' or
+ * 'none'), so the card can colour it; the words carry the meaning too.
+ */
+export function formationText(row) {
+  if (row.state === 'gap') return { text: 'GPS gap', tone: 'none' };
+  if (row.state === 'no-lead') return { text: 'No Lead track', tone: 'none' };
+  if (row.state === 'no-heading') return { text: '– (Lead not moving)', tone: 'none' };
+  if (row.state === 'no-standard') return { text: '– (no standard on)', tone: 'none' };
+  if (row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS') return { text: 'On parameters', tone: 'good' };
+  const parts = row.labels.map((label, i) => (Number.isFinite(row.offBy[i]) ? `${label} by ${ft(row.offBy[i])}` : label));
+  return { text: parts.join(', '), tone: 'caution' };
+}
+
+/** The Formation card's Lead line: est. IAS and G, and what's off against the lead standard (D31). */
+export function leadText(lead) {
+  if (!lead) return null;
+  if (lead.inGap) return { text: 'Lead: GPS gap', tone: 'none' };
+  const g = Number.isFinite(lead.g) ? `${lead.g.toFixed(1)} G` : 'G --';
+  const numbers = `Lead ${kt(lead.iasKt)} est. IAS, ${g}`;
+  if (!lead.labels) return { text: numbers, tone: 'none' };
+  if (lead.labels[0] === 'LEAD ON PARAMETERS') return { text: `${numbers}, on parameters`, tone: 'good' };
+  return { text: `${numbers}, ${lead.labels.join(', ')}`, tone: 'caution' };
+}
+
+/** "More detail" lines for one ship's live data (D47, D61: each value says where it came from). */
+export function shipDetailText(ship) {
+  if (ship.inGap) return ['GPS gap: no numbers until the track resumes'];
+  const bank = Number.isFinite(ship.bankDeg) && Math.round(ship.bankDeg) !== 0
+    ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}`
+    : '0°';
+  return [
+    `Alt ${ft(ship.altFt)}, GS ${kt(ship.gsKt)}, est. IAS ${kt(ship.iasKt)}`,
+    `G ${Number.isFinite(ship.g) ? ship.g.toFixed(2) : '--'} ${src(ship.gSource)}, pitch ${deg(ship.pitchDeg)} ${src(ship.pitchSource)}, bank ${bank} ${src(ship.bankSource)}`,
+    `Lat ${ship.lat.toFixed(5)}, Lon ${ship.lon.toFixed(5)}`,
+  ];
+}
+
+/** "More detail" line for a wingman seen from Lead (V6 line 3212); ranges say they're horizontal (#18). */
+export function vsLeadText(row) {
+  if (row.inGap) return 'GPS gap';
+  return `Range ${ft(row.rangeFt)} horizontal, aspect ${deg(row.aspectDeg)}, HCA ${deg(row.hcaDeg)}, closure ${formatClosure(row.closureKt)}`;
+}
+
+/** "More detail" line for one pair's spacing: horizontal as V6, and the 3D range (#18). */
+export function pairText(pair) {
+  if (pair.inGap) return `#${pair.a}–#${pair.b}: GPS gap`;
+  return `#${pair.a}–#${pair.b}: ${ft(pair.horizontalFt)} horizontal, ${ft(pair.slantFt)} 3D, closure ${formatClosure(pair.closureKt)}`;
+}
+
+/**
+ * The label the map draws beside a wingman: V6's words ("WIDE / AFT", "ON
+ * PARAMETERS") and a tone. Nothing where the card shows no label (#21, D32, D52).
+ */
+export function mapLabel(row) {
+  if (row.state !== 'ok' || !row.labels.length) return null;
+  const on = row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS';
+  return { text: row.labels.join(' / '), tone: on ? 'good' : 'caution' };
+}
