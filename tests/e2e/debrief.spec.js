@@ -1813,7 +1813,7 @@ test('saved radar: a flight more than 3 hours old says "Not kept", fetches nothi
   await page.getByLabel('Radar', { exact: true }).check();
   await expect(credit).toHaveText('Not kept: radar is only available for 3 hours after the flight.');
   await page.getByLabel('Lightning', { exact: true }).check();
-  await expect(credit).toHaveText('Not kept: radar is only available for 3 hours after the flight. · Not kept: lightning is only available for 3 hours after the flight.');
+  await expect(credit).toHaveText('Not kept: radar and lightning are only available for 3 hours after the flight.'); // one line, not two (recheck F1)
   await expect.poll(() => pixelsNear(page, RAIN_RGB)).toBeLessThan(20);
   // Off again: the line goes; the words in the menu stay for the flight.
   await page.getByLabel('Radar', { exact: true }).uncheck();
