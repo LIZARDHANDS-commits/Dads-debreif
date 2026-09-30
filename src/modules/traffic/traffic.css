@@ -304,8 +304,18 @@
   min-width: 0;
 }
 
-[data-module='traffic'] .spawner .control-select {
-  grid-template-columns: 1fr 9rem;
+/* A select is as wide as its longest choice (TR-16: "Pattern 2" was clipped in a fixed box), no less than a number
+   box and no wider than what the label leaves. */
+[data-module='traffic'] .spawner .control.control-select {
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-2);
+}
+
+[data-module='traffic'] .spawner .control-select select {
+  width: auto;
+  min-width: 6.5rem;
+  max-width: 100%;
+  justify-self: end;
 }
 
 [data-module='traffic'] .spawner .control-message {

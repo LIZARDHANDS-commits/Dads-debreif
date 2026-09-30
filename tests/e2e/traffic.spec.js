@@ -205,6 +205,39 @@ test('the Traffic settings button is in the first screen at 1280 x 800 with the 
   await expect(settings).toBeInViewport({ ratio: 1 });
 });
 
+test('the spawner\'s selects are as wide as their longest choice, so no name is clipped (TR-16)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await button(page, '+ New route').click();
+  await button(page, 'Pattern').click(); // "Pattern 2": the name that was clipped
+  await expect(page.locator('#traffic-spawn-route option')).toHaveCount(10);
+  await page.getByLabel('Name', { exact: true }).fill('Outer pattern'); // and a longer one of the pilot's own
+  await expect(page.locator('#traffic-spawn-route option').last()).toHaveText('Outer pattern');
+  // What the browser needs to show the widest choice (a copy, taken out of the grid so it sizes to its content) against the box the select has.
+  const clipped = await page.locator('.spawner select').evaluateAll((selects) => selects.map((select) => {
+    const shown = select.getBoundingClientRect().width;
+    const copy = select.cloneNode(true);
+    copy.removeAttribute('id');
+    Object.assign(copy.style, { position: 'absolute', visibility: 'hidden', width: 'auto', minWidth: '0', maxWidth: 'none' });
+    select.parentNode.appendChild(copy);
+    const needed = copy.getBoundingClientRect().width;
+    copy.remove();
+    return needed > shown + 0.5 ? `${select.id}: needs ${Math.round(needed)} px, has ${Math.round(shown)} px` : null;
+  }).filter(Boolean));
+  expect(clipped).toEqual([]);
+  // And each box stays inside its column, clear of its label.
+  const column = await page.locator('.spawner').boundingBox();
+  const places = await page.locator('.spawner .control-select').evaluateAll((l) => l.map((row) => ({
+    label: row.querySelector('label').getBoundingClientRect().right,
+    left: row.querySelector('select').getBoundingClientRect().left,
+    right: row.querySelector('select').getBoundingClientRect().right,
+  })));
+  for (const { label, left, right } of places) {
+    expect(right).toBeLessThanOrEqual(column.x + column.width + 0.5);
+    expect(left).toBeGreaterThanOrEqual(label);
+  }
+});
+
 test('the Traffic settings menu opens, and a route point can be changed on the left', async ({ page }) => {
   await open(page);
   const menu = page.getByRole('button', { name: /^Traffic settings/ });
