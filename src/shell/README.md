@@ -10,6 +10,7 @@ The home screen and the frame around every module (spec: `specs/SPEC-shell.md`).
 - `settings-dialog.js`: the Settings dialog. Shared settings and their defaults are in `src/app.js`.
 - `report.js`: the Report a problem link; the form itself is `.github/ISSUE_TEMPLATE/problem.yml`.
 - `update-bar.js`: registers the service worker and shows the "A new version is ready" bar.
+- `version.js`: the footer's "Updated 30 Sep 2026, 02:01Z" line.
 - `sw.js`: the service worker, which keeps a copy of the app for offline use. `npm run build` fills in its file list (`tools/service-worker.mjs`); `npm run dev` never uses it. To check offline mode, run `npm run build && npm run preview`.
 - `shell.css`: layout for all of the above.
 

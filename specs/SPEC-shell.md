@@ -35,7 +35,7 @@ The browser's Back and Forward buttons move between these. After a page change, 
 
 **About:** V6's About page content (the formation photo, Dad's text, contact, mission, and support links), with a link back home.
 
-**Footer:** the app version (build date and commit) so bug reports say which version they're about.
+**Footer:** when this copy was published, in plain words ("Updated 30 Sep 2026, 02:01Z", R22). The version (build date and commit) sits in its tooltip and goes with every bug report, so reports say which version they're about.
 
 **New version available:** when an updated version has been published, a bar says so with a Reload button (see Offline).
 
@@ -76,7 +76,7 @@ Opening a route: the shell unmounts the current module (calls its cleanup, dispo
 - A service worker (`sw.js`, generated at build time with the list of built files) caches the app on the first visit, so after that every built module opens with the network off. Live weather and map tiles are never cached as if they were fresh.
 - When a new version is published, the service worker downloads it in the background and the shell shows the "new version" bar. Nobody is left on an old version without being told.
 - Card videos aren't kept for offline use (their stills show instead), which keeps the first visit about 2 MB lighter.
-- An open app looks for a new version every hour, since the SOF screen stays open all day.
+- An open app looks for a new version every hour, since the SOF screen stays open all day, and again when its tab comes back into view (at most every five minutes).
 
 ## Files
 
@@ -91,6 +91,7 @@ src/shell/about.js       About page
 src/shell/header.js      the header clock and app.time
 src/shell/settings-dialog.js
 src/shell/update-bar.js  new-version bar and service-worker registration
+src/shell/version.js     the footer's "Updated …" line
 src/shell/sw.js          the service worker; the build fills in its file list (tools/service-worker.mjs)
 src/shell/README.md      where to change common things (R8)
 public/media/cards/      card videos and stills
