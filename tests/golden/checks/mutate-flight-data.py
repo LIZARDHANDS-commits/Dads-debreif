@@ -117,6 +117,11 @@ M = [
  ('flight.js', "if (a < startT || b > endT)", "if (a < startT)"),
  ('flight.js', "overlaps(slot) <= overlaps(worst)", "overlaps(slot) < overlaps(worst)"),
  ('flight.js', "Math.min(span(slot)[1], span(o)[1]) > Math.max", "Math.min(span(slot)[1], span(o)[1]) >= Math.max"),
+ # C10: estimated pitch and G by default
+ ('flight.js', "export function pitchAt(track, t, { recorded = false,", "export function pitchAt(track, t, { recorded = true,"),
+ ('flight.js', "export function gAt(track, t, { recorded = false }", "export function gAt(track, t, { recorded = true }"),
+ ('flight.js', "const g = recorded ? sampleAt(track, t)?.gRecorded : null;", "const g = null;"),
+ ('flight.js', "const p = recorded ? sampleAt(track, t) : null;", "const p = null;"),
  # C9: all-or-nothing load
  ('load.js', "files.length > MAX_TRACKS", "files.length > MAX_TRACKS + 1"),
  ('load.js', "|| !files.length ||", "||"),

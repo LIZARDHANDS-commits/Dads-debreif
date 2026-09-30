@@ -110,6 +110,7 @@ for (const slots of [[1, 2, 3, 4], [3], [2, 4]]) {
     for (const slot of slots) {
       const ours = flight.tracks[slot];
       const theirs = s.tracks[slot];
+      const unrecorded = { pts: theirs.pts.map(p => ({ ...p, pitchNative: null })) };
       ours.fixes.forEach((f, i) => {
         assert.equal(f.xFt, theirs.pts[i].x);
         assert.equal(f.yFt, theirs.pts[i].y);
@@ -124,10 +125,16 @@ for (const slots of [[1, 2, 3, 4], [3], [2, 4]]) {
         const where = `#${slot} at ${t}`;
         SAME_POINT(sampleAt(ours, t), v6.interpTrack(theirs, t), where, theirs.pts);
         SAME_HEADING(headingAt(ours, t), theirs.pts, t, where);
-        const p = pitchAt(ours, t);
+        // Asked for recorded pitch, ours is V6's.
+        const p = pitchAt(ours, t, { recorded: true });
         const q = v6.aircraftPitchAtTrack(theirs, t);
         assert.equal(p.deg, q.deg, `pitch ${where}`);
         assert.equal(SOURCE[p.source], q.source, `pitch source ${where}`);
+        // C10 (decided): by default recorded pitch is not used; ours is V6's estimate on the same track without it.
+        const e = pitchAt(ours, t);
+        const qe = v6.aircraftPitchAtTrack(unrecorded, t);
+        assert.equal(e.deg, qe.deg, `estimated pitch ${where}`);
+        assert.equal(SOURCE[e.source], qe.source, `estimated pitch source ${where}`);
         SAME_G(estimatedGAt(ours, t), theirs.pts, t, where);
       }
     }

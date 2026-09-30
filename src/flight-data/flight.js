@@ -151,12 +151,14 @@ export function headingAt(track, t) {
 
 /**
  * Pitch in degrees and where it came from (V6 aircraftPitchAtTrack, line 2446):
- * 'recorded' when the track has a pitch value here, otherwise 'estimated' from
- * the climb angle over ±windowS seconds (capped at ±30°, 0 below 20 ft of
- * travel), or 0 as 'default' when there is too little track.
+ * 'estimated' from the climb angle over ±windowS seconds (capped at ±30°, 0
+ * below 20 ft of travel), or 0 as 'default' when there is too little track.
+ * With `recorded: true`, the recorded pitch where the track has one, as V6
+ * always did; by default it isn't used, because on the real tracks it is the
+ * iPad moving, not the aircraft (C10, Q32).
  */
-export function pitchAt(track, t, windowS = 1.5) {
-  const p = sampleAt(track, t);
+export function pitchAt(track, t, { recorded = false, windowS = 1.5 } = {}) {
+  const p = recorded ? sampleAt(track, t) : null;
   if (p && Number.isFinite(p.pitchRecordedDeg)) return { deg: p.pitchRecordedDeg, source: 'recorded' };
   const f = track?.fixes;
   if (!f || f.length < 2) return { deg: 0, source: 'default' };
@@ -170,6 +172,17 @@ export function pitchAt(track, t, windowS = 1.5) {
   const vertFt = (b.altFt || 0) - (a.altFt || 0);
   if (!Number.isFinite(horizFt) || horizFt < 20) return { deg: 0, source: 'estimated' };
   return { deg: Math.max(-30, Math.min(30, radToDeg(Math.atan2(vertFt, horizFt)))), source: 'estimated' };
+}
+
+/**
+ * Load factor and where it came from: estimated from the turn (estimatedGAt),
+ * or with `recorded: true` the recorded G where the track has one, as V6's
+ * debrief did (line 3097). Estimated by default (C10, Q32).
+ */
+export function gAt(track, t, { recorded = false } = {}) {
+  const g = recorded ? sampleAt(track, t)?.gRecorded : null;
+  if (Number.isFinite(g)) return { g, source: 'recorded' };
+  return { g: estimatedGAt(track, t), source: 'estimated' };
 }
 
 /**

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readKml } from '../../../src/flight-data/kml.js';
-import { buildFlight, sampleAt, headingAt, estimatedGAt, STILL_KT } from '../../../src/flight-data/flight.js';
+import { buildFlight, sampleAt, headingAt, estimatedGAt, pitchAt, gAt, STILL_KT } from '../../../src/flight-data/flight.js';
 
 const example = id => readKml(readFileSync(new URL(`../../../original/assets/${id}.kml`, import.meta.url), 'utf8')).fixes;
 const fix = (t, extra = {}) => ({ t, lat: 50, lon: -105 + t * 1e-4, altM: 1000, gRecorded: null, pitchRecordedDeg: null, bankRecordedDeg: null, ...extra });
@@ -120,3 +120,25 @@ test('the window is the time all tracks share, and says how much of each was cut
   assert.deepEqual(buildFlight({ 1: { name: 'a', fixes: fixesFrom(0) } }).cutTracks, []);
 });
 
+
+test('pitch and G are estimated from the track by default; recorded values only when asked (C10, Q32)', () => {
+  // Climbing, turning, with recorded pitch 12° and G 3 on every fix.
+  const fixes = Array.from({ length: 12 }, (_, i) => fix(i, {
+    lat: 50 + 0.005 * Math.sin(i * 0.1), lon: -105 + 0.008 * Math.cos(i * 0.1), altM: 1000 + 10 * i, pitchRecordedDeg: 12, gRecorded: 3,
+  }));
+  const track = buildFlight({ 1: { name: 'a', fixes } }).tracks[1];
+  const p = pitchAt(track, 5);
+  assert.equal(p.source, 'estimated');
+  assert.notEqual(p.deg, 12);
+  assert.deepEqual(pitchAt(track, 5, { recorded: true }), { deg: 12, source: 'recorded' });
+  const g = gAt(track, 5);
+  assert.equal(g.source, 'estimated');
+  assert.equal(g.g, estimatedGAt(track, 5));
+  assert.deepEqual(gAt(track, 5, { recorded: true }), { g: 3, source: 'recorded' });
+  // Asked for recorded values where there are none: estimated, as V6 did.
+  const bare = buildFlight({ 1: { name: 'a', fixes: fixes.map(f => ({ ...f, pitchRecordedDeg: null, gRecorded: null })) } }).tracks[1];
+  assert.equal(pitchAt(bare, 5, { recorded: true }).source, 'estimated');
+  assert.deepEqual(gAt(bare, 5, { recorded: true }), { g: estimatedGAt(bare, 5), source: 'estimated' });
+  // The recorded values are still kept on the samples.
+  assert.equal(sampleAt(track, 5.5).pitchRecordedDeg, 12);
+});

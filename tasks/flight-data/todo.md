@@ -19,7 +19,7 @@ Plan: [`plan.md`](plan.md). Verify every task with `npm test`.
 - [x] C7 heading unknown when stationary (#22).
 - [x] C8 refuse tracks that don't overlap; say when one was cut (#22).
 - [x] C9 all-or-nothing load (#23).
-- [ ] C10 estimate pitch and G by default; keep recorded values (Q32).
+- [x] C10 estimate pitch and G by default; keep recorded values (Q32).
 
 ## Phase 3: new pieces
 
