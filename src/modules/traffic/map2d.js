@@ -203,8 +203,14 @@ export function drawScene(ctx, map, scene, settings, palette) {
   const levels = conflictLevels(scene.conflicts ?? []);
   const colours = new Map(scene.aircraft.map((ac) => [ac.id, aircraftColor(ac)]));
 
-  const text = (str, x, y, colour, { size = 11, bold = false, align = 'left' } = {}) => {
+  // `anchor` is the screen x of the thing a label sits beside. A label that would run off the
+  // right edge of the map goes to the other side of that thing instead, so it can still be read.
+  const text = (str, x, y, colour, { size = 11, bold = false, align = 'left', anchor = null } = {}) => {
     ctx.font = `${bold ? '700 ' : ''}${size}px ${FONT}`;
+    if (anchor !== null && align === 'left' && x + ctx.measureText(str).width > map.size.width - 4) {
+      x = 2 * anchor - x;
+      align = 'right';
+    }
     ctx.textAlign = align;
     ctx.textBaseline = 'alphabetic';
     ctx.lineJoin = 'round';
@@ -246,7 +252,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
     const name = labelAnchor(path, route.kind === 'pattern');
     if (name) {
       const [x, y] = at(name);
-      text(route.name, x + 6, y - 6, route.color, { size: 12, bold: chosen });
+      text(route.name, x + 6, y - 6, route.color, { size: 12, bold: chosen, anchor: x });
     }
   }
   if (settings.layerLegDistances) {
@@ -271,7 +277,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
         const words = turnDataText(pt);
         if (!words) return;
         const [x, y] = at(pt);
-        text(words, x + 11, y + 29, palette.caution);
+        text(words, x + 11, y + 29, palette.caution, { anchor: x });
       });
     }
   }
@@ -333,10 +339,10 @@ export function drawScene(ctx, map, scene, settings, palette) {
     ctx.lineWidth = 1;
     ctx.strokeStyle = palette.halo;
     ctx.stroke();
-    text(ac.id, x + 12, y - 8, colour, { size: 12, bold: true });
-    if (settings.layerLabels) text(heightSpeedText(ac), x + 12, y + 7, palette.text);
+    text(ac.id, x + 12, y - 8, colour, { size: 12, bold: true, anchor: x });
+    if (settings.layerLabels) text(heightSpeedText(ac), x + 12, y + 7, palette.text, { anchor: x });
     const level = levels.get(ac.id);
-    if (level) text(LEVEL_MARKS[level], x + 12, y + 21, level === 'conflict' ? palette.bad : palette.caution, { bold: true });
+    if (level) text(LEVEL_MARKS[level], x + 12, y + 21, level === 'conflict' ? palette.bad : palette.caution, { bold: true, anchor: x });
   }
 
   drawWind(ctx, map, settings, palette, text);
@@ -381,8 +387,8 @@ function drawPoints(ctx, route, at, text, palette, circle) {
     ctx.lineWidth = 1.5;
     ctx.stroke();
     const words = pointLabelLines(i, pt);
-    text(words.title, x + 11, y - 9, palette.text);
-    if (words.detail) text(words.detail, x + 11, y + 17, palette.muted, { size: 10 }); // below the line, so a level leg doesn't run through it
+    text(words.title, x + 11, y - 9, palette.text, { anchor: x });
+    if (words.detail) text(words.detail, x + 11, y + 17, palette.muted, { size: 10, anchor: x }); // below the line, so a level leg doesn't run through it
   });
 }
 

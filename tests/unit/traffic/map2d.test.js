@@ -281,6 +281,25 @@ test('with no route selected, no route points show; picking one shows its points
   assert.ok(!off.written().includes('1 Threshold'));
 });
 
+test('a label that would run off the right edge of the map goes to the other side of its point, so it can still be read', () => {
+  const east = { id: 'p1', name: 'Pattern 1', kind: 'pattern', color: '#58a6ff', points: [
+    { x: 0, y: 0, alt: 1880, kt: 100, g: 2, label: 'Threshold' },
+    { x: 7800, y: 0, alt: 2500, kt: 220, g: 2, label: 'Departure End' },
+    { x: 7800, y: 3000, alt: 2500, kt: 220, g: 2, label: 'Crosswind' },
+  ] };
+  const rec = draw({ routes: [east], selectedRouteId: 'p1', aircraft: [], conflicts: [] });
+  const drawn = (words) => rec.named('fillText').find((c) => c.args[0] === words);
+  const [pointX] = screen(7800, 0);
+  const far = drawn('2 Departure End');
+  assert.equal(far.textAlign, 'right', 'written to the left of the point');
+  assert.ok(far.args[1] < pointX, 'and it ends before the point');
+  assert.ok(pointX - far.args[1] >= 11, 'the same distance from it as the label on the other side would be');
+  const [nearX] = screen(0, 0);
+  const near = drawn('1 Threshold');
+  assert.equal(near.textAlign, 'left', 'a label with room stays to the right');
+  assert.equal(near.args[1], nearX + 11);
+});
+
 test('only flying aircraft are drawn, each with its callsign and its height and speed', () => {
   const written = draw().written();
   for (const text of ['A1', 'A2', 'A5', '2,500 ft 220 kt', '2,450 ft 210 kt']) assert.ok(written.includes(text), text);
