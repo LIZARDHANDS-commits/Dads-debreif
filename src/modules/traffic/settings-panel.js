@@ -25,11 +25,11 @@ let nextHint = 1;
 
 // The rules, each with a one-line hint in pilots' words (the spec's "More pattern procedures from the SMM").
 export const RULES = Object.freeze([
-  { key: 'ruleExtendDownwind', label: 'Extend downwind when final is busy', hint: 'If turning final would put the aircraft into traffic ahead, it carries on downwind and turns later.' },
-  { key: 'ruleMoveOver', label: 'Move over when someone misses the traffic', hint: 'The aircraft on final moves over between the runways and flies a low approach.' },
-  { key: 'ruleFlyThrough', label: 'Fly through instead of breaking', hint: 'At initial, if a PFL or other traffic would conflict with the break, it carries on to the departure end and rejoins crosswind.' },
-  { key: 'ruleBreakAtDepartureEnd', label: 'Break at the departure end', hint: 'A normal break would conflict but a late one would not, so the break is delayed to the departure end.' },
-  { key: 'ruleClosedPattern', label: 'Closed pattern: extend, or join the normal pattern', hint: 'The closed pattern waits along the departure leg while downwind is busy, then joins the normal pattern if there is still no room.' },
+  { key: 'ruleExtendDownwind', label: 'Extend downwind when final is busy', hint: 'Carries on downwind when turning final would be too close.' },
+  { key: 'ruleMoveOver', label: 'Move over when someone misses the traffic', hint: 'The one on final moves over and flies a low approach.' },
+  { key: 'ruleFlyThrough', label: 'Fly through instead of breaking', hint: 'Flies through to the departure end instead of breaking.' },
+  { key: 'ruleBreakAtDepartureEnd', label: 'Break at the departure end', hint: 'Delays a conflicting break to the departure end.' },
+  { key: 'ruleClosedPattern', label: 'Closed pattern: extend, or join the normal pattern', hint: 'Waits on the departure leg, then joins the normal pattern.' },
 ]);
 
 // Every setting this menu edits.
@@ -75,7 +75,8 @@ function createLocalSettings(initial, onChange) {
   };
 }
 
-// Puts a one-line hint under a control and ties it to the control's input, so a screen reader reads it too.
+// Puts a one-line hint with a control and ties it to the control's input, so a screen reader reads it too.
+// The hint shows on screen only while the pointer is over the control or it has focus (traffic.css).
 function withHint(control, text) {
   const id = `traffic-settings-hint-${nextHint++}`;
   const input = [...control.childNodes].find((node) => node.tagName === 'INPUT');
@@ -98,19 +99,18 @@ export function createSettingsPanel({ values = {}, onChange, onToggle, available
 
   const limits = menu.section('Conflict limits');
   limits.append(
-    h('p', { class: 'settings-hint' }, 'A pair inside both conflict limits is a conflict; inside both caution limits, a caution.'),
-    feet('conflictLatFt', 'Conflict: lateral'),
-    feet('conflictVertFt', 'Conflict: vertical'),
-    feet('cautionLatFt', 'Caution: lateral'),
-    feet('cautionVertFt', 'Caution: vertical'),
+    withHint(feet('conflictLatFt', 'Conflict: lateral'), 'Inside this and the vertical limit is a conflict.'),
+    withHint(feet('conflictVertFt', 'Conflict: vertical'), 'Inside this and the lateral limit is a conflict.'),
+    withHint(feet('cautionLatFt', 'Caution: lateral'), 'Inside this and the vertical limit is a caution.'),
+    withHint(feet('cautionVertFt', 'Caution: vertical'), 'Inside this and the lateral limit is a caution.'),
   );
 
   if (available.rules) {
     limits.append(
-      withHint(feet('finalSpacingFt', 'Final spacing', 100), 'How far behind the aircraft on final a roll-out must be. Any closer and the aircraft extends downwind.'),
+      withHint(feet('finalSpacingFt', 'Final spacing', 100), 'Closer behind the one on final, it extends downwind.'),
       withHint(
         controls.number('missChancePct', { label: 'Chance of missing traffic', unit: '%', min: LIMITS.missChancePct[0], max: LIMITS.missChancePct[1], step: 1 }),
-        'How often an aircraft on Random does not see the traffic on final and turns in anyway.',
+        'How often a Random aircraft misses the one on final.',
       ),
     );
     menu.section('Rules').append(...RULES.map((rule) => withHint(controls.checkbox(rule.key, { label: rule.label }), rule.hint)));
@@ -119,7 +119,7 @@ export function createSettingsPanel({ values = {}, onChange, onToggle, available
   menu.section('Route options').append(
     controls.checkbox('roundedTurns', { label: 'Fly rounded turns' }),
     controls.checkbox('radiusFromG', { label: 'Turn radius from speed and G' }),
-    withHint(feet('manualRadiusFt', 'Manual turn radius', 100), 'Used only when the turn radius is not worked out from speed and G.'),
+    withHint(feet('manualRadiusFt', 'Manual turn radius', 100), 'Used only when the radius is not from speed and G.'),
   );
 
   if (available.photo) {

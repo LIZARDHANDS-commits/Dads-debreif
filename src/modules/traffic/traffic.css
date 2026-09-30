@@ -337,15 +337,45 @@
   justify-content: flex-start;
 }
 
-/* The Traffic settings menu is the shared ui-kit one (base.css), so its look comes from there.
-   Only the one-line hints under the less obvious boxes are added here. */
+/* The Traffic settings menu is the shared ui-kit one (base.css). A number box sits beside its
+   label to keep the open menu short. A hint shows only while the pointer is over its control or
+   the control has focus; it stays in the page for screen readers (aria-describedby). */
+[data-module='traffic'] .settings-group .control-number {
+  display: grid;
+  grid-template-columns: 1fr 5rem 1.25rem;
+  align-items: center;
+}
+
+[data-module='traffic'] .settings-group .control-number input {
+  width: 100%;
+}
+
+[data-module='traffic'] .settings-group .control-number .control-message {
+  grid-column: 1 / -1;
+}
+
+[data-module='traffic'] .settings-group .control-number > label {
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+/* The menu sits inside the Aircraft panel, so it keeps its own padding small. */
+[data-module='traffic'] .traffic-col .panel .panel .panel-body {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
 [data-module='traffic'] .settings-hint {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
-[data-module='traffic'] .settings-group > .settings-hint,
 [data-module='traffic'] .settings-item .settings-hint {
-  margin-bottom: var(--space-3);
+  display: none;
+  margin: calc(-1 * var(--space-2)) 0 var(--space-2);
+}
+
+[data-module='traffic'] .settings-item:hover .settings-hint,
+[data-module='traffic'] .settings-item:focus-within .settings-hint {
+  display: block;
 }

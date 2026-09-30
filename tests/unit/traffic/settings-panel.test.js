@@ -322,5 +322,8 @@ test('the less obvious settings carry a one-line hint that a screen reader reads
   // A number box keeps its error message and adds the hint.
   const spacing = box(panel, 'Final spacing');
   assert.equal(spacing.getAttribute('aria-describedby').split(' ').length, 2);
-  assert.ok(RULES.every((r) => r.hint.length < 160), 'one line each');
+  assert.ok(RULES.every((r) => r.hint.length <= 60), 'one short line each');
+  const everyHint = all(panel.element, (n) => n.getAttribute?.('class') === 'settings-hint');
+  assert.ok(everyHint.length >= 10);
+  for (const hint of everyHint) assert.ok(hint.textContent.length <= 60, `"${hint.textContent}" is one short line`);
 });
