@@ -1,6 +1,6 @@
 # Spec: `traffic`, the Traffic Pattern Sim
 
-Status: **draft, waiting for Patrick's approval.** Changes go through a pull request. Module id `traffic` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. This spec's own questions are numbered T1 to T8; Patrick answered T2 to T6 on 2026-09-30 at 04:36Z (see Answered questions), and the open ones are under Open questions. They get plan-doc Q numbers when they're logged.
+Status: **draft, waiting for Patrick's approval.** Changes go through a pull request. Module id `traffic` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. This spec's own questions are numbered T1 to T10; Patrick answered T2 to T6 on 2026-09-30 at 04:36Z (see Answered questions), and the open ones are under Open questions. They get plan-doc Q numbers when they're logged.
 
 The build starts when the coordinator says it's the Traffic Sim's turn, after the debrief, the Turn Sim and the Turn Fight. Until then this spec and [`tasks/traffic/`](../tasks/traffic/plan.md) are the work.
 
@@ -16,6 +16,7 @@ Users are T-6 instructors and students and the people who plan the Moose Jaw pat
 4. Set a wind (direction and speed) and see each aircraft's crab angle and ground speed, and each turn start earlier with a tailwind and later with a headwind so the aircraft rolls out on its next leg.
 5. See conflicts: any two aircraft inside the set lateral and vertical distances, in red, and inside the wider caution distances, in yellow.
 6. Rewind or step back and forward 10 s and see exactly what happened, at any playback speed.
+6a. Fly the overhead break and the descending final turn, practice forced landings, and simulated engine-outs from the pattern, with the manuals' numbers (Patrick, 06:03Z).
 7. Save the whole setup as a named profile in this browser and load it again (a few built-in patterns, extra ones saved locally, no sharing: Patrick, 2026-09-29).
 
 V6 does all this in its Traffic Pattern Sim, "Moose Jaw Traffic Sim V37", a separate page V6 embeds as base64 (`traffic.html` once decoded with `python3 tools/extract_subapps.py`; line numbers below refer to it). The rebuild keeps V6's routes, its flying and its numbers, flies rounded turns as true arcs (D46), fixes the bugs the audit found (issues #44 to #49, and #39), adds wind and real aircraft types (Patrick's new requirement, 2026-09-30), and shows only the essentials by default (R22).
@@ -232,6 +233,48 @@ Patrick said the Astra and Tutor numbers look about right (2026-09-30); Dad can 
 - **SOF crosswind (FF21).** The SOF's crosswind check against each type's limits would use the same wind-triangle function from `core` (below), so both screens agree. The type table could then carry each type's crosswind limit.
 - **Automatic sequencing** (an idea for later, not in this spec): aircraft that extend downwind or slow down to keep their spacing behind the one ahead, which is what the pattern really does with 10 to 12 aircraft in it.
 
+### The break, the final turn, PFLs and engine-outs (Patrick, 2026-09-30, 06:03Z)
+
+Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descending final turn onto a 3° final, practice forced landings (PFLs) and simulated engine-outs from the pattern. The numbers come from the manuals (Patrick, 05:28Z: "all the info we need ... are in the flying manuals index"), cited by section; Patrick's own answers win where they differ. All of this is new behaviour, built after V6 is pinned and the wind and types work (tasks 15 to 17), and none of it changes V6's built-in setup until the redraw (T8).
+
+**A note on 180° turns.** The steady-bank turn above moves the roll-in along the leg before so the aircraft rolls out on the leg after. For a 180° turn that can't work: the two legs are parallel, so moving the roll-in only slides the whole turn along. So the break and the final turn have their own rules, below, taken from the manuals.
+
+**The overhead break (SMM 4.17, 4.18).**
+- A pattern point can be marked **Break**. The aircraft flies initial at Pattern speed and height, then at the break point rolls into a level 180° turn at 60° of bank and 2 G with the power at idle, and rolls out on downwind.
+- The speed bleeds off evenly with distance from 220 KIAS at the break to the Inner downwind speed (120 for the CT-156) at a downwind point, by default abeam the threshold (T10 asks Dad how fast a Harvard really slows at idle, to check this).
+- Because the speed falls through the turn, the break isn't a circle: at a steady 60° the radius shrinks with the speed (2,744 ft at 220 KIAS, 1,276 ft at 150, at 3,500 ft). The sim flies it in 0.05 s steps, and downwind is wherever the break puts it. The map and Leg distances show the downwind spacing from the runway (for example "Downwind 3,900 ft from the centreline").
+- **Wind.** The break point is 2,000 ft past the threshold with a 10 kt headwind on initial, later with more headwind and earlier with less (SMM 4.17 para 39, 4.18 para 42). The manual gives no number per knot, so the sim moves the break point to keep the time from roll-out to the perch the same as with a 10 kt headwind, which is what the rule is for; the readout says so. The bank isn't changed for a crosswind; the aircraft crabs once it's on downwind (SMM 4.18).
+
+**The final turn (SMM 4.19, 4.20, 4.7).**
+- The **perch** is abeam the Window on downwind. From it the aircraft flies one continuous descending 180° turn at 120 KIAS (the Approach phase) and rolls out on the extended centreline at the **Window**, 3/4 NM from the threshold, on a 3° glide path.
+- **Bank from the spacing.** The turn's radius is half the distance from downwind to the centreline, so the bank is whatever that spacing needs at 120 KIAS: 45° for a 2,800 ft downwind, 35° for 4,000 ft, 29° for 5,000 ft. More than 45° is flagged "downwind too tight for the final turn" (SMM 4.19: up to 45°).
+- **Height.** The height falls evenly around the turn from downwind height to the Window height, 3° × 3/4 NM, about 240 ft above the runway (roughly 2,130 ft MSL at Moose Jaw; SMM 4.7). The More detail readout shows the rate of descent: from a 3,500 ft downwind with a 4,000 ft spacing it's about 2,760 ft/min, from 3,000 ft about 1,750 ft/min (see T9).
+- **3° final.** From the Window to the threshold the height follows the 3° glide path (about 300 ft per NM, SMM 4.7). The straight-in's final uses the same glide path from where it meets it.
+- **Wind** (SMM 4.20: the perch moves along downwind for a headwind and sideways for a crosswind). The sim does both in one step with no trial and error: it moves the perch along downwind by the distance the wind carries the aircraft during the turn, and changes the bank so the crosswind drift is taken up and the aircraft still rolls out on the centreline, flagging it if that needs more than 45°.
+
+**Practice forced landings (SMM chapter 13).** For types with glide data (the CT-156; the Siskin copies it for now):
+- A new route kind, **PFL**, made from a runway end and a left or right orbit: **High Key** over the threshold, **Low Key** 180° around, 1 NM abeam the threshold, **Final Key** 270° around, then the landing (SMM 13.6 to 13.9, 4.28 para 71). It's a circle about 0.8 to 1 NM across.
+- Flown at 120 KIAS with the gear down at 30° of bank, losing about 2,600 ft in a full circle (SMM 13.6 para 13), which is about 2,150 ft/min. High Key defaults to 5,000 ft MSL at Moose Jaw (3,000 to 4,000 ft above the field is the window, SMM 13.5 para 8), so Low Key comes out about 3,700 ft MSL and Final Key about 3,050 ft, as the manual gives (SMM 13.8, 13.9). The key heights show on the map, and the aircraft row says how it did: "Low Key 3,650 ft, 50 ft low".
+- A PFL can start higher than ideal: the aircraft carries on along the landing direction until it has lost half the excess, then turns (SMM 13.7 para 16).
+- **Wind.** The sim flies the manual's first method (SMM 13.12 para 22a): the bank varies to hold the circle over the ground, so into wind the aircraft spends longer in the air and loses more height, and the key heights show that, which is the teaching point. Holding a circle over the ground needs the bank to change with the ground speed; the most bank it takes is flagged if it passes 45°.
+- PFL traffic mixes with the pattern and straight-ins, and the conflict check shows where they meet (SMM 4.28 paras 67, 68, 70).
+
+**Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
+- Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
+- The aircraft **zooms** straight ahead to 125 KIAS, trading speed for height. Speed alone would give about 1,600 ft from 220 KIAS at 3,500 ft; drag takes some of that, so the sim uses a share of it, 70 % for now (T10 asks Dad).
+- It then turns towards the runway and **glides** at 125 KIAS, about 2 NM per 1,000 ft in still air (SMM 13.5 para 7), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
+- With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
+- Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
+
+| Glide data | CT-156 (and CT-157 for now) | Where from |
+|---|---|---|
+| Best glide, clean | 125 KIAS, about 2 NM per 1,000 ft | SMM 13.5 para 7, 13.14 para 26 |
+| Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
+| High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
+| Zoom | 70 % of the speed-for-height trade | Placeholder (T10) |
+
+The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
+
 ### Changes that fix V6's bugs
 
 Each lands as its own commit after the golden test pins V6's behaviour, and that commit changes the golden test to say exactly what differs (D10). Approving this spec approves them; none changes the flight math.
@@ -398,6 +441,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 - With a wind set, each aircraft shows its crab angle and ground speed from its own type's airspeed, holds its route, and flies its turns at a steady bank, rolling in earlier with a tailwind and later with a headwind (Patrick's wind requirement, T6).
 - With the wind calm, every number is V6's (or a listed change).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
+- The break, the final turn onto a 3° final, PFLs and engine-outs fly as the manuals describe, with the key heights and flags shown (tasks 15 to 17).
 - Patrick or Dad signs off the checklist (R21).
 
 ## Plan
@@ -418,11 +462,15 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T8. The references for the redraw.** Which ground reference each point of the Moose Jaw pattern flies over (for example "downwind over the highway"), from Patrick and Dad. Default: V6's routes and 1.2 trim until they redraw them (see The built-in setup). Recommendation: send the list whenever it's handy; the redraw itself happens on screen once task 8 is built.
 
+**T9. Downwind height after the break.** With Moose Jaw's 3,500 ft pattern, is downwind after the break flown at 3,500 ft, so the final turn comes down about 1,370 ft to the Window (about 2,760 ft/min with a 4,000 ft spacing)? The manuals' 3,000 ft pattern gives about 1,750 ft/min. Default: downwind at pattern height, as V6's built-in Pattern 1 flies it (3,500 ft to 2,100 ft at the Window).
+
 **For Dad (his flying knowledge)**
 
 **T6b. Turns set at 1 G, and turns too tight for their legs.** Points 11 to 13 of the built-in Pattern 1 are set at 1 G, which in a level turn means no bank at all, and point 10's legs are too short for its 2 G turn (it needs 2.3 G). Default: fly them as V6 does, tightened where they don't fit and flagged. Recommendation: set every pattern turn to 60°, 2 G (Patrick's rule) when the routes are redrawn, and move any point whose turn still doesn't fit.
 
 **T5b. Tutor and Astra numbers.** The CT-114 has no published circuit speeds, and the Astra's Entry speed is V6's own number. Default: the type table as it stands (Patrick: "looks about right"). Recommendation: Dad corrects any number he knows better; each is one row of data.
+
+**T10. The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and how much height does the zoom from 220 KIAS really give (the default is 70 % of the speed-for-height trade, about 1,100 ft)? Recommendation: Dad gives a number for each, or they stay as placeholders.
 
 ## Answered questions
 

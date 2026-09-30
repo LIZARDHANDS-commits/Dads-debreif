@@ -34,6 +34,7 @@ Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), a draft waiting fo
 - PR D: tasks 10 and 11 (wind and aircraft types).
 - PR E: task 12 (D46 and the decided changes, one commit each) and task 13 (polish and checklist).
 - PR F: task 14 (the redrawn Moose Jaw setup), when Patrick and Dad have redrawn it.
+- PR G: tasks 15 to 17 (the break and final turn, PFLs, engine-outs; Patrick 06:03Z).
 
 Each PR is reviewed with code-review-and-quality before it leaves draft, lists the skills it applied (see the spec's Skills used), and merges on green under the merge rule once the spec is approved.
 

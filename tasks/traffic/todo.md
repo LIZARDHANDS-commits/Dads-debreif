@@ -87,3 +87,23 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Verify: `npm test`; Patrick and Dad look at it on the live site.
   - Dependencies: 8, 12, and Patrick and Dad's time. Size S.
   - Files: src/modules/traffic/data/moose-jaw.json, src/modules/traffic/{profile,editor}.js, tests/unit/traffic/profile.test.js
+
+**Checkpoint F:** redrawn setup merged.
+
+- [ ] **15. The break and the final turn.** Break points (level 60°, 2 G, 180° at idle, speed bleeding to Inner downwind, stepped at 0.05 s); the wind rule for the break point; the perch abeam the Window; the descending 180° final turn with its bank from the downwind spacing and the wind worked in (perch moved, bank changed), flagged past 45°; the 3° glide path from the Window. Starts from failing tests.
+  - Acceptance: known answers: 45° for a 2,800 ft spacing, 35° for 4,000 ft at 120 KIAS; roll-out on the centreline at the Window in any wind the bank limit allows; height on the glide path within 1 ft; V6's golden tests untouched.
+  - Verify: `npm test`; unit tests in each wind direction.
+  - Dependencies: 10, 11. Size M.
+  - Files: src/modules/traffic/{route,sim,readouts}.js, tests/unit/traffic/break-final.test.js
+- [ ] **16. PFLs.** The PFL route kind from a runway end (left or right), High, Low and Final Key, 120 KIAS gear down at 30°, 2,600 ft per circle, a high High Key handled by SMM 13.7, the circle held over the ground in wind with the bank flagged past 45°, key heights on the map and in the row; glide data in `types.js` (CT-156, CT-157 copying it).
+  - Acceptance: calm air from 5,000 ft MSL: Low Key about 3,700 ft, Final Key about 3,050 ft; with a headwind the into-wind half loses more height; types without glide data can't fly a PFL and the screen says why.
+  - Verify: `npm test`; e2e: build a PFL, spawn a CT-156 on it.
+  - Dependencies: 15. Size M.
+  - Files: src/modules/traffic/{route,sim,types,editor,map2d}.js, tests/unit/traffic/pfl.test.js
+- [ ] **17. Simulated engine-outs.** Engine out on an aircraft row and as a plan step; the zoom to 125 KIAS (share of the speed-for-height trade, T10); the glide at 2 NM per 1,000 ft with wind; picking the reachable key and joining at a tangent; no zoom in the final turn or on a straight-in final; "can't make the runway: eject".
+  - Acceptance: from 220 KIAS at 3,500 ft the zoom gains 70 % of about 1,600 ft; an aircraft out of reach of every key is flagged and removed; one in reach lands; rewind still exact.
+  - Verify: `npm test`; e2e: engine out on downwind, watch it land.
+  - Dependencies: 16. Size M.
+  - Files: src/modules/traffic/{sim,aircraft,readouts}.js, tests/unit/traffic/engine-out.test.js
+
+**Checkpoint G:** tests pass; code-review-and-quality; open PR G.
