@@ -1739,7 +1739,14 @@ test('saved radar: a fetch shows its progress and can be cancelled, and closing 
   await saveWxButton(page).click();
   await expect(savedWxStatus(page)).toHaveText(KEPT_LINE, { timeout: 20_000 });
 
-  // The pictures aren't in a file yet, and can't be fetched again after 3 hours: closing asks.
+  // The pictures aren't in a file yet, and can't be fetched again after 3 hours: leaving the page asks,
+  const leaveAsks = () => page.evaluate(() => {
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(await leaveAsks()).toBe(true);
+  // and closing the flight asks.
   await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const messages = [];
   page.once('dialog', (dialog) => { messages.push(dialog.message()); dialog.dismiss(); });
@@ -1749,6 +1756,7 @@ test('saved radar: a fetch shows its progress and can be cancelled, and closing 
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Close flight' }).click();
   await expect(status(page)).toHaveText('No flight loaded');
+  expect(await leaveAsks()).toBe(false);
 });
 
 test('saved radar: a flight more than 3 hours old says "Not kept", fetches nothing and offers nothing', async ({ page }) => {

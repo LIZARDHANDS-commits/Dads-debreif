@@ -295,9 +295,22 @@ const OFFER = 'ECCC keeps radar for 3 hours. This fetches every picture from the
 
 test('the offer: hidden with no flight, a button for a recent flight, the not kept words for an old one', () => {
   assert.deepEqual(offerState({ ...base, flight: false }), { button: 'hidden', status: '', live: '' });
-  assert.deepEqual(offerState(base), { button: 'save', status: OFFER, live: OFFER });
+  assert.deepEqual(offerState({ ...base, pressed: true }), { button: 'save', status: OFFER, live: OFFER });
   const old = 'Not kept: radar is only available for 3 hours after the flight.';
-  assert.deepEqual(offerState({ ...base, recent: false }), { button: 'hidden', status: old, live: old });
+  assert.deepEqual(offerState({ ...base, recent: false, pressed: true }), { button: 'hidden', status: old, live: old });
+});
+
+test('nothing is read out until the offer is pressed: loading a flight or opening a file is silent', () => {
+  const old = 'Not kept: radar is only available for 3 hours after the flight.';
+  assert.deepEqual(offerState(base), { button: 'save', status: OFFER, live: '' });
+  assert.deepEqual(offerState({ ...base, recent: false }), { button: 'hidden', status: old, live: '' });
+  const saved = { box: {}, fetchedT: 1, thin: 1, frames: [{ layer: 'rain', t: START, mime: 'image/png', data: 'AAAA' }] };
+  const opened = offerState({ ...base, recent: false, phase: 'done', saved, fromFile: true });
+  assert.equal(opened.live, '');
+  assert.match(opened.status, /^Kept with this debrief/);
+  // A press after the 3 hours ran out says "Not kept" aloud (Y8).
+  assert.equal(offerState({ ...base, recent: false, pressed: true }).live, old);
+  assert.equal(offerState({ ...base, phase: 'failed', failure: 'no reply' }).live, "Couldn't save radar and lightning: no reply");
 });
 
 test('the offer while fetching is a cancel button with a progress line that counts each picture', () => {
@@ -365,4 +378,19 @@ test('and on the usual steps, from the recorded shape, every kept frame passes',
   await done(feed);
   const { saved } = feed.state();
   assert.deepEqual(savedFromSetting(savedToSetting(saved), { startT: flight.startT, endT: flight.endT }).saved, saved);
+});
+
+test('the fetch keeps by the reader\'s window: on a 3-hour step the frame before the start is over an hour early, so none is fetched', async () => {
+  const slow = (name) => caps(name, '2026-09-30T04:30:00Z', '2026-09-30T07:30:00Z', 'PT180M'); // 04:30 and 07:30 only
+  const eccc = fakeEccc((url) => {
+    const q = new URL(url).searchParams;
+    if (q.get('request') !== 'GetCapabilities') return undefined;
+    return new Response(slow(q.get('layer')), { headers: { 'content-type': 'text/xml' } });
+  });
+  const feed = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {} });
+  feed.start(flight); // 06:10 to 06:50: 04:30 is 100 min before the start, 07:30 after the end
+  await done(feed);
+  assert.equal(frames(eccc.calls).length, 0, 'no picture the reader would drop is fetched');
+  assert.equal(feed.state().phase, 'failed');
+  assert.equal(feed.state().saved, null);
 });

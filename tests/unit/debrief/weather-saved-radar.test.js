@@ -390,6 +390,22 @@ test('a real gap in what ECCC had is not bridged: a 58-minute natural gap shows 
   }
 });
 
+test('thinned lightning widens by its own 10-minute step, not radar\'s 6', () => {
+  const t = (s) => START + s;
+  const saved = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('lightning', t(0))], thin: 4 });
+  assert.equal(savedFrameAt(saved, 'lightning', t(2300))?.frame.t, t(0), '4 steps of 600 s is 2,400 s');
+  assert.equal(savedFrameAt(saved, 'lightning', t(2401)), null);
+});
+
+test('thinning widens the age limit by at most 12 steps', () => {
+  assert.equal(LIMITS.maxThin, 12);
+  const t = (s) => START + s;
+  const saved = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('lightning', t(0))], thin: 13 });
+  assert.equal(saved.thin, 12);
+  assert.equal(savedFrameAt(saved, 'lightning', t(7200))?.frame.t, t(0), '12 steps of 600 s');
+  assert.equal(savedFrameAt(saved, 'lightning', t(7201)), null, 'not a 13th step');
+});
+
 test('the thinning step is stored in the block, read back, and capped; nonsense reads as none', () => {
   assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1, thin: 3 }).thin, 3);
   assert.equal(makeSaved({ box: savedBox(flightBox), frames: goodFrames(), fetchedT: 1, thin: 500 }).thin, LIMITS.maxThin);
@@ -560,4 +576,9 @@ test('what goes in the file is read back by the same checks first, and refused i
   // Frames the reader would drop count as a failure too: what is written is what is read.
   const partly = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', START), frame('rain', END + 7200)] });
   assert.match(weatherForFile(partly, { startT: START, endT: END }).problem, /couldn't be put in the file/);
+  // One second past the end is outside the flight too, and the words say so.
+  const justAfter = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', START), frame('rain', END + 1)] });
+  const after = weatherForFile(justAfter, { startT: START, endT: END });
+  assert.equal(after.text, undefined);
+  assert.match(after.problem, /\(some pictures fall outside the flight\)/);
 });

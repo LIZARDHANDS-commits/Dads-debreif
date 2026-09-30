@@ -70,6 +70,8 @@ function mount(root, app) {
   root.append(ui.element);
 
   let flight = null;
+  // Whether the saved radar offer was pressed for this flight: only then is its line read out.
+  let offerPressed = false;
   let clock = null;
   let dfps = [];
   let dfpKey = null; // where this flight's DFPs are kept in the browser (#25)
@@ -105,6 +107,13 @@ function mount(root, app) {
     const s = savedRadar.state();
     return Boolean(s.saved) && !s.fromFile && s.saved !== weatherWritten;
   };
+  // Reloading or closing the tab asks too, the browser's own question: the pictures can't be fetched again.
+  const onBeforeUnload = (event) => {
+    if (!weatherUnsaved()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  };
+  window.addEventListener('beforeunload', onBeforeUnload);
   const SAVED_ALPHA = { radar: 0.75, lightning: 1 };
   function savedWeatherItems() {
     const on = layout.get();
@@ -122,7 +131,7 @@ function mount(root, app) {
   function renderSavedWeather() {
     const on = layout.get();
     const recent = flight ? radarKept(flight.endT, Date.now() / 1000) : false;
-    const offer = offerState({ flight: Boolean(flight), recent, ...savedRadar.state() });
+    const offer = offerState({ flight: Boolean(flight), recent, pressed: offerPressed, ...savedRadar.state() });
     let note = '';
     if (flight && clock) {
       // While fetching, the menu's line is the one place progress is written and announced (Y5).
@@ -333,6 +342,7 @@ function mount(root, app) {
     metars.setFlight(flight);
     savedRadar.load(session.weather ?? null);
     weatherWritten = null;
+    offerPressed = false;
     windGrid = windGridPoints(flightLatLonBounds(flight));
     winds.setFlight(flight, windPoint(flight), windGrid);
     dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
@@ -358,6 +368,7 @@ function mount(root, app) {
     metars.setFlight(null);
     savedRadar.setFlight(null);
     weatherWritten = null;
+    offerPressed = false;
     windGrid = [];
     winds.setFlight(null);
     dfpKey = null;
@@ -529,6 +540,7 @@ function mount(root, app) {
   ui.onFit(() => map.fit());
   ui.onSaveWx(() => {
     if (!flight) return;
+    offerPressed = true;
     // The 3 hours may have passed while the button was on screen: say "Not kept" instead of doing nothing (Y8).
     if (!radarKept(flight.endT, Date.now() / 1000)) renderSavedWeather();
     else savedRadar.start({ startT: flight.startT, endT: flight.endT, bounds: flightLatLonBounds(flight) });
@@ -582,6 +594,7 @@ function mount(root, app) {
     stopLayout();
     metars.dispose();
     winds.dispose();
+    window.removeEventListener('beforeunload', onBeforeUnload);
     savedRadar.dispose();
     controls.dispose();
     standardsPanel?.dispose();

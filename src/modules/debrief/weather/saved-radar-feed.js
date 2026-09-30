@@ -199,11 +199,14 @@ export function createSavedRadarFeed({
  * 'hidden', 'save' or 'cancel'. status is the line shown (it counts every
  * picture); live is what a screen reader is told, which changes only at the
  * start, about every 25 % and at the end, so a fetch of forty pictures is not
- * forty announcements. flight: whether one is loaded. recent: whether
- * it ended within 3 hours (radarKept). The rest is the feed's state().
+ * forty announcements. Nothing is announced until the offer is pressed, so
+ * loading a flight or opening a file reads nothing out. flight: whether one
+ * is loaded. recent: whether it ended within 3 hours (radarKept). pressed:
+ * whether the offer was pressed for this flight. The rest is the feed's state().
  */
-export function offerState({ flight, recent, phase, done, total, saved, notes, failure, fromFile }) {
-  const say = (button, status) => ({ button, status, live: status });
+export function offerState({ flight, recent, pressed = false, phase, done, total, saved, notes, failure, fromFile }) {
+  const heard = pressed || phase === 'fetching' || phase === 'failed' || (phase === 'done' && !fromFile);
+  const say = (button, status) => ({ button, status, live: heard ? status : '' });
   if (!flight) return say('hidden', '');
   if (phase === 'fetching') {
     if (!total) return say('cancel', 'Asking ECCC which pictures it has…');
