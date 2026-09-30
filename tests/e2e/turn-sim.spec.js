@@ -499,6 +499,15 @@ test('the clock cue shows its position box and live status lines, and says when 
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await box(page, 'Clock position').first().selectOption({ label: '5:30' });
   await expect(page.getByText("can't see their clock cue")).toHaveText("#3 and #4 can't see their clock cue in the box, so they turn on the rear element timing instead.");
+  // N8: the lines for #3 and #4 agree with the warning, before and while they turn.
+  await expect(cues.getByRole('listitem').nth(2)).toContainText('turns on the rear element timing');
+  await expect(cues.getByRole('listitem').nth(3)).toContainText('turns on the rear element timing');
+  await page.getByLabel('Playback speed').selectOption('4');
+  await playButton(page).click();
+  await expect.poll(() => simTime(page), { timeout: 20000 }).toBeGreaterThan(30);
+  await playButton(page).click();
+  await expect(cues.getByRole('listitem').nth(2)).not.toContainText(/watching|cue came from/);
+  await expect(cues.getByRole('listitem').nth(3)).not.toContainText(/watching|cue came from/);
   // Time delay again: the cue lines and the message are gone.
   await box(page, 'Timing').selectOption({ label: 'Time delay' });
   await expect(cues).toBeHidden();

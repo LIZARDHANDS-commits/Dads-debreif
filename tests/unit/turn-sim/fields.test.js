@@ -47,6 +47,10 @@ test('#3 and #4 that cannot see a 5:30 cue in the offset box get the Q44c messag
     { mode: 'waiting', targetId: 2, clockPos: 5.5, cantSee: true },
   ]);
   assert.equal(cueStatus(s).warning, "#3 and #4 can't see their clock cue in the box, so they turn on the rear element timing instead.");
+  // N8: their lines agree with the warning, before and after the turn starts.
+  assert.deepEqual(cueStatus(s).lines.map((l) => l.text), ['starts the turn, nothing to wait for', "watching #1 for 5:30", 'turns on the rear element timing', 'turns on the rear element timing']);
+  s.aircraft[2].cue.mode = 'triggered';
+  assert.equal(cueStatus(s).lines[2].text, 'turns on the rear element timing');
   s.aircraft.pop();
   assert.equal(cueStatus(s).warning, "#3 can't see its clock cue in the box, so it turns on the rear element timing instead.");
 });

@@ -262,7 +262,9 @@ export function cueStatus(state) {
     const cue = a.cue;
     if (!cue || cue.mode === 'off') continue;
     const at = clockLabel(cue.clockPos);
-    if (cue.mode === 'start') lines.push({ id: a.id, text: 'starts the turn, nothing to wait for' });
+    // In the box #3 and #4 never watch anything: their line says what does time them (N8), never "watching" or "cue came from".
+    if (cue.cantSee) lines.push({ id: a.id, text: 'turns on the rear element timing' });
+    else if (cue.mode === 'start') lines.push({ id: a.id, text: 'starts the turn, nothing to wait for' });
     else if (cue.mode === 'waiting') lines.push({ id: a.id, text: `watching #${cue.targetId} for ${at}` });
     else lines.push({ id: a.id, text: `cue came from #${cue.targetId}, turning` });
     if (cue.cantSee) {
