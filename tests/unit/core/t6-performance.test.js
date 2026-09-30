@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
+  T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A,
 } from '../../../src/core/t6-performance.js';
 import { T6A_TURN_POINTS, T6A_FIT } from '../../../src/core/t6a-turn-charts.js';
 import { isaDensityRatio, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
@@ -147,4 +148,89 @@ test('the corner: 7 G first at 227.5 KIAS; 33.3°/s on a 659 ft radius at 227 KI
   const v = iasToTasKt(227, 0) * KT_TO_FTPS;
   near(turnRateRadPerSec(v, 7) * DEG, 33.3, 0.1, 'instantaneous rate at 7 G');
   near(turnRadiusFt(v, 7), 659, 1, 'radius at 7 G');
+});
+
+// ── Task 17: glide and zoom, and the cross-checks ──
+
+test('the max glide chart, by configuration', () => {
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(T6A_GLIDE).map(([k, c]) => [k, [c.kias, c.nmPer1000Ft, c.chartSinkFpm, c.prop, c.dragIndex]])),
+    {
+      clean: [125, 2.0, 1350, 'feathered', 0],
+      gearDown: [105, 1.5, 1500, 'feathered', 20],
+      landing: [95, 1.1, 1850, 'feathered', 80],
+      windmilling: [110, 1.0, 2350, 'windmilling', 0],
+    });
+  assert.throws(() => { T6A_GLIDE.clean.kias = 120; }, TypeError);
+});
+
+test('glide sink rate: true airspeed ÷ the glide ratio, so it grows with height', () => {
+  // 125 KIAS at sea level is 12,660 ft/min forward; 2 NM per 1,000 ft is 12.15:1.
+  near(glideSinkFpm('clean', 125, 0), 125 * KT_TO_FTPS * 60 / (2 * FT_PER_NM / 1000), 1e-9, 'clean at sea level');
+  near(glideSinkFpm('clean', 125, 0), 1042, 1, 'about 1,040 ft/min at sea level');
+  assert.ok(glideSinkFpm('clean', 125, 10000) > glideSinkFpm('clean', 125, 0), 'faster sink higher up');
+  near(glideSinkFpm('gearDown', 120, 3500), iasToTasKt(120, 3500) * KT_TO_FTPS * 60 / (1.5 * FT_PER_NM / 1000), 1e-9, 'the SMM\'s 120 KIAS gear down');
+  // The chart's own sink rates are the same sums at about 16,000 ft, all four rows alike.
+  for (const [config, c] of Object.entries(T6A_GLIDE)) {
+    const atChart = glideSinkFpm(config, c.kias, 16300);
+    assert.ok(Math.abs(atChart / c.chartSinkFpm - 1) < 0.02, `${config}: ${atChart.toFixed(0)} ft/min at 16,300 ft against the chart's ${c.chartSinkFpm}`);
+  }
+});
+
+test('the glide cross-check: drag alone at 125 KIAS clean glides within 15 % of 2 NM per 1,000 ft', () => {
+  const ratio = 1 / dragPerWeight(125, 0, 1);
+  const chart = 2 * FT_PER_NM / 1000;
+  assert.ok(Math.abs(ratio / chart - 1) <= 0.15, `model ${ratio.toFixed(2)}:1, chart ${chart.toFixed(2)}:1`);
+  // It is exact, since the glide chart sets the drag (T6A_FIT).
+  near(ratio, chart, 1e-3, 'L/D');
+});
+
+test('the NFM zoom table (Fig 3-4): the lightest and heaviest rows exactly, the rows between within 1 ft', () => {
+  for (let i = 0; i < NFM_ZOOM.kias.length; i++) {
+    for (let j = 0; j < NFM_ZOOM.altFt.length; j++) {
+      assert.equal(zoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j], NFM_ZOOM.lightLb).gainFt, NFM_ZOOM.light[i][j]);
+      assert.equal(zoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j], NFM_ZOOM.heavyLb).gainFt, NFM_ZOOM.heavy[i][j]);
+    }
+  }
+  assert.deepEqual([NFM_ZOOM.light[0][0], NFM_ZOOM.heavy[0][3], NFM_ZOOM.light[1][0], NFM_ZOOM.heavy[1][3]], [595, 883, 1172, 1552], 'the manual\'s ranges');
+  near(zoomT6A(200, 3000, 5800).gainFt, 693, 1, 'NFM example 1');
+  near(zoomT6A(250, 6000, 6200).gainFt, 1535, 1, 'NFM example 2');
+  near(zoomT6A(200, 500, 5900).gainFt, 660, 1, 'a row between');
+  near(zoomT6A(250, 1500, 6100).gainFt, 1305, 1, 'another');
+});
+
+test('zoomT6A between and beyond the table: the same share of the ideal energy height, none below 150 KIAS', () => {
+  assert.equal(zoomT6A(250, 3000).gainFt, zoomT6A(250, 3000, 5800).gainFt, '5,800 lb unless told');
+  const gains = [150.1, 175, 200, 220, 250, 280].map((k) => zoomT6A(k, 3500).gainFt);
+  for (let i = 1; i < gains.length; i++) assert.ok(gains[i] > gains[i - 1], `rises with speed: ${gains.join(', ')}`);
+  near(zoomT6A(220, 3500).gainFt, 959, 1, 'about 960 ft from 220 KIAS at 3,500 ft');
+  assert.equal(zoomT6A(150, 3500).gainFt, 0, 'at or below 150 KIAS the NFM decelerates level');
+  near(zoomT6A(200, 2250).gainFt, (zoomT6A(200, 1500).gainFt + zoomT6A(200, 3000).gainFt) / 2, 1e-9, 'straight line between altitudes');
+  assert.ok(zoomT6A(250, 10000).gainFt > zoomT6A(250, 6000).gainFt, 'higher than the table: the same share of a bigger energy height');
+  assert.equal(zoomT6A(200, 3000, 5000).gainFt, zoomT6A(200, 3000, 5400).gainFt, 'lighter than the table: its lightest row');
+});
+
+test('zoomT6A time and distance come from flying the NFM procedure in the model', () => {
+  const z = zoomT6A(200, 500, 5400);
+  const flown = flyZoomT6A(200, 500);
+  assert.equal(z.timeSec, flown.timeSec);
+  assert.equal(z.distanceFt, flown.distanceFt);
+  assert.ok(z.timeSec > 10 && z.timeSec < 16, `200 KIAS: ${z.timeSec.toFixed(1)} s`);
+  assert.ok(zoomT6A(250, 500).timeSec > z.timeSec && zoomT6A(250, 500).distanceFt > z.distanceFt, 'longer from 250');
+  const level = zoomT6A(140, 3500);
+  assert.ok(level.gainFt === 0 && level.timeSec > 0 && level.distanceFt > 0, 'a level slow-down to 125 below 150 KIAS');
+  assert.deepEqual(zoomT6A(120, 3500), { gainFt: 0, timeSec: 0, distanceFt: 0 }, 'already at glide speed');
+});
+
+test('the zoom cross-check: the model, thrust off, flies the NFM zoom within 10 % of the table (5,400 lb)', () => {
+  // 2 s delay, 2 G pull to 20° nose up, held to 145 KIAS, then a 0.25 G push to 125 KIAS or the glide path.
+  for (let i = 0; i < NFM_ZOOM.kias.length; i++) {
+    const [lo, hi] = i === 0 ? [595, 883] : [1172, 1552];
+    for (let j = 0; j < NFM_ZOOM.altFt.length; j++) {
+      const gain = flyZoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j]).gainFt;
+      const table = NFM_ZOOM.light[i][j];
+      assert.ok(Math.abs(gain / table - 1) <= 0.1, `${NFM_ZOOM.kias[i]} KIAS at ${NFM_ZOOM.altFt[j]} ft: model ${gain.toFixed(0)}, NFM ${table}`);
+      assert.ok(gain >= lo && gain <= hi, `inside the manual's ${lo} to ${hi} ft`);
+    }
+  }
 });
