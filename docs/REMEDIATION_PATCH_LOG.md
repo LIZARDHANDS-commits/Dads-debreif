@@ -211,3 +211,35 @@
   Hot RAM must contain non-negotiable operational boundaries and routing pointers, not living checklists. Eliminates token waste and stops cross-document synchronization drift.
 * **Verification:**  
   Both `.agent/rules/dads-debrief.md` copies verified identical in content.
+
+---
+
+### PATCH-011: Milestone 1 (PR 1) Merged Three.js 3D View & Esri Satellite Tiles (PR #229)
+* **Date & Time:** 2026-09-30 22:38 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main` (commit `64cc09a`)
+* **Files Modified:**
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js) (NEW)
+  * [`src/modules/traffic/map2d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/map2d.js)
+  * [`src/modules/traffic/settings-panel.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/settings-panel.js)
+  * [`src/modules/traffic/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/layout.js)
+  * [`src/modules/traffic/index.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/index.js)
+  * [`src/modules/traffic/defaults.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/defaults.js)
+  * [`src/modules/traffic/traffic.css`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/traffic.css)
+  * [`tests/unit/traffic/view3d.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/view3d.test.js) (NEW)
+  * [`tests/unit/traffic/map2d.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/map2d.test.js)
+  * [`tests/unit/traffic/settings-panel.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/settings-panel.test.js)
+  * [`tests/unit/traffic/layout.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/layout.test.js)
+  * [`tests/unit/traffic/defaults.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/defaults.test.js)
+  * [`tests/e2e/traffic.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/traffic.spec.js)
+  * [`tests/e2e/visual.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/visual.spec.js)
+* **Problem / Flaw Addressed:**  
+  Traffic Sim previously lacked 3D perspective visualization and satellite airfield map tiles, limiting pilot situational awareness in visual circuit spacing.
+* **Changes Made:**
+  1. Merged `origin/claude/traffic-spec-j17uqw` (PR #229) cleanly into `main` via `64cc09a` (+2,441 lines across 18 files).
+  2. Integrated Three.js 3D traffic renderer (`view3d.js`) with aircraft orientation (bank, pitch, heading) and camera controls.
+  3. Integrated Esri satellite tile rendering under 2D map canvas with offline caching and graceful fallback.
+* **Reasoning / Rationale:**  
+  Completes Task 1.1 and Task 1.2 of Milestone 1 per the master execution roadmap.
+* **Verification:**  
+  `npm test` passed 100% green (`2,879 passed, 0 failed, 8 todo, 1 skipped` in 31.2s; 54 new unit tests). `npm run build` passed in 354ms with all size budgets intact.

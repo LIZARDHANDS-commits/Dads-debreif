@@ -304,8 +304,8 @@ flowchart TD
 - [ ] **Gate 0 (Debrief & SOF Sign-Off):** Patrick runs `docs/checklists/debrief.md` and `docs/checklists/sof.md` on localhost:4173 to formally sign off Debrief and SOF before Traffic work begins.
 
 #### Milestone 1: Traffic Pattern Sim Module Build (PR 1 to 3)
-- [ ] **Task 1.1 (Parallel Agent A):** Rebase `origin/claude/traffic-spec-j17uqw` (PR #229) onto `main`. (Already cleanly merged with `main` at `13f2397`).
-- [ ] **Task 1.2 (Series PR 1):** Merge PR #229 (Traffic 3D view & satellite tiles) to `main`.
+- [x] **Task 1.1:** Rebase `origin/claude/traffic-spec-j17uqw` (PR #229) onto `main`. (Cleanly fast-forwarded and merged at `64cc09a`).
+- [x] **Task 1.2 (Series PR 1):** Merge PR #229 (Traffic 3D view & satellite tiles) to `main`.
 - [ ] **Task 1.3 (Parallel Agent A):** Consolidate `origin/handover/traffic-polish` and `origin/handover/traffic-rewind-fix` onto single branch `traffic-polish-rewind`. Preserve `tests/unit/traffic/rewind.test.js` (+422 lines) to verify callsign indexing safety under rapid rewind.
 - [ ] **Task 1.4 (Series PR 2):** Merge consolidated Traffic polish & rewind fix to `main`.
 - [ ] **Task 1.5 (Series PR 3):** Implement Traffic Core 4 (wind vector integration, 4 aircraft types flying manual speeds, 60° break turn at 3,500 ft MSL, 45° descending final turn to threshold / straight-in at 2,700 ft MSL on Runway 29L left-hand per D378).
