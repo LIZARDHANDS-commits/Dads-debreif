@@ -97,9 +97,9 @@ test('what is stored is checked on the way back: bad profiles are skipped with a
   assert.deepEqual(kept.map((p) => p.name), ['Good']);
   assert.equal(skipped.length, 2);
   assert.match(skipped[0], /^"Bad" was skipped: it has 31 routes \(the most is 30\)\.$/);
-  // Text that is not JSON at all reads as nothing, and does not throw.
+  // Text that is not JSON at all reads as unreadable/foreign, and does not throw.
   browser.items.set('ooda:v1:traffic:profiles', '{not json');
-  assert.deepEqual(open(browser).profiles.list(), { profiles: [], skipped: [], unreadable: 0, foreign: false });
+  assert.deepEqual(open(browser).profiles.list(), { profiles: [], skipped: ['The saved profiles in this browser could not be read, so they were skipped.'], unreadable: 0, foreign: true });
 });
 
 test('a browser that will not store: saving works for the visit, says it was not kept, and persistent is false', () => {
