@@ -42,7 +42,10 @@ export function turnRadiusFt(speedFtps, g) {
 /**
  * Turn rate in radians per second (Turn Sim `turnRate`, line 789).
  * Turn Fight computes it as gravity × √(g² − 1) / speed instead, which differs
- * from this in the last digit for about a third of inputs; nothing it shows changes.
+ * from this in the last digit for about a third of inputs. A single turn shows
+ * no change, but the Turn Fight's chase ("First nose chases") compounds it: after
+ * about 40 s the paths can drift apart by up to V6's own 50-vs-60 fps spread
+ * (SPEC-turn-fight, Testing strategy).
  */
 export function turnRateRadPerSec(speedFtps, g) {
   return speedFtps / turnRadiusFt(speedFtps, g);
