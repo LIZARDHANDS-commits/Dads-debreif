@@ -319,6 +319,28 @@ test('a finished In-place 90 reads in trail and ON SPACING, and a finished Check
   await expect(cardLines(page).first()).toHaveText('#2 Not judged: the wingman corrects after a check turn', { timeout: 60000 });
 });
 
+test('at 1280 with every panel open, no visible list in Setup cuts its chosen option short (N10, F1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Timing').selectOption({ label: 'Clock position cue' });
+  await page.$$eval('.panel-toggle[aria-expanded="false"]', (els) => els.forEach((e) => e.click()));
+  const cut = await page.evaluate(() => {
+    const ctx = document.createElement('canvas').getContext('2d');
+    const out = [];
+    for (const select of document.querySelectorAll('.ts-col-setup select')) {
+      if (select.closest('[hidden]') || select.getBoundingClientRect().width === 0) continue;
+      const style = getComputedStyle(select);
+      ctx.font = `${style.fontSize} ${style.fontFamily}`;
+      const text = select.options[select.selectedIndex].textContent;
+      const room = select.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 18; // the arrow
+      if (ctx.measureText(text).width > room) out.push(`${text} (${Math.round(ctx.measureText(text).width)} px in ${Math.round(room)})`);
+    }
+    return out;
+  });
+  expect(cut).toEqual([]);
+});
+
 test('space plays and pauses, the right arrow steps once, Home resets, and typing is left alone (R14)', async ({ page }) => {
   await open(page);
   await page.locator('body').click({ position: { x: 5, y: 5 } });
@@ -773,8 +795,8 @@ test('the SMM settings sit in the closed Turn Sim settings menu, each at its def
   await expect(box(page, "#2's side")).toBeVisible();
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, 'Rear element delay')).toHaveValue('12.5');
-  await expect(box(page, '#4 timing').locator('option')).toHaveText(['Fly to the box slot (solved)', 'Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
-  await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Fly to the box slot (solved)');
+  await expect(box(page, '#4 timing').locator('option')).toHaveText(['Box slot (solved)', 'Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
+  await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Box slot (solved)');
   await expect(box(page, 'Wait for #3 and #4 to finish turning')).toBeChecked();
   await expect(box(page, 'Rear element check')).not.toBeChecked();
   // The cross turn.

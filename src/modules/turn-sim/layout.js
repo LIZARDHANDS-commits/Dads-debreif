@@ -128,7 +128,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const errorSections = [2, 3, 4].map((id) => {
     const f = errorFields(id);
     const built = Object.fromEntries(Object.entries(f).map(([name, def]) => [name, build(def)]));
-    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos, ' ts-wide'));
+    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget, ' ts-wide'), wrap(built.clockPos, ' ts-wide'));
     errorKeys.push(...Object.values(built).filter(Boolean).map((x) => x.key));
     const positionBoxes = h(
       'div',
@@ -173,7 +173,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     for (const def of defs) {
       const built = build(def);
       if (built) menuFields[def.key] = built;
-      fieldset.append(...[wrap(built)].filter(Boolean));
+      fieldset.append(...[wrap(built, def.wide ? ' ts-wide' : '')].filter(Boolean)); // wide: a long-worded list takes its own row
     }
     groups[id] = fieldset;
   }

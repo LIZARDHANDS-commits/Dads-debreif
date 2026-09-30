@@ -23,7 +23,7 @@ const OPTION_LABELS = {
   clockTarget: { global: 'Same as setup', 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueAircraft: { 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueSequence: { outsideIn: 'Outside-in', manual: 'Manual targets' },
-  offsetBox4Timing: { boxSlot: 'Fly to the box slot (solved)', rearDelay: 'Rear element delay (SMM)', groundTrack: 'Solve by ground track', late: 'Late (V6)', early: 'Early (V6)' },
+  offsetBox4Timing: { boxSlot: 'Box slot (solved)', rearDelay: 'Rear element delay (SMM)', groundTrack: 'Solve by ground track', late: 'Late (V6)', early: 'Early (V6)' },
   delayed45Check: { auto: 'Auto', none: 'Plain', check: 'With check turn' },
   twoSide: { left: 'Left', right: 'Right' },
   rearCheckDir: { left: 'Left', right: 'Right' },
@@ -50,7 +50,7 @@ export const DURATION = field('durationSec', { label: 'Run length', unit: 's', s
 export const MOA = field('moaBoundaryNm', { label: 'MOA boundary', unit: 'NM', step: 5, hint: 'The purple box on the picture.' });
 export const BOX_AFT = field('boxAftFt', { label: 'Aft spacing', unit: 'ft', step: 100, hint: 'How far behind the front element #3 and #4 fly.' });
 export const BOX_STAGGER = field('boxStaggerFt', { label: 'Lateral stagger', unit: 'ft', step: 100 });
-export const BOX4_TIMING = field('offsetBox4Timing', { label: '#4 timing', hint: 'V6\'s two ways to time #4.' });
+export const BOX4_TIMING = field('offsetBox4Timing', { wide: true, label: '#4 timing', hint: 'V6\'s two ways to time #4.' });
 export const CLOCK_AIRCRAFT = field('clockCueAircraft', { label: 'Clock cue aircraft', hint: 'The aircraft the cue is read from.' });
 export const CLOCK_SEQUENCE = field('clockCueSequence', { label: 'Clock cue sequence', hint: 'Outside-in picks who watches whom; Manual uses the targets in Aircraft errors.' });
 export const CLOCK_TOL = field('clockCueTolDeg', { label: 'Clock tolerance', unit: '°', step: 0.5, hint: 'How close to the position counts as there.' });
