@@ -10,4 +10,4 @@ Commands:
 - `/sync` at the start of a session (`.agent/skills/sync/SKILL.md`).
 - `/save` at the end of each piece of work (`.agent/skills/save/SKILL.md`).
 
-Never edit `original/`. Never put manual text or images in the repo (it is public); page references only. No new libraries without Patrick's word.
+Never edit `original/`. The flying manuals are in `../manuals` (next to the repo; `manuals/README.md` is the index). Never copy manual text or images into the repo; page references only. No new libraries without Patrick's word.
