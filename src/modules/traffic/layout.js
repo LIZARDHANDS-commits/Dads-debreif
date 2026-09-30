@@ -71,11 +71,12 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
   // Middle: the bar, then the map with its one-line hint, then the note under it.
   const canvas = h('canvas', { class: 'traffic-map' });
   const hint = h('p', { class: 'traffic-hint', role: 'status', hidden: true });
+  const credit = h('p', { class: 'traffic-credit', 'aria-live': 'polite', hidden: true }); // Esri's credit, or that the photo needs a connection
   const stage = h(
     'section',
     { class: 'traffic-stage', 'aria-label': 'Map and playback' },
     bar.element,
-    h('div', { class: 'traffic-map-wrap' }, canvas, hint),
+    h('div', { class: 'traffic-map-wrap' }, canvas, hint, credit),
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
@@ -140,6 +141,12 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     setColumnOpen(name, open) {
       columns[name].panel.setCollapsed(!open);
       columns[name].col.classList.toggle('is-collapsed', !open);
+    },
+    /** The photo's line in the map's corner: Esri's credit, or that the photo needs a connection; '' hides it. */
+    setPhotoNote(text) {
+      const words = text || '';
+      if (credit.textContent !== words) credit.textContent = words;
+      credit.hidden = !words;
     },
     /** The one line on the map ("Press Play to watch the Moose Jaw traffic."); nothing hides it. */
     setHint(text) {

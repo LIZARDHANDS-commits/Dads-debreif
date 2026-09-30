@@ -232,3 +232,20 @@ test('the one-line hint shows over the map when given, and goes away when cleare
   ui.setHint(null);
   assert.equal(hint.hidden, true);
 });
+
+test('the photo\'s credit sits in the map\'s corner: shown with its words, hidden when there are none, and it never covers the hint', () => {
+  const { ui } = setup();
+  const credit = one(ui.element, 'traffic-credit');
+  assert.equal(credit.hidden, true);
+  ui.setPhotoNote('Imagery: Esri');
+  assert.equal(words(credit), 'Imagery: Esri');
+  assert.equal(credit.hidden, false);
+  ui.setPhotoNote('Satellite photo needs a connection.');
+  assert.equal(words(credit), 'Satellite photo needs a connection.');
+  ui.setPhotoNote('');
+  assert.equal(credit.hidden, true);
+  ui.setPhotoNote(null);
+  assert.equal(credit.hidden, true);
+  assert.equal(credit.parentNode, one(ui.element, 'traffic-map-wrap'), 'in the map, not under it');
+  assert.equal(credit.getAttribute('aria-live'), 'polite');
+});

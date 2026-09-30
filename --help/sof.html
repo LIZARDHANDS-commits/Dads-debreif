@@ -1,0 +1,2053 @@
+<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>2 CFFTS SOF Dashboard</title>
+<link rel=stylesheet href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+document.querySelectorAll(".otherWxBtn").forEach(b=>b.onclick=()=>{
+ showOthers=!showOthers;
+ wxLeft.classList.toggle("showOthers",showOthers);wxRight.classList.toggle("showOthers",showOthers);
+ document.querySelectorAll(".otherWxBtn").forEach(x=>x.textContent=showOthers?"HIDE OTHER AIRFIELDS":"SHOW OTHER AIRFIELDS");
+});
+
+
+function waveEscRe(s){return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+function hazardTokens(id,txt){
+ const out=[];
+ if(id==="CYMJ"){
+   [...txt.matchAll(/\b(BKN|OVC|VV)(\d{3})\b/g)].forEach(m=>{let ft=+m[2]*100;if(ft<2000)out.push([m[0],"wxOrange"]);else if(ft<3000)out.push([m[0],"wxYellow"])});
+   [...txt.matchAll(/(?:^|\s)((?:(\d+)\s+(\d+)\/(\d+)|(\d+)\/(\d+)|(\d+))SM)\b/g)].forEach(m=>{
+     let v=m[5]?(+m[5]/+m[6]):m[3]?(+m[2]+(+m[3]/+m[4])):+m[7];
+     if(v<3)out.push([m[1],"wxOrange"])
+   });
+ }else if(id==="CYQR"){
+   [...txt.matchAll(/\b(\d{3})(\d{2,3})(G\d{2,3})?KT\b/g)].forEach(m=>{let d=+m[1];if(d<80||d>180)out.push([m[0],"wxYellow"])});
+ }else if(id==="CYYN"){
+   [...txt.matchAll(/\b(BKN|OVC|VV)(\d{3})\b/g)].forEach(m=>{if(+m[2]*100<2400)out.push([m[0],"wxOrange"])});
+ }
+ return out
+}
+function sofVisFromText(raw){
+ const m=String(raw||"").match(/(?:^|\s)(?:(\d+)\s+)?(\d+\/\d+|\d+(?:\.\d+)?)SM\b/);
+ if(!m)return null;const f=z=>String(z).includes("/")?z.split("/").reduce((a,b)=>+a/+b):+z;
+ return (m[1]?+m[1]:0)+f(m[2]);
+}
+function sofCeilFromText(raw){
+ const q=[...String(raw||"").matchAll(/\b(?:BKN|OVC|VV)(\d{3})\b/g)].map(m=>+m[1]*100);return q.length?Math.min(...q):null;
+}
+function sofEvalText(id,raw,label){
+ const C=window.SOF_WX_CFG||{},home=id===String(C.home||"CYMJ").toUpperCase(),cl=+(home?C.homeCeil:C.altCeil)||(home?2000:600),vl=+(home?C.homeVis:C.altVis)||(home?3:2);
+ const c=sofCeilFromText(raw),v=sofVisFromText(raw),a=[];
+ if(c!==null&&c<cl)a.push(`${label} CEILING ${c} FT < ${cl} FT`);
+ if(v!==null&&v<vl)a.push(`${label} VIS ${v} SM < ${vl} SM`);
+ if(/\b(?:\+?TS(?:RA|SN|GR|GS)?|FC|SQ)\b/.test(raw))a.push(`${label} THUNDERSTORM / SEVERE WX`);
+ if(/\b(?:FZRA|FZDZ|PL|GR|GS|BLSN|FG)\b/.test(raw))a.push(`${label} SIGNIFICANT WX`);
+ return a;
+}
+function sofTafPeriods(raw){
+ raw=String(raw||"").trim();if(!raw)return [];
+ const re=/\b(FM\d{6}|BECMG|TEMPO|PROB(?:30|40))\b/g,ms=[...raw.matchAll(re)],out=[];
+ if(!ms.length)return [{name:"TAF",text:raw}];
+ out.push({name:"TAF INITIAL",text:raw.slice(0,ms[0].index)});
+ ms.forEach((m,i)=>out.push({name:m[1],text:raw.slice(m.index,ms[i+1]?.index??raw.length)}));return out;
+}
+function wxTokenHighlights(id,txt){
+ const esc=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+ let raw=String(txt||""),marks=[],C=window.SOF_WX_CFG||{},home=id===String(C.home||"CYMJ").toUpperCase(),cl=+(home?C.homeCeil:C.altCeil)||(home?2000:600),vl=+(home?C.homeVis:C.altVis)||(home?3:2);
+ const add=(re,cls,test=()=>true)=>{for(const m of raw.matchAll(re))if(test(m))marks.push({a:m.index,b:m.index+m[0].length,cls})};
+ add(/\b(?:BKN|OVC|VV)(\d{3})\b/g,"wxOrange",m=>(+m[1]*100)<cl);
+ add(/(?:^|\s)(?:(\d+)\s+)?(\d+\/\d+|\d+(?:\.\d+)?)SM\b/g,"wxOrange",m=>{const f=z=>String(z).includes("/")?z.split("/").reduce((a,b)=>+a/+b):+z;return ((m[1]?+m[1]:0)+f(m[2]))<vl});
+ add(/\b(?:\+TSRA|\+TSSN|\+TSGR|\+TSGS|TSRA|TSSN|TSGR|TSGS|FC|SQ)\b/g,"wxRed");
+ add(/\b(?:FZRA|FZDZ|PL|GR|GS|SN|BLSN|FG)\b/g,"wxOrange");add(/\b(?:RA|DZ|BR|HZ|FU|DU|SA)\b/g,"wxYellow");
+ if(!marks.length)return esc(raw);const rank={wxYellow:1,wxOrange:2,wxRed:3};marks.sort((a,b)=>a.a-b.a||rank[b.cls]-rank[a.cls]||(b.b-b.a)-(a.b-a.a));
+ let out="",p=0;for(const q of marks){if(q.a<p)continue;out+=esc(raw.slice(p,q.a))+`<span class="${q.cls}">${esc(raw.slice(q.a,q.b))}</span>`;p=q.b}return out+esc(raw.slice(p));
+}
+function paintHazards(id,txt){return wxTokenHighlights(id,txt)}
+function paintTaf(id,txt){return wxTokenHighlights(id,txt)}
+window.__sofSeenAlerts=window.__sofSeenAlerts||new Set();
+function applyWxHighlights(){
+ const fresh=[];
+ document.querySelectorAll(".wxCard").forEach(card=>{
+   const id=card.querySelector(".icao")?.textContent?.trim();if(!id)return;
+   const raws=card.querySelectorAll(".wxraw"),met=raws[0]?.textContent||"",taf=raws[1]?.textContent||"";
+   const alerts=[...sofEvalText(id,met,"METAR")];
+   sofTafPeriods(taf).forEach(p=>alerts.push(...sofEvalText(id,p.text,p.name)));
+   if(raws[0])raws[0].innerHTML=wxTokenHighlights(id,met);
+   if(raws[1])raws[1].innerHTML=wxTokenHighlights(id,taf);
+   card.querySelector(".sofEval")?.remove();
+   const box=document.createElement("div");box.className="sofEval "+(alerts.length?"bad":"");box.innerHTML=alerts.length?alerts.map(a=>`<span class="item">⚠ ${a}</span>`).join(""):`<span class="item">✓ Configured weather limits clear</span>`;card.appendChild(box);
+   card.classList.toggle("sofLimitAlert",!!alerts.length);
+   alerts.forEach(a=>{const k=id+"|"+a;if(!window.__sofSeenAlerts.has(k)){fresh.push(id+" — "+a);window.__sofSeenAlerts.add(k)}});
+ });
+ if(fresh.length&&(window.SOF_WX_CFG||{}).popup!==false){sofLimitCautionText.textContent=fresh.join("\n");sofLimitCaution.classList.add("open")}
+}
+
+function localWindow(v){
+ if(!v)return null;
+ let [h,m]=v.split(":").map(Number);
+ let ds=waveDate.value;
+ if(!ds){
+   let parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Regina",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()),o={};
+   parts.forEach(x=>o[x.type]=x.value); ds=`${o.year}-${o.month}-${o.day}`;
+ }
+ let [y,mo,d]=ds.split("-").map(Number);
+ // Saskatchewan / America-Regina is UTC-6 year-round.
+ let c=new Date(Date.UTC(y,mo-1,d,h+6,m));
+ // ETA earlier than TO clock time means following local day.
+ if(v===waveLD.value&&waveTO.value&&v<waveTO.value)c=new Date(+c+86400000);
+ return [new Date(c-3600000),new Date(+c+3600000)];
+}
+function updateWave(){
+ let a=waveTO.value,b=waveLD.value,fmt=d=>String(d.getUTCHours()).padStart(2,"0")+String(d.getUTCMinutes()).padStart(2,"0")+"Z",f=v=>{let w=localWindow(v);return w?`${fmt(w[0])}–${fmt(w[1])}`:"—"};
+ waveWindow.textContent=(a||b)?`${waveDate.value||"LOCAL DATE"}  •  TAKEOFF ±1 HR ${f(a)}  •  ETA ±1 HR ${f(b)}`:"Enter takeoff and ETA / landing times";
+ localStorage.setItem("sofWaveDate",waveDate.value);
+ localStorage.setItem("sofWaveTO",a);localStorage.setItem("sofWaveLD",b);
+ if(typeof applyWxHighlights==="function")applyWxHighlights();
+}
+{
+ let saved=localStorage.getItem("sofWaveDate");
+ if(saved)waveDate.value=saved;
+ else{
+   let q=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Regina",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()),o={};
+   q.forEach(x=>o[x.type]=x.value); waveDate.value=`${o.year}-${o.month}-${o.day}`;
+ }
+}
+waveTO.value=localStorage.getItem("sofWaveTO")||"";waveLD.value=localStorage.getItem("sofWaveLD")||"";waveDate.oninput=waveTO.oninput=waveLD.oninput=updateWave;updateWave();
+</script>
+<style>
+:root{--bg:#06131f;--p:#0d2437;--p2:#091b2a;--line:#2d4b63;--txt:#edf7ff;--mut:#9eb5c7;--g:#55dc95;--b:#61baff;--r:#ff7070;--m:#e99cff;--y:#ffd166}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font:14px system-ui}
+.top{height:118px;flex-wrap:wrap;align-content:center;background:#091f31;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:8px}.title{font-size:20px;font-weight:900;margin-right:auto}.mut{color:var(--mut);font-size:11px}
+button,input{font:inherit;background:#143149;color:#fff;border:1px solid #41627c;border-radius:8px;padding:8px;cursor:pointer}.on{background:#1677ba}.worldclocks{order:3;flex:0 0 100%;display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:0;width:100%}.wclock{min-width:0;text-align:center;background:#061522;border:1px solid #294a63;border-radius:7px;padding:4px 6px}.wclock b{display:block;font:700 10px system-ui;color:#9eb5c7}.wclock span{display:block;font:900 18px ui-monospace,monospace;color:#fff}.wclock small{display:block;font-size:9px;color:#7fa0b8}.tabs{height:43px;display:flex;gap:5px;padding:5px 12px;background:#081a29}.tabs button.active{background:#1d6d9f}.panel{display:none;height:calc(100% - 161px)}.panel.active{display:block}
+.mapwrap{height:100%;display:grid;grid-template-columns:320px 1fr}.side{background:#0b2031;border-right:1px solid var(--line);overflow:auto;padding:10px}.card{background:var(--p);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}.card h3{font-size:12px;margin:0 0 7px}.status{display:flex;justify-content:space-between;gap:8px;margin:4px 0}.good{color:var(--g)}.bad{color:var(--r)}.warn{color:var(--y)}#map{height:100%;width:100%;background:#07131d}.leaflet-tile-pane{filter:brightness(.62) saturate(.72) contrast(1.15)}
+.apt{display:grid;grid-template-columns:52px 1fr 50px;gap:5px;padding:6px 0;border-bottom:1px solid #233e53}.cat{font-weight:900;text-align:right}.VFR{color:var(--g)}.MVFR{color:var(--b)}.IFR{color:var(--r)}.LIFR{color:var(--m)}.UNK{color:var(--mut)}
+.wxicon{width:22px;height:22px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px #000}.aircraft{width:30px;height:30px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 2px #000)}
+.aircraft svg{width:28px;height:28px;fill:#f4f8fb;stroke:#06131f;stroke-width:1}
+.aircraft.mil svg{fill:#42a5ff;stroke:#bfe2ff;stroke-width:1.5}
+.aircraft.mlat svg{fill:#45e3e8;stroke:#d5ffff;stroke-width:1.3}
+.aircraft.stale svg{fill:#7d8994;stroke:#c6ced5;stroke-width:1.1;opacity:.75}
+.acTag{background:#071522ee;color:white;border:1px solid #55718a;border-radius:4px;padding:2px 4px;font:10px ui-monospace,monospace;white-space:nowrap}
+.airspaceLabel{background:#0a1c2bdd;color:#cbe7ff;border:1px solid #5683a5;border-radius:3px;padding:2px 4px;font-size:10px}.leaflet-tooltip.aclabel{background:#071522dd;color:white;border:1px solid #55718a;box-shadow:none;font-size:11px;padding:2px 5px}
+.slider{width:100%}.raw{white-space:pre-wrap;font:11px ui-monospace,monospace;color:#d8e9f5}.big{font-size:20px;font-weight:900}.other{padding:20px;max-width:1000px;margin:auto}.legendline{display:flex;gap:9px;flex-wrap:wrap}.dot{display:inline-block;width:10px;height:10px;border-radius:50%}
+@media(max-width:1050px){.top{padding:0 7px}.wclock span{font-size:15px}.wclock b{font-size:9px}}@media(max-width:760px){.worldclocks{gap:3px}.wclock{padding:4px 2px}.wclock span{font-size:12px}.wclock small{font-size:8px}.wclock b{font-size:8px}.title{font-size:14px}.mapwrap{grid-template-columns:1fr}.side{display:none}.title{font-size:16px}}
+
+.globeShell{display:grid;grid-template-columns:270px minmax(0,1fr) 270px;height:100%;background:#06131f}
+.globeCenter{position:relative;min-width:0;height:100%}
+.wxRail{overflow-y:auto;background:#07131d;border-color:#29465b;border-style:solid;padding:6px}
+.leftRail{border-width:0 1px 0 0}.rightRail{border-width:0 0 0 1px}
+.railTitle{position:sticky;top:0;z-index:3;background:#07131df5;padding:7px 5px;font-weight:900;font-size:11px;letter-spacing:.7px;color:#8eb4cf}
+.railWx{background:#0c1d2a;border:1px solid #29485e;border-left:5px solid #607d8b;border-radius:6px;padding:7px;margin:5px 0}
+.railWx .icao{font-weight:900;font-size:14px}.railWx .cat{float:right;font-weight:900}.railWx .mini{font:11px ui-monospace,monospace;color:#b7cad7;line-height:1.45}.railWx .raw{font-size:9px;color:#7792a5;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.globeBadge{position:absolute;right:12px;bottom:12px;background:#071522e8;border:1px solid #36566e;border-radius:7px;padding:6px 9px;pointer-events:none;font-size:10px}.globeBadge b{display:block}.globeBadge span{color:#8da7b8}
+@media(max-width:900px){.globeShell{grid-template-columns:190px minmax(0,1fr) 190px}.railWx{padding:5px}.railWx .raw{display:none}}
+
+.wxControls{position:sticky;top:0;z-index:5;background:#07131df8;padding:6px 3px;border-bottom:1px solid #29485e}
+.wxControls button{font-size:10px;padding:5px 7px;margin-top:5px;background:#102738;color:#d8e8f2;border:1px solid #36566e;border-radius:5px;cursor:pointer}
+.wxCard{background:#0c1d2a;border:1px solid #29485e;border-left:6px solid #607d8b;border-radius:7px;padding:8px;margin:6px 0}
+.wxCard.primary{padding:10px}.wxCard .icao{font-weight:900;font-size:16px}.wxCard .cat{float:right;font-weight:900}
+.wxCard .label{font-size:9px;color:#7694a8;font-weight:900;margin-top:6px}.wxCard .wxraw{font:10px ui-monospace,monospace;color:#d5e4ed;line-height:1.35;white-space:normal}
+.wxCard.secondary{display:none}.showOthers .wxCard.secondary{display:block}
+
+/* Clean operational header */
+.brand{position:absolute;left:50%;transform:translateX(-50%);text-align:center;white-space:nowrap}
+.waveBar{height:38px;display:flex;align-items:center;gap:14px;padding:0 12px;background:#0a1a26;border-bottom:1px solid #29485e;font-size:11px}.waveBar input{background:#07131d;color:#e7f2f8;border:1px solid #36566e;border-radius:4px;padding:4px 6px}.waveBar #waveWindow{color:#88a9bd}.wxYellow{background:#ffe66d!important;color:#171717!important;padding:1px 2px;border-radius:2px;font-weight:900}.wxOrange{background:#ff9f43!important;color:#171717!important;padding:1px 2px;border-radius:2px;font-weight:900}.wxWindowHit{display:inline-block;background:#174d6b;color:#aee8ff;border:1px solid #2b799e;border-radius:4px;padding:0 4px;font-weight:900;font-size:10px} #waveDate{min-width:128px} 
+.waveDateBlock{display:inline-flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid #2d6f91;border-radius:7px;background:#0c2637;margin-right:8px}
+.waveDateLabel{font-size:11px;font-weight:900;color:#9ddcff;white-space:nowrap;letter-spacing:.5px}
+#waveDate{display:inline-block!important;visibility:visible!important;opacity:1!important;width:142px!important;min-width:142px!important;height:30px;box-sizing:border-box;background:#f2f5f7;color:#111;border:1px solid #8ca0ad;border-radius:4px;padding:3px 6px;font-weight:800;color-scheme:light}
+</style><style id="normalWaveControls">
+#waveBar.waveBar{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:7px 12px!important}
+#waveBar label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.05em}
+#waveBar input[type="date"],#waveBar input[type="time"]{height:29px;width:auto;min-width:118px;padding:2px 7px;background:#0b2230;color:#d9f3ff;border:1px solid #37647b;border-radius:5px;font:700 12px system-ui,sans-serif;color-scheme:dark}
+#waveBar #waveWindow{flex-basis:100%;text-align:center;font-size:10px;opacity:.75;margin-top:-3px}
+</style><style id="otherAirfieldRepair">
+.wxRail .wxCard.secondary{display:none}
+.wxRail.showOthers .wxCard.secondary{display:block}
+</style><style id="wxHighlightStyles">
+.wxraw span.wxYellow{background:#f1c84b!important;color:#101820!important;padding:1px 2px;border-radius:2px;font-weight:900}
+.wxraw span.wxOrange{background:#ff8a3d!important;color:#111!important;padding:1px 2px;border-radius:2px;font-weight:900}
+.wxraw span.wxRed{background:#ef5350!important;color:#fff!important;padding:1px 2px;border-radius:2px;font-weight:900}
+</style><style id="ecccLightningStyles">
+.globeCenter{position:relative}
+#ecccLightningPanel{position:absolute;right:12px;bottom:12px;width:310px;height:236px;z-index:40;border:1px solid #34799b;background:#031019;box-shadow:0 8px 28px #000c;overflow:hidden}
+#ecccLightningPanel .ltgHead{height:34px;display:flex;align-items:center;gap:9px;padding:0 8px;background:#071923;color:#eaf7ff;font:10px Arial;letter-spacing:.08em}
+#ecccLightningPanel .ltgHead b{color:#ffd66b}.ltgHead span{margin-left:auto;color:#82a9bd}
+#ecccLtgToggle{background:#0b2736;border:1px solid #397b9d;color:#c8efff;padding:3px 8px;cursor:pointer}
+#ecccLightningImg{display:block;width:100%;height:172px;object-fit:cover;background:#071018}
+#ecccLightningPanel .ltgBottom{height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;color:#7598aa;font:9px Arial}
+#ecccLightningPanel label{display:flex;align-items:center;gap:5px}#ecccLtgOpacity{width:68px}
+@media(max-width:1050px){#ecccLightningPanel{width:245px;height:190px}#ecccLightningImg{height:126px}}
+</style>
+<script id="sofWxConfigBootstrap">
+window.SOF_WX_CFG=(()=>{
+ try{return Object.assign({home:"CYMJ",alts:"CYQR,CYYN,CYXE",homeCeil:2000,homeVis:3,altCeil:600,altVis:2,lightningNm:20,popup:true},
+ JSON.parse(localStorage.getItem("dadSofWxConfig")||"{}"));}catch(e){return {home:"CYMJ",alts:"CYQR,CYYN,CYXE",homeCeil:2000,homeVis:3,altCeil:600,altVis:2,lightningNm:20,popup:true}}
+})();
+</script>
+
+<style id="sofCycleCleanStyle">
+.globeCenter{position:relative!important;overflow:hidden}
+#mainSourceBadge{z-index:50}
+#mainSourceBadge b{letter-spacing:.6px}
+.sofCyclePill{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:55;background:rgba(5,18,29,.86);border:1px solid #456b86;border-radius:999px;padding:5px 11px;font:800 10px system-ui;color:#dceaf5;pointer-events:none}
+</style>
+
+<style id="sofWeatherReorgStyle">
+/* SOF Weather reorganization: left weather / right decision aids */
+body{overflow:hidden!important}
+#sofDecisionRight{position:fixed;right:10px;top:92px;bottom:10px;width:365px;z-index:180000;display:grid;grid-template-rows:250px 225px 1fr;gap:8px;pointer-events:auto}
+.sofRCard{background:#071522f2;border:1px solid #36556d;border-radius:10px;overflow:hidden;box-shadow:0 7px 22px #0008}
+.sofRHead{height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 9px;background:#0b1d2a;border-bottom:1px solid #29465b;color:#dceaf5;font:800 10px system-ui;letter-spacing:.4px}
+.sofRHead span{font-weight:500;color:#87a1b5;letter-spacing:0}
+#metarCloudFrame{width:100%;height:calc(100% - 28px);border:0;background:#fff}
+#sofNatoMini{height:calc(100% - 28px);position:relative;padding:8px}
+.natoGrid{position:absolute;left:48px;right:10px;top:8px;bottom:28px;border:1px solid #8294a0;background:linear-gradient(90deg,#ed1c18 0 12%,#f69217 12% 24%,#ffd91a 24% 38%,#ffff68 38% 52%,#0a8618 52% 66%,#f5f6f6 66% 80%,#416df0 80% 100%)}
+.natoGrid:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,transparent 21%,#071522 21% 22%,transparent 22% 31%,#071522 31% 32%,transparent 32% 45%,#071522 45% 46%,transparent 46% 57%,#071522 57% 58%,transparent 58% 71%,#071522 71% 72%,transparent 72% 85%,#071522 85% 86%,transparent 86%);opacity:.38;pointer-events:none}
+.natoMarker{position:absolute;transform:translate(-50%,-50%);z-index:5;padding:2px 4px;border:2px solid #fff;border-radius:5px;background:#06111b;color:#fff;font:900 9px monospace;box-shadow:0 2px 7px #000}
+.natoY{position:absolute;left:3px;font:800 8px system-ui;color:#b9cad7}.natoX{position:absolute;bottom:5px;font:800 7px system-ui;color:#b9cad7;transform:translateX(-50%)}
+#lightningFrame{width:100%;height:calc(100% - 28px);border:0;background:#06111b}
+#sofLeftWeatherLabel{position:fixed;left:10px;top:67px;z-index:180001;color:#9fc1d8;font:800 10px system-ui;letter-spacing:.6px}
+@media(max-width:1180px){#sofDecisionRight{width:315px}}
+</style>
+
+<style id="sofRightColumnDockFix">
+/* Dock the SOF decision panels into the page's right column instead of floating over content. */
+body:has(#sofDecisionRight){padding-right:375px!important}
+#sofDecisionRight{
+ position:absolute!important;
+ right:8px!important;
+ top:92px!important;
+ bottom:10px!important;
+ width:355px!important;
+ height:auto!important;
+ transform:none!important;
+ z-index:50!important;
+ display:grid!important;
+ grid-template-rows:minmax(220px,1.05fr) minmax(190px,.9fr) minmax(220px,1fr)!important;
+ gap:8px!important;
+}
+#sofLeftWeatherLabel{position:absolute!important}
+@media(max-width:1180px){
+ body:has(#sofDecisionRight){padding-right:325px!important}
+ #sofDecisionRight{width:305px!important}
+}
+</style>
+
+<style id="sofWeatherCorrections">
+/* All aerodromes belong together in the weather column. */
+#priorityWeatherTitle,#priorityWeatherToggle,
+.priorityWeatherTitle,.priorityWeatherToggle,
+[id*="priorityWeather" i] h2,[id*="priorityWeather" i] button{display:none!important}
+[id*="priorityWeather" i],[class*="priorityWeather" i]{
+  border:0!important;background:transparent!important;padding:0!important;margin:0!important;
+}
+/* Remove old ECCC/lightning overlays/cards. */
+[id*="eccc" i],[class*="eccc" i],
+[id*="lightning" i]:not(#lightningFrame):not(#lightningNative),
+[class*="lightning" i]:not(.sofRCard){display:none!important}
+/* Native right-column lightning card */
+#lightningFrame{display:none!important}
+#lightningNative{height:calc(100% - 28px);position:relative;background:#06111b;overflow:hidden}
+#lightningNative .lnEmpty{position:absolute;inset:0;display:grid;place-items:center;color:#7891a4;font:11px system-ui;text-align:center;padding:20px}
+/* NATO hover card */
+.natoMarker{cursor:help}
+.natoMarker .natoTip{display:none;position:absolute;right:calc(100% + 9px);top:50%;transform:translateY(-50%);
+ width:270px;background:#06111bf7;border:1px solid #6387a0;border-radius:8px;padding:8px;color:#eaf5ff;
+ text-align:left;font:10px/1.35 system-ui;box-shadow:0 8px 22px #000b;white-space:normal}
+.natoMarker:hover .natoTip{display:block}
+.natoTip b{font-size:11px}.natoTip .good{color:#7ee787}.natoTip .bad{color:#ff9b84}.natoTip .muted{color:#8fa9bb}
+</style>
+
+<style id="natoGeometryOnlyFix">
+#natoGrid{background:#111!important;overflow:hidden}
+#natoGrid .natoStep{position:absolute;border:1px solid #15202a;box-sizing:border-box}
+#natoGrid .nRed{left:0;top:0;width:12%;height:100%;background:#f21b16}
+#natoGrid .nAmb{left:12%;top:0;width:12%;height:86%;background:#ff9914}
+#natoGrid .nY2{left:24%;top:0;width:14%;height:72%;background:#ffd817}
+#natoGrid .nY1{left:38%;top:0;width:14%;height:58%;background:#ffff68}
+#natoGrid .nGrn{left:52%;top:0;width:14%;height:46%;background:#0a8717}
+#natoGrid .nWht{left:66%;top:0;width:14%;height:32%;background:#f4f5f5}
+#natoGrid .nBlu{left:80%;top:0;width:20%;height:22%;background:#416df0}
+#natoMarkers{position:absolute;inset:0;z-index:10}
+</style>
+
+<style id="natoStaircaseDirectionFix">
+#natoGrid{background:#f21b16!important;overflow:hidden}
+#natoGrid .natoStep{position:absolute!important;box-sizing:border-box!important;border:1px solid #15202a!important}
+#natoGrid .nRed{display:none!important}
+#natoGrid .nAmb{left:12%!important;right:0!important;top:0!important;height:86%!important;width:auto!important;background:#ff9914!important}
+#natoGrid .nY2{left:24%!important;right:0!important;top:0!important;height:72%!important;width:auto!important;background:#ffd817!important}
+#natoGrid .nY1{left:38%!important;right:0!important;top:0!important;height:58%!important;width:auto!important;background:#ffff68!important}
+#natoGrid .nGrn{left:52%!important;right:0!important;top:0!important;height:46%!important;width:auto!important;background:#0a8717!important}
+#natoGrid .nWht{left:66%!important;right:0!important;top:0!important;height:32%!important;width:auto!important;background:#f4f5f5!important}
+#natoGrid .nBlu{left:80%!important;right:0!important;top:0!important;height:22%!important;width:auto!important;background:#416df0!important}
+#natoMarkers{position:absolute!important;inset:0!important;z-index:20!important}
+</style>
+
+<style id="nativeRightRailOnly">
+#sofNativeRightDecisionHost{overflow-y:auto!important;overflow-x:hidden!important}
+#sofNativeRightDecisionHost .sofRCard{width:100%!important;box-sizing:border-box!important}
+#sofNativeRightDecisionHost #sofDecisionRight{
+ position:relative!important;left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
+ width:100%!important;height:auto!important;transform:none!important;margin:0!important;padding:0!important;
+ display:grid!important;grid-template-rows:270px 245px 300px!important;gap:10px!important;z-index:1!important;
+}
+</style>
+
+<style id="trimOldDecisionRailSpace">
+/* The rail is embedded now; reclaim the space that had been reserved for its old fixed position. */
+body:has(#sofDecisionRight){padding-right:0!important}
+#sofDecisionRight[data-native-dock="1"]{
+ position:relative!important;inset:auto!important;
+ width:100%!important;max-width:none!important;
+ margin:0!important;transform:none!important;
+}
+/* Kill any old spacer/margin created specifically for the floating decision rail. */
+#sofDecisionRight[data-native-dock="1"] ~ .sofDecisionSpacer,
+.sofDecisionSpacer{display:none!important;width:0!important;min-width:0!important}
+</style>
+
+<style id="metarCloudZoomOutOnly">
+#metarCloudFrame{
+  zoom:.72!important;
+  width:138.8889%!important;
+  height:138.8889%!important;
+  transform-origin:0 0!important;
+}
+</style>
+
+<style id="metarCloudZoomCenterFineTune">
+#metarCloudFrame{
+  zoom:.66!important;
+  width:151.5152%!important;
+  height:151.5152%!important;
+  position:relative!important;
+  left:-25.7576%!important;
+  transform-origin:top center!important;
+}
+</style>
+
+<style id="metarCloudZoomCenterFinalTune">
+#metarCloudFrame{
+  zoom:.60!important;
+  width:166.6667%!important;
+  height:166.6667%!important;
+  position:relative!important;
+  left:-33.3333%!important;
+  transform-origin:top center!important;
+}
+</style>
+
+<style id="natoHoverAlwaysOnTop">
+.natoTip,.natoTooltip,[class*="nato"][class*="tip"]{
+ z-index:2147483647!important;
+}
+</style>
+
+<style id="waveBannerStyles">
+#waveBanner{
+ display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:7px;
+ padding:7px 10px;margin:0 0 6px 0;background:#07111c;border:1px solid #25465e;
+ box-shadow:0 2px 8px rgba(0,0,0,.35);position:relative;z-index:50;
+}
+.waveCell{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:8px;
+ min-height:36px;padding:5px 8px;background:#0b1824;border:1px solid #1c3548;border-radius:4px}
+.waveName{font-weight:800;letter-spacing:.7px;color:#8edcff;white-space:nowrap}
+.waveWhen{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.waveWhen input{width:100%;min-width:0;box-sizing:border-box;background:#06101a;color:#eaf6ff;
+ border:1px solid #31546c;border-radius:3px;padding:3px 4px;font:inherit;font-size:11px}
+@media(max-width:1050px){#waveBanner{grid-template-columns:repeat(3,1fr)}}
+</style>
+
+<style id="waveRowCorrectPlacement">
+#waveBanner{display:none!important}
+#waveOpsRow{
+ display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;
+ flex-wrap:wrap!important;padding:7px 8px!important;margin:0!important;
+ background:#0b1926!important;border-bottom:1px solid #29445a!important;
+ position:relative!important;z-index:60!important;
+}
+.waveOpsLabel{font-weight:900;color:#eef8ff;letter-spacing:.4px}
+#waveOpsSelect,#waveOpsDate,#waveOpsTakeoff,#waveOpsLand{
+ background:#0a1723;color:#eef8ff;border:1px solid #35546b;border-radius:4px;padding:7px 8px;
+ font:inherit;font-weight:700
+}
+#waveOpsSelect{color:#8edcff}
+#waveAltStatus{
+ min-width:170px;text-align:center;padding:8px 12px;border-radius:5px;font-weight:900;
+ letter-spacing:.35px;border:1px solid currentColor
+}
+#waveAltStatus.noAlt{color:#63f28b;background:rgba(32,150,72,.13)}
+#waveAltStatus.altReq{color:#ff6868;background:rgba(190,38,38,.14)}
+</style>
+
+<style id="ifpFlowWaveAssessmentStyle">
+#waveIfpTrigger{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:560px}
+.ifpChip{padding:5px 8px;border-radius:5px;border:1px solid #35546b;background:#081722;
+ color:#d8e8f2;font:800 10px system-ui;white-space:nowrap}
+.ifpChip.good{color:#62f28b;border-color:#278a48;background:#092417}
+.ifpChip.bad{color:#ff7373;border-color:#a73d3d;background:#2b0e12}
+.ifpChip.warn{color:#ffd166;border-color:#8d6b20;background:#2a210b}
+.wxCard .ifpAssess{margin-top:6px;padding:5px 7px;border-radius:5px;font:800 9px system-ui;border:1px solid #35546b}
+.wxCard .ifpAssess.good{color:#62f28b;border-color:#278a48;background:#092417}
+.wxCard .ifpAssess.bad{color:#ff7373;border-color:#a73d3d;background:#2b0e12}
+.wxCard .ifpAssess.warn{color:#ffd166;border-color:#8d6b20;background:#2a210b}
+</style>
+<style id="cfgAltPlanningStyle">
+#cfgAltPlanningRows .apRow{display:grid;grid-template-columns:58px 1fr 118px;gap:8px;align-items:center;border-top:1px solid #294b64;padding:7px 0}
+#cfgAltPlanningRows .apRow:first-child{border-top:0}
+#cfgAltPlanningRows .apIcao{font-weight:900;color:#fff}
+#cfgAltPlanningRows label{display:flex!important;grid-template-columns:none!important;gap:5px!important;margin:0!important;white-space:nowrap}
+#cfgAltPlanningRows input[type=checkbox]{width:auto!important}
+#cfgAltPlanningRows input[type=number]{width:72px!important;padding:5px!important}
+</style><style id="ifpWaveTimeV2Css">
+#waveAltStatus.wxUnknown{color:#ffd166;background:rgba(180,125,20,.14)}
+.ifpForecastLine{margin-top:5px;font-size:9px;font-weight:800;color:#9fc0d4}
+.ifpAssess .ifpForecastLine{color:inherit;opacity:.9}
+#cfgAltPlanningRows .apNeed{grid-column:1/-1;font-size:9px;color:#ffd166;padding:0 0 3px 66px}
+#cfgAltPlanningRows .apRow{grid-template-columns:58px 1fr 118px!important;flex-wrap:wrap}
+</style><style id="altWaveAssessCss">
+.altWaveDetail{margin-top:5px;font-size:9px;font-weight:800;line-height:1.35;opacity:.95}
+</style><style id="altWaveAssessV4Css">
+.altWaveAssessV4{margin-top:7px;padding:7px 8px;border:1px solid #665b25;border-radius:5px;background:#17170d;font-size:10px;font-weight:900;line-height:1.35;color:#ffd76a}
+.altWaveAssessV4.good{border-color:#246b39;background:#0c2113;color:#77ed91}
+.altWaveAssessV4.bad{border-color:#8a3030;background:#2a1010;color:#ff8b8b}
+.altWaveAssessV4 .small{display:block;margin-top:3px;font-size:9px;font-weight:700;color:inherit;opacity:.92}
+</style><style id="lightningFixCss">#lightningLiveFix{width:100%!important;height:100%!important;border:0!important;background:#07111a}</style><style id="sparkUnderNatoCss">
+#sparkUnderNato{width:100%;height:300px;min-height:260px;box-sizing:border-box;overflow:hidden;background:#07111a;border:1px solid #243746;border-radius:7px}
+#sparkUnderNato iframe{width:100%;height:100%;border:0;display:block;background:#07111a}
+</style><style id="cleanLightningUnderNatoCss">
+#sparkUnderNato{display:none!important}
+#lightningUnderNato{width:100%!important;height:300px!important;min-height:260px!important;overflow:hidden!important;
+box-sizing:border-box!important;background:#07111a!important;border:1px solid #243746!important;border-radius:7px!important;position:relative!important}
+#lightningUnderNato .ltHdr{position:absolute;left:8px;top:7px;z-index:2;padding:4px 7px;border-radius:4px;
+background:rgba(4,13,20,.82);color:#d9efff;font:900 10px/1.1 Arial,sans-serif;letter-spacing:.5px;pointer-events:none}
+#lightningUnderNato iframe{width:100%!important;height:100%!important;border:0!important;display:block!important;background:#07111a!important}
+</style><style id="nativeLightningCss">
+#lightningUnderNato{height:300px!important;position:relative!important;overflow:hidden!important;background:#08131d!important}
+#nativeLtCanvas{width:100%;height:100%;display:block}
+#nativeLtHud{position:absolute;inset:7px 8px auto 8px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;font:900 9px Arial;color:#d9efff}
+#nativeLtHud span{background:rgba(4,13,20,.84);padding:4px 6px;border-radius:4px}
+</style><style id="sofWaveTimelineCss">
+#lightningUnderNato{display:none!important}
+#sofWaveTimeline{grid-column:1/-1!important;width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px 10px;background:#07111a;border:1px solid #294050;border-radius:7px;color:#d9efff;font:10px Arial,sans-serif;overflow:hidden}
+#swtHead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px}
+#swtHead b{font-size:11px;letter-spacing:.7px} #swtHead .swtCtl{display:flex;gap:5px;align-items:center}
+#swtHead input,#swtHead select{background:#0b1822;color:#d9efff;border:1px solid #385365;border-radius:3px;font-size:10px;padding:2px 4px}
+#swtGrid{display:grid;grid-template-columns:48px minmax(0,1fr);gap:0}
+.swtLabel{height:25px;display:flex;align-items:center;font-weight:900;color:#a9c8da;border-top:1px solid #172a36}
+.swtLane{height:25px;position:relative;border-top:1px solid #172a36;background-image:linear-gradient(to right,rgba(145,180,200,.08) 1px,transparent 1px),linear-gradient(to right,rgba(145,180,200,.15) 1px,transparent 1px),linear-gradient(to right,rgba(145,180,200,.28) 1px,transparent 1px);background-size:0.347222% 100%,1.041667% 100%,4.166667% 100%}
+#swtAxis{height:24px;position:relative;margin-left:48px;border-bottom:1px solid #486171}
+.swtHour{position:absolute;bottom:2px;transform:translateX(-50%);font-size:8px;color:#86a8bc}.swtHour:first-child{transform:none}.swtHour:last-child{transform:translateX(-100%)}
+.swtSeg{position:absolute;top:3px;height:19px;box-sizing:border-box;border:1px solid rgba(255,255,255,.22);border-radius:3px;padding:2px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:900;cursor:pointer}
+.swtGood{background:#124a28;color:#9ff0b2}.swtMarg{background:#725817;color:#ffe27a}.swtBad{background:#6b2020;color:#ffaaaa}.swtInfo{background:#173c55;color:#b9e6ff}.swtProb{background:repeating-linear-gradient(135deg,#672020 0,#672020 5px,#381818 5px,#381818 10px);color:#ffd0d0}.swtTempo{background:repeating-linear-gradient(135deg,#735b17 0,#735b17 5px,#3b3217 5px,#3b3217 10px);color:#fff0a8}
+#swtWaveBand{position:absolute;top:0;bottom:0;background:rgba(70,150,255,.11);border-left:2px solid #62b5ff;border-right:2px solid #62b5ff;pointer-events:none;z-index:1}
+#swtLand,#swtPlus{position:absolute;top:0;bottom:0;width:1px;background:#ffef79;z-index:8;pointer-events:none}#swtPlus{background:#ff9e55}
+#swtTip{position:fixed;z-index:99999;display:none;max-width:260px;background:#061019;border:1px solid #547086;border-radius:5px;padding:7px;color:#e5f5ff;font:10px/1.35 Arial;pointer-events:none}
+</style><style id="sofWaveTimelineV2Css">
+#sofWaveTimeline{grid-column:1/-1!important;width:100%;box-sizing:border-box;margin:4px 0 10px;padding:8px 10px;background:#07111a;border:1px solid #294050;border-radius:7px;color:#d9efff;font:10px Arial;overflow:hidden}
+#swtHead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:7px}#swtHead b{font-size:11px;letter-spacing:.7px}
+#swtHead .swtCtl{display:flex;gap:5px;align-items:center}#swtHead input,#swtHead select{background:#0b1822;color:#d9efff;border:1px solid #385365;border-radius:3px;font-size:10px;padding:2px 4px}
+#swtAxis{height:24px;position:relative;margin-left:52px;border-bottom:1px solid #486171}.swtHour{position:absolute;bottom:2px;transform:translateX(-50%);font-size:8px;color:#86a8bc}
+#swtGrid{display:grid;grid-template-columns:52px minmax(0,1fr)}.swtLabel{min-height:42px;display:flex;align-items:center;font-weight:900;color:#a9c8da;border-top:1px solid #172a36}
+.swtLane{min-height:42px;position:relative;border-top:1px solid #172a36;background-image:linear-gradient(to right,rgba(145,180,200,.08) 1px,transparent 1px),linear-gradient(to right,rgba(145,180,200,.15) 1px,transparent 1px),linear-gradient(to right,rgba(145,180,200,.28) 1px,transparent 1px);background-size:.347222% 100%,1.041667% 100%,4.166667% 100%}
+.swtSeg{position:absolute;height:17px;box-sizing:border-box;border:1px solid rgba(0,0,0,.55);border-radius:3px;padding:1px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:900;cursor:pointer;z-index:3}
+.swtWind{position:absolute;height:14px;box-sizing:border-box;bottom:2px;padding:0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:8px;font-weight:900;color:#a9d9f5;border-left:1px solid #4b7893;z-index:4}
+.swtRED{background:#f21b16;color:#fff}.swtAMB{background:#ff9914;color:#111}.swtYLO2{background:#ffd817;color:#111}.swtYLO1{background:#ffff68;color:#111}.swtGRN{background:#0a8717;color:#fff}.swtWHT{background:#f4f5f5;color:#111}.swtBLU{background:#416df0;color:#fff}
+.swtTempo{outline:2px dashed rgba(255,255,255,.72);outline-offset:-3px}.swtProb{background-image:repeating-linear-gradient(135deg,transparent 0,transparent 5px,rgba(0,0,0,.30) 5px,rgba(0,0,0,.30) 9px)}
+.swtWaveBand{position:absolute;top:0;bottom:0;background:rgba(70,150,255,.10);border-left:2px solid #62b5ff;border-right:2px solid #62b5ff;pointer-events:none;z-index:1}
+.swtLand,.swtPlus{position:absolute;top:0;bottom:0;width:1px;background:#ffef79;z-index:8;pointer-events:none}.swtPlus{background:#ff9e55}
+#swtTip{position:fixed;z-index:99999;display:none;max-width:300px;background:#061019;border:1px solid #547086;border-radius:5px;padding:7px;color:#e5f5ff;font:10px/1.35 Arial;pointer-events:none}
+</style><style id="sofTopWaveCleanupCss">
+/* Hide the old compact Wave/status strip now that the 24-hour timeline owns Wave controls. */
+#waveOpsBar,#waveOpsRow,#waveBar,#waveRow,
+.sofWaveBar,.sofWaveRow,.waveOpsBar,.waveOpsRow,
+#sofWaveStatus,#waveOpsStatus,.waveOpsStatus,
+#ifpWaveStatus,#ifpWaveTriggerChips,.ifpWaveTriggerChips{
+  display:none!important;
+}
+/* If individual legacy controls remain outside a named wrapper, suppress only those originals.
+   Cloned timeline controls use swt_ IDs and remain visible. */
+#waveOpsWave,#waveOpsDate,#waveOpsTakeoff,#waveOpsLand{
+  display:none!important;
+}
+#sofWaveTimeline{margin-top:3px!important}
+</style><style id="sofWaveTimelineV3Css">
+.swtMetar{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+.swtBecmg{outline:2px dotted rgba(255,255,255,.8);outline-offset:-3px}
+</style><style id="sofTimelineCompactV5">
+#swtHead{min-height:28px!important;height:28px!important;padding:2px 7px!important;display:flex!important;align-items:center!important;gap:8px!important}
+#swtHead>b{font-size:9px!important;white-space:nowrap!important}
+#swtControls{display:flex!important;align-items:center!important;gap:5px!important}
+#swtControls .swtCtl{font-size:8px!important;margin:0!important;line-height:20px!important}
+#swtControls input,#swtControls select{height:20px!important;padding:1px 4px!important;font-size:9px!important}
+#swtHead>span:last-child{font-size:7px!important;white-space:nowrap!important}
+#swtAxis{margin-top:0!important}
+</style><style id="sofTimelineTimeToggleV6Css">
+#swtTimeToggle{display:inline-flex!important;gap:2px!important;margin-left:2px!important}
+#swtTimeToggle button{height:20px!important;padding:1px 7px!important;border:1px solid #385268!important;background:#0d1c28!important;color:#9fb5c5!important;border-radius:3px!important;font:900 8px Arial!important;cursor:pointer!important}
+#swtTimeToggle button.active{background:#285a77!important;color:#fff!important;border-color:#69bce8!important}
+</style></head><body>
+<div id="sofLeftWeatherLabel">AIRFIELD WEATHER</div>
+<aside id="sofDecisionRight">
+ <div class="sofRCard">
+  <div class="sofRHead">METAR.CLOUD — RUNWAY / WIND <span id="sofMcIcao">CYMJ</span></div>
+  <iframe id="metarCloudFrame" src="https://metar.cloud/airport/CYMJ" referrerpolicy="no-referrer-when-downgrade"></iframe>
+ </div>
+ <div class="sofRCard">
+  <div class="sofRHead">NATO AERODROME COLOUR STATE <span>3/8 CLOUD OR MORE</span></div>
+  <div id="sofNatoMini">
+   <div class="natoGrid" id="natoGrid">
+<div class="natoStep nRed"></div><div class="natoStep nAmb"></div><div class="natoStep nY2"></div>
+<div class="natoStep nY1"></div><div class="natoStep nGrn"></div><div class="natoStep nWht"></div><div class="natoStep nBlu"></div>
+<div id="natoMarkers"></div></div>
+   <span class="natoY" style="top:12%">2500</span><span class="natoY" style="top:28%">1500</span><span class="natoY" style="top:45%">700</span><span class="natoY" style="top:57%">500</span><span class="natoY" style="top:71%">300</span><span class="natoY" style="top:85%">200</span>
+   <span class="natoX" style="left:16%">800M</span><span class="natoX" style="left:28%">1600</span><span class="natoX" style="left:41%">2500</span><span class="natoX" style="left:54%">3700</span><span class="natoX" style="left:67%">5000</span><span class="natoX" style="left:82%">8KM</span>
+  </div>
+ </div>
+ <div class="sofRCard">
+  <div class="sofRHead">LIGHTNING STRIKES <span>BLITZORTUNG / LIGHTNINGMAPS</span></div>
+  <div id="lightningNative"><div class="lnEmpty">Lightning overlay removed.<br>Right column reserved for clean strike data.</div></div>
+ </div>
+</aside>
+
+<div class=top><div><div class=title>2 CFFTS • SOF DASHBOARD</div><div class=mut>LIVE WEATHER + TRAFFIC COMMON OPERATING PICTURE • <b id=zuluDTG>------Z --- --</b></div></div>
+<div class=worldclocks>
+<div class=wclock><b>PACIFIC</b><span id=cPacific>--:--:--</span><small id=zPacific></small></div>
+<div class=wclock><b>MOUNTAIN</b><span id=cMountain>--:--:--</span><small id=zMountain></small></div>
+<div class=wclock><b>MOOSE JAW</b><span id=cMoose>--:--:--</span><small>CST</small></div>
+<div class=wclock><b>NEW YORK / OTTAWA</b><span id=cEastern>--:--:--</span><small id=zEastern></small></div>
+<div class=wclock><b>GMT / UTC</b><span id=cGMT>--:--:--</span><small>ZULU</small></div>
+</div><button id=wxbtn>⟳ WX</button><button id=trafficbtn>⟳ TRAFFIC</button></div>
+<div class=tabs>
+<button class=active data-tab=main>LIVE TRAFFIC</button>
+
+</div>
+
+<div id="waveBar" class="waveBar">
+<b>WAVE</b>
+<label>DATE <input id="waveDate" type="date" aria-label="Wave local date"></label>
+<label>TAKEOFF <input id="waveTO" type="time"></label>
+<label>ETA / LANDING <input id="waveLD" type="time"></label>
+<span id="waveWindow">Enter date, takeoff and ETA / landing times</span>
+</div><section id=main class="panel active">
+<div class="globeShell">
+ <aside class="wxRail leftRail"><div class=wxControls><b>PRIORITY WEATHER</b><br><button class=otherWxBtn>SHOW OTHER AIRFIELDS</button></div><div id=wxLeft></div></aside>
+ <main class="globeCenter"><div class="sofCyclePill" id="sofCyclePill">LIVE TRAFFIC • 10 SEC</div>
+  <iframe id=mainGlobe title="Airplanes.live live traffic"
+   src="https://globe.airplanes.live/?lat=50.3303&lon=-105.5590&zoom=8.5&enableLabels&extendedLabels=2&largeMode=2"
+   style="width:100%;height:100%;border:0;background:#06131f;position:absolute;inset:0;opacity:1;transition:opacity 1.2s ease"></iframe>
+  <iframe id=windyRadar title="Windy weather radar"
+   src="https://embed.windy.com/embed2.html?lat=50.3303&lon=-105.5590&detailLat=50.3303&detailLon=-105.5590&zoom=6&level=surface&overlay=radar&product=radar&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=kt&metricTemp=%C2%B0C&radarRange=-1"
+   style="width:100%;height:100%;border:0;background:#06131f;position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity 1.2s ease"></iframe>
+  <div class="globeBadge" id="mainSourceBadge"><b id="mainSourceName">AIRPLANES.LIVE</b><span id="mainSourceDesc">LIVE TRAFFIC • switches to Windy radar every 10 sec</span></div><div id="ecccLightningPanel">
+ <div class="ltgHead"><b>⚡ ECCC LIGHTNING</b><span id="ecccLtgStatus">LOADING</span><button id="ecccLtgToggle">ON</button></div>
+ <img id="ecccLightningImg" alt="ECCC lightning density">
+ <div class="ltgBottom"><span>10 MIN • 2.5 KM DENSITY</span><label>OPACITY <input id="ecccLtgOpacity" type="range" min="20" max="100" value="78"></label></div>
+</div>
+ </main>
+ <aside class="wxRail rightRail"><div class=wxControls><b>PRIORITY WEATHER</b><br><button class=otherWxBtn>SHOW OTHER AIRFIELDS</button></div><div id=wxRight></div></aside>
+</div></section>
+
+<section id=globe class=panel>
+<div style="height:100%;position:relative;background:#06131f">
+<iframe id=globeFrame title="Airplanes.live live globe" referrerpolicy="no-referrer-when-downgrade"
+ src="https://globe.airplanes.live/?lat=50.3303&lon=-105.5590&zoom=8.5&hideSidebar&hideButtons&enableLabels&extendedLabels=2&largeMode=2"
+ style="width:100%;height:100%;border:0;background:#06131f"></iframe>
+<div style="position:absolute;right:12px;top:12px;z-index:10;background:#071522e8;border:1px solid #36566e;border-radius:8px;padding:8px 10px;font-size:11px">
+<b>DIRECT AIRPLANES.LIVE GLOBE</b><br><span class=mut>Centered on CYMJ • provider-native display</span>
+</div></div></section><section id=raw class=panel><div class=other><h2>Raw Aviation Weather</h2><div id=rawWx></div></div></section>
+<section id=setup class=panel><div class=other><h2>SOF Live Traffic / Weather Setup</h2>
+<div class=card><p><b>LIVE TRAFFIC is now provider-native.</b></p><p>The main screen embeds the Airplanes.live globe itself, preserving its own map controls, aircraft selections, filters, labels and other website functions instead of recreating them through our API renderer.</p><p>The Netlify traffic function tries <b>ADSB.lol</b> first and automatically falls back to <b>Airplanes.live</b>. It requests aircraft within <b>100 NM of CYMJ</b> and refreshes every <b>10 seconds</b>.</p><p>The active provider is shown on the MAIN MAP sidebar.</p></div>
+<div class=card><b>Weather:</b> AviationWeather.gov METAR/TAF + RainViewer radar, both proxied through Netlify. Airport weather and radar are independent layers so a radar failure will not remove METAR information.</div>
+<div class=card><b>Important:</b> Traffic and weather layers are situational-awareness aids only and are not ATC surveillance or approved operational weather sources.</div></div></section>
+
+<script>
+const AP=[["CYMJ","Moose Jaw",50.3303,-105.559],["CYQR","Regina",50.4319,-104.6658],["CYYN","Swift Current",50.2919,-107.6906],["CYXE","Saskatoon",52.1708,-106.6997],["CYQV","Yorkton",51.2647,-102.4617],["KGGW","Glasgow",48.2125,-106.6147],["KISN","Williston",48.1779,-103.6423],["CYPA","Prince Albert",53.2142,-105.6728],["CYQW","North Battleford",52.7692,-108.2436],["KMIB","Minot AFB",48.4156,-101.3577],["CYXH","Medicine Hat",50.0189,-110.7208],["KMOT","Minot Intl",48.2577,-101.278],["CYBR","Brandon",49.91,-99.9519],["CYQL","Lethbridge",49.6303,-112.7997],["KGTF","Great Falls",47.482,-111.3707]];
+let showOthers=false;
+const $=s=>document.querySelector(s), map=L.map("map",{preferCanvas:true}).setView([50.55,-105.7],6);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
+const wxLayer=L.layerGroup().addTo(map), acLayer=L.layerGroup().addTo(map), airspaceLayer=L.layerGroup().addTo(map);let radarLayer=null,lastWx=null,lastTraffic=[];
+const airspaceFeatures=[
+ {name:"CYMJ 25 NM REFERENCE",type:"circle",lat:50.3303,lon:-105.559,r:25*1852},
+ {name:"CYMJ 50 NM REFERENCE",type:"circle",lat:50.3303,lon:-105.559,r:50*1852}
+];
+airspaceFeatures.forEach(x=>L.circle([x.lat,x.lon],{radius:x.r,color:"#65a9d8",weight:1,dashArray:"6 6",fill:false,opacity:.65}).bindTooltip(x.name,{permanent:false,className:"airspaceLabel"}).addTo(airspaceLayer));
+const colors={VFR:"#2dbb72",MVFR:"#2b8fe5",IFR:"#e34c4c",LIFR:"#ad55c7",UNK:"#788a98"};
+function pk(o,...ks){for(const k of ks)if(o&&o[k]!=null)return o[k];return null}
+function ceiling(m){let a=m?.clouds;if(Array.isArray(a)){let q=a.filter(x=>["BKN","OVC","VV"].includes(x.cover)).map(x=>x.base).filter(x=>x!=null);if(q.length)return Math.min(...q)}return null}
+function cat(m,c,v){if(m?.fltCat)return m.fltCat;if(c==null&&v==null)return"UNK";if((c!=null&&c<500)||(v!=null&&v<1))return"LIFR";if((c!=null&&c<1000)||(v!=null&&v<3))return"IFR";if((c!=null&&c<=3000)||(v!=null&&v<=5))return"MVFR";return"VFR"}
+function parseRawMetar(id,raw,observedAt){
+ raw=String(raw||"").trim();
+ const o={icaoId:id,rawOb:raw,reportTime:observedAt||null,clouds:[]};
+ let w=raw.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);
+ if(w){o.wdir=w[1]==="VRB"?null:+w[1];o.wspd=+w[2];if(w[3])o.wgst=+w[3]}
+ let vis=null,vm=raw.match(/(?:^|\s)(?:(\d+)\s+)?(\d+\/\d+|\d+(?:\.\d+)?)SM\b/);
+ if(vm){let frac=z=>z.includes("/")?z.split("/").reduce((a,b)=>+a/+b):+z;vis=(vm[1]?+vm[1]:0)+frac(vm[2]);o.visib=vis}
+ for(const c of raw.matchAll(/\b(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)\b/g))
+   o.clouds.push({cover:c[1],base:c[2]==="///"?null:+c[2]*100});
+ let ceil=ceiling(o);o.fltCat=cat(o,ceil,vis);return o;
+}
+async function fetchStationWx(id){
+ const base="https://datamask.org/api/v1";
+ const get=async kind=>{
+   try{
+     const r=await fetch(`${base}/${kind}/${id}`,{cache:"no-store",headers:{Accept:"application/json"}});
+     if(r.status===404)return null;
+     if(!r.ok)throw Error(`${kind.toUpperCase()} ${r.status}`);
+     return await r.json();
+   }catch(e){console.warn(id,kind,e);return null}
+ };
+ const [mj,tj]=await Promise.all([get("metar"),get("taf")]);
+ let metar=null,taf=null;
+ if(mj){
+   const raw=mj.raw||mj.rawOb||mj.raw_text||mj.metar||"";
+   metar=parseRawMetar(id,raw,mj.observedAt||mj.reportTime||mj.fetchedAt);
+ }
+ if(tj){
+   taf={icaoId:id,rawTAF:tj.raw||tj.rawTAF||tj.raw_text||tj.taf||""};
+ }
+ return {metar,taf};
+}
+async function loadWx(){
+ wxstatus.textContent="LOADING";wxstatus.className="warn";
+ try{
+   const ids=all;
+   const results=await Promise.all(ids.map(fetchStationWx));
+   const metars=results.map(r=>r.metar).filter(Boolean),tafs=results.map(r=>r.taf).filter(Boolean);
+   if(!metars.length&&!tafs.length)throw Error("No weather returned from live feed");
+   const d={metars,tafs,source:"Datamask Aviation / NOAA NWS OPMET"};lastWx=d;
+   let M=new Map(metars.map(v=>[v.icaoId,v])),T=new Map(tafs.map(v=>[v.icaoId,v]));
+   const escWx=s=>String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+   const card=(id,primary=false)=>{let mm=M.get(id)||{},t=T.get(id)||{},f=cat(mm,ceiling(mm),pk(mm,"visib")),col=colors[f]||colors.UNK;return `<div class="wxCard ${primary?"primary":"secondary"}" style="border-left-color:${col}"><span class=icao>${id}</span><span class=cat style="color:${col}">${f}</span><div class=label>METAR</div><div class=wxraw>${escWx(mm.rawOb||"NO METAR AVAILABLE")}</div><div class=label>TAF</div><div class=wxraw>${escWx(t.rawTAF||"NO TAF AVAILABLE")}</div></div>`};
+   wxLeft.innerHTML=leftPrimary.map(q=>card(q,true)).join("");
+   wxRight.innerHTML=rightPrimary.map(q=>card(q,true)).join("");
+   if(showOthers){wxLeft.classList.add("showOthers");wxRight.classList.add("showOthers")}
+   wxLayer.clearLayers();aptlist.innerHTML="";rawWx.innerHTML="";
+   AP.forEach(a=>{let mm=M.get(a[0])||{},t=T.get(a[0])||{},c=ceiling(mm),v=pk(mm,"visib"),f=cat(mm,c,v);
+    L.circleMarker([a[2],a[3]],{radius:a[0]=="CYMJ"?9:7,color:"#fff",weight:2,fillColor:colors[f],fillOpacity:.95}).bindTooltip(`${a[0]} • ${f}`,{permanent:true,direction:"right",className:"aclabel",offset:[8,0]}).bindPopup(`<b>${a[0]} — ${a[1]}</b><br><b>${f}</b><br>Ceiling ${c??"—"} ft<br>Visibility ${v??"—"} SM<br>Wind ${mm.wdir??"VRB"}° / ${mm.wspd??"—"} kt${mm.wgst?" G"+mm.wgst:""}<hr><small>${mm.rawOb??"No METAR"}</small>`).addTo(wxLayer);
+    aptlist.insertAdjacentHTML("beforeend",`<div class=apt><b>${a[0]}</b><span>${a[1]}<br><span class=mut>${c??"—"} / ${v??"—"}SM</span></span><span class="cat ${f}">${f}</span></div>`);
+    rawWx.insertAdjacentHTML("beforeend",`<div class=card><b>${a[0]} — ${a[1]}</b><div class=raw>${mm.rawOb??"No METAR"}\n${t.rawTAF??"No TAF"}</div></div>`)
+   });
+   applyWxHighlights();wxstatus.textContent="LIVE";wxstatus.className="good";
+ }catch(e){
+   wxstatus.textContent="WX ERROR";wxstatus.className="bad";
+   const msg=`<div class="wxCard primary" style="border-left-color:#e34c4c"><b>WEATHER FEED ERROR</b><div class=wxraw>${String(e.message||e)}</div></div>`;
+   wxLeft.innerHTML=msg;wxRight.innerHTML=msg;console.error("Weather load failed",e);
+ }
+}
+let radarFrames=[],radarIndex=-1,radarTimer=null,lightningLayer=null;
+function showRadarFrame(i){
+ if(!radarFrames.length)return;
+ radarIndex=(i+radarFrames.length)%radarFrames.length;
+ const f=radarFrames[radarIndex];
+ if(radarLayer)map.removeLayer(radarLayer);
+ radarLayer=L.tileLayer(`${f.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`,{
+   opacity:+opacity.value,maxNativeZoom:7,maxZoom:12,
+   attribution:'Weather radar © RainViewer'
+ });
+ if(radToggle.checked)radarLayer.addTo(map);
+ const dt=new Date(f.time*1000);
+ radstatus.textContent=dt.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+ radstatus.className="good";
+ radTimeLabel.textContent=`Radar: ${dt.toLocaleString()} • ${radarIndex+1}/${radarFrames.length}`;
+}
+async function loadRadar(){
+ radstatus.textContent="LOADING";radstatus.className="warn";
+ try{
+   const r=await fetch("https://api.rainviewer.com/public/weather-maps.json",{cache:"no-store"});
+   const d=await r.json(); if(!r.ok)throw Error(`HTTP ${r.status}`);
+   radarFrames=(d.radar?.past||[]).map(f=>({...f,host:d.host}));
+   if(!radarFrames.length)throw Error("No radar frames");
+   showRadarFrame(radarFrames.length-1);
+ }catch(e){radstatus.textContent="ERROR";radstatus.className="bad";radTimeLabel.textContent="Radar unavailable";console.error("Radar:",e)}
+}
+function setupLightning(){
+ try{
+   if(lightningLayer)map.removeLayer(lightningLayer);
+   lightningLayer=L.tileLayer.wms("https://geo.weather.gc.ca/geomet",{
+     layers:"Lightning_2.5km_Density",styles:"Lightning",format:"image/png",
+     transparent:true,version:"1.3.0",opacity:.82,
+     attribution:"Lightning density © Environment and Climate Change Canada"
+   });
+   if(ltgToggle.checked)lightningLayer.addTo(map);
+   ltgstatus.textContent="LIVE";ltgstatus.className="good";
+ }catch(e){ltgstatus.textContent="ERROR";ltgstatus.className="bad";console.error("Lightning:",e)}
+}
+function stopRadarAnimation(){if(radarTimer){clearInterval(radarTimer);radarTimer=null}radPlay.textContent="▶ PLAY";radAnimate.checked=false}
+function startRadarAnimation(){
+ if(!radarFrames.length)return;
+ stopRadarAnimation();radAnimate.checked=true;radPlay.textContent="❚❚ PAUSE";
+ radarTimer=setInterval(()=>showRadarFrame(radarIndex+1),850);
+}
+function isMil(a){return ((Number(a.dbFlags)||0)&1)===1||a.mil===true||a.military===true}
+function isMlat(a){
+ const typ=String(a.type||"").toLowerCase(),hex=String(a.hex||"").toLowerCase();
+ return typ.includes("mlat") || (Array.isArray(a.mlat)&&a.mlat.length>0) || hex.startsWith("~");
+}
+function targetPos(a){
+ if(Number.isFinite(Number(a.lat))&&Number.isFinite(Number(a.lon))) return {lat:Number(a.lat),lon:Number(a.lon),age:Number(a.seen_pos??a.seen??0),last:false};
+ const lp=a.lastPosition;
+ if(lp&&Number.isFinite(Number(lp.lat))&&Number.isFinite(Number(lp.lon))&&Number(lp.seen_pos??999)<=60)
+   return {lat:Number(lp.lat),lon:Number(lp.lon),age:Number(lp.seen_pos??a.seen??0),last:true};
+ return null;
+}
+function silhouette(a){
+ const td=String(a.desc||a.type_desc||"").toUpperCase(),t=String(a.t||"").toUpperCase();
+ if(td.startsWith("H")) return '<svg viewBox="0 0 64 64"><path d="M29 5h6l2 20 18-4 2 4-18 9 1 14 8 5v4l-16-3-16 3v-4l8-5 1-14-18-9 2-4 18 4z"/></svg>';
+ if(t.includes("C130")||t.includes("C30J")||td.includes("4T")) return '<svg viewBox="0 0 64 64"><path d="M28 3h8l3 22 20 8v5l-20-3-2 16 9 6v4l-14-3-14 3v-4l9-6-2-16-20 3v-5l20-8z"/></svg>';
+ return '<svg viewBox="0 0 64 64"><path d="M29 2h6l4 24 21 8v5l-21-3-2 15 10 7v4l-15-4-15 4v-4l10-7-2-15-21 3v-5l21-8z"/></svg>';
+}
+function acIcon(a,pos){
+ let cls=isMil(a)?"mil":(isMlat(a)?"mlat":"");
+ if((Number(pos?.age)||0)>20)cls+=" stale";
+ return L.divIcon({className:"",html:`<div class="aircraft ${cls}" style="transform:rotate(${Number(a.track)||0}deg)">${silhouette(a)}</div>`,iconSize:[30,30],iconAnchor:[15,15]})
+}
+function drawTraffic(){
+ acLayer.clearLayers();
+ const api=lastTraffic.length, positioned=lastTraffic.map(a=>({a,pos:targetPos(a)})).filter(x=>x.pos);
+ const milCount=positioned.filter(x=>isMil(x.a)).length;
+ const mlatCount=positioned.filter(x=>isMlat(x.a)).length;
+ let shown=positioned.filter(x=>!milToggle.checked||isMil(x.a));
+ shown.forEach(({a,pos})=>{
+   let flight=(a.flight||"").trim()||a.r||a.hex||"UNKNOWN";
+   let alt=a.alt_baro==="ground"?"GND":(a.alt_baro??a.alt_geom??"—");
+   let bits=[],mil=isMil(a);
+   if(milLabelToggle.checked){if(mil){bits.push(flight);bits.push(alt==="GND"?"GND":`${alt} ft`)}}
+   else {if(labelToggle.checked)bits.push(flight);if(altToggle.checked)bits.push(alt==="GND"?"GND":`${alt} ft`)}
+   let source=String(a.type||"unknown");
+   let m=L.marker([pos.lat,pos.lon],{icon:acIcon(a,pos)}).bindPopup(
+    `<b>${flight}</b>${mil?" • MIL":""}<br>${a.r||""} ${a.t||""}<br>SOURCE ${source}${pos.last?" (last position)":""}<br>ALT ${alt}<br>GS ${a.gs??"—"} kt<br>TRK ${a.track??"—"}°<br>Squawk ${a.squawk??"—"}<br>Seen ${a.seen??"—"} sec<br>Pos age ${pos.age??"—"} sec`
+   );
+   if(bits.length)m.bindTooltip(bits.join(" • "),{permanent:true,direction:"right",className:"acTag",offset:[12,0]});
+   m.addTo(acLayer);
+ });
+ account.textContent=shown.length;
+ diagApi.textContent=api;diagPos.textContent=positioned.length;diagMil.textContent=milCount;diagMlat.textContent=mlatCount;diagDisp.textContent=shown.length;
+}
+async function loadTraffic(){
+ adsbstatus.textContent="LOADING";adsbstatus.className="warn";
+ try{let r=await fetch("/api/traffic",{cache:"no-store"}),d=await r.json();if(!r.ok)throw Error(d.error);lastTraffic=d.aircraft||[];drawTraffic();diagApi.textContent=d.total??lastTraffic.length;provider.textContent=d.provider||"—";adsbstatus.textContent="LIVE";adsbstatus.className="good"}
+ catch(e){account.textContent="—";provider.textContent="—";adsbstatus.textContent="ERROR";adsbstatus.className="bad";console.error("Traffic:",e)}
+}
+wxbtn.onclick=()=>{loadWx();loadRadar()};trafficbtn.onclick=loadTraffic;
+radToggle.onchange=()=>{if(!radarLayer)return;radToggle.checked?radarLayer.addTo(map):map.removeLayer(radarLayer)};
+ltgToggle.onchange=()=>{if(!lightningLayer)return;ltgToggle.checked?lightningLayer.addTo(map):map.removeLayer(lightningLayer)};
+radPrev.onclick=()=>{stopRadarAnimation();showRadarFrame(radarIndex-1)};
+radNext.onclick=()=>{stopRadarAnimation();showRadarFrame(radarIndex+1)};
+radPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
+radAnimate.onchange=()=>radAnimate.checked?startRadarAnimation():stopRadarAnimation();
+wxToggle.onchange=()=>wxToggle.checked?wxLayer.addTo(map):map.removeLayer(wxLayer);
+acToggle.onchange=()=>acToggle.checked?acLayer.addTo(map):map.removeLayer(acLayer);
+labelToggle.onchange=drawTraffic;altToggle.onchange=drawTraffic;milToggle.onchange=drawTraffic;milLabelToggle.onchange=drawTraffic;
+airspaceToggle.onchange=()=>airspaceToggle.checked?airspaceLayer.addTo(map):map.removeLayer(airspaceLayer);
+opacity.oninput=()=>radarLayer&&radarLayer.setOpacity(+opacity.value);
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab],.panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("#"+b.dataset.tab).classList.add("active");if(b.dataset.tab=="legacy")setTimeout(()=>map.invalidateSize(),80)});
+function timeAt(tz){return new Intl.DateTimeFormat("en-CA",{timeZone:tz,hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(new Date())}
+function zoneAt(tz){let x=new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"short"}).formatToParts(new Date());return x.find(p=>p.type==="timeZoneName")?.value||""}
+function dtgZulu(){
+ const d=new Date(),mons=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+ const dd=String(d.getUTCDate()).padStart(2,"0"),hh=String(d.getUTCHours()).padStart(2,"0"),mm=String(d.getUTCMinutes()).padStart(2,"0");
+ return `${dd}${hh}${mm}Z ${mons[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(-2)}`;
+}
+function updateClocks(){
+ cPacific.textContent=timeAt("America/Los_Angeles");zPacific.textContent=zoneAt("America/Los_Angeles");
+ cMountain.textContent=timeAt("America/Denver");zMountain.textContent=zoneAt("America/Denver");
+ cMoose.textContent=timeAt("America/Regina");
+ cEastern.textContent=timeAt("America/Toronto");zEastern.textContent=zoneAt("America/Toronto");
+ cGMT.textContent=timeAt("UTC");zuluDTG.textContent=dtgZulu();
+}
+updateClocks();setInterval(updateClocks,1000);loadWx();loadRadar();setupLightning();loadTraffic();setInterval(loadTraffic,10000);setInterval(loadWx,120000);setInterval(loadRadar,300000);
+
+document.querySelectorAll(".otherWxBtn").forEach(b=>b.onclick=()=>{
+ showOthers=!showOthers;
+ wxLeft.classList.toggle("showOthers",showOthers);wxRight.classList.toggle("showOthers",showOthers);
+ document.querySelectorAll(".otherWxBtn").forEach(x=>x.textContent=showOthers?"HIDE OTHER AIRFIELDS":"SHOW OTHER AIRFIELDS");
+});
+
+
+</script><div style="position:fixed;right:8px;bottom:6px;z-index:99999;background:#071923;color:#7fdcff;border:1px solid #2d6f91;border-radius:4px;padding:3px 7px;font:700 10px monospace;opacity:.9">BUILD: DATE-AWARE / PROB30 FIX / SMART LAUNCHER</div><div style="display:none" aria-hidden="true"><div id="map" style="position:absolute;width:2px;height:2px;left:-9999px;top:-9999px"></div><div id="radstatus"></div><div id="ltgstatus"></div><input id="radToggle" type="checkbox"><input id="ltgToggle" type="checkbox"><input id="radAnimate" type="checkbox"><button id="radPrev"></button><button id="radPlay"></button><button id="radNext"></button><div id="radTimeLabel"></div><input id="opacity" type="range" value="0.65"><input id="mil" type="checkbox"><div id="aptlist"></div><div id="trafficstatus"></div></div><script id="clockSafety">
+(function(){
+ const zones=[
+  ["cPacific","zPacific","America/Los_Angeles"],
+  ["cMountain","zMountain","America/Edmonton"],
+  ["cMoose",null,"America/Regina"],
+  ["cEastern","zEastern","America/Toronto"],
+  ["cGMT","zGMT","UTC"]
+ ];
+ function tick(){
+  const now=new Date();
+  for(const [cid,zid,tz] of zones){
+   const c=document.getElementById(cid); if(c)c.textContent=new Intl.DateTimeFormat("en-CA",{timeZone:tz,hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(now);
+   const z=document.getElementById(zid); if(z&&tz!=="UTC")z.textContent=new Intl.DateTimeFormat("en-CA",{timeZone:tz,timeZoneName:"short"}).formatToParts(now).find(p=>p.type==="timeZoneName")?.value||"";
+  }
+  const dtg=document.getElementById("dtg");
+  if(dtg)dtg.textContent=String(now.getUTCDate()).padStart(2,"0")+String(now.getUTCHours()).padStart(2,"0")+String(now.getUTCMinutes()).padStart(2,"0")+"Z "+["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][now.getUTCMonth()]+" "+now.getUTCFullYear();
+ }
+ tick();setInterval(tick,1000);
+})();
+</script>
+<script id="standaloneWeatherFeed">
+(function(){
+ const __cfg=window.SOF_WX_CFG||{}, __home=String(__cfg.home||"CYMJ").toUpperCase(), __alts=String(__cfg.alts||"CYQR,CYYN,CYXE").toUpperCase().split(/[\s,;]+/).filter(Boolean);
+ const leftPrimary=[__home,...__alts.filter((_,i)=>i%2===0)], rightPrimary=__alts.filter((_,i)=>i%2===1);
+ const leftOther=[], rightOther=[];
+ const all=[...new Set([...leftPrimary,...rightPrimary])];
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const get=async(url)=>{
+   const r=await fetch(url,{cache:"no-store",headers:{Accept:"application/json"}});
+   if(r.status===404)return null;
+   if(!r.ok)throw new Error("HTTP "+r.status);
+   return r.json();
+ };
+ async function station(id){
+   const base="https://datamask.org/api/v1";
+   const [m,t]=await Promise.allSettled([get(`${base}/metar/${id}`),get(`${base}/taf/${id}`)]);
+   return {id,metar:m.status==="fulfilled"?m.value:null,taf:t.status==="fulfilled"?t.value:null};
+ }
+ function category(m){
+   return m?.decoded?.flightCategory || "UNK";
+ }
+ function card(r,primary){
+   const rawM=r.metar?.raw||"NO METAR AVAILABLE";
+   const rawT=r.taf?.raw||"NO TAF AVAILABLE";
+   const cat=category(r.metar);
+   const col={VFR:"#42d17d",MVFR:"#55a8ff",IFR:"#ff5252",LIFR:"#d05cff",UNK:"#8ba0aa"}[cat]||"#8ba0aa";
+   return `<div class="wxCard ${primary?"primary":"secondary"}" data-icao="${r.id}" style="border-left-color:${col}">
+     <span class="icao">${r.id}</span><span class="cat" style="color:${col}">${cat}</span>
+     <div class="label">METAR</div><div class="wxraw">${esc(rawM)}</div>
+     <div class="label">TAF</div><div class="wxraw">${esc(rawT)}</div>
+   </div>`;
+ }
+ async function refresh(){
+   const status=document.getElementById("wxstatus");
+   if(status){status.textContent="LOADING";status.className="warn";}
+   try{
+     const rows=await Promise.all(all.map(station));
+     const by=Object.fromEntries(rows.map(r=>[r.id,r]));
+     const L=document.getElementById("wxLeft"),R=document.getElementById("wxRight");
+     if(!L||!R)throw new Error("Weather rails not found");
+     L.innerHTML=leftPrimary.map(i=>card(by[i],true)).join("")+leftOther.map(i=>card(by[i],false)).join("");
+     R.innerHTML=rightPrimary.map(i=>card(by[i],true)).join("")+rightOther.map(i=>card(by[i],false)).join("");
+     if(window.showOthers){L.classList.add("showOthers");R.classList.add("showOthers");}
+     if(typeof window.applyWxHighlights==="function")window.applyWxHighlights();
+     if(status){status.textContent="LIVE";status.className="good";}
+   }catch(e){
+     console.error("Independent weather feed:",e);
+     if(status){status.textContent="WX ERROR";status.className="bad";}
+   }
+ }
+ window.refreshSofWeather=refresh;
+ const b=document.getElementById("wxbtn"); if(b)b.onclick=refresh;
+ refresh();
+ setInterval(refresh,300000);
+})();
+</script>
+<script id="sofUiRepair">
+(function(){
+ function wireOtherAirfields(){
+   const btn=document.querySelector(".otherWxBtn");
+   const left=document.getElementById("wxLeft"), right=document.getElementById("wxRight");
+   if(!btn||!left||!right)return;
+   btn.onclick=function(){
+     const showing=left.classList.toggle("showOthers");
+     right.classList.toggle("showOthers",showing);
+     window.showOthers=showing;
+     btn.textContent=showing?"HIDE OTHER AIRFIELDS":"SHOW OTHER AIRFIELDS";
+   };
+ }
+ function tickMooseJaw(){
+   const el=document.getElementById("cMoose");
+   if(el)el.textContent=new Intl.DateTimeFormat("en-CA",{
+     timeZone:"America/Regina",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false
+   }).format(new Date());
+   
+ }
+ function repair(){
+   wireOtherAirfields();
+   tickMooseJaw();
+ }
+ repair();
+ setInterval(tickMooseJaw,1000);
+ // Weather refresh replaces rail HTML, so re-wire after each completed refresh.
+ const old=window.refreshSofWeather;
+ if(typeof old==="function"){
+   window.refreshSofWeather=async function(){
+     const v=await old.apply(this,arguments);
+     wireOtherAirfields(); return v;
+   };
+   const wx=document.getElementById("wxbtn"); if(wx)wx.onclick=window.refreshSofWeather;
+ }
+})();
+</script><script id="ecccLightningLive">
+(function(){
+ const img=document.getElementById("ecccLightningImg"),st=document.getElementById("ecccLtgStatus"),
+ btn=document.getElementById("ecccLtgToggle"),op=document.getElementById("ecccLtgOpacity"),p=document.getElementById("ecccLightningPanel");
+ if(!img||!p)return; let on=true;
+ function refresh(){
+  if(!on)return; st.textContent="REFRESHING";
+  const q=new URLSearchParams({SERVICE:"WMS",VERSION:"1.1.1",REQUEST:"GetMap",LAYERS:"Lightning_2.5km_Density",STYLES:"Lightning",SRS:"EPSG:4326",BBOX:"-111,48.5,-99,53.5",WIDTH:"900",HEIGHT:"500",FORMAT:"image/png",TRANSPARENT:"TRUE",_t:String(Date.now())});
+  img.onload=()=>st.textContent="LIVE"; img.onerror=()=>st.textContent="FEED UNAVAILABLE";
+  img.src="https://geo.weather.gc.ca/geomet/?"+q;
+ }
+ btn.onclick=()=>{on=!on;img.style.display=on?"block":"none";document.querySelector("#ecccLightningPanel .ltgBottom").style.display=on?"flex":"none";btn.textContent=on?"ON":"OFF";st.textContent=on?"LOADING":"OFF";if(on)refresh()};
+ op.oninput=()=>img.style.opacity=(+op.value/100); img.style.opacity=.78;
+ refresh();setInterval(refresh,120000);
+})();
+sofLimitAck.onclick=()=>sofLimitCaution.classList.remove("open");
+</script>
+<style id="sofWxSetupStyle">
+#sofWxSetupBtn{position:fixed;top:7px;right:154px;z-index:200005;background:#173d5b;border:1px solid #4f7da0;color:#fff;border-radius:8px;padding:8px 12px;font-weight:900;cursor:pointer}
+#sofWxSetup{display:none;position:fixed;inset:0;z-index:300000;background:rgba(0,6,12,.78);align-items:center;justify-content:center}
+#sofWxSetup.open{display:flex}
+#sofWxSetup .box{width:min(760px,94vw);max-height:90vh;overflow:auto;background:#091827;border:1px solid #41637c;border-radius:14px;padding:16px;box-shadow:0 18px 60px #000}
+#sofWxSetup h2{margin:0 0 4px;font-size:18px}#sofWxSetup .sub{font-size:11px;color:#91a9bb;margin-bottom:13px}
+#sofWxSetup .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#sofWxSetup .grp{background:#0d2437;border:1px solid #294b64;border-radius:10px;padding:10px}
+#sofWxSetup h3{font-size:12px;margin:0 0 8px;color:#dff2ff}
+#sofWxSetup label{display:grid;grid-template-columns:1fr 180px;gap:8px;align-items:center;font-size:11px;color:#a9bdcc;margin:7px 0}
+#sofWxSetup input{width:100%;background:#06131e;color:#fff;border:1px solid #41627a;border-radius:6px;padding:7px}
+#sofWxSetup .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+#sofWxSetup button{background:#143149;color:#fff;border:1px solid #4a7595;border-radius:7px;padding:8px 12px;cursor:pointer}
+#sofWxSetup .save{background:#176b9b;font-weight:900}
+@media(max-width:700px){#sofWxSetup .grid{grid-template-columns:1fr}#sofWxSetup label{grid-template-columns:1fr 130px}}
+</style>
+<button id="sofWxSetupBtn">⚙ WX SETUP</button>
+<div id="sofWxSetup">
+ <div class="box">
+  <h2>SOF WEATHER SETUP</h2><div class="sub">Choose the fields you care about and the conditions that should highlight.</div>
+  <div class="grid">
+   <div class="grp"><h3>AIRFIELDS</h3>
+    <label>Home airfield<input id="cfgHome" value="CYMJ" maxlength="4"></label>
+    <label>Alternates<input id="cfgAlts" value="CYQR, CYYN, CYXE"></label>
+   </div>
+   <div class="grp"><h3>LIGHTNING / CAUTIONS</h3>
+    <label>Lightning alert radius (NM)<input id="cfgLightning" type="number" value="20" min="1"></label>
+    <label>New-alert caution box<input id="cfgPopup" type="checkbox" checked></label>
+   </div>
+   <div class="grp"><h3>HOME HIGHLIGHTS</h3>
+    <label>Ceiling below (ft)<input id="cfgHomeCeil" type="number" value="2000" step="100"></label>
+    <label>Visibility below (SM)<input id="cfgHomeVis" type="number" value="3" step=".25"></label>
+   </div>
+   <div class="grp"><h3>ALTERNATE HIGHLIGHTS</h3>
+    <label>Ceiling below (ft)<input id="cfgAltCeil" type="number" value="600" step="100"></label>
+    <label>Visibility below (SM)<input id="cfgAltVis" type="number" value="2" step=".25"></label>
+   </div> 
+   <div class="grp" id="cfgAltPlanningGrp"><h3>ALTERNATE APPROACH / MEA</h3>
+    <div style="font-size:10px;color:#91a9bb;margin-bottom:7px">Mark GNSS-only alternates and enter the MEA required to reach each alternate.</div>
+    <div id="cfgAltPlanningRows"></div>
+   </div>
+  </div>
+  <div class="actions"><button id="cfgCancel">CANCEL</button><button class="save" id="cfgSave">SAVE + APPLY</button></div>
+ </div>
+</div>
+<script id="sofWxSetupScript">
+(()=>{
+ const $=id=>document.getElementById(id), C=window.SOF_WX_CFG||{};
+ function load(){cfgHome.value=C.home||"CYMJ";cfgAlts.value=C.alts||"CYQR,CYYN,CYXE";cfgHomeCeil.value=C.homeCeil||2000;cfgHomeVis.value=C.homeVis||3;cfgAltCeil.value=C.altCeil||600;cfgAltVis.value=C.altVis||2;cfgLightning.value=C.lightningNm||20;cfgPopup.checked=C.popup!==false}
+ sofWxSetupBtn.onclick=()=>{load();sofWxSetup.classList.add("open")};cfgCancel.onclick=()=>sofWxSetup.classList.remove("open");
+ cfgSave.onclick=()=>{const n={home:cfgHome.value.trim().toUpperCase()||"CYMJ",alts:cfgAlts.value.trim().toUpperCase(),homeCeil:+cfgHomeCeil.value||2000,homeVis:+cfgHomeVis.value||3,altCeil:+cfgAltCeil.value||600,altVis:+cfgAltVis.value||2,lightningNm:+cfgLightning.value||20,popup:cfgPopup.checked};localStorage.setItem("dadSofWxConfig",JSON.stringify(n));location.reload()};
+})();
+</script>
+
+<style id="sofEvalStyle">
+.wxCard.sofLimitAlert{box-shadow:inset 0 0 0 2px #ff9f43,0 0 14px rgba(255,159,67,.18)}
+.sofEval{margin-top:7px;padding:6px 7px;border-radius:6px;background:#07131d;border:1px solid #27465d;font:700 10px system-ui;color:#9eb5c7}
+.sofEval.bad{border-color:#ff9f43;color:#ffd3a6;background:#25170b}
+.sofEval .item{display:block;margin:2px 0}
+#sofLimitCaution{display:none;position:fixed;right:16px;bottom:16px;z-index:400000;width:min(420px,calc(100vw - 32px));background:#24190b;border:2px solid #ffb347;border-radius:11px;padding:12px;box-shadow:0 12px 38px #000}
+#sofLimitCaution.open{display:block}#sofLimitCaution h3{margin:0 0 6px;color:#ffd166;font-size:14px}#sofLimitCaution pre{white-space:pre-wrap;font:11px system-ui;color:#fff}
+#sofLimitCaution button{width:100%;margin-top:8px;background:#704b12;border-color:#ffb347;font-weight:900}
+</style>
+<div id="sofLimitCaution"><h3>⚠ NEW WEATHER LIMIT</h3><pre id="sofLimitCautionText"></pre><button id="sofLimitAck">ACKNOWLEDGE / CLEAR</button></div>
+
+<script id="sofTrafficRadarCycle">
+(()=>{
+ const traffic=document.getElementById("mainGlobe"), radar=document.getElementById("windyRadar"),
+       name=document.getElementById("mainSourceName"), desc=document.getElementById("mainSourceDesc"),
+       pill=document.getElementById("sofCyclePill");
+ if(!traffic||!radar)return;
+ let radarOn=false, left=10;
+ function show(){
+   traffic.style.opacity=radarOn?"0":"1";traffic.style.pointerEvents=radarOn?"none":"auto";
+   radar.style.opacity=radarOn?"1":"0";radar.style.pointerEvents=radarOn?"auto":"none";
+   if(name)name.textContent=radarOn?"WINDY WEATHER RADAR":"AIRPLANES.LIVE";
+   if(desc)desc.textContent=radarOn?"WEATHER RADAR • automatic 10-second rotation":"LIVE TRAFFIC • automatic 10-second rotation";
+   left=10;
+ }
+ show();
+ setInterval(()=>{left--;if(left<=0){radarOn=!radarOn;show()}if(pill)pill.textContent=(radarOn?"WINDY WX RADAR":"LIVE TRAFFIC")+" • "+left+" SEC";},1000);
+})();
+</script>
+
+<script id="sofWeatherReorgLogic">
+(()=>{
+ function visM(raw){
+  let m=String(raw||"").match(/(?:^|\s)(?:(\d+)\s+)?(\d+\/\d+|\d+(?:\.\d+)?)SM\b/);
+  if(m){let f=x=>x.includes("/")?(+x.split("/")[0]/+x.split("/")[1]):+x;return ((m[1]?+m[1]:0)+f(m[2]))*1609.344}
+  m=String(raw||"").match(/(?:^|\s)(\d{4})(?=\s)/);return m?(+m[1]===9999?10000:+m[1]):null;
+ }
+ function cloud(raw){let a=[...String(raw||"").matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100);return a.length?Math.min(...a):10000}
+ function xp(v){if(v<800)return 5;if(v<1600)return 12+(v-800)/800*12;if(v<2500)return 24+(v-1600)/900*14;if(v<3700)return 38+(v-2500)/1200*14;if(v<5000)return 52+(v-3700)/1300*14;if(v<8000)return 66+(v-5000)/3000*14;return 90}
+ function yp(c){if(c>=2500)return 10;if(c>=1500)return 21+(2500-c)/1000*10;if(c>=700)return 31+(1500-c)/800*14;if(c>=500)return 45+(700-c)/200*12;if(c>=300)return 57+(500-c)/200*14;if(c>=200)return 71+(300-c)/100*14;return 92}
+ function refresh(){
+  let b=document.getElementById("natoMarkers");if(!b)return;b.innerHTML="";
+  document.querySelectorAll(".wxCard").forEach(card=>{
+   let id=card.dataset.icao||card.querySelector(".icao")?.textContent?.trim(),raw=card.querySelector(".wxraw")?.textContent||"";
+   if(!id||!raw||/NO METAR/.test(raw))return;let v=visM(raw),c=cloud(raw);if(v==null)return;
+   let d=document.createElement("div");d.className="natoMarker";d.textContent=id;d.style.left=xp(v)+"%";d.style.top=yp(c)+"%";d.title=`${id} • SCT+ ${c} FT • VIS ${Math.round(v)} M`;
+   d.onclick=()=>select(id);b.appendChild(d);
+  });
+ }
+ function select(id){
+  document.getElementById("sofMcIcao").textContent=id;
+  document.getElementById("metarCloudFrame").src="https://metar.cloud/airport/"+encodeURIComponent(id);
+ }
+ window.sofSelectAirportForMetarCloud=select;
+ document.addEventListener("click",e=>{
+  let c=e.target.closest?.(".wxCard");if(!c)return;let id=c.dataset.icao||c.querySelector(".icao")?.textContent?.trim();if(id)select(id);
+ },true);
+ let mo=new MutationObserver(()=>setTimeout(refresh,0));["wxLeft","wxRight"].forEach(id=>{let e=document.getElementById(id);if(e)mo.observe(e,{childList:true,subtree:true})});
+ setTimeout(refresh,900);setInterval(refresh,30000);
+})();
+</script>
+
+<script id="sofNatoCorrections">
+(()=>{
+ const VIS=[0,800,1600,2500,3700,5000,8000,12000];
+ const XC=[6,18,31,45,59,73,90];
+ const RWY={
+  CYMJ:[["03",44],["21",224],["11L",119],["29R",299],["11R",118],["29L",298]],
+  CYQR:[["08",84],["26",264],["13",134],["31",314]],
+  CYYN:[["12",119],["30",299]],
+  CYXE:[["09",93],["27",273],["15",153],["33",333]]
+ };
+ function frac(z){if(!z)return 0;if(z.includes("/")){let a=z.split("/").map(Number);return a[0]/a[1]}return +z}
+ function vis(raw){let m=String(raw).match(/(?:^|\s)(?:(\d+)\s+)?(\d+\/\d+|\d+(?:\.\d+)?)SM\b/);
+  if(m)return ((m[1]?+m[1]:0)+frac(m[2]))*1609.344;
+  m=String(raw).match(/(?:^|\s)(\d{4})(?=\s)/);return m?(+m[1]===9999?10000:+m[1]):null}
+ function ceil(raw){let a=[...String(raw).matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100);return a.length?Math.min(...a):10000}
+ function wind(raw){let m=String(raw).match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);return m?{d:m[1]=="VRB"?null:+m[1],s:+m[2],g:m[3]?+m[3]:null}:null}
+ function x(v){for(let i=0;i<VIS.length-1;i++)if(v<VIS[i+1])return XC[i];return 90}
+ function y(c){if(c>=2500)return 10;if(c>=1500)return 22;if(c>=700)return 38;if(c>=500)return 51;if(c>=300)return 65;if(c>=200)return 79;return 92}
+ function comp(d,s,h){if(d==null)return null;let a=((d-h+540)%360-180)*Math.PI/180;return {h:s*Math.cos(a),x:s*Math.sin(a)}}
+ function tip(id,raw,c,v){
+  let w=wind(raw),html=`<b>${id}</b><br>Ceiling/SCT+: ${c>=10000?"UNLIMITED":c+" FT"}<br>Visibility: ${v>=9999?"10 KM+":Math.round(v)+" M"}`;
+  if(w)html+=`<br>Wind: ${w.d==null?"VRB":String(w.d).padStart(3,"0")+"°"} ${w.s}${w.g?"G"+w.g:""} KT`;
+  if(w&&RWY[id]){let best=null,rows=[];RWY[id].forEach(([n,h])=>{let z=comp(w.d,w.s,h);if(!z)return;
+    if(!best||z.h>best.z.h)best={n,z}; rows.push({n,z})});
+    if(best)html+=`<br><span class="good">Favored RWY ${best.n}</span> — ${best.z.h>=0?"HW "+Math.round(best.z.h):'<span class="bad">TW '+Math.round(-best.z.h)+"</span>"} / XW ${Math.round(Math.abs(best.z.x))}`;
+  }
+  return html;
+ }
+ function update(){
+  let box=document.getElementById("natoMarkers");if(!box)return;box.innerHTML="";
+  document.querySelectorAll(".wxCard").forEach(card=>{
+   let id=card.dataset.icao||card.querySelector(".icao")?.textContent?.trim(),raw=card.querySelector(".wxraw")?.textContent||"";
+   if(!id||!raw||/NO METAR/.test(raw))return;let v=vis(raw),c=ceil(raw);if(v==null)return;
+   let d=document.createElement("div");d.className="natoMarker";d.style.left=x(v)+"%";d.style.top=y(c)+"%";
+   d.append(document.createTextNode(id));let t=document.createElement("div");t.className="natoTip";t.innerHTML=tip(id,raw,c,v);d.appendChild(t);
+   d.onclick=()=>window.sofSelectAirportForMetarCloud?.(id);box.appendChild(d);
+  });
+ }
+ function mergePriority(){
+  // If the app has separate priority and other-airfield containers, move every wxCard
+  // into the main weather-card parent so CYYN/CYMJ/etc. are one continuous list.
+  let cards=[...document.querySelectorAll(".wxCard")];if(!cards.length)return;
+  let parents=cards.map(c=>c.parentElement).filter(Boolean);
+  let target=parents.find(p=>p.id==="wxLeft")||parents[0];
+  cards.forEach(c=>{if(c.parentElement!==target)target.appendChild(c)});
+ }
+ setTimeout(()=>{mergePriority();update()},700);
+ setInterval(()=>{mergePriority();update()},30000);
+})();
+</script>
+
+<script id="dockRailIntoNativeRightWeatherColumn">
+(()=>{
+ function dock(){
+   const rail=document.getElementById("sofDecisionRight");
+   if(!rail || rail.dataset.nativeDock==="1")return;
+   const labels=[...document.querySelectorAll("*")].filter(e=>{
+     if(e.children.length>3)return false;
+     return (e.textContent||"").trim()==="PRIORITY WEATHER";
+   });
+   let host=null,best=-1;
+   for(const label of labels){
+     let p=label.parentElement;
+     for(let i=0;i<3 && p;i++,p=p.parentElement){
+       const r=p.getBoundingClientRect();
+       if(r.width>180 && r.height>250 && r.left>best){best=r.left;host=p}
+     }
+   }
+   if(!host)return;
+   const old=[...host.children];
+   host.id="sofNativeRightDecisionHost";
+   host.appendChild(rail);
+   rail.dataset.nativeDock="1";
+   old.forEach(el=>{ if(el!==rail) el.style.display="none"; });
+ }
+ setTimeout(dock,900);
+ window.addEventListener("resize",()=>{});
+})();
+</script>
+
+<script id="natoHoverPortalFix">
+(()=>{
+ let active=null,home=null,next=null;
+ function tipsFor(marker){
+   return [...marker.querySelectorAll('.natoTip,.natoTooltip,[class*="nato"][class*="tip"]')];
+ }
+ function show(marker){
+   const tip=tipsFor(marker)[0];
+   if(!tip)return;
+   if(active && active!==tip) hide();
+   home=tip.parentNode; next=tip.nextSibling; active=tip;
+   const r=marker.getBoundingClientRect();
+   document.body.appendChild(tip);
+   Object.assign(tip.style,{
+     position:'fixed', zIndex:'2147483647', display:'block',
+     visibility:'visible', opacity:'1', pointerEvents:'none',
+     left:Math.min(window.innerWidth-tip.offsetWidth-8,Math.max(8,r.left+r.width/2-tip.offsetWidth/2))+'px',
+     top:Math.max(8,r.top-tip.offsetHeight-10)+'px'
+   });
+   if(tip.getBoundingClientRect().top<8)
+     tip.style.top=Math.min(window.innerHeight-tip.offsetHeight-8,r.bottom+10)+'px';
+ }
+ function hide(){
+   if(!active)return;
+   active.style.position='';
+   active.style.zIndex='';
+   active.style.left='';
+   active.style.top='';
+   active.style.display='';
+   active.style.visibility='';
+   active.style.opacity='';
+   active.style.pointerEvents='';
+   if(home){
+     if(next&&next.parentNode===home) home.insertBefore(active,next);
+     else home.appendChild(active);
+   }
+   active=home=next=null;
+ }
+ function bind(){
+   document.querySelectorAll('#natoMarkers > *, .natoMarker').forEach(m=>{
+     if(m.dataset.hoverPortal)return;
+     m.dataset.hoverPortal='1';
+     m.addEventListener('mouseenter',()=>show(m));
+     m.addEventListener('mouseleave',hide);
+   });
+ }
+ setTimeout(bind,800);
+ new MutationObserver(bind).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
+<script id="natoNearbyHoverAndMarkerDeconflict">
+(()=>{
+ const markerSel='#natoMarkers > *, .natoMarker';
+
+ function deconflict(){
+   const markers=[...document.querySelectorAll(markerSel)]
+     .filter((m,i,a)=>a.indexOf(m)===i && m.getBoundingClientRect().width>0);
+   const groups=[];
+   markers.forEach(m=>{
+     const r=m.getBoundingClientRect();
+     let g=groups.find(g=>Math.abs(g.x-r.left)<28 && Math.abs(g.y-r.top)<22);
+     if(!g){g={x:r.left,y:r.top,items:[]};groups.push(g)}
+     g.items.push(m);
+   });
+   groups.forEach(g=>{
+     g.items.forEach((m,i)=>{
+       if(!m.dataset.natoBaseTransform)m.dataset.natoBaseTransform=m.style.transform||'';
+       const n=g.items.length, gap=34;
+       const dx=(i-(n-1)/2)*gap;
+       m.style.transform=`${m.dataset.natoBaseTransform} translateX(${dx}px)`.trim();
+       m.style.zIndex=String(30+i);
+     });
+   });
+ }
+
+ function tipFor(m){
+   return m.querySelector('.natoTip,.natoTooltip,[class*="nato"][class*="tip"]');
+ }
+ let active=null, home=null, next=null;
+ function placeNear(m,tip){
+   const r=m.getBoundingClientRect();
+   const pad=8, gap=10;
+   const tw=tip.offsetWidth||260, th=tip.offsetHeight||120;
+   let left=r.right+gap, top=r.top-th/2+r.height/2;
+   if(left+tw>innerWidth-pad) left=r.left-tw-gap;
+   if(left<pad) left=Math.max(pad,Math.min(innerWidth-tw-pad,r.left+r.width/2-tw/2));
+   top=Math.max(pad,Math.min(innerHeight-th-pad,top));
+   tip.style.left=left+'px'; tip.style.top=top+'px';
+ }
+ function show(m){
+   const tip=tipFor(m); if(!tip)return;
+   if(active&&active!==tip)hide();
+   home=tip.parentNode; next=tip.nextSibling; active=tip;
+   document.body.appendChild(tip);
+   Object.assign(tip.style,{
+     position:'fixed',zIndex:'2147483647',display:'block',visibility:'visible',
+     opacity:'1',pointerEvents:'none',margin:'0',transform:'none'
+   });
+   placeNear(m,tip);
+ }
+ function hide(){
+   if(!active)return;
+   ['position','zIndex','left','top','display','visibility','opacity','pointerEvents','margin','transform']
+     .forEach(k=>active.style[k]='');
+   if(home){ if(next&&next.parentNode===home)home.insertBefore(active,next); else home.appendChild(active); }
+   active=home=next=null;
+ }
+ function bind(){
+   [...document.querySelectorAll(markerSel)].forEach(m=>{
+     if(m.dataset.natoNearBound)return;
+     m.dataset.natoNearBound='1';
+     m.addEventListener('mouseenter',()=>show(m));
+     m.addEventListener('mouseleave',hide);
+   });
+   deconflict();
+ }
+ setTimeout(bind,900);
+ new MutationObserver(()=>requestAnimationFrame(bind)).observe(document.documentElement,{childList:true,subtree:true});
+ window.addEventListener('resize',()=>requestAnimationFrame(deconflict));
+})();
+</script>
+
+<script id="waveBannerModule">
+(()=>{
+ function add(){
+   if(document.getElementById('waveBanner'))return;
+   const b=document.createElement('div'); b.id='waveBanner';
+   for(let i=1;i<=5;i++){
+     const c=document.createElement('div'); c.className='waveCell';
+     c.innerHTML=`<div class="waveName">WAVE ${i}</div><div class="waveWhen">
+       <input type="date" aria-label="Wave ${i} date">
+       <input type="time" aria-label="Wave ${i} time">
+     </div>`;
+     b.appendChild(c);
+   }
+   const candidates=[...document.querySelectorAll('header,.topbar,.header,#topbar,#header')];
+   const top=candidates.find(e=>e.getBoundingClientRect().width>500);
+   if(top) top.insertAdjacentElement('afterend',b);
+   else document.body.insertBefore(b,document.body.firstChild);
+   const inputs=[...b.querySelectorAll('input')];
+   inputs.forEach((el,j)=>{
+     const key='dadSofWave_'+j;
+     el.value=localStorage.getItem(key)||'';
+     el.addEventListener('change',()=>localStorage.setItem(key,el.value));
+   });
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',add); else add();
+})();
+</script>
+
+<script id="waveRowCorrectPlacementLogic">
+(()=>{
+ function add(){
+   if(document.getElementById('waveOpsRow'))return;
+   const row=document.createElement('div'); row.id='waveOpsRow';
+   row.innerHTML=`
+     <span class="waveOpsLabel">WAVE</span>
+     <select id="waveOpsSelect">
+       <option value="1">WAVE 1</option><option value="2">WAVE 2</option>
+       <option value="3">WAVE 3</option><option value="4">WAVE 4</option><option value="5">WAVE 5</option>
+     </select>
+     <span class="waveOpsLabel">DATE</span><input id="waveOpsDate" type="date">
+     <span class="waveOpsLabel">TAKEOFF</span><input id="waveOpsTakeoff" type="time">
+     <span class="waveOpsLabel">LAND</span><input id="waveOpsLand" type="time">
+     <span id="waveAltStatus" class="noAlt">NO ALTERNATE REQUIRED</span>`;
+   /* Put it exactly where the existing WAVE / DATE / TAKEOFF / ETA-LANDING row lives. */
+   const textNodes=[...document.querySelectorAll('div,section,header')];
+   const old=textNodes.find(e=>{
+     const t=(e.textContent||'').replace(/\s+/g,' ').trim().toUpperCase();
+     return t.includes('WAVE')&&t.includes('DATE')&&t.includes('TAKEOFF')&&
+            (t.includes('ETA / LANDING')||t.includes('ETA/LANDING')) &&
+            e.getBoundingClientRect().height<130 && e.getBoundingClientRect().width>500;
+   });
+   if(old){
+     old.style.display='none';
+     old.insertAdjacentElement('afterend',row);
+   }else{
+     const map=document.querySelector('#map,.map,#sofMap,[class*="map"]');
+     if(map&&map.parentElement)map.parentElement.insertBefore(row,map);
+     else document.body.prepend(row);
+   }
+
+   const sel=row.querySelector('#waveOpsSelect'),
+         date=row.querySelector('#waveOpsDate'),
+         to=row.querySelector('#waveOpsTakeoff'),
+         land=row.querySelector('#waveOpsLand'),
+         status=row.querySelector('#waveAltStatus');
+
+   function keys(){return 'dadSofWave'+sel.value+'_'}
+   function load(){
+     date.value=localStorage.getItem(keys()+'date')||'';
+     to.value=localStorage.getItem(keys()+'to')||'';
+     land.value=localStorage.getItem(keys()+'land')||'';
+     const req=localStorage.getItem(keys()+'alt')==='1';
+     status.className=req?'altReq':'noAlt';
+     status.textContent=req?'ALTERNATE REQUIRED':'NO ALTERNATE REQUIRED';
+   }
+   sel.value=localStorage.getItem('dadSofActiveWave')||'1';
+   sel.onchange=()=>{localStorage.setItem('dadSofActiveWave',sel.value);load()};
+   date.onchange=()=>localStorage.setItem(keys()+'date',date.value);
+   to.onchange=()=>localStorage.setItem(keys()+'to',to.value);
+   land.onchange=()=>localStorage.setItem(keys()+'land',land.value);
+   status.onclick=()=>{
+     const req=!status.classList.contains('altReq');
+     localStorage.setItem(keys()+'alt',req?'1':'0'); load();
+   };
+   status.title='Click to toggle alternate requirement';
+   load();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(add,300));
+ else setTimeout(add,300);
+})();
+</script>
+
+<script type="text/plain" id="ifpFlowWaveAssessment_old">
+(()=>{
+ const C=window.SOF_WX_CFG||{};
+ const home=()=>String(C.home||'CYMJ').toUpperCase();
+ const alts=()=>String(C.alts||'CYQR,CYYN,CYXE').toUpperCase().split(',').map(x=>x.trim()).filter(Boolean);
+
+ function metarVals(raw){
+   raw=(raw||'').toUpperCase();
+   let vis=null,ceil=null;
+   let sm=raw.match(/\b(\d+)?(?:\s)?(?:(\d)\/(\d))?SM\b/);
+   if(sm){vis=(+(sm[1]||0))+((sm[2]&&sm[3])?(+sm[2]/+sm[3]):0)}
+   let metric=raw.match(/\s(\d{4})\s/);
+   if(vis==null&&metric)vis=(+metric[1])/1609.344;
+   [...raw.matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].forEach(x=>{
+     const v=+x[1]*100;if(ceil==null||v<ceil)ceil=v;
+   });
+   if(/\bSKC\b|\bCLR\b|\bNSC\b|\bNCD\b/.test(raw)&&ceil==null)ceil=99999;
+   if(ceil==null && vis!=null && /\b(?:FEW|SCT)\d{3}\b/.test(raw))ceil=99999;
+   return {vis,ceil};
+ }
+ function card(id){return [...document.querySelectorAll('.wxCard')].find(c=>(c.dataset.icao||c.querySelector('.icao')?.textContent||'').trim().toUpperCase()===id)}
+ function rawMetar(c){
+   if(!c)return'';
+   const labs=[...c.querySelectorAll('.label')];
+   const l=labs.find(x=>x.textContent.trim().toUpperCase()==='METAR');
+   return l?.nextElementSibling?.textContent||'';
+ }
+ function addCardAssessment(c,id,isHome){
+   if(!c)return;
+   c.querySelector('.ifpAssess')?.remove();
+   const v=metarVals(rawMetar(c)), d=document.createElement('div');
+   d.className='ifpAssess';
+   if(v.ceil==null||v.vis==null){d.classList.add('warn');d.textContent='IFP: WEATHER DATA INCOMPLETE';}
+   else if(isHome){
+     const hit=v.ceil<2000||v.vis<3;
+     d.classList.add(hit?'bad':'good');
+     d.textContent=hit?'IFP ALT TRIGGER: HOME <2000 FT OR <3 SM':'IFP HOME: ≥2000 FT AND ≥3 SM';
+   }else{
+     /* Candidate screening shown with the dashboard's configured alternate minima.
+        Final IFP alternate legality still depends on approach type/minima/GNSS branches. */
+     const ac=+(C.altCeil||600), av=+(C.altVis||2), hit=v.ceil<ac||v.vis<av;
+     d.classList.add(hit?'bad':'good');
+     d.textContent=hit?`ALT CANDIDATE BELOW ${ac} FT / ${av} SM`:`ALT CANDIDATE ≥${ac} FT / ${av} SM`;
+   }
+   c.appendChild(d);
+ }
+ function update(){
+   const row=document.getElementById('waveOpsRow'); if(!row)return;
+   let box=document.getElementById('waveIfpTrigger');
+   if(!box){box=document.createElement('span');box.id='waveIfpTrigger';row.appendChild(box)}
+   const hc=card(home()), hv=metarVals(rawMetar(hc));
+   const trigger=hv.ceil!=null&&hv.vis!=null&&(hv.ceil<2000||hv.vis<3);
+   const known=hv.ceil!=null&&hv.vis!=null;
+   const status=document.getElementById('waveAltStatus');
+   if(status&&known){
+     status.className=trigger?'altReq':'noAlt';
+     status.textContent=trigger?'ALTERNATE REQUIRED':'NO ALTERNATE REQUIRED';
+     status.title='IFP flow trigger from home weather. Other flowchart branches can also require an alternate.';
+   }
+   box.innerHTML=
+     `<span class="ifpChip ${known?(trigger?'bad':'good'):'warn'}">${home()} ${known?(trigger?'TRIGGERS ALT':'NO HOME-WX ALT TRIGGER'):'WX UNKNOWN'}</span>`+
+     `<span class="ifpChip">TRIGGER: DEST &lt;3000 FT / 3 SM</span>`+
+     `<span class="ifpChip">OR ${home()} &lt;2000 FT / 3 SM</span>`+
+     `<span class="ifpChip">WINDOW: FLIGHT + 1 HR</span>`;
+   addCardAssessment(hc,home(),true);
+   alts().forEach(id=>addCardAssessment(card(id),id,false));
+ }
+ setTimeout(update,1400);
+ setInterval(update,15000);
+ new MutationObserver(()=>setTimeout(update,200)).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+<script type="text/plain" id="ifpWeatherParserFixV2_old">(()=>{function S(){let c=window.SOF_WX_CFG||{};try{c={...c,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){};let a=c.alts||c.alternates||['CYQR','CYYN','CYXE'];if(typeof a==='string')a=a.split(',');return{home:String(c.home||'CYMJ').trim().toUpperCase(),alts:a.map(x=>String(x).trim().toUpperCase()).filter(Boolean),ac:+(c.altCeil||600),av:+(c.altVis||2)}}function C(id){return[...document.querySelectorAll('.wxCard')].find(c=>((c.dataset.icao||c.querySelector('.icao')?.textContent||'').trim().toUpperCase()===id)||((c.innerText||'').toUpperCase().includes(id)))}function T(c,id){if(!c)return'';let t=(c.innerText||c.textContent||'').replace(/\u00a0/g,' '),l=t.split(/\n+/).map(x=>x.trim()).filter(Boolean);return l.find(x=>new RegExp('(?:METAR\\s+)?'+id+'\\s+\\d{6}Z\\b','i').test(x))||l.find(x=>/\b\d{6}Z\b/.test(x)&&/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/.test(x))||t}function P(t){t=String(t||'').toUpperCase().replace(/\s+/g,' ');let v=null,c=null,x;if(x=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))v=+x[1]+.01;else if(x=t.match(/\bM(\d+)\/(\d+)SM\b/))v=+x[1]/+x[2]-.01;else if(x=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))v=+x[1]+ +x[2]/+x[3];else if(x=t.match(/\b(\d+)\/(\d+)SM\b/))v=+x[1]/+x[2];else if(x=t.match(/\b(\d+(?:\.\d+)?)SM\b/))v=+x[1];else if(x=t.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\s+(\d{4})\b/))v=+x[1]/1609.344;else if(/\b9999\b/.test(t))v=6.22;for(const q of t.matchAll(/\b(?:BKN|OVC|VV)(\d{3})\b/g)){let f=+q[1]*100;if(c===null||f<c)c=f}if(c===null&&/\b(?:SKC|CLR|NSC|NCD|CAVOK)\b/.test(t))c=99999;if(v===null&&/\bCAVOK\b/.test(t))v=6.22;if(c===null&&v!==null&&/\b(?:FEW|SCT)\d{3}\b/.test(t))c=99999;return{v,c}}function B(card,text,k){if(!card)return;let b=card.querySelector('.ifpAssess');if(!b){b=document.createElement('div');card.appendChild(b)}b.className='ifpAssess '+k;b.textContent=text}function R(){let s=S(),hc=C(s.home),h=P(T(hc,s.home)),known=h.v!==null&&h.c!==null,req=known&&(h.c<2000||h.v<3);B(hc,known?(req?'IFP ALT TRIGGER: HOME <2000 FT OR <3 SM':'IFP HOME: ≥2000 FT AND ≥3 SM'):'IFP: WEATHER DATA INCOMPLETE',known?(req?'bad':'good'):'warn');let st=document.getElementById('waveAltStatus');if(st){st.className=known?(req?'altReq':'noAlt'):'';st.textContent=known?(req?'ALTERNATE REQUIRED':'NO ALTERNATE REQUIRED'):'WX UNKNOWN'}let box=document.getElementById('waveIfpTrigger');if(box)box.innerHTML=`<span class="ifpChip ${known?(req?'bad':'good'):'warn'}">${s.home} ${known?(req?'TRIGGERS ALT':'NO HOME-WX ALT TRIGGER'):'WX UNKNOWN'}</span><span class="ifpChip">DEST &lt;3000 FT / 3 SM</span><span class="ifpChip">OR ${s.home} &lt;2000 FT / 3 SM</span><span class="ifpChip">FLIGHT + 1 HR</span>`;[...document.querySelectorAll('.wxCard')].forEach(cc=>{let id=(cc.dataset.icao||cc.querySelector('.icao')?.textContent||((cc.innerText||'').match(/\b[A-Z0-9]{4}\b/)||[])[0]||'').trim().toUpperCase();if(!id||id===s.home)return;let p=P(T(cc,id)),k=p.v!==null&&p.c!==null,bad=k&&(p.c<s.ac||p.v<s.av);B(cc,k?(bad?`ALT CANDIDATE BELOW ${s.ac} FT / ${s.av} SM`:`ALT CANDIDATE ≥${s.ac} FT / ${s.av} SM`):'IFP: WEATHER DATA INCOMPLETE',k?(bad?'bad':'good'):'warn')})}setTimeout(R,1200);setTimeout(R,3000);setInterval(R,12000)})();</script><script id="cfgAltPlanningScript">
+(()=>{
+ const KEY="dadSofAltAdvanced";
+ const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){return{}}};
+ function ids(){return (document.getElementById("cfgAlts")?.value||"").split(",").map(x=>x.trim().toUpperCase()).filter(Boolean)}
+ function render(){
+   const box=document.getElementById("cfgAltPlanningRows"); if(!box)return;
+   const d=read(); box.innerHTML="";
+   ids().forEach(id=>{
+     const r=document.createElement("div");r.className="apRow";r.dataset.icao=id;
+     r.innerHTML=`<span class="apIcao">${id}</span>
+       <label><input class="apGnss" type="checkbox"> GNSS ONLY</label>
+       <label>MEA <input class="apMea" type="number" min="0" step="100" placeholder="FT"></label>`;
+     r.querySelector(".apGnss").checked=!!d[id]?.gnssOnly;
+     r.querySelector(".apMea").value=d[id]?.mea||"";
+     box.appendChild(r);
+   });
+ }
+ function save(){
+   const d=read();
+   document.querySelectorAll("#cfgAltPlanningRows .apRow").forEach(r=>{
+     d[r.dataset.icao]={gnssOnly:r.querySelector(".apGnss").checked,mea:+r.querySelector(".apMea").value||null};
+   });
+   localStorage.setItem(KEY,JSON.stringify(d));
+ }
+ document.addEventListener("DOMContentLoaded",()=>{
+   const b=document.getElementById("sofWxSetupBtn"), a=document.getElementById("cfgAlts"), s=document.getElementById("cfgSave");
+   if(b)b.addEventListener("click",()=>setTimeout(render,0));
+   if(a)a.addEventListener("input",render);
+   if(s)s.addEventListener("click",save,{capture:true});
+   render();
+ });
+})();
+</script><script id="ifpWaveTimeAssessmentV2">
+(()=>{
+ const ADV='dadSofAltAdvanced';
+ const cfg=()=>{let c={...window.SOF_WX_CFG};try{c={...c,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return c};
+ const adv=()=>{try{return JSON.parse(localStorage.getItem(ADV)||'{}')}catch(e){return{}}};
+ function card(id){return [...document.querySelectorAll('.wxCard')].find(c=>(c.querySelector('.icao')?.textContent||'').trim().toUpperCase()===id)}
+ function block(c,label){if(!c)return'';let ls=[...c.querySelectorAll('.label')],l=ls.find(x=>x.textContent.trim().toUpperCase()===label);return l?.nextElementSibling?.textContent||''}
+ function vals(t){
+   t=String(t||'').toUpperCase();let v=null,c=99999,x;
+   if(x=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))v=+x[1]+.01;
+   else if(x=t.match(/\bM(\d+)\/(\d+)SM\b/))v=+x[1]/+x[2]-.01;
+   else if(x=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))v=+x[1]+ +x[2]/+x[3];
+   else if(x=t.match(/\b(\d+)\/(\d+)SM\b/))v=+x[1]/+x[2];
+   else if(x=t.match(/\b(\d+(?:\.\d+)?)SM\b/))v=+x[1];
+   else if(x=t.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\s+(\d{4})\b/))v=+x[1]/1609.344;
+   else if(/\b(?:9999|CAVOK)\b/.test(t))v=6.22;
+   let q=[...t.matchAll(/\b(?:BKN|OVC|VV)(\d{3})\b/g)].map(z=>+z[1]*100);if(q.length)c=Math.min(...q);
+   return {v,c};
+ }
+ function utcFor(day,hour,min,ref){
+   let cand=[];
+   for(let dm=-1;dm<=1;dm++)cand.push(new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth()+dm,day,hour,min||0)));
+   return cand.sort((a,b)=>Math.abs(a-ref)-Math.abs(b-ref))[0];
+ }
+ function wave(){
+   let d=document.getElementById('waveOpsDate')?.value, a=document.getElementById('waveOpsTakeoff')?.value, b=document.getElementById('waveOpsLand')?.value;
+   if(!d||!a||!b)return null;
+   let [Y,M,D]=d.split('-').map(Number),[ah,am]=a.split(':').map(Number),[bh,bm]=b.split(':').map(Number);
+   /* Saskatchewan / Moose Jaw is CST (UTC-6) year-round. */
+   let s=new Date(Date.UTC(Y,M-1,D,ah+6,am)),e=new Date(Date.UTC(Y,M-1,D,bh+6,bm));
+   if(e<=s)e.setUTCDate(e.getUTCDate()+1);
+   let plus1=new Date(e.getTime()+3600000);
+   return {s,e,plus1};
+ }
+ function tafValidity(raw,ref){
+   let x=String(raw||'').match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);if(!x)return null;
+   let s=utcFor(+x[1],+x[2],0,ref), eeRef=new Date(s),e=utcFor(+x[3],+x[4],0,eeRef);
+   if(e<=s)e=new Date(Date.UTC(s.getUTCFullYear(),s.getUTCMonth()+1,+x[3],+x[4],0));
+   return {s,e};
+ }
+ function overlap(a,b,c,d){return a<d&&b>c}
+ function tafHazards(raw,w,ceilLim,visLim){
+   let tv=tafValidity(raw,w.s);if(!tv)return {covered:false,hits:[],tv:null};
+   let covered=tv.s<=w.s&&tv.e>=w.plus1,hits=[];
+   if(!covered)return {covered:false,hits,tv};
+   let text=String(raw||'').toUpperCase().replace(/\s+/g,' ');
+   let groups=[], re=/\b(FM(\d{2})(\d{2})(\d{2})|(?:TEMPO|BECMG|PROB30|PROB40)(?:\s+(?:TEMPO\s+)?)?(\d{2})(\d{2})\/(\d{2})(\d{2}))\b/g,ms=[...text.matchAll(re)];
+   let first=ms[0]?.index??text.length;groups.push({name:'INITIAL',txt:text.slice(0,first),s:tv.s,e:ms[0]&&ms[0][2]?utcFor(+ms[0][2],+ms[0][3],+ms[0][4],tv.s):tv.e});
+   ms.forEach((m,i)=>{
+     let s,e;
+     if(m[2]){s=utcFor(+m[2],+m[3],+m[4],tv.s);let n=ms.slice(i+1).find(z=>z[2]);e=n?utcFor(+n[2],+n[3],+n[4],s):tv.e}
+     else{s=utcFor(+m[5],+m[6],0,tv.s);e=utcFor(+m[7],+m[8],0,s);if(e<=s)e.setUTCDate(e.getUTCDate()+1)}
+     groups.push({name:m[1].split(/\s/)[0],txt:text.slice(m.index,ms[i+1]?.index??text.length),s,e});
+   });
+   groups.forEach(g=>{if(!overlap(g.s,g.e,w.s,w.plus1))return;let z=vals(g.txt);if(z.c<ceilLim||z.v!==null&&z.v<visLim)hits.push({name:g.name,c:z.c,v:z.v})});
+   return {covered,hits,tv};
+ }
+ function fmt(d){return d?`${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCHours()).padStart(2,'0')}Z`:''}
+ function badge(c,text,k,sub=''){if(!c)return;let b=c.querySelector('.ifpAssess');if(!b){b=document.createElement('div');b.className='ifpAssess';c.appendChild(b)}b.className='ifpAssess '+k;b.innerHTML=text+(sub?`<div class="ifpForecastLine">${sub}</div>`:'')}
+ function altInfo(id,c){
+   let A=adv()[id]||{}, z=vals(block(c,'METAR')), bits=[];
+   if(A.gnssOnly)bits.push('GNSS ONLY');
+   if(A.mea)bits.push(`MEA ${A.mea} FT`);
+   let need=A.gnssOnly?(A.mea?`VISUAL BACKUP: FORECAST MUST ALLOW DESCENT FROM IFR MEA ${A.mea} FT + VFR APPROACH/LANDING`:'GNSS ONLY — ENTER MEA FOR VISUAL-DESCENT BACKUP'):'APPROACH MINIMA CHECK REQUIRED';
+   let cur=z.v!==null?`${z.c===99999?'NO CEILING':z.c+' FT'} / ${z.v.toFixed(z.v%1?1:0)} SM`:'WX DATA INCOMPLETE';
+   badge(c,`${bits.length?bits.join(' • ')+' • ':''}${cur}`,A.gnssOnly?'warn':'good',need);
+ }
+ function renderSetup(){
+   const box=document.getElementById('cfgAltPlanningRows');if(!box)return;
+   let C=cfg(),ids=String(C.alts||'CYQR,CYYN,CYXE').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),D=adv();
+   box.innerHTML='';
+   ids.forEach(id=>{
+     let r=document.createElement('div');r.className='apRow';r.dataset.icao=id;
+     r.innerHTML=`<span class="apIcao">${id}</span><label><input class="apGnss" type="checkbox" ${D[id]?.gnssOnly?'checked':''}> GNSS ONLY</label><label>MEA <input class="apMea" type="number" min="0" step="100" value="${D[id]?.mea||''}" placeholder="FT"></label><div class="apNeed">${D[id]?.gnssOnly?(D[id]?.mea?`WX NEEDED IF USING VISUAL BACKUP: descent from ${D[id].mea} FT MEA + VFR approach/landing`:'ENTER MEA TO SHOW VISUAL-BACKUP WEATHER REQUIREMENT'):'STANDARD APPROACH-MINIMA BRANCH'}</div>`;
+     const save=()=>{let q=adv();q[id]={gnssOnly:r.querySelector('.apGnss').checked,mea:+r.querySelector('.apMea').value||null};localStorage.setItem(ADV,JSON.stringify(q));renderSetup();update()};
+     r.querySelector('.apGnss').onchange=save;r.querySelector('.apMea').onchange=save;box.appendChild(r)
+   });
+ }
+ function update(){
+   let C=cfg(),home=String(C.home||'CYMJ').toUpperCase(),hc=card(home),w=wave(),st=document.getElementById('waveAltStatus'),box=document.getElementById('waveIfpTrigger');
+   if(!w){if(st){st.className='wxUnknown';st.textContent='SET WAVE TIMES'};return}
+   let taf=block(hc,'TAF'),q=tafHazards(taf,w,2000,3);
+   if(st){
+     if(!q.covered){st.className='wxUnknown';st.textContent='TAF DOES NOT COVER WAVE'}
+     else if(q.hits.length){st.className='altReq';st.textContent='ALTERNATE REQUIRED'}
+     else{st.className='noAlt';st.textContent='NO HOME-WX ALT TRIGGER'}
+   }
+   if(box){
+     let main=!q.covered?`<span class="ifpChip warn">${home} TAF DOES NOT COVER ${fmt(w.s)}–${fmt(w.plus1)}</span>`:
+       q.hits.length?`<span class="ifpChip bad">${home} FORECAST &lt;2000 FT OR &lt;3 SM IN WAVE WINDOW</span>`:
+       `<span class="ifpChip good">${home} ≥2000 FT / ≥3 SM THROUGH LAND +1 HR</span>`;
+     box.innerHTML=main+`<span class="ifpChip">WAVE ${fmt(w.s)} → LAND+1 ${fmt(w.plus1)}</span><span class="ifpChip">DEST TRIGGER &lt;3000 FT / 3 SM</span>`;
+   }
+   if(hc){
+     if(!q.covered)badge(hc,'IFP: TAF DOES NOT COVER WAVE','warn',`NEEDED ${fmt(w.s)} THROUGH ${fmt(w.plus1)} • TAF ${q.tv?fmt(q.tv.s)+'–'+fmt(q.tv.e):'VALIDITY UNKNOWN'}`);
+     else if(q.hits.length)badge(hc,'IFP ALT TRIGGER IN WAVE WINDOW','bad','FORECAST BELOW 2000 FT OR 3 SM');
+     else badge(hc,'IFP HOME WX GOOD FOR WAVE','good',`≥2000 FT / ≥3 SM THROUGH ${fmt(w.plus1)}`);
+   }
+   String(C.alts||'CYQR,CYYN,CYXE').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean).forEach(id=>altInfo(id,card(id)));
+ }
+ function hook(){
+   ['waveOpsSelect','waveOpsDate','waveOpsTakeoff','waveOpsLand'].forEach(id=>{let e=document.getElementById(id);if(e&&!e.dataset.ifpHook){e.dataset.ifpHook=1;e.addEventListener('change',()=>setTimeout(update,20));e.addEventListener('input',()=>setTimeout(update,20))}});
+   let b=document.getElementById('sofWxSetupBtn');if(b&&!b.dataset.ifpHook){b.dataset.ifpHook=1;b.addEventListener('click',()=>setTimeout(renderSetup,30))}
+ }
+ setInterval(()=>{hook();update()},1500);setTimeout(()=>{hook();renderSetup();update()},700);
+})();
+</script><script type="text/plain" id="altWaveAssessmentV3_old">
+(()=>{
+ const ADV='dadSofAltAdvanced';
+ const cfg=()=>{let c={...window.SOF_WX_CFG};try{c={...c,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return c};
+ const adv=()=>{try{return JSON.parse(localStorage.getItem(ADV)||'{}')}catch(e){return{}}};
+ function card(id){return [...document.querySelectorAll('.wxCard')].find(c=>(c.querySelector('.icao')?.textContent||'').trim().toUpperCase()===id)}
+ function block(c,label){let l=[...(c?.querySelectorAll('.label')||[])].find(x=>x.textContent.trim().toUpperCase()===label);return l?.nextElementSibling?.textContent||''}
+ function vals(t){t=String(t||'').toUpperCase();let v=null,c=99999,x;if(x=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))v=+x[1]+.01;else if(x=t.match(/\bM(\d+)\/(\d+)SM\b/))v=+x[1]/+x[2]-.01;else if(x=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))v=+x[1]+ +x[2]/+x[3];else if(x=t.match(/\b(\d+)\/(\d+)SM\b/))v=+x[1]/+x[2];else if(x=t.match(/\b(\d+(?:\.\d+)?)SM\b/))v=+x[1];else if(x=t.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\s+(\d{4})\b/))v=+x[1]/1609.344;else if(/\b(?:9999|CAVOK)\b/.test(t))v=6.22;let q=[...t.matchAll(/\b(?:BKN|OVC|VV)(\d{3})\b/g)].map(z=>+z[1]*100);if(q.length)c=Math.min(...q);return{v,c}}
+ function utcFor(day,hour,min,ref){let a=[];for(let dm=-1;dm<=1;dm++)a.push(new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth()+dm,day,hour,min||0)));return a.sort((x,y)=>Math.abs(x-ref)-Math.abs(y-ref))[0]}
+ function wave(){let d=document.getElementById('waveOpsDate')?.value,a=document.getElementById('waveOpsTakeoff')?.value,b=document.getElementById('waveOpsLand')?.value;if(!d||!a||!b)return null;let[Y,M,D]=d.split('-').map(Number),[ah,am]=a.split(':').map(Number),[bh,bm]=b.split(':').map(Number),s=new Date(Date.UTC(Y,M-1,D,ah+6,am)),e=new Date(Date.UTC(Y,M-1,D,bh+6,bm));if(e<=s)e.setUTCDate(e.getUTCDate()+1);return{s,e,plus1:new Date(e.getTime()+3600000)}}
+ function valid(raw,ref){let x=String(raw||'').match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);if(!x)return null;let s=utcFor(+x[1],+x[2],0,ref),e=utcFor(+x[3],+x[4],0,s);if(e<=s)e=new Date(Date.UTC(s.getUTCFullYear(),s.getUTCMonth()+1,+x[3],+x[4]));return{s,e}}
+ function atETA(raw,eta){let tv=valid(raw,eta);if(!tv||eta<tv.s||eta>tv.e)return{covered:false};let text=String(raw||'').toUpperCase().replace(/\s+/g,' '),cur=text,ms=[...text.matchAll(/\bFM(\d{2})(\d{2})(\d{2})\b/g)];for(let i=0;i<ms.length;i++){let s=utcFor(+ms[i][1],+ms[i][2],+ms[i][3],tv.s),end=ms[i+1]?.index??text.length;if(s<=eta)cur=text.slice(ms[i].index,end)}let z=vals(cur);/* include active TEMPO/PROB groups conservatively */for(let m of text.matchAll(/\b(?:TEMPO|PROB30|PROB40)(?:\s+TEMPO)?\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\s+([^F]*?)(?=\bFM\d{6}\b|\bTEMPO\b|\bPROB(?:30|40)\b|$)/g)){let s=utcFor(+m[1],+m[2],0,tv.s),e=utcFor(+m[3],+m[4],0,s);if(e<=s)e.setUTCDate(e.getUTCDate()+1);if(eta>=s&&eta<=e){let q=vals(m[5]);z={v:q.v??z.v,c:Math.min(z.c,q.c)}}}return{covered:true,...z,tv}}
+ function fmt(d){return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCHours()).padStart(2,'0')}${String(d.getUTCMinutes()).padStart(2,'0')}Z`}
+ function badge(c,text,k,sub){if(!c)return;let b=c.querySelector('.ifpAssess');if(!b){b=document.createElement('div');b.className='ifpAssess';c.appendChild(b)}b.className='ifpAssess '+k;b.innerHTML=text+`<div class="altWaveDetail">${sub}</div>`}
+ function assess(){
+   let w=wave();if(!w)return;let C=cfg(),A=adv(),ids=String(C.alts||'CYQR,CYYN,CYXE').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean);
+   ids.forEach(id=>{
+     let c=card(id);if(!c)return;let taf=block(c,'TAF'),f=atETA(taf,w.e),a=A[id]||{};
+     if(!f.covered){badge(c,'ALT: TAF DOES NOT COVER ETA','warn',`ETA ${fmt(w.e)} • cannot assess alternate forecast`);return}
+     let wx=`ETA ${fmt(w.e)} • ${f.c===99999?'NO CEILING':f.c+' FT'} • ${f.v==null?'VIS ?':f.v.toFixed(f.v%1?1:0)+' SM'}`;
+     if(a.gnssOnly){
+       if(!a.mea){badge(c,'ALT: GNSS ONLY — MEA REQUIRED','warn',wx+' • enter MEA in WX SETUP');return}
+       /* Flowchart does not give a numeric cloud-base formula for visual descent from MEA, so don't invent one. */
+       badge(c,'ALT: GNSS-ONLY BRANCH','warn',`${wx} • MEA ${a.mea} FT • verify forecast permits visual descent from IFR MEA + VFR approach/landing`);
+     }else{
+       /* Approach minima/HAA/HAT are not in setup yet; show exactly what is needed rather than fake pass/fail. */
+       badge(c,'ALT: FORECAST FOUND — MINIMA CHECK','warn',`${wx} • need approach type + HAA/HAT + published visibility to determine required alternate WX`);
+     }
+   })
+ }
+ ['change','input'].forEach(ev=>document.addEventListener(ev,e=>{if(/^waveOps|^cfg/.test(e.target?.id||''))setTimeout(assess,30)}));
+ setInterval(assess,1500);setTimeout(assess,600);
+})();
+</script><script id="altWaveAssessmentV4">
+(()=>{
+ const KEY='dadSofAltAdvanced';
+ const adv=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return{}}};
+ function C(){let x={...window.SOF_WX_CFG};try{x={...x,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return x}
+ function cards(){return [...document.querySelectorAll('.wxCard')]}
+ function id(c){return (c.querySelector('.icao')?.textContent||((c.innerText||'').match(/\b[A-Z0-9]{4}\b/)||[])[0]||'').trim().toUpperCase()}
+ function txt(c,l){let e=[...c.querySelectorAll('.label')].find(x=>x.textContent.trim().toUpperCase()===l);return e?.nextElementSibling?.textContent||''}
+ function v(t){t=String(t||'').toUpperCase();let vis=null,ceil=99999,m;if(m=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))vis=+m[1]+.01;else if(m=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))vis=+m[1]+ +m[2]/+m[3];else if(m=t.match(/\b(\d+)\/(\d+)SM\b/))vis=+m[1]/+m[2];else if(m=t.match(/\b(\d+(?:\.\d+)?)SM\b/))vis=+m[1];let q=[...t.matchAll(/\b(?:BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100);if(q.length)ceil=Math.min(...q);return{vis,ceil}}
+ function uf(d,h,n,r){let a=[];for(let z=-1;z<=1;z++)a.push(new Date(Date.UTC(r.getUTCFullYear(),r.getUTCMonth()+z,d,h,n||0)));return a.sort((x,y)=>Math.abs(x-r)-Math.abs(y-r))[0]}
+ function eta(){let d=document.getElementById('waveOpsDate')?.value,s=document.getElementById('waveOpsTakeoff')?.value,e=document.getElementById('waveOpsLand')?.value;if(!d||!s||!e)return null;let[Y,M,D]=d.split('-').map(Number),[sh,sm]=s.split(':').map(Number),[eh,em]=e.split(':').map(Number),a=new Date(Date.UTC(Y,M-1,D,sh+6,sm)),b=new Date(Date.UTC(Y,M-1,D,eh+6,em));if(b<=a)b.setUTCDate(b.getUTCDate()+1);return b}
+ function at(raw,e){let x=String(raw||'').match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);if(!x)return null;let s=uf(+x[1],+x[2],0,e),end=uf(+x[3],+x[4],0,s);if(end<=s)end.setUTCDate(end.getUTCDate()+1);if(e<s||e>end)return null;let t=String(raw).toUpperCase().replace(/\s+/g,' '),part=t,ms=[...t.matchAll(/\bFM(\d{2})(\d{2})(\d{2})\b/g)];for(let i=0;i<ms.length;i++){let st=uf(+ms[i][1],+ms[i][2],+ms[i][3],s);if(st<=e)part=t.slice(ms[i].index,ms[i+1]?.index??t.length)}return v(part)}
+ function render(){
+   let conf=C(), alts=String(conf.alts||'').split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),A=adv(),E=eta();
+   cards().forEach(c=>c.querySelectorAll('.altWaveAssessV4').forEach(x=>x.remove()));
+   if(!E)return;
+   alts.forEach(a=>{
+     let c=cards().find(x=>id(x)===a);if(!c)return;
+     let box=document.createElement('div');box.className='altWaveAssessV4';
+     let z=at(txt(c,'TAF'),E),opt=A[a]||{}, when=`${String(E.getUTCDate()).padStart(2,'0')}/${String(E.getUTCHours()).padStart(2,'0')}${String(E.getUTCMinutes()).padStart(2,'0')}Z`;
+     if(!z){box.classList.add('bad');box.innerHTML=`ALT ${a}: TAF DOES NOT COVER ETA<span class="small">ETA ${when}</span>`}
+     else{
+       let wx=`${z.ceil===99999?'NO CEILING':z.ceil+' FT'} / ${z.vis==null?'VIS ?':z.vis+' SM'}`;
+       if(opt.gnssOnly){
+         if(opt.mea){box.innerHTML=`ALT ${a}: GNSS ONLY • MEA ${opt.mea} FT<span class="small">ETA ${when}: ${wx} • assess visual descent from this alternate's ${opt.mea} FT MEA + VFR approach/landing</span>`}
+         else{box.classList.add('bad');box.innerHTML=`ALT ${a}: GNSS ONLY • MEA NOT SET<span class="small">ETA ${when}: ${wx} • enter MEA for ${a} only</span>`}
+       }else{
+         box.classList.add('good');box.innerHTML=`ALT ${a}: NOT GNSS-ONLY<span class="small">ETA ${when}: ${wx} • MEA visual-descent check does NOT apply to ${a}; use normal approach-minima branch</span>`
+       }
+     }
+     c.appendChild(box)
+   })
+ }
+ document.addEventListener('change',e=>{if((e.target?.id||'').startsWith('waveOps')||e.target?.classList?.contains('apGnss')||e.target?.classList?.contains('apMea'))setTimeout(render,80)});
+ window.addEventListener('storage',render);setInterval(render,1800);setTimeout(render,700);
+})();
+</script><script type="text/plain" id="lightningLiveFixScript_old">
+(()=>{
+ function fix(){
+  const all=[...document.querySelectorAll('.sofRCard,div,section')];
+  const card=all.filter(x=>/LIGHTNING/i.test(x.querySelector('h1,h2,h3,h4,.title')?.textContent||'')).sort((a,b)=>a.getBoundingClientRect().height-b.getBoundingClientRect().height)[0];
+  if(!card)return;
+  let f=card.querySelector('iframe'); if(!f){f=document.createElement('iframe');card.appendChild(f)}
+  if(f.dataset.blitzFixed==='1')return;
+  f.id='lightningLiveFix';f.dataset.blitzFixed='1';f.title='Live lightning — Blitzortung';f.loading='lazy';f.referrerPolicy='no-referrer';
+  f.src='https://maps.blitzortung.org/?MapInteractive=0&NavigationControl=0&FullScreenControl=0&Cookies=0&InfoDiv=0&MenuDiv=0&GeolocateControl=0&ScaleControl=0&LinksChecked=1&LinksRange=10&MapStyle=2&MapStyleRange=10#5/50.39/-105.55';
+ }
+ setInterval(fix,1500);setTimeout(fix,400);
+})();
+</script><script type="text/plain" id="weatherBugSparkLightningScript_old">
+(()=>{
+ function install(){
+   const candidates=[...document.querySelectorAll('.sofRCard,div,section')];
+   const card=candidates.filter(x=>/LIGHTNING/i.test(x.querySelector('h1,h2,h3,h4,.title')?.textContent||''))
+     .sort((a,b)=>a.getBoundingClientRect().height-b.getBoundingClientRect().height)[0];
+   if(!card)return;
+   let f=card.querySelector('iframe');
+   if(!f){ f=document.createElement('iframe'); card.appendChild(f); }
+   if(f.dataset.sparkInstalled==='1')return;
+   f.dataset.sparkInstalled='1';
+   f.id='weatherBugSparkFrame';
+   f.title='WeatherBug Spark Lightning — Regina';
+   f.loading='lazy';
+   f.allow='geolocation';
+   f.referrerPolicy='strict-origin-when-cross-origin';
+   f.style.cssText='width:100%;height:100%;border:0;background:#07111a;';
+   f.src='https://lxappv2.weatherbug.com/v1/index.html?lat=50.45&lon=-104.65';
+ }
+ setTimeout(install,300); setInterval(install,1500);
+})();
+</script><script type="text/plain" id="sparkUnderNatoScript_old">
+(()=>{
+ function place(){
+   /* Remove any Spark iframe accidentally inserted elsewhere, including WX SETUP. */
+   document.querySelectorAll('#weatherBugSparkFrame,[data-spark-installed="1"]').forEach(x=>x.remove());
+   let rail=document.getElementById('sofDecisionRight');
+   let nato=document.getElementById('natoGrid');
+   if(!rail||!nato)return;
+   let natoCard=nato.closest('.sofRCard')||nato.parentElement;
+   if(!natoCard)return;
+   let host=document.getElementById('sparkUnderNato');
+   if(!host){
+     host=document.createElement('div');host.id='sparkUnderNato';host.className='sofRCard';
+     host.innerHTML=`<iframe id="weatherBugSparkFrameRight" title="WeatherBug Spark Lightning — Regina" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" src="https://lxappv2.weatherbug.com/v1/index.html?lat=50.45&lon=-104.65"></iframe>`;
+   }
+   if(natoCard.nextElementSibling!==host)natoCard.insertAdjacentElement('afterend',host);
+ }
+ setTimeout(place,500);setInterval(place,1800);
+})();
+</script><script type="text/plain" id="cleanLightningUnderNatoScript_old">
+(()=>{
+ function place(){
+   document.querySelectorAll('#sparkUnderNato,#weatherBugSparkFrameRight').forEach(x=>x.remove());
+   const rail=document.getElementById('sofDecisionRight'), nato=document.getElementById('natoGrid');
+   if(!rail||!nato)return;
+   const natoCard=nato.closest('.sofRCard')||nato.parentElement;
+   if(!natoCard)return;
+   let host=document.getElementById('lightningUnderNato');
+   if(!host){
+     host=document.createElement('div'); host.id='lightningUnderNato'; host.className='sofRCard';
+     host.innerHTML='<div class="ltHdr">LIGHTNING • RECENT STRIKES</div><iframe title="Live lightning — Saskatchewan" loading="lazy" referrerpolicy="no-referrer"></iframe>';
+     host.querySelector('iframe').src='https://map.blitzortung.org/index.php?interactive=0&NavigationControl=0&FullScreenControl=0&Cookies=0&InfoDiv=0&MenuButtonDiv=0&ScaleControl=0&LinksCheckboxChecked=0&CourseCheckboxChecked=0&CountingCheckboxChecked=0&CirclesCheckboxChecked=0&DetectorsCheckboxChecked=0&CoverageCheckboxChecked=0&DayNightCheckboxChecked=0&Advertisment=0&MapStyle=2&MapStyleRangeValue=10&LightningCheckboxChecked=1&LightningRangeValue=3#6/50.40/-105.55';
+   }
+   if(natoCard.nextElementSibling!==host)natoCard.insertAdjacentElement('afterend',host);
+ }
+ setTimeout(place,350); setInterval(place,1800);
+})();
+</script><script id="nativeLightningScript">
+(()=>{
+ const C={lat:50.40,lon:-105.55,spanLat:4.4,spanLon:8.2}, strikes=[];
+ function decode(b){let a,e={},d=b.split(""),c=d[0],f=c,g=[c],h=256,o=h;for(let i=1;i<d.length;i++){a=d[i].charCodeAt(0);a=h>a?d[i]:e[a]?e[a]:f+c;g.push(a);c=a.charAt(0);e[o]=f+c;o++;f=a}return g.join("")}
+ function dist(a,b,c,d){let R=6371,p=Math.PI/180,x=(c-a)*p,y=(d-b)*p,q=Math.sin(x/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y/2)**2;return 2*R*Math.asin(Math.sqrt(q))}
+ function host(){
+  document.querySelectorAll('#sparkUnderNato,#weatherBugSparkFrameRight,#lightningUnderNato iframe').forEach(x=>x.remove());
+  let nato=document.getElementById('natoGrid');if(!nato)return null;let card=nato.closest('.sofRCard')||nato.parentElement;
+  let h=document.getElementById('lightningUnderNato');if(!h){h=document.createElement('div');h.id='lightningUnderNato';h.className='sofRCard';h.innerHTML='<canvas id="nativeLtCanvas"></canvas><div id="nativeLtHud"><span>LIGHTNING • LIVE / 30 MIN</span><span id="ltStat">CONNECTING…</span></div>';card.insertAdjacentElement('afterend',h)}
+  return h
+ }
+ function draw(){
+  let h=host();if(!h)return;let c=document.getElementById('nativeLtCanvas'),r=h.getBoundingClientRect(),D=devicePixelRatio||1;c.width=r.width*D;c.height=r.height*D;let x=c.getContext('2d');x.scale(D,D);let W=r.width,H=r.height;
+  x.fillStyle='#08131d';x.fillRect(0,0,W,H);x.strokeStyle='#203746';x.lineWidth=1;
+  for(let i=1;i<6;i++){x.beginPath();x.moveTo(W*i/6,0);x.lineTo(W*i/6,H);x.stroke()}for(let i=1;i<5;i++){x.beginPath();x.moveTo(0,H*i/5);x.lineTo(W,H*i/5);x.stroke()}
+  function P(lat,lon){return[(lon-(C.lon-C.spanLon/2))/C.spanLon*W,(C.lat+C.spanLat/2-lat)/C.spanLat*H]}
+  [[50.393,-105.551,'CYMJ'],[50.432,-104.666,'CYQR']].forEach(z=>{let p=P(z[0],z[1]);x.fillStyle='#8fd3ff';x.beginPath();x.arc(p[0],p[1],3,0,7);x.fill();x.font='9px Arial';x.fillText(z[2],p[0]+5,p[1]-4)});
+  let now=Date.now();for(let s of strikes){let age=(now-s.t)/60000;if(age>30)continue;let p=P(s.lat,s.lon);if(p[0]<0||p[0]>W||p[1]<0||p[1]>H)continue;x.fillStyle=age<5?'#fff36a':age<15?'#ff9b35':'#e44949';x.beginPath();x.arc(p[0],p[1],age<5?3.3:2.2,0,7);x.fill()}
+  let local=strikes.filter(s=>now-s.t<1800000),nearest=local.length?Math.min(...local.map(s=>dist(C.lat,C.lon,s.lat,s.lon))):null;
+  let st=document.getElementById('ltStat');if(st)st.textContent=(window.__ltConnected?'LIVE':'RECONNECTING')+' • '+local.length+' STRIKES'+(nearest!=null?' • NEAREST '+nearest.toFixed(0)+' KM':'');
+ }
+ function connect(){
+  let n=7,ws;try{ws=new WebSocket('wss://ws'+n+'.blitzortung.org/')}catch(e){setTimeout(connect,5000);return}
+  ws.onopen=()=>{window.__ltConnected=true;try{ws.send('{"a":111}')}catch(e){};draw()};
+  ws.onclose=()=>{window.__ltConnected=false;draw();setTimeout(connect,5000)};
+  ws.onerror=()=>{try{ws.close()}catch(e){}};
+  ws.onmessage=e=>{try{let q=JSON.parse(decode(String(e.data))),t=Number(q.time)/1e6;if(!Number.isFinite(t)||Math.abs(Date.now()-t)>3600000)t=Date.now();if(q.lat>48&&q.lat<53&&q.lon>-111&&q.lon<-101){strikes.push({lat:+q.lat,lon:+q.lon,t});while(strikes.length>2500)strikes.shift();draw()}}catch(_){}}
+ }
+ setTimeout(()=>{host();draw();connect()},500);setInterval(()=>{let n=Date.now();for(let i=strikes.length-1;i>=0;i--)if(n-strikes[i].t>1800000)strikes.splice(i,1);draw()},15000);addEventListener('resize',draw);
+})();
+</script><script type="text/plain" id="sofWaveTimelineScript_old">
+(()=>{
+ const pct=m=>Math.max(0,Math.min(100,m/1440*100));
+ function mins(v){if(!v)return 0;let [h,m]=v.split(':').map(Number);return h*60+m}
+ function cfg(){let x={...window.SOF_WX_CFG};try{x={...x,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return x}
+ function cards(){return [...document.querySelectorAll('.wxCard')]}
+ function icao(c){return (c.querySelector('.icao')?.textContent||((c.innerText||'').match(/\b[A-Z0-9]{4}\b/)||[])[0]||'').trim().toUpperCase()}
+ function taf(c){let e=[...c.querySelectorAll('.label')].find(x=>x.textContent.trim().toUpperCase()==='TAF');return e?.nextElementSibling?.textContent||''}
+ function wx(t){let ce=99999,v=null,q=[...t.matchAll(/\b(?:BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100);if(q.length)ce=Math.min(...q);let m;if(m=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))v=+m[1]+.01;else if(m=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))v=+m[1]+ +m[2]/+m[3];else if(m=t.match(/\b(\d+)\/(\d+)SM\b/))v=+m[1]/+m[2];else if(m=t.match(/\b(\d+(?:\.\d+)?)SM\b/))v=+m[1];return{ce,v}}
+ function hm(day,hour,min=0){return ((day*1440+hour*60+min)%1440+1440)%1440}
+ function parse(raw){
+   raw=String(raw||'').toUpperCase().replace(/\s+/g,' ');if(!raw)return[];
+   let groups=[],ms=[...raw.matchAll(/\bFM(\d{2})(\d{2})(\d{2})\b/g)];
+   let valid=raw.match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/), baseStart=valid?hm(+valid[1],+valid[2]):0, baseEnd=valid?hm(+valid[3],+valid[4]):1440;if(baseEnd<=baseStart)baseEnd=1440;
+   let first=ms.length?ms[0].index:raw.length;groups.push({s:baseStart,e:ms.length?hm(+ms[0][1],+ms[0][2],+ms[0][3]):baseEnd,text:raw.slice(0,first),type:'PREV'});
+   ms.forEach((m,i)=>{let s=hm(+m[1],+m[2],+m[3]),e=i+1<hm.length?baseEnd:(i+1<ms.length?hm(+ms[i+1][1],+ms[i+1][2],+ms[i+1][3]):baseEnd);if(e<=s)e=1440;groups.push({s,e,text:raw.slice(m.index,ms[i+1]?.index??raw.length),type:'FM'})});
+   for(let x of raw.matchAll(/\b(TEMPO|PROB30|PROB40)(?:\s+)?(\d{2})(\d{2})\/(\d{2})(\d{2})\s+([^F]*?)(?=\b(?:FM\d{6}|TEMPO|PROB30|PROB40|BECMG|RMK)\b|$)/g)){let s=hm(+x[2],+x[3]),e=hm(+x[4],+x[5]);if(e<=s)e=1440;groups.push({s,e,text:x[0],type:x[1]})}
+   return groups.filter(g=>g.e>g.s)
+ }
+ function cls(g){if(g.type.startsWith('PROB'))return'swtProb';if(g.type==='TEMPO')return'swtTempo';let w=wx(g.text);if((w.ce<1000)||(w.v!=null&&w.v<3))return'swtBad';if((w.ce<2000)||(w.v!=null&&w.v<5))return'swtMarg';return'swtGood'}
+ function short(g){let w=wx(g.text),sky=(g.text.match(/\b(?:FEW|SCT|BKN|OVC|VV)\d{3}\b/g)||[]).join(' '),vis=g.text.match(/\b(?:P?\d+(?:\s+\d+\/\d+|\/\d+)?SM)\b/)?.[0]||'';return [g.type==='FM'?'':g.type,sky,vis].filter(Boolean).join(' ')||'TAF'}
+ function build(){
+   let main=document.getElementById('main');if(!main)return;let old=document.getElementById('sofWaveTimeline');if(old)old.remove();
+   let c=cfg(), ids=[c.home,...String(c.alts||'').split(',')].map(x=>String(x||'').trim().toUpperCase()).filter(Boolean),cs=cards();
+   let box=document.createElement('div');box.id='sofWaveTimeline';
+   box.innerHTML='<div id="swtHead"><b>24-HOUR WAVE / WEATHER TIMELINE</b><span id="swtControls"></span></div><div id="swtAxis"></div><div id="swtGrid"></div><div id="swtTip"></div>';
+   main.prepend(box);
+   let ctl=document.getElementById('swtControls'), srcs=['waveOpsWave','waveOpsDate','waveOpsTakeoff','waveOpsLand'];srcs.forEach(id=>{let s=document.getElementById(id);if(s){let lab=document.createElement('label');lab.className='swtCtl';lab.textContent=id.replace('waveOps','').toUpperCase()+' ';let n=s.cloneNode(true);n.id='swt_'+id;n.value=s.value;n.addEventListener('change',()=>{s.value=n.value;s.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(build,100)});lab.appendChild(n);ctl.appendChild(lab)}})
+   let ax=document.getElementById('swtAxis');for(let h=0;h<=24;h++){let e=document.createElement('span');e.className='swtHour';e.style.left=(h/24*100)+'%';e.textContent=String(h%24).padStart(2,'0');ax.appendChild(e)}
+   let grid=document.getElementById('swtGrid'),to=mins(document.getElementById('waveOpsTakeoff')?.value),land=mins(document.getElementById('waveOpsLand')?.value);if(land<=to)land=1440;
+   ids.forEach(id=>{let l=document.createElement('div');l.className='swtLabel';l.textContent=id;let lane=document.createElement('div');lane.className='swtLane';grid.append(l,lane);
+     let wb=document.createElement('div');wb.id='swtWaveBand';wb.style.left=pct(to)+'%';wb.style.width=(pct(land)-pct(to))+'%';lane.appendChild(wb);
+     let ln=document.createElement('i');ln.id='swtLand';ln.style.left=pct(land)+'%';lane.appendChild(ln);let pl=document.createElement('i');pl.id='swtPlus';pl.style.left=pct(Math.min(1440,land+60))+'%';lane.appendChild(pl);
+     let card=cs.find(x=>icao(x)===id);if(!card)return;parse(taf(card)).forEach(g=>{let s=document.createElement('div');s.className='swtSeg '+cls(g);s.style.left=pct(g.s)+'%';s.style.width=Math.max(.5,pct(g.e)-pct(g.s))+'%';s.textContent=short(g);s.dataset.tip='<b>'+id+' '+String(Math.floor(g.s/60)).padStart(2,'0')+String(g.s%60).padStart(2,'0')+'–'+String(Math.floor(g.e/60)%24).padStart(2,'0')+String(g.e%60).padStart(2,'0')+'</b><br>'+g.text;s.addEventListener('pointerenter',tip);s.addEventListener('pointermove',tip);s.addEventListener('pointerleave',()=>document.getElementById('swtTip').style.display='none');lane.appendChild(s)})
+   })
+ }
+ function tip(e){let t=document.getElementById('swtTip');t.innerHTML=e.currentTarget.dataset.tip;t.style.display='block';t.style.left=Math.min(innerWidth-275,e.clientX+12)+'px';t.style.top=Math.min(innerHeight-90,e.clientY+12)+'px'}
+ setTimeout(build,900);document.addEventListener('change',e=>{if((e.target?.id||'').startsWith('waveOps'))setTimeout(build,150)});setInterval(build,12000);
+})();
+</script><script type="text/plain" id="sofWaveTimelineScriptV2_old">
+(()=>{
+ const pct=m=>Math.max(0,Math.min(100,m/1440*100)), mm=v=>{if(!v)return 0;let[h,m]=v.split(':').map(Number);return h*60+m};
+ function cfg(){let x={...window.SOF_WX_CFG};try{x={...x,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return x}
+ function cards(){return[...document.querySelectorAll('.wxCard')]} function id(c){return(c.querySelector('.icao')?.textContent||((c.innerText||'').match(/\b[A-Z0-9]{4}\b/)||[])[0]||'').trim().toUpperCase()}
+ function taf(c){let e=[...c.querySelectorAll('.label')].find(x=>x.textContent.trim().toUpperCase()==='TAF');return e?.nextElementSibling?.textContent||''}
+ function hm(d,h,m=0){return((d*1440+h*60+m)%1440+1440)%1440}
+ function wx(t){let ce=99999,v=null,q=[...t.matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100);if(q.length)ce=Math.min(...q);let m;if(m=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))v=+m[1]+.01;else if(m=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))v=+m[1]+ +m[2]/+m[3];else if(m=t.match(/\b(\d+)\/(\d+)SM\b/))v=+m[1]/+m[2];else if(m=t.match(/\b(\d+(?:\.\d+)?)SM\b/))v=+m[1];return{ce,v}}
+ function nato(t){let w=wx(t),c=w.ce,v=w.v==null?99:w.v*1609.344;if(c<200||v<800)return'RED';if(c<300||v<1600)return'AMB';if(c<500||v<2500)return'YLO2';if(c<700||v<3700)return'YLO1';if(c<1500||v<5000)return'GRN';if(c<2500||v<8000)return'WHT';return'BLU'}
+ function wind(t){let m=t.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);return m?(m[1]+'/'+m[2]+(m[3]?'G'+m[3]:'')+'KT'):''}
+ function parse(raw){
+  raw=String(raw||'').toUpperCase().replace(/\s+/g,' ');if(!raw)return[];
+  let val=raw.match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/),vs=val?hm(+val[1],+val[2]):0,ve=val?hm(+val[3],+val[4]):1440;if(ve<=vs)ve=1440;
+  let marks=[...raw.matchAll(/\bFM(\d{2})(\d{2})(\d{2})\b/g)],base=[];
+  let first=marks[0]?.index??raw.length;base.push({s:vs,e:marks.length?hm(+marks[0][1],+marks[0][2],+marks[0][3]):ve,text:raw.slice(0,first),type:'PREV',row:0});
+  marks.forEach((m,i)=>{let s=hm(+m[1],+m[2],+m[3]),e=i+1<marks.length?hm(+marks[i+1][1],+marks[i+1][2],+marks[i+1][3]):ve;if(e<=s)e=1440;base.push({s,e,text:raw.slice(m.index,marks[i+1]?.index??raw.length),type:'FM',row:0})});
+  let overlays=[];for(let x of raw.matchAll(/\b(TEMPO|PROB30|PROB40)\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\s+(.+?)(?=\b(?:FM\d{6}|TEMPO|PROB30|PROB40|BECMG|RMK)\b|$)/g)){let s=hm(+x[2],+x[3]),e=hm(+x[4],+x[5]);if(e<=s)e=1440;overlays.push({s,e,text:x[0],type:x[1],row:1})}
+  return base.concat(overlays).filter(g=>g.e>g.s)
+ }
+ function label(g){let sky=(g.text.match(/\b(?:FEW|SCT|BKN|OVC|VV)\d{3}\b/g)||[]).join(' '),vis=g.text.match(/\b(?:P?\d+(?:\s+\d+\/\d+|\/\d+)?SM)\b/)?.[0]||'',w=wind(g.text);return[g.type==='PREV'||g.type==='FM'?'':g.type,sky,vis,w].filter(Boolean).join(' ')||'TAF'}
+ function build(){
+  let main=document.getElementById('main');if(!main)return;document.getElementById('sofWaveTimeline')?.remove();let C=cfg(),ids=[C.home,...String(C.alts||'').split(',')].map(x=>String(x||'').trim().toUpperCase()).filter(Boolean),cs=cards();
+  let box=document.createElement('div');box.id='sofWaveTimeline';box.innerHTML='<div id="swtHead"><b>24-HOUR WAVE / WEATHER TIMELINE</b><span id="swtControls"></span><span style="margin-left:auto;font-size:8px">NATO COLOUR STATE • DASHED=TEMPO • HATCH=PROB</span></div><div id="swtAxis"></div><div id="swtGrid"></div><div id="swtTip"></div>';main.prepend(box);
+  let ctl=document.getElementById('swtControls');['waveOpsWave','waveOpsDate','waveOpsTakeoff','waveOpsLand'].forEach(k=>{let s=document.getElementById(k);if(s){let l=document.createElement('label');l.className='swtCtl';l.textContent=k.replace('waveOps','').toUpperCase()+' ';let n=s.cloneNode(true);n.id='swt_'+k;n.value=s.value;n.onchange=()=>{s.value=n.value;s.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(build,80)};l.appendChild(n);ctl.appendChild(l)}})
+  let ax=document.getElementById('swtAxis');for(let h=0;h<=24;h++){let e=document.createElement('span');e.className='swtHour';e.style.left=h/24*100+'%';e.textContent=String(h%24).padStart(2,'0');ax.appendChild(e)}
+  let take=mm(document.getElementById('waveOpsTakeoff')?.value),land=mm(document.getElementById('waveOpsLand')?.value);if(land<=take)land=1440;
+  ids.forEach(A=>{let lab=document.createElement('div');lab.className='swtLabel';lab.textContent=A,lane=document.createElement('div');lane.className='swtLane';document.getElementById('swtGrid').append(lab,lane);
+   let wb=document.createElement('div');wb.className='swtWaveBand';wb.style.left=pct(take)+'%';wb.style.width=(pct(land)-pct(take))+'%';lane.appendChild(wb);for(let [cl,x] of [['swtLand',land],['swtPlus',Math.min(1440,land+60)]]){let q=document.createElement('i');q.className=cl;q.style.left=pct(x)+'%';lane.appendChild(q)}
+   let card=cs.find(x=>id(x)===A);if(!card)return;let gs=parse(taf(card));
+   gs.forEach(g=>{let s=document.createElement('div');s.className='swtSeg swt'+nato(g.text)+(g.type==='TEMPO'?' swtTempo':g.type.startsWith('PROB')?' swtProb':'');s.style.left=pct(g.s)+'%';s.style.width=Math.max(.45,pct(g.e)-pct(g.s))+'%';s.style.top=(g.row?21:2)+'px';s.textContent=label(g);s.dataset.tip='<b>'+A+' • '+g.type+' • '+String(Math.floor(g.s/60)).padStart(2,'0')+String(g.s%60).padStart(2,'0')+'–'+String(Math.floor(g.e/60)%24).padStart(2,'0')+String(g.e%60).padStart(2,'0')+'</b><br>NATO: '+nato(g.text)+'<br>'+g.text;s.onpointerenter=tip;s.onpointermove=tip;s.onpointerleave=()=>document.getElementById('swtTip').style.display='none';lane.appendChild(s);
+    if(g.row===0&&wind(g.text)){let w=document.createElement('div');w.className='swtWind';w.style.left=pct(g.s)+'%';w.style.width=Math.max(.45,pct(g.e)-pct(g.s))+'%';w.textContent='↗ '+wind(g.text);lane.appendChild(w)}
+   })
+  })
+ }
+ function tip(e){let t=document.getElementById('swtTip');t.innerHTML=e.currentTarget.dataset.tip;t.style.display='block';t.style.left=Math.min(innerWidth-315,e.clientX+12)+'px';t.style.top=Math.min(innerHeight-100,e.clientY+12)+'px'}
+ setTimeout(build,800);document.addEventListener('change',e=>{if((e.target?.id||'').startsWith('waveOps'))setTimeout(build,100)});setInterval(build,12000)
+})();
+</script><script id="sofTopWaveCleanupScript">
+(()=>{
+ function clean(){
+   const timeline=document.getElementById('sofWaveTimeline');
+   if(!timeline)return;
+   ['waveOpsWave','waveOpsDate','waveOpsTakeoff','waveOpsLand'].forEach(id=>{
+     const e=document.getElementById(id);
+     if(!e)return;
+     e.style.display='none';
+     const p=e.parentElement;
+     if(p && p!==document.body && !p.closest('#sofWaveTimeline')){
+       const txt=(p.innerText||'').toUpperCase();
+       if(/WAVE|TAKEOFF|LAND|ALTERNATE REQUIRED|NO ALTERNATE REQUIRED/.test(txt) && p.children.length<=12){
+         p.style.display='none';
+       }
+     }
+   });
+ }
+ setTimeout(clean,1000);
+ setInterval(clean,5000);
+})();
+</script><script type="text/plain" id="sofWaveTimelineScriptV3_old">
+(()=>{
+ const pct=m=>Math.max(0,Math.min(100,m/1440*100));
+ const mm=v=>{if(!v)return 0;let[h,m]=v.split(':').map(Number);return h*60+m};
+ function cfg(){let x={...window.SOF_WX_CFG};try{x={...x,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return x}
+ const cards=()=>[...document.querySelectorAll('.wxCard')];
+ const aid=c=>(c.querySelector('.icao')?.textContent||((c.innerText||'').match(/\b[A-Z0-9]{4}\b/)||[])[0]||'').trim().toUpperCase();
+ function field(c,name){let e=[...c.querySelectorAll('.label')].find(x=>x.textContent.trim().toUpperCase()===name);return e?.nextElementSibling?.textContent||''}
+ function hm(d,h,m=0){return((d*1440+h*60+m)%1440+1440)%1440}
+ function vis(t){let m;if(m=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))return +m[1]+.01;if(m=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))return +m[1]+ +m[2]/+m[3];if(m=t.match(/\b(\d+)\/(\d+)SM\b/))return +m[1]/+m[2];if(m=t.match(/\b(\d+(?:\.\d+)?)SM\b/))return +m[1];return null}
+ function nato(t){let q=[...t.matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100),c=q.length?Math.min(...q):99999,v=vis(t);v=v==null?99999:v*1609.344;if(c<200||v<800)return'RED';if(c<300||v<1600)return'AMB';if(c<500||v<2500)return'YLO2';if(c<700||v<3700)return'YLO1';if(c<1500||v<5000)return'GRN';if(c<2500||v<8000)return'WHT';return'BLU'}
+ function wind(t){let m=t.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);return m?(m[1]+'/'+m[2]+(m[3]?'G'+m[3]:'')+'KT'):''}
+ function pick(t,re){let m=t.match(re);return m?m[0]:''}
+ function conditions(t){return {w:wind(t),v:pick(t,/\b(?:P?\d+(?:\s+\d+\/\d+|\/\d+)?SM)\b/),sky:(t.match(/\b(?:FEW|SCT|BKN|OVC|VV)\d{3}\b/g)||[]).join(' ')}}
+ function inherited(prev,raw){let p=conditions(prev),n=conditions(raw);return [n.w||p.w,n.v||p.v,n.sky||p.sky,raw].filter(Boolean).join(' ')}
+ function shown(t){let a=[],w=wind(t),v=pick(t,/\b(?:P?\d+(?:\s+\d+\/\d+|\/\d+)?SM)\b/);if(w)a.push(w);if(v)a.push(v);a.push(...(t.match(/\b(?:FEW|SCT|BKN|OVC|VV)\d{3}\b/g)||[]));return [...new Set(a)].join(' ')}
+ function parse(raw,metar){
+   raw=String(raw||'').toUpperCase().replace(/\s+/g,' '); metar=String(metar||'').toUpperCase().replace(/\s+/g,' ');
+   if(!raw)return metar?[{s:0,e:1440,text:metar,raw:metar,type:'METAR',row:0}]:[];
+   let val=raw.match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/),vs=val?hm(+val[1],+val[2]):0,ve=val?hm(+val[3],+val[4]):1440;if(ve<=vs)ve=1440;
+   let fms=[...raw.matchAll(/\bFM(\d{2})(\d{2})(\d{2})\b/g)],out=[],first=fms[0]?.index??raw.length;
+   let raw0=raw.slice(0,first),prev=inherited(metar,raw0);
+   if(metar&&vs>0)out.push({s:0,e:vs,text:metar,raw:metar,type:'METAR',row:0});
+   out.push({s:vs,e:fms.length?hm(+fms[0][1],+fms[0][2],+fms[0][3]):ve,text:prev,raw:raw0,type:'TAF',row:0});
+   fms.forEach((x,i)=>{let s=hm(+x[1],+x[2],+x[3]),e=i+1<fms.length?hm(+fms[i+1][1],+fms[i+1][2],+fms[i+1][3]):ve;if(e<=s)e=1440;let rg=raw.slice(x.index,fms[i+1]?.index??raw.length);prev=inherited(prev,rg);out.push({s,e,text:prev,raw:rg,type:'FM',row:0})});
+   let re=/\b(BECMG|TEMPO|PROB30|PROB40)\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\s+(.+?)(?=\b(?:FM\d{6}|BECMG|TEMPO|PROB30|PROB40|RMK)\b|$)/g;
+   for(let x of raw.matchAll(re)){let s=hm(+x[2],+x[3]),e=hm(+x[4],+x[5]);if(e<=s)e=1440;let base=out.find(g=>g.row===0&&s>=g.s&&s<g.e)?.text||prev;out.push({s,e,text:inherited(base,x[0]),raw:x[0],type:x[1],row:1})}
+   return out.filter(g=>g.e>g.s)
+ }
+ function build(){
+   let main=document.getElementById('main');if(!main)return;document.getElementById('sofWaveTimeline')?.remove();
+   let C=cfg(),ids=[C.home,...String(C.alts||'').split(',')].map(x=>String(x||'').trim().toUpperCase()).filter(Boolean),cs=cards();
+   let box=document.createElement('div');box.id='sofWaveTimeline';box.innerHTML='<div id="swtHead"><b>24-HOUR WAVE / WEATHER TIMELINE</b><span id="swtControls"></span><span style="margin-left:auto;font-size:8px">NATO COLOUR • METAR=WHITE EDGE • TEMPO=DASH • PROB=HATCH</span></div><div id="swtAxis"></div><div id="swtGrid"></div><div id="swtTip"></div>';main.prepend(box);
+   let ctl=document.getElementById('swtControls');['waveOpsWave','waveOpsDate','waveOpsTakeoff','waveOpsLand'].forEach(k=>{let s=document.getElementById(k);if(s){let l=document.createElement('label');l.className='swtCtl';l.textContent=k.replace('waveOps','').toUpperCase()+' ';let n=s.cloneNode(true);n.id='swt_'+k;n.style.display='inline-block';n.value=s.value;n.onchange=()=>{s.value=n.value;s.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(build,80)};l.appendChild(n);ctl.appendChild(l)}})
+   let ax=document.getElementById('swtAxis');for(let h=0;h<=24;h++){let e=document.createElement('span');e.className='swtHour';e.style.left=h/24*100+'%';e.textContent=String(h%24).padStart(2,'0');ax.appendChild(e)}
+   let take=mm(document.getElementById('waveOpsTakeoff')?.value),land=mm(document.getElementById('waveOpsLand')?.value);if(land<=take)land=1440;
+   ids.forEach(A=>{let lab=document.createElement('div');lab.className='swtLabel';lab.textContent=A,lane=document.createElement('div');lane.className='swtLane';document.getElementById('swtGrid').append(lab,lane);
+     let wb=document.createElement('div');wb.className='swtWaveBand';wb.style.left=pct(take)+'%';wb.style.width=(pct(land)-pct(take))+'%';lane.appendChild(wb);[['swtLand',land],['swtPlus',Math.min(1440,land+60)]].forEach(([cl,x])=>{let q=document.createElement('i');q.className=cl;q.style.left=pct(x)+'%';lane.appendChild(q)});
+     let card=cs.find(x=>aid(x)===A);if(!card)return;
+     parse(field(card,'TAF'),field(card,'METAR')).forEach(g=>{let extra=g.type==='METAR'?' swtMetar':g.type==='TEMPO'?' swtTempo':g.type.startsWith('PROB')?' swtProb':g.type==='BECMG'?' swtBecmg':'',s=document.createElement('div');s.className='swtSeg swt'+nato(g.text)+extra;s.style.left=pct(g.s)+'%';s.style.width=Math.max(.45,pct(g.e)-pct(g.s))+'%';s.style.top=(g.row?21:2)+'px';s.textContent=(g.type==='METAR'?'METAR ':g.type==='TAF'||g.type==='FM'?'':g.type+' ')+shown(g.text);s.dataset.tip='<b>'+A+' • '+g.type+' • '+String(Math.floor(g.s/60)).padStart(2,'0')+String(g.s%60).padStart(2,'0')+'–'+String(Math.floor(g.e/60)%24).padStart(2,'0')+String(g.e%60).padStart(2,'0')+'</b><br>NATO: '+nato(g.text)+'<br>'+g.raw;s.onpointerenter=tip;s.onpointermove=tip;s.onpointerleave=()=>document.getElementById('swtTip').style.display='none';lane.appendChild(s);
+       if(g.row===0&&wind(g.text)){let w=document.createElement('div');w.className='swtWind';w.style.left=pct(g.s)+'%';w.style.width=Math.max(.45,pct(g.e)-pct(g.s))+'%';w.textContent='↗ '+wind(g.text);lane.appendChild(w)}
+     })
+   })
+ }
+ function tip(e){let t=document.getElementById('swtTip');t.innerHTML=e.currentTarget.dataset.tip;t.style.display='block';t.style.left=Math.min(innerWidth-315,e.clientX+12)+'px';t.style.top=Math.min(innerHeight-100,e.clientY+12)+'px'}
+ setTimeout(build,900);document.addEventListener('change',e=>{if((e.target?.id||'').startsWith('waveOps'))setTimeout(build,100)});setInterval(build,12000)
+})();
+</script><script type="text/plain" id="sofWaveTimelineScriptV4_old">
+(()=>{
+ const pct=m=>Math.max(0,Math.min(100,m/1440*100)), mm=v=>{if(!v)return 0;let a=v.split(':').map(Number);return a[0]*60+a[1]};
+ function cfg(){let x={...window.SOF_WX_CFG};try{x={...x,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return x}
+ function cards(){return [...document.querySelectorAll('.wxCard')]}
+ function icao(c){let t=(c.innerText||'').toUpperCase();return (c.querySelector('.icao')?.textContent||((t.match(/\b[A-Z0-9]{4}\b/)||[])[0])||'').trim().toUpperCase()}
+ function extract(c,kind){
+   let els=[...c.querySelectorAll('*')], k=kind.toUpperCase();
+   for(let e of els){if(e.children.length===0 && e.textContent.trim().toUpperCase()===k){
+     let n=e.nextElementSibling;if(n&&n.textContent.trim())return n.textContent.trim();
+     let p=e.parentElement;if(p){let txt=p.innerText||'';let i=txt.toUpperCase().indexOf(k);if(i>=0)return txt.slice(i+k.length).trim()}
+   }}
+   let txt=c.innerText||'', re=k==='METAR'?/\b[A-Z0-9]{4}\s+\d{6}Z[\s\S]*?(?=\n\s*TAF\b|\n[A-Z ]{3,}:|$)/i:/\bTAF(?:\s+(?:AMD|COR))?\s+[A-Z0-9]{4}\s+\d{6}Z[\s\S]*?(?=\n[A-Z ]{3,}:|$)/i;
+   return (txt.match(re)||[])[0]||''
+ }
+ function hm(d,h,m=0){return ((d*1440+h*60+m)%1440+1440)%1440}
+ function wind(t){let x=t.match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);return x?x[1]+'/'+x[2]+(x[3]?'G'+x[3]:'')+'KT':''}
+ function visibility(t){let x;if(x=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))return +x[1]+.01;if(x=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))return +x[1]+ +x[2]/+x[3];if(x=t.match(/\b(\d+)\/(\d+)SM\b/))return +x[1]/+x[2];if(x=t.match(/\b(\d+(?:\.\d+)?)SM\b/))return +x[1];return null}
+ function nato(t){let q=[...t.matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100),c=q.length?Math.min(...q):99999,v=visibility(t);v=v==null?99999:v*1609.344;if(c<200||v<800)return'RED';if(c<300||v<1600)return'AMB';if(c<500||v<2500)return'YLO2';if(c<700||v<3700)return'YLO1';if(c<1500||v<5000)return'GRN';if(c<2500||v<8000)return'WHT';return'BLU'}
+ function parts(t){return {w:wind(t),v:(t.match(/\b(?:P?\d+(?:\s+\d+\/\d+|\/\d+)?SM)\b/)||[])[0]||'',sky:(t.match(/\b(?:FEW|SCT|BKN|OVC|VV)\d{3}\b/g)||[]).join(' ')}}
+ function inherit(base,raw){let a=parts(base),b=parts(raw);return [b.w||a.w,b.v||a.v,b.sky||a.sky,raw].filter(Boolean).join(' ')}
+ function label(t){let p=parts(t);return [p.w,p.v,p.sky].filter(Boolean).join(' ')}
+ function parse(taf,metar){
+   taf=String(taf||'').toUpperCase().replace(/\s+/g,' ');metar=String(metar||'').toUpperCase().replace(/\s+/g,' ');
+   let out=[];if(!taf){if(metar)out.push({s:0,e:1440,text:metar,raw:metar,type:'METAR',row:0});return out}
+   let val=taf.match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/),vs=val?hm(+val[1],+val[2]):0,ve=val?hm(+val[3],+val[4]):1440;if(ve<=vs)ve=1440;
+   if(metar)out.push({s:0,e:vs||60,text:metar,raw:metar,type:'METAR',row:0});
+   let token=/\bFM(\d{2})(\d{2})(\d{2})\b|\b(BECMG|TEMPO|PROB30|PROB40)\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\b/g,ms=[...taf.matchAll(token)];
+   let first=ms[0]?.index??taf.length, prevailing=inherit(metar,taf.slice(0,first)), cursor=vs;
+   for(let i=0;i<ms.length;i++){
+     let x=ms[i], raw=taf.slice(x.index,ms[i+1]?.index??taf.length);
+     if(x[1]!==undefined){let s=hm(+x[1],+x[2],+x[3]);if(s<cursor)s=cursor;if(s>cursor)out.push({s:cursor,e:s,text:prevailing,raw:prevailing,type:'TAF',row:0});prevailing=inherit(prevailing,raw);cursor=s}
+     else {let type=x[4],s=hm(+x[5],+x[6]),e=hm(+x[7],+x[8]);if(e<=s)e=1440;out.push({s,e,text:inherit(prevailing,raw),raw,type,row:1})}
+   }
+   if(cursor<ve)out.push({s:cursor,e:ve,text:prevailing,raw:prevailing,type:'TAF',row:0});
+   return out.filter(x=>x.e>x.s)
+ }
+ function tip(e){let t=document.getElementById('swtTip');if(!t)return;t.innerHTML=e.currentTarget.dataset.tip;t.style.display='block';t.style.left=Math.min(innerWidth-315,e.clientX+12)+'px';t.style.top=Math.min(innerHeight-100,e.clientY+12)+'px'}
+ function build(){
+   let main=document.getElementById('main');if(!main)return;document.getElementById('sofWaveTimeline')?.remove();
+   let C=cfg(), cs=cards(), configured=[C.home,...String(C.alts||'').split(',')].map(x=>String(x||'').trim().toUpperCase()).filter(Boolean);
+   let resolved=[...new Set(cs.map(icao).filter(Boolean))];
+   let ids=[...configured.filter(x=>resolved.includes(x)),...resolved.filter(x=>!configured.includes(x))];
+   let box=document.createElement('div');box.id='sofWaveTimeline';box.innerHTML='<div id="swtHead"><b>24-HOUR WAVE / WEATHER TIMELINE</b><span id="swtControls"></span><span style="margin-left:auto;font-size:8px">ALL WEATHER CARDS • NATO COLOUR • AUTO REFRESH</span></div><div id="swtAxis"></div><div id="swtGrid"></div><div id="swtTip"></div>';main.prepend(box);
+   let ctl=document.getElementById('swtControls');['waveOpsWave','waveOpsDate','waveOpsTakeoff','waveOpsLand'].forEach(k=>{let s=document.getElementById(k);if(!s)return;let l=document.createElement('label');l.className='swtCtl';l.textContent=k.replace('waveOps','').toUpperCase()+' ';let n=s.cloneNode(true);n.id='swt_'+k;n.style.display='inline-block';n.value=s.value;n.onchange=()=>{s.value=n.value;s.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(build,80)};l.appendChild(n);ctl.appendChild(l)});
+   let ax=document.getElementById('swtAxis');for(let h=0;h<=24;h++){let e=document.createElement('span');e.className='swtHour';e.style.left=h/24*100+'%';e.textContent=String(h%24).padStart(2,'0');ax.appendChild(e)}
+   let take=mm(document.getElementById('waveOpsTakeoff')?.value),land=mm(document.getElementById('waveOpsLand')?.value);if(land<=take)land=1440;
+   ids.forEach(A=>{let lab=document.createElement('div');lab.className='swtLabel';lab.textContent=A,lane=document.createElement('div');lane.className='swtLane';document.getElementById('swtGrid').append(lab,lane);
+     let wb=document.createElement('div');wb.className='swtWaveBand';wb.style.left=pct(take)+'%';wb.style.width=(pct(land)-pct(take))+'%';lane.appendChild(wb);[['swtLand',land],['swtPlus',Math.min(1440,land+60)]].forEach(([cl,x])=>{let q=document.createElement('i');q.className=cl;q.style.left=pct(x)+'%';lane.appendChild(q)});
+     let card=cs.find(x=>icao(x)===A);if(!card){lab.remove();lane.remove();return}
+     let metar=extract(card,'METAR'),taf=extract(card,'TAF'),groups=parse(taf,metar);
+     if(!groups.length){lab.title='No METAR/TAF parsed';return}
+     groups.forEach(g=>{let extra=g.type==='METAR'?' swtMetar':g.type==='TEMPO'?' swtTempo':g.type.startsWith('PROB')?' swtProb':g.type==='BECMG'?' swtBecmg':'',s=document.createElement('div');s.className='swtSeg swt'+nato(g.text)+extra;s.style.left=pct(g.s)+'%';s.style.width=Math.max(.45,pct(g.e)-pct(g.s))+'%';s.style.top=(g.row?21:2)+'px';s.textContent=(g.type==='METAR'?'METAR ':g.row?g.type+' ':'')+label(g.text);s.dataset.tip='<b>'+A+' • '+g.type+'</b><br>NATO: '+nato(g.text)+'<br>'+g.raw;s.onpointerenter=tip;s.onpointermove=tip;s.onpointerleave=()=>{let t=document.getElementById('swtTip');if(t)t.style.display='none'};lane.appendChild(s);if(g.row===0&&wind(g.text)){let w=document.createElement('div');w.className='swtWind';w.style.left=pct(g.s)+'%';w.style.width=Math.max(.45,pct(g.e)-pct(g.s))+'%';w.textContent='↗ '+wind(g.text);lane.appendChild(w)}})
+   })
+ }
+ let timer=null,observer=null,last='';
+ function signature(){return cards().map(c=>icao(c)+'|'+extract(c,'METAR')+'|'+extract(c,'TAF')).join('||')}
+ function refresh(force=false){let s=signature();if(force||s!==last){last=s;build()}}
+ setTimeout(()=>{refresh(true);observer=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(()=>refresh(false),300)});let main=document.getElementById('main');if(main)observer.observe(main,{subtree:true,childList:true,characterData:true});},1000);
+ document.addEventListener('change',e=>{if((e.target?.id||'').startsWith('waveOps'))setTimeout(()=>refresh(true),100)});
+ setInterval(()=>refresh(false),5000);
+})();
+</script><script type="text/plain" id="sofTimelineTimeToggleV6_old">
+(()=>{
+ const KEY='dadSofTimelineTimeMode';
+ let mode=localStorage.getItem(KEY)||'ZULU';
+ const OFF=-6*60;
+ const pad=n=>String(n).padStart(2,'0');
+ function fmt(mins){
+   let m=((mins+(mode==='LOCAL'?OFF:0))%1440+1440)%1440;
+   return pad(Math.floor(m/60))+':'+pad(m%60);
+ }
+ function apply(){
+   const head=document.getElementById('swtHead'),axis=document.getElementById('swtAxis');
+   if(!head||!axis)return;
+   let old=document.getElementById('swtTimeToggle');
+   if(!old){
+     let x=document.createElement('span');x.id='swtTimeToggle';
+     x.innerHTML='<button data-t="LOCAL">LOCAL</button><button data-t="ZULU">ZULU</button>';
+     let controls=document.getElementById('swtControls');controls?.appendChild(x);
+     x.querySelectorAll('button').forEach(b=>b.onclick=()=>{mode=b.dataset.t;localStorage.setItem(KEY,mode);apply()});
+   }
+   document.querySelectorAll('#swtTimeToggle button').forEach(b=>b.classList.toggle('active',b.dataset.t===mode));
+   [...axis.querySelectorAll('.swtHour')].forEach((e,i)=>{
+     let z=i*60, shown=((z+(mode==='LOCAL'?OFF:0))%1440+1440)%1440;
+     e.textContent=pad(Math.floor(shown/60));
+   });
+   let title=head.querySelector('b');if(title)title.textContent='24-HOUR WAVE / WEATHER TIMELINE • '+(mode==='LOCAL'?'LOCAL (CST)':'ZULU');
+   document.querySelectorAll('#swtTip').forEach(t=>{});
+ }
+ // V5 rebuilds periodically, so reapply after each rebuild without interfering with weather refresh.
+ const obs=new MutationObserver(()=>{clearTimeout(window.__swtToggleTimer);window.__swtToggleTimer=setTimeout(apply,30)});
+ setTimeout(()=>{let main=document.getElementById('main');if(main)obs.observe(main,{subtree:true,childList:true});apply()},1200);
+})();
+</script><script type="text/plain" id="sofTimelineTrueLocalV7_old">
+(()=>{
+ const KEY='dadSofTimelineTimeMode', LOCAL_TO_ZULU=360;
+ const mod=n=>((n%1440)+1440)%1440;
+ const pct=n=>n/1440*100;
+ const minutes=v=>{let a=String(v||'').split(':').map(Number);return Number.isFinite(a[0])&&Number.isFinite(a[1])?a[0]*60+a[1]:0};
+ const mode=()=>localStorage.getItem(KEY)==='LOCAL'?'LOCAL':'ZULU';
+ const source=(el,key,fallback)=>{if(!el.dataset[key])el.dataset[key]=String(fallback());return +el.dataset[key]};
+ function removeWraps(lane){lane.querySelectorAll('.swtV7Wrap').forEach(x=>x.remove())}
+ function range(el,start,duration,offset){
+   start=mod(start+offset);duration=Math.max(0,Math.min(1440,duration));
+   const first=Math.min(duration,1440-start);
+   el.style.left=pct(start)+'%';el.style.width=Math.max(.45,pct(first))+'%';
+   if(duration>first+.01){
+     const clone=el.cloneNode(true);clone.classList.add('swtV7Wrap');
+     clone.removeAttribute('data-v7-start');clone.removeAttribute('data-v7-duration');
+     clone.style.left='0%';clone.style.width=Math.max(.45,pct(duration-first))+'%';
+     if(el.onpointerenter)clone.onpointerenter=el.onpointerenter;
+     if(el.onpointermove)clone.onpointermove=el.onpointermove;
+     if(el.onpointerleave)clone.onpointerleave=el.onpointerleave;
+     el.parentElement.appendChild(clone);
+   }
+ }
+ function point(el,mins,offset){el.style.left=pct(mod(mins+offset))+'%'}
+ function apply(){
+   const timeline=document.getElementById('sofWaveTimeline'),axis=document.getElementById('swtAxis'),head=document.getElementById('swtHead');
+   if(!timeline||!axis||!head)return;
+   const current=mode(), weatherOffset=current==='LOCAL'?-LOCAL_TO_ZULU:0, waveOffset=current==='ZULU'?LOCAL_TO_ZULU:0;
+   [...axis.querySelectorAll('.swtHour')].forEach((e,i)=>e.textContent=String(i%24).padStart(2,'0'));
+   const title=head.querySelector('b');if(title)title.textContent='24-HOUR WAVE / WEATHER TIMELINE • '+(current==='LOCAL'?'LOCAL (CST)':'ZULU');
+   document.querySelectorAll('#swtTimeToggle button').forEach(b=>b.classList.toggle('active',b.dataset.t===current));
+   timeline.querySelectorAll('.swtLane').forEach(lane=>{
+     removeWraps(lane);
+     lane.querySelectorAll('.swtSeg,.swtWind').forEach(el=>{
+       const s=source(el,'v7Start',()=>parseFloat(el.style.left||0)/100*1440);
+       const d=source(el,'v7Duration',()=>parseFloat(el.style.width||0)/100*1440);
+       range(el,s,d,weatherOffset);
+     });
+     const take=minutes(document.getElementById('waveOpsTakeoff')?.value),rawLand=minutes(document.getElementById('waveOpsLand')?.value);
+     let land=rawLand;if(land<=take)land+=1440;
+     const band=lane.querySelector('.swtWaveBand:not(.swtV7Wrap)');if(band)range(band,take,land-take,waveOffset);
+     const landMark=lane.querySelector('.swtLand');if(landMark)point(landMark,land,waveOffset);
+     const plusMark=lane.querySelector('.swtPlus');if(plusMark)point(plusMark,land+60,waveOffset);
+   });
+ }
+ function install(){
+   const timeline=document.getElementById('sofWaveTimeline');if(!timeline)return;
+   const toggle=document.getElementById('swtTimeToggle');
+   if(toggle&&!toggle.dataset.v7){toggle.dataset.v7='1';toggle.addEventListener('click',e=>{let b=e.target.closest('button[data-t]');if(!b)return;localStorage.setItem(KEY,b.dataset.t);setTimeout(apply,0)})}
+   apply();
+ }
+ let timer;const obs=new MutationObserver(()=>{clearTimeout(timer);timer=setTimeout(install,45)});
+ setTimeout(()=>{let main=document.getElementById('main');if(main)obs.observe(main,{subtree:true,childList:true});install()},1250);
+ document.addEventListener('change',e=>{if((e.target?.id||'').startsWith('waveOps')||(e.target?.id||'').startsWith('swt_waveOps'))setTimeout(install,120)});
+ window.__applySofTimelineTimeMode=apply;
+})();
+</script><style id="sofTimelineAbsoluteTimeV8Css">
+#sofWaveTimeline .swtMetarPoint{z-index:7!important;min-width:5px!important;border:2px solid #fff!important;box-shadow:0 0 5px rgba(255,255,255,.8)!important;padding:1px 3px!important}
+#sofWaveTimeline .swtDateTag{font-size:8px;color:#79bddd;white-space:nowrap;font-weight:800}
+</style><script id="sofTimelineAbsoluteTimeV8">
+(()=>{
+ const KEY='dadSofTimelineTimeMode',MIG='dadSofTimelineAbsoluteV8',CST=3600000*6,DAY=86400000;
+ if(!localStorage.getItem(MIG)){localStorage.setItem(KEY,'LOCAL');localStorage.setItem(MIG,'1')}
+ const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const pct=n=>Math.max(0,Math.min(100,n/1440*100));
+ const mm=v=>{let a=String(v||'').split(':').map(Number);return Number.isFinite(a[0])&&Number.isFinite(a[1])?a[0]*60+a[1]:0};
+ function cfg(){let x={...window.SOF_WX_CFG};try{x={...x,...JSON.parse(localStorage.getItem('dadSofWxConfig')||'{}')}}catch(e){}return x}
+ function cards(){return [...document.querySelectorAll('.wxCard')]}
+ function icao(c){let t=(c.innerText||'').toUpperCase();return (c.querySelector('.icao')?.textContent||((t.match(/\b[A-Z0-9]{4}\b/)||[])[0])||'').trim().toUpperCase()}
+ function extract(c,kind){
+   let k=kind.toUpperCase();for(let e of c.querySelectorAll('*'))if(!e.children.length&&e.textContent.trim().toUpperCase()===k){let n=e.nextElementSibling;if(n?.textContent.trim())return n.textContent.trim()}
+   let txt=c.innerText||'',re=k==='METAR'?/\b[A-Z0-9]{4}\s+\d{6}Z[\s\S]*?(?=\n\s*TAF\b|\n[A-Z ]{3,}:|$)/i:/\bTAF(?:\s+(?:AMD|COR))?\s+[A-Z0-9]{4}\s+\d{6}Z[\s\S]*?(?=\n[A-Z ]{3,}:|$)/i;
+   return (txt.match(re)||[])[0]||''
+ }
+ function selectedDate(){let v=document.getElementById('waveOpsDate')?.value||document.getElementById('swt_waveOpsDate')?.value;if(!v){let d=new Date(Date.now()-CST);return [d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()]}let a=v.split('-').map(Number);return[a[0],a[1]-1,a[2]]}
+ function windowUtc(){let [y,m,d]=selectedDate(),local=(localStorage.getItem(KEY)||'LOCAL')==='LOCAL';let s=Date.UTC(y,m,d,local?6:0);return{s,e:s+DAY,local,y,m,d}}
+ function resolveDay(day,hour,min,ref,after){
+   let r=new Date(ref),cand=[];for(let dm=-1;dm<=1;dm++)cand.push(Date.UTC(r.getUTCFullYear(),r.getUTCMonth()+dm,day,hour,min||0));
+   if(after!=null){let ok=cand.filter(x=>x>=after-60000&&x<=after+35*DAY);if(ok.length)return Math.min(...ok)}
+   return cand.sort((a,b)=>Math.abs(a-ref)-Math.abs(b-ref))[0]
+ }
+ function wind(t){let x=String(t).match(/\b(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT\b/);return x?x[1]+'/'+x[2]+(x[3]?'G'+x[3]:'')+'KT':''}
+ function visibility(t){let x;if(x=t.match(/\bP(\d+(?:\.\d+)?)SM\b/))return+x[1]+.01;if(x=t.match(/\b(\d+)\s+(\d+)\/(\d+)SM\b/))return+x[1]+ +x[2]/+x[3];if(x=t.match(/\b(\d+)\/(\d+)SM\b/))return+x[1]/+x[2];if(x=t.match(/\b(\d+(?:\.\d+)?)SM\b/))return+x[1];return null}
+ function nato(t){let q=[...t.matchAll(/\b(?:SCT|BKN|OVC|VV)(\d{3})\b/g)].map(x=>+x[1]*100),c=q.length?Math.min(...q):99999,v=visibility(t);v=v==null?99999:v*1609.344;if(c<200||v<800)return'RED';if(c<300||v<1600)return'AMB';if(c<500||v<2500)return'YLO2';if(c<700||v<3700)return'YLO1';if(c<1500||v<5000)return'GRN';if(c<2500||v<8000)return'WHT';return'BLU'}
+ function parts(t){return{w:wind(t),v:(t.match(/\b(?:P?\d+(?:\s+\d+\/\d+|\/\d+)?SM)\b/)||[])[0]||'',sky:(t.match(/\b(?:FEW|SCT|BKN|OVC|VV)\d{3}\b/g)||[]).join(' ')}}
+ function inherit(base,raw){let a=parts(base),b=parts(raw);return[b.w||a.w,b.v||a.v,b.sky||a.sky,raw].filter(Boolean).join(' ')}
+ function label(t){let p=parts(t);return[p.w,p.v,p.sky].filter(Boolean).join(' ')||'FORECAST'}
+ function metarTime(raw,W){let x=String(raw).toUpperCase().match(/\b(\d{2})(\d{2})(\d{2})Z\b/);return x?resolveDay(+x[1],+x[2],+x[3],(W.s+W.e)/2):null}
+ function tafGroups(raw,metar,W){
+   let taf=String(raw||'').toUpperCase().replace(/\s+/g,' '),out=[],mt=metarTime(metar,W);
+   if(!taf){if(mt!=null&&mt>=W.s&&mt<W.e)out.push({s:mt-10*60000,e:mt+10*60000,text:metar,raw:metar,type:'METAR',row:0,point:true});return out}
+   let v=taf.match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);if(!v){if(mt!=null&&mt>=W.s&&mt<W.e)out.push({s:mt-10*60000,e:mt+10*60000,text:metar,raw:metar,type:'METAR',row:0,point:true});return out}
+   let vs=resolveDay(+v[1],+v[2],0,W.s),ve=resolveDay(+v[3],+v[4],0,vs+12*3600000,vs+60000);if(ve<=vs)ve+=DAY;
+   let token=/\bFM(\d{2})(\d{2})(\d{2})\b|\b(BECMG|TEMPO|PROB30|PROB40)\s+(\d{2})(\d{2})\/(\d{2})(\d{2})\b/g,ms=[...taf.matchAll(token)],first=ms[0]?.index??taf.length;
+   let current=inherit('',taf.slice(0,first)),cursor=vs;
+   const add=(s,e,text,source,type,row=0)=>{if(e>s)out.push({s,e,text,raw:source,type,row})};
+   for(let i=0;i<ms.length;i++){
+     let x=ms[i],source=taf.slice(x.index,ms[i+1]?.index??taf.length);
+     if(x[1]!==undefined){let s=resolveDay(+x[1],+x[2],+x[3],cursor,cursor);add(cursor,Math.min(s,ve),current,current,'TAF');current=inherit(current,source);cursor=Math.max(cursor,s)}
+     else {let type=x[4],s=resolveDay(+x[5],+x[6],0,cursor),e=resolveDay(+x[7],+x[8],0,s+3600000,s+60000);if(type==='BECMG'){add(cursor,Math.min(e,ve),current,current,'TAF');add(s,Math.min(e,ve),inherit(current,source),source,type,1);current=inherit(current,source);cursor=Math.max(cursor,e)}else add(s,Math.min(e,ve),inherit(current,source),source,type,1)}
+   }
+   add(cursor,ve,current,current,'TAF');
+   if(mt!=null)out.push({s:mt-10*60000,e:mt+10*60000,text:metar,raw:metar,type:'METAR',row:0,point:true});
+   return out.filter(g=>g.e>W.s&&g.s<W.e).map(g=>({...g,s:Math.max(g.s,W.s),e:Math.min(g.e,W.e)}))
+ }
+ function tip(e){let t=document.getElementById('swtTip');if(!t)return;t.innerHTML=e.currentTarget.dataset.tip;t.style.display='block';t.style.left=Math.min(innerWidth-315,e.clientX+12)+'px';t.style.top=Math.min(innerHeight-110,e.clientY+12)+'px'}
+ function absoluteLocal(y,m,d,mins){return Date.UTC(y,m,d,0,0)+CST+mins*60000}
+ function build(){
+   let main=document.getElementById('main');if(!main)return;document.getElementById('sofWaveTimeline')?.remove();let W=windowUtc(),C=cfg(),cs=cards(),configured=[C.home,...String(C.alts||'').split(',')].map(x=>String(x||'').trim().toUpperCase()).filter(Boolean),resolved=[...new Set(cs.map(icao).filter(Boolean))],ids=[...configured.filter(x=>resolved.includes(x)),...resolved.filter(x=>!configured.includes(x))];
+   let mode=W.local?'LOCAL':'ZULU',box=document.createElement('div');box.id='sofWaveTimeline';box.innerHTML='<div id="swtHead"><b>24-HOUR WAVE / WEATHER TIMELINE • '+mode+(W.local?' (CST)':'')+'</b><span id="swtControls"></span><span class="swtDateTag">START 0000'+(W.local?'L':'Z')+' • '+String(W.d).padStart(2,'0')+' '+new Date(Date.UTC(W.y,W.m,1)).toLocaleString('en',{month:'short',timeZone:'UTC'}).toUpperCase()+'</span><span style="margin-left:auto;font-size:8px">METAR=OBSERVATION MARKER • TAF=VALID PERIOD</span></div><div id="swtAxis"></div><div id="swtGrid"></div><div id="swtTip"></div>';main.prepend(box);
+   let ctl=box.querySelector('#swtControls');['waveOpsWave','waveOpsDate','waveOpsTakeoff','waveOpsLand'].forEach(k=>{let s=document.getElementById(k);if(!s)return;let l=document.createElement('label');l.className='swtCtl';l.textContent=k.replace('waveOps','').toUpperCase()+' ';let n=s.cloneNode(true);n.id='swt_'+k;n.style.display='inline-block';n.value=s.value;n.onchange=()=>{s.value=n.value;s.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(build,80)};l.appendChild(n);ctl.appendChild(l)});
+   let tog=document.createElement('span');tog.id='swtTimeToggle';tog.innerHTML='<button data-t="LOCAL">LOCAL</button><button data-t="ZULU">ZULU</button>';ctl.appendChild(tog);tog.querySelectorAll('button').forEach(b=>{b.classList.toggle('active',b.dataset.t===mode);b.onclick=()=>{localStorage.setItem(KEY,b.dataset.t);build()}});
+   let ax=box.querySelector('#swtAxis');for(let h=0;h<=24;h++){let e=document.createElement('span');e.className='swtHour';e.style.left=h/24*100+'%';e.textContent=String(h).padStart(2,'0');ax.appendChild(e)}
+   let take=mm(document.getElementById('waveOpsTakeoff')?.value),land=mm(document.getElementById('waveOpsLand')?.value);if(land<=take)land+=1440;let absTake=absoluteLocal(W.y,W.m,W.d,take),absLand=absoluteLocal(W.y,W.m,W.d,land);
+   ids.forEach(A=>{let lab=document.createElement('div');lab.className='swtLabel';lab.textContent=A,lane=document.createElement('div');lane.className='swtLane';box.querySelector('#swtGrid').append(lab,lane);let card=cs.find(x=>icao(x)===A);if(!card){lab.remove();lane.remove();return}
+     let ws=Math.max(absTake,W.s),we=Math.min(absLand,W.e);if(we>ws){let band=document.createElement('div');band.className='swtWaveBand';band.style.left=pct((ws-W.s)/60000)+'%';band.style.width=(pct((we-W.s)/60000)-pct((ws-W.s)/60000))+'%';lane.appendChild(band)}
+     [[absLand,'swtLand'],[absLand+3600000,'swtPlus']].forEach(([x,cl])=>{if(x>=W.s&&x<=W.e){let q=document.createElement('i');q.className=cl;q.style.left=pct((x-W.s)/60000)+'%';lane.appendChild(q)}});
+     let metar=extract(card,'METAR'),taf=extract(card,'TAF'),groups=tafGroups(taf,metar,W);if(!groups.length){lab.title='No METAR/TAF valid in this 24-hour window';return}
+     groups.forEach(g=>{let extra=g.type==='METAR'?' swtMetar swtMetarPoint':g.type==='TEMPO'?' swtTempo':g.type.startsWith('PROB')?' swtProb':g.type==='BECMG'?' swtBecmg':'',s=document.createElement('div'),a=(g.s-W.s)/60000,b=(g.e-W.s)/60000;s.className='swtSeg swt'+nato(g.text)+extra;s.style.left=pct(a)+'%';s.style.width=Math.max(g.point?1.35:.45,pct(b)-pct(a))+'%';s.style.top=(g.row?21:2)+'px';s.textContent=(g.type==='METAR'?'METAR ':g.row?g.type+' ':'')+label(g.text);s.dataset.tip='<b>'+A+' • '+g.type+'</b><br>'+new Date(g.s).toISOString().slice(8,17).replace('T','/')+'Z–'+new Date(g.e).toISOString().slice(8,17).replace('T','/')+'Z<br>NATO: '+nato(g.text)+'<br>'+esc(g.raw);s.onpointerenter=tip;s.onpointermove=tip;s.onpointerleave=()=>{let t=document.getElementById('swtTip');if(t)t.style.display='none'};lane.appendChild(s);if(g.row===0&&g.type!=='METAR'&&wind(g.text)){let w=document.createElement('div');w.className='swtWind';w.style.left=pct(a)+'%';w.style.width=Math.max(.45,pct(b)-pct(a))+'%';w.textContent='↗ '+wind(g.text);lane.appendChild(w)}})
+   })
+ }
+ let last='';function signature(){return[(localStorage.getItem(KEY)||'LOCAL'),document.getElementById('waveOpsDate')?.value,document.getElementById('waveOpsTakeoff')?.value,document.getElementById('waveOpsLand')?.value,...cards().map(c=>icao(c)+'|'+extract(c,'METAR')+'|'+extract(c,'TAF'))].join('||')}
+ function refresh(force){let s=signature();if(force||s!==last){last=s;build()}}
+ setTimeout(()=>refresh(true),1100);setTimeout(()=>refresh(true),3000);setInterval(()=>refresh(false),5000);
+ document.addEventListener('change',e=>{let id=e.target?.id||'';if(id.startsWith('waveOps'))setTimeout(()=>refresh(true),100)});
+ window.__rebuildSofTimelineV8=()=>refresh(true);
+})();
+</script></body></html>

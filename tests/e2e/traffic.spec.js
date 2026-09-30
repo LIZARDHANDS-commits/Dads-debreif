@@ -276,20 +276,24 @@ test('Reset to defaults works on the first real click after typing in a settings
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
   const lateral = page.getByLabel('Conflict: lateral');
   const reset = page.getByRole('button', { name: 'Reset to defaults' });
-  await reset.scrollIntoViewIfNeeded();
-  const topWithout = (await reset.boundingBox()).y;
+  // The menu is longer than the screen, so the column scrolls when a box takes focus; the button's place is
+  // measured from that box, which moves with it.
+  const gap = async () => (await reset.boundingBox()).y - (await lateral.boundingBox()).y;
+  const gapWithout = await gap();
   await lateral.focus();
   await expect(page.locator('.settings-item:focus-within .settings-hint')).toBeVisible();
-  expect((await reset.boundingBox()).y, 'the hint takes no room').toBe(topWithout);
+  expect(await gap(), 'the hint takes no room').toBe(gapWithout);
   await lateral.fill('350');
   await expect(lateral).toHaveValue('350');
-  expect((await reset.boundingBox()).y).toBe(topWithout);
+  expect(await gap()).toBe(gapWithout);
+  await reset.scrollIntoViewIfNeeded();
   await reset.click(); // one real mouse click
   await expect(lateral).toHaveValue('200');
   // The same after Enter.
   await lateral.fill('350');
   await lateral.press('Enter');
-  expect((await reset.boundingBox()).y).toBe(topWithout);
+  expect(await gap()).toBe(gapWithout);
+  await reset.scrollIntoViewIfNeeded();
   await reset.click();
   await expect(lateral).toHaveValue('200');
 });
@@ -377,4 +381,54 @@ test('the route opens from a direct link and plays, spawns and edits a point', a
   await page.locator('[data-route-id="PAT1"]').click();
   await page.locator('.point-row').nth(2).getByLabel('Alt ft', { exact: true }).fill('3400');
   await expect(page.locator('.point-row').nth(2).locator('.point-data')).toContainText('3400ft');
+});
+
+
+// ---- The satellite photo (task 8) ---------------------------------------------------------------
+const ESRI = /^https:\/\/services\.arcgisonline\.com\//;
+const credit = (page) => page.locator('.traffic-credit');
+const layersMenu = (page) => page.getByRole('button', { name: 'Layers' });
+
+test('the photo is on at first with Esri\'s credit on the map; Layers switches it off and on, and off asks for nothing', async ({ page }) => {
+  const asked = [];
+  page.on('request', (r) => ESRI.test(r.url()) && asked.push(r.url()));
+  await open(page);
+  await expect(credit(page)).toHaveText(/^Imagery: Esri/);
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.every((url) => /\/tile\/\d+\/\d+\/\d+$/.test(url))).toBe(true);
+  await layersMenu(page).click();
+  const photo = page.getByLabel('Satellite photo');
+  await expect(photo).toBeChecked();
+  await photo.uncheck();
+  await expect(credit(page)).toBeHidden();
+  await photo.check();
+  await expect(credit(page)).toHaveText(/^Imagery: Esri/);
+});
+
+test('with no connection the map says the photo needs one, and the grid and the traffic still work', async ({ page }) => {
+  // A broken picture fails the same way as no connection (the tile's own error path) without the browser
+  // logging each aborted request as a console error, which these tests treat as a failure (R7).
+  await page.route(ESRI, (route) => route.fulfill({ status: 200, contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: 'not a picture' }));
+  await open(page);
+  // Each tile is tried three times over about 8 s before the map gives up on it.
+  await expect(credit(page)).toHaveText(/^Satellite photo needs a connection/, { timeout: 20_000 });
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+  expect(await pixelsDrawn(page)).toBeGreaterThan(50);
+});
+
+test('the photo\'s alignment is in the settings menu, and Reset photo alignment puts back the setup\'s own', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  const trim = page.getByLabel('Photo scale trim');
+  await expect(trim).toHaveValue('1.2');
+  await trim.fill('1');
+  await trim.press('Enter');
+  await expect(trim).toHaveValue('1');
+  const east = page.getByLabel('Photo east / west offset');
+  await east.fill('300');
+  await east.press('Enter');
+  await page.getByRole('button', { name: 'Reset photo alignment' }).click();
+  await expect(trim).toHaveValue('1.2');
+  await expect(east).toHaveValue('0');
 });

@@ -17,7 +17,7 @@ import { createClock } from './clock.js';
 import { buildScene, routeRows } from './scene.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
-import { createMap2d, hintFor } from './map2d.js';
+import { createMap2d, hintFor, photoCaption } from './map2d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
 import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
@@ -47,6 +47,7 @@ function mount(root, app) {
   const bar = createPlaybackBar({
     controls,
     listen: app.listen,
+    available: { photo: true },
     on: {
       play,
       pause,
@@ -80,7 +81,10 @@ function mount(root, app) {
   });
   ui.slots.pointTable.append(editor.element);
   ui.slots.leftExtras.append(editor.message);
-  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {} }); // opening the menu moves nothing on the map
+  // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
+  const photo = setup.view?.photo ?? {};
+  const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
+  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
 
@@ -88,6 +92,8 @@ function mount(root, app) {
     timers: app.scheduler,
     scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: sim.trailOf }),
     settings: () => settings.get(),
+    anchor: () => setup.anchor,
+    onPhoto: (state) => ui.setPhotoNote(photoCaption(state)),
   });
 
   // ---- keeping the screen up to date ------------------------------------------------

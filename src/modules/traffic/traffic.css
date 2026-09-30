@@ -179,6 +179,26 @@
   display: none;
 }
 
+/* The photo's credit (Esri asks for it wherever the imagery shows), or that it needs a connection. */
+[data-module='traffic'] .traffic-credit {
+  position: absolute;
+  z-index: 2;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  max-width: calc(100% - var(--space-2));
+  margin: 0;
+  padding: 0 var(--space-1);
+  border-radius: 4px;
+  background: rgb(2 6 10 / 0.7);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  pointer-events: none;
+}
+
+[data-module='traffic'] .traffic-credit[hidden] {
+  display: none;
+}
+
 [data-module='traffic'] .traffic-note {
   margin: 0;
   color: var(--text-muted);
