@@ -9,6 +9,9 @@ import {
   MAP_NOW, TRAFFIC_NOW, serveWeather, serveMap, serveRelay,
 } from './sof-map-feeds.js';
 
+// As in sof.spec.js: a service worker would answer map requests past page.route(), so block it.
+test.use({ serviceWorkers: 'block' });
+
 /**
  * Opens the SOF with the map's feeds served. `at` is the time; `install` makes the clock a controllable one.
  * Returns { map, relay }: the live feed objects from sof-map-feeds.js.
