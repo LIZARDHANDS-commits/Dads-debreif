@@ -11,6 +11,7 @@ import { MINUTE_MS, toDate } from '../../wx/dates.js';
 import { cardModel, formatAge, formatDuration } from './cards.js';
 import { REFRESH_MS } from './weather.js';
 import { snapLimits } from './settings-model.js';
+import { cautionList } from './cautions.js';
 
 /** The line under the screen: what it is not, and where the weather comes from. */
 export const CREDITS = 'Not for flight planning. Confirm with NAV CANADA. '
@@ -71,12 +72,16 @@ export function alertText(snapshot, now) {
 // ---- The cards ------------------------------------------------------------------------------------
 
 /**
- * The whole screen: { dtg, dtgIso, feed, alert, cards, credits }.
+ * The whole screen: { dtg, dtgIso, feed, alert, cards, credits, lightning, cautions }.
  * `airfields` is app.airfields; `snapshot` is createWeather's; `limits` the home
  * limits from Settings; `now` a Date. Cards are home first, then each alternate,
  * one per airfield.
+ *
+ * `lightning` is lightning.js's answer for the home field (the map's near-home reading), or
+ * left out; `cautions` is every current caution, worst first (cautions.js `cautionList`), with
+ * lightning's among them when it is near. The banner shows this list; it is not drawn here.
  */
-export function buildScreen({ airfields, snapshot, limits, now }) {
+export function buildScreen({ airfields, snapshot, limits, now, lightning = null }) {
   const home = airfields.home();
   const homeLimits = snapLimits(limits); // a typed limit is checked snapped up, the safe side (R1)
   const round = snapshot.lastRound;
@@ -106,6 +111,7 @@ export function buildScreen({ airfields, snapshot, limits, now }) {
       limitsNote: notSet ? `Approaches not set in Settings: checked against ${model.limitsText}` : null,
     });
   }
+  const extraCautions = lightning?.caution ? [lightning.caution] : [];
   return {
     dtg: formatDtgZulu(now),
     dtgIso: now.toISOString(),
@@ -113,5 +119,9 @@ export function buildScreen({ airfields, snapshot, limits, now }) {
     alert: alertText(snapshot, now),
     cards,
     credits: CREDITS,
+    lightning,
+    // Cautions from outside the weather reports, in cautions.js's shape: the banner adds these to what it builds from the cards and TAFs.
+    extraCautions,
+    cautions: cautionList({ cards, extra: extraCautions }),
   };
 }

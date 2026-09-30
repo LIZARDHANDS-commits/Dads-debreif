@@ -69,7 +69,7 @@ test('changing the setup changes its key; playback speed, height scale and colum
   const base = setupKey(DEFAULTS);
   for (const change of [{ circles: 1 }, { separationNm: 3 }, { blueKt: 230 }, { redKt: 230 }, { blueG: 5 }, { redG: 5 },
     { chase: true }, { vertical: true }, { bluePitchDeg: 10 }, { redPitchDeg: -10 },
-    { startAtaDeg: 30 }, { startAtaSide: 'right' }, { startAaDeg: 90 }, { startAaSide: 'right' }, { redAboveFt: 1000 }, { turnsAt: 'once' }]) {
+    { startAtaDeg: 30 }, { startAaDeg: 90 }, { redAboveFt: 1000 }, { turnsAt: 'once' }]) {
     assert.notEqual(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
   }
   // Switching between 2D and 3D, or the paint, never starts the fight again.
@@ -134,4 +134,21 @@ test('R28: a saved start angle or height out of range is put back; good ones sta
 test('R28: Reset to V6 defaults puts the start back to head-on, level, turns at the pass', () => {
   const patch = v6Defaults();
   assert.deepEqual([patch.startAtaDeg, patch.startAaDeg, patch.redAboveFt, patch.turnsAt], [0, 180, 0, 'pass']);
+});
+
+test('TF3-4: a side means nothing at 0° or 180°, so flipping it does not change the setup key; at any other angle it does', () => {
+  for (const [deg, key, side] of [[0, 'startAtaDeg', 'startAtaSide'], [180, 'startAtaDeg', 'startAtaSide'], [0, 'startAaDeg', 'startAaSide'], [180, 'startAaDeg', 'startAaSide']]) {
+    const left = { ...DEFAULTS, [key]: deg, [side]: 'left' };
+    const right = { ...DEFAULTS, [key]: deg, [side]: 'right' };
+    assert.equal(setupKey(left), setupKey(right), `${key} ${deg}`);
+    assert.equal(setupFrom(right)[side], 'left');
+  }
+  // The default start (ATA 0, AA 180) flips either side with no restart.
+  assert.equal(setupKey({ ...DEFAULTS, startAtaSide: 'right', startAaSide: 'right' }), setupKey(DEFAULTS));
+  for (const [key, side] of [['startAtaDeg', 'startAtaSide'], ['startAaDeg', 'startAaSide']]) {
+    for (const deg of [1, 90, 179]) {
+      assert.notEqual(setupKey({ ...DEFAULTS, [key]: deg, [side]: 'left' }), setupKey({ ...DEFAULTS, [key]: deg, [side]: 'right' }), `${key} ${deg}`);
+      assert.equal(setupFrom({ ...DEFAULTS, [key]: deg, [side]: 'right' })[side], 'right');
+    }
+  }
 });
