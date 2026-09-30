@@ -100,7 +100,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | **Routes list:** one line per route with its colour, kind and link ("Entry 1 → Pattern 1 P8", "Split 1 P6 → P1"); + Pattern, + Entry, + Split | **Route options** (per setup): fly rounded turns (on), radius from speed and G (on), manual turn radius (1,800 ft); Duplicate route, Delete route, show or hide a route on the map |
 | **Selected route:** name; for an entry the pattern and point it joins; for a split the pattern and point it leaves and the pattern and point it rejoins. The point table: number, label, altitude (ft), speed, G. Speed is a phase (Entry, Pattern, Closed, Inner downwind, Straight-in base, Approach, Landing), so each aircraft flies its own type's indicated airspeed for that phase, or a fixed number every type flies (V6's way). **Decision points** are marked ◆ in the table and on the map; selecting one shows its choices (Stay on the pattern, Land, each split leaving there) with their shares, which must add up to 100 % | **Point table's More columns:** each point's position (east and north, ft); **Leg distances** (ft and NM, for the selected route, and with a wind set, each leg's headwind or tailwind and crosswind) |
 | **Spawner:** aircraft type, route, start point (numbered from 1, as everywhere else), delay from now (s), plan (Random, which follows the shares, or a plan picked from the list, see T1), + Spawn, + Pair (15 s apart, same route), Clear finished | **Edit** on an aircraft row: type, route, start time, plan, delete; **Plans** (under More): make or change a plan, a list of what the aircraft does at each decision point it meets, in order ("2 circuits, then Split 4 to the inner circuit, then land"); **More detail**: each aircraft's leg number, and with a wind set its true airspeed, heading, track, headwind or tailwind, crosswind, and the bank and G it's pulling now; **Aircraft types**: the type table (indicated airspeeds by phase, with where each number came from), read-only |
-| **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4) |
+| **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done; a **Command** menu on each row (see How you set up and control the traffic) | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4); final spacing and the chance of missing traffic (T11); the **Rules** list, a checkbox each, on by default |
 | **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes:** profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
 | The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch): drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
 
@@ -287,31 +287,50 @@ Later ideas logged in the plan doc: a go-around or low approach as a choice at t
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
-### More pattern procedures from the SMM (Patrick, 2026-09-30, 06:15Z; R27)
+### More pattern procedures from the SMM (Patrick, 2026-09-30, 06:15Z and 06:19Z; R27)
 
-Patrick asked what else from the SMM's traffic pattern and abnormal procedures the sim should fly, naming break-outs and fly-throughs. The SMM's chapter 4 gives these. The sim has no controller, so each one is a **rule** that fires on its trigger, the way the extension and the move-over do (task 18). The rules are listed under Conflict limits with a checkbox each, all on by default because they're how the pattern really works, and each aircraft row says when one fired ("Broke out: conflict joining downwind").
+Patrick asked what else from the SMM's traffic pattern and abnormal procedures the sim should fly, then picked three for now and made the rest future features (06:19Z). The sim has no controller, so each one is a **rule** that fires on its trigger, the way the extension and the move-over do (task 18). The rules are listed under Conflict limits with a checkbox each, on by default because they're how the pattern really works, and each aircraft row says when one fired ("Flew through: PFL crossing initial").
 
-**Recommended now (tasks 19 to 21):**
+**Now (tasks 19 to 21):**
 
 | Procedure | What the sim does | Trigger | SMM |
 |---|---|---|---|
-| **The option at the threshold** | A decision point at every threshold: full stop, touch-and-go, low approach and go-around, with shares (or the aircraft's plan). A touch-and-go goes back up the departure leg into the pattern or a closed pattern; a low approach levels at 200 ft above the runway at 120 KIAS, then goes around | The aircraft reaches the threshold | 4.13, 4.21, 4.22, 4.28 para 72 |
-| **Runway occupied** ("continue with the gear") | If the aircraft ahead is still on the runway (a full stop takes a set time to clear, default 45 s), the one behind does a low approach and goes around instead of landing | Landing with the runway not yet clear | 4.28 para 77 |
-| **Break-out** | A climbing turn about 45° away from the pattern flow, level above pattern height, then back in by the nearest entry | An aircraft joining the pattern (on an entry, or Whiskey or Echo) would come inside the conflict limits of traffic already in it; traffic in the pattern has right of way | 4.15 para 35, 4.23 |
-| **Fly through** | At initial, instead of breaking, carries on to the departure end and turns crosswind to rejoin the pattern (breaking out if downwind traffic is in the way) | A PFL or other traffic would conflict with the break | 4.28 para 67 |
-| **Break at the departure end** | Delays the break to the departure end of the runway | Traffic would conflict with a normal break | 4.28 para 73 |
-| **Closed pattern: extend, or unable** | The closed pattern (climbing 180° at 45° to 60°, 140 KIAS, levelling at pattern height) is delayed along the departure leg until there's room on downwind; if there's no room by the end of the departure leg, the aircraft carries straight on and joins the normal pattern | Downwind traffic would be inside the conflict limits at the roll-out | 4.24, 4.28 paras 78, 79 |
-| **Flapless** | An aircraft option: Approach stays 120 KIAS, Landing becomes 110 KIAS, straight-in base at least 120 | Set on the aircraft when it's spawned, or in a plan | 4.25, 4.26, 14.2 |
-| **Rejoin via Whiskey or Echo** | Entries onto the extended downwind, drawn in the redraw (T8) | Route data | 4.28 para 76 |
+| **Fly through** | At initial, instead of breaking, carries on to the departure end and turns crosswind to rejoin the pattern. Traffic already on downwind has right of way | A PFL or other traffic would conflict with the break | 4.28 para 67 |
+| **Break at the departure end** | Delays the break to the departure end of the runway | Traffic would conflict with a normal break, but not with a break at the departure end | 4.28 para 73 |
+| **Closed pattern: extend, or unable** | The closed pattern (a climbing 180° at 45° to 60°, 140 KIAS, levelling at pattern height) waits along the departure leg until there's room on downwind; if there's still no room by the end of the departure leg, the aircraft carries straight on and joins the normal pattern | Downwind traffic would be inside the conflict limits at the closed pattern's roll-out | 4.24, 4.28 paras 78, 79 |
 
-**Later (Future features, not in this spec's tasks):**
+Whiskey and Echo (SMM 4.28 para 76) are ordinary entries onto the extended downwind, so they need nothing built: Patrick and Dad draw them in the redraw (T8).
 
-- **Slide over or break to the inner runway** (FF31; SMM 4.28 paras 80, 81): needs the inner runway drawn and a second set of final routes.
-- **Early left or right** (FF32; SMM 4.28 para 75): an early climbing turn to crosswind for staff.
-- **The square circuit at uncontrolled airfields** (FF33; SMM 4.29): downwind a little further out, base when the threshold is about 45° behind, 3° glide path. This would make a better starter pattern for a home field other than Moose Jaw (T2) than V6's generic one.
-- **Automatic sequencing** (already noted): speed control and spacing along the whole pattern, not just on final.
+**Future features (not in this spec's tasks):**
 
-The triggers all use the same prediction: where each aircraft will be a few seconds ahead on its current path, with the wind, checked against the conflict limits. That's one function, tested once, and every rule above calls it.
+- **The option at the threshold** (SMM 4.13, 4.21, 4.22, 4.28 para 72): full stop, touch-and-go, low approach or go-around as separate choices. Until then, the pattern's first decision point already gives Land or go round again (T1), and the move-over's low approach (task 18) is built.
+- **Runway occupied**, "continue with the gear" (SMM 4.28 para 77): a low approach when the aircraft ahead hasn't cleared the runway.
+- **Break-out** (SMM 4.15 para 35, 4.23): a joining aircraft that would conflict climbs out 45° away and rejoins.
+- **Flapless** (SMM 4.25, 4.26, 14.2): an aircraft option, 120 KIAS in the final turn and 110 at the threshold.
+- **Slide over or break to the inner runway** (FF31; SMM 4.28 paras 80, 81).
+- **Early left or right** (FF32; SMM 4.28 para 75).
+- **The square circuit at uncontrolled airfields** (FF33; SMM 4.29), as a better starter pattern for a home field other than Moose Jaw (T2).
+- **Automatic sequencing**: speed control and spacing along the whole pattern, not just on final.
+
+The triggers all use the same prediction: where each aircraft will be a few seconds ahead on its current path, with the wind, checked against the conflict limits. That's one function, tested once, and every rule calls it, so the future ones are each a small addition.
+
+### How you set up and control the traffic (Patrick, 06:19Z)
+
+There's no code to write: everything is set up with the screen's own boxes and menus, in five layers, from what you plan before pressing Play to what you throw in while it runs.
+
+1. **Routes (the left side): where aircraft can fly.** Patterns, entries (including Whiskey and Echo), splits (the straight-in, the inner circuit, the closed pattern) and PFL circles. Each point has its height, speed phase and bank. **Decision points** (◆) are where a choice is made, each with its shares ("Straight-in 25 %, Inner 25 %, Stay 50 %").
+2. **Aircraft (the right side): who flies.** Each is spawned with a type, a route, a start point, a delay and a **plan**.
+3. **Plans: what one aircraft does, in order.** A plan is a list of steps picked from menus, for example:
+   - *At decision points:* Go round again, Straight-in, Inner circuit, Closed pattern, Land.
+   - *Events:* Engine out at (a point), Miss the traffic on the next final turn, Fly through at the next initial, Break at the departure end.
+   - *When the plan runs out:* Random (follow the shares) or Land.
+   Plans have names ("Student solo: 2 circuits, straight-in, land"), are saved with the setup, and one plan can go to any number of aircraft. A step that can't happen (a split this pattern doesn't have) is refused when the plan is made, with a message. The default plan is Random, so aircraft just follow the shares until you give them something else.
+4. **Commands: what you throw in while it runs.** Each aircraft row has a **Command** menu, used playing or paused: Engine out now, Extend downwind, Fly through at the next initial, Break at the departure end, Miss the traffic on the next final turn. It's how an instructor adds an emergency or plays controller mid-run. Commands are recorded with their time, so Rewind replays them exactly; rewinding to before a command and playing on runs it again, and "Clear commands after here" removes them.
+5. **Rules: what happens by itself.** Extending when final is busy, moving over, flying through, breaking at the departure end, and the closed-pattern extend or rejoin fire on their own triggers. Each can be switched off under Conflict limits, for a lesson where you want the conflict to happen.
+
+**A setup** (a profile) keeps all five together with the wind, under a name, for example "Busy Tuesday: 12 aircraft, 20 kt crosswind, one engine-out at 4:30". Load it and press Play, and it runs the same way every time, because the dice are seeded; New traffic gives a new roll of the same setup.
+
+What's shown by default (R22): the spawner's Plan box and each row's Command menu. The plan editor and the rules list are under More.
 
 ### Changes that fix V6's bugs
 
@@ -480,7 +499,8 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 - With a wind set, each aircraft shows its crab angle and ground speed from its own type's airspeed, holds its route, and flies its turns at a steady bank, rolling in earlier with a tailwind and later with a headwind (Patrick's wind requirement, T6).
 - With the wind calm, every number is V6's (or a listed change).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
-- The break, the final turn onto a 3° final, PFLs and engine-outs fly as the manuals describe, with the key heights and flags shown (tasks 15 to 18), and the SMM's threshold options, break-outs, fly-throughs and closed-pattern rules fire on their triggers (tasks 19 to 21).
+- The break, the final turn onto a 3° final, PFLs and engine-outs fly as the manuals describe, with the key heights and flags shown (tasks 15 to 18), and fly-throughs, breaks at the departure end and the closed-pattern rules fire on their triggers (tasks 19 to 21).
+- Traffic is set up and controlled without code: routes and decision points, plans, live commands and rules, saved together as a setup.
 - Patrick or Dad signs off the checklist (R21).
 
 ## Plan
