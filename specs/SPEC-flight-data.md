@@ -1,6 +1,6 @@
 # Spec: `flight-data`, flight tracks for the debrief
 
-Status: **draft, waiting for Patrick's approval**. Changes go through a pull request. Module id `flight-data` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-flight-data-approved", in the Flight data thread), which also logs C5 to C9 and the 5 s / 450 kt data-quality rule as decisions. Changes go through a pull request. Module id `flight-data` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
@@ -44,13 +44,13 @@ Under D10, each change below lands as its own commit **after** the golden test h
 | C2 | Read the recorded `bank` column (±180°) and use it when present; otherwise estimate bank from the turn, as now. | #3 and #4 record bank, including rolls past 90°. | D47 |
 | C3 | Drop impossible fixes: ForeFlight's −100,000 m "no altitude" value (any altitude outside −500 m to 20,000 m), coordinates outside ±90°/±180°, and position jumps no T-6 can fly (see Data quality). | V6 draws #2 at −328,084 ft and speeds of 1,025 kt. | D32 |
 | C4 | Mark GPS gaps: more than **5 s** between good fixes. The line breaks there, and interpolated values report "in a gap" so the debrief blanks spacing readouts. | V6 draws gaps of up to 81 s as straight flight. | D32 |
-| C5 | Every fix needs its own time. A file whose `<when>` count doesn't match its coordinates, or with unreadable times, is refused with a message (V6 falls back to the point number and puts the flight in 1970). | Issue #22. | Proposed |
-| C6 | The first and last frame show the speed of the nearest segment, not 0 kt. Latitude and longitude are interpolated like x and y. | Issue #24: Lead reads "SLOW" at the start and end. | Proposed |
-| C7 | Heading is "unknown" (null) when the aircraft hasn't moved (duplicate fixes, taxi), not due east. | Issue #22: 3/9 line, aspect and labels flip at random on the ramp. | Proposed |
-| C8 | Tracks that don't overlap in time are refused with a message naming the one that doesn't fit, instead of V6's silent switch. The window stays V6's "common playback" (latest start to earliest end), and the status says when a track was cut. | Issue #22: one file from another day produced a days-long slider. | Proposed |
-| C9 | Load is all or nothing: if any file fails, nothing already loaded is lost and the message names the file and the reason. | Issue #23. | Proposed |
+| C5 | Every fix needs its own time. A file whose `<when>` count doesn't match its coordinates, or with unreadable times, is refused with a message (V6 falls back to the point number and puts the flight in 1970). | Issue #22. | Spec approval |
+| C6 | The first and last frame show the speed of the nearest segment, not 0 kt. Latitude and longitude are interpolated like x and y. | Issue #24: Lead reads "SLOW" at the start and end. | Spec approval |
+| C7 | Heading is "unknown" (null) when the aircraft hasn't moved (duplicate fixes, taxi), not due east. | Issue #22: 3/9 line, aspect and labels flip at random on the ramp. | Spec approval |
+| C8 | Tracks that don't overlap in time are refused with a message naming the one that doesn't fit, instead of V6's silent switch. The window stays V6's "common playback" (latest start to earliest end), and the status says when a track was cut. | Issue #22: one file from another day produced a days-long slider. | Spec approval |
+| C9 | Load is all or nothing: if any file fails, nothing already loaded is lost and the message names the file and the reason. | Issue #23. | Spec approval |
 
-C1 to C4 are already decided. **Approving this spec logs C5 to C9 as decisions** in the plan doc (they fix bugs rather than change flight math, but C6 and C7 change numbers V6 shows). If you want Dad to see any of them first, say which.
+C1 to C4 were already decided (D32, D47). Patrick's approval of this spec settled C5 to C9 (they fix bugs rather than change flight math, but C6 and C7 change numbers V6 shows).
 
 ## Data quality (C3, C4)
 
