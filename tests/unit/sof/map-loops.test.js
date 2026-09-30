@@ -764,6 +764,7 @@ test('Y1: a bigger radius during an outage keeps the held caution and its key ("
   w.setPlace();
   await clock.advance(30 * 1000);
   const smaller = w.result();
-  assert.equal(smaller.caution, null, 'lightning inside 20 NM may be outside 10 NM: the held line is dropped (a short blip after that stays on the strip)');
+  assert.equal(smaller.caution.text, "Lightning: can't tell", 'lightning inside 20 NM may be outside 10 NM: the held line is replaced at once by the plain can\'t-tell line');
+  assert.notEqual(smaller.caution.key, first.key);
   w.stop();
 });

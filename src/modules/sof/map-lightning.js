@@ -106,17 +106,20 @@ const MAX_LIT_FRACTION = 0.25; // more lit than this is not weather (a real pict
  * The lightning picture redrawn for the map: `image` is `{ data, width, height }` (RGBA, as a canvas's getImageData
  * gives). Each pixel that is not see-through becomes the fill, with the outline round it; everything else is see-through.
  * Returns a new `{ data, width, height }` (the input is not changed), or null when the picture is not readable.
+ * `stats`, if given, is `{ paints, writes }`, counted up: how much drawing work was done (for tests; not timed).
  */
-export function recolourLightning(image) {
+export function recolourLightning(image, stats = null) {
   if (!image || !Number.isInteger(image.width) || !Number.isInteger(image.height) || !image.data) return null;
   const { width, height, data } = image;
   if (width < 1 || height < 1 || data.length !== width * height * 4) return null;
   const out = new Uint8ClampedArray(data.length);
   const paint = (cx, cy, reach, /** @type {readonly number[]} */ rgb) => {
     const [r, g, b] = rgb;
+    if (stats) stats.paints += 1;
     for (let y = Math.max(0, cy - reach); y <= Math.min(height - 1, cy + reach); y++) {
       for (let x = Math.max(0, cx - reach); x <= Math.min(width - 1, cx + reach); x++) {
         const i = (y * width + x) * 4;
+        if (stats) stats.writes += 1;
         out[i] = r;
         out[i + 1] = g;
         out[i + 2] = b;

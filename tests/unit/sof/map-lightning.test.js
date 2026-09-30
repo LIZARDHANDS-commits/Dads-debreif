@@ -262,11 +262,14 @@ test('recolourLightning: a picture that is mostly lit (over a quarter of its pix
   assert.deepEqual(Array.from(few.data.slice((0 * 40 + 11) * 4, (0 * 40 + 11) * 4 + 4)), [...LIGHTNING_MARK.outline, 255]);
 });
 
-test('recolourLightning: a fully opaque 2048 px picture is done quickly (the 5 x 5 outline pass would take over a second)', () => {
-  const size = 2048;
-  const data = new Uint8ClampedArray(size * size * 4).fill(255);
-  const start = performance.now();
-  const out = recolourLightning({ data, width: size, height: size });
-  assert.equal(out.data[3], 255);
-  assert.ok(performance.now() - start < 600, `${Math.round(performance.now() - start)} ms`);
+test('recolourLightning: over the cap the outline and dilation work is skipped: one paint per lit pixel, not two 25- and 9-pixel ones (counted, not timed)', () => {
+  const size = 200;
+  const stats = { paints: 0, writes: 0 };
+  recolourLightning({ data: new Uint8ClampedArray(size * size * 4).fill(255), width: size, height: size }, stats);
+  assert.equal(stats.paints, size * size, 'fully lit: fill only, one paint each');
+  assert.equal(stats.writes, size * size, 'and one pixel written each');
+  const few = { paints: 0, writes: 0 };
+  recolourLightning(picture({ width: size, height: size }, [[100, 100]]), few);
+  assert.equal(few.paints, 2, 'a single cell: an outline paint and a fill paint');
+  assert.equal(few.writes, 25 + 9);
 });

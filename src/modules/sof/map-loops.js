@@ -82,7 +82,8 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
       outageSince = null;
       lastGoodAt = null;
     } else if (lastNearRadius !== null && r < lastNearRadius) {
-      lastNear = null; // lightning inside the old radius may be outside a smaller one
+      lastNear = null; // lightning inside the old radius may be outside a smaller one ...
+      gaveReading = false; // ... and nothing is known for the smaller radius, so the plain can't-tell line comes at once
     }
     if (lastNear === null) lastNearRadius = null;
     const data = s.failures === 0 && s.image ? s.image : null; // a failed try is "no data", never "clear"
