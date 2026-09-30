@@ -21,8 +21,8 @@ export const WIND_MODELS = Object.freeze({
   hrrr: Object.freeze({ id: 'ncep_hrrr_conus', label: 'HRRR', fromT: day(2018, 1, 1) }),
 });
 
-/** Pressure levels asked for: from about 2,500 ft to about 24,000 ft, where the T-6 flies. */
-export const WIND_LEVELS_HPA = Object.freeze([925, 850, 800, 700, 600, 500, 400]);
+/** Pressure levels asked for: from about 1,800 ft (just above Moose Jaw's field) to about 30,000 ft, where the T-6 flies. */
+export const WIND_LEVELS_HPA = Object.freeze([950, 925, 850, 800, 700, 600, 500, 400, 300]);
 
 const M_TO_FT = 1 / 0.3048;
 const round = (v, step) => Math.round(v / step) * step;
@@ -34,7 +34,7 @@ const isoDay = (t) => new Date(t * 1000).toISOString().slice(0, 10);
  * or null when neither goes back that far.
  */
 export function windModelFor(choice, startT) {
-  const keys = [choice, ...Object.keys(WIND_MODELS).filter((k) => k !== choice)].filter((k) => WIND_MODELS[k]);
+  const keys = [choice, ...Object.keys(WIND_MODELS).filter((k) => k !== choice)].filter((k) => Object.hasOwn(WIND_MODELS, k));
   return keys.find((k) => startT >= WIND_MODELS[k].fromT) ?? null;
 }
 
@@ -44,7 +44,7 @@ export function windModelFor(choice, startT) {
  * numbers and a model key from WIND_MODELS.
  */
 export function windsUrl({ lat, lon, startT, endT, model }) {
-  if (![lat, lon, startT, endT].every(Number.isFinite) || !WIND_MODELS[model]) throw new TypeError('windsUrl: a point, two times and a model');
+  if (![lat, lon, startT, endT].every(Number.isFinite) || !Object.hasOwn(WIND_MODELS, model)) throw new TypeError('windsUrl: a point, two times and a model');
   const hourly = WIND_LEVELS_HPA.flatMap((p) => [`wind_speed_${p}hPa`, `wind_direction_${p}hPa`, `geopotential_height_${p}hPa`]);
   const q = new URLSearchParams({
     latitude: lat.toFixed(2),
@@ -132,8 +132,9 @@ export function windTextAt(hours, t, altitudeFt, modelLabel) {
   const wind = windAtAltitude(slice.item, altitudeFt);
   const hourZ = `${new Date(slice.item.t * 1000).toISOString().slice(11, 13)}Z`;
   if (!wind) {
-    const lowest = slice.item.levels[0].heightFt;
-    const where = altitudeFt < lowest ? `below the lowest model level (${round(lowest, 100).toLocaleString('en-US')} ft)` : 'above the highest model level';
+    const { levels } = slice.item;
+    const ft = (l) => `${round(l.heightFt, 100).toLocaleString('en-US')} ft`;
+    const where = altitudeFt < levels[0].heightFt ? `below the lowest model level (${ft(levels[0])})` : `above the highest model level (${ft(levels[levels.length - 1])})`;
     return `no ${modelLabel} wind at ${at}: ${where}`;
   }
   return `wind ${windWords(wind)} at ${at} (${modelLabel} ${hourZ}, Open-Meteo)`;

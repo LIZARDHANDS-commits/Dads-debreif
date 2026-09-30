@@ -84,7 +84,7 @@ test('the words: direction to 10°, 360 for north, then knots; the hour in force
   assert.equal(windTextAt(hours, T('2026-09-29T18:40Z'), 1358 / FT, 'HRDPS'), 'wind 280/35 at 4,500 ft (HRDPS 18Z, Open-Meteo)');
   assert.equal(windTextAt(hours, T('2026-09-29T19:05Z'), 1360 / FT, 'HRDPS'), 'wind 350/30 at 4,500 ft (HRDPS 19Z, Open-Meteo)');
   assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 2000, 'HRDPS'), 'no HRDPS wind at 2,000 ft: below the lowest model level (4,500 ft)');
-  assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 12_000, 'HRDPS'), 'no HRDPS wind at 12,000 ft: above the highest model level');
+  assert.equal(windTextAt(hours, T('2026-09-29T18:10Z'), 12_000, 'HRDPS'), 'no HRDPS wind at 12,000 ft: above the highest model level (9,700 ft)');
   assert.equal(windTextAt(hours, T('2026-09-29T17:59Z'), 5000, 'HRRR'), 'no HRRR wind for this time');
   assert.equal(windTextAt(hours, T('2026-09-29T21:00Z'), 5000, 'HRRR'), 'no HRRR wind for this time'); // older than 90 minutes
 });
@@ -117,4 +117,60 @@ test('the feed fetches once per model per flight, only when asked, and tells a d
   assert.equal(feed.get('hrrr').state, 'failed');
   feed.dispose();
   assert.equal(feed.get('hrrr'), null);
+});
+
+test('three-figure directions, the top level itself, and a blend a quarter of the way up', () => {
+  assert.equal(windWords({ dirDeg: 45, kt: 12 }), '050/12');
+  const [h18] = readWinds(reply());
+  const top = windAtAltitude(h18, 2957 / FT);
+  assert.ok(Math.abs(top.dirDeg - 266) < 1e-9 && Math.abs(top.kt - 33.2) < 1e-9);
+  // 090°/40 below, 180°/40 above: a quarter of the way up is 30 kt from the east plus 10 kt from the south.
+  const hour = { t: 0, levels: [{ hPa: 850, heightFt: 4000, dirDeg: 90, kt: 40 }, { hPa: 700, heightFt: 8000, dirDeg: 180, kt: 40 }] };
+  const q = windAtAltitude(hour, 5000);
+  assert.ok(Math.abs(q.kt - Math.hypot(30, 10)) < 1e-9);
+  assert.ok(Math.abs(q.dirDeg - (90 + (Math.atan2(10, 30) * 180) / Math.PI)) < 1e-9);
+});
+
+test('the feed: a rate limit says whether it is the day\'s, retry() asks again, and a closed flight\'s late answer is dropped', async () => {
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const flight = { startT: T('2026-09-29T18:00Z'), endT: T('2026-09-29T19:00Z') };
+  const point = { lat: 50.33, lon: -105.56 };
+  const limited = (reason) => ({ ok: false, status: 429, json: () => Promise.resolve({ reason, error: true }) });
+  let answer = limited('Daily API request limit exceeded. Please try again tomorrow.');
+  const calls = [];
+  let changes = 0;
+  const feed = createWindsFeed({ fetch: (url, init) => { calls.push(init.signal); return Promise.resolve(answer); }, onChange: () => changes++ });
+  feed.setFlight(flight, point);
+  feed.get('hrdps');
+  await settle();
+  assert.deepEqual({ state: feed.get('hrdps').state, daily: feed.get('hrdps').daily }, { state: 'busy', daily: true });
+  answer = limited('Minutely API request limit exceeded. Please try again in one minute.');
+  feed.retry();
+  feed.get('hrdps');
+  await settle();
+  assert.deepEqual({ state: feed.get('hrdps').state, daily: feed.get('hrdps').daily }, { state: 'busy', daily: false });
+  assert.equal(calls.length, 2);
+  answer = { ok: true, status: 200, json: () => Promise.resolve(reply()) };
+  feed.retry();
+  feed.get('hrdps');
+  await settle();
+  assert.equal(feed.get('hrdps').state, 'ready');
+  feed.retry(); // a good answer is kept
+  feed.get('hrdps');
+  assert.equal(calls.length, 3);
+
+  // A fetch still out when the flight closes is stopped, and its answer tells no one.
+  let release;
+  const feed2 = createWindsFeed({
+    fetch: (url, init) => { calls.push(init.signal); return new Promise((resolve) => { release = resolve; }); },
+    onChange: () => changes++,
+  });
+  feed2.setFlight(flight, point);
+  feed2.get('hrdps');
+  const before = changes;
+  feed2.setFlight(null);
+  assert.equal(calls.at(-1).aborted, true);
+  release({ ok: true, status: 200, json: () => Promise.resolve(reply()) });
+  await settle();
+  assert.equal(changes, before);
 });

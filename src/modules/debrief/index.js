@@ -192,7 +192,8 @@ function mount(root, app) {
     const entry = winds.get(model);
     if (!entry) return `no ${label} winds: Lead's track has no position`;
     if (entry.state === 'loading') return `loading ${label} winds…`;
-    if (entry.state === 'busy') return `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow`;
+    if (entry.state === 'busy' && entry.daily) return `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow`;
+    if (entry.state === 'busy') return `${label} winds: Open-Meteo is busy. Turn Winds aloft off and on to try again.`;
     if (entry.state === 'failed') return `${label} winds couldn't load. They need a connection.`;
     const lead = sampleAt(flight.tracks[1], clock.t);
     return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label) : null;
@@ -414,13 +415,21 @@ function mount(root, app) {
   ui.onFit(() => map.fit());
   ui.onReset(() => layout.reset());
 
+  let lastWindKey = '';
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
     filePanel.setCollapsed(!values.filesOpen);
     tennisPanel.element.hidden = !values.tennisOpen;
     if (values.tennisOpen) tennisPanel.render(tennisNow());
-    renderReadouts(); // the winds on the Lead line, and the METAR line
+    // Turning Winds aloft on or picking a model redraws the Lead line and asks
+    // again for any that failed; anything else only touches the METAR line.
+    const windKey = `${values.wxWinds} ${values.wxWindModel}`;
+    if (windKey !== lastWindKey) {
+      lastWindKey = windKey;
+      winds.retry();
+      renderReadouts();
+    } else renderMetar();
     redraw();
   });
 
