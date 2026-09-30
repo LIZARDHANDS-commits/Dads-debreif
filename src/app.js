@@ -10,6 +10,7 @@ import { reportUrl } from './shell/report.js';
 import { createSettingsDialog } from './shell/settings-dialog.js';
 import { createTime, startClock } from './shell/header.js';
 import { createUpdateBar, watchForUpdates } from './shell/update-bar.js';
+import { updatedLabel } from './shell/version.js';
 import home from './shell/home.js';
 import about from './shell/about.js';
 import { h } from './ui-kit/dom.js';
@@ -103,7 +104,9 @@ async function show(hash) {
 const dialog = createSettingsDialog({ settings, storagePersistent: () => store.persistent });
 document.body.append(dialog.element);
 $('open-settings').addEventListener('click', () => dialog.open());
-$('app-version').textContent = version;
+const updated = $('app-updated');
+updated.textContent = updatedLabel(document.querySelector('meta[name="app-built"]')?.content);
+updated.title = `Version ${version}`;
 
 // The skip link moves focus without touching the address, which picks the page.
 document.querySelector('.skip-link').addEventListener('click', (event) => {
