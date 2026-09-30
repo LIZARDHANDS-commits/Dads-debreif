@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, V6_DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
-import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
+import { createRun, offsetBoxStatus } from '../../../src/modules/turn-sim/engine/run.js';
 import { offsetBoxPlan, simulateDelayedTurnFinalPos } from '../../../src/modules/turn-sim/engine/plan.js';
 import { ktToFtps } from '../../../src/core/units.js';
 import { turnRadiusFt } from '../../../src/core/flight-math.js';
@@ -32,7 +32,9 @@ test('Q44b: a delayed 90 in the offset box rolls #4 out on the far side of #2 fr
     const out = Math.sign(places[2].left - places[3].left); // which way is "outside #2", away from the slot
     assert.ok(out !== 0);
     const outsideBy = (places[4].left - places[2].left) * out;
-    assert.ok(outsideBy > 0 && Math.abs(outsideBy - 3000) < 2500, `${direction}: #4 is ${outsideBy.toFixed(0)} ft outside #2`);
+    // It misses by about 1,600 ft, not 0: a delay only slides #4 along its old heading, so it cannot also reach the aft distance
+    // and the 3,000 ft together (it ends about 4,600 ft outside #2, nearest the target that the line allows).
+    assert.ok(outsideBy > 0 && Math.abs(outsideBy - 3000) < 2000, `${direction}: #4 is ${outsideBy.toFixed(0)} ft outside #2`);
     assert.ok(places[4].ahead < places[2].ahead - 3000, `${direction}: #4 is well aft of the front element`);
   }
 });
@@ -115,4 +117,11 @@ test('SMM item 5: the in-place turn in the offset box turns all four together, a
       assert.ok(run.state.aircraft.every((a) => a.turning), `${maneuver}: all four turn on the first step`);
     }
   }
+});
+
+test('the band edges: 10 and 15 s are inside, 9.99 and 15.01 s are outside', () => {
+  const edge = (three, four) => offsetBoxStatus({ 3: three, 4: four }, 10, 15).rear.map((r) => r.outsideBand);
+  assert.deepEqual(edge(10, 15), [false, false]);
+  assert.deepEqual(edge(9.99, 15.01), [true, true]);
+  assert.equal(offsetBoxStatus(null, 10, 15), null);
 });

@@ -2,7 +2,7 @@
 // V6 itself is compared step by step in tests/golden/turn-sim-run.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { V6_DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
+import { V6_DEFAULTS, DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 import { rearCheckConfig } from '../../../src/modules/turn-sim/engine/rear-check.js';
 
@@ -70,6 +70,8 @@ test('Q47: the check starts at its set time or once #3 and #4 have finished turn
 });
 
 test('Q47 is the default; V6 starts the check at its set time', () => {
+  assert.equal(DEFAULTS.rearCheckAfterTurns, true, 'Q47 is the rebuild\'s default');
+  assert.equal(createRun({ formation: 'offsetBox', rearCheckOn: true }).state.rearCheck.enabled, true);
   assert.equal(rearCheckConfig({ ...box, rearCheckAfterTurns: undefined }).afterTurns, false);
   assert.equal(createRun({ formation: 'offsetBox', rearCheckOn: true }).state.rearCheck.enabled, true);
   assert.equal(rearCheckConfig({ ...box, ...{ rearCheckAfterTurns: true } }).afterTurns, true);

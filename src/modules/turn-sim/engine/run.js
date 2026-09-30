@@ -238,6 +238,8 @@ export function createRun(settings) {
   const rearCheck = () => rearCheckConfig({ ...cfg, formation });
 
   // V6 syncFormationDropdownToCurrentState (line 1399): a line abreast that has swapped sides is now the other preset.
+  // With D48 the inferred name follows twoSide (inferLineAbreastForm). The engine reads it only to tell the offset box and
+  // the two-ship from the line abreast, which a swap between 4312 and 2134 never changes, so the name is cosmetic here.
   function syncFormation() {
     if (formation === 'weighted' || formation === 'weightedReverse') {
       const inferred = inferLineAbreastForm(craft, formation, cfg.twoSide);

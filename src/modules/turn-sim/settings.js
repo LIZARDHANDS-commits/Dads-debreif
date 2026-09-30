@@ -138,7 +138,8 @@ export const DEFAULTS = Object.freeze({
   // whatever #3 and #4 were doing: false gives V6's start back.
   rearCheckAfterTurns: true,
   // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
-  // The band is a setting; nothing flies with it yet (task 11).
+  // The band is a setting: state.offsetBox flags #3 and #4 whose delay after the front element falls outside it.
+  // rearDelaySec (12.5 s) is the delay they fly by default.
   rearDelayMinSec: 10,
   rearDelayMaxSec: 15,
 });
