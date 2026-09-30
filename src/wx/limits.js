@@ -10,7 +10,7 @@ export const DEFAULT_LIMITS = Object.freeze({
 });
 
 /**
- * The home "alternate needed" trigger choices (Q4, Gen Book p.7): an alternate is
+ * The home "alternate needed" trigger choices (Q4, D111, Gen Book p.7): an alternate is
  * required below 3000 ft / 3 SM, or below 2000 ft / 3 SM when staying within the MTCA.
  * Local is the default and equals DEFAULT_LIMITS.home. The SOF labels the setting from these.
  */
