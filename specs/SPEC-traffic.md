@@ -88,8 +88,8 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 │ + Point  Delete point        ││                                                                              ││ Conflicts                      │
 │ ◆ Decision at P6: Stay 25 %, ││                                                                              ││ ⚠ CONFLICT A2/A5 180 ft lat,   │
 │   Split 1 25 %, Split 4 50 % ││                                                                              ││   120 ft vert                  │
-│ ▸ Leg distances              ││                                                                              ││ ▸ Conflict limits              │
-│ ▸ Route options              ││                                                                              ││                                │
+│ ▸ Leg distances              ││                                                                              ││ ▸ Traffic settings             │
+│                              ││                                                                              ││                                │
 │ ▸ Profiles and notes         ││ Simplified: aircraft fly their routes at set speeds, no avoiding action.     ││                                │
 └──────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘└────────────────────────────────┘
 ```
@@ -104,6 +104,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes:** profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
 | The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch; 2D is the default): the routes as lines at their heights, the aircraft as 3D models (the shared T-6 for the CT-156 and CT-157, a simple shape for the other types until they have their own), banking with their turns; drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
 
+- **One settings menu (Patrick, 2026-09-30 07:20Z; SPEC-ui-kit "Settings menu (R22)").** Every setting in the right-hand column of the table above that is a number or a switch (Route options, Conflict limits with final spacing and the chance of missing traffic, the Rules checkboxes, and the photo's opacity, grid order and alignment) lives in one closed **Traffic settings** menu at the foot of the right column, in sections, with Reset to defaults (photo alignment resets to the setup's own). "More …" panels hold only extra readouts (leg distances, More detail). This replaces the separate Route options and Conflict limits panels and the photo options under Layers → More.
 - **Colour is never the only signal.** Conflict lines start with ⚠ CONFLICT or △ CAUTION; routes are also told apart by line style and their name labels; aircraft carry their callsign.
 - **Settings are remembered** with the profile (`app.storage`, scope `traffic`), and the last profile used opens next time. Loading the built-in profile puts back V6's setup.
 - **Keyboard** (through `app.keys`, only while the Traffic Sim is open and never while typing): Space plays or pauses, Home resets, `[` and `]` step back and forward 10 s. On the map (ui-kit `canvas-view.js`): arrow keys pan, + and − zoom. Tab moves between controls as normal, and the point table keeps focus while you type through it (#49).
@@ -491,6 +492,10 @@ Two more pieces come from other threads, through the coordinator:
 ```
 src/modules/traffic/
   index.js         mount and unmount; wires settings, scheduler, keys, storage
+  defaults.js      every setting's starting value and number-box limits (the Defaults table)
+  layout.js        the three columns, the routes list and + New route
+  playback-bar.js  the bar above the map: playback, View 2D|3D, Layers, Fit, wind
+  settings-panel.js  fills ui-kit's shared settings menu (Traffic settings)
   route.js         route geometry: rounded turns, arcs, joined paths, point lookup (pure)
   sim.js           the flying: spawn, step, land, split, join, conflicts, snapshots (pure)
   dice.js          the seeded dice (pure)
@@ -504,7 +509,6 @@ src/modules/traffic/
   view3d.js        the 3D view on ui-kit's three-aircraft.js (loaded only when 3D is on)
   editor.js        the left column: routes list, selected route, point table
   aircraft.js      the right column: spawner, aircraft list, conflicts
-  layout.js        the columns, playback bar, Layers menu
   traffic.css
   data/moose-jaw.json   V6's built-in setup
   README.md        what's here and where to change common things (R8)
