@@ -1660,3 +1660,18 @@ test('F8: at the top of the range (175 KIAS) flown from 7,000 ft, the level MPT 
     assert.ok(minAlt >= 6000 - 20, `${kias} KIAS: lowest ${minAlt.toFixed(0)} ft against the 6,000 ft deck`);
   }
 });
+
+test('F2 at the deck: a forced pitch back from 221 to 316 KIAS started at the 6,000 ft deck reaches the MPT in 190° of turn or less (the 180° aim is met from 8,000 ft; at the deck the fastest entries read 180 to 187°)', () => {
+  let worst = 0;
+  for (const kias of OVER_220_ENTRIES) {
+    let deg = null;
+    watch({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack' }, (st) => {
+      if (deg === null && st.blue.mptReached) deg = st.blue.toMptDeg;
+      return deg === null;
+    }, 200);
+    assert.ok(deg !== null, `${kias} KIAS reached the MPT`);
+    assert.ok(deg <= 190, `${kias} KIAS took ${deg.toFixed(0)}° of turn`);
+    worst = Math.max(worst, deg);
+  }
+  assert.ok(worst > 150, `the check is live: the worst is ${worst.toFixed(0)}°`);
+});
