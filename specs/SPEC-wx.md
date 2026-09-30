@@ -31,7 +31,7 @@ Out, for now:
 1. Reports are in North American format as the SOF shows them today: visibility in statute miles (`15SM`, `1 1/2SM`, `M1/4SM`, `P6SM`), with metric visibility (`9999`, `0800`) and `CAVOK` also understood.
 2. A raw report string is the input. JSON from a feed is the adapter's job; the adapter passes the raw text through.
 3. A report only carries day-of-month. Every parse takes a reference time (`now`) and resolves days to the nearest matching month, so reports around month ends work.
-4. Nothing in `wx` imports `src/core/` until the flight-math thread's first PR merges. The one conversion it needs (metres to statute miles, 1609.344) is a local constant, to be swapped for `core/units.js` later.
+4. `wx` does not import `src/core/`. The one conversion it needs (metres to statute miles, 1609.344, exact by definition) is a local constant, because `core/units.js` holds only the flight-math constants V6 uses and has no statute mile.
 5. `node --test` only, no packages.
 
 ## Behaviour
