@@ -108,6 +108,25 @@ function withinPilotTolerance(c, spacingFt, spread) {
   return kept.length || !c.labels.length ? kept : ['ON SPACING'];
 }
 
+/** An aircraft this near Lead's line (feet across it) counts as in trail with the others on it. */
+const IN_TRAIL_LATERAL_FT = 500;
+const CHECK_TURN_NOT_JUDGED = 'the wingman corrects after a check turn';
+
+/**
+ * The end of an In-place 90 (SMM ch.16 para 59, a reference only) is a trail, not a line abreast: each wingman is judged by its distance
+ * in trail from the nearest aircraft on its own line, by the spread standard's band and the same 1 percent of the spacing as the other
+ * turns. Returns the row's fields, or null when no aircraft is on its line (the line-abreast judge then applies).
+ */
+function trailRow(a, fleet, settings, std) {
+  const mates = fleet.filter((o) => o.id !== a.id && Math.abs(o.y - a.y) <= IN_TRAIL_LATERAL_FT);
+  if (!mates.length) return null;
+  const trailFt = Math.min(...mates.map((o) => Math.abs(o.x - a.x)));
+  const slack = SPACING_TOLERANCE * (settings.spacingFt > 0 ? settings.spacingFt : 0);
+  const { minFt, maxFt } = std.spread;
+  const labels = trailFt < minFt - slack ? ['TIGHT'] : trailFt > maxFt + slack ? ['WIDE'] : ['ON SPACING'];
+  return { labels, onSpacing: labels[0] === 'ON SPACING', trailFt };
+}
+
 /**
  * One row per wingman: its labels and the numbers behind them. A switched-off
  * standard judges nothing, so that aircraft has no labels (judged: false);
@@ -121,9 +140,14 @@ export function formationRows(state, settings, standards) {
   const std = standards ?? DEFAULT_STANDARDS;
   const fleet = leadFrameFleet(state);
   if (fleet.length < 2 || fleet[0].id !== 1) return [];
+  // Once every aircraft has finished its turn: an In-place 90 has ended in trail, and a Check turn leaves a swept line the wingman corrects (F3).
+  const ended = Boolean(state?.turnComplete) && (state?.tSec ?? 0) > 0;
   return fleet.slice(1).map((a) => {
     const key = judgedBy(a.id, settings.formation);
     if (!std[key]?.on) return { id: a.id, judged: false, labels: [], standard: key };
+    if (ended && settings.maneuver === 'check30') return { id: a.id, judged: false, labels: [], standard: key, reason: CHECK_TURN_NOT_JUDGED };
+    const trail = ended && settings.maneuver === 'inplace90' ? trailRow(a, fleet, settings, std) : null;
+    if (trail) return { id: a.id, judged: true, standard: key, labels: trail.labels, onSpacing: trail.onSpacing, trailFt: trail.trailFt, intervalFt: null, foreAftFt: null, aftDistanceFt: null, lateralFromLeadFt: null, measureNote: null };
     const c = classifyTurnSimPosition(a, fleet, settings.formation, std);
     const labels = key === 'spread' ? withinPilotTolerance(c, settings.spacingFt, std.spread) : c.labels;
     return {
@@ -157,7 +181,11 @@ export function stallWarning(g, speedKt, stallLimitG) {
  * with its warning at the end. Returns { text, tone } (tone: good, caution, none).
  */
 export function formationLine(row, warning = null) {
-  if (!row.judged) return { text: 'Not judged (that standard is switched off)', tone: 'none' };
+  if (!row.judged) return { text: row.reason ? `Not judged: ${row.reason}` : 'Not judged (that standard is switched off)', tone: 'none' };
+  if (row.trailFt != null) {
+    const tailT = warning ? ` ${warning}.` : '';
+    return { text: `${row.labels.join(' / ')} in trail ${ft(row.trailFt)}${tailT}`, tone: row.onSpacing ? 'good' : 'caution' };
+  }
   const tail = warning ? ` ${warning}.` : '';
   if (row.onSpacing) return { text: `ON SPACING${tail}`, tone: 'good' };
   const numbers = [];
@@ -255,7 +283,7 @@ export function pairText(pair, withNm = false) {
 
 /** One wingman's numbers for More detail. */
 export function wingmanDetail(row) {
-  if (!row.judged) return `#${row.id}: not judged (standard switched off)`;
+  if (!row.judged) return row.reason ? `#${row.id}: not judged (${row.reason})` : `#${row.id}: not judged (standard switched off)`;
   const from = row.measureNote ? ` (${row.measureNote})` : '';
   const aft = row.aftDistanceFt !== null ? `, aft ${ft(row.aftDistanceFt)}` : '';
   return `#${row.id}: interval ${ft(row.intervalFt)}, fore/aft ${signedFt(row.foreAftFt)}${aft}${from}`;

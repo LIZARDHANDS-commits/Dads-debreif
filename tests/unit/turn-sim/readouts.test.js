@@ -8,7 +8,8 @@ import {
   checkTurnNote, formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
 } from '../../../src/modules/turn-sim/readouts.js';
-import { MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
+import { MANEUVER_TURN_DEG, DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
+import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
 // Lead at the origin flying east (heading 0), so its left is north (+y).
 const ac = (id, xFt, yFt, extra = {}) => ({ id, xFt, yFt, headingRad: 0, turning: false, bankDeg: 0, g: 1, ...extra });
@@ -328,4 +329,56 @@ test('a close pass (300 to 1,000 ft) is flagged with its distance and pair, afte
   const st = { ...four(), crossings: [{ a: 1, b: 3, minFt: 120 }], closePasses: [{ a: 1, b: 2, minFt: 893.6 }] };
   assert.deepEqual(separationFlags(st, SETTINGS), ['Crossing: 300 ft vertical needed, #1 and #3', 'Close pass: 894 ft, #1 and #2: altitude separation needed']);
   assert.deepEqual(separationFlags({ ...four(), closePasses: [] }, SETTINGS), []);
+});
+
+// F3: an In-place 90 ends in trail (SMM ch.16, a reference only), so the end is judged by the distance in trail, not against the line abreast.
+const IN_PLACE = { ...SETTINGS, formation: 'twoShip', maneuver: 'inplace90', turnDeg: 90, spacingFt: 6000 };
+
+test('F3: a finished In-place 90 is judged in trail: ON SPACING at 6,000 ft, TIGHT or WIDE by the standard', () => {
+  const done = (gapFt) => ({ ...state([ac(1, 0, 0), ac(2, gapFt, 0)], 30), turnComplete: true });
+  const good = formationRows(done(6000), IN_PLACE);
+  assert.deepEqual(good[0].labels, ['ON SPACING']);
+  assert.equal(formationLine(good[0]).text, 'ON SPACING in trail 6,000 ft');
+  assert.equal(formationRows(done(-6000), IN_PLACE)[0].onSpacing, true); // trail behind or ahead of Lead: the same distance
+  assert.equal(formationLine(formationRows(done(3000), IN_PLACE)[0]).text, 'TIGHT in trail 3,000 ft');
+  assert.equal(formationLine(formationRows(done(9000), IN_PLACE)[0]).text, 'WIDE in trail 9,000 ft');
+});
+
+test('F3: before the turn is done the line-abreast standard still judges, and other turns are not judged in trail', () => {
+  const trail = state([ac(1, 0, 0), ac(2, 6000, 0)]); // turnComplete is not set: mid-turn
+  assert.ok(formationRows(trail, IN_PLACE)[0].labels.includes('TIGHT'));
+  assert.ok(formationRows({ ...trail, tSec: 30, turnComplete: true }, { ...IN_PLACE, maneuver: 'delayed90away' })[0].labels.includes('TIGHT'));
+});
+
+test('F3: a default In-place 90 ends with no TIGHT, WIDE, FORE or AFT in any formation or direction, and starts ON SPACING', () => {
+  for (const formation of ['twoShip', 'weighted', 'weightedReverse', 'offsetBox']) {
+    for (const direction of ['right', 'left']) {
+      const settings = { ...DEFAULTS, formation, direction, maneuver: 'inplace90', turnDeg: 90, startHeadingDeg: 0 };
+      const run = createRun(settings);
+      assert.ok(readoutsAt(run.state, settings).rows.every((r) => r.onSpacing), `${formation} ${direction}: at the start`);
+      while (run.step());
+      const rows = readoutsAt(run.state, settings).rows;
+      for (const r of rows) assert.deepEqual(r.labels, ['ON SPACING'], `${formation} ${direction} #${r.id}: ${r.line.text}`);
+    }
+  }
+});
+
+test('F3: the finished Check turn is not judged against the line abreast (the wingman corrects after it), and its start is', () => {
+  for (const formation of ['twoShip', 'weighted', 'offsetBox']) {
+    const settings = { ...DEFAULTS, formation, maneuver: 'check30', turnDeg: 30, startHeadingDeg: 0 };
+    const run = createRun(settings);
+    assert.ok(readoutsAt(run.state, settings).rows.every((r) => r.onSpacing), `${formation}: at the start`);
+    while (run.step());
+    for (const r of readoutsAt(run.state, settings).rows) {
+      assert.equal(r.judged, false, `${formation} #${r.id}`);
+      assert.equal(r.line.text, 'Not judged: the wingman corrects after a check turn');
+      assert.equal(mapLabel(r), null);
+    }
+  }
+});
+
+test('N4 edge: the FORE tolerance is exact at 6,000 ft: 104 ft ahead (0.99 degrees) is not flagged and 106 ft (1.01 degrees) is', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: 104 } }), settings), 2).labels, ['ON SPACING']);
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: 106 } }), settings), 2).labels, ['FORE']);
 });

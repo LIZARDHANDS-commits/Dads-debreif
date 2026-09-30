@@ -306,6 +306,19 @@ test('Aircraft errors: a wingman turning late is what the plan flies (#31)', asy
   await expect(page.getByText(/^1-2: 6,000 ft/)).toBeVisible();
 });
 
+test('a finished In-place 90 reads in trail and ON SPACING, and a finished Check turn says it is not judged (F3)', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await box(page, 'Turn').selectOption({ label: 'In-place 90' });
+  await page.getByLabel('Playback speed').selectOption('4');
+  await playButton(page).click();
+  await expect(cardLines(page).first()).toHaveText('#2 ON SPACING in trail 6,000 ft', { timeout: 60000 });
+  await box(page, 'Turn').selectOption({ label: 'Check turn' });
+  await expect(cardLines(page).first()).toHaveText('#2 ON SPACING'); // the start is judged as always
+  await playButton(page).click();
+  await expect(cardLines(page).first()).toHaveText('#2 Not judged: the wingman corrects after a check turn', { timeout: 60000 });
+});
+
 test('space plays and pauses, the right arrow steps once, Home resets, and typing is left alone (R14)', async ({ page }) => {
   await open(page);
   await page.locator('body').click({ position: { x: 5, y: 5 } });
