@@ -1022,3 +1022,18 @@ test('a tail chase at 221 against 220 kt turns at once and stays in view', async
   const widest = Math.max(...all.map((f) => f[1])) - Math.min(...all.map((f) => f[0]));
   expect(widest, 'the picture uses a good part of the width').toBeGreaterThan(spread.width * 0.2);
 });
+
+test('R28: in 3D the MERGE word shows where the jets pass, and not for a beam start (no pass)', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const merge = page.locator('.tf-3d-label-nose', { hasText: 'MERGE' });
+  await expect(merge).toBeVisible(); // V6's head-on start passes at the centre
+  await settingsButton(page).click();
+  await ataBox(page).fill('90');
+  await aaBox(page).fill('90');
+  await expect(merge).toBeHidden();
+  await headOnButton(page).click();
+  await expect(merge).toBeVisible();
+  await expect(page.getByRole('img', { name: /fly toward each other and pass at the MERGE mark/ })).toHaveCount(1);
+});

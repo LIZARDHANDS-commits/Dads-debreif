@@ -9,7 +9,7 @@ import { createFight, stepFight } from '../../../src/modules/turn-fight/sim.js';
 import { createRun, advanceRun } from '../../../src/modules/turn-fight/playback.js';
 import {
   ALT_SCALE, CAMERA_LIMITS, MIN_PLANE_PX, T6_LENGTH_FT, CHASE_PITCH_DEG,
-  levelBankRad, turnDirection, firstNoseText, aircraftPose, applyAttitude, fillTrail, heightAtTime, trailCapacity,
+  levelBankRad, turnDirection, showsMergeMark, firstNoseText, aircraftPose, applyAttitude, fillTrail, heightAtTime, trailCapacity,
   emptyBounds, extendBounds, DEFAULT_CAMERA, yawBehind, orbit, zoomBy, zoomByRatio, fitZoom, planeLengthFt, cameraFor, VIEWS, cameraForButton,
   createView3d,
 } from '../../../src/modules/turn-fight/view3d.js';
@@ -461,4 +461,28 @@ test('a disposed view never starts again, and stop and dispose can be called twi
   assert.deepEqual(await view.start(), { ok: false, reason: 'closed' });
   view.requestDraw(); // nothing to draw, and no frame asked for
   assert.equal(view.stats().pending, false);
+});
+
+// ---- R28: start geometry in 3D ---------------------------------------------------------------
+
+test('R28: the MERGE mark is drawn only when the jets pass at the centre, as in the top-down view: not for a beam start or turns at once', () => {
+  assert.equal(showsMergeMark(createFight()), true, 'head-on, as V6');
+  assert.equal(showsMergeMark(createFight({ startAaDeg: 90 })), true, 'a crossing passes at the centre');
+  assert.equal(showsMergeMark(createFight({ startAtaDeg: 90, startAaDeg: 90 })), false, 'a beam start: the range is not closing, no pass');
+  assert.equal(showsMergeMark(createFight({ turnsAt: 'once' })), false, 'turns at once');
+  assert.equal(showsMergeMark(createFight({ startAaDeg: 0 })), false, 'a tail chase: not closing');
+  assert.equal(showsMergeMark(createFight({ startAaDeg: 0, blueKt: 221, redKt: 220 })), false, 'a pass after the 10-minute stop');
+});
+
+test('R28: the bank follows the way each jet turns toward the other, and a 1-circle Red still turns the other way', () => {
+  const beam = { startAtaDeg: 90, startAtaSide: 'right', startAaDeg: 90, startAaSide: 'right', turnsAt: 'once' };
+  const two = fightAt(1, { ...beam, circles: 2 });
+  assert.deepEqual([turnDirection(two, 'blue'), turnDirection(two, 'red')], [-1, -1]);
+  const one = fightAt(1, { ...beam, circles: 1 });
+  assert.deepEqual([turnDirection(one, 'blue'), turnDirection(one, 'red')], [-1, 1]);
+  // The bank's sign is the turn's: right wing down for a right turn.
+  assert.ok(aircraftPose(two, 'blue', turnDirection(two, 'blue')).bankRad < 0);
+  // And at V6's head-on start nothing changed.
+  const v6 = fightAt(25);
+  assert.deepEqual([turnDirection(v6, 'blue'), turnDirection(v6, 'red')], [1, 1]);
 });
