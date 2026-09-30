@@ -592,23 +592,47 @@ test('F1: a stale picture (no failure, but the layer time is past the limit) kee
   w.stop();
 });
 
-test('F1: the caution keeps its key through a long outage, and a good near reading after it is the same caution', async () => {
+test('F1: a short outage keeps the caution\'s key, and a good near reading inside the episode gap is the same caution', async () => {
   const { clock, w, state } = watch({ lit: [pixelEast(12)] });
   w.start();
   await clock.settle();
   const key = w.result().caution.key;
   state.picture = 'down';
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 2; i++) {
     await clock.advance(10 * MIN);
     assert.equal(w.result().caution.key, key, `after ${(i + 1) * 10} min of outage`);
   }
   state.picture = 'ok';
   followClock(clock, state);
-  await clock.advance(10 * MIN);
+  await clock.advance(10 * MIN); // 30 minutes after the last real near reading: exactly the gap
   const back = w.result();
   assert.equal(back.state, 'near');
   assert.equal(back.caution.key, key);
   assert.doesNotMatch(back.caution.text, /can't tell/);
+  w.stop();
+});
+
+test('R1: the held line keeps its key through a long outage, but a storm back after more than the episode gap is a new caution that re-raises', async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const first = w.result().caution;
+  const acks = { version: 1, day: '2026-09-30', keys: [first.key] };
+  state.picture = 'down';
+  for (let i = 0; i < 8; i++) {
+    await clock.advance(10 * MIN);
+    assert.equal(w.result().caution.key, first.key, `the held line, after ${(i + 1) * 10} min of outage`);
+  }
+  state.picture = 'ok';
+  followClock(clock, state);
+  await clock.advance(10 * MIN); // 90 minutes after the last real near reading
+  const back = w.result();
+  assert.equal(back.state, 'near');
+  assert.notEqual(back.caution.key, first.key, 'a storm after a long outage is a new episode');
+  assert.doesNotMatch(back.caution.text, /can't tell/);
+  // The old acknowledgement does not hide it: it is new and shows on the banner.
+  const built = evaluate({ extra: [back.caution], acks, now: clock.now(), timeZone: 'America/Regina' });
+  assert.equal(built.fresh.length, 1);
   w.stop();
 });
 
@@ -679,5 +703,67 @@ test("F1: the held caution belongs to the place it was read for: a new home fiel
   assert.equal(r.state, 'unknown');
   assert.equal(r.caution.text, "Lightning: can't tell", 'lightning near CYMJ says nothing about CYQR');
   assert.equal(r.caution.icao, 'CYQR');
+  w.stop();
+});
+
+// ---- Y3: after a clear reading, a long outage or a stale picture still reaches the banner -----------------------------------
+
+test("Y3: after a clear reading a short blip (20 s) stays on the strip only, and a 45 minute outage puts the plain can't-tell line on the banner", async () => {
+  const { clock, w, state } = watch();
+  w.start();
+  await clock.settle();
+  assert.equal(w.result().state, 'clear');
+  state.picture = 'down';
+  await clock.advance(10 * MIN + 1000); // the refresh fails and so does the 20 s retry
+  assert.equal(w.result().state, 'unknown');
+  assert.equal(w.result().caution, null, 'a blip is strip-only');
+  await clock.advance(20 * MIN); // 31 minutes after the last good reading
+  assert.equal(w.result().caution, null, 'still inside the 40 minute limit');
+  await clock.advance(15 * MIN); // 46 minutes
+  const r = w.result();
+  assert.equal(r.state, 'unknown');
+  assert.equal(r.caution.text, "Lightning: can't tell");
+  assert.equal(r.caution.level, 'caution');
+  // A good reading takes it away.
+  state.picture = 'ok';
+  followClock(clock, state);
+  await clock.advance(10 * MIN);
+  assert.equal(w.result().state, 'clear');
+  assert.equal(w.result().caution, null);
+  w.stop();
+});
+
+test('Y3: a stale picture (no failure) after a clear reading puts the plain line on the banner once it is past 40 minutes', async () => {
+  const { clock, w } = watch();
+  w.start();
+  await clock.settle();
+  assert.equal(w.result().state, 'clear');
+  assert.equal(w.result(new Date(+clock.now() + 30 * MIN)).caution, null);
+  const late = w.result(new Date(+clock.now() + 41 * MIN));
+  assert.equal(late.state, 'unknown');
+  assert.equal(late.caution.text, "Lightning: can't tell");
+  w.stop();
+});
+
+// ---- Y1: widening the radius during an outage keeps the held caution ----------------------------------------------------
+
+test('Y1: a bigger radius during an outage keeps the held caution and its key ("within 25 NM"); a smaller one does not', async () => {
+  const { clock, w, state } = watch({ lit: [pixelEast(12)] });
+  w.start();
+  await clock.settle();
+  const first = w.result().caution;
+  state.picture = 'down';
+  await clock.advance(10 * MIN + 1000);
+  state.radius = 25;
+  w.setPlace();
+  await clock.advance(30 * 1000);
+  const wider = w.result();
+  assert.equal(wider.caution.key, first.key, 'lightning inside 20 NM is inside 25 NM');
+  assert.match(wider.caution.text, /within 25 NM \(can't tell now, last seen/);
+  state.radius = 10;
+  w.setPlace();
+  await clock.advance(30 * 1000);
+  const smaller = w.result();
+  assert.equal(smaller.caution, null, 'lightning inside 20 NM may be outside 10 NM: the held line is dropped (a short blip after that stays on the strip)');
   w.stop();
 });

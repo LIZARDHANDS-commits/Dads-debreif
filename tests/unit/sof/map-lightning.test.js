@@ -248,3 +248,25 @@ test('recolourLightning: a picture that is not readable gives null rather than a
     assert.equal(recolourLightning(bad), null);
   }
 });
+
+test('recolourLightning: a picture that is mostly lit (over a quarter of its pixels) skips the outline pass, so a hostile opaque picture is cheap, but still shows its lightning', () => {
+  const box = { width: 40, height: 40 };
+  const lit = [];
+  for (let y = 0; y < 40; y++) for (let x = 0; x < 15; x++) lit.push([x, y]); // 37.5% lit
+  const out = recolourLightning(picture(box, lit));
+  const px = (x, y) => Array.from(out.data.slice((y * 40 + x) * 4, (y * 40 + x) * 4 + 4));
+  assert.deepEqual(px(5, 5), [...LIGHTNING_MARK.fill, 255], 'every lit pixel is still the bright fill');
+  assert.equal(px(16, 5)[3], 0, 'no outline round it (the pass is skipped)');
+  // A quarter or less keeps the outline.
+  const few = recolourLightning(picture(box, Array.from({ length: 10 }, (_, i) => [i, 0])));
+  assert.deepEqual(Array.from(few.data.slice((0 * 40 + 11) * 4, (0 * 40 + 11) * 4 + 4)), [...LIGHTNING_MARK.outline, 255]);
+});
+
+test('recolourLightning: a fully opaque 2048 px picture is done quickly (the 5 x 5 outline pass would take over a second)', () => {
+  const size = 2048;
+  const data = new Uint8ClampedArray(size * size * 4).fill(255);
+  const start = performance.now();
+  const out = recolourLightning({ data, width: size, height: size });
+  assert.equal(out.data[3], 255);
+  assert.ok(performance.now() - start < 600, `${Math.round(performance.now() - start)} ms`);
+});

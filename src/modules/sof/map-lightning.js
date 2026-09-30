@@ -100,6 +100,7 @@ export const LIGHTNING_MARK = Object.freeze({ fill: Object.freeze([255, 232, 0])
 
 const FILL_REACH_PX = 1; // a lit pixel becomes a 3 x 3 fill ...
 const OUTLINE_REACH_PX = 2; // ... inside a 5 x 5 outline: at least 5 pixels across, 3 of them fill
+const MAX_LIT_FRACTION = 0.25; // more lit than this is not weather (a real picture has a handful of pixels): fill only, no outline, so cost stays linear
 
 /**
  * The lightning picture redrawn for the map: `image` is `{ data, width, height }` (RGBA, as a canvas's getImageData
@@ -125,6 +126,11 @@ export function recolourLightning(image) {
   };
   const lit = [];
   for (let i = 3; i < data.length; i += 4) if (data[i] > 0) lit.push((i - 3) / 4);
+  if (lit.length > width * height * MAX_LIT_FRACTION) {
+    // A mostly-lit picture (a hostile or broken reply) would cost 25 writes a pixel: draw each lit pixel as the fill alone.
+    for (const p of lit) paint(p % width, Math.floor(p / width), 0, LIGHTNING_MARK.fill);
+    return { data: out, width, height };
+  }
   // Outlines first, so a neighbour's outline never covers a fill.
   for (const p of lit) paint(p % width, Math.floor(p / width), OUTLINE_REACH_PX, LIGHTNING_MARK.outline);
   for (const p of lit) paint(p % width, Math.floor(p / width), FILL_REACH_PX, LIGHTNING_MARK.fill);
