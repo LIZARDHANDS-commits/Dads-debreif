@@ -242,15 +242,15 @@ test('the turn changes Turn degrees to its own value, and a setting only shows w
   await expect(box(page, 'Turn degrees')).toHaveValue('180');
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, 'Aft spacing')).toHaveValue('7000');
-  // Timing: only the working choice can be picked for now.
+  // Timing: all three ways work, so none is greyed out.
   const timing = box(page, 'Timing');
   await expect(timing.locator('option')).toHaveCount(3);
-  await expect(timing.locator('option:disabled')).toHaveCount(2);
+  await expect(timing.locator('option:disabled')).toHaveCount(0);
 });
 
 test('the G box warns in words above what a T-6 can pull at this speed, and still flies it (D128)', async ({ page }) => {
   await open(page);
-  const warning = page.locator('.ts-warning');
+  const warning = page.locator('.ts-col-setup .ts-warning');
   await expect(warning).toBeHidden();
   await box(page, 'G').fill('7');
   await expect(warning).toHaveText('More G than a T-6 can pull at this speed');
@@ -477,6 +477,42 @@ test('leaving the Turn Sim while in 3D leaves no frames behind (task 19, R4)', a
   await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
   await page.evaluate(() => window.__ts.close());
   expect(await page.evaluate(() => window.__ts.stats())).toEqual({ mounted: null, listeners: 0, subscriptions: 0, frames: 0, timers: 0 });
+});
+
+// ---- Clock and Auto timing (todo tasks 8 and 9) ----------------------------------------------------
+test('the clock cue shows its position box and live status lines, and says when #3 and #4 cannot see it', async ({ page }) => {
+  await open(page);
+  await expect(box(page, 'Clock position').first()).toBeHidden();
+  await box(page, 'Timing').selectOption({ label: 'Clock position cue' });
+  await expect(box(page, 'Clock position').first()).toBeVisible();
+  await expect(box(page, 'Clock position').first().locator('option:checked')).toHaveText('Auto (7 right, 5 left)'); // the default
+  const cues = page.getByRole('list', { name: 'Clock cue status' });
+  await expect(cues.getByRole('listitem').first()).toContainText('#1');
+  await expect(cues).toContainText('watching');
+  // Q44c: at 5:30 in the offset box, #3 and #4 have nothing to see.
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Clock position').first().selectOption({ label: '5:30' });
+  await expect(page.getByText("can't see a 5:30 cue")).toHaveText("#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay");
+  // Time delay again: the cue lines and the message are gone.
+  await box(page, 'Timing').selectOption({ label: 'Time delay' });
+  await expect(cues).toBeHidden();
+  await expect(page.getByText("can't see a 5:30 cue")).toBeHidden();
+});
+
+test('Auto timing shows the engine\'s step read-only and leaves Base delay alone', async ({ page }) => {
+  await open(page);
+  const before = await box(page, 'Base delay').inputValue();
+  await box(page, 'Timing').selectOption({ label: 'Auto timing' });
+  await expect(page.locator('.ts-auto')).toHaveText(/^Auto step \d+\.\d s$/);
+  await expect(box(page, 'Base delay')).toBeHidden();
+  await box(page, 'Timing').selectOption({ label: 'Time delay' });
+  await expect(box(page, 'Base delay')).toHaveValue(before);
+});
+
+test('Start heading is a compass heading, north by default', async ({ page }) => {
+  await open(page);
+  await expect(page.getByText('Compass: 0 north, 90 east.')).toBeVisible();
+  await expect(box(page, 'Start heading')).toHaveValue('0');
 });
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js

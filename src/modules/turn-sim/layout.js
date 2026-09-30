@@ -11,7 +11,7 @@ import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
   buildField, errorFields, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
-  TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
+  CLOCK_POS, CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL, TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
 } from './fields.js';
 
 /**
@@ -98,21 +98,20 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const gWarning = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const timing = field(TIMING);
   const baseDelay = field(BASE_DELAY);
-  const autoNote = h(
-    'p',
-    { class: 'ts-hint ts-auto' },
-    // TODO(D44, task 9): show the computed auto step here once the engine plans it; it is shown, never written over Base delay.
-    'Auto timing works out each aircraft\'s delay itself.',
-  );
+  const clockPos = field(CLOCK_POS);
+  // The auto step is worked out by the engine and shown here; it is never written over Base delay.
+  const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
   const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, direction, speed, g].map((f) => f.element);
 
   // ---- Aircraft errors (closed) -------------------------------------------
   const errorKeys = [];
   const positionGroups = new Map(); // wingman id -> { key, element }: the position boxes, shown when it's turned on
+  const clockGroups = []; // each wingman's own clock cue boxes: shown when Timing is the clock cue
   const errorSections = [2, 3, 4].map((id) => {
     const f = errorFields(id);
     const built = Object.fromEntries(Object.entries(f).map(([name, def]) => [name, build(def)]));
+    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos));
     errorKeys.push(...Object.values(built).filter(Boolean).map((x) => x.key));
     const positionBoxes = h(
       'div',
@@ -120,11 +119,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       wrap(built.lateralDir), wrap(built.lateralFt), wrap(built.foreAftDir), wrap(built.foreAftFt),
     );
     if (built.positionOn) positionGroups.set(id, { key: built.positionOn.key, element: positionBoxes });
+    clockGroups.push(clockBoxes);
     return h(
       'section',
       { class: 'ts-group', 'aria-label': `Errors for #${id}`, dataset: { aircraft: String(id) } },
       h('h3', { class: 'ts-group-title' }, swatch(id), `#${id}`),
-      wrap(built.delay), wrap(built.g), wrap(built.positionOn), positionBoxes,
+      wrap(built.delay), wrap(built.g), wrap(built.positionOn), positionBoxes, clockBoxes,
     );
   });
   const errorsPanel = createPanel({ title: 'Aircraft errors', collapsed: !layout.get().errorsOpen, onToggle: (c) => layout.update({ errorsOpen: !c }) });
@@ -157,6 +157,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   }
   section('turn', 'Turn and run', [TURN_DEG, DURATION, MOA]);
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING], 'Used when Formation is the offset box.');
+  section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
   section('correction', 'Correction model', [CORRECTION, CORR_STRENGTH]);
   // The 3D view's paint lives with the other choices, in the same closed menu (a display choice, not a scenario one).
   settingsMenu.section('3D view').append(layoutControls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }));
@@ -174,6 +175,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       gWarning,
       timing.element,
       baseDelay.element,
+      clockPos.element,
       autoNote,
       resetButton(used),
       errorsPanel.element,
@@ -251,10 +253,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
   const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
+  const cueList = h('ul', { class: 'ts-card ts-cues', 'aria-label': 'Clock cue status' });
+  const cueWarning = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
   detail.element.classList.add('ts-subpanel', 'ts-detail');
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
-  formationPanel.body.append(card, minSep, turnLine, flags, detail.element);
+  formationPanel.body.append(card, minSep, turnLine, flags, cueWarning, cueList, detail.element);
 
   const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Setup' }, setupPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
@@ -270,7 +274,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // Only the fields that apply are shown (#32): the offset box's only with the offset box, and so on.
   function applyScenario(values) {
     if (baseDelay.element) baseDelay.element.hidden = values.timing !== 'time';
+    clockPos.element.hidden = values.timing !== 'clock';
     autoNote.hidden = values.timing !== 'auto';
+    groups.clock.hidden = values.timing !== 'clock';
+    for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
     if (rules.correctionStrength) controls.setDisabled('correctionStrength', values.correction === 'none');
     // A two-ship has no #3 or #4 to give errors to, and position boxes show when the position error is on.
@@ -347,6 +354,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       clear(flags);
       for (const text of r.flags) flags.append(h('li', {}, text));
       flags.hidden = r.flags.length === 0;
+      clear(cueList);
+      for (const { id, text } of r.cue.lines) cueList.append(line(id, { text, tone: 'none' }));
+      cueList.hidden = r.cue.lines.length === 0;
+      cueWarning.textContent = r.cue.warning ?? '';
+      cueWarning.hidden = !r.cue.warning;
+      autoNote.textContent = r.autoStepSec == null ? 'Auto timing works out each aircraft\'s delay itself.' : `Auto step ${r.autoStepSec.toFixed(1)} s`;
 
       clear(detail.body);
       detail.body.append(

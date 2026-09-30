@@ -9,6 +9,7 @@ import { turnRadiusFt, turnRateRadPerSec, bankDegFromG, limitG } from '../../cor
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { radToDeg, degToRad } from '../../core/angles.js';
 import { distance } from '../../core/geo.js';
+import { clockLabel } from './fields.js';
 
 /** Closer than this (ft) between any two aircraft is flagged (SMM 16.13 para 31; also 16.23). */
 export const UNDER_SEPARATION_FT = 300;
@@ -217,6 +218,30 @@ export function wingmanDetail(row) {
  * @param {object} settings   the Turn Sim settings
  * @param {object} [options]  { standards, stallLimitG, distNm }
  */
+/**
+ * Each aircraft's clock-cue status, live from the engine (state.aircraft[i].cue), for Timing = clock cue; empty otherwise.
+ * `warning` is Q44c: in the offset box #3 and #4 can't see a 5:30 cue (V6 never turns them), so the screen says so.
+ */
+export function cueStatus(state) {
+  const lines = [];
+  const blind = [];
+  let blindPos = null;
+  for (const a of state?.aircraft ?? []) {
+    const cue = a.cue;
+    if (!cue || cue.mode === 'off') continue;
+    const at = clockLabel(cue.clockPos);
+    if (cue.mode === 'start') lines.push({ id: a.id, text: 'starts the turn, nothing to wait for' });
+    else if (cue.mode === 'waiting') lines.push({ id: a.id, text: `watching #${cue.targetId} for ${at}` });
+    else lines.push({ id: a.id, text: `cue came from #${cue.targetId}, turning` });
+    if (cue.cantSee) {
+      blind.push(a.id);
+      blindPos = at;
+    }
+  }
+  const warning = blind.length ? `${blind.map((id) => `#${id}`).join(' and ')} can't see a ${blindPos} cue in the offset box; pick Time delay` : null;
+  return { lines, warning };
+}
+
 export function readoutsAt(state, settings, { standards, stallLimitG, distNm = false } = {}) {
   const std = standards ?? DEFAULT_STANDARDS;
   const gById = new Map((state?.aircraft ?? []).map((a) => [a.id, a.g]));
@@ -238,6 +263,8 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     minSepText: min === null ? null : `Min sep ${ft(min)}`,
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
+    cue: cueStatus(state),
+    autoStepSec: state?.autoStepSec ?? null,
     gWarning: stallWarning(settings.baseG, settings.speedKt, stallLimitG),
     summary: [
       ['Turn radius', ft(numbers.radiusFt)],

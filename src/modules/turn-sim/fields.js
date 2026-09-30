@@ -18,30 +18,28 @@ const OPTION_LABELS = {
   },
   direction: { right: 'Right', left: 'Left' },
   timing: { time: 'Time delay', clock: 'Clock position cue', auto: 'Auto timing' },
+  clockCuePos: { auto: 'Auto (7 right, 5 left)' },
+  clockPos: { global: 'Same as setup', auto: 'Auto (7 right, 5 left)' },
+  clockTarget: { global: 'Same as setup', 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
+  clockCueAircraft: { 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
+  clockCueSequence: { outsideIn: 'Outside-in', manual: 'Manual targets' },
   offsetBox4Timing: { late: 'Late (V6)', early: 'Early (V6)' },
   correction: { none: 'None', lag: 'Lag to regain spacing', lead: 'Lead to close spacing', gfix: 'G adjustment' },
   lateralDir: { none: 'None', tight: 'Tight', wide: 'Wide' },
   foreAftDir: { none: 'None', fore: 'Fore', aft: 'Aft' },
 };
 
-/**
- * Choices that show but can't be picked yet, because the engine doesn't fly them
- * (todo tasks 8 and 9: the clock cue and auto timing). Delete an entry when its task lands.
- */
-export const NOT_YET = Object.freeze({
-  timing: Object.freeze({ clock: 'coming in a later step', auto: 'coming in a later step' }),
-});
-
 // The essentials: always on screen (R22).
 export const FORMATION = field('formation', { label: 'Formation' });
 export const SPACING = field('spacingFt', { label: 'Spacing', unit: 'ft', step: 100, hint: 'Between neighbours, side to side.' });
-export const START_HEADING = field('startHeadingDeg', { label: 'Start heading', unit: '°', step: 5, hint: 'Compass: 0 is north, 90 is east.' });
+export const START_HEADING = field('startHeadingDeg', { label: 'Start heading', unit: '°', step: 5, hint: 'Compass: 0 north, 90 east.' });
 export const MANEUVER = field('maneuver', { label: 'Turn' });
 export const DIRECTION = field('direction', { label: 'Direction' });
 export const SPEED = field('speedKt', { label: 'Speed', unit: 'KTAS', step: 5 });
 export const G = field('baseG', { label: 'G', unit: 'G', step: 0.1 });
 export const TIMING = field('timing', { label: 'Timing', hint: 'How each aircraft knows when to turn.' });
 export const BASE_DELAY = field('baseDelaySec', { label: 'Base delay', unit: 's', step: 0.1, hint: 'Wait between one turn and the next.' });
+export const CLOCK_POS = field('clockCuePos', { label: 'Clock position', hint: 'Where the aircraft it watches must be before it turns.' });
 
 // Behind the closed Settings menu (Patrick, 07:20Z): the tuning numbers.
 export const TURN_DEG = field('turnDeg', { label: 'Turn degrees', unit: '°', step: 5, hint: 'Follows the turn you pick until you change it.' });
@@ -50,6 +48,9 @@ export const MOA = field('moaBoundaryNm', { label: 'MOA boundary', unit: 'NM', s
 export const BOX_AFT = field('boxAftFt', { label: 'Aft spacing', unit: 'ft', step: 100, hint: 'How far behind the front element #3 and #4 fly.' });
 export const BOX_STAGGER = field('boxStaggerFt', { label: 'Lateral stagger', unit: 'ft', step: 100 });
 export const BOX4_TIMING = field('offsetBox4Timing', { label: '#4 timing', hint: 'V6\'s two ways to time #4.' });
+export const CLOCK_AIRCRAFT = field('clockCueAircraft', { label: 'Clock cue aircraft', hint: 'The aircraft the cue is read from.' });
+export const CLOCK_SEQUENCE = field('clockCueSequence', { label: 'Clock cue sequence', hint: 'Outside-in picks who watches whom; Manual uses the targets in Aircraft errors.' });
+export const CLOCK_TOL = field('clockCueTolDeg', { label: 'Clock tolerance', unit: '°', step: 0.5, hint: 'How close to the position counts as there.' });
 export const CORRECTION = field('correction', { label: 'Correction model', hint: 'An instructional model of a wingman correcting his position.' });
 export const CORR_STRENGTH = field('correctionStrength', { label: 'Correction strength', step: 0.1 });
 
@@ -64,17 +65,16 @@ export function errorFields(id) {
     lateralFt: field(key('lateralFt'), { label: 'by', unit: 'ft', step: 100 }),
     foreAftDir: field(key('foreAftDir'), { label: 'Fore and aft' }),
     foreAftFt: field(key('foreAftFt'), { label: 'by', unit: 'ft', step: 100 }),
+    clockTarget: field(key('clockTarget'), { label: 'Watches' }),
+    clockPos: field(key('clockPos'), { label: 'Clock position' }),
   };
 }
 
 /** [{ value, label, disabled }] for a select, from the rule's allowed values. */
 export function optionsOf(key, rule) {
   const name = key.replace(/^aircraft\d\./, ''); // an aircraft's field is worded the same for every aircraft
-  return rule.oneOf.map((value) => {
-    const later = NOT_YET[name]?.[value];
-    const label = OPTION_LABELS[name]?.[value] ?? (name === 'clockCuePos' ? clockLabel(value) : String(value));
-    return { value, label: later ? `${label} (${later})` : label, disabled: Boolean(later) };
-  });
+  const clock = name === 'clockCuePos' || name === 'clockPos';
+  return rule.oneOf.map((value) => ({ value, label: OPTION_LABELS[name]?.[value] ?? (clock ? clockLabel(value) : String(value)) }));
 }
 
 /** A clock position as a person says it: 5.5 is "5:30", 12 is "12 o'clock". */
@@ -99,14 +99,7 @@ export function buildField({ controls, rules, defaults, def, as }) {
   if (rule.oneOf) {
     const options = optionsOf(key, rule);
     if (as === 'choice') control = controls.choice(key, { label: def.label, options });
-    else {
-      control = controls.select(key, { label: def.label, options });
-      // Choices the engine can't fly yet show greyed out, with their reason in the words.
-      const select = control.querySelector('select');
-      options.forEach((o, i) => {
-        if (o.disabled) select.options[i].disabled = true;
-      });
-    }
+    else control = controls.select(key, { label: def.label, options: def.without ? options.filter((o) => !def.without.includes(o.value)) : options });
   } else if (rule.type === 'boolean' || typeof defaults?.[key] === 'boolean') {
     control = controls.checkbox(key, { label: def.label });
   } else {
