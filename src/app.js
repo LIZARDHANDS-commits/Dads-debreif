@@ -8,7 +8,7 @@ import { createStandards } from './storage/standards.js';
 import { createExampleFetcher } from './shell/examples.js';
 import { createScheduler } from './ui-kit/scheduler.js';
 import { createHost } from './shell/host.js';
-import { parseRoute, pageFor } from './shell/router.js';
+import { parseRoute, pageFor, watchAddress } from './shell/router.js';
 import { MODULES, moduleIds, findModule } from './shell/registry.js';
 import { reportUrl } from './shell/report.js';
 import { createSettingsDialog } from './shell/settings-dialog.js';
@@ -148,7 +148,10 @@ const applyMotion = ({ motion }) => {
 applyMotion(settings.get());
 settings.subscribe(applyMotion);
 
-window.addEventListener('hashchange', () => show(location.hash));
+// Before another page replaces the open module, it may ask (app.canLeave), for
+// example when the Debrief holds radar pictures that aren't in a saved file.
+// "Cancel" stays put and puts the address and history back.
+watchAddress({ win: window, question: () => host.leaveQuestion(), go: show });
 show(location.hash);
 
 // Offline copy and the new-version bar, in built copies only: `npm run dev`

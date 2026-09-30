@@ -72,6 +72,7 @@ The registry lists each module's id, title, card text, card media and a `load()`
 | `app.standards` | The formation standards the debrief and the Turn Sim judge by (R18, D89), one shared copy kept in the `standards` storage scope. `get()` returns a frozen object shaped like core's `DEFAULT_STANDARDS` (the SMM's numbers: 0-10° of sweep D116, offset 7,000 ± 1,000 ft D114, lead 220 kt in the low block and 200 kt in the mid block D115), ready for `core/standards.js`. `update(patch)` merges per group (`{ spread: { minFt: 4500 } }`) and saves only if every value is in range and the spread minimum and sweep least don't pass their maximums; it returns `{ ok, errors }`, each error `{ path: 'spread.minFt', message }` for showing beside that box. `reset()` goes back to `DEFAULT_STANDARDS`. Saves from before D114-D116 (version 1, V6's shape) fall back to the defaults. `limits` gives each number's label, unit, min, max and step; `check(value)` lists the problems with a whole standards object (for a debrief file). `subscribe()` ends on unmount. The debrief owns the editor. |
 | `app.exampleText(asset)` | Downloads one of the example flight's track files by its asset name (flight-data's `EXAMPLE_FLIGHT`) and resolves to its text, so `loadExampleFlight(app.exampleText)` works as it is. The files are served gzipped from `public/examples/<asset>.gz` (about 0.7 MB for all four instead of 11 MB) and un-gzipped in the browser. Nothing downloads until it's called (R5). |
 | `app.status(text)` | Shows a short message in the module's status line |
+| `app.canLeave(check)` | Before the shell closes the module for another page, `check()` returns the question to ask (something would be lost, e.g. the Debrief's unsaved radar) or nothing. The shell asks with the browser's own OK/Cancel box; Cancel keeps the page and puts the address and history back. A check that throws still asks ("This page couldn't check for unsaved work. Leave anyway?"). Removed on unmount; returns a function that stops it. Reload and tab close are the module's own `beforeunload` |
 
 Opening a route: the shell unmounts the current module (calls its cleanup, disposes its scheduler scope, removes its listeners, shortcuts and subscriptions, empties its root), then mounts the next. If loading or mounting throws, the shell shows an error card with a Report a problem link and the Home button still works.
 
@@ -90,7 +91,7 @@ Opening a route: the shell unmounts the current module (calls its cleanup, dispo
 index.html               the page: header, main view, footer; loads src/app.js
 src/app.js               entry: creates store, settings, scheduler, host; starts the router
 src/shell/registry.js    the module list (ids, titles, card text and media, load())
-src/shell/router.js      parses the hash into a route; pageFor picks the page and the note ("coming soon", "no page")
+src/shell/router.js      parses the hash into a route; pageFor picks the page and the note ("coming soon", "no page"); watchAddress shows each new address and asks the open module (app.canLeave) first; Cancel puts the address and history back
 src/shell/host.js        mounts and unmounts modules, builds the app object
 src/shell/home.js        home screen and cards
 src/shell/about.js       About page
