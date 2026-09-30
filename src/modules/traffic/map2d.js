@@ -21,6 +21,7 @@ import { createCanvasView } from '../../ui-kit/canvas-view.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
+const FIT_PADDING_PX = 60; // room round the routes for the labels beside the aircraft
 
 export const HINT_TEXT = 'Press Play to watch the Moose Jaw traffic.';
 
@@ -265,7 +266,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
         const words = turnDataText(pt);
         if (!words) return;
         const [x, y] = at(pt);
-        text(words, x + 10, y + 18, palette.caution);
+        text(words, x + 11, y + 29, palette.caution);
       });
     }
   }
@@ -376,7 +377,7 @@ function drawPoints(ctx, route, at, text, palette, circle) {
     ctx.stroke();
     const words = pointLabelLines(i, pt);
     text(words.title, x + 11, y - 9, palette.text);
-    if (words.detail) text(words.detail, x + 11, y + 4, palette.muted, { size: 10 });
+    if (words.detail) text(words.detail, x + 11, y + 17, palette.muted, { size: 10 }); // below the line, so a level leg doesn't run through it
   });
 }
 
@@ -409,7 +410,7 @@ export function createMap2d(canvas, { timers, scene, settings }) {
 
   const fitTo = (data) => {
     const bounds = sceneBounds(data.routes, data.aircraft);
-    if (bounds) map.fit(bounds);
+    if (bounds) map.fit(bounds, FIT_PADDING_PX);
   };
 
   const map = createCanvasView(canvas, {
