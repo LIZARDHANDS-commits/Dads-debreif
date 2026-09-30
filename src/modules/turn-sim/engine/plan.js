@@ -621,6 +621,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   }
   return {
     crossSolve,
+    checkFlown: withCheck,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
     rearDelaysSec: checkRear || (offsetPlan ? rearDelaysAsMeasured(offsetPlan.delaysSec, flight.offsetBox4Timing) : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null)),

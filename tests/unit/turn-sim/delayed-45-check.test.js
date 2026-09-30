@@ -352,3 +352,14 @@ test('no cue found: a chain that starts too late for the search to see the prede
   planCheckChain(chain, { ...opts, startSec: 0, spacingFt: 6000 });
   assert.ok(chain[1].legs[1].holdSec > 0 && chain[1].legs[1].holdSec < 100, 'the spacing solve keeps the hold in range');
 });
+
+test('state.delayed45CheckFlown says which Delayed 45 is flown: auto is the check in four-ships only, none and clock are plain, check forces it', () => {
+  const flown = (over) => createRun({ ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, ...over }).state.delayed45CheckFlown;
+  assert.equal(flown({ formation: 'weighted', delayed45Check: 'auto' }), true);
+  assert.equal(flown({ formation: 'offsetBox', delayed45Check: 'auto' }), true);
+  assert.equal(flown({ formation: 'twoShip', delayed45Check: 'auto' }), false);
+  assert.equal(flown({ formation: 'twoShip', delayed45Check: 'check' }), true);
+  assert.equal(flown({ formation: 'weighted', delayed45Check: 'none' }), false);
+  assert.equal(flown({ formation: 'weighted', delayed45Check: 'check', timing: 'clock' }), false);
+  assert.equal(flown({ formation: 'weighted', maneuver: 'delayed90away', turnDeg: 90 }), false);
+});
