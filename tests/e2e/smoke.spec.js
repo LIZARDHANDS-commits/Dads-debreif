@@ -1,13 +1,14 @@
 import { test, expect } from './fixtures.js';
 import { openRoute } from './routes.js';
 
-test('home lists the five modules as coming soon, plus About @smoke', async ({ page }) => {
+test('home lists the Debrief Viewer, four modules as coming soon, and About @smoke', async ({ page }) => {
   await openRoute(page, '#/');
   await expect(page).toHaveTitle("DAD's OODA LOOP");
   await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
   const cards = page.locator('.card');
   await expect(cards).toHaveCount(6);
-  await expect(page.locator('.card.is-planned')).toHaveCount(5);
+  await expect(page.locator('.card.is-planned')).toHaveCount(4);
+  await expect(page.locator('a.card[href="#/debrief"]')).toBeVisible();
   await expect(page.locator('.card.is-planned a, a.card.is-planned')).toHaveCount(0); // not clickable (R3)
   await expect(page.getByText('PT-PT', { exact: false })).toHaveCount(0); // R19
   await expect(page.getByText('Briefing Board', { exact: false })).toHaveCount(0);

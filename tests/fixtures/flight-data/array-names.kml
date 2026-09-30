@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+<Document><Placemark><gx:Track>
+<when>2026-06-02T18:00:00Z</when><gx:coord>-105.5 50.3 500</gx:coord>
+<when>2026-06-02T18:00:01Z</when><gx:coord>-105.501 50.301 505</gx:coord>
+<when>2026-06-02T18:00:02Z</when><gx:coord>-105.502 50.302 510</gx:coord>
+</gx:Track></Placemark>
+<ExtendedData><SchemaData>
+<gx:SimpleArrayData name="gspeed"><gx:value>2</gx:value><gx:value>2</gx:value><gx:value>2</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="load_speed"><gx:value>3</gx:value><gx:value>3</gx:value><gx:value>3</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="only_one"><gx:value>3</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData displayName="Load Factor"><gx:value>1.1</gx:value><gx:value>0x2</gx:value><gx:value>1e0</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="Pitch_Angle"><gx:value>1</gx:value><gx:value>abc</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="attitudePitch"><gx:value>7</gx:value><gx:value><!-- c -->8</gx:value><gx:value><![CDATA[9]]></gx:value></gx:SimpleArrayData>
+</SchemaData></ExtendedData></Document></kml>

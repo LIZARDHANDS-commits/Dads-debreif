@@ -2,30 +2,35 @@
 
 Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
-- [ ] **1. Screen and loading.** Module registered and mounted; three columns with collapsible panels; the essentials-first layout (Layers and Tools menus, remembered toggles, Reset layout); load up to 4 files or the example flight; one-line status that opens the full status; fit to view; 2D tracks with gaps broken; #4 white with an outline.
+- [x] **1. Screen and loading.** Module registered and mounted; three columns with collapsible panels; the essentials-first layout (Layers and Tools menus, remembered toggles, Reset layout); load up to 4 files or the example flight; one-line status that opens the full status; fit to view; 2D tracks with gaps broken; #4 white with an outline.
   - Acceptance: R11 (example flight fitted, correct status); a failed file changes nothing loaded (D54); nothing overlaps at 1366 × 768 (R2).
   - Verify: `npm test`; `npm run dev` and load the example flight; e2e load test.
   - Files: src/shell/registry.js (via the app frame thread), src/modules/debrief/{index,state,layout}.js, map2d/{view,layers}.js, debrief.css, README.md, tests/unit/debrief/state.test.js
-- [ ] **2. Playback bar.** Play, pause, reset, step ±1 s, speed, 1 s scrubber, Zulu and local time, keyboard shortcuts; redraw on change only.
+  - Done: the debrief opens from its card. The Layers menu has the grid and Reset layout so far; each later layer joins it. "Close flight" comes with task 5 (it asks about unsaved DFPs), the 2D/3D switch with task 8. The example flight comes through `app.exampleText` (#97).
+- [x] **2. Playback bar.** Play, pause, reset, step ±1 s, speed, 1 s scrubber, Zulu and local time, keyboard shortcuts; redraw on change only.
   - Acceptance: Play at the end restarts; a paused debrief draws nothing; shortcuts stop when the debrief closes (R4).
   - Verify: `npm test`; e2e playback and module-switch tests.
-  - Files: src/modules/debrief/playback-bar.js, map2d/view.js, tests/unit/debrief/playback.test.js
-- [ ] **3. Readouts.** The Formation card (one line per ship), and behind "More detail": live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
+  - Files: src/modules/debrief/playback-bar.js, map2d/view.js, tests/e2e/debrief.spec.js
+  - Done: Reset and both times fit in the bar at 1366 px, so they show at every size instead of in a "more" menu. Measured at 1920 × 1080 on the example flight at 16×: 16.7 ms median frame (60 fps), example loads in 0.6 s (headless Chromium).
+- [x] **3. Readouts.** The Formation card (one line per ship), and behind "More detail": live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
   - Acceptance: numbers match V6 on the example flight (R9) except the logged changes; readouts update at most 10 times a second.
   - Verify: golden comparison of readout rows; performance log at 16×.
   - Files: src/modules/debrief/readouts.js, tests/unit/debrief/readouts.test.js, tests/golden/debrief-readouts.test.js
+  - Done: the Formation card judges each wingman with `app.standards` (the editor is task 4), shows how far outside the band it is, and shows no label where no standard applies (#21), in a gap (D32) or with Lead still (D52). Lead is judged on est. IAS (D31); est. IAS is core's EM-chart formula, pinned equal to `emPoint`. Bank in More detail is the 3D view's `bankFromTrack`, so both agree. The golden test runs V6's readout code on the example flight's cleaned fixes: range, aspect, HCA, closure and labels match exactly. Measured at 1366 × 768 at 16× with More detail open: 16.7 ms median frame.
 
 **Checkpoint A:** tests pass, build under budget, example flight plays smoothly; open PR A.
 
-- [ ] **4. Standards.** Standards panel with V6's preset, edit, reset, saved in module settings; labels on the map, green when on parameters; no label where no standard applies (#21).
+- [x] **4. Standards.** Standards panel with V6's preset, edit, reset, saved in module settings; labels on the map, green when on parameters; no label where no standard applies (#21).
   - Acceptance: R18 (edit, reset, reload); #3's fore/aft judged by the offset standard alone and its interval by spread (D78; on main since #80).
   - Verify: unit tests of label rules; e2e edit/reset/reload.
-  - Files: src/modules/debrief/standards-panel.js, readouts.js, tests/unit/debrief/standards.test.js
-- [ ] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
+  - Files: src/modules/debrief/standards-panel.js, readouts.js, map2d/layers.js, tests/unit/debrief/readouts.test.js, tests/e2e/debrief.spec.js
+  - Done: the Standards panel (closed at first) edits `app.standards`, the one copy the Turn Sim reads too (D89): an on/off box per standard, each number with its limits, a refused value keeps the saved one and says why, Reset to V6 standards. The map shows each wingman's label beside its number, green on parameters and none where the card shows none (#21). Saving the standards in the debrief file comes with task 5.
+- [x] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
   - Acceptance: R17 (save, close, open: same tracks, DFPs, standards, time); DFPs never show on another flight (#25); hostile labels show as text.
   - Verify: unit tests of dfp.js; e2e save/open round trip.
   - Files: src/modules/debrief/dfp.js, index.js, tests/unit/debrief/dfp.test.js
-  - Done so far: the list logic in `dfp.js` (add, time order, automatic and custom labels, notes, previous/next, fingerprint, reading back from browser storage with the debrief file's limits).
+  - Done: the DFPs list beside the Formation card (+ Add, ◀ ▶ in time order, go to one, Edit to rename, note or delete), kept in this browser per flight and never shown on another (#25). "Save, open, examples" (closed at first) saves a debrief file with the tracks, DFPs, standards and time, opens one back to the same state (R17), closes the flight (asking first when DFPs aren't in a saved file yet) and offers the example track files. A file that can't be read changes nothing. DFP flags on the map come with task 6.
+  - Saves go through the shared `storage/file.js` (`downloadText`, #102).
 
 **Checkpoint B:** open PR B.
 

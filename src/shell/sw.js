@@ -10,6 +10,9 @@ const PREFIX = `ooda:${self.registration.scope}:`;
 const CACHE = PREFIX + BUILD_ID;
 const SCOPE = self.registration.scope;
 const INDEX = new URL('index.html', SCOPE).href;
+// Files kept the first time they're fetched rather than at install (the example
+// flight, tools/service-worker.mjs).
+const ON_USE = new URL('examples/', SCOPE).href;
 
 self.addEventListener('install', (event) => {
   // cache: 'reload' skips the browser's HTTP cache, so the copy matches this build.
@@ -45,6 +48,15 @@ self.addEventListener('fetch', (event) => {
     caches
       .open(CACHE)
       .then((cache) => cache.match(lookup, { ignoreSearch: true }))
-      .then((hit) => hit ?? fetch(request)),
+      .then((hit) => hit ?? (page.startsWith(ON_USE) ? fetchAndKeep(request) : fetch(request))),
   );
 });
+
+async function fetchAndKeep(request) {
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(CACHE);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}

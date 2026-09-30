@@ -52,6 +52,25 @@ test('offline, the home cards show their stills and fetch no videos', async ({ p
   await context.setOffline(false);
 });
 
+test('the example flight downloads only when asked, and then works offline', async ({ page, context }) => {
+  const examples = [];
+  page.on('request', (req) => req.url().includes('/examples/') && examples.push(req.url()));
+  await visitThenGoOffline(page, context);
+  expect(examples).toEqual([]); // not part of the first visit
+  expect(await keptExamples(page)).toEqual([]);
+  await context.setOffline(false);
+
+  const asset = '585aab2601b787ed.kml';
+  const text = await page.evaluate((a) => window.__ooda.exampleText(a), asset);
+  expect(text.startsWith('<?xml')).toBe(true);
+  expect(text.length).toBe(2741913); // V6's file, un-gzipped
+  expect(await keptExamples(page)).toEqual([`examples/${asset}.gz`]);
+
+  await context.setOffline(true);
+  expect(await page.evaluate((a) => window.__ooda.exampleText(a), asset)).toBe(text);
+  await context.setOffline(false);
+});
+
 test('a newly published version shows the bar, and Reload switches to it', async ({ page }) => {
   // Stand-in for publishing a new build: the same worker with a different build id.
   let published = false;
@@ -83,4 +102,18 @@ test('a newly published version shows the bar, and Reload switches to it', async
 
 async function cacheNames(page) {
   return page.evaluate(async () => (await caches.keys()).filter((name) => name.startsWith('ooda:')));
+}
+
+// The example files the service worker has kept, relative to the site.
+async function keptExamples(page) {
+  return page.evaluate(async () => {
+    const found = [];
+    for (const name of await caches.keys()) {
+      for (const req of await (await caches.open(name)).keys()) {
+        const path = new URL(req.url).pathname;
+        if (path.includes('/examples/')) found.push(path.slice(path.indexOf('examples/')));
+      }
+    }
+    return found;
+  });
 }

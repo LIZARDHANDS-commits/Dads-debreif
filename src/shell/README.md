@@ -4,6 +4,7 @@ The home screen and the frame around every module (spec: `specs/SPEC-shell.md`).
 
 - `registry.js`: the list of module cards. **When a module is built,** set its `load` to `() => import('../modules/<id>/index.js')` and its card becomes clickable.
 - `router.js`: turns the address (`#/`, `#/about`, `#/<module-id>`) into a page.
+- `examples.js`: `app.exampleText(asset)`, the example flight's track files from `public/examples/` (gzipped, un-gzipped in the browser).
 - `host.js`: opens one module at a time and cleans up everything it started when it closes.
 - `home.js`, `about.js`: the home screen and About page. **To change About's text,** edit `about.js`.
 - `header.js`: the header clock and `app.time`. Local time is the home airfield's zone, read from `src/airfields/` on every tick (`HOME_ZONE`, Moose Jaw's America/Regina, is only the fallback); the formatting itself is in `src/core/time.js`.
