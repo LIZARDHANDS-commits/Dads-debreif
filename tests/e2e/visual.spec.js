@@ -2,6 +2,7 @@
 // by accident. Chromium only, at 1440 x 900. The reference pictures live in
 // tests/e2e/__screenshots__/visual.spec.js/ and change only in a PR that means
 // to change the look (see specs/SPEC-shell.md, Screenshots).
+import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
 import { openRoute } from './routes.js';
 
@@ -89,4 +90,28 @@ test('turn sim, ready to play', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Play/ })).toBeVisible();
   await page.clock.runFor(1000); // the frozen clock also holds back the picture's animation frames
   await shot(page, 'turn-sim.png');
+});
+
+// The SOF with the recorded reports sof.spec.js uses, at the time they were
+// written for (1842Z, 29 September 2026), so every card, age and state is fixed.
+const sofFixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
+const SOF_NOW = new Date('2026-09-29T18:42:00Z');
+const CORS = { 'access-control-allow-origin': '*' };
+
+test('sof, recorded weather', async ({ page }) => {
+  // These routes come after beforeEach's catch-all, so they win for the two weather sources.
+  await page.route(/^https:\/\/api\.met\.no\//, (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/plain',
+    headers: CORS,
+    body: sofFixture(route.request().url().includes('/taf?') ? 'screen-metno-taf.txt' : 'screen-metno-metar.txt'),
+  }));
+  await page.route(/^https:\/\/datamask\.org\//, (route) => route.fulfill({
+    status: 200, contentType: 'application/json', headers: CORS, body: sofFixture('screen-datamask-not-found.json'),
+  }));
+  await page.clock.setFixedTime(SOF_NOW);
+  await openRoute(page, '#/sof');
+  await expect(page.locator('.sof-feed')).toHaveText('Weather just now ✓');
+  await expect(page.locator('article.sof-card')).toHaveCount(4);
+  await shot(page, 'sof.png');
 });

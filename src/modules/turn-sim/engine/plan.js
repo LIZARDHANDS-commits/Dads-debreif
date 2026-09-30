@@ -252,6 +252,30 @@ export function shackleHoldSec(gapFt, legRad, speedFtps, radiusFt) {
 }
 
 /**
+ * The cross turn's second-stage G for #2 (SMM Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart). Across the original heading
+ * an aircraft turning toward the other moves R1 (1 - cos first) in the first stage and R (cos first - cos goal) in the second.
+ * Lead flies the G setting (baseG) for its second stage; #2 must move gapFt + spacingFt minus Lead's move, so its second-stage radius is
+ * solved and turned back into G (radius = v^2 / (32.174 sqrt(g^2 - 1))). The G is clamped to [1.1, maxG]; when the clamp bites the
+ * clamped value is kept and `spacingFt` is the spacing actually reached. Only the lateral spacing is solved.
+ * Returns { solvedG, clamped, spacingFt }.
+ */
+export function solveCrossSecondG(gapFt, speedFtps, firstRad, goalRad, { crossTurnFirstG, baseG, spacingFt, crossTurnMaxG = 7 }) {
+  const r1 = turnRadiusFt(speedFtps, Math.max(1.01, crossTurnFirstG));
+  const leadR2 = turnRadiusFt(speedFtps, Math.max(1.01, baseG));
+  const k = turnRadiusFt(speedFtps, Math.SQRT2); // v^2 / G0
+  const stage1 = r1 * (1 - Math.cos(firstRad));
+  const swing = Math.cos(firstRad) - Math.cos(goalRad);
+  const leadMove = stage1 + leadR2 * swing;
+  const target = Math.abs(spacingFt);
+  const needR = (gapFt + target - leadMove - stage1) / swing;
+  const rawG = needR > 0 ? Math.sqrt(1 + (k / needR) ** 2) : crossTurnMaxG;
+  const solvedG = Math.min(crossTurnMaxG, Math.max(1.1, rawG));
+  const r2 = turnRadiusFt(speedFtps, solvedG);
+  const achieved = leadMove - (gapFt - stage1 - r2 * swing);
+  return { solvedG, clamped: needR <= 0 || solvedG !== rawG, spacingFt: achieved };
+}
+
+/**
  * The order the aircraft start their turns in, first to last (V6
  * `tacticalOrderForDelayIn`, line 1132): outside aircraft first; in the offset
  * box the front element first (far side first), then #3, then #4.
@@ -343,6 +367,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   order.forEach((a, i) => { delayIndex[a.id] = i; });
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
 
+  let crossSolve = null;
   for (const a of aircraft) {
     let d = 0;
     let dir = selectedDir;
@@ -406,6 +431,12 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
         const first = Math.min(degToRad(flight.crossTurnSwitchDeg), goal);
         legs = [{ dir, goalRad: first, gSetting: flight.crossTurnFirstG }];
         if (goal - first > 1e-9) legs.push({ dir, goalRad: goal - first });
+        // SMM Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart. Lead flies the G setting for the second stage; #2 solves its
+        // second-stage G so the lateral spacing at roll-out is spacingFt (flight.crossTurnSolveSpacing; false is V6's fixed G).
+        if (flight.crossTurnSolveSpacing && partner && a.id === 2 && legs.length === 2) {
+          crossSolve = solveCrossSecondG(lateralGapFt(a, partner), ktToFtps(flight.speedKt), first, goal, flight);
+          legs[1].gSetting = crossSolve.solvedG;
+        }
       }
 
       if (man !== 'shackle45' && man !== 'cross180') {
@@ -439,6 +470,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.turnAccumRad = 0;
   }
   return {
+    crossSolve,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
     rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - offsetPlan.delaysSec[1], 4: offsetPlan.delaysSec[4] - offsetPlan.delaysSec[2] } : man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null,

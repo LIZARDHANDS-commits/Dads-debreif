@@ -152,9 +152,9 @@ export function createRun(settings) {
   let rows = [];
   let tSec = 0;
   let planned = false;
-  let planInfo = { autoStepSec: null, rearDelaysSec: null };
+  let planInfo = { autoStepSec: null, rearDelaysSec: null, crossSolve: null };
 
-  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, aircraft: [] };
+  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, crossTurnSpacingNote: null, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   // How long the run lasts: the Duration, or longer when durationCoversTurn and the plan needs it (see settings.js).
@@ -195,6 +195,7 @@ export function createRun(settings) {
     const leadPlan = preview.find((x) => x.id === 1);
     state.leadTurnDirection = leadPlan && leadPlan.turnDir === -1 ? 'right' : leadPlan && leadPlan.turnDir === 1 ? 'left' : cfg.direction;
     state.maneuverFallback = cfg.maneuverFallback;
+    state.crossTurnSpacingNote = info.crossSolve || null;
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {
       const g = a.gFlown;
@@ -231,6 +232,7 @@ export function createRun(settings) {
       rearDelaySec: cfg.rearDelaySec,
       crossTurnFirstG: cfg.crossTurnFirstG,
       crossTurnSwitchDeg: cfg.crossTurnSwitchDeg,
+      crossTurnSolveSpacing: cfg.crossTurnSolveSpacing,
     };
   }
 
@@ -270,7 +272,7 @@ export function createRun(settings) {
     tSec = 0;
     planned = false;
     coverSec = 0;
-    planInfo = { autoStepSec: null, rearDelaysSec: null };
+    planInfo = { autoStepSec: null, rearDelaysSec: null, crossSolve: null };
     publish();
   }
 
