@@ -23,7 +23,7 @@ Plan: [`plan.md`](plan.md). Verify every task with `npm test`.
 
 ## Phase 3: new pieces
 
-- [ ] `clock.js` (#24, R12).
+- [x] `clock.js` (#24, R12).
 - [ ] `debrief-file.js` (R17, #25), with the allowlist checks.
 - [ ] `examples.js` and the README.
 - [ ] Switch estimated G to `core/flight-math.js` once core's Task 8 merges.

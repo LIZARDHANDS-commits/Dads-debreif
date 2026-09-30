@@ -122,6 +122,18 @@ M = [
  ('flight.js', "export function gAt(track, t, { recorded = false }", "export function gAt(track, t, { recorded = true }"),
  ('flight.js', "const g = recorded ? sampleAt(track, t)?.gRecorded : null;", "const g = null;"),
  ('flight.js', "const p = recorded ? sampleAt(track, t) : null;", "const p = null;"),
+ # clock.js
+ ('clock.js', "Math.min(MAX_FRAME_S, Math.max(0, (nowMs - lastMs) / 1000))", "Math.max(0, (nowMs - lastMs) / 1000)"),
+ ('clock.js', "Math.min(MAX_FRAME_S, Math.max(0, (nowMs - lastMs) / 1000))", "Math.min(MAX_FRAME_S, (nowMs - lastMs) / 1000)"),
+ ('clock.js', "if (t >= endT) t = startT;", ""),
+ ('clock.js', "if (t >= endT) playing = false;", ""),
+ ('clock.js', "      lastMs = null;\n      changed();", "      changed();"),
+ ('clock.js', "t = clamp(Math.round(time));", "t = clamp(time);"),
+ ('clock.js', "Math.floor(t) + 1 : Math.ceil(t) - 1", "t + 1 : t - 1"),
+ ('clock.js', "if (dtS === 0) return;", ""),
+ ('clock.js', "t = Math.min(endT, t + dtS * speed);", "t = t + dtS * speed;"),
+ ('clock.js', "if (!SPEEDS.includes(x))", "if (false)"),
+ ('clock.js', "if (!(endT > startT))", "if (!(endT >= startT))"),
  # C9: all-or-nothing load
  ('load.js', "files.length > MAX_TRACKS", "files.length > MAX_TRACKS + 1"),
  ('load.js', "|| !files.length ||", "||"),
