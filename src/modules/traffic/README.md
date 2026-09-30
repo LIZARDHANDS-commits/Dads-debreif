@@ -15,7 +15,7 @@ The engine is `route.js`, `sim.js`, `dice.js` and `readouts.js` (PR A, tasks 1 t
 
 ### The setup
 
-`src/modules/traffic/data/moose-jaw.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape. `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
+`src/modules/traffic/data/moose-jaw-v6.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape, unchanged; the golden tests and the engine's unit tests read it, so the V6 pins stay on V6's own data. `src/modules/traffic/data/moose-jaw.json` is the default setup: the same routes with the numbers the manuals clearly differ on corrected, each change its own commit (see the manual cross-check, `tests/crosscheck/`). When profiles land (task 7) the V6 setup becomes a selectable built-in profile beside the default. `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
 
 ```js
 {
