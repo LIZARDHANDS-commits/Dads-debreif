@@ -4,7 +4,7 @@
 // tests/fixtures/sof/screen-*, never from a live feed, and the clock is fixed at
 // 1842Z on 29 September 2026, so every report has the age it is written with here.
 import { readFileSync } from 'node:fs';
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { openRoute } from './routes.js';
 
 const fixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
@@ -403,6 +403,51 @@ test('the banner lists each new caution in words, in the page flow, and is annou
   expect(b.y + b.height).toBeLessThanOrEqual(cards.y);
   // The cards still list every caution.
   await expect(card(page, 'CYMJ').locator('.sof-caution')).toContainText('Caution: THUNDERSTORM / SEVERE WX (VCTS)');
+});
+
+test('the words behind a limit are marked on the card and on the banner, in words as well as colour', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  // Regina's visibility is exactly on its minimum and its ceiling is below; Moose Jaw's thunderstorm is a caution.
+  const regina = card(page, 'CYQR').locator('.sof-metar .sof-raw mark');
+  await expect(regina).toHaveText(['at the limit: 2SM', 'below limits: BKN004']);
+  await expect(regina.nth(0)).toHaveClass(/is-at-limit/);
+  await expect(regina.nth(1)).toHaveClass(/is-below/);
+  const storm = card(page, 'CYMJ').locator('.sof-metar .sof-raw mark');
+  await expect(storm).toHaveText('caution: VCTS');
+  await expect(storm).toHaveClass(/is-caution/);
+  // The report's own words are unchanged: the marks only add their hidden prefixes.
+  await expect(card(page, 'CYMJ').locator('.sof-metar .sof-raw')).toContainText('CYMJ 291800Z 22008KT 6SM caution: VCTS BKN050');
+  // Colour, weight and a line style, so it is never colour alone; and not the browser's own yellow highlight.
+  const style = await storm.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return { bg: c.backgroundColor, line: c.textDecorationLine, weight: c.fontWeight };
+  });
+  expect(style.bg).toBe('rgba(0, 0, 0, 0)');
+  expect(style.line).toContain('underline');
+  expect(Number(style.weight)).toBeGreaterThanOrEqual(700);
+  // The banner shows the same words, marked the same way.
+  const lines = page.locator('.sof-banner-line');
+  await expect(lines.first().locator('.sof-banner-words')).toContainText('In the report:');
+  await expect(lines.first().locator('.sof-banner-words mark.is-below')).toHaveText('BKN004');
+  await expect(lines.nth(1).locator('.sof-banner-words mark.is-caution')).toHaveText('VCTS');
+  await expectNoA11yViolations(page);
+});
+
+test('a stale report\'s marks are grey, not bright', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt').replaceAll('291800Z', '291000Z') });
+  await expect(card(page, 'CYQR').locator('.sof-metar')).toHaveAttribute('data-state', 'stale');
+  const mark = card(page, 'CYQR').locator('.sof-metar .sof-raw mark.is-below');
+  await expect(mark).toHaveText(/BKN004/);
+  expect(await mark.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(111, 142, 157)'); // --text-faint
+  await expectNoA11yViolations(page);
+});
+
+test('report text with markup in it stays text, marks and all', async ({ page }) => {
+  const others = fixture('ui-metno-metar-storm.txt').split('\n').filter((l) => !l.startsWith('CYQR')).join('\n');
+  const hostile = `CYQR 291800Z 26005KT 2SM <script>window.__pwned=1</script> BKN004 10/08 A2995=\n${others}`;
+  await openSof(page, { metar: hostile });
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await page.locator('.sof-raw script, .sof-banner script').count()).toBe(0);
 });
 
 test('a caution in a TAF is on the banner with its group and times', async ({ page }) => {
