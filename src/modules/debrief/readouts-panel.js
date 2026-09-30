@@ -20,7 +20,8 @@ export function createReadoutsPanel({ layout, swatch }) {
   const line = (slot, { text, tone }) =>
     h('li', { class: `tone-${tone}` }, swatch(slot), h('strong', {}, `#${slot}`), ' ', h('span', {}, text));
 
-  function render(r, flight) {
+  /** extra.leadWind: the winds-aloft words for the Lead line, or null. */
+  function render(r, flight, { leadWind = null } = {}) {
     clear(card);
     clear(more.body);
     if (!flight) {
@@ -30,7 +31,10 @@ export function createReadoutsPanel({ layout, swatch }) {
     }
     for (const row of r.formation) card.append(line(row.slot, formationText(row)));
     const lead = leadText(r.lead);
-    if (lead) card.append(h('li', { class: `tone-${lead.tone}` }, swatch(1), h('span', {}, lead.text)));
+    if (lead) {
+      const wind = leadWind ? h('span', { class: 'lead-wind' }, ` · ${leadWind}`) : null;
+      card.append(h('li', { class: `tone-${lead.tone}` }, swatch(1), h('span', {}, lead.text), wind));
+    }
     if (!r.lead) card.append(h('li', { class: 'debrief-hint' }, 'Load a track as #1 (Lead) to judge the formation.'));
 
     const names = Object.fromEntries(Object.values(flight.tracks).map((tr) => [tr.slot, shipName(tr.slot, tr.name)]));

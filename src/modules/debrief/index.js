@@ -32,6 +32,8 @@ import {
 } from './dfp.js';
 import { CATALOG } from '../../airfields/catalog.js';
 import { createMetarFeed } from './weather/metar-feed.js';
+import { createWindsFeed } from './weather/winds-feed.js';
+import { WIND_MODELS, windModelFor, windTextAt } from './weather/winds.js';
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
@@ -45,7 +47,7 @@ function mount(root, app) {
 
   // The view and paint are checked against their lists (D141, D138); other values fall back to the defaults.
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
-    allowed: { view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS) },
+    allowed: { view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS), wxWindModel: Object.keys(WIND_MODELS) },
   });
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
@@ -172,6 +174,30 @@ function mount(root, app) {
     bar.setTicks(entry?.state === 'ready' ? reportTicks(entry.reports, flight.startT, flight.endT).map((r) => r.t) : []);
   }
 
+  // Winds aloft on the Lead line (SPEC-debrief: Weather at the time of the
+  // flight): the model wind at Lead's altitude, taken at one point for the
+  // whole flight (Lead's position halfway through).
+  const winds = createWindsFeed({ onChange: () => renderReadouts() });
+  function windPoint(shown) {
+    const lead = shown.tracks[1] ?? Object.values(shown.tracks)[0];
+    const s = lead && sampleAt(lead, (shown.startT + shown.endT) / 2);
+    return s && Number.isFinite(s.lat) && Number.isFinite(s.lon) ? { lat: s.lat, lon: s.lon } : null;
+  }
+  function leadWind() {
+    const on = layout.get();
+    if (!on.wxWinds || !flight || !clock || !flight.tracks[1]) return null;
+    const model = windModelFor(on.wxWindModel, flight.startT);
+    if (!model) return 'no model winds go back this far';
+    const { label } = WIND_MODELS[model];
+    const entry = winds.get(model);
+    if (!entry) return `no ${label} winds: Lead's track has no position`;
+    if (entry.state === 'loading') return `loading ${label} winds…`;
+    if (entry.state === 'busy') return `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow`;
+    if (entry.state === 'failed') return `${label} winds couldn't load. They need a connection.`;
+    const lead = sampleAt(flight.tracks[1], clock.t);
+    return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label) : null;
+  }
+
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
   const READOUT_MS = 100;
@@ -181,7 +207,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null);
+    ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null, { leadWind: leadWind() });
     if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
     renderMetar();
   }
@@ -214,6 +240,7 @@ function mount(root, app) {
     if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
     metars.setFlight(flight);
+    winds.setFlight(flight, windPoint(flight));
     dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
@@ -235,6 +262,7 @@ function mount(root, app) {
     flight = null;
     clock = null;
     metars.setFlight(null);
+    winds.setFlight(null);
     dfpKey = null;
     setDfps([], { changed: false });
     unsaved = false;
@@ -392,7 +420,7 @@ function mount(root, app) {
     filePanel.setCollapsed(!values.filesOpen);
     tennisPanel.element.hidden = !values.tennisOpen;
     if (values.tennisOpen) tennisPanel.render(tennisNow());
-    renderMetar();
+    renderReadouts(); // the winds on the Lead line, and the METAR line
     redraw();
   });
 
@@ -418,6 +446,7 @@ function mount(root, app) {
     stopClock?.();
     stopLayout();
     metars.dispose();
+    winds.dispose();
     controls.dispose();
     standardsPanel?.dispose();
     map.dispose();
