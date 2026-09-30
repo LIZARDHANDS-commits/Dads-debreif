@@ -710,6 +710,23 @@ test('a 15 degree check at 4,000 ft spacing in 4312 shows the close pass before 
   await expect(flags).toHaveCount(0);
 });
 
+test('the box Delayed 45 with its check turn shows the rear shift in the band lines, with the solved wording', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await panel(page, 'More detail').click();
+  const lines = page.locator('.ts-lines li.tone-caution');
+  await expect(lines).toHaveText([
+    '#3 36.7 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+    '#4 36.7 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+  ]);
+  await page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByText('Left', { exact: true }).click();
+  await expect(lines).toHaveText([
+    '#3 1.0 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+    '#4 1.0 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+  ]);
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();

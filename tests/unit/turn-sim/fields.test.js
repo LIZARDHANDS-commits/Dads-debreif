@@ -71,6 +71,15 @@ test('the offset box band lines say in the band or outside it, and are null with
   const hook = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 18.9, outsideBand: true }, { id: 4, delaySec: 18.9, outsideBand: true }] } }, 'boxSlot', 'hook90');
   assert.deepEqual([hook[1].text, hook[1].outside, hook[1].info], ['turns with #3', false, true]);
   assert.equal(hook[0].text, '18.9 s, outside the SMM 10-15 s; solved so the box keeps its shape');
+  // The check plan's rear shift (36.7 s right, 1.0 s left) reads with the solved wording for both aircraft, whatever the #4 timing.
+  const checkBox = (sec) => ({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: sec, outsideBand: true }, { id: 4, delaySec: sec, outsideBand: true }] } });
+  for (const timing of ['boxSlot', 'rearDelay']) {
+    assert.deepEqual(offsetBandLines(checkBox(36.7), timing, 'delayed45away', true).map((l) => [l.id, l.outside, l.text]), [
+      [3, true, '36.7 s, outside the SMM 10-15 s; solved so the box keeps its shape'],
+      [4, true, '36.7 s, outside the SMM 10-15 s; solved so the box keeps its shape'],
+    ]);
+  }
+  assert.equal(offsetBandLines(checkBox(1), 'boxSlot', 'delayed45away', true)[1].text, '1.0 s, outside the SMM 10-15 s; solved so the box keeps its shape');
   // Any other timing keeps both rows judged.
   const other = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } }, 'rearDelay');
   assert.deepEqual(other.map((l) => l.text), ['12.0 s, in the 10-15 s band', '18.0 s, outside 10-15 s']);
