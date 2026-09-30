@@ -408,7 +408,8 @@ test('minima read as the Airfields panel writes them', () => {
   assert.equal(minimaText([{ ceilingFt: 600, visSm: 2 }]), '600-2');
   assert.equal(minimaText([{ ceilingFt: 600, visSm: 2 }, { ceilingFt: 700, visSm: 1.5 }]), '600-2 (or 700-1½)');
   assert.equal(minimaText(null), '');
-  assert.equal(descentText({ meaFt: 4500, visSm: 3 }), 'Visual descent from MEA 4,500 ft, 3 SM');
+  assert.equal(descentText({ meaFt: 4500, visSm: 3 }), 'Visual descent from MEA 4,500 ft + 500 ft, 3 SM');
+  assert.equal(descentText({ meaFt: 4500, elevationFt: 1892, visSm: 3 }), 'Visual descent from MEA 4,500 ft + 500 ft (ceiling 3,108 ft, 3 SM)');
   assert.equal(descentText({ meaFt: null, visSm: 3 }), 'Visual descent, needs MEA');
 });
 
@@ -452,7 +453,8 @@ test('a wave the TAF only partly covers still shows the hit it knows about', () 
   const [w] = wavesAt(['21:00', '01:00']);
   const call = homeCall(w, t, LOCAL);
   assert.equal(call.status, 'not-covered');
-  assert.equal(call.words, "TAF doesn't cover the wave");
+  assert.equal(call.words, "ALTERNATE REQUIRED (TAF doesn't cover the whole wave)");
+  assert.equal(call.tone, 'required');
   assert.equal(call.hasHit, true);
   assert.equal(call.firstReason.text, 'CYMJ CEILING 300 FT < 2000 FT from 04Z');
 });
@@ -464,6 +466,8 @@ test('an alternate the TAF only partly covers shows its hit too', () => {
   const late = { ...w, land: new Date('2026-09-30T05:30:00Z') }; // window to 06:30Z, past the TAF's end
   const call = alternateCall(late, 'CYQR', t, a.checkOptions('CYQR'));
   assert.equal(call.status, 'not-covered');
+  assert.equal(call.words, "Below minima (TAF doesn't cover the whole arrival)");
+  assert.equal(call.tone, 'below');
   assert.equal(call.hasHit, true);
   assert.match(call.firstReason.text, /^CYQR CEILING 300 FT < 600 FT from 0430Z$/);
 });
@@ -471,7 +475,7 @@ test('an alternate the TAF only partly covers shows its hit too', () => {
 test('an unknown call says why: what the TAF covers against what the wave needs', () => {
   const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100');
   const [w] = wavesAt(['21:00', '01:30']); // lands 07:30Z
-  assert.equal(homeCall(w, t, LOCAL).why, 'TAF valid to 06Z; wave ends 0730Z');
+  assert.equal(homeCall(w, t, LOCAL).why, 'TAF valid to 06Z; window ends 0830Z (landing + 1 h)');
   const early = wavesAt(['06:00', '07:00'])[0]; // starts 12Z, TAF starts 18Z
   assert.equal(homeCall(early, t, LOCAL).why, 'TAF valid from 18Z; wave starts 12Z');
   assert.equal(homeCall(wavesAt(['13:00', '14:30'])[0], t, LOCAL).why, null, 'a known call needs no reason');
@@ -503,6 +507,38 @@ test('a visual-descent alternate names the descent, not 600-2', () => {
   a.update({ fields: { CYQR: { approach: 'no-ifr', meaFt: 4500 } } });
   const [w] = wavesAt(['13:00', '14:30']);
   const call = alternateCall(w, 'CYQR', taf(ALT_TAF.good), a.checkOptions('CYQR'));
-  assert.equal(call.minimaText, 'Visual descent from MEA 4,500 ft, 3 SM');
+  assert.equal(call.minimaText, 'Visual descent from MEA 4,500 ft + 500 ft, 3 SM');
   assert.equal(call.note, null);
+});
+
+test('a partly covered wave with a hit is required, and the same TAF with only an at-limit piece stays unknown', () => {
+  // TAF valid to 06Z, low cloud from 04Z; wave 03Z to 07Z.
+  const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100 FM300400 22010KT 1SM OVC003');
+  const [w] = wavesAt(['21:00', '01:00']);
+  const call = homeCall(w, t, LOCAL);
+  assert.equal(call.status, 'not-covered');
+  assert.equal(call.tone, 'required');
+  assert.equal(call.words, "ALTERNATE REQUIRED (TAF doesn't cover the whole wave)");
+  assert.equal(call.why, 'TAF valid to 06Z; window ends 08Z (landing + 1 h)');
+  const limitOnly = homeCall(w, taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100 FM300400 22010KT P6SM BKN020'), LOCAL);
+  assert.equal(limitOnly.status, 'not-covered');
+  assert.equal(limitOnly.words, "TAF doesn't cover the wave");
+  assert.equal(limitOnly.tone, 'unknown');
+  assert.ok(limitOnly.firstReason, 'the at-limit line is still shown');
+});
+
+test('the chip shows the below line even when an at-limit piece starts earlier', () => {
+  const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM BKN020 FM292100 22010KT 2SM BR OVC008');
+  const [w] = wavesAt(['14:00', '16:00']); // 20Z to 22Z, window to 23Z
+  const call = homeCall(w, t, LOCAL);
+  assert.equal(call.details[0].level, 'below');
+  assert.ok(call.details.some((d) => d.level === 'at-limit' && +d.from < +call.details[0].from), 'the at-limit piece is earlier');
+  assert.equal(call.firstReason.text, 'CYMJ CEILING 800 FT < 2000 FT from 21Z');
+});
+
+test('localDate and localToUtc never fall back to the machine zone', () => {
+  for (const zone of [undefined, null, '', 'Not/AZone']) {
+    assert.equal(localDate(NOW, zone), null, String(zone));
+    assert.equal(localToUtc({ year: 2026, month: 9, day: 29 }, 480, zone), null, String(zone));
+  }
 });

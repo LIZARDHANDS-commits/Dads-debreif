@@ -349,7 +349,7 @@ test('D80: a no-IFR alternate is never checked against 600-2', () => {
   assert.equal(a.checkOptions('CYQR').minima, null);
   assert.equal(c.result.level, 'unknown');
   assert.equal(c.result.words, 'Visual descent from MEA: see the wave call');
-  assert.equal(c.limitsText, 'Visual descent from MEA 4,500 ft, 3 SM');
+  assert.equal(c.limitsText, 'Visual descent from MEA 4,500 ft + 500 ft, 3 SM');
 });
 
 test('D80: a no-IFR alternate without an MEA says it needs one', () => {
@@ -365,7 +365,7 @@ test('D80: a GNSS-only alternate with an MEA uses the visual descent, not LNAV m
   a.update({ fields: { CYQR: { approach: 'gnss-only', meaFt: 4500 } } });
   const c = alt({ metar: overcast800(), options: a.checkOptions('CYQR') });
   assert.equal(c.result.level, 'unknown');
-  assert.equal(c.limitsText, 'Visual descent from MEA 4,500 ft, 3 SM');
+  assert.equal(c.limitsText, 'Visual descent from MEA 4,500 ft + 500 ft, 3 SM');
   // Cautions still come from the METAR.
   const storm = alt({ metar: metarEntry('METAR CYQR 291800Z 22008KT 15SM VCTS FEW040CB 22/14 A2980'), options: a.checkOptions('CYQR') });
   assert.ok(storm.cautions.includes('VCTS'));

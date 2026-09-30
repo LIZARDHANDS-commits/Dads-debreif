@@ -28,8 +28,12 @@ export function parseClock(text) {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
-/** The calendar date in a time zone at an instant: { year, month (1-12), day }. */
+/**
+ * The calendar date in a time zone at an instant: { year, month (1-12), day }.
+ * Null when the zone is missing or unknown: it never falls back to this machine's zone.
+ */
 export function localDate(now, timeZone) {
+  if (!knownZone(timeZone)) return null;
   const shifted = new Date(+now + utcOffsetMinutes(now, timeZone) * MINUTE_MS);
   return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
 }
@@ -47,8 +51,10 @@ function addDays({ year, month, day }, days) {
  * later instant, as JavaScript's own Date does. The two possible offsets are
  * read a day either side, so it doesn't depend on which way the zone lies.
  * Moose Jaw has no daylight saving, so it is always local + 6 h.
+ * Null when the zone is missing or unknown: it never falls back to this machine's zone.
  */
 export function localToUtc({ year, month, day }, minutes, timeZone) {
+  if (!knownZone(timeZone)) return null;
   const wall = Date.UTC(year, month - 1, day, 0, minutes);
   const offsetAt = (t) => utcOffsetMinutes(new Date(t), timeZone) * MINUTE_MS;
   const candidates = [...new Set([wall - offsetAt(wall - DAY_MS), wall - offsetAt(wall + DAY_MS)])];
@@ -171,10 +177,17 @@ export function minimaText(options) {
   return rest.length ? `${first} (or ${rest.join(', ')})` : first;
 }
 
-/** A visual descent (D80) in words: "Visual descent from MEA 4,500 ft, 3 SM". */
-export function descentText({ meaFt, visSm }) {
+/**
+ * A visual descent (D80) in words, as the Airfields panel writes it, with the
+ * +500 ft shown: "Visual descent from MEA 4,500 ft + 500 ft, 3 SM", and with the
+ * ceiling above the field when its elevation is known: "... + 500 ft (ceiling 3,108 ft, 3 SM)".
+ */
+export function descentText({ meaFt, elevationFt, visSm }) {
   if (!Number.isFinite(meaFt)) return 'Visual descent, needs MEA';
-  return `Visual descent from MEA ${meaFt.toLocaleString('en-CA')} ft, ${formatSm(visSm)} SM`;
+  const ft = (n) => n.toLocaleString('en-CA');
+  const start = `Visual descent from MEA ${ft(meaFt)} ft + 500 ft`;
+  if (Number.isFinite(elevationFt)) return `${start} (ceiling ${ft(meaFt + 500 - elevationFt)} ft, ${formatSm(visSm)} SM)`;
+  return `${start}, ${formatSm(visSm)} SM`;
 }
 
 // ---- Words for a call --------------------------------------------------------------------
@@ -251,7 +264,7 @@ function whyUnknown(result, window, endWord) {
   if (result.status === 'not-covered') {
     if (!result.validFrom || !result.validTo) return 'TAF valid period unknown';
     if (+result.validFrom > +window.from) return `TAF valid from ${zulu(result.validFrom)}; ${endWord.start} ${zulu(window.from)}`;
-    return `TAF valid to ${zulu(result.validTo)}; ${endWord.end} ${zulu(endWord.at)}`;
+    return `TAF valid to ${zulu(result.validTo)}; ${endWord.end} ${zulu(endWord.at)}${endWord.suffix ?? ''}`;
   }
   if (result.status === 'incomplete') {
     const first = result.problems?.[0];
@@ -271,7 +284,10 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
   const used = describeTrigger(limits);
   const window = waveWindow(wave);
   const result = homeAlternateTrigger(homeTaf, window, { ceilingFt: used.ceilingFt, visSm: used.visSm });
-  const [words, tone] = HOME_WORDS[result.status] ?? HOME_WORDS['no-time'];
+  let [words, tone] = HOME_WORDS[result.status] ?? HOME_WORDS['no-time'];
+  // A hit in the part the TAF covers can only get worse with more TAF, so it is
+  // never reported as unknown. At-limit pieces alone stay unknown.
+  if (result.status === 'not-covered' && result.hits.length) [words, tone] = ["ALTERNATE REQUIRED (TAF doesn't cover the whole wave)", 'required'];
   const details = detailLines(icao, result, window.from);
   return {
     status: result.status,
@@ -281,7 +297,7 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
     limits: { ceilingFt: used.ceilingFt, visSm: used.visSm },
     firstReason: firstReason(details),
     hasHit: result.hits.length > 0,
-    why: whyUnknown(result, window, { start: 'wave starts', end: 'wave ends', at: wave.land }),
+    why: whyUnknown(result, window, { start: 'wave starts', end: 'window ends', at: window.to, suffix: ' (landing + 1 h)' }),
     details,
     problems: result.problems,
     result,
@@ -297,7 +313,8 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
 export function alternateCall(wave, icao, taf, options = {}) {
   const window = arrivalWindow([wave.land]);
   const result = assessAlternate(taf, window, options);
-  const [words, tone] = ALT_WORDS[result.status] ?? ALT_WORDS['no-time'];
+  let [words, tone] = ALT_WORDS[result.status] ?? ALT_WORDS['no-time'];
+  if (result.status === 'not-covered' && result.hits.length) [words, tone] = ["Below minima (TAF doesn't cover the whole arrival)", 'below'];
   const descent = options.visualDescent;
   const minima = options.minima ?? [DEFAULT_LIMITS.alternate];
   const usedText = descent ? descentText(descent) : minimaText(minima);
