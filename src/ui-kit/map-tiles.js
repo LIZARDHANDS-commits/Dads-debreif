@@ -18,10 +18,12 @@ const MAX_TILES_PER_DRAW = 64; // more than this means the zoom is wrong for til
 /**
  * The tiles that cover a view, for the zoom V6 chose (pickTileZoom).
  * corners: { north, south, west, east } in degrees. pxPerFt: the map's scale.
+ * maxZoom: the source's finest zoom, if it has one (GOES stops at 6 or 7);
+ * closer in, its coarser tiles are stretched over the view.
  * Returns [{ z, x, y, bounds }], or [] when the view needs too many.
  */
-export function tilesFor(corners, pxPerFt) {
-  const z = pickTileZoom((corners.north + corners.south) / 2, pxPerFt);
+export function tilesFor(corners, pxPerFt, maxZoom = Infinity) {
+  const z = Math.min(pickTileZoom((corners.north + corners.south) / 2, pxPerFt), maxZoom ?? Infinity);
   const a = lonLatToTile(corners.west, corners.north, z);
   const b = lonLatToTile(corners.east, corners.south, z);
   const n = 2 ** z;
@@ -35,7 +37,7 @@ export function tilesFor(corners, pxPerFt) {
 }
 
 /**
- * source: { url(z, x, y) }. timers: a scheduler scope (after). onChange():
+ * source: { url(z, x, y), maxZoom? }. timers: a scheduler scope (after). onChange():
  * called when a tile arrives or fails for good, to ask for a redraw.
  * makeImage: for tests. Returns { draw, state, dispose }.
  */
@@ -94,7 +96,7 @@ export function createTileLayer({ source, timers, onChange, makeImage = () => ne
      * `pxPerFt`. toScreen(lat, lon) gives [x, y] in CSS pixels.
      */
     draw(ctx, { corners, pxPerFt, toScreen }) {
-      const wanted = tilesFor(corners, pxPerFt);
+      const wanted = tilesFor(corners, pxPerFt, source.maxZoom);
       let ready = 0;
       let failed = 0;
       for (const { z, x, y, bounds } of wanted) {

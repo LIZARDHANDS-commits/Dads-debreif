@@ -22,7 +22,7 @@ const VISUAL_DESCENT_VIS_SM = 3;
  * converted from above sea level to above the field, and visSm (default 3 SM).
  * Null when the MEA or the field elevation can't be read.
  */
-function visualDescentMinima({ meaFt, elevationFt, visSm = VISUAL_DESCENT_VIS_SM } = {}) {
+export function visualDescentMinima({ meaFt, elevationFt, visSm = VISUAL_DESCENT_VIS_SM } = {}) {
   if (!Number.isFinite(meaFt) || !Number.isFinite(elevationFt)) return null;
   const vis = Number.isFinite(visSm) && visSm > 0 ? visSm : VISUAL_DESCENT_VIS_SM;
   return [{ ceilingFt: meaFt + VISUAL_DESCENT_MARGIN_FT - elevationFt, visSm: vis }];
@@ -51,11 +51,14 @@ function toOptions(minima) {
 }
 
 /**
- * Check conditions against equivalent minima options: below only when below
- * every option, at-limit when the best option is exactly met. Reasons come from
- * the option that decides: the first one met, else the first one.
+ * Check conditions against equivalent minima options (one `{ ceilingFt, visSm }`
+ * or a list): below only when below every option, at-limit when the best option
+ * is exactly met. Reasons come from the option that decides: the first one met,
+ * else the first one. Null when no option is usable.
  */
-function checkOptions(conditions, options) {
+export function checkOptions(conditions, minima) {
+  const options = toOptions(minima);
+  if (!options) return null;
   const checks = options.map((m) => checkConditions(conditions, m));
   return checks.find((c) => !c.belowLimits && !c.atLimit) ?? checks.find((c) => !c.belowLimits) ?? checks[0];
 }

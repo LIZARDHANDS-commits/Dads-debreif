@@ -8,10 +8,13 @@ The small functions behind every number the tool shows: units, angles and headin
 | `angles.js` | Headings, bearings, clock positions, aspect angle, heading crossing angle, compass conversion |
 | `geo.js` | The debrief map: latitude/longitude to feet and back, map tiles |
 | `time.js` | Zulu and local time, KML times, the Zulu date-time group |
-| `flight-math.js` | Turn radius, rate and bank from G; the EM chart point; closure; G estimated from a track |
+| `flight-math.js` | Turn radius, rate and bank from G; the Turn Sim's G with its correction (floored at 1.01, D74); the EM chart point; closure; G estimated from a track |
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |
 | `standards.js` | Formation standards (spread, offset, lead): V6's values (pinned) and the SMM's as the default preset (D114-D116) |
 | `wind.js` | Crab angle, heading and ground speed in a wind (compass degrees in and out) |
+| `t6-performance.js` | The one T-6A performance model: V-n limits and stall line, IAS and TAS, thrust and drag, energy height, glide and the flight manual's zoom (new, checked against the T-6A's charts, not V6) |
+| `point-mass.js` | One step of an aircraft flown by G and bank as a point, through loops and straight up or down |
+| `t6a-turn-charts.js` | The sustained turn chart's points, read by eye, and the thrust and drag fitted to them |
 
 ## One heading rule
 

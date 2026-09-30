@@ -2,11 +2,27 @@
 // listed in `unread`.
 
 import { readConditions, ceilingFt, tokenize } from './conditions.js';
-import { resolvePast } from './dates.js';
+import { resolvePast, resolveDay, DAY_MS } from './dates.js';
 
 const STATION = /^[A-Z][A-Z0-9]{3}$/;
 const OBS_TIME = /^(\d{2})(\d{2})(\d{2})Z$/;
 const TREND = new Set(['TEMPO', 'BECMG', 'NOSIG']);
+// "LAST OBS/NXT 011000Z" (or "LAST STFD OBS/NXT ..."): the station's last report until the time given.
+const LAST_OBS = /(?:^|\s)LAST (?:STFD )?OBS\/NXT (\d{2})?(\d{2})(\d{2})Z(?:\s|$)/;
+
+/** The next report time in a LAST OBS remark, after the observation time; null when unreadable. */
+function nextObservation(match, time) {
+  if (!time) return null;
+  const [, dd, hh, mm] = match;
+  if (dd != null) return resolveDay(Number(dd), Number(hh), Number(mm), time, time);
+  const h = Number(hh);
+  const m = Number(mm);
+  if (h > 24 || m > 59) return null;
+  const d = new Date(time);
+  let next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m);
+  if (next <= +d) next += DAY_MS;
+  return new Date(next);
+}
 
 /**
  * Parse a METAR or SPECI.
@@ -30,6 +46,8 @@ export function parseMetar(raw, { now } = {}) {
     dewpointC: null,
     altimeter: null,
     trend: '',
+    lastObservation: false,
+    nextObservation: null,
     remarks,
     unread: [],
   };
@@ -57,5 +75,10 @@ export function parseMetar(raw, { now } = {}) {
   report.dewpointC = read.dewpointC;
   report.altimeter = read.altimeter;
   report.unread = read.unread;
+  const last = remarks.match(LAST_OBS);
+  if (last) {
+    report.lastObservation = true;
+    report.nextObservation = nextObservation(last, report.time);
+  }
   return report;
 }
