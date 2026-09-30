@@ -19,16 +19,18 @@ Step 1 ends with this shell live on GitHub Pages (D12) with no modules built yet
 | `#/<module-id>` | That module, e.g. `#/debrief` |
 | anything else | Home screen with a one-line "page not found" note |
 
-The browser's Back and Forward buttons move between these.
+The browser's Back and Forward buttons move between these. After a page change, the new page opens at its top with keyboard focus on it, so Tab and screen readers carry on from there. The "Skip to content" link moves focus to the page without changing the address.
+
+**Browsers:** current Chrome, Edge and Firefox, and Safari 15.4 or newer (the Settings dialog and `Object.hasOwn` need it). Nothing to install (R1).
 
 **Home screen:** the title "DAD's OODA LOOP" (D27), then one card per module in `src/shell/registry.js`, in build order: Debrief, Formation Turn Sim, Turn Fight, Traffic Pattern Sim, SOF Dashboard, then About. A module that isn't built yet shows as a plain card marked "Coming soon". It isn't a button and can't be clicked (R3). PT-PT Sim and the Briefing Board don't appear (R19).
 
-**Card videos:** each built module's card plays its V6 loop, re-encoded silent (D9, about 2.3 MB for all of them, R15). A video loads only when its card is on screen, plays only while visible, and doesn't play at all when the user or the system asks for reduced motion (#41). Until a module is built, its card shows a still frame instead.
+**Card videos:** each module's card plays its V6 loop, re-encoded silent at 640 px (D9, R15; about 1 MB for all five, made by `tools/make_card_media.py`). A card shows a still until its video is needed. A video loads only when its card is on screen, plays only while visible, and doesn't play at all when the user or the system asks for reduced motion (#41).
 
 **Header** (on every screen): the title (links home), the time, Settings, and Report a problem.
 
 - **Time:** Zulu first with local beside it, or local first, as set in Settings (D18, R10). Local time is the home airfield's zone, America/Regina (UTC-6 all year) for CYMJ, until `airfields` lands in step 2. The formatting comes from `core/time.js` (owned by the flight-math workstream). The clock ticks once a second on the shell's scheduler scope and pauses while the tab is hidden.
-- **Settings** opens a dialog: time order (Zulu first / Local first) and card motion (follow system / on / off). If the browser blocks storage, the dialog says settings won't be saved.
+- **Settings** opens a dialog: time order (Zulu first / Local first) and card videos (follow this computer's setting / play them / still pictures only; the setting is `motion`, and "still pictures only" also turns off transitions). If the browser blocks storage, the dialog says settings won't be saved.
 - **Report a problem** (R20) opens GitHub's new-issue form for this repo, using the form in `.github/ISSUE_TEMPLATE/problem.yml`, with the current module and app version filled in.
 
 **About:** V6's About page content (the formation photo, Dad's text, contact, mission, and support links), with a link back home.

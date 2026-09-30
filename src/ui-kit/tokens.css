@@ -1,0 +1,61 @@
+/* Design tokens: the one place colours, spacing and type are defined.
+   Taken from V6's palette (dark navy, cyan accent). See specs/SPEC-ui-kit.md. */
+:root {
+  color-scheme: dark;
+
+  --bg: #020a10;
+  --bg-raised: #071018;
+  --bg-sunken: #03080d;
+  --border: #17384a;
+  --border-strong: #3a7394; /* at least 3:1 on every background, for control edges (WCAG 1.4.11) */
+  --text: #e3eef5;
+  --text-muted: #9bb8c6;
+  --text-faint: #6f8e9d;
+  --accent: #42bfe9;
+  --accent-strong: #8adfff;
+  --focus: #ffd166;
+
+  --good: #3ecf8e;
+  --caution: #f5c542;
+  --bad: #ff6b6b;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --text-sm: 0.8125rem;
+  --text-md: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --tracking-wide: 0.14em;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  --header-height: 3.25rem;
+  --content-max: 76rem;
+
+  /* Use for every transition and animation, so reduced motion turns them all off. */
+  --motion-duration: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 0s;
+  }
+}
+
+/* The Settings choice (data-motion on <html>) overrides the computer's setting. */
+:root[data-motion='reduced'] {
+  --motion-duration: 0s;
+}
+
+:root[data-motion='full'] {
+  --motion-duration: 0.4s;
+}

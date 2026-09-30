@@ -37,7 +37,7 @@ const stop = settings.subscribe(next => { … }); // called after every change
 - One settings document per scope, saved with its `version`. An older version is passed through `migrate(saved, fromVersion)` if given; otherwise it's dropped for defaults.
 - Each saved field is checked against its default: a field whose type differs from the default, or that isn't in the defaults, is ignored. Allowed values can be listed per field (`{ timePrimary: ['zulu', 'local'] }`).
 
-Step 1's shared settings: `timePrimary` (`'zulu'` or `'local'`, default `'zulu'`, D18) and `reduceMotion` (`'system'`, `'on'` or `'off'`, default `'system'`, issue #41).
+Step 1's shared settings: `timePrimary` (`'zulu'` or `'local'`, default `'zulu'`, D18) and `motion` (`'system'` follows the computer's reduced-motion setting, `'full'` plays card videos and animations, `'reduced'` shows stills only; default `'system'`, issue #41).
 
 Later, not in step 1: `file.js` (save and open a file) arrives with the debrief file (R17) in step 2.
 

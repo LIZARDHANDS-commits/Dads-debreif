@@ -41,10 +41,20 @@ function allFiles(dir) {
 }
 
 export function measure(distDir) {
-  const home = homeFiles(distDir).map((f) => ({ file: f, bytes: statSync(join(distDir, f)).size }));
-  const media = allFiles(join(distDir, 'media', 'cards'))
-    .filter((f) => /\.(webm|mp4)$/i.test(f))
-    .map((f) => ({ file: relative(distDir, f), bytes: statSync(f).size }));
+  // The card stills show as soon as the home screen opens, so they count too.
+  const stills = allFiles(join(distDir, 'media', 'cards'))
+    .filter((f) => /\.(jpe?g|png|webp)$/i.test(f))
+    .map((f) => relative(distDir, f));
+  const home = [...homeFiles(distDir), ...stills].map((f) => ({ file: f, bytes: statSync(join(distDir, f)).size }));
+  // A browser downloads one format per card (WebM, or the MP4 fallback), so
+  // each card counts at the size of its larger file.
+  const byCard = new Map();
+  for (const f of allFiles(join(distDir, 'media', 'cards')).filter((f) => /\.(webm|mp4)$/i.test(f))) {
+    const card = f.replace(/\.(webm|mp4)$/i, '');
+    const bytes = statSync(f).size;
+    if (!byCard.has(card) || byCard.get(card).bytes < bytes) byCard.set(card, { file: relative(distDir, f), bytes });
+  }
+  const media = [...byCard.values()];
   const sum = (list) => list.reduce((n, x) => n + x.bytes, 0);
   return {
     home,
@@ -57,7 +67,7 @@ export function measure(distDir) {
 export function check(result) {
   const problems = [];
   if (result.homeBytes > HOME_CODE_BUDGET_BYTES) {
-    problems.push(`Home screen code and styles are ${result.homeBytes} bytes, over the ${HOME_CODE_BUDGET_BYTES} byte budget (R5).`);
+    problems.push(`The home screen (code, styles and card stills) is ${result.homeBytes} bytes, over the ${HOME_CODE_BUDGET_BYTES} byte budget (R5).`);
   }
   if (result.mediaBytes > CARD_MEDIA_BUDGET_BYTES) {
     problems.push(`Card videos are ${result.mediaBytes} bytes, over the ${CARD_MEDIA_BUDGET_BYTES} byte budget (R15).`);
