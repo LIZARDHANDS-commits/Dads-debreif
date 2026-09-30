@@ -10,6 +10,7 @@ Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each o
 | `t6-limit.js` | The T-6 limit warning beside each G box: stall line G = (speed ÷ 86)², capped at 7 G. The one place these numbers live until core's T-6A model lands. |
 | `trails.js` | The trail points, one per aircraft every 0.1 s of fight time, and the reach of everything drawn so far. |
 | `playback.js` | What one screen frame does: the 0.08 s frame limit, whole fight steps, the trail points. Pure, so the screen only calls `advanceRun`. |
+| `view.js` | The top-down drawing on a ui-kit canvas surface: grid that fills the box, trails, arrowheads labelled B and R, the MERGE mark, the first nose-on line. The scale and grid maths (`viewReachFt`, `topDownView`, `gridLines`) is pure and tested. It only reads the run (`{ fight, trails }`), so another view can read the same one. |
 | `layout.js` | The three columns, the stage toolbar and the controls. The stage's drawing area and a toolbar slot are separate elements, so a 3D view and a 2D \| 3D switch can be dropped in. |
 | `readouts-panel.js` | A readout table built with `h()`; rewrites only the text that changed. |
 | `index.js` | `mount(root, app)`: wires the settings, the fight, the frame loop, the keys (Space, Home) and the readout rate (at most 10 a second while playing). |
@@ -19,6 +20,6 @@ Two aircraft, Blue and Red, start head-on, fly to the merge and turn. Set each o
 
 - **A default or a range:** `state.js` (`DEFAULTS`, `RANGES`). The e2e and unit tests read them from there.
 - **The T-6 limit:** `t6-limit.js`.
-- **A colour:** V6's Blue `#58a6ff`, Red `#ff6b6b` and the first nose-on line `#ffcc66` are in `turn-fight.css`.
+- **A colour:** V6's Blue `#58a6ff`, Red `#ff6b6b` and the first nose-on line `#ffcc66` are in `turn-fight.css` (the screen) and in `view.js` (the canvas); a test keeps the two equal.
 - **What a readout says:** `readouts.js`; how it is laid out: `readouts-panel.js` and the `.tf-readout` rules.
 - **A new setting:** add its default to `state.js`, its control in `layout.js` (in the Turn Fight settings menu if it is a tuning number), and, if it changes the fight, its name to `sim.js`'s setup so `setupKey` resets the fight when it changes.

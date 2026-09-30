@@ -131,8 +131,8 @@
 
 /* The stage: toolbar, then the drawing area that takes whatever room is left. */
 [data-module='turn-fight'] .tf-stage {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
   min-height: 0;
@@ -179,7 +179,12 @@
   font-size: var(--text-sm);
 }
 
-[data-module='turn-fight'] .tf-drawing,
+[data-module='turn-fight'] .tf-drawing {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
 [data-module='turn-fight'] .tf-flat,
 [data-module='turn-fight'] .tf-3d {
   min-width: 0;

@@ -9,6 +9,7 @@ import { timeText, phaseText, resultRows, moreDetailRows } from './readouts.js';
 import { DEFAULTS, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults } from './state.js';
 import { createRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
+import { createTopDownView } from './view.js';
 
 const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
 
@@ -69,6 +70,7 @@ function mount(root, app) {
     },
   });
   root.append(ui.element);
+  views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
 
   function renderReadouts() {
     pendingReadout?.();
