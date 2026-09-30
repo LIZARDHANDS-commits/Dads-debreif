@@ -21,8 +21,8 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-// The tests below fly the figure's cue as it falls (checkSolveSpacing false, about 3,900 ft apart); the solved spacing has its own tests at the end.
-const BASE = { ...DEFAULTS, checkSolveSpacing: false, maneuver: 'delayed45away', turnDeg: 45, startHeadingDeg: 0, durationSec: 20, timing: 'time', formation: 'twoShip' };
+// The tests below fly the figure's cue as it falls (the default, about 3,900 ft apart); the solved spacing has its own tests at the end.
+const BASE = { ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, startHeadingDeg: 0, durationSec: 20, timing: 'time', formation: 'twoShip' };
 
 function fly(settings) {
   const run = createRun(settings);
@@ -213,14 +213,14 @@ test('offset box with the check is shorter than the plain chain in a right turn 
   assert.ok(Object.values(plain.startedAt).sort((a, b) => a - b).at(-1) > 70, 'the plain box chain still ends at 77 s');
 });
 
-// The roll-in solve (checkSolveSpacing, default true): the check version's ends 3,900 ft apart on the figure's cue, under the SMM's 4,000 to 6,000 ft LAB.
+// The roll-in solve (checkSolveSpacing, default false, an option): the check version's ends 3,900 ft apart on the figure's cue, under the SMM's 4,000 to 6,000 ft LAB.
 // Each aircraft's roll-in is solved so the spacing is the Spacing setting. One parameter cannot also zero the fore and aft: with the check at 12.5 degrees
 // the wingman rolls out 1,231 ft aft of abreast in the two-ship and #4 of a four-ship 2,751 ft aft (the figure draws it about 2,000 ft aft and says the
 // errors are fixed on the roll-out); the aft error is proportional to the check angle (486 ft at 5 degrees, 3,081 at 30).
 const SOLVED = { checkSolveSpacing: true, delayed45Check: 'check' };
 
-test('the solve is on by default, and a wingman rolls out at the Spacing setting: two-ship, 4312, 2134 and the box front pair, within 1%', () => {
-  assert.equal(DEFAULTS.checkSolveSpacing, true);
+test('with the solve on, a wingman rolls out at the Spacing setting: two-ship, 4312, 2134 and the box front pair, within 1%', () => {
+  assert.equal(DEFAULTS.checkSolveSpacing, false, 'off by default: the figure\'s cue, abreast and quicker');
   for (const spacingFt of [4000, 6000]) {
     for (const [formation, ids] of [['twoShip', [2]], ['weighted', [2, 3, 4]], ['weightedReverse', [2, 3, 4]], ['offsetBox', [2]]]) {
       for (const direction of ['right', 'left']) {

@@ -137,9 +137,10 @@ export const DEFAULTS = Object.freeze({
   // 'check' and 'none' force it. Not with the clock cue. V6: the plain chain only.
   delayed45Check: 'auto',
   checkTurnDeg: 12.5,
-  // The check version rolls out about 3,900 ft apart on the figure's cue, under the SMM's 4,000 to 6,000 ft LAB. true: each aircraft's roll-in is
-  // solved so the spacing is the Spacing setting (abreast within a few hundred feet); false: the figure's cue as it falls.
-  checkSolveSpacing: true,
+  // The check version rolls out about 3,900 ft apart on the figure's cue, under the SMM's 4,000 to 6,000 ft LAB. false (the default, Patrick):
+  // the figure's cue as it falls, abreast and quicker. true: each aircraft's roll-in is solved so the spacing is the Spacing setting, at the price
+  // of rolling out 1,200 ft (two-ship) to 2,750 ft (#4 of a four-ship) aft of abreast.
+  checkSolveSpacing: false,
   // A run lasts at least until the last aircraft has finished its turn and 10 s more, so a slow plan (a four-ship
   // Delayed 45 with Auto timing starts its last aircraft at 117 s) is never cut off at the Duration with aircraft
   // that have not turned. V6 stopped at the Duration whatever was still waiting: false gives that back.
