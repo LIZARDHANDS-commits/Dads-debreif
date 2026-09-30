@@ -354,3 +354,40 @@
 [data-module='turn-sim'] .ship-swatch.is-outlined {
   box-shadow: 0 0 0 2px #02060a, 0 0 0 3px var(--border-strong);
 }
+
+/* The 2D | 3D switch sits in the bar as a compact segmented choice; its legend stays for screen readers. */
+[data-module='turn-sim'] .ts-bar .control-choice {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+[data-module='turn-sim'] .ts-bar .control-choice > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[data-module='turn-sim'] .ts-note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* A class's display would beat the hidden attribute, so say it. */
+[data-module='turn-sim'] .ts-canvas[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-canvas3d {
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-module='turn-sim'] .ts-canvas3d.is-dragging {
+  cursor: grabbing;
+}

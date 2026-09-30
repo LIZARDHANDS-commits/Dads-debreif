@@ -7,8 +7,10 @@
 //
 // Coordinates and headings are V6's: feet, x east, y north, heading in radians
 // (0 = east, counter-clockwise). See formation.js.
-import { limitG, turnRateRadPerSec } from '../../../core/flight-math.js';
+import { turnSimG, turnRateRadPerSec } from '../../../core/flight-math.js';
 import { degToRad } from '../../../core/angles.js';
+import { clockCueCrossed, V6_CLOCK_TOLERANCE_DEG } from './cues.js';
+import { cueTargetForAircraft } from './plan.js';
 
 /** The step, in seconds: V6's `dt` (line 784). It never depends on the frame rate (#17). */
 export const STEP_SEC = 0.05;
@@ -17,23 +19,28 @@ export const STEP_SEC = 0.05;
 const GOAL_TOLERANCE_RAD = 0.0001;
 
 /**
- * The G an aircraft flies: the G setting and its own G error, each limited to at
+ * The G an aircraft flies with no correction: the G setting and its own G error, each limited to at
  * least 1.01 (V6 `baseG` line 786 and the first line of `moveAircraftList`).
  */
 // V6 gates gError on useErrorsAndCorrection (line 1582).
 export function flownG(baseG, gError) {
-  return limitG(limitG(baseG) + gError);
+  return turnSimG({ gSetting: baseG, gErr: gError, useErrorsAndCorrection: true, correction: 'none', aircraftId: 1, distToLeadFt: 0, spacingFt: 0, corrStrength: 0 });
 }
 
 /**
- * Whether an aircraft may turn now, for the time-delay trigger: once it has
- * started it stays turning, and before that it waits for its start time
- * (V6 `cueSatisfied`, line 1511, `trigger==='time'` branch). The clock and auto
- * cues come in tasks 8 and 9.
+ * Whether an aircraft may turn now (V6 `cueSatisfied`, line 1511). Once it has
+ * started it stays turning. With the clock cue an aircraft that has an aircraft to
+ * watch waits until that aircraft reaches the clock position (V6 line 1519); every
+ * other aircraft waits for its start time, which is the time delay or, with auto
+ * timing, its own place in the sequence. V6 held every auto-timed aircraft but
+ * Lead until Lead had started (line 1525); D43 took that wait away.
  */
-function mayTurn(a, tSec) {
+function mayTurn(a, aircraft, tSec, flight) {
   if (a.active) return true;
-  return tSec >= a.turnStartSec;
+  if (flight.timing !== 'clock' || !a.cueArmed) return tSec >= a.turnStartSec;
+  const target = a.autoClockTargetId ? aircraft.find((x) => x.id === a.autoClockTargetId) : cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
+  if (!target || target.id === a.id) return tSec >= a.turnStartSec;
+  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, direction: flight.direction, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
 }
 
 /**
@@ -46,21 +53,34 @@ function mayTurn(a, tSec) {
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
  *   active, done, shackleReturn, turnPhase, originalHeadingRad.
- * flight: { tSec, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
+ * flight: { tSec, spacingFt, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
  *
  * Lag and lead bend the direction of travel, not the heading, by 4° × strength
- * (V6 lines 1607 and 1608); the G correction is not here yet.
+ * (V6 lines 1607 and 1608).
  */
 export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
   const v = flight.speedFtps;
   const useCorrection = flight.correction === 'lag' || flight.correction === 'lead';
   for (const a of aircraft) {
-    const g = flownG(flight.baseG, a.gError);
+    // Step 2 of the flying: the Correction model "G fix" nudges a wingman's G toward its slot (core turnSimG,
+    // V6 line 1583). Lead has already moved this step, and the distance is measured from the wingman's own
+    // position before its move, as V6 does.
+    const lead = aircraft.find((x) => x.id === 1);
+    const g = turnSimG({
+      gSetting: flight.baseG,
+      gErr: a.gError,
+      useErrorsAndCorrection: true,
+      correction: flight.correction,
+      aircraftId: a.id,
+      distToLeadFt: lead ? Math.hypot(a.xFt - lead.xFt, a.yFt - lead.yFt) : 0,
+      spacingFt: flight.spacingFt,
+      corrStrength: flight.correctionStrength,
+    });
     a.gFlown = g;
     const omega = turnRateRadPerSec(v, g);
-    if (mayTurn(a, flight.tSec) && !a.done) {
+    if (mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
       // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
       a.active = true;
       const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);
