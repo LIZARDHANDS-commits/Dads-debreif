@@ -1,10 +1,11 @@
 // Reads a ForeFlight KML track log into a list of fixes (V6 parseKmlText,
 // original/shell.html line 2318).
 //
-// This is V6's reader, ported unchanged: tests/golden/flight-data-kml.test.js
-// checks that it returns exactly V6's points for the example tracks and the
-// fixtures. The changes decided in specs/SPEC-flight-data.md (C1 to C9) are made
-// later, one at a time, each with its own test.
+// This is V6's reader: tests/golden/flight-data-kml.test.js checks that it
+// returns exactly V6's points for the example tracks and the fixtures, apart
+// from the changes decided in specs/SPEC-flight-data.md, each of which the test
+// names and checks:
+// - C1: a blank recorded value is missing, not 0.
 //
 // A track file is untrusted input. Before reading, the file's size is checked,
 // a KMZ (zip) is recognised, and the XML reader refuses any DOCTYPE.
@@ -112,14 +113,23 @@ function readRecordedColumn(xml, kind) {
     const nm = (node.getAttribute('name') || node.getAttribute('displayName') || '').toLowerCase();
     if (!kind.name.test(nm)) continue;
     if (/speed|alt|lat|lon|course|track|time/.test(nm)) continue;
-    const clean = node.getElementsByTagName('gx:value').map(v => Number(v.textContent.trim())).map(v => (kind.valid(v) ? v : null));
+    const clean = node.getElementsByTagName('gx:value').map(v => toNumber(v.textContent)).map(v => (kind.valid(v) ? v : null));
     if (clean.filter(v => v !== null).length >= 2) return clean;
   }
   for (const tag of kind.tags) {
-    const vals = xml.getElementsByTagName(tag).map(v => Number(v.textContent.trim())).filter(kind.valid);
+    const vals = xml.getElementsByTagName(tag).map(v => toNumber(v.textContent)).filter(kind.valid);
     if (vals.length >= 2) return vals;
   }
   return [];
+}
+
+/**
+ * A recorded value as a number. A blank value is missing (NaN), not 0 as in V6,
+ * where Number('') read ForeFlight's blank pitch column as 0° (C1, D47).
+ */
+function toNumber(text) {
+  const t = text.trim();
+  return t === '' ? NaN : Number(t);
 }
 
 function tooMany(name) {

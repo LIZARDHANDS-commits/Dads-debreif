@@ -38,6 +38,7 @@ M = [
  ('kml.js', "text.length > MAX_FILE_BYTES", "text.length > MAX_FILE_BYTES + 1"),
  ('kml.js', "if (gx.length > MAX_FIXES)", "if (gx.length > MAX_FIXES + 1)"),
  ('kml.js', "if (fixes.length > MAX_FIXES)", "if (fixes.length > MAX_FIXES + 1)"),
+ ('kml.js', "return t === '' ? NaN : Number(t);", "return Number(t);"),
  # xml.js: well-formedness and text
  ('xml.js', "if (current.name !== name)", "if (false)"),
  ('xml.js', "if (current === doc && rootSeen) fail(", "if (false) fail("),

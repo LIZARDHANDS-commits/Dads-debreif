@@ -17,8 +17,8 @@ test('reads a ForeFlight example track', () => {
   const { name, fixes } = readKml(readFileSync(new URL('../../../original/assets/585aab2601b787ed.kml', import.meta.url), 'utf8'), '#1 Lead');
   assert.equal(name, '#1 Lead');
   assert.equal(fixes.length, 6166);
-  // Times keep milliseconds only (Date.parse), and the blank pitch column reads as 0 (V6; changed by C1).
-  assert.deepEqual(fixes[0], { lon: -105.555285, lat: 50.335542, altM: 571.5, t: Date.UTC(2026, 5, 2, 18, 18, 11, 433) / 1000, gRecorded: null, pitchRecordedDeg: 0 });
+  // Times keep milliseconds only (Date.parse). The pitch column is blank, so there is no recorded pitch (C1, D47).
+  assert.deepEqual(fixes[0], { lon: -105.555285, lat: 50.335542, altM: 571.5, t: Date.UTC(2026, 5, 2, 18, 18, 11, 433) / 1000, gRecorded: null, pitchRecordedDeg: null });
 });
 
 test('refuses a DOCTYPE, so no entity is ever expanded (billion laughs, external files)', () => {
@@ -87,4 +87,16 @@ test('accepts and refuses the same small documents as the browser\'s parser (DOC
     try { parseXml(text); } catch { accepted = false; }
     assert.equal(accepted, expected, JSON.stringify(text));
   }
+});
+
+test('a blank recorded value is missing, not 0 (C1, D47)', () => {
+  const cols = (g, p) => `<ExtendedData><gx:SimpleArrayData name="g_load">${g.map(v => `<gx:value>${v}</gx:value>`).join('')}</gx:SimpleArrayData>`
+    + `<gx:SimpleArrayData name="pitch">${p.map(v => `<gx:value>${v}</gx:value>`).join('')}</gx:SimpleArrayData></ExtendedData>`;
+  const text = track(3).replace('</Document>', cols(['1.2', ' ', '1.4'], ['', '0', '  ']) + '</Document>');
+  const fixes = readKml(text).fixes;
+  assert.deepEqual(fixes.map(f => f.gRecorded), [1.2, null, 1.4]);
+  // Only one real pitch value is left, fewer than the 2 a column needs, so the track has no recorded pitch.
+  assert.deepEqual(fixes.map(f => f.pitchRecordedDeg), [null, null, null]);
+  const tags = '<kml><Document><coordinates>-105.5,50.3,1 -105.6,50.3,1</coordinates><when>2026-06-02T18:00:00Z</when><when>2026-06-02T18:00:01Z</when><Pitch> </Pitch><Pitch>4</Pitch><Pitch>5</Pitch></Document></kml>';
+  assert.deepEqual(readKml(tags).fixes.map(f => f.pitchRecordedDeg), [4, 5]);
 });
