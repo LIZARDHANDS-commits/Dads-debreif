@@ -18,7 +18,7 @@
 }
 
 [data-module='turn-sim'] .ts-col-setup {
-  width: 20rem; /* wide enough for "Clock position cue" in its box (N10) */
+  width: 18rem;
 }
 
 [data-module='turn-sim'] .ts-col-formation {
@@ -73,7 +73,7 @@
   max-width: 100%;
 }
 
-/* The clock position's words are long ("Auto (4:30 right, 7:30 left)"): its label sits above the box and the box takes the row (N10). */
+/* Some lists have long words ("Clock position cue", "Auto (4:30 right, 7:30 left)"): the label sits above the box and the box takes the row (N10). */
 [data-module='turn-sim'] .ts-wide .control > label {
   grid-column: 1 / -1;
 }

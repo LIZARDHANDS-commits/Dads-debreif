@@ -108,7 +108,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const timing = field(TIMING);
   const baseDelay = field(BASE_DELAY);
   const clockPos = field(CLOCK_POS);
+  // The long-worded lists (Timing, Clock position) take a whole row, their label above, so no text is cut off (N10).
   clockPos.element?.classList.add('ts-wide');
+  timing.element?.classList.add('ts-wide');
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
