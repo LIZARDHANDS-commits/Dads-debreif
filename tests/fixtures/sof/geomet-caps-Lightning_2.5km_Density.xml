@@ -1,0 +1,25 @@
+<?xml version='1.0' encoding="UTF-8" standalone="no" ?>
+<WMS_Capabilities version="1.3.0" updateSequence="2026-09-30T07:20:01Z"  xmlns="http://www.opengis.net/wms"   xmlns:sld="http://www.opengis.net/sld"   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"   xmlns:ms="http://mapserver.gis.umn.edu/mapserver"   xsi:schemaLocation="http://www.opengis.net/wms http://schemas.opengis.net/wms/1.3.0/capabilities_1_3_0.xsd  http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/sld_capabilities.xsd  http://mapserver.gis.umn.edu/mapserver https://geo.weather.gc.ca/geomet?service=WMS&amp;version=1.3.0&amp;request=GetSchemaExtension">
+<Capability>
+  <Layer queryable="1">
+    <Name>Canadian Weather</Name>
+    <Layer queryable="1">
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>Lightning_2.5km_Density</Name>
+        <Title>Lightning Flash Density over Canada (2.5 km) [flash/km²/min]</Title>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>-156.145350</westBoundLongitude>
+            <eastBoundLongitude>-38.694350</eastBoundLongitude>
+            <southBoundLatitude>31.541389</southBoundLatitude>
+            <northBoundLatitude>73.723389</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <Dimension name="time" units="ISO8601" default="2026-09-30T07:00:00Z" nearestValue="0">2026-09-30T04:00:00Z/2026-09-30T07:00:00Z/PT10M</Dimension>
+        <AuthorityURL name="msc">
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://dd.weather.gc.ca"/>
+        </AuthorityURL>
+        <Identifier authority="msc">urn:x-msc-smc:md:weather-meteo::lightning</Identifier>
+      </Layer>
+    </Layer>
+  </Layer>
+</Capability>
+</WMS_Capabilities>
