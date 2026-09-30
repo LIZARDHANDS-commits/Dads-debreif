@@ -10,7 +10,10 @@ import { MAX_TRACKS } from '../../flight-data/load.js';
 import { createReadoutsPanel } from './readouts-panel.js';
 import { BUBBLE_MIN_FT, BUBBLE_MAX_FT } from './map2d/geometry.js';
 import { ROUTES } from './data/routes.js';
+import { VNC_ALIGN_LIMITS, VNC_DEFAULT_ALIGN } from './map2d/vnc.js';
 import { ESRI_IMAGERY } from './map2d/tiles.js';
+import { CAMERA_LIMITS } from './view3d/frame.js';
+import { V6_CAMERA } from './view3d/scene.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -58,17 +61,38 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   );
 
   // Stage
-  const canvas = h('canvas', { class: 'debrief-map' });
+  const canvas = h('canvas', { class: 'debrief-map debrief-2d' });
+  const canvas3d = h('canvas', { class: 'debrief-map debrief-3d', hidden: true });
   // Esri's credit while its imagery shows, and why none shows when it can't load.
   const credit = h('p', { class: 'map-credit', hidden: true, 'aria-live': 'polite' });
   const empty = h('p', { class: 'debrief-empty' }, 'Load up to four track files, or the example flight, to start.');
   const fitButton = h('button', { type: 'button', class: 'button', disabled: true, onclick: () => handlers.fit?.() }, 'Fit');
-  // The Layers menu: a real button that opens a small panel over the map, and
-  // closes again on Escape or a click elsewhere.
-  const layersButton = h('button', { type: 'button', class: 'button menu-button', 'aria-expanded': 'false', 'aria-controls': 'debrief-layers' }, 'Layers');
-  const layersBody = h(
-    'div',
-    { class: 'debrief-menu-body', id: 'debrief-layers', hidden: true },
+  // A menu: a real button that opens a small panel over the map, and closes
+  // again on Escape or a click elsewhere.
+  function menu(label, id, children) {
+    const button = h('button', { type: 'button', class: 'button menu-button', 'aria-expanded': 'false', 'aria-controls': id }, label);
+    const body = h('div', { class: 'debrief-menu-body', id, hidden: true }, ...children);
+    const wrap = h('div', { class: 'debrief-menu' }, button, body);
+    const setOpen = (open) => {
+      body.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+    };
+    button.addEventListener('click', () => setOpen(body.hidden));
+    wrap.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || body.hidden) return;
+      e.preventDefault();
+      setOpen(false);
+      button.focus();
+    });
+    listen(document, 'pointerdown', (e) => {
+      if (!wrap.contains(e.target)) setOpen(false);
+    });
+    return { element: wrap, setOpen };
+  }
+
+  const resetLayout = () => h('button', { type: 'button', class: 'button', onclick: () => handlers.reset?.() }, 'Reset layout');
+  const { nudgeNm: NUDGE, scalePct: SCALE } = VNC_ALIGN_LIMITS;
+  const layersMenu = menu('Layers', 'debrief-layers', [
     controls.checkbox('satellite', { label: 'Satellite imagery' }),
     controls.select('trail', { label: 'Trail', options: [
       { value: 'full', label: 'Full tracks' },
@@ -84,30 +108,70 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('bubble', { label: 'Safety bubble' }),
     controls.number('bubbleFt', { label: 'Bubble radius', unit: 'ft', min: BUBBLE_MIN_FT, max: BUBBLE_MAX_FT, step: 50 }),
     controls.checkbox('followLead', { label: 'Follow Lead' }),
+    resetLayout(),
+  ]);
+  // Routes and VNC charts under the tracks, in a menu of their own so each stays short.
+  const chartsMenu = menu('Routes and charts', 'debrief-charts', [
     controls.select('route', { label: 'Route', options: [{ value: '', label: 'None' }, ...ROUTES.map((r) => ({ value: r.name, label: r.name }))] }),
     controls.slider('routeOpacity', { label: 'Route opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
-    h('button', { type: 'button', class: 'button', onclick: () => handlers.reset?.() }, 'Reset layout'),
-  );
-  const layersMenu = h('div', { class: 'debrief-menu' }, layersButton, layersBody);
-  const setLayersOpen = (open) => {
-    layersBody.hidden = !open;
-    layersButton.setAttribute('aria-expanded', String(open));
-  };
-  layersButton.addEventListener('click', () => setLayersOpen(layersBody.hidden));
-  layersMenu.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape' || layersBody.hidden) return;
-    e.preventDefault();
-    setLayersOpen(false);
-    layersButton.focus();
-  });
-  listen(document, 'pointerdown', (e) => {
-    if (!layersMenu.contains(e.target)) setLayersOpen(false);
-  });
+    controls.select('vnc', { label: 'VNC chart', options: [
+      { value: 'off', label: 'Off' },
+      { value: 'south', label: 'South (Moose Jaw, Regina)' },
+      { value: 'north', label: 'North (Saskatoon, Moose Jaw)' },
+      { value: 'both', label: 'Both' },
+    ] }),
+    controls.slider('vncOpacity', { label: 'Chart opacity', min: 10, max: 100, step: 1, format: (v) => `${v}%` }),
+    // V6's fine alignment, closed at first (R22).
+    h(
+      'details',
+      { class: 'debrief-menu-wide' },
+      h('summary', {}, 'Chart alignment'),
+      h(
+        'div',
+        { class: 'debrief-menu-group' },
+        controls.slider('vncEastNm', { label: 'East / West', min: NUDGE[0], max: NUDGE[1], format: (v) => `${v} NM` }),
+        controls.slider('vncNorthNm', { label: 'North / South', min: NUDGE[0], max: NUDGE[1], format: (v) => `${v} NM` }),
+        controls.slider('vncScalePct', { label: 'Chart scale', min: SCALE[0], max: SCALE[1], step: 0.1, format: (v) => `${Number(v).toFixed(1)}%` }),
+        h('button', {
+          type: 'button',
+          class: 'button',
+          onclick: () => layout.update({ vncEastNm: VNC_DEFAULT_ALIGN.nudgeEastNm, vncNorthNm: VNC_DEFAULT_ALIGN.nudgeNorthNm, vncScalePct: VNC_DEFAULT_ALIGN.scalePct }),
+        }, 'Reset alignment'),
+      ),
+    ),
+  ]);
+  // The 3D view's settings, in 3D only (SPEC-debrief: The screen).
+  const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
+  const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
+    controls.select('cam3d', { label: 'Camera', options: [{ value: 'followLead', label: 'Follow Lead' }, { value: 'formation', label: 'Centre formation' }] }),
+    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Low-poly T-6' }, { value: 'flat', label: 'Flat marker' }] }),
+    controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` }),
+    controls.slider('pitch3d', { label: 'Look down', min: PITCH[0], max: PITCH[1], format: (v) => `${v}°` }),
+    controls.slider('zoom3d', { label: 'Zoom', min: ZOOM[0], max: ZOOM[1], format: (v) => String(Math.round(v)) }),
+    controls.number('altScale3d', { label: 'Altitude ×', min: 1, max: 10, step: 0.25 }),
+    controls.number('planeSize3d', { label: 'Aircraft size', unit: 'ft', min: 60, max: 2000, step: 20 }),
+    controls.number('trailSec3d', { label: 'Trail length', unit: 's', min: 0, max: 600, step: 10 }),
+    controls.select('datum3d', { label: 'Ground', options: [
+      { value: 'min', label: 'Lowest ship − 500 ft' },
+      { value: 'field', label: 'Home field elevation' },
+      { value: 'zero', label: 'Sea level' },
+    ] }),
+    controls.checkbox('attLabels3d', { label: 'Bank and pitch' }),
+    controls.checkbox('sticks3d', { label: 'Altitude sticks' }),
+    controls.checkbox('altMarks3d', { label: 'Altitude scale' }),
+    controls.checkbox('groundRef3d', { label: 'Compass' }),
+    controls.checkbox('grid3d', { label: 'Ground grid' }),
+    controls.checkbox('landscape3d', { label: 'Landscape' }),
+    h('button', { type: 'button', class: 'button', onclick: () => layout.update({ yaw3d: V6_CAMERA.yawDeg, pitch3d: V6_CAMERA.pitchDeg, zoom3d: V6_CAMERA.zoom }) }, 'Reset view'),
+    resetLayout(),
+  ]);
+  const viewSwitch = controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] });
+  viewSwitch.classList.add('view-switch');
   const stage = h(
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
-    h('div', { class: 'debrief-toolbar' }, fitButton, layersMenu),
-    h('div', { class: 'debrief-map-wrap' }, canvas, empty, credit),
+    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, view3dMenu.element),
+    h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit),
     bar.element,
   );
 
@@ -188,6 +252,14 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     clear(picker);
   }
 
+  // The lines under the map, satellite first.
+  const notes = { imagery: '', charts: '' };
+  function showNotes() {
+    const text = [notes.imagery, notes.charts].filter(Boolean).join(' · ');
+    if (credit.textContent !== text) credit.textContent = text;
+    credit.hidden = !text;
+  }
+
   function setMessage(text) {
     message.textContent = text ?? '';
     message.hidden = !text;
@@ -199,6 +271,19 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     readouts.setCollapsed(!values.moreDetail);
     flightCol.classList.toggle('is-collapsed', !values.flightColumn);
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
+    // One view shows at a time; the other's canvas and tools hide (R12).
+    const is3d = values.view === '3d';
+    canvas.hidden = is3d;
+    canvas3d.hidden = !is3d;
+    fitButton.hidden = is3d;
+    layersMenu.element.hidden = is3d;
+    chartsMenu.element.hidden = is3d;
+    view3dMenu.element.hidden = !is3d;
+    if (is3d) {
+      layersMenu.setOpen(false);
+      chartsMenu.setOpen(false);
+    } else view3dMenu.setOpen(false);
+    credit.classList.toggle('is-3d', is3d);
     const open = values.statusDetails && Boolean(flight);
     statusDetails.hidden = !open;
     statusButton.setAttribute('aria-expanded', String(open));
@@ -210,6 +295,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   return {
     element,
     canvas,
+    canvas3d,
     summary: () => flightSummary(flight),
     showFlight(next) {
       flight = next;
@@ -220,11 +306,18 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     },
     /** The satellite line under the map: Esri's credit, or that the imagery needs a connection. */
     setImagery(state) {
-      const text = !state ? ''
+      notes.imagery = !state ? ''
         : state.wanted && state.failed === state.wanted ? 'Satellite imagery needs a connection. The grid still shows where things are.'
           : ESRI_IMAGERY.credit;
-      if (credit.textContent !== text) credit.textContent = text;
-      credit.hidden = !text;
+      showNotes();
+    },
+    /** The chart line under the map: loading, can't load, or "Not for navigation" (#43). */
+    setCharts(state) {
+      notes.charts = !state || !state.wanted ? ''
+        : state.failed === state.wanted ? 'The VNC chart couldn\'t load. It needs a connection the first time it\'s shown.'
+          : state.ready < state.wanted ? 'Loading the VNC chart…'
+            : 'VNC chart: not for navigation. Its alignment is fitted by hand.';
+      showNotes();
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r) => readouts.render(r, flight),

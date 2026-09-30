@@ -229,6 +229,8 @@
   gap: var(--space-1) var(--space-4);
   align-items: center;
   min-width: 14rem;
+  max-height: calc(100vh - 12rem);
+  overflow-y: auto;
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -250,6 +252,16 @@
   display: block;
   width: 100%;
   height: 100%;
+}
+
+[data-module='debrief'] .debrief-map[hidden],
+[data-module='debrief'] .debrief-toolbar [hidden],
+[data-module='debrief'] .map-credit.is-3d {
+  display: none;
+}
+
+[data-module='debrief'] .view-switch {
+  margin: 0;
 }
 
 [data-module='debrief'] .debrief-empty {
@@ -472,4 +484,29 @@
   color: var(--text-muted);
   font-size: 0.6875rem;
   pointer-events: none;
+}
+
+[data-module='debrief'] .debrief-menu-body > * {
+  min-width: 0;
+}
+
+[data-module='debrief'] .debrief-menu-body select {
+  max-width: 100%;
+}
+
+/* A group that spans both columns of a menu (the chart alignment). */
+[data-module='debrief'] .debrief-menu-wide {
+  grid-column: 1 / -1;
+}
+
+[data-module='debrief'] .debrief-menu-wide > summary {
+  cursor: pointer;
+  padding-block: var(--space-1);
+}
+
+[data-module='debrief'] .debrief-menu-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(12rem, 1fr));
+  gap: var(--space-1) var(--space-4);
+  align-items: center;
 }
