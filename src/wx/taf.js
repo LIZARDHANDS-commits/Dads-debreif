@@ -42,8 +42,11 @@ export function parseTaf(raw, { now } = {}) {
     problems: [],
   };
   let i = 0;
-  if (tokens[i] === 'TAF') i++;
-  while (['AMD', 'COR', 'RTD'].includes(tokens[i])) taf.amendment = tokens[i++];
+  // Some feeds repeat the header ("TAF AMD TAF AMD CYMJ ..."); read it once.
+  while (['TAF', 'AMD', 'COR', 'RTD'].includes(tokens[i])) {
+    if (tokens[i] !== 'TAF') taf.amendment = tokens[i];
+    i++;
+  }
   if (tokens[i] && STATION.test(tokens[i])) taf.station = tokens[i++];
   const it = tokens[i]?.match(ISSUE_TIME);
   if (it) {
