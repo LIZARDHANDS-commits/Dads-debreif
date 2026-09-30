@@ -14,7 +14,13 @@ const normalise = (options) => options.map((o) => (Array.isArray(o) ? { value: o
 // settings: { get, update, subscribe }, such as storage/settings.js
 export function createControls(settings) {
   const syncs = new Set();
+  const byKey = new Map(); // setting key → the inputs (or fieldsets) bound to it
   let unsubscribe = null;
+
+  const register = (key, el) => {
+    if (!byKey.has(key)) byKey.set(key, new Set());
+    byKey.get(key).add(el);
+  };
 
   function bind(sync) {
     syncs.add(sync);
@@ -73,6 +79,7 @@ export function createControls(settings) {
       });
       input.addEventListener('change', () => setInvalid(read() === null));
 
+      register(key, input);
       bind((values) => {
         const n = values[key];
         if (read() !== n) input.value = String(n);
@@ -90,6 +97,7 @@ export function createControls(settings) {
         const n = Number(input.value);
         if (Number.isFinite(n)) settings.update({ [key]: n });
       });
+      register(key, input);
       bind((values) => {
         input.value = String(values[key]);
         output.textContent = format(values[key]);
@@ -101,6 +109,7 @@ export function createControls(settings) {
       const id = newId('checkbox');
       const input = h('input', { type: 'checkbox', id });
       input.addEventListener('change', () => settings.update({ [key]: input.checked }));
+      register(key, input);
       bind((values) => {
         input.checked = values[key] === true;
       });
@@ -116,6 +125,7 @@ export function createControls(settings) {
         const option = list[Number(input.value)];
         if (option) settings.update({ [key]: option.value });
       });
+      register(key, input);
       bind((values) => {
         input.value = String(list.findIndex((o) => o.value === values[key]));
       });
@@ -138,18 +148,27 @@ export function createControls(settings) {
           inputs[i].checked = o.value === values[key];
         });
       });
-      return h(
+      const fieldset = h(
         'fieldset',
         { class: 'control control-choice' },
         h('legend', {}, label),
         list.map((o, i) => h('label', { class: 'choice-option' }, inputs[i], h('span', {}, o.label))),
       );
+      register(key, fieldset);
+      return fieldset;
+    },
+
+    // Greys out every control bound to `key`, for example 3D-only options in 2D.
+    // The setting keeps its value.
+    setDisabled(key, disabled) {
+      for (const el of byKey.get(key) ?? []) el.disabled = Boolean(disabled);
     },
 
     dispose() {
       unsubscribe?.();
       unsubscribe = null;
       syncs.clear();
+      byKey.clear();
     },
   };
 }

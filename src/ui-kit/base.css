@@ -242,6 +242,17 @@ button:disabled {
   outline-offset: 2px;
 }
 
+/* A control turned off with controls.setDisabled() */
+.control:has(:disabled),
+.control-choice:disabled {
+  opacity: 0.5;
+}
+
+.control :disabled,
+.control-choice:disabled .choice-option span {
+  cursor: not-allowed;
+}
+
 /* Pan and zoom views (ui-kit/canvas-view.js) */
 .canvas-view {
   display: block;

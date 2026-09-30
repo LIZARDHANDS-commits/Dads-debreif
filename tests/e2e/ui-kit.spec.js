@@ -86,6 +86,22 @@ test.describe('controls', () => {
   });
 });
 
+test.describe('controls, turned off', () => {
+  test('setDisabled greys out a control and keeps its setting', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', true); window.__kit.controls.setDisabled('view', true); });
+    await expect(page.getByLabel('Safety bubble')).toBeDisabled();
+    await expect(page.getByRole('radio', { name: '3D' })).toBeDisabled();
+    await page.getByRole('radio', { name: '3D' }).click({ force: true });
+    expect(await setting(page, 'view')).toBe('2d');
+    expect(await setting(page, 'bubbleFt')).toBe(1000);
+    await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', false); window.__kit.controls.setDisabled('view', false); });
+    await expect(page.getByLabel('Safety bubble')).toBeEnabled();
+    await page.getByRole('radio', { name: '3D' }).check();
+    expect(await setting(page, 'view')).toBe('3d');
+  });
+});
+
 test.describe('canvas view', () => {
   test('dragging pans, and the world point follows the mouse @smoke', async ({ page }) => {
     await open(page);
@@ -133,6 +149,32 @@ test.describe('canvas view', () => {
     expect((await page.evaluate(() => window.__kit.view.view)).scale).toBeCloseTo(v0.scale, 9);
   });
 
+  test('keys the map handles never reach page shortcuts, and arrowKeys: false leaves the arrows to the page', async ({ page }) => {
+    await open(page);
+    await page.getByRole('img', { name: 'Test map' }).focus();
+    await page.keyboard.press('ArrowLeft');
+    expect(await page.evaluate(() => window.__kit.shortcuts())).toEqual([]);
+    await page.getByRole('img', { name: 'Replay map' }).focus();
+    const before = await page.evaluate(() => window.__kit.replay.view);
+    await page.keyboard.press('ArrowRight');
+    expect(await page.evaluate(() => window.__kit.shortcuts())).toEqual(['ArrowRight']);
+    expect(await page.evaluate(() => window.__kit.replay.view)).toEqual(before);
+    await page.keyboard.press('+');
+    expect((await page.evaluate(() => window.__kit.replay.view)).scale).toBeGreaterThan(before.scale);
+  });
+
+  test('visibleBounds gives the world area on screen', async ({ page }) => {
+    await open(page);
+    const { b, size, view } = await page.evaluate(() => {
+      const v = window.__kit.view;
+      return { b: v.visibleBounds(), size: v.size, view: v.view };
+    });
+    expect(b.maxX - b.minX).toBeCloseTo(size.width / view.scale, 6);
+    expect(b.maxY - b.minY).toBeCloseTo(size.height / view.scale, 6);
+    expect((b.minX + b.maxX) / 2).toBeCloseTo(view.cx, 6);
+    expect((b.minY + b.maxY) / 2).toBeCloseTo(view.cy, 6);
+  });
+
   test('a still view draws once and then uses no animation frames (#43)', async ({ page }) => {
     await open(page);
     await idle(page);
@@ -161,6 +203,30 @@ test.describe('canvas view', () => {
     await page.evaluate(() => window.__kit.view.requestDraw());
     await idle(page);
     expect(await page.evaluate(() => ({ view: window.__kit.view.view, draws: window.__kit.draws() }))).toEqual(before);
+    expect(await page.evaluate(() => window.__kit.stats().frames)).toBe(0);
+  });
+});
+
+test.describe('canvas surface (no pan or zoom)', () => {
+  test('draws once when still, redraws on request and on resize, and ignores drags', async ({ page }) => {
+    await open(page);
+    await idle(page);
+    const first = await page.evaluate(() => window.__kit.chartDraws());
+    expect(first).toBe(1);
+    const box = await page.locator('#chart').boundingBox();
+    await page.mouse.move(box.x + 50, box.y + 50);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 150, box.y + 80, { steps: 3 });
+    await page.mouse.up();
+    await page.mouse.wheel(0, -300);
+    await idle(page);
+    expect(await page.evaluate(() => window.__kit.chartDraws())).toBe(first);
+    await page.evaluate(() => { window.__kit.chart.requestDraw(); window.__kit.chart.requestDraw(); });
+    await idle(page);
+    expect(await page.evaluate(() => window.__kit.chartDraws())).toBe(first + 1);
+    await page.evaluate(() => { document.getElementById('chart').style.width = '200px'; });
+    await expect.poll(() => page.evaluate(() => window.__kit.chart.size.width)).toBeLessThan(300);
+    await expect.poll(() => page.evaluate(() => window.__kit.chartDraws())).toBe(first + 2);
     expect(await page.evaluate(() => window.__kit.stats().frames)).toBe(0);
   });
 });

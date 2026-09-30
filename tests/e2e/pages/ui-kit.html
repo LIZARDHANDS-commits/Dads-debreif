@@ -8,11 +8,14 @@
     <style>
       body { display: grid; grid-template-columns: 20rem 1fr; gap: 1rem; padding: 1rem; }
       #stage { width: 600px; height: 400px; border: 1px solid var(--border); }
+      #side { display: grid; gap: 1rem; grid-column: 2; }
+      #side canvas { width: 300px; height: 150px; border: 1px solid var(--border); }
     </style>
   </head>
   <body>
     <main id="controls"></main>
     <div id="stage"><canvas id="map"></canvas></div>
+    <div id="side"><canvas id="replay"></canvas><canvas id="chart"></canvas></div>
     <script type="module">
       // A page for the browser tests of controls.js and canvas-view.js, loaded
       // straight from src/ (tests/e2e/ui-kit.spec.js).
@@ -20,7 +23,7 @@
       import { createSettings } from '/src/storage/settings.js';
       import { createScheduler } from '/src/ui-kit/scheduler.js';
       import { createControls } from '/src/ui-kit/controls.js';
-      import { createCanvasView } from '/src/ui-kit/canvas-view.js';
+      import { createCanvasView, createCanvasSurface } from '/src/ui-kit/canvas-view.js';
 
       const settings = createSettings(
         createStore(null).scope('kit'),
@@ -54,10 +57,38 @@
       });
       view.fit({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 }, 0);
 
+      // A map that leaves the arrows to the page, as the debrief does for playback.
+      const replay = createCanvasView(document.getElementById('replay'), {
+        timers: scheduler.scope('replay'),
+        label: 'Replay map',
+        arrowKeys: false,
+        draw() {},
+      });
+      // What app.keys does: skip keys something else already handled.
+      const shortcuts = [];
+      document.addEventListener('keydown', (e) => {
+        if (!e.defaultPrevented && e.key.startsWith('Arrow')) shortcuts.push(e.key);
+      });
+
+      // A sharp canvas without pan and zoom, like the EM chart.
+      let chartDraws = 0;
+      const chart = createCanvasSurface(document.getElementById('chart'), {
+        timers: scheduler.scope('chart'),
+        label: 'Test chart',
+        draw(ctx, surface) {
+          chartDraws++;
+          ctx.fillRect(0, 0, surface.size.width / 2, 10);
+        },
+      });
+
       window.__kit = {
         settings,
         controls,
         view,
+        replay,
+        chart,
+        shortcuts: () => shortcuts.slice(),
+        chartDraws: () => chartDraws,
         draws: () => draws,
         userMoves: () => userMoves,
         stats: () => scheduler.stats(),

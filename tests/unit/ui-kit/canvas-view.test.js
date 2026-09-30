@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toScreen, toWorld, clampScale, zoomAbout, fitBounds } from '../../../src/ui-kit/canvas-view.js';
+import { toScreen, toWorld, clampScale, zoomAbout, fitBounds, visibleBounds } from '../../../src/ui-kit/canvas-view.js';
 
 const size = { width: 800, height: 600 };
 const view = { cx: 1000, cy: -2000, scale: 0.05 };
@@ -78,4 +78,13 @@ test('fit of a single point uses the closest zoom allowed', () => {
 test('fit respects maxSpan for a very long flight', () => {
   const fitted = fitBounds({ minX: 0, minY: 0, maxX: 1e7, maxY: 10 }, size, 0, { maxSpan: 300000 });
   close(size.width / fitted.scale, 300000, 'span');
+});
+
+test('the visible bounds are the world corners of the screen', () => {
+  const view = { cx: 1000, cy: -500, scale: 0.5 };
+  const b = visibleBounds(view, size);
+  close(b.minX, 1000 - 400 / 0.5, 'minX');
+  close(b.maxX, 1000 + 400 / 0.5, 'maxX');
+  close(b.minY, -500 - 300 / 0.5, 'minY (south)');
+  close(b.maxY, -500 + 300 / 0.5, 'maxY (north)');
 });
