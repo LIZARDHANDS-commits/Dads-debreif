@@ -216,6 +216,21 @@ test('a list that was never saved, or that holds nothing, is not reported as dam
   assert.equal(profiles.save(profile('Beta')).ok, true);
 });
 
+test('skipped sentences past five are summarised in one line (PR-06)', () => {
+  const { profiles, storage } = open();
+  const names = Array.from({ length: 60 }, (_, i) => `Profile ${i + 1}`);
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: names.map((n) => profile(n)) }); // 20 are kept, 20 more are read and skipped, and the rest are only carried
+  const listed = profiles.list();
+  assert.equal(listed.profiles.length, MOST_SAVED);
+  assert.equal(listed.skipped.length, 6, 'five sentences and one line for the rest');
+  assert.match(listed.skipped[0], /"Profile 21" was skipped: only 20 profiles are kept\./);
+  assert.equal(listed.skipped[5], 'And 16 more were skipped.', '20 sentences for entries 21 to 40 and one for the rest, less the five shown');
+  // Five or fewer are all shown, as they were.
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: names.slice(0, 25).map((n) => profile(n)) }); // 20 kept, 5 skipped
+  assert.equal(profiles.list().skipped.length, 5);
+  assert.ok(!profiles.list().skipped.some((s) => /^And /.test(s)));
+});
+
 test('Remove unreadable drops only the entries that can\'t be read; on another version\'s list it clears the list', () => {
   const { profiles, storage } = open();
   storage.set('profiles', { version: PROFILE_VERSION, profiles: [profile('Good'), { junk: true }, profile('Also good'), 5] });

@@ -17,6 +17,8 @@ const LAST_KEY = 'last';
 // The app's storage gives the fallback for text that isn't JSON, just as for a key that isn't there, so a list that
 // has gone bad can't be told from an empty one. This mark, written with every list, tells them apart: a list that
 // reads as nothing after this page has written one has been damaged (PR-03, D269).
+/** How many skipped-entry sentences the list shows before summarising the rest. */
+const MOST_SKIPPED_SHOWN = 5;
 const WRITTEN_KEY = 'profiles-written';
 
 const FOREIGN = "The profiles saved in this browser are damaged or from a different version of this page, so nothing was saved or changed. Use Remove unreadable in Profiles and notes to clear them.";
@@ -76,8 +78,10 @@ export function createProfileStore(storage) {
   function list() {
     const { state, entries } = stored();
     if (state === 'foreign') return { profiles: [], skipped: ['The saved profiles in this browser could not be read, so they were skipped.'], unreadable: 0, foreign: true };
-    const skipped = entries.map((e) => e.skipped).filter((s) => s !== null);
-    if (entries.length > MOST_SAVED * 2) skipped.push('More profiles were saved than this page keeps, and the rest were skipped.');
+    const said = entries.map((e) => e.skipped).filter((s) => s !== null);
+    if (entries.length > MOST_SAVED * 2) said.push('More profiles were saved than this page keeps, and the rest were skipped.');
+    // Five sentences are enough: the rest are one line (PR-06).
+    const skipped = said.length > MOST_SKIPPED_SHOWN ? [...said.slice(0, MOST_SKIPPED_SHOWN), `And ${said.length - MOST_SKIPPED_SHOWN} more were skipped.`] : said;
     return { profiles: entries.filter((e) => e.profile).map((e) => e.profile), skipped, unreadable: entries.filter((e) => !e.profile).length, foreign: false };
   }
 
