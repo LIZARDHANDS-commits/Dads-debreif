@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { startPositions } from '../../../src/modules/turn-sim/engine/formation.js';
-import { positionErrorFor, nudgeSettings, startOf } from '../../../src/modules/turn-sim/drag.js';
+import { positionErrorFor, nudgeSettings, startOf, MOVABLE_IDS } from '../../../src/modules/turn-sim/drag.js';
 
 const near = (a, b, why) => assert.ok(Math.abs(a - b) <= 1, `${why}: ${a} against ${b}`);
 
@@ -54,4 +54,8 @@ test('the keyboard nudge moves an aircraft by the step from where it starts now,
   const [x, y] = startOf(settings, 3);
   near(x, x0 - 100, 'west');
   near(y, y0 + 100, 'north');
+});
+
+test('Lead is never movable: only #2 to #4 can be placed', () => {
+  assert.deepEqual([...MOVABLE_IDS], [2, 3, 4]);
 });

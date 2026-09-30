@@ -5,6 +5,9 @@ import { aircraftKey } from './settings.js';
 import { formationSlots, startPositions, rightVector, forwardVector } from './engine/formation.js';
 import { compassDegToHeadingRad } from '../../core/angles.js';
 
+/** Lead stays where it is: the others are placed round it, and its position error has no box on the screen to show or clear it. */
+export const MOVABLE_IDS = Object.freeze([2, 3, 4]);
+
 /** The most a position error can be (settings.js). */
 const MAX_ERROR_FT = 20000;
 

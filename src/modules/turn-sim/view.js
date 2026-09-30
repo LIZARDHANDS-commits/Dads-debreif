@@ -8,6 +8,7 @@ import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { turnRadiusFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { pairDistances, ft } from './readouts.js';
+import { MOVABLE_IDS } from './drag.js';
 import { ringsNm } from './rings.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 
@@ -69,13 +70,13 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
   let ready = false;
   let dragging = null; // { id, pointerId, grabX, grabY }: an aircraft being moved by the pointer
-  let selected = null; // the aircraft the keyboard is moving (1 to 4), or null
+  let selected = null; // the aircraft the keyboard is moving (2 to 4), or null
 
   const map = createCanvasView(canvas, {
     timers,
     minSpan: MIN_SPAN_FT,
     maxSpan: MAX_SPAN_FT,
-    label: 'The formation from above. Before Play, drag an aircraft to move it, or press 1 to 4 and then the arrow keys. Otherwise drag to move the picture, scroll or press + and − to zoom.',
+    label: 'The formation from above. Before Play, drag an aircraft to move it, or press 2 to 4 and then the arrow keys. Otherwise drag to move the picture, scroll or press + and − to zoom.',
     onUserMove,
     draw(ctx) {
       if (needsFit && ready && map.size.width > 0 && map.size.height > 0) { // a hidden canvas (3D is showing) has no size: keep the fit for when 2D is back
@@ -111,7 +112,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
     },
   });
 
-  // ---- moving an aircraft before Play: by the pointer, or the keyboard (1 to 4 picks one, the arrows move it) ----
+  // ---- moving an aircraft before Play: by the pointer, or the keyboard (2 to 4 picks a wingman, the arrows move it) ----
   const NUDGE_FT = 100;
   const NUDGE_BIG_FT = 1000;
   const HIT_PX = 18;
@@ -132,6 +133,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
       const py = e.clientY - rect.top;
       let best = null;
       for (const a of source.state().aircraft) {
+        if (!MOVABLE_IDS.includes(a.id)) continue; // Lead is never picked up: a press on it pans the picture as anywhere else
         const [sx, sy] = map.worldToScreen(a.xFt, a.yFt);
         const d = Math.hypot(sx - px, sy - py);
         if (d <= HIT_PX && (!best || d < best.d)) best = { a, d };
@@ -161,8 +163,10 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
     canvas.addEventListener('pointercancel', end, true);
     canvas.addEventListener('keydown', (e) => {
       if (e.altKey || e.ctrlKey || e.metaKey || !mover.canMove()) return;
-      const ids = source.state().aircraft.map((a) => a.id);
-      if (/^[1-4]$/.test(e.key) && ids.includes(Number(e.key))) {
+      const ids = source.state().aircraft.map((a) => a.id).filter((id) => MOVABLE_IDS.includes(id));
+      if (e.key === '1') {
+        mover.say('Lead stays in place. Press 2 to 4 to move a wingman.');
+      } else if (/^[2-4]$/.test(e.key) && ids.includes(Number(e.key))) {
         setSelected(Number(e.key));
         mover.say(`Moving #${e.key}. Arrow keys move it ${NUDGE_FT} feet, Shift ${NUDGE_BIG_FT} feet. Escape to stop.`);
       } else if (selected !== null && e.key === 'Escape') {

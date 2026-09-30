@@ -340,6 +340,33 @@ test('an aircraft can be dragged before Play, and it starts where it was dropped
   await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
 });
 
+test('Lead cannot be picked up: a drag on it pans the picture, and the key 1 picks nothing (audit RED)', async ({ page }) => {
+  await open(page);
+  const lead = await shipAt(page, 1);
+  const two = await shipAt(page, 2);
+  await page.mouse.move(lead.x, lead.y);
+  await page.mouse.down();
+  await page.mouse.move(lead.x + 40, lead.y + 20, { steps: 4 });
+  await page.mouse.up();
+  const leadAfter = await shipAt(page, 1);
+  const twoAfter = await shipAt(page, 2);
+  expect(leadAfter.x - lead.x).toBeGreaterThan(30); // the whole picture moved
+  expect(twoAfter.x - two.x).toBeGreaterThan(30);
+  expect(Math.abs((twoAfter.x - leadAfter.x) - (two.x - lead.x))).toBeLessThan(2); // and they did not move relative to each other
+  await panel(page, 'Turn Sim settings').click();
+  await panel(page, 'More …').click();
+  for (const box of await page.getByLabel('Put it out of position').all()) await expect(box).not.toBeChecked();
+  // The key 1 picks nothing: the arrow pans the picture as usual.
+  await canvas(page).focus();
+  await page.keyboard.press('1');
+  await expect(page.locator('#module-status')).toContainText('Lead stays in place');
+  const before = await shipAt(page, 1);
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => (await shipAt(page, 1)).x).not.toBe(before.x);
+  const after = await shipAt(page, 1);
+  expect(Math.abs((await shipAt(page, 2)).x - after.x - (twoAfter.x - leadAfter.x))).toBeLessThan(2);
+});
+
 test('dragging works with Follow Lead on, and moving Lead does not run away', async ({ page }) => {
   await open(page);
   await panelMenu(page).click();
@@ -378,7 +405,7 @@ test('the picture pans as before when no aircraft is grabbed, and after Play beg
   await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
 });
 
-test('an aircraft can be moved from the keyboard: 1 to 4 picks it, the arrows move it, Escape stops', async ({ page }) => {
+test('an aircraft can be moved from the keyboard: 2 to 4 picks it, the arrows move it, Escape stops', async ({ page }) => {
   await open(page);
   const before = await shipAt(page, 3);
   await canvas(page).focus();
