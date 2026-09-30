@@ -102,11 +102,12 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
 
 test('a first visit shows only the essentials, and Reset layout brings them back (R22)', async ({ page }) => {
   await open(page);
-  for (const name of ['Aircraft errors', 'Turn Sim settings', 'Profiles', 'More detail']) {
+  for (const name of ['Turn Sim settings', 'Profiles', 'More detail']) {
     await expect(panel(page, name)).toHaveAttribute('aria-expanded', 'false');
   }
   await expect(panelMenu(page)).toHaveAttribute('aria-expanded', 'false');
   await expect(box(page, 'Turn degrees')).toBeHidden(); // in the closed settings menu
+  await expect(page.getByText('Aircraft errors', { exact: true })).toBeHidden(); // inside it, under a closed "More …"
   await expect(page.getByLabel('Lead 3/9 line')).toBeHidden(); // in the closed Layers menu
   // The essentials, with plain labels.
   for (const label of ['Formation', 'Spacing', 'Start heading', 'Turn', 'Speed', 'G', 'Timing', 'Base delay']) {
@@ -293,7 +294,12 @@ test('the Formation card follows the standards the debrief edits, and a switched
 
 test('Aircraft errors: a wingman turning late is what the plan flies (#31)', async ({ page }) => {
   await open(page);
-  await panel(page, 'Aircraft errors').click();
+  await expect(panel(page, 'More …')).toBeHidden(); // it is in the closed settings menu
+  await panel(page, 'Turn Sim settings').click();
+  await expect(panel(page, 'More …')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Put it out of position').first()).toBeHidden();
+  await panel(page, 'More …').click();
+  await expect(page.getByRole('heading', { name: 'Aircraft errors' })).toBeVisible();
   await page.getByLabel('Put it out of position').first().check();
   const wide = page.getByLabel('Side to side').first();
   await wide.selectOption({ label: 'Wide' });
@@ -302,7 +308,7 @@ test('Aircraft errors: a wingman turning late is what the plan flies (#31)', asy
   await expect(page.locator('.ts-line').first()).toHaveText(/Min sep 6,000 ft/); // #3 and Lead are still 6,000 ft
   await panel(page, 'More detail').click();
   await expect(page.getByText(/^1-2: 7,000 ft/)).toBeVisible();
-  await page.getByRole('button', { name: 'Reset to defaults' }).nth(1).click(); // the errors panel's own
+  await page.locator('.ts-errors').getByRole('button', { name: 'Reset to defaults' }).click(); // the errors' own
   await expect(page.getByText(/^1-2: 6,000 ft/)).toBeVisible();
 });
 

@@ -1,7 +1,7 @@
 // The Turn Sim's screen (SPEC-turn-sim: The screen, R22): Setup on the left,
 // the Stage in the middle (the playback bar above the picture, nothing over
 // it) and the Formation card on the right. Only the essentials show at first;
-// Aircraft errors, Settings and Profiles are closed panels, and the layers are
+// Settings (with Aircraft errors under its "More …") and Profiles are closed panels, and the layers are
 // in a menu. The side columns collapse with a real button (#34, #35). All text
 // goes in as text (h), never as HTML.
 import { h, clear } from '../../ui-kit/dom.js';
@@ -144,9 +144,11 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       wrap(built.delay), wrap(built.g), wrap(built.positionOn), positionBoxes, clockBoxes,
     );
   });
-  const errorsPanel = createPanel({ title: 'Aircraft errors', collapsed: !layout.get().errorsOpen, onToggle: (c) => layout.update({ errorsOpen: !c }) });
+  const errorsPanel = createPanel({ title: 'More …', collapsed: !layout.get().errorsOpen, onToggle: (c) => layout.update({ errorsOpen: !c }) });
   errorsPanel.element.classList.add('ts-subpanel');
+  errorsPanel.body.classList.add('ts-errors');
   errorsPanel.body.append(
+    h('h3', { class: 'ts-group-title' }, 'Aircraft errors'),
     h('p', { class: 'ts-hint' }, 'Give a wingman a mistake and see what it does to the turn. All zero means no mistakes.'),
     ...errorSections,
     resetButton(errorKeys),
@@ -200,6 +202,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   profilesPanel.element.classList.add('ts-subpanel');
   profilesPanel.body.append(h('p', { class: 'ts-hint' }, 'Saved setups and a startup default will go here. For now the Turn Sim opens with its defaults.'));
 
+  settingsMenu.body.append(errorsPanel.element); // R22: the rarely used errors sit inside the closed settings menu, under a closed "More …"
   settingsMenu.element.classList.add('ts-subpanel');
   const setupPanel = createPanel({ title: 'Setup', onToggle: (c) => layout.update({ setupColumn: !c }) });
   setupPanel.body.append(
@@ -212,7 +215,6 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       clockPos.element,
       autoNote,
       resetButton(used),
-      errorsPanel.element,
       settingsMenu.element,
       profilesPanel.element,
     ].filter(Boolean), // a field whose setting isn't in settings.js is left out, not shown as "null"
