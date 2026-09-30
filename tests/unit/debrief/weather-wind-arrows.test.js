@@ -14,7 +14,7 @@ import { WIND_MODELS, WIND_LEVELS_HPA, windsUrl, windsGridUrl, readWinds, readWi
 import { createWindsFeed } from '../../../src/modules/debrief/weather/winds-feed.js';
 import {
   ARROW_HEIGHT, clampArrowFt, windGridPoints, flightLatLonBounds, windArrowsAt, arrowVector, arrowLabel, arrowCaption, arrowStatus,
-  ARROW_PX,
+  ARROW_PX, lastResult,
 } from '../../../src/modules/debrief/weather/wind-arrows.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
 
@@ -321,4 +321,28 @@ test('one exact value: point 0 at 18:30Z and 8,000 ft, worked out by hand from t
   const [onHour] = windArrowsAt(readWindsGrid(fixture(), 9), points, T('2026-09-29T18:00Z'), 8000);
   near(onHour.wind.kt, 30.071, 0.01);
   near(onHour.wind.dirDeg, 271.494, 0.05);
+});
+
+test('lastResult works a thing out again only when an input changes, so a pan or zoom while paused reuses the arrows', () => {
+  let runs = 0;
+  const grid = [[]];
+  const arrows = lastResult((g, t, alt) => {
+    runs++;
+    return { g, t, alt };
+  });
+  const first = arrows(grid, 100, 8000);
+  assert.equal(arrows(grid, 100, 8000), first); // the same object: nothing recomputed
+  assert.equal(runs, 1);
+  assert.notEqual(arrows(grid, 101, 8000), first); // time moved
+  assert.notEqual(arrows(grid, 101, 9000), first); // height changed
+  assert.notEqual(arrows([[]], 101, 9000).g, grid); // a new reply
+  assert.equal(runs, 4);
+  arrows([[]], 101, 9000); // a different array with the same content is a different input: asked again
+  assert.equal(runs, 5);
+  // A result that is null or undefined is remembered too.
+  let nulls = 0;
+  const none = lastResult(() => { nulls++; return null; });
+  none(1);
+  none(1);
+  assert.equal(nulls, 1);
 });

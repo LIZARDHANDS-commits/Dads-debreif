@@ -29,7 +29,24 @@ export function flightLatLonBounds(flight) {
   return { minLat: sw.lat, maxLat: ne.lat, minLon: sw.lon, maxLon: ne.lon };
 }
 
-const round2 = (v) => Math.round(v * 100) / 100;
+/**
+ * Remembers the last result of compute(...inputs) and gives it again while
+ * every input is the same (compared with ===), so a pan or a zoom while paused,
+ * which draws again with the same time, height and reply, doesn't work the
+ * arrows out again, and the same list of arrows comes back to be reused.
+ */
+export function lastResult(compute) {
+  let inputs = null;
+  let result;
+  return (...next) => {
+    if (inputs && inputs.length === next.length && inputs.every((v, i) => v === next[i])) return result;
+    result = compute(...next);
+    inputs = next;
+    return result;
+  };
+}
+
+const round2 =(v) => Math.round(v * 100) / 100;
 
 /**
  * The 3 x 3 grid over a box: the corners, the middles of the edges and the

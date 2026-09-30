@@ -8,6 +8,7 @@ import {
   trackPaths, drawTennis, drawGrid, drawTracks, drawShips, draw39Line, drawCone, drawSpacingLines, drawBubbles, drawClockMarks, drawDfpFlags, drawWindArrows,
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
+import { lastResult } from '../weather/wind-arrows.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../../ui-kit/map-tiles.js';
 import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
@@ -119,6 +120,9 @@ export function createMapView(canvas, {
     return layer.state();
   }
 
+  // The arrows' places in map feet, kept while the list of arrows and the flight's reference are the same, so a pan or zoom while paused doesn't project them again.
+  const projectArrows = lastResult((arrows, ref) => arrows.map((a) => ({ ...a, ...latLonToLocalFt(ref, a.lat, a.lon) })));
+
   const map = createCanvasView(canvas, {
     timers,
     minSpan: MAP_MIN_SPAN_FT,
@@ -158,10 +162,7 @@ export function createMapView(canvas, {
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
       const arrows = windArrows();
-      if (arrows?.length) {
-        const ref = mapRef();
-        drawWindArrows(ctx, map, arrows.map((a) => ({ ...a, ...latLonToLocalFt(ref, a.lat, a.lon) })));
-      }
+      if (arrows?.length) drawWindArrows(ctx, map, projectArrows(arrows, mapRef()));
       if (on.lead39 && lead) draw39Line(ctx, map, lead, 'Lead 3/9');
       const three = ships.find((s) => s.slot === 3);
       if (on.three39 && three) draw39Line(ctx, map, three, '#3 3/9');

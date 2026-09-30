@@ -35,7 +35,7 @@ import { createMetarFeed } from './weather/metar-feed.js';
 import { createWindsFeed } from './weather/winds-feed.js';
 import { WIND_MODELS, windModelFor, windTextAt, windFailureText } from './weather/winds.js';
 import {
-  clampArrowFt, windGridPoints, flightLatLonBounds, windArrowsAt, arrowLabel, arrowCaption, arrowStatus,
+  clampArrowFt, windGridPoints, flightLatLonBounds, windArrowsAt, arrowLabel, arrowCaption, arrowStatus, lastResult,
 } from './weather/wind-arrows.js';
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
@@ -229,15 +229,18 @@ function mount(root, app) {
     if (entry.state === 'busy' && entry.daily) return { ...none, status: `${label} winds: this browser has used Open-Meteo's free daily allowance, try tomorrow` };
     if (entry.state === 'busy') return { ...none, status: `${label} winds: Open-Meteo is busy. ${retry}` };
     if (entry.state === 'failed') return { ...none, status: windFailureText(label, entry.failure, retry) };
-    const altFt = clampArrowFt(on.wxWindArrowFt);
-    const found = windArrowsAt(entry.grid, windGrid, clock.t, altFt, { fieldFt: homeFieldFt() });
+    return arrowsFor(entry.grid, windGrid, clock.t, clampArrowFt(on.wxWindArrowFt), label, homeFieldFt());
+  }
+  // Worked out again only when the reply, the points, the moment, the height, the model or the field change, so a pan or zoom while paused reuses it (and the map reuses its projection of the same list).
+  const arrowsFor = lastResult((grid, points, t, altFt, label, fieldFt) => {
+    const found = windArrowsAt(grid, points, t, altFt, { fieldFt });
     const shown = found.filter((a) => a.wind);
     return {
       arrows: shown.map((a) => ({ lat: a.lat, lon: a.lon, dirDeg: a.wind.dirDeg, kt: a.wind.kt, label: arrowLabel(a.wind) })),
       caption: shown.length ? arrowCaption(altFt, label, shown[0].hoursT) : '',
       status: arrowStatus(found, altFt, label),
     };
-  }
+  });
   function renderWindArrows() {
     const { caption, status } = windArrowsNow();
     ui.setWindArrows({ caption, status });
