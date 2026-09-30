@@ -11,7 +11,7 @@
 // factor; a level turn needs more than 1 G.
 //
 // Line numbers refer to original/shell.html unless a sub-page is named.
-import { G_FTPS2, KT_TO_FTPS, M_PER_FT } from './units.js';
+import { G_FTPS2, KT_TO_FTPS, FTPS_TO_KT, M_PER_FT } from './units.js';
 import { radToDeg, headingRad, wrapPi } from './angles.js';
 
 /** The least G V6 lets any turn use: at exactly 1 G there is no turn. */
@@ -83,4 +83,43 @@ export function emPoint(before, now, after) {
   const altFt = Number.isFinite(now.altFt) ? now.altFt : 6500;
   const iasKt = gsKt * Math.sqrt(Math.max(.15, isaDensityRatio(altFt)));
   return { iasKt, turnRateDeg, altFt, gsKt };
+}
+
+// ── Closure and G from recorded tracks ───────────────────────────────────────
+// The debrief works these out from two moments of a track. Picking the moments
+// and reading the track at them is flight-data's job; these take the result.
+
+/**
+ * Closure between aircraft A and B in knots, from where each was dtSec ago and
+ * where each is now (debrief `closureRateKt`, line 3119). Positive means the
+ * range is shrinking. Null if a position is missing or dtSec is not above 0.
+ */
+export function closureKt(prevA, prevB, nowA, nowB, dtSec) {
+  if (!nowA || !nowB || !prevA || !prevB || dtSec <= 0) return null;
+  const nowR = Math.hypot(nowA.x - nowB.x, nowA.y - nowB.y);
+  const prevR = Math.hypot(prevA.x - prevB.x, prevA.y - prevB.y);
+  return ((prevR - nowR) / dtSec) * FTPS_TO_KT;
+}
+
+/** Closure for the screen: "+12 kt", "-5 kt", "0 kt" under a knot, "--" if unknown (`fmtClosureKt`, line 3131). */
+export function formatClosureKt(kt) {
+  if (kt === null || !Number.isFinite(kt)) return '--';
+  const rounded = Math.round(kt);
+  if (Math.abs(rounded) < 1) return '0 kt';
+  return (rounded > 0 ? '+' : '') + rounded + ' kt';
+}
+
+/**
+ * G of a level turn flown between two moments dtSec apart, from the positions
+ * p0 and p1 and the headings h0 and h1 there (debrief `estimatedGAtTrack`,
+ * line 2462). Null below 20 ft/s, or when the answer is outside 0.8 to 9 G.
+ */
+export function gFromTrack(p0, h0, p1, h1, dtSec) {
+  if (!p0 || !p1) return null;
+  const omega = Math.abs(wrapPi(h1 - h0)) / dtSec;
+  const fps = Math.hypot(p1.x - p0.x, p1.y - p0.y) / dtSec;
+  if (!Number.isFinite(omega) || !Number.isFinite(fps) || fps < 20) return null;
+  const g = Math.sqrt(1 + Math.pow(fps * omega / G_FTPS2, 2));
+  if (!Number.isFinite(g) || g < 0.8 || g > 9) return null;
+  return g;
 }

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../src/core/units.js';
-import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint } from '../../src/core/flight-math.js';
+import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
 import { loadV6 } from './v6-source.js';
 import { seeded, spread } from './inputs.js';
 
@@ -119,4 +119,86 @@ test('emPoint is null when a moment is missing, as metrics is', () => {
     assert.equal(emPoint(a, b, c), null);
     assert.equal(metrics(trackApi(a, b, c), 1, 10), null);
   }
+});
+
+// ── Closure and estimated G: V6's debrief functions run on the same tracks ──
+
+/** A recorded track: about one point a second on a turn whose rate and speed wander. */
+function recordedTrack(id, r, n = 40) {
+  const pts = [];
+  let x = 4000 * r(), y = 4000 * r(), h = 2 * Math.PI * r(), t = 1000 * r(), kt = 120 + 200 * r();
+  for (let i = 0; i < n; i++) {
+    pts.push({ t, x, y, altFt: 5000 + 3000 * r() });
+    const dt = r() < 0.1 ? 0.2 : r() < 0.1 ? 3 : 1;
+    const v = ktToFtps(kt) * (r() < 0.05 ? 0 : 1);
+    h += (-0.4 + 0.8 * r()) * dt;
+    x += v * Math.cos(h) * dt;
+    y += v * Math.sin(h) * dt;
+    t += dt;
+    kt += -10 + 20 * r();
+  }
+  return { id, pts };
+}
+
+function debriefV6() {
+  return loadV6(['interpTrack', 'headingAtTrack', 'offsetKmlPoint', 'interpTrackWithError', 'normAngleRad', 'closureRateKt', 'estimatedGAtTrack', 'fmtClosureKt'], {
+    prelude: `const KML_KT_PER_FPS=0.592484; let tracks={}, kmlT=0, kmlStart=0, kmlErrors={};
+      function setDebrief(s){ tracks=s.tracks; kmlT=s.kmlT; kmlStart=s.kmlStart; kmlErrors=s.kmlErrors||{}; }`,
+    expose: ['setDebrief'],
+  });
+}
+
+test('closureKt matches the debrief closureRateKt, positions read the V6 way', () => {
+  const v6 = debriefV6();
+  const r = seeded(15);
+  for (let i = 0; i < 60; i++) {
+    const A = recordedTrack(1, r), B = recordedTrack(2, r);
+    B.pts.forEach((p, k) => { p.t = A.pts[Math.min(k, A.pts.length - 1)].t + (r() - 0.5); });
+    B.pts.sort((p, q) => p.t - q.t);
+    const kmlErrors = i % 3 ? {} : { 2: { on: true, latDir: 'wide', latMag: 300, foreDir: 'aft', foreMag: 100 } };
+    for (let j = 0; j < 20; j++) {
+      const kmlStart = A.pts[0].t, kmlT = kmlStart - 2 + (A.pts.at(-1).t - kmlStart + 4) * r();
+      const lookback = [1, 0.5, 2, 0][j % 4];
+      v6.setDebrief({ tracks: { 1: A, 2: B }, kmlT, kmlStart, kmlErrors });
+      const prevT = Math.max(kmlStart, kmlT - lookback);
+      const at = (tr, t) => v6.interpTrackWithError(tr, t);
+      const ours = closureKt(at(A, prevT), at(B, prevT), at(A, kmlT), at(B, kmlT), kmlT - prevT);
+      assert.equal(ours, v6.closureRateKt(1, 2, lookback), `kmlT=${kmlT} lookback=${lookback}`);
+      assert.equal(formatClosureKt(ours), v6.fmtClosureKt(ours));
+    }
+  }
+  v6.setDebrief({ tracks: { 1: recordedTrack(1, r) }, kmlT: 5, kmlStart: 0 });
+  assert.equal(v6.closureRateKt(1, 2), null);
+  assert.equal(closureKt({ x: 0, y: 0 }, null, { x: 0, y: 0 }, { x: 1, y: 1 }, 1), null);
+});
+
+test('formatClosureKt matches fmtClosureKt', () => {
+  const { fmtClosureKt } = debriefV6();
+  for (const kt of [null, NaN, Infinity, 0, -0, 0.4, 0.5, -0.5, -0.51, 1, -1, 12.49, 12.5, -12.5, 250, -3000, ...spread(100, -400, 400, 16)]) {
+    assert.equal(formatClosureKt(kt), fmtClosureKt(kt), `kt=${kt}`);
+  }
+});
+
+test('gFromTrack matches the debrief estimatedGAtTrack, moments picked the V6 way', () => {
+  const v6 = debriefV6();
+  const r = seeded(17);
+  // What flight-data has to do before calling gFromTrack (estimatedGAtTrack, lines 2463 to 2468).
+  function estimatedG(tr, time, windowSec = 1.5) {
+    if (!tr || !tr.pts || tr.pts.length < 3) return null;
+    const t0 = Math.max(tr.pts[0].t, time - windowSec), t1 = Math.min(tr.pts[tr.pts.length - 1].t, time + windowSec);
+    if (t1 - t0 < 0.5) return null;
+    return gFromTrack(v6.interpTrack(tr, t0), v6.headingAtTrack(tr, t0), v6.interpTrack(tr, t1), v6.headingAtTrack(tr, t1), t1 - t0);
+  }
+  let found = 0;
+  for (let i = 0; i < 80; i++) {
+    const tr = recordedTrack(1, r, i % 10 === 0 ? 2 : 40);
+    for (let j = 0; j < 25; j++) {
+      const time = tr.pts[0].t - 2 + (tr.pts.at(-1).t - tr.pts[0].t + 4) * r();
+      const windowSec = j % 5 ? 1.5 : 0.2 + 3 * r();
+      const want = v6.estimatedGAtTrack(tr, time, windowSec);
+      assert.equal(estimatedG(tr, time, windowSec), want, `time=${time}`);
+      if (want !== null) found++;
+    }
+  }
+  assert.ok(found > 500, `only ${found} moments had a G to compare`);
 });

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -66,4 +66,24 @@ test('emPoint without a recorded speed uses the distance flown over two seconds'
   near(m.gsKt, 200, 1e-9);
   assert.equal(m.turnRateDeg, 0);
   assert.equal(m.altFt, 6500);
+});
+
+test('two aircraft meeting head-on at 200 knots each close at about 400 knots', () => {
+  const v = ktToFtps(200);
+  const kt = closureKt({ x: 0, y: 0 }, { x: 10000, y: 0 }, { x: v, y: 0 }, { x: 10000 - v, y: 0 }, 1);
+  near(kt, 400, 0.01);
+  assert.ok(closureKt({ x: v, y: 0 }, { x: 10000 - v, y: 0 }, { x: 0, y: 0 }, { x: 10000, y: 0 }, 1) < 0, 'opening is negative');
+  assert.equal(formatClosureKt(kt), '+400 kt');
+  assert.equal(formatClosureKt(-0.4), '0 kt');
+  assert.equal(closureKt({ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }, 0), null);
+});
+
+test('gFromTrack reads back the G of a steady level turn', () => {
+  // Along a 4 G turn at 220 knots, heading grows at the turn rate.
+  const v = ktToFtps(220), w = turnRateRadPerSec(v, 4), R = v / w, dt = 1;
+  const p0 = { x: R, y: 0 }, p1 = { x: R * Math.cos(w * dt), y: R * Math.sin(w * dt) };
+  const g = gFromTrack(p0, Math.PI / 2, p1, Math.PI / 2 + w * dt, dt);
+  near(g, 4, 0.03); // a little under 4: the straight line between the points is shorter than the arc
+  assert.equal(gFromTrack(p0, 0, { x: R + 10, y: 0 }, 0, 1), null, 'too slow to tell');
+  assert.equal(gFromTrack(p0, 0, p1, 3, 1), null, 'over 9 G is noise');
 });
