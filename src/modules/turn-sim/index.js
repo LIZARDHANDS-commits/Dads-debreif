@@ -155,7 +155,10 @@ function mount(root, app) {
     }
     ui.setNote('Loading 3D…');
     const result = await view3d.show();
-    if (turn !== switching) return; // switched again while three.js was loading
+    if (turn !== switching) {
+      if (wantView !== '3d') view3d.hide(); // switched away while three.js was loading: it must not stay showing
+      return;
+    }
     if (!result.ok) {
       if (result.reason === 'closed') return;
       ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
