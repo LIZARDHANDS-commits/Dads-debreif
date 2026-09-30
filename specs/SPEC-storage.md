@@ -39,7 +39,18 @@ const stop = settings.subscribe(next => { … }); // called after every change
 
 Step 1's shared settings: `timePrimary` (`'zulu'` or `'local'`, default `'zulu'`, D18) and `motion` (`'system'` follows the computer's reduced-motion setting, `'full'` plays card videos and animations, `'reduced'` shows stills only; default `'system'`, issue #41).
 
-Later, not in step 1: `file.js` (save and open a file) arrives with the debrief file (R17) in step 2.
+`file.js`: saving a file to the computer and opening one from it, for every module (the debrief file R17, Turn Sim and Traffic setups). It moves text only; the module that owns a format checks what's in it.
+
+```js
+import { downloadText, pickTextFiles, readTextFiles } from '../../storage/file.js';
+downloadText(json, 'sortie.dadsdebrief.json', { type: 'application/json' }); // the browser's normal download
+const files = await pickTextFiles({ accept: '.json', maxBytes }); // [{ name, size, text }], [] if cancelled
+const dropped = await readTextFiles(event.dataTransfer.files, { maxBytes }); // same, for a drop or your own <input>
+```
+
+- The saved name is cleaned (`safeFileName`): no folders, no characters a file system refuses, at most 120 characters.
+- A file over `maxBytes` is refused with a `FileTooBigError` ("big.kml is too big to open (12.3 MB; the limit is 10.0 MB).") before any file is read.
+- `pickTextFiles` must be called from a click, since browsers only open the picker in answer to one.
 
 ## Boundaries
 
