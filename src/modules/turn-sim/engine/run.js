@@ -132,6 +132,8 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
  *            maneuverFallback: null, or the reason the turn asked for could not be flown (the shackle and the cross turn are
  *            two-ship turns, settings.js turnProblem) and the default turn was flown instead.
+ *            checkFallback: null, or why the Delayed 45 check turn was not flown when it was asked for (or is the default) and Turn degrees is not 45
+ *            (the plain Delayed 45 is flown; recheck of #223, C1).
  *            delayed45CheckFlown: true when the Delayed 45 is flown with the check turn (settings delayed45Check, and not under the clock cue), so the screen can say so.
  *            closePasses: [{ a, b, minFt }] (a getter like crossings), the pairs that pass between 300 and 1,000 ft: not a designed crossing, but too close
  *            to fly without altitude separation (a four-ship Delayed 45 with a 15 degree check at 4,000 ft spacing).
@@ -167,7 +169,7 @@ export function createRun(settings, options = {}) {
   let planned = false;
   let planInfo = { autoStepSec: null, rearDelaysSec: null, crossSolve: null };
 
-  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, delayed45CheckFlown: false, crossTurnSpacingNote: null, aircraft: [] };
+  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, delayed45CheckFlown: false, checkFallback: null, crossTurnSpacingNote: null, aircraft: [] };
   // The crossings preview is a whole run made on a copy, so it is made the first time state.crossings is read (a fit-to-screen run never reads it).
   Object.defineProperty(state, 'crossings', { enumerable: true, get: () => crossings() });
   Object.defineProperty(state, 'closePasses', { enumerable: true, get: () => closePasses() });
@@ -237,6 +239,7 @@ export function createRun(settings, options = {}) {
     state.leadTurnDirection = leadPlan && leadPlan.turnDir === -1 ? 'right' : leadPlan && leadPlan.turnDir === 1 ? 'left' : cfg.direction;
     state.maneuverFallback = cfg.maneuverFallback;
     state.delayed45CheckFlown = Boolean(info.checkFlown);
+    state.checkFallback = info.checkFallback || null;
     state.crossTurnSpacingNote = info.crossSolve || null;
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {

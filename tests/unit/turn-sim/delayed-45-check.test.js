@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULTS, MANEUVER_TURN_DEG, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
+import { OFFSET_BOX_OUTSIDE_FT } from '../../../src/modules/turn-sim/engine/formation.js';
 import { planCheckChain } from '../../../src/modules/turn-sim/engine/check-plan.js';
 
 // The tests below fly the figure's cue as it falls (the default, about 3,900 ft apart); the solved spacing has its own tests at the end.
@@ -388,4 +389,71 @@ test('Turn degrees 45 flies the check exactly as before (two-ship, 4312, box)', 
     assert.deepEqual(run.state.aircraft.map((a) => [a.xFt, a.yFt, a.headingRad]), PIN_45[name].ends, name);
     assert.deepEqual([run.state.tSec, run.history().length], PIN_45[name].time, name);
   }
+});
+
+// C1 of the recheck of #223: the check's cue is the figures' 5 or 7 o'clock, worked out for a 45. At any other Turn degrees the run ended
+// far from spacing (1,804 ft apart at 30, 9,283 ft apart and 3,936 ft aft at 70), so the check is flown at 45 only. Anywhere else the plain
+// chain is flown, which adapts to the angle, and state.checkFallback says why.
+test('C1: the check falls back to the plain chain at any Turn degrees but 45, and says why (two-ship, 4312, both settings)', () => {
+  for (const turnDeg of [30, 60, 70]) {
+    for (const [formation, delayed45Check] of [['twoShip', 'check'], ['weighted', 'auto'], ['weighted', 'check'], ['weightedReverse', 'auto']]) {
+      const label = `${formation} ${delayed45Check} ${turnDeg}`;
+      const settings = { ...DEFAULTS, maneuver: 'delayed45away', turnDeg, formation, delayed45Check, startHeadingDeg: 0, timing: 'time', direction: 'right' };
+      const run = createRun(settings);
+      assert.equal(run.state.delayed45CheckFlown, false, label);
+      assert.match(run.state.checkFallback, /45/, label);
+      const plain = createRun({ ...settings, delayed45Check: 'none' });
+      while (run.step());
+      while (plain.step());
+      assert.equal(plain.state.checkFallback, null, `${label}: nothing to say when the check was not asked for`);
+      assert.deepEqual(run.state.aircraft.map((a) => [a.xFt, a.yFt, a.headingRad]), plain.state.aircraft.map((a) => [a.xFt, a.yFt, a.headingRad]), `${label}: the plain chain`);
+      // The plain chain ends on spacing: the pair the plain turn rolls out (about 5,900 ft in the two-ship at 6,000 ft spacing).
+      const a = run.state.aircraft;
+      const spacing = Math.hypot(a[0].xFt - a[1].xFt, a[0].yFt - a[1].yFt);
+      assert.ok(spacing > 4500 && spacing < 7500, `${label}: ends ${spacing.toFixed(0)} ft apart`);
+    }
+  }
+});
+
+test('C1: nothing to say when there is nothing to fall back from: 45 flies the check, the plain styles and the clock cue and the two-ship on Auto stay quiet', () => {
+  const state = (over) => createRun({ ...DEFAULTS, maneuver: 'delayed45away', startHeadingDeg: 0, ...over }).state;
+  assert.equal(state({ turnDeg: 45, formation: 'weighted' }).checkFallback, null);
+  assert.equal(state({ turnDeg: 45, formation: 'weighted' }).delayed45CheckFlown, true);
+  assert.equal(state({ turnDeg: 30, formation: 'twoShip' }).checkFallback, null, 'the two-ship is plain on Auto whatever the angle');
+  assert.equal(state({ turnDeg: 30, formation: 'weighted', delayed45Check: 'none' }).checkFallback, null);
+  assert.equal(state({ turnDeg: 30, formation: 'weighted', timing: 'clock' }).checkFallback, null, 'the clock cue flies the plain turn anyway');
+  assert.equal(state({ turnDeg: 90, formation: 'weighted', maneuver: 'delayed90away' }).checkFallback, null);
+});
+
+// C9 of the recheck of #223: the rear shift was held at 0 s or more, so at Box aft 6,000 in a left turn #3 and #4 missed their slots by 438 and
+// 978 ft. The shift may be negative now (the front element waits), and the box keeps its shape from 5,000 to 8,000 ft aft.
+test('C9: the box ends in its shape at Box aft 5,000, 6,000, 7,000 and 8,000 ft, both directions, and a negative shift is flown as the front element waiting', () => {
+  let sawNegative = false;
+  for (const direction of ['right', 'left']) {
+    for (const boxAftFt of [5000, 6000, 7000, 8000]) {
+      const label = `box ${direction} aft ${boxAftFt}`;
+      const { run, start, startedAt } = four('offsetBox', direction, { boxAftFt, durationSec: 100 });
+      const at = (id) => run.state.aircraft.find((a) => a.id === id);
+      const h = at(1).headingRad;
+      const fwd = { x: Math.cos(h), y: Math.sin(h) };
+      const span = Math.hypot(at(2).xFt - at(1).xFt, at(2).yFt - at(1).yFt);
+      const u = { x: (at(2).xFt - at(1).xFt) / span, y: (at(2).yFt - at(1).yFt) / span };
+      const target3 = { x: (at(1).xFt + at(2).xFt) / 2 - fwd.x * boxAftFt, y: (at(1).yFt + at(2).yFt) / 2 - fwd.y * boxAftFt };
+      const target4 = { x: at(2).xFt + u.x * OFFSET_BOX_OUTSIDE_FT - fwd.x * boxAftFt, y: at(2).yFt + u.y * OFFSET_BOX_OUTSIDE_FT - fwd.y * boxAftFt };
+      const miss3 = Math.hypot(at(3).xFt - target3.x, at(3).yFt - target3.y);
+      const miss4 = Math.hypot(at(4).xFt - target4.x, at(4).yFt - target4.y);
+      assert.ok(miss3 < 700 && miss4 < 550, `${label}: #3 misses by ${miss3.toFixed(0)} ft, #4 by ${miss4.toFixed(0)} ft`);
+      const shift = run.state.offsetBox.rear[0].delaySec;
+      assert.equal(run.state.offsetBox.rear[1].delaySec, shift, label);
+      if (shift < 0) {
+        sawNegative = true;
+        // The rear element starts with the run and the front element waits.
+        const rearStart = Math.min(startedAt[3], startedAt[4]);
+        const frontStart = Math.min(startedAt[1], startedAt[2]);
+        assert.ok(rearStart < 0.1 && Math.abs(frontStart + shift) < 0.2, `${label}: front waits ${frontStart.toFixed(2)} s for a shift of ${shift.toFixed(2)}`);
+      }
+      for (const a of run.state.aircraft) assert.ok(Math.abs(a.headingRad - start.find((s) => s.id === 1).headingRad - (direction === 'right' ? -1 : 1) * Math.PI / 4) < 2e-4, `${label} #${a.id}: on the 45 heading`);
+    }
+  }
+  assert.ok(sawNegative, 'a left turn at Box aft 6,000 wants the rear element first');
 });
