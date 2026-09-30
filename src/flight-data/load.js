@@ -10,8 +10,9 @@ export const MAX_TRACKS = 4;
 
 /**
  * `files` is [{ slot, name, text }] with slots 1 to MAX_TRACKS, each once.
- * Returns the flight (buildFlight), or throws the first KmlError, whose
- * message names the file. The caller keeps whatever it had loaded before.
+ * Returns the flight (buildFlight) with the files it came from, for saving
+ * (debrief-file.js), or throws the first KmlError, whose message names the
+ * file. The caller keeps whatever it had loaded before.
  */
 export function loadFlight(files) {
   if (!Array.isArray(files) || !files.length || files.length > MAX_TRACKS) {
@@ -24,5 +25,5 @@ export function loadFlight(files) {
     }
     tracks[slot] = cleanTrack(readKml(text, name));
   }
-  return buildFlight(tracks);
+  return { ...buildFlight(tracks), files: files.map(({ slot, name, text }) => ({ slot, name, text })) };
 }

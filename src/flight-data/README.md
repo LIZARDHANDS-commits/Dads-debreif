@@ -10,6 +10,7 @@ Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one p
 | `load.js` | `loadFlight([{ slot, name, text }])`: reads, cleans and places up to four track files at once, or refuses the lot with a message naming the file. What the debrief calls. |
 | `flight.js` | `buildFlight(tracks)`: one map and playback window for up to four tracks (refused if they don't overlap in time). `sampleAt` (with `inGap`), `headingAt` (null while still), `pitchAt` and `gAt` (estimated from the track unless `{ recorded: true }`): each aircraft at a given time. |
 | `clock.js` | `createClock({ startT, endT })`: the one playback clock every view reads. Play, pause, reset, seek and step to whole seconds, 0.25× to 16×. No timers of its own: the ui-kit scheduler calls `tick(nowMs)` each frame. |
+| `debrief-file.js` | `toDebriefFile(flight, dfps, settings)` and `readDebriefFile(text, { settings })`: the `.dadsdebrief.json` format (original track files, cleaning limits, DFPs, settings). An opened file is checked field by field; the caller lists which settings to keep. |
 
 ## Changing something
 
