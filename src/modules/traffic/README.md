@@ -63,18 +63,28 @@ V6's own functions are there too, for the tests and the editor: `roundedPoints`,
 
 ```js
 const sim = createSim(setup, { seed: 1 });   // aircraft from setup.aircraft, dice from the seed
-sim.t                 // sim time in seconds (0 at the start)
+sim.t                 // sim time in seconds (0 at the start; always a whole number of steps)
+sim.seed, sim.setup   // what it was made with
 sim.stepTo(tSec)      // fly on to tSec in whole 0.05 s steps; returns how many steps it took
-sim.reset()           // back to 0 s, every aircraft at its start, the dice from the seed again
-sim.spawn({ type, routeId, startPoint, delaySec })  // returns the new callsign
-sim.remove(id); sim.clearFinished()
+sim.reset()           // back to 0 s, every aircraft (spawned ones too) at its start, the dice from the seed again
+sim.spawn({ type, routeId, startPoint, delaySec, id })  // returns the new callsign
+sim.remove(id)        // true if it was there
+sim.clearFinished()   // drops every aircraft that has landed or is done (V6 "Clear inactive")
 sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a profile
+sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first
+sim.diceState()       // where the dice are (changes with every roll; the golden tests compare it with V6's)
 sim.state()           // what is where right now
 ```
 
-The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is asked for, and stops there, so the caller keeps the remainder (ask for `sim.t` plus the frame time times the speed each frame). The same run comes out at any frame rate and any speed. At 1× and 20 frames a second it is V6's own run.
+The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is asked for, and stops there, so the caller keeps the remainder (ask for `sim.t` plus the frame time times the speed each frame). The same run comes out at any frame rate and any speed. At 1× and 20 frames a second it is V6's own run. Time only goes forward: to go back, `reset()` and fly again. `stepTo` throws a `RangeError` for a time that is not a number.
 
-`spawn`: `type` is a V6 type name (`CT-157`, `CT-156`, `CT-102`, `CT-114`), `startPoint` counts from 1 (default 1), `delaySec` is from now (default 0). An unknown route or type throws.
+`spawn`: `type` is a V6 type name (default `CT-156`), `routeId` a route (default the first), `startPoint` counts from 1 (default 1; past the last point it is the last), `delaySec` is from now (default 0). `id` picks the callsign; without it the first free `A1`, `A2`, … is used, as in V6. An unknown type or route, a start point that is not a whole number from 1, a delay that is not a number, or a callsign in use throws a `RangeError`.
+
+The clock is added up 0.05 s at a time, as V6 does, so a whole second can come out a hair short (3 s is 2.9999999999999973). `readouts.js` drops the fraction, as V6's clock does, so the clock reads the second before on those ticks, as V6's does.
+
+A route point with no speed is flown at the aircraft type's own speed (V6's 125, 180, 150 and 230 kt for CT-157, CT-156, CT-102 and CT-114) and one with no height at 2,500 ft, as V6 does; the app never makes such a point.
+
+Constants: `STEP_SEC` (0.05), `TYPE_COLORS` (V6's four types and the colour each is drawn in) and `DEFAULT_CONFLICT_LIMITS` (200, 200, 500, 500 ft, used when `setup.conflictLimits` is missing).
 
 `sim.state()` returns:
 
@@ -94,13 +104,11 @@ The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is 
 }
 ```
 
-A landed or done aircraft keeps the place it stopped at. Conflicts are between aircraft that are flying: both distances under the red limits is a conflict, both under the caution limits (and not a conflict) a caution.
-
-`sim.trailOf(id)` gives the aircraft's trail: `[{ x, y }]`, a point every 0.5 s of sim time for the last 2 minutes.
+A landed or done aircraft keeps the place it stopped at. Conflicts are between aircraft that are flying: both distances under the red limits is a conflict, both under the caution limits (and not a conflict) a caution. `setup.routes`, `setup.routeOptions` and `setup.conflictLimits` are read each step, so a route or a limit edited while it runs takes effect at once, as in V6.
 
 ### `dice.js`
 
-`createDice(seed)` returns a function that gives a number from 0 up to (not including) 1 each time it is called, the same numbers for the same seed. `dice.getState()` and `dice.setState(state)` save and restore it. The sim takes all its choices (land or go round, take a split or not) from one dice, in V6's order.
+`createDice(seed)` returns a function that gives a number from 0 up to (not including) 1 each time it is called, the same numbers for the same seed (mulberry32). `dice.getState()` and `dice.setState(state)` save and restore it. The sim takes all its choices (land or go round, take a split or not) from one shared dice, in V6's order; a dice for each aircraft comes with task 12.
 
 ### `readouts.js`: text, with V6's rounding
 

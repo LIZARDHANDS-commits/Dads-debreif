@@ -136,14 +136,16 @@ export function toV6Aircraft(a) {
  * objects. The returned `v6` has V6's functions by name, `state` (its globals),
  * `elements` (what updatePanels wrote) and `frame()`, one screen frame of 50 ms.
  *
- * V6 rebuilds every rounded route several times per aircraft per frame (#49),
- * which makes an hour of sim time take minutes. With `cacheRoutes` the three
- * functions that only rebuild it (roundedPoints, navSegs, routeLen) are wrapped
- * in a cache; V6's own code still runs inside them, and everything else is
- * untouched. Routes must not change while the cache is on, or `v6.clearCache()`
- * has to be called after the change.
+ * Two things are left out of V6's frame so an hour of sim time takes seconds:
+ * - V6 redraws its tables every frame, even paused (#49). `updatePanels` is V6's own
+ *   function and is there to call, but a frame doesn't call it unless `panelsEachFrame`.
+ * - V6 rebuilds every rounded route several times per aircraft per frame (#49). With
+ *   `cacheRoutes`, the four functions that only rebuild it (roundedPoints, navSegs,
+ *   routeLen and pointProg, which answer the same for the same route) remember their
+ *   answers; V6's own code still runs inside them, once. Routes must not change while
+ *   the cache is on, or `v6.clearCache()` has to be called after the change.
  */
-export function loadV6Traffic({ settings = { ...V6_SETTINGS }, random = () => 0.5, routes = [], aircraft = [], cacheRoutes = false } = {}) {
+export function loadV6Traffic({ settings = { ...V6_SETTINGS }, random = () => 0.5, routes = [], aircraft = [], cacheRoutes = false, panelsEachFrame = false } = {}) {
   const elements = new Map();
   const $ = (id) => {
     if (!elements.has(id)) {
@@ -170,19 +172,29 @@ export function loadV6Traffic({ settings = { ...V6_SETTINGS }, random = () => 0.
       get t() { return t; }, set t(v) { t = v; },
       get playing() { return playing; }, set playing(v) { playing = v; },
     };`;
-  const cached = new Set(cacheRoutes ? ['roundedPoints', 'navSegs', 'routeLen'] : []);
+  // These keep V6's text under a new name, and a wrapper takes the old one.
+  const cached = cacheRoutes ? ['roundedPoints', 'navSegs', 'routeLen', 'pointProg'] : [];
+  const wrapped = new Set([...cached, 'updatePanels']);
   const body = V6_FUNCTIONS.map((name) => {
     const text = functionText(name);
-    return cached.has(name) ? text.replace('function ' + name + '(', 'function ' + name + 'V6(') : text;
+    return wrapped.has(name) ? text.replace('function ' + name + '(', 'function ' + name + 'V6(') : text;
   }).join('\n');
-  const wrappers = [...cached].map((name) => `
+  const wrappers = cached.map((name) => `
     const __${name} = new Map();
-    function ${name}(route) {
-      if (!__${name}.has(route)) __${name}.set(route, ${name}V6(route));
-      return __${name}.get(route);
+    function ${name}(route, index) {
+      const key = ${name === 'pointProg' ? 'index' : '0'}; // pointProg also takes a point number
+      let known = __${name}.get(route);
+      if (!known) __${name}.set(route, known = new Map());
+      if (!known.has(key)) known.set(key, ${name}V6(route, index));
+      return known.get(key);
     }`).join('\n');
-  const clear = [...cached].map((name) => `__${name}.clear();`).join(' ');
-  const v6 = new Function('__in', `${prelude}\n${body}\n${wrappers}\nstate.clearCache = () => { ${clear} };\nreturn { ${V6_FUNCTIONS.join(', ')}, state };`)({ routes, aircraft, $, random });
+  const exposed = [...V6_FUNCTIONS.filter((name) => name !== 'updatePanels'), 'updatePanels: updatePanelsV6'].join(', ');
+  const v6 = new Function('__in', `${prelude}
+    ${body}
+    ${wrappers}
+    function updatePanels() { if (__in.panelsEachFrame) updatePanelsV6(); }
+    state.clearCache = () => { ${cached.map((name) => `__${name}.clear();`).join(' ')} };
+    return { ${exposed}, state };`)({ routes, aircraft, $, random, panelsEachFrame });
   v6.clearCache = v6.state.clearCache;
   v6.elements = elements;
   v6.settings = settings;

@@ -58,8 +58,12 @@ const rightOf = (v) => ({ x: v.y, y: -v.x });
 /** V6's `perp(v, 'right')`: a turn to the left on the north-up map. */
 const leftOf = (v) => ({ x: -v.y, y: v.x });
 
-/** Height, speed and G blended along a leg (V6 `lerp`, line 145); missing values are V6's defaults. */
-function lerp(a, b, u) {
+/**
+ * Where a fraction `u` of the way along a leg is (V6 `lerp`, line 145): height, speed and
+ * G blended evenly between the two ends, missing values read as V6's defaults. `seg` and
+ * `headingDeg` are the leg's, and go into the answer so it is made in one piece.
+ */
+function lerp(a, b, u, seg, headingDeg) {
   const alt = a.alt ?? 2500, kt = a.kt ?? 120, g = a.g ?? 2;
   return {
     x: a.x + (b.x - a.x) * u,
@@ -67,6 +71,7 @@ function lerp(a, b, u) {
     alt: alt + ((b.alt ?? 2500) - alt) * u,
     kt: kt + ((b.kt ?? 120) - kt) * u,
     g: g + ((b.g ?? 2) - g) * u,
+    seg, u, headingDeg,
   };
 }
 
@@ -157,7 +162,7 @@ function buildSegs(points) {
 function buildPath(route, options) {
   const points = buildRoundedPoints(route, options);
   const segs = buildSegs(points);
-  return { lengthFt: segs.reduce((sum, s) => sum + s.len, 0), closed: isClosedRoute(route), points, segs, draw: null };
+  return { lengthFt: segs.reduce((sum, s) => sum + s.len, 0), closed: isClosedRoute(route), points, segs, draw: null, pointDists: new Map() };
 }
 
 // What a path was worked out from, so it is redone only when that changes.
@@ -217,10 +222,15 @@ export function routeLengthFt(route, options = DEFAULT_ROUTE_OPTIONS) {
  * (V6 `pointProg`, line 217); 0 for the first point.
  */
 export function pointDistFt(route, index, options = DEFAULT_ROUTE_OPTIONS) {
-  let sum = 0;
-  for (const s of navSegs(route, options)) {
-    if ((s.a.src ?? 0) >= index) break;
-    sum += s.len;
+  const path = routePath(route, options);
+  let sum = path.pointDists.get(index); // the sim asks for the same few points every step
+  if (sum === undefined) {
+    sum = 0;
+    for (const s of path.segs) {
+      if ((s.a.src ?? 0) >= index) break;
+      sum += s.len;
+    }
+    path.pointDists.set(index, sum);
   }
   return sum;
 }
@@ -242,7 +252,7 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
   for (const s of segs) {
     if (f <= s.len) {
       const u = s.len ? f / s.len : 0;
-      return { ...lerp(s.a, s.b, u), seg: s.i, u, headingDeg: s.headingDeg };
+      return lerp(s.a, s.b, u, s.i, s.headingDeg);
     }
     f -= s.len;
   }

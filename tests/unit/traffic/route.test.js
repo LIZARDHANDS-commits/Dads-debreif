@@ -197,6 +197,18 @@ test('moving a point, or changing its height, speed or G, gives a new path', () 
   }
 });
 
+test('the distance to a point, asked again and again as the sim does, follows an edit to the route and keeps each set of options apart', () => {
+  const r = corner(90);
+  const before = pointDistFt(r, 1);
+  assert.equal(pointDistFt(r, 1), before);
+  r.points[0].x -= 1000; // the first leg is now 11,000 ft
+  near(pointDistFt(r, 1), before + 1000);
+  r.points[1].g = 4; // a tighter turn starts later
+  assert.ok(pointDistFt(r, 1) > before + 1000);
+  near(pointDistFt(r, 1, { ...DEFAULT_ROUTE_OPTIONS, flyRoundedTurns: false }), 11000);
+  near(pointDistFt(r, 1), 11000 - pointTurnRadiusFt(r.points[1], DEFAULT_ROUTE_OPTIONS));
+});
+
 test('adding or removing a point, or changing the kind, gives a new path', () => {
   const r = corner(90);
   const before = routePath(r);
