@@ -43,3 +43,40 @@ export function pageFor(route, pages, findModule) {
   }
   return { entry: pages.home, note: null };
 }
+
+/**
+ * Watches the address (hashchange) and shows each new page with `go(hash)`.
+ * Before another page replaces the open module it may ask (app.canLeave):
+ * `question()` returns the question or null. If the person says no, nothing
+ * changes and history is put back as it was: a new entry (a link) is stepped
+ * back over, and Back or Forward is undone by the same number of steps, using
+ * an index this keeps in history.state. Returns a function that stops watching.
+ * @param {{ win: any, question: () => string | null, go: (hash: string) => void }} deps
+ */
+export function watchAddress({ win, question, go }) {
+  const hist = win.history;
+  const KEY = 'shellIndex';
+  const indexOf = () => (Number.isInteger(hist.state?.[KEY]) ? hist.state[KEY] : null);
+  const stamp = (i) => hist.replaceState({ ...(hist.state ?? {}), [KEY]: i }, '');
+  let shownHash = win.location.hash;
+  let shownIndex = indexOf() ?? 0;
+  stamp(shownIndex);
+  const onChange = () => {
+    const hash = win.location.hash;
+    if (hash === shownHash) return; // back where we are, e.g. after an undo below
+    const index = indexOf();
+    const text = question();
+    if (text && !win.confirm(text)) {
+      const steps = index === null ? 1 : index - shownIndex;
+      if (steps) hist.go(-steps);
+      else hist.replaceState(hist.state, '', shownHash || `${win.location.pathname}${win.location.search}`);
+      return;
+    }
+    shownIndex = index ?? shownIndex + 1;
+    if (index === null) stamp(shownIndex);
+    shownHash = hash;
+    go(hash);
+  };
+  win.addEventListener('hashchange', onChange);
+  return () => win.removeEventListener('hashchange', onChange);
+}

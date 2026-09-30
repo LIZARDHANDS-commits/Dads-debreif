@@ -87,6 +87,12 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
         return listen(keyTarget, 'keydown', onKey);
       },
       status: (text) => onStatus(text),
+      // Asked before the shell closes this module for another page: `check()`
+      // returns the question to ask (something would be lost) or nothing.
+      canLeave(check) {
+        session.leaveChecks.add(check);
+        return track(() => session.leaveChecks.delete(check));
+      },
     };
   }
 
@@ -130,7 +136,7 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
     }
     if (token !== openToken) return; // the user went somewhere else while it loaded
 
-    const session = { id: entry.id, cleanups: new Set(), scope: scheduler.scope(entry.id), unmount: null, listeners: 0, subscriptions: 0 };
+    const session = { id: entry.id, cleanups: new Set(), scope: scheduler.scope(entry.id), unmount: null, listeners: 0, subscriptions: 0, leaveChecks: new Set() };
     root.dataset.module = entry.id;
     current = session;
     try {
@@ -148,6 +154,23 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
     close,
     get current() {
       return current?.id ?? null;
+    },
+    // The open module's question before it is closed for another page, or null
+    // if nothing would be lost. A check that throws is reported and a plain
+    // question asked instead.
+    leaveQuestion() {
+      for (const check of current?.leaveChecks ?? []) {
+        let question;
+        try {
+          question = check();
+        } catch (err) {
+          // A broken check must not lose what it guards: ask anyway.
+          console.error(`The leave check for "${current.id}" failed:`, err);
+          return "This page couldn't check for unsaved work. Leave anyway?";
+        }
+        if (typeof question === 'string' && question.trim()) return question;
+      }
+      return null;
     },
     stats: () => ({
       mounted: current?.id ?? null,
