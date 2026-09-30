@@ -79,7 +79,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     unreadableCount = unreadable;
     unreadableBox.hidden = unreadable === 0 && !foreign;
     unreadableText.textContent = foreign
-      ? "The profiles saved in this browser are from a different version of this page and can't be read. They are kept as they are until you remove them."
+      ? "The profiles saved in this browser are damaged or from a different version of this page and can't be read. They are kept as they are until you remove them."
       : `${unreadable} saved profile${unreadable === 1 ? '' : 's'} can't be read. ${unreadable === 1 ? 'It is' : 'They are'} kept as ${unreadable === 1 ? 'it is' : 'they are'} until you remove ${unreadable === 1 ? 'it' : 'them'}.`;
     kept.hidden = store.persistent;
     showSelection();
