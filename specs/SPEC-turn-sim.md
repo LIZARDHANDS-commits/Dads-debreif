@@ -26,7 +26,7 @@ Users are T-6 instructors and students on a desktop or laptop (D6). They should 
 4. **The sim steps in fixed 0.05 s steps**, V6's own step (`dt = 0.05`, line 784), whatever the frame rate. V6's Step button already does exactly this, so the pinned numbers are V6's, and the result no longer depends on the screen (#17). Playback speed changes how many steps run per frame, not their size.
 5. The picture stays a hand-drawn Canvas 2D, as V6's, using ui-kit `canvas-view.js` for pan and zoom. No new package.
 6. The Turn Sim uses **V6's fixed standards** (`V6_STANDARDS`), as V6 does. Letting it follow the debrief's edited standards would change a label V6 shows, so it waits for a decision (TS6).
-7. Q39 (#3 judged by two standards) doesn't change the Turn Sim: V6's Turn Sim judges #3 by the spread standard in 4312/2134 and by the offset standard in the offset box, never both. V6's labels stay.
+7. D78 (Q39: the offset standard alone judges #3's fore/aft in the debrief) doesn't change the Turn Sim: V6's Turn Sim judges #3 by the spread standard in 4312/2134 and by the offset standard in the offset box, never both. V6's labels stay (as `core/standards.js` also notes).
 
 ## The screen
 
