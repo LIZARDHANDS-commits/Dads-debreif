@@ -1036,3 +1036,56 @@ test('satellite weather: off at first, "not kept" after 90 days, then GOES frame
   await expect.poll(() => asked.length).toBeGreaterThan(before);
   expect(asked.slice(before).every((u) => /Band13_Clean_Infrared\/default\/.*\/GoogleMapsCompatible_Level6\/[0-6]\//.test(u))).toBe(true);
 });
+
+// Open-Meteo's archive of past model runs, answered here with the same wind at
+// every level (270°/20 kt from 500 m to 8 km) for every hour asked, so no test
+// needs the network.
+const OPEN_METEO = 'https://historical-forecast-api.open-meteo.com/**';
+function openMeteoReply(url) {
+  const q = new URL(url).searchParams;
+  const levels = [925, 850, 800, 700, 600, 500, 400];
+  const heights = [500, 1400, 1900, 3000, 4200, 5600, 8000];
+  const time = [];
+  for (let ms = Date.parse(`${q.get('start_date')}T00:00Z`); ms <= Date.parse(`${q.get('end_date')}T23:00Z`); ms += 3_600_000) {
+    time.push(new Date(ms).toISOString().slice(0, 16));
+  }
+  const hourly = { time };
+  levels.forEach((p, i) => {
+    hourly[`wind_speed_${p}hPa`] = time.map(() => 20);
+    hourly[`wind_direction_${p}hPa`] = time.map(() => 270);
+    hourly[`geopotential_height_${p}hPa`] = time.map(() => heights[i]);
+  });
+  return JSON.stringify({ hourly });
+}
+
+test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s altitude on the Lead line (SPEC-debrief: Weather)', async ({ page }) => {
+  const asked = [];
+  await page.route(OPEN_METEO, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: openMeteoReply(route.request().url()) });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const leadLine = page.locator('.formation-card li', { hasText: 'est. IAS' });
+  await expect(leadLine).toBeVisible();
+  await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
+  expect(asked).toEqual([]); // nothing fetched while it's off (R5)
+
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('Winds aloft (model)').check();
+  await expect(leadLine.locator('.lead-wind')).toHaveText(/^ · wind 270\/20 at [\d,]+ ft \(HRDPS \d{2}Z, Open-Meteo\)$/);
+  expect(asked).toHaveLength(1);
+  const q = new URL(asked[0]).searchParams;
+  expect(q.get('models')).toBe('gem_hrdps_continental');
+  expect(q.get('wind_speed_unit')).toBe('kn');
+
+  // The other model: its own fetch, once.
+  await page.getByLabel('Wind model').selectOption({ label: 'HRRR (US, from 2018)' });
+  await expect(leadLine.locator('.lead-wind')).toHaveText(/\(HRRR \d{2}Z, Open-Meteo\)$/);
+  expect(asked.map((u) => new URL(u).searchParams.get('models'))).toEqual(['gem_hrdps_continental', 'ncep_hrrr_conus']);
+
+  // Off again: the words go.
+  await page.getByLabel('Winds aloft (model)').uncheck();
+  await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
+});
+
