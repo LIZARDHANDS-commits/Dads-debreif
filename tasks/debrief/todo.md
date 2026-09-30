@@ -89,7 +89,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - ECCC GeoMet radar and lightning with TIME
 
   Record what works in /mnt/project-files/wx-sources/. Swap or drop a failing source with Patrick's word.
-- [ ] **12c. Weather menu and METAR line.** Weather menu beside Layers (all off, remembered). METAR line under the playback bar via `src/wx` `parseMetar`, and scrubber ticks.
+- [x] **12c. Weather menu and METAR line.** Weather menu beside Layers (all off, remembered). METAR line under the playback bar via `src/wx` `parseMetar`, and scrubber ticks. The METAR source (IEM) is still to be confirmed from a browser in 12b; the e2e test stubs it. Its host joins the CSP through the app frame.
 - [ ] **12d. Satellite layer.** Through the shared tile/WMS loader in ui-kit (app frame), with the corner label "Satellite HH:MMZ, N min before".
 - [ ] **12e. Winds aloft and model cloud.** Lead-line wind at Lead's altitude, and map arrows at a chosen height.
 - [ ] **12f. Saved radar and lightning.** When the flight ended less than 3 h ago, fetch frames and keep them with the flight. The debrief file carries weather via flight-data's format (through the coordinator). There's a size limit.

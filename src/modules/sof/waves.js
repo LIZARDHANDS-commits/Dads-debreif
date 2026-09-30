@@ -261,7 +261,7 @@ function firstReason(details) {
 
 /** Why a call can't be made: what the TAF covers against what the wave needs, or what couldn't be read. */
 function whyUnknown(result, window, endWord) {
-  if (result.status === 'not-covered') {
+  if (result.status === 'not-covered' || (result.status === 'below' && result.covered === false)) {
     if (!result.validFrom || !result.validTo) return 'TAF valid period unknown';
     if (+result.validFrom > +window.from) return `TAF valid from ${zulu(result.validFrom)}; ${endWord.start} ${zulu(window.from)}`;
     return `TAF valid to ${zulu(result.validTo)}; ${endWord.end} ${zulu(endWord.at)}${endWord.suffix ?? ''}`;
@@ -287,7 +287,7 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
   let [words, tone] = HOME_WORDS[result.status] ?? HOME_WORDS['no-time'];
   // A hit in the part the TAF covers can only get worse with more TAF, so it is
   // never reported as unknown. At-limit pieces alone stay unknown.
-  if (result.status === 'not-covered' && result.hits.length) [words, tone] = ["ALTERNATE REQUIRED (TAF doesn't cover the whole wave)", 'required'];
+  if (result.covered === false && result.hits.length) [words, tone] = ["ALTERNATE REQUIRED (TAF doesn't cover the whole wave)", 'required'];
   const details = detailLines(icao, result, window.from);
   return {
     status: result.status,
@@ -314,7 +314,7 @@ export function alternateCall(wave, icao, taf, options = {}) {
   const window = arrivalWindow([wave.land]);
   const result = assessAlternate(taf, window, options);
   let [words, tone] = ALT_WORDS[result.status] ?? ALT_WORDS['no-time'];
-  if (result.status === 'not-covered' && result.hits.length) [words, tone] = ["Below minima (TAF doesn't cover the whole arrival)", 'below'];
+  if (result.covered === false && result.hits.length) [words, tone] = ["Below minima (TAF doesn't cover the whole arrival)", 'below'];
   const descent = options.visualDescent;
   const minima = options.minima ?? [DEFAULT_LIMITS.alternate];
   const usedText = descent ? descentText(descent) : minimaText(minima);

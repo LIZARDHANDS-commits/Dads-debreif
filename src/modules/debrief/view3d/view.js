@@ -1,5 +1,5 @@
 // The 3D view: the formation in the air over one fixed ground, turned with
-// the mouse (drag to orbit, wheel to zoom) or the 3D settings' sliders. It
+// the mouse (drag to orbit, wheel to zoom: input.js) or the 3D settings' sliders. It
 // shares the debrief's clock and readouts and draws only when something
 // changed and only while it's the view showing (#39, #43). Projection, bank
 // and the T-6's shape are V6's, pinned in scene.js; frame.js has the rest.
@@ -8,15 +8,15 @@ import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR } from '../state.js';
 import { sampleAt } from '../../../flight-data/flight.js';
 import { formationCenter, projectPoint, drawOrder, t6Points } from './scene.js';
 import {
-  shipsIn3d, groundDatumFt, heightLabel, groundGrid, orbit, wheelZoom, GROUND_EXTENT_FT,
+  shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT,
 } from './frame.js';
+import { attachCameraInput } from './input.js';
+import {
+  polygon, drawStickLabel, drawAltitudeScale, drawMarker, labelShip, drawCompass, drawCaption, drawTennis3d,
+} from './overlay.js';
 
 const BACKGROUND = '#050b12';
-const TEXT = '#d9e6f2';
 const TRAIL_SAMPLES = 80; // points along each trail, as V6
-const CAPTION_BOTTOM_PX = 56;
-const ALT_SCALE_LEFT_PX = 28; // the altitude ruler stands at the left edge, so it's always in view
-const ft = (n) => Math.round(n).toLocaleString('en-US');
 
 /**
  * canvas: the 3D <canvas>. timers: the module's scheduler scope. flight():
@@ -27,10 +27,7 @@ const ft = (n) => Math.round(n).toLocaleString('en-US');
  * setCamera(patch): keeps a camera change (yaw3d, pitch3d, zoom3d).
  */
 export function createView3d(canvas, { timers, flight, time, settings, fieldFt, setCamera, tennis = () => null }) {
-  let dragging = null; // { id, x, y, camera } while the mouse turns the view
-
-  const cameraFrom = (on) => dragging?.camera ?? { yawDeg: on.yaw3d, pitchDeg: on.pitch3d, zoom: on.zoom3d, altScale: on.altScale3d };
-
+  let input = null;
   const surface = createCanvasSurface(canvas, {
     timers,
     label: '3D view of the formation: drag to turn it, scroll or press + and − to zoom',
@@ -39,55 +36,16 @@ export function createView3d(canvas, { timers, flight, time, settings, fieldFt, 
       ctx.fillRect(0, 0, size.width, size.height);
       const shown = flight();
       if (!shown) return; // the screen's own message says what to load
-      drawScene(ctx, size, shown, time(), settings(), cameraFrom(settings()), fieldFt(), tennis());
+      drawScene(ctx, size, shown, time(), settings(), input.camera(), fieldFt(), tennis());
     },
   });
-
-  canvas.tabIndex = 0;
-  const listeners = [
-    ['pointerdown', (e) => {
-      if (e.button !== 0) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, camera: cameraFrom(settings()) };
-      canvas.setPointerCapture?.(e.pointerId);
-      canvas.classList.add('is-dragging');
-    }],
-    ['pointermove', (e) => {
-      if (!dragging || e.pointerId !== dragging.id) return;
-      dragging.camera = orbit(dragging.camera, e.clientX - dragging.x, e.clientY - dragging.y);
-      dragging.x = e.clientX;
-      dragging.y = e.clientY;
-      surface.requestDraw();
-    }],
-    ['pointerup', (e) => endDrag(e)],
-    ['pointercancel', (e) => endDrag(e)],
-    ['wheel', (e) => {
-      e.preventDefault();
-      if (!e.deltaY) return;
-      setCamera({ zoom3d: wheelZoom(cameraFrom(settings()), e.deltaY).zoom });
-    }],
-    ['keydown', (e) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      const deltaY = e.key === '+' || e.key === '=' ? -1 : e.key === '-' || e.key === '_' ? 1 : 0;
-      if (!deltaY) return;
-      e.preventDefault();
-      setCamera({ zoom3d: wheelZoom(cameraFrom(settings()), deltaY).zoom });
-    }],
-  ];
-  // The camera is kept once the drag ends, not on every move.
-  function endDrag(e) {
-    if (!dragging || e.pointerId !== dragging.id) return;
-    const { yawDeg, pitchDeg } = dragging.camera;
-    dragging = null;
-    canvas.classList.remove('is-dragging');
-    setCamera({ yaw3d: Math.round(yawDeg), pitch3d: Math.round(pitchDeg) });
-  }
-  for (const [type, fn] of listeners) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
+  input = attachCameraInput(canvas, { settings, setCamera, redraw: surface.requestDraw });
 
   return {
     requestDraw: surface.requestDraw,
     dispose() {
       surface.dispose();
-      for (const [type, fn] of listeners) canvas.removeEventListener(type, fn);
+      input.dispose();
     },
   };
 }
@@ -143,12 +101,6 @@ function drawLandscape(ctx, size, P, ctr, datum) {
   ctx.restore();
 }
 
-function polygon(ctx, points) {
-  ctx.beginPath();
-  points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-  ctx.closePath();
-}
-
 // The datum plane with its edge and the grid on it (V6's ground reference).
 function drawGround(ctx, P, ctr, datum, withGrid) {
   const { min, max } = groundGrid(ctr, GROUND_EXTENT_FT, 10_000);
@@ -186,39 +138,6 @@ function drawGridLines(ctx, P, ctr, datum) {
     ctx.lineTo(b.x, b.y);
   }
   ctx.stroke();
-  ctx.restore();
-}
-
-// A ruler of altitude every 1,000 ft beside the formation (V6 drawAltitudeScale).
-function drawAltitudeScale(ctx, P, ctr, ships, datum) {
-  const alts = ships.map((s) => s.altFt).filter(Number.isFinite);
-  if (!alts.length) return;
-  const top = Math.ceil((Math.max(...alts, ctr.z) + 1500) / 1000) * 1000;
-  const base = Math.floor(datum / 1000) * 1000;
-  // Heights as they stand at the formation's centre, drawn at the left edge.
-  // (V6 stood it 42,000 ft west and 36,000 ft north, off the screen at most zooms.)
-  const at = (altFt) => ({ x: ALT_SCALE_LEFT_PX, y: P({ x: ctr.x, y: ctr.y, altFt }).y });
-  ctx.save();
-  ctx.strokeStyle = TEXT;
-  ctx.fillStyle = TEXT;
-  ctx.globalAlpha = 0.8;
-  ctx.lineWidth = 2;
-  ctx.font = '11px system-ui, sans-serif';
-  const a = at(base);
-  const b = at(top);
-  ctx.beginPath();
-  ctx.moveTo(a.x, Math.max(a.y, CAPTION_BOTTOM_PX));
-  ctx.lineTo(b.x, Math.max(b.y, CAPTION_BOTTOM_PX));
-  ctx.stroke();
-  for (let alt = base; alt <= top; alt += 1000) {
-    const p = at(alt);
-    if (p.y < CAPTION_BOTTOM_PX) continue; // clear of the caption
-    ctx.beginPath();
-    ctx.moveTo(p.x - 6, p.y);
-    ctx.lineTo(p.x + 6, p.y);
-    ctx.stroke();
-    ctx.fillText(`${ft(alt)} ft`, p.x + 10, p.y + 4);
-  }
   ctx.restore();
 }
 
@@ -271,18 +190,9 @@ function drawSticks(ctx, P, ships, datum, unit) {
     ctx.ellipse(ground.x, ground.y, 18, 7, 0, 0, 2 * Math.PI);
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.font = '11px system-ui, sans-serif';
-    outlined(ctx, `${ft(s.altFt - datum)} ${unit}`, (air.x + ground.x) / 2 + 8, (air.y + ground.y) / 2, TEXT);
+    drawStickLabel(ctx, air, ground, s.altFt - datum, unit);
   }
   ctx.restore();
-}
-
-function outlined(ctx, text, x, y, color) {
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = OUTLINE_COLOR;
-  ctx.strokeText(text, x, y);
-  ctx.fillStyle = color;
-  ctx.fillText(text, x, y);
 }
 
 // Lighter or darker by `percent` of full brightness (V6 shadeColor).
@@ -291,12 +201,6 @@ function shade(hex, percent) {
   const part = (v) => Math.max(0, Math.min(255, Math.round(v + (percent / 100) * 255))).toString(16).padStart(2, '0');
   return `#${part((n >> 16) & 255)}${part((n >> 8) & 255)}${part(n & 255)}`;
 }
-
-const attitudeText = (s) => {
-  const bank = Math.round(Math.abs(s.bankDeg));
-  const pitch = Math.round(s.pitchDeg);
-  return `bank ${bank}°${bank ? (s.bankDeg > 0 ? ' L' : ' R') : ''}, pitch ${pitch > 0 ? '+' : ''}${pitch}°`;
-};
 
 // V6's low-poly T-6 as one body rolled and pitched (scene.js t6Points, #14, #27).
 function drawT6(ctx, P, s, on) {
@@ -335,130 +239,4 @@ function drawT6(ctx, P, s, on) {
   ctx.restore();
 }
 
-// V6's flat marker, or a dot for a ship that isn't moving (no nose to point).
-function drawMarker(ctx, P, s, on) {
-  const c = P(s);
-  const color = SHIP_COLORS[s.slot];
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.strokeStyle = OUTLINED_SHIPS.has(s.slot) ? OUTLINE_COLOR : '#061018';
-  ctx.lineWidth = 2.5;
-  if (s.hdg === null) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 7, 0, 2 * Math.PI);
-  } else {
-    const size = on.planeSize3d;
-    const f = { x: Math.cos(s.hdg), y: Math.sin(s.hdg) };
-    const r = { x: Math.cos(s.hdg + Math.PI / 2), y: Math.sin(s.hdg + Math.PI / 2) };
-    const at = (fwd, left) => P({ x: s.x + f.x * fwd + r.x * left, y: s.y + f.y * fwd + r.y * left, altFt: s.altFt });
-    polygon(ctx, [at(size, 0), at(0, size * 0.45), at(-size * 0.75, 0), at(0, -size * 0.45)]);
-  }
-  if (!s.inGap) ctx.fill();
-  ctx.stroke();
-  labelShip(ctx, c, s, on);
-  ctx.restore();
-}
 
-function labelShip(ctx, c, s, on) {
-  ctx.font = '600 12px system-ui, sans-serif';
-  outlined(ctx, `#${s.slot}`, c.x + 12, c.y - 14, SHIP_COLORS[s.slot]);
-  if (on.attLabels3d && s.hdg !== null) {
-    ctx.font = '10px system-ui, sans-serif';
-    outlined(ctx, attitudeText(s), c.x + 12, c.y + 2, TEXT);
-  }
-}
-
-// North and east on the ground, in the corner, so they stay put as the view turns (#27).
-function drawCompass(ctx, size, camera) {
-  const o = { x: 0, y: 0, z: 0 };
-  const flat = { ...camera, altScale: 0, zoom: 1000 };
-  const box = { width: 0, height: 0 };
-  const origin = projectPoint({ x: 0, y: 0, altFt: 0 }, o, flat, box);
-  const dir = (dx, dy) => {
-    const p = projectPoint({ x: dx, y: dy, altFt: 0 }, o, flat, box);
-    const len = Math.hypot(p.x - origin.x, p.y - origin.y) || 1;
-    return [(p.x - origin.x) / len, (p.y - origin.y) / len];
-  };
-  const cx = size.width - 56;
-  const cy = size.height - 56;
-  ctx.save();
-  ctx.font = '600 13px system-ui, sans-serif';
-  ctx.lineWidth = 3;
-  for (const [label, [ux, uy], color] of [['N', dir(0, 1), '#7ee787'], ['E', dir(1, 0), '#58a6ff']]) {
-    const tipX = cx + ux * 36;
-    const tipY = cy + uy * 36;
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(tipX, tipY);
-    ctx.stroke();
-    ctx.fillText(label, tipX + ux * 8 - 4, tipY + uy * 8 + 4);
-  }
-  ctx.restore();
-}
-
-// What the picture is scaled by, and what the heights are measured from (#26, #27).
-function drawCaption(ctx, camera, on, datum) {
-  ctx.save();
-  ctx.font = '12px system-ui, sans-serif';
-  const scale = Number.isInteger(camera.altScale) ? camera.altScale : camera.altScale.toFixed(2);
-  outlined(ctx, `Altitude ×${scale}`, 14, 22, TEXT);
-  const from = on.datum3d === 'field' ? 'field elevation' : on.datum3d === 'zero' ? 'sea level' : 'lowest ship less 500 ft';
-  outlined(ctx, `Ground: ${ft(datum)} ft (${from})`, 14, 40, TEXT);
-  ctx.restore();
-}
-
-// The tennis ball in 3D (the same solution as the map, #19): the ball's arc,
-// the cone's edges as the same arc turned ±half the cone, the target's path,
-// and the closest pass joined to where the target was then.
-function drawTennis3d(ctx, P, sol) {
-  const color = sol.status === 'INTERCEPT' ? '#7ee787' : '#ffcc66';
-  const line = (points) => {
-    ctx.beginPath();
-    points.forEach((p, i) => {
-      const q = P(p);
-      if (i === 0) ctx.moveTo(q.x, q.y);
-      else ctx.lineTo(q.x, q.y);
-    });
-    ctx.stroke();
-  };
-  const { shooter } = sol;
-  const half = (sol.coneDeg / 2) * (Math.PI / 180);
-  const turned = (a) => sol.points.map((p) => {
-    const dx = p.x - shooter.x;
-    const dy = p.y - shooter.y;
-    return { x: shooter.x + dx * Math.cos(a) - dy * Math.sin(a), y: shooter.y + dx * Math.sin(a) + dy * Math.cos(a), altFt: p.altFt };
-  });
-  ctx.save();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(255, 204, 102, 0.55)';
-  line(turned(-half));
-  line(turned(half));
-  ctx.strokeStyle = 'rgba(88, 166, 255, 0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 5]);
-  line(sol.targetPoints);
-  ctx.setLineDash([]);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 4;
-  line(sol.points);
-  if (sol.best.ball) {
-    const b = P(sol.best.ball);
-    const tp = P(sol.best.target);
-    ctx.strokeStyle = sol.status === 'INTERCEPT' ? '#7ee787' : '#ff6b6b';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 5]);
-    ctx.beginPath();
-    ctx.moveTo(b.x, b.y);
-    ctx.lineTo(tp.x, tp.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-    ctx.fill();
-    outlined(ctx, sol.status, b.x + 9, b.y - 8, color);
-  }
-  ctx.restore();
-}

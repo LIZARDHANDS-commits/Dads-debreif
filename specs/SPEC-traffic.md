@@ -36,7 +36,7 @@ V6 does all this in its Traffic Pattern Sim, "Moose Jaw Traffic Sim V37", a sepa
 
 ## Tech stack
 
-Plain JavaScript ES modules, no framework and no new packages (SPEC.md). Drawing is Canvas 2D through ui-kit's `createCanvasView` (2D map, pan and zoom) and `createCanvasSurface` (3D view). Tests use Node's `node:test` and the Playwright set-up the app frame already has.
+Plain JavaScript ES modules, no framework and no new packages (SPEC.md). Drawing is Canvas 2D through ui-kit's `createCanvasView` (2D map, pan and zoom); the 3D view uses the shared three.js T-6 and camera in `src/ui-kit/three-aircraft.js` (Patrick approved three.js for every 3D aircraft view; the app frame adds the package), loaded only when 3D is switched on. Tests use Node's `node:test` and the Playwright set-up the app frame already has.
 
 ## Commands
 
@@ -102,7 +102,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | **Spawner:** aircraft type, route, start point (numbered from 1, as everywhere else), delay from now (s), plan (Random, which follows the shares, or a plan picked from the list, see T1), + Spawn, + Pair (15 s apart, same route), Clear finished | **Edit** on an aircraft row: type, route, start time, plan, delete; **Plans** (under More): make or change a plan, a list of what the aircraft does at each decision point it meets, in order ("2 circuits, then Split 4 to the inner circuit, then land"); **More detail**: each aircraft's leg number, and with a wind set its true airspeed, heading, track, headwind or tailwind, crosswind, and the bank and G it's pulling now; **Aircraft types**: the type table (indicated airspeeds by phase, with where each number came from), read-only |
 | **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done; a **Command** menu on each row (see How you set up and control the traffic) | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4); final spacing and the chance of missing traffic (T11); the **Rules** list, a checkbox each, on by default |
 | **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes:** profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
-| The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch): drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
+| The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch; 2D is the default): the routes as lines at their heights, the aircraft as 3D models (the shared T-6 for the CT-156 and CT-157, a simple shape for the other types until they have their own), banking with their turns; drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
 
 - **Colour is never the only signal.** Conflict lines start with ⚠ CONFLICT or △ CAUTION; routes are also told apart by line style and their name labels; aircraft carry their callsign.
 - **Settings are remembered** with the profile (`app.storage`, scope `traffic`), and the last profile used opens next time. Loading the built-in profile puts back V6's setup.
@@ -314,7 +314,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
-- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 1,100 ft. The zoom's numbers are `core`'s `zoomT6A` (SPEC-core, T-6A performance, from NFM Fig 3-4), shared with the other modules; they stay as they are for the CT-156 (T10, closed on the default).
+- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 960 ft by the time it's back at 125 KIAS. The gain is `core`'s `zoomT6A(kias, altFt, weightLb)` (SPEC-core, T-6A performance): the flight manual's zoom table (NFM Fig 3-4), which measures the height gained after the push to 125 KIAS, at the default 5,800 lb; at 150 KIAS or less there's no zoom, as the manual says. It's shared with the other modules; they stay as they are for the CT-156 (T10, closed on the default).
 - It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered, or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling (`core`'s `T6A_GLIDE`, from the T-6A max glide chart), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
@@ -376,7 +376,7 @@ The triggers all use the same prediction: where each aircraft will be a few seco
 - It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (`core`'s `zoomT6A`), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air (`T6A_GLIDE`), stretched or shrunk by the wind; joining the key's circle at a tangent.
 - An **airstart attempt** option subtracts about 1,200 ft first (NFM), and is refused below 2,000 ft above the field (SMM 13.17 para 36), so an instructor can show what trying a restart costs.
 - The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
-- Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
+- Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,460 ft (`zoomT6A`: about 960 ft at 5,800 lb), and turning back towards the runway costs about 850 ft, so it's around 3,600 ft heading for the keys, a little under Low Key's 3,700 ft before the glide. The speed of the pattern is what buys that height (SMM 4.14 para 32); how far the keys are and the wind decide whether it makes Low Key, Final Key or only the runway.
 - **Engine-out reach** (a Layers option, off by default): each route is coloured by what an engine-out there would reach, for the chosen type in today's wind: solid green where it makes a key with more than 200 ft to spare, yellow where it's closer than that, and red dashed where it can't, with "No key from here" written on the red stretches. It checks a point every 500 ft along the route with the same calculation.
 - The check and the Engine out command use the same functions, so what the check says is what the aircraft then does.
 
@@ -483,7 +483,7 @@ With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed a
 Two more pieces come from other threads, through the coordinator:
 
 - **The satellite tile loader** is on main in `ui-kit` (#133): `import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js'` (tile limits, retries, Esri credit; SPEC-ui-kit).
-- **The 3D aircraft piece.** Patrick approved three.js for every 3D aircraft view; the app frame is building a shared T-6 piece in `ui-kit`. The Traffic 3D view (task 8) uses it once it's on main, and ui-kit's canvas surface until then.
+- **The 3D view (Patrick, 2026-09-30 07:51Z: "can we just do them all in 3d/2d switch on and off now?").** Every simulator gets a 2D/3D switch. The Traffic 3D view (task 8) uses the shared T-6 and camera from `src/ui-kit/three-aircraft.js`, which the app frame is building; the other types get a simple shape until they have their own models. 2D stays the default, three.js loads only when 3D is switched on, and the engine doesn't change: the 3D view draws the same state as the 2D map.
 - **The `#/traffic` entry** in `src/shell/registry.js`, with `prototype: true` until the combined sign-off (#132), and `tests/e2e/traffic.spec.js`, through the app frame thread.
 
 ## Project structure
@@ -501,7 +501,7 @@ src/modules/traffic/
   conflict-setup.js  finds start points and delays so two aircraft meet (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
-  view3d.js        the 3D view on a ui-kit canvas surface
+  view3d.js        the 3D view on ui-kit's three-aircraft.js (loaded only when 3D is on)
   editor.js        the left column: routes list, selected route, point table
   aircraft.js      the right column: spawner, aircraft list, conflicts
   layout.js        the columns, playback bar, Layers menu
