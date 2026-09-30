@@ -56,6 +56,20 @@ function addExtras(sample) {
   elementProto.removeAttribute = function removeAttribute(name) {
     delete this.attributes[name];
   };
+  // A browser runs the capture listeners on the target first, in the order they were added, then the others.
+  // (The ui-kit stand-in runs the last-added capture listener first, which matters when two of them meet.)
+  elementProto.addEventListener = function addEventListener(type, fn, capture = false) {
+    const list = (this.listeners[type] ??= []);
+    const captures = (this.captureCounts ??= {});
+    if (capture) list.splice(captures[type] ?? 0, 0, fn), (captures[type] = (captures[type] ?? 0) + 1);
+    else list.push(fn);
+  };
+  elementProto.removeEventListener = function removeEventListener(type, fn) {
+    const list = this.listeners[type] ?? [];
+    const at = list.indexOf(fn);
+    if (at >= 0 && at < (this.captureCounts?.[type] ?? 0)) this.captureCounts[type]--;
+    this.listeners[type] = list.filter((f) => f !== fn);
+  };
   // A fresh input or select starts with an empty value, unchecked and enabled.
   elementProto.value = '';
   elementProto.checked = false;

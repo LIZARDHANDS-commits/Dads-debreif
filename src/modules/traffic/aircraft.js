@@ -68,11 +68,12 @@ export function detailText(row) {
 
 /**
  * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
+ * timers: the module's scheduler (`after`), so a pending line is cancelled when the module closes.
  * sim, setup: the engine's sim and the setup it flies. onChange(): called after the run changed
  * (an aircraft was added or cleared), so the screen can redraw.
  * Returns { elements: { spawner, aircraft, conflicts }, update(state, { playing, now }), routesChanged() }.
  */
-export function createAircraftPanel({ controls, settings, sim, setup, onChange }) {
+export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange }) {
   // ---- the spawner ----------------------------------------------------------
   const message = h('p', { class: 'spawn-message', role: 'status' });
   const say = (text) => {
@@ -141,11 +142,11 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
   const guardButton = (button, keys) => {
     button.addEventListener('click', (event) => {
       // The guard has run by the end of the click: if it held the action back, say which box to fix.
-      setTimeout(() => {
+      timers.after(0, () => {
         if (!event.defaultPrevented) return;
         const bad = keys.filter((k) => controls.invalid().includes(k)).map((k) => BOX_NAMES[k]);
         if (bad.length) say(`Nothing was added: fix the ${bad.join(' and ')} box first.`);
-      }, 0);
+      });
     }, true); // registered first, so it sees the click before the guard stops it
     controls.guard(button, keys);
   };

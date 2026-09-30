@@ -77,7 +77,7 @@ function mount(root, app) {
       toggleColumn: () => app.scheduler.after(0, () => map.requestDraw()),
     },
   });
-  const aircraftPanel = createAircraftPanel({ controls, settings, sim, setup, onChange: () => changed() });
+  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed() });
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
