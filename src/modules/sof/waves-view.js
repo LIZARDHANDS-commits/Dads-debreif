@@ -96,7 +96,8 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
     const takeoff = timeField(id, 'takeoff', 'sof-wave-takeoff', row);
     const land = timeField(id, 'land', 'sof-wave-land', row);
     const remove = h('button', { type: 'button', class: 'sof-wave-remove', onclick: () => removeWave(id) }, 'Remove');
-    const note = h('p', { class: 'sof-wave-note', id: `sof-wave-note-${id}` });
+    // A polite live region that is always in the page (empty when there is nothing to say), so a new refusal is spoken.
+    const note = h('p', { class: 'sof-wave-note', id: `sof-wave-note-${id}`, role: 'status' });
     for (const input of [name, takeoff.input, land.input]) input.setAttribute('aria-describedby', note.id);
     const chipName = h('span', { class: 'visually-hidden' });
     const symbol = h('span', { class: 'sof-chip-symbol', 'aria-hidden': 'true' });
@@ -112,7 +113,9 @@ export function createWavesView({ onAdd, onEdit, onRemove, onDay, onSelect }) {
     row.showNote = () => {
       const bad = row.bad.takeoff || row.bad.land;
       setText(note, bad ? 'Enter the time as HH:MM, for example 08:30.' : row.model.note);
-      for (const [input, isBad] of [[takeoff.input, row.bad.takeoff], [land.input, row.bad.land]]) {
+      note.classList.toggle('is-problem', Boolean(bad || row.model.problem)); // red words, not the muted grey of a plain note
+      // Equal times refuse the wave: both boxes are marked, since either one may be the slip.
+      for (const [input, isBad] of [[takeoff.input, row.bad.takeoff || row.model.problem], [land.input, row.bad.land || row.model.problem]]) {
         if (isBad) input.setAttribute('aria-invalid', 'true');
         else input.removeAttribute('aria-invalid');
       }

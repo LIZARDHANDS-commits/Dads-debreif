@@ -91,6 +91,40 @@ export function mapCredits(layers, { radarBackup = false, trafficOn = false } = 
   return `${parts.join('. ')}.`;
 }
 
+// ---- The map key ------------------------------------------------------------------------------------------
+
+/**
+ * ECCC's own radar scales (GetLegendGraphic for RADAR_1KM_RRAI and RADAR_1KM_RSNO, read 2026-09-30): the same 14 colour steps,
+ * light blue to deep purple, in mm/h of rain or cm/h of snow. `ticks` are a few of the labelled steps with their place on the bar (percent
+ * from the light end; the steps are evenly spaced, the numbers are not), and `colours` are the bar's stops. Fixed text, not read from ECCC.
+ */
+export const RADAR_SCALES = Object.freeze({
+  rain: Object.freeze({ noun: 'rain', unit: 'mm/h', ticks: Object.freeze([['0.1', 0], ['4', 23], ['16', 46], ['50', 69], ['200', 100]]) }),
+  snow: Object.freeze({ noun: 'snow', unit: 'cm/h', ticks: Object.freeze([['0.1', 0], ['0.5', 23], ['1.5', 46], ['4', 69], ['20', 100]]) }),
+});
+/** The bar's colours from light to heavy: light blue, cyan, green, dark green, yellow, orange, red, magenta, purple, deep purple. */
+export const RADAR_COLOURS = Object.freeze(['#4fa8ff', '#19e6d0', '#00e000', '#007a00', '#ffff00', '#ff9900', '#ff0000', '#ff00b0', '#7a1fa2', '#3a0a5a']);
+
+/**
+ * The map key for what is showing (F5 of sof-recheck-207): { radar, lightning, rings }, each null when its layer is off.
+ * `radarBackup`: RainViewer's tiles are the radar now, in their own colours. `radar` is { noun, unit, ticks, words }; `lightning` and `rings` are the words. Plain words, never colour alone.
+ */
+export function legendItems(layers, { radarBackup = false } = {}) {
+  const on = layers?.on ?? {};
+  const scale = RADAR_SCALES[layers?.precip === 'snow' ? 'snow' : 'rain'];
+  return {
+    radar: on.radar
+      ? { ...scale, words: `Radar, ${scale.noun} rate in ${scale.unit}: pale blue is the lightest, then green, yellow, orange and red, and purple is the heaviest.${radarBackup ? ' The backup radar (RainViewer) uses its own colours.' : ''}` }
+      : null,
+    lightning: on.lightning
+      ? 'Lightning: a yellow mark with a dark outline is a 2.5 km square with lightning in the last 10 minutes. It shows where, not how strong.'
+      : null,
+    rings: on.rings
+      ? 'Dashed rings are 25 and 50 NM from home. A dotted amber ring is the lightning caution radius, when it is not one of those.'
+      : null,
+  };
+}
+
 /** What the VNC base says about its own edges, or null when it is not in use. */
 export function baseNote(layers) {
   return layers?.base === 'vnc' || layers?.base === 'vnc-satellite'

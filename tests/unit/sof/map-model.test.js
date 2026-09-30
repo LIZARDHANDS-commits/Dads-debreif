@@ -5,8 +5,8 @@ import { createStore } from '../../../src/storage/store.js';
 import { createAirfields } from '../../../src/airfields/airfields.js';
 import { parseMetar } from '../../../src/wx/metar.js';
 import { buildScreen } from '../../../src/modules/sof/screen-model.js';
-import { windBarb, windWords, airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem } from '../../../src/modules/sof/map-model.js';
-import { defaultLayers, setBase } from '../../../src/modules/sof/map-layers.js';
+import { windBarb, windWords, airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem, legendItems } from '../../../src/modules/sof/map-model.js';
+import { defaultLayers, setBase, setPrecip } from '../../../src/modules/sof/map-layers.js';
 
 const NOW = new Date('2026-09-29T18:42:00Z');
 
@@ -140,4 +140,15 @@ test('L2: with the lightning map STALE the strip does not also show "No lightnin
   assert.equal(item.text, 'No lightning within 20 NM of home (the lightning map is STALE)');
   // A warning is never softened by a stale map.
   assert.equal(nearHomeItem(answer('near', 'Lightning at home, within 20 NM'), { stale: true }).symbol, '⚠');
+});
+
+// ---- F5: the map key ------------------------------------------------------------------------------------------
+
+test('the map key names the radar scale in its own unit (rain or snow), the lightning mark and the rings, and only for layers that are on', () => {
+  const rain = legendItems(defaultLayers());
+  assert.match(rain.radar.words, /rain rate in mm\/h/);
+  assert.match(rain.lightning, /yellow mark with a dark outline/);
+  assert.match(rain.rings, /25 and 50 NM/);
+  assert.match(legendItems(setPrecip(defaultLayers(), 'snow')).radar.words, /snow rate in cm\/h/);
+  assert.equal(legendItems({ ...defaultLayers(), on: {} }).radar, null);
 });

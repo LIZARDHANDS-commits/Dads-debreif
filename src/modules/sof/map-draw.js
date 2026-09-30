@@ -34,8 +34,16 @@ export function drawGeoImage(ctx, image, bbox, project, alpha = 1) {
   for (const strip of imageStrips(bbox, image.height)) {
     const [x1, y1] = project(strip.north, west);
     const [x2, y2] = project(strip.south, east);
-    // A pixel of overlap hides the seams between strips.
-    ctx.drawImage(image, 0, strip.sy, image.width, strip.sh, Math.min(x1, x2), Math.min(y1, y2) - 0.5, Math.abs(x2 - x1), Math.abs(y2 - y1) + 1);
+    if (alpha < 1) {
+      // See-through, an overlap would be drawn twice and show as a bright seam (L1). Neighbours share an edge, so rounding it to a
+      // whole pixel makes them meet exactly: no overlap, and no half-covered row for a gap.
+      const top = Math.round(Math.min(y1, y2));
+      const bottom = Math.round(Math.max(y1, y2));
+      if (bottom > top) ctx.drawImage(image, 0, strip.sy, image.width, strip.sh, Math.min(x1, x2), top, Math.abs(x2 - x1), bottom - top);
+    } else {
+      // A pixel of overlap hides the seams between strips.
+      ctx.drawImage(image, 0, strip.sy, image.width, strip.sh, Math.min(x1, x2), Math.min(y1, y2) - 0.5, Math.abs(x2 - x1), Math.abs(y2 - y1) + 1);
+    }
   }
   ctx.restore();
 }

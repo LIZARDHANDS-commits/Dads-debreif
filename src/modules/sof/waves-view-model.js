@@ -61,10 +61,12 @@ function chipOf(row, call, notes, homeIcao) {
   };
 }
 
+/** An alternate that meets or is at the limit, with a dangerous-weather caution forecast: meeting, but not all-clear. */
+const meetsWithCaution = (a) => (a.status === 'meets' || a.status === 'at-limit') && (a.result?.cautions?.length ?? 0) > 0;
+
 /** "2 of 3 alternates meet", with "(1 with caution)" for those that meet but have dangerous weather forecast. */
 function alternatesWords(call) {
-  const meets = (a) => a.status === 'meets' || a.status === 'at-limit';
-  const cautioned = call.alternates.filter((a) => meets(a) && (a.result?.cautions?.length ?? 0) > 0).length;
+  const cautioned = call.alternates.filter(meetsWithCaution).length;
   return `${call.meeting} of ${call.of} alternate${call.of === 1 ? '' : 's'} meet${cautioned ? ` (${cautioned} with caution)` : ''}`;
 }
 
@@ -103,7 +105,9 @@ function altLinesOf(row, call, notes) {
   const label = `${row.name} arrival ${range(around(call.wave.land, -1), around(call.wave.land, 1))}Z`;
   for (const a of call.alternates) {
     const tone = toneWith(a.tone, notes[a.icao]);
-    lines.set(a.icao, { label, words: a.words, tone, symbol: symbolOf(tone), reason: withTafNote(reasonOf(a), notes[a.icao]), note: a.note });
+    // Meeting with a dangerous-weather caution is not all-clear: the same "with caution" the chip counts (N5).
+    const words = meetsWithCaution(a) ? `${a.words} (with caution)` : a.words;
+    lines.set(a.icao, { label, words, tone, symbol: symbolOf(tone), reason: withTafNote(reasonOf(a), notes[a.icao]), note: a.note });
   }
   return lines;
 }
@@ -118,7 +122,7 @@ function altLinesOf(row, call, notes) {
  * - `selectedId`: `undefined` (the first wave with a call), `null` (none) or a wave's id.
  *
  * Returns `{ problem, day, dayLabel, zone, rows, canAdd, limitNote, selectedId, detail, altLines,
- * waves, calls }`. A row is `{ id, entryName (as typed), name (as said), title, zulu, takeoff, land, nextDay, note, chip }` and
+ * waves, calls }`. A row is `{ id, entryName (as typed), name (as said), title, zulu, takeoff, land, nextDay, note, problem, chip }` and
  * `chip` is `{ words, tone, symbol, reason, limits, alternates }`, or null when the wave has no
  * call (times not set, or no zone). `altLines` is a Map from an alternate's ICAO to its result
  * for the selected wave. `waves` and `calls` are the UTC waves and `waveCalls`' answer, for the
@@ -153,6 +157,8 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
       land: entry.land,
       nextDay: Boolean(wave?.nextDay),
       note: skip ? skip.problem : wave?.nextDay ? 'Lands the next day' : '',
+      // True when the times themselves are refused (equal), so the boxes are marked invalid; "not set yet" is not an error.
+      problem: Boolean(skip?.equal),
       chip: null,
     };
     if (call) row.chip = chipOf(row, call, tafNotes, homeIcao);

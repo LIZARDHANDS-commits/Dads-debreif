@@ -109,7 +109,7 @@ export function planToUtc(plan, { now, timeZone, day = 'today', date } = {}) {
     }
     // The same time is a slip more often than a 24 h flight: refused (V6 made it a 24 h wave). Earlier is the next day.
     if (land === take) {
-      skipped.push({ index, name, problem: 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day' });
+      skipped.push({ index, name, equal: true, problem: 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day' });
       return;
     }
     const nextDay = land < take;

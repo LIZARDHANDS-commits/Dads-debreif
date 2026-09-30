@@ -72,6 +72,11 @@ test('a wave with no times has no call, and says what is missing', () => {
   assert.deepEqual(m.calls, []);
 });
 
+test('N2: a wave with a time not set yet, or one that lands the next day, is not a problem', () => {
+  const m = model({ waves: [w('w1', '08:00', ''), w('w2', '23:00', '01:00')] });
+  assert.deepEqual(m.rows.map((r) => r.problem), [false, false]);
+});
+
 test('no waves is an empty list that can be added to', () => {
   const m = model();
   assert.deepEqual(m.rows, []);
@@ -156,6 +161,22 @@ test('the chip adds "(1 with caution)" when an alternate meets its minima with t
   const { chip } = model({ waves: [w('w1', '15:00', '16:30')], tafs }).rows[0];
   assert.equal(chip.alternates, '3 of 3 alternates meet (1 with caution)');
   assert.equal(model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS } }).rows[0].chip.alternates, '3 of 3 alternates meet', 'no caution, no words');
+});
+
+test('N5: an alternate that meets with a caution is not "Meets minima" alone on its own line', () => {
+  const stormy = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 TEMPO 2920/2922 4SM TSRA BKN040CB';
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS, CYQR: taf(stormy) };
+  const lines = model({ waves: [w('w1', '15:00', '16:30')], tafs }).altLines;
+  assert.equal(lines.get('CYQR').words, 'Meets minima (with caution)', 'the same words as the chip\'s "(1 with caution)"');
+  assert.equal(lines.get('CYYN').words, 'Meets minima', 'no caution, no added words');
+});
+
+test('N5: an alternate at its limit with a caution reads "At the limit (with caution)", and the chip counts it', () => {
+  const limitStorm = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM BKN006 TEMPO 2920/2922 4SM TSRA BKN040CB';
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS, CYQR: taf(limitStorm) };
+  const m = model({ waves: [w('w1', '15:00', '16:30')], tafs });
+  assert.equal(m.altLines.get('CYQR').words, 'At the limit (with caution)');
+  assert.equal(m.rows[0].chip.alternates, '3 of 3 alternates meet (1 with caution)');
 });
 
 // ---- Selecting a wave lists every hit -----------------------------------------------------------------
@@ -315,5 +336,6 @@ test('a landing at the same time as takeoff has no call, and the row says why', 
   const m = model({ waves: [w('w1', '08:00', '08:00')] });
   assert.equal(m.rows[0].chip, null);
   assert.equal(m.rows[0].note, 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day');
+  assert.equal(m.rows[0].problem, true, 'N2: the boxes are marked invalid, not just given a note');
   assert.deepEqual(m.calls, []);
 });

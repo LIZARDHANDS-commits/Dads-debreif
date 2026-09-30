@@ -17,6 +17,23 @@ const FADING_AFTER_MS = 20_000;
 
 // ---- Lightning near home ----------------------------------------------------------------------------------
 
+/** Where the lightning episode is kept, in the module's storage scope (Y2). */
+export const EPISODE_KEY = 'lightningEpisode';
+
+/** The stored episode, shape-checked here (lightning.js checks the id and the gap again); null when missing, damaged or storage throws. */
+function loadEpisode(store) {
+  try {
+    const e = store?.get(EPISODE_KEY, null);
+    return e && typeof e === 'object' && typeof e.id === 'string' && Number.isFinite(e.lastNearAt) && typeof e.place === 'string'
+      ? { id: e.id, lastNearAt: e.lastNearAt, place: e.place }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const episodeSig = (e) => (e ? `${e.id}|${e.lastNearAt}|${e.place}` : '');
+
 /**
  * The near-home lightning check (SOF-3), on its own fixed box around home (map-lightning.js),
  * read every 10 minutes whether or not the lightning layer is showing.
@@ -24,6 +41,9 @@ const FADING_AFTER_MS = 20_000;
  * - home(): { icao, lat, lon }. radiusNm(): the setting. enabled: SOF-3's switch (default on).
  * - readPixels(bytes): the picture as { data, width, height } (a canvas's getImageData), a promise.
  * - fetch, timers, now, onChange as createImageFeed.
+ * - store: the module's storage ({ get, set }), optional. The lightning episode (when it began, when lightning was last seen near,
+ *   and for which place) is kept there, so after a reload the same storm has the same caution key and an acknowledgement holds
+ *   (Y2 of sof-recheck-207). It is read once at the start, written when it changes, and left alone when storage is missing or throws.
  *
  * When the last try failed, or nothing has been read yet, lightning.js is given `null` for its
  * samples, so it says it can't tell rather than "clear" (`state` 'unknown'). What the banner is
@@ -40,9 +60,10 @@ const FADING_AFTER_MS = 20_000;
  * episode gap (lightning.js) is a new caution that re-raises whatever was acknowledged before.
  * Returns { start, setPlace, refresh, wake, stop, result, line, state }.
  */
-export function createLightningWatch({ home, radiusNm, enabled = true, readPixels, fetch, timers, now = () => new Date(), onChange = () => {} }) {
+export function createLightningWatch({ home, radiusNm, enabled = true, readPixels, fetch, timers, now = () => new Date(), store = null, onChange = () => {} }) {
   let box = null;
-  let episode = null;
+  let episode = loadEpisode(store); // { id, lastNearAt, place } from before a reload, or null; checked against the place at the first answer
+  let saved = episodeSig(episode);
   let lastNear = null; // the caution of the last good reading that had lightning near home
   let lastNearRadius = null; // the radius that reading was for
   let lastGoodAt = null; // when the last good reading (clear or near) was seen, ms
@@ -75,6 +96,7 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
     const radius = radiusNm();
     const place = `${h.icao}|${h.lat}|${h.lon}`;
     const r = clampRadius(radius);
+    if (placeKey === null && episode && episode.place !== place) episode = null; // kept for another home field: not this one's
     if (place !== placeKey) {
       placeKey = place;
       lastNear = null;
@@ -97,7 +119,16 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
       enabled,
       episode,
     });
-    episode = found.episode;
+    episode = found.episode ? { ...found.episode, place } : null; // lightning.js's own two fields, and where they were seen
+    const sig = episodeSig(episode);
+    if (store && sig !== saved) {
+      try {
+        store.set(EPISODE_KEY, episode); // null once the storm is over
+        saved = sig;
+      } catch {
+        // Nothing can be kept: the episode lives in memory for this visit, as before.
+      }
+    }
     if (found.state === 'near') {
       lastNear = found.caution;
       lastNearRadius = r;
@@ -204,9 +235,11 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
  *
  * - address(): the relay's request address (traffic.js `trafficUrl`) or null when it isn't set.
  * - options(): { label, militaryOnly } for the view.
- * Returns { setOn, stop, view(at), state }.
+ * - paused(): true while the tab is hidden (or the map is not drawn): nothing is asked, and the view is left alone, until it
+ *   turns false; wake() then asks at once if a request is due (F2 of sof-recheck-207).
+ * Returns { setOn, wake, touch, stop, view(at), state }.
  */
-export function createTrafficFeed({ address, options = () => ({}), fetch, timers, now = () => new Date(), onChange = () => {} }) {
+export function createTrafficFeed({ address, options = () => ({}), paused = () => false, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let state = initialTraffic();
   let controller = new AbortController();
   let cancelPoll = null;
@@ -238,7 +271,7 @@ export function createTrafficFeed({ address, options = () => ({}), fetch, timers
   }
 
   function tick() {
-    if (stopped) return;
+    if (stopped || paused()) return;
     if (trafficDue(state, now())) ask();
     // Positions fade once they are old, so a relay that has gone quiet is drawn fading, second by second.
     else if (state.lastGood && +now() - state.receivedAt > FADING_AFTER_MS) changed();
@@ -262,6 +295,8 @@ export function createTrafficFeed({ address, options = () => ({}), fetch, timers
       }
       changed();
     },
+    /** The tab is back: ask at once if a request is due (the one-second poll would get there within a second anyway). */
+    wake: tick,
     /** Redoes the view now (the label or military-only choice changed, or a tick of the screen's clock). */
     touch: changed,
     stop() {
