@@ -1042,3 +1042,22 @@ test('no accessibility violations with a wave and its list of hits open', async 
   await expect(page.locator('.sof-wave-detail')).toBeVisible();
   await expectNoA11yViolations(page);
 });
+
+// ---- R5: a piece's label is never wider than the piece, and "below" comes first ------------------------------
+
+for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }]) {
+  test.describe(`at ${size.width} × ${size.height}, timeline labels`, () => {
+    test.use({ viewport: size });
+
+    test('no piece is cut off by its own label, and a narrow hatched piece still shows the symbol and below first', async ({ page }) => {
+      // A 1 h TEMPO and a 2 h TEMPO, both below the limits.
+      const taf = 'CYMJ 291740Z 2918/3006 22010KT P6SM SKC TEMPO 2922/2923 1SM BR OVC003 TEMPO 3001/3003 1/2SM FG VV002\n';
+      await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+      const over = await page.locator('.sof-tl-piece').evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => `${el.dataset.id}: ${el.scrollWidth} > ${el.clientWidth}`));
+      expect(over).toEqual([]);
+      const hatched = page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-piece.is-hatched');
+      expect(await hatched.count()).toBeGreaterThan(1);
+      for (const label of await hatched.locator('.sof-tl-piece-label').all()) await expect(label).toContainText('▼');
+    });
+  });
+}
