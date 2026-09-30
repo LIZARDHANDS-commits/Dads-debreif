@@ -108,7 +108,8 @@ Also open: Dependabot PR #162 (Playwright 1.56 to 1.63), left alone on purpose; 
 - Which module next, and the go to start it.
 - Traffic: redraw the Moose Jaw routes with Dad (Q59, task 14). Until then the V6 routes stay.
 - SOF live traffic layer needs a small relay (a Cloudflare Worker, code in `relay/`) on an account Patrick owns. The layer stays off until then. Optional.
-- Later: delete about 60 merged branches (ask first), and add a Content Security Policy once every outside host is known (SOF uses api.met.no, datamask.org, geo.weather.gc.ca, RainViewer, Esri tiles, ADS-B Exchange; the debrief's historical weather uses mesonet.agron.iastate.edu, gibs.earthdata.nasa.gov and open-meteo.com).
+- Verification re-check of Debrief F1-F3 after PR #241 merges.
+- Later: delete about 60 merged branches (only on Patrick's word), and add a Content Security Policy (host list in `docs/records/csp-hosts.md`) (SOF uses api.met.no, datamask.org, geo.weather.gc.ca, RainViewer, Esri tiles, ADS-B Exchange; the debrief's historical weather uses mesonet.agron.iastate.edu, gibs.earthdata.nasa.gov and open-meteo.com).
 
 ## Questions for Dad
 

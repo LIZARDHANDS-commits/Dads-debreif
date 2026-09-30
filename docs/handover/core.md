@@ -5,6 +5,10 @@ Shared flight math in `src/core/`: units, time and zones, geometry, wind triangl
 - Spec: `specs/SPEC-core.md`. Tasks: `tasks/flight-math/`. Tests: `tests/unit/core/`, `tests/golden/`.
 - Done, through #232. No paused work.
 
+## Left (optional)
+
+- Verification suggested the shared GPS gap rule (`GAP_S` in `src/flight-data/clean.js` and `flight.js`, now "more than 5 s") become "5 s or more". One-line change; check it against Debrief PR #241 first.
+
 ## Notes
 
 - `maxKiasT6A` is the NFM airspeed-limit line for what pilots see; `modelMaxIasT6A` is the same limit on the model's IAS, used as a guard (never over Mach 0.67).
