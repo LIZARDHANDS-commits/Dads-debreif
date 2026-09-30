@@ -26,7 +26,7 @@ const ft = (n) => Math.round(n).toLocaleString('en-US');
  * grid3d, sticks3d, altMarks3d). fieldFt(): the home field's elevation.
  * setCamera(patch): keeps a camera change (yaw3d, pitch3d, zoom3d).
  */
-export function createView3d(canvas, { timers, flight, time, settings, fieldFt, setCamera }) {
+export function createView3d(canvas, { timers, flight, time, settings, fieldFt, setCamera, tennis = () => null }) {
   let dragging = null; // { id, x, y, camera } while the mouse turns the view
 
   const cameraFrom = (on) => dragging?.camera ?? { yawDeg: on.yaw3d, pitchDeg: on.pitch3d, zoom: on.zoom3d, altScale: on.altScale3d };
@@ -39,7 +39,7 @@ export function createView3d(canvas, { timers, flight, time, settings, fieldFt, 
       ctx.fillRect(0, 0, size.width, size.height);
       const shown = flight();
       if (!shown) return; // the screen's own message says what to load
-      drawScene(ctx, size, shown, time(), settings(), cameraFrom(settings()), fieldFt());
+      drawScene(ctx, size, shown, time(), settings(), cameraFrom(settings()), fieldFt(), tennis());
     },
   });
 
@@ -93,7 +93,7 @@ export function createView3d(canvas, { timers, flight, time, settings, fieldFt, 
 }
 
 
-function drawScene(ctx, size, flight, t, on, camera, fieldFt) {
+function drawScene(ctx, size, flight, t, on, camera, fieldFt, ball) {
   const ships = shipsIn3d(flight, t);
   const live = Object.fromEntries(ships.map((s) => [s.slot, s]));
   const ctr = formationCenter(live, on.cam3d);
@@ -111,6 +111,7 @@ function drawScene(ctx, size, flight, t, on, camera, fieldFt) {
     if (on.model3d === 't6' && ship.hdg !== null) drawT6(ctx, P, ship, on);
     else drawMarker(ctx, P, ship, on);
   }
+  if (ball?.points) drawTennis3d(ctx, P, ball);
   if (on.groundRef3d) drawCompass(ctx, size, camera);
   drawCaption(ctx, camera, on, datum);
 }
@@ -405,5 +406,59 @@ function drawCaption(ctx, camera, on, datum) {
   outlined(ctx, `Altitude ×${scale}`, 14, 22, TEXT);
   const from = on.datum3d === 'field' ? 'field elevation' : on.datum3d === 'zero' ? 'sea level' : 'lowest ship less 500 ft';
   outlined(ctx, `Ground: ${ft(datum)} ft (${from})`, 14, 40, TEXT);
+  ctx.restore();
+}
+
+// The tennis ball in 3D (the same solution as the map, #19): the ball's arc,
+// the cone's edges as the same arc turned ±half the cone, the target's path,
+// and the closest pass joined to where the target was then.
+function drawTennis3d(ctx, P, sol) {
+  const color = sol.status === 'INTERCEPT' ? '#7ee787' : '#ffcc66';
+  const line = (points) => {
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const q = P(p);
+      if (i === 0) ctx.moveTo(q.x, q.y);
+      else ctx.lineTo(q.x, q.y);
+    });
+    ctx.stroke();
+  };
+  const { shooter } = sol;
+  const half = (sol.coneDeg / 2) * (Math.PI / 180);
+  const turned = (a) => sol.points.map((p) => {
+    const dx = p.x - shooter.x;
+    const dy = p.y - shooter.y;
+    return { x: shooter.x + dx * Math.cos(a) - dy * Math.sin(a), y: shooter.y + dx * Math.sin(a) + dy * Math.cos(a), altFt: p.altFt };
+  });
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 204, 102, 0.55)';
+  line(turned(-half));
+  line(turned(half));
+  ctx.strokeStyle = 'rgba(88, 166, 255, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 5]);
+  line(sol.targetPoints);
+  ctx.setLineDash([]);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 4;
+  line(sol.points);
+  if (sol.best.ball) {
+    const b = P(sol.best.ball);
+    const tp = P(sol.best.target);
+    ctx.strokeStyle = sol.status === 'INTERCEPT' ? '#7ee787' : '#ff6b6b';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(tp.x, tp.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    outlined(ctx, sol.status, b.x + 9, b.y - 8, color);
+  }
   ctx.restore();
 }

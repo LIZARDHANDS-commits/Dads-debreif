@@ -50,6 +50,21 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   vncEastNm: 0,
   vncNorthNm: 0,
   vncScalePct: 100,
+  // Tools, closed at first (R22): the EM chart, with V6's automatic chart and 60 s trail.
+  emOpen: false,
+  emChart: 'auto',
+  emTrail: true,
+  // The tennis ball, with V6's settings: #2 throws at Lead, 350 kt, a 6° cone
+  // (±3°), 3 s, a 250 ft hit radius, with gravity.
+  tennisOpen: false,
+  tennisShooter: 2,
+  tennisTarget: 1,
+  tennisBallKt: 350,
+  tennisPitchBias: 0,
+  tennisConeDeg: 6,
+  tennisTofSec: 3,
+  tennisRadiusFt: 250,
+  tennisGravity: true,
   // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
   // is gone: it was the same as Centre formation (#26).
   view: '2d',

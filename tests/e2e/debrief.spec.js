@@ -207,7 +207,18 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       const out = [];
       const width = document.documentElement.clientWidth;
       if (document.documentElement.scrollWidth > width) out.push('the page scrolls sideways');
-      const boxes = controls.map((el) => ({ el, r: el.getBoundingClientRect() }));
+      // A control scrolled out of sight inside a scrolling menu isn't on the screen; one partly in sight counts where it shows.
+      const shown = (el) => {
+        const r = el.getBoundingClientRect();
+        let box = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          if (!/(auto|scroll)/.test(getComputedStyle(p).overflowY)) continue;
+          const c = p.getBoundingClientRect();
+          box = { left: Math.max(box.left, c.left), right: Math.min(box.right, c.right), top: Math.max(box.top, c.top), bottom: Math.min(box.bottom, c.bottom) };
+        }
+        return box.right > box.left && box.bottom > box.top ? box : null;
+      };
+      const boxes = controls.map((el) => ({ el, r: shown(el) })).filter((b) => b.r);
       const name = (el) => `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}"`;
       for (const { el, r } of boxes) if (r.left < 0 || r.right > width + 0.5) out.push(`${name(el)} is cut off`);
       for (let i = 0; i < boxes.length; i++) {
@@ -227,6 +238,14 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await page.getByRole('button', { name: 'Routes and charts' }).click();
     await page.getByText('Chart alignment').click();
     expect(await overlaps()).toEqual([]);
+    // And with the EM chart open below the map (#37).
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Tools' }).click();
+    await page.getByRole('checkbox', { name: 'EM chart' }).check();
+    await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
+    expect(await overlaps()).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.screenshot({ path: test.info().outputPath('debrief-em.png') });
     // The same in 3D, with its settings open.
     await page.keyboard.press('Escape');
     await page.getByText('3D', { exact: true }).click();
@@ -648,3 +667,90 @@ test('VNC charts: off at first, fetched only when chosen, "Not for navigation", 
   await expect(credit).toBeHidden();
 });
 
+
+const emPicture = (page) => page.locator('canvas.debrief-em-canvas').evaluate((canvas) => {
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  let hash = 0;
+  for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
+  return hash;
+});
+
+test('EM chart: closed at first, opened from Tools below the map, charts fetched only when shown (#37, R5)', async ({ page }) => {
+  const asked = [];
+  page.on('request', (req) => /\/em-\d+\.jpg$/.test(req.url()) && asked.push(req.url().split('/').pop()));
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  const panel = page.locator('.debrief-em');
+  await expect(panel).toBeHidden();
+  expect(asked).toEqual([]);
+  const mapBefore = await page.locator('.debrief-map-wrap').boundingBox();
+  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('checkbox', { name: 'EM chart' }).check();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  // The map shrinks to make room; the panel sits below it, not over it.
+  const mapAfter = await page.locator('.debrief-map-wrap').boundingBox();
+  const emBox = await panel.boundingBox();
+  expect(mapAfter.height).toBeLessThan(mapBefore.height);
+  expect(emBox.y).toBeGreaterThanOrEqual(mapAfter.y + mapAfter.height);
+  await expect(page.locator('.debrief-em-note')).toHaveText(/^\d{1,2},\d{3} ft chart\./);
+  await expect.poll(() => asked.length).toBe(1);
+
+  const changes = async (act) => {
+    const b = await emPicture(page);
+    await act();
+    await expect.poll(() => emPicture(page)).not.toBe(b);
+  };
+  await changes(() => page.getByRole('button', { name: 'Ahead 1 second' }).click());
+  await changes(() => page.getByLabel('Trail (60 s)').uncheck());
+  await changes(() => page.getByLabel('Chart', { exact: true }).selectOption({ label: '6,500 ft' }));
+  await expect(page.locator('.debrief-em-note')).toHaveText(/^6,500 ft chart\./);
+  await page.getByRole('button', { name: 'Close EM chart' }).click();
+  await expect(panel).toBeHidden();
+  // Closed, it draws nothing while playing (#39).
+  await page.getByRole('button', { name: 'Play' }).click();
+  const still = await emPicture(page);
+  await page.waitForTimeout(300);
+  expect(await emPicture(page)).toBe(still);
+});
+
+test('tennis ball: opened from Tools, one answer in the panel, on the map and in 3D (#19)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.getAttribute('min')) + 40 * 60));
+  const panel = page.locator('.tennis-panel');
+  await expect(panel).toBeHidden();
+  const before = await mapPicture(page);
+  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  const status = page.locator('.tennis-status');
+  await expect(status).toHaveText(/^(INTERCEPT|IN CONE|OUT OF CONE|GPS GAP|NOT MOVING)$/);
+  // #2 is in a GPS gap here, so #3 throws at Lead, and the map shows it.
+  await page.getByLabel('Shooter', { exact: true }).selectOption({ label: '#3' });
+  await expect(status).toHaveText(/^(INTERCEPT|IN CONE|OUT OF CONE)$/);
+  await expect.poll(() => mapPicture(page)).not.toBe(before);
+  // V6's settings.
+  await expect(page.getByLabel('Ball speed')).toHaveValue('350');
+  await expect(page.getByLabel('Cone width')).toHaveValue('6');
+  await expect(page.getByLabel('Time of flight')).toHaveValue('3');
+  await expect(page.getByLabel('Hit radius')).toHaveValue('250');
+  await expect(page.getByLabel('Gravity drop')).toBeChecked();
+  // Lead at #3: the words follow the choice.
+  await page.getByLabel('Shooter', { exact: true }).selectOption({ label: '#1 Lead' });
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#3' });
+  await expect(page.locator('.tennis-lines li').first()).toHaveText(/^#1 at #3, range [\d,]+ ft$/);
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#1 Lead' });
+  await expect(status).toHaveText('PICK TWO');
+  await page.getByLabel('Target', { exact: true }).selectOption({ label: '#3' });
+  // The same solution in 3D.
+  await page.getByText('3D', { exact: true }).click();
+  const with3d = await picture3d(page);
+  await page.getByRole('button', { name: 'Close tennis ball' }).click();
+  await expect(panel).toBeHidden();
+  await expect.poll(() => picture3d(page)).not.toBe(with3d);
+});

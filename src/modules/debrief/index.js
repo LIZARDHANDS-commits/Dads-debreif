@@ -17,6 +17,9 @@ import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
+import { createEmView } from './em.js';
+import { tennisAt } from './tennis.js';
+import { createTennisPanel } from './tennis-panel.js';
 import { FIELD_ELEVATION_FT } from './data/cymj.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createDfpPanel } from './dfp-panel.js';
@@ -40,10 +43,11 @@ function mount(root, app) {
   const standardsPanel = app.standards && createStandardsPanel({ standards: app.standards, layout });
   const dfpPanel = createDfpPanel({ time: app.time, on: dfpActions() });
   const filePanel = createFilePanel({ layout, canExample, on: fileActions() });
+  const tennisPanel = createTennisPanel({ controls, layout });
   const ui = createLayout({
     layout, controls, bar, canExample, listen: app.listen,
     flightExtras: [filePanel.element],
-    formationExtras: [dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
+    formationExtras: [tennisPanel.element, dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
   });
   const currentStandards = () => app.standards?.get() ?? V6_STANDARDS;
   root.append(ui.element);
@@ -58,7 +62,14 @@ function mount(root, app) {
   let busy = false;
   let closed = false; // a load still running when the debrief closes must not land
 
+  // The one tennis-ball solution both views draw and the panel describes (#19), while it's open.
+  const tennisNow = () => {
+    const on = layout.get();
+    return on.tennisOpen && flight && clock ? tennisAt(flight, clock.t, on) : null;
+  };
+
   const map = createMapView(ui.canvas, {
+    tennis: tennisNow,
     timers: app.scheduler,
     time: () => clock?.t ?? 0,
     layers: () => layout.get(),
@@ -76,6 +87,7 @@ function mount(root, app) {
   });
 
   const view3d = createView3d(ui.canvas3d, {
+    tennis: tennisNow,
     timers: app.scheduler,
     flight: () => flight,
     time: () => clock?.t ?? 0,
@@ -84,8 +96,20 @@ function mount(root, app) {
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
     setCamera: (patch) => layout.update(patch),
   });
-  // Only the view that's showing draws (#39).
-  const redraw = () => (layout.get().view === '3d' ? view3d : map).requestDraw();
+  const em = createEmView(ui.emCanvas, {
+    timers: app.scheduler,
+    base: document.baseURI,
+    flight: () => flight,
+    time: () => clock?.t ?? 0,
+    settings: () => layout.get(),
+    onChart: (altitude) => ui.setEmChart(altitude),
+  });
+  // Only the view that's showing draws, and the EM chart only while open (#39).
+  const redraw = () => {
+    const on = layout.get();
+    (on.view === '3d' ? view3d : map).requestDraw();
+    if (on.emOpen) em.requestDraw();
+  };
 
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
@@ -97,6 +121,7 @@ function mount(root, app) {
     pendingReadout = null;
     lastReadout = performance.now();
     ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null);
+    if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -287,6 +312,8 @@ function mount(root, app) {
       }),
     ),
   );
+  tennisPanel.element.hidden = !layout.get().tennisOpen;
+  tennisPanel.render(null);
   ui.onFit(() => map.fit());
   ui.onReset(() => layout.reset());
 
@@ -294,6 +321,8 @@ function mount(root, app) {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
     filePanel.setCollapsed(!values.filesOpen);
+    tennisPanel.element.hidden = !values.tennisOpen;
+    if (values.tennisOpen) tennisPanel.render(tennisNow());
     redraw();
   });
 
@@ -322,6 +351,7 @@ function mount(root, app) {
     standardsPanel?.dispose();
     map.dispose();
     view3d.dispose();
+    em.dispose();
     stylesheet.remove();
   };
 }

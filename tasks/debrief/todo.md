@@ -61,10 +61,12 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
 **Checkpoint D:** open PR D.
 
-- [ ] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
+- [x] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
   - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each (D63, confirmed D77).
   - Verify: e2e overlap scan with EM open; unit tests of the tennis panel glue.
   - Files: src/modules/debrief/{em,tennis-panel}.js, public/media/debrief/em-*.jpg
+  - 9a done (EM chart): "Tools" menu → "EM chart" opens a panel below the playback bar, beside its controls, so the map shrinks and nothing covers it (#37). V6's three charts (its own JPEGs, byte for byte) with its plot box and scales (golden test), "Nearest the formation" or a chart by hand, and the 60 s fading trail on by default. Points are core's emPoint (no divide by 2, D39). The trail is worked out from the track, so it's there after a seek or while paused (V6 built it only while playing). A chart is fetched only when the panel shows one; closed, it draws nothing (#39). Menus now end above the map's bottom edge and scroll, so no menu covers the playback bar or the EM panel.
+  - 9b done (tennis ball): "Tools" → "Tennis ball" opens its panel in the Formation column: shooter and target (V6's #2 at Lead), V6's settings (350 kt, 6° cone = ±3°, 3 s, 250 ft, gravity on, pitch bias 0), and the answer in words (status, range, line of sight against the cone, closest pass, ball speed and pitch with its source). One solution from core's solver (Q33 to Q37, D77) is drawn on the map (V6's cone, ball path, target path, closest pass) and in 3D (the arc, the cone's edges, the target's path, the closest pass), so the words and pictures never disagree (#19). A ship in a GPS gap, not moving, missing, or the same ship twice says so instead.
 - [ ] **10. CSV export.** One file, one row per second, ships side by side, sources and gap flags; disabled with no flight.
   - Acceptance: rows are time-aligned and complete (#28).
   - Verify: unit tests of export-csv.js.
