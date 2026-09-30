@@ -6,7 +6,7 @@ import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi } from '../../../src/core/angles.js';
 import {
   FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG, V6_DEFAULT_SETUP,
-  levelTurn, mergeTimeSec, offNoseDeg, rangeFt, sinceMergeSec, createFight, stepFight,
+  levelTurn, mergeTimeSec, offNoseDeg, offNose3dDeg, ataDeg, rangeFt, sinceMergeSec, createFight, stepFight,
 } from '../../../src/modules/turn-fight/sim.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected}`);
@@ -408,6 +408,86 @@ test('offNoseDeg: dead ahead is 0°, abeam 90°, dead astern 180°, whichever si
   near(offNoseDeg(at(0, 0, 0), at(0, -100, 0)), 90, 1e-12);
   near(offNoseDeg(at(0, 0, 0), at(-100, 0, 0)), 180, 1e-12);
   near(offNoseDeg(at(0, 0, 4 * Math.PI + 0.5), at(100, 0, 0)), 28.6479, 1e-3, 'heading goes past 2π in a long fight');
+});
+
+const at3 = (x, y, z, headingRad, pitchRad) => ({ xFt: x, yFt: y, zFt: z, headingRad, pitchRad });
+
+test('Q51: offNose3dDeg is the angle from the nose (heading and pitch) to the line of sight, height included', () => {
+  const deg = (d) => (d * Math.PI) / 180;
+  // Level, same height: the ground-plane angle, the same as offNoseDeg.
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(100, 0, 0, 0, 0)), 0, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(0, 100, 0, 0, 0)), 90, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(-100, 0, 0, 0, 0)), 180, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, deg(20), 0), at3(100, 0, 0, 0, 0)), 20, 1e-9);
+  // Nose 30° up at a jet level and dead ahead: 30° off. The ground plane says 0°.
+  near(offNose3dDeg(at3(0, 0, 0, 0, deg(30)), at3(1000, 0, 0, 0, 0)), 30, 1e-9);
+  assert.equal(offNoseDeg(at3(0, 0, 0, 0, deg(30)), at3(1000, 0, 0, 0, 0)), 0);
+  // A jet 1,000 ft above at 1,000 ft ahead is 45° up; nose level: 45° off. Nose on it: 0°.
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(1000, 0, 1000, 0, 0)), 45, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, deg(45)), at3(1000, 0, 1000, 0, 0)), 0, 1e-6);
+  // Straight above, nose level: 90°. Below with the nose down 60°: 30°.
+  near(offNose3dDeg(at3(0, 0, 0, 0, 0), at3(0, 0, 500, 0, 0)), 90, 1e-9);
+  near(offNose3dDeg(at3(0, 0, 0, 0, deg(-60)), at3(0, 0, -500, 0, 0)), 30, 1e-9);
+  // A heading that has gone past 2π in a long fight.
+  near(offNose3dDeg(at3(0, 0, 0, 4 * Math.PI + 0.5, 0), at3(100, 0, 0, 0, 0)), 28.6479, 1e-3);
+  // On top of each other: no line of sight, so the ground-plane answer, never NaN.
+  assert.equal(offNose3dDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)), offNoseDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)));
+});
+
+test('Q51: ataDeg measures in 3D only with Climb and dive on (and not with v6OffNose); otherwise it is V6\'s ground-plane angle', () => {
+  const pitched = (extra) => {
+    const s = createFight({ vertical: true, bluePitchDeg: 30, redPitchDeg: -20, ...extra });
+    s.merged = true;
+    Object.assign(s.blue, { xFt: 0, yFt: 0, zFt: 0 });
+    Object.assign(s.red, { xFt: 3000, yFt: 0, zFt: 0 });
+    return s;
+  };
+  const on = pitched({});
+  on.blue.pitchRad = Math.PI / 6;
+  near(ataDeg(on, on.blue, on.red), 30, 1e-9, 'Climb and dive on: 3D');
+  on.red.pitchRad = -Math.PI / 9;
+  near(ataDeg(on, on.red, on.blue), 20, 1e-9, 'Red nose 20° down at a jet level with it');
+  const v6 = pitched({ v6OffNose: true });
+  v6.blue.pitchRad = Math.PI / 6;
+  assert.equal(ataDeg(v6, v6.blue, v6.red), 0, 'v6OffNose: the ground-plane angle');
+  const level = createFight({ bluePitchDeg: 30 });
+  level.blue.pitchRad = Math.PI / 6;
+  assert.equal(ataDeg(level, level.blue, level.red), offNoseDeg(level.blue, level.red), 'Climb and dive off: pitch is ignored');
+});
+
+test('Q51: with Climb and dive on, first nose-on is not called on a jet that is high above or below: climbing at 30° against diving at 20° none comes in 10 minutes, where V6 called it at +18.2 s', () => {
+  const setup = { vertical: true, bluePitchDeg: 30, redPitchDeg: -20 };
+  const v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
+  assert.equal(r1(sinceMerge(v6)), 18.2);
+  assert.equal(v6.firstNose.both, true);
+  const now = runUntil(setup, () => false, FIGHT_MAX_SEC);
+  assert.equal(now.firstNose, null);
+  assert.equal(now.stopped, true);
+});
+
+test('Q51: a small pitch only delays first nose-on: both climbing at 3° is marked at +18.3 s in 3D, V6 had +18.2 s', () => {
+  const setup = { vertical: true, bluePitchDeg: 3, redPitchDeg: 3 };
+  assert.equal(r1(sinceMerge(runUntil(setup, (f) => f.firstNose))), 18.3);
+  assert.equal(r1(sinceMerge(runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose))), 18.2);
+});
+
+test('Q51: with Climb and dive on but both pitches 0, nothing changes: first nose-on is V6\'s, +18.2 s', () => {
+  const setup = { vertical: true };
+  const now = runUntil(setup, (f) => f.firstNose), v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
+  assert.equal(r1(sinceMerge(now)), 18.2);
+  assert.equal(now.firstNose.timeSec, v6.firstNose.timeSec);
+});
+
+test('Q51: with Climb and dive off the pitch boxes and v6OffNose change nothing: the same fight, step for step', () => {
+  const a = createFight({ bluePitchDeg: 40, blueG: 5 }), b = createFight({ bluePitchDeg: 40, blueG: 5, v6OffNose: true });
+  for (let i = 0; i < 1500; i++) { stepFight(a, FIGHT_STEP_SEC); stepFight(b, FIGHT_STEP_SEC); }
+  assert.deepEqual({ ...a, v6OffNose: null }, { ...b, v6OffNose: null });
+  assert.ok(a.firstNose);
+});
+
+test('Q51: v6OffNose is an option, not one of the boxes: it is not kept in the setup', () => {
+  assert.deepEqual(createFight({ v6OffNose: true }).setup, createFight().setup);
+  assert.ok(!('v6OffNose' in V6_DEFAULT_SETUP));
 });
 
 test('a setup that can\'t fly is refused, not run', () => {

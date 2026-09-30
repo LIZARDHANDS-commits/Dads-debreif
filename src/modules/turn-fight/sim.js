@@ -88,6 +88,33 @@ export function offNoseDeg(from, other) {
   return absAngleDeg(lineOfSightRad(from, other) - from.headingRad);
 }
 
+/**
+ * How far the other aircraft is off this one's nose in 3D, in degrees from 0 to
+ * 180 (Q51): the angle from the nose (heading and pitch) to the line of sight,
+ * height included. A jet far above or below is far off the nose even when it is
+ * right ahead on the ground. With no line of sight (both at one point) there is
+ * no 3D angle, and this gives the ground-plane one, so it is never NaN.
+ */
+export function offNose3dDeg(from, other) {
+  const dx = other.xFt - from.xFt, dy = other.yFt - from.yFt, dz = other.zFt - from.zFt;
+  if (dx === 0 && dy === 0 && dz === 0) return offNoseDeg(from, other);
+  const cosPitch = Math.cos(from.pitchRad);
+  const nx = cosPitch * Math.cos(from.headingRad), ny = cosPitch * Math.sin(from.headingRad), nz = Math.sin(from.pitchRad);
+  // atan2 of the cross and dot products stays exact near 0° and 180°, where acos loses digits.
+  const cross = Math.hypot(ny * dz - nz * dy, nz * dx - nx * dz, nx * dy - ny * dx);
+  return radToDeg(Math.atan2(cross, nx * dx + ny * dy + nz * dz));
+}
+
+/**
+ * The off-nose angle (antenna train angle, ATA) the fight uses, for first
+ * nose-on and for the readout. V6's ground-plane angle while the fight is
+ * level; with Climb and dive on, the 3D angle (Q51). `v6OffNose: true` in
+ * createFight keeps V6's ground-plane angle always (the golden test pins V6 with it).
+ */
+export function ataDeg(state, from, other) {
+  return state.setup.vertical && !state.v6OffNose ? offNose3dDeg(from, other) : offNoseDeg(from, other);
+}
+
 /** Straight-line distance between the aircraft in feet, including height (V6 `upd`, line 4276). */
 export function rangeFt(state) {
   return Math.hypot(state.red.xFt - state.blue.xFt, state.red.yFt - state.blue.yFt, state.red.zFt - state.blue.zFt);
@@ -121,8 +148,11 @@ function need(ok, what, value) {
  * (V6_DEFAULT_SETUP). The setup is checked here, because a blank or
  * infinite number would never merge. Returns the state that stepFight moves.
  * `v6Start` is an option, not one of the boxes: it is not kept in `state.setup`.
+ * The same goes for `v6OffNose` (Q51): with Climb and dive on, first nose-on
+ * and the readout use the 3D off-nose angle; `v6OffNose: true` keeps V6's
+ * ground-plane angle. It is kept as `state.v6OffNose`.
  */
-export function createFight({ v6Start = false, ...setup } = {}) {
+export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {}) {
   const s = { ...V6_DEFAULT_SETUP, ...setup };
   need(s.circles === 1 || s.circles === 2, 'circles is 1 or 2', s.circles);
   need(Number.isFinite(s.separationNm) && s.separationNm > 0, 'separationNm is above 0', s.separationNm);
@@ -144,6 +174,7 @@ export function createFight({ v6Start = false, ...setup } = {}) {
     merged: false,
     stopped: false,
     carrySec: 0,
+    v6OffNose: !!v6OffNose,
     firstNose: null,
     blue: { xFt: blueStartFt, yFt: 0, zFt: 0, headingRad: 0, pitchRad: 0 },
     red: { xFt: redStartFt, yFt: 0, zFt: 0, headingRad: Math.PI, pitchRad: 0 },
@@ -166,7 +197,7 @@ function fly(p, perf, d, vertical) {
 /**
  * The first aircraft whose nose is within 5° of the other is marked, once,
  * after the merge, with where both were at that moment (V6 `checkFirstNose`,
- * line 4241). V6 names the one with the smaller angle if both are within 5°
+ * line 4241; the off-nose angle is `ataDeg`, 3D with Climb and dive on, Q51). V6 names the one with the smaller angle if both are within 5°
  * in the same step, which in an even fight is rounding noise. Q48 changes that
  * one thing: both within 5° in the same step is a tie, marked `both: true`.
  * `by` still names an aircraft for code that reads it ('blue' for a tie, never
@@ -174,8 +205,8 @@ function fly(p, perf, d, vertical) {
  */
 function checkFirstNose(state) {
   if (!state.merged || state.firstNose) return;
-  const blueOff = offNoseDeg(state.blue, state.red);
-  const redOff = offNoseDeg(state.red, state.blue);
+  const blueOff = ataDeg(state, state.blue, state.red);
+  const redOff = ataDeg(state, state.red, state.blue);
   if (blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG) {
     const both = blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG;
     const byBlue = both || blueOff <= FIRST_NOSE_DEG;

@@ -10,8 +10,9 @@
 //
 // A row is { id, label, group, blue, red } (one text per aircraft) or
 // { id, label, group, text } (one text for the fight).
-import { offNoseDeg, rangeFt, sinceMergeSec } from './sim.js';
+import { ataDeg, rangeFt, sinceMergeSec } from './sim.js';
 import { FT_PER_NM } from '../../core/units.js';
+import { headingCrossAngleDeg } from '../../core/angles.js';
 
 /**
  * A whole number of feet with thousands separators, V6's `toFixed(0)` rounding.
@@ -72,7 +73,8 @@ export function resultRows(state) {
 
 /**
  * The More detail panel: speed, G, 360° time, each aircraft's off-nose angle
- * (V6's "angle-off"), time since the merge, and with Climb and dive on each
+ * (ATA; V6's "angle-off", renamed by Q51, and 3D with Climb and dive on), true
+ * angle-off (the difference in headings, one number for both, Q51), time since the merge, and with Climb and dive on each
  * aircraft's height change and the height between them. V6 showed the height
  * lines always, reading zero in a level fight.
  */
@@ -82,7 +84,8 @@ export function moreDetailRows(state) {
     pairRow('speed', 'Speed', 'more', `${blue.speedKt} kt`, `${red.speedKt} kt`),
     pairRow('g', 'G', 'more', blue.g.toFixed(1), red.g.toFixed(1)),
     pairRow('time360', '360° time', 'more', `${(360 / blue.rateDegPerSec).toFixed(1)} s`, `${(360 / red.rateDegPerSec).toFixed(1)} s`),
-    pairRow('offNose', 'Angle-off', 'more', `${offNoseDeg(state.blue, state.red).toFixed(0)}°`, `${offNoseDeg(state.red, state.blue).toFixed(0)}°`),
+    pairRow('offNose', 'Off-nose angle (ATA)', 'more', `${ataDeg(state, state.blue, state.red).toFixed(0)}°`, `${ataDeg(state, state.red, state.blue).toFixed(0)}°`),
+    textRow('angleOff', 'Angle-off', 'more', `${headingCrossAngleDeg(state.blue.headingRad, state.red.headingRad).toFixed(0)}°`),
     textRow('sinceMerge', 'Time since merge', 'more', `${sinceMergeSec(state).toFixed(1)} s`),
   ];
   if (state.setup.vertical) {
