@@ -1,0 +1,356 @@
+/* The Formation Turn Sim's screen (SPEC-turn-sim: The screen). Everything is
+   scoped to the Turn Sim, so nothing here reaches another module. Colours and
+   spacing come from the ui-kit tokens. Three columns, none over another. */
+
+[data-module='turn-sim'] .turn-sim {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  height: calc(100dvh - var(--header-height));
+  min-height: 32rem;
+  padding: var(--space-3);
+  box-sizing: border-box;
+}
+
+[data-module='turn-sim'] .ts-col {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-module='turn-sim'] .ts-col-setup {
+  width: 18rem;
+}
+
+[data-module='turn-sim'] .ts-col-formation {
+  width: 17rem;
+}
+
+/* A collapsed column keeps only its header button, and the picture takes the room (#34). */
+[data-module='turn-sim'] .ts-col.is-collapsed {
+  width: auto;
+}
+
+[data-module='turn-sim'] .ts-col .panel {
+  margin: 0;
+}
+
+/* Panels inside a column sit close together and are a little quieter. */
+[data-module='turn-sim'] .ts-subpanel {
+  margin-top: var(--space-3);
+  background: var(--bg-sunken);
+}
+
+[data-module='turn-sim'] .ts-subpanel .panel-toggle {
+  min-height: 2rem;
+  font-size: var(--text-sm);
+}
+
+/* Fields: label on the left, box and unit beside it, so the essentials stay short at 1366 x 768. */
+[data-module='turn-sim'] .ts-field {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-field .control {
+  display: grid;
+  grid-template-columns: 6rem auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+}
+
+[data-module='turn-sim'] .ts-field .control > label,
+[data-module='turn-sim'] .ts-field .control-choice > legend {
+  line-height: 1.25;
+}
+
+[data-module='turn-sim'] .ts-field .control-message {
+  grid-column: 1 / -1;
+}
+
+[data-module='turn-sim'] .ts-field .control-select select {
+  grid-column: 2 / -1;
+  justify-self: start;
+  max-width: 100%;
+}
+
+[data-module='turn-sim'] .ts-field .control input[type='number'] {
+  width: 6.5em;
+  min-height: 2rem;
+}
+
+[data-module='turn-sim'] .ts-field .control select {
+  min-height: 2rem;
+}
+
+/* A list with a choice greyed out ("coming in a later step") isn't a greyed-out list. */
+[data-module='turn-sim'] .ts-field .control-select {
+  opacity: 1;
+}
+
+/* The Right | Left choice: its legend is the label, the two buttons sit beside it. */
+[data-module='turn-sim'] .ts-field .control-choice {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+}
+
+[data-module='turn-sim'] .ts-field .control-choice > legend {
+  float: left;
+  width: 6.5rem;
+  padding: 0;
+}
+
+[data-module='turn-sim'] .panel-body {
+  padding: var(--space-3);
+}
+
+[data-module='turn-sim'] .ts-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-field .ts-hint {
+  margin-top: var(--space-1);
+}
+
+[data-module='turn-sim'] .ts-auto {
+  margin-bottom: var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-warning,
+[data-module='turn-sim'] .ts-message {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--caution);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-message {
+  border-left-color: var(--bad);
+}
+
+[data-module='turn-sim'] .ts-warning[hidden],
+[data-module='turn-sim'] .ts-message[hidden],
+[data-module='turn-sim'] .ts-flags[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-reset {
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-group {
+  margin: 0 0 var(--space-3);
+  padding: 0 0 var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+[data-module='turn-sim'] .ts-position {
+  margin: 0 0 var(--space-2) var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+}
+
+[data-module='turn-sim'] .ts-position[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .settings-group[hidden],
+[data-module='turn-sim'] .ts-group[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-group-title {
+  margin: 0 0 var(--space-2);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+}
+
+/* Stage: the playback bar and toolbar above the picture, never over it. */
+[data-module='turn-sim'] .ts-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-module='turn-sim'] .ts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+[data-module='turn-sim'] .ts-bar-gap {
+  flex: 1 1 0;
+}
+
+[data-module='turn-sim'] .ts-bar select {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
+[data-module='turn-sim'] .ts-play {
+  min-width: 5.5rem;
+}
+
+[data-module='turn-sim'] .ts-time {
+  min-width: 6.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+[data-module='turn-sim'] .ts-menu {
+  position: relative;
+}
+
+[data-module='turn-sim'] .menu-button::after {
+  content: ' \25be';
+}
+
+[data-module='turn-sim'] .ts-menu-body[hidden] {
+  display: none;
+}
+
+/* The Layers menu opens over the picture while it's open, and closes on Escape or a click elsewhere. */
+[data-module='turn-sim'] .ts-menu-body {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  width: 15rem;
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+[data-module='turn-sim'] .ts-menu-body .control {
+  margin-bottom: var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+[data-module='turn-sim'] .ts-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Formation card */
+[data-module='turn-sim'] .ts-card {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='turn-sim'] .ts-card li {
+  padding: var(--space-1) 0;
+  overflow-wrap: anywhere;
+}
+
+/* The words say it too; colour only backs them up. */
+[data-module='turn-sim'] .ts-card .tone-good span:last-child {
+  color: var(--good);
+}
+
+[data-module='turn-sim'] .ts-card .tone-caution span:last-child {
+  color: var(--caution);
+}
+
+[data-module='turn-sim'] .ts-card .tone-none span:last-child {
+  color: var(--text-muted);
+}
+
+[data-module='turn-sim'] .ts-line {
+  margin: 0 0 var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-sim'] .ts-turn {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-flags {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='turn-sim'] .ts-flags li {
+  padding: var(--space-1) var(--space-3);
+  border-left: 3px solid var(--caution);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-detail h3 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-sim'] .ts-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-sim'] .ts-lines li {
+  padding: 0.125rem 0;
+}
+
+[data-module='turn-sim'] .ts-summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-sim'] .ts-summary th {
+  color: var(--text-muted);
+  font-weight: normal;
+  text-align: left;
+}
+
+[data-module='turn-sim'] .ts-summary td {
+  text-align: right;
+}
+
+[data-module='turn-sim'] .ship-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--ship);
+  vertical-align: -0.05rem;
+}
+
+/* #4 is white with a dark outline, as on the picture (#29). */
+[data-module='turn-sim'] .ship-swatch.is-outlined {
+  box-shadow: 0 0 0 2px #02060a, 0 0 0 3px var(--border-strong);
+}
