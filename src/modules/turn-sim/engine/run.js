@@ -162,6 +162,7 @@ export function createRun(settings) {
       baseDelaySec: cfg.baseDelaySec,
       clockCueAircraft: cfg.clockCueAircraft,
       timing: cfg.timing,
+      clockCueSequence: cfg.clockCueSequence,
       speedKt: cfg.speedKt,
       spacingFt: cfg.spacingFt,
     };

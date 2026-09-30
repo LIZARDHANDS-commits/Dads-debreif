@@ -150,7 +150,7 @@ export function autoTimingStarts(aircraft, flight) {
  * place, each with xFt, yFt, headingRad, delayErrSec, turnLogic and clockTarget.
  *
  * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingDeg, clockCueAircraft,
- *   timing ('time', 'clock' or 'auto'), speedKt, spacingFt }
+ *   timing ('time', 'clock' or 'auto'), clockCueSequence ('outsideIn' or 'manual'), speedKt, spacingFt }
  * Returns { autoStepSec }: the auto step when the timing is auto and the turn is a delayed one, else null.
  * `formation` and `startHeadingDeg` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
@@ -181,10 +181,19 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     let g = goal;
 
     if (clockMode) {
-      // The clock cue (V6 lines 1187 and 1196): each aircraft but the first waits for the aircraft just outside it.
+      // The clock cue (V6 line 1197): with Outside-in, each aircraft but the first waits for the aircraft just outside it.
       dir = selectedDir;
-      const idx = cascade.findIndex((x) => x.id === a.id);
-      const cueTarget = idx > 0 ? cascade[idx - 1] : null;
+      let cueTarget;
+      if (flight.clockCueSequence === 'manual') {
+        // Q45, "Manual targets": every aircraft watches the aircraft chosen for it (its own Clock target, else the
+        // Clock cue aircraft), and turns the way its own turn logic says. An aircraft that watches itself starts at once.
+        const chosen = cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
+        cueTarget = chosen && chosen.id !== a.id ? chosen : null;
+        if (a.id !== 1) dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
+      } else {
+        const idx = cascade.findIndex((x) => x.id === a.id);
+        cueTarget = idx > 0 ? cascade[idx - 1] : null;
+      }
       a.autoClockTargetId = cueTarget ? cueTarget.id : null;
       a.cueArmed = !!cueTarget;
       d = 0;

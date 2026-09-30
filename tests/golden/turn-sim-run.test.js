@@ -64,12 +64,12 @@ function compareLeg(page, run, label, autoStep) {
 }
 
 /** V6 next to the port through a first leg and, when asked, a second one that continues from where the aircraft are. */
-function compareRun(settings, label, { legs = 1 } = {}) {
+function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   // D41 swapped "toward" and "away" back to what they say, so V6 is given the swapped names to fly the same turn.
-  const v6Settings = { ...settings };
+  const v6Settings = { ...v6From };
   for (const id of [1, 2, 3, 4]) {
     const key = aircraftKey(id, 'turnLogic');
-    v6Settings[key] = { toward: 'away', away: 'toward' }[settings[key]] ?? settings[key];
+    v6Settings[key] = { toward: 'away', away: 'toward' }[v6From[key]] ?? v6From[key];
   }
   // D43 and D44: with auto timing every aircraft starts at its own time, index x step, without waiting for Lead
   // (V6 waited), and the step is spacing / speed x cot(half the turn). That is exactly V6's TIME-delay flight
@@ -304,4 +304,20 @@ test('V6 as shipped ignores the Clock tolerance box (issue #32); read as V6 mean
   };
   assert.equal(start(30), start(4), 'V6 as shipped: the box does nothing');
   assert.ok(start(30, { readsClockTolerance: true }) < start(4, { readsClockTolerance: true }));
+});
+
+test('Q45, Manual targets: when each aircraft is told to watch the aircraft just outside it, the flight is V6\'s Outside-in flight', () => {
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const maneuver of ['delayed90away', 'delayed45away']) {
+      for (const direction of DIRECTIONS) {
+        const v6Settings = scenario({ formation, maneuver, direction, timing: 'clock', clockCuePos: 6.5 });
+        const probe = createV6Page(v6Settings);
+        probe.reset();
+        const order = probe.v6.clockCascadeOrder(probe.aircraft()).map((a) => a.id); // V6's own cascade, outside first
+        const manual = { ...v6Settings, clockCueSequence: 'manual' };
+        order.forEach((id, i) => { manual[aircraftKey(id, 'clockTarget')] = String(i === 0 ? id : order[i - 1]); });
+        compareRun(manual, `manual ${formation} ${maneuver} ${direction}`, { v6From: v6Settings });
+      }
+    }
+  }
 });
