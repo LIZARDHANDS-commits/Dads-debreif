@@ -78,6 +78,20 @@ M = [
  ('flight.js', "headingAt(track, t0), { x: p1.xFt", "headingAt(track, t1), { x: p1.xFt"),
  ('flight.js', ", t1 - t0);\n}", ", t1 - t0 + 0.1);\n}"),
  ('flight.js', "return wrapDeg180(a + wrapDeg180(b - a) * k);", "return a + (b - a) * k;"),
+ # clean.js: C3, impossible fixes
+ ('clean.js', "Math.abs(f.lat) <= 90", "Math.abs(f.lat) < 90"),
+ ('clean.js', "Math.abs(f.lon) <= 180", "Math.abs(f.lon) < 180"),
+ ('clean.js', "f.altM >= MIN_ALT_M", "f.altM > MIN_ALT_M"),
+ ('clean.js', "f.altM <= MAX_ALT_M", "f.altM < MAX_ALT_M"),
+ ('clean.js', "dropped.position++", "dropped.altitude++"),
+ ('clean.js', "possible[b].t - possible[a].t, MIN_SPEED_TIME_S", "possible[b].t - possible[a].t, 0.5"),
+ ('clean.js', "<= MAX_GROUND_SPEED_KT", "< MAX_GROUND_SPEED_KT + 5"),
+ ('clean.js', "i + MAX_JUMP_FIXES,", "i + MAX_JUMP_FIXES - 1,"),
+ ('clean.js', "i + MAX_JUMP_FIXES,", "i + MAX_JUMP_FIXES + 1,"),
+ ('clean.js', "possible.length - 1);", "possible.length);"),
+ ('clean.js', "dropped.jump += back - i;", "dropped.jump += 1;"),
+ ('clean.js', "      last = i;\n", "\n"),
+ ('clean.js', "if (fixes.length < 2)", "if (fixes.length < 1)"),
 ]
 
 

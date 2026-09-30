@@ -6,6 +6,7 @@ Reads ForeFlight track logs (KML), puts up to four aircraft on one map and one p
 |---|---|
 | `xml.js` | A small, strict XML reader. Refuses anything that isn't well-formed, and any DOCTYPE, so a hostile file can't expand entities or reach other files. |
 | `kml.js` | `readKml(text, name)`: the fixes of one track file (position, altitude, time, recorded G and pitch), sorted by time. Refuses KMZ files, files over 30 MB and more than 200,000 fixes. |
+| `clean.js` | `cleanTrack(raw)`: drops fixes no aircraft could have flown (off the globe, ForeFlight's −100,000 m "no altitude", GPS jumps over 450 kt) and counts them. The limits are named constants at the top. |
 | `flight.js` | `buildFlight(tracks)`: one map and playback window for up to four tracks. `sampleAt`, `headingAt`, `pitchAt` and `estimatedGAt`: each aircraft at a given time. |
 
 ## Changing something
