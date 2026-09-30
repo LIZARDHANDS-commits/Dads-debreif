@@ -431,6 +431,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     checkNote: checkTurnNote(state, settings),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
+    checkFallback: state?.checkFallback ?? null, // why the Delayed 45's check was not flown when it was asked for (the engine's words), or null
     leadTurnDirection: state?.leadTurnDirection ?? null,
     gWarning: stallWarning(settings.baseG, settings.speedKt, stallLimitG),
     summary: [

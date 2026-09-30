@@ -96,6 +96,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // Why some turns are greyed out (settings.js turnProblem), or why the turn asked for was not the one flown (state.maneuverFallback).
   const turnNote = h('p', { class: 'ts-hint ts-turn-note', role: 'status', hidden: true });
   let turnFallback = null;
+  let checkFallback = null; // why the Delayed 45's check was asked for but not flown (state.checkFallback), shown in the same note
   let turnSwitched = null; // set when picking a four-ship formation moved the Turn menu off the shackle or cross turn
   const direction = field(DIRECTION, 'choice');
   // In the cross turn Lead always turns toward #2 whatever the Direction says (SMM 16.19 para 64), so the choice is greyed out.
@@ -321,7 +322,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
         option.disabled = TWO_SHIP_ONLY_TURNS.includes(value) && turnProblem(values.formation, value) !== null;
       });
     }
-    const why = turnSwitched ?? turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
+    const why = turnSwitched ?? turnFallback ?? checkFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
     turnNote.textContent = why ?? '';
     turnNote.hidden = !why;
   }
@@ -485,8 +486,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
         for (const text of r.flags) flags.append(h('li', {}, text));
       }
       flags.hidden = r.flags.length === 0;
-      if ((r.maneuverFallback ?? null) !== turnFallback) {
+      if ((r.maneuverFallback ?? null) !== turnFallback || (r.checkFallback ?? null) !== checkFallback) {
         turnFallback = r.maneuverFallback ?? null;
+        checkFallback = r.checkFallback ?? null;
         if (lastValues) applyTurnChoices(lastValues);
       }
       if ((r.leadTurnDirection ?? null) !== leadTurns) {

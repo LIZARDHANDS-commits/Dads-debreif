@@ -477,10 +477,15 @@ test('Y2: the trail band edges at 6,000 ft spacing: just inside and just outside
   assert.deepEqual(at(-6061), ['WIDE']);
 });
 
-// The engine's fallback reason (state.maneuverFallback: the Shackle in a four-ship, a Check turn over 30 degrees, and the Delayed 45's check at another
-// Turn degrees) reaches the screen through readoutsAt, and the screen shows it in the one Turn note beside the menu, whatever the reason is.
-test('a fallback reason from the engine is passed through as it is, for any turn', () => {
+// The engine's fallback reasons reach the screen through readoutsAt: state.maneuverFallback (the Shackle in a four-ship, a Check turn over 30 degrees) and
+// state.checkFallback (the Delayed 45's check asked for at a Turn degrees it cannot fly, so the plain chain is flown; null when nothing was asked for).
+// The layout shows either in the one Turn note beside the menu.
+test('the engine\'s fallback reasons are passed through as they are, and are null without one', () => {
   const why = 'The check turn is flown at 45 degrees only, so this is the plain Delayed 45.';
-  assert.equal(readoutsAt({ ...four(), maneuverFallback: why }, { ...SETTINGS, maneuver: 'delayed45away', turnDeg: 60 }).maneuverFallback, why);
-  assert.equal(readoutsAt(four(), SETTINGS).maneuverFallback, null);
+  const r = readoutsAt({ ...four(), checkFallback: why }, { ...SETTINGS, maneuver: 'delayed45away', turnDeg: 60 });
+  assert.equal(r.checkFallback, why);
+  assert.equal(r.maneuverFallback, null);
+  assert.equal(readoutsAt({ ...four(), maneuverFallback: why }, SETTINGS).maneuverFallback, why);
+  const none = readoutsAt(four(), SETTINGS);
+  assert.deepEqual([none.maneuverFallback, none.checkFallback], [null, null]);
 });
