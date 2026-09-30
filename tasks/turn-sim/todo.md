@@ -1,6 +1,6 @@
 # Tasks: Turn Sim
 
-Plan: [`plan.md`](plan.md). Spec: [`specs/SPEC-turn-sim.md`](../../specs/SPEC-turn-sim.md). Every task is verified with `npm test`; screen tasks also with `npm run test:e2e` and a look with `/run`. Line numbers are in `original/shell.html`.
+Plan: [`plan.md`](plan.md). Spec: [`specs/SPEC-turn-sim.md`](../../specs/SPEC-turn-sim.md). Streamlined build (Patrick, 30 Sep; see HANDOVER.md): each PR needs only CI green to merge; the full local run, screenshots, axe and the Chrome/Firefox/Safari check happen once, at task 14 (module sign-off). Numbers may sit within a tolerance (±1 kt, ±50 ft, ±1°, ±1 %). No mutation runs or fuzzing. No more 3D tests or polish. Anything new goes on the future features list. Line numbers are in `original/shell.html`.
 
 Patrick's answers to Q41 to Q47 (2026-09-30) are folded in below; each flight change is its own commit after the V6 pin (D10). So are the SMM formation additions (Patrick 06:40Z, spec "SMM formation additions", items 1 to 8).
 
@@ -57,7 +57,7 @@ Skills: test-driven-development and incremental-implementation for every task; f
   - Then two commits: **#4 by ground track** (Q44b), the new default, solving #4's delay to roll out 3,000 ft outside #2 at the box aft distance (tested for both directions, where V6's LATE left turn ends about 21,000 ft aft); and the **rear check** starting at its set time or once #3 and #4 finish turning, whichever is later (Q47).
   - Then SMM item 5: #3's and #4's solved delays shown against the 10-15 s band (16.41 para 112) with "outside 10-15 s"; in in-place, shackle and check turns the rear element turns with the front (V6 pinned first; its own commit if it changes anything).
   - Files: `engine/plan.js`, `engine/rear-check.js`, `layout.js`, tests. Size M.
-- [ ] **12. Aircraft errors, dragging and the other layers, then D42 and D48.** Aircraft errors panel; drag before Play (with follow lead working); clock marks, breadcrumbs, NM. Then D42 (wide/tight from Lead) and D48 (#2's side, default left) as two commits. (Engine part, D42/D48 and Q44b, done in #189; the screen part is still open.)
+- [ ] **12. Aircraft errors, dragging and the other layers, then D42 and D48.** Aircraft errors panel; drag before Play (with follow lead working); clock marks, breadcrumbs, NM. Then D42 (wide/tight from Lead) and D48 (#2's side, default left) as two commits. (Engine part, D42/D48 and Q44b, done in #189. Screen part built on branch `handover/turn-sim-screen-audit`: errors panel under "More …", wingmen-only dragging and keyboard nudge, NM rings; needs one review read, then its PR.)
   - Acceptance: after D42, "Wide 1,000 ft" moves each wingman 1,000 ft further from Lead on its own side; after D48, the side setting mirrors #2 only.
   - Files: `engine/formation.js`, `layout.js`, `view.js`, tests. Size M.
 
@@ -65,8 +65,8 @@ Skills: test-driven-development and incremental-implementation for every task; f
   - Acceptance: tests state each ending (hook: 180° heading change and the agreed line-up; shackle: same heading, spacing within a stated tolerance, each aircraft on the other side); spacing too small for a shackle gives a message, not a bad picture.
   - Then the SMM turn items, each its own commit: **check turn** (item 1, a new Turn entry, 5° to 30°, default 30°); **delayed 45 into and away from the wingman** (item 3, paras 56-57, V6's delayed 45 pinned first, pictures checked with Patrick); **cross turn in two stages** (item 4, 2 G to 90° then the G setting, first-stage G and switch point under More setup, V6's one-G cross turn pinned first).
   - Files: `engine/plan.js`, `engine/step.js`, tests. Size L.
-- [ ] **16. Spacing graph and solver (Q41).** Each behind its own checkbox, off by default. The graph: chosen pairs, minimum separation and closure over the run, one colour each with a legend, drawn only while open. The solver: V6's sweep (base delay, spacing or G for a target spacing) pinned to V6, run only when asked.
-  - Acceptance: solver answers match V6's; the graph uses no frames while closed; nothing new shows on a first visit.
+- [ ] **16. Spacing graph and solver (Q41).** Engine done in #234 (`engine/solver.js`, `engine/series.js`, pinned to V6); the screen part (`graph.js`, the two checkboxes, a busy state while solving, the answer labelled "at Duration (N s)") is open. Each behind its own checkbox, off by default. The graph: chosen pairs, minimum separation and closure over the run, one colour each with a legend, drawn only while open. The solver: V6's sweep (base delay, spacing or G for a target spacing) pinned to V6, run only when asked.
+  - Acceptance: solver answers match V6's (done); the graph uses no frames while closed; nothing new shows on a first visit.
   - Files: `engine/solver.js`, `graph.js`, `layout.js`, tests. Size M.
 
 ### Checkpoint C: every V6 feature kept by the spec is on screen; D42, D48, Q43, Q44 and Q47 landed. PR C.
@@ -77,10 +77,10 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 ## Phase 4: profiles, CSV and sign-off (PR D)
 
-- [ ] **13. Profiles and CSV.** Named profiles and the startup default over `app.storage`, checked field by field on load; confirm before overwrite, delete and factory reset; factory reset without reloading. CSV of the whole run by 0.05 s.
+- [ ] **13. Profiles and CSV.** Needs the optional `app.scenarioStore` added to `specs/SPEC-shell.md` and the shell first (the Turn Sim already reads it and runs it through `checkSettings`, on `handover/turn-sim-215-recheck`). Named profiles and the startup default over `app.storage`, checked field by field on load; confirm before overwrite, delete and factory reset; factory reset without reloading. CSV of the whole run by 0.05 s.
   - Acceptance: a profile with errors, a rear check, dragged positions and a custom turn angle round-trips exactly; storage blocked still works (#33); a tampered profile is refused field by field.
   - Files: `profiles.js`, `engine/run.js` (CSV rows), `layout.js`, tests. Size M.
-- [ ] **14. Browser tests, performance, checklist, README.** `tests/e2e/turn-sim.spec.js` (spec's list), performance log at 4× with all layers, `docs/checklists/turn-sim.md`, module README.
+- [ ] **14. Browser tests, performance, checklist, README.** `tests/e2e/turn-sim.spec.js` (spec's list), performance check at 4× with all layers (a note, not a stress run), the Chrome/Firefox/Safari check, `docs/checklists/turn-sim.md`, module README.
   - Acceptance: the e2e suite passes; 60 fps target met or the gap logged; checklist ready for Patrick or Dad.
   - Files: `tests/e2e/turn-sim.spec.js`, `docs/checklists/turn-sim.md`, `src/modules/turn-sim/README.md`. Size M.
 
@@ -90,8 +90,8 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 The spec's "SMM formation additions", item 7 (Patrick 06:40Z). New, so nothing in V6 to pin; each test states what the SMM reference says. New settings bump the settings version and go into profiles (task 13's field-by-field check covers them). Item 8 (rejoins, fighting wing, fluid manoeuvring) is a future feature (Patrick 06:59Z), not a task.
 
-- [ ] **17. Sequences and G-warm (item 7).** `engine/sequence.js`: a list of turns flown one after another, each starting when the last ends, with an optional wings-level gap. The Exercises panel (collapsed) with a G-warm button: from LAB at 220 KIAS or more, in-place 90 at 3 G toward the wingman, 5 s wings level labelled "½ G push", hook at 4 G, in-place 90 at 3 G back (16.22 paras 70-71). 4-ship as spread-4 (16.44), picture checked with Patrick first.
-  - Acceptance: two-ship G-warm ends on the start heading in LAB; each leg's G and the 5 s gap are stated in the test; a speed under 220 is raised to 220 with a note.
+- [ ] **17. Sequences and G-warm (item 7).** Engine built on `handover/turn-sim-sequences` (two-ship; the push leg is 5 s wings level; all three turns the same way so both end on the start heading; under 220 KIAS it warns rather than raising the speed, logged for review). Screen (Exercises panel) open. `engine/sequence.js`: a list of turns flown one after another, each starting when the last ends, with an optional wings-level gap. The Exercises panel (collapsed) with a G-warm button: from LAB at 220 KIAS or more, in-place 90 at 3 G toward the wingman, 5 s wings level labelled "½ G push", hook at 4 G, in-place 90 at 3 G back (16.22 paras 70-71). 4-ship as spread-4 (16.44), picture checked with Patrick first.
+  - Acceptance: two-ship G-warm ends on the start heading in LAB; each leg's G and the 5 s gap are stated in the test; a speed under 220 gives a warning (judgement call, logged).
   - Files: `engine/sequence.js`, `exercises.js`, `settings.js`, tests. Size M.
 - [ ] **18. G-warm in the browser tests and checklist.** Add the Exercises panel to `tests/e2e/turn-sim.spec.js` (closed on a first visit, the button flies the sequence) and a checklist line.
   - Files: `tests/e2e/turn-sim.spec.js`, `docs/checklists/turn-sim.md`. Size S.
