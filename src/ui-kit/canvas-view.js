@@ -95,10 +95,19 @@ export function createCanvasSurface(canvas, { timers, draw, label, win = globalT
     });
   }
 
+  // Measured on the next frame, not inside the observer: setting the canvas's
+  // pixel size there can resize its box again, which WebKit reports as a
+  // "ResizeObserver loop" page error. It also reports once on start; redraw
+  // only for a real change.
+  let pendingMeasure = null;
   const resizer = win.ResizeObserver
     ? new win.ResizeObserver(() => {
-        // It also reports once on start; redraw only for a real change.
-        if (measure()) requestDraw();
+        if (disposed || pendingMeasure) return;
+        pendingMeasure = timers.frame(() => {
+          pendingMeasure();
+          pendingMeasure = null;
+          if (measure()) requestDraw();
+        });
       })
     : null;
   resizer?.observe(canvas);
@@ -115,6 +124,8 @@ export function createCanvasSurface(canvas, { timers, draw, label, win = globalT
       disposed = true;
       pendingFrame?.();
       pendingFrame = null;
+      pendingMeasure?.();
+      pendingMeasure = null;
       resizer?.disconnect();
     },
   };
