@@ -1,0 +1,114 @@
+# Traffic Pattern Sim
+
+Routes on the left, aircraft on the right, a map in the middle. The spec is [`specs/SPEC-traffic.md`](../../../specs/SPEC-traffic.md); the task list is in [`tasks/traffic/`](../../../tasks/traffic/todo.md).
+
+## Engine API
+
+The engine is `route.js`, `sim.js`, `dice.js` and `readouts.js` (PR A, tasks 1 to 3). It is pure: plain objects in, plain objects out, no page, no clock, no `Math.random`. The screen calls it and draws what it returns; the drawing never changes a number. Everything is pinned to V6's own Traffic page by `tests/golden/traffic-*.test.js`.
+
+### Conventions
+
+- Positions are **feet**, x east and **y north**, origin at the setup's anchor (`setup.anchor = { lat, lon }`). V6 stored y pointing south; the built-in data was flipped once and nothing else changed.
+- Altitudes are feet, speeds are knots, times are seconds of sim time, headings are compass degrees (0 north, 90 east).
+- Point numbers on the screen count from 1. Inside the engine a point is its 0-based index in `route.points` (`startIndex`, `sourceIndex`, `mergeIndex`), as in V6; only `sim.spawn`'s `startPoint` is 1-based, because it is what the spawner's box holds.
+- This is V6's simple model (SPEC-traffic, Assumption 1): an aircraft is a point that moves along its route at the speed set at the route points, at the height set there. No wind, no types yet (a type is only a colour, as in V6), no avoiding action.
+
+### The setup
+
+`src/modules/traffic/data/moose-jaw.json` is V6's built-in "Moose Jaw Dynamic" profile in this shape. `sim.createSim(setup, …)` reads `routes`, `aircraft`, `routeOptions` and `conflictLimits`; the rest is for the screen.
+
+```js
+{
+  version: 1,
+  name: 'Moose Jaw Dynamic',
+  anchor: { lat: 50.3303, lon: -105.5592 },       // where x = 0, y = 0 is
+  routes: [ route, … ],
+  aircraft: [ { id: 'A1', type: 'CT-157', routeId: 'PAT1', startIndex: 0, startsAtSec: 12 }, … ],
+  routeOptions: { flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 },
+  conflictLimits: { latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 },
+  view: {                                          // display settings only, V6's own values
+    playbackSpeed: 8, zoom: 0.95, center: { x, y },
+    showTrails, showLabels, showRoutePoints, showLegDistances, showTurnData, showBubbles, showCautionRings,
+    photo: { show, aboveGrid, opacity, trim, offsetEastFt, offsetNorthFt },
+  },
+  notes: '',
+}
+```
+
+A **route** is `{ id, name, kind, visible, color, points, … }` with `kind` one of `'pattern'` (a closed loop), `'entry'` or `'split'` (open lines), and the links V6 has, by point index for now:
+
+| kind | extra fields |
+|---|---|
+| pattern | `landOdds` (chance of landing each time an aircraft crosses the first point) |
+| entry | `attachTo` (pattern id it joins), `mergeIndex` (the pattern point it joins at) |
+| split | `sourceRoute`, `sourceIndex` (where it leaves), `attachTo`, `mergeIndex` (where it rejoins), `splitOdds` |
+
+A **point** is `{ label, x, y, alt, kt, g }`: position in feet, altitude in feet, speed in knots, G of the turn there.
+
+### `route.js`: shape, length, position (all cached per route)
+
+Every function that needs the route options takes them as an optional last argument, `setup.routeOptions` (default: V6's own, rounded turns on, radius from speed and G, manual radius 1,800 ft). A route's path is worked out once per route and options and kept until a point's position, height, speed or G, or the kind, changes; the caches read the route each time, so editing a point in place is safe.
+
+| Function | Returns |
+|---|---|
+| `routePath(route, options?)` | `{ lengthFt, closed, points, segs }`: the flown path; `points` are V6's `roundedPoints` (`{ x, y, alt, kt, g, src }`), `segs` its `navSegs` (`{ a, b, len, i, headingDeg }`). Read only. |
+| `drawPath(route, options?)` | `[{ x, y, alt }]` along the flown path, the rounded turns sampled finely enough to draw |
+| `positionAt(route, distFt, options?)` | `{ x, y, alt, kt, headingDeg, leg, g }` at that distance along the route (a pattern wraps round; an open route stops at its ends). `leg` is V6's "Leg" column, counted from 1 |
+| `legDistances(route)` | `[{ from, to, ft, nm }]`, one per leg, points counted from 1 (a pattern's last leg goes back to 1) |
+| `newPattern(id, name, opts?)`, `newEntry(id, name, patternId, routes, opts?)`, `newSplit(id, name, patternId, routes, opts?)` | V6's builders (`defaultPattern`, `defaultEntry`, `defaultSplit`): a route, not yet in any list. `opts.color` sets the colour; `newPattern` also takes `offsetEastFt` and `offsetNorthFt` |
+
+V6's own names are there too, for the tests and the editor: `roundedPoints`, `navSegs`, `routeLengthFt`, `pointDistFt`, `posOnRoute`, `closestDistFt`, `pointTurnRadiusFt`, `isClosedRoute`.
+
+### `sim.js`: the flying
+
+```js
+const sim = createSim(setup, { seed: 1 });   // aircraft from setup.aircraft, dice from the seed
+sim.t                 // sim time in seconds (0 at the start)
+sim.stepTo(tSec)      // fly on to tSec in whole 0.05 s steps; returns how many steps it took
+sim.reset()           // back to 0 s, every aircraft at its start, the dice from the seed again
+sim.spawn({ type, routeId, startPoint, delaySec })  // returns the new callsign
+sim.remove(id); sim.clearFinished()
+sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a profile
+sim.state()           // what is where right now
+```
+
+The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is asked for, and stops there, so the caller keeps the remainder (ask for `sim.t` plus the frame time times the speed each frame). The same run comes out at any frame rate and any speed. At 1× and 20 frames a second it is V6's own run.
+
+`spawn`: `type` is a V6 type name (`CT-157`, `CT-156`, `CT-102`, `CT-114`), `startPoint` counts from 1 (default 1), `delaySec` is from now (default 0). An unknown route or type throws.
+
+`sim.state()` returns:
+
+```js
+{
+  t: 12.5,
+  aircraft: [{
+    id: 'A1', type: 'CT-157', color: '#a5d6ff',
+    routeId: 'PAT1',            // the route it is on now (it changes at splits and joins)
+    x, y, alt, kt, headingDeg,  // where it is, and the route's height and speed there (V6's Alt and KT)
+    leg,                        // V6's Leg column, counted from 1
+    distFt,                     // distance flown along routeId
+    status: 'waiting' | 'flying' | 'landed' | 'done',
+    startsAt: 12,               // sim time it starts, in seconds
+  }, …],
+  conflicts: [{ a: 'A2', b: 'A5', latFt, vertFt, level: 'conflict' | 'caution' }, …],
+}
+```
+
+A landed or done aircraft keeps the place it stopped at. Conflicts are between aircraft that are flying: both distances under the red limits is a conflict, both under the caution limits (and not a conflict) a caution.
+
+`sim.trailOf(id)` gives the aircraft's trail: `[{ x, y }]`, a point every 0.5 s of sim time for the last 2 minutes.
+
+### `dice.js`
+
+`createDice(seed)` returns a function that gives a number from 0 up to (not including) 1 each time it is called, the same numbers for the same seed. `dice.getState()` and `dice.setState(state)` save and restore it. The sim takes all its choices (land or go round, take a split or not) from one dice, in V6's order.
+
+### `readouts.js`: text, with V6's rounding
+
+| Function | Returns |
+|---|---|
+| `clockText(tSec)` | `H:MM:SS`, e.g. `0:12:40`, `1:02:03` (V6's clock wrapped to `00:00` after an hour) |
+| `aircraftRows(state, setup)` | one row per aircraft: `{ id, type, routeName, leg, altFt, kt, status, statusText, startsText, cells }`. `statusText` is V6's Flying, Waiting, Landed or Done; `startsText` is `starts at 2:17` while it waits |
+| `conflictLines(state)` | `[{ level, text }]`, `text` starting `⚠ CONFLICT` or `△ CAUTION`; `[]` when there are none (the screen says `noConflictsText`) |
+| `legDistanceRows(route)` | `[{ leg: '1→2', ftText: '7170', nmText: '1.18', ft, nm }]` |
+| `turnDataText(point, options?)` | V6's `R 2474ft / bank 60°` |
+| `pointDataText(point)` | V6's `1880ft/100kt/2.0G` |
