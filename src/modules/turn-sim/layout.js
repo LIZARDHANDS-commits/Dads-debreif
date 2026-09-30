@@ -108,6 +108,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const timing = field(TIMING);
   const baseDelay = field(BASE_DELAY);
   const clockPos = field(CLOCK_POS);
+  clockPos.element?.classList.add('ts-wide');
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
@@ -121,7 +122,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const errorSections = [2, 3, 4].map((id) => {
     const f = errorFields(id);
     const built = Object.fromEntries(Object.entries(f).map(([name, def]) => [name, build(def)]));
-    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos));
+    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos, ' ts-wide'));
     errorKeys.push(...Object.values(built).filter(Boolean).map((x) => x.key));
     const positionBoxes = h(
       'div',

@@ -241,7 +241,11 @@ function drawSpacingLines(ctx, map, state, withNm) {
     ctx.lineTo(bx, by);
     ctx.stroke();
     ctx.setLineDash([]);
-    text(ctx, withNm ? formatNm(pair.distFt) : ft(pair.distFt), (ax + bx) / 2, (ay + by) / 2 - 6, '#c9d1d9', 11, 'center');
+    // A pair whose middle is on a third aircraft (#1 to #4 passes over #3) prints above that aircraft's "#3" tag, not on it.
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const onShip = state.aircraft.some((c) => c.id !== pair.a && c.id !== pair.b && Math.hypot(map.worldToScreen(c.xFt, c.yFt)[0] - mx, map.worldToScreen(c.xFt, c.yFt)[1] - my) < 30);
+    text(ctx, withNm ? formatNm(pair.distFt) : ft(pair.distFt), mx, my - (onShip ? 24 : 6), '#c9d1d9', 11, 'center');
     ctx.setLineDash([6, 6]);
   }
   ctx.restore();

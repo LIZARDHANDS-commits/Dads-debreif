@@ -18,7 +18,7 @@
 }
 
 [data-module='turn-sim'] .ts-col-setup {
-  width: 18rem;
+  width: 20rem; /* wide enough for "Clock position cue" in its box (N10) */
 }
 
 [data-module='turn-sim'] .ts-col-formation {
@@ -71,6 +71,16 @@
   grid-column: 2 / -1;
   justify-self: start;
   max-width: 100%;
+}
+
+/* The clock position's words are long ("Auto (4:30 right, 7:30 left)"): its label sits above the box and the box takes the row (N10). */
+[data-module='turn-sim'] .ts-wide .control > label {
+  grid-column: 1 / -1;
+}
+
+[data-module='turn-sim'] .ts-wide .control-select select {
+  grid-column: 1 / -1;
+  justify-self: stretch;
 }
 
 [data-module='turn-sim'] .ts-field .control input[type='number'] {
