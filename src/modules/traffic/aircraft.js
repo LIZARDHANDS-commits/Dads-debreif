@@ -9,6 +9,7 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
+import { MOST_AIRCRAFT } from './profile.js';
 
 /** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
 const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
@@ -97,6 +98,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (asked.problem) return say(asked.problem);
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
+    // A saved profile holds MOST_AIRCRAFT at most (PR-04): stop here, in the same words Save would use.
+    const total = sim.state().aircraft.length + (second ? 2 : 1);
+    if (total > MOST_AIRCRAFT) return say(`Nothing was added: that would make ${total} aircraft (the most is ${MOST_AIRCRAFT}). Clear finished aircraft or remove some first.`);
     try {
       const ids = [sim.spawn(asked.spec)];
       if (second) ids.push(sim.spawn(second.spec)); // the same route, as the spawner has it

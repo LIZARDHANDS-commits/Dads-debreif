@@ -314,3 +314,22 @@ test('a refused Pair gap holds back + Pair only, and the line names it', () => {
   spawn.dispatch('click');
   assert.equal(sim.state().aircraft.length, before + 1, '+ Spawn still works');
 });
+
+// PR-04: a saved profile holds 200 aircraft at most, so the spawner stops there, with the same limit in its words.
+test('the 201st aircraft is refused at + Spawn and + Pair, with the limit in the sentence (PR-04)', () => {
+  const { spawner, sim, changes } = setup();
+  while (sim.state().aircraft.length < 199) sim.spawn({ type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 0 });
+  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
+  const say = () => words(withClass(spawner, 'spawn-message')[0]);
+  pair.dispatch('click'); // 199 + 2 = 201
+  assert.equal(sim.state().aircraft.length, 199, 'a pair that would pass the limit adds neither aircraft');
+  assert.match(say(), /Nothing was added: that would make 201 aircraft \(the most is 200\)\. Clear finished aircraft or remove some first\./);
+  spawn.dispatch('click'); // the 200th is allowed
+  assert.equal(sim.state().aircraft.length, 200);
+  assert.match(say(), /^Added /);
+  const before = changes.length;
+  spawn.dispatch('click');
+  assert.equal(sim.state().aircraft.length, 200);
+  assert.match(say(), /that would make 201 aircraft \(the most is 200\)/);
+  assert.equal(changes.length, before, 'and the screen was not told of a change');
+});
