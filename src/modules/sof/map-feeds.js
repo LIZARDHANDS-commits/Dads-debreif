@@ -130,7 +130,8 @@ export function feedLine({ label, kind = 'radar', on = true, hasImage = false, l
  * - layer: the ECCC layer name, or a function returning it (radar rain or snow).
  * - kind: 'radar' or 'lightning': how long until it is stale (feeds.js).
  * - urlFor({ layer, request, time }): the picture's address (built from numbers only).
- * - decode(bytes): the picture as the caller uses it (a bitmap), a promise; null or a throw is a failure.
+ * - decode(bytes, asked): the picture as the caller uses it (a bitmap), a promise; null or a throw is a failure. `asked` is the
+ *   request the picture was fetched for (which can differ from the current one by now).
  * - timeless: the layer has no time to ask for (warnings); no capabilities request is made.
  * - refreshMs, retryMs, paused(): a paused feed asks for nothing and looks again later.
  * - onAttempt(ok): after each try, for radar's switch to its backup.
@@ -211,7 +212,7 @@ export function createImageFeed({
         const url = urlFor({ layer: name, request: asked, time: timeless ? undefined : time });
         const reply = await guardedFetch(fetch, url, { timers, signal: closing.signal, accept: 'image/png', ...FETCH_LIMITS.image });
         if (!isPng(reply.contentType, reply.bytes, { width: asked.width, height: asked.height })) throw new Error('not a picture');
-        const image = await decode(reply.bytes);
+        const image = await decode(reply.bytes, asked); // the request it was asked for, not the current one
         if (image === null || image === undefined) throw new Error('picture unreadable');
         if (stopped) {
           release(image);

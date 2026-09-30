@@ -381,3 +381,59 @@ test('a truncated picture (transparent rows where the rest should be) makes the 
     w.stop();
   }
 });
+
+// ---- The picture is read against the box it was asked for (Y2) ------------------------------------------------
+
+test('home changes while a picture is on its way: the old picture is never read as a clear sky at the new home', async () => {
+  const clock = virtualClock('2026-09-30T07:05:00Z');
+  const home = { ...HOME };
+  const oldBox = lightningBox({ home: HOME, radiusNm: 20 });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const asked = [];
+  const f = fakeFetch(async (url) => {
+    if (url.includes('GetCapabilities')) return text(fixture('geomet-caps-Lightning_2.5km_Density.xml'));
+    asked.push(url);
+    if (asked.length === 1) await gate; // the first picture, for the old home, is slow
+    return png(url);
+  });
+  const w = createLightningWatch({
+    home: () => home,
+    radiusNm: () => 20,
+    // whatever is asked for, the pixels are an empty (all clear) picture of the size of the box the fetch was made for
+    readPixels: async () => ({ data: new Uint8ClampedArray(oldBox.width * oldBox.height * 4), width: oldBox.width, height: oldBox.height }),
+    fetch: f, timers: clock.timers, now: clock.now,
+  });
+  w.start();
+  await clock.settle();
+  assert.equal(asked.length, 1);
+  // Home moves 200 NM north while that picture is out, and the same-sized box is asked for there.
+  home.lat += 200 / 60;
+  w.setPlace();
+  release();
+  await clock.settle();
+  const r = w.result();
+  assert.notEqual(r.state, 'clear', 'the old area was empty, that says nothing about the new home');
+  assert.equal(r.state, 'unknown');
+  // Once the picture for the new place arrives it is read against its own box.
+  await clock.advance(2000);
+  assert.equal(asked.length >= 2, true);
+  w.stop();
+});
+
+test('the picture is decoded against the box that was asked for, which is passed to the decoder', async () => {
+  const clock = virtualClock('2026-09-30T07:05:00Z');
+  const seen = [];
+  const f = fakeFetch((url) => (url.includes('GetCapabilities') ? text(fixture('geomet-caps-Lightning_2.5km_Density.xml')) : png(url)));
+  const box = lightningBox({ home: HOME, radiusNm: 20 });
+  const w = createLightningWatch({
+    home: () => HOME,
+    radiusNm: () => 20,
+    readPixels: async () => { seen.push(1); return { data: new Uint8ClampedArray(box.width * box.height * 4), width: box.width, height: box.height }; },
+    fetch: f, timers: clock.timers, now: clock.now,
+  });
+  w.start();
+  await clock.settle();
+  assert.deepEqual(w.state().image.coverage.bounds, box.bounds);
+  w.stop();
+});

@@ -36,7 +36,9 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
     kind: 'lightning',
     // The box goes out in latitude and longitude, two pixels to a cell each way.
     urlFor: ({ layer, request, time }) => getMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, crs: 'EPSG:4326', time }),
-    decode: async (bytes) => decodeDensity(await readPixels(bytes), box),
+    // Against the box this picture was asked for (carried on its request), never the current one: home or the radius
+    // may have changed while it was on its way, and the pixels belong to the place they were asked for.
+    decode: async (bytes, asked) => decodeDensity(await readPixels(bytes), asked.box),
     refreshMs: REFRESH_MS.lightning,
     fetch,
     timers,
@@ -54,7 +56,7 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
       return;
     }
     const { west, south, east, north } = box.bounds;
-    feed.setRequest({ bbox: [west, south, east, north], width: box.width, height: box.height, key: `${west},${south},${east},${north},${box.width}` });
+    feed.setRequest({ bbox: [west, south, east, north], width: box.width, height: box.height, key: `${west},${south},${east},${north},${box.width}`, box });
   }
 
   return {
