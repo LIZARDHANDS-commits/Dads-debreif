@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   DEFAULT_ROUTE_OPTIONS, routePath, drawPath, positionAt, posOnRoute, legDistances, roundedPoints, navSegs,
-  routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, newPattern, newEntry, newSplit,
+  routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, pointTurn, turnAtPoint, newPattern, newEntry, newSplit,
 } from '../../../src/modules/traffic/route.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
@@ -342,4 +342,41 @@ test('the built-in routes are all reachable: every entry and split joins a patte
     if (r.kind === 'split') assert.ok(r.sourceIndex < MOOSE_JAW.routes.find((x) => x.id === r.sourceRoute).points.length);
   }
   assert.equal(posOnRoute(pat1, 0).seg, 0);
+});
+
+// ── For the map: where each leg's label goes, and the turn at each point ────
+
+test('each leg says which route it is on and where its middle is, for the map\'s leg label', () => {
+  const r = { ...route('pattern', [point(0, 0), point(6000, 0), point(6000, 4000), point(-2000, 1000)]), id: 'PAT9' };
+  const legs = legDistances(r);
+  assert.deepEqual(legs.map((l) => [l.routeId, l.from, l.to]), [['PAT9', 1, 2], ['PAT9', 2, 3], ['PAT9', 3, 4], ['PAT9', 4, 1]]);
+  assert.deepEqual(legs.map((l) => [l.x, l.y]), [[3000, 0], [6000, 2000], [2000, 2500], [-1000, 500]]);
+});
+
+test('a pattern of two points has both legs, there and back, with the same middle, as V6 draws it', () => {
+  const legs = legDistances(route('pattern', [point(0, 0), point(3000, 4000)]));
+  assert.deepEqual(legs.map((l) => [l.from, l.to, l.ft, l.x, l.y]), [[1, 2, 5000, 1500, 2000], [2, 1, 5000, 1500, 2000]]);
+  assert.equal(legDistances(route('entry', [point(0, 0), point(3000, 4000)])).length, 1);
+});
+
+test('the turn at a point is its radius and bank, and there is none where V6 shows none: the first point of a pattern, the first and last of an entry or split', () => {
+  const at = (r) => r.points.map((_, i) => pointTurn(r, i));
+  const pattern = route('pattern', [point(0, 0), point(6000, 0), point(6000, 4000), point(0, 4000)]);
+  const turns = at(pattern);
+  assert.equal(turns[0], null);
+  for (const t of turns.slice(1)) { near(t.radiusFt, 736.112, 1e-3); near(t.bankDeg, 60, 1e-9); }
+  const entry = route('entry', pattern.points);
+  assert.deepEqual(at(entry).map((t) => t === null), [true, false, false, true]);
+  assert.equal(pointTurn(pattern, 4), null, 'a point that is not there');
+  assert.equal(pointTurn(pattern, -1), null);
+});
+
+test('the turn follows the route options and the point\'s speed and G', () => {
+  const r = route('pattern', [point(0, 0), point(6000, 0, 2500, 220, 4), point(6000, 4000)]);
+  const fromG = pointTurn(r, 1);
+  assert.deepEqual(fromG, turnAtPoint(r.points[1], DEFAULT_ROUTE_OPTIONS));
+  near(fromG.bankDeg, 75.5225, 1e-3);
+  const manual = pointTurn(r, 1, { flyRoundedTurns: true, radiusFromG: false, manualRadiusFt: 2500 });
+  assert.equal(manual.radiusFt, 2500);
+  near(manual.bankDeg, 75.5225, 1e-3);
 });

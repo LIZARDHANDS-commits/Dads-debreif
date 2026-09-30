@@ -5,11 +5,14 @@
 // test tests/golden/traffic-readouts.test.js compares them with V6's own text. Line
 // numbers below refer to V6's decoded Traffic page.
 //
+// These are the words for the tables and lists, pinned to V6's own text. The map keeps
+// the spec's own style ("1,880 ft 100 kt", map2d.js) and takes its numbers from the
+// route functions (`legDistances`, `pointTurn`), not from these strings.
+//
 // Pure: it takes what `sim.state()` and a route give it and returns plain text and
 // numbers. It touches no page, so it is tested in Node, and the screen puts the text
 // on the page with textContent.
-import { limitG, bankDegFromG } from '../../core/flight-math.js';
-import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, legDistances, pointTurnRadiusFt } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, legDistances, pointTurn, turnAtPoint } from './route.js';
 
 /** What the Conflicts list says when it has no lines (V6 `updatePanels`, line 463). */
 export const noConflictsText = 'No conflicts.';
@@ -88,11 +91,12 @@ export function conflictLines(state) {
 /**
  * The legs of a route for the Leg distances table (V6 line 464) and the leg labels on the
  * map (line 282): `leg` is "1→2" (a pattern's last is "4→1"), `ftText` whole feet, `nmText`
- * NM to two places, `labelText` "6076 ft". `ft` and `nm` are the exact numbers.
+ * NM to two places, `labelText` "6076 ft". `ft` and `nm` are the exact numbers, and
+ * `routeId`, `x` and `y` (the middle of the leg, feet) come from `legDistances`.
  */
 export function legDistanceRows(route) {
   return legDistances(route).map((leg) => ({
-    leg: `${leg.from}→${leg.to}`, from: leg.from, to: leg.to, ft: leg.ft, nm: leg.nm,
+    leg: `${leg.from}→${leg.to}`, routeId: leg.routeId, from: leg.from, to: leg.to, ft: leg.ft, nm: leg.nm, x: leg.x, y: leg.y,
     ftText: String(Math.round(leg.ft)), nmText: leg.nm.toFixed(2), labelText: `${Math.round(leg.ft)} ft`,
   }));
 }
@@ -109,23 +113,25 @@ export function pointDataText(point) {
  * limits G to 1.01 to 9.
  */
 export function turnDataText(point, options = DEFAULT_ROUTE_OPTIONS) {
-  const radiusFt = pointTurnRadiusFt(point, options);
-  const bankDeg = bankDegFromG(limitG(+point.g || 2, 9));
-  return `R ${Math.round(radiusFt)}ft / bank ${Math.round(bankDeg)}°`;
+  return turnText(turnAtPoint(point, options));
 }
 
+const turnText = ({ radiusFt, bankDeg }) => `R ${Math.round(radiusFt)}ft / bank ${Math.round(bankDeg)}°`;
+
 /**
- * The map text for each point of a route, in order: `titleText` ("Pattern 1 6 Downwind"),
+ * The text for each point of a route, in order: `titleText` ("Pattern 1 6 Downwind"),
  * `dataText` and `turnText`. V6 shows turn data at every point but the first of a pattern,
  * and at every point but the first and last of an entry or split (bug #49, kept for now);
  * `turnText` is empty where it shows none.
  */
 export function pointRows(route, options = DEFAULT_ROUTE_OPTIONS) {
-  const closed = isClosedRoute(route), count = route.points.length;
-  return route.points.map((point, i) => ({
-    number: i + 1,
-    titleText: `${route.name} ${i + 1} ${point.label || ''}`,
-    dataText: pointDataText(point),
-    turnText: i > 0 && (closed || i < count - 1) ? turnDataText(point, options) : '',
-  }));
+  return route.points.map((point, i) => {
+    const turn = pointTurn(route, i, options);
+    return {
+      number: i + 1,
+      titleText: `${route.name} ${i + 1} ${point.label || ''}`,
+      dataText: pointDataText(point),
+      turnText: turn ? turnText(turn) : '',
+    };
+  });
 }
