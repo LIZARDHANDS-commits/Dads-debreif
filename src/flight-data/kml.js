@@ -6,6 +6,7 @@
 // from the changes decided in specs/SPEC-flight-data.md, each of which the test
 // names and checks:
 // - C1: a blank recorded value is missing, not 0.
+// - C2: the recorded bank column is read too (V6 never read it).
 //
 // A track file is untrusted input. Before reading, the file's size is checked,
 // a KMZ (zip) is recognised, and the XML reader refuses any DOCTYPE.
@@ -26,7 +27,7 @@ export class KmlError extends Error {
 
 /**
  * Reads the fixes of one track file.
- * Returns { name, fixes: [{ lon, lat, altM, t, gRecorded, pitchRecordedDeg }] },
+ * Returns { name, fixes: [{ lon, lat, altM, t, gRecorded, pitchRecordedDeg, bankRecordedDeg }] },
  * sorted by time, or throws a KmlError.
  */
 export function readKml(text, name = '') {
@@ -56,13 +57,14 @@ export function readKml(text, name = '') {
 
   const nativeG = readRecordedColumn(xml, GFORCE);
   const nativePitch = readRecordedColumn(xml, PITCH);
+  const bank = readRecordedColumn(xml, BANK);
 
   let fixes = [];
   if (gx.length) {
     gx.forEach((c, i) => {
       const a = c.split(/\s+/).map(Number);
       if (a.length >= 2 && Number.isFinite(a[0]) && Number.isFinite(a[1])) {
-        fixes.push(fix(a, when[i] ?? i, nativeG[i] ?? null, nativePitch[i] ?? null));
+        fixes.push(fix(a, when[i] ?? i, nativeG[i] ?? null, nativePitch[i] ?? null, bank[i] ?? null));
       }
     });
   } else {
@@ -73,7 +75,8 @@ export function readKml(text, name = '') {
         const a = token.split(',').map(Number);
         const idx = fixes.length;
         if (a.length >= 2 && Number.isFinite(a[0]) && Number.isFinite(a[1])) {
-          fixes.push(fix(a, when[i] ?? idx, nativeG[idx] ?? nativeG[i] ?? null, nativePitch[idx] ?? nativePitch[i] ?? null));
+          fixes.push(fix(a, when[i] ?? idx, nativeG[idx] ?? nativeG[i] ?? null, nativePitch[idx] ?? nativePitch[i] ?? null,
+            bank[idx] ?? bank[i] ?? null));
           if (fixes.length > MAX_FIXES) throw tooMany(name);
         }
       });
@@ -86,8 +89,8 @@ export function readKml(text, name = '') {
   return { name, fixes };
 }
 
-function fix(a, t, gRecorded, pitchRecordedDeg) {
-  return { lon: a[0], lat: a[1], altM: Number.isFinite(a[2]) ? a[2] : 0, t, gRecorded, pitchRecordedDeg };
+function fix(a, t, gRecorded, pitchRecordedDeg, bankRecordedDeg) {
+  return { lon: a[0], lat: a[1], altM: Number.isFinite(a[2]) ? a[2] : 0, t, gRecorded, pitchRecordedDeg, bankRecordedDeg };
 }
 
 // Recorded sensor columns (V6 readNativeGArray line 2327, readNativePitchArray line 2345).
@@ -100,6 +103,15 @@ const PITCH = {
   name: /(^|[^a-z])(pitch|pitchangle|pitch_angle|attitudepitch)([^a-z]|$)/i,
   valid: v => Number.isFinite(v) && Math.abs(v) <= 90,
   tags: ['Pitch', 'pitch', 'PitchAngle', 'pitchAngle', 'AttitudePitch', 'attitudePitch'],
+};
+
+// Recorded bank, which V6 never read (C2, D47). Positive is right wing down, as
+// ForeFlight records it (on #3 and #4 it follows the turn direction). Rolls past
+// 90° are real, so anything within ±180° is kept.
+const BANK = {
+  name: /(^|[^a-z])(bank|bankangle|bank_angle|roll|rollangle|roll_angle)([^a-z]|$)/i,
+  valid: v => Number.isFinite(v) && Math.abs(v) <= 180,
+  tags: ['Bank', 'bank', 'BankAngle', 'bankAngle', 'Roll', 'roll'],
 };
 
 /**

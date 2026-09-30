@@ -6,7 +6,7 @@
 // decided in specs/SPEC-flight-data.md (C1 to C9) are made later, one at a time.
 import { makeLocalRef, latLonToLocalFt } from '../core/geo.js';
 import { FT_PER_M, FTPS_TO_KT } from '../core/units.js';
-import { radToDeg } from '../core/angles.js';
+import { radToDeg, wrapDeg180 } from '../core/angles.js';
 import { gFromTrack } from '../core/flight-math.js';
 
 /**
@@ -58,7 +58,8 @@ function bracket(fixes, t) {
 /**
  * The aircraft at time t (V6 interpTrack, line 2430): position, altitude and
  * recorded G and pitch interpolated in a straight line between the fixes
- * around t, and ground speed over that pair of fixes. Before the first fix or
+ * around t, and ground speed over that pair of fixes. Recorded bank (C2) is
+ * interpolated the same way, the short way round. Before the first fix or
  * after the last, the end fix itself, with no speed. Latitude and longitude
  * are the earlier fix's, as in V6.
  */
@@ -81,7 +82,14 @@ export function sampleAt(track, t) {
     speedKt: Math.hypot(b.xFt - a.xFt, b.yFt - a.yFt) / dt * FTPS_TO_KT,
     gRecorded: between(a.gRecorded, b.gRecorded, k),
     pitchRecordedDeg: between(a.pitchRecordedDeg, b.pitchRecordedDeg, k),
+    bankRecordedDeg: bankBetween(a.bankRecordedDeg, b.bankRecordedDeg, k),
   };
+}
+
+/** Recorded bank between two fixes the short way round, so 170° to −170° passes through 180°, not 0° (C2). */
+function bankBetween(a, b, k) {
+  if (Number.isFinite(a) && Number.isFinite(b)) return wrapDeg180(a + wrapDeg180(b - a) * k);
+  return between(a, b, k);
 }
 
 function between(a, b, k) {

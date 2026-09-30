@@ -39,6 +39,8 @@ M = [
  ('kml.js', "if (gx.length > MAX_FIXES)", "if (gx.length > MAX_FIXES + 1)"),
  ('kml.js', "if (fixes.length > MAX_FIXES)", "if (fixes.length > MAX_FIXES + 1)"),
  ('kml.js', "return t === '' ? NaN : Number(t);", "return Number(t);"),
+ ('kml.js', "Math.abs(v) <= 180", "Math.abs(v) < 180"),
+ ('kml.js', "bank[idx] ?? bank[i] ?? null", "bank[i] ?? null"),
  # xml.js: well-formedness and text
  ('xml.js', "if (current.name !== name)", "if (false)"),
  ('xml.js', "if (current === doc && rootSeen) fail(", "if (false) fail("),
@@ -75,6 +77,7 @@ M = [
  ('flight.js', "export function estimatedGAt(track, t, windowS = 1.5)", "export function estimatedGAt(track, t, windowS = 2)"),
  ('flight.js', "headingAt(track, t0), { x: p1.xFt", "headingAt(track, t1), { x: p1.xFt"),
  ('flight.js', ", t1 - t0);\n}", ", t1 - t0 + 0.1);\n}"),
+ ('flight.js', "return wrapDeg180(a + wrapDeg180(b - a) * k);", "return a + (b - a) * k;"),
 ]
 
 

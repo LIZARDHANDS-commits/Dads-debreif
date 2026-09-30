@@ -18,7 +18,7 @@ test('reads a ForeFlight example track', () => {
   assert.equal(name, '#1 Lead');
   assert.equal(fixes.length, 6166);
   // Times keep milliseconds only (Date.parse). The pitch column is blank, so there is no recorded pitch (C1, D47).
-  assert.deepEqual(fixes[0], { lon: -105.555285, lat: 50.335542, altM: 571.5, t: Date.UTC(2026, 5, 2, 18, 18, 11, 433) / 1000, gRecorded: null, pitchRecordedDeg: null });
+  assert.deepEqual(fixes[0], { lon: -105.555285, lat: 50.335542, altM: 571.5, t: Date.UTC(2026, 5, 2, 18, 18, 11, 433) / 1000, gRecorded: null, pitchRecordedDeg: null, bankRecordedDeg: null });
 });
 
 test('refuses a DOCTYPE, so no entity is ever expanded (billion laughs, external files)', () => {
