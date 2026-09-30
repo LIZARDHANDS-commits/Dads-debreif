@@ -1,6 +1,6 @@
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). **Start geometry and altitudes (R28) and the SMM additions to Energy mode (level turn at the deck, stall cost, throttle, pursuit) are a draft addition** for Patrick to approve. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). **Start geometry and altitudes (R28), the SMM additions to Energy mode (level turn at the deck, stall cost, throttle, pursuit), and the defaults-and-simplicity rule approved by Patrick on 2026-09-30** ("Agreed", 07:13Z, in this thread). Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
 
@@ -181,6 +181,16 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 - With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
 - Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
+## Every setting has a default, and the screen stays simple (Patrick, 2026-09-30)
+
+Patrick asked on 2026-09-30 (07:13Z, in this thread): every parameter starts with a default entry, and the interface is user friendly, intuitive and not overwhelming. So, for everything in this spec, including Energy mode and Start geometry:
+- **Every box, choice and checkbox opens filled in** with its default, which is V6's value where V6 had one. The fight plays straight away with nothing typed. A blank or bad entry never runs; the last good value stays (ui-kit's number rule).
+- **Layers, not a wall of boxes (R22).** The first view has the fight type, separation, and each aircraft's speed and G, as V6 did. Turning on Energy (T-6) adds only each aircraft's start altitude and merge speed. Everything else sits in collapsed panels, most-used first: Start geometry, then More energy settings, then Model settings for checking. No panel opens by itself.
+- **Plain words first.** Each label says what it is in plain words, with the SMM term after it in brackets, for example "Red's position off Blue's nose (ATA)". Each has a one-line hint showing its unit, range and default, for example "0 to 180°, default 0°", and the SMM reference where there is one.
+- **Put it back in one click.** "Reset to V6 defaults" puts back the whole setup. "Head-on (V6)" resets Start geometry. "Reset to defaults" resets Model settings for checking.
+- **Show the setup, not just numbers.** Start geometry draws a small picture of both jets as the numbers change. The chosen move and why ("Pitch back: 220 KIAS, SMM entry 160 to 220") shows beside each aircraft.
+- **Checked in the sign-off checklist:** someone who has never seen the tool opens it, plays the default fight, then switches on Energy and plays again, without opening any panel or typing anything.
+
 ## Energy mode (FF23, D112)
 
 Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bring the future feature "climbing and diving turns" (FF23) into this spec as an **Energy** mode. It gets built at the Turn Fight's turn, after the simple fight. The plan doc logs it as D112 (which also answers the manuals' Q68). It's new flight math; Patrick approved it on 2026-09-30, and Dad checks the result against how the Harvard flies. Its numbers come from the flying manuals index (`/mnt/project-files/manuals/`, private; only numbers and references go in the repo).
@@ -204,8 +214,14 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
   - **MPT speed**, default 160 KIAS (SMM 14.3 para 6).
   - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it; it's where the model changes to the level MPT (step 3).
   - **Pursuit** for the aircraft that gets its nose on first: Pure (default), Lead or Lag (see step 4).
-  - **Roll rate**, default 90°/s. No manual gives it.
-  - **Pitch back bank**, default 60° at a 160 KIAS entry, falling to 30° at 220. The rule is from EFIG p.441: more bank when slower, less when faster. The numbers are for Dad to check.
+  - **Model settings for checking** (collapsed again, one level down, with its own "Reset to defaults" button): the numbers no manual gives, which Dad checks. A student never needs to open this.
+    - Stall speed, default 86 KIAS.
+    - Shaker, default 94 % of the stall-line G.
+    - How long a stall lasts, default 1 s.
+    - Mid-range throttle, default half of maximum thrust.
+    - Lead and lag points, default 1 s ahead and behind.
+    - Roll rate, default 90°/s.
+    - Pitch back bank, default 60° at a 160 KIAS entry, falling to 30° at 220. The rule is from EFIG p.441: more bank when slower, less when faster.
 - **Result** adds each aircraft's KIAS, altitude, G and current move, and the time and degrees of turn to reach the MPT. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
 - **Side view:** the side-view panel shows altitude against time for both aircraft, with the hard deck as a line for reference (no flag and no pause). It needs no height scale, because the heights are real.
 - **Two flags only** (Patrick, 2026-09-30), in the result card, words plus colour, per aircraft:
@@ -293,7 +309,7 @@ Then a run from several merge speeds (100, 140, 180, 220 and 250 KIAS) against h
 - The simple fight is untouched and stays pinned to V6 by its golden test. Energy mode is a separate stepper next to it, never a change to it.
 - The merge, first nose-on (in 3D, as Q51 decided), the tie rule (Q48), the trails, the 10-minute stop and the playback work the same in both modes.
 
-## Start geometry and altitudes (R28, draft for Patrick to approve)
+## Start geometry and altitudes (R28)
 
 Patrick asked on 2026-09-30 (06:18Z, in this thread) to start the aircraft at different altitudes, crossing angles and aspects. V6 only starts them head-on, level, at the same height. This addition lets the student set up any start and still get V6's fight when the setup is left at head-on.
 

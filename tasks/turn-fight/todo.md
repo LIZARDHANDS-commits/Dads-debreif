@@ -37,12 +37,12 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Acceptance: the golden test still matches V6 everywhere these decisions don't touch.
   - Verify: golden and unit tests; each decision's D number in the plan doc's Decisions tab.
   - Dependencies: 1, 2 (Q48, Q49, Q51's 3D angle); 5 (Q50's label, Q51's readouts). Size S each.
-- [ ] **6b. Start geometry and altitudes (R28, once Patrick approves it).** Place the start from range, off-nose angle and aspect angle; find the pass; each aircraft turns toward the other; the Start geometry panel with its picture and Head-on (V6) button; Red's starting height with Climb and dive on; turns at the pass or at once; live AA, HCA and range in More detail. Test-first.
+- [ ] **6b. Start geometry and altitudes (R28, approved 2026-09-30).** Place the start from range, off-nose angle and aspect angle; find the pass; each aircraft turns toward the other; the Start geometry panel with its picture and Head-on (V6) button; Red's starting height with Climb and dive on; turns at the pass or at once; live AA, HCA and range in More detail. Test-first.
   - Acceptance: the spec's three unit tests (head-on, crossing, pass at closest approach); at the defaults the golden test is unchanged.
   - Verify: `npm test`; e2e: set a beam start, play, Head-on (V6) puts it back.
   - Dependencies: 6. Size M.
   - Files: src/modules/turn-fight/{geometry,sim,layout,readouts}.js, tests/unit/turn-fight/geometry.test.js
-- [ ] **7. Polish and sign-off checklist.** code-simplification pass with the golden test still green; `docs/checklists/turn-fight.md` for Patrick or Dad, side by side with V6 (R21).
+- [ ] **7. Polish and sign-off checklist.** code-simplification pass with the golden test still green; `docs/checklists/turn-fight.md` for Patrick or Dad, side by side with V6 (R21), including the spec's first-time-user check (default fight and Energy fight play with nothing typed and no panel opened).
   - Dependencies: 5. Size S.
 
 **Checkpoint C:** open PR C; Patrick or Dad runs the checklist.
@@ -51,7 +51,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 - [ ] **8-9. T-6A performance and the point-mass step: built by `core`, not here.** The Flight math core thread builds them as tasks 14 to 17 in `tasks/flight-math/todo.md` (SPEC-core, "API, fifth PR: T-6A performance"; D128). The Turn Fight uses them. The chart checks and known answers in the spec's Energy mode are those tasks' tests.
   - Dependencies: none here; task 10 waits on them.
-- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), the altitude side view with the hard deck as a reference line, and (once Patrick approves the SMM additions) the level MPT at the hard deck, the stall cost, the mid-range throttle for straight MPT entries, per-aircraft start altitudes, and Pure, Lead or Lag pursuit after first nose-on.
+- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), the altitude side view with the hard deck as a reference line, and the level MPT at the hard deck, the stall cost, the mid-range throttle for straight MPT entries, per-aircraft start altitudes, and Pure, Lead or Lag pursuit after first nose-on.
   - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); Auto picks the move from the merge speed as the spec table says, and from every merge speed between 100 and 250 KIAS reaches 160 ± 5 KIAS, then holds it; at the hard deck the level MPT settles at 150 KIAS minus altitude in thousands, within 5 kt; a stall gives 1 G for 1 s; the pursuit chaser never pulls past the shaker or 7 G; the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
   - Verify: `npm test`; e2e toggle; Dad flies each move.
   - Dependencies: 5, and core's tasks 14 to 17 (tasks 8-9 above). Size M.
