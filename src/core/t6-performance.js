@@ -240,7 +240,8 @@ export function shakerG(kias, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A
 /**
  * The split S as the SMM flies it (14.16 para 41), at full power: raise the
  * nose to 20° up in the shaker, roll inverted at 0.5 G at the roll rate, then
- * pull through in the shaker, up to 5 G, until level. Below the shaker speed
+ * pull through in the shaker until level, up to 5 G (Patrick's cap, not the
+ * SMM's: its Table 14.1 gives about 4 G). Below the shaker speed
  * (93 KIAS) the nose can't come up without stalling, so the split S starts
  * with the roll: it gains no height first and loses about 300 ft more from
  * the entry, while the loss from the top hardly changes.

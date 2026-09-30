@@ -34,6 +34,8 @@ const MAX_CHASE_PITCH_RAD = Math.PI / 3;
  * V6's setup when nothing is changed (the boxes on line 778): 2-circle, 2 NM
  * apart, both at 220 KTAS and 4 G, First nose chases and Climb and dive off,
  * pitch 0°. `circles` is 1 or 2.
+ *
+ * @type {Readonly<{ circles: number, separationNm: number, blueKt: number, redKt: number, blueG: number, redG: number, chase: boolean, vertical: boolean, bluePitchDeg: number, redPitchDeg: number }>}
  */
 export const V6_DEFAULT_SETUP = Object.freeze({
   circles: 2,
