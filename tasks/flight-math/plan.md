@@ -27,21 +27,24 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 - [x] Mutation check: 56 of 58 caught, 2 equivalent
 - [x] Browser check: Chromium matches Node (25 of 10,517 differ in the last digit, all trig)
 - [x] Patrick approves SPEC-core.md (2026-09-30)
-- [ ] Patrick merges PR #51 (after #52 and #54)
+- [x] PR #51 merged (2026-09-30)
 
 ### Phase 2: turn performance (PR 2)
-- [ ] Task 6: turn radius, turn rate and bank from G
-- [ ] Task 7: air data and the EM chart point
-- [ ] Task 8: closure and estimated G
-- [ ] Task 9: both tennis-ball solvers
+- [x] Task 6: turn radius, turn rate and bank from G
+- [x] Task 7: air data and the EM chart point
+- [x] Task 8: closure and estimated G
+- [x] Task 9: both tennis-ball solvers
 
 ### Checkpoint: turn performance
-- [ ] Suite, mutation check and browser check pass
-- [ ] Tennis-ball disagreement written up for Patrick and Dad (#19)
+- [x] Suite, mutation check (97 of 101, 4 equivalent) and browser check pass
+- [x] Tennis-ball disagreement written up for Patrick and Dad (#19): [`tennis-ball.md`](tennis-ball.md)
 - [ ] Patrick reviews PR 2
 
 ### Phase 3: standards (PR 3)
 - [ ] Task 10: formation standards classifiers and V6's default preset
+
+### Later, with the screens that use them
+- [ ] Task 11: 3D attitude estimate, then D40 and D47
 
 ### Checkpoint: complete
 - [ ] Every function in SPEC-core's tables is ported and pinned
@@ -65,5 +68,6 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 
 ## Open questions
 
-- Which tennis-ball solver the rebuild keeps (after Task 9 shows the difference).
+- Which tennis-ball solver the rebuild keeps (questions in `tennis-ball.md`).
+- Whether Turn Sim limits G after its correction, so G never drops below 1 (SPEC-core, flagged).
 - Whether `core` should also guard against infinite input (default: only the screens do).
