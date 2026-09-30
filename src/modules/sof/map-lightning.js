@@ -4,8 +4,8 @@
 // one cell each way, at ECCC's native 2.5 km grid, so the answer is the same whatever
 // the map is showing.
 //
-// The picture is asked for in plain latitude and longitude (EPSG:4326), one pixel to a
-// 2.5 km cell, so a pixel's place is a straight sum. A pixel that is see-through has no
+// The picture is asked for in plain latitude and longitude (EPSG:4326), two pixels to a
+// 2.5 km cell each way (1.25 km pixels), so a pixel's place is a straight sum. A pixel that is see-through has no
 // lightning; any other pixel is a cell with lightning, and its opacity is its strength
 // (the layer's own colours are not read).
 import { EARTH_RADIUS_M } from '../../core/units.js';
@@ -16,7 +16,12 @@ export const CELL_KM = 2.5;
 
 const NM_PER_DEG = (Math.PI / 180) * (EARTH_RADIUS_M / 1852);
 const CELL_NM = (CELL_KM * 1000) / 1852;
-const MAX_SIDE_PX = 2048;
+/**
+ * Pixels to a cell, each way. ECCC's cells are squares on their own grid, which ours is not aligned to: sampled once per
+ * cell, an isolated cell could fall between two samples and read as clear. Twice per cell (1.25 km pixels) cannot.
+ */
+const SAMPLES_PER_CELL = 2;
+const MAX_SIDE_PX = 160; // 50 NM, the biggest radius: 40 cells each way x 2 cells x 2 pixels
 const MIN_ALPHA_VALUE = 1 / 255;
 
 const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -24,7 +29,7 @@ const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 /**
  * The box to read: `{ bounds: { west, south, east, north }, width, height, cellKm }`, centred on
  * `home` ({ lat, lon }), reaching the radius plus one cell (rounded up to whole cells) each way,
- * one pixel to a cell. The radius is kept within 5 to 50 NM (lightning.js `clampRadius`).
+ * two pixels to a cell each way (see SAMPLES_PER_CELL). The radius is kept within 5 to 50 NM (lightning.js `clampRadius`).
  * Returns null when home is not a real place, or the box would leave the map or the size limit
  * (near the poles or the date line, which this screen is not for).
  */
@@ -39,7 +44,7 @@ export function lightningBox({ home, radiusNm } = /** @type {any} */ ({})) {
     south: home.lat - cellsEachWay * dLat,
     north: home.lat + cellsEachWay * dLat,
   };
-  const side = cellsEachWay * 2;
+  const side = cellsEachWay * 2 * SAMPLES_PER_CELL;
   if (side > MAX_SIDE_PX || bounds.west < -180 || bounds.east > 180 || bounds.south < -85 || bounds.north > 85) return null;
   return { bounds, width: side, height: side, cellKm: CELL_KM };
 }

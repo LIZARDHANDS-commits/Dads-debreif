@@ -34,7 +34,7 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
   const feed = createImageFeed({
     layer: LAYERS.lightning,
     kind: 'lightning',
-    // The box goes out in latitude and longitude, one pixel to a cell.
+    // The box goes out in latitude and longitude, two pixels to a cell each way.
     urlFor: ({ layer, request, time }) => getMapUrl({ layer, bbox: request.bbox, width: request.width, height: request.height, crs: 'EPSG:4326', time }),
     decode: async (bytes) => decodeDensity(await readPixels(bytes), box),
     refreshMs: REFRESH_MS.lightning,

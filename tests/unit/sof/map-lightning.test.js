@@ -28,18 +28,18 @@ function pixelOf(box, lat, lon) {
   return [Math.floor(((lon - west) / (east - west)) * box.width), Math.floor(((north - lat) / (north - south)) * box.height)];
 }
 
-test('the box is centred on home, one pixel to a 2.5 km cell, and reaches the radius plus a cell each way', () => {
+test('the box is centred on home, two pixels to a 2.5 km cell each way (1.25 km pixels), and reaches the radius plus a cell each way', () => {
   const box = lightningBox({ home: HOME, radiusNm: 20 });
   assert.equal(CELL_KM, 2.5);
   assert.equal(box.width, box.height);
   const mid = { lat: (box.bounds.north + box.bounds.south) / 2, lon: (box.bounds.east + box.bounds.west) / 2 };
   assert.ok(Math.abs(mid.lat - HOME.lat) < 1e-9 && Math.abs(mid.lon - HOME.lon) < 1e-9);
-  // north-south a pixel is 2.5 km
+  // north-south a pixel is 1.25 km, so a 2.5 km cell is never between two samples
   const kmPerPx = ((box.bounds.north - box.bounds.south) / box.height) * 111.195;
-  assert.ok(Math.abs(kmPerPx - 2.5) < 0.02, `${kmPerPx} km`);
-  // west-east a pixel is 2.5 km too, at home's latitude
+  assert.ok(Math.abs(kmPerPx - 1.25) < 0.01, `${kmPerPx} km`);
+  // west-east a pixel is 1.25 km too, at home's latitude
   const eastKm = greatCircleNm({ lat: HOME.lat, lon: box.bounds.west }, { lat: HOME.lat, lon: box.bounds.east }) * 1.852;
-  assert.ok(Math.abs(eastKm / box.width - 2.5) < 0.03, `${eastKm / box.width} km`);
+  assert.ok(Math.abs(eastKm / box.width - 1.25) < 0.02, `${eastKm / box.width} km`);
   // it reaches at least radius + a cell (21.35 NM) each way
   assert.ok(greatCircleNm(HOME, { lat: box.bounds.north, lon: HOME.lon }) >= 20 + 2.5 / 1.852);
   assert.ok(greatCircleNm(HOME, { lat: HOME.lat, lon: box.bounds.east }) >= 20 + 2.5 / 1.852);
@@ -54,7 +54,7 @@ test('the radius is kept to 5 to 50 NM like lightning.js does, and stays inside 
   assert.deepEqual(lightningBox({ home: HOME, radiusNm: 1 }), lightningBox({ home: HOME, radiusNm: 5 }));
   assert.deepEqual(lightningBox({ home: HOME, radiusNm: 500 }), lightningBox({ home: HOME, radiusNm: 50 }));
   assert.deepEqual(lightningBox({ home: HOME, radiusNm: NaN }), lightningBox({ home: HOME }));
-  assert.ok(lightningBox({ home: HOME, radiusNm: 50 }).width <= 2048);
+  assert.ok(lightningBox({ home: HOME, radiusNm: 50 }).width <= 160, 'the biggest box is 160 pixels a side');
 });
 
 test('the box makes an address ECCC\'s image builder accepts, in latitude and longitude', () => {
@@ -118,8 +118,8 @@ test('lightning inside the radius is near, and outside it is clear, through ligh
 
 test('the edge of the box still counts as covering home plus the radius (a cell at the edge of the radius is seen)', () => {
   const box = lightningBox({ home: HOME, radiusNm: 20 });
-  // a cell 21 NM north, the outer reach of a cell that overlaps the radius
-  const north = pixelOf(box, HOME.lat + 21 / 60, HOME.lon);
+  // a sample 20.5 NM north (lightning.js counts a sample up to 1 NM beyond the radius: half a 2.5 km cell's diagonal)
+  const north = pixelOf(box, HOME.lat + 20.5 / 60, HOME.lon);
   const r = lightningNearHome({ ...decodeDensity(picture(box, [north]), box), home: HOME, radiusNm: 20, layerTime: LAYER_TIME, now: NOW });
   assert.equal(r.state, 'near');
   assert.match(r.words, /edge of the 20 NM radius/);
@@ -146,4 +146,22 @@ test('a sky full of lightning is capped so it can\'t use memory, and lightning.j
   const out = decodeDensity({ data, width: 400, height: 400 }, box);
   assert.ok(out.samples.length <= MAX_CELLS + 400, `${out.samples.length} kept`);
   assert.equal(out.coverage.cellsRead, 160000);
+});
+
+test('an isolated 2.5 km cell that sits off the sampling grid still reads near (no gap between samples)', () => {
+  const box = lightningBox({ home: HOME, radiusNm: 20 });
+  // ECCC's cells are 2.5 km squares on their own grid, which is not ours: this one starts half a pixel
+  // into ours, so it covers parts of 3 x 3 of our 1.25 km pixels. Any of them lit is enough.
+  const [px, py] = pixelOf(box, HOME.lat, HOME.lon + 10 / 60 / Math.cos((HOME.lat * Math.PI) / 180));
+  const data = new Uint8ClampedArray(box.width * box.height * 4);
+  for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) data[((py + dy) * box.width + px + dx) * 4 + 3] = 255;
+  const out = decodeDensity({ data, width: box.width, height: box.height }, box);
+  assert.equal(out.samples.length, 4);
+  const r = lightningNearHome({ samples: out.samples, coverage: out.coverage, home: HOME, radiusNm: 20, layerTime: LAYER_TIME, now: NOW });
+  assert.equal(r.state, 'near');
+  // and a cell whose only lit sample is at one corner of that 2.5 km square is found too
+  const corner = new Uint8ClampedArray(box.width * box.height * 4);
+  corner[((py + 1) * box.width + px + 1) * 4 + 3] = 255;
+  const one = decodeDensity({ data: corner, width: box.width, height: box.height }, box);
+  assert.equal(lightningNearHome({ samples: one.samples, coverage: one.coverage, home: HOME, radiusNm: 20, layerTime: LAYER_TIME, now: NOW }).state, 'near');
 });
