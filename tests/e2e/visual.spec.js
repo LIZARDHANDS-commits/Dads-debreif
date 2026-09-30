@@ -83,3 +83,10 @@ test('debrief, example flight', async ({ page }) => {
   await page.clock.runFor(1000); // the frozen clock also holds back the map's animation frames
   await shot(page, 'debrief-example.png');
 });
+
+test('turn sim, ready to play', async ({ page }) => {
+  await openRoute(page, '#/turn-sim');
+  await expect(page.getByRole('button', { name: /^Play/ })).toBeVisible();
+  await page.clock.runFor(1000); // the frozen clock also holds back the picture's animation frames
+  await shot(page, 'turn-sim.png');
+});
