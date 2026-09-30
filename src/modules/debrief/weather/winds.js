@@ -50,7 +50,7 @@ export function windsUrl({ lat, lon, startT, endT, model }) {
     latitude: lat.toFixed(2),
     longitude: lon.toFixed(2),
     start_date: isoDay(startT - MAX_AGE_S.model), // the hour in force at take-off may be the day before
-    end_date: isoDay(endT),
+    end_date: isoDay(endT + 3600), // the hour after the last one, to blend towards: past 23:00Z that is the next day
     hourly: hourly.join(','),
     models: WIND_MODELS[model].id,
     wind_speed_unit: 'kn',

@@ -44,6 +44,11 @@ test('the archive address asks for each level\'s wind and height over the flight
   assert.equal(url.searchParams.get('longitude'), '-105.56');
   assert.equal(url.searchParams.get('start_date'), '2026-09-28'); // the hour in force at 00:30Z may be the day before's
   assert.equal(url.searchParams.get('end_date'), '2026-09-29');
+  // N3: a flight ending after 23:00Z needs the next 00Z hour to blend towards, so the next day is asked for.
+  const late = new URL(windsUrl({ lat: 50.33, lon: -105.56, startT: T('2026-09-29T22:00Z'), endT: T('2026-09-29T23:30Z'), model: 'hrdps' }));
+  assert.equal(late.searchParams.get('end_date'), '2026-09-30');
+  const early = new URL(windsUrl({ lat: 50.33, lon: -105.56, startT: T('2026-09-29T21:00Z'), endT: T('2026-09-29T22:30Z'), model: 'hrdps' }));
+  assert.equal(early.searchParams.get('end_date'), '2026-09-29');
   assert.equal(url.searchParams.get('models'), WIND_MODELS.hrdps.id);
   assert.equal(url.searchParams.get('wind_speed_unit'), 'kn');
   assert.equal(url.searchParams.get('hourly').split(',').length, WIND_LEVELS_HPA.length * 3);
