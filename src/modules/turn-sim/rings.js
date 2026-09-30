@@ -3,6 +3,9 @@ const FT_PER_NM = 6076.11549;
 
 /** The steps between rings, in NM: the first that keeps the rings a fair way apart on screen is used. */
 export const RING_STEPS_NM = Object.freeze([1, 2, 5, 10, 20, 50, 100, 200, 500]);
+/** Colours on the picture's #071018: the line is 4.5:1 and the label 5.7:1 against it, so both can be seen (tests pin at least 3:1 and 4.5:1). */
+export const RING_STROKE = '#4f7fa8';
+export const RING_LABEL = '#6f8fae';
 const MIN_GAP_PX = 40;
 const MAX_RINGS = 12;
 

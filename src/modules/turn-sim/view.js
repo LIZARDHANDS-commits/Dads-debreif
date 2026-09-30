@@ -9,7 +9,7 @@ import { turnRadiusFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { pairDistances, ft } from './readouts.js';
 import { MOVABLE_IDS } from './drag.js';
-import { ringsNm } from './rings.js';
+import { ringsNm, RING_STROKE, RING_LABEL } from './rings.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
 
 const FT_PER_NM = 6076.11549;
@@ -247,7 +247,7 @@ function drawNmRings(ctx, map, lead) {
   const reachPx = Math.max(Math.hypot(cx, cy), Math.hypot(width - cx, cy), Math.hypot(cx, height - cy), Math.hypot(width - cx, height - cy));
   const scale = map.view.scale;
   ctx.save();
-  ctx.strokeStyle = '#2a4560';
+  ctx.strokeStyle = RING_STROKE;
   ctx.lineWidth = 1;
   ctx.setLineDash([2, 5]);
   for (const nm of ringsNm({ pxPerFt: scale, reachFt: reachPx / scale })) {
@@ -258,7 +258,7 @@ function drawNmRings(ctx, map, lead) {
   }
   ctx.restore();
   for (const nm of ringsNm({ pxPerFt: scale, reachFt: reachPx / scale })) {
-    text(ctx, `${nm} NM`, cx + 4, cy - nm * FT_PER_NM * scale - 3, '#6f8fae', 10);
+    text(ctx, `${nm} NM`, cx + 4, cy - nm * FT_PER_NM * scale - 3, RING_LABEL, 10);
   }
 }
 
