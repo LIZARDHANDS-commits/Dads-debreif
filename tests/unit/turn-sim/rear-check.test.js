@@ -6,7 +6,8 @@ import { V6_DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 import { rearCheckConfig } from '../../../src/modules/turn-sim/engine/rear-check.js';
 
-const box = { ...V6_DEFAULTS, formation: 'offsetBox', maneuver: 'inplace90', rearCheckOn: true, rearCheckStartSec: 10, rearCheckHoldSec: 2, durationSec: 60 };
+// V6's start (at the set time, whatever #3 and #4 are doing): rearCheckAfterTurns off.
+const box = { ...V6_DEFAULTS, rearCheckAfterTurns: false, formation: 'offsetBox', maneuver: 'inplace90', rearCheckOn: true, rearCheckStartSec: 10, rearCheckHoldSec: 2, durationSec: 60 };
 
 test('the check is on only in the offset box, and its numbers are limited as V6 limits them', () => {
   assert.equal(rearCheckConfig({ ...box, formation: 'weighted' }).enabled, false);
@@ -39,4 +40,37 @@ test('from 0 s the check comes first: #3 and #4 swing 20 degrees left and back, 
   }
   assert.ok(Math.abs(peak - (20 * Math.PI) / 180) < 0.02, `peak ${peak}`);
   assert.equal(run.state.aircraft[2].turning, false);
+});
+
+test('Q47: the check starts at its set time or once #3 and #4 have finished turning, whichever is later', () => {
+  // A delayed 90 in the offset box: #3 turns from 30 s to 40 s and #4 from 46 s to 56 s, and the check is set for 35 s.
+  const base = { ...V6_DEFAULTS, formation: 'offsetBox', maneuver: 'delayed90away', direction: 'right', rearCheckOn: true, rearCheckStartSec: 35, rearCheckHoldSec: 2, durationSec: 120, offsetBox4Timing: 'late' };
+  const doneAt = (settings) => {
+    const run = createRun(settings);
+    const at = {};
+    let firstCheckSec = null;
+    while (run.step()) {
+      for (const a of run.state.aircraft) if (a.done && at[a.id] === undefined) at[a.id] = run.state.tSec;
+      if (firstCheckSec === null && ['turningOut', 'holding', 'turningBack', 'complete'].includes(run.state.rearCheck.phase)) firstCheckSec = run.state.tSec;
+    }
+    return { at, firstCheckSec, run };
+  };
+  const v6 = doneAt({ ...base, rearCheckAfterTurns: false });
+  const q47 = doneAt({ ...base, rearCheckAfterTurns: true });
+  const off = doneAt({ ...base, rearCheckOn: false });
+  assert.ok(v6.firstCheckSec <= 35.1, 'V6: the check starts at 35 s, in the middle of the turn of #3');
+  assert.ok(v6.at[3] > off.at[3] + 1, 'V6: the check postponed the planned turn');
+  const both = Math.max(off.at[3], off.at[4]);
+  assert.ok(q47.firstCheckSec >= both && q47.firstCheckSec <= both + 0.2, `starts once both are done: ${q47.firstCheckSec} vs ${both}`);
+  assert.deepEqual(q47.at, off.at, 'the planned turns finish exactly when they do without the check');
+  assert.equal(q47.run.state.rearCheck.phase, 'complete');
+  // Set later than both turns: the set time wins.
+  const late = doneAt({ ...base, rearCheckStartSec: 90, rearCheckAfterTurns: true });
+  assert.ok(late.firstCheckSec >= 90 && late.firstCheckSec <= 90.1, `${late.firstCheckSec}`);
+});
+
+test('Q47 is the default; V6 starts the check at its set time', () => {
+  assert.equal(rearCheckConfig({ ...box, rearCheckAfterTurns: undefined }).afterTurns, false);
+  assert.equal(createRun({ formation: 'offsetBox', rearCheckOn: true }).state.rearCheck.enabled, true);
+  assert.equal(rearCheckConfig({ ...box, ...{ rearCheckAfterTurns: true } }).afterTurns, true);
 });

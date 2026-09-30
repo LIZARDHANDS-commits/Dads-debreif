@@ -14,7 +14,8 @@ const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 
 const DIRECTIONS = ['right', 'left'];
 
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
-const scenario = (over) => ({ ...V6_DEFAULTS, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
+// Q47 has the check wait for #3 and #4's turns; V6 did not, so V6's runs are flown with it off.
+const scenario = (over) => ({ ...V6_DEFAULTS, rearCheckAfterTurns: false, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
 
 /**
  * The auto step in seconds, D44: spacing / speed x cot(half the turn angle), written out here from the spec

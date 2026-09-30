@@ -109,6 +109,10 @@ export const DEFAULTS = Object.freeze({
   // Q44b (Patrick): #4 solves its own delay by ground track, to roll out 3,000 ft outside #2 and Box aft behind the
   // front element. V6 only had 'late' (#3's delay + base delay) and 'early' (#3's delay - base delay), which stay as choices.
   offsetBox4Timing: 'groundTrack',
+  // Q47 (Patrick): the rear element check starts at its set time or once #3 and #4 have finished their turns,
+  // whichever is later, so it never postpones a planned turn. Not in V6, whose check started at its set time
+  // whatever #3 and #4 were doing: false gives V6's start back.
+  rearCheckAfterTurns: true,
   // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
   // The band is a setting; nothing flies with it yet (task 11).
   rearDelayMinSec: 10,
@@ -153,6 +157,7 @@ export const SETTINGS_RULES = Object.freeze({
   rearCheckDir: oneOf(['left', 'right']),
   rearCheckAngleDeg: number(1, 90),
   rearCheckHoldSec: number(0, 120),
+  rearCheckAfterTurns: bool,
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 

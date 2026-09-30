@@ -62,6 +62,9 @@ function mayTurn(a, aircraft, tSec, flight) {
  */
 export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
   const v = flight.speedFtps;
+  // Q47: the rear element check waits for #3 and #4 to finish their turns (rear-check.js).
+  const rear = aircraft.filter((x) => x.id === 3 || x.id === 4);
+  const turnsDone = rear.length > 0 && rear.every((x) => x.done);
   const useCorrection = flight.correction === 'lag' || flight.correction === 'lead';
   for (const a of aircraft) {
     // Step 2 of the flying: the Correction model "G fix" nudges a wingman's G toward its slot (core turnSimG,
@@ -81,7 +84,7 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     a.gFlown = g;
     const omega = turnRateRadPerSec(v, g);
     // The rear element check (V6 line 1583) takes #3 and #4 over from the planned turn while it runs.
-    const rearCheckOverride = !!flight.rearCheck && stepRearCheckTurn(a, omega, stepSec, flight.tSec, flight.rearCheck);
+    const rearCheckOverride = !!flight.rearCheck && stepRearCheckTurn(a, omega, stepSec, flight.tSec, flight.rearCheck, turnsDone);
     if (!rearCheckOverride && mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
       // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
       a.active = true;

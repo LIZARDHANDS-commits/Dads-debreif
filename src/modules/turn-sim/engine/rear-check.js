@@ -15,8 +15,10 @@ export const REAR_CHECK_PHASE = { waiting: 0, turningOut: 1, holding: 2, turning
  * The check's settings as V6 reads them (`rearCheckConfig`, line 1533). It is on
  * only in the offset box. Start and hold are limited to 0 or more seconds, the
  * angle to 1° to 90°; a missing or non-numeric value takes V6's 40 s, 20° and 5 s.
- * settings: { formation, rearCheckOn, rearCheckStartSec, rearCheckDir, rearCheckAngleDeg, rearCheckHoldSec }
- * Returns { enabled, startSec, dir, angleRad, holdSec }.
+ * Q47: with `rearCheckAfterTurns` the check also waits until #3 and #4 have finished their turns (V6 started it at its
+ * set time whatever they were doing).
+ * settings: { formation, rearCheckOn, rearCheckStartSec, rearCheckDir, rearCheckAngleDeg, rearCheckHoldSec, rearCheckAfterTurns }
+ * Returns { enabled, startSec, dir, angleRad, holdSec, afterTurns }.
  */
 export function rearCheckConfig(settings) {
   const num = (v, fallback) => (Number.isFinite(+v) ? +v : fallback);
@@ -26,6 +28,7 @@ export function rearCheckConfig(settings) {
     dir: settings.rearCheckDir === 'right' ? -1 : 1,
     angleRad: degToRad(Math.max(1, Math.min(90, num(settings.rearCheckAngleDeg, 20)))),
     holdSec: Math.max(0, num(settings.rearCheckHoldSec, 5)),
+    afterTurns: !!settings.rearCheckAfterTurns,
   };
 }
 
@@ -44,9 +47,11 @@ export function resetRearCheckState(a) {
  * returns true the aircraft's planned turn is skipped this step: the check turns
  * `angleRad` out at the rate `omegaRadPerSec` gives, holds `holdSec`, and turns back.
  * `tSec` is the time at the start of the step. Once complete it is done for good.
+ * `turnsDone`: #3 and #4 have both finished their turns; with cfg.afterTurns the check does not start before that (Q47).
  */
-export function stepRearCheckTurn(a, omegaRadPerSec, stepSec, tSec, cfg) {
+export function stepRearCheckTurn(a, omegaRadPerSec, stepSec, tSec, cfg, turnsDone = true) {
   if (!cfg.enabled || (a.id !== 3 && a.id !== 4) || a.rearCheckComplete || tSec < cfg.startSec) return false;
+  if (cfg.afterTurns && !a.rearCheckStarted && !turnsDone) return false;
   if (!a.rearCheckStarted) {
     a.rearCheckStarted = true;
     a.rearCheckPhase = 1;
