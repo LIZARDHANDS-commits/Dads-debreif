@@ -153,9 +153,11 @@ test('seeded settings: speed, G, spacing, heading, turn degrees, errors, turn lo
       baseDelaySec: round(30 * r(), 1),
       durationSec: pick([60, 75, 90]),
       turnDeg: pick([undefined, undefined, Math.round(20 + 160 * r())]),
-      correction: pick(['none', 'none', 'lag', 'lead']),
+      correction: pick(['none', 'none', 'lag', 'lead', 'gfix']),
       correctionStrength: round(2 * r(), 2),
     });
+    // V6 gives NaN below 1 G after the correction (D74 changes that later); keep the seeds above it.
+    if (s.correction === 'gfix') s.baseG = Math.max(s.baseG, 3);
     for (const id of [1, 2, 3, 4]) {
       if (r() < 0.6) s[aircraftKey(id, 'delayErrSec')] = round(10 * r() - 5, 1);
       if (r() < 0.6) s[aircraftKey(id, 'gError')] = round(2 * r() - 1, 2);
@@ -329,6 +331,23 @@ test('SMM item 2, Auto: the flight is V6\'s clock cue flown at 7 o\'clock in a r
         const auto = scenario({ formation, maneuver, direction, timing: 'clock', clockCuePos: 'auto' });
         const v6 = { ...auto, clockCuePos: direction === 'right' ? '7' : '5' };
         compareRun(auto, `clock auto ${formation} ${maneuver} ${direction}`, { v6From: v6, legs: 2 });
+      }
+    }
+  }
+});
+
+test('Correction model "G fix": the wingman\'s G is nudged toward its slot, up to 0.8 G either way, exactly as V6 does', () => {
+  // Big position errors, so the distance to Lead is well off its slot and the 0.8 G limit is reached.
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const [lateralDir, foreAftDir] of [['wide', 'aft'], ['tight', 'fore'], ['wide', 'fore']]) {
+      for (const correctionStrength of [0.5, 2]) {
+        const s = scenario({ formation, correction: 'gfix', correctionStrength, baseG: 3.5, direction: correctionStrength > 1 ? 'left' : 'right' });
+        for (const id of [2, 3, 4]) Object.assign(s, {
+          [aircraftKey(id, 'positionErrorOn')]: true,
+          [aircraftKey(id, 'lateralDir')]: lateralDir, [aircraftKey(id, 'lateralFt')]: 3000,
+          [aircraftKey(id, 'foreAftDir')]: foreAftDir, [aircraftKey(id, 'foreAftFt')]: 2500,
+        });
+        compareRun(s, `gfix ${formation} ${lateralDir} ${foreAftDir} ${correctionStrength}`, { legs: 2 });
       }
     }
   }

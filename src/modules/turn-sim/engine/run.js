@@ -83,7 +83,7 @@ function newAircraft(slot, settings) {
     clockCueTriggered: false,
     prevClockCueRelDeg: null,
     originalHeadingRad: undefined,
-    gFlown: 0,
+    gFlown: flownG(settings.baseG, own.gError),
   };
 }
 
@@ -147,7 +147,7 @@ export function createRun(settings) {
     state.autoStepSec = planned ? autoStepSec : planTurn(preview, flight(), { useErrors: true }).autoStepSec;
     state.aircraft.length = 0;
     for (const [i, a] of craft.entries()) {
-      const g = flownG(cfg.baseG, a.gError);
+      const g = a.gFlown;
       state.aircraft.push({
         id: a.id,
         xFt: a.xFt,
@@ -252,6 +252,7 @@ export function createRun(settings) {
     }
     moveAircraft(craft, {
       tSec,
+      spacingFt: cfg.spacingFt,
       timing: cfg.timing,
       direction: cfg.direction,
       clockCueAircraft: cfg.clockCueAircraft,
