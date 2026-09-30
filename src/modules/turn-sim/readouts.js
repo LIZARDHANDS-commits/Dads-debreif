@@ -78,13 +78,16 @@ export function judgedBy(id, formation) {
   return formation === 'offsetBox' && id === 3 ? 'offset' : 'spread';
 }
 
-/** A perfect turn ends a hair off its slot: under 1 degree of forward sweep is not FORE (N4). */
+/** A perfect turn ends a hair off its slot: under 1 degree past the standard's own FORE edge is not FORE (N4). */
 export const FORE_TOLERANCE_DEG = 1;
 /** ... and an interval within 1 percent of the set spacing is not WIDE or TIGHT. The numbers still show. */
 export const SPACING_TOLERANCE = 0.01;
 
-/** Degrees the wingman is swept forward of the 3/9 line (+ ahead). */
-const forwardSweepDeg = (c) => (Number.isFinite(c.sweepDeg) ? -c.sweepDeg : Math.atan2(c.foreAftFt, c.intervalFt) * 180 / Math.PI);
+/** Whether a FORE is only a hair over the standard's own FORE edge (within FORE_TOLERANCE_DEG of it), so it is not flagged. */
+function foreWithinTolerance(c, spread) {
+  if (Number.isFinite(spread.sweepMaxDeg) && Number.isFinite(c.sweepDeg)) return c.sweepDeg >= (Number.isFinite(spread.sweepMinDeg) ? spread.sweepMinDeg : 0) - FORE_TOLERANCE_DEG;
+  return c.foreAftFt <= (spread.foreAftTolFt ?? 0) + c.intervalFt * Math.tan(FORE_TOLERANCE_DEG * Math.PI / 180);
+}
 
 /**
  * The labels of a spread-standard row with the Turn Sim's small tolerance applied (N4; core's standard is shared with the
@@ -92,7 +95,7 @@ const forwardSweepDeg = (c) => (Number.isFinite(c.sweepDeg) ? -c.sweepDeg : Math
  */
 function withinPilotTolerance(c, spacingFt, spread) {
   const kept = c.labels.filter((label) => {
-    if (label === 'FORE') return !(forwardSweepDeg(c) < FORE_TOLERANCE_DEG);
+    if (label === 'FORE') return !foreWithinTolerance(c, spread);
     // Within 1 percent of the set spacing, and no more than that past the band's edge: a formation at the set spacing is
     // still TIGHT when the standard is edited to want more than that.
     if ((label === 'WIDE' || label === 'TIGHT') && spacingFt > 0) {

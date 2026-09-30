@@ -296,3 +296,20 @@ test('N4: real errors are still flagged: 300 ft fore, 7,000 ft out, 5,000 ft in 
   // Inside the standard's band it stays ON SPACING.
   assert.deepEqual(row(formationRows(four({ 2: { yFt: 4500 } }), settings), 2).labels, ['ON SPACING']);
 });
+
+test('N4: the FORE tolerance is 1 degree of the standard\'s own FORE edge, not of the 3/9 line', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  const std = (over) => ({ ...DEFAULT_STANDARDS, spread: { ...DEFAULT_STANDARDS.spread, ...over } });
+  // About 1.2 degrees ahead (+130 ft at 6,000 ft) is FORE with the default standard.
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: 130 } }), settings), 2).labels, ['FORE']);
+  // A standard that wants 5 degrees aft: abreast, and 3 degrees aft (6,000 ft interval, 314 ft back), are FORE.
+  assert.deepEqual(row(formationRows(four(), settings, std({ sweepMinDeg: 5 })), 2).labels, ['FORE']);
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: -314 } }), settings, std({ sweepMinDeg: 5 })), 2).labels, ['FORE']);
+  // ... and 4.5 degrees aft is within a degree of that edge.
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: -472 } }), settings, std({ sweepMinDeg: 5 })), 2).labels, ['ON SPACING']);
+  // A fixed fore/aft standard (V6's kind) allows 50 ft. At 1,000 ft abreast one degree is 17 ft: 90 ft ahead is FORE, 60 ft is not.
+  const v6 = { ...DEFAULT_STANDARDS, spread: { on: true, minFt: 0, maxFt: 99999, foreAftTolFt: 50 } };
+  const close = (xFt) => formationRows(four({ 2: { xFt, yFt: 1000 } }), { ...settings, spacingFt: 1000 }, v6);
+  assert.deepEqual(row(close(90), 2).labels, ['FORE']);
+  assert.deepEqual(row(close(60), 2).labels, ['ON SPACING']);
+});
