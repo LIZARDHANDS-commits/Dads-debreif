@@ -115,6 +115,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // With the check turn the aircraft time themselves off each other, so Base delay and the Auto step do not apply.
   const checkTimingNote = h('p', { class: 'ts-hint ts-check-timing', id: 'ts-check-timing', hidden: true }, 'Base delay and Auto step do not apply: the check turn times itself off the aircraft before it.');
   let checkFlown = false;
+  const checkRearNote = h('p', { class: 'ts-hint ts-check-rear', id: 'ts-check-rear', hidden: true }, 'The check turn solves the rear element\'s delay so the box keeps its shape.');
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
   const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, { element: directionNote }, speed, g].map((f) => f.element);
@@ -165,16 +166,22 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // The clock cue's tolerance, the rear element check, the solver, the cross turn's stages and #2's side join
   // these sections as the engine flies them (todo tasks 8 to 12): no box here is a dead one.
   const groups = {};
+  const menuFields = {}; // the built boxes in the settings menu, by setting name
   function section(id, title, defs, hint) {
     const fieldset = settingsMenu.section(title);
     if (hint) fieldset.append(h('p', { class: 'ts-hint' }, hint));
-    for (const def of defs) fieldset.append(...[wrap(build(def))].filter(Boolean));
+    for (const def of defs) {
+      const built = build(def);
+      if (built) menuFields[def.key] = built;
+      fieldset.append(...[wrap(built)].filter(Boolean));
+    }
     groups[id] = fieldset;
   }
   section('turn', 'Turn and run', [TURN_DEG, DURATION, DURATION_COVERS, MOA]);
   section('twoSide', 'Line abreast', [TWO_SIDE]);
   const turnDegInput = groups.turn.querySelector('input[type=number]'); // the first box in Turn and run
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER], 'Used when Formation is the offset box.');
+  groups.offset.append(checkRearNote);
   section('cross', 'Cross turn', [CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE], 'Used when Turn is the cross turn.');
   section('delayed45', 'Delayed 45', [DELAYED45_CHECK, CHECK_DEG, CHECK_SOLVE], 'Used when Turn is the Delayed 45.');
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
@@ -338,6 +345,15 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     if (applies) input?.setAttribute('aria-describedby', checkTimingNote.id);
     else input?.removeAttribute('aria-describedby');
     checkTimingNote.hidden = !applies;
+    // In the box the check plan solves the rear element's shift itself, so #4 timing and Rear element delay are ignored.
+    const rearIgnored = checkFlown && values.formation === 'offsetBox';
+    for (const key of ['offsetBox4Timing', 'rearDelaySec']) {
+      controls.setDisabled(key, rearIgnored);
+      const el = menuFields[key]?.control.querySelector('select, input');
+      if (rearIgnored) el?.setAttribute('aria-describedby', checkRearNote.id);
+      else el?.removeAttribute('aria-describedby');
+    }
+    checkRearNote.hidden = !rearIgnored;
   }
 
   function applyScenario(values) {

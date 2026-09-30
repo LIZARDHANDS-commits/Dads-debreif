@@ -727,6 +727,22 @@ test('the box Delayed 45 with its check turn shows the rear shift in the band li
   ]);
 });
 
+test('in the box the check turn greys out #4 timing and Rear element delay, and says why', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, '#4 timing')).toBeEnabled();
+  await expect(box(page, 'Rear element delay')).toBeEnabled();
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  for (const label of ['#4 timing', 'Rear element delay']) {
+    await expect(box(page, label)).toBeDisabled();
+    await expect(box(page, label)).toHaveAccessibleDescription("The check turn solves the rear element's delay so the box keeps its shape.");
+  }
+  await box(page, 'Delayed 45 style').selectOption({ label: 'Plain' });
+  await expect(box(page, '#4 timing')).toBeEnabled();
+  await expect(box(page, 'Rear element delay')).not.toHaveAttribute('aria-describedby', /.+/);
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
