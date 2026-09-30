@@ -8,7 +8,7 @@ import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
   T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
-  T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A,
+  T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A, modelMaxIasT6A,
 } from '../../../src/core/t6-performance.js';
 import {
   T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
@@ -87,7 +87,7 @@ test('the KIAS a Mach number reads: calibrated airspeed, standard day, with comp
 
 // The NFM's airspeed and Mach limits (Fig 5-3, p.5-9): VMO 316 KIAS to
 // 18,769 ft, then Mmo 0.67, which is 244 KIAS at 31,000 ft.
-test('the top speed follows the NFM line: VMO 316 KIAS to about 18,800 ft, then Mach 0.67', () => {
+test('the top speed follows the NFM line: VMO 316 KIAS to about 18,900 ft, then Mach 0.67', () => {
   for (const alt of [0, 5000, 10000, 15000, 18000, 18769]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
   near(maxKiasT6A(20000), 309.1, 0.1, '20,000 ft');
   near(maxKiasT6A(25000), 279.1, 0.1, '25,000 ft');
@@ -96,6 +96,21 @@ test('the top speed follows the NFM line: VMO 316 KIAS to about 18,800 ft, then 
   assert.ok(maxKiasT6A(19000) < 316, 'Mach is the limit by 19,000 ft');
   for (const alt of [20000, 25000, 31000]) assert.equal(maxKiasT6A(alt), machToKiasKt(T6A_LIMITS.mmo, alt), `${alt} ft is Mach 0.67`);
   for (const bad of [NaN, -Infinity]) assert.throws(() => maxKiasT6A(bad), RangeError);
+});
+
+test('the top speed on the model\'s own IAS: flown there, the model is never over Mach 0.67', () => {
+  for (const alt of [0, 5000, 10000, 15000, 17000]) assert.equal(modelMaxIasT6A(alt), 316, `${alt} ft: VMO`);
+  near(modelMaxIasT6A(20000), 300.4, 0.1, '20,000 ft');
+  near(modelMaxIasT6A(25000), 270.0, 0.1, '25,000 ft');
+  near(modelMaxIasT6A(31000), 236.1, 0.1, '31,000 ft');
+  for (let alt = 0; alt <= 31000; alt += 500) {
+    const mach = iasToTasKt(modelMaxIasT6A(alt), alt) / speedOfSoundKt(alt);
+    assert.ok(mach <= T6A_LIMITS.mmo + 1e-12, `${alt} ft: Mach ${mach}`);
+    assert.ok(modelMaxIasT6A(alt) <= maxKiasT6A(alt), `${alt} ft: never above the NFM line`);
+  }
+  // Flying the NFM's KIAS line on the model's IAS would be over Mach 0.67.
+  near(iasToTasKt(maxKiasT6A(25000), 25000) / speedOfSoundKt(25000), 0.693, 0.001, 'the NFM line flown on the model basis at 25,000 ft');
+  for (const bad of [NaN, Infinity]) assert.throws(() => modelMaxIasT6A(bad), RangeError);
 });
 
 test('energy height: altitude + V²/2g', () => {

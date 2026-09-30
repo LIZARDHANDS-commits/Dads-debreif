@@ -4,6 +4,11 @@ import { test, expect } from './fixtures.js';
 import { openRoute } from './routes.js';
 import { serveDist } from './static-server.js';
 
+// These tests are about the service worker, so it is allowed here (the config blocks it).
+// Keep them to home, About and the debrief, and out of @smoke: in WebKit a worker's
+// outside requests get past the fixtures' stubs, so a screen with live data must not open here.
+test.use({ serviceWorkers: 'allow' });
+
 // Waits until the service worker has kept its copy and controls the page.
 async function waitForOfflineCopy(page) {
   await page.evaluate(async () => {

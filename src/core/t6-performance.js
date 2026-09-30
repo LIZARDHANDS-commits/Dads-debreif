@@ -87,13 +87,24 @@ export function machToKiasKt(mach, altFt) {
 /**
  * The fastest the T-6A may fly at altFt, in KIAS, following the NFM's line
  * (Fig 5-3, p.5-9): VMO 316, or Mmo 0.67 where that is slower (above about
- * 18,800 ft; 279 KIAS at 25,000 ft). Like VMO, it is compared with the model's
- * IAS as it stands; the model's IAS-to-TAS has no compressibility, so at this
- * limit its true airspeed runs about 3 % over Mach 0.67 at 25,000 ft
- * (SPEC-core, Known limits). altFt must be finite, or it throws a RangeError.
+ * 18,900 ft; 279 KIAS at 25,000 ft). This is the airspeed indicator's reading,
+ * for showing a pilot. Do not hold a model's IAS (TAS × √σ, iasToTasKt) to it:
+ * that flies about Mach 0.69 at 25,000 ft. Use modelMaxIasT6A for that.
+ * altFt must be finite, or it throws a RangeError.
  */
 export function maxKiasT6A(altFt) {
   return Math.min(T6A_LIMITS.vmoKias, machToKiasKt(T6A_LIMITS.mmo, altFt));
+}
+
+/**
+ * The same limit on the model's own IAS (TAS × √σ, no compressibility), for
+ * holding a flown aircraft to it: VMO 316, or the IAS at a true Mach 0.67
+ * where that is slower (from about 17,600 ft; 270 at 25,000 ft). Flown at this
+ * speed the model is never over Mach 0.67. altFt must be finite, or it throws
+ * a RangeError.
+ */
+export function modelMaxIasT6A(altFt) {
+  return Math.min(T6A_LIMITS.vmoKias, tasToIasKt(T6A_LIMITS.mmo * speedOfSoundKt(altFt), altFt));
 }
 
 /** Energy height in feet: altitude + V²/2g, V true airspeed. */

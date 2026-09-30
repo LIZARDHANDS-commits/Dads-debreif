@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRoute, hrefFor, pageFor } from '../../../src/shell/router.js';
+import { parseRoute, hrefFor, pageFor, watchAddress } from '../../../src/shell/router.js';
 
 const IDS = ['debrief', 'turn-sim'];
 
@@ -44,4 +44,81 @@ test('pageFor: a module not built yet opens home with a "coming soon" note', () 
     entry: pages.home,
     note: 'There\'s no page at "PTPT". Here\'s the home screen.',
   });
+});
+
+// A window whose history behaves like the browser's: entries with state, push on
+// a new hash, go(n) moves and fires hashchange when the hash differs.
+function fakeWindow(start = '#/debrief') {
+  const entries = [{ hash: start, state: null }];
+  let at = 0;
+  const listeners = new Set();
+  const fire = () => listeners.forEach((fn) => fn());
+  const win = {
+    location: { get hash() { return entries[at].hash; }, pathname: '/app/', search: '' },
+    history: {
+      get state() { return entries[at].state; },
+      replaceState(state, _title, url) { entries[at] = { hash: url === undefined ? entries[at].hash : (url.startsWith('#') ? url : ''), state }; },
+      go(n) { const before = entries[at].hash; at += n; if (entries[at].hash !== before) fire(); },
+    },
+    confirm: () => true,
+    addEventListener: (type, fn) => listeners.add(fn),
+    removeEventListener: (type, fn) => listeners.delete(fn),
+    // A link: drops forward entries, pushes a new one, fires hashchange.
+    click(hash) { entries.splice(at + 1); entries.push({ hash, state: null }); at += 1; fire(); },
+    entries: () => entries.map((e) => e.hash),
+    get at() { return at; },
+  };
+  return win;
+}
+
+test('watchAddress: with nothing to lose each new address is shown; a question is asked and Cancel stays put', () => {
+  const win = fakeWindow();
+  const shown = [];
+  let question = null;
+  const asked = [];
+  win.confirm = (text) => { asked.push(text); return false; };
+  const stop = watchAddress({ win, question: () => question, go: (h) => shown.push(h) });
+
+  win.click('#/sof');
+  assert.deepEqual(shown, ['#/sof'], 'nothing to lose: shown, nobody asked');
+  assert.deepEqual(asked, []);
+
+  question = 'Leave without the radar?';
+  win.click('#/');
+  assert.deepEqual(asked, ['Leave without the radar?']);
+  assert.deepEqual(shown, ['#/sof'], 'Cancel shows nothing new');
+  assert.equal(win.location.hash, '#/sof', 'the address is back');
+  assert.equal(win.at, 1, 'one step back over the new entry, so Back still goes where it went before');
+
+  win.confirm = () => true;
+  win.click('#/');
+  assert.deepEqual(shown, ['#/sof', '#/']);
+  stop();
+  win.click('#/sof');
+  assert.deepEqual(shown, ['#/sof', '#/'], 'stopped watching');
+});
+
+test('watchAddress: Cancel on Back or Forward undoes the same number of steps and keeps every entry', () => {
+  const win = fakeWindow('#/other');
+  const shown = [];
+  let question = null;
+  watchAddress({ win, question: () => question, go: (h) => shown.push(h) });
+  win.click('#/sof');
+  win.click('#/debrief');
+  assert.deepEqual(win.entries(), ['#/other', '#/sof', '#/debrief']);
+
+  question = 'Leave without the radar?';
+  win.confirm = () => false;
+  win.history.go(-2); // Back twice (e.g. from the history menu)
+  assert.equal(win.location.hash, '#/debrief', 'Cancel returns to the page on screen');
+  assert.deepEqual(win.entries(), ['#/other', '#/sof', '#/debrief'], 'no entry lost or rewritten');
+  assert.deepEqual(shown, ['#/sof', '#/debrief']);
+
+  win.confirm = () => true;
+  win.history.go(-1);
+  assert.equal(win.location.hash, '#/sof');
+  assert.deepEqual(shown, ['#/sof', '#/debrief', '#/sof']);
+  question = null;
+  win.history.go(1); // Forward, nothing to lose
+  assert.deepEqual(shown, ['#/sof', '#/debrief', '#/sof', '#/debrief']);
 });
