@@ -33,9 +33,10 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 **Checkpoint B:** tests pass, build under budget; code-review-and-quality; open PR B.
 
-- [ ] **6. Answered questions.** Each of Q-TF1 to Q-TF4 that Patrick or Dad answers lands as its own commit, starting from a failing test that states exactly what differs from V6, and is logged in Decisions.
-  - Verify: golden and unit tests; the plan doc's Decisions tab.
-  - Dependencies: 1 (and 5 for Q-TF4's readout). Size S each.
+- [ ] **6. The decided changes (Q48 to Q51).** One commit each, each starting from a failing test that states exactly what differs from V6: Q48 a tie shows "Both"; Q49 the jets start weighted by speed and meet in the centre (the golden test's pre-merge expectation changes, everything after the merge stays V6's); Q50 the side view's "Simplified: constant speed and turn rate" label; Q51 "Off-nose angle (ATA)", true angle-off in More detail, and a 3D off-nose angle with Climb and dive on.
+  - Acceptance: the golden test still matches V6 everywhere these decisions don't touch.
+  - Verify: golden and unit tests; each decision's D number in the plan doc's Decisions tab.
+  - Dependencies: 1, 2 (Q48, Q49, Q51's 3D angle); 5 (Q50's label, Q51's readouts). Size S each.
 - [ ] **7. Polish and sign-off checklist.** code-simplification pass with the golden test still green; `docs/checklists/turn-fight.md` for Patrick or Dad, side by side with V6 (R21).
   - Dependencies: 5. Size S.
 
