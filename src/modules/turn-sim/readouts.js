@@ -52,6 +52,27 @@ function fleetOf(state) {
     .sort(byNumber);
 }
 
+/**
+ * The fleet in Lead's own frame for the classifier: Lead at the origin heading 0, every other aircraft turned to match
+ * and rounded to a hundredth of a foot. The classifier measures fore/aft and lateral from Lead's heading with cos and
+ * sin, so on a heading such as 000 or 300 a perfect formation comes out a hair off (1e-13 to 1e-7 ft) and reads FORE or
+ * WIDE. Turned into Lead's frame first, the numbers are exact where the formation is exact (TS-06). The picture and the
+ * distances are unchanged: only the judging sees this frame.
+ */
+function leadFrameFleet(state) {
+  const fleet = fleetOf(state);
+  const lead = fleet[0];
+  if (!lead) return fleet;
+  const c = Math.cos(lead.hdg);
+  const s = Math.sin(lead.hdg);
+  const round = (v) => Math.round(v * 100) / 100 + 0; // + 0: no -0
+  return fleet.map((a) => {
+    const dx = a.x - lead.x;
+    const dy = a.y - lead.y;
+    return { id: a.id, x: round(dx * c + dy * s), y: round(-dx * s + dy * c), hdg: a.id === lead.id ? 0 : a.hdg - lead.hdg };
+  });
+}
+
 /** Which standard judges aircraft `id` in this formation: #3 in the offset box by the offset standard, all others by spread. */
 export function judgedBy(id, formation) {
   return formation === 'offsetBox' && id === 3 ? 'offset' : 'spread';
@@ -68,7 +89,7 @@ export function judgedBy(id, formation) {
  */
 export function formationRows(state, settings, standards) {
   const std = standards ?? DEFAULT_STANDARDS;
-  const fleet = fleetOf(state);
+  const fleet = leadFrameFleet(state);
   if (fleet.length < 2 || fleet[0].id !== 1) return [];
   return fleet.slice(1).map((a) => {
     const key = judgedBy(a.id, settings.formation);
