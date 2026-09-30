@@ -40,7 +40,9 @@ import {
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
-import { TIME_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
+import { TIME_KEY, WEATHER_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
+import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
+import { radarKept, framesToDraw, savedNoteLine, savedToSetting, savedFromSetting } from './weather/saved-radar.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
 
@@ -92,6 +94,41 @@ function mount(root, app) {
     return { source: gibsSource(layer, clock.t), opacityPct: on.wxSatelliteOpacity };
   }
 
+  // Saved radar and lightning (SPEC-debrief: Saved radar and lightning): the pictures kept with this
+  // flight, fetched only when the offer is pressed or read from an opened debrief file. Radar under
+  // lightning, each the last kept frame at or before the playback time.
+  const savedRadar = createSavedRadarFeed({ onChange: () => { renderSavedWeather(); redraw(); } });
+  let weatherWritten = false; // the kept pictures went into a saved debrief file
+  const weatherUnsaved = () => {
+    const s = savedRadar.state();
+    return Boolean(s.saved) && !s.fromFile && !weatherWritten;
+  };
+  const SAVED_ALPHA = { radar: 0.75, lightning: 1 };
+  function savedWeatherItems() {
+    const on = layout.get();
+    const { saved } = savedRadar.state();
+    if (!saved || !clock) return [];
+    const items = [];
+    for (const [item, shown] of [['radar', on.wxRadar], ['lightning', on.wxLightning]]) {
+      if (!shown) continue;
+      for (const { layer, frame } of framesToDraw(saved, item, clock.t)) {
+        items.push({ key: `${layer}@${frame.t}`, mime: frame.mime, data: frame.data, box: saved.box, alpha: SAVED_ALPHA[item] });
+      }
+    }
+    return items;
+  }
+  function renderSavedWeather() {
+    const on = layout.get();
+    const recent = flight ? radarKept(flight.endT, Date.now() / 1000) : false;
+    const offer = offerState({ flight: Boolean(flight), recent, ...savedRadar.state() });
+    let note = '';
+    if (flight && clock) {
+      note = offer.button === 'cancel' ? offer.status
+        : savedNoteLine({ radar: on.wxRadar, lightning: on.wxLightning, recent, saved: savedRadar.state().saved, t: clock.t });
+    }
+    ui.setSavedWeather({ offer, note });
+  }
+
   const map = createMapView(ui.canvas, {
     tennis: tennisNow,
     timers: app.scheduler,
@@ -102,6 +139,7 @@ function mount(root, app) {
     onCharts: (state) => ui.setCharts(state),
     weather: () => satelliteWanted(),
     windArrows: () => windArrowsNow().arrows,
+    savedWeather: () => savedWeatherItems(),
     onWeather: (state) => {
       const on = layout.get();
       const source = satelliteWanted()?.source;
@@ -259,6 +297,7 @@ function mount(root, app) {
     if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
     renderMetar();
     renderWindArrows();
+    renderSavedWeather();
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -289,6 +328,8 @@ function mount(root, app) {
     if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
     metars.setFlight(flight);
+    savedRadar.load(session.weather ?? null);
+    weatherWritten = false;
     windGrid = windGridPoints(flightLatLonBounds(flight));
     winds.setFlight(flight, windPoint(flight), windGrid);
     dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
@@ -312,6 +353,8 @@ function mount(root, app) {
     flight = null;
     clock = null;
     metars.setFlight(null);
+    savedRadar.setFlight(null);
+    weatherWritten = false;
     windGrid = [];
     winds.setFlight(null);
     dfpKey = null;
@@ -370,9 +413,12 @@ function mount(root, app) {
       save() {
         if (!flight) return;
         try {
-          const text = toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t));
+          const kept = savedRadar.state().saved;
+          const text = toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, kept ? savedToSetting(kept) : ''));
           downloadText(text, debriefFileName(flight.startT), { type: 'application/json' });
           unsaved = false;
+          weatherWritten = true;
+          renderSavedWeather();
           ui.setMessage(null);
         } catch (err) {
           if (err?.name !== 'DebriefFileError') throw err;
@@ -385,14 +431,16 @@ function mount(root, app) {
           return;
         }
         run('Opening the debrief', async () => {
-          const opened = readDebriefFile(await file.text(), { settings: settingsRules(app.standards?.limits ?? {}) });
+          const opened = readDebriefFile(await file.text(), { settings: settingsRules(app.standards?.limits ?? {}, { weather: true }) });
           const next = loadFlight(opened.files);
           return { flight: next, opened };
         }, ({ flight: next, opened }) => {
           flight = next; // leadAt reads it for the DFP flags
           const patch = standardsPatch(opened.settings);
           if (patch && app.standards) app.standards.update(patch);
-          return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY] };
+          // The saved radar is checked against this flight's own window; a bad block is left out, the rest opens.
+          const wx = savedFromSetting(opened.settings[WEATHER_KEY], { startT: next.startT, endT: next.endT });
+          return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY], weather: wx.saved, notice: wx.problem };
         });
       },
       csv() {
@@ -401,8 +449,13 @@ function mount(root, app) {
       },
       close() {
         if (!flight) return;
-        if (unsaved && dfps.length
-          && !confirm("Close this flight? Its DFPs stay in this browser, but they aren't in a saved debrief file yet.")) return;
+        const dfpsAtRisk = unsaved && dfps.length > 0;
+        const radarAtRisk = weatherUnsaved();
+        if ((dfpsAtRisk || radarAtRisk) && !confirm([
+          'Close this flight?',
+          dfpsAtRisk ? "Its DFPs stay in this browser, but they aren't in a saved debrief file yet." : '',
+          radarAtRisk ? "The radar and lightning you saved aren't in a saved debrief file yet, and ECCC can't give them again after 3 hours." : '',
+        ].filter(Boolean).join(' '))) return;
         closeFlight();
       },
       example(entry) {
@@ -422,8 +475,9 @@ function mount(root, app) {
     try {
       const result = await work();
       if (closed) return;
-      show(prepare(result));
-      ui.setMessage(null);
+      const session = prepare(result);
+      show(session);
+      ui.setMessage(session.notice ?? null);
     } catch (err) {
       if (closed) return;
       // A KmlError or DebriefFileError message names the file and the reason;
@@ -463,6 +517,10 @@ function mount(root, app) {
   tennisPanel.element.hidden = !layout.get().tennisOpen;
   tennisPanel.render(null);
   ui.onFit(() => map.fit());
+  ui.onSaveWx(() => {
+    if (flight && radarKept(flight.endT, Date.now() / 1000)) savedRadar.start({ startT: flight.startT, endT: flight.endT, bounds: flightLatLonBounds(flight) });
+  });
+  ui.onCancelWx(() => savedRadar.cancel());
   ui.onReset(() => layout.reset());
 
   let lastWindKey = '';
@@ -484,6 +542,7 @@ function mount(root, app) {
       renderMetar();
       renderWindArrows();
     }
+    renderSavedWeather();
     redraw();
   });
 
@@ -510,6 +569,7 @@ function mount(root, app) {
     stopLayout();
     metars.dispose();
     winds.dispose();
+    savedRadar.dispose();
     controls.dispose();
     standardsPanel?.dispose();
     map.dispose();

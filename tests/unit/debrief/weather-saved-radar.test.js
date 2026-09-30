@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   KEPT_S, LIMITS, SAVED_LAYERS, MAX_SAVED_CHARS, radarKept, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl,
   bytesToBase64, mimeOfBase64, frameFromReply, frameBytes, fitCap, makeSaved, savedToSetting, savedFromSetting,
-  savedFrameAt, framesToDraw, savedSummary, radarNote, notKeptText,
+  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText,
 } from '../../../src/modules/debrief/weather/saved-radar.js';
 import { sliceAt, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
 
@@ -382,9 +382,9 @@ test('the line under the map for each item', () => {
   const t = at('2026-09-30T06:14:00Z');
   const base = { on: true, recent: true, saved, t };
   assert.equal(radarNote({ ...base, item: 'radar', on: false }), '');
-  assert.equal(radarNote({ ...base, item: 'radar' }), 'Radar 06:12Z, 2 min before · Data Source: Environment and Climate Change Canada');
-  assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T06:12:00Z') }), 'Radar 06:12Z, at this moment · Data Source: Environment and Climate Change Canada');
-  assert.equal(radarNote({ ...base, item: 'lightning' }), 'Lightning 06:10Z, 4 min before · Data Source: Environment and Climate Change Canada');
+  assert.equal(radarNote({ ...base, item: 'radar' }), 'Radar 06:12Z, 2 min before');
+  assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T06:12:00Z') }), 'Radar 06:12Z, at this moment');
+  assert.equal(radarNote({ ...base, item: 'lightning' }), 'Lightning 06:10Z, 4 min before');
   assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T06:01:00Z') }), 'Radar: no picture kept for this moment.');
   assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T07:00:00Z') }), 'Radar: no picture kept for this moment.');
   // Nothing saved: within 3 hours it can still be, later, it can't.
@@ -394,4 +394,18 @@ test('the line under the map for each item', () => {
   // A set that has this flight's radar but no lightning says so.
   const noLightning = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', START)] });
   assert.equal(radarNote({ ...base, item: 'lightning', saved: noLightning }), 'Lightning: none was saved with this debrief.');
+});
+
+test('the line under the map joins the items that are on, with ECCC\'s credit once, and only when a picture is shown', () => {
+  const saved = goodSaved();
+  const t = at('2026-09-30T06:14:00Z');
+  const line = (o) => savedNoteLine({ radar: false, lightning: false, recent: true, saved, t, ...o });
+  assert.equal(line({}), '');
+  assert.equal(line({ radar: true }), 'Radar 06:12Z, 2 min before · Data Source: Environment and Climate Change Canada');
+  assert.equal(line({ radar: true, lightning: true }),
+    'Radar 06:12Z, 2 min before · Lightning 06:10Z, 4 min before · Data Source: Environment and Climate Change Canada');
+  assert.equal(line({ radar: true, t: at('2026-09-30T05:00:00Z') }), 'Radar: no picture kept for this moment.', 'no credit for a picture that isn\'t shown');
+  assert.equal(line({ radar: true, lightning: true, saved: null, recent: false }),
+    'Not kept: radar is only available for 3 hours after the flight. · Not kept: lightning is only available for 3 hours after the flight.');
+  assert.equal(line({ lightning: true, saved: null }), 'Lightning not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
 });

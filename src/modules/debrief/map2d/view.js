@@ -12,6 +12,7 @@ import { lastResult } from '../weather/wind-arrows.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../../ui-kit/map-tiles.js';
 import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
+import { createSavedWeatherLayer } from './saved-weather.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../../core/geo.js';
 import { VNC_ANCHOR } from '../data/cymj.js';
 
@@ -36,10 +37,13 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * or null. onWeather(state): after each draw, its tiles' { wanted, ready,
  * failed }, or null when there's none. windArrows(): the model wind arrows to
  * draw under the tracks, [{ lat, lon, dirDeg, kt, label }] (dirDeg is where the
- * wind blows from), or null/empty for none.
+ * wind blows from), or null/empty for none. savedWeather(): the saved radar
+ * and lightning pictures to lay over the base map, [{ key, mime, data, box,
+ * alpha }] bottom first (saved-weather.js), or empty for none.
  */
 export function createMapView(canvas, {
   timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null, windArrows = () => null,
+  savedWeather = /** @type {() => any[]} */ (() => []),
   labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
   onImagery = /** @type {(state: any) => void} */ (() => {}),
   onCharts = /** @type {(state: any) => void} */ (() => {}),
@@ -120,6 +124,8 @@ export function createMapView(canvas, {
     return layer.state();
   }
 
+  const savedLayer = createSavedWeatherLayer({ onChange: () => map.requestDraw() });
+
   // The arrows' places in map feet, kept while the list of arrows and the flight's reference are the same, so a pan or zoom while paused doesn't project them again.
   const projectArrows = lastResult((arrows, ref) => arrows.map((a) => ({ ...a, ...latLonToLocalFt(ref, a.lat, a.lon) })));
 
@@ -158,6 +164,8 @@ export function createMapView(canvas, {
       if (chartKeys.length) charts.draw(ctx, { keys: chartKeys, map, ref: mapRef(), align: chartAlign(on), opacityPct: on.vncOpacity });
       onCharts(chartKeys.length ? charts.state() : null);
       onWeather(drawWeather(ctx));
+      const saved = savedWeather();
+      if (saved.length) savedLayer.draw(ctx, { items: saved, toScreen: tileView().toScreen });
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
@@ -203,6 +211,7 @@ export function createMapView(canvas, {
       imagery.dispose();
       for (const layer of weatherLayers.values()) layer.dispose();
       weatherLayers.clear();
+      savedLayer.dispose();
       charts.dispose();
       map.dispose();
     },

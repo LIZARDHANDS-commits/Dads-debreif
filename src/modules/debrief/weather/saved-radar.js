@@ -383,7 +383,7 @@ export function savedSummary(saved) {
 }
 
 /**
- * The line under the map for a Weather item ('radar' or 'lightning'). on:
+ * The words for one Weather item ('radar' or 'lightning') under the map. on:
  * whether its item is on. recent: whether the flight is within 3 hours
  * (radarKept). saved: the kept set or null. t: the playback time. '' when off.
  */
@@ -399,5 +399,17 @@ export function radarNote({ item, on, recent, saved, t }) {
   const drawn = framesToDraw(saved, item, t);
   if (!drawn.length) return `${label}: no picture kept for this moment.`;
   const newest = drawn.reduce((a, b) => (b.frame.t > a.frame.t ? b : a));
-  return `${label} ${hhmmZ(newest.frame.t)}, ${ageText(newest.ageS)} · ${ECCC_CREDIT}`;
+  return `${label} ${hhmmZ(newest.frame.t)}, ${ageText(newest.ageS)}`;
+}
+
+/**
+ * The whole line under the map for the saved layers: each item that is on
+ * (`radar`, `lightning`: booleans), joined, with ECCC's credit once after them
+ * when a picture is showing. '' when both are off.
+ */
+export function savedNoteLine({ radar, lightning, recent, saved, t }) {
+  const items = [['radar', radar], ['lightning', lightning]].filter(([, on]) => on).map(([item]) => item);
+  const parts = items.map((item) => radarNote({ item, on: true, recent, saved, t }));
+  const showing = items.some((item) => framesToDraw(saved, item, t).length > 0);
+  return [...parts, ...(showing ? [ECCC_CREDIT] : [])].join(' · ');
 }

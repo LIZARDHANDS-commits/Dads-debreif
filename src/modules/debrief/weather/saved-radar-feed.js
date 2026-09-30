@@ -173,7 +173,7 @@ export function createSavedRadarFeed({
       emit();
     },
     /** A new flight, or none: stops any fetch and forgets what was kept. */
-    setFlight() {
+    setFlight(_next) {
       stop();
       saved = null;
       fromFile = false;
