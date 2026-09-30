@@ -2,7 +2,7 @@
 // flight): the archive address, reading its reply, and the line at a moment.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { metarArchiveUrl, readArchive, metarLineAt, MAX_REPLY_CHARS } from '../../../src/modules/debrief/weather/metar.js';
+import { metarArchiveUrl, speciArchiveUrl, markSpecials, readArchive, metarLineAt, MAX_REPLY_CHARS } from '../../../src/modules/debrief/weather/metar.js';
 
 const at = (iso) => Date.parse(iso) / 1000;
 const REPLY = [
@@ -58,4 +58,52 @@ test('no report in force: said plainly, never a later one', () => {
   });
   assert.equal(metarLineAt(reports, at('2026-09-30T16:30:00Z'), 'CYMJ').raw, '');
   assert.equal(metarLineAt([], 0, 'CYQR').text, 'CYQR: no report in the two hours before this moment.');
+});
+
+test('the specials address: the same station and dates, report_type 4 alone', () => {
+  const full = new URL(metarArchiveUrl('CYMJ', at('2026-09-30T14:10:30Z'), at('2026-09-30T15:05:00Z')));
+  const specials = new URL(speciArchiveUrl('CYMJ', at('2026-09-30T14:10:30Z'), at('2026-09-30T15:05:00Z')));
+  assert.equal(specials.origin + specials.pathname, full.origin + full.pathname);
+  assert.deepEqual(specials.searchParams.getAll('report_type'), ['4']);
+  for (const key of ['station', 'sts', 'ets', 'tz', 'format', 'data']) assert.equal(specials.searchParams.get(key), full.searchParams.get(key), key);
+  assert.throws(() => speciArchiveUrl('CYMJ&x=1', 0, 1));
+  assert.throws(() => speciArchiveUrl('CYMJ', 0, NaN));
+});
+
+// IEM's text column often has no SPECI prefix: the two lists differ only by which call listed a report.
+const PLAIN = [
+  'station,valid,metar',
+  'CYMJ,2026-09-30 14:00,CYMJ 301400Z 28015KT 3SM -SHRA BKN025 OVC080 10/07 A2990',
+  'CYMJ,2026-09-30 14:32,CYMJ 301432Z 28018KT 1 1/2SM +SHRA OVC008 09/08 A2991',
+].join('\n');
+const SPECIALS = 'station,valid,metar\nCYMJ,2026-09-30 14:32,CYMJ 301432Z 28018KT 1 1/2SM +SHRA OVC008 09/08 A2991\n';
+
+test('specials mark the full list by station, valid time and raw text', () => {
+  const full = readArchive(PLAIN);
+  assert.deepEqual(full.map((r) => r.type), ['METAR', 'METAR']);
+  assert.equal(full[0].station, 'CYMJ');
+  const marked = markSpecials(full, readArchive(SPECIALS));
+  assert.deepEqual(marked.map((r) => r.type), ['METAR', 'SPECI']);
+  assert.equal(marked[1].t, at('2026-09-30T14:32:00Z'));
+  assert.deepEqual(full.map((r) => r.type), ['METAR', 'METAR'], 'the list it was given is not changed');
+  assert.match(metarLineAt(marked, at('2026-09-30T14:40:00Z'), 'CYMJ').text, /^SPECI CYMJ 1432Z /);
+  assert.match(metarLineAt(marked, at('2026-09-30T14:20:00Z'), 'CYMJ').text, /^CYMJ 1400Z /);
+});
+
+test('a special that matches only on time, or on the station, marks nothing', () => {
+  const full = readArchive(PLAIN);
+  const otherText = readArchive(SPECIALS.replace('1 1/2SM', '1SM'));
+  assert.deepEqual(markSpecials(full, otherText).map((r) => r.type), ['METAR', 'METAR']);
+  const otherTime = readArchive(SPECIALS.replace('14:32,', '14:33,'));
+  assert.deepEqual(markSpecials(full, otherTime).map((r) => r.type), ['METAR', 'METAR']);
+  const otherStation = readArchive(SPECIALS.replace('CYMJ,2026', 'CYQR,2026'));
+  assert.deepEqual(markSpecials(full, otherStation).map((r) => r.type), ['METAR', 'METAR']);
+  assert.deepEqual(markSpecials(full, []).map((r) => r.type), ['METAR', 'METAR']);
+});
+
+test('a report already known as a SPECI stays one, and whitespace in the raw text does not break a match', () => {
+  const full = readArchive(REPLY);
+  assert.deepEqual(markSpecials(full, []).map((r) => r.type), ['METAR', 'METAR', 'SPECI']);
+  const spaced = readArchive(SPECIALS.replace('28018KT 1', '28018KT  1'));
+  assert.deepEqual(markSpecials(readArchive(PLAIN), spaced).map((r) => r.type), ['METAR', 'SPECI']);
 });

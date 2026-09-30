@@ -24,7 +24,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `export-csv.js` | The CSV export's rows: one a second across the shared window, every ship side by side, with sources and GPS gap flags. No page access. |
 | `weather/slices.js` | Weather at the time of the flight: the slice (frame, METAR, model hour) at or before the playback moment with its age, frame times to fetch, scrubber ticks, the nearest airfield. No page access. |
 | `weather/metar.js` | The METAR line: the IEM archive address, reading its reply, and the decoded line at a moment (decoding is `src/wx`'s `parseMetar`). No page access. |
-| `weather/metar-feed.js` | Fetches each airfield's METARs for the loaded flight once, only while the METAR item is on, and stops when the flight or the debrief closes. |
+| `weather/metar-feed.js` | Fetches each airfield's METARs for the loaded flight once, only while the METAR item is on, then (a second later, through the scheduler) asks IEM for specials alone to mark the SPECIs; stops, waits included, when the flight or the debrief closes. |
 | `weather/winds.js` | Winds aloft: the Open-Meteo archive address, reading its reply, the wind at Lead's altitude (blended between pressure levels) and the words on the Lead line. No page access. |
 | `weather/winds-feed.js` | Fetches the model winds for the loaded flight once per model, for the Lead line (one point) and the wind arrows (the grid, one request), only while each item is on, and stops when the flight or the debrief closes. |
 | `weather/wind-arrows.js` | Wind arrows on the 2D map: the 3 x 3 grid over the flight, each point's wind at the chosen height, the arrow's direction and length, the caption and status words. No page access. |

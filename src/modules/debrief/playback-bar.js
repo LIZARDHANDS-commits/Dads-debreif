@@ -77,13 +77,16 @@ export function createPlaybackBar({ time }) {
       sync();
     },
     sync,
-    /** Marks these times (seconds since 1970) on the scrubber; none clears them. */
-    setTicks(times) {
-      const key = times.join(',');
+    /**
+     * Marks these times on the scrubber, each { t (seconds since 1970), label }; none clears
+     * them. The label is the option's text ("SPECI 14:32Z"), for sight and for a screen reader.
+     */
+    setTicks(marks) {
+      const key = marks.map((m) => `${Math.floor(m.t)}=${m.label ?? ''}`).join(',');
       if (ticks.dataset.key === key) return;
       ticks.dataset.key = key;
-      ticks.replaceChildren(...times.map((t) => h('option', { value: String(Math.floor(t)) })));
-      if (times.length) scrubber.setAttribute('list', ticks.id);
+      ticks.replaceChildren(...marks.map((m) => h('option', { value: String(Math.floor(m.t)), label: m.label ?? '' })));
+      if (marks.length) scrubber.setAttribute('list', ticks.id);
       else scrubber.removeAttribute('list');
     },
   };

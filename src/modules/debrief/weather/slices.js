@@ -56,6 +56,13 @@ export function reportTicks(reports, startT, endT) {
     .map((r) => ({ t: r.t, type: r.type }));
 }
 
+/** A tick's words, "SPECI 14:32Z" or "METAR 14:00Z" (UTC), for its label. */
+export function tickLabel({ t, type }) {
+  const d = new Date(t * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${type} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}Z`;
+}
+
 /**
  * The airfield nearest a point (Lead at the moment, say): { icao, name, nm },
  * or null with no airfield that has a position. airfields: [{ icao, name, lat, lon }].

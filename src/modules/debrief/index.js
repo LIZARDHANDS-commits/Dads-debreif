@@ -38,7 +38,7 @@ import {
   clampArrowFt, windGridPoints, flightLatLonBounds, windArrowsAt, arrowLabel, arrowCaption, arrowStatus, lastResult,
 } from './weather/wind-arrows.js';
 import { metarLineAt } from './weather/metar.js';
-import { nearestAirfield, reportTicks } from './weather/slices.js';
+import { nearestAirfield, reportTicks, tickLabel } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
 import { TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
@@ -200,7 +200,7 @@ function mount(root, app) {
 
   // The METAR line (SPEC-debrief: Weather at the time of the flight): the
   // report in force from the airfield nearest Lead, or the one picked.
-  const metars = createMetarFeed({ onChange: () => renderMetar() });
+  const metars = createMetarFeed({ timers: app.scheduler, onChange: () => renderMetar() });
   function weatherFields() {
     const byIcao = new Map(Object.entries(CATALOG).map(([icao, f]) => [icao, { icao, ...f }]));
     for (const f of app.airfields ? [app.airfields.home(), ...app.airfields.alternates()] : []) {
@@ -225,7 +225,7 @@ function mount(root, app) {
     else if (entry.state === 'loading') ui.setMetar({ text: `Loading ${icao} METARs…`, raw: '' });
     else if (entry.state === 'failed') ui.setMetar({ text: `${icao} METARs couldn't load. They need a connection.`, raw: '' });
     else ui.setMetar(metarLineAt(entry.reports, clock.t, icao));
-    bar.setTicks(entry?.state === 'ready' ? reportTicks(entry.reports, flight.startT, flight.endT).map((r) => r.t) : []);
+    bar.setTicks(entry?.state === 'ready' ? reportTicks(entry.reports, flight.startT, flight.endT).map((r) => ({ t: r.t, label: tickLabel(r) })) : []);
   }
 
   // Winds aloft on the Lead line (SPEC-debrief: Weather at the time of the
