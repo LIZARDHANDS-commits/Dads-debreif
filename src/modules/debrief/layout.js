@@ -15,6 +15,7 @@ import { ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { CAMERA_LIMITS } from './view3d/frame.js';
 import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';
+import { SATELLITE_LAYERS } from './weather/satellite.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -152,6 +153,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       { value: 'nearest', label: 'Nearest airfield' },
       ...Object.entries(CATALOG).map(([icao, f]) => ({ value: icao, label: `${icao} ${f.name}` })),
     ] }),
+    controls.checkbox('wxSatellite', { label: 'Satellite (GOES-West)' }),
+    controls.select('wxSatelliteLayer', { label: 'Satellite picture', options: Object.entries(SATELLITE_LAYERS).map(([value, l]) => ({ value, label: l.label })) }),
+    controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
   ]);
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
@@ -303,9 +307,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   }
 
   // The lines under the map, satellite first.
-  const notes = { imagery: '', charts: '' };
+  const notes = { imagery: '', charts: '', weather: '' };
   function showNotes() {
-    const text = [notes.imagery, notes.charts].filter(Boolean).join(' · ');
+    const text = [notes.imagery, notes.charts, notes.weather].filter(Boolean).join(' · ');
     if (credit.textContent !== text) credit.textContent = text;
     credit.hidden = !text;
   }
@@ -387,6 +391,11 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       if (metarRaw.textContent !== line.raw) metarRaw.textContent = line.raw;
       metarRawBox.hidden = !line.raw;
       metarLine.dataset.category = line.category ?? '';
+    },
+    /** The weather picture's line under the map: its time and age, or why there's none. */
+    setWeatherNote(text) {
+      notes.weather = text ?? '';
+      showNotes();
     },
     /** Shows the readouts for the current time (at most 10 times a second while playing). */
     renderReadouts: (r) => readouts.render(r, flight),
