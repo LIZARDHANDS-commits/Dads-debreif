@@ -1,0 +1,265 @@
+# Spec: `debrief`, the debrief screen (2D map and 3D view)
+
+Status: **draft, waiting for Patrick's approval.** Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+
+The build starts only after this spec is approved **and** flight data (PR #58) and flight math core part 2 (PR #61) are merged.
+
+## Objective
+
+One screen to debrief a formation sortie. Load up to four ForeFlight tracks (or the example flight) once, then replay them on a 2D map or in a 3D view with a single switch, at the same moment, with the same readouts (D16, R11, R12).
+
+V6 spread this over two tabs, a floating EM card and a tennis-ball card that lived in the wrong tab. They kept four clocks, drew over each other's controls, and kept running when hidden (#19, #21 to #29, #34 to #39). The rebuild is one module, mounted and unmounted by the shell, reading one flight model and one clock from `flight-data` (R4).
+
+Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6). They should be able to:
+
+1. Load their tracks, see the whole sortie fitted to the screen, and read a correct status line (R11).
+2. Play, pause, scrub and step through the flight, with times in Zulu and local (R10).
+3. Flip between the 2D map and the 3D view without losing their place (R12).
+4. Read spacing, fore/aft, aspect, HCA, closure, speed and G for each ship, judged against editable standards (R9, R18).
+5. Mark debrief focus points (DFPs), write notes, and save the whole debrief to a file that reopens exactly as it was (R17, D21).
+
+## Assumptions
+
+1. `flight-data` owns loading, cleaning, the flight model, the clock and the debrief file format ([`SPEC-flight-data.md`](SPEC-flight-data.md)). The debrief never parses KML or keeps a clock of its own.
+2. `core` owns every number: aspect, HCA, closure, estimated G, the EM point, both tennis solvers and (in core PR 3) the standards classifier. The debrief picks the moments, calls `core`, and draws the answer.
+3. The 3D view stays **hand-drawn on a Canvas 2D**, as V6 does. No WebGL and no three.js, so no new package (SPEC.md "ask first") and nothing to download.
+4. Map imagery (Esri satellite tiles) needs the network. Everything else, including the VNC charts once viewed, works offline (R6).
+5. Until `airfields` lands, CYMJ values the debrief needs (field elevation 1,892 ft, the VNC chart anchor, the 19 route overlays) sit in one file, `src/modules/debrief/data/cymj.js`, so they move to `airfields` in one step (R16).
+6. The ui-kit's `controls.js` (inputs bound to settings) and `canvas-view.js` (pan and zoom) are written for this module, by the app-frame thread, which owns `src/ui-kit/`. The debrief is their first user.
+
+## The screen
+
+Three columns at 1366 × 768 and up, none of them covering another (R2). Panels collapse with a real button (ui-kit `panel.js`). There are no side rails and no Tab-key tricks (#34, #35).
+
+```
+┌ Flight ──────────┐┌ Stage ─────────────────────────────┐┌ Readouts ─────────┐
+│ Load tracks      ││ [2D | 3D]  layers ▾   Fit   EM ▾    ││ Live data         │
+│ Example flight   ││                                     ││ Aspect/HCA/closure│
+│ Status           ││        map or 3D view               ││ Spacing           │
+│ Map layers (2D)  ││                                     ││ Standards         │
+│ 3D view (3D)     ││                                     ││ Tennis ball       │
+│ Save / open      ││ ▶ ⏸ ⏮ −1s +1s  1× ▾   ──●──────     ││ DFPs              │
+│ Export CSV       ││ 14:32:07Z  08:32:07 local           ││                   │
+└──────────────────┘└─────────────────────────────────────┘└───────────────────┘
+```
+
+- **The stage** holds the view switch and one **playback bar** shared by both views. The bar has Play, Pause, Reset, step ±1 s, speed 0.25× to 16×, a scrubber with 1 s steps across the whole flight (not V6's fixed 1,000 steps, #23), and the time in Zulu and local via `app.time` (R10, D18). The 3D view gets real playback controls, which V6 lacked (#26).
+- **Switching views** keeps the time, playing state, selected ship and DFPs. The 3D view is never blank: it shows the same "load a flight" empty state as the map (R12).
+- **The EM chart** opens in a panel below the stage, which shrinks the stage without covering it (#37). It never floats over the map.
+- **Keyboard** (through `app.keys`, only while the debrief is open and never while typing): Space plays or pauses, ← and → step 1 s, Home resets. Tab moves between controls as normal.
+- **Resizing** a panel or the window resizes the canvas (a `ResizeObserver` on the stage, #36).
+- **Ship colours:** #1 blue, #2 green, #3 red as in V6. **#4 changes from near-black (#050505) to white with a dark outline** (#29), in every place #4 is drawn. Every ship also carries its number, so colour is never the only signal.
+
+## What V6 does, and what the rebuild keeps
+
+### Loading and status (R11)
+
+| V6 | Rebuild |
+|---|---|
+| Four file inputs and "Load Tracks". Load wipes what's loaded before checking (#23). | One "Load tracks" picker taking up to 4 files, each assigned to #1 to #4 in a small table the user can reorder. All or nothing, with the file and reason on failure (D54). |
+| "Load Example Flight" with the nicknames ED2F5, 60DF66, 8738A6C9 and 083AC. | Kept, with the nicknames (D22). The example files download only when asked for (R5). |
+| Status hard-codes "#3 not loaded" (#23). | The status comes from what actually loaded: per track, the name, fixes, time span, fixes dropped and why, gaps and the longest one, and any track cut to the common window (D49 to D53). |
+| The map isn't fitted and the zoom slider can't reach the whole sortie (#23). | Load fits the whole flight to the view. A "Fit" button does it again. Zoom covers from the whole sortie (about 50 NM) down to about 500 ft across. |
+| "Clear" leaves status, file inputs and DFPs behind (#23, #25). | "Close flight" clears everything of that flight, after asking if it has unsaved DFPs. |
+| "Download Examples" fires four downloads at once, and #2 saves as `.kml.xml` (#28). | A short list of the four example files, each a normal download link with a `.kml` name. |
+
+### 2D map
+
+Kept from V6: tracks with trail modes (full, history, last 60 s), spacing lines, 5,000 ft grid, Esri satellite imagery, the two embedded VNC charts (South and North) with opacity and fine alignment, the 19 built-in route overlays (TACNAV 1 to 4, North and South A/B/ED routes, Stds and TAC test routes) with opacity, Lead and #3 3/9 lines, the fighting-wing cone, clock marks, the safety bubble with its radius, "follow lead", DFP flags, the T-6 silhouette and each ship's standards label. Pan by dragging and zoom with the wheel.
+
+Changes:
+
+- **Everything redraws when it changes, playing or paused.** V6 ignored Clock Marks and the Fighting Wing Cone while paused (#26). The map draws only when something changed (time, view, layer, size), instead of every frame, so a paused debrief uses no CPU (#43).
+- **Gaps** break the track line, and while a ship is in a gap its readouts show "GPS gap" instead of numbers (D32).
+- **Unknown heading** (not moving, D52): no 3/9 line, cone or silhouette direction for that ship, and its aspect, HCA and label show "–".
+- **Satellite tiles** carry Esri's attribution, failed tiles are retried, and a tile repaints only its own area (#28). With no network the map says "satellite imagery needs a connection" and shows the grid.
+- **VNC charts** load only when turned on (R5). Each warped chart is drawn once into an off-screen image per alignment, not re-warped on every frame (#43). The chart layer carries "Not for navigation", because its alignment is a hand-tuned fit (#43).
+- **Label colours** work: a ship on parameters shows green, not V6's colour that never matched (#21).
+
+Removed (R3), since they never worked or are replaced:
+
+| V6 control | Why it goes |
+|---|---|
+| "3D altitude view" in the map's view menu | Replaced by the real 3D view. Its bubble, grid and silhouettes were drawn at the wrong place (#27). |
+| External VNC tile URL box | Has no default, so it only ever shows a warning; a free-text URL is also a way to load outside content. |
+| Synthetic error injector and raw-vs-error ghosts | Their panel doesn't exist in V6's page and the drawing is behind `if (false)`. This is also why D42's Wide/Tight fix has nothing to change in the debrief: the classifier uses the unsigned interval. |
+| "Auto-hide panels" on Play | Added three times; the debrief copy did nothing (#38). |
+| Side rails, "Collapse/Expand sections", Tab and Shift+Tab | Replaced by collapsible panels (#34, #35). |
+
+### 3D view
+
+Kept from V6: camera Follow Lead or Centre Formation, yaw, pitch and zoom (sliders and mouse drag and wheel), vertical exaggeration, T-6 or flat-marker model, plane size, attitude labels (bank and pitch), trail length, landscape, ground reference with ground datum (lowest altitude minus 500 ft, field elevation, or sea level), grid, altitude sticks, altitude scale, Reset view.
+
+Changes:
+
+- **Bank (D40)**: from the real turn rate, the correct wing down, and set from G only in level turns. **Recorded bank** is used when the track has it (D47). V6's bank is pinned first, then D40 lands as its own change (D10).
+- **Pitch** uses the track's recorded pitch or `flight-data`'s estimate. V6's 3D view could never reach the estimate and drew 0° (#19 finding). Pitch is drawn as the nose rising or falling, not as the whole aircraft sliding up the screen (#27).
+- **Drawing order**: near aircraft are drawn over far ones (#27).
+- **One ground**: the grid, landscape, datum plane and north/east arrows sit on the chosen datum and stay fixed to the ground, so the ground moves under the formation. "AGL" labels say "above datum" unless the datum is the field (#27).
+- **Vertical exaggeration** keeps V6's default of 2× and shows "Altitude ×2" on the view, since V6 hid it (#26).
+- **"Free orbit"** is removed: in V6 it is the same as Centre Formation (#26).
+- **Altitude sticks** work with both models and drop to the datum (#26).
+- **Readouts** are the same right-hand panel as the map, not the thinner 3D list.
+- The 3D view has its own playback bar (the shared one), and stops drawing when the debrief is closed or the other view is showing (#39).
+
+### Readouts and standards (R9, R18)
+
+The right column shows, for the current time, the same panels in both views:
+
+- **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47, Q32), and latitude/longitude (interpolated, D51).
+- **Aspect, HCA and closure versus Lead**, and **spacing** for every pair. Each range says whether it is **horizontal** or **3D** (#18, SPEC.md). The numbers stay V6's (D29).
+- **Standards**: V6's spread, offset and lead standards, editable, with V6's values as the default preset and a one-click reset (R18, D23). They are saved with the module's settings and in the debrief file.
+- **Lead desired parameters** compare **est. IAS** with the 200 kt target, not ground speed (D31).
+
+Standards fixes from #21 (the classifier itself is `core/standards.js`, core PR 3):
+
+- A ship with no standard that applies to it shows no label, instead of "ON PARAMETERS".
+- The on-map label turns green when on parameters.
+- **#3 is judged by two standards at once** when both are on: spread says within ±250 ft of Lead's 3/9, offset says 8,000 ft aft, so #3 can never be on parameters. **Proposed fix: when the offset standard is on, it alone judges #3's fore/aft, and the spread standard still judges its interval.** This changes a V6 label, so it waits for a logged decision (open question 1). Until then the debrief keeps V6's labels.
+
+### EM chart
+
+V6's EM card: IAS against turn rate over the T-6 EM chart for 6,500, 8,000 or 13,000 ft (chosen automatically from the formation's altitude, or by hand), with a fading 60 s trail per ship. Kept, with:
+
+- Turn rate without V6's divide by 2 (D39, already landed in core PR 2).
+- The three chart images (about 0.9 MB) load only when the EM chart opens (R5).
+- The chart never covers the map (#37), and stops drawing when closed (#39).
+
+### Tennis ball (#19, Q33 to Q37)
+
+V6 has two solvers that disagree and write to the same readout, and its controls live only in the 3D tab. The rebuild shows **one** solution, with its controls in the right column for both views.
+
+**Default until Dad answers Q33 to Q37: the debrief map's solver (`core` `tennisDebrief`), unchanged, in both views.** It is the one that sees recorded or estimated pitch and gives IN CONE / OUT OF CONE, and the map is where V6's debrief showed it. The 3D view draws that same solution in 3D. Each answer from Dad then lands as its own tested change in `core` (D10), and the screen needs no change beyond labels.
+
+### DFPs (R17, #25)
+
+Debrief focus points belong to the flight, not to the browser:
+
+- Add a DFP at the current time (it records the time and Lead's position), label it, write a note, go to it, delete it, and step to the previous or next DFP **in time order**.
+- Labels are unique ("DFP 1", "DFP 2" …, renumbered by time) unless the user renames them.
+- Labels and notes are shown with `textContent` only.
+- While a flight is open, its DFPs are also kept in the browser (`app.storage`, keyed by a fingerprint of the loaded tracks), so a reload doesn't lose them. They are never shown on a different flight.
+- **Save debrief** writes the `flight-data` debrief file (tracks, DFPs and settings). **Open debrief** reads one back, exactly as it was (R17). Saving and opening the file goes through `storage/file.js`.
+
+### CSV export (#28)
+
+One file, one row per second across the common window, with each ship's columns side by side: time (Zulu), latitude, longitude, altitude, ground speed, est. IAS, heading, G, pitch and bank with their sources, and a gap flag. The button is disabled with no flight loaded, and the download link is released after use.
+
+## Module structure
+
+```
+src/modules/debrief/
+  README.md          what's where, and how to change common things (R8)
+  index.js           mount(root, app): builds the screen, wires state to views; unmount cleans up
+  state.js           the debrief state (flight, view, time, settings, DFPs) and its changes; no page access
+  layout.js          the three columns, panels and playback bar
+  playback-bar.js    controls bound to the flight-data clock
+  map2d/
+    view.js          canvas, pan and zoom, redraw-on-change
+    layers.js        tracks, grid, spacing lines, 3/9, cone, clock marks, bubble, DFP flags, labels
+    tiles.js         satellite tiles and attribution
+    vnc.js           embedded VNC charts: bounds, warp mesh, off-screen cache
+    overlays.js      the built-in route overlays
+  view3d/
+    scene.js         projection, depth order, ground datum, attitude: pure functions, tested
+    view.js          drawing the scene on the canvas
+  readouts.js        builds the readout rows from core results; no page access
+  standards-panel.js
+  em.js              the EM chart
+  tennis-panel.js
+  dfp.js             DFP list operations (add, sort, label, fingerprint); no page access
+  export-csv.js      the CSV rows; no page access
+  data/cymj.js       field elevation, VNC anchor, route overlays (moves to airfields later)
+  debrief.css        scoped under [data-module="debrief"]
+public/media/debrief/   VNC chart and EM chart images
+```
+
+Pure pieces (`state`, `readouts`, `dfp`, `export-csv`, `view3d/scene`, the VNC warp) take plain values and return plain values, so they're tested in Node. Drawing files stay thin.
+
+## Performance (R5, smooth playback)
+
+Following `.claude/skills/performance-optimization`: measure first, one change at a time, and log each attempt in the PR.
+
+- The debrief's code loads only when its card is opened. The example tracks (about 11 MB), VNC charts (about 9.7 MB as V6's PNGs) and EM images (about 0.9 MB) load only when asked for.
+- Targets on the example flight at 1920 × 1080, measured with `npm run build` and `npm run preview`: playback at 16× keeps 60 frames per second on a mid-range laptop, and a paused debrief draws nothing.
+- Track points are projected once per load and view change, not every frame. The VNC warp is cached. Readouts update at most 10 times a second.
+- Whether to re-encode the VNC chart PNGs (for example as WebP) is decided by measurement and a side-by-side look, and asked first if it changes how they look.
+
+## Security (untrusted files)
+
+Following `.claude/skills/security-and-hardening`. Files are checked where they come in by `flight-data` (sizes, shapes, no entities, all or nothing). In the debrief:
+
+- Nothing from a file reaches `innerHTML`: track names, DFP labels, notes and status text go in through `textContent` or ui-kit `h()`.
+- Map tiles come from one fixed Esri address, built from numbers only. There's no user-entered URL.
+- Route overlays are built into the code, not loaded from outside.
+- A debrief file's settings are checked field by field before use (the standards must be finite and in range, per the ui-kit number-control rule).
+
+## Commands
+
+```
+npm run dev                 # the debrief at http://localhost:5173/#/debrief
+npm test                    # unit and golden tests
+npm run test:e2e            # browser tests
+python3 tools/rebuild_original.py /tmp/v6.html   # V6, to compare side by side
+```
+
+## Code style
+
+As in `core` and `flight-data`: plain ES modules, pure functions where possible, units in names, and a comment naming the V6 line each ported piece came from.
+
+```js
+// src/modules/debrief/view3d/scene.js
+/** Screen position of a world point for the 3D camera (V6 project, line 3584). */
+export function projectPoint(pt, camera) { ... }
+```
+
+## Testing strategy
+
+1. **Golden first (D10).** The debrief's own V6 drawing math is pinned before it moves, with V6's code run in Node through `tests/golden/v6-source.js`: the map's world-to-screen transform, the VNC warp, the 3D projection and attitude (bank and pitch), and the CSV rows. Changes (D40, the #27 drawing fixes, the CSV layout) then land as separate commits that update the pinned value on purpose.
+2. **Unit tests** (`tests/unit/debrief/`, Node) for the pure pieces: DFP sorting, labels and fingerprints; readout rows (gap, unknown heading, recorded vs est.); standards labels (#21); the state's view switch keeping time and play state; CSV alignment.
+3. **Browser tests** (`tests/e2e/debrief.spec.js`, Playwright, failing on any console error, R7):
+   - Load the example flight: fitted to view, correct status (R11).
+   - Switch 2D/3D while playing: same time, 3D not blank (R12).
+   - Overlap scan at 1366 × 768 and 1920 × 1080 with every panel open, and with the EM chart open (R2).
+   - Click-through: every button does something (R3). Clock Marks and the cone redraw while paused (#26).
+   - Leave the debrief: no frames, timers or listeners left (R4).
+   - Save a debrief with DFPs, close it, open the file: same tracks, DFPs, standards and time (R17).
+   - Edit a standard, reload, reset (R18).
+   - Offline after one visit: the debrief opens and the example flight plays if it was loaded before (R6).
+   - A hostile file (script in the name, 10 MB note): shown as plain text or refused.
+
+   `tests/e2e/` belongs to the app-frame thread, so the debrief's browser test file is added with that thread's agreement.
+4. **Sign-off checklist** `docs/checklists/debrief.md` (R21): load your own ForeFlight tracks, play, switch views, add and save DFPs, reopen the file, check #4 is visible, compare a few numbers with V6 side by side.
+
+## Boundaries
+
+- **Always:** read the flight from `flight-data` and every number from `core`; pin V6 before changing a number or a drawing; keep the module inside `src/modules/debrief/`; run `npm test` before each commit.
+- **Ask first:** any change to a number V6 shows beyond D31, D39, D40, D47 and D49 to D54; picking or merging the tennis solvers; changing the default standards; adding a package (including any 3D library); a new outside data source.
+- **Never:** edit `original/`, `src/core/` or `src/flight-data/` (changes go to their threads through the coordinator); put file content into `innerHTML`; keep a timer or animation loop outside the ui-kit scheduler.
+
+## Success criteria
+
+- R11, R12, R17 and R18 each pass their browser test, and R2, R3, R4 and R7 pass on the debrief route.
+- The golden tests pass for V6's behaviour, and each approved change (D31, D39, D40, D47, #21, #27) is its own tested commit.
+- Issues #21 and #23 to #29 are closed by the change that fixes them, and the debrief parts of #19, #34 to #39 and #43 are gone.
+- Patrick (or anyone, D28) signs off the checklist on the live site.
+
+## Plan (after approval)
+
+The tasks go in `tasks/debrief/` once this spec is approved. The expected order, each slice working on its own:
+
+1. Screen, load, status, 2D tracks, playback bar and fit-to-view.
+2. Readouts and standards.
+3. DFPs, save and open.
+4. Map layers: satellite, VNC charts, route overlays, 3/9, cone, clock marks, bubble.
+5. The 3D view (V6 pinned, then D40 and the #27 fixes).
+6. EM chart, tennis ball, CSV export.
+
+It needs, from other threads: `standards.js` (core PR 3) before slice 2, and ui-kit `controls.js` and `canvas-view.js` before slice 1.
+
+## Open questions
+
+1. **#3 under two standards (#21), new, for Patrick or Dad:** with both spread and offset on, V6 judges #3's fore/aft by both, so #3 is never on parameters. Proposed: the offset standard decides #3's fore/aft, and the spread standard its interval. Until decided, the debrief keeps V6's labels.
+2. **Recorded pitch and G on #3 and #4 (Q32), for Dad:** default keeps V6 (in-range values are used) and labels them "recorded".
+3. **Tennis ball (Q33 to Q37), for Dad:** default is the debrief map's solver, unchanged, in both views.
+4. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).
