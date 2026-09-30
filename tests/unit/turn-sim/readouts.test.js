@@ -5,9 +5,10 @@ import assert from 'node:assert/strict';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { stallLimitG, availableG } from '../../../src/core/t6-performance.js';
 import {
-  formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, TURN_DEGREES, pairText, ft, signedFt,
+  formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
 } from '../../../src/modules/turn-sim/readouts.js';
+import { MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
 
 // Lead at the origin flying east (heading 0), so its left is north (+y).
 const ac = (id, xFt, yFt, extra = {}) => ({ id, xFt, yFt, headingRad: 0, turning: false, bankDeg: 0, g: 1, ...extra });
@@ -123,8 +124,8 @@ test('the turn line and summary use the set speed and G, limited as the flying l
   assert.deepEqual(summary.map((s) => s[0]), ['Turn radius', 'Turn rate', 'Time to 90°', 'Bank angle', 'Speed']);
   assert.equal(summary.at(-1)[1], '220 KTAS');
   assert.equal(readoutsAt(four(), { ...SETTINGS, turnDeg: 45 }).summary[2][0], 'Time to 45\u00b0');
-  // Turn degrees follow the turn, as V6's boxes fill them in.
-  assert.deepEqual(TURN_DEGREES, { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90 });
+  // Turn degrees follow the turn (settings.js MANEUVER_TURN_DEG): the hook is 180 (SMM 16.19 para 60) and the check turn 30.
+  assert.deepEqual(MANEUVER_TURN_DEG, { delayed90away: 90, delayed45away: 45, hook90: 180, shackle45: 45, cross180: 180, inplace90: 90, check30: 30 });
 });
 
 test('the stall-limit G warning fires above the limit and is a words-only warning (D128)', () => {
@@ -202,9 +203,9 @@ test('an aircraft exactly abreast is on spacing even when the engine leaves a ha
   // cos(pi/2) is 6e-17, so a 6,000 ft slot starts about 4e-13 ft off the 3/9 line.
   const rows = formationRows(four({ 2: { xFt: 3.7e-13 }, 3: { xFt: -3.7e-13 } }), SETTINGS);
   assert.deepEqual(rows.map((r) => r.labels), [['ON SPACING'], ['ON SPACING'], ['ON SPACING']]);
-  // A real 2 ft ahead is still FORE, as the standard says, and prints as +2 ft (never -0).
-  const ahead = formationRows(four({ 2: { xFt: 2 } }), SETTINGS);
-  assert.equal(formationLine(row(ahead, 2)).text, 'FORE  fore/aft +2 ft');
+  // A real 300 ft ahead is still FORE, and prints with a plus (never -0). Under 1 degree is not flagged (N4).
+  const ahead = formationRows(four({ 2: { xFt: 300 } }), SETTINGS);
+  assert.equal(formationLine(row(ahead, 2)).text, 'FORE  fore/aft +300 ft');
   assert.equal(signedFt(-0.4), '0 ft');
 });
 
@@ -244,4 +245,71 @@ test('mutual support is only lost for a pair across the front, not one in trail'
   // 45 degrees off the wing line is a stagger, not abreast.
   const far = state([ac(1, 0, 0), ac(2, -9000, 9000)]);
   assert.deepEqual(separationFlags(far, { ...SETTINGS, formation: 'twoShip' }), []);
+});
+
+// TS-06: a perfect formation must never read FORE or WIDE from floating-point noise, whatever way it faces.
+test('every formation reads ON SPACING at t = 0 on any start heading (TS-06)', async () => {
+  const { createRun } = await import('../../../src/modules/turn-sim/engine/run.js');
+  const { DEFAULTS } = await import('../../../src/modules/turn-sim/settings.js');
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const startHeadingDeg of [0, 45, 90, 180, 270, 300]) {
+      const settings = { ...DEFAULTS, formation, startHeadingDeg };
+      const rows = formationRows(createRun(settings).state, settings);
+      assert.ok(rows.length >= 1);
+      for (const row of rows) assert.deepEqual(row.labels, ['ON SPACING'], `${formation} at ${startHeadingDeg}: #${row.id} reads ${row.labels}`);
+    }
+  }
+});
+
+test('the offset box reads the same on every start heading, and never FORE or AFT at t = 0 (TS-06)', async () => {
+  const { createRun } = await import('../../../src/modules/turn-sim/engine/run.js');
+  const { DEFAULTS } = await import('../../../src/modules/turn-sim/settings.js');
+  const at = (startHeadingDeg) => {
+    const settings = { ...DEFAULTS, formation: 'offsetBox', startHeadingDeg };
+    return formationRows(createRun(settings).state, settings).map((r) => [r.id, r.labels, r.foreAftFt]);
+  };
+  const north = at(0);
+  for (const deg of [45, 90, 180, 270, 300]) assert.deepEqual(at(deg), north, `heading ${deg}`);
+  for (const [id, labels] of north) assert.ok(!labels.includes('FORE'), `#${id} reads ${labels}`);
+});
+
+test('N4: a perfect turn ends ON SPACING: under 1 degree fore and within 1 percent of the spacing are not flagged, the numbers still show', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  // The report's cases: +59 ft fore at 6,000 ft (0.56 degrees) and a 6,039 ft interval (0.65 percent).
+  const fore = formationRows(four({ 2: { xFt: 59 } }), settings);
+  assert.deepEqual(row(fore, 2).labels, ['ON SPACING']);
+  assert.equal(row(fore, 2).foreAftFt, 59);
+  const wide = formationRows(four({ 2: { yFt: 6039 } }), settings);
+  assert.deepEqual(row(wide, 2).labels, ['ON SPACING']);
+  assert.equal(row(wide, 2).intervalFt, 6039);
+});
+
+test('N4: real errors are still flagged: 300 ft fore, 7,000 ft out, 5,000 ft in and an aft wingman', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: 300 } }), settings), 2).labels, ['FORE']);
+  assert.deepEqual(row(formationRows(four({ 3: { yFt: -7000 } }), settings), 3).labels, ['WIDE']);
+  assert.deepEqual(row(formationRows(four({ 2: { yFt: 3900 } }), settings), 2).labels, ['TIGHT']);
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: -1200 } }), settings), 2).labels, ['AFT']);
+  // Only a hair past the band's edge is excused: a standard edited to want 6,500 ft still calls 6,000 ft TIGHT.
+  const tightened = { ...DEFAULT_STANDARDS, spread: { ...DEFAULT_STANDARDS.spread, minFt: 6500, maxFt: 9000 } };
+  assert.deepEqual(row(formationRows(four(), settings, tightened), 2).labels, ['TIGHT']);
+  // Inside the standard's band it stays ON SPACING.
+  assert.deepEqual(row(formationRows(four({ 2: { yFt: 4500 } }), settings), 2).labels, ['ON SPACING']);
+});
+
+test('N4: the FORE tolerance is 1 degree of the standard\'s own FORE edge, not of the 3/9 line', () => {
+  const settings = { ...SETTINGS, spacingFt: 6000 };
+  const std = (over) => ({ ...DEFAULT_STANDARDS, spread: { ...DEFAULT_STANDARDS.spread, ...over } });
+  // About 1.2 degrees ahead (+130 ft at 6,000 ft) is FORE with the default standard.
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: 130 } }), settings), 2).labels, ['FORE']);
+  // A standard that wants 5 degrees aft: abreast, and 3 degrees aft (6,000 ft interval, 314 ft back), are FORE.
+  assert.deepEqual(row(formationRows(four(), settings, std({ sweepMinDeg: 5 })), 2).labels, ['FORE']);
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: -314 } }), settings, std({ sweepMinDeg: 5 })), 2).labels, ['FORE']);
+  // ... and 4.5 degrees aft is within a degree of that edge.
+  assert.deepEqual(row(formationRows(four({ 2: { xFt: -472 } }), settings, std({ sweepMinDeg: 5 })), 2).labels, ['ON SPACING']);
+  // A fixed fore/aft standard (V6's kind) allows 50 ft. At 1,000 ft abreast one degree is 17 ft: 90 ft ahead is FORE, 60 ft is not.
+  const v6 = { ...DEFAULT_STANDARDS, spread: { on: true, minFt: 0, maxFt: 99999, foreAftTolFt: 50 } };
+  const close = (xFt) => formationRows(four({ 2: { xFt, yFt: 1000 } }), { ...settings, spacingFt: 1000 }, v6);
+  assert.deepEqual(row(close(90), 2).labels, ['FORE']);
+  assert.deepEqual(row(close(60), 2).labels, ['ON SPACING']);
 });

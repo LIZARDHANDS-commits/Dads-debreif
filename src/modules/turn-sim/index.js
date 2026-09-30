@@ -12,9 +12,9 @@ import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { availableG } from '../../core/t6-performance.js';
-import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, migrateSettings } from './settings.js';
+import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_TURN_DEG, turnProblem, migrateSettings } from './settings.js';
 import { createRun } from './engine/run.js';
-import { readoutsAt, formationRows, mapLabel, turnNumbers, TURN_DEGREES } from './readouts.js';
+import { readoutsAt, formationRows, mapLabel, turnNumbers } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
 import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
 import { createView3d, turnSign } from './view3d.js';
@@ -72,6 +72,8 @@ function mount(root, app) {
   let stopFrames = null;
   let userMoved = false; // the person moved the view, so a setup change doesn't refit it
   let lastManeuver = scenario.get().maneuver;
+  let lastFormation = scenario.get().formation;
+  const TURN_SWITCHED_NOTE = 'Shackle and Cross turn are two-ship only, so this is now a Delayed 90.';
   let wantView = '2d'; // the view the person asked for last
 
   const state = () => run.state; // one live object, updated in place
@@ -161,7 +163,7 @@ function mount(root, app) {
     }
     if (!result.ok) {
       if (result.reason === 'closed') return;
-      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.'); // 'load' is a failed download
       keepNote = true;
       layout.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
       keepNote = false;
@@ -300,11 +302,22 @@ function mount(root, app) {
 
   // Any setup change stops the run and goes back to t = 0 with the new plan (#31). Layers and speed don't.
   const stopScenario = scenario.subscribe((values) => {
+    // Picking a four-ship formation while Shackle or Cross turn is chosen moves the menu to the default turn for good
+    // (the stored setting too), and says so, rather than keeping a turn the formation cannot fly.
+    if (turnProblem(values.formation, values.maneuver)) {
+      lastManeuver = DEFAULTS.maneuver;
+      lastFormation = values.formation;
+      ui.setTurnSwitched(TURN_SWITCHED_NOTE);
+      scenario.update({ maneuver: DEFAULTS.maneuver, turnDeg: MANEUVER_TURN_DEG[DEFAULTS.maneuver] }); // comes back here
+      return;
+    }
+    if (values.formation !== lastFormation || values.maneuver !== lastManeuver) ui.setTurnSwitched(null);
+    lastFormation = values.formation;
     // Turn degrees follow the turn, as V6's boxes fill them in when the turn changes (line 2030).
     if (values.maneuver !== lastManeuver) {
       lastManeuver = values.maneuver;
-      if (values.turnDeg !== TURN_DEGREES[values.maneuver]) {
-        scenario.update({ turnDeg: TURN_DEGREES[values.maneuver] }); // comes back here, and does the reset
+      if (values.turnDeg !== MANEUVER_TURN_DEG[values.maneuver]) {
+        scenario.update({ turnDeg: MANEUVER_TURN_DEG[values.maneuver] }); // comes back here, and does the reset
         return;
       }
     }

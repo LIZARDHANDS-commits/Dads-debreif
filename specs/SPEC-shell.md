@@ -90,7 +90,7 @@ Opening a route: the shell unmounts the current module (calls its cleanup, dispo
 index.html               the page: header, main view, footer; loads src/app.js
 src/app.js               entry: creates store, settings, scheduler, host; starts the router
 src/shell/registry.js    the module list (ids, titles, card text and media, load())
-src/shell/router.js      parses the hash into a route
+src/shell/router.js      parses the hash into a route; pageFor picks the page and the note ("coming soon", "no page")
 src/shell/host.js        mounts and unmounts modules, builds the app object
 src/shell/home.js        home screen and cards
 src/shell/about.js       About page
@@ -114,11 +114,11 @@ Unit (`tests/unit/shell/`, Node):
 - Home cards: `cardBadge` gives "Coming soon" until a module is hooked in, then "PROTOTYPE" while its registry entry has `prototype: true` (D135), then nothing; only turn-sim, turn-fight, traffic and sof carry the flag.
 - Host, with a fake module that starts frames, timers, listeners, shortcuts and a settings subscription: after unmount, all are gone and `scheduler.stats()` is zero (R4). A module whose `mount` throws leaves the host usable.
 
-Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
+Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7, and on any request to another site that has no stub in `fixtures.js` or the spec; the failure names the URL. `PW_PORT` picks the preview port so two checkouts can test at once):
 
 - Smoke (R1): home, About, Settings and every route open in Chromium, Firefox and WebKit.
 - Accessibility (D142): axe checks for WCAG 2.0 A and AA on home, About, the Settings dialog and the Debrief Viewer (empty, and with the example flight); each module route is added as it is hooked into the registry. Known problems in another thread's files are excluded by selector with a `TODO(owner)` comment, never by turning a rule off.
-- Overlap scan (R2): at 1280 × 800, 1366 × 768 and 1920 × 1080, no visible control overlaps another or is cut off, on every route. 1280 px is the smallest supported width (D183); narrower windows may scroll sideways.
+- Overlap scan (R2): at 1280 × 800, 1366 × 768 and 1920 × 1080, no visible control overlaps another or is cut off, on every route. 1280 px is the smallest supported width (D183); narrower windows may scroll sideways. Below 1180 px the shell shows one quiet line under the header, "This tool is laid out for screens 1280 px or wider; some panels may overlap." (D225); it blocks nothing (full-height screens may scroll by that line) and is hidden at 1180 px and wider.
 - Click-through (R3): every visible button and link on every route does something: the route changes, a dialog opens, or the page changes. External links are checked by address instead of being opened.
 - Module switching (R4): after visiting every route and coming back home, no module frames, timers or listeners remain.
 - Storage blocked: the app opens and says settings won't be saved.

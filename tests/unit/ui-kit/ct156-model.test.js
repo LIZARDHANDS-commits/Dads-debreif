@@ -154,6 +154,30 @@ test('dispose is reference-counted: the shared kit is freed only when the last m
   disposeCt156Model(c);
 });
 
+test('once the last model goes, every geometry, material and texture it drew with is freed', () => {
+  const a = createCt156Model(THREE, { color: '#ff0000', number: 1 });
+  const b = createCt156Model(THREE, { color: '#00ff00', number: 2, paint: 'ship' });
+  // Everything the renderer would upload: each mesh's geometry, its materials and
+  // every texture slot on them (map, emissiveMap, envMap ...), shared or per ship.
+  const used = new Set();
+  for (const g of [a, b]) {
+    g.traverse((o) => {
+      if (o.geometry) used.add(o.geometry);
+      for (const m of [].concat(o.material ?? [])) {
+        used.add(m);
+        for (const v of Object.values(m)) if (v?.isTexture) used.add(v);
+      }
+    });
+  }
+  assert.ok([...used].some((o) => o.isTexture && o.mapping === THREE.EquirectangularReflectionMapping), 'the reflection map is among them');
+  const left = new Set(used);
+  for (const o of used) o.addEventListener('dispose', () => left.delete(o));
+  disposeCt156Model(a);
+  disposeCt156Model(b);
+  const names = [...left].map((o) => o.constructor.name);
+  assert.deepEqual(names, [], 'nothing is left behind');
+});
+
 test('disposeCt156Model removes the model from its scene, and disposeAircraftMesh hands a Harvard model to it', () => {
   const scene = new THREE.Scene();
   const a = createCt156Model(THREE, { color: '#ff0000', number: 1 });

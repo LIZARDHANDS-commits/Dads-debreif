@@ -1,6 +1,6 @@
 // Browser tests for ui-kit controls.js and canvas-view.js (SPEC-ui-kit), on a
 // test page that loads them straight from src/.
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
 
@@ -86,19 +86,64 @@ test.describe('controls', () => {
   });
 });
 
+test.describe('controls, guarding an action (TR-14)', () => {
+  const actions = (page) => page.evaluate(() => window.__kit.bubbleActions());
+
+  test('a click waits while the number box it uses refuses what was typed', async ({ page }) => {
+    await open(page);
+    const box = page.getByLabel('Safety bubble');
+    const add = page.getByRole('button', { name: 'Add bubble' });
+    await box.fill('20');
+    await add.click();
+    expect(await actions(page)).toBe(0);
+    await expect(box).toHaveAttribute('aria-invalid', 'true');
+    await expect(add).toHaveAttribute('aria-disabled', 'true');
+    expect(await page.evaluate(() => window.__kit.controls.invalid())).toEqual(['bubbleFt']);
+    await box.fill('300');
+    await expect(add).not.toHaveAttribute('aria-disabled');
+    await add.click();
+    expect(await actions(page)).toBe(1);
+  });
+
+  test('from the keyboard too: Tab to the button and press Space', async ({ page }) => {
+    await open(page);
+    const box = page.getByLabel('Safety bubble');
+    const add = page.getByRole('button', { name: 'Add bubble' });
+    await box.fill('20');
+    await add.focus();
+    await page.keyboard.press('Space');
+    await page.keyboard.press('Enter');
+    expect(await actions(page)).toBe(0);
+    await expect(add).toHaveAttribute('aria-disabled', 'true');
+    await expect(add).toBeFocused();
+  });
+});
+
 test.describe('controls, turned off', () => {
   test('setDisabled greys out a control and keeps its setting', async ({ page }) => {
     await open(page);
     await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', true); window.__kit.controls.setDisabled('view', true); });
     await expect(page.getByLabel('Safety bubble')).toBeDisabled();
     await expect(page.getByRole('radio', { name: '3D' })).toBeDisabled();
+    // The wrapper says so too, so the dimmed label and unit count as inactive text.
+    await expect(page.locator('.control', { has: page.getByLabel('Safety bubble') })).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('group', { name: 'View' })).toHaveAttribute('aria-disabled', 'true');
     await page.getByRole('radio', { name: '3D' }).click({ force: true });
     expect(await setting(page, 'view')).toBe('2d');
     expect(await setting(page, 'bubbleFt')).toBe(1000);
     await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', false); window.__kit.controls.setDisabled('view', false); });
     await expect(page.getByLabel('Safety bubble')).toBeEnabled();
+    await expect(page.locator('.control', { has: page.getByLabel('Safety bubble') })).not.toHaveAttribute('aria-disabled');
+    await expect(page.getByRole('group', { name: 'View' })).not.toHaveAttribute('aria-disabled');
     await page.getByRole('radio', { name: '3D' }).check();
     expect(await setting(page, 'view')).toBe('3d');
+  });
+
+  test('turned-off controls and their dimmed text pass the contrast check', async ({ page }) => {
+    await open(page);
+    await page.evaluate(() => { window.__kit.controls.setDisabled('bubbleFt', true); window.__kit.controls.setDisabled('view', true); });
+    await expect(page.getByLabel('Safety bubble')).toBeDisabled();
+    await expectNoA11yViolations(page);
   });
 });
 
@@ -286,5 +331,24 @@ test.describe('canvas view on a high-density screen', () => {
     expect(cssWidth).toBeLessThan(600);
     await expect.poll(() => page.evaluate(() => window.__kit.view.size.width)).toBe(cssWidth);
     expect(await page.evaluate(() => document.getElementById('map').width)).toBe(Math.round(cssWidth * ratio));
+  });
+});
+
+// ct156-model.js on a real WebGL renderer (tests/e2e/pages/ct156.html). Once three.js has
+// drawn a shiny, reflective material it keeps a lookup table and its reflection-map
+// converter, so the page takes its baseline after one Harvard has come and gone.
+test.describe('Harvard model memory', () => {
+  test('disposing the models returns the renderer to the baseline, round after round', async ({ page }) => {
+    await page.goto(`${site.url}tests/e2e/pages/ct156.html`);
+    await page.waitForFunction(() => window.__ct156, null, { timeout: 30_000 });
+    const { error, baseline, rounds } = await page.evaluate(() => window.__ct156);
+    expect(error).toBeUndefined();
+    expect(rounds).toHaveLength(3);
+    for (const { shown, after, inScene } of rounds) {
+      expect(shown.textures).toBeGreaterThan(baseline.textures); // the ships were really drawn
+      expect(shown.geometries).toBeGreaterThan(baseline.geometries);
+      expect(after).toEqual(baseline); // nothing left over, so nothing for a module to sweep
+      expect(inScene).toBe(0);
+    }
   });
 });

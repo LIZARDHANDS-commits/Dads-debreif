@@ -12,6 +12,7 @@
 import { KT_TO_FTPS, FT_PER_NM } from '../../core/units.js';
 import { limitG, turnRadiusFt, turnRateRadPerSec } from '../../core/flight-math.js';
 import { wrapPi, absAngleDeg, headingRad, degToRad, radToDeg } from '../../core/angles.js';
+import { START_DEFAULTS, startGeometry, turnDirections, isHeadOn } from './geometry.js';
 
 /**
  * The fight moves in whole steps of this many seconds (V6's largest step,
@@ -49,6 +50,9 @@ export const V6_DEFAULT_SETUP = Object.freeze({
   bluePitchDeg: 0,
   redPitchDeg: 0,
 });
+
+// The start geometry's own defaults and helpers live in geometry.js (R28).
+export { START_DEFAULTS };
 
 /**
  * One aircraft's level turn at a speed and G (V6 `M`, line 4237): the G is
@@ -153,7 +157,7 @@ function need(ok, what, value) {
  * ground-plane angle. It is kept as `state.v6OffNose`.
  */
 export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {}) {
-  const s = { ...V6_DEFAULT_SETUP, ...setup };
+  const s = { ...V6_DEFAULT_SETUP, ...START_DEFAULTS, ...setup };
   need(s.circles === 1 || s.circles === 2, 'circles is 1 or 2', s.circles);
   need(Number.isFinite(s.separationNm) && s.separationNm > 0, 'separationNm is above 0', s.separationNm);
   need(Number.isFinite(s.blueKt) && s.blueKt > 0, 'blueKt is above 0', s.blueKt);
@@ -162,23 +166,53 @@ export function createFight({ v6Start = false, v6OffNose = false, ...setup } = {
   need(Number.isFinite(s.redG), 'redG is a number', s.redG);
   need(Number.isFinite(s.bluePitchDeg), 'bluePitchDeg is a number', s.bluePitchDeg);
   need(Number.isFinite(s.redPitchDeg), 'redPitchDeg is a number', s.redPitchDeg);
-  const separationFt = s.separationNm * FT_PER_NM;
-  const closingKt = s.blueKt + s.redKt;
-  const blueStartFt = v6Start ? -separationFt / 2 : (-s.blueKt / closingKt) * separationFt;
-  const redStartFt = v6Start ? separationFt / 2 : (s.redKt / closingKt) * separationFt;
-  return {
-    setup: { ...s, chase: !!s.chase, vertical: !!s.vertical },
+  need(Number.isFinite(s.startAtaDeg) && s.startAtaDeg >= 0 && s.startAtaDeg <= 180, 'startAtaDeg is 0 to 180', s.startAtaDeg);
+  need(Number.isFinite(s.startAaDeg) && s.startAaDeg >= 0 && s.startAaDeg <= 180, 'startAaDeg is 0 to 180', s.startAaDeg);
+  need(s.startAtaSide === 'left' || s.startAtaSide === 'right', "startAtaSide is 'left' or 'right'", s.startAtaSide);
+  need(s.startAaSide === 'left' || s.startAaSide === 'right', "startAaSide is 'left' or 'right'", s.startAaSide);
+  need(s.turnsAt === 'pass' || s.turnsAt === 'once', "turnsAt is 'pass' or 'once'", s.turnsAt);
+  need(Number.isFinite(s.redAboveFt), 'redAboveFt is a number', s.redAboveFt);
+  const geometry = startGeometry(s);
+  const headOn = isHeadOn(s);
+  const vertical = !!s.vertical;
+  let blue = geometry.blue, red = geometry.red, passSec = geometry.passSec, closing = geometry.closing;
+  if (headOn && (s.turnsAt === 'pass' || v6Start)) {
+    // V6's own start, in V6's own arithmetic (the golden test pins it bit for bit); the general placement agrees to a billionth of a foot.
+    const separationFt = s.separationNm * FT_PER_NM;
+    const closingKt = s.blueKt + s.redKt;
+    blue = { xFt: v6Start ? -separationFt / 2 : (-s.blueKt / closingKt) * separationFt, yFt: 0, headingRad: 0 };
+    red = { xFt: v6Start ? separationFt / 2 : (s.redKt / closingKt) * separationFt, yFt: 0, headingRad: Math.PI };
+    passSec = mergeTimeSec(s.separationNm, s.blueKt, s.redKt);
+    closing = true;
+  }
+  // The turns start at the pass, or at T+0 when asked or when the range is not closing (nothing to fly to).
+  const turnsNow = s.turnsAt === 'once' || !closing || passSec >= FIGHT_MAX_SEC;
+  const redZFt = vertical ? s.redAboveFt : 0;
+  const state = {
+    setup: { ...s, chase: !!s.chase, vertical },
     perf: { blue: levelTurn(s.blueKt, s.blueG), red: levelTurn(s.redKt, s.redG) },
-    mergeSec: mergeTimeSec(s.separationNm, s.blueKt, s.redKt),
+    mergeSec: turnsNow ? 0 : passSec,
     timeSec: 0,
-    merged: false,
+    merged: turnsNow,
+    // Whether the jets meet at the centre: the MERGE mark, and the snap of a head-on merge to the centre.
+    mergeMark: !turnsNow,
+    headOn,
     stopped: false,
     carrySec: 0,
     v6OffNose: !!v6OffNose,
     firstNose: null,
-    blue: { xFt: blueStartFt, yFt: 0, zFt: 0, headingRad: 0, pitchRad: 0 },
-    red: { xFt: redStartFt, yFt: 0, zFt: 0, headingRad: Math.PI, pitchRad: 0 },
+    start: { hcaDeg: geometry.hcaDeg, passSec: closing ? passSec : 0, closing, passRangeFt: geometry.passRangeFt },
+    startZFt: { blue: 0, red: redZFt },
+    turnDir: turnDirections(s, geometry),
+    blue: { xFt: blue.xFt, yFt: blue.yFt, zFt: 0, headingRad: blue.headingRad, pitchRad: 0 },
+    red: { xFt: red.xFt, yFt: red.yFt, zFt: redZFt, headingRad: red.headingRad, pitchRad: 0 },
   };
+  if (turnsNow && vertical) {
+    state.blue.pitchRad = degToRad(s.bluePitchDeg);
+    state.red.pitchRad = degToRad(s.redPitchDeg);
+  }
+  if (turnsNow) checkNoseAtStart(state);
+  return state;
 }
 
 /**
@@ -205,21 +239,58 @@ function fly(p, perf, d, vertical) {
  */
 function checkFirstNose(state) {
   if (!state.merged || state.firstNose) return;
-  const blueOff = ataDeg(state, state.blue, state.red);
-  const redOff = ataDeg(state, state.red, state.blue);
-  if (blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG) {
-    const both = blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG;
-    const byBlue = both || blueOff <= FIRST_NOSE_DEG;
-    const by = byBlue ? 'blue' : 'red';
-    const other = byBlue ? 'red' : 'blue';
-    state.firstNose = {
-      by,
-      both,
-      timeSec: state.timeSec,
-      from: { xFt: state[by].xFt, yFt: state[by].yFt },
-      to: { xFt: state[other].xFt, yFt: state[other].yFt },
-    };
+  markFirstNose(state, ataDeg(state, state.blue, state.red), ataDeg(state, state.red, state.blue));
+}
+
+/** Marks first nose-on from the two off-nose angles when either is within FIRST_NOSE_DEG (both: a tie, Q48). */
+function markFirstNose(state, blueOff, redOff) {
+  if (!(blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG)) return;
+  const both = blueOff <= FIRST_NOSE_DEG && redOff <= FIRST_NOSE_DEG;
+  const byBlue = both || blueOff <= FIRST_NOSE_DEG;
+  const by = byBlue ? 'blue' : 'red';
+  const other = byBlue ? 'red' : 'blue';
+  state.firstNose = {
+    by,
+    both,
+    timeSec: state.timeSec,
+    from: { xFt: state[by].xFt, yFt: state[by].yFt },
+    to: { xFt: state[other].xFt, yFt: state[other].yFt },
+  };
+}
+
+/** Rounding noise in an off-nose angle at the start (degrees): 5° less this counts as within 5°. */
+const NOSE_EPS_DEG = 1e-9;
+
+/** Closer than this (feet, straight line) at the moment the turns start, the jets are at one point and their line of sight is noise. */
+export const COINCIDENT_FT = 10;
+
+/**
+ * First nose-on at the moment the turns start (TF3-3), for a start that is not head-on: a jet whose
+ * off-nose angle is already within FIRST_NOSE_DEG counts at +0.0 s (Both if both), as in a stern chase,
+ * where Blue has had Red on its nose the whole way. The head-on start is left alone, so V6's fight and
+ * a head-on start with the turns at once are as they were. If the jets are within COINCIDENT_FT of each
+ * other (a stern chase passes exactly through), the line of sight is the one from just before they
+ * coincide: along the relative velocity, which straight flight makes exact.
+ */
+function checkNoseAtStart(state) {
+  if (state.headOn || state.firstNose) return;
+  const { blue, red, perf } = state;
+  let blueOff, redOff;
+  if (rangeFt(state) >= COINCIDENT_FT) {
+    blueOff = ataDeg(state, blue, red);
+    redOff = ataDeg(state, red, blue);
+  } else {
+    const dx = perf.blue.speedFtps * Math.cos(blue.headingRad) - perf.red.speedFtps * Math.cos(red.headingRad);
+    const dy = perf.blue.speedFtps * Math.sin(blue.headingRad) - perf.red.speedFtps * Math.sin(red.headingRad);
+    const length = Math.hypot(dx, dy);
+    if (!(length > 0)) return;
+    // Before the pass Red is ahead of Blue along (dx, dy), and Blue ahead of Red along the opposite.
+    const toward = (p, sign) => ({ ...p, xFt: p.xFt + (sign * dx / length) * 100, yFt: p.yFt + (sign * dy / length) * 100 });
+    blueOff = ataDeg(state, blue, toward(blue, 1));
+    redOff = ataDeg(state, red, toward(red, -1));
   }
+  // An angle within rounding noise of 5° counts as within it, so a start and its mirror image agree.
+  markFirstNose(state, blueOff - NOSE_EPS_DEG, redOff - NOSE_EPS_DEG);
 }
 
 /**
@@ -263,13 +334,14 @@ function stepOnce(state) {
       state.timeSec += d; r -= d;
       if (state.timeSec >= state.mergeSec - 1e-6) {
         state.merged = true;
-        blue.xFt = 0; blue.yFt = 0; red.xFt = 0; red.yFt = 0;
+        if (state.headOn) { blue.xFt = 0; blue.yFt = 0; red.xFt = 0; red.yFt = 0; }
         if (vertical) {
           blue.pitchRad = degToRad(setup.bluePitchDeg);
           red.pitchRad = degToRad(setup.redPitchDeg);
         } else {
           blue.pitchRad = 0; red.pitchRad = 0;
         }
+        checkNoseAtStart(state);
       }
     } else {
       const oneCircle = setup.circles === 1;
@@ -279,8 +351,10 @@ function stepOnce(state) {
         chaseOther(state[second], state[first], perf[second].rateRadPerSec, d, vertical);
       } else {
         // Blue turns counter-clockwise; Red the same way in a 2-circle fight, the other way in a 1-circle fight.
-        blue.headingRad += perf.blue.rateRadPerSec * d;
-        red.headingRad += (oneCircle ? -1 : 1) * perf.red.rateRadPerSec * d;
+        // (Each turns toward the other: +1 is left. At head-on that is V6's way, Blue and Red both left.)
+        const { turnDir } = state;
+        blue.headingRad += turnDir.blue * perf.blue.rateRadPerSec * d;
+        red.headingRad += (oneCircle ? -turnDir.red : turnDir.red) * perf.red.rateRadPerSec * d;
       }
       fly(blue, perf.blue, d, vertical);
       fly(red, perf.red, d, vertical);

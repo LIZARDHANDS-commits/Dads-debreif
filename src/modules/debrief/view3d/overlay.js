@@ -28,7 +28,8 @@ export function outlined(ctx, text, x, y, color) {
 export const attitudeText = (s) => {
   const bank = Math.round(Math.abs(s.bankDeg));
   const pitch = Math.round(s.pitchDeg);
-  return `bank ${bank}°${bank ? (s.bankDeg > 0 ? ' L' : ' R') : ''}, pitch ${pitch > 0 ? '+' : ''}${pitch}°`;
+  const bankWords = s.bankKnown === false ? 'bank --' : `bank ${bank}°${bank ? (s.bankDeg > 0 ? ' L' : ' R') : ''}`;
+  return `${bankWords}, pitch ${pitch > 0 ? '+' : ''}${pitch}°`;
 };
 
 // A ship's height above the datum, beside the middle of its stick (#26).

@@ -7,10 +7,12 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
+import { turnProblem, TWO_SHIP_ONLY_TURNS } from './settings.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
-  buildField, errorFields, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
+  buildField, errorFields, clockAutoLabel, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
+  REAR_DELAY, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
   CLOCK_POS, CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL, TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
 } from './fields.js';
 
@@ -41,7 +43,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
 });
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */
-export const LAYOUT_ALLOWED = Object.freeze({ view: VIEW_ALLOWED, paint: PAINT_OPTIONS.map((o) => o.value) });
+export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
 const LAYERS_2D = ['lead39', 'turnCircles', 'errorLabels', 'spacingLines', 'clockMarks', 'breadcrumbs', 'crumbSec', 'distNm'];
@@ -65,7 +67,7 @@ function swatch(id) {
  * listen: app.listen, so page-wide listeners end when the Turn Sim closes.
  * say(text): a short spoken-and-shown confirmation (app.status), for buttons whose result isn't on the screen.
  */
-export function createLayout({ scenario, controls, layout, layoutControls, rules, defaults, listen, say = () => {} }) {
+export function createLayout({ scenario, controls, layout, layoutControls, rules, defaults, listen, say = (/** @type {string} */ _text) => {} }) {
   const handlers = {};
   const build = (def, as) => buildField({ controls, rules, defaults, def, as });
   const wrap = (built, extra = '') =>
@@ -91,7 +93,14 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const spacing = field(SPACING);
   const heading = field(START_HEADING);
   const maneuver = field(MANEUVER);
+  // Why some turns are greyed out (settings.js turnProblem), or why the turn asked for was not the one flown (state.maneuverFallback).
+  const turnNote = h('p', { class: 'ts-hint ts-turn-note', role: 'status', hidden: true });
+  let turnFallback = null;
+  let turnSwitched = null; // set when picking a four-ship formation moved the Turn menu off the shackle or cross turn
   const direction = field(DIRECTION, 'choice');
+  // In the cross turn Lead always turns toward #2 whatever the Direction says (SMM 16.19 para 64), so the choice is greyed out.
+  const directionNote = h('p', { class: 'ts-hint ts-direction-note', id: 'ts-direction-note', hidden: true });
+  let leadTurns = null;
   const legHeading = h('p', { class: 'ts-hint ts-leg-heading', hidden: true });
   const speed = field(SPEED);
   const g = field(G);
@@ -99,19 +108,23 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const timing = field(TIMING);
   const baseDelay = field(BASE_DELAY);
   const clockPos = field(CLOCK_POS);
+  // The long-worded lists (Timing, Clock position) take a whole row, their label above, so no text is cut off (N10).
+  clockPos.element?.classList.add('ts-wide');
+  timing.element?.classList.add('ts-wide');
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
-  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, direction, speed, g].map((f) => f.element);
+  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, { element: turnNote }, direction, { element: directionNote }, speed, g].map((f) => f.element);
 
   // ---- Aircraft errors (closed) -------------------------------------------
   const errorKeys = [];
   const positionGroups = new Map(); // wingman id -> { key, element }: the position boxes, shown when it's turned on
+  let lastValues = null;
   const clockGroups = []; // each wingman's own clock cue boxes: shown when Timing is the clock cue
   const errorSections = [2, 3, 4].map((id) => {
     const f = errorFields(id);
     const built = Object.fromEntries(Object.entries(f).map(([name, def]) => [name, build(def)]));
-    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos));
+    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos, ' ts-wide'));
     errorKeys.push(...Object.values(built).filter(Boolean).map((x) => x.key));
     const positionBoxes = h(
       'div',
@@ -136,7 +149,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   );
 
   // ---- Turn Sim settings: every tuning number, in the ui-kit's one closed menu (R22) ----
-  const tuningKeys = [TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH].map((def) => def.key).filter((k) => rules[k]);
+  const tuningKeys = [TURN_DEG, DURATION, DURATION_COVERS, MOA, TWO_SIDE, BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, CORRECTION, CORR_STRENGTH].map((def) => def.key).filter((k) => rules[k]);
   const settingsMenu = createSettingsMenu({
     title: 'Turn Sim settings',
     collapsed: !layout.get().settingsOpen,
@@ -155,8 +168,11 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     for (const def of defs) fieldset.append(...[wrap(build(def))].filter(Boolean));
     groups[id] = fieldset;
   }
-  section('turn', 'Turn and run', [TURN_DEG, DURATION, MOA]);
-  section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING], 'Used when Formation is the offset box.');
+  section('turn', 'Turn and run', [TURN_DEG, DURATION, DURATION_COVERS, MOA]);
+  section('twoSide', 'Line abreast', [TWO_SIDE]);
+  const turnDegInput = groups.turn.querySelector('input[type=number]'); // the first box in Turn and run
+  section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER], 'Used when Formation is the offset box.');
+  section('cross', 'Cross turn', [CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE], 'Used when Turn is the cross turn.');
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
   // The Correction model is a checkbox, off by default (Q41). On, it opens the model (G adjustment first, as it is
   // the one that corrects spacing) and its strength; off is the setting 'none'.
@@ -258,6 +274,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const card = h('ul', { class: 'ts-card', 'aria-label': 'Formation' });
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
+  const crossNote = h('p', { class: 'ts-line ts-cross-note', hidden: true });
   const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
   let lastFlags = null;
   const cueList = h('ul', { class: 'ts-card ts-cues', 'aria-label': 'Clock cue status' });
@@ -265,7 +282,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
   detail.element.classList.add('ts-subpanel', 'ts-detail');
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
-  formationPanel.body.append(card, minSep, turnLine, flags, cueWarning, cueList, detail.element);
+  formationPanel.body.append(card, minSep, turnLine, crossNote, flags, cueWarning, cueList, detail.element);
 
   const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Setup' }, setupPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
@@ -279,13 +296,51 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   );
 
   // Only the fields that apply are shown (#32): the offset box's only with the offset box, and so on.
+  // Shackle and Cross turn are two-ship turns (Patrick 09:28Z): grey them out in the four-ship formations, and say why.
+  function applyTurnChoices(values) {
+    const select = maneuver.built?.control.querySelector('select');
+    if (select) {
+      Array.from(select.options).forEach((option, i) => {
+        const value = rules.maneuver.oneOf[i];
+        option.disabled = TWO_SHIP_ONLY_TURNS.includes(value) && turnProblem(values.formation, value) !== null;
+      });
+    }
+    const why = turnSwitched ?? turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
+    turnNote.textContent = why ?? '';
+    turnNote.hidden = !why;
+  }
+
+  function applyDirection(values) {
+    const cross = values.maneuver === 'cross180';
+    const shackle = values.maneuver === 'shackle45';
+    controls.setDisabled('direction', cross || shackle);
+    directionNote.textContent = cross
+      ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.`
+      : shackle ? 'Both turn toward each other; direction doesn\'t apply.' : '';
+    directionNote.hidden = !(cross || shackle);
+    // The greyed-out Direction says why to a screen reader too.
+    const fieldset = direction.built?.control;
+    if (cross || shackle) fieldset?.setAttribute('aria-describedby', directionNote.id);
+    else fieldset?.removeAttribute('aria-describedby');
+  }
+
   function applyScenario(values) {
+    lastValues = values;
+    applyDirection(values);
+    applyTurnChoices(values);
     if (baseDelay.element) baseDelay.element.hidden = values.timing !== 'time';
     clockPos.element.hidden = values.timing !== 'clock';
     autoNote.hidden = values.timing !== 'auto';
     groups.clock.hidden = values.timing !== 'clock';
+    // Auto's words follow the turn (N7): the Delayed 45 rolls out on 4:30 and 7:30.
+    for (const option of [clockPos.element, ...clockGroups].flatMap((el) => [...(el?.querySelectorAll('option') ?? [])])) {
+      if (option.textContent.startsWith('Auto (')) option.textContent = clockAutoLabel(values.maneuver); // option values are indexes, so find it by its words
+    }
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
+    groups.cross.hidden = values.maneuver !== 'cross180';
+    groups.twoSide.hidden = values.formation !== 'weighted' && values.formation !== 'weightedReverse'; // it only mirrors 4312 and 2134
+    if (turnDegInput) turnDegInput.max = values.maneuver === 'check30' ? '30' : '180'; // the check turn is 30 degrees or less (SMM 16.19 para 58)
     correctionOn.checked = values.correction !== 'none';
     for (const el of correctionBoxes) el.hidden = values.correction === 'none';
     // A two-ship has no #3 or #4 to give errors to, and position boxes show when the position error is on.
@@ -327,6 +382,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       note3d.textContent = text ?? '';
       note3d.hidden = !text;
     },
+    /** The note that says the Turn menu was moved to the default turn (text), or null to drop it. */
+    setTurnSwitched(text) {
+      turnSwitched = text ?? null;
+    },
     applyScenario,
     applyLayout,
     /** The Play button shows what pressing it will do. */
@@ -359,6 +418,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       minSep.textContent = r.minSepText ?? '';
       minSep.hidden = !r.minSepText;
       turnLine.textContent = r.turnText;
+      crossNote.textContent = r.crossNote?.text ?? '';
+      crossNote.hidden = !r.crossNote;
+      crossNote.classList.toggle('is-clamped', Boolean(r.crossNote?.clamped));
       // The flags are a live region: rebuild only when they change, or a screen reader says them again on every refresh.
       const flagKey = r.flags.join('|');
       if (flagKey !== lastFlags) {
@@ -367,6 +429,14 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
         for (const text of r.flags) flags.append(h('li', {}, text));
       }
       flags.hidden = r.flags.length === 0;
+      if ((r.maneuverFallback ?? null) !== turnFallback) {
+        turnFallback = r.maneuverFallback ?? null;
+        if (lastValues) applyTurnChoices(lastValues);
+      }
+      if ((r.leadTurnDirection ?? null) !== leadTurns) {
+        leadTurns = r.leadTurnDirection ?? null;
+        if (lastValues) applyDirection(lastValues);
+      }
       clear(cueList);
       for (const { id, text } of r.cue.lines) cueList.append(line(id, { text, tone: 'none' }));
       cueList.hidden = r.cue.lines.length === 0;
@@ -378,6 +448,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       detail.body.append(
         h('h3', {}, 'Spacing'),
         h('ul', { class: 'ts-lines' }, r.pairTexts.map((t) => h('li', {}, t))),
+        ...(r.offsetBand
+          ? [h('h3', {}, 'Offset box delay'), h('ul', { class: 'ts-lines' }, r.offsetBand.map((b) => h('li', { class: b.outside ? 'tone-caution' : '' }, `#${b.id} ${b.text}`)))]
+          : []),
         h('h3', {}, 'Each wingman'),
         h('ul', { class: 'ts-lines' }, r.wingmen.map((t) => h('li', {}, t))),
         h('h3', {}, 'Summary'),

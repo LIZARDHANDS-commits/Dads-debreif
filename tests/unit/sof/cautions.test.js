@@ -487,7 +487,7 @@ test('with no waves planned a TEMPO TSRA at home still raises a caution', () => 
   assert.equal(evaluate({ tafs, ...ctx() }).fresh.length, list.length);
 });
 
-test('the day check takes only wx\'s cautions: below-limit TAF pieces stay tied to the waves', () => {
+test('without a home given, the day check takes only wx\'s cautions: below-limit TAF pieces stay tied to the waves', () => {
   const tafs = tafCautionsForBanner({ tafs: { CYMJ: homeTaf(HOME_TAF.lowFromEvening), CYQR: homeTaf(ALT_TAF.fog) }, ...ctx() });
   const list = cautionList({ tafs });
   assert.deepEqual(list.map((c) => [c.icao, c.level, c.reason]), [['CYQR', 'caution', 'SIGNIFICANT WX (FG)']], 'the fog is a caution; the low ceiling and visibility are not raised');
@@ -642,4 +642,34 @@ test('just after local midnight the window still reaches back across it: 00:30 l
   const raw = 'TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO 2905/2906 3SM TSRA BKN030CB';
   const shown = cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }), notEndedBefore: bannerNotEndedBefore(now) });
   assert.equal(shown.length > 0, true, 'ended 30 min ago, before local midnight');
+});
+
+// ---- R3: the home forecast below the home limits is on the banner with no wave entered --------------------------
+
+const HOME = { icao: 'CYMJ', limits: { ceilingFt: 2000, visSm: 3 } };
+
+test('with the home field given, a forecast below its limits in the window is a banner line with no waves; alternates stay tied to waves', () => {
+  const tafs = tafCautionsForBanner({ tafs: { CYMJ: homeTaf(HOME_TAF.lowFromEvening), CYQR: homeTaf(ALT_TAF.ceiling700) }, home: HOME, ...ctx() });
+  const list = cautionList({ tafs });
+  const below = list.filter((c) => c.level === 'below');
+  assert.ok(below.length >= 1);
+  assert.ok(below.every((c) => c.icao === 'CYMJ' && c.source === 'TAF'));
+  assert.ok(below.some((c) => /^CEILING 800 FT < 2000 FT/.test(c.reason)));
+  assert.equal(list.some((c) => c.icao === 'CYQR' && c.level === 'below'), false);
+  assert.equal(evaluate({ tafs, ...ctx() }).fresh.length, list.length);
+});
+
+test('a home forecast below the limits that ended more than an hour ago is cut, like the cautions', () => {
+  const raw = 'TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO 2913/2915 1SM BR OVC003';
+  const shown = (now) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, home: HOME, ...ctx(now) }), notEndedBefore: bannerNotEndedBefore(now) }).filter((c) => c.level === 'below').length > 0;
+  assert.equal(shown(at(29, 14, 30)), true, 'in progress');
+  assert.equal(shown(at(29, 15, 30)), true, 'ended 30 min ago');
+  assert.equal(shown(at(29, 18, 30)), false, 'ended hours ago');
+});
+
+test('the home limits are the ones given: 2500 ft is below Cross-country 3000 and not Local 2000', () => {
+  const raw = 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM BKN025';
+  const n = (limits) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, home: { icao: 'CYMJ', limits }, ...ctx() }) }).filter((c) => c.level === 'below').length;
+  assert.equal(n({ ceilingFt: 2000, visSm: 3 }), 0);
+  assert.ok(n({ ceilingFt: 3000, visSm: 3 }) > 0);
 });

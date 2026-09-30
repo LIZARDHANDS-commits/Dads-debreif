@@ -5,18 +5,26 @@
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import { timeText, phaseText, resultRows, moreDetailRows } from './readouts.js';
+import { timeText, phaseText, resultRows, moreDetailRows, geometryRows } from './readouts.js';
 import { DEFAULTS, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults } from './state.js';
+import { START_DEFAULTS } from './geometry.js';
 import { createRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
-import { createTopDownView } from './view.js';
+import { createTopDownView, createStartPictureView } from './view.js';
 import { createProfileView } from './profile.js';
+import { createView3d } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
 
 /** Readouts update at most this far apart while playing (SPEC-turn-fight, "Readouts"), and at once for a reset or a pause. */
 const READOUT_MS = 100;
 
+// Why 3D did not start, by the reason view3d's start() gives.
+const MESSAGES_3D = Object.freeze({
+  gl: '3D needs WebGL, which this browser does not have.',
+  gl2: '3D needs WebGL 2, which this browser does not have.',
+  load: '3D needs a connection the first time.',
+});
 const STOPPED_TEXT = 'Fight stopped at 10 minutes. Reset to fly it again.';
 
 function mount(root, app) {
@@ -53,8 +61,13 @@ function mount(root, app) {
   let stopFrames = null;
   let lastReadout = -Infinity;
   let pendingReadout = null;
-  const views = []; // everything that draws the fight: { requestDraw, dispose }
-  const redraw = () => views.forEach((view) => view.requestDraw());
+  const views = []; // the 2D pictures, which draw the fight: { requestDraw, dispose }
+  let shown = '2d'; // the picture on screen; the `view` setting is what the person asked for
+  let wantView = settings.get().view;
+  let keepNote = false;
+  let switching = 0; // counts switches, so a late three.js load can't undo a later choice
+  // Whichever picture is showing draws; the other draws nothing and holds nothing.
+  const redraw = () => (shown === '3d' ? view3d.requestDraw() : views.forEach((view) => view.requestDraw()));
 
   const ui = createLayout({
     settings,
@@ -67,17 +80,67 @@ function mount(root, app) {
         showSettingsInBoxes();
         resetFight();
       },
+      // Start geometry's own reset (R28): head-on, level, the turns at the pass.
+      headOn() {
+        settings.update({ ...START_DEFAULTS });
+        showSettingsInBoxes();
+      },
       moreToggled: (open) => open && renderReadouts(),
+      cameraView: (name) => view3d.setView(name),
     },
   });
   root.append(ui.element);
   views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
+  // The picture in Turn Fight settings, Start geometry: drawn from the set numbers, so it follows them as they change.
+  views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => setupFrom(settings.get()) }));
   // The side view draws only while Climb and dive is on; its panel is hidden (and 0 px) otherwise.
   const profile = createProfileView(ui.profileCanvas, { timers: app.scheduler, run: () => run, scale: () => settings.get().heightScale });
   views.push({
     requestDraw: () => settings.get().vertical && profile.requestDraw(),
     dispose: profile.dispose,
   });
+
+  // The 3D picture reads the same run as the 2D ones. Only the object is made now: three.js loads when 3D is switched on.
+  // If the browser takes its WebGL context away, it has freed everything by the time this runs: show 2D with a note.
+  const view3d = createView3d(ui.canvas3d, {
+    timers: app.scheduler,
+    run: () => run,
+    paint: () => settings.get().paint,
+    onLost: () => stayIn2d('3D stopped (the graphics card was reset); showing 2D.'),
+  });
+
+  // Goes back to 2D and says why. The fight is not touched: it plays on in 2D.
+  function stayIn2d(message) {
+    ui.setNote(message);
+    keepNote = true;
+    settings.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
+    keepNote = false;
+  }
+
+  // Shows 2D, or 3D once three.js has loaded and WebGL has started. Neither touches the fight: no reset, no number changes.
+  async function applyView(want) {
+    const turn = ++switching;
+    if (want !== '3d') {
+      shown = '2d';
+      view3d.stop();
+      ui.showView('2d');
+      if (!keepNote) ui.setNote('');
+      redraw();
+      return;
+    }
+    ui.setNote('Loading 3D…');
+    const result = await view3d.start();
+    if (turn !== switching) return; // a later choice came first, and has dealt with it
+    if (!result.ok) {
+      if (result.reason === 'closed') return;
+      stayIn2d(MESSAGES_3D[result.reason] ?? MESSAGES_3D.load);
+      return;
+    }
+    shown = '3d';
+    ui.showView('3d');
+    ui.setNote('');
+    view3d.requestDraw();
+  }
 
   function renderReadouts() {
     pendingReadout?.();
@@ -88,7 +151,7 @@ function mount(root, app) {
       time: timeText(fight),
       phase: phaseText(fight),
       result: resultRows(fight),
-      more: ui.moreOpen ? moreDetailRows(fight) : null,
+      more: ui.moreOpen ? [...moreDetailRows(fight), ...geometryRows(fight)] : null,
     });
   }
 
@@ -146,6 +209,10 @@ function mount(root, app) {
   const stopSettings = settings.subscribe((values) => {
     ui.applyLayout(values);
     const setup = setupKey(values);
+    if (values.view !== wantView) {
+      wantView = values.view;
+      applyView(wantView);
+    }
     if (setup !== lastSetup) {
       lastSetup = setup;
       resetFight(); // a new fight; playback speed and the height scale never get here (#20)
@@ -154,6 +221,7 @@ function mount(root, app) {
 
   ui.applyLayout(settings.get());
   renderReadouts();
+  if (wantView === '3d') applyView('3d'); // remembered from last time: three.js loads now, as it would on a switch
 
   app.keys({
     Space: () => setPlaying(!playing),
@@ -165,6 +233,7 @@ function mount(root, app) {
     pendingReadout?.();
     stopSettings();
     controls.dispose();
+    view3d.dispose();
     for (const view of views) view.dispose();
     stylesheet.remove();
   };

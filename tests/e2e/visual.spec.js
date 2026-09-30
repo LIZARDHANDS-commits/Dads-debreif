@@ -38,13 +38,21 @@ test.beforeEach(async ({ page, browserName, baseURL }) => {
   await page.clock.pauseAt(NOON_Z);
 });
 
-// Waits for fonts and every image, then compares. The footer's build time
-// changes with every build, so it is masked.
+// Waits for fonts and for every image to be loaded and decoded, then compares.
+// The home cards' stills are loading="lazy" and decoding="async", so "complete"
+// alone could let the shot catch one not yet painted: each is made eager and
+// decode() awaited (it settles once the picture is ready to draw; a broken one
+// is left as broken). No requestAnimationFrame wait: the page clock is paused, so
+// it would never fire. The footer's build time changes with every build, so it
+// is masked.
 async function shot(page, name) {
   await page.addStyleTag({ content: FONTS });
   await page.evaluate(async () => {
     await document.fonts.ready;
-    await Promise.all([...document.images].map((img) => (img.complete ? null : new Promise((done) => { img.onload = img.onerror = done; }))));
+    await Promise.all([...document.images].map((img) => {
+      img.loading = 'eager';
+      return img.decode().catch(() => {});
+    }));
   });
   await expect(page).toHaveScreenshot(name, {
     animations: 'disabled',
@@ -83,6 +91,13 @@ test('debrief, example flight', async ({ page }) => {
   await expect(page.locator('.flight-status')).toHaveText(/^4 tracks loaded/, { timeout: 20_000 });
   await page.clock.runFor(1000); // the frozen clock also holds back the map's animation frames
   await shot(page, 'debrief-example.png');
+});
+
+test('turn sim, ready to play', async ({ page }) => {
+  await openRoute(page, '#/turn-sim');
+  await expect(page.getByRole('button', { name: /^Play/ })).toBeVisible();
+  await page.clock.runFor(1000); // the frozen clock also holds back the picture's animation frames
+  await shot(page, 'turn-sim.png');
 });
 
 // The SOF with the recorded reports sof.spec.js uses, at the time they were

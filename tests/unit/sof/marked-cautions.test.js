@@ -104,3 +104,13 @@ test('the banner\'s signature holds the marked words, so a line whose words chan
   const b = banner('CYQR 291800Z 26005KT 2SM BR BKN004 10/08 A2995');
   assert.ok(b.signature.includes('BKN004'));
 });
+
+test('home\'s own TAF below the home limits, with no wave entered, has marked words on its banner lines', () => {
+  const taf = parseTaf(HOME_TAF.lowFromEvening, { now: NOW });
+  const inputs = tafInputs({ tafs: { CYMJ: taf }, calls: [], homeIcao: 'CYMJ', homeLimits: LIMITS, now: NOW, timeZone: ZONE });
+  const b = buildBanner({ cards: [], tafs: inputs, now: NOW, timeZone: ZONE });
+  const ceiling = b.lines.find((l) => l.level === 'below' && l.text.includes('CEILING'));
+  assert.ok(ceiling, JSON.stringify(b.lines.map((l) => l.text)));
+  assert.deepEqual(ceiling.marks, [{ text: 'OVC008', level: 'below' }]);
+  for (const l of b.lines) assert.ok(Array.isArray(l.marks));
+});

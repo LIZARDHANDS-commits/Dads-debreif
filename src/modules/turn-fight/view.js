@@ -9,7 +9,8 @@
 // a setting changes or the box is resized; a paused fight costs nothing.
 // Units: feet in the fight, CSS pixels on screen.
 import { FT_PER_NM } from '../../core/units.js';
-import { toScreen, visibleBounds, createCanvasSurface } from '../../ui-kit/canvas-view.js';
+import { toScreen, visibleBounds, fitBounds, createCanvasSurface } from '../../ui-kit/canvas-view.js';
+import { startGeometry, passMarkWord } from './geometry.js';
 
 /** V6's picture colours. The same three are in turn-fight.css for the page. */
 export const COLORS = Object.freeze({
@@ -176,7 +177,9 @@ export function drawTopDown(ctx, size, run) {
     ctx.restore();
   }
 
-  // The merge point: where both meet, a small cross with its label below.
+  // The merge point: where both meet (R28: the pass), a small cross with its label below.
+  // Not drawn when the turns start at once or the range is opening, since there is no pass to mark.
+  if (!fight.mergeMark) return;
   const [mx, my] = toScreen(view, size, 0, 0);
   ctx.save();
   ctx.strokeStyle = COLORS.nose;
@@ -190,7 +193,7 @@ export function drawTopDown(ctx, size, run) {
   ctx.fillStyle = COLORS.nose;
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('MERGE', mx + 8, my + 18);
+  ctx.fillText(passMarkWord(fight), mx + 8, my + 18);
   ctx.restore();
 }
 
@@ -202,7 +205,92 @@ export function drawTopDown(ctx, size, run) {
 export function createTopDownView(canvas, { timers, run }) {
   return createCanvasSurface(canvas, {
     timers,
-    label: 'Top-down view of the fight. Blue (B) and Red (R) start head-on and meet at the MERGE mark; the tables beside it give the numbers.',
+    label: 'Top-down view of the fight. Blue (B) and Red (R) fly toward each other and turn at the MERGE or PASS mark, or at once; the tables beside it give the numbers.',
     draw: (ctx, surface) => drawTopDown(ctx, surface.size, run()),
+  });
+}
+
+// ── The start picture (R28) ───────────────────────────────────────────────────
+// A small picture in Turn Fight settings, Start geometry: both jets at T+0 with
+// the straight line each one is flying and the range between them, drawn from the
+// numbers as they change (SPEC-turn-fight, "Show the setup, not just numbers").
+
+/** A flight line in the start picture is this fraction of the range long. */
+const FLIGHT_LINE_OF_RANGE = 0.3;
+const PICTURE_PAD_PX = 24;
+
+/**
+ * Where everything in the start picture goes, in pixels, for a setup (the
+ * range, speeds, ATA and AA with their sides) in a box: both jets, the far end
+ * of each one's flight line, and the scale. The picture fits the box with room
+ * for the arrowheads; north is up, Blue's first heading is to the right.
+ */
+export function startPictureView(setup, size) {
+  const g = startGeometry(setup);
+  const lineFt = setup.separationNm * FT_PER_NM * FLIGHT_LINE_OF_RANGE;
+  const ahead = (p) => ({ x: p.xFt + Math.cos(p.headingRad) * lineFt, y: p.yFt + Math.sin(p.headingRad) * lineFt });
+  const blueAhead = ahead(g.blue), redAhead = ahead(g.red);
+  const xs = [g.blue.xFt, g.red.xFt, blueAhead.x, redAhead.x], ys = [g.blue.yFt, g.red.yFt, blueAhead.y, redAhead.y];
+  const view = fitBounds(
+    { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) },
+    size, PICTURE_PAD_PX,
+  );
+  return {
+    scale: view.scale,
+    blue: toScreen(view, size, g.blue.xFt, g.blue.yFt),
+    red: toScreen(view, size, g.red.xFt, g.red.yFt),
+    blueAhead: toScreen(view, size, blueAhead.x, blueAhead.y),
+    redAhead: toScreen(view, size, redAhead.x, redAhead.y),
+    blueHeadingRad: g.blue.headingRad,
+    redHeadingRad: g.red.headingRad,
+  };
+}
+
+/** Paints the start picture for a setup in a box of `size` CSS pixels (cleared already). */
+export function drawStartPicture(ctx, size, setup) {
+  if (!(size.width > 0 && size.height > 0)) return;
+  const pic = startPictureView(setup, size);
+  const line = (from, to, colour, dash) => {
+    ctx.save();
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(from[0], from[1]);
+    ctx.lineTo(to[0], to[1]);
+    ctx.stroke();
+    ctx.restore();
+  };
+  // The range, then each jet's straight line ahead of it.
+  line(pic.blue, pic.red, COLORS.gridText, [3, 4]);
+  line(pic.blue, pic.blueAhead, COLORS.blue, [6, 4]);
+  line(pic.red, pic.redAhead, COLORS.red, [6, 4]);
+  ctx.save();
+  ctx.fillStyle = COLORS.gridText;
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${setup.separationNm} NM`, (pic.blue[0] + pic.red[0]) / 2, (pic.blue[1] + pic.red[1]) / 2 - 6);
+  ctx.restore();
+  drawArrowhead(ctx, pic.blue, pic.blueHeadingRad, COLORS.blue);
+  drawArrowhead(ctx, pic.red, pic.redHeadingRad, COLORS.red);
+  for (const { at, colour, letter } of [{ at: pic.blue, colour: COLORS.blue, letter: 'B' }, { at: pic.red, colour: COLORS.red, letter: 'R' }]) {
+    ctx.save();
+    ctx.fillStyle = colour;
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(letter, at[0], at[1] - 12);
+    ctx.restore();
+  }
+}
+
+/**
+ * The start picture on a canvas. `setup()` gives the start's numbers now (range,
+ * speeds, ATA, AA); call requestDraw() when any of them changes.
+ */
+export function createStartPictureView(canvas, { timers, setup }) {
+  return createCanvasSurface(canvas, {
+    timers,
+    label: 'Picture of the start: Blue (B) and Red (R) with the way each is flying and the range between them.',
+    draw: (ctx, surface) => drawStartPicture(ctx, surface.size, setup()),
   });
 }

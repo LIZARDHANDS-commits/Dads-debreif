@@ -8,7 +8,7 @@ import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
   T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
-  T6A_MANOEUVRE, shakerG, splitST6A,
+  T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A,
 } from '../../../src/core/t6-performance.js';
 import {
   T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
@@ -56,6 +56,46 @@ test('IAS and TAS through the standard atmosphere: TAS = IAS ÷ √σ', () => {
   near(iasToTasKt(200, 10000), 200 / Math.sqrt(isaDensityRatio(10000)), 1e-12, '10,000 ft');
   near(iasToTasKt(200, 10000), 232.7, 0.1, 'about 16 % faster at 10,000 ft');
   for (const alt of [0, 3500, 10000, 20000, 31000]) near(tasToIasKt(iasToTasKt(173, alt), alt), 173, 1e-12, `round trip at ${alt} ft`);
+});
+
+test('the Mach limit: Mmo 0.67 (NFM Fig 5-3, p.5-9), and the other limits unchanged', () => {
+  assert.equal(T6A_LIMITS.mmo, 0.67);
+  assert.deepEqual(
+    { maxG: T6A_LIMITS.maxG, minG: T6A_LIMITS.minG, stallKias: T6A_LIMITS.stallKias, voKias: T6A_LIMITS.voKias, vmoKias: T6A_LIMITS.vmoKias },
+    { maxG: 7, minG: -3.5, stallKias: 86, voKias: 227, vmoKias: 316 },
+  );
+});
+
+test('the speed of sound in the standard atmosphere: 661.5 kt at sea level, 573.6 kt from 36,089 ft', () => {
+  near(speedOfSoundKt(0), 661.48, 0.01, 'sea level');
+  near(speedOfSoundKt(10000), 638.3, 0.1, '10,000 ft');
+  near(speedOfSoundKt(25000), 601.9, 0.1, '25,000 ft');
+  near(speedOfSoundKt(40000), 573.6, 0.1, 'the stratosphere');
+  for (const bad of [NaN, Infinity]) assert.throws(() => speedOfSoundKt(bad), RangeError);
+});
+
+test('the KIAS a Mach number reads: calibrated airspeed, standard day, with compressibility', () => {
+  for (const mach of [0.2, 0.5, 0.67]) near(machToKiasKt(mach, 0), mach * speedOfSoundKt(0), 1e-9, `M${mach} at sea level is its true airspeed`);
+  near(machToKiasKt(0.67, 25000), 279.1, 0.1, 'M0.67 at 25,000 ft');
+  near(machToKiasKt(0.67, 31000), 245.3, 0.1, 'M0.67 at 31,000 ft');
+  near(machToKiasKt(0.67, 40000), 199.3, 0.1, 'M0.67 at 40,000 ft (the stratosphere)');
+  near(machToKiasKt(0.67, 11000 / 0.3048 - 1e-6), machToKiasKt(0.67, 11000 / 0.3048 + 1e-6), 1e-6, 'no step at the tropopause');
+  assert.ok(machToKiasKt(0.67, 25000) > tasToIasKt(0.67 * speedOfSoundKt(25000), 25000), 'above the no-compressibility IAS');
+  for (const bad of [NaN, Infinity]) assert.throws(() => machToKiasKt(0.67, bad), RangeError);
+  for (const bad of [-0.1, 1, NaN]) assert.throws(() => machToKiasKt(bad, 10000), RangeError);
+});
+
+// The NFM's airspeed and Mach limits (Fig 5-3, p.5-9): VMO 316 KIAS to
+// 18,769 ft, then Mmo 0.67, which is 244 KIAS at 31,000 ft.
+test('the top speed follows the NFM line: VMO 316 KIAS to about 18,800 ft, then Mach 0.67', () => {
+  for (const alt of [0, 5000, 10000, 15000, 18000, 18769]) assert.equal(maxKiasT6A(alt), 316, `${alt} ft: VMO`);
+  near(maxKiasT6A(20000), 309.1, 0.1, '20,000 ft');
+  near(maxKiasT6A(25000), 279.1, 0.1, '25,000 ft');
+  // The standard formula gives 245.3 at the chart's top; the chart reads 244.
+  near(maxKiasT6A(31000), 244, 1.5, '31,000 ft: the NFM reads 244');
+  assert.ok(maxKiasT6A(19000) < 316, 'Mach is the limit by 19,000 ft');
+  for (const alt of [20000, 25000, 31000]) assert.equal(maxKiasT6A(alt), machToKiasKt(T6A_LIMITS.mmo, alt), `${alt} ft is Mach 0.67`);
+  for (const bad of [NaN, -Infinity]) assert.throws(() => maxKiasT6A(bad), RangeError);
 });
 
 test('energy height: altitude + V²/2g', () => {

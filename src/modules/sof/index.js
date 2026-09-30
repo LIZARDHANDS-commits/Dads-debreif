@@ -1,15 +1,16 @@
-// The SOF Dashboard (specs/SPEC-sof.md): the weather at home and the alternates.
-// The SOF bar and airfield cards (task 2), the caution banner (task 3), the waves
-// (task 4) and the 24-hour timeline (task 5). mount() wires the weather feed, the
-// airfields, the settings, the wave plan and the clock to the screen; everything it
-// starts is stopped when the module closes, because every timer is on the module's
-// scheduler scope and every request is cancelled by unmount (R4, audit #11).
+// The SOF Dashboard (specs/SPEC-sof.md): the weather at home and the alternates, and the map.
+// The SOF bar and airfield cards (task 2), the caution banner (task 3), the waves (task 4), the
+// 24-hour timeline (task 5) and the map (tasks 6 and 7). mount() wires the weather feed, the map, the
+// airfields, the settings, the wave plan and the clock to the screen; everything it starts is stopped
+// when the module closes, because every timer is on the module's scheduler scope and every request is
+// cancelled by unmount (R4, audit #11).
 import { h } from '../../ui-kit/dom.js';
 import { createSofSettings } from './settings-model.js';
 import { createSettingsView } from './settings-view.js';
 import { createWeather } from './weather.js';
 import { buildScreen } from './screen-model.js';
 import { createLayout } from './layout.js';
+import { createSofMap } from './map.js';
 import { createBannerView } from './banner-view.js';
 import { ACKS_KEY, buildBanner, tafInputs, acksAfterOne, acksAfterAll, memoryAfterOne, memoryAfterAll } from './banner-model.js';
 import { createPlanStore } from './plan-store.js';
@@ -37,6 +38,7 @@ function mount(root, app) {
     now: () => app.time.now(),
     onChange: () => render(),
   });
+  const map = createSofMap({ app, settings, onLightning: () => render() });
   // The caution banner (task 3). Acknowledgements are kept for the day in the module's storage.
   let banner = null; // the last banner model, for the buttons
   let shownKeys = []; // what was on the banner last time, to announce only what is new
@@ -73,6 +75,7 @@ function mount(root, app) {
   });
   const ui = createLayout({
     settingsElement: settingsView.element,
+    mapElement: map.element,
     onRefresh: () => weather.refresh(),
     bannerElement: bannerView.element,
     wavesElement: wavesView.element,
@@ -91,13 +94,14 @@ function mount(root, app) {
     const snapshot = weather.snapshot();
     const now = app.time.now();
     const limits = settings.get();
-    const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now, timeZone: app.time.zone });
+    // The near-home lightning reading is the map's; its caution goes into the screen's list (and so onto the banner).
+    const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now, lightning: map.lightning(now), timeZone: app.time.zone });
     const tafs = Object.fromEntries(Object.entries(snapshot.taf).map(([icao, entry]) => [icao, entry?.report ?? null]));
     const notes = tafNotes({ snapshot, now }); // a stale or failed TAF is said on the chips and the timeline rows too
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
     banner = buildBanner({
       cards: screen.cards,
-      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, now, timeZone: app.time.zone }),
+      tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, homeLimits: limits, now, timeZone: app.time.zone }),
       // Other writers' cautions (lightning near home) arrive on the screen model in cautions.js's shape.
       extra: screen.extraCautions ?? [],
       acks: app.storage.get(ACKS_KEY, null),
@@ -128,6 +132,7 @@ function mount(root, app) {
     ui.setBusy(snapshot.busy);
     // Each alternate card shows its result for the selected wave.
     ui.render({ ...screen, cards: screen.cards.map((c) => (waves.altLines.has(c.icao) ? { ...c, waveLine: waves.altLines.get(c.icao) } : c)) });
+    map.update({ snapshot, screen });
   }
 
   const stops = [
@@ -148,6 +153,7 @@ function mount(root, app) {
   app.listen(document, 'visibilitychange', () => {
     if (document.hidden) return;
     weather.wake();
+    map.wake();
     render();
   });
 
@@ -155,6 +161,7 @@ function mount(root, app) {
   weather.start();
 
   return () => {
+    map.dispose();
     weather.stop();
     for (const stop of stops) stop();
     settingsView.dispose();

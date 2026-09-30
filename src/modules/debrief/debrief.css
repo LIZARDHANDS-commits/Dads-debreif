@@ -211,8 +211,21 @@
 
 [data-module='debrief'] .debrief-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   align-items: flex-start;
+}
+
+/* Why 3D can't start: on its own line under the 2D | 3D switch and the other buttons, in the
+   toolbar, so it's by the switch that was pressed (RC-3). */
+[data-module='debrief'] .debrief-view-message {
+  order: 1;
+  flex: 1 0 100%;
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  border-left: 3px solid var(--bad);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
 }
 
 [data-module='debrief'] .debrief-menu {
@@ -540,6 +553,14 @@
 
 [data-module='debrief'] .debrief-menu-body select {
   max-width: 100%;
+}
+
+/* A small line that spans both columns of a menu (why the wind arrows show nothing). */
+[data-module='debrief'] .debrief-menu-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 /* A group that spans both columns of a menu (the chart alignment). */

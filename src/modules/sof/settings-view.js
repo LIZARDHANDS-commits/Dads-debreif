@@ -5,7 +5,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
+import { TRIGGER_OPTIONS, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
@@ -41,11 +41,59 @@ export function createSettingsView({ settings }) {
     hint('Home needs an alternate when its forecast is below either number. Choosing a trigger fills both in; a typed number goes up to the next 100 ft or quarter mile.'),
   );
 
+  // Lightning near home (SOF-3): the radius the check and its ring on the map use.
+  const radius = controls.number('lightningNm', { label: 'Lightning radius around home', unit: 'NM', min: 5, max: 50, step: /** @type {any} */ (1) });
+  menu.section('Lightning near home').append(
+    radius,
+    hint('A caution is raised when ECCC\'s 10-minute lightning map shows lightning within this distance of home. It is an estimate on a 2.5 km grid, not individual strikes.'),
+  );
+
+  // Traffic relay (SOF-7): empty until Patrick's relay is set up; the Traffic layer stays hidden until it is a good address.
+  const relay = relayField(settings);
+  menu.section('Traffic').append(relay.element, hint('Leave empty to keep the Traffic layer hidden. The address is the relay only, such as https://traffic.example.workers.dev.'));
+
   // The new-caution banner (V6's "New-alert caution box"), on to begin with. Off, the cards still show every caution.
   menu.section('Cautions').append(
     controls.checkbox('banner', { label: 'Show the new-caution banner' }),
     hint('The banner lists cautions you have not acknowledged. The airfield cards show every caution either way.'),
   );
 
-  return { element: menu.element, dispose: controls.dispose };
+  return {
+    element: menu.element,
+    dispose() {
+      relay.dispose();
+      controls.dispose();
+    },
+  };
+}
+
+let nextRelayId = 1;
+
+// A text box for the relay's address, bound to the setting. The address is committed when the box is left or Enter is
+// pressed (the `change` event), never per keystroke: half-typed addresses such as https://relay.exam are valid origins,
+// and the layer would ask each of them. While typing, the message alone follows the text. It is checked and trimmed when read.
+function relayField(settings) {
+  const id = `sof-relay-${nextRelayId++}`;
+  const messageId = `${id}-message`;
+  const input = h('input', {
+    type: 'text', id, class: 'sof-relay-input', inputmode: 'url', autocomplete: 'off', spellcheck: 'false',
+    maxlength: MAX_RELAY_CHARS, placeholder: 'https://', 'aria-describedby': messageId,
+  });
+  const message = h('span', { class: 'control-message', id: messageId });
+  const show = (value, { keepText = false } = {}) => {
+    if (!keepText && input.value !== value) input.value = value;
+    const bad = value.trim() !== '' && !relayAccepted(value);
+    if (bad) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+    const text = bad ? 'Not used: it needs https:// and only the address, nothing after it.' : '';
+    if (message.textContent !== text) message.textContent = text;
+  };
+  input.addEventListener('input', () => show(input.value, { keepText: true }));
+  input.addEventListener('change', () => settings.update({ trafficRelay: input.value }));
+  show(settings.editing.get().trafficRelay);
+  const stop = settings.editing.subscribe((values) => show(values.trafficRelay));
+  return {
+    element: h('div', { class: 'control control-text' }, h('label', { for: id }, 'Traffic relay address'), input, message),
+    dispose: stop,
+  };
 }

@@ -14,7 +14,7 @@ const field = (key, meta) => ({ key, ...meta });
 const OPTION_LABELS = {
   formation: { weighted: '4312', weightedReverse: '2134', offsetBox: 'Offset box', twoShip: 'Two-ship' },
   maneuver: {
-    delayed90away: 'Delayed 90', delayed45away: 'Delayed 45', hook90: 'Hook turn', inplace90: 'In-place 90', shackle45: 'Shackle', cross180: 'Cross turn',
+    delayed90away: 'Delayed 90', delayed45away: 'Delayed 45', hook90: 'Hook turn', inplace90: 'In-place 90', check30: 'Check turn', shackle45: 'Shackle', cross180: 'Cross turn',
   },
   direction: { right: 'Right', left: 'Left' },
   timing: { time: 'Time delay', clock: 'Clock position cue', auto: 'Auto timing' },
@@ -23,7 +23,9 @@ const OPTION_LABELS = {
   clockTarget: { global: 'Same as setup', 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueAircraft: { 1: '#1', 2: '#2', 3: '#3', 4: '#4' },
   clockCueSequence: { outsideIn: 'Outside-in', manual: 'Manual targets' },
-  offsetBox4Timing: { late: 'Late (V6)', early: 'Early (V6)' },
+  offsetBox4Timing: { boxSlot: 'Fly to the box slot (solved)', rearDelay: 'Rear element delay (SMM)', groundTrack: 'Solve by ground track', late: 'Late (V6)', early: 'Early (V6)' },
+  twoSide: { left: 'Left', right: 'Right' },
+  rearCheckDir: { left: 'Left', right: 'Right' },
   correction: { none: 'None', lag: 'Lag to regain spacing', lead: 'Lead to close spacing', gfix: 'G adjustment' },
   lateralDir: { none: 'None', tight: 'Tight', wide: 'Wide' },
   foreAftDir: { none: 'None', fore: 'Fore', aft: 'Aft' },
@@ -51,6 +53,18 @@ export const BOX4_TIMING = field('offsetBox4Timing', { label: '#4 timing', hint:
 export const CLOCK_AIRCRAFT = field('clockCueAircraft', { label: 'Clock cue aircraft', hint: 'The aircraft the cue is read from.' });
 export const CLOCK_SEQUENCE = field('clockCueSequence', { label: 'Clock cue sequence', hint: 'Outside-in picks who watches whom; Manual uses the targets in Aircraft errors.' });
 export const CLOCK_TOL = field('clockCueTolDeg', { label: 'Clock tolerance', unit: '°', step: 0.5, hint: 'How close to the position counts as there.' });
+export const REAR_DELAY = field('rearDelaySec', { label: 'Rear element delay', unit: 's', step: 0.5, hint: 'How long #3 and #4 wait after the front element. The SMM says 10 to 15 s.' });
+export const CROSS_FIRST_G = field('crossTurnFirstG', { label: 'Cross turn first-stage G', unit: 'G', step: 0.1, hint: 'The G setting is the second stage.' });
+export const CROSS_SWITCH = field('crossTurnSwitchDeg', { label: 'Cross turn switch point', unit: '°', step: 5, hint: 'Degrees turned before the second stage.' });
+export const CROSS_SOLVE = field('crossTurnSolveSpacing', { label: 'Set second-half G for LAB roll-out', hint: 'Off flies the G setting all the way, as V6 did.' });
+export const DURATION_COVERS = field('durationCoversTurn', { label: 'Run at least until the turn is done' });
+export const TWO_SIDE = field('twoSide', { label: '#2\'s side', hint: 'Which side of Lead #2 flies on, in 4312 and 2134. The two-ship and the offset box have their own places.' });
+export const REAR_CHECK_ON = field('rearCheckOn', { label: 'Rear element check' });
+export const REAR_CHECK_START = field('rearCheckStartSec', { label: 'Check starts at', unit: 's', step: 5 });
+export const REAR_CHECK_DIR = field('rearCheckDir', { label: 'Check turns' });
+export const REAR_CHECK_ANGLE = field('rearCheckAngleDeg', { label: 'Check angle', unit: '°', step: 5 });
+export const REAR_CHECK_HOLD = field('rearCheckHoldSec', { label: 'Check hold', unit: 's', step: 1 });
+export const REAR_CHECK_AFTER = field('rearCheckAfterTurns', { label: 'Wait for #3 and #4 to finish turning', hint: 'Off starts the check at its set time, as V6 did.' });
 export const CORRECTION = field('correction', { label: 'Correction model', hint: 'An instructional model of a wingman correcting his position.' });
 export const CORR_STRENGTH = field('correctionStrength', { label: 'Correction strength', step: 0.1 });
 
@@ -75,6 +89,11 @@ export function optionsOf(key, rule) {
   const name = key.replace(/^aircraft\d\./, ''); // an aircraft's field is worded the same for every aircraft
   const clock = name === 'clockCuePos' || name === 'clockPos';
   return rule.oneOf.map((value) => ({ value, label: OPTION_LABELS[name]?.[value] ?? (clock ? clockLabel(value) : String(value)) }));
+}
+
+/** The Auto clock position's words: the engine's Auto is 4:30 right and 7:30 left in the Delayed 45 (D206), else 7 right and 5 left. */
+export function clockAutoLabel(maneuver) {
+  return maneuver === 'delayed45away' ? 'Auto (4:30 right, 7:30 left)' : 'Auto (7 right, 5 left)';
 }
 
 /** A clock position as a person says it: 5.5 is "5:30", 12 is "12 o'clock". */

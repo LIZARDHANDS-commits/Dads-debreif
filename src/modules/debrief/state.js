@@ -62,6 +62,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   // for flights before March 2023 or when picked.
   wxWinds: false,
   wxWindModel: 'hrdps',
+  // The model wind as arrows on the 2D map at a height you choose (feet above sea level, inside the Low block): off at first, 8,000 ft.
+  wxWindArrows: false,
+  wxWindArrowFt: 8000,
   // Tools, closed at first (R22): the EM chart, with V6's automatic chart and 60 s trail.
   emOpen: false,
   emChart: 'auto',

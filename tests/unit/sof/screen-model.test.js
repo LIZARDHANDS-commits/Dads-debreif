@@ -1,12 +1,13 @@
 // Tests for src/modules/sof/screen-model.js: everything the SOF screen says,
 // decided without a page (SPEC-sof, "The screen": SOF bar, Airfield cards). The
 // page code only draws these answers.
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMetar } from '../../../src/wx/metar.js';
 import { parseTaf } from '../../../src/wx/taf.js';
 import { createStore } from '../../../src/storage/store.js';
 import { createAirfields } from '../../../src/airfields/airfields.js';
+import { lightningNearHome } from '../../../src/modules/sof/lightning.js';
 import { buildScreen, feedStatus, alertText, CREDITS, STALE_FEED_MIN } from '../../../src/modules/sof/screen-model.js';
 import { METAR, HOME_TAF } from '../../fixtures/sof/reports.js';
 
@@ -229,4 +230,93 @@ test('nothing in the model is HTML: report text passes through as plain strings'
 test('a home field with no name is not shown as "null"', () => {
   const fake = { home: () => ({ icao: 'ZZZZ', name: null }), alternates: () => [], checkOptions: () => ({}) };
   assert.equal(buildScreen({ airfields: fake, snapshot: snap(), limits: {}, now: NOW }).cards[0].name, '');
+});
+
+// ---- Cautions, with lightning (SPEC-sof, SOF-3) ---------------------------------------------------
+
+const HOME = { icao: 'CYMJ', lat: 50.3303, lon: -105.559 };
+const LAYER_TIME = new Date(+NOW - 4 * MIN);
+const COVER = { bounds: { west: HOME.lon - 2, south: HOME.lat - 1, east: HOME.lon + 2, north: HOME.lat + 1 }, cellsRead: 5000 };
+const CELL = { lat: 50.4714, lon: -105.337, value: 3 };
+const nearby = (at = NOW, episode) => lightningNearHome({ samples: [CELL], coverage: COVER, home: HOME, radiusNm: 20, layerTime: LAYER_TIME, now: at, episode });
+const quiet = () => lightningNearHome({ samples: [], coverage: COVER, home: HOME, radiusNm: 20, layerTime: LAYER_TIME, now: NOW });
+
+test('without a lightning answer the screen has no lightning and no lightning caution', () => {
+  const s = screen();
+  assert.equal(s.lightning, null);
+  assert.deepEqual(s.cautions.filter((c) => c.source === 'LIGHTNING'), []);
+});
+
+test('lightning near home puts its caution in the screen\'s caution list, keeping lightning.js\'s key', () => {
+  const found = nearby();
+  const s = screen({ lightning: found });
+  const c = s.cautions.filter((x) => x.source === 'LIGHTNING');
+  assert.equal(c.length, 1);
+  assert.equal(c[0].key, found.caution.key);
+  assert.equal(c[0].icao, 'CYMJ');
+  assert.equal(c[0].level, 'caution');
+  assert.equal(c[0].acknowledged, false);
+  assert.equal(s.lightning, found);
+});
+
+test('clear lightning, or "can\'t tell", raises nothing', () => {
+  for (const answer of [quiet(), lightningNearHome({ samples: null, home: HOME, layerTime: LAYER_TIME, now: NOW })]) {
+    assert.deepEqual(screen({ lightning: answer }).cautions.filter((c) => c.source === 'LIGHTNING'), [], answer.state);
+  }
+});
+
+test('the caution list also holds a report below its limits, worst first, with lightning after it', () => {
+  const below = metar('CYMJ 291800Z 25008KT 1SM BR OVC004 12/11 A2990');
+  const s = screen({ snapshot: snap({ metar: { CYMJ: below }, lastRound: round('ok', NOW, { metars: ['CYMJ'] }) }), lightning: nearby() });
+  assert.equal(s.cautions[0].level, 'below');
+  assert.equal(s.cautions[0].source, 'METAR');
+  assert.equal(s.cautions.at(-1).source, 'LIGHTNING');
+});
+
+test('the same lightning is the same caution on the next screen (an acknowledgement holds)', () => {
+  const first = nearby();
+  const later = new Date(+NOW + MIN);
+  const again = nearby(later, first.episode);
+  const key = (r, at) => screen({ lightning: r, now: at }).cautions.find((c) => c.source === 'LIGHTNING').key;
+  assert.equal(key(again, later), key(first, NOW));
+});
+
+test('extraCautions is the list the banner reads: lightning.js\'s caution when there is one, else empty', () => {
+  const found = nearby();
+  assert.deepEqual(screen({ lightning: found }).extraCautions, [found.caution]);
+  assert.deepEqual(screen({ lightning: quiet() }).extraCautions, []);
+  assert.deepEqual(screen().extraCautions, []);
+});
+
+// ---- R2: a fetched-just-now header does not hide reports that are old -------------------------------------------
+
+test('feed status: fetched just now, but the newest METAR was observed hours ago, says so and drops the tick', () => {
+  const old = 'METAR CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952';
+  const s = snap({ metar: { CYMJ: metar(old) }, lastRound: round('ok', NOW), newestAt: NOW });
+  const f = feedStatus(s, NOW);
+  assert.equal(f.text, 'Weather just now, newest METAR observed 8 h 42 min ago ⚠');
+  assert.equal(f.tone, 'bad');
+  assert.equal(f.symbol, '⚠');
+});
+
+test('feed status: the age is of the newest observation, not of the fetch; a fresh METAR keeps the plain wording', () => {
+  const old = 'METAR CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952';
+  const fresh = 'METAR CYQR 291800Z 26005KT 15SM FEW080 16/08 A2995';
+  const both = snap({ metar: { CYMJ: metar(old), CYQR: metar(fresh) }, lastRound: round('ok', NOW), newestAt: NOW });
+  assert.equal(words(both), 'Weather just now ✓', 'one current report is enough');
+  const edge = snap({ metar: { CYMJ: metar('METAR CYMJ 291730Z 25010KT 15SM FEW100 15/02 A2952') }, lastRound: round('ok', NOW), newestAt: NOW });
+  assert.equal(words(edge), 'Weather just now ✓', '72 min is not yet stale');
+  assert.equal(words(snap({ lastRound: round('ok', NOW), newestAt: NOW })), 'Weather just now ✓', 'no METARs held: nothing to say about their age');
+});
+
+test('feed status: uses only the clock it is given, never the real one (a month away from it)', () => {
+  const fresh = 'METAR CYMJ 291800Z 25010KT 15SM FEW100 15/02 A2952';
+  const s = snap({ metar: { CYMJ: metar(fresh) }, lastRound: round('ok', NOW), newestAt: NOW });
+  mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-29T23:00:00Z') });
+  try {
+    assert.equal(feedStatus(s, NOW).text, 'Weather just now ✓');
+    assert.equal(screen({ snapshot: s }).feed.text, 'Weather just now ✓');
+  } finally {
+    mock.timers.reset();
+  }
 });

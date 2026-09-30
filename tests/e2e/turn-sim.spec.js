@@ -238,7 +238,7 @@ test('the turn changes Turn degrees to its own value, and a setting only shows w
   await expect(box(page, 'Aft spacing')).toBeHidden(); // the offset box's, only with the offset box
   await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
   await expect(box(page, 'Turn degrees')).toHaveValue('45');
-  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await box(page, 'Turn').selectOption({ label: 'Hook turn' });
   await expect(box(page, 'Turn degrees')).toHaveValue('180');
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, 'Aft spacing')).toHaveValue('7000');
@@ -374,6 +374,11 @@ test('leaving the Turn Sim leaves no frames, timers, listeners or shortcuts behi
 
 // ---- 2D | 3D switch (SPEC-turn-sim: 2D/3D switch, task 19) --------------------------------------
 const viewChoice = (page, name) => page.getByRole('radio', { name, exact: true });
+// click() and then check the state: check() re-reads the radio at once and fails when the view has already moved on (a 3D load that fails goes back to 2D).
+const pickView = async (page, name) => {
+  await viewChoice(page, name).click();
+  await expect(viewChoice(page, name)).toBeChecked();
+};
 const threeRequests = (page) => {
   const seen = [];
   page.on('request', (r) => {
@@ -400,7 +405,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
   await playButton(page).click();
   await expect.poll(() => simTime(page)).toBeGreaterThan(1);
   const before = await simTime(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect(canvas3d(page)).toBeVisible();
   await expect(canvas(page)).toBeHidden();
   // The run went on: the time didn't go back to 0, and it still advances in 3D.
@@ -419,7 +424,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
   expect(await simTime(page)).toBe(paused);
 
   // Back to 2D: the same time, and 3D draws nothing more.
-  await viewChoice(page, '2D').check();
+  await pickView(page, '2D');
   await expect(canvas(page)).toBeVisible();
   expect(await simTime(page)).toBe(paused);
   const atSwitch = await draws3d(page);
@@ -430,7 +435,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
 
   // 3D again does not fetch three.js a second time.
   const fetched = seen.length;
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect(canvas3d(page)).toBeVisible();
   expect(seen.length).toBe(fetched);
 
@@ -443,7 +448,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
 
 test('the 3D picture draws the same run, and a step moves it (task 19)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
   const first = await canvas3d(page).screenshot();
   // Paint is a choice in the closed settings menu, not on the bar.
@@ -473,7 +478,7 @@ test('when three.js will not load, the note says so and 2D keeps working (task 1
 
 test('leaving the Turn Sim while in 3D leaves no frames behind (task 19, R4)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await playButton(page).click();
   await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
   await page.evaluate(() => window.__ts.close());
@@ -493,11 +498,20 @@ test('the clock cue shows its position box and live status lines, and says when 
   // Q44c: at 5:30 in the offset box, #3 and #4 have nothing to see.
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await box(page, 'Clock position').first().selectOption({ label: '5:30' });
-  await expect(page.getByText("can't see a 5:30 cue")).toHaveText("#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay");
+  await expect(page.getByText("can't see their clock cue")).toHaveText("#3 and #4 can't see their clock cue in the box, so they turn on the rear element timing instead.");
+  // N8: the lines for #3 and #4 agree with the warning, before and while they turn.
+  await expect(cues.getByRole('listitem').nth(2)).toContainText('turns on the rear element timing');
+  await expect(cues.getByRole('listitem').nth(3)).toContainText('turns on the rear element timing');
+  await page.getByLabel('Playback speed').selectOption('4');
+  await playButton(page).click();
+  await expect.poll(() => simTime(page), { timeout: 20000 }).toBeGreaterThan(30);
+  await playButton(page).click();
+  await expect(cues.getByRole('listitem').nth(2)).not.toContainText(/watching|cue came from/);
+  await expect(cues.getByRole('listitem').nth(3)).not.toContainText(/watching|cue came from/);
   // Time delay again: the cue lines and the message are gone.
   await box(page, 'Timing').selectOption({ label: 'Time delay' });
   await expect(cues).toBeHidden();
-  await expect(page.getByText("can't see a 5:30 cue")).toBeHidden();
+  await expect(page.getByText("can't see their clock cue")).toBeHidden();
 });
 
 test('Auto timing shows the engine\'s step read-only and leaves Base delay alone', async ({ page }) => {
@@ -535,14 +549,236 @@ test('the Correction model is a checkbox in the settings menu, off by default, a
 
 test('a setup change made in 3D still fits the 2D picture when 2D comes back (audit)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect(canvas3d(page)).toBeVisible();
   await box(page, 'Spacing').fill('2500'); // refits: the 2D canvas is hidden right now
   await expect.poll(() => simTime(page)).toBe(0);
-  await viewChoice(page, '2D').check();
+  await pickView(page, '2D');
   await expect(canvas(page)).toBeVisible();
   // Lead (blue) is on the picture without pressing Fit.
   await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
+});
+
+test('the Check turn is in the Turn menu with 30 degrees, and the hook is 180 (SMM items 1 and 4)', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Turn').selectOption({ label: 'Check turn' });
+  await expect(box(page, 'Turn degrees')).toHaveValue('30');
+  await expect(box(page, 'Turn degrees')).toHaveAttribute('max', '30');
+  await box(page, 'Turn').selectOption({ label: 'Hook turn' });
+  await expect(box(page, 'Turn degrees')).toHaveValue('180');
+  await expect(box(page, 'Turn degrees')).toHaveAttribute('max', '180');
+});
+
+test('the Shackle and Cross turn are two-ship turns: greyed out in the four-ship formations, with the reason beside the menu', async ({ page }) => {
+  await open(page);
+  const turn = box(page, 'Turn');
+  const note = page.locator('.ts-turn-note');
+  for (const formation of ['4312', '2134', 'Offset box']) {
+    await box(page, 'Formation').selectOption({ label: formation });
+    await expect(turn.locator('option:disabled')).toHaveText(['Shackle', 'Cross turn']);
+    await expect(note).toHaveText('The shackle and the cross turn are two-ship turns: pick the two-ship formation to fly them.');
+  }
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(turn.locator('option:disabled')).toHaveCount(0);
+  await expect(note).toBeHidden();
+  await turn.selectOption({ label: 'Shackle' });
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  // Back to four aircraft with the shackle picked: the menu moves to Delayed 90 (N1), with Turn degrees, Direction and the note.
+  await box(page, 'Formation').selectOption({ label: '4312' });
+  await expect(turn.locator('option:checked')).toHaveText('Delayed 90');
+  await expect(box(page, 'Turn degrees')).toHaveValue('90');
+  await expect(page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByRole('radio').first()).toBeEnabled();
+  await expect(note).toHaveText('Shackle and Cross turn are two-ship only, so this is now a Delayed 90.');
+  await expect(cardLines(page)).toHaveCount(3);
+  await expect(note).toHaveAttribute('role', 'status'); // announced when it appears
+  // The choice is kept: back in the two-ship it stays Delayed 90, and the note is gone.
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(turn.locator('option:checked')).toHaveText('Delayed 90');
+  await expect(note).toBeHidden();
+});
+
+test('with the Cross turn picked, a four-ship formation moves the menu to Delayed 90 with its note (N1)', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(box(page, 'Turn degrees')).toHaveValue('180');
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  await expect(direction.getByRole('radio').first()).toBeDisabled();
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, 'Turn').locator('option:checked')).toHaveText('Delayed 90');
+  await expect(box(page, 'Turn degrees')).toHaveValue('90');
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await expect(page.locator('.ts-direction-note')).toBeHidden();
+  await expect(page.locator('.ts-turn-note')).toHaveText('Shackle and Cross turn are two-ship only, so this is now a Delayed 90.');
+});
+
+test('the Cross turn greys out Direction and says which way Lead turns', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  const note = page.locator('.ts-direction-note');
+  await expect(note).toBeHidden();
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(direction.getByRole('radio').first()).toBeDisabled();
+  await expect(note).toContainText('Lead always turns toward #2');
+  await expect(note).toContainText(/: (left|right) in this run/);
+  await expect(direction).toHaveAccessibleDescription(/Lead always turns toward #2/);
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await expect(note).toBeHidden();
+  await expect(direction).not.toHaveAttribute('aria-describedby', /.+/);
+});
+
+test('the Shackle greys out Direction: both aircraft turn toward each other', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const direction = page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' });
+  const note = page.locator('.ts-direction-note');
+  await box(page, 'Turn').selectOption({ label: 'Shackle' });
+  await expect(direction.getByRole('radio').first()).toBeDisabled();
+  await expect(note).toHaveText("Both turn toward each other; direction doesn't apply.");
+  await expect(direction).toHaveAccessibleDescription("Both turn toward each other; direction doesn't apply.");
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(direction.getByRole('radio').first()).toBeEnabled();
+  await expect(note).toBeHidden();
+});
+
+test('the Auto clock position label follows the turn (Delayed 45 is 4:30 right, 7:30 left)', async ({ page }) => {
+  await open(page);
+  await box(page, 'Timing').selectOption({ label: 'Clock position cue' });
+  const clock = box(page, 'Clock position').first();
+  await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (7 right, 5 left)');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (4:30 right, 7:30 left)');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (7 right, 5 left)');
+});
+
+test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Run at least until the turn is done')).toBeChecked();
+  await expect(box(page, "#2's side").locator('option:checked')).toHaveText('Left');
+  await expect(box(page, 'Rear element delay')).toBeHidden();
+  await expect(box(page, 'Cross turn first-stage G')).toBeHidden();
+  // The offset box.
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, "#2's side")).toBeHidden();
+  // A1: it only mirrors 4312 and 2134, so the two-ship hides it too.
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(box(page, "#2's side")).toBeHidden();
+  await box(page, 'Formation').selectOption({ label: '2134' });
+  await expect(box(page, "#2's side")).toBeVisible();
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, 'Rear element delay')).toHaveValue('12.5');
+  await expect(box(page, '#4 timing').locator('option')).toHaveText(['Fly to the box slot (solved)', 'Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
+  await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Fly to the box slot (solved)');
+  await expect(box(page, 'Wait for #3 and #4 to finish turning')).toBeChecked();
+  await expect(box(page, 'Rear element check')).not.toBeChecked();
+  // The cross turn.
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(box(page, 'Cross turn first-stage G')).toHaveValue('2');
+  await expect(box(page, 'Cross turn switch point')).toHaveValue('90');
+});
+
+test('the offset box shows #3 and #4 delays against the 10-15 s band in More detail, and flags one outside it', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await panel(page, 'More detail').click();
+  const band = page.locator('.ts-detail li', { hasText: /^#[34] / });
+  await expect(band).toHaveCount(2);
+  // The default, the solved box slot: #3 is judged against the band (the flag for an outside delay is pinned in the unit test).
+  await expect(band.first()).toHaveText(/^#3 \d+\.\d s, (in the 10-15 s band|outside the SMM 10-15 s; solved so the box keeps its shape)$/);
+  // #4 turns on the normal LAB cue off #3 (Fig 16.30): its time from #3 is information, with no flag and no minus sign.
+  await expect(band.nth(1)).toHaveText(/^#4 turns \d+\.\d s (before|after) #3$/);
+  await expect(band.nth(1)).not.toHaveClass(/tone-caution/);
+  // The SMM's fixed rear delay: 12.5 s is in the band, and 20 s is outside it.
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, '#4 timing').selectOption({ label: 'Rear element delay (SMM)' });
+  await expect(band.first()).toHaveText('#3 12.5 s, in the 10-15 s band');
+  await box(page, 'Rear element delay').fill('20');
+  await expect(page.locator('.ts-detail li', { hasText: 'outside 10-15 s' }).first()).toBeVisible();
+  // Not in the offset box: no band lines.
+  await box(page, 'Formation').selectOption({ label: '4312' });
+  await expect(page.locator('.ts-detail li', { hasText: /10-15 s/ })).toHaveCount(0);
+});
+
+// TS-11: below the design width the columns stack, so the playback buttons are never covered.
+for (const [width, height] of [[1024, 768], [390, 844]]) {
+  test(`at ${width} x ${height} Play, Step and Reset are visible, not covered, and nothing sticks out sideways`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+    for (const name of ['Play', 'Step', 'Reset']) {
+      const el = name === 'Play' ? playButton(page) : button(page, name);
+      await el.scrollIntoViewIfNeeded();
+      const covered = await el.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(top === node || node.contains(top));
+      });
+      expect(covered, `${name} is covered`).toBe(false);
+    }
+    await playButton(page).click(); // a real click: Playwright refuses if something is over it
+    await expect.poll(() => simTime(page)).toBeGreaterThan(0.3);
+    await playButton(page).click();
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+}
+
+test('the Cross turn shows its second-half G and roll-out spacing, in the caution colour when the G is clamped', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const note = page.locator('.ts-cross-note');
+  await expect(note).toBeHidden();
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(note).toHaveText(/^Second half at \d\.\d G to roll out [\d,]+ ft apart$/);
+  await expect(note).not.toHaveClass(/is-clamped/);
+  // The switch lives in the settings menu, on by default.
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Set second-half G for LAB roll-out')).toBeChecked();
+  // Far apart, the G cannot go low enough: the note says so.
+  await box(page, 'Spacing').fill('20000');
+  await expect(note).toContainText('held at');
+  await expect(note).toHaveClass(/is-clamped/);
+  // Off flies the G setting all the way, as V6 did: no note.
+  await box(page, 'Set second-half G for LAB roll-out').uncheck();
+  await expect(note).toBeHidden();
+});
+
+test('the offset box hook shows which pairs cross: 300 ft vertical needed', async ({ page }) => {
+  await open(page);
+  const flags = page.locator('.ts-flags li');
+  await expect(flags).toHaveCount(0);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Turn').selectOption({ label: 'Hook turn' });
+  // Right turn: #1 with #3 and #2 with #4 pass nose to nose. It is known before Play.
+  await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(flags).toHaveCount(0);
+});
+
+test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads three.js', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      return type === 'webgl2' || type === 'webgl' ? null : original.call(this, type, ...rest);
+    };
+  });
+  const seen = threeRequests(page);
+  await open(page);
+  await viewChoice(page, '3D').click(); // the choice goes back to 2D by itself, so no checked-state wait here
+  await expect(page.locator('.ts-note')).toHaveText('3D needs WebGL, which this browser does not have.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas(page)).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  expect(seen).toEqual([]);
 });
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js

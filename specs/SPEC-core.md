@@ -127,7 +127,7 @@ V6 has no wind, so there is nothing to pin: this is new, checked against known a
 
 | Function or data | What it gives | First used by |
 |---|---|---|
-| `T6A_LIMITS` | The V-n limits, clean, at the V-n diagram's 5,168 lb: +7 G and −3.5 G, +4.7 G while rolling, VO 227 KIAS, VMO 316 KIAS; and the stall speed, 86 KIAS by default (the V-n curve reads about 89) | Turn Fight, Turn Sim |
+| `T6A_LIMITS` | The V-n limits, clean, at the V-n diagram's 5,168 lb: +7 G and −3.5 G, +4.7 G while rolling, VO 227 KIAS, VMO 316 KIAS, Mmo 0.67 (NFM Fig 5-3, p.5-9); and the stall speed, 86 KIAS by default (the V-n curve reads about 89) | Turn Fight, Turn Sim |
 | `stallLimitG(kias)` | (KIAS ÷ stall speed)², which reaches 7 G at 227.5 KIAS with the 86 kt default (the V-n curve itself reaches 7 G near 236 KIAS; VO, 227, is a limit speed, not this corner) | Turn Fight; the Turn Sim's warning beside its G box when the set G is above it |
 | `availableG(kias, rolling)` | The G the aircraft can pull now: the stall line, capped at +7 G (+4.7 while rolling) | Turn Fight |
 | `iasToTasKt(kias, altFt)`, `tasToIasKt(ktas, altFt)` | TAS = IAS ÷ √σ, through `isaDensityRatio`; compressibility ignored | Turn Fight, Traffic |
@@ -135,6 +135,9 @@ V6 has no wind, so there is nothing to pin: this is new, checked against known a
 | `dragPerWeight(kias, altFt, g)` | Drag ÷ weight: a zero-lift part plus a part growing with G² | Turn Fight; the glide and zoom cross-checks |
 | `excessThrustPerWeight(kias, altFt, g)` | thrustPerWeight − dragPerWeight, (T − D)/W | Turn Fight |
 | `t6aExcessFn(ktas, altFt, g)` | `excessThrustPerWeight` in the form `stepPointMass` calls it (true airspeed in) | Turn Fight |
+| `speedOfSoundKt(altFt)` | The speed of sound on a standard day, √(γRT): 661.5 kt at sea level, 573.6 kt above 36,089 ft | `machToKiasKt` |
+| `machToKiasKt(mach, altFt)` | The KIAS an airspeed indicator reads at a Mach number: standard calibrated airspeed, with compressibility, standard day. M0.67 is 279.1 KIAS at 25,000 ft, 245.3 at 31,000 ft | `maxKiasT6A` |
+| `maxKiasT6A(altFt)` | The top speed at a height, on the NFM's line (Fig 5-3): VMO 316 KIAS, or Mmo 0.67 where that is slower (above about 18,800 ft; 309 KIAS at 20,000 ft, 279 at 25,000 ft, 245 at 31,000 ft against the chart's 244). Compared with the model's IAS like VMO | Turn Fight |
 | `energyHeightFt(altFt, ktas)` | Altitude + V²/2g | Turn Fight readout, Traffic engine-out check, later the debrief |
 | `T6A_GLIDE` | The max glide chart by configuration: clean, prop feathered, 125 KIAS, 2.0 NM per 1,000 ft; gear down 105 KIAS, 1.5; landing flap and gear 95 KIAS, 1.1; clean, prop windmilling 110 KIAS, 1.0. Its sink rates (1,350, 1,500, 1,850 and 2,350 ft/min) are each row's glide ratio at about 16,000 ft | Traffic |
 | `glideSinkFpm(config, kias, altFt)` | TAS ÷ the glide ratio: the ratio is fixed through the air, so the sink rate grows with height | Traffic |
@@ -166,7 +169,7 @@ Sources, by page reference only (the charts and manuals stay in the project file
 - **Turn rate above 20,000 ft (F2).** Up to 28 % low near 200 KIAS; within 0.65°/s at 15,000 ft and below, which covers the MTCA working blocks (6,000 to 15,500 ft). A refit to turn rate with the extra points only brings the worst miss from 0.90 to 0.69°/s, so the fit stays. Energy mode's start altitude has no cap yet, so above the MTCA blocks its turns can run this low.
 - **Stall line and altitude (F3).** The V-n's 31,000 ft curve stalls about 12 % faster than sea level; the model's stall line doesn't change with height.
 - **Compressibility (F4).** True airspeed is 2 to 4 % high at 20,000 ft and up at 200 to 250 KIAS; under 1 % below 15,000 ft.
-- **Zoom outside the table and Mach (F5).** From 151 to 190 KIAS the zoom is 20 to 60 ft above the model's own flown zoom. VMO (316) applies at every height; the Mach limit (0.67 above about 18,800 ft) isn't in `T6A_LIMITS`.
+- **Zoom outside the table and Mach (F5).** From 151 to 190 KIAS the zoom is 20 to 60 ft above the model's own flown zoom. The zoom and split S still accept up to VMO (316) at every height; a caller that flies high asks `maxKiasT6A` for the Mach limit (0.67 above about 18,800 ft, on the NFM's KIAS line). The model's IAS-to-TAS has no compressibility, so an aircraft held at that KIAS flies a little fast in true airspeed: about Mach 0.69 at 25,000 ft, 3 % over. VMO has always been read the same way.
 - **Weight (F6).** The turn and glide numbers are for the charts' weight; only the zoom takes a weight.
 
 **Decided by Patrick on 2026-09-30 (09:29Z, "Go with recommended on both"):** the stall speed stays 86 kt, from the V-n diagram, not the turn charts' 83 kt (SPEC-turn-fight, "One mismatch to settle"), and the zoom's weight stays 5,800 lb. **For Dad (flagged, not chosen here):** the zoom numbers for the CT-156 (Q74, T10). Each is one constant.
