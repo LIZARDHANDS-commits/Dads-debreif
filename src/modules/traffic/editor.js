@@ -138,7 +138,7 @@ export const addPointProblem = (route) => (route.points.length >= MOST_POINTS ? 
 
 /**
  * Adds a point after point `afterIndex` (V6's rule): halfway to the next point, with the average
- * height, speed and G of the two, labelled "New Point". After the last point of a pattern it goes
+ * height, speed and G of the two (whole feet and knots, G to a tenth, as V6 rounds them), labelled "New Point". After the last point of a pattern it goes
  * between the last and the first; an entry or split keeps its last point where it joins, so a point
  * "after" the last goes just before it. Links to later points of the route move up by one.
  * Changes `route` in place and returns the new point's index.
@@ -150,7 +150,8 @@ export function insertPoint(routes, route, afterIndex) {
   const a = route.points[after], b = route.points[(after + 1) % count];
   const placed = {
     label: NEW_POINT_LABEL, x: average(a.x, b.x), y: average(a.y, b.y),
-    alt: average(a.alt ?? 2500, b.alt ?? 2500), kt: average(a.kt ?? 120, b.kt ?? 120), g: average(a.g ?? 2, b.g ?? 2),
+    // Rounded as V6 rounds a new point (whole feet and knots, G to a tenth).
+    alt: Math.round(average(a.alt ?? 2500, b.alt ?? 2500)), kt: Math.round(average(a.kt ?? 120, b.kt ?? 120)), g: +average(a.g ?? 2, b.g ?? 2).toFixed(1),
   };
   const at = after + 1;
   route.points.splice(at, 0, placed);

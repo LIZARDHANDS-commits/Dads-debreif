@@ -109,6 +109,20 @@ test('+ Point puts a point halfway to the next one, with the average height, spe
   assert.equal(pattern.points[4], b);
 });
 
+test('+ Point rounds like V6: whole feet and knots, G to a tenth', () => {
+  const route = { id: 'P', name: 'P', kind: 'pattern', points: [
+    { label: 'a', x: 0, y: 0, alt: 2001, kt: 100, g: 1.3 },
+    { label: 'b', x: 10, y: 0, alt: 2500, kt: 115, g: 2 },
+    { label: 'c', x: 10, y: 10, alt: 2500, kt: 115, g: 2 },
+  ] };
+  insertPoint([route], route, 0);
+  const made = route.points[1];
+  assert.equal(made.alt, 2251); // 2250.5 rounds up
+  assert.equal(made.kt, 108); // 107.5 rounds up
+  assert.equal(made.g, +((1.3 + 2) / 2).toFixed(1)); // 1.65 shown to a tenth, as V6 does
+  assert.equal(made.g, 1.6);
+});
+
 test('+ Point after the last point of a pattern goes between the last and the first', () => {
   const routes = fresh().routes;
   const pattern = byId(routes, 'PAT1');

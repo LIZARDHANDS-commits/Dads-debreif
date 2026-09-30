@@ -137,7 +137,7 @@ Patrick: "Make sure all the parameters start with a default entry and that the i
 | New pattern | V6's generic pattern (see Routes above), left-hand, its first point a decision point at V6's odds (Land 20 %, Stay 80 %); at another home field, the runway box starts at 29, V6's generic runway, until you type the real one (T2). *Engine port note:* V6's builder draws a right-hand circuit despite its "left" label (its `perp('left')` is the right-hand side on the north-up map); the port pins that, and task 12 flips it to left-hand as its own commit (decision logged for Patrick's review, 09:34Z) |
 | New entry, new split | V6's builders, linked to the selected pattern, or the first pattern if none is selected |
 | New PFL | at the threshold the pattern lands on, orbiting on the pattern's side; High Key 5,000 ft MSL at Moose Jaw, 3,000 ft above the field elsewhere (SMM 13.5) |
-| New point (+ Point) | V6's rule: halfway to the next point, with the average height and G of the two; the speed phase is the selected point's, or Blend between two different phases; labelled "New point" |
+| New point (+ Point) | V6's rule: halfway to the next point, with the average height and G of the two; the speed phase is the selected point's, or Blend between two different phases; labelled "New Point" |
 | A new split's share | half of Stay's share at that point, so the shares still add up to 100 % and the new split gets flown |
 | Break | none until a point is marked Break; the slow-down then ends abeam the threshold |
 | Spawner | type CT-156, the first entry (or the first pattern if there are no entries), start at point 1, delay 0 s, plan Random |
