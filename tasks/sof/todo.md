@@ -44,7 +44,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Verify: `node --test tests/unit/sof/feeds.test.js`; e2e with fixture images; performance log in the PR.
   - Dependencies: 2; CSP entries (app frame). Size M.
   - Files: src/modules/sof/map.js, src/modules/sof/feeds.js, tests/unit/sof/feeds.test.js, tests/fixtures/sof/
-- [ ] **7. Lightning and links.** ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map link; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
+- [ ] **7. Lightning, the ADS-B Exchange view and links.** The ADS-B Exchange view switch (sandboxed frame, removed when off or on unmount, falls back to a link; read their terms first); ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map link; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
   - Acceptance: lightning is visible by default (#9); the near-home check finds lightning in a fixture inside the radius and none outside it; links open in a new tab with `noopener noreferrer`.
   - Verify: `node --test tests/unit/sof/lightning.test.js`; e2e.
   - Dependencies: 6. Size S to M.
