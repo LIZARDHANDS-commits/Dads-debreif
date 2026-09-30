@@ -226,6 +226,7 @@ test('W3: between two model hours the wind is blended by time as a vector, not a
   // A quarter of the way: 30 kt from the east, 10 kt from the south.
   const q = windAt(hours, T('2026-09-29T18:15Z'), 6000);
   assert.ok(Math.abs(q.wind.kt - Math.hypot(30, 10)) < 1e-9);
+  assert.ok(Math.abs(q.wind.dirDeg - 108.43) < 0.01, `got ${q.wind.dirDeg}`); // from between east and south, nearer the east
   // On the hour, that hour alone; 350° and 010° halfway is 360°, not 180°.
   assert.deepEqual(windAt(hours, T('2026-09-29T18:00Z'), 6000).hoursT, [T('2026-09-29T18:00Z')]);
   assert.equal(windAt(hours, T('2026-09-29T19:00Z'), 6000).hoursT[0], T('2026-09-29T19:00Z'));
@@ -338,3 +339,21 @@ test('W5: the feed tells a server error, an unreadable reply and no connection a
   assert.ok(!/connection/i.test(windFailureText('HRDPS', html.failure)));
   assert.match(windFailureText('HRRR', null), /^HRRR winds couldn't load/);
 });
+
+test('Y1: the next hour is blended in only with its own above-ground levels, and only within 90 minutes', () => {
+  // (a) The next hour's below-field level (1,500 ft) is under Lead and its lowest above-ground level (6,500 ft) is over him:
+  // with the field applied to that hour too there is no wind there, so the earlier hour stands alone.
+  const next = { t: T('2026-09-29T19:00Z'), levels: [level(950, 1500, 180, 40), level(850, 6500, 180, 40), level(700, 8000, 180, 40)] };
+  const hours = [twoHours(90, 180)[0], next];
+  assert.equal(windTextAt(hours, T('2026-09-29T18:30Z'), 5000, 'HRDPS', { fieldFt: 2000 }), 'model wind 090°T/40 kt at 5,000 ft (HRDPS 18Z, Open-Meteo)');
+  // Without a field the below-ground level would be blended in, and both hours named.
+  assert.match(windTextAt(hours, T('2026-09-29T18:30Z'), 5000, 'HRDPS'), /\(HRDPS 18–19Z, Open-Meteo\)$/);
+
+  // (b) A 90-minute gap blends, 60 minutes blends, 91 minutes does not.
+  const spaced = (minutes) => [twoHours(90, 180)[0], { ...twoHours(90, 180)[1], t: T('2026-09-29T18:00Z') + minutes * 60 }];
+  const label = (minutes) => windTextAt(spaced(minutes), T('2026-09-29T18:20Z'), 6000, 'HRDPS').match(/\((HRDPS [^,]+),/)[1];
+  assert.equal(label(60), 'HRDPS 18–19Z');
+  assert.equal(label(90), 'HRDPS 18–19Z');
+  assert.equal(label(91), 'HRDPS 18Z');
+});
+
