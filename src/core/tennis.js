@@ -17,8 +17,9 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
 /**
  * The debrief overlay's solver (getKmlTennisSolution, line 3140).
  *
- * The ball leaves along the shooter's heading. Shooter speed adds to its
- * horizontal speed only, and pitch tilts only the ball's own speed. The target
+ * The ball leaves along the shooter's heading and carries the shooter's whole
+ * velocity: its speed along the track and its climb (Q33; V6 left the climb
+ * out). Pitch tilts only the ball's own speed, off the nose. The target
  * flies its recorded path, climb included (Q34, Q37; V6 flew it straight on at
  * its current heading and speed, level). The path is checked every 0.15 s or
  * so (at least 8 steps).
@@ -29,6 +30,7 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  * @param {(t: number) => object|null} o.targetAt where the target is t seconds from now, from its
  *   recorded track ({ x, y, altFt }); null means it stays where it is now
  * @param {number} o.shooterHdg heading of the shooter's track now, radians
+ * @param {number} [o.shooterClimbFps] the shooter's climb from its track, feet per second (+ up; 0 if unknown)
  * @param {number} o.pitchDeg   shooter pitch plus the pitch bias setting
  * @param {number} o.ballKt     ball speed setting (V6 default 350)
  * @param {number} o.coneDeg    full cone width (V6 default 6, so ±3°)
@@ -39,7 +41,7 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  *   best: {dist: number, t: number, ball: object|null, target: object|null}, losAngle: number,
  *   rangeNow: number, tofSec: number, hitRadiusFt: number}}
  */
-export function tennisDebrief({ shooter, target, targetAt, shooterHdg, pitchDeg, ballKt, coneDeg, tofSec, hitRadiusFt, gravity }) {
+export function tennisDebrief({ shooter, target, targetAt, shooterHdg, shooterClimbFps = 0, pitchDeg, ballKt, coneDeg, tofSec, hitRadiusFt, gravity }) {
   const hdg = shooterHdg;
   const pitch = degToRad(pitchDeg);
   const tof = Math.max(.25, tofSec);
@@ -49,7 +51,7 @@ export function tennisDebrief({ shooter, target, targetAt, shooterHdg, pitchDeg,
   const dir = { x: Math.cos(hdg), y: Math.sin(hdg) };
   const vx = dir.x * (sv + ballFps * Math.cos(pitch));
   const vy = dir.y * (sv + ballFps * Math.cos(pitch));
-  const vz = ballFps * Math.sin(pitch);
+  const vz = shooterClimbFps + ballFps * Math.sin(pitch);
   const losAngle = Math.abs(radToDeg(angleDiffRad(Math.atan2(target.y - shooter.y, target.x - shooter.x), hdg)));
   const inConeNow = losAngle <= coneDeg / 2;
 

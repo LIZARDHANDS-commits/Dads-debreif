@@ -70,3 +70,15 @@ test('the settings floors differ: hit radius 10 ft vs 1 ft, and only the 3D cone
   const [left] = tennis3D({ ...V6_DEFAULTS, shooter: { ...shooter, spdKt: 200 }, target, pitchDeg: 0, radiusFt: 0, coneDeg: 0 }).coneEdges;
   assert.ok(Math.abs(Math.atan2(left.at(-1).y, left.at(-1).x) * 180 / Math.PI + 0.1) < 1e-9);
 });
+
+test('a climbing shooter\'s ball climbs with it (Q33)', () => {
+  // Level nose, target 1,500 ft ahead and 300 ft higher, both 200 kt; the shooter climbing 4,000 ft/min.
+  const shooter = { x: 0, y: 0, altFt: 5000, spdKt: 200, hdg: 0 };
+  const target = { x: 1500, y: 0, altFt: 5300, spdKt: 200 };
+  const targetAt = t => ({ x: 1500 + v * t, y: 0, altFt: 5300 });
+  const shot = climb => tennisDebrief({ ...V6_DEFAULTS, shooter, target, targetAt, shooterHdg: 0, shooterClimbFps: climb, pitchDeg: 0, hitRadiusFt: 250 });
+  assert.equal(shot(0).status, 'IN CONE', 'not climbing: the ball passes about 400 ft under');
+  assert.equal(Math.round(shot(0).best.dist), 401);
+  assert.equal(shot(4000 / 60).status, 'INTERCEPT');
+  assert.equal(Math.round(shot(4000 / 60).best.dist), 235);
+});
