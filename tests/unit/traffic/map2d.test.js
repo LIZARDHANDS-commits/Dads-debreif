@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { toScreen, visibleBounds } from '../../../src/ui-kit/canvas-view.js';
 import {
   HINT_TEXT, LEVEL_MARKS, TYPE_COLORS, MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT,
-  paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnDataText, hintFor,
+  paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnLabelText, hintFor,
   sceneBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
   turnedShape, aircraftSymbol, conflictLevels, isFlying, aircraftColor, drawScene, createMap2d,
 } from '../../../src/modules/traffic/map2d.js';
@@ -56,9 +56,9 @@ test('a point\'s label is numbered from 1, with its height, speed and G', () => 
 });
 
 test('turn data gives the radius and bank at a rounded point, and the most G when a wind makes it matter', () => {
-  assert.equal(turnDataText({ radiusFt: 2474.2, bankDeg: 60 }), 'R 2,474 ft / bank 60°');
-  assert.equal(turnDataText({ radiusFt: 2474, bankDeg: 60.4, maxG: 2.34 }), 'R 2,474 ft / bank 60° / most 2.3 G');
-  assert.equal(turnDataText({ x: 0, y: 0 }), '', 'a point that doesn\'t turn has none');
+  assert.equal(turnLabelText({ radiusFt: 2474.2, bankDeg: 60 }), 'R 2,474 ft / bank 60°');
+  assert.equal(turnLabelText({ radiusFt: 2474, bankDeg: 60.4, maxG: 2.34 }), 'R 2,474 ft / bank 60° / most 2.3 G');
+  assert.equal(turnLabelText({ x: 0, y: 0 }), '', 'a point that doesn\'t turn has none');
 });
 
 test('the map\'s colours come from the page\'s tokens, with stand-ins when one is missing', () => {

@@ -90,7 +90,7 @@ export function pointLabelLines(index, point) {
 }
 
 /** "R 2,474 ft / bank 60°" for a rounded point, with the most G it needs when that's known; else nothing. */
-export function turnDataText(point) {
+export function turnLabelText(point) {
   if (!Number.isFinite(point.radiusFt) || !Number.isFinite(point.bankDeg)) return '';
   const most = Number.isFinite(point.maxG) ? ` / most ${point.maxG.toFixed(1)} G` : '';
   return `R ${whole(point.radiusFt)} ft / bank ${whole(point.bankDeg)}°${most}`;
@@ -295,7 +295,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
   if (settings.layerTurnData) {
     for (const route of routes) {
       route.points.forEach((pt) => {
-        const words = turnDataText(pt);
+        const words = turnLabelText(pt);
         if (!words) return;
         const [x, y] = at(pt);
         text(words, x + 11, y + 29, palette.caution, { anchor: x });
