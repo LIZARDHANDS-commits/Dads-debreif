@@ -15,7 +15,7 @@
 // times per aircraft per frame, #49). The cache looks at the route's points each time
 // it is asked, so a point edited in place gives a new path.
 import { FT_PER_NM, ktToFtps } from '../../core/units.js';
-import { limitG, turnRadiusFt } from '../../core/flight-math.js';
+import { limitG, turnRadiusFt, bankDegFromG } from '../../core/flight-math.js';
 import { unitVectorFromCompassDeg } from '../../core/angles.js';
 
 /** V6's route options when the boxes are left alone (built-in profile, line 613). */
@@ -85,6 +85,26 @@ function lerp(a, b, u, seg, headingDeg) {
 export function pointTurnRadiusFt(p, { radiusFromG, manualRadiusFt }) {
   if (!radiusFromG) return +manualRadiusFt || 1800;
   return turnRadiusFt(ktToFtps(+p.kt || 120), limitG(+p.g || 2, 9));
+}
+
+/**
+ * What the turn at a route point needs, as the map's turn data shows it (V6 line 283):
+ * `radiusFt` from `pointTurnRadiusFt` and `bankDeg` from the point's G (limited to 1.01
+ * to 9, a blank G read as 2).
+ */
+export function turnAtPoint(p, options = DEFAULT_ROUTE_OPTIONS) {
+  return { radiusFt: pointTurnRadiusFt(p, options), bankDeg: bankDegFromG(limitG(+p.g || 2, 9)) };
+}
+
+/**
+ * The turn at point `i` of a route, or `null` where V6 shows none (line 283): the first
+ * point of a pattern, and the first and last of an entry or split (bug #49, kept for now).
+ * `i` counts from 0.
+ */
+export function pointTurn(route, i, options = DEFAULT_ROUTE_OPTIONS) {
+  const count = route.points.length;
+  if (!(i > 0 && (isClosedRoute(route) || i < count - 1)) || i >= count) return null;
+  return turnAtPoint(route.points[i], options);
 }
 
 /** A point on a turn's curve (V6 `bez`, line 193): the quadratic Bézier of the two ends and the corner. */
@@ -190,7 +210,8 @@ function sameSignature(entry, route, options) {
  * The flown path of a route: `{ lengthFt, closed, points, segs }`, where `points`
  * are V6's rounded points (`{ x, y, alt, kt, g, src }`) and `segs` V6's legs
  * (`{ a, b, len, i, headingDeg }`, `i` being the route point the leg starts at).
- * Worked out once per route and options; read only.
+ * Worked out once per route and options; read only. It also carries `draw` and
+ * `pointDists`, which are `drawPath` and `pointDistFt`'s caches: internal, leave them be.
  */
 export function routePath(route, options = DEFAULT_ROUTE_OPTIONS) {
   let entries = pathCache.get(route);
@@ -289,7 +310,9 @@ export function drawPath(route, options = DEFAULT_ROUTE_OPTIONS) {
 /**
  * The legs of the route as its points are joined, before any rounding (V6 `rawSegs`,
  * line 192, and the Leg Distances table, line 464): points counted from 1, a pattern's
- * last leg going back to point 1.
+ * last leg going back to point 1 (a pattern of two points has both legs, there and
+ * back, as V6 draws it). Each leg also says which route it is on and where its middle
+ * is (`x`, `y`, feet), where the map puts the leg's label (V6 line 282).
  */
 export function legDistances(route) {
   const pts = route.points, n = pts.length, legs = [];
@@ -297,7 +320,8 @@ export function legDistances(route) {
   const count = n - (isClosedRoute(route) ? 0 : 1);
   for (let i = 0; i < count; i++) {
     const ft = dist(pts[i], pts[(i + 1) % n]);
-    legs.push({ from: i + 1, to: i + 2 > n ? 1 : i + 2, ft, nm: ft / FT_PER_NM });
+    const a = pts[i], b = pts[(i + 1) % n];
+    legs.push({ routeId: route.id, from: i + 1, to: i + 2 > n ? 1 : i + 2, ft, nm: ft / FT_PER_NM, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
   }
   return legs;
 }

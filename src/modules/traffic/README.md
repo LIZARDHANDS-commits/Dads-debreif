@@ -51,10 +51,11 @@ Every function that needs the route options takes them as an optional last argum
 
 | Function | Returns |
 |---|---|
-| `routePath(route, options?)` | `{ lengthFt, closed, points, segs }`: the flown path; `points` are V6's `roundedPoints` (`{ x, y, alt, kt, g, src }`), `segs` its `navSegs` (`{ a, b, len, i, headingDeg }`). Read only. |
+| `routePath(route, options?)` | `{ lengthFt, closed, points, segs }` (and `draw` and `pointDists`, internal caches of `drawPath` and `pointDistFt`: leave them be): the flown path; `points` are V6's `roundedPoints` (`{ x, y, alt, kt, g, src }`), `segs` its `navSegs` (`{ a, b, len, i, headingDeg }`). Read only. |
 | `drawPath(route, options?)` | `[{ x, y, alt }]` along the flown path, the rounded turns sampled finely enough to draw |
 | `positionAt(route, distFt, options?)` | `{ x, y, alt, kt, headingDeg, leg, g }` at that distance along the route (a pattern wraps round; an open route stops at its ends). `leg` is V6's "Leg" column, counted from 1 |
-| `legDistances(route)` | `[{ from, to, ft, nm }]`, one per leg, points counted from 1 (a pattern's last leg goes back to 1) |
+| `legDistances(route)` | `[{ routeId, from, to, ft, nm, x, y }]`, one per leg, points counted from 1 (a pattern's last leg goes back to 1, so a pattern of two points has 1→2 and 2→1, as V6 draws it). `x`, `y` is the middle of the leg in feet, where the map puts its label |
+| `pointTurn(route, i, options?)` | `{ radiusFt, bankDeg }` for the turn at point `i` (from 0), or `null` where V6 shows none: the first point of a pattern, the first and last of an entry or split (bug #49, kept for now). `pointRows` uses it; `turnAtPoint(point, options?)` is the same numbers for any point |
 | `newPattern(id, name, opts?)`, `newEntry(id, name, patternId, routes, opts?)`, `newSplit(id, name, patternId, routes, opts?)` | V6's builders (`defaultPattern`, `defaultEntry`, `defaultSplit`): a route, not yet in any list. `opts.color` sets the colour; `newPattern` also takes `offsetEastFt` and `offsetNorthFt` |
 
 V6's own functions are there too, for the tests and the editor: `roundedPoints`, `navSegs`, `routeLengthFt`, `pointDistFt` (V6 `pointProg`: distance to where the turn at a point starts), `posOnRoute` (`positionAt` with V6's `seg` and `u`), `closestDistFt` (V6 `closestProg`), `pointTurnRadiusFt`, `isClosedRoute`, and the constants `DEFAULT_ROUTE_OPTIONS`, `ROUTE_COLORS` and `nextRouteColor(routes)` (V6's palette in turn).
@@ -112,7 +113,7 @@ A landed or done aircraft keeps the place it stopped at. Conflicts are between a
 
 ### `readouts.js`: text, with V6's rounding
 
-Everything is plain text: put it on the page with `textContent`. Numbers are rounded as V6 rounds them (`Math.round`, so .5 goes up; NM and G with `toFixed`), and the golden test compares each string with V6's own.
+Everything is plain text: put it on the page with `textContent`. These strings (`labelText`, `dataText`, `turnText`, the table cells) are for the tables and lists and are pinned to V6's own text. The map keeps the spec's own style ("1,880 ft 100 kt", with commas) in `map2d.js` and takes its numbers from `legDistances` and `pointTurn`, not from these strings. Numbers are rounded as V6 rounds them (`Math.round`, so .5 goes up; NM and G with `toFixed`), and the golden test compares each string with V6's own.
 
 | Function | Returns |
 |---|---|
@@ -120,10 +121,14 @@ Everything is plain text: put it on the page with `textContent`. Numbers are rou
 | `startTimeText(tSec)` | `M:SS`, e.g. `2:17`, and `H:MM:SS` from an hour on |
 | `aircraftRows(state, setup)` | one row per aircraft, in the state's order: `{ id, type, color, routeName, leg, altFt, kt, status, statusText, startsText, labelText, cells }`. `statusText` is V6's `Flying`, `Waiting`, `Landed` or `Done`; `startsText` is `starts at 2:17` while it waits and empty otherwise; `labelText` is the map label `1880ft 100kt Pattern 1`; `cells` is V6's seven columns (AC, Type, Route, Leg, Alt, KT, Status) as text. An aircraft on a route that has gone is shown on the first route, as in V6 |
 | `conflictLines(state)` | `[{ level, a, b, text }]`, `text` like `⚠ CONFLICT A2/A5: 180 ft lat, 120 ft vert` or `△ CAUTION …`; `[]` when there are none, and the screen then shows `noConflictsText` (`No conflicts.`) |
-| `legDistanceRows(route)` | `[{ leg: '1→2', from, to, ft, nm, ftText: '7170', nmText: '1.18', labelText: '7170 ft' }]`, a pattern's last leg is `4→1`; `[]` for fewer than two points. The screen leaves out hidden routes, as V6's table does |
+| `legDistanceRows(route)` | `[{ leg: '1→2', routeId, from, to, ft, nm, x, y, ftText: '7170', nmText: '1.18', labelText: '7170 ft' }]`, a pattern's last leg is `4→1`; `[]` for fewer than two points. The screen leaves out hidden routes, as V6's table does |
 | `pointRows(route, options?)` | `[{ number, titleText, dataText, turnText }]` per point: `Pattern 1 6 Downwind`, `2500ft/120kt/2.0G`, and the turn data, empty where V6 shows none (the first point of a pattern; the first and last of an entry or split) |
 | `pointDataText(point)` | V6's `1880ft/100kt/2.0G` |
 | `turnDataText(point, options?)` | V6's `R 736ft / bank 60°`: the radius the route options give, and the bank the point's G gives |
 | `noConflictsText` | `No conflicts.` |
 
 `options` is `setup.routeOptions` (default V6's).
+
+### Gluing the screen's settings to the setup
+
+The settings store (`defaults.js`) and the setup name the same things differently, so the screen's glue copies them across when it starts a sim and whenever a box changes: `conflictLatFt` to `setup.conflictLimits.latFt`, `conflictVertFt` to `.vertFt`, `cautionLatFt` to `.cautionLatFt` and `cautionVertFt` to `.cautionVertFt`; `flyRoundedTurns`, `radiusFromG` and `manualRadiusFt` to `setup.routeOptions` (same names). The sim reads them each step, so a change takes effect at once.

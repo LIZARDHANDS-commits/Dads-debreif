@@ -258,3 +258,8 @@ test('the point rows use the route options given, and the defaults when none are
 test('a route of no points has no point rows', () => {
   assert.deepEqual(pointRows({ ...pat, points: [] }, options), []);
 });
+
+test('a leg row also carries its route and the middle of the leg, for the map\'s label', () => {
+  const rows = legDistanceRows({ ...square('pattern'), id: 'PAT9' });
+  assert.deepEqual(rows.map((r) => [r.routeId, r.x, r.y]), [['PAT9', 3038.06, 0], ['PAT9', 6076.12, 3038.06], ['PAT9', 3038.06, 6076.12], ['PAT9', 0, 3038.06]]);
+});
