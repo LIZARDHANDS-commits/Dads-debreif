@@ -1,6 +1,6 @@
 # Spec: `debrief`, the debrief screen (2D map and 3D view)
 
-Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. **Amendment waiting for Patrick's okay:** the essentials-first screen in The screen (R22). Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. The essentials-first screen in The screen (R22) was approved by Patrick on 2026-09-30 ("ok"). Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts once flight data (PR #58) and flight math core part 2 (PR #61) are merged.
 
