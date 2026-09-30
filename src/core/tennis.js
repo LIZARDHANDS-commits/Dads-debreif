@@ -19,14 +19,16 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  *
  * The ball leaves along the shooter's heading. Shooter speed adds to its
  * horizontal speed only, and pitch tilts only the ball's own speed. The target
- * keeps flying straight at its current heading and speed, and never climbs.
- * The path is checked every 0.15 s or so (at least 8 steps).
+ * flies its recorded path, climb included (Q34, Q37; V6 flew it straight on at
+ * its current heading and speed, level). The path is checked every 0.15 s or
+ * so (at least 8 steps).
  *
  * @param {object} o
  * @param {object} o.shooter    { x, y, altFt, spdKt } now
- * @param {object} o.target     { x, y, altFt, spdKt } now
+ * @param {object} o.target     { x, y, altFt } now
+ * @param {(t: number) => object|null} o.targetAt where the target is t seconds from now, from its
+ *   recorded track ({ x, y, altFt }); null means it stays where it is now
  * @param {number} o.shooterHdg heading of the shooter's track now, radians
- * @param {number} o.targetHdg  heading of the target's track now, radians
  * @param {number} o.pitchDeg   shooter pitch plus the pitch bias setting
  * @param {number} o.ballKt     ball speed setting (V6 default 350)
  * @param {number} o.coneDeg    full cone width (V6 default 6, so ±3°)
@@ -37,20 +39,17 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  *   best: {dist: number, t: number, ball: object|null, target: object|null}, losAngle: number,
  *   rangeNow: number, tofSec: number, hitRadiusFt: number}}
  */
-export function tennisDebrief({ shooter, target, shooterHdg, targetHdg, pitchDeg, ballKt, coneDeg, tofSec, hitRadiusFt, gravity }) {
+export function tennisDebrief({ shooter, target, targetAt, shooterHdg, pitchDeg, ballKt, coneDeg, tofSec, hitRadiusFt, gravity }) {
   const hdg = shooterHdg;
   const pitch = degToRad(pitchDeg);
   const tof = Math.max(.25, tofSec);
   const hitRadius = Math.max(10, hitRadiusFt);
   const sv = (shooter.spdKt || 0) * KT_TO_FTPS;
-  const tv = (target.spdKt || 0) * KT_TO_FTPS;
   const ballFps = ballKt * KT_TO_FTPS;
   const dir = { x: Math.cos(hdg), y: Math.sin(hdg) };
-  const tdir = { x: Math.cos(targetHdg), y: Math.sin(targetHdg) };
   const vx = dir.x * (sv + ballFps * Math.cos(pitch));
   const vy = dir.y * (sv + ballFps * Math.cos(pitch));
   const vz = ballFps * Math.sin(pitch);
-  const targetV = { x: tdir.x * tv, y: tdir.y * tv };
   const losAngle = Math.abs(radToDeg(angleDiffRad(Math.atan2(target.y - shooter.y, target.x - shooter.x), hdg)));
   const inConeNow = losAngle <= coneDeg / 2;
 
@@ -60,7 +59,8 @@ export function tennisDebrief({ shooter, target, shooterHdg, targetHdg, pitchDeg
   for (let i = 0; i <= steps; i++) {
     const tau = tof * i / steps;
     const bp = { x: shooter.x + vx * tau, y: shooter.y + vy * tau, altFt: (shooter.altFt || 0) + vz * tau - (gravity ? 0.5 * G_FTPS2 * tau * tau : 0), tau };
-    const tp = { x: target.x + targetV.x * tau, y: target.y + targetV.y * tau, altFt: target.altFt || 0, tau };
+    const there = targetAt(tau) || target;
+    const tp = { x: there.x, y: there.y, altFt: there.altFt || 0, tau };
     const d = Math.hypot(bp.x - tp.x, bp.y - tp.y, (bp.altFt || 0) - (tp.altFt || 0));
     points.push(bp);
     targetPoints.push(tp);
