@@ -1,23 +1,25 @@
-// The Traffic Sim's Settings panel: the tuning numbers, kept out of the way so
-// only the essentials show at first (Patrick, 2026-09-30; specs/SPEC-traffic.md,
-// R22). The playback bar opens it from its Settings button, closed at first.
-// It holds the conflict limits (with the final spacing and the chance of
-// missing traffic), the rules, the route options and the photo options.
+// The Traffic Sim's settings: every tuning number behind one menu, closed at
+// first so only the essentials show (Patrick, 2026-09-30; specs/SPEC-traffic.md
+// and SPEC-ui-kit "Settings menu (R22)"). It fills the shared ui-kit settings
+// menu, titled "Traffic settings", with four sections: Conflict limits (with the
+// final spacing and the chance of missing traffic), Rules, Route options and
+// Photo. Its Reset to defaults puts every one back to defaults.js.
 //
-// It is self-contained on purpose, so the shared Settings panel the app frame
-// is making can take its place with a few lines:
-//
-//   const panel = createSettingsPanel({ values, onChange, available });
-//   panel.element        put it in the Settings menu
+//   const panel = createSettingsPanel({ values, onChange, onToggle, available });
+//   panel.element        put it in the layout's settings slot
 //   panel.set(values)    show new values (a profile loaded); it doesn't call onChange
 //   onChange(patch, all) called with just the settings that changed, and every value
+//   onToggle(collapsed)  called when the person opens or closes the menu
 //
-// `values` may be partial: anything left out starts at its default. A group whose
-// feature isn't on the screen yet is left out, so no box sits there doing nothing
-// (R3): available = { rules, photo }, each true once it is.
+// `values` may be partial: anything left out starts at its default. A section
+// whose feature isn't on the screen yet is left out, so no box sits there doing
+// nothing (R3): available = { rules, photo }, each true once it is.
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
+import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { DEFAULTS, LIMITS } from './defaults.js';
+
+export const TITLE = 'Traffic settings';
 
 let nextHint = 1;
 
@@ -30,7 +32,7 @@ export const RULES = Object.freeze([
   { key: 'ruleClosedPattern', label: 'Closed pattern: extend, or join the normal pattern', hint: 'The closed pattern waits along the departure leg while downwind is busy, then joins the normal pattern if there is still no room.' },
 ]);
 
-// Every setting this panel edits.
+// Every setting this menu edits.
 export const PANEL_KEYS = Object.freeze([
   'conflictLatFt', 'conflictVertFt', 'cautionLatFt', 'cautionVertFt', 'finalSpacingFt', 'missChancePct',
   ...RULES.map((r) => r.key),
@@ -40,8 +42,11 @@ export const PANEL_KEYS = Object.freeze([
 
 const defaultsFor = (keys) => Object.fromEntries(keys.map((key) => [key, DEFAULTS[key]]));
 
-// The store the ui-kit controls bind to: the panel's own values. A box changed by the user
-// goes to onChange; set() shows new values without calling it.
+// Only the settings this menu edits.
+const pick = (values) => Object.fromEntries(PANEL_KEYS.filter((key) => values?.[key] !== undefined).map((key) => [key, values[key]]));
+
+// The store the ui-kit controls bind to: the menu's own values. A box changed by the user
+// goes to onChange; replace() shows new values without calling it.
 function createLocalSettings(initial, onChange) {
   let current = { ...initial };
   const listeners = new Set();
@@ -74,68 +79,54 @@ function withHint(control, text) {
   return h('div', { class: 'settings-item' }, control, h('p', { class: 'settings-hint', id }, text));
 }
 
-const group = (legend, ...children) => h('fieldset', { class: 'settings-group' }, h('legend', {}, legend), ...children);
-
 /**
  * values: the current settings (partial is fine). onChange(patch, values): a box was changed.
+ * onToggle(collapsed): the menu was opened or closed by the person.
  * available: { rules, photo }. photoHome: the alignment "Reset photo alignment" goes back to
  * ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
- * Returns { element, set(values) }.
+ * Returns { element, set(values), collapsed, setCollapsed(bool) }.
  */
-export function createSettingsPanel({ values = {}, onChange, available = {}, photoHome = defaultsFor(['photoTrim', 'photoEastFt', 'photoNorthFt']) }) {
+export function createSettingsPanel({ values = {}, onChange, onToggle, available = {}, photoHome = defaultsFor(['photoTrim', 'photoEastFt', 'photoNorthFt']) } = {}) {
   const store = createLocalSettings({ ...defaultsFor(PANEL_KEYS), ...pick(values) }, onChange);
   const controls = createControls(store);
+  const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => store.update(defaultsFor(PANEL_KEYS)) });
   const feet = (key, label, step = 50) => controls.number(key, { label, unit: 'ft', min: LIMITS[key][0], max: LIMITS[key][1], step });
 
-  const groups = [
-    group(
-      'Conflict limits',
-      h('p', { class: 'settings-hint' }, 'A pair inside both conflict limits is a conflict; inside both caution limits, a caution.'),
-      h(
-        'div',
-        { class: 'settings-grid' },
-        feet('conflictLatFt', 'Conflict: lateral'),
-        feet('conflictVertFt', 'Conflict: vertical'),
-        feet('cautionLatFt', 'Caution: lateral'),
-        feet('cautionVertFt', 'Caution: vertical'),
-      ),
-      ...(available.rules
-        ? [
-            withHint(feet('finalSpacingFt', 'Final spacing', 100), 'How far behind the aircraft on final a roll-out must be. Any closer and the aircraft extends downwind.'),
-            withHint(
-              controls.number('missChancePct', { label: 'Chance of missing traffic', unit: '%', min: LIMITS.missChancePct[0], max: LIMITS.missChancePct[1], step: 1 }),
-              'How often an aircraft on Random does not see the traffic on final and turns in anyway.',
-            ),
-          ]
-        : []),
-    ),
-  ];
+  const limits = menu.section('Conflict limits');
+  limits.append(
+    h('p', { class: 'settings-hint' }, 'A pair inside both conflict limits is a conflict; inside both caution limits, a caution.'),
+    feet('conflictLatFt', 'Conflict: lateral'),
+    feet('conflictVertFt', 'Conflict: vertical'),
+    feet('cautionLatFt', 'Caution: lateral'),
+    feet('cautionVertFt', 'Caution: vertical'),
+  );
 
   if (available.rules) {
-    groups.push(group('Rules', ...RULES.map((rule) => withHint(controls.checkbox(rule.key, { label: rule.label }), rule.hint))));
+    limits.append(
+      withHint(feet('finalSpacingFt', 'Final spacing', 100), 'How far behind the aircraft on final a roll-out must be. Any closer and the aircraft extends downwind.'),
+      withHint(
+        controls.number('missChancePct', { label: 'Chance of missing traffic', unit: '%', min: LIMITS.missChancePct[0], max: LIMITS.missChancePct[1], step: 1 }),
+        'How often an aircraft on Random does not see the traffic on final and turns in anyway.',
+      ),
+    );
+    menu.section('Rules').append(...RULES.map((rule) => withHint(controls.checkbox(rule.key, { label: rule.label }), rule.hint)));
   }
 
-  groups.push(
-    group(
-      'Route options',
-      controls.checkbox('roundedTurns', { label: 'Fly rounded turns' }),
-      controls.checkbox('radiusFromG', { label: 'Turn radius from speed and G' }),
-      withHint(feet('manualRadiusFt', 'Manual turn radius', 100), 'Used only when the turn radius is not worked out from speed and G.'),
-    ),
+  menu.section('Route options').append(
+    controls.checkbox('roundedTurns', { label: 'Fly rounded turns' }),
+    controls.checkbox('radiusFromG', { label: 'Turn radius from speed and G' }),
+    withHint(feet('manualRadiusFt', 'Manual turn radius', 100), 'Used only when the turn radius is not worked out from speed and G.'),
   );
 
   if (available.photo) {
     const home = () => store.update({ photoTrim: photoHome.photoTrim, photoEastFt: photoHome.photoEastFt, photoNorthFt: photoHome.photoNorthFt });
-    groups.push(
-      group(
-        'Satellite photo',
-        controls.number('photoOpacityPct', { label: 'Photo opacity', unit: '%', min: LIMITS.photoOpacityPct[0], max: LIMITS.photoOpacityPct[1], step: 5 }),
-        controls.checkbox('photoAboveGrid', { label: 'Draw the photo above the grid' }),
-        controls.number('photoTrim', { label: 'Photo scale trim', min: LIMITS.photoTrim[0], max: LIMITS.photoTrim[1], step: 0.01 }),
-        feet('photoEastFt', 'Photo east / west offset', 100),
-        feet('photoNorthFt', 'Photo north / south offset', 100),
-        h('button', { type: 'button', class: 'button', onclick: home }, 'Reset photo alignment'),
-      ),
+    menu.section('Photo').append(
+      controls.number('photoOpacityPct', { label: 'Photo opacity', unit: '%', min: LIMITS.photoOpacityPct[0], max: LIMITS.photoOpacityPct[1], step: 5 }),
+      controls.checkbox('photoAboveGrid', { label: 'Draw the photo above the grid' }),
+      controls.number('photoTrim', { label: 'Photo scale trim', min: LIMITS.photoTrim[0], max: LIMITS.photoTrim[1], step: 0.01 }),
+      feet('photoEastFt', 'Photo east / west offset', 100),
+      feet('photoNorthFt', 'Photo north / south offset', 100),
+      h('button', { type: 'button', class: 'button', onclick: home }, 'Reset photo alignment'),
     );
   }
 
@@ -147,21 +138,12 @@ export function createSettingsPanel({ values = {}, onChange, available = {}, pho
   store.subscribe(greyOut);
   greyOut(store.get());
 
-  const element = h(
-    'div',
-    { class: 'settings-panel' },
-    h('h2', { class: 'settings-title' }, 'Settings'),
-    h('p', { class: 'settings-hint' }, 'The tuning numbers. Every one starts filled in, so you can leave them alone.'),
-    ...groups,
-  );
-
   return {
-    element,
+    element: menu.element,
     set: (next) => store.replace(pick(next)),
+    get collapsed() {
+      return menu.collapsed;
+    },
+    setCollapsed: menu.setCollapsed,
   };
-}
-
-// Only the settings this panel edits.
-function pick(values) {
-  return Object.fromEntries(PANEL_KEYS.filter((key) => values?.[key] !== undefined).map((key) => [key, values[key]]));
 }

@@ -332,66 +332,15 @@
   justify-content: flex-start;
 }
 
-/* Settings: the tuning numbers, in groups. Every box has its label on the left. */
-[data-module='traffic'] .settings-panel {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: var(--space-3);
-}
-
-[data-module='traffic'] .settings-title {
-  margin: 0;
-  font-size: var(--text-md);
-}
-
+/* The Traffic settings menu is the shared ui-kit one (base.css), so its look comes from there.
+   Only the one-line hints under the less obvious boxes are added here. */
 [data-module='traffic'] .settings-hint {
   margin: 0;
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
-[data-module='traffic'] .settings-group {
-  min-width: 0;
-  margin: 0;
-  padding: var(--space-2) var(--space-3) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-[data-module='traffic'] .settings-group legend {
-  padding: 0 var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-[data-module='traffic'] .settings-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 var(--space-4);
-}
-
-[data-module='traffic'] .settings-group .control {
-  margin: 0 0 var(--space-2);
-}
-
-[data-module='traffic'] .settings-group .control-number {
-  display: grid;
-  grid-template-columns: 1fr 6rem 1.5rem;
-  align-items: center;
-}
-
-[data-module='traffic'] .settings-group .control-number input {
-  width: 100%;
-}
-
-[data-module='traffic'] .settings-group .control-number .control-message {
-  grid-column: 1 / -1;
-}
-
-[data-module='traffic'] .settings-group .control-checkbox > label {
-  font-size: var(--text-md);
-}
-
+[data-module='traffic'] .settings-group > .settings-hint,
 [data-module='traffic'] .settings-item .settings-hint {
   margin-bottom: var(--space-3);
 }

@@ -1,11 +1,13 @@
-// The Traffic Sim's Settings panel (Patrick, 2026-09-30; specs/SPEC-traffic.md, R22):
-// the tuning numbers start filled in, take only good values, report only what
-// changed, and leave out a group whose feature isn't on the screen yet.
+// The Traffic Sim's settings, on the shared ui-kit settings menu (Patrick, 2026-09-30;
+// specs/SPEC-traffic.md, SPEC-ui-kit "Settings menu (R22)"): titled "Traffic settings",
+// closed at first, the tuning numbers start filled in, take only good values, report
+// only what changed, Reset puts back the defaults, and a section whose feature isn't
+// on the screen yet is left out.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeDocument } from '../ui-kit/fake-dom.js';
 import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
-import { PANEL_KEYS, RULES, createSettingsPanel } from '../../../src/modules/traffic/settings-panel.js';
+import { PANEL_KEYS, RULES, TITLE, createSettingsPanel } from '../../../src/modules/traffic/settings-panel.js';
 
 const document = installFakeDocument();
 
@@ -23,6 +25,9 @@ Object.defineProperty(nodeProto, 'textContent', {
 });
 const elementProto = Object.getPrototypeOf(document.createElement('div'));
 Object.defineProperty(elementProto, 'id', { configurable: true, get() { return this.attributes.id; } });
+elementProto.append = function append(...nodes) {
+  for (const node of nodes) this.appendChild(node);
+};
 elementProto.removeAttribute = function removeAttribute(name) {
   delete this.attributes[name];
 };
@@ -68,22 +73,91 @@ test('the panel edits only settings that have a default', () => {
   assert.equal(new Set(PANEL_KEYS).size, PANEL_KEYS.length);
 });
 
+const header = (panel) => tagged(panel.element, 'BUTTON')[0];
+const panelBody = (panel) => all(panel.element, (n) => n.getAttribute?.('class') === 'panel-body')[0];
+const buttonNamed = (panel, name) => tagged(panel.element, 'BUTTON').find((b) => words(b) === name);
+
+test('the menu is titled "Traffic settings", never plain "Settings", and is closed until it is opened', () => {
+  const { panel } = setup();
+  assert.equal(TITLE, 'Traffic settings');
+  assert.equal(words(tagged(panel.element, 'H2')[0]), 'Traffic settings');
+  assert.equal(header(panel).getAttribute('aria-expanded'), 'false');
+  assert.equal(panel.collapsed, true);
+  assert.equal(panelBody(panel).hidden, true, 'the boxes are out of sight');
+  header(panel).dispatch('click');
+  assert.equal(panel.collapsed, false);
+  assert.equal(header(panel).getAttribute('aria-expanded'), 'true');
+  assert.equal(panelBody(panel).hidden, false);
+});
+
+test('onToggle is told when the person opens or closes the menu, but not when the screen does', () => {
+  const toggles = [];
+  const { panel } = setup({ onToggle: (collapsed) => toggles.push(collapsed) });
+  header(panel).dispatch('click');
+  header(panel).dispatch('click');
+  assert.deepEqual(toggles, [false, true]);
+  panel.setCollapsed(false);
+  panel.setCollapsed(true);
+  assert.deepEqual(toggles, [false, true], 'setCollapsed is silent');
+  assert.equal(panel.collapsed, true);
+});
+
 test('at first it shows only the conflict limits and the route options', () => {
   const { panel } = setup();
   assert.deepEqual(legends(panel), ['Conflict limits', 'Route options']);
-  assert.equal(words(tagged(panel.element, 'H2')[0]), 'Settings');
 });
 
-test('the rules, final spacing and missing traffic appear when the rules are on the screen; the photo group when the photo is', () => {
+test('the rules, final spacing and missing traffic appear when the rules are on the screen; the photo section when the photo is', () => {
   const rules = setup({ available: { rules: true } }).panel;
   assert.deepEqual(legends(rules), ['Conflict limits', 'Rules', 'Route options']);
   for (const rule of RULES) assert.ok(box(rules, rule.label), rule.label);
   assert.ok(box(rules, 'Final spacing'));
   assert.ok(box(rules, 'Chance of missing traffic'));
   const photo = setup({ available: { photo: true } }).panel;
-  assert.deepEqual(legends(photo), ['Conflict limits', 'Route options', 'Satellite photo']);
-  assert.deepEqual(legends(setup({ available: { rules: true, photo: true } }).panel), ['Conflict limits', 'Rules', 'Route options', 'Satellite photo']);
+  assert.deepEqual(legends(photo), ['Conflict limits', 'Route options', 'Photo']);
+  assert.deepEqual(legends(setup({ available: { rules: true, photo: true } }).panel), ['Conflict limits', 'Rules', 'Route options', 'Photo']);
   assert.throws(() => box(setup().panel, 'Final spacing'), /Final spacing/, 'not there until the rules are');
+});
+
+test('final spacing and the chance of missing traffic sit in Conflict limits, and the rules in their own section', () => {
+  const { panel } = setup({ available: { rules: true } });
+  const sections = tagged(panel.element, 'FIELDSET');
+  const holding = (label) => words(tagged(sections.find((s) => tagged(s, 'LABEL').some((l) => words(l) === label)), 'LEGEND')[0]);
+  for (const label of ['Conflict: lateral', 'Conflict: vertical', 'Caution: lateral', 'Caution: vertical', 'Final spacing', 'Chance of missing traffic']) assert.equal(holding(label), 'Conflict limits', label);
+  for (const rule of RULES) assert.equal(holding(rule.label), 'Rules', rule.label);
+  for (const label of ['Fly rounded turns', 'Turn radius from speed and G', 'Manual turn radius']) assert.equal(holding(label), 'Route options', label);
+});
+
+test('Reset to defaults puts every setting back to defaults.js, reporting just the ones that had moved, and asks nothing first', () => {
+  const { panel, changes } = setup({ available: { rules: true, photo: true } });
+  type(box(panel, 'Conflict: lateral'), '300');
+  type(box(panel, 'Final spacing'), '4000');
+  tick(box(panel, RULES[0].label), false);
+  tick(box(panel, 'Fly rounded turns'), false);
+  type(box(panel, 'Photo opacity'), '50');
+  changes.length = 0;
+  buttonNamed(panel, 'Reset to defaults').dispatch('click');
+  assert.equal(changes.length, 1, 'one report, no confirmation step');
+  assert.deepEqual(changes[0].patch, { conflictLatFt: DEFAULTS.conflictLatFt, finalSpacingFt: DEFAULTS.finalSpacingFt, [RULES[0].key]: true, roundedTurns: true, photoOpacityPct: 100 });
+  for (const key of PANEL_KEYS) assert.equal(changes[0].values[key], DEFAULTS[key], key);
+  assert.equal(box(panel, 'Conflict: lateral').value, '200');
+  assert.equal(box(panel, 'Final spacing').value, '3000');
+  assert.equal(box(panel, RULES[0].label).checked, true);
+  assert.equal(box(panel, 'Fly rounded turns').checked, true);
+  assert.equal(box(panel, 'Photo opacity').value, '100');
+});
+
+test('Reset to defaults with nothing changed reports nothing, and it clears a refused number too', () => {
+  const { panel, changes } = setup();
+  buttonNamed(panel, 'Reset to defaults').dispatch('click');
+  assert.equal(changes.length, 0);
+  const lateral = box(panel, 'Conflict: lateral');
+  type(lateral, '999999');
+  assert.equal(lateral.getAttribute('aria-invalid'), 'true');
+  type(lateral, '300');
+  buttonNamed(panel, 'Reset to defaults').dispatch('click');
+  assert.equal(lateral.value, '200');
+  assert.equal(lateral.getAttribute('aria-invalid'), null);
 });
 
 test('every box starts at its default, as the spec\'s table says', () => {
