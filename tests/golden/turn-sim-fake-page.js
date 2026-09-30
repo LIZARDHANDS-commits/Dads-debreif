@@ -36,7 +36,8 @@ export function v6Boxes(s, { readsClockTolerance = false } = {}) {
     spacing: box(s.spacingFt),
     boxAft: box(s.boxAftFt),
     boxStagger: box(s.boxStaggerFt),
-    heading: box(s.startHeadingDeg),
+    // V6's box is the math heading (0 = east, counter-clockwise); the setting is a compass heading (D45).
+    heading: box(90 - s.startHeadingDeg),
     showNm: box(s.showNm ? 'yes' : 'no'),
     offsetBox4TimingMode: box(s.offsetBox4Timing),
     rearCheckEnabled: box(s.rearCheckOn ? 'on' : 'off'),

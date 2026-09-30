@@ -4,6 +4,7 @@
 // The seeds put the aircraft anywhere, at any heading, so ties and odd layouts are covered.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { degToRad } from '../../src/core/angles.js';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { displayedOutsideInOrder, turningOrder, sideOfLead, sideOfAircraftFrom, turnDirFromLogic, cueTargetForAircraft, selectedDirSign } from '../../src/modules/turn-sim/engine/plan.js';
 import { createV6Page } from './turn-sim-fake-page.js';
@@ -50,8 +51,8 @@ test('displayedOutsideInOrder and turningOrder match V6 (line abreast by the 3/9
     const v6List = active.map((i) => v6All[i]);
     const list = active.map((i) => mine[i]);
     const turnRight = settings.direction === 'right';
-    assert.deepEqual(ids(displayedOutsideInOrder(list, turnRight, settings.startHeadingDeg)), ids(page.v6.displayedOutsideInOrder(v6List, turnRight)), JSON.stringify(settings));
-    assert.deepEqual(ids(turningOrder(list, settings)), ids(page.v6.tacticalOrderForDelayIn(v6List)), JSON.stringify(settings));
+    assert.deepEqual(ids(displayedOutsideInOrder(list, turnRight, degToRad(90 - settings.startHeadingDeg))), ids(page.v6.displayedOutsideInOrder(v6List, turnRight)), JSON.stringify(settings));
+    assert.deepEqual(ids(turningOrder(list, { ...settings, startHeadingRad: degToRad(90 - settings.startHeadingDeg) })), ids(page.v6.tacticalOrderForDelayIn(v6List)), JSON.stringify(settings));
   }
 });
 
@@ -59,7 +60,7 @@ test('sideOfLead and sideOfAircraftFrom match V6', () => {
   for (const { settings, page, mine } of layouts()) {
     const v6All = page.aircraft();
     for (const a of mine) {
-      assert.equal(sideOfLead(mine, a, settings.startHeadingDeg), page.v6.sideOfLeadIn(v6All, v6All.find((x) => x.id === a.id)));
+      assert.equal(sideOfLead(mine, a, degToRad(90 - settings.startHeadingDeg)), page.v6.sideOfLeadIn(v6All, v6All.find((x) => x.id === a.id)));
       for (const t of mine) assert.equal(sideOfAircraftFrom(a, t), page.v6.sideOfAircraftFrom(v6All.find((x) => x.id === a.id), v6All.find((x) => x.id === t.id)));
     }
     assert.equal(sideOfAircraftFrom(null, mine[0]), 0);

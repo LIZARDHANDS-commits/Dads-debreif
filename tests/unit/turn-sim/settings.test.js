@@ -22,7 +22,7 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
   };
   const v6 = {
     formation: box('formation'), spacingFt: +box('spacing'), boxAftFt: +box('boxAft'), boxStaggerFt: +box('boxStagger'),
-    startHeadingDeg: +box('heading'), showNm: box('showNm') === 'yes',
+    startHeadingDeg: 90 - +box('heading'), // V6's math heading 0 is compass 090, showNm: box('showNm') === 'yes',
     offsetBox4Timing: box('offsetBox4TimingMode'), rearCheckOn: box('rearCheckEnabled') === 'on',
     rearCheckStartSec: +box('rearCheckStart'), rearCheckDir: box('rearCheckDir'),
     rearCheckAngleDeg: +box('rearCheckAngle'), rearCheckHoldSec: +box('rearCheckHold'),
@@ -36,15 +36,17 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
   for (const [key, value] of Object.entries(v6)) assert.equal(V6_DEFAULTS[key], value, key);
 });
 
-test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 7,000 ft (D114) and the clock position Auto (SMM item 2)', () => {
+test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 7,000 ft (D114), the clock position Auto (SMM item 2) and the start heading 000 (D45)', () => {
   const changed = Object.keys(V6_DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
-  assert.deepEqual(changed, ['baseG', 'boxAftFt', 'clockCuePos']);
+  assert.deepEqual(changed, ['baseG', 'boxAftFt', 'clockCuePos', 'startHeadingDeg']);
   assert.equal(V6_DEFAULTS.baseG, 2.0);
   assert.equal(V6_DEFAULTS.boxAftFt, 8000);
   assert.equal(DEFAULTS.baseG, 3.0);
   assert.equal(DEFAULTS.boxAftFt, 7000);
   assert.equal(V6_DEFAULTS.clockCuePos, '5.5');
   assert.equal(DEFAULTS.clockCuePos, 'auto');
+  assert.equal(V6_DEFAULTS.startHeadingDeg, 90); // east, as V6 flew
+  assert.equal(DEFAULTS.startHeadingDeg, 0); // north (D45, Q42)
 });
 
 test('V6 gives every aircraft no error, the global clock cue and auto turn logic', () => {

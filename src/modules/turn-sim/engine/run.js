@@ -14,7 +14,7 @@
 // (V6's Turn Sim draws north-up), headingRad in radians with 0 pointing east and
 // angles growing counter-clockwise (the code heading of src/core/angles.js). The
 // screen turns that into a compass heading with headingRadToCompassDeg.
-import { degToRad, radToDeg } from '../../../core/angles.js';
+import { degToRad, radToDeg, compassDegToHeadingRad, headingRadToCompassDeg } from '../../../core/angles.js';
 import { ktToFtps } from '../../../core/units.js';
 import { bankDegFromG } from '../../../core/flight-math.js';
 import { DEFAULTS, aircraftSettings } from '../settings.js';
@@ -102,6 +102,9 @@ function newAircraft(slot, settings) {
  *            canStartLeg: Play now should start a new leg (V6 lines 2002 and 2011).
  *            autoStepSec: the auto timing step in seconds (a delayed turn with Timing = auto, known
  *            before the first step too), else null. It is shown, never written into Base delay.
+ *            startHeadingDeg: the compass heading the run started on (000 north, 090 east); after startLeg
+ *            it is Lead's compass heading, which V6 wrote into its Start heading box. The screen shows it,
+ *            and must not write it back into the settings (that would reset the run).
  *            cue: { mode: 'off' | 'start' | 'waiting' | 'triggered', targetId, clockPos (hours, 5.5 is
  *            5:30), cantSee }: who this aircraft waits on and for which clock position (cues.js cueStatus).
  *            aircraft has the aircraft that exist (a two-ship has ids 1 and 2). g is the G it
@@ -121,14 +124,14 @@ export function createRun(settings) {
   // What V6 changes in its boxes as it goes: a new leg fills in the Start heading, and
   // the plan re-reads the preset (V6 lines 1441 to 1476).
   let formation;
-  let startHeadingDeg;
+  let startHeadingRad;
   let craft = [];
   let rows = [];
   let tSec = 0;
   let planned = false;
   let autoStepSec = null;
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, aircraft: [] };
+  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   const finished = () => tSec >= cfg.durationSec;
@@ -137,6 +140,7 @@ export function createRun(settings) {
     state.tSec = tSec;
     state.finished = finished();
     state.turnComplete = allAircraftFinishedTurn(craft);
+    state.startHeadingDeg = headingRadToCompassDeg(startHeadingRad);
     state.canStartLeg = tSec > 0 && (state.finished || state.turnComplete);
     // Before the first step nothing is planned yet, so the cue lines come from a plan made on copies.
     const preview = planned ? craft : craft.map((a) => ({ ...a }));
@@ -161,7 +165,7 @@ export function createRun(settings) {
   function flight() {
     return {
       formation,
-      startHeadingDeg,
+      startHeadingRad,
       maneuver: cfg.maneuver,
       direction: cfg.direction,
       turnDeg: cfg.turnDeg,
@@ -193,7 +197,7 @@ export function createRun(settings) {
       if (!Number.isFinite(cfg.durationSec)) cfg.durationSec = DEFAULTS.durationSec;
     }
     formation = cfg.formation;
-    startHeadingDeg = cfg.startHeadingDeg;
+    startHeadingRad = compassDegToHeadingRad(cfg.startHeadingDeg);
     const ids = activeIds(cfg.formation);
     craft = startPositions(cfg).filter((s) => ids.includes(s.id)).map((s) => newAircraft(s, cfg));
     rows = [];
@@ -209,7 +213,7 @@ export function createRun(settings) {
     rows = [];
     // Starting from a reset: every aircraft points at the start heading.
     for (const a of craft) {
-      a.headingRad = degToRad(startHeadingDeg);
+      a.headingRad = startHeadingRad;
       a.turnAccumRad = 0;
       a.active = false;
       a.done = false;
@@ -227,7 +231,8 @@ export function createRun(settings) {
     // Continuing after a finished turn: the aircraft stay where they are, on the heading they have.
     syncFormation();
     const lead = craft.find((a) => a.id === 1);
-    if (lead) startHeadingDeg = (radToDeg(lead.headingRad) % 360 + 360) % 360; // V6 useLeadHeadingAsStartHeading, line 1428
+    // V6 useLeadHeadingAsStartHeading (line 1428) fills its box with Lead's heading in degrees, 0 to 360.
+    if (lead) startHeadingRad = degToRad((radToDeg(lead.headingRad) % 360 + 360) % 360);
     for (const a of craft) {
       a.turnAccumRad = 0;
       a.active = false;

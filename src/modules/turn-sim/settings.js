@@ -53,7 +53,7 @@ export const V6_DEFAULTS = Object.freeze({
   spacingFt: 6000, // "Desired spacing"
   boxAftFt: 8000, // "Offset box aft spacing"
   boxStaggerFt: 1000, // "Offset box lateral stagger"
-  startHeadingDeg: 0, // V6's math heading: 0 = east, counter-clockwise. Task 10 (D45) makes it a compass heading.
+  startHeadingDeg: 90, // compass 090, east: V6's box held the math heading 0 (east, counter-clockwise), which is this.
   showNm: true, // "Show NM secondary"
 
   // Offset box #4 timing and the rear element check (lines 543 to 558)
@@ -100,6 +100,9 @@ export const DEFAULTS = Object.freeze({
   baseG: 3.0,
   // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
   boxAftFt: 7000,
+  // D45 (Patrick, Q42): the start heading is a compass heading, 000 north and 090 east, and the default flies north,
+  // up the screen. V6's default flew east.
+  startHeadingDeg: 0,
   // SMM item 2 (16.19 paras 52 and 54, Patrick 06:40Z): the inside aircraft turns when the wingman reaches 7 o'clock
   // in a right turn and 5 o'clock in a left turn. V6: 5:30.
   clockCuePos: 'auto',
@@ -138,7 +141,7 @@ export const SETTINGS_RULES = Object.freeze({
   spacingFt: number(100, 50000),
   boxAftFt: number(100, 50000), // not 0: V6 reads a 0 in its box as 8,000 (`||8000`, line 816)
   boxStaggerFt: number(0, 20000),
-  startHeadingDeg: number(-360, 360),
+  startHeadingDeg: number(0, 360), // compass degrees
   showNm: bool,
 
   offsetBox4Timing: oneOf(['late', 'early']),

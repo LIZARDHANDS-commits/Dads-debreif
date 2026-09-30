@@ -21,8 +21,8 @@ export function selectedDirSign(direction) {
  * Which side of Lead an aircraft is on, measured along V6's "right" vector from
  * the Start heading box: +1, -1 or 0 (V6 `sideOfLeadIn`, line 930).
  */
-export function sideOfLead(aircraft, a, startHeadingDeg) {
-  const r = rightVector(degToRad(startHeadingDeg));
+export function sideOfLead(aircraft, a, startHeadingRad) {
+  const r = rightVector(startHeadingRad);
   const lead = aircraft.find((x) => x.id === 1);
   return Math.sign((a.xFt - lead.xFt) * r.x + (a.yFt - lead.yFt) * r.y);
 }
@@ -78,9 +78,9 @@ export function turnDirFromLogic(a, aircraft, defaultDir, { direction, clockCueA
  * turn the other end (V6 `displayedOutsideInOrder`, line 1116). The line is
  * Lead's, measured from the Start heading box.
  */
-export function displayedOutsideInOrder(aircraft, turnRight, startHeadingDeg) {
+export function displayedOutsideInOrder(aircraft, turnRight, startHeadingRad) {
   const lead = aircraft.find((a) => a.id === 1) || aircraft[0];
-  const r = rightVector(degToRad(startHeadingDeg));
+  const r = rightVector(startHeadingRad);
   const lateral = (a) => (a.xFt - lead.xFt) * r.x + (a.yFt - lead.yFt) * r.y;
   return [...aircraft].sort((a, b) => (turnRight ? lateral(b) - lateral(a) : lateral(a) - lateral(b)));
 }
@@ -89,11 +89,11 @@ export function displayedOutsideInOrder(aircraft, turnRight, startHeadingDeg) {
  * The offset box's front element, #1 and #2, far side first (V6
  * `offsetFrontElementOrder`, line 966). Uses Lead's own heading.
  */
-export function offsetFrontElementOrder(aircraft, turnRight, startHeadingDeg) {
+export function offsetFrontElementOrder(aircraft, turnRight, startHeadingRad) {
   const one = aircraft.find((a) => a.id === 1);
   const two = aircraft.find((a) => a.id === 2);
   const lead = one || aircraft[0];
-  const h = lead ? lead.headingRad : degToRad(startHeadingDeg);
+  const h = lead ? lead.headingRad : startHeadingRad;
   const r = rightVector(h);
   const lateral = (a) => (a.xFt - lead.xFt) * r.x + (a.yFt - lead.yFt) * r.y;
   return [one, two].filter(Boolean).sort((a, b) => (turnRight ? lateral(b) - lateral(a) : lateral(a) - lateral(b)));
@@ -104,13 +104,13 @@ export function offsetFrontElementOrder(aircraft, turnRight, startHeadingDeg) {
  * `tacticalOrderForDelayIn`, line 1132): outside aircraft first; in the offset
  * box the front element first (far side first), then #3, then #4.
  */
-export function turningOrder(aircraft, { formation, direction, startHeadingDeg }) {
+export function turningOrder(aircraft, { formation, direction, startHeadingRad }) {
   const turnRight = direction === 'right';
   if (formation === 'offsetBox') {
-    const front = offsetFrontElementOrder(aircraft, turnRight, startHeadingDeg);
+    const front = offsetFrontElementOrder(aircraft, turnRight, startHeadingRad);
     return [...front.map((a) => a.id), 3, 4].map((id) => aircraft.find((a) => a.id === id)).filter(Boolean);
   }
-  return displayedOutsideInOrder(aircraft, turnRight, startHeadingDeg);
+  return displayedOutsideInOrder(aircraft, turnRight, startHeadingRad);
 }
 
 /**
@@ -130,7 +130,7 @@ export function autoDelayStepSec(spacingFt, speedFtps, turnRad) {
  * { stepSec, startsSec: { id: seconds } }. V6 also wrote the step into the Base
  * delay box; the port never does, the step is shown instead (#16).
  *
- * flight: { formation, direction, startHeadingDeg, speedKt, turnDeg, spacingFt }
+ * flight: { formation, direction, startHeadingRad, speedKt, turnDeg, spacingFt }
  */
 export function autoTimingStarts(aircraft, flight) {
   const order = turningOrder(aircraft, flight);
@@ -149,10 +149,10 @@ export function autoTimingStarts(aircraft, flight) {
  * and clears its turn progress. `aircraft` is the active aircraft, changed in
  * place, each with xFt, yFt, headingRad, delayErrSec, turnLogic and clockTarget.
  *
- * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingDeg, clockCueAircraft,
+ * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingRad, clockCueAircraft,
  *   timing ('time', 'clock' or 'auto'), clockCueSequence ('outsideIn' or 'manual'), speedKt, spacingFt }
  * Returns { autoStepSec }: the auto step when the timing is auto and the turn is a delayed one, else null.
- * `formation` and `startHeadingDeg` are the ones now in force: V6 changes both
+ * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
  * Not yet here: in the offset box's delayed turns, V6's solved delays for #3 and
@@ -206,10 +206,10 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
         d = 0;
         if (form === 'twoShip') {
           const wing = aircraft.find((x) => x.id !== 1) || aircraft.find((x) => x.id === 2);
-          const side = wing ? sideOfLead(aircraft, wing, flight.startHeadingDeg) : -1;
+          const side = wing ? sideOfLead(aircraft, wing, flight.startHeadingRad) : -1;
           dir = a.id === 1 ? -side : side;
         } else {
-          const side = sideOfLead(aircraft, a, flight.startHeadingDeg);
+          const side = sideOfLead(aircraft, a, flight.startHeadingRad);
           dir = a.id === 1 || side === 0 ? selectedDir : side;
         }
         g = degToRad(45);
@@ -217,7 +217,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
 
       if (man === 'cross180') {
         d = 0;
-        dir = sideOfLead(aircraft, a, flight.startHeadingDeg) < 0 ? 1 : -1;
+        dir = sideOfLead(aircraft, a, flight.startHeadingRad) < 0 ? 1 : -1;
         if (a.id === 1) dir = selectedDir;
       }
 
