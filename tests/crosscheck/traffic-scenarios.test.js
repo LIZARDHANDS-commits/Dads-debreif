@@ -83,17 +83,20 @@ test('the verdict rules: within, at least, at most, info, overridden and waiting
   assert.equal(judge({ mode: 'waits', waitsOn: 15, tolerance: 0 }, null, 2000), 'waits on task 15');
 });
 
+/** The table for the built-in setup, worked out once and shared by the tests below (each measure flies the sim). */
+const TABLE = buildTable(structuredClone(SETUP), SCENARIOS);
+
 test('the report table is the same every time (fixed seed, fresh setup)', () => {
-  const first = buildTable(structuredClone(SETUP), SCENARIOS);
-  const second = buildTable(structuredClone(SETUP), SCENARIOS);
-  assert.deepEqual(first, second);
+  assert.deepEqual(buildTable(structuredClone(SETUP), SCENARIOS), TABLE);
 });
 
 test('the report table equals the checked-in expected table: it fails only when a number moves', () => {
-  const table = buildTable(structuredClone(SETUP), SCENARIOS);
-  if (process.env.UPDATE_CROSSCHECK) writeFileSync(EXPECTED_URL, JSON.stringify(table, null, 2) + '\n');
+  if (process.env.UPDATE_CROSSCHECK === '1') {
+    assert.ok(!process.env.CI, 'UPDATE_CROSSCHECK=1 rewrites the expected table: not in CI');
+    writeFileSync(EXPECTED_URL, JSON.stringify(TABLE, null, 2) + '\n');
+  }
   const expected = JSON.parse(readFileSync(EXPECTED_URL, 'utf8'));
-  assert.deepEqual(table, expected);
+  assert.deepEqual(TABLE, expected);
 });
 
 test('the run leaves the setup as it found it (the cross-check changes no number)', () => {

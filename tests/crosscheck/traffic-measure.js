@@ -299,7 +299,7 @@ export function derivedManualNumbers() {
   return {
     'k-initial-tas': iasToTasKt(220, 3500),
     'k-downwind-tas': iasToTasKt(120, 3500),
-    'a-downwind-spacing': 2 * turnRadiusFt(ktToFtps(120), Math.SQRT2),
+    'a-downwind-spacing': 2 * turnRadiusFt(ktToFtps(iasToTasKt(120, 3500)), Math.SQRT2),
     'a-perch': WINDOW_FT,
     'a-final-rollout': WINDOW_FT,
   };
