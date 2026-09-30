@@ -99,7 +99,10 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       if (layers.precip !== before) radar.setPrecip();
     },
     onHome: () => goHome(),
-    onZoom: (factor) => view.zoomBy(factor),
+    onZoom: (factor) => {
+      view.zoomBy(factor);
+      live.textContent = factor > 1 ? 'Zoomed in.' : 'Zoomed out.'; // the buttons never press silently (a screen reader hears it)
+    },
     onAdsb: (on) => setAdsb(on),
     onTraffic: (on) => change(setLayerOn(layers, 'traffic', on)),
     onTrafficLabel: (label) => change(setTrafficOption(layers, { label })),
@@ -323,6 +326,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
 
   function goHome() {
     view.setView({ cx: 0, cy: 0, scale: homeView(home.lat).scale });
+    live.textContent = `Map centred on ${home.icao}.`; // said even when it was already there, so the press is never silent
   }
   let lightningSeen = null; // the caution text last told to onLightning
   function redraw() {

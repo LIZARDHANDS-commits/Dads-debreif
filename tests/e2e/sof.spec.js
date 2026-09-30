@@ -4,7 +4,7 @@
 // tests/fixtures/sof/screen-*, never from a live feed, and the clock is fixed at
 // 1842Z on 29 September 2026, so every report has the age it is written with here.
 import { readFileSync } from 'node:fs';
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { openRoute } from './routes.js';
 
 const fixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
@@ -1027,4 +1027,18 @@ test('the banner switched off and on again does not bring back what was acknowle
   await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
   await switchBox.check();
   await expect(bannerLines(page)).toHaveCount(2);
+});
+
+test('no accessibility violations with the caution banner up (the storm reports)', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await expect(page.locator('.sof-banner')).toBeVisible();
+  await expectNoA11yViolations(page);
+});
+
+test('no accessibility violations with a wave and its list of hits open', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, 'Aft', '15:30', '17:00');
+  await row.locator('.sof-wave-chip').click();
+  await expect(page.locator('.sof-wave-detail')).toBeVisible();
+  await expectNoA11yViolations(page);
 });

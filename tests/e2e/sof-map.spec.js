@@ -566,3 +566,26 @@ test('map: no accessibility violations with the map, the Layers menu open and a 
   await layersButton(page).click();
   await expectNoA11yViolations(page);
 });
+
+test('map: no accessibility violations with the Layers menu open and the ADS-B Exchange view shown', async ({ page }) => {
+  await openMap(page);
+  await layersButton(page).click();
+  await adsbButton(page).click();
+  await expect(page.locator('iframe.sof-adsbx-frame')).toBeVisible();
+  await expectNoA11yViolations(page);
+});
+
+test('map: the Home button says it centred the map on home, even when it was already there', async ({ page }) => {
+  await openMap(page);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await expect(page.locator('.sof-map-stage [role="status"]').filter({ hasText: /^Map centred on CYMJ/ })).toHaveCount(1);
+});
+
+test('map: the zoom buttons say what they did', async ({ page }) => {
+  await openMap(page);
+  const said = page.locator('.sof-map-stage [role="status"]');
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(said.filter({ hasText: 'Zoomed in.' })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+  await expect(said.filter({ hasText: 'Zoomed out.' })).toHaveCount(1);
+});
