@@ -1,6 +1,6 @@
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
 
@@ -14,12 +14,13 @@ Users are T-6 instructors and students, on a desktop or laptop (D6). They should
 2. Play, pause and reset the fight, at 0.5× to 4×.
 3. Read each aircraft's turn rate and turn radius, and see who gets their nose on first and when.
 4. Optionally let the first aircraft to get its nose on chase the other, and optionally fly the fight with climb or dive angles and see a side view.
+5. Optionally switch on **Energy** mode, where each T-6 uses the vertical at full power (pitch back, slice, Immelmann or split S) to reach the 160 KIAS max-performance turn, trading speed and height the way the real aircraft does (see Energy mode).
 
 V6 does all of this in its "Turn Fight" tab (lines 778 and 4232 to 4294 of `original/shell.html`). The rebuild keeps V6's fight and its numbers, fixes the bugs the audit found (issue #20, and #34, #35, #39 on every screen), and shows only the essentials by default (R22).
 
 ## Assumptions
 
-1. It's the same simple model as V6: each aircraft flies at a constant speed and a constant G, in a coordinated level turn, as a point. There's no energy, drag, or thrust. The screen says so in one line, as V6's help card does.
+1. By default it's the same simple model as V6: each aircraft flies at a constant speed and a constant G, in a coordinated level turn, as a point. There's no energy, drag, or thrust. The screen says so in one line, as V6's help card does. Energy mode, off by default, is the only place with energy, drag and thrust.
 2. The fight is a pure calculation, kept apart from the drawing (`sim.js`), so it can be tested against V6's own code in Node (R9). The drawing never changes a number.
 3. Every piece of turn math comes from `core` (see What the Turn Fight needs from `core`). The module keeps only the fight itself: the merge, the turn directions, the chase, and first nose-on.
 4. Nothing is loaded from the network, so the Turn Fight works offline after the first visit (R6).
@@ -71,6 +72,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 │                       ││                                       ││ First nose-on           │
 │ ☐ First nose chases   ││                                       ││  Blue at +18.2 s        │
 │ ☐ Climb and dive      ││                                       ││ ▸ More detail           │
+│ ☐ Energy (T-6)        ││                                       ││                         │
 │ ▸ About this model    ││                                       ││                         │
 └───────────────────────┘└───────────────────────────────────────┘└─────────────────────────┘
 ```
@@ -80,12 +82,14 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6 |
 | Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch, the side-view panel under the stage, and the side view's height scale (1×, 2×, 4×) |
 | The top-down view: grid, trails, both aircraft, the MERGE mark, the first nose-on line | **More detail**: G, 360° time, each aircraft's true angle-off, time since the merge, and with Climb and dive on, each aircraft's height change and the height between them |
-| Result: turn rate and turn radius for each aircraft, range, first nose-on | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
+| Result: turn rate and turn radius for each aircraft, range, first nose-on | **Energy (T-6)**, off by default: see Energy mode for what it shows |
+| A warning beside a G box when that G is more than a T-6 can pull at that speed (see T-6 limit warning) | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
 
 - **The fight changes only when the setup changes.** Changing the fight type, separation, a speed, a G, First nose chases, Climb and dive, or a pitch resets the fight, as in V6. Playback speed and the side view's height scale are display settings and never reset it (V6 reset on the height scale, #20).
 - **Settings are remembered** in this browser (`app.storage`), and "Reset to V6 defaults" in More detail puts back V6's setup: 2-circle, 2 NM, both 220 KTAS and 4 G, both extras off, pitch 0°, height scale 2×, 1×.
 - **Keyboard** (through `app.keys`, only while the Turn Fight is open and never while typing): Space plays or pauses, Home resets. Tab moves between controls as normal.
 - **Colours** stay V6's: Blue #58a6ff, Red #ff6b6b, the first nose-on line #ffcc66. Each aircraft is also labelled B or R on the view and in every table, so colour is never the only signal.
+- **T-6 limit warning (simple mode).** When a set G is above what a T-6 can pull at the set speed, a warning shows beside the G box: "4.0 G is above the T-6's stall limit at 120 kt (2.0 G)" or "Above the T-6's 7 G limit". The fight still flies what was set, as V6 does, so the tool can still show a generic fight. The stall limit is G = (speed ÷ 86 kt)², the sea-level stall line of the T-6A V-n diagram (manuals: formation-and-turn-numbers.md). The simple mode has no altitude, so its speed is taken as sea level, where true and indicated airspeed agree. V6's default, 220 KTAS at 4 G, is inside the limit (6.5 G), so no warning shows by default.
 - **Number boxes** use ui-kit's number rule, so a blank, zero, infinite or out-of-range entry is refused with a message and the last good value stays. The ranges are: speed 60 to 400 KTAS, G 1.1 to 9, start separation 0.5 to 10 NM, pitch −60° to +60°. V6 read a blank or 0 as its default (220 kt, 4 G, 2 NM) and had no limits except on pitch.
 
 ## What V6 does, and what the rebuild keeps
@@ -145,7 +149,7 @@ Kept from V6, with the same rounding: speed (kt), G (1 decimal), turn rate (1 de
 
 ## What the Turn Fight needs from `core`
 
-Everything is already in `core` and pinned against Turn Fight's own copies, so `core` needs nothing new:
+For the simple fight, everything is already in `core` and pinned against Turn Fight's own copies, so `core` needs nothing new:
 
 | Turn Fight in V6 | `core` | Pinned by |
 |---|---|---|
@@ -155,6 +159,17 @@ Everything is already in `core` and pinned against Turn Fight's own copies, so `
 | `ad` and `ao` (lines 4238 and 4239) | `absAngleDeg`, `headingRad` | `core-angles.test.js` (`ad` within 1e-10°) |
 
 The fight itself (merge, turn directions, chase, first nose-on) is this module's `sim.js`, as the Turn Sim owns its integrator in the module map (SPEC.md). It uses only the `core` functions above. If the Flight math core thread would rather own it, it moves to `core` unchanged.
+
+**Energy mode needs new `core` functions.** They're general flight math that the debrief's EM chart could use later, so they belong in `core`, built by the Flight math core thread (or by this thread, if the coordinator agrees) test-first, at the Turn Fight's turn:
+
+| New in `core` | What it does |
+|---|---|
+| `t6-performance.js`: `T6A_LIMITS`, `stallLimitG(kias)`, `availableG(kias, rolling)` | The V-n limits and stall line above |
+| `iasToTasKt(kias, altFt)`, `tasToIasKt(ktas, altFt)` | IAS and TAS through `isaDensityRatio` |
+| `excessThrustPerWeight(kias, altFt, g)` | (T − D)/W from the fit to the sustained-turn charts, with the fitted constants and chart points in `t6a-turn-charts.js` |
+| `point-mass.js`: `stepPointMass(state, { g, bankRad }, dtSec, excessFn)` | One RK4 step of the motion above, on the velocity vector |
+
+The moves (which bank and G each pilot uses, when a move ends) are the Turn Fight's own, in `energy-sim.js`.
 
 ## Decided changes from V6
 
@@ -172,19 +187,113 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 - With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
 - Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
+## Energy mode (FF23, D112)
+
+Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bring the future feature "climbing and diving turns" (FF23) into this spec as an **Energy** mode. It gets built at the Turn Fight's turn, after the simple fight. The plan doc logs it as D112 (which also answers the manuals' Q68). It's new flight math; Patrick approved it on 2026-09-30, and Dad checks the result against how the Harvard flies. Its numbers come from the flying manuals index (`/mnt/project-files/manuals/`, private; only numbers and references go in the repo).
+
+### What it's for
+
+The SMM's advanced handling is about energy management: "achieve the desired exit parameters regardless of the entry parameters". For training, those exit parameters are **160 KIAS and 17 units AOA**, the max-performance turn (MPT) against a simulated threat (SMM 14.3 para 6, 14.4 para 8). Energy mode flies that. Each T-6, at full power, uses the vertical and G to get from its merge speed to the 160 KIAS best turn, then holds that turn:
+- too fast: a pitch back or Immelmann trades speed for height;
+- too slow: a slice or split S trades height for speed.
+
+The simple fight never changes speed, so it can't show this. Energy mode shows how many degrees of turn and how much height each way of getting to 160 costs, and who wins the turn after.
+
+### The screen
+
+- **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
+  - **Start altitude**, shared, default 10,000 ft pressure altitude, the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
+  - For Blue and Red: **merge speed** in KIAS (default 220).
+  - Beside each aircraft, the move the model chose and why, for example "Pitch back (220 KIAS, SMM entry 160 to 220)", then "MPT 160 KIAS" once it's there.
+- **More energy settings** (collapsed):
+  - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
+  - **MPT speed**, default 160 KIAS (SMM 14.3 para 6).
+  - **Hard deck line**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16).
+  - **Roll rate**, default 90°/s. No manual gives it.
+  - **Pitch back bank**, default 60° at a 160 KIAS entry, falling to 30° at 220. The rule is from EFIG p.441: more bank when slower, less when faster. The numbers are for Dad to check.
+- **Result** adds each aircraft's KIAS, altitude, G and current move, and the time and degrees of turn to reach the MPT. **More detail** adds true airspeed, climb angle, bank, specific excess power (Ps, ft/s, how fast the aircraft is gaining or losing energy) and energy height (altitude + V²/2g).
+- **Side view:** the side-view panel shows altitude against time for both aircraft, with the hard deck as a line for reference (no flag and no pause). It needs no height scale, because the heights are real.
+- **Two flags only** (Patrick, 2026-09-30), in the result card, words plus colour, per aircraft:
+  - **OVER G** when the aircraft pulls more than +7 G, or more than +4.7 G while rolling (SMM 14.17 cautions that this is easy in a pitch back above 190 KIAS). The aircraft still flies the G it pulled, so the flag shows what the move would cost.
+  - **STALL** when the pull needs more lift than the wing has at that speed (above the stall line), or the speed falls below the 1 G stall speed, for example at the top of an Immelmann entered too slow. The aircraft gets only the G the stall line allows while the flag is on.
+  - Nothing else is flagged: no deck, VMO or entry-speed warnings.
+
+### How the model flies (Auto)
+
+Every move is at full power (100 % torque), and the aircraft turns toward the other aircraft, from the fight type (1-circle or 2-circle), as in the simple fight. "Pull to the shaker" means pulling to 17 units AOA: the stall-limit G at the current speed, at most 7 G. Bank changes at the roll rate, never instantly.
+
+**1. Pick the move at the merge.** The move comes from the aircraft's KIAS and the SMM entry speeds (Table 14.1, at about 10,000 ft):
+
+| KIAS at the merge | Move | What the pilot does (SMM, EFIG) |
+|---|---|---|
+| above 220 | Immelmann | Wings level, a smooth pull to about 4 G, then held in the shaker up and over. Rolls upright approaching inverted (SMM 14.15 para 39, EFIG p.435) |
+| 160 to 220 | Pitch back | Lift vector above the horizon: bank from the entry speed (setting above), pull to about 4 G, then held in the shaker (SMM 14.17 para 43, EFIG p.441) |
+| 120 to 160 | Slice | Lift vector past horizontal: 90° bank at 160 KIAS to 135° at 100 (SMM 14.18 para 46), squeezed to the shaker (EFIG p.444) |
+| below 120 | Split S | About 20° nose up, roll inverted at about 0.5 G, then pull through in the shaker to level (SMM 14.16 para 41). If that would take it below the hard deck (about 2,000 ft lost), it flies a slice instead |
+| 160 (within 5 kt) | MPT straight away | |
+
+The bands overlap in the SMM (the Immelmann is 200 to 250 and the pitch back 160 to 220; the split S is 100 to 120 and the slice 100 to 160). Auto takes the split points above, so the Immelmann is for speed the pitch back can't bleed, and the split S for speed the slice can't build.
+
+**2. Capture the MPT.** In a pitch back or slice, as KIAS nears the MPT speed, the pilot adjusts bank toward the MPT attitude, aiming to be there before 180° of turn (SMM 14.17 para 42, 14.18 para 44). After an Immelmann or split S rolls out, Auto looks at the speed again and picks the next move from step 1 (a "follow-on manoeuvre", SMM 14.15-14.16).
+
+**3. Hold the MPT.** 70 to 75° bank, pulled to the shaker, with bank used to hold the speed. Speed rising: less bank, nose higher. Speed falling: more bank, nose lower (EFIG p.430, SMM 14.4 para 8). The model starts at 72.5° and trims bank within 60 to 85° to hold 160 ± 5 KIAS.
+
+**Forced moves** (from More energy settings) fly the same way from the merge whatever the speed. The move still exits into the MPT, so a split S at 220 KIAS shows what it costs.
+
+### The model (T-6A, point mass)
+
+- **Motion.** Each aircraft is a point with speed V, a flight-path direction, and a lift direction set by its bank. Every 0.02 s step:
+  - the load factor n turns the flight path through the bank angle μ: rate of climb-angle change (g/V)(n cos μ − cos γ) and, level, rate of heading change g·n·sin μ / (V cos γ);
+  - speed changes by dV/dt = g((T − D)/W − sin γ).
+  The step works on the velocity as a vector, not on heading and climb angle, so an Immelmann or split S passes straight up or down without dividing by cos 90° = 0. A fourth-order Runge-Kutta step at 0.02 s keeps the energy error far below what the screen shows.
+- **Speeds.** The charts are in indicated airspeed (IAS), and the motion uses true airspeed (TAS). TAS = IAS ÷ √σ, with σ the standard-atmosphere density ratio `core` already has (`isaDensityRatio`). Compressibility is ignored; the fight stays below 25,000 ft and VMO.
+- **Limits (T-6A V-n diagram, clean, 5,168 lb).** +7 G and −3.5 G symmetric; +4.7 G while rolling; the stall limit G = (KIAS ÷ 86)², which reaches 7 G at 227.5 KIAS, matching VO, the manoeuvring speed of 227 KIAS; VMO 316 KIAS.
+- **Thrust minus drag** comes from the T-6A sustained turn rate and radius charts (maximum power, clean, standard day). In a sustained turn, thrust equals drag, so each point on those charts gives the drag at that speed, altitude and G. A standard drag polar (drag = a zero-lift part plus a part growing with G² at a given speed) and a propeller thrust that falls with speed and density are fitted to the chart points at sea level, 10,000 and 20,000 ft. Then (T − D)/W at any speed, altitude and G comes from the fit. The chart points, read off by eye, are kept in a data file with their chart and reading notes.
+- **Weight** is fixed at the chart's weight (maximum take-off weight less the fuel to climb), with no fuel burn.
+
+### Checks against the charts (read off by eye, so approximate)
+
+| Check | Chart | What the model must give |
+|---|---|---|
+| Best sustained turn rate at sea level | about 20.6°/s at about 140 KIAS | within 1°/s and 10 kt (see the note below) |
+| Sustained turn rate at 10,000 and 20,000 ft | about 16.5 and 12°/s at their best | within 1°/s |
+| Zero sustained turn (1 G sustained) | about 260 KIAS at sea level | within 10 kt |
+| Smallest sustained turn radius, sea level | about 650 to 700 ft near 140 KIAS | within 10 % |
+| Corner (7 G first available) | 227 KIAS (VO) | 227.5 KIAS from the stall limit |
+| Instantaneous turn at the corner, sea level | not on a chart | 33.3°/s on a 659 ft radius (7 G at 227 KIAS) |
+
+**One mismatch to settle.** The sustained-turn chart's peak (20.6°/s at 140 KIAS) needs about 2.8 G, but the V-n stall line gives 2.65 G at 140 KIAS, which caps the peak at about 19.1°/s. The reason is weight: the V-n diagram is at maximum take-off weight (5,168 lb), while the sustained-turn charts are at maximum take-off weight less climb fuel, and stall speed goes with the square root of weight, so the lighter jet stalls near 83 kt. **Default:** keep the V-n stall line (86 kt, as agreed) and accept a best sustained rate about 1.5°/s low at the stall limit. The stall speed is one constant, so it can change to about 83 kt if Dad prefers the turn chart. The chart checks run with it at 83 kt. This is flagged for his check.
+
+### For Dad to check
+
+The defaults above that no manual gives, each a setting:
+- the stall speed: 86 kt from the V-n diagram, or about 83 kt from the turn chart;
+- the roll rate: 90°/s;
+- the pitch back bank: 60° at 160 KIAS to 30° at 220;
+- Auto's split points: 220 and 120 KIAS.
+
+Then a run from several merge speeds (100, 140, 180, 220 and 250 KIAS) against how the Harvard really flies. Until he answers, the defaults stand.
+
+### What stays the same
+
+- The simple fight is untouched and stays pinned to V6 by its golden test. Energy mode is a separate stepper next to it, never a change to it.
+- The merge, first nose-on (in 3D, as Q51 decided), the tie rule (Q48), the trails, the 10-minute stop and the playback work the same in both modes.
+
 ## Project structure
 
 ```
 src/modules/turn-fight/
   index.js        mount and unmount; wires settings, scheduler, keys
   sim.js          the fight: pure, no page access (createFight, stepFight, FIGHT_STEP_SEC)
+  energy-sim.js   Energy mode: the moves, stepping both aircraft with core's point-mass step
   readouts.js     turns a fight state into readout lines (pure)
   view.js         top-down drawing on a ui-kit canvas surface
   profile.js      the side view (Climb and dive)
   layout.js       the three columns, panels and controls
   turn-fight.css
   README.md       what's here and where to change common things (R8)
-tests/unit/turn-fight/      sim.test.js readouts.test.js (known answers, the 10-minute stop, the fixed step)
+tests/unit/turn-fight/      sim.test.js readouts.test.js (known answers, the 10-minute stop, the fixed step), energy-sim.test.js (each move)
+tests/unit/core/            t6-performance.test.js point-mass.test.js (Energy mode's new core math, by its owner)
 tests/golden/turn-fight-v6.js         runs V6's own Turn Fight script in Node with a stand-in page
 tests/golden/turn-fight-sim.test.js   V6 vs sim.js, step by step, on a grid of setups
 tests/e2e/turn-fight.spec.js          play, pause, reset, controls, no overlap, stops when closed
@@ -201,6 +310,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 |---|---|---|
 | This spec | spec-driven-development | The six core areas, assumptions listed up front, and Patrick's approval before any code |
 | The task plan | planning-and-task-breakdown | `tasks/turn-fight/`: vertical slices, each task with acceptance, verify and at most about 5 files, checkpoints between PRs |
+| Tasks 8 to 10 (Energy mode) | test-driven-development | Every new formula starts as a failing known-answer test: a level turn gives today's `turnRadiusFt` and `turnRateRadPerSec` exactly; a steady climbing turn gives g·√(n² − cos²γ) / (V cos γ) (22.4°/s at 30°, 220 KTAS, 4 G); with thrust equal to drag, energy height stays constant round a loop; the stall line reaches 7 G at 227.5 KIAS; the fit meets the chart checks above |
 | Tasks 1 and 2 (the fight, readouts) | test-driven-development | The golden test against V6's own script is written first and must fail before `sim.js` exists. Each answered question starts as a failing test that states the change from V6 (D10) |
 | Every task | incremental-implementation | One task per commit, each leaving the app working; `npm test` before each commit |
 | Tasks 3 to 5 (the screen) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled controls, keyboard use, colour never the only signal, R22's essentials-first layout, tokens instead of `!important` |
@@ -217,12 +327,13 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 2. **Any answered question lands as its own commit** after the golden test passes on V6's behaviour, and that commit changes the golden test to say exactly what differs (as D39 did in `core`).
 3. **Unit tests** check meaning: 220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius; a 2-circle fight with the faster turn rate gets its nose on first; the fight is the same whatever the frame rate; the fight stops at 10 minutes; readouts round as V6 does.
 4. **Browser tests** (Playwright): every control does something (R3); nothing overlaps at 1366 × 768 and 1920 × 1080 (R2); closing the module leaves no frames or timers running (R4); no console errors (R7).
-5. **Sign-off checklist** (R21), run by Patrick or Dad against V6 side by side.
+5. **Energy mode** has no V6 to compare against, so it's tested against known answers and the T-6A charts (see Energy mode's checks, and test-driven-development in Skills used), and then flown by Dad. Its tests never touch the simple fight's golden test.
+6. **Sign-off checklist** (R21), run by Patrick or Dad against V6 side by side.
 
 ## Boundaries
 
 - **Always:** keep V6's numbers unless a logged decision says otherwise; take turn math from `core`; run `npm test` before each commit.
-- **Ask first:** any change to the fight's math or what it shows (anything beyond Q48 to Q51); a new package.
+- **Ask first:** any change to the fight's math or what it shows (anything beyond Q48 to Q51 and Energy mode as approved); a new package.
 - **Never:** edit `original/`; fold a fix into the port that pins V6; read a number from an input box inside `sim.js`.
 
 ## Success criteria
@@ -230,6 +341,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 - The golden test passes on every setup in its grid, and every change from V6 is a logged decision.
 - A student can set up, play and read a fight with only the default controls showing (R22).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
+- Energy mode meets its chart checks. From any merge speed between 100 and 250 KIAS, Auto reaches and holds the 160 KIAS max-performance turn, and Dad agrees each move flies like a Harvard.
 - Patrick or Dad signs off the checklist (R21).
 
 ## Plan
