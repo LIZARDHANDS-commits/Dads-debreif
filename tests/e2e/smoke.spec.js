@@ -52,14 +52,14 @@ test('the footer says when this copy was published, and Report a problem carries
 
 test('Settings changes the time order and it survives a reload @smoke', async ({ page }) => {
   await openRoute(page, '#/');
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Local first, Zulu beside it').check();
   await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(dialog).toBeHidden();
   await page.reload();
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('Local first, Zulu beside it')).toBeChecked();
   await expect(page.locator('#settings-storage-note')).toBeHidden();
 });
