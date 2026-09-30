@@ -25,7 +25,7 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Verify: `npm test`; `npm run dev`; e2e smoke and switching.
   - Dependencies: 3. Size M.
   - Files: src/modules/traffic/{index,layout,map2d}.js, traffic.css, src/shell/registry.js (via the app frame thread)
-- [ ] **5. The left side: define routes.** Routes list; + Pattern, + Entry, + Split as new routes linked to the selected pattern; selected route setup per kind; the labelled point table (keeps focus); + Point and Delete point; drag points on the map; links by point, not number, with linked ends moving together; Duplicate, Delete with its warning; Route options; Leg distances; turn-data flags for turns that don't fit.
+- [ ] **5. The left side: define routes.** Routes list; + Pattern, + Entry, + Split as new routes linked to the selected pattern; selected route setup per kind; the labelled point table (keeps focus); + Point and Delete point; drag points on the map; links by point, not number, with linked ends moving together; an entry or split may join a point on any route (a type's own pattern joining shared straight-in legs); Duplicate, Delete with its warning; Route options; Leg distances; turn-data flags for turns that don't fit.
   - Acceptance: fixes #44 and the editor parts of #45 and #49 as the spec lists; the map redraws on each edit; keyboard-only editing works.
   - Verify: unit tests of links through insert, delete and drag; e2e: define a pattern and an entry.
   - Dependencies: 4. Size M.
@@ -61,7 +61,7 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Verify: `npm test`; unit tests of a square pattern in each wind direction.
   - Dependencies: 2, 9, and `core/wind.js`. Size L (split into IAS, legs and turns if it grows past 5 files).
   - Files: src/modules/traffic/sim.js, src/modules/traffic/route.js, tests/unit/traffic/wind.test.js
-- [ ] **11. Aircraft types and wind on screen.** `types.js` with the spec's type table and sources; the spawner's type sets the aircraft's speeds; the point table's speed as a phase (Entry, Pattern, Closed, Inner downwind, Straight-in base, Approach, Landing), Blend or a number, with + Pattern, + Entry and + Split setting phases from V6's labels; the wind boxes, wind arrow and corner label; GS and crab in the aircraft rows; crabbed aircraft symbols; the More detail wind readouts; wind per leg in Leg distances; the most-G flags in the turn data.
+- [ ] **11. Aircraft types and wind on screen.** `types.js` with the spec's type table and sources; the spawner's type sets the aircraft's speeds; the point table's speed as a phase (Entry, Pattern, Closed, Inner downwind, Straight-in base, Approach, Landing), Blend or a number, with + Pattern, + Entry and + Split setting phases from V6's labels; the wind boxes, wind arrow and corner label; GS and crab in the aircraft rows; crabbed aircraft symbols; the More detail wind readouts and rate of climb or descent (ft/min); wind per leg in Leg distances; the most-G flags in the turn data.
   - Acceptance: the built-in setup opens exactly as V6 until task 12 switches it to phases; a point set to Landing flies each type's Landing speed at its true airspeed; R22 (wind readouts only when a wind is set; the rest under More); colour never the only signal.
   - Verify: e2e: set a wind, spawn a CT-156 and a CT-114 on a new pattern, see different ground speeds and crab angles; accessibility checklist.
   - Dependencies: 6, 10. Size M.
@@ -82,7 +82,7 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
 
 **Checkpoint E:** tests pass; code-review-and-quality; open PR E; Patrick or Dad runs the checklist.
 
-- [ ] **14. Redraw the Moose Jaw routes (T8).** Photo alignment at true scale (trim 1.0, checked against the runway length in the CFS); **Copy setup as text** under Profiles and notes; Patrick and Dad drag each point onto its ground reference and name it, set every pattern turn to 60°, 2 G (T6b), and paste the text in the Traffic thread; it becomes `data/moose-jaw.json`.
+- [ ] **14. Redraw the Moose Jaw routes (T8).** Photo alignment at true scale (trim 1.0, checked against the runway length in the CFS); **Copy setup as text** under Profiles and notes; Patrick and Dad drag each point onto its ground reference and name it, set every pattern turn to 60°, 2 G (T6b), add the Grob's closer pattern at 3,000 ft joining the shared straight-in base legs, place the straight-in's level-off point, and paste the text in the Traffic thread; it becomes `data/moose-jaw.json`.
   - Acceptance: the redrawn setup lines up with the photo at trim 1.0; the change lists every route's lap time and length before and after; golden tests still pin V6's own setup from V6's data.
   - Verify: `npm test`; Patrick and Dad look at it on the live site.
   - Dependencies: 8, 12, and Patrick and Dad's time. Size S.
