@@ -114,9 +114,11 @@ export const DEFAULTS = Object.freeze({
   // SMM item 2 (16.19 paras 52 and 54, Patrick 06:40Z): the inside aircraft turns when the wingman reaches 7 o'clock
   // in a right turn and 5 o'clock in a left turn. V6: 5:30.
   clockCuePos: 'auto',
-  // Q44b (Patrick): #4 solves its own delay by ground track, to roll out 3,000 ft outside #2 and Box aft behind the
-  // front element. V6 only had 'late' (#3's delay + base delay) and 'early' (#3's delay - base delay), which stay as choices.
-  offsetBox4Timing: 'groundTrack',
+  // Offset box #3 and #4 timing in the delayed turns. 'rearDelay' (the default, SMM 16.41 para 112a): both turn rearDelaySec
+  // after the front element has started. 'groundTrack' (Q44b, Patrick): #4 solves its own delay to roll out 3,000 ft
+  // outside #2 and Box aft behind the front element. V6's 'late' (#3's delay + base delay) and 'early' (#3's delay - base
+  // delay) stay as choices.
+  offsetBox4Timing: 'rearDelay',
   // SMM 16.41 para 112a: in the offset box #3 and #4 delay 10 to 15 s after the front element turns, so they miss #1 and #2.
   // The middle of the band. Used by the hook (and, as its own commit, the delayed turns). V6: no delay for the hook.
   rearDelaySec: 12.5,
@@ -173,7 +175,7 @@ export const SETTINGS_RULES = Object.freeze({
   startHeadingDeg: number(0, 360), // compass degrees
   showNm: bool,
 
-  offsetBox4Timing: oneOf(['groundTrack', 'late', 'early']),
+  offsetBox4Timing: oneOf(['rearDelay', 'groundTrack', 'late', 'early']),
   rearCheckOn: bool,
   rearCheckStartSec: number(0, 600),
   rearCheckDir: oneOf(['left', 'right']),

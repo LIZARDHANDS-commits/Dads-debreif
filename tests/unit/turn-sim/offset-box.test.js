@@ -9,6 +9,8 @@ import { ktToFtps } from '../../../src/core/units.js';
 import { turnRadiusFt } from '../../../src/core/flight-math.js';
 
 const BASE = { ...DEFAULTS, formation: 'offsetBox', maneuver: 'delayed90away', turnDeg: 90, baseDelaySec: 16, durationSec: 120 };
+/** The ground track (Q44b) and V6's timings are choices now; the SMM's rear delay is the default (see rear-delay.test.js). */
+const GT = { ...BASE, offsetBox4Timing: 'groundTrack' };
 const fly = (settings) => { const run = createRun(settings); while (run.step()); return run; };
 
 /** Everyone's final place in Lead's final frame: ft ahead of Lead and ft to Lead's left. */
@@ -19,14 +21,14 @@ function finalPlaces(run) {
   return Object.fromEntries([1, 2, 3, 4].map((id) => [id, at(p[id])]));
 }
 
-test('Q44b: the ground track is the default; V6 stays LATE', () => {
-  assert.equal(DEFAULTS.offsetBox4Timing, 'groundTrack');
+test('Q44b: the ground track is a choice, the SMM rear delay is the default; V6 stays LATE', () => {
+  assert.equal(DEFAULTS.offsetBox4Timing, 'rearDelay');
   assert.equal(V6_DEFAULTS.offsetBox4Timing, 'late');
 });
 
 test('Q44b: a delayed 90 in the offset box rolls #4 out on the far side of #2 from the slot, both ways', () => {
   for (const direction of ['right', 'left']) {
-    const places = finalPlaces(fly({ ...BASE, direction }));
+    const places = finalPlaces(fly({ ...GT, direction }));
     const out = Math.sign(places[2].left - places[3].left); // which way is "outside #2", away from the slot
     assert.ok(out !== 0);
     const outsideBy = (places[4].left - places[2].left) * out;
@@ -36,8 +38,8 @@ test('Q44b: a delayed 90 in the offset box rolls #4 out on the far side of #2 fr
 });
 
 test('Q44b: V6\'s LATE in a left turn ends #4 about 20,000 ft aft; the ground track brings it back near the box', () => {
-  const late = finalPlaces(fly({ ...BASE, direction: 'left', offsetBox4Timing: 'late' }));
-  const track = finalPlaces(fly({ ...BASE, direction: 'left' }));
+  const late = finalPlaces(fly({ ...GT, direction: 'left', offsetBox4Timing: 'late' }));
+  const track = finalPlaces(fly({ ...GT, direction: 'left' }));
   assert.ok(late[1].ahead - late[4].ahead > 19000, `LATE ${late[4].ahead.toFixed(0)}`);
   assert.ok(track[1].ahead - track[4].ahead < 9000, `ground track ${track[4].ahead.toFixed(0)}`);
 });
@@ -46,7 +48,7 @@ test('Q44b: the solved delay fits #4 to the target as well as LATE or EARLY do (
   for (const direction of ['right', 'left']) {
     for (const [maneuver, turnDeg] of [['delayed90away', 90], ['delayed45away', 45]]) {
       for (const baseDelaySec of [5, 12, 16, 25]) {
-        const run = createRun({ ...BASE, maneuver, turnDeg, direction, baseDelaySec });
+        const run = createRun({ ...GT, maneuver, turnDeg, direction, baseDelaySec });
         const list = run.state.aircraft.map((a) => ({ id: a.id, xFt: a.xFt, yFt: a.yFt, headingRad: a.headingRad }));
         const v = ktToFtps(BASE.speedKt);
         const cfg = (timing4) => ({ baseDelaySec, selectedDir: direction === 'right' ? -1 : 1, goalRad: (turnDeg * Math.PI) / 180, direction, speedFtps: v, baseG: BASE.baseG, boxAftFt: BASE.boxAftFt, startHeadingRad: list[0].headingRad, timing4 });
@@ -75,21 +77,25 @@ test('Q44b: the solved delay fits #4 to the target as well as LATE or EARLY do (
   }
 });
 
-test('SMM item 5: the solved delays of #3 and #4 are in the state, against the 10 to 15 s band, before the first step too', () => {
-  const run = createRun({ ...BASE, direction: 'right' });
+test('SMM item 5: the delays of #3 and #4 after the front element are in the state, against the 10 to 15 s band, before the first step too', () => {
+  // The default: both 12.5 s after the later front aircraft (the band's middle), inside the band.
+  const dflt = createRun({ ...BASE, direction: 'right' });
+  assert.deepEqual([dflt.state.offsetBox.minSec, dflt.state.offsetBox.maxSec], [10, 15]);
+  assert.deepEqual(dflt.state.offsetBox.rear.map((r) => [r.id, r.delaySec, r.outsideBand]), [[3, 12.5, false], [4, 12.5, false]]);
+  // The ground track solves its own delays, which can fall outside the band: they are measured from the later front start.
+  const run = createRun({ ...GT, direction: 'right' });
   const box = run.state.offsetBox;
-  assert.deepEqual([box.minSec, box.maxSec], [10, 15]);
   assert.deepEqual(box.rear.map((r) => r.id), [3, 4]);
   const solved = box.rear.map((r) => r.delaySec);
   assert.ok(solved.every(Number.isFinite));
-  // The delays are what the planned turns start at (no delay errors here).
   const started = {};
   while (run.step()) for (const a of run.state.aircraft) if (a.turning && started[a.id] === undefined) started[a.id] = run.state.tSec;
-  assert.ok(Math.abs(started[3] - solved[0]) < 0.11 && Math.abs(started[4] - solved[1]) < 0.11, `${JSON.stringify(started)} vs ${solved}`);
+  const frontLast = Math.max(started[1], started[2]);
+  assert.ok(Math.abs(started[3] - frontLast - solved[0]) < 0.11 && Math.abs(started[4] - frontLast - solved[1]) < 0.11, `${JSON.stringify(started)} vs ${solved}`);
   for (const r of box.rear) assert.equal(r.outsideBand, r.delaySec < 10 || r.delaySec > 15);
-  assert.equal(run.state.offsetBox.rear[1].outsideBand, true, 'at these settings #4 is well past 15 s');
+  assert.equal(box.rear[1].outsideBand, true, 'the ground track puts #4 well past 15 s after the front element');
   // The band is a setting, and the flag follows it.
-  const wide = createRun({ ...BASE, rearDelayMinSec: 0, rearDelayMaxSec: 60 });
+  const wide = createRun({ ...GT, rearDelayMinSec: 0, rearDelayMaxSec: 60 });
   assert.ok(wide.state.offsetBox.rear.every((r) => r.outsideBand === false));
 });
 
