@@ -120,6 +120,10 @@ export const DEFAULTS = Object.freeze({
   // SMM 16.41 para 112a: in the offset box #3 and #4 delay 10 to 15 s after the front element turns, so they miss #1 and #2.
   // The middle of the band. Used by the hook (and, as its own commit, the delayed turns). V6: no delay for the hook.
   rearDelaySec: 12.5,
+  // SMM 16.19 para 64 and Figure 16.21: the cross turn is 2 G for about the first 90 degrees, then 3 G to the 180.
+  // The G setting is the second stage. V6 flew the whole turn at the G setting.
+  crossTurnFirstG: 2.0,
+  crossTurnSwitchDeg: 90,
   // D48 (Q31, Patrick): which side #2 flies on in 4312 and 2134, left by default. V6 drew #2 on Lead's left in 4312
   // (2134 is its mirror); 'right' mirrors both. V6 had no such box, and 'left' is what it flew.
   twoSide: 'left',
@@ -174,6 +178,8 @@ export const SETTINGS_RULES = Object.freeze({
   rearCheckAfterTurns: bool,
   twoSide: oneOf(['left', 'right']),
   rearDelaySec: number(0, 60),
+  crossTurnFirstG: number(1.01, 9),
+  crossTurnSwitchDeg: number(10, 180),
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 

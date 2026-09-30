@@ -99,8 +99,9 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     // V6 line 1583). Lead has already moved this step, and the distance is measured from the wingman's own
     // position before its move, as V6 does.
     const lead = aircraft.find((x) => x.id === 1);
+    const leg = a.legs ? a.legs[a.legIndex] : null;
     const g = turnSimG({
-      gSetting: flight.baseG,
+      gSetting: leg && leg.gSetting !== undefined ? leg.gSetting : flight.baseG, // the cross turn's first 90 degrees have their own G
       gErr: a.gError,
       useErrorsAndCorrection: true,
       correction: flight.correction,

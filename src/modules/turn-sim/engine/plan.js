@@ -301,7 +301,7 @@ export function autoTimingStarts(aircraft, flight) {
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
- * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; and rearDelaySec (the hook).
+ * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; rearDelaySec (the hook); crossTurnFirstG and crossTurnSwitchDeg (the cross turn).
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
@@ -378,13 +378,20 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       }
 
       if (man === 'cross180') {
-        // Still V6's cross turn until its own commit: sides turn opposite ways.
+        // The cross turn (SMM 16.19 para 64, Figure 16.21): each pair turns toward each other at once, 2 G for the first
+        // 90 degrees (crossTurnFirstG, crossTurnSwitchDeg), then the G setting to the 180. Lead always turns toward
+        // #2, whichever way the Direction box points (V6 line 1223 sent Lead the Direction way, so with #2 on the far side both
+        // turned the same way and never crossed): the direction Lead flies is in state.leadTurnDirection.
         d = 0;
-        dir = sideOfLead(aircraft, a, flight.startHeadingRad) < 0 ? 1 : -1;
-        if (a.id === 1) dir = selectedDir;
+        const partner = pairPartner(aircraft, a);
+        dir = towardDir(a, partner, selectedDir);
+        g = goal;
+        const first = Math.min(degToRad(flight.crossTurnSwitchDeg), goal);
+        legs = [{ dir, goalRad: first, gSetting: flight.crossTurnFirstG }];
+        if (goal - first > 1e-9) legs.push({ dir, goalRad: goal - first });
       }
 
-      if (man !== 'shackle45') {
+      if (man !== 'shackle45' && man !== 'cross180') {
         if (a.id === 1) dir = selectedDir;
         else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
       }
