@@ -6,6 +6,7 @@
 import {
   evaluate, tafCautionsForBanner, tafResultsOfWaves, acknowledge, acknowledgeAll, bannerNotEndedBefore,
 } from './cautions.js';
+import { describeTrigger } from './waves.js';
 
 /** Where the acknowledgements are kept, in the module's storage scope. */
 export const ACKS_KEY = 'cautionAcks';
@@ -16,13 +17,16 @@ const SYMBOL = { below: '▼', caution: '⚠' };
 /**
  * The TAF results the banner checks: every airfield's TAF over the banner window
  * (whatever day the timeline shows), plus each wave's own results. `tafs` maps ICAO to
- * wx's parsed TAF (or null); `calls` is `waveCalls`' answer; `homeIcao` names home.
+ * wx's parsed TAF (or null); `calls` is `waveCalls`' answer; `homeIcao` names home and
+ * `homeLimits` is the home limits from Settings.
  */
-export function tafInputs({ tafs, calls = [], homeIcao, now, timeZone }) {
+export function tafInputs({ tafs, calls = [], homeIcao, homeLimits, now, timeZone }) {
+  // With the home limits known, home's own forecast below them is listed with no wave entered (cautions.js).
+  const home = homeIcao && homeLimits ? { icao: homeIcao, limits: { ceilingFt: describeTrigger(homeLimits).ceilingFt, visSm: describeTrigger(homeLimits).visSm } } : undefined;
   // One result per airfield, its pieces from every look at its TAF. cautions.js joins the pieces of a group into one
   // caution over their whole span; looked at one result at a time, the same fog would be a line for each look.
   const byIcao = new Map();
-  for (const { icao, result } of [...tafCautionsForBanner({ tafs, now, timeZone }), ...tafResultsOfWaves(calls, homeIcao)]) {
+  for (const { icao, result } of [...tafCautionsForBanner({ tafs, now, timeZone, home }), ...tafResultsOfWaves(calls, homeIcao)]) {
     const one = byIcao.get(icao) ?? { icao, result: { status: result?.status, hits: [], cautions: [] } };
     one.result.hits.push(...(Array.isArray(result?.hits) ? result.hits : []));
     one.result.cautions.push(...(Array.isArray(result?.cautions) ? result.cautions : []));

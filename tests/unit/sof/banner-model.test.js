@@ -247,3 +247,15 @@ test('a below-limits TAF hit of a wave flown hours ago is not on the banner, and
   const later = at(new Date('2026-09-29T22:30:00Z')); // the TEMPO ended 1 h 30 min ago
   assert.deepEqual(later.lines.filter((l) => /TAF/.test(l.text)), [], later.lines.map((l) => l.text).join(' | '));
 });
+
+test('with no wave entered, a home forecast below the limits raises a banner line (the default state)', () => {
+  const raw = 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM SKC TEMPO 2921/2923 1SM BR OVC003';
+  const reports = { CYMJ: parseTaf(raw, { now: NOW }) };
+  const fields = airfields();
+  const snapshot = { metar: FINE, taf: { CYMJ: taf(raw) }, newestAt: NOW, lastRound: null, busy: false, stopped: false };
+  const cards = buildScreen({ airfields: fields, snapshot, limits: LIMITS, now: NOW }).cards;
+  const b = buildBanner({ cards, tafs: tafInputs({ tafs: reports, calls: [], homeIcao: 'CYMJ', homeLimits: LIMITS, now: NOW, timeZone: ZONE }), now: NOW, timeZone: ZONE });
+  const below = b.lines.filter((l) => l.level === 'below');
+  assert.ok(below.length >= 1, b.lines.map((l) => l.text).join(' | '));
+  assert.match(below[0].text, /^Below limits: CYMJ TAF TEMPO 29\/21Z–29\/23Z: CEILING 300 FT < 2000 FT/);
+});
