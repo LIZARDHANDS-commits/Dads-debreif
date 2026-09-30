@@ -364,3 +364,28 @@ test('crossings and closePasses never share a pair: the box hook right has cross
     }
   }
 });
+
+// The check flown at 45 degrees, the figures' case, pinned bit for bit before the other angles fall back (recheck of #223, C1):
+// end positions and headings [x, y, heading] per aircraft, and [tSec, history rows], from the engine as it was.
+const PIN_45 = {
+  twoShipRight: { ends: [[19314.136026408796,19932.435485798553,0.7853981633974487],[16476.604678335592,22644.28802513301,0.7853981633974483]], time: [75.04999999999788,1502] },
+  weightedLeft: { ends: [[-5857.063162173927,29229.72293931696,2.356194490192345],[-3180.944660303087,31758.5808677902,2.356194490192345],[-8533.181664044436,26700.865010842223,2.356194490192345],[-11370.713012117532,23989.012471507747,2.3561944901923506]], time: [90.499999999997,1811] },
+  boxRight: { ends: [[19747.36269478551,20365.662154175265,0.7853981633974487],[16909.831346712304,23077.514693509722,0.7853981633974483],[13098.223262759484,17362.466572149086,0.7853981633974487],[10239.527037041078,20078.876768227325,0.7853981633974483]], time: [76.69999999999779,1535] },
+  boxLeft: { ends: [[-10476.604678335654,22644.288025133013,2.356194490192345],[-13314.136026408698,19932.435485798535,2.3561944901923506],[-7192.878183492142,15757.602264677615,2.356194490192345],[-10051.57440921091,13041.192068600365,2.3561944901923506]], time: [75.04999999999788,1502] },
+};
+const PIN_RUN = {
+  twoShipRight: { formation: 'twoShip', direction: 'right', delayed45Check: 'check' },
+  weightedLeft: { formation: 'weighted', direction: 'left' },
+  boxRight: { formation: 'offsetBox', direction: 'right' },
+  boxLeft: { formation: 'offsetBox', direction: 'left', boxAftFt: 7000 },
+};
+
+test('Turn degrees 45 flies the check exactly as before (two-ship, 4312, box)', () => {
+  for (const [name, over] of Object.entries(PIN_RUN)) {
+    const run = createRun({ ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, startHeadingDeg: 0, timing: 'time', ...over });
+    while (run.step());
+    assert.equal(run.state.delayed45CheckFlown, true, name);
+    assert.deepEqual(run.state.aircraft.map((a) => [a.xFt, a.yFt, a.headingRad]), PIN_45[name].ends, name);
+    assert.deepEqual([run.state.tSec, run.history().length], PIN_45[name].time, name);
+  }
+});
