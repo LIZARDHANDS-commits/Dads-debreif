@@ -66,6 +66,7 @@ Ground rules:
 | Where we left off, next step | `.agent/memory/handoff.md` |
 | Working notes for the current session | `.agent/memory/scratchpad.md` |
 | Approaches tried and dropped (don't retry) | `.agent/memory/graveyard.md` |
+| Decisions (D1 onward) and requirements (R1-R33) | `docs/records/plan-decisions.md`, `docs/records/plan-requirements.md` (from the old plan doc) |
 | Judgement calls | `docs/records/decisions-log.md` (one row each) |
 | New ideas | `docs/records/future-ideas.md` |
 | Questions for Dad | `docs/records/dads-questions.md` |
