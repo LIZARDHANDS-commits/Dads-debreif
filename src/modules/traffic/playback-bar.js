@@ -8,8 +8,8 @@
 // through the ui-kit controls (with the number rule) and the module reads
 // them from its settings. A control whose feature isn't on the screen yet is
 // left out rather than shown doing nothing (R3): Rewind and the ±10 s steps
-// when their callbacks aren't given, and the 3D switch, the photo and Engine-out
-// reach layers when `available` doesn't say they exist.
+// when their callbacks aren't given, and the wind boxes, the 3D switch, the photo
+// and Engine-out reach layers when `available` doesn't say they exist.
 import { h } from '../../ui-kit/dom.js';
 import { DEFAULTS, SPEEDS, LIMITS } from './defaults.js';
 
@@ -67,7 +67,7 @@ export function createMenu({ label, children = [], listen }) {
 /**
  * controls: ui-kit controls bound to the traffic settings (wind, layers, 2D | 3D).
  * on: { play, pause, reset, speed(x), fit, rewind?, step?(seconds) }.
- * available: { view3d, photo, reach }, each true once that feature is on the screen.
+ * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
  * listen: app.listen.
  * Returns { element, setState({ mode, clockText, speed }) }.
  */
@@ -92,12 +92,14 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
   const status = h('p', { class: 'bar-status', role: 'status' }, STATUS_TEXT.paused);
 
   // Row two: the view.
-  const wind = h(
-    'div',
-    { class: 'bar-wind', role: 'group', 'aria-label': 'Wind' },
-    controls.number('windFromDeg', { label: 'Wind from', unit: '°T', min: LIMITS.windFromDeg[0], max: LIMITS.windFromDeg[1], step: 1 }),
-    controls.number('windKt', { label: 'Wind speed', unit: 'kt', min: LIMITS.windKt[0], max: LIMITS.windKt[1], step: 1 }),
-  );
+  const wind = available.wind
+    ? h(
+      'div',
+      { class: 'bar-wind', role: 'group', 'aria-label': 'Wind' },
+      controls.number('windFromDeg', { label: 'Wind from', unit: '°T', min: LIMITS.windFromDeg[0], max: LIMITS.windFromDeg[1], step: 1 }),
+      controls.number('windKt', { label: 'Wind speed', unit: 'kt', min: LIMITS.windKt[0], max: LIMITS.windKt[1], step: 1 }),
+    )
+    : null;
   const viewSwitch = available.view3d
     ? controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] })
     : null;

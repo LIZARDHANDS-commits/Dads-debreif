@@ -166,8 +166,15 @@ test('Rewind and the ±10 s steps are left out until they can be called, so noth
   assert.ok(pressable(stepsOnly.bar.element, '+10 s'));
 });
 
+test('the wind boxes are left out until the engine reads the wind, so nothing is on screen doing nothing (R3)', () => {
+  const { bar, controls } = setup();
+  assert.equal(controls.asked.filter((a) => a.kind === 'number').length, 0);
+  assert.equal(all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Wind').length, 0);
+  assert.equal(all(setup({ available: { wind: true } }).bar.element, (n) => n.getAttribute?.('aria-label') === 'Wind').length, 1);
+});
+
 test('the wind boxes are wind direction (°T) and speed (kt), with the spec\'s limits', () => {
-  const { controls } = setup();
+  const { controls } = setup({ available: { wind: true } });
   const [from, speed] = controls.asked.filter((a) => a.kind === 'number');
   assert.deepEqual([from.key, from.min, from.max, from.unit], ['windFromDeg', 1, 360, '°T']);
   assert.deepEqual([speed.key, speed.min, speed.max, speed.unit], ['windKt', 0, 60, 'kt']);
@@ -259,7 +266,7 @@ function withRealControls() {
   const kept = new Map();
   const store = { get: (k, fallback) => (kept.has(k) ? kept.get(k) : fallback), set: (k, v) => kept.set(k, v) };
   const settings = createSettings(store, DEFAULTS);
-  return { settings, ...setup({ controls: createControls(settings) }) };
+  return { settings, ...setup({ controls: createControls(settings), available: { wind: true } }) };
 }
 
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
