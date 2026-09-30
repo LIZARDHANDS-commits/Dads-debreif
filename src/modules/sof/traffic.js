@@ -167,6 +167,7 @@ const place = (n) => Number(String(Math.round(n * 100) / 100)) + 0;
  * nothing after the host) this returns null and the layer stays hidden. `lat` and `lon`
  * default to the default home field and are rounded to 0.01 degree; out of range gives
  * null. `nm` is rounded and kept within the relay's 5 to 150 (100 when it isn't a number).
+ * @param {{ baseUrl?: any, lat?: any, lon?: any, nm?: any }} [input]
  */
 export function trafficUrl({ baseUrl, lat = CATALOG[DEFAULT_HOME].lat, lon = CATALOG[DEFAULT_HOME].lon, nm = TRAFFIC_DEFAULTS.nm } = {}) {
   const origin = relayOrigin(baseUrl);
@@ -285,6 +286,7 @@ const EMPTY = Object.freeze({ ok: false, source: null, count: 0, truncated: fals
  * `{ hex, lat, lon, rotationDeg, hasTrack, onGround, altitudeFt, altitudeWords, gs, gsWords,
  * callsign, reg, type, squawk, mil, label, opacity, ageS, facts: [{label, value}], description }`.
  * `ok` is false (and the list empty) when the reply or the clock can't be read.
+ * @param {{ reply?: any, receivedAt?: any, now?: any, label?: string, militaryOnly?: boolean }} [input]
  */
 export function layerModel({ reply, receivedAt, now, label = TRAFFIC_DEFAULTS.label, militaryOnly = TRAFFIC_DEFAULTS.militaryOnly } = {}) {
   const read = readReply(reply);
@@ -329,7 +331,12 @@ export function layerSignature(view) {
 /** The layer before it has been switched on. */
 export const initialTraffic = () => ({ on: false, seq: 0, pendingId: null, pendingSince: null, nextAt: null, lastGood: null, receivedAt: null, failed: false });
 
-/** The layer switched on (asks at once) or off (forgets everything). The same object back if nothing changes. */
+/**
+ * The layer switched on (asks at once) or off (forgets everything). The same object back if nothing changes.
+ * @param {any} state
+ * @param {any} on
+ * @param {{ now?: any }} [input]
+ */
 export function setTrafficOn(state, on, { now } = {}) {
   const want = on === true;
   if (state?.on === want) return state;
@@ -345,7 +352,11 @@ export function trafficDue(state, now) {
   return isNumber(state.nextAt) && t >= state.nextAt;
 }
 
-/** A request has gone out. */
+/**
+ * A request has gone out.
+ * @param {any} state
+ * @param {{ now?: any }} [input]
+ */
 export function trafficRequested(state, { now } = {}) {
   if (state?.on !== true) return state;
   const seq = state.seq + 1;
@@ -358,6 +369,8 @@ const answers = (state, id) => state?.on === true && state.pendingId !== null &&
 /**
  * A failed request: keep the last good aircraft (they fade and go), try again in 10 s. `id` is the
  * `pendingId` of the request; an answer to any other request, or while off, is ignored.
+ * @param {any} state
+ * @param {{ now?: any, id?: any }} [input]
  */
 export function trafficFailed(state, { now, id } = {}) {
   return answers(state, id) ? { ...state, failed: true, pendingId: null, pendingSince: null, nextAt: ms(now) + TRAFFIC_DEFAULTS.refreshMs } : state;
@@ -367,6 +380,8 @@ export function trafficFailed(state, { now, id } = {}) {
  * The relay answered with `reply` (raw). A reply that can't be read counts as a failure.
  * A reply with no aircraft is a good answer. `id` is the `pendingId` of the request; it is ignored
  * while off or for any other request, so a late answer never brings the layer back.
+ * @param {any} state
+ * @param {{ reply?: any, now?: any, id?: any }} [input]
  */
 export function trafficSucceeded(state, { reply, now, id } = {}) {
   if (!answers(state, id)) return state;
@@ -386,6 +401,8 @@ const agoWords = (secs) => (secs < 90 ? `${secs} s ago` : `${Math.round(secs / 6
  * are still listed while they fade, and go when too old, never frozen; `statusText` says
  * "Traffic unavailable, last good 1842Z". `label` and `militaryOnly` are `layerModel`'s.
  * `signature` is `layerSignature` of the result.
+ * @param {any} state
+ * @param {{ now?: any, label?: string, militaryOnly?: boolean }} [input]
  */
 export function trafficView(state, { now, label, militaryOnly } = {}) {
   const t = ms(now);

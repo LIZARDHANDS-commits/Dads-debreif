@@ -119,7 +119,7 @@ export function createWeather({ stations, fetch, timers, store, now = () => new 
       fetch: guarded,
       onUpdate: (update) => onUpdate(update, mine),
       everyMs: REFRESH_MS,
-      timers: adapter,
+      timers: /** @type {any} */ (adapter),
       now,
     });
     handle.ready.catch((err) => console.error('SOF weather refresh failed:', err));
