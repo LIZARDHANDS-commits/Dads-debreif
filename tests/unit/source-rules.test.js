@@ -32,6 +32,12 @@ test('no setInterval anywhere, and animation frames only in the scheduler', () =
   assert.deepEqual(offenders(/\brequestAnimationFrame\b/, (p) => p === 'src/ui-kit/scheduler.js'), []);
 });
 
+test('three is never imported statically (it loads with import(), only inside 3D views)', () => {
+  // Catches `import x from 'three'`, `export * from 'three'` and 'three/addons/...'; import('three') is allowed.
+  assert.deepEqual(offenders(/^\s*(import|export)\b[^(]*from\s*['"]three(\/[^'"]*)?['"]/m), []);
+  assert.deepEqual(offenders(/^\s*import\s*['"]three(\/[^'"]*)?['"]/m), []);
+});
+
 test('only storage/ touches localStorage', () => {
   assert.deepEqual(offenders(/\blocalStorage\b/, (p) => p.startsWith('src/storage/')), []);
 });
