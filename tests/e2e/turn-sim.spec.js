@@ -308,7 +308,7 @@ test('Aircraft errors: a wingman turning late is what the plan flies (#31)', asy
   await expect(page.locator('.ts-line').first()).toHaveText(/Min sep 6,000 ft/); // #3 and Lead are still 6,000 ft
   await panel(page, 'More detail').click();
   await expect(page.getByText(/^1-2: 7,000 ft/)).toBeVisible();
-  await page.locator('.ts-errors').getByRole('button', { name: 'Reset to defaults' }).click(); // the errors' own
+  await page.locator('.ts-errors').getByRole('button', { name: 'Reset aircraft errors' }).click(); // the errors' own
   await expect(page.getByText(/^1-2: 6,000 ft/)).toBeVisible();
 });
 
@@ -336,7 +336,21 @@ test('an aircraft can be dragged before Play, and it starts where it was dropped
   await panel(page, 'Turn Sim settings').click();
   await panel(page, 'More …').click();
   await expect(page.getByLabel('Put it out of position').first()).toBeChecked();
-  await page.locator('.ts-errors').getByRole('button', { name: 'Reset to defaults' }).click();
+  await page.locator('.ts-errors').getByRole('button', { name: 'Reset aircraft errors' }).click();
+  await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
+});
+
+test('the menu\'s own Reset to defaults also clears dragged positions (audit yellow 4)', async ({ page }) => {
+  await open(page);
+  const two = await shipAt(page, 2);
+  await page.mouse.move(two.x, two.y);
+  await page.mouse.down();
+  await page.mouse.move(two.x, two.y - 40, { steps: 4 });
+  await page.mouse.up();
+  await panel(page, 'Turn Sim settings').click();
+  await panel(page, 'More …').click();
+  await expect(page.getByLabel('Put it out of position').first()).toBeChecked();
+  await page.locator('.settings-reset').click();
   await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
 });
 

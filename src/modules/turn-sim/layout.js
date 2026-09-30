@@ -152,7 +152,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     h('h3', { class: 'ts-group-title' }, 'Aircraft errors'),
     h('p', { class: 'ts-hint' }, 'Give a wingman a mistake and see what it does to the turn. All zero means no mistakes. Dragging an aircraft on the picture before Play sets its position error here.'),
     ...errorSections,
-    resetButton(errorKeys),
+    resetButton(errorKeys, 'Reset aircraft errors'),
   );
 
   // ---- Turn Sim settings: every tuning number, in the ui-kit's one closed menu (R22) ----
@@ -162,7 +162,8 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     collapsed: !layout.get().settingsOpen,
     onToggle: (c) => layout.update({ settingsOpen: !c }),
     onReset: () => {
-      scenario.update(Object.fromEntries(tuningKeys.map((k) => [k, defaults[k]])));
+      // The tuning numbers and the aircraft errors (a dragged aircraft is one), all in this menu.
+      scenario.update(Object.fromEntries([...tuningKeys, ...errorKeys.filter((k) => Object.hasOwn(defaults, k))].map((k) => [k, defaults[k]])));
       say('These settings are back at their defaults.');
     },
   });
