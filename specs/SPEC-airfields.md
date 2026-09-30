@@ -1,6 +1,6 @@
 # Spec: `airfields`, the home field and its alternates
 
-Status: **draft, waiting for Patrick's approval.** Module id `airfields` in [`SPEC.md`](../SPEC.md). Requirements: R16 (home airfield and alternates are a setting), R10 (one Zulu/local switch, local is the home field's zone), R13 (SOF), R22 (essentials first). Decisions: the home airfield is a setting usable anywhere, default CYMJ (Patrick, 2026-09-29), D60 and D70 to D73 (Q30 alternate rules). Open questions: Q40 (RCAF orders), and Dad's GNSS visual-descent question. Decision, requirement and question numbers refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("approve", in the Airfields thread). Changes go through a pull request. Module id `airfields` in [`SPEC.md`](../SPEC.md). Requirements: R16 (home airfield and alternates are a setting), R10 (one Zulu/local switch, local is the home field's zone), R13 (SOF), R22 (essentials first). Decisions: the home airfield is a setting usable anywhere, default CYMJ (Patrick, 2026-09-29), D60 and D70 to D73 (Q30 alternate rules). Open questions: Q40 (RCAF orders), and Dad's GNSS visual-descent question. Decision, requirement and question numbers refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
