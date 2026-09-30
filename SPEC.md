@@ -95,7 +95,7 @@ original/               untouched V6 reference (never edited)
 tests/
   unit/                 node --test, one file per core/wx/flight-data file
   golden/               v6-baseline.json and comparison tests (R9)
-  e2e/                  Playwright: overlap scan, click-through, module switching, offline
+  e2e/                  Playwright: accessibility (axe), overlap scan, click-through, module switching, offline
 docs/audit/             the verified V6 audit
 specs/                  SPEC-<module-id>.md
 ```
