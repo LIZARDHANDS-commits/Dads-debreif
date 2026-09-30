@@ -97,16 +97,18 @@ export function checkSame({ mine, v6, dice }, step) {
 /**
  * Flies both `steps` more steps of 0.05 s, comparing after each. `events` is
  * `{ step: (pair) => {…} }`, run before that step is flown (steps count from the
- * start of the run). Returns what happened, to show the run really went somewhere.
+ * start of the run). `compareEvery` compares only every that many steps (default every
+ * step; a test of something else than the flying can ask for once a second).
+ * Returns what happened, to show the run really went somewhere.
  */
-export function flyBoth(pair, steps, events = {}) {
+export function flyBoth(pair, steps, events = {}, { compareEvery = 1 } = {}) {
   const seen = { conflict: 0, caution: 0, landed: 0, done: 0, routes: new Set(), maxFlying: 0 };
   for (let i = 0; i < steps; i++) {
     const k = ++pair.step;
     events[k]?.(pair);
     pair.v6.frame();
     pair.mine.stepTo(k * STEP_SEC);
-    checkSame(pair, k);
+    if (k % compareEvery === 0) checkSame(pair, k);
     if (k % STEPS_PER_SEC === 0) { // once a second is plenty for the tally
       const st = pair.mine.state();
       seen.conflict += st.conflicts.filter((c) => c.level === 'conflict').length;

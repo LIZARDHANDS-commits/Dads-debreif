@@ -73,24 +73,25 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 │ ☐ First nose chases   ││                                       ││  Blue at +18.2 s        │
 │ ☐ Climb and dive      ││                                       ││ ▸ More detail           │
 │ ☐ Energy (T-6)        ││                                       ││                         │
+│ ▸ Turn Fight settings ││                                       ││                         │
 │ ▸ About this model    ││                                       ││                         │
 └───────────────────────┘└───────────────────────────────────────┘└─────────────────────────┘
 ```
 
-| Shown by default | Behind a checkbox (off by default) or a collapsed "More …" panel (R22) |
+| Shown by default | Behind a checkbox (off by default), in the closed **Turn Fight settings** menu, or in a collapsed "More …" panel for extra readouts (R22) |
 |---|---|
 | Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6 |
-| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch, the side-view panel under the stage, and the side view's height scale (1×, 2×, 4×) |
+| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch beside their speed and G, and the side-view panel under the stage. The side view's height scale (1×, 2×, 4×) is in Turn Fight settings |
 | The top-down view: grid, trails, both aircraft, the MERGE mark, the first nose-on line | **More detail**: G, 360° time, each aircraft's true angle-off, time since the merge, and with Climb and dive on, each aircraft's height change and the height between them |
 | Result: turn rate and turn radius for each aircraft, range, first nose-on | **Energy (T-6)**, off by default: see Energy mode for what it shows |
 | A warning beside a G box when that G is more than a T-6 can pull at that speed (see T-6 limit warning) | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
-| | **Start geometry**, collapsed, head-on by default: Red off Blue's nose, Red's aspect angle, Red's starting height, when the turns start (see Start geometry and altitudes) |
+| | **Turn Fight settings** (Patrick, 2026-09-30 07:20Z): one menu, closed by default, built with ui-kit's `createSettingsMenu` (SPEC-ui-kit, "Settings menu"). It holds every tuning number, in sections: **Start geometry** (head-on by default: Red off Blue's nose, Red's aspect angle, Red's starting height, when the turns start; see Start geometry and altitudes); **Display** (the side view's height scale); with Energy on, **Energy** (see More energy settings in Energy mode) and **Model settings for checking**. Its Reset button is "Reset to V6 defaults". It opens in the page flow and never covers a control |
 
 - **The fight changes only when the setup changes.** Changing the fight type, separation, a speed, a G, First nose chases, Climb and dive, or a pitch resets the fight, as in V6. Playback speed and the side view's height scale are display settings and never reset it (V6 reset on the height scale, #20).
-- **Settings are remembered** in this browser (`app.storage`), and "Reset to V6 defaults" in More detail puts back V6's setup: 2-circle, 2 NM, both 220 KTAS and 4 G, both extras off, pitch 0°, height scale 2×, 1×.
+- **Settings are remembered** in this browser (`app.storage`), and "Reset to V6 defaults" in Turn Fight settings puts back V6's setup: 2-circle, 2 NM, both 220 KTAS and 4 G, both extras off, pitch 0°, height scale 2×, 1×.
 - **Keyboard** (through `app.keys`, only while the Turn Fight is open and never while typing): Space plays or pauses, Home resets. Tab moves between controls as normal.
 - **Colours** stay V6's: Blue #58a6ff, Red #ff6b6b, the first nose-on line #ffcc66. Each aircraft is also labelled B or R on the view and in every table, so colour is never the only signal.
-- **T-6 limit warning (simple mode).** When a set G is above what a T-6 can pull at the set speed, a warning shows beside the G box: "4.0 G is above the T-6's stall limit at 120 kt (2.0 G)" or "Above the T-6's 7 G limit". The fight still flies what was set, as V6 does, so the tool can still show a generic fight. The stall limit is G = (speed ÷ 86 kt)², the sea-level stall line of the T-6A V-n diagram (manuals: formation-and-turn-numbers.md). The simple mode has no altitude, so its speed is taken as sea level, where true and indicated airspeed agree. V6's default, 220 KTAS at 4 G, is inside the limit (6.5 G), so no warning shows by default.
+- **T-6 limit warning (simple mode).** When a set G is above what a T-6 can pull at the set speed, a warning shows beside the G box: "4.0 G is above the T-6's stall limit at 120 kt (1.9 G)" (the limit is rounded down, so the warning never understates it) or "Above the T-6's 7 G limit". The fight still flies what was set, as V6 does, so the tool can still show a generic fight. The stall limit is G = (speed ÷ 86 kt)², the sea-level stall line of the T-6A V-n diagram (manuals: formation-and-turn-numbers.md). The simple mode has no altitude, so its speed is taken as sea level, where true and indicated airspeed agree. V6's default, 220 KTAS at 4 G, is inside the limit (6.5 G), so no warning shows by default.
 - **Number boxes** use ui-kit's number rule, so a blank, zero, infinite or out-of-range entry is refused with a message and the last good value stays. The ranges are: speed 60 to 400 KTAS, G 1.1 to 9, start separation 0.5 to 10 NM, pitch −60° to +60°. V6 read a blank or 0 as its default (220 kt, 4 G, 2 NM) and had no limits except on pitch.
 
 ## What V6 does, and what the rebuild keeps
@@ -181,11 +182,30 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 - With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
 - Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
+## 2D and 3D views (Patrick, 2026-09-30)
+
+Patrick asked on 2026-09-30 (07:51Z, in the project chat) for a 2D/3D switch in every simulator, now. So the Turn Fight gets a 3D view of the fight beside its 2D views, as part of this build.
+
+- **The switch.** ui-kit's shared View switch, `controls.viewSwitch()` (SPEC-ui-kit, "2D/3D switch", D141), sits on the stage toolbar next to Play: a "View" choice of 2D or 3D, seeded with `VIEW_DEFAULT` and checked against `VIEW_ALLOWED`. **2D is the default** and the choice is remembered in this browser. Switching never resets the fight or changes a number: both views draw the same fight state.
+- **2D** is the top-down view and, with Climb and dive or Energy on, the side view, exactly as specified above.
+- **3D** replaces the stage's drawing area with one 3D scene built from ui-kit's shared pieces (SPEC-ui-kit, "3D aircraft (three.js, D138)"):
+  - both aircraft are ui-kit's CT-156 model (`createCt156Model`) at their positions, headings and pitch, painted as a Harvard by default. A **Paint** choice (Harvard or Ship colours, from `PAINT_OPTIONS`, default `PAINT_DEFAULT`) sits in the Display section of Turn Fight settings. With ship colours, Blue is #58a6ff and Red #ff6b6b; either way each aircraft keeps its B or R label;
+  - bank: in the simple fight, the level-turn bank for the set G (cos bank = 1 ÷ G), toward the turn; in Energy mode, the model's own bank. The attitude goes in exactly as ui-kit says (rotation order 'ZYX', `rotation.set(-bank, -pitch, hdg)`, heading in radians from east, counter-clockwise);
+  - the camera uses only ui-kit's `matchProjection`, with points placed through `altToZ`; scene light and sky come from `addLights` and `addSky`;
+  - trails as lines, a ground grid, the MERGE mark and the first nose-on line; in Energy mode, the hard deck as a see-through plane;
+  - heights are real: flat when Climb and dive and Energy are off, and without the 2D side view's height scale;
+  - the camera orbits by drag and zooms by wheel or pinch, with three one-click views: Overhead, Chase Blue, Chase Red. It follows the fight's centre.
+- **Loading.** three.js loads only when 3D is first switched on, through ui-kit's `loadThree()`, never a static import, so the 2D screen stays as fast as before.
+- **When 3D can't start.** If `loadThree()` fails, the switch says "3D needs a connection the first time"; if the browser can't draw 3D (no WebGL), it says so. Either way it stays on 2D, which keeps working.
+- **Clean up (R4).** The 3D view draws only while the fight plays or the camera moves. Switching back to 2D or leaving the module stops its drawing and frees its WebGL resources (`disposeCt156Model` for each aircraft, `sky.dispose()`, the renderer).
+- **What doesn't change.** The fight engine, the turn math and every readout are the same in both views. The 3D view only reads the fight state. Its drawing lives in its own file (`view3d.js`), apart from the engine.
+- **Tests.** Unit tests cover the attitude it draws (bank from G, heading and pitch into the scene's axes) and the trail conversion. The e2e spec switches to 3D and back while a fight plays, with no console errors, and checks that the WebGL context is released on leaving.
+
 ## Every setting has a default, and the screen stays simple (Patrick, 2026-09-30)
 
 Patrick asked on 2026-09-30 (07:13Z, in this thread): every parameter starts with a default entry, and the interface is user friendly, intuitive and not overwhelming. So, for everything in this spec, including Energy mode and Start geometry:
 - **Every box, choice and checkbox opens filled in** with its default, which is V6's value where V6 had one. The fight plays straight away with nothing typed. A blank or bad entry never runs; the last good value stays (ui-kit's number rule).
-- **Layers, not a wall of boxes (R22).** The first view has the fight type, separation, and each aircraft's speed and G, as V6 did. Turning on Energy (T-6) adds only each aircraft's start altitude and merge speed. Everything else sits in collapsed panels, most-used first: Start geometry, then More energy settings, then Model settings for checking. No panel opens by itself.
+- **Layers, not a wall of boxes (R22).** The first view has the fight type, separation, and each aircraft's speed and G, as V6 did. Turning on Energy (T-6) adds only each aircraft's start altitude and merge speed. Everything else sits in the one closed Turn Fight settings menu (Patrick, 07:20Z: a settings menu that opens, so it doesn't overwhelm), in sections, most-used first: Start geometry, then Energy, then Model settings for checking. "More …" panels hold only extra readouts. Nothing opens by itself.
 - **Plain words first.** Each label says what it is in plain words, with the SMM term after it in brackets, for example "Red's position off Blue's nose (ATA)". Each has a one-line hint showing its unit, range and default, for example "0 to 180°, default 0°", and the SMM reference where there is one.
 - **Put it back in one click.** "Reset to V6 defaults" puts back the whole setup. "Head-on (V6)" resets Start geometry. "Reset to defaults" resets Model settings for checking.
 - **Show the setup, not just numbers.** Start geometry draws a small picture of both jets as the numbers change. The chosen move and why ("Pitch back: 220 KIAS, SMM entry 160 to 220") shows beside each aircraft.
@@ -209,12 +229,12 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
   - **Start altitude** for Blue and Red, each default 10,000 ft pressure altitude (see Start geometry and altitudes). That is the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and high enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
   - For Blue and Red: **merge speed** in KIAS (default 220).
   - Beside each aircraft, the move the model chose and why, for example "Pitch back (220 KIAS, SMM entry 160 to 220)", then "MPT 160 KIAS" once it's there.
-- **More energy settings** (collapsed):
+- **More energy settings**, the Energy section of Turn Fight settings:
   - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
   - **MPT speed**, default 160 KIAS (SMM 14.3 para 6).
   - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it; it's where the model changes to the level MPT (step 3).
   - **Pursuit** for the aircraft that gets its nose on first: Pure (default), Lead or Lag (see step 4).
-  - **Model settings for checking** (collapsed again, one level down, with its own "Reset to defaults" button): the numbers no manual gives, which Dad checks. A student never needs to open this.
+  - **Model settings for checking**, its own section at the bottom of Turn Fight settings, with its own "Reset to defaults" button: the numbers no manual gives, which Dad checks. A student never needs to open this.
     - Stall speed, default 86 KIAS.
     - Shaker, default 94 % of the stall-line G.
     - How long a stall lasts, default 1 s.
@@ -324,7 +344,7 @@ Any two of AA, HCA and ATA, with their sides, fix the third. The screen sets the
 
 ### The screen
 
-- **Start geometry**, a collapsed panel under the fight setup (R22). Its fields:
+- **Start geometry**, a section of the closed Turn Fight settings menu (R22). Its fields:
   - Red off Blue's nose (ATA): 0 to 180°, left or right, default 0°;
   - Red's aspect angle (AA): 0 to 180°, left or right, default 180°;
   - the HCA, shown live;
@@ -360,6 +380,7 @@ src/modules/turn-fight/
   energy-sim.js   Energy mode: the moves, stepping both aircraft with core's point-mass step
   readouts.js     turns a fight state into readout lines (pure)
   view.js         top-down drawing on a ui-kit canvas surface
+  view3d.js       the 3D view (three.js, loaded only when 3D is switched on), on ui-kit's three-aircraft.js
   profile.js      the side view (Climb and dive)
   layout.js       the three columns, panels and controls
   turn-fight.css

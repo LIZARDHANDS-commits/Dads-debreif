@@ -370,15 +370,32 @@ test('an aircraft that starts at 0 s is flying at 0 s, and one that starts at 0.
   near(only(sim.state(), 'A2').distFt, STEP_FT, 1e-12);
 });
 
-test('a route point with no speed is flown at the aircraft type\'s own speed, as V6 does, and one with no height at 2,500 ft', () => {
-  const bare = route('BARE', 'entry', [{ label: '', x: 0, y: 0 }], { attachTo: '', mergeIndex: 0 });
+test('a point with no speed reads 120 kt and one with no height 2,500 ft; the type\'s own speed is used only on a route with no legs', () => {
   const types = ['CT-157', 'CT-156', 'CT-102', 'CT-114'];
-  const sim = createSim(setupOf([bare], types.map((type, i) => plane('A' + (i + 1), 'BARE', 0, 0, type))));
+  const flownOn = (points) => {
+    const sim = createSim(setupOf([route('BARE', 'entry', points, { attachTo: '', mergeIndex: 0 })], types.map((type, i) => plane('A' + (i + 1), 'BARE', 0, 0, type))));
+    sim.stepTo(1);
+    return sim.state().aircraft;
+  };
+  const withLegs = flownOn([{ label: '', x: 0, y: 0 }, { label: '', x: 9000, y: 0 }]);
+  assert.deepEqual(withLegs.map((a) => a.kt), [120, 120, 120, 120]);
+  assert.deepEqual(withLegs.map((a) => a.alt), [2500, 2500, 2500, 2500]);
+  withLegs.forEach((a) => near(a.distFt, 20 * ktToFtps(120) * STEP_SEC, 1e-9));
+  const noLegs = flownOn([{ label: '', x: 0, y: 0 }]);
+  assert.deepEqual(noLegs.map((a) => a.kt), [125, 180, 150, 230]);
+  assert.deepEqual(noLegs.map((a) => a.alt), [2500, 2500, 2500, 2500]);
+  noLegs.forEach((a) => near(a.distFt, 20 * ktToFtps(a.kt) * STEP_SEC, 1e-9));
+});
+
+test('on a route with no legs, a point that loses its height while flown shows the height the aircraft\'s start point had when it was made, as V6 does', () => {
+  const dot = route('DOT', 'entry', [{ label: '', x: 0, y: 0, alt: 3000, kt: 100 }], { attachTo: '', mergeIndex: 0 });
+  const sim = createSim(setupOf([dot], [plane('A1', 'DOT')]));
   sim.stepTo(1);
-  const flying = sim.state().aircraft;
-  assert.deepEqual(flying.map((a) => a.kt), [125, 180, 150, 230]);
-  assert.deepEqual(flying.map((a) => a.alt), [2500, 2500, 2500, 2500]);
-  flying.forEach((a) => near(a.distFt, 20 * ktToFtps(a.kt) * STEP_SEC, 1e-9));
+  assert.equal(only(sim.state(), 'A1').alt, 3000);
+  delete dot.points[0].alt; // edited while it runs
+  assert.equal(only(sim.state(), 'A1').alt, 3000, 'V6 falls back on what the aircraft noted');
+  const bare = route('BARE', 'entry', [{ label: '', x: 0, y: 0 }], { attachTo: '', mergeIndex: 0 });
+  assert.equal(only(createSim(setupOf([bare], [plane('A1', 'BARE')])).state(), 'A1').alt, 2500, 'and 2,500 ft when its start point had none');
 });
 
 test('the built-in setup: A1 leaves the threshold at 12 s and speeds up and climbs, and the later ones wait their turn', () => {
@@ -545,7 +562,7 @@ test('spawn refuses what makes no sense: an unknown type or route, a start point
   for (const startPoint of [0, -1, 1.5, NaN, '2']) assert.throws(() => sim.spawn({ startPoint }), RangeError, String(startPoint));
   assert.throws(() => sim.spawn({ delaySec: NaN }), RangeError);
   assert.equal(sim.state().aircraft.length, 7, 'nothing was added');
-  assert.throws(() => createSim(setupOf([])).spawn(), /unknown route/);
+  assert.throws(() => createSim(setupOf([])).spawn(), /at least one route/);
 });
 
 test('remove takes one aircraft out; clearFinished takes out those that have landed or are done', () => {
@@ -601,6 +618,17 @@ test('the specs of an aircraft that has moved to another route are still where i
   sim.stepTo(30);
   assert.equal(only(sim.state(), 'A1').routeId, 'SP');
   assert.deepEqual(sim.aircraftSpecs(), [{ id: 'A1', type: 'CT-156', routeId: 'SQ', startIndex: 0, startsAtSec: 0 }]);
+});
+
+test('a setup with aircraft but no route is refused with a message, at the start and when the last route goes', () => {
+  const message = 'the setup needs at least one route';
+  assert.throws(() => createSim(setupOf([], [plane('A1', 'SQ')])), { name: 'RangeError', message });
+  assert.doesNotThrow(() => createSim(setupOf([], [])), 'no aircraft, no need of a route');
+  const setup = setupOf([square()], [plane('A1', 'SQ')]);
+  const sim = createSim(setup);
+  setup.routes.length = 0; // the last route is deleted
+  assert.throws(() => sim.reset(), { name: 'RangeError', message });
+  assert.throws(() => sim.spawn({}), { name: 'RangeError', message });
 });
 
 // ── Any frame rate ───────────────────────────────────────────────────────────

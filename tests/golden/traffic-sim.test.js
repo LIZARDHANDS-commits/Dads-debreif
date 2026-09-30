@@ -12,6 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newPattern, newEntry, newSplit, ROUTE_COLORS } from '../../src/modules/traffic/route.js';
+import { v6DefaultProfile } from './traffic-v6.js';
 import { builtIn, startPair, flyBoth, gridEvents, spawnBoth, HOUR_STEPS, STEPS_PER_SEC } from './traffic-pair.js';
 
 test('the built-in Moose Jaw setup flies an hour the way V6 does, with the same dice', () => {
@@ -73,4 +74,15 @@ test('the patterns, entries and splits the builders make (V6\'s own starting set
   const pair = startPair(setup, { seed: 314 });
   const seen = flyBoth(pair, HOUR_STEPS, gridEvents(setup, { firstStep: 400 }));
   assert.ok(seen.routes.has('SPL1') || seen.routes.has('SPL2'), 'someone took a split');
+});
+
+test('V6\'s own raw start times (136.6792 s for A2, not the 137 the setup file keeps) fly the same as V6 on both sides', () => {
+  const setup = builtIn();
+  const raw = v6DefaultProfile().aircraft;
+  setup.aircraft.forEach((a, i) => { a.startsAtSec = raw[i].delay; });
+  assert.notEqual(setup.aircraft[1].startsAtSec, 137);
+  const pair = startPair(setup, { seed: 1 });
+  const seen = flyBoth(pair, 12 * 60 * STEPS_PER_SEC);
+  assert.ok(seen.routes.size >= 2);
+  assert.ok(Math.abs(builtIn().aircraft[1].startsAtSec - setup.aircraft[1].startsAtSec - 0.3208) < 1e-3, 'the setup file starts A2 0.32 s later than V6 does');
 });

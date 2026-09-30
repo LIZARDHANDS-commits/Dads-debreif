@@ -32,7 +32,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `view3d/input.js` | Turning the 3D view by hand: drag to orbit, the wheel or + and − to zoom. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
-| `standards-panel.js` | The Standards panel (closed at first): edits `app.standards`, the one copy the Turn Sim reads too. |
+| `standards-panel.js` | The Debrief settings menu (ui-kit's settings menu, closed at first): the standards editor, which edits `app.standards`, the one copy the Turn Sim reads too. |
 | `debrief-session.js` | What a saved debrief carries besides the tracks (DFPs, standards, time), flattened for flight-data's debrief file and read back. Tested in Node. |
 | `file-panel.js` | "Save, open, CSV": Save debrief, Open debrief, Export CSV, Close flight, and the example track files as downloads. |
 | `data/cymj.js` | Moose Jaw values the debrief still needs: field elevation and the VNC chart anchor. |
