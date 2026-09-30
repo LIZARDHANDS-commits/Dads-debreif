@@ -15,16 +15,18 @@ Each module (shell, core, wx, flight-data, debrief, Turn Sim, Turn Fight, Traffi
 | PR review | code-review-and-quality | `/code-review`, `/security-review` |
 | Polish | code-simplification | `/simplify` |
 | Any screen (ui-kit, shell, module pages) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | `/run` |
+| Opening outside data: KML/track files (flight-data), debrief files, live weather and map feeds (SOF) | security-and-hardening, with `.claude/references/security-checklist.md` | `/security-review` |
 
 frontend-ui-engineering covers keyboard access, labelled controls, empty, error and stale states, colour never being the only signal (SOF cautions), and design tokens instead of `!important`. Its examples are React/Tailwind and mobile-first: take the rules, not the code, and target desktop.
 
-Note: code-review-and-quality links to `security-checklist.md` and `performance-checklist.md` under `.claude/references/`. Those are not vendored yet; they arrive with the skills below that need them.
+security-and-hardening: a KML file or a weather reply is untrusted text. Never put it into `innerHTML` (use `h()` or `textContent`), check its shape and size where it enters, audit dependencies before a release, and set a Content Security Policy. Most of the skill (logins, passwords, databases, rate limits, SSRF) doesn't apply to a static site with no server.
+
+Note: code-review-and-quality also links to `.claude/references/performance-checklist.md`, which arrives with performance-optimization.
 
 ## Add when that work starts (already read, not yet added)
 
 | When | Skill | Why, and what doesn't apply |
 |---|---|---|
-| flight-data (opening KML files) and SOF (live feeds) | security-and-hardening (+ security-checklist) | A KML or weather reply is untrusted text: never put it into `innerHTML`, check it where it enters, audit dependencies, set a CSP. Most of the skill (logins, databases, rate limits) doesn't apply to a static site. |
 | After the first GitHub Pages deploy | performance-optimization (+ performance-checklist) | Load time and bundle size against V6's 119 MB, media budgets, offline cache size. |
 | Switchover from V6 | shipping-and-launch | Its pre-launch checklist and rollback plan. Feature flags and staged rollouts are overkill here. |
 
