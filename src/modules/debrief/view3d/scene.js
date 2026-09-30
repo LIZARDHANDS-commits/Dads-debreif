@@ -7,6 +7,7 @@
 // in feet. Headings are math angles in radians (0 = east, D35).
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { wrapPi } from '../../../core/angles.js';
+import { MIN_TURN_G } from '../../../core/flight-math.js';
 
 /** V6's 3D camera on first open (markup line 729 to 751). */
 export const V6_CAMERA = Object.freeze({ yawDeg: -35, pitchDeg: 52, zoom: 70, altScale: 2 });
@@ -58,6 +59,12 @@ export function drawOrder(entries, depthOf) {
   return [...entries].sort((a, b) => depthOf(b) - depthOf(a));
 }
 
+/** A turn is level, so recorded G can set the bank, with the nose within this many degrees of the horizon (Patrick, item G). */
+export const LEVEL_PITCH_DEG = 10;
+
+/** …and the heading changing faster than this, in degrees a second (Patrick, item G). */
+export const LEVEL_TURN_DEG_PER_S = 1;
+
 /** Most bank the 3D view draws, as V6 (a turn-rate spike near a gap can't flip the model). */
 const MAX_BANK_DEG = 85;
 
@@ -72,14 +79,17 @@ const MAX_BANK_DEG = 85;
  *   of `now`. Those headings belong to the middles of the two legs, which are
  *   half of `after.t − before.t` apart. V6 divided by the whole gap, so its turn
  *   rate, and its bank, came out about half (a 4 G turn read 63° for 75.5°).
- * - Recorded G no longer sets the bank (D40: G only in level turns). In a level
- *   turn the bank from the turn rate is already acos(1/G); outside one, as in a
- *   wings-level pull, V6's acos(1/G) drew a bank the aircraft didn't have.
+ * - Recorded G sets the bank as acos(1/G) only in a level turn (D40): the nose
+ *   within LEVEL_PITCH_DEG of the horizon and the heading changing faster than
+ *   LEVEL_TURN_DEG_PER_S (Patrick, item G). In a pull-up, or a pull with no
+ *   turn, V6's acos(1/G) drew a bank the aircraft didn't have.
  *
  * `before`, `now` and `after` are { x, y, t } about a second apart; `speedKt`
- * is the ground speed at `now`.
+ * is the ground speed at `now`; `pitchDeg` is the nose angle (flight-data's
+ * pitchAt, null if unknown). Pass `recordedG` only when recorded G is the one
+ * shown (D61: the estimate from the track is the default).
  */
-export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg }) {
+export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg, pitchDeg = null, recordedG = null }) {
   if (Number.isFinite(recordedBankDeg)) return { bankDeg: -recordedBankDeg, source: 'recorded' };
   if (!now || !before || !after) return { bankDeg: 0, source: 'estimated' };
   const h0 = Math.atan2(now.y - before.y, now.x - before.x);
@@ -90,7 +100,12 @@ export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg }) 
   const rate = Math.abs(turn) / Math.max(0.125, (t1 - t0) / 2);
   const vfps = (speedKt || 0) * KT_TO_FTPS;
   if (!(vfps > 20 && rate > 0.0001)) return { bankDeg: 0, source: 'estimated' };
-  const bankDeg = clamp((Math.atan((vfps * rate) / G_FTPS2) * 180) / Math.PI, 0, MAX_BANK_DEG);
+  const level = Number.isFinite(pitchDeg) && Math.abs(pitchDeg) <= LEVEL_PITCH_DEG
+    && (rate * 180) / Math.PI > LEVEL_TURN_DEG_PER_S;
+  const g = Math.abs(recordedG);
+  const bankDeg = level && g > MIN_TURN_G
+    ? clamp((Math.acos(1 / g) * 180) / Math.PI, 0, MAX_BANK_DEG)
+    : clamp((Math.atan((vfps * rate) / G_FTPS2) * 180) / Math.PI, 0, MAX_BANK_DEG);
   return { bankDeg: turn < 0 ? -bankDeg : bankDeg, source: 'estimated' };
 }
 

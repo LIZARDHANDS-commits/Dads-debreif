@@ -26,4 +26,4 @@ Later, not in this PR:
 
 - The local metres-per-mile constant stays: `core/units.js` has no statute mile (checked 2026-09-30).
 - `sources.js`: done in #69 (MET Norway, Datamask backup), hardened in #71.
-- Apply the answers to WX-1 to WX-4: done (#63, #68). WX-5 waits on a current SOF.
+- Apply the answers to WX-1 to WX-5: done (#63, #68, #78). WX-5 was answered by D79: military alternates use the same rules as civil.

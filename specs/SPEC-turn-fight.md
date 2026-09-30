@@ -1,6 +1,6 @@
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Q-TF1 to Q-TF4 are still open, so each stays V6's behaviour until answered. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
 
@@ -79,7 +79,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 |---|---|
 | Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6 |
 | Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch, the side-view panel under the stage, and the side view's height scale (1×, 2×, 4×) |
-| The top-down view: grid, trails, both aircraft, the MERGE mark, the first nose-on line | **More detail**: G, 360° time, each aircraft's angle-off, time since the merge, and with Climb and dive on, each aircraft's height change and the height between them |
+| The top-down view: grid, trails, both aircraft, the MERGE mark, the first nose-on line | **More detail**: G, 360° time, each aircraft's true angle-off, time since the merge, and with Climb and dive on, each aircraft's height change and the height between them |
 | Result: turn rate and turn radius for each aircraft, range, first nose-on | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
 
 - **The fight changes only when the setup changes.** Changing the fight type, separation, a speed, a G, First nose chases, Climb and dive, or a pitch resets the fight, as in V6. Playback speed and the side view's height scale are display settings and never reset it (V6 reset on the height scale, #20).
@@ -97,16 +97,16 @@ All of this is V6's, ported as it is and pinned by a golden test (R9):
 - **Performance** (V6 `M`, line 4237): speed in ft/s from KTAS, G limited to 1.01 and up, turn radius V²/(g√(G²−1)) and turn rate g√(G²−1)/V. At 220 KTAS and 4 G that's 1,106 ft and 19.2°/s, 18.7 s for 360°.
 - **Start and merge** (line 4240): the aircraft start the set separation apart, heading at each other along the x axis, Blue on the left heading east and Red on the right heading west. They meet at T+ separation ÷ (V1 + V2): 16.4 s at V6's defaults.
 - **Turns after the merge** (lines 4252 to 4268): Blue turns left (counter-clockwise, top-down). In a 2-circle fight Red also turns left; in a 1-circle fight Red turns right.
-- **First nose-on** (`checkFirstNose`, line 4241): after the merge, the first aircraft whose nose points within 5° of the other (V6's "angle-off") is marked, with the time since the merge and a dashed yellow line between the two aircraft at that moment.
+- **First nose-on** (`checkFirstNose`, line 4241): after the merge, the first aircraft whose nose points within 5° of the other (V6's "angle-off", the off-nose angle after Q51) is marked, with the time since the merge and a dashed yellow line between the two aircraft at that moment.
 - **First nose chases** (lines 4255 to 4266): once first nose-on is marked, each aircraft turns toward the other at no more than its own turn rate. With Climb and dive on, each also pitches toward the other at the same rate, within ±60°.
-- **Climb and dive** (lines 4248 and 4250): before the merge both fly level. At the merge each takes its set pitch and holds it (unless it's chasing), climbing or descending at speed × sin(pitch) while its track over the ground shrinks by cos(pitch). The turn rate stays the level-turn rate (see Q-TF3).
+- **Climb and dive** (lines 4248 and 4250): before the merge both fly level. At the merge each takes its set pitch and holds it (unless it's chasing), climbing or descending at speed × sin(pitch) while its track over the ground shrinks by cos(pitch). The turn rate stays the level-turn rate (kept by Q50).
 
 V6's answers on its own code, run in Node at a 0.02 s step, which the golden test will pin:
 
 | Setup (4 G, 2 NM unless stated) | Merge | First nose-on |
 |---|---|---|
-| 2-circle, both 220 KTAS | T+16.4 s | +18.2 s, a tie (see Q-TF1) |
-| 1-circle, both 220 KTAS | T+16.4 s | +9.1 s, a tie (see Q-TF1) |
+| 2-circle, both 220 KTAS | T+16.4 s | +18.2 s, a tie (see Q48) |
+| 1-circle, both 220 KTAS | T+16.4 s | +9.1 s, a tie (see Q48) |
 | 2-circle, Blue 250 and Red 200 KTAS | T+16.0 s | Red at +14.4 s |
 | 2-circle, Blue at 5 G | T+16.4 s | Blue at +12.6 s |
 
@@ -131,7 +131,7 @@ Changes:
 
 ### Readouts
 
-Kept from V6, with the same rounding: speed (kt), G (1 decimal), turn rate (1 decimal, °/s), radius (whole ft), 360° time (1 decimal, s), range (2 decimals, NM, straight-line including height), each aircraft's angle-off (whole °), time since merge (1 decimal, s), height changes and height between them (whole ft), first nose-on ("BLUE @ +18.2 sec", shown as "Blue at +18.2 s").
+Kept from V6, with the same rounding: speed (kt), G (1 decimal), turn rate (1 decimal, °/s), radius (whole ft), 360° time (1 decimal, s), range (2 decimals, NM, straight-line including height), each aircraft's off-nose angle (whole °, V6's "angle-off", renamed by Q51), time since merge (1 decimal, s), height changes and height between them (whole ft), first nose-on ("BLUE @ +18.2 sec", shown as "Blue at +18.2 s").
 
 - The readouts are built as text (ui-kit `h`), never as HTML. V6 wrote them with `innerHTML` every frame.
 - They update at most 10 times a second while playing, and once when the fight pauses.
@@ -156,17 +156,21 @@ Everything is already in `core` and pinned against Turn Fight's own copies, so `
 
 The fight itself (merge, turn directions, chase, first nose-on) is this module's `sim.js`, as the Turn Sim owns its integrator in the module map (SPEC.md). It uses only the `core` functions above. If the Flight math core thread would rather own it, it moves to `core` unchanged.
 
-## Questions for Patrick or Dad
+## Decided changes from V6
 
-Each has a recommendation and a default. The default is V6's behaviour, so none blocks the build. Their Q numbers are given when they're logged in the plan doc.
+Patrick answered the four questions this spec raised on 2026-09-30 ("agree with recommendations for the rest", with option 1 for Q50). Each lands as its own commit after the golden test pins V6's behaviour, and that commit changes the golden test to say exactly what differs (D10, task 6).
 
-**Q-TF1. Who gets their nose on first when it's a tie?** In an even fight (same speed and G) both noses come on at the same moment. V6 then names the one whose angle is smaller by about a millionth of a millionth of a degree, which is rounding noise: Blue wins at 60 frames a second, Red at 50. *Recommendation:* when both are within 5° in the same step, show "Both at +18.2 s" and draw the line labelled BOTH. The chase is unaffected (in V6 both aircraft already turn toward each other). *Default until answered:* V6's rule. The golden test leaves exact ties out, because rounding noise can't be pinned.
+**Q48. A tie in first nose-on shows "Both".** In an even fight (same speed and G) both noses come on at the same moment, and V6 names the one whose angle is smaller by about a millionth of a millionth of a degree, which is rounding noise: Blue wins at 60 frames a second, Red at 50. Now, when both are within 5° in the same step, the result reads "Both at +18.2 s" and the line is labelled BOTH. The chase is unchanged (in V6 both aircraft already turn toward each other).
 
-**Q-TF2. The jump at the merge.** V6 starts both aircraft the same distance from the centre, but when their speeds differ they meet off-centre (675 ft off at 250 and 200 KTAS, 2 NM). At the merge V6 then moves both to the centre, so the trails jump. *Recommendation:* start each aircraft so they meet at the centre (Blue at −V1 ÷ (V1 + V2) × separation, Red at +V2 ÷ (V1 + V2) × separation). Everything after the merge stays exactly V6's; only the lines before it move. *Default:* V6's start and jump.
+**Q49. The jets meet in the centre.** V6 starts both aircraft the same distance from the centre, so when their speeds differ they meet off-centre (675 ft off at 250 and 200 KTAS, 2 NM), and it then moves both to the centre, so the trails jump. Now Blue starts at −V1 ÷ (V1 + V2) × separation and Red at +V2 ÷ (V1 + V2) × separation, so they meet at the centre with no jump. Everything from the merge on stays exactly V6's; only the lines before it move.
 
-**Q-TF3. Climb and dive physics (for Dad).** With Climb and dive on, V6 keeps the level turn rate and the full speed at any pitch, and climbs with no loss of energy. At 30° pitch, 220 KTAS and 4 G its ground track has a 958 ft radius, where a real 4 G turn at a 30° climb would be about 823 ft and 22.4°/s, not 19.2°/s. The result table still shows the level numbers. *Recommendation:* keep V6's simple model, since the tool teaches geometry, and label the side view "Simplified: constant speed and turn rate". A true climbing turn, and energy, would be a future feature. *Default:* V6's model, with that label.
+**Q50. Climb and dive keeps V6's simple model.** With Climb and dive on, V6 keeps the level turn rate and the full speed at any pitch, and climbs with no loss of energy (at 30° pitch, 220 KTAS and 4 G its ground track has a 958 ft radius, where a real 4 G climbing turn would be about 823 ft and 22.4°/s). That stays, and the side view is labelled "Simplified: constant speed and turn rate". Real climbing and diving turns with energy are a future feature, outside this spec (`/mnt/project-files/questions/future-climbing-turns.md`, logged in the plan doc's Future features).
 
-**Q-TF4. "Angle-off" (for Dad).** V6's "angle-off" is the angle between an aircraft's nose and its line of sight to the other, which BFM usually calls antenna train angle (ATA). True angle-off is the difference in headings: at a head-on merge V6 shows 0° where angle-off is 180°. It's also measured top-down only, so with Climb and dive on, first nose-on can be called with the other aircraft thousands of feet above or below the nose. *Recommendation:* call it "Off-nose angle (ATA)", add true angle-off in More detail (`core`'s heading crossing angle), and with Climb and dive on, measure off-nose angle in 3D. *Default:* V6's name and top-down measure.
+**Q51. "Angle-off" becomes "Off-nose angle (ATA)".** V6's "angle-off" is the angle between an aircraft's nose and its line of sight to the other, which BFM calls antenna train angle (ATA). True angle-off is the difference in headings: head-on, V6 shows 0° where angle-off is 180°. Now:
+- The readout is called "Off-nose angle (ATA)", with V6's number while the fight is level.
+- True angle-off is added under More detail (`core`'s `headingCrossAngleDeg`).
+- With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
+- Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
 ## Project structure
 
@@ -209,7 +213,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 
 ## Testing strategy
 
-1. **Golden test first (R9, D10).** `turn-fight-v6.js` runs V6's own `bfmFight` script, unchanged, with a stand-in page (input values, a canvas that draws nothing), and reads its fight state after each step. `turn-fight-sim.test.js` runs V6 and `sim.js` side by side at 0.02 s steps for 10 minutes of fight time on a grid of setups: both fight types; First nose chases off and on; Climb and dive off and on with several pitches; equal and unequal speeds and G. Positions, headings, pitch, height, time, merge and first nose-on must agree within 1e-9 ft and 1e-12 rad (the turn rate differs from V6's in the last digit). Exact ties are left out (Q-TF1).
+1. **Golden test first (R9, D10).** `turn-fight-v6.js` runs V6's own `bfmFight` script, unchanged, with a stand-in page (input values, a canvas that draws nothing), and reads its fight state after each step. `turn-fight-sim.test.js` runs V6 and `sim.js` side by side at 0.02 s steps for 10 minutes of fight time on a grid of setups: both fight types; First nose chases off and on; Climb and dive off and on with several pitches; equal and unequal speeds and G. Positions, headings, pitch, height, time, merge and first nose-on must agree within 1e-9 ft and 1e-12 rad (the turn rate differs from V6's in the last digit). Exact ties are left out, because rounding noise can't be pinned; the tie rule (Q48) has its own unit tests.
 2. **Any answered question lands as its own commit** after the golden test passes on V6's behaviour, and that commit changes the golden test to say exactly what differs (as D39 did in `core`).
 3. **Unit tests** check meaning: 220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius; a 2-circle fight with the faster turn rate gets its nose on first; the fight is the same whatever the frame rate; the fight stops at 10 minutes; readouts round as V6 does.
 4. **Browser tests** (Playwright): every control does something (R3); nothing overlaps at 1366 × 768 and 1920 × 1080 (R2); closing the module leaves no frames or timers running (R4); no console errors (R7).
@@ -218,7 +222,7 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 ## Boundaries
 
 - **Always:** keep V6's numbers unless a logged decision says otherwise; take turn math from `core`; run `npm test` before each commit.
-- **Ask first:** any change to the fight's math or what it shows (Q-TF1 to Q-TF4 and anything new); a new package.
+- **Ask first:** any change to the fight's math or what it shows (anything beyond Q48 to Q51); a new package.
 - **Never:** edit `original/`; fold a fix into the port that pins V6; read a number from an input box inside `sim.js`.
 
 ## Success criteria

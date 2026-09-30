@@ -37,12 +37,14 @@ These are V6's defaults (350 kt ball, 3 s, 250 ft, gravity on). Both jets fly at
 | Shooter 10° nose up, target 300 ft higher, as V6 runs it (3D gets pitch 0) | INTERCEPT, 144 ft | NO INTERCEPT, 400 ft |
 | Target in a 4 G left turn | INTERCEPT, 105 ft | NO INTERCEPT, 320 ft |
 
-## Questions for Dad
+## Questions for Dad (all answered)
 
-1. Should the ball carry the shooter's whole velocity, climb included, as a thrown ball would? That is what the 3D view does.
-2. Should the target fly its recorded track, as in the 3D view? The debrief is a replay, so the track ahead is known. The other choice is to extrapolate, as a pilot would judge it in the air.
-3. Is "Cone width" the full width (the debrief's ±3° for 6) or the half-width (3D's ±6°)?
-4. Should INTERCEPT require the target to be in the cone?
-5. Should the target's climb or descent count? The debrief ignores it; the 3D view follows the track.
+Patrick answered these on 2026-09-30 (Q33 to Q37).
 
-Until these are answered, the rebuild can show either solver unchanged. Both are pinned, so any answer lands as a separate, tested change (D10).
+1. Should the ball carry the shooter's whole velocity, climb included, as a thrown ball would? That is what the 3D view does. **Answered: yes (Q33, D62).**
+2. Should the target fly its recorded track, as in the 3D view? The debrief is a replay, so the track ahead is known. The other choice is to extrapolate, as a pilot would judge it in the air. **Answered: the recorded track (Q34, D62).**
+3. Is "Cone width" the full width (the debrief's ±3° for 6) or the half-width (3D's ±6°)? **Answered: the full width, so 6 means ±3° (Q35, D63, confirmed as D77).**
+4. Should INTERCEPT require the target to be in the cone? **Answered: yes (Q36, D63, confirmed as D77).**
+5. Should the target's climb or descent count? The debrief ignores it; the 3D view follows the track. **Answered: yes, it counts (Q37, D62).**
+
+Each answer landed as a separate, tested change on top of the pinned V6 solver (D10), in PR 3 (#67).
