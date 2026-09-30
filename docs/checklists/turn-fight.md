@@ -28,7 +28,7 @@ Keep V6 (the old single-file tool) open in another tab for the side-by-side line
 - [ ] **Fight type** → **1-circle** starts the fight again at T+0.0. After the merge the two jets turn opposite ways (Blue left, Red right, as seen from above) and the word says 1-CIRCLE. **2-circle** puts them back turning the same way.
 - [ ] Play a 2-circle fight to about T+40. In the Result column **First nose-on** reads a time such as "Both at +18.2 s" (both jets are equal, so it's a tie) and a yellow dashed line shows in the picture. With 1-circle it reads "Both at +9.1 s".
 - [ ] Set Blue's **G** to 5 and play a 2-circle fight past T+30. **First nose-on** now names Blue ("Blue at +12.6 s") and shows how long after the merge.
-- [ ] Tick **First nose chases**. After first nose-on each jet turns toward the other, so the fight closes up: on the opening settings the Range at T+40 is about 0.36 NM, against about 0.53 NM without it. Untick it: the fight starts again.
+- [ ] Put Blue's **G** back to 4 first. Then tick **First nose chases**. After first nose-on each jet turns toward the other, so the fight closes up: on the opening settings the Range at T+40 is about 0.36 NM, against about 0.53 NM without it. Untick it: the fight starts again.
 - [ ] Open **About this model** below the settings menu. It explains 1-circle, 2-circle and first nose in plain words.
 
 ## Climb and dive, and the side view
@@ -55,8 +55,8 @@ Each change here starts the fight again at T+0.0.
 - [ ] **Head-on (V6)**, the opening one: ATA 0°, AA 180°, HCA 180°, "Pass at T+16.4 s". The MERGE cross shows in the picture.
 - [ ] **Crossing**: set AA to 90. HCA reads 90°, the note says "Pass at T+16.4 s", and the jets pass at the centre while flying at right angles. The small picture shows the new start.
 - [ ] **Beam**: set ATA to 90 and AA to 90. The note says "No pass: the turns start at once" and no MERGE cross is drawn, because the range isn't closing.
-- [ ] **Tail chase**: set AA to 0 (Blue dead astern of Red). HCA reads 0°, and with equal speeds the note says "No pass: the turns start at once". Set Blue's **Speed** to 260: now the note says "Pass at T+180.0 s", the time Blue takes to catch up.
-- [ ] **When the turns start** → **At once** starts the turns at T+0 even at the head-on start. Back to **At the pass** and they wait for the pass.
+- [ ] **Tail chase**: set ATA to 0 and AA to 0 (Blue dead astern of Red). HCA reads 0°, and with equal speeds the note says "No pass: the turns start at once". Set Blue's **Speed** to 260: now the note says "Pass at T+180.0 s", the time Blue takes to catch up.
+- [ ] Put Blue's **Speed** back to 220 and press **Head-on (V6)**, then set **When the turns start** → **At once**. It starts the turns at T+0 even at the head-on start. Back to **At the pass** and they wait for the pass.
 - [ ] With **Climb and dive** on, **Red starts above Blue (ft)** works (it is greyed out otherwise). Set 2,000: the fight starts again, the side view shows Red above Blue, and **Height between** in More detail reads 2,000 ft at T+0.
 - [ ] Press **Head-on (V6)**: ATA, AA, height and the turns go back to head-on, level and at the pass. It doesn't touch your speeds, G or fight type.
 
@@ -72,7 +72,7 @@ Each change here starts the fight again at T+0.0.
 
 ## When 3D can't run
 
-- [ ] Offline: turn the network off (Wi-Fi off, or airplane mode) in a browser that hasn't opened 3D yet, reload, open the Turn Fight and choose **3D**. A note under the toolbar says "3D needs a connection the first time." and the View goes back to 2D. 2D keeps working. (If you have already opened 3D once on this device, it may work offline; that is fine.) Turn the network back on.
+- [ ] Offline (rare, skip if you can't see it): the app keeps three.js on your computer after the first visit, so this note normally can't be seen. It shows only when three.js can't be fetched and the app has never been opened on that computer before. If you can set that up (a fresh browser profile, network off), open the Turn Fight and choose **3D**: a note under the toolbar says "3D needs a connection the first time." and the View goes back to 2D, and 2D keeps working. Turn the network back on.
 - [ ] With a browser or setting that has no WebGL (for example WebGL turned off in the browser's settings), choosing **3D** shows "3D needs WebGL, which this browser does not have." and stays on 2D. Skip this line if your browser has no such setting.
 - [ ] If the graphics card is reset while 3D is showing (rare; you can't easily make it happen), a note says "3D stopped (the graphics card was reset); showing 2D." and the fight keeps playing in 2D without resetting. Skip if you can't reproduce it.
 
@@ -81,7 +81,7 @@ Each change here starts the fight again at T+0.0.
 - [ ] Tab moves through every control in a sensible order, with a clear outline around the one you're on. Every button and box can be reached and used without the mouse.
 - [ ] With the focus on a blank part of the page (not in a box), **Space** plays or pauses and **Home** resets. Neither works while you are typing in a number box.
 - [ ] In a number box, the up and down arrow keys change the number by a small step (5 kt for speed, 0.1 for G, 0.5 NM for separation).
-- [ ] The **View** and **Fight type** choices change with the arrow keys once one of them has the focus. **Playback speed** and **Paint** open with Space or Enter and change with the arrow keys.
+- [ ] The **View** and **Fight type** choices change with the arrow keys once one of them has the focus. **Playback speed** and **Paint** open with Space (or Alt+Down) and change with the arrow keys.
 - [ ] Click into the 3D picture (or Tab to it) and press the arrow keys to turn the view, and **+** and **−** to zoom.
 - [ ] The **Fight setup** and **Result** headings are buttons: Enter or Space folds the column away and back, and the fight keeps playing meanwhile. Fold them, reload: they stay folded.
 
@@ -93,7 +93,7 @@ Each change here starts the fight again at T+0.0.
 
 ## The readouts
 
-The **Result** column shows a Blue and a Red value where it can. **More detail** (closed at first) opens more, and stays as you left it after a reload.
+The **Result** column shows a Blue and a Red value where it can. **More detail** (closed at first) opens more.
 
 - [ ] **Result** has **Turn rate**, **Turn radius**, **Range** and **First nose-on**, updating as the fight plays. On the opening fight: 19.2°/s, 1,106 ft, and the range closing from 2.00 NM to 0.00 at the merge.
 - [ ] **More detail** shows **Speed**, **G**, **360° time**, **Off-nose angle (ATA)**, **Aspect angle (AA)**, **Angle-off (HCA)** and **Time since merge** (and the height lines with Climb and dive on).

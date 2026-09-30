@@ -696,6 +696,11 @@ test('with no WebGL, the note says so and it stays on 2D', async ({ page }) => {
 
 test('when the browser takes the WebGL context away (graphics card reset), it falls back to 2D with a note and the fight plays on', async ({ page }) => {
   await trackWebGl(page);
+  // Releasing a context the browser already took must not make three.js warn about WEBGL_lose_context.
+  const loseWarnings = [];
+  page.on('console', (msg) => {
+    if (/WEBGL_lose_context/.test(msg.text())) loseWarnings.push(msg.text());
+  });
   await openRoute(page, '#/turn-fight');
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await viewChoice(page, '3D').check();
@@ -713,6 +718,7 @@ test('when the browser takes the WebGL context away (graphics card reset), it fa
   await expect(canvas3d(page)).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Camera views' })).toBeHidden();
   expect(await liveContexts(page)).toBe(0);
+  expect(loseWarnings).toEqual([]);
 
   // The fight never stopped or reset: it is still playing, and goes on in 2D.
   await expect(playButton(page)).toHaveText('Pause');

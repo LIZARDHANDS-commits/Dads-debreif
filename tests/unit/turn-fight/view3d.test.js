@@ -539,7 +539,7 @@ test('a lost WebGL context is handled: preventDefault, everything freed, drawing
     assert.equal(canvas.listeners.webglcontextlost.length, 1);
 
     const event = fire(canvas, 'webglcontextlost');
-    assert.equal(event.defaultPrevented, true, 'the loss is marked handled');
+    assert.equal(event.defaultPrevented, true, 'preventDefault is called, as three.js does too');
     assert.equal(lost, 1);
     assert.equal(view.stats().active, false);
     assert.equal(view.stats().pending, false);
@@ -547,6 +547,7 @@ test('a lost WebGL context is handled: preventDefault, everything freed, drawing
     assert.equal(page.host.children.length, 0, 'the canvas and labels are gone');
     assert.deepEqual(canvas.listeners.webglcontextlost, [], 'the listener goes with the canvas');
     assert.ok(renderers[0].calls.includes('dispose'), 'the renderer is freed');
+    assert.ok(!renderers[0].calls.includes('forceContextLoss'), 'a context the browser already took is not released again');
 
     // Nothing draws after the loss, and a second loss message changes nothing.
     view.requestDraw();

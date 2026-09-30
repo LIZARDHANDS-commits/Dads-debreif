@@ -337,16 +337,18 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     canvas.addEventListener('webglcontextlost', contextLost);
   }
   /**
-   * The browser took the context away (the graphics card was reset). preventDefault says the loss is handled,
-   * so nothing waits for a restore. Everything is freed and the drawing stops, and the screen falls back to 2D:
-   * the fight is not touched. A loss that teardown() itself caused (it releases the context on purpose) is
-   * ignored, because by then the canvas is no longer the current one.
+   * The browser took the context away (the graphics card was reset). three.js already calls preventDefault
+   * on this event (which asks the browser to restore the context); it is called here too so this does not
+   * depend on that. No restore is waited for: if the browser restores the old canvas, it is detached and
+   * nothing holds it, so it is collected. Everything is freed and the drawing stops, and the screen falls
+   * back to 2D: the fight is not touched. A loss that teardown() itself caused (it releases the context on
+   * purpose) is ignored, because by then the canvas is no longer the current one.
    */
   function contextLost(event) {
     event.preventDefault?.();
     if (!gl || event.target !== gl.canvas) return;
     generation++;
-    teardown();
+    teardown({ lost: true });
     onLost();
   }
 
@@ -528,7 +530,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
   }
 
   /** Frees every GPU resource and the canvas; the camera choice stays for the next start. */
-  function teardown() {
+  function teardown({ lost = false } = {}) {
     stopFrame();
     resizer?.disconnect();
     resizer = null;
@@ -553,7 +555,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     }
     scene.sky.dispose();
     scene.renderer.dispose();
-    scene.renderer.forceContextLoss?.();
+    if (!lost) scene.renderer.forceContextLoss?.(); // a context the browser already took is not released again
     host.replaceChildren();
     delete host.dataset.draws;
     drawn = 0;
