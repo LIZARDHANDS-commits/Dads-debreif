@@ -186,11 +186,21 @@ export function startSetupFrom(values) {
 const feetText = (ft) => Math.round(ft).toLocaleString('en-US');
 
 /**
+ * The top merge speed at a height, in KIAS: the one place the screen asks (the box's own range stops at VMO, and this is the
+ * limit at each height). It has to be the number the engine compares a merge speed with.
+ * TODO: energyTopKias (the engine's own top speed, from energy-sim.js) once it is exported; until then core's line,
+ * VMO to about 18,900 ft and then the Mach limit, which is what the engine compares with today.
+ */
+export function topKiasAt(altFt) {
+  return maxKiasT6A(altFt);
+}
+
+/**
  * What a box cannot say on its own: an Energy setup the engine would refuse because of numbers together (its RangeError,
  * worded for the screen), or '' when it is fine. Each start altitude runs from the hard deck to 25,000 ft; each merge speed
- * is at most the T-6A's top speed at that altitude (core's maxKiasT6A: VMO to about 18,900 ft, then the Mach limit, taken to
- * the whole knot as the engine does); and the start separation must be more than the height between the aircraft. The
- * engine's checks in the engine's order; a test holds this to the engine.
+ * is at most the top speed at that altitude (topKiasAt, taken to the whole knot as the engine does); and the start
+ * separation must be more than the height between the aircraft. The engine's checks in the engine's order; a test holds
+ * this to the engine.
  */
 export function energyProblem(values) {
   if (!values.energy) return '';
@@ -201,7 +211,7 @@ export function energyProblem(values) {
     }
   }
   for (const [who, kiasKey, altKey] of [['Blue', 'blueKias', 'blueAltFt'], ['Red', 'redKias', 'redAltFt']]) {
-    const exact = maxKiasT6A(values[altKey]);
+    const exact = topKiasAt(values[altKey]);
     const limit = Math.round(exact);
     if (values[kiasKey] > limit) {
       return `${who}'s merge speed (${values[kiasKey]} KIAS) is above the T-6A's limit at ${feetText(values[altKey])} ft (${limit} KIAS, ${exact >= T6A_LIMITS.vmoKias ? 'VMO' : `Mach ${T6A_LIMITS.mmo}`}).`;

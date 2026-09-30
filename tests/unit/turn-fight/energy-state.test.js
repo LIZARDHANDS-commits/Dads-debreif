@@ -3,10 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEnergyFight, stepEnergyFight, ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE } from '../../../src/modules/turn-fight/energy-sim.js';
-import { T6A_LIMITS, iasToTasKt, maxKiasT6A } from '../../../src/core/t6-performance.js';
+import { T6A_LIMITS, iasToTasKt } from '../../../src/core/t6-performance.js';
 import {
   DEFAULTS, RANGES, ALLOWED, ENERGY_KEYS, ENERGY_CHECK_KEYS, setupFrom, setupKey, energySetupFrom, startSetupFrom, energyProblem,
-  saneFix, v6Defaults, checkingDefaults, usableEnergyValues, energyProblemNote, START_FALLBACK_KEYS,
+  saneFix, v6Defaults, checkingDefaults, usableEnergyValues, energyProblemNote, START_FALLBACK_KEYS, topKiasAt,
 } from '../../../src/modules/turn-fight/state.js';
 
 const ENERGY_ON = { ...DEFAULTS, energy: true };
@@ -96,18 +96,23 @@ test('energyProblem says what the engine would refuse for two numbers together, 
   assert.equal(energyProblem({ ...ENERGY_ON, separationNm: 0.5, redAltFt: 20000 }), 'The start separation (0.5 NM) must be more than the height between the aircraft (10,000 ft).');
 });
 
-test('a merge speed above the T-6A\'s top speed at its height is a problem, in the engine\'s words and to the knot the engine takes: Blue at 25,000 ft and 300 KIAS', () => {
+test('a merge speed above the top speed at its height is a problem, to the knot the engine takes: Blue at 25,000 ft and 300 KIAS', () => {
+  // No limit is written in here: it is whatever the one helper (topKiasAt) says, and the engine has to agree. 300 KIAS at 25,000 ft is over any of them.
+  const limit = Math.round(topKiasAt(25000));
+  assert.ok(limit < 300, `the limit at 25,000 ft is under 300 KIAS (${limit})`);
   const values = { ...ENERGY_ON, blueAltFt: 25000, redAltFt: 25000, blueKias: 300 };
-  assert.equal(energyProblem(values), 'Blue\'s merge speed (300 KIAS) is above the T-6A\'s limit at 25,000 ft (279 KIAS, Mach 0.67).');
-  assert.throws(() => createEnergyFight(energySetupFrom(values)), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(279 KIAS, Mach 0.67\)/);
-  assert.equal(energyProblem({ ...values, blueKias: 279 }), '');
-  assert.equal(energyProblem({ ...values, blueKias: 280 }) !== '', true);
-  assert.equal(energyProblem({ ...ENERGY_ON, blueAltFt: 20000, redAltFt: 20000, redKias: 310 }), 'Red\'s merge speed (310 KIAS) is above the T-6A\'s limit at 20,000 ft (309 KIAS, Mach 0.67).');
+  const problem = energyProblem(values);
+  assert.match(problem, new RegExp(`^Blue's merge speed \\(300 KIAS\\) is above the T-6A's limit at 25,000 ft \\(${limit} KIAS, `));
+  assert.throws(() => createEnergyFight(energySetupFrom(values)), (err) => err instanceof RangeError && /Blue's merge speed/.test(err.message), 'the engine refuses it too');
+  assert.equal(energyProblem({ ...values, blueKias: limit }), '', 'at the limit as shown it flies');
+  assert.doesNotThrow(() => createEnergyFight(energySetupFrom({ ...values, blueKias: limit })));
+  assert.notEqual(energyProblem({ ...values, blueKias: limit + 1 }), '');
+  assert.match(energyProblem({ ...ENERGY_ON, blueAltFt: 25000, redAltFt: 25000, redKias: 300 }), /^Red's merge speed \(300 KIAS\)/);
   assert.equal(energyProblem({ ...ENERGY_ON, blueKias: 316 }), '', 'VMO at 10,000 ft is fine');
-  // The limit is core's, not a copy: the check agrees with the engine and with maxKiasT6A over heights and speeds, at and around the limit.
+  // The check agrees with the engine over heights and speeds, at and around the limit the helper gives.
   for (const alt of [6000, 10000, 15000, 18000, 18879, 19000, 20000, 22000, 25000]) {
-    const limit = Math.round(maxKiasT6A(alt));
-    for (const kias of [40, limit - 1, limit, limit + 1, 316]) {
+    const top = Math.round(topKiasAt(alt));
+    for (const kias of [40, top - 1, top, top + 1, 316]) {
       const v = { ...ENERGY_ON, hardDeckFt: 0, blueAltFt: alt, redAltFt: alt, blueKias: kias };
       let refused = false;
       try { createEnergyFight(energySetupFrom(v)); } catch (err) { assert.ok(err instanceof RangeError); refused = true; }
@@ -129,7 +134,8 @@ test('while the start cannot fly, the fight, the pass and the start picture use 
   assert.equal(shown.separationNm, DEFAULTS.separationNm);
   assert.equal(shown.blueKt, iasToTasKt(DEFAULTS.blueKias, DEFAULTS.blueAltFt));
   const note = energyProblemNote(values);
-  assert.match(note, /^Blue's merge speed \(300 KIAS\) is above the T-6A's limit at 25,000 ft \(279 KIAS, Mach 0\.67\)\. Until this is fixed the fight flies the default start altitudes \(10,000 ft\), merge speeds \(220 KIAS\), hard deck \(6,000 ft\) and separation \(2 NM\)\.$/);
+  assert.ok(note.startsWith(`${energyProblem(values)} Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (2 NM).`), note);
+  assert.equal(note.endsWith('separation (2 NM).'), true);
   assert.equal(energyProblemNote(ENERGY_ON), '');
   assert.equal(usableEnergyValues(ENERGY_ON), ENERGY_ON);
   assert.equal(usableEnergyValues({ ...DEFAULTS, blueKias: 300, blueAltFt: 25000 }).blueKias, 300, 'Energy off never replaces anything');
