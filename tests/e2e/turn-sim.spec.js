@@ -828,7 +828,8 @@ test('the offset box hook shows which pairs cross: 300 ft vertical needed', asyn
   // Right turn: #1 with #3 and #2 with #4 pass nose to nose. It is known before Play.
   await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
-  await expect(flags).toHaveCount(0);
+  // No crossing now; the box's Delayed 90 has one close pass (#1 and #4, 954 ft) that the engine reports.
+  await expect(flags).toHaveText(['Close pass: 954 ft, #1 and #4']);
 });
 
 test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads three.js', async ({ page }) => {
