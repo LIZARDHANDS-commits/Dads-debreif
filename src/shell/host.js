@@ -18,7 +18,7 @@ function shortcutAllowed(event) {
   return true;
 }
 
-export function createHost({ root, scheduler, store, settings, time, airfields = null, keyTarget = globalThis, onStatus = () => {} }) {
+export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, keyTarget = globalThis, onStatus = () => {} }) {
   let current = null; // { id, cleanups: Set, scope, unmount }
   let openToken = 0;
 
@@ -56,6 +56,16 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
         stations: airfields.stations,
         checkOptions: airfields.checkOptions,
         subscribe: tracked(airfields),
+      },
+      // The formation standards (R18, D89): get() is frozen; the debrief's editor
+      // changes them with update() and reset().
+      standards: standards && {
+        get: standards.get,
+        limits: standards.limits,
+        check: standards.check,
+        update: standards.update,
+        reset: standards.reset,
+        subscribe: tracked(standards),
       },
       storage: store.scope(session.id),
       scheduler: session.scope,

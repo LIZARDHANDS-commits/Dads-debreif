@@ -5,6 +5,8 @@ import { createAirfields } from '../../../src/airfields/airfields.js';
 import { createHost } from '../../../src/shell/host.js';
 import { createScheduler } from '../../../src/ui-kit/scheduler.js';
 import { createStore } from '../../../src/storage/store.js';
+import { createStandards } from '../../../src/storage/standards.js';
+import { V6_STANDARDS } from '../../../src/core/standards.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 const doc = installFakeDocument();
@@ -214,4 +216,27 @@ test('modules read the airfields setting, and their airfields subscriptions end 
   airfields.update({ home: 'CYMJ' });
   assert.deepEqual(seen, ['CYXH'], 'no calls after closing');
   assert.equal(host.stats().subscriptions, 0);
+});
+
+test('modules share one set of standards, can change and reset them, and their subscriptions end on close (R4, D89)', async () => {
+  const scheduler = createScheduler({ raf: () => 1, caf: () => {}, setTimeout: () => 1, clearTimeout: () => {} });
+  const store = createStore(undefined);
+  const settings = createSettings(store.scope('app'), { timePrimary: 'zulu' });
+  const standards = createStandards({ store: store.scope('standards') });
+  const host = createHost({ root: doc.createElement('main'), scheduler, store, settings, time: {}, standards, keyTarget: target() });
+  const seen = [];
+  let app;
+  await host.open({ id: 'debrief', load: async () => ({ default: { id: 'debrief', mount: (r, a) => { app = a; a.standards.subscribe((s) => seen.push(s.offset.aftTargetFt)); } } }) });
+  assert.deepEqual(app.standards.get(), V6_STANDARDS);
+  assert.ok(Object.isFrozen(app.standards.get().offset));
+  assert.equal(app.standards.limits.offset.aftTargetFt.step, 100);
+  assert.equal(app.standards.update({ offset: { aftTargetFt: -1 } }).ok, false);
+  assert.equal(app.standards.update({ offset: { aftTargetFt: 9000 } }).ok, true);
+  assert.equal(standards.get().offset.aftTargetFt, 9000, 'one shared copy');
+  assert.equal(host.stats().subscriptions, 1);
+  host.close();
+  standards.reset();
+  assert.deepEqual(seen, [9000], 'no calls after closing');
+  assert.equal(host.stats().subscriptions, 0);
+  assert.deepEqual(standards.get(), V6_STANDARDS);
 });
