@@ -15,7 +15,9 @@ export const CLOSURE_LOOKBACK_S = 1;
  * Airborne: est. IAS 80 kt or more; a judgement call logged for review
  * (verification M1). Below it Lead is on the ground or taxiing, so the
  * standards (built for formation flight) give no wingman labels and no Lead
- * verdict; Lead's line shows its numbers alone.
+ * verdict; Lead's line shows its numbers alone. Est. IAS comes from ground
+ * speed, so a steep pull-up can dip under it in the air too: the card says
+ * "Lead under 80 kt", not "on the ground" (audit of #194, Y4; logged for review).
  */
 export const AIRBORNE_IAS_KT = 80;
 
@@ -286,7 +288,7 @@ export function formationText(row) {
   if (row.state === 'gap') return { text: 'GPS gap', tone: 'none' };
   if (row.state === 'no-lead') return { text: 'No Lead track', tone: 'none' };
   if (row.state === 'no-heading') return { text: '– (Lead not moving)', tone: 'none' };
-  if (row.state === 'ground') return { text: '– (Lead on the ground)', tone: 'none' };
+  if (row.state === 'ground') return { text: '– (Lead under 80 kt)', tone: 'none' };
   if (row.state === 'no-standard') return { text: '– (no standard on)', tone: 'none' };
   if (row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS') return { text: 'On parameters', tone: 'good' };
   const by = (off) => (off.unit !== 'deg' ? ft(off.value) : off.value < 1 ? 'under 1°' : `${Math.round(off.value)}°`);

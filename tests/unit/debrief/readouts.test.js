@@ -222,7 +222,7 @@ test('Lead taxiing at 10 kt: no wingman labels and no Lead verdict, just its num
     assert.equal(r.lead.labels, null);
     assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW|parameters/);
     assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS, (1\.0 G|G --)$/);
-    assert.match(formationText(r.formation[0]).text, /on the ground/);
+    assert.equal(formationText(r.formation[0]).text, '– (Lead under 80 kt)');
   }
 });
 
