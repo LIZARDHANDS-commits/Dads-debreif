@@ -138,6 +138,123 @@ button:disabled {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
+/* Controls bound to settings (ui-kit/controls.js) */
+.control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.control > label,
+.control-choice > legend {
+  flex: 1 1 100%;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.control-checkbox > label {
+  flex: 1 1 auto;
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+.control input[type='number'],
+.control select {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
+.control input[type='number'] {
+  width: 8em;
+}
+
+.control input[type='range'] {
+  flex: 1 1 8em;
+  accent-color: var(--accent);
+}
+
+.control input[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
+.control-unit,
+.control-value {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.control-message {
+  flex: 1 1 100%;
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+
+.control-message:empty {
+  display: none;
+}
+
+.control-choice {
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice-option {
+  position: relative;
+  display: inline-flex;
+}
+
+.choice-option input {
+  position: absolute;
+  opacity: 0;
+}
+
+.choice-option span {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+
+.choice-option:first-of-type span {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.choice-option:last-of-type span {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.choice-option input:checked + span {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.choice-option input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Pan and zoom views (ui-kit/canvas-view.js) */
+.canvas-view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.canvas-view.is-dragging {
+  cursor: grabbing;
+}
+
 /* Reduced motion: components take their durations from --motion-duration
    (tokens.css), which is 0 here. This catch-all covers anything that doesn't,
    but any class selector outranks it, so don't rely on it. */
