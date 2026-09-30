@@ -271,7 +271,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
-- The aircraft **zooms** straight ahead to 125 KIAS, trading speed for height. Speed alone would give about 1,600 ft from 220 KIAS at 3,500 ft; drag takes some of that, so the sim uses a share of it, 70 % for now (T10 asks Dad).
+- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it (NFM Fig 3-4, p.3-12): 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). Speed alone would give about 1,600 ft from 220 KIAS at 3,500 ft; the manual's own zooms gain 64 % to 71 % of that ideal (595 to 883 ft from 200 KIAS, 1,172 to 1,552 ft from 250 KIAS), so the sim uses 70 %, about 1,100 ft. Dad confirms these for the CT-156 (T10).
 - It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered (T-6A max glide chart; SMM 13.5 para 7), or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling, with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
@@ -285,7 +285,8 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
 | Clean turn while gliding | about 1,700 ft per 360° at 30° of bank, 125 KIAS | SMM 13.5 para 11 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
-| Zoom | 70 % of the speed-for-height trade | Placeholder (T10) |
+| Zoom | 2 s delay, 20° nose up until 145 KIAS, 70 % of the speed-for-height trade | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
+| Airstart attempt | costs about 1,200 ft; not below 2,000 ft above the field | NFM Fig 3-5 notes, p.3-13; SMM 13.17 para 36 |
 
 Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
 
@@ -332,7 +333,8 @@ The triggers all use the same prediction: where each aircraft will be a few seco
 
 **Engine-out check.** A "what if" that works out, without flying it, whether an aircraft would make High Key, Low Key, Final Key or the runway if its engine quit now:
 - From any aircraft row (the Command menu's **Engine-out check**), or from an energy state you type in: a point on the map, heading, height, speed (KIAS), configuration (clean, gear down, or landing flap and gear down) and prop (feathered or windmilling).
-- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead to 125 KIAS (share of the speed-for-height trade, T10); then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air, stretched or shrunk by the wind; joining the key's circle at a tangent.
+- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (NFM Fig 3-4: 2 s, 20° nose up to 145 KIAS, 70 % of the ideal trade), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air, stretched or shrunk by the wind; joining the key's circle at a tangent.
+- An **airstart attempt** option subtracts about 1,200 ft first (NFM), and is refused below 2,000 ft above the field (SMM 13.17 para 36), so an instructor can show what trying a restart costs.
 - The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
 - Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
 - **Engine-out reach** (a Layers option, off by default): each route is coloured by what an engine-out there would reach, for the chosen type in today's wind: solid green where it makes a key with more than 200 ft to spare, yellow where it's closer than that, and red dashed where it can't, with "No key from here" written on the red stretches. It checks a point every 500 ft along the route with the same calculation.
@@ -555,7 +557,7 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T5b. Tutor and Astra numbers.** The CT-114 has no published circuit speeds, and the Astra's Entry speed is V6's own number. Default: the type table as it stands (Patrick: "looks about right"). Recommendation: Dad corrects any number he knows better; each is one row of data.
 
-**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), how much height does the zoom from 220 KIAS really give (the default is 70 % of the speed-for-height trade, about 1,100 ft), and how far ahead does it travel in the zoom (the default flies it at 15° nose up)? The engine-out check depends on the last two. Recommendation: Dad gives a number for each, or they stay as placeholders.
+**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and is the T-6A flight manual's zoom right for the CT-156 (2 s to react, 20° nose up until 145 KIAS, about 70 % of the speed-for-height trade, so about 1,100 ft from 220 KIAS; NFM Fig 3-4)? The engine-out check depends on the zoom. Recommendation: Dad gives a number for each, or they stay as placeholders.
 
 ## Answered questions
 
