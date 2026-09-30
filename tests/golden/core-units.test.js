@@ -21,8 +21,6 @@ test('the other V6 copies of the constants agree', () => {
   assert.equal(units.KT_TO_FTPS, v6Number('KT', { marker: bfm }));
   assert.equal(units.G_FTPS2, v6Number('G', { marker: bfm }));
   assert.equal(units.FT_PER_NM, v6Number('NM', { marker: bfm }));
-  const traffic = loadV6(['speedFps'], { page: 'traffic' });
-  assert.equal(units.ktToFtps(1), traffic.speedFps(1));
 });
 
 test('FTPS_TO_KT is not exactly 1 / KT_TO_FTPS in V6, and stays that way', () => {
@@ -37,9 +35,23 @@ test('formatNm matches V6 nm()', () => {
   }
 });
 
-test('ktToFtps and ftpsToKt match V6 arithmetic', () => {
-  for (const v of spread(200, 0, 400, 2)) {
-    assert.equal(units.ktToFtps(v), v * 1.68781);
-    assert.equal(units.ftpsToKt(v), v * 0.592484);
+test('ktToFtps is the Traffic page speedFps and the Turn Sim speedfps', () => {
+  const traffic = loadV6(['speedFps'], { page: 'traffic' });
+  // Turn Sim reads the speed box; the stub stands in for it.
+  const turnSim = loadV6(['speedfps'], {
+    prelude: 'const KTS_TO_FPS=1.68781; let box=0; const $=()=>({value:box}); function setSpeed(v){box=v}',
+    expose: ['setSpeed'],
+  });
+  for (const kt of [0, 1, 120, 200, 220, 250, ...spread(200, 0, 400, 2)]) {
+    turnSim.setSpeed(kt);
+    assert.equal(units.ktToFtps(kt), traffic.speedFps(kt));
+    assert.equal(units.ktToFtps(kt), turnSim.speedfps());
   }
+});
+
+test('ftpsToKt is how the debrief turns feet per second into knots', () => {
+  // V6 multiplies inline (interpTrack line 2442, closureRateKt line 3129).
+  assert.ok(v6FunctionText('interpTrack').includes('/dt*KML_KT_PER_FPS'));
+  assert.ok(v6FunctionText('closureRateKt').includes('*KML_KT_PER_FPS'));
+  for (const ftps of spread(200, 0, 700, 3)) assert.equal(units.ftpsToKt(ftps), ftps * v6Number('KML_KT_PER_FPS'));
 });

@@ -25,15 +25,6 @@ export function v6Page(page = 'shell') {
   return cache.get(page);
 }
 
-/** Line number (1-based) of the first occurrence of text in a V6 page, after an optional marker. */
-export function v6Line(text, { page = 'shell', marker } = {}) {
-  const src = v6Page(page);
-  const start = marker ? src.indexOf(marker) : 0;
-  const i = src.indexOf(text, Math.max(start, 0));
-  if (start < 0 || i < 0) throw new Error(`not found in ${page}: ${marker ?? ''} ${text}`);
-  return src.slice(0, i).split('\n').length;
-}
-
 /**
  * Exact source text of `function name(...) {...}`, by brace matching.
  * Some names occur more than once in V6 (draw, loop …), so `marker` picks the
