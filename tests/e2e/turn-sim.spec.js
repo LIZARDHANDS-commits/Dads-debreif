@@ -593,6 +593,28 @@ test('the Cross turn greys out Direction and says which way Lead turns', async (
   await expect(note).toBeHidden();
 });
 
+test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Run at least until the turn is done')).toBeChecked();
+  await expect(box(page, "#2's side").locator('option:checked')).toHaveText('Left');
+  await expect(box(page, 'Rear element delay')).toBeHidden();
+  await expect(box(page, 'Cross turn first-stage G')).toBeHidden();
+  // The offset box.
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, "#2's side")).toBeHidden();
+  await expect(box(page, 'Rear element delay')).toHaveValue('12.5');
+  await expect(box(page, '#4 timing').locator('option')).toHaveText(['Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
+  await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Rear element delay (SMM)');
+  await expect(box(page, 'Wait for #3 and #4 to finish turning')).toBeChecked();
+  await expect(box(page, 'Rear element check')).not.toBeChecked();
+  // The cross turn.
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(box(page, 'Cross turn first-stage G')).toHaveValue('2');
+  await expect(box(page, 'Cross turn switch point')).toHaveValue('90');
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {
