@@ -8,7 +8,9 @@ import { createControls } from '../../ui-kit/controls.js';
 import { loadFlight } from '../../flight-data/load.js';
 import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
+import { V6_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
+import { readoutsAt } from './readouts.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createPlaybackBar } from './playback-bar.js';
@@ -25,6 +27,7 @@ function mount(root, app) {
   const ui = createLayout({ layout, controls, bar, canExample: typeof app.exampleText === 'function', listen: app.listen });
   root.append(ui.element);
 
+  let flight = null;
   let clock = null;
   let stopClock = null;
   let stopFrames = null;
@@ -37,6 +40,24 @@ function mount(root, app) {
     layers: () => layout.get(),
   });
 
+  // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
+  // Performance), and at once for a step, a seek or a pause.
+  const READOUT_MS = 100;
+  let lastReadout = -Infinity;
+  let pendingReadout = null;
+  function renderReadouts() {
+    pendingReadout?.();
+    pendingReadout = null;
+    lastReadout = performance.now();
+    const standards = app.standards?.get() ?? V6_STANDARDS;
+    ui.renderReadouts(flight && readoutsAt(flight, clock.t, { standards }));
+  }
+  function queueReadouts() {
+    const wait = READOUT_MS - (performance.now() - lastReadout);
+    if (!clock.playing || wait <= 0) renderReadouts();
+    else pendingReadout ??= app.scheduler.after(wait, renderReadouts);
+  }
+
   // The scheduler runs the clock only while playing; paused, nothing runs (#43).
   function onClock() {
     if (clock.playing && !stopFrames) stopFrames = app.scheduler.frame((dt, now) => clock.tick(now));
@@ -46,6 +67,7 @@ function mount(root, app) {
     }
     bar.sync();
     map.requestDraw();
+    queueReadouts();
   }
 
   // Swaps in a new flight only once it has loaded completely (D54).
@@ -53,11 +75,13 @@ function mount(root, app) {
     stopFrames?.();
     stopFrames = null;
     stopClock?.();
+    flight = next;
     clock = createClock({ startT: next.startT, endT: next.endT });
     stopClock = clock.onChange(onClock);
     bar.setClock(clock);
     map.setFlight(next);
     ui.showFlight(next);
+    renderReadouts();
     app.status(`Debrief: ${ui.summary()}`);
   }
 
@@ -121,10 +145,13 @@ function mount(root, app) {
   // The time's order follows Settings; the local zone follows the home field.
   app.settings.subscribe(() => bar.sync());
   app.airfields?.subscribe(() => bar.sync());
+  // Edited standards change the labels at once (R18).
+  app.standards?.subscribe(() => clock && renderReadouts());
 
   return () => {
     closed = true;
     stopFrames?.();
+    pendingReadout?.();
     stopClock?.();
     stopLayout();
     controls.dispose();

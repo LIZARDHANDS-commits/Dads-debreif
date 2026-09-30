@@ -7,6 +7,8 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `index.js` | `mount(root, app)`: builds the screen and wires the flight, the playback clock and the map together. Loading swaps the flight only once every file has read cleanly (D54). |
 | `state.js` | Plain values, tested in Node: ship colours (#4 white with an outline), the layout defaults "Reset layout" goes back to, the one-line and full status, the flight's box, tracks split at GPS gaps, ship numbers for picked files. |
 | `layout.js` | The three columns: Flight (load, example, status), the stage (Fit, Layers menu, map, playback bar) and Formation. |
+| `readouts.js` | The numbers for the current time, tested in Node and against V6: each wingman against the standards, Lead's est. IAS and G, live data, aspect, HCA, closure and spacing, and the words for each. |
+| `readouts-panel.js` | The Formation card and the "More detail" panel, redrawn at most 10 times a second while playing. |
 | `playback-bar.js` | Play or Pause, −1 s, +1 s, speed, the scrubber and the time, bound to flight-data's clock. |
 | `map2d/view.js` | The map canvas (ui-kit pan and zoom). Draws only when the time, view, a layer or the size changes. |
 | `map2d/layers.js` | The grid, the tracks (one path per ship, built once per flight) and the ship markers. |
