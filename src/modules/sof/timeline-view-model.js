@@ -64,7 +64,8 @@ function pieceView(icao, p, lane, timeZone, state) {
     below: p.below,
     unchecked: p.unchecked,
     hatch: p.below, // a hatch as well as the word "below", so colour is never the only sign
-    label: p.label,
+    // "below" comes first, with a symbol: a narrow piece cuts the end of its label, never the non-colour signal.
+    label: p.below ? `▼ below ${p.label.replace(/\s*\bbelow\b/, '')}`.trim() : p.label,
     clippedStart: p.clippedStart,
     clippedEnd: p.clippedEnd,
     card,

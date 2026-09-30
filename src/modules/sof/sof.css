@@ -266,6 +266,73 @@
   color: var(--text-faint);
 }
 
+/* The words behind a limit or caution. Colour, weight and a line style say the level, and the hidden prefix says it in words,
+   so a mark is never colour alone. <mark>'s own yellow is removed. */
+[data-module='sof'] .sof-mark {
+  padding: 0 0.15em;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+[data-module='sof'] .sof-mark.is-below {
+  color: var(--bad);
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+}
+
+[data-module='sof'] .sof-mark.is-at-limit {
+  color: var(--caution);
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+}
+
+[data-module='sof'] .sof-mark.is-caution {
+  color: var(--caution);
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+}
+
+/* A stale report's marks follow its greying: never bright. The underline still says which kind. */
+[data-module='sof'] .sof-report.is-stale .sof-mark,
+[data-module='sof'] .sof-banner-line.is-stale .sof-mark {
+  color: var(--text-faint);
+}
+
+/* The level in words, for a screen reader: generated content, so it is not part of the report's text and is never copied
+   or selected. Visually hidden like .visually-hidden. The words match marks.js's LEVEL_WORDS. */
+[data-module='sof'] .sof-report .sof-mark::before {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[data-module='sof'] .sof-report .sof-mark.is-below::before {
+  content: 'below limits: ';
+}
+
+[data-module='sof'] .sof-report .sof-mark.is-at-limit::before {
+  content: 'at the limit: ';
+}
+
+[data-module='sof'] .sof-report .sof-mark.is-caution::before {
+  content: 'caution: ';
+}
+
+[data-module='sof'] .sof-banner-words {
+  flex: 1 1 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
 [data-module='sof'] .sof-note {
   margin: 0 0 var(--space-1);
   color: var(--text-muted);
@@ -1062,6 +1129,12 @@
   font-weight: 700;
   line-height: 1.25rem;
   white-space: nowrap;
+  /* Never wider than its piece: a short piece cuts the end of the label (the full words are on the card). */
+  display: block;
+  box-sizing: border-box;
+  max-width: calc(100% - 2px);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 [data-module='sof'] .sof-tl-piece:focus-visible {

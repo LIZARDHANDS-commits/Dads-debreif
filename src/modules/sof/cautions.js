@@ -16,7 +16,7 @@
 // it returns it is new (SOF-4). A source that can't be read at all (no METAR,
 // no TAF) is not a caution that cleared, so its keys stay.
 
-import { assessAlternate } from '../../wx/alternates.js';
+import { assessAlternate, homeAlternateTrigger } from '../../wx/alternates.js';
 import { localDate, localToUtc } from './waves.js';
 
 const VERSION = 1;
@@ -38,6 +38,20 @@ const belowReasons = (reasons) => {
   return named.length ? named : [all[0] ?? 'Below limits'];
 };
 const cautionReasons = (reasons) => (Array.isArray(reasons) ? reasons : []).filter((r) => typeof r === 'string' && !isLimitReason(r));
+
+// Where in a report's text the words behind a caution are: wx's `{ start, end }` positions, checked, few and once each.
+const MAX_SPANS = 20;
+function cleanSpans(list) {
+  const out = [];
+  for (const span of Array.isArray(list) ? list : []) {
+    let start;
+    let end;
+    try { ({ start, end } = span ?? {}); } catch { continue; }
+    if (Number.isInteger(start) && Number.isInteger(end) && start >= 0 && end > start && !out.some((s) => s.start === start && s.end === end)) out.push({ start, end });
+    if (out.length >= MAX_SPANS) break;
+  }
+  return out;
+}
 
 const LEVELS = {
   below: { rank: 0, words: 'Below limits' },
@@ -62,7 +76,7 @@ function groupName(piece) {
   return kind === 'BASE' ? 'PREVAILING' : kind;
 }
 
-function make({ icao, source, level, reason, group = null, from = null, to = null, time = null, stale = false }) {
+function make({ icao, source, level, reason, group = null, from = null, to = null, time = null, stale = false, spans = [], raw = null }) {
   const where = source === 'METAR'
     ? `${icao} METAR${time ? ` ${hhmmZ(time)}` : ''}`
     : `${icao} TAF ${group} ${dayHourZ(from)}–${dayHourZ(to)}`;
@@ -80,6 +94,8 @@ function make({ icao, source, level, reason, group = null, from = null, to = nul
     to,
     reason,
     stale,
+    raw: typeof raw === 'string' ? raw : null, // the report the words are in, and where they are in it
+    spans: typeof raw === 'string' ? cleanSpans(spans) : [],
     text: `${LEVELS[level].words}: ${where}: ${reason}${stale ? ' (STALE report)' : ''}`,
     acknowledged: false,
   };
@@ -97,7 +113,7 @@ function extraCaution(c) {
   return {
     key, icao, source, level, levelWords: LEVELS[level].words, group: typeof c.group === 'string' ? c.group : null,
     from: validDate(c.from) ? c.from : null, to: validDate(c.to) ? c.to : null,
-    reason: typeof c.reason === 'string' ? c.reason : text, stale: c.stale === true, text, acknowledged: false,
+    reason: typeof c.reason === 'string' ? c.reason : text, stale: c.stale === true, raw: null, spans: [], text, acknowledged: false,
   };
 }
 
@@ -109,7 +125,8 @@ function metarCautions(card) {
   if (typeof icao !== 'string' || !icao) return [];
   const time = validDate(card.metar?.time) ? card.metar.time : null;
   const stale = card.result?.stale === true;
-  const one = (level, reason) => make({ icao, source: 'METAR', level, reason, time, stale });
+  const raw = card.metar?.raw;
+  const one = (level, reason) => make({ icao, source: 'METAR', level, reason, time, stale, raw, spans: card.reasonSpans?.[reason] });
   return [
     ...(card.result?.level === 'below' ? belowReasons(card.result.reasons).map((r) => one('below', r)) : []),
     ...cautionReasons(card.cautionReasons).map((r) => one('caution', r)),
@@ -124,13 +141,16 @@ function metarCautions(card) {
  * several pieces; they are joined back into one caution over the group's span.
  * Prevailing pieces are joined when they touch, whichever group they came from.
  */
-function tafCautions(icao, result) {
+function tafCautions(icao, result, raw = null) {
   const found = [];
   const add = (level, pieces, reasonsOf) => {
     for (const piece of Array.isArray(pieces) ? pieces : []) {
       if (!validDate(piece?.from) || !validDate(piece?.to)) continue;
       const group = groupName(piece);
-      for (const reason of reasonsOf(piece.reasons)) found.push({ level, group, reason, from: piece.from, to: piece.to, index: piece.group });
+      for (const reason of reasonsOf(piece.reasons)) {
+        const at = Array.isArray(piece.reasons) ? piece.reasons.indexOf(reason) : -1;
+        found.push({ level, group, reason, from: piece.from, to: piece.to, index: piece.group, spans: at >= 0 ? cleanSpans(piece.reasonSpans?.[at]) : [] });
+      }
     }
   };
   add('below', result?.hits, belowReasons);
@@ -144,11 +164,12 @@ function tafCautions(icao, result) {
     if (same) {
       same.from = new Date(Math.min(+same.from, +piece.from));
       same.to = new Date(Math.max(+same.to, +piece.to));
+      same.spans = cleanSpans([...same.spans, ...piece.spans]);
     } else {
       joined.push({ ...piece });
     }
   }
-  return joined.map((j) => make({ icao, source: 'TAF', level: j.level, reason: j.reason, group: j.group, from: j.from, to: j.to }));
+  return joined.map((j) => make({ icao, source: 'TAF', level: j.level, reason: j.reason, group: j.group, from: j.from, to: j.to, raw, spans: j.spans }));
 }
 
 /**
@@ -156,15 +177,16 @@ function tafCautions(icao, result) {
  * then in the order the airfields were given, METAR before TAF, then by time.
  *
  * - `cards`: `cardModel` results, one per airfield.
- * - `tafs`: `[{ icao, result }]`, `result` being wx's `homeAlternateTrigger` or
+ * - `tafs`: `[{ icao, result, raw }]`, `raw` being the TAF's trimmed text (what wx's positions are in, for the marked words), `result` being wx's `homeAlternateTrigger` or
  *   `assessAlternate` answer (see `tafResultsOfWaves`). What the TAF is checked
  *   over is the caller's choice; this lists what those results found.
  *
  * Each caution is `{ key, icao, source: 'METAR' | 'TAF', level: 'below' | 'caution',
- * levelWords, group, from, to, reason, stale, text, acknowledged: false }`.
+ * levelWords, group, from, to, reason, stale, raw, spans, text, acknowledged: false }`. `spans` is
+ * `[{ start, end }]`: where in `raw` (the report, or null) the words behind the reason are.
  * `text` is the line the banner shows, in words. The same key is listed once.
  *
- * - `notEndedBefore`: a Date; TAF cautions (dangerous weather, not limits) whose joined span ended before it are left out.
+ * - `notEndedBefore`: a Date; TAF cautions and TAF pieces below the limits whose joined span ended before it are left out.
  * - `extra`: cautions from other sources in the same shape, such as lightning.js's; they are
  *   checked, sorted and de-duplicated with the rest. Entries that aren't cautions are ignored.
  */
@@ -177,9 +199,9 @@ export function cautionList({ cards = [], tafs = [], extra = [], notEndedBefore 
   }
   for (const entry of Array.isArray(tafs) ? tafs : []) {
     if (typeof entry?.icao !== 'string' || !entry.icao || !entry.result) continue;
-    for (const c of tafCautions(entry.icao, entry.result)) {
+    for (const c of tafCautions(entry.icao, entry.result, entry.raw)) {
       // The cut is after the join, so a spell keeps one span (and one key) while any of it is still to come.
-      if (validDate(notEndedBefore) && c.level === 'caution' && c.to && +c.to < +notEndedBefore) continue;
+      if (validDate(notEndedBefore) && c.to && +c.to < +notEndedBefore) continue;
       seen(c.icao);
       all.push(c);
     }
@@ -214,6 +236,9 @@ export function tafResultsOfWaves(calls, homeIcao) {
 }
 
 const BANNER_AHEAD_MS = 12 * 3_600_000;
+// Whether the banner also lists a home forecast below the home limits inside its window, with no wave needed
+// (R3, logged for review). Off, below-limit TAF pieces are only the waves'. Alternates stay tied to waves.
+const BANNER_HOME_BELOW = true;
 // How far back the banner looks: a forecast caution that ended longer ago than this is over and is not raised
 // (it stays on the timeline). One hour keeps a period that has only just ended. Set to null for no cut, the old
 // behaviour. The cut is made after the pieces of a spell are joined (cautionList's `notEndedBefore`), so the
@@ -250,13 +275,14 @@ export function bannerWindow({ now, timeZone } = {}) {
  * The banner's TAF cautions, whatever the waves and whatever day is on the
  * timeline: each airfield's TAF is checked by wx over `bannerWindow`, cut at the
  * TAF's own end, and only wx's `cautions` are kept, in the form `cautionList`
- * takes. Pieces below the limits are not taken here; they stay tied to the wave
- * windows. A TAF missing, or ended before the window starts, gives wx's status
+ * takes. Pieces below the limits are not taken here, except home's when `home`
+ * (`{ icao, limits: { ceilingFt, visSm } }`) is given (BANNER_HOME_BELOW); the
+ * alternates' stay tied to the wave windows. A TAF missing, or ended before the window starts, gives wx's status
  * ('no-taf', 'no-time') and no cautions, so its acknowledgements stay.
  * `tafs` maps ICAO to wx's parsed TAF (or null), as `waveCalls` takes it.
- * @param {{ tafs?: any, now?: any, timeZone?: any }} [input]
+ * @param {{ tafs?: any, now?: any, timeZone?: any, home?: any }} [input]
  */
-export function tafCautionsForBanner({ tafs, now, timeZone } = {}) {
+export function tafCautionsForBanner({ tafs, now, timeZone, home } = {}) {
   const window = bannerWindow({ now, timeZone });
   if (tafs == null || typeof tafs !== 'object' || !window) return [];
   return Object.entries(tafs).map(([icao, taf]) => {
@@ -265,6 +291,11 @@ export function tafCautionsForBanner({ tafs, now, timeZone } = {}) {
     if (validDate(taf?.validTo) && +to <= +window.from) return { icao, result: { status: 'no-time', hits: [], cautions: [] } };
     // Cautions don't depend on the minima, so wx's defaults are enough.
     const { status, cautions } = assessAlternate(taf, { from: window.from, to }, {});
+    // Home only: its pieces below the home limits, from wx's own home check over the same window.
+    if (BANNER_HOME_BELOW && home?.icao === icao && home.limits) {
+      const found = homeAlternateTrigger(taf, { from: window.from, to }, home.limits);
+      return { icao, result: { status, hits: found.hits, cautions } };
+    }
     return { icao, result: { status, hits: [], cautions } };
   });
 }

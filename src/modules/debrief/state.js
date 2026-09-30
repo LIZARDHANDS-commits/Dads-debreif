@@ -58,6 +58,9 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   wxSatellite: false,
   wxSatelliteLayer: 'geocolor',
   wxSatelliteOpacity: 70,
+  // Saved radar (rain and snow) and lightning from ECCC, drawn only from the pictures kept with the debrief.
+  wxRadar: false,
+  wxLightning: false,
   // The model wind at Lead's altitude on the Lead line: Canada's HRDPS, or HRRR
   // for flights before March 2023 or when picked.
   wxWinds: false,

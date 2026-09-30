@@ -4,15 +4,29 @@
 // the way in, so the standards are flattened to "standards.spread.minFt" and
 // so on. Plain values only; tested in Node.
 import { renameDfp, setDfpNote, sortDfps, DFP_LIMITS } from './dfp.js';
+import { MAX_SAVED_CHARS, weatherForFile } from './weather/saved-radar.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
 export const TIME_KEY = 'time';
 const TIME_RULE = { type: 'number', min: 0, max: 1e11 };
+/**
+ * Where the saved radar and lightning ride in the file (12f): one string, the
+ * block weather/saved-radar.js writes and checks, under the file's settings.
+ * flight-data's format has no weather field yet, and settings may hold a string
+ * up to a length the reader is given, so nothing there changes. When it gets a
+ * field of its own, only this key and the two places that use it move.
+ */
+export const WEATHER_KEY = 'savedWeather';
 
-/** The rules readDebriefFile checks the file's settings against, from app.standards.limits. */
-export function settingsRules(limits) {
+/**
+ * The rules readDebriefFile checks the file's settings against, from
+ * app.standards.limits. `weather`: also keep the saved radar's block, up to
+ * the longest text saved-radar.js allows (it checks the inside itself).
+ */
+export function settingsRules(limits, { weather = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
+  if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_SAVED_CHARS };
   for (const [group, fields] of Object.entries(limits)) {
     rules[`${PREFIX}${group}.on`] = { type: 'boolean' };
     for (const [key, limit] of Object.entries(fields)) rules[`${PREFIX}${group}.${key}`] = { type: 'number', min: limit.min, max: limit.max };
@@ -20,13 +34,17 @@ export function settingsRules(limits) {
   return rules;
 }
 
-/** The settings saved in the file: every standard, flattened, and the time. */
-export function sessionSettings(standards, t) {
+/**
+ * The settings saved in the file: every standard, flattened, the time, and
+ * `weather` (the saved radar's block as text, savedToSetting) when there is one.
+ */
+export function sessionSettings(standards, t, weather = '') {
   const out = {};
   for (const [group, fields] of Object.entries(standards)) {
     for (const [key, value] of Object.entries(fields)) out[`${PREFIX}${group}.${key}`] = value;
   }
   if (Number.isFinite(t)) out[TIME_KEY] = t;
+  if (weather) out[WEATHER_KEY] = weather;
   return out;
 }
 
@@ -75,4 +93,35 @@ export function dfpsFromFile(fileDfps, leadAt) {
 export function debriefFileName(startT) {
   const iso = new Date(startT * 1000).toISOString();
   return `debrief-${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}Z.dadsdebrief.json`;
+}
+
+/**
+ * The debrief file's text with the kept radar in it when that can be done
+ * safely. write(weatherText): the file's text for a settings string ('' for
+ * none), as toDebriefFile makes it. weather: the kept set or null. window:
+ * { startT, endT } of the flight. The set is read back through the reader's own
+ * checks first (weatherForFile); if it would not come back whole it is left out.
+ * Returns { text, wrote, left }: `wrote` true when the radar is in the file,
+ * `left` the words for why it was left out (or null).
+ *
+ * The file the reader will open is limited to `maxBytes` (flight-data's
+ * MAX_DEBRIEF_BYTES, which was sized for the tracks alone), measured by
+ * `sizeOf(text)`, which should count bytes as the opener does. With the radar
+ * in, a file over it would not open again, so it is saved without the radar.
+ */
+export function buildDebriefFile({ write, weather, window, maxBytes = Infinity, sizeOf = (text) => text.length }) {
+  if (!weather) return { text: write(''), wrote: false, left: null };
+  const wx = weatherForFile(weather, window);
+  if (wx.problem) return { text: write(''), wrote: false, left: wx.problem };
+  const text = write(wx.text);
+  const size = sizeOf(text);
+  if (size > maxBytes) {
+    const mb = Math.round((maxBytes / 1024 / 1024) * 10) / 10;
+    return {
+      text: write(''),
+      wrote: false,
+      left: `This debrief file would be over the size this tool opens (${mb} MB), so it was saved without the radar and lightning. They stay here until you close the flight.`,
+    };
+  }
+  return { text, wrote: true, left: null };
 }

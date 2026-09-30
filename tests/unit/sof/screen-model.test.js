@@ -1,7 +1,7 @@
 // Tests for src/modules/sof/screen-model.js: everything the SOF screen says,
 // decided without a page (SPEC-sof, "The screen": SOF bar, Airfield cards). The
 // page code only draws these answers.
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMetar } from '../../../src/wx/metar.js';
 import { parseTaf } from '../../../src/wx/taf.js';
@@ -286,4 +286,37 @@ test('extraCautions is the list the banner reads: lightning.js\'s caution when t
   assert.deepEqual(screen({ lightning: found }).extraCautions, [found.caution]);
   assert.deepEqual(screen({ lightning: quiet() }).extraCautions, []);
   assert.deepEqual(screen().extraCautions, []);
+});
+
+// ---- R2: a fetched-just-now header does not hide reports that are old -------------------------------------------
+
+test('feed status: fetched just now, but the newest METAR was observed hours ago, says so and drops the tick', () => {
+  const old = 'METAR CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952';
+  const s = snap({ metar: { CYMJ: metar(old) }, lastRound: round('ok', NOW), newestAt: NOW });
+  const f = feedStatus(s, NOW);
+  assert.equal(f.text, 'Weather just now, newest METAR observed 8 h 42 min ago ⚠');
+  assert.equal(f.tone, 'bad');
+  assert.equal(f.symbol, '⚠');
+});
+
+test('feed status: the age is of the newest observation, not of the fetch; a fresh METAR keeps the plain wording', () => {
+  const old = 'METAR CYMJ 291000Z 25010KT 15SM FEW100 15/02 A2952';
+  const fresh = 'METAR CYQR 291800Z 26005KT 15SM FEW080 16/08 A2995';
+  const both = snap({ metar: { CYMJ: metar(old), CYQR: metar(fresh) }, lastRound: round('ok', NOW), newestAt: NOW });
+  assert.equal(words(both), 'Weather just now ✓', 'one current report is enough');
+  const edge = snap({ metar: { CYMJ: metar('METAR CYMJ 291730Z 25010KT 15SM FEW100 15/02 A2952') }, lastRound: round('ok', NOW), newestAt: NOW });
+  assert.equal(words(edge), 'Weather just now ✓', '72 min is not yet stale');
+  assert.equal(words(snap({ lastRound: round('ok', NOW), newestAt: NOW })), 'Weather just now ✓', 'no METARs held: nothing to say about their age');
+});
+
+test('feed status: uses only the clock it is given, never the real one (a month away from it)', () => {
+  const fresh = 'METAR CYMJ 291800Z 25010KT 15SM FEW100 15/02 A2952';
+  const s = snap({ metar: { CYMJ: metar(fresh) }, lastRound: round('ok', NOW), newestAt: NOW });
+  mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-29T23:00:00Z') });
+  try {
+    assert.equal(feedStatus(s, NOW).text, 'Weather just now ✓');
+    assert.equal(screen({ snapshot: s }).feed.text, 'Weather just now ✓');
+  } finally {
+    mock.timers.reset();
+  }
 });

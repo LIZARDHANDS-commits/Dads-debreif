@@ -407,3 +407,86 @@ test('a GNSS-only alternate with no MEA uses its LNAV minima from the whole opti
   assert.equal(c.limitsText, '800-2 (or 900-1½, 1000-1)');
   assert.equal(c.result.level, 'at-limit'); // 800 ft is exactly on 800-2; visibility 10 SM
 });
+
+// ---- Marked report words (task 3) -------------------------------------------------------------------
+
+const words = (raw, marks) => (marks ?? []).map((m) => [raw.slice(m.start, m.end), m.level]).sort((a, b) => a[0].localeCompare(b[0]));
+const REGINA_LOW = 'CYQR 291800Z 26005KT 2SM BR BKN004 10/08 A2995';
+const LOW_MINIMA = { minima: [{ ceilingFt: 600, visSm: 2 }] };
+
+test('marks: a METAR below its limits marks the words behind the limit, in the level below', () => {
+  const c = alt({ metar: metarEntry(REGINA_LOW), options: LOW_MINIMA });
+  assert.deepEqual(words(c.metar.raw, c.metar.marks), [['2SM', 'at-limit'], ['BKN004', 'below']]);
+});
+
+test('marks: at the limit and cautions each in their own level; the words are the report\'s own', () => {
+  const raw = 'CYMJ 291800Z 25010KT 3SM VCTS BKN020 18/02 A2952';
+  const c = home({ metar: metarEntry(raw), limits: { ceilingFt: 2000, visSm: 3 } });
+  assert.deepEqual(words(c.metar.raw, c.metar.marks), [['3SM', 'at-limit'], ['BKN020', 'at-limit'], ['VCTS', 'caution']]);
+});
+
+test('marks: a report within limits with nothing dangerous has none', () => {
+  const c = home({ metar: metarEntry('CYMJ 291800Z 25010KT 15SM BKN050 18/02 A2952'), limits: { ceilingFt: 2000, visSm: 3 } });
+  assert.deepEqual(c.metar.marks, []);
+  assert.deepEqual(c.taf.marks, []);
+});
+
+test('marks: no report, no marks', () => {
+  const c = home({ limits: { ceilingFt: 2000, visSm: 3 } });
+  assert.deepEqual(c.metar.marks, []);
+  assert.deepEqual(c.taf.marks, []);
+});
+
+test('marks: a stale report keeps its marks (the view greys them), with the card saying stale', () => {
+  const c = alt({ metar: metarEntry(REGINA_LOW.replace('291800Z', '291000Z')), options: LOW_MINIMA });
+  assert.equal(c.metar.state, 'stale');
+  assert.deepEqual(words(c.metar.raw, c.metar.marks), [['2SM', 'at-limit'], ['BKN004', 'below']]);
+});
+
+test('marks: shown text with spaces around it is followed; text that is not the parsed report gets no marks', () => {
+  const padded = { ...metarEntry(REGINA_LOW), raw: `  ${REGINA_LOW}\n` };
+  assert.deepEqual(words(padded.raw, alt({ metar: padded, options: LOW_MINIMA }).metar.marks), [['2SM', 'at-limit'], ['BKN004', 'below']]);
+  const other = { ...metarEntry(REGINA_LOW), raw: 'something else entirely' };
+  assert.deepEqual(alt({ metar: other, options: LOW_MINIMA }).metar.marks, []);
+});
+
+test('marks: reasonSpans gives each reason\'s spans on the shown text, for the banner', () => {
+  const c = alt({ metar: metarEntry(REGINA_LOW), options: LOW_MINIMA });
+  const [reason] = c.result.reasons;
+  assert.match(reason, /^CEILING 400 FT/);
+  assert.deepEqual(c.reasonSpans[reason].map((s) => c.metar.raw.slice(s.start, s.end)), ['BKN004']);
+});
+
+test('marks: a TAF caution in the banner window marks its words on the TAF, in the level caution', () => {
+  const c = home({ taf: tafEntry(HOME_TAF.vicinityStorm), limits: { ceilingFt: 2000, visSm: 3 }, timeZone: 'America/Regina' });
+  const w = words(c.taf.raw, c.taf.marks);
+  assert.ok(w.some(([t, l]) => t === 'VCTS' && l === 'caution'), JSON.stringify(w));
+  assert.ok(w.some(([t, l]) => t === 'FEW040CB' && l === 'caution'), JSON.stringify(w));
+});
+
+test('marks: a TAF below the limits marks its group\'s words in the level below', () => {
+  const c = home({ taf: tafEntry(HOME_TAF.lowFromEvening), limits: { ceilingFt: 2000, visSm: 3 }, timeZone: 'America/Regina' });
+  const w = words(c.taf.raw, c.taf.marks);
+  assert.ok(w.some(([t, l]) => t === 'OVC008' && l === 'below'), JSON.stringify(w));
+});
+
+test('marks: a cancelled TAF has none', () => {
+  assert.deepEqual(home({ taf: tafEntry('TAF CYMJ 291740Z 2918/3006 CNL'), limits: { ceilingFt: 2000, visSm: 3 } }).taf.marks, []);
+});
+
+test('marks: a visual-descent alternate marks only cautions on the METAR, since its result is left to the wave call', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'gnss-only', meaFt: 3000 } } });
+  const options = { ...a.checkOptions('CYQR'), visualDescent: { meaFt: 3000, elevationFt: 200 } };
+  const c = alt({ metar: metarEntry('CYQR 291800Z 26005KT 2SM VCTS BKN005 10/08 A2995'), options });
+  assert.equal(c.result.level, 'unknown');
+  assert.deepEqual(words(c.metar.raw, c.metar.marks), [['VCTS', 'caution']]);
+});
+
+test('marks: an alternate TAF PROB piece below the minima is not marked as a limit, only its dangerous weather', () => {
+  const raw = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 PROB30 2920/2924 1SM TSRA BKN004CB';
+  const c = alt({ taf: tafEntry(raw), options: LOW_MINIMA, timeZone: 'America/Regina' });
+  const w = words(c.taf.raw, c.taf.marks);
+  assert.ok(w.some(([t, l]) => t === 'TSRA' && l === 'caution'), JSON.stringify(w));
+  assert.ok(w.every(([, l]) => l === 'caution'), JSON.stringify(w));
+});

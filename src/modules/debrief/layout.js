@@ -17,8 +17,10 @@ import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';
 import { SATELLITE_LAYERS } from './weather/satellite.js';
 import { WIND_MODELS } from './weather/winds.js';
-import { ARROW_HEIGHT } from './weather/wind-arrows.js';
+import { ARROW_HEIGHT, clampArrowFt } from './weather/wind-arrows.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
+
+const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -173,6 +175,30 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const windArrowHeight = controls.number('wxWindArrowFt', { label: 'Wind arrow height', unit: 'ft', min: ARROW_HEIGHT.min, max: ARROW_HEIGHT.max, step: ARROW_HEIGHT.step });
   const heightInput = windArrowHeight.querySelector('input');
   heightInput?.setAttribute('aria-describedby', `${heightInput.getAttribute('aria-describedby') ?? ''} ${windArrowStatus.id}`.trim());
+  // A height between the 500 ft steps is drawn at the nearest step, so the box shows that step too
+  // (verification re-check of #213, W2). Runs after the box has committed its own value.
+  if (heightInput) {
+    listen(heightInput, 'change', () => {
+      const typed = layout.get().wxWindArrowFt;
+      const used = clampArrowFt(typed);
+      // Only when the box holds the saved value: a refused entry (over the top) keeps its warning,
+      // not a part of it saved on the way ("3123" of "31234").
+      if (Number(heightInput.value) !== typed) return;
+      if (Number.isFinite(typed) && typed !== used) layout.update({ wxWindArrowFt: used });
+    });
+  }
+  // Saved radar and lightning: the offer to fetch them, and what is kept or why not. The button is
+  // Save while a fetch can start and Cancel while one is under way (setSavedWeather).
+  let savedWxMode = 'hidden';
+  const savedWxButton = h('button', {
+    type: 'button', class: 'button', id: 'debrief-saved-wx', hidden: true,
+    onclick: () => (savedWxMode === 'cancel' ? handlers.cancelWx : handlers.saveWx)?.(),
+  }, SAVE_WX_LABEL);
+  // The line shown updates with every picture and is not itself announced; a hidden live region beside
+  // the map is told only at the start, about every 25 % and at the end (Y5).
+  const savedWxStatus = h('p', { class: 'debrief-menu-note', id: 'debrief-saved-wx-status', tabindex: '-1', hidden: true });
+  const savedWxLive = h('p', { class: 'visually-hidden', id: 'debrief-saved-wx-live', role: 'status' });
+  savedWxButton.setAttribute('aria-describedby', savedWxStatus.id);
   // Weather at the time of the flight: every item off at first (R22), and
   // fetched only while on (SPEC-debrief: Weather at the time of the flight).
   const weatherMenu = menu('Weather', 'debrief-weather', [
@@ -184,6 +210,10 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('wxSatellite', { label: 'Satellite (GOES-West)' }),
     controls.select('wxSatelliteLayer', { label: 'Satellite picture', options: Object.entries(SATELLITE_LAYERS).map(([value, l]) => ({ value, label: l.label })) }),
     controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
+    h('div', { class: 'debrief-menu-wide' }, controls.checkbox('wxRadar', { label: 'Radar' })),
+    h('div', { class: 'debrief-menu-wide' }, controls.checkbox('wxLightning', { label: 'Lightning' })),
+    h('div', { class: 'debrief-menu-wide' }, savedWxButton),
+    savedWxStatus,
     controls.checkbox('wxWinds', { label: 'Winds aloft (model)' }),
     controls.select('wxWindModel', { label: 'Wind model', options: WIND_MODEL_OPTIONS }),
     controls.checkbox('wxWindArrows', { label: 'Wind arrows (model)' }),
@@ -261,6 +291,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     mapWrap,
     bar.element,
     metarLine,
+    savedWxLive,
     emPanel,
   );
 
@@ -342,9 +373,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   }
 
   // The lines under the map, satellite first.
-  const notes = { imagery: '', charts: '', weather: '', arrows: '' };
+  const notes = { imagery: '', charts: '', weather: '', saved: '', arrows: '' };
   function showNotes() {
-    const text = [notes.imagery, notes.charts, notes.weather, notes.arrows].filter(Boolean).join(' · ');
+    const text = [notes.imagery, notes.charts, notes.weather, notes.saved, notes.arrows].filter(Boolean).join(' · ');
     if (credit.textContent !== text) credit.textContent = text;
     credit.hidden = !text;
   }
@@ -455,6 +486,26 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       showNotes();
     },
     /**
+     * The saved radar and lightning: the Weather menu's offer ({ button: 'hidden' | 'save' | 'cancel', status })
+     * and the words under the map ('' for none).
+     */
+    setSavedWeather({ offer, note = '' }) {
+      savedWxMode = offer.button;
+      const label = offer.button === 'cancel' ? 'Cancel' : SAVE_WX_LABEL;
+      if (savedWxButton.textContent !== label) savedWxButton.textContent = label;
+      // A focused button that goes away would drop focus to the page: it goes to the line that says what happened (Y6).
+      const hadFocus = savedWxButton.ownerDocument.activeElement === savedWxButton;
+      if (savedWxButton.hidden !== (offer.button === 'hidden')) savedWxButton.hidden = offer.button === 'hidden';
+      if (savedWxStatus.textContent !== offer.status) savedWxStatus.textContent = offer.status;
+      if (savedWxLive.textContent !== offer.live) savedWxLive.textContent = offer.live;
+      if (savedWxStatus.hidden === Boolean(offer.status)) savedWxStatus.hidden = !offer.status;
+      if (hadFocus && offer.button === 'hidden' && offer.status) savedWxStatus.focus();
+      if (notes.saved !== note) {
+        notes.saved = note;
+        showNotes();
+      }
+    },
+    /**
      * The wind arrows' words: the caption under the map ("Model wind at
      * 8,000 ft (HRDPS 18–19Z, Open-Meteo)"), empty when there are none, and
      * the small status line in the Weather menu ('' hides it).
@@ -483,6 +534,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     onLoad: (fn) => (handlers.load = fn),
     onExample: (fn) => (handlers.example = fn),
     onFit: (fn) => (handlers.fit = fn),
+    onSaveWx: (fn) => (handlers.saveWx = fn),
+    onCancelWx: (fn) => (handlers.cancelWx = fn),
     onReset: (fn) => (handlers.reset = fn),
   };
 }

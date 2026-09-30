@@ -14,6 +14,12 @@ const MET_NO = /^https:\/\/api\.met\.no\//;
 const DATAMASK = /^https:\/\/datamask\.org\//;
 const CORS = { 'access-control-allow-origin': '*' };
 
+// page.route() cannot see a request once a service worker controls the page, and WebKit (which CI runs
+// for @smoke) lets the worker's own network layer answer even a worker that never calls respondWith.
+// The real MET Norway then answered in CI: reports observed "30 d 5 h" before the fixed clock. Blocking
+// the worker keeps every weather reply a fixture; the offline behaviour is tested in the shell's own specs.
+test.use({ serviceWorkers: 'block' });
+
 /**
  * Serves MET Norway and Datamask from fixtures. The returned object is live:
  * change `metar`, `taf` or `down` between steps, and read `requests` for every address asked.
@@ -406,9 +412,77 @@ test('the banner lists each new caution in words, in the page flow, and is annou
   await expect(card(page, 'CYMJ').locator('.sof-caution')).toContainText('Caution: THUNDERSTORM / SEVERE WX (VCTS)');
 });
 
+test('the words behind a limit are marked on the card and on the banner, in words as well as colour', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  // Regina's visibility is exactly on its minimum and its ceiling is below; Moose Jaw's thunderstorm is a caution.
+  const regina = card(page, 'CYQR').locator('.sof-metar .sof-raw mark');
+  await expect(regina).toHaveText(['2SM', 'BKN004']);
+  // ...and each says its level in words for a screen reader, drawn by the stylesheet so it is never copied.
+  const said = (loc) => loc.evaluate((el) => getComputedStyle(el, '::before').content);
+  expect(await said(regina.nth(0))).toBe('"at the limit: "');
+  expect(await said(regina.nth(1))).toBe('"below limits: "');
+  await expect(regina.nth(0)).toHaveClass(/is-at-limit/);
+  await expect(regina.nth(1)).toHaveClass(/is-below/);
+  const storm = card(page, 'CYMJ').locator('.sof-metar .sof-raw mark');
+  await expect(storm).toHaveText('VCTS');
+  expect(await said(storm)).toBe('"caution: "');
+  await expect(storm).toHaveClass(/is-caution/);
+  // The report's own text is exactly as issued.
+  await expect(card(page, 'CYMJ').locator('.sof-metar .sof-raw')).toContainText('CYMJ 291800Z 22008KT 6SM VCTS BKN050');
+  // Colour, weight and a line style, so it is never colour alone; and not the browser's own yellow highlight.
+  const style = await storm.evaluate((el) => {
+    const c = getComputedStyle(el);
+    return { bg: c.backgroundColor, line: c.textDecorationLine, weight: c.fontWeight };
+  });
+  expect(style.bg).toBe('rgba(0, 0, 0, 0)');
+  expect(style.line).toContain('underline');
+  expect(Number(style.weight)).toBeGreaterThanOrEqual(700);
+  // The banner shows the same words, marked the same way.
+  const lines = page.locator('.sof-banner-line');
+  await expect(lines.first().locator('.sof-banner-words')).toContainText('In the report:');
+  await expect(lines.first().locator('.sof-banner-words mark.is-below')).toHaveText('BKN004');
+  await expect(lines.nth(1).locator('.sof-banner-words mark.is-caution')).toHaveText('VCTS');
+  await expectNoA11yViolations(page);
+});
+
+test('copying a marked report gives the report as issued, without the hidden level words', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  // A real triple-click selection, as a person would make it, not a range set from script.
+  const box = await page.locator('article[data-icao="CYQR"] .sof-metar .sof-raw').boundingBox();
+  await page.mouse.move(box.x + 1, box.y + 3);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 1, box.y + box.height - 3, { steps: 8 });
+  await page.mouse.up();
+  const copied = await page.evaluate(() => window.getSelection().toString());
+  expect(copied).toContain('2SM BR BKN004');
+  expect(copied).not.toMatch(/below limits:|at the limit:|caution:/);
+});
+
+test('a stale report\'s marks are grey, not bright', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt').replaceAll('291800Z', '291000Z') });
+  await expect(card(page, 'CYQR').locator('.sof-metar')).toHaveAttribute('data-state', 'stale');
+  const mark = card(page, 'CYQR').locator('.sof-metar .sof-raw mark.is-below');
+  await expect(mark).toHaveText(/BKN004/);
+  expect(await mark.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(111, 142, 157)'); // --text-faint
+  await expectNoA11yViolations(page);
+});
+
+test('report text with markup in it stays text, marks and all', async ({ page }) => {
+  const others = fixture('ui-metno-metar-storm.txt').split('\n').filter((l) => !l.startsWith('CYQR')).join('\n');
+  const hostile = `CYQR 291800Z 26005KT 2SM <script>window.__pwned=1</script> BKN004 10/08 A2995=\n${others}`;
+  await openSof(page, { metar: hostile });
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await page.locator('.sof-raw script, .sof-banner script').count()).toBe(0);
+});
+
 test('a caution in a TAF is on the banner with its group and times', async ({ page }) => {
   await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') });
-  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  // With no wave entered the home forecast below the home limits is on the banner too (R3), before the caution.
+  await expect(bannerLines(page)).toHaveText([
+    'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT',
+    'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: VIS 1/2 SM < 3 SM',
+    'Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)',
+  ]);
 });
 
 test('no cautions, no banner', async ({ page }) => {
@@ -732,13 +806,12 @@ test('acknowledging the last caution hands focus to the Waves heading', async ({
   await expect(page.locator('.sof-waves-title')).toBeFocused();
 });
 
-test('a wave whose TAF is below the limits raises a new line on the banner, and the same one is not raised twice', async ({ page }) => {
+test('a wave over the same fog adds no second banner line for it, however many waves cover it', async ({ page }) => {
   await openSof(page, CLEAR_FOG);
-  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  await expect(bannerLines(page)).toHaveCount(3);
   await addWave(page, '', '15:30', '17:00');
   await expect(bannerLines(page)).toHaveCount(3);
   await expect(bannerLines(page).filter({ hasText: 'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT' })).toHaveCount(1);
-  await expect(banner(page)).toHaveAttribute('role', 'alert');
   // A second wave over the same fog adds no second line for it.
   await addWave(page, '', '16:00', '17:30');
   await expect(bannerLines(page)).toHaveCount(3);
@@ -1041,4 +1114,51 @@ test('no accessibility violations with a wave and its list of hits open', async 
   await row.locator('.sof-wave-chip').click();
   await expect(page.locator('.sof-wave-detail')).toBeVisible();
   await expectNoA11yViolations(page);
+});
+
+// ---- R5: a piece's label is never wider than the piece, and "below" comes first ------------------------------
+
+for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }]) {
+  test.describe(`at ${size.width} × ${size.height}, timeline labels`, () => {
+    test.use({ viewport: size });
+
+    test('no piece is cut off by its own label, and a narrow hatched piece still shows the symbol and below first', async ({ page }) => {
+      // A 1 h TEMPO and a 2 h TEMPO, both below the limits.
+      const taf = 'CYMJ 291740Z 2918/3006 22010KT P6SM SKC TEMPO 2922/2923 1SM BR OVC003 TEMPO 3001/3003 1/2SM FG VV002\n';
+      await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+      const over = await page.locator('.sof-tl-piece').evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 0.5).map((el) => `${el.dataset.id}: ${el.scrollWidth} > ${el.clientWidth}`));
+      expect(over).toEqual([]);
+      const hatched = page.locator('.sof-tl-row[data-icao="CYMJ"] .sof-tl-piece.is-hatched');
+      expect(await hatched.count()).toBeGreaterThan(1);
+      for (const label of await hatched.locator('.sof-tl-piece-label').all()) await expect(label).toContainText('▼');
+    });
+  });
+}
+
+test('a wave flown this morning does not keep its fog on the banner all day', async ({ page }) => {
+  const taf = 'CYMJ 291140Z 2912/3006 22010KT P6SM SKC TEMPO 2914/2916 1/2SM FG VV002\n';
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+  await addWave(page, '', '08:00', '09:30'); // 1400Z to 1530Z; the fog ended at 1600Z, 2 h 42 min ago
+  await expect(waveRow(page, 0)).toBeVisible();
+  await expect(banner(page)).toBeHidden();
+});
+
+test('a stale METAR greys the at-the-limit edge and the chips, and keeps the red edge for below the limits (D220)', async ({ page }) => {
+  // CYMJ fresh below, CYQR stale at the limit (600-2), CYYN stale below, CYXE fresh at the limit.
+  const metar = [
+    'CYMJ 291800Z 25010KT 1SM BR BKN003 15/14 A2952',
+    'CYQR 290900Z 26005KT 2SM BKN006 10/08 A2995',
+    'CYYN 290900Z 24010KT 1SM BR BKN003 15/14 A2951',
+    'CYXE 291800Z 28010KT 2SM BKN006 16/03 A2952',
+  ].join('\n');
+  await openSof(page, { metar });
+  const edge = (icao) => card(page, icao).evaluate((el) => getComputedStyle(el).borderLeftColor);
+  const chip = (icao) => card(page, icao).locator('.sof-category').evaluate((el) => getComputedStyle(el).color);
+  await expect(card(page, 'CYQR').locator('.sof-result')).toContainText('At the limit');
+  await expect(card(page, 'CYYN').locator('.sof-result')).toContainText('Below limits');
+  expect(await edge('CYQR'), 'the at-the-limit edge greys when stale').not.toBe(await edge('CYXE'));
+  expect(await edge('CYYN'), 'below keeps its red edge when stale').toBe(await edge('CYMJ'));
+  expect(await chip('CYQR'), 'the chips grey too').not.toBe(await chip('CYXE'));
+  expect(await chip('CYYN')).not.toBe(await chip('CYMJ'));
+  await expect(card(page, 'CYYN').locator('.sof-category')).toContainText('LIFR');
 });

@@ -658,6 +658,91 @@ test('the Auto clock position label follows the turn (Delayed 45 is 4:30 right, 
   await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (7 right, 5 left)');
 });
 
+test('the Delayed 45 style, check turn and roll-in boxes sit in the settings menu and show only for the Delayed 45', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Delayed 45 style')).toBeHidden();
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(box(page, 'Delayed 45 style').locator('option')).toHaveText(['Auto', 'Plain', 'With check turn']);
+  await expect(box(page, 'Delayed 45 style').locator('option:checked')).toHaveText('Auto');
+  await expect(box(page, 'Check turn')).toHaveValue('12.5');
+  await expect(box(page, 'Roll in to hold the set spacing')).not.toBeChecked();
+  await box(page, 'Check turn').fill('15');
+  await expect(box(page, 'Check turn')).toHaveValue('15');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(box(page, 'Check turn')).toBeHidden();
+});
+
+test('when the Delayed 45 flies its check turn, the summary says so and Base delay and Auto step say they do not apply', async ({ page }) => {
+  await open(page);
+  const note = page.locator('.ts-check-note');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.34)'); // 4312: auto is the check
+  await expect(box(page, 'Base delay')).toBeDisabled();
+  await expect(box(page, 'Base delay')).toHaveAccessibleDescription(/do not apply/);
+  await box(page, 'Timing').selectOption({ label: 'Auto timing' });
+  await expect(page.locator('.ts-auto')).toHaveText('Auto step does not apply to the check turn.');
+  await box(page, 'Timing').selectOption({ label: 'Time delay' });
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(note).toBeHidden(); // auto is the plain turn in the two-ship
+  await expect(box(page, 'Base delay')).toBeEnabled();
+  await expect(box(page, 'Base delay')).not.toHaveAttribute('aria-describedby', /.+/);
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Delayed 45 style').selectOption({ label: 'With check turn' });
+  await expect(note).toHaveText('Delayed 45 with a 12.5° check (SMM Fig 16.17)');
+  await expect(box(page, 'Base delay')).toBeDisabled();
+  await box(page, 'Delayed 45 style').selectOption({ label: 'Plain' });
+  await box(page, 'Formation').selectOption({ label: '4312' });
+  await expect(note).toBeHidden();
+  await expect(box(page, 'Base delay')).toBeEnabled();
+});
+
+test('a 15 degree check at 4,000 ft spacing in 4312 shows the close pass before Play', async ({ page }) => {
+  await open(page);
+  const flags = page.locator('.ts-flags li');
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(flags).toHaveCount(0); // at the defaults nothing is close
+  await box(page, 'Check turn').fill('15');
+  await box(page, 'Spacing').fill('4000');
+  await expect(flags).toHaveText(["Close pass: 894 ft, #1 and #3: altitude separation needed", "Close pass: 894 ft, #3 and #4: altitude separation needed"]); // measured: the two four-ship pairs
+  await box(page, 'Spacing').fill('6000');
+  await expect(flags).toHaveCount(0);
+});
+
+test('the box Delayed 45 with its check turn shows the rear shift in the band lines, with the solved wording', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await panel(page, 'More detail').click();
+  const lines = page.locator('.ts-lines li.tone-caution');
+  await expect(lines).toHaveText([
+    '#3 36.7 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+    '#4 36.7 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+  ]);
+  await page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByText('Left', { exact: true }).click();
+  await expect(lines).toHaveText([
+    '#3 1.0 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+    '#4 1.0 s, outside the SMM 10-15 s; solved so the box keeps its shape',
+  ]);
+});
+
+test('in the box the check turn greys out #4 timing and Rear element delay, and says why', async ({ page }) => {
+  await open(page);
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await expect(box(page, '#4 timing')).toBeEnabled();
+  await expect(box(page, 'Rear element delay')).toBeEnabled();
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  for (const label of ['#4 timing', 'Rear element delay']) {
+    await expect(box(page, label)).toBeDisabled();
+    await expect(box(page, label)).toHaveAccessibleDescription("The check turn solves the rear element's delay so the box keeps its shape.");
+  }
+  await box(page, 'Delayed 45 style').selectOption({ label: 'Plain' });
+  await expect(box(page, '#4 timing')).toBeEnabled();
+  await expect(box(page, 'Rear element delay')).not.toHaveAttribute('aria-describedby', /.+/);
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
@@ -759,7 +844,8 @@ test('the offset box hook shows which pairs cross: 300 ft vertical needed', asyn
   // Right turn: #1 with #3 and #2 with #4 pass nose to nose. It is known before Play.
   await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
-  await expect(flags).toHaveCount(0);
+  // No crossing now; the box's Delayed 90 has one close pass (#1 and #4, 954 ft) that the engine reports.
+  await expect(flags).toHaveText(["Close pass: 954 ft, #1 and #4: altitude separation needed"]);
 });
 
 test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads three.js', async ({ page }) => {
