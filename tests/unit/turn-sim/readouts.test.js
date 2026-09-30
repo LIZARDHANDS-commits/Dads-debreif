@@ -476,3 +476,11 @@ test('Y2: the trail band edges at 6,000 ft spacing: just inside and just outside
   assert.deepEqual(at(-3941), ['ON SPACING']); // behind Lead is the same distance
   assert.deepEqual(at(-6061), ['WIDE']);
 });
+
+// The engine's fallback reason (state.maneuverFallback: the Shackle in a four-ship, a Check turn over 30 degrees, and the Delayed 45's check at another
+// Turn degrees) reaches the screen through readoutsAt, and the screen shows it in the one Turn note beside the menu, whatever the reason is.
+test('a fallback reason from the engine is passed through as it is, for any turn', () => {
+  const why = 'The check turn is flown at 45 degrees only, so this is the plain Delayed 45.';
+  assert.equal(readoutsAt({ ...four(), maneuverFallback: why }, { ...SETTINGS, maneuver: 'delayed45away', turnDeg: 60 }).maneuverFallback, why);
+  assert.equal(readoutsAt(four(), SETTINGS).maneuverFallback, null);
+});
