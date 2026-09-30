@@ -91,6 +91,11 @@ export function optionsOf(key, rule) {
   return rule.oneOf.map((value) => ({ value, label: OPTION_LABELS[name]?.[value] ?? (clock ? clockLabel(value) : String(value)) }));
 }
 
+/** The Auto clock position's words: the engine's Auto is 4:30 right and 7:30 left in the Delayed 45 (D206), else 7 right and 5 left. */
+export function clockAutoLabel(maneuver) {
+  return maneuver === 'delayed45away' ? 'Auto (4:30 right, 7:30 left)' : 'Auto (7 right, 5 left)';
+}
+
 /** A clock position as a person says it: 5.5 is "5:30", 12 is "12 o'clock". */
 export function clockLabel(value) {
   const n = Number(value);

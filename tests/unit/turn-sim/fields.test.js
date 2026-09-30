@@ -89,3 +89,9 @@ test('planned crossings (state.crossings) read "Crossing: 300 ft vertical needed
   ]);
   assert.deepEqual(separationFlags({ aircraft: [], crossings: [] }, { formation: 'offsetBox', maneuver: 'hook90' }, []), []);
 });
+
+test('N7: the Auto clock position reads 4:30 right and 7:30 left for the Delayed 45, and 7 right and 5 left otherwise', async () => {
+  const { clockAutoLabel } = await import('../../../src/modules/turn-sim/fields.js');
+  assert.equal(clockAutoLabel('delayed45away'), 'Auto (4:30 right, 7:30 left)');
+  for (const maneuver of ['delayed90away', 'hook90', 'inplace90', 'check30']) assert.equal(clockAutoLabel(maneuver), 'Auto (7 right, 5 left)');
+});

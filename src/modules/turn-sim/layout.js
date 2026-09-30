@@ -11,7 +11,7 @@ import { turnProblem, TWO_SHIP_ONLY_TURNS } from './settings.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
-  buildField, errorFields, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
+  buildField, errorFields, clockAutoLabel, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
   REAR_DELAY, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
   CLOCK_POS, CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL, TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
 } from './fields.js';
@@ -325,6 +325,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     clockPos.element.hidden = values.timing !== 'clock';
     autoNote.hidden = values.timing !== 'auto';
     groups.clock.hidden = values.timing !== 'clock';
+    // Auto's words follow the turn (N7): the Delayed 45 rolls out on 4:30 and 7:30.
+    for (const option of [clockPos.element, ...clockGroups].flatMap((el) => [...(el?.querySelectorAll('option') ?? [])])) {
+      if (option.textContent.startsWith('Auto (')) option.textContent = clockAutoLabel(values.maneuver); // option values are indexes, so find it by its words
+    }
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
     groups.cross.hidden = values.maneuver !== 'cross180';

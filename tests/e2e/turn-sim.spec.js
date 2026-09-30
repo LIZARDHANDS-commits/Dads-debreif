@@ -619,6 +619,17 @@ test('the Shackle greys out Direction: both aircraft turn toward each other', as
   await expect(note).toBeHidden();
 });
 
+test('the Auto clock position label follows the turn (Delayed 45 is 4:30 right, 7:30 left)', async ({ page }) => {
+  await open(page);
+  await box(page, 'Timing').selectOption({ label: 'Clock position cue' });
+  const clock = box(page, 'Clock position').first();
+  await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (7 right, 5 left)');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 45' });
+  await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (4:30 right, 7:30 left)');
+  await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
+  await expect(clock.locator('option', { hasText: 'Auto (' })).toHaveText('Auto (7 right, 5 left)');
+});
+
 test('the SMM settings sit in the closed Turn Sim settings menu, each at its default, shown only when they apply', async ({ page }) => {
   await open(page);
   await panel(page, 'Turn Sim settings').click();
