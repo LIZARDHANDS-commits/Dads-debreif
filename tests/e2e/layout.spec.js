@@ -55,7 +55,7 @@ for (const size of SIZES) {
 
     test('the Settings dialog has no overlapping or cut-off controls', async ({ page }) => {
       await openRoute(page, '#/');
-      await page.getByRole('button', { name: 'Settings' }).click();
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
       const inDialog = await page.evaluate(() => {
         const d = document.querySelector('dialog[open]').getBoundingClientRect();
