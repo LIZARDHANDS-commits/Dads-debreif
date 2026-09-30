@@ -105,6 +105,8 @@ function cautionOf({ icao, episode, words, layerTime }) {
     to: null,
     reason: words,
     stale: false,
+    raw: null,
+    spans: [],
     text: `Caution: ${icao} lightning: ${detail}`,
     acknowledged: false,
   };

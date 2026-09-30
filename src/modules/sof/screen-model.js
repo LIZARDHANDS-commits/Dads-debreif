@@ -82,14 +82,14 @@ export function alertText(snapshot, now) {
 /**
  * The whole screen: { dtg, dtgIso, feed, alert, cards, credits, lightning, cautions }.
  * `airfields` is app.airfields; `snapshot` is createWeather's; `limits` the home
- * limits from Settings; `now` a Date. Cards are home first, then each alternate,
+ * limits from Settings; `now` a Date; `timeZone` home's (the day the marked TAF words are checked over). Cards are home first, then each alternate,
  * one per airfield.
  *
  * `lightning` is lightning.js's answer for the home field (the map's near-home reading), or
  * left out; `cautions` is every current caution, worst first (cautions.js `cautionList`), with
  * lightning's among them when it is near. The banner shows this list; it is not drawn here.
  */
-export function buildScreen({ airfields, snapshot, limits, now, lightning = null }) {
+export function buildScreen({ airfields, snapshot, limits, now, lightning = null, timeZone }) {
   const home = airfields.home();
   const homeLimits = snapLimits(limits); // a typed limit is checked snapped up, the safe side (R1)
   const round = snapshot.lastRound;
@@ -109,6 +109,7 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
       limits: homeLimits,
       options,
       now,
+      timeZone,
       // Before any round has run there is nothing to have failed; after one, a station it didn't get did.
       feed: { lastTry: round?.at ?? null, failed: Boolean(round && !round.fresh.metar.has(field.icao)) },
     });
