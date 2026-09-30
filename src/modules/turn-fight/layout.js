@@ -77,6 +77,13 @@ export const CHECK_SETTINGS = Object.freeze([
  * cameraView(name) is one of the 3D view's one-click views ('overhead', 'blue', 'red').
  */
 export function createLayout({ settings, controls, on }) {
+  // The high-altitude note shows (with its words) or is hidden and empty.
+  const showAltNote = (note, show) => {
+    note.hidden = !show;
+    const words = show ? ALTITUDE_NOTE : '';
+    if (note.textContent !== words) note.textContent = words;
+  };
+
   // ── Fight setup column ──────────────────────────────────────────────
   const intro = h('p', { class: 'tf-intro' }, 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
@@ -95,7 +102,8 @@ export function createLayout({ settings, controls, on }) {
     const pitchBox = h('div', { class: 'tf-pitch', hidden: true }, controls.number(`${who}PitchDeg`, { label: 'Pitch (°)', ...RANGES[`${who}PitchDeg`] }));
     // Energy (T-6): each aircraft's start altitude and merge speed (they take the place of the greyed-out simple boxes' work),
     // the note about high starts, and the move the model chose and why. All hidden until the Energy box is ticked.
-    const altNote = h('p', { class: 'tf-hint tf-alt-note', id: `tf-alt-note-${nextId++}`, hidden: true }, ALTITUDE_NOTE);
+    // Its text is there only while it shows: Start altitude's description points at it, and a hidden note still describes.
+    const altNote = h('p', { class: 'tf-hint tf-alt-note', id: `tf-alt-note-${nextId++}`, hidden: true });
     const altitude = controls.number(`${who}AltFt`, { label: 'Start altitude (ft)', ...RANGES[`${who}AltFt`] });
     altitude.querySelector('input').setAttribute('aria-describedby', `${altitude.querySelector('input').getAttribute('aria-describedby')} ${altNote.id}`);
     const energyRow = h('div', { class: 'tf-aircraft-row tf-energy-row', hidden: true },
@@ -303,10 +311,13 @@ export function createLayout({ settings, controls, on }) {
   const moreTable = createReadoutTable({ caption: 'More detail' });
   const more = createPanel({ title: 'More detail', collapsed: true, onToggle: (collapsed) => on.moreToggled(!collapsed) });
   more.body.append(moreTable.element);
-  // Why a flag is on, in the engine's words (Energy only); always on the page while Energy is on, so it is heard when it appears.
-  const flagNotes = h('ul', { class: 'tf-flag-notes', 'aria-live': 'polite', 'aria-label': 'Flags' });
+  // Why a flag is on, in the engine's words (Energy only). Its numbers change as the fight flies, so it is not a live
+  // region; what a screen reader is told (flagLive) is only which flags are on, and it changes only when one turns on or off.
+  const flagNotes = h('ul', { class: 'tf-flag-notes', 'aria-label': 'Flags' });
+  const flagLive = h('p', { class: 'tf-flag-live visually-hidden', role: 'status', 'aria-live': 'polite' });
   const resultPanel = createPanel({ title: 'Result', onToggle: (collapsed) => settings.update({ resultOpen: !collapsed }) });
-  resultPanel.body.append(resultTable.element, flagNotes, more.element);
+  resultPanel.body.append(resultTable.element, flagNotes, flagLive, more.element);
+  let lastFlags = '';
   const resultCol = h('aside', { class: 'tf-col tf-col-result', 'aria-label': 'Result' }, resultPanel.element);
 
   const element = h('div', { class: 'turn-fight' }, h('h1', { class: 'visually-hidden' }, 'Turn Fight'), setupCol, stage, resultCol);
@@ -359,8 +370,8 @@ export function createLayout({ settings, controls, on }) {
         box.energyRow.hidden = !inEnergy;
         box.move.hidden = !inEnergy;
       }
-      blue.altNote.hidden = !(inEnergy && values.blueAltFt > ENERGY_ACCURATE_MAX_FT);
-      red.altNote.hidden = !(inEnergy && values.redAltFt > ENERGY_ACCURATE_MAX_FT);
+      showAltNote(blue.altNote, inEnergy && values.blueAltFt > ENERGY_ACCURATE_MAX_FT);
+      showAltNote(red.altNote, inEnergy && values.redAltFt > ENERGY_ACCURATE_MAX_FT);
       energySection.hidden = !inEnergy;
       checkSection.hidden = !inEnergy;
       energyAbout.hidden = !inEnergy;
@@ -407,7 +418,7 @@ export function createLayout({ settings, controls, on }) {
     },
     /**
      * { time, phase, result, more } from readouts.js; `more` is null while the panel is closed. In Energy mode also
-     * `energy`: { moves: { blue, red } (the words beside each aircraft), notes (why a flag is on), summary (the altitude line),
+     * `energy`: { moves: { blue, red } (the words beside each aircraft), notes (why a flag is on), flags (which flags are on, for a screen reader), summary (the altitude line),
      * rows (the altitude table's rows, null while it is closed), deck } from energy-readouts.js.
      */
     renderReadouts({ time, phase, result, more: moreRows, energy: extra = null }) {
@@ -424,6 +435,12 @@ export function createLayout({ settings, controls, on }) {
       if (flagNotes.dataset.text !== notes.join('|')) {
         flagNotes.dataset.text = notes.join('|');
         flagNotes.replaceChildren(...notes.map((line) => h('li', {}, line)));
+      }
+      // The announcement changes only when a flag turns on or off ("Flags: Blue STALL", then "Flags: none").
+      const flags = extra?.flags ?? '';
+      if (flags !== lastFlags) {
+        lastFlags = flags;
+        flagLive.textContent = flags ? `Flags: ${flags}` : 'Flags: none';
       }
       const summary = extra?.summary ?? '';
       if (energySummary.textContent !== summary) energySummary.textContent = summary;

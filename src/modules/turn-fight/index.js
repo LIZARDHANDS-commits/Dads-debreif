@@ -15,7 +15,7 @@ import { createLayout } from './layout.js';
 import { createTopDownView, createStartPictureView } from './view.js';
 import { createProfileView } from './profile.js';
 import { createView3d } from './view3d.js';
-import { energyResultRows, energyMoreRows, flagNotes, moveWhyText, altitudeSummary, altitudeRows } from './energy-readouts.js';
+import { energyResultRows, energyMoreRows, flagNotes, flagAnnouncement, moveWhyText, altitudeSummary, altitudeRows } from './energy-readouts.js';
 import { createAltitudeGraph } from './energy-graph.js';
 
 const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
@@ -204,6 +204,7 @@ function mount(root, app) {
         energy: {
           moves: { blue: moveWhyText(engine.blue), red: moveWhyText(engine.red) },
           notes: flagNotes(engine),
+          flags: flagAnnouncement(engine),
           summary: altitudeSummary(engine),
           rows: ui.tableOpen ? altitudeRows(run.trails) : null,
           deck: engine.setup.hardDeckFt,

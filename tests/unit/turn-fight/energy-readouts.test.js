@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createEnergyFight, stepEnergyFight } from '../../../src/modules/turn-fight/energy-sim.js';
 import { createEnergyRun, advanceRun } from '../../../src/modules/turn-fight/playback.js';
 import {
-  flagText, flagNotes, moveWhyText, energyFirstNoseText, winnerText, energyResultRows, energyMoreRows, altitudeSummary, altitudeRows,
+  flagText, flagNotes, flagAnnouncement, moveWhyText, energyFirstNoseText, winnerText, energyResultRows, energyMoreRows, altitudeSummary, altitudeRows,
   ALTITUDE_TABLE_STEP_SEC,
 } from '../../../src/modules/turn-fight/energy-readouts.js';
 
@@ -81,6 +81,22 @@ test('a slow Immelmann stalls at the top, and the card says STALL', () => {
   assert.match(row(seen, 'flags').blue, /STALL/);
   assert.equal(row(seen, 'flags').blueTone, 'alert');
   assert.ok(flagNotes(fight).some((n) => n.startsWith('Blue STALL: ')));
+});
+
+test('the announcement names the flags that are on and nothing that changes with the numbers: it is the same for the whole of a stall', () => {
+  assert.equal(flagAnnouncement(createEnergyFight({})), '');
+  const fight = createEnergyFight({ blueKias: 120, blueMove: 'immelmann', turnsStart: 'now' });
+  const told = [];
+  const notes = new Set();
+  for (let i = 0; i < 40 / 0.02; i++) {
+    stepEnergyFight(fight, 0.02);
+    const now = flagAnnouncement(fight);
+    if (told.at(-1) !== now) told.push(now);
+    if (fight.blue.stall) notes.add(flagNotes(fight).join('|'));
+  }
+  assert.deepEqual(told, ['', 'Blue STALL', ''], 'off, on, off: three words in all');
+  assert.ok(notes.size > 50, `the reasons' numbers change all the time (${notes.size} texts)`);
+  assert.equal(flagAnnouncement({ blue: { overG: true, stall: true }, red: { overG: false, stall: true } }), 'Blue OVER G, Blue STALL, Red STALL');
 });
 
 test('More detail has TAS, climb angle, bank, Ps and energy height, from the engine\'s numbers, and the pass geometry', () => {

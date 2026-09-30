@@ -1443,12 +1443,32 @@ test('STALL shows in words and colour: a slow Immelmann stalls at the top, the r
   await atOnce(page).check();
   await blue(page).getByLabel('Merge speed (KIAS)').fill('120');
   await expect(words(blue(page))).toHaveText('Immelmann: set by you at 120 KIAS (forced move)');
+  // What a screen reader is told (the live line) is watched, with the reasons' text (the list): the numbers in the reasons
+  // change all the time, so only the line that says which flag is on may be live, and it changes only when a flag turns on or off.
+  await page.evaluate(() => {
+    window.__seen = { live: [], notes: [] };
+    const watch = (selector, into) => {
+      const el = document.querySelector(selector);
+      new MutationObserver(() => {
+        if (into.at(-1) !== el.textContent) into.push(el.textContent);
+      }).observe(el, { subtree: true, childList: true, characterData: true });
+    };
+    watch('.tf-flag-live', window.__seen.live);
+    watch('.tf-flag-notes', window.__seen.notes);
+  });
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await playButton(page).click();
   const flags = resultRow(page, /Flags/);
-  // The engine has the stall from T+8.2 (86 KIAS is the stall speed) and it stays while the speed is below it.
+  // The engine has the stall from T+8.2 (86 KIAS is the stall speed) to T+21.2, while the speed is below it.
   await expect(flags.locator('td').first()).toHaveText('STALL', { timeout: 30_000 });
+  await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(12);
   await playButton(page).click();
+  expect(await seconds(page)).toBeLessThan(21);
+  const seen = await page.evaluate(() => window.__seen);
+  expect(seen.live, 'told once, when the flag came on').toEqual(['Flags: Blue STALL']);
+  expect(seen.notes.length, 'the reasons\' numbers changed while it was stalled').toBeGreaterThan(5);
+  await expect(page.locator('.tf-flag-live')).toHaveText('Flags: Blue STALL');
+  await expect(page.locator('.tf-flag-live')).toHaveAttribute('aria-live', 'polite');
   await expect(flags.locator('td').first()).toHaveClass('tf-flag');
   await expect(flags.locator('td').nth(1)).toHaveText('None');
   await expect(flags.locator('td').nth(1)).not.toHaveClass('tf-flag');
@@ -1458,7 +1478,7 @@ test('STALL shows in words and colour: a slow Immelmann stalls at the top, the r
   expect(Number(style.weight)).toBeGreaterThanOrEqual(600);
   await expect(page.locator('.tf-flag-notes')).toHaveText(/^Blue STALL: \d+(\.\d)? KIAS is below the 86 KIAS stall speed$/);
   await expect(page.locator('.tf-flag-notes')).not.toContainText('Red');
-  await expect(page.locator('.tf-flag-notes')).toHaveAttribute('aria-live', 'polite');
+  await expect(page.locator('.tf-flag-notes')).not.toHaveAttribute('aria-live', /.+/); // the list of reasons is not live
   // Only the two flags: nothing about the deck, VMO or entry speed.
   await expect(page.locator('.tf-flag-notes li')).toHaveCount(1);
   await expect(resultRow(page, /Flags/).locator('td').first()).not.toContainText('OVER G');
@@ -1475,7 +1495,8 @@ test('OVER G is a flag of its own, none at first, and Auto never causes it', asy
     const note = () => {
       const cells = [...document.querySelectorAll('tr[data-row="flags"] td')].map((td) => td.textContent);
       const notes = document.querySelector('.tf-flag-notes')?.textContent ?? '';
-      if (cells.some((text) => text !== 'None') || document.querySelector('td.tf-flag') || notes) window.__flagSeen.push({ cells, notes });
+      const live = document.querySelector('.tf-flag-live')?.textContent ?? '';
+      if (cells.some((text) => text !== 'None') || document.querySelector('td.tf-flag') || notes || live) window.__flagSeen.push({ cells, notes, live });
     };
     new MutationObserver(note).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
   });
@@ -1695,8 +1716,14 @@ test('a start altitude over 15,000 ft gets one note beside its box, with SMM 14.
   await openRoute(page, '#/turn-fight');
   await energyBox(page).check();
   await expect(blue(page).locator('.tf-alt-note')).toBeHidden();
+  // While the note is hidden it describes nothing: no "SMM 14.5" in Start altitude's description at 10,000 ft or at 15,000 ft.
+  for (const who of [blue(page), red(page)]) {
+    await expect(who.getByLabel('Start altitude (ft)')).not.toHaveAccessibleDescription(/SMM 14\.5/);
+    await expect(who.locator('.tf-alt-note')).toBeEmpty();
+  }
   await blue(page).getByLabel('Start altitude (ft)').fill('15000');
   await expect(blue(page).locator('.tf-alt-note')).toBeHidden();
+  await expect(blue(page).getByLabel('Start altitude (ft)')).not.toHaveAccessibleDescription(/SMM 14\.5/);
   await blue(page).getByLabel('Start altitude (ft)').fill('15500');
   const note = blue(page).locator('.tf-alt-note');
   await expect(note).toBeVisible();

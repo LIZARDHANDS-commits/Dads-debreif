@@ -10,6 +10,21 @@ import { formatWholeFt } from './readouts.js';
 const NAMES = Object.freeze({ blue: 'Blue', red: 'Red' });
 const round = (x) => Math.round(x);
 
+/**
+ * Which flags are on, and only that: "Blue STALL", "Blue STALL, Red OVER G", or '' when there are none. It changes only when a
+ * flag turns on or off (never with the numbers in a reason), so it is what a screen reader is told; the reasons (flagNotes)
+ * are there to be read, not announced.
+ */
+export function flagAnnouncement(state) {
+  const parts = [];
+  for (const who of ['blue', 'red']) {
+    const ac = state[who];
+    if (ac.overG) parts.push(`${NAMES[who]} OVER G`);
+    if (ac.stall) parts.push(`${NAMES[who]} STALL`);
+  }
+  return parts.join(', ');
+}
+
 /** The words for a flag (SPEC "Two flags only"): OVER G, STALL, both, or "None". */
 export function flagText(ac) {
   const flags = [ac.overG && 'OVER G', ac.stall && 'STALL'].filter(Boolean);
