@@ -65,7 +65,7 @@ test('V6 gives every aircraft no error, the global clock cue and auto turn logic
 test('every setting has a default, none is blank, and each default passes its own rule', () => {
   assert.deepEqual(Object.keys(SETTINGS_RULES).sort(), Object.keys(DEFAULTS).sort());
   // The rear-delay band is not in V6, so only DEFAULTS has it.
-  assert.deepEqual(Object.keys(DEFAULTS).filter((k) => !(k in V6_DEFAULTS)).sort(), ['crossTurnFirstG', 'crossTurnSwitchDeg', 'durationCoversTurn', 'rearCheckAfterTurns', 'rearDelayMaxSec', 'rearDelayMinSec', 'rearDelaySec', 'twoSide']);
+  assert.deepEqual(Object.keys(DEFAULTS).filter((k) => !(k in V6_DEFAULTS)).sort(), ['crossTurnFirstG', 'crossTurnSolveSpacing', 'crossTurnSwitchDeg', 'durationCoversTurn', 'rearCheckAfterTurns', 'rearDelayMaxSec', 'rearDelayMinSec', 'rearDelaySec', 'twoSide']);
   for (const [key, value] of Object.entries(DEFAULTS)) {
     assert.ok(value !== undefined && value !== null && value !== '', `${key} is blank`);
     assert.ok(settingIsValid(key, value), `${key} = ${value} fails its own rule`);
