@@ -82,7 +82,7 @@ About 220 judgement calls (D147 to D356) are in the decisions log and count as a
 
 | Module | State | Next step | File |
 |---|---|---|---|
-| Debrief (2D/3D KML viewer) | Built and live, through #237. Final check passed with 3 items (F1-F3), fixed in PR #241 (open at handover). | Patrick's checklist run, then sign-off | [debrief.md](docs/handover/debrief.md) |
+| Debrief (2D/3D KML viewer) | Built and live, through #241. Final check's 3 items fixed in #241 and re-checked (pass). | Patrick's checklist run, then sign-off | [debrief.md](docs/handover/debrief.md) |
 | SOF dashboard | Built and live, through #238. Final check passed with no findings. | Patrick's checklist run, then sign-off | [sof.md](docs/handover/sof.md) |
 | Traffic Pattern Sim | Part-built, through #220. #229 (photo + 3D) open and green; two paused branches. | Merge #229, then the core four | [traffic.md](docs/handover/traffic.md) |
 | Turn Fight | Built, through #235, except the Energy screen. | Finish the Energy screen branch, then checklist | [turn-fight.md](docs/handover/turn-fight.md) |
@@ -108,7 +108,6 @@ Also open: Dependabot PR #162 (Playwright 1.56 to 1.63), left alone on purpose; 
 - Which module next, and the go to start it.
 - Traffic: redraw the Moose Jaw routes with Dad (Q59, task 14). Until then the V6 routes stay.
 - SOF live traffic layer needs a small relay (a Cloudflare Worker, code in `relay/`) on an account Patrick owns. The layer stays off until then. Optional.
-- Verification re-check of Debrief F1-F3 after PR #241 merges.
 - Later: delete about 60 merged branches (only on Patrick's word), and add a Content Security Policy (host list in `docs/records/csp-hosts.md`) (SOF uses api.met.no, datamask.org, geo.weather.gc.ca, RainViewer, Esri tiles, ADS-B Exchange; the debrief's historical weather uses mesonet.agron.iastate.edu, gibs.earthdata.nasa.gov and open-meteo.com).
 
 ## Questions for Dad

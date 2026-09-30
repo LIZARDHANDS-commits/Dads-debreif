@@ -6,7 +6,7 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 30 Sep 2026, at the move from Claude to Antigravity.
 
 ## State
-- Debrief and SOF are built and live, waiting on Patrick's checklist runs (`docs/checklists/debrief.md`, `docs/checklists/sof.md`). Debrief's small fix for F1-F3 (speed call and GPS glitches) was the last Claude PR; check it merged.
+- Debrief and SOF are built and live, waiting on Patrick's checklist runs (`docs/checklists/debrief.md`, `docs/checklists/sof.md`). Debrief's fix for F1-F3 (speed call and GPS glitches) merged as #241 and passed its re-check.
 - Traffic, Turn Fight and Turn Sim have paused work on `handover/*` branches (listed in each `docs/handover/<module>.md`). Traffic's #229 is open and green.
 
 ## Next step

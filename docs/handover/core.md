@@ -7,7 +7,7 @@ Shared flight math in `src/core/`: units, time and zones, geometry, wind triangl
 
 ## Left (optional)
 
-- Verification suggested the shared GPS gap rule (`GAP_S` in `src/flight-data/clean.js` and `flight.js`, now "more than 5 s") become "5 s or more". One-line change; check it against Debrief PR #241 first.
+- Verification suggested the shared GPS gap rule (`GAP_S` in `src/flight-data/clean.js` and `flight.js`, now "more than 5 s") become "5 s or more". One-line change; the Debrief already treats 5 s holes as gaps on its own since #241.
 
 ## Notes
 

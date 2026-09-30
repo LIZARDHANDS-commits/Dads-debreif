@@ -31,3 +31,20 @@ Checked on 6b0ed65 (#237, live build same commit). Scope: flight numbers against
 ## Notes (no finding)
 - Local time follows the home airfield's zone, not the flight's; it is labelled with the zone name, so safe.
 - Dad's V6 cleaning limit is 450 kt a fix pair, which is why 350 to 450 kt spikes pass (F2).
+
+## Re-check after #241 (5a695cb)
+
+Light re-check of F1 to F3 only, on the Example flight, local code at 5a695cb (Node calls, own vector maths, own G, own segment heading and ground speed; script scratchpad/wt-debrief/s/rk1.mjs, rk2.mjs). `npm test`: 3,178 tests, 3,170 pass, 0 fail, 8 todo.
+
+**F1: PASS.** Lead's line now says "(wind-corrected)" when the model wind is on and "(no wind)" when it is not. Re-sampled the 464 Lead seconds with a verdict (start+1500 to +4000, every 5 s, same 9-point fixture wind, own wind triangle): largest difference from my wind-corrected IAS 1.16 kt, none over 2 kt, 38 over 1 kt. The FAST/SLOW call differs from mine in 6 seconds, all at the +/-10 kt line with 1 kt between us (for example 211 against 210 at start+2505), so inside tolerance. Start+1510 (wind 192 deg / 23.8 kt): "Lead 200 kt est. IAS (wind-corrected), 1.5 G, HIGH G (target 200 kt, mid block)", on speed; with no wind it reads "219 kt est. IAS (no wind) ... FAST".
+
+**F2: PASS.**
+- Lead start+1779 to +1784: the hole is now treated as a gap. +1780 to +1784 read "Lead: GPS gap"; +1779 shows G "--" (no 7.0 G, no 352 kt, no HIGH G).
+- #2 start+2187 to +2191: GS 75 and 14 kt at +2188/+2189 with G and bank "--"; G "--" at +2191. The two G values still shown (1.33 at +2187, 1.22 at +2190) are under the stall line for their speed and agree with their bank.
+- Exactly-5 s holes: 57 hole pairs of 5 s or more on the flight, 1,060 hole seconds checked, 0 not shown as a gap.
+- Across 16,743 airborne ship-seconds (GS 80 kt or more): 0 with shown est. G above (KIAS/86)^2, 0 with a shown GS over 350 kt, 0 Lead FAST/HIGH G verdicts at GS over 350 kt. Highest G shown 4.59.
+- Real turns keep their G: 16,595 seconds against my level-turn G, largest difference 0.015 G (unchanged from before).
+
+**F3: PASS.** 7,840 seconds with est. G and est. bank: largest |bank - acos(1/G)| 0.08 deg; over 1 deg: 0, over 3 deg: 0, over 5 deg: 0 (was 203 / 37 / 11). Start+2189, #2 now shows G "--" and bank "--" (was G 1.21 with bank 50 deg).
+
+Note (no finding): the suppression leaves GS 14 kt and 75 kt readings at #2 start+2188 and +2189, which are low-side glitches, not over-G or overspeed; F2's ask was G and speed spikes up, so not raised.

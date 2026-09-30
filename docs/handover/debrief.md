@@ -3,7 +3,7 @@
 Replays ForeFlight KML tracks for up to four ships, with formation spacing, sweep, aspect, estimated G and speed, the lead's FAST/SLOW call, historical weather (METAR, radar, winds) and a 2D/3D switch.
 
 - Spec: `specs/SPEC-debrief.md`. Tasks: `tasks/debrief/`. Code: `src/modules/debrief/`. Checklist: `docs/checklists/debrief.md`.
-- Built and live through #237; the final-check fix is PR #241 (below).
+- Built and live through #241 (5a695cb), which fixed the final check's three items.
 
 ## Final check (30 Sep): pass, with three items being fixed
 
@@ -11,7 +11,7 @@ Replays ForeFlight KML tracks for up to four ships, with formation spacing, swee
 - F2: GPS spikes showed as real over-G or overspeed; a 5 s hole was not treated as a gap. Fix: a hole of 5 s or more is a gap, G above the stall line is suppressed, no verdict above 350 kt ground speed.
 - F3 (low): bank and G beside it could disagree at spikes.
 
-The fix is PR #241 (branch `claude/debrief-spec-pydmhn`), open at handover. It was built test-first and passes locally (3,170 unit tests, 63 Debrief browser tests, typecheck); GitHub's `test` run was still going. The two CodeQL checks fail on every PR since the repo went private (code scanning needs a paid plan), so they are not this PR's failure.
+The fix merged as PR #241 (5a695cb), built test-first. Verification's re-check of F1-F3 passed (`docs/records/verification/debrief-final.md`, "Re-check after #241").
 
 What it does:
 - F1: with **Winds aloft** on, Lead's est. IAS is corrected for the model wind and says "(wind-corrected)"; otherwise it says "(no wind)". The FAST/SLOW call follows the IAS shown. Wingmen stay "(no wind)".
@@ -19,7 +19,7 @@ What it does:
 - F3: bank uses the same 3 s speed as est. G, so they agree within 1°.
 - Judgement calls for all three are logged in `logs/decisions-for-review.md` (18:05 rows).
 
-Still to do: merge #241 when `test` is green, then Verification re-checks only F1-F3.
+Nothing left from the final check.
 
 ## Next
 

@@ -10,7 +10,6 @@ Home screen and routes (`src/shell/`), shared controls (`src/ui-kit/`), storage,
 - Combined sign-off at the end: full e2e in Chrome, Firefox and Safari, then remove `prototype: true` from each module in `src/shell/registry.js`.
 - Content Security Policy for `index.html`; the host list and notes are in `docs/records/csp-hosts.md`.
 - Add an optional `app.scenarioStore` line to `specs/SPEC-shell.md` (and the shell) for Turn Sim's saved profiles.
-- Verification re-checks Debrief F1-F3 after PR #241 merges.
 - Dependabot #162 (Playwright bump) open; merge only on a green run.
 
 ## Shared APIs modules use

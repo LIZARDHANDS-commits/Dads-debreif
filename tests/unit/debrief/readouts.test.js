@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildFlight, headingAt, estimatedGAt } from '../../../src/flight-data/flight.js';
+import { buildFlight, headingAt, estimatedGAt, sampleAt } from '../../../src/flight-data/flight.js';
 import { loadExampleFlight } from '../../../src/flight-data/examples.js';
 import { shipsIn3d } from '../../../src/modules/debrief/view3d/frame.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
@@ -10,8 +10,8 @@ import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
-  AIRBORNE_IAS_KT, LOW_BLOCK_FLOOR_FT, MID_BLOCK_CEILING_FT,
-  turnRateAt, estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
+  AIRBORNE_IAS_KT, LOW_BLOCK_FLOOR_FT, MID_BLOCK_CEILING_FT, MAX_BELIEVED_GS_KT,
+  turnRateAt, estIasKt, estIasWithWindKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
 const ref = makeLocalRef(50, -105);
@@ -79,7 +79,7 @@ test('Lead is judged on est. IAS, not ground speed (D31)', () => {
   const r = readoutsAt(high, T(30), { standards: V6_STANDARDS });
   assert.ok(Math.abs(r.ships[0].gsKt - 200) < 0.5); // on the 200 kt target by ground speed …
   assert.deepEqual(r.lead.labels, ['SLOW']); // … but slow by est. IAS
-  assert.match(leadText(r.lead).text, /^Lead 1\d\d kt est\. IAS, 1\.0 G, SLOW$/);
+  assert.match(leadText(r.lead).text, /^Lead 1\d\d kt est\. IAS \(no wind\), 1\.0 G, SLOW$/);
   const off = readoutsAt(high, T(30), { standards: { ...V6_STANDARDS, lead: { ...V6_STANDARDS.lead, on: false } } });
   assert.equal(off.lead.labels, null);
   assert.equal(leadText(off.lead).tone, 'none');
@@ -132,7 +132,7 @@ test('aspect, HCA, closure and ranges versus Lead; ranges say horizontal or 3D (
 test('live data says where each value came from: est. by default, recorded when switched on (D47, D61)', () => {
   const r = readoutsAt(box, T(30), { standards: V6_STANDARDS });
   const lines = shipDetailText(r.ships[0]);
-  assert.match(lines[0], /^Alt 5,000 ft, GS 200 kt, est\. IAS 1\d\d kt$/);
+  assert.match(lines[0], /^Alt 5,000 ft, GS 200 kt, est\. IAS 1\d\d kt \(no wind\)$/);
   assert.equal(lines[1], 'G 1.00 est., pitch 0° est., bank 0° est.');
   assert.match(lines[2], /^Lat 50\.\d{5}, Lon -10\d\.\d{5}$/);
   assert.equal(shipDetailText({ ...r.ships[0], bankDeg: -30, bankSource: 'recorded' })[1].includes('bank 30° right recorded'), true);
@@ -187,7 +187,7 @@ test('the SMM lead standard (D115): 220 kt in the low block, 200 kt in the mid b
   const low = readoutsAt(lead(8000, 240), T(30), { standards: DEFAULT_STANDARDS }).lead;
   assert.equal(low.block, 'low');
   assert.equal(low.targetKt, 220);
-  assert.match(leadText(low).text, /^Lead 2[12]\d kt est\. IAS, 1\.0 G, on parameters \(target 220 kt, low block\)$/);
+  assert.match(leadText(low).text, /^Lead 2[12]\d kt est\. IAS \(no wind\), 1\.0 G, on parameters \(target 220 kt, low block\)$/);
   const mid = readoutsAt(lead(12_000, 240), T(30), { standards: DEFAULT_STANDARDS }).lead;
   assert.equal(mid.block, 'mid');
   assert.equal(mid.targetKt, 200);
@@ -221,7 +221,7 @@ test('Lead taxiing at 10 kt: no wingman labels and no Lead verdict, just its num
     assert.equal(formationAt(taxi, T(30), std).every((row) => row.labels.length === 0), true);
     assert.equal(r.lead.labels, null);
     assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW|parameters/);
-    assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS, (1\.0 G|G --)$/);
+    assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS \(no wind\), (1\.0 G|G --)$/);
     assert.equal(formationText(r.formation[0]).text, '– (Lead under 80 kt)');
   }
 });
@@ -264,7 +264,7 @@ test('Lead is judged from 6,000 ft to 15,500 ft and not outside them', () => {
   const below = at(5999);
   assert.equal(below.labels, null);
   assert.equal(below.notJudged, 'below the low block');
-  assert.match(leadText(below).text, /^Lead \d+ kt est\. IAS, 1\.0 G, not judged: below the low block$/);
+  assert.match(leadText(below).text, /^Lead \d+ kt est\. IAS \(no wind\), 1\.0 G, not judged: below the low block$/);
   assert.equal(leadText(below).tone, 'none');
   for (const altFt of [6000, 8000, 10_250, 15_500]) {
     const judged = at(altFt);
@@ -298,8 +298,11 @@ test('V6\'s one-target standard is gated by the same blocks; a standard that is 
 // The heading change over t±1.5 s, est. G's window (M2). At +1688 that window touches the GPS gap
 // after 1688.9 s, so G is "--" and the bank is unknown: "bank --", wings level in 3D (audit of #194, Y2;
 // verification re-check N2; it read −57.4° before).
+// Final verification F3 moved these: the bank now uses the window's chord ground speed (est. G's), not the
+// one-second segment's, so it agrees with the G beside it (at +1683, 1.87 G and 57.7°: acos(1/1.87)). Before F3:
+// [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, null].
 // The old ±1 s chord bank stays pinned on V6's path in tests/golden/debrief-3d.test.js.
-const EXAMPLE_BANK_PIN = [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, null];
+const EXAMPLE_BANK_PIN = [-5.5608, -12.1078, -5.6535, 6.5781, 7.3105, 0.1351, -53.614, -57.6967, -44.5474, 36.943, 34.8179, 6.3849, null];
 
 test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same in the readouts and the 3D view', async () => {
   const flight = await loadExampleFlight(fromRepo);
@@ -405,4 +408,261 @@ test('a recorded bank stays known beside a GPS gap, in the readouts and the 3D v
   assert.equal(ship.bankSource, 'recorded');
   assert.match(shipDetailText(ship)[1], /bank 23° left recorded$/);
   assert.deepEqual([shipsIn3d(flight, t)[0].bankDeg, shipsIn3d(flight, t)[0].bankKnown], [23, true]);
+});
+
+// ── Final verification F1: Lead's est. IAS with the model wind ──
+
+// Lead flying due east (heading 090) at `gsKt` over the ground, at `altFt`, with #2 abreast.
+function eastbound(gsKt, altFt) {
+  const gs = gsKt * KT_TO_FTPS;
+  return buildFlight({ 1: track('Lead', (t) => [gs * t, 0], { altFt }), 2: track('Two', (t) => [gs * t, 5000], { altFt }) });
+}
+// The wind "from" 090 is a headwind for an eastbound Lead; from 270 a tailwind.
+const HEAD_24 = { dirDeg: 90, kt: 24 };
+const TAIL_24 = { dirDeg: 270, kt: 24 };
+
+test('est. IAS with wind: TAS is the ground velocity minus the wind vector, then × √(density ratio) as estIasKt has it (F1)', () => {
+  const at = 12_000;
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  near(estIasWithWindKt(250, 0, at, HEAD_24), estIasKt(274, at)); // heading east, wind from the east: headwind
+  near(estIasWithWindKt(250, 0, at, TAIL_24), estIasKt(226, at));
+  // From the north (360°), 24 kt, on an eastbound 250 kt: a pure crosswind, TAS = √(250² + 24²).
+  near(estIasWithWindKt(250, 0, at, { dirDeg: 360, kt: 24 }), estIasKt(Math.hypot(250, 24), at));
+  // A northbound Lead (heading π/2 radians, counter-clockwise from east) in a wind from the north: headwind too.
+  near(estIasWithWindKt(250, Math.PI / 2, at, { dirDeg: 0, kt: 24 }), estIasKt(274, at));
+  // Calm: the ground-speed figure. No number: none.
+  near(estIasWithWindKt(250, 0, at, { dirDeg: 90, kt: 0 }), estIasKt(250, at));
+  assert.equal(estIasWithWindKt(NaN, 0, at, HEAD_24), null);
+});
+
+test('a 24 kt headwind raises Lead\'s est. IAS and flips "on parameters" to FAST; a 24 kt tailwind lowers it to SLOW (F1)', () => {
+  const flight = eastbound(250, 12_000); // mid block: target 200 kt, ± 10
+  const none = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS });
+  const head = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
+  const tail = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: TAIL_24 });
+  assert.ok(Math.abs(none.lead.iasKt - estIasKt(250, 12_000)) < 0.01);
+  assert.deepEqual(none.lead.labels, ['LEAD ON PARAMETERS']); // the ground-speed figure is on speed …
+  assert.ok(Math.abs(head.lead.iasKt - estIasKt(274, 12_000)) < 0.05); // … with the air against it, TAS 274 kt
+  assert.ok(Math.abs(tail.lead.iasKt - estIasKt(226, 12_000)) < 0.05);
+  assert.deepEqual(head.lead.labels, ['FAST']);
+  assert.deepEqual(tail.lead.labels, ['SLOW']);
+  assert.ok(head.lead.iasKt > none.lead.iasKt && none.lead.iasKt > tail.lead.iasKt);
+  // The ship row, the card line and the More detail row all carry the same number.
+  assert.equal(head.ships[0].iasKt, head.lead.iasKt);
+  assert.match(leadText(head.lead).text, /^Lead 2\d\d kt est\. IAS \(wind-corrected\), 1\.0 G, FAST \(target 200 kt, mid block\)$/);
+  assert.match(leadText(tail.lead).text, /^Lead 1\d\d kt est\. IAS \(wind-corrected\), 1\.0 G, SLOW \(target 200 kt, mid block\)$/);
+  assert.match(shipDetailText(head.ships[0])[0], /^Alt 12,000 ft, GS 250 kt, est\. IAS \d+ kt \(wind-corrected\)$/);
+});
+
+test('with no wind Lead\'s est. IAS stays ground speed based and says "(no wind)"; a wingman never takes Lead\'s wind (F1)', () => {
+  const flight = eastbound(250, 12_000);
+  const none = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS });
+  assert.match(leadText(none.lead).text, /^Lead \d+ kt est\. IAS \(no wind\), /);
+  assert.match(shipDetailText(none.ships[0])[0], /est\. IAS \d+ kt \(no wind\)$/);
+  assert.match(shipDetailText(none.ships[1])[0], /est\. IAS \d+ kt \(no wind\)$/);
+  const head = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
+  assert.equal(head.ships[1].iasKt, none.ships[1].iasKt);
+  assert.match(shipDetailText(head.ships[1])[0], /\(no wind\)$/);
+  // A wind of null, or a missing one, is no wind.
+  for (const leadWind of [null, undefined]) assert.equal(readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind }).lead.iasKt, none.lead.iasKt);
+});
+
+test('Lead not moving has no heading, so no wind correction even with a wind (F1)', () => {
+  const still = buildFlight({ 1: track('Lead', () => [0, 0], { altFt: 8000 }), 2: track('Two', () => [0, 5000], { altFt: 8000 }) });
+  const r = readoutsAt(still, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
+  assert.match(leadText(r.lead).text, /\(no wind\)/);
+  assert.equal(r.lead.windCorrected, false);
+});
+
+test('the verdict follows the IAS shown: target and block are as before (F1)', () => {
+  const low = readoutsAt(eastbound(225, 8000), T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 }).lead;
+  assert.equal(low.block, 'low');
+  assert.equal(low.targetKt, 220);
+  assert.equal(low.windCorrected, true);
+  // 249 kt TAS at 8,000 ft is about 220 kt est. IAS: on parameters by the shown number, where 225 kt ground speed alone reads about 200.
+  assert.deepEqual(low.labels, ['LEAD ON PARAMETERS']);
+  assert.deepEqual(readoutsAt(eastbound(225, 8000), T(30), { standards: DEFAULT_STANDARDS }).lead.labels, ['SLOW']);
+});
+
+// ── Final verification F2: a GPS spike is not shown as a real G or speed ──
+
+const STD = { standards: DEFAULT_STANDARDS };
+const ACROSS = 'GPS gap: no numbers until the track resumes';
+
+test('a hole of exactly 5 s is a gap in the debrief: no numbers, no verdict, and G and bank "--" wherever the G window touches it (F2)', () => {
+  const gs = 200 * KT_TO_FTPS;
+  const flight = buildFlight({
+    1: track('Lead', (t) => [gs * t, 0], { altFt: 8000, skip: [11, 12, 13, 14] }), // fixes at 10 s and 15 s
+    2: track('Two', (t) => [gs * t, 5000], { altFt: 8000 }),
+  });
+  // flight-data's own rule ("more than 5 s") is not changed: the track itself calls this no gap.
+  assert.equal(sampleAt(flight.tracks[1], T(12)).inGap, false);
+  for (const s of [10.5, 12, 14.5]) {
+    const r = readoutsAt(flight, T(s), STD);
+    assert.equal(r.ships[0].inGap, true, `in a gap at start+${s}`);
+    assert.deepEqual(shipDetailText(r.ships[0]), [ACROSS]);
+    assert.equal(leadText(r.lead).text, 'Lead: GPS gap');
+    assert.equal(r.lead.labels, null);
+    assert.equal(r.formation[0].state, 'gap');
+    assert.equal(formationText(r.formation[0]).text, 'GPS gap');
+    assert.equal(r.vsLead[0].inGap, true);
+    assert.equal(formationAt(flight, T(s), STD)[0].state, 'gap'); // the map's labels agree
+  }
+  // The moments at either end are not in the gap, but the G window (± 1.5 s) touches it: G and bank "--".
+  for (const s of [8.6, 10, 15, 16.4]) {
+    const r = readoutsAt(flight, T(s), STD);
+    assert.equal(r.ships[0].inGap, false, `start+${s}`);
+    assert.equal(r.ships[0].g, null, `G at start+${s}`);
+    assert.equal(r.ships[0].bankDeg, null, `bank at start+${s}`);
+    assert.match(shipDetailText(r.ships[0])[1], /^G --, .*, bank --$/);
+  }
+  // Clear of it, G and bank are back.
+  for (const s of [8.4, 16.6, 30]) {
+    const r = readoutsAt(flight, T(s), STD);
+    assert.ok(Math.abs(r.ships[0].g - 1) < 1e-9, `G at start+${s}`);
+    assert.equal(r.ships[0].bankDeg, 0);
+  }
+  // A hole of 4 s is not one.
+  const short = buildFlight({ 1: track('Lead', (t) => [gs * t, 0], { altFt: 8000, skip: [11, 12, 13] }), 2: track('Two', (t) => [gs * t, 5000], { altFt: 8000 }) });
+  assert.equal(readoutsAt(short, T(12), STD).ships[0].inGap, false);
+  assert.ok(Number.isFinite(readoutsAt(short, T(12), STD).ships[0].g));
+});
+
+test('a ground speed over 350 kt is "--": GS, est. IAS, G and bank, and Lead is not judged (F2)', () => {
+  assert.equal(MAX_BELIEVED_GS_KT, 350);
+  const gs = 200 * KT_TO_FTPS;
+  // Lead's position jumps 4,000 ft east in one second, at start+30: a 2,500 kt "segment".
+  const flight = buildFlight({
+    1: track('Lead', (t) => [gs * t + (t >= 30 ? 4000 : 0), 0], { altFt: 8000 }),
+    2: track('Two', (t) => [gs * t, 5000], { altFt: 8000 }),
+  });
+  const spike = readoutsAt(flight, T(29.5), STD);
+  const lead = spike.ships[0];
+  assert.deepEqual([lead.gsKt, lead.iasKt, lead.g, lead.bankDeg], [null, null, null, null]);
+  assert.equal(spike.lead.labels, null);
+  assert.equal(spike.lead.notJudged, 'GPS speed over 350 kt');
+  assert.equal(leadText(spike.lead).text, 'Lead -- est. IAS, G --, not judged: GPS speed over 350 kt');
+  assert.equal(leadText(spike.lead).tone, 'none');
+  assert.match(shipDetailText(lead)[0], /^Alt 8,000 ft, GS --, est\. IAS --$/);
+  assert.match(shipDetailText(lead)[1], /^G --, .*, bank --$/);
+  // The wingmen's spacing is not blanked by it: still judged, not "Lead under 80 kt".
+  assert.equal(spike.formation[0].state, 'ok');
+  // Before and after it is the normal 200 kt.
+  for (const s of [20, 40]) {
+    const ok = readoutsAt(flight, T(s), STD);
+    assert.ok(Math.abs(ok.ships[0].gsKt - 200) < 0.5);
+    assert.ok(ok.lead.labels !== null && ok.lead.notJudged === null, `Lead judged at start+${s}`);
+  }
+  // The edge: 340 kt is shown (and judged FAST), 360 kt is not.
+  const at = (kt) => readoutsAt(buildFlight({ 1: track('Lead', (t) => [kt * KT_TO_FTPS * t, 0], { altFt: 8000 }) }), T(30), STD);
+  assert.ok(Math.abs(at(340).ships[0].gsKt - 340) < 0.5);
+  assert.deepEqual(at(340).lead.labels, ['FAST']);
+  assert.equal(at(360).ships[0].gsKt, null);
+  assert.equal(at(360).lead.labels, null);
+});
+
+test('an est. G above the stall line for the est. IAS shown is "--", and the bank beside it (F2)', () => {
+  // A level circle flown at `kt` ground speed and `g`; the G the track shows is about g (and so would the bank).
+  const circle = (kt, g) => {
+    const v = kt * KT_TO_FTPS;
+    const omega = (32.174 * Math.sqrt(g * g - 1)) / v;
+    const radius = v / omega;
+    return buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))], { altFt: 5000 }) });
+  };
+  // 100 kt at 5,000 ft is about 93 kt est. IAS: the most it can pull is (93 / 86)² = 1.2 G. A "2 G" at that speed is a position jump.
+  const slow = readoutsAt(circle(100, 2), T(30), STD).ships[0];
+  assert.ok(slow.iasKt > 90 && slow.iasKt < 96);
+  assert.equal(slow.g, null);
+  assert.equal(slow.bankDeg, null);
+  assert.match(shipDetailText(slow)[1], /^G --, .*, bank --$/);
+  assert.equal(shipsIn3d(circle(100, 2), T(30))[0].bankKnown, false); // wings level in 3D, as for any unknown bank
+  // The same 2 G at 250 kt (stall line 7 G) is real: shown, with its bank.
+  const fast = readoutsAt(circle(250, 2), T(30), STD).ships[0];
+  assert.ok(fast.g > 1.9 && fast.g < 2.1, String(fast.g));
+  assert.ok(Math.abs(Math.abs(fast.bankDeg) - 60) < 2, String(fast.bankDeg));
+  // Just under the line is shown: 93 kt est. IAS allows 1.17 G.
+  const gentle = readoutsAt(circle(100, 1.1), T(30), STD).ships[0];
+  assert.ok(gentle.g > 1.05 && gentle.g < 1.15, String(gentle.g));
+});
+
+test('the stall line uses the est. IAS shown for Lead, wind-corrected when it is (F2, F1)', () => {
+  // Lead flies at 130 kt in a 1.5 G turn: allowed at calm (121 kt est. IAS, 2.0 G) or in a headwind, not in a tailwind (98 kt, 1.3 G).
+  const v = 130 * KT_TO_FTPS;
+  const omega = (32.174 * Math.sqrt(1.5 * 1.5 - 1)) / v;
+  const radius = v / omega;
+  const flight = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))], { altFt: 5000, seconds: 12 }) });
+  const s = T(6);
+  // The compass direction Lead flies toward: a wind from there is a headwind, from the opposite way a tailwind.
+  const bearing = 90 - (headingAt(flight.tracks[1], s) * 180) / Math.PI;
+  const head = readoutsAt(flight, s, { ...STD, leadWind: { dirDeg: bearing, kt: 24 } }).ships[0];
+  const tail = readoutsAt(flight, s, { ...STD, leadWind: { dirDeg: bearing + 180, kt: 24 } }).ships[0];
+  const calm = readoutsAt(flight, s, STD).ships[0];
+  assert.ok(Math.abs(calm.g - 1.5) < 0.1, String(calm.g));
+  assert.ok(head.iasKt > calm.iasKt && calm.iasKt > tail.iasKt);
+  assert.ok(head.g !== null && calm.g !== null, 'shown at the higher IAS'); // (143 / 86)² = 2.8 G
+  assert.equal(tail.g, null); // (98 / 86)² = 1.3 G
+});
+
+// ── The example flight: the same rules hold over all of it (F2, F3) ──
+
+test('the example flight: no est. G above its stall line, no GS over 350 kt shown, no Lead verdict at one (F2)', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  let seconds = 0;
+  let fast = 0;
+  for (let s = flight.startT; s <= flight.endT; s += 1) {
+    const r = readoutsAt(flight, s, STD);
+    for (const ship of r.ships) {
+      seconds++;
+      if (ship.gsKt !== null) assert.ok(ship.gsKt <= MAX_BELIEVED_GS_KT, `GS ${ship.gsKt} of #${ship.slot} at +${s - flight.startT}`);
+      if (ship.g !== null && ship.gSource === 'estimated') {
+        assert.ok(Number.isFinite(ship.iasKt), `G without est. IAS, #${ship.slot} at +${s - flight.startT}`);
+        assert.ok(ship.g <= (ship.iasKt / 86) ** 2 + 1e-9, `G ${ship.g} at ${ship.iasKt} kt est. IAS, #${ship.slot} at +${s - flight.startT}`);
+      }
+      if (ship.inGap) assert.ok(ship.g === null || ship.gSource === 'recorded');
+    }
+    const lead = flight.tracks[1];
+    const rawGs = sampleAt(lead, s).speedKt;
+    if (rawGs > MAX_BELIEVED_GS_KT) {
+      fast++;
+      assert.equal(r.lead.labels, null, `Lead verdict at GS ${Math.round(rawGs)} kt, +${s - flight.startT}`);
+      assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW|HIGH G|LOW G|on parameters/);
+    }
+  }
+  assert.ok(seconds > 15_000, `${seconds} ship-seconds`);
+  assert.ok(fast > 0, 'the example flight has a Lead spike to stop on');
+});
+
+// ── Final verification F3: the bank beside an est. G agrees with it (level turn: bank = acos(1/G)) ──
+
+const bankGapDeg = (ship) => Math.abs(Math.abs(ship.bankDeg) - (Math.acos(1 / ship.g) * 180) / Math.PI);
+
+test('bank uses the G window\'s chord ground speed, so it agrees with est. G even when the one-second speeds jitter (F3)', () => {
+  // A 2 G level circle at 200 kt, each fix a little ahead of or behind where it should be, alternately:
+  // the one-second segments run 25 % fast and slow while the three-second chord is steady.
+  const v = 200 * KT_TO_FTPS;
+  const omega = (32.174 * Math.sqrt(3)) / v;
+  const radius = v / omega;
+  const phase = (t) => omega * t + (t % 2 === 0 ? 0.02 : -0.02);
+  const flight = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(phase(t)), radius * (1 - Math.cos(phase(t)))], { altFt: 8000 }) });
+  let checked = 0;
+  for (let s = 5; s <= 55; s += 0.5) {
+    const ship = readoutsAt(flight, T(s), STD).ships[0];
+    if (ship.g === null || ship.bankDeg === null) continue;
+    checked++;
+    assert.ok(bankGapDeg(ship) <= 1, `bank ${ship.bankDeg.toFixed(1)}° beside ${ship.g.toFixed(2)} G at start+${s}: ${bankGapDeg(ship).toFixed(2)}° apart`);
+  }
+  assert.ok(checked > 80, `${checked} moments checked`);
+});
+
+test('the example flight: where est. G and est. bank are both shown, bank is within 1° of acos(1/G) (F3)', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  let both = 0;
+  for (let s = flight.startT; s <= flight.endT; s += 1) {
+    for (const ship of readoutsAt(flight, s, STD).ships) {
+      if (ship.g === null || ship.bankDeg === null || ship.gSource !== 'estimated' || ship.bankSource !== 'estimated') continue;
+      both++;
+      assert.ok(bankGapDeg(ship) <= 1, `#${ship.slot} at +${s - flight.startT}: bank ${ship.bankDeg.toFixed(1)}° beside ${ship.g.toFixed(2)} G`);
+    }
+  }
+  assert.ok(both > 7000, `${both} ship-seconds with both`);
 });
