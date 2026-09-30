@@ -8,7 +8,7 @@ import { loadExampleFlight } from '../../../src/flight-data/examples.js';
 import { toDebriefFile, readDebriefFile } from '../../../src/flight-data/debrief-file.js';
 import { addDfp, renameDfp, setDfpNote, dfpLabel } from '../../../src/modules/debrief/dfp.js';
 import {
-  TIME_KEY, WEATHER_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName,
+  TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName,
 } from '../../../src/modules/debrief/debrief-session.js';
 import { makeSaved, savedBox, savedToSetting, savedFromSetting, MAX_SAVED_CHARS } from '../../../src/modules/debrief/weather/saved-radar.js';
 
@@ -127,4 +127,35 @@ test('a weather block over its rule is dropped by the file reader, and a hostile
   const opened = readDebriefFile(text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
   const got = savedFromSetting(opened.settings[WEATHER_KEY], { startT: flight.startT, endT: flight.endT });
   assert.match(got.problem, /couldn't be read/);
+});
+
+// --- Writing the file: what is written is read back first (Y2) ------------------------------------
+
+test('a debrief with kept radar is written with it, after the block has been read back against the flight\'s window', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const saved = savedFor(flight);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const got = buildDebriefFile({ write, weather: saved, window: { startT: flight.startT, endT: flight.endT } });
+  assert.equal(got.left, null);
+  assert.equal(got.wrote, true);
+  const opened = readDebriefFile(got.text, { settings: settingsRules(STANDARD_LIMITS, { weather: true }) });
+  assert.deepEqual(savedFromSetting(opened.settings[WEATHER_KEY], { startT: flight.startT, endT: flight.endT }).saved, saved);
+});
+
+test('with nothing kept there is nothing to write and nothing to say', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const got = buildDebriefFile({ write, weather: null, window: { startT: flight.startT, endT: flight.endT } });
+  assert.deepEqual([got.wrote, got.left], [false, null]);
+  assert.equal(Object.hasOwn(JSON.parse(got.text).settings, WEATHER_KEY), false);
+});
+
+test('a kept set the reader would not read back whole is not written, and the debrief says so', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const stray = makeSaved({ box: savedBox({ minLat: 50, maxLat: 50.5, minLon: -106, maxLon: -105.5 }), fetchedT: 1, frames: [{ layer: 'rain', t: Math.ceil(flight.endT) + 7200, mime: 'image/png', data: PNG64 }] });
+  const got = buildDebriefFile({ write, weather: stray, window: { startT: flight.startT, endT: flight.endT } });
+  assert.equal(got.wrote, false);
+  assert.match(got.left, /couldn't be put in the file/);
+  assert.equal(Object.hasOwn(JSON.parse(got.text).settings, WEATHER_KEY), false, 'the rest of the debrief is still saved');
 });

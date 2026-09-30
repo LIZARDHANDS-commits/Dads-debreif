@@ -42,7 +42,7 @@ export const LIMITS = Object.freeze({
   maxBoxDeg: 30, // no side of the picture's box is longer than this
   maxPixels: 1024, // no side of a picture is longer than this
   minPixels: 128,
-  leadS: 20 * 60, // a frame may come this long before the flight's start (the one at or before it)
+  leadS: 60 * 60, // a frame may come this long before the flight's start (the one at or before it, even on a slow step)
 });
 /** The debrief file's block, as text: at most this many characters (25 MB as base64 is 33.4 million, and a little more for the rest). */
 export const MAX_SAVED_CHARS = 36 * 1024 * 1024;
@@ -80,6 +80,16 @@ export function notKeptText(item) {
 // --- Which frames ---------------------------------------------------------------
 
 /**
+ * Whether a frame time belongs to a flight running from startT to endT: from
+ * LIMITS.leadS before the start (the frame at or before it) to the end. The one
+ * rule the fetch keeps by and the reader checks by, so what is kept is read back.
+ * False when any of the three is not a number.
+ */
+export function inWindow(t, startT, endT) {
+  return [t, startT, endT].every(isFiniteNumber) && t >= startT - LIMITS.leadS && t <= endT;
+}
+
+/**
  * The frame times to fetch from one layer, in seconds, oldest first: the last
  * at or before the flight's start, then every step to the last at or before its
  * end. `times` is a layer's { start, end, stepMs } (parseLayerTimes: Dates);
@@ -96,7 +106,7 @@ export function coveringTimes(times, flightStartT, flightEndT, defaultStepS) {
   for (let t = last; t >= first; t -= stepS) grid.unshift(t);
   const before = grid.filter((t) => t <= flightStartT);
   const from = before.length ? before[before.length - 1] : grid[0];
-  return grid.filter((t) => t >= from && t <= flightEndT);
+  return grid.filter((t) => t >= from && t <= flightEndT).map(Math.round);
 }
 
 const roundedDown = (v) => Math.floor(v * 100 + 1e-6) / 100;
@@ -270,7 +280,7 @@ export function savedToSetting(saved) {
   return JSON.stringify({ v: FORMAT_VERSION, box: saved.box, fetchedT: saved.fetchedT, frames: saved.frames });
 }
 
-const problem = (why) => ({ problem: `The radar and lightning saved in this file couldn't be read (${why}), so they were left out. The rest of the debrief is as saved.` });
+const problem = (why) => ({ problem: `The radar and lightning saved in this file couldn't be read (${why}), so they were left out. The rest of the debrief is as saved.`, why });
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const MAX_FRAME_CHARS = Math.ceil((LIMITS.maxFrameBytes * 4) / 3) + 4;
 
@@ -284,18 +294,21 @@ function readBox(box) {
 
 /**
  * Reads the debrief file's block, which is untrusted, for a flight running from
- * `startT` to `endT`. All of it or none: returns { saved } with only the
- * fields this file defines, { saved: null } when the file has none, or
- * { problem } (words for the user) for anything wrong. Checks: the length; a
- * known version; the box in range, in order and no bigger than 30°; at most
- * 100 frames a layer; a layer from the list; a whole-number time from 20
- * minutes before the start (the frame at or before it) to the end; a MIME type
- * of PNG, JPEG or WebP that the picture's first bytes bear out; strict base64;
+ * `startT` to `endT`. Returns { saved, dropped } with only the fields this
+ * file defines (`dropped`: how many pictures fell outside the flight's window,
+ * inWindow, and were left out, as when the flight's own times have moved),
+ * { saved: null } when the file has none, or { problem, why } (words for the
+ * user) for anything wrong, including no picture left inside the window. Every
+ * other check is all or nothing: the length; a known version; the box in
+ * range, in order and no bigger than 30°; at most 100 frames a layer; a layer
+ * from the list; a whole-number time; a PNG whose first bytes bear out its type
+ * and whose own header gives a size of at most 1,024 a side; strict base64;
  * 1.5 MB a frame and 25 MB in all; no layer and time twice.
  */
 export function savedFromSetting(text, { startT, endT }) {
   if (text === undefined || text === null || text === '') return { saved: null };
   if (typeof text !== 'string') return problem('it is not text');
+  if (![startT, endT].every(isFiniteNumber)) return problem('the flight has no times to check it against');
   if (text.length > MAX_SAVED_CHARS) return problem('it is too big');
   let block;
   try {
@@ -313,9 +326,10 @@ export function savedFromSetting(text, { startT, endT }) {
   const perLayer = {};
   let totalBytes = 0;
   const frames = [];
+  let dropped = 0;
   for (const f of block.frames) {
     if (!isObject(f) || !hasLayer(f.layer)) return problem('a picture is for a layer this tool does not know');
-    if (!Number.isInteger(f.t) || f.t < startT - LIMITS.leadS || f.t > endT) return problem("a picture's time is outside the flight");
+    if (!Number.isInteger(f.t)) return problem("a picture's time is not a whole number of seconds");
     if (!ALLOWED_MIMES.includes(f.mime)) return problem('a picture is not a PNG');
     if (typeof f.data !== 'string' || f.data.length > MAX_FRAME_CHARS || f.data.length % 4 !== 0 || !BASE64.test(f.data)) return problem('a picture is damaged');
     if (mimeOfBase64(f.data) !== f.mime) return problem('a picture is not the kind it says');
@@ -329,9 +343,26 @@ export function savedFromSetting(text, { startT, endT }) {
     if (bytes > LIMITS.maxFrameBytes) return problem('a picture is too big');
     totalBytes += bytes;
     if (totalBytes > LIMITS.maxTotalBytes) return problem('the pictures are too big');
-    frames.push({ layer: f.layer, t: f.t, mime: f.mime, data: f.data });
+    // Counted above like the rest, kept only inside the flight's window.
+    if (inWindow(f.t, startT, endT)) frames.push({ layer: f.layer, t: f.t, mime: f.mime, data: f.data });
+    else dropped += 1;
   }
-  return { saved: makeSaved({ box, frames, fetchedT: block.fetchedT }) };
+  if (!frames.length) return problem('none of its pictures fall inside the flight');
+  return { saved: makeSaved({ box, frames, fetchedT: block.fetchedT }), dropped };
+}
+
+/**
+ * What goes into the debrief file for a kept set: { text } once it has been read
+ * back through the reader's own checks against this flight's window and comes
+ * back whole, else { problem } (words for the user) and no text: what is written
+ * is what will be read, or it isn't written.
+ */
+export function weatherForFile(saved, window) {
+  const text = savedToSetting(saved);
+  const back = savedFromSetting(text, window);
+  const why = back.problem ? back.why : back.dropped ? 'some pictures fall outside the flight' : back.saved.frames.length !== saved.frames.length ? 'some pictures were lost' : null;
+  if (why) return { problem: `The radar and lightning couldn't be put in the file (${why}), so this debrief was saved without them. They stay here until you close the flight.` };
+  return { text };
 }
 
 // --- Playback -------------------------------------------------------------------

@@ -5,7 +5,7 @@
 // until the debrief is saved. Cancelling, closing the flight or closing the
 // debrief stops it and keeps nothing. Network and clock come in as arguments.
 import {
-  SAVED_LAYERS, LIMITS, notKeptText, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl, layerTimes,
+  SAVED_LAYERS, LIMITS, notKeptText, inWindow, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl, layerTimes,
   frameFromReply, fitCap, makeSaved, savedSummary, hhmmZ,
 } from './saved-radar.js';
 
@@ -77,7 +77,8 @@ export function createSavedRadarFeed({
         if (!live()) return;
       }
       if (!live()) return;
-      const wanted = times ? coveringTimes(times, flight.startT, flight.endT, SAVED_LAYERS[layer].stepS) : [];
+      // The same window the reader keeps by, so whatever is kept is read back from the file.
+      const wanted = times ? coveringTimes(times, flight.startT, flight.endT, SAVED_LAYERS[layer].stepS).filter((t) => inWindow(t, flight.startT, flight.endT)) : [];
       planned[layer] = wanted;
       for (const t of wanted) plan.push({ layer, t });
     }

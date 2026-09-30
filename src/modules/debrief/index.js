@@ -40,9 +40,9 @@ import {
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
-import { TIME_KEY, WEATHER_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
+import { TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
-import { radarKept, framesToDraw, savedNoteLine, savedToSetting, savedFromSetting } from './weather/saved-radar.js';
+import { radarKept, framesToDraw, savedNoteLine, savedFromSetting } from './weather/saved-radar.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
 
@@ -416,12 +416,14 @@ function mount(root, app) {
         if (!flight) return;
         try {
           const kept = savedRadar.state().saved;
-          const text = toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, kept ? savedToSetting(kept) : ''));
-          downloadText(text, debriefFileName(flight.startT), { type: 'application/json' });
+          const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather));
+          const built = buildDebriefFile({ write, weather: kept, window: { startT: flight.startT, endT: flight.endT } });
+          downloadText(built.text, debriefFileName(flight.startT), { type: 'application/json' });
           unsaved = false;
-          weatherWritten = kept;
+          // Only pictures that went into the file count as saved; a debrief saved without them still asks on close.
+          weatherWritten = built.wrote ? kept : null;
           renderSavedWeather();
-          ui.setMessage(null);
+          ui.setMessage(built.left);
         } catch (err) {
           if (err?.name !== 'DebriefFileError') throw err;
           ui.setMessage(err.message);

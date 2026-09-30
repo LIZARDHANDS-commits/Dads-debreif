@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   KEPT_S, LIMITS, SAVED_LAYERS, MAX_SAVED_CHARS, radarKept, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl,
   bytesToBase64, mimeOfBase64, frameFromReply, frameBytes, fitCap, makeSaved, savedToSetting, savedFromSetting,
-  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64,
+  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64, inWindow, weatherForFile,
 } from '../../../src/modules/debrief/weather/saved-radar.js';
 import { sliceAt, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
 
@@ -280,8 +280,8 @@ test('untrusted: a frame\'s layer, time, type and picture are each checked', () 
   assert.ok(one({ ...frame('rain', START), t: START + 0.5 }).problem, 'a time that is not whole');
   assert.ok(one({ ...frame('rain', START), t: '1' }).problem);
   assert.ok(one(frame('rain', END + 1)).problem, 'after the flight');
-  assert.ok(one(frame('rain', START - 20 * 60 - 1)).problem, 'more than 20 minutes before it');
-  assert.equal(one(frame('rain', START - 20 * 60)).problem, undefined, 'the frame at or before the start may come before it');
+  assert.ok(one(frame('rain', START - LIMITS.leadS - 1)).problem, 'the only picture is before the window: none is left');
+  assert.equal(one(frame('rain', START - LIMITS.leadS)).problem, undefined, 'the frame at or before the start may come before it');
   assert.equal(one(frame('rain', END)).problem, undefined);
   assert.ok(one(frame('rain', START, JPEG64, 'image/jpeg')).problem, 'only PNG (its size is read from its header)');
   assert.ok(one(frame('rain', START, WEBP64, 'image/webp')).problem);
@@ -450,4 +450,81 @@ test('a fetched reply that decodes to a huge picture is not kept either', () => 
   assert.equal(frameFromReply({ contentType: 'image/png', bytes: new Uint8Array(pngHeader(16000, 16000)) }), null);
   assert.deepEqual(frameFromReply({ contentType: 'image/png', bytes: new Uint8Array(pngHeader(1024, 1024)) })?.mime, 'image/png');
   assert.equal(frameFromReply({ contentType: 'image/jpeg', bytes: new Uint8Array(Buffer.from(JPEG64, 'base64')) }), null, 'PNG only, as asked for');
+});
+
+// --- The window: one rule for the writer and the reader (Y2) --------------------------------------
+
+test('the window is from an hour before the start (the frame at or before it, even on a 30-minute step) to the end', () => {
+  assert.equal(LIMITS.leadS, 60 * 60);
+  assert.equal(inWindow(START - 60 * 60, START, END), true);
+  assert.equal(inWindow(START - 60 * 60 - 1, START, END), false);
+  assert.equal(inWindow(END, START, END), true);
+  assert.equal(inWindow(END + 1, START, END), false);
+  assert.equal(inWindow(NaN, START, END), false);
+  assert.equal(inWindow(START, NaN, END), false);
+  assert.equal(inWindow(START, START, undefined), false);
+});
+
+test('a frame 1,740 s before the start (a 30-minute step) is inside the reader\'s window', () => {
+  const t = at('2026-09-30T06:00:00Z');
+  const saved = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', t), frame('rain', t + 1800)] });
+  const got = savedFromSetting(savedToSetting(saved), { startT: t + 1740, endT: t + 3000 });
+  assert.equal(got.problem, undefined);
+  assert.equal(got.saved.frames.length, 2);
+});
+
+test('the frame times are whole seconds, whatever the reply\'s time list gave', () => {
+  const times = { start: new Date('2026-09-30T04:30:00.400Z'), end: new Date('2026-09-30T07:30:00.400Z'), stepMs: 360_000 };
+  const got = coveringTimes(times, START, END, 360);
+  assert.ok(got.length > 0 && got.every((t) => Number.isInteger(t)));
+});
+
+test('untrusted: when the flight\'s window has moved, the pictures outside it are dropped, not the whole block', () => {
+  const saved = goodSaved(); // rain 06:06, 06:12, 06:18; snow 06:06; lightning 06:00, 06:10
+  const got = savedFromSetting(savedToSetting(saved), { startT: at('2026-09-30T06:14:00Z') + 4000, endT: at('2026-09-30T06:14:00Z') + 4000 + 1800 });
+  assert.equal(got.saved, undefined, 'none of them is inside: nothing to keep');
+  assert.match(got.problem, /couldn't be read/);
+  const shifted = savedFromSetting(savedToSetting(saved), { startT: at('2026-09-30T06:00:00Z') - 5 * 3600, endT: at('2026-09-30T06:11:00Z') });
+  assert.equal(shifted.problem, undefined);
+  assert.deepEqual(shifted.saved.frames.map((f) => `${f.layer}@${hhmm(f.t)}`), ['rain@06:06', 'snow@06:06', 'lightning@06:00', 'lightning@06:10']);
+  assert.equal(shifted.dropped, 2);
+});
+
+const hhmm = (t) => new Date(t * 1000).toISOString().slice(11, 16);
+
+test('untrusted: a flight with no times cannot vouch for anything, so nothing is read', () => {
+  const text = savedToSetting(goodSaved());
+  for (const bad of [{ startT: NaN, endT: END }, { startT: START, endT: NaN }, { startT: undefined, endT: undefined }, { startT: Infinity, endT: END }]) {
+    assert.match(savedFromSetting(text, bad).problem, /couldn't be read/, JSON.stringify(bad));
+  }
+});
+
+test('untrusted: a base64 string of the right length with a bad character inside is refused', () => {
+  const bad = `${PNG64.slice(0, 40)}!${PNG64.slice(41)}`;
+  assert.equal(bad.length, PNG64.length);
+  assert.equal(bad.length % 4, 0);
+  assert.ok(read(block({ frames: [frame('rain', START, bad)] })).problem);
+  const padded = `${PNG64.slice(0, -4)}=AAA`;
+  assert.ok(read(block({ frames: [frame('rain', START, padded)] })).problem, 'padding in the middle');
+});
+
+test('untrusted: a well-formed block over the character limit is refused before it is parsed', () => {
+  const text = JSON.stringify(block()) + ' '.repeat(MAX_SAVED_CHARS);
+  assert.ok(text.length > MAX_SAVED_CHARS);
+  assert.doesNotThrow(() => JSON.parse(text), 'it is valid JSON');
+  assert.match(savedFromSetting(text, { startT: START, endT: END }).problem, /too big/);
+});
+
+test('what goes in the file is read back by the same checks first, and refused if they would fail it', () => {
+  const good = weatherForFile(goodSaved(), { startT: START, endT: END });
+  assert.equal(good.problem, undefined);
+  assert.deepEqual(savedFromSetting(good.text, { startT: START, endT: END }).saved, goodSaved());
+  // A set that does not fit the flight: refused, in words, and no text.
+  const stray = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', END + 7200)] });
+  const bad = weatherForFile(stray, { startT: START, endT: END });
+  assert.equal(bad.text, undefined);
+  assert.match(bad.problem, /couldn't be put in the file/);
+  // Frames the reader would drop count as a failure too: what is written is what is read.
+  const partly = makeSaved({ box: savedBox(flightBox), fetchedT: NOW, frames: [frame('rain', START), frame('rain', END + 7200)] });
+  assert.match(weatherForFile(partly, { startT: START, endT: END }).problem, /couldn't be put in the file/);
 });

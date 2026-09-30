@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSavedRadarFeed, offerState } from '../../../src/modules/debrief/weather/saved-radar-feed.js';
-import { savedBox, framesToDraw, LIMITS } from '../../../src/modules/debrief/weather/saved-radar.js';
+import { savedBox, framesToDraw, LIMITS, savedToSetting, savedFromSetting } from '../../../src/modules/debrief/weather/saved-radar.js';
 
 const at = (iso) => Date.parse(iso) / 1000;
 const png = (name) => readFileSync(new URL(`../../fixtures/debrief/${name}`, import.meta.url));
@@ -314,4 +314,31 @@ test('a failed fetch offers the button again with the reason', () => {
   assert.deepEqual(offerState({ ...base, phase: 'failed', failure: 'ECCC had no pictures for this flight any more.' }), {
     button: 'save', status: "Couldn't save radar and lightning: ECCC had no pictures for this flight any more.",
   });
+});
+
+test('every frame the fetch keeps passes the reader, even on a 30-minute step with a start 1,740 s after the last frame (Y2)', async () => {
+  const slow = (name) => caps(name, '2026-09-30T04:00:00Z', '2026-09-30T07:30:00Z', 'PT30M');
+  const eccc = fakeEccc((url) => {
+    const q = new URL(url).searchParams;
+    if (q.get('request') !== 'GetCapabilities') return undefined;
+    return new Response(slow(q.get('layer')), { headers: { 'content-type': 'text/xml' } });
+  });
+  const late = { ...flight, startT: at('2026-09-30T06:29:00Z') }; // the frame at or before it is 06:00, 1,740 s earlier
+  const feed = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {} });
+  feed.start(late);
+  await done(feed);
+  const { saved } = feed.state();
+  assert.ok(saved.frames.some((f) => f.t === at('2026-09-30T06:00:00Z')), 'the frame at or before the start is kept');
+  const back = savedFromSetting(savedToSetting(saved), { startT: late.startT, endT: late.endT });
+  assert.equal(back.problem, undefined);
+  assert.deepEqual(back.saved, saved, 'every frame kept is read back');
+});
+
+test('and on the usual steps, from the recorded shape, every kept frame passes', async () => {
+  const eccc = fakeEccc();
+  const feed = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {} });
+  feed.start(flight);
+  await done(feed);
+  const { saved } = feed.state();
+  assert.deepEqual(savedFromSetting(savedToSetting(saved), { startT: flight.startT, endT: flight.endT }).saved, saved);
 });

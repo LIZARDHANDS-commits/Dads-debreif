@@ -4,7 +4,7 @@
 // the way in, so the standards are flattened to "standards.spread.minFt" and
 // so on. Plain values only; tested in Node.
 import { renameDfp, setDfpNote, sortDfps, DFP_LIMITS } from './dfp.js';
-import { MAX_SAVED_CHARS } from './weather/saved-radar.js';
+import { MAX_SAVED_CHARS, weatherForFile } from './weather/saved-radar.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
@@ -93,4 +93,20 @@ export function dfpsFromFile(fileDfps, leadAt) {
 export function debriefFileName(startT) {
   const iso = new Date(startT * 1000).toISOString();
   return `debrief-${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}Z.dadsdebrief.json`;
+}
+
+/**
+ * The debrief file's text with the kept radar in it when that can be done
+ * safely. write(weatherText): the file's text for a settings string ('' for
+ * none), as toDebriefFile makes it. weather: the kept set or null. window:
+ * { startT, endT } of the flight. The set is read back through the reader's own
+ * checks first (weatherForFile); if it would not come back whole it is left out.
+ * Returns { text, wrote, left }: `wrote` true when the radar is in the file,
+ * `left` the words for why it was left out (or null).
+ */
+export function buildDebriefFile({ write, weather, window }) {
+  if (!weather) return { text: write(''), wrote: false, left: null };
+  const wx = weatherForFile(weather, window);
+  if (wx.problem) return { text: write(''), wrote: false, left: wx.problem };
+  return { text: write(wx.text), wrote: true, left: null };
 }
