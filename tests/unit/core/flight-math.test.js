@@ -70,18 +70,17 @@ test('turnSimG: the slot is the spacing times the aircraft number less 1; lead i
   assert.equal(turnSimG({ ...wingman, aircraftId: 1, distToLeadFt: 9000 }), 4);
 });
 
-test('turnSimG (V6 order): G can end below 1, where the turn goes to NaN', () => {
-  // The limit to 1.01 comes first, then up to -0.8 G. Base G 1.5, right on top of lead:
-  // 1.5 - 0.8 = 0.7 G, and there is no turn.
+test('turnSimG (D74): G is limited to 1.01 again after the correction, so the wingman still turns', () => {
+  // V6 gave 0.7 G here (1.5 - 0.8): no turn, NaN. Now the wingman flies almost straight.
   const g = turnSimG({ ...wingman, baseG: 1.5, distToLeadFt: 0, corrStrength: 2 });
-  near(g, 0.7, 1e-12);
-  assert.ok(Number.isNaN(turnRateRadPerSec(ktToFtps(200), g)));
-  // At exactly 1.8 the full correction gives 1.0 G, and the turn rate is 0.
-  const one = turnSimG({ ...wingman, baseG: 1.8, distToLeadFt: 0, corrStrength: 2 });
-  assert.equal(one, 1);
-  assert.equal(turnRateRadPerSec(ktToFtps(200), one), 0);
-  // Even the 1.01 G floor gives 0.21 G.
-  near(turnSimG({ ...wingman, baseG: 1.01, distToLeadFt: 0, corrStrength: 2 }), 0.21, 1e-12);
+  assert.equal(g, 1.01);
+  assert.ok(turnRateRadPerSec(ktToFtps(200), g) > 0);
+  // V6 gave exactly 1.0 G at base 1.8 (turn rate 0); now 1.01.
+  assert.equal(turnSimG({ ...wingman, baseG: 1.8, distToLeadFt: 0, corrStrength: 2 }), 1.01);
+  // The floor is under the 1.01 G base too (V6 gave 0.21).
+  assert.equal(turnSimG({ ...wingman, baseG: 1.01, distToLeadFt: 0, corrStrength: 2 }), 1.01);
+  // Just above it, nothing changes: 1.85 - 0.8 = 1.05.
+  near(turnSimG({ ...wingman, baseG: 1.85, distToLeadFt: 0, corrStrength: 2 }), 1.05, 1e-12);
 });
 
 /** Three moments one second apart on a steady turn of rateDeg per second at kt knots. */

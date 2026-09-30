@@ -66,9 +66,12 @@ export function turnRateRadPerSec(speedFtps, g) {
  * With G fix on, the wingman's G moves by (distance − slot) / 6,000 ft × strength,
  * never more than 0.8 G either way: too far back pulls more G, too close pulls less.
  *
- * V6 limits G to 1.01 first and corrects after, so the result can be below 1 G
- * (base G plus error under 1.8 with the full −0.8 correction). Then
- * turnRateRadPerSec gives NaN, and V6's aircraft position with it.
+ * V6 limits G to 1.01 first and corrects after, so its G could end below 1 (base
+ * G plus error under 1.8 with the full −0.8 correction). Then turnRateRadPerSec
+ * gave NaN, and V6's aircraft position with it; at exactly 1 G there was no turn.
+ * Here G is limited to 1.01 again after the correction (D74, Patrick's pick), so
+ * the wingman flies almost straight. That is the only difference from V6: where
+ * V6's G was 1.01 or more, this gives the same number.
  */
 export function turnSimG({ baseG, gErr, useErrorsAndCorrection, correction, aircraftId, distToLeadFt, spacingFt, corrStrength }) {
   let g = Math.max(MIN_TURN_G, baseG + (useErrorsAndCorrection ? gErr : 0));
@@ -76,7 +79,7 @@ export function turnSimG({ baseG, gErr, useErrorsAndCorrection, correction, airc
     const e = distToLeadFt - spacingFt * Math.abs(aircraftId - 1);
     g += Math.max(-.8, Math.min(.8, e / 6000 * corrStrength));
   }
-  return g;
+  return Math.max(MIN_TURN_G, g);
 }
 
 // ── Air data and the EM chart point ──────────────────────────────────────────

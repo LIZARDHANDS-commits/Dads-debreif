@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../src/core/units.js';
-import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
 import { loadV6, v6FunctionText, v6Number } from './v6-source.js';
 import { seeded, spread, recordedTrack } from './inputs.js';
 
@@ -137,21 +137,28 @@ function turnSimGCases() {
   return cases;
 }
 
-test('Turn Sim G: V6 limits to 1.01, then corrects, so G can end below 1', () => {
+test('Turn Sim G (D74): the same as V6 except where V6 ended under 1.01 G, which is now 1.01', () => {
   const v6G = v6TurnSimG();
-  let below1 = 0, exactly1 = 0, corrected = 0;
+  let same = 0, below1 = 0, exactly1 = 0;
   for (const c of turnSimGCases()) {
     const v6 = v6G(c);
     const g = turnSimG({ ...c, baseG: v6.baseG });
-    assert.equal(g, v6.g, JSON.stringify(c));
-    if (g < 1) below1++;
-    if (g === 1) exactly1++;
-    if (c.useErrorsAndCorrection && c.correction === 'gfix' && c.aircraftId !== 1) corrected++;
+    if (v6.g >= MIN_TURN_G) {
+      assert.equal(g, v6.g, JSON.stringify(c)); // V6 was already at 1.01 or more: nothing changes
+      same++;
+    } else {
+      assert.equal(g, MIN_TURN_G, JSON.stringify(c)); // D74: the wingman flies almost straight
+      if (v6.g < 1) below1++;
+      if (v6.g === 1) exactly1++;
+      // V6 turned these at NaN (below 1 G) or not at all (exactly 1 G); now there is a turn.
+      const v = ktToFtps(200);
+      assert.ok(v6.g < 1 ? Number.isNaN(turnRateRadPerSec(v, v6.g)) : turnRateRadPerSec(v, v6.g) === 0);
+      assert.ok(turnRateRadPerSec(v, g) > 0, JSON.stringify(c));
+    }
   }
-  // The cases really do reach the trouble spots, so the equality above says something.
-  assert.ok(below1 >= 20, `${below1} cases below 1 G`);
-  assert.ok(exactly1 >= 1, 'the exactly 1 G case');
-  assert.ok(corrected >= 300, `${corrected} corrected cases`);
+  // The cases really do reach the trouble spots, so the checks above say something.
+  assert.ok(same >= 300, `${same} cases unchanged`);
+  assert.ok(below1 >= 20 && exactly1 >= 1, `${below1} cases below 1 G, ${exactly1} at exactly 1 G`);
 });
 
 test('isaDensityRatio matches the EM chart isaRhoRatio', () => {
