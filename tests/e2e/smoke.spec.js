@@ -60,5 +60,5 @@ test('Settings changes the time order and it survives a reload @smoke', async ({
   await page.reload();
   await page.getByRole('button', { name: 'Settings' }).click();
   await expect(page.getByLabel('Local first, Zulu beside it')).toBeChecked();
-  await expect(page.locator('.settings-dialog .notice')).toBeHidden();
+  await expect(page.locator('#settings-storage-note')).toBeHidden();
 });

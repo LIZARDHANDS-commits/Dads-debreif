@@ -2,6 +2,8 @@
 // See specs/SPEC-shell.md.
 import { createStore, browserStorage } from './storage/store.js';
 import { createSettings } from './storage/settings.js';
+import { createAirfields } from './airfields/airfields.js';
+import { createAirfieldsPanel } from './airfields/panel.js';
 import { createScheduler } from './ui-kit/scheduler.js';
 import { createHost } from './shell/host.js';
 import { parseRoute } from './shell/router.js';
@@ -26,8 +28,10 @@ const $ = (id) => document.getElementById(id);
 
 const store = createStore(browserStorage);
 const settings = createSettings(store.scope('app'), SHARED_DEFAULTS, { allowed: SHARED_ALLOWED });
+// The home field and alternates (SPEC-airfields). Local time follows the home field.
+const airfields = createAirfields({ store: store.scope('airfields') });
 const scheduler = createScheduler();
-const time = createTime({ settings });
+const time = createTime({ settings, zone: () => airfields.home().timeZone });
 const statusLine = $('module-status');
 const view = $('view');
 const host = createHost({
@@ -36,6 +40,7 @@ const host = createHost({
   store,
   settings,
   time,
+  airfields,
   onStatus: (text) => {
     statusLine.textContent = text;
     statusLine.hidden = !text;
@@ -101,7 +106,11 @@ async function show(hash) {
   firstShow = false;
 }
 
-const dialog = createSettingsDialog({ settings, storagePersistent: () => store.persistent });
+const dialog = createSettingsDialog({
+  settings,
+  storagePersistent: () => store.persistent,
+  sections: [createAirfieldsPanel({ airfields })],
+});
 document.body.append(dialog.element);
 $('open-settings').addEventListener('click', () => dialog.open());
 const updated = $('app-updated');
@@ -124,6 +133,7 @@ startClock({
   time,
   settings,
   timers: scheduler.scope('clock'),
+  watch: [airfields],
   render(first, second, date) {
     clockFirst.textContent = first;
     clockFirst.dateTime = date.toISOString();
