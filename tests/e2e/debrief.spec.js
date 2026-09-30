@@ -1178,60 +1178,81 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
 
 // RC-1 (verification re-check 195): from the 1280 px floor up (D183), an open toolbar menu
 // stays over the map: it never makes the page scroll sideways, leaves the window, or
-// covers a control in the Flight or Formation column. Each menu in turn, in 2D and in 3D.
+// covers a control in the Flight or Formation column. Measured for the one menu that is open.
+// Returns how many column controls lie within the menu's vertical span, so a caller can tell
+// the check had something to cover (a menu that spans no control can't fail it).
+async function expectMenuOverMapOnly(page, label) {
+  const found = await page.evaluate(() => {
+    const body = [...document.querySelectorAll('.debrief-menu-body')].find((el) => !el.hidden);
+    if (!body) return { error: 'no menu is open' };
+    const box = body.getBoundingClientRect();
+    const map = document.querySelector('.debrief-map-wrap').getBoundingClientRect();
+    const visible = (el) => el.getClientRects().length > 0 && !el.closest('[hidden]') && !el.classList.contains('visually-hidden');
+    const name = (el) => el.textContent.trim().slice(0, 30) || el.getAttribute('aria-label') || el.tagName;
+    const controls = [...document.querySelectorAll('.debrief-col button, .debrief-col input, .debrief-col select, .debrief-col summary, .debrief-col a[href], .debrief-col label.button')]
+      .filter(visible)
+      .map((el) => ({ name: name(el), r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.top < box.bottom && r.bottom > box.top);
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth,
+      box: { left: box.left, right: box.right, bottom: box.bottom },
+      map: { left: map.left, right: map.right, bottom: map.bottom },
+      spanned: controls.length,
+      covered: controls.filter(({ r }) => r.left < box.right && r.right > box.left).map((c) => c.name),
+    };
+  });
+  expect(found.error, label).toBeUndefined();
+  expect(found.scrollWidth, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(found.innerWidth);
+  expect(found.covered, `${label}: covers controls in a column`).toEqual([]);
+  expect(found.box.left, `${label}: leaves the window on the left`).toBeGreaterThanOrEqual(0);
+  expect(found.box.right, `${label}: leaves the window on the right`).toBeLessThanOrEqual(found.innerWidth);
+  expect(found.box.left, `${label}: starts left of the map`).toBeGreaterThanOrEqual(found.map.left - 1);
+  expect(found.box.right, `${label}: runs past the map`).toBeLessThanOrEqual(found.map.right + 1);
+  expect(found.box.bottom, `${label}: runs below the map`).toBeLessThanOrEqual(found.map.bottom + 1);
+  return found.spanned;
+}
+
 for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }]) {
   test(`at ${size.width} × ${size.height} every toolbar menu opens over the map only, in 2D and in 3D (RC-1)`, async ({ page }) => {
     await page.setViewportSize(size);
     await openRoute(page, '#/debrief');
     await loadExample(page);
 
-    const check = async (label) => {
-      const found = await page.evaluate(() => {
-        const body = [...document.querySelectorAll('.debrief-menu-body')].find((el) => !el.hidden);
-        if (!body) return { error: 'no menu is open' };
-        const box = body.getBoundingClientRect();
-        const map = document.querySelector('.debrief-map-wrap').getBoundingClientRect();
-        const visible = (el) => el.getClientRects().length > 0 && !el.closest('[hidden]') && !el.classList.contains('visually-hidden');
-        const covered = [...document.querySelectorAll('.debrief-col button, .debrief-col input, .debrief-col select, .debrief-col summary, .debrief-col a[href], .debrief-col label.button')]
-          .filter(visible)
-          .filter((el) => {
-            const r = el.getBoundingClientRect();
-            return r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top;
-          })
-          .map((el) => el.textContent.trim().slice(0, 30) || el.getAttribute('aria-label') || el.tagName);
-        return {
-          scrollWidth: document.documentElement.scrollWidth,
-          innerWidth,
-          box: { left: box.left, right: box.right },
-          map: { left: map.left, right: map.right },
-          covered,
-        };
-      });
-      expect(found.error, label).toBeUndefined();
-      expect(found.scrollWidth, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(found.innerWidth);
-      expect(found.covered, `${label}: covers controls in a column`).toEqual([]);
-      expect(found.box.left, `${label}: leaves the window on the left`).toBeGreaterThanOrEqual(0);
-      expect(found.box.right, `${label}: leaves the window on the right`).toBeLessThanOrEqual(found.innerWidth);
-      expect(found.box.left, `${label}: starts left of the map`).toBeGreaterThanOrEqual(found.map.left - 1);
-      expect(found.box.right, `${label}: runs past the map`).toBeLessThanOrEqual(found.map.right + 1);
-    };
-
-    // The Formation column open at its fullest, so its buttons are all there to be covered.
-    await page.getByRole('button', { name: 'More detail' }).click();
-    await page.getByRole('button', { name: 'Debrief settings' }).click();
-    for (const view of ['2D', '3D']) {
-      if (view === '3D') await page.getByText('3D', { exact: true }).click();
+    // Each menu in turn, opened and closed. The spans say which menus reached a column control's height.
+    const sweep = async (view) => {
+      const spans = {};
       const names = (await page.locator('.debrief-toolbar .menu-button:visible').allTextContents()).map((n) => n.trim());
       expect(names.length, `menus in ${view}`).toBeGreaterThanOrEqual(3);
       for (const name of names) {
         const button = page.locator('.debrief-toolbar .menu-button:visible', { hasText: name });
         await button.click();
         await expect(button).toHaveAttribute('aria-expanded', 'true');
-        await check(`${view} ${name}`);
+        spans[name] = await expectMenuOverMapOnly(page, `${view} ${name}`);
         await page.keyboard.press('Escape');
         await expect(button).toHaveAttribute('aria-expanded', 'false');
       }
+      return spans;
+    };
+    const switchTo = async (view) => {
+      await page.getByText(view, { exact: true }).click();
+      await expect(page.locator(view === '3D' ? 'canvas.debrief-3d' : 'canvas.debrief-2d')).toBeVisible();
+    };
+
+    // First with the Formation column as it opens (More detail closed), where the Weather menu is as tall as
+    // the column's buttons and would cover them: it must span at least one, or the check tests nothing.
+    for (const view of ['2D', '3D']) {
+      if (view === '3D') await switchTo('3D');
+      const spans = await sweep(view);
+      expect(spans.Weather, `${view}: the Weather menu spans no control in the columns, so covering one can't be tested`).toBeGreaterThan(0);
     }
+    // Then with the column open at its fullest.
+    await switchTo('2D');
+    await page.getByRole('button', { name: 'More detail' }).click();
+    await page.getByRole('button', { name: 'Debrief settings' }).click();
+    await sweep('2D, More detail open');
+    await switchTo('3D');
+    await sweep('3D, More detail open');
   });
 }
 
