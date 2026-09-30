@@ -11,7 +11,7 @@ import { turnProblem, TWO_SHIP_ONLY_TURNS } from './settings.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
-  buildField, errorFields, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
+  buildField, errorFields, clockAutoLabel, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
   REAR_DELAY, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
   CLOCK_POS, CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL, TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
 } from './fields.js';
@@ -94,11 +94,12 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const heading = field(START_HEADING);
   const maneuver = field(MANEUVER);
   // Why some turns are greyed out (settings.js turnProblem), or why the turn asked for was not the one flown (state.maneuverFallback).
-  const turnNote = h('p', { class: 'ts-hint ts-turn-note', hidden: true });
+  const turnNote = h('p', { class: 'ts-hint ts-turn-note', role: 'status', hidden: true });
   let turnFallback = null;
+  let turnSwitched = null; // set when picking a four-ship formation moved the Turn menu off the shackle or cross turn
   const direction = field(DIRECTION, 'choice');
   // In the cross turn Lead always turns toward #2 whatever the Direction says (SMM 16.19 para 64), so the choice is greyed out.
-  const directionNote = h('p', { class: 'ts-hint ts-direction-note', hidden: true });
+  const directionNote = h('p', { class: 'ts-hint ts-direction-note', id: 'ts-direction-note', hidden: true });
   let leadTurns = null;
   const legHeading = h('p', { class: 'ts-hint ts-leg-heading', hidden: true });
   const speed = field(SPEED);
@@ -107,6 +108,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const timing = field(TIMING);
   const baseDelay = field(BASE_DELAY);
   const clockPos = field(CLOCK_POS);
+  // The long-worded lists (Timing, Clock position) take a whole row, their label above, so no text is cut off (N10).
+  clockPos.element?.classList.add('ts-wide');
+  timing.element?.classList.add('ts-wide');
   // The auto step is worked out by the engine and shown here; it is never written over Base delay.
   const autoNote = h('p', { class: 'ts-hint ts-auto' }, 'Auto timing works out each aircraft\'s delay itself.');
 
@@ -120,7 +124,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const errorSections = [2, 3, 4].map((id) => {
     const f = errorFields(id);
     const built = Object.fromEntries(Object.entries(f).map(([name, def]) => [name, build(def)]));
-    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos));
+    const clockBoxes = h('div', { class: 'ts-clock' }, wrap(built.clockTarget), wrap(built.clockPos, ' ts-wide'));
     errorKeys.push(...Object.values(built).filter(Boolean).map((x) => x.key));
     const positionBoxes = h(
       'div',
@@ -301,16 +305,23 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
         option.disabled = TWO_SHIP_ONLY_TURNS.includes(value) && turnProblem(values.formation, value) !== null;
       });
     }
-    const why = turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
+    const why = turnSwitched ?? turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
     turnNote.textContent = why ?? '';
     turnNote.hidden = !why;
   }
 
   function applyDirection(values) {
     const cross = values.maneuver === 'cross180';
-    controls.setDisabled('direction', cross);
-    directionNote.textContent = cross ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.` : '';
-    directionNote.hidden = !cross;
+    const shackle = values.maneuver === 'shackle45';
+    controls.setDisabled('direction', cross || shackle);
+    directionNote.textContent = cross
+      ? `Lead always turns toward #2${leadTurns ? `: ${leadTurns} in this run` : ''}.`
+      : shackle ? 'Both turn toward each other; direction doesn\'t apply.' : '';
+    directionNote.hidden = !(cross || shackle);
+    // The greyed-out Direction says why to a screen reader too.
+    const fieldset = direction.built?.control;
+    if (cross || shackle) fieldset?.setAttribute('aria-describedby', directionNote.id);
+    else fieldset?.removeAttribute('aria-describedby');
   }
 
   function applyScenario(values) {
@@ -321,10 +332,14 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     clockPos.element.hidden = values.timing !== 'clock';
     autoNote.hidden = values.timing !== 'auto';
     groups.clock.hidden = values.timing !== 'clock';
+    // Auto's words follow the turn (N7): the Delayed 45 rolls out on 4:30 and 7:30.
+    for (const option of [clockPos.element, ...clockGroups].flatMap((el) => [...(el?.querySelectorAll('option') ?? [])])) {
+      if (option.textContent.startsWith('Auto (')) option.textContent = clockAutoLabel(values.maneuver); // option values are indexes, so find it by its words
+    }
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
     groups.cross.hidden = values.maneuver !== 'cross180';
-    groups.twoSide.hidden = values.formation === 'offsetBox';
+    groups.twoSide.hidden = values.formation !== 'weighted' && values.formation !== 'weightedReverse'; // it only mirrors 4312 and 2134
     if (turnDegInput) turnDegInput.max = values.maneuver === 'check30' ? '30' : '180'; // the check turn is 30 degrees or less (SMM 16.19 para 58)
     correctionOn.checked = values.correction !== 'none';
     for (const el of correctionBoxes) el.hidden = values.correction === 'none';
@@ -366,6 +381,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     setNote(text) {
       note3d.textContent = text ?? '';
       note3d.hidden = !text;
+    },
+    /** The note that says the Turn menu was moved to the default turn (text), or null to drop it. */
+    setTurnSwitched(text) {
+      turnSwitched = text ?? null;
     },
     applyScenario,
     applyLayout,

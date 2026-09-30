@@ -9,7 +9,9 @@
 // stop() frees every model, the sky, the renderer and its WebGL context and stops
 // the frame, so a paused or 2D screen holds no GPU resources (R4). The canvas is
 // made new for each start, because a WebGL context that was released cannot be
-// used again. The view draws one frame when asked (requestDraw): while the fight
+// used again. If the browser takes the context away while 3D shows (the graphics card was reset), the view
+// frees everything and tells the screen (onLost), which shows 2D with a note; the fight is not touched. The
+// view draws one frame when asked (requestDraw): while the fight
 // plays, or when the camera moves, and never otherwise.
 //
 // The camera is ui-kit's matchProjection, with points placed through altToZ;
@@ -25,6 +27,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
 import { MIN_REACH_FT } from './view.js';
+import { passMarkWord } from './geometry.js';
 
 /** The fight's heights go in as they are: no height scale in 3D (the 2D side view's scale is for that view only). */
 export const ALT_SCALE = 1;
@@ -290,9 +293,11 @@ export function cameraFor(cam, { bounds, fight, size }) {
  *   handlers stay on it while each start() puts a new canvas inside).
  * timers: the module's scheduler scope (frame). run(): the run to draw now, { fight, trails }.
  * paint(): 'harvard' or 'ship'. load: how three.js is fetched (ui-kit's loadThree; a test gives its own).
+ * onLost(): called once when the browser takes the WebGL context away while 3D is showing (the graphics card
+ *   was reset). By then the view has freed everything and stopped drawing, so the screen only has to show 2D.
  * win: for tests. Returns { start, stop, requestDraw, setView, stats, dispose }.
  */
-export function createView3d(host, { timers, run, paint, load = loadThree, win = globalThis }) {
+export function createView3d(host, { timers, run, paint, onLost = () => {}, load = loadThree, win = globalThis }) {
   const doc = host.ownerDocument;
   let THREE = null;
   let gl = null; // the scene and everything that holds GPU resources, only between start() and stop()
@@ -314,14 +319,28 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     return el;
   }
 
+  /** What build() throws when there is no WebGL 2; `webgl1` says whether WebGL 1 is there, for the wording of the note. */
+  function noWebgl2() {
+    const err = /** @type {Error & { webgl1: boolean }} */ (new Error('no WebGL 2'));
+    err.webgl1 = false;
+    try {
+      const probe = doc.createElement('canvas');
+      const context = probe.getContext('webgl') || probe.getContext('experimental-webgl');
+      err.webgl1 = Boolean(context);
+      context?.getExtension?.('WEBGL_lose_context')?.loseContext(); // the spare context is released at once
+    } catch {
+      // no WebGL 1 either
+    }
+    return err;
+  }
   function build() {
     const canvas = doc.createElement('canvas');
     canvas.className = 'tf-3d-canvas';
     // Checked first (ui-kit's webglSupported, WebGL2 as three needs), so a browser with no WebGL is told apart
     // from any other failure without three.js logging an error.
-    if (!webglSupported({ document: doc })) throw new Error('no WebGL');
+    if (!webglSupported({ document: doc })) throw noWebgl2();
     const context = canvas.getContext('webgl2', { antialias: true });
-    if (!context) throw new Error('no WebGL');
+    if (!context) throw noWebgl2();
     const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true });
     try {
       buildScene(canvas, renderer);
@@ -330,6 +349,22 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
       renderer.forceContextLoss?.();
       throw err;
     }
+    canvas.addEventListener('webglcontextlost', contextLost);
+  }
+  /**
+   * The browser took the context away (the graphics card was reset). three.js already calls preventDefault
+   * on this event (which asks the browser to restore the context); it is called here too so this does not
+   * depend on that. No restore is waited for: if the browser restores the old canvas, it is detached and
+   * nothing holds it, so it is collected. Everything is freed and the drawing stops, and the screen falls
+   * back to 2D: the fight is not touched. A loss that teardown() itself caused (it releases the context on
+   * purpose) is ignored, because by then the canvas is no longer the current one.
+   */
+  function contextLost(event) {
+    event.preventDefault?.();
+    if (!gl || event.target !== gl.canvas) return;
+    generation++;
+    teardown({ lost: true });
+    onLost();
   }
 
   function buildScene(canvas, renderer) {
@@ -488,6 +523,8 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, -22, -26, gl.labels.blue);
     at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, 12, -26, gl.labels.red);
     gl.labels.merge.style.display = showsMergeMark(fight) ? '' : 'none';
+    const markWord = passMarkWord(fight);
+    if (gl.labels.merge.textContent !== markWord) gl.labels.merge.textContent = markWord;
     at({ x: 0, y: 0, z: 0 }, 8, 22, gl.labels.merge);
     const noseText = firstNoseText(fight.firstNose);
     if (gl.labels.firstNose.textContent !== noseText) gl.labels.firstNose.textContent = noseText;
@@ -510,7 +547,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
   }
 
   /** Frees every GPU resource and the canvas; the camera choice stays for the next start. */
-  function teardown() {
+  function teardown({ lost = false } = {}) {
     stopFrame();
     resizer?.disconnect();
     resizer = null;
@@ -519,6 +556,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     if (!gl) return;
     const scene = gl;
     gl = null;
+    scene.canvas.removeEventListener('webglcontextlost', contextLost);
     for (const mesh of Object.values(scene.planes)) disposeCt156Model(mesh);
     for (const line of Object.values(scene.lines)) {
       line.geometry.dispose();
@@ -534,7 +572,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
     }
     scene.sky.dispose();
     scene.renderer.dispose();
-    scene.renderer.forceContextLoss?.();
+    if (!lost) scene.renderer.forceContextLoss?.(); // a context the browser already took is not released again
     host.replaceChildren();
     delete host.dataset.draws;
     drawn = 0;
@@ -597,14 +635,14 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
   host.setAttribute('role', 'img');
   host.setAttribute(
     'aria-label',
-    '3D view of the fight. Blue (B) and Red (R) fly toward each other and pass at the MERGE mark. Drag to turn it, scroll or pinch to zoom, press plus and minus to zoom and the arrow keys to turn it. The tables beside it give the numbers.',
+    '3D view of the fight. Blue (B) and Red (R) fly toward each other and turn at the MERGE or PASS mark, or at once. Drag to turn it, scroll or pinch to zoom, press plus and minus to zoom and the arrow keys to turn it. The tables beside it give the numbers.',
   );
   for (const [type, fn] of hands) host.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
 
   return {
     /**
      * Starts the 3D picture, loading three.js the first time. Resolves { ok: true }, or { ok: false, reason }:
-     * 'load' when three.js could not be fetched (offline), 'gl' when the browser can't draw 3D, and 'closed'
+     * 'load' when three.js could not be fetched (offline), 'gl' when the browser can't draw 3D, 'gl2' when it has WebGL 1 only (three.js needs WebGL 2), and 'closed'
      * when stop() or dispose() came first. A later call after a failure tries again.
      */
     async start() {
@@ -623,7 +661,7 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
       } catch (err) {
         console.warn('3D could not start:', err);
         teardown();
-        return { ok: false, reason: 'gl' };
+        return { ok: false, reason: err?.webgl1 ? 'gl2' : 'gl' };
       }
       if (win.ResizeObserver) {
         resizer = new win.ResizeObserver(() => requestDraw());

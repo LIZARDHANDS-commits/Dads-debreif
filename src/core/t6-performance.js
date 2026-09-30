@@ -17,8 +17,8 @@ import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js'
  * 09:29Z). The V-n curve itself reads about 89 kt (7 G near 236 KIAS), and the
  * turn charts imply about 83 kt at maximum power (likely because power on
  * lowers the stall speed, NFM p.6-6). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
- * mmo is the Mach limit, 0.67 (NFM Fig 4-1-2): slower than VMO above about
- * 18,800 ft in the NFM's KIAS, about 17,600 ft in the model's IAS (see maxKiasT6A).
+ * mmo is the Mach limit, 0.67 (NFM Fig 5-3, p.5-9): slower than VMO from
+ * about 18,900 ft (the NFM says 18,769). maxKiasT6A gives the top speed at a height.
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,
@@ -60,16 +60,40 @@ export function speedOfSoundKt(altFt) {
 }
 
 /**
- * The fastest the T-6A may fly at altFt, in KIAS: VMO (316), or Mmo (0.67)
- * where that is slower. The Mach line is in the model's own IAS (TAS × √σ, no
- * compressibility), so it starts near 17,600 ft and sits a few knots under the
- * NFM's KIAS line (270 against about 279 at 25,000 ft): the safe side. Good to
- * 36,089 ft; above that isaDensityRatio holds σ fixed, so the line goes flat
- * (209 KIAS), above the T-6A's 31,000 ft ceiling. altFt must be finite, or it throws a RangeError.
+ * Standard-day static pressure as a fraction of sea level: θ^5.25588 to
+ * 11 km, then falling exponentially at −56.5 °C.
+ */
+function isaPressureRatio(altFt) {
+  const h = altFt * M_PER_FT;
+  if (h <= 11000) return ((288.15 - 0.0065 * h) / 288.15) ** 5.25588;
+  return (216.65 / 288.15) ** 5.25588 * Math.exp(-9.80665 * (h - 11000) / (287.05287 * 216.65));
+}
+
+/**
+ * The KIAS an airspeed indicator reads at this Mach number and altFt: the
+ * standard calibrated airspeed, with compressibility, on a standard day.
+ * mach from 0 to under 1 (the subsonic formula) and a finite altFt, or it
+ * throws a RangeError.
+ */
+export function machToKiasKt(mach, altFt) {
+  if (!(mach >= 0 && mach < 1 && Number.isFinite(altFt))) {
+    throw new RangeError(`KIAS at Mach ${mach} and ${altFt} ft: needs Mach 0 to under 1 and a finite height`);
+  }
+  const a0 = speedOfSoundKt(0);
+  const impactOverP0 = isaPressureRatio(altFt) * ((1 + 0.2 * mach * mach) ** 3.5 - 1);
+  return a0 * Math.sqrt(5 * ((impactOverP0 + 1) ** (2 / 7) - 1));
+}
+
+/**
+ * The fastest the T-6A may fly at altFt, in KIAS, following the NFM's line
+ * (Fig 5-3, p.5-9): VMO 316, or Mmo 0.67 where that is slower (above about
+ * 18,800 ft; 279 KIAS at 25,000 ft). Like VMO, it is compared with the model's
+ * IAS as it stands; the model's IAS-to-TAS has no compressibility, so at this
+ * limit its true airspeed runs about 3 % over Mach 0.67 at 25,000 ft
+ * (SPEC-core, Known limits). altFt must be finite, or it throws a RangeError.
  */
 export function maxKiasT6A(altFt) {
-  const mmoKias = tasToIasKt(T6A_LIMITS.mmo * speedOfSoundKt(altFt), altFt);
-  return Math.min(T6A_LIMITS.vmoKias, mmoKias);
+  return Math.min(T6A_LIMITS.vmoKias, machToKiasKt(T6A_LIMITS.mmo, altFt));
 }
 
 /** Energy height in feet: altitude + V²/2g, V true airspeed. */
