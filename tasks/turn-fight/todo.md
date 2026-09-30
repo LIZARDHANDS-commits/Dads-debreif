@@ -15,7 +15,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 **Checkpoint A:** tests pass; code-review-and-quality; open PR A.
 
-- [ ] **3. The screen and playback.** Module registered; three columns with collapsible panels; setup controls with the spec's ranges; Play, Pause, Reset, speed, T+ and phase; the Result card; settings remembered with Reset to V6 defaults; Space and Home.
+- [ ] **3. The screen and playback.** Module registered; three columns with collapsible panels; setup controls with the spec's ranges; Play, Pause, Reset, speed, T+ and phase; the Result card; settings remembered with Reset to V6 defaults; Space and Home; the T-6 limit warning beside each G box.
   - Acceptance: R22 (only the essentials show by default); nothing overlaps at 1366 × 768 (R2); closing the module stops the fight clock (R4); a bad number is refused and the fight keeps its last good setup.
   - Verify: `npm test`; `npm run dev` and play a fight; accessibility checklist.
   - Dependencies: 2. Size M.
@@ -41,3 +41,23 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Dependencies: 5. Size S.
 
 **Checkpoint C:** open PR C; Patrick or Dad runs the checklist.
+
+## Energy mode (FF23), once Patrick approves it
+
+- [ ] **8. T-6A performance in `core`.** `T6A_LIMITS`, `stallLimitG`, `availableG`, IAS and TAS, and `excessThrustPerWeight` fitted to the sustained-turn chart points (kept with their reading notes). Test-first.
+  - Acceptance: the chart checks in the spec's Energy mode table; 7 G first at 227.5 KIAS.
+  - Verify: `node --test tests/unit/core/t6-performance.test.js`.
+  - Dependencies: none (built by the Flight math core thread, or here if the coordinator agrees). Size M.
+  - Files: src/core/t6-performance.js, src/core/t6a-turn-charts.js, tests/unit/core/t6-performance.test.js
+- [ ] **9. The point-mass step in `core`.** One RK4 step on the velocity vector, given G, bank and (T − D)/W. Test-first.
+  - Acceptance: a level turn gives `turnRadiusFt` and `turnRateRadPerSec` exactly; a 30° climbing turn at 220 KTAS and 4 G gives 22.4°/s; energy height stays constant round a loop with thrust equal to drag; no NaN straight up or down.
+  - Verify: `node --test tests/unit/core/point-mass.test.js`.
+  - Dependencies: none. Size S.
+  - Files: src/core/point-mass.js, tests/unit/core/point-mass.test.js
+- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with the six moves, the Energy checkbox and its settings, the extra readouts and flags, the altitude side view, and the hard-deck and low-speed stops.
+  - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
+  - Verify: `npm test`; e2e toggle; Dad flies each move.
+  - Dependencies: 5, 8, 9. Size M.
+  - Files: src/modules/turn-fight/{energy-sim,layout,profile,readouts}.js, tests/unit/turn-fight/energy-sim.test.js
+
+**Checkpoint D:** open PR D; add the Energy mode lines to the sign-off checklist.
