@@ -106,4 +106,10 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Dependencies: 16. Size M.
   - Files: src/modules/traffic/{sim,aircraft,readouts}.js, tests/unit/traffic/engine-out.test.js
 
+- [ ] **18. Traffic on final.** Extending downwind while the roll-out would be inside the final spacing of the aircraft ahead, rolling out on the 3° glide path wherever it meets it; the chance of missing the traffic (and a plan step for it); the aircraft on final moving over between the runways, flying a low approach at 200 ft and 120 KIAS and rejoining at the departure end.
+  - Acceptance: with final busy, the aircraft extends and rolls out behind by at least the final spacing; with a forced miss, the one on final moves over and the conflict shows; rewind still exact.
+  - Verify: `npm test`; unit tests with two aircraft set up to meet.
+  - Dependencies: 15. Size M.
+  - Files: src/modules/traffic/{sim,readouts}.js, tests/unit/traffic/final-traffic.test.js
+
 **Checkpoint G:** tests pass; code-review-and-quality; open PR G.
