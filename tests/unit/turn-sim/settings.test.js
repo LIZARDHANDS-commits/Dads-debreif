@@ -37,7 +37,7 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
 });
 
 test('the rebuild\'s defaults are V6\'s except G 3.0 (D113) and the offset box aft 7,000 ft (D114)', () => {
-  const changed = Object.keys(DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
+  const changed = Object.keys(V6_DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
   assert.deepEqual(changed, ['baseG', 'boxAftFt']);
   assert.equal(V6_DEFAULTS.baseG, 2.0);
   assert.equal(V6_DEFAULTS.boxAftFt, 8000);
@@ -57,11 +57,12 @@ test('V6 gives every aircraft no error, the global clock cue and auto turn logic
 
 test('every setting has a default, none is blank, and each default passes its own rule', () => {
   assert.deepEqual(Object.keys(SETTINGS_RULES).sort(), Object.keys(DEFAULTS).sort());
-  assert.deepEqual(Object.keys(V6_DEFAULTS).sort(), Object.keys(DEFAULTS).sort());
+  // The rear-delay band is not in V6, so only DEFAULTS has it.
+  assert.deepEqual(Object.keys(DEFAULTS).filter((k) => !(k in V6_DEFAULTS)).sort(), ['rearDelayMaxSec', 'rearDelayMinSec']);
   for (const [key, value] of Object.entries(DEFAULTS)) {
     assert.ok(value !== undefined && value !== null && value !== '', `${key} is blank`);
     assert.ok(settingIsValid(key, value), `${key} = ${value} fails its own rule`);
-    assert.ok(settingIsValid(key, V6_DEFAULTS[key]), `V6's ${key} fails its own rule`);
+    if (key in V6_DEFAULTS) assert.ok(settingIsValid(key, V6_DEFAULTS[key]), `V6's ${key} fails its own rule`);
   }
 });
 

@@ -63,10 +63,6 @@ export const V6_DEFAULTS = Object.freeze({
   rearCheckDir: 'left', // 'left' | 'right'
   rearCheckAngleDeg: 20,
   rearCheckHoldSec: 5,
-  // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
-  // The band is a setting; nothing flies with it yet (task 11).
-  rearDelayMinSec: 10,
-  rearDelayMaxSec: 15,
 
   // Turn setup (lines 571 to 588)
   maneuver: 'delayed90away', // 'delayed90away' | 'delayed45away' | 'hook90' | 'shackle45' | 'cross180' | 'inplace90'
@@ -104,6 +100,10 @@ export const DEFAULTS = Object.freeze({
   baseG: 3.0,
   // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
   boxAftFt: 7000,
+  // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
+  // The band is a setting; nothing flies with it yet (task 11).
+  rearDelayMinSec: 10,
+  rearDelayMaxSec: 15,
 });
 
 const number = (min, max) => ({ type: 'number', min, max });

@@ -82,8 +82,11 @@ function newAircraft(slot, settings) {
 }
 
 /**
- * Starts a run from a settings object (settings.js; anything missing takes its
- * default). Returns:
+ * Starts a run from a settings object (settings.js; anything missing or undefined
+ * takes its default). Settings from the screen or storage must come from
+ * checkSettings: the engine does not check ranges itself (the golden runs pass
+ * out-of-range values on purpose). A non-finite Duration falls back to the
+ * default, so a run always ends. Returns:
  *
  *   state    live, updated in place after every reset, step and startLeg:
  *            { tSec, finished, turnComplete, canStartLeg,
@@ -165,7 +168,11 @@ export function createRun(settings) {
   }
 
   function reset(next) {
-    if (next !== undefined) cfg = { ...DEFAULTS, ...next };
+    if (next !== undefined) {
+      const given = Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined));
+      cfg = { ...DEFAULTS, ...given };
+      if (!Number.isFinite(cfg.durationSec)) cfg.durationSec = DEFAULTS.durationSec;
+    }
     formation = cfg.formation;
     startHeadingDeg = cfg.startHeadingDeg;
     const ids = activeIds(cfg.formation);

@@ -16,6 +16,7 @@ const LAT_DIRS = ['none', 'tight', 'wide'];
 const FORE_DIRS = ['none', 'fore', 'aft'];
 const pick = (r, list) => list[Math.floor(r() * list.length)];
 
+// The seeds deliberately bypass checkSettings ranges (e.g. a 720° heading): V6 accepts them, so the port must match.
 /** Settings for one case: V6's own values, with the formation and error boxes varied. */
 function* cases() {
   const r = seeded(0x70a1);

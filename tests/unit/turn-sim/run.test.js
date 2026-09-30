@@ -227,3 +227,15 @@ test('the engine touches no page: no window, document, timers or animation frame
     assert.doesNotMatch(code, /\b(window|document|localStorage|setTimeout|setInterval|requestAnimationFrame|performance\.now|Date\.now)\b/, file);
   }
 });
+
+test('undefined settings take their default, and a non-finite duration cannot make a run endless', () => {
+  assert.equal(createRun({ ...V6, baseG: undefined }).state.aircraft[0].g, 3);
+  const run = createRun({ ...V6, durationSec: NaN });
+  let steps = 0;
+  while (run.step() && steps < 100000) steps++;
+  assert.ok(run.state.finished && steps < 100000);
+  const inf = createRun({ ...V6, durationSec: Infinity });
+  steps = 0;
+  while (inf.step() && steps < 100000) steps++;
+  assert.ok(inf.state.finished);
+});
