@@ -1,0 +1,44 @@
+name: CodeQL
+
+# Scans our JavaScript and the workflows for common security mistakes (D142).
+# Results show under the repo's Security tab; it never blocks the site deploy.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * 1' # Mondays
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          # V6's untouched original and the media are not our code.
+          config: |
+            paths-ignore:
+              - original
+              - public/media
+              - public/examples
+              - tests/fixtures
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
