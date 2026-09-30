@@ -270,6 +270,31 @@ test('no accessibility violations at first, with a route picked, and with the se
   await expectNoA11yViolations(page);
 });
 
+// A hint under a box shows while the box has focus. It must never move the Reset button: the
+// first click on Reset blurs the box, and if the button moved away the click was lost.
+test('Reset to defaults works on the first real click after typing in a settings box, and the button never moves', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  const lateral = page.getByLabel('Conflict: lateral');
+  const reset = page.getByRole('button', { name: 'Reset to defaults' });
+  await reset.scrollIntoViewIfNeeded();
+  const topWithout = (await reset.boundingBox()).y;
+  await lateral.focus();
+  await expect(page.locator('.settings-item:focus-within .settings-hint')).toBeVisible();
+  expect((await reset.boundingBox()).y, 'the hint takes no room').toBe(topWithout);
+  await lateral.fill('350');
+  await expect(lateral).toHaveValue('350');
+  expect((await reset.boundingBox()).y).toBe(topWithout);
+  await reset.click(); // one real mouse click
+  await expect(lateral).toHaveValue('200');
+  // The same after Enter.
+  await lateral.fill('350');
+  await lateral.press('Enter');
+  expect((await reset.boundingBox()).y).toBe(topWithout);
+  await reset.click();
+  await expect(lateral).toHaveValue('200');
+});
+
 test('the Conflicts list says "No conflicts." until two aircraft are close, then names the pair with a word and a symbol', async ({ page }) => {
   await open(page);
   const list = page.getByRole('region', { name: 'Conflicts' });

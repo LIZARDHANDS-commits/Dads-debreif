@@ -505,9 +505,25 @@
   font-size: var(--text-sm);
 }
 
+/* The hint floats under its box instead of pushing the controls below it down: if it took room, the
+   Reset button would move when a box lost focus on mousedown, and the click would miss it. */
+[data-module='traffic'] .settings-item {
+  position: relative;
+}
+
 [data-module='traffic'] .settings-item .settings-hint {
   display: none;
-  margin: calc(-1 * var(--space-2)) 0 var(--space-2);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  margin: calc(-1 * var(--space-2)) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  pointer-events: none;
 }
 
 [data-module='traffic'] .settings-item:hover .settings-hint,
