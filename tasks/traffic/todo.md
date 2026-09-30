@@ -25,7 +25,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: `npm test`; `npm run dev`; e2e smoke and switching.
   - Dependencies: 3. Size M.
   - Files: src/modules/traffic/{index,layout,map2d}.js, traffic.css, src/shell/registry.js (via the app frame thread)
-- [ ] **5. The left side: define routes.** Routes list; + Pattern, + Entry, + Split as new routes linked to the selected pattern; selected route setup per kind; the labelled point table (keeps focus); + Point and Delete point; drag points on the map; links by point, not number, with linked ends moving together; an entry or split may join a point on any route (a type's own pattern joining shared straight-in legs); Duplicate, Delete with its warning; Route options; Leg distances; turn-data flags for turns that don't fit.
+- [ ] **5. The left side: define routes.** Routes list; + New route (Pattern, Entry, Split) making new routes linked to the selected pattern, no route selected on open; selected route setup per kind; the labelled point table (keeps focus); + Point and Delete point; drag points on the map; links by point, not number, with linked ends moving together; an entry or split may join a point on any route (a type's own pattern joining shared straight-in legs); Duplicate, Delete with its warning; Route options; Leg distances; turn-data flags for turns that don't fit.
   - Acceptance: fixes #44 and the editor parts of #45 and #49 as the spec lists; the map redraws on each edit; keyboard-only editing works.
   - Verify: unit tests of links through insert, delete and drag; e2e: define a pattern and an entry.
   - Dependencies: 4. Size M.
@@ -74,8 +74,8 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Verify: `npm test`.
   - Dependencies: 2 (and 9 for the dice). Size S each.
   - Files: src/modules/traffic/{route,sim,dice,aircraft,profile}.js, the golden tests, data/moose-jaw.json (T1's shares, T5's phases)
-- [ ] **13. Polish and sign-off checklist.** code-simplification and `/simplify` with the golden tests still green; README (R8); `docs/checklists/traffic.md` for Patrick or Dad to run against V6 (R21).
-  - Acceptance: definition of done; the checklist covers every row of the spec's screen table, every fix, and the wind.
+- [ ] **13. Polish and sign-off checklist.** code-simplification and `/simplify` with the golden tests still green; README (R8); `docs/checklists/traffic.md` for Patrick or Dad to run against V6 (R21); a test that a fresh open has every value in the spec's Defaults table (Patrick, 07:13Z).
+  - Acceptance: definition of done; the checklist covers every row of the spec's screen table, every fix, and the wind, and starts with a first open: press Play and traffic flies, with nothing typed and only the default controls showing.
   - Verify: `npm test`, `npm run test:e2e`, `npm run build`.
   - Dependencies: 12. Size S.
   - Files: src/modules/traffic/README.md, docs/checklists/traffic.md
