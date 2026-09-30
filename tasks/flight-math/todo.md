@@ -48,3 +48,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 - [x] **D77:** the ±3° cone and INTERCEPT-needs-in-cone are confirmed; wording only.
 - [x] **D78 (#21):** when the offset standard is on, it alone judges #3's fore/aft in the debrief. Tests changed first (red), then `classifyDebriefPosition`.
 - [x] **D114-D116, the SMM's standards:** sweep check (D116), lead speed by block (D115), then `DEFAULT_STANDARDS` with the offset box at 7,000 ± 1,000 (D114), each its own commit, V6 still pinned. Next, outside core: the debrief's readouts and editor handle the new fields, then `app.standards` seeds from `DEFAULT_STANDARDS` with a stored-version bump.
+
+## For the Traffic Sim
+
+- [x] **Task 13: `wind.js`** (SPEC-traffic): `windTriangle`, new math with known-answer tests first; nothing in V6 to pin. Patrick approved SPEC-traffic at 06:43Z.
