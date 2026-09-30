@@ -61,7 +61,7 @@ Out, for now:
 
 ### Limit checks
 
-V6's thresholds, with Patrick's answers to Q27 and Q28 (2026-09-30).
+V6's thresholds, with Patrick's answers to Q27 (D57) and Q28 (D58), 2026-09-30.
 
 - **Below (red).** A report is below a limit when the ceiling is **strictly below** the ceiling limit, or the visibility is strictly below the visibility limit. This is V6's rule (`<`), confirmed by Patrick (Q27): "below a limit, not at or below".
 - **At the limit (yellow).** When nothing is below, a ceiling exactly on its limit or a plain visibility exactly on its limit is `atLimit` (Q27: "at limit can be yellow"). At the home limits, `3SM BKN020` is at the limit, not below it. `M3SM` against a 3 SM limit is below; `P6SM` against a 6 SM limit is not at it.
@@ -158,7 +158,7 @@ tests/unit/wx/
 
 Logged as Q27 (WX-1) to Q30 (WX-4). Patrick answered all four on 2026-09-30.
 
-- **WX-1 / Q27, answered.** Below stays strictly below (`<`); exactly at a limit is yellow. See "Limit checks".
-- **WX-2 / Q28, answered.** `VCTS`, `CB`/`TCU`, `FC`, `+FC` and other dangerous weather raise an acknowledgeable caution; snow and shallow fog stay information only. The list is under "Limit checks".
-- **WX-3 / Q29, answered.** The home trigger is 2000 ft / 3 SM, and its label must read 2000/3 to match the check. V6's fixed "DEST TRIGGER <3000 FT / 3 SM" label was wrong; `wx` has no 3000 ft figure, and the SOF builds its label from the limits it passes in, so the label can never drift from the check again.
-- **WX-4 / Q30, answered, not built yet.** Alternates are checked over a window, not only at the ETA, following the Canadian IFR alternate rules. Until those rules are written into this spec, `assessAlternate` keeps V6's point-in-time check and the GNSS-only `needs-mea` status.
+- **WX-1 / Q27, answered (D57).** Below stays strictly below (`<`); exactly at a limit is yellow. See "Limit checks".
+- **WX-2 / Q28, answered (D58).** `VCTS`, `CB`/`TCU`, `FC`, `+FC` and other dangerous weather raise an acknowledgeable caution; snow and shallow fog stay information only. The list is under "Limit checks".
+- **WX-3 / Q29, answered (D59).** The home trigger is 2000 ft / 3 SM, and its label must read 2000/3 to match the check. V6's fixed "DEST TRIGGER <3000 FT / 3 SM" label was wrong; `wx` has no 3000 ft figure, and the SOF builds its label from the limits it passes in, so the label can never drift from the check again.
+- **WX-4 / Q30, answered (D60), not built yet.** Alternates are checked over a window, not only at the ETA, following the Canadian IFR alternate rules. Until those rules are written into this spec, `assessAlternate` keeps V6's point-in-time check and the GNSS-only `needs-mea` status.
