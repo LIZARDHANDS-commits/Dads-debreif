@@ -659,6 +659,7 @@ test('the focus box is the first showing pattern and the flying aircraft near it
   assert.deepEqual(focusBounds([p1], [flying(-501, 200)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside on the left');
   assert.deepEqual(focusBounds([p1], [flying(500, 901)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside above');
   assert.deepEqual(focusBounds([p1], [flying(500, -501)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside below');
+  assert.deepEqual(focusBounds([p1], [flying(500, -500)]), { minX: 0, minY: -500, maxX: 1000, maxY: 400 }, 'just inside below');
   assert.deepEqual(focusBounds([p1], [flying(-500, 900)]), { minX: -500, minY: 0, maxX: 1000, maxY: 900 }, 'a corner exactly on the limit is in');
   assert.deepEqual(focusBounds([far, { ...p1, visible: false }]), sceneBounds([far, { ...p1, visible: false }]), 'no pattern showing: every route');
   assert.deepEqual(focusBounds([far]), sceneBounds([far]));
