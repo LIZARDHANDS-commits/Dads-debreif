@@ -113,3 +113,21 @@ Spec waiting for Patrick's approval. Build starts once he approves it and the co
   - Files: src/modules/traffic/{sim,readouts}.js, tests/unit/traffic/final-traffic.test.js
 
 **Checkpoint G:** tests pass; code-review-and-quality; open PR G.
+
+- [ ] **19. The prediction and the threshold.** One function that predicts each aircraft's position a few seconds ahead on its current path, with the wind, and checks it against the conflict limits; the option at the threshold (full stop, touch-and-go, low approach, go-around) as a decision point; runway occupied (clearing time default 45 s) giving a low approach and go-around; the rules list with a checkbox each.
+  - Acceptance: the prediction matches the sim's own run to within one step; shares at the threshold hold over 20,000 landings; an aircraft landing behind a full stop within 45 s goes around.
+  - Verify: `npm test`.
+  - Dependencies: 18. Size M.
+  - Files: src/modules/traffic/{predict,sim,readouts}.js, tests/unit/traffic/predict.test.js, tests/unit/traffic/threshold.test.js
+- [ ] **20. Break-out, fly-through, break at the departure end.** The three rules on their triggers, each with its row message.
+  - Acceptance: a joining aircraft that would conflict breaks out 45° away, climbs above pattern height and rejoins; with a PFL crossing initial, the aircraft flies through and rejoins crosswind; rewind still exact.
+  - Verify: `npm test`; unit tests with set-up pairs.
+  - Dependencies: 19. Size M.
+  - Files: src/modules/traffic/sim.js, tests/unit/traffic/rules.test.js
+- [ ] **21. Closed pattern rules and flapless.** Closed pattern extend and unable-rejoin; the flapless aircraft option and plan step.
+  - Acceptance: a closed pattern with downwind busy waits along the departure leg, and joins the normal pattern if there's still no room; a flapless CT-156 crosses the threshold at 110 KIAS.
+  - Verify: `npm test`.
+  - Dependencies: 19. Size S.
+  - Files: src/modules/traffic/{sim,types,aircraft}.js, tests/unit/traffic/closed-flapless.test.js
+
+**Checkpoint H:** tests pass; code-review-and-quality; open PR H.

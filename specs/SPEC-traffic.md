@@ -287,6 +287,32 @@ Later ideas logged in the plan doc: a go-around or low approach as a choice at t
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
+### More pattern procedures from the SMM (Patrick, 2026-09-30, 06:15Z)
+
+Patrick asked what else from the SMM's traffic pattern and abnormal procedures the sim should fly, naming break-outs and fly-throughs. The SMM's chapter 4 gives these. The sim has no controller, so each one is a **rule** that fires on its trigger, the way the extension and the move-over do (task 18). The rules are listed under Conflict limits with a checkbox each, all on by default because they're how the pattern really works, and each aircraft row says when one fired ("Broke out: conflict joining downwind").
+
+**Recommended now (tasks 19 to 21):**
+
+| Procedure | What the sim does | Trigger | SMM |
+|---|---|---|---|
+| **The option at the threshold** | A decision point at every threshold: full stop, touch-and-go, low approach and go-around, with shares (or the aircraft's plan). A touch-and-go goes back up the departure leg into the pattern or a closed pattern; a low approach levels at 200 ft above the runway at 120 KIAS, then goes around | The aircraft reaches the threshold | 4.13, 4.21, 4.22, 4.28 para 72 |
+| **Runway occupied** ("continue with the gear") | If the aircraft ahead is still on the runway (a full stop takes a set time to clear, default 45 s), the one behind does a low approach and goes around instead of landing | Landing with the runway not yet clear | 4.28 para 77 |
+| **Break-out** | A climbing turn about 45° away from the pattern flow, level above pattern height, then back in by the nearest entry | An aircraft joining the pattern (on an entry, or Whiskey or Echo) would come inside the conflict limits of traffic already in it; traffic in the pattern has right of way | 4.15 para 35, 4.23 |
+| **Fly through** | At initial, instead of breaking, carries on to the departure end and turns crosswind to rejoin the pattern (breaking out if downwind traffic is in the way) | A PFL or other traffic would conflict with the break | 4.28 para 67 |
+| **Break at the departure end** | Delays the break to the departure end of the runway | Traffic would conflict with a normal break | 4.28 para 73 |
+| **Closed pattern: extend, or unable** | The closed pattern (climbing 180° at 45° to 60°, 140 KIAS, levelling at pattern height) is delayed along the departure leg until there's room on downwind; if there's no room by the end of the departure leg, the aircraft carries straight on and joins the normal pattern | Downwind traffic would be inside the conflict limits at the roll-out | 4.24, 4.28 paras 78, 79 |
+| **Flapless** | An aircraft option: Approach stays 120 KIAS, Landing becomes 110 KIAS, straight-in base at least 120 | Set on the aircraft when it's spawned, or in a plan | 4.25, 4.26, 14.2 |
+| **Rejoin via Whiskey or Echo** | Entries onto the extended downwind, drawn in the redraw (T8) | Route data | 4.28 para 76 |
+
+**Later (Future features, not in this spec's tasks):**
+
+- **Slide over or break to the inner runway** (SMM 4.28 paras 80, 81): needs the inner runway drawn and a second set of final routes.
+- **Early left or right** (SMM 4.28 para 75): an early climbing turn to crosswind for staff.
+- **The square circuit at uncontrolled airfields** (SMM 4.29): downwind a little further out, base when the threshold is about 45° behind, 3° glide path. This would make a better starter pattern for a home field other than Moose Jaw (T2) than V6's generic one.
+- **Automatic sequencing** (already noted): speed control and spacing along the whole pattern, not just on final.
+
+The triggers all use the same prediction: where each aircraft will be a few seconds ahead on its current path, with the wind, checked against the conflict limits. That's one function, tested once, and every rule above calls it.
+
 ### Changes that fix V6's bugs
 
 Each lands as its own commit after the golden test pins V6's behaviour, and that commit changes the golden test to say exactly what differs (D10). Approving this spec approves them; none changes the flight math.
@@ -380,6 +406,7 @@ src/modules/traffic/
   dice.js          the seeded dice (pure)
   types.js         the aircraft type table and phase speeds (pure data)
   profile.js       profile shape, V6 import of the built-in data, checks on read-back (pure)
+  predict.js       where each aircraft will be a few seconds ahead, for the rules (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
   view3d.js        the 3D view on a ui-kit canvas surface
@@ -453,7 +480,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 - With a wind set, each aircraft shows its crab angle and ground speed from its own type's airspeed, holds its route, and flies its turns at a steady bank, rolling in earlier with a tailwind and later with a headwind (Patrick's wind requirement, T6).
 - With the wind calm, every number is V6's (or a listed change).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
-- The break, the final turn onto a 3° final, PFLs and engine-outs fly as the manuals describe, with the key heights and flags shown (tasks 15 to 18).
+- The break, the final turn onto a 3° final, PFLs and engine-outs fly as the manuals describe, with the key heights and flags shown (tasks 15 to 18), and the SMM's threshold options, break-outs, fly-throughs and closed-pattern rules fire on their triggers (tasks 19 to 21).
 - Patrick or Dad signs off the checklist (R21).
 
 ## Plan
