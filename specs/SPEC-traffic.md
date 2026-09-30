@@ -167,7 +167,7 @@ V6 has no wind. Patrick asked for winds and their effect on each aircraft's crab
 
 **The wind.** One steady wind for the whole map, at every height: a direction it blows **from**, in degrees true as a METAR gives it, and a speed in knots. Default calm. It's saved with the profile. Wind that changes with height, gusts and turbulence are out of scope.
 
-**Speeds are indicated airspeeds (Patrick, T5).** Every speed in the sim, in the type table and on a route point, is indicated airspeed, as pilots fly it. The sim converts it to true airspeed at the aircraft's height with the standard atmosphere: TAS = IAS ÷ √σ, with σ from `core`'s `isaDensityRatio`. That's about 3 % more at 2,000 ft and 5 % more at 3,500 ft, so a 220 KIAS downwind at 3,500 ft is flown at about 231 KTAS. This makes every lap a few percent quicker than V6's, even in calm air, so it lands as its own logged change after the golden tests pin V6.
+**Speeds are indicated airspeeds (Patrick, T5).** Every speed in the sim, in the type table and on a route point, is indicated airspeed, as pilots fly it. The sim converts it to true airspeed at the aircraft's height with the standard atmosphere: TAS = IAS ÷ √σ, through `core`'s `iasToTasKt` (σ from `isaDensityRatio`; SPEC-core, T-6A performance). That's about 3 % more at 2,000 ft and 5 % more at 3,500 ft, so a 220 KIAS downwind at 3,500 ft is flown at about 231 KTAS. This makes every lap a few percent quicker than V6's, even in calm air, so it lands as its own logged change after the golden tests pin V6.
 
 **Straight legs: crab to hold the track.** Routes are ground tracks, as a pattern is flown. For an aircraft with true airspeed TAS on a leg whose track is T, with wind W from direction D:
 
@@ -271,26 +271,23 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
-- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it (NFM Fig 3-4, p.3-12): 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). Speed alone would give about 1,600 ft from 220 KIAS at 3,500 ft; the manual's own zooms gain 64 % to 71 % of that ideal (595 to 883 ft from 200 KIAS, 1,172 to 1,552 ft from 250 KIAS), so the sim uses 70 %, about 1,100 ft. Dad confirms these for the CT-156 (T10).
-- It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered (T-6A max glide chart; SMM 13.5 para 7), or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling, with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
+- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 1,100 ft. The zoom's numbers are `core`'s `zoomT6A` (SPEC-core, T-6A performance, from NFM Fig 3-4), shared with the other modules; Dad confirms them for the CT-156 (T10).
+- It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered, or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling (`core`'s `T6A_GLIDE`, from the T-6A max glide chart), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
 
 | Glide data | CT-156 (and CT-157 for now) | Where from |
 |---|---|---|
-| Best glide, clean, prop feathered | 125 KIAS, 2 NM per 1,000 ft | T-6A max glide chart (flight test; Patrick, 06:33Z); SMM 13.5 para 7 |
-| Gear down, prop feathered | 105 KIAS, 1.5 NM per 1,000 ft | T-6A max glide chart |
-| Landing flap and gear down, prop feathered | 95 KIAS, 1.1 NM per 1,000 ft | T-6A max glide chart |
-| Clean, prop **windmilling** (engine not shut down) | 110 KIAS, 1 NM per 1,000 ft: half the feathered glide | T-6A max glide chart; SMM 13.17 para 34c (PCL to OFF as soon as possible) |
+| Glide by configuration: clean or gear down or landing flap and gear, prop feathered or **windmilling** (half the feathered reach; SMM 13.17 para 34c, PCL to OFF as soon as possible) | `core`'s `T6A_GLIDE` and `glideSinkFpm` (SPEC-core, T-6A performance) | T-6A max glide chart (Patrick, 06:33Z); SMM 13.5 para 7 |
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
 | Clean turn while gliding | about 1,700 ft per 360° at 30° of bank, 125 KIAS | SMM 13.5 para 11 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
-| Zoom | 2 s delay, 20° nose up until 145 KIAS, 70 % of the speed-for-height trade | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
+| Zoom | `core`'s `zoomT6A` (SPEC-core, T-6A performance) | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
 | Airstart attempt | costs about 1,200 ft; not below 2,000 ft above the field | NFM Fig 3-5 notes, p.3-13; SMM 13.17 para 36 |
 
 Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
 
-**How the glide is flown.** The glide ratio (NM per 1,000 ft) is fixed through the air for each configuration, so the rate of descent is the true airspeed divided by it and grows with height, and the wind then stretches or shrinks the distance over the ground. The chart's distance lines agree (about 2 NM per 1,000 ft from any height, and weight makes almost no difference); its sink-rate column (1,350, 1,500, 1,850 and 2,350 ft/min) matches those ratios at a true airspeed about a quarter above the indicated one, so it isn't used directly. The engine-out check and the Engine out command have a **prop** choice: feathered (the default, as after PCL OFF) or windmilling, which halves the reach and shows why the SMM says to shut it down. Gear and flap follow the SMM: clean until the runway is assured (13.17 para 39), then gear down, then flap. Down the keys (a PFL, or an engine-out once it has joined one) the aircraft flies the SMM's taught 120 KIAS with the gear down, not the chart's 105 KIAS best-distance speed, and comes down at the rate the SMM's 2,600 ft per circle gives (about 2,150 ft/min); a straight gear-down stretch, such as carrying on from a high High Key, uses the same rate, which is slightly on the safe side (SMM 13.4 to 13.8).
+**How the glide is flown.** The glide ratio (NM per 1,000 ft) is fixed through the air for each configuration, so the rate of descent is the true airspeed divided by it and grows with height (`core`'s `glideSinkFpm`), and the wind then stretches or shrinks the distance over the ground. The chart's distance lines agree (about 2 NM per 1,000 ft from any height, and weight makes almost no difference); its sink-rate column (1,350, 1,500, 1,850 and 2,350 ft/min) matches those ratios at a true airspeed about a quarter above the indicated one, so it isn't used directly. The engine-out check and the Engine out command have a **prop** choice: feathered (the default, as after PCL OFF) or windmilling, which halves the reach and shows why the SMM says to shut it down. Gear and flap follow the SMM: clean until the runway is assured (13.17 para 39), then gear down, then flap. Down the keys (a PFL, or an engine-out once it has joined one) the aircraft flies the SMM's taught 120 KIAS with the gear down, not the chart's 105 KIAS best-distance speed, and comes down at the rate the SMM's 2,600 ft per circle gives (about 2,150 ft/min); a straight gear-down stretch, such as carrying on from a high High Key, uses the same rate, which is slightly on the safe side (SMM 13.4 to 13.8).
 
 The CT-102 and CT-114 have no glide data yet, so their rows don't offer Engine out and they can't fly a PFL; the button says why.
 
@@ -333,7 +330,7 @@ The triggers all use the same prediction: where each aircraft will be a few seco
 
 **Engine-out check.** A "what if" that works out, without flying it, whether an aircraft would make High Key, Low Key, Final Key or the runway if its engine quit now:
 - From any aircraft row (the Command menu's **Engine-out check**), or from an energy state you type in: a point on the map, heading, height, speed (KIAS), configuration (clean, gear down, or landing flap and gear down) and prop (feathered or windmilling).
-- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (NFM Fig 3-4: 2 s, 20° nose up to 145 KIAS, 70 % of the ideal trade), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air, stretched or shrunk by the wind; joining the key's circle at a tangent.
+- It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (`core`'s `zoomT6A`), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air (`T6A_GLIDE`), stretched or shrunk by the wind; joining the key's circle at a tangent.
 - An **airstart attempt** option subtracts about 1,200 ft first (NFM), and is refused below 2,000 ft above the field (SMM 13.17 para 36), so an instructor can show what trying a restart costs.
 - The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
 - Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
@@ -422,19 +419,23 @@ Everything V6's Traffic page does is already in `core` and pinned against its ow
 | `bankFromG`, `turnRadiusFromG` (lines 147 and 148), G limited to 1.01 to 9 | `bankDegFromG`, `turnRadiusFt`, `limitG(g, 9)` | `core-flight-math.test.js` |
 | `vFromHdg` (line 150) | `unitVectorFromCompassDeg` (north up) | `core-angles.test.js` |
 | `lonLatToPixel` (line 250) | `lonLatToWorldPixel` | `core-geo.test.js` |
-| (new) indicated to true airspeed | `isaDensityRatio` (TAS = IAS ÷ √σ) | `core-flight-math.test.js` |
+| (new) indicated to true airspeed | `iasToTasKt` (TAS = IAS ÷ √σ, through `isaDensityRatio`) | `tests/unit/core/t6-performance.test.js` |
+| (new) glide by configuration, and the sink rate | `T6A_GLIDE`, `glideSinkFpm` | `tests/unit/core/t6-performance.test.js` |
+| (new) the zoom | `zoomT6A` | `tests/unit/core/t6-performance.test.js` |
+
+The new rows are `core`'s one shared T-6A performance model (SPEC-core, "API, fifth PR: T-6A performance"; Patrick, 2026-09-30 06:58Z), which the Turn Fight and the Turn Sim also read. It holds the chart and manual numbers and checks them against each other; this module uses the numbers directly, so its answers never depend on the Turn Fight's drag fit.
 
 The route geometry (rounded turns, the arc, the steady-bank turn in a wind, the joined path), the flying, the dice and the conflict check are this module's own `route.js` and `sim.js`, as the Turn Sim owns its engine. If the Flight math core thread would rather own them, they move to `core` unchanged.
 
 **New in `core` for the wind** (asked of the Flight math core thread through the coordinator, because the debrief and the SOF crosswind (FF21) can use the same math):
 
 ```js
-// src/core/wind.js (proposed)
+// src/core/wind.js
 windTriangle(trackDeg, tasKt, windFromDeg, windKt)
   // → { crabDeg, headingDeg, groundSpeedKt, headwindKt, crosswindKt, canHoldTrack }
 ```
 
-With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed and no crab, exactly, which a test pins. Unit tests use known answers (the final example above, a pure headwind, a pure crosswind, a crosswind stronger than the airspeed). The Flight math core thread has drafted it (PR #100), held until this spec is approved. Its `groundTurnG` (the G needed to hold a ground-track circle) isn't needed any more, because turns hold a steady bank (T6); the steady-bank turn uses `turnRadiusFt` and `bankDegFromG`, which `core` already has.
+With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed and no crab, exactly, which a test pins. Unit tests use known answers (the final example above, a pure headwind, a pure crosswind, a crosswind stronger than the airspeed). It's on main (#120, 18ebeb8). Its `groundTurnG` (the G needed to hold a ground-track circle) isn't needed any more, because turns hold a steady bank (T6); the steady-bank turn uses `turnRadiusFt` and `bankDegFromG`, which `core` already has.
 
 Two more pieces come from other threads, through the coordinator:
 
@@ -452,7 +453,7 @@ src/modules/traffic/
   types.js         the aircraft type table and phase speeds (pure data)
   profile.js       profile shape, V6 import of the built-in data, checks on read-back (pure)
   predict.js       where each aircraft will be a few seconds ahead, for the rules (pure)
-  glide.js         zoom, glide and key reach for engine-outs, PFLs and the check (pure)
+  glide.js         engine-out path and key reach for engine-outs, PFLs and the check, with core's zoom and glide (pure)
   conflict-setup.js  finds start points and delays so two aircraft meet (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
