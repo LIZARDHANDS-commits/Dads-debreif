@@ -1,5 +1,5 @@
 // "Profiles and notes" (specs/SPEC-traffic.md: The screen, Profiles and notes; task 7, bug #48): a
-// collapsed section at the foot of the left column, so the first look stays simple (R22). It holds the
+// collapsed section at the top of the left column, so the first look stays simple (R22). It holds the
 // profile's name, the list of profiles (the built-in setups first, read-only, then the ones saved in
 // this browser), Save, Load, Delete, and the notes box.
 //

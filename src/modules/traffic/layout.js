@@ -43,9 +43,9 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
 
   // Slots for pieces built elsewhere; an empty one takes no room.
   const slot = (name) => h('div', { class: `traffic-slot traffic-slot-${name}` });
-  const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
+  const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
 
-  // Left column: the routes list, + New route, and the selected route's point table.
+  // Left column: Profiles and notes (closed: one line), the routes list, + New route, and the selected route's point table.
   const list = h('ul', { class: 'route-list' });
   const empty = h('p', { class: 'route-empty' }, 'No routes yet. Use + New route to make one.');
   const newRoute = createMenu({
@@ -65,7 +65,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
   } }, '✕');
   const tableSection = h('section', { class: 'point-table-section', hidden: true }, h('div', { class: 'point-table-head' }, tableTitle, tableClose), slots.pointTable);
   const routesPanel = createPanel({ title: 'Routes', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
-  routesPanel.body.append(list, empty, newRoute.element, tableSection, slots.leftExtras);
+  routesPanel.body.append(slots.profiles, list, empty, newRoute.element, tableSection, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
   const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Routes' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.
@@ -124,7 +124,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     element,
     /** The map's <canvas>, for createMap2d. */
     canvas,
-    /** Empty places for the pieces built elsewhere: pointTable, leftExtras, spawner, aircraft, conflicts, settings. */
+    /** Empty places for the pieces built elsewhere: pointTable, leftExtras, profiles, spawner, aircraft, conflicts, settings. */
     slots,
     /**
      * Shows the routes, one line each ({ id, name, kind, color, link? }), and which one is picked.

@@ -94,14 +94,14 @@ function mount(root, app) {
   });
   ui.slots.pointTable.append(editor.element);
   ui.slots.leftExtras.append(editor.message);
-  // Profiles and notes: a closed section at the foot of the left column (profiles-panel.js, profile.js).
+  // Profiles and notes: a closed section at the top of the left column, so it is in the first screen when opened (profiles-panel.js, profile.js).
   const profilesPanel = createProfilesPanel({
     store: profileStore,
     current: { name: start.entry?.kind === 'saved' ? start.profile.name : nextProfileName(profileStore.list().profiles.map((p) => p.name)), notes: start.profile.notes },
     capture: (name, notes) => captureProfile({ name, airfield, notes, setup, aircraft: sim.aircraftSpecs(), seed: sim.seed, settings: settings.get() }),
     load: (profile, entry) => loadProfile(profile, entry),
   });
-  ui.slots.leftExtras.append(profilesPanel.element);
+  ui.slots.profiles.append(profilesPanel.element);
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {} }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);

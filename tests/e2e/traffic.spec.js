@@ -633,6 +633,20 @@ test('after a keyboard Delete, focus stays inside Profiles and notes (PR-01)', a
   await expect(profileList(page)).toBeFocused();
 });
 
+test('with Profiles and notes open at 1280 x 800, its name, list and Save are inside the first screen, also with a route picked (UI-02)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await openProfiles(page);
+  for (const control of [profileName(page), profileList(page), button(page, 'Save'), button(page, 'Load'), button(page, 'Delete')]) await expect(control).toBeInViewport({ ratio: 1 });
+  await page.locator('[data-route-id="PAT1"]').click();
+  await expect(page.locator('.point-row')).toHaveCount(13);
+  for (const control of [profileName(page), button(page, 'Save')]) await expect(control).toBeInViewport({ ratio: 1 });
+  // And closed, it is one line above the routes: the first look is still the routes list.
+  await profilesToggle(page).click();
+  await expect(profileName(page)).toBeHidden();
+  await expect(page.locator('[data-route-id="PAT1"]')).toBeInViewport({ ratio: 1 });
+});
+
 test('a 40-character name with no spaces does not widen Profiles and notes at 1280 (PR-02)', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page);

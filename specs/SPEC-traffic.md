@@ -75,22 +75,22 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 
 ```
 ┌ Routes ──────────────────────┐┌ ▶ Play ⏪ Rewind −10s +10s Reset 8× ▾ 0:12:40 Running  250°T 20 kt 2D|3D Layers▾ Fit  Fit all ┐┌ Aircraft ──────────────────────┐
-│ Pattern 1   pattern          ││                                                                              ││ Spawn  CT-156 ▾  on Entry 1 ▾  │
-│ Entry 1     → Pattern 1 P8   ││                                                                              ││ Start at point 1  Delay 0 s    │
-│ Split 1     P6 → P1          ││                                                                              ││ Plan  Random ▾                 │
-│ + New route ▾                ││                                                                              ││ [+ Spawn]  [+ Pair, 20 s apart]│
-│                              ││                map: satellite, grid, routes, aircraft, bubbles               ││ ▸ Traffic settings             │
-│ Pattern 1 (selected)         ││                                                                              ││ A1 CT-157 Pattern 1 2,500 ft   │
-│ Name [Pattern 1]             ││                                                                              ││    GS 162 kt crab 7° R  Flying │
-│ #  Label     Alt  Speed  G   ││                                                                              ││ A2 CT-156 Entry 1  waiting     │
-│ 1  Threshold 1880 Final  -   ││                                                                              ││    starts at 2:17      ▸ Edit  │
-│ 6  Downwind  2500 Patt.  2 ◆ ││                                                                              ││                                │
-│ + Point  Delete point        ││                                                                              ││ Conflicts                      │
-│ ◆ Decision at P6: Stay 25 %, ││                                                                              ││ ⚠ CONFLICT A2/A5 180 ft lat,   │
-│   Split 1 25 %, Split 4 50 % ││                                                                              ││   120 ft vert                  │
+│ ▸ Profiles and notes         ││                                                                              ││ Spawn  CT-156 ▾  on Entry 1 ▾  │
+│ Pattern 1   pattern          ││                                                                              ││ Start at point 1  Delay 0 s    │
+│ Entry 1     → Pattern 1 P8   ││                                                                              ││ Plan  Random ▾                 │
+│ Split 1     P6 → P1          ││                                                                              ││ [+ Spawn]  [+ Pair, 20 s apart]│
+│ + New route ▾                ││                map: satellite, grid, routes, aircraft, bubbles               ││ ▸ Traffic settings             │
+│                              ││                                                                              ││ A1 CT-157 Pattern 1 2,500 ft   │
+│ Pattern 1 (selected)         ││                                                                              ││    GS 162 kt crab 7° R  Flying │
+│ Name [Pattern 1]             ││                                                                              ││ A2 CT-156 Entry 1  waiting     │
+│ #  Label     Alt  Speed  G   ││                                                                              ││    starts at 2:17      ▸ Edit  │
+│ 1  Threshold 1880 Final  -   ││                                                                              ││                                │
+│ 6  Downwind  2500 Patt.  2 ◆ ││                                                                              ││ Conflicts                      │
+│ + Point  Delete point        ││                                                                              ││ ⚠ CONFLICT A2/A5 180 ft lat,   │
+│ ◆ Decision at P6: Stay 25 %, ││                                                                              ││   120 ft vert                  │
+│   Split 1 25 %, Split 4 50 % ││                                                                              ││                                │
 │ ▸ Leg distances              ││                                                                              ││                                │
-│                              ││                                                                              ││                                │
-│ ▸ Profiles and notes         ││ Simplified: aircraft fly their routes at set speeds, no avoiding action.     ││                                │
+│                              ││ Simplified: aircraft fly their routes at set speeds, no avoiding action.     ││                                │
 └──────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘└────────────────────────────────┘
 ```
 
@@ -101,7 +101,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | **Selected route:** name; for an entry the pattern and point it joins; for a split the pattern and point it leaves and the pattern and point it rejoins. The point table: number, label, altitude (ft), speed, G. Speed is a phase (Entry, Pattern, Closed, Inner downwind, Straight-in base, Approach, Landing), so each aircraft flies its own type's indicated airspeed for that phase, or a fixed number every type flies (V6's way). **Decision points** are marked ◆ in the table and on the map; selecting one shows its choices (Stay on the pattern, Land, each split leaving there) with their shares, which must add up to 100 % | **Point table's More columns:** each point's position (east and north, ft); **Leg distances** (ft and NM, for the selected route, and with a wind set, each leg's headwind or tailwind and crosswind) |
 | **Spawner:** aircraft type, route, start point (numbered from 1, as everywhere else), delay from now (s), plan (Random, which follows the shares, or a plan picked from the list, see T1), + Spawn, + Pair (20 s apart, same route; both stop at 200 aircraft, the most a saved profile holds, and say so), Clear finished | **Edit** on an aircraft row: type, route, start time, plan, delete; **Plans** (under More): make or change a plan, a list of what the aircraft does at each decision point it meets, in order ("2 circuits, then Split 4 to the inner circuit, then land"); **More detail**: each aircraft's leg number, and with a wind set its true airspeed, heading, track, headwind or tailwind, crosswind, and the bank and G it's pulling now; **Aircraft types**: the type table (indicated airspeeds by phase, with where each number came from), read-only |
 | **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done; a **Command** menu on each row (see How you set up and control the traffic) | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4); final spacing and the chance of missing traffic (T11); the **Rules** list, a checkbox each, on by default |
-| **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes:** profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
+| **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes** (one closed line at the top of the left column, so opened it is in the first screen, verification UI-02): profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
 | The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch; 2D is the default): the routes as lines at their heights, the aircraft as 3D models (the shared T-6 for the CT-156 and CT-157, a simple shape for the other types until they have their own), banking with their turns; drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
 
 - **One settings menu (Patrick, 2026-09-30 07:20Z; SPEC-ui-kit "Settings menu (R22)").** Every setting in the right-hand column of the table above that is a number or a switch (Route options, Conflict limits with final spacing and the chance of missing traffic, the Rules checkboxes, and the photo's opacity, grid order and alignment) lives in one closed **Traffic settings** menu at the right column, under the spawner and above the aircraft list (verification TR-15: found without scrolling), in sections, with Reset to defaults (photo alignment resets to the setup's own). "More …" panels hold only extra readouts (leg distances, More detail). This replaces the separate Route options and Conflict limits panels and the photo options under Layers → More.

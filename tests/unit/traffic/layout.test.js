@@ -216,7 +216,11 @@ test('the right column has room for the spawner, the settings menu (above the ai
   assert.deepEqual([...body.childNodes], [ui.slots.spawner, ui.slots.settings, ui.slots.aircraft, ui.slots.conflicts], 'the settings menu sits under the spawner, above the readouts, so it is found without scrolling');
   assert.ok(routes.contains(ui.slots.pointTable));
   assert.ok(routes.contains(ui.slots.leftExtras));
-  assert.deepEqual(Object.keys(ui.slots), ['pointTable', 'leftExtras', 'spawner', 'aircraft', 'conflicts', 'settings']);
+  // Profiles and notes sit above the routes list, so opened it is in the first screen (UI-02).
+  const routesBody = ui.slots.profiles.parentNode;
+  assert.ok(routes.contains(ui.slots.profiles));
+  assert.equal(routesBody.childNodes[0], ui.slots.profiles, 'first in the left column');
+  assert.deepEqual(Object.keys(ui.slots), ['pointTable', 'leftExtras', 'profiles', 'spawner', 'aircraft', 'conflicts', 'settings']);
 });
 
 test('the one-line hint shows over the map when given, and goes away when cleared', () => {
