@@ -55,7 +55,13 @@ function compareLeg(page, run, label) {
 
 /** V6 next to the port through a first leg and, when asked, a second one that continues from where the aircraft are. */
 function compareRun(settings, label, { legs = 1 } = {}) {
-  const page = createV6Page(settings);
+  // D41 swapped "toward" and "away" back to what they say, so V6 is given the swapped names to fly the same turn.
+  const v6Settings = { ...settings };
+  for (const id of [1, 2, 3, 4]) {
+    const key = aircraftKey(id, 'turnLogic');
+    v6Settings[key] = { toward: 'away', away: 'toward' }[settings[key]] ?? settings[key];
+  }
+  const page = createV6Page(v6Settings);
   page.reset();
   page.play();
   const run = createRun(settings);

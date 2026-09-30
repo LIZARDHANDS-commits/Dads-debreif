@@ -2,7 +2,7 @@
 // timing is here (V6 `setupTurnStartsFor`, line 1174, with the trigger 'time').
 // The clock cue, auto timing and the offset box's solved delays come in tasks
 // 8, 9 and 11, so until then those timings fly as a plain time delay (see
-// planTurn). Ported unchanged from V6: D41 (toward and away), D43 and D44 (auto
+// planTurn). Ported from V6; D41 (toward and away) is fixed, D43 and D44 (auto
 // timing) and the others are their own commits later.
 //
 // Coordinates and headings are V6's (see formation.js). V6's "right" vector is
@@ -51,8 +51,10 @@ export function cueTargetForAircraft(a, aircraft, clockCueAircraft) {
  * The direction one aircraft turns under its own "Turn" logic (V6
  * `turnDirFromLogic`, line 1095): the selected direction, right, left, or
  * toward or away from its cue aircraft. `defaultDir` is what "auto" gives.
- * "Toward" and "away" are V6's as they stand (V6 line 1108 has them swapped
- * from what they say; D41 puts that right in its own commit).
+ * D41 (#15): "toward" turns toward the cue aircraft and "away" turns away from
+ * it. V6 (line 1104) had them swapped: it read its "right" vector (the map's
+ * left) as the aircraft's right, so an aircraft with the cue on its map-left
+ * turned right.
  */
 export function turnDirFromLogic(a, aircraft, defaultDir, { direction, clockCueAircraft }) {
   const logic = a.turnLogic || 'auto';
@@ -63,7 +65,7 @@ export function turnDirFromLogic(a, aircraft, defaultDir, { direction, clockCueA
     const target = cueTargetForAircraft(a, aircraft, clockCueAircraft);
     const side = sideOfAircraftFrom(a, target);
     if (side === 0) return defaultDir;
-    const toward = side > 0 ? -1 : 1; // target on the "right" vector side -> -1
+    const toward = side > 0 ? 1 : -1; // cue on the "right" vector side (the map's left) -> turn left (+1)
     return logic === 'toward' ? toward : -toward;
   }
   return defaultDir;

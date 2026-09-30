@@ -66,7 +66,7 @@ test('sideOfLead and sideOfAircraftFrom match V6', () => {
   }
 });
 
-test('the cue aircraft and turnDirFromLogic match V6 for every turn logic (D41 has not changed toward and away yet)', () => {
+test('the cue aircraft and turnDirFromLogic match V6 for every turn logic, except that D41 swaps toward and away back', () => {
   const seen = new Set();
   for (const { settings, page, mine } of layouts()) {
     const v6All = page.aircraft();
@@ -77,7 +77,11 @@ test('the cue aircraft and turnDirFromLogic match V6 for every turn logic (D41 h
         a.turnLogic = b.turnLogic = logic;
         for (const defaultDir of [-1, 1]) {
           const got = turnDirFromLogic(a, mine, defaultDir, settings);
-          assert.equal(got, page.v6.turnDirFromLogic(b, v6All, defaultDir), `${logic} ${JSON.stringify(settings)}`);
+          const v6 = page.v6.turnDirFromLogic(b, v6All, defaultDir);
+          // D41: V6's toward and away were swapped, so the port gives the opposite of V6 whenever there is a side;
+          // with the cue dead ahead or astern both give the default direction.
+          const flips = (logic === 'toward' || logic === 'away') && sideOfAircraftFrom(a, cueTargetForAircraft(a, mine, settings.clockCueAircraft)) !== 0;
+          assert.equal(got, flips ? -v6 : v6, `${logic} ${JSON.stringify(settings)}`);
           seen.add(`${logic}${got}`);
         }
       }
