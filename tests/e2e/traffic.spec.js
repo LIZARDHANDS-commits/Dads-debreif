@@ -189,6 +189,22 @@ test('+ Spawn and + Pair add nothing while a box they read is refused, and say w
   await expect(rows).toHaveCount(10);
 });
 
+test('the Traffic settings button is in the first screen at 1280 x 800 with the 7 built-in aircraft, above the aircraft list (TR-15)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await expect(page.locator('.aircraft-row')).toHaveCount(7);
+  const settings = page.getByRole('button', { name: /^Traffic settings/ });
+  await expect(settings).toBeInViewport({ ratio: 1 });
+  const box = await settings.boundingBox();
+  const list = await page.locator('.aircraft-list').boundingBox();
+  expect(box.y + box.height).toBeLessThanOrEqual(800);
+  expect(box.y + box.height).toBeLessThanOrEqual(list.y);
+  // More aircraft don't push it off the screen.
+  for (let i = 0; i < 3; i++) await button(page, '+ Spawn').click();
+  await expect(page.locator('.aircraft-row')).toHaveCount(10);
+  await expect(settings).toBeInViewport({ ratio: 1 });
+});
+
 test('the Traffic settings menu opens, and a route point can be changed on the left', async ({ page }) => {
   await open(page);
   const menu = page.getByRole('button', { name: /^Traffic settings/ });

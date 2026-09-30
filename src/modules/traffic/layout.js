@@ -79,10 +79,11 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
-  // Right column: the spawner, the aircraft list and the conflicts, with the Traffic settings
-  // menu (settings-panel.js) last, closed until asked for, and opening in the column's flow.
+  // Right column: the spawner, the Traffic settings menu (settings-panel.js: closed until asked for,
+  // opening in the column's flow, and above the aircraft list so it is found without scrolling, TR-15),
+  // then the aircraft list and the conflicts.
   const aircraftPanel = createPanel({ title: 'Aircraft', onToggle: (collapsed) => columnToggled('aircraft', !collapsed) });
-  aircraftPanel.body.append(slots.spawner, slots.aircraft, slots.conflicts, slots.settings);
+  aircraftPanel.body.append(slots.spawner, slots.settings, slots.aircraft, slots.conflicts);
   const aircraftCol = h('aside', { class: 'traffic-col traffic-col-aircraft', 'aria-label': 'Aircraft' }, aircraftPanel.element);
 
   const element = h('div', { class: 'traffic' }, h('h1', { class: 'visually-hidden' }, 'Traffic Pattern Sim'), routesCol, stage, aircraftCol);
