@@ -37,6 +37,10 @@ export function flownG(baseG, gError) {
  */
 function mayTurn(a, aircraft, tSec, flight) {
   if (a.active) return true;
+  if (a.followId) {
+    const front = aircraft.find((x) => x.id === a.followId);
+    return !!front && front.startedAtSec !== undefined && tSec >= front.startedAtSec + a.followDelaySec;
+  }
   if (flight.timing !== 'clock' || !a.cueArmed) return tSec >= a.turnStartSec;
   const target = a.autoClockTargetId ? aircraft.find((x) => x.id === a.autoClockTargetId) : cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
   if (!target || target.id === a.id) return tSec >= a.turnStartSec;
@@ -128,6 +132,7 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
         }
       }
     }
+    if (a.active && a.startedAtSec === undefined) a.startedAtSec = flight.tSec;
     let heading = a.headingRad;
     if (useCorrection && a.id !== 1) {
       const bend = (a.turnDir || 1) * degToRad(4) * flight.correctionStrength;

@@ -182,12 +182,12 @@ export function offsetBoxPlan(aircraft, cfg) {
     const mid = { xFt: (oneFinal.xFt + twoFinal.xFt) / 2, yFt: (oneFinal.yFt + twoFinal.yFt) / 2 };
     const slotTarget = { xFt: mid.xFt - fwd.x * aftFt, yFt: mid.yFt - fwd.y * aftFt };
     if (cfg.timing4 === 'rearDelay') {
-      // SMM 16.41 para 112a (default): the rear element turns together, rearDelaySec after the front element has started
-      // (the later of #1 and #2), so it misses them and flows to trail. V6's chain put #3 and #4 a base delay after each other.
-      const frontLast = Math.max(plan.delaysSec[1] || 0, plan.delaysSec[2] || 0);
-      const rearStart = frontLast + Math.max(0, cfg.rearDelaySec);
-      if (three) plan.delaysSec[3] = rearStart;
-      if (four) plan.delaysSec[4] = rearStart;
+      // SMM 16.41 para 112a and Figure 16.30 (default): the rear element flies the same delayed turn as the front element,
+      // shifted by rearDelaySec: #3 starts that long after #1 and #4 after #2, so #4 turns on the standard LAB cue
+      // from #3 whichever way the turn goes, and none starts before its front counterpart. V6 chained all four a base delay apart.
+      const shift = Math.max(0, cfg.rearDelaySec);
+      if (three) plan.delaysSec[3] = (plan.delaysSec[1] || 0) + shift;
+      if (four) plan.delaysSec[4] = (plan.delaysSec[2] || 0) + shift;
     } else if (three) {
       const solved = searchDelayToTarget(three, selectedDir, goalRad, slotTarget, speedFtps, radiusFt, base * 1.5, { baseG: cfg.baseG });
       plan.delaysSec[3] = solved.delaySec;
@@ -305,7 +305,7 @@ export function autoTimingStarts(aircraft, flight) {
  *   timing ('time', 'clock' or 'auto'), clockCueSequence ('outsideIn' or 'manual'), speedKt, spacingFt }
  * Returns { autoStepSec, rearDelaysSec }: the auto step when the timing is auto and the turn is a delayed one, else null;
  * and, in the offset box's delayed turns without the clock cue (and the hook), the delays { 3: s, 4: s } of #3 and #4 after
- * the front element's last start, else null.
+ * their front counterparts' starts (#3 after #1, #4 after #2), else null.
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
@@ -339,8 +339,6 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     timing4: flight.offsetBox4Timing,
     rearDelaySec: flight.rearDelaySec,
   }) : null;
-  // The rear element's delay is measured from the later front aircraft's start (SMM 112a).
-  const frontLastSec = offsetPlan ? Math.max(offsetPlan.delaysSec[1] || 0, offsetPlan.delaysSec[2] || 0) : 0;
   const delayIndex = {};
   order.forEach((a, i) => { delayIndex[a.id] = i; });
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
@@ -350,6 +348,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     let dir = selectedDir;
     let g = goal;
     let legs;
+    let followId = null;
 
     if (clockMode) {
       // The clock cue (V6 line 1197): with Outside-in, each aircraft but the first waits for the aircraft just outside it.
@@ -368,6 +367,9 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       a.autoClockTargetId = cueTarget ? cueTarget.id : null;
       a.cueArmed = !!cueTarget;
       d = 0;
+      // In the offset box #3 and #4 cannot see the cue aircraft (cues.js cantSee): they fly the rear delay instead, rearDelaySec
+      // after their front counterpart (#3 after #1, #4 after #2) has started (step.js mayTurn).
+      followId = form === 'offsetBox' && (a.id === 3 || a.id === 4) ? a.id - 2 : null;
     } else {
       if (delayed) {
         if (form === 'offsetBox') d = offsetPlan && offsetPlan.delaysSec[a.id] !== undefined ? offsetPlan.delaysSec[a.id] : delayIndex[a.id] * base;
@@ -424,6 +426,9 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.turnGoalRad = g;
     a.originalHeadingRad = a.headingRad;
     // A turn in several legs (the shackle): each leg its own way and angle, with a hold before it (step.js).
+    a.followId = followId;
+    a.followDelaySec = Math.max(0, +flight.rearDelaySec || 0);
+    a.startedAtSec = undefined;
     a.legs = legs;
     a.legIndex = 0;
     a.legAccumRad = 0;
@@ -436,6 +441,6 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   return {
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
-    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - frontLastSec, 4: offsetPlan.delaysSec[4] - frontLastSec } : man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null,
+    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - offsetPlan.delaysSec[1], 4: offsetPlan.delaysSec[4] - offsetPlan.delaysSec[2] } : man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null,
   };
 }
