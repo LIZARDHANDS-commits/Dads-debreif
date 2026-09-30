@@ -84,10 +84,11 @@ Each airfield has one approach type. It says which row of the CAP GEN table appl
 - `distanceNm` is the great-circle distance from the home field, from the two positions, rounded to 0.1 NM. It is `null` when either position is missing, which `wx` already reports as "distance unknown".
 - From CYMJ with V6's positions: CYQR 35 NM, CYYN 82 NM, CYXE 119 NM, so only CYXE clears 100 NM, matching the research.
 
-### Questions this spec doesn't answer (defaults until answered)
+### Questions (all answered)
 
-- **Answered:** Q40 (D79, the military rules are the civil rules above) and the GNSS visual descent (D80, above).
-- **Who fills in the four default airfields' approaches:** the app ships them as "Not set (600-2)", which is exactly V6. Anyone can enter the current approach type and lowest minima from the Canada Air Pilot, and they are kept in that browser.
+- **Q40:** the military rules are the civil rules above (D79).
+- **GNSS visual descent:** see above (D80). Patrick picked the sea-level reading of the MEA.
+- **Who fills in the default airfields' approaches:** each user, in Settings (Patrick, 2026-09-30, "agree with recommendations"). CYQR, CYYN and CYXE ship as "Not set (600-2)", exactly V6, because approach plates change every 56 days. The current approach type and lowest minima come from the Canada Air Pilot and are kept in that browser.
 
 ## The screen (R22)
 
