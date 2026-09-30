@@ -138,8 +138,22 @@ function resultModel(metar, conditions, limits, now, descent) {
   if (check.belowLimits) return { level: 'below', words: `Below limits: ${reasons.join(', ')}${note}`, reasons, stale };
   if (check.ceilingUnknown || check.visibilityUnknown) return { level: 'unknown', words: `Unknown: ${unknownWords(check, conditions)}${note}`, reasons: [], stale };
   if (check.atLimit) return { level: 'at-limit', words: `At the limit: ${reasons.join(', ')}${note}`, reasons, stale };
+  if (staleIsUnknown(metar)) return { level: 'unknown', words: `Unknown: ${metar.ageMin != null ? `report is ${formatDuration(metar.ageMin)} old` : 'report age unknown'}`, reasons: [], stale };
+  // A field closed for the night: what its last observation said, and until when it is closed.
+  if (metar.state === 'closed') {
+    const until = toDate(metar.noObsUntil);
+    return { level: 'within', words: until ? `Within limits at last observation (field closed until ${hhmmZ(until)})` : `Within limits${note}`, reasons: [], stale };
+  }
   return { level: 'within', words: `Within limits${note}`, reasons: [], stale };
 }
+
+/**
+ * A stale METAR (SPEC-sof, "Never: show a stale one as current") cannot say the weather is within the limits
+ * now, so a "within" on it is "unknown". Below or at the limit stays as it is, and a field closed for the night
+ * with its last observation is not stale, just closed. To go back to the old "Within limits (STALE report)",
+ * make this return false.
+ */
+const staleIsUnknown = (metar) => metar.state === 'stale';
 
 // wx's reasons start with CEILING or VIS for the limit lines; the rest are cautions.
 const limitReason = (r) => /^(CEILING|VIS) /.test(r);
@@ -159,6 +173,7 @@ const limitReason = (r) => /^(CEILING|VIS) /.test(r);
  *   600-2 is never used and the result is 'unknown', for the wave call to decide.
  * - `feed`: `{ lastTry, failed }` for the words about a missing or failed refresh.
  * - `now`: a Date. Without one every age is unknown and every report reads as stale.
+ * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any }} [input]
  */
 export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {} } = {}) {
   const at = toDate(now);

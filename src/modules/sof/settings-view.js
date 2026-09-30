@@ -24,8 +24,8 @@ export function createSettingsView({ settings }) {
   select.addEventListener('change', () => {
     select.value = String(TRIGGER_OPTIONS.findIndex((o) => o.value === view.get().trigger));
   });
-  const ceiling = controls.number('ceilingFt', { label: 'Home ceiling below', unit: 'ft', min: 0, max: 10000, step: 100 });
-  const visibility = controls.number('visSm', { label: 'Home visibility below', unit: 'SM', min: 0, max: 10, step: 0.25 });
+  const ceiling = controls.number('ceilingFt', { label: 'Home ceiling below', unit: 'ft', min: 0, max: 10000, step: /** @type {any} */ (100) });
+  const visibility = controls.number('visSm', { label: 'Home visibility below', unit: 'SM', min: 0, max: 10, step: /** @type {any} */ (0.25) });
   // Typing writes good numbers straight through; on commit (Enter, or leaving the box) the number snaps UP to its
   // step, the safe side, and the box shows what the check uses.
   for (const [field, key, snap] of [[ceiling, 'ceilingFt', snapCeiling], [visibility, 'visSm', snapVisibility]]) {
@@ -42,7 +42,7 @@ export function createSettingsView({ settings }) {
   );
 
   // Lightning near home (SOF-3): the radius the check and its ring on the map use.
-  const radius = controls.number('lightningNm', { label: 'Lightning radius around home', unit: 'NM', min: 5, max: 50, step: 1 });
+  const radius = controls.number('lightningNm', { label: 'Lightning radius around home', unit: 'NM', min: 5, max: 50, step: /** @type {any} */ (1) });
   menu.section('Lightning near home').append(
     radius,
     hint('A caution is raised when ECCC\'s 10-minute lightning map shows lightning within this distance of home. It is an estimate on a 2.5 km grid, not individual strikes.'),
@@ -51,6 +51,12 @@ export function createSettingsView({ settings }) {
   // Traffic relay (SOF-7): empty until Patrick's relay is set up; the Traffic layer stays hidden until it is a good address.
   const relay = relayField(settings);
   menu.section('Traffic').append(relay.element, hint('Leave empty to keep the Traffic layer hidden. The address is the relay only, such as https://traffic.example.workers.dev.'));
+
+  // The new-caution banner (V6's "New-alert caution box"), on to begin with. Off, the cards still show every caution.
+  menu.section('Cautions').append(
+    controls.checkbox('banner', { label: 'Show the new-caution banner' }),
+    hint('The banner lists cautions you have not acknowledged. The airfield cards show every caution either way.'),
+  );
 
   return {
     element: menu.element,

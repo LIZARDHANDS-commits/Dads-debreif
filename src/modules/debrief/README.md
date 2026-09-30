@@ -25,6 +25,8 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `weather/slices.js` | Weather at the time of the flight: the slice (frame, METAR, model hour) at or before the playback moment with its age, frame times to fetch, scrubber ticks, the nearest airfield. No page access. |
 | `weather/metar.js` | The METAR line: the IEM archive address, reading its reply, and the decoded line at a moment (decoding is `src/wx`'s `parseMetar`). No page access. |
 | `weather/metar-feed.js` | Fetches each airfield's METARs for the loaded flight once, only while the METAR item is on, and stops when the flight or the debrief closes. |
+| `weather/winds.js` | Winds aloft: the Open-Meteo archive address, reading its reply, the wind at Lead's altitude (blended between pressure levels) and the words on the Lead line. No page access. |
+| `weather/winds-feed.js` | Fetches the model winds for the loaded flight once per model, only while Winds aloft is on, and stops when the flight or the debrief closes. |
 | `weather/satellite.js` | The satellite layer: the GOES-West frame for a moment, its GIBS tile address and zoom limit, the 90-day limit and the line under the map. No page access. |
 | `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
 | `view3d/view.js` | The 3D view: three.js (loaded when 3D is first shown) draws the ground, trails, sticks and the CT-156 Harvard models on a WebGL canvas under the view's canvas, with ui-kit's `matchProjection` camera; the overlay goes on top. |
@@ -32,7 +34,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `view3d/input.js` | Turning the 3D view by hand: drag to orbit, the wheel or + and − to zoom. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
-| `standards-panel.js` | The Standards panel (closed at first): edits `app.standards`, the one copy the Turn Sim reads too. |
+| `standards-panel.js` | The Debrief settings menu (ui-kit's settings menu, closed at first): the standards editor, which edits `app.standards`, the one copy the Turn Sim reads too. |
 | `debrief-session.js` | What a saved debrief carries besides the tracks (DFPs, standards, time), flattened for flight-data's debrief file and read back. Tested in Node. |
 | `file-panel.js` | "Save, open, CSV": Save debrief, Open debrief, Export CSV, Close flight, and the example track files as downloads. |
 | `data/cymj.js` | Moose Jaw values the debrief still needs: field elevation and the VNC chart anchor. |

@@ -7,9 +7,11 @@ import { createCardsView } from './cards-view.js';
 
 /**
  * settingsElement: the settings menu's element. mapElement: the map's (map.js). onRefresh: the Refresh button's action.
+ * bannerElement, wavesElement, timelineElement: the other screen parts' elements, each
+ * in its own row (optional; each part draws itself).
  * Returns { element, render(screen), setBusy(on) }.
  */
-export function createLayout({ settingsElement, mapElement, onRefresh }) {
+export function createLayout({ settingsElement, mapElement = null, onRefresh, bannerElement = null, wavesElement = null, timelineElement = null }) {
   const dtg = h('time', { class: 'sof-dtg' });
   const feedWords = h('span', { class: 'sof-feed-words' });
   const feedSymbol = h('span', { class: 'sof-feed-symbol', 'aria-hidden': 'true' });
@@ -33,8 +35,11 @@ export function createLayout({ settingsElement, mapElement, onRefresh }) {
     h('section', { class: 'sof-bar', 'aria-label': 'SOF bar' }, dtg, feed, feedDetail, h('div', { class: 'sof-bar-actions' }, refresh)),
     settingsElement,
     alert,
+    bannerElement, // the new-caution banner: its own row, in the page flow
+    wavesElement, // the waves and their calls
     // The cards and the map side by side; the map comes first when the screen is narrow.
     h('div', { class: 'sof-main' }, cards.element, mapElement),
+    timelineElement, // the 24-hour timeline
     credits,
   );
 
@@ -58,6 +63,10 @@ export function createLayout({ settingsElement, mapElement, onRefresh }) {
       alert.hidden = !screen.alert;
       setText(credits, screen.credits);
       cards.render(screen.cards);
+    },
+    /** Where keyboard focus goes when the banner empties under it: the Waves heading, else the feed status. */
+    focusAfterBanner() {
+      (wavesElement?.querySelector('.sof-waves-title') ?? feed).focus({ preventScroll: true });
     },
     setBusy(on) {
       if (on) refresh.setAttribute('aria-disabled', 'true');

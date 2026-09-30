@@ -280,3 +280,10 @@ test('the same lightning is the same caution on the next screen (an acknowledgem
   const key = (r, at) => screen({ lightning: r, now: at }).cautions.find((c) => c.source === 'LIGHTNING').key;
   assert.equal(key(again, later), key(first, NOW));
 });
+
+test('extraCautions is the list the banner reads: lightning.js\'s caution when there is one, else empty', () => {
+  const found = nearby();
+  assert.deepEqual(screen({ lightning: found }).extraCautions, [found.caution]);
+  assert.deepEqual(screen({ lightning: quiet() }).extraCautions, []);
+  assert.deepEqual(screen().extraCautions, []);
+});

@@ -50,9 +50,10 @@ const extraUrl = ({ layer, request, time }) => extraMapUrl({ layer, bbox: reques
 
 /**
  * app: the module's app object (scheduler, storage, time, airfields, listen). settings: createSofSettings.
+ * onLightning: called when the near-home lightning caution changes (so the banner can be redrawn).
  * Returns { element, update({ snapshot, screen }), lightning(now), wake(), dispose() }.
  */
-export function createSofMap({ app, settings }) {
+export function createSofMap({ app, settings, onLightning = () => {} }) {
   const timers = app.scheduler;
   const now = () => app.time.now();
   const fetchNet = (url, init) => globalThis.fetch(url, init);
@@ -323,10 +324,17 @@ export function createSofMap({ app, settings }) {
   function goHome() {
     view.setView({ cx: 0, cy: 0, scale: homeView(home.lat).scale });
   }
+  let lightningSeen = null; // the caution text last told to onLightning
   function redraw() {
     if (disposed) return;
     view.requestDraw();
     refreshStatus();
+    const caution = watch.result(now())?.caution ?? null;
+    const text = caution ? JSON.stringify(caution) : null;
+    if (text !== lightningSeen) {
+      lightningSeen = text;
+      onLightning();
+    }
   }
 
   // ---- Hover and keyboard facts for the dots and the traffic ----------------------------------------------

@@ -69,8 +69,8 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
 
 **Checkpoint D:** tests pass; code-review-and-quality; open PR D.
 
-- [ ] **12. The decided changes.** One commit each, each starting from a failing test that states exactly what differs from V6: D46 true arcs between V6's turn points; the dice per aircraft, with Reset keeping the seed and New traffic picking a new one; decision points with shares, and plans per aircraft in the spawner and Edit (T1); the joined path at splits and joins; indicated airspeed (T5); the built-in setup's points switched to phases (T5); the home-field starter pattern with its runway-number box and draggable runway ends (T2).
-  - Acceptance: the golden tests change only where the commit says; odds tests over 20,000 crossings; no aircraft moves more than one step's distance at a split or join.
+- [ ] **12. The decided changes.** One commit each, each starting from a failing test that states exactly what differs from V6: D46 true arcs between V6's turn points; the dice per aircraft, with Reset keeping the seed and New traffic picking a new one; decision points with shares, and plans per aircraft in the spawner and Edit (T1); the joined path at splits and joins; indicated airspeed (T5); the built-in setup's points switched to phases (T5); the home-field starter pattern with its runway-number box and draggable runway ends (T2); the built-in "new pattern" flies left-hand (D156), with the hand stored per runway (CYMJ 29L left, 11R right; EFIG p.151, 152, 211) and the runway number read as magnetic and turned to true (29 at CYMJ is 298° true; verification TR-11); the clock shows the true second (D157); a straight-in that joins at the pattern's first point rolls the landing decision once at the join (TR-08).
+  - Acceptance: the golden tests change only where the commit says; odds tests over 20,000 crossings; no aircraft moves more than one step's distance at a split or join (TR-05: over 20 seeds on the built-in setup, no step moves an aircraft more than 2 × speed × 0.05 s + 5 ft); for every point, the bank the path flies is within 5° of the bank the turn data reports, or the point is flagged (TR-07); after stepTo(n) for n = 1 to 3,600 the clock reads n (TR-12); newPattern for runway 29 at CYMJ points along 298° true (TR-11).
   - Verify: `npm test`.
   - Dependencies: 2 (and 9 for the dice). Size S each.
   - Files: src/modules/traffic/{route,sim,dice,aircraft,profile}.js, the golden tests, data/moose-jaw.json (T1's shares, T5's phases)
@@ -90,8 +90,9 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
 
 **Checkpoint F:** redrawn setup merged.
 
-- [ ] **15. The break and the final turn.** Break points (level 60°, 2 G, 180° at idle, speed bleeding to Inner downwind, stepped at 0.05 s); the wind rule for the break point; the perch abeam the Window; the descending 180° final turn with its bank from the downwind spacing and the wind worked in (perch moved, bank changed), flagged past 45°; the 3° glide path from the Window. Starts from failing tests.
-  - Acceptance: known answers: 45° for a 2,800 ft spacing, 35° for 4,000 ft at 120 KIAS; roll-out on the centreline at the Window in any wind the bank limit allows; height on the glide path within 1 ft; V6's golden tests untouched.
+- [ ] **15. The break and the final turn.** Break points (level 60°, 2 G, 180° at idle, speed bleeding to Inner downwind, stepped at 0.05 s); the wind rule for the break point; the perch abeam the Window; the descending 180° final turn with its bank from the downwind spacing and the wind worked in (perch moved, bank changed), flagged past 45°; the 3° glide path from the Window. Starts from failing tests. The built-in Moose Jaw Pattern 1 switches to the continuous descending final turn (verification TR-02: V6 holds 3,500 ft through the first 90° then drops 1,400 ft in about 430 ft of path, 72.9°), and so do Entry 4 (PFL, 33.5°) and Split 4 (30°); task 12's 45° corners alone still leave a 36° drop. The break rolls in about 2,000 ft past the threshold in calm air (TR-06, V6 3,065 ft). Straight-ins (Entry 2, Split 1) hold 2,700 ft to the 3° path and follow it down (TR-03, SMM 4.7 para 10, EFIG p.131).
+  - Acceptance: known answers: 45° for a 2,800 ft spacing, 35° for 4,000 ft at 120 KIAS; roll-out on the centreline at the Window in any wind the bank limit allows; height on the glide path within 1 ft; in the final turn, height falls linearly with the angle turned (±20 ft); on each straight-in, height above the field at 0.75 NM is 240 ± 40 ft; the built-in break starts 2,000 ± 500 ft past the threshold; V6's golden tests untouched (they run on data/moose-jaw-v6.json).
+  - Guard (added now as a `test.todo`, made a real test by this task): no flown slope steeper than 15° on any built-in route.
   - Verify: `npm test`; unit tests in each wind direction.
   - Dependencies: 10, 11. Size M.
   - Files: src/modules/traffic/{route,sim,readouts}.js, tests/unit/traffic/break-final.test.js
@@ -107,7 +108,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinat
   - Files: src/modules/traffic/{sim,aircraft,readouts}.js, tests/unit/traffic/engine-out.test.js
 
 - [ ] **18. Traffic on final.** Extending downwind while the roll-out would be inside the final spacing of the aircraft ahead, rolling out on the 3° glide path wherever it meets it; the chance of missing the traffic (and a plan step for it); the aircraft on final moving over between the runways, flying a low approach at 200 ft and 120 KIAS and rejoining at the departure end.
-  - Acceptance: with final busy, the aircraft extends and rolls out behind by at least the final spacing; with a forced miss, the one on final moves over and the conflict shows; rewind still exact.
+  - Acceptance: with final busy, the aircraft extends and rolls out behind by at least the final spacing; two Pattern 1 aircraft set to meet: the second rolls out at least 3,000 ft behind (verification TR-04); with a forced miss, the one on final moves over and the conflict shows; rewind still exact.
   - Verify: `npm test`; unit tests with two aircraft set up to meet.
   - Dependencies: 15. Size M.
   - Files: src/modules/traffic/{sim,readouts}.js, tests/unit/traffic/final-traffic.test.js

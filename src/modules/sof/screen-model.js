@@ -111,6 +111,7 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
       limitsNote: notSet ? `Approaches not set in Settings: checked against ${model.limitsText}` : null,
     });
   }
+  const extraCautions = lightning?.caution ? [lightning.caution] : [];
   return {
     dtg: formatDtgZulu(now),
     dtgIso: now.toISOString(),
@@ -119,6 +120,8 @@ export function buildScreen({ airfields, snapshot, limits, now, lightning = null
     cards,
     credits: CREDITS,
     lightning,
-    cautions: cautionList({ cards, extra: lightning?.caution ? [lightning.caution] : [] }),
+    // Cautions from outside the weather reports, in cautions.js's shape: the banner adds these to what it builds from the cards and TAFs.
+    extraCautions,
+    cautions: cautionList({ cards, extra: extraCautions }),
   };
 }

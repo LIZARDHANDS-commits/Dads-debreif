@@ -28,7 +28,7 @@ You'll want two or more of your own ForeFlight track files (.kml) from one forma
 
 - [ ] The Formation card has one line per wingman, with its label (for example On parameters, WIDE or AFT) and the one number that's off: feet for interval and #3's offset, degrees for sweep (0 to 10° behind the 3/9 line passes, per the SMM). Lead's line shows est. IAS and G, and the target it's judged against: 220 kt in the low block, 200 kt in the mid block.
 - [ ] **More detail** opens altitude, speed, G, pitch and bank with where each came from, plus aspect, HCA, closure and spacing for every pair. It stays open after a reload.
-- [ ] **Standards** opens the editor. Change "Spread maximum", then reload: the change is kept. A silly value (a letter, or a negative number) is refused with a message. **Reset to the default standards** puts the SMM's numbers back: spread 4,000 to 6,000 ft with 0 to 10° of sweep, #3 7,000 ± 1,000 ft back, and Lead 220 kt low / 200 kt mid, ±10 kt, 1.0 ± 0.2 G.
+- [ ] **Debrief settings** (under the Formation card, closed at first) opens the standards editor. Change "Spread maximum", then reload: the change is kept. A silly value (a letter, or a negative number) is refused with a message. **Reset to the default standards** puts the SMM's numbers back: spread 4,000 to 6,000 ft with 0 to 10° of sweep, #3 7,000 ± 1,000 ft back, and Lead 220 kt low / 200 kt mid, ±10 kt, 1.0 ± 0.2 G.
 - [ ] Compare three moments with V6 side by side (same file, same time): spacing between #1 and #2, #2's aspect and HCA, and Lead's speed. They match, except where a decision changed a number on purpose (est. IAS instead of ground speed, D31; turn rate without V6's divide by 2, D39; the SMM's sweep, offset box and lead speeds instead of V6's, D114 to D116). Note any difference and the time.
 
 ## The map
@@ -43,6 +43,7 @@ You'll want two or more of your own ForeFlight track files (.kml) from one forma
 - [ ] **Weather** → **METAR**. A line under the playback bar gives the report in force from the airfield nearest Lead, with its time and age (for example "CYMJ 1400Z (12 min before) · VFR · wind 270/12 kt …"). Small ticks on the scrubber mark each report. Drag past a tick: the line changes to that report, never to a later one.
 - [ ] **Report as sent** shows the METAR exactly as issued. **METAR from** picks another airfield. Turn **METAR** off: the line and the ticks go.
 - [ ] With a flight from the last 90 days, **Weather** → **Satellite (GOES-West)** lays the satellite picture under the tracks, and the line under the map says its time and age ("Satellite 14:30Z, 2 min before"). Play: the picture changes every 10 minutes of flight time. **Satellite picture** → **Infrared** swaps it. With an older flight it says "Satellite not kept".
+- [ ] **Weather** → **Winds aloft (model)**. The Lead line of the Formation card ends with the model wind at Lead's altitude, for example "· wind 270/25 at 8,500 ft (HRDPS 14Z, Open-Meteo)". Climb or descend: the wind changes with height. **Wind model** → **HRRR** gives the US model's wind. Below about 2,500 ft it says Lead is below the lowest model level.
 
 ## 3D
 
