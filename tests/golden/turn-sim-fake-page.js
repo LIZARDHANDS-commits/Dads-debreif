@@ -27,7 +27,7 @@ const clockLabel = (c) => {
  * has, each holding text like a real input or select does. Ids V6 doesn't have
  * are null, as `document.getElementById` gives.
  */
-export function v6Boxes(s) {
+export function v6Boxes(s, { readsClockTolerance = false } = {}) {
   const text = (v) => String(v);
   const box = (value, extra = {}) => ({ value: text(value), ...extra });
   const clockOptions = CLOCK_POSITIONS.map((c) => ({ value: text(c), text: clockLabel(c) }));
@@ -53,7 +53,9 @@ export function v6Boxes(s) {
     baseDelay: box(s.baseDelaySec),
     clockCueAircraft: box(s.clockCueAircraft),
     clockCuePos: box(s.clockCuePos, { options: clockOptions, selectedIndex: CLOCK_POSITIONS.indexOf(s.clockCuePos) }),
-    clockCueTol: box(s.clockCueTolDeg),
+    // V6 line 1498 reads `+$('clockCueTol')`, the box and not its value: NaN, so it always used 4° (issue #32).
+    // `readsClockTolerance` makes the box turn into its number, which is what V6 meant to read.
+    clockCueTol: box(s.clockCueTolDeg, readsClockTolerance ? { valueOf: () => Number(s.clockCueTolDeg) } : {}),
     clockCueSequence: box(s.clockCueSequence),
     duration: box(s.durationSec),
     moaBoundaryNM: box(s.moaBoundaryNm),
@@ -71,8 +73,8 @@ export function v6Boxes(s) {
 }
 
 /** A `$` like V6's, answering from `boxes`. */
-export function fakeDollar(settings) {
-  const boxes = v6Boxes(settings);
+export function fakeDollar(settings, options) {
+  const boxes = v6Boxes(settings, options);
   const $ = (id) => boxes[id] ?? null;
   $.boxes = boxes;
   return $;
@@ -105,6 +107,8 @@ function v6Statement(start) {
 }
 
 /**
+ * options.readsClockTolerance: read the Clock tolerance box the way V6 meant to (see v6Boxes).
+ *
  * V6's Turn Sim, running against a fake page built from `settings` (the keys of
  * src/modules/turn-sim/settings.js, so pass V6_DEFAULTS plus what differs).
  *
@@ -112,8 +116,8 @@ function v6Statement(start) {
  * buttons do: reset() is Reset, play() is the first Play or Step (V6 line 1441),
  * continueLeg() is Play after a finished turn (line 1458), step() is one stepSim.
  */
-export function createV6Page(settings) {
-  const $ = fakeDollar(settings);
+export function createV6Page(settings, options) {
+  const $ = fakeDollar(settings, options);
   const prelude = `
 ${v6Statement('const FT_PER_NM=6076.12')}
 ${v6Statement('let ac=[1,2,3,4].map')}

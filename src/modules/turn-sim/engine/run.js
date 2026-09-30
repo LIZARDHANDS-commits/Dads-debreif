@@ -243,6 +243,7 @@ export function createRun(settings) {
       timing: cfg.timing,
       clockCueAircraft: cfg.clockCueAircraft,
       clockCuePos: cfg.clockCuePos,
+      clockCueTolDeg: cfg.clockCueTolDeg,
       speedFtps: speedFtps(),
       baseG: cfg.baseG,
       turnDegDefault: cfg.turnDeg,

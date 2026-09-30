@@ -81,7 +81,8 @@ function compareRun(settings, label, { legs = 1 } = {}) {
     autoStep = autoStepFor(settings, probe);
     Object.assign(v6Settings, { timing: 'time', baseDelaySec: autoStep });
   }
-  const page = createV6Page(v6Settings);
+  // The Clock tolerance box is read as V6 meant to (it read the box itself and got 4 whatever it said, issue #32).
+  const page = createV6Page(v6Settings, { readsClockTolerance: true });
   page.reset();
   page.play();
   const run = createRun(settings);
@@ -247,7 +248,7 @@ test('clock cue: every clock position, the offset box, and the other turns (whic
   for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) compareRun(scenario({ timing: 'clock', maneuver }), `clock ${maneuver}`);
 });
 
-test('clock cue with seeded numbers, per-aircraft clock positions and targets, delay errors, and a tolerance setting V6 ignores', () => {
+test('clock cue with seeded numbers, per-aircraft clock positions and targets, delay errors, and the Clock tolerance setting', () => {
   const r = seeded(0xc10c);
   const pick = (list) => list[Math.floor(r() * list.length)];
   const positions = ['global', ...Array.from({ length: 24 }, (_, i) => String(i === 0 ? 12 : i / 2))];
@@ -260,7 +261,6 @@ test('clock cue with seeded numbers, per-aircraft clock positions and targets, d
       timing: 'clock',
       clockCuePos: pick([3, 4.5, 5, 5.5, 6.5, 7, 8, 9, 10.5]),
       clockCueAircraft: pick([1, 2, 3, 4]),
-      // V6 reads the box itself, not its value, so it always uses 4°: the port pins that until the tolerance commit.
       clockCueTolDeg: pick([4, 4, 1, 10, 25]),
       spacingFt: Math.round(3000 + 6000 * r()),
       speedKt: Math.round(150 + 150 * r()),
@@ -289,4 +289,19 @@ test('the clock cue really is flown: in a left turn at 5:30 the outside aircraft
   assert.deepEqual(Object.entries(first).sort((x, y) => x[1] - y[1]).map(([id]) => +id), [4, 3, 1, 2], JSON.stringify(first));
   assert.ok(first[4] < 0.1, 'the first aircraft starts at once');
   assert.ok(first[3] > 1 && first[1] > first[3] && first[2] > first[1], JSON.stringify(first));
+});
+
+test('V6 as shipped ignores the Clock tolerance box (issue #32); read as V6 meant, a wider tolerance starts the turn earlier', () => {
+  const start = (clockCueTolDeg, options) => {
+    const page = createV6Page(scenario({ timing: 'clock', direction: 'left', clockCueTolDeg }), options);
+    page.reset();
+    page.play();
+    while (page.time() < 90) {
+      page.step();
+      if (page.aircraft().find((a) => a.id === 3).active) return page.time();
+    }
+    return null;
+  };
+  assert.equal(start(30), start(4), 'V6 as shipped: the box does nothing');
+  assert.ok(start(30, { readsClockTolerance: true }) < start(4, { readsClockTolerance: true }));
 });

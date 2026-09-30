@@ -7,7 +7,10 @@
 // straight ahead, 3 is right, 9 is left, 6 is behind (src/core/angles.js).
 import { relativeBearingDeg, clockToRelativeDeg, wrapDeg180 } from '../../../core/angles.js';
 
-/** The tolerance V6 always used, in degrees: it read the box itself instead of its value (line 1498, issue #32). */
+/**
+ * The tolerance V6 always used, in degrees: it read the box itself instead of its value (line 1498, issue #32).
+ * Now only the fallback when the setting is 0 or missing; the Clock tolerance setting is what is used.
+ */
 export const V6_CLOCK_TOLERANCE_DEG = 4;
 
 const asCore = (a) => ({ x: a.xFt, y: a.yFt, hdg: a.headingRad });
