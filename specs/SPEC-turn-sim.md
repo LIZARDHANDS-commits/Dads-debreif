@@ -1,6 +1,6 @@
 # Spec: `turn-sim`, the Formation Turn Sim
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Q41 to Q43 are unanswered, so their defaults stand. Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. New questions raised here are TS1 to TS7, logged in the plan doc as Q41 to Q47.
+Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Patrick answered Q41 to Q47 the same day (see "Answered questions"), and this spec follows his answers. Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. The questions this spec raised were TS1 to TS7, logged in the plan doc as Q41 to Q47.
 
 Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn. Until then this spec and the task plan in [`tasks/turn-sim/`](../tasks/turn-sim/) are the work.
 
@@ -25,7 +25,7 @@ Users are T-6 instructors and students on a desktop or laptop (D6). They should 
 3. **Speed is true airspeed with no wind**, as in V6. The box keeps V6's "KTAS" label, and V6 uses it as the ground speed.
 4. **The sim steps in fixed 0.05 s steps**, V6's own step (`dt = 0.05`, line 784), whatever the frame rate. V6's Step button already does exactly this, so the pinned numbers are V6's, and the result no longer depends on the screen (#17). Playback speed changes how many steps run per frame, not their size.
 5. The picture stays a hand-drawn Canvas 2D, as V6's, using ui-kit `canvas-view.js` for pan and zoom. No new package.
-6. The Turn Sim uses **V6's fixed standards** (`V6_STANDARDS`), as V6 does. Letting it follow the debrief's edited standards would change a label V6 shows, so it waits for a decision (TS6).
+6. **The Turn Sim judges by the debrief's edited standards** (Q46, Patrick). V6 always used its fixed numbers, which are still the default preset (`V6_STANDARDS`), so nothing changes until someone edits a standard. The golden tests pin V6 with the default preset.
 7. D78 (Q39: the offset standard alone judges #3's fore/aft in the debrief) doesn't change the Turn Sim: V6's Turn Sim judges #3 by the spread standard in 4312/2134 and by the offset standard in the offset box, never both. V6's labels stay (as `core/standards.js` also notes).
 
 ## The screen
@@ -53,11 +53,13 @@ It follows Patrick's rule (2026-09-30, R22): essentials by default, and everythi
 
 | Shown by default | Behind a checkbox (off by default) or a collapsed "More …" panel (R22) |
 |---|---|
-| **Setup:** Formation, Spacing, Start heading (compass), Turn, Direction, Speed, G, Timing, and the one field the timing needs (Base delay, or Clock position for the clock cue, or the computed auto delay shown read-only) | **More setup:** Turn degrees, Duration, MOA boundary, Clock cue tolerance, Offset box settings (aft spacing, lateral stagger, #4 timing; shown only when the offset box is picked), #2's side in 4312 and 2134 (D48), and the Correction model (TS1) |
+| **Setup:** Formation, Spacing, Start heading (compass), Turn, Direction, Speed, G, Timing, and the one field the timing needs (Base delay, or Clock position for the clock cue, or the computed auto delay shown read-only) | **More setup:** Turn degrees, Duration, MOA boundary, Clock cue tolerance, Offset box settings (aft spacing, lateral stagger, #4 timing (ground track by default, or V6's Late and Early); shown only when the offset box is picked), #2's side in 4312 and 2134 (D48), and a **Correction model** checkbox (off; opens the model, strength and G fix, Q41) |
 | **Stage:** the playback bar (Play, Pause, Step, Reset, speed 0.25× to 4×, sim time) above the canvas, Fit, and the picture | **Layers** menu: Lead 3/9 line (on), turn circles (on), error labels (on), follow lead, clock marks, breadcrumbs and their interval, distances in NM |
 | **Formation card:** one line per wingman (its label and the number that's off), minimum separation, and one line of turn radius, rate and bank | **More detail:** every pair's spacing (1-2, 1-3, 1-4, 3-4, 2-3, 2-4), each wingman's interval, fore/aft and measuring note, and V6's summary table (time to turn, speed) |
 | | **Aircraft errors:** per wingman, delay error, G error, and the position error (tight/wide and fore/aft in feet) |
 | | **Rear element check** (offset box only, inside More setup): on/off, start time, direction, angle, hold, and a live status line |
+| | **Spacing graph** checkbox (off, Q41): V6's hidden graph of the chosen pair distances, minimum separation and closure over the run, each in its own colour and labelled |
+| | **Solver** checkbox (off, Q41): V6's hidden solver, which finds the base delay, spacing or G that gives a target spacing |
 | | **Profiles:** named profiles, save and load the startup default, delete, factory reset; and Export CSV |
 
 - **Layer defaults stay V6's** (3/9 line, turn circles and error labels on; the rest off), so the picture matches what V6 users know.
@@ -88,8 +90,9 @@ V6's code-only `fluid` and `trail` layouts, never in the menu, are not ported.
 | V6 turn | What it does (V6) | Rebuild |
 |---|---|---|
 | Delayed 90, Delayed 45 | Each aircraft turns in the chosen direction, one after another, **outside aircraft first** (lines 1116 to 1150). The offset box has its own plan (line 994). | Kept. The on-screen note is corrected to say the outside aircraft goes first (#16; V6's note says Lead). |
-| Hook turn, In-place 90 | Everyone turns at once in the chosen direction. The two are identical in V6 (line 1217). | Kept. Whether to merge them into one entry is TS3. |
-| Shackle | 45° in, then 45° back to the start heading. | Kept as V6 flies it. Its directions don't match the note ("into each other") and the hold time does nothing; both go to Dad (TS4). |
+| Hook turn | Everyone turns 90° at once in the chosen direction, the same as In-place 90 (line 1217). | **Rebuilt to Patrick's definition (Q43):** the aircraft turn the same direction through 180°, and the fuselages line up in the middle. V6's hook is pinned first, then the new hook lands as its own commit. The exact rollout picture (who turns when, and where each ends up) is drawn and checked with Patrick before that commit. |
+| In-place 90 | Everyone turns 90° at once in the chosen direction. | Kept as V6 flies it (Q43). |
+| Shackle | 45° in, then 45° back to the start heading. Both aircraft turn the same way, and the rollback delay does nothing (line 1585). | **Fixed to Dad's note and Patrick's description (Q44a):** the aircraft turn 45° into each other, hold, and roll back, so the formation ends on the original heading, at the same spacing, with each aircraft on the opposite side from where it started (an X from above). The hold is worked out so the spacing comes back the same, and is shown instead of V6's dead "rollback delay" box. If the spacing is too small for two 45° turns, the screen says so. In a 4-ship, each aircraft swaps to its mirror position across the formation's centre line; that picture is checked with Patrick before its commit. V6's shackle is pinned first. |
 | Cross turn | 180°, each wingman turning away from Lead's side, Lead in the chosen direction. | Kept. |
 
 **Per-wingman turn logic** (auto, selected direction, right, left, toward or away from the cue aircraft) is kept. **"Toward" and "away" are swapped back to what they say** (D41, #15).
@@ -102,13 +105,15 @@ V6's code-only `fluid` and `trail` layouts, never in the menu, are not ported.
 - **Clock position cue:** each aircraft waits until the aircraft just outside it passes the chosen clock position, within the tolerance. Kept, with:
   - The **tolerance box works**. V6 always used 4° because it read the box itself instead of its value (#32). The default stays 4°, so the default behaviour doesn't change.
   - Per-aircraft clock positions keep working, and the status line shows each aircraft's own position and who it waits on, updated live (#32).
-  - "Clock cue aircraft", the per-aircraft "Clock target" and "Clock cue sequence: Manual" did nothing in V6. They're left out until Dad says what they should do (TS5).
-  - With the offset box, V6's #3 and #4 never turn at the default 5:30 cue (#16). The rebuild says so on screen ("#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay") instead of silently flying straight; changing the cue itself goes to Dad (TS4).
+  - **The clock cue selectors work** (Q45, Patrick). V6 had them on screen but ignored them. "Clock cue sequence: Outside-in" (the default) keeps V6's cascade, so the default flight doesn't change. "Manual targets" makes each wingman watch the aircraft picked in its "Clock target" (or "Clock cue aircraft" when it has none), turn when that aircraft reaches the clock position picked, and turn the way its own turn logic says. This lands as its own commit after V6's clock cue is pinned.
+  - With the offset box, V6's #3 and #4 never turn at the default 5:30 cue (#16). The rebuild says so on screen ("#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay") instead of silently flying straight (Q44c, Patrick). Which cue #3 and #4 should use is flagged for Dad and for revision later.
 - **Auto timing** (4312, 2134 and two-ship, delayed turns), with Dad's fixes:
   - **The outside aircraft turns first, then each at its own time** (D43). V6 held everyone until Lead started, so the planned order was never flown (#16).
   - **The step between aircraft is spacing ÷ speed × cot(half the turn angle)** (D44), the delay that rolls out line abreast. At V6's defaults (6,000 ft, 220 KTAS, 90°) that is 16.2 s, where V6's spacing × angle ÷ speed gave 25.4 s. Turn degrees are limited to 10° to 180° so the step stays finite.
   - The computed step is **shown, not written over Base delay** (#16), so switching back to Time delay keeps the user's own value.
   - In the offset box, auto timing keeps V6's offset-box plan.
+- **Offset box #4 timing** (Q44b, Patrick): **#4 solves its own delay by ground track**, as V6's note promises and its dead code started to: it searches for the delay that rolls it out 3,000 ft outside #2 and the box aft distance behind the front element, the same way V6 solves #3 (`searchDelayToTarget`, line 979). This is the new default. V6's LATE and EARLY stay as choices, pinned to V6 first, so V6's ~21,000 ft aft left-turn result is still there if picked.
+- **Rear element check** (Q47, Patrick): it starts at its set time **or once #3 and #4 have finished their turns, whichever is later**, so it no longer postpones a planned turn. V6's fixed start is pinned first.
 - The hidden trigger modes (Lead heading, range, bearing), which V6's menu can't reach, are not ported (#32).
 
 ### The flying (integrator)
@@ -132,7 +137,7 @@ Changes that don't change a number V6's Step button shows:
 
 - **Play at t = 0** points every aircraft at the start heading and plans the turn, as V6 does. **Play after the turn has finished** starts a new leg from where the aircraft are, as V6 does (by design, audit b#13), and resets the rear-element check and breadcrumbs for that leg (#31, V6 didn't).
 - **Any setup change stops the run and goes back to t = 0 with the new plan** (#31). V6 kept flying the old plan. Changes to layers, the view and playback speed don't stop it.
-- **The start heading is a compass heading**: 000 is north, 090 east (D45). The default is 000, flying up the screen (TS2). V6's default of 0 flew east. Continuing a leg fills in the new compass heading.
+- **The start heading is a compass heading**: 000 is north, 090 east (D45). The default is 000, flying up the screen (Q42). V6's default of 0 flew east. Continuing a leg fills in the new compass heading.
 - **The view fits the formation when the Turn Sim opens** and when Fit is pressed, at the real canvas size and pixel ratio (#30). V6 fitted while hidden and opened at minimum zoom.
 - The **MOA box** (V6's 30 NM boundary) is drawn as in V6.
 
@@ -141,7 +146,8 @@ Changes that don't change a number V6's Step button shows:
 - **Formation card:** per wingman, V6's labels from `core` `classifyTurnSimPosition` (TIGHT, WIDE, FORE, AFT, ON SPACING) and the one number that's off. The standards line V6 printed ("4,000 to 6,000 ft interval, ±250 ft of Lead's 3/9; offset box 7,000 to 9,000 ft") is under More detail.
 - **Wide and tight position errors are measured from Lead** (D42): "Wide 1,000 ft" moves a wingman 1,000 ft further out on whichever side it flies. V6 moved every aircraft along one fixed direction, so on one side "wide" came in tighter (#15).
 - The turn circles use the same G as the flying (with D74 they can no longer disagree).
-- The hidden **Graph** and **Solver** cards, which V6 users never saw, are not ported (TS1); they're logged as future ideas.
+- **Spacing graph, Solver and Correction model** (Q41, Patrick): V6 hid all three. They come back, each behind its own checkbox, off by default (R22). The graph draws each metric in its own colour with a legend (V6 drew all four in white) and only while open. The solver's sweep is pinned to V6 and runs only when asked, not every frame.
+- **Standards follow the debrief's edits** (Q46, Patrick). The Turn Sim reads the same standards the debrief edits and shows them, read-only, under More detail, with a "Default standards" note when unchanged. A standard switched off judges nothing, so an aircraft it would judge shows no label. The standards need one home both modules read (for example an app-level `standards` setting instead of the debrief's own settings); where it lives is agreed with the debrief and app frame threads through the coordinator before task 5.
 
 ### Profiles and CSV (#31, #33)
 
@@ -173,10 +179,12 @@ src/modules/turn-sim/
     plan.js            turning order, directions (D41), time/clock/auto timing (D43, D44), offset-box plan
     cues.js            clock-cue crossing, cue checks
     rear-check.js      the offset box's rear-element check turn
+    solver.js          V6's solver sweep (Q41)
     step.js            one fixed step: G (core, D74), turn, move
     run.js             a run: start, continue a leg, history by time, CSV rows
   layout.js            the three columns, panels, playback bar
   view.js              drawing: grid, MOA box, trails, breadcrumbs, 3/9 lines, turn circles, clock marks, labels
+  graph.js             the spacing graph (Q41), drawn only while open
   readouts.js          Formation card and More detail rows from engine results; no page access
   profiles.js          named profiles and the startup default over app.storage
   turn-sim.css         scoped under [data-module="turn-sim"]
@@ -256,32 +264,33 @@ Each PR description lists the skills it applied.
 ## Boundaries
 
 - **Always:** pin V6 before moving any number; take shared math from `core`; keep the module inside `src/modules/turn-sim/`; run `npm test` before each commit; cite the V6 line.
-- **Ask first:** any change to a number V6 shows beyond D41 to D45, D48 and D74; wiring or removing a control Dad may have meant for something (TS3 to TS5); letting the Turn Sim follow edited standards (TS6); adding a package.
+- **Ask first:** any change to a number V6 shows beyond D41 to D45, D48, D74 and Patrick's answers to Q41 to Q47; the hook and 4-ship shackle pictures before their commits; adding a package.
 - **Never:** edit `original/`, `src/core/`, `src/ui-kit/` or `src/storage/` (changes go to their threads through the coordinator); keep a timer or animation loop outside the ui-kit scheduler; touch `localStorage` directly.
 
 ## Success criteria
 
-- Every engine function and whole-run scenario has a golden test against V6, and each of D41 to D45, D48 and D74 is its own commit with a test that states it.
+- Every engine function and whole-run scenario has a golden test against V6, and each of D41 to D45, D48, D74 and the flight changes from Q43 (hook), Q44 (shackle, #4 solver), Q45 (clock cue selectors) and Q47 (rear check) is its own commit with a test that states it.
 - R2, R3, R4, R7 and R22 pass their browser tests on the Turn Sim route; results are the same at any frame rate and playback speed.
-- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the items still with Dad (TS4, TS5), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
+- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the item still with Dad (the offset box clock cue, Q44c), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
 - Patrick or Dad signs off the checklist on the live site.
+
+## Answered questions
+
+Patrick answered all seven on 2026-09-30 (in the "Open questions explained" thread; mapping in `/mnt/project-files/questions/answers-2026-09-30.md`). Each flight change lands as its own commit after V6 is pinned (D10).
+
+| Question | Answer | Where in this spec |
+|---|---|---|
+| Q41 (TS1) hidden cards | Bring back the Graph, Solver and Correction model, each behind a toggle, off by default. | The screen; Readouts |
+| Q42 (TS2) start heading | 000, flying up the screen. | Starting a run |
+| Q43 (TS3) hook and in-place 90 | Don't merge. Hook: same direction through 180°, fuselages lined up in the middle. In-place 90: a 90° turn. | Turns |
+| Q44a (TS4) shackle | Ends on the original heading, same spacing, each aircraft on the opposite side: an X from above. | Turns |
+| Q44b (TS4) offset box #4 | Finish the ground-track solver so #4 works out its own timing. | Timing |
+| Q44c (TS4) offset box clock cue | Keep the on-screen message; ask Dad which cue #3 and #4 should use; revise later. | Timing |
+| Q45 (TS5) clock cue selectors | Wire them up. | Timing |
+| Q46 (TS6) standards | Follow the debrief's edited standards. | Assumptions; Readouts |
+| Q47 (TS7) rear check | Start at the set time or once #3 and #4 finish turning, whichever is later. | Timing |
 
 ## Open questions
 
-Each has a default, so none blocks building.
-
-For Patrick:
-
-- **TS1 (Q41). The hidden cards.** V6 has a Graph, a Solver and a Correction model that its users never saw (hidden in the page, #32). Recommended: leave out the Graph and Solver (logged as future ideas), and keep the Correction model under More setup, set to None, since it's Dad's and D74 was decided for it.
-- **TS2 (Q42). Start heading default.** Recommended: 000 (fly up the screen). V6's 0 flew east, which after D45 would be 090.
-- **TS3 (Q43). Hook turn and In-place 90 are identical in V6.** Recommended: keep one entry, "Hook / in-place 90". Default until answered: keep both, as V6.
-
-For Dad (V6 behaviour stays until he answers):
-
-- **TS4 (Q44). Shackle and offset box.** (a) Should shackle wingmen turn into Lead and hold for the rollback delay, as the note says? V6 turns them the same way and never holds (#15, #32). (b) Offset box #4 "LATE" rolls out about 21,000 ft aft on left turns; should the default depend on direction, or should #4 solve by ground track as the note says (#16)? (c) What should the offset box's clock cue be for #3 and #4, since they never reach 5:30 (#16)?
-- **TS5 (Q45). Clock cue selectors.** What should "Clock cue aircraft", a wingman's own "Clock target" and "Clock cue sequence: Manual" do? In V6 they do nothing, so they're left out until he says.
-
-For Patrick or Dad:
-
-- **TS6 (Q46). Standards.** Should the Turn Sim judge by the debrief's edited standards, or always by V6's? Default: V6's, as V6 does.
-- **TS7 (Q47). Rear element check timing.** V6 starts it at a fixed time and it postpones any #3/#4 turn due during it (#31). Keep that, or start it only after #3 and #4 have finished turning? Default: V6's.
+- **For Dad (Q44c):** which cue should #3 and #4 use in the offset box, since they never see 5:30? Until then, the on-screen message.
+- **For Patrick, before those commits:** the hook's and the 4-ship shackle's exact rollout pictures, drawn from the rebuilt engine.
