@@ -704,8 +704,16 @@ test('with no connection, the map says satellite imagery needs one and keeps the
   await expect(page.locator('.map-credit')).toHaveText(/needs a connection/, { timeout: 20_000 });
 });
 
+// The 3D view as seen: three.js's picture with the labels' canvas over it.
 const picture3d = (page) => page.locator('canvas.debrief-3d').evaluate((canvas) => {
-  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const both = document.createElement('canvas');
+  both.width = canvas.width;
+  both.height = canvas.height;
+  const ctx = both.getContext('2d');
+  const picture = canvas.parentElement.querySelector('canvas.debrief-3d-picture');
+  if (picture?.width) ctx.drawImage(picture, 0, 0, both.width, both.height);
+  ctx.drawImage(canvas, 0, 0);
+  const { data } = ctx.getImageData(0, 0, both.width, both.height);
   let hash = 0;
   for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
   return hash;
@@ -768,6 +776,15 @@ test('3D: drag turns it, the wheel zooms, settings are kept, Reset view goes bac
   before = await picture3d(page);
   await page.keyboard.press('-');
   await expect.poll(() => picture3d(page)).not.toBe(before);
+
+  // The Harvard paint is the default; Ship colours repaints the models (D138).
+  await page.getByRole('button', { name: '3D settings' }).click();
+  await expect(page.getByLabel('Paint')).toHaveValue(/./);
+  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Harvard');
+  before = await picture3d(page);
+  await page.getByLabel('Paint').selectOption({ label: 'Ship colours' });
+  await expect.poll(() => picture3d(page)).not.toBe(before);
+  await page.keyboard.press('Escape');
 
   for (const name of ['Altitude sticks', 'Ground grid', 'Bank and pitch', 'Altitude scale', 'Compass', 'Landscape']) {
     await test.step(name, async () => {
