@@ -10,7 +10,10 @@ import {
   paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnLabelText, hintFor,
   sceneBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
   turnedShape, aircraftSymbol, conflictLevels, markRadiiPx, MIN_BUBBLE_PX, MIN_RING_PX, isFlying, aircraftColor, drawScene, createMap2d,
+  PHOTO_OFFLINE_TEXT, photoAlignment, photoToWorld, worldToPhoto, photoView, photoCaption,
 } from '../../../src/modules/traffic/map2d.js';
+import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../../src/core/geo.js';
+import { ESRI_IMAGERY } from '../../../src/ui-kit/map-tiles.js';
 
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} is not ${b}`);
 
@@ -475,7 +478,7 @@ function fakeCanvas(width, height, rec) {
 
 // A map on a stand-in canvas. Stand-ins for the page's getComputedStyle and ResizeObserver are
 // put in place for the test and taken away after it.
-function withMap(t, { width = 800, height = 600 } = {}) {
+function withMap(t, { width = 800, height = 600, layers = LAYERS_ON, ...more } = {}) {
   const rec = recordingContext();
   const frames = [];
   const observers = [];
@@ -505,9 +508,9 @@ function withMap(t, { width = 800, height = 600 } = {}) {
   });
   const data = { current: scene() };
   const canvas = fakeCanvas(width, height, rec);
-  const map = createMap2d(canvas, { timers, scene: () => data.current, settings: () => LAYERS_ON });
+  const map = createMap2d(canvas, { timers, scene: () => data.current, settings: () => layers, ...more });
   return {
-    map, rec, data, canvas, frames, styleReads,
+    map, rec, data, canvas, frames, styleReads, timers,
     resize: () => observers.forEach((callback) => callback()),
     flush() {
       rec.calls.length = 0;
@@ -569,5 +572,190 @@ test('a map that is closed stops asking for frames', (t) => {
   const { map, frames } = withMap(t);
   map.dispose();
   map.requestDraw();
+  assert.equal(frames.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// The satellite photo (Traffic task 8; V6 drawSatellite: scaled by the trim about the field, then moved by the offsets)
+
+const REF = makeLocalRef(50.3303, -105.5592); // Moose Jaw, the setup's anchor
+const ALIGN = { trim: 1, eastFt: 0, northFt: 0 };
+
+test('the photo\'s alignment is the trim and the offsets, and a missing or wild value falls back to true scale and no shift', () => {
+  assert.deepEqual(photoAlignment({ photoTrim: 1.2, photoEastFt: 300, photoNorthFt: -100 }), { trim: 1.2, eastFt: 300, northFt: -100 });
+  assert.deepEqual(photoAlignment({}), ALIGN);
+  assert.deepEqual(photoAlignment({ photoTrim: 0, photoEastFt: NaN, photoNorthFt: 'x' }), ALIGN, 'a trim of 0 would hide the photo');
+});
+
+test('the photo sits on the ground at true scale with no trim, is stretched about the field by the trim, and is moved by the offsets (V6)', () => {
+  const at = (x, y, align) => {
+    const { lat, lon } = localFtToLatLon(REF, x, y);
+    return photoToWorld(REF, align, lat, lon);
+  };
+  const true1 = at(1000, -2000, ALIGN);
+  near(true1.x, 1000, 1e-6);
+  near(true1.y, -2000, 1e-6);
+  const stretched = at(1000, -2000, { trim: 1.2, eastFt: 0, northFt: 0 });
+  near(stretched.x, 1200, 1e-6);
+  near(stretched.y, -2400, 1e-6);
+  const moved = at(1000, -2000, { trim: 1.2, eastFt: 300, northFt: -100 });
+  near(moved.x, 1500, 1e-6);
+  near(moved.y, -2500, 1e-6);
+  const field = at(0, 0, { trim: 1.2, eastFt: 0, northFt: 0 });
+  near(field.x, 0, 1e-6);
+  near(field.y, 0, 1e-6); // the field itself stays put under any trim
+});
+
+test('worldToPhoto undoes photoToWorld', () => {
+  const align = { trim: 1.13, eastFt: -400, northFt: 250 };
+  const ll = localFtToLatLon(REF, 3500, -1200);
+  const world = photoToWorld(REF, align, ll.lat, ll.lon);
+  const back = worldToPhoto(REF, align, world.x, world.y);
+  near(back.lat, ll.lat, 1e-9);
+  near(back.lon, ll.lon, 1e-9);
+});
+
+test('the tile view covers what is on screen, at the scale the photo is drawn at, and puts tiles where photoToWorld says', () => {
+  const align = { trim: 1.2, eastFt: 200, northFt: -300 };
+  const view = photoView(fakeMap, REF, align);
+  near(view.pxPerFt, VIEW.scale * 1.2, 1e-12); // the photo is 20 % bigger, so its ground is 20 % more pixels a foot
+  const { minX, minY, maxX, maxY } = fakeMap.visibleBounds();
+  for (const [x, y] of [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY], [0, 0]]) {
+    const ll = worldToPhoto(REF, align, x, y);
+    assert.ok(ll.lat <= view.corners.north + 1e-12 && ll.lat >= view.corners.south - 1e-12, 'inside north and south');
+    assert.ok(ll.lon <= view.corners.east + 1e-12 && ll.lon >= view.corners.west - 1e-12, 'inside east and west');
+    const [sx, sy] = view.toScreen(ll.lat, ll.lon);
+    const [ex, ey] = fakeMap.worldToScreen(x, y);
+    near(sx, ex, 1e-6);
+    near(sy, ey, 1e-6);
+  }
+});
+
+test('under the photo the credit is Esri\'s; with every tile failed it says the photo needs a connection; with the layer off there is nothing', () => {
+  assert.equal(photoCaption(null), '');
+  assert.equal(photoCaption({ wanted: 6, ready: 2, failed: 0 }), ESRI_IMAGERY.credit);
+  assert.equal(photoCaption({ wanted: 0, ready: 0, failed: 0 }), ESRI_IMAGERY.credit, 'zoomed out too far for tiles: the credit stays while the layer is on');
+  assert.equal(photoCaption({ wanted: 6, ready: 0, failed: 6 }), PHOTO_OFFLINE_TEXT);
+  assert.equal(photoCaption({ wanted: 6, ready: 4, failed: 2 }), ESRI_IMAGERY.credit, 'a few missing tiles are not "offline"');
+  assert.match(PHOTO_OFFLINE_TEXT, /^Satellite photo needs a connection/);
+  assert.match(PHOTO_OFFLINE_TEXT, /grid/i);
+});
+
+test('the photo is drawn under the grid or above it as chosen, at the chosen opacity, and not at all when the layer is off', () => {
+  const order = (layers) => {
+    const rec = recordingContext();
+    const marks = [];
+    const photo = () => marks.push({ at: rec.calls.length, alpha: rec.ctx.globalAlpha });
+    drawScene(rec.ctx, fakeMap, scene(), { ...LAYERS_ON, ...layers }, PALETTE, { photo });
+    const gridAt = rec.calls.findIndex((c) => c.name === 'fillText' && c.args[0].startsWith('Grid:'));
+    const firstRoute = rec.calls.findIndex((c) => c.name === 'setLineDash' && c.args[0].length === 0);
+    return { marks, gridAt, firstRoute };
+  };
+  const below = order({ layerPhoto: true, photoAboveGrid: false, photoOpacityPct: 60 });
+  assert.equal(below.marks.length, 1);
+  assert.ok(below.marks[0].at < below.gridAt, 'below the grid');
+  near(below.marks[0].alpha, 0.6);
+  const above = order({ layerPhoto: true, photoAboveGrid: true, photoOpacityPct: 100 });
+  assert.ok(above.marks[0].at > above.gridAt, 'above the grid');
+  assert.ok(above.marks[0].at < above.firstRoute, 'but under the routes');
+  near(above.marks[0].alpha, 1);
+  assert.equal(order({ layerPhoto: false }).marks.length, 0, 'off');
+  assert.equal(order({}).marks.length, 0, 'the layer is off unless it is set');
+});
+
+test('the photo\'s opacity is put back after it is drawn, so nothing else fades', () => {
+  const rec = recordingContext();
+  drawScene(rec.ctx, fakeMap, scene(), { ...LAYERS_ON, layerPhoto: true, photoAboveGrid: true, photoOpacityPct: 30 }, PALETTE, { photo: () => {} });
+  const saves = rec.named('save').length;
+  const restores = rec.named('restore').length;
+  assert.equal(saves, restores, 'every save has its restore');
+});
+
+// The photo on a map with a stand-in for images: which tiles are asked for, and what the credit line is told.
+function withPhoto(t, layers = {}, more = {}) {
+  const images = [];
+  const makeImage = () => {
+    const image = { onload: null, onerror: null, set src(url) { image.url = url; images.push(image); } };
+    return image;
+  };
+  const told = [];
+  const on = { ...LAYERS_ON, layerPhoto: true, photoOpacityPct: 100, photoAboveGrid: true, photoTrim: 1.2, photoEastFt: 0, photoNorthFt: 0, ...layers };
+  const state = withMap(t, { layers: on, anchor: () => ({ lat: 50.3303, lon: -105.5592 }), onPhoto: (s) => told.push(s), makeImage, ...more });
+  return { ...state, images, told, on };
+}
+
+test('with the photo on, the map asks Esri for the tiles under the pattern, and says so to the credit line', (t) => {
+  const { flush, images, told } = withPhoto(t);
+  flush();
+  assert.ok(images.length > 0 && images.length <= 64, `${images.length} tiles asked for`);
+  assert.ok(images.every((i) => i.url.startsWith('https://services.arcgisonline.com/') && /\/tile\/\d+\/\d+\/\d+$/.test(i.url)), 'Esri tiles by number only');
+  assert.deepEqual(told.at(-1), { wanted: images.length, ready: 0, failed: 0 });
+});
+
+test('a tile that arrives is drawn, and the map draws again (once a frame, however many arrive)', (t) => {
+  const { flush, images, frames, rec } = withPhoto(t);
+  flush();
+  for (const image of images) image.onload();
+  assert.equal(frames.length, 1, 'one redraw for all the tiles');
+  rec.calls.length = 0;
+  flush();
+  assert.equal(rec.named('drawImage').length, images.length, 'every tile is drawn');
+});
+
+test('with the photo off, nothing is asked for and the credit line is told there is no photo', (t) => {
+  const { flush, images, told } = withPhoto(t, { layerPhoto: false });
+  flush();
+  assert.equal(images.length, 0, 'nothing fetched while it is off (R5)');
+  assert.deepEqual(told, [null]);
+});
+
+test('the photo is not asked for when the setup has no anchor to put it on', (t) => {
+  const { flush, images, told } = withPhoto(t, {}, { anchor: () => null });
+  flush();
+  assert.equal(images.length, 0);
+  assert.deepEqual(told, [null]);
+});
+
+test('switching the photo on later asks for its tiles then; switching it off again tells the credit line', (t) => {
+  const { flush, images, told, on, map } = withPhoto(t, { layerPhoto: false });
+  flush();
+  assert.equal(images.length, 0);
+  on.layerPhoto = true;
+  map.requestDraw();
+  flush();
+  assert.ok(images.length > 0);
+  on.layerPhoto = false;
+  map.requestDraw();
+  flush();
+  assert.equal(told.at(-1), null);
+});
+
+test('when every tile fails for good, the credit line is told they all failed; the grid still draws', (t) => {
+  const { flush, images, told, frames, timers } = withPhoto(t);
+  const later = [];
+  timers.after = (ms, fn) => { later.push(fn); return () => {}; };
+  flush();
+  const asked = images.length;
+  // Each tile is tried three times; after the last try it is given up on.
+  let batch = images.slice();
+  for (let round = 0; round < 3; round++) {
+    for (const image of batch) image.onerror();
+    if (round < 2) {
+      const before = images.length;
+      while (later.length) later.shift()();
+      batch = images.slice(before);
+    }
+  }
+  flush();
+  assert.deepEqual(told.at(-1), { wanted: asked, ready: 0, failed: asked });
+  assert.equal(photoCaption(told.at(-1)), PHOTO_OFFLINE_TEXT);
+  assert.ok(frames.length === 0);
+});
+
+test('closing the map stops the photo: no late tile draws, no retries left', (t) => {
+  const { map, flush, images, frames } = withPhoto(t);
+  flush();
+  map.dispose();
+  for (const image of images) assert.equal(image.onload, null, 'the tiles no longer call back');
   assert.equal(frames.length, 0);
 });

@@ -315,3 +315,33 @@ test('the less obvious settings carry a one-line hint that a screen reader reads
   assert.ok(everyHint.length >= 10);
   for (const hint of everyHint) assert.ok(hint.textContent.length <= 60, `"${hint.textContent}" is one short line`);
 });
+
+test('the 3D view\'s Paint choice is in the menu, Harvard first and by default, and Reset to defaults puts it back', () => {
+  const { panel, settings } = setup({ available: { view3d: true } });
+  assert.ok(legends(panel).length >= 0);
+  const selects = tagged(panel.element, 'SELECT');
+  assert.equal(selects.length, 1);
+  const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint');
+  assert.ok(label, 'a "Paint" label');
+  assert.equal(selects[0].id, label.getAttribute('for'));
+  const hintId = selects[0].getAttribute('aria-describedby');
+  assert.ok(hintId, 'the hint is tied to the select, so a screen reader reads it');
+  const hint = tagged(panel.element, 'P').find((p) => p.getAttribute('id') === hintId);
+  assert.match(words(hint), /zoomed right in/, 'and says when the paint shows');
+  assert.ok(words(hint).length <= 60);
+  const options = tagged(selects[0], 'OPTION').map(words);
+  assert.deepEqual(options, ['Harvard', 'Ship colours']);
+  assert.equal(settings.get().paint, 'harvard');
+  assert.equal(DEFAULTS.paint, 'harvard');
+  selects[0].value = '1';
+  selects[0].dispatch('change');
+  assert.equal(settings.get().paint, 'ship');
+  const reset = tagged(panel.element, 'BUTTON').find((b) => words(b) === 'Reset to defaults');
+  reset.dispatch('click');
+  assert.equal(settings.get().paint, 'harvard');
+});
+
+test('without the 3D view there is no Paint choice (R3)', () => {
+  const { panel } = setup({ available: {} });
+  assert.equal(tagged(panel.element, 'SELECT').length, 0);
+});

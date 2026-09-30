@@ -421,7 +421,7 @@ Each lands as its own commit after the golden test pins V6's behaviour, and that
 | Unsafe import (#48) | Import JSON can run script from the file | Export and Import go (no sharing, Patrick 2026-09-29). Profiles read back from storage are checked before use |
 | Point table (#49) | Altitude, speed and G are off the side of the panel and unlabelled; typing loses focus after every box | A labelled table that fits the column; focus stays |
 | Satellite photo (#49) | Can request hundreds of thousands of tiles and freeze the page; no credit to Esri | The tile zoom follows the map zoom, at most 64 tiles a view, a limited cache, failed tiles retried, and Esri's credit line on the map |
-| 3D view (#49) | Near things drawn smaller and on the wrong side, heights stretched 1.6×, the whole pattern about 100 px wide, the title under the toolbar | A true perspective camera with the same scale on every axis, framed on the routes; six camera number boxes become drag, wheel and three buttons |
+| 3D view (#49) | Near things drawn smaller and on the wrong side, heights stretched 1.6×, the whole pattern about 100 px wide, the title under the toolbar | An orthographic camera (the ui-kit's `matchProjection`) with the same scale on every axis, so nothing near looks bigger than it is, framed on the routes; six camera number boxes become drag, wheel and three buttons |
 | Caution ring (#49) | Shows only with bubbles on, and never in 3D | Its own layer, in 2D and 3D |
 | Turn data (#49) | Skips point 1 of a pattern | Every rounded point |
 | Labels (#49) | Every route prints every point's label, so up to six sit on top of each other at the threshold | Point labels only on the selected route; other routes show their name once |

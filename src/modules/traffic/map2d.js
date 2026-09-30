@@ -21,6 +21,8 @@
 //                                       worked out by the engine. Without it, the map measures the
 //                                       straight legs between each route's points itself.
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
+import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
+import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
@@ -230,12 +232,70 @@ export const isFlying = (ac) => ac.status === 'flying';
 export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FALLBACK_COLOR;
 
 // ---------------------------------------------------------------------------
+// The satellite photo (specs/SPEC-traffic.md: Layers, the Photo section of the settings menu)
+//
+// V6 draws Esri's tiles scaled by a trim about the field (the anchor), then moved by an east and
+// a north offset (drawSatellite). The alignment is those three numbers; the tile loader is the
+// ui-kit's. Positions on the photo are latitude and longitude, worked from the anchor in feet.
+
+/** What the map says in place of Esri's credit when no tile of the photo will load. */
+export const PHOTO_OFFLINE_TEXT = 'Satellite photo needs a connection. The grid still shows where things are.';
+
+/** The photo's trim and offsets from the settings; a missing or unusable value is true scale and no shift. */
+export function photoAlignment(settings) {
+  const num = (v, fallback) => (Number.isFinite(v) ? v : fallback);
+  const trim = num(settings.photoTrim, 1);
+  return { trim: trim > 0 ? trim : 1, eastFt: num(settings.photoEastFt, 0), northFt: num(settings.photoNorthFt, 0) };
+}
+
+/** Where a place on the photo (latitude and longitude) lands on the map, in feet: stretched about the field by the trim, then moved. */
+export function photoToWorld(ref, align, lat, lon) {
+  const p = latLonToLocalFt(ref, lat, lon);
+  return { x: p.x * align.trim + align.eastFt, y: p.y * align.trim + align.northFt };
+}
+
+/** The place on the photo that lies under a map point: photoToWorld undone. */
+export function worldToPhoto(ref, align, x, y) {
+  return localFtToLatLon(ref, (x - align.eastFt) / align.trim, (y - align.northFt) / align.trim);
+}
+
+/**
+ * What the ui-kit tile layer needs to draw for this view: the corners of the photo that show, the
+ * photo's scale in pixels a foot (the map's, times the trim) and lat/lon to screen. map is the canvas view.
+ */
+export function photoView(map, ref, align) {
+  const { minX, minY, maxX, maxY } = map.visibleBounds();
+  const corners = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]].map(([x, y]) => worldToPhoto(ref, align, x, y));
+  return {
+    corners: {
+      north: Math.max(...corners.map((c) => c.lat)),
+      south: Math.min(...corners.map((c) => c.lat)),
+      west: Math.min(...corners.map((c) => c.lon)),
+      east: Math.max(...corners.map((c) => c.lon)),
+    },
+    pxPerFt: map.view.scale * align.trim,
+    toScreen: (lat, lon) => {
+      const { x, y } = photoToWorld(ref, align, lat, lon);
+      return map.worldToScreen(x, y);
+    },
+  };
+}
+
+/** The line about the photo under the map: Esri's credit while it shows, or that it needs a connection. `state` is the tile layer's, or null when the layer is off. */
+export function photoCaption(state) {
+  if (!state) return '';
+  return state.wanted > 0 && state.failed === state.wanted ? PHOTO_OFFLINE_TEXT : ESRI_IMAGERY.credit;
+}
+
+// ---------------------------------------------------------------------------
 // Drawing
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
 // map: { worldToScreen(x, y), size: { width, height }, view: { scale }, visibleBounds() } (the ui-kit canvas view).
-export function drawScene(ctx, map, scene, settings, palette) {
+// layers.photo(ctx): draws the satellite photo, called only when the Satellite photo layer is on, under the
+// grid or above it as the settings say, and always under the routes.
+export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
   const at = (p) => map.worldToScreen(p.x, p.y);
   const pxPerFt = map.view.scale;
   const flying = scene.aircraft.filter(isFlying);
@@ -274,7 +334,16 @@ export function drawScene(ctx, map, scene, settings, palette) {
     ctx.arc(x, y, radius, 0, Math.PI * 2);
   };
 
+  const photo = () => {
+    if (!settings.layerPhoto || !layers.photo) return;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, Math.max(0, (Number.isFinite(settings.photoOpacityPct) ? settings.photoOpacityPct : 100) / 100));
+    layers.photo(ctx);
+    ctx.restore();
+  };
+  if (!settings.photoAboveGrid) photo();
   drawGrid(ctx, map, palette, text);
+  if (settings.photoAboveGrid) photo();
 
   // Routes: the line, its name, and the extras the layers switch on.
   const routes = scene.routes.filter((r) => r.visible !== false);
@@ -451,11 +520,21 @@ function drawWind(ctx, map, settings, palette, text) {
  * canvas: the map's <canvas>. timers: the module's scheduler scope.
  * scene(): the routes, aircraft, conflicts and trails to draw now (see the top of this file).
  * settings(): the traffic settings (layers, conflict limits, wind).
+ * anchor(): the setup's { lat, lon }, where the photo is centred (no anchor, no photo).
+ * onPhoto(state): after a draw, when the photo's state changed: the tile layer's { wanted, ready, failed },
+ * or null while the layer is off, for the credit line. makeImage: for tests.
  * Returns { requestDraw, refreshColours, fit, view, worldToScreen, screenToWorld, dispose }: ask for a draw
  * whenever the scene or a setting changes; the rest is the canvas view's own, for the editor.
  */
-export function createMap2d(canvas, { timers, scene, settings }) {
+export function createMap2d(canvas, {
+  timers, scene, settings,
+  anchor = /** @type {() => ({ lat: number, lon: number } | null | undefined)} */ (() => null),
+  onPhoto = /** @type {(state: any) => void} */ (() => {}),
+  makeImage = undefined,
+}) {
   let fitted = false;
+  let imagery = null; // the photo's tile layer, made the first time the layer is on (nothing is fetched while it is off)
+  let shownPhoto = 'unset';
   let palette = null; // the page's colours, read once and kept until refreshColours()
   const colours = () => {
     if (!palette) {
@@ -482,7 +561,19 @@ export function createMap2d(canvas, { timers, scene, settings }) {
         fitted = true;
         fitTo(data);
       }
-      drawScene(ctx, map, data, settings(), colours());
+      const options = settings();
+      const at = anchor();
+      const photoOn = Boolean(options.layerPhoto && at && map.size.width > 1);
+      const align = photoAlignment(options);
+      const ref = at ? makeLocalRef(at.lat, at.lon) : null;
+      if (photoOn) imagery ??= createTileLayer({ source: ESRI_IMAGERY, timers, onChange: () => map.requestDraw(), ...(makeImage ? { makeImage } : {}) });
+      drawScene(ctx, map, data, options, colours(), photoOn ? { photo: (c) => imagery.draw(c, photoView(map, ref, align)) } : {});
+      const state = photoOn ? imagery.state() : null;
+      const key = state ? `${state.wanted}/${state.ready}/${state.failed}` : null;
+      if (key !== shownPhoto) {
+        shownPhoto = key;
+        onPhoto(state ? { ...state } : null);
+      }
     },
   });
 
@@ -503,6 +594,10 @@ export function createMap2d(canvas, { timers, scene, settings }) {
       if (map.size.width > 1) fitTo(scene());
       else fitted = false;
     },
-    dispose: map.dispose,
+    dispose() {
+      imagery?.dispose();
+      imagery = null;
+      map.dispose();
+    },
   };
 }
