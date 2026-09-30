@@ -181,6 +181,8 @@ test('route fields: id, name, kind, visibility and colour are held to their shap
   };
   bad((r) => { r.id = '__proto__'; }, /id that is not letters/);
   bad((r) => { r.id = 'a b'; }, /id that is not letters/);
+  bad((r) => { r.id = 'constructor'; }, /id that is not letters/);
+  bad((r) => { r.id = 'prototype'; }, /id that is not letters/);
   bad((r) => { r.id = 'x'.repeat(21); }, /id that is not letters/);
   bad((r) => { r.name = ''; }, /name that is empty or over 40/);
   bad((r) => { r.name = 'n'.repeat(41); }, /name that is empty or over 40/);
@@ -266,6 +268,9 @@ test('aircraft: a known type, a callsign, a route that is there, a start point i
   bad((a) => { a.type = '__proto__'; }, /type this sim does not know/);
   bad((a) => { a.type = 'toString'; }, /type this sim does not know/);
   bad((a) => { a.id = 'A 1'; }, /callsign that is not/);
+  bad((a) => { a.id = '__proto__'; }, /callsign that is not/);
+  bad((a) => { a.id = 'constructor'; }, /callsign that is not/);
+  bad((a) => { a.id = 'prototype'; }, /callsign that is not/);
   bad((a, raw) => { a.id = raw.aircraft[0].id; }, /two aircraft are called/);
   bad((a) => { a.routeId = 'NOPE'; }, /starts on a route that is not there/);
   bad((a) => { a.startIndex = 40; }, /starts at a point Pattern 1 does not have/);

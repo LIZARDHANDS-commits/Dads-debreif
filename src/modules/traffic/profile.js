@@ -34,8 +34,12 @@ const KINDS = Object.freeze(['pattern', 'entry', 'split']);
 const MOST_DISTANCE_FT = 1_000_000;
 const MOST_SEED = 4294967295;
 
-const ID = /^[A-Za-z][A-Za-z0-9_-]{0,19}$/;
-const CALLSIGN = /^[A-Za-z0-9_-]{1,12}$/;
+const ID_SHAPE = /^[A-Za-z][A-Za-z0-9_-]{0,19}$/;
+const CALLSIGN_SHAPE = /^[A-Za-z0-9_-]{1,12}$/;
+// Names an object already has: an id like these could be used as a key and mean something else.
+const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
+const ID = { test: (v) => ID_SHAPE.test(v) && !RESERVED.has(v) };
+const CALLSIGN = { test: (v) => CALLSIGN_SHAPE.test(v) && !RESERVED.has(v) };
 const COLOUR = /^#[0-9a-fA-F]{6}$/;
 const ICAO = /^[A-Z0-9]{4}$/;
 // Control characters and the bidirectional overrides and isolates: a name is drawn as plain text and must not reorder the text around it.
