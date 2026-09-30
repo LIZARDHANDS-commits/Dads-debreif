@@ -4,7 +4,7 @@
 import { GAP_S } from '../../flight-data/clean.js';
 import { MAX_TRACKS } from '../../flight-data/load.js';
 import { MAX_FILE_BYTES } from '../../flight-data/kml.js';
-import { sampleAt } from '../../flight-data/flight.js';
+import { sampleAt, headingAt } from '../../flight-data/flight.js';
 
 /**
  * Ship colours as in V6 (line 2104), except #4, which V6 drew near-black on a
@@ -18,9 +18,8 @@ export const OUTLINE_COLOR = '#02060a';
 
 /**
  * What the screen remembers in this browser (R22): which extra panels are
- * open and which layers are on (the 5,000 ft grid is on, as in V6). "Reset
- * layout" goes back to these. Layers and tools join this list as they're
- * built; the flight itself is never kept here.
+ * open and which map layers are on. "Reset layout" goes back to these.
+ * Tools join this list as they're built; the flight itself is never kept here.
  */
 export const LAYOUT_DEFAULTS = Object.freeze({
   statusDetails: false,
@@ -29,7 +28,18 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   moreDetail: false,
   standardsOpen: false,
   filesOpen: false,
+  // Map layers, with V6's defaults: full tracks, spacing lines, grid and
+  // Lead's 3/9 line on, everything else off.
   grid: true,
+  trail: 'full',
+  spacingLines: true,
+  lead39: true,
+  three39: false,
+  cone: false,
+  clockMarks: false,
+  bubble: false,
+  bubbleFt: 500, // V6's safety bubble radius
+  followLead: false,
 });
 
 /** The whole sortie down to about 500 ft across (SPEC-debrief, #23). */
@@ -159,14 +169,17 @@ export function checkPicked(files) {
   return null;
 }
 
-/** Where each ship is at time t, in ship order, for the markers on the map. */
+/**
+ * Where each ship is at time t, in ship order, for the markers on the map,
+ * with its heading (radians, 0 = east) or null when it isn't moving.
+ */
 export function shipsAt(flight, t) {
   if (!flight) return [];
   return Object.values(flight.tracks)
     .sort((a, b) => a.slot - b.slot)
     .map((tr) => {
       const s = sampleAt(tr, t);
-      return { slot: tr.slot, xFt: s.xFt, yFt: s.yFt, inGap: s.inGap };
+      return { slot: tr.slot, xFt: s.xFt, yFt: s.yFt, inGap: s.inGap, hdg: headingAt(tr, t) };
     });
 }
 

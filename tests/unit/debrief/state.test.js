@@ -31,7 +31,7 @@ test('ship colours are V6\'s, except #4, which is white with an outline (#29)', 
 });
 
 test('the layout starts with extra detail closed, both columns open and the grid on (R22)', () => {
-  assert.deepEqual({ ...LAYOUT_DEFAULTS }, { statusDetails: false, flightColumn: true, formationColumn: true, moreDetail: false, standardsOpen: false, filesOpen: false, grid: true });
+  assert.deepEqual({ ...LAYOUT_DEFAULTS }, { statusDetails: false, flightColumn: true, formationColumn: true, moreDetail: false, standardsOpen: false, filesOpen: false, grid: true, trail: 'full', spacingLines: true, lead39: true, three39: false, cone: false, clockMarks: false, bubble: false, bubbleFt: 500, followLead: false });
   assert.ok(Object.isFrozen(LAYOUT_DEFAULTS));
 });
 
@@ -115,6 +115,7 @@ test('ship markers sit where each track is at that time, flagged inside a GPS ga
   const f1 = flight.tracks[1].fixes;
   assert.ok(Math.abs(at2[0].xFt - mid(f1[0].xFt, f1[1].xFt)) < 1e-9);
   assert.ok(at2[1].yFt > at2[0].yFt); // #2 is the northern one
+  assert.ok(Math.abs(Math.abs(at2[0].hdg) - Math.PI) < 0.01); // flying west, for the 3/9 line and silhouette
 });
 
 test('a name that starts with its own ship number isn\'t shown with the number twice', () => {

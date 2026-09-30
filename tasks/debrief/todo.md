@@ -34,10 +34,14 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
 **Checkpoint B:** open PR B.
 
-- [ ] **6. Map layers, part 1.** Grid, spacing lines, trail modes, 3/9 lines, fighting-wing cone, clock marks, safety bubble, follow lead, DFP flags, route overlays.
+- [x] **6. Map layers, part 1.** Grid, spacing lines, trail modes, 3/9 lines, fighting-wing cone, clock marks, safety bubble, follow lead, DFP flags, route overlays.
   - Acceptance: every layer redraws while paused (#26); click-through passes (R3).
   - Verify: e2e click-through; look at each layer against V6.
   - Files: src/modules/debrief/map2d/{layers,overlays}.js, data/cymj.js
+  - Done: the Layers menu has V6's layers with V6's defaults (full tracks, spacing lines, grid and Lead's 3/9 on; #3's 3/9, cone, clock marks, bubble and its radius, Follow Lead off), remembered and covered by Reset layout. Every layer redraws at once while paused (#26). Ships are V6's T-6 silhouette pointing along the track (a dot while not moving, hollow in a GPS gap); no 3/9 line, cone or clock for a ship that isn't moving. DFP flags sit at Lead's place when each was added. Places are in `map2d/geometry.js`, pinned to V6's numbers.
+- [ ] **6b. Route overlays.** V6's 19 built-in routes (TACNAV 1 to 4, North and South A/B/ED, Stds and TAC test routes) as files loaded only when chosen (R5), with opacity, drawn under the tracks.
+  - Acceptance: each route draws where V6 drew it; nothing downloads until one is chosen.
+  - Files: public/media/debrief/routes/*.kml, src/modules/debrief/map2d/overlays.js
 - [ ] **7. Map layers, part 2.** Satellite tiles with Esri attribution and offline message; embedded VNC charts with alignment, pinned warp, off-screen cache, "Not for navigation".
   - Acceptance: VNC warp matches V6 (golden); charts load only when turned on (R5); tiles retry and repaint only their area (#28).
   - Verify: golden warp test; network log in the browser; performance log.
