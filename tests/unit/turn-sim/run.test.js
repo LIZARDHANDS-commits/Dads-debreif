@@ -43,6 +43,16 @@ test('missing settings take their defaults', () => {
   assert.deepEqual(a.state, b.state);
 });
 
+test('a run at the rebuild\'s defaults flies 3 G (D113) where V6\'s defaults fly 2 G', () => {
+  assert.equal(createRun(DEFAULTS).state.aircraft[0].g, 3);
+  assert.equal(createRun({}).state.aircraft[0].g, 3);
+  assert.equal(createRun(V6).state.aircraft[0].g, 2);
+  const box = (settings) => createRun({ ...settings, formation: 'offsetBox' }).state.aircraft.find((a) => a.id === 3);
+  // #3 sits the box aft distance behind Lead: 8,000 ft in V6, 7,000 ft by default (D114). Heading 0 is east, so aft is -x.
+  assert.equal(Math.round(box(V6).xFt), -8000);
+  assert.equal(Math.round(box(DEFAULTS).xFt), -7000);
+});
+
 test('every step is 0.05 s: 20 steps are a second, whatever calls step() and however fast', () => {
   const run = createRun(V6);
   for (let i = 0; i < 20; i++) run.step();

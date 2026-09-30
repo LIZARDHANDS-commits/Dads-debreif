@@ -36,6 +36,15 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
   for (const [key, value] of Object.entries(v6)) assert.equal(V6_DEFAULTS[key], value, key);
 });
 
+test('the rebuild\'s defaults are V6\'s except G 3.0 (D113) and the offset box aft 7,000 ft (D114)', () => {
+  const changed = Object.keys(DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
+  assert.deepEqual(changed, ['baseG', 'boxAftFt']);
+  assert.equal(V6_DEFAULTS.baseG, 2.0);
+  assert.equal(V6_DEFAULTS.boxAftFt, 8000);
+  assert.equal(DEFAULTS.baseG, 3.0);
+  assert.equal(DEFAULTS.boxAftFt, 7000);
+});
+
 test('V6 gives every aircraft no error, the global clock cue and auto turn logic', () => {
   for (const id of [1, 2, 3, 4]) {
     assert.deepEqual(aircraftSettings(V6_DEFAULTS, id), {

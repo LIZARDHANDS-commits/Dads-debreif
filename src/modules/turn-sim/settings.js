@@ -100,6 +100,10 @@ export const V6_DEFAULTS = Object.freeze({
 /** What the rebuild starts with: V6's values, plus each logged decision that changed one. */
 export const DEFAULTS = Object.freeze({
   ...V6_DEFAULTS,
+  // D113 (Patrick 05:37Z): the SMM flies line-abreast turns at 3 G (16.18 para 50, 16.19). V6: 2.0.
+  baseG: 3.0,
+  // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
+  boxAftFt: 7000,
 });
 
 const number = (min, max) => ({ type: 'number', min, max });
