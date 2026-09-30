@@ -103,7 +103,10 @@ function altLinesOf(row, call, notes) {
   const label = `${row.name} arrival ${range(around(call.wave.land, -1), around(call.wave.land, 1))}Z`;
   for (const a of call.alternates) {
     const tone = toneWith(a.tone, notes[a.icao]);
-    lines.set(a.icao, { label, words: a.words, tone, symbol: symbolOf(tone), reason: withTafNote(reasonOf(a), notes[a.icao]), note: a.note });
+    // Meeting with a dangerous-weather caution is not all-clear: the same "with caution" the chip counts (N5).
+    const meets = a.status === 'meets' || a.status === 'at-limit';
+    const words = meets && (a.result?.cautions?.length ?? 0) > 0 ? `${a.words} (with caution)` : a.words;
+    lines.set(a.icao, { label, words, tone, symbol: symbolOf(tone), reason: withTafNote(reasonOf(a), notes[a.icao]), note: a.note });
   }
   return lines;
 }

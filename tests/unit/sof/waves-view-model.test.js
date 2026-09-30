@@ -163,6 +163,14 @@ test('the chip adds "(1 with caution)" when an alternate meets its minima with t
   assert.equal(model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS } }).rows[0].chip.alternates, '3 of 3 alternates meet', 'no caution, no words');
 });
 
+test('N5: an alternate that meets with a caution is not "Meets minima" alone on its own line', () => {
+  const stormy = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 TEMPO 2920/2922 4SM TSRA BKN040CB';
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS, CYQR: taf(stormy) };
+  const lines = model({ waves: [w('w1', '15:00', '16:30')], tafs }).altLines;
+  assert.equal(lines.get('CYQR').words, 'Meets minima (with caution)', 'the same words as the chip\'s "(1 with caution)"');
+  assert.equal(lines.get('CYYN').words, 'Meets minima', 'no caution, no added words');
+});
+
 // ---- Selecting a wave lists every hit -----------------------------------------------------------------
 
 test('the first wave with a call is selected until another is chosen, and none can be chosen', () => {
