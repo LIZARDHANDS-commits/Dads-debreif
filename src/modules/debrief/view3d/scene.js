@@ -5,6 +5,7 @@
 // World frame as everywhere in the debrief: x east, y north, in feet; altitude
 // in feet. Headings are math angles in radians (0 = east, D35).
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
+import { wrapPi } from '../../../core/angles.js';
 
 /** V6's 3D camera on first open (markup line 729 to 751). */
 export const V6_CAMERA = Object.freeze({ yawDeg: -35, pitchDeg: 52, zoom: 70, altScale: 2 });
@@ -54,48 +55,40 @@ export function drawOrderV6(entries, depthOf) {
   return [...entries].sort((a, b) => depthOf(a) - depthOf(b));
 }
 
-/**
- * Signed heading change a − b in (−π, π] (V6 headingDelta, line 3781). Kept
- * instead of core's wrapPi: the modulo gives different last digits, and the
- * golden test pins V6 exactly.
- */
-function headingDelta(a, b) {
-  let d = ((a - b + Math.PI) % (Math.PI * 2)) - Math.PI;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
+/** Most bank the 3D view draws, as V6 (a turn-rate spike near a gap can't flip the model). */
+const MAX_BANK_DEG = 85;
 
 /**
- * Bank and pitch the 3D view draws for one aircraft (V6 attitudeFor, line 3786).
- * `p` is the aircraft now ({ x, y, spdKt, pitchNative, gNative }), `before` and
- * `after` are it one second either side ({ x, y, t }), and `t` is the time now.
+ * Bank the 3D view draws for one aircraft, in degrees with the left wing down
+ * positive, and where it came from.
  *
- * Bank (degrees, left turn positive): from the turn over those two seconds,
- * 0 to 85°, replaced by acos(1/G) whenever a recorded G above 1.01 exists.
- * Pitch: the recorded pitch, else 0, because V6's 3D view can't reach the
- * debrief's pitch estimate (#19 finding).
+ * - Recorded bank wins when the track has it (D47). flight-data gives it with
+ *   the right wing down positive, so its sign flips here.
+ * - Otherwise the bank of a level, coordinated turn at the turn rate the track
+ *   shows (D40): tan(bank) = speed × rate / g, from the headings into and out
+ *   of `now`. Those headings belong to the middles of the two legs, which are
+ *   half of `after.t − before.t` apart. V6 divided by the whole gap, so its turn
+ *   rate, and its bank, came out about half (a 4 G turn read 63° for 75.5°).
+ * - Recorded G no longer sets the bank (D40: G only in level turns). In a level
+ *   turn the bank from the turn rate is already acos(1/G); outside one, as in a
+ *   wings-level pull, V6's acos(1/G) drew a bank the aircraft didn't have.
+ *
+ * `before`, `now` and `after` are { x, y, t } about a second apart; `speedKt`
+ * is the ground speed at `now`.
  */
-export function attitudeV6(p, before, after, t) {
-  if (!p) return { bankDeg: 0, pitchDeg: 0, pitchSource: 'estimated' };
-  const pitchDeg = Number.isFinite(p.pitchNative) ? p.pitchNative : 0;
-  let bankDeg = 0;
-  if (before && after) {
-    const h0 = Math.atan2(p.y - before.y, p.x - before.x);
-    const h1 = Math.atan2(after.y - p.y, after.x - p.x);
-    const dt = Math.max(0.25, (after.t || t + 1) - (before.t || t - 1));
-    const turnRate = Math.abs(headingDelta(h1, h0)) / dt;
-    const vfps = (p.spdKt || 0) * KT_TO_FTPS;
-    if (vfps > 20 && turnRate > 0.0001) {
-      bankDeg = clamp((Math.atan((vfps * turnRate) / G_FTPS2) * 180) / Math.PI, 0, 85);
-      const cross = Math.cos(h0) * Math.sin(h1) - Math.sin(h0) * Math.cos(h1);
-      if (cross < 0) bankDeg = -bankDeg;
-    }
-  }
-  if (Number.isFinite(p.gNative) && Math.abs(p.gNative) > 1.01) {
-    const gBank = (Math.acos(clamp(1 / Math.abs(p.gNative), -1, 1)) * 180) / Math.PI;
-    bankDeg = Math.sign(bankDeg || 1) * gBank;
-  }
-  return { bankDeg, pitchDeg, pitchSource: Number.isFinite(p.pitchNative) ? 'recorded' : 'estimated' };
+export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg }) {
+  if (Number.isFinite(recordedBankDeg)) return { bankDeg: -recordedBankDeg, source: 'recorded' };
+  if (!now || !before || !after) return { bankDeg: 0, source: 'estimated' };
+  const h0 = Math.atan2(now.y - before.y, now.x - before.x);
+  const h1 = Math.atan2(after.y - now.y, after.x - now.x);
+  const t0 = Number.isFinite(before.t) ? before.t : now.t - 1;
+  const t1 = Number.isFinite(after.t) ? after.t : now.t + 1;
+  const turn = wrapPi(h1 - h0);
+  const rate = Math.abs(turn) / Math.max(0.125, (t1 - t0) / 2);
+  const vfps = (speedKt || 0) * KT_TO_FTPS;
+  if (!(vfps > 20 && rate > 0.0001)) return { bankDeg: 0, source: 'estimated' };
+  const bankDeg = clamp((Math.atan((vfps * rate) / G_FTPS2) * 180) / Math.PI, 0, MAX_BANK_DEG);
+  return { bankDeg: turn < 0 ? -bankDeg : bankDeg, source: 'estimated' };
 }
 
 /**

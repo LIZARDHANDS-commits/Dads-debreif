@@ -1,12 +1,13 @@
 // Golden test (R9, D10): the 3D view's geometry in src/modules/debrief/view3d/
 // scene.js against V6's own 3D Debrief code, run unchanged. These pin V6 before
-// D40 (bank) and the #27 drawing fixes change it on purpose.
+// D40 (bank) and the #27 drawing fixes change it on purpose; each change has
+// its own test below saying exactly how it differs from V6.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadV6 } from './v6-source.js';
 import { seeded } from './inputs.js';
 import {
-  formationCenter, projectPoint, drawOrderV6, attitudeV6, t6PointsV6,
+  formationCenter, projectPoint, drawOrderV6, bankFromTrack, t6PointsV6,
 } from '../../src/modules/debrief/view3d/scene.js';
 
 const MARKER = "const canvas=$('threeDCanvas')";
@@ -114,21 +115,63 @@ function turning(r) {
   return { p, before, after, t };
 }
 
-test('attitudeV6 matches V6 attitudeFor (bank from the turn or recorded G, recorded pitch or 0)', () => {
+test('D40: bank from the real turn rate is V6\'s with the rate doubled', () => {
   const v6 = v6Scene();
   const r = seeded(34);
   for (let i = 0; i < 3000; i++) {
     const { p, before, after, t } = turning(r);
+    if (before && !Number.isFinite(before.t)) continue; // V6's missing-time fallback is kept; checked below
+    const noG = { ...p };
+    delete noG.gNative;
     v6.setScene({ api: { getTime: () => t, getTracks: () => ({ 2: {} }), getInterp: (id, tt) => (tt < t ? before : after) } });
-    const want = v6.attitudeFor(2, p);
-    const got = attitudeV6(p, before, after, t);
-    assert.equal(got.bankDeg, want.bank);
-    assert.equal(got.pitchDeg, want.pitch);
-    assert.equal(got.pitchSource, want.src === 'native pitch' ? 'recorded' : 'estimated');
+    const v6Bank = v6.attitudeFor(2, noG).bank;
+    const got = bankFromTrack({ before, now: p, after, speedKt: p.spdKt, recordedBankDeg: null });
+    assert.equal(got.source, 'estimated');
+    if (v6Bank === 0) { assert.equal(got.bankDeg, 0); continue; }
+    assert.equal(Math.sign(got.bankDeg), Math.sign(v6Bank));
+    const want = Math.min(85, (Math.atan(2 * Math.tan((Math.abs(v6Bank) * Math.PI) / 180)) * 180) / Math.PI);
+    assert.ok(Math.abs(Math.abs(got.bankDeg) - want) < 1e-9, `${got.bankDeg} vs ${want}`);
   }
-  v6.setScene({ api: null });
-  assert.deepEqual(v6.attitudeFor(1, { x: 0, y: 0 }), { bank: 0, pitch: 0, src: 'estimated' });
-  assert.deepEqual(attitudeV6(null), { bankDeg: 0, pitchDeg: 0, pitchSource: 'estimated' });
+  assert.deepEqual(bankFromTrack({}), { bankDeg: 0, source: 'estimated' });
+});
+
+/** A steady level turn flown at `kt` and `g`, sampled a second apart; left turns when dir is +1. */
+function levelTurn(kt, g, dir) {
+  const v = kt * 1.68781, rate = dir * (32.174 * Math.sqrt(g * g - 1)) / v, R = v / Math.abs(rate);
+  const at = (t) => ({ t, x: R * Math.sin(Math.abs(rate) * t), y: dir * R * (1 - Math.cos(Math.abs(rate) * t)) });
+  return { before: at(9), now: at(10), after: at(11), speedKt: kt };
+}
+
+test('D40: a 4 G level turn reads 75.5° with the turning wing down; V6 read about 63°', () => {
+  const trueBank = (Math.acos(1 / 4) * 180) / Math.PI;
+  const left = bankFromTrack(levelTurn(200, 4, 1));
+  const right = bankFromTrack(levelTurn(200, 4, -1));
+  // The chord headings of a circle sampled a second apart turn by exactly rate × 1 s,
+  // but ground speed over a chord is a hair under the arc speed; well under 0.1°.
+  assert.ok(Math.abs(left.bankDeg - trueBank) < 0.1, `${left.bankDeg}`);
+  assert.ok(Math.abs(right.bankDeg + trueBank) < 0.1, `${right.bankDeg}`);
+  const v6 = v6Scene();
+  const turn = levelTurn(200, 4, 1);
+  v6.setScene({ api: { getTime: () => 10, getTracks: () => ({ 2: {} }), getInterp: (id, tt) => (tt < 10 ? turn.before : turn.after) } });
+  assert.ok(Math.abs(v6.attitudeFor(2, { ...turn.now, spdKt: 200 }).bank - 62.69) < 0.01);
+});
+
+test('D40: a wings-level 3 G pull with recorded G draws wings level; V6 drew 70.5°', () => {
+  const pull = { before: { t: 9, x: 0, y: 2700 }, now: { t: 10, x: 0, y: 3000 }, after: { t: 11, x: 0, y: 3300 }, speedKt: 178 };
+  assert.deepEqual(bankFromTrack(pull), { bankDeg: 0, source: 'estimated' });
+  const v6 = v6Scene();
+  v6.setScene({ api: { getTime: () => 10, getTracks: () => ({ 2: {} }), getInterp: (id, tt) => (tt < 10 ? pull.before : pull.after) } });
+  assert.ok(Math.abs(v6.attitudeFor(2, { ...pull.now, spdKt: 178, gNative: 3 }).bank - 70.53) < 0.01);
+});
+
+test('D47: recorded bank wins, with flight-data\'s right-wing-down sign turned to left-wing-down', () => {
+  const turn = levelTurn(200, 4, 1);
+  assert.deepEqual(bankFromTrack({ ...turn, recordedBankDeg: 30 }), { bankDeg: -30, source: 'recorded' });
+  assert.deepEqual(bankFromTrack({ ...turn, recordedBankDeg: -60 }), { bankDeg: 60, source: 'recorded' });
+  assert.deepEqual(bankFromTrack({ recordedBankDeg: 0 }), { bankDeg: -0, source: 'recorded' });
+  // A missing time on either side falls back to a second, as V6 did.
+  const noT = { ...turn, before: { x: turn.before.x, y: turn.before.y }, now: { ...turn.now } };
+  assert.deepEqual(bankFromTrack(noT), bankFromTrack(turn));
 });
 
 const T6_ORDER = ['centre', 'nose', 'spinner', 'tail', 'fuseL', 'fuseR', 'aftL', 'aftR', 'wingL', 'wingR',
