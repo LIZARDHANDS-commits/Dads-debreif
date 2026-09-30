@@ -9,7 +9,7 @@ import {
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
-import { createTileLayer, ESRI_IMAGERY } from './tiles.js';
+import { createTileLayer, ESRI_IMAGERY } from '../../../ui-kit/map-tiles.js';
 import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../../core/geo.js';
 import { VNC_ANCHOR } from '../data/cymj.js';

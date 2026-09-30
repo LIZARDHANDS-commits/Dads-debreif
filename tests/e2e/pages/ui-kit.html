@@ -9,6 +9,7 @@
       body { display: grid; grid-template-columns: 20rem 1fr; gap: 1rem; padding: 1rem; }
       #stage { width: 600px; height: 400px; border: 1px solid var(--border); }
       #side { display: grid; gap: 1rem; grid-column: 2; }
+      #settings { grid-column: 1; }
       #side canvas { width: 300px; height: 150px; border: 1px solid var(--border); }
     </style>
   </head>
@@ -16,6 +17,7 @@
     <main id="controls"></main>
     <div id="stage"><canvas id="map"></canvas></div>
     <div id="side"><canvas id="replay"></canvas><canvas id="chart"></canvas></div>
+    <aside id="settings"></aside>
     <script type="module">
       // A page for the browser tests of controls.js and canvas-view.js, loaded
       // straight from src/ (tests/e2e/ui-kit.spec.js).
@@ -24,10 +26,11 @@
       import { createScheduler } from '/src/ui-kit/scheduler.js';
       import { createControls } from '/src/ui-kit/controls.js';
       import { createCanvasView, createCanvasSurface } from '/src/ui-kit/canvas-view.js';
+      import { createSettingsMenu } from '/src/ui-kit/settings-menu.js';
 
       const settings = createSettings(
         createStore(null).scope('kit'),
-        { bubbleFt: 1000, opacity: 0.5, grid: true, trail: 60, view: '2d' },
+        { bubbleFt: 1000, opacity: 0.5, grid: true, trail: 60, view: '2d', turnG: 4 },
         { allowed: { view: ['2d', '3d'] } },
       );
       const controls = createControls(settings);
@@ -38,6 +41,12 @@
         controls.select('trail', { label: 'Trail', options: [[0, 'Full'], [60, 'Last 60 s']] }),
         controls.choice('view', { label: 'View', options: [['2d', '2D'], ['3d', '3D']] }),
       );
+
+      // The Settings menu a module keeps its tuning numbers in (starts closed).
+      let resets = 0;
+      const menu = createSettingsMenu({ title: 'Turn settings', onReset: () => { resets++; settings.reset(); } });
+      menu.section('Turn').append(controls.number('turnG', { label: 'Turn G', unit: 'G', min: 1, max: 6, step: 0.5 }));
+      document.getElementById('settings').append(menu.element);
 
       const scheduler = createScheduler();
       let draws = 0;
@@ -87,6 +96,8 @@
         view,
         replay,
         chart,
+        menu,
+        resets: () => resets,
         shortcuts: () => shortcuts.slice(),
         chartDraws: () => chartDraws,
         draws: () => draws,
