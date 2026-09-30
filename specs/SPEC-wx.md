@@ -134,7 +134,9 @@ tests/unit/wx/
 - **Ask first:** changing a default limit, the `<` rule, or which weather raises a caution; adding a data source.
 - **Never:** touch the page from `wx`; guess a value the report does not give (unknown stays unknown).
 
-## Open questions (for the Questions tab)
+## Open questions (plan doc Questions tab Q27 to Q30)
+
+Logged as Q27 (WX-1) to Q30 (WX-4), for Dad or a current SOF. Until they are answered, the code keeps V6's behaviour.
 
 - **WX-1.** Is "below a limit" strictly below (`<`, V6) or at-or-below (`<=`)? At 2000 ft, is `BKN020` below the home limit?
 - **WX-2.** Should any of these raise a caution: thunderstorm in the vicinity (`VCTS`), `CB` or `TCU` cloud, snow, shallow or patchy fog? V6 raises none of them.
