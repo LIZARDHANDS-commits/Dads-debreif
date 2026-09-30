@@ -71,7 +71,7 @@ export function createMenu({ label, children = [], listen }) {
 
 /**
  * controls: ui-kit controls bound to the traffic settings (wind, layers, 2D | 3D).
- * on: { play, pause, reset, speed(x), fit, rewind?, step?(seconds) }.
+ * on: { play, pause, reset, speed(x), fit, fitAll?, rewind?, step?(seconds) }.
  * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
  * listen: app.listen.
  * Returns { element, setState({ mode, clockText, speed, note }) }: a note ("Replaying…") stands in for the status words until it is cleared with null.
@@ -109,7 +109,8 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
     : null;
   const viewSwitch = available.view3d ? controls.viewSwitch() : null; // the ui-kit's shared 2D | 3D switch
   const layers = createMenu({ label: 'Layers', listen, children: layerItems(available).map((item) => controls.checkbox(item.key, { label: item.label })) });
-  const fit = button('Fit', () => on.fit());
+  const fit = button('Fit', () => on.fit(), { title: 'Frame Pattern 1 and the aircraft' });
+  const fitAll = on.fitAll ? button('Fit all', () => on.fitAll(), { title: 'Frame every route, the long entries too' }) : null;
 
   const element = h(
     'div',
@@ -121,7 +122,7 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
       h('label', { class: 'bar-speed' }, 'Speed ', speed),
       clock, status,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, layers.element, fit),
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, layers.element, fit, fitAll),
   );
 
   const write = (node, text) => {

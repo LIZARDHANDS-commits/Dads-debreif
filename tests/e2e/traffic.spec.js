@@ -144,6 +144,15 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await expect(rows).toHaveCount(8);
 });
 
+test('Fit frames Pattern 1, Fit all frames every route, and Fit goes back (TR-17)', async ({ page }) => {
+  await open(page);
+  const first = await picture(page);
+  await button(page, 'Fit all').click();
+  await expect.poll(() => picture(page)).not.toBe(first); // the long entry legs are in, so everything is smaller
+  await button(page, 'Fit').click();
+  await expect.poll(() => picture(page)).toBe(first);
+});
+
 test('+ Spawn and + Pair add nothing while a box they read is refused, and say which box (TR-14)', async ({ page }) => {
   await open(page);
   const rows = page.locator('.aircraft-row');

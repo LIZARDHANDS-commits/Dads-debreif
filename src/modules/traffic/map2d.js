@@ -128,6 +128,28 @@ export function sceneBounds(routes, aircraft = []) {
   return box.minX === Infinity ? null : box;
 }
 
+/**
+ * The box the first view and Fit frame (TR-17): the first pattern that is showing (its drawn path where it has one)
+ * and the flying aircraft near it, so the pattern being watched fills the map and the long entry legs run off the
+ * edge. "Near" is within half the pattern's longer side of it. With no pattern showing it is every route, as
+ * `sceneBounds` gives; with nothing it is null.
+ */
+export function focusBounds(routes, aircraft = []) {
+  const pattern = routes.find((r) => r.kind === 'pattern' && r.visible !== false);
+  const box = pattern ? sceneBounds([pattern]) : null;
+  if (!box) return sceneBounds(routes, aircraft);
+  const room = Math.max(box.maxX - box.minX, box.maxY - box.minY) / 2;
+  const { minX, minY, maxX, maxY } = box;
+  for (const a of aircraft) {
+    if (!isFlying(a) || a.x < minX - room || a.x > maxX + room || a.y < minY - room || a.y > maxY + room) continue;
+    if (a.x < box.minX) box.minX = a.x;
+    if (a.x > box.maxX) box.maxX = a.x;
+    if (a.y < box.minY) box.minY = a.y;
+    if (a.y > box.maxY) box.maxY = a.y;
+  }
+  return box;
+}
+
 const GRID_STEPS_FT = [100, 200, 500, 1000, 2000, 5000, 10_000, 20_000, 50_000, 100_000];
 
 /** The smallest neat grid spacing that keeps lines at least `minPx` apart on screen. */
@@ -451,11 +473,12 @@ function drawWind(ctx, map, settings, palette, text) {
  * canvas: the map's <canvas>. timers: the module's scheduler scope.
  * scene(): the routes, aircraft, conflicts and trails to draw now (see the top of this file).
  * settings(): the traffic settings (layers, conflict limits, wind).
- * Returns { requestDraw, refreshColours, fit, view, worldToScreen, screenToWorld, dispose }: ask for a draw
+ * Returns { requestDraw, refreshColours, fit, fitAll, view, worldToScreen, screenToWorld, dispose }: ask for a draw
  * whenever the scene or a setting changes; the rest is the canvas view's own, for the editor.
  */
 export function createMap2d(canvas, { timers, scene, settings }) {
   let fitted = false;
+  let fitAllNext = false; // a Fit all pressed while the map had no size
   let palette = null; // the page's colours, read once and kept until refreshColours()
   const colours = () => {
     if (!palette) {
@@ -465,8 +488,8 @@ export function createMap2d(canvas, { timers, scene, settings }) {
     return palette;
   };
 
-  const fitTo = (data) => {
-    const bounds = sceneBounds(data.routes, data.aircraft);
+  const fitTo = (data, all = false) => {
+    const bounds = all ? sceneBounds(data.routes, data.aircraft) : focusBounds(data.routes, data.aircraft);
     if (bounds) map.fit(bounds, FIT_PADDING_PX);
   };
 
@@ -477,10 +500,11 @@ export function createMap2d(canvas, { timers, scene, settings }) {
     label: 'Traffic pattern map: drag to move, scroll or press + and − to zoom',
     draw(ctx) {
       const data = scene();
-      // The first draw with something to show and a size to fit to frames the routes.
+      // The first draw with something to show and a size to fit to frames the pattern and the aircraft near it.
       if (!fitted && map.size.width > 1 && (data.routes.length || data.aircraft.length)) {
         fitted = true;
-        fitTo(data);
+        fitTo(data, fitAllNext);
+        fitAllNext = false;
       }
       drawScene(ctx, map, data, settings(), colours());
     },
@@ -498,10 +522,19 @@ export function createMap2d(canvas, { timers, scene, settings }) {
       palette = null;
       map.requestDraw();
     },
-    /** Frames every route. A map that has no size yet (hidden) does it at its next draw. */
+    /** Frames the pattern and the aircraft near it. A map that has no size yet (hidden) does it at its next draw. */
     fit() {
+      fitAllNext = false;
       if (map.size.width > 1) fitTo(scene());
       else fitted = false;
+    },
+    /** Frames every route, the long entries too. */
+    fitAll() {
+      if (map.size.width > 1) fitTo(scene(), true);
+      else {
+        fitted = false;
+        fitAllNext = true;
+      }
     },
     dispose: map.dispose,
   };

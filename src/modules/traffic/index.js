@@ -64,6 +64,7 @@ function mount(root, app) {
       step: (seconds) => stepBy(seconds),
       reset: resetRun,
       fit: () => map.fit(),
+      fitAll: () => map.fitAll(),
       speed: (x) => settings.update({ speed: x }),
     },
   });

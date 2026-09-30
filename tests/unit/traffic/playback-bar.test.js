@@ -42,6 +42,7 @@ function setup(options = {}) {
     pause: () => calls.push('pause'),
     reset: () => calls.push('reset'),
     fit: () => calls.push('fit'),
+    fitAll: () => calls.push('fitAll'),
     speed: (x) => calls.push(['speed', x]),
     rewind: () => calls.push('rewind'),
     step: (s) => calls.push(['step', s]),
@@ -57,15 +58,15 @@ function setup(options = {}) {
 test('the bar starts paused at 0:00:00 and 8×, with every clock control there', () => {
   const { bar } = setup();
   const first = words(bar.element);
-  for (const name of ['Play', 'Rewind', '−10 s', '+10 s', 'Reset', 'Speed', 'Paused', '0:00:00', 'Layers', 'Fit']) assert.ok(first.includes(name), name);
+  for (const name of ['Play', 'Rewind', '−10 s', '+10 s', 'Reset', 'Speed', 'Paused', '0:00:00', 'Layers', 'Fit', 'Fit all']) assert.ok(first.includes(name), name);
   assert.equal(tagged(bar.element, 'SELECT')[0].value, String(DEFAULTS.speed));
   assert.equal(all(bar.element, (n) => n.getAttribute?.('role') === 'status')[0].textContent, 'Paused');
 });
 
-test('Play, Reset and Fit call what they are given; the steps say which way', () => {
+test('Play, Reset, Fit and Fit all call what they are given; the steps say which way', () => {
   const { bar, calls } = setup();
-  for (const name of ['Play', 'Reset', 'Fit', '−10 s', '+10 s', 'Rewind']) press(bar.element, name);
-  assert.deepEqual(calls, ['play', 'reset', 'fit', ['step', -10], ['step', 10], 'rewind']);
+  for (const name of ['Play', 'Reset', 'Fit', 'Fit all', '−10 s', '+10 s', 'Rewind']) press(bar.element, name);
+  assert.deepEqual(calls, ['play', 'reset', 'fit', 'fitAll', ['step', -10], ['step', 10], 'rewind']);
 });
 
 test('the speed list runs from 0.25× to 8× and a choice is passed on as a number', () => {
@@ -137,6 +138,7 @@ test('Rewind and the ±10 s steps are left out until they can be called, so noth
   const { bar } = setup({ on: { rewind: undefined, step: undefined } });
   for (const name of ['Rewind', '−10 s', '+10 s']) assert.equal(pressable(bar.element, name), undefined, name);
   for (const name of ['Play', 'Reset', 'Fit']) assert.ok(pressable(bar.element, name), name);
+  assert.equal(pressable(setup({ on: { fitAll: undefined } }).bar.element, 'Fit all'), undefined, 'and so is Fit all');
   const stepsOnly = setup({ on: { rewind: undefined } });
   assert.equal(pressable(stepsOnly.bar.element, 'Rewind'), undefined);
   assert.ok(pressable(stepsOnly.bar.element, '+10 s'));
