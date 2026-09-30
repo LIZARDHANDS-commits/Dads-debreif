@@ -1,0 +1,1422 @@
+{
+ "about": "Whole ten-minute Energy fights at or below 17,000 ft, fingerprinted before the Mach limit (core #211) went into energy-sim.js. See tests/unit/turn-fight/energy-pin.js. Do not regenerate to make a test pass.",
+ "steps": 30000,
+ "cases": [
+  {
+   "name": "the default fight",
+   "setup": {},
+   "digest": "96b02a4f1ef40805491fb3823ae5008c810ee14095dfa8f5c669858de820e896",
+   "stopped": true,
+   "maxKias": 220,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 10808.559297833017,
+   "chasingSteps": 0,
+   "blueFinal": {
+    "kias": 146.42427560473848,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427560473868,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "a 316 KIAS merge at 10,000 ft",
+   "setup": {
+    "blueKias": 316,
+    "redKias": 316
+   },
+   "digest": "9a54a16958b5af8d3f9c3db8aa5c4713dae7213a6cb924016e00a73a8da82166",
+   "stopped": true,
+   "maxKias": 316.00000000000006,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 13605.390428368784,
+   "chasingSteps": 0,
+   "blueFinal": {
+    "kias": 146.42427560557982,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427560557982,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "a 316 KIAS merge at 17,000 ft",
+   "setup": {
+    "blueAltFt": 17000,
+    "redAltFt": 17000,
+    "blueKias": 316,
+    "redKias": 316
+   },
+   "digest": "e28a0b5d16d9e2304dc39acffbcba983dbee04878e95baecdc3ff2e17a6fb886",
+   "stopped": true,
+   "maxKias": 316,
+   "minAlt": 6000.000000020119,
+   "maxAlt": 21465.99534285116,
+   "chasingSteps": 0,
+   "blueFinal": {
+    "kias": 146.44458004491503,
+    "altFt": 6000.000000020119,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.44458004491494,
+    "altFt": 6000.000000020119,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "the default fight at 15,000 ft",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 15000
+   },
+   "digest": "9d6deb60878bba1602f501fcf01de887a926d94e52d453a211b190f40a67b51b",
+   "stopped": true,
+   "maxKias": 220.00000000000003,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 15932.446499205651,
+   "chasingSteps": 0,
+   "blueFinal": {
+    "kias": 146.4242759328148,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427593281496,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "the default fight at 17,000 ft",
+   "setup": {
+    "blueAltFt": 17000,
+    "redAltFt": 17000
+   },
+   "digest": "24808e5133cd44b17fd63f7cf16bc89d73838f07e6e1a049bfc17d9120adf3a9",
+   "stopped": true,
+   "maxKias": 220,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17969.328336747032,
+   "chasingSteps": 0,
+   "blueFinal": {
+    "kias": 146.42430524959468,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42430524959468,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "Blue 316 overshooting Red 160 at the deck",
+   "setup": {
+    "blueAltFt": 6000,
+    "redAltFt": 6000,
+    "blueKias": 316,
+    "redKias": 160,
+    "turnsStart": "now",
+    "ataDeg": 0,
+    "aaDeg": 0,
+    "separationNm": 2
+   },
+   "digest": "3ba3d4972f3b19191b4219d49df26be06643860c50c3170999fc4baa1fa8f6ac",
+   "stopped": true,
+   "maxKias": 315.92615709347245,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 6663.581226774527,
+   "chasingSteps": 30000,
+   "blueFinal": {
+    "kias": 146.42573470671482,
+    "altFt": 6000.000000000092,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4242756047383,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "Blue 100 against Red 220 at 17,000 ft (a chase)",
+   "setup": {
+    "blueAltFt": 17000,
+    "redAltFt": 17000,
+    "blueKias": 100
+   },
+   "digest": "49428aeaa8857643824c828779b4ed3f837a3bff5e0e62fa84eaa3efe2b12ed5",
+   "stopped": true,
+   "maxKias": 261.4168869966161,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17964.834073788017,
+   "chasingSteps": 28402,
+   "blueFinal": {
+    "kias": 146.42427661384292,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427656945054,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "Blue 300 against Red 280 at 15,000 ft (a chase, fast)",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 15000,
+    "blueKias": 300,
+    "redKias": 280
+   },
+   "digest": "f113868dd12be67de926bb51435ce3bb2ea385704149101eb6c8ca5dd5c64f33",
+   "stopped": true,
+   "maxKias": 300,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 18858.16093059047,
+   "chasingSteps": 17097,
+   "blueFinal": {
+    "kias": 146.4243585731483,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42434287985807,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 01",
+   "setup": {
+    "blueAltFt": 12000,
+    "redAltFt": 14000,
+    "blueKias": 140,
+    "redKias": 250,
+    "ataDeg": 45,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "aa8046d84b391dcb89f8b08c9bb6bb2224b24141a675810a74826dbe24bebef8",
+   "stopped": true,
+   "maxKias": 249.99999999999997,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 15197.446457777121,
+   "chasingSteps": 11515,
+   "blueFinal": {
+    "kias": 146.42427560473968,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4487191136497,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 02",
+   "setup": {
+    "blueAltFt": 6000,
+    "redAltFt": 8000,
+    "blueKias": 160,
+    "redKias": 220,
+    "ataDeg": 90,
+    "aaDeg": 180,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "8988b69ec5d1fd76f3c42ab6c1af82c79626b318b06ce90c903b0dd049ae0326",
+   "stopped": true,
+   "maxKias": 246.02129301947878,
+   "minAlt": 6000,
+   "maxAlt": 8763.193068985542,
+   "chasingSteps": 24852,
+   "blueFinal": {
+    "kias": 146.42427560473843,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427560473993,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 03",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 8000,
+    "blueKias": 100,
+    "redKias": 200,
+    "ataDeg": 0,
+    "aaDeg": 180,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "d3918a9f7deee6f13cf7597297c66f57c9e691be0432847a14fca282738de189",
+   "stopped": true,
+   "maxKias": 206.55310550991683,
+   "minAlt": 5999.977810665313,
+   "maxAlt": 10329.853797874672,
+   "chasingSteps": 22175,
+   "blueFinal": {
+    "kias": 146.42427560473848,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4262763221607,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 04",
+   "setup": {
+    "blueAltFt": 14000,
+    "redAltFt": 15000,
+    "blueKias": 316,
+    "redKias": 100,
+    "ataDeg": 20,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "937d87a4a84ea8d44f449a71c7c128c9741e960bd2c7c5fd1d69bc8edea23a2c",
+   "stopped": true,
+   "maxKias": 316,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 16887.18589235113,
+   "chasingSteps": 9233,
+   "blueFinal": {
+    "kias": 146.4700120695223,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427561040165,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 05",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 15000,
+    "blueKias": 280,
+    "redKias": 300,
+    "ataDeg": 0,
+    "aaDeg": 0,
+    "ataSide": "left",
+    "aaSide": "right",
+    "turnsStart": "now",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "3cfc2af2df7adb4fc6accd1649cc1b50e445e0006e9a3a0e5fe187a86896aaa8",
+   "stopped": true,
+   "maxKias": 299.93619468619096,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 18863.25388902002,
+   "chasingSteps": 30000,
+   "blueFinal": {
+    "kias": 146.42438612262865,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4243602171578,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 06",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 14000,
+    "blueKias": 316,
+    "redKias": 316,
+    "ataDeg": 0,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "be3514495c94d0ca26f7cff3b41a69d39b1c034a969059822e55170ea0f90ac8",
+   "stopped": true,
+   "maxKias": 316,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17938.103714614088,
+   "chasingSteps": 14321,
+   "blueFinal": {
+    "kias": 146.42428247696589,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4242819474274,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 07",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 12000,
+    "blueKias": 280,
+    "redKias": 200,
+    "ataDeg": 45,
+    "aaDeg": 180,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "6c02289bc2d66ea23ab91d1796251bc11ea6042dbb8fc8fc2c11d2717f45b50c",
+   "stopped": true,
+   "maxKias": 280.00000000000006,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 12390.467556677408,
+   "chasingSteps": 28869,
+   "blueFinal": {
+    "kias": 146.424282855626,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427560474903,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 08",
+   "setup": {
+    "blueAltFt": 17000,
+    "redAltFt": 16000,
+    "blueKias": 280,
+    "redKias": 316,
+    "ataDeg": 90,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "ff3f1c9bc109d024d3f04c8467c330a0cedb36eb51734ee5227e3484bd334b27",
+   "stopped": true,
+   "maxKias": 316,
+   "minAlt": 6000.000000000071,
+   "maxAlt": 20643.63540664434,
+   "chasingSteps": 18943,
+   "blueFinal": {
+    "kias": 146.4291746472471,
+    "altFt": 6000.000000174484,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42780532271155,
+    "altFt": 6000.000000000071,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 09",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 17000,
+    "blueKias": 250,
+    "redKias": 300,
+    "ataDeg": 45,
+    "aaDeg": 0,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "7d0114233dc732ae76c32af0930d7e027a35d1115601f0de9082ae948755db8c",
+   "stopped": true,
+   "maxKias": 299.9348538678543,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 19584.694031084975,
+   "chasingSteps": 28173,
+   "blueFinal": {
+    "kias": 146.42427599311566,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4242759258002,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 10",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 17000,
+    "blueKias": 220,
+    "redKias": 250,
+    "ataDeg": 90,
+    "aaDeg": 0,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "e394865747ba3efbae0623a8ec988aff3d0a4cc47e83bc70d73fac0176479420",
+   "stopped": true,
+   "maxKias": 249.94745995597705,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 18237.79002648202,
+   "chasingSteps": 9985,
+   "blueFinal": {
+    "kias": 146.42427570787555,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4242831383698,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 11",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 10000,
+    "blueKias": 140,
+    "redKias": 140,
+    "ataDeg": 0,
+    "aaDeg": 90,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 3,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "5ce0cbf11ab3eaaf40980809be0726ad20d2e6cc8c4d9bc92ab1f9269b5d4655",
+   "stopped": true,
+   "maxKias": 243.3436530068033,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 10019.56063747125,
+   "chasingSteps": 27137,
+   "blueFinal": {
+    "kias": 146.42427560474025,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4242756047385,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 12",
+   "setup": {
+    "blueAltFt": 14000,
+    "redAltFt": 14000,
+    "blueKias": 140,
+    "redKias": 250,
+    "ataDeg": 0,
+    "aaDeg": 0,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "f63bc87dbc2d0d067733b6e8521f92fb1bd10d5558e97e02794f4b85ba87a970",
+   "stopped": true,
+   "maxKias": 249.9505550745899,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 16805.792158493186,
+   "chasingSteps": 30000,
+   "blueFinal": {
+    "kias": 146.42427584815601,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427611767602,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 13",
+   "setup": {
+    "blueAltFt": 6000,
+    "redAltFt": 6000,
+    "blueKias": 250,
+    "redKias": 200,
+    "ataDeg": 20,
+    "aaDeg": 180,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 2,
+    "separationNm": 1,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "5e34a0ee9022fcb5ac3a22cc49f770eceacbf76e1e104ced334e9129a101e77e",
+   "stopped": true,
+   "maxKias": 249.95010821624808,
+   "minAlt": 5998.036396790298,
+   "maxAlt": 6974.606433679285,
+   "chasingSteps": 26160,
+   "blueFinal": {
+    "kias": 146.42509398083223,
+    "altFt": 6000.000000000092,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4242756047384,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 14",
+   "setup": {
+    "blueAltFt": 17000,
+    "redAltFt": 17000,
+    "blueKias": 100,
+    "redKias": 316,
+    "ataDeg": 20,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "76cba9e5b9e784ff99ecbc785f23032266c61a2e954257eae8a3e0373bcccdfa",
+   "stopped": true,
+   "maxKias": 315.99999999999994,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 20054.626431843695,
+   "chasingSteps": 6275,
+   "blueFinal": {
+    "kias": 146.4242759977466,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 147.4301775411408,
+    "altFt": 6000.000000132661,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 15",
+   "setup": {
+    "blueAltFt": 16000,
+    "redAltFt": 14000,
+    "blueKias": 200,
+    "redKias": 280,
+    "ataDeg": 45,
+    "aaDeg": 90,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "7094f68e2d1937cd8056a80903d3046d4eee2e09d8966ba398225948d9fbf636",
+   "stopped": true,
+   "maxKias": 279.94338423051164,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 16425.984125300765,
+   "chasingSteps": 29124,
+   "blueFinal": {
+    "kias": 146.42427591090112,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4242759078391,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 16",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 10000,
+    "blueKias": 220,
+    "redKias": 140,
+    "ataDeg": 0,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 3,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "a926ec1ecef39c7ebd0ec01c81753ece49e8d8e675202c51016a7fff123bc4ac",
+   "stopped": true,
+   "maxKias": 220,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 10809.179529742356,
+   "chasingSteps": 18255,
+   "blueFinal": {
+    "kias": 146.4309776162901,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4242756047386,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 17",
+   "setup": {
+    "blueAltFt": 16000,
+    "redAltFt": 17000,
+    "blueKias": 220,
+    "redKias": 250,
+    "ataDeg": 45,
+    "aaDeg": 180,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "0d05a29d76dc236ac975ea748f4bdcfa94961329780cedd1ea69d42cedf1ea03",
+   "stopped": true,
+   "maxKias": 250,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 18238.740242674674,
+   "chasingSteps": 8619,
+   "blueFinal": {
+    "kias": 146.42427746581464,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.6888748514532,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 18",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 11000,
+    "blueKias": 100,
+    "redKias": 200,
+    "ataDeg": 20,
+    "aaDeg": 150,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "6929486be1b86d11bf0ec3a98db19708f82a921eae2b75cbdc200a64f1bee4d7",
+   "stopped": true,
+   "maxKias": 206.55362239144898,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 11382.749100604635,
+   "chasingSteps": 18211,
+   "blueFinal": {
+    "kias": 146.42427560473845,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42655532502448,
+    "altFt": 6000.000000000126,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 19",
+   "setup": {
+    "blueAltFt": 14000,
+    "redAltFt": 12000,
+    "blueKias": 200,
+    "redKias": 220,
+    "ataDeg": 0,
+    "aaDeg": 0,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "now",
+    "circles": 2,
+    "separationNm": 2,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "acf5df7d9a53e76d5dd2d145be760818a4097ff7e82a35d832829cabe7216a39",
+   "stopped": true,
+   "maxKias": 259.53196804966274,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 14415.733344663982,
+   "chasingSteps": 28943,
+   "blueFinal": {
+    "kias": 146.4323974804444,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427560475565,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 20",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 17000,
+    "blueKias": 220,
+    "redKias": 160,
+    "ataDeg": 45,
+    "aaDeg": 30,
+    "ataSide": "left",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 3,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "bfc80ef0b6d311a1146bda7d843e4d8cd0d9654b2f96b42a4d65603bd159c8dd",
+   "stopped": true,
+   "maxKias": 247.3888315405468,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17000,
+   "chasingSteps": 28570,
+   "blueFinal": {
+    "kias": 146.42427617629437,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427630235002,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 21",
+   "setup": {
+    "blueAltFt": 8000,
+    "redAltFt": 6000,
+    "blueKias": 316,
+    "redKias": 100,
+    "ataDeg": 45,
+    "aaDeg": 180,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "093f1614dede9c82ad64c2780cf7da7c06c7970f8bbeb5a4ffdcd33a7fa938e2",
+   "stopped": true,
+   "maxKias": 316,
+   "minAlt": 6000,
+   "maxAlt": 10486.392349001622,
+   "chasingSteps": 20487,
+   "blueFinal": {
+    "kias": 146.42738063952547,
+    "altFt": 6000.000000000109,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427560473843,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 22",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 13000,
+    "blueKias": 140,
+    "redKias": 160,
+    "ataDeg": 45,
+    "aaDeg": 150,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "843fc2e638398572ec08bff8ffd7fa429842e82c4fb3c9708a20d1d31fdc1515",
+   "stopped": true,
+   "maxKias": 265.53848772889,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 15019.491758316302,
+   "chasingSteps": 28735,
+   "blueFinal": {
+    "kias": 146.42427560475406,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4242756047526,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 23",
+   "setup": {
+    "blueAltFt": 8000,
+    "redAltFt": 8000,
+    "blueKias": 140,
+    "redKias": 160,
+    "ataDeg": 20,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 2,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "bbcdf2227593ecf49c4a5d1621255979ca75dae98ad32637d79706d7acaf2c7f",
+   "stopped": true,
+   "maxKias": 161.77298790423433,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 8019.5799207533755,
+   "chasingSteps": 0,
+   "blueFinal": {
+    "kias": 146.42427560473843,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4242756047383,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 24",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 9000,
+    "blueKias": 140,
+    "redKias": 316,
+    "ataDeg": 0,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 2,
+    "separationNm": 2,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "160b78a956da1a231db1834c3d1e6eda666f741167e7b56a9369e8c9475b2b50",
+   "stopped": true,
+   "maxKias": 315.9275692779184,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 11554.11089706158,
+   "chasingSteps": 20151,
+   "blueFinal": {
+    "kias": 146.42427560473845,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42427560474042,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 25",
+   "setup": {
+    "blueAltFt": 8000,
+    "redAltFt": 6000,
+    "blueKias": 200,
+    "redKias": 140,
+    "ataDeg": 0,
+    "aaDeg": 150,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "4db371c4ab184440676a0f0acb331148bb08d4bb2e186920c078c5f051c5ea3e",
+   "stopped": true,
+   "maxKias": 200,
+   "minAlt": 5999.802447890909,
+   "maxAlt": 8348.147894927388,
+   "chasingSteps": 23449,
+   "blueFinal": {
+    "kias": 146.42427560473828,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4242756047402,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 26",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 10000,
+    "blueKias": 300,
+    "redKias": 100,
+    "ataDeg": 0,
+    "aaDeg": 150,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 3,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "a025f4d273fb0fea86f9ae266ca6fab14c3afbce13c18ebe8c5fc16c278d7909",
+   "stopped": true,
+   "maxKias": 300,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 12228.079305163956,
+   "chasingSteps": 15689,
+   "blueFinal": {
+    "kias": 146.42604819692403,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427560473848,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 27",
+   "setup": {
+    "blueAltFt": 10000,
+    "redAltFt": 11000,
+    "blueKias": 220,
+    "redKias": 250,
+    "ataDeg": 90,
+    "aaDeg": 30,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 2,
+    "separationNm": 1,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "659779376d141fa5da7809cfaa650a9f84b2e12848b0d424c96b574c9ae89d3c",
+   "stopped": true,
+   "maxKias": 249.95025639373088,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 13561.6031679616,
+   "chasingSteps": 16512,
+   "blueFinal": {
+    "kias": 146.42427560473857,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.43072923591768,
+    "altFt": 6000.000000000092,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 28",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 13000,
+    "blueKias": 316,
+    "redKias": 250,
+    "ataDeg": 90,
+    "aaDeg": 30,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 1,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "0302c3ab651d0c458ddeb30c81d67efb2b9d6d380eebfb4205be4d69d4481768",
+   "stopped": true,
+   "maxKias": 315.9299467437642,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17938.036599880696,
+   "chasingSteps": 8295,
+   "blueFinal": {
+    "kias": 146.58297140951842,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.424275642644,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 29",
+   "setup": {
+    "blueAltFt": 17000,
+    "redAltFt": 17000,
+    "blueKias": 160,
+    "redKias": 100,
+    "ataDeg": 135,
+    "aaDeg": 150,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "77d4381b0f94ed2537613637d8b2c35ec750a304714aae68c25698589a2bc047",
+   "stopped": true,
+   "maxKias": 202.57223200571676,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17463.716720406832,
+   "chasingSteps": 28353,
+   "blueFinal": {
+    "kias": 146.42427586941983,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427582087126,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 30",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 15000,
+    "blueKias": 140,
+    "redKias": 280,
+    "ataDeg": 0,
+    "aaDeg": 30,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "3b846624c0ce6938595b639eae61f5b345662e1cd42bda302a93339e9e5d163a",
+   "stopped": true,
+   "maxKias": 279.94282157631795,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 18439.13675674065,
+   "chasingSteps": 30000,
+   "blueFinal": {
+    "kias": 146.42431090587692,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4243033993707,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 31",
+   "setup": {
+    "blueAltFt": 8000,
+    "redAltFt": 7000,
+    "blueKias": 220,
+    "redKias": 280,
+    "ataDeg": 20,
+    "aaDeg": 150,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "d3809db87f75b867233be029533f93e719b03786d8143e0829d838b9ce2c8be6",
+   "stopped": true,
+   "maxKias": 280,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 8757.933137919945,
+   "chasingSteps": 28780,
+   "blueFinal": {
+    "kias": 146.4245082633746,
+    "altFt": 6000.000000000103,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427560473843,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 32",
+   "setup": {
+    "blueAltFt": 12000,
+    "redAltFt": 12000,
+    "blueKias": 100,
+    "redKias": 300,
+    "ataDeg": 135,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 2,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "5e70ca75bb2e8a8ca9af3893ef0d7a3f435edbbae96fe13a2ac6fc42d8ad3f4d",
+   "stopped": true,
+   "maxKias": 300,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 14352.448186014095,
+   "chasingSteps": 12528,
+   "blueFinal": {
+    "kias": 146.42427560473928,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.4571288777894,
+    "altFt": 6000.000000000093,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 33",
+   "setup": {
+    "blueAltFt": 15000,
+    "redAltFt": 17000,
+    "blueKias": 140,
+    "redKias": 200,
+    "ataDeg": 45,
+    "aaDeg": 180,
+    "ataSide": "left",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 2,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "a70fae91bb73c9f2d7baf9afba1e1de9ec73fa9f038831cccfd0ec1a4f667411",
+   "stopped": true,
+   "maxKias": 201.0829186130346,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17431.37326677326,
+   "chasingSteps": 9210,
+   "blueFinal": {
+    "kias": 146.42427561689792,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.49831520513465,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  },
+  {
+   "name": "grid 34",
+   "setup": {
+    "blueAltFt": 16000,
+    "redAltFt": 16000,
+    "blueKias": 280,
+    "redKias": 220,
+    "ataDeg": 45,
+    "aaDeg": 30,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "pass",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "lag",
+    "chaseAfterHeadOn": true
+   },
+   "digest": "76239755b60072155d92d381eb49ac772ba1b89fdd66516f38876278f4445350",
+   "stopped": true,
+   "maxKias": 280,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17986.241761195375,
+   "chasingSteps": 28250,
+   "blueFinal": {
+    "kias": 146.42427834041962,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.42427786577835,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 35",
+   "setup": {
+    "blueAltFt": 14000,
+    "redAltFt": 16000,
+    "blueKias": 300,
+    "redKias": 280,
+    "ataDeg": 0,
+    "aaDeg": 150,
+    "ataSide": "right",
+    "aaSide": "right",
+    "turnsStart": "pass",
+    "circles": 2,
+    "separationNm": 1,
+    "pursuit": "pure",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "9414d9d181ceac621433c0ece93d2938c77fd1cf747bf8362aba705db247ce1d",
+   "stopped": true,
+   "maxKias": 300,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 17987.418285449738,
+   "chasingSteps": 8124,
+   "blueFinal": {
+    "kias": 146.4432672355127,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   },
+   "redFinal": {
+    "kias": 146.4243116739575,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   }
+  },
+  {
+   "name": "grid 36",
+   "setup": {
+    "blueAltFt": 6000,
+    "redAltFt": 7000,
+    "blueKias": 250,
+    "redKias": 316,
+    "ataDeg": 45,
+    "aaDeg": 150,
+    "ataSide": "right",
+    "aaSide": "left",
+    "turnsStart": "now",
+    "circles": 1,
+    "separationNm": 3,
+    "pursuit": "lead",
+    "chaseAfterHeadOn": false
+   },
+   "digest": "a22b3d88ded3acc3dbd34f7c2570e2db202a5b85888b6c360eb0489dcf0a6513",
+   "stopped": true,
+   "maxKias": 315.9266149979129,
+   "minAlt": 6000.000000000067,
+   "maxAlt": 9420.56553362102,
+   "chasingSteps": 25179,
+   "blueFinal": {
+    "kias": 146.42427560473857,
+    "altFt": 6000.000000000067,
+    "move": "levelMpt"
+   },
+   "redFinal": {
+    "kias": 146.42922744724135,
+    "altFt": 6000.000000000091,
+    "move": "pursuit"
+   }
+  }
+ ]
+}
