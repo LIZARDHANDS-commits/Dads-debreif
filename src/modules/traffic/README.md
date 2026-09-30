@@ -67,15 +67,17 @@ const sim = createSim(setup, { seed: 1 });   // aircraft from setup.aircraft, di
 sim.t                 // sim time in seconds (0 at the start; always a whole number of steps)
 sim.seed, sim.setup   // what it was made with
 sim.stepTo(tSec)      // fly on to tSec in whole 0.05 s steps; returns how many steps it took
-sim.reset()           // back to 0 s, every aircraft (spawned ones too) at its start, the dice from the seed again
+sim.reset()           // back to 0 s, every aircraft (spawned ones too) at its start and no longer landed, the dice from the seed again
 sim.spawn({ type, routeId, startPoint, delaySec, id })  // returns the new callsign
 sim.remove(id)        // true if it was there
 sim.clearFinished()   // drops every aircraft that has landed or is done (V6 "Clear inactive")
 sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a profile
-sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first
+sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first. V6 also adds the split point to the trail when a split is taken; this does not (display only)
 sim.diceState()       // where the dice are (changes with every roll; the golden tests compare it with V6's)
 sim.state()           // what is where right now
 ```
+
+`setup.routes` must not be emptied while there are aircraft (V6's Delete route refuses the last one): `createSim`, `reset` and `spawn` throw a `RangeError` ("the setup needs at least one route") when there is no route to put an aircraft on. `reset` clears `landed`, as V6's `resetAircraftToStarts` does (V6's Reset button left it set).
 
 The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is asked for, and stops there, so the caller keeps the remainder (ask for `sim.t` plus the frame time times the speed each frame). The same run comes out at any frame rate and any speed. At 1× and 20 frames a second it is V6's own run. Time only goes forward: to go back, `reset()` and fly again. `stepTo` throws a `RangeError` for a time that is not a number.
 
@@ -83,7 +85,7 @@ The step is fixed: `stepTo` takes as many 0.05 s steps as fit in the time it is 
 
 The clock is added up 0.05 s at a time, as V6 does, so a whole second can come out a hair short (3 s is 2.9999999999999973). `readouts.js` drops the fraction, as V6's clock does, so the clock reads the second before on those ticks, as V6's does.
 
-A route point with no speed is flown at the aircraft type's own speed (V6's 125, 180, 150 and 230 kt for CT-157, CT-156, CT-102 and CT-114) and one with no height at 2,500 ft, as V6 does; the app never makes such a point.
+V6 reads a missing speed as 120 kt and a missing height as 2,500 ft, and so does this. The aircraft type's own speed (V6's 125, 180, 150 and 230 kt for CT-157, CT-156, CT-102 and CT-114) is used only on a route with no legs (one point or none), and the height its start point had when it was made (2,500 ft if none) there too, as V6's `acProfile` does; the app never makes a point with no speed.
 
 Constants: `STEP_SEC` (0.05), `TYPE_COLORS` (V6's four types and the colour each is drawn in) and `DEFAULT_CONFLICT_LIMITS` (200, 200, 500, 500 ft, used when `setup.conflictLimits` is missing).
 

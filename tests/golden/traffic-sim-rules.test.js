@@ -122,7 +122,7 @@ test('routes with no points, one point, or two, and start points off either end,
   flyBoth(pair, minutes(12), events);
 });
 
-test('route points with no height, speed or G fly as V6 flies them: 2,500 ft, and the aircraft type\'s own speed where the route has none', () => {
+test('route points with no height, speed or G fly as V6 flies them: 120 kt and 2,500 ft on a route with legs, and the aircraft type\'s own speed on one with none', () => {
   const setup = builtIn();
   const bare = (x, y) => ({ label: '', x, y });
   const add = (id, kind, points, extra) => setup.routes.push({ id, name: id, kind, visible: true, color: '#fff', points, ...extra });

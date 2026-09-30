@@ -104,7 +104,7 @@ export function toV6Route(route) {
     visible: route.visible !== false, color: route.color,
     attachTo: route.attachTo ?? '', mergeIndex: route.mergeIndex ?? 0,
     sourceRoute: route.sourceRoute ?? '', sourceIndex: route.sourceIndex ?? 0,
-    splitOdds: route.splitOdds ?? 0.5, landOdds: route.landOdds ?? 0,
+    splitOdds: route.splitOdds ?? 0.5, landOdds: route.landOdds,
     points: route.points.map(toV6Point),
   };
 }
@@ -227,7 +227,10 @@ export function v6Anchor() {
 /**
  * V6's built-in profile as the rebuild's setup (src/modules/traffic/data/moose-jaw.json):
  * y flipped to north, `spd` called `kt`, start times rounded to whole seconds (V6 has
- * 12.000000000000005), colours left to the aircraft type, the 3D camera numbers and the
+ * 12.000000000000005: the rounding moves A2 from 136.68 s to 137 (+0.32 s), A4 from 591.87 to
+ * 592 (+0.13 s), A6 from 884.13 to 884 (-0.13 s), A5 from 856.10 to 856 (-0.10 s), A7 from 902.09
+ * to 902 (-0.09 s) and A3 from 177.0024 to 177 (-0.002 s); A1 is unmoved. Traffic-sim.test.js
+ * flies V6's raw times once, to show the run is the same but for those shifts), colours left to the aircraft type, the 3D camera numbers and the
  * satellite tile zoom dropped (the rebuild has drag, wheel and a zoom that follows the map),
  * and the note about the Split Probability Manager dropped (the rebuild has no such panel).
  */

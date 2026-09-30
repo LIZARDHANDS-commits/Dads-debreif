@@ -23,7 +23,12 @@ export const STEP_SEC = 0.05;
 /** V6's four aircraft types and the colour each is drawn in (`types`, line 139). The type changes only the colour: every aircraft flies the route's speeds (#45). */
 export const TYPE_COLORS = Object.freeze({ 'CT-157': '#a5d6ff', 'CT-156': '#7ee787', 'CT-102': '#ffcc66', 'CT-114': '#ff6b6b' });
 
-/** The speed V6 falls back on when a route point has none: the aircraft type's own (`types`, line 139; `acProfile`, line 244). The app never makes such a point. */
+/**
+ * The speed V6's `acProfile` (line 244) falls back on when the route gives none: the aircraft type's own
+ * (`types`, line 139). On a route with legs a point with no speed reads 120 kt and one with no height 2,500 ft
+ * (V6 `lerp`), so this is reached only on a route with no legs (one point or none). The app never makes a point
+ * with no speed.
+ */
 const TYPE_FALLBACK_KT = { 'CT-157': 125, 'CT-156': 180, 'CT-102': 150, 'CT-114': 230 };
 
 /** V6's conflict limits (built-in profile, line 613): red 200 ft and 200 ft, caution 500 ft and 500 ft. */
@@ -46,8 +51,11 @@ function crossed(oldDist, newDist, target, total) {
   return oldMod <= newMod ? (target > oldMod && target <= newMod) : (target > oldMod || target <= newMod);
 }
 
+const NO_ROUTES = 'the setup needs at least one route';
+
 /**
- * A sim of the setup's routes and aircraft. `setup.routes`, `setup.routeOptions` and
+ * A sim of the setup's routes and aircraft. It needs at least one route while there are aircraft
+ * (a `RangeError` otherwise; V6's Delete route refuses the last one). `setup.routes`, `setup.routeOptions` and
  * `setup.conflictLimits` are read each step, so a route edited while it runs is flown
  * as edited (as in V6). The seed makes the run repeatable.
  */
@@ -63,9 +71,13 @@ export function createSim(setup, { seed = 1 } = {}) {
 
   // ── Aircraft ───────────────────────────────────────────────────────────────
 
-  /** Puts an aircraft at the start of its route, as V6's Reset does (`reset`, line 239). */
+  /**
+   * Puts an aircraft at the start of its route, as V6's `resetAircraftToStarts` does (line 411), and
+   * clears `landed` as that does. (V6's Reset button, `reset`, line 239, left `landed` set.)
+   */
   function toStart(a) {
     const route = routeById(a.startRouteId) || setup.routes[0];
+    if (!route) throw new RangeError(NO_ROUTES);
     a.routeId = route.id;
     a.active = true;
     a.landed = false;
@@ -76,9 +88,12 @@ export function createSim(setup, { seed = 1 } = {}) {
     return a;
   }
 
-  /** A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. */
+  /**
+   * A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. Like V6's it notes,
+   * once, the height of its start point (2,500 ft if that has none), for a route with no legs.
+   */
   function makeAircraft({ id, type, routeId, startIndex, startsAt }) {
-    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, startRouteId: routeId, startIndex, startsAt });
+    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt });
   }
 
   /** V6's `nextCallsign` (line 233): the first A1, A2, … not in use. */
@@ -216,6 +231,7 @@ export function createSim(setup, { seed = 1 } = {}) {
     spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id } = {}) {
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
       const route = routeId === undefined ? setup.routes[0] : routeById(routeId);
+      if (!route && !setup.routes.length) throw new RangeError(NO_ROUTES);
       if (!route) throw new RangeError(`unknown route ${routeId}`);
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
@@ -256,7 +272,7 @@ export function createSim(setup, { seed = 1 } = {}) {
         const p = whereIs(a);
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
-          x: p.x, y: p.y, alt: p.alt ?? 2500, kt: p.kt ?? a.fallbackKt, headingDeg: p.headingDeg, leg: p.seg + 1, distFt: a.distFt,
+          x: p.x, y: p.y, alt: p.alt ?? a.fallbackAlt, kt: p.kt ?? a.fallbackKt, headingDeg: p.headingDeg, leg: p.seg + 1, distFt: a.distFt,
           status: statusOf(a), startsAt: a.startsAt,
         };
       });

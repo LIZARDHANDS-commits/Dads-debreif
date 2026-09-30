@@ -74,7 +74,7 @@ test('the aircraft table, conflict lines, leg distances, clock and map labels ar
   const events = gridEvents(setup);
   const seen = { statuses: new Set(), lines: 0, levels: new Set() };
   for (let second = 1; second <= 30 * 60; second++) {
-    flyBoth(pair, STEPS_PER_SEC, events);
+    flyBoth(pair, STEPS_PER_SEC, events, { compareEvery: STEPS_PER_SEC }); // the sim golden checks every step; here once a second
     comparePanels(pair, `t=${second}`, seen);
   }
   assert.deepEqual([...seen.statuses].sort(), ['Done', 'Flying', 'Landed', 'Waiting']);
