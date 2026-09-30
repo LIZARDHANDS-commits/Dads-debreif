@@ -1538,9 +1538,11 @@ test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive
   // Two from the verification's own sweep: the MPT speed and the deck set higher.
   fights.push({ blueKias: 92, redKias: 92, blueAltFt: 22300, redAltFt: 22300, mptKias: 175, hardDeckFt: 7500 });
   fights.push({ blueKias: 70, redKias: 70, blueAltFt: 14000, redAltFt: 14000, mptKias: 175 });
-  // The audit's two: the nose passes exactly through the vertical (the gate once stopped at 0.9995 of it, and the dive held).
+  // The audit's two, where the nose passes through the vertical; regression guards only, they pass on the old gate too.
   fights.push({ blueKias: 46, redKias: 46, blueAltFt: 17000, redAltFt: 17000, mptKias: 175 });
   fights.push({ blueKias: 80, redKias: 80, blueAltFt: 15000, redAltFt: 15000, mptKias: 175 });
+  // This one catches the old gate (0.9995 of the vertical): with it the MPT holds 180 degrees of bank with the nose near straight down.
+  fights.push({ blueKias: 46, redKias: 46, blueAltFt: 20000, redAltFt: 20000, mptKias: 175 });
   for (const setup of fights) {
     const s = createEnergyFight({ ...SOLO, blueMove: 'slice', redMove: 'slice', ...setup });
     let minAlt = Infinity, maxOver = -Infinity, maxKias = 0, lowSec = 0, worstBank = 0;
