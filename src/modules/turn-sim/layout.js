@@ -84,7 +84,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const direction = field(DIRECTION, 'choice');
   const speed = field(SPEED);
   const g = field(G);
-  const gWarning = h('p', { class: 'ts-warning', hidden: true });
+  const gWarning = h('p', { class: 'ts-warning', role: 'status', hidden: true });
   const timing = field(TIMING);
   const baseDelay = field(BASE_DELAY);
   const autoNote = h(
@@ -235,7 +235,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const card = h('ul', { class: 'ts-card', 'aria-label': 'Formation' });
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
-  const flags = h('ul', { class: 'ts-flags' });
+  const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
   detail.element.classList.add('ts-subpanel', 'ts-detail');
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
