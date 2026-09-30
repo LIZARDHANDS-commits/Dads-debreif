@@ -1595,6 +1595,18 @@ test('F4: the result can say "even fight": evenFight is set once both noses came
   assert.equal(noChase.evenFight, true);
 });
 
+test('F4: evenFight is false once a chase has started, even when the first nose-on was by both (the "no chase" part of the definition)', () => {
+  const s = runUntil({ chaseAfterHeadOn: true }, (st) => st.chase, 80);
+  assert.equal(s.firstNose.by, 'both', 'the first nose-on was by both');
+  assert.ok(s.chase, 'and a chase has started');
+  assert.equal(s.evenFight, false, 'so it is not an even fight');
+  // It stays false as the chase goes on.
+  const later = runUntil({ chaseAfterHeadOn: true }, (st) => st.chase && st.timeSec > st.chase.timeSec + 10, 120);
+  assert.equal(later.evenFight, false);
+  // And there is no even fight before any nose-on.
+  assert.equal(createEnergyFight({ chaseAfterHeadOn: true }).evenFight, false);
+});
+
 test('F5: the stall reason never reads the same number twice ("needs 5.5 G; gives 5.5 G")', () => {
   let seen = 0;
   for (const kias of [190, 202, 210, 220]) {
