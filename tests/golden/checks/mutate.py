@@ -223,6 +223,19 @@ M = [
  ('flight-math.js','Math.max(-.8, ','Math.max(-1, '),
  ('flight-math.js','Math.min(.8, e','Math.min(1, e'),
  ('flight-math.js','return Math.max(MIN_TURN_G, g);','return g;'),
+ ('flight-math.js','let g = Math.max(MIN_TURN_G, limitG(gSetting) + (useErrorsAndCorrection ? gErr : 0));','let g = limitG(gSetting) + (useErrorsAndCorrection ? gErr : 0);'),
+ ('flight-math.js','limitG(gSetting) + (useErrorsAndCorrection ? gErr : 0)','limitG(gSetting) + gErr'),
+ ('flight-math.js',"if (useErrorsAndCorrection && correction === 'gfix' && aircraftId !== 1) {","if (correction === 'gfix' && aircraftId !== 1) {"),
+ ('flight-math.js',"if (useErrorsAndCorrection && correction === 'gfix' && aircraftId !== 1) {","if (useErrorsAndCorrection && aircraftId !== 1) {"),
+ ('flight-math.js',"if (useErrorsAndCorrection && correction === 'gfix' && aircraftId !== 1) {","if (useErrorsAndCorrection && correction === 'gfix') {"),
+ ('flight-math.js','const e = distToLeadFt - spacingFt * Math.abs(aircraftId - 1);','const e = distToLeadFt - spacingFt;'),
+ ('flight-math.js','const e = distToLeadFt - spacingFt * Math.abs(aircraftId - 1);','const e = spacingFt * Math.abs(aircraftId - 1) - distToLeadFt;'),
+ ('flight-math.js','e / 6000 * corrStrength','e / 6000'),
+ ('flight-math.js','e / 6000 * corrStrength','e / 600 * corrStrength'),
+ ('flight-math.js','Math.max(-.8, ','Math.max(-1, '),
+ ('flight-math.js','Math.min(.8, e','Math.min(1, e'),
+ ('flight-math.js','return Math.max(MIN_TURN_G, g);','return g;'),
+ ('flight-math.js','Math.max(MIN_TURN_G, limitG(gSetting) + (','Math.max(MIN_TURN_G, gSetting + ('),
 ]
 
 

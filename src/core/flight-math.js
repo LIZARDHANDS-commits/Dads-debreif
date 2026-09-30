@@ -52,29 +52,37 @@ export function turnRateRadPerSec(speedFtps, g) {
  * The G one Turn Sim aircraft turns at this step (`moveAircraftList`, lines
  * 1582 and 1583). Everything V6 reads from the page comes in as an argument:
  *
- * - baseG: the G box as V6's `baseG()` gives it, already at least 1.01.
+ * - gSetting: the G box as typed. V6's `baseG()` (line 787) limits it to 1.01,
+ *   and so does this, before the error is added.
  * - gErr: this aircraft's own G error (`a.gErr`), added only when
  *   useErrorsAndCorrection is true.
- * - useErrorsAndCorrection: true when the step is the real flight, false for
- *   the planning pass that has no errors and no correction.
+ * - useErrorsAndCorrection: V6's `moveAircraftList` argument. V6's stepping
+ *   (`stepSim`, line 1687) always passes true, so real flying has errors on;
+ *   false skips both the error and the correction.
  * - correction: the Correction model box, 'gfix' for "G fix".
  * - aircraftId: the aircraft's number, 1 for lead. Lead is never corrected.
- * - distToLeadFt: how far this aircraft is from lead now.
+ * - distToLeadFt: how far this aircraft is from lead. V6 moves the aircraft
+ *   one after another inside one loop, so for a wingman this is the distance
+ *   to lead's position already moved this step, from the wingman's own
+ *   position before its own move.
  * - spacingFt: the Spacing box; its slot is spacingFt × (aircraftId − 1) from lead.
  * - corrStrength: the Correction strength box.
  *
  * With G fix on, the wingman's G moves by (distance − slot) / 6,000 ft × strength,
  * never more than 0.8 G either way: too far back pulls more G, too close pulls less.
  *
- * V6 limits G to 1.01 first and corrects after, so its G could end below 1 (base
- * G plus error under 1.8 with the full −0.8 correction). Then turnRateRadPerSec
- * gave NaN, and V6's aircraft position with it; at exactly 1 G there was no turn.
- * Here G is limited to 1.01 again after the correction (D74, Patrick's pick), so
- * the wingman flies almost straight. That is the only difference from V6: where
- * V6's G was 1.01 or more, this gives the same number.
+ * V6 limits G to 1.01 first and corrects after, so its G could end below 1 (G
+ * setting plus error under 1.8 with the full −0.8 correction). Then
+ * turnRateRadPerSec gave NaN, and V6's aircraft position with it; at exactly
+ * 1 G there was no turn. Here G is limited to 1.01 again after the correction
+ * (D74, Patrick's pick), so the wingman flies almost straight. That is the only
+ * difference from V6's stepping: where V6's G was 1.01 or more, this gives the
+ * same number. V6's turn circles (`currentAircraftGForCircle`, line 1838)
+ * already floored at 1.01 after the correction, so with errors on this gives
+ * the same G as they do (the circles and the flying no longer disagree).
  */
-export function turnSimG({ baseG, gErr, useErrorsAndCorrection, correction, aircraftId, distToLeadFt, spacingFt, corrStrength }) {
-  let g = Math.max(MIN_TURN_G, baseG + (useErrorsAndCorrection ? gErr : 0));
+export function turnSimG({ gSetting, gErr, useErrorsAndCorrection, correction, aircraftId, distToLeadFt, spacingFt, corrStrength }) {
+  let g = Math.max(MIN_TURN_G, limitG(gSetting) + (useErrorsAndCorrection ? gErr : 0));
   if (useErrorsAndCorrection && correction === 'gfix' && aircraftId !== 1) {
     const e = distToLeadFt - spacingFt * Math.abs(aircraftId - 1);
     g += Math.max(-.8, Math.min(.8, e / 6000 * corrStrength));
