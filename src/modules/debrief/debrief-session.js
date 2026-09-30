@@ -103,10 +103,25 @@ export function debriefFileName(startT) {
  * checks first (weatherForFile); if it would not come back whole it is left out.
  * Returns { text, wrote, left }: `wrote` true when the radar is in the file,
  * `left` the words for why it was left out (or null).
+ *
+ * The file the reader will open is limited to `maxBytes` (flight-data's
+ * MAX_DEBRIEF_BYTES, which was sized for the tracks alone), measured by
+ * `sizeOf(text)`, which should count bytes as the opener does. With the radar
+ * in, a file over it would not open again, so it is saved without the radar.
  */
-export function buildDebriefFile({ write, weather, window }) {
+export function buildDebriefFile({ write, weather, window, maxBytes = Infinity, sizeOf = (text) => text.length }) {
   if (!weather) return { text: write(''), wrote: false, left: null };
   const wx = weatherForFile(weather, window);
   if (wx.problem) return { text: write(''), wrote: false, left: wx.problem };
-  return { text: write(wx.text), wrote: true, left: null };
+  const text = write(wx.text);
+  const size = sizeOf(text);
+  if (size > maxBytes) {
+    const mb = Math.round((maxBytes / 1024 / 1024) * 10) / 10;
+    return {
+      text: write(''),
+      wrote: false,
+      left: `This debrief file would be over the size this tool opens (${mb} MB), so it was saved without the radar and lightning. They stay here until you close the flight.`,
+    };
+  }
+  return { text, wrote: true, left: null };
 }

@@ -418,7 +418,10 @@ function mount(root, app) {
         try {
           const kept = savedRadar.state().saved;
           const write = (weather) => toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t, weather));
-          const built = buildDebriefFile({ write, weather: kept, window: { startT: flight.startT, endT: flight.endT } });
+          // The opener refuses a file over MAX_DEBRIEF_BYTES (counted in bytes), so a save that would be is made without the radar.
+          const built = buildDebriefFile({
+            write, weather: kept, window: { startT: flight.startT, endT: flight.endT }, maxBytes: MAX_DEBRIEF_BYTES, sizeOf: (text) => new Blob([text]).size,
+          });
           downloadText(built.text, debriefFileName(flight.startT), { type: 'application/json' });
           unsaved = false;
           // Only pictures that went into the file count as saved; a debrief saved without them still asks on close.

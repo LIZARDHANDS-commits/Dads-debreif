@@ -159,3 +159,27 @@ test('a kept set the reader would not read back whole is not written, and the de
   assert.match(got.left, /couldn't be put in the file/);
   assert.equal(Object.hasOwn(JSON.parse(got.text).settings, WEATHER_KEY), false, 'the rest of the debrief is still saved');
 });
+
+// --- The file's size limit (Y7) ---------------------------------------------------------------------
+
+test('a debrief that would be over the size the tool opens is saved without the radar, and says so; under it, with', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const saved = savedFor(flight);
+  const write = (weather) => toDebriefFile(flight, [], sessionSettings(DEFAULT_STANDARDS, 5, weather));
+  const window = { startT: flight.startT, endT: flight.endT };
+  const withRadar = write(savedToSetting(saved)).length;
+  const without = write('').length;
+  assert.ok(withRadar > without);
+  const fits = buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar });
+  assert.equal(fits.wrote, true, 'exactly at the limit is fine');
+  const over = buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar - 1 });
+  assert.equal(over.wrote, false);
+  assert.match(over.left, /^This debrief file would be over the size this tool opens \(\d+(\.\d)? MB\), so it was saved without the radar and lightning\. They stay here until you close the flight\.$/);
+  assert.equal(over.text.length, without);
+  assert.equal(Object.hasOwn(JSON.parse(over.text).settings, WEATHER_KEY), false);
+  // The size is what the opener checks: bytes, so a non-ASCII character counts as more than one.
+  const bytes = (t) => Buffer.byteLength(t);
+  assert.equal(buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar, sizeOf: bytes }).wrote, true);
+  const multi = (t) => bytes(t) + 1;
+  assert.equal(buildDebriefFile({ write, weather: saved, window, maxBytes: withRadar, sizeOf: multi }).wrote, false);
+});
