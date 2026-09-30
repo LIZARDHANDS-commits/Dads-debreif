@@ -1,0 +1,397 @@
+/* The Traffic Pattern Sim's screen (SPEC-traffic: The screen). Everything is
+   scoped to the sim, so nothing here reaches another module. Colours, spacing
+   and type come from the ui-kit tokens. Three columns that never cover one
+   another (R2): Routes, the map with the playback bar above it, and Aircraft. */
+
+[data-module='traffic'] .traffic {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  height: calc(100dvh - var(--header-height));
+  min-height: 32rem;
+  padding: var(--space-3);
+  box-sizing: border-box;
+}
+
+/* Side columns: a fixed share of the width, scrolling inside themselves. A collapsed one
+   keeps only its header button, and the map takes the room (#34). */
+[data-module='traffic'] .traffic-col {
+  position: relative;
+  width: clamp(16rem, 20vw, 22rem);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-module='traffic'] .traffic-col.is-collapsed {
+  width: auto;
+}
+
+[data-module='traffic'] .traffic-col .panel {
+  margin: 0;
+}
+
+[data-module='traffic'] .traffic-slot:empty {
+  display: none;
+}
+
+[data-module='traffic'] .traffic-slot + .traffic-slot {
+  margin-top: var(--space-3);
+}
+
+/* Routes: one line each, the line style beside its name (solid, dashed, dotted), so a route is
+   told apart by more than its colour. */
+[data-module='traffic'] .route-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='traffic'] .route-list:empty {
+  display: none;
+}
+
+[data-module='traffic'] .route-empty {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .route-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: var(--space-1) var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  text-align: left;
+}
+
+[data-module='traffic'] .route-row[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--bg-sunken);
+}
+
+[data-module='traffic'] .route-row[aria-current='true'] .route-name {
+  font-weight: 700;
+}
+
+[data-module='traffic'] .route-swatch {
+  flex: none;
+  align-self: center;
+  width: 1.75rem;
+  border-top: 3px solid var(--route);
+}
+
+[data-module='traffic'] .route-swatch.kind-entry {
+  border-top-style: dashed;
+}
+
+[data-module='traffic'] .route-swatch.kind-split {
+  border-top-style: dotted;
+}
+
+[data-module='traffic'] .route-swatch.kind-pfl {
+  border-top-style: double;
+}
+
+[data-module='traffic'] .route-detail {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* The selected route's point table appears under the list, and closes with its ✕. */
+[data-module='traffic'] .point-table-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+[data-module='traffic'] .point-table-section[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .point-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+[data-module='traffic'] .point-table-title {
+  margin: 0;
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+[data-module='traffic'] .point-table-close {
+  min-width: 2.25rem;
+  padding-inline: var(--space-2);
+}
+
+/* Stage: the bar, the map, the note. */
+[data-module='traffic'] .traffic-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-module='traffic'] .traffic-map-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+[data-module='traffic'] .traffic-map {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[data-module='traffic'] .traffic-hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-4);
+  max-width: calc(100% - var(--space-5));
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: rgb(2 10 16 / 0.85);
+  transform: translateX(-50%);
+  pointer-events: none;
+  text-align: center;
+}
+
+[data-module='traffic'] .traffic-hint[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .traffic-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The playback bar: the clock on the first row, the view on the second. Its menus open under
+   the whole bar, so they never reach past the map's column. */
+[data-module='traffic'] .traffic-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .bar-row .button {
+  padding-inline: var(--space-2);
+}
+
+[data-module='traffic'] .bar-play {
+  min-width: 5rem;
+}
+
+[data-module='traffic'] .bar-speed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .bar-speed select {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  font-size: var(--text-md);
+}
+
+[data-module='traffic'] .bar-clock {
+  margin: 0 0 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+[data-module='traffic'] .bar-status {
+  margin: 0;
+  min-width: 4.5rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .bar-wind {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+[data-module='traffic'] .bar-wind .control {
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+[data-module='traffic'] .bar-wind .control > label {
+  flex: 0 0 auto;
+}
+
+[data-module='traffic'] .bar-wind input[type='number'] {
+  width: 4.5rem;
+}
+
+[data-module='traffic'] .bar-row .control-choice {
+  margin: 0;
+}
+
+/* The 2D | 3D switch keeps its legend for screen readers only. */
+[data-module='traffic'] .bar-row .control-choice > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Menus: a button that opens a small panel, closed at first. In the bar the panel drops under
+   the bar; in a column it drops under its button. */
+[data-module='traffic'] .traffic-menu {
+  position: relative;
+}
+
+[data-module='traffic'] .traffic-bar .traffic-menu {
+  position: static;
+}
+
+/* The arrow is decoration: browsers that understand the alternative text (the part after the slash) leave it out of the button's name. */
+[data-module='traffic'] .menu-button::after {
+  content: ' ▾';
+  content: ' ▾' / '';
+}
+
+[data-module='traffic'] .traffic-menu-body {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--space-1) var(--space-4);
+  align-content: start;
+  width: min(100%, 40rem);
+  max-height: calc(100dvh - var(--header-height) - 10rem);
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+[data-module='traffic'] .traffic-menu-body[hidden] {
+  display: none;
+}
+
+[data-module='traffic'] .traffic-menu-body .control {
+  margin: 0 0 var(--space-2);
+}
+
+/* A long label wraps beside its box, not under it. */
+[data-module='traffic'] .control-checkbox {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+[data-module='traffic'] .traffic-col .traffic-menu-body {
+  grid-template-columns: 1fr;
+  width: 100%;
+  max-height: 16rem;
+}
+
+[data-module='traffic'] .menu-item {
+  justify-content: flex-start;
+}
+
+/* Settings: the tuning numbers, in groups. Every box has its label on the left. */
+[data-module='traffic'] .settings-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--space-3);
+}
+
+[data-module='traffic'] .settings-title {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+[data-module='traffic'] .settings-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .settings-group {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+[data-module='traffic'] .settings-group legend {
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+[data-module='traffic'] .settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-4);
+}
+
+[data-module='traffic'] .settings-group .control {
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='traffic'] .settings-group .control-number {
+  display: grid;
+  grid-template-columns: 1fr 6rem 1.5rem;
+  align-items: center;
+}
+
+[data-module='traffic'] .settings-group .control-number input {
+  width: 100%;
+}
+
+[data-module='traffic'] .settings-group .control-number .control-message {
+  grid-column: 1 / -1;
+}
+
+[data-module='traffic'] .settings-group .control-checkbox > label {
+  font-size: var(--text-md);
+}
+
+[data-module='traffic'] .settings-item .settings-hint {
+  margin-bottom: var(--space-3);
+}
