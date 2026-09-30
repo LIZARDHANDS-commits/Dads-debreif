@@ -128,11 +128,14 @@ export function homeAlternateTrigger(taf, window, limits) {
   if (!w) return { ...empty, status: 'no-time' };
   if (!usable(taf)) return { ...empty, status: 'no-taf' };
   const f = forecastAt(taf, w);
-  const options = toOptions(limits) ?? [DEFAULT_LIMITS.home];
+  const given = toOptions(limits);
+  const options = given ?? [DEFAULT_LIMITS.home];
+  const problems = [...(taf.problems ?? [])];
+  if (limits != null && !given) problems.push('Home limits could not be read');
   const found = hitsIn(f, () => options, options);
-  const status = f.covered ? coveredStatus(taf, found) : shortStatus(found);
+  const status = f.covered ? coveredStatus({ problems }, found) : shortStatus(found);
   const { hits, atLimit, cautions } = found;
-  return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, atLimit, cautions, problems: taf.problems ?? [] };
+  return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, atLimit, cautions, problems };
 }
 
 /**
@@ -180,6 +183,9 @@ export function assessAlternate(taf, when, { minima, landingMinima, visualDescen
   const descent = visualDescent ? visualDescentMinima(visualDescent) : null;
   const problems = [...(taf?.problems ?? [])];
   if (visualDescent && !descent) problems.push('Visual descent needs the MEA and the field elevation');
+  // Minima that were given but can't be read are a problem, not a quiet 600-2 (WX-7).
+  if (!visualDescent && minima != null && !toOptions(minima)) problems.push('Alternate minima could not be read');
+  if (landingMinima != null && !toOptions(landingMinima)) problems.push('Landing minima could not be read');
   const base = { from: w?.from ?? null, to: w?.to ?? null, warnings, problems };
   const empty = { ...base, covered: false, prevailing: null, overlays: [], hits: [], atLimit: [], cautions: [], probUnchecked: [], worst: null };
   if (!w) return { ...empty, status: 'no-time' };
