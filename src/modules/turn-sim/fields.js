@@ -58,7 +58,7 @@ export const CROSS_FIRST_G = field('crossTurnFirstG', { label: 'Cross turn first
 export const CROSS_SWITCH = field('crossTurnSwitchDeg', { label: 'Cross turn switch point', unit: '°', step: 5, hint: 'Degrees turned before the second stage.' });
 export const CROSS_SOLVE = field('crossTurnSolveSpacing', { label: 'Set second-half G for LAB roll-out', hint: 'Off flies the G setting all the way, as V6 did.' });
 export const DURATION_COVERS = field('durationCoversTurn', { label: 'Run at least until the turn is done' });
-export const TWO_SIDE = field('twoSide', { label: '#2\'s side', hint: 'In 4312, 2134 and the two-ship.' });
+export const TWO_SIDE = field('twoSide', { label: '#2\'s side', hint: 'Which side of Lead #2 flies on, in 4312 and 2134. The two-ship and the offset box have their own places.' });
 export const REAR_CHECK_ON = field('rearCheckOn', { label: 'Rear element check' });
 export const REAR_CHECK_START = field('rearCheckStartSec', { label: 'Check starts at', unit: 's', step: 5 });
 export const REAR_CHECK_DIR = field('rearCheckDir', { label: 'Check turns' });
@@ -89,6 +89,11 @@ export function optionsOf(key, rule) {
   const name = key.replace(/^aircraft\d\./, ''); // an aircraft's field is worded the same for every aircraft
   const clock = name === 'clockCuePos' || name === 'clockPos';
   return rule.oneOf.map((value) => ({ value, label: OPTION_LABELS[name]?.[value] ?? (clock ? clockLabel(value) : String(value)) }));
+}
+
+/** The Auto clock position's words: the engine's Auto is 4:30 right and 7:30 left in the Delayed 45 (D206), else 7 right and 5 left. */
+export function clockAutoLabel(maneuver) {
+  return maneuver === 'delayed45away' ? 'Auto (4:30 right, 7:30 left)' : 'Auto (7 right, 5 left)';
 }
 
 /** A clock position as a person says it: 5.5 is "5:30", 12 is "12 o'clock". */

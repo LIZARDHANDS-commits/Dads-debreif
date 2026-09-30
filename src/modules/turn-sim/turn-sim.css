@@ -73,6 +73,16 @@
   max-width: 100%;
 }
 
+/* Some lists have long words ("Clock position cue", "Auto (4:30 right, 7:30 left)"): the label sits above the box and the box takes the row (N10). */
+[data-module='turn-sim'] .ts-wide .control > label {
+  grid-column: 1 / -1;
+}
+
+[data-module='turn-sim'] .ts-wide .control-select select {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+}
+
 [data-module='turn-sim'] .ts-field .control input[type='number'] {
   width: 6.5em;
   min-height: 2rem;
