@@ -18,6 +18,7 @@ import {
   timelineModel, axisTicks, stepPiece, timelineSignature, sameTimeline,
 } from '../../../src/modules/sof/timeline.js';
 import { HOME_TAF, ALT_TAF, METAR } from '../../fixtures/sof/reports.js';
+import { smallHoursChange, noChange } from '../../fixtures/sof/timeline-zones.js';
 import { TAF as WX_TAF } from '../wx/reports.js';
 
 const HOUR = 3_600_000;
@@ -386,13 +387,21 @@ test('today at home is the home date, not the UTC date', () => {
   assert.equal(+model({ now: at(30, 6) }).axis.from, +at(30, 6));
 });
 
-test('a day with a clock change is 23 or 25 hours long, and positions use the real length', () => {
-  const m = timelineModel({ now: new Date('2026-11-01T12:00:00Z'), timeZone: 'America/Toronto', date: { year: 2026, month: 11, day: 1 }, rows: [] });
-  assert.equal((+m.axis.to - +m.axis.from) / HOUR, 25);
-  const wave = planToUtc([{ takeoff: '23:00', land: '23:30' }], { now: NOW, timeZone: 'America/Toronto', date: { year: 2026, month: 11, day: 1 } }).waves;
-  const w = timelineModel({ now: new Date('2026-11-01T12:00:00Z'), timeZone: 'America/Toronto', date: { year: 2026, month: 11, day: 1 }, waves: wave, rows: [] }).waves[0];
-  assert.ok(Math.abs(w.x0 - (+wave[0].takeoff - +m.axis.from) / (25 * HOUR)) < 1e-12);
-});
+// The change day comes from the tz data this machine runs on, and the expected length
+// from that zone's own offsets.
+for (const kind of ['back', 'forward']) {
+  const tz = 'America/Toronto';
+  const change = smallHoursChange(tz, 2026, kind);
+  test(`a day with a clock change is 23 or 25 hours long, and positions use the real length (${kind}, ${tz})`, { skip: change ? false : noChange(tz, 2026, kind) }, () => {
+    const hours = (24 * 60 + change.before - change.after) / 60;
+    assert.equal(hours, kind === 'back' ? 25 : 23);
+    const m = timelineModel({ now: change.at, timeZone: tz, date: change.date, rows: [] });
+    assert.equal((+m.axis.to - +m.axis.from) / HOUR, hours);
+    const wave = planToUtc([{ takeoff: '23:00', land: '23:30' }], { now: NOW, timeZone: tz, date: change.date }).waves;
+    const w = timelineModel({ now: change.at, timeZone: tz, date: change.date, waves: wave, rows: [] }).waves[0];
+    assert.ok(Math.abs(w.x0 - (+wave[0].takeoff - +m.axis.from) / (hours * HOUR)) < 1e-12);
+  });
+}
 
 test('without a readable time or zone nothing is guessed: no axis, no rows, and a reason', () => {
   for (const extra of [{ timeZone: undefined }, { timeZone: 'Not/AZone' }, { now: undefined }, { now: new Date('x') }]) {
@@ -638,11 +647,24 @@ test('stepping with nothing to step through, or a nonsense direction, is null an
 
 // ---- Signature: redraw only on change -----------------------------------------------------------------------------------------
 
+// The third row is incomplete: wx can't read a token in its TAF, and says which.
+const sigRows = (unread = 'XYZZY') => [
+  row('CYMJ', HOME_TAF.tempoFog, { metar: parseMetar(METAR.fresh, { now: NOW }) }),
+  row('CYQR', ALT_TAF.fog),
+  row('CYYN', `TAF CYYN 290540Z 2900/3006 25015KT P6SM FEW080 ${unread}`),
+];
 const sig = (extra = {}) => timelineSignature(model({
-  rows: [row('CYMJ', HOME_TAF.tempoFog, { metar: parseMetar(METAR.fresh, { now: NOW }) }), row('CYQR', ALT_TAF.fog)],
+  rows: sigRows(),
   waves: plan([{ name: 'W1', takeoff: '08:00', land: '09:30' }]),
   ...extra,
 }));
+
+test('the signature table\'s third row is incomplete, with wx\'s own problem text as its words', () => {
+  const rows = model({ rows: sigRows() }).rows;
+  assert.equal(rows[2].state, 'incomplete');
+  assert.equal(rows[2].words, 'Could not read: XYZZY');
+  assert.equal(model({ rows: sigRows('FOOBAR') }).rows[2].words, 'Could not read: FOOBAR');
+});
 
 test('a change to the weather under a piece changes the signature even when colour and times do not (YELLOW 2)', () => {
   const a = model({ rows: [row('CYMJ', 'TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW040')] });
@@ -681,12 +703,13 @@ test('anything drawn changing changes the signature', () => {
     'the time order': { first: 'local' },
     'the local row off': { showLocal: false },
     'the tick step': { stepHours: 6 },
-    'the zone': { timeZone: 'America/Winnipeg' },
-    'a TAF': { rows: [row('CYMJ', HOME_TAF.tempoFog.replace('1/2SM', '2SM')), row('CYQR', ALT_TAF.fog)] },
+    'the zone': { timeZone: 'Asia/Kolkata' },
+    'a TAF': { rows: [row('CYMJ', HOME_TAF.tempoFog.replace('1/2SM', '2SM')), ...sigRows().slice(1)] },
     'a row removed': { rows: [row('CYMJ', HOME_TAF.tempoFog)] },
-    'a row\'s limits': { rows: [row('CYMJ', HOME_TAF.tempoFog, { limits: [{ ceilingFt: 100, visSm: 0.25 }] }), row('CYQR', ALT_TAF.fog)] },
-    'the METAR': { rows: [row('CYMJ', HOME_TAF.tempoFog, { metar: parseMetar(METAR.fresh.replace('291800Z', '291900Z'), { now: at(29, 19, 5) }) }), row('CYQR', ALT_TAF.fog)] },
-    'the METAR gone': { rows: [row('CYMJ', HOME_TAF.tempoFog), row('CYQR', ALT_TAF.fog)] },
+    'an incomplete row\'s problem text': { rows: sigRows('FOOBAR') },
+    'a row\'s limits': { rows: [row('CYMJ', HOME_TAF.tempoFog, { limits: { ceilingFt: 100, visSm: 0.25 } }), ...sigRows().slice(1)] },
+    'the METAR': { rows: [row('CYMJ', HOME_TAF.tempoFog, { metar: parseMetar(METAR.fresh.replace('291800Z', '291900Z'), { now: at(29, 19, 5) }) }), ...sigRows().slice(1)] },
+    'the METAR gone': { rows: [row('CYMJ', HOME_TAF.tempoFog), ...sigRows().slice(1)] },
   };
   for (const [name, extra] of Object.entries(changed)) {
     assert.notEqual(sig(extra), base, name);
