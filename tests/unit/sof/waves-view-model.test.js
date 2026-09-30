@@ -302,3 +302,10 @@ test('an ordinary day names one zone, as before', () => {
   assert.equal(m.zone, 'CST');
   assert.equal(m.rows[0].title, 'W1 1230–1400 CST');
 });
+
+test('a landing at the same time as takeoff has no call, and the row says why', () => {
+  const m = model({ waves: [w('w1', '08:00', '08:00')] });
+  assert.equal(m.rows[0].chip, null);
+  assert.equal(m.rows[0].note, 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day');
+  assert.deepEqual(m.calls, []);
+});
