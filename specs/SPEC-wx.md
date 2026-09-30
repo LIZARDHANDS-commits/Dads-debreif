@@ -19,10 +19,10 @@ In:
 - `conditions.js`: the shared parts (wind, visibility, weather, cloud), merging a change group into what it changes, and display formatting.
 - `limits.js`: limit checks, the V6 default limits, NATO colour state and flight category.
 - `alternates.js`: the home-weather alternate trigger over a wave window, and the alternate airfield check over an arrival window.
+- `sources.js`: fetching METARs and TAFs from MET Norway, with Datamask as the backup, refreshing them, and saying when a report is stale. See "Sources".
 
 Out, for now:
 
-- `sources.js` (live fetching from aviationweather.gov and the backup, D33) waits for an environment whose network reaches those sites.
 - Lightning (D34), radar and anything that touches the page.
 - Deciding what a limit should be. `wx` takes limits as input; the SOF gets them from settings.
 
@@ -104,9 +104,21 @@ Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600
 - NATO colour state from the lowest `SCT` or thicker layer and the visibility in metres: RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500, YLO1 700/3700, GRN 1500/5000, WHT 2500/8000, else BLU. V6's `nato()` at sof.html line 2009; its parsing bugs are fixed, not its thresholds. `UNK` when a layer's base is unknown and the colour isn't already RED.
 - Flight category, used only when the feed does not supply one: LIFR ceiling below 500 ft or visibility below 1 SM; IFR below 1000 ft or 3 SM; MVFR 3000 ft or 5 SM and below; else VFR. V6's `cat()` at sof.html line 576. `UNK` when nothing is known, or when a ceiling layer's base is unknown and the category isn't already LIFR.
 
+### Sources
+
+Patrick's choice, 2026-09-30: MET Norway first, Datamask as the backup. No proxy and no keys, because the site is static and a key in the page is public. Tested from a browser on the live site (`/mnt/project-files/wx-sources/sof-weather-sources.md`).
+
+- **MET Norway tafmetar.** `https://api.met.no/weatherapi/tafmetar/1.0/metar?icao=CYMJ,CYQR` and `.../taf?icao=...`. One request covers every airfield. The response is plain text, one report per line ending in `=`, oldest first, for the whole day. `wx` keeps the newest report per station. Reports carry no `METAR`, `SPECI`, `TAF` or `AMD` prefix, so an unmarked SPECI reads as a METAR. An unknown station is simply missing (HTTP 200, empty body). Licence CC BY 4.0, credited on screen as "MET Norway".
+- **Datamask.** `https://datamask.org/api/v1/metar/CYQR` and `.../taf/CYQR`, one airfield per request. JSON; `wx` uses only `raw` and ignores Datamask's own decoding and times. HTTP 404 means no report. A doubled `TAF AMD TAF AMD` prefix is read once by `parseTaf`. Credited as "NOAA NWS via Datamask".
+- **Order.** MET Norway is asked for every airfield in one request. Any airfield it has nothing for, or every airfield if it fails, is asked of Datamask one at a time. Each report says which source it came from.
+- **Requests.** Plain `GET` with no custom headers, so the browser sends no preflight (MET Norway allows only simple requests). `cache: 'no-cache'` lets the browser revalidate with `If-Modified-Since` itself where the source sends `Last-Modified`. Each request gives up after 10 seconds. Station ids must be four letters or digits before they go in a URL; anything else is refused.
+- **Refresh.** Every 5 minutes by default (a setting), with timers passed in so tests control time. A failed refresh keeps the last good report and reports the error; it never clears data.
+- **Stale.** A METAR is stale when it is more than 75 minutes old by its own observation time. A TAF is stale when its valid period has ended. A cancelled TAF reads as `cancelled`, not stale or unreadable. A report with no readable time is stale. The fetch time never counts: Datamask has served a 12-day-old METAR as current.
+- `sources.js` is the only module in `wx` that talks to the network. `fetch` and the timers are passed in, so every other rule in this spec (pure functions, no throwing) still holds and it can be tested without a network.
+
 ### Data age
 
-- `ageMinutes(report, now)` (in `dates.js`) from the report's observation or issue time, never the fetch time: a feed can serve a report days old as if it were current. What counts as stale is the SOF's call (R13) and lives in its spec.
+- `ageMinutes(report, now)` (in `dates.js`) from the report's observation or issue time, never the fetch time: a feed can serve a report days old as if it were current. The stale rules for METAR and TAF are under "Sources"; how the SOF shows them is its own spec (R13).
 
 ## Interface
 
@@ -165,7 +177,7 @@ tests/unit/wx/
 
 ## Boundaries
 
-- **Always:** keep functions pure; add a test case for every report that ever parses wrong; cite the audit issue in the test name.
+- **Always:** keep functions pure (only `sources.js` fetches, with `fetch` passed in); add a test case for every report that ever parses wrong; cite the audit issue in the test name.
 - **Ask first:** changing a default limit, the `<` rule, or which weather raises a caution; adding a data source.
 - **Never:** touch the page from `wx`; guess a value the report does not give (unknown stays unknown).
 
