@@ -408,7 +408,12 @@ test('the banner lists each new caution in words, in the page flow, and is annou
 
 test('a caution in a TAF is on the banner with its group and times', async ({ page }) => {
   await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf: fixture('ui-metno-taf-fog.txt') });
-  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  // With no wave entered the home forecast below the home limits is on the banner too (R3), before the caution.
+  await expect(bannerLines(page)).toHaveText([
+    'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT',
+    'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: VIS 1/2 SM < 3 SM',
+    'Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)',
+  ]);
 });
 
 test('no cautions, no banner', async ({ page }) => {
@@ -732,13 +737,12 @@ test('acknowledging the last caution hands focus to the Waves heading', async ({
   await expect(page.locator('.sof-waves-title')).toBeFocused();
 });
 
-test('a wave whose TAF is below the limits raises a new line on the banner, and the same one is not raised twice', async ({ page }) => {
+test('a wave over the same fog adds no second banner line for it, however many waves cover it', async ({ page }) => {
   await openSof(page, CLEAR_FOG);
-  await expect(bannerLines(page)).toHaveText(['Caution: CYMJ TAF TEMPO 29/22Z–30/00Z: SIGNIFICANT WX (FG)']);
+  await expect(bannerLines(page)).toHaveCount(3);
   await addWave(page, '', '15:30', '17:00');
   await expect(bannerLines(page)).toHaveCount(3);
   await expect(bannerLines(page).filter({ hasText: 'Below limits: CYMJ TAF TEMPO 29/22Z–30/00Z: CEILING 200 FT < 2000 FT' })).toHaveCount(1);
-  await expect(banner(page)).toHaveAttribute('role', 'alert');
   // A second wave over the same fog adds no second line for it.
   await addWave(page, '', '16:00', '17:30');
   await expect(bannerLines(page)).toHaveCount(3);
@@ -1061,3 +1065,11 @@ for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }])
     });
   });
 }
+
+test('a wave flown this morning does not keep its fog on the banner all day', async ({ page }) => {
+  const taf = 'CYMJ 291140Z 2912/3006 22010KT P6SM SKC TEMPO 2914/2916 1/2SM FG VV002\n';
+  await openSof(page, { metar: fixture('ui-metno-metar-clear.txt'), taf });
+  await addWave(page, '', '08:00', '09:30'); // 1400Z to 1530Z; the fog ended at 1600Z, 2 h 42 min ago
+  await expect(waveRow(page, 0)).toBeVisible();
+  await expect(banner(page)).toBeHidden();
+});
