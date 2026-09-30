@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Leave check test page</title>
+  </head>
+  <body>
+    <main id="view"></main>
+    <script type="module">
+      // The shell's host and watchAddress wired as src/app.js wires them, with two tiny
+      // modules: "keeper" asks before it is closed while window.__leave.unsaved is true
+      // (tests/e2e/leave.spec.js).
+      import { createHost } from '/src/shell/host.js';
+      import { watchAddress } from '/src/shell/router.js';
+      import { createScheduler } from '/src/ui-kit/scheduler.js';
+      import { createStore } from '/src/storage/store.js';
+      import { createSettings } from '/src/storage/settings.js';
+
+      const state = { unsaved: false, shown: [] };
+      window.__leave = state;
+      const root = document.getElementById('view');
+      const scheduler = createScheduler();
+      const store = createStore(undefined);
+      const settings = createSettings(store.scope('app'), {});
+      const host = createHost({ root, scheduler, store, settings, time: {} });
+      const page = (id, mount) => ({ id, load: async () => ({ default: { mount } }) });
+      const pages = {
+        '#/keeper': page('keeper', (r, app) => {
+          r.textContent = 'Keeper';
+          app.canLeave(() => (state.unsaved ? 'Leave without the radar pictures?' : null));
+        }),
+        '#/other': page('other', (r) => { r.textContent = 'Other'; }),
+      };
+      async function show(hash) {
+        state.shown.push(hash);
+        await host.open(pages[hash] ?? pages['#/other']);
+      }
+      watchAddress({ win: window, question: () => host.leaveQuestion(), go: show });
+      show(location.hash || '#/keeper');
+    </script>
+  </body>
+</html>

@@ -102,7 +102,7 @@ One clock for every view. It holds no timers of its own: the ui-kit scheduler ca
 
 ## The debrief file (R17, D21, #25)
 
-A JSON file (`.dadsdebrief.json`) holding the original KML text of each track, the cleaning settings, the DFPs of **this** flight (each with its time, label and note, sorted by time) and the debrief settings. Reopening re-reads the KML with the same settings, so the flight comes back exactly as it was. Saving and opening the file itself is `storage/file.js`'s job; `flight-data` owns the format and checks it.
+A JSON file (`.dadsdebrief.json`) holding the original KML text of each track, the cleaning settings, the DFPs of **this** flight (each with its time, label and note, sorted by time) and the debrief settings. Reopening re-reads the KML with the same settings, so the flight comes back exactly as it was. Saving and opening the file itself is `storage/file.js`'s job; `flight-data` owns the format and checks it. A file over `MAX_DEBRIEF_BYTES` (189 MiB: four full tracks with room for JSON escaping, 2 MiB for DFPs and settings, and 37 MiB for the Debrief's saved radar and lightning in its settings) is refused before it is read.
 
 ## Security (untrusted files)
 

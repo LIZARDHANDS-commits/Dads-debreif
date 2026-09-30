@@ -18,8 +18,10 @@ export const VERSION = 1;
 export const MAX_DFPS = 500;
 export const MAX_LABEL_CHARS = MAX_NAME_CHARS;
 export const MAX_NOTE_CHARS = 2000;
-/** Four track files at their limit, allowing for JSON escaping, plus DFPs and settings. */
-export const MAX_DEBRIEF_BYTES = MAX_TRACKS * MAX_FILE_BYTES * 1.25 + 2 * 1024 * 1024;
+/** Room for the Debrief's saved radar and lightning (settings.savedWeather, task 12f): its own 36 MiB and a margin for its quoting. */
+export const SAVED_WEATHER_BYTES = 37 * 1024 * 1024;
+/** Four track files at their limit, allowing for JSON escaping, plus DFPs, settings and the saved radar (189 MiB). */
+export const MAX_DEBRIEF_BYTES = MAX_TRACKS * MAX_FILE_BYTES * 1.25 + 2 * 1024 * 1024 + SAVED_WEATHER_BYTES;
 
 /** The limits a flight is cleaned with today (clean.js, flight.js). */
 const CLEANING = { gapS: GAP_S, maxGroundSpeedKt: MAX_GROUND_SPEED_KT, maxJumpFixes: MAX_JUMP_FIXES,

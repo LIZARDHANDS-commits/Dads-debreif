@@ -21,6 +21,11 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}/`,
     trace: 'retain-on-failure',
+    // Service workers are off unless a spec opts in: requests a worker makes
+    // bypass page.route, so fixtures.js could neither stub them nor fail on them
+    // (SOF saw WebKit fetch live MET Norway that way). Specs that test the offline
+    // copy use test.use({ serviceWorkers: 'allow' }).
+    serviceWorkers: 'block',
   },
   webServer: {
     command: `npx vite preview --port ${PORT} --strictPort`,

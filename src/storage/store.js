@@ -79,6 +79,11 @@ export function createStore(source) {
           return fallback;
         }
       },
+      // The saved text as it is, or null when nothing is saved: lets a module
+      // tell damaged text (which get() turns into the fallback) from a missing key.
+      raw(name) {
+        return read(full(name));
+      },
       set(name, value) {
         return write(full(name), JSON.stringify(value));
       },
@@ -94,6 +99,7 @@ export function createStore(source) {
       return persistent;
     },
     get: app.get,
+    raw: app.raw,
     set: app.set,
     remove: app.remove,
     scope: scoped,

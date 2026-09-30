@@ -252,3 +252,30 @@ test('modules get the example flight fetcher as app.exampleText', async () => {
   assert.equal(await app.exampleText('585aab2601b787ed.kml'), 'text of 585aab2601b787ed.kml');
   host.close();
 });
+
+test('canLeave: the open module can ask before it is closed, a broken check still asks, and checks end with the module', async (t) => {
+  const { host } = setup();
+  t.mock.method(console, 'error', () => {});
+  assert.equal(host.leaveQuestion(), null, 'nothing open, nothing to ask');
+  let unsaved = false;
+  let stop;
+  await host.open({ id: 'debrief', load: async () => ({ default: { mount: (root, app) => {
+    app.canLeave(() => '   ');
+    stop = app.canLeave(() => (unsaved ? 'Leave without the radar?' : null));
+  } } }) });
+  assert.equal(host.leaveQuestion(), null, 'nothing unsaved (a blank answer asks nothing)');
+  unsaved = true;
+  assert.equal(host.leaveQuestion(), 'Leave without the radar?');
+  stop();
+  assert.equal(host.leaveQuestion(), null, 'a stopped check is not asked');
+  stop = null;
+
+  await host.open({ id: 'debrief', load: async () => ({ default: { mount: (root, app) => { app.canLeave(() => { throw new Error('broken'); }); } } }) });
+  assert.equal(host.leaveQuestion(), "This page couldn't check for unsaved work. Leave anyway?", 'a broken check still asks');
+  assert.equal(console.error.mock.callCount(), 1, 'and is reported');
+
+  await host.open({ id: 'debrief', load: async () => ({ default: { mount: (root, app) => { app.canLeave(() => 'Still here?'); } } }) });
+  assert.equal(host.leaveQuestion(), 'Still here?');
+  host.close();
+  assert.equal(host.leaveQuestion(), null, 'closing the module drops its checks');
+});
