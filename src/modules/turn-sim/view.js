@@ -171,6 +171,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
       } else if (selected !== null && ARROW_STEP[e.key]) {
         const [dx, dy] = ARROW_STEP[e.key];
         const ft = e.shiftKey ? NUDGE_BIG_FT : NUDGE_FT;
+        onUserMove?.(); // like a drag: placing an aircraft must not refit the picture under the person
         mover.nudge(selected, dx * ft, dy * ft);
       } else return;
       e.preventDefault();
