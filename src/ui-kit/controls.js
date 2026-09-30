@@ -23,7 +23,16 @@ export const VIEW_ALLOWED = Object.freeze(['2d', '3d']);
 export function createControls(settings) {
   const syncs = new Set();
   const byKey = new Map(); // setting key → the inputs (or fieldsets) bound to it
+  const invalidKeys = new Set(); // number boxes now showing a "not accepted" message
+  const guards = new Set(); // () => void, re-run when invalidKeys changes
   let unsubscribe = null;
+
+  const markInvalid = (key, invalid) => {
+    if (invalid === invalidKeys.has(key)) return;
+    if (invalid) invalidKeys.add(key);
+    else invalidKeys.delete(key);
+    for (const fn of guards) fn();
+  };
 
   const register = (key, el) => {
     if (!byKey.has(key)) byKey.set(key, new Set());
@@ -75,6 +84,7 @@ export function createControls(settings) {
         if (invalid) input.setAttribute('aria-invalid', 'true');
         else input.removeAttribute('aria-invalid');
         message.textContent = invalid ? rule : '';
+        markInvalid(key, invalid);
       };
 
       // While typing, good values go straight to the setting; the message waits
@@ -185,11 +195,33 @@ export function createControls(settings) {
       }
     },
 
+    // The keys of number boxes now refusing what was typed (the setting keeps
+    // its last good value meanwhile).
+    invalid() {
+      return [...invalidKeys];
+    },
+
+    // Turns `button` off while a number box it depends on refuses what was
+    // typed, so an action never runs on a value the person can't see (TR-14).
+    // keys: the settings it uses; leave it out to depend on every number box.
+    // Returns a function that stops guarding (dispose also stops it).
+    guard(button, keys = null) {
+      const blocked = () => (keys ? keys.some((k) => invalidKeys.has(k)) : invalidKeys.size > 0);
+      const sync = () => {
+        button.disabled = blocked();
+      };
+      guards.add(sync);
+      sync();
+      return () => guards.delete(sync);
+    },
+
     dispose() {
       unsubscribe?.();
       unsubscribe = null;
       syncs.clear();
       byKey.clear();
+      guards.clear();
+      invalidKeys.clear();
     },
   };
   return api;

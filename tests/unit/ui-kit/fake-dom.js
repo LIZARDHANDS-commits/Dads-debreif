@@ -41,11 +41,19 @@ class FakeElement extends FakeNode {
     this.dataset = {};
     this.listeners = {};
     this.hidden = false;
+    this.value = '';
     const classes = new Set();
     this.classList = {
       toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
       contains: (c) => classes.has(c),
     };
+  }
+  get textContent() {
+    return super.textContent;
+  }
+  set textContent(text) {
+    this.childNodes = [];
+    if (text !== '') this.appendChild(new FakeText(String(text)));
   }
   setAttribute(name, value) {
     this.attributes[name] = String(value);

@@ -85,3 +85,39 @@ test('setDisabled marks the whole control aria-disabled, and clears it when turn
   for (const el of [number, check, choice]) assert.equal(el.getAttribute('aria-disabled'), null);
   controls.dispose();
 });
+
+test('guard turns an action button off while a number box it uses refuses what was typed (TR-14)', () => {
+  const settings = fakeSettings({ gapS: 20, turnG: 4 });
+  const controls = createControls(settings);
+  const [gap] = all(controls.number('gapS', { label: 'Gap', unit: 's', min: 5, max: 60 }), 'INPUT');
+  const [turnG] = all(controls.number('turnG', { label: 'Turn G', min: 1, max: 6 }), 'INPUT');
+  const pair = document.createElement('button');
+  const any = document.createElement('button');
+  controls.guard(pair, ['gapS']);
+  const stopAny = controls.guard(any);
+  assert.equal(pair.disabled, false);
+
+  gap.value = '2';
+  gap.dispatch('change');
+  assert.deepEqual(controls.invalid(), ['gapS']);
+  assert.equal(pair.disabled, true, 'the action waits for a good gap');
+  assert.equal(any.disabled, true);
+  assert.equal(settings.get().gapS, 20, 'the setting keeps its last good value');
+
+  gap.value = '30';
+  gap.dispatch('input');
+  assert.equal(pair.disabled, false, 'a good gap turns the action back on');
+  assert.equal(any.disabled, false);
+
+  turnG.value = '9';
+  turnG.dispatch('change');
+  assert.equal(pair.disabled, false, 'a keyed guard ignores other boxes');
+  assert.equal(any.disabled, true, 'the unkeyed guard sees Turn G');
+
+  stopAny();
+  turnG.value = '3';
+  turnG.dispatch('input');
+  assert.deepEqual(controls.invalid(), []);
+  assert.equal(any.disabled, true, 'a stopped guard no longer changes its button');
+  controls.dispose();
+});
