@@ -58,15 +58,23 @@ Ground rules:
 - Judgement calls go ahead on your own recommendation, kept reversible (own commit, and a setting holding the old value where that makes sense). A logged judgement call counts as accepted unless Patrick rejects it. Stop and ask only for things that can't be undone or reach outside the repo (emails, accounts, deleting data or history), adding a library, or anything that needs Patrick's own hands.
 - Merging: bring in current `main`, resolve conflicts with a merge commit, get CI green, merge. Leave a short merge note on the PR (checks, what came in from main, conflicts).
 
-## Where to record things (in the repo now)
+## Where things are recorded
 
-The project's working notes lived in a shared folder this repo can't see. From here on, keep records in the repo:
-- Judgement calls: a row in `docs/handover/decisions-log.md` (create it; columns: date | module | decision | why | other options | PR | how to undo).
-- New ideas: a row in the future features list in this file (or a `docs/future-ideas.md` if you prefer).
-- Questions for Dad: `docs/handover/questions.md`.
-- Merges: the PR note is enough; git history is the log.
+| Record | Home |
+|---|---|
+| Where we left off, next step | `.agent/memory/handoff.md` |
+| Working notes for the current session | `.agent/memory/scratchpad.md` |
+| Approaches tried and dropped (don't retry) | `.agent/memory/graveyard.md` |
+| Judgement calls | `docs/records/decisions-log.md` (one row each) |
+| New ideas | `docs/records/future-ideas.md` |
+| Questions for Dad | `docs/records/dads-questions.md` |
+| Check reports | `docs/records/verification/<module>-<what>.md` |
+| Module status | `docs/handover/<module>.md` |
+| Merges | a note on the PR; git history is the log |
 
-About 220 judgement calls (plan doc D147 to D356) were logged in the project's shared folder and count as accepted. The ones that shape code are already described in the specs and commit messages. Patrick has the full log if one needs checking.
+`/sync` at the start of a session and `/save` at the end keep these up to date (`.agent/skills/`).
+
+About 220 judgement calls (D147 to D356) are in the decisions log and count as accepted unless Patrick rejects one.
 
 ## Module status (30 Sep 2026)
 
@@ -100,26 +108,10 @@ Also open: Dependabot PR #162 (Playwright 1.56 to 1.63), left alone on purpose; 
 - SOF live traffic layer needs a small relay (a Cloudflare Worker, code in `relay/`) on an account Patrick owns. The layer stays off until then. Optional.
 - Later: delete about 60 merged branches (ask first), and add a Content Security Policy once every outside host is known (SOF uses api.met.no, datamask.org, geo.weather.gc.ca, RainViewer, Esri tiles, ADS-B Exchange; the debrief's historical weather uses mesonet.agron.iastate.edu, gibs.earthdata.nasa.gov and open-meteo.com).
 
-## Questions for Dad (not sent; Patrick decides when)
+## Questions for Dad
 
-Each already has a working answer in the tool, which stays until Dad replies.
-1. Turn Fight: from 100 to 119 KIAS, is a slice right (about 160 KIAS in 7 s, 60° of turn, 600 to 700 ft lost), instead of Auto's split S? Now: split S below 120 (SMM Table 14.1, D144).
-2. Turn Fight: should Auto's lowest Immelmann top speed go from 120 to about 140 KIAS? Now 120 (SMM 14.15, D351).
-3. Turn Sim: on a Delayed 45, do wingmen roll in later than the 5 or 7 o'clock cue, or roll on the cue and fix spacing on the roll-out? Now: SMM cue plus a "fix spacing and sweep on the roll-out" note.
-4. Turn Sim: box Delayed 45 with a check turn, is the rear element's 10 to 15 s delay what you fly? Now the delay is solved to keep the box's shape (D281).
-5. SOF: keep a lightning caution through a feed outage until a good picture says clear? Now yes (D352, D353).
-6. SOF: is a cloud picture up to 60 min old still useful? Now cloud 60, lightning 40, radar 20 min (D354).
-7. SOF: is 20 NM right for the lightning caution? Now 20 NM, settable 5 to 50 (V6's number).
-8. Traffic: what counts as a conflict? V6's built-in setup uses 200/200 ft (conflict) and 500/500 ft (caution); its defaults elsewhere are 1,500/500 and 2,500/1,000. Now the built-in V6 numbers.
-9. Turn Sim: the "4312" picture (plan doc Q31) is still open.
+Nine open questions, each with a working answer that stays until Dad replies: [docs/records/dads-questions.md](docs/records/dads-questions.md). Nothing has been sent; Patrick decides when.
 
-## Future features (not built; from the plan doc)
+## Future features
 
-Numbers are the plan doc's FF numbers.
-- FF1 PT-PT (point-to-point) Simulator, FF2 Formation Briefing Board: future, stay hidden.
-- FF4 one-page printable debrief sheet; FF5 debrief library of past sorties; FF6 GPX import; FF10 drawing over the replay; FF11 cockpit video sync; FF12 report-a-problem button; FF13 touch pan and zoom; FF14 "follow ship N" 3D camera; FF15 iPad attitude calibration (tried; didn't work on the examples); FF16 graphs synced to the replay; FF17 bookmarks and an automatic event scan; FF18 two-ship geometry readouts and a measuring tool; FF19 terrain height and height above ground; FF20 real runway data (OurAirports); FF21 SOF crosswind per runway; FF22 projector view.
-- FF24 METAR wind into the Traffic Sim; FF25 automatic sequencing; FF26 SIGMETs, PIREPs and GFA on the SOF (needs the relay); FF27 option at the threshold (full stop, touch-and-go, low approach, go-around); FF29 runway landing-spacing check; FF30 separate wind at pattern height; FF31 slide or break to the inner runway (SMM 4.28); FF32 early turn (SMM 4.28); FF33 uncontrolled square circuit (SMM 4.29) for other home fields; FF34 runway occupied, continue and go low approach; FF35 break-outs (SMM 4.15, 4.23); FF36 flapless aircraft (SMM 4.25, 4.26).
-- FF37 SOF keeps radar and lightning all day for later debriefs; FF38 Turn Sim vertical fluid manoeuvres; FF39 rejoins; FF40 fighting wing; FF41 fluid manoeuvring (level); FF42 Turn Fight chaser picks its own pursuit; FF43 real terrain in 3D (key-free AWS tiles first).
-- Traffic tasks moved here by the Streamlined build: PFLs (task 16), engine-outs (17), the prediction engine (19), live rules and commands (20), fly-through, departure-end break and closed pattern (21), set up a conflict (22), engine-out check and reach (23).
-- SOF: a 12-hour all-day soak run; map extras; move the VNC chart layer into ui-kit; an information-only lightning line at 50 NM (NFM Sec VII p. 7-4).
-- Done or dropped already: FF3 save a debrief file, FF7 home airfield setting, FF8 editable error standards, FF23 climbing turns (became Turn Fight's Energy mode); FF9 and FF28 dropped.
+Not built unless Patrick moves one up: [docs/records/future-ideas.md](docs/records/future-ideas.md).
