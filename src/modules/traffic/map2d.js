@@ -23,7 +23,8 @@ export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
 const FIT_PADDING_PX = 60; // room round the routes for the labels beside the aircraft
 
-export const HINT_TEXT = 'Press Play to watch the Moose Jaw traffic.';
+const HOME_SETUP = 'Moose Jaw';
+export const HINT_TEXT = `Press Play to watch the ${HOME_SETUP} traffic.`;
 
 /** V6's aircraft colours (line 139); an aircraft can bring its own. Every aircraft also carries its callsign. */
 export const TYPE_COLORS = Object.freeze({ 'CT-157': '#a5d6ff', 'CT-156': '#7ee787', 'CT-102': '#ffcc66', 'CT-114': '#ff6b6b' });
@@ -92,10 +93,14 @@ export function turnDataText(point) {
   return `R ${whole(point.radiusFt)} ft / bank ${whole(point.bankDeg)}°${most}`;
 }
 
-/** The one line on the map: what to do first, or what's missing. Nothing once the run has started. */
-export function hintFor({ timeS, mode, aircraftCount }) {
-  if (aircraftCount === 0) return 'No aircraft yet. Use Spawn on the right to add one.';
-  return timeS === 0 && mode === 'paused' ? HINT_TEXT : '';
+/**
+ * The one line on the map: what to do first, or what's missing. Nothing once the run has started.
+ * `place` names the setup ("Moose Jaw"), or is left empty for one of the user's own.
+ */
+export function hintFor({ timeS, mode, aircraftCount, place = HOME_SETUP }) {
+  if (aircraftCount === 0) return 'No aircraft yet. Use + Spawn on the right to add one.';
+  if (timeS !== 0 || mode !== 'paused') return '';
+  return `Press Play to watch the ${place ? `${place} ` : ''}traffic.`;
 }
 
 // ---------------------------------------------------------------------------

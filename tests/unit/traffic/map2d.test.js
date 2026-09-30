@@ -23,6 +23,8 @@ test('the hint says what to do first, only before the run starts, and says so wh
   assert.equal(hintFor({ timeS: 12, mode: 'paused', aircraftCount: 7 }), '');
   assert.equal(hintFor({ timeS: 0, mode: 'running', aircraftCount: 7 }), '');
   assert.match(hintFor({ timeS: 0, mode: 'paused', aircraftCount: 0 }), /No aircraft yet/);
+  assert.equal(hintFor({ timeS: 0, mode: 'paused', aircraftCount: 3, place: '' }), 'Press Play to watch the traffic.', 'a setup of the user\'s own');
+  assert.equal(hintFor({ timeS: 0, mode: 'paused', aircraftCount: 3, place: 'Regina' }), 'Press Play to watch the Regina traffic.');
 });
 
 test('height and speed read "2,500 ft 220 kt", rounded, never "-0"', () => {

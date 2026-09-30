@@ -83,8 +83,8 @@ export function createPlaybackBar({ controls, on, available = {}, settingsPanel 
   const rewind = on.rewind
     ? h('button', { type: 'button', class: 'button', 'aria-pressed': 'false', onclick: () => (mode === 'rewinding' ? on.pause() : on.rewind()) }, h('span', { 'aria-hidden': 'true' }, '⏪'), ' Rewind')
     : null;
-  const back = on.step ? button('−10 s', () => on.step(-10), { 'aria-label': 'Back 10 seconds' }) : null;
-  const ahead = on.step ? button('+10 s', () => on.step(10), { 'aria-label': 'Ahead 10 seconds' }) : null;
+  const back = on.step ? button('−10 s', () => on.step(-10), { title: 'Back 10 seconds' }) : null;
+  const ahead = on.step ? button('+10 s', () => on.step(10), { title: 'Ahead 10 seconds' }) : null;
   const reset = button('Reset', () => on.reset());
   const speed = h('select', { onchange: () => on.speed(Number(speed.value)) }, SPEEDS.map((x) => h('option', { value: String(x) }, speedLabel(x))));
   speed.value = String(DEFAULTS.speed);
