@@ -203,6 +203,46 @@ test('with nothing to keep, or no connection, it fails with words and keeps noth
   assert.equal(nowhere.state().failure, "the flight's tracks have no position.");
 });
 
+test('every picture answered with an error says ECCC gave an error, not that it had no pictures (F2)', async () => {
+  const eccc = fakeEccc((url) => (param(url, 'request') === 'GetMap' ? new Response('boom', { status: 500 }) : undefined));
+  const feed = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {} });
+  feed.start(flight);
+  await done(feed);
+  assert.equal(feed.state().phase, 'failed');
+  assert.equal(feed.state().saved, null);
+  assert.equal(feed.state().failure, 'ECCC gave an error (HTTP 500).');
+});
+
+test('every picture over the size of one frame says the pictures are too large (F2)', async () => {
+  const big = new Uint8Array(LIMITS.maxFrameBytes + 1);
+  big.set(RAIN.subarray(0, 64)); // still starts like a PNG
+  const eccc = fakeEccc((url) => (param(url, 'request') === 'GetMap' ? new Response(big, { headers: { 'content-type': 'image/png' } }) : undefined));
+  const feed = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {} });
+  feed.start(flight);
+  await done(feed);
+  assert.equal(feed.state().phase, 'failed');
+  assert.equal(feed.state().failure, 'the pictures are too large to keep (1.5 MB each at most).');
+});
+
+test('an error beats "too large" and both beat "no pictures"; a list ECCC will not give is an error too (F2)', async () => {
+  let n = 0;
+  const mixed = fakeEccc((url) => {
+    if (param(url, 'request') !== 'GetMap') return undefined;
+    n += 1;
+    return n % 2 ? new Response('boom', { status: 503 }) : new Response('<x/>', { headers: { 'content-type': 'text/xml' } });
+  });
+  const feed = createSavedRadarFeed({ fetch: mixed.fetch, now: () => NOW, onChange: () => {} });
+  feed.start(flight);
+  await done(feed);
+  assert.equal(feed.state().failure, 'ECCC gave an error (HTTP 503).');
+
+  const noList = fakeEccc((url) => (param(url, 'request') === 'GetCapabilities' ? new Response('down', { status: 502 }) : undefined));
+  const second = createSavedRadarFeed({ fetch: noList.fetch, now: () => NOW, onChange: () => {} });
+  second.start(flight);
+  await done(second);
+  assert.equal(second.state().failure, 'ECCC gave an error (HTTP 502).');
+});
+
 test('a failed fetch can be tried again', async () => {
   let up = false;
   const eccc = fakeEccc(() => (up ? undefined : Promise.reject(new TypeError('Failed to fetch'))));
@@ -278,7 +318,7 @@ test('over the size limit the pictures are thinned and the words say how far apa
   assert.equal(s.phase, 'done');
   assert.ok(s.saved.frames.length < 21);
   assert.ok(s.saved.frames.filter((f) => f.layer === 'rain').length >= 2, 'a layer\'s first and last stay');
-  assert.match(s.notes.at(-1), /^Every \d+ min kept to fit the size limit\.$/);
+  assert.match(s.notes.at(-1), /^Radar every \d+ min and lightning every \d+ min kept to fit the size limit\.$/);
   assert.ok(s.saved.thin > 1 && s.saved.thin <= LIMITS.maxThin, 'the step is recorded for the age limit');
   const tooSmall = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {}, capBytes: 10 });
   tooSmall.start(flight);
@@ -393,4 +433,19 @@ test('the fetch keeps by the reader\'s window: on a 3-hour step the frame before
   assert.equal(frames(eccc.calls).length, 0, 'no picture the reader would drop is fetched');
   assert.equal(feed.state().phase, 'failed');
   assert.equal(feed.state().saved, null);
+});
+
+test('the thinning line names each layer\'s own spacing: radar every 12 min, lightning every 20, not "every 20" for both (F5)', async () => {
+  const eccc = fakeEccc();
+  // 8 rain + 8 snow + 5 lightning; the cap lets every second frame through.
+  const all = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {} });
+  all.start(flight);
+  await done(all);
+  const whole = all.state().saved.frames.reduce((n, f) => n + Buffer.from(f.data, 'base64').length, 0);
+  const feed = createSavedRadarFeed({ fetch: eccc.fetch, now: () => NOW, onChange: () => {}, capBytes: Math.floor(whole * 0.62) });
+  feed.start(flight);
+  await done(feed);
+  const s = feed.state();
+  assert.equal(s.saved.thin, 2);
+  assert.equal(s.notes.at(-1), 'Radar every 12 min and lightning every 20 min kept to fit the size limit.');
 });

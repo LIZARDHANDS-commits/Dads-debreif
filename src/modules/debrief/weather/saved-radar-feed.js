@@ -6,7 +6,7 @@
 // debrief stops it and keeps nothing. Network and clock come in as arguments.
 import {
   SAVED_LAYERS, LIMITS, notKeptText, inWindow, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl, layerTimes,
-  frameFromReply, fitCap, makeSaved, savedSummary, hhmmZ,
+  frameFromReply, fitCap, makeSaved, savedSummary, hhmmZ, thinningNote,
 } from './saved-radar.js';
 
 const LAYER_NAMES = Object.freeze({ rain: 'rain radar', snow: 'snow radar', lightning: 'lightning' });
@@ -17,6 +17,8 @@ const CONCURRENCY = 3;
 
 const OFFLINE = "ECCC couldn't be reached. Check the connection and try again.";
 const NONE_LEFT = 'ECCC had no pictures for this flight any more.';
+const errorText = (status) => `ECCC gave an error (HTTP ${status}).`;
+const tooLargeText = `the pictures are too large to keep (${LIMITS.maxFrameBytes / 1024 / 1024} MB each at most).`;
 
 /**
  * fetch: the browser's fetch (replaceable in tests). now(): seconds since 1970.
@@ -61,6 +63,10 @@ export function createSavedRadarFeed({
     const size = imageSize(box);
     const { signal } = mine.abort;
     let reached = false; // ECCC answered something, so a failure isn't only a missing connection
+    let errorStatus = null; // the first HTTP error ECCC answered with, so the failure can say so
+    let tooLarge = false; // a picture came back over one frame's limit
+    // Why nothing was kept, when every request came to nothing: an error, then too large, then none left.
+    const whyNone = () => (errorStatus ? errorText(errorStatus) : tooLarge ? tooLargeText : reached ? NONE_LEFT : OFFLINE);
 
     // Which pictures ECCC still has, layer by layer.
     const plan = []; // { layer, t }
@@ -73,6 +79,7 @@ export function createSavedRadarFeed({
         reached = true;
         if (!live()) return;
         if (res.ok) times = layerTimes(layer, await res.text());
+        else errorStatus ??= res.status;
       } catch {
         if (!live()) return;
       }
@@ -84,7 +91,7 @@ export function createSavedRadarFeed({
     }
     total = plan.length;
     emit();
-    if (!total) return fail(reached ? NONE_LEFT : OFFLINE);
+    if (!total) return fail(whyNone());
 
     // The pictures, a few at a time.
     const got = [];
@@ -96,9 +103,14 @@ export function createSavedRadarFeed({
         try {
           const res = await fetch(frameUrl(layer, box, t, size), { signal });
           reached = true;
-          const frame = res.ok
-            ? frameFromReply({ contentType: res.headers.get('content-type'), bytes: new Uint8Array(await res.arrayBuffer()) })
-            : null;
+          let frame = null;
+          if (res.ok) {
+            const bytes = new Uint8Array(await res.arrayBuffer());
+            frame = frameFromReply({ contentType: res.headers.get('content-type'), bytes });
+            if (!frame && bytes.length > LIMITS.maxFrameBytes) tooLarge = true;
+          } else {
+            errorStatus ??= res.status;
+          }
           if (!live()) return;
           if (frame) got.push({ layer, t, ...frame });
           else missed[layer] += 1;
@@ -112,7 +124,7 @@ export function createSavedRadarFeed({
     }
     await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
     if (!live()) return;
-    if (!got.length) return fail(reached ? NONE_LEFT : OFFLINE);
+    if (!got.length) return fail(whyNone());
 
     // What it says about what it kept.
     let skipped = 0;
@@ -132,7 +144,7 @@ export function createSavedRadarFeed({
       ...layerNotes,
       ...startNotes,
       ...(skipped ? [`${plural(skipped, 'picture', 'pictures')} couldn't be fetched.`] : []),
-      ...(kept.factor > 1 ? [`Every ${Math.round(kept.maxGapS / 60)} min kept to fit the size limit.`] : []),
+      ...(kept.factor > 1 ? [thinningNote(kept.gapsS)] : []),
     ];
     saved = makeSaved({ box, frames: kept.frames, fetchedT: now(), thin: kept.factor });
     phase = 'done';

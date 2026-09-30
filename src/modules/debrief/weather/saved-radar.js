@@ -240,14 +240,33 @@ export function frameFromReply({ contentType, bytes }) {
 const byLayer = (frames) => LAYER_KEYS.map((layer) => frames.filter((f) => f.layer === layer).sort((a, b) => a.t - b.t));
 
 /**
+ * The words for how far apart thinning left each item's pictures, from fitCap's
+ * gapsS: "Radar every 12 min and lightning every 20 min kept to fit the size
+ * limit." Rain and snow are the Radar item, so it names the wider of their
+ * gaps; an item with a single picture has no gap and is left out. '' for none.
+ */
+export function thinningNote(gapsS) {
+  const parts = [];
+  for (const item of ['radar', 'lightning']) {
+    const gap = Math.max(0, ...ITEM_LAYERS[item].map((layer) => gapsS[layer] ?? 0));
+    if (gap > 0) parts.push(`${item} every ${Math.round(gap / 60)} min`);
+  }
+  if (!parts.length) return '';
+  const text = parts.join(' and ');
+  return `${text[0].toUpperCase()}${text.slice(1)} kept to fit the size limit.`;
+}
+
+/**
  * Meets the size limit by thinning, never by cutting the end off: if the frames
  * come to more than `capBytes`, every second frame of each layer is dropped
  * (counting from its first), then every third, and so on until they fit; each
  * layer's first and last frame are always kept. Returns { frames, dropped,
- * factor, maxGapS, over }: the kept frames (layer order, oldest first), those
- * dropped in the same order, the step that was needed (1 for none), the widest
- * gap left in any layer (seconds), and `over` true when even the first and last
- * of every layer are too much (the caller keeps nothing then).
+ * factor, maxGapS, gapsS, over }: the kept frames (layer order, oldest first),
+ * those dropped in the same order, the step that was needed (1 for none), the
+ * widest gap left in any layer (seconds), each layer's own widest gap
+ * ({ rain, snow, lightning }, 0 for a layer with fewer than two frames), and
+ * `over` true when even the first and last of every layer are too much (the
+ * caller keeps nothing then).
  */
 export function fitCap(frames, capBytes = LIMITS.maxTotalBytes) {
   const layers = byLayer(frames);
@@ -260,12 +279,14 @@ export function fitCap(frames, capBytes = LIMITS.maxTotalBytes) {
     kept = layers.map((list) => list.filter((f, i) => i % factor === 0 || i === list.length - 1));
   }
   const keptSet = new Set(kept.flat());
-  const gaps = kept.map((list) => list.slice(1).map((f, i) => f.t - list[i].t)).flat();
+  const gapsOf = (list) => list.slice(1).map((f, i) => f.t - list[i].t);
+  const gaps = kept.map(gapsOf).flat();
   return {
     frames: kept.flat(),
     dropped: layers.flat().filter((f) => !keptSet.has(f)),
     factor,
     maxGapS: gaps.length ? Math.max(...gaps) : 0,
+    gapsS: Object.fromEntries(LAYER_KEYS.map((layer, i) => [layer, Math.max(0, ...gapsOf(kept[i]))])),
     over: total(kept) > capBytes,
   };
 }
