@@ -22,5 +22,5 @@
     // three.js. This stand-in makes every three.js value "any" until we add @types/three.
     "paths": { "three": ["./types/three.d.ts"] }
   },
-  "include": ["src/ui-kit", "src/core", "src/flight-data", "src/airfields", "src/wx", "src/modules/debrief"]
+  "include": ["src/ui-kit", "src/core", "src/flight-data", "src/airfields", "src/wx", "src/modules/debrief", "src/modules/turn-fight"]
 }
