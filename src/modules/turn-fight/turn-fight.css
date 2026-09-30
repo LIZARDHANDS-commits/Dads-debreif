@@ -384,3 +384,42 @@
 [data-module='turn-fight'] [hidden] {
   display: none;
 }
+
+/* Start geometry in Turn Fight settings (R28): an angle box with its left or right choice beside it, then the picture. */
+[data-module='turn-fight'] .tf-start-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 var(--space-3);
+}
+
+[data-module='turn-fight'] .tf-start-row .control-number {
+  flex: 1 1 10rem;
+}
+
+[data-module='turn-fight'] .tf-start-row .control-choice {
+  flex: 0 0 auto;
+  margin-bottom: var(--space-1);
+}
+
+[data-module='turn-fight'] .tf-hca {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The picture has a fixed height and the column's width; in the closed menu it is 0 px and draws nothing. */
+[data-module='turn-fight'] .tf-start-picture-wrap {
+  height: 9rem;
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+[data-module='turn-fight'] .tf-start-picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

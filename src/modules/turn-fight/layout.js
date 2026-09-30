@@ -10,8 +10,9 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { RANGES, ALLOWED, G_LABEL } from './state.js';
+import { RANGES, ALLOWED, G_LABEL, setupFrom } from './state.js';
 import { VIEWS } from './view3d.js';
+import { startGeometry } from './geometry.js';
 import { limitWarning } from './t6-limit.js';
 
 // The choices come from state.js, so a saved value and a box can't disagree.
@@ -23,6 +24,7 @@ let nextId = 1;
  * settings: the remembered values (storage/settings.js); controls: ui-kit controls bound to them.
  * on: { playPause, reset, resetDefaults, moreToggled, cameraView }, called from the buttons;
  * cameraView(name) is one of the 3D view's one-click views ('overhead', 'blue', 'red').
+ * on: { playPause, reset, resetDefaults, headOn, moreToggled }, called from the buttons.
  */
 export function createLayout({ settings, controls, on }) {
   // ── Fight setup column ──────────────────────────────────────────────
@@ -65,6 +67,32 @@ export function createLayout({ settings, controls, on }) {
     // The column scrolls, so a menu opened near its foot is brought into view, Reset button and all.
     onToggle: (collapsed) => !collapsed && menu.element.scrollIntoView?.({ block: 'nearest' }),
   });
+  // ── Start geometry (R28): head-on by default, the most-used section ───
+  const startSection = menu.section('Start geometry');
+  const startPicture = h('canvas', { class: 'tf-start-picture' });
+  const hcaText = h('p', { class: 'tf-hca', 'aria-live': 'polite' });
+  const headOnButton = h('button', { type: 'button', class: 'button', onclick: () => on.headOn() }, 'Head-on (V6)');
+  const sideChoices = [['left', 'Left'], ['right', 'Right']];
+  const redAbove = controls.number('redAboveFt', { label: 'Red starts above Blue (ft)', ...RANGES.redAboveFt });
+  startSection.append(
+    h('p', { class: 'tf-hint' }, 'Where the fight starts. Head-on is V6\'s start. Changing these starts the fight again.'),
+    h('div', { class: 'tf-start-row' },
+      controls.number('startAtaDeg', { label: 'Red\'s position off Blue\'s nose (ATA)', ...RANGES.startAtaDeg }),
+      controls.choice('startAtaSide', { label: 'ATA side', options: sideChoices })),
+    h('p', { class: 'tf-hint' }, '0 to 180°, default 0° (dead ahead). SMM 12.2.'),
+    h('div', { class: 'tf-start-row' },
+      controls.number('startAaDeg', { label: 'Red\'s aspect angle (AA)', ...RANGES.startAaDeg }),
+      controls.choice('startAaSide', { label: 'AA side', options: sideChoices })),
+    h('p', { class: 'tf-hint' }, '0 to 180°, default 180° (Red points at Blue; 0° is Blue dead astern of Red). Side: which side of Red Blue is on. SMM 12.2.'),
+    hcaText,
+    h('div', { class: 'tf-start-picture-wrap' }, startPicture),
+    redAbove,
+    h('p', { class: 'tf-hint' }, '-5,000 to +5,000 ft, default 0. It shows with Climb and dive.'),
+    controls.choice('turnsAt', { label: 'When the turns start', options: [['pass', 'At the pass'], ['once', 'At once']] }),
+    h('p', { class: 'tf-hint' }, 'At the pass (default): each jet flies straight until the range stops closing. At once: the turns start at T+0.'),
+    headOnButton,
+  );
+
   const display = menu.section('Display');
   display.append(
     controls.choice('heightScale', { label: 'Side view height scale', options: times(ALLOWED.heightScale) }),
@@ -163,6 +191,8 @@ export function createLayout({ settings, controls, on }) {
     canvas,
     canvas3d,
     profileCanvas,
+    /** The start picture's canvas (Start geometry, in the settings menu). */
+    startPicture,
     /** Shows the side view, and which controls go with each checkbox, from the settings. */
     applyLayout(values) {
       setupPanel.setCollapsed(!values.setupOpen);
@@ -173,6 +203,9 @@ export function createLayout({ settings, controls, on }) {
       red.pitchBox.hidden = !values.vertical;
       sideViewWanted = values.vertical;
       showPictures();
+      controls.setDisabled('redAboveFt', !values.vertical);
+      const hca = `Heading crossing angle (HCA): ${startGeometry(setupFrom(values)).hcaDeg.toFixed(0)}°`;
+      if (hcaText.textContent !== hca) hcaText.textContent = hca;
       showWarning(blue, limitWarning(values.blueKt, values.blueG));
       showWarning(red, limitWarning(values.redKt, values.redG));
     },
