@@ -49,6 +49,7 @@ Under D10, each change below lands as its own commit **after** the golden test h
 | C7 | Heading is "unknown" (null) when the aircraft hasn't moved (duplicate fixes, taxi), not due east. | Issue #22: 3/9 line, aspect and labels flip at random on the ramp. | Spec approval |
 | C8 | Tracks that don't overlap in time are refused with a message naming the one that doesn't fit, instead of V6's silent switch. The window stays V6's "common playback" (latest start to earliest end), and the status says when a track was cut. | Issue #22: one file from another day produced a days-long slider. | Spec approval |
 | C9 | Load is all or nothing: if any file fails, nothing already loaded is lost and the message names the file and the reason. | Issue #23. | Spec approval |
+| C10 | Pitch and G are estimated from the track by default. Recorded pitch and G are still read and kept, but not shown unless a setting asks for them. Recorded bank is still used (C2). | On #3 and #4 the recorded pitch doesn't follow the climb angle at all (correlation −0.2 to 0.1 at any time lag) and swings while parked, so it's the iPad moving, not the aircraft. | Patrick, Q32 (2026-09-30) |
 
 C1 to C4 were already decided (D32, D47). Patrick's approval of this spec settled C5 to C9 (they fix bugs rather than change flight math, but C6 and C7 change numbers V6 shows).
 
@@ -147,28 +148,32 @@ export function sampleAt(track, t) { ... }
 
 1. **Golden, parsing.** V6's `parseKmlText` needs the browser's XML parser, so a recorder runs it in Chromium on the four example tracks, Patrick's track and the edge-case fixtures, and saves a fingerprint of every point plus a few hundred sample points in `tests/golden/v6-flight-data.json`. The golden test checks that `readKml` gives identical points (before C1 to C5). Patrick's track's fingerprint is committed, not the track.
 2. **Golden, everything after parsing.** V6's `projectAll`, `interpTrack`, `headingAtTrack`, `aircraftPitchAtTrack` and `estimatedGAtTrack` run unchanged in Node (via `tests/golden/v6-source.js`) on the same points, at a few thousand seeded times across the example flight, and must match exactly.
-3. **Each change (C1 to C9) is its own commit** that flips the golden expectation it touches and adds a unit test saying what it now means.
+3. **Each change (C1 to C10) is its own commit** that flips the golden expectation it touches and adds a unit test saying what it now means.
 4. **Unit tests** for meaning and abuse cases: gap and jump rules on the real tracks, a 1970 timestamp, too many fixes, a DOCTYPE bomb, a KMZ, a truncated file, a debrief file with extra fields or a 10 MB note, every clock control.
 5. **Mutation check** as in `core`: the tests must turn red when a threshold, a sign or a boundary is changed on purpose.
 
 ## Boundaries
 
 - **Always:** pin V6 before changing; keep 5 s and 450 kt as named constants; run `npm test` before each commit; treat every file as hostile.
-- **Ask first:** any change to a number beyond C1 to C9; adding a package; changing the debrief file format once people have saved files.
+- **Ask first:** any change to a number beyond C1 to C10; adding a package; changing the debrief file format once people have saved files.
 - **Never:** edit `original/` or `src/core/` (core changes go to the Flight math core thread); commit Patrick's own track; put file content into `innerHTML`.
 
 ## Success criteria
 
 - The example flight and Patrick's track load, clean and play with a correct status (R11).
-- The golden tests pass for V6's behaviour, and each of C1 to C9 is a separate, tested change.
+- The golden tests pass for V6's behaviour, and each of C1 to C10 is a separate, tested change.
 - No −100,000 m fix, no segment over 450 kt, and no line drawn across a gap of more than 5 s on any of the five real tracks.
 - A saved debrief reopens with the same tracks, DFPs and settings (R17).
 - Every abuse case in the unit tests is refused with a readable message.
 
 ## Plan
 
-PR 1 ports V6's reading, projection and sampling under golden tests. PR 2 adds C1 to C9, one commit each. PR 3 adds the clock and the debrief file. The tasks go in `tasks/flight-data/` once this spec is approved.
+PR 1 ports V6's reading, projection and sampling under golden tests. PR 2 adds C1 to C10, one commit each. PR 3 adds the clock and the debrief file. The tasks go in `tasks/flight-data/` once this spec is approved.
 
 ## Open questions
 
-1. **Recorded pitch and G on #3 and #4** look like the iPad's own tilt rather than the aircraft's (pitch swings −263° to +250°; `g_load` reads 0.93 and 1.02 at rest). V6 shows them as "native". The default keeps V6's behaviour (recorded values within ±90° and 0 to 12 G are used) and labels them "recorded". Should the debrief trust them, or estimate instead? A question for Dad, needed before the debrief screen, not before this module.
+None. Q32 (recorded pitch and G on #3 and #4) was answered by Patrick on 2026-09-30 and is change C10.
+
+## Future idea, not in this module
+
+Calibrating the iPad against a stretch "on the runway" or "straight and level" (Patrick, Q32). Checked on #3 and #4: a fixed offset can't rescue their recorded pitch, because it doesn't follow the aircraft's climb and dive at all, and it moves by up to 13.5° (standard deviation) while parked. Recorded G is already within 0.01 to 0.02 of 1 G in level flight, but reads 0.94 on #3's ramp, so a ramp calibration would make it worse. It could work for an iPad on a fixed mount; it needs a track from one to test.
