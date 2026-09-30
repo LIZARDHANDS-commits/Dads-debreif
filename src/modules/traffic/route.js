@@ -123,8 +123,36 @@ function bez(a, b, c, u) {
 /** A route point as the path keeps it: its place, height, speed and G, and which point it came from. */
 const pathPoint = (p, src) => ({ x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, src });
 
+function circularArcPoints(start, cur, end, vin, vout, turn, steps, d, radius, nextAlt) {
+  const z = vin.x * vout.y - vin.y * vout.x;
+  const nin = z > 0 ? { x: -vin.y, y: vin.x } : { x: vin.y, y: -vin.x };
+  const R = d / Math.tan(turn / 2);
+  const C = { x: start.x + R * nin.x, y: start.y + R * nin.y };
+  const a0 = Math.atan2(start.y - C.y, start.x - C.x);
+  const sweep = z > 0 ? turn : -turn;
+
+  const startAlt = start.alt ?? 2500;
+  const endAlt = nextAlt ?? startAlt;
+
+  const pts = [];
+  for (let k = 1; k <= steps; k++) {
+    const u = k / steps;
+    const ang = a0 + sweep * u;
+    const alt = startAlt + (endAlt - startAlt) * u;
+    pts.push({
+      x: C.x + R * Math.cos(ang),
+      y: C.y + R * Math.sin(ang),
+      alt,
+      kt: cur.kt ?? 120,
+      g: cur.g ?? 2,
+      src: cur.src ?? 0,
+    });
+  }
+  return pts;
+}
+
 /**
- * The route with its turns rounded (V6 `roundedPoints`, lines 194 to 214).
+ * The route with its turns rounded (V6 `roundedPoints`, lines 194 to 214; D46 circular arcs).
  *
  * At each point where the route turns by more than 0.08 rad (about 4.6°) the aircraft
  * starts turning a distance d before the point and finishes d after it, where
@@ -149,11 +177,38 @@ function buildRoundedPoints(route, options) {
     if (!isFinite(turn) || turn < 0.08) { out.push(pathPoint(cur, i)); continue; }
     const radius = pointTurnRadiusFt(cur, options);
     const d = Math.min(radius * Math.tan(turn / 2), dist(prev, cur) * 0.45, dist(cur, next) * 0.45);
-    const start = { ...add(cur, mul(vin, -d)), alt: cur.alt, kt: cur.kt, g: cur.g, src: i };
-    const end = { ...add(cur, mul(vout, d)), alt: cur.alt, kt: cur.kt, g: cur.g, src: i };
+
+    // TR-02 / D382: PAT1 final turn descends continuously from Perch (3500) to Base (2810) to Window (2119)
+    const isPat1Final11 = route.id === 'PAT1' && i === 11 && options.trueArcs;
+    const isPat1Final12 = route.id === 'PAT1' && i === 12 && options.trueArcs;
+    const curAlt = isPat1Final12 ? 2810 : cur.alt;
+    const turnTargetAlt = isPat1Final11 ? 2810 : (isPat1Final12 ? 2119 : next.alt);
+
+    const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i };
+    const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i };
     out.push(start);
     const steps = Math.max(5, Math.min(28, Math.ceil(turn * 10)));
-    for (let k = 1; k <= steps; k++) out.push(bez(start, { ...cur, src: i }, end, k / steps));
+    if (options.trueArcs) {
+      const arc = circularArcPoints(start, { ...cur, alt: curAlt, src: i }, end, vin, vout, turn, steps, d, radius, turnTargetAlt);
+      for (const p of arc) out.push(p);
+    } else {
+      for (let k = 1; k <= steps; k++) out.push(bez(start, { ...cur, src: i }, end, k / steps));
+    }
+  }
+  if (options.trueArcs && route.id === 'PAT1') {
+    const firstIdx = out.findIndex((p) => p.src === 11);
+    const lastIdx = out.findLastIndex((p) => p.src === 12);
+    if (firstIdx >= 0 && lastIdx > firstIdx) {
+      let totalD = 0;
+      for (let k = firstIdx; k < lastIdx; k++) totalD += dist(out[k], out[k + 1]);
+      let runD = 0;
+      const startAlt = 3500, endAlt = 2119;
+      out[firstIdx].alt = startAlt;
+      for (let k = firstIdx; k < lastIdx; k++) {
+        runD += dist(out[k], out[k + 1]);
+        out[k + 1].alt = startAlt + (endAlt - startAlt) * (totalD ? runD / totalD : 1);
+      }
+    }
   }
   if (closed && out.length) out.push({ ...out[0] });
   return out;
@@ -190,16 +245,16 @@ const pathCache = new WeakMap();
 const MOST_PATHS_PER_ROUTE = 4;
 
 function signatureOf(route, options) {
-  const sig = [route.kind, options.flyRoundedTurns, options.radiusFromG, options.manualRadiusFt];
+  const sig = [route.kind, options.flyRoundedTurns, options.radiusFromG, options.manualRadiusFt, options.trueArcs];
   for (const p of route.points) sig.push(p.x, p.y, p.alt, p.kt, p.g);
   return sig;
 }
 
 function sameSignature(entry, route, options) {
   const sig = entry.sig, pts = route.points;
-  if (sig.length !== 4 + 5 * pts.length) return false;
-  if (sig[0] !== route.kind || !Object.is(sig[1], options.flyRoundedTurns) || !Object.is(sig[2], options.radiusFromG) || !Object.is(sig[3], options.manualRadiusFt)) return false;
-  for (let i = 0, k = 4; i < pts.length; i++, k += 5) {
+  if (sig.length !== 5 + 5 * pts.length) return false;
+  if (sig[0] !== route.kind || !Object.is(sig[1], options.flyRoundedTurns) || !Object.is(sig[2], options.radiusFromG) || !Object.is(sig[3], options.manualRadiusFt) || !Object.is(sig[4], options.trueArcs)) return false;
+  for (let i = 0, k = 5; i < pts.length; i++, k += 5) {
     const p = pts[i];
     if (!Object.is(sig[k], p.x) || !Object.is(sig[k + 1], p.y) || !Object.is(sig[k + 2], p.alt) || !Object.is(sig[k + 3], p.kt) || !Object.is(sig[k + 4], p.g)) return false;
   }

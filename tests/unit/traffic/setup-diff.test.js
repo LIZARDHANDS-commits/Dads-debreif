@@ -15,9 +15,13 @@ const V6 = load('moose-jaw-v6.json');
 
 /** Point fields that may differ, by route id and point index (counting from 0, as in the default file). */
 const ALLOWED = {
+  ENT1: { 3: ['x', 'y'] },
   ENT2: { 2: ['g'], 3: ['g'] },
+  ENT3: { 3: ['x', 'y'] },
   SPL1: { 2: ['g'], 3: ['g'], 4: ['g'], 5: ['alt'] },
-  PAT1: { 12: ['alt'] },
+  SPL2: { 0: ['x', 'y'], 4: ['x', 'y'] },
+  SPL3: { 2: ['x', 'y'] },
+  PAT1: { 9: ['x', 'y'], 10: ['g'], 11: ['g'], 12: ['alt', 'g'] },
 };
 /** V6's name for a point nobody named; the built-in setup gives each one a pilot's name. */
 const NEW_POINT = 'New Point';
@@ -26,9 +30,11 @@ const INSERTED = { routeId: 'ENT2', index: 4 };
 const COLLINEAR_FT = 1e-6;
 
 test('everything outside the routes is V6\'s', () => {
-  const { routes: a, ...restDefault } = DEFAULT;
-  const { routes: b, ...restV6 } = V6;
+  const { routes: a, routeOptions: roA, ...restDefault } = DEFAULT;
+  const { routes: b, routeOptions: roB, ...restV6 } = V6;
+  const { trueArcs: _tA, ...optsDefault } = roA ?? {};
   assert.deepEqual(restDefault, restV6);
+  assert.deepEqual(optsDefault, roB);
   assert.deepEqual(a.map((r) => r.id), b.map((r) => r.id));
 });
 

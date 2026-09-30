@@ -27,22 +27,33 @@
 // in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0,
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
 import { ktToFtps } from '../../core/units.js';
+import { iasToTasKt } from '../../core/t6-performance.js';
+import { windTriangle } from '../../core/wind.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
 
-/** V6's four aircraft types and the colour each is drawn in (`types`, line 139). The type changes only the colour: every aircraft flies the route's speeds (#45). */
-export const TYPE_COLORS = Object.freeze({ 'CT-157': '#a5d6ff', 'CT-156': '#7ee787', 'CT-102': '#ffcc66', 'CT-114': '#ff6b6b' });
+/** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
+export const TYPE_COLORS = Object.freeze({
+  'CT-157': '#a5d6ff',
+  'CT-156': '#7ee787',
+  'CT-102': '#ffcc66',
+  'CT-114': '#ff6b6b',
+  'CT-155': '#d29922',
+  'CF-188': '#56d4dd',
+});
 
-/**
- * The speed V6's `acProfile` (line 244) falls back on when the route gives none: the aircraft type's own
- * (`types`, line 139). On a route with legs a point with no speed reads 120 kt and one with no height 2,500 ft
- * (V6 `lerp`), so this is reached only on a route with no legs (one point or none). The app never makes a point
- * with no speed.
- */
-const TYPE_FALLBACK_KT = { 'CT-157': 125, 'CT-156': 180, 'CT-102': 150, 'CT-114': 230 };
+/** Fallback knot speeds when route points have no speed specified. */
+export const TYPE_FALLBACK_KT = Object.freeze({
+  'CT-157': 125,
+  'CT-156': 180,
+  'CT-102': 150,
+  'CT-114': 230,
+  'CT-155': 250,
+  'CF-188': 300,
+});
 
 /** V6's conflict limits (built-in profile, line 613): red 200 ft and 200 ft, caution 500 ft and 500 ft. */
 export const DEFAULT_CONFLICT_LIMITS = Object.freeze({ latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
@@ -152,6 +163,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── One step ───────────────────────────────────────────────────────────────
 
+  const windFromDeg = setup.windFromDeg ?? 360;
+  const windKt = setup.windKt ?? 0;
+
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
   function checkDecisions(a, oldDist, newDist) {
     const route = routeOf(a);
@@ -173,7 +187,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (a.splitTaken[key]) continue;
       if (crossed(oldDist, newDist, triggerDist, lengthFt)) {
         a.splitTaken[key] = true;
-        if (dice() < (split.splitOdds ?? 0.5)) { a.routeId = split.id; a.distFt = 0; }
+        if (dice() < (split.splitOdds ?? 0.5)) {
+          a.routeId = split.id;
+          a.distFt = 0;
+        }
       }
     }
   }
@@ -185,9 +202,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const target = routeById(route.attachTo);
     if (target && target.kind === 'pattern') {
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));
-      const mergePoint = target.points[mergeIndex] || route.points[route.points.length - 1] || { x: 0, y: 0 };
+      const curPos = whereIs(a, route);
       a.routeId = target.id;
-      a.distFt = closestDistFt(target, mergePoint, routeOptions()) + Math.max(0, overshootFt);
+      a.distFt = closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt);
+      // TR-08: a straight-in joining at the threshold (first point) rolls landing decision once
+      if (mergeIndex === 0) {
+        if (dice() < (target.landOdds ?? 0.2)) {
+          a.active = false;
+          a.landed = true;
+        }
+      }
       return;
     }
     a.active = false;
@@ -198,13 +222,32 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const route = routeOf(a);
     const options = routeOptions();
     const before = a.distFt;
-    a.distFt += ktToFtps(whereIs(a, route).kt ?? a.fallbackKt) * STEP_SEC;
+    const p = whereIs(a, route);
+    const iasKt = p.kt ?? a.fallbackKt;
+    let gsKt = iasKt;
+    let crabDeg = 0;
+    let headingDeg = p.headingDeg;
+
+    if (windKt > 0 && iasKt > 0) {
+      const altFt = p.alt ?? a.fallbackAlt;
+      const tasKt = iasToTasKt(iasKt, altFt);
+      const wt = windTriangle(p.headingDeg, tasKt, windFromDeg, windKt);
+      gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
+      crabDeg = wt.crabDeg;
+      headingDeg = wt.headingDeg;
+    }
+
+    a.gsKt = gsKt;
+    a.crabDeg = crabDeg;
+    a.headingDeg = headingDeg;
+
+    a.distFt += ktToFtps(gsKt) * STEP_SEC;
     const lengthFt = routeLengthFt(route, options);
     if (route.kind === 'pattern') checkDecisions(a, before, a.distFt);
     if (a.active && lengthFt && a.distFt >= lengthFt && !isClosedRoute(route)) handleRouteEnd(a, a.distFt - lengthFt);
     if (steps % TRAIL_EVERY_STEPS === 0) {
-      const p = whereIs(a);
-      a.trail.push({ x: p.x, y: p.y });
+      const cur = whereIs(a);
+      a.trail.push({ x: cur.x, y: cur.y });
       if (a.trail.length > TRAIL_POINTS) a.trail.shift();
     }
   }
@@ -559,9 +602,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     state() {
       const list = aircraft.map((a) => {
         const p = whereIs(a);
+        const iasKt = p.kt ?? a.fallbackKt;
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
-          x: p.x, y: p.y, alt: p.alt ?? a.fallbackAlt, kt: p.kt ?? a.fallbackKt, headingDeg: p.headingDeg, leg: p.seg + 1, distFt: a.distFt,
+          x: p.x, y: p.y, alt: p.alt ?? a.fallbackAlt, kt: iasKt,
+          headingDeg: a.headingDeg ?? p.headingDeg,
+          trackDeg: p.headingDeg,
+          crabDeg: a.crabDeg ?? 0,
+          groundSpeedKt: a.gsKt ?? iasKt,
+          leg: p.seg + 1, distFt: a.distFt,
           status: statusOf(a), startsAt: a.startsAt,
         };
       });

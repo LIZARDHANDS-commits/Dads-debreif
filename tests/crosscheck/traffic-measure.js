@@ -54,8 +54,8 @@ function runwayOf(pattern) {
 }
 
 /** The straight part of the flown path between the end of the turn at point i and the start of the one at i + 1. */
-function straightLeg(route, i) {
-  const { segs } = routePath(route);
+function straightLeg(route, i, options) {
+  const { segs } = routePath(route, options);
   const n = route.points.length;
   const seg = segs.find((s) => s.a.src === i && s.b.src === (i + 1) % n && s.len > 0);
   if (!seg) throw new Error(`${route.id}: no straight leg from point index ${i}`);
@@ -63,8 +63,8 @@ function straightLeg(route, i) {
 }
 
 /** Where the rounded turn at point i starts and ends on the flown path. */
-function turnEnds(route, i) {
-  const { points } = routePath(route);
+function turnEnds(route, i, options) {
+  const { points } = routePath(route, options);
   const start = points.find((p) => p.src === i);
   let end = start;
   for (const p of points) if (p.src === i) end = p;
@@ -87,8 +87,8 @@ function rawTurnDeg(route, i) {
  * path length it is spread over gives the curvature, and the bank is the one that curvature needs at the
  * point's speed. (The circle a turn is equal to, d / tan(turn / 2), has a lower bank than the peak.)
  */
-function peakBankDeg(route, i) {
-  const { points } = routePath(route);
+function peakBankDeg(route, i, options) {
+  const { points } = routePath(route, options);
   const first = points.findIndex((p) => p.src === i);
   let last = first;
   points.forEach((p, k) => { if (p.src === i) last = k; });
@@ -116,10 +116,11 @@ export const cornerRowId = (routeId, point) => `t-corner-flown-${routeId}-p${poi
  */
 export function flownCorners(setup) {
   const rows = [];
+  const options = setup.routeOptions;
   for (const r of setup.routes) {
     r.points.forEach((p, i) => {
-      if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
-      const flownG = 1 / Math.cos(peakBankDeg(r, i) / DEG);
+      if (pointTurn(r, i, options) === null || rawTurnDeg(r, i) < 10) return;
+      const flownG = 1 / Math.cos(peakBankDeg(r, i, options) / DEG);
       const canPullG = availableG(p.kt);
       rows.push({ id: cornerRowId(r.id, i + 1), routeId: r.id, point: i + 1, kt: p.kt, asked: p.g, flownG, canPullG, margin: flownG - canPullG });
     });
@@ -198,25 +199,25 @@ export function makeMeasures(setup, seed) {
   const kts = (r, idx) => idx.map((i) => r.points[i].kt);
   const bankAsked = (r, i) => pointTurn(r, i).bankDeg;
   const range = (a, b) => Array.from({ length: b - a + 1 }, (_, k) => a + k);
-  /** Angle over the leg from point index `from` to `to`: the height it drops over its length. */
+  const opts = setup.routeOptions;
   const legGlide = (r, from, to) => {
     const a = r.points[from], b = r.points[to];
     return Math.atan((a.alt - b.alt) / Math.hypot(b.x - a.x, b.y - a.y)) * DEG;
   };
   /** Angle of the last straight bit of the flown path (from where the last turn rolls out to the end). */
   const flownGlide = (r) => {
-    const leg = straightLeg(r, r.points.length - (r.kind === 'pattern' ? 1 : 2));
+    const leg = straightLeg(r, r.points.length - (r.kind === 'pattern' ? 1 : 2), opts);
     return Math.atan((leg.a.alt - leg.b.alt) / leg.len) * DEG;
   };
-  const windowHeight = (r) => positionAt(r, routePath(r).lengthFt - WINDOW_FT).alt;
+  const windowHeight = (r) => positionAt(r, routePath(r, opts).lengthFt - WINDOW_FT, opts).alt;
   /** Angle from where the turn at point index i rolls out to the last point of the route. */
   const glideFromRollout = (r, i) => {
-    const from = turnEnds(r, i).end, to = r.points[r.points.length - 1];
+    const from = turnEnds(r, i, opts).end, to = r.points[r.points.length - 1];
     return Math.atan((from.alt - to.alt) / Math.hypot(to.x - from.x, to.y - from.y)) * DEG;
   };
-  const initial = () => straightLeg(pat, 8);
-  const downwind = () => straightLeg(pat, 10);
-  const finalLeg = () => straightLeg(pat, 12);
+  const initial = () => straightLeg(pat, 8, opts);
+  const downwind = () => straightLeg(pat, 10, opts);
+  const finalLeg = () => straightLeg(pat, 12, opts);
 
   const cornerMeasures = Object.fromEntries(flownCorners(setup).map((c) => [c.id, () => ({
     value: c.margin,
@@ -250,26 +251,26 @@ export function makeMeasures(setup, seed) {
     's-straight-in-base-speed': () => ({ value: spl1.points[2].kt }),
     's-straight-in-final-turn-speed': () => ({ value: min(kts(spl1, [3, 4])) }),
     's-closed-speed': () => ({ value: min(spl3.points.map((p) => p.kt)) }),
-    'k-initial-tas': () => ({ value: positionAt(pat, initial().len / 2 + pointDistFt(pat, 8)).kt }),
-    'k-downwind-tas': () => ({ value: positionAt(pat, pointDistFt(pat, 11)).kt }),
+    'k-initial-tas': () => ({ value: positionAt(pat, initial().len / 2 + pointDistFt(pat, 8, opts), opts).kt }),
+    'k-downwind-tas': () => ({ value: positionAt(pat, pointDistFt(pat, 11, opts), opts).kt }),
 
     't-pattern-bank-asked': () => ({ value: min([3, 4, 6, 7, 8, 9].map((i) => bankAsked(pat, i))) }),
     't-break-bank-first': () => ({ value: bankAsked(pat, 9) }),
     't-break-bank-second': () => ({ value: bankAsked(pat, 10) }),
-    't-break-bank-first-flown': () => ({ value: peakBankDeg(pat, 9) }),
-    't-break-bank-second-flown': () => ({ value: peakBankDeg(pat, 10) }),
+    't-break-bank-first-flown': () => ({ value: peakBankDeg(pat, 9, opts) }),
+    't-break-bank-second-flown': () => ({ value: peakBankDeg(pat, 10, opts) }),
     't-break-heading-change': () => ({ value: norm360(initial().headingDeg - downwind().headingDeg) }),
     't-break-level': () => ({ value: P[9].alt - P[10].alt }),
     't-final-turn-bank-asked': () => ({ value: max([11, 12].map((i) => bankAsked(pat, i))) }),
-    't-final-turn-bank-flown': () => ({ value: max([11, 12].map((i) => peakBankDeg(pat, i))) }),
+    't-final-turn-bank-flown': () => ({ value: max([11, 12].map((i) => peakBankDeg(pat, i, opts))) }),
     't-final-turn-heading-change': () => ({ value: norm360(downwind().headingDeg - finalLeg().headingDeg) }),
-    't-final-turn-straight': () => ({ value: straightLeg(pat, 11).len }),
+    't-final-turn-straight': () => ({ value: straightLeg(pat, 11, opts).len }),
     't-straight-in-bank-asked': () => ({ value: max([2, 3, 4].map((i) => bankAsked(spl1, i))) }),
     't-corner-g-margin': () => {
       let worst = { margin: -Infinity, where: '' };
       for (const r of setup.routes) {
         r.points.forEach((p, i) => {
-          if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
+          if (pointTurn(r, i, opts) === null || rawTurnDeg(r, i) < 10) return;
           const margin = limitG(p.g, 9) - availableG(p.kt);
           if (margin > worst.margin) worst = { margin, where: `${r.id} point ${i + 1}: ${p.g} G at ${p.kt} kt` };
         });
@@ -281,8 +282,8 @@ export function makeMeasures(setup, seed) {
       let worst = { margin: -Infinity, where: '' };
       for (const r of setup.routes) {
         r.points.forEach((p, i) => {
-          if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
-          const flownG = 1 / Math.cos(peakBankDeg(r, i) / DEG);
+          if (pointTurn(r, i, opts) === null || rawTurnDeg(r, i) < 10) return;
+          const flownG = 1 / Math.cos(peakBankDeg(r, i, opts) / DEG);
           const margin = flownG - availableG(p.kt);
           if (margin > worst.margin) worst = { margin, where: `${r.id} point ${i + 1}: ${flownG.toFixed(2)} G flown at ${p.kt} kt (${p.g} G asked)` };
         });
@@ -299,10 +300,10 @@ export function makeMeasures(setup, seed) {
       return { value: (Math.abs(runway.cross(leg.a)) + Math.abs(runway.cross(leg.b))) / 2 };
     },
     'a-downwind-length': () => ({ value: legDistances(pat)[10].ft }),
-    'a-break-point': () => ({ value: runway.along(turnEnds(pat, 9).start) }),
-    'a-rollout-abeam': () => ({ value: runway.along(turnEnds(pat, 10).end) }),
-    'a-perch': () => ({ value: -runway.along(turnEnds(pat, 11).start) }),
-    'a-final-rollout': () => ({ value: -runway.along(turnEnds(pat, 12).end) }),
+    'a-break-point': () => ({ value: runway.along(turnEnds(pat, 9, opts).start) }),
+    'a-rollout-abeam': () => ({ value: runway.along(turnEnds(pat, 10, opts).end) }),
+    'a-perch': () => ({ value: -runway.along(turnEnds(pat, 11, opts).start) }),
+    'a-final-rollout': () => ({ value: -runway.along(turnEnds(pat, 12, opts).end) }),
     'f-final-spacing': () => {
       const crossings = thresholdCrossings(setup, pat, seed);
       let closest = null;
@@ -315,23 +316,23 @@ export function makeMeasures(setup, seed) {
     },
 
     'e-break-to-perch-time': () => {
-      const [breakStart, perch] = flySolo(setup, pat, 8, [pointDistFt(pat, 9), pointDistFt(pat, 11)]);
+      const [breakStart, perch] = flySolo(setup, pat, 8, [pointDistFt(pat, 9, opts), pointDistFt(pat, 11, opts)]);
       return { value: perch - breakStart };
     },
-    'e-break-to-perch-distance': () => ({ value: pointDistFt(pat, 11) - pointDistFt(pat, 9) }),
+    'e-break-to-perch-distance': () => ({ value: pointDistFt(pat, 11, opts) - pointDistFt(pat, 9, opts) }),
     'e-final-turn-time': () => {
-      const [perch, rollout] = flySolo(setup, pat, 8, [pointDistFt(pat, 11), pointDistFt(pat, 12) + pathLengthOfTurn(pat, 12)]);
+      const [perch, rollout] = flySolo(setup, pat, 8, [pointDistFt(pat, 11, opts), pointDistFt(pat, 12, opts) + pathLengthOfTurn(pat, 12, opts)]);
       return { value: rollout - perch };
     },
-    'e-initial-to-threshold': () => ({ value: flySolo(setup, pat, 8, [routePath(pat).lengthFt])[0] }),
-    'e-pattern-lap': () => ({ value: flySolo(setup, pat, 0, [routePath(pat).lengthFt])[0] }),
+    'e-initial-to-threshold': () => ({ value: flySolo(setup, pat, 8, [routePath(pat, opts).lengthFt])[0] }),
+    'e-pattern-lap': () => ({ value: flySolo(setup, pat, 0, [routePath(pat, opts).lengthFt])[0] }),
     'e-closed-pattern-time': () => ({ value: timeToJoin(setup, spl3, pat) }),
   };
 }
 
 /** Length of the rounded turn at point i along the flown path. */
-function pathLengthOfTurn(route, i) {
-  const { points } = routePath(route);
+function pathLengthOfTurn(route, i, options) {
+  const { points } = routePath(route, options);
   let len = 0;
   for (let k = 1; k < points.length; k++) if (points[k - 1].src === i && points[k].src === i) len += Math.hypot(points[k].x - points[k - 1].x, points[k].y - points[k - 1].y);
   return len;
