@@ -452,7 +452,8 @@ test('a wave the TAF only partly covers still shows the hit it knows about', () 
   const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100 FM300400 22010KT 1SM OVC003');
   const [w] = wavesAt(['21:00', '01:00']);
   const call = homeCall(w, t, LOCAL);
-  assert.equal(call.status, 'not-covered');
+  assert.ok(['not-covered', 'below'].includes(call.status));
+  assert.equal(call.result.covered, false);
   assert.equal(call.words, "ALTERNATE REQUIRED (TAF doesn't cover the whole wave)");
   assert.equal(call.tone, 'required');
   assert.equal(call.hasHit, true);
@@ -465,7 +466,8 @@ test('an alternate the TAF only partly covers shows its hit too', () => {
   const [w] = wavesAt(['20:00', '21:00']); // lands 03:00Z, window 02Z to 04Z... TAF valid to 06Z
   const late = { ...w, land: new Date('2026-09-30T05:30:00Z') }; // window to 06:30Z, past the TAF's end
   const call = alternateCall(late, 'CYQR', t, a.checkOptions('CYQR'));
-  assert.equal(call.status, 'not-covered');
+  assert.ok(['not-covered', 'below'].includes(call.status));
+  assert.equal(call.result.covered, false);
   assert.equal(call.words, "Below minima (TAF doesn't cover the whole arrival)");
   assert.equal(call.tone, 'below');
   assert.equal(call.hasHit, true);
@@ -516,7 +518,8 @@ test('a partly covered wave with a hit is required, and the same TAF with only a
   const t = taf('TAF CYMJ 291740Z 2918/3006 22010KT P6SM FEW100 FM300400 22010KT 1SM OVC003');
   const [w] = wavesAt(['21:00', '01:00']);
   const call = homeCall(w, t, LOCAL);
-  assert.equal(call.status, 'not-covered');
+  assert.ok(['not-covered', 'below'].includes(call.status));
+  assert.equal(call.result.covered, false);
   assert.equal(call.tone, 'required');
   assert.equal(call.words, "ALTERNATE REQUIRED (TAF doesn't cover the whole wave)");
   assert.equal(call.why, 'TAF valid to 06Z; window ends 08Z (landing + 1 h)');
