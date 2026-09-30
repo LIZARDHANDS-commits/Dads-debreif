@@ -83,6 +83,10 @@ export function notKeptText(item) {
   return `Not kept: ${ITEM_LABEL[item]?.toLowerCase() ?? 'radar'} is only available for 3 hours after the flight.`;
 }
 
+/** What both items say together under the map when neither has pictures: one short sentence, not two. */
+const NOT_KEPT_BOTH = 'Not kept: radar and lightning are only available for 3 hours after the flight.';
+const NOT_SAVED_BOTH = 'Radar and lightning not saved yet: see Weather.';
+
 // --- Which frames ---------------------------------------------------------------
 
 /**
@@ -487,7 +491,7 @@ export function radarNote({ item, on, recent, saved, t, notDrawn = new Set() }) 
   const label = ITEM_LABEL[item];
   if (!saved) {
     return recent
-      ? `${label} not saved yet: use Save radar and lightning with this debrief in the Weather menu.`
+      ? `${label} not saved yet: see Weather.`
       : notKeptText(item);
   }
   if (!ITEM_LAYERS[item].some((layer) => saved.frames.some((f) => f.layer === layer))) return `${label}: none was saved with this debrief.`;
@@ -507,6 +511,8 @@ export function radarNote({ item, on, recent, saved, t, notDrawn = new Set() }) 
  */
 export function savedNoteLine({ radar, lightning, recent, saved, t, notDrawn = new Set() }) {
   const items = [['radar', radar], ['lightning', lightning]].filter(([, on]) => on).map(([item]) => item);
+  // Nothing kept and both on: one short sentence, not two (the line under the map stays short).
+  if (!saved && items.length === 2) return recent ? NOT_SAVED_BOTH : NOT_KEPT_BOTH;
   const parts = items.map((item) => radarNote({ item, on: true, recent, saved, t, notDrawn }));
   const showing = items.some((item) => framesToDraw(saved, item, t).some((d) => !notDrawn.has(`${d.layer}@${d.frame.t}`)));
   return [...parts, ...(showing ? [ECCC_CREDIT] : [])].join(' · ');

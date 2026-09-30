@@ -1653,11 +1653,14 @@ test('saved radar and lightning: offered for a flight that ended an hour ago, fe
 
   // Offered, off at first, and nothing is fetched by ticking the items (R5): only the button fetches.
   await expect(saveWxButton(page)).toBeVisible();
-  await expect(savedWxStatus(page)).toHaveText('ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.');
+  await expect(savedWxStatus(page)).toHaveText('ECCC keeps radar for only 3 hours after a flight.');
+  // What the button does is its description (and tooltip), not a second line in the menu (F1).
+  await expect(saveWxButton(page)).toHaveAccessibleDescription(/only 3 hours after a flight\. This fetches every picture from the flight and keeps them in the debrief file\./);
+  await expect(saveWxButton(page)).toHaveAttribute('title', 'This fetches every picture from the flight and keeps them in the debrief file.');
   await expect(page.getByLabel('Radar', { exact: true })).not.toBeChecked();
   await expect(page.getByLabel('Lightning', { exact: true })).not.toBeChecked();
   await page.getByLabel('Radar', { exact: true }).check();
-  await expect(credit).toHaveText('Radar not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+  await expect(credit).toHaveText('Radar not saved yet: see Weather.');
   expect(asked).toEqual([]);
 
   // Fetch: every frame covering the flight, as plain GETs to ECCC, the exact times, plain latitude and longitude.
@@ -1761,7 +1764,7 @@ test('saved radar: a fetch shows its progress and can be cancelled, and closing 
   await expect(page.locator('#debrief-saved-wx')).toHaveText('Cancel');
   await page.locator('#debrief-saved-wx').click();
   await expect(saveWxButton(page)).toBeVisible();
-  await expect(savedWxStatus(page)).toHaveText(/^ECCC keeps radar for 3 hours\./);
+  await expect(savedWxStatus(page)).toHaveText(/^ECCC keeps radar for only 3 hours/);
   release();
   const askedAtCancel = asked.length;
   await scrubber.fill(String(endT - 120)); // the page draws again, and nothing was kept
@@ -2117,3 +2120,65 @@ test('saved radar: a picture that cannot be decoded is not named by the line und
   await expect(credit).toHaveText(new RegExp(`^Radar ${hhmm(t0)}Z, 1 min before · Data Source: Environment and Climate Change Canada$`));
 });
 
+// The Weather menu with a flight under 3 hours old (the saved radar offer showing) and every item ticked is its
+// tallest: its bottom row must be readable, not under the line beneath the map, and it must not scroll inside
+// (verification re-check of #224, F1).
+async function stubEveryWeatherSource(page, now) {
+  await stubEccc(page, { now });
+  await page.route(IEM, (route) => route.fulfill({ status: 200, contentType: 'text/plain', headers: ECCC_CORS, body: iemReply(route.request().url()) }));
+  await page.route(OPEN_METEO, (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: ECCC_CORS, body: openMeteoGridReply(route.request().url()) }));
+  await page.route(GIBS, (route) => route.fulfill({ status: 200, contentType: 'image/png', headers: ECCC_CORS, body: GREEN_TILE }));
+}
+
+for (const [size, age] of [
+  [{ width: 1280, height: 720 }, 'recent'], [{ width: 1366, height: 768 }, 'recent'],
+  [{ width: 1280, height: 720 }, 'old'], [{ width: 1366, height: 768 }, 'old'],
+]) {
+  test(`at ${size.width} × ${size.height} the Weather menu of a ${age} flight with every item ticked fits: last row readable, under no line, no inner scroll (F1)`, async ({ page }) => {
+    let nowT = 0;
+    await stubEveryWeatherSource(page, () => nowT);
+    await page.setViewportSize(size);
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+    const { scrubber, startT, endT } = await flightWindow(page);
+    nowT = age === 'recent' ? endT + 3600 : endT + 5 * 3600;
+    await setNow(page, nowT);
+    await scrubber.fill(String(startT + 25 * 60));
+    await openWeather(page);
+    if (age === 'recent') await expect(saveWxButton(page)).toBeVisible(); // the offer is showing
+    for (const label of ['METAR', 'Satellite (GOES-West)', 'Radar', 'Lightning', 'Winds aloft (model)', 'Wind arrows (model)']) {
+      await page.getByLabel(label, { exact: true }).check();
+    }
+    await expect(page.locator('#debrief-wind-arrow-status')).toBeVisible();
+    const credit = page.locator('.map-credit');
+    await expect(credit).toBeVisible();
+    await expect(credit).toContainText(age === 'recent' ? 'Radar and lightning not saved yet: see Weather.' : 'Not kept: radar and lightning are only available for 3 hours after the flight.');
+
+    const found = await page.evaluate(() => {
+      const body = [...document.querySelectorAll('.debrief-menu-body')].find((el) => !el.hidden);
+      const box = body.getBoundingClientRect();
+      const map = document.querySelector('.debrief-map-wrap').getBoundingClientRect();
+      const shown = [...body.children].filter((el) => el.getClientRects().length > 0);
+      const last = shown.at(-1).getBoundingClientRect();
+      // What is on top along the last row's bottom line, and at the menu's own bottom corners: the menu's own, never the line under the map.
+      const points = [last.left + 4, last.left + last.width / 2, last.right - 4].map((x) => [x, last.bottom - 3]);
+      points.push([box.left + 3, box.bottom - 3], [box.right - 3, box.bottom - 3]);
+      const covered = points.map(([x, y]) => document.elementFromPoint(x, y)).filter((el) => !el || !body.contains(el)).map((el) => (el ? `${el.tagName}.${el.className}` : 'nothing'));
+      return {
+        scrolls: body.scrollHeight > body.clientHeight,
+        lastBottom: last.bottom,
+        boxBottom: box.bottom,
+        mapBottom: map.bottom,
+        covered,
+        // The line under the map takes no clicks, so what is on top is read from the stacking: the menu's is above it.
+        menuZ: Number(getComputedStyle(body).zIndex),
+        lineZ: Number(getComputedStyle(document.querySelector('.map-credit')).zIndex),
+      };
+    });
+    expect(found.scrolls, 'the menu scrolls inside its box').toBe(false);
+    expect(found.covered, 'the last row is covered').toEqual([]);
+    expect(found.menuZ, 'the line under the map is drawn over the open menu').toBeGreaterThan(found.lineZ);
+    expect(found.lastBottom).toBeLessThanOrEqual(found.boxBottom);
+    expect(found.boxBottom, 'the menu runs below the map').toBeLessThanOrEqual(found.mapBottom + 1);
+  });
+}

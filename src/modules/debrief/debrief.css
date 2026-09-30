@@ -242,7 +242,8 @@
 
 [data-module='debrief'] .debrief-menu-body {
   position: absolute;
-  z-index: 2;
+  /* Above the line under the map (.map-credit, 2), so the line never covers an open menu. */
+  z-index: 3;
   top: calc(100% + var(--space-1));
   left: 0;
   display: grid;
@@ -553,6 +554,29 @@
 
 [data-module='debrief'] .debrief-menu-body select {
   max-width: 100%;
+}
+
+/* The Weather menu is the tallest, so its rows sit closer: no space under each control (the grid's gap is the space). */
+[data-module='debrief'] .debrief-menu-body.is-compact {
+  row-gap: var(--space-2);
+}
+
+[data-module='debrief'] .debrief-menu-body.is-compact .control {
+  margin: 0;
+}
+
+/* From the 1280 px floor the map is at least 688 px wide, so the Weather menu takes wider columns: its labels stay on one line, which is most of its height. */
+@media (min-width: 1280px) {
+  [data-module='debrief'] .debrief-menu-body.is-compact {
+    grid-template-columns: repeat(2, minmax(15rem, 1fr));
+  }
+}
+
+/* One cell of a menu holding an item and what belongs to it (its opacity, its status line). */
+[data-module='debrief'] .debrief-menu-cell {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
 }
 
 /* A small line that spans both columns of a menu (why the wind arrows show nothing). */

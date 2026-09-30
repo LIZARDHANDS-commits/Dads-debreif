@@ -448,7 +448,7 @@ test('the line under the map for each item', () => {
   assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T06:01:00Z') }), 'Radar: no picture kept for this moment.');
   assert.equal(radarNote({ ...base, item: 'radar', t: at('2026-09-30T07:00:00Z') }), 'Radar: no picture kept for this moment.');
   // Nothing saved: within 3 hours it can still be, later, it can't.
-  assert.equal(radarNote({ ...base, item: 'radar', saved: null }), 'Radar not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+  assert.equal(radarNote({ ...base, item: 'radar', saved: null }), 'Radar not saved yet: see Weather.');
   assert.equal(radarNote({ ...base, item: 'radar', saved: null, recent: false }), 'Not kept: radar is only available for 3 hours after the flight.');
   assert.equal(radarNote({ ...base, item: 'lightning', saved: null, recent: false }), 'Not kept: lightning is only available for 3 hours after the flight.');
   // A set that has this flight's radar but no lightning says so.
@@ -466,8 +466,11 @@ test('the line under the map joins the items that are on, with ECCC\'s credit on
     'Radar 06:12Z, 2 min before · Lightning 06:10Z, 4 min before · Data Source: Environment and Climate Change Canada');
   assert.equal(line({ radar: true, t: at('2026-09-30T05:00:00Z') }), 'Radar: no picture kept for this moment.', 'no credit for a picture that isn\'t shown');
   assert.equal(line({ radar: true, lightning: true, saved: null, recent: false }),
-    'Not kept: radar is only available for 3 hours after the flight. · Not kept: lightning is only available for 3 hours after the flight.');
-  assert.equal(line({ lightning: true, saved: null }), 'Lightning not saved yet: use Save radar and lightning with this debrief in the Weather menu.');
+    'Not kept: radar and lightning are only available for 3 hours after the flight.');
+  assert.equal(line({ lightning: true, saved: null }), 'Lightning not saved yet: see Weather.');
+  // Both on with nothing kept is one short sentence (F1: the line under the map stays short).
+  assert.equal(line({ radar: true, lightning: true, saved: null }), 'Radar and lightning not saved yet: see Weather.');
+  assert.equal(line({ radar: true, saved: null, recent: false }), 'Not kept: radar is only available for 3 hours after the flight.');
 });
 
 // --- Only PNG, and only small ones (a small file can decode to a huge picture) --------------------

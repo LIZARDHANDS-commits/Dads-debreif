@@ -21,6 +21,8 @@ import { ARROW_HEIGHT, clampArrowFt } from './weather/wind-arrows.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 const SAVE_WX_LABEL = 'Save radar and lightning with this debrief';
+// What the button does, said once for a screen reader and as the button's tooltip, so the menu's own line can stay one line (F1).
+const SAVE_WX_EXPLAIN = 'This fetches every picture from the flight and keeps them in the debrief file.';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -79,9 +81,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   // A menu: a real button that opens a small panel over the map, and closes
   // again on Escape or a click elsewhere.
   const menus = [];
-  function menu(label, id, children) {
+  function menu(label, id, children, { compact = false } = {}) {
     const button = h('button', { type: 'button', class: 'button menu-button', 'aria-expanded': 'false', 'aria-controls': id }, label);
-    const body = h('div', { class: 'debrief-menu-body', id, hidden: true }, ...children);
+    const body = h('div', { class: `debrief-menu-body${compact ? ' is-compact' : ''}`, id, hidden: true }, ...children);
     const wrap = h('div', { class: 'debrief-menu' }, button, body);
     const setOpen = (open) => {
       body.hidden = !open;
@@ -194,11 +196,13 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     type: 'button', class: 'button', id: 'debrief-saved-wx', hidden: true,
     onclick: () => (savedWxMode === 'cancel' ? handlers.cancelWx : handlers.saveWx)?.(),
   }, SAVE_WX_LABEL);
+  const savedWxExplain = h('span', { class: 'visually-hidden', id: 'debrief-saved-wx-explain' }, SAVE_WX_EXPLAIN);
   // The line shown updates with every picture and is not itself announced; a hidden live region beside
   // the map is told only at the start, about every 25 % and at the end (Y5).
   const savedWxStatus = h('p', { class: 'debrief-menu-note', id: 'debrief-saved-wx-status', tabindex: '-1', hidden: true });
   const savedWxLive = h('p', { class: 'visually-hidden', id: 'debrief-saved-wx-live', role: 'status' });
-  savedWxButton.setAttribute('aria-describedby', savedWxStatus.id);
+  savedWxButton.setAttribute('aria-describedby', `${savedWxStatus.id} ${savedWxExplain.id}`);
+  savedWxButton.title = SAVE_WX_EXPLAIN;
   // Weather at the time of the flight: every item off at first (R22), and
   // fetched only while on (SPEC-debrief: Weather at the time of the flight).
   const weatherMenu = menu('Weather', 'debrief-weather', [
@@ -207,19 +211,20 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       { value: 'nearest', label: 'Nearest airfield' },
       ...Object.entries(CATALOG).map(([icao, f]) => ({ value: icao, label: `${icao} ${f.name}` })),
     ] }),
-    controls.checkbox('wxSatellite', { label: 'Satellite (GOES-West)' }),
+    // Each item with what belongs to it in the same cell, so the menu is as short as its rows (F1): the satellite's
+    // opacity under its item, the radar offer's button and line together, the arrows' status under their item.
+    h('div', { class: 'debrief-menu-cell' },
+      controls.checkbox('wxSatellite', { label: 'Satellite (GOES-West)' }),
+      controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` })),
     controls.select('wxSatelliteLayer', { label: 'Satellite picture', options: Object.entries(SATELLITE_LAYERS).map(([value, l]) => ({ value, label: l.label })) }),
-    controls.slider('wxSatelliteOpacity', { label: 'Satellite opacity', min: 10, max: 100, step: 5, format: (v) => `${v}%` }),
-    h('div', { class: 'debrief-menu-wide' }, controls.checkbox('wxRadar', { label: 'Radar' })),
-    h('div', { class: 'debrief-menu-wide' }, controls.checkbox('wxLightning', { label: 'Lightning' })),
-    h('div', { class: 'debrief-menu-wide' }, savedWxButton),
-    savedWxStatus,
+    controls.checkbox('wxRadar', { label: 'Radar' }),
+    controls.checkbox('wxLightning', { label: 'Lightning' }),
+    h('div', { class: 'debrief-menu-wide debrief-menu-cell' }, savedWxButton, savedWxExplain, savedWxStatus),
     controls.checkbox('wxWinds', { label: 'Winds aloft (model)' }),
     controls.select('wxWindModel', { label: 'Wind model', options: WIND_MODEL_OPTIONS }),
-    controls.checkbox('wxWindArrows', { label: 'Wind arrows (model)' }),
+    h('div', { class: 'debrief-menu-cell' }, controls.checkbox('wxWindArrows', { label: 'Wind arrows (model)' }), windArrowStatus),
     windArrowHeight,
-    windArrowStatus,
-  ]);
+  ], { compact: true });
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
     controls.checkbox('emOpen', { label: 'EM chart' }),

@@ -331,7 +331,7 @@ test('over the size limit the pictures are thinned and the words say how far apa
 // --- What the menu offers -----------------------------------------------------
 
 const base = { flight: true, recent: true, phase: 'idle', done: 0, total: 0, saved: null, notes: [], failure: null, fromFile: false };
-const OFFER = 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.';
+const OFFER = 'ECCC keeps radar for only 3 hours after a flight.'; // one line: what the button does is its own description (F1)
 
 test('the offer: hidden with no flight, a button for a recent flight, the not kept words for an old one', () => {
   assert.deepEqual(offerState({ ...base, flight: false }), { button: 'hidden', status: '', live: '' });

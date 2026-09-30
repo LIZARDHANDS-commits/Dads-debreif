@@ -15,6 +15,8 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /** How many requests are open at once: a few, so it is quick without hammering ECCC. */
 const CONCURRENCY = 3;
 
+/** The menu's one line under the offer button; what the button does is the button's own description (layout.js). */
+export const OFFER_LINE = 'ECCC keeps radar for only 3 hours after a flight.';
 const OFFLINE = "ECCC couldn't be reached. Check the connection and try again.";
 const NONE_LEFT = 'ECCC had no pictures for this flight any more.';
 const errorText = (status) => `ECCC gave an error (HTTP ${status}).`;
@@ -233,6 +235,6 @@ export function offerState({ flight, recent, pressed = false, inFile = false, ph
   }
   if (!recent) return say('hidden', notKeptText('radar'));
   if (phase === 'failed') return say('save', `Couldn't save radar and lightning: ${failure}`);
-  return say('save', 'ECCC keeps radar for 3 hours. This fetches every picture from the flight and keeps them in the debrief file.');
+  return say('save', OFFER_LINE);
 }
 
