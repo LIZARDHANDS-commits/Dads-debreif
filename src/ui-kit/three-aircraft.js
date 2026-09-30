@@ -12,6 +12,8 @@
 // altitude in feet times the altitude-scale setting (`altToZ`); the aircraft
 // model itself is not scaled by it.
 
+import { disposeCt156Model } from './ct156-model.js';
+
 /**
  * Distance from the camera to its target, in feet. The camera is orthographic, so it only
  * has to be far. The near and far planes sit CLIP_RANGE_FT either side of the target: the
@@ -178,8 +180,13 @@ export function createStandInMesh(THREE, { color, outline = null, kind = 'generi
   return group;
 }
 
-/** Frees the geometry and materials of an aircraft made by `createAircraftMesh` or `createStandInMesh` (and removes it from its parent). */
+/**
+ * Frees the geometry and materials of an aircraft made by `createAircraftMesh` or
+ * `createStandInMesh` (and removes it from its parent). A CT-156 model (ct156-model.js)
+ * shares its geometry, so it is handed to `disposeCt156Model`, which counts references.
+ */
 export function disposeAircraftMesh(mesh) {
+  if (mesh.userData.ct156) return disposeCt156Model(mesh);
   mesh.removeFromParent();
   const materials = new Set();
   mesh.traverse((o) => {
