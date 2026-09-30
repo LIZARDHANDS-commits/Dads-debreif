@@ -116,8 +116,8 @@ export const DEFAULTS = Object.freeze({
   // SMM item 2 (16.19 paras 52 and 54, Patrick 06:40Z): the inside aircraft turns when the wingman reaches 7 o'clock
   // in a right turn and 5 o'clock in a left turn. V6: 5:30.
   clockCuePos: 'auto',
-  // Offset box #3 and #4 timing in the delayed turns. 'rearDelay' (the default, SMM 16.41 para 112a): both turn rearDelaySec
-  // after the front element has started. 'groundTrack' (Q44b, Patrick): #4 solves its own delay to roll out 3,000 ft
+  // Offset box #3 and #4 timing in the delayed turns. 'boxSlot' (the default, audit R1): each rear aircraft's delay ends it boxAftFt
+  // behind the front element in its slot. 'rearDelay' (SMM 16.41 para 112a): both turn rearDelaySec after the front element has started. 'groundTrack' (Q44b, Patrick): #4 solves its own delay to roll out 3,000 ft
   // outside #2 and Box aft behind the front element. V6's 'late' (#3's delay + base delay) and 'early' (#3's delay - base
   // delay) stay as choices.
   offsetBox4Timing: 'boxSlot',

@@ -143,3 +143,12 @@ test('the clock cue: the run waits for every aircraft to turn, however short the
   assert.equal(stuck.state.turnComplete, false);
   assert.ok(stuck.state.tSec >= 299 && stuck.state.tSec < 301, `stopped at ${stuck.state.tSec}`);
 });
+
+test('on the clock cue the run lasts until the last aircraft has turned, and 10 s more', () => {
+  const run = createRun({ ...BASE, formation: 'twoShip', timing: 'clock', clockCuePos: 'auto', direction: 'right', durationSec: 20 });
+  let doneAt = null;
+  while (run.step()) if (doneAt === null && run.state.turnComplete) doneAt = run.state.tSec;
+  assert.ok(doneAt !== null && doneAt > 30, `all turned at ${doneAt}`);
+  assert.ok(Math.abs(run.state.durationSec - (doneAt + 10)) < 0.11, `duration ${run.state.durationSec} vs ${doneAt} + 10`);
+  assert.ok(Math.abs(run.state.tSec - run.state.durationSec) < 0.06);
+});
