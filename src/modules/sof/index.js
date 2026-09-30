@@ -10,6 +10,8 @@ import { createSettingsView } from './settings-view.js';
 import { createWeather } from './weather.js';
 import { buildScreen } from './screen-model.js';
 import { createLayout } from './layout.js';
+import { createBannerView } from './banner-view.js';
+import { ACKS_KEY, buildBanner, tafInputs, acksAfterOne, acksAfterAll } from './banner-model.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
 /** Ages and the DTG are minutes; the screen is checked this often and touches the page only when a word changes. */
@@ -29,13 +31,44 @@ function mount(root, app) {
     now: () => app.time.now(),
     onChange: () => render(),
   });
-  const ui = createLayout({ settingsElement: settingsView.element, onRefresh: () => weather.refresh() });
+  // The caution banner (task 3). Acknowledgements are kept for the day in the module's storage.
+  let banner = null; // the last banner model, for the buttons
+  let shownKeys = []; // what was on the banner last time, to announce only what is new
+  const bannerView = createBannerView({
+    onAcknowledge: (key) => keepAcks(acksAfterOne(banner, key)),
+    onAcknowledgeAll: () => keepAcks(acksAfterAll(banner)),
+    focusAfter: () => ui.focusAfterBanner(),
+  });
+  const ui = createLayout({ settingsElement: settingsView.element, onRefresh: () => weather.refresh(), bannerElement: bannerView.element });
   root.append(ui.element);
+
+  function keepAcks(acks) {
+    if (acks) app.storage.set(ACKS_KEY, acks);
+    render();
+  }
 
   function render() {
     const snapshot = weather.snapshot();
+    const now = app.time.now();
+    const limits = settings.get();
+    const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now });
+    const tafs = Object.fromEntries(Object.entries(snapshot.taf).map(([icao, entry]) => [icao, entry?.report ?? null]));
+    banner = buildBanner({
+      cards: screen.cards,
+      tafs: tafInputs({ tafs, homeIcao: app.airfields.home().icao, now, timeZone: app.time.zone }),
+      // Other writers' cautions (lightning near home) arrive on the screen model in cautions.js's shape.
+      extra: screen.extraCautions ?? [],
+      acks: app.storage.get(ACKS_KEY, null),
+      now,
+      timeZone: app.time.zone,
+      enabled: limits.banner,
+      shown: shownKeys,
+    });
+    if (banner.write) app.storage.set(ACKS_KEY, banner.acks); // only when it changed, and only when it can be told which day
+    shownKeys = banner.show ? banner.lines.map((l) => l.key) : [];
+    bannerView.render(banner);
     ui.setBusy(snapshot.busy);
-    ui.render(buildScreen({ airfields: app.airfields, snapshot, limits: settings.get(), now: app.time.now() }));
+    ui.render(screen);
   }
 
   const stops = [

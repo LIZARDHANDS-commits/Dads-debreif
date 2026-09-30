@@ -291,3 +291,62 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+/* The new-caution banner: its own row in the page flow, pushing the screen down, never over it. */
+[data-module='sof'] .sof-banner {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--caution);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+
+[data-module='sof'] .sof-banner[hidden] {
+  display: none;
+}
+
+[data-module='sof'] .sof-banner-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+[data-module='sof'] .sof-banner-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='sof'] .sof-banner-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+[data-module='sof'] .sof-banner-text {
+  flex: 1 1 20rem;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+[data-module='sof'] .sof-banner-line.is-below .sof-banner-symbol {
+  color: var(--bad);
+}
+
+[data-module='sof'] .sof-banner-line.is-caution .sof-banner-symbol {
+  color: var(--caution);
+}
+
+[data-module='sof'] .sof-banner-actions {
+  margin: var(--space-3) 0 0;
+}
+
+[data-module='sof'] .sof-banner-actions:has(.sof-banner-all[hidden]) {
+  display: none;
+}

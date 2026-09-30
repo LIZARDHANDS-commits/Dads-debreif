@@ -41,5 +41,11 @@ export function createSettingsView({ settings }) {
     hint('Home needs an alternate when its forecast is below either number. Choosing a trigger fills both in; a typed number goes up to the next 100 ft or quarter mile.'),
   );
 
+  // The new-caution banner (V6's "New-alert caution box"), on to begin with. Off, the cards still show every caution.
+  menu.section('Cautions').append(
+    controls.checkbox('banner', { label: 'Show the new-caution banner' }),
+    hint('The banner lists cautions you have not acknowledged. The airfield cards show every caution either way.'),
+  );
+
   return { element: menu.element, dispose: controls.dispose };
 }
