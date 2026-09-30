@@ -2,8 +2,10 @@
 // an alternate airfield's forecast at ETA. Replaces V6's tafHazards() and its two
 // alternate badges, which showed green whatever the weather (audit issue #4).
 
-import { forecastAt } from './taf.js';
+import { forecastAt, toWindow } from './taf.js';
 import { checkConditions, DEFAULT_LIMITS } from './limits.js';
+
+const usable = (taf) => Boolean(taf?.validFrom && taf?.validTo && !taf.cancelled && !taf.nil);
 
 function hitsIn(forecast, limits) {
   const pieces = [
@@ -14,7 +16,7 @@ function hitsIn(forecast, limits) {
   let incomplete = false;
   for (const p of pieces) {
     const check = checkConditions(p.conditions, limits);
-    if (p.kind === 'PREVAILING' && check.visibilityUnknown) incomplete = true;
+    if (p.kind === 'PREVAILING' && (check.visibilityUnknown || check.ceilingUnknown)) incomplete = true;
     if (check.belowLimits) {
       hits.push({
         kind: p.kind,
@@ -32,20 +34,30 @@ function hitsIn(forecast, limits) {
   return { hits, incomplete };
 }
 
+/** The status once a TAF covers the time: anything below wins, then anything unreadable. */
+function coveredStatus(taf, hits, incomplete) {
+  if (hits.length) return 'below';
+  return incomplete || taf.problems?.length ? 'incomplete' : 'meets';
+}
+
 /**
  * Is the home forecast below the home limits at any time in the wave window
  * (takeoff to landing plus one hour, as in V6)? Prevailing conditions, BECMG
  * change periods, TEMPO and PROB all count, as in V6.
  *
- * status: 'no-taf' | 'not-covered' | 'below' | 'incomplete' | 'meets'.
- * Hits are listed whatever the status.
+ * status: 'no-time' | 'no-taf' | 'not-covered' | 'below' | 'incomplete' | 'meets'.
+ * 'incomplete' means part of the forecast (a ceiling, a visibility, a group) could
+ * not be read. Hits are listed whatever the status.
  */
-export function homeAlternateTrigger(taf, window, limits = DEFAULT_LIMITS.home) {
-  if (!taf?.validFrom) return { status: 'no-taf', covered: false, validFrom: null, validTo: null, hits: [] };
-  const f = forecastAt(taf, window);
-  const { hits, incomplete } = hitsIn(f, limits);
-  const status = !f.covered ? 'not-covered' : hits.length ? 'below' : incomplete ? 'incomplete' : 'meets';
-  return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits };
+export function homeAlternateTrigger(taf, window, limits) {
+  const w = toWindow(window);
+  const empty = { covered: false, validFrom: null, validTo: null, hits: [], problems: taf?.problems ?? [] };
+  if (!w) return { ...empty, status: 'no-time' };
+  if (!usable(taf)) return { ...empty, status: 'no-taf' };
+  const f = forecastAt(taf, w);
+  const { hits, incomplete } = hitsIn(f, limits ?? DEFAULT_LIMITS.home);
+  const status = f.covered ? coveredStatus(taf, hits, incomplete) : 'not-covered';
+  return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, problems: taf.problems ?? [] };
 }
 
 /**
@@ -55,25 +67,26 @@ export function homeAlternateTrigger(taf, window, limits = DEFAULT_LIMITS.home) 
  * For a GNSS-only alternate V6 had no rule and said so; this keeps that
  * (question WX-4): the status is 'needs-mea' without an MEA, else 'gnss-check'.
  *
- * status: 'no-taf' | 'not-covered' | 'needs-mea' | 'gnss-check' | 'below' | 'incomplete' | 'meets'.
+ * status: 'no-time' | 'no-taf' | 'not-covered' | 'needs-mea' | 'gnss-check' | 'below' | 'incomplete' | 'meets'.
  */
-export function assessAlternate(taf, eta, { limits = DEFAULT_LIMITS.alternate, gnssOnly = false, meaFt = null } = {}) {
-  const base = { gnssOnly, meaFt, eta };
-  if (!taf?.validFrom) return { ...base, status: 'no-taf', covered: false, prevailing: null, overlays: [], hits: [] };
-  const f = forecastAt(taf, eta);
-  const { hits, incomplete } = hitsIn(f, limits);
-  const result = {
+export function assessAlternate(taf, eta, { limits, gnssOnly = false, meaFt = null } = {}) {
+  const w = toWindow(eta);
+  const base = { gnssOnly, meaFt, eta: w?.from ?? null, problems: taf?.problems ?? [] };
+  const empty = { ...base, covered: false, prevailing: null, overlays: [], hits: [] };
+  if (!w) return { ...empty, status: 'no-time' };
+  if (!usable(taf)) return { ...empty, status: 'no-taf' };
+  const f = forecastAt(taf, w);
+  const { hits, incomplete } = hitsIn(f, limits ?? DEFAULT_LIMITS.alternate);
+  let status;
+  if (!f.covered) status = 'not-covered';
+  else if (gnssOnly) status = meaFt ? 'gnss-check' : 'needs-mea';
+  else status = coveredStatus(taf, hits, incomplete);
+  return {
     ...base,
+    status,
     covered: f.covered,
     prevailing: f.prevailing.at(-1)?.conditions ?? null,
     overlays: f.overlays,
     hits,
   };
-  let status;
-  if (!f.covered) status = 'not-covered';
-  else if (gnssOnly) status = meaFt ? 'gnss-check' : 'needs-mea';
-  else if (hits.length) status = 'below';
-  else if (incomplete) status = 'incomplete';
-  else status = 'meets';
-  return { ...result, status };
 }

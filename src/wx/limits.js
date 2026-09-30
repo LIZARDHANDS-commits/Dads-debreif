@@ -1,7 +1,7 @@
 // Limit checks and classifications. Thresholds and the "strictly below" rule are
 // V6's (SPEC-wx, "Limit checks"); only V6's parsing bugs are fixed.
 
-import { ceilingFt, formatVisibility, METRES_PER_SM } from './conditions.js';
+import { ceilingFt, ceilingUnknown, formatVisibility, METRES_PER_SM } from './conditions.js';
 
 /** V6's WX SETUP defaults (sof.html line 180). The SOF passes the user's settings instead. */
 export const DEFAULT_LIMITS = Object.freeze({
@@ -9,15 +9,19 @@ export const DEFAULT_LIMITS = Object.freeze({
   alternate: Object.freeze({ ceilingFt: 600, visSm: 2 }),
 });
 
-/**
- * True when the visibility is strictly below `limit` (same units as `value`).
- * "Less than" visibility counts at or below its number; "more than" only below it.
- * For limits up to 6 SM this matches V6, which used 0.24 for M1/4SM and 6.01 for P6SM.
- */
+// "Less than" visibility counts at or below its number; "more than" only below it.
 function belowWithQualifier(value, qualifier, limit) {
   return qualifier === 'less' ? value <= limit : value < limit;
 }
 
+function atOrBelowWithQualifier(value, qualifier, limit) {
+  return qualifier === 'more' ? value < limit : value <= limit;
+}
+
+/**
+ * True when the visibility is strictly below `limitSm`, null when it is unknown.
+ * For limits up to 6 SM this matches V6, which used 0.24 for M1/4SM and 6.01 for P6SM.
+ */
 export function visibilityBelow(vis, limitSm) {
   if (!vis) return null;
   return belowWithQualifier(vis.sm, vis.qualifier, limitSm);
@@ -27,7 +31,8 @@ const isStation = (w) => w.intensity !== 'VC';
 const has = (w, p) => w.phenomena.includes(p);
 
 /**
- * Check conditions against { ceilingFt, visSm }.
+ * Check conditions against { ceilingFt, visSm }. An unknown ceiling or
+ * visibility is reported as unknown, never as within limits.
  * belowLimits: ceiling or visibility strictly below the limit (the alternate trigger).
  * alert: belowLimits, or thunderstorm/severe or significant weather (V6's card alerts).
  * watch: reported but not raised as a caution until question WX-2 is answered.
@@ -37,6 +42,7 @@ export function checkConditions(conditions, limits) {
   const vis = conditions?.visibility ?? null;
   const weather = conditions?.weather ?? [];
   const ceilingBelow = ceiling != null && ceiling < limits.ceilingFt;
+  const unknownCeiling = ceilingUnknown(conditions);
   const visBelow = visibilityBelow(vis, limits.visSm) === true;
 
   const thunderstorm = weather
@@ -70,6 +76,7 @@ export function checkConditions(conditions, limits) {
     ceilingFt: ceiling,
     visibility: vis,
     visibilityUnknown: !vis,
+    ceilingUnknown: unknownCeiling,
     ceilingBelow,
     visibilityBelow: visBelow,
     belowLimits,
@@ -91,32 +98,38 @@ const NATO = [
   ['WHT', 2500, 8000],
 ];
 
-/** NATO colour state from the lowest SCT-or-thicker layer and the visibility in metres. */
+/**
+ * NATO colour state from the lowest SCT-or-thicker layer and the visibility in
+ * metres. 'UNK' when a layer's base is unknown and the colour isn't already RED.
+ */
 export function natoColour(conditions) {
-  const bases = (conditions?.sky ?? [])
-    .filter((l) => l.cover !== 'FEW' && l.baseFt != null)
-    .map((l) => l.baseFt);
+  const layers = (conditions?.sky ?? []).filter((l) => l.cover !== 'FEW');
+  const bases = layers.filter((l) => l.baseFt != null).map((l) => l.baseFt);
   const base = bases.length ? Math.min(...bases) : Infinity;
   const vis = conditions?.visibility;
   const metres = vis ? (vis.metres ?? vis.sm * METRES_PER_SM) : Infinity;
-  for (const [colour, ft, m] of NATO) {
-    if (base < ft || (vis && belowWithQualifier(metres, vis.qualifier, m))) return colour;
-  }
-  return 'BLU';
+  const found = NATO.find(([, ft, m]) => base < ft || (vis && belowWithQualifier(metres, vis.qualifier, m)));
+  const colour = found ? found[0] : 'BLU';
+  const unknownBase = layers.some((l) => l.baseFt == null);
+  return unknownBase && colour !== 'RED' ? 'UNK' : colour;
 }
 
 /**
  * VFR / MVFR / IFR / LIFR, for when the feed gives none (V6 cat(), sof.html line 576).
- * 'UNK' when neither ceiling nor visibility is known.
+ * 'UNK' when neither ceiling nor visibility is known, or when a cloud base is
+ * unknown and the category isn't already LIFR.
  */
 export function flightCategory(conditions) {
   const c = ceilingFt(conditions);
   const vis = conditions?.visibility;
-  if (c == null && !vis) return 'UNK';
   const visLt = (n) => vis != null && belowWithQualifier(vis.sm, vis.qualifier, n);
-  const visLe = (n) => vis != null && (vis.qualifier === 'more' ? vis.sm < n : vis.sm <= n);
-  if ((c != null && c < 500) || visLt(1)) return 'LIFR';
-  if ((c != null && c < 1000) || visLt(3)) return 'IFR';
-  if ((c != null && c <= 3000) || visLe(5)) return 'MVFR';
-  return 'VFR';
+  const visLe = (n) => vis != null && atOrBelowWithQualifier(vis.sm, vis.qualifier, n);
+  let category = 'VFR';
+  if ((c != null && c < 500) || visLt(1)) category = 'LIFR';
+  else if ((c != null && c < 1000) || visLt(3)) category = 'IFR';
+  else if ((c != null && c <= 3000) || visLe(5)) category = 'MVFR';
+  const unknownBase = (conditions?.sky ?? []).some((l) => l.cover !== 'FEW' && l.cover !== 'SCT' && l.baseFt == null);
+  if (category === 'LIFR') return category;
+  if ((c == null && !vis) || unknownBase) return 'UNK';
+  return category;
 }

@@ -6,10 +6,10 @@ Turns raw METAR and TAF text into plain data and answers the SOF's weather quest
 |---|---|
 | `conditions.js` | Reads wind, visibility, weather and cloud tokens (shared by METAR and TAF). Merges a change group into what it changes. Formats visibility for display. |
 | `metar.js` | `parseMetar(raw, { now })` |
-| `taf.js` | `parseTaf(raw, { now })`, `tafTimeline(taf)` (prevailing conditions plus TEMPO/PROB/BECMG overlays), `forecastAt(taf, timeOrWindow)` |
+| `taf.js` | `parseTaf(raw, { now })` (with `problems` listing anything unreadable), `tafTimeline(taf)` (prevailing conditions plus TEMPO/PROB/BECMG overlays), `forecastAt(taf, timeOrWindow)` |
 | `limits.js` | `DEFAULT_LIMITS` (V6's WX SETUP values), `checkConditions`, `natoColour`, `flightCategory` |
 | `alternates.js` | `homeAlternateTrigger(taf, window, limits)` for a wave, `assessAlternate(taf, eta, options)` for an alternate airfield |
-| `dates.js` | Turns day-of-month times into full UTC dates; `ageMinutes` for data age |
+| `dates.js` | Turns day-of-month times into full UTC dates (`resolveDay`, `resolvePast`); `toDate`; `ageMinutes` for data age |
 
 ## Where to change common things
 

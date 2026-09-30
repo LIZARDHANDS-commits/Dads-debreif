@@ -2,16 +2,19 @@
 // listed in `unread`.
 
 import { readConditions, ceilingFt, tokenize } from './conditions.js';
-import { resolveDay } from './dates.js';
+import { resolvePast } from './dates.js';
 
 const STATION = /^[A-Z][A-Z0-9]{3}$/;
 const OBS_TIME = /^(\d{2})(\d{2})(\d{2})Z$/;
+const TREND = new Set(['TEMPO', 'BECMG', 'NOSIG']);
 
 /**
  * Parse a METAR or SPECI.
- * `now` resolves the day-of-month in the observation time.
+ * `now` resolves the day-of-month in the observation time. A trend forecast at
+ * the end (TEMPO, BECMG, NOSIG) is kept apart as `trend`, not read as observed.
  */
-export function parseMetar(raw, { now = new Date() } = {}) {
+export function parseMetar(raw, { now } = {}) {
+  now = now ?? new Date();
   const { tokens, remarks } = tokenize(raw);
   const report = {
     raw: String(raw ?? '').trim(),
@@ -26,6 +29,7 @@ export function parseMetar(raw, { now = new Date() } = {}) {
     temperatureC: null,
     dewpointC: null,
     altimeter: null,
+    trend: '',
     remarks,
     unread: [],
   };
@@ -35,7 +39,7 @@ export function parseMetar(raw, { now = new Date() } = {}) {
   if (tokens[i] && STATION.test(tokens[i])) report.station = tokens[i++];
   const tm = tokens[i]?.match(OBS_TIME);
   if (tm) {
-    report.time = resolveDay(Number(tm[1]), Number(tm[2]), Number(tm[3]), now);
+    report.time = resolvePast(Number(tm[1]), Number(tm[2]), Number(tm[3]), now);
     i++;
   }
   for (; tokens[i] === 'AUTO' || tokens[i] === 'COR' || tokens[i] === 'NIL'; i++) {
@@ -43,7 +47,10 @@ export function parseMetar(raw, { now = new Date() } = {}) {
     if (tokens[i] === 'COR') report.correction = true;
     if (tokens[i] === 'NIL') report.nil = true;
   }
-  const read = readConditions(tokens.slice(i));
+  let end = tokens.findIndex((t, k) => k >= i && TREND.has(t));
+  if (end < 0) end = tokens.length;
+  report.trend = tokens.slice(end).join(' ');
+  const read = readConditions(tokens.slice(i, end));
   report.conditions = read.conditions;
   report.ceilingFt = ceilingFt(read.conditions);
   report.temperatureC = read.temperatureC;

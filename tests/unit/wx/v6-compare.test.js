@@ -10,7 +10,7 @@ import { parseMetar } from '../../../src/wx/metar.js';
 import { parseTaf } from '../../../src/wx/taf.js';
 import { natoColour, flightCategory } from '../../../src/wx/limits.js';
 import { homeAlternateTrigger } from '../../../src/wx/alternates.js';
-import { METAR, TAF, NOW, at } from './reports.js';
+import { METAR, TAF, NOW, METAR_NOW, at } from './reports.js';
 
 const v6 = loadV6();
 const cond = (text) => readConditions(tokenize(text).tokens).conditions;
@@ -73,13 +73,13 @@ test('issue #3: V6 nato() shows M1/4SM fog as WHT and misses a CB base; the new 
 test('flight category agrees with V6 cat() on METARs it reads correctly', () => {
   for (const raw of [METAR.typical, METAR.mixedFraction, METAR.onLimits, METAR.belowBoth, METAR.freezingFog]) {
     const o = v6.parseRawMetar('CYMJ', raw);
-    assert.equal(flightCategory(parseMetar(raw, { now: NOW }).conditions), o.fltCat, raw);
+    assert.equal(flightCategory(parseMetar(raw, { now: METAR_NOW }).conditions), o.fltCat, raw);
   }
 });
 
 test('issue #3: V6 cat() cannot categorise M1/4SM FG BKN002CB; the new code says LIFR', () => {
   assert.equal(v6.parseRawMetar('CYMJ', METAR.quarterMileFog).fltCat, 'UNK');
-  assert.equal(flightCategory(parseMetar(METAR.quarterMileFog, { now: NOW }).conditions), 'LIFR');
+  assert.equal(flightCategory(parseMetar(METAR.quarterMileFog, { now: METAR_NOW }).conditions), 'LIFR');
 });
 
 // V6's wave window: takeoff, landing, and landing plus one hour.

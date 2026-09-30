@@ -4,6 +4,8 @@
 
 // Swap for core/units.js once the flight-math core has merged (SPEC-wx assumption 4).
 export const METRES_PER_SM = 1609.344;
+// "9999" and CAVOK both mean 10 km or more.
+const TEN_KM = { sm: 10000 / METRES_PER_SM, qualifier: 'more', metres: 9999 };
 
 const WIND = /^(\d{3}|VRB|\/{3})(\d{2,3}|\/\/)(?:G(\d{2,3}))?(KT|MPS)$/;
 const WIND_VARIATION = /^(\d{3})V(\d{3})$/;
@@ -30,6 +32,17 @@ export function tokenize(raw) {
 /** Conditions with nothing stated. */
 export function emptyConditions() {
   return { wind: null, visibility: null, cavok: false, weather: [], nsw: false, sky: [], skyClear: false };
+}
+
+/**
+ * A statute-mile fraction. A fraction of a mile is always below one, so "11/2" is
+ * "1 1/2" with the space dropped, and "13/4" is "1 3/4".
+ */
+function fraction(numerator, denominator) {
+  const n = Number(numerator);
+  const d = Number(denominator);
+  if (n < d || numerator.length < 2) return n / d;
+  return Number(numerator.slice(0, -1)) + Number(numerator.slice(-1)) / d;
 }
 
 function signedTemp(s) {
@@ -63,15 +76,15 @@ export function readConditions(tokens) {
       c.visibility = { sm: Number(t) + n / d, qualifier: null, metres: null, raw: `${t} ${tokens[i + 1]}` };
       i++;
     } else if (!c.visibility && (m = t.match(VIS_SM))) {
-      const sm = m[2] ? Number(m[2]) / Number(m[3]) : Number(m[4]);
+      const sm = m[2] ? fraction(m[2], m[3]) : Number(m[4]);
       c.visibility = { sm, qualifier: m[1] === 'M' ? 'less' : m[1] === 'P' ? 'more' : null, metres: null, raw: t };
     } else if (!c.visibility && (m = t.match(VIS_METRES)) && !/SM$/.test(tokens[i + 1] || '')) {
       // A four-digit number right before an SM visibility is not metric visibility.
       const metres = Number(m[1]);
-      c.visibility = { sm: metres / METRES_PER_SM, qualifier: metres === 9999 ? 'more' : null, metres, raw: t };
+      c.visibility = metres === 9999 ? { ...TEN_KM, raw: t } : { sm: metres / METRES_PER_SM, qualifier: null, metres, raw: t };
     } else if (t === 'CAVOK') {
       c.cavok = true;
-      c.visibility = { sm: 10000 / METRES_PER_SM, qualifier: 'more', metres: 9999, raw: t };
+      c.visibility = { ...TEN_KM, raw: t };
       c.sky = [];
       c.skyClear = true;
       c.weather = [];
@@ -108,12 +121,24 @@ export function readConditions(tokens) {
   return out;
 }
 
+const isCeilingLayer = (l) => l.cover === 'BKN' || l.cover === 'OVC' || l.cover === 'VV';
+
 /** Lowest BKN, OVC or VV layer with a known base, in feet; null when there is no ceiling. */
 export function ceilingFt(conditions) {
   const bases = (conditions?.sky || [])
-    .filter((l) => (l.cover === 'BKN' || l.cover === 'OVC' || l.cover === 'VV') && l.baseFt != null)
+    .filter((l) => isCeilingLayer(l) && l.baseFt != null)
     .map((l) => l.baseFt);
   return bases.length ? Math.min(...bases) : null;
+}
+
+/**
+ * True when the ceiling can't be known: a BKN, OVC or VV layer with an unknown
+ * base ("///"), or no cloud group at all without SKC/CLR/NSC/NCD/CAVOK.
+ */
+export function ceilingUnknown(conditions) {
+  const sky = conditions?.sky ?? [];
+  if (!sky.length) return !conditions?.skyClear;
+  return sky.some((l) => isCeilingLayer(l) && l.baseFt == null);
 }
 
 /**
@@ -123,15 +148,17 @@ export function ceilingFt(conditions) {
  */
 export function mergeConditions(base, change) {
   const b = base || emptyConditions();
-  const changesCavok = change.visibility || change.weather.length || change.sky.length;
+  const statesWeather = change.weather.length > 0 || change.nsw;
+  const statesSky = change.sky.length > 0 || change.skyClear;
+  const statesAnyCavokPart = Boolean(change.visibility) || statesWeather || statesSky;
   return {
     wind: change.wind || b.wind,
     visibility: change.visibility || b.visibility,
-    cavok: change.cavok || (!changesCavok && b.cavok),
-    weather: change.weather.length || change.nsw ? change.weather : b.weather,
-    nsw: change.nsw || (!change.weather.length && b.nsw),
-    sky: change.sky.length || change.skyClear ? change.sky : b.sky,
-    skyClear: change.sky.length ? false : change.skyClear || b.skyClear,
+    cavok: change.cavok || (!statesAnyCavokPart && b.cavok),
+    weather: statesWeather ? change.weather : b.weather,
+    nsw: statesWeather ? change.nsw : b.nsw,
+    sky: statesSky ? change.sky : b.sky,
+    skyClear: statesSky ? change.skyClear : b.skyClear,
   };
 }
 

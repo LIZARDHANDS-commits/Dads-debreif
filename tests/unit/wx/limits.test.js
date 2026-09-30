@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMetar } from '../../../src/wx/metar.js';
 import { checkConditions, DEFAULT_LIMITS, natoColour, flightCategory, visibilityBelow } from '../../../src/wx/limits.js';
-import { METAR, NOW } from './reports.js';
+import { METAR, METAR_NOW } from './reports.js';
 
-const cond = (raw) => parseMetar(raw, { now: NOW }).conditions;
+const cond = (raw) => parseMetar(raw, { now: METAR_NOW }).conditions;
 const home = (raw) => checkConditions(cond(raw), DEFAULT_LIMITS.home);
 
 test('V6 default limits: home 2000 ft / 3 SM, alternate 600 ft / 2 SM', () => {

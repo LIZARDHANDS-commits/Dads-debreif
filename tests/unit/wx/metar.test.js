@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseMetar } from '../../../src/wx/metar.js';
-import { METAR, NOW } from './reports.js';
+import { METAR, METAR_NOW } from './reports.js';
 
-const parse = (raw, now = NOW) => parseMetar(raw, { now });
+const parse = (raw, now = METAR_NOW) => parseMetar(raw, { now });
 
 test('typical METAR: header, wind, visibility, weather, cloud, temperature, altimeter, remarks', () => {
   const m = parse(METAR.typical);

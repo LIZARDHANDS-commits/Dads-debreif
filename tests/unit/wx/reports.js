@@ -3,6 +3,8 @@
 // Add every report that ever parses wrong here, with the issue it belongs to.
 
 export const NOW = new Date('2026-09-29T11:30:00Z');
+// The METARs below are observed at 1500Z, so they are read half an hour later.
+export const METAR_NOW = new Date('2026-09-29T15:30:00Z');
 
 export const METAR = {
   typical: 'METAR CYMJ 291500Z 27010G18KT 15SM -SHRA FEW030TCU BKN080 OVC120 14/08 A2992 RMK TCU2AC3SC1 SLP134',

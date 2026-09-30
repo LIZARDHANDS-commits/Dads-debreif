@@ -40,9 +40,11 @@ Out, for now:
 
 - Everything after `RMK` is ignored for conditions and kept as `remarks`.
 - Tokens are read one at a time, so a TAF period like `2916/2920` can never be read as visibility (issue #1).
-- Visibility: `M` means "less than" and `P` means "more than". The value keeps its number and a qualifier: `M1/4SM` is `{ sm: 0.25, qualifier: 'less' }` (issue #3, V6 read it as 4 SM). A whole number joins a following fraction only when it is one or two digits (`1 1/2SM`). Metric visibility is converted to SM; `9999` means 10 km or more. `CAVOK` means 10 km or more, no cloud that matters, no weather.
+- Visibility: `M` means "less than" and `P` means "more than". The value keeps its number and a qualifier: `M1/4SM` is `{ sm: 0.25, qualifier: 'less' }` (issue #3, V6 read it as 4 SM). A whole number joins a following fraction only when it is one or two digits (`1 1/2SM`). A fraction of a mile is always below one, so `11/2SM` is read as `1 1/2SM` with the space dropped (V6 read 5.5). Metric visibility is converted to SM; `9999` means 10 km or more. `CAVOK` means 10 km or more, no cloud that matters, no weather.
 - Cloud: `FEW`, `SCT`, `BKN`, `OVC`, `VV` with a base in hundreds of feet, and an optional `CB` or `TCU` kept on the layer (issue #3: `BKN015CB` is a 1500 ft ceiling, V6 saw no ceiling). `///` base means unknown. `SKC`, `CLR`, `NSC`, `NCD` and `CAVOK` mean an explicit clear sky, which a change group uses to clear the cloud it inherited.
-- Ceiling: the lowest `BKN`, `OVC` or `VV` layer. `null` means no ceiling.
+- Ceiling: the lowest `BKN`, `OVC` or `VV` layer. `null` means no ceiling. The ceiling is **unknown** when such a layer has a `///` base, or when there is no cloud group at all and no `SKC`/`CLR`/`NSC`/`NCD`/`CAVOK`.
+- Times: a report's observation or issue time is the latest matching date no more than an hour after `now`, since reports are never written in the future. Group times resolve to the date nearest the valid period, so a group starting just before it stays in its own month. Impossible values (day 32, hour 25) give no time.
+- A METAR trend (`TEMPO`, `BECMG`, `NOSIG` at the end of an ICAO METAR) is kept apart as `trend`, not read as observed.
 - Weather: intensity (`-`, `+`, or `VC` for vicinity), descriptor (`MI BC PR DR BL SH TS FZ`) and phenomena (`RA SN FG ...`). `NSW` in a change group clears inherited weather.
 
 ### TAF groups and timeline
@@ -53,6 +55,8 @@ Out, for now:
 - Prevailing conditions: the base forecast until the first `FM` or `BECMG`; after an `FM`, that group; after a `BECMG`, the merged new conditions from the **end** of its change period until the next `FM` (issue #2: V6 dropped them once the change period ended). During the change period the old conditions stay prevailing and the new ones are an overlay, since either may be present.
 - The base forecast ends at the first `FM` or `BECMG`, not at the first group of any kind (issue #2, finding sof-c#7: a leading `TEMPO` stretched the base to the end of the TAF).
 - `TEMPO` and `PROB` are overlays, split wherever the prevailing conditions under them change, and each piece merged with the prevailing conditions it sits on.
+- `FM` and `BECMG` are applied in time order, and nothing earlier runs past an `FM`.
+- Anything that makes the forecast less than fully readable is listed in `taf.problems`: a group keyword with no readable time (its conditions are kept apart, never merged into the group before), `FM` groups out of time order, a group outside the valid period, an implausible valid period (over 30 hours, or more than a day from the issue time), or tokens that could not be read.
 
 ### Limit checks (V6 behaviour kept)
 
@@ -61,20 +65,20 @@ Out, for now:
 - Thunderstorm or severe weather: any `TS` at the station, plus `FC` and `SQ`. V6's pattern missed `TS` combined with more than one precipitation type (`TSRAGR`); that is a parsing fix.
 - Significant weather: freezing rain or drizzle, `PL`, `GR`, `GS`, `BLSN`, and fog (`FG`, including `FZFG`). V6 missed `FZFG` and `FZRAPL` because of how its pattern was written; that is a parsing fix.
 - Reported but not yet raised as a caution, pending question WX-2: `VCTS` and other vicinity weather, `CB`/`TCU` layers, snow, and shallow or patchy fog (`MIFG`, `BCFG`, `PRFG`). The check returns them in their own fields so the SOF can show them.
-- An unknown visibility is reported as unknown, never as "within limits".
+- An unknown visibility or ceiling is reported as unknown, never as "within limits".
 
 Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600 ft and 2 SM. The home airfield and alternates list is a setting (R16); `wx` takes the ICAO ids and limits as input.
 
 ### Alternates
 
-- **Home trigger.** For a wave window (takeoff to landing plus one hour, as V6), every prevailing period and every overlay touching the window is checked against the home limits. Status is `not-covered` when the TAF's valid period does not cover the whole window, else `below` if anything is below, else `meets`. Hits are returned either way, with the group, its times and the reason. `TEMPO` and `PROB` count, as in V6.
-- **Alternate airfield at ETA.** The same check at the ETA with the alternate limits, prevailing plus any overlay active at that time. This replaces V6's alternate cards, which showed green whatever the weather (issue #4). If the TAF is missing, does not cover the ETA, or its visibility cannot be read, the status says so (`no-taf`, `not-covered`, `incomplete`) instead of passing.
+- **Home trigger.** For a wave window (takeoff to landing plus one hour, as V6), every prevailing period and every overlay touching the window is checked against the home limits. Status is `no-time` when the window can't be read, `no-taf` when there is no usable TAF (missing, `NIL` or `CNL`), `not-covered` when the TAF's valid period does not cover the whole window, else `below` if anything is below, else `incomplete` if a prevailing ceiling or visibility is unknown or the TAF has problems, else `meets`. Hits are returned either way, with the group, its times and the reason. `TEMPO` and `PROB` count, as in V6.
+- **Alternate airfield at ETA.** The same check at the ETA with the alternate limits, prevailing plus any overlay active at that time. This replaces V6's alternate cards, which showed green whatever the weather (issue #4). If the ETA is missing, the TAF is missing or cancelled, does not cover the ETA, or part of it cannot be read, the status says so (`no-time`, `no-taf`, `not-covered`, `incomplete`) instead of passing. An ETA exactly where one period ends and the next begins is checked against both.
 - **GNSS-only alternates.** V6 lets the SOF mark an alternate GNSS-only with an MEA. V6 never computed a result for it and said so on the card. `wx` keeps that: the result carries `gnssOnly` and `meaFt`, and a status of `needs-mea` when the MEA is missing. No visual-descent rule is invented (question WX-4).
 
 ### Classifications (V6 thresholds, unchanged)
 
-- NATO colour state from the lowest `SCT` or thicker layer and the visibility in metres: RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500, YLO1 700/3700, GRN 1500/5000, WHT 2500/8000, else BLU. V6's `nato()` at sof.html line 2009; its parsing bugs are fixed, not its thresholds.
-- Flight category, used only when the feed does not supply one: LIFR ceiling below 500 ft or visibility below 1 SM; IFR below 1000 ft or 3 SM; MVFR 3000 ft or 5 SM and below; else VFR. V6's `cat()` at sof.html line 576.
+- NATO colour state from the lowest `SCT` or thicker layer and the visibility in metres: RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500, YLO1 700/3700, GRN 1500/5000, WHT 2500/8000, else BLU. V6's `nato()` at sof.html line 2009; its parsing bugs are fixed, not its thresholds. `UNK` when a layer's base is unknown and the colour isn't already RED.
+- Flight category, used only when the feed does not supply one: LIFR ceiling below 500 ft or visibility below 1 SM; IFR below 1000 ft or 3 SM; MVFR 3000 ft or 5 SM and below; else VFR. V6's `cat()` at sof.html line 576. `UNK` when nothing is known, or when a ceiling layer's base is unknown and the category isn't already LIFR.
 
 ### Data age
 
@@ -96,7 +100,7 @@ homeAlternateTrigger(taf, { from: takeoff, to: landPlus1h }, DEFAULT_LIMITS.home
 // { status: 'below', covered: true, hits: [{ kind: 'TEMPO', from, to, reasons: ['VIS 1/2 SM < 3 SM', 'SIGNIFICANT WX (FG)'] }] }
 ```
 
-Every function is pure: plain values in, plain values out, times as `Date` in UTC. Functions never throw on bad text; they return what they could read plus a list of tokens they could not.
+Every function is pure: plain values in, plain values out, times as `Date` in UTC. Functions never throw on bad text, missing times or missing limits (missing limits fall back to the defaults); they return what they could read plus what they could not.
 
 ## Commands
 

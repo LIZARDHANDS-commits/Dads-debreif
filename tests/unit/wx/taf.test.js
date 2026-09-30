@@ -89,7 +89,7 @@ test('TEMPO overlays are split where the prevailing forecast under them changes'
 });
 
 test('amended TAF', () => {
-  const t = parse(TAF.amended);
+  const t = parse(TAF.amended, new Date('2026-09-29T13:30:00Z'));
   assert.equal(t.amendment, 'AMD');
   assert.equal(t.station, 'CYQR');
   assert.equal(iso(t.validFrom), '2026-09-29T13:00');
