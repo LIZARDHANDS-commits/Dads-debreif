@@ -90,9 +90,29 @@ export function moreDetailRows(state) {
   ];
   if (state.setup.vertical) {
     rows.push(
-      pairRow('heightChange', 'Height change', 'more', `${formatWholeFt(state.blue.zFt)} ft`, `${formatWholeFt(state.red.zFt)} ft`),
+      // From each aircraft's own start height (R28: Red may start above or below Blue).
+      pairRow('heightChange', 'Height change', 'more', `${formatWholeFt(state.blue.zFt - state.startZFt.blue)} ft`, `${formatWholeFt(state.red.zFt - state.startZFt.red)} ft`),
       textRow('heightBetween', 'Height between', 'more', `${formatWholeFt(Math.abs(state.blue.zFt - state.red.zFt))} ft`),
     );
   }
   return rows;
+}
+
+/**
+ * The live start-geometry lines for More detail (R28), in the SMM's names:
+ * each aircraft's aspect angle (AA, where the other sits off its tail: 180° when
+ * it points at the other, 0° when the other is dead astern), the heading
+ * crossing angle (HCA, the same number as `moreDetailRows`'s true angle-off,
+ * which keeps Q51's name) and the range. Kept apart from `moreDetailRows`, so
+ * V6's own lines and their golden test stay as they were; the screen shows both
+ * in the one More detail table. The AA is measured like the off-nose angle
+ * (`ataDeg`), in 3D with Climb and dive on.
+ */
+export function geometryRows(state) {
+  const aspect = (from, other) => `${(180 - ataDeg(state, from, other)).toFixed(0)}°`;
+  return [
+    pairRow('aspect', 'Aspect angle (AA)', 'more', aspect(state.blue, state.red), aspect(state.red, state.blue)),
+    textRow('hca', 'Heading crossing angle (HCA)', 'more', `${headingCrossAngleDeg(state.blue.headingRad, state.red.headingRad).toFixed(0)}°`),
+    textRow('rangeLive', 'Range', 'more', `${(rangeFt(state) / FT_PER_NM).toFixed(2)} NM`),
+  ];
 }

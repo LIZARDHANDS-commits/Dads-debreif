@@ -2,9 +2,10 @@
 // tests/golden/turn-fight-sim.test.js compares every one with the text V6 writes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { headingCrossAngleDeg } from '../../../src/core/angles.js';
 import { createFight, stepFight, ataDeg } from '../../../src/modules/turn-fight/sim.js';
 import {
-  timeText, phaseText, resultRows, moreDetailRows, firstNoseText, formatWholeFt,
+  timeText, phaseText, resultRows, moreDetailRows, geometryRows, firstNoseText, formatWholeFt,
 } from '../../../src/modules/turn-fight/readouts.js';
 
 const byId = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
@@ -190,4 +191,59 @@ test('reading the state changes nothing in it', () => {
   const before = JSON.stringify(s);
   timeText(s); phaseText(s); resultRows(s); moreDetailRows(s); firstNoseText(s);
   assert.equal(JSON.stringify(s), before);
+});
+
+// ── R28: live AA, HCA and range ──────────────────────────────────────────────
+
+test('R28: the start geometry rows read the SMM\'s names: aspect angle (AA), heading crossing angle (HCA), range', () => {
+  const rows = geometryRows(createFight());
+  assert.deepEqual(rows.map((r) => r.id), ['aspect', 'hca', 'rangeLive']);
+  assert.deepEqual(rows.map((r) => r.label), ['Aspect angle (AA)', 'Heading crossing angle (HCA)', 'Range']);
+  assert.ok(rows.every((r) => r.group === 'more'));
+});
+
+test('R28: head-on at the start reads AA 180° for both, HCA 180°, range 2.00 NM', () => {
+  const m = byId(geometryRows(createFight()));
+  assert.deepEqual(pair(m.aspect), ['180°', '180°']);
+  assert.equal(m.hca.text, '180°');
+  assert.equal(m.rangeLive.text, '2.00 NM');
+});
+
+test('R28: a 90° crossing reads HCA 90° and Red\'s AA 90°; Blue dead astern of Red (tail chase) reads Red\'s AA 0° and Blue\'s 180°', () => {
+  const crossing = byId(geometryRows(createFight({ startAaDeg: 90 })));
+  assert.equal(crossing.hca.text, '90°');
+  assert.equal(crossing.aspect.red, '90°');
+  const chase = byId(geometryRows(createFight({ startAaDeg: 0 })));
+  assert.equal(chase.hca.text, '0°');
+  assert.deepEqual(pair(chase.aspect), ['180°', '0°'], 'Red is on Blue\'s nose (Blue\'s AA 180°); Blue is on Red\'s tail (Red\'s AA 0°)');
+});
+
+test('R28: the live AA, HCA and range move with the fight; the range is the same number as the Result card\'s', () => {
+  const s = createFight({ startAtaDeg: 30, startAaDeg: 120, circles: 1 });
+  stepFight(s, 5);
+  const now = byId(geometryRows(s));
+  assert.equal(now.rangeLive.text, byId(resultRows(s)).range.text);
+  assert.equal(now.hca.text, `${headingCrossAngleDeg(s.blue.headingRad, s.red.headingRad).toFixed(0)}°`);
+  assert.equal(now.aspect.blue, `${(180 - ataDeg(s, s.blue, s.red)).toFixed(0)}°`);
+  assert.equal(now.aspect.red, `${(180 - ataDeg(s, s.red, s.blue)).toFixed(0)}°`);
+  const later = createFight({ startAtaDeg: 30, startAaDeg: 120, circles: 1 });
+  stepFight(later, 25);
+  assert.notEqual(byId(geometryRows(later)).hca.text, now.hca.text, 'HCA changes once the jets turn in opposite directions (1-circle)');
+});
+
+test('R28: the geometry rows are text only and change nothing in the state', () => {
+  const s = createFight({ vertical: true, redAboveFt: 2000 });
+  const before = JSON.stringify(s);
+  for (const row of geometryRows(s)) for (const t of 'text' in row ? [row.text] : [row.blue, row.red]) assert.ok(typeof t === 'string' && !/[<>&]/.test(t));
+  assert.equal(JSON.stringify(s), before);
+});
+
+test('R28: height change counts from each aircraft\'s start height, and the height between shows Red\'s start height', () => {
+  const s = createFight({ vertical: true, redAboveFt: 3000 });
+  const m = byId(moreDetailRows(s));
+  assert.deepEqual(pair(m.heightChange), ['0 ft', '0 ft'], 'no height has been gained or lost yet');
+  assert.equal(m.heightBetween.text, '3,000 ft');
+  stepFight(s, s.mergeSec + 10);
+  assert.equal(byId(moreDetailRows(s)).heightChange.red, '0 ft', 'level pitch: no change for Red');
+  assert.equal(byId(moreDetailRows(s)).heightBetween.text, '3,000 ft');
 });
