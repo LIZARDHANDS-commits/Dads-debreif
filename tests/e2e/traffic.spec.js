@@ -144,6 +144,42 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await expect(rows).toHaveCount(8);
 });
 
+test('+ Spawn and + Pair add nothing while a box they read is refused, and say which box (TR-14)', async ({ page }) => {
+  await open(page);
+  const rows = page.locator('.aircraft-row');
+  await expect(rows).toHaveCount(7);
+  const start = page.getByLabel('Start at point', { exact: true });
+  const delay = page.getByLabel('Delay', { exact: true });
+  const pair = page.getByRole('button', { name: /^\+ Pair/ });
+  // A start point that isn't a whole number in range: the box shows its message, the buttons hold back.
+  await start.fill('0');
+  await start.press('Tab'); // leaving the box is when it shows "not accepted"
+  await expect(page.locator('.spawner .control-message').first()).not.toHaveText('');
+  await expect(button(page, '+ Spawn')).toHaveAttribute('aria-disabled', 'true');
+  await expect(pair).toHaveAttribute('aria-disabled', 'true');
+  await button(page, '+ Spawn').click({ force: true }); // aria-disabled: Playwright waits for "enabled" otherwise
+  await pair.click({ force: true });
+  await expect(rows).toHaveCount(7);
+  await expect(page.locator('.spawn-message')).toContainText('Start at point');
+  await expect(page.locator('.spawn-message')).toContainText('Nothing was added');
+  // A delay out of range, typed and clicked without leaving the box (no change event yet).
+  await start.fill('1');
+  await expect(button(page, '+ Spawn')).not.toHaveAttribute('aria-disabled');
+  await delay.fill('99999');
+  await button(page, '+ Spawn').evaluate((el) => el.click()); // no blur first: the guard reads the box at the click
+  await expect(rows).toHaveCount(7);
+  await expect(page.locator('.spawn-message')).toContainText('Delay');
+  await pair.click({ force: true });
+  await expect(rows).toHaveCount(7);
+  // Put it right and both work again.
+  await delay.fill('5');
+  await expect(button(page, '+ Spawn')).not.toHaveAttribute('aria-disabled');
+  await button(page, '+ Spawn').click();
+  await expect(rows).toHaveCount(8);
+  await pair.click();
+  await expect(rows).toHaveCount(10);
+});
+
 test('the Traffic settings menu opens, and a route point can be changed on the left', async ({ page }) => {
   await open(page);
   const menu = page.getByRole('button', { name: /^Traffic settings/ });

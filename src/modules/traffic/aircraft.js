@@ -10,6 +10,9 @@ import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
 
+/** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
+const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
+
 /** The aircraft types the spawner offers, in V6's order. */
 export const SPAWN_TYPES = Object.freeze(Object.keys(TYPE_COLORS));
 
@@ -114,6 +117,7 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
 
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
+  const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
@@ -125,12 +129,28 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
     h(
       'div',
       { class: 'spawn-buttons' },
-      h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn'),
+      spawnButton,
       pairButton,
       h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
     ),
     message,
   );
+
+  // TR-14: neither button acts while a box it reads refuses what was typed (the setting would keep its last good
+  // value, which the person can't see). The box shows its own message; the spawner's line names the box too.
+  const guardButton = (button, keys) => {
+    button.addEventListener('click', (event) => {
+      // The guard has run by the end of the click: if it held the action back, say which box to fix.
+      setTimeout(() => {
+        if (!event.defaultPrevented) return;
+        const bad = keys.filter((k) => controls.invalid().includes(k)).map((k) => BOX_NAMES[k]);
+        if (bad.length) say(`Nothing was added: fix the ${bad.join(' and ')} box first.`);
+      }, 0);
+    }, true); // registered first, so it sees the click before the guard stops it
+    controls.guard(button, keys);
+  };
+  guardButton(spawnButton, ['spawnStartPoint', 'spawnDelayS']);
+  guardButton(pairButton, ['spawnStartPoint', 'spawnDelayS', 'pairGapS']);
 
   // ---- the aircraft list and the conflicts ------------------------------------
   const listBody = h('ul', { class: 'aircraft-list' });
