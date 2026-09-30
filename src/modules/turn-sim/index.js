@@ -15,8 +15,9 @@ import { availableG } from '../../core/t6-performance.js';
 import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION } from './settings.js';
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers, TURN_DEGREES } from './readouts.js';
-import { createLayout, LAYOUT_DEFAULTS } from './layout.js';
+import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
 import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
+import { createView3d, turnSign } from './view3d.js';
 
 /** The most G a T-6 can pull at a speed (stall line, capped at +7 G), for the warning. */
 const tMaxG = (kt) => availableG(kt, false);
@@ -48,7 +49,7 @@ function mount(root, app) {
   document.head.append(stylesheet);
 
   const scenario = createSettings(memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION });
-  const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS);
+  const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED });
   const controls = createControls(scenario);
   const layoutControls = createControls(layout);
   const standards = () => app.standards?.get?.() ?? DEFAULT_STANDARDS;
@@ -61,6 +62,8 @@ function mount(root, app) {
   // ---- the run --------------------------------------------------------------
   const run = createRun(scenario.get());
   let trail = {}; // id -> [[elapsed, x, y], …], the last TRAIL_SEC of the run
+  let bankSigns = {}; // id -> +1 for a left turn, -1 for a right turn, as the aircraft last turned (3D banks the right way)
+  let lastHeading = {}; // id -> heading at the previous step
   let marks = {}; // id -> [[t, x, y], …], every whole second of this leg, for breadcrumbs
   let legStart = 0; // elapsed seconds before this leg began, so a trail keeps its order across legs
   let playing = false;
@@ -69,6 +72,7 @@ function mount(root, app) {
   let stopFrames = null;
   let userMoved = false; // the person moved the view, so a setup change doesn't refit it
   let lastManeuver = scenario.get().maneuver;
+  let wantView = '2d'; // the view the person asked for last
 
   const state = () => run.state; // one live object, updated in place
 
@@ -76,6 +80,11 @@ function mount(root, app) {
     const s = state();
     const elapsed = legStart + s.tSec;
     for (const a of s.aircraft) {
+      if (a.id in lastHeading) {
+        const sign = turnSign(lastHeading[a.id], a.headingRad);
+        if (sign) bankSigns[a.id] = sign;
+      }
+      lastHeading[a.id] = a.headingRad;
       const points = (trail[a.id] ??= []);
       points.push([elapsed, a.xFt, a.yFt]);
       let drop = 0;
@@ -107,6 +116,60 @@ function mount(root, app) {
     },
   });
 
+  // ---- the 3D picture: made now, but three.js loads only when 3D is first switched on ----
+  /** Before an aircraft has visibly turned, its bank leans the way the Turn direction says. */
+  const directionSigns = () => {
+    const sign = scenario.get().direction === 'left' ? 1 : -1;
+    return { 1: sign, 2: sign, 3: sign, 4: sign };
+  };
+  const view3d = createView3d(ui.canvas3d, {
+    timers: app.scheduler,
+    onUserMove: () => {
+      userMoved = true;
+    },
+    source: {
+      state,
+      trails: () => ({ trail }),
+      layers: () => layout.get(),
+      paint: () => layout.get().paint,
+      bankSigns: () => ({ ...directionSigns(), ...bankSigns }),
+      colors: SHIP_COLORS,
+    },
+  });
+  let shown = '2d'; // the picture on screen; the setting is what the person asked for
+  let keepNote = false;
+  let switching = 0; // counts switches, so a late three.js load can't undo a later choice
+
+  /** Whichever picture is showing draws; the other one does nothing (no frames while hidden). */
+  const redraw = () => (shown === '3d' ? view3d.requestDraw() : view.requestDraw());
+
+  async function applyView(want) {
+    const turn = ++switching;
+    if (want !== '3d') {
+      shown = '2d';
+      view3d.hide();
+      ui.showView('2d');
+      if (!keepNote) ui.setNote('');
+      view.requestDraw();
+      return;
+    }
+    ui.setNote('Loading 3D…');
+    const result = await view3d.show();
+    if (turn !== switching) return; // switched again while three.js was loading
+    if (!result.ok) {
+      if (result.reason === 'closed') return;
+      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      keepNote = true;
+      layout.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
+      keepNote = false;
+      return;
+    }
+    ui.setNote('');
+    shown = '3d';
+    ui.showView('3d');
+    view3d.requestDraw();
+  }
+
   /** Fits the whole planned run (start and turn) at the real canvas size (#30). */
   function fit() {
     let bounds = null;
@@ -119,7 +182,9 @@ function mount(root, app) {
     if (bounds) {
       // Room for the turn circles at the edges, so their labels aren't cut off.
       const room = turnNumbers(scenario.get()).radiusFt + 500;
-      view.fit({ minX: bounds.minX - room, minY: bounds.minY - room, maxX: bounds.maxX + room, maxY: bounds.maxY + room });
+      const padded = { minX: bounds.minX - room, minY: bounds.minY - room, maxX: bounds.maxX + room, maxY: bounds.maxY + room };
+      view.fit(padded);
+      view3d.fit(padded, state().aircraft.find((a) => a.id === 1)?.headingRad ?? 0); // behind Lead
     }
     userMoved = false;
   }
@@ -142,7 +207,7 @@ function mount(root, app) {
   }
   function refresh() {
     ui.setTime(state().tSec);
-    view.requestDraw();
+    redraw();
     queueReadouts();
   }
 
@@ -198,6 +263,8 @@ function mount(root, app) {
     run.reset(scenario.get());
     trail = {};
     marks = {};
+    bankSigns = {};
+    lastHeading = {};
     legStart = 0;
     owed = 0;
     record();
@@ -242,7 +309,11 @@ function mount(root, app) {
   });
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
-    view.requestDraw();
+    if (values.view !== wantView) {
+      wantView = values.view;
+      applyView(wantView);
+    }
+    redraw();
     queueReadouts();
   });
 
@@ -267,12 +338,16 @@ function mount(root, app) {
 
   // Edited standards change the labels at once (Q46).
   app.standards?.subscribe?.(() => {
-    view.requestDraw();
+    redraw();
     queueReadouts();
   });
 
   resetRun();
   ui.applyLayout(layout.get());
+  if (layout.get().view === '3d') {
+    wantView = '3d'; // remembered from last time: three.js loads now, as it would on a switch
+    applyView('3d');
+  }
 
   return () => {
     pause();
@@ -282,6 +357,7 @@ function mount(root, app) {
     controls.dispose();
     layoutControls.dispose();
     view.dispose();
+    view3d.dispose();
     stylesheet.remove();
   };
 }

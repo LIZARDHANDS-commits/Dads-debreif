@@ -26,7 +26,8 @@ async function open(page) {
 }
 
 const simTime = async (page) => Number(await page.locator('.ts-time').getAttribute('data-sec'));
-const canvas = (page) => page.locator('canvas.ts-canvas');
+const canvas = (page) => page.locator('canvas.ts-canvas:not(.ts-canvas3d)');
+const canvas3d = (page) => page.locator('canvas.ts-canvas3d');
 const playButton = (page) => page.locator('.ts-play');
 const cardLines = (page) => page.getByRole('list', { name: 'Formation', exact: true }).getByRole('listitem');
 // A panel's header is a real button; its ▾ or ▸ is part of its name, so match the start.
@@ -369,6 +370,113 @@ test('leaving the Turn Sim leaves no frames, timers, listeners or shortcuts behi
   // It opens again cleanly.
   await page.evaluate(() => window.__ts.open());
   await expect(page.locator('.turn-sim')).toHaveCount(1);
+});
+
+// ---- 2D | 3D switch (SPEC-turn-sim: 2D/3D switch, task 19) --------------------------------------
+const viewChoice = (page, name) => page.getByRole('radio', { name, exact: true });
+const threeRequests = (page) => {
+  const seen = [];
+  page.on('request', (r) => {
+    if (/\/three\/build\/|\/three\.(module|core)\b/.test(new URL(r.url()).pathname)) seen.push(r.url()); // three.js itself, not the ui-kit's three-aircraft.js
+  });
+  return seen;
+};
+const draws3d = async (page) => Number((await canvas3d(page).getAttribute('data-draws')) ?? 0);
+
+test('a 2D visit loads no three.js, and 2D is what opens (task 19)', async ({ page }) => {
+  const seen = threeRequests(page);
+  await open(page);
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas3d(page)).toBeHidden();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  expect(seen).toEqual([]);
+});
+
+test('switching to 3D mid-run keeps the time, loads three.js once, and the choice is remembered (task 19)', async ({ page }) => {
+  const seen = threeRequests(page);
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(1);
+  const before = await simTime(page);
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect(canvas(page)).toBeHidden();
+  // The run went on: the time didn't go back to 0, and it still advances in 3D.
+  expect(await simTime(page)).toBeGreaterThanOrEqual(before);
+  await expect.poll(() => simTime(page)).toBeGreaterThan(before + 0.5);
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(3);
+  expect(seen.length).toBeGreaterThan(0);
+
+  // Paused, the picture is still and 3D asks for no frames.
+  await playButton(page).click();
+  const paused = await simTime(page);
+  await page.waitForTimeout(200);
+  const still = await draws3d(page);
+  await page.waitForTimeout(300);
+  expect(await draws3d(page)).toBe(still);
+  expect(await simTime(page)).toBe(paused);
+
+  // Back to 2D: the same time, and 3D draws nothing more.
+  await viewChoice(page, '2D').check();
+  await expect(canvas(page)).toBeVisible();
+  expect(await simTime(page)).toBe(paused);
+  const atSwitch = await draws3d(page);
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(paused + 0.5);
+  await playButton(page).click();
+  expect(await draws3d(page)).toBe(atSwitch);
+
+  // 3D again does not fetch three.js a second time.
+  const fetched = seen.length;
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  expect(seen.length).toBe(fetched);
+
+  // The choice is kept with the other layout choices: after a reload it opens in 3D.
+  await page.reload();
+  await page.waitForFunction(() => window.__tsReady);
+  await expect(viewChoice(page, '3D')).toBeChecked();
+  await expect(canvas3d(page)).toBeVisible();
+});
+
+test('the 3D picture draws the same run, and a step moves it (task 19)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const first = await canvas3d(page).screenshot();
+  // Paint is a choice in the closed settings menu, not on the bar.
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Paint').selectOption({ label: 'Ship colours' });
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await button(page, 'Step').click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0);
+  const second = await canvas3d(page).screenshot();
+  expect(second.equals(first)).toBe(false);
+});
+
+test('when three.js will not load, the note says so and 2D keeps working (task 19)', async ({ page }) => {
+  // A script that fails the way an offline load does: the import rejects, and nothing is drawn.
+  // (A later try after a real network failure loads; that retry is pinned in the ui-kit's loadThree test.)
+  await page.route('**/three.module.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await expect(page.locator('.ts-note')).toHaveText('3D needs a connection the first time.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas(page)).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+});
+
+test('leaving the Turn Sim while in 3D leaves no frames behind (task 19, R4)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await playButton(page).click();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
+  await page.evaluate(() => window.__ts.close());
+  expect(await page.evaluate(() => window.__ts.stats())).toEqual({ mounted: null, listeners: 0, subscriptions: 0, frames: 0, timers: 0 });
 });
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js

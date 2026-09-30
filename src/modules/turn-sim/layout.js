@@ -7,6 +7,8 @@
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
+import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
   buildField, errorFields, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
   TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
@@ -34,7 +36,15 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   breadcrumbs: false,
   crumbSec: 10,
   distNm: false,
+  view: VIEW_DEFAULT, // '2d' or '3d': 2D is the default, and the choice is remembered
+  paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
+
+/** The layout values that only allow some choices (createSettings' `allowed`). */
+export const LAYOUT_ALLOWED = Object.freeze({ view: VIEW_ALLOWED, paint: PAINT_OPTIONS.map((o) => o.value) });
+
+/** Layers that only the 2D picture draws; they are greyed out in 3D. */
+const LAYERS_2D = ['lead39', 'turnCircles', 'errorLabels', 'spacingLines', 'clockMarks', 'breadcrumbs', 'crumbSec', 'distNm'];
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
@@ -147,6 +157,8 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   section('turn', 'Turn and run', [TURN_DEG, DURATION, MOA]);
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING], 'Used when Formation is the offset box.');
   section('correction', 'Correction model', [CORRECTION, CORR_STRENGTH]);
+  // The 3D view's paint lives with the other choices, in the same closed menu (a display choice, not a scenario one).
+  settingsMenu.section('3D view').append(layoutControls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }));
 
   // ---- Profiles (a placeholder until the profiles task) -------------------
   const profilesPanel = createPanel({ title: 'Profiles', collapsed: !layout.get().profilesOpen, onToggle: (c) => layout.update({ profilesOpen: !c }) });
@@ -221,13 +233,15 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   ]);
 
   const canvas = h('canvas', { class: 'ts-canvas' });
-  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas);
+  const canvas3d = h('canvas', { class: 'ts-canvas ts-canvas3d', hidden: true }); // the 3D view's own canvas: a WebGL context can't share the 2D one
+  const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d);
+  const note3d = h('span', { class: 'ts-note', role: 'status', hidden: true });
   const bar = h(
     'div',
     { class: 'ts-bar', role: 'group', 'aria-label': 'Playback' },
     playButton, stepButton, resetRunButton, speedSelect, time,
     h('span', { class: 'ts-bar-gap' }),
-    fitButton, layersMenu.element,
+    lc.viewSwitch(), note3d, fitButton, layersMenu.element,
   );
   const stage = h('section', { class: 'ts-stage', 'aria-label': 'Formation from above and playback' }, bar, canvasWrap);
 
@@ -285,6 +299,18 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   return {
     element,
     canvas,
+    canvas3d,
+    /** Which picture shows: '2d' or '3d'. The view setting is what the person chose; this is what is on screen. */
+    showView(view) {
+      canvas.hidden = view === '3d';
+      canvas3d.hidden = view !== '3d';
+      for (const key of LAYERS_2D) lc.setDisabled(key, view === '3d');
+    },
+    /** A short note beside the View switch ("3D needs a connection the first time."), or '' for none. */
+    setNote(text) {
+      note3d.textContent = text ?? '';
+      note3d.hidden = !text;
+    },
     applyScenario,
     applyLayout,
     /** The Play button shows what pressing it will do. */
