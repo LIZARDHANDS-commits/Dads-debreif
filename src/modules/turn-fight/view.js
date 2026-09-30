@@ -69,7 +69,8 @@ export function gridLines(size, view) {
 }
 
 /** V6's arrowhead (`plane`, line 4286), pointing along the aircraft's heading. */
-function drawArrowhead(ctx, [sx, sy], headingRad, colour) {
+function drawArrowhead(ctx, at, headingRad, colour) {
+  const [sx, sy] = at;
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(-headingRad);
