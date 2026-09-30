@@ -491,12 +491,16 @@ test.skip('opens from its card on the home screen', async ({ page }) => {
 });
 
 test.skip('the route opens and plays from a direct link, then leaves nothing running', async ({ page }) => {
-  await openRoute(page, '#/turn-sim');
+  // The home screen keeps a few listeners of its own, so count them before going in and compare after coming back.
+  await openRoute(page, '#/');
+  const home = await page.evaluate(() => window.__ooda.stats());
+  await page.evaluate(() => { location.hash = '#/turn-sim'; });
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-sim');
   await playButton(page).click();
   await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'home');
   const stats = await page.evaluate(() => window.__ooda.stats());
   expect(stats.frames).toBe(0);
-  expect(stats.listeners).toBe(0);
+  expect(stats.listeners).toBe(home.listeners);
 });
