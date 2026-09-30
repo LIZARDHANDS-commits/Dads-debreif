@@ -17,6 +17,7 @@ import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createView3d } from './view3d/view.js';
+import { createEmView } from './em.js';
 import { FIELD_ELEVATION_FT } from './data/cymj.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createDfpPanel } from './dfp-panel.js';
@@ -84,8 +85,20 @@ function mount(root, app) {
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
     setCamera: (patch) => layout.update(patch),
   });
-  // Only the view that's showing draws (#39).
-  const redraw = () => (layout.get().view === '3d' ? view3d : map).requestDraw();
+  const em = createEmView(ui.emCanvas, {
+    timers: app.scheduler,
+    base: document.baseURI,
+    flight: () => flight,
+    time: () => clock?.t ?? 0,
+    settings: () => layout.get(),
+    onChart: (altitude) => ui.setEmChart(altitude),
+  });
+  // Only the view that's showing draws, and the EM chart only while open (#39).
+  const redraw = () => {
+    const on = layout.get();
+    (on.view === '3d' ? view3d : map).requestDraw();
+    if (on.emOpen) em.requestDraw();
+  };
 
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
@@ -322,6 +335,7 @@ function mount(root, app) {
     standardsPanel?.dispose();
     map.dispose();
     view3d.dispose();
+    em.dispose();
     stylesheet.remove();
   };
 }

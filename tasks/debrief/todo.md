@@ -65,6 +65,8 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each (D63, confirmed D77).
   - Verify: e2e overlap scan with EM open; unit tests of the tennis panel glue.
   - Files: src/modules/debrief/{em,tennis-panel}.js, public/media/debrief/em-*.jpg
+  - 9a done (EM chart): "Tools" menu → "EM chart" opens a panel below the playback bar, beside its controls, so the map shrinks and nothing covers it (#37). V6's three charts (its own JPEGs, byte for byte) with its plot box and scales (golden test), "Nearest the formation" or a chart by hand, and the 60 s fading trail on by default. Points are core's emPoint (no divide by 2, D39). The trail is worked out from the track, so it's there after a seek or while paused (V6 built it only while playing). A chart is fetched only when the panel shows one; closed, it draws nothing (#39). Menus now end above the map's bottom edge and scroll, so no menu covers the playback bar or the EM panel.
+  - 9b (tennis ball) next.
 - [ ] **10. CSV export.** One file, one row per second, ships side by side, sources and gap flags; disabled with no flight.
   - Acceptance: rows are time-aligned and complete (#28).
   - Verify: unit tests of export-csv.js.

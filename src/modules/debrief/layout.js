@@ -76,6 +76,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     const setOpen = (open) => {
       body.hidden = !open;
       button.setAttribute('aria-expanded', String(open));
+      // It ends above the map's bottom edge, so it never covers the playback
+      // bar or a panel below the map; a longer menu scrolls.
+      if (open) body.style.maxHeight = `${Math.max(160, mapWrap.getBoundingClientRect().bottom - body.getBoundingClientRect().top - 8)}px`;
     };
     button.addEventListener('click', () => setOpen(body.hidden));
     wrap.addEventListener('keydown', (e) => {
@@ -140,6 +143,34 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       ),
     ),
   ]);
+  // Tools: each opens its own panel below the stage and closes it again (#37).
+  const toolsMenu = menu('Tools', 'debrief-tools', [
+    controls.checkbox('emOpen', { label: 'EM chart' }),
+  ]);
+
+  // The EM chart's panel, below the stage so it never covers the map (#37).
+  const emCanvas = h('canvas', { class: 'debrief-em-canvas' });
+  const emNote = h('p', { class: 'debrief-em-note' });
+  const emPanel = h(
+    'section',
+    { class: 'debrief-em', 'aria-label': 'EM chart', hidden: true },
+    emCanvas,
+    h(
+      'div',
+      { class: 'debrief-em-side' },
+      h('h2', {}, 'EM chart'),
+      controls.select('emChart', { label: 'Chart', options: [
+        { value: 'auto', label: 'Nearest the formation' },
+        { value: '6500', label: '6,500 ft' },
+        { value: '8000', label: '8,000 ft' },
+        { value: '13000', label: '13,000 ft' },
+      ] }),
+      controls.checkbox('emTrail', { label: 'Trail (60 s)' }),
+      h('button', { type: 'button', class: 'button', onclick: () => layout.update({ emOpen: false }) }, 'Close EM chart'),
+      emNote,
+    ),
+  );
+
   // The 3D view's settings, in 3D only (SPEC-debrief: The screen).
   const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
@@ -167,12 +198,14 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   ]);
   const viewSwitch = controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] });
   viewSwitch.classList.add('view-switch');
+  const mapWrap = h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit);
   const stage = h(
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
-    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, view3dMenu.element),
-    h('div', { class: 'debrief-map-wrap' }, canvas, canvas3d, empty, credit),
+    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, view3dMenu.element, toolsMenu.element),
+    mapWrap,
     bar.element,
+    emPanel,
   );
 
   // Formation column: the Formation card and More detail (readouts-panel.js).
@@ -284,6 +317,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       chartsMenu.setOpen(false);
     } else view3dMenu.setOpen(false);
     credit.classList.toggle('is-3d', is3d);
+    emPanel.hidden = !values.emOpen;
     const open = values.statusDetails && Boolean(flight);
     statusDetails.hidden = !open;
     statusButton.setAttribute('aria-expanded', String(open));
@@ -296,6 +330,12 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     element,
     canvas,
     canvas3d,
+    emCanvas,
+    /** Says which chart the EM panel shows and how its numbers are found. */
+    setEmChart(altitude) {
+      const text = `${altitude.toLocaleString('en-US')} ft chart. IAS is estimated from ground speed (no wind); turn rate is from the track.`;
+      if (emNote.textContent !== text) emNote.textContent = text;
+    },
     summary: () => flightSummary(flight),
     showFlight(next) {
       flight = next;

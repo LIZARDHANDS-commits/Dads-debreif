@@ -50,6 +50,10 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   vncEastNm: 0,
   vncNorthNm: 0,
   vncScalePct: 100,
+  // Tools, closed at first (R22): the EM chart, with V6's automatic chart and 60 s trail.
+  emOpen: false,
+  emChart: 'auto',
+  emTrail: true,
   // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
   // is gone: it was the same as Centre formation (#26).
   view: '2d',
