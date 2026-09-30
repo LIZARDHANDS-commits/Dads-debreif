@@ -31,7 +31,7 @@ import { FT_PER_NM, G_FTPS2, KT_TO_FTPS } from '../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../core/angles.js';
 import {
   T6A_LIMITS, T6A_MANOEUVRE, stallLimitG, availableG, shakerG as coreShakerG, splitST6A, iasToTasKt, tasToIasKt, t6aExcessFn,
-  thrustPerWeight, dragPerWeight, energyHeightFt,
+  maxKiasT6A, thrustPerWeight, dragPerWeight, energyHeightFt,
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
@@ -122,6 +122,8 @@ const MPT_BANK_MAX_DEG = 85;
 const SLICE_BANK_AT_MPT_DEG = 90; // SMM 14.18: the slice bank is 90° at the MPT speed ...
 const SLICE_BANK_AT_100_DEG = 135; // ... and 135° at 100 KIAS
 const IMMELMANN_BAND_KIAS = Object.freeze([200, 250]);   // SMM 14.15: the Immelmann is flown from 200 to 250 KIAS
+/** The MPT speed box: 120 to 175 KIAS. Above that, at the deck, the level MPT sinks under it (verification F8: 180 gave 5,937 ft, 200 gave 5,495 ft from 7,000 ft; 175 stays within 20 ft); the SMM's speed is 160 and the level MPT's about 150 minus thousands of feet. */
+export const MPT_KIAS_RANGE = Object.freeze([120, 175]);
 const PITCH_BACK_BAND_KIAS = Object.freeze([160, 220]);   // SMM 14.15: and the pitch back from 160 to 220 KIAS
 const SLICE_ENTRY_LOW_KIAS = 100; // SMM 14.18: the slice is flown from 100 to 160 KIAS (Auto hands to a split S below the split point)
 // The split S is core's (splitST6A; the technique is SMM 14.16 para 41): nose to about 20° up in the shaker, roll inverted
@@ -142,7 +144,8 @@ const FORCE_G_MAX = 12;           // a what-if G of 0 to 12 (core's +7 G limit, 
  */
 const TUNING = Object.freeze({
   captureLeadSec: 3,       // model setting: a bank move hands to the MPT when its speed, this many seconds ahead, would reach the MPT speed
-  captureLeadFastSec: 6,   // model setting: the same for a pitch back or slice entered over the SMM pitch back band (over 220 KIAS, fixed, not the Immelmann split Dad can move): it bleeds speed and climbs so steeply that the handover needs to come earlier, or the nose is near vertical when it comes and the speed falls well under the MPT's
+  captureLeadFastSec: 3.7, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft
+  captureLeadFromKias: 235, // model setting: entered at or under this speed the lead is captureLeadSec
   maxBankMoveTurnDeg: 170,    // model setting: a pitch back or slice that has not found the MPT speed by here hands to the MPT anyway
   speedTauSec: 4,             // model setting: the MPT closes on its speed with this time constant
   speedLeadSec: 3,            // model setting: and judges its speed this many seconds ahead, so it does not overshoot
@@ -159,7 +162,7 @@ const TUNING = Object.freeze({
   minKtas: 15,                // model setting: the point-mass step needs speed above zero; a stalled jet is kept at least this fast
   levelDoneDeg: 2,            // model setting: a level-off is done within this of level
   rollInSec: 3,               // model setting: an MPT entered straight (not handed over) rolls in for this long, pulling only as the bank builds
-  vmoMarginKias: 40,          // model setting: a chaser starts keeping its nose up this far under VMO (T-6A limit, core)
+  vmoMarginKias: 40,          // model setting: a chaser starts keeping its nose up this far under the top speed at its height (VMO, or Mach 0.67 above about 18,900 ft; T-6A limit, core)
   vmoLeadSec: 3,              // model setting: and looks this many seconds ahead at its speed
   vmoClimbPerKt: 0.02,        // model setting: nose-up path (sine) asked for per knot over that speed
   deckPullOutFactor: 1.3,     // model setting: a chaser's pull-out from a dive is worked out at this times the plain circle, for the speed it gains
@@ -249,7 +252,14 @@ const feet = (x) => Math.round(x).toLocaleString('en-US');
  * known and the speed alone decides: Immelmann.
  */
 export function pickMove(kias, altFt, p = ENERGY_DEFAULT_SETUP, look = null) {
-  const k = round(kias);
+  // The speed as the reason shows it: whole knots, unless that would round onto a speed the rule compares with ("120 KIAS, below 120").
+  const boundaries = [p.mptKias - MPT_WITHIN_KT, p.mptKias, p.mptKias + MPT_WITHIN_KT, p.immelmannAboveKias, p.splitSBelowKias];
+  let k = round(kias);
+  if (!Number.isInteger(kias) && boundaries.includes(k)) {
+    let digits = 1;
+    while (digits < 4 && +kias.toFixed(digits) === k) digits++;
+    k = kias.toFixed(digits);
+  }
   if (Math.abs(kias - p.mptKias) <= MPT_WITHIN_KT) return { move: 'mpt', why: `MPT straight away: ${k} KIAS, within ${MPT_WITHIN_KT} of ${p.mptKias}` };
   if (kias > p.immelmannAboveKias) {
     const band = (move) => (move === 'immelmann' ? IMMELMANN_BAND_KIAS : PITCH_BACK_BAND_KIAS);
@@ -306,7 +316,15 @@ function checkedSetup(setup) {
   need(finitePositive(s.separationNm), 'separationNm is above 0', s.separationNm);
   need(Number.isFinite(s.hardDeckFt), 'hardDeckFt is a number', s.hardDeckFt);
   for (const k of ['blueAltFt', 'redAltFt']) need(Number.isFinite(s[k]) && s[k] >= s.hardDeckFt && s[k] <= ENERGY_MAX_START_FT, `${k} is from the hard deck (${feet(s.hardDeckFt)} ft) to ${feet(ENERGY_MAX_START_FT)} ft`, s[k]);
-  for (const k of ['blueKias', 'redKias']) need(Number.isFinite(s[k]) && s[k] >= 40 && s[k] <= T6A_LIMITS.vmoKias, `${k} is from 40 to ${T6A_LIMITS.vmoKias} KIAS`, s[k]);
+  // The top speed depends on the start height: VMO up to about 18,900 ft, then Mach 0.67 (core's maxKiasT6A, the NFM's line), so the height
+  // comes first and the message names the limit at that height. The limit is taken to the whole knot the message shows, so a
+  // merge at the limit as shown is accepted (25,000 ft: 279.12, shown as 279).
+  for (const [who, kiasKey, altKey] of [['Blue', 'blueKias', 'blueAltFt'], ['Red', 'redKias', 'redAltFt']]) {
+    const exactLimit = maxKiasT6A(s[altKey]);
+    const limitKias = Math.round(exactLimit);
+    need(Number.isFinite(s[kiasKey]) && s[kiasKey] >= 40, `${kiasKey} is from 40 to ${limitKias} KIAS`, s[kiasKey]);
+    need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitKias} KIAS, ${exactLimit >= T6A_LIMITS.vmoKias ? 'VMO' : `Mach ${T6A_LIMITS.mmo}`})`, s[kiasKey]);
+  }
   need(Number.isFinite(s.ataDeg) && s.ataDeg >= 0 && s.ataDeg <= 180, 'ataDeg is 0 to 180', s.ataDeg);
   need(Number.isFinite(s.aaDeg) && s.aaDeg >= 0 && s.aaDeg <= 180, 'aaDeg is 0 to 180', s.aaDeg);
   need(s.ataSide === 'left' || s.ataSide === 'right', "ataSide is 'left' or 'right'", s.ataSide);
@@ -316,7 +334,8 @@ function checkedSetup(setup) {
   need(ENERGY_MOVES.includes(s.redMove), `redMove is one of ${ENERGY_MOVES.join(', ')}`, s.redMove);
   need(typeof s.chaseAfterHeadOn === 'boolean', 'chaseAfterHeadOn is true or false', s.chaseAfterHeadOn);
   need(PURSUITS_ACCEPTED.includes(s.pursuit), `pursuit is one of ${PURSUITS.join(', ')} (or none)`, s.pursuit);
-  for (const k of ['mptKias', 'stallKias', 'rollRateDegPerSec', 'pullG', 'immelmannAboveKias', 'splitSBelowKias']) need(finitePositive(s[k]), `${k} is above 0`, s[k]);
+  need(Number.isFinite(s.mptKias) && s.mptKias >= MPT_KIAS_RANGE[0] && s.mptKias <= MPT_KIAS_RANGE[1], `mptKias is from ${MPT_KIAS_RANGE[0]} to ${MPT_KIAS_RANGE[1]} KIAS`, s.mptKias);
+  for (const k of ['stallKias', 'rollRateDegPerSec', 'pullG', 'immelmannAboveKias', 'splitSBelowKias']) need(finitePositive(s[k]), `${k} is above 0`, s[k]);
   need(Number.isFinite(s.shakerFrac) && s.shakerFrac > 0 && s.shakerFrac <= 1, 'shakerFrac is above 0 and up to 1', s.shakerFrac);
   need(Number.isFinite(s.immelmannOffNoseDeg) && s.immelmannOffNoseDeg >= 0 && s.immelmannOffNoseDeg <= 180, 'immelmannOffNoseDeg is 0 to 180', s.immelmannOffNoseDeg);
   need(Number.isFinite(s.immelmannMinTopKias) && s.immelmannMinTopKias >= 0 && s.immelmannMinTopKias <= T6A_LIMITS.vmoKias, `immelmannMinTopKias is 0 to ${T6A_LIMITS.vmoKias}`, s.immelmannMinTopKias);
@@ -381,6 +400,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0 },
   };
   readOut(ac, 1, 1, p);
+  readSlow(ac, p);
   return ac;
 }
 
@@ -398,7 +418,7 @@ export function createEnergyFight(setup = {}) {
   const state = {
     setup: s,
     timeSec: 0, carrySec: 0, merged: false, mergeSec: null, stopped: false,
-    firstNose: null, chase: null, plan: {},
+    firstNose: null, chase: null, evenFight: false, plan: {},
     blue, red,
     rangeFt: 0, ataBlueDeg: 0, ataRedDeg: 0, aaDeg: 0, headingCrossDeg: 0,
   };
@@ -775,7 +795,9 @@ function controlBankMove(ctx) {
   const { ac, p, kias } = ctx;
   const c = ac.ctl;
   // The MPT is near when the speed, a little ahead, reaches it from the side the move started on.
-  const ahead = kias + c.kiasRateEff * (c.entryKias > PITCH_BACK_BAND_KIAS[1] ? TUNING.captureLeadFastSec : TUNING.captureLeadSec);
+  const ramp = clamp((c.entryKias - TUNING.captureLeadFromKias) / (T6A_LIMITS.vmoKias - TUNING.captureLeadFromKias), 0, 1);
+  const leadSec = TUNING.captureLeadSec + (TUNING.captureLeadFastSec - TUNING.captureLeadSec) * ramp;
+  const ahead = kias + c.kiasRateEff * leadSec;
   const fromAbove = c.entryKias > p.mptKias;
   const there = fromAbove ? ahead <= p.mptKias : ahead >= p.mptKias;
   const turned = c.turnDeg >= TUNING.maxBankMoveTurnDeg;
@@ -925,10 +947,25 @@ function controlMpt(ctx) {
  * A bank from the real horizon. Near the vertical the horizon gives no reference
  * (a pilot over the top of a pitch back holds the bank he has), so the command
  * holds the current bank until the nose is 15° off the vertical.
+ * One exception, the nose low: a held bank past 90° there (the lift pointing below the true horizon) pulls the nose
+ * further down, and holding it is a stable dive that never pulls out (a forced slice from a very low speed, high up,
+ * verification F1). So with the nose low (and not exactly vertical) the bank is taken from the true horizon, as the
+ * move asks for it but at most 90°, and the pull brings the nose up.
  */
 function physicalBankCommand(ctx, bankDeg, g, throttle) {
   const { ac } = ctx;
-  if (horizonFrame(ac.pm).nearVertical) return { g, bankRad: ac.bankRad, prefer: ac.ctl.prefer, throttle };
+  const fr = horizonFrame(ac.pm);
+  if (fr.nearVertical) {
+    if (fr.vHat.z < 0 && Math.abs(fr.vHat.z) < 1 - 1e-12) {
+      // The true horizon's up and left, square to the path (the frame gives the carried up here, which turns with the roll).
+      const upTrue = unit({ x: -fr.vHat.z * fr.vHat.x, y: -fr.vHat.z * fr.vHat.y, z: 1 - fr.vHat.z * fr.vHat.z });
+      const leftTrue = cross(upTrue, fr.vHat);
+      const beta = degToRad(Math.min(Math.max(bankDeg, 0), 90));
+      const lift = add(scale(upTrue, Math.cos(beta)), scale(leftTrue, Math.sin(beta) * ac.turnDir));
+      return { g, bankRad: Math.atan2(dot(lift, fr.rightC), dot(lift, ac.pm.up)), prefer: ac.ctl.prefer, throttle };
+    }
+    return { g, bankRad: ac.bankRad, prefer: ac.ctl.prefer, throttle };
+  }
   const target = carriedBankFor(ac.pm, degToRad(bankDeg), ac.turnDir);
   const inv = ac.pm.up.z < 0;
   return { g, bankRad: target, prefer: inv ? ac.turnDir : -ac.turnDir, throttle };
@@ -942,10 +979,10 @@ function aimPoint(p, target) {
 
 /**
  * Pursuit: point the nose at the aim point with a lift vector that also carries
- * the weight. Three limits, in this order of importance: the hard deck and VMO
+ * the weight. Three limits, in this order of importance: the hard deck and the top speed (VMO, or Mach 0.67 above about 18,900 ft)
  * (the lift a level-off needs comes first, and the chase gets what is left);
  * core's availableG (the stall line, +7 G, and +4.7 G while rolling); and the
- * shaker. A chaser does not sink through the deck or fly past VMO to catch
+ * shaker. A chaser does not sink through the deck or fly past the top speed to catch
  * the other. The deck guard looks ahead: the height the path would bottom out at
  * is the pull-out circle plus the height lost rolling the lift up to the horizon
  * first (a chaser in a steep or inverted bank, after a close overshoot, loses
@@ -977,7 +1014,7 @@ function controlPursuit(ctx) {
   const alphaWanted = dot(wanted, e), betaWanted = dot(wanted, s);
   const capFor = (rolling) => Math.min(ctx.shaker, availableG(kias, rolling, p.stallKias));
 
-  // The flight path angle the deck and VMO ask for: the deck from the height the pull-out would bottom at, VMO from the speed a few seconds on.
+  // The flight path angle the deck and the speed limit ask for: the deck from the height the pull-out would bottom at, the limit (VMO, or Mach 0.67 above about 18,900 ft) from the speed a few seconds on.
   const gamma = f.climbRad;
   const pullOutG = Math.max(capFor(true) - 1, 0.5);
   // The drop is the height lost while rolling the lift up to the horizon first (a chaser in a steep or inverted bank
@@ -989,9 +1026,9 @@ function controlPursuit(ctx) {
   const circleFt = gammaAfterRoll < 0 ? TUNING.deckPullOutFactor * (vFtps * vFtps / (G_FTPS2 * pullOutG)) * (1 - Math.cos(gammaAfterRoll)) : 0;
   const dropFt = rollLossFt + circleFt;
   const deckSin = clamp((p.hardDeckFt - (f.altFt - dropFt)) * TUNING.levelAltGainPerSec / vFtps, -0.95, 0.5);
-  const guardKias = T6A_LIMITS.vmoKias - TUNING.vmoMarginKias;
+  const guardKias = maxKiasT6A(f.altFt) - TUNING.vmoMarginKias; // the limit at this height, so it tightens as the chase climbs into the Mach limit and eases as it dives out of it
   const overKt = kias + c.kiasRateEff * TUNING.vmoLeadSec - guardKias;
-  const vmoSin = overKt > 0 ? Math.min(overKt * TUNING.vmoClimbPerKt, 0.6) : -1; // -1: no demand while the speed is well under VMO
+  const vmoSin = overKt > 0 ? Math.min(overKt * TUNING.vmoClimbPerKt, 0.6) : -1; // -1: no demand while the speed is well under the limit
   const gammaFloor = Math.asin(Math.max(deckSin, vmoSin));
   const alphaFloor = Math.cos(gamma) + (vFtps / G_FTPS2) * TUNING.levelOmegaPerSec * (gammaFloor - gamma);
 
@@ -1048,6 +1085,13 @@ function controlFor(ctx) {
   }
 }
 
+/** A G to one decimal, or as many as it takes to tell it from `other` ("5.50 G against 5.49 G", never "5.5 G against 5.5 G"). */
+function gText(g, other) {
+  let digits = 1;
+  while (digits < 4 && g.toFixed(digits) === other.toFixed(digits)) digits++;
+  return g.toFixed(digits);
+}
+
 /** "85.6 KIAS is below the 86 KIAS stall speed": one decimal, so a speed just under the stall speed does not read as equal to it. */
 const belowStallText = (kias, p) => `${kias.toFixed(1)} KIAS is below the ${+p.stallKias.toFixed(1)} KIAS stall speed`;
 
@@ -1088,9 +1132,11 @@ function stepAircraft(state, ac, other, d) {
   const stallLine = stallLimitG(kias, p.stallKias);
   const slow = kias < p.stallKias;
   let stallReason = '';
-  if (gWanted > stallLine + 1e-9) stallReason = `The pull needs ${gWanted.toFixed(1)} G; the stall line at ${round(kias)} KIAS gives ${stallLine.toFixed(1)} G`;
+  if (gWanted > stallLine + 1e-9) stallReason = `The pull needs ${gText(gWanted, stallLine)} G; the stall line at ${round(kias)} KIAS gives ${gText(stallLine, gWanted)} G`;
   else if (slow) stallReason = belowStallText(kias, p);
+  let stallStarts = false;
   if (stallReason && !c.stallCond && c.stallTimer <= 1e-9) {
+    stallStarts = true;
     c.stallTimer = p.stallSec;
     c.forceG = null; // the pilot eases back to the shaker afterwards
     ac.stallEver = true; ac.stallReason = stallReason;
@@ -1114,12 +1160,14 @@ function stepAircraft(state, ac, other, d) {
   ac.rollDegPerSec = radToDeg(roll.movedRad) / d;
   ac.rolling = isRolling(roll.movedRad, d);
 
-  // OVER G: above +7 G, or above +4.7 G while rolling. The jet still flies the G it pulled.
+  // OVER G: above +7 G, or above +4.7 G while rolling. The jet still flies the G it pulled. On the step a pull stalls the jet the
+  // G it pulled is judged, not the 1 G STALL then gives, so a pull past both lines shows both flags (verification F6).
+  const gPulled = stallStarts ? Math.max(g, gWanted) : g;
   ac.overG = false; ac.overGReason = '';
-  if (g > T6A_LIMITS.maxG + 1e-9) {
-    ac.overG = true; ac.overGReason = `${g.toFixed(1)} G is above +${T6A_LIMITS.maxG} G`;
-  } else if (ac.rolling && g > T6A_LIMITS.rollingMaxG + 1e-9) {
-    ac.overG = true; ac.overGReason = `${g.toFixed(1)} G while rolling is above +${T6A_LIMITS.rollingMaxG} G`;
+  if (gPulled > T6A_LIMITS.maxG + 1e-9) {
+    ac.overG = true; ac.overGReason = `${gPulled.toFixed(1)} G is above +${T6A_LIMITS.maxG} G`;
+  } else if (ac.rolling && gPulled > T6A_LIMITS.rollingMaxG + 1e-9) {
+    ac.overG = true; ac.overGReason = `${gPulled.toFixed(1)} G while rolling is above +${T6A_LIMITS.rollingMaxG} G`;
   }
   if (ac.overG) ac.overGEver = true;
 
@@ -1230,6 +1278,12 @@ function readAims(state) {
   }
 }
 
+/** Before the turns nothing is pulled, but a jet under the stall speed is stalled: STALL reads from T+0 (verification F3). Read once when the aircraft is made; the straight flight keeps the speed, so it keeps the flag. */
+function readSlow(ac, p) {
+  ac.stall = ac.kias < p.stallKias;
+  if (ac.stall) { ac.stallEver = true; ac.stallReason = belowStallText(ac.kias, p); } else ac.stallReason = '';
+}
+
 /** Before the turns: both fly straight and level at constant speed. */
 function flyStraight(state, d) {
   for (const ac of [state.blue, state.red]) {
@@ -1275,6 +1329,8 @@ function stepOnce(state) {
   }
   readPair(state);
   checkFirstNose(state);
+  // An even fight: both noses came on together and nobody has got behind the other (the result card says so, verification F4).
+  state.evenFight = state.firstNose?.by === 'both' && !state.chase;
   readAims(state);
 }
 
