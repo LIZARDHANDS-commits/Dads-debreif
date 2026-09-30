@@ -271,17 +271,25 @@ export function crossTurnNote(state) {
 /**
  * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
  * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag). With `timing` 'boxSlot' the delays are
- * solved to keep the box's shape, so an outside delay is not an error and the flag says so.
+ * solved to keep the box's shape, so an outside #3 delay is not an error and the flag says so, and #4 (which turns on the LAB cue
+ * off #3) is an information line with no flag.
  */
 export function offsetBandLines(state, timing = null) {
   const box = state?.offsetBox;
   if (!box) return null;
   const band = `${box.minSec}-${box.maxSec} s`;
-  return box.rear.map((r) => ({
-    id: r.id,
-    outside: Boolean(r.outsideBand),
-    text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : timing === 'boxSlot' ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
-  }));
+  return box.rear.map((r) => {
+    // Box slot (Fig 16.30): only #3 delays 10 to 15 s; #4 turns on the normal LAB cue off #3, so its time from #3 is information, never a flag.
+    if (timing === 'boxSlot' && r.id === 4) {
+      const secs = Math.abs(r.delaySec).toFixed(1);
+      return { id: r.id, outside: false, info: true, text: `turns ${secs} s ${r.delaySec < 0 ? 'before' : 'after'} #3` };
+    }
+    return {
+      id: r.id,
+      outside: Boolean(r.outsideBand),
+      text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : timing === 'boxSlot' ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
+    };
+  });
 }
 
 /**

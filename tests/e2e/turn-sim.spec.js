@@ -625,11 +625,13 @@ test('the offset box shows #3 and #4 delays against the 10-15 s band in More det
   await open(page);
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await panel(page, 'More detail').click();
-  const band = page.locator('.ts-detail li', { hasText: /^#[34] .* s, / });
+  const band = page.locator('.ts-detail li', { hasText: /^#[34] / });
   await expect(band).toHaveCount(2);
-  // The default, the solved box slot, needs about 27 s and 38 s in a right turn: outside the SMM band, and the flag says it is on purpose.
-  await expect(band.first()).toHaveText(/^#3 \d+\.\d s, outside the SMM 10-15 s; solved so the box keeps its shape$/);
-  await expect(band.first()).toHaveClass(/tone-caution/);
+  // The default, the solved box slot: #3 is judged against the band (the flag for an outside delay is pinned in the unit test).
+  await expect(band.first()).toHaveText(/^#3 \d+\.\d s, (in the 10-15 s band|outside the SMM 10-15 s; solved so the box keeps its shape)$/);
+  // #4 turns on the normal LAB cue off #3 (Fig 16.30): its time from #3 is information, with no flag and no minus sign.
+  await expect(band.nth(1)).toHaveText(/^#4 turns \d+\.\d s (before|after) #3$/);
+  await expect(band.nth(1)).not.toHaveClass(/tone-caution/);
   // The SMM's fixed rear delay: 12.5 s is in the band, and 20 s is outside it.
   await panel(page, 'Turn Sim settings').click();
   await box(page, '#4 timing').selectOption({ label: 'Rear element delay (SMM)' });
@@ -693,6 +695,25 @@ test('the offset box hook shows which pairs cross: 300 ft vertical needed', asyn
   await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
   await expect(flags).toHaveCount(0);
+});
+
+test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads three.js', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+      return type === 'webgl2' || type === 'webgl' ? null : original.call(this, type, ...rest);
+    };
+  });
+  const seen = threeRequests(page);
+  await open(page);
+  await viewChoice(page, '3D').click(); // the choice goes back to 2D by itself, so no checked-state wait here
+  await expect(page.locator('.ts-note')).toHaveText('3D needs a connection the first time.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas(page)).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  expect(seen).toEqual([]);
 });
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
