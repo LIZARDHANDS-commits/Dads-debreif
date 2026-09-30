@@ -4,15 +4,29 @@
 // the way in, so the standards are flattened to "standards.spread.minFt" and
 // so on. Plain values only; tested in Node.
 import { renameDfp, setDfpNote, sortDfps, DFP_LIMITS } from './dfp.js';
+import { MAX_SAVED_CHARS } from './weather/saved-radar.js';
 
 const PREFIX = 'standards.';
 /** The playback time, seconds since 1970 (the debrief file's DFP time limit). */
 export const TIME_KEY = 'time';
 const TIME_RULE = { type: 'number', min: 0, max: 1e11 };
+/**
+ * Where the saved radar and lightning ride in the file (12f): one string, the
+ * block weather/saved-radar.js writes and checks, under the file's settings.
+ * flight-data's format has no weather field yet, and settings may hold a string
+ * up to a length the reader is given, so nothing there changes. When it gets a
+ * field of its own, only this key and the two places that use it move.
+ */
+export const WEATHER_KEY = 'savedWeather';
 
-/** The rules readDebriefFile checks the file's settings against, from app.standards.limits. */
-export function settingsRules(limits) {
+/**
+ * The rules readDebriefFile checks the file's settings against, from
+ * app.standards.limits. `weather`: also keep the saved radar's block, up to
+ * the longest text saved-radar.js allows (it checks the inside itself).
+ */
+export function settingsRules(limits, { weather = false } = {}) {
   const rules = { [TIME_KEY]: TIME_RULE };
+  if (weather) rules[WEATHER_KEY] = { type: 'string', max: MAX_SAVED_CHARS };
   for (const [group, fields] of Object.entries(limits)) {
     rules[`${PREFIX}${group}.on`] = { type: 'boolean' };
     for (const [key, limit] of Object.entries(fields)) rules[`${PREFIX}${group}.${key}`] = { type: 'number', min: limit.min, max: limit.max };
@@ -20,13 +34,17 @@ export function settingsRules(limits) {
   return rules;
 }
 
-/** The settings saved in the file: every standard, flattened, and the time. */
-export function sessionSettings(standards, t) {
+/**
+ * The settings saved in the file: every standard, flattened, the time, and
+ * `weather` (the saved radar's block as text, savedToSetting) when there is one.
+ */
+export function sessionSettings(standards, t, weather = '') {
   const out = {};
   for (const [group, fields] of Object.entries(standards)) {
     for (const [key, value] of Object.entries(fields)) out[`${PREFIX}${group}.${key}`] = value;
   }
   if (Number.isFinite(t)) out[TIME_KEY] = t;
+  if (weather) out[WEATHER_KEY] = weather;
   return out;
 }
 
