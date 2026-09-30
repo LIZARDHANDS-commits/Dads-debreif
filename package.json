@@ -5,7 +5,7 @@
   "description": "DAD's OODA LOOP: T-6 debrief and flight-training tools that run in any browser",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev": "vite",

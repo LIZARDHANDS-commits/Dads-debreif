@@ -4,7 +4,7 @@ T-6 flight training debrief and SOF suite, being refactored from a single HTML f
 
 ## Working on the new app
 
-Needs Node 22 or newer. Visitors to the site need nothing installed.
+Needs Node 22.12 or newer. Visitors to the site need nothing installed.
 
 ```
 npm install          # once
