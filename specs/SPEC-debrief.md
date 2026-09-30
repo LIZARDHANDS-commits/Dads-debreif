@@ -21,7 +21,7 @@ Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6)
 ## Assumptions
 
 1. `flight-data` owns loading, cleaning, the flight model, the clock and the debrief file format ([`SPEC-flight-data.md`](SPEC-flight-data.md)). The debrief never parses KML or keeps a clock of its own.
-2. `core` owns every number: aspect, HCA, closure, estimated G, the EM point, both tennis solvers and (in core PR 3) the standards classifier. The debrief picks the moments, calls `core`, and draws the answer.
+2. `core` owns every number: aspect, HCA, closure, estimated G, the EM point, the tennis-ball solver and (in core PR 3) the standards classifier. The debrief picks the moments, calls `core`, and draws the answer.
 3. The 3D view stays **hand-drawn on a Canvas 2D**, as V6 does. No WebGL and no three.js, so no new package (SPEC.md "ask first") and nothing to download.
 4. Map imagery (Esri satellite tiles) needs the network. Everything else, including the VNC charts once viewed, works offline (R6).
 5. Until `airfields` lands, CYMJ values the debrief needs (field elevation 1,892 ft, the VNC chart anchor, the 19 route overlays) sit in one file, `src/modules/debrief/data/cymj.js`, so they move to `airfields` in one step (R16).
@@ -106,7 +106,7 @@ Changes:
 
 The right column shows, for the current time, the same panels in both views:
 
-- **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47, Q32), and latitude/longitude (interpolated, D51).
+- **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47). Recorded pitch and G are used by default when a track has them (Patrick, answering Q32). If `flight-data` later adds an option to reference the iPad's attitude to a straight-and-level or on-the-runway baseline, the debrief shows it as a setting, and latitude/longitude (interpolated, D51).
 - **Aspect, HCA and closure versus Lead**, and **spacing** for every pair. Each range says whether it is **horizontal** or **3D** (#18, SPEC.md). The numbers stay V6's (D29).
 - **Standards**: V6's spread, offset and lead standards, editable, with V6's values as the default preset and a one-click reset (R18, D23). They are saved with the module's settings and in the debrief file.
 - **Lead desired parameters** compare **est. IAS** with the 200 kt target, not ground speed (D31).
@@ -127,9 +127,19 @@ V6's EM card: IAS against turn rate over the T-6 EM chart for 6,500, 8,000 or 13
 
 ### Tennis ball (#19, Q33 to Q37)
 
-V6 has two solvers that disagree and write to the same readout, and its controls live only in the 3D tab. The rebuild shows **one** solution, with its controls in the right column for both views.
+V6 has two solvers that disagree and write to the same readout, and its controls live only in the 3D tab. The rebuild shows **one** solution, with its controls in the right column, drawn in both views.
 
-**Default until Dad answers Q33 to Q37: the debrief map's solver (`core` `tennisDebrief`), unchanged, in both views.** It is the one that sees recorded or estimated pitch and gives IN CONE / OUT OF CONE, and the map is where V6's debrief showed it. The 3D view draws that same solution in 3D. Each answer from Dad then lands as its own tested change in `core` (D10), and the screen needs no change beyond labels.
+Patrick answered Q33 to Q37 (2026-09-30):
+
+| Question | Answer | Note |
+|---|---|---|
+| Q33 | The ball carries the shooter's full velocity, climb included. | As V6's 3D solver. |
+| Q34 | The target flies its recorded path. | The debrief is a replay, so the track ahead is known. |
+| Q35 | "Cone width" means ±3°. | Flagged for review later. |
+| Q36 | INTERCEPT needs the target inside the cone. | Flagged for review later. |
+| Q37 | The target's climb or descent counts. | Follows from Q34. |
+
+`core` makes these changes after core PR 2 (#61), each as its own tested change against the pinned V6 solvers (D10). The debrief calls that one solver. The cone half-width and the "INTERCEPT needs the cone" rule are named settings in one place, so the two flagged answers are a one-line change if they're revisited. Until `core`'s change lands, the screen isn't built, so it never shows V6's two solvers side by side.
 
 ### DFPs (R17, #25)
 
@@ -234,7 +244,7 @@ export function projectPoint(pt, camera) { ... }
 ## Boundaries
 
 - **Always:** read the flight from `flight-data` and every number from `core`; pin V6 before changing a number or a drawing; keep the module inside `src/modules/debrief/`; run `npm test` before each commit.
-- **Ask first:** any change to a number V6 shows beyond D31, D39, D40, D47 and D49 to D54; picking or merging the tennis solvers; changing the default standards; adding a package (including any 3D library); a new outside data source.
+- **Ask first:** any change to a number V6 shows beyond D31, D39, D40, D47 and D49 to D54; any tennis-ball rule beyond Patrick's answers to Q33 to Q37; changing the default standards; adding a package (including any 3D library); a new outside data source.
 - **Never:** edit `original/`, `src/core/` or `src/flight-data/` (changes go to their threads through the coordinator); put file content into `innerHTML`; keep a timer or animation loop outside the ui-kit scheduler.
 
 ## Success criteria
@@ -255,11 +265,9 @@ The tasks go in `tasks/debrief/` once this spec is approved. The expected order,
 5. The 3D view (V6 pinned, then D40 and the #27 fixes).
 6. EM chart, tennis ball, CSV export.
 
-It needs, from other threads: `standards.js` (core PR 3) before slice 2, and ui-kit `controls.js` and `canvas-view.js` before slice 1.
+It needs, from other threads: ui-kit `controls.js` and `canvas-view.js` before slice 1, `standards.js` (core PR 3) before slice 2, and `core`'s tennis-ball changes (Q33 to Q37) before slice 6.
 
 ## Open questions
 
 1. **#3 under two standards (#21, Q39), for Patrick or Dad:** with both spread and offset on, V6 judges #3's fore/aft by both, so #3 is never on parameters. Proposed: the offset standard decides #3's fore/aft, and the spread standard its interval. Until decided, the debrief keeps V6's labels.
-2. **Recorded pitch and G on #3 and #4 (Q32), for Dad:** default keeps V6 (in-range values are used) and labels them "recorded".
-3. **Tennis ball (Q33 to Q37), for Dad:** default is the debrief map's solver, unchanged, in both views.
-4. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).
+2. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).
