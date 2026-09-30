@@ -21,7 +21,10 @@ export function radToDeg(rad) {
   return rad * 180 / Math.PI;
 }
 
-/** Wraps degrees into [-180, 180] (Turn Sim `normDeg`, line 1480). */
+/**
+ * Wraps degrees into [-180, 180] (Turn Sim `normDeg`, line 1480).
+ * Needs a finite input: like V6, the loop never ends for ±Infinity.
+ */
 export function wrapDeg180(deg) {
   while (deg > 180) deg -= 360;
   while (deg < -180) deg += 360;
@@ -31,6 +34,7 @@ export function wrapDeg180(deg) {
 /**
  * Wraps radians into [-π, π] (debrief `normAngleRad`, line 2706; the same loop
  * is Turn Fight's `wrapH` and, applied to a - b, the EM chart's `dAng`).
+ * Needs a finite input: like V6, the loop never ends for ±Infinity.
  */
 export function wrapPi(rad) {
   while (rad > Math.PI) rad -= Math.PI * 2;

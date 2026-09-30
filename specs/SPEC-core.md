@@ -10,6 +10,17 @@ The rule for this module is R9: every function gives **the same answer V6 gives*
 
 Users never see `core` directly. Its "users" are the other modules and the people who later read or change the math (R8).
 
+## Assumptions
+
+1. V6's numbers are the reference, even where the audit shows them wrong (D29). A wrong number is ported as it is and fixed later, separately.
+2. Inputs are finite numbers. `core` checks for missing values only where V6 did. Screens validate what people type (see "Things `core` will flag").
+3. Time zones come from the browser's built-in time-zone data (`Intl`), which current Chrome, Edge, Firefox and Safari all ship (R1, R10).
+4. The golden tests read `original/shell.html` when they run, so they always compare against the untouched V6.
+
+## Tech stack
+
+Plain JavaScript ES modules with no dependencies, which run as they are in a browser and in Node. Tests use Node's built-in `node:test` (Node 22 or later), with no packages.
+
 ## Scope
 
 In `core`:
@@ -62,6 +73,7 @@ Changes made while porting, none of which changes a number:
 
 - **Two tennis-ball solvers disagree** (issue #19): the debrief's `getKmlTennisSolution` (line 3140) and the 3D view's `draw3DDogfightArc` (line 3970). The second PR pins both against V6 and records where they differ; which one survives is for Patrick and Dad.
 - **Items waiting on Dad** (Q18, Q24–Q26): EM turn rate halved, 3D bank halved and mirrored, Turn Sim toward/away and wide/tight, auto timing, Traffic rounded turns, recorded bank and blank pitch. `core` ports V6's behaviour as it is. Each fix is a later, separate change with the golden value updated in the same commit.
+- **Infinite headings hang.** V6's angle-wrapping loops (`normDeg`, `normAngleRad` and their copies) never return for ±Infinity, and crawl on values past about 1e9. In V6, a huge number such as 1e20 typed into Turn Sim's Start heading box becomes the aircraft's heading (line 798), and with the clock or bearing cue trigger on, it reaches these loops (lines 1499 and 1528), so the page would freeze. This was read from the code, not run. `core` keeps the loops as they are. The fix is at the screen: `ui-kit` controls must reject non-finite and out-of-range numbers. A guard inside `core` would change no number V6 ever shows, but it would still change behaviour, so it needs a decision.
 
 ## Commands
 
@@ -74,7 +86,8 @@ Note for the app frame: on Node 22, `node --test tests/unit tests/golden` fails 
 ## Project structure
 
 ```
-src/core/            units.js angles.js geo.js time.js (PR 1); flight-math.js standards.js (later)
+src/core/            README.md (what's here, the heading rule, how to change a number)
+                     units.js angles.js geo.js time.js (PR 1); flight-math.js standards.js (later)
 tests/golden/        v6-source.js  loads V6's own functions from original/shell.html
                      inputs.js     fixed edge cases plus seeded random inputs
                      core-*.test.js  V6 vs core, function by function
@@ -98,7 +111,8 @@ export function headingCrossAngleDeg(h1, h2) {
 1. **Golden tests** (`tests/golden/core-*.test.js`, R9). `v6-source.js` cuts each V6 function out of `original/shell.html` by name (or out of the SOF and Traffic pages V6 embeds as base64) and runs it unchanged. Globals V6 reads are supplied by a small prelude. Each test runs V6 and `core` on the same inputs: fixed edge cases (±π, month ends, both 2026 clock changes, bad input) and a few hundred seeded random values around Moose Jaw.
 2. **Exact match by default.** A tolerance is allowed only where V6 itself has two copies that disagree, and the test says why.
 3. **Unit tests** (`tests/unit/core/`) check meaning against known answers: a minute of latitude is a nautical mile, 3 o'clock is on the right, Moose Jaw stays UTC-6 across both clock changes while Denver moves (R10).
-4. A golden test must fail if the port changes a shown number; this was checked by breaking a port on purpose.
+4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). For PR 1, 53 of 55 changes turned a test red. The other two are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`, and 0.3048 for 1/3.28084 inside the tile-zoom rounding. Line coverage of `src/core` is 100%.
+5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 11,000 results with Node's. Time and Intl results match exactly. 25 results, all from `sin`, `cos` and `atan2`, differ in the last digit (at most 4e-16 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
 
 ## Boundaries
 
@@ -109,10 +123,16 @@ export function headingCrossAngleDeg(h1, h2) {
 ## Success criteria
 
 - Every function in the tables above has a golden test against V6 and passes.
+- The mutation check leaves no surviving change that isn't equivalent, and `src/core` runs unchanged in a current browser with the same answers as Node.
 - Every number the later modules show that depends on these functions comes from `core`, not a local copy.
 - The heading convention is written here and in `angles.js`, and pinned by tests.
+
+## Plan
+
+The tasks, checkpoints and risks are in [`tasks/flight-math/plan.md`](../tasks/flight-math/plan.md) and [`todo.md`](../tasks/flight-math/todo.md).
 
 ## Open questions
 
 1. Approve this spec (Patrick).
 2. The tennis-ball solvers: which one the rebuild keeps (Patrick or Dad, after the second PR shows the difference).
+3. Guard against infinite input inside `core`, or only at the screen (see above)? The default is at the screen only.
