@@ -142,7 +142,8 @@ const FORCE_G_MAX = 12;           // a what-if G of 0 to 12 (core's +7 G limit, 
  */
 const TUNING = Object.freeze({
   captureLeadSec: 3,       // model setting: a bank move hands to the MPT when its speed, this many seconds ahead, would reach the MPT speed
-  captureLeadFastSec: 6,   // model setting: the same for a pitch back or slice entered over the SMM pitch back band (over 220 KIAS, fixed, not the Immelmann split Dad can move): it bleeds speed and climbs so steeply that the handover needs to come earlier, or the nose is near vertical when it comes and the speed falls well under the MPT's
+  captureLeadFastSec: 3.7, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft
+  captureLeadFromKias: 235, // model setting: entered at or under this speed the lead is captureLeadSec
   maxBankMoveTurnDeg: 170,    // model setting: a pitch back or slice that has not found the MPT speed by here hands to the MPT anyway
   speedTauSec: 4,             // model setting: the MPT closes on its speed with this time constant
   speedLeadSec: 3,            // model setting: and judges its speed this many seconds ahead, so it does not overshoot
@@ -306,12 +307,14 @@ function checkedSetup(setup) {
   need(finitePositive(s.separationNm), 'separationNm is above 0', s.separationNm);
   need(Number.isFinite(s.hardDeckFt), 'hardDeckFt is a number', s.hardDeckFt);
   for (const k of ['blueAltFt', 'redAltFt']) need(Number.isFinite(s[k]) && s[k] >= s.hardDeckFt && s[k] <= ENERGY_MAX_START_FT, `${k} is from the hard deck (${feet(s.hardDeckFt)} ft) to ${feet(ENERGY_MAX_START_FT)} ft`, s[k]);
-  for (const k of ['blueKias', 'redKias']) need(Number.isFinite(s[k]) && s[k] >= 40 && s[k] <= T6A_LIMITS.vmoKias, `${k} is from 40 to ${T6A_LIMITS.vmoKias} KIAS`, s[k]);
-  // The top speed depends on the start height: VMO up to about 17,600 ft, then Mach 0.67 (core's maxKiasT6A). The limit is
-  // taken to the whole knot the message names, so a merge at the limit as shown is accepted (25,000 ft: 269.98, shown as 270).
+  // The top speed depends on the start height: VMO up to about 17,600 ft, then Mach 0.67 (core's maxKiasT6A), so the height
+  // comes first and the message names the limit at that height. The limit is taken to the whole knot the message shows, so a
+  // merge at the limit as shown is accepted (25,000 ft: 269.98, shown as 270).
   for (const [who, kiasKey, altKey] of [['Blue', 'blueKias', 'blueAltFt'], ['Red', 'redKias', 'redAltFt']]) {
-    const limitKias = Math.round(maxKiasT6A(s[altKey]));
-    need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitKias} KIAS, Mach ${T6A_LIMITS.mmo})`, s[kiasKey]);
+    const exactLimit = maxKiasT6A(s[altKey]);
+    const limitKias = Math.round(exactLimit);
+    need(Number.isFinite(s[kiasKey]) && s[kiasKey] >= 40, `${kiasKey} is from 40 to ${limitKias} KIAS`, s[kiasKey]);
+    need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitKias} KIAS, ${exactLimit >= T6A_LIMITS.vmoKias ? 'VMO' : `Mach ${T6A_LIMITS.mmo}`})`, s[kiasKey]);
   }
   need(Number.isFinite(s.ataDeg) && s.ataDeg >= 0 && s.ataDeg <= 180, 'ataDeg is 0 to 180', s.ataDeg);
   need(Number.isFinite(s.aaDeg) && s.aaDeg >= 0 && s.aaDeg <= 180, 'aaDeg is 0 to 180', s.aaDeg);
@@ -781,7 +784,9 @@ function controlBankMove(ctx) {
   const { ac, p, kias } = ctx;
   const c = ac.ctl;
   // The MPT is near when the speed, a little ahead, reaches it from the side the move started on.
-  const ahead = kias + c.kiasRateEff * (c.entryKias > PITCH_BACK_BAND_KIAS[1] ? TUNING.captureLeadFastSec : TUNING.captureLeadSec);
+  const ramp = clamp((c.entryKias - TUNING.captureLeadFromKias) / (T6A_LIMITS.vmoKias - TUNING.captureLeadFromKias), 0, 1);
+  const leadSec = TUNING.captureLeadSec + (TUNING.captureLeadFastSec - TUNING.captureLeadSec) * ramp;
+  const ahead = kias + c.kiasRateEff * leadSec;
   const fromAbove = c.entryKias > p.mptKias;
   const there = fromAbove ? ahead <= p.mptKias : ahead >= p.mptKias;
   const turned = c.turnDeg >= TUNING.maxBankMoveTurnDeg;

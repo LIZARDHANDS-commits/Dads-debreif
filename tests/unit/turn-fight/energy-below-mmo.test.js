@@ -1,43 +1,31 @@
 // The Energy engine and the T-6A's Mach limit (core #211; SPEC-turn-fight, "Limits").
-// Part 1 pins the engine at 17,000 ft and below, where the speed limit is still VMO and nothing may change.
-// Part 2 is the new behaviour above 18,769 ft, where the limit is Mach 0.67 (maxKiasT6A; expected values from the NFM figure, see below).
+// Part 1: below about 17,600 ft the top speed is exactly VMO, so a fight whose chase stays under that height flies the
+// speed guard exactly as it did before the Mach limit. (A chaser that starts lower can climb past the crossover; there
+// the guard is meant to tighten.)
+// Part 2: above it the limit is Mach 0.67; the expected top speeds come from the NFM figure (see below).
+// Which tests tell the new engine from the old: the merge-speed refusals and "a chaser diving ... near the guard". The
+// "never over the NFM Mach limit" fights pass on the old engine too; they are regression guards, not tests of this change.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { T6A_LIMITS, maxKiasT6A } from '../../../src/core/t6-performance.js';
 import { createEnergyFight, stepEnergyFight } from '../../../src/modules/turn-fight/energy-sim.js';
 import { FIGHT_STEP_SEC } from '../../../src/modules/turn-fight/sim.js';
 import { nfmTopKias } from './nfm-limit.js';
-import { trajectoryDigest, pinCases, PIN_STEPS } from './energy-pin.js';
 
-// ── Part 1: nothing moves at 17,000 ft and below ─────────────────────────────
+// ── Part 1: VMO, exactly, below about 17,600 ft ──────────────────────────────
 
-const pinned = JSON.parse(readFileSync(new URL('../../fixtures/turn-fight/energy-below-mmo.json', import.meta.url), 'utf8'));
-
-test('the pin fixture is the fights the helper lists, all starting at 17,000 ft or lower', () => {
-  const cases = pinCases();
-  assert.equal(pinned.steps, PIN_STEPS);
-  assert.deepEqual(pinned.cases.map((c) => c.name), cases.map((c) => c.name));
-  assert.ok(cases.length >= 40);
-  for (const c of cases) {
-    const s = { blueAltFt: 10000, redAltFt: 10000, ...c.setup };
-    assert.ok(s.blueAltFt <= 17000 && s.redAltFt <= 17000, `${c.name} starts at or under 17,000 ft`);
+test('the top speed is exactly VMO (316) at every height from 0 to 17,500 ft, in 1 ft steps, so the chaser\'s guard there is what it was', () => {
+  for (let altFt = 0; altFt <= 17500; altFt++) {
+    if (maxKiasT6A(altFt) !== T6A_LIMITS.vmoKias) assert.fail(`maxKiasT6A(${altFt}) is ${maxKiasT6A(altFt)}, not ${T6A_LIMITS.vmoKias}`);
   }
-  for (const name of ['the default fight', 'a 316 KIAS merge at 10,000 ft']) assert.ok(cases.some((c) => c.name === name), name);
-  assert.ok(maxKiasT6A(17000) === T6A_LIMITS.vmoKias, 'the limit at 17,000 ft is still VMO');
 });
 
-// Every step of a ten-minute fight, every number, must be what the engine gave before the Mach limit.
-for (const c of pinned.cases) {
-  test(`${c.name}: the whole ten-minute trajectory is bit-for-bit what it was before the Mach limit`, () => {
-    const now = trajectoryDigest(c.setup);
-    // The readable numbers first, so a failure says what moved; then the fingerprint of every step.
-    const { name, setup, digest, ...readable } = c;
-    const { digest: nowDigest, ...nowReadable } = now;
-    assert.deepEqual(nowReadable, readable);
-    assert.equal(nowDigest, digest);
-  });
-}
+test('a merge at 316 KIAS is accepted from the deck to 17,500 ft, and 317 is refused', () => {
+  for (const altFt of [6000, 10000, 15000, 17000, 17500]) {
+    assert.doesNotThrow(() => createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: 316, redKias: 316 }), `316 at ${altFt} ft`);
+    assert.throws(() => createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: 317 }), /Blue's merge speed is above the T-6A's limit/, `317 at ${altFt} ft`);
+  }
+});
 
 // ── Part 2: above 18,769 ft the limit is Mach 0.67 ───────────────────────────
 //
@@ -106,10 +94,18 @@ test("[needs Core's maxKiasT6A fix] at 20,000 ft the NFM limit is 309 KIAS: 309 
   assert.throws(() => createEnergyFight({ blueAltFt: 20000, redAltFt: 20000, blueKias: nfm20 + 3 }), new RegExp(`limit at 20,000 ft \\(${nfm20} KIAS, Mach 0\\.67\\)`));
 });
 
-test('a speed over VMO is refused at any height with the old message, and a NaN still names the box', () => {
-  assert.throws(() => createEnergyFight({ blueKias: 317 }), /blueKias is from 40 to 316 KIAS, got 317/);
-  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, redKias: 400 }), /redKias is from 40 to 316 KIAS, got 400/);
-  assert.throws(() => createEnergyFight({ blueKias: NaN }), /blueKias/);
+test('the height check comes first: a speed over the limit is refused with the limit at that height, whatever the height (VMO below the crossover, Mach 0.67 above it)', () => {
+  assert.throws(() => createEnergyFight({ blueKias: 317 }), /Blue's merge speed is above the T-6A's limit at 10,000 ft \(316 KIAS, VMO\), got 317/);
+  assert.throws(() => createEnergyFight({ redKias: 400 }), /Red's merge speed is above the T-6A's limit at 10,000 ft \(316 KIAS, VMO\), got 400/);
+  // Above the crossover a speed over VMO gets the Mach limit's message, not "40 to 316".
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, redKias: 400 }), /Red's merge speed is above the T-6A's limit at 25,000 ft \(\d+ KIAS, Mach 0\.67\), got 400/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 317 }), /Blue's merge speed is above the T-6A's limit at 25,000 ft \(\d+ KIAS, Mach 0\.67\), got 317/);
+});
+
+test('a speed under 40 or not a number still names the box and the range at that height', () => {
+  assert.throws(() => createEnergyFight({ blueKias: NaN }), /blueKias is from 40 to 316 KIAS, got NaN/);
+  assert.throws(() => createEnergyFight({ redKias: 39 }), /redKias is from 40 to 316 KIAS, got 39/);
+  assert.throws(() => createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 39 }), /blueKias is from 40 to \d+ KIAS, got 39/);
 });
 
 /**
@@ -144,7 +140,7 @@ const HIGH_FIGHTS = {
 for (const altFt of [25000, 20000]) {
   for (const pursuit of altFt === 25000 ? ['pure', 'lead', 'lag'] : ['pure']) {
     for (const [name, { setup, moves }] of Object.entries(HIGH_FIGHTS)) {
-      test(`from ${altFt.toLocaleString('en-US')} ft, ${name}, ${pursuit} pursuit, ten minutes: never over the NFM Mach limit at its height`, () => {
+      test(`from ${altFt.toLocaleString('en-US')} ft, ${name}, ${pursuit} pursuit, ten minutes: never over the NFM Mach limit at its height (regression guard)`, () => {
         const r = overTheLimit({ blueAltFt: altFt, redAltFt: altFt, pursuit, ...setup(altFt) });
         for (const m of moves) assert.ok(r.moves.has(m), `the fight flew ${m} (${[...r.moves].join(', ')})`);
         assert.ok(r.over <= SLACK_KIAS, `${r.over.toFixed(1)} KIAS over the NFM line at its height (fastest ${r.fastest.toFixed(0)})`);

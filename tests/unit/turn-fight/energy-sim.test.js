@@ -328,14 +328,14 @@ test('where a chase from behind is on offer the race decides, by the real fight\
   const a = createEnergyFight({ blueKias: 250, redKias: 160, redMove: 'pitchBack', turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 });
   assert.equal(a.blue.move, 'pitchBack');
   assert.equal(a.plan.blue.race.immelmann, null);
-  near(a.plan.blue.race.pitchBack, 10.58, 0.05, 'pitch back');
+  near(a.plan.blue.race.pitchBack, 10.84, 0.05, 'pitch back'); // 10.58 s before the graded handover lead (F2): a pitch back from 250 KIAS now hands to the MPT a little later
   assert.equal(a.blue.why, 'Pitch back: nose on in about 11 s vs no nose-on in 60 s for an Immelmann, outside the SMM band (160 to 220 KIAS)');
-  // Blue 316 against a pitching-back Red, from close: the Immelmann gets there (32 s), the pitch back never does.
+  // Blue 316 against a pitching-back Red, from close: the Immelmann gets there (31 s), the pitch back never does.
   const b = createEnergyFight({ blueKias: 316, redKias: 316, redMove: 'pitchBack', turnsStart: 'now', separationNm: 0.7, ataDeg: 45, aaDeg: 30 });
   assert.equal(b.blue.move, 'immelmann');
-  near(b.plan.blue.race.immelmann, 31.64, 0.05, 'Immelmann');
+  near(b.plan.blue.race.immelmann, 31.0, 0.05, 'Immelmann'); // 31.64 s before the graded handover lead (F2): Red's pitch back from 316 KIAS now turns in earlier
   assert.equal(b.plan.blue.race.pitchBack, null);
-  assert.equal(b.blue.why, 'Immelmann: nose on in about 32 s vs no nose-on in 60 s for a pitch back, outside the SMM band (200 to 250 KIAS)');
+  assert.equal(b.blue.why, 'Immelmann: nose on in about 31 s vs no nose-on in 60 s for a pitch back, outside the SMM band (200 to 250 KIAS)');
 });
 
 test('a fast merge with an Immelmann that would be too slow over the top flies the pitch back (gate), and says so', () => {
@@ -1105,6 +1105,32 @@ test('a pitch back or slice reaches the MPT before 180° of turn, at every Auto 
   }
 });
 
+// Verification of #209, F2: over 220 KIAS the pitch back (Auto picks it when the Immelmann would be over the top under 120 KIAS,
+// or loses the race; here it is forced) took 303 to 391° to reach the MPT against the spec's aim of under 180° (SMM 14.17 para 42),
+// because the handover lead was a flat 6 s. The lead now grows with the entry speed, and both aims hold together: under 180° to
+// reach the MPT, and 155 to 165 KIAS once there. Checked at 8,000 to 15,000 ft (the accurate range is up to 15,000 ft), 1 and 2 circles.
+const OVER_220_ENTRIES = [221, 224, 228, 232, 236, 240, 245, 250, 256, 262, 268, 274, 280, 286, 292, 298, 304, 308, 312, 316];
+for (const altFt of [10000, 8000, 12000, 15000]) {
+  test(`a pitch back entered from 221 to 316 KIAS at ${altFt.toLocaleString('en-US')} ft reaches the MPT before 180° of turn and holds 155 to 165 KIAS once there, 1 or 2 circles`, () => {
+    for (const circles of [1, 2]) {
+      for (const kias of OVER_220_ENTRIES) {
+        let reached = false, low = Infinity, high = 0, deg = null;
+        watch({ ...SOLO, circles, blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack' }, (st) => {
+          const a = st.blue;
+          if (!reached && a.move === 'mpt' && Math.abs(a.kias - 160) <= 5) reached = true;
+          if (deg === null && a.mptReached) deg = a.toMptDeg;
+          if (reached && a.move !== 'levelMpt') { low = Math.min(low, a.kias); high = Math.max(high, a.kias); }
+          return a.move !== 'levelMpt';
+        }, 200);
+        const what = `${kias} KIAS, ${circles} circle(s)`;
+        assert.ok(reached && deg !== null, `${what}: reached the MPT`);
+        assert.ok(deg < 180, `${what}: took ${deg.toFixed(0)}° of turn to reach the MPT`);
+        assert.ok(low >= 155 && high <= 165, `${what}: held ${low.toFixed(1)} to ${high.toFixed(1)} KIAS`);
+      }
+    }
+  });
+}
+
 test('the move keeps its name until the speed is within 5 kt of the MPT speed, then reads MPT', () => {
   for (const kias of [140, 220]) {
     const s = createEnergyFight({ ...SOLO, blueKias: kias, redKias: kias });
@@ -1244,7 +1270,7 @@ function realScore(setup, who, move) {
 test('the dry run matches the real fight: with the other aircraft\'s move forced, each move\'s predicted time is the time the real fight gets there', () => {
   // Cases where at least one move scores; the pass comes before the turns in the first (the pass falls mid-step), at once in the others.
   const cases = [
-    { blueKias: 316, redKias: 316, redMove: 'mpt', circles: 1 },
+    { blueKias: 300, redKias: 300, redMove: 'mpt', circles: 1 }, // 316 before the graded handover lead (F2): neither move scores from 316 any more
     { blueKias: 316, redKias: 316, redMove: 'pitchBack', turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 },
     { blueKias: 280, redKias: 250, redMove: 'immelmann', turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 },
     { blueKias: 250, redKias: 160, redMove: 'immelmann', turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 },
@@ -1353,8 +1379,9 @@ test('a head-on pass is not a win in the race, and with chaseAfterHeadOn it is',
 });
 
 test('the other aircraft getting its chase started first is a loss, not a win', () => {
-  // Blue 316 against a pitching-back Red 316, from 1.5 NM. In a pitch back Blue's nose does come on, at 30.2 s, but Red's came on at 26.8 s
-  // with Blue in front of it: Red chases first, so the pitch back scores nothing. The Immelmann gets there (32.7 s) with Red never on.
+  // Blue 316 against a pitching-back Red 316, from 1.5 NM. In a pitch back Blue's nose does come on, at 29.4 s, but Red's came on at 27.0 s
+  // with Blue in front of it: Red chases first, so the pitch back scores nothing. The Immelmann gets there (32.5 s) with Red never on.
+  // (30.2 and 26.8 s before the handover lead grew with the entry speed, verification F2.)
   const setup = { blueKias: 316, redKias: 316, redMove: 'pitchBack', turnsStart: 'now', separationNm: 1.5, ataDeg: 120, aaDeg: 100, aaSide: 'right' };
   const nose = (move) => {
     const f = createEnergyFight({ ...setup, blueMove: move, pursuit: 'none' });
@@ -1367,10 +1394,10 @@ test('the other aircraft getting its chase started first is a loss, not a win', 
     return { blue, red };
   };
   const pb = nose('pitchBack');
-  assert.ok(pb.blue > 30 && pb.red < 27, `Blue's nose-on ${pb.blue}, Red's ${pb.red}`);
+  assert.ok(pb.red < 28 && pb.blue > pb.red + 2, `Blue's nose-on ${pb.blue}, Red's ${pb.red}`);
   const r = createEnergyFight(setup).plan.blue.race;
   assert.equal(r.pitchBack, null, 'the pitch back lost the race to Red\'s chase');
-  near(r.immelmann, 32.72, 0.05, 'Immelmann');
+  near(r.immelmann, 32.52, 0.05, 'Immelmann');
   assert.equal(realScore(setup, 'blue', 'pitchBack'), null);
   assert.equal(createEnergyFight(setup).blue.move, 'immelmann');
 });
