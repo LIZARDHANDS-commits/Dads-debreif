@@ -2,6 +2,7 @@
 // address, reading the reply, the wind at Lead's altitude and its words.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   WIND_MODELS, WIND_LEVELS_HPA, windModelFor, windsUrl, readWinds, windAtAltitude, windWords, windTextAt,
 } from '../../../src/modules/debrief/weather/winds.js';
@@ -173,4 +174,36 @@ test('the feed: a rate limit says whether it is the day\'s, retry() asks again, 
   release({ ok: true, status: 200, json: () => Promise.resolve(reply()) });
   await settle();
   assert.equal(changes, before);
+});
+
+// Real replies from Open-Meteo for Moose Jaw (50.33, -105.56), 29 Sep 2026, as
+// the app asks for them (all nine levels, knots, GMT): a change to the shape
+// of the answer shows up here.
+const real = (model) => JSON.parse(readFileSync(new URL(`../../fixtures/debrief/live-${model}.json`, import.meta.url), 'utf8'));
+const REAL_MODELS = [['gem_hrdps_continental', 'HRDPS'], ['ncep_hrrr_conus', 'HRRR']];
+
+test('real replies read into 48 hours of all nine levels, low to high, in knots', () => {
+  for (const [id] of REAL_MODELS) {
+    const json = real(id);
+    assert.equal(json.hourly_units.wind_speed_950hPa, 'kn');
+    const hours = readWinds(json);
+    assert.equal(hours.length, 48, id);
+    assert.equal(hours[0].t, T('2026-09-29T00:00Z'));
+    assert.equal(hours[47].t, T('2026-09-30T23:00Z'));
+    for (const hour of hours) {
+      assert.deepEqual(hour.levels.map((l) => l.hPa), [...WIND_LEVELS_HPA], id);
+      assert.ok(hour.levels.every((l, i) => i === 0 || l.heightFt > hour.levels[i - 1].heightFt), `${id} heights rise`);
+      assert.ok(hour.levels.every((l) => l.dirDeg >= 0 && l.dirDeg <= 360 && l.kt >= 0 && l.kt < 200));
+    }
+  }
+});
+
+test('windTextAt on real replies gives a wind at flying heights and none above the top level', () => {
+  for (const [id, label] of REAL_MODELS) {
+    const hours = readWinds(real(id));
+    const at = hours[18].t + 600; // 18:10Z
+    assert.match(windTextAt(hours, at, 12_600, label), new RegExp(`at 12,600 ft \\(${label} 18Z, Open-Meteo\\)$`));
+    assert.match(windTextAt(hours, at, 5500, label), /at 5,500 ft/);
+    assert.match(windTextAt(hours, at, 31_500, label), /above the highest model level/);
+  }
 });
