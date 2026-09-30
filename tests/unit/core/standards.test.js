@@ -156,6 +156,8 @@ test('D116 sweep in the Turn Sim: spread, and the offset box\'s #2 and #4', () =
   const leadN = { id: 1, ...lead, hdg: NORTH };
   assert.equal(lab({ id: 2, ...at(5000, 500) }, [leadN], 'weighted'), 'ON SPACING');
   assert.equal(lab({ id: 2, ...at(5000, 1000) }, [leadN], 'weighted'), 'AFT');
+  const three3 = { id: 3, ...at(5000, 1000) };
+  assert.equal(lab({ id: 4, ...at(10000, 1500) }, [leadN, three3], 'weighted'), 'ON SPACING', '#4 in spread is swept from #3');
   assert.equal(lab({ id: 2, ...at(5000, -10) }, [leadN], 'offsetBox'), 'FORE');
   const three = { id: 3, ...at(2500, 8000) };
   assert.equal(lab({ id: 4, ...at(7500, 8500) }, [leadN, three], 'offsetBox'), 'ON SPACING', '5.7° off #3');
