@@ -122,6 +122,8 @@ const MPT_BANK_MAX_DEG = 85;
 const SLICE_BANK_AT_MPT_DEG = 90; // SMM 14.18: the slice bank is 90° at the MPT speed ...
 const SLICE_BANK_AT_100_DEG = 135; // ... and 135° at 100 KIAS
 const IMMELMANN_BAND_KIAS = Object.freeze([200, 250]);   // SMM 14.15: the Immelmann is flown from 200 to 250 KIAS
+/** The MPT speed box: 120 to 200 KIAS. Above that, at the deck, the level MPT sinks under it (verification F8); the SMM's speed is 160 and the level MPT's about 150 minus thousands of feet. */
+const MPT_KIAS_RANGE = Object.freeze([120, 200]);
 const PITCH_BACK_BAND_KIAS = Object.freeze([160, 220]);   // SMM 14.15: and the pitch back from 160 to 220 KIAS
 const SLICE_ENTRY_LOW_KIAS = 100; // SMM 14.18: the slice is flown from 100 to 160 KIAS (Auto hands to a split S below the split point)
 // The split S is core's (splitST6A; the technique is SMM 14.16 para 41): nose to about 20° up in the shaker, roll inverted
@@ -250,7 +252,14 @@ const feet = (x) => Math.round(x).toLocaleString('en-US');
  * known and the speed alone decides: Immelmann.
  */
 export function pickMove(kias, altFt, p = ENERGY_DEFAULT_SETUP, look = null) {
-  const k = round(kias);
+  // The speed as the reason shows it: whole knots, unless that would round onto a speed the rule compares with ("120 KIAS, below 120").
+  const boundaries = [p.mptKias - MPT_WITHIN_KT, p.mptKias, p.mptKias + MPT_WITHIN_KT, p.immelmannAboveKias, p.splitSBelowKias];
+  let k = round(kias);
+  if (!Number.isInteger(kias) && boundaries.includes(k)) {
+    let digits = 1;
+    while (digits < 4 && +kias.toFixed(digits) === k) digits++;
+    k = kias.toFixed(digits);
+  }
   if (Math.abs(kias - p.mptKias) <= MPT_WITHIN_KT) return { move: 'mpt', why: `MPT straight away: ${k} KIAS, within ${MPT_WITHIN_KT} of ${p.mptKias}` };
   if (kias > p.immelmannAboveKias) {
     const band = (move) => (move === 'immelmann' ? IMMELMANN_BAND_KIAS : PITCH_BACK_BAND_KIAS);
@@ -325,7 +334,8 @@ function checkedSetup(setup) {
   need(ENERGY_MOVES.includes(s.redMove), `redMove is one of ${ENERGY_MOVES.join(', ')}`, s.redMove);
   need(typeof s.chaseAfterHeadOn === 'boolean', 'chaseAfterHeadOn is true or false', s.chaseAfterHeadOn);
   need(PURSUITS_ACCEPTED.includes(s.pursuit), `pursuit is one of ${PURSUITS.join(', ')} (or none)`, s.pursuit);
-  for (const k of ['mptKias', 'stallKias', 'rollRateDegPerSec', 'pullG', 'immelmannAboveKias', 'splitSBelowKias']) need(finitePositive(s[k]), `${k} is above 0`, s[k]);
+  need(Number.isFinite(s.mptKias) && s.mptKias >= MPT_KIAS_RANGE[0] && s.mptKias <= MPT_KIAS_RANGE[1], `mptKias is from ${MPT_KIAS_RANGE[0]} to ${MPT_KIAS_RANGE[1]} KIAS`, s.mptKias);
+  for (const k of ['stallKias', 'rollRateDegPerSec', 'pullG', 'immelmannAboveKias', 'splitSBelowKias']) need(finitePositive(s[k]), `${k} is above 0`, s[k]);
   need(Number.isFinite(s.shakerFrac) && s.shakerFrac > 0 && s.shakerFrac <= 1, 'shakerFrac is above 0 and up to 1', s.shakerFrac);
   need(Number.isFinite(s.immelmannOffNoseDeg) && s.immelmannOffNoseDeg >= 0 && s.immelmannOffNoseDeg <= 180, 'immelmannOffNoseDeg is 0 to 180', s.immelmannOffNoseDeg);
   need(Number.isFinite(s.immelmannMinTopKias) && s.immelmannMinTopKias >= 0 && s.immelmannMinTopKias <= T6A_LIMITS.vmoKias, `immelmannMinTopKias is 0 to ${T6A_LIMITS.vmoKias}`, s.immelmannMinTopKias);
@@ -390,6 +400,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0 },
   };
   readOut(ac, 1, 1, p);
+  readSlow(ac, p);
   return ac;
 }
 
@@ -407,7 +418,7 @@ export function createEnergyFight(setup = {}) {
   const state = {
     setup: s,
     timeSec: 0, carrySec: 0, merged: false, mergeSec: null, stopped: false,
-    firstNose: null, chase: null, plan: {},
+    firstNose: null, chase: null, evenFight: false, plan: {},
     blue, red,
     rangeFt: 0, ataBlueDeg: 0, ataRedDeg: 0, aaDeg: 0, headingCrossDeg: 0,
   };
@@ -1074,6 +1085,13 @@ function controlFor(ctx) {
   }
 }
 
+/** A G to one decimal, or as many as it takes to tell it from `other` ("5.50 G against 5.49 G", never "5.5 G against 5.5 G"). */
+function gText(g, other) {
+  let digits = 1;
+  while (digits < 4 && g.toFixed(digits) === other.toFixed(digits)) digits++;
+  return g.toFixed(digits);
+}
+
 /** "85.6 KIAS is below the 86 KIAS stall speed": one decimal, so a speed just under the stall speed does not read as equal to it. */
 const belowStallText = (kias, p) => `${kias.toFixed(1)} KIAS is below the ${+p.stallKias.toFixed(1)} KIAS stall speed`;
 
@@ -1114,9 +1132,11 @@ function stepAircraft(state, ac, other, d) {
   const stallLine = stallLimitG(kias, p.stallKias);
   const slow = kias < p.stallKias;
   let stallReason = '';
-  if (gWanted > stallLine + 1e-9) stallReason = `The pull needs ${gWanted.toFixed(1)} G; the stall line at ${round(kias)} KIAS gives ${stallLine.toFixed(1)} G`;
+  if (gWanted > stallLine + 1e-9) stallReason = `The pull needs ${gText(gWanted, stallLine)} G; the stall line at ${round(kias)} KIAS gives ${gText(stallLine, gWanted)} G`;
   else if (slow) stallReason = belowStallText(kias, p);
+  let stallStarts = false;
   if (stallReason && !c.stallCond && c.stallTimer <= 1e-9) {
+    stallStarts = true;
     c.stallTimer = p.stallSec;
     c.forceG = null; // the pilot eases back to the shaker afterwards
     ac.stallEver = true; ac.stallReason = stallReason;
@@ -1140,12 +1160,14 @@ function stepAircraft(state, ac, other, d) {
   ac.rollDegPerSec = radToDeg(roll.movedRad) / d;
   ac.rolling = isRolling(roll.movedRad, d);
 
-  // OVER G: above +7 G, or above +4.7 G while rolling. The jet still flies the G it pulled.
+  // OVER G: above +7 G, or above +4.7 G while rolling. The jet still flies the G it pulled. On the step a pull stalls the jet the
+  // G it pulled is judged, not the 1 G STALL then gives, so a pull past both lines shows both flags (verification F6).
+  const gPulled = stallStarts ? Math.max(g, gWanted) : g;
   ac.overG = false; ac.overGReason = '';
-  if (g > T6A_LIMITS.maxG + 1e-9) {
-    ac.overG = true; ac.overGReason = `${g.toFixed(1)} G is above +${T6A_LIMITS.maxG} G`;
-  } else if (ac.rolling && g > T6A_LIMITS.rollingMaxG + 1e-9) {
-    ac.overG = true; ac.overGReason = `${g.toFixed(1)} G while rolling is above +${T6A_LIMITS.rollingMaxG} G`;
+  if (gPulled > T6A_LIMITS.maxG + 1e-9) {
+    ac.overG = true; ac.overGReason = `${gPulled.toFixed(1)} G is above +${T6A_LIMITS.maxG} G`;
+  } else if (ac.rolling && gPulled > T6A_LIMITS.rollingMaxG + 1e-9) {
+    ac.overG = true; ac.overGReason = `${gPulled.toFixed(1)} G while rolling is above +${T6A_LIMITS.rollingMaxG} G`;
   }
   if (ac.overG) ac.overGEver = true;
 
@@ -1256,12 +1278,19 @@ function readAims(state) {
   }
 }
 
+/** Before the turns nothing is pulled, but a jet under the stall speed is stalled: STALL reads from T+0 (verification F3). */
+function readSlow(ac, p) {
+  ac.stall = ac.kias < p.stallKias;
+  if (ac.stall) { ac.stallEver = true; ac.stallReason = belowStallText(ac.kias, p); } else ac.stallReason = '';
+}
+
 /** Before the turns: both fly straight and level at constant speed. */
 function flyStraight(state, d) {
   for (const ac of [state.blue, state.red]) {
     const pm = ac.pm;
     ac.pm = { ...pm, x: pm.x + pm.vx * d, y: pm.y + pm.vy * d, z: pm.z + pm.vz * d };
     readOut(ac, 1, 1, state.setup, null, !state.dry);
+    readSlow(ac, state.setup);
   }
 }
 
@@ -1301,6 +1330,8 @@ function stepOnce(state) {
   }
   readPair(state);
   checkFirstNose(state);
+  // An even fight: both noses came on together and nobody has got behind the other (the result card says so, verification F4).
+  state.evenFight = state.firstNose?.by === 'both' && !state.chase;
   readAims(state);
 }
 

@@ -1412,7 +1412,7 @@ test('a run where this aircraft goes OVER G or STALLs loses, however soon its no
 });
 
 test('the pre-merge look-ahead leaves the state as a plain fight: no copies, no dry-run markers, before or after the merge', () => {
-  const keys = ['aaDeg', 'ataBlueDeg', 'ataRedDeg', 'blue', 'carrySec', 'chase', 'firstNose', 'headingCrossDeg', 'mergeSec', 'merged', 'plan', 'rangeFt', 'red', 'setup', 'stopped', 'timeSec'];
+  const keys = ['aaDeg', 'ataBlueDeg', 'ataRedDeg', 'blue', 'carrySec', 'chase', 'evenFight', 'firstNose', 'headingCrossDeg', 'mergeSec', 'merged', 'plan', 'rangeFt', 'red', 'setup', 'stopped', 'timeSec'];
   const s = createEnergyFight({ blueKias: 316, redKias: 316 });
   assert.deepEqual(Object.keys(s).sort(), keys);
   assert.ok(s.plan.blue.race && s.plan.red.race, 'the races ran from T+0');
@@ -1554,4 +1554,93 @@ test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive
     assert.ok(minAlt >= s.setup.hardDeckFt - 500, what);
     assert.ok(maxOver <= 2, `${what}, ${maxOver.toFixed(0)} over the NFM limit`);
   }
+});
+
+// ── Verification of #209, F3 to F8 (verification/turn-fight-energy-209.md) ──
+
+test('F3: below the stall speed STALL reads from T+0, before the pass, and not at or over it', () => {
+  const s = createEnergyFight({ blueKias: 70, redKias: 100 });
+  assert.equal(s.blue.stall, true, 'at T+0');
+  assert.equal(s.blue.stallReason, '70.0 KIAS is below the 86 KIAS stall speed');
+  assert.equal(s.blue.stallEver, true);
+  assert.equal(s.red.stall, false);
+  assert.equal(s.red.stallReason, '');
+  for (let i = 0; i < 5; i++) stepEnergyFight(s, FIGHT_STEP_SEC);
+  assert.equal(s.merged, false, 'still before the pass');
+  assert.equal(s.blue.stall, true);
+  assert.equal(s.blue.stallReason, '70.0 KIAS is below the 86 KIAS stall speed');
+  assert.equal(s.red.stall, false);
+  // The stall speed is a setting: at 60 the 70 KIAS jet is fine.
+  assert.equal(createEnergyFight({ blueKias: 70, redKias: 100, stallKias: 60 }).blue.stall, false);
+});
+
+test('F4: the result can say "even fight": evenFight is set once both noses came on together and nobody has got behind the other', () => {
+  const s = createEnergyFight();
+  assert.equal(s.evenFight, false, 'not before a nose-on');
+  const done = runUntil({}, (st) => st.stopped, FIGHT_MAX_SEC + 5);
+  assert.equal(done.firstNose.by, 'both');
+  assert.equal(done.chase, null);
+  assert.equal(done.evenFight, true, 'the default mirror fight ends even');
+  // Not even when one gets behind the other, or when a chase starts.
+  const unequal = runUntil({ redKias: 180 }, (st) => st.chase && st.timeSec > st.chase.timeSec + 5, 400);
+  assert.ok(unequal.chase);
+  assert.equal(unequal.evenFight, false);
+  // Not even with pursuit off before either is on? A first nose-on by both with no pursuit is still an even fight.
+  const noChase = runUntil({ pursuit: 'none' }, (st) => st.firstNose, 200);
+  assert.equal(noChase.evenFight, true);
+});
+
+test('F5: the stall reason never reads the same number twice ("needs 5.5 G; gives 5.5 G")', () => {
+  let seen = 0;
+  for (const kias of [190, 202, 210, 220]) {
+    for (const forceG of [4.9, 5.0, 5.4, 5.5, 5.6, 6.0, 6.5, 7.0, 7.4]) {
+      const s = createEnergyFight({ ...SOLO, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: forceG, turnsStart: 'now' });
+      for (let i = 0; i < 40; i++) {
+        stepEnergyFight(s, FIGHT_STEP_SEC);
+        const m = /needs ([\d.]+) G; the stall line at \d+ KIAS gives ([\d.]+) G/.exec(s.blue.stallReason);
+        if (m) { seen++; assert.notEqual(m[1], m[2], `${kias} KIAS, ${forceG} G: "${s.blue.stallReason}"`); }
+      }
+    }
+  }
+  assert.ok(seen > 20, `${seen} stall reasons read`);
+  // Where the two round the same at one decimal (4.9 G against a stall line of 4.88 G at 190 KIAS), a second decimal tells them apart.
+  const s2 = createEnergyFight({ ...SOLO, blueKias: 190, redKias: 190, blueMove: 'pitchBack', redMove: 'pitchBack', blueForceG: 4.9, turnsStart: 'now' });
+  for (let i = 0; i < 5; i++) stepEnergyFight(s2, FIGHT_STEP_SEC);
+  assert.match(s2.blue.stallReason, /^The pull needs 4\.90 G; the stall line at 190 KIAS gives 4\.88 G$/);
+});
+
+test('F7: the pick reason never rounds a speed onto the boundary it is compared with ("120 KIAS, below 120")', () => {
+  assert.match(pickMove(119.9, 10000).why, /^Split S: 119\.9 KIAS, below 120$/);
+  assert.match(pickMove(220.1, 10000).why, /^Immelmann: 220\.1 KIAS, above 220$/);
+  assert.match(pickMove(219.9, 10000).why, /^Pitch back: 219\.9 KIAS, SMM entry 160 to 220$/);
+  assert.match(pickMove(154.9, 10000).why, /^Slice: 154\.9 KIAS/);
+  assert.match(pickMove(119.96, 10000).why, /^Split S: 119\.96 KIAS, below 120$/);
+  // Whole speeds, and speeds that do not round onto a boundary, read as before.
+  assert.match(pickMove(120, 10000).why, /^Slice: 120 KIAS/);
+  assert.match(pickMove(119, 10000).why, /^Split S: 119 KIAS, below 120$/);
+  assert.match(pickMove(140.4, 10000).why, /^Slice: 140 KIAS/);
+  assert.match(pickMove(221, 10000).why, /^Immelmann: 221 KIAS, above 220$/);
+});
+
+test('F6: 8 G forced at 240 KIAS flags OVER G as well as STALL (the instant the pull is made)', () => {
+  const s = createEnergyFight({ ...SOLO, blueKias: 240, redKias: 240, blueMove: 'mpt', redMove: 'mpt', blueForceG: 8, turnsStart: 'now' });
+  let stallStep = null, overGAtStall = null;
+  for (let i = 0; i < 100 && stallStep === null; i++) {
+    stepEnergyFight(s, FIGHT_STEP_SEC);
+    if (s.blue.stall) { stallStep = i; overGAtStall = s.blue.overG; }
+  }
+  assert.ok(stallStep !== null, 'STALL came on');
+  assert.equal(overGAtStall, true, 'OVER G on the step the 8 G pull stalled it');
+  assert.equal(s.blue.overGEver, true);
+  assert.match(s.blue.overGReason, /8\.0 G is above \+7 G/);
+  // The turn is still lost: the G drops to 1 G while STALL is on.
+  near(s.blue.g, 1, 1e-9, 'STALL still takes the turn');
+});
+
+test('F8: the MPT speed has a range, 120 to 200 KIAS', () => {
+  assert.throws(() => createEnergyFight({ mptKias: 119 }), /mptKias is from 120 to 200 KIAS, got 119/);
+  assert.throws(() => createEnergyFight({ mptKias: 201 }), /mptKias is from 120 to 200 KIAS, got 201/);
+  assert.throws(() => createEnergyFight({ mptKias: NaN }), /mptKias/);
+  assert.doesNotThrow(() => createEnergyFight({ mptKias: 120 }));
+  assert.doesNotThrow(() => createEnergyFight({ mptKias: 200 }));
 });
