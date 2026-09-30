@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTaf } from '../../../src/wx/taf.js';
 import { arrivalWindow, homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternates.js';
+import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../../src/wx/limits.js';
 import { TAF, NOW, at } from './reports.js';
 
 const taf = (raw) => parseTaf(raw, { now: NOW });
@@ -238,4 +239,15 @@ test('D80: visual descent without a usable MEA or field elevation is incomplete,
     assert.equal(r.status, 'incomplete', JSON.stringify(visualDescent));
     assert.match(r.problems.at(-1), /MEA/);
   }
+});
+
+test('Q4: local (MTCA) 2000/3 is the default trigger; cross-country 3000/3 needs an alternate below 3000 ft', () => {
+  const { local, crossCountry } = HOME_TRIGGERS;
+  assert.deepEqual([local.ceilingFt, local.visSm], [DEFAULT_LIMITS.home.ceilingFt, DEFAULT_LIMITS.home.visSm]);
+  assert.equal(local.label, 'Local (MTCA) 2000/3');
+  assert.equal(crossCountry.label, 'Cross-country 3000/3');
+  const bkn025 = taf('TAF CYMJ 291120Z 2912/3012 27010KT P6SM BKN025');
+  assert.equal(homeAlternateTrigger(bkn025, WAVE).status, 'meets');
+  assert.equal(homeAlternateTrigger(bkn025, WAVE, local).status, 'meets');
+  assert.equal(homeAlternateTrigger(bkn025, WAVE, crossCountry).status, 'below');
 });

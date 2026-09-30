@@ -9,6 +9,16 @@ export const DEFAULT_LIMITS = Object.freeze({
   alternate: Object.freeze({ ceilingFt: 600, visSm: 2 }),
 });
 
+/**
+ * The home "alternate needed" trigger choices (Q4, D111, Gen Book p.7): an alternate is
+ * required below 3000 ft / 3 SM, or below 2000 ft / 3 SM when staying within the MTCA.
+ * Local is the default and equals DEFAULT_LIMITS.home. The SOF labels the setting from these.
+ */
+export const HOME_TRIGGERS = Object.freeze({
+  local: Object.freeze({ label: 'Local (MTCA) 2000/3', ceilingFt: 2000, visSm: 3 }),
+  crossCountry: Object.freeze({ label: 'Cross-country 3000/3', ceilingFt: 3000, visSm: 3 }),
+});
+
 // "Less than" visibility counts at or below its number; "more than" only below it.
 function belowWithQualifier(value, qualifier, limit) {
   return qualifier === 'less' ? value <= limit : value < limit;
