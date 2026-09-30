@@ -1108,25 +1108,24 @@ test('a pitch back or slice reaches the MPT before 180° of turn, at every Auto 
 // Verification of #209, F2: over 220 KIAS the pitch back (Auto picks it when the Immelmann would be over the top under 120 KIAS,
 // or loses the race; here it is forced) took 303 to 391° to reach the MPT against the spec's aim of under 180° (SMM 14.17 para 42),
 // because the handover lead was a flat 6 s. The lead now grows with the entry speed, and both aims hold together: under 180° to
-// reach the MPT, and 155 to 165 KIAS once there. Checked at 8,000 to 15,000 ft (the accurate range is up to 15,000 ft), 1 and 2 circles.
+// reach the MPT, and 155 to 165 KIAS once there. Checked at 8,000 to 15,000 ft (the accurate range is up to 15,000 ft).
 const OVER_220_ENTRIES = [221, 224, 228, 232, 236, 240, 245, 250, 256, 262, 268, 274, 280, 286, 292, 298, 304, 308, 312, 316];
 for (const altFt of [10000, 8000, 12000, 15000]) {
-  test(`a pitch back entered from 221 to 316 KIAS at ${altFt.toLocaleString('en-US')} ft reaches the MPT before 180° of turn and holds 155 to 165 KIAS once there, 1 or 2 circles`, () => {
-    for (const circles of [1, 2]) {
-      for (const kias of OVER_220_ENTRIES) {
-        let reached = false, low = Infinity, high = 0, deg = null;
-        watch({ ...SOLO, circles, blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack' }, (st) => {
-          const a = st.blue;
-          if (!reached && a.move === 'mpt' && Math.abs(a.kias - 160) <= 5) reached = true;
-          if (deg === null && a.mptReached) deg = a.toMptDeg;
-          if (reached && a.move !== 'levelMpt') { low = Math.min(low, a.kias); high = Math.max(high, a.kias); }
-          return a.move !== 'levelMpt';
-        }, 200);
-        const what = `${kias} KIAS, ${circles} circle(s)`;
-        assert.ok(reached && deg !== null, `${what}: reached the MPT`);
-        assert.ok(deg < 180, `${what}: took ${deg.toFixed(0)}° of turn to reach the MPT`);
-        assert.ok(low >= 155 && high <= 165, `${what}: held ${low.toFixed(1)} to ${high.toFixed(1)} KIAS`);
-      }
+  test(`a pitch back entered from 221 to 316 KIAS at ${altFt.toLocaleString('en-US')} ft reaches the MPT before 180° of turn and holds 155 to 165 KIAS once there`, () => {
+    // One circle is enough: with pursuit off the second circle setting only changes which way Red turns, and Blue's numbers are identical.
+    for (const kias of OVER_220_ENTRIES) {
+      let reached = false, low = Infinity, high = 0, deg = null;
+      watch({ ...SOLO, blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack' }, (st) => {
+        const a = st.blue;
+        if (!reached && a.move === 'mpt' && Math.abs(a.kias - 160) <= 5) reached = true;
+        if (deg === null && a.mptReached) deg = a.toMptDeg;
+        if (reached && a.move !== 'levelMpt') { low = Math.min(low, a.kias); high = Math.max(high, a.kias); }
+        return a.move !== 'levelMpt';
+      }, 200);
+      const what = `${kias} KIAS`;
+      assert.ok(reached && deg !== null, `${what}: reached the MPT`);
+      assert.ok(deg < 180, `${what}: took ${deg.toFixed(0)}° of turn to reach the MPT`);
+      assert.ok(low >= 155 && high <= 165, `${what}: held ${low.toFixed(1)} to ${high.toFixed(1)} KIAS`);
     }
   });
 }
