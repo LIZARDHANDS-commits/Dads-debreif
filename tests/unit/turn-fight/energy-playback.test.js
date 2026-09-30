@@ -103,17 +103,38 @@ test('quick steps are not held back: a whole frame at 4× (16 steps) runs, and n
   assert.ok(Math.abs(run.engine.timeSec - 0.32) < 1e-9);
 });
 
-test('a real pick is slow and a real step is not: the 250 KIAS fight\'s picks show up as slow frames only where the engine really looks ahead', () => {
-  // Above 220 KIAS the pick races the Immelmann against the pitch back. Fly one and time each step with the real clock.
-  const engine = createEnergyFight({ ...ENERGY_DEFAULT_SETUP, blueKias: 250, redKias: 250, ataDeg: 150, aaDeg: 150, turnsStart: 'now', separationNm: 1 });
-  let worst = 0;
-  let ordinary = 0;
-  for (let i = 0; i < 20 / FIGHT_STEP_SEC; i++) {
-    const t0 = performance.now();
-    stepEnergyFight(engine, FIGHT_STEP_SEC);
-    const ms = performance.now() - t0;
-    worst = Math.max(worst, ms);
-    if (ms < SLOW_STEP_MS) ordinary++;
+test('the frames that hold a move pick are the slow ones, and only they: a fight at 250 KIAS, timed by a clock that charges a step for the pick it makes', () => {
+  // The clock is injected, never the real one: a step is charged SLOW_STEP_MS + 30 when it changed either aircraft's move
+  // or its words (which is what a pick does), and 1 ms otherwise. Same result on any computer.
+  const run = createEnergyRun({ blueKias: 250, redKias: 250 });
+  const signature = () => `${run.engine.blue.move}|${run.engine.red.move}|${run.engine.blue.why}|${run.engine.red.why}`;
+  let t = 0;
+  let calls = 0;
+  let before = '';
+  let picks = 0;
+  let steps = 0;
+  const now = () => {
+    if (calls++ % 2 === 0) {
+      before = signature();
+      return t;
+    }
+    steps += 1;
+    if (signature() !== before) {
+      picks += 1;
+      return (t += SLOW_STEP_MS + 30);
+    }
+    return (t += 1);
+  };
+  let asked = 0;
+  for (let i = 0; i < 40 / 0.08; i++) {
+    advanceRun(run, 0.08, { now });
+    asked += 0.08;
   }
-  assert.ok(ordinary > 0.95 * (20 / FIGHT_STEP_SEC), `ordinary steps: ${ordinary}, the slowest step took ${worst.toFixed(1)} ms`);
+  assert.ok(picks >= 2, `the fight made picks: ${picks}`); // Immelmann to slice near T+26, and on to the MPT near T+34
+  assert.equal(run.slowFrames, picks, 'one slow frame for each pick, no more');
+  assert.equal(run.pendingSec, 0);
+  // A frame that met a pick stopped after it, so the fight is a few steps short of the time asked, and no more than 3 per pick.
+  assert.ok(run.engine.timeSec < asked - 1e-9, `${run.engine.timeSec} of ${asked}`);
+  assert.ok(asked - run.engine.timeSec <= picks * 3 * FIGHT_STEP_SEC + 0.08 + 1e-9, `${asked - run.engine.timeSec} s dropped for ${picks} picks`);
+  assert.equal(steps, Math.round(run.engine.timeSec / FIGHT_STEP_SEC), 'every step was timed');
 });
