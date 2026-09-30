@@ -28,10 +28,10 @@
   - Acceptance: videos total 3 MB or less; none loads until its card is on screen; none plays with reduced motion.
   - Verify: size check in the build; e2e test for lazy loading and reduced motion.
   - Files: public/media/cards/*, src/shell/home.js, tools/check-size.mjs
-- [ ] **8. Offline.** manifest, icons, service worker generated at build, new-version bar.
+- [x] **8. Offline.** manifest, icons, service worker generated at build, new-version bar.
   - Acceptance: after one visit the app reloads offline; a new build shows the bar.
   - Verify: e2e offline test.
-  - Files: public/manifest.webmanifest, public/icons/*, vite.config.js, src/shell/update-bar.js, tests/e2e/offline.spec.js
+  - Files: public/manifest.webmanifest, public/icons/*, vite.config.js, src/shell/update-bar.js, src/shell/sw.js, tools/service-worker.mjs, tools/make_icons.mjs, tests/e2e/offline.spec.js
 - [ ] **9. Clock.** header time from core/time.js, following the Zulu/local setting. Waits on the flight-math workstream.
   - Acceptance: shows Zulu and America/Regina local in the chosen order; ticks once a second; pauses while hidden.
   - Verify: unit test of the formatting glue; e2e with a fixed clock.

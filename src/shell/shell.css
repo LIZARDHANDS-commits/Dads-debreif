@@ -334,3 +334,19 @@ a.card:hover {
   color: var(--text-faint);
   font-size: var(--text-sm);
 }
+
+/* New-version bar */
+.update-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  border-bottom: 1px solid var(--accent);
+  background: var(--bg-raised);
+}
+
+.update-bar[hidden] {
+  display: none;
+}

@@ -8,6 +8,10 @@ The home screen and the frame around every module (spec: `specs/SPEC-shell.md`).
 - `home.js`, `about.js`: the home screen and About page. **To change About's text,** edit `about.js`.
 - `settings-dialog.js`: the Settings dialog. Shared settings and their defaults are in `src/app.js`.
 - `report.js`: the Report a problem link; the form itself is `.github/ISSUE_TEMPLATE/problem.yml`.
+- `update-bar.js`: registers the service worker and shows the "A new version is ready" bar.
+- `sw.js`: the service worker, which keeps a copy of the app for offline use. `npm run build` fills in its file list (`tools/service-worker.mjs`); `npm run dev` never uses it. To check offline mode, run `npm run build && npm run preview`.
 - `shell.css`: layout for all of the above.
 
 Card videos and stills live in `public/media/cards/` and are made from V6's originals by `python3 tools/make_card_media.py`.
+
+The app icons in `public/icons/` are drawn by `node tools/make_icons.mjs`; `public/manifest.webmanifest` names them for installing.

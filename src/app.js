@@ -8,6 +8,7 @@ import { parseRoute } from './shell/router.js';
 import { MODULES, moduleIds, findModule, isBuilt } from './shell/registry.js';
 import { reportUrl } from './shell/report.js';
 import { createSettingsDialog } from './shell/settings-dialog.js';
+import { createUpdateBar, watchForUpdates } from './shell/update-bar.js';
 import home from './shell/home.js';
 import about from './shell/about.js';
 
@@ -75,6 +76,19 @@ $('app-version').textContent = version;
 
 window.addEventListener('hashchange', () => show(location.hash));
 show(location.hash);
+
+// Offline copy and the new-version bar, in built copies only: `npm run dev`
+// always serves the latest files, and a service worker would get in the way.
+if (import.meta.env?.PROD) {
+  const updateBar = createUpdateBar();
+  document.querySelector('.app-header').after(updateBar.element);
+  watchForUpdates({
+    container: navigator.serviceWorker,
+    timers: scheduler.scope('updates'),
+    onUpdate: (apply) => updateBar.show(apply),
+    reload: () => location.reload(),
+  });
+}
 
 // Read-only view for the browser tests (R4): what's mounted and still running.
 window.__ooda = Object.freeze({

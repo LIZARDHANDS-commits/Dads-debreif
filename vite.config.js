@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+import { serviceWorker } from './tools/service-worker.mjs';
 
 // The version shown in the footer and sent with bug reports: build date plus commit.
 function appVersion() {
@@ -27,7 +28,7 @@ function versionMeta() {
 
 export default defineConfig({
   base: './', // relative paths, so the site works under /Dads-debreif/ on GitHub Pages
-  plugins: [versionMeta()],
+  plugins: [versionMeta(), serviceWorker()],
   optimizeDeps: { entries: ['index.html'] }, // don't scan original/shell.html
   build: {
     outDir: 'dist',
