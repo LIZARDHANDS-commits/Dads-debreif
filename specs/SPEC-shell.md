@@ -23,7 +23,7 @@ The browser's Back and Forward buttons move between these. After a page change, 
 
 **Browsers:** current Chrome, Edge and Firefox, and Safari 15.4 or newer (the Settings dialog and `Object.hasOwn` need it). Nothing to install (R1).
 
-**Home screen:** the title "DAD's OODA LOOP" (D27), then one card per module in `src/shell/registry.js`, in build order: Debrief, Formation Turn Sim, Turn Fight, Traffic Pattern Sim, SOF Dashboard, then About. A module that isn't built yet shows as a plain card marked "Coming soon". It isn't a button and can't be clicked (R3). PT-PT Sim and the Briefing Board don't appear (R19).
+**Home screen:** the title "DAD's OODA LOOP" (D27), then one card per module in `src/shell/registry.js`, in build order: Debrief, Formation Turn Sim, Turn Fight, Traffic Pattern Sim, SOF Dashboard, then About. A module that isn't built yet shows as a plain card marked "Coming soon". It isn't a button and can't be clicked (R3). A module hooked in before the combined sign-off opens as usual and its card carries a PROTOTYPE badge (D135); the flag comes off at sign-off. PT-PT Sim and the Briefing Board don't appear (R19).
 
 **Card videos:** each module's card plays its V6 loop, re-encoded silent at 640 px (D9, R15; about 1 MB for all five, made by `tools/make_card_media.py`). A card shows a still until its video is needed. A video loads only when its card is on screen, plays only while visible, and doesn't play at all when the user or the system asks for reduced motion (#41).
 
@@ -54,7 +54,7 @@ export default {
 };
 ```
 
-The registry lists each module's id, title, card text, card media and a `load()` that dynamically imports its `index.js`, so a module's code downloads only when it opens (R5).
+The registry lists each module's id, title, card text, card media and a `load()` that dynamically imports its `index.js`, so a module's code downloads only when it opens (R5). It also carries `prototype: true` for every module except Debrief, which puts the PROTOTYPE badge on the card once the module is hooked in; the flag is removed at the combined sign-off (D135).
 
 `app` handed to a module:
 
@@ -109,17 +109,20 @@ Unit (`tests/unit/shell/`, Node):
 
 - Router: every route in the table, including unknown ones.
 - Registry: ids are unique kebab-case and match the approved map; no PT-PT or Briefing Board (R19).
+- Home cards: `cardBadge` gives "Coming soon" until a module is hooked in, then "PROTOTYPE" while its registry entry has `prototype: true` (D135), then nothing; only turn-sim, turn-fight, traffic and sof carry the flag.
 - Host, with a fake module that starts frames, timers, listeners, shortcuts and a settings subscription: after unmount, all are gone and `scheduler.stats()` is zero (R4). A module whose `mount` throws leaves the host usable.
 
 Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
 
 - Smoke (R1): home, About, Settings and every route open in Chromium, Firefox and WebKit.
+- Accessibility (D142): axe checks for WCAG 2.0 A and AA on home, About, the Settings dialog and the Debrief Viewer (empty, and with the example flight); each module route is added as it is hooked into the registry. Known problems in another thread's files are excluded by selector with a `TODO(owner)` comment, never by turning a rule off.
 - Overlap scan (R2): at 1366 × 768 and 1920 × 1080, no visible control overlaps another or is cut off, on every route.
 - Click-through (R3): every visible button and link on every route does something: the route changes, a dialog opens, or the page changes. External links are checked by address instead of being opened.
 - Module switching (R4): after visiting every route and coming back home, no module frames, timers or listeners remain.
 - Storage blocked: the app opens and says settings won't be saved.
 - Offline (R6): after one visit, with the network off, a reload shows the home screen and About. A new build shows the new-version bar, and Reload switches to it and removes the old copy.
 - Size (R5): the build fails if the home screen needs more than 3 MB, or card videos total more than 3 MB (R15).
+- Screenshots (D142, `tests/e2e/visual.spec.js`): Chromium only, on Linux, at 1440 x 900, to catch a change that moves or covers something by accident. Covers home, About, the Settings dialog, and the Debrief Viewer empty and with the example flight. The clock is frozen at noon Zulu, card videos stay still pictures (reduced motion), other sites are answered with an empty reply (satellite tiles with a plain square), fonts are pinned to Liberation Sans and Mono, and the footer's "Updated" line is masked. A picture may differ by up to 1% of its pixels (`playwright.config.js`). References are in `tests/e2e/__screenshots__/visual.spec.js/`; change them with `npx playwright test tests/e2e/visual.spec.js --update-snapshots=all` (plain `--update-snapshots` rewrites only pictures that fail, so a small change within the 1% would keep an old picture) only in a PR that means to change the look, and look at the new pictures before committing. A module adds its own screen to this file when it is hooked in.
 
 ## Sign-off checklist (R21)
 

@@ -36,7 +36,7 @@ V6 does all this in its Traffic Pattern Sim, "Moose Jaw Traffic Sim V37", a sepa
 
 ## Tech stack
 
-Plain JavaScript ES modules, no framework and no new packages (SPEC.md). Drawing is Canvas 2D through ui-kit's `createCanvasView` (2D map, pan and zoom) and `createCanvasSurface` (3D view). Tests use Node's `node:test` and the Playwright set-up the app frame already has.
+Plain JavaScript ES modules, no framework and no new packages (SPEC.md). Drawing is Canvas 2D through ui-kit's `createCanvasView` (2D map, pan and zoom); the 3D view uses the shared three.js T-6 and camera in `src/ui-kit/three-aircraft.js` (Patrick approved three.js for every 3D aircraft view; the app frame adds the package), loaded only when 3D is switched on. Tests use Node's `node:test` and the Playwright set-up the app frame already has.
 
 ## Commands
 
@@ -88,8 +88,8 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 │ + Point  Delete point        ││                                                                              ││ Conflicts                      │
 │ ◆ Decision at P6: Stay 25 %, ││                                                                              ││ ⚠ CONFLICT A2/A5 180 ft lat,   │
 │   Split 1 25 %, Split 4 50 % ││                                                                              ││   120 ft vert                  │
-│ ▸ Leg distances              ││                                                                              ││ ▸ Conflict limits              │
-│ ▸ Route options              ││                                                                              ││                                │
+│ ▸ Leg distances              ││                                                                              ││ ▸ Traffic settings             │
+│                              ││                                                                              ││                                │
 │ ▸ Profiles and notes         ││ Simplified: aircraft fly their routes at set speeds, no avoiding action.     ││                                │
 └──────────────────────────────┘└──────────────────────────────────────────────────────────────────────────────┘└────────────────────────────────┘
 ```
@@ -102,8 +102,9 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 | **Spawner:** aircraft type, route, start point (numbered from 1, as everywhere else), delay from now (s), plan (Random, which follows the shares, or a plan picked from the list, see T1), + Spawn, + Pair (15 s apart, same route), Clear finished | **Edit** on an aircraft row: type, route, start time, plan, delete; **Plans** (under More): make or change a plan, a list of what the aircraft does at each decision point it meets, in order ("2 circuits, then Split 4 to the inner circuit, then land"); **More detail**: each aircraft's leg number, and with a wind set its true airspeed, heading, track, headwind or tailwind, crosswind, and the bank and G it's pulling now; **Aircraft types**: the type table (indicated airspeeds by phase, with where each number came from), read-only |
 | **Aircraft list:** callsign, type, route, altitude, airspeed, and Flying, Waiting (starts at 2:17), Landed or Done; a **Command** menu on each row (see How you set up and control the traffic) | **Conflict limits:** red lateral and vertical distances (200 ft, 200 ft), yellow caution lateral and vertical distances (500 ft, 500 ft) (T4); final spacing and the chance of missing traffic (T11); the **Rules** list, a checkbox each, on by default |
 | **Conflicts:** each pair in conflict (red, "⚠ CONFLICT") or caution (yellow, "△ CAUTION") with its lateral and vertical distance, or "No conflicts." | **Profiles and notes:** profile name, saved profiles (the built-in ones listed first, read-only), Save, Load, Delete, and the notes box |
-| The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch): drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
+| The 2D map: grid, routes (patterns solid, entries dashed, splits dotted), route points of the selected route, aircraft with callsign and height/speed labels, bubbles. With a wind set, each aircraft's row also shows its ground speed and crab angle ("GS 94 kt, crab 7° L"), and its symbol points along its heading, so the crab shows on the map | **3D view** (the 2D or 3D switch; 2D is the default): the routes as lines at their heights, the aircraft as 3D models (the shared T-6 for the CT-156 and CT-157, a simple shape for the other types until they have their own), banking with their turns; drag to turn and tilt, wheel to zoom, and three camera buttons (Fit, High look-down, Low chase) |
 
+- **One settings menu (Patrick, 2026-09-30 07:20Z; SPEC-ui-kit "Settings menu (R22)").** Every setting in the right-hand column of the table above that is a number or a switch (Route options, Conflict limits with final spacing and the chance of missing traffic, the Rules checkboxes, and the photo's opacity, grid order and alignment) lives in one closed **Traffic settings** menu at the foot of the right column, in sections, with Reset to defaults (photo alignment resets to the setup's own). "More …" panels hold only extra readouts (leg distances, More detail). This replaces the separate Route options and Conflict limits panels and the photo options under Layers → More.
 - **Colour is never the only signal.** Conflict lines start with ⚠ CONFLICT or △ CAUTION; routes are also told apart by line style and their name labels; aircraft carry their callsign.
 - **Settings are remembered** with the profile (`app.storage`, scope `traffic`), and the last profile used opens next time. Loading the built-in profile puts back V6's setup.
 - **Keyboard** (through `app.keys`, only while the Traffic Sim is open and never while typing): Space plays or pauses, Home resets, `[` and `]` step back and forward 10 s. On the map (ui-kit `canvas-view.js`): arrow keys pan, + and − zoom. Tab moves between controls as normal, and the point table keeps focus while you type through it (#49).
@@ -291,7 +292,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **The overhead break (SMM 4.17, 4.18).**
 - A pattern point can be marked **Break**. The aircraft flies initial at Pattern speed and height, then at the break point rolls into a level 180° turn at 60° of bank and 2 G with the power at idle, and rolls out on downwind.
-- The speed bleeds off evenly with distance from 220 KIAS at the break to the Inner downwind speed (120 for the CT-156) at a downwind point, by default abeam the threshold (T10 asks Dad how fast a Harvard really slows at idle, to check this).
+- The speed bleeds off evenly with distance from 220 KIAS at the break to the Inner downwind speed (120 for the CT-156) at a downwind point, by default abeam the threshold (T10: kept as the default, a setting Dad can change at sign-off).
 - Because the speed falls through the turn, the break isn't a circle: at a steady 60° the radius shrinks with the speed (2,744 ft at 220 KIAS, 1,276 ft at 150, at 3,500 ft). The sim flies it in 0.05 s steps, and downwind is wherever the break puts it. The map and Leg distances show the downwind spacing from the runway (for example "Downwind 3,900 ft from the centreline").
 - **Wind.** The break point is 2,000 ft past the threshold with a 10 kt headwind on initial, later with more headwind and earlier with less (SMM 4.17 para 39, 4.18 para 42). The manual gives no number per knot, so the sim moves the break point to keep the time from roll-out to the perch the same as with a 10 kt headwind, which is what the rule is for; the readout says so. The bank isn't changed for a crosswind; the aircraft crabs once it's on downwind (SMM 4.18).
 
@@ -314,7 +315,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
-- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 1,100 ft. The zoom's numbers are `core`'s `zoomT6A` (SPEC-core, T-6A performance, from NFM Fig 3-4), shared with the other modules; Dad confirms them for the CT-156 (T10).
+- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 960 ft by the time it's back at 125 KIAS. The gain is `core`'s `zoomT6A(kias, altFt, weightLb)` (SPEC-core, T-6A performance): the flight manual's zoom table (NFM Fig 3-4), which measures the height gained after the push to 125 KIAS, at the default 5,800 lb; at 150 KIAS or less there's no zoom, as the manual says. It's shared with the other modules; they stay as they are for the CT-156 (T10, closed on the default).
 - It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered, or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling (`core`'s `T6A_GLIDE`, from the T-6A max glide chart), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
@@ -325,7 +326,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
 | Clean turn while gliding | about 1,700 ft per 360° at 30° of bank, 125 KIAS | SMM 13.5 para 11 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
-| Zoom | `core`'s `zoomT6A` (SPEC-core, T-6A performance) | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
+| Zoom | `core`'s `zoomT6A` (SPEC-core, T-6A performance) | NFM Fig 3-4, p.3-12 (T10, kept) |
 | Airstart attempt | costs about 1,200 ft; not below 2,000 ft above the field | NFM Fig 3-5 notes, p.3-13; SMM 13.17 para 36 |
 
 Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
@@ -376,7 +377,7 @@ The triggers all use the same prediction: where each aircraft will be a few seco
 - It works it out the way the SMM flies it (13.5, 13.13, 13.17): the zoom straight ahead (`core`'s `zoomT6A`), easing into the 125 KIAS glide; then a turn towards the key at 30° of bank, which costs height (about 1,700 ft per full circle clean at 125 KIAS, SMM 13.5 para 11); then the glide at about 2 NM per 1,000 ft through the air (`T6A_GLIDE`), stretched or shrunk by the wind; joining the key's circle at a tangent.
 - An **airstart attempt** option subtracts about 1,200 ft first (NFM), and is refused below 2,000 ft above the field (SMM 13.17 para 36), so an instructor can show what trying a restart costs.
 - The answer is each key with the height the aircraft would reach it at and the margin against the key's height, then the verdict: "Makes the runway via Low Key, 150 ft high" or "Can't make any key: eject". The zoom, the turn and the glide are drawn on the map.
-- Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,600 ft, and turning back towards the runway costs about 850 ft, so it's around 3,750 ft heading for Low Key (about 3,700 ft) before the glide, which is why the pattern is flown at 220: from most places the runway is still in reach (SMM 4.14 para 32). How far Low Key is and the wind decide the rest.
+- Example: engine out on downwind at 3,500 ft and 220 KIAS. The zoom takes it to about 4,460 ft (`zoomT6A`: about 960 ft at 5,800 lb), and turning back towards the runway costs about 850 ft, so it's around 3,600 ft heading for the keys, a little under Low Key's 3,700 ft before the glide. The speed of the pattern is what buys that height (SMM 4.14 para 32); how far the keys are and the wind decide whether it makes Low Key, Final Key or only the runway.
 - **Engine-out reach** (a Layers option, off by default): each route is coloured by what an engine-out there would reach, for the chosen type in today's wind: solid green where it makes a key with more than 200 ft to spare, yellow where it's closer than that, and red dashed where it can't, with "No key from here" written on the red stretches. It checks a point every 500 ft along the route with the same calculation.
 - The check and the Engine out command use the same functions, so what the check says is what the aircraft then does.
 
@@ -482,14 +483,19 @@ With the wind at 0 kt, `windTriangle` returns the airspeed as the ground speed a
 
 Two more pieces come from other threads, through the coordinator:
 
-- **The satellite tile loader.** The debrief builds one (SPEC-debrief, `tiles.js`: tile limits, retries, Esri credit). Modules never import each other (SPEC.md), so it moves to `ui-kit` before this module's satellite task, through the app frame thread.
-- **The `#/traffic` entry** in `src/shell/registry.js` and `tests/e2e/traffic.spec.js`, through the app frame thread.
+- **The satellite tile loader** is on main in `ui-kit` (#133): `import { createTileLayer, ESRI_IMAGERY, tilesFor } from '../../ui-kit/map-tiles.js'` (tile limits, retries, Esri credit; SPEC-ui-kit).
+- **The 3D view (Patrick, 2026-09-30 07:51Z: "can we just do them all in 3d/2d switch on and off now?").** Every simulator gets a 2D/3D switch. The Traffic 3D view (task 8) uses the shared T-6 and camera from `src/ui-kit/three-aircraft.js`, which the app frame is building; the other types get a simple shape until they have their own models. 2D stays the default, three.js loads only when 3D is switched on, and the engine doesn't change: the 3D view draws the same state as the 2D map.
+- **The `#/traffic` entry** in `src/shell/registry.js`, with `prototype: true` until the combined sign-off (#132), and `tests/e2e/traffic.spec.js`, through the app frame thread.
 
 ## Project structure
 
 ```
 src/modules/traffic/
   index.js         mount and unmount; wires settings, scheduler, keys, storage
+  defaults.js      every setting's starting value and number-box limits (the Defaults table)
+  layout.js        the three columns, the routes list and + New route
+  playback-bar.js  the bar above the map: playback, View 2D|3D, Layers, Fit, wind
+  settings-panel.js  fills ui-kit's shared settings menu (Traffic settings)
   route.js         route geometry: rounded turns, arcs, joined paths, point lookup (pure)
   sim.js           the flying: spawn, step, land, split, join, conflicts, snapshots (pure)
   dice.js          the seeded dice (pure)
@@ -500,10 +506,9 @@ src/modules/traffic/
   conflict-setup.js  finds start points and delays so two aircraft meet (pure)
   readouts.js      aircraft rows, conflict lines, leg distances as text (pure)
   map2d.js         the 2D map on a ui-kit canvas view
-  view3d.js        the 3D view on a ui-kit canvas surface
+  view3d.js        the 3D view on ui-kit's three-aircraft.js (loaded only when 3D is on)
   editor.js        the left column: routes list, selected route, point table
   aircraft.js      the right column: spawner, aircraft list, conflicts
-  layout.js        the columns, playback bar, Layers menu
   traffic.css
   data/moose-jaw.json   V6's built-in setup
   README.md        what's here and where to change common things (R8)
@@ -542,6 +547,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 3. **Unit tests** check meaning: a 90° turn at 120 kt and 2 G has a 736 ft radius; a turn that doesn't fit is flagged with the G it needs; rewinding to any time gives exactly the state the run had then, at 0.25× and 8×; the same seed gives the same run; over 20,000 crossings each choice at a decision point is taken at its share, and an aircraft with a plan follows it exactly; no aircraft moves more than one step's distance at a split or join; inserting a point keeps every link on the same point; a corrupt or oversized profile is refused with a message; with a wind, an aircraft on each leg of a square pattern has the crab and ground speed `windTriangle` gives, stays on its route, and takes longer into the wind; each steady-bank turn rolls out exactly on its next leg in any wind, at a constant bank, and in calm air is D46's arc; the downwind-to-base example above rolls in 3,127 ft before the corner; a point set to Landing flies each type's Landing speed, converted to true airspeed at its height; the straight-in flies 140 on base, 120 in its 45° turns and 100 at the threshold for a CT-156.
 4. **Browser tests** (Playwright, via the app frame): define a pattern, add an entry, spawn aircraft on it and see them fly and join (Patrick's left-define, right-spawn test); every control does something (R3); nothing overlaps at 1366 × 768 and 1920 × 1080 (R2); closing the module leaves no frames or timers running (R4); no console errors (R7); the satellite layer with the network off shows its message.
 5. **Sign-off checklist** (R21), run by Patrick or Dad against V6 side by side.
+6. **Cross-check against the manuals** (Patrick, 2026-09-30 07:35Z; task 24). Once the engine and core's T-6A model are merged, set scenarios fly the sim: the spacing on final, the break timing and the PFL key heights. The results are compared with the manuals' numbers (page references only) in a report. The test reports and never changes a number; differences go to Patrick and Dad, and nothing in the math changes without their sign-off.
 
 ## Performance
 
@@ -594,20 +600,12 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T8. The references for the redraw.** Which ground reference each point of the Moose Jaw pattern flies over (for example "downwind over the highway"), from Patrick and Dad. Default: V6's routes and 1.2 trim until they redraw them (see The built-in setup). Recommendation: send the list whenever it's handy; the redraw itself happens on screen once task 8 is built.
 
-**T11 (Q75). Spacing on final, and how often someone misses traffic.** How much room does a pilot want ahead on final before turning in (default: at least 3,000 ft to the aircraft ahead at roll-out), and how often should a Random aircraft miss the traffic and turn anyway (default 10 %)? Recommendation: Patrick or Dad gives a number for each; they're one setting each under Conflict limits.
-
-**For Dad (his flying knowledge)**
-
-**T6b. Turns set at 1 G, and turns too tight for their legs.** Points 11 to 13 of the built-in Pattern 1 are set at 1 G, which in a level turn means no bank at all, and point 10's legs are too short for its 2 G turn (it needs 2.3 G). Default: fly them as V6 does, tightened where they don't fit and flagged. Recommendation: set every pattern turn to 60°, 2 G (Patrick's rule) when the routes are redrawn, and move any point whose turn still doesn't fit.
-
-**T5b. Tutor and Astra numbers.** The CT-114 has no published circuit speeds, and the Astra's Entry speed is V6's own number. Default: the type table as it stands (Patrick: "looks about right"). Recommendation: Dad corrects any number he knows better; each is one row of data.
-
-**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and is the T-6A flight manual's zoom right for the CT-156 (2 s to react, 20° nose up until 145 KIAS, about 70 % of the speed-for-height trade, so about 1,100 ft from 220 KIAS; NFM Fig 3-4)? The engine-out check depends on the zoom. Recommendation: Dad gives a number for each, or they stay as placeholders.
-
 ## Answered questions
 
 Patrick, 2026-09-30 at 04:36Z. Each answer lands as its own logged change after V6 is pinned (D10).
 
+- **T11 (Q75). Spacing on final, and how often someone misses traffic** (Patrick, 07:20Z, "agreed to both"): at least 3,000 ft to the aircraft ahead at roll-out, and a 10 % chance a Random aircraft misses the traffic and turns anyway. Both are settings.
+- **T5b (Q76), T6b (Q77) and T10 (Q74), the questions for Dad** (Patrick, 07:21Z, "Keep those. go"): closed on the current defaults, with no email to Dad. The Tutor and Astra rows stay as the type table has them; the 1 G and too-tight turns of the built-in Pattern 1 fly as V6 does, tightened where they don't fit and flagged, until the redraw (T8) sets pattern turns to 60°, 2 G; the break slows evenly from 220 KIAS to the Inner downwind speed abeam the threshold; the zoom is `core`'s `zoomT6A` (NFM Fig 3-4). Each stays a setting, so Dad can change any of them at the final sign-off.
 - **T2. Home field not Moose Jaw:** a satellite photo and a runway-number box for now; automatic later, with runway data (FF20). See The built-in setup.
 - **T3. Aircraft types:** V6's four: CT-156, CT-157, CT-102 (the new Astra II) and CT-114.
 - **T4. Conflict limits:** 200 ft lateral and 200 ft vertical for a conflict, 500 ft and 500 ft for caution, for now. The Moose Jaw pattern can hold 10 to 12 aircraft at different speeds and heights, which is what the sim is for. ("Dad's own numbers" meant: V6's boxes start at 1,500 ft / 500 ft but its Moose Jaw setup opens at 200 ft / 200 ft, so it wasn't clear which Dad meant to count as too close.)

@@ -9,7 +9,7 @@ import {
 } from './layers.js';
 import { ROUTES } from '../data/routes.js';
 import { projectRoute, routeBounds, drawRoute } from './overlays.js';
-import { createTileLayer, ESRI_IMAGERY } from './tiles.js';
+import { createTileLayer, ESRI_IMAGERY } from '../../../ui-kit/map-tiles.js';
 import { createVncLayer, chartsBounds, VNC_CHOICES } from './vnc.js';
 import { makeLocalRef, latLonToLocalFt, localFtToLatLon } from '../../../core/geo.js';
 import { VNC_ANCHOR } from '../data/cymj.js';
@@ -30,8 +30,18 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
  * ready, failed }, or null when it's off. onCharts(state): the same for the
  * VNC charts ({ wanted, ready, failed }), or null when they're off.
  * tennis(): the tennis-ball solution to draw (tennis.js), or null.
+ * weather(): a weather picture to lay over the base map, { source, opacityPct }
+ * (source as the ui-kit tile layer takes it, with a `key` naming its frame),
+ * or null. onWeather(state): after each draw, its tiles' { wanted, ready,
+ * failed }, or null when there's none.
  */
-export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {}, onCharts = () => {}, tennis = () => null }) {
+export function createMapView(canvas, {
+  timers, time, layers, dfps = () => [], tennis = () => null, weather = () => null,
+  labels = /** @type {(flight: any, t: number) => Record<number, { text: string, tone: string }>} */ (() => ({})),
+  onImagery = /** @type {(state: any) => void} */ (() => {}),
+  onCharts = /** @type {(state: any) => void} */ (() => {}),
+  onWeather = /** @type {(state: any) => void} */ (() => {}),
+}) {
   let flight = null;
   let paths = [];
   let needsFit = false; // a flight arrived while the map was hidden (3D showing)
@@ -51,29 +61,60 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
 
   const imagery = createTileLayer({ source: ESRI_IMAGERY, timers, onChange: () => map.requestDraw() });
 
-  function drawImagery(ctx) {
+  // Where the view is, for a tile layer: its corners in degrees, its scale, and lat/lon to screen.
+  function tileView() {
     const ref = mapRef();
     const { minX, minY, maxX, maxY } = map.visibleBounds();
     const cornersLl = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]].map(([x, y]) => localFtToLatLon(ref, x, y));
-    const corners = {
-      north: Math.max(...cornersLl.map((c) => c.lat)),
-      south: Math.min(...cornersLl.map((c) => c.lat)),
-      west: Math.min(...cornersLl.map((c) => c.lon)),
-      east: Math.max(...cornersLl.map((c) => c.lon)),
-    };
-    const { width, height } = map.size;
-    ctx.fillStyle = SATELLITE_BACKGROUND;
-    ctx.fillRect(0, 0, width, height);
-    imagery.draw(ctx, {
-      corners,
+    return {
+      corners: {
+        north: Math.max(...cornersLl.map((c) => c.lat)),
+        south: Math.min(...cornersLl.map((c) => c.lat)),
+        west: Math.min(...cornersLl.map((c) => c.lon)),
+        east: Math.max(...cornersLl.map((c) => c.lon)),
+      },
       pxPerFt: map.view.scale,
       toScreen: (lat, lon) => {
         const { x, y } = latLonToLocalFt(ref, lat, lon);
         return map.worldToScreen(x, y);
       },
-    });
+    };
+  }
+
+  function drawImagery(ctx) {
+    const { width, height } = map.size;
+    ctx.fillStyle = SATELLITE_BACKGROUND;
+    ctx.fillRect(0, 0, width, height);
+    imagery.draw(ctx, tileView());
     ctx.fillStyle = SATELLITE_DARKEN;
     ctx.fillRect(0, 0, width, height);
+  }
+
+  // Weather pictures, one tile layer per frame; the few most recent are kept
+  // so scrubbing back and forth doesn't fetch them again.
+  const WEATHER_FRAMES_KEPT = 6;
+  const weatherLayers = new Map(); // source key → tile layer
+  function weatherLayer(source) {
+    let layer = weatherLayers.get(source.key);
+    if (layer) weatherLayers.delete(source.key);
+    else layer = createTileLayer({ source, timers, onChange: () => map.requestDraw() });
+    weatherLayers.set(source.key, layer);
+    while (weatherLayers.size > WEATHER_FRAMES_KEPT) {
+      const [oldest, gone] = weatherLayers.entries().next().value;
+      gone.dispose();
+      weatherLayers.delete(oldest);
+    }
+    return layer;
+  }
+  function drawWeather(ctx) {
+    const wanted = weather();
+    if (!wanted) return null;
+    const layer = weatherLayer(wanted.source);
+    ctx.save();
+    ctx.globalAlpha = wanted.opacityPct / 100;
+    layer.draw(ctx, tileView());
+    ctx.restore();
+    return layer.state();
   }
 
   const map = createCanvasView(canvas, {
@@ -110,6 +151,7 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
       onImagery(on.satellite ? imagery.state() : null);
       if (chartKeys.length) charts.draw(ctx, { keys: chartKeys, map, ref: mapRef(), align: chartAlign(on), opacityPct: on.vncOpacity });
       onCharts(chartKeys.length ? charts.state() : null);
+      onWeather(drawWeather(ctx));
       if (route) drawRoute(ctx, map, route, on.routeOpacity);
       if (on.grid) drawGrid(ctx, map);
       if (!flight) return;
@@ -151,6 +193,8 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
     },
     dispose() {
       imagery.dispose();
+      for (const layer of weatherLayers.values()) layer.dispose();
+      weatherLayers.clear();
       charts.dispose();
       map.dispose();
     },

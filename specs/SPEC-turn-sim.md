@@ -63,6 +63,8 @@ It follows Patrick's rule (2026-09-30, R22): essentials by default, and everythi
 | | **Exercises** (collapsed): G-warm (SMM additions, item 7) |
 | | **Profiles:** named profiles, save and load the startup default, delete, factory reset; and Export CSV |
 
+- **Every setting starts filled in with its default** (Patrick, 07:13Z). No box starts blank or needs typing before Play: open the Turn Sim and press Play, and a 4312 delayed 90 flies at the defaults. The same holds for every More setup, Aircraft errors, rear-check and Exercises field, and for anything added later. `settings.js` holds each default in one place, next to its SMM or V6 source, and every panel has a "Reset to defaults" that puts its own fields back.
+- **Friendly, not overwhelming** (Patrick, 07:13Z; R22): plain words on every label, units shown, a one-line hint on anything not obvious, and warnings in words beside the thing they're about. New features keep to the same rule: essentials only on the first screen, the rest behind a closed panel or an off checkbox.
 - **Layer defaults stay V6's** (3/9 line, turn circles and error labels on; the rest off), so the picture matches what V6 users know.
 - **Open panels and layers are remembered** in this browser (`app.storage`), with a "Reset layout" in the Layers menu. They're not part of a profile, which carries the scenario.
 - Only controls that apply are shown: offset-box settings and the rear-element check appear only with the offset box; the clock-cue fields only with the clock cue; the auto delay only with auto timing (#32).
@@ -155,6 +157,7 @@ Changes that don't change a number V6's Step button shows:
 - **Wide and tight position errors are measured from Lead** (D42): "Wide 1,000 ft" moves a wingman 1,000 ft further out on whichever side it flies. V6 moved every aircraft along one fixed direction, so on one side "wide" came in tighter (#15).
 - The turn circles use the same G as the flying (with D74 they can no longer disagree).
 - **Spacing graph, Solver and Correction model** (Q41, Patrick): V6 hid all three. They come back, each behind its own checkbox, off by default (R22). The graph draws each metric in its own colour with a legend (V6 drew all four in white) and only while open. The solver's sweep is pinned to V6 and runs only when asked, not every frame.
+- **Stall-limit G warning** (Patrick 06:58Z, shared T-6A model; D128). Beside the G box, and on each wingman's line when its G error takes it over, the Turn Sim warns **"More G than a T-6 can pull at this speed"** when the G flown is above `core` `stallLimitG(speed)` (SPEC-core, "API, fifth PR: T-6A performance"). It's a warning only: the aircraft still fly the set G, so the V6 turns stay pinned and nothing they show changes. The Turn Sim has no altitude and flies its Speed box with no wind (Assumption 3), so the check treats that speed as indicated airspeed. At V6's 220 kt the limit is about 6.5 G, so the default 3 G and the G-warm's 4 G hook never trigger it.
 - **Standards follow the debrief's edits** (Q46, Patrick). The Turn Sim reads the same standards the debrief edits and shows them, read-only, under More detail, with a "Default standards" note when unchanged. A standard switched off judges nothing, so an aircraft it would judge shows no label. The standards need one home both modules read (for example an app-level `standards` setting instead of the debrief's own settings); where it lives is agreed with the debrief and app frame threads through the coordinator before task 5.
 
 ### Profiles and CSV (#31, #33)
@@ -164,6 +167,17 @@ Changes that don't change a number V6's Step button shows:
 - **Saving over an existing name asks first. Delete profile and Factory reset ask first**, and Factory reset puts the Turn Sim back to V6's defaults without reloading the app (#31). The name box starts empty, not "NFTC Default".
 - V6's saved profiles were kept by the old single file in its own browser storage, which the new site can't read. Nothing to migrate.
 - **Export CSV** (in Profiles): one row per 0.05 s step over the whole run, with time, the pair distances that exist, minimum separation and 1-3 closure in ft/s, V6's columns (`turn_spacing.csv`). The download link is released after use.
+
+## 2D/3D switch (Patrick, 2026-09-30 07:51Z)
+
+Patrick asked for a 2D/3D switch in every simulator ("can we just do them all in 3d/2d switch on and off now?"). The Turn Sim gets one:
+
+- A **2D / 3D** switch on the Stage bar. **2D is the default**, and the switch is remembered in this browser with the other layout choices.
+- 3D shows the same run from the same engine state: each aircraft as the shared CT-156 model (ui-kit `three-aircraft.js` and `ct156-model.js`), at its position and heading, banked by the `bankDeg` the engine reports, with its trail. The camera starts behind and above Lead, and the user can orbit, zoom and follow Lead. Everything else (playback, readouts, Formation card, Settings) is shared with 2D.
+- The Turn Sim is flat, so every aircraft flies at one altitude in 3D. The crossing note in the shackle and cross turn (SMM item 6) still applies.
+- three.js and the model load **only when 3D is first switched on**, so a 2D-only visit downloads nothing extra. Leaving the Turn Sim or switching back to 2D stops 3D's frames (R4).
+- Each aircraft is the shared CT-156 model (ui-kit `ct156-model.js`) with its number. A **Paint** choice in the Turn Sim settings menu picks Harvard (the default, the shared `PAINT_DEFAULT`) or ship colours (#1 blue, #2 green, #3 red, #4 white). If three.js can't load, the screen says "3D needs a connection the first time" and stays in 2D.
+- No flight math changes: the golden pins are untouched, and 3D only draws.
 
 ## SMM formation additions (Patrick, 2026-09-30 06:40Z)
 
@@ -198,7 +212,7 @@ This needs one thing the engine doesn't have yet, added as a pure engine functio
 
 ## What the Turn Sim needs from `core`
 
-Already there, used as they are: `limitG`, `MIN_TURN_G`, `turnRadiusFt`, `turnRateRadPerSec`, `bankDegFromG`, `ktToFtps`, `formatNm`, `distance`, `degToRad`, `radToDeg`, `wrapDeg180`, `relativeBearingDeg`, `clockToRelativeDeg`, `compassDegToHeadingRad`, `headingRadToCompassDeg`, `formationAxes`, `classifyTurnSimPosition`, `V6_STANDARDS`.
+Already there, used as they are: `stallLimitG` (T-6A performance, for the G warning), `limitG`, `MIN_TURN_G`, `turnRadiusFt`, `turnRateRadPerSec`, `bankDegFromG`, `ktToFtps`, `formatNm`, `distance`, `degToRad`, `radToDeg`, `wrapDeg180`, `relativeBearingDeg`, `clockToRelativeDeg`, `compassDegToHeadingRad`, `headingRadToCompassDeg`, `formationAxes`, `classifyTurnSimPosition`, `V6_STANDARDS`.
 
 Needed from the Flight math core thread:
 
@@ -223,6 +237,7 @@ src/modules/turn-sim/
     step.js            one fixed step: G (core, D74), turn, move
     run.js             a run: start, continue a leg, history by time, CSV rows
   layout.js            the three columns, panels, playback bar
+  view3d.js            the 3D view on ui-kit three-aircraft.js, loaded only when switched on
   view.js              drawing: grid, MOA box, trails, breadcrumbs, 3/9 lines, turn circles, clock marks, labels
   exercises.js         the Exercises panel (G-warm)
   graph.js             the spacing graph (Q41), drawn only while open
@@ -269,6 +284,7 @@ export function autoDelayStepSec(spacingFt, speedFtps, turnRad) {
 5. **Browser tests** (`tests/e2e/turn-sim.spec.js`, Playwright, failing on any console error, R7):
    - Open the Turn Sim: fitted, nothing overlapping at 1366 × 768 and 1920 × 1080, with every panel open (R2, #30).
    - A first visit shows only the essentials (R22); Reset layout restores them.
+   - Every input starts with its default (none blank), and Play works on a first visit without typing anything.
    - Every button does something (R3).
    - Play, change a setting mid-run: the run stops and resets (#31).
    - Save a profile with errors and a rear check, reload, load it: identical (#31).
@@ -312,7 +328,7 @@ Each PR description lists the skills it applied.
 
 - Every engine function and whole-run scenario has a golden test against V6, and each of D41 to D45, D48, D74 and the flight changes from Q43 (hook), Q44 (shackle, #4 solver), Q45 (clock cue selectors) and Q47 (rear check) is its own commit with a test that states it.
 - R2, R3, R4, R7 and R22 pass their browser tests on the Turn Sim route; results are the same at any frame rate and playback speed.
-- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the item still with Dad (the offset box clock cue, Q44c), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
+- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the offset box clock cue message (Q44c, D87: #3 and #4 use the 10-15 s delay), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
 - Each SMM formation addition being built (items 1 to 7) has a test that states it, and the changes to V6's turns (items 2 to 5) are each their own commit after the V6 pin.
 - Patrick or Dad signs off the checklist on the live site.
 
@@ -327,12 +343,11 @@ Patrick answered all seven on 2026-09-30 (in the "Open questions explained" thre
 | Q43 (TS3) hook and in-place 90 | Don't merge. Hook: same direction through 180°, fuselages lined up in the middle. In-place 90: a 90° turn. | Turns |
 | Q44a (TS4) shackle | Ends on the original heading, same spacing, each aircraft on the opposite side: an X from above. | Turns |
 | Q44b (TS4) offset box #4 | Finish the ground-track solver so #4 works out its own timing. | Timing |
-| Q44c (TS4) offset box clock cue | Keep the on-screen message; ask Dad which cue #3 and #4 should use; revise later. | Timing |
+| Q44c (TS4) offset box clock cue | Keep the on-screen message. Closed by Patrick 07:21Z (D87, "Keep those. go"): #3 and #4 use the SMM 10-15 s delay (16.41 para 112) as a setting; no question to Dad. | Timing |
 | Q45 (TS5) clock cue selectors | Wire them up. | Timing |
 | Q46 (TS6) standards | Follow the debrief's edited standards. | Assumptions; Readouts |
 | Q47 (TS7) rear check | Start at the set time or once #3 and #4 finish turning, whichever is later. | Timing |
 
 ## Open questions
 
-- **For Dad (Q44c):** which cue should #3 and #4 use in the offset box, since they never see 5:30? Until then, the on-screen message.
 - **For Patrick, before those commits:** the rollout pictures for the hook, the 4-ship shackle, the delayed 45 into and away from the wingman, and the 4-ship G-warm, drawn from the rebuilt engine.

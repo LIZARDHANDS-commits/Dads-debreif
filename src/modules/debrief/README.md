@@ -15,15 +15,21 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `map2d/geometry.js` | Where the layers go, in map feet, tested in Node against V6's numbers: trail parts, spacing pairs, 3/9 line ends, the cone's outline. |
 | `map2d/overlays.js` | The built-in routes: placed on the map (the flight's, or Moose Jaw's with no flight) and drawn dashed under the tracks. |
 | `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
-| `map2d/tiles.js` | Web map tiles (Esri World Imagery) under the map: which tiles a view needs, fetching with retries, and drawing. Knows nothing of the debrief, so it can move to the ui-kit. |
+| (ui-kit) `map-tiles.js` | The satellite imagery under the map (Esri World Imagery) is not in this folder. The debrief uses the ui-kit's `map-tiles.js`, which `map2d/view.js` and `layout.js` import. |
 | `map2d/vnc.js` | The VNC charts: bounds and warp pinned to V6, and the layer that fetches each chart when first shown and warps it once per alignment. |
 | `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6. |
 | `em.js` | The EM chart: which chart to show, where a point lands on it (pinned to V6), each ship's point and 60 s trail from its track, and the panel's canvas. |
 | `tennis.js` | The tennis ball at a moment: reads the two tracks and asks core's one solver (Q33 to Q37). |
 | `tennis-panel.js` | The tennis ball's panel: shooter, target, V6's settings and the answer in words. |
 | `export-csv.js` | The CSV export's rows: one a second across the shared window, every ship side by side, with sources and GPS gap flags. No page access. |
+| `weather/slices.js` | Weather at the time of the flight: the slice (frame, METAR, model hour) at or before the playback moment with its age, frame times to fetch, scrubber ticks, the nearest airfield. No page access. |
+| `weather/metar.js` | The METAR line: the IEM archive address, reading its reply, and the decoded line at a moment (decoding is `src/wx`'s `parseMetar`). No page access. |
+| `weather/metar-feed.js` | Fetches each airfield's METARs for the loaded flight once, only while the METAR item is on, and stops when the flight or the debrief closes. |
+| `weather/satellite.js` | The satellite layer: the GOES-West frame for a moment, its GIBS tile address and zoom limit, the 90-day limit and the line under the map. No page access. |
 | `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
-| `view3d/view.js` | Draws the 3D view on its canvas and turns and zooms it with the mouse and keys. |
+| `view3d/view.js` | The 3D view: three.js (loaded when 3D is first shown) draws the ground, trails, sticks and the CT-156 Harvard models on a WebGL canvas under the view's canvas, with ui-kit's `matchProjection` camera; the overlay goes on top. |
+| `view3d/overlay.js` | What's drawn flat over the 3D picture, placed with `projectPoint`: altitude ruler, ship labels and markers, stick heights, compass, caption, tennis ball. Any renderer whose camera matches `projectPoint` can use it. |
+| `view3d/input.js` | Turning the 3D view by hand: drag to orbit, the wheel or + and − to zoom. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
 | `standards-panel.js` | The Standards panel (closed at first): edits `app.standards`, the one copy the Turn Sim reads too. |

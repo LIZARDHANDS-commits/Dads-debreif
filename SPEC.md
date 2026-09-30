@@ -18,7 +18,9 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 2. Vite is used only as the dev server and bundler (D13). The source still runs as plain modules.
 3. Hosting is GitHub Pages from this repo (D12). A service worker makes it work offline after one visit (D15, R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
-5. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
+   The plain JavaScript is type-checked by TypeScript's checker reading JSDoc comments (`npm run typecheck`, `jsconfig.json`, D142). Nothing is converted to TypeScript and nothing is emitted. Folders are added to the check one at a time as their owners clear them.
+5. Runtime libraries are few, small and approved one by one (Boundaries: ask first). Approved so far: `uplot` for time-series graphs (D137), loaded only inside the module that draws a graph, with a text readout beside each graph for screen readers. `three` for every 3D aircraft view (D138), loaded only inside 3D views by dynamic import (`ui-kit/three-aircraft.js`), never on the home screen.
+6. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
 
 ## Why the code is split this way
 
@@ -37,7 +39,7 @@ So the map below has one shared `core` of pure, tested functions, one `ui-kit`, 
 | `core` | Pure functions, no page access: units and conversions, angles and vectors, one heading convention, turn radius/rate, G and bank, ISA density and IAS estimate, aspect/HCA/closure, formation standards classifier, time formatting (Zulu/local), the wind triangle (`wind.js`, #120), and one shared T-6A performance model (D128: V-n and stall line, IAS to TAS, thrust and drag fitted from the turn charts, the point-mass step, energy height, the max glide and the NFM zoom) that the Turn Fight, Traffic and Turn Sim all use. | none | Duplicated helpers across Turn Sim, KML, 3D, EM and BFM |
 | `storage` | Safe browser storage (never crashes when storage is blocked), one key naming scheme, versioned settings, named profiles, and file export/import. | `core` | Four key families; unguarded reads that can stop the whole page |
 | `airfields` | Home airfield and alternates as a setting: ICAO, position, elevation, time zone, charts, weather stations. Defaults to CYMJ. | `core`, `storage` | Moose Jaw hard-coded in about 15 places, with 3 different coordinates (R16) |
-| `ui-kit` | Shared look (colour tokens, cards, collapsible panels, toolbar), a control registry that binds inputs to settings, a pan/zoom canvas view, one animation scheduler that runs only the open module, and the map layers more than one module draws: the satellite tile loader and the VNC charts (moved from the debrief for Traffic and the SOF). | `core` | Six CSS patch layers, 348 `!important`, side rails that cover controls, a Tab key that hides panels |
+| `ui-kit` | Shared look (colour tokens, cards, collapsible panels, toolbar), a control registry that binds inputs to settings, a pan/zoom canvas view, one animation scheduler that runs only the open module, and the map layers more than one module draws: the satellite tile loader (moved from the debrief for Traffic and the SOF) and, from SOF task 6, the VNC charts. | `core` | Six CSS patch layers, 348 `!important`, side rails that cover controls, a Tab key that hides panels |
 | `shell` | Home screen and module cards, routing (`#/debrief`, `#/turn-sim` …), module mount/unmount, the one Zulu/local switch, settings, About, Report a problem. | `ui-kit`, `storage`, `airfields`, `core` | Splash, launcher, tab bar, About, two hidden splash buttons, debug badges |
 | `flight-data` | ForeFlight KML parsing (with data-quality checks), projection, interpolation, derived speed/G/pitch, the Flight and Debrief data model, the playback clock, and the save/open debrief file. | `core`, `storage`, `airfields` | KML parsing, `DADS3DAPI`, four separate clocks, one global DFP list (R11, R17) |
 | `debrief` | The debrief viewer: 2D map and 3D view of the same flight (switch, not a separate tab), spacing and standards readouts, EM diagram, one tennis-ball solver, DFPs, map layers and charts, CSV export. | `flight-data`, `ui-kit`, `airfields`, `core` | KML viewer + 3D viewer + EM card (R11, R12, R17, R18) |
@@ -79,7 +81,7 @@ src/
   storage/              store.js settings.js file.js
   airfields/            airfields.js  data/CYMJ.json …
   ui-kit/               tokens.css base.css dom.js panel.js controls.js canvas-view.js scheduler.js
-                        map-tiles.js vnc.js (satellite tiles and VNC charts, from the debrief)
+                        map-tiles.js vnc.js (satellite tiles, moved from the debrief; the VNC charts follow at SOF task 6)
   flight-data/          kml.js flight.js clock.js debrief-file.js
   wx/                   metar.js taf.js limits.js sources.js
   modules/
@@ -93,7 +95,7 @@ original/               untouched V6 reference (never edited)
 tests/
   unit/                 node --test, one file per core/wx/flight-data file
   golden/               v6-baseline.json and comparison tests (R9)
-  e2e/                  Playwright: overlap scan, click-through, module switching, offline
+  e2e/                  Playwright: accessibility (axe), overlap scan, click-through, module switching, offline
 docs/audit/             the verified V6 audit
 specs/                  SPEC-<module-id>.md
 ```
@@ -106,6 +108,7 @@ Each module folder has a short README saying what it does and where to change co
 npm install                 # once, installs Vite and Playwright
 npm run dev                 # local dev server with live reload
 npm test                    # unit + golden tests (node --test)
+npm run typecheck           # type-check the plain JavaScript from its JSDoc comments (D142)
 npm run test:e2e            # Playwright browser tests
 npm run build               # static site in dist/, fails if the size budget is exceeded (R5, R15)
 python3 tools/rebuild_original.py /tmp/v6.html   # exact V6 for side-by-side checks
@@ -134,9 +137,10 @@ export function turnRadiusFt(tasKt, loadG) {
 
 1. **Pin before moving (CLAUDE.md).** Every piece of flight math is first extracted and pinned against V6's answers (`tests/golden/v6-baseline.json` plus new characterisation cases), then moved. The golden test must pass before and after.
 2. **Deliberate changes are logged.** Where the audit shows V6 is wrong (for example, the EM turn rate is half the real value), the fix is a separate change, approved by Dad or Patrick, logged in Decisions, and the golden value is updated in the same change.
-3. **Unit tests** for `core`, `wx` and `flight-data` with `node --test`. `wx` gets a table of real TAF/METAR strings, including every parser bug the audit found.
+3. **Unit tests** for `core`, `wx` and `flight-data` with `node --test`. `wx` gets a table of real TAF/METAR strings, including every parser bug the audit found. Random-input property tests (`fast-check`, D142) throw thousands of speeds, banks and headings at the flight math and check rules that must always hold; they add to the golden tests and never change a number.
 4. **Browser tests** (Playwright) for R2 (no control covers another at 1366×768 and 1920×1080), R3 (every visible button does something), R4 (switch modules, then check no background loops or timers), R6 (offline), R7 (any console error fails the test).
 5. **Sign-off checklist** per module (R21), run by a person before release.
+6. **Security alerts** (D142): Dependabot checks our npm packages and GitHub Actions weekly (`.github/dependabot.yml`), and CodeQL scans our JavaScript and workflows on every pull request (`.github/workflows/codeql.yml`; V6's `original/` and the media are skipped). Findings show under the repo's Security tab.
 
 ## Boundaries
 

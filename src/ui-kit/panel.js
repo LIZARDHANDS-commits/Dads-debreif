@@ -5,6 +5,9 @@ import { h } from './dom.js';
 
 let nextId = 1;
 
+/**
+ * @param {{ title?: string, collapsed?: boolean, onToggle?: (collapsed: boolean) => void }} [options]
+ */
 export function createPanel({ title, collapsed = false, onToggle } = {}) {
   const bodyId = `panel-body-${nextId++}`;
   const button = h('button', { type: 'button', class: 'panel-toggle', 'aria-controls': bodyId }, h('span', { class: 'panel-title' }, title));

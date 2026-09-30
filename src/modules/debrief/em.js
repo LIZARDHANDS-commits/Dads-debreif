@@ -39,7 +39,10 @@ export function chooseEmChart(choice, altitudes) {
   return EM_ALTITUDES.reduce((best, a) => (Math.abs(a - mean) < Math.abs(best - mean) ? a : best));
 }
 
-/** A point (IAS kt, turn rate °/s) on a chart drawn `width` × `height`, as [x, y] (V6 px and py). */
+/**
+ * A point (IAS kt, turn rate °/s) on a chart drawn `width` × `height`, as [x, y] (V6 px and py).
+ * @returns {[number, number]}
+ */
 export function emToScreen(iasKt, turnRateDeg, altitude, width, height) {
   const sx = width / EM_PLOT.width;
   const sy = height / EM_PLOT.height;
@@ -83,7 +86,7 @@ export function emTrail(track, t, startT = -Infinity) {
  * are read at each draw. base: the site's address, for the chart images.
  * onChart(altitude): after each draw, the chart shown. Returns { requestDraw, dispose }.
  */
-export function createEmView(canvas, { timers, base, flight, time, settings, onChart = () => {} }) {
+export function createEmView(canvas, { timers, base, flight, time, settings, onChart = /** @type {(altitude: number) => void} */ (() => {}) }) {
   const images = {};
   let disposed = false;
 

@@ -1,464 +1,290 @@
 // The 3D view: the formation in the air over one fixed ground, turned with
-// the mouse (drag to orbit, wheel to zoom) or the 3D settings' sliders. It
-// shares the debrief's clock and readouts and draws only when something
-// changed and only while it's the view showing (#39, #43). Projection, bank
-// and the T-6's shape are V6's, pinned in scene.js; frame.js has the rest.
+// the mouse (drag to orbit, wheel to zoom: input.js) or the 3D settings'
+// sliders. three.js draws the picture (ground, trails, sticks and the CT-156
+// Harvard models from ui-kit, D138) on a WebGL canvas under the view's own
+// canvas, where overlay.js draws the labels, ruler, compass and tennis ball.
+// The camera is ui-kit matchProjection, which lands every point where
+// scene.js projectPoint puts it, so both layers agree and no flight math
+// changes. three.js loads only when 3D is first shown (D141). It draws only
+// when something changed and only while it's the view showing (#39, #43).
 import { createCanvasSurface } from '../../../ui-kit/canvas-view.js';
-import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR } from '../state.js';
-import { sampleAt } from '../../../flight-data/flight.js';
-import { formationCenter, projectPoint, drawOrder, t6Points } from './scene.js';
 import {
-  shipsIn3d, groundDatumFt, heightLabel, groundGrid, orbit, wheelZoom, GROUND_EXTENT_FT,
-} from './frame.js';
+  loadThree as loadThreeModule, matchProjection, altToZ, addLights, addSky, disposeAircraftMesh,
+} from '../../../ui-kit/three-aircraft.js';
+import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
+import { SHIP_COLORS } from '../state.js';
+import { sampleAt } from '../../../flight-data/flight.js';
+import { formationCenter, projectPoint } from './scene.js';
+import { shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT } from './frame.js';
+import { attachCameraInput } from './input.js';
+import {
+  drawStickLabel, drawAltitudeScale, drawMarker, labelShip, drawCompass, drawCaption, drawTennis3d, TEXT,
+} from './overlay.js';
 
 const BACKGROUND = '#050b12';
-const TEXT = '#d9e6f2';
+const LAND = '#0b3318';
+const DATUM_FILL = '#17351b';
+const DATUM_EDGE = '#7ee787';
 const TRAIL_SAMPLES = 80; // points along each trail, as V6
-const CAPTION_BOTTOM_PX = 56;
-const ALT_SCALE_LEFT_PX = 28; // the altitude ruler stands at the left edge, so it's always in view
-const ft = (n) => Math.round(n).toLocaleString('en-US');
+const STICK_PX = 3; // the height sticks' width on screen, as the 2D-canvas view drew them
+const rad = (d) => (d * Math.PI) / 180;
 
 /**
- * canvas: the 3D <canvas>. timers: the module's scheduler scope. flight():
- * the loaded flight or null. time(): the playback time. settings(): the
- * layout values (cam3d, yaw3d, pitch3d, zoom3d, altScale3d, model3d,
- * planeSize3d, attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d,
- * grid3d, sticks3d, altMarks3d). fieldFt(): the home field's elevation.
+ * canvas: the 3D <canvas> (the overlay; the WebGL canvas goes right after
+ * it). timers: the module's scheduler scope. flight(): the loaded flight or
+ * null. time(): the playback time. settings(): the layout values (view,
+ * cam3d, yaw3d, pitch3d, zoom3d, altScale3d, model3d, paint3d, planeSize3d,
+ * attLabels3d, trailSec3d, landscape3d, groundRef3d, datum3d, grid3d,
+ * sticks3d, altMarks3d). fieldFt(): the home field's elevation.
  * setCamera(patch): keeps a camera change (yaw3d, pitch3d, zoom3d).
+ * onUnavailable(message): three.js or WebGL couldn't start; the screen
+ * says so and goes back to 2D. loadThree: for tests.
  */
-export function createView3d(canvas, { timers, flight, time, settings, fieldFt, setCamera, tennis = () => null }) {
-  let dragging = null; // { id, x, y, camera } while the mouse turns the view
+export function createView3d(canvas, {
+  timers, flight, time, settings, fieldFt, setCamera, tennis = () => null,
+  onUnavailable = /** @type {(message: string) => void} */ (() => {}), loadThree = loadThreeModule,
+}) {
+  const glCanvas = document.createElement('canvas');
+  glCanvas.className = 'debrief-3d-picture';
+  glCanvas.setAttribute('aria-hidden', 'true');
+  canvas.after(glCanvas);
 
-  const cameraFrom = (on) => dragging?.camera ?? { yawDeg: on.yaw3d, pitchDeg: on.pitch3d, zoom: on.zoom3d, altScale: on.altScale3d };
+  let THREE = null;
+  let gl = null; // { renderer, scene, camera, world, ships, sky }
+  let loading = false;
+  let disposed = false;
 
+  function start() {
+    if (gl || loading) return;
+    loading = true;
+    loadThree().then((module) => {
+      loading = false;
+      if (disposed) return;
+      try {
+        gl = createPicture(module, glCanvas);
+        THREE = module;
+      } catch {
+        onUnavailable('3D needs WebGL, which is turned off in this browser.');
+        return;
+      }
+      surface.requestDraw();
+    }, () => {
+      loading = false;
+      if (!disposed) onUnavailable('3D needs a connection the first time.');
+    });
+  }
+
+  let input = null;
   const surface = createCanvasSurface(canvas, {
     timers,
     label: '3D view of the formation: drag to turn it, scroll or press + and − to zoom',
     draw(ctx, { size }) {
-      ctx.fillStyle = BACKGROUND;
-      ctx.fillRect(0, 0, size.width, size.height);
-      const shown = flight();
-      if (!shown) return; // the screen's own message says what to load
-      drawScene(ctx, size, shown, time(), settings(), cameraFrom(settings()), fieldFt(), tennis());
+      const on = settings();
+      if (on.view !== '3d' || !size.width) return; // hidden: nothing to load or draw
+      start();
+      if (!gl) {
+        ctx.fillStyle = BACKGROUND;
+        ctx.fillRect(0, 0, size.width, size.height);
+        ctx.fillStyle = TEXT;
+        ctx.font = '13px system-ui, sans-serif';
+        ctx.fillText('Loading the 3D view…', 14, 22);
+        return;
+      }
+      drawScene(ctx, size, flight(), time(), on, input.camera(), fieldFt(), tennis());
     },
   });
+  input = attachCameraInput(canvas, { settings, setCamera, redraw: surface.requestDraw });
 
-  canvas.tabIndex = 0;
-  const listeners = [
-    ['pointerdown', (e) => {
-      if (e.button !== 0) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, camera: cameraFrom(settings()) };
-      canvas.setPointerCapture?.(e.pointerId);
-      canvas.classList.add('is-dragging');
-    }],
-    ['pointermove', (e) => {
-      if (!dragging || e.pointerId !== dragging.id) return;
-      dragging.camera = orbit(dragging.camera, e.clientX - dragging.x, e.clientY - dragging.y);
-      dragging.x = e.clientX;
-      dragging.y = e.clientY;
-      surface.requestDraw();
-    }],
-    ['pointerup', (e) => endDrag(e)],
-    ['pointercancel', (e) => endDrag(e)],
-    ['wheel', (e) => {
-      e.preventDefault();
-      if (!e.deltaY) return;
-      setCamera({ zoom3d: wheelZoom(cameraFrom(settings()), e.deltaY).zoom });
-    }],
-    ['keydown', (e) => {
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
-      const deltaY = e.key === '+' || e.key === '=' ? -1 : e.key === '-' || e.key === '_' ? 1 : 0;
-      if (!deltaY) return;
-      e.preventDefault();
-      setCamera({ zoom3d: wheelZoom(cameraFrom(settings()), deltaY).zoom });
-    }],
-  ];
-  // The camera is kept once the drag ends, not on every move.
-  function endDrag(e) {
-    if (!dragging || e.pointerId !== dragging.id) return;
-    const { yawDeg, pitchDeg } = dragging.camera;
-    dragging = null;
-    canvas.classList.remove('is-dragging');
-    setCamera({ yaw3d: Math.round(yawDeg), pitch3d: Math.round(pitchDeg) });
+  function drawScene(ctx, size, shown, t, on, camera, groundFieldFt, ball) {
+    const ships = shown ? shipsIn3d(shown, t) : [];
+    const live = Object.fromEntries(ships.map((s) => [s.slot, s]));
+    const ctr = shown ? formationCenter(live, on.cam3d) : { x: 0, y: 0, z: 0 };
+    const P = (p) => projectPoint(p, ctr, camera, size);
+    const datum = shown ? groundDatumFt(ships, on.datum3d, groundFieldFt) : 0;
+
+    const modelled = renderPicture(gl, THREE, { size, flight: shown, t, on, camera, ctr, ships, datum });
+    if (!shown) return; // the screen's own message says what to load
+
+    if (on.altMarks3d) drawAltitudeScale(ctx, P, ctr, ships, datum);
+    if (on.sticks3d) {
+      const unit = heightLabel(on.datum3d);
+      for (const s of ships) drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: datum }), s.altFt - datum, unit);
+    }
+    for (const s of ships) {
+      if (modelled.has(s.slot)) labelShip(ctx, P(s), s, on);
+      else drawMarker(ctx, P, s, on); // the flat marker, or a dot for a ship with no heading
+    }
+    if (ball?.points) drawTennis3d(ctx, P, ball);
+    if (on.groundRef3d) drawCompass(ctx, size, camera);
+    drawCaption(ctx, camera, on, datum);
   }
-  for (const [type, fn] of listeners) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
 
   return {
     requestDraw: surface.requestDraw,
     dispose() {
+      disposed = true;
       surface.dispose();
-      for (const [type, fn] of listeners) canvas.removeEventListener(type, fn);
+      input.dispose();
+      if (gl) disposePicture(gl);
+      gl = null;
+      glCanvas.remove();
     },
   };
 }
 
+// The WebGL side: renderer, scene, camera, lights, and a group rebuilt each
+// draw for the ground, grid, trails and sticks. Aircraft are kept per ship.
+function createPicture(THREE, glCanvas) {
+  // preserveDrawingBuffer keeps the last picture readable (a saved picture, the tests).
+  const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setClearColor(BACKGROUND);
+  const scene = new THREE.Scene();
+  addLights(THREE, scene);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
+  const world = new THREE.Group();
+  scene.add(world);
+  return { renderer, scene, camera, world, ships: new Map(), sky: null };
+}
 
-function drawScene(ctx, size, flight, t, on, camera, fieldFt, ball) {
-  const ships = shipsIn3d(flight, t);
-  const live = Object.fromEntries(ships.map((s) => [s.slot, s]));
-  const ctr = formationCenter(live, on.cam3d);
-  const P = (p) => projectPoint(p, ctr, camera, size);
-  const datum = groundDatumFt(ships, on.datum3d, fieldFt);
-
-  if (on.landscape3d) drawLandscape(ctx, size, P, ctr, datum);
-  if (on.groundRef3d) drawGround(ctx, P, ctr, datum, on.grid3d);
-  else if (on.grid3d) drawGridLines(ctx, P, ctr, datum);
-  if (on.altMarks3d) drawAltitudeScale(ctx, P, ctr, ships, datum);
-  drawTrails(ctx, P, flight, t, on.trailSec3d);
-  if (on.sticks3d) drawSticks(ctx, P, ships, datum, heightLabel(on.datum3d));
-  // Far aircraft first, so near ones are painted over them (#27).
-  for (const ship of drawOrder(ships, (s) => P(s).depth)) {
-    if (on.model3d === 't6' && ship.hdg !== null) drawT6(ctx, P, ship, on);
-    else drawMarker(ctx, P, ship, on);
+function clearGroup(group) {
+  for (const o of [...group.children]) {
+    group.remove(o);
+    o.geometry?.dispose();
+    o.material?.dispose();
   }
-  if (ball?.points) drawTennis3d(ctx, P, ball);
-  if (on.groundRef3d) drawCompass(ctx, size, camera);
-  drawCaption(ctx, camera, on, datum);
 }
 
-// V6's sky and ground colours, with ridges fixed to the ground (#27).
-function drawLandscape(ctx, size, P, ctr, datum) {
-  ctx.save();
-  const sky = ctx.createLinearGradient(0, 0, 0, size.height);
-  sky.addColorStop(0, '#07111c');
-  sky.addColorStop(0.42, '#0b1c2b');
-  sky.addColorStop(0.43, '#102416');
-  sky.addColorStop(1, '#07100a');
-  ctx.globalAlpha = 0.95;
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, size.width, size.height);
-  const { xs, ys } = groundGrid(ctr, 65_000, 10_000);
-  ctx.globalAlpha = 0.35;
-  ctx.strokeStyle = '#1f5c33';
-  ctx.lineWidth = 1;
-  for (const y of ys) {
-    ctx.beginPath();
-    xs.forEach((x, i) => {
-      const p = P({ x, y: y + Math.sin((x + y) * 0.00013) * 650, altFt: datum });
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    });
-    ctx.stroke();
+function disposePicture(gl) {
+  clearGroup(gl.world);
+  for (const { mesh } of gl.ships.values()) disposeAircraftMesh(mesh);
+  gl.ships.clear();
+  gl.sky?.dispose();
+  gl.renderer.dispose();
+}
+
+/** Draws the picture; returns the slots drawn as a model (the rest get a 2D marker). */
+function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum }) {
+  const { renderer, scene, world } = gl;
+  renderer.setPixelRatio(globalThis.devicePixelRatio || 1);
+  renderer.setSize(size.width, size.height, false);
+  matchProjection(THREE, gl.camera, ctr, camera, size);
+
+  // V6's sky and far ground, fading to the horizon (#27).
+  if (on.landscape3d && !gl.sky) gl.sky = addSky(THREE, scene);
+  if (!on.landscape3d && gl.sky) {
+    gl.sky.dispose();
+    gl.sky = null;
   }
-  ctx.restore();
-}
 
-function polygon(ctx, points) {
-  ctx.beginPath();
-  points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-  ctx.closePath();
-}
-
-// The datum plane with its edge and the grid on it (V6's ground reference).
-function drawGround(ctx, P, ctr, datum, withGrid) {
-  const { min, max } = groundGrid(ctr, GROUND_EXTENT_FT, 10_000);
-  const corners = [[min.x, min.y], [max.x, min.y], [max.x, max.y], [min.x, max.y]].map(([x, y]) => P({ x, y, altFt: datum }));
-  ctx.save();
-  ctx.globalAlpha = 0.28;
-  ctx.fillStyle = '#17351b';
-  polygon(ctx, corners);
-  ctx.fill();
-  ctx.globalAlpha = 0.95;
-  ctx.strokeStyle = 'rgba(126, 231, 135, 0.65)';
-  ctx.lineWidth = 2;
-  polygon(ctx, corners);
-  ctx.stroke();
-  ctx.restore();
-  if (withGrid) drawGridLines(ctx, P, ctr, datum);
-}
-
-function drawGridLines(ctx, P, ctr, datum) {
-  const { xs, ys, min, max } = groundGrid(ctr);
-  ctx.save();
-  ctx.strokeStyle = 'rgba(126, 231, 135, 0.22)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (const x of xs) {
-    const a = P({ x, y: min.y, altFt: datum });
-    const b = P({ x, y: max.y, altFt: datum });
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
+  clearGroup(world);
+  const modelled = new Set();
+  if (!flight) {
+    for (const { mesh } of gl.ships.values()) mesh.visible = false;
+    renderer.render(scene, gl.camera);
+    return modelled;
   }
-  for (const y of ys) {
-    const a = P({ x: min.x, y, altFt: datum });
-    const b = P({ x: max.x, y, altFt: datum });
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-  }
-  ctx.stroke();
-  ctx.restore();
-}
+  const Z = (altFt) => altToZ(altFt, camera.altScale);
+  const dz = Z(datum);
+  const ftPerPx = 1000 / camera.zoom;
+  const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, fog: false, ...extra });
 
-// A ruler of altitude every 1,000 ft beside the formation (V6 drawAltitudeScale).
-function drawAltitudeScale(ctx, P, ctr, ships, datum) {
-  const alts = ships.map((s) => s.altFt).filter(Number.isFinite);
-  if (!alts.length) return;
-  const top = Math.ceil((Math.max(...alts, ctr.z) + 1500) / 1000) * 1000;
-  const base = Math.floor(datum / 1000) * 1000;
-  // Heights as they stand at the formation's centre, drawn at the left edge.
-  // (V6 stood it 42,000 ft west and 36,000 ft north, off the screen at most zooms.)
-  const at = (altFt) => ({ x: ALT_SCALE_LEFT_PX, y: P({ x: ctr.x, y: ctr.y, altFt }).y });
-  ctx.save();
-  ctx.strokeStyle = TEXT;
-  ctx.fillStyle = TEXT;
-  ctx.globalAlpha = 0.8;
-  ctx.lineWidth = 2;
-  ctx.font = '11px system-ui, sans-serif';
-  const a = at(base);
-  const b = at(top);
-  ctx.beginPath();
-  ctx.moveTo(a.x, Math.max(a.y, CAPTION_BOTTOM_PX));
-  ctx.lineTo(b.x, Math.max(b.y, CAPTION_BOTTOM_PX));
-  ctx.stroke();
-  for (let alt = base; alt <= top; alt += 1000) {
-    const p = at(alt);
-    if (p.y < CAPTION_BOTTOM_PX) continue; // clear of the caption
-    ctx.beginPath();
-    ctx.moveTo(p.x - 6, p.y);
-    ctx.lineTo(p.x + 6, p.y);
-    ctx.stroke();
-    ctx.fillText(`${ft(alt)} ft`, p.x + 10, p.y + 4);
+  if (on.landscape3d) {
+    const extent = GROUND_EXTENT_FT * 4;
+    const land = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), new THREE.MeshStandardMaterial({ color: LAND, roughness: 1, metalness: 0 }));
+    land.position.set(ctr.x, ctr.y, dz - 2 * camera.altScale);
+    world.add(land);
   }
-  ctx.restore();
-}
+  // The datum plane with its edge (V6's ground reference), then the grid on it.
+  if (on.groundRef3d) {
+    const { min, max } = groundGrid(ctr, GROUND_EXTENT_FT, 10_000);
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(max.x - min.x, max.y - min.y),
+      basic(DATUM_FILL, { transparent: true, opacity: 0.28, depthWrite: false }),
+    );
+    plane.position.set((min.x + max.x) / 2, (min.y + max.y) / 2, dz);
+    world.add(plane);
+    const edge = new THREE.BufferGeometry().setFromPoints(
+      [[min.x, min.y], [max.x, min.y], [max.x, max.y], [min.x, max.y]].map(([x, y]) => new THREE.Vector3(x, y, dz + 2)),
+    );
+    world.add(new THREE.LineLoop(edge, new THREE.LineBasicMaterial({ color: DATUM_EDGE, transparent: true, opacity: 0.65, fog: false })));
+  }
+  if (on.grid3d) {
+    const { xs, ys, min, max } = groundGrid(ctr);
+    const pts = [];
+    for (const x of xs) pts.push(x, min.y, dz + 4, x, max.y, dz + 4);
+    for (const y of ys) pts.push(min.x, y, dz + 4, max.x, y, dz + 4);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    world.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: DATUM_EDGE, transparent: true, opacity: 0.22, fog: false })));
+  }
 
-// Each ship's last `seconds`, broken where it's in a GPS gap (V6 drawTrails).
-function drawTrails(ctx, P, flight, t, seconds) {
-  if (!(seconds > 0)) return;
-  ctx.save();
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.55;
-  for (const tr of Object.values(flight.tracks)) {
-    const t0 = Math.max(flight.startT, t - seconds);
-    ctx.strokeStyle = SHIP_COLORS[tr.slot];
-    ctx.beginPath();
-    let pen = false;
-    for (let i = 0; i <= TRAIL_SAMPLES; i++) {
-      const s = sampleAt(tr, t0 + ((t - t0) * i) / TRAIL_SAMPLES);
-      if (s.inGap) {
-        pen = false;
-        continue;
+  // Each ship's last trailSec3d seconds, broken where it's in a GPS gap (V6 drawTrails).
+  if (on.trailSec3d > 0) {
+    for (const tr of Object.values(flight.tracks)) {
+      const t0 = Math.max(flight.startT, t - on.trailSec3d);
+      const pos = [];
+      let prev = null;
+      for (let i = 0; i <= TRAIL_SAMPLES; i++) {
+        const s = sampleAt(tr, t0 + ((t - t0) * i) / TRAIL_SAMPLES);
+        if (s.inGap) {
+          prev = null;
+          continue;
+        }
+        const p = [s.xFt, s.yFt, Z(s.altFt)];
+        if (prev) pos.push(...prev, ...p);
+        prev = p;
       }
-      const p = P({ x: s.xFt, y: s.yFt, altFt: s.altFt });
-      if (pen) ctx.lineTo(p.x, p.y);
-      else ctx.moveTo(p.x, p.y);
-      pen = true;
+      if (!pos.length) continue;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      world.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: SHIP_COLORS[tr.slot], transparent: true, opacity: 0.7, fog: false })));
     }
-    ctx.stroke();
   }
-  ctx.restore();
-}
 
-// A dashed stick from each ship down to the datum, its shadow, and its height (#26).
-function drawSticks(ctx, P, ships, datum, unit) {
-  ctx.save();
+  // A stick from each ship down to the datum, as wide on screen as before, and its shadow (#26).
+  if (on.sticks3d) {
+    for (const s of ships) {
+      const top = Z(s.altFt);
+      const height = Math.abs(top - dz);
+      if (height > 0) {
+        const stick = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.85 }));
+        stick.rotation.x = Math.PI / 2; // the cylinder's axis is Y; stand it up along Z
+        stick.scale.set((STICK_PX / 2) * ftPerPx, height, (STICK_PX / 2) * ftPerPx);
+        stick.position.set(s.x, s.y, (top + dz) / 2);
+        world.add(stick);
+      }
+      const shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 32), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.45, depthWrite: false }));
+      shadow.scale.set(18 * ftPerPx, 18 * ftPerPx, 1);
+      shadow.position.set(s.x, s.y, dz + 6);
+      world.add(shadow);
+    }
+  }
+
+  // The CT-156 Harvard for each ship with a heading (D138). Its size is the
+  // plane size setting, not stretched by the altitude scale.
+  const paint = on.paint3d ?? PAINT_DEFAULT;
+  const key = `${paint}|${on.planeSize3d}`;
   for (const s of ships) {
-    const air = P(s);
-    const ground = P({ x: s.x, y: s.y, altFt: datum });
-    const color = SHIP_COLORS[s.slot];
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([8, 5]);
-    ctx.beginPath();
-    ctx.moveTo(air.x, air.y);
-    ctx.lineTo(ground.x, ground.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.ellipse(ground.x, ground.y, 18, 7, 0, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.font = '11px system-ui, sans-serif';
-    outlined(ctx, `${ft(s.altFt - datum)} ${unit}`, (air.x + ground.x) / 2 + 8, (air.y + ground.y) / 2, TEXT);
+    if (on.model3d !== 't6' || s.hdg === null) continue;
+    let entry = gl.ships.get(s.slot);
+    if (entry && entry.key !== key) {
+      disposeAircraftMesh(entry.mesh);
+      gl.ships.delete(s.slot);
+      entry = null;
+    }
+    if (!entry) {
+      const mesh = createCt156Model(THREE, { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt: on.planeSize3d * CT156_UNIT_LENGTH });
+      mesh.rotation.order = 'ZYX';
+      scene.add(mesh);
+      entry = { key, mesh };
+      gl.ships.set(s.slot, entry);
+    }
+    entry.mesh.position.set(s.x, s.y, Z(s.altFt));
+    entry.mesh.rotation.set(-rad(s.bankDeg), -rad(s.pitchDeg), s.hdg);
+    modelled.add(s.slot);
   }
-  ctx.restore();
-}
+  for (const [slot, { mesh }] of gl.ships) mesh.visible = modelled.has(slot);
 
-function outlined(ctx, text, x, y, color) {
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = OUTLINE_COLOR;
-  ctx.strokeText(text, x, y);
-  ctx.fillStyle = color;
-  ctx.fillText(text, x, y);
-}
-
-// Lighter or darker by `percent` of full brightness (V6 shadeColor).
-function shade(hex, percent) {
-  const n = parseInt(hex.slice(1), 16);
-  const part = (v) => Math.max(0, Math.min(255, Math.round(v + (percent / 100) * 255))).toString(16).padStart(2, '0');
-  return `#${part((n >> 16) & 255)}${part((n >> 8) & 255)}${part(n & 255)}`;
-}
-
-const attitudeText = (s) => {
-  const bank = Math.round(Math.abs(s.bankDeg));
-  const pitch = Math.round(s.pitchDeg);
-  return `bank ${bank}°${bank ? (s.bankDeg > 0 ? ' L' : ' R') : ''}, pitch ${pitch > 0 ? '+' : ''}${pitch}°`;
-};
-
-// V6's low-poly T-6 as one body rolled and pitched (scene.js t6Points, #14, #27).
-function drawT6(ctx, P, s, on) {
-  const w = t6Points(s, s.hdg, (s.bankDeg * Math.PI) / 180, (s.pitchDeg * Math.PI) / 180, on.planeSize3d);
-  const q = Object.fromEntries(Object.entries(w).map(([k, p]) => [k, P(p)]));
-  const c = P(s);
-  const base = SHIP_COLORS[s.slot];
-  const light = shade(base, 28);
-  const dark = shade(base, -22);
-  ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(220, 235, 255, 0.45)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(q.propL.x, q.propL.y);
-  ctx.lineTo(q.propR.x, q.propR.y);
-  ctx.stroke();
-  ctx.strokeStyle = OUTLINED_SHIPS.has(s.slot) ? OUTLINE_COLOR : '#061018';
-  const face = (fill, points) => {
-    ctx.fillStyle = fill;
-    polygon(ctx, points);
-    ctx.fill();
-    ctx.stroke();
-  };
-  // The lower wing is the darker one.
-  face(s.bankDeg >= 0 ? dark : light, [q.wingRootL, q.wingL, c]);
-  face(s.bankDeg >= 0 ? light : dark, [q.wingRootR, q.wingR, c]);
-  face(shade(base, -5), [q.tail, q.stabL, q.stabR]);
-  face(base, [q.spinner, q.fuseL, q.aftL, q.tail, q.aftR, q.fuseR]);
-  face(shade(base, 18), [q.tail, q.fin, q.aftL]);
-  ctx.fillStyle = 'rgba(210, 235, 255, 0.85)';
-  ctx.beginPath();
-  ctx.arc(q.canopy.x, q.canopy.y, 4, 0, 2 * Math.PI);
-  ctx.fill();
-  labelShip(ctx, c, s, on);
-  ctx.restore();
-}
-
-// V6's flat marker, or a dot for a ship that isn't moving (no nose to point).
-function drawMarker(ctx, P, s, on) {
-  const c = P(s);
-  const color = SHIP_COLORS[s.slot];
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.strokeStyle = OUTLINED_SHIPS.has(s.slot) ? OUTLINE_COLOR : '#061018';
-  ctx.lineWidth = 2.5;
-  if (s.hdg === null) {
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, 7, 0, 2 * Math.PI);
-  } else {
-    const size = on.planeSize3d;
-    const f = { x: Math.cos(s.hdg), y: Math.sin(s.hdg) };
-    const r = { x: Math.cos(s.hdg + Math.PI / 2), y: Math.sin(s.hdg + Math.PI / 2) };
-    const at = (fwd, left) => P({ x: s.x + f.x * fwd + r.x * left, y: s.y + f.y * fwd + r.y * left, altFt: s.altFt });
-    polygon(ctx, [at(size, 0), at(0, size * 0.45), at(-size * 0.75, 0), at(0, -size * 0.45)]);
-  }
-  if (!s.inGap) ctx.fill();
-  ctx.stroke();
-  labelShip(ctx, c, s, on);
-  ctx.restore();
-}
-
-function labelShip(ctx, c, s, on) {
-  ctx.font = '600 12px system-ui, sans-serif';
-  outlined(ctx, `#${s.slot}`, c.x + 12, c.y - 14, SHIP_COLORS[s.slot]);
-  if (on.attLabels3d && s.hdg !== null) {
-    ctx.font = '10px system-ui, sans-serif';
-    outlined(ctx, attitudeText(s), c.x + 12, c.y + 2, TEXT);
-  }
-}
-
-// North and east on the ground, in the corner, so they stay put as the view turns (#27).
-function drawCompass(ctx, size, camera) {
-  const o = { x: 0, y: 0, z: 0 };
-  const flat = { ...camera, altScale: 0, zoom: 1000 };
-  const box = { width: 0, height: 0 };
-  const origin = projectPoint({ x: 0, y: 0, altFt: 0 }, o, flat, box);
-  const dir = (dx, dy) => {
-    const p = projectPoint({ x: dx, y: dy, altFt: 0 }, o, flat, box);
-    const len = Math.hypot(p.x - origin.x, p.y - origin.y) || 1;
-    return [(p.x - origin.x) / len, (p.y - origin.y) / len];
-  };
-  const cx = size.width - 56;
-  const cy = size.height - 56;
-  ctx.save();
-  ctx.font = '600 13px system-ui, sans-serif';
-  ctx.lineWidth = 3;
-  for (const [label, [ux, uy], color] of [['N', dir(0, 1), '#7ee787'], ['E', dir(1, 0), '#58a6ff']]) {
-    const tipX = cx + ux * 36;
-    const tipY = cy + uy * 36;
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(tipX, tipY);
-    ctx.stroke();
-    ctx.fillText(label, tipX + ux * 8 - 4, tipY + uy * 8 + 4);
-  }
-  ctx.restore();
-}
-
-// What the picture is scaled by, and what the heights are measured from (#26, #27).
-function drawCaption(ctx, camera, on, datum) {
-  ctx.save();
-  ctx.font = '12px system-ui, sans-serif';
-  const scale = Number.isInteger(camera.altScale) ? camera.altScale : camera.altScale.toFixed(2);
-  outlined(ctx, `Altitude ×${scale}`, 14, 22, TEXT);
-  const from = on.datum3d === 'field' ? 'field elevation' : on.datum3d === 'zero' ? 'sea level' : 'lowest ship less 500 ft';
-  outlined(ctx, `Ground: ${ft(datum)} ft (${from})`, 14, 40, TEXT);
-  ctx.restore();
-}
-
-// The tennis ball in 3D (the same solution as the map, #19): the ball's arc,
-// the cone's edges as the same arc turned ±half the cone, the target's path,
-// and the closest pass joined to where the target was then.
-function drawTennis3d(ctx, P, sol) {
-  const color = sol.status === 'INTERCEPT' ? '#7ee787' : '#ffcc66';
-  const line = (points) => {
-    ctx.beginPath();
-    points.forEach((p, i) => {
-      const q = P(p);
-      if (i === 0) ctx.moveTo(q.x, q.y);
-      else ctx.lineTo(q.x, q.y);
-    });
-    ctx.stroke();
-  };
-  const { shooter } = sol;
-  const half = (sol.coneDeg / 2) * (Math.PI / 180);
-  const turned = (a) => sol.points.map((p) => {
-    const dx = p.x - shooter.x;
-    const dy = p.y - shooter.y;
-    return { x: shooter.x + dx * Math.cos(a) - dy * Math.sin(a), y: shooter.y + dx * Math.sin(a) + dy * Math.cos(a), altFt: p.altFt };
-  });
-  ctx.save();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(255, 204, 102, 0.55)';
-  line(turned(-half));
-  line(turned(half));
-  ctx.strokeStyle = 'rgba(88, 166, 255, 0.7)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 5]);
-  line(sol.targetPoints);
-  ctx.setLineDash([]);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 4;
-  line(sol.points);
-  if (sol.best.ball) {
-    const b = P(sol.best.ball);
-    const tp = P(sol.best.target);
-    ctx.strokeStyle = sol.status === 'INTERCEPT' ? '#7ee787' : '#ff6b6b';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 5]);
-    ctx.beginPath();
-    ctx.moveTo(b.x, b.y);
-    ctx.lineTo(tp.x, tp.y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-    ctx.fill();
-    outlined(ctx, sol.status, b.x + 9, b.y - 8, color);
-  }
-  ctx.restore();
+  renderer.render(scene, gl.camera);
+  return modelled;
 }

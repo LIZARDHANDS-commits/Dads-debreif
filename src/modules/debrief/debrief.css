@@ -254,6 +254,22 @@
   height: 100%;
 }
 
+/* In 3D, three.js draws the picture on a WebGL canvas under the view's own
+   canvas, which carries the labels and takes the mouse. */
+[data-module='debrief'] .debrief-3d {
+  position: relative;
+  z-index: 1;
+}
+
+[data-module='debrief'] .debrief-3d-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+[data-module='debrief'] .debrief-3d[hidden] + .debrief-3d-picture,
 [data-module='debrief'] .debrief-map[hidden],
 [data-module='debrief'] .debrief-toolbar [hidden],
 [data-module='debrief'] .map-credit.is-3d {
@@ -266,6 +282,7 @@
 
 [data-module='debrief'] .debrief-empty {
   position: absolute;
+  z-index: 2;
   inset: 0;
   display: grid;
   place-items: center;
@@ -285,6 +302,41 @@
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
+}
+
+/* The METAR line under the playback bar; its edge shows the flight category. */
+[data-module='debrief'] .debrief-metar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: baseline;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--border);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .debrief-metar[hidden] {
+  display: none;
+}
+
+[data-module='debrief'] .debrief-metar[data-category='VFR'] {
+  border-left-color: var(--good);
+}
+
+[data-module='debrief'] .debrief-metar[data-category='MVFR'] {
+  border-left-color: var(--caution);
+}
+
+[data-module='debrief'] .debrief-metar[data-category='IFR'],
+[data-module='debrief'] .debrief-metar[data-category='LIFR'] {
+  border-left-color: var(--bad);
+}
+
+[data-module='debrief'] .debrief-metar-raw {
+  display: block;
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
 }
 
 [data-module='debrief'] .playback-play {
@@ -474,6 +526,7 @@
 
 [data-module='debrief'] .map-credit {
   position: absolute;
+  z-index: 2;
   right: var(--space-1);
   bottom: var(--space-1);
   max-width: calc(100% - var(--space-2));

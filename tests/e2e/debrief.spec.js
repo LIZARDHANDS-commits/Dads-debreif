@@ -184,7 +184,7 @@ test('leaving the debrief while it plays stops everything it started (R4)', asyn
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'home');
   expect(await page.evaluate(() => window.__ooda.stats())).toEqual(fresh);
-  expect(await page.locator('link[href*="debrief"]').count()).toBe(0);
+  expect(await page.locator('link[rel="stylesheet"][href*="debrief"]').count()).toBe(0);
 });
 
 test('leaving from 3D with the EM chart and tennis ball open stops everything too (R4)', async ({ page }) => {
@@ -704,8 +704,16 @@ test('with no connection, the map says satellite imagery needs one and keeps the
   await expect(page.locator('.map-credit')).toHaveText(/needs a connection/, { timeout: 20_000 });
 });
 
+// The 3D view as seen: three.js's picture with the labels' canvas over it.
 const picture3d = (page) => page.locator('canvas.debrief-3d').evaluate((canvas) => {
-  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const both = document.createElement('canvas');
+  both.width = canvas.width;
+  both.height = canvas.height;
+  const ctx = both.getContext('2d');
+  const picture = canvas.parentElement.querySelector('canvas.debrief-3d-picture');
+  if (picture?.width) ctx.drawImage(picture, 0, 0, both.width, both.height);
+  ctx.drawImage(canvas, 0, 0);
+  const { data } = ctx.getImageData(0, 0, both.width, both.height);
   let hash = 0;
   for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
   return hash;
@@ -768,6 +776,15 @@ test('3D: drag turns it, the wheel zooms, settings are kept, Reset view goes bac
   before = await picture3d(page);
   await page.keyboard.press('-');
   await expect.poll(() => picture3d(page)).not.toBe(before);
+
+  // The Harvard paint is the default; Ship colours repaints the models (D138).
+  await page.getByRole('button', { name: '3D settings' }).click();
+  await expect(page.getByLabel('Paint')).toHaveValue(/./);
+  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Harvard');
+  before = await picture3d(page);
+  await page.getByLabel('Paint').selectOption({ label: 'Ship colours' });
+  await expect.poll(() => picture3d(page)).not.toBe(before);
+  await page.keyboard.press('Escape');
 
   for (const name of ['Altitude sticks', 'Ground grid', 'Bank and pitch', 'Altitude scale', 'Compass', 'Landscape']) {
     await test.step(name, async () => {
@@ -910,4 +927,112 @@ test('tennis ball: opened from Tools, one answer in the panel, on the map and in
   await page.getByRole('button', { name: 'Close tennis ball' }).click();
   await expect(panel).toBeHidden();
   await expect.poll(() => picture3d(page)).not.toBe(with3d);
+});
+
+// Past METARs from the IEM archive, made up for the window asked for: one on
+// each hour and a SPECI at 22 past, so no test needs the network.
+const IEM = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?**';
+function iemReply(url) {
+  const q = new URL(url).searchParams;
+  const station = q.get('station');
+  const from = Date.parse(`${q.get('sts').slice(0, -1)}:00Z`);
+  const to = Date.parse(`${q.get('ets').slice(0, -1)}:00Z`);
+  const pad = (n) => String(n).padStart(2, '0');
+  const line = (ms, kind, body) => {
+    const d = new Date(ms);
+    const valid = `${d.toISOString().slice(0, 10)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    return `${station},${valid},${kind}${station} ${pad(d.getUTCDate())}${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}Z ${body}`;
+  };
+  const lines = ['station,valid,metar'];
+  const firstHour = Math.ceil(from / 3_600_000) * 3_600_000;
+  for (let ms = firstHour; ms <= to; ms += 3_600_000) {
+    lines.push(line(ms, '', '27012KT 15SM FEW040 BKN120 12/04 A2992'));
+    lines.push(line(ms + 22 * 60_000, 'SPECI ', '28018KT 2SM -SHRA OVC008 09/08 A2991'));
+  }
+  return lines.join('\n');
+}
+
+test('METAR: off at first, fetched only when on, the report in force with ticks and the raw text (SPEC-debrief: Weather)', async ({ page }) => {
+  const asked = [];
+  await page.route(IEM, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'text/plain', headers: { 'Access-Control-Allow-Origin': '*' }, body: iemReply(route.request().url()) });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const line = page.locator('.debrief-metar');
+  const scrubber = page.getByRole('slider', { name: 'Flight time' });
+  await expect(line).toBeHidden();
+  expect(asked).toEqual([]); // nothing fetched while it's off (R5)
+
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('METAR', { exact: true }).check();
+  // The example flight is at Moose Jaw, so CYMJ is nearest; the line says the report's time and age.
+  await expect(line.locator('.debrief-metar-text')).toHaveText(/^(SPECI )?CYMJ \d{4}Z \((at this moment|\d+ min before|\d+ h( \d+ min)? before)\) · /);
+  expect(asked).toHaveLength(1);
+  expect(new URL(asked[0]).searchParams.get('station')).toBe('CYMJ');
+  // Each report inside the flight is a tick on the scrubber.
+  await expect(scrubber).toHaveAttribute('list', 'debrief-report-ticks');
+  expect(await page.locator('#debrief-report-ticks option').count()).toBeGreaterThan(0);
+
+  // Jump to the SPECI's own minute: it's in force from then, decoded.
+  const speciT = await page.locator('#debrief-report-ticks option').evaluateAll((opts) => opts.map((o) => Number(o.value)))
+    .then((ts) => ts.find((t) => new Date(t * 1000).getUTCMinutes() === 22));
+  expect(speciT).toBeDefined();
+  await scrubber.fill(String(speciT));
+  await expect(line.locator('.debrief-metar-text')).toHaveText(/^SPECI CYMJ \d{2}22Z \(at this moment\) · IFR · wind 280\/18 kt · vis 2 SM · -SHRA · OVC008 · 09\/08 · A2991$/);
+  await expect(line).toHaveAttribute('data-category', 'IFR');
+  // The report as sent, a click away, as text.
+  await line.getByText('Report as sent').click();
+  await expect(line.locator('.debrief-metar-raw')).toHaveText(/^(SPECI )?CYMJ \d{6}Z /);
+
+  // Another airfield by hand: its own fetch, once.
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('METAR from').selectOption({ label: 'CYQR Regina' });
+  await expect(line.locator('.debrief-metar-text')).toHaveText(/CYQR \d{4}Z/);
+  expect(asked.map((u) => new URL(u).searchParams.get('station'))).toEqual(['CYMJ', 'CYQR']);
+
+  // Off again: the line and the ticks go.
+  await page.getByLabel('METAR', { exact: true }).uncheck();
+  await expect(line).toBeHidden();
+  await expect(scrubber).not.toHaveAttribute('list', /./);
+});
+
+// NASA GIBS GOES-West tiles, served here as a 1 × 1 green picture so no test needs the network.
+const GIBS = 'https://gibs.earthdata.nasa.gov/wmts/**';
+
+test('satellite weather: off at first, "not kept" after 90 days, then GOES frames for the playback time (SPEC-debrief: Weather)', async ({ page }) => {
+  const asked = [];
+  await page.route(GIBS, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: GREEN_TILE });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const credit = page.locator('.map-credit');
+  await page.getByRole('button', { name: 'Weather' }).click();
+  // The example flight is from 2026-06-02; NASA keeps about 90 days, so today it's gone.
+  await page.getByLabel('Satellite (GOES-West)').check();
+  await expect(credit).toHaveText('Satellite not kept: NASA keeps about 90 days of pictures.');
+  expect(asked).toEqual([]);
+  await page.getByLabel('Satellite (GOES-West)').uncheck();
+  await expect(credit).toBeHidden();
+
+  // A week after the flight, the frames are there: the one at or before the playback time.
+  await page.clock.setFixedTime(new Date('2026-06-09T12:00:00Z'));
+  await page.getByLabel('Satellite (GOES-West)').check();
+  await expect(credit).toHaveText(/^Satellite \d{2}:\d0Z, (at this moment|\d+ min before) · NASA GIBS, GOES-West$/, { timeout: 10_000 });
+  await expect.poll(() => pixelsNear(page, [0, 200, 60]), { timeout: 10_000 }).toBeGreaterThan(10_000);
+  expect(asked.length).toBeGreaterThan(0);
+  for (const url of asked) {
+    const m = url.match(/\/GOES-West_ABI_GeoColor\/default\/2026-06-02T(\d{2}):(\d{2}):00Z\/GoogleMapsCompatible_Level7\/(\d+)\/\d+\/\d+\.png$/);
+    expect(m, url).not.toBeNull();
+    expect(Number(m[2]) % 10).toBe(0); // on the ten-minute marks
+    expect(Number(m[3])).toBeLessThanOrEqual(7); // GeoColor stops at zoom 7
+  }
+  // Infrared is its own layer, stopping at zoom 6.
+  const before = asked.length;
+  await page.getByLabel('Satellite picture').selectOption({ label: 'Infrared' });
+  await expect.poll(() => asked.length).toBeGreaterThan(before);
+  expect(asked.slice(before).every((u) => /Band13_Clean_Infrared\/default\/.*\/GoogleMapsCompatible_Level6\/[0-6]\//.test(u))).toBe(true);
 });

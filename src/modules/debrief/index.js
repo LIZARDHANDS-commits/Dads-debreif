@@ -4,7 +4,8 @@
 // together; everything it starts is stopped by the shell when it closes (R4).
 import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
-import { createControls } from '../../ui-kit/controls.js';
+import { createControls, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { loadFlight } from '../../flight-data/load.js';
 import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
@@ -29,6 +30,11 @@ import { toCsv, csvFileName } from './export-csv.js';
 import {
   addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps, dfpLabel,
 } from './dfp.js';
+import { CATALOG } from '../../airfields/catalog.js';
+import { createMetarFeed } from './weather/metar-feed.js';
+import { metarLineAt } from './weather/metar.js';
+import { nearestAirfield, reportTicks } from './weather/slices.js';
+import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
 import { TIME_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
@@ -37,7 +43,10 @@ function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
   document.head.append(stylesheet);
 
-  const layout = createSettings(app.storage, LAYOUT_DEFAULTS);
+  // The view and paint are checked against their lists (D141, D138); other values fall back to the defaults.
+  const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
+    allowed: { view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS) },
+  });
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
   const canExample = typeof app.exampleText === 'function';
@@ -69,6 +78,15 @@ function mount(root, app) {
     return on.tennisOpen && flight && clock ? tennisAt(flight, clock.t, on) : null;
   };
 
+  // The satellite picture for the playback time, while it's on and NASA still
+  // keeps the flight's frames (about 90 days; Patrick 08:03Z: live only).
+  function satelliteWanted() {
+    const on = layout.get();
+    if (!on.wxSatellite || !flight || !clock || !satelliteKept(flight.endT, Date.now() / 1000)) return null;
+    const layer = SATELLITE_LAYERS[on.wxSatelliteLayer] ? on.wxSatelliteLayer : 'geocolor';
+    return { source: gibsSource(layer, clock.t), opacityPct: on.wxSatelliteOpacity };
+  }
+
   const map = createMapView(ui.canvas, {
     tennis: tennisNow,
     timers: app.scheduler,
@@ -77,6 +95,13 @@ function mount(root, app) {
     dfps: () => dfps.map((d) => ({ x: d.x, y: d.y, label: dfpLabel(dfps, d) })),
     onImagery: (state) => ui.setImagery(state),
     onCharts: (state) => ui.setCharts(state),
+    weather: () => satelliteWanted(),
+    onWeather: (state) => {
+      const on = layout.get();
+      const source = satelliteWanted()?.source;
+      ui.setWeatherNote(!on.wxSatellite || !flight || !clock ? ''
+        : satelliteNote({ kept: satelliteKept(flight.endT, Date.now() / 1000), state, frameT: source?.frameT, t: clock.t }));
+    },
     labels: (shown, t) => {
       const out = {};
       for (const row of formationAt(shown, t, currentStandards())) {
@@ -96,6 +121,11 @@ function mount(root, app) {
     // The field datum is the home field's elevation, or Moose Jaw's until one is set.
     fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
     setCamera: (patch) => layout.update(patch),
+    // three.js couldn't load (offline on a first visit) or WebGL is off: say so and stay in 2D (D141).
+    onUnavailable: (message) => {
+      ui.setMessage(message);
+      layout.update({ view: '2d' });
+    },
   });
   const em = createEmView(ui.emCanvas, {
     timers: app.scheduler,
@@ -112,6 +142,36 @@ function mount(root, app) {
     if (on.emOpen) em.requestDraw();
   };
 
+  // The METAR line (SPEC-debrief: Weather at the time of the flight): the
+  // report in force from the airfield nearest Lead, or the one picked.
+  const metars = createMetarFeed({ onChange: () => renderMetar() });
+  function weatherFields() {
+    const byIcao = new Map(Object.entries(CATALOG).map(([icao, f]) => [icao, { icao, ...f }]));
+    for (const f of app.airfields ? [app.airfields.home(), ...app.airfields.alternates()] : []) {
+      if (Number.isFinite(f.lat) && Number.isFinite(f.lon)) byIcao.set(f.icao, f);
+    }
+    return [...byIcao.values()];
+  }
+  function renderMetar() {
+    const on = layout.get();
+    if (!on.wxMetar || !flight || !clock) {
+      ui.setMetar(null);
+      bar.setTicks([]);
+      return;
+    }
+    let icao = on.wxMetarField;
+    if (!CATALOG[icao]) { // "nearest", or anything else a stored layout holds
+      const lead = sampleAt(flight.tracks[1] ?? Object.values(flight.tracks)[0], clock.t);
+      icao = nearestAirfield(weatherFields(), lead)?.icao;
+    }
+    const entry = icao ? metars.get(icao) : null;
+    if (!entry) ui.setMetar({ text: 'No airfield with a known position to take METARs from.', raw: '' });
+    else if (entry.state === 'loading') ui.setMetar({ text: `Loading ${icao} METARs…`, raw: '' });
+    else if (entry.state === 'failed') ui.setMetar({ text: `${icao} METARs couldn't load. They need a connection.`, raw: '' });
+    else ui.setMetar(metarLineAt(entry.reports, clock.t, icao));
+    bar.setTicks(entry?.state === 'ready' ? reportTicks(entry.reports, flight.startT, flight.endT).map((r) => r.t) : []);
+  }
+
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
   const READOUT_MS = 100;
@@ -123,6 +183,7 @@ function mount(root, app) {
     lastReadout = performance.now();
     ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null);
     if (layout.get().tennisOpen) tennisPanel.render(tennisNow());
+    renderMetar();
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -152,6 +213,7 @@ function mount(root, app) {
     clock = createClock({ startT: flight.startT, endT: flight.endT });
     if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
+    metars.setFlight(flight);
     dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
     setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
     unsaved = false;
@@ -172,6 +234,7 @@ function mount(root, app) {
     pendingReadout?.();
     flight = null;
     clock = null;
+    metars.setFlight(null);
     dfpKey = null;
     setDfps([], { changed: false });
     unsaved = false;
@@ -311,8 +374,9 @@ function mount(root, app) {
     run('Loading the example flight', () =>
       loadExampleFlight(app.exampleText).catch((err) => {
         if (err?.name === 'KmlError') throw err;
-        const failed = new Error('Example flight download failed', { cause: err });
-        failed.userMessage = "The example flight couldn't be downloaded. Check the connection and try again.";
+        const failed = Object.assign(new Error('Example flight download failed', { cause: err }), {
+          userMessage: "The example flight couldn't be downloaded. Check the connection and try again.",
+        });
         throw failed;
       }),
     ),
@@ -328,6 +392,7 @@ function mount(root, app) {
     filePanel.setCollapsed(!values.filesOpen);
     tennisPanel.element.hidden = !values.tennisOpen;
     if (values.tennisOpen) tennisPanel.render(tennisNow());
+    renderMetar();
     redraw();
   });
 
@@ -352,6 +417,7 @@ function mount(root, app) {
     pendingReadout?.();
     stopClock?.();
     stopLayout();
+    metars.dispose();
     controls.dispose();
     standardsPanel?.dispose();
     map.dispose();

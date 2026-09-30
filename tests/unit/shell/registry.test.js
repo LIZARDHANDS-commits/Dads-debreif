@@ -31,6 +31,12 @@ test('findModule and isBuilt', () => {
   assert.equal(isBuilt({ load: () => {} }), true);
 });
 
+test('turn-sim, turn-fight, traffic and sof are prototypes until the combined sign-off (D135); debrief is not', () => {
+  const flagged = MODULES.filter((m) => m.prototype === true).map((m) => m.id);
+  assert.deepEqual(flagged, ['turn-sim', 'turn-fight', 'traffic', 'sof']);
+  assert.notEqual(findModule('debrief').prototype, true);
+});
+
 test('card videos follow the motion setting, or the computer when set to follow it', async () => {
   const { motionAllowed } = await import('../../../src/shell/home.js');
   assert.equal(motionAllowed('system', false), true);

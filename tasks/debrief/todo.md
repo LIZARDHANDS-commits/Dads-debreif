@@ -78,3 +78,14 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Browser tests and checklist done: added every control with a flight loaded (R3, a fresh page per click, default layout then every panel open), leaving from 3D with the EM chart and tennis ball open (R4), offline after one visit (R6), and a hostile debrief file (10 MB note refused, script only text). docs/checklists/debrief.md written. Left open until Patrick (or anyone, D28) runs the checklist on the live link.
 
 **Checkpoint E:** open PR E; Patrick (or anyone, D28) runs the checklist.
+
+## Weather at the time of the flight (SPEC-debrief section, approved 2026-09-30 07:21Z)
+
+- [x] **12a. Time slices.** `weather/slices.js`: the last slice at or before the moment with its age, frame times for a window, scrubber ticks, the nearest airfield. Pure, tested in Node.
+- [x] **12b. Source checks.** Done 07:35Z to 07:51Z from a full-network environment: all four sources answer the browser with no key. GIBS keeps about 90 days (satellite live only, Patrick 08:03Z); no model cloud or visibility (Patrick 08:03Z). Results in /mnt/project-files/wx-sources/debrief-historical-sources-check.md.
+- [x] **12c. Weather menu and METAR line.** Weather menu beside Layers (all off, remembered). METAR line under the playback bar via `src/wx` `parseMetar`, and scrubber ticks. The METAR source (IEM) is still to be confirmed from a browser in 12b; the e2e test stubs it. Its host joins the CSP through the app frame.
+- [x] **12d. Satellite layer.** GIBS WMTS tiles through the ui-kit tile layer (`maxZoom`, #151), with the line "Satellite HH:MMZ, N min before" under the map; "not kept" after about 90 days. Still to do: fetch the next frame ahead while playing.
+- [ ] **12e. Winds aloft.** Lead-line wind at Lead's altitude, and map arrows at a chosen height. No model cloud or visibility (Patrick 08:03Z).
+- [ ] **12h. METAR vs SPECI ticks.** IEM's CSV doesn't say which is a SPECI: ask report_type=4 alone in a second call (1 s apart, IEM's throttle) to mark them.
+- [ ] **12f. Saved radar and lightning.** When the flight ended less than 3 h ago, fetch frames and keep them with the flight. The debrief file carries weather via flight-data's format (through the coordinator). There's a size limit.
+- [ ] **12g. Browser tests and checklist lines.** Sources are stubbed in e2e with no live network. Checklist lines are added for the real sources.

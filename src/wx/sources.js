@@ -85,6 +85,9 @@ const message = (e) => (e && e.message) || String(e);
  * Fetch reports of one kind ('metar' | 'taf') for a list of stations.
  * Returns { reports: { ICAO: { raw, report, source, status } }, missing, refused, errors }.
  * missing: stations neither source had; refused: ids that are not station ids, or past the first 30.
+ * @param {string} kind
+ * @param {string[]} stations
+ * @param {{ fetch?: typeof globalThis.fetch, now?: Date }} [options]
  */
 export async function fetchReports(kind, stations, { fetch, now = new Date() } = {}) {
   const ids = [...new Set((Array.isArray(stations) ? stations : []).map((s) => (typeof s === 'string' ? s.toUpperCase() : s)))];
@@ -153,7 +156,7 @@ export function startRefresh({ stations, fetch, onUpdate, everyMs = REFRESH_MS, 
       fetchReports('metar', stations, { fetch, now: at }),
       fetchReports('taf', stations, { fetch, now: at }),
     ]);
-    for (const [kind, got] of [['metar', metar], ['taf', taf]]) {
+    for (const [kind, got] of Object.entries({ metar, taf })) {
       Object.assign(kept[kind], got.reports);
       for (const r of Object.values(kept[kind])) r.status = staleness(kind, r.report, at);
     }
