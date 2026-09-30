@@ -616,6 +616,12 @@ test('the SMM settings sit in the closed Turn Sim settings menu, each at its def
   // The offset box.
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, "#2's side")).toBeHidden();
+  // A1: it only mirrors 4312 and 2134, so the two-ship hides it too.
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(box(page, "#2's side")).toBeHidden();
+  await box(page, 'Formation').selectOption({ label: '2134' });
+  await expect(box(page, "#2's side")).toBeVisible();
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await expect(box(page, 'Rear element delay')).toHaveValue('12.5');
   await expect(box(page, '#4 timing').locator('option')).toHaveText(['Fly to the box slot (solved)', 'Rear element delay (SMM)', 'Solve by ground track', 'Late (V6)', 'Early (V6)']);
   await expect(box(page, '#4 timing').locator('option:checked')).toHaveText('Fly to the box slot (solved)');

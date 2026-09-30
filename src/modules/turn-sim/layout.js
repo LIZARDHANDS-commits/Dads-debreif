@@ -325,7 +325,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     for (const boxes of clockGroups) boxes.hidden = values.timing !== 'clock';
     groups.offset.hidden = values.formation !== 'offsetBox';
     groups.cross.hidden = values.maneuver !== 'cross180';
-    groups.twoSide.hidden = values.formation === 'offsetBox';
+    groups.twoSide.hidden = values.formation !== 'weighted' && values.formation !== 'weightedReverse'; // it only mirrors 4312 and 2134
     if (turnDegInput) turnDegInput.max = values.maneuver === 'check30' ? '30' : '180'; // the check turn is 30 degrees or less (SMM 16.19 para 58)
     correctionOn.checked = values.correction !== 'none';
     for (const el of correctionBoxes) el.hidden = values.correction === 'none';
