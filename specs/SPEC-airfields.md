@@ -47,6 +47,7 @@ Out:
 - Stored with `src/storage/` under the scope `airfields`. If the browser won't store it, it lasts for the visit, as every other setting does.
 - Everything read back is checked: ICAO ids must be four letters or digits (upper-cased), numbers must be finite and in range (HAT 0 to 5,000 ft, visibility 0 to 10 SM, latitude ±90, longitude ±180, elevation −1,500 to 15,000 ft, MEA 0 to 20,000 ft), the time zone must be one the browser knows, and the approach type must be one of the list below. Anything else is dropped, never guessed.
 - The home field can't also be an alternate. Duplicates are dropped. Up to 6 alternates (V6 showed 3).
+- Making an alternate the home field takes it off the alternates, and the panel says so under the box ("CYQR is now home, so it was taken off the alternates.", AF-5). It is a remark, not a refusal: the box is not marked invalid and the text is not red.
 - Changing the home field changes local time everywhere at once (the shell's header clock, the SOF's clocks and wave times, debrief times) through `subscribe`.
 
 ### Approach type, and the alternate minima it gives

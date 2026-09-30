@@ -35,6 +35,13 @@ test('a module that is not built yet says so and shows home @smoke', async ({ pa
   await expect(page.locator('.home')).toBeVisible();
 });
 
+test('addresses match without regard to case, and a not-found note keeps what was typed (AF-4)', async ({ page }) => {
+  await openRoute(page, '#/About');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
+  await openRoute(page, '#/PTPT');
+  await expect(page.locator('#route-notice')).toContainText('no page at "PTPT"');
+});
+
 test('an unknown address says so and shows home', async ({ page }) => {
   await openRoute(page, '#/ptpt');
   await expect(page.locator('#route-notice')).toContainText('no page at "ptpt"');
