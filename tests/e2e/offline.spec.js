@@ -14,10 +14,19 @@ async function waitForOfflineCopy(page) {
   });
 }
 
-test('after one visit, home and About open with the network off', async ({ page, context }) => {
+// One online visit, then the network goes off. Card videos stay off until
+// then: a video still downloading when the network drops logs a browser error
+// that has nothing to do with what these tests check.
+async function visitThenGoOffline(page, context) {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoute(page, '#/');
   await waitForOfflineCopy(page);
   await context.setOffline(true);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+}
+
+test('after one visit, home and About open with the network off', async ({ page, context }) => {
+  await visitThenGoOffline(page, context);
   await page.reload();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
   await expect(page.locator('.card')).toHaveCount(6);
@@ -30,9 +39,7 @@ test('after one visit, home and About open with the network off', async ({ page,
 });
 
 test('offline, the home cards show their stills and fetch no videos', async ({ page, context }) => {
-  await openRoute(page, '#/');
-  await waitForOfflineCopy(page);
-  await context.setOffline(true);
+  await visitThenGoOffline(page, context);
   const failed = [];
   page.on('requestfailed', (req) => failed.push(req.url()));
   await page.reload();
