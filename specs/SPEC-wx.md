@@ -58,21 +58,35 @@ Out, for now:
 - `FM` and `BECMG` are applied in time order, and nothing earlier runs past an `FM`.
 - Anything that makes the forecast less than fully readable is listed in `taf.problems`: a group keyword with no readable time (its conditions are kept apart, never merged into the group before), `FM` groups out of time order, a group outside the valid period, an implausible valid period (over 30 hours, or more than a day from the issue time), or tokens that could not be read.
 
-### Limit checks (V6 behaviour kept)
+### Limit checks
 
-- A report is below a limit when the ceiling is **strictly below** the ceiling limit, or the visibility is strictly below the visibility limit. This is V6's rule (`<`), kept until someone decides otherwise (question WX-1).
+V6's thresholds, with Patrick's answers to Q27 and Q28 (2026-09-30).
+
+- **Below (red).** A report is below a limit when the ceiling is **strictly below** the ceiling limit, or the visibility is strictly below the visibility limit. This is V6's rule (`<`), confirmed by Patrick (Q27): "below a limit, not at or below".
+- **At the limit (yellow).** When nothing is below, a ceiling exactly on its limit or a plain visibility exactly on its limit is `atLimit` (Q27: "at limit can be yellow"). At the home limits, `3SM BKN020` is at the limit, not below it. `M3SM` against a 3 SM limit is below; `P6SM` against a 6 SM limit is not at it.
 - `M` visibility counts as below when its number is at or below the limit (`M1/4SM` is below 1/4 SM). `P` visibility counts as below only when its number is below the limit. For limits of 6 SM or less this gives exactly V6's results, which used 0.24 and 6.01.
-- Thunderstorm or severe weather: any `TS` at the station, plus `FC` and `SQ`. V6's pattern missed `TS` combined with more than one precipitation type (`TSRAGR`); that is a parsing fix.
-- Significant weather: freezing rain or drizzle, `PL`, `GR`, `GS`, `BLSN`, and fog (`FG`, including `FZFG`). V6 missed `FZFG` and `FZRAPL` because of how its pattern was written; that is a parsing fix.
-- Reported but not yet raised as a caution, pending question WX-2: `VCTS` and other vicinity weather, `CB`/`TCU` layers, snow, and shallow or patchy fog (`MIFG`, `BCFG`, `PRFG`). The check returns them in their own fields so the SOF can show them.
+- **Cautions.** Dangerous weather raises a caution the SOF must acknowledge (Q28: "VCTS and CB/TCU, same with FC or +FC or anything dangerous"). A caution is raised at the station or in the vicinity (`VC`) for:
+  - `TS` thunderstorm, in any combination (`TSRA`, `+TSRAGR`, `VCTS`). V6's pattern missed `TSRAGR`; that is a parsing fix.
+  - `FC` funnel cloud and `+FC` tornado or waterspout (`VCFC` too).
+  - `SQ` squall.
+  - `GR` hail and `GS` small hail.
+  - `FZRA` and `FZDZ` freezing rain and drizzle, and `PL` ice pellets. V6 missed `FZRAPL`; that is a parsing fix.
+  - `VA` volcanic ash, `SS` sandstorm, `DS` duststorm, `PO` dust or sand whirls.
+  - `BLSN` blowing snow.
+  - Fog at the station: `FG` and `FZFG` (not `MIFG`, `BCFG` or `PRFG`). V6 missed `FZFG`; that is a parsing fix.
+  - `CB` or `TCU` on any cloud layer, whatever its cover (`FEW040CB`).
+
+  `DANGEROUS_WEATHER` in `limits.js` exports the weather codes above for the SOF to show.
+- **Information only** (Q28): snow (`SN`, `-SN`, `SHSN`), shallow, patchy or partial fog (`MIFG`, `BCFG`, `PRFG`), and other vicinity weather (`VCSH`, `VCFG`, `VCBLSN`). The check returns them in `watch` so the SOF can show them without asking for an acknowledgement.
 - An unknown visibility or ceiling is reported as unknown, never as "within limits".
+- `checkConditions` returns a `level`, worst first: `below` (red), `caution` (dangerous weather), `unknown`, `at-limit` (yellow), `within`. It also returns the flags behind it (`belowLimits`, `atLimit`, `cautions`, `alert`) and the reasons in V6's wording: `CEILING 1500 FT < 2000 FT`, `CEILING 2000 FT AT LIMIT 2000 FT`, `VIS 3 SM AT LIMIT 3 SM`, `THUNDERSTORM / SEVERE WX (VCTS)`, `SIGNIFICANT WX (FZFG)`, `CB/TCU (FEW040CB)`.
 
 Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600 ft and 2 SM. The home airfield and alternates list is a setting (R16); `wx` takes the ICAO ids and limits as input.
 
 ### Alternates
 
-- **Home trigger.** For a wave window (takeoff to landing plus one hour, as V6), every prevailing period and every overlay touching the window is checked against the home limits. Status is `no-time` when the window can't be read, `no-taf` when there is no usable TAF (missing, `NIL` or `CNL`), `not-covered` when the TAF's valid period does not cover the whole window, else `below` if anything is below, else `incomplete` if a prevailing ceiling or visibility is unknown or the TAF has problems, else `meets`. Hits are returned either way, with the group, its times and the reason. `TEMPO` and `PROB` count, as in V6.
-- **Alternate airfield at ETA.** The same check at the ETA with the alternate limits, prevailing plus any overlay active at that time. This replaces V6's alternate cards, which showed green whatever the weather (issue #4). If the ETA is missing, the TAF is missing or cancelled, does not cover the ETA, or part of it cannot be read, the status says so (`no-time`, `no-taf`, `not-covered`, `incomplete`) instead of passing. An ETA exactly where one period ends and the next begins is checked against both.
+- **Home trigger.** For a wave window (takeoff to landing plus one hour, as V6), every prevailing period and every overlay touching the window is checked against the home limits. Status is `no-time` when the window can't be read, `no-taf` when there is no usable TAF (missing, `NIL` or `CNL`), `not-covered` when the TAF's valid period does not cover the whole window, else `below` if anything is below, else `incomplete` if a prevailing ceiling or visibility is unknown or the TAF has problems, else `at-limit` if anything is exactly on a limit (Q27, yellow), else `meets`. Hits, at-limit pieces and caution pieces are returned either way, each with the group, its times and the reasons. `TEMPO` and `PROB` count, as in V6. Cautions (Q28) are listed but never change the status, which stays about ceiling and visibility.
+- **Alternate airfield at ETA.** The same check at the ETA with the alternate limits, prevailing plus any overlay active at that time. This replaces V6's alternate cards, which showed green whatever the weather (issue #4). If the ETA is missing, the TAF is missing or cancelled, does not cover the ETA, or part of it cannot be read, the status says so (`no-time`, `no-taf`, `not-covered`, `incomplete`) instead of passing. Exactly on the alternate limits is `at-limit`. An ETA exactly where one period ends and the next begins is checked against both.
 - **GNSS-only alternates.** V6 lets the SOF mark an alternate GNSS-only with an MEA. V6 never computed a result for it and said so on the card. `wx` keeps that: the result carries `gnssOnly` and `meaFt`, and a status of `needs-mea` when the MEA is missing. No visual-descent rule is invented (question WX-4).
 
 ### Classifications (V6 thresholds, unchanged)
@@ -97,7 +111,8 @@ const taf = parseTaf('TAF CYMJ 291120Z 2912/3012 27010KT P6SM SKC TEMPO 2916/292
 taf.groups[1];          // { kind: 'TEMPO', from: Date(29 16Z), to: Date(29 20Z), conditions: { visibility: { sm: 0.5, ... }, weather: [FG] } }
 
 homeAlternateTrigger(taf, { from: takeoff, to: landPlus1h }, DEFAULT_LIMITS.home);
-// { status: 'below', covered: true, hits: [{ kind: 'TEMPO', from, to, reasons: ['VIS 1/2 SM < 3 SM', 'SIGNIFICANT WX (FG)'] }] }
+// { status: 'below', covered: true, hits: [{ kind: 'TEMPO', from, to, reasons: ['VIS 1/2 SM < 3 SM', 'SIGNIFICANT WX (FG)'] }],
+//   atLimit: [], cautions: [{ kind: 'TEMPO', ..., cautions: ['FG'] }] }
 ```
 
 Every function is pure: plain values in, plain values out, times as `Date` in UTC. Functions never throw on bad text, missing times or missing limits (missing limits fall back to the defaults); they return what they could read plus what they could not.
@@ -140,9 +155,9 @@ tests/unit/wx/
 
 ## Open questions (plan doc Questions tab Q27 to Q30)
 
-Logged as Q27 (WX-1) to Q30 (WX-4), for Dad or a current SOF. Until they are answered, the code keeps V6's behaviour.
+Logged as Q27 (WX-1) to Q30 (WX-4). Patrick answered all four on 2026-09-30.
 
-- **WX-1.** Is "below a limit" strictly below (`<`, V6) or at-or-below (`<=`)? At 2000 ft, is `BKN020` below the home limit?
-- **WX-2.** Should any of these raise a caution: thunderstorm in the vicinity (`VCTS`), `CB` or `TCU` cloud, snow, shallow or patchy fog? V6 raises none of them.
-- **WX-3.** V6's wave panel shows "DEST TRIGGER <3000 FT / 3 SM" as a fixed label, while its check uses 2000 ft / 3 SM. Which is the real home trigger, and does 3000 ft belong anywhere?
-- **WX-4.** For the alternate check, is the ETA a point in time (V6) or a window (for example ETA ±1 hour)? And what weather does the GNSS-only visual-descent branch need?
+- **WX-1 / Q27, answered.** Below stays strictly below (`<`); exactly at a limit is yellow. See "Limit checks".
+- **WX-2 / Q28, answered.** `VCTS`, `CB`/`TCU`, `FC`, `+FC` and other dangerous weather raise an acknowledgeable caution; snow and shallow fog stay information only. The list is under "Limit checks".
+- **WX-3 / Q29, answered.** The home trigger is 2000 ft / 3 SM, and its label must read 2000/3 to match the check. V6's fixed "DEST TRIGGER <3000 FT / 3 SM" label was wrong; `wx` has no 3000 ft figure, and the SOF builds its label from the limits it passes in, so the label can never drift from the check again.
+- **WX-4 / Q30, answered, not built yet.** Alternates are checked over a window, not only at the ETA, following the Canadian IFR alternate rules. Until those rules are written into this spec, `assessAlternate` keeps V6's point-in-time check and the GNSS-only `needs-mea` status.
