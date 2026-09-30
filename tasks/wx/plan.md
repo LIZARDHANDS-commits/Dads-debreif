@@ -14,4 +14,4 @@ Later, not in this PR:
 
 - Swap the local metres-per-mile constant for `core/units.js` once the flight-math core merges.
 - `sources.js`: aviationweather.gov plus a backup (D33), in an environment with network access. Add a few captured live reports to `reports.js` then.
-- Apply the answers to WX-1 to WX-4.
+- Apply the answers to WX-1 to WX-4 (Q27 to Q29 done; Q30 waits on the Canadian alternate rules).

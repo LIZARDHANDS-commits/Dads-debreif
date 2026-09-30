@@ -1,5 +1,5 @@
 // Limit checks and classifications. Thresholds and the "strictly below" rule are
-// V6's (SPEC-wx, "Limit checks"); only V6's parsing bugs are fixed.
+// V6's (SPEC-wx, "Limit checks"); at-limit (Q27) and cautions (Q28) are Patrick's answers.
 
 import { ceilingFt, ceilingUnknown, formatVisibility, METRES_PER_SM } from './conditions.js';
 
@@ -27,15 +27,43 @@ export function visibilityBelow(vis, limitSm) {
   return belowWithQualifier(vis.sm, vis.qualifier, limitSm);
 }
 
-const isStation = (w) => w.intensity !== 'VC';
+/**
+ * True when a plain visibility is exactly on `limitSm` (Q27: yellow), null when
+ * it is unknown. "Less than" at the limit is below it; "more than" is above it.
+ */
+export function visibilityAtLimit(vis, limitSm) {
+  if (!vis) return null;
+  return vis.qualifier == null && vis.sm === limitSm;
+}
+
+/**
+ * Weather codes that raise a caution the SOF must acknowledge (Q28), at the
+ * station or in the vicinity (VC). Listed in SPEC-wx, "Cautions".
+ * Descriptors: TS thunderstorm. Freezing precipitation and fog are FZ with RA, DZ or FG.
+ * Phenomena: FC funnel cloud or tornado (+FC), SQ squall, GR hail, GS small hail,
+ * PL ice pellets, VA volcanic ash, SS sandstorm, DS duststorm, PO dust devils.
+ * Also raised: plain FG (not MI, BC or PR), BLSN, and CB or TCU on any cloud layer.
+ */
+export const DANGEROUS_WEATHER = Object.freeze(['TS', 'FC', 'SQ', 'GR', 'GS', 'PL', 'VA', 'SS', 'DS', 'PO', 'FZRA', 'FZDZ', 'FZFG']);
+
 const has = (w, p) => w.phenomena.includes(p);
+const isThunderstorm = (w) => w.descriptor === 'TS' || has(w, 'FC') || has(w, 'SQ');
+const isSignificant = (w) =>
+  (w.descriptor === 'FZ' && (has(w, 'RA') || has(w, 'DZ'))) ||
+  ['PL', 'GR', 'GS', 'VA', 'SS', 'DS', 'PO'].some((p) => has(w, p)) ||
+  (w.descriptor === 'BL' && has(w, 'SN')) ||
+  (w.intensity !== 'VC' && has(w, 'FG') && (w.descriptor === null || w.descriptor === 'FZ'));
 
 /**
  * Check conditions against { ceilingFt, visSm }. An unknown ceiling or
  * visibility is reported as unknown, never as within limits.
- * belowLimits: ceiling or visibility strictly below the limit (the alternate trigger).
- * alert: belowLimits, or thunderstorm/severe or significant weather (V6's card alerts).
- * watch: reported but not raised as a caution until question WX-2 is answered.
+ *
+ * belowLimits: ceiling or visibility strictly below its limit (red; the alternate trigger).
+ * atLimit: not below, and ceiling or plain visibility exactly on its limit (Q27: yellow).
+ * cautions: dangerous weather and CB/TCU layers the SOF must acknowledge (Q28).
+ * alert: belowLimits or any caution.
+ * watch: information only (Q28): other vicinity weather, snow, shallow or patchy fog.
+ * level: 'below' | 'caution' | 'unknown' | 'at-limit' | 'within', worst first.
  */
 export function checkConditions(conditions, limits) {
   const ceiling = ceilingFt(conditions);
@@ -44,34 +72,41 @@ export function checkConditions(conditions, limits) {
   const ceilingBelow = ceiling != null && ceiling < limits.ceilingFt;
   const unknownCeiling = ceilingUnknown(conditions);
   const visBelow = visibilityBelow(vis, limits.visSm) === true;
+  const ceilingAtLimit = ceiling != null && ceiling === limits.ceilingFt;
+  const visAtLimit = visibilityAtLimit(vis, limits.visSm) === true;
 
-  const thunderstorm = weather
-    .filter((w) => isStation(w) && (w.descriptor === 'TS' || has(w, 'FC') || has(w, 'SQ')))
-    .map((w) => w.raw);
-  const significant = weather
-    .filter((w) =>
-      isStation(w) && (
-        (w.descriptor === 'FZ' && (has(w, 'RA') || has(w, 'DZ'))) ||
-        has(w, 'PL') || has(w, 'GR') || has(w, 'GS') ||
-        (w.descriptor === 'BL' && has(w, 'SN')) ||
-        (has(w, 'FG') && (w.descriptor === null || w.descriptor === 'FZ'))))
-    .map((w) => w.raw);
+  const thunderstorm = weather.filter(isThunderstorm).map((w) => w.raw);
+  const significant = weather.filter(isSignificant).map((w) => w.raw);
+  const convectiveCloud = (conditions?.sky ?? []).filter((l) => l.type).map((l) => l.raw);
+  const cautions = [...new Set([...thunderstorm, ...significant, ...convectiveCloud])];
   const watch = {
-    vicinity: weather.filter((w) => w.intensity === 'VC').map((w) => w.raw),
-    convectiveCloud: (conditions?.sky ?? []).filter((l) => l.type).map((l) => l.raw),
-    snow: weather.filter((w) => isStation(w) && has(w, 'SN') && w.descriptor !== 'BL').map((w) => w.raw),
+    vicinity: weather
+      .filter((w) => w.intensity === 'VC' && !isThunderstorm(w) && !isSignificant(w))
+      .map((w) => w.raw),
+    snow: weather.filter((w) => w.intensity !== 'VC' && has(w, 'SN') && w.descriptor !== 'BL').map((w) => w.raw),
     shallowFog: weather
-      .filter((w) => isStation(w) && has(w, 'FG') && ['MI', 'BC', 'PR'].includes(w.descriptor))
+      .filter((w) => w.intensity !== 'VC' && has(w, 'FG') && ['MI', 'BC', 'PR'].includes(w.descriptor))
       .map((w) => w.raw),
   };
 
+  const belowLimits = ceilingBelow || visBelow;
+  const atLimit = !belowLimits && (ceilingAtLimit || visAtLimit);
+
   const reasons = [];
   if (ceilingBelow) reasons.push(`CEILING ${ceiling} FT < ${limits.ceilingFt} FT`);
+  else if (ceilingAtLimit) reasons.push(`CEILING ${ceiling} FT AT LIMIT ${limits.ceilingFt} FT`);
   if (visBelow) reasons.push(`VIS ${formatVisibility(vis)} < ${limits.visSm} SM`);
+  else if (visAtLimit) reasons.push(`VIS ${formatVisibility(vis)} AT LIMIT ${limits.visSm} SM`);
   if (thunderstorm.length) reasons.push(`THUNDERSTORM / SEVERE WX (${thunderstorm.join(' ')})`);
   if (significant.length) reasons.push(`SIGNIFICANT WX (${significant.join(' ')})`);
+  if (convectiveCloud.length) reasons.push(`CB/TCU (${convectiveCloud.join(' ')})`);
 
-  const belowLimits = ceilingBelow || visBelow;
+  let level = 'within';
+  if (belowLimits) level = 'below';
+  else if (cautions.length) level = 'caution';
+  else if (!vis || unknownCeiling) level = 'unknown';
+  else if (atLimit) level = 'at-limit';
+
   return {
     ceilingFt: ceiling,
     visibility: vis,
@@ -80,10 +115,16 @@ export function checkConditions(conditions, limits) {
     ceilingBelow,
     visibilityBelow: visBelow,
     belowLimits,
+    ceilingAtLimit,
+    visibilityAtLimit: visAtLimit,
+    atLimit,
     thunderstorm,
     significant,
-    alert: belowLimits || thunderstorm.length > 0 || significant.length > 0,
+    convectiveCloud,
+    cautions,
+    alert: belowLimits || cautions.length > 0,
     watch,
+    level,
     reasons,
   };
 }
