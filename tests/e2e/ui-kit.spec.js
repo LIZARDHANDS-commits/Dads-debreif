@@ -102,6 +102,35 @@ test.describe('controls, turned off', () => {
   });
 });
 
+test.describe('settings menu', () => {
+  test('starts closed, opens from the keyboard, holds working controls, resets and closes again @smoke', async ({ page }) => {
+    await open(page);
+    const header = page.getByRole('button', { name: 'Turn settings' });
+    const turnG = page.getByLabel('Turn G');
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+    await expect(turnG).toBeHidden();
+
+    await header.focus();
+    await page.keyboard.press('Enter');
+    await expect(header).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByRole('group', { name: 'Turn' })).toBeVisible();
+    await expect(turnG).toBeVisible();
+
+    await turnG.fill('5');
+    expect(await setting(page, 'turnG')).toBe(5);
+
+    await page.getByRole('button', { name: 'Reset to defaults' }).click();
+    expect(await page.evaluate(() => window.__kit.resets())).toBe(1);
+    expect(await setting(page, 'turnG')).toBe(4);
+    await expect(turnG).toHaveValue('4');
+
+    await header.focus();
+    await page.keyboard.press('Enter');
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+    await expect(turnG).toBeHidden();
+  });
+});
+
 test.describe('canvas view', () => {
   test('dragging pans, and the world point follows the mouse @smoke', async ({ page }) => {
     await open(page);
