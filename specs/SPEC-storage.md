@@ -20,7 +20,7 @@ const turnSim = store.scope('turn-sim'); // same API, keys kept separate
 ```
 
 - The backend is passed as a function (`browserStorage = () => globalThis.localStorage`) because in a browser that blocks storage, merely reading `localStorage` throws. The store calls it inside its own guard, so nothing outside `storage/` ever touches `localStorage`.
-- Every key is stored as `ooda:v1:<scope>:<name>`. The shell's own data uses the scope `app`.
+- Every key is stored as `ooda:v1:<scope>:<name>`. The shell's own data uses the scope `app`. Shared data has its own scope: `airfields` for the home field and alternates, `standards` for the formation standards (`src/storage/standards.js`, reached as `app.standards`).
 - Every backend call is wrapped. If the backend is missing or throws (blocked, full, disabled), the store keeps working from memory for the rest of the visit and `persistent` becomes `false`, so the settings screen can say "settings won't be saved in this browser".
 - Values are JSON. A value that fails to parse counts as missing and falls back.
 
