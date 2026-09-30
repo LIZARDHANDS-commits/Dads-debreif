@@ -532,6 +532,18 @@ test('the Correction model is a checkbox in the settings menu, off by default, a
   await expect(box(page, 'Model')).toBeHidden();
 });
 
+test('a setup change made in 3D still fits the 2D picture when 2D comes back (audit)', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await box(page, 'Spacing').fill('2500'); // refits: the 2D canvas is hidden right now
+  await expect.poll(() => simTime(page)).toBe(0);
+  await viewChoice(page, '2D').check();
+  await expect(canvas(page)).toBeVisible();
+  // Lead (blue) is on the picture without pressing Fit.
+  await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {
