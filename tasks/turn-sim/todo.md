@@ -71,6 +71,10 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 ### Checkpoint C: every V6 feature kept by the spec is on screen; D42, D48, Q43, Q44 and Q47 landed. PR C.
 
+- [ ] **19. 2D/3D switch (Patrick 07:51Z).** `view3d.js` on ui-kit `three-aircraft.js` (app frame): the 2D/3D switch on the Stage bar, 2D by default and remembered; the same engine state drawn in 3D (position, heading, bank, trails), camera behind Lead with orbit, zoom and follow; three.js loaded only on first switch to 3D; no frames when hidden or unmounted.
+  - Acceptance: a 2D visit loads no three.js (e2e network check); switching mid-run keeps time and positions; leaving leaves no frames; golden tests unchanged.
+  - Dependencies: ui-kit `three-aircraft.js` on main. Files: `view3d.js`, `layout.js`, `index.js`, e2e. Size M.
+
 ## Phase 4: profiles, CSV and sign-off (PR D)
 
 - [ ] **13. Profiles and CSV.** Named profiles and the startup default over `app.storage`, checked field by field on load; confirm before overwrite, delete and factory reset; factory reset without reloading. CSV of the whole run by 0.05 s.
