@@ -16,6 +16,7 @@ import { CAMERA_LIMITS } from './view3d/frame.js';
 import { V6_CAMERA } from './view3d/scene.js';
 import { CATALOG } from '../../airfields/catalog.js';
 import { SATELLITE_LAYERS } from './weather/satellite.js';
+import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 function shipSwatch(slot) {
   const el = h('span', { class: `ship-swatch${OUTLINED_SHIPS.has(slot) ? ' is-outlined' : ''}`, 'aria-hidden': 'true' });
@@ -190,7 +191,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
   const view3dMenu = menu('3D settings', 'debrief-3d-settings', [
     controls.select('cam3d', { label: 'Camera', options: [{ value: 'followLead', label: 'Follow Lead' }, { value: 'formation', label: 'Centre formation' }] }),
-    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Low-poly T-6' }, { value: 'flat', label: 'Flat marker' }] }),
+    controls.select('model3d', { label: 'Aircraft', options: [{ value: 't6', label: 'Harvard (CT-156)' }, { value: 'flat', label: 'Flat marker' }] }),
+    controls.select('paint3d', { label: 'Paint', options: PAINT_OPTIONS.map((o) => ({ value: o.value, label: o.label })) }),
     controls.slider('yaw3d', { label: 'Turn', min: YAW[0], max: YAW[1], format: (v) => `${v}°` }),
     controls.slider('pitch3d', { label: 'Look down', min: PITCH[0], max: PITCH[1], format: (v) => `${v}°` }),
     controls.slider('zoom3d', { label: 'Zoom', min: ZOOM[0], max: ZOOM[1], format: (v) => String(Math.round(v)) }),
@@ -211,7 +213,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     h('button', { type: 'button', class: 'button', onclick: () => layout.update({ yaw3d: V6_CAMERA.yawDeg, pitch3d: V6_CAMERA.pitchDeg, zoom3d: V6_CAMERA.zoom }) }, 'Reset view'),
     resetLayout(),
   ]);
-  const viewSwitch = controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] });
+  const viewSwitch = controls.viewSwitch(); // 2D | 3D, as every simulator (D141)
   viewSwitch.classList.add('view-switch');
   // The METAR line under the playback bar, with the report as sent a click away.
   const metarText = h('span', { class: 'debrief-metar-text' });

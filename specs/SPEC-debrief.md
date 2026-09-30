@@ -22,7 +22,7 @@ Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6)
 
 1. `flight-data` owns loading, cleaning, the flight model, the clock and the debrief file format ([`SPEC-flight-data.md`](SPEC-flight-data.md)). The debrief never parses KML or keeps a clock of its own.
 2. `core` owns every number: aspect, HCA, closure, estimated G, the EM point, the tennis-ball solver and (in core PR 3) the standards classifier. The debrief picks the moments, calls `core`, and draws the answer.
-3. The 3D view stays **hand-drawn on a Canvas 2D**, as V6 does. No WebGL and no three.js, so no new package (SPEC.md "ask first") and nothing to download.
+3. The 3D view is drawn with **three.js** (Patrick approved 2026-09-30 07:41Z, D138), using ui-kit's shared CT-156 Harvard model and `matchProjection` camera, which lands every point where `scene.js` `projectPoint` puts it. three.js downloads only when 3D is first shown (D141). Before that, the view was hand-drawn on a Canvas 2D, as V6's was.
 4. Map imagery (Esri satellite tiles) needs the network. Everything else, including the VNC charts once viewed, works offline (R6).
 5. Until `airfields` lands, CYMJ values the debrief needs (field elevation 1,892 ft, the VNC chart anchor, the 19 route overlays) sit in one file, `src/modules/debrief/data/cymj.js`, so they move to `airfields` in one step (R16).
 6. The ui-kit's `controls.js` (inputs bound to settings) and `canvas-view.js` (pan and zoom) are written for this module, by the app-frame thread, which owns `src/ui-kit/`. The debrief is their first user.
@@ -122,6 +122,7 @@ Changes:
 - **Altitude sticks** work with both models and drop to the datum (#26).
 - **Readouts** are the same right-hand panel as the map, not the thinner 3D list.
 - The 3D view has its own playback bar (the shared one), and stops drawing when the debrief is closed or the other view is showing (#39).
+- **Drawn with three.js (D138, D141).** The picture (sky, ground, datum plane, grid, trails, sticks and aircraft) is three.js on a WebGL canvas. The labels, altitude ruler, heights, compass, caption, tennis ball and the dot for a ship with no heading are drawn flat over it (`view3d/overlay.js`), placed with `projectPoint`. The aircraft is ui-kit's CT-156 Harvard in the Moose Jaw paint with the ship's colour on the fin and its number on the tail and nose; **Paint: Ship colours** in 3D settings gives the plain look. If three.js can't load (offline on the first visit) or WebGL is off, the debrief says so and stays in 2D.
 
 ### Readouts and standards (R9, R18)
 
@@ -223,7 +224,9 @@ src/modules/debrief/
     overlays.js      the built-in route overlays
   view3d/
     scene.js         projection, depth order, ground datum, attitude: pure functions, tested
-    view.js          drawing the scene on the canvas
+    view.js          the three.js picture (loaded when 3D is first shown)
+    overlay.js       labels, ruler, compass, tennis ball drawn flat over it
+    input.js         drag to orbit, wheel and keys to zoom
   readouts.js        builds the readout rows from core results; no page access
   standards-panel.js
   em.js              the EM chart

@@ -82,6 +82,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   zoom3d: 70,
   altScale3d: 2,
   model3d: 't6',
+  paint3d: 'harvard', // ui-kit PAINT_DEFAULT: the Moose Jaw CT-156 scheme (D138)
   planeSize3d: 260,
   attLabels3d: true,
   trailSec3d: 90,
