@@ -90,5 +90,4 @@ Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening
 
 ## Open questions
 
-- Q39: whether the offset standard alone judges #3's fore/aft.
 - Whether `core` should also guard against infinite input (default: only the screens do).
