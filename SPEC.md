@@ -4,7 +4,7 @@ Status: **approved by Patrick on 2026-09-29**. Changes to the map go through a p
 
 This is the top-level spec. It says which pieces the new app is made of, what each piece owns, which pieces depend on which, and the order we build them in. Each module then gets its own `specs/SPEC-<module-id>.md` before its code is written.
 
-Requirement IDs (R1–R21) and decision numbers (D1–D34) refer to the tabs in the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Requirement IDs (R1–R21) and decision numbers (D#) refer to the tabs in the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 ## Objective
 
@@ -18,7 +18,7 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 2. Vite is used only as the dev server and bundler (D13). The source still runs as plain modules.
 3. Hosting is GitHub Pages from this repo (D12). A service worker makes it work offline after one visit (D15, R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
-5. Live weather comes from an official source first (aviationweather.gov) with a backup, both tested from a real browser (D33).
+5. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
 
 ## Why the code is split this way
 
@@ -164,16 +164,14 @@ Only the app frame edits `package.json`, `vite.config.js` and CI. Each step ends
 
 ## Open questions
 
-These need Dad and are also in the Questions tab (Q18, Q24, Q25 and Q26). None of them blocks step 1 of the build order; each is needed only before the module it touches. V6 is not in use (Patrick, 2026-09-29), so no V6 fix jumps the queue and the SOF stays last.
-
-1. Flight-math corrections: the audit found places where V6's numbers are wrong (EM turn rate halved; 3D bank halved and mirrored; Turn Sim "toward/away" inverted and "wide/tight" inverted for aircraft on lead's right; auto timing holding wingmen for #1) and two that depend on Dad's intent (whether 4312/2134 are drawn mirrored; the auto-timing delay rule). Fix them, or keep V6 behaviour? The plan doc's Flight math check tab has the reasoning and a V6 test run for each.
-2. Turn Sim start heading (Q24): V6 treats it as a math angle (0 = east, 90 = north). Make it a compass heading (000 = north, 090 = east), as the Traffic Sim already does?
-3. Traffic Sim rounded turns (Q25): V6 joins each corner with a Bézier curve, so a 90° corner is flown at 0.71 of the stated radius and a 135° corner at 0.38. Fly a true circular arc at the stated radius?
-4. Recorded flight data (Q26): V6's debrief reads a track's recorded G and pitch but never its recorded bank, and reads a blank pitch column as 0°. Show recorded bank when a track has it, and estimate pitch when the column is blank?
+None left from the first draft. Q18, Q24, Q25 and Q26 were answered and are listed under "Settled since the first draft". Later questions live in the plan doc's Questions tab and in each module's spec.
 
 ## Settled since the first draft
 
 - The lead's 200 kt target is indicated airspeed. The debrief converts GPS ground speed to an estimated IAS, labelled "est. IAS" (D31).
 - GPS gaps break the track line and blank the spacing readouts, and impossible points are dropped with a note in the status line (D32).
-- Weather: an official source first (aviationweather.gov) with a backup, both tested from a real browser (D33).
-- Lightning: Blitzortung live strikes (D34). Its terms of use get checked when the SOF is built.
+- Weather and lightning sources: D33 and D34 were reversed after browser tests (aviationweather.gov can't be read from a browser, and Blitzortung's terms are private use only). Now D64 to D69: MET Norway with Datamask as the backup, ECCC radar and lightning, Blitzortung as a link only.
+- Flight-math corrections (Q18): Dad said fix them (2026-09-29): EM turn rate without the divide by 2 (D39); 3D bank from the real rate, correct wing down, G only in level turns (D40); Turn Sim toward/away (D41) and wide/tight (D42); auto timing (D43, D44). Each lands after a golden test pins V6's number (D10). The 4312 picture (Q31) keeps #2 on lead's left, as V6 draws it (D48). SPEC-core has the detail.
+- Turn Sim start heading is a compass heading, 000 = north (Q24, D45).
+- Traffic Sim rounded turns fly a true circular arc at the stated radius (Q25, D46).
+- Recorded flight data: recorded bank is shown when a track has it, and a blank pitch column is estimated (Q26, D47).
