@@ -13,6 +13,7 @@ export function recordingContext() {
     get(o, k) {
       if (k in o) return o[k];
       if (k === 'fillText' || k === 'strokeText') return (text) => o.texts.push({ kind: k, text });
+      if (k === 'getExtension') return () => ({ loseContext: () => calls.push('loseContext') });
       return () => {
         calls.push(k);
         return { addColorStop() {}, width: 0 }; // a gradient or measured text, should a caller want one
@@ -125,7 +126,15 @@ export async function exampleFlight(slot = null, fromT = 0, toT = 0) {
 /** Installs the fake document; returns a function that puts the old one back. */
 export function installFakeDocument() {
   const before = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  globalThis.document = { createElement: () => fakeCanvas() };
+  const made = [];
+  globalThis.document = {
+    made,
+    createElement() {
+      const c = fakeCanvas();
+      made.push(c);
+      return c;
+    },
+  };
   return () => {
     if (before) Object.defineProperty(globalThis, 'document', before);
     else delete globalThis.document;

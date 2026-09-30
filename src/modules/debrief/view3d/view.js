@@ -55,6 +55,10 @@ export function createView3d(canvas, {
 
   function start() {
     if (gl || loading) return;
+    if (!webGlWorks()) { // asked first: three.js would write a console error, and needn't be fetched
+      onUnavailable('3D needs WebGL, which is turned off in this browser.');
+      return;
+    }
     loading = true;
     loadThree().then((module) => {
       loading = false;
@@ -129,6 +133,15 @@ export function createView3d(canvas, {
       glCanvas.remove();
     },
   };
+}
+
+// Whether this browser can make a WebGL context, tried on a canvas of its own and let go again.
+function webGlWorks() {
+  const probe = document.createElement('canvas');
+  const context = probe.getContext('webgl2') || probe.getContext('webgl');
+  if (!context) return false;
+  context.getExtension?.('WEBGL_lose_context')?.loseContext();
+  return true;
 }
 
 // The WebGL side: renderer, scene, camera, lights, and a group rebuilt each

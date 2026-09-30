@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createView3d } from '../../../src/modules/debrief/view3d/view.js';
 import { shipsIn3d } from '../../../src/modules/debrief/view3d/frame.js';
-import { viewKit, exampleFlight, installFakeDocument, drawn, FakeRenderer } from './view3d-harness.js';
+import { viewKit, exampleFlight, installFakeDocument, drawn, fakeCanvas, FakeRenderer } from './view3d-harness.js';
 
 /** Opens a view on `flight` at time `t`, lets three "load" and draws once. */
 async function open({ settings = {}, flight, t }) {
@@ -120,5 +120,43 @@ test('the renderer is sized only when the size or pixel ratio changes', async ()
     delete globalThis.ResizeObserver;
     if (oldRatio === undefined) delete globalThis.devicePixelRatio;
     else globalThis.devicePixelRatio = oldRatio;
+  }
+});
+
+// When 3D can't start: say so and stay in 2D (D141).
+
+test('with no WebGL the view says so, and never builds a renderer (no console error from three.js)', async () => {
+  const restore = installFakeDocument();
+  const asked = [];
+  globalThis.document = { createElement: () => ({ ...fakeCanvas(), getContext(type) { asked.push(type); return null; } }) };
+  const flight = await exampleFlight();
+  const kit = await viewKit();
+  FakeRenderer.all.length = 0;
+  const said = [];
+  const view = createView3d(kit.canvas, {
+    timers: kit.timers, flight: () => flight, time: () => flight.startT + START_S, settings: () => kit.state, fieldFt: () => 0,
+    setCamera() {}, loadThree: () => Promise.resolve(kit.THREE), onUnavailable: (m) => said.push(m),
+  });
+  try {
+    kit.timers.flush();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.deepEqual(said, ['3D needs WebGL, which is turned off in this browser.']);
+    assert.equal(FakeRenderer.all.length, 0, 'no WebGLRenderer was made');
+    assert.ok(asked.includes('webgl2') && asked.includes('webgl'), 'both kinds were tried');
+  } finally {
+    view.dispose();
+    restore();
+  }
+});
+
+test('with WebGL the picture is built once, and the probe context is let go', async () => {
+  const flight = await exampleFlight();
+  const k = await open({ flight, t: flight.startT + START_S });
+  try {
+    assert.equal(FakeRenderer.all.length, 1);
+    assert.equal(globalThis.document.made.filter((c) => c.getContext().calls.includes('loseContext')).length, 1);
+  } finally {
+    k.close();
   }
 });

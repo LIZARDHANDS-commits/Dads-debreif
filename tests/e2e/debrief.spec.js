@@ -1089,3 +1089,36 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
 });
 
+// When 3D can't start, the screen says why and goes back to 2D (D141).
+test.describe('3D that cannot start', () => {
+  // The service worker would answer for the chunk, and page.route would never see the request.
+  test.use({ serviceWorkers: 'block' });
+
+  test('three.js does not load: says 3D needs a connection and goes back to 2D', async ({ page }) => {
+    // A script that throws fails the import without the browser's own error line (abort() would log ERR_FAILED).
+    await page.route(/three\.module-.*\.js$/, (route) =>
+      route.fulfill({ status: 200, contentType: 'text/javascript', body: "throw new Error('three blocked by test');" }));
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+    await page.getByText('3D', { exact: true }).click();
+    await expect(page.locator('.debrief-message')).toHaveText(/3D needs a connection/);
+    await expect(page.locator('canvas.debrief-2d')).toBeVisible();
+    await expect(page.locator('canvas.debrief-3d')).toBeHidden();
+  });
+
+  test('WebGL is off: says 3D needs WebGL and goes back to 2D, with no console error', async ({ page }) => {
+    await page.addInitScript(() => {
+      const getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+        if (type === 'webgl' || type === 'webgl2') return null;
+        return getContext.call(this, type, ...rest);
+      };
+    });
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+    await page.getByText('3D', { exact: true }).click();
+    await expect(page.locator('.debrief-message')).toHaveText(/3D needs WebGL/);
+    await expect(page.locator('canvas.debrief-2d')).toBeVisible();
+    await expect(page.locator('canvas.debrief-3d')).toBeHidden();
+  });
+});
