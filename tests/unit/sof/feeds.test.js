@@ -198,6 +198,8 @@ test('a comma list of times, or several ranges, gives the last one', () => {
 test('a default that is not a time is ignored in favour of the range', () => {
   const xml = layerXml('RADAR_1KM_RRAI', dim('2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M', 'default="soon"'));
   assert.equal(+parseLayerTimes(xml, 'RADAR_1KM_RRAI').latest, +utc('2026-09-30T07:12:00Z'));
+  // A bracket inside an attribute is not a readable Dimension at all: nothing, never a guess.
+  assert.equal(parseLayerTimes(layerXml('RADAR_1KM_RRAI', dim('2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M', 'default="<script>"')), 'RADAR_1KM_RRAI'), null);
   const junk = layerXml('RADAR_1KM_RRAI', dim('2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M', 'default="2026-13-45T99:99:99Z"'));
   assert.equal(+parseLayerTimes(junk, 'RADAR_1KM_RRAI').latest, +utc('2026-09-30T07:12:00Z'));
 });
