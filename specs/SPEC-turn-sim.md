@@ -168,6 +168,17 @@ Changes that don't change a number V6's Step button shows:
 - V6's saved profiles were kept by the old single file in its own browser storage, which the new site can't read. Nothing to migrate.
 - **Export CSV** (in Profiles): one row per 0.05 s step over the whole run, with time, the pair distances that exist, minimum separation and 1-3 closure in ft/s, V6's columns (`turn_spacing.csv`). The download link is released after use.
 
+## 2D/3D switch (Patrick, 2026-09-30 07:51Z)
+
+Patrick asked for a 2D/3D switch in every simulator ("can we just do them all in 3d/2d switch on and off now?"). The Turn Sim gets one:
+
+- A **2D / 3D** switch on the Stage bar. **2D is the default**, and the switch is remembered in this browser with the other layout choices.
+- 3D shows the same run from the same engine state: each aircraft as the shared T-6 model from ui-kit `three-aircraft.js`, at its position and heading, banked by the `bankDeg` the engine reports, with its trail. The camera starts behind and above Lead, and the user can orbit, zoom and follow Lead. Everything else (playback, readouts, Formation card, Settings) is shared with 2D.
+- The Turn Sim is flat, so every aircraft flies at one altitude in 3D. The crossing note in the shackle and cross turn (SMM item 6) still applies.
+- three.js and the model load **only when 3D is first switched on**, so a 2D-only visit downloads nothing extra. Leaving the Turn Sim or switching back to 2D stops 3D's frames (R4).
+- Colours are the Turn Sim's (#1 blue, #2 green, #3 red, #4 white with a dark outline). The Moose Jaw CT-156 paint with coloured tails and numbers comes later through the shared model.
+- No flight math changes: the golden pins are untouched, and 3D only draws.
+
 ## SMM formation additions (Patrick, 2026-09-30 06:40Z)
 
 Patrick asked what else from the SMM the Turn Sim should model, and said to include everything offered: "Includeall of this including your futur ideas". References are SMM section and paragraph numbers (and one EFIG page); the manuals' own text stays out of this repo. Items 1 to 6 change or add to turns V6 already flies, so each is pinned to V6 first (where V6 has the turn) and lands as its own commit (D10). Item 7 (G-warm) is a new exercise, built last (Phase 5, PR E). Item 8 (rejoins, fighting wing, fluid manoeuvring) is a future feature (Patrick, 06:59Z). The plan doc gets a decision number for each from the app frame thread.
@@ -226,6 +237,7 @@ src/modules/turn-sim/
     step.js            one fixed step: G (core, D74), turn, move
     run.js             a run: start, continue a leg, history by time, CSV rows
   layout.js            the three columns, panels, playback bar
+  view3d.js            the 3D view on ui-kit three-aircraft.js, loaded only when switched on
   view.js              drawing: grid, MOA box, trails, breadcrumbs, 3/9 lines, turn circles, clock marks, labels
   exercises.js         the Exercises panel (G-warm)
   graph.js             the spacing graph (Q41), drawn only while open
