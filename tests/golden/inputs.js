@@ -1,5 +1,6 @@
 // Deterministic inputs for golden tests: fixed edge cases plus a seeded
 // pseudo-random spread, so every run compares the same numbers.
+import { KT_TO_FTPS } from '../../src/core/units.js';
 
 /** Small seeded generator (mulberry32), returns floats in [0, 1). */
 export function seeded(seed = 0x5eed) {
@@ -27,3 +28,24 @@ export const EDGE_RADIANS = [
 
 /** Moose Jaw (CYMJ) area, where Dad's example flights are. */
 export const CYMJ = { lat: 50.3303, lon: -105.5592 };
+
+/**
+ * A recorded track like a KML debrief track: about one point a second (some
+ * gaps and bunches), on a turn whose rate, speed and altitude wander. `r` is a
+ * seeded() generator.
+ */
+export function recordedTrack(id, r, n = 40) {
+  const pts = [];
+  let x = 4000 * r(), y = 4000 * r(), h = 2 * Math.PI * r(), t = 1000 * r(), kt = 120 + 200 * r();
+  for (let i = 0; i < n; i++) {
+    pts.push({ t, x, y, altFt: 5000 + 3000 * r() });
+    const dt = r() < 0.1 ? 0.2 : r() < 0.1 ? 3 : 1;
+    const v = kt * KT_TO_FTPS * (r() < 0.05 ? 0 : 1);
+    h += (-0.4 + 0.8 * r()) * dt;
+    x += v * Math.cos(h) * dt;
+    y += v * Math.sin(h) * dt;
+    t += dt;
+    kt += -10 + 20 * r();
+  }
+  return { id, pts };
+}

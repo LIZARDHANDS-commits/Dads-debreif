@@ -123,3 +123,12 @@ test('bad text never throws', () => {
   assert.doesNotThrow(() => parse('TAF CYMJ 291120Z 2912/3012 27010KT P6SM SKC TEMPO'));
   assert.deepEqual(tafTimeline(parse('NO TAF AVAILABLE')).prevailing, []);
 });
+
+test('a doubled header from the feed ("TAF AMD TAF AMD") still reads, and CNL reads as cancelled', () => {
+  const t = parseTaf('TAF AMD TAF AMD CYMJ 300030Z 3000/3012 CNL', { now: new Date('2026-09-30T01:00:00Z') });
+  assert.equal(t.station, 'CYMJ');
+  assert.equal(t.amendment, 'AMD');
+  assert.equal(t.cancelled, true);
+  assert.deepEqual(t.problems, []);
+  assert.equal(parseTaf('TAF TAF CYQR 291305Z 2913/3012 27010KT P6SM SKC', { now: NOW }).station, 'CYQR');
+});
