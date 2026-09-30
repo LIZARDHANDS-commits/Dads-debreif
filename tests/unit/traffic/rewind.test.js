@@ -784,3 +784,58 @@ test('clock.seekSteps goes to a step exactly, the mode stays (a rewind stops), a
   clock.stepBy(10);
   assert.equal(sim.steps, 2600);
 });
+
+// ── Audit fixes ──────────────────────────────────────────────────────────────
+
+test('an edit made while rewound keeps the later events: a spawn does not take a callsign a later spawn already has, and a profile of it is valid (B1)', async () => {
+  const setup = fresh();
+  const sim = createSim(setup, { seed: 1 });
+  sim.seekSteps(4000);
+  const first = sim.spawn({ routeId: 'PAT1' });
+  sim.seekSteps(2000); // before that spawn, which stays in the run
+  assert.throws(() => sim.spawn({ routeId: 'ENT1', id: first }), /in use/, 'the callsign of a later spawn is in use');
+  const second = sim.spawn({ routeId: 'ENT1' });
+  assert.notEqual(second, first);
+  sim.seekSteps(6000);
+  const ids = sim.state().aircraft.map((a) => a.id);
+  assert.equal(new Set(ids).size, ids.length, `no callsign twice: ${ids}`);
+  assert.deepEqual(sim.aircraftSpecs().map((s) => s.id), ids);
+  assert.equal(sim.remove(first), true);
+  assert.deepEqual(sim.state().aircraft.map((a) => a.id), ids.filter((id) => id !== first), 'one remove takes one aircraft');
+  const { captureProfile, checkProfile, profileSettingDefaults } = await import('../../../src/modules/traffic/profile.js');
+  const profile = captureProfile({ name: 'Rewound', airfield: 'CYMJ', notes: '', setup, aircraft: sim.aircraftSpecs(), seed: 1, settings: profileSettingDefaults() });
+  assert.ok(checkProfile(profile).ok, checkProfile(profile).problem);
+});
+
+test('after an edit and live flying on, the first step back replays from 0 and leaves no snapshot from the live run, so a moment is one state (B2)', () => {
+  const setup = fresh();
+  const sim = createSim(setup, { seed: 1 });
+  sim.seekSteps(4000);
+  setup.routes.find((r) => r.id === 'PAT1').points[3].kt = 140;
+  sim.forgetHistory();
+  sim.stepTo(6000 * STEP_SEC); // live: snapshots from 4200 to 6000 are of a run whose first 4000 steps were the old setup
+  sim.seekSteps(3000); // the replay from 0 with the edit
+  sim.seekSteps(6000);
+  const first = everything(sim);
+  sim.seekSteps(5900);
+  sim.seekSteps(6000);
+  assert.deepEqual(everything(sim), first, '-5 s and +5 s land on the same state');
+  const edited = createSim(structuredClone(setup), { seed: 1 });
+  edited.seekSteps(6000);
+  assert.deepEqual(first, everything(edited), 'and it is the edited setup flown from 0');
+});
+
+test('a new slice target while a replay is stale still restarts from 0 (nit 4)', () => {
+  const setup = fresh();
+  const sim = createSim(setup, { seed: 1 });
+  sim.seekSteps(8000);
+  setup.routes[0].points[3].kt = 140;
+  sim.forgetHistory();
+  sim.seekStepsSlice(4000, 3000);
+  setup.routes[0].points[1].kt = 70;
+  sim.forgetHistory(); // second edit mid-replay
+  while (!sim.seekStepsSlice(5000, 500)); // a different target
+  const ref = createSim(structuredClone(setup), { seed: 1 });
+  ref.seekSteps(5000);
+  assert.deepEqual(everything(sim), everything(ref));
+});

@@ -133,10 +133,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt });
   const freshFrom = (rec) => toStart({ ...rec });
 
+  /** A callsign is in use if an aircraft has it now or a spawn still to come (the run was rewound past it) will give it. */
+  function inUse(id) {
+    if (aircraft.some((a) => a.id === id)) return true;
+    for (let i = nextEvent; i < events.length; i++) if (events[i].kind === 'spawn' && events[i].rec.id === id) return true;
+    return false;
+  }
+
   /** V6's `nextCallsign` (line 233): the first A1, A2, … not in use. */
   function nextCallsign() {
     let n = 1;
-    while (aircraft.some((a) => a.id === 'A' + n)) n++;
+    while (inUse('A' + n)) n++;
     return 'A' + n;
   }
 
@@ -290,7 +297,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     dice = createDice(seed);
     aircraft = base.map(freshFrom);
     nextEvent = 0;
-    if (!history.has(0)) remember();
+    // A replay from 0 is the run as the setup is now: any snapshot kept from before (or from flying on live after the edit) says something else.
+    history.clear();
+    every = SNAPSHOT_EVERY_STEPS;
+    remember();
     applyDue();
   }
 
@@ -341,7 +351,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     wanted = Math.max(0, wanted);
     if (!job || job.target !== wanted) {
       if (Math.abs(wanted - steps) > MOST_STEPS_AT_ONCE) throw new RangeError(`going to step ${wanted} is too far`);
-      job = { target: wanted, stale: false };
+      job = { target: wanted, stale: job?.stale ?? false };
     }
     if (job.stale) {
       job.stale = false;
@@ -483,7 +493,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!route) throw new RangeError(`unknown route ${routeId}`);
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
-      if (id !== undefined && aircraft.some((a) => a.id === id)) throw new RangeError(`callsign ${id} is in use`);
+      if (id !== undefined && inUse(id)) throw new RangeError(`callsign ${id} is in use`);
       const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec }));
       happen({ kind: 'spawn', rec });
       return rec.id;
