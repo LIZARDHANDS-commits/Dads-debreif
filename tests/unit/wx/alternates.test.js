@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTaf } from '../../../src/wx/taf.js';
-import { homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternates.js';
+import { arrivalWindow, homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternates.js';
 import { TAF, NOW, at } from './reports.js';
 
 const taf = (raw) => parseTaf(raw, { now: NOW });
@@ -66,18 +66,11 @@ test('issue #4: a TEMPO active at ETA counts against the alternate', () => {
   assert.equal(assessAlternate(taf(TAF.altTempoShowers), at(29, 21)).status, 'meets');
 });
 
-test('alternate limits are an input', () => {
-  const r = assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { limits: { ceilingFt: 400, visSm: 0.5 } });
+test('alternate minima are an input per airfield (D60)', () => {
+  const r = assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { minima: { ceilingFt: 400, visSm: 0.5 } });
   assert.equal(r.status, 'meets');
   // The TEMPO's 1SM sits exactly on a 1 SM limit (Q27).
-  assert.equal(assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { limits: { ceilingFt: 400, visSm: 1 } }).status, 'at-limit');
-});
-
-test('GNSS-only alternates: V6 had no rule, so the result asks for the MEA or a manual check (WX-4)', () => {
-  assert.equal(assessAlternate(taf(TAF.altFogLifting), at(29, 19), { gnssOnly: true }).status, 'needs-mea');
-  const r = assessAlternate(taf(TAF.altFogLifting), at(29, 19), { gnssOnly: true, meaFt: 4300 });
-  assert.equal(r.status, 'gnss-check');
-  assert.equal(r.meaFt, 4300);
+  assert.equal(assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { minima: { ceilingFt: 400, visSm: 1 } }).status, 'at-limit');
 });
 
 test('alternate without a TAF, or with an ETA outside it, is never green', () => {
@@ -122,4 +115,98 @@ test('Q28: dangerous weather in the window is listed as a caution without changi
   assert.equal(r.cautions.length, 1);
   assert.equal(r.cautions[0].kind, 'PROB');
   assert.deepEqual(r.cautions[0].cautions, ['VCTS', 'BKN050CB']);
+});
+
+// Q30 / D60: alternates over an arrival window, minima per airfield (CAP GEN).
+test('D60: the arrival window runs from the earliest ETA minus 1 hour to the latest plus 1 hour', () => {
+  assert.deepEqual(arrivalWindow([at(29, 18, 30), at(29, 18), at(29, 19)]), { from: at(29, 17), to: at(29, 20) });
+  assert.deepEqual(arrivalWindow(at(29, 18), { marginMin: 30 }), { from: at(29, 17, 30), to: at(29, 18, 30) });
+  assert.deepEqual(arrivalWindow([at(29, 18)], { marginMin: 0 }), { from: at(29, 18), to: at(29, 18) });
+  assert.equal(arrivalWindow([]), null);
+  assert.equal(arrivalWindow(['not a date', null]), null);
+  assert.deepEqual(arrivalWindow([at(29, 18), 'junk']), { from: at(29, 17), to: at(29, 19) });
+});
+
+test('D60: fog that lifts at 18Z fails a window that starts before it, though the ETA is after', () => {
+  const t = taf(TAF.altFogLifting);
+  assert.equal(assessAlternate(t, at(29, 19)).status, 'meets');
+  const r = assessAlternate(t, arrivalWindow(at(29, 18, 30)));
+  assert.equal(r.status, 'below');
+  assert.equal(+r.worst.from, +at(29, 12));
+  assert.equal(r.worst.kind, 'PREVAILING');
+});
+
+test('D60: a window the TAF does not fully cover is not-covered', () => {
+  assert.equal(assessAlternate(taf(TAF.altFogLifting), arrivalWindow(at(30, 11, 30))).status, 'not-covered');
+});
+
+test('D60: standard minima options pass when any one option is met (600-2, 700-1 1/2, 800-1)', () => {
+  const precision = [{ ceilingFt: 600, visSm: 2 }, { ceilingFt: 700, visSm: 1.5 }, { ceilingFt: 800, visSm: 1 }];
+  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT 1 1/2SM BR OVC009');
+  assert.equal(assessAlternate(t, at(29, 18)).status, 'below');
+  assert.equal(assessAlternate(t, at(29, 18), { minima: precision }).status, 'meets');
+  const onOption = taf('TAF CYQR 291140Z 2912/3012 27010KT 1 1/2SM BR OVC007');
+  assert.equal(assessAlternate(onOption, at(29, 18), { minima: precision }).status, 'at-limit');
+  const r = assessAlternate(taf('TAF CYQR 291140Z 2912/3012 27010KT 1SM BR OVC007'), at(29, 18), { minima: precision });
+  assert.equal(r.status, 'below');
+  assert.deepEqual(r.hits[0].reasons, ['VIS 1 SM < 2 SM']);
+});
+
+test('D60: a non-precision field at 800-2 fails what a precision field at 600-2 passes', () => {
+  const t = taf('TAF CYYN 291140Z 2912/3012 27010KT P6SM OVC007');
+  assert.equal(assessAlternate(t, at(29, 18)).status, 'meets');
+  assert.equal(assessAlternate(t, at(29, 18), { minima: { ceilingFt: 800, visSm: 2 } }).status, 'below');
+});
+
+test('D60: TEMPO and BECMG count against the alternate minima, taking the worse of before and after', () => {
+  const tempo = assessAlternate(taf(TAF.altTempoShowers), arrivalWindow(at(29, 20, 30)));
+  assert.equal(tempo.status, 'below');
+  assert.deepEqual(tempo.hits.map((h) => h.kind), ['TEMPO']);
+  const worsening = 'TAF CYQR 291140Z 2912/3012 27010KT P6SM BKN040 BECMG 2917/2919 1SM BR OVC004';
+  const b = assessAlternate(taf(worsening), at(29, 17, 30));
+  assert.equal(b.status, 'below');
+  assert.deepEqual(b.hits.map((h) => h.kind), ['BECMG']);
+  const improving = 'TAF CYQR 291140Z 2912/3012 27010KT 1SM BR OVC004 BECMG 2917/2919 P6SM BKN040';
+  assert.equal(assessAlternate(taf(improving), at(29, 18, 30)).status, 'below');
+  assert.equal(assessAlternate(taf(improving), at(29, 19, 30)).status, 'meets');
+});
+
+test('D60: PROB counts against the landing minima, not the alternate minima', () => {
+  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT P6SM BKN040 PROB30 2917/2920 1SM BR OVC004');
+  const landing = { ceilingFt: 300, visSm: 0.75 };
+  const passes = assessAlternate(t, at(29, 18), { landingMinima: landing });
+  assert.equal(passes.status, 'meets');
+  assert.deepEqual(passes.probUnchecked, []);
+  const fails = assessAlternate(t, at(29, 18), { landingMinima: { ceilingFt: 500, visSm: 1 } });
+  assert.equal(fails.status, 'below');
+  assert.equal(fails.hits[0].kind, 'PROB');
+  assert.deepEqual(fails.hits[0].reasons, ['CEILING 400 FT < 500 FT', 'VIS 1 SM AT LIMIT 1 SM']);
+});
+
+test('D60: without landing minima, a PROB below the alternate minima is a warning only', () => {
+  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT P6SM BKN040 PROB30 2917/2920 1SM BR OVC004');
+  const r = assessAlternate(t, at(29, 18));
+  assert.equal(r.status, 'meets');
+  assert.deepEqual(r.hits, []);
+  assert.equal(r.probUnchecked.length, 1);
+  assert.equal(r.probUnchecked[0].kind, 'PROB');
+});
+
+test('D60: a GNSS-based alternate under 100 NM from a GNSS-based home is warned about', () => {
+  const t = taf(TAF.altFogLifting);
+  const near = assessAlternate(t, at(29, 19), { gnssApproach: true, homeGnssApproach: true, distanceNm: 35 });
+  assert.equal(near.status, 'meets');
+  assert.equal(near.warnings.length, 1);
+  assert.match(near.warnings[0], /100 NM/);
+  assert.deepEqual(assessAlternate(t, at(29, 19), { gnssApproach: true, homeGnssApproach: true, distanceNm: 119 }).warnings, []);
+  assert.deepEqual(assessAlternate(t, at(29, 19), { gnssApproach: true, homeGnssApproach: false, distanceNm: 35 }).warnings, []);
+  const unknown = assessAlternate(t, at(29, 19), { gnssApproach: true, homeGnssApproach: true });
+  assert.match(unknown.warnings[0], /distance/);
+});
+
+test('D60: bad minima fall back to V6\'s 600/2 rather than passing everything', () => {
+  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT 1SM BR OVC004');
+  for (const minima of [null, [], [{ ceilingFt: NaN, visSm: 2 }], { ceilingFt: 'x' }]) {
+    assert.equal(assessAlternate(t, at(29, 18), { minima }).status, 'below', JSON.stringify(minima));
+  }
 });
