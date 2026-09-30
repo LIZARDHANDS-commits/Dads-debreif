@@ -8,8 +8,8 @@ import { createStandards } from './storage/standards.js';
 import { createExampleFetcher } from './shell/examples.js';
 import { createScheduler } from './ui-kit/scheduler.js';
 import { createHost } from './shell/host.js';
-import { parseRoute } from './shell/router.js';
-import { MODULES, moduleIds, findModule, isBuilt } from './shell/registry.js';
+import { parseRoute, pageFor } from './shell/router.js';
+import { MODULES, moduleIds, findModule } from './shell/registry.js';
 import { reportUrl } from './shell/report.js';
 import { createSettingsDialog } from './shell/settings-dialog.js';
 import { createTime, startClock } from './shell/header.js';
@@ -85,16 +85,8 @@ function errorCard(entry) {
 let firstShow = true;
 
 async function show(hash) {
-  const route = parseRoute(hash, moduleIds());
-  let entry = pages.home;
-  notice(null);
-  if (route.name === 'about') entry = pages.about;
-  if (route.name === 'not-found') notice(`There's no page at "${route.path}". Here's the home screen.`);
-  if (route.name === 'module') {
-    const mod = findModule(route.id);
-    if (isBuilt(mod)) entry = mod;
-    else notice(`${mod.title} is coming soon.`);
-  }
+  const { entry, note } = pageFor(parseRoute(hash, moduleIds()), pages, findModule);
+  notice(note);
 
   $('report-problem').href = reportUrl({ page: entry.title, version });
   document.title = entry === pages.home ? "DAD's OODA LOOP" : `${entry.title} · DAD's OODA LOOP`;

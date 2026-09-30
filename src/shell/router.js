@@ -3,6 +3,8 @@
 // Hash routes work on GitHub Pages and from a plain file server.
 // See specs/SPEC-shell.md.
 
+import { isBuilt } from './registry.js';
+
 export function parseRoute(hash, moduleIds) {
   const path = String(hash ?? '')
     .replace(/^#/, '')
@@ -19,4 +21,24 @@ export function hrefFor(route) {
   if (route.name === 'about') return '#/about';
   if (route.name === 'module') return `#/${route.id}`;
   return '#/';
+}
+
+/**
+ * What a route opens, and the note to show above it: a module that is not
+ * built yet (`load: null`) opens home with "<title> is coming soon.", and an
+ * unknown path opens home with a "no page" note.
+ * @param {{ name: string, id?: string, path?: string }} route from parseRoute
+ * @param {{ home: object, about: object }} pages
+ * @param {(id: string) => { title: string, load: unknown }} findModule
+ * @returns {{ entry: object, note: string | null }}
+ */
+export function pageFor(route, pages, findModule) {
+  if (route.name === 'about') return { entry: pages.about, note: null };
+  if (route.name === 'not-found') return { entry: pages.home, note: `There's no page at "${route.path}". Here's the home screen.` };
+  if (route.name === 'module') {
+    const mod = findModule(String(route.id));
+    if (isBuilt(mod)) return { entry: mod, note: null };
+    return { entry: pages.home, note: `${mod.title} is coming soon.` };
+  }
+  return { entry: pages.home, note: null };
 }

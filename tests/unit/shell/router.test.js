@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRoute, hrefFor } from '../../../src/shell/router.js';
+import { parseRoute, hrefFor, pageFor } from '../../../src/shell/router.js';
 
 const IDS = ['debrief', 'turn-sim'];
 
@@ -29,4 +29,19 @@ test('hrefFor builds the matching hash', () => {
   assert.equal(hrefFor({ name: 'home' }), '#/');
   assert.equal(hrefFor({ name: 'about' }), '#/about');
   assert.equal(hrefFor({ name: 'module', id: 'debrief' }), '#/debrief');
+});
+
+test('pageFor: a module not built yet opens home with a "coming soon" note', () => {
+  const pages = { home: { title: 'Home' }, about: { title: 'About' } };
+  const built = { title: 'Debrief Viewer', load: () => {} };
+  const planned = { title: 'PT-PT Sim', load: null };
+  const find = (id) => (id === 'debrief' ? built : planned);
+  assert.deepEqual(pageFor({ name: 'module', id: 'ptpt' }, pages, find), { entry: pages.home, note: 'PT-PT Sim is coming soon.' });
+  assert.deepEqual(pageFor({ name: 'module', id: 'debrief' }, pages, find), { entry: built, note: null });
+  assert.deepEqual(pageFor({ name: 'about' }, pages, find), { entry: pages.about, note: null });
+  assert.deepEqual(pageFor({ name: 'home' }, pages, find), { entry: pages.home, note: null });
+  assert.deepEqual(pageFor({ name: 'not-found', path: 'PTPT' }, pages, find), {
+    entry: pages.home,
+    note: 'There\'s no page at "PTPT". Here\'s the home screen.',
+  });
 });
