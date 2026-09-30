@@ -1176,6 +1176,81 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   await expect(wind).toHaveCount(0);
 });
 
+// RC-1 (verification re-check 195): from the 1280 px floor up (D183), an open toolbar menu
+// stays over the map: it never makes the page scroll sideways, leaves the window, or
+// covers a control in the Flight or Formation column. Each menu in turn, in 2D and in 3D.
+for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1440, height: 900 }]) {
+  test(`at ${size.width} × ${size.height} every toolbar menu opens over the map only, in 2D and in 3D (RC-1)`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+
+    const check = async (label) => {
+      const found = await page.evaluate(() => {
+        const body = [...document.querySelectorAll('.debrief-menu-body')].find((el) => !el.hidden);
+        if (!body) return { error: 'no menu is open' };
+        const box = body.getBoundingClientRect();
+        const map = document.querySelector('.debrief-map-wrap').getBoundingClientRect();
+        const visible = (el) => el.getClientRects().length > 0 && !el.closest('[hidden]') && !el.classList.contains('visually-hidden');
+        const covered = [...document.querySelectorAll('.debrief-col button, .debrief-col input, .debrief-col select, .debrief-col summary, .debrief-col a[href], .debrief-col label.button')]
+          .filter(visible)
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            return r.left < box.right && r.right > box.left && r.top < box.bottom && r.bottom > box.top;
+          })
+          .map((el) => el.textContent.trim().slice(0, 30) || el.getAttribute('aria-label') || el.tagName);
+        return {
+          scrollWidth: document.documentElement.scrollWidth,
+          innerWidth,
+          box: { left: box.left, right: box.right },
+          map: { left: map.left, right: map.right },
+          covered,
+        };
+      });
+      expect(found.error, label).toBeUndefined();
+      expect(found.scrollWidth, `${label}: the page scrolls sideways`).toBeLessThanOrEqual(found.innerWidth);
+      expect(found.covered, `${label}: covers controls in a column`).toEqual([]);
+      expect(found.box.left, `${label}: leaves the window on the left`).toBeGreaterThanOrEqual(0);
+      expect(found.box.right, `${label}: leaves the window on the right`).toBeLessThanOrEqual(found.innerWidth);
+      expect(found.box.left, `${label}: starts left of the map`).toBeGreaterThanOrEqual(found.map.left - 1);
+      expect(found.box.right, `${label}: runs past the map`).toBeLessThanOrEqual(found.map.right + 1);
+    };
+
+    // The Formation column open at its fullest, so its buttons are all there to be covered.
+    await page.getByRole('button', { name: 'More detail' }).click();
+    await page.getByRole('button', { name: 'Debrief settings' }).click();
+    for (const view of ['2D', '3D']) {
+      if (view === '3D') await page.getByText('3D', { exact: true }).click();
+      const names = (await page.locator('.debrief-toolbar .menu-button:visible').allTextContents()).map((n) => n.trim());
+      expect(names.length, `menus in ${view}`).toBeGreaterThanOrEqual(3);
+      for (const name of names) {
+        const button = page.locator('.debrief-toolbar .menu-button:visible', { hasText: name });
+        await button.click();
+        await expect(button).toHaveAttribute('aria-expanded', 'true');
+        await check(`${view} ${name}`);
+        await page.keyboard.press('Escape');
+        await expect(button).toHaveAttribute('aria-expanded', 'false');
+      }
+    }
+  });
+}
+
+// RC-3: the message that 3D can't start sits by the 2D | 3D switch that was just pressed,
+// not in the Flight column and not on the red file-error line.
+async function expectNextToViewSwitch(page, text) {
+  const message = page.locator('.debrief-toolbar').getByRole('alert');
+  await expect(message).toHaveText(text);
+  await expect(page.locator('.debrief-message')).toBeHidden();
+  const near = await page.evaluate(() => {
+    const sw = document.querySelector('.debrief-toolbar .view-switch').getBoundingClientRect();
+    const m = document.querySelector('.debrief-toolbar [role="alert"]').getBoundingClientRect();
+    const dx = Math.max(0, sw.left - m.right, m.left - sw.right);
+    const dy = Math.max(0, sw.top - m.bottom, m.top - sw.bottom);
+    return Math.hypot(dx, dy);
+  });
+  expect(near).toBeLessThanOrEqual(100);
+}
+
 // When 3D can't start, the screen says why and goes back to 2D (D141).
 test.describe('3D that cannot start', () => {
   // The service worker would answer for the chunk, and page.route would never see the request.
@@ -1188,7 +1263,7 @@ test.describe('3D that cannot start', () => {
     await openRoute(page, '#/debrief');
     await loadExample(page);
     await page.getByText('3D', { exact: true }).click();
-    await expect(page.locator('.debrief-message')).toHaveText(/3D needs a connection/);
+    await expectNextToViewSwitch(page, /3D needs a connection/);
     await expect(page.locator('canvas.debrief-2d')).toBeVisible();
     await expect(page.locator('canvas.debrief-3d')).toBeHidden();
   });
@@ -1204,7 +1279,7 @@ test.describe('3D that cannot start', () => {
     await openRoute(page, '#/debrief');
     await loadExample(page);
     await page.getByText('3D', { exact: true }).click();
-    await expect(page.locator('.debrief-message')).toHaveText(/3D needs WebGL 2/);
+    await expectNextToViewSwitch(page, /3D needs WebGL 2/);
     await expect(page.locator('canvas.debrief-2d')).toBeVisible();
     await expect(page.locator('canvas.debrief-3d')).toBeHidden();
   });

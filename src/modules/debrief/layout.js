@@ -47,6 +47,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const picker = h('div', { class: 'debrief-picker', hidden: true });
   const busyLine = h('p', { class: 'debrief-busy', role: 'status' });
   const message = h('p', { class: 'debrief-message', role: 'alert', hidden: true });
+  // Why 3D can't start: by the 2D | 3D switch that was pressed, not in the Flight column (RC-3).
+  const viewMessage = h('p', { class: 'debrief-view-message', role: 'alert', hidden: true });
 
   const statusButton = h('button', { type: 'button', class: 'flight-status', disabled: true, 'aria-expanded': 'false', 'aria-controls': 'debrief-status-details' });
   const statusText = h('span', {}, flightSummary(null));
@@ -80,10 +82,21 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     const setOpen = (open) => {
       body.hidden = !open;
       button.setAttribute('aria-expanded', String(open));
-      // It ends above the map's bottom edge, so it never covers the playback
-      // bar or a panel below the map; a longer menu scrolls.
-      if (open) body.style.maxHeight = `${Math.max(160, mapWrap.getBoundingClientRect().bottom - body.getBoundingClientRect().top - 8)}px`;
+      if (open) place();
     };
+    // It stays over the map, as D183 asks from the 1280 px floor up: no wider than the map,
+    // and opened leftward from its button when it would pass the map's right edge, so it
+    // never scrolls the page sideways or covers a column. It ends above the map's bottom
+    // edge, so it never covers the playback bar or a panel below the map; a longer menu scrolls.
+    function place() {
+      const map = mapWrap.getBoundingClientRect();
+      body.style.left = '';
+      body.style.maxWidth = `${Math.max(0, map.width)}px`;
+      const box = body.getBoundingClientRect();
+      const over = box.right - map.right;
+      if (over > 0) body.style.left = `${-Math.min(over, Math.max(0, box.left - map.left))}px`;
+      body.style.maxHeight = `${Math.max(160, map.bottom - box.top - 8)}px`;
+    }
     button.addEventListener('click', () => setOpen(body.hidden));
     wrap.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape' || body.hidden) return;
@@ -93,6 +106,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     });
     listen(document, 'pointerdown', (e) => {
       if (!wrap.contains(e.target)) setOpen(false);
+    });
+    listen(window, 'resize', () => {
+      if (!body.hidden) place();
     });
     return { element: wrap, setOpen };
   }
@@ -231,7 +247,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   const stage = h(
     'section',
     { class: 'debrief-stage', 'aria-label': 'Map and playback' },
-    h('div', { class: 'debrief-toolbar' }, viewSwitch, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element),
+    h('div', { class: 'debrief-toolbar' }, viewSwitch, viewMessage, fitButton, layersMenu.element, chartsMenu.element, weatherMenu.element, view3dMenu.element, toolsMenu.element),
     mapWrap,
     bar.element,
     metarLine,
@@ -328,6 +344,11 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     message.hidden = !text;
   }
 
+  function setViewMessage(text) {
+    viewMessage.textContent = text ?? '';
+    viewMessage.hidden = !text;
+  }
+
   function applyLayout(values) {
     flightPanel.setCollapsed(!values.flightColumn);
     formationPanel.setCollapsed(!values.formationColumn);
@@ -336,6 +357,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     formationCol.classList.toggle('is-collapsed', !values.formationColumn);
     // One view shows at a time; the other's canvas and tools hide (R12).
     const is3d = values.view === '3d';
+    if (is3d) setViewMessage(null); // a new try, so the old refusal goes
     canvas.hidden = is3d;
     canvas3d.hidden = !is3d;
     fitButton.hidden = is3d;
@@ -410,6 +432,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     renderReadouts: (r, extra) => readouts.render(r, flight, extra),
     showPicker,
     setMessage,
+    setViewMessage,
     setBusy(what) {
       busyLine.textContent = what ? `${what}…` : '';
       exampleButton.disabled = Boolean(what) || !canExample;

@@ -125,7 +125,7 @@ function mount(root, app) {
     setCamera: (patch) => layout.update(patch),
     // three.js couldn't load (offline on a first visit) or there's no WebGL 2: say so and stay in 2D (D141).
     onUnavailable: (message) => {
-      ui.setMessage(message);
+      ui.setViewMessage(message);
       layout.update({ view: '2d' });
     },
   });

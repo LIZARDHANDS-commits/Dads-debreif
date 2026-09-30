@@ -66,6 +66,8 @@ The columns themselves stay as before: three at 1366 × 768 and up, none coverin
 
 - **The stage** holds the view switch and one **playback bar** shared by both views. The bar has Play, Pause, Reset, step ±1 s, speed 0.25× to 16×, a scrubber with 1 s steps across the whole flight (not V6's fixed 1,000 steps, #23), and the time in Zulu and local via `app.time` (R10, D18). The 3D view gets real playback controls, which V6 lacked (#26).
 - **Switching views** keeps the time, playing state, selected ship and DFPs. The 3D view is never blank: it shows the same "load a flight" empty state as the map (R12).
+- **Toolbar menus stay over the map (RC-1, D183).** From the 1280 px floor up, an open menu (Layers, Routes and charts, Weather, Tools, 3D settings) is no wider than the map and opens leftward from its button when it would pass the map's right edge, so it never scrolls the page sideways, leaves the window, or covers a control in the Flight or Formation column. Tested at 1280, 1366 and 1440, each menu in 2D and in 3D.
+- **When 3D can't start (RC-3)**, the message (no WebGL 2, or three.js didn't load) shows in the toolbar under the 2D | 3D switch as an alert, not in the red file-error line in the Flight column. It clears when 3D is tried again.
 - **The EM chart** (from Tools) opens in a panel below the stage, which shrinks the stage without covering it (#37). It never floats over the map, and it's off by default.
 - **Keyboard** (through `app.keys`, only while the debrief is open and never while typing): Space plays or pauses, ← and → step 1 s, Home resets. Tab moves between controls as normal.
 - **Resizing** a panel or the window resizes the canvas (a `ResizeObserver` on the stage, #36).
