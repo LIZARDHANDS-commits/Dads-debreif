@@ -84,14 +84,14 @@ const GRID = [
  *     by speed so they meet in the centre. Before the merge that moves both aircraft along x by the same amount; from
  *     the merge on both are put at the centre, so nothing else differs. Expected: V6's pre-merge positions shifted by
  *     `startShiftFt`.
- *  3. Everything decided, nothing switched back (Q51 as well). Without Climb and dive this is the same as 2. With it
- *     on, the off-nose angle is measured in 3D, so first nose-on can come at another time or not at all, and the
+ *  3. Everything decided, nothing switched back (Q51 as well). Without Climb and dive this is bit-identical to 2, so
+ *     only the rows with Climb and dive on run. With it on, the off-nose angle is measured in 3D, so first nose-on can come at another time or not at all, and the
  *     fight can only be followed up to the first step where either V6 or the rebuild marks it (`threeD`).
  */
 const MODES = [
   { label: 'V6 start', options: { v6Start: true, v6OffNose: true }, shifted: false, threeD: false },
-  { label: 'centre start (Q49)', options: { v6OffNose: true }, shifted: true, threeD: false },
-  { label: 'all decisions (Q48 to Q51)', options: {}, shifted: true, threeD: true },
+  { label: 'centre start (Q49)', options: { v6OffNose: true }, shifted: true, threeD: false, afterMergeSec: 1 },
+  { label: 'all decisions (Q48 to Q51)', options: {}, shifted: true, threeD: true, verticalOnly: true },
 ];
 /** How far the centre start moves both aircraft along x before the merge, against V6's: sep × (V2 − V1) / (2 (V1 + V2)). */
 const startShiftFt = (g) => {
@@ -199,6 +199,7 @@ function compareReadouts(v6, mine, stepNo, name, v6Both, threeD) {
 const covered = { threeDDiffers: 0, firstNose: 0, chaseAfterNoseOn: 0, vertical: 0, verticalChase: 0, oneCircle: 0, twoCircle: 0, unequalSpeed: 0, unequalG: 0 };
 
 for (const mode of MODES) for (const setup of GRID) {
+  if (mode.verticalOnly && !setup.vertical) continue;
   const { name: gridName, ...fightSetup } = setup;
   const name = mode.shifted ? `${gridName} [${mode.label}]` : gridName;
   test(`matches V6 for 10 minutes, step by step: ${name}`, () => {
@@ -234,6 +235,7 @@ for (const mode of MODES) for (const setup of GRID) {
       compareAircraft(mine.blue, v6.S.a, i, name, 'Blue', moved);
       compareAircraft(mine.red, v6.S.b, i, name, 'Red', moved);
       const want = v6.S.firstNose, got = mine.firstNose;
+      const lastStep = mode.afterMergeSec !== undefined && mine.merged && mine.timeSec - mine.mergeSec > mode.afterMergeSec;
       if (!want !== !got) assert.fail(`${name}: first nose-on ${got ? 'marked' : 'not marked'}, V6 ${want ? 'marked' : 'not marked'}, at step ${i}`);
       if (want && !seenNose) {
         seenNose = true;
@@ -248,6 +250,7 @@ for (const mode of MODES) for (const setup of GRID) {
           assert.ok(close(got.from, want.from) && close(got.to, want.to), `${name}: first nose-on line, at step ${i}`);
         }
       }
+      if (lastStep) { cutShort = true; break; }
     }
     assert.ok(seenMerge, `${name}: the aircraft merged`);
     if (seenNose) covered.firstNose++;

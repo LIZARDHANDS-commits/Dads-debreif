@@ -244,8 +244,9 @@ function chaseOther(p, other, turnRateRadPerSec, d, vertical) {
  * that reaches the merge is cut there: the aircraft fly to the merge point,
  * meet at the centre, take their set pitch, and the rest of the step is flown
  * as the first step of the turns (with the centre start they are there already,
- * to the last digit; V6's start was off-centre at unequal speeds, and the move to
- * the centre is what `v6Start` still needs). V6 line 4251, `if(d===0){S.done=true;continue}`,
+ * within a billionth of a foot; the snap makes it exact, and it is what `v6Start`
+ * still needs, since V6's start was off-centre at unequal speeds). V6 line 4251,
+ * `if(d===0){S.done=true;continue}`,
  * has no effect (d is 0 only when the merge has been reached, which has already
  * set `done`, and the `continue` is the last statement), so it is not ported.
  */
