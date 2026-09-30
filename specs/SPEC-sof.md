@@ -143,7 +143,7 @@ V6 had three separate sets of wave inputs, two of them hidden and dead, assumed 
 
 ### Map (fixes #6, #9, #11)
 
-- **Base map, as in ForeFlight: Satellite or VNC.** Satellite is Esri's world imagery, the same satellite picture the debrief uses (Patrick, 2026-09-30), through the shared tile loader the debrief's code moves into ui-kit. VNC is the two VNC charts the debrief already carries (South: Moose Jaw and Regina; North: Saskatoon and Moose Jaw), with V6's alignment; together they cover CYMJ, CYQR, CYYN and CYXE. Outside the charts, the VNC view shows the satellite picture, and the map says so. The base map is dimmed a little (a setting) so radar stands out. Each is credited on screen, and the VNC carries "Not for navigation". Pan by dragging, zoom with the wheel or the + and − buttons, and a Home button that returns to the home field. The view opens centred on the home field, at V6's zoom level (6), which shows southern Saskatchewan and the fields around it.
+- **Base map, as in ForeFlight: Satellite or VNC.** Satellite is Esri's world imagery, the same satellite picture the debrief uses (Patrick, 2026-09-30), through the shared tile loader, now in ui-kit (`src/ui-kit/map-tiles.js`: `createTileLayer`, `ESRI_IMAGERY`, `tilesFor`). VNC is the two VNC charts the debrief already carries (South: Moose Jaw and Regina; North: Saskatoon and Moose Jaw), with V6's alignment; together they cover CYMJ, CYQR, CYYN and CYXE. Outside the charts, the VNC view shows the satellite picture, and the map says so. The base map is dimmed a little (a setting) so radar stands out. Each is credited on screen, and the VNC carries "Not for navigation". Pan by dragging, zoom with the wheel or the + and − buttons, and a Home button that returns to the home field. The view opens centred on the home field, at V6's zoom level (6), which shows southern Saskatchewan and the fields around it.
 - **Layers menu, like ForeFlight's.** Layers stack; each has its own switch, and the image layers have an opacity slider. Checked from a browser on 2026-09-30; every image layer is from ECCC's map service, which the SOF already uses. Only the layers marked "on" start on (R22); the menu remembers the SOF's choices.
 
   | Layer | Source | Starts |
@@ -185,17 +185,17 @@ V6 wrote the timeline five times; the one that ran (V8, line 1985) parsed TAFs i
 
 ### Settings
 
-The home field and alternates, and each alternate's approaches, minima and MEA, are set in the Airfields section of Settings (SPEC-airfields), not here. V6's own WX SETUP airfield boxes go away. The SOF adds a small section to the Settings dialog, through the app frame:
+The home field and alternates, and each alternate's approaches, minima and MEA, are set in the Airfields section of Settings (SPEC-airfields), not here. V6's own WX SETUP airfield boxes go away. The SOF keeps every one of its settings in one closed **SOF settings** menu on its own screen (ui-kit's shared settings menu, SPEC-ui-kit "Settings menu (R22)"), never in the header's app-wide Settings dialog. The menu starts closed and opens in the page flow. Each control appears in the task that uses it:
 
 | Setting | Default | Range |
 |---|---|---|
 | Alternate trigger | Local (MTCA) 2000/3 (V6, D59, D111) | Local (MTCA) 2000/3, or Cross-country 3000/3 (D111) |
-| Home limits: ceiling below (ft) | 2000, set by the trigger choice | 0 to 10,000 in 100s |
-| Home limits: visibility below (SM) | 3, set by the trigger choice | 0 to 10 in quarter miles |
-| New-caution banner | On (V6's "New-alert caution box") | on or off |
-| Lightning near home: radius (NM) | 20 (V6's `lightningNm`, which did nothing in V6) | 5 to 50, only if SOF-3 is yes |
+| Home limits: ceiling below (ft) | 2000, set by the trigger choice | 0 to 10,000 in 100s; a typed number snaps up to the next 100 |
+| Home limits: visibility below (SM) | 3, set by the trigger choice | 0 to 10 in quarter miles; a typed number snaps up to the next quarter |
+| New-caution banner | On (V6's "New-alert caution box") | on or off; the switch appears with task 3 |
+| Lightning near home: radius (NM) | 20 (V6's `lightningNm`, which did nothing in V6) | 5 to 50, only if SOF-3 is yes; the control appears with task 7 |
 
-The alternate trigger (D111, Patrick 2026-09-30 05:19Z, "agre on sof trigger") follows the Gen Book p.7: an alternate is required when home is forecast below 3,000 ft or 3 SM from takeoff to one hour after the ETA, or below 2,000 ft or 3 SM when the flight stays within the MTCA (manuals Q4). Choosing a trigger fills in the two limit numbers; changing either number by hand shows the choice as `Custom`. The label on the chips and the home card names the choice and is built from the numbers used, `Local (MTCA) 2000/3` or `Cross-country 3000/3` (D59).
+The alternate trigger (D111, Patrick 2026-09-30 05:19Z, "agre on sof trigger") follows the Gen Book p.7: an alternate is required when home is forecast below 3,000 ft or 3 SM from takeoff to one hour after the ETA, or below 2,000 ft or 3 SM when the flight stays within the MTCA (manuals Q4). The banner switch and the lightning radius have their defaults from the start but no controls until the tasks that use them (3 and 7), so no control on the screen does nothing. A limit typed by hand snaps up to its step when it is committed (Enter, or leaving the box), the safe side, and the box then shows the number the check uses; stored settings are range-checked on read, and anything out of range or of the wrong type is the default. Choosing a trigger fills in the two limit numbers; changing either number by hand shows the choice as `Custom`. The label on the chips and the home card names the choice and is built from the numbers used, `Local (MTCA) 2000/3` or `Cross-country 3000/3` (D59).
 
 V6's "alternate highlights" (600 ft and 2 SM) aren't a SOF setting any more: each alternate's minima come from its approaches in the Airfields section, and 600-2 is the fallback when they're not set (D70, D95). The refresh times and stale limits are fixed at D67's values and explained under About this screen, not settings.
 
@@ -233,8 +233,8 @@ V6's "alternate highlights" (600 ft and 2 SM) aren't a SOF setting any more: eac
 | `app.airfields` (Airfields thread) | `home()`, `alternates()`, `stations()`, `checkOptions(icao)`, `subscribe()`, and the catalog's positions and names for the map and Other airfields | Merged |
 | `app.time`, `core/time.js` | Home zone, `formatDtgZulu`, the Zulu or local order | Merged |
 | ui-kit (app frame) | `h()`, `createPanel`, `createControls`, `createCanvasView`, the scheduler | Merged |
-| App frame | The registry entry `#/sof`, the SOF section in the Settings dialog, `tests/e2e/sof.spec.js`, and the page's Content Security Policy allowing `api.met.no`, `datamask.org`, `geo.weather.gc.ca`, `api.rainviewer.com`, `tilecache.rainviewer.com`, `services.arcgisonline.com` and the traffic relay's address, and frames from `globe.adsbexchange.com` only | Asked for through the coordinator at the task that needs it |
-| Debrief and app frame | The satellite tile loader, moving from the debrief into ui-kit before Traffic task 8 (coordinator, 2026-09-30), and the VNC charts and their alignment (`src/modules/debrief/map2d/vnc.js` and its images), which need the same move so the SOF can use them | Planned for the tile loader; the VNC move is asked for through the coordinator at task 6. |
+| App frame | The registry entry `#/sof`, `tests/e2e/sof.spec.js`, and the page's Content Security Policy allowing `api.met.no`, `datamask.org`, `geo.weather.gc.ca`, `api.rainviewer.com`, `tilecache.rainviewer.com`, `services.arcgisonline.com` and the traffic relay's address, and frames from `globe.adsbexchange.com` only | Asked for through the coordinator at the task that needs it |
+| Debrief and app frame | The satellite tile loader, and the VNC charts and their alignment (`src/modules/debrief/map2d/vnc.js` and its images), which need the same move so the SOF can use them | The tile loader is merged in `src/ui-kit/map-tiles.js` (`createTileLayer`, `ESRI_IMAGERY`, `tilesFor`); the SOF's map uses it as it is. The VNC move is asked for through the coordinator at task 6. |
 
 ## Security (untrusted replies)
 

@@ -31,20 +31,20 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 ## Phase 2: turn logic and timing (PR B)
 
-- [ ] **6. Turning order and per-wingman logic, pinned, then D41.** `displayedOutsideInOrder` (1116), `tacticalOrderForDelayIn` (1132), `sideOfLeadIn` (930), `sideOfAircraftFrom` (941), `turnDirFromLogic` (1095). Then D41 as its own commit: toward and away swapped back.
+- [x] **6. Turning order and per-wingman logic, pinned, then D41.** `displayedOutsideInOrder` (1116), `tacticalOrderForDelayIn` (1132), `sideOfLeadIn` (930), `sideOfAircraftFrom` (941), `turnDirFromLogic` (1095). Then D41 as its own commit: toward and away swapped back.
   - Acceptance: golden match first; after D41, "toward cue aircraft" turns #3 toward Lead (test states it). The maneuver note says the outside aircraft goes first.
   - Files: `engine/plan.js`, `tests/golden/turn-sim-plan.test.js`. Size S.
-- [ ] **7. G correction (core Task 12, D74).** Call `core`'s G correction in the step; the Correction model behind its own checkbox under More setup, off by default (Q41).
+- [x] **7. G correction (core Task 12, D74).** Call `core`'s G correction in the step; the Correction model behind its own checkbox under More setup, off by default (Q41).
   - Acceptance: with G fix at base G 1.2 and a large error, no NaN; V6's NaN case is pinned in `core`.
   - Dependencies: core Task 12. Files: `engine/step.js`, its tests. Size S.
-- [ ] **8. Auto timing, pinned, then D43 and D44.** `computeAutoDelay` (1369) and the lead gate in `cueSatisfied` (1525) pinned; then D43 (no waiting for Lead) and D44 (step = spacing ÷ speed × cot(half the turn angle)) as two commits. The step is shown, never written into Base delay.
+- [x] **8. Auto timing, pinned, then D43 and D44.** `computeAutoDelay` (1369) and the lead gate in `cueSatisfied` (1525) pinned; then D43 (no waiting for Lead) and D44 (step = spacing ÷ speed × cot(half the turn angle)) as two commits. The step is shown, never written into Base delay.
   - Acceptance: after both, at V6's defaults the step is 16.16 s and the rollout is line abreast at 6,000 ft within a tolerance the test states; Base delay is untouched.
   - Files: `engine/plan.js`, `tests/golden/turn-sim-plan.test.js`, `tests/unit/turn-sim/auto-timing.test.js`. Size S.
-- [ ] **9. Clock cue, pinned, then the tolerance box.** `clockCascadeOrder` (1152), `clockCueCrossed` (1493), `cueSatisfied` (1511). Tolerance read from its setting (default 4°, so the default is unchanged). Live per-aircraft status lines. The offset-box 5:30 message (Q44c, flagged for Dad). Then, as its own commit, the selectors (Q45): "Manual targets" uses each wingman's Clock target (or Clock cue aircraft), its own clock position and its turn logic; "Outside-in" stays V6's.
+- [x] **9. Clock cue, pinned, then the tolerance box.** `clockCascadeOrder` (1152), `clockCueCrossed` (1493), `cueSatisfied` (1511). Tolerance read from its setting (default 4°, so the default is unchanged). Live per-aircraft status lines. The offset-box 5:30 message (Q44c, flagged for Dad). Then, as its own commit, the selectors (Q45): "Manual targets" uses each wingman's Clock target (or Clock cue aircraft), its own clock position and its turn logic; "Outside-in" stays V6's.
   - Then, as its own commit, SMM item 2: the clock position default becomes "Auto (5 or 7 by direction)" (7 o'clock right, 5 o'clock left, confirmed from the engine's picture); fixed positions, 5:30 included, stay pickable.
   - Acceptance: golden match at 4° with Outside-in and 5:30; a changed tolerance changes when the turn starts; with Manual targets, #4 set to watch #2 turns when #2 reaches #4's clock position; with Auto, a right turn cues at 7 and a left at 5; status lines update during play.
   - Files: `engine/cues.js`, `readouts.js`, tests. Size S.
-- [ ] **10. Compass heading (D45) and legs.** Start heading in compass degrees, default 000 (TS2); continuing a leg fills in the compass heading; a new leg resets the rear check and breadcrumbs.
+- [x] **10. Compass heading (D45) and legs.** Start heading in compass degrees, default 000 (TS2); continuing a leg fills in the compass heading; a new leg resets the rear check and breadcrumbs.
   - Acceptance: 090 flies east; the pinned runs still match V6 when given V6's math heading; a second leg performs the rear check.
   - Files: `settings.js`, `engine/run.js`, tests. Size S.
 
@@ -71,7 +71,7 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 ### Checkpoint C: every V6 feature kept by the spec is on screen; D42, D48, Q43, Q44 and Q47 landed. PR C.
 
-- [ ] **19. 2D/3D switch (Patrick 07:51Z).** `view3d.js` on ui-kit `three-aircraft.js` (app frame): the 2D/3D switch on the Stage bar, 2D by default and remembered; the same engine state drawn in 3D (position, heading, bank, trails), camera behind Lead with orbit, zoom and follow; three.js loaded only on first switch to 3D; no frames when hidden or unmounted.
+- [x] **19. 2D/3D switch (Patrick 07:51Z).** `view3d.js` on ui-kit `three-aircraft.js` (app frame): the 2D/3D switch on the Stage bar, 2D by default and remembered; the same engine state drawn in 3D (position, heading, bank, trails), camera behind Lead with orbit, zoom and follow; three.js loaded only on first switch to 3D; no frames when hidden or unmounted.
   - Acceptance: a 2D visit loads no three.js (e2e network check); switching mid-run keeps time and positions; leaving leaves no frames; golden tests unchanged.
   - Dependencies: ui-kit `three-aircraft.js` on main. Files: `view3d.js`, `layout.js`, `index.js`, e2e. Size M.
 

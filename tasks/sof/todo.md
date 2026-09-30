@@ -13,7 +13,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Verify: `node --test 'tests/unit/sof/*.test.js'`.
   - Dependencies: none. Size M.
   - Files: src/modules/sof/waves.js, src/modules/sof/cards.js, tests/unit/sof/waves.test.js, tests/unit/sof/cards.test.js, tests/fixtures/sof/
-- [ ] **2. A screen with live weather.** Registry entry (app frame). Mount and unmount; the SOF bar (DTG, feed status in words, Refresh, Traffic link); airfield cards with raw text and ages; `startRefresh` on the scheduler scope, restarted when the airfields change; last good reports kept in storage and shown with their age; credits line.
+- [ ] **2. A screen with live weather.** Registry entry (app frame). Mount and unmount; the SOF bar (DTG, feed status in words, Refresh; traffic is a map layer, task 7b); airfield cards with raw text and ages; `startRefresh` on the scheduler scope, restarted when the airfields change; last good reports kept in storage and shown with their age; credits line.
   - Acceptance: with every feed failing the screen says so in words and keeps the last reports (#8); leaving the module stops every timer and request (R4); no console errors (R7); nothing overlaps at 1366 × 768 (R2).
   - Verify: `npm test`; e2e with fixtures (app frame's `tests/e2e/sof.spec.js`); `npm run dev` against the live feeds once.
   - Dependencies: 1. Size M.

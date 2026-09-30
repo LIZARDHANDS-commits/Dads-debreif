@@ -87,10 +87,10 @@ test('start positions: slots with the enabled position errors added match V6 aft
 });
 
 test('the errors are added along the start heading, from the start heading box (V6 does not use Lead\'s heading)', () => {
-  const settings = { ...V6_DEFAULTS, startHeadingDeg: 90, [aircraftKey(2, 'positionErrorOn')]: true, [aircraftKey(2, 'foreAftDir')]: 'fore', [aircraftKey(2, 'foreAftFt')]: 1000 };
+  const settings = { ...V6_DEFAULTS, startHeadingDeg: 0, [aircraftKey(2, 'positionErrorOn')]: true, [aircraftKey(2, 'foreAftDir')]: 'fore', [aircraftKey(2, 'foreAftFt')]: 1000 };
   const two = startPositions(settings).find((a) => a.id === 2);
   const slot = formationSlots(settings).find((a) => a.id === 2);
-  // Heading 90° points north, so 1,000 ft fore moves #2 1,000 ft north.
+  // Compass heading 000 points north, so 1,000 ft fore moves #2 1,000 ft north.
   assert.ok(Math.abs(two.xFt - slot.xFt) < 1e-9);
   assert.ok(Math.abs(two.yFt - slot.yFt - 1000) < 1e-9);
 });

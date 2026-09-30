@@ -104,6 +104,7 @@ export function createAirfields({ store }) {
   function resolve(icao) {
     const builtIn = CATALOG[icao];
     const own = setup.fields[icao] ?? {};
+    /** @type {Record<string, any>} gnssApproach is added below */
     const field = {
       icao,
       name: builtIn?.name ?? own.name ?? null,
@@ -123,6 +124,7 @@ export function createAirfields({ store }) {
     return field;
   }
 
+  /** @returns {Record<string, any>} */
   function home() {
     const field = resolve(setup.home);
     if (field.timeZone) lastGoodZone = field.timeZone;
@@ -163,6 +165,7 @@ export function createAirfields({ store }) {
     /**
      * Change the setting. `fields` merges per airfield: a key set to null clears
      * it, and an airfield set to null removes its entry.
+     * @param {{ home?: string, alternates?: string[], fields?: Record<string, object | null> }} [patch]
      */
     update(patch = {}) {
       const next = { ...setup, fields: { ...setup.fields } };

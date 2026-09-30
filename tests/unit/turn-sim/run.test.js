@@ -48,9 +48,9 @@ test('a run at the rebuild\'s defaults flies 3 G (D113) where V6\'s defaults fly
   assert.equal(createRun({}).state.aircraft[0].g, 3);
   assert.equal(createRun(V6).state.aircraft[0].g, 2);
   const box = (settings) => createRun({ ...settings, formation: 'offsetBox' }).state.aircraft.find((a) => a.id === 3);
-  // #3 sits the box aft distance behind Lead: 8,000 ft in V6, 7,000 ft by default (D114). Heading 0 is east, so aft is -x.
+  // #3 sits the box aft distance behind Lead: 8,000 ft in V6 (flying east, so aft is -x), 7,000 ft by default (D114, flying north, so aft is -y).
   assert.equal(Math.round(box(V6).xFt), -8000);
-  assert.equal(Math.round(box(DEFAULTS).xFt), -7000);
+  assert.equal(Math.round(box(DEFAULTS).yFt), -7000);
 });
 
 test('every step is 0.05 s: 20 steps are a second, whatever calls step() and however fast', () => {
@@ -210,7 +210,7 @@ test('turnComplete goes true when every aircraft has finished its turn, before t
 
 test('planTurn sets each aircraft\'s start, direction and goal from the time delay', () => {
   const craft = [1, 2, 3, 4].map((id) => ({ id, xFt: 0, yFt: [0, 6000, -6000, -12000][id - 1], headingRad: 0, delayErrSec: 0, turnLogic: 'auto', clockTarget: 'global' }));
-  const flight = { formation: 'weighted', maneuver: 'delayed90away', direction: 'right', turnDeg: 90, baseDelaySec: 10, startHeadingDeg: 0, clockCueAircraft: 1 };
+  const flight = { formation: 'weighted', maneuver: 'delayed90away', direction: 'right', turnDeg: 90, baseDelaySec: 10, startHeadingRad: 0, clockCueAircraft: 1 };
   assert.deepEqual(turningOrder(craft, flight).map((a) => a.id), [2, 1, 3, 4]);
   planTurn(craft, flight);
   assert.deepEqual(craft.map((a) => [a.id, a.turnStartSec, a.turnDir, a.turnGoalRad]), [[1, 10, -1, Math.PI / 2], [2, 0, -1, Math.PI / 2], [3, 20, -1, Math.PI / 2], [4, 30, -1, Math.PI / 2]]);

@@ -28,6 +28,7 @@ const localTime = (zone, now) => `local time ${formatOffset(utcOffsetMinutes(now
 
 // A number box that writes to the setting on change and says in words what it
 // accepts; empty clears the value.
+/** @param {{ label: string, value: any, min: number, max: number, step: number | string, unit?: string, onValue: (v: number | null) => void }} options */
 function numberBox({ label, value, min, max, step, unit, onValue }) {
   const id = newId('n');
   const message = h('span', { class: 'control-message', id: `${id}-msg`, role: 'status' });
@@ -52,6 +53,7 @@ function numberBox({ label, value, min, max, step, unit, onValue }) {
 }
 
 // An ICAO box with a button; Enter works too. Refusals are said in words.
+/** @param {{ label: string, buttonLabel?: string, value?: string, onSubmit: (icao: string, input: HTMLInputElement) => void }} options */
 function icaoForm({ label, buttonLabel, value = '', onSubmit }) {
   const id = newId('icao');
   const input = h('input', { type: 'text', id, value, maxlength: 4, autocomplete: 'off', spellcheck: 'false', class: 'af-icao', 'aria-describedby': `${id}-msg` });

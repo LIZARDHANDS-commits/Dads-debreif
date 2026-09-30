@@ -162,6 +162,7 @@ export function mergeConditions(base, change) {
   };
 }
 
+/** @type {Array<[number, string]>} */
 const FRACTIONS = [
   [1 / 16, '1/16'], [1 / 8, '1/8'], [3 / 16, '3/16'], [1 / 4, '1/4'], [5 / 16, '5/16'], [3 / 8, '3/8'],
   [1 / 2, '1/2'], [5 / 8, '5/8'], [3 / 4, '3/4'], [7 / 8, '7/8'],

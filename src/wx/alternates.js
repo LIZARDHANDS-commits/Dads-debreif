@@ -21,6 +21,7 @@ const VISUAL_DESCENT_VIS_SM = 3;
  * Minima for a GNSS-only visual descent (D80): ceiling at least MEA + 500 ft,
  * converted from above sea level to above the field, and visSm (default 3 SM).
  * Null when the MEA or the field elevation can't be read.
+ * @param {{ meaFt?: number, elevationFt?: number, visSm?: number }} [descent]
  */
 export function visualDescentMinima({ meaFt, elevationFt, visSm = VISUAL_DESCENT_VIS_SM } = {}) {
   if (!Number.isFinite(meaFt) || !Number.isFinite(elevationFt)) return null;
@@ -99,6 +100,15 @@ function coveredStatus(taf, { hits, atLimit, incomplete }) {
   return atLimit.length ? 'at-limit' : 'meets';
 }
 
+/**
+ * The status when the TAF does not cover the whole window: below when the part it
+ * covers is already below limits (Patrick, 2026-09-30 07:36Z), else not-covered.
+ * `covered: false` still tells the SOF that the TAF ends early.
+ */
+function shortStatus({ hits }) {
+  return hits.length ? 'below' : 'not-covered';
+}
+
 const byTime = (a, b) => +a.from - +b.from;
 
 /**
@@ -120,7 +130,7 @@ export function homeAlternateTrigger(taf, window, limits) {
   const f = forecastAt(taf, w);
   const options = toOptions(limits) ?? [DEFAULT_LIMITS.home];
   const found = hitsIn(f, () => options, options);
-  const status = f.covered ? coveredStatus(taf, found) : 'not-covered';
+  const status = f.covered ? coveredStatus(taf, found) : shortStatus(found);
   const { hits, atLimit, cautions } = found;
   return { status, covered: f.covered, validFrom: f.validFrom, validTo: f.validTo, hits, atLimit, cautions, problems: taf.problems ?? [] };
 }
@@ -155,6 +165,10 @@ export function arrivalWindow(etas, { marginMin = 60 } = {}) {
  *
  * status: 'no-time' | 'no-taf' | 'not-covered' | 'below' | 'incomplete' | 'at-limit' | 'meets'.
  * `worst` is the earliest hit, else the earliest at-limit piece, else null.
+ * @param {any} taf  a parsed TAF (parseTaf)
+ * @param {any} when  one ETA or a { from, to } window
+ * @param {{ minima?: any, landingMinima?: any, visualDescent?: { meaFt?: number, elevationFt?: number, visSm?: number },
+ *   gnssApproach?: boolean, homeGnssApproach?: boolean, distanceNm?: number | null }} [options]
  */
 export function assessAlternate(taf, when, { minima, landingMinima, visualDescent, gnssApproach = false, homeGnssApproach = false, distanceNm = null } = {}) {
   const w = toWindow(when);
@@ -174,7 +188,7 @@ export function assessAlternate(taf, when, { minima, landingMinima, visualDescen
   const alternate = descent ?? toOptions(minima) ?? [DEFAULT_LIMITS.alternate];
   const landing = toOptions(landingMinima);
   const found = hitsIn(f, (p) => (p.kind === 'PROB' ? landing : alternate), alternate);
-  const status = f.covered ? coveredStatus({ problems }, found) : 'not-covered';
+  const status = f.covered ? coveredStatus({ problems }, found) : shortStatus(found);
   const worst = [...found.hits].sort(byTime)[0] ?? [...found.atLimit].sort(byTime)[0] ?? null;
   return {
     ...base,
