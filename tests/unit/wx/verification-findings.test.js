@@ -81,3 +81,35 @@ test('WX-7: minima that are supplied but unusable give incomplete, not the 600-2
   assert.equal(assessAlternate(t, WINDOW, { landingMinima: { ceilingFt: null, visSm: 1 } }).status, 'incomplete');
   assert.equal(homeAlternateTrigger(taf('TAF CYMJ 291120Z 2912/3012 27010KT P6SM SKC'), WINDOW, { ceilingFt: 'x' }).status, 'incomplete');
 });
+
+test('WX-1 (audit): a backwards group on the 31st, when next month has no 31st, is still caught', () => {
+  const now = new Date('2026-10-31T11:30:00Z');
+  const window = { from: new Date('2026-10-31T14:00:00Z'), to: new Date('2026-10-31T21:00:00Z') };
+  for (const group of ['TEMPO 3120/3116 1/2SM FG OVC002', 'TEMPO 3116/3116 1/2SM FG OVC002']) {
+    const t = parseTaf(`TAF CYMJ 311120Z 3112/0112 27010KT P6SM SKC ${group}`, { now });
+    assert.match(t.problems.join(), /not a plausible period/, group);
+    assert.notEqual(homeAlternateTrigger(t, window, DEFAULT_LIMITS.home).status, 'meets', group);
+  }
+  const backwards = parseTaf('TAF CYMJ 311120Z 3112/3106 27010KT P6SM SKC', { now });
+  assert.match(backwards.problems.join(), /Valid period 3112\/3106 is not plausible/);
+});
+
+test('WX-3 (audit): CAVOK repeated beside 9999 or P6SM agrees and stays clean', () => {
+  for (const text of ['27010KT 9999 CAVOK', '27010KT P6SM CAVOK', '27010KT CAVOK 9999']) {
+    const read = readConditions(tokenize(text).tokens);
+    assert.deepEqual(read.unread, [], text);
+    assert.equal(read.conditions.skyClear, true, text);
+  }
+  assert.deepEqual(readConditions(tokenize('27010KT 3SM CAVOK').tokens).unread, ['CAVOK']);
+});
+
+test('WX-5 (audit): no visibility gives category and colour UNK, unless already LIFR or RED', () => {
+  for (const sky of ['BKN050', 'FEW050', 'SKC']) {
+    const c = parseMetar(`METAR CYMJ 291500Z 27010KT ${sky} 10/08 A2995`, { now: METAR_NOW }).conditions;
+    assert.equal(flightCategory(c), 'UNK', sky);
+    assert.equal(natoColour(c), 'UNK', sky);
+  }
+  const low = parseMetar('METAR CYMJ 291500Z 27010KT OVC001 10/08 A2995', { now: METAR_NOW }).conditions;
+  assert.equal(flightCategory(low), 'LIFR');
+  assert.equal(natoColour(low), 'RED');
+});

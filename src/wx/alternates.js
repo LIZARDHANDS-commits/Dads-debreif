@@ -128,9 +128,10 @@ export function homeAlternateTrigger(taf, window, limits) {
   if (!w) return { ...empty, status: 'no-time' };
   if (!usable(taf)) return { ...empty, status: 'no-taf' };
   const f = forecastAt(taf, w);
-  const options = toOptions(limits) ?? [DEFAULT_LIMITS.home];
+  const given = toOptions(limits);
+  const options = given ?? [DEFAULT_LIMITS.home];
   const problems = [...(taf.problems ?? [])];
-  if (limits != null && !toOptions(limits)) problems.push('Home limits could not be read');
+  if (limits != null && !given) problems.push('Home limits could not be read');
   const found = hitsIn(f, () => options, options);
   const status = f.covered ? coveredStatus({ problems }, found) : shortStatus(found);
   const { hits, atLimit, cautions } = found;

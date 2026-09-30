@@ -165,7 +165,7 @@ export function natoColour(conditions) {
   const metres = vis ? (vis.metres ?? vis.sm * METRES_PER_SM) : Infinity;
   const found = NATO.find(([, ft, m]) => base < ft || (vis && belowWithQualifier(metres, vis.qualifier, m)));
   const colour = found ? found[0] : 'BLU';
-  const unknownBase = layers.some((l) => l.baseFt == null) || noSkyGroup(conditions);
+  const unknownBase = layers.some((l) => l.baseFt == null) || noSkyGroup(conditions) || !vis;
   return unknownBase && colour !== 'RED' ? 'UNK' : colour;
 }
 
@@ -185,6 +185,6 @@ export function flightCategory(conditions) {
   else if ((c != null && c <= 3000) || visLe(5)) category = 'MVFR';
   const unknownBase = (conditions?.sky ?? []).some((l) => l.cover !== 'FEW' && l.cover !== 'SCT' && l.baseFt == null);
   if (category === 'LIFR') return category;
-  if ((c == null && !vis) || unknownBase || noSkyGroup(conditions)) return 'UNK';
+  if (!vis || unknownBase || noSkyGroup(conditions)) return 'UNK';
   return category;
 }

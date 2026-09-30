@@ -116,11 +116,12 @@ export function readConditions(tokens) {
   if (c.cavok) {
     // CAVOK beside a stated visibility, cloud or weather contradicts it: keep what
     // is stated (never the better CAVOK values) and list CAVOK as unread.
-    if (c.visibility || c.sky.length || c.weather.length) {
+    const agrees = !c.visibility || c.visibility.metres >= 9999 || (c.visibility.sm >= 6 && c.visibility.qualifier !== 'less');
+    if (!agrees || c.sky.length || c.weather.length) {
       c.cavok = false;
       out.unread.push('CAVOK');
     } else {
-      c.visibility = { ...TEN_KM, raw: 'CAVOK' };
+      c.visibility ??= { ...TEN_KM, raw: 'CAVOK' };
       c.skyClear = true;
       c.nsw = true;
     }
