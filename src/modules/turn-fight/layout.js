@@ -61,7 +61,13 @@ export function createLayout({ settings, controls, on }) {
 
   // The one closed settings menu. Start geometry and Energy sections are made
   // here ahead of Display when those arrive (most-used first).
-  const menu = createSettingsMenu({ title: 'Turn Fight settings', onReset: () => on.resetDefaults(), resetLabel: 'Reset to V6 defaults' });
+  const menu = createSettingsMenu({
+    title: 'Turn Fight settings',
+    onReset: () => on.resetDefaults(),
+    resetLabel: 'Reset to V6 defaults',
+    // The column scrolls, so a menu opened near its foot is brought into view, Reset button and all.
+    onToggle: (collapsed) => !collapsed && menu.element.scrollIntoView?.({ block: 'nearest' }),
+  });
   const display = menu.section('Display');
   display.append(
     controls.choice('heightScale', { label: 'Side view height scale', options: HEIGHT_SCALES }),
