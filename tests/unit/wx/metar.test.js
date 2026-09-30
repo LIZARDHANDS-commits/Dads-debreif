@@ -89,3 +89,16 @@ test('bad text never throws and is listed as unread', () => {
   assert.doesNotThrow(() => parse(null));
   assert.equal(parse('').station, null);
 });
+
+test('LAST OBS/NXT remark: last report flagged, next report time read after the observation', () => {
+  const now = new Date(Date.UTC(2026, 8, 30, 1, 51));
+  const r = parseMetar('CYMJ 300027Z 27008KT 15SM FEW160 SCT280 14/04 A2957 RMK AC1CI2 DENSITY ALT 2766FT LAST OBS/NXT 011000Z SLP024=', { now });
+  assert.equal(r.lastObservation, true);
+  assert.equal(r.nextObservation.toISOString(), '2026-10-01T10:00:00.000Z');
+  const short = parseMetar('CYMJ 300027Z 27008KT 15SM FEW160 A2957 RMK LAST STFD OBS/NXT 1000Z', { now });
+  assert.equal(short.lastObservation, true);
+  assert.equal(short.nextObservation.toISOString(), '2026-09-30T10:00:00.000Z');
+  const plain = parseMetar('CYMJ 300027Z 27008KT 15SM FEW160 A2957 RMK AC1CI2', { now });
+  assert.equal(plain.lastObservation, false);
+  assert.equal(plain.nextObservation, null);
+});
