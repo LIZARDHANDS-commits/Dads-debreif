@@ -12,7 +12,8 @@ Routes on the left, aircraft on the right, a map in the middle. The spec is [`sp
 | `playback-bar.js` | Play or Pause, Reset, speed, the clock, Layers, Fit. |
 | `clock.js` | Turns frame time into whole 0.05 s engine steps. Playback speed changes how many steps a frame asks for, never their size, so a run is the same at any frame rate. |
 | `scene.js` | The plain data the map draws: routes with their path, decision points and turn data, leg lengths, aircraft, conflicts and trails. |
-| `map2d.js` | The 2D map on the canvas (grid, routes, aircraft, labels, trails, bubbles). |
+| `map2d.js` | The 2D map on the canvas (grid, routes, aircraft, labels, trails, bubbles) and the satellite photo under it. |
+| `view3d.js` | The 3D view on the ui-kit's shared three.js pieces: routes as lines at their heights, the T-6s, caution rings, the camera. Loaded only when 3D is switched on. |
 | `editor.js` | The left column's route editor: name, where an entry or split joins, and a row per point (label, altitude, speed, G); "+ Point" and "Delete point"; new routes; Leg distances. |
 | `aircraft.js` | The right column: the spawner, the aircraft list and the conflicts. |
 | `settings-panel.js`, `defaults.js` | The one closed "Traffic settings" menu and every setting's starting value and range. |
@@ -25,7 +26,22 @@ How it behaves:
 - "+ New route" makes a pattern, entry or split from the engine's builders and picks it. An entry or split joins the selected pattern, or the first pattern. Route ids are never reused.
 - Space plays or pauses and Home resets, never while typing. Escape closes an open menu and puts focus back on its button.
 
-Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, the 3D view, the satellite photo, Rewind and the ±10 s buttons, profiles, PFLs and the rules.
+Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, Rewind and the ±10 s buttons, profiles, PFLs and the rules.
+
+### The satellite photo
+
+Esri's imagery, from the ui-kit's tile loader (`map-tiles.js`), under the 2D map. It is on from the start (V6's own setting) and the Layers menu switches it off; nothing is asked for while it is off. It is placed the way V6 places it: stretched about the field (the setup's `anchor`) by the scale trim, then moved by the east and north offsets, so the trim, offsets, opacity and "Draw the photo above the grid" are in the Traffic settings menu under Photo, and **Reset photo alignment** goes back to the setup's own (`setup.view.photo`; the built-in setup's is V6's 1.2 trim until the redraw, T8). Esri's credit shows in the map's corner whenever the photo does. If every tile fails (no connection), the corner says "Satellite photo needs a connection. The grid still shows where things are." and everything else keeps working. The photo is under the 2D map only; the 3D view has the ground grid.
+
+### The 3D view
+
+The playback bar's View 2D | 3D switch (2D is what opens). Only when 3D is switched on does the module check `webglSupported()` and then load three.js (`loadThree()`, a dynamic import, so it is not in the home screen's files). If the browser has no WebGL, or three.js can't be fetched the first time, a line on the map says so ("3D needs WebGL, which this browser does not have." / "3D needs a connection the first time.") and the view stays in 2D. What it draws, from the same state the 2D map draws:
+
+- the routes as lines at their heights (patterns closed, entries dashed, splits dotted), on a ground grid at the lowest route height (the runway), every axis at the same scale;
+- each flying aircraft: the shared Harvard T-6 for the CT-156 and CT-157 (paint Harvard or Ship colours in the Traffic settings menu), the ui-kit's stand-in shape for the other types. Heading is (90 - compass) degrees, the bank is `atan(v * turn rate / g)` read over the last second of sim time, the pitch is read off the climb; none of it is fed back to the engine. Only the first 8 T-6s flying get the full model (about 55 draw calls each); later ones get the ui-kit's plain T-6;
+- a caution ring (the caution distance, in feet, level with the aircraft) that goes yellow for a caution and red for a conflict, a line down to the ground, and each aircraft's callsign, height and speed;
+- three camera buttons: **Fit** (north up, tilted), **High look-down**, **Low chase** (low behind an aircraft, following it; pressed with nothing flying it starts on the first aircraft that does). Drag turns and tilts, the wheel or + and - zooms, and the bar's Fit does the same as the Fit button.
+
+Switching back to 2D, and closing the module, frees the renderer, the sky, every geometry, material and texture, and gives the WebGL context back. The canvas is made new each time 3D opens.
 
 Tests: `tests/unit/traffic/` for each file (in Node, on a stand-in page), and `tests/e2e/traffic.spec.js` in Chromium on `tests/e2e/pages/traffic.html`, which mounts the module straight from `src/` so the tests don't wait for its entry in `src/shell/registry.js`.
 

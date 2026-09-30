@@ -18,6 +18,7 @@ import { buildScene, routeRows } from './scene.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
 import { createMap2d, hintFor, photoCaption } from './map2d.js';
+import { createView3d } from './view3d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
 import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
@@ -47,12 +48,12 @@ function mount(root, app) {
   const bar = createPlaybackBar({
     controls,
     listen: app.listen,
-    available: { photo: true },
+    available: { photo: true, view3d: true },
     on: {
       play,
       pause,
       reset: resetRun,
-      fit: () => map.fit(),
+      fit: () => (shown === '3d' ? view3d.preset('fit') : map.fit()),
       speed: (x) => settings.update({ speed: x }),
     },
   });
@@ -62,7 +63,8 @@ function mount(root, app) {
     on: {
       selectRoute,
       newRoute: (kind) => newRoute(kind),
-      toggleColumn: () => app.scheduler.after(0, () => map.requestDraw()),
+      toggleColumn: () => app.scheduler.after(0, () => redraw()),
+      camera: (name) => view3d.preset(name),
     },
   });
   const aircraftPanel = createAircraftPanel({ controls, settings, sim, setup, onChange: () => changed() });
@@ -84,7 +86,7 @@ function mount(root, app) {
   // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
   const photo = setup.view?.photo ?? {};
   const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
-  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true }, photoHome }); // opening the menu moves nothing on the map
+  const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
 
@@ -93,8 +95,74 @@ function mount(root, app) {
     scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: sim.trailOf }),
     settings: () => settings.get(),
     anchor: () => setup.anchor,
-    onPhoto: (state) => ui.setPhotoNote(photoCaption(state)),
+    onPhoto: (state) => {
+      ui.setPhotoNote(photoCaption(state));
+      ui.canvas.dataset.photoTiles = state ? `${state.ready}/${state.wanted}` : 'off'; // for the browser tests: tiles drawn / tiles asked for
+    },
   });
+
+  // ---- the 3D picture: made now, but three.js loads only when 3D is first switched on -------------
+  const view3d = createView3d({
+    host: ui.stage3d,
+    timers: app.scheduler,
+    source: {
+      scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] }), // 3D draws no trails
+      settings: () => settings.get(),
+      time: () => sim.t,
+    },
+    onLost: () => noteAndReturnTo2d('3D stopped: the graphics were reset. Switch 3D on to start it again.'),
+  });
+  let shown = '2d'; // the picture on screen; the View setting is what the person asked for
+  let wantView = '2d';
+  let switching = 0; // counts switches, so a late three.js load can't undo a later choice
+  let keepNote = false;
+
+  /** Layers only the 2D map draws are greyed out in 3D (labels and caution rings show in both). */
+  const LAYERS_2D_ONLY = ['layerTrails', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerPhoto'];
+
+  /** Whichever picture is showing draws; the other does nothing, so 3D costs nothing in 2D and the reverse. */
+  function redraw() {
+    if (shown === '3d') view3d.requestDraw();
+    else map.requestDraw();
+  }
+
+  async function applyView(want) {
+    const turn = ++switching;
+    wantView = want;
+    if (want !== '3d') {
+      shown = '2d';
+      view3d.hide(); // frees the renderer, the sky, every geometry and material
+      ui.setView('2d');
+      for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, false);
+      if (!keepNote) ui.setNote3d('');
+      map.requestDraw();
+      return;
+    }
+    ui.setNote3d('Loading 3D…');
+    const result = await view3d.show();
+    if (turn !== switching) {
+      if (wantView !== '3d') view3d.hide(); // switched away while three.js was loading: it must not stay showing
+      return;
+    }
+    if (!result.ok) {
+      if (result.reason === 'closed' || result.reason === 'cancelled') return;
+      noteAndReturnTo2d(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      return;
+    }
+    ui.setNote3d('');
+    shown = '3d';
+    ui.setView('3d');
+    for (const key of LAYERS_2D_ONLY) controls.setDisabled(key, true);
+    view3d.requestDraw();
+  }
+
+  /** 3D can't run: say why, put the setting back to 2D (which comes back here as a switch to 2D that keeps the note). */
+  function noteAndReturnTo2d(words) {
+    ui.setNote3d(words);
+    keepNote = true;
+    settings.update({ view: '2d' });
+    keepNote = false;
+  }
 
   // ---- keeping the screen up to date ------------------------------------------------
   /** Something in the run or the setup changed: redraw, and tell the bar. */
@@ -103,7 +171,7 @@ function mount(root, app) {
     bar.setState({ mode: clock.mode, clockText: clockText(clock.simTime) });
     ui.setHint(hintFor({ timeS: clock.simTime, mode: clock.mode, aircraftCount: state().aircraft.length }));
     aircraftPanel.update(state(), { playing: clock.mode === 'running', now: performance.now() });
-    map.requestDraw();
+    redraw();
   }
 
   function showRoutes() {
@@ -114,7 +182,7 @@ function mount(root, app) {
     selectedRouteId = id;
     showRoutes();
     editor.show(id);
-    map.requestDraw();
+    redraw();
   }
 
   /** Routes, names, links or points were added or changed: the lists follow, and the picture. */
@@ -167,6 +235,7 @@ function mount(root, app) {
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
     editor.refresh();
+    if (values.view !== wantView) applyView(values.view);
     changed();
   });
 
@@ -194,6 +263,7 @@ function mount(root, app) {
     settingsPanel.dispose();
     editor.dispose();
     controls.dispose();
+    view3d.dispose(); // three.js, the renderer and everything drawn with it
     map.dispose();
     stylesheet.remove();
   };

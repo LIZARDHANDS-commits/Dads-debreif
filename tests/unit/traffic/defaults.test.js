@@ -41,6 +41,17 @@ test('row: 2D or 3D starts in 2D, with the 3D camera at Fit', () => {
   row({ view: '2d', camera3d: 'fit' });
 });
 
+test('the 3D aircraft\'s paint starts as the ui-kit\'s Harvard scheme and may hold only the paints it offers', () => {
+  assert.equal(DEFAULTS.paint, 'harvard');
+  assert.deepEqual([...ALLOWED.paint], ['harvard', 'ship']);
+  const kept = new Map();
+  const settings = createSettings({ get: (k, f) => (kept.has(k) ? kept.get(k) : f), set: (k, v) => kept.set(k, v) }, DEFAULTS, { allowed: ALLOWED });
+  settings.update({ paint: 'ship' });
+  assert.equal(settings.get().paint, 'ship');
+  settings.update({ paint: 'gold' });
+  assert.equal(settings.get().paint, 'ship', 'anything else is refused');
+});
+
 test('row: wind starts calm, 360°T at 0 kt', () => {
   row({ windFromDeg: 360, windKt: 0 });
 });

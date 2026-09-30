@@ -432,3 +432,188 @@ test('the photo\'s alignment is in the settings menu, and Reset photo alignment 
   await expect(trim).toHaveValue('1.2');
   await expect(east).toHaveValue('0');
 });
+
+
+// ---- 2D | 3D (task 8; D141) ---------------------------------------------------------------------
+const viewChoice = (page, name) => page.getByRole('radio', { name, exact: true });
+const canvas3d = (page) => page.locator('canvas.traffic-map3d');
+const stage3d = (page) => page.locator('.traffic-3d');
+const cameraButton = (page, name) => page.locator('.traffic-camera').getByRole('button', { name, exact: true });
+const draws3d = async (page) => Number((await canvas3d(page).getAttribute('data-draws')) ?? 0);
+const note3d = (page) => page.locator('.traffic-note3d');
+const threeRequests = (page) => {
+  const seen = [];
+  page.on('request', (r) => {
+    if (/\/three\/build\/|\/three\.(module|core)\b/.test(new URL(r.url()).pathname)) seen.push(r.url()); // three.js itself, not the ui-kit's three-aircraft.js
+  });
+  return seen;
+};
+// A picture of the 3D canvas, and waiting for it to become a different one after an action.
+const shot3d = (page) => canvas3d(page).screenshot();
+const changed = async (page, act) => {
+  const before = await shot3d(page);
+  await act();
+  await expect.poll(async () => !(await shot3d(page)).equals(before), { timeout: 10_000 }).toBe(true);
+};
+const stats = (page) => page.evaluate(() => window.__tr.stats());
+const GPU_LEFT = /^0,[0-2]$/; // geometries, textures the renderer still counts once it is let go
+
+test('a 2D visit loads no three.js: 2D is what opens, with no 3D canvas and no camera buttons', async ({ page }) => {
+  const seen = threeRequests(page);
+  await open(page);
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(canvas3d(page)).toHaveCount(0);
+  await expect(page.locator('.traffic-camera')).toBeHidden();
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+  await playButton(page).click();
+  expect(seen).toEqual([]);
+});
+
+test('switching to 3D mid-run keeps the time, draws the aircraft, shows the camera buttons, and switching back frees everything', async ({ page }) => {
+  const seen = threeRequests(page);
+  await open(page);
+  const baseline = await stats(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  const atSwitch = await seconds(page);
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect(map(page)).toBeHidden();
+  await expect(page.locator('.traffic-camera')).toBeVisible();
+  expect(seen.length).toBeGreaterThan(0); // three.js loaded now, and not before
+  expect(await seconds(page)).toBeGreaterThanOrEqual(atSwitch); // the run went on
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(5);
+  await expect(page.locator('.bar-status')).toHaveText('Running');
+  await expect(note3d(page)).toBeHidden();
+  // Only the layers 3D draws stay on offer.
+  await page.getByRole('button', { name: 'Layers' }).click();
+  await expect(page.getByLabel('Trails')).toBeDisabled();
+  await expect(page.getByLabel('Satellite photo')).toBeDisabled();
+  await expect(page.getByLabel('Caution rings')).toBeEnabled();
+  await expect(page.getByLabel('Height and speed labels')).toBeEnabled();
+  await page.keyboard.press('Escape');
+  await playButton(page).click(); // pause
+  // Paused, the picture is still and asks for no frames.
+  await page.waitForTimeout(300);
+  const still = await draws3d(page);
+  await page.waitForTimeout(300);
+  expect(await draws3d(page)).toBe(still);
+  // Back to 2D: the same time, the map is back, and every 3D object is gone.
+  const timeNow = await seconds(page);
+  await viewChoice(page, '2D').check();
+  await expect(map(page)).toBeVisible();
+  await expect(canvas3d(page)).toHaveCount(0);
+  // What the renderer still counts after it is let go: no geometry, and at most the two textures three.js itself
+  // keeps for the T-6's reflection map (its PMREM copy), which go with the context. Every geometry, material and
+  // texture the view made is disposed (tests/unit/traffic/view3d.test.js pins that one by one).
+  await expect(stage3d(page)).toHaveAttribute('data-gpu', GPU_LEFT);
+  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
+  expect(await seconds(page)).toBe(timeNow);
+  await expect.poll(() => stats(page)).toEqual(baseline); // no frame, timer or listener kept (the map's one redraw has run)
+  await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
+  // A second time round works and fetches three.js no more.
+  const fetched = seen.length;
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  expect(seen.length).toBe(fetched);
+  await viewChoice(page, '2D').check();
+  await expect(stage3d(page)).toHaveAttribute('data-gpu', GPU_LEFT);
+  await expect.poll(() => stats(page)).toEqual(baseline);
+});
+
+test('the 3D picture shows the run: the camera buttons, a drag, the wheel and Fit each change it, and so does time', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(30);
+  await playButton(page).click();
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const first = await shot3d(page);
+  const box = await canvas3d(page).boundingBox();
+  expect(first.length).toBeGreaterThan(4000); // something is drawn: not one flat colour
+  await changed(page, () => cameraButton(page, 'High look-down').click());
+  await changed(page, () => cameraButton(page, 'Low chase').click());
+  await changed(page, () => cameraButton(page, 'Fit').click());
+  await changed(page, async () => {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 - 40, { steps: 6 });
+    await page.mouse.up();
+  });
+  await changed(page, () => page.mouse.wheel(0, -400));
+  // The bar's Fit frames the routes again, in 3D too.
+  await changed(page, () => page.locator('.traffic-bar').getByRole('button', { name: 'Fit', exact: true }).click());
+  // Playing moves the aircraft.
+  await changed(page, () => playButton(page).click());
+  await playButton(page).click();
+});
+
+test('Paint in the Traffic settings menu changes the T-6s: Harvard or Ship colours', async ({ page }) => {
+  await open(page);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(20);
+  await playButton(page).click();
+  await viewChoice(page, '3D').check();
+  await cameraButton(page, 'Low chase').click(); // close enough to see the paint
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await page.getByRole('button', { name: /^Traffic settings/ }).click();
+  const paint = page.getByLabel('Paint');
+  await expect(paint.locator('option:checked')).toHaveText('Harvard');
+  await page.waitForTimeout(400);
+  const harvard = await shot3d(page);
+  await changed(page, () => paint.selectOption({ label: 'Ship colours' }));
+  await expect(paint.locator('option:checked')).toHaveText('Ship colours');
+  expect((await shot3d(page)).equals(harvard)).toBe(false);
+});
+
+test('when three.js will not load, the note says so, the setting goes back to 2D and 2D keeps working', async ({ page }) => {
+  await page.route('**/three.module.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
+  await open(page);
+  await viewChoice(page, '3D').click(); // click, not check: the failed load puts 2D back at once
+  await expect(note3d(page)).toHaveText('3D needs a connection the first time.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(map(page)).toBeVisible();
+  await expect(canvas3d(page)).toHaveCount(0);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(5);
+  await playButton(page).click();
+});
+
+test('a browser with no WebGL says so before three.js is even fetched, and stays in 2D', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function getContext(type, ...rest) {
+      return type === 'webgl2' || type === 'webgl' ? null : original.call(this, type, ...rest);
+    };
+  });
+  const seen = threeRequests(page);
+  await open(page);
+  await viewChoice(page, '3D').click();
+  await expect(note3d(page)).toHaveText('3D needs WebGL, which this browser does not have.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(map(page)).toBeVisible();
+  expect(seen).toEqual([]);
+});
+
+test('closing the sim while it is in 3D leaves no frame, timer, listener or canvas behind', async ({ page }) => {
+  await open(page);
+  await viewChoice(page, '3D').check();
+  await playButton(page).click();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(3);
+  await page.evaluate(() => window.__tr.close());
+  expect(await stats(page)).toEqual({ mounted: null, listeners: 0, subscriptions: 0, frames: 0, timers: 0 });
+  await expect(page.locator('canvas')).toHaveCount(0);
+});
+
+test('switching 3D on and straight off again ends in 2D with nothing left over (a late three.js load must not undo the last choice)', async ({ page }) => {
+  await open(page);
+  const baseline = await stats(page);
+  await viewChoice(page, '3D').check();
+  await viewChoice(page, '2D').check();
+  await expect(map(page)).toBeVisible();
+  await page.waitForTimeout(500);
+  await expect(canvas3d(page)).toHaveCount(0);
+  await expect.poll(() => stats(page)).toEqual(baseline);
+});

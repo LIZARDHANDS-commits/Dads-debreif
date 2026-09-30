@@ -39,6 +39,7 @@ function setup(options = {}) {
     selectRoute: (id) => calls.push(['select', id]),
     newRoute: (kind) => calls.push(['new', kind]),
     toggleColumn: (name, open) => calls.push(['column', name, open]),
+    camera: (name) => calls.push(['camera', name]),
   };
   const ui = createLayout({ bar, listen, on, available: options.available });
   return { ui, bar, calls, listeners };
@@ -248,4 +249,56 @@ test('the photo\'s credit sits in the map\'s corner: shown with its words, hidde
   assert.equal(credit.hidden, true);
   assert.equal(credit.parentNode, one(ui.element, 'traffic-map-wrap'), 'in the map, not under it');
   assert.equal(credit.getAttribute('aria-live'), 'polite');
+});
+
+test('the 3D view has a box in the map, and the three camera buttons show only while 3D does', () => {
+  const { ui, calls } = setup();
+  const wrap = one(ui.element, 'traffic-map-wrap');
+  const stage = one(ui.element, 'traffic-3d');
+  const camera = one(ui.element, 'traffic-camera');
+  assert.equal(ui.stage3d, stage);
+  assert.equal(stage.parentNode, wrap, 'in the map\'s box, so 3D fills the map');
+  assert.equal(stage.hidden, true, '2D is what opens');
+  assert.equal(camera.hidden, true);
+  ui.setView('3d');
+  assert.equal(ui.canvas.hidden, true, 'the 2D map steps aside');
+  assert.equal(stage.hidden, false);
+  assert.equal(camera.hidden, false);
+  assert.deepEqual(tagged(camera, 'BUTTON').map(words), ['Fit', 'High look-down', 'Low chase']);
+  assert.equal(camera.getAttribute('aria-label'), 'Camera');
+  for (const name of ['Fit', 'High look-down', 'Low chase']) pressable(camera, name).dispatch('click');
+  assert.deepEqual(calls, [['camera', 'fit'], ['camera', 'high'], ['camera', 'low']]);
+  ui.setView('2d');
+  assert.equal(ui.canvas.hidden, false);
+  assert.equal(stage.hidden, true);
+  assert.equal(camera.hidden, true);
+  ui.setView('nonsense');
+  assert.equal(stage.hidden, true, 'anything but 3d is 2D');
+});
+
+test('the photo\'s credit is for the 2D map: it hides in 3D and comes back with 2D', () => {
+  const { ui } = setup();
+  const credit = one(ui.element, 'traffic-credit');
+  ui.setPhotoNote('Imagery: Esri');
+  ui.setView('3d');
+  assert.equal(credit.hidden, true);
+  ui.setPhotoNote('Imagery: Esri, Maxar');
+  assert.equal(credit.hidden, true, 'still hidden while 3D shows');
+  ui.setView('2d');
+  assert.equal(credit.hidden, false);
+  assert.equal(words(credit), 'Imagery: Esri, Maxar');
+});
+
+test('a line on the map says why 3D can\'t start, in 2D too, and clears again', () => {
+  const { ui } = setup();
+  const note = one(ui.element, 'traffic-note3d');
+  assert.equal(note.hidden, true);
+  assert.equal(note.getAttribute('role'), 'status');
+  ui.setNote3d('3D needs WebGL, which this browser does not have.');
+  assert.equal(words(note), '3D needs WebGL, which this browser does not have.');
+  assert.equal(note.hidden, false);
+  ui.setNote3d('');
+  assert.equal(note.hidden, true);
+  ui.setNote3d(null);
+  assert.equal(note.hidden, true);
 });

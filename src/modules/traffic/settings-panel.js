@@ -13,9 +13,10 @@
 //   onToggle(collapsed)  called when the person opens or closes the menu
 //
 // A section whose feature isn't on the screen yet is left out, so no box sits there doing
-// nothing (R3): available = { rules, photo }, each true once it is.
+// nothing (R3): available = { rules, photo, view3d }, each true once it is.
 import { h } from '../../ui-kit/dom.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
+import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { DEFAULTS, LIMITS } from './defaults.js';
 
 export const TITLE = 'Traffic settings';
@@ -37,6 +38,7 @@ export const PANEL_KEYS = Object.freeze([
   ...RULES.map((r) => r.key),
   'flyRoundedTurns', 'radiusFromG', 'manualRadiusFt',
   'photoOpacityPct', 'photoAboveGrid', 'photoTrim', 'photoEastFt', 'photoNorthFt',
+  'paint',
 ]);
 
 const defaultsFor = (keys) => Object.fromEntries(keys.map((key) => [key, DEFAULTS[key]]));
@@ -57,10 +59,10 @@ function withHint(control, text) {
 /**
  * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
  * onToggle(collapsed): the menu was opened or closed by the person.
- * available: { rules, photo }. photoHome: the alignment "Reset photo alignment" and Reset to
+ * available: { rules, photo, view3d }. photoHome: the alignment "Reset photo alignment" and Reset to
  * defaults go back to ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
  * Returns { element, collapsed, setCollapsed(bool), dispose() }.
- * @param {{ controls: any, settings: any, onToggle: (collapsed: boolean) => void, available?: { rules?: boolean, photo?: boolean }, photoHome?: Record<string, any> }} options
+ * @param {{ controls: any, settings: any, onToggle: (collapsed: boolean) => void, available?: { rules?: boolean, photo?: boolean, view3d?: boolean }, photoHome?: Record<string, any> }} options
  */
 export function createSettingsPanel({ controls, settings, onToggle, available = {}, photoHome = defaultsFor(HOME_KEYS) }) {
   const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => settings.update({ ...defaultsFor(PANEL_KEYS), ...pickHome(photoHome) }) });
@@ -101,6 +103,11 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
       feet('photoNorthFt', 'Photo north / south offset', 100),
       h('button', { type: 'button', class: 'button', onclick: home }, 'Reset photo alignment'),
     );
+  }
+
+  if (available.view3d) {
+    // "Paint: Harvard / Ship colours" for the 3D T-6 (SPEC-ui-kit, "Paint"); the other types have no scheme.
+    menu.section('3D view').append(controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }));
   }
 
   // The manual radius is used only when rounded turns are on and the radius isn't worked out from speed and G.

@@ -10,6 +10,7 @@
 // work reads them and names the row it follows.
 
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 export const DEFAULTS = Object.freeze({
   // Playback speed: 8×, as V6's built-in setup.
@@ -18,6 +19,8 @@ export const DEFAULTS = Object.freeze({
   // 2D or 3D: 2D (the ui-kit's shared default); the 3D camera starts at Fit.
   view: VIEW_DEFAULT,
   camera3d: 'fit',
+  // The 3D aircraft's paint: the Harvard scheme (the ui-kit's PAINT_DEFAULT), or plain ship colours.
+  paint: PAINT_DEFAULT,
 
   // Wind: calm, 360°T at 0 kt.
   windFromDeg: 360,
@@ -156,8 +159,8 @@ export const DEFAULTS = Object.freeze({
 });
 
 // The values a setting may hold besides its type, for createSettings(store, DEFAULTS, { allowed: ALLOWED }).
-// The 2D | 3D switch is the ui-kit's shared one, so its values come from there.
-export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown} */ (Object.freeze({ view: VIEW_ALLOWED })));
+// The 2D | 3D switch is the ui-kit's shared one, so its values come from there; so are the paints.
+export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown} */ (Object.freeze({ view: VIEW_ALLOWED, paint: PAINT_OPTIONS.map((o) => o.value) })));
 
 // The playback speeds on offer (the spec's "0.25× to 8×"), and the speed the
 // bar starts at.

@@ -14,7 +14,7 @@
 //   createSceneKit       the three.js objects for the routes, aircraft, rings and ground, with their freeing
 //   createView3d         the canvases, the renderer, the camera's hands (drag, wheel, keys) and the frame
 import {
-  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, createStandInMesh, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
@@ -35,7 +35,7 @@ const CHASE_LERP = 0.15; // how fast the chase camera swings behind a turning ai
 /** Real length of a T-6 in feet. A zoomed-out aircraft is drawn bigger, so it can still be seen. */
 export const T6_LENGTH_FT = 33.4;
 /** The length an aircraft is drawn at least, on screen, in pixels. */
-export const MIN_PLANE_PX = 26;
+export const MIN_PLANE_PX = 44;
 
 const ORBIT_DEG_PER_PX = Object.freeze({ yaw: 0.4, pitch: 0.25 });
 const WHEEL_ZOOM = Object.freeze({ in: 1.12, out: 0.89 });
@@ -240,6 +240,9 @@ export function routeSignature(route) {
 // A pattern is a closed loop, entries and splits open lines. Entries are dashed and splits dotted, as on the 2D map.
 const DASH_FT = Object.freeze({ entry: [500, 350], split: [120, 380] });
 
+/** How many T-6s flying at once get the full Harvard model (55 draw calls each); later ones get the ui-kit's plain T-6 (about 10). */
+export const MAX_FULL_T6 = 8;
+
 const RING_SEGMENTS = 64;
 const RING_COLORS = Object.freeze({ calm: '#9bb8c6', caution: '#f5c542', conflict: '#ff6b6b' });
 const DROP_COLOR = '#6e8ea0';
@@ -252,7 +255,7 @@ const numberOf = (id) => String(id).replace(/\D+/g, '') || String(id);
  * The three.js objects for one scene: the routes (one line each), an aircraft each (made when it first flies), a
  * caution ring round each flying aircraft, a line dropping from each to the ground, and the ground grid. sync() makes
  * what is missing, moves what is there and frees what has gone; dispose() frees the lot. `root` is the group to add
- * to the scene. models: { ct156(THREE, { color, number, paint }), standin(THREE, { color }) }, for tests.
+ * to the scene. models: { ct156, t6plain, standin }, each (THREE, { color, number, paint }) returning a mesh, for tests.
  */
 export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   const root = new THREE.Group();
@@ -269,8 +272,10 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   const ringMaterials = Object.fromEntries(Object.entries(RING_COLORS).map(([level, color]) => [level, new THREE.LineBasicMaterial({ color, transparent: level === 'calm', opacity: level === 'calm' ? 0.45 : 1, fog: false })]));
 
   // One line-segment object for every drop line, its buffer grown when there are more aircraft than room.
-  let dropCapacity = 0;
+  let dropCapacity = 48; // floats: 8 aircraft to start with
   const dropGeometry = new THREE.BufferGeometry();
+  dropGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(dropCapacity), 3));
+  dropGeometry.setDrawRange(0, 0);
   const dropMaterial = new THREE.LineBasicMaterial({ color: DROP_COLOR, transparent: true, opacity: 0.5, fog: false });
   const drops = new THREE.LineSegments(dropGeometry, dropMaterial);
   drops.frustumCulled = false;
@@ -318,13 +323,13 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     line.material.dispose();
   }
 
-  function planeFor(ac, paint) {
-    const kind = modelKindFor(ac.type);
+  // `kind` is which builder made the mesh: 'ct156' (the full Harvard model), 't6plain' (the ui-kit's plain T-6) or 'standin'.
+  function planeFor(ac, kind, paint) {
     const have = planes.get(ac.id);
-    if (have && (kind !== 'ct156' || have.paint === paint)) return have.mesh;
-    if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint: built again
+    if (have && have.kind === kind && (kind !== 'ct156' || have.paint === paint)) return have.mesh;
+    if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint or another detail: built again
     const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint };
-    const mesh = kind === 'ct156' ? models.ct156(THREE, options) : models.standin(THREE, options);
+    const mesh = models[kind](THREE, options);
     mesh.rotation.order = 'ZYX';
     root.add(mesh);
     planes.set(ac.id, { mesh, kind, paint });
@@ -344,9 +349,11 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     const dropAt = dropGeometry.attributes.position;
     const floor = altToZ(options.groundFt ?? 0, ALT_SCALE);
     let n = 0;
+    let fullLeft = MAX_FULL_T6; // the full model is some 55 draw calls; the first few T-6s flying get it, the rest the plain one
     for (const ac of flying) {
       present.add(ac.id);
-      const mesh = planeFor(ac, options.paint ?? PAINT_DEFAULT);
+      const kind = modelKindFor(ac.type) === 'ct156' ? (fullLeft-- > 0 ? 'ct156' : 't6plain') : 'standin';
+      const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
       const { bankRad, pitchRad } = attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt });
       applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: ac.headingDeg, bankRad, pitchRad }, lengthFt);
@@ -418,10 +425,18 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
+      // The shared T-6's own geometry and textures are kept by the ui-kit for the next ship, and it lets go of
+      // only some of them when the last ship goes; whatever the scene still holds is freed here too (a second dispose is harmless).
+      const leftovers = new Set();
+      root.traverse((o) => {
+        if (o.geometry) leftovers.add(o.geometry);
+        for (const m of [].concat(o.material ?? [])) for (const value of Object.values(m)) if (value?.isTexture) leftovers.add(value);
+      });
       for (const { line } of routeLines.values()) freeLine(line);
       routeLines.clear();
       for (const { mesh } of planes.values()) disposeAircraftMesh(mesh);
       planes.clear();
+      for (const item of leftovers) item.dispose();
       for (const ring of rings.values()) ring.removeFromParent();
       rings.clear();
       ringGeometry.dispose();
@@ -452,12 +467,43 @@ export function threeStats(kit) {
 function defaultModels() {
   return {
     ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
+    t6plain: (THREE, { color }) => createAircraftMesh(THREE, { color, outline: '#0b1620' }),
     standin: (THREE, { color }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: 'generic' }),
   };
 }
 
 // ---------------------------------------------------------------------------
 // The view
+
+let software = null;
+
+/**
+ * Whether WebGL here is drawn by the CPU (SwiftShader, llvmpipe: a machine or a browser with no graphics
+ * acceleration). Smoothing the edges costs a software renderer about twice the time and a real graphics
+ * card almost nothing, so the view smooths them only on a card. Asked once, on a spare canvas.
+ */
+export function softwareRenderer(doc) {
+  if (software !== null) return software;
+  let gl = null;
+  try {
+    gl = doc.createElement('canvas').getContext('webgl2');
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    software = Boolean(info) && /swiftshader|llvmpipe|softpipe|software/i.test(String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)));
+  } catch {
+    software = false;
+  }
+  try {
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+  } catch {
+    // letting it go early is a courtesy
+  }
+  return software;
+}
+
+/** For tests: forget the answer. */
+export function resetSoftwareCheck() {
+  software = null;
+}
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
@@ -485,6 +531,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let fitted = false; // the camera has been framed on the routes since 3D was first shown
   let wantPreset = null; // a camera button pressed before there was something to frame
   let follow = null; // { id, autoYaw }: the chase camera
+  let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
 
   const sizeOf = (canvas) => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
 
@@ -500,7 +547,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     host.append(canvas, labels);
     let renderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: !softwareRenderer(win.document) });
     } catch (err) {
       canvas.remove();
       labels.remove();
@@ -571,10 +618,19 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       const name = wantPreset ?? 'fit';
       wantPreset = null;
       fitted = true;
+      chasePending = false;
       if (name === 'low') startChase(data, box, size);
       else {
         follow = null;
         view = cameraFor(name, box, size);
+      }
+    }
+    if (chasePending && !follow) {
+      const target = data.aircraft.find(isFlying);
+      if (target) {
+        follow = { id: target.id, autoYaw: true };
+        view = chaseCamera(target, size);
+        chasePending = false;
       }
     }
     if (follow) followAircraft(data);
@@ -596,6 +652,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     slowestMs = Math.max(slowestMs * 0.98, ms);
     canvas.dataset.draws = String(drawn);
     canvas.dataset.drawMs = averageMs.toFixed(2);
+    canvas.dataset.calls = String(renderer.info.render.calls); // draw calls and triangles of the last frame, for finding what a slow frame costs
+    canvas.dataset.triangles = String(renderer.info.render.triangles);
   }
 
   // The callsigns and, with the layer on, heights and speeds, written over the picture; a word for a conflict too (colour is never the only signal).
@@ -632,6 +690,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const target = data.aircraft.find(isFlying);
     if (!target) {
       follow = null;
+      chasePending = true;
       view = fitCamera(box, size, { yawDeg: 0, pitchDeg: PRESET_PITCH_DEG.low });
       return;
     }
@@ -646,6 +705,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       target = data.aircraft.find(isFlying);
       if (!target) {
         follow = null;
+        chasePending = true; // the chase picks up again with the next aircraft to fly
         return;
       }
       follow.id = target.id;

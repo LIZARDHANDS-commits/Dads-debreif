@@ -12,7 +12,7 @@ import { KT_TO_FTPS, G_FTPS2 } from '../../../src/core/units.js';
 import {
   hdgRadOf, turnRateRadPerS, bankRadFromTurn, createAttitude, applyPose, planeLengthFt, modelKindFor,
   routeSignature, groundFt, sceneBox, fitCamera, orbit, zoomBy, cameraFor, chaseCamera, CAMERA_LIMITS,
-  T6_LENGTH_FT, MIN_PLANE_PX, ALT_SCALE, createSceneKit, threeStats,
+  T6_LENGTH_FT, MIN_PLANE_PX, ALT_SCALE, MAX_FULL_T6, createSceneKit, threeStats, softwareRenderer, resetSoftwareCheck,
 } from '../../../src/modules/traffic/view3d.js';
 
 const THREE = await loadThree();
@@ -298,9 +298,11 @@ function trackDisposals(t) {
 }
 
 // The two model builders the view uses, as plain stand-ins so the test needs no canvas.
+const made = { ct156: 0, t6plain: 0, standin: 0 };
 const models = {
-  ct156: (T, { color }) => createStandInMesh(T, { color, kind: 'dart' }),
-  standin: (T, { color }) => createStandInMesh(T, { color }),
+  ct156: (T, { color }) => (made.ct156++, createStandInMesh(T, { color, kind: 'dart' })),
+  t6plain: (T, { color }) => (made.t6plain++, createStandInMesh(T, { color, kind: 'dart' })),
+  standin: (T, { color }) => (made.standin++, createStandInMesh(T, { color })),
 };
 
 const scene = (extra = {}) => ({
@@ -403,4 +405,75 @@ test('the ring is the caution distance in true feet, level with the aircraft, an
   kit.sync(scene({ conflicts: [] }), OPTIONS);
   assert.notEqual(kit.ringOf('A1').material.color.getHex(), cautionColour, 'and a quiet one is neither');
   kit.dispose();
+});
+
+test('with nothing flying the kit still syncs; with 40 aircraft the drop lines grow to fit them, and shrink again with none', () => {
+  const kit = createSceneKit(THREE, { models });
+  kit.sync(scene({ aircraft: [], conflicts: [] }), OPTIONS);
+  assert.deepEqual(kit.counts(), { routes: 2, aircraft: 0, visibleAircraft: 0, rings: 0, drops: 0 });
+  const many = Array.from({ length: 40 }, (_, i) => ({ id: `A${i + 1}`, type: i % 3 ? 'CT-156' : 'CT-114', x: i * 100, y: 0, alt: 2500, kt: 120, headingDeg: 90, status: 'flying', color: '#7ee787' }));
+  kit.sync(scene({ aircraft: many, conflicts: [] }), OPTIONS);
+  assert.equal(kit.counts().drops, 40);
+  assert.equal(kit.counts().rings, 40);
+  assert.equal(kit.counts().visibleAircraft, 40);
+  kit.sync(scene({ aircraft: [], conflicts: [] }), OPTIONS);
+  assert.deepEqual(kit.counts(), { routes: 2, aircraft: 0, visibleAircraft: 0, rings: 0, drops: 0 }, 'aircraft gone from the list are freed');
+  kit.dispose();
+});
+
+test('an aircraft that lands is put away without being freed, and flies again after a reset', () => {
+  const kit = createSceneKit(THREE, { models });
+  kit.sync(scene(), OPTIONS);
+  const mesh = kit.aircraftMesh('A1');
+  const landed = scene().aircraft.map((a) => (a.id === 'A1' ? { ...a, status: 'landed' } : a));
+  kit.sync(scene({ aircraft: landed }), OPTIONS);
+  assert.equal(mesh.visible, false);
+  assert.equal(kit.aircraftMesh('A1'), mesh, 'kept');
+  assert.equal(kit.ringOf('A1'), null, 'no ring on a landed aircraft');
+  kit.sync(scene(), OPTIONS);
+  assert.equal(mesh.visible, true);
+  assert.equal(kit.aircraftMesh('A1'), mesh, 'the same one');
+  kit.dispose();
+});
+
+test('only the first few T-6s flying get the full Harvard model; the rest get the plain one, and another takes its place when one lands', () => {
+  for (const key of Object.keys(made)) made[key] = 0;
+  const kit = createSceneKit(THREE, { models });
+  const fleet = Array.from({ length: MAX_FULL_T6 + 5 }, (_, i) => ({ id: `A${i + 1}`, type: 'CT-156', x: i * 100, y: 0, alt: 2500, kt: 120, headingDeg: 90, status: 'flying', color: '#7ee787' }));
+  const other = { id: 'A99', type: 'CT-114', x: 0, y: 500, alt: 2500, kt: 150, headingDeg: 90, status: 'flying', color: '#ff6b6b' };
+  kit.sync(scene({ aircraft: [...fleet, other], conflicts: [] }), OPTIONS);
+  assert.deepEqual({ ...made }, { ct156: MAX_FULL_T6, t6plain: 5, standin: 1 }, 'the budget, then the plain T-6; another type is always its stand-in');
+  kit.sync(scene({ aircraft: [...fleet, other], conflicts: [] }), OPTIONS);
+  assert.deepEqual({ ...made }, { ct156: MAX_FULL_T6, t6plain: 5, standin: 1 }, 'nothing is rebuilt while nobody lands');
+  const first = kit.aircraftMesh('A1');
+  const landed = fleet.map((a) => (a.id === 'A1' ? { ...a, status: 'landed' } : a));
+  kit.sync(scene({ aircraft: [...landed, other], conflicts: [] }), OPTIONS);
+  assert.equal(kit.aircraftMesh('A1'), first, 'the landed one is put away, not rebuilt');
+  assert.equal(made.ct156, MAX_FULL_T6 + 1, 'the first plain one moved up to the full model');
+  assert.equal(made.t6plain, 5);
+  kit.dispose();
+});
+
+/** A stand-in page whose WebGL says it is `renderer`, or that has no debug info at all. */
+function pageWith(renderer, { lost = [] } = {}) {
+  const gl = {
+    getExtension: (name) => (name === 'WEBGL_debug_renderer_info' ? (renderer === null ? null : { UNMASKED_RENDERER_WEBGL: 37446 })
+      : name === 'WEBGL_lose_context' ? { loseContext: () => lost.push(true) } : null),
+    getParameter: () => renderer,
+  };
+  return { createElement: () => ({ getContext: () => gl }) };
+}
+
+test('a renderer that draws on the CPU is told from a graphics card, once, and the spare context is let go', () => {
+  const cases = [['ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)', true], ['llvmpipe (LLVM 15.0.7, 256 bits)', true], ['ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11)', false], ['Apple M2', false], [null, false]];
+  for (const [name, expected] of cases) {
+    resetSoftwareCheck();
+    const lost = [];
+    assert.equal(softwareRenderer(pageWith(name, { lost })), expected, String(name));
+    assert.equal(lost.length, 1, 'the test context is released');
+    assert.equal(softwareRenderer({ createElement: () => assert.fail('asked twice') }), expected, 'the answer is kept');
+  }
+  resetSoftwareCheck();
+  assert.equal(softwareRenderer({ createElement: () => { throw new Error('no canvas'); } }), false, 'a page that cannot say is treated as having a card');
+  resetSoftwareCheck();
 });
