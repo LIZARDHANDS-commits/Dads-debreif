@@ -231,7 +231,7 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
   - Beside each aircraft, the move the model chose and why, for example "Pitch back: 220 KIAS, SMM entry 160 to 220", then "MPT 160 KIAS" once it's there.
 - **More energy settings**, the Energy section of Turn Fight settings:
   - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
-  - **MPT speed**, default 160 KIAS (SMM 14.3 para 6), from 120 to 175 KIAS: above that the level MPT sinks under the deck (at 175 it stays within 20 ft of it).
+  - **MPT speed**, default 160 KIAS (SMM 14.3 para 6), from 125 to 175 KIAS: above that the level MPT sinks under the deck (at 175 it stays within 20 ft of it); below 125 the MPT's 60° bank floor meets the stick shaker, so it could not hold a slower speed. Both ends are held within 1.5 kt.
   - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it; it's where the model changes to the level MPT (step 3).
   - **Pursuit** for the aircraft that gets its nose on first: Pure (default), Lead or Lag (see step 4).
   - **Chase after a head-on pass**, off by default (pending Patrick's word): with it on, a head-on first nose-on starts the pursuit too (see step 4).

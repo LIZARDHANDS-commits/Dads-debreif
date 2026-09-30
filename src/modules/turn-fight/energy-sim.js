@@ -130,8 +130,8 @@ const MPT_BANK_MAX_DEG = 85;
 const SLICE_BANK_AT_MPT_DEG = 90; // SMM 14.18: the slice bank is 90° at the MPT speed ...
 const SLICE_BANK_AT_100_DEG = 135; // ... and 135° at 100 KIAS
 const IMMELMANN_BAND_KIAS = Object.freeze([200, 250]);   // SMM 14.15: the Immelmann is flown from 200 to 250 KIAS
-/** The MPT speed box: 120 to 175 KIAS. Above that, at the deck, the level MPT sinks under it (verification F8: 180 gave 5,937 ft, 200 gave 5,495 ft from 7,000 ft; 175 stays within 20 ft); the SMM's speed is 160 and the level MPT's about 150 minus thousands of feet. */
-export const MPT_KIAS_RANGE = Object.freeze([120, 175]);
+/** The MPT speed box: 125 to 175 KIAS. Below 125 the MPT's 60 degree bank floor (2 G) meets the shaker and flies 125 anyway (verification N2 of #227). Above that, at the deck, the level MPT sinks under it (verification F8: 180 gave 5,937 ft, 200 gave 5,495 ft from 7,000 ft; 175 stays within 20 ft); the SMM's speed is 160 and the level MPT's about 150 minus thousands of feet. */
+export const MPT_KIAS_RANGE = Object.freeze([125, 175]);
 const PITCH_BACK_BAND_KIAS = Object.freeze([160, 220]);   // SMM 14.15: and the pitch back from 160 to 220 KIAS
 const SLICE_ENTRY_LOW_KIAS = 100; // SMM 14.18: the slice is flown from 100 to 160 KIAS (Auto hands to a split S below the split point)
 // The split S is core's (splitST6A; the technique is SMM 14.16 para 41): nose to about 20° up in the shaker, roll inverted
@@ -1101,9 +1101,7 @@ function controlFor(ctx) {
 
 /** A G to one decimal, or as many as it takes to tell it from `other` ("5.50 G against 5.49 G", never "5.5 G against 5.5 G"). */
 function gText(g, other) {
-  let digits = 1;
-  while (digits < 4 && g.toFixed(digits) === other.toFixed(digits)) digits++;
-  return g.toFixed(digits);
+  return g.toFixed(g.toFixed(1) === other.toFixed(1) ? 2 : 1);
 }
 
 /** "85.6 KIAS is below the 86 KIAS stall speed": one decimal, so a speed just under the stall speed does not read as equal to it. */
@@ -1146,7 +1144,12 @@ function stepAircraft(state, ac, other, d) {
   const stallLine = stallLimitG(kias, p.stallKias);
   const slow = kias < p.stallKias;
   let stallReason = '';
-  if (gWanted > stallLine + 1e-9) stallReason = `The pull needs ${gText(gWanted, stallLine)} G; the stall line at ${round(kias)} KIAS gives ${gText(stallLine, gWanted)} G`;
+  if (gWanted > stallLine + 1e-9) {
+    // Two decimals at most (verification N5: "5.5000 G; 5.4995 G" is too heavy for a screen line); closer than that reads "just over".
+    stallReason = gWanted.toFixed(2) === stallLine.toFixed(2)
+      ? `The pull needs just over the ${stallLine.toFixed(2)} G the stall line gives at ${round(kias)} KIAS`
+      : `The pull needs ${gText(gWanted, stallLine)} G; the stall line at ${round(kias)} KIAS gives ${gText(stallLine, gWanted)} G`;
+  }
   else if (slow) stallReason = belowStallText(kias, p);
   let stallStarts = false;
   if (stallReason && !c.stallCond && c.stallTimer <= 1e-9) {
