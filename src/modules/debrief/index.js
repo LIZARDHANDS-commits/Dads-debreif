@@ -8,6 +8,8 @@ import { createControls } from '../../ui-kit/controls.js';
 import { loadFlight } from '../../flight-data/load.js';
 import { loadExampleFlight } from '../../flight-data/examples.js';
 import { createClock } from '../../flight-data/clock.js';
+import { sampleAt } from '../../flight-data/flight.js';
+import { toDebriefFile, readDebriefFile, MAX_DEBRIEF_BYTES } from '../../flight-data/debrief-file.js';
 import { V6_STANDARDS } from '../../core/standards.js';
 import { LAYOUT_DEFAULTS, checkPicked } from './state.js';
 import { readoutsAt, formationAt, mapLabel } from './readouts.js';
@@ -15,6 +17,12 @@ import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createPlaybackBar } from './playback-bar.js';
+import { createDfpPanel } from './dfp-panel.js';
+import { createFilePanel, downloadText } from './file-panel.js';
+import {
+  addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps,
+} from './dfp.js';
+import { TIME_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
 
@@ -25,16 +33,23 @@ function mount(root, app) {
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS);
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
+  const canExample = typeof app.exampleText === 'function';
   const standardsPanel = app.standards && createStandardsPanel({ standards: app.standards, layout });
+  const dfpPanel = createDfpPanel({ time: app.time, on: dfpActions() });
+  const filePanel = createFilePanel({ layout, canExample, on: fileActions() });
   const ui = createLayout({
-    layout, controls, bar, canExample: typeof app.exampleText === 'function', listen: app.listen,
-    formationExtras: standardsPanel ? [standardsPanel.element] : [],
+    layout, controls, bar, canExample, listen: app.listen,
+    flightExtras: [filePanel.element],
+    formationExtras: [dfpPanel.element, ...(standardsPanel ? [standardsPanel.element] : [])],
   });
   const currentStandards = () => app.standards?.get() ?? V6_STANDARDS;
   root.append(ui.element);
 
   let flight = null;
   let clock = null;
+  let dfps = [];
+  let dfpKey = null; // where this flight's DFPs are kept in the browser (#25)
+  let unsaved = false; // DFPs changed since the flight was loaded, saved or opened
   let stopClock = null;
   let stopFrames = null;
   let busy = false;
@@ -63,7 +78,7 @@ function mount(root, app) {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    ui.renderReadouts(flight && readoutsAt(flight, clock.t, { standards: currentStandards() }));
+    ui.renderReadouts(flight && clock ? readoutsAt(flight, clock.t, { standards: currentStandards() }) : null);
   }
   function queueReadouts() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -83,40 +98,152 @@ function mount(root, app) {
     queueReadouts();
   }
 
-  // Swaps in a new flight only once it has loaded completely (D54).
-  function show(next) {
+  // Swaps in a new flight only once it has loaded completely (D54). A
+  // session is { flight, dfps?, t? }: DFPs and a time from a debrief file.
+  function show(session) {
     stopFrames?.();
     stopFrames = null;
     stopClock?.();
-    flight = next;
-    clock = createClock({ startT: next.startT, endT: next.endT });
+    flight = session.flight;
+    clock = createClock({ startT: flight.startT, endT: flight.endT });
+    if (Number.isFinite(session.t)) clock.seek(session.t);
     stopClock = clock.onChange(onClock);
+    dfpKey = dfpStorageKey(flightFingerprint([...flight.files].sort((a, b) => a.slot - b.slot).map((f) => f.text)));
+    setDfps(session.dfps ?? readStoredDfps(app.storage.get(dfpKey, [])), { changed: Boolean(session.dfps) });
+    unsaved = false;
     bar.setClock(clock);
-    map.setFlight(next);
-    ui.showFlight(next);
+    map.setFlight(flight);
+    ui.showFlight(flight);
+    filePanel.setFlight(true);
     renderReadouts();
     app.status(`Debrief: ${ui.summary()}`);
   }
 
-  async function run(what, work) {
+  // "Close flight": back to the empty screen (#23, #25).
+  function closeFlight() {
+    stopFrames?.();
+    stopFrames = null;
+    stopClock?.();
+    stopClock = null;
+    pendingReadout?.();
+    flight = null;
+    clock = null;
+    dfpKey = null;
+    setDfps([], { changed: false });
+    unsaved = false;
+    bar.setClock(null);
+    map.setFlight(null);
+    ui.showFlight(null);
+    filePanel.setFlight(false);
+    renderReadouts();
+    ui.setMessage(null);
+    app.status('');
+  }
+
+  // The DFP list, kept in the browser for this flight as it changes.
+  function setDfps(next, { changed = true } = {}) {
+    dfps = next;
+    if (changed && dfpKey) app.storage.set(dfpKey, dfps);
+    if (changed) unsaved = true;
+    dfpPanel.render(dfps, Boolean(flight));
+  }
+
+  // Lead's place at time t (the first ship's with no Lead), for a DFP's flag.
+  function leadAt(t) {
+    const track = flight.tracks[1] ?? Object.values(flight.tracks)[0];
+    const s = sampleAt(track, t);
+    return { x: s.xFt, y: s.yFt };
+  }
+
+  function goTo(dfp) {
+    if (!dfp || !clock) return;
+    clock.pause();
+    clock.seek(dfp.t);
+  }
+
+  function dfpActions() {
+    return {
+      add() {
+        if (!clock) return;
+        const t = Math.min(clock.endT, Math.max(clock.startT, Math.round(clock.t)));
+        const { list, dfp } = addDfp(dfps, { t, ...leadAt(t) });
+        if (dfp) setDfps(list);
+      },
+      go: goTo,
+      previous: () => goTo(previousDfp(dfps, clock?.t ?? 0)),
+      next: () => goTo(nextDfp(dfps, clock?.t ?? 0)),
+      rename: (id, text) => setDfps(renameDfp(dfps, id, text)),
+      note: (id, text) => setDfps(setDfpNote(dfps, id, text)),
+      remove: (id) => setDfps(removeDfp(dfps, id)),
+    };
+  }
+
+  function fileActions() {
+    return {
+      save() {
+        if (!flight) return;
+        try {
+          const text = toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t));
+          downloadText(debriefFileName(flight.startT), text, 'application/json', app.scheduler);
+          unsaved = false;
+          ui.setMessage(null);
+        } catch (err) {
+          if (err?.name !== 'DebriefFileError') throw err;
+          ui.setMessage(err.message);
+        }
+      },
+      open(file) {
+        if (file.size > MAX_DEBRIEF_BYTES) {
+          ui.setMessage(`"${String(file.name).slice(0, 80)}" is too big to be a debrief file. Nothing was changed.`);
+          return;
+        }
+        run('Opening the debrief', async () => {
+          const opened = readDebriefFile(await file.text(), { settings: settingsRules(app.standards?.limits ?? {}) });
+          const next = loadFlight(opened.files);
+          return { flight: next, opened };
+        }, ({ flight: next, opened }) => {
+          flight = next; // leadAt reads it for the DFP flags
+          const patch = standardsPatch(opened.settings);
+          if (patch && app.standards) app.standards.update(patch);
+          return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY] };
+        });
+      },
+      close() {
+        if (!flight) return;
+        if (unsaved && dfps.length
+          && !confirm("Close this flight? Its DFPs stay in this browser, but they aren't in a saved debrief file yet.")) return;
+        closeFlight();
+      },
+      example(entry) {
+        app.exampleText(entry.asset)
+          .then((text) => downloadText(entry.download, text, 'application/vnd.google-earth.kml+xml', app.scheduler))
+          .catch(() => ui.setMessage("That example file couldn't be downloaded. Check the connection and try again."));
+      },
+    };
+  }
+
+  // Runs a load; `work` returns what `prepare` turns into a session for show().
+  async function run(what, work, prepare = (flightOnly) => ({ flight: flightOnly })) {
     if (busy) return;
     busy = true;
     ui.setBusy(what);
+    filePanel.setBusy(true);
     try {
-      const next = await work();
+      const result = await work();
       if (closed) return;
-      show(next);
+      show(prepare(result));
       ui.setMessage(null);
     } catch (err) {
       if (closed) return;
-      // A KmlError's message names the file and the reason; anything without a
-      // message for the user is unexpected, so it's logged for a bug report.
-      const told = err?.name === 'KmlError' ? err.message : err?.userMessage;
+      // A KmlError or DebriefFileError message names the file and the reason;
+      // anything without a message for the user is unexpected, so it's logged.
+      const told = err?.name === 'KmlError' || err?.name === 'DebriefFileError' ? err.message : err?.userMessage;
       if (!told) console.error(err);
       ui.setMessage(`${told ?? `${what} failed.`} Nothing was changed.`);
     } finally {
       busy = false;
       ui.setBusy(null);
+      filePanel.setBusy(false);
     }
   }
 
@@ -147,6 +274,7 @@ function mount(root, app) {
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
+    filePanel.setCollapsed(!values.filesOpen);
     map.requestDraw();
   });
 

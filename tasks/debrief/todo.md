@@ -25,11 +25,12 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Verify: unit tests of label rules; e2e edit/reset/reload.
   - Files: src/modules/debrief/standards-panel.js, readouts.js, map2d/layers.js, tests/unit/debrief/readouts.test.js, tests/e2e/debrief.spec.js
   - Done: the Standards panel (closed at first) edits `app.standards`, the one copy the Turn Sim reads too (D89): an on/off box per standard, each number with its limits, a refused value keeps the saved one and says why, Reset to V6 standards. The map shows each wingman's label beside its number, green on parameters and none where the card shows none (#21). Saving the standards in the debrief file comes with task 5.
-- [ ] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
+- [x] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
   - Acceptance: R17 (save, close, open: same tracks, DFPs, standards, time); DFPs never show on another flight (#25); hostile labels show as text.
   - Verify: unit tests of dfp.js; e2e save/open round trip.
   - Files: src/modules/debrief/dfp.js, index.js, tests/unit/debrief/dfp.test.js
-  - Done so far: the list logic in `dfp.js` (add, time order, automatic and custom labels, notes, previous/next, fingerprint, reading back from browser storage with the debrief file's limits).
+  - Done: the DFPs list beside the Formation card (+ Add, ◀ ▶ in time order, go to one, Edit to rename, note or delete), kept in this browser per flight and never shown on another (#25). "Save, open, examples" (closed at first) saves a debrief file with the tracks, DFPs, standards and time, opens one back to the same state (R17), closes the flight (asking first when DFPs aren't in a saved file yet) and offers the example track files. A file that can't be read changes nothing. DFP flags on the map come with task 6.
+  - Note: the spec's `storage/file.js` download helper doesn't exist yet, so `file-panel.js` has a small `downloadText`; it can move to storage when another module needs it.
 
 **Checkpoint B:** open PR B.
 

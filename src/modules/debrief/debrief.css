@@ -334,3 +334,121 @@
 [data-module='debrief'] .standards-group .control-message {
   grid-column: 1 / -1;
 }
+
+/* DFPs */
+[data-module='debrief'] .dfp-panel {
+  margin-top: var(--space-4);
+}
+
+[data-module='debrief'] .dfp-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+[data-module='debrief'] .dfp-head h2 {
+  margin: 0 auto 0 0;
+  font-size: var(--text-md);
+}
+
+[data-module='debrief'] .dfp-list {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='debrief'] .dfp-row + .dfp-row {
+  border-top: 1px solid var(--border);
+}
+
+[data-module='debrief'] .dfp-line {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+[data-module='debrief'] .dfp-go,
+[data-module='debrief'] .dfp-edit,
+[data-module='debrief'] .link-button {
+  min-height: 2rem;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+[data-module='debrief'] .dfp-go {
+  flex: 1;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  min-width: 0;
+  padding: var(--space-1) 0;
+  text-align: left;
+}
+
+[data-module='debrief'] .dfp-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-module='debrief'] .dfp-time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .dfp-edit {
+  font-size: var(--text-sm);
+  text-decoration: underline;
+}
+
+[data-module='debrief'] .dfp-details {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0 0 var(--space-3);
+}
+
+[data-module='debrief'] .dfp-details input,
+[data-module='debrief'] .dfp-details textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+[data-module='debrief'] .dfp-details .button {
+  justify-self: start;
+  margin-top: var(--space-2);
+}
+
+/* Save, open, examples */
+[data-module='debrief'] .file-panel {
+  margin-top: var(--space-3);
+}
+
+[data-module='debrief'] .file-panel h3 {
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
+}
+
+[data-module='debrief'] .example-files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-module='debrief'] .link-button {
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+[data-module='debrief'] .dfp-go:disabled,
+[data-module='debrief'] .link-button:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}

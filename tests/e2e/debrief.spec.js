@@ -8,7 +8,7 @@ const kml = (name, file = 'basic-track.kml') => ({ name, mimeType: 'application/
 
 const status = (page) => page.locator('.flight-status');
 const playTime = (page) => page.locator('.playback-time');
-const fileInput = (page) => page.locator('input[type="file"]');
+const fileInput = (page) => page.locator('input[type="file"][multiple]');
 
 async function loadExample(page) {
   await page.getByRole('button', { name: 'Example flight' }).click();
@@ -195,6 +195,9 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await status(page).click();
     await page.getByRole('button', { name: 'More detail' }).click();
     await page.getByRole('button', { name: 'Standards' }).click();
+    await page.getByRole('button', { name: 'Save, open, examples' }).click();
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await page.getByRole('button', { name: 'Edit DFP 1' }).click();
     await page.getByRole('button', { name: 'Layers' }).click();
     const problems = await page.evaluate(() => {
       const controls = [...document.querySelectorAll('#view a[href], #view button, #view input, #view select, #view label.button')]
@@ -281,4 +284,130 @@ test('standards: edit, refuse a bad value, keep after a reload, reset to V6 (R18
   await expect(page.getByLabel('Spread maximum')).toHaveValue('6000');
   await expect(page.getByLabel('Judge spread')).toBeChecked();
   await expect(page.getByRole('list', { name: 'Standards in use' })).toContainText('Lead: 200 ±10 kt, 1.0 ±0.20 G');
+});
+
+const dfpRows = (page) => page.getByRole('list', { name: 'DFPs' }).getByRole('listitem');
+
+async function addDfpAt(page, minutes) {
+  const scrubber = page.getByLabel('Flight time');
+  const start = Number(await scrubber.getAttribute('min'));
+  await scrubber.fill(String(start + minutes * 60));
+  await page.getByRole('button', { name: '+ Add' }).click();
+}
+
+test('DFPs: add, rename, note, step through in time order, delete; kept for this flight only (R17, #25)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await expect(page.getByText('Load a flight to mark debrief focus points.')).toBeVisible();
+  await expect(page.getByRole('button', { name: '+ Add' })).toBeDisabled();
+  await loadExample(page);
+  await expect(page.getByText('Press + Add to mark this moment.')).toBeVisible();
+  await addDfpAt(page, 30);
+  await addDfpAt(page, 10);
+  await expect(dfpRows(page).locator('.dfp-label')).toHaveText(['DFP 1', 'DFP 2']); // time order
+
+  // A hostile label is only ever text.
+  const hostile = '<img src=x onerror="window.__pwned=1">';
+  await page.getByRole('button', { name: 'Edit DFP 2' }).click();
+  await page.getByLabel('Name').fill(hostile);
+  await page.getByLabel('Name').press('Tab');
+  await expect(page.getByLabel('Note')).toBeFocused();
+  await page.getByLabel('Note').fill('Late on the rejoin');
+  await page.getByLabel('Note').press('Tab');
+  await expect(dfpRows(page).locator('.dfp-label')).toHaveText(['DFP 1', hostile]);
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await page.locator('.debrief img').count()).toBe(0);
+
+  const scrubber = page.getByLabel('Flight time');
+  const start = Number(await scrubber.getAttribute('min'));
+  await scrubber.fill(String(start));
+  await page.getByRole('button', { name: 'Next DFP' }).click();
+  await expect(scrubber).toHaveValue(String(start + 600));
+  await page.getByRole('button', { name: 'Next DFP' }).click();
+  await expect(scrubber).toHaveValue(String(start + 1800));
+  await page.getByRole('button', { name: 'Previous DFP' }).click();
+  await expect(scrubber).toHaveValue(String(start + 600));
+  await page.getByRole('button', { name: /^DFP 1 / }).click();
+  await expect(scrubber).toHaveValue(String(start + 600));
+
+  // Kept in this browser for this flight...
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+  await loadExample(page);
+  await expect(dfpRows(page).locator('.dfp-label')).toHaveText(['DFP 1', hostile]);
+  await page.getByRole('button', { name: `Edit ${hostile}` }).click();
+  await expect(page.getByLabel('Note')).toHaveValue('Late on the rejoin');
+  await page.getByRole('button', { name: `Delete ${hostile}` }).click();
+  await expect(dfpRows(page)).toHaveCount(1);
+
+  // ...and never shown on another flight (#25).
+  await fileInput(page).setInputFiles([kml('lead.kml')]);
+  await page.getByRole('button', { name: 'Load', exact: true }).click();
+  await expect(status(page)).toHaveText('1 track loaded');
+  await expect(dfpRows(page)).toHaveCount(0);
+});
+
+test('save a debrief, close it, open it again: same tracks, DFPs, standards and time (R17)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await addDfpAt(page, 20);
+  await page.getByRole('button', { name: 'Edit DFP 1' }).click();
+  await page.getByLabel('Name').fill('Rejoin');
+  await page.getByLabel('Name').press('Tab');
+  await page.getByRole('button', { name: 'Standards' }).click();
+  await page.getByLabel('Spread maximum').fill('7000');
+  await page.getByLabel('Spread maximum').press('Tab');
+  const scrubber = page.getByLabel('Flight time');
+  const start = Number(await scrubber.getAttribute('min'));
+  await scrubber.fill(String(start + 25 * 60));
+  const shownTime = await playTime(page).textContent();
+
+  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^debrief-\d{4}-\d\d-\d\d-\d{4}Z\.dadsdebrief\.json$/);
+  const saved = await download.path();
+
+  // Closing with the DFPs saved asks nothing.
+  let asked = 0;
+  page.on('dialog', (dialog) => { asked++; dialog.accept(); });
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  expect(asked).toBe(0);
+  await expect(status(page)).toHaveText('No flight loaded');
+  await expect(dfpRows(page)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Reset to V6 standards' }).click();
+  await expect(page.getByLabel('Spread maximum')).toHaveValue('6000');
+
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles(saved);
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+  await expect(dfpRows(page).locator('.dfp-label')).toHaveText(['Rejoin']);
+  await expect(scrubber).toHaveValue(String(start + 25 * 60));
+  await expect(playTime(page)).toHaveText(shownTime);
+  await expect(page.getByLabel('Spread maximum')).toHaveValue('7000');
+
+  // A change not yet saved asks before closing; saying no keeps the flight.
+  await addDfpAt(page, 5);
+  page.removeAllListeners('dialog');
+  page.once('dialog', (dialog) => { asked++; dialog.dismiss(); });
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  expect(asked).toBe(1);
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+});
+
+test('a debrief file that can\'t be read changes nothing, and says why', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await addDfpAt(page, 10);
+  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.locator('input[type="file"][accept^=".json"]').setInputFiles({ name: 'odd.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"something else"}') });
+  await expect(page.getByRole('alert')).toContainText('Nothing was changed.');
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+  await expect(dfpRows(page)).toHaveCount(1);
+});
+
+test('the example track files download as ordinary .kml files', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  const link = page.locator('.example-files button').first();
+  const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
+  expect(download.suggestedFilename()).toBe(await link.textContent());
+  expect(download.suggestedFilename()).toMatch(/\.kml$/);
 });

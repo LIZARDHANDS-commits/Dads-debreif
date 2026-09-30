@@ -28,6 +28,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   formationColumn: true,
   moreDetail: false,
   standardsOpen: false,
+  filesOpen: false,
   grid: true,
 });
 
