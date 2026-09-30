@@ -1,6 +1,6 @@
 # Spec: `debrief`, the debrief screen (2D map and 3D view)
 
-Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. **Amendment waiting for Patrick's okay:** the essentials-first screen in The screen (his 2026-09-30 rule). Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. **Amendment waiting for Patrick's okay:** the essentials-first screen in The screen (R22). Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts once flight data (PR #58) and flight math core part 2 (PR #61) are merged.
 
@@ -29,7 +29,7 @@ Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6)
 
 ## The screen
 
-The screen follows Patrick's rule (2026-09-30): show the essentials by default, and put everything else behind a toggle or a "More" panel the user opens when they want it. Nothing is removed by this. It's just not all on screen at once.
+The screen follows Patrick's rule (2026-09-30, R22): show the essentials by default, and put everything else behind a toggle or a "More" panel the user opens when they want it. Nothing is removed by this. It's just not all on screen at once.
 
 **What a first-time user sees** after loading a flight: the map with the tracks, a short status line, the playback bar, and one small Formation card. That's it.
 
@@ -45,7 +45,7 @@ The screen follows Patrick's rule (2026-09-30): show the essentials by default, 
 └─────────────────────┘└───────────────────────────────────────┘└─────────────────────┘
 ```
 
-| Shown by default | Behind a toggle or "More" |
+| Shown by default | Behind a checkbox (off by default) or a collapsed "More …" panel (R22) |
 |---|---|
 | Load tracks, Example flight, a one-line status ("4 tracks loaded, 2 gaps") | The full per-track status (fixes dropped and why, gaps, cut tracks), opened from the status line |
 | The map with tracks, ship numbers and standards labels, Fit, 2D/3D | **Layers** menu: grid, spacing lines, trail mode, satellite, VNC charts and their alignment, route overlays, 3/9 lines, fighting-wing cone, clock marks, safety bubble, follow lead |
@@ -59,7 +59,7 @@ The screen follows Patrick's rule (2026-09-30): show the essentials by default, 
 
 - **Layers keep V6's on/off defaults** (tracks full, spacing lines and grid on, Lead's 3/9 line on, everything else off), so the default picture matches what V6 users know. They're just grouped out of sight.
 - **Toggles are remembered** in this browser (`app.storage`): which panels are open and which layers and tools are on. A "Reset layout" in the Layers menu goes back to the defaults. They aren't saved in the debrief file, which carries the flight, DFPs and standards, so a student opening an instructor's file sees their own layout.
-- **Room for later tools:** the Tools menu is a list, and each tool is a panel that opens below or beside the stage without covering it. Patrick's future features (synced graphs, event bookmarks, geometry readouts, drawing over the replay) would each be one more entry there, and none is built now.
+- **Room for later tools:** the Tools menu is a list, and each tool is a panel that opens below or beside the stage without covering it. Patrick's future features (synced graphs FF16, event bookmarks, geometry readouts FF18, drawing over the replay) would each be one more entry there, and none is built now.
 - The detail panels are collapsible sections (ui-kit `panel.js`, real buttons with `aria-expanded`), so they work from the keyboard and with screen readers.
 
 The columns themselves stay as before: three at 1366 × 768 and up, none covering another (R2), collapsed with a real button (ui-kit `panel.js`), with no side rails and no Tab-key tricks (#34, #35). The right column can be collapsed for a map-only view.
