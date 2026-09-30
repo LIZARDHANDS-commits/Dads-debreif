@@ -1,7 +1,7 @@
 // The bar above the map (specs/SPEC-traffic.md: The screen, R22, R3). Row one
 // is the clock: Play or Pause, Rewind, -10 s, +10 s, Reset, the speed, the sim
 // time and Running / Paused / Rewinding. Row two is the view: the wind boxes,
-// the 2D | 3D switch, the Layers menu, and Fit.
+// the 2D | 3D switch, Fit, and the Layers menu (which ends with Fit all routes).
 //
 // It shows what it is told and calls back when something is pressed; it never
 // runs the sim. Wind, layers and the 2D | 3D choice are settings, so they go
@@ -108,9 +108,17 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
     )
     : null;
   const viewSwitch = available.view3d ? controls.viewSwitch() : null; // the ui-kit's shared 2D | 3D switch
-  const layers = createMenu({ label: 'Layers', listen, children: layerItems(available).map((item) => controls.checkbox(item.key, { label: item.label })) });
+  // "Fit all routes" is the last item of the Layers menu, so the bar keeps one row at 1280 px (UI-01); Fit, the usual
+  // one, stays in the bar.
+  const fitAll = on.fitAll
+    ? h('button', { type: 'button', class: 'button menu-item', title: 'Frame every route, the long entries too', onclick: () => {
+      layers.setOpen(false);
+      layers.button.focus();
+      on.fitAll();
+    } }, 'Fit all routes')
+    : null;
+  const layers = createMenu({ label: 'Layers', listen, children: [...layerItems(available).map((item) => controls.checkbox(item.key, { label: item.label })), fitAll] });
   const fit = button('Fit', () => on.fit(), { title: 'Frame the first pattern shown and the aircraft near it' });
-  const fitAll = on.fitAll ? button('Fit all', () => on.fitAll(), { title: 'Frame every route, the long entries too' }) : null;
 
   const element = h(
     'div',
@@ -119,10 +127,10 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
       'div',
       { class: 'bar-row bar-transport' },
       play, rewind, back, ahead, reset,
-      h('label', { class: 'bar-speed' }, 'Speed ', speed),
+      h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
       clock, status,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, layers.element, fit, fitAll),
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, fit, layers.element),
   );
 
   const write = (node, text) => {

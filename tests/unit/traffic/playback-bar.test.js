@@ -63,6 +63,20 @@ test('the bar starts paused at 0:00:00 and 8×, with every clock control there',
   assert.equal(all(bar.element, (n) => n.getAttribute?.('role') === 'status')[0].textContent, 'Paused');
 });
 
+test('Fit all routes is in the Layers menu, after the layers, and closes the menu; Fit is in the bar before it (UI-01)', () => {
+  const { bar, calls } = setup();
+  const body = all(bar.element, (n) => n.getAttribute?.('class')?.split(' ').includes('traffic-menu-body'))[0];
+  const fitAll = tagged(body, 'BUTTON').find((b) => words(b) === 'Fit all routes');
+  assert.ok(fitAll, 'a Fit all routes button in the menu');
+  assert.equal(tagged(body, 'BUTTON').at(-1), fitAll, 'the last thing in it');
+  const bars = tagged(bar.element, 'BUTTON');
+  assert.ok(bars.findIndex((b) => words(b) === 'Fit') < bars.findIndex((b) => b.getAttribute('aria-controls')), 'Fit comes before the Layers button');
+  body.hidden = false;
+  fitAll.dispatch('click');
+  assert.deepEqual(calls, ['fitAll']);
+  assert.equal(body.hidden, true, 'the menu closes');
+});
+
 test('Play, Reset, Fit and Fit all call what they are given; the steps say which way', () => {
   const { bar, calls } = setup();
   for (const name of ['Play', 'Reset', 'Fit', 'Fit all', '−10 s', '+10 s', 'Rewind']) press(bar.element, name);

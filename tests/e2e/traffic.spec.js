@@ -149,10 +149,40 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await expect(rows).toHaveCount(8);
 });
 
+test('the playback bar is one row at 1280 x 800 with both columns open (UI-01)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  const oneRow = async () => (await page.locator('.traffic-bar').evaluate((bar) => {
+    const seen = [...bar.querySelectorAll('.bar-play, .bar-row > .button, .bar-speed, .bar-clock, .bar-status, .traffic-menu > .menu-button')];
+    const tops = seen.map((e) => [e.textContent.trim().slice(0, 10), Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)]);
+    const fits = [...bar.querySelectorAll('button, .bar-clock, .bar-status')].every((e) => e.getBoundingClientRect().right <= bar.getBoundingClientRect().right + 0.5);
+    return { tops, fits };
+  }));
+  const check = async () => {
+    const { tops, fits } = await oneRow();
+    expect(tops.length).toBeGreaterThanOrEqual(10); // Play, Rewind, -10 s, +10 s, Reset, speed, clock, status, Fit, Layers
+    const middles = tops.map(([, y]) => y);
+    expect(Math.max(...middles) - Math.min(...middles), JSON.stringify(tops)).toBeLessThanOrEqual(6);
+    expect(fits, 'nothing is cut off by the map\'s column').toBe(true);
+  };
+  await check(); // paused
+  await button(page, '+10 s').click();
+  await playButton(page).click();
+  await expect(status(page)).toHaveText('Running');
+  await check();
+  await playButton(page).click();
+  await button(page, 'Rewind').click();
+  await expect(status(page)).toHaveText('Rewinding'); // the longest status word
+  await check();
+});
+
+
 test('Fit frames Pattern 1, Fit all frames every route, and Fit goes back (TR-17)', async ({ page }) => {
   await open(page);
   const first = await picture(page);
-  await button(page, 'Fit all').click();
+  await page.getByRole('button', { name: /^Layers/ }).click();
+  await button(page, 'Fit all routes').click(); // in the Layers menu, which closes after it
+  await expect(page.getByRole('button', { name: /^Layers/ })).toHaveAttribute('aria-expanded', 'false');
   await expect.poll(() => picture(page)).not.toBe(first); // the long entry legs are in, so everything is smaller
   await button(page, 'Fit').click();
   await expect.poll(() => picture(page)).toBe(first);
