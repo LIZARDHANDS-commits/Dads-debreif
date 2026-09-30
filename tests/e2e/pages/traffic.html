@@ -22,14 +22,16 @@
       import { createScheduler } from '/src/ui-kit/scheduler.js';
       import { createHost } from '/src/shell/host.js';
       import { createTime } from '/src/shell/header.js';
+      import { createAirfields } from '/src/airfields/airfields.js';
 
       const store = createStore(browserStorage);
       const settings = createSettings(store.scope('app'), { timePrimary: 'zulu', motion: 'system' });
       const scheduler = createScheduler();
+      const airfields = createAirfields({ store: store.scope('airfields') }); // the home field, read from storage as on the site (a test sets it before the page loads)
       const time = createTime({ settings, zone: () => 'America/Regina' });
       const statusLine = document.getElementById('module-status');
       const host = createHost({
-        root: document.getElementById('view'), scheduler, store, settings, time,
+        root: document.getElementById('view'), scheduler, store, settings, time, airfields,
         onStatus: (text) => { statusLine.textContent = text; statusLine.hidden = !text; },
       });
       const entry = { id: 'traffic', title: 'Traffic Pattern Sim', load: () => import('/src/modules/traffic/index.js') };
