@@ -148,25 +148,28 @@ charts.dispose();
 
 ## Not overwhelming (R22)
 
-Each screen shows only the essentials by default. Tuning numbers go in the module's one Settings menu (`createSettingsMenu`), closed by default. Extra detail goes behind a switch the person turns on: a `controls.checkbox` for a layer or graph (off by default), or a `createPanel({ collapsed: true })` section titled "More …" for extra readouts and advanced settings. A module's spec lists what shows by default and what sits behind a switch, and its sign-off checklist opens it fresh and checks nothing optional is on.
+Each screen shows only the essentials by default. Every setting the module has goes in its one settings menu (`createSettingsMenu`), closed by default. Extra detail goes behind a switch the person turns on: a `controls.checkbox` for a layer or graph (off by default), or a `createPanel({ collapsed: true })` section titled "More …" for extra readouts. A module's spec lists what shows by default and what sits behind a switch, and its sign-off checklist opens it fresh and checks nothing optional is on.
 
 ## Settings menu (R22)
 
-Every module screen keeps its tuning numbers behind one Settings menu that starts closed, so the screen shows only the essentials. It looks and works the same in every module. `src/ui-kit/settings-menu.js`, built on `createPanel`.
+Every module screen keeps its own tuning numbers behind one settings menu that starts closed, so the screen shows only the essentials. It looks and works the same in every module. `src/ui-kit/settings-menu.js`, built on `createPanel`.
+
+The header's **Settings** button stays the app-wide dialog (home airfield, time zone, motion, formation standards); a module adds a section there only for a choice that applies across the app. The module's own numbers (turn G, spacing, speeds, what the sim does) go in its settings menu, titled with the module's name so the two never read the same.
 
 ```js
-const settings = createSettingsMenu({ title: 'Settings', onReset: () => standards.reset(), onToggle });
-const turn = settings.section('Turn');       // a titled group; returns an element to append controls to
+const menu = createSettingsMenu({ title: 'Turn Sim settings', onReset: () => standards.reset(), onToggle });
+const turn = menu.section('Turn');           // a titled group; returns an element to append controls to
 turn.append(controls.number('g', { label: 'Turn G', unit: 'G', min: 1, max: 6, step: 0.5 }));
-layout.append(settings.element);             // put this in the module's layout
-settings.collapsed;                          // true until opened
-settings.setCollapsed(false);                // open it from code
-settings.body;                               // the container the sections live in
+layout.append(menu.element);                 // put this in the module's layout
+menu.collapsed;                              // true until opened
+menu.setCollapsed(false);                    // open it from code
+menu.body;                                   // the container the sections live in
 ```
 
-- It starts closed (`collapsed: true`) unless the caller passes `collapsed: false`. The title defaults to "Settings".
+- It starts closed (`collapsed: true`) unless the caller passes `collapsed: false`. Pass the module's name as the title ("Turn Sim settings", "SOF settings"); it defaults to "Module settings". Never title it plain "Settings", which is the header's app-wide button.
+- `onToggle(collapsed)` is called with the new state when the person opens or closes it. `setCollapsed()` from code does not call it, so a module that remembers the menu's state saves it in `onToggle` and restores it with `setCollapsed`.
 - The header is the panel's real button with `aria-expanded`, so the mouse, Enter, Space and Tab all work (#35).
-- `section(title)` returns a `<fieldset class="settings-section">` with a `<legend>` holding the title as text, never HTML. Sections appear in the order they are made.
+- `section(title)` returns a `<fieldset class="settings-group">` with a `<legend>` holding the title as text, never HTML. Sections appear in the order they are made.
 - With `onReset`, the menu has a "Reset to defaults" button (`resetLabel` changes the words) that calls it straight away, with no confirm dialog. Without `onReset`, there is no button.
 - Opening or closing it never covers other controls: it expands in the page flow like other panels (R2, #34).
 - Styles are in `base.css`, using tokens only.

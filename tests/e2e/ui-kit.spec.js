@@ -105,7 +105,7 @@ test.describe('controls, turned off', () => {
 test.describe('settings menu', () => {
   test('starts closed, opens from the keyboard, holds working controls, resets and closes again @smoke', async ({ page }) => {
     await open(page);
-    const header = page.getByRole('button', { name: 'Settings' });
+    const header = page.getByRole('button', { name: 'Turn settings' });
     const turnG = page.getByLabel('Turn G');
     await expect(header).toHaveAttribute('aria-expanded', 'false');
     await expect(turnG).toBeHidden();

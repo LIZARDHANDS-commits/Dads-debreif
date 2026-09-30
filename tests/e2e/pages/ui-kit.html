@@ -44,7 +44,7 @@
 
       // The Settings menu a module keeps its tuning numbers in (starts closed).
       let resets = 0;
-      const menu = createSettingsMenu({ onReset: () => { resets++; settings.reset(); } });
+      const menu = createSettingsMenu({ title: 'Turn settings', onReset: () => { resets++; settings.reset(); } });
       menu.section('Turn').append(controls.number('turnG', { label: 'Turn G', unit: 'G', min: 1, max: 6, step: 0.5 }));
       document.getElementById('settings').append(menu.element);
 

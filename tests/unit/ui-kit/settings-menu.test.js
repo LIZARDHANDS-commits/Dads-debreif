@@ -16,12 +16,12 @@ function all(node, tag, found = []) {
 const header = (menu) => all(menu.element, 'BUTTON')[0];
 const resetButton = (menu) => all(menu.element, 'BUTTON')[1];
 
-test('the menu starts closed, titled "Settings", with a real header button', () => {
+test('the menu starts closed, titled "Module settings", with a real header button', () => {
   const menu = createSettingsMenu();
   assert.equal(menu.collapsed, true);
   assert.equal(header(menu).getAttribute('aria-expanded'), 'false');
   assert.equal(header(menu).getAttribute('type'), 'button');
-  assert.equal(header(menu).textContent, 'Settings');
+  assert.equal(header(menu).textContent, 'Module settings');
 });
 
 test('the header button opens and closes it, and reports each change', () => {
@@ -54,7 +54,7 @@ test('a section is a fieldset whose legend holds the title as text, never HTML',
   const menu = createSettingsMenu();
   const section = menu.section('Turn <b>rate</b>');
   assert.equal(section.tagName, 'FIELDSET');
-  assert.equal(section.getAttribute('class'), 'settings-section');
+  assert.equal(section.getAttribute('class'), 'settings-group');
   const legend = section.childNodes[0];
   assert.equal(legend.tagName, 'LEGEND');
   assert.equal(legend.textContent, 'Turn <b>rate</b>');
