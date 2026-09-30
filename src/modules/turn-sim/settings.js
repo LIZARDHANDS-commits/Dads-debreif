@@ -129,7 +129,7 @@ const aircraftRules = {
 export const SETTINGS_RULES = Object.freeze({
   formation: oneOf(['weighted', 'weightedReverse', 'offsetBox', 'twoShip']),
   spacingFt: number(100, 50000),
-  boxAftFt: number(0, 50000),
+  boxAftFt: number(100, 50000), // not 0: V6 reads a 0 in its box as 8,000 (`||8000`, line 816)
   boxStaggerFt: number(0, 20000),
   startHeadingDeg: number(-360, 360),
   showNm: bool,
