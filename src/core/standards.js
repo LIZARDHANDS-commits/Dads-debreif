@@ -18,6 +18,14 @@
 // its interval. V6 judged #3's fore/aft by both, so #3 was never "ON
 // PARAMETERS". Kept from V6: an aircraft no standard applies to is still
 // labelled "ON PARAMETERS".
+//
+// The spread standard's fore/aft check comes in two kinds. V6's (foreAftTolFt)
+// allows ± that many feet of Lead's 3/9 line. The SMM's line abreast (D116,
+// SMM 16.18 para 49) allows sweepMinDeg (0) to sweepMaxDeg (10) degrees of
+// sweep behind the 3/9 line, measured from the aircraft the interval is
+// measured from: less is FORE, more is AFT. A standards object with a number
+// in spread.sweepMaxDeg gets the sweep check; one without keeps V6's.
+import { radToDeg } from './angles.js';
 
 /** V6's standards: the debrief's default settings, and Turn Sim's fixed numbers. */
 export const V6_STANDARDS = Object.freeze({
@@ -30,6 +38,29 @@ export const V6_STANDARDS = Object.freeze({
 const SAME_SIDE_FT = 500;
 /** In Turn Sim's offset box, #3 is WIDE when more than this outside the slot between Lead and #2. */
 const SLOT_MARGIN_FT = 500;
+
+/**
+ * The spread standard's fore/aft label, or null when within it.
+ *
+ * @param {object} spread     the spread standard
+ * @param {number} foreAftFt  along Lead's heading from Lead's 3/9 line (+ ahead): V6's check
+ * @param {number} sweepDeg   degrees behind the reference's 3/9 line (+ aft): the sweep check
+ */
+function spreadForeAft(spread, foreAftFt, sweepDeg) {
+  if (Number.isFinite(spread.sweepMaxDeg)) {
+    if (sweepDeg < (Number.isFinite(spread.sweepMinDeg) ? spread.sweepMinDeg : 0)) return 'FORE';
+    if (sweepDeg > spread.sweepMaxDeg) return 'AFT';
+    return null;
+  }
+  if (foreAftFt > spread.foreAftTolFt) return 'FORE';
+  if (foreAftFt < -spread.foreAftTolFt) return 'AFT';
+  return null;
+}
+
+/** Degrees p is swept behind ref's 3/9 line (+ aft), seen from ref across the interval. */
+function sweepDegFrom(p, ref, fwd, interval) {
+  return radToDeg(Math.atan2(-along(p, ref, fwd), interval));
+}
 
 /**
  * Lead's forward and left unit vectors (debrief `kmlAxes` line 3041, Turn Sim
@@ -61,8 +92,9 @@ function along(p, ref, fwd) {
  * @param {object} live      positions now, by id: { 1: lead, 2: …, 3: …, 4: … }
  * @param {number} leadHdg   Lead's track heading now (V6 uses 0 with no Lead track)
  * @param {object} [std]     standards, shaped like V6_STANDARDS
- * @returns {{labels: string[], intervalFt: number, foreAftFt: number, offsetAftFt: number|null,
- *   offsetStatus: string|null}|null} null for Lead or a missing aircraft
+ * @returns {{labels: string[], intervalFt: number, foreAftFt: number, sweepDeg: number,
+ *   offsetAftFt: number|null, offsetStatus: string|null}|null} null for Lead or a missing aircraft;
+ *   sweepDeg is behind the 3/9 line of the aircraft the interval is from (+ aft)
  */
 export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
   const lead = live[1], p = live[id];
@@ -76,16 +108,15 @@ export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
     if (Math.sign(lat3) === Math.sign(lateralFromLead) && Math.abs(lat3) > SAME_SIDE_FT) ref = live[3];
   }
   const interval = Math.abs(across(p, ref, left));
+  const sweepDeg = sweepDegFrom(p, ref, fwd, interval);
   const labels = [];
   const { spread, offset } = std;
   const offsetJudges3 = offset.on && id === 3;
   if (spread.on) {
     if (interval < spread.minFt) labels.push('TIGHT');
     else if (interval > spread.maxFt) labels.push('WIDE');
-    if (!offsetJudges3) { // D78: #3's fore/aft is the offset standard's when it is on
-      if (foreAft > spread.foreAftTolFt) labels.push('FORE');
-      else if (foreAft < -spread.foreAftTolFt) labels.push('AFT');
-    }
+    const fa = offsetJudges3 ? null : spreadForeAft(spread, foreAft, sweepDeg); // D78: #3's fore/aft is the offset standard's when it is on
+    if (fa) labels.push(fa);
   }
   let offsetAftFt = null, offsetStatus = null;
   if (offsetJudges3) {
@@ -95,7 +126,7 @@ export function classifyDebriefPosition(id, live, leadHdg, std = V6_STANDARDS) {
     else offsetStatus = 'OFFSET OK';
   }
   if (!labels.length && (spread.on || offset.on)) labels.push('ON PARAMETERS');
-  return { labels, intervalFt: interval, foreAftFt: foreAft, offsetAftFt, offsetStatus };
+  return { labels, intervalFt: interval, foreAftFt: foreAft, sweepDeg, offsetAftFt, offsetStatus };
 }
 
 /**
@@ -129,7 +160,12 @@ export function classifyLeadParameters(lead, estG, std = V6_STANDARDS) {
 export function standardsSummaryLines(std = V6_STANDARDS) {
   const { spread, offset, lead } = std;
   const lines = [];
-  if (spread.on) lines.push(`Spread: ${Math.round(spread.minFt)}-${Math.round(spread.maxFt)} ft, 3/9 ±${Math.round(spread.foreAftTolFt)} ft`);
+  if (spread.on) {
+    const foreAft = Number.isFinite(spread.sweepMaxDeg)
+      ? `sweep ${+(spread.sweepMinDeg || 0).toFixed(1)} to ${+spread.sweepMaxDeg.toFixed(1)}°`
+      : `3/9 ±${Math.round(spread.foreAftTolFt)} ft`;
+    lines.push(`Spread: ${Math.round(spread.minFt)}-${Math.round(spread.maxFt)} ft, ${foreAft}`);
+  }
   if (offset.on) lines.push(`Offset #3 aft: ${Math.round(offset.aftTargetFt)} ±${Math.round(offset.aftTolFt)} ft`);
   if (lead.on) lines.push(`Lead: ${Math.round(lead.targetKt)} ±${Math.round(lead.speedTolKt)} kt, ${lead.targetG.toFixed(1)} ±${lead.gTol.toFixed(2)} G`);
   return lines;
@@ -147,8 +183,9 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
  * @param {string} [formation] Turn Sim's formation setting; 'offsetBox' judges by the offset box,
  *   anything else by spread (V6 reads 'weighted' when the setting is missing)
  * @param {object} [std]      standards, shaped like V6_STANDARDS
- * @returns {{labels: string[], intervalFt: number, foreAftFt: number, lateralFromLead: number,
- *   measureNote: string, aftDistanceFt?: number}}
+ * @returns {{labels: string[], intervalFt: number, foreAftFt: number, sweepDeg: number|null,
+ *   lateralFromLead: number, measureNote: string, aftDistanceFt?: number}} sweepDeg as for the
+ *   debrief (#3 in the offset box, judged by the offset standard, has none)
  */
 export function classifyTurnSimPosition(a, fleet, formation = 'weighted', std = V6_STANDARDS) {
   const lead = fleet[0];
@@ -158,6 +195,7 @@ export function classifyTurnSimPosition(a, fleet, formation = 'weighted', std = 
   const foreAft = along(a, lead, fwd);
   const labels = [];
   let interval = 0;
+  let sweepDeg = null;
   let measureNote = '';
 
   if (formation === 'offsetBox') {
@@ -166,10 +204,11 @@ export function classifyTurnSimPosition(a, fleet, formation = 'weighted', std = 
     if (a.id === 2) {
       // Front element: #2 is judged from Lead's 3/9 line and its interval from Lead.
       interval = Math.abs(lateralFromLead);
+      sweepDeg = sweepDegFrom(a, lead, fwd, interval);
       if (interval < spread.minFt) labels.push('TIGHT');
       else if (interval > spread.maxFt) labels.push('WIDE');
-      if (foreAft > spread.foreAftTolFt) labels.push('FORE');
-      else if (foreAft < -spread.foreAftTolFt) labels.push('AFT');
+      const fa = spreadForeAft(spread, foreAft, sweepDeg);
+      if (fa) labels.push(fa);
       measureNote = 'front element';
     } else if (a.id === 3) {
       // Slot: #3 is judged by the straight-back distance from Lead's 3/9 line to its own.
@@ -183,17 +222,18 @@ export function classifyTurnSimPosition(a, fleet, formation = 'weighted', std = 
         if (lateralFromLead < minLat - SLOT_MARGIN_FT || lateralFromLead > maxLat + SLOT_MARGIN_FT) labels.push('WIDE');
       }
       measureNote = 'Lead 3/9 to #3 3/9';
-      return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: aftDistance, foreAftFt: foreAft, lateralFromLead, measureNote, aftDistanceFt: aftDistance };
+      return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: aftDistance, foreAftFt: foreAft, sweepDeg, lateralFromLead, measureNote, aftDistanceFt: aftDistance };
     } else if (a.id === 4 && three) {
       // #4 behind #3: interval from #3, fore/aft against #3's 3/9 line.
       interval = Math.abs(across(a, three, left));
       const foreAftFrom3 = along(a, three, fwd);
+      sweepDeg = sweepDegFrom(a, three, fwd, interval);
       if (interval < spread.minFt) labels.push('TIGHT');
       else if (interval > spread.maxFt) labels.push('WIDE');
-      if (foreAftFrom3 > spread.foreAftTolFt) labels.push('FORE');
-      else if (foreAftFrom3 < -spread.foreAftTolFt) labels.push('AFT');
+      const fa = spreadForeAft(spread, foreAftFrom3, sweepDeg);
+      if (fa) labels.push(fa);
       measureNote = '#3 3/9 reference';
-      return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: interval, foreAftFt: foreAftFrom3, lateralFromLead, measureNote };
+      return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: interval, foreAftFt: foreAftFrom3, sweepDeg, lateralFromLead, measureNote };
     }
   } else {
     // Spread: #2 and #3 from Lead; #4 from #3 when #3 is well out on the same side.
@@ -206,11 +246,12 @@ export function classifyTurnSimPosition(a, fleet, formation = 'weighted', std = 
       }
     }
     interval = Math.abs(across(a, ref, left));
+    sweepDeg = sweepDegFrom(a, ref, fwd, interval);
     if (interval < spread.minFt) labels.push('TIGHT');
     else if (interval > spread.maxFt) labels.push('WIDE');
-    if (foreAft > spread.foreAftTolFt) labels.push('FORE');
-    else if (foreAft < -spread.foreAftTolFt) labels.push('AFT');
+    const fa = spreadForeAft(spread, foreAft, sweepDeg);
+    if (fa) labels.push(fa);
   }
   if (!labels.length) labels.push('ON SPACING');
-  return { labels, intervalFt: interval, foreAftFt: foreAft, lateralFromLead, measureNote };
+  return { labels, intervalFt: interval, foreAftFt: foreAft, sweepDeg, lateralFromLead, measureNote };
 }

@@ -9,6 +9,13 @@ import { gFromTrack } from '../../src/core/flight-math.js';
 import { loadV6, v6Number, v6Page, v6FunctionText } from './v6-source.js';
 import { seeded, recordedTrack } from './inputs.js';
 
+/** V6 gives no sweep angle (D116 added it), so the comparison leaves it out; V6's own fore/aft check is pinned. */
+function withoutSweep(result) {
+  if (!result) return result;
+  const { sweepDeg, ...rest } = result;
+  return rest;
+}
+
 // ── The debrief ──
 
 function debriefV6() {
@@ -94,7 +101,7 @@ test('classifyDebriefPosition matches classifyKmlError, and the lead and summary
       if (d78) dom.kmlForeAftTol = { value: '1e300' };
       const want = v6.classifyKmlError(id, live);
       dom.kmlForeAftTol = faTol;
-      assert.deepEqual(classifyDebriefPosition(id, live, leadHdg, std), want, `case ${i}, #${id}`);
+      assert.deepEqual(withoutSweep(classifyDebriefPosition(id, live, leadHdg, std)), want, `case ${i}, #${id}`);
       if (want) seen.add(`${d78 ? '#3 both on: ' : ''}${want.labels.join(' / ')}`);
       if (want && want.labels.join(' / ') !== v6Labels) seen.add(`D78 changed ${v6Labels} to ${want.labels.join(' / ')}`);
     }
@@ -157,7 +164,7 @@ test('classifyTurnSimPosition matches classifyFormationError with V6\'s numbers'
     for (const a of fleet) {
       const want = v6.classifyFormationError(a);
       const got = formation === undefined ? classifyTurnSimPosition(a, fleet) : classifyTurnSimPosition(a, fleet, formation);
-      assert.deepEqual(got, want, `case ${i}, ${formation}, #${a.id}`);
+      assert.deepEqual(withoutSweep(got), want, `case ${i}, ${formation}, #${a.id}`);
       seen.add(`${formation === 'offsetBox' ? 'box' : 'spread'} ${want.labels.join(' / ')}`);
     }
   }
