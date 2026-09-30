@@ -33,7 +33,7 @@ import { degToRad, radToDeg, angleDiffRad } from './angles.js';
  * @param {number} [o.shooterClimbFps] the shooter's climb from its track, feet per second (+ up; 0 if unknown)
  * @param {number} o.pitchDeg   shooter pitch plus the pitch bias setting
  * @param {number} o.ballKt     ball speed setting (V6 default 350)
- * @param {number} o.coneDeg    full cone width (V6 default 6, so ±3°; Q35, to review later)
+ * @param {number} o.coneDeg    full cone width (V6 default 6, so ±3°; Q35, D77)
  * @param {number} o.tofSec     time of flight (V6 default 3, at least 0.25)
  * @param {number} o.hitRadiusFt hit radius (V6 default 250, at least 10)
  * @param {boolean} o.gravity   whether the ball drops
@@ -69,7 +69,7 @@ export function tennisBall({ shooter, target, targetAt, shooterHdg, shooterClimb
     if (d < best.dist) best = { dist: d, t: tau, ball: bp, target: tp };
   }
 
-  // INTERCEPT needs the target in the cone now (Q36, to review later; V6 ignored the cone).
+  // INTERCEPT needs the target in the cone now (Q36, D77; V6 ignored the cone).
   let status = 'OUT OF CONE';
   if (inConeNow) status = best.dist <= hitRadius ? 'INTERCEPT' : 'IN CONE';
   const rangeNow = Math.hypot(target.x - shooter.x, target.y - shooter.y, (target.altFt || 0) - (shooter.altFt || 0));

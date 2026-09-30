@@ -13,6 +13,27 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 - **Duplicates collapse into one function** only when a golden test shows every V6 copy agrees, or pins exactly where they differ. Copies that disagree in a way people could see are flagged, not merged (the tennis-ball solvers).
 - **Exact match by default:** tolerances only where V6's own copies differ, or when comparing with numbers recorded in a browser (1e-12 relative, because engines round `sin`, `cos` and `atan2` differently in the last digit).
 
+## Skills used
+
+From [`.claude/skills/`](../../.claude/skills/README.md). Each PR description lists the skills it applied.
+
+| Skill | How `core` uses it |
+|---|---|
+| spec-driven-development | SPEC-core.md came first and Patrick approved it before any code. New ports that other specs ask for (Turn Sim, Turn Fight) are added to SPEC-core first. |
+| planning-and-task-breakdown | This plan and [`todo.md`](todo.md): small tasks, each with acceptance, verification and size. |
+| test-driven-development | Golden tests run V6's own function next to each port and must pass before the port counts (R9). A fix (D39, D62, D63, D74) first changes the test to the new expected number, sees it fail, then changes the code. |
+| incremental-implementation | One function or one decision per commit: port and pin first, then each fix as its own commit (D10). |
+| debugging-and-error-recovery | When a golden test stops matching V6, or CI goes red: reproduce, find the root cause, never loosen a tolerance to pass. |
+| code-review-and-quality | An independent review of each PR's diff before it leaves draft. The mutation check and the browser check are part of that review. |
+| code-simplification | After a port is pinned: collapse duplicate V6 copies and drop dead code, with the golden tests proving nothing changed. |
+
+Not used by `core`: frontend-ui-engineering (no screens), security-and-hardening (no outside data; flight-data and the screens check input), performance-optimization (unless a screen measures core as slow).
+
+### For the remaining work
+
+- **Task 11 (3D attitude, D40, D47)** and **Task 12 (Turn Sim G correction, D74):** test-driven-development and incremental-implementation. Pin V6 in a golden test, then land each decision as its own commit, with the test changed first. Use debugging-and-error-recovery if the pin won't match. Run code-review-and-quality before the PR leaves draft.
+- **Ports the Turn Sim and Turn Fight specs ask for:** spec-driven-development first, adding the API to SPEC-core. Then planning-and-task-breakdown for new tasks here, and the same build loop. Use code-simplification where a Turn Sim or Turn Fight copy duplicates a function already in `core`.
+
 ## Task list
 
 ### Phase 1: base pieces (PR #51)
@@ -49,7 +70,7 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 
 ### Checkpoint: complete
 - [x] Every function in SPEC-core's tables is ported and pinned
-- [ ] Patrick reviews PR 3
+- [x] Patrick reviews PR 3 ("go for 67", 2026-09-30)
 
 ## Risks and mitigations
 
@@ -69,6 +90,4 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 
 ## Open questions
 
-- Tennis ball: review the cone width and the in-cone rule for INTERCEPT later (D63).
-- Q39: whether the offset standard alone judges #3's fore/aft.
 - Whether `core` should also guard against infinite input (default: only the screens do).

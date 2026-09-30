@@ -37,6 +37,21 @@ test('Local first in Settings swaps the order at once and after a reload', async
   await expect(page.locator('#app-clock .clock-second')).toHaveText(/Z$/);
 });
 
+test('local time follows the home field set in Settings, at once and after a reload', async ({ page }) => {
+  await freezeAtNoon(page);
+  await openRoute(page, '#/');
+  const second = page.locator('#app-clock .clock-second');
+  await expect(second).toHaveText('12:00:00 CST');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const home = page.getByLabel('Home field');
+  await home.fill('CYXH'); // Medicine Hat, Mountain time: daylight time in September
+  await home.press('Enter');
+  await expect(second).toHaveText('12:00:00 MDT');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.reload();
+  await expect(second).toHaveText(/^12:00:0\d MDT$/);
+});
+
 test('the clock stays in the header row on every page and never overlaps the buttons', async ({ page }) => {
   await openRoute(page, '#/about');
   const clock = await page.locator('#app-clock').boundingBox();

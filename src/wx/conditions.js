@@ -2,7 +2,7 @@
 // Tokens are read one at a time, so a TAF period such as "2916/2920" can never be
 // mistaken for visibility (audit issue #1).
 
-// Swap for core/units.js once the flight-math core has merged (SPEC-wx assumption 4).
+// Kept here: core/units.js has no statute mile (SPEC-wx assumption 4).
 export const METRES_PER_SM = 1609.344;
 // "9999" and CAVOK both mean 10 km or more.
 const TEN_KM = { sm: 10000 / METRES_PER_SM, qualifier: 'more', metres: 9999 };
