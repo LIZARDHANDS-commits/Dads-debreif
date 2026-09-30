@@ -291,7 +291,7 @@ This model is `core`'s shared T-6A performance model (SPEC-core, "API, fifth PR:
   - speed changes by dV/dt = g((T − D)/W − sin γ).
   The step works on the velocity as a vector, not on heading and climb angle, so an Immelmann or split S passes straight up or down without dividing by cos 90° = 0. A fourth-order Runge-Kutta step at 0.02 s keeps the energy error far below what the screen shows.
 - **Speeds.** The charts are in indicated airspeed (IAS), and the motion uses true airspeed (TAS). TAS = IAS ÷ √σ, with σ the standard-atmosphere density ratio `core` already has (`isaDensityRatio`). Compressibility is ignored; the fight stays below 25,000 ft and VMO.
-- **Limits (T-6A V-n diagram, clean, 5,168 lb).** +7 G and −3.5 G symmetric; +4.7 G while rolling; the stall limit G = (KIAS ÷ 86)², which reaches 7 G at 227.5 KIAS, matching VO, the manoeuvring speed of 227 KIAS; VMO 316 KIAS.
+- **Limits (T-6A V-n diagram, clean, 5,168 lb).** +7 G and −3.5 G symmetric; +4.7 G while rolling; the stall limit G = (KIAS ÷ 86)², which reaches 7 G at 227.5 KIAS; VMO 316 KIAS. The 86 kt is the agreed setting (Patrick, 2026-09-30), not a chart reading: the V-n curve itself reads about 89 kt (7 G near 236 KIAS), and VO, 227 KIAS, is a limit speed rather than the V-n corner, so 227.5 lining up with it is a coincidence of the 86.
 - **Thrust minus drag** comes from the T-6A sustained turn rate and radius charts (maximum power, clean, standard day). In a sustained turn, thrust equals drag, so each point on those charts gives the drag at that speed, altitude and G. A standard drag polar (drag = a zero-lift part plus a part growing with G² at a given speed) and a propeller thrust that falls with speed and density are fitted to the chart points at sea level, 10,000 and 20,000 ft. Then (T − D)/W at any speed, altitude and G comes from the fit. The chart points, read off by eye, are kept in a data file with their chart and reading notes.
 - **Weight** is fixed at the chart's weight (maximum take-off weight less the fuel to climb), with no fuel burn.
 
@@ -303,12 +303,12 @@ This model is `core`'s shared T-6A performance model (SPEC-core, "API, fifth PR:
 | Sustained turn rate at 10,000 and 20,000 ft | about 16.5 and 12°/s at their best | within 1°/s |
 | Zero sustained turn (1 G sustained) | about 260 KIAS at sea level | within 10 kt |
 | Smallest sustained turn radius, sea level | about 650 to 700 ft near 140 KIAS | within 10 % |
-| Corner (7 G first available) | 227 KIAS (VO) | 227.5 KIAS from the stall limit |
+| Corner (7 G first available) | about 236 KIAS on the V-n curve (VO, 227 KIAS, is a limit speed, not the corner) | 227.5 KIAS from the 86 kt stall setting (a check of the setting, not the chart) |
 | Instantaneous turn at the corner, sea level | not on a chart | 33.3°/s on a 659 ft radius (7 G at 227 KIAS) |
 | Level MPT speed (SMM 14.14 para 34) | about 150 KIAS minus altitude in thousands: 140 at 10,000 ft, 144 at 6,000 ft | within 5 kt, at the shaker, full power |
 | A stall costs the turn | SMM 14.14 para 32 | a pull past the stall line gives 1 G for 1 s, then back to the shaker |
 
-**One mismatch to settle.** The sustained-turn chart's peak (20.6°/s at 140 KIAS) needs about 2.8 G, but the V-n stall line gives 2.65 G at 140 KIAS, which caps the peak at about 19.1°/s. The reason is weight: the V-n diagram is at maximum take-off weight (5,168 lb), while the sustained-turn charts are at maximum take-off weight less climb fuel, and stall speed goes with the square root of weight, so the lighter jet stalls near 83 kt. **Default:** keep the V-n stall line (86 kt, as agreed) and accept a best sustained rate about 1.5°/s low at the stall limit. The stall speed is one constant, so it can change to about 83 kt if Dad prefers the turn chart. The chart checks run with it at 83 kt. This is flagged for his check.
+**Stall speed (settled at 86 kt, Patrick 2026-09-30).** The sustained-turn chart's peak (20.6°/s at 140 KIAS) needs about 2.8 G, but an 86 kt stall line gives 2.65 G at 140 KIAS, which caps the peak at about 19.1°/s. The turn charts imply a stall near 83 kt, most likely because they are flown at maximum power and a power-on stall comes at a lower speed (NFM p.6-6), not because of weight. The V-n curve reads about 89 kt. The model keeps 86 kt and accepts a best sustained rate about 1.5°/s low at the stall limit. The stall speed is one constant (a model setting), and the chart checks run with it at 83 kt.
 
 ### For Dad to check
 
@@ -351,7 +351,7 @@ Any two of AA, HCA and ATA, with their sides, fix the third. The screen sets the
   - a small picture of the start, drawn from the numbers;
   - a "Head-on (V6)" button that puts back ATA 0° and AA 180°.
   - For example: ATA 0° with AA 90° is Red crossing Blue's nose, HCA 90°. ATA 0° with AA 0° is Blue dead astern of Red, HCA 0°.
-- **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft. The range stays the slant range. In the simple mode with Climb and dive on, a "Red starts above Blue" height (−5,000 to +5,000 ft, default 0) sets the starting height difference.
+- **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft, from the deck up to 25,000 ft. Above 15,000 ft a note beside the box says the model's sustained turn rate reads low up there (core's check found it up to 28 % low at 20,000 ft and above near 200 KIAS, and within 0.65°/s at 15,000 ft and below); the note goes once core's high-altitude fix lands. Decision logged for Patrick's review, 2026-09-30. The range stays the slant range. In the simple mode with Climb and dive on, a "Red starts above Blue" height (−5,000 to +5,000 ft, default 0) sets the starting height difference.
 - **When the turns start**, under More detail:
   - At the pass (default): each aircraft flies straight until the range stops closing. At head-on that is V6's merge, T+16.4 s at the defaults. If the range is opening from the start, the turns start at once.
   - At once: the turns start at T+0, for a set-up like an offensive perch where the fight is already on.
