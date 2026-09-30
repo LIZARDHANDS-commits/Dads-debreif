@@ -181,6 +181,9 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     listen(heightInput, 'change', () => {
       const typed = layout.get().wxWindArrowFt;
       const used = clampArrowFt(typed);
+      // Only when the box holds the saved value: a refused entry (over the top) keeps its warning,
+      // not a part of it saved on the way ("3123" of "31234").
+      if (Number(heightInput.value) !== typed) return;
       if (Number.isFinite(typed) && typed !== used) layout.update({ wxWindArrowFt: used });
     });
   }

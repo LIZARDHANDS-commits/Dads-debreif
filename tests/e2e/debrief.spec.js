@@ -1272,6 +1272,15 @@ test('wind arrows: off at first, one request for nine points when on, a caption,
   await page.getByLabel('Wind arrow height').press('Tab');
   await expect(page.getByLabel('Wind arrow height')).toHaveValue('8500');
   await expect(caption).toHaveText(`Model wind at 8,500 ft (HRDPS ${hours}, Open-Meteo)`);
+  // A refused height keeps what was typed and its warning; a part of it saved on the way is not written back.
+  await page.getByLabel('Wind arrow height').fill('');
+  await page.getByLabel('Wind arrow height').pressSequentially('31234');
+  await page.getByLabel('Wind arrow height').press('Tab');
+  await expect(page.getByLabel('Wind arrow height')).toHaveValue('31234');
+  await expect(page.getByLabel('Wind arrow height')).toHaveAttribute('aria-invalid', 'true');
+  await page.getByLabel('Wind arrow height').fill('8500');
+  await page.getByLabel('Wind arrow height').press('Tab');
+  await expect(page.getByLabel('Wind arrow height')).toHaveValue('8500');
   // The arrows' checkbox sits on the same row as its height box (re-check of #213, W5).
   const rowOf = async (label) => Math.round((await page.getByLabel(label).boundingBox()).y);
   expect(Math.abs((await rowOf('Wind arrows (model)')) - (await rowOf('Wind arrow height')))).toBeLessThan(24);
