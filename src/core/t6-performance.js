@@ -12,9 +12,11 @@ import { T6A_FIT } from './t6a-turn-charts.js';
 import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js';
 
 /**
- * The T-6A V-n diagram and airspeed limits (clean, 5,168 lb, maximum take-off weight).
- * stallKias is the V-n stall line's 1 G stall speed; the turn charts' lighter jet
- * stalls near 83 kt instead; Patrick kept 86 (2026-09-30 09:29Z).
+ * The T-6A V-n diagram and airspeed limits (clean, at the V-n diagram's 5,168 lb).
+ * stallKias is the 1 G stall speed: 86 kt, which Patrick kept (2026-09-30
+ * 09:29Z). The V-n curve itself reads about 89 kt (7 G near 236 KIAS), and the
+ * turn charts imply about 83 kt at maximum power (likely because power on
+ * lowers the stall speed, NFM p.6-6). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,

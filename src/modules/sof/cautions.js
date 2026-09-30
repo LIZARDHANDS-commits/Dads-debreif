@@ -215,6 +215,7 @@ const BANNER_AHEAD_MS = 12 * 3_600_000;
  * so an evening never shows an empty look-ahead. With no readable zone it is
  * now to now + 12 h. Null when the time now can't be read.
  * Returns `{ from, to }`.
+ * @param {{ now?: any, timeZone?: any }} [input]
  */
 export function bannerWindow({ now, timeZone } = {}) {
   if (!validDate(now)) return null;
@@ -234,6 +235,7 @@ export function bannerWindow({ now, timeZone } = {}) {
  * windows. A TAF missing, or ended before the window starts, gives wx's status
  * ('no-taf', 'no-time') and no cautions, so its acknowledgements stay.
  * `tafs` maps ICAO to wx's parsed TAF (or null), as `waveCalls` takes it.
+ * @param {{ tafs?: any, now?: any, timeZone?: any }} [input]
  */
 export function tafCautionsForBanner({ tafs, now, timeZone } = {}) {
   const window = bannerWindow({ now, timeZone });
@@ -260,7 +262,10 @@ export function ackDay(now, timeZone) {
   return date ? `${date.year}-${two(date.month)}-${two(date.day)}` : null;
 }
 
-/** An empty store for today at home. */
+/**
+ * An empty store for today at home.
+ * @param {{ now?: any, timeZone?: any }} [input]
+ */
 export function emptyAcks({ now, timeZone } = {}) {
   return { version: VERSION, day: ackDay(now, timeZone), keys: [] };
 }
@@ -271,6 +276,8 @@ const validKeys = (keys) => Array.isArray(keys) && keys.length <= MAX_KEYS
 /**
  * A stored acknowledgement object checked for shape and day. Anything wrong,
  * or from another day, reads as nothing acknowledged. Returns a copy.
+ * @param {any} stored
+ * @param {{ now?: any, timeZone?: any }} [input]
  */
 export function readAcks(stored, { now, timeZone } = {}) {
   const today = ackDay(now, timeZone);
@@ -325,6 +332,7 @@ function readableSources(cards, tafs) {
  *
  * Returns `{ cautions, fresh, acknowledged, acks, changed, storable }`; every caution
  * has `acknowledged` true or false. Nothing passed in is changed.
+ * @param {{ cards?: any, tafs?: any, extra?: any, acks?: any, now?: any, timeZone?: any }} [input]
  */
 export function evaluate({ cards, tafs, extra, acks, now, timeZone } = {}) {
   const current = readAcks(acks, { now, timeZone });
