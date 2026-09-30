@@ -387,10 +387,10 @@ test('today at home is the home date, not the UTC date', () => {
 });
 
 test('a day with a clock change is 23 or 25 hours long, and positions use the real length', () => {
-  const m = timelineModel({ now: new Date('2026-11-01T12:00:00Z'), timeZone: 'America/Edmonton', date: { year: 2026, month: 11, day: 1 }, rows: [] });
+  const m = timelineModel({ now: new Date('2026-11-01T12:00:00Z'), timeZone: 'America/Toronto', date: { year: 2026, month: 11, day: 1 }, rows: [] });
   assert.equal((+m.axis.to - +m.axis.from) / HOUR, 25);
-  const wave = planToUtc([{ takeoff: '23:00', land: '23:30' }], { now: NOW, timeZone: 'America/Edmonton', date: { year: 2026, month: 11, day: 1 } }).waves;
-  const w = timelineModel({ now: new Date('2026-11-01T12:00:00Z'), timeZone: 'America/Edmonton', date: { year: 2026, month: 11, day: 1 }, waves: wave, rows: [] }).waves[0];
+  const wave = planToUtc([{ takeoff: '23:00', land: '23:30' }], { now: NOW, timeZone: 'America/Toronto', date: { year: 2026, month: 11, day: 1 } }).waves;
+  const w = timelineModel({ now: new Date('2026-11-01T12:00:00Z'), timeZone: 'America/Toronto', date: { year: 2026, month: 11, day: 1 }, waves: wave, rows: [] }).waves[0];
   assert.ok(Math.abs(w.x0 - (+wave[0].takeoff - +m.axis.from) / (25 * HOUR)) < 1e-12);
 });
 
