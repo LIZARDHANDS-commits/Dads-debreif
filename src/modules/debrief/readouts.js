@@ -2,14 +2,48 @@
 // and standards). Every number comes from flight-data (where each ship is)
 // and core (aspect, HCA, closure, standards); this file only picks the
 // moments and puts the answers in rows. No page access, so it's tested in Node.
-import { sampleAt, headingAt, pitchAt, gAt } from '../../flight-data/flight.js';
-import { aspectAngleDeg, headingCrossAngleDeg } from '../../core/angles.js';
+import { sampleAt, headingAt, pitchAt, gAt, estimatedGAt } from '../../flight-data/flight.js';
+import { aspectAngleDeg, headingCrossAngleDeg, wrapPi } from '../../core/angles.js';
 import { closureKt, formatClosureKt as formatClosure, isaDensityRatio } from '../../core/flight-math.js';
 import { classifyDebriefPosition, classifyLeadParameters } from '../../core/standards.js';
 import { bankFromTrack } from './view3d/scene.js';
 
 /** V6 measured closure over the last second (closureRateKt, line 3119). */
 export const CLOSURE_LOOKBACK_S = 1;
+
+/**
+ * Airborne: est. IAS 80 kt or more; a judgement call logged for review
+ * (verification M1). Below it Lead is on the ground or taxiing, so the
+ * standards (built for formation flight) give no wingman labels and no Lead
+ * verdict; Lead's line shows its numbers alone. Est. IAS comes from ground
+ * speed, so a steep pull-up can dip under it in the air too: the card says
+ * "Lead under 80 kt", not "on the ground" (audit of #194, Y4; logged for review).
+ */
+export const AIRBORNE_IAS_KT = 80;
+
+/**
+ * Lead's speed is judged only inside the SMM's two blocks (Gen Book p.12):
+ * the Low block from 6,000 ft MSL (it runs to 10,000 ft) and the Mid block up
+ * to 15,500 ft MSL (it starts at 10,500 ft). Which of the two targets applies
+ * stays core's split (lowBlockTopFt). Outside them Lead's line says "not
+ * judged". A judgement call logged for review (verification M1).
+ */
+export const LOW_BLOCK_FLOOR_FT = 6000;
+export const MID_BLOCK_CEILING_FT = 15_500;
+
+/** Why Lead is outside the blocks at `altFt`, or null inside them (or with no altitude: core's default block applies). */
+function outsideBlocks(altFt) {
+  if (!Number.isFinite(altFt)) return null;
+  if (altFt < LOW_BLOCK_FLOOR_FT) return 'below the low block';
+  if (altFt > MID_BLOCK_CEILING_FT) return 'above the mid block';
+  return null;
+}
+
+/** Is Lead (a { spdKt, altFt } place, or null) airborne by est. IAS? No number, no verdict. */
+function leadAirborne(leadPlace) {
+  const ias = leadPlace ? estIasKt(leadPlace.spdKt, leadPlace.altFt) : null;
+  return Number.isFinite(ias) && ias >= AIRBORNE_IAS_KT;
+}
 
 /**
  * Estimated indicated airspeed from ground speed and altitude: ground speed ×
@@ -20,6 +54,31 @@ export const CLOSURE_LOOKBACK_S = 1;
 export function estIasKt(gsKt, altFt) {
   if (!Number.isFinite(gsKt)) return null;
   return gsKt * Math.sqrt(Math.max(0.15, isaDensityRatio(Number.isFinite(altFt) ? altFt : 6500)));
+}
+
+/** Est. G's window, seconds either side of t (flight-data's estimatedGAt); the bank's turn rate uses the same one (M2). */
+export const TURN_WINDOW_S = 1.5;
+
+/**
+ * Turn rate in radians a second, left (counter-clockwise) positive, from the
+ * heading change over t−1.5 s to t+1.5 s: the window and the headings
+ * flight-data's estimatedGAt uses for est. G, so the bank drawn from it agrees
+ * with the G beside it (verification M2). Null whenever est. G over the same
+ * window is: the track too short, the aircraft still at either end (no
+ * heading, C7), the window touching a GPS gap, or a G above the T-6's 7 G
+ * (D32). Null draws the wings level, beside "G --" (audit of #194, Y2).
+ */
+export function turnRateAt(track, t, windowS = TURN_WINDOW_S) {
+  const f = track?.fixes;
+  if (!f || f.length < 3) return null;
+  const t0 = Math.max(f[0].t, t - windowS);
+  const t1 = Math.min(f[f.length - 1].t, t + windowS);
+  if (t1 - t0 < 0.5) return null;
+  if (estimatedGAt(track, t, windowS) === null) return null;
+  const h0 = headingAt(track, t0);
+  const h1 = headingAt(track, t1);
+  if (h0 === null || h1 === null) return null;
+  return wrapPi(h1 - h0) / (t1 - t0);
 }
 
 /** A ship's place for core's formulas: { x, y } in map feet, plus V6's names for speed and altitude. */
@@ -73,6 +132,7 @@ function judgeFormation(tracks, live, inGap, leadHdg, standards) {
       if (!live[1]) return { ...row, state: 'no-lead' };
       if (inGap[slot].inGap || inGap[1].inGap) return { ...row, state: 'gap' };
       if (leadHdg === null) return { ...row, state: 'no-heading' };
+      if (!leadAirborne(live[1])) return { ...row, state: 'ground' };
       if (!standards || !standardApplies(slot, standards)) return { ...row, state: 'no-standard' };
       const pos = classifyDebriefPosition(slot, live, leadHdg, standards);
       const labels = pos.labels;
@@ -127,11 +187,9 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     const s = now[tr.slot];
     const g = gAt(tr, t, { recorded: recordedG });
     const pitch = pitchAt(tr, t);
-    // The bank of the turn over ±1 s, as the 3D view draws it (D40, item G).
+    // The bank of the turn over the same ±1.5 s as est. G, as the 3D view draws it (D40, item G, M2).
     const bank = bankFromTrack({
-      before: { ...at(sampleAt(tr, t - 1)), t: t - 1 },
-      now: { ...live[tr.slot], t },
-      after: { ...at(sampleAt(tr, t + 1)), t: t + 1 },
+      turnRateRadPerS: turnRateAt(tr, t),
       speedKt: s.speedKt,
       recordedBankDeg: s.bankRecordedDeg,
       pitchDeg: pitch.deg,
@@ -160,13 +218,16 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
   let lead = null;
   if (live[1]) {
     const leadShip = bySlot[1];
+    // No verdict on the ground (M1a) or outside the blocks (M1b), checked before core's classifier is asked.
+    const eligible = standards && !leadShip.inGap && leadAirborne(live[1]);
+    const outside = eligible && standards.lead?.on ? outsideBlocks(leadShip.altFt) : null;
     // Lead's altitude picks the target speed by block (D115: 220 kt low, 200 kt mid).
-    const judged = standards && !leadShip.inGap
+    const judged = eligible && !outside
       ? classifyLeadParameters({ spdKt: leadShip.iasKt, altFt: leadShip.altFt, gNative: leadShip.gSource === 'recorded' ? leadShip.g : undefined }, leadShip.g, standards)
       : null;
     lead = {
       iasKt: leadShip.iasKt, g: leadShip.g, inGap: leadShip.inGap, labels: judged ? judged.labels : null,
-      targetKt: judged?.targetKt ?? null, block: judged?.block ?? null,
+      targetKt: judged?.targetKt ?? null, block: judged?.block ?? null, notJudged: outside,
     };
   }
 
@@ -227,6 +288,7 @@ export function formationText(row) {
   if (row.state === 'gap') return { text: 'GPS gap', tone: 'none' };
   if (row.state === 'no-lead') return { text: 'No Lead track', tone: 'none' };
   if (row.state === 'no-heading') return { text: '– (Lead not moving)', tone: 'none' };
+  if (row.state === 'ground') return { text: '– (Lead under 80 kt)', tone: 'none' };
   if (row.state === 'no-standard') return { text: '– (no standard on)', tone: 'none' };
   if (row.labels.length === 1 && row.labels[0] === 'ON PARAMETERS') return { text: 'On parameters', tone: 'good' };
   const by = (off) => (off.unit !== 'deg' ? ft(off.value) : off.value < 1 ? 'under 1°' : `${Math.round(off.value)}°`);
@@ -240,6 +302,7 @@ export function leadText(lead) {
   if (lead.inGap) return { text: 'Lead: GPS gap', tone: 'none' };
   const g = Number.isFinite(lead.g) ? `${lead.g.toFixed(1)} G` : 'G --';
   const numbers = `Lead ${kt(lead.iasKt)} est. IAS, ${g}`;
+  if (lead.notJudged) return { text: `${numbers}, not judged: ${lead.notJudged}`, tone: 'none' };
   if (!lead.labels) return { text: numbers, tone: 'none' };
   // With the SMM's two blocks (D115), the target Lead is judged against, so a change at 10,250 ft isn't a surprise.
   const target = lead.block ? ` (target ${kt(lead.targetKt)}, ${lead.block} block)` : '';

@@ -98,7 +98,11 @@ export function drawMarker(ctx, P, s, on) {
 export function labelShip(ctx, c, s, on) {
   ctx.font = '600 12px system-ui, sans-serif';
   outlined(ctx, `#${s.slot}`, c.x + 12, c.y - 14, SHIP_COLORS[s.slot]);
-  if (on.attLabels3d && s.hdg !== null) {
+  if (s.inGap) {
+    // The position is a guess in a GPS gap, so no bank or pitch (D32).
+    ctx.font = '10px system-ui, sans-serif';
+    outlined(ctx, 'GPS gap', c.x + 12, c.y + 2, TEXT);
+  } else if (on.attLabels3d && s.hdg !== null) {
     ctx.font = '10px system-ui, sans-serif';
     outlined(ctx, attitudeText(s), c.x + 12, c.y + 2, TEXT);
   }

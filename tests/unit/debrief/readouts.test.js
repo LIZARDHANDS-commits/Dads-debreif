@@ -1,13 +1,17 @@
 // The readout rows (SPEC-debrief: Readouts and standards, #18, #21, D31, D32, D47, D52, D78).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildFlight } from '../../../src/flight-data/flight.js';
+import { readFileSync } from 'node:fs';
+import { buildFlight, headingAt, estimatedGAt } from '../../../src/flight-data/flight.js';
+import { loadExampleFlight } from '../../../src/flight-data/examples.js';
+import { shipsIn3d } from '../../../src/modules/debrief/view3d/frame.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
 import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
-  estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
+  AIRBORNE_IAS_KT, LOW_BLOCK_FLOOR_FT, MID_BLOCK_CEILING_FT,
+  turnRateAt, estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
 const ref = makeLocalRef(50, -105);
@@ -192,4 +196,190 @@ test('the SMM lead standard (D115): 220 kt in the low block, 200 kt in the mid b
   assert.match(leadText(slow).text, /, SLOW \(target 220 kt, low block\)$/);
   // V6's one 200 kt target shows no block.
   assert.equal(readoutsAt(lead(8000, 240), T(30), { standards: V6_STANDARDS }).lead.block, null);
+});
+
+// ── M1(a): no verdicts on the ground (verification M1; a judgement call logged for review) ──
+
+const fromRepo = async (asset) => readFileSync(new URL(`../../../original/assets/${asset}`, import.meta.url), 'utf8');
+
+test('airborne means est. IAS of 80 kt or more', () => {
+  assert.equal(AIRBORNE_IAS_KT, 80);
+});
+
+test('Lead taxiing at 10 kt: no wingman labels and no Lead verdict, just its numbers', () => {
+  const kt = 10 * KT_TO_FTPS;
+  const taxi = buildFlight({
+    1: track('Lead', (t) => [kt * t, 0], { altFt: 8000 }),
+    2: track('Two', (t) => [kt * t, 5000], { altFt: 8000 }),
+    3: track('Three', (t) => [kt * t - 8000, -5000], { altFt: 8000 }),
+  });
+  for (const std of [V6_STANDARDS, DEFAULT_STANDARDS]) {
+    const r = readoutsAt(taxi, T(30), { standards: std });
+    assert.deepEqual(r.formation.map((row) => row.labels), [[], []]);
+    assert.deepEqual(r.formation.map((row) => row.state), ['ground', 'ground']);
+    assert.equal(mapLabel(r.formation[0]), null);
+    assert.equal(formationAt(taxi, T(30), std).every((row) => row.labels.length === 0), true);
+    assert.equal(r.lead.labels, null);
+    assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW|parameters/);
+    assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS, (1\.0 G|G --)$/);
+    assert.equal(formationText(r.formation[0]).text, '– (Lead under 80 kt)');
+  }
+});
+
+test('the gate is est. IAS 80 kt: just under gets no verdict, at 80 gets one', () => {
+  // At 8,000 ft est. IAS is about 0.86 of ground speed (density ratio 0.786 square-rooted, ~0.887).
+  const flightAt = (iasKt) => {
+    const gs = iasKt / estIasKt(1, 8000);
+    return buildFlight({ 1: track('Lead', (t) => [gs * KT_TO_FTPS * t, 0], { altFt: 8000 }) });
+  };
+  assert.equal(readoutsAt(flightAt(79.5), T(30), { standards: DEFAULT_STANDARDS }).lead.labels, null);
+  assert.deepEqual(readoutsAt(flightAt(80.5), T(30), { standards: DEFAULT_STANDARDS }).lead.labels, ['SLOW']);
+});
+
+test('the example flight\'s taxi: no SLOW, no wingman labels, while Lead is under 80 kt est. IAS', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  let taxiSeconds = 0;
+  for (let s = 0; s < 20 * 60; s += 5) {
+    const r = readoutsAt(flight, flight.startT + s, { standards: DEFAULT_STANDARDS });
+    if (!(r.lead.iasKt < AIRBORNE_IAS_KT)) continue;
+    taxiSeconds++;
+    assert.equal(r.lead.labels, null, `Lead verdict at +${s} s`);
+    assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW/);
+    assert.ok(r.formation.every((row) => row.labels.length === 0), `wingman label at +${s} s`);
+  }
+  assert.ok(taxiSeconds > 20, `${taxiSeconds} taxi samples`);
+});
+
+// ── M1(b): Lead is judged only inside the blocks (Gen Book p.12) ──
+
+test('the blocks: low from 6,000 ft, mid up to 15,500 ft (Gen Book p.12)', () => {
+  assert.equal(LOW_BLOCK_FLOOR_FT, 6000);
+  assert.equal(MID_BLOCK_CEILING_FT, 15_500);
+});
+
+test('Lead is judged from 6,000 ft to 15,500 ft and not outside them', () => {
+  const at = (altFt) => readoutsAt(
+    buildFlight({ 1: track('Lead', (t) => [240 * KT_TO_FTPS * t, 0], { altFt }) }), T(30), { standards: DEFAULT_STANDARDS },
+  ).lead;
+  const below = at(5999);
+  assert.equal(below.labels, null);
+  assert.equal(below.notJudged, 'below the low block');
+  assert.match(leadText(below).text, /^Lead \d+ kt est\. IAS, 1\.0 G, not judged: below the low block$/);
+  assert.equal(leadText(below).tone, 'none');
+  for (const altFt of [6000, 8000, 10_250, 15_500]) {
+    const judged = at(altFt);
+    assert.ok(Array.isArray(judged.labels), `${altFt} ft`);
+    assert.equal(judged.notJudged, null);
+  }
+  assert.equal(at(6000).block, 'low');
+  assert.equal(at(15_500).block, 'mid');
+  const above = at(15_501);
+  assert.equal(above.labels, null);
+  assert.equal(above.notJudged, 'above the mid block');
+  assert.match(leadText(above).text, /, not judged: above the mid block$/);
+  assert.doesNotMatch(leadText(above).text, /FAST|SLOW/);
+  assert.equal(at(2790).labels, null); // the example flight's 19:44 descent
+});
+
+test('V6\'s one-target standard is gated by the same blocks; a standard that is off says nothing', () => {
+  const at = (altFt, std) => readoutsAt(
+    buildFlight({ 1: track('Lead', (t) => [240 * KT_TO_FTPS * t, 0], { altFt }) }), T(30), { standards: std },
+  ).lead;
+  assert.equal(at(3000, V6_STANDARDS).notJudged, 'below the low block');
+  const off = { ...V6_STANDARDS, lead: { ...V6_STANDARDS.lead, on: false } };
+  assert.equal(at(3000, off).notJudged, null);
+  assert.doesNotMatch(leadText(at(3000, off)).text, /not judged/);
+});
+
+// ── M2: bank over the same window as G ──
+
+// #2 on the example flight at scrubber start+1676 to +1688, where the bank flickered while G read 1.0 to 2.1.
+// The readouts and the 3D view give the same bank (D40). Bank in degrees, left wing down positive.
+// The heading change over t±1.5 s, est. G's window (M2). At +1688 that window touches the GPS gap
+// after 1688.9 s, so G is "--" and the wings are level (audit of #194, Y2; it read −57.4° before).
+// The old ±1 s chord bank stays pinned on V6's path in tests/golden/debrief-3d.test.js.
+const EXAMPLE_BANK_PIN = [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, 0];
+
+test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same in the readouts and the 3D view', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const got = [];
+  for (let s = 1676; s <= 1688; s++) {
+    const bank = readoutsAt(flight, flight.startT + s).ships[1].bankDeg;
+    assert.equal(shipsIn3d(flight, flight.startT + s)[1].bankDeg, bank);
+    got.push(+bank.toFixed(4));
+  }
+  assert.deepEqual(got, EXAMPLE_BANK_PIN);
+});
+
+/** A small repeatable noise in -0.5 to 0.5, so the test is the same every run. */
+function noise(seed) {
+  let a = seed;
+  return () => { a = (a * 1664525 + 1013904223) % 4294967296; return a / 4294967296 - 0.5; };
+}
+
+test('a steady level turn with noisy fixes: the bank never flips side and stays within 15° of acos(1/G) from the same window', () => {
+  const speed = 200 * KT_TO_FTPS;
+  for (const [g, dir] of [[1.5, 1], [1.5, -1], [3, 1], [3, -1], [1.3, 1]]) {
+    const omega = (32.174 * Math.sqrt(g * g - 1)) / speed;
+    const radius = speed / omega;
+    const r = noise(Math.round(g * 100) + dir + 2);
+    // Up to 10 ft of position noise on every fix: a couple of degrees of heading noise a second.
+    const turn = buildFlight({
+      1: track('Lead', (t) => [radius * Math.sin(omega * t) + 20 * r(), dir * radius * (1 - Math.cos(omega * t)) + 20 * r()], { seconds: 60 }),
+    });
+    let prevSide = 0;
+    for (let s = 3; s <= 57; s++) {
+      const ship = readoutsAt(turn, T(s)).ships[0];
+      assert.ok(Number.isFinite(ship.g), `G at ${s} s`);
+      const want = (Math.acos(1 / ship.g) * 180) / Math.PI;
+      assert.ok(Math.abs(Math.abs(ship.bankDeg) - want) < 15, `g ${g} at ${s} s: bank ${ship.bankDeg}, acos(1/G) ${want}`);
+      const side = Math.sign(ship.bankDeg);
+      assert.equal(side, dir, `g ${g} dir ${dir} at ${s} s: bank ${ship.bankDeg}`);
+      if (prevSide) assert.equal(side, prevSide);
+      prevSide = side;
+    }
+  }
+});
+
+test('turnRateAt is the heading change over t±1.5 s, left positive; null when the heading is unknown', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const left = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))]) });
+  const right = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), -radius * (1 - Math.cos(omega * t))]) });
+  assert.ok(Math.abs(turnRateAt(left.tracks[1], T(30)) - omega) < 0.005);
+  assert.ok(Math.abs(turnRateAt(right.tracks[1], T(30)) + omega) < 0.005);
+  const parked = buildFlight({ 1: track('Lead', () => [0, 0]) });
+  assert.equal(turnRateAt(parked.tracks[1], T(30)), null);
+  assert.equal(turnRateAt({ fixes: [] }, 0), null);
+});
+
+test('turnRateAt at the ends of the track divides by the window it has, not the full 3 s', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const tr = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))]) }).tracks[1];
+  const rate = (a, b) => (headingAt(tr, T(b)) - headingAt(tr, T(a))) / (b - a);
+  assert.ok(Math.abs(turnRateAt(tr, T(0)) - rate(0, 1.5)) < 1e-12);
+  assert.ok(Math.abs(turnRateAt(tr, T(60)) - rate(58.5, 60)) < 1e-12);
+});
+
+// Audit of #194, Y2: the bank used to be worked out across a gap while G said "--".
+test('no bank from a window that touches a GPS gap: wings level wherever est. G is unknown for the gap', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const flight = buildFlight({
+    1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))], { skip: [21, 22, 23, 24, 25, 26, 27] }),
+  });
+  const tr = flight.tracks[1];
+  assert.ok(turnRateAt(tr, T(10)) > 0);
+  for (let s = 18.6; s <= 29.5; s += 0.1) {
+    const t = T(s);
+    if (estimatedGAt(tr, t) !== null) continue;
+    assert.equal(turnRateAt(tr, t), null, `turn rate at start+${s.toFixed(1)}`);
+    assert.equal(readoutsAt(flight, t).ships[0].bankDeg, 0, `bank at start+${s.toFixed(1)}`);
+  }
+  assert.equal(turnRateAt(tr, T(29.5)), null); // starts on the fix that ends the gap
+  assert.ok(turnRateAt(tr, T(30)) > 0);
 });
