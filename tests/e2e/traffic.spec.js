@@ -1241,3 +1241,43 @@ test('the first step back after an edit says Replaying… in the bar, and the ne
   await expect(clock(page)).toBeVisible();
   expect(await page.evaluate(() => window.__seen)).not.toContain('Replaying…');
 });
+
+// RW-03: the replay from 0 after an edit is flown a slice at a time, so the page keeps drawing while it says "Replaying…".
+test('with 30 aircraft the replay after an edit does not freeze the page: frames keep coming, and the run ends where -10 s goes', async ({ page }) => {
+  await open(page);
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 23; i++) await button(page, '+ Spawn').click(); // 7 + 23 = 30 aircraft
+  for (let i = 0; i < 120; i++) await page.keyboard.press(']'); // 20 minutes
+  expect(await seconds(page)).toBeGreaterThanOrEqual(19 * 60);
+  const at = await seconds(page);
+  await page.locator('[data-route-id="PAT1"]').click();
+  await button(page, '+ New route').click();
+  await page.getByRole('button', { name: 'Split', exact: true }).click(); // an edit: the snapshots are stale
+  await page.locator('.traffic-map-wrap').click({ position: { x: 5, y: 5 } });
+  // Count the gaps between animation frames while the replay runs.
+  await page.evaluate(() => {
+    window.__gaps = { last: performance.now(), worst: 0, frames: 0, on: true };
+    const tick = () => {
+      const now = performance.now();
+      window.__gaps.worst = Math.max(window.__gaps.worst, now - window.__gaps.last);
+      window.__gaps.last = now;
+      window.__gaps.frames++;
+      if (window.__gaps.on) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    window.__seen = [];
+    const el = document.querySelector('.bar-status');
+    new MutationObserver(() => window.__seen.push(el.textContent)).observe(el, { childList: true, characterData: true, subtree: true });
+  });
+  await page.keyboard.press('[');
+  await page.keyboard.press('Space'); // Play during the replay is ignored: the run must not be Running when it ends
+  await expect(status(page)).toHaveText('Paused', { timeout: 60000 }); // after "Replaying…"
+  expect(await page.evaluate(() => window.__seen)).toContain('Replaying…');
+  expect(await page.evaluate(() => window.__seen)).not.toContain('Running');
+  await page.waitForTimeout(400);
+  await expect(status(page)).toHaveText('Paused');
+  const gaps = await page.evaluate(() => { window.__gaps.on = false; return window.__gaps; });
+  expect(gaps.worst).toBeLessThan(500); // one long call would leave a gap as long as the whole replay
+  expect(gaps.frames).toBeGreaterThan(20);
+  expect(await seconds(page)).toBe(at - 10);
+});

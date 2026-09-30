@@ -21,7 +21,7 @@ const MAX_ADVANCE_SEC = 2;
 
 /**
  * sim: the engine's sim (sim.js). speed: playback speed (1 is real time).
- * Returns { mode, speed, simTime, play(), pause(), rewind(), reset(), setSpeed(x), seek(tSec), stepBy(seconds), tick(dtMs) }.
+ * Returns { mode, speed, simTime, play(), pause(), rewind(), reset(), setSpeed(x), seek(tSec), seekSteps(step), stepBy(seconds), tick(dtMs) }.
  * mode is 'paused', 'running' or 'rewinding'. tick returns true when it moved the run, so the screen
  * knows to redraw. A rewind that reaches 0 pauses itself.
  */
@@ -29,6 +29,12 @@ export function createClock({ sim, speed = 1, maxAdvanceSec = MAX_ADVANCE_SEC })
   let mode = 'paused';
   let rate = speed;
   let target = sim.t; // the sim time the run has been asked for; the engine catches up in whole steps
+
+  function seekToStep(step) {
+    sim.seekSteps(step);
+    target = sim.t;
+    if (mode === 'rewinding') mode = 'paused';
+  }
 
   return {
     get mode() {
@@ -59,12 +65,11 @@ export function createClock({ sim, speed = 1, maxAdvanceSec = MAX_ADVANCE_SEC })
       target = sim.t;
       if (mode === 'rewinding') mode = 'paused';
     },
+    /** Goes to a step (a whole number of steps from 0), exact at any length of run; the mode stays, except that a rewind stops. Does nothing to the sim if it is there already (the screen may have replayed to it in slices). */
+    seekSteps: seekToStep,
     /** Moves the run by 10 s of sim time, back (-10) or ahead (10), exactly, at any speed; playing carries on, a rewind stops. */
     stepBy(seconds) {
-      const steps = Math.sign(seconds) * TEN_SECONDS_STEPS;
-      sim.seekSteps(sim.steps + steps);
-      target = sim.t;
-      if (mode === 'rewinding') mode = 'paused';
+      seekToStep(sim.steps + Math.sign(seconds) * TEN_SECONDS_STEPS);
     },
     /** Stops, and puts every aircraft back at its start at 0 with the dice from the seed again. */
     reset() {

@@ -58,6 +58,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Built from 07:15Z (D134); pause
 - [x] **9. Rewind and ±10 s.** *Done: #216; fixes in branch `handover/traffic-rewind-fix`, not merged.* Snapshots every 10 s of sim time; Rewind plays backward; −10 s and +10 s; `[` and `]`.
   - Acceptance: fixes #46: any rewind or step lands exactly on the state the run had at that time, at 0.25× and 8×; rewind at 1 hour of sim time under 50 ms.
   - Verify: unit tests (forward run vs rewind at many times and speeds); performance log.
+  - Rewind fixes after the #216 re-check (traffic-recheck-216.md): a spawn, an aircraft's ✕ and Clear finished are timed events, so snapshots up to that step stay and the replay applies them at that step (RW-01, RW-02; the dice stay shared until task 12); the replay from 0 after a route, point or option edit is flown in frame-sized slices with "Replaying…" (RW-03, about 5 s at 30 aircraft and 1 hour, 36 s at 200).
   - Dependencies: 2, 4. Size S.
   - Files: src/modules/traffic/sim.js, src/modules/traffic/layout.js, tests/unit/traffic/rewind.test.js
 
