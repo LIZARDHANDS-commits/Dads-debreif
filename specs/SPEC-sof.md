@@ -125,7 +125,7 @@ V6's "NEW WEATHER LIMIT" box never appeared, because its code sat inside the Lea
 V6 had three separate sets of wave inputs, two of them hidden and dead, assumed CST, kept an old date forever, and dropped evening waves in Zulu mode (#7). Its alternate chips never appeared, and the label read "DEST <3000 FT / 3 SM" while the check used 2000 ft (D59).
 
 - **A wave** is a name (W1, W2 … by default), a takeoff time and a landing time, entered in the home field's local time and labelled with its zone (`CST`). A landing earlier than takeoff means the next day, as in V6. Up to 5 waves, as V6 (sof.html line 1220). They're saved as the daily plan and applied to **Today** or **Tomorrow** (home-field local date), so a date never goes stale (SOF-6).
-- **Home call** for each wave: `wx`'s `homeAlternateTrigger` over takeoff to landing plus one hour (V6 lines 1441 to 1443) against the home limits (default 2000 ft and 3 SM, V6's WX SETUP, D59). Shown as words: `No alternate needed`, `ALTERNATE REQUIRED`, `At the limit`, `TAF doesn't cover the wave`, `No TAF` (missing, NIL or cancelled), `Can't tell` (a ceiling or visibility unknown). The chip names the first reason and when (`CYMJ TEMPO 1/2SM FG from 16Z`); selecting it lists every hit, at-limit piece and caution.
+- **Home call** for each wave: `wx`'s `homeAlternateTrigger` over takeoff to landing plus one hour (V6 lines 1441 to 1443) against the home limits chosen in Settings: **Local (MTCA)** below 2000 ft or 3 SM, the default (V6's WX SETUP, D59), or **Cross-country** below 3000 ft or 3 SM (D111). Shown as words: `No alternate needed`, `ALTERNATE REQUIRED`, `At the limit`, `TAF doesn't cover the wave`, `No TAF` (missing, NIL or cancelled), `Can't tell` (a ceiling or visibility unknown). The chip names the first reason and when (`CYMJ TEMPO 1/2SM FG from 16Z`); selecting it lists every hit, at-limit piece and caution.
 - **Alternates** for each wave: `wx`'s `assessAlternate` over `arrivalWindow([landing])`, the landing time ±60 minutes (D70), with each alternate's options from `app.airfields.checkOptions(icao)`: its minima from its approaches (D70, D71), PROB against landing minima (D72), the GNSS 100 NM warning (D73), the GNSS-only visual descent rule (D80, D81), and military fields on the same rules (D79). An alternate whose approaches are "Not set" is checked against V6's 600-2 and says so (D95). The card shows the result for the selected wave; the wave chip says how many alternates meet.
 - The **label is built from the numbers** the check used, so it can never disagree with the check again (D59).
 - There's **no manual "alternate required" switch** (V6 had a hidden click-to-toggle, line 1295), unless SOF-2 says otherwise. The call is always computed and always shows why.
@@ -189,10 +189,13 @@ The home field and alternates, and each alternate's approaches, minima and MEA, 
 
 | Setting | Default | Range |
 |---|---|---|
-| Home limits: ceiling below (ft) | 2000 (V6, D59) | 0 to 10,000 in 100s |
-| Home limits: visibility below (SM) | 3 (V6, D59) | 0 to 10 in quarter miles |
+| Alternate trigger | Local (MTCA) 2000/3 (V6, D59, D111) | Local (MTCA) 2000/3, or Cross-country 3000/3 (D111) |
+| Home limits: ceiling below (ft) | 2000, set by the trigger choice | 0 to 10,000 in 100s |
+| Home limits: visibility below (SM) | 3, set by the trigger choice | 0 to 10 in quarter miles |
 | New-caution banner | On (V6's "New-alert caution box") | on or off |
 | Lightning near home: radius (NM) | 20 (V6's `lightningNm`, which did nothing in V6) | 5 to 50, only if SOF-3 is yes |
+
+The alternate trigger (D111, Patrick 2026-09-30 05:19Z, "agre on sof trigger") follows the Gen Book p.7: an alternate is required when home is forecast below 3,000 ft or 3 SM from takeoff to one hour after the ETA, or below 2,000 ft or 3 SM when the flight stays within the MTCA (manuals Q4). Choosing a trigger fills in the two limit numbers; changing either number by hand shows the choice as `Custom`. The label on the chips and the home card names the choice and is built from the numbers used, `Local (MTCA) 2000/3` or `Cross-country 3000/3` (D59).
 
 V6's "alternate highlights" (600 ft and 2 SM) aren't a SOF setting any more: each alternate's minima come from its approaches in the Airfields section, and 600-2 is the fallback when they're not set (D70, D95). The refresh times and stale limits are fixed at D67's values and explained under About this screen, not settings.
 

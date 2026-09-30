@@ -9,7 +9,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 ## Build
 
 - [ ] **1. Waves and cards, decided in Node.** `waves.js`: a wave plan to UTC times for Today or Tomorrow in the home zone, the home call and the alternate calls. `cards.js` (model only): each airfield's category, NATO state, report times and ages, stale and missing states, limit result and cautions. Tests first from captured replies.
-  - Acceptance: for CYMJ the wave times equal V6's fixed `+6` h on every day of a year, midnight-crossing waves included (pinned before the code uses the zone); a daylight-saving zone gives the right UTC; each wave's call matches `homeAlternateTrigger` and `assessAlternate` with `checkOptions`; the label is built from the limits used (D59); a cancelled TAF and `LAST OBS/NXT` read as words, not errors.
+  - Acceptance: for CYMJ the wave times equal V6's fixed `+6` h on every day of a year, midnight-crossing waves included (pinned before the code uses the zone); a daylight-saving zone gives the right UTC; each wave's call matches `homeAlternateTrigger` and `assessAlternate` with `checkOptions`; the label is built from the limits used (D59); the Local (MTCA) 2000/3 and Cross-country 3000/3 triggers each give the right call on a TAF of 2500 ft, and a hand-changed number reads as `Custom` (D111); a cancelled TAF and `LAST OBS/NXT` read as words, not errors.
   - Verify: `node --test 'tests/unit/sof/*.test.js'`.
   - Dependencies: none. Size M.
   - Files: src/modules/sof/waves.js, src/modules/sof/cards.js, tests/unit/sof/waves.test.js, tests/unit/sof/cards.test.js, tests/fixtures/sof/
