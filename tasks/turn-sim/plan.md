@@ -33,6 +33,7 @@ Vertical slices, each leaving a working screen:
 3. **Timing** (tasks 7 to 10): G correction, auto timing, clock cue, compass heading and legs, each pinned then fixed.
 4. **Offset box, errors and layers** (tasks 11 to 12).
 5. **Profiles and CSV** (task 13), then browser tests, performance and the checklist (task 14).
+6. **SMM exercises** (tasks 17 to 21), last because they need two new engine pieces (sequences and a pursuit wingman) and don't change anything V6 flies.
 
 ## Pull requests
 
@@ -40,6 +41,9 @@ Vertical slices, each leaving a working screen:
 - PR B: tasks 6 to 10 (turn logic and timing, with D41, D43, D44, D45, D74, and the clock cue selectors from Q45).
 - PR C: tasks 11, 12, 15 and 16 (offset box with #4 by ground track, rear check, errors, layers, hook and shackle, graph and solver; D42, D48, Q41, Q43, Q44, Q47).
 - PR D: tasks 13 to 14 (profiles, CSV, browser tests, checklist).
+- PR E: tasks 17 to 21 (the SMM exercises: G-warm, rejoins, fighting wing, fluid manoeuvring, with sequences and a pursuit wingman in the engine).
+
+The other SMM additions (Patrick 06:40Z) ride in the existing PRs as their own commits: the separation flags in task 5 (PR A), the 5 or 7 o'clock cue in task 9 (PR B), the offset box 10-15 s band in task 11 and the check turn, delayed 45 into and away, and two-stage cross turn in task 15 (PR C).
 
 Each PR lists the skills it applied, is reviewed with code-review-and-quality before it leaves draft, and merges on green under the merge rule once the spec is approved. PR D also runs `/security-review` (saved profiles). A and D log performance measurements.
 
@@ -52,9 +56,10 @@ Each PR lists the skills it applied, is reviewed with code-review-and-quality be
 | The hook and 4-ship shackle pictures are read differently from what Patrick means | Medium | Draw them from the engine and check with Patrick before those commits (task 15). |
 | The standards need a home shared with the debrief | Medium | Agree it through the coordinator before task 5; until then the default preset. |
 | Dad's answer on the offset box clock cue (Q44c) arrives after it's built | Low | The message stays; his answer becomes one more commit. |
+| The Turn Sim is flat, but the G-warm push, the cross turn and shackle crossings, and fluid manoeuvring's loop, wingovers and barrel roll are vertical | Medium | Flat versions with the vertical part labelled (the push as 5 s wings level, a crossing note instead of the 300 ft flag); the vertical moves are a future 3D item. |
 | Core Task 12 arrives late | Low | Task 7 is the only one waiting; the correction model stays at None until it lands. |
 | Drawing trails and breadcrumb labels at 4× drops frames | Low | Measure in task 4 and task 14; draw trails as one path; readouts at most 10 times a second. |
 
 ## Open questions
 
-Q41 to Q47 answered by Patrick on 2026-09-30 (see the spec's "Answered questions"). Left: Q44c for Dad, and the hook and shackle pictures for Patrick at task 15.
+Q41 to Q47 answered by Patrick on 2026-09-30 (see the spec's "Answered questions"). Left: Q44c for Dad (the SMM's 10-15 s delay for #3 and #4, 16.41 para 112, is a starting point), and the pictures for Patrick at tasks 15 and 17 (hook, 4-ship shackle, delayed 45 into and away, 4-ship G-warm).

@@ -1,6 +1,6 @@
 # Spec: `turn-sim`, the Formation Turn Sim
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Patrick answered Q41 to Q47 the same day (see "Answered questions"), and this spec follows his answers. Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. The questions this spec raised were TS1 to TS7, logged in the plan doc as Q41 to Q47.
+Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Patrick answered Q41 to Q47 the same day (see "Answered questions"), and this spec follows his answers. At 06:40Z he added eight formation items from the SMM (see "SMM formation additions"). Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. The questions this spec raised were TS1 to TS7, logged in the plan doc as Q41 to Q47.
 
 Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn. Until then this spec and the task plan in [`tasks/turn-sim/`](../tasks/turn-sim/) are the work.
 
@@ -60,6 +60,7 @@ It follows Patrick's rule (2026-09-30, R22): essentials by default, and everythi
 | | **Rear element check** (offset box only, inside More setup): on/off, start time, direction, angle, hold, and a live status line |
 | | **Spacing graph** checkbox (off, Q41): V6's hidden graph of the chosen pair distances, minimum separation and closure over the run, each in its own colour and labelled |
 | | **Solver** checkbox (off, Q41): V6's hidden solver, which finds the base delay, spacing or G that gives a target spacing |
+| | **Exercises** (collapsed): G-warm, rejoins from line abreast, fighting wing, fluid manoeuvring (SMM additions, item 7 and 8) |
 | | **Profiles:** named profiles, save and load the startup default, delete, factory reset; and Export CSV |
 
 - **Layer defaults stay V6's** (3/9 line, turn circles and error labels on; the rest off), so the picture matches what V6 users know.
@@ -164,6 +165,35 @@ Changes that don't change a number V6's Step button shows:
 - V6's saved profiles were kept by the old single file in its own browser storage, which the new site can't read. Nothing to migrate.
 - **Export CSV** (in Profiles): one row per 0.05 s step over the whole run, with time, the pair distances that exist, minimum separation and 1-3 closure in ft/s, V6's columns (`turn_spacing.csv`). The download link is released after use.
 
+## SMM formation additions (Patrick, 2026-09-30 06:40Z)
+
+Patrick asked what else from the SMM the Turn Sim should model, and said to include everything offered: "Includeall of this including your futur ideas". References are SMM section and paragraph numbers (and one EFIG page); the manuals' own text stays out of this repo. Items 1 to 6 change or add to turns V6 already flies, so each is pinned to V6 first (where V6 has the turn) and lands as its own commit (D10). Items 7 and 8 are new exercises, built last (Phase 5, PR E). The plan doc gets a decision number for each from the app frame thread.
+
+What the SMM confirms in this spec as it stands: the hook is a same-direction 180° turn back to LAB (16.19 para 60), and in the offset box the fuselages line up at the 90° point (16.45 para 121), as Q43 says; the shackle's reversal is timed to arrive back in LAB (16.19 paras 61-62), as Q44a says; in spread-4 #4 keeps its position off #3 (16.42 para 116).
+
+### Changes to the turns and timing
+
+1. **Check turn** (16.19 para 58), a new entry in the Turn menu: every aircraft turns at once through 30° or less and rolls out. Turn degrees for it run 5° to 30°, default 30°. Larger in-place turns are the existing In-place turn. Not in V6, so there is nothing to pin; the test states the rollout (same spacing, heading changed by the set amount).
+2. **Clock cue at 5 or 7 o'clock** (16.19 paras 52 and 54): the inside aircraft starts its turn when the wingman reaches the 5 or 7 o'clock position, depending on the turn direction. The clock position gets a new default, **"Auto (5 or 7 by direction)"**: 7 o'clock in a right turn and 5 o'clock in a left turn, the side the wingman comes from. Any fixed position (V6's 5:30 included) can still be picked. V6's 5:30 is pinned first; the engine's picture confirms which side is which before the commit.
+3. **Delayed 45 into and away from the wingman** (16.19 paras 56-57): flown the SMM way instead of V6's "each aircraft turns 45° in order". Into the wingman: Lead turns 45° into the wingman, who starts as for a 90, carries on in front of Lead to the other side, and rolls out in LAB on the new heading. Away: the wingman starts a turn toward Lead and rolls out on the new heading at Lead's signal, and Lead crosses to the wingman's other side and turns to the new heading to regain LAB. "Into" or "away" follows from the direction and #2's side. As with the hook and shackle, the rollout pictures are drawn from the engine and checked with Patrick before the commit.
+4. **Cross turn in two stages** (16.19 para 64): both aircraft turn toward each other at 2 G for about the first 90°, then at 3 G to roll out after 180°. The G setting is the second stage (3.0 by default, D113); a "Cross turn first-stage G" (2.0) and the switch point (90°) go under More setup. V6 flew one G all the way, which is pinned first.
+5. **Offset box delay of 10 to 15 s** (16.41 para 112): in delayed and hook turns #3 and #4 delay 10 to 15 s so they miss #1 and #2 and flow to trail. The solved delays for #3 and #4 are shown against that band, with **"outside 10-15 s"** when they fall outside it; the solvers themselves are not changed. In in-place, shackle and check turns the rear element doesn't delay: all four turn together. V6's behaviour for those turns in the offset box is pinned first, and any change is its own commit. This also gives Dad a starting point for Q44c: the SMM times #3 and #4 by a delay, not by a clock cue.
+6. **Separation flags** (readouts only, no flight change):
+   - **"Under 300 ft"** on the Formation card when any pair is closer than 300 ft (16.13 para 31, the minimum crossing separation in LAB; also 16.23). In the shackle and cross turn, where the aircraft cross by design and the SMM has the wingman pass above or below, the flag reads **"Crossing: 300 ft vertical needed"** instead, since the sim is flat.
+   - **"Mutual support lost"** when a line-abreast pair is more than 9,000 ft apart (16.18 para 49).
+   - Both numbers are named constants in the engine with their SMM references. If Patrick wants them editable, they move into `app.standards` through the coordinator.
+
+### New exercises (Phase 5, PR E)
+
+These need two things the engine doesn't have yet, both added as pure engine functions with unit tests: **a sequence of turns** flown one after another (each starting when the last ends, plus an optional wings-level gap), and **a wingman that flies to a position relative to Lead** at its own speed (lead, pure or lag pursuit, SMM 16.16), instead of flying a planned turn. They open from a collapsed **"Exercises"** panel in Setup (R22), so the first-time screen doesn't change. Each exercise has its own checklist lines in `docs/checklists/turn-sim.md`.
+
+7. **G-warm** (16.22 paras 70-71; 4-ship as spread-4, 16.44): one button sets up and flies the SMM sequence from LAB at 220 KIAS or more: an in-place 90 at 3 G toward the wingman, 5 s of the ½ G push, a 4 G hook, and an in-place 90 at 3 G back to the original heading. The push is vertical, so the sim flies it wings level for 5 s and labels it. Direction picks left or right; the 4-ship picture is checked with Patrick before its commit.
+8. **Rejoins, fighting wing and fluid manoeuvring:**
+   - **Rejoins from line abreast** (16.20 para 65): straight-ahead (Lead holds heading; #2 turns in to a rejoin line to fighting wing on the same side, aiming away from Lead on the final vector) and turning (Lead turns into or away from #2 at 30° bank and a steady speed; #2 crosses Lead's circle or points at Lead and reverses, as para 65b describes). #2's overtake is a setting, default 10 kt, range 0 to 20 (SMM ch. 12 Rejoins: 10 to 20 KIAS). Shows range, closure and aspect while it flies, and flags an overshoot.
+   - **Fighting wing** (16.15; ch. 12 Fighting Wing; EFIG p.391): #2 holds 30° to 60° of sweep at 500 to 1,000 ft behind Lead while Lead flies level turns and reversals at the set G. The Formation card shows #2's sweep and range and whether it's inside that window.
+   - **Fluid manoeuvring** (16.17 paras 42-43): #2 stays in a 60° cone behind Lead at 500 to 1,000 ft, using lead, pure and lag pursuit, with a flag inside the 500 ft bubble (16.23). The Turn Sim is flat, so it models the **level turns and reversals**. The loop, wingovers and barrel roll are vertical: they're a future item that could reuse the Turn Fight's 3D Energy model (D112).
+   - Rejoins and fighting wing are two-ship exercises; with a 4-ship formation picked, they fly #1 and #2 and say so.
+
 ## What the Turn Sim needs from `core`
 
 Already there, used as they are: `limitG`, `MIN_TURN_G`, `turnRadiusFt`, `turnRateRadPerSec`, `bankDegFromG`, `ktToFtps`, `formatNm`, `distance`, `degToRad`, `radToDeg`, `wrapDeg180`, `relativeBearingDeg`, `clockToRelativeDeg`, `compassDegToHeadingRad`, `headingRadToCompassDeg`, `formationAxes`, `classifyTurnSimPosition`, `V6_STANDARDS`.
@@ -187,10 +217,13 @@ src/modules/turn-sim/
     cues.js            clock-cue crossing, cue checks
     rear-check.js      the offset box's rear-element check turn
     solver.js          V6's solver sweep (Q41)
+    sequence.js        turns flown one after another, with wings-level gaps (G-warm)
+    pursuit.js         a wingman flying to a position relative to Lead at its own speed (rejoins, fighting wing, fluid manoeuvring)
     step.js            one fixed step: G (core, D74), turn, move
     run.js             a run: start, continue a leg, history by time, CSV rows
   layout.js            the three columns, panels, playback bar
   view.js              drawing: grid, MOA box, trails, breadcrumbs, 3/9 lines, turn circles, clock marks, labels
+  exercises.js         the Exercises panel (G-warm, rejoins, fighting wing, fluid manoeuvring)
   graph.js             the spacing graph (Q41), drawn only while open
   readouts.js          Formation card and More detail rows from engine results; no page access
   profiles.js          named profiles and the startup default over app.storage
@@ -271,7 +304,7 @@ Each PR description lists the skills it applied.
 ## Boundaries
 
 - **Always:** pin V6 before moving any number; take shared math from `core`; keep the module inside `src/modules/turn-sim/`; run `npm test` before each commit; cite the V6 line.
-- **Ask first:** any change to a number V6 shows beyond D41 to D45, D48, D74 and Patrick's answers to Q41 to Q47; the hook and 4-ship shackle pictures before their commits; adding a package.
+- **Ask first:** any change to a number V6 shows beyond D41 to D45, D48, D74, D113, D114, Patrick's answers to Q41 to Q47 and the SMM formation additions; the hook, 4-ship shackle, delayed 45 into and away, and 4-ship G-warm pictures before their commits; adding a package.
 - **Never:** edit `original/`, `src/core/`, `src/ui-kit/` or `src/storage/` (changes go to their threads through the coordinator); keep a timer or animation loop outside the ui-kit scheduler; touch `localStorage` directly.
 
 ## Success criteria
@@ -279,6 +312,7 @@ Each PR description lists the skills it applied.
 - Every engine function and whole-run scenario has a golden test against V6, and each of D41 to D45, D48, D74 and the flight changes from Q43 (hook), Q44 (shackle, #4 solver), Q45 (clock cue selectors) and Q47 (rear check) is its own commit with a test that states it.
 - R2, R3, R4, R7 and R22 pass their browser tests on the Turn Sim route; results are the same at any frame rate and playback speed.
 - Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the item still with Dad (the offset box clock cue, Q44c), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
+- Each SMM formation addition (items 1 to 8) has a test that states it, and the changes to V6's turns (items 2 to 5) are each their own commit after the V6 pin.
 - Patrick or Dad signs off the checklist on the live site.
 
 ## Answered questions
@@ -300,4 +334,4 @@ Patrick answered all seven on 2026-09-30 (in the "Open questions explained" thre
 ## Open questions
 
 - **For Dad (Q44c):** which cue should #3 and #4 use in the offset box, since they never see 5:30? Until then, the on-screen message.
-- **For Patrick, before those commits:** the hook's and the 4-ship shackle's exact rollout pictures, drawn from the rebuilt engine.
+- **For Patrick, before those commits:** the rollout pictures for the hook, the 4-ship shackle, the delayed 45 into and away from the wingman, and the 4-ship G-warm, drawn from the rebuilt engine.
