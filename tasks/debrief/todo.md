@@ -2,7 +2,7 @@
 
 Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
-- [ ] **1. Screen and loading.** Module registered and mounted; three columns with collapsible panels; load up to 4 files or the example flight; status line from what loaded; fit to view; 2D tracks with gaps broken; #4 white with an outline.
+- [ ] **1. Screen and loading.** Module registered and mounted; three columns with collapsible panels; the essentials-first layout (Layers and Tools menus, remembered toggles, Reset layout); load up to 4 files or the example flight; one-line status that opens the full status; fit to view; 2D tracks with gaps broken; #4 white with an outline.
   - Acceptance: R11 (example flight fitted, correct status); a failed file changes nothing loaded (D54); nothing overlaps at 1366 × 768 (R2).
   - Verify: `npm test`; `npm run dev` and load the example flight; e2e load test.
   - Files: src/shell/registry.js (via the app frame thread), src/modules/debrief/{index,state,layout}.js, map2d/{view,layers}.js, debrief.css, README.md, tests/unit/debrief/state.test.js
@@ -10,7 +10,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Acceptance: Play at the end restarts; a paused debrief draws nothing; shortcuts stop when the debrief closes (R4).
   - Verify: `npm test`; e2e playback and module-switch tests.
   - Files: src/modules/debrief/playback-bar.js, map2d/view.js, tests/unit/debrief/playback.test.js
-- [ ] **3. Readouts.** Live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
+- [ ] **3. Readouts.** The Formation card (one line per ship), and behind "More detail": live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
   - Acceptance: numbers match V6 on the example flight (R9) except the logged changes; readouts update at most 10 times a second.
   - Verify: golden comparison of readout rows; performance log at 16×.
   - Files: src/modules/debrief/readouts.js, tests/unit/debrief/readouts.test.js, tests/golden/debrief-readouts.test.js
@@ -46,7 +46,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
 **Checkpoint D:** open PR D.
 
-- [ ] **9. EM chart and tennis ball.** EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
+- [ ] **9. EM chart and tennis ball.** Both off by default and opened from Tools. EM panel below the stage, images loaded on open, 60 s trails; one tennis-ball solution from core in both views (D62) with its controls in the right column.
   - Acceptance: EM never covers the map (#37); cone half-width (±3°) and the INTERCEPT rule are one setting each, as both are flagged for review (D63).
   - Verify: e2e overlap scan with EM open; unit tests of the tennis panel glue.
   - Files: src/modules/debrief/{em,tennis-panel}.js, public/media/debrief/em-*.jpg

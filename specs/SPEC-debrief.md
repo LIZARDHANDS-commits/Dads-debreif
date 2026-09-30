@@ -1,6 +1,6 @@
 # Spec: `debrief`, the debrief screen (2D map and 3D view)
 
-Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("spec-debreif-approved", in the Debrief screen thread), including his answers to Q32 to Q37 (Q32 read as pitch and G from the track's motion), #4 drawn white with a dark outline, and the trims listed below. **Amendment waiting for Patrick's okay:** the essentials-first screen in The screen (his 2026-09-30 rule). Changes go through a pull request. Module id `debrief` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts once flight data (PR #58) and flight math core part 2 (PR #61) are merged.
 
@@ -29,23 +29,44 @@ Users are T-6 instructors and students in a debrief, on a desktop or laptop (D6)
 
 ## The screen
 
-Three columns at 1366 × 768 and up, none of them covering another (R2). Panels collapse with a real button (ui-kit `panel.js`). There are no side rails and no Tab-key tricks (#34, #35).
+The screen follows Patrick's rule (2026-09-30): show the essentials by default, and put everything else behind a toggle or a "More" panel the user opens when they want it. Nothing is removed by this. It's just not all on screen at once.
+
+**What a first-time user sees** after loading a flight: the map with the tracks, a short status line, the playback bar, and one small Formation card. That's it.
 
 ```
-┌ Flight ──────────┐┌ Stage ─────────────────────────────┐┌ Readouts ─────────┐
-│ Load tracks      ││ [2D | 3D]  layers ▾   Fit   EM ▾    ││ Live data         │
-│ Example flight   ││                                     ││ Aspect/HCA/closure│
-│ Status           ││        map or 3D view               ││ Spacing           │
-│ Map layers (2D)  ││                                     ││ Standards         │
-│ 3D view (3D)     ││                                     ││ Tennis ball       │
-│ Save / open      ││ ▶ ⏸ ⏮ −1s +1s  1× ▾   ──●──────     ││ DFPs              │
-│ Export CSV       ││ 14:32:07Z  08:32:07 local           ││                   │
-└──────────────────┘└─────────────────────────────────────┘└───────────────────┘
+┌ Flight ─────────────┐┌ Stage ───────────────────────────────┐┌ Formation ──────────┐
+│ Load tracks         ││ [2D | 3D]   Fit   Layers ▾   Tools ▾  ││ #2  on parameters   │
+│ Example flight      ││                                       ││ #3  WIDE  +600 ft   │
+│ 4 tracks loaded  ›  ││                                       ││ #4  AFT   -300 ft   │
+│                     ││          map or 3D view               ││ Lead 201 kt est IAS │
+│ ▸ Save, open, CSV   ││                                       ││ ▸ More detail       │
+│                     ││                                       ││ DFPs  + Add         │
+│                     ││ ▶ −1s +1s  1× ▾  ──●──── 14:32:07Z    ││ ▸ Standards         │
+└─────────────────────┘└───────────────────────────────────────┘└─────────────────────┘
 ```
+
+| Shown by default | Behind a toggle or "More" |
+|---|---|
+| Load tracks, Example flight, a one-line status ("4 tracks loaded, 2 gaps") | The full per-track status (fixes dropped and why, gaps, cut tracks), opened from the status line |
+| The map with tracks, ship numbers and standards labels, Fit, 2D/3D | **Layers** menu: grid, spacing lines, trail mode, satellite, VNC charts and their alignment, route overlays, 3/9 lines, fighting-wing cone, clock marks, safety bubble, follow lead |
+| Playback bar: Play/Pause, step ±1 s, speed, scrubber, the time in the shared Zulu/local order | Reset and the second time zone sit in the bar's small "more" menu at 1366 px wide, and show at full width on bigger screens |
+| **Formation** card: one line per wingman (standards label and the one number that's off), one line for Lead (est. IAS and G against the lead standard) | **More detail**: altitude, speed, G, pitch and bank with their sources, lat/lon, aspect, HCA, closure, and spacing for every pair |
+| DFPs: the list and "+ Add" | Each DFP's note opens when its row is opened |
+| | **Standards**: the editor with the preset and Reset |
+| | **Tools** menu: EM chart, Tennis ball. Each opens its own panel and closes it again |
+| | **Save, open, CSV**: Save debrief, Open debrief, Export CSV, example downloads |
+| | **3D settings** (in 3D only): camera, altitude ×, model, plane size, labels, trail, ground and grid options, Reset view |
+
+- **Layers keep V6's on/off defaults** (tracks full, spacing lines and grid on, Lead's 3/9 line on, everything else off), so the default picture matches what V6 users know. They're just grouped out of sight.
+- **Toggles are remembered** in this browser (`app.storage`): which panels are open and which layers and tools are on. A "Reset layout" in the Layers menu goes back to the defaults. They aren't saved in the debrief file, which carries the flight, DFPs and standards, so a student opening an instructor's file sees their own layout.
+- **Room for later tools:** the Tools menu is a list, and each tool is a panel that opens below or beside the stage without covering it. Patrick's future features (synced graphs, event bookmarks, geometry readouts, drawing over the replay) would each be one more entry there, and none is built now.
+- The detail panels are collapsible sections (ui-kit `panel.js`, real buttons with `aria-expanded`), so they work from the keyboard and with screen readers.
+
+The columns themselves stay as before: three at 1366 × 768 and up, none covering another (R2), collapsed with a real button (ui-kit `panel.js`), with no side rails and no Tab-key tricks (#34, #35). The right column can be collapsed for a map-only view.
 
 - **The stage** holds the view switch and one **playback bar** shared by both views. The bar has Play, Pause, Reset, step ±1 s, speed 0.25× to 16×, a scrubber with 1 s steps across the whole flight (not V6's fixed 1,000 steps, #23), and the time in Zulu and local via `app.time` (R10, D18). The 3D view gets real playback controls, which V6 lacked (#26).
 - **Switching views** keeps the time, playing state, selected ship and DFPs. The 3D view is never blank: it shows the same "load a flight" empty state as the map (R12).
-- **The EM chart** opens in a panel below the stage, which shrinks the stage without covering it (#37). It never floats over the map.
+- **The EM chart** (from Tools) opens in a panel below the stage, which shrinks the stage without covering it (#37). It never floats over the map, and it's off by default.
 - **Keyboard** (through `app.keys`, only while the debrief is open and never while typing): Space plays or pauses, ← and → step 1 s, Home resets. Tab moves between controls as normal.
 - **Resizing** a panel or the window resizes the canvas (a `ResizeObserver` on the stage, #36).
 - **Ship colours:** #1 blue, #2 green, #3 red as in V6. **#4 changes from near-black (#050505) to white with a dark outline** (#29), in every place #4 is drawn. Every ship also carries its number, so colour is never the only signal.
@@ -104,7 +125,7 @@ Changes:
 
 ### Readouts and standards (R9, R18)
 
-The right column shows, for the current time, the same panels in both views:
+The right column shows, for the current time, the same panels in both views. By default only the Formation card, DFPs and the headings of the rest are open (see The screen):
 
 - **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47). Pitch and G are worked out from the track's own motion by default, because the iPad's recorded pitch and G look like the tablet tilting; recorded bank is still used (D47, Patrick answering Q32). If `flight-data` later adds an option to reference the iPad's attitude to a straight-and-level or on-the-runway baseline, the debrief shows it as a setting, and latitude/longitude (interpolated, D51).
 - **Aspect, HCA and closure versus Lead**, and **spacing** for every pair. Each range says whether it is **horizontal** or **3D** (#18, SPEC.md). The numbers stay V6's (D29).
@@ -127,7 +148,7 @@ V6's EM card: IAS against turn rate over the T-6 EM chart for 6,500, 8,000 or 13
 
 ### Tennis ball (#19, Q33 to Q37)
 
-V6 has two solvers that disagree and write to the same readout, and its controls live only in the 3D tab. The rebuild shows **one** solution, with its controls in the right column, drawn in both views.
+V6 has two solvers that disagree and write to the same readout, and its controls live only in the 3D tab. The rebuild shows **one** solution, drawn in both views. It's off by default and opened from Tools; its controls sit in its own panel.
 
 Patrick answered Q33 to Q37 (2026-09-30):
 
@@ -235,6 +256,7 @@ export function projectPoint(pt, camera) { ... }
    - Leave the debrief: no frames, timers or listeners left (R4).
    - Save a debrief with DFPs, close it, open the file: same tracks, DFPs, standards and time (R17).
    - Edit a standard, reload, reset (R18).
+   - A first visit shows only the essentials (tracks, status line, playback bar, Formation card, DFPs); opened panels, layers and tools come back after a reload, and Reset layout restores the defaults.
    - Offline after one visit: the debrief opens and the example flight plays if it was loaded before (R6).
    - A hostile file (script in the name, 10 MB note): shown as plain text or refused.
 
