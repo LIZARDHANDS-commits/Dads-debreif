@@ -1,6 +1,7 @@
 // Golden test (R9): src/core/standards.js against the debrief's standards
 // (classifyKmlError, classifyLeadDesired, kmlStandardsSummary) and Turn Sim's
-// classifyFormationError, run on the same formations.
+// classifyFormationError, run on the same formations. The one change from V6
+// is D78 (#21): #3's fore/aft with both standards on.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_STANDARDS, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../src/core/standards.js';
@@ -85,16 +86,25 @@ test('classifyDebriefPosition matches classifyKmlError, and the lead and summary
     const std = standardsFromBoxes(dom);
 
     for (const id of [1, 2, 3, 4]) {
+      // D78: with both standards on, #3's fore/aft is the offset standard's alone. That is V6
+      // with the spread's fore/aft tolerance so large it never fires; everything else is V6.
+      const d78 = id === 3 && std.spread.on && std.offset.on;
+      const v6Labels = v6.classifyKmlError(id, live)?.labels.join(' / ');
+      const faTol = dom.kmlForeAftTol;
+      if (d78) dom.kmlForeAftTol = { value: '1e300' };
       const want = v6.classifyKmlError(id, live);
+      dom.kmlForeAftTol = faTol;
       assert.deepEqual(classifyDebriefPosition(id, live, leadHdg, std), want, `case ${i}, #${id}`);
-      if (want) seen.add(want.labels.join(' / '));
+      if (want) seen.add(`${d78 ? '#3 both on: ' : ''}${want.labels.join(' / ')}`);
+      if (want && want.labels.join(' / ') !== v6Labels) seen.add(`D78 changed ${v6Labels} to ${want.labels.join(' / ')}`);
     }
     // Lead's G: recorded if there is one, else estimated from Lead's track the way the debrief does it.
     const estG = tracks[1] ? v6.estimatedGAtTrack(leadTrack, kmlT) : null;
     assert.deepEqual(classifyLeadParameters(live[1], estG, std), v6.classifyLeadDesired(live), `case ${i}, lead`);
     assert.equal(standardsSummaryLines(std).join('<br>'), v6.kmlStandardsSummary(live));
   }
-  for (const labels of ['ON PARAMETERS', 'TIGHT', 'WIDE / AFT', 'TIGHT / FORE', 'AFT / AFT', 'FORE / FORE', 'AFT / FORE']) {
+  for (const labels of ['ON PARAMETERS', 'TIGHT', 'WIDE / AFT', 'TIGHT / FORE', '#3 both on: ON PARAMETERS', '#3 both on: FORE',
+    '#3 both on: AFT', 'D78 changed AFT to ON PARAMETERS', 'D78 changed FORE / FORE to FORE', 'D78 changed AFT / FORE to FORE']) {
     assert.ok(seen.has(labels), `no case gave ${labels}`);
   }
 });
