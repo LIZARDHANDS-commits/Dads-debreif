@@ -2157,6 +2157,76 @@
     ]
    ]
   },
+  "fixture:gx-skips.kml": {
+   "file": "tests/fixtures/flight-data/gx-skips.kml",
+   "count": 3,
+   "sha256": "24698ff85834fb04815652942875a96d014a6d1357a296d5fdd465ae8e1f8db4",
+   "points": [
+    [
+     -105.502,
+     50.302,
+     510,
+     1780423201,
+     null,
+     3
+    ],
+    [
+     -105.504,
+     50.304,
+     0,
+     1780423203,
+     null,
+     4
+    ],
+    [
+     -105.5,
+     50.3,
+     500,
+     1780423205,
+     null,
+     1
+    ]
+   ]
+  },
+  "fixture:linestring-timed.kml": {
+   "file": "tests/fixtures/flight-data/linestring-timed.kml",
+   "count": 4,
+   "sha256": "bcdac9e167fd4e699fa3b0459660448b3acf4d6925634eb8e1d4607df82ea78a",
+   "points": [
+    [
+     -105.5,
+     50.3,
+     500,
+     1780423200,
+     1.5,
+     3
+    ],
+    [
+     -105.51,
+     50.31,
+     0,
+     1780423202,
+     2,
+     -4
+    ],
+    [
+     -105.52,
+     50.32,
+     600,
+     1780423203,
+     2.5,
+     6
+    ],
+    [
+     -105.53,
+     50.33,
+     610,
+     1780423204,
+     null,
+     null
+    ]
+   ]
+  },
   "fixture:linestring.kml": {
    "file": "tests/fixtures/flight-data/linestring.kml",
    "count": 5,

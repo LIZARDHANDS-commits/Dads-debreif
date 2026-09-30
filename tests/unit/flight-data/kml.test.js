@@ -100,3 +100,27 @@ test('a blank recorded value is missing, not 0 (C1, D47)', () => {
   const tags = '<kml><Document><coordinates>-105.5,50.3,1 -105.6,50.3,1</coordinates><when>2026-06-02T18:00:00Z</when><when>2026-06-02T18:00:01Z</when><Pitch> </Pitch><Pitch>4</Pitch><Pitch>5</Pitch></Document></kml>';
   assert.deepEqual(readKml(tags).fixes.map(f => f.pitchRecordedDeg), [4, 5]);
 });
+
+test('every position needs its own readable time (C5)', () => {
+  const err = fn => { try { fn(); } catch (e) { return e; } return null; };
+  // An unreadable time is refused, saying which one.
+  const bad = track(3).replace('2026-06-02T18:00:01Z', 'yesterday');
+  assert.equal(err(() => readKml(bad, 'lead.kml')).code, 'times');
+  assert.match(err(() => readKml(bad, 'lead.kml')).message, /"lead\.kml".*"yesterday", time 2/);
+  // More or fewer times than positions is refused, with both counts.
+  const fewer = track(3).replace(/<when>[^<]*<\/when>/, '');
+  assert.match(err(() => readKml(fewer, 'x')).message, /3 positions but 2 times/);
+  const more = track(3).replace(TAIL, '<when>2026-06-02T18:00:09Z</when>' + TAIL);
+  assert.equal(code(() => readKml(more)), 'times');
+  // A plain line with no times at all, which V6 put in 1970.
+  assert.equal(code(() => readKml('<kml><Document><coordinates>-105.5,50.3,1 -105.6,50.4,1</coordinates></Document></kml>')), 'times');
+  // An empty <gx:coord> is not a position, so it needs no time (as in V6).
+  assert.equal(readKml(track(3).replace(TAIL, '<gx:coord> </gx:coord>' + TAIL)).fixes.length, 3);
+});
+
+test('plain coordinate lists take their times in order across all the lists (C5)', () => {
+  const when = [0, 1, 2, 3].map(s => `<when>2026-06-02T18:00:0${s}Z</when>`).join('');
+  const lists = '<coordinates>-105.0,50,1 -105.1,50,1</coordinates><coordinates>-105.2,50,1 -105.3,50,1</coordinates>';
+  const { fixes } = readKml(`<kml><Document>${when}${lists}</Document></kml>`);
+  assert.deepEqual(fixes.map(f => [f.lon, f.t - fixes[0].t]), [[-105, 0], [-105.1, 1], [-105.2, 2], [-105.3, 3]]);
+});

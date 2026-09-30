@@ -32,6 +32,14 @@ const DECIDED = [
   },
 ];
 
+// Files V6 read but that are now refused, each by a decided change.
+const REFUSED = {
+  // C5: every position needs its own readable time. V6 timed these by point number (1970) or reused times.
+  'fixture:linestring.kml': 'times',
+  'fixture:two-lists-and-tags.kml': 'times',
+  'fixture:unsorted-and-bad-times.kml': 'times',
+};
+
 /** Checks each decided change where it applies and returns the rows as V6 read them. */
 function asV6(label, rows) {
   const out = rows.map(r => [...r]);
@@ -52,6 +60,10 @@ for (const [label, want] of Object.entries(recording.tracks)) {
   const available = file && (want.file || existsSync(file));
   test(`readKml matches V6 on ${label}`, { skip: available ? false : 'track not on this computer' }, () => {
     const text = want.file ? read(want.file) : readFileSync(file, 'utf8');
+    if (REFUSED[label]) {
+      assert.throws(() => readKml(text, label), { name: 'KmlError', code: REFUSED[label] });
+      return;
+    }
     if (want.error) {
       assert.throws(() => readKml(text, label), { name: 'KmlError' });
       return;
@@ -66,7 +78,7 @@ for (const [label, want] of Object.entries(recording.tracks)) {
 
 test('V6 threw "No usable timestamped coordinates found" exactly where readKml says no-fixes', () => {
   for (const [label, want] of Object.entries(recording.tracks)) {
-    if (!want.error || !want.file) continue;
+    if (!want.error || !want.file || REFUSED[label]) continue;
     const code = (() => { try { readKml(read(want.file), label); } catch (e) { return e.code; } })();
     assert.equal(code === 'no-fixes', want.error === 'No usable timestamped coordinates found', label);
   }

@@ -17,13 +17,10 @@ SRC = ROOT / 'src/flight-data'
 TESTS = ['tests/golden/flight-data-*.test.js', 'tests/unit/flight-data/*.test.js']
 M = [
  # kml.js: V6's reader
- ('kml.js', "when[i] ?? i", "when[i] ?? i + 1"),
- ('kml.js', ".filter(Number.isFinite);", ";"),
  ('kml.js', ".filter(Boolean);", ";"),
  ('kml.js', "a.length >= 2 && Number.isFinite(a[0])", "a.length >= 3 && Number.isFinite(a[0])"),
  ('kml.js', "altM: Number.isFinite(a[2]) ? a[2] : 0", "altM: Number.isFinite(a[2]) ? a[2] : null"),
  ('kml.js', "nativeG[idx] ?? nativeG[i] ?? null", "nativeG[i] ?? nativeG[idx] ?? null"),
- ('kml.js', "when[i] ?? idx", "when[idx] ?? idx"),
  ('kml.js', ".sort((a, b) => a.t - b.t)", ".sort((a, b) => b.t - a.t)"),
  ('kml.js', "if (fixes.length < 2)", "if (fixes.length < 1)"),
  ('kml.js', "v > 0 && v < 12", "v > 0 && v <= 12"),
@@ -36,11 +33,16 @@ M = [
  ('kml.js', "if (vals.length >= 2) return vals;", "if (vals.length >= 1) return vals;"),
  ('kml.js', "if (xml.getElementsByTagName('parsererror').length)", "if (false)"),
  ('kml.js', "text.length > MAX_FILE_BYTES", "text.length > MAX_FILE_BYTES + 1"),
- ('kml.js', "if (gx.length > MAX_FIXES)", "if (gx.length > MAX_FIXES + 1)"),
- ('kml.js', "if (fixes.length > MAX_FIXES)", "if (fixes.length > MAX_FIXES + 1)"),
  ('kml.js', "return t === '' ? NaN : Number(t);", "return Number(t);"),
  ('kml.js', "Math.abs(v) <= 180", "Math.abs(v) < 180"),
  ('kml.js', "bank[idx] ?? bank[i] ?? null", "bank[i] ?? null"),
+ # C5: every position needs its own time
+ ('kml.js', "if (positions > MAX_FIXES)", "if (positions > MAX_FIXES + 1)"),
+ ('kml.js', "if (unreadable >= 0)", "if (false)"),
+ ('kml.js', "if (positions && positions !== when.length)", "if (positions && positions > when.length)"),
+ ('kml.js', "if (positions && positions !== when.length)", "if (positions && positions < when.length)"),
+ ('kml.js', "const t = when[n++];", "const t = when[i]; n++;"),
+ ('kml.js', ".split(/\\s+/).filter(Boolean));", ".split(/\\s+/));"),
  # xml.js: well-formedness and text
  ('xml.js', "if (current.name !== name)", "if (false)"),
  ('xml.js', "if (current === doc && rootSeen) fail(", "if (false) fail("),

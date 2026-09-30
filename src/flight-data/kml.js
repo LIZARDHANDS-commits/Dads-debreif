@@ -7,6 +7,8 @@
 // names and checks:
 // - C1: a blank recorded value is missing, not 0.
 // - C2: the recorded bank column is read too (V6 never read it).
+// - C5: every position needs its own readable time. V6 fell back to the
+//   point number, which put the flight in 1970.
 //
 // A track file is untrusted input. Before reading, the file's size is checked,
 // a KMZ (zip) is recognised, and the XML reader refuses any DOCTYPE.
@@ -51,9 +53,19 @@ export function readKml(text, name = '') {
     throw new KmlError('xml', `${label(name)} isn't a readable KML file.`);
   }
 
-  const when = xml.getElementsByTagName('when').map(n => parseIsoSeconds(n.textContent.trim())).filter(Number.isFinite);
+  const whenText = xml.getElementsByTagName('when').map(n => n.textContent.trim());
+  const when = whenText.map(parseIsoSeconds);
+  const unreadable = when.findIndex(t => !Number.isFinite(t));
+  if (unreadable >= 0) {
+    throw new KmlError('times', `${label(name)} has a time that can't be read ("${whenText[unreadable].slice(0, 40)}", time ${unreadable + 1}).`);
+  }
   const gx = xml.getElementsByTagName('gx:coord').map(n => n.textContent.trim()).filter(Boolean);
-  if (gx.length > MAX_FIXES) throw tooMany(name);
+  const lists = gx.length ? [] : xml.getElementsByTagName('coordinates').map(n => n.textContent.trim().split(/\s+/).filter(Boolean));
+  const positions = gx.length || lists.reduce((n, l) => n + l.length, 0);
+  if (positions > MAX_FIXES) throw tooMany(name);
+  if (positions && positions !== when.length) {
+    throw new KmlError('times', `${label(name)} has ${positions} positions but ${when.length} times, so the positions can't be timed. Export the track from ForeFlight again.`);
+  }
 
   const nativeG = readRecordedColumn(xml, GFORCE);
   const nativePitch = readRecordedColumn(xml, PITCH);
@@ -64,20 +76,22 @@ export function readKml(text, name = '') {
     gx.forEach((c, i) => {
       const a = c.split(/\s+/).map(Number);
       if (a.length >= 2 && Number.isFinite(a[0]) && Number.isFinite(a[1])) {
-        fixes.push(fix(a, when[i] ?? i, nativeG[i] ?? null, nativePitch[i] ?? null, bank[i] ?? null));
+        fixes.push(fix(a, when[i], nativeG[i] ?? null, nativePitch[i] ?? null, bank[i] ?? null));
       }
     });
   } else {
-    // Plain <coordinates> lists. V6 matches <when> by the position within each
-    // list (i) but the recorded columns by the running count (idx).
-    for (const node of xml.getElementsByTagName('coordinates')) {
-      node.textContent.trim().split(/\s+/).forEach((token, i) => {
+    // Plain <coordinates> lists. Each position takes the <when> with its running
+    // number across all lists (C5; V6 restarted the count in each list). As in
+    // V6, the recorded columns line up by the count of usable fixes (idx).
+    let n = 0;
+    for (const tokens of lists) {
+      tokens.forEach((token, i) => {
         const a = token.split(',').map(Number);
         const idx = fixes.length;
+        const t = when[n++];
         if (a.length >= 2 && Number.isFinite(a[0]) && Number.isFinite(a[1])) {
-          fixes.push(fix(a, when[i] ?? idx, nativeG[idx] ?? nativeG[i] ?? null, nativePitch[idx] ?? nativePitch[i] ?? null,
+          fixes.push(fix(a, t, nativeG[idx] ?? nativeG[i] ?? null, nativePitch[idx] ?? nativePitch[i] ?? null,
             bank[idx] ?? bank[i] ?? null));
-          if (fixes.length > MAX_FIXES) throw tooMany(name);
         }
       });
     }
