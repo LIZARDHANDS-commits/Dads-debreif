@@ -2,14 +2,16 @@
 
 Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
-- [ ] **1. Screen and loading.** Module registered and mounted; three columns with collapsible panels; the essentials-first layout (Layers and Tools menus, remembered toggles, Reset layout); load up to 4 files or the example flight; one-line status that opens the full status; fit to view; 2D tracks with gaps broken; #4 white with an outline.
+- [x] **1. Screen and loading.** Module registered and mounted; three columns with collapsible panels; the essentials-first layout (Layers and Tools menus, remembered toggles, Reset layout); load up to 4 files or the example flight; one-line status that opens the full status; fit to view; 2D tracks with gaps broken; #4 white with an outline.
   - Acceptance: R11 (example flight fitted, correct status); a failed file changes nothing loaded (D54); nothing overlaps at 1366 × 768 (R2).
   - Verify: `npm test`; `npm run dev` and load the example flight; e2e load test.
   - Files: src/shell/registry.js (via the app frame thread), src/modules/debrief/{index,state,layout}.js, map2d/{view,layers}.js, debrief.css, README.md, tests/unit/debrief/state.test.js
-- [ ] **2. Playback bar.** Play, pause, reset, step ±1 s, speed, 1 s scrubber, Zulu and local time, keyboard shortcuts; redraw on change only.
+  - Done: the debrief opens from its card. The Layers menu has the grid and Reset layout so far; each later layer joins it. "Close flight" comes with task 5 (it asks about unsaved DFPs), the 2D/3D switch with task 8. The example flight comes through `app.exampleText` (#97).
+- [x] **2. Playback bar.** Play, pause, reset, step ±1 s, speed, 1 s scrubber, Zulu and local time, keyboard shortcuts; redraw on change only.
   - Acceptance: Play at the end restarts; a paused debrief draws nothing; shortcuts stop when the debrief closes (R4).
   - Verify: `npm test`; e2e playback and module-switch tests.
-  - Files: src/modules/debrief/playback-bar.js, map2d/view.js, tests/unit/debrief/playback.test.js
+  - Files: src/modules/debrief/playback-bar.js, map2d/view.js, tests/e2e/debrief.spec.js
+  - Done: Reset and both times fit in the bar at 1366 px, so they show at every size instead of in a "more" menu. Measured at 1920 × 1080 on the example flight at 16×: 16.7 ms median frame (60 fps), example loads in 0.6 s (headless Chromium).
 - [ ] **3. Readouts.** The Formation card (one line per ship), and behind "More detail": live data (est. IAS; G and pitch from the track, D61; recorded bank when present, D47), aspect/HCA/closure, spacing with horizontal or 3D labels, GPS gap and unknown heading states.
   - Acceptance: numbers match V6 on the example flight (R9) except the logged changes; readouts update at most 10 times a second.
   - Verify: golden comparison of readout rows; performance log at 16×.
