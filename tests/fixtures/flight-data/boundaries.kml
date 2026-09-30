@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+<Document><Placemark><gx:Track>
+<when>2026-06-02T18:00:00Z</when><gx:coord>-105.5 50.3 500</gx:coord>
+<when>2026-06-02T18:00:01Z</when><gx:coord>-105.501 50.301 505</gx:coord>
+<when>2026-06-02T18:00:02Z</when><gx:coord>-105.502 50.302 510</gx:coord>
+<when>2026-06-02T18:00:03Z</when><gx:coord>-105.503 50.303 515</gx:coord>
+</gx:Track></Placemark>
+<ExtendedData><SchemaData>
+<gx:SimpleArrayData name="G"><gx:value>12</gx:value><gx:value>1</gx:value><gx:value>11.99</gx:value><gx:value>0</gx:value></gx:SimpleArrayData>
+<gx:SimpleArrayData name="pitch"><gx:value>90</gx:value><gx:value>-90</gx:value><gx:value>45</gx:value><gx:value>90.0001</gx:value></gx:SimpleArrayData>
+</SchemaData></ExtendedData></Document></kml>
