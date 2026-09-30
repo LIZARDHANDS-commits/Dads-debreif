@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import { toScreen, visibleBounds } from '../../../src/ui-kit/canvas-view.js';
 import {
   HINT_TEXT, LEVEL_MARKS, TYPE_COLORS, MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT,
-  paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnDataText, hintFor,
+  paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnLabelText, hintFor,
   sceneBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
-  turnedShape, aircraftSymbol, conflictLevels, isFlying, aircraftColor, drawScene, createMap2d,
+  turnedShape, aircraftSymbol, conflictLevels, markRadiiPx, MIN_BUBBLE_PX, MIN_RING_PX, isFlying, aircraftColor, drawScene, createMap2d,
 } from '../../../src/modules/traffic/map2d.js';
 
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} is not ${b}`);
@@ -56,9 +56,9 @@ test('a point\'s label is numbered from 1, with its height, speed and G', () => 
 });
 
 test('turn data gives the radius and bank at a rounded point, and the most G when a wind makes it matter', () => {
-  assert.equal(turnDataText({ radiusFt: 2474.2, bankDeg: 60 }), 'R 2,474 ft / bank 60°');
-  assert.equal(turnDataText({ radiusFt: 2474, bankDeg: 60.4, maxG: 2.34 }), 'R 2,474 ft / bank 60° / most 2.3 G');
-  assert.equal(turnDataText({ x: 0, y: 0 }), '', 'a point that doesn\'t turn has none');
+  assert.equal(turnLabelText({ radiusFt: 2474.2, bankDeg: 60 }), 'R 2,474 ft / bank 60°');
+  assert.equal(turnLabelText({ radiusFt: 2474, bankDeg: 60.4, maxG: 2.34 }), 'R 2,474 ft / bank 60° / most 2.3 G');
+  assert.equal(turnLabelText({ x: 0, y: 0 }), '', 'a point that doesn\'t turn has none');
 });
 
 test('the map\'s colours come from the page\'s tokens, with stand-ins when one is missing', () => {
@@ -340,6 +340,34 @@ test('a pair in conflict is marked ⚠ CONFLICT beside each aircraft, and one in
   assert.ok(marks.every((c) => c.fillStyle === PALETTE.bad));
   assert.equal(rec.named('fillText').find((c) => c.args[0].includes('CAUTION')).fillStyle, PALETTE.caution);
   assert.ok(!draw({ conflicts: [] }).written().some((t) => t.includes('CONFLICT') || t.includes('CAUTION')));
+});
+
+// At the fitted zoom of the whole Moose Jaw setup the map is about 40,000 ft across in 800 px, so
+// 200 ft is 4 px. True-size marks that small look like dots, so each has a smallest size on screen.
+const FITTED = 0.02; // px per ft
+test('markRadiiPx: true size when there is room, and at least 8 px (bubble) and 12 px (ring) when there is not', () => {
+  assert.deepEqual(markRadiiPx(200, 500, 0.05), { bubblePx: 10, ringPx: 25 }, 'zoomed in: true size');
+  assert.deepEqual(markRadiiPx(200, 500, FITTED), { bubblePx: 8, ringPx: 12 }, '4 px and 10 px at the fitted zoom become 8 and 12');
+  assert.deepEqual(markRadiiPx(200, 500, 0.001), { bubblePx: 8, ringPx: 12 }, 'zoomed right out');
+  assert.equal(MIN_BUBBLE_PX, 8);
+  assert.equal(MIN_RING_PX, 12);
+});
+
+test('markRadiiPx: the ring is always larger than the bubble, even if the limits are the other way round', () => {
+  for (const [conflictFt, cautionFt, pxPerFt] of [[200, 500, FITTED], [500, 200, 0.05], [200, 200, 0.05], [1000, 100, 0.01], [0, 0, 0.02]]) {
+    const { bubblePx, ringPx } = markRadiiPx(conflictFt, cautionFt, pxPerFt);
+    assert.ok(ringPx > bubblePx, `${conflictFt}/${cautionFt} at ${pxPerFt}: ring ${ringPx} bubble ${bubblePx}`);
+  }
+});
+
+test('at the fitted zoom the bubbles are drawn 8 px and the rings 12 px, and zoomed in they keep their true size', () => {
+  const zoomed = { ...fakeMap, view: { ...VIEW, scale: FITTED } };
+  const rec = recordingContext();
+  drawScene(rec.ctx, zoomed, scene(), LAYERS_ON, PALETTE);
+  const radii = rec.named('arc').map((c) => c.args[2]);
+  assert.equal(radii.filter((r) => r === 8).length, 3, 'a bubble for A1, A2 and A5');
+  assert.equal(radii.filter((r) => r === 12).length, 3, 'a ring for each');
+  assert.equal(draw().named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 3, 'at 20 ft a pixel they are still true size');
 });
 
 test('each flying aircraft has a bubble at the conflict limit and a dashed ring at the caution limit', () => {
