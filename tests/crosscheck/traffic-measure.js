@@ -81,17 +81,27 @@ function rawTurnDeg(route, i) {
 }
 
 /**
- * The bank of the circle a rounded turn is equal to: the turn is cut short by the legs on either side,
- * so the radius is d / tan(turn / 2), d being how far before the corner the turn starts on the flown path;
- * the bank is the one that radius needs at the point's speed.
+ * The peak bank actually flown in the rounded turn at point i. The engine flies a quadratic Bezier between the
+ * turn's start and end, whose curvature is highest in the middle (about 1.4 times the average on a 90 degree
+ * corner), so the peak is read off the flown path: the heading change at each vertex of the turn divided by the
+ * path length it is spread over gives the curvature, and the bank is the one that curvature needs at the
+ * point's speed. (The circle a turn is equal to, d / tan(turn / 2), has a lower bank than the peak.)
  */
-function flownBankDeg(route, i) {
-  const cur = route.points[i];
-  const { start } = turnEnds(route, i);
-  const d = Math.hypot(start.x - cur.x, start.y - cur.y);
-  const radius = d / Math.tan(rawTurnDeg(route, i) / DEG / 2);
-  const v = ktToFtps(cur.kt);
-  return Math.atan(v * v / (G_FTPS2 * radius)) * DEG;
+function peakBankDeg(route, i) {
+  const { points } = routePath(route);
+  const first = points.findIndex((p) => p.src === i);
+  let last = first;
+  points.forEach((p, k) => { if (p.src === i) last = k; });
+  const v = ktToFtps(route.points[i].kt);
+  let peak = 0;
+  for (let k = Math.max(first, 1); k <= Math.min(last, points.length - 2); k++) {
+    const a = points[k - 1], b = points[k], c = points[k + 1];
+    const l1 = Math.hypot(b.x - a.x, b.y - a.y), l2 = Math.hypot(c.x - b.x, c.y - b.y);
+    if (!l1 || !l2) continue;
+    const turn = Math.abs(((compass(c.x - b.x, c.y - b.y) - compass(b.x - a.x, b.y - a.y) + 540) % 360) - 180) / DEG;
+    peak = Math.max(peak, Math.atan(v * v * (turn / ((l1 + l2) / 2)) / G_FTPS2) * DEG);
+  }
+  return peak;
 }
 
 /** One aircraft flown alone round a pattern that never lands; the sim time at which each distance is reached. */
@@ -200,12 +210,12 @@ export function makeMeasures(setup, seed) {
     't-pattern-bank-asked': () => ({ value: min([3, 4, 6, 7, 8, 9].map((i) => bankAsked(pat, i))) }),
     't-break-bank-first': () => ({ value: bankAsked(pat, 9) }),
     't-break-bank-second': () => ({ value: bankAsked(pat, 10) }),
-    't-break-bank-first-flown': () => ({ value: flownBankDeg(pat, 9) }),
-    't-break-bank-second-flown': () => ({ value: flownBankDeg(pat, 10) }),
+    't-break-bank-first-flown': () => ({ value: peakBankDeg(pat, 9) }),
+    't-break-bank-second-flown': () => ({ value: peakBankDeg(pat, 10) }),
     't-break-heading-change': () => ({ value: norm360(initial().headingDeg - downwind().headingDeg) }),
     't-break-level': () => ({ value: P[9].alt - P[10].alt }),
     't-final-turn-bank-asked': () => ({ value: max([11, 12].map((i) => bankAsked(pat, i))) }),
-    't-final-turn-bank-flown': () => ({ value: max([11, 12].map((i) => flownBankDeg(pat, i))) }),
+    't-final-turn-bank-flown': () => ({ value: max([11, 12].map((i) => peakBankDeg(pat, i))) }),
     't-final-turn-heading-change': () => ({ value: norm360(downwind().headingDeg - finalLeg().headingDeg) }),
     't-final-turn-straight': () => ({ value: straightLeg(pat, 11).len }),
     't-straight-in-bank-asked': () => ({ value: max([2, 3, 4, 5].map((i) => bankAsked(spl1, i))) }),
@@ -216,6 +226,19 @@ export function makeMeasures(setup, seed) {
           if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
           const margin = limitG(p.g, 9) - availableG(p.kt);
           if (margin > worst.margin) worst = { margin, where: `${r.id} point ${i + 1}: ${p.g} G at ${p.kt} kt` };
+        });
+      }
+      return { value: worst.margin, where: worst.where };
+    },
+
+    't-corner-g-margin-flown': () => {
+      let worst = { margin: -Infinity, where: '' };
+      for (const r of setup.routes) {
+        r.points.forEach((p, i) => {
+          if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
+          const flownG = 1 / Math.cos(peakBankDeg(r, i) / DEG);
+          const margin = flownG - availableG(p.kt);
+          if (margin > worst.margin) worst = { margin, where: `${r.id} point ${i + 1}: ${flownG.toFixed(2)} G flown at ${p.kt} kt (${p.g} G asked)` };
         });
       }
       return { value: worst.margin, where: worst.where };
