@@ -49,6 +49,7 @@ export function projectPoint(p, ctr, camera, size, pxRatio = 1) {
   return { x: size.width / 2 + x1 * zoom, y: size.height / 2 - y2 * zoom, depth: z2 };
 }
 
+// The reference the 3D tests check the three.js picture against (drawOrder here, t6Points and attitudeEuler below).
 /**
  * The order to draw aircraft in: far first, so near ones are painted over them
  * (#27). A smaller `depth` from projectPoint is nearer the viewer: looking
@@ -146,6 +147,7 @@ const T6_SHAPE = Object.freeze({
   propR: [0.92, -0.25, 0],
 });
 
+// The reference the 3D tests check the three.js model's attitude against (attitude.test.js).
 /**
  * World corner points of the low-poly T-6 for an aircraft at `p` heading `hdg`,
  * rolled `bankRad` (left wing down positive) and pitched `pitchRad` (nose up
@@ -172,4 +174,16 @@ export function t6Points(p, hdg, bankRad, pitchRad, sizeFt) {
     out[name] = { x: p.x + f.x * fwd + l.x * left, y: p.y + f.y * fwd + l.y * left, altFt: alt0 + up };
   }
   return out;
+}
+
+/**
+ * The rotation the three.js model turns by, as an Euler angle: roll about the
+ * fuselage (x, left wing down positive, so the sign flips for three.js), then
+ * pitch about the wings (y, nose up positive, flipped likewise), then heading
+ * about the vertical (z). The same rigid turn as t6Points, tested against it.
+ * `ship` is a shipsIn3d entry: { bankDeg, pitchDeg, hdg (radians) }.
+ * @returns {{ x: number, y: number, z: number, order: 'ZYX' }}
+ */
+export function attitudeEuler(ship) {
+  return { x: -deg(ship.bankDeg), y: -deg(ship.pitchDeg), z: ship.hdg, order: 'ZYX' };
 }

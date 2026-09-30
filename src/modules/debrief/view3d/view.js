@@ -14,7 +14,7 @@ import {
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { SHIP_COLORS } from '../state.js';
 import { sampleAt } from '../../../flight-data/flight.js';
-import { formationCenter, projectPoint } from './scene.js';
+import { formationCenter, projectPoint, attitudeEuler } from './scene.js';
 import { shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT } from './frame.js';
 import { attachCameraInput } from './input.js';
 import {
@@ -27,7 +27,6 @@ const DATUM_FILL = '#17351b';
 const DATUM_EDGE = '#7ee787';
 const TRAIL_SAMPLES = 80; // points along each trail, as V6
 const STICK_PX = 3; // the height sticks' width on screen, as the 2D-canvas view drew them
-const rad = (d) => (d * Math.PI) / 180;
 
 /**
  * canvas: the 3D <canvas> (the overlay; the WebGL canvas goes right after
@@ -275,13 +274,14 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     }
     if (!entry) {
       const mesh = createCt156Model(THREE, { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt: on.planeSize3d * CT156_UNIT_LENGTH });
-      mesh.rotation.order = 'ZYX';
+      mesh.rotation.order = attitudeEuler(s).order;
       scene.add(mesh);
       entry = { key, mesh };
       gl.ships.set(s.slot, entry);
     }
     entry.mesh.position.set(s.x, s.y, Z(s.altFt));
-    entry.mesh.rotation.set(-rad(s.bankDeg), -rad(s.pitchDeg), s.hdg);
+    const turn = attitudeEuler(s);
+    entry.mesh.rotation.set(turn.x, turn.y, turn.z);
     modelled.add(s.slot);
   }
   for (const [slot, { mesh }] of gl.ships) mesh.visible = modelled.has(slot);
