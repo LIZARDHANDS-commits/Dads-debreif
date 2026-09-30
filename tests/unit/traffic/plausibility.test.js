@@ -29,9 +29,9 @@ test.todo('no step moves an aircraft more than 2 × speed × 0.05 s + 5 ft at a 
 // (core `availableG(kias)`: the stall line `stallLimitG(kias)`, at most +7 G). Two built-in corners do: Split 3 point 2 (4.19 G at 150 kt against
 // 3.04 G) and Split 2 point 2 (3.28 G). It is a todo until task 12 (banks that the speed can fly) fixes the
 // setup; the same numbers are in the cross-check table (t-corner-flown-* rows). Remove the `.todo` when it passes.
-test.todo('every corner of every built-in route is flown within the stall-line G at its speed (TR-20, task 12)', () => {
+test.todo('every corner of every built-in route is flown within the G the T-6A can pull at its speed (TR-20, task 12)', () => {
   const over = flownCorners(SETUP).filter((c) => c.margin > 0.05)
-    .map((c) => `${c.routeId} point ${c.point}: ${c.flownG.toFixed(2)} G flown at ${c.kt} kt, stall line ${c.canPullG.toFixed(2)} G`);
+    .map((c) => `${c.routeId} point ${c.point}: ${c.flownG.toFixed(2)} G flown at ${c.kt} kt, can pull ${c.canPullG.toFixed(2)} G`);
   assert.deepEqual(over, []);
 });
 test.todo('the bank each point flies is within 5° of its turn data, or the point is flagged (TR-07, task 12)');

@@ -220,7 +220,7 @@ export function makeMeasures(setup, seed) {
 
   const cornerMeasures = Object.fromEntries(flownCorners(setup).map((c) => [c.id, () => ({
     value: c.margin,
-    where: `${c.flownG.toFixed(2)} G flown at ${c.kt} kt, stall line ${c.canPullG.toFixed(2)} G (${c.asked} G asked)`,
+    where: `${c.flownG.toFixed(2)} G flown at ${c.kt} kt, can pull ${c.canPullG.toFixed(2)} G (stall line or +7 G), ${c.asked} G asked`,
   })]));
 
   return {

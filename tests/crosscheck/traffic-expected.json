@@ -571,7 +571,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.57 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.57 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p5",
@@ -585,7 +585,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.65 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.65 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p7",
@@ -599,7 +599,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.67 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.67 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p8",
@@ -613,7 +613,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.12 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.12 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p9",
@@ -627,7 +627,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.12 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.12 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p10",
@@ -641,7 +641,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.92 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.92 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p11",
@@ -655,7 +655,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.86 G flown at 140 kt, stall line 2.65 G (1 G asked)"
+    "where": "1.86 G flown at 140 kt, can pull 2.65 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p12",
@@ -669,7 +669,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.41 G flown at 120 kt, stall line 1.95 G (1 G asked)"
+    "where": "1.41 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "t-corner-flown-PAT1-p13",
@@ -683,7 +683,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.25 G flown at 110 kt, stall line 1.64 G (1 G asked)"
+    "where": "1.25 G flown at 110 kt, can pull 1.64 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "t-corner-flown-ENT2-p3",
@@ -697,7 +697,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.46 G flown at 120 kt, stall line 1.95 G (1.4142 G asked)"
+    "where": "1.46 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1.4142 G asked"
   },
   {
     "id": "t-corner-flown-ENT2-p4",
@@ -711,7 +711,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.48 G flown at 110 kt, stall line 1.64 G (1.4142 G asked)"
+    "where": "1.48 G flown at 110 kt, can pull 1.64 G (stall line or +7 G), 1.4142 G asked"
   },
   {
     "id": "t-corner-flown-SPL1-p3",
@@ -725,7 +725,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.73 G flown at 140 kt, stall line 2.65 G (1.4142 G asked)"
+    "where": "1.73 G flown at 140 kt, can pull 2.65 G (stall line or +7 G), 1.4142 G asked"
   },
   {
     "id": "t-corner-flown-SPL1-p4",
@@ -739,7 +739,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.46 G flown at 120 kt, stall line 1.95 G (1.4142 G asked)"
+    "where": "1.46 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1.4142 G asked"
   },
   {
     "id": "t-corner-flown-SPL1-p5",
@@ -753,7 +753,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.49 G flown at 120 kt, stall line 1.95 G (1.4142 G asked)"
+    "where": "1.49 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1.4142 G asked"
   },
   {
     "id": "t-corner-flown-SPL2-p2",
@@ -767,7 +767,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "no",
-    "where": "3.28 G flown at 150 kt, stall line 3.04 G (2 G asked)"
+    "where": "3.28 G flown at 150 kt, can pull 3.04 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-SPL2-p3",
@@ -781,7 +781,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.94 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.94 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-SPL2-p4",
@@ -795,7 +795,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "2.71 G flown at 220 kt, stall line 6.54 G (2 G asked)"
+    "where": "2.71 G flown at 220 kt, can pull 6.54 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-SPL3-p2",
@@ -809,7 +809,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "no",
-    "where": "4.19 G flown at 150 kt, stall line 3.04 G (2 G asked)"
+    "where": "4.19 G flown at 150 kt, can pull 3.04 G (stall line or +7 G), 2 G asked"
   },
   {
     "id": "t-corner-flown-ENT4-p2",
@@ -823,7 +823,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.26 G flown at 120 kt, stall line 1.95 G (1 G asked)"
+    "where": "1.26 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "t-corner-flown-ENT4-p3",
@@ -837,7 +837,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.34 G flown at 120 kt, stall line 1.95 G (1 G asked)"
+    "where": "1.34 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "t-corner-flown-ENT4-p4",
@@ -851,7 +851,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.32 G flown at 120 kt, stall line 1.95 G (1 G asked)"
+    "where": "1.32 G flown at 120 kt, can pull 1.95 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "t-corner-flown-SPL4-p2",
@@ -865,7 +865,7 @@
     "tolerance": 0.05,
     "mode": "atMost",
     "within": "yes",
-    "where": "1.48 G flown at 150 kt, stall line 3.04 G (1 G asked)"
+    "where": "1.48 G flown at 150 kt, can pull 3.04 G (stall line or +7 G), 1 G asked"
   },
   {
     "id": "a-initial-alignment",
