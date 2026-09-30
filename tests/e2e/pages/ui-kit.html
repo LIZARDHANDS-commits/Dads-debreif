@@ -24,14 +24,14 @@
       import { createStore } from '/src/storage/store.js';
       import { createSettings } from '/src/storage/settings.js';
       import { createScheduler } from '/src/ui-kit/scheduler.js';
-      import { createControls } from '/src/ui-kit/controls.js';
+      import { createControls, VIEW_DEFAULT, VIEW_ALLOWED } from '/src/ui-kit/controls.js';
       import { createCanvasView, createCanvasSurface } from '/src/ui-kit/canvas-view.js';
       import { createSettingsMenu } from '/src/ui-kit/settings-menu.js';
 
       const settings = createSettings(
         createStore(null).scope('kit'),
-        { bubbleFt: 1000, opacity: 0.5, grid: true, trail: 60, view: '2d', turnG: 4 },
-        { allowed: { view: ['2d', '3d'] } },
+        { bubbleFt: 1000, opacity: 0.5, grid: true, trail: 60, view: VIEW_DEFAULT, turnG: 4 },
+        { allowed: { view: VIEW_ALLOWED } },
       );
       const controls = createControls(settings);
       document.getElementById('controls').append(
@@ -39,7 +39,7 @@
         controls.slider('opacity', { label: 'Chart opacity', min: 0, max: 1, step: 0.05, format: (v) => `${Math.round(v * 100)}%` }),
         controls.checkbox('grid', { label: '5,000 ft grid' }),
         controls.select('trail', { label: 'Trail', options: [[0, 'Full'], [60, 'Last 60 s']] }),
-        controls.choice('view', { label: 'View', options: [['2d', '2D'], ['3d', '3D']] }),
+        controls.viewSwitch(),
       );
 
       // The Settings menu a module keeps its tuning numbers in (starts closed).

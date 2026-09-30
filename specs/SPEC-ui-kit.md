@@ -151,7 +151,7 @@ charts.dispose();
 three.js draws every 3D aircraft view: the Debrief's 3D view (its `view3d` moves onto this next), Turn Fight's 3D view, and any later Turn Sim or Traffic 3D view. The shared pieces live in `src/ui-kit/three-aircraft.js` so each view draws the same aircraft with the same camera.
 
 ```js
-import { loadThree, createAircraftMesh, disposeAircraftMesh, matchProjection, worldToScreen, altToZ, addLights, addSky } from '../../ui-kit/three-aircraft.js';
+import { loadThree, createAircraftMesh, disposeAircraftMesh, createStandInMesh, matchProjection, worldToScreen, altToZ, addLights, addSky } from '../../ui-kit/three-aircraft.js';
 
 const THREE = await loadThree();                       // dynamic import('three'), cached; call when the 3D view opens
 addLights(THREE, scene);                               // { hemisphere, sun }
@@ -159,6 +159,7 @@ const sky = addSky(THREE, scene);                     // gradient background and
 const plane = createAircraftMesh(THREE, { color: SHIP_COLORS[slot], outline: OUTLINE_COLOR });
 plane.position.set(s.x, s.y, altToZ(s.altFt, cam.altScale));   // the model is not scaled by altScale
 plane.scale.setScalar(planeSizeFt);
+const other = createStandInMesh(THREE, { color, outline, kind: 'generic' });   // Traffic's non-T-6 types: same frame and size, clearly not a T-6
 plane.rotation.order = 'ZYX';
 plane.rotation.set(-bankRad, -pitchRad, hdgRad);       // heading about Z (0 = east), then pitch, then bank
 matchProjection(THREE, camera, ctr, cam, { width, height });    // camera: THREE.OrthographicCamera
@@ -171,8 +172,25 @@ disposeAircraftMesh(plane); sky.dispose();             // when the view closes (
 - **Depth range.** The camera sits `CAMERA_DISTANCE_FT` (1,000,000 ft) from its target with near and far planes 900,000 ft either side, so nothing the Debrief allows is clipped: altitude scale up to 10, pitch 0 to 90, ground 70,000 ft out, a formation at 31,000 ft over sea-level ground. The tests check every point stays inside the planes and that the depth agrees with `projectPoint`'s `depth`.
 - **Fog is for the ground only.** The sky's fog fades a big ground plane toward the horizon; aircraft materials (and their outline and prop disc) set `fog: false` so an aircraft never fades. Any ground, grid or trail a view adds decides its own fog.
 - **Plain paint.** The aircraft is the T-6-like model in ship colours only: fuselage in the ship colour, wings and stabiliser a shade darker, fin a shade lighter, dark spinner, translucent canopy and prop disc. No paint scheme until a Harvard scheme is agreed with Patrick. `outline` is optional edge lines on wings, stabiliser and fin.
+- **Stand-ins for other types (D141).** `createStandInMesh(THREE, { color, outline, kind })` is for Traffic's Grob, Tutor, Astra, CT-156 and the like: `kind: 'generic'` (default, and any unknown kind) is a slim fuselage, straight wing and T-tail; `'dart'` is a low-poly delta wing with one fin. Same frame and size scale as the T-6, no prop disc, `fog: false`, freed by `disposeAircraftMesh`. Several aircraft at once are just several meshes, one per ship.
 - **Model frame.** Nose +X, left +Y, up +Z; about 1.44 long (tail to spinner) and 1.32 across the wings, so `scale` is set to the plane size in feet. It is the Debrief spike's model, not V6's `t6Points`.
 - No timers and no animation frames: the view draws when the scheduler's frame callback asks it to.
+
+## 2D/3D switch (D141)
+
+Every simulator has a 2D | 3D switch: the Debrief, Turn Fight, Turn Sim and Traffic. The SOF dashboard stays 2D and has none.
+
+```js
+import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
+const settings = createSettings(scope, { view: VIEW_DEFAULT /* '2d' */, /* … */ }, { allowed: { view: VIEW_ALLOWED } });
+panel.body.append(controls.viewSwitch());          // a "View" choice, 2D then 3D, bound to the 'view' setting
+controls.viewSwitch('mode')                        // or to another setting key
+```
+
+- `controls.viewSwitch(key = 'view')` is exactly `controls.choice(key, { label: 'View', options: 2D, 3D })`; `VIEW_DEFAULT` is `'2d'` and `VIEW_ALLOWED` is `['2d', '3d']`, so every module seeds and validates the setting the same way.
+- **2D is the default.** three loads only when 3D is switched on: the module awaits `loadThree()` then, never at start-up.
+- If `loadThree()` fails (offline on the first visit), the module shows "3D needs a connection the first time." beside the switch, puts the setting back to `2d`, and the 2D view keeps working. A later try loads it (a failed load is not cached).
+- The 3D view uses `matchProjection` for its camera (no camera maths of its own) and `createAircraftMesh` or `createStandInMesh` for its aircraft; no flight math changes.
 
 ## Not overwhelming (R22)
 
@@ -216,6 +234,7 @@ menu.body;                                   // the container the sections live 
 - `tests/unit/ui-kit/map-tiles.test.js` (moved from the debrief) and `vnc.test.js` (moves at SOF task 6): which tiles a view needs and the 64-tile limit, retries and giving up, the least-recently-drawn cache, nothing loaded after `dispose`; the VNC warp and bounds, and each chart fetched only when first shown.
 - `tests/unit/ui-kit/settings-menu.test.js`: closed by default and opens with `collapsed: false`; a section title is inserted as text; sections keep their order; the Reset button exists only with `onReset`, calls it on click, and takes a custom label.
 - `tests/unit/ui-kit/three-aircraft.test.js`: the three.js camera projects points to the same screen position as `scene.js projectPoint` (many views, canvas sizes and points, 1e-6 px); the aircraft mesh's axes, size, colours and outline; the depth range; the aircraft's attitude (`rotation.set(-bank, -pitch, hdg)`, order 'ZYX') pointing the nose and left wing where `scene.js t6Points` does; `loadThree` returns one cached module (the no-static-import rule is in `source-rules.test.js`). three runs in Node without WebGL.
+- `tests/unit/ui-kit/controls.test.js`: `viewSwitch` is a "View" choice with 2D then 3D, follows the setting, writes it, and binds another key; `VIEW_DEFAULT` and `VIEW_ALLOWED`. Stand-in aircraft (axes, size, colour, fog, dispose) are in `three-aircraft.test.js`.
 - Browser (with the shell): panels open and close with the mouse and the keyboard, and Tab moves between controls.
 - Browser (`tests/e2e/ui-kit.spec.js`, on a test page that loads the modules): each control updates its setting, follows outside changes, and refuses bad numbers with a message; the canvas view pans, zooms and uses the keys, draws only when asked, leaves the arrows to the page with `arrowKeys: false`, and stops listening after `dispose`; `setDisabled` greys out a control; the Settings menu starts closed, opens from the keyboard, holds a working number control, calls Reset and closes again; the canvas surface redraws only on request or resize.
 

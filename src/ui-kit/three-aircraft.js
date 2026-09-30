@@ -42,6 +42,32 @@ export function altToZ(altFt, altScale) {
   return (altFt || 0) * altScale;
 }
 
+// A flat part: a plan-view outline [[x, y], ...] extruded `depth` up from height z0.
+function flatPart(THREE, pts, depth, z0) {
+  const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+  g.translate(0, 0, z0);
+  return g;
+}
+
+// A vertical fin: an outline [[x, up], ...] extruded `depth` across the centreline.
+function finPart(THREE, pts, depth) {
+  const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z))), { depth, bevelEnabled: false });
+  g.translate(0, 0, -depth / 2);
+  g.rotateX(Math.PI / 2);
+  return g;
+}
+
+// fog: false on every aircraft material: fog is for the ground only, never the aircraft.
+const standard = (THREE, color, extra) =>
+  new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.55, metalness: 0.1, fog: false, ...extra });
+
+// Edge lines round the given parts, so an aircraft stays readable against any background.
+function addOutline(THREE, group, parts, outline) {
+  const edge = new THREE.LineBasicMaterial({ color: outline, fog: false });
+  for (const part of parts) group.add(new THREE.LineSegments(new THREE.EdgesGeometry(part, 30), edge));
+}
+
 // The parts of a T-6-like aircraft: nose +X, left +Y, up +Z.
 function buildGeometry(THREE) {
   // Fuselage: lathe profile (radius, axial) around Y, then turned so the axis is +X.
@@ -52,21 +78,13 @@ function buildGeometry(THREE) {
   const fuselage = new THREE.LatheGeometry(profile, 20);
   fuselage.rotateZ(-Math.PI / 2);
 
-  const flat = (pts, depth, z0) => {
-    const shape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
-    const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-    g.translate(0, 0, z0);
-    return g;
-  };
+  const flat = (pts, depth, z0) => flatPart(THREE, pts, depth, z0);
   // Straight, tapered, low wing (plan view: x forward, y left).
   const wing = flat([[0.16, 0.66], [0.33, 0.07], [0.33, -0.07], [0.16, -0.66], [0.06, -0.66], [0.03, -0.07], [0.03, 0.07], [0.06, 0.66]], 0.022, -0.05);
   // Horizontal stabiliser.
   const stab = flat([[-0.6, 0.3], [-0.5, 0.05], [-0.5, -0.05], [-0.6, -0.3], [-0.7, -0.3], [-0.72, -0.03], [-0.72, 0.03], [-0.7, 0.3]], 0.014, 0.0);
-  // Vertical fin: shape in (x, up), extruded across.
-  const finShape = new THREE.Shape([[-0.42, 0.03], [-0.6, 0.24], [-0.72, 0.24], [-0.72, 0.03]].map(([x, z]) => new THREE.Vector2(x, z)));
-  const fin = new THREE.ExtrudeGeometry(finShape, { depth: 0.014, bevelEnabled: false });
-  fin.translate(0, 0, -0.007);
-  fin.rotateX(Math.PI / 2);
+  // Vertical fin.
+  const fin = finPart(THREE, [[-0.42, 0.03], [-0.6, 0.24], [-0.72, 0.24], [-0.72, 0.03]], 0.014);
 
   const canopy = new THREE.SphereGeometry(1, 16, 10);
   canopy.scale(0.17, 0.062, 0.062);
@@ -98,8 +116,7 @@ function buildGeometry(THREE) {
 export function createAircraftMesh(THREE, { color, outline = null }) {
   const geo = buildGeometry(THREE);
   const base = new THREE.Color(color);
-  // fog: false on everything here: fog is for the ground only, never the aircraft.
-  const mat = (c, extra) => new THREE.MeshStandardMaterial({ color: c, flatShading: true, roughness: 0.55, metalness: 0.1, fog: false, ...extra });
+  const mat = (c, extra) => standard(THREE, c, extra);
   const group = new THREE.Group();
   const add = (geometry, material) => group.add(new THREE.Mesh(geometry, material));
   add(geo.fuselage, mat(base));
@@ -109,16 +126,59 @@ export function createAircraftMesh(THREE, { color, outline = null }) {
   add(geo.canopy, mat('#8fc4ff', { transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.4 }));
   add(geo.spinner, mat('#20242a', { roughness: 0.4 }));
   add(geo.disc, new THREE.MeshBasicMaterial({ color: '#dcebff', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, fog: false }));
-  if (outline) {
-    const edge = new THREE.LineBasicMaterial({ color: outline, fog: false });
-    for (const part of [geo.wing, geo.stab, geo.fin]) {
-      group.add(new THREE.LineSegments(new THREE.EdgesGeometry(part, 30), edge));
-    }
-  }
+  if (outline) addOutline(THREE, group, [geo.wing, geo.stab, geo.fin], outline);
   return group;
 }
 
-/** Frees the geometry and materials of an aircraft made by `createAircraftMesh` (and removes it from its parent). */
+/**
+ * A generic non-T-6 aircraft for Traffic's other types (Grob, Tutor, Astra, CT-156 ...):
+ * clearly not a T-6 (slim fuselage, no propeller disc), in the same frame and size scale
+ * (nose +X, left +Y, up +Z, about 1.4 long and 1.3 across). `kind` picks the shape:
+ * 'generic' (default, and for any unknown kind) is a slim fuselage, straight wing and
+ * T-tail; 'dart' is a low-poly delta wing with a single fin. `color` and `outline` are as
+ * for `createAircraftMesh`. Free it with `disposeAircraftMesh`.
+ */
+export function createStandInMesh(THREE, { color, outline = null, kind = 'generic' } = {}) {
+  const base = new THREE.Color(color);
+  const group = new THREE.Group();
+  const add = (geometry, c, extra) => group.add(new THREE.Mesh(geometry, standard(THREE, c, extra)));
+  const dark = base.clone().multiplyScalar(0.82);
+
+  const profile = (rows) => rows.map(([r, x]) => new THREE.Vector2(r, x));
+  const fuselage = new THREE.LatheGeometry(profile([
+    [0.004, -0.72], [0.02, -0.66], [0.035, -0.45], [0.05, -0.1], [0.056, 0.2], [0.05, 0.45], [0.03, 0.6], [0.001, 0.66],
+  ]), 16);
+  fuselage.rotateZ(-Math.PI / 2);
+  const canopy = new THREE.SphereGeometry(1, 12, 8);
+  canopy.scale(0.14, 0.045, 0.045);
+  canopy.translate(0.2, 0, 0.055);
+  const canopyMaterial = { transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.4 };
+
+  let parts;
+  if (kind === 'dart') {
+    const wing = flatPart(THREE, [[0.3, 0.03], [-0.6, 0.62], [-0.6, -0.62], [0.3, -0.03]], 0.02, -0.01);
+    const fin = finPart(THREE, [[-0.3, 0.02], [-0.58, 0.3], [-0.7, 0.3], [-0.7, 0.02]], 0.014);
+    add(fuselage, base);
+    add(wing, dark);
+    add(fin, base.clone().lerp(new THREE.Color('#ffffff'), 0.15));
+    add(canopy, '#8fc4ff', canopyMaterial);
+    parts = [wing, fin];
+  } else {
+    const wing = flatPart(THREE, [[0.2, 0.65], [0.2, -0.65], [-0.02, -0.65], [-0.02, 0.65]], 0.02, -0.01);
+    const stab = flatPart(THREE, [[-0.6, 0.24], [-0.6, -0.24], [-0.72, -0.24], [-0.72, 0.24]], 0.012, 0.34);
+    const fin = finPart(THREE, [[-0.5, 0.02], [-0.66, 0.34], [-0.72, 0.34], [-0.72, 0.02]], 0.014);
+    add(fuselage, base);
+    add(wing, dark);
+    add(stab, dark);
+    add(fin, base.clone().lerp(new THREE.Color('#ffffff'), 0.15));
+    add(canopy, '#8fc4ff', canopyMaterial);
+    parts = [wing, stab, fin];
+  }
+  if (outline) addOutline(THREE, group, parts, outline);
+  return group;
+}
+
+/** Frees the geometry and materials of an aircraft made by `createAircraftMesh` or `createStandInMesh` (and removes it from its parent). */
 export function disposeAircraftMesh(mesh) {
   mesh.removeFromParent();
   const materials = new Set();

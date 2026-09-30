@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { projectPoint, t6Points } from '../../../src/modules/debrief/view3d/scene.js';
 import {
-  loadThree, createAircraftMesh, disposeAircraftMesh, matchProjection, worldToScreen, altToZ, addLights, addSky, CAMERA_DISTANCE_FT,
+  loadThree, createAircraftMesh, createStandInMesh, disposeAircraftMesh, matchProjection, worldToScreen, altToZ, addLights, addSky, CAMERA_DISTANCE_FT,
 } from '../../../src/ui-kit/three-aircraft.js';
 
 const THREE = await loadThree();
@@ -155,6 +155,57 @@ test('createAircraftMesh: nose +X, wingspan along Y, about unit length, up +Z', 
   assert.ok(Math.abs(box.max.y + box.min.y) < 0.01, 'symmetric left and right');
   const fin = sizeOf(m.children[3]).box; // the fin stands up from the fuselage, so up is +Z
   assert.ok(fin.min.z > -0.01 && fin.max.z > 0.2 && fin.max.x < -0.4);
+});
+
+test('createStandInMesh: same frame and size scale as the T-6 (nose +X, span along Y, up +Z), for every kind', () => {
+  const t6 = sizeOf(createAircraftMesh(THREE, { color: '#ffffff' })).size;
+  for (const kind of ['generic', 'dart', undefined, 'no-such-kind']) {
+    const m = createStandInMesh(THREE, { color: '#ffffff', kind });
+    assert.ok(m instanceof THREE.Group);
+    const { box, size } = sizeOf(m);
+    assert.ok(Math.abs(size.x - t6.x) < 0.15, `${kind} length ${size.x} vs ${t6.x}`);
+    assert.ok(size.y > 1.0 && size.y < 1.4, `${kind} span ${size.y}`);
+    assert.ok(size.z < 0.6, `${kind} height ${size.z}`);
+    assert.ok(box.max.x > 0.5 && box.min.x < -0.55, `${kind} nose at +X, tail at -X`);
+    assert.ok(Math.abs(box.max.y + box.min.y) < 0.01, `${kind} symmetric left and right`);
+    assert.ok(box.max.z > 0.2 && box.min.z > -0.15, `${kind} has a fin standing up to +Z`);
+  }
+});
+
+test('createStandInMesh: looks different from the T-6 and from each other, and has no prop disc', () => {
+  const shapeOf = (m) => m.children.map((c) => `${c.geometry.type}:${c.geometry.attributes.position.count}`).join(',');
+  const t6 = shapeOf(createAircraftMesh(THREE, { color: '#fff' }));
+  const generic = shapeOf(createStandInMesh(THREE, { color: '#fff', kind: 'generic' }));
+  const dart = shapeOf(createStandInMesh(THREE, { color: '#fff', kind: 'dart' }));
+  assert.notEqual(generic, t6);
+  assert.notEqual(dart, t6);
+  assert.notEqual(generic, dart);
+  assert.ok(!createStandInMesh(THREE, { color: '#fff' }).children.some((c) => c.geometry.type === 'CircleGeometry'));
+});
+
+test('createStandInMesh: ship colour on the body, darker wings, no fog, an outline on request', () => {
+  const m = createStandInMesh(THREE, { color: '#00ff00', outline: '#000000' });
+  assert.equal(m.children[0].material.color.getHexString(), '00ff00');
+  assert.ok(m.children[1].material.color.g < m.children[0].material.color.g);
+  let count = 0;
+  m.traverse((o) => { if (o.material) { assert.equal(o.material.fog, false); count++; } });
+  assert.ok(count >= 5);
+  assert.ok(m.children.some((c) => c.isLineSegments && c.material.color.getHexString() === '000000'));
+  assert.ok(!createStandInMesh(THREE, { color: '#00ff00' }).children.some((c) => c.isLineSegments));
+});
+
+test('disposeAircraftMesh also frees a stand-in and removes it from its scene', () => {
+  const scene = new THREE.Scene();
+  const m = createStandInMesh(THREE, { color: '#ffffff', outline: '#000000', kind: 'dart' });
+  scene.add(m);
+  let freed = 0;
+  m.traverse((o) => {
+    o.geometry?.addEventListener('dispose', () => freed++);
+    for (const mat of [].concat(o.material ?? [])) mat.addEventListener('dispose', () => freed++);
+  });
+  disposeAircraftMesh(m);
+  assert.ok(freed >= 8);
+  assert.equal(scene.children.length, 0);
 });
 
 test('createAircraftMesh: ship colour on the body, darker on the wings, own materials per aircraft', () => {
