@@ -16,6 +16,7 @@ export const GROUND_GRID_FT = 5000;
 /** How far the ground reaches round the view's centre (V6's ground reference, 70,000 ft). */
 export const GROUND_EXTENT_FT = 70_000;
 
+/** @type {(v: number, range: readonly number[]) => number} */
 const clamp = (v, [min, max]) => Math.max(min, Math.min(max, v));
 
 /** A camera change from a drag of (dx, dy) pixels, kept within V6's limits. */

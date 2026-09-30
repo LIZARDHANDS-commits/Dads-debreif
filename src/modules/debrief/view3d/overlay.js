@@ -120,7 +120,9 @@ export function drawCompass(ctx, size, camera) {
   ctx.save();
   ctx.font = '600 13px system-ui, sans-serif';
   ctx.lineWidth = 3;
-  for (const [label, [ux, uy], color] of [['N', dir(0, 1), '#7ee787'], ['E', dir(1, 0), '#58a6ff']]) {
+  /** @type {Array<[string, number[], string]>} */
+  const arrows = [['N', dir(0, 1), '#7ee787'], ['E', dir(1, 0), '#58a6ff']];
+  for (const [label, [ux, uy], color] of arrows) {
     const tipX = cx + ux * 36;
     const tipY = cy + uy * 36;
     ctx.strokeStyle = color;

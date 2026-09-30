@@ -45,7 +45,7 @@ function mount(root, app) {
 
   // The view and paint are checked against their lists (D141, D138); other values fall back to the defaults.
   const layout = createSettings(app.storage, LAYOUT_DEFAULTS, {
-    allowed: { view: VIEW_ALLOWED, paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS) },
+    allowed: { view: [...VIEW_ALLOWED], paint3d: PAINT_OPTIONS.map((o) => o.value), wxSatelliteLayer: Object.keys(SATELLITE_LAYERS) },
   });
   const controls = createControls(layout);
   const bar = createPlaybackBar({ time: app.time });
@@ -374,8 +374,9 @@ function mount(root, app) {
     run('Loading the example flight', () =>
       loadExampleFlight(app.exampleText).catch((err) => {
         if (err?.name === 'KmlError') throw err;
-        const failed = new Error('Example flight download failed', { cause: err });
-        failed.userMessage = "The example flight couldn't be downloaded. Check the connection and try again.";
+        const failed = Object.assign(new Error('Example flight download failed', { cause: err }), {
+          userMessage: "The example flight couldn't be downloaded. Check the connection and try again.",
+        });
         throw failed;
       }),
     ),

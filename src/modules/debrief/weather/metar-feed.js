@@ -9,7 +9,7 @@ import { metarArchiveUrl, readArchive } from './metar.js';
  * fetch finishes, so the line can redraw.
  * Returns { get(icao) → { state: 'loading' | 'ready' | 'failed', reports }, setFlight(flight), dispose() }.
  */
-export function createMetarFeed({ fetch = (...args) => globalThis.fetch(...args), onChange }) {
+export function createMetarFeed({ fetch = (input, init) => globalThis.fetch(input, init), onChange }) {
   const cache = new Map();
   let flight = null;
   let aborts = new Set();
