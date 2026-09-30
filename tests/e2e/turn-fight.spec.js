@@ -1143,6 +1143,15 @@ test('the intro, About and the turn line hold for any start: a tail chase never 
   await expect(page.getByText('a nose-on happens only if they come back exactly head-on')).toBeVisible();
 });
 
+test('TF3-6, TF3-8: the hints say what ATA, AA and HCA are and where they come from, that no side counts at 0° or 180°, and that the height is used with Climb and dive on', async ({ page }) => {
+  await openStartGeometry(page);
+  const menu = page.locator('.tf-col-setup');
+  await expect(menu.getByText('ATA: the angle off Blue\'s nose (this tool\'s term). No side at 0° or 180°.')).toBeVisible();
+  await expect(menu.getByText('AA and HCA: SMM 12.2 paras 6 and 9; sides: SMM 16 para 40b.')).toBeVisible();
+  await expect(menu.getByText('Used with Climb and dive on. The start separation is measured level; Range includes height.')).toBeVisible();
+  await expect(menu.getByText('It shows with Climb and dive')).toHaveCount(0);
+});
+
 test('TF3-4: flipping a side at 0° or 180° (where it means nothing) does not restart the fight; at any other angle it does', async ({ page }) => {
   await openStartGeometry(page);
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
