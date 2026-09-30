@@ -108,6 +108,23 @@ function v6Statement(start) {
 }
 
 /**
+ * D42 (wide and tight measured from Lead): the settings V6 needs to fly the same start positions. V6 moved every
+ * aircraft along one fixed direction, so an aircraft whose slot is on the other side of Lead (a negative lateral along
+ * V6's "right" vector) gets its Wide and Tight swapped. Lead and the aircraft on the positive side are as they were.
+ */
+export function v6SettingsForD42(settings) {
+  const out = { ...settings };
+  const h = (90 - settings.startHeadingDeg) * Math.PI / 180; // V6's box holds the math heading
+  const page = createV6Page(settings);
+  for (const a of page.v6.desiredFormationAircraft()) {
+    const lateral = a.x * Math.cos(h + Math.PI / 2) + a.y * Math.sin(h + Math.PI / 2);
+    const key = aircraftKey(a.id, 'lateralDir');
+    if (lateral < 0) out[key] = { wide: 'tight', tight: 'wide' }[settings[key]] ?? settings[key];
+  }
+  return out;
+}
+
+/**
  * options.readsClockTolerance: read the Clock tolerance box the way V6 meant to (see v6Boxes).
  *
  * V6's Turn Sim, running against a fake page built from `settings` (the keys of

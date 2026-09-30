@@ -1,8 +1,8 @@
 // Formation slots and position errors (pure: a settings object in, plain
 // numbers out). Ported unchanged from V6, so every number matches it; the
 // golden test tests/golden/turn-sim-formation.test.js runs V6's own functions
-// next to these. D42 (wide and tight measured from Lead) and D48 (#2's side)
-// come later as their own commits, so nothing here changes yet.
+// next to these. D42 (wide and tight measured from Lead) is startPositions;
+// D48 (#2's side) is the twoSide setting in formationSlots.
 //
 // Coordinates are V6's own: feet, x east and y north, headings in radians with
 // 0 pointing east and angles growing counter-clockwise (the code heading of
@@ -100,10 +100,15 @@ export function positionErrorsFt(settings) {
 
 /**
  * The slots with each enabled position error added (V6 `applyErrors`, line 910):
- * the wide/tight feet along the "right" vector and the fore/aft feet along the
- * start heading, both taken from the Start heading box, not from Lead's heading.
- * This is where V6's D42 problem lives (wide moves every aircraft the same way);
- * it is left as it is until that decision's own commit.
+ * the fore/aft feet along the start heading and the wide/tight feet across it,
+ * both taken from the Start heading box, not from Lead's heading.
+ *
+ * D42 (#15): wide and tight are measured from Lead, on whichever side the
+ * aircraft flies: wide moves it further from Lead, tight closer. V6 moved every
+ * aircraft along one fixed direction (line 913), so on the far side "wide"
+ * came in tighter. An aircraft on the "right" vector's side of Lead (V6's
+ * positive lateral slot, the map's left) is moved as V6 did; on the other side
+ * the sign flips. Lead has no side and keeps V6's direction.
  */
 export function startPositions(settings) {
   const h = compassDegToHeadingRad(settings.startHeadingDeg);
@@ -113,7 +118,9 @@ export function startPositions(settings) {
   return formationSlots(settings).map((a) => {
     if (!aircraftSettings(settings, a.id).positionErrorOn) return a;
     const e = errors[a.id];
-    return { ...a, xFt: a.xFt + (right.x * e.lateralFt + fwd.x * e.foreAftFt), yFt: a.yFt + (right.y * e.lateralFt + fwd.y * e.foreAftFt) };
+    const side = a.xFt * right.x + a.yFt * right.y < 0 ? -1 : 1; // the slot's side of Lead along the "right" vector
+    const lateralFt = side * e.lateralFt;
+    return { ...a, xFt: a.xFt + (right.x * lateralFt + fwd.x * e.foreAftFt), yFt: a.yFt + (right.y * lateralFt + fwd.y * e.foreAftFt) };
   });
 }
 

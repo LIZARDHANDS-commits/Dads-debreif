@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { formationSlots, positionErrorsFt, startPositions, inferLineAbreastForm, isTwoShip } from '../../src/modules/turn-sim/engine/formation.js';
 import { degToRad } from '../../src/core/angles.js';
-import { createV6Page } from './turn-sim-fake-page.js';
+import { createV6Page, v6SettingsForD42 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
 const FORMATIONS = ['weighted', 'weightedReverse', 'offsetBox', 'twoShip'];
@@ -74,9 +74,9 @@ test('position errors: the wide/tight and fore/aft feet match syncAircraftErrorV
   }
 });
 
-test('start positions: slots with the enabled position errors added match V6 after applyErrors', () => {
+test('start positions: slots with the enabled position errors added match V6 after applyErrors (D42: V6 is given Wide and Tight swapped for aircraft on its negative side)', () => {
   for (const settings of cases()) {
-    const page = createV6Page(settings);
+    const page = createV6Page(v6SettingsForD42(settings));
     page.reset(); // desiredFormationAircraft, then applyErrors
     const mine = startPositions(settings);
     for (const a of page.aircraft()) {

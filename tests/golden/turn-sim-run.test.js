@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_DEFAULTS, aircraftKey } from '../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../src/modules/turn-sim/engine/run.js';
-import { createV6Page } from './turn-sim-fake-page.js';
+import { createV6Page, v6SettingsForD42 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
 const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, shackle45: 45, cross180: 180, inplace90: 90 };
@@ -67,7 +67,8 @@ function compareLeg(page, run, label, autoStep) {
 /** V6 next to the port through a first leg and, when asked, a second one that continues from where the aircraft are. */
 function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   // D41 swapped "toward" and "away" back to what they say, so V6 is given the swapped names to fly the same turn.
-  const v6Settings = { ...v6From };
+  // D42 measures Wide and Tight from Lead on either side; V6 gets them swapped where its fixed direction differs.
+  const v6Settings = v6SettingsForD42(v6From);
   for (const id of [1, 2, 3, 4]) {
     const key = aircraftKey(id, 'turnLogic');
     v6Settings[key] = { toward: 'away', away: 'toward' }[v6From[key]] ?? v6From[key];
