@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readKml, KmlError, MAX_FILE_BYTES, MAX_FIXES } from '../../../src/flight-data/kml.js';
 import { parseXml, MAX_DEPTH } from '../../../src/flight-data/xml.js';
+import { XML_CASES } from '../../fixtures/flight-data/xml-cases.js';
 
 const HEAD = '<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2"><Document><gx:Track>';
 const TAIL = '</gx:Track></Document></kml>';
@@ -77,4 +78,13 @@ test('text, CDATA and character references read as DOM textContent does', () => 
   const attr = parseXml('<a n="1&amp;2\t3"/>').getElementsByTagName('a')[0];
   assert.equal(attr.getAttribute('n'), '1&2 3');
   assert.equal(attr.getAttribute('missing'), null);
+});
+
+test('accepts and refuses the same small documents as the browser\'s parser (DOCTYPE aside)', () => {
+  for (const [text, browserAccepts] of XML_CASES) {
+    const expected = text.includes('<!DOCTYPE') ? false : browserAccepts;
+    let accepted = true;
+    try { parseXml(text); } catch { accepted = false; }
+    assert.equal(accepted, expected, JSON.stringify(text));
+  }
 });

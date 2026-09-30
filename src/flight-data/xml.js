@@ -79,7 +79,6 @@ export function parseXml(text) {
   let current = doc;
   let depth = 0;
   let rootSeen = false;
-  let rootClosed = false;
   const scopes = [new Set(['xml', 'xmlns'])]; // declared namespace prefixes per level
 
   const fail = (reason, at = i) => { throw new XmlError(reason, lineAt(text, at)); };
@@ -150,7 +149,6 @@ export function parseXml(text) {
       current = current.parent;
       scopes.pop();
       depth--;
-      if (current === doc) rootClosed = true;
     } else {
       const at = i;
       i++;
@@ -195,9 +193,7 @@ export function parseXml(text) {
       const el = new Element(name, attrs, current);
       current.children.push(el);
       if (current === doc) rootSeen = true;
-      if (selfClosing) {
-        if (current === doc) rootClosed = true;
-      } else {
+      if (!selfClosing) {
         if (++depth > MAX_DEPTH) fail(`elements nested more than ${MAX_DEPTH} deep`, at);
         current = el;
         scopes.push(declared);
@@ -205,7 +201,7 @@ export function parseXml(text) {
     }
   }
   if (current !== doc) fail(`tag <${current.name}> is never closed`);
-  if (!rootSeen || !rootClosed) fail('no root element');
+  if (!rootSeen) fail('no root element');
   return doc;
 
   function decode(chunk, offset) {
