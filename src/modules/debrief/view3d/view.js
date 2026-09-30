@@ -108,7 +108,7 @@ export function createView3d(canvas, {
     if (on.altMarks3d) drawAltitudeScale(ctx, P, ctr, ships, datum);
     if (on.sticks3d) {
       const unit = heightLabel(on.datum3d);
-      for (const s of ships) drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: datum }), s.altFt - datum, unit);
+      for (const s of ships) if (!s.inGap) drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: datum }), s.altFt - datum, unit);
     }
     for (const s of ships) {
       if (modelled.has(s.slot)) labelShip(ctx, P(s), s, on);
@@ -246,7 +246,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     for (const s of ships) {
       const top = Z(s.altFt);
       const height = Math.abs(top - dz);
-      if (height > 0) {
+      if (height > 0 && !s.inGap) { // no stick for a ship in a GPS gap: its height is a guess (D32)
         const stick = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.85 }));
         stick.rotation.x = Math.PI / 2; // the cylinder's axis is Y; stand it up along Z
         stick.scale.set((STICK_PX / 2) * ftPerPx, height, (STICK_PX / 2) * ftPerPx);
@@ -261,11 +261,12 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   }
 
   // The CT-156 Harvard for each ship with a heading (D138). Its size is the
-  // plane size setting, not stretched by the altitude scale.
+  // plane size setting, not stretched by the altitude scale. A ship in a GPS
+  // gap gets the hollow marker instead, with no attitude drawn (D32).
   const paint = on.paint3d ?? PAINT_DEFAULT;
   const key = `${paint}|${on.planeSize3d}`;
   for (const s of ships) {
-    if (on.model3d !== 't6' || s.hdg === null) continue;
+    if (on.model3d !== 't6' || s.hdg === null || s.inGap) continue;
     let entry = gl.ships.get(s.slot);
     if (entry && entry.key !== key) {
       disposeAircraftMesh(entry.mesh);
