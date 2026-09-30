@@ -4,7 +4,7 @@
 // tests/fixtures/sof/screen-*, never from a live feed, and the clock is fixed at
 // 1842Z on 29 September 2026, so every report has the age it is written with here.
 import { readFileSync } from 'node:fs';
-import { test, expect } from './fixtures.js';
+import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { openRoute } from './routes.js';
 
 const fixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
@@ -273,9 +273,10 @@ test('the settings menu holds every tuning number, starts at the defaults, and c
   await expect(page.getByLabel('Trigger', { exact: true }).locator('option:checked')).toHaveText('Local (MTCA) 2000/3');
   await expect(page.getByLabel('Home ceiling below')).toHaveValue('2000');
   await expect(page.getByLabel('Home visibility below')).toHaveValue('3');
-  // The banner switch is here from task 3, on to begin with; the lightning radius has no control until task 7.
+  // The banner switch is here from task 3, on to begin with; the lightning radius is here from task 7, 20 NM to begin with.
   await expect(page.getByLabel('Show the new-caution banner')).toBeChecked();
-  await expect(page.getByLabel('Lightning radius around home')).toHaveCount(0);
+  await expect(page.getByLabel('Lightning radius around home')).toHaveValue('20');
+  await expect(page.getByLabel('Traffic relay address')).toHaveValue('');
 
   // Home's METAR has a 2,500 ft ceiling: within Local's 2,000, below Cross-country's 3,000.
   const home = card(page, 'CYMJ');
@@ -1026,4 +1027,18 @@ test('the banner switched off and on again does not bring back what was acknowle
   await page.getByRole('button', { name: 'Refresh' }).dispatchEvent('click');
   await switchBox.check();
   await expect(bannerLines(page)).toHaveCount(2);
+});
+
+test('no accessibility violations with the caution banner up (the storm reports)', async ({ page }) => {
+  await openSof(page, { metar: fixture('ui-metno-metar-storm.txt') });
+  await expect(page.locator('.sof-banner')).toBeVisible();
+  await expectNoA11yViolations(page);
+});
+
+test('no accessibility violations with a wave and its list of hits open', async ({ page }) => {
+  await openSof(page, CLEAR_FOG);
+  const row = await addWave(page, 'Aft', '15:30', '17:00');
+  await row.locator('.sof-wave-chip').click();
+  await expect(page.locator('.sof-wave-detail')).toBeVisible();
+  await expectNoA11yViolations(page);
 });

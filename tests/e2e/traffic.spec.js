@@ -40,7 +40,12 @@ function pixelsDrawn(page) {
   });
 }
 
-const picture = (page) => map(page).evaluate((el) => el.toDataURL());
+// The map redraws on the next animation frame after a change, so wait two frames before reading it;
+// otherwise a picture taken right after a click can still show the step before.
+const picture = async (page) => {
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  return map(page).evaluate((el) => el.toDataURL());
+};
 // "0:00:12" as seconds.
 const seconds = async (page) => {
   const [h, m, s] = (await clock(page).textContent()).replace('Sim time', '').trim().split(':').map(Number);

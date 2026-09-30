@@ -10,7 +10,7 @@
 // Units: feet in the fight, CSS pixels on screen.
 import { FT_PER_NM } from '../../core/units.js';
 import { toScreen, visibleBounds, fitBounds, createCanvasSurface } from '../../ui-kit/canvas-view.js';
-import { startGeometry } from './geometry.js';
+import { startGeometry, passMarkWord } from './geometry.js';
 
 /** V6's picture colours. The same three are in turn-fight.css for the page. */
 export const COLORS = Object.freeze({
@@ -193,7 +193,7 @@ export function drawTopDown(ctx, size, run) {
   ctx.fillStyle = COLORS.nose;
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('MERGE', mx + 8, my + 18);
+  ctx.fillText(passMarkWord(fight), mx + 8, my + 18);
   ctx.restore();
 }
 
@@ -205,7 +205,7 @@ export function drawTopDown(ctx, size, run) {
 export function createTopDownView(canvas, { timers, run }) {
   return createCanvasSurface(canvas, {
     timers,
-    label: 'Top-down view of the fight. Blue (B) and Red (R) fly toward each other and pass at the MERGE mark; the tables beside it give the numbers.',
+    label: 'Top-down view of the fight. Blue (B) and Red (R) fly toward each other and turn at the MERGE or PASS mark, or at once; the tables beside it give the numbers.',
     draw: (ctx, surface) => drawTopDown(ctx, surface.size, run()),
   });
 }

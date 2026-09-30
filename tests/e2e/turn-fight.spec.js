@@ -99,7 +99,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
     await expect(who.getByLabel('Pitch (°)')).toBeHidden();
   }
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
-  await expect(page.getByText('Two aircraft meet head-on, then turn: who gets their nose on the other first?')).toBeVisible();
+  await expect(page.getByText('Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?')).toBeVisible();
   // Energy mode isn't built yet, so there is no box for it.
   await expect(page.getByLabel('Energy (T-6)')).toHaveCount(0);
   await expect(page.getByText('coming soon')).toHaveCount(0);
@@ -388,11 +388,11 @@ test('About this model and the side columns open and close with real buttons', a
   const about = page.getByRole('button', { name: 'About this model' });
   await about.click();
   await expect(about).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByText('opposite turn directions after the merge')).toBeVisible();
-  await expect(page.getByText('same turn direction after the merge')).toBeVisible();
+  await expect(page.getByText('each jet turns toward the other')).toBeVisible();
+  await expect(page.getByText('Red turns away from Blue, so the two share one circle')).toBeVisible();
   await expect(page.getByText('a yellow dashed line marks the first aircraft')).toBeVisible();
   await about.click();
-  await expect(page.getByText('opposite turn directions after the merge')).toBeHidden();
+  await expect(page.getByText('each jet turns toward the other')).toBeHidden();
   // The model statement is shown once, in the stage footer.
   await expect(page.getByText('Simplified: constant speed and turn rate')).toHaveCount(1);
 
@@ -416,10 +416,10 @@ test('More detail holds the extra numbers and updates while playing', async ({ p
   await expect(page.getByRole('row', { name: /^Speed/ })).toHaveText(/220 kt.*220 kt/);
   await expect(page.getByRole('row', { name: /^G/ })).toHaveText(/4\.0.*4\.0/);
   await expect(page.getByRole('row', { name: /360° time/ })).toHaveText(/18\.7 s.*18\.7 s/);
-  await expect(page.getByRole('row', { name: /Time since merge/ })).toContainText('0.0 s');
+  await expect(page.getByRole('row', { name: /Time since the pass/ })).toContainText('0.0 s');
   await expect(page.getByRole('row', { name: /Height change/ })).toHaveCount(0); // level fight: no height lines
   await playTo(page, 17.5);
-  await expect(page.getByRole('row', { name: /Time since merge/ })).toContainText(/[1-9]\.\d s/); // merge at 16.4 s
+  await expect(page.getByRole('row', { name: /Time since the pass/ })).toContainText(/[1-9]\.\d s/); // merge at 16.4 s
 });
 
 test('leaving the Turn Fight while it plays stops every frame, timer and listener (R4)', async ({ page }) => {
@@ -672,7 +672,7 @@ test('with WebGL 1 only (no WebGL 2, which three.js needs), the note says so and
   });
   await openRoute(page, '#/turn-fight');
   await viewChoice(page, '3D').click(); // not check(): the view goes back to 2D at once, before check() can see 3D stay checked
-  await expect(note(page)).toHaveText('3D needs WebGL, which this browser does not have.');
+  await expect(note(page)).toHaveText('3D needs WebGL 2, which this browser does not have.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(topdown(page)).toBeVisible();
 });
@@ -692,6 +692,52 @@ test('with no WebGL, the note says so and it stays on 2D', async ({ page }) => {
   await playButton(page).click();
   await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
   await playButton(page).click();
+});
+
+test('when the browser takes the WebGL context away (graphics card reset), it falls back to 2D with a note and the fight plays on', async ({ page }) => {
+  await trackWebGl(page);
+  // Releasing a context the browser already took must not make three.js warn about WEBGL_lose_context.
+  const loseWarnings = [];
+  page.on('console', (msg) => {
+    if (/WEBGL_lose_context/.test(msg.text())) loseWarnings.push(msg.text());
+  });
+  await openRoute(page, '#/turn-fight');
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(1);
+  expect(await liveContexts(page)).toBe(1);
+  const before = await seconds(page);
+
+  // The graphics card resets: the browser takes the context from the 3D canvas.
+  await canvas3d(page).evaluate((canvas) => canvas.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await expect(note(page)).toHaveText('3D stopped (the graphics card was reset); showing 2D.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(topdown(page)).toBeVisible();
+  await expect(canvas3d(page)).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Camera views' })).toBeHidden();
+  expect(await liveContexts(page)).toBe(0);
+  expect(loseWarnings).toEqual([]);
+
+  // The fight never stopped or reset: it is still playing, and goes on in 2D.
+  await expect(playButton(page)).toHaveText('Pause');
+  await expect.poll(() => seconds(page)).toBeGreaterThan(before + 0.5);
+  await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', BLUE)).toBeGreaterThan(30);
+
+  // 3D can be switched on again: a new canvas and context, and the note goes.
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  await expect(note(page)).toHaveText('');
+  expect(await liveContexts(page)).toBe(1);
+  await expect(playButton(page)).toHaveText('Pause');
+
+  // Leaving the page still frees everything (R4).
+  await page.evaluate(() => { location.hash = '#/about'; });
+  await expect.poll(() => page.evaluate(() => window.__ooda.stats()))
+    .toMatchObject({ mounted: 'about', frames: 0, listeners: 0, subscriptions: 0 });
+  expect(await liveContexts(page)).toBe(0);
 });
 
 test('leaving the Turn Fight while 3D plays releases WebGL and stops every frame (R4)', async ({ page }) => {
@@ -755,6 +801,7 @@ const side = (page, group, name) => page.getByRole('group', { name: group }).get
 const turnsAt = (page, name) => page.getByRole('group', { name: 'When the turns start' }).getByRole('radio', { name });
 const hcaLine = (page) => page.locator('.tf-hca:not(.tf-pass)');
 const passLine = (page) => page.locator('.tf-pass');
+const turnsLine = (page) => page.locator('.tf-turns');
 const headOnButton = (page) => page.getByRole('button', { name: 'Head-on (V6)', exact: true });
 const moreButton = (page) => page.getByRole('button', { name: 'More detail' });
 const moreRow = (page, name) => page.getByRole('table', { name: 'More detail' }).getByRole('row', { name });
@@ -1055,5 +1102,101 @@ test('R28: in 3D the MERGE word shows where the jets pass, and not for a beam st
   await expect(merge).toBeHidden();
   await headOnButton(page).click();
   await expect(merge).toBeVisible();
-  await expect(page.getByRole('img', { name: /fly toward each other and pass at the MERGE mark/ })).toHaveCount(1);
+  await expect(page.getByRole('img', { name: /fly toward each other and turn at the MERGE or PASS mark/ })).toHaveCount(1);
 });
+
+test('TF3-5: the mark says PASS when the jets go by more than 0.25 NM apart (a crossing start), MERGE when they meet, and nothing for a beam start', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const mark = page.locator('.tf-3d-label-nose');
+  await expect(mark).toHaveText('MERGE'); // V6's head-on start
+  await settingsButton(page).click();
+  await aaBox(page).fill('90'); // Red crosses Blue's nose: the closest approach is 1.4 NM
+  await expect(passLine(page)).toHaveText('Pass at T+16.4 s');
+  await expect(mark).toBeVisible();
+  await expect(mark).toHaveText('PASS');
+  await ataBox(page).fill('90'); // a beam start: no pass at all
+  await expect(mark).toBeHidden();
+  await headOnButton(page).click();
+  await expect(mark).toHaveText('MERGE');
+  await expect(mark).toBeVisible();
+});
+
+test('the intro, About and the turn line hold for any start: a tail chase never says head-on, the merge or same directions', async ({ page }) => {
+  await openStartGeometry(page);
+  await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns left'); // head-on, 2-circle: V6's
+  await page.getByRole('radio', { name: '1-circle' }).check();
+  await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns right');
+  await page.getByRole('radio', { name: '2-circle' }).check();
+  // A tail chase: ATA 30 left, AA 20 right, Red slow. Blue turns left and Red right in a 2-circle fight.
+  await ataBox(page).fill('30');
+  await aaBox(page).fill('20');
+  await side(page, 'AA side', 'Right').check();
+  await red(page).getByLabel('Speed (KTAS)').fill('150');
+  await expect(turnsLine(page)).toHaveText('Blue turns left, Red turns right');
+  await page.getByRole('button', { name: 'About this model' }).click();
+  const text = await page.locator('.tf-col-setup').innerText();
+  expect(text).toContain('Two aircraft start apart and turn, at the pass or at once');
+  expect(text).toContain('each jet turns toward the other');
+  for (const wrong of ['head-on, then turn', 'same turn direction', 'opposite turn directions', 'after the merge']) expect(text).not.toContain(wrong);
+  await expect(page.getByText('from a head-on start a nose-on happens only if they come back exactly head-on')).toBeVisible();
+});
+
+test('TF3-6, TF3-8: the hints say what ATA, AA and HCA are and where they come from, that no side counts at 0° or 180°, and that the height is used with Climb and dive on', async ({ page }) => {
+  await openStartGeometry(page);
+  const menu = page.locator('.tf-col-setup');
+  await expect(menu.getByText('ATA: the angle off Blue\'s nose (this tool\'s term). No side at 0° or 180°.')).toBeVisible();
+  await expect(menu.getByText('AA and HCA: SMM 12.2 paras 6 and 9; sides: SMM 16 para 40b.')).toBeVisible();
+  await expect(menu.getByText('Used with Climb and dive on. The start separation is measured level; Range includes height.')).toBeVisible();
+  await expect(menu.getByText('It shows with Climb and dive')).toHaveCount(0);
+});
+
+test('TF3-4: flipping a side at 0° or 180° (where it means nothing) does not restart the fight; at any other angle it does', async ({ page }) => {
+  await openStartGeometry(page);
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(2);
+  const before = await seconds(page);
+  await side(page, 'ATA side', 'Right').check(); // ATA 0°
+  await side(page, 'AA side', 'Right').check(); // AA 180°
+  await expect(playButton(page)).toHaveText('Pause'); // still playing
+  expect(await seconds(page)).toBeGreaterThanOrEqual(before);
+  // At another angle the side does change the fight, so it starts over.
+  await ataBox(page).fill('30');
+  await expect(time(page)).toHaveText('T+0.0');
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(1);
+  await side(page, 'ATA side', 'Left').check();
+  await expect(time(page)).toHaveText('T+0.0');
+});
+
+for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
+  test(`TF3-10: with Climb and dive on the Speed (KTAS) label stays on one line, as tall as G's and Pitch's, at ${size.width} × ${size.height}`, async ({ page }) => {
+    await page.setViewportSize(size);
+    await openRoute(page, '#/turn-fight');
+    await page.getByLabel('Climb and dive').check();
+    for (const who of [blue(page), red(page)]) {
+      await expect(who.getByLabel('Pitch (°)')).toBeVisible();
+      const heights = await who.evaluate((fieldset) => [...fieldset.querySelectorAll('label')].map((l) => [l.textContent, Math.round(l.getBoundingClientRect().height)]));
+      const speed = heights.find(([text]) => text === 'Speed (KTAS)');
+      const g = heights.find(([text]) => text === 'G');
+      const pitch = heights.find(([text]) => text === 'Pitch (°)');
+      expect(speed[1], `Speed label height, ${JSON.stringify(heights)}`).toBe(g[1]);
+      expect(pitch[1]).toBe(g[1]);
+    }
+    expect(await layoutProblems(page)).toEqual([]);
+    // Nothing is pushed out of its row: not the Pitch box, with or without a G limit warning showing.
+    const rowsFit = () => page.locator('.tf-aircraft-row').evaluateAll((rows) => rows.map((row) => [row.scrollWidth - row.clientWidth, row.closest('fieldset').getBoundingClientRect().right - Math.max(...[...row.querySelectorAll('input')].map((i) => i.getBoundingClientRect().right))]));
+    for (const [over, room] of await rowsFit()) {
+      expect(over).toBeLessThanOrEqual(0);
+      expect(room).toBeGreaterThanOrEqual(0); // the last box ends inside the aircraft's frame
+    }
+    await blue(page).getByLabel('G', { exact: true }).fill('9');
+    await expect(blue(page).locator('.tf-warning')).not.toBeEmpty();
+    for (const [over, room] of await rowsFit()) {
+      expect(over).toBeLessThanOrEqual(0);
+      expect(room).toBeGreaterThanOrEqual(0);
+    }
+  });
+}

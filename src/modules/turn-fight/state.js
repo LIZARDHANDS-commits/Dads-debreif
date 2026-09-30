@@ -59,9 +59,16 @@ export const RANGES = Object.freeze({
   redAboveFt: { min: -5000, max: 5000, step: 500, unit: 'ft' },
 });
 
-/** The setup sim.js's createFight takes, from the settings. */
+/**
+ * The setup sim.js's createFight takes, from the settings. A side means nothing at 0° or 180° (dead ahead or
+ * astern), so it is taken as 'left' there: flipping it then neither restarts the fight nor changes it (TF3-4).
+ */
 export function setupFrom(values) {
-  return Object.fromEntries(FIGHT_KEYS.map((key) => [key, values[key]]));
+  const setup = Object.fromEntries(FIGHT_KEYS.map((key) => [key, values[key]]));
+  const noSide = (deg) => deg === 0 || deg === 180;
+  if (noSide(setup.startAtaDeg)) setup.startAtaSide = 'left';
+  if (noSide(setup.startAaDeg)) setup.startAaSide = 'left';
+  return setup;
 }
 
 /** Changes exactly when the fight would have to start again. */
