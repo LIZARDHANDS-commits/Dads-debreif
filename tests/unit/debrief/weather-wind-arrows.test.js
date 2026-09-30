@@ -305,3 +305,20 @@ test('the fallback ground height (fieldFt) is used only for a point whose reply 
     assert.equal(windArrowsAt(grid, points, t, 1500, { fieldFt: 500 })[i].why, 'below');
   }
 });
+
+test('one exact value: point 0 at 18:30Z and 8,000 ft, worked out by hand from the fixture (not by this code), so passing the hour instead of the moment fails', () => {
+  // Point 0's ground is 570 m (1,870 ft), so 950 hPa is dropped and 8,000 ft lies between 800 hPa and 700 hPa.
+  // 18Z: 27 kt/279° at 6,112 ft and 33.2 kt/266° at 9,701 ft, a fraction 0.5260 of the way up: 30.07 kt from 271.49°.
+  // 19Z: 30 kt/282° at 6,122 ft and 32.5 kt/278° at 9,711 ft, a fraction 0.5232 of the way up: 31.29 kt from 279.83°.
+  // Halfway between them as vectors: 30.60 kt from 275.74°. (The hour alone, 18Z, would be 30.07 kt from 271.49°.)
+  const points = windGridPoints(BOX);
+  const [arrow] = windArrowsAt(readWindsGrid(fixture(), 9), points, T('2026-09-29T18:30Z'), 8000);
+  near(arrow.wind.kt, 30.599, 0.01);
+  near(arrow.wind.dirDeg, 275.744, 0.05);
+  assert.deepEqual(arrow.hoursT, [T('2026-09-29T18:00Z'), T('2026-09-29T19:00Z')]);
+  assert.equal(arrowLabel(arrow.wind), '280°T/31 kt');
+  // On the hour, it is that hour's own value.
+  const [onHour] = windArrowsAt(readWindsGrid(fixture(), 9), points, T('2026-09-29T18:00Z'), 8000);
+  near(onHour.wind.kt, 30.071, 0.01);
+  near(onHour.wind.dirDeg, 271.494, 0.05);
+});
