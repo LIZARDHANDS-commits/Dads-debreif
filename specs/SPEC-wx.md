@@ -1,6 +1,6 @@
 # Spec: `wx`, weather parsing and limit checks
 
-Status: **draft, waiting for Patrick's approval.** Module id `wx` in [`SPEC.md`](../SPEC.md). Requirements: R13 (SOF), R16 (home airfield and alternates are a setting), R7 (no browser errors), R9 (numbers match V6 unless a logged decision says otherwise).
+Status: **approved by Patrick on 2026-09-30.** Module id `wx` in [`SPEC.md`](../SPEC.md). Requirements: R13 (SOF), R16 (home airfield and alternates are a setting), R7 (no browser errors), R9 (numbers match V6 unless a logged decision says otherwise).
 
 ## Objective
 
