@@ -20,7 +20,7 @@ const GOAL_TOLERANCE_RAD = 0.0001;
  * The G an aircraft flies: the G setting and its own G error, each limited to at
  * least 1.01 (V6 `baseG` line 786 and the first line of `moveAircraftList`).
  */
-// V6 adds gError only with useErrorsAndCorrection (line 1580); the ghost (line 1461) flies without it, so it will need a flag when ported.
+// V6 gates gError on useErrorsAndCorrection (line 1582).
 export function flownG(baseG, gError) {
   return limitG(limitG(baseG) + gError);
 }
