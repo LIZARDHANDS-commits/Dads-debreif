@@ -138,6 +138,7 @@ export function turnRadiusFt(tasKt, loadG) {
 3. **Unit tests** for `core`, `wx` and `flight-data` with `node --test`. `wx` gets a table of real TAF/METAR strings, including every parser bug the audit found.
 4. **Browser tests** (Playwright) for R2 (no control covers another at 1366×768 and 1920×1080), R3 (every visible button does something), R4 (switch modules, then check no background loops or timers), R6 (offline), R7 (any console error fails the test).
 5. **Sign-off checklist** per module (R21), run by a person before release.
+6. **Security alerts** (D142): Dependabot checks our npm packages and GitHub Actions weekly (`.github/dependabot.yml`), and CodeQL scans our JavaScript and workflows on every pull request (`.github/workflows/codeql.yml`; V6's `original/` and the media are skipped). Findings show under the repo's Security tab.
 
 ## Boundaries
 
