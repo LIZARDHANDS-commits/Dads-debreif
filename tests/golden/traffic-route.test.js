@@ -18,13 +18,13 @@ import {
 } from './traffic-v6.js';
 import { seeded } from './inputs.js';
 
-const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
 const V6_PROFILE = v6DefaultProfile();
 
 // ── The built-in data ────────────────────────────────────────────────────────
 
-test('moose-jaw.json is V6\'s built-in profile: y flipped to north, start times rounded, a version added', () => {
-  assertClose(MOOSE_JAW, v6ProfileToSetup(V6_PROFILE), 'moose-jaw.json', 0);
+test('moose-jaw-v6.json is V6\'s built-in profile: y flipped to north, start times rounded, a version added', () => {
+  assertClose(MOOSE_JAW, v6ProfileToSetup(V6_PROFILE), 'moose-jaw-v6.json', 0);
   assert.equal(MOOSE_JAW.version, 1);
   assert.equal(MOOSE_JAW.routes.length, 9);
   assert.deepEqual(MOOSE_JAW.routes.map((r) => r.id), V6_PROFILE.routes.map((r) => r.id));

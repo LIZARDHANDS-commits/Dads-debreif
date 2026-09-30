@@ -225,7 +225,7 @@ export function v6Anchor() {
 }
 
 /**
- * V6's built-in profile as the rebuild's setup (src/modules/traffic/data/moose-jaw.json):
+ * V6's built-in profile as the rebuild's setup (src/modules/traffic/data/moose-jaw-v6.json):
  * y flipped to north, `spd` called `kt`, start times rounded to whole seconds (V6 has
  * 12.000000000000005: the rounding moves A2 from 136.68 s to 137 (+0.32 s), A4 from 591.87 to
  * 592 (+0.13 s), A6 from 884.13 to 884 (-0.13 s), A5 from 856.10 to 856 (-0.10 s), A7 from 902.09
