@@ -993,7 +993,9 @@ test('tennis ball: opened from Tools, one answer in the panel, on the map and in
 });
 
 // Past METARs from the IEM archive, made up for the window asked for: one on
-// each hour and a SPECI at 22 past, so no test needs the network.
+// each hour and a SPECI at 22 past, so no test needs the network. As in the real
+// CSV the text has no "SPECI" prefix: only the second call, report_type=4 alone,
+// which lists just the specials, says which reports they are.
 const IEM = 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?**';
 function iemReply(url) {
   const q = new URL(url).searchParams;
@@ -1001,6 +1003,7 @@ function iemReply(url) {
   const from = Date.parse(`${q.get('sts').slice(0, -1)}:00Z`);
   const to = Date.parse(`${q.get('ets').slice(0, -1)}:00Z`);
   const pad = (n) => String(n).padStart(2, '0');
+  const specialsOnly = q.getAll('report_type').join() === '4';
   const line = (ms, kind, body) => {
     const d = new Date(ms);
     const valid = `${d.toISOString().slice(0, 10)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
@@ -1009,16 +1012,18 @@ function iemReply(url) {
   const lines = ['station,valid,metar'];
   const firstHour = Math.ceil(from / 3_600_000) * 3_600_000;
   for (let ms = firstHour; ms <= to; ms += 3_600_000) {
-    lines.push(line(ms, '', '27012KT 15SM FEW040 BKN120 12/04 A2992'));
-    lines.push(line(ms + 22 * 60_000, 'SPECI ', '28018KT 2SM -SHRA OVC008 09/08 A2991'));
+    if (!specialsOnly) lines.push(line(ms, '', '27012KT 15SM FEW040 BKN120 12/04 A2992'));
+    lines.push(line(ms + 22 * 60_000, '', '28018KT 2SM -SHRA OVC008 09/08 A2991'));
   }
   return lines.join('\n');
 }
 
 test('METAR: off at first, fetched only when on, the report in force with ticks and the raw text (SPEC-debrief: Weather)', async ({ page }) => {
   const asked = [];
+  const askedAt = [];
   await page.route(IEM, (route) => {
     asked.push(route.request().url());
+    askedAt.push(Date.now());
     return route.fulfill({ status: 200, contentType: 'text/plain', headers: { 'Access-Control-Allow-Origin': '*' }, body: iemReply(route.request().url()) });
   });
   await openRoute(page, '#/debrief');
@@ -1032,17 +1037,27 @@ test('METAR: off at first, fetched only when on, the report in force with ticks 
   await page.getByLabel('METAR', { exact: true }).check();
   // The example flight is at Moose Jaw, so CYMJ is nearest; the line says the report's time and age.
   await expect(line.locator('.debrief-metar-text')).toHaveText(/^(SPECI )?CYMJ \d{4}Z \((at this moment|\d+ min before|\d+ h( \d+ min)? before)\) · /);
-  expect(asked).toHaveLength(1);
   expect(new URL(asked[0]).searchParams.get('station')).toBe('CYMJ');
+  expect(new URL(asked[0]).searchParams.getAll('report_type')).toEqual(['3', '4']);
+  // The archive's text doesn't say which is a SPECI, so a second call asks for specials alone, a second later.
+  await expect.poll(() => asked.length).toBe(2);
+  expect(new URL(asked[1]).searchParams.get('station')).toBe('CYMJ');
+  expect(new URL(asked[1]).searchParams.getAll('report_type')).toEqual(['4']);
+  expect(askedAt[1] - askedAt[0]).toBeGreaterThanOrEqual(900);
   // Each report inside the flight is a tick on the scrubber.
   await expect(scrubber).toHaveAttribute('list', 'debrief-report-ticks');
   expect(await page.locator('#debrief-report-ticks option').count()).toBeGreaterThan(0);
+  // Once marked, a SPECI's tick says so in its label, and a routine report's says METAR.
+  await expect(page.locator('#debrief-report-ticks option[label^="SPECI"]').first()).toHaveAttribute('label', /^SPECI \d{2}:22Z$/);
+  await expect(page.locator('#debrief-report-ticks option[label^="METAR"]').first()).toHaveAttribute('label', /^METAR \d{2}:00Z$/);
+  expect(await page.locator('#debrief-report-ticks option[label^="SPECI"]').evaluateAll((opts) => opts.every((o) => new Date(Number(o.value) * 1000).getUTCMinutes() === 22))).toBe(true);
 
   // Jump to the SPECI's own minute: it's in force from then, decoded.
   const speciT = await page.locator('#debrief-report-ticks option').evaluateAll((opts) => opts.map((o) => Number(o.value)))
     .then((ts) => ts.find((t) => new Date(t * 1000).getUTCMinutes() === 22));
   expect(speciT).toBeDefined();
   await scrubber.fill(String(speciT));
+  // The line's own words say SPECI; a routine report has no prefix.
   await expect(line.locator('.debrief-metar-text')).toHaveText(/^SPECI CYMJ \d{2}22Z \(at this moment\) · IFR · wind 280\/18 kt · vis 2 SM · -SHRA · OVC008 · 09\/08 · A2991$/);
   await expect(line).toHaveAttribute('data-category', 'IFR');
   // The report as sent, a click away, as text.
@@ -1053,7 +1068,9 @@ test('METAR: off at first, fetched only when on, the report in force with ticks 
   await page.getByRole('button', { name: 'Weather' }).click();
   await page.getByLabel('METAR from').selectOption({ label: 'CYQR Regina' });
   await expect(line.locator('.debrief-metar-text')).toHaveText(/CYQR \d{4}Z/);
-  expect(asked.map((u) => new URL(u).searchParams.get('station'))).toEqual(['CYMJ', 'CYQR']);
+  const stations = (types) => asked.filter((u) => new URL(u).searchParams.getAll('report_type').join() === types).map((u) => new URL(u).searchParams.get('station'));
+  expect(stations('3,4')).toEqual(['CYMJ', 'CYQR']);
+  await expect.poll(() => stations('4')).toEqual(['CYMJ', 'CYQR']);
 
   // Off again: the line and the ticks go.
   await page.getByLabel('METAR', { exact: true }).uncheck();

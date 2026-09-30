@@ -21,6 +21,18 @@ const iso = (t) => new Date(t * 1000).toISOString().slice(0, 16) + 'Z';
  * to its end. Built only from a checked ICAO code and numbers.
  */
 export function metarArchiveUrl(icao, startT, endT) {
+  return archiveQuery(icao, startT, endT, ['3', '4']); // routine and specials
+}
+
+/**
+ * The same address with specials alone (report_type 4). The CSV doesn't say
+ * which report is a SPECI, so what this list holds tells them apart.
+ */
+export function speciArchiveUrl(icao, startT, endT) {
+  return archiveQuery(icao, startT, endT, ['4']);
+}
+
+function archiveQuery(icao, startT, endT, reportTypes) {
   if (!ICAO.test(icao) || !Number.isFinite(startT) || !Number.isFinite(endT)) throw new TypeError('metarArchiveUrl: an ICAO code and two times');
   const q = new URLSearchParams({
     station: icao,
@@ -35,8 +47,7 @@ export function metarArchiveUrl(icao, startT, endT) {
     trace: 'T',
     direct: 'no',
   });
-  q.append('report_type', '3'); // routine
-  q.append('report_type', '4'); // specials
+  for (const type of reportTypes) q.append('report_type', type);
   return `${IEM_ASOS_URL}?${q}`;
 }
 
@@ -56,11 +67,25 @@ export function readArchive(text) {
     if (!Number.isFinite(t) || !raw || raw === 'M') continue;
     // The observation's own day resolves against its archive time.
     const report = parseMetar(raw, { now: new Date((t + 3600) * 1000) });
-    out.push({ t, type: report.type === 'SPECI' || /^SPECI\b/.test(raw) ? 'SPECI' : 'METAR', raw, report });
+    out.push({ station: m[1], t, type: report.type === 'SPECI' || /^SPECI\b/.test(raw) ? 'SPECI' : 'METAR', raw, report });
   }
   out.sort((a, b) => a.t - b.t);
   // The archive can list one report twice (a correction); keep the later line.
   return out.filter((r, i) => i === out.length - 1 || out[i + 1].t !== r.t);
+}
+
+const squash = (raw) => raw.replace(/\s+/g, ' ');
+
+/**
+ * The reports with the specials marked: a report becomes a SPECI when the
+ * specials list holds one for the same station at the same valid time with
+ * the same raw text (a match on time alone isn't enough). Returns a new list;
+ * the one given is not changed.
+ */
+export function markSpecials(reports, specials) {
+  const key = (r) => `${r.station}|${r.t}|${squash(r.raw)}`;
+  const known = new Set(specials.map(key));
+  return reports.map((r) => (r.type !== 'SPECI' && known.has(key(r)) ? { ...r, type: 'SPECI' } : r));
 }
 
 const pad = (n) => String(n).padStart(2, '0');

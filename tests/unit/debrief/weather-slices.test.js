@@ -2,7 +2,7 @@
 // slice at or before the moment, never one from the future, with its age.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sliceAt, frameTimes, reportTicks, nearestAirfield, ageText, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
+import { sliceAt, frameTimes, reportTicks, tickLabel, nearestAirfield, ageText, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
 import { CATALOG } from '../../../src/airfields/catalog.js';
 
 const T0 = Date.UTC(2026, 8, 30, 14, 0, 0) / 1000;
@@ -32,6 +32,12 @@ test('scrubber ticks: each report inside the flight, in time order, with its typ
     { t: T0 + 3600, type: 'METAR' }, { t: T0 - 600, type: 'METAR' }, { t: T0 + 1500, type: 'SPECI' },
   ];
   assert.deepEqual(reportTicks(reports, T0, T0 + 3600), [{ t: T0 + 1500, type: 'SPECI' }, { t: T0 + 3600, type: 'METAR' }]);
+});
+
+test('a tick says what it is in words, in UTC, for sight and for a screen reader', () => {
+  assert.equal(tickLabel({ t: T0 + 32 * 60, type: 'SPECI' }), 'SPECI 14:32Z');
+  assert.equal(tickLabel({ t: T0, type: 'METAR' }), 'METAR 14:00Z');
+  assert.equal(tickLabel({ t: T0 - 5 * 3600 + 7 * 60, type: 'METAR' }), 'METAR 09:07Z');
 });
 
 test('the nearest airfield to the formation, from the built-in list', () => {
