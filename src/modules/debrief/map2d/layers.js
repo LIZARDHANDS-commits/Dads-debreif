@@ -216,6 +216,7 @@ function outlinedText(ctx, text, x, y, color) {
 const WIND_COLOR = '#9bb8c6';
 const WIND_BARB_PX = 8;
 const WIND_LABEL_GAP_PX = 9;
+const WIND_CALM_RING_PX = 5;
 
 /**
  * The model wind at the grid points, under the tracks: one arrow per point,
@@ -235,7 +236,20 @@ export function drawWindArrows(ctx, map, arrows) {
   ctx.textBaseline = 'middle';
   for (const a of drawn) {
     const [x, y] = map.worldToScreen(a.x, a.y);
-    const { dx, dy, lengthPx } = arrowVector(a);
+    const { dx, dy, lengthPx, calm } = arrowVector(a);
+    if (calm) { // no direction to point: a ring on the point, with the word beside it
+      ctx.beginPath();
+      ctx.arc(x, y, WIND_CALM_RING_PX, 0, Math.PI * 2);
+      ctx.strokeStyle = OUTLINE_COLOR;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+      ctx.strokeStyle = WIND_COLOR;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.textAlign = 'left';
+      outlinedText(ctx, a.label, x + WIND_CALM_RING_PX + 5, y, WIND_COLOR);
+      continue;
+    }
     const hx = x + dx;
     const hy = y + dy;
     const ux = dx / lengthPx; // the unit vector of the way it points

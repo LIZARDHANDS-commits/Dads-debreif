@@ -82,8 +82,11 @@ export const ARROW_PX = Object.freeze({ min: 16, max: 72, perKt: 1 });
  * Where an arrow's head is from its tail, on the screen (x right, y down, so
  * north is up): { dx, dy, lengthPx }. The wind's direction is where it blows
  * from, so the arrow points the opposite way, downwind, the way the air moves.
+ * A calm wind (the speed rounds to 0 kt, which the words call "calm") has no
+ * direction to point: { dx: 0, dy: 0, lengthPx: 0, calm: true }.
  */
 export function arrowVector({ dirDeg, kt }) {
+  if (Math.round(kt) === 0) return { dx: 0, dy: 0, lengthPx: 0, calm: true };
   const lengthPx = Math.min(ARROW_PX.max, Math.max(ARROW_PX.min, kt * ARROW_PX.perKt));
   const r = (dirDeg * Math.PI) / 180;
   return { dx: -Math.sin(r) * lengthPx, dy: Math.cos(r) * lengthPx, lengthPx };

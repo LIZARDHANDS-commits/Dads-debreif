@@ -70,3 +70,15 @@ test('a point with a value that is not a number is skipped, not drawn at NaN', (
   drawWindArrows(ctx, mapAt(), [{ ...arrow, x: NaN }, { ...arrow, kt: NaN }, arrow]);
   assert.equal(ctx.log.texts.filter((t) => t.kind === 'fill').length, 1);
 });
+
+test('a calm point is a small ring with "calm" beside it: no shaft, no barbs, no direction', () => {
+  const ctx = ctxStub();
+  drawWindArrows(ctx, mapAt(), [{ x: 10, y: 20, dirDeg: 270, kt: 0.3, label: 'calm' }]);
+  assert.deepEqual(ctx.log.lines, []);
+  assert.deepEqual(ctx.log.moves, []);
+  assert.ok(ctx.log.calls.includes('arc'), 'a ring on the point');
+  assert.deepEqual(ctx.log.texts.filter((t) => t.kind === 'fill').map((t) => t.text), ['calm']);
+  // The word is beside the ring, at the point's place on the screen.
+  const word = ctx.log.texts.find((t) => t.kind === 'fill');
+  assert.ok(word.x > 110 && word.x < 130 && Math.abs(word.y - 180) < 8, `${word.x}, ${word.y}`);
+});

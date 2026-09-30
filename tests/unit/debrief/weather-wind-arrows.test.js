@@ -266,3 +266,14 @@ test('the feed asks for the grid once per model, in one request, only when asked
   feed.setFlight(flight, { lat: 50.3, lon: -105.6 }, []);
   assert.equal(feed.getGrid('hrdps'), null);
 });
+
+test('a calm wind (the speed rounds to 0 kt, as the words say "calm") has no direction to point: no length, marked calm', () => {
+  const calm = arrowVector({ dirDeg: 270, kt: 0.4 });
+  assert.deepEqual(calm, { dx: 0, dy: 0, lengthPx: 0, calm: true });
+  assert.equal(arrowVector({ dirDeg: 90, kt: 0 }).calm, true);
+  // 0.5 kt reads "1 kt", so it is still an arrow, at the shortest length.
+  const light = arrowVector({ dirDeg: 270, kt: 0.5 });
+  assert.equal(light.calm, undefined);
+  assert.equal(light.lengthPx, ARROW_PX.min);
+  assert.equal(arrowLabel({ dirDeg: 270, kt: 0.4 }), 'calm');
+});
