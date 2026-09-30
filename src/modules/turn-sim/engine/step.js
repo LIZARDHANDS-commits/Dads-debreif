@@ -1,8 +1,7 @@
 // One fixed step of the flying (pure: aircraft and numbers in, aircraft moved).
 // Ported unchanged from V6 `moveAircraftList` (line 1579) and `stepSim` (line
-// 1687), without the G correction (Correction model "G adjustment", task 7) and
-// without the rear element check (task 11): both are pinned later, each on its
-// own. The golden test tests/golden/turn-sim-run.test.js runs V6's own code next
+// 1687), with the G correction (task 7) and the offset box's rear element check
+// (rear-check.js). The golden test tests/golden/turn-sim-run.test.js runs V6's own code next
 // to this.
 //
 // Coordinates and headings are V6's: feet, x east, y north, heading in radians
@@ -11,6 +10,7 @@ import { turnSimG, turnRateRadPerSec } from '../../../core/flight-math.js';
 import { degToRad } from '../../../core/angles.js';
 import { clockCueCrossed, V6_CLOCK_TOLERANCE_DEG } from './cues.js';
 import { cueTargetForAircraft } from './plan.js';
+import { stepRearCheckTurn } from './rear-check.js';
 
 /** The step, in seconds: V6's `dt` (line 784). It never depends on the frame rate (#17). */
 export const STEP_SEC = 0.05;
@@ -37,10 +37,48 @@ export function flownG(baseG, gError) {
  */
 function mayTurn(a, aircraft, tSec, flight) {
   if (a.active) return true;
+  if (a.followIds) {
+    // The box slot fallback under the clock cue: after the mean of the front aircraft's actual starts, and never before all have started.
+    const front = a.followIds.map((id) => aircraft.find((x) => x.id === id));
+    if (front.some((x) => !x || x.startedAtSec === undefined)) return false;
+    return tSec >= front.reduce((sum, x) => sum + x.startedAtSec, 0) / front.length + a.followDelaySec;
+  }
+  if (a.followId) {
+    const front = aircraft.find((x) => x.id === a.followId);
+    return !!front && front.startedAtSec !== undefined && tSec >= front.startedAtSec + a.followDelaySec;
+  }
   if (flight.timing !== 'clock' || !a.cueArmed) return tSec >= a.turnStartSec;
   const target = a.autoClockTargetId ? aircraft.find((x) => x.id === a.autoClockTargetId) : cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
   if (!target || target.id === a.id) return tSec >= a.turnStartSec;
-  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, direction: flight.direction, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
+  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, direction: flight.direction, maneuver: flight.maneuver, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
+}
+
+/**
+ * One step of a turn in several legs (the shackle): turn the current leg's way toward its angle; when it is done, wait its
+ * successor's hold (`holdSec`) and start the next leg; after the last leg the aircraft is done, and on its
+ * `finalHeadingRad` if it has one. Between legs the aircraft flies straight and is not turning.
+ */
+function stepLegs(a, omega, stepSec, tSec) {
+  const leg = a.legs[a.legIndex];
+  a.turnDir = leg.dir;
+  if (tSec < a.legReadySec) {
+    a.active = false;
+    return;
+  }
+  a.active = true;
+  const dth = Math.min(omega * stepSec, leg.goalRad - a.legAccumRad);
+  a.headingRad += leg.dir * dth;
+  a.legAccumRad += dth;
+  if (a.legAccumRad < leg.goalRad - GOAL_TOLERANCE_RAD) return;
+  a.active = false;
+  if (a.legIndex === a.legs.length - 1) {
+    if (typeof a.finalHeadingRad === 'number') a.headingRad = a.finalHeadingRad;
+    a.done = true;
+    return;
+  }
+  a.legIndex++;
+  a.legAccumRad = 0;
+  a.legReadySec = tSec + stepSec + (a.legs[a.legIndex].holdSec || 0);
 }
 
 /**
@@ -52,8 +90,8 @@ function mayTurn(a, aircraft, tSec, flight) {
  *
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
- *   active, done, shackleReturn, turnPhase, originalHeadingRad.
- * flight: { tSec, spacingFt, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
+ *   active, done, and for a turn in several legs legs, legIndex, legAccumRad, legReadySec, finalHeadingRad.
+ * flight: { rearCheck (rear-check.js rearCheckConfig), tSec, spacingFt, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
  *
@@ -62,14 +100,18 @@ function mayTurn(a, aircraft, tSec, flight) {
  */
 export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
   const v = flight.speedFtps;
+  // Q47: the rear element check waits for #3 and #4 to finish their turns (rear-check.js).
+  const rear = aircraft.filter((x) => x.id === 3 || x.id === 4);
+  const turnsDone = rear.length > 0 && rear.every((x) => x.done);
   const useCorrection = flight.correction === 'lag' || flight.correction === 'lead';
   for (const a of aircraft) {
     // Step 2 of the flying: the Correction model "G fix" nudges a wingman's G toward its slot (core turnSimG,
     // V6 line 1583). Lead has already moved this step, and the distance is measured from the wingman's own
     // position before its move, as V6 does.
     const lead = aircraft.find((x) => x.id === 1);
+    const leg = a.legs ? a.legs[a.legIndex] : null;
     const g = turnSimG({
-      gSetting: flight.baseG,
+      gSetting: leg && leg.gSetting !== undefined ? leg.gSetting : flight.baseG, // the cross turn's first 90 degrees have their own G
       gErr: a.gError,
       useErrorsAndCorrection: true,
       correction: flight.correction,
@@ -80,28 +122,23 @@ export function moveAircraft(aircraft, flight, stepSec = STEP_SEC) {
     });
     a.gFlown = g;
     const omega = turnRateRadPerSec(v, g);
-    if (mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
-      // V6's shackle "hold" (line 1585) never held: shackleHoldUntil was never set. Task 15 gives it a real one.
-      a.active = true;
-      const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);
-      const dth = Math.min(omega * stepSec, goal - a.turnAccumRad);
-      a.headingRad += (a.turnDir || 1) * dth;
-      a.turnAccumRad += dth;
-      if (a.turnAccumRad >= goal - GOAL_TOLERANCE_RAD) {
-        // The shackle has two legs: 45° in, then the same 45° back to the original heading.
-        if (a.shackleReturn && a.turnPhase === 0) {
-          a.turnPhase = 1;
-          a.turnAccumRad = 0;
-          a.turnDir = -(a.turnDir || 1);
-          a.done = false;
-          a.active = false;
-        } else {
-          if (a.shackleReturn && typeof a.originalHeadingRad === 'number') a.headingRad = a.originalHeadingRad;
+    // The rear element check (V6 line 1583) takes #3 and #4 over from the planned turn while it runs.
+    const rearCheckOverride = !!flight.rearCheck && stepRearCheckTurn(a, omega, stepSec, flight.tSec, flight.rearCheck, turnsDone);
+    if (!rearCheckOverride && mayTurn(a, aircraft, flight.tSec, flight) && !a.done) {
+      if (a.legs) stepLegs(a, omega, stepSec, flight.tSec);
+      else {
+        a.active = true;
+        const goal = a.turnGoalRad || degToRad(flight.turnDegDefault);
+        const dth = Math.min(omega * stepSec, goal - a.turnAccumRad);
+        a.headingRad += (a.turnDir || 1) * dth;
+        a.turnAccumRad += dth;
+        if (a.turnAccumRad >= goal - GOAL_TOLERANCE_RAD) {
           a.done = true;
           a.active = false;
         }
       }
     }
+    if (a.active && a.startedAtSec === undefined) a.startedAtSec = flight.tSec;
     let heading = a.headingRad;
     if (useCorrection && a.id !== 1) {
       const bend = (a.turnDir || 1) * degToRad(4) * flight.correctionStrength;

@@ -33,7 +33,8 @@ function nextObservation(match, time) {
  */
 export function parseMetar(raw, { now } = {}) {
   now = now ?? new Date();
-  const { tokens, remarks } = tokenize(raw);
+  // Spans are offsets into report.raw (the trimmed text), which the screen shows.
+  const { tokens, spans, remarks } = tokenize(String(raw ?? '').trim());
   const report = {
     raw: String(raw ?? '').trim(),
     type: 'METAR',
@@ -70,7 +71,7 @@ export function parseMetar(raw, { now } = {}) {
   let end = tokens.findIndex((t, k) => k >= i && TREND.has(t));
   if (end < 0) end = tokens.length;
   report.trend = tokens.slice(end).join(' ');
-  const read = readConditions(tokens.slice(i, end));
+  const read = readConditions(tokens.slice(i, end), spans.slice(i, end));
   report.conditions = read.conditions;
   report.ceilingFt = ceilingFt(read.conditions);
   report.temperatureC = read.temperatureC;

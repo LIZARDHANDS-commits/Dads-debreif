@@ -10,7 +10,7 @@ import { createDice } from '../../../src/modules/traffic/dice.js';
 import { routeLengthFt, closestDistFt, positionAt } from '../../../src/modules/traffic/route.js';
 import { KT_TO_FTPS, ktToFtps } from '../../../src/core/units.js';
 
-const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const builtIn = () => clone(MOOSE_JAW);
 
