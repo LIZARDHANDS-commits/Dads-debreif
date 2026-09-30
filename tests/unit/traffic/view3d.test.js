@@ -319,7 +319,7 @@ const scene = (extra = {}) => ({
 });
 const OPTIONS = { paint: PAINT_DEFAULT, layerCautionRings: true, cautionLatFt: 500, zoom: 200, groundFt: 1880, time: 10 };
 // Close in (chase or zoomed in), where a T-6 is more than FULL_MODEL_PX long on screen and gets the full Harvard model.
-const CLOSE = { ...OPTIONS, zoom: 5000 };
+const CLOSE = { ...OPTIONS, zoom: CAMERA_LIMITS.zoom[1] }; // the closest the wheel goes, 4,000 px to 1,000 ft: a T-6 about 134 px long
 
 test('the scene kit draws each route once, each flying aircraft once, and a caution ring and a drop line for each', (t) => {
   const kit = createSceneKit(THREE, { models });
@@ -485,7 +485,8 @@ test('the full Harvard model is for a T-6 drawn more than FULL_MODEL_PX long, an
   assert.equal(FULL_MODEL_PX, 120);
   assert.ok(FULL_MODEL_KEEP_PX < FULL_MODEL_PX);
   near(planePx(20), MIN_PLANE_PX);
-  near(planePx(5000), (T6_LENGTH_FT * 5000) / 1000);
+  near(planePx(4000), (T6_LENGTH_FT * 4000) / 1000);
+  assert.ok(planePx(CAMERA_LIMITS.zoom[1]) > FULL_MODEL_PX, 'the closest zoom the wheel allows does reach the full model');
   assert.equal(wantsFullModel(FULL_MODEL_PX + 1, false), true);
   assert.equal(wantsFullModel(FULL_MODEL_PX - 1, false), false);
   assert.equal(wantsFullModel(FULL_MODEL_PX - 1, true), true, 'once full, kept a little below the line, so a wheel notch there does not rebuild it');
@@ -501,7 +502,7 @@ test('zoomed out, every T-6 is the plain one; zoomed in, the full model; and the
   assert.deepEqual({ ...made }, { ct156: 0, t6plain: 1, standin: 1 }, 'zoom 200 (44 px): the plain T-6, one stand-in');
   kit.sync(scene(), CLOSE);
   kit.sync(scene(), CLOSE);
-  assert.deepEqual({ ...made }, { ct156: 1, t6plain: 1, standin: 1 }, 'zoom 5,000 (167 px): the full model, built once');
+  assert.deepEqual({ ...made }, { ct156: 1, t6plain: 1, standin: 1 }, 'zoom 4,000 (134 px): the full model, built once');
   const full = kit.aircraftMesh('A1');
   kit.sync(scene(), { ...CLOSE, zoom: (110 / T6_LENGTH_FT) * 1000 }); // the zoom that makes the plane 110 px long
   assert.equal(kit.aircraftMesh('A1'), full, '110 px: still the full model');
@@ -511,9 +512,9 @@ test('zoomed out, every T-6 is the plain one; zoomed in, the full model; and the
   kit.dispose();
 });
 
-test('the caution ring is at least 12 px across on screen, like the 2D ring, and the real caution distance when that is more', () => {
+test('the caution ring is at least 12 px in radius on screen, like the 2D ring, and the real caution distance when that is more', () => {
   near(ringRadiusFt(500, 200), 500); // 100 px
-  near(ringRadiusFt(500, 20), 600); // 10 px would be too small: 12 px at 20 px to 1,000 ft
+  near(ringRadiusFt(500, 20), 600); // a 10 px radius would be too small: 12 px at 20 px to 1,000 ft
   near(ringRadiusFt(500, 1), 12000);
   near(ringRadiusFt(0, 20), 600, 1e-9);
   const kit = createSceneKit(THREE, { models });

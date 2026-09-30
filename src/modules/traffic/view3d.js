@@ -584,8 +584,30 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
     gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, sky, kit, palette };
+    if (win.__traffic3dLeakCheck) probeMemory(renderer, camera);
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
+  }
+
+  // For the leak check (tests only, set from a test page): draws one Harvard on its own and disposes it, then notes what the
+  // renderer counts (data-gpu-base). teardown() writes the count again after the view has freed everything it made; the two must
+  // be the same. Whatever three.js keeps for itself once it has drawn such a material is in both, so nothing is hard-coded.
+  function probeMemory(renderer, camera) {
+    const probeScene = new THREE.Scene();
+    const probe = createCt156Model(THREE, { color: '#7ee787', number: '1', paint: PAINT_DEFAULT, lengthFt: T6_LENGTH_FT });
+    probe.traverse((o) => { o.frustumCulled = false; }); // drawn even though the camera is elsewhere
+    probeScene.add(probe);
+    // A picture as the background, like the sky's: three.js makes itself a plane to draw it on, and keeps that plane until the renderer goes.
+    const backdrop = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+    backdrop.needsUpdate = true;
+    probeScene.background = backdrop;
+    renderer.render(probeScene, camera);
+    probeScene.background = null;
+    backdrop.dispose();
+    probeScene.remove(probe);
+    disposeAircraftMesh(probe);
+    const { memory } = renderer.info;
+    host.dataset.gpuBase = `${memory.geometries},${memory.textures}`;
   }
 
   function contextLost(e) {
@@ -608,12 +630,11 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     gl = null;
     kit.dispose();
     sky.dispose();
-    renderer.dispose();
-    // What three.js still counts on the graphics card, for the leak check. The ui-kit's T-6 frees everything it made; what stays
-    // is three.js's own, kept for its next shiny material (a lookup table, and the PMREM reflection converter's texture and
-    // planes). It is the same after every round, which the e2e pins after a first round has made it.
+    // What three.js still counts on the graphics card, for the leak check (data-gpu; see probeMemory): the ui-kit's T-6 frees
+    // everything it made and so does the view, so this is what three.js keeps for itself, the same as after one Harvard.
     const { memory } = renderer.info;
     host.dataset.gpu = `${memory.geometries},${memory.textures}`;
+    renderer.dispose();
     if (!lost) renderer.forceContextLoss?.();
     canvas.remove();
     labels.remove();

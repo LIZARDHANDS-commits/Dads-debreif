@@ -522,11 +522,14 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await expect.poll(() => stats(page)).toEqual(baseline);
 });
 
-// What three.js still counts (geometries, textures) once the renderer is let go. Some of it is three.js's own and stays after
-// the first shiny material (a lookup table, and the PMREM reflection converter's texture and planes), so the first round makes
-// that baseline and every later round must come back to exactly it: a texture or geometry the view leaks shows as one more.
-test('each 3D round, the full Harvard model or the plain T-6, leaves on the graphics card what the first left and no more', async ({ page }) => {
+// The leak check (SPEC-ui-kit, Paint): inside one renderer, what it counts once everything the view made is disposed must be
+// what it counted after one Harvard was drawn and disposed. Three.js keeps some of its own (a lookup table, the PMREM
+// reflection converter's texture and planes), so that first count is the baseline, never a hard-coded number. Every round
+// makes a new renderer, so the baseline has to be taken inside the same one: the view does it on build when this flag is set
+// (it draws and disposes one Harvard, some extra work a real visit does not need) and writes it as data-gpu-base.
+test('each 3D round, the full Harvard model or the plain T-6, ends with exactly the graphics memory its own renderer had after one Harvard was drawn and disposed', async ({ page }) => {
   test.setTimeout(60_000);
+  await page.addInitScript(() => { window.__traffic3dLeakCheck = true; });
   await open(page);
   await playButton(page).click();
   await expect.poll(() => seconds(page)).toBeGreaterThan(20);
@@ -545,14 +548,13 @@ test('each 3D round, the full Harvard model or the plain T-6, leaves on the grap
     await page.waitForTimeout(200);
     await viewChoice(page, '2D').check();
     await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
-    return stage3d(page).getAttribute('data-gpu');
+    const base = await stage3d(page).getAttribute('data-gpu-base');
+    expect(base, 'the baseline was taken (one texture at least: three.js\'s lookup table)').toMatch(/^\d+,[1-9]\d*$/);
+    await expect(stage3d(page)).toHaveAttribute('data-gpu', base);
   };
-  const harvard = await round(true);
-  expect(harvard).toMatch(/^\d+,\d+$/);
-  expect(await round(true)).toBe(harvard);
-  const plain = await round(false);
-  expect(await round(false)).toBe(plain);
-  expect(await round(true)).toBe(harvard);
+  await round(true);
+  await round(false);
+  await round(true);
 });
 
 test('the 3D picture shows the run: the camera buttons, a drag, the wheel and Fit each change it, and so does time', async ({ page }) => {
