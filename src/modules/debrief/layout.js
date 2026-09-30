@@ -168,7 +168,11 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     { value: 'hrrr', label: `${WIND_MODELS.hrrr.label} (US, from 2018)` },
   ];
   // The wind arrows' small status line: how many points have a wind at the chosen height, or why none does.
-  const windArrowStatus = h('p', { class: 'debrief-menu-note', role: 'status', hidden: true });
+  const windArrowStatus = h('p', { class: 'debrief-menu-note', role: 'status', id: 'debrief-wind-arrow-status', hidden: true });
+  // The height box, read with the status line as well as its own range message.
+  const windArrowHeight = controls.number('wxWindArrowFt', { label: 'Wind arrow height', unit: 'ft', min: ARROW_HEIGHT.min, max: ARROW_HEIGHT.max, step: ARROW_HEIGHT.step });
+  const heightInput = windArrowHeight.querySelector('input');
+  heightInput?.setAttribute('aria-describedby', `${heightInput.getAttribute('aria-describedby') ?? ''} ${windArrowStatus.id}`.trim());
   // Weather at the time of the flight: every item off at first (R22), and
   // fetched only while on (SPEC-debrief: Weather at the time of the flight).
   const weatherMenu = menu('Weather', 'debrief-weather', [
@@ -183,7 +187,7 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     controls.checkbox('wxWinds', { label: 'Winds aloft (model)' }),
     controls.select('wxWindModel', { label: 'Wind model', options: WIND_MODEL_OPTIONS }),
     controls.checkbox('wxWindArrows', { label: 'Wind arrows (model)' }),
-    controls.number('wxWindArrowFt', { label: 'Wind arrow height', unit: 'ft', min: ARROW_HEIGHT.min, max: ARROW_HEIGHT.max, step: ARROW_HEIGHT.step }),
+    windArrowHeight,
     windArrowStatus,
   ]);
   // Tools: each opens its own panel below the stage and closes it again (#37).

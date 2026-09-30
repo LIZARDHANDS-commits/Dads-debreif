@@ -1228,6 +1228,10 @@ test('wind arrows: off at first, one request for nine points when on, a caption,
   await page.getByLabel('Wind arrows (model)').check();
   await expect(caption).toHaveText(`Model wind at 8,000 ft (HRDPS ${hours}, Open-Meteo)`);
   await expect(note).toHaveText('9 of 9 points have model wind');
+  // The status line is read with the height box (its own range message stays too).
+  const describedBy = (await page.getByLabel('Wind arrow height').getAttribute('aria-describedby')).split(' ');
+  expect(describedBy).toContain(await note.getAttribute('id'));
+  expect(describedBy).toHaveLength(2);
   // One request, for all nine points, in the Lead line's form; and no Lead line.
   expect(asked).toHaveLength(1);
   const q = new URL(asked[0]).searchParams;
