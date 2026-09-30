@@ -87,7 +87,7 @@ export function machToKiasKt(mach, altFt) {
 /**
  * The fastest the T-6A may fly at altFt, in KIAS, following the NFM's line
  * (Fig 5-3, p.5-9): VMO 316, or Mmo 0.67 where that is slower (above about
- * 18,800 ft; 279 KIAS at 25,000 ft). This is the airspeed indicator's reading,
+ * 18,900 ft; 279 KIAS at 25,000 ft). This is the airspeed indicator's reading,
  * for showing a pilot. Do not hold a model's IAS (TAS × √σ, iasToTasKt) to it:
  * that flies about Mach 0.69 at 25,000 ft. Use modelMaxIasT6A for that.
  * altFt must be finite, or it throws a RangeError.
