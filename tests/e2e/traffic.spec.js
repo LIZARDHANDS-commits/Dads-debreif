@@ -484,7 +484,7 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(20);
   const atSwitch = await seconds(page);
   await viewChoice(page, '3D').click();
-  await expect(canvas3d(page)).toBeVisible();
+  await expect(canvas3d(page)).toBeVisible(SLOW_GL);
   await expect(map(page)).toBeHidden();
   await expect(page.locator('.traffic-camera')).toBeVisible();
   expect(seen.length).toBeGreaterThan(0); // three.js loaded now, and not before
@@ -510,14 +510,14 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
   await viewChoice(page, '2D').click();
   await expect(map(page)).toBeVisible();
   await expect(canvas3d(page)).toHaveCount(0);
-  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed'); // (what the renderer still counts is checked in the round-trip test below)
+  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed', SLOW_GL); // (what the renderer still counts is checked in the round-trip test below)
   expect(await seconds(page)).toBe(timeNow);
   await expect.poll(() => stats(page)).toEqual(baseline); // no frame, timer or listener kept (the map's one redraw has run)
   await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
   // A second time round works and fetches three.js no more.
   const fetched = seen.length;
   await viewChoice(page, '3D').click();
-  await expect(canvas3d(page)).toBeVisible();
+  await expect(canvas3d(page)).toBeVisible(SLOW_GL);
   await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(0);
   expect(seen.length).toBe(fetched);
   await viewChoice(page, '2D').click();
@@ -537,7 +537,10 @@ test('each 3D round, the full Harvard model or the plain T-6, ends with exactly 
   await expect.poll(() => seconds(page), SLOW_GL).toBeGreaterThan(20);
   await playButton(page).click();
   const closeIn = async () => {
+    const before = await draws3d(page);
     await cameraButton(page, 'Low chase').click();
+    // A camera button takes effect at the next frame, which would undo a zoom made before it: wait for that frame.
+    await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(before);
     await canvas3d(page).evaluate((el) => {
       for (let notch = 0; notch < 40; notch++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
     });
@@ -549,7 +552,7 @@ test('each 3D round, the full Harvard model or the plain T-6, ends with exactly 
     if (zoomedIn) await closeIn();
     await page.waitForTimeout(200);
     await viewChoice(page, '2D').click();
-    await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
+    await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed', SLOW_GL);
     const base = await stage3d(page).getAttribute('data-gpu-base');
     expect(base, 'the baseline was taken (one texture at least: three.js\'s lookup table)').toMatch(/^\d+,[1-9]\d*$/);
     await expect(stage3d(page)).toHaveAttribute('data-gpu', base);
@@ -695,12 +698,12 @@ test('when the browser takes the graphics context away, the 2D map comes back wi
   await expect(note3d(page)).toBeVisible();
   await expect(note3d(page)).not.toBeEmpty();
   await expect(viewChoice(page, '2D')).toBeChecked();
-  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed');
+  await expect(stage3d(page)).toHaveAttribute('data-gl', 'closed', SLOW_GL);
   await expect.poll(() => pixelsDrawn(page)).toBeGreaterThan(50);
   await page.waitForTimeout(300); // anything logged about it would have arrived by now (the fixture fails the test on errors)
   // And 3D works again after it: a new canvas and a new context.
   await viewChoice(page, '3D').click();
-  await expect(canvas3d(page)).toBeVisible();
+  await expect(canvas3d(page)).toBeVisible(SLOW_GL);
   await expect.poll(() => draws3d(page), SLOW_GL).toBeGreaterThan(1);
 });
 
