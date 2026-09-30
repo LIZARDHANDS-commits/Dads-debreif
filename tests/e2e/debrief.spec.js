@@ -389,6 +389,65 @@ test('in flight the Formation card judges each wingman; More detail opens the nu
   await expect(page.getByRole('button', { name: 'More detail' })).toHaveAttribute('aria-expanded', 'true');
 });
 
+test('winds aloft: an error page instead of winds is not blamed on the connection (W5; a 500 is in the unit tests, as the browser logs it as an error)', async ({ page }) => {
+  await page.route(OPEN_METEO, (route) => route.fulfill({ status: 200, contentType: 'text/html', headers: { 'Access-Control-Allow-Origin': '*' }, body: '<html>oops</html>' }));
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Weather' }).click();
+  await page.getByLabel('Winds aloft (model)').check();
+  const wind = page.locator('.formation-card li.lead-wind');
+  await expect(wind).toHaveText("HRDPS winds: Open-Meteo's answer wasn't wind data. Turn Winds aloft off and on to try again.");
+  await expect(wind).not.toContainText('connection');
+});
+
+test('standards: a refusal names its own box and limit, and only the latest refusal stays on screen (#182 S1)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Debrief settings' }).click();
+  const messageOf = async (label) => page.locator(`#${await page.getByLabel(label, { exact: true }).getAttribute('aria-describedby')}`);
+  const max = page.getByLabel('Spread maximum', { exact: true });
+  const min = page.getByLabel('Spread minimum', { exact: true });
+
+  // Below the minimum: the message under Maximum talks about the maximum and the minimum it must not go under.
+  await max.fill('3000');
+  await max.press('Tab');
+  await expect(max).toHaveAttribute('aria-invalid', 'true');
+  await expect(await messageOf('Spread maximum')).toHaveText('Spread maximum must not be less than the spread minimum (4000 ft). Kept 6000 ft.');
+
+  // Another refusal elsewhere: the first message goes and that box shows its kept value again.
+  await min.fill('-5');
+  await min.press('Tab');
+  await expect(await messageOf('Spread minimum')).toHaveText('Spread minimum must be between 0 and 20,000 ft. Kept 4000 ft.');
+  await expect(await messageOf('Spread maximum')).toHaveText('');
+  await expect(max).toHaveAttribute('aria-invalid', 'false');
+  await expect(max).toHaveValue('6000');
+
+  // The other way round: a minimum above the maximum names the maximum.
+  await min.fill('7000');
+  await min.press('Tab');
+  await expect(await messageOf('Spread minimum')).toHaveText('Spread minimum must not be more than the spread maximum (6000 ft). Kept 4000 ft.');
+
+  // The sweep pair says the same in its own words, with the degree sign attached.
+  const most = page.getByLabel('Sweep, most', { exact: true });
+  await most.fill('-1');
+  await most.press('Tab');
+  await expect(await messageOf('Sweep, most')).toHaveText('Sweep, most must be between 0 and 45°. Kept 10°.');
+  const least = page.getByLabel('Sweep, least', { exact: true });
+  await least.fill('9');
+  await least.press('Tab');
+  await most.fill('5');
+  await most.press('Tab');
+  await expect(await messageOf('Sweep, most')).toHaveText('Sweep, most must not be less than the least sweep (9°). Kept 10°.');
+
+  // Any accepted value clears every message.
+  await max.fill('8000');
+  await max.press('Tab');
+  await expect(max).toHaveAttribute('aria-invalid', 'false');
+  for (const label of ['Spread minimum', 'Spread maximum', 'Sweep, least', 'Sweep, most']) await expect(await messageOf(label)).toHaveText('');
+  await expect(most).toHaveAttribute('aria-invalid', 'false');
+  await expect(most).toHaveValue('10');
+});
+
 test('standards: edit, refuse a bad value, keep after a reload, reset to the defaults (R18, D114-D116)', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
@@ -1058,7 +1117,7 @@ function openMeteoReply(url) {
   return JSON.stringify({ hourly });
 }
 
-test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s altitude on the Lead line (SPEC-debrief: Weather)', async ({ page }) => {
+test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s altitude on its own line under Lead\'s (SPEC-debrief: Weather)', async ({ page }) => {
   const asked = [];
   await page.route(OPEN_METEO, (route) => {
     asked.push(route.request().url());
@@ -1067,26 +1126,54 @@ test('winds aloft: off at first, fetched only when on, the model wind at Lead\'s
   await openRoute(page, '#/debrief');
   await loadExample(page);
   const leadLine = page.locator('.formation-card li', { hasText: 'est. IAS' });
+  const wind = page.locator('.formation-card li.lead-wind');
   await expect(leadLine).toBeVisible();
-  await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
+  await expect(wind).toHaveCount(0);
   expect(asked).toEqual([]); // nothing fetched while it's off (R5)
 
   await page.getByRole('button', { name: 'Weather' }).click();
   await page.getByLabel('Winds aloft (model)').check();
-  await expect(leadLine.locator('.lead-wind')).toHaveText(/^ · wind 270\/20 at [\d,]+ ft \(HRDPS \d{2}Z, Open-Meteo\)$/);
+  // On the ramp Lead is under the lowest model level above the field: no blended below-ground wind (W4).
+  await expect(wind).toHaveText("no HRDPS wind at 1,900 ft (below the model's lowest level: see the METAR)");
+  const scrubber = page.getByLabel('Flight time');
+  await scrubber.fill(String(Number(await scrubber.inputValue()) + 1750));
+  // Its own line straight after Lead's, so the verdict's words are not lengthened (W2).
+  await expect(wind).toHaveText(/^model wind 270°T\/20 kt at [\d,]+ ft \(HRDPS \d{2}(–\d{2})?Z, Open-Meteo\)$/);
+  await expect(leadLine).not.toContainText('model wind');
+  await expect(leadLine.locator('xpath=following-sibling::li[1]')).toHaveClass(/lead-wind/);
   expect(asked).toHaveLength(1);
   const q = new URL(asked[0]).searchParams;
   expect(q.get('models')).toBe('gem_hrdps_continental');
   expect(q.get('wind_speed_unit')).toBe('kn');
 
+  // A neutral tone: never the Lead verdict's green or yellow.
+  const colours = await page.evaluate(() => {
+    const of = (el) => getComputedStyle(el).color;
+    const probe = (token) => {
+      const el = document.createElement('span');
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = of(el);
+      el.remove();
+      return c;
+    };
+    return { wind: of(document.querySelector('.formation-card li.lead-wind')), good: probe('--good'), caution: probe('--caution') };
+  });
+  expect(colours.wind).not.toBe(colours.good);
+  expect(colours.wind).not.toBe(colours.caution);
+
+  // Short enough not to run to many rows in the narrow column (W2).
+  const rows = await wind.evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+  expect(rows).toBeLessThanOrEqual(3);
+
   // The other model: its own fetch, once.
   await page.getByLabel('Wind model').selectOption({ label: 'HRRR (US, from 2018)' });
-  await expect(leadLine.locator('.lead-wind')).toHaveText(/\(HRRR \d{2}Z, Open-Meteo\)$/);
+  await expect(wind).toHaveText(/\(HRRR \d{2}(–\d{2})?Z, Open-Meteo\)$/);
   expect(asked.map((u) => new URL(u).searchParams.get('models'))).toEqual(['gem_hrdps_continental', 'ncep_hrrr_conus']);
 
   // Off again: the words go.
   await page.getByLabel('Winds aloft (model)').uncheck();
-  await expect(leadLine.locator('.lead-wind')).toHaveCount(0);
+  await expect(wind).toHaveCount(0);
 });
 
 // When 3D can't start, the screen says why and goes back to 2D (D141).

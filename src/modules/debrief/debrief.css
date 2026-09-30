@@ -169,6 +169,14 @@
   color: var(--text-muted);
 }
 
+/* The model wind under Lead's line: neutral and small, lined up under Lead's words. */
+[data-module='debrief'] .formation-card .lead-wind {
+  padding-top: 0;
+  padding-left: calc(0.75rem + var(--space-2));
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 [data-module='debrief'] .more-detail h3,
 [data-module='debrief'] .more-detail h4 {
   margin: var(--space-3) 0 var(--space-1);

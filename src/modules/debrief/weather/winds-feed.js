@@ -7,10 +7,14 @@ import { windsUrl, readWinds } from './winds.js';
 /**
  * fetch: the browser's fetch (replaceable in tests). onChange: called when a
  * fetch finishes, so the line can redraw.
- * Returns { get(model) → { state: 'loading' | 'ready' | 'busy' | 'failed', daily, hours },
+ * Returns { get(model) → { state: 'loading' | 'ready' | 'busy' | 'failed', daily, failure, hours },
  * retry(), setFlight(flight, point), dispose() }. point is { lat, lon }, where
  * the winds are taken for the whole flight. 'busy' is Open-Meteo's rate limit;
- * `daily` says it's the day's allowance rather than the minute's. retry()
+ * `daily` says it's the day's allowance rather than the minute's. 'failed' says
+ * why in `failure`: { kind: 'network' } (no answer at all), { kind: 'http',
+ * status } (a server error) or { kind: 'reply', status } (an answer that isn't
+ * JSON, such as an error page), so the words don't blame the connection for a
+ * server's error. retry()
  * forgets the busy and failed ones, so the next get() asks again.
  */
 export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(input, init), onChange }) {
@@ -20,7 +24,7 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
   let aborts = new Set();
 
   function start(model) {
-    const entry = { state: 'loading', daily: false, hours: [] };
+    const entry = { state: 'loading', daily: false, failure: null, hours: [] };
     cache.set(model, entry);
     const abort = new AbortController();
     aborts.add(abort);
@@ -34,7 +38,13 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
           const busy = (reason) => Promise.reject(Object.assign(new Error('Open-Meteo rate limit'), { busy: true, daily: /daily/i.test(reason) }));
           return Promise.resolve().then(() => res.json()).then((body) => busy(String(body?.reason ?? '')), () => busy(''));
         }
-        return res.ok ? res.json() : Promise.reject(new Error(`Open-Meteo answered ${res.status}`));
+        if (!res.ok) return Promise.reject(Object.assign(new Error(`Open-Meteo answered ${res.status}`), { failure: { kind: 'http', status: res.status } }));
+        return Promise.resolve()
+          .then(() => res.json())
+          // A body cut off mid-way fails as a TypeError (the connection); text that isn't JSON as a SyntaxError (the reply).
+          .catch((err) => Promise.reject(Object.assign(err ?? new Error('unreadable'), {
+            failure: err instanceof TypeError ? { kind: 'network', status: null } : { kind: 'reply', status: res.status },
+          })));
       })
       .then((json) => {
         entry.hours = readWinds(json);
@@ -43,6 +53,7 @@ export function createWindsFeed({ fetch = (input, init) => globalThis.fetch(inpu
       .catch((err) => {
         entry.state = err?.busy ? 'busy' : 'failed';
         entry.daily = Boolean(err?.daily);
+        entry.failure = err?.busy ? null : (err?.failure ?? { kind: 'network', status: null });
       })
       .finally(() => {
         aborts.delete(abort);

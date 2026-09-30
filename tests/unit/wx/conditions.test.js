@@ -5,10 +5,18 @@ import { readConditions, mergeConditions, formatVisibility, tokenize } from '../
 const read = (text) => readConditions(tokenize(text).tokens).conditions;
 
 test('tokenize: upper case, trailing "=", remarks split at RMK', () => {
-  assert.deepEqual(tokenize('taf cymj  291120Z 2912/3012 p6sm skc rmk nxt fcst by 18z='), {
-    tokens: ['TAF', 'CYMJ', '291120Z', '2912/3012', 'P6SM', 'SKC'],
-    remarks: 'NXT FCST BY 18Z',
-  });
+  const raw = 'taf cymj  291120Z 2912/3012 p6sm skc rmk nxt fcst by 18z=';
+  const { tokens, remarks, spans } = tokenize(raw);
+  assert.deepEqual(tokens, ['TAF', 'CYMJ', '291120Z', '2912/3012', 'P6SM', 'SKC']);
+  assert.equal(remarks, 'NXT FCST BY 18Z');
+  assert.deepEqual(spans.map((s) => raw.slice(s.start, s.end)), ['taf', 'cymj', '291120Z', '2912/3012', 'p6sm', 'skc']);
+});
+
+test('tokenize: a trailing "=" is not part of the last word, and a lone "=" is dropped', () => {
+  const a = tokenize('CYMJ 300027Z 27008KT 15SM SKC=');
+  assert.equal(a.tokens.at(-1), 'SKC');
+  assert.deepEqual(a.spans.at(-1), { start: 26, end: 29 });
+  assert.deepEqual(tokenize('CYMJ 300027Z SKC =').tokens, ['CYMJ', '300027Z', 'SKC']);
 });
 
 test('issue #1: a TAF period before a fraction is never read as whole miles', () => {

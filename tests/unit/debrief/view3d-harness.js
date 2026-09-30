@@ -4,6 +4,7 @@
 // node_modules; tests only), and a recording 2D context.
 import { readFileSync } from 'node:fs';
 import { loadExampleFlight } from '../../../src/flight-data/examples.js';
+import { resetWebglCheck } from '../../../src/ui-kit/three-aircraft.js';
 
 /** A 2D context that records the text it is asked to draw; every other call does nothing. */
 export function recordingContext() {
@@ -125,6 +126,7 @@ export async function exampleFlight(slot = null, fromT = 0, toT = 0) {
 
 /** Installs the fake document; returns a function that puts the old one back. */
 export function installFakeDocument() {
+  resetWebglCheck(); // ui-kit keeps the WebGL answer for the page; each test's fake document asks afresh
   const before = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const made = [];
   globalThis.document = {
@@ -136,6 +138,7 @@ export function installFakeDocument() {
     },
   };
   return () => {
+    resetWebglCheck();
     if (before) Object.defineProperty(globalThis, 'document', before);
     else delete globalThis.document;
   };

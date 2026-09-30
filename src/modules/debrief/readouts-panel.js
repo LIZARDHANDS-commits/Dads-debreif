@@ -20,7 +20,7 @@ export function createReadoutsPanel({ layout, swatch }) {
   const line = (slot, { text, tone }) =>
     h('li', { class: `tone-${tone}` }, swatch(slot), h('strong', {}, `#${slot}`), ' ', h('span', {}, text));
 
-  /** extra.leadWind: the winds-aloft words for the Lead line, or null. */
+  /** leadWind: the winds-aloft words for the line under Lead's, or null. */
   function render(r, flight, { leadWind = null } = {}) {
     clear(card);
     clear(more.body);
@@ -32,8 +32,9 @@ export function createReadoutsPanel({ layout, swatch }) {
     for (const row of r.formation) card.append(line(row.slot, formationText(row)));
     const lead = leadText(r.lead);
     if (lead) {
-      const wind = leadWind ? h('span', { class: 'lead-wind' }, ` · ${leadWind}`) : null;
-      card.append(h('li', { class: `tone-${lead.tone}` }, swatch(1), h('span', {}, lead.text), wind));
+      card.append(h('li', { class: `tone-${lead.tone}` }, swatch(1), h('span', {}, lead.text)));
+      // The model wind has its own neutral line under Lead's, not the verdict's colour (W2).
+      if (leadWind) card.append(h('li', { class: 'lead-wind' }, leadWind));
     }
     if (!r.lead) card.append(h('li', { class: 'debrief-hint' }, 'Load a track as #1 (Lead) to judge the formation.'));
 
