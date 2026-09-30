@@ -43,7 +43,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
 });
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */
-export const LAYOUT_ALLOWED = Object.freeze({ view: VIEW_ALLOWED, paint: PAINT_OPTIONS.map((o) => o.value) });
+export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
 const LAYERS_2D = ['lead39', 'turnCircles', 'errorLabels', 'spacingLines', 'clockMarks', 'breadcrumbs', 'crumbSec', 'distNm'];
@@ -67,7 +67,7 @@ function swatch(id) {
  * listen: app.listen, so page-wide listeners end when the Turn Sim closes.
  * say(text): a short spoken-and-shown confirmation (app.status), for buttons whose result isn't on the screen.
  */
-export function createLayout({ scenario, controls, layout, layoutControls, rules, defaults, listen, say = () => {} }) {
+export function createLayout({ scenario, controls, layout, layoutControls, rules, defaults, listen, say = (/** @type {string} */ _text) => {} }) {
   const handlers = {};
   const build = (def, as) => buildField({ controls, rules, defaults, def, as });
   const wrap = (built, extra = '') =>

@@ -83,9 +83,9 @@ export function judgedBy(id, formation) {
  * standard judges nothing, so that aircraft has no labels (judged: false);
  * core's classifier ignores the `on` switches, so this is where they count.
  *
- * @param {object} state      { aircraft: [{ id, xFt, yFt, headingRad }] }
- * @param {object} settings   the Turn Sim settings (formation: V6's 'weighted', 'weightedReverse', 'offsetBox', 'twoShip')
- * @param {object} [standards] app.standards.get(); falls back to DEFAULT_STANDARDS
+ * @param {any} state      { aircraft: [{ id, xFt, yFt, headingRad }] }
+ * @param {any} settings   the Turn Sim settings (formation: V6's 'weighted', 'weightedReverse', 'offsetBox', 'twoShip')
+ * @param {any} [standards] app.standards.get(); falls back to DEFAULT_STANDARDS
  */
 export function formationRows(state, settings, standards) {
   const std = standards ?? DEFAULT_STANDARDS;
@@ -225,13 +225,6 @@ export function wingmanDetail(row) {
 }
 
 /**
- * Everything the Formation column shows for one state.
- *
- * @param {object} state      the engine's state: { tSec, finished, aircraft }
- * @param {object} settings   the Turn Sim settings
- * @param {object} [options]  { standards, stallLimitG, distNm }
- */
-/**
  * Each aircraft's clock-cue status, live from the engine (state.aircraft[i].cue), for Timing = clock cue; empty otherwise.
  * `warning` is Q44c: in the offset box #3 and #4 can't see a 5:30 cue (V6 never turns them), so the screen says so.
  */
@@ -270,6 +263,13 @@ export function offsetBandLines(state) {
   }));
 }
 
+/**
+ * Everything the Formation column shows for one state.
+ *
+ * @param {any} state      the engine's state: { tSec, finished, aircraft }
+ * @param {any} settings   the Turn Sim settings
+ * @param {{ standards?: any, stallLimitG?: (kt: number) => number, distNm?: boolean }} [options]
+ */
 export function readoutsAt(state, settings, { standards, stallLimitG, distNm = false } = {}) {
   const std = standards ?? DEFAULT_STANDARDS;
   const gById = new Map((state?.aircraft ?? []).map((a) => [a.id, a.g]));
