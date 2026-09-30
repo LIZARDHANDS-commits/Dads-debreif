@@ -233,7 +233,7 @@ V6's "alternate highlights" (600 ft and 2 SM) aren't a SOF setting any more: eac
 | `app.airfields` (Airfields thread) | `home()`, `alternates()`, `stations()`, `checkOptions(icao)`, `subscribe()`, and the catalog's positions and names for the map and Other airfields | Merged |
 | `app.time`, `core/time.js` | Home zone, `formatDtgZulu`, the Zulu or local order | Merged |
 | ui-kit (app frame) | `h()`, `createPanel`, `createControls`, `createCanvasView`, the scheduler | Merged |
-| App frame | The registry entry `#/sof`, the SOF section in the Settings dialog, `tests/e2e/sof.spec.js`, and the page's Content Security Policy allowing `api.met.no`, `datamask.org`, `geo.weather.gc.ca`, `api.rainviewer.com`, `tilecache.rainviewer.com`, `server.arcgisonline.com` and the traffic relay's address, and frames from `globe.adsbexchange.com` only | Asked for through the coordinator at the task that needs it |
+| App frame | The registry entry `#/sof`, the SOF section in the Settings dialog, `tests/e2e/sof.spec.js`, and the page's Content Security Policy allowing `api.met.no`, `datamask.org`, `geo.weather.gc.ca`, `api.rainviewer.com`, `tilecache.rainviewer.com`, `services.arcgisonline.com` and the traffic relay's address, and frames from `globe.adsbexchange.com` only | Asked for through the coordinator at the task that needs it |
 | Debrief and app frame | The satellite tile loader, moving from the debrief into ui-kit before Traffic task 8 (coordinator, 2026-09-30), and the VNC charts and their alignment (`src/modules/debrief/map2d/vnc.js` and its images), which need the same move so the SOF can use them | Planned for the tile loader; the VNC move is asked for through the coordinator at task 6. |
 
 ## Security (untrusted replies)
