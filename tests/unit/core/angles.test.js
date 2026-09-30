@@ -21,6 +21,16 @@ test('code headings map back to compass headings from 0 up to 360', () => {
   for (let c = 0; c < 360; c += 7.5) close(angles.headingRadToCompassDeg(angles.compassDegToHeadingRad(c)), c, `round trip ${c}`);
 });
 
+test('compass headings stay from 0 up to, not including, 360', () => {
+  assert.ok(Object.is(angles.headingRadToCompassDeg(Math.PI / 2 + 2e-16), 0), 'a hair west of north');
+  assert.ok(Object.is(angles.headingRadToCompassDeg(angles.compassDegToHeadingRad(-1e-14)), 0));
+  assert.ok(Object.is(angles.headingRadToCompassDeg(2.5 * Math.PI), 0), 'north, one turn on');
+  for (let r = -20; r <= 20; r += 0.01) {
+    const c = angles.headingRadToCompassDeg(r);
+    assert.ok(c >= 0 && c < 360 && !Object.is(c, -0), `${r} -> ${c}`);
+  }
+});
+
 test('headingRad of a step north is north', () => {
   close(angles.headingRad({ x: 0, y: 0 }, { x: 0, y: 100 }), angles.compassDegToHeadingRad(0));
   close(angles.headingRad({ x: 0, y: 0 }, { x: 100, y: 0 }), angles.compassDegToHeadingRad(90));

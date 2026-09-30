@@ -103,10 +103,12 @@ export function compassDegToHeadingRad(compassDeg) {
   return degToRad(90 - compassDeg);
 }
 
-/** Code heading in radians to a compass heading in degrees, 0 up to 360. */
+/** Code heading in radians to a compass heading in degrees, from 0 up to (not including) 360. */
 export function headingRadToCompassDeg(rad) {
   const deg = (90 - radToDeg(rad)) % 360;
-  return deg < 0 ? deg + 360 : deg;
+  const wrapped = deg < 0 ? deg + 360 : deg;
+  // A heading a hair west of north rounds up to 360, and % can give -0: both are north.
+  return wrapped >= 360 || wrapped === 0 ? 0 : wrapped;
 }
 
 /**
