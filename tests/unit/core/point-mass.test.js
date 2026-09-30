@@ -88,3 +88,14 @@ test('a split S: roll inverted and pull straight down and through, energy height
   near(Math.abs(Math.abs(f.headingRad) - Math.PI), 0, 0.05, 'heading reversed');
   near(energyHeightFt(f.altFt, f.ktas), e0, 0.5, 'energy height');
 });
+
+test('starting straight up: the heading it started with says which way is back over the top', () => {
+  const s = pointMassState({ x: 0, y: 0, altFt: 10000, ktas: 200, headingRad: 0, climbRad: Math.PI / 2 });
+  assert.deepEqual([s.up.x, s.up.z], [-1, Math.cos(Math.PI / 2)], 'up points back, to the west');
+  const after = fly(s, { g: 3, bankRad: 0 }, 1);
+  const f = pointMassFlight(after);
+  assert.ok(Number.isFinite(f.ktas), 'no NaN');
+  near(Math.abs(f.headingRad), Math.PI, 1e-9, 'pulled over towards the west');
+  assert.ok(f.climbRad < Math.PI / 2 && f.climbRad > 0, 'nose coming down from vertical');
+  near(after.vy, 0, 1e-9, 'in the vertical plane');
+});

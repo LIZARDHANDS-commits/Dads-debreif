@@ -173,7 +173,6 @@ export function flyZoomT6A(kias, altFt, pushG = 0.25, dtSec = 0.02) {
  * Returns { gainFt, timeSec, distanceFt }.
  */
 export function zoomT6A(kias, altFt, weightLb = ZOOM_DEFAULT_LB) {
-  if (kias <= ZOOM_GLIDE_KIAS) return { gainFt: 0, timeSec: 0, distanceFt: 0 };
   const { timeSec, distanceFt } = flyZoomT6A(kias, altFt);
   if (kias <= ZOOM_MIN_KIAS) return { gainFt: 0, timeSec, distanceFt };
   const z = NFM_ZOOM;

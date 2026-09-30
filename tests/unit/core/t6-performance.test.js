@@ -131,6 +131,16 @@ test('every chart point: thrust within 10 % of drag at the chart\'s G', () => {
   assert.ok(worst > 0.01, 'read off by eye: not a perfect fit');
 });
 
+test('the fitted constants are the fit\'s best for these chart points (tests/golden/checks/t6a-fit.mjs)', () => {
+  assert.equal(T6A_TURN_POINTS.length, 31);
+  let sum = 0;
+  for (const [kias, alt, rate] of T6A_TURN_POINTS) {
+    const g = Math.hypot(1, rate / DEG * iasToTasKt(kias, alt) * KT_TO_FTPS / G_FTPS2);
+    sum += (excessThrustPerWeight(kias, alt, g) / dragPerWeight(kias, alt, g)) ** 2;
+  }
+  near(sum, 0.0227, 0.00005, 'sum of squared (T − D)/D');
+});
+
 for (const stallKias of [86, 83]) {
   test(`the turn chart's checks (SPEC-turn-fight), stall at ${stallKias} kt`, () => {
     const sl = chartFromModel(0, stallKias);
@@ -192,7 +202,9 @@ test('the NFM zoom table (Fig 3-4): the lightest and heaviest rows exactly, the 
       assert.equal(zoomT6A(NFM_ZOOM.kias[i], NFM_ZOOM.altFt[j], NFM_ZOOM.heavyLb).gainFt, NFM_ZOOM.heavy[i][j]);
     }
   }
-  assert.deepEqual([NFM_ZOOM.light[0][0], NFM_ZOOM.heavy[0][3], NFM_ZOOM.light[1][0], NFM_ZOOM.heavy[1][3]], [595, 883, 1172, 1552], 'the manual\'s ranges');
+  // As read from the table: 500, 1,500, 3,000 and 6,000 ft; 200 KIAS then 250 KIAS.
+  assert.deepEqual(NFM_ZOOM.light, [[595, 621, 649, 794], [1172, 1232, 1297, 1487]], '5,400 lb');
+  assert.deepEqual(NFM_ZOOM.heavy, [[738, 757, 768, 883], [1299, 1347, 1410, 1552]], '6,500 lb');
   near(zoomT6A(200, 3000, 5800).gainFt, 693, 1, 'NFM example 1');
   near(zoomT6A(250, 6000, 6200).gainFt, 1535, 1, 'NFM example 2');
   near(zoomT6A(200, 500, 5900).gainFt, 660, 1, 'a row between');
