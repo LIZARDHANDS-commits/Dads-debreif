@@ -8,7 +8,7 @@ import { FT_PER_NM } from '../../../src/core/units.js';
 import { wrapPi, radToDeg, degToRad } from '../../../src/core/angles.js';
 import { T6A_LIMITS, stallLimitG, availableG, splitST6A } from '../../../src/core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
-import { modelTopKias } from './nfm-limit.js';
+import { nfmTopKias, CHART_READ_KIAS } from './nfm-limit.js';
 import {
   ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
 } from '../../../src/modules/turn-fight/energy-sim.js';
@@ -1550,14 +1550,14 @@ test('a slow forced slice (40 to 90 KIAS) from 15,000 to 25,000 ft does not dive
       for (const a of [s.blue, s.red]) {
         assert.ok(Number.isFinite(a.kias) && Number.isFinite(a.altFt) && Number.isFinite(a.bankDeg) && Number.isFinite(a.g), `finite at ${s.timeSec.toFixed(2)} s`);
         minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
-        maxOver = Math.max(maxOver, a.kias - modelTopKias(a.altFt)); // over the top speed (Mach 0.67 in the model's IAS) at its height
+        maxOver = Math.max(maxOver, a.kias - nfmTopKias(a.altFt)); // over the NFM line at its height
       }
       // Handed to the MPT with the nose within 15° of straight down: the bank rolls to 90° or less within 2 s (at 90°/s from 135°) and stays.
       if (s.blue.ctl.mode === 'mpt' && s.blue.climbDeg < -75) { lowSec += FIGHT_STEP_SEC; if (lowSec > 2) worstBank = Math.max(worstBank, Math.abs(s.blue.bankDeg)); } else lowSec = 0;
     }
     const what = `${JSON.stringify(setup)}: lowest ${minAlt.toFixed(0)} ft, fastest ${maxKias.toFixed(0)} KIAS`;
     assert.ok(minAlt >= s.setup.hardDeckFt - 500, what);
-    assert.ok(maxOver <= 2, `${what}, ${maxOver.toFixed(0)} over the top speed`);
+    assert.ok(maxOver <= CHART_READ_KIAS, `${what}, ${maxOver.toFixed(0)} over the NFM limit`);
     assert.ok(worstBank <= 91, `${what}: bank ${worstBank.toFixed(0)}° with the nose low near the vertical`);
   }
 });
