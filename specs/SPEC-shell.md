@@ -115,6 +115,7 @@ Unit (`tests/unit/shell/`, Node):
 Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
 
 - Smoke (R1): home, About, Settings and every route open in Chromium, Firefox and WebKit.
+- Accessibility (D142): axe checks for WCAG 2.0 A and AA on home, About, the Settings dialog and the Debrief Viewer (empty, and with the example flight); each module route is added as it is hooked into the registry. Known problems in another thread's files are excluded by selector with a `TODO(owner)` comment, never by turning a rule off.
 - Overlap scan (R2): at 1366 × 768 and 1920 × 1080, no visible control overlaps another or is cut off, on every route.
 - Click-through (R3): every visible button and link on every route does something: the route changes, a dialog opens, or the page changes. External links are checked by address instead of being opened.
 - Module switching (R4): after visiting every route and coming back home, no module frames, timers or listeners remain.

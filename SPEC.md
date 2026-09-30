@@ -18,6 +18,7 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 2. Vite is used only as the dev server and bundler (D13). The source still runs as plain modules.
 3. Hosting is GitHub Pages from this repo (D12). A service worker makes it work offline after one visit (D15, R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
+   The plain JavaScript is type-checked by TypeScript's checker reading JSDoc comments (`npm run typecheck`, `jsconfig.json`, D142). Nothing is converted to TypeScript and nothing is emitted. Folders are added to the check one at a time as their owners clear them.
 5. Runtime libraries are few, small and approved one by one (Boundaries: ask first). Approved so far: `uplot` for time-series graphs (D137), loaded only inside the module that draws a graph, with a text readout beside each graph for screen readers. `three` for every 3D aircraft view (D138), loaded only inside 3D views by dynamic import (`ui-kit/three-aircraft.js`), never on the home screen.
 6. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
 
@@ -94,7 +95,7 @@ original/               untouched V6 reference (never edited)
 tests/
   unit/                 node --test, one file per core/wx/flight-data file
   golden/               v6-baseline.json and comparison tests (R9)
-  e2e/                  Playwright: overlap scan, click-through, module switching, offline
+  e2e/                  Playwright: accessibility (axe), overlap scan, click-through, module switching, offline
 docs/audit/             the verified V6 audit
 specs/                  SPEC-<module-id>.md
 ```
@@ -107,6 +108,7 @@ Each module folder has a short README saying what it does and where to change co
 npm install                 # once, installs Vite and Playwright
 npm run dev                 # local dev server with live reload
 npm test                    # unit + golden tests (node --test)
+npm run typecheck           # type-check the plain JavaScript from its JSDoc comments (D142)
 npm run test:e2e            # Playwright browser tests
 npm run build               # static site in dist/, fails if the size budget is exceeded (R5, R15)
 python3 tools/rebuild_original.py /tmp/v6.html   # exact V6 for side-by-side checks
@@ -135,9 +137,10 @@ export function turnRadiusFt(tasKt, loadG) {
 
 1. **Pin before moving (CLAUDE.md).** Every piece of flight math is first extracted and pinned against V6's answers (`tests/golden/v6-baseline.json` plus new characterisation cases), then moved. The golden test must pass before and after.
 2. **Deliberate changes are logged.** Where the audit shows V6 is wrong (for example, the EM turn rate is half the real value), the fix is a separate change, approved by Dad or Patrick, logged in Decisions, and the golden value is updated in the same change.
-3. **Unit tests** for `core`, `wx` and `flight-data` with `node --test`. `wx` gets a table of real TAF/METAR strings, including every parser bug the audit found.
+3. **Unit tests** for `core`, `wx` and `flight-data` with `node --test`. `wx` gets a table of real TAF/METAR strings, including every parser bug the audit found. Random-input property tests (`fast-check`, D142) throw thousands of speeds, banks and headings at the flight math and check rules that must always hold; they add to the golden tests and never change a number.
 4. **Browser tests** (Playwright) for R2 (no control covers another at 1366×768 and 1920×1080), R3 (every visible button does something), R4 (switch modules, then check no background loops or timers), R6 (offline), R7 (any console error fails the test).
 5. **Sign-off checklist** per module (R21), run by a person before release.
+6. **Security alerts** (D142): Dependabot checks our npm packages and GitHub Actions weekly (`.github/dependabot.yml`), and CodeQL scans our JavaScript and workflows on every pull request (`.github/workflows/codeql.yml`; V6's `original/` and the media are skipped). Findings show under the repo's Security tab.
 
 ## Boundaries
 

@@ -25,7 +25,7 @@ export const MODULES = [
     title: 'Formation Turn Sim',
     blurb: 'Tactical formation turns, step by step',
     media: media('turn-sim'),
-    load: null,
+    load: () => import('../modules/turn-sim/index.js'),
     prototype: true,
   },
   {

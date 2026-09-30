@@ -9,6 +9,9 @@
 import { h } from './dom.js';
 import { createPanel } from './panel.js';
 
+/**
+ * @param {{ title?: string, collapsed?: boolean, onReset?: () => void, resetLabel?: string, onToggle?: (collapsed: boolean) => void }} [options]
+ */
 export function createSettingsMenu({ title = 'Module settings', collapsed = true, onReset, resetLabel = 'Reset to defaults', onToggle } = {}) {
   const panel = createPanel({ title, collapsed, onToggle });
   // Sections and anything else the module adds go here, ahead of the Reset button.
