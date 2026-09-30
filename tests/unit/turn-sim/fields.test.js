@@ -63,6 +63,10 @@ test('the offset box band lines say in the band or outside it, and are null with
   assert.deepEqual([box(16.1)[1].text, box(16.1)[1].outside, box(16.1)[1].info], ['turns 16.1 s after #3', false, true]);
   assert.deepEqual([box(-4.2)[1].text, box(-4.2)[1].outside], ['turns 4.2 s before #3', false]);
   assert.equal(box(-4.2)[0].outside, true); // #3 is still judged against the band
+  // N6: in the hook #3 and #4 start together, so #4 says so instead of a time after #3.
+  const hook = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 18.9, outsideBand: true }, { id: 4, delaySec: 18.9, outsideBand: true }] } }, 'boxSlot', 'hook90');
+  assert.deepEqual([hook[1].text, hook[1].outside, hook[1].info], ['turns with #3', false, true]);
+  assert.equal(hook[0].text, '18.9 s, outside the SMM 10-15 s; solved so the box keeps its shape');
   // Any other timing keeps both rows judged.
   const other = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } }, 'rearDelay');
   assert.deepEqual(other.map((l) => l.text), ['12.0 s, in the 10-15 s band', '18.0 s, outside 10-15 s']);
