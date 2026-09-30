@@ -79,7 +79,7 @@ test('Lead is judged on est. IAS, not ground speed (D31)', () => {
   const r = readoutsAt(high, T(30), { standards: V6_STANDARDS });
   assert.ok(Math.abs(r.ships[0].gsKt - 200) < 0.5); // on the 200 kt target by ground speed …
   assert.deepEqual(r.lead.labels, ['SLOW']); // … but slow by est. IAS
-  assert.match(leadText(r.lead).text, /^Lead 1\d\d kt est\. IAS, 1\.0 G, SLOW$/);
+  assert.match(leadText(r.lead).text, /^Lead 1\d\d kt est\. IAS \(no wind\), 1\.0 G, SLOW$/);
   const off = readoutsAt(high, T(30), { standards: { ...V6_STANDARDS, lead: { ...V6_STANDARDS.lead, on: false } } });
   assert.equal(off.lead.labels, null);
   assert.equal(leadText(off.lead).tone, 'none');
@@ -187,7 +187,7 @@ test('the SMM lead standard (D115): 220 kt in the low block, 200 kt in the mid b
   const low = readoutsAt(lead(8000, 240), T(30), { standards: DEFAULT_STANDARDS }).lead;
   assert.equal(low.block, 'low');
   assert.equal(low.targetKt, 220);
-  assert.match(leadText(low).text, /^Lead 2[12]\d kt est\. IAS, 1\.0 G, on parameters \(target 220 kt, low block\)$/);
+  assert.match(leadText(low).text, /^Lead 2[12]\d kt est\. IAS \(no wind\), 1\.0 G, on parameters \(target 220 kt, low block\)$/);
   const mid = readoutsAt(lead(12_000, 240), T(30), { standards: DEFAULT_STANDARDS }).lead;
   assert.equal(mid.block, 'mid');
   assert.equal(mid.targetKt, 200);
@@ -221,7 +221,7 @@ test('Lead taxiing at 10 kt: no wingman labels and no Lead verdict, just its num
     assert.equal(formationAt(taxi, T(30), std).every((row) => row.labels.length === 0), true);
     assert.equal(r.lead.labels, null);
     assert.doesNotMatch(leadText(r.lead).text, /FAST|SLOW|parameters/);
-    assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS, (1\.0 G|G --)$/);
+    assert.match(leadText(r.lead).text, /^Lead \d+ kt est\. IAS \(no wind\), (1\.0 G|G --)$/);
     assert.equal(formationText(r.formation[0]).text, '– (Lead under 80 kt)');
   }
 });
@@ -264,7 +264,7 @@ test('Lead is judged from 6,000 ft to 15,500 ft and not outside them', () => {
   const below = at(5999);
   assert.equal(below.labels, null);
   assert.equal(below.notJudged, 'below the low block');
-  assert.match(leadText(below).text, /^Lead \d+ kt est\. IAS, 1\.0 G, not judged: below the low block$/);
+  assert.match(leadText(below).text, /^Lead \d+ kt est\. IAS \(no wind\), 1\.0 G, not judged: below the low block$/);
   assert.equal(leadText(below).tone, 'none');
   for (const altFt of [6000, 8000, 10_250, 15_500]) {
     const judged = at(altFt);
