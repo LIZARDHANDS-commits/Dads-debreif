@@ -176,6 +176,43 @@ Debrief focus points belong to the flight, not to the browser:
 
 One file, one row per second across the common window, with each ship's columns side by side: time (Zulu), latitude, longitude, altitude, ground speed, est. IAS, heading, G, pitch and bank with their sources, and a gap flag. The button is disabled with no flight loaded, and the download link is released after use.
 
+### Weather at the time of the flight (new, Patrick 2026-09-30 06:42Z, R number to be logged)
+
+Patrick asked for "the historical METAR of the nearest airfield as well as overlays for radar/satellite … toggleable on the replay", and chose "Plus saved radar". Every layer is display only: it changes no flight math and no readout.
+
+**On the screen (R22).** A **Weather** menu beside Layers, with every item off by default, remembered in the layout like the other layers:
+
+| Toggle | What it shows | Source (no key, read by the browser, no proxy, D69) | How far back |
+|---|---|---|---|
+| METAR | The report in force at the playback time, from the airfield nearest the formation (nearest to Lead, from `app.airfields`; any other airfield can be picked). It shows as one line under the playback bar, decoded by `src/wx` (`parseMetar`, `flightCategory`), with the raw text a click away. The scrubber gets a small tick at each new report or SPECI. | Iowa Environmental Mesonet METAR archive (to be confirmed for CYMJ and browser access; if it fails, METARs saved with the debrief as below) | Years |
+| Satellite | The GOES-West picture nearest the playback time under the tracks: visible colour by day, infrared at night. A corner label gives its time and age, for example "Satellite 14:30Z, 2 min before". | NASA GIBS (GOES GeoColor / infrared tiles, 10-minute steps) | To be confirmed at build start; well beyond a week |
+| Winds aloft | Model wind at Lead's altitude on the Lead line of the Formation card ("wind 270/25 at 8,500 ft, model"), and wind arrows on the map at a height you choose. | Open-Meteo historical forecast (Canada's HRDPS 2.5 km, or HRRR, the model Herbie reads), pressure levels, hourly or 15-minute | Since about 2022 |
+| Cloud and visibility | Model cloud base, cover and visibility along the route, for the time between METARs, labelled "model". | Open-Meteo, as above | Since about 2022 |
+| Radar | ECCC's 1 km radar composite (rain or snow) under the tracks, the frame nearest the playback time with its time and age. | ECCC GeoMet, **saved into the debrief** (below) | Only 3 hours live |
+| Lightning | ECCC's lightning density, as the SOF shows it. | ECCC GeoMet, saved into the debrief | Only 3 hours live |
+
+**Saved radar and lightning.** ECCC keeps only the last 3 hours (RainViewer 2), so these can't be fetched later. When a flight is loaded and its end is less than 3 hours ago, the debrief offers "Save radar and lightning with this debrief". It fetches every frame covering the flight window around the formation and keeps them with the flight. **Save debrief** then writes them into the file, and opening the file plays them back with no network. When the flight is older, the Radar and Lightning items say "Not kept: radar is only available for 3 hours after the flight." The METARs and model values shown are saved in the file too, so a saved debrief shows the same weather offline and years later.
+
+**Against the timeline.** Each layer shows the slice nearest the playback time and never one from the future beyond a small step: satellite and radar take the last frame at or before the moment, METARs the report in force, model values the nearest hour or quarter hour. Each slice carries its own time, so no picture is mistaken for the exact moment. Scrubbing changes the slice at once; playing fetches frames just ahead so it doesn't stall.
+
+**Limits kept.** Frames are fetched only while their toggle is on (R5), cached for the session, and cut off at a size limit per debrief file (to be set with the flight-data thread). A source that fails says so in the layer's corner and leaves the rest working.
+
+**Who owns what.**
+- The debrief owns the Weather menu, the time slicing and the drawing: `src/modules/debrief/weather/`.
+- `src/wx` (Weather parser thread) owns METAR decoding. No new parser.
+- The raster layers (radar, lightning, satellite) are the same the SOF shows, so their tile and WMS loading goes to `src/ui-kit/` through the app frame, like the tile loader.
+- Adding weather to the debrief file is a change to `flight-data`'s file format, so it goes through the coordinator to the owner of `src/flight-data/`.
+- The new hosts (NASA GIBS, Open-Meteo, IEM, ECCC GeoMet) join the site's CSP through the app frame.
+
+**Checks at build start** (this container can't reach those hosts):
+- Each source answers a browser request from the live site with no key.
+- IEM has CYMJ's archive.
+- GIBS has GOES-West frames for the flight's date.
+
+A source that fails is swapped or dropped with Patrick's word.
+
+**Skills used:** spec-driven-development, incremental-implementation, test-driven-development (the time slicing and nearest-airfield pick are pure and tested in Node), frontend-ui-engineering, security-and-hardening (outside data shown only as text or images), performance-optimization (frames fetched only when on).
+
 ## Module structure
 
 ```
@@ -200,6 +237,7 @@ src/modules/debrief/
   tennis-panel.js
   dfp.js             DFP list operations (add, sort, label, fingerprint); no page access
   export-csv.js      the CSV rows; no page access
+  weather/           the Weather menu: time slices (pure), the METAR line, winds aloft, saved radar
   data/cymj.js       field elevation, VNC anchor, route overlays (moves to airfields later)
   debrief.css        scoped under [data-module="debrief"]
 public/media/debrief/   VNC chart and EM chart images
@@ -286,6 +324,7 @@ The tasks go in `tasks/debrief/` once this spec is approved. The expected order,
 4. Map layers: satellite, VNC charts, route overlays, 3/9, cone, clock marks, bubble.
 5. The 3D view (V6 pinned, then D40 and the #27 fixes).
 6. EM chart, tennis ball, CSV export.
+7. Weather at the time of the flight, after Patrick signs off the checklist and approves this section.
 
 It needs, from other threads: ui-kit `controls.js` and `canvas-view.js` before slice 1, `standards.js` (core PR 3) before slice 2, and `core`'s tennis-ball changes (Q33 to Q37) before slice 6.
 
