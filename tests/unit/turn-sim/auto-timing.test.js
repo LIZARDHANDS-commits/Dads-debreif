@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { V6_DEFAULTS, DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-const V6 = { ...V6_DEFAULTS, timing: 'auto' };
+const V6 = { ...V6_DEFAULTS, timing: 'auto', delayed45Check: 'none' };
 
 /** The time each aircraft first turns, by id. */
 function startTimes(settings) {

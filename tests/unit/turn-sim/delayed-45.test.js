@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, MANEUVER_TURN_DEG } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-const BASE = { ...DEFAULTS, maneuver: 'delayed45away', turnDeg: MANEUVER_TURN_DEG.delayed45away, startHeadingDeg: 0, durationSec: 200 };
+const BASE = { ...DEFAULTS, delayed45Check: 'none', maneuver: 'delayed45away', turnDeg: MANEUVER_TURN_DEG.delayed45away, startHeadingDeg: 0, durationSec: 200 };
 /** The base delay is a 90's, 16 s; a 45 waits 16 x cot 22.5 = 38.6 s where LAB needs 39.05 s: the end is within about 200 ft. */
 const TOLERANCE_FT = 250;
 
@@ -81,14 +81,14 @@ test('no aircraft turns further than the 45 (the 90 the wingman starts for is ne
 });
 
 test('the run lasts until the last aircraft has turned and 10 s more, so a four-ship Delayed 45 with Auto timing is not cut off at 75 s', () => {
-  const run = createRun({ ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, timing: 'auto', formation: 'weighted', direction: 'right', durationSec: 75 });
+  const run = createRun({ ...DEFAULTS, delayed45Check: 'none', maneuver: 'delayed45away', turnDeg: 45, timing: 'auto', formation: 'weighted', direction: 'right', durationSec: 75 });
   while (run.step());
   assert.equal(run.state.turnComplete, true, 'all four turned');
   // The last start is 3 x 39.05 = 117.2 s, its turn takes 3.2 s, and then 10 s.
   assert.ok(run.state.durationSec > 130 && run.state.durationSec < 132, `${run.state.durationSec}`);
   assert.ok(Math.abs(run.state.tSec - run.state.durationSec) < 0.06);
   // V6's stop at the Duration is one setting away, and leaves two aircraft that never turned.
-  const v6 = createRun({ ...DEFAULTS, maneuver: 'delayed45away', turnDeg: 45, timing: 'auto', formation: 'weighted', direction: 'right', durationSec: 75, durationCoversTurn: false });
+  const v6 = createRun({ ...DEFAULTS, delayed45Check: 'none', maneuver: 'delayed45away', turnDeg: 45, timing: 'auto', formation: 'weighted', direction: 'right', durationSec: 75, durationCoversTurn: false });
   while (v6.step());
   assert.equal(v6.state.durationSec, 75);
   assert.equal(v6.state.aircraft.filter((a) => !a.done).length, 2);
