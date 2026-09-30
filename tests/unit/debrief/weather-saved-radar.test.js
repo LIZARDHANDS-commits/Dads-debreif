@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import {
   KEPT_S, LIMITS, SAVED_LAYERS, MAX_SAVED_CHARS, radarKept, coveringTimes, savedBox, imageSize, frameUrl, capabilitiesUrl,
   bytesToBase64, mimeOfBase64, frameFromReply, frameBytes, fitCap, makeSaved, savedToSetting, savedFromSetting,
-  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64, inWindow, weatherForFile,
+  savedFrameAt, framesToDraw, savedSummary, radarNote, savedNoteLine, notKeptText, pngSizeOfBase64, inWindow, weatherForFile, SAVED_ALPHA,
 } from '../../../src/modules/debrief/weather/saved-radar.js';
 import { sliceAt, MAX_AGE_S } from '../../../src/modules/debrief/weather/slices.js';
 
@@ -581,4 +581,8 @@ test('what goes in the file is read back by the same checks first, and refused i
   const after = weatherForFile(justAfter, { startT: START, endT: END });
   assert.equal(after.text, undefined);
   assert.match(after.problem, /\(some pictures fall outside the flight\)/);
+});
+
+test('radar is drawn at 90 % and lightning at full opacity (real rain is faint at 75 %; F9)', () => {
+  assert.deepEqual({ ...SAVED_ALPHA }, { radar: 0.9, lightning: 1 });
 });

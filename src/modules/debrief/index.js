@@ -42,7 +42,7 @@ import { nearestAirfield, reportTicks, tickLabel } from './weather/slices.js';
 import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
 import { TIME_KEY, WEATHER_KEY, buildDebriefFile, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 import { createSavedRadarFeed, offerState } from './weather/saved-radar-feed.js';
-import { radarKept, framesToDraw, savedNoteLine, savedFromSetting } from './weather/saved-radar.js';
+import { radarKept, framesToDraw, savedNoteLine, savedFromSetting, SAVED_ALPHA } from './weather/saved-radar.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
 
@@ -114,7 +114,6 @@ function mount(root, app) {
     event.returnValue = '';
   };
   window.addEventListener('beforeunload', onBeforeUnload);
-  const SAVED_ALPHA = { radar: 0.75, lightning: 1 };
   function savedWeatherItems() {
     const on = layout.get();
     const { saved } = savedRadar.state();

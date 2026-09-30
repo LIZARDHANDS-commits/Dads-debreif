@@ -30,10 +30,10 @@ const ITEM_LABEL = Object.freeze({ radar: 'Radar', lightning: 'Lightning' });
 const LAYER_KEYS = Object.freeze(Object.keys(SAVED_LAYERS));
 
 /**
- * The limits on what is kept and on what a file may hold. A real 1,024 pixel
- * radar frame is 20 to 30 kB and lightning 4 kB (sources check 2026-09-30), so
- * an hour and a half comes to about half a megabyte and these are not met in
- * practice; they are the most a debrief file will carry.
+ * The limits on what is kept and on what a file may hold. Real 1,024 pixel
+ * frames are rain 62 kB, snow 77 kB and lightning 4 kB (sources check
+ * 2026-09-30), so a 3 hour flight over a box that size is about 4.4 MB and
+ * these are not met in practice; they are the most a debrief file will carry.
  */
 export const LIMITS = Object.freeze({
   maxTotalBytes: 25 * 1024 * 1024, // the frames' image bytes, all together
@@ -51,6 +51,11 @@ export const MAX_SAVED_CHARS = 36 * 1024 * 1024;
 export const PAD_NM = 30;
 /** The ECCC attribution its licence asks for. */
 export const ECCC_CREDIT = 'Data Source: Environment and Climate Change Canada';
+/**
+ * How opaque each Weather item's pictures are drawn on the map. Real rain is faint at 75 %,
+ * so radar is 90 % (the pictures are still smoothed as the browser scales them); lightning is full.
+ */
+export const SAVED_ALPHA = Object.freeze({ radar: 0.9, lightning: 1 });
 /** Picture types kept or read: PNG only (what ECCC is asked for), whose size can be read from its header. */
 export const ALLOWED_MIMES = Object.freeze(['image/png']);
 const FORMAT_VERSION = 1;
