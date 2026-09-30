@@ -33,6 +33,7 @@ import { CATALOG } from '../../airfields/catalog.js';
 import { createMetarFeed } from './weather/metar-feed.js';
 import { metarLineAt } from './weather/metar.js';
 import { nearestAirfield, reportTicks } from './weather/slices.js';
+import { gibsSource, satelliteKept, satelliteNote, SATELLITE_LAYERS } from './weather/satellite.js';
 import { TIME_KEY, settingsRules, sessionSettings, standardsPatch, dfpsForFile, dfpsFromFile, debriefFileName } from './debrief-session.js';
 
 const STYLESHEET = new URL('./debrief.css', import.meta.url).href;
@@ -73,6 +74,15 @@ function mount(root, app) {
     return on.tennisOpen && flight && clock ? tennisAt(flight, clock.t, on) : null;
   };
 
+  // The satellite picture for the playback time, while it's on and NASA still
+  // keeps the flight's frames (about 90 days; Patrick 08:03Z: live only).
+  function satelliteWanted() {
+    const on = layout.get();
+    if (!on.wxSatellite || !flight || !clock || !satelliteKept(flight.endT, Date.now() / 1000)) return null;
+    const layer = SATELLITE_LAYERS[on.wxSatelliteLayer] ? on.wxSatelliteLayer : 'geocolor';
+    return { source: gibsSource(layer, clock.t), opacityPct: on.wxSatelliteOpacity };
+  }
+
   const map = createMapView(ui.canvas, {
     tennis: tennisNow,
     timers: app.scheduler,
@@ -81,6 +91,13 @@ function mount(root, app) {
     dfps: () => dfps.map((d) => ({ x: d.x, y: d.y, label: dfpLabel(dfps, d) })),
     onImagery: (state) => ui.setImagery(state),
     onCharts: (state) => ui.setCharts(state),
+    weather: () => satelliteWanted(),
+    onWeather: (state) => {
+      const on = layout.get();
+      const source = satelliteWanted()?.source;
+      ui.setWeatherNote(!on.wxSatellite || !flight || !clock ? ''
+        : satelliteNote({ kept: satelliteKept(flight.endT, Date.now() / 1000), state, frameT: source?.frameT, t: clock.t }));
+    },
     labels: (shown, t) => {
       const out = {};
       for (const row of formationAt(shown, t, currentStandards())) {
