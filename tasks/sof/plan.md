@@ -43,4 +43,4 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, lists t
 | A wave call is read as an instruction | The chip always carries its reason, and the "not for flight planning, confirm with NAV CANADA" line stays on screen. |
 | Too much on one screen (R22) | Only the table's defaults show; SOF-1 asks Patrick to confirm them; the layout test checks 1366 × 768. |
 | The traffic relay goes down or adsb.lol changes | The layer says so and the rest of the SOF carries on; the relay's tests use a captured adsb.lol reply; switching to adsb.fi is a one-line change in the relay. |
-| Map tiles and radar images drawn twice, once here and once in the debrief | If the debrief's tile code lands first, ask the coordinator to move a shared tile layer into ui-kit; otherwise the SOF keeps a small one of its own. |
+| Map tiles and radar images drawn twice, once here and once in the debrief | The tile loader is now shared, in `src/ui-kit/map-tiles.js` (`createTileLayer`, `ESRI_IMAGERY`, `tilesFor`), so the SOF's map uses it and keeps none of its own. The VNC layer (`map2d/vnc.js`) still has to move at task 6. |
