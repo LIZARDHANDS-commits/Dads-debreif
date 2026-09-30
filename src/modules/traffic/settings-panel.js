@@ -69,7 +69,7 @@ function createLocalSettings(initial, onChange) {
 // Puts a one-line hint under a control and ties it to the control's input, so a screen reader reads it too.
 function withHint(control, text) {
   const id = `traffic-settings-hint-${nextHint++}`;
-  const input = control.childNodes.find((node) => node.tagName === 'INPUT');
+  const input = [...control.childNodes].find((node) => node.tagName === 'INPUT');
   if (input) input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), id].filter(Boolean).join(' '));
   return h('div', { class: 'settings-item' }, control, h('p', { class: 'settings-hint', id }, text));
 }
