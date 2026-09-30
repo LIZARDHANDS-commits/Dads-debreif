@@ -4,7 +4,8 @@
 // classifyLeadDesired and kmlStandardsSummary, lines 3051 to 3117), where
 // they are settings, and Turn Sim (classifyFormationError, line 1881), where
 // the same numbers are written into the code. Both are ported here unchanged.
-// V6_STANDARDS holds V6's values, the default preset (R18).
+// V6_STANDARDS holds V6's values, which the golden tests pin. DEFAULT_STANDARDS
+// is the default preset (R18): the SMM's numbers, per D114, D115 and D116.
 //
 // Distances are in feet. Positions are { x, y } and headings follow the
 // angles.js convention. "Fore/aft" is measured along Lead's heading from
@@ -37,6 +38,20 @@ export const V6_STANDARDS = Object.freeze({
   spread: Object.freeze({ on: true, minFt: 4000, maxFt: 6000, foreAftTolFt: 250 }),
   offset: Object.freeze({ on: true, aftTargetFt: 8000, aftTolFt: 1000 }),
   lead: Object.freeze({ on: true, targetKt: 200, speedTolKt: 10, targetG: 1.0, gTol: 0.2 }),
+});
+
+/**
+ * The default standards, from the SMM (Patrick, 2026-09-30 05:37Z): what app.standards starts
+ * with and resets to.
+ * - spread: 4,000-6,000 ft with 0-10° of sweep (D116, SMM 16.18 para 49), not V6's ± 250 ft
+ * - offset: #3 7,000 ± 1,000 ft back, so 6,000-8,000 ft passes (D114, SMM 16.41 para 109); V6 8,000
+ * - lead: 220 KIAS in the low block, 200 in the mid block (D115); the blocks meet at 10,250 ft,
+ *   between the low block's 10,000 ft top and the mid block's 10,500 ft floor (Gen Book p.12)
+ */
+export const DEFAULT_STANDARDS = Object.freeze({
+  spread: Object.freeze({ on: true, minFt: 4000, maxFt: 6000, sweepMinDeg: 0, sweepMaxDeg: 10 }),
+  offset: Object.freeze({ on: true, aftTargetFt: 7000, aftTolFt: 1000 }),
+  lead: Object.freeze({ on: true, lowTargetKt: 220, midTargetKt: 200, lowBlockTopFt: 10250, speedTolKt: 10, targetG: 1.0, gTol: 0.2 }),
 });
 
 /** #4 measures its interval from #3 when #3 is more than this far out on the same side (both copies). */
@@ -202,8 +217,8 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
  * Turn Sim position labels for aircraft `a` (Turn Sim `classifyFormationError`, line 1881).
  * Turn Sim always applies the spread and offset numbers; the `on` switches don't apply.
  * D78 needs no change here: each Turn Sim formation judges #3 by one standard only.
- * V6's Turn Sim has no settings for these, so its screen passes V6_STANDARDS: letting it
- * follow the debrief's edited standards would change Turn Sim, and needs a decision.
+ * V6's Turn Sim wrote V6_STANDARDS' numbers in; the rebuilt Turn Sim passes app.standards
+ * (D89, Q46), so it judges by the same standards as the debrief.
  *
  * @param {object} a          the aircraft: { id, x, y }
  * @param {object[]} fleet    all four aircraft, Lead first ({ id, x, y, hdg })

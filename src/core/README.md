@@ -10,7 +10,7 @@ The small functions behind every number the tool shows: units, angles and headin
 | `time.js` | Zulu and local time, KML times, the Zulu date-time group |
 | `flight-math.js` | Turn radius, rate and bank from G; the EM chart point; closure; G estimated from a track |
 | `tennis.js` | The tennis ball, one solver for the map and the 3D view |
-| `standards.js` | Formation standards (spread, offset, lead) and V6's values as the default preset |
+| `standards.js` | Formation standards (spread, offset, lead): V6's values (pinned) and the SMM's as the default preset (D114-D116) |
 
 ## One heading rule
 

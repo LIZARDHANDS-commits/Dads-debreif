@@ -2,7 +2,7 @@
 // fix for #21 (D78), with what V6 said instead.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { V6_STANDARDS, leadTargetKt, formationAxes, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../../src/core/standards.js';
+import { V6_STANDARDS, DEFAULT_STANDARDS, leadTargetKt, formationAxes, classifyDebriefPosition, classifyLeadParameters, standardsSummaryLines, classifyTurnSimPosition } from '../../../src/core/standards.js';
 
 const NORTH = Math.PI / 2;
 const lead = { x: 0, y: 0, spdKt: 200 };
@@ -181,4 +181,36 @@ test('D115 lead speed by block: 220 up to 10,250 ft, 200 above it or with no alt
   assert.equal(r.targetKt, 220);
   assert.equal(r.block, 'low');
   assert.equal(standardsSummaryLines(BLOCKS)[2], 'Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G');
+});
+
+test('DEFAULT_STANDARDS follow the SMM (D114, D115, D116); V6_STANDARDS stay V6', () => {
+  assert.deepEqual(DEFAULT_STANDARDS, {
+    spread: { on: true, minFt: 4000, maxFt: 6000, sweepMinDeg: 0, sweepMaxDeg: 10 },
+    offset: { on: true, aftTargetFt: 7000, aftTolFt: 1000 },
+    lead: { on: true, lowTargetKt: 220, midTargetKt: 200, lowBlockTopFt: 10250, speedTolKt: 10, targetG: 1.0, gTol: 0.2 },
+  });
+  assert.deepEqual(DEFAULT_STANDARDS.spread, SWEEP.spread);
+  assert.deepEqual(DEFAULT_STANDARDS.lead, BLOCKS.lead);
+  assert.throws(() => { DEFAULT_STANDARDS.offset.aftTargetFt = 8000; }, TypeError);
+  assert.equal(V6_STANDARDS.offset.aftTargetFt, 8000);
+  assert.equal(V6_STANDARDS.spread.foreAftTolFt, 250);
+  assert.deepEqual(standardsSummaryLines(DEFAULT_STANDARDS), [
+    'Spread: 4000-6000 ft, sweep 0 to 10°',
+    'Offset #3 aft: 7000 ±1000 ft',
+    'Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G',
+  ]);
+});
+
+test('D114: #3 6,000-8,000 ft behind Lead\'s 3/9 line is on the offset standard', () => {
+  const pos = (aft) => classifyDebriefPosition(3, { 1: lead, 3: at(5000, aft) }, NORTH, DEFAULT_STANDARDS);
+  assert.equal(pos(6000).offsetStatus, 'OFFSET OK', 'V6: FORE');
+  assert.equal(pos(8000).offsetStatus, 'OFFSET OK');
+  assert.equal(pos(5999).offsetStatus, 'FORE');
+  assert.equal(pos(8001).offsetStatus, 'AFT', 'V6: OFFSET OK');
+  assert.equal(pos(7000).labels.join(' / '), 'ON PARAMETERS');
+  // The Turn Sim's offset box uses the same numbers.
+  const fleet = [{ id: 1, ...lead, hdg: NORTH }, { id: 2, ...at(5000, 0) }];
+  const box = (aft) => classifyTurnSimPosition({ id: 3, ...at(2500, aft) }, fleet, 'offsetBox', DEFAULT_STANDARDS).labels.join(' / ');
+  assert.equal(box(6000), 'ON SPACING');
+  assert.equal(box(8500), 'AFT');
 });
