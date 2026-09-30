@@ -52,7 +52,7 @@ export const MODULES = [
     title: 'SOF Dashboard',
     blurb: 'Weather, limits, radar, traffic and lightning',
     media: media('sof'),
-    load: null,
+    load: () => import('../modules/sof/index.js'),
     prototype: true,
   },
 ];
