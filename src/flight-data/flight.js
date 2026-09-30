@@ -110,6 +110,16 @@ export function sampleAt(track, t) {
   };
 }
 
+/** True when any pair of fixes more than GAP_S apart overlaps the time from t0 to t1. */
+function touchesGap(fixes, t0, t1) {
+  const n = fixes.length;
+  let i = t0 <= fixes[0].t ? 0 : bracket(fixes, Math.min(t0, fixes[n - 1].t));
+  for (; i < n - 1 && fixes[i].t < t1; i++) {
+    if (fixes[i + 1].t > t0 && fixes[i + 1].t - fixes[i].t > GAP_S) return true;
+  }
+  return false;
+}
+
 /** Ground speed in knots between two fixes. */
 function segmentKt(a, b) {
   return Math.hypot(b.xFt - a.xFt, b.yFt - a.yFt) / (b.t - a.t || 1) * FTPS_TO_KT;
@@ -193,7 +203,11 @@ export function gAt(track, t, { recorded = false } = {}) {
  * Load factor estimated from the turn over ±windowS seconds (V6
  * estimatedGAtTrack, line 2462), using core's gFromTrack for the formula.
  * Null when the track is too short, the aircraft is slower than 20 ft/s or
- * still at either end of the window (C7), or the answer is outside 0.8 to 9 G.
+ * still at either end of the window (C7), the window touches a GPS gap (D32:
+ * the positions there are guesses, and a jump across one read as 8.3 G on the
+ * example flight), or the answer is outside 0.8 to 9 G (V6's limits) or above
+ * the T-6's 7 G (EST_G_MAX: on the example flight the only estimates above it
+ * come from a GPS position jump, a 925 kt "segment").
  */
 export function estimatedGAt(track, t, windowS = 1.5) {
   const f = track?.fixes;
@@ -201,10 +215,19 @@ export function estimatedGAt(track, t, windowS = 1.5) {
   const t0 = Math.max(f[0].t, t - windowS);
   const t1 = Math.min(f[f.length - 1].t, t + windowS);
   if (t1 - t0 < 0.5) return null;
+  if (touchesGap(f, t0, t1)) return null;
   const p0 = sampleAt(track, t0);
   const p1 = sampleAt(track, t1);
   const h0 = headingAt(track, t0);
   const h1 = headingAt(track, t1);
   if (!p0 || !p1 || h0 === null || h1 === null) return null; // C7: no G without a heading
-  return gFromTrack({ x: p0.xFt, y: p0.yFt }, h0, { x: p1.xFt, y: p1.yFt }, h1, t1 - t0);
+  const g = gFromTrack({ x: p0.xFt, y: p0.yFt }, h0, { x: p1.xFt, y: p1.yFt }, h1, t1 - t0);
+  return g !== null && g > EST_G_MAX ? null : g;
 }
+
+/**
+ * The highest estimated G shown: the T-6's +7 G limit. An estimate above it is
+ * taken as a GPS glitch and shown as unknown (verification M4, 30 Sep 2026; a
+ * judgement call logged for Patrick's review). V6 allowed up to 9 G.
+ */
+export const EST_G_MAX = 7;

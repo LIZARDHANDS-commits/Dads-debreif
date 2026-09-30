@@ -163,3 +163,34 @@ test('tracks that only touch are not counted as overlapping when naming the misf
   const e = err(() => buildFlight({ 1: { name: 'a', fixes: fixesFrom(0) }, 2: { name: 'b', fixes: fixesFrom(2) }, 3: { name: 'c', fixes: fixesFrom(3) } }));
   assert.match(e.message, /^"a"/);
 });
+
+// D32 (verification M4, 30 Sep 2026): a jump across a GPS gap read as 8.29 G on
+// the example flight. No estimated G when its ±1.5 s window touches a gap.
+test('no estimated G when its window touches a GPS gap; the same G either side of it', () => {
+  // A steady turn, one fix a second, with 8 s missing in the middle.
+  const turn = [];
+  for (let t = 0; t <= 40; t++) {
+    if (t > 20 && t < 28) continue;
+    const a = t * 0.05;
+    turn.push(fix(t, { lat: 50 + 0.01 * Math.sin(a), lon: -105 + 0.0156 * (1 - Math.cos(a)) }));
+  }
+  const flight = buildFlight({ 1: { name: 'turn', fixes: turn } });
+  const tr = flight.tracks[1];
+  const t0 = flight.startT;
+  assert.ok(Number.isFinite(estimatedGAt(tr, t0 + 10)));
+  assert.equal(estimatedGAt(tr, t0 + 19.6), null); // window reaches 21.1, inside the gap
+  assert.equal(estimatedGAt(tr, t0 + 24), null);
+  assert.equal(estimatedGAt(tr, t0 + 29.4), null); // window starts at 27.9, still in the gap
+  assert.ok(Number.isFinite(estimatedGAt(tr, t0 + 30)));
+  assert.equal(gAt(tr, t0 + 24).g, null);
+});
+
+test('the example flight never shows an estimated G above the T-6\'s 7 G', () => {
+  const ids = { 1: '585aab2601b787ed', 2: '3ee2a7e81a74880c', 3: '3085ab3861e2bae6', 4: '46e14716b39044c4' };
+  const flight = buildFlight(Object.fromEntries(Object.entries(ids).map(([slot, id]) => [slot, { name: id, fixes: example(id) }])));
+  let worst = 0;
+  for (const tr of Object.values(flight.tracks)) {
+    for (let t = Math.ceil(flight.startT); t <= flight.endT; t++) worst = Math.max(worst, estimatedGAt(tr, t) ?? 0);
+  }
+  assert.ok(worst <= 7, `highest estimated G ${worst.toFixed(2)}`);
+});

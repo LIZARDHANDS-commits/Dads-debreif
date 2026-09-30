@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readKml } from '../../src/flight-data/kml.js';
-import { buildFlight, sampleAt, headingAt, pitchAt, estimatedGAt, STILL_KT } from '../../src/flight-data/flight.js';
+import { buildFlight, sampleAt, headingAt, pitchAt, estimatedGAt, STILL_KT, EST_G_MAX } from '../../src/flight-data/flight.js';
 import { loadV6 } from './v6-source.js';
 import { spread } from './inputs.js';
 
@@ -90,12 +90,23 @@ function SAME_HEADING(ours, pts, t, where) {
   else assert.equal(ours, theirs, `heading ${where}`);
 }
 
-/** C7 (decided): no estimated G where the heading at either end of V6's window is unknown; elsewhere V6's. */
+/** True when a pair of fixes more than 5 s apart (a GPS gap, C4) overlaps t0 to t1. */
+function gapIn(pts, t0, t1) {
+  return pts.some((p, i) => i > 0 && p.t > t0 && pts[i - 1].t < t1 && p.t - pts[i - 1].t > 5);
+}
+
+/**
+ * C7 (decided): no estimated G where the heading at either end of V6's window is unknown.
+ * D32 (verification M4, 30 Sep 2026): none where the window touches a GPS gap either, and none
+ * above the T-6's 7 G (V6 allowed 9). Elsewhere V6's.
+ */
 function SAME_G(ours, pts, t, where, windowS = 1.5) {
   const theirs = v6.estimatedGAtTrack({ pts }, t);
   const t0 = Math.max(pts[0].t, t - windowS);
   const t1 = Math.min(pts[pts.length - 1].t, t + windowS);
   if (pts.length >= 3 && (stillAt(pts, t0) || stillAt(pts, t1))) assert.equal(ours, null, `est G ${where}`);
+  else if (pts.length >= 3 && t1 - t0 >= 0.5 && gapIn(pts, t0, t1)) assert.equal(ours, null, `est G across a gap ${where}`);
+  else if (theirs !== null && theirs > EST_G_MAX) assert.equal(ours, null, `est G above ${EST_G_MAX} ${where}`);
   else assert.equal(ours, theirs, `est G ${where}`);
 }
 
