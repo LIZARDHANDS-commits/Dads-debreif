@@ -64,15 +64,17 @@ export function plannedBounds(run, maxSteps = 12100) {
  *   layers(): the remembered layer settings; settings(): the Turn Sim settings;
  *   labels(): { id: { text, tone } } for the error labels.
  */
-export function createTurnSimView(canvas, { timers, source, onUserMove }) {
+export function createTurnSimView(canvas, { timers, source, onUserMove, mover = null }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
   let ready = false;
+  let dragging = null; // { id, pointerId, grabX, grabY }: an aircraft being moved by the pointer
+  let selected = null; // the aircraft the keyboard is moving (1 to 4), or null
 
   const map = createCanvasView(canvas, {
     timers,
     minSpan: MIN_SPAN_FT,
     maxSpan: MAX_SPAN_FT,
-    label: 'The formation from above. Drag to move, scroll or press + and − to zoom.',
+    label: 'The formation from above. Before Play, drag an aircraft to move it, or press 1 to 4 and then the arrow keys. Otherwise drag to move the picture, scroll or press + and − to zoom.',
     onUserMove,
     draw(ctx) {
       if (needsFit && ready && map.size.width > 0 && map.size.height > 0) { // a hidden canvas (3D is showing) has no size: keep the fit for when 2D is back
@@ -84,7 +86,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       const layers = source.layers();
       const settings = source.settings();
       const lead = state.aircraft.find((a) => a.id === 1);
-      if (layers.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
+      if (layers.followLead && lead && !dragging && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
 
       const { width, height } = map.size;
       ctx.fillStyle = BACKGROUND;
@@ -99,13 +101,91 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       if (layers.turnCircles && !state.finished) drawTurnCircles(ctx, map, state, settings);
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
       for (const a of state.aircraft) drawAircraft(ctx, map, a);
+      // Where each aircraft is drawn, in CSS pixels on the canvas, for the browser tests.
+      canvas.dataset.ships = JSON.stringify(Object.fromEntries(state.aircraft.map((a) => [a.id, map.worldToScreen(a.xFt, a.yFt).map(Math.round)])));
+      const chosen = state.aircraft.find((a) => a.id === (dragging?.id ?? selected));
+      if (chosen) drawChosen(ctx, map, chosen);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels());
     },
   });
 
+  // ---- moving an aircraft before Play: by the pointer, or the keyboard (1 to 4 picks one, the arrows move it) ----
+  const NUDGE_FT = 100;
+  const NUDGE_BIG_FT = 1000;
+  const HIT_PX = 18;
+  const at = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    return map.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  };
+  const setSelected = (id) => {
+    selected = id;
+    map.requestDraw();
+  };
+  if (mover) {
+    // Capture phase, so a grabbed aircraft is not also a pan of the picture (the ui-kit view listens on the same canvas).
+    canvas.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || !mover.canMove()) return;
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      let best = null;
+      for (const a of source.state().aircraft) {
+        const [sx, sy] = map.worldToScreen(a.xFt, a.yFt);
+        const d = Math.hypot(sx - px, sy - py);
+        if (d <= HIT_PX && (!best || d < best.d)) best = { a, d };
+      }
+      if (!best) return;
+      e.stopImmediatePropagation();
+      const [wx, wy] = at(e);
+      dragging = { id: best.a.id, pointerId: e.pointerId, grabX: best.a.xFt - wx, grabY: best.a.yFt - wy };
+      selected = null;
+      canvas.setPointerCapture?.(e.pointerId);
+      canvas.classList.add('is-moving');
+      onUserMove?.(); // a setup change while placing must not refit the picture
+    }, true);
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dragging || e.pointerId !== dragging.pointerId) return;
+      e.stopImmediatePropagation();
+      const [wx, wy] = at(e);
+      mover.move(dragging.id, wx + dragging.grabX, wy + dragging.grabY);
+    }, true);
+    const end = (e) => {
+      if (!dragging || e.pointerId !== dragging.pointerId) return;
+      dragging = null;
+      canvas.classList.remove('is-moving');
+      map.requestDraw();
+    };
+    canvas.addEventListener('pointerup', end, true);
+    canvas.addEventListener('pointercancel', end, true);
+    canvas.addEventListener('keydown', (e) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || !mover.canMove()) return;
+      const ids = source.state().aircraft.map((a) => a.id);
+      if (/^[1-4]$/.test(e.key) && ids.includes(Number(e.key))) {
+        setSelected(Number(e.key));
+        mover.say(`Moving #${e.key}. Arrow keys move it ${NUDGE_FT} feet, Shift ${NUDGE_BIG_FT} feet. Escape to stop.`);
+      } else if (selected !== null && e.key === 'Escape') {
+        mover.say(`Stopped moving #${selected}.`);
+        setSelected(null);
+      } else if (selected !== null && ARROW_STEP[e.key]) {
+        const [dx, dy] = ARROW_STEP[e.key];
+        const ft = e.shiftKey ? NUDGE_BIG_FT : NUDGE_FT;
+        mover.nudge(selected, dx * ft, dy * ft);
+      } else return;
+      e.preventDefault();
+      e.stopImmediatePropagation(); // not a pan of the picture, and not an app shortcut
+    }, true);
+    canvas.addEventListener('blur', () => {
+      if (selected !== null) setSelected(null);
+    });
+  }
+
   return {
     map,
     requestDraw: map.requestDraw,
+    /** The aircraft the keyboard is moving, or null. */
+    get selected() {
+      return selected;
+    },
     /** The screen is sized (the stylesheet has loaded), so a waiting fit can go ahead. */
     setReady() {
       ready = true;
@@ -122,6 +202,22 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
 }
 
 // ---- drawing pieces ---------------------------------------------------------
+
+/** Arrow key to a step on the map: x east, y north. */
+const ARROW_STEP = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+
+/** A ring round the aircraft being moved, so it is clear which one it is. */
+function drawChosen(ctx, map, a) {
+  const [x, y] = map.worldToScreen(a.xFt, a.yFt);
+  ctx.save();
+  ctx.strokeStyle = '#ffd24d';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.arc(x, y, 22, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
 
 function text(ctx, str, x, y, color, size = 12, align = 'left') {
   ctx.font = `${size}px ${FONT}`;

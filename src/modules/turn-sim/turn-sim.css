@@ -450,3 +450,8 @@
 [data-module='turn-sim'] .ts-cross-note.is-clamped {
   color: var(--caution);
 }
+
+/* An aircraft being moved by hand before Play. */
+[data-module='turn-sim'] .canvas-view.is-moving {
+  cursor: grabbing;
+}

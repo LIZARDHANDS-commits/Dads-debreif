@@ -149,7 +149,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   errorsPanel.body.classList.add('ts-errors');
   errorsPanel.body.append(
     h('h3', { class: 'ts-group-title' }, 'Aircraft errors'),
-    h('p', { class: 'ts-hint' }, 'Give a wingman a mistake and see what it does to the turn. All zero means no mistakes.'),
+    h('p', { class: 'ts-hint' }, 'Give a wingman a mistake and see what it does to the turn. All zero means no mistakes. Dragging an aircraft on the picture before Play sets its position error here.'),
     ...errorSections,
     resetButton(errorKeys),
   );

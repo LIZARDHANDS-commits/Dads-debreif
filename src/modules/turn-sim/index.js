@@ -16,6 +16,7 @@ import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
+import { positionErrorFor, nudgeSettings } from './drag.js';
 import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
 import { createView3d, turnSign } from './view3d.js';
 
@@ -101,6 +102,13 @@ function mount(root, app) {
     timers: app.scheduler,
     onUserMove: () => {
       userMoved = true;
+    },
+    // Before Play an aircraft can be moved by hand (V6). It is stored as that aircraft's position error, which the engine already flies.
+    mover: {
+      canMove: () => !playing && state().tSec === 0,
+      move: (id, x, y) => scenario.update(positionErrorFor(scenario.get(), id, x, y)),
+      nudge: (id, dx, dy) => scenario.update(nudgeSettings(scenario.get(), id, dx, dy)),
+      say: (text) => app.status(text),
     },
     source: {
       state,

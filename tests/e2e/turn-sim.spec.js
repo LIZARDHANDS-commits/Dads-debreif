@@ -312,6 +312,94 @@ test('Aircraft errors: a wingman turning late is what the plan flies (#31)', asy
   await expect(page.getByText(/^1-2: 6,000 ft/)).toBeVisible();
 });
 
+// Where an aircraft is drawn, in page pixels.
+async function shipAt(page, id) {
+  const [x, y] = JSON.parse(await canvas(page).getAttribute('data-ships'))[id];
+  const rect = await canvas(page).boundingBox();
+  return { x: rect.x + x, y: rect.y + y };
+}
+
+test('an aircraft can be dragged before Play, and it starts where it was dropped (task 12b)', async ({ page }) => {
+  await open(page);
+  const before = await shipAt(page, 2);
+  const lead = await shipAt(page, 1);
+  await page.mouse.move(before.x, before.y);
+  await page.mouse.down();
+  await page.mouse.move(before.x, before.y - 40, { steps: 4 });
+  await page.mouse.up();
+  const after = await shipAt(page, 2);
+  expect(Math.abs(after.x - before.x)).toBeLessThan(2);
+  expect(after.y).toBeLessThan(before.y - 30);
+  const leadAfter = await shipAt(page, 1);
+  expect(Math.abs(leadAfter.x - lead.x) + Math.abs(leadAfter.y - lead.y)).toBeLessThan(2); // and the picture did not pan
+  // Its position error is on in Aircraft errors, and Reset there puts it back.
+  await panel(page, 'Turn Sim settings').click();
+  await panel(page, 'More …').click();
+  await expect(page.getByLabel('Put it out of position').first()).toBeChecked();
+  await page.locator('.ts-errors').getByRole('button', { name: 'Reset to defaults' }).click();
+  await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
+});
+
+test('dragging works with Follow Lead on, and moving Lead does not run away', async ({ page }) => {
+  await open(page);
+  await panelMenu(page).click();
+  await page.getByLabel('Follow Lead').check();
+  const lead = await shipAt(page, 1);
+  await page.mouse.move(lead.x, lead.y);
+  await page.mouse.down();
+  await page.mouse.move(lead.x + 30, lead.y + 30, { steps: 3 });
+  await page.mouse.up();
+  const two = await shipAt(page, 2);
+  const now = await shipAt(page, 1);
+  // Lead is dragged 30 px and the view follows it once let go: #2 is where it was, so Lead moved right of it and down.
+  expect(Math.abs(now.x - lead.x)).toBeLessThan(2);
+  expect(two.x).toBeLessThan(now.x);
+});
+
+test('the picture pans as before when no aircraft is grabbed, and after Play begins an aircraft cannot be moved', async ({ page }) => {
+  await open(page);
+  const rect = await canvas(page).boundingBox();
+  const before = await shipAt(page, 2);
+  await page.mouse.move(rect.x + 60, rect.y + 60);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + 100, rect.y + 60, { steps: 3 });
+  await page.mouse.up();
+  const panned = await shipAt(page, 2);
+  expect(panned.x - before.x).toBeGreaterThan(30);
+  // After a step, grabbing an aircraft pans the picture instead.
+  await button(page, 'Step').click();
+  const a = await shipAt(page, 2);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(a.x + 40, a.y, { steps: 3 });
+  await page.mouse.up();
+  await panel(page, 'Turn Sim settings').click();
+  await panel(page, 'More …').click();
+  await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
+});
+
+test('an aircraft can be moved from the keyboard: 1 to 4 picks it, the arrows move it, Escape stops', async ({ page }) => {
+  await open(page);
+  const before = await shipAt(page, 3);
+  await canvas(page).focus();
+  await page.keyboard.press('3');
+  await expect(page.locator('#module-status')).toContainText('Moving #3');
+  for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp');
+  const after = await shipAt(page, 3);
+  expect(after.y).toBeLessThan(before.y); // north is up the screen
+  expect(Math.abs(after.x - before.x)).toBeLessThan(2);
+  await page.keyboard.press('Shift+ArrowLeft');
+  const left = await shipAt(page, 3);
+  expect(left.x).toBeLessThan(after.x - 3);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#module-status')).toContainText('Stopped moving #3');
+  // With nothing picked the arrows pan the picture, as before.
+  const lead = await shipAt(page, 1);
+  await page.keyboard.press('ArrowLeft');
+  const panned = await shipAt(page, 1);
+  expect(panned.x).not.toBe(lead.x);
+});
+
 test('space plays and pauses, the right arrow steps once, Home resets, and typing is left alone (R14)', async ({ page }) => {
   await open(page);
   await page.locator('body').click({ position: { x: 5, y: 5 } });
