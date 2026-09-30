@@ -33,3 +33,9 @@ test('the Debrief Viewer has no accessibility violations with the example flight
   await expect(page.locator('.flight-status')).toHaveText(/^4 tracks loaded/, { timeout: 20_000 });
   await expectNoA11yViolations(page);
 });
+
+test('the Traffic Sim has no accessibility violations', async ({ page }) => {
+  await openRoute(page, '#/traffic');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
+  await expectNoA11yViolations(page);
+});

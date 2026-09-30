@@ -108,3 +108,13 @@ test('sof, recorded weather', async ({ page }) => {
   await expect(page.locator('article.sof-card')).toHaveCount(4);
   await shot(page, 'sof.png');
 });
+
+// The Traffic Sim as it opens: paused at 0:00:00 with the Moose Jaw traffic, no route picked, the
+// settings menu closed.
+test('traffic, first look', async ({ page }) => {
+  await openRoute(page, '#/traffic');
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
+  await expect(page.getByText('Press Play to watch the Moose Jaw traffic.')).toBeVisible();
+  await page.clock.runFor(1000); // the frozen clock also holds back the map's animation frames
+  await shot(page, 'traffic.png');
+});

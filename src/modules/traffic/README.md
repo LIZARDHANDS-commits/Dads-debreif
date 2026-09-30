@@ -2,6 +2,33 @@
 
 Routes on the left, aircraft on the right, a map in the middle. The spec is [`specs/SPEC-traffic.md`](../../../specs/SPEC-traffic.md); the task list is in [`tasks/traffic/`](../../../tasks/traffic/todo.md).
 
+## Screen
+
+`index.js` is the module entry (`{ id: 'traffic', title, mount }`). It builds the screen, wires it to the engine, and runs everything on the shell's scheduler and listeners, so closing the module stops it all. It opens paused at 0:00:00 on a copy of the Moose Jaw setup (`data/moose-jaw.json`), with no route picked and the Traffic settings menu closed.
+
+| File | What it does |
+|---|---|
+| `layout.js` | The three columns (Routes, map with the playback bar above it, Aircraft), the routes list and the "+ New route" menu. Below 900 px the map comes first and the columns stack. |
+| `playback-bar.js` | Play or Pause, Reset, speed, the clock, Layers, Fit. |
+| `clock.js` | Turns frame time into whole 0.05 s engine steps. Playback speed changes how many steps a frame asks for, never their size, so a run is the same at any frame rate. |
+| `scene.js` | The plain data the map draws: routes with their path, decision points and turn data, leg lengths, aircraft, conflicts and trails. |
+| `map2d.js` | The 2D map on the canvas (grid, routes, aircraft, labels, trails, bubbles). |
+| `editor.js` | The left column's route editor: name, where an entry or split joins, and a row per point (label, altitude, speed, G); "+ Point" and "Delete point"; new routes; Leg distances. |
+| `aircraft.js` | The right column: the spawner, the aircraft list and the conflicts. |
+| `settings-panel.js`, `defaults.js` | The one closed "Traffic settings" menu and every setting's starting value and range. |
+| `glue.js` | Copies the settings the engine reads into the setup, holding each number to its range. |
+
+How it behaves:
+
+- Every change goes into the setup the engine flies, so the map and the aircraft follow at once. Point values, names and labels are checked (range, length, a most of 30 routes and 100 points a route) and refused in plain words; names go on the page as text, never as HTML.
+- "+ Point" adds a point halfway to the next one with the average height, speed and G, called "New Point". "Delete point" leaves a pattern at least 3 points and an entry or split at least 2. Links between routes are by point number, so adding or deleting a point moves the links of routes that join it, and a route joined to a deleted point is moved to the point before it.
+- "+ New route" makes a pattern, entry or split from the engine's builders and picks it. An entry or split joins the selected pattern, or the first pattern. Route ids are never reused.
+- Space plays or pauses and Home resets, never while typing. Escape closes an open menu and puts focus back on its button.
+
+Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, the 3D view, the satellite photo, Rewind and the ±10 s buttons, profiles, PFLs and the rules.
+
+Tests: `tests/unit/traffic/` for each file (in Node, on a stand-in page), and `tests/e2e/traffic.spec.js` in Chromium on `tests/e2e/pages/traffic.html`, which mounts the module straight from `src/` so the tests don't wait for its entry in `src/shell/registry.js`.
+
 ## Engine API
 
 The engine is `route.js`, `sim.js`, `dice.js` and `readouts.js` (PR A, tasks 1 to 3). It is pure: plain objects in, plain objects out, no page, no clock, no `Math.random`. The screen calls it and draws what it returns; the drawing never changes a number. Everything is pinned to V6's own Traffic page by `tests/golden/traffic-*.test.js`.
@@ -75,7 +102,10 @@ sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a p
 sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first. V6 also adds the split point to the trail when a split is taken; this does not (display only)
 sim.diceState()       // where the dice are (changes with every roll; the golden tests compare it with V6's)
 sim.state()           // what is where right now
+sim.remapStarts(routeId, mapIndex)  // a point was added to or deleted from a route: move the start points of its aircraft the same way
 ```
+
+`remapStarts(routeId, mapIndex)` is for the editor: when a point is added to or deleted from a route, `mapIndex(oldIndex) → newIndex` (0-based) says where each point number went, and every aircraft that starts on that route (spawned ones and `setup.aircraft`) starts at the same place as before. An aircraft that has not left yet is moved to its new start; one that is flying keeps its distance along the route (as V6's does).
 
 `setup.routes` must not be emptied while there are aircraft (V6's Delete route refuses the last one): `createSim`, `reset` and `spawn` throw a `RangeError` ("the setup needs at least one route") when there is no route to put an aircraft on. `reset` clears `landed`, as V6's `resetAircraftToStarts` does (V6's Reset button left it set).
 
