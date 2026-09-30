@@ -7,12 +7,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
-import { ktToFtps, ftpsToKt } from '../../../src/core/units.js';
+import { G_FTPS2, KT_TO_FTPS, ktToFtps, ftpsToKt } from '../../../src/core/units.js';
 import {
   degToRad, radToDeg, wrapDeg180, wrapPi, angleDiffRad, absAngleDeg,
   compassDegToHeadingRad, headingRadToCompassDeg,
 } from '../../../src/core/angles.js';
-import { turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
+import { bankDegFromG, turnRadiusFt, turnRateRadPerSec } from '../../../src/core/flight-math.js';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight, zoomT6A,
@@ -54,10 +54,21 @@ test('turn radius falls as G rises at fixed speed', () => {
   });
 });
 
-test('turn rate times turn radius is the speed', () => {
+test('turn rate is G·√(g²−1) ÷ v (the Turn Fight form)', () => {
   property(1003, fc.tuple(tasKt, loadG), ([v, g]) => {
     const s = ktToFtps(v);
-    relNear(turnRateRadPerSec(s, g) * turnRadiusFt(s, g), s, 1e-12);
+    relNear(turnRateRadPerSec(s, g), G_FTPS2 * Math.sqrt(g * g - 1) / s, 1e-14);
+  });
+});
+
+test('turn radius is v² ÷ (G·tan bank), with the bank from bankDegFromG', () => {
+  // Two different routes to the same radius: √(g²−1) against tan(acos(1/g)).
+  // acos and tan each lose a few bits (tan near 84 degrees at 9 G amplifies the
+  // bank's rounding by 1/(sin·cos) of about 9), so 1e-12 is a safe bound.
+  property(1004, fc.tuple(tasKt, loadG), ([v, g]) => {
+    const s = ktToFtps(v);
+    const bank = degToRad(bankDegFromG(g));
+    relNear(turnRadiusFt(s, g), s * s / (G_FTPS2 * Math.tan(bank)), 1e-12);
   });
 });
 
@@ -137,6 +148,8 @@ test('knots → ft/s → knots round-trips to V6\'s constants', () => {
 
 // ---------- V-n limit and stall line ----------
 
+// This pins the min() in availableG (the V-n cap and the stall line), not the
+// physics: it would pass for any model that caps at the same numbers.
 test('availableG never passes the V-n limit and never passes the stall line', () => {
   property(4001, fc.tuple(num(0, 400), fc.boolean()), ([kias, rolling]) => {
     const g = availableG(kias, rolling);
@@ -190,9 +203,9 @@ test('thrust per weight falls with speed at fixed altitude', () => {
   });
 });
 
-test('excess thrust per weight is thrust minus drag', () => {
-  property(5008, fc.tuple(kiasKt, altFt, loadG), ([kias, alt, g]) => {
-    assert.equal(excessThrustPerWeight(kias, alt, g), thrustPerWeight(kias, alt) - dragPerWeight(kias, alt, g));
+test('excess thrust per weight falls as G rises at fixed speed and altitude', () => {
+  property(5008, fc.tuple(kiasKt, altFt, loadG, num(0.05, 3)), ([kias, alt, g, dg]) => {
+    assert.ok(excessThrustPerWeight(kias, alt, g + dg) < excessThrustPerWeight(kias, alt, g));
   });
 });
 
@@ -224,6 +237,34 @@ test('with no excess thrust, any bank and G keep energy height (lift does no wor
       const s1 = stepPointMass(s0, { g, bankRad: bank }, dt);
       absNear(energyOf(s1), energyOf(s0), ENERGY_TOL_FT);
     });
+});
+
+test('a constant excess e (bank 0, G = cos climb) changes energy height by e·V·dt', () => {
+  // Energy height changes at V·e ft/s. V itself changes over the step by up to
+  // (|e| + 1)·g·dt (thrust and the path's share of gravity), so the plain form
+  // e·V0·dt is off by at most |e|·(|e| + 1)·g·dt²/2 (0.016 ft at the widest
+  // case here; measured worst 0.0155 ft). With V the mean of the start and end
+  // speeds the form is exact up to float rounding of the energy sum (measured
+  // 5e-12 ft over 100,000 random steps), so 1e-9 ft is safe.
+  property(6003, fc.tuple(tasKt, headingAny, climbRad, altFt, num(-0.3, 0.3), stepSec), ([ktas, hdg, climb, alt, e, dt]) => {
+    const s0 = pointMassState({ altFt: alt, ktas, headingRad: hdg, climbRad: climb });
+    const s1 = stepPointMass(s0, { g: Math.cos(climb), bankRad: 0 }, dt, () => e);
+    const dE = energyOf(s1) - energyOf(s0);
+    const v0 = ktas * KT_TO_FTPS;
+    const v1 = pointMassFlight(s1).ktas * KT_TO_FTPS;
+    absNear(dE, e * v0 * dt, Math.abs(e) * (Math.abs(e) + 1) * G_FTPS2 * dt * dt / 2 + 1e-9, 'first order');
+    absNear(dE, e * (v0 + v1) / 2 * dt, 1e-9, 'mean speed');
+  });
+});
+
+test('a right bank turns clockwise (heading falls) and a left bank counter-clockwise', () => {
+  // Level, G = 1 / cos(bank) holds the height and turns at g·tan(bank) ÷ V.
+  property(6004, fc.tuple(tasKt, headingAny, altFt, num(0.05, 1.4), stepSec), ([ktas, hdg, alt, bank, dt]) => {
+    const s0 = pointMassState({ altFt: alt, ktas, headingRad: hdg });
+    const turned = (b) => wrapPi(pointMassFlight(stepPointMass(s0, { g: 1 / Math.cos(b), bankRad: b }, dt)).headingRad - hdg);
+    assert.ok(turned(bank) < 0, `right bank ${turned(bank)}`);
+    assert.ok(turned(-bank) > 0, `left bank ${turned(-bank)}`);
+  });
 });
 
 // ---------- zoom ----------
