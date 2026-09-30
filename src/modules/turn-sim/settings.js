@@ -57,7 +57,7 @@ export const V6_DEFAULTS = Object.freeze({
   showNm: true, // "Show NM secondary"
 
   // Offset box #4 timing and the rear element check (lines 543 to 558)
-  offsetBox4Timing: 'late', // 'late' | 'early'
+  offsetBox4Timing: 'late', // 'late' | 'early' (V6's two; the rebuild adds 'groundTrack', see DEFAULTS)
   rearCheckOn: false,
   rearCheckStartSec: 40,
   rearCheckDir: 'left', // 'left' | 'right'
@@ -65,7 +65,7 @@ export const V6_DEFAULTS = Object.freeze({
   rearCheckHoldSec: 5,
 
   // Turn setup (lines 571 to 588)
-  maneuver: 'delayed90away', // 'delayed90away' | 'delayed45away' | 'hook90' | 'shackle45' | 'cross180' | 'inplace90'
+  maneuver: 'delayed90away', // 'delayed90away' | 'delayed45away' | 'hook90' | 'shackle45' | 'cross180' | 'inplace90' | 'check30' (the rebuild's)
   direction: 'right', // 'right' | 'left'
   speedKt: 220, // V6's "Speed KTAS": true airspeed, no wind
   baseG: 2.0,
@@ -93,6 +93,14 @@ export const V6_DEFAULTS = Object.freeze({
   ),
 });
 
+/**
+ * The Turn degrees each turn sets when it is picked (V6 `updateManeuverDefaults`, line 2037, with the SMM's): the hook is
+ * 180 degrees (16.19 para 60), where V6's was 90.
+ */
+export const MANEUVER_TURN_DEG = Object.freeze({
+  delayed90away: 90, delayed45away: 45, hook90: 180, shackle45: 45, cross180: 180, inplace90: 90, check30: 30,
+});
+
 /** What the rebuild starts with: V6's values, plus each logged decision that changed one. */
 export const DEFAULTS = Object.freeze({
   ...V6_DEFAULTS,
@@ -100,14 +108,43 @@ export const DEFAULTS = Object.freeze({
   baseG: 3.0,
   // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
   boxAftFt: 7000,
+  // Fig 16.30 draws each element 4,000 to 6,000 ft abreast: the box opens on Spacing. V6's 1,000 ft stagger put #2 at 7,000 ft, which read wide.
+  boxStaggerFt: 0,
   // D45 (Patrick, Q42): the start heading is a compass heading, 000 north and 090 east, and the default flies north,
   // up the screen. V6's default flew east.
   startHeadingDeg: 0,
   // SMM item 2 (16.19 paras 52 and 54, Patrick 06:40Z): the inside aircraft turns when the wingman reaches 7 o'clock
   // in a right turn and 5 o'clock in a left turn. V6: 5:30.
   clockCuePos: 'auto',
+  // Offset box #3 and #4 timing in the delayed turns. 'boxSlot' (the default, audit R1): each rear aircraft's delay ends it boxAftFt
+  // behind the front element in its slot. 'rearDelay' (SMM 16.41 para 112a): both turn rearDelaySec after the front element has started. 'groundTrack' (Q44b, Patrick): #4 solves its own delay to roll out 3,000 ft
+  // outside #2 and Box aft behind the front element. V6's 'late' (#3's delay + base delay) and 'early' (#3's delay - base
+  // delay) stay as choices.
+  offsetBox4Timing: 'boxSlot',
+  // SMM 16.41 para 112a: in the offset box #3 and #4 delay 10 to 15 s after the front element turns, so they miss #1 and #2.
+  // The middle of the band. Used by the hook (and, as its own commit, the delayed turns). V6: no delay for the hook.
+  rearDelaySec: 12.5,
+  // SMM 16.19 para 64 and Figure 16.21: the cross turn is 2 G for about the first 90 degrees, then 3 G to the 180.
+  // The G setting is the second stage. V6 flew the whole turn at the G setting.
+  crossTurnFirstG: 2.0,
+  crossTurnSwitchDeg: 90,
+  // The Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart. #2 solves its second-stage G so the roll-out spacing is Spacing.
+  // false is V6's fixed G (about 2,000 ft apart).
+  crossTurnSolveSpacing: true,
+  // A run lasts at least until the last aircraft has finished its turn and 10 s more, so a slow plan (a four-ship
+  // Delayed 45 with Auto timing starts its last aircraft at 117 s) is never cut off at the Duration with aircraft
+  // that have not turned. V6 stopped at the Duration whatever was still waiting: false gives that back.
+  durationCoversTurn: true,
+  // D48 (Q31, Patrick): which side #2 flies on in 4312 and 2134, left by default. V6 drew #2 on Lead's left in 4312
+  // (2134 is its mirror); 'right' mirrors both. V6 had no such box, and 'left' is what it flew.
+  twoSide: 'left',
+  // Q47 (Patrick): the rear element check starts at its set time or once #3 and #4 have finished their turns,
+  // whichever is later, so it never postpones a planned turn. Not in V6, whose check started at its set time
+  // whatever #3 and #4 were doing: false gives V6's start back.
+  rearCheckAfterTurns: true,
   // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
-  // The band is a setting; nothing flies with it yet (task 11).
+  // The band is a setting: state.offsetBox flags #3 and #4 whose delay after the front element falls outside it.
+  // rearDelaySec (12.5 s) is the delay they fly by default.
   rearDelayMinSec: 10,
   rearDelayMaxSec: 15,
 });
@@ -144,20 +181,27 @@ export const SETTINGS_RULES = Object.freeze({
   startHeadingDeg: number(0, 360), // compass degrees
   showNm: bool,
 
-  offsetBox4Timing: oneOf(['late', 'early']),
+  offsetBox4Timing: oneOf(['boxSlot', 'rearDelay', 'groundTrack', 'late', 'early']),
   rearCheckOn: bool,
   rearCheckStartSec: number(0, 600),
   rearCheckDir: oneOf(['left', 'right']),
   rearCheckAngleDeg: number(1, 90),
   rearCheckHoldSec: number(0, 120),
+  rearCheckAfterTurns: bool,
+  twoSide: oneOf(['left', 'right']),
+  rearDelaySec: number(0, 60),
+  durationCoversTurn: bool,
+  crossTurnFirstG: number(1.01, 9),
+  crossTurnSwitchDeg: number(10, 180),
+  crossTurnSolveSpacing: bool,
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 
-  maneuver: oneOf(['delayed90away', 'delayed45away', 'hook90', 'shackle45', 'cross180', 'inplace90']),
+  maneuver: oneOf(['delayed90away', 'delayed45away', 'hook90', 'shackle45', 'cross180', 'inplace90', 'check30']),
   direction: oneOf(['right', 'left']),
   speedKt: number(1, 1000),
   baseG: number(1.01, 12),
-  turnDeg: number(10, 180),
+  turnDeg: number(5, 180), // 5 for the check turn (SMM 16.19 para 58: 30 degrees or less); V6's box started at 10
   timing: oneOf(['time', 'clock', 'auto']),
   baseDelaySec: number(0, 300),
   clockCueAircraft: numberOneOf([1, 2, 3, 4]),
@@ -217,6 +261,33 @@ export function settingIsValid(key, value) {
   return true;
 }
 
+/** The turns the SMM flies with two aircraft only (Patrick 09:28Z: two-ship only): the shackle and the cross turn. */
+export const TWO_SHIP_ONLY_TURNS = Object.freeze(['shackle45', 'cross180']);
+
+/**
+ * Why a turn cannot be flown in a formation, or null when it can. The shackle and the cross turn are two-ship turns
+ * (SMM 16.19 paras 61 to 64; para 118 lists no shackle or cross turn for spread 4), so the four-ship formations (4312, 2134
+ * and the offset box) do not offer them. The screen greys them out with this text; checkSettings and createRun
+ * fall back to the default turn.
+ */
+export function turnProblem(formation, maneuver) {
+  if (formation !== 'twoShip' && TWO_SHIP_ONLY_TURNS.includes(maneuver)) {
+    return 'The shackle and the cross turn are two-ship turns: pick the two-ship formation to fly them.';
+  }
+  return null;
+}
+
+/** The check turn is through 30 degrees or less (SMM 16.19 para 58): the largest Turn degrees it takes. */
+export const CHECK_TURN_MAX_DEG = 30;
+
+/** Why the Turn degrees cannot be flown in this turn, or null: a check turn is 30 degrees at most (it goes back to 30). */
+export function turnDegProblem(maneuver, turnDeg) {
+  if (maneuver === 'check30' && turnDeg > CHECK_TURN_MAX_DEG) {
+    return `The check turn is ${CHECK_TURN_MAX_DEG} degrees at most (SMM 16.19 para 58): use In-place 90 for a bigger turn. Turn degrees is set to ${CHECK_TURN_MAX_DEG}.`;
+  }
+  return null;
+}
+
 /**
  * A clean settings object from anything: every key present, each value the
  * given one when it is good and the default otherwise, unknown keys dropped.
@@ -235,6 +306,12 @@ export function checkSettings(obj) {
     out.rearDelayMinSec = DEFAULTS.rearDelayMinSec;
     out.rearDelayMaxSec = DEFAULTS.rearDelayMaxSec;
   }
+  // A turn the formation cannot fly goes back to the default turn (turnProblem says why), with its Turn degrees.
+  if (turnProblem(out.formation, out.maneuver)) {
+    out.maneuver = DEFAULTS.maneuver;
+    out.turnDeg = MANEUVER_TURN_DEG[DEFAULTS.maneuver];
+  }
+  if (turnDegProblem(out.maneuver, out.turnDeg)) out.turnDeg = CHECK_TURN_MAX_DEG;
   return Object.freeze(out);
 }
 

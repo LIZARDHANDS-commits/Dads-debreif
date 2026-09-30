@@ -85,6 +85,13 @@ test('debrief, example flight', async ({ page }) => {
   await shot(page, 'debrief-example.png');
 });
 
+test('turn sim, ready to play', async ({ page }) => {
+  await openRoute(page, '#/turn-sim');
+  await expect(page.getByRole('button', { name: /^Play/ })).toBeVisible();
+  await page.clock.runFor(1000); // the frozen clock also holds back the picture's animation frames
+  await shot(page, 'turn-sim.png');
+});
+
 // The SOF with the recorded reports sof.spec.js uses, at the time they were
 // written for (1842Z, 29 September 2026), so every card, age and state is fixed.
 const sofFixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
