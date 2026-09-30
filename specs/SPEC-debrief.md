@@ -129,8 +129,8 @@ The right column shows, for the current time, the same panels in both views. By 
 
 - **Live data**: per ship, altitude, ground speed, **est. IAS** (D31), G and pitch and bank, each marked "recorded" or "est." (D47). Pitch and G are worked out from the track's own motion by default, because the iPad's recorded pitch and G look like the tablet tilting; recorded bank is still used (D47, Patrick answering Q32). If `flight-data` later adds an option to reference the iPad's attitude to a straight-and-level or on-the-runway baseline, the debrief shows it as a setting, and latitude/longitude (interpolated, D51).
 - **Aspect, HCA and closure versus Lead**, and **spacing** for every pair. Each range says whether it is **horizontal** or **3D** (#18, SPEC.md). The numbers stay V6's (D29).
-- **Standards**: V6's spread, offset and lead standards, editable, with V6's values as the default preset and a one-click reset (R18, D23). They are saved with the module's settings and in the debrief file.
-- **Lead desired parameters** compare **est. IAS** with the 200 kt target, not ground speed (D31).
+- **Standards**: the spread, offset and lead standards, editable, with a one-click reset to the default preset (R18, D23). The default preset is the SMM's (D114 to D116, core's `DEFAULT_STANDARDS`): spread 4,000 to 6,000 ft with 0 to 10° of sweep behind the 3/9 line of the aircraft the interval is measured from ("AFT by 7°"), #3 7,000 ± 1,000 ft back, and Lead 220 kt in the low block and 200 kt in the mid block, the target picked from Lead's altitude and shown on the Lead line. V6's values stay in core as `V6_STANDARDS`, pinned by the golden tests. They are saved with the module's settings and in the debrief file.
+- **Lead desired parameters** compare **est. IAS** with the target (V6's 200 kt; the SMM's 220 low / 200 mid, D115), not ground speed (D31).
 
 Standards fixes from #21 (the classifier itself is `core/standards.js`, core PR 3):
 

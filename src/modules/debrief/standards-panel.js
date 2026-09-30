@@ -1,5 +1,6 @@
-// The Standards panel (R18, D23): V6's spread, offset and lead standards,
-// each with an on/off box and its numbers, and a reset to V6's values. It
+// The Standards panel (R18, D23): the spread, offset and lead standards,
+// each with an on/off box and its numbers, and a reset to the default preset
+// (the SMM's numbers, D114 to D116, once app.standards starts from them). It
 // edits the app's one shared copy (app.standards), which the Turn Sim reads
 // too (D89). Closed by default (R22). A value outside its limits is refused
 // with a message under its box; the saved standard stays as it was.
@@ -66,7 +67,7 @@ export function createStandardsPanel({ standards, layout }) {
     );
   });
 
-  const reset = h('button', { type: 'button', class: 'button', onclick: () => standards.reset() }, 'Reset to V6 standards');
+  const reset = h('button', { type: 'button', class: 'button', onclick: () => standards.reset() }, 'Reset to the default standards');
   panel.body.append(summary, ...fieldsets, reset);
 
   function sync(values) {
