@@ -332,6 +332,7 @@ test("F1: a held lightning caution (the reading is failed or old, state 'unknown
   const plainLine = screen({ lightning: plain }).cautions.find((c) => c.source === 'LIGHTNING');
   assert.equal(plainLine.level, 'caution', 'amber, never the red below-limits level');
   assert.equal(plainLine.text, "Lightning: can't tell");
+});
 
 // ---- N3 and N4: the observation age, beside the closed-field rule and a failed round -----------------------------
 
