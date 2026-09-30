@@ -63,6 +63,10 @@ export function windsUrl({ lat, lon, startT, endT, model }) {
  * Reads Open-Meteo's JSON reply into hours in time order:
  * [{ t, levels: [{ hPa, heightFt, dirDeg, kt }] }], each hour's levels low to
  * high, leaving out any level with a missing value and any hour with none.
+ * The list also carries `groundFt`, the ground under the point asked for
+ * (the reply's `elevation`, metres, as feet), when the reply gives one:
+ * windAt leaves out the levels under it. It doesn't show in a comparison
+ * or a loop, so the result is still just the list of hours.
  */
 export function readWinds(json) {
   const h = json?.hourly;
@@ -82,7 +86,11 @@ export function readWinds(json) {
     }
     if (levels.length) hours.push({ t, levels: levels.sort((a, b) => a.heightFt - b.heightFt) });
   });
-  return hours.sort((a, b) => a.t - b.t);
+  hours.sort((a, b) => a.t - b.t);
+  if (hours.length && typeof json.elevation === 'number' && Number.isFinite(json.elevation)) {
+    Object.defineProperty(hours, 'groundFt', { value: json.elevation * M_TO_FT });
+  }
+  return hours;
 }
 
 /**
@@ -143,9 +151,13 @@ export function windAtAltitude(hour, altitudeFt, { fieldFt = NaN } = {}) {
  * before stands alone. Returns null when no hour is in force at t (older than
  * 90 minutes or none yet); otherwise { wind, hoursT, levels }: the wind or null
  * outside the levels, the hour(s) it came from (seconds), and the earlier
- * hour's usable levels for saying why there is none. Options: { fieldFt }.
+ * hour's usable levels for saying why there is none. The levels under the
+ * ground are left out: the ground under the point the winds were asked for
+ * (hours.groundFt, from readWinds) when the reply gave it, else the option
+ * { fieldFt }, the caller's field elevation, else none.
  */
-export function windAt(hours, t, altitudeFt, { fieldFt = NaN } = {}) {
+export function windAt(hours, t, altitudeFt, { fieldFt: fallbackFt = NaN } = {}) {
+  const fieldFt = Number.isFinite(hours?.groundFt) ? hours.groundFt : fallbackFt;
   const slice = sliceAt(hours, t, MAX_AGE_S.model);
   if (!slice) return null;
   const { item: before } = slice;
@@ -177,9 +189,10 @@ export function windWords({ dirDeg, kt }) {
  * (HRDPS 14Z, Open-Meteo)", crediting the source as its licence asks, or why
  * there's none. Between two model hours the wind is blended and both hours are
  * named: "(HRDPS 14–15Z, Open-Meteo)". hours: readWinds' result. modelLabel:
- * "HRDPS" or "HRRR". Options: { fieldFt }, the field's elevation: levels
- * under it are not used, and below the lowest one left the line says to see
- * the METAR (D176: no guessing below the model's lowest level).
+ * "HRDPS" or "HRRR". Levels under the ground are not used, and below the
+ * lowest one left the line says to see the METAR (D176: no guessing below the
+ * model's lowest level). The ground is the reply's own (see windAt); options:
+ * { fieldFt }, the home field's elevation, for a reply that gave none.
  */
 export function windTextAt(hours, t, altitudeFt, modelLabel, { fieldFt = NaN } = {}) {
   const found = windAt(hours, t, altitudeFt, { fieldFt });

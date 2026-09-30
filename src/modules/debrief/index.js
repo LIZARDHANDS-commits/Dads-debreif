@@ -196,7 +196,7 @@ function mount(root, app) {
     if (entry.state === 'busy') return `${label} winds: Open-Meteo is busy. Turn Winds aloft off and on to try again.`;
     if (entry.state === 'failed') return windFailureText(label, entry.failure);
     const lead = sampleAt(flight.tracks[1], clock.t);
-    // Levels under the field are not blended in (W4): the home field's elevation, or Moose Jaw's until one is set.
+    // Levels under the ground are not blended in (W4). The reply's own ground height decides; the home field's elevation, or Moose Jaw's until one is set, is for a reply without one.
     const fieldFt = app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT;
     return lead ? windTextAt(entry.hours, clock.t, lead.altFt, label, { fieldFt }) : null;
   }

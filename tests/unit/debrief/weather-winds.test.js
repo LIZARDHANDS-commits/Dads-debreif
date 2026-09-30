@@ -287,7 +287,7 @@ test('W4: levels below the ground are not blended in: on the real replies 950 hP
 });
 
 test('W4: with a lower field the 950 hPa level is used; with no field given, every level is', () => {
-  const hours = readWinds(real('gem_hrdps_continental'));
+  const hours = [...readWinds(real('gem_hrdps_continental'))]; // a copy has no ground height of its own, so the option decides
   const l950 = hours[18].levels[0];
   const inside = windAt(hours, hours[18].t, l950.heightFt + 100, { fieldFt: 500 }).wind;
   assert.ok(inside);
@@ -363,5 +363,31 @@ test('N1: a level exactly at the field is above the ground and is kept', () => {
   assert.ok(atField && Math.abs(atField.kt - 20) < 1e-9);
   assert.equal(windAtAltitude(hour, 1999, { fieldFt: 2000 }), null);
   assert.equal(windAtAltitude(hour, 2000, { fieldFt: 2001 }), null); // one foot higher and the level is under the ground
+});
+
+test('Y2: the ground under the wind point, from the reply, decides which levels are under it', () => {
+  // The real replies say 573 m (1,880 ft) for Moose Jaw.
+  for (const [id, label] of REAL_MODELS) {
+    const hours = readWinds(real(id));
+    assert.ok(Math.abs(hours.groundFt - 573 / FT) < 1e-6, `${id}: ${hours.groundFt}`);
+    // With no field given the reply's ground is used: 950 hPa (about 1,400 ft) is left out.
+    assert.match(windTextAt(hours, hours[18].t, 1900, label), /below the model's lowest level: see the METAR/);
+    assert.match(windTextAt(hours, hours[18].t, hours[18].levels[1].heightFt + 100, label), /^model wind /);
+    // The reply's ground wins over the home field's.
+    assert.match(windTextAt(hours, hours[18].t, 1900, label, { fieldFt: 500 }), /below the model's lowest level/);
+  }
+  // High ground under the wind point: 1,500 m (4,921 ft) puts the 850 hPa level (4,455 ft) under it too.
+  const high = readWinds({ ...reply(), elevation: 1500 });
+  assert.ok(Math.abs(high.groundFt - 1500 / FT) < 1e-6);
+  assert.equal(windTextAt(high, T('2026-09-29T18:00Z'), 5000, 'HRDPS'), "no HRDPS wind at 5,000 ft (below the model's lowest level: see the METAR)");
+  assert.match(windTextAt(high, T('2026-09-29T18:00Z'), 2957 / FT, 'HRDPS'), /^model wind /);
+  // Without the reply's elevation, or with a bad one, the home field given by the caller is used, and then none.
+  for (const elevation of [undefined, null, 'high']) {
+    const hours = readWinds({ ...reply(), elevation });
+    assert.equal(hours.groundFt, undefined);
+    assert.match(windTextAt(hours, T('2026-09-29T18:00Z'), 5000, 'HRDPS'), /^model wind /);
+    assert.match(windTextAt(hours, T('2026-09-29T18:00Z'), 5000, 'HRDPS', { fieldFt: 4921 }), /below the model's lowest level/);
+  }
+  assert.deepEqual(readWinds({ hourly: {}, elevation: 500 }), []); // no hours: still a plain empty list
 });
 
