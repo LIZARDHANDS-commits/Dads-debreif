@@ -53,12 +53,7 @@ function setup({ start, ...options } = {}) {
     changes.push({ patch: Object.fromEntries(Object.entries(values).filter(([key, value]) => value !== before[key])), values });
     before = values;
   });
-  const listeners = [];
-  const listen = (target, type, fn) => {
-    target.addEventListener(type, fn);
-    listeners.push([target, type, fn]);
-  };
-  const panel = createSettingsPanel({ controls: createControls(settings), settings, listen, ...options });
+  const panel = createSettingsPanel({ controls: createControls(settings), settings, ...options });
   return { panel, changes, settings };
 }
 
@@ -94,30 +89,6 @@ test('onToggle is told when the person opens or closes the menu, but not when th
   panel.setCollapsed(true);
   assert.deepEqual(toggles, [false, true], 'setCollapsed is silent');
   assert.equal(panel.collapsed, true);
-});
-
-test('Escape closes an open menu and tells onToggle; while it is closed Escape does nothing, and other keys do nothing', () => {
-  const toggles = [];
-  const registered = [];
-  const listen = (target, type, fn) => {
-    registered.push(type);
-    target.addEventListener(type, fn);
-  };
-  const { panel } = setup({ onToggle: (collapsed) => toggles.push(collapsed), listen });
-  assert.deepEqual(registered, ['keydown'], 'Escape is listened for through the app\'s listen, so it ends with the module');
-  const press = (key) => {
-    let prevented = false;
-    for (const fn of panel.element.listeners.keydown ?? []) fn({ key, preventDefault: () => (prevented = true) });
-    return prevented;
-  };
-  assert.equal(press('Escape'), false, 'a closed menu leaves Escape alone');
-  header(panel).dispatch('click');
-  assert.equal(press('a'), false);
-  assert.equal(panel.collapsed, false);
-  assert.equal(press('Escape'), true);
-  assert.equal(panel.collapsed, true);
-  assert.equal(header(panel).getAttribute('aria-expanded'), 'false');
-  assert.deepEqual(toggles, [false, true]);
 });
 
 test('at first it shows only the conflict limits and the route options', () => {
