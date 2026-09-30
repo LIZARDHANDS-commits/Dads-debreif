@@ -34,7 +34,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 ## Phase 3: standards (PR 3), done
 
 - [x] **Task 10: formation standards**
-  - Acceptance: the debrief classifiers (`classifyKmlError`, `classifyLeadDesired`, `kmlStandardsSummary`, lines 3051 to 3110) and Turn Sim's `classifyFormationError` (line 1881) match V6, including the #21 behaviour, with V6's values as the default preset (R18).
+  - Acceptance: the debrief classifiers (`classifyKmlError`, `classifyLeadDesired`, `kmlStandardsSummary`, lines 3051 to 3117) and Turn Sim's `classifyFormationError` (line 1881) match V6, including the #21 behaviour, with V6's values as the default preset (R18).
   - Verify: golden tests; unit tests for the preset.
   - Dependencies: Phase 1. Files: `src/core/standards.js`, its tests. Size M.
 

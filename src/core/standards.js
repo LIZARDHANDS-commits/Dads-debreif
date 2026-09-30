@@ -1,7 +1,7 @@
 // Formation standards: is each wingman where he should be?
 //
 // Two V6 copies judge the same standards: the debrief (classifyKmlError,
-// classifyLeadDesired and kmlStandardsSummary, lines 3051 to 3115), where
+// classifyLeadDesired and kmlStandardsSummary, lines 3051 to 3117), where
 // they are settings, and Turn Sim (classifyFormationError, line 1881), where
 // the same numbers are written into the code. Both are ported here unchanged.
 // V6_STANDARDS holds V6's values, the default preset (R18).
@@ -133,6 +133,8 @@ export function standardsSummaryLines(std = V6_STANDARDS) {
 /**
  * Turn Sim position labels for aircraft `a` (Turn Sim `classifyFormationError`, line 1881).
  * Turn Sim always applies the spread and offset numbers; the `on` switches don't apply.
+ * V6's Turn Sim has no settings for these, so its screen passes V6_STANDARDS: letting it
+ * follow the debrief's edited standards would change Turn Sim, and needs a decision.
  *
  * @param {object} a          the aircraft: { id, x, y }
  * @param {object[]} fleet    all four aircraft, Lead first ({ id, x, y, hdg })

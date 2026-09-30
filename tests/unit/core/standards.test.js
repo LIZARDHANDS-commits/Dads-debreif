@@ -76,7 +76,7 @@ test('the summary lists the standards that are on', () => {
     'Offset #3 aft: 8000 ±1000 ft',
     'Lead: 200 ±10 kt, 1.0 ±0.20 G',
   ]);
-  assert.deepEqual(standardsSummaryLines(only('spread')).length, 2);
+  assert.equal(standardsSummaryLines(only('spread')).length, 2);
 });
 
 test('Turn Sim offset box: #3 in the slot 8,000 ft back is on spacing; outside the slot it is WIDE', () => {

@@ -158,7 +158,8 @@ test('classifyTurnSimPosition matches classifyFormationError with V6\'s numbers'
 
 test('Turn Sim\'s written-in numbers are V6_STANDARDS', () => {
   const body = v6FunctionText('classifyFormationError', { marker: 'const FT_PER_NM=6076.12, KTS_TO_FPS' });
-  for (const n of ['interval<4000', 'interval>6000', 'foreAft>250', 'foreAft<-250', 'aftDistance<7000', 'aftDistance>9000']) assert.ok(body.includes(n), n);
+  for (const n of ['interval<4000', 'interval>6000', 'foreAft>250', 'foreAft<-250', 'aftDistance<7000', 'aftDistance>9000',
+    'foreAftFrom3>250', 'foreAftFrom3<-250', 'minLat-500', 'maxLat+500', 'Math.abs(lat3)>500']) assert.ok(body.includes(n), n);
   const { spread, offset } = V6_STANDARDS;
   assert.deepEqual([spread.minFt, spread.maxFt, spread.foreAftTolFt, offset.aftTargetFt - offset.aftTolFt, offset.aftTargetFt + offset.aftTolFt], [4000, 6000, 250, 7000, 9000]);
 });
