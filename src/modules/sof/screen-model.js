@@ -6,7 +6,7 @@
 //
 // Every weather answer is wx's, through cards.js; nothing here reads a report's text.
 import { formatDtgZulu } from '../../core/time.js';
-import { SOURCES } from '../../wx/sources.js';
+import { SOURCES, staleness } from '../../wx/sources.js';
 import { MINUTE_MS, toDate } from '../../wx/dates.js';
 import { cardModel, formatAge, formatDuration } from './cards.js';
 import { REFRESH_MS } from './weather.js';
@@ -47,6 +47,14 @@ export function feedStatus(snapshot, now) {
     const age = minutesSince(lastRound.at, now);
     const stale = age > STALE_FEED_MIN;
     [words, symbol, tone] = [stale ? `STALE ${formatDuration(age)}` : formatAge(age), stale ? '⚠' : '✓', stale ? 'bad' : 'ok'];
+    // The tick is about the fetch. When the newest METAR observed is itself stale it says that too, from the
+    // observation times (not newestAt, which is fetch time).
+    const seen = Object.values(snapshot.metar ?? {}).map((e) => e?.report).filter((r) => r && !r.nil && r.time && !Number.isNaN(+r.time));
+    const newest = seen.sort((a, b) => +b.time - +a.time)[0];
+    if (newest && staleness('metar', newest, now) === 'stale') {
+      words = `${words}, newest METAR observed ${formatDuration(minutesSince(newest.time, now))} ago`;
+      [symbol, tone] = ['⚠', 'bad'];
+    }
   }
   const answered = [...new Set([...Object.values(snapshot.metar), ...Object.values(snapshot.taf)].map((e) => nameOf(e.source)).filter(Boolean))];
   // When it will try again: the last round plus the refresh interval. Off, it won't.
