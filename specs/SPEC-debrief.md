@@ -115,7 +115,7 @@ Standards fixes from #21 (the classifier itself is `core/standards.js`, core PR 
 
 - A ship with no standard that applies to it shows no label, instead of "ON PARAMETERS".
 - The on-map label turns green when on parameters.
-- **#3 is judged by two standards at once** when both are on: spread says within ±250 ft of Lead's 3/9, offset says 8,000 ft aft, so #3 can never be on parameters. **Proposed fix: when the offset standard is on, it alone judges #3's fore/aft, and the spread standard still judges its interval.** This changes a V6 label, so it waits for a logged decision (open question 1). Until then the debrief keeps V6's labels.
+- **#3 is judged by two standards at once** when both are on: spread says within ±250 ft of Lead's 3/9, offset says 8,000 ft aft, so #3 can never be on parameters. **Proposed fix: when the offset standard is on, it alone judges #3's fore/aft, and the spread standard still judges its interval.** This changes a V6 label, so it waits for a logged decision (open question 1, Q39). Until then the debrief keeps V6's labels.
 
 ### EM chart
 
@@ -228,7 +228,7 @@ export function projectPoint(pt, camera) { ... }
    - Offline after one visit: the debrief opens and the example flight plays if it was loaded before (R6).
    - A hostile file (script in the name, 10 MB note): shown as plain text or refused.
 
-   `tests/e2e/` belongs to the app-frame thread, so the debrief's browser test file is added with that thread's agreement.
+   The debrief owns `tests/e2e/debrief.spec.js` and `docs/checklists/debrief.md` as new files (agreed with the app-frame thread, which owns the rest of `tests/e2e/`).
 4. **Sign-off checklist** `docs/checklists/debrief.md` (R21): load your own ForeFlight tracks, play, switch views, add and save DFPs, reopen the file, check #4 is visible, compare a few numbers with V6 side by side.
 
 ## Boundaries
@@ -259,7 +259,7 @@ It needs, from other threads: `standards.js` (core PR 3) before slice 2, and ui-
 
 ## Open questions
 
-1. **#3 under two standards (#21), new, for Patrick or Dad:** with both spread and offset on, V6 judges #3's fore/aft by both, so #3 is never on parameters. Proposed: the offset standard decides #3's fore/aft, and the spread standard its interval. Until decided, the debrief keeps V6's labels.
+1. **#3 under two standards (#21, Q39), for Patrick or Dad:** with both spread and offset on, V6 judges #3's fore/aft by both, so #3 is never on parameters. Proposed: the offset standard decides #3's fore/aft, and the spread standard its interval. Until decided, the debrief keeps V6's labels.
 2. **Recorded pitch and G on #3 and #4 (Q32), for Dad:** default keeps V6 (in-range values are used) and labels them "recorded".
 3. **Tennis ball (Q33 to Q37), for Dad:** default is the debrief map's solver, unchanged, in both views.
 4. **#4's new colour:** white with a dark outline. Say if you'd prefer another (for example yellow).
