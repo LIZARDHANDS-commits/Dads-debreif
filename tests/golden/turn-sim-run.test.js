@@ -321,3 +321,15 @@ test('Q45, Manual targets: when each aircraft is told to watch the aircraft just
     }
   }
 });
+
+test('SMM item 2, Auto: the flight is V6\'s clock cue flown at 7 o\'clock in a right turn and 5 o\'clock in a left turn', () => {
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const maneuver of ['delayed90away', 'delayed45away']) {
+      for (const direction of DIRECTIONS) {
+        const auto = scenario({ formation, maneuver, direction, timing: 'clock', clockCuePos: 'auto' });
+        const v6 = { ...auto, clockCuePos: direction === 'right' ? '7' : '5' };
+        compareRun(auto, `clock auto ${formation} ${maneuver} ${direction}`, { v6From: v6, legs: 2 });
+      }
+    }
+  }
+});

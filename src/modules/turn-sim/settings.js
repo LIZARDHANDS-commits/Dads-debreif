@@ -73,7 +73,7 @@ export const V6_DEFAULTS = Object.freeze({
   timing: 'time', // 'time' | 'clock' | 'auto'
   baseDelaySec: 16,
   clockCueAircraft: 1, // 1 to 4
-  clockCuePos: 5.5, // one of CLOCK_POSITIONS
+  clockCuePos: '5.5', // 'auto' or one of CLOCK_POSITIONS as text (V6's menu value is text)
   clockCueTolDeg: 4,
   clockCueSequence: 'outsideIn', // 'outsideIn' | 'manual'
   durationSec: 75,
@@ -100,6 +100,9 @@ export const DEFAULTS = Object.freeze({
   baseG: 3.0,
   // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
   boxAftFt: 7000,
+  // SMM item 2 (16.19 paras 52 and 54, Patrick 06:40Z): the inside aircraft turns when the wingman reaches 7 o'clock
+  // in a right turn and 5 o'clock in a left turn. V6: 5:30.
+  clockCuePos: 'auto',
   // Not in V6. The SMM's 10 to 15 s delay for #3 and #4 in the offset box (16.41 para 112, D87).
   // The band is a setting; nothing flies with it yet (task 11).
   rearDelayMinSec: 10,
@@ -120,14 +123,14 @@ const aircraftRules = {
   foreAftDir: oneOf(['none', 'fore', 'aft']),
   foreAftFt: number(0, 20000),
   clockTarget: oneOf(['global', '1', '2', '3', '4']),
-  clockPos: oneOf(['global', ...CLOCK_POSITIONS.map(String)]),
+  clockPos: oneOf(['global', 'auto', ...CLOCK_POSITIONS.map(String)]),
   turnLogic: oneOf(['auto', 'selected', 'right', 'left', 'toward', 'away']),
 };
 
 /**
  * What each setting may be, by key, in the shape the debrief's rules use:
  * { type: 'number', min, max }, { type: 'boolean' } or { type: 'string', oneOf }.
- * A number with `oneOf` may only be one of those values (the clock positions and aircraft ids).
+ * A number with `oneOf` may only be one of those values (the aircraft ids). The clock position is text: 'auto' or a position such as '5.5'.
  * Numbers are finite and in range; Speed is at least 1 kt and Turn degrees run 10 to 180 (todo task 1).
  */
 export const SETTINGS_RULES = Object.freeze({
@@ -155,7 +158,7 @@ export const SETTINGS_RULES = Object.freeze({
   timing: oneOf(['time', 'clock', 'auto']),
   baseDelaySec: number(0, 300),
   clockCueAircraft: numberOneOf([1, 2, 3, 4]),
-  clockCuePos: numberOneOf(CLOCK_POSITIONS),
+  clockCuePos: oneOf(['auto', ...CLOCK_POSITIONS.map(String)]),
   clockCueTolDeg: number(0.1, 45),
   clockCueSequence: oneOf(['outsideIn', 'manual']),
   durationSec: number(5, 600),
@@ -171,7 +174,17 @@ export const SETTINGS_RULES = Object.freeze({
 });
 
 /** The version of the settings document, for storage/settings.js createSettings. */
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
+
+/**
+ * For createSettings' `options.migrate`: settings saved by version 1 kept the clock position as a number (5.5);
+ * from version 2 it is text, because it can also be 'auto'. The saved choice is kept.
+ */
+export function migrateSettings(values, fromVersion) {
+  const out = { ...values };
+  if (fromVersion < 2 && typeof out.clockCuePos === 'number') out.clockCuePos = String(out.clockCuePos);
+  return out;
+}
 
 /**
  * The allowed lists, in the shape createSettings wants as `options.allowed`
@@ -206,7 +219,9 @@ export function settingIsValid(key, value) {
  */
 export function checkSettings(obj) {
   const out = {};
-  const given = obj && typeof obj === 'object' ? obj : {};
+  let given = obj && typeof obj === 'object' ? obj : {};
+  // A version 1 profile has the clock position as a number: keep its choice (see migrateSettings).
+  if (typeof given.clockCuePos === 'number') given = { ...given, clockCuePos: String(given.clockCuePos) };
   for (const key of Object.keys(DEFAULTS)) {
     out[key] = Object.hasOwn(given, key) && settingIsValid(key, given[key]) ? given[key] : DEFAULTS[key];
   }

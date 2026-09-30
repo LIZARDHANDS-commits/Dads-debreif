@@ -127,3 +127,28 @@ test('cue status: #3 and #4 in the offset box at 5:30 are flagged, because V6 ne
   const seven = createRun({ ...V6_DEFAULTS, formation: 'offsetBox', timing: 'clock', clockCuePos: 7 });
   assert.deepEqual(seven.state.aircraft.map((a) => a.cue.cantSee), [false, false, false, false]);
 });
+
+test('SMM item 2, Auto: a right turn cues at 7 o\'clock and a left turn at 5 o\'clock, the side the outside wingman comes back on', () => {
+  // The engine's own run shows which side: in a right turn the outside aircraft (#2, on Lead's left) turns first and
+  // drops back along Lead's LEFT side, so Lead sees it at 7 o'clock (+150° from the nose). In a left turn it is the
+  // right side, 5 o'clock (-150°). Positive bearings are to the left.
+  const right = startsWithBearings({ ...V6_DEFAULTS, timing: 'clock', clockCuePos: 'auto', direction: 'right', durationSec: 100 });
+  assert.ok(Math.abs(right[1].bearing(2) - 150) < 6, `Lead starts when #2 is at ${right[1].bearing(2)}°`);
+  const left = startsWithBearings({ ...V6_DEFAULTS, timing: 'clock', clockCuePos: 'auto', direction: 'left', durationSec: 100 });
+  assert.ok(Math.abs(left[3].bearing(4) + 150) < 6, `#3 starts when #4 is at ${left[3].bearing(4)}°`);
+  // Auto is 7 and 5, and the status lines say so.
+  const status = (direction, clockCuePos = 'auto') => createRun({ ...V6_DEFAULTS, timing: 'clock', clockCuePos, direction }).state.aircraft[0].cue.clockPos;
+  assert.equal(status('right'), 7);
+  assert.equal(status('left'), 5);
+  assert.equal(status('right', '5.5'), 5.5); // a fixed position stays pickable, V6's 5:30 included
+  // The step between aircraft is the same 14.7 s either way: about the 15 s of the SMM's line abreast turn.
+  const step = (direction) => { const t = startTimes({ ...V6_DEFAULTS, timing: 'clock', clockCuePos: 'auto', direction, durationSec: 100 }); return direction === 'right' ? t[1] : t[3]; };
+  assert.ok(step('right') > 14 && step('right') < 15.5, `${step('right')}`);
+  assert.ok(step('left') > 14 && step('left') < 15.5, `${step('left')}`);
+});
+
+test('SMM item 2, Auto: an aircraft can pick Auto for itself while the rest use a fixed position', () => {
+  const run = createRun({ ...V6_DEFAULTS, timing: 'clock', clockCuePos: '5.5', direction: 'left', [aircraftKey(2, 'clockPos')]: 'auto' });
+  assert.equal(run.state.aircraft.find((a) => a.id === 2).cue.clockPos, 5);
+  assert.equal(run.state.aircraft.find((a) => a.id === 1).cue.clockPos, 5.5);
+});

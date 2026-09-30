@@ -13,6 +13,21 @@ import { relativeBearingDeg, clockToRelativeDeg, wrapDeg180 } from '../../../cor
  */
 export const V6_CLOCK_TOLERANCE_DEG = 4;
 
+/**
+ * The clock position "Auto" stands for, in hours: 7 o'clock in a right turn and 5 o'clock in a left turn
+ * (SMM 16.19 paras 52 and 54). The outside aircraft turns first and comes back along the inside aircraft's
+ * far side: on the left in a right turn (7 o'clock), on the right in a left turn (5 o'clock). The engine's own
+ * runs confirm it (tests/unit/turn-sim/cues.test.js).
+ */
+export function autoClockPosHours(direction) {
+  return direction === 'right' ? 7 : 5;
+}
+
+/** A clock position setting as hours: 'auto' by the turn direction, otherwise the number in the text (V6 `parseFloat`). */
+export function resolveClockPos(value, direction) {
+  return value === 'auto' ? autoClockPosHours(direction) : parseFloat(value);
+}
+
 const asCore = (a) => ({ x: a.xFt, y: a.yFt, hdg: a.headingRad });
 
 /**
@@ -21,14 +36,14 @@ const asCore = (a) => ({ x: a.xFt, y: a.yFt, hdg: a.headingRad });
  * through it since the last check. `a` keeps its own last reading (prevClockCueRelDeg) and whether it has
  * triggered (clockCueTriggered), so call it once per step while a waits.
  *
- * cue: { clockPos, toleranceDeg }: the clock position to watch (a number of hours, 5.5 is 5:30) unless `a` has
- * its own (a.clockPos, when not 'global'), and the tolerance in degrees.
+ * cue: { clockPos, direction, toleranceDeg }: the clock position to watch ('auto' or hours, 5.5 is 5:30) unless `a` has
+ * its own (a.clockPos, when not 'global'), the turn direction ('auto' depends on it), and the tolerance in degrees.
  */
 export function clockCueCrossed(a, target, cue) {
   if (!a || !target || a.id === target.id) return false;
   if (a.clockCueTriggered) return true;
   const cueClock = a.clockPos && a.clockPos !== 'global' ? a.clockPos : cue.clockPos;
-  const targetDeg = clockToRelativeDeg(cueClock);
+  const targetDeg = clockToRelativeDeg(resolveClockPos(cueClock, cue.direction));
   const tol = cue.toleranceDeg;
   const cur = wrapDeg180(relativeBearingDeg(asCore(a), asCore(target)) - targetDeg);
   const prev = Number.isFinite(a.prevClockCueRelDeg) ? a.prevClockCueRelDeg : null;
@@ -47,9 +62,9 @@ export function clockCueCrossed(a, target, cue) {
  * The clock position an aircraft watches for, as a number of hours (5.5 is 5:30):
  * its own when it has one, else the global setting.
  */
-export function clockPosHours(a, globalClockPos) {
+export function clockPosHours(a, globalClockPos, direction) {
   const own = a.clockPos && a.clockPos !== 'global' ? a.clockPos : globalClockPos;
-  return parseFloat(own);
+  return resolveClockPos(own, direction);
 }
 
 /**
@@ -60,10 +75,10 @@ export function clockPosHours(a, globalClockPos) {
  *   clockPos: the position it watches for, in hours (5.5 is 5:30)
  *   cantSee: true for #3 and #4 in the offset box at 5:30, which V6 never turns (issue #16, Q44c); the screen says so.
  *
- * `aircraft` is an internal aircraft; cue: { timing, clockCuePos, formation }.
+ * `aircraft` is an internal aircraft; cue: { timing, clockCuePos, direction, formation }.
  */
 export function cueStatus(a, cue) {
-  const clockPos = clockPosHours(a, cue.clockCuePos);
+  const clockPos = clockPosHours(a, cue.clockCuePos, cue.direction);
   if (cue.timing !== 'clock') return { mode: 'off', targetId: null, clockPos, cantSee: false };
   const targetId = a.autoClockTargetId || null;
   const mode = !targetId ? 'start' : a.clockCueTriggered || a.active || a.done ? 'triggered' : 'waiting';

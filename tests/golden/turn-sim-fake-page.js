@@ -52,7 +52,7 @@ export function v6Boxes(s, { readsClockTolerance = false } = {}) {
     triggerMode: box(s.timing),
     baseDelay: box(s.baseDelaySec),
     clockCueAircraft: box(s.clockCueAircraft),
-    clockCuePos: box(s.clockCuePos, { options: clockOptions, selectedIndex: CLOCK_POSITIONS.indexOf(s.clockCuePos) }),
+    clockCuePos: box(s.clockCuePos, { options: clockOptions, selectedIndex: CLOCK_POSITIONS.indexOf(Number(s.clockCuePos)) }),
     // V6 line 1498 reads `+$('clockCueTol')`, the box and not its value: NaN, so it always used 4° (issue #32).
     // `readsClockTolerance` makes the box turn into its number, which is what V6 meant to read.
     clockCueTol: box(s.clockCueTolDeg, readsClockTolerance ? { valueOf: () => Number(s.clockCueTolDeg) } : {}),

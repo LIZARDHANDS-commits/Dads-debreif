@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   V6_DEFAULTS, DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, CLOCK_POSITIONS,
-  aircraftKey, aircraftSettings, checkSettings, settingIsValid,
+  aircraftKey, aircraftSettings, checkSettings, settingIsValid, migrateSettings,
 } from '../../../src/modules/turn-sim/settings.js';
 import { createSettings } from '../../../src/storage/settings.js';
 import { v6Page } from '../../golden/v6-source.js';
@@ -28,7 +28,7 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
     rearCheckAngleDeg: +box('rearCheckAngle'), rearCheckHoldSec: +box('rearCheckHold'),
     maneuver: box('maneuver'), direction: box('dir'), speedKt: +box('speed'), baseG: +box('gload'), turnDeg: +box('turnDeg'),
     timing: box('triggerMode'), baseDelaySec: +box('baseDelay'), clockCueAircraft: +box('clockCueAircraft'),
-    clockCuePos: +box('clockCuePos'), clockCueTolDeg: +box('clockCueTol'), clockCueSequence: box('clockCueSequence'),
+    clockCuePos: box('clockCuePos'), clockCueTolDeg: +box('clockCueTol'), clockCueSequence: box('clockCueSequence'),
     durationSec: +box('duration'), moaBoundaryNm: +box('moaBoundaryNM'),
     correction: box('correction'), correctionStrength: +box('corrStrength'),
     solveFor: box('solveFor'), targetSpacingFt: +box('targetSpacing'),
@@ -36,13 +36,15 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
   for (const [key, value] of Object.entries(v6)) assert.equal(V6_DEFAULTS[key], value, key);
 });
 
-test('the rebuild\'s defaults are V6\'s except G 3.0 (D113) and the offset box aft 7,000 ft (D114)', () => {
+test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 7,000 ft (D114) and the clock position Auto (SMM item 2)', () => {
   const changed = Object.keys(V6_DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
-  assert.deepEqual(changed, ['baseG', 'boxAftFt']);
+  assert.deepEqual(changed, ['baseG', 'boxAftFt', 'clockCuePos']);
   assert.equal(V6_DEFAULTS.baseG, 2.0);
   assert.equal(V6_DEFAULTS.boxAftFt, 8000);
   assert.equal(DEFAULTS.baseG, 3.0);
   assert.equal(DEFAULTS.boxAftFt, 7000);
+  assert.equal(V6_DEFAULTS.clockCuePos, '5.5');
+  assert.equal(DEFAULTS.clockCuePos, 'auto');
 });
 
 test('V6 gives every aircraft no error, the global clock cue and auto turn logic', () => {
@@ -80,7 +82,7 @@ test('the rules say what the todo says: Speed at least 1 kt, Turn degrees 10 to 
 test('bad values are refused and the default is used instead', () => {
   const clean = checkSettings({
     speedKt: 0, turnDeg: 5, spacingFt: NaN, baseG: '3', formation: 'trail', direction: 'up', showNm: 'yes',
-    clockCuePos: 5.7, clockCueAircraft: 9, 'aircraft2.turnLogic': 'sideways', 'aircraft3.gError': Infinity, extra: 1,
+    clockCuePos: '5.7', clockCueAircraft: 9, 'aircraft2.turnLogic': 'sideways', 'aircraft3.gError': Infinity, extra: 1,
   });
   assert.equal(clean.speedKt, DEFAULTS.speedKt);
   assert.equal(clean.turnDeg, DEFAULTS.turnDeg);
@@ -97,11 +99,11 @@ test('bad values are refused and the default is used instead', () => {
 });
 
 test('good values are kept, and anything at all gives a full settings object', () => {
-  const clean = checkSettings({ speedKt: 1, turnDeg: 180, formation: 'twoShip', clockCuePos: 12, 'aircraft4.foreAftDir': 'aft', 'aircraft4.foreAftFt': 500 });
+  const clean = checkSettings({ speedKt: 1, turnDeg: 180, formation: 'twoShip', clockCuePos: '12', 'aircraft4.foreAftDir': 'aft', 'aircraft4.foreAftFt': 500 });
   assert.equal(clean.speedKt, 1);
   assert.equal(clean.turnDeg, 180);
   assert.equal(clean.formation, 'twoShip');
-  assert.equal(clean.clockCuePos, 12);
+  assert.equal(clean.clockCuePos, '12');
   assert.equal(clean['aircraft4.foreAftFt'], 500);
   for (const junk of [null, undefined, 5, 'text', [], () => 1]) assert.deepEqual({ ...checkSettings(junk) }, { ...DEFAULTS });
   assert.ok(Object.isFrozen(checkSettings({})));
@@ -129,4 +131,20 @@ test('storage/settings.js accepts the defaults, the allowed lists and the versio
   assert.equal(settings.get().maneuver, 'hook90');
   assert.equal(settings.get().speedKt, 250);
   assert.equal(settings.get().direction, 'right'); // not in the allowed list
+});
+
+test('the clock position is text, "auto" is allowed, and version 1 numbers are migrated and kept', () => {
+  assert.equal(SETTINGS_VERSION, 2);
+  assert.equal(settingIsValid('clockCuePos', 'auto'), true);
+  assert.equal(settingIsValid('clockCuePos', '7'), true);
+  assert.equal(settingIsValid('clockCuePos', 7), false);
+  assert.equal(settingIsValid('clockCuePos', '5.7'), false);
+  assert.equal(settingIsValid('aircraft2.clockPos', 'auto'), true);
+  assert.equal(migrateSettings({ clockCuePos: 5.5, speedKt: 250 }, 1).clockCuePos, '5.5');
+  assert.equal(migrateSettings({ clockCuePos: 5.5, speedKt: 250 }, 1).speedKt, 250);
+  assert.equal(checkSettings({ clockCuePos: 7 }).clockCuePos, '7'); // an old profile keeps its choice
+  const store = { get: () => ({ version: 1, values: { clockCuePos: 4.5, baseG: 4 } }), set() {} };
+  const settings = createSettings(store, DEFAULTS, { version: SETTINGS_VERSION, allowed: SETTINGS_ALLOWED, migrate: migrateSettings });
+  assert.equal(settings.get().clockCuePos, '4.5');
+  assert.equal(settings.get().baseG, 4);
 });

@@ -153,7 +153,7 @@ export function createRun(settings) {
         bankDeg: a.active ? bankDegFromG(g) : 0,
         g,
         done: a.done,
-        cue: cueStatus(preview[i], { timing: cfg.timing, clockCuePos: cfg.clockCuePos, formation }),
+        cue: cueStatus(preview[i], { timing: cfg.timing, clockCuePos: cfg.clockCuePos, direction: cfg.direction, formation }),
       });
     }
   }
@@ -248,6 +248,7 @@ export function createRun(settings) {
     moveAircraft(craft, {
       tSec,
       timing: cfg.timing,
+      direction: cfg.direction,
       clockCueAircraft: cfg.clockCueAircraft,
       clockCuePos: cfg.clockCuePos,
       clockCueTolDeg: cfg.clockCueTolDeg,

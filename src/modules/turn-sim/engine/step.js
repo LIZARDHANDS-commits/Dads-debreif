@@ -40,7 +40,7 @@ function mayTurn(a, aircraft, tSec, flight) {
   if (flight.timing !== 'clock' || !a.cueArmed) return tSec >= a.turnStartSec;
   const target = a.autoClockTargetId ? aircraft.find((x) => x.id === a.autoClockTargetId) : cueTargetForAircraft(a, aircraft, flight.clockCueAircraft);
   if (!target || target.id === a.id) return tSec >= a.turnStartSec;
-  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
+  return clockCueCrossed(a, target, { clockPos: flight.clockCuePos, direction: flight.direction, toleranceDeg: +flight.clockCueTolDeg || V6_CLOCK_TOLERANCE_DEG });
 }
 
 /**
@@ -53,7 +53,7 @@ function mayTurn(a, aircraft, tSec, flight) {
  * aircraft: the active aircraft, changed in place. Each has xFt, yFt, headingRad,
  *   gError, turnStartSec, turnDir (+1 counter-clockwise, -1 clockwise), turnGoalRad, turnAccumRad,
  *   active, done, shackleReturn, turnPhase, originalHeadingRad.
- * flight: { tSec, timing, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
+ * flight: { tSec, timing, direction, clockCueAircraft, clockCuePos, clockCueTolDeg, speedFtps, baseG, turnDegDefault, correction, correctionStrength }
  *   tSec is the time at the start of the step. turnDegDefault is V6's Turn degrees
  *   box, used when an aircraft has no goal of its own.
  *
