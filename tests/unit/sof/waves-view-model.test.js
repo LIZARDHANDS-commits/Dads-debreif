@@ -20,8 +20,8 @@ const w = (id, takeoff, land, name = '') => ({ id, name, takeoff, land });
 const plan = (waves, day = 'today') => ({ version: 1, day, dayChosen: null, waves });
 const GOOD_ALTS = { CYQR: taf(ALT_TAF.good), CYYN: taf('TAF CYYN 291740Z 2918/3018 27010KT P6SM FEW080'), CYXE: taf('TAF CYXE 291740Z 2918/3018 28012KT P6SM FEW080') };
 
-function model({ waves = [], day, tafs = {}, limits = LOCAL, selectedId, timeZone = ZONE, now = NOW } = {}) {
-  return buildWaves({ plan: plan(waves, day), airfields: airfields(), tafs, limits, now, timeZone, selectedId });
+function model({ waves = [], day, tafs = {}, limits = LOCAL, selectedId, timeZone = ZONE, now = NOW, tafNotes } = {}) {
+  return buildWaves({ plan: plan(waves, day), airfields: airfields(), tafs, limits, now, timeZone, selectedId, tafNotes });
 }
 
 // The TAFs are valid 18Z to 06Z (12:00 to 24:00 at home). Early afternoon 12:30-14:00 local is 18:30-20:00Z, the
@@ -228,4 +228,43 @@ test('waves the model reports in UTC are the ones the timeline and the banner us
   assert.equal(m.waves[0].name, 'W2', 'named by its place in the plan');
   assert.equal(m.calls.length, 1);
   assert.equal(m.calls[0].wave, m.waves[0]);
+});
+
+// ---- A TAF that is stale or failed is said on the chip, never shown as plainly fine -----------------------------
+
+const STALE = { stale: true, failed: false, note: 'STALE TAF, valid period ended 5 min ago' };
+
+test('a chip on a stale home TAF says so in its reason and is not a plain tick', () => {
+  const tafs = { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS };
+  const plain = model({ waves: [EARLY], tafs }).rows[0].chip;
+  assert.equal(plain.tone, 'ok');
+  const { chip } = model({ waves: [EARLY], tafs, tafNotes: { CYMJ: STALE } }).rows[0];
+  assert.equal(chip.reason, '(STALE TAF, valid period ended 5 min ago)');
+  assert.equal(chip.tone, 'unknown');
+  assert.equal(chip.symbol, '?');
+  assert.equal(chip.words, plain.words, 'the call itself is wx\'s, unchanged');
+});
+
+test('a stale TAF is added after the first reason when there is one, and the tone stays that of the call', () => {
+  const m = model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS } });
+  const base = model({ waves: [EARLY, w('w2', '15:30', '17:00')], tafs: { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS } }).rows[1].chip;
+  const noted = model({ waves: [EARLY, w('w2', '15:30', '17:00')], tafs: { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS }, tafNotes: { CYMJ: STALE } }).rows[1].chip;
+  assert.ok(m.rows[0].chip);
+  assert.equal(noted.reason, base.reason ? `${base.reason} (STALE TAF, valid period ended 5 min ago)` : '(STALE TAF, valid period ended 5 min ago)');
+  assert.equal(noted.tone, base.tone === 'ok' ? 'unknown' : base.tone);
+});
+
+test('a failed refresh of the home TAF is said on the chip too', () => {
+  const failed = { stale: false, failed: true, note: 'TAF refresh failed, showing the last one' };
+  const { chip } = model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS }, tafNotes: { CYMJ: failed } }).rows[0];
+  assert.match(chip.reason, /TAF refresh failed, showing the last one/);
+});
+
+test('an alternate on a stale TAF says so on its card line and in the list of hits', () => {
+  const m = model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS }, tafNotes: { CYQR: STALE } });
+  assert.match(m.altLines.get('CYQR').reason ?? '', /STALE TAF, valid period ended 5 min ago/);
+  assert.equal(m.altLines.get('CYYN').reason, model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.lowFromEvening), ...GOOD_ALTS } }).altLines.get('CYYN').reason, 'the others are unchanged');
+  const alt = m.detail.alternates.find((a) => a.icao === 'CYQR');
+  assert.match(alt.why ?? '', /STALE TAF/);
+  assert.equal(alt.tone === 'ok', false, 'not a plain tick');
 });

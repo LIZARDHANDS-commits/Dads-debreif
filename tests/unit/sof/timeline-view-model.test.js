@@ -27,9 +27,9 @@ const GOOD = {
   CYXE: taf('TAF CYXE 291740Z 2918/3018 28012KT P6SM FEW080'),
 };
 
-function view({ tafs = {}, metars = {}, limits = LOCAL, waves: w = [], day = 'today', timePrimary, now = NOW, timeZone = ZONE, airfields = fields() } = {}) {
+function view({ tafs = {}, metars = {}, limits = LOCAL, waves: w = [], day = 'today', timePrimary, now = NOW, timeZone = ZONE, airfields = fields(), tafNotes } = {}) {
   const snapshot = { taf: tafs, metar: metars };
-  return buildTimelineView({ airfields, snapshot, limits, waves: w, day, now, timeZone, timePrimary });
+  return buildTimelineView({ airfields, snapshot, limits, waves: w, day, now, timeZone, timePrimary, tafNotes });
 }
 const row = (v, icao) => v.rows.find((r) => r.icao === icao);
 
@@ -251,4 +251,40 @@ test('Down skips a row with no pieces, and other keys and unknown pieces do noth
   assert.ok(row(v, 'CYXE').pieces.some((p) => p.id === next), 'jumps over the rows with nothing to focus');
   assert.equal(moveFocus(v, home.id, 'x'), null);
   assert.equal(moveFocus(v, 'nope', 'ArrowRight'), null);
+});
+
+// ---- A TAF that is stale or failed is said on its row, in words -------------------------------------------------
+
+const STALE = { stale: true, failed: false, note: 'STALE TAF, valid period ended 5 min ago' };
+
+test('a row on a stale TAF says so in its words and its aria label, and so does each of its pieces', () => {
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD };
+  const plain = row(view({ tafs }), 'CYMJ');
+  assert.equal(plain.words, null);
+  const noted = row(view({ tafs, tafNotes: { CYMJ: STALE } }), 'CYMJ');
+  assert.equal(noted.words, '(STALE TAF, valid period ended 5 min ago)');
+  assert.match(noted.ariaLabel, /: \(STALE TAF, valid period ended 5 min ago\)$/);
+  assert.match(noted.pieces[0].card, /\(STALE TAF, valid period ended 5 min ago\)$/);
+  assert.equal(noted.pieces[0].ariaLabel, noted.pieces[0].card);
+  assert.equal(row(view({ tafs, tafNotes: { CYMJ: STALE } }), 'CYQR').words, null, 'only the row on that TAF');
+});
+
+test('the note follows the words a row already has, such as a cancelled TAF that is also out of date', () => {
+  const tafs = { CYMJ: taf('TAF CYMJ 291740Z 2918/3006 CNL') };
+  const r = row(view({ tafs, tafNotes: { CYMJ: STALE } }), 'CYMJ');
+  assert.equal(r.words, 'TAF cancelled (STALE TAF, valid period ended 5 min ago)');
+});
+
+test('a failed refresh is said on the row', () => {
+  const failed = { stale: false, failed: true, note: 'TAF refresh failed, showing the last one' };
+  const r = row(view({ tafs: { CYMJ: taf(HOME_TAF.good), ...GOOD }, tafNotes: { CYMJ: failed } }), 'CYMJ');
+  assert.equal(r.words, '(TAF refresh failed, showing the last one)');
+});
+
+test('the picture is redrawn when a note appears or goes: the signature changes', () => {
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD };
+  const a = view({ tafs }).signature;
+  const b = view({ tafs, tafNotes: { CYMJ: STALE } }).signature;
+  assert.notEqual(a, b);
+  assert.equal(b, view({ tafs, tafNotes: { CYMJ: STALE } }).signature);
 });

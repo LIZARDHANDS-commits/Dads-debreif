@@ -16,6 +16,7 @@ import { createPlanStore } from './plan-store.js';
 import { buildWaves } from './waves-view-model.js';
 import { createWavesView } from './waves-view.js';
 import { buildTimelineView } from './timeline-view-model.js';
+import { tafNotes } from './taf-state.js';
 import { createTimelineView } from './timeline-view.js';
 
 const STYLESHEET = new URL('./sof.css', import.meta.url).href;
@@ -89,7 +90,8 @@ function mount(root, app) {
     const limits = settings.get();
     const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now });
     const tafs = Object.fromEntries(Object.entries(snapshot.taf).map(([icao, entry]) => [icao, entry?.report ?? null]));
-    const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId });
+    const notes = tafNotes({ snapshot, now }); // a stale or failed TAF is said on the chips and the timeline rows too
+    const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });
     banner = buildBanner({
       cards: screen.cards,
       tafs: tafInputs({ tafs, calls: waves.calls, homeIcao: app.airfields.home().icao, now, timeZone: app.time.zone }),
@@ -115,6 +117,7 @@ function mount(root, app) {
       day: waves.day,
       now,
       timeZone: app.time.zone,
+      tafNotes: notes,
       timePrimary: app.settings?.get().timePrimary, // Settings' time order: Zulu first unless local is chosen
     }));
     ui.setBusy(snapshot.busy);

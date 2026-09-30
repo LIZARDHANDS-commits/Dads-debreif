@@ -7,6 +7,7 @@ import { formatInZone } from '../../core/time.js';
 import { timelineModel, timelineSignature, stepPiece } from './timeline.js';
 import { snapLimits } from './settings-model.js';
 import { dayLabel } from './waves-view-model.js';
+import { withTafNote } from './taf-state.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const hhmm = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}`;
@@ -50,8 +51,9 @@ function packLanes(pieces) {
   });
 }
 
-function pieceView(icao, p, lane, timeZone, zone) {
-  const card = `${icao} ${p.text}. Zulu ${hhmm(p.fullFrom)}–${hhmm(p.fullTo)}, local ${localClock(p.fullFrom, timeZone)}–${localClock(p.fullTo, timeZone)} ${zone}.${p.summary ? ` Conditions: ${p.summary}.` : ''}`;
+function pieceView(icao, p, lane, timeZone, zone, state) {
+  const said = `${icao} ${p.text}. Zulu ${hhmm(p.fullFrom)}–${hhmm(p.fullTo)}, local ${localClock(p.fullFrom, timeZone)}–${localClock(p.fullTo, timeZone)} ${zone}.${p.summary ? ` Conditions: ${p.summary}.` : ''}`;
+  const card = state?.note ? `${said} (${state.note})` : said;
   return {
     id: p.id,
     kind: p.kind,
@@ -71,19 +73,21 @@ function pieceView(icao, p, lane, timeZone, zone) {
   };
 }
 
-function rowView(r, timeZone, zone) {
-  const pieces = packLanes(r.pieces).map((lane, i) => pieceView(r.icao, r.pieces[i], lane, timeZone, zone));
+function rowView(r, timeZone, zone, state) {
+  const pieces = packLanes(r.pieces).map((lane, i) => pieceView(r.icao, r.pieces[i], lane, timeZone, zone, state));
+  // A row drawn from a stale TAF, or one that failed to refresh, says so beside whatever else it says.
+  const words = state?.note ? withTafNote(r.words, state) : r.words;
   const lanes = 1 + Math.max(0, ...pieces.map((p) => p.lane));
   return {
     icao: r.icao,
     role: r.role,
     state: r.state,
-    words: r.words,
+    words,
     pieces,
     lanes,
     metar: r.metar?.visible ? { left: pct(r.metar.x), label: r.metar.label } : null,
     coverage: r.coverage ? { left: pct(r.coverage.x0), width: pct(r.coverage.x1 - r.coverage.x0) } : null,
-    ariaLabel: `${r.icao} ${r.role === 'HOME' ? 'home' : 'alternate'}${r.metar?.visible ? `, latest ${r.metar.label}` : ''}${r.words ? `: ${r.words}` : ''}`,
+    ariaLabel: `${r.icao} ${r.role === 'HOME' ? 'home' : 'alternate'}${r.metar?.visible ? `, latest ${r.metar.label}` : ''}${words ? `: ${words}` : ''}`,
   };
 }
 
@@ -107,9 +111,10 @@ function waveView(w) {
  * 'local' (Zulu first by default). Returns `{ problem, title, signature, axis, rows, waves, now }`:
  * every position is a percentage of the day, `signature` changes only when what is drawn
  * changes (not when the now line moves), and `now` is `{ left, minute, label }` or null.
+ * `tafNotes` is taf-state.js's answer: a row on a stale or failed TAF says so.
  * @param {any} [args]
  */
-export function buildTimelineView({ airfields, snapshot, limits, waves = [], day = 'today', now, timeZone, timePrimary = 'zulu' } = {}) {
+export function buildTimelineView({ airfields, snapshot, limits, waves = [], day = 'today', now, timeZone, timePrimary = 'zulu', tafNotes = {} } = {}) {
   const model = /** @type {any} */ (timelineModel)({
     rows: timelineRows({ airfields, snapshot, limits }),
     waves,
@@ -118,7 +123,10 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
     day,
     first: timePrimary === 'local' ? 'local' : 'utc',
   });
-  const signature = timelineSignature(model, { now: false });
+  // What the notes say is part of the picture, so it is redrawn when one appears or goes.
+  const said = Object.entries(tafNotes).filter(([, n]) => n?.note).map(([icao, n]) => [icao, n.note]);
+  const drawn = timelineSignature(model, { now: false });
+  const signature = said.length ? JSON.stringify([drawn, said]) : drawn;
   if (model.problem) return { problem: model.problem, title: '24-hour timeline', signature, axis: [], rows: [], waves: [], now: null };
   return {
     problem: null,
@@ -129,7 +137,7 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
       label: a.label,
       ticks: a.ticks.map((t) => ({ left: pct(t.x), label: t.label, dayLabel: t.dayLabel })),
     })),
-    rows: model.rows.map((r) => rowView(r, timeZone, model.zone)),
+    rows: model.rows.map((r) => rowView(r, timeZone, model.zone, tafNotes[r.icao])),
     waves: model.waves.map(waveView),
     now: model.now ? { left: pct(model.now.x), minute: model.now.minute, label: `Now ${hhmm(model.now.at)}Z` } : null,
   };

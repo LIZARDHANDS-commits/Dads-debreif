@@ -4,6 +4,7 @@
 // for each wave, the list of hits for the selected wave, and a line for each alternate
 // card. Nothing here reads a report or judges the weather.
 import { planToUtc, waveCalls, MAX_WAVES } from './waves.js';
+import { withTafNote } from './taf-state.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const HOUR_MS = 3_600_000;
@@ -40,39 +41,46 @@ export function resolveSelected(rows, selectedId) {
   return callable[0]?.id ?? null;
 }
 
-function chipOf(row, call) {
+// A call made on a TAF that is stale, or that failed to refresh, is never a plain tick: an "ok" becomes
+// "unknown" beside the note. A call that is already below, required or at the limit keeps its tone.
+const toneWith = (tone, state) => (state?.note && tone === 'ok' ? 'unknown' : tone);
+
+function chipOf(row, call, notes, homeIcao) {
   const { home } = call;
+  const state = notes[homeIcao];
+  const tone = toneWith(home.tone, state);
   return {
     words: home.words,
-    tone: home.tone,
-    symbol: symbolOf(home.tone),
-    reason: reasonOf(home),
+    tone,
+    symbol: symbolOf(tone),
+    reason: withTafNote(reasonOf(home), state),
     limits: home.label,
     alternates: call.of ? `${call.meeting} of ${call.of} alternate${call.of === 1 ? '' : 's'} meet` : null,
   };
 }
 
-function detailOf(row, call) {
+function detailOf(row, call, notes, homeIcao) {
   const { home } = call;
+  const homeState = notes[homeIcao];
   return {
     id: row.id,
     title: `${row.title} (${row.zulu})`,
     home: {
       words: home.words,
-      tone: home.tone,
-      symbol: symbolOf(home.tone),
+      tone: toneWith(home.tone, homeState),
+      symbol: symbolOf(toneWith(home.tone, homeState)),
       limits: home.label,
-      why: home.why,
+      why: homeState?.note ? withTafNote(home.why, homeState) : home.why,
       lines: home.details.map(lineOf),
     },
     alternates: call.alternates.map((a) => ({
       icao: a.icao,
       words: a.words,
-      tone: a.tone,
-      symbol: symbolOf(a.tone),
+      tone: toneWith(a.tone, notes[a.icao]),
+      symbol: symbolOf(toneWith(a.tone, notes[a.icao])),
       minima: a.minimaText,
       note: a.note,
-      why: a.why,
+      why: notes[a.icao]?.note ? withTafNote(a.why, notes[a.icao]) : a.why,
       warnings: a.warnings ?? [],
       lines: a.details.map(lineOf),
     })),
@@ -80,12 +88,13 @@ function detailOf(row, call) {
   };
 }
 
-function altLinesOf(row, call) {
+function altLinesOf(row, call, notes) {
   const lines = new Map();
   const around = (t, sign) => new Date(+t + sign * HOUR_MS);
   const label = `${row.name} arrival ${range(around(call.wave.land, -1), around(call.wave.land, 1))}Z`;
   for (const a of call.alternates) {
-    lines.set(a.icao, { label, words: a.words, tone: a.tone, symbol: symbolOf(a.tone), reason: reasonOf(a), note: a.note });
+    const tone = toneWith(a.tone, notes[a.icao]);
+    lines.set(a.icao, { label, words: a.words, tone, symbol: symbolOf(tone), reason: withTafNote(reasonOf(a), notes[a.icao]), note: a.note });
   }
   return lines;
 }
@@ -96,6 +105,7 @@ function altLinesOf(row, call) {
  * - `plan`: plan-store.js's `get()`: `{ day, waves: [{ id, name, takeoff, land }] }`.
  * - `airfields`: app.airfields. `tafs`: ICAO to wx's parsed TAF (or null). `limits`: the home limits.
  * - `now`, `timeZone`: the clock and the home zone; nothing is guessed without them.
+ * - `tafNotes`: taf-state.js's answer, so a call made on a stale or failed TAF says so.
  * - `selectedId`: `undefined` (the first wave with a call), `null` (none) or a wave's id.
  *
  * Returns `{ problem, day, dayLabel, zone, rows, canAdd, limitNote, selectedId, detail, altLines,
@@ -106,7 +116,8 @@ function altLinesOf(row, call) {
  * timeline and the banner.
  * @param {any} [args]
  */
-export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, selectedId } = {}) {
+export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, selectedId, tafNotes = {} } = {}) {
+  const homeIcao = airfields.home().icao;
   const entries = plan.waves;
   const planned = /** @type {any} */ (planToUtc)(entries, { now, timeZone, day: plan.day });
   const skipped = new Map(planned.skipped.map((s) => [s.index, s]));
@@ -131,7 +142,7 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
       note: skip ? skip.problem : wave?.nextDay ? 'Lands the next day' : '',
       chip: null,
     };
-    if (call) row.chip = chipOf(row, call);
+    if (call) row.chip = chipOf(row, call, tafNotes, homeIcao);
     row.call = call ?? null;
     return row;
   });
@@ -147,8 +158,8 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
     canAdd: entries.length < MAX_WAVES,
     limitNote: entries.length >= MAX_WAVES ? `Up to ${MAX_WAVES} waves` : '',
     selectedId: chosen,
-    detail: selected ? detailOf(selected, selected.call) : null,
-    altLines: selected ? altLinesOf(selected, selected.call) : new Map(),
+    detail: selected ? detailOf(selected, selected.call, tafNotes, homeIcao) : null,
+    altLines: selected ? altLinesOf(selected, selected.call, tafNotes) : new Map(),
     waves: planned.waves,
     calls,
   };
