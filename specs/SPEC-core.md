@@ -32,7 +32,7 @@ In `core`:
 | `geo.js` | The debrief's flat local map (lat/lon ↔ feet), map tiles, Mercator | 1 |
 | `time.js` | Zulu and zone-aware formatting, KML time parsing, the Zulu DTG | 1 |
 | `flight-math.js` | Turn radius and rate, bank from G, ISA density ratio and IAS estimate, closure, estimated G, the EM chart point | 2 |
-| `tennis.js` | Both of V6's tennis-ball solvers, unchanged, until one is chosen (#19) | 2 |
+| `tennis.js` | The tennis ball: one solver for both views, V6's debrief solver changed as Patrick decided (D62, D63) | 2, 3 |
 | `standards.js` | Formation standards classifier (debrief and Turn Sim) and V6's default standards preset (R18) | 3 |
 
 Not in `core`: resolving a TAF's day-of-month into a date (`wx` owns it, in `src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
@@ -79,7 +79,7 @@ Changes made while porting, none of which changes a number:
 | `isaDensityRatio`, `emPoint` | EM chart `isaRhoRatio` 4154, `metrics` 4158 |
 | `closureKt`, `formatClosureKt` | debrief `closureRateKt` 3119, `fmtClosureKt` 3131 |
 | `gFromTrack` | debrief `estimatedGAtTrack` 2462 |
-| `tennisDebrief`, `tennis3D` | debrief `getKmlTennisSolution` 3140, 3D `draw3DDogfightArc` 3970 |
+| `tennisBall` (PR 2 had `tennisDebrief` and `tennis3D`) | debrief `getKmlTennisSolution` 3140; V6's 3D `draw3DDogfightArc` 3970 was pinned, then dropped |
 
 Changes made while porting:
 
@@ -108,7 +108,7 @@ Changes made while porting:
 
 ## Things `core` will flag, not choose
 
-- **Two tennis-ball solvers disagree** (issue #19): the debrief's `getKmlTennisSolution` (line 3140) and the 3D view's `draw3DDogfightArc` (line 3970). Both are in `tennis.js`, each pinned to V6. [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md) lists every difference, four moments where the verdicts split, and five questions for Dad. Which one survives is for Patrick and Dad.
+- **Two tennis-ball solvers disagreed** (issue #19). **Decided by Patrick on 2026-09-30 (D62, D63):** one solver, `tennisBall`. It is the debrief's, pinned to V6 in PR 2, and then changed one answer at a time in PR 3. The ball carries the shooter's whole velocity, climb included. The target flies its recorded path, climb included. The cone is ±3° for a width of 6, and INTERCEPT needs the target in the cone; these two are flagged for review later. The golden test still matches V6 when given V6's straight, level target path and no climb, apart from the cone rule. [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md) keeps the comparison that led here.
 - **#3 judged by two standards at once** (#21, Q39): with spread and offset both on, V6 judges #3's fore/aft by both, so #3 is never "ON PARAMETERS" and can read "FORE / FORE" or "AFT / FORE". An aircraft no standard checks still reads "ON PARAMETERS". `standards.js` keeps both, pinned by unit tests, until Q39 is decided; the debrief spec proposes that the offset standard alone judges #3's fore/aft.
 - **Below 1 G, Turn Sim's turn goes to NaN.** Turn Sim's G correction (line 1583) adds up to −0.8 G after the 1.01 limit. So when base G plus the aircraft's G error is under 1.8, a wingman's G can drop below 1 (at exactly 1.8 it reaches 1 G, and the turn rate is 0). Then `turnRateRadPerSec` gives NaN, as V6's `turnRate` does, and that aircraft's position becomes NaN. This was read from the code, not run. The Turn Sim port should limit G after the correction; that changes behaviour, so it needs a decision.
 - **Fixes Dad approved (D39 to D47):** EM turn rate without the divide by 2 (D39); 3D bank from the real rate, correct wing down, G only in level turns (D40); Turn Sim toward/away (D41) and wide/tight (D42); auto timing (D43, D44); compass start heading (D45); true circular arcs in Traffic (D46); recorded bank and estimated blank pitch (D47). Under D10, each function is first ported and pinned to V6's number, and the fix then lands as its own change that updates the golden value. None of them touches PR 1's functions. D39 landed in the second PR. Q31 is answered (Patrick, 2026-09-30): in 4312, #2 flies on lead's left, as V6 draws it. In real life it depends on how the formation joined, so the Turn Sim port should make the side a setting with left as the default.
@@ -172,7 +172,7 @@ The tasks, checkpoints and risks are in [`tasks/flight-math/plan.md`](../tasks/f
 
 ## Open questions
 
-1. The tennis-ball solvers: which one the rebuild keeps, or how to merge them. The questions for Dad are in [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md).
+1. The tennis ball's cone width and the in-cone rule for INTERCEPT (D63) are to be reviewed later.
 2. Guard against infinite input inside `core`, or only at the screen (see above)? The default is at the screen only.
 3. Should the Turn Sim port limit G after its G correction, so a wingman never drops below 1 G? The default is to keep V6's order until this is decided.
 4. Q39: should the offset standard alone judge #3's fore/aft when both standards are on? The default keeps V6's labels until this is decided.

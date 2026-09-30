@@ -42,6 +42,7 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 
 ### Phase 3: standards (PR 3)
 - [x] Task 10: formation standards classifiers and V6's default preset
+- [x] Tennis ball: Patrick's answers (D62, D63), one change each, then one solver
 
 ### Later, with the screens that use them
 - [ ] Task 11: 3D attitude estimate, then D40 and D47
@@ -68,7 +69,7 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 
 ## Open questions
 
-- Which tennis-ball solver the rebuild keeps (questions in `tennis-ball.md`).
+- Tennis ball: review the cone width and the in-cone rule for INTERCEPT later (D63).
 - Q39: whether the offset standard alone judges #3's fore/aft.
 - Whether Turn Sim limits G after its correction, so G never drops below 1 (SPEC-core, flagged).
 - Whether `core` should also guard against infinite input (default: only the screens do).
