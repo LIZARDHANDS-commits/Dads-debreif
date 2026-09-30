@@ -555,6 +555,8 @@ test('the banner switch in settings turns the banner off and on, is kept, and th
   await settingsButton(page).click();
   const switchBox = page.getByLabel('Show the new-caution banner');
   await expect(switchBox).toBeChecked();
+  // F6: the hint no longer claims the cards show lightning, which is only in the map strip.
+  await expect(page.locator('.sof-hint').filter({ hasText: 'lightning shows in the map strip' })).toContainText('every weather caution either way');
   await switchBox.focus();
   await page.keyboard.press('Space');
   await expect(switchBox).not.toBeChecked();

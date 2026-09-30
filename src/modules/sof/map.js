@@ -29,7 +29,7 @@ import {
 import {
   cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
 } from './map-layers.js';
-import { airfieldMarks, mapCredits, baseNote, statusItems } from './map-model.js';
+import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem } from './map-model.js';
 import { drawGeoImage, drawRings, drawAirfields, drawTraffic } from './map-draw.js';
 import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
@@ -474,7 +474,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     if (adsbOn) {
       controls.setStatus([
         { id: 'adsb', text: "ADS-B Exchange's own map is showing. Radar, lightning and airfields are not drawn over it.", symbol: '', tone: 'ok' },
-        nearHomeItem(t),
+        nearHome(t),
       ]);
       controls.setCredits('Traffic map: ADS-B Exchange (globe.adsbexchange.com), shown in a frame and opened in a new tab on request.');
       controls.setNote(null);
@@ -486,15 +486,14 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     if (layers.on.traffic && relayOn()) {
       lines.traffic = { text: tv.statusText, symbol: tv.status === 'unavailable' ? '⚠' : tv.status === 'ok' ? '✓' : '⟳', tone: tv.status === 'unavailable' ? 'bad' : tv.status === 'ok' ? 'ok' : 'busy' };
     }
-    const items = statusItems({ ...lines, nearhome: nearHomeItem(t) }, { ...layers.on, nearhome: true, traffic: layers.on.traffic && relayOn() });
+    const items = statusItems({ ...lines, nearhome: nearHome(t) }, { ...layers.on, nearhome: true, traffic: layers.on.traffic && relayOn() });
     controls.setStatus(items);
     controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: layers.on.traffic && relayOn() }));
     controls.setNote(baseNote(layers));
   }
 
-  function nearHomeItem(t) {
-    const r = watch.result(t);
-    return { id: 'nearhome', text: r.words, symbol: r.state === 'near' ? '⚠' : r.state === 'clear' ? '✓' : '?', tone: r.state === 'near' ? 'bad' : r.state === 'clear' ? 'ok' : 'busy' };
+  function nearHome(t) {
+    return nearHomeItem(watch.result(t), layers.on.lightning ? lineOf('lightning', t) : null);
   }
 
   function sync() {

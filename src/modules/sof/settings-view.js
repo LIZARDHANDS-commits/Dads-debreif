@@ -5,7 +5,7 @@
 import { h } from '../../ui-kit/dom.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
-import { TRIGGER_OPTIONS, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
+import { TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility } from './settings-model.js';
 
 const hint = (text) => h('p', { class: 'sof-hint' }, text);
 
@@ -55,7 +55,7 @@ export function createSettingsView({ settings }) {
   // The new-caution banner (V6's "New-alert caution box"), on to begin with. Off, the cards still show every caution.
   menu.section('Cautions').append(
     controls.checkbox('banner', { label: 'Show the new-caution banner' }),
-    hint('The banner lists cautions you have not acknowledged. The airfield cards show every caution either way.'),
+    hint(BANNER_HINT),
   );
 
   return {

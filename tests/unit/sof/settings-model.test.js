@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore } from '../../../src/storage/store.js';
-import { SETTINGS_DEFAULTS, TRIGGER_OPTIONS, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, snapLimits, createSofSettings } from '../../../src/modules/sof/settings-model.js';
+import { SETTINGS_DEFAULTS, TRIGGER_OPTIONS, BANNER_HINT, MAX_RELAY_CHARS, relayAccepted, withTrigger, snapCeiling, snapVisibility, snapLimits, createSofSettings } from '../../../src/modules/sof/settings-model.js';
 
 const fresh = () => createSofSettings(createStore(null).scope('sof'));
 
@@ -173,4 +173,11 @@ test('the lightning radius is kept from 5 to 50 NM, whole numbers, for the contr
   settings.update({ lightningNm: 51 });
   settings.update({ lightningNm: NaN });
   assert.equal(settings.get().lightningNm, 35);
+});
+
+test('F6: the banner switch\'s hint does not claim the cards show every caution: lightning is only in the map strip', () => {
+  assert.match(BANNER_HINT, /^The banner lists cautions you have not acknowledged\./);
+  assert.match(BANNER_HINT, /airfield cards show every weather caution either way/);
+  assert.match(BANNER_HINT, /lightning shows in the map strip/);
+  assert.doesNotMatch(BANNER_HINT, /show every caution either way/, 'the old wording was false for lightning');
 });
