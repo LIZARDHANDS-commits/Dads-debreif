@@ -1,6 +1,7 @@
 // What the map draws, bottom to top: the 5,000 ft grid, the tracks and the
-// ship markers. Each function paints one layer on a Canvas 2D context in CSS
-// pixels; `map` is the ui-kit canvas view (worldToScreen, visibleBounds, view).
+// ship markers with their standards labels. Each function paints one layer
+// on a Canvas 2D context in CSS pixels; `map` is the ui-kit canvas view
+// (worldToScreen, visibleBounds, view).
 import { SHIP_COLORS, OUTLINED_SHIPS, OUTLINE_COLOR, trackRuns } from '../state.js';
 
 /** V6's grid spacing (line 2690). */
@@ -79,12 +80,16 @@ export function drawTracks(ctx, map, paths) {
   ctx.restore();
 }
 
+// Standards label colours: the ui-kit's --good and --caution tokens.
+const LABEL_COLORS = { good: '#3ecf8e', caution: '#f5c542' };
+
 /**
  * A dot in the ship's colour with its number beside it, so colour is never
  * the only signal. Inside a GPS gap the dot is hollow: the position there is
- * a guess between two fixes (D32).
+ * a guess between two fixes (D32). `labels` maps a ship to its standards
+ * label, { text, tone }, drawn after the number: green on parameters (#21).
  */
-export function drawShips(ctx, map, ships) {
+export function drawShips(ctx, map, ships, labels = {}) {
   ctx.save();
   ctx.font = '600 13px system-ui, sans-serif';
   ctx.textBaseline = 'middle';
@@ -112,6 +117,13 @@ export function drawShips(ctx, map, ships) {
     ctx.strokeText(label, lx, y);
     ctx.fillStyle = color;
     ctx.fillText(label, lx, y);
+    const standard = labels[s.slot];
+    if (standard) {
+      const sx = lx + ctx.measureText(`${label} `).width;
+      ctx.strokeText(standard.text, sx, y);
+      ctx.fillStyle = LABEL_COLORS[standard.tone] ?? '#e3eef5';
+      ctx.fillText(standard.text, sx, y);
+    }
   }
   ctx.restore();
 }

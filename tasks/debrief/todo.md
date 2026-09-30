@@ -20,10 +20,11 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
 **Checkpoint A:** tests pass, build under budget, example flight plays smoothly; open PR A.
 
-- [ ] **4. Standards.** Standards panel with V6's preset, edit, reset, saved in module settings; labels on the map, green when on parameters; no label where no standard applies (#21).
+- [x] **4. Standards.** Standards panel with V6's preset, edit, reset, saved in module settings; labels on the map, green when on parameters; no label where no standard applies (#21).
   - Acceptance: R18 (edit, reset, reload); #3's fore/aft judged by the offset standard alone and its interval by spread (D78; on main since #80).
   - Verify: unit tests of label rules; e2e edit/reset/reload.
-  - Files: src/modules/debrief/standards-panel.js, readouts.js, tests/unit/debrief/standards.test.js
+  - Files: src/modules/debrief/standards-panel.js, readouts.js, map2d/layers.js, tests/unit/debrief/readouts.test.js, tests/e2e/debrief.spec.js
+  - Done: the Standards panel (closed at first) edits `app.standards`, the one copy the Turn Sim reads too (D89): an on/off box per standard, each number with its limits, a refused value keeps the saved one and says why, Reset to V6 standards. The map shows each wingman's label beside its number, green on parameters and none where the card shows none (#21). Saving the standards in the debrief file comes with task 5.
 - [ ] **5. DFPs and the debrief file.** Add, label, note, go to, delete, previous/next in time order; kept per flight in browser storage; Save and Open debrief.
   - Acceptance: R17 (save, close, open: same tracks, DFPs, standards, time); DFPs never show on another flight (#25); hostile labels show as text.
   - Verify: unit tests of dfp.js; e2e save/open round trip.
