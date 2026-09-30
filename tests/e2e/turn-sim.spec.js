@@ -354,6 +354,28 @@ test('the menu\'s own Reset to defaults also clears dragged positions (audit yel
   await expect(page.getByLabel('Put it out of position').first()).not.toBeChecked();
 });
 
+test('a drag ends cleanly if the browser takes the pointer away, and a playback Reset keeps a dragged position (audit yellow 9)', async ({ page }) => {
+  await open(page);
+  const two = await shipAt(page, 2);
+  await page.mouse.move(two.x, two.y);
+  await page.mouse.down();
+  await page.mouse.move(two.x, two.y - 40, { steps: 3 });
+  const moved = await shipAt(page, 2);
+  // The browser loses the pointer (a system dialog, a tab change): no pointerup ever comes.
+  await canvas(page).evaluate((el) => el.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: 1 })));
+  await page.mouse.move(two.x, two.y - 120, { steps: 3 });
+  const later = await shipAt(page, 2);
+  expect(Math.abs(later.y - moved.y)).toBeLessThan(2); // it is not still following the mouse
+  await page.mouse.up();
+  await expect(canvas(page)).not.toHaveClass(/is-moving/);
+  // The playback bar's Reset rewinds the run and leaves the dragged position alone.
+  await button(page, 'Step').click();
+  await button(page, 'Reset').click();
+  await panel(page, 'Turn Sim settings').click();
+  await panel(page, 'More …').click();
+  await expect(page.getByLabel('Put it out of position').first()).toBeChecked();
+});
+
 test('Lead cannot be picked up: a drag on it pans the picture, and the key 1 picks nothing (audit RED)', async ({ page }) => {
   await open(page);
   const lead = await shipAt(page, 1);

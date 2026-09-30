@@ -148,18 +148,24 @@ export function createTurnSimView(canvas, { timers, source, onUserMove, mover = 
       canvas.classList.add('is-moving');
       onUserMove?.(); // a setup change while placing must not refit the picture
     }, true);
-    canvas.addEventListener('pointermove', (e) => {
-      if (!dragging || e.pointerId !== dragging.pointerId) return;
-      e.stopImmediatePropagation();
-      const [wx, wy] = at(e);
-      mover.move(dragging.id, wx + dragging.grabX, wy + dragging.grabY);
-    }, true);
     const end = (e) => {
       if (!dragging || e.pointerId !== dragging.pointerId) return;
       dragging = null;
       canvas.classList.remove('is-moving');
       map.requestDraw();
     };
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dragging || e.pointerId !== dragging.pointerId) return;
+      // No button held, or Play began: the drag is over (a pointerup was lost), so this move is nothing to follow.
+      if (e.buttons === 0 || !mover.canMove()) {
+        end(e);
+        return;
+      }
+      e.stopImmediatePropagation();
+      const [wx, wy] = at(e);
+      mover.move(dragging.id, wx + dragging.grabX, wy + dragging.grabY);
+    }, true);
+    canvas.addEventListener('lostpointercapture', end, true); // the browser took the pointer away: no pointerup will come
     canvas.addEventListener('pointerup', end, true);
     canvas.addEventListener('pointercancel', end, true);
     canvas.addEventListener('keydown', (e) => {
