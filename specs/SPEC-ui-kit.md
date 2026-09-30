@@ -97,6 +97,10 @@ chart.dispose();
 - The canvas follows its box size (a `ResizeObserver`) and the screen's pixel ratio, and redraws only when the size really changed.
 - The transform maths (`toScreen`, `toWorld`, `zoomAbout`, `fitBounds`) is exported as pure functions and unit-tested.
 
+## Not overwhelming (R22)
+
+Each screen shows only the essentials by default. Extra detail goes behind a switch the person turns on: a `controls.checkbox` for a layer or graph (off by default), or a `createPanel({ collapsed: true })` section titled "More …" for extra readouts and advanced settings. A module's spec lists what shows by default and what sits behind a switch, and its sign-off checklist opens it fresh and checks nothing optional is on.
+
 ## Boundaries
 
 - `ui-kit` depends only on `core`. It never imports a module.
