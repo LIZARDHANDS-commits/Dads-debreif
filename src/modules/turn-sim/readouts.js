@@ -374,10 +374,13 @@ export function offsetBandLines(state, timing = null, maneuver = null, checkFlow
       const secs = Math.abs(r.delaySec).toFixed(1);
       return { id: r.id, outside: false, info: true, text: `turns ${secs} s ${r.delaySec < 0 ? 'before' : 'after'} #3` };
     }
+    // A negative delay is the front element waiting, not the rear turning early (Box aft 5,000 to 6,000 ft): worded so, and always outside the band.
+    const waits = r.delaySec < 0;
+    const outside = Boolean(r.outsideBand) || waits;
     return {
       id: r.id,
-      outside: Boolean(r.outsideBand),
-      text: `${r.delaySec.toFixed(1)} s, ${!r.outsideBand ? `in the ${band} band` : solved ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
+      outside,
+      text: `${waits ? `front waits ${Math.abs(r.delaySec).toFixed(1)}` : r.delaySec.toFixed(1)} s, ${!outside ? `in the ${band} band` : solved ? `outside the SMM ${band}; solved so the box keeps its shape` : `outside ${band}`}`,
     };
   });
 }

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { optionsOf, clockLabel, errorFields, CHECK_SOLVE, CHECK_DEG } from '../../../src/modules/turn-sim/fields.js';
-import { cueStatus } from '../../../src/modules/turn-sim/readouts.js';
+import { cueStatus, offsetBandLines } from '../../../src/modules/turn-sim/readouts.js';
 import { SETTINGS_RULES } from '../../../src/modules/turn-sim/settings.js';
 
 test('the clock position menu reads Auto first and never NaN', () => {
@@ -56,7 +56,6 @@ test('#3 and #4 that cannot see a 5:30 cue in the offset box get the Q44c messag
 });
 
 test('the offset box band lines say in the band or outside it, and are null without an offset box turn', async () => {
-  const { offsetBandLines } = await import('../../../src/modules/turn-sim/readouts.js');
   assert.equal(offsetBandLines({ offsetBox: null }), null);
   const lines = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12.5, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } });
   assert.deepEqual(lines.map((l) => [l.id, l.outside, l.text]), [[3, false, '12.5 s, in the 10-15 s band'], [4, true, '18.0 s, outside 10-15 s']]);
@@ -120,4 +119,17 @@ test('the Delayed 45 setting is not called "Check turn", which is a choice in th
   const turnMenu = optionsOf('maneuver', SETTINGS_RULES.maneuver).map((o) => o.label);
   assert.ok(turnMenu.includes('Check turn'));
   assert.equal(CHECK_DEG.label, 'Check before the 45');
+});
+
+// A negative rear delay is the front element waiting (Box aft 5,000 to 6,000 ft): worded as that, never "-1.7 s", and always outside the band.
+test('a negative rear delay reads "front waits N s" and is flagged outside the band', () => {
+  const box = (delaySec, outsideBand = true) => ({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec, outsideBand }, { id: 4, delaySec, outsideBand }] } });
+  const solved = offsetBandLines(box(-1.7), 'boxSlot', 'delayed45away', true);
+  assert.deepEqual(solved.map((l) => [l.id, l.outside, l.text]), [
+    [3, true, 'front waits 1.7 s, outside the SMM 10-15 s; solved so the box keeps its shape'],
+    [4, true, 'front waits 1.7 s, outside the SMM 10-15 s; solved so the box keeps its shape'],
+  ]);
+  assert.equal(offsetBandLines(box(-0.4, false), 'rearDelay')[0].outside, true); // even if the engine did not say so
+  assert.equal(offsetBandLines(box(-0.4, false), 'rearDelay')[0].text, 'front waits 0.4 s, outside 10-15 s');
+  for (const line of solved) assert.ok(!/[-−]1\.7/.test(line.text), line.text);
 });
