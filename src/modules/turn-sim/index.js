@@ -12,7 +12,7 @@ import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULT_STANDARDS } from '../../core/standards.js';
 import { availableG } from '../../core/t6-performance.js';
-import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION } from './settings.js';
+import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, migrateSettings } from './settings.js';
 import { createRun } from './engine/run.js';
 import { readoutsAt, formationRows, mapLabel, turnNumbers, TURN_DEGREES } from './readouts.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
@@ -48,7 +48,7 @@ function mount(root, app) {
   const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
   document.head.append(stylesheet);
 
-  const scenario = createSettings(memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION });
+  const scenario = createSettings(memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION, migrate: migrateSettings });
   const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED });
   const controls = createControls(scenario);
   const layoutControls = createControls(layout);
@@ -236,6 +236,7 @@ function mount(root, app) {
     legStart += state().tSec;
     run.startLeg();
     marks = {}; // breadcrumbs start again for the new leg
+    ui.setLegHeading(state().startHeadingDeg); // V6 wrote Lead's heading into its Start heading box; here it is shown, never written back
     record();
   }
 
@@ -266,6 +267,7 @@ function mount(root, app) {
     bankSigns = {};
     lastHeading = {};
     legStart = 0;
+    ui.setLegHeading(null);
     owed = 0;
     record();
     refresh();

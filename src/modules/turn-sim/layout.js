@@ -92,6 +92,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const heading = field(START_HEADING);
   const maneuver = field(MANEUVER);
   const direction = field(DIRECTION, 'choice');
+  const legHeading = h('p', { class: 'ts-hint ts-leg-heading', hidden: true });
   const speed = field(SPEED);
   const g = field(G);
   const gWarning = h('p', { class: 'ts-warning', role: 'status', hidden: true });
@@ -104,7 +105,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     'Auto timing works out each aircraft\'s delay itself.',
   );
 
-  const setupEssentials = [formation, spacing, heading, maneuver, direction, speed, g].map((f) => f.element);
+  const setupEssentials = [formation, spacing, heading, { element: legHeading }, maneuver, direction, speed, g].map((f) => f.element);
 
   // ---- Aircraft errors (closed) -------------------------------------------
   const errorKeys = [];
@@ -322,6 +323,11 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       const text = `t = ${sec.toFixed(1)} s`;
       if (time.textContent !== text) time.textContent = text;
       time.dataset.sec = String(Math.round(sec * 1000) / 1000); // the exact time, for tests and anything reading it
+    },
+    /** After a new leg starts, the compass heading it began on, read-only (never written back into Start heading); null hides it. */
+    setLegHeading(deg) {
+      legHeading.textContent = deg == null ? '' : `This leg started on ${String(Math.round(deg) % 360).padStart(3, '0')}°.`;
+      legHeading.hidden = deg == null;
     },
     setSpeed(x) {
       speedSelect.value = String(x);

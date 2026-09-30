@@ -35,9 +35,7 @@ export const NOT_YET = Object.freeze({
 // The essentials: always on screen (R22).
 export const FORMATION = field('formation', { label: 'Formation' });
 export const SPACING = field('spacingFt', { label: 'Spacing', unit: 'ft', step: 100, hint: 'Between neighbours, side to side.' });
-// TODO(D45, Q42): the engine still takes V6's math heading (0 east, counter-clockwise) until task 10 makes it a
-// compass heading (0 north, default 0). When it does, this hint becomes "Compass: 0 north, 90 east."
-export const START_HEADING = field('startHeadingDeg', { label: 'Start heading', unit: '°', step: 5, hint: '0 is east, 90 is north.' });
+export const START_HEADING = field('startHeadingDeg', { label: 'Start heading', unit: '°', step: 5, hint: 'Compass: 0 is north, 90 is east.' });
 export const MANEUVER = field('maneuver', { label: 'Turn' });
 export const DIRECTION = field('direction', { label: 'Direction' });
 export const SPEED = field('speedKt', { label: 'Speed', unit: 'KTAS', step: 5 });
