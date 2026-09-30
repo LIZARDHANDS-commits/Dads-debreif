@@ -36,6 +36,6 @@
   - Acceptance: shows Zulu and America/Regina local in the chosen order; ticks once a second; pauses while hidden.
   - Verify: unit test of the formatting glue; e2e with a fixed clock.
   - Files: src/shell/header.js, tests/e2e/clock.spec.js
-- [ ] **10. Sign-off.** READMEs, docs/checklists/shell.md, run on the live link.
+- [ ] **10. Sign-off.** READMEs, docs/checklists/shell.md, run on the live link. (READMEs and checklist written; waiting on a run on the live link.)
   - Acceptance: Patrick (or anyone, D28) runs the checklist on the live link.
   - Files: src/*/README.md, docs/checklists/shell.md
