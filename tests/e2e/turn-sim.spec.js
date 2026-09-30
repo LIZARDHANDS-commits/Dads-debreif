@@ -577,10 +577,17 @@ test('the Shackle and Cross turn are two-ship turns: greyed out in the four-ship
   await playButton(page).click();
   await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
   await playButton(page).click();
-  // Back to four aircraft with the shackle picked: the note says the default turn is what flies.
+  // Back to four aircraft with the shackle picked: the menu moves to Delayed 90 (N1), with Turn degrees, Direction and the note.
   await box(page, 'Formation').selectOption({ label: '4312' });
-  await expect(note).toBeVisible();
+  await expect(turn.locator('option:checked')).toHaveText('Delayed 90');
+  await expect(box(page, 'Turn degrees')).toHaveValue('90');
+  await expect(page.locator('.ts-col-setup').getByRole('group', { name: 'Direction' }).getByRole('radio').first()).toBeEnabled();
+  await expect(note).toHaveText('Shackle and Cross turn are two-ship only, so this is now a Delayed 90.');
   await expect(cardLines(page)).toHaveCount(3);
+  // The choice is kept: back in the two-ship it stays Delayed 90, and the note is gone.
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  await expect(turn.locator('option:checked')).toHaveText('Delayed 90');
+  await expect(note).toBeHidden();
 });
 
 test('the Cross turn greys out Direction and says which way Lead turns', async ({ page }) => {

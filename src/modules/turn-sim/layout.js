@@ -96,6 +96,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   // Why some turns are greyed out (settings.js turnProblem), or why the turn asked for was not the one flown (state.maneuverFallback).
   const turnNote = h('p', { class: 'ts-hint ts-turn-note', hidden: true });
   let turnFallback = null;
+  let turnSwitched = null; // set when picking a four-ship formation moved the Turn menu off the shackle or cross turn
   const direction = field(DIRECTION, 'choice');
   // In the cross turn Lead always turns toward #2 whatever the Direction says (SMM 16.19 para 64), so the choice is greyed out.
   const directionNote = h('p', { class: 'ts-hint ts-direction-note', hidden: true });
@@ -301,7 +302,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
         option.disabled = TWO_SHIP_ONLY_TURNS.includes(value) && turnProblem(values.formation, value) !== null;
       });
     }
-    const why = turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
+    const why = turnSwitched ?? turnFallback ?? turnProblem(values.formation, TWO_SHIP_ONLY_TURNS[0]);
     turnNote.textContent = why ?? '';
     turnNote.hidden = !why;
   }
@@ -366,6 +367,10 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
     setNote(text) {
       note3d.textContent = text ?? '';
       note3d.hidden = !text;
+    },
+    /** The note that says the Turn menu was moved to the default turn (text), or null to drop it. */
+    setTurnSwitched(text) {
+      turnSwitched = text ?? null;
     },
     applyScenario,
     applyLayout,
