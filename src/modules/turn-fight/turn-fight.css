@@ -1,0 +1,267 @@
+/* The Turn Fight's screen (SPEC-turn-fight: The screen). Everything is scoped
+   to the Turn Fight, so nothing here reaches another module. Colours and
+   spacing come from the ui-kit tokens; the three fight colours are V6's and
+   must match view.js (tests/unit/turn-fight/view.test.js checks they do). */
+
+[data-module='turn-fight'] {
+  --tf-blue: #58a6ff;
+  --tf-red: #ff6b6b;
+  --tf-nose: #ffcc66;
+}
+
+[data-module='turn-fight'] .turn-fight {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  height: calc(100dvh - var(--header-height));
+  min-height: 32rem;
+  padding: var(--space-3);
+  box-sizing: border-box;
+}
+
+[data-module='turn-fight'] .tf-col {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-module='turn-fight'] .tf-col-setup {
+  width: 20rem;
+}
+
+[data-module='turn-fight'] .tf-col-result {
+  width: 18rem;
+}
+
+/* A collapsed column keeps only its header button, and the stage takes the room (#34). */
+[data-module='turn-fight'] .tf-col.is-collapsed {
+  width: auto;
+}
+
+/* Panels inside panels (More detail, the settings menu, About) sit flat in the column. */
+[data-module='turn-fight'] .tf-col .panel .panel {
+  margin-top: var(--space-3);
+  background: var(--bg-sunken);
+}
+
+/* ui-kit gives every label directly inside a control the full row, which would
+   spread the choice's buttons apart; here they sit side by side. */
+[data-module='turn-fight'] .control-choice > label {
+  flex: 0 0 auto;
+}
+
+/* Blue and Red: a coloured edge, a letter badge and the name, so colour is never the only signal. */
+[data-module='turn-fight'] .tf-blue {
+  --tf-who: var(--tf-blue);
+}
+
+[data-module='turn-fight'] .tf-red {
+  --tf-who: var(--tf-red);
+}
+
+[data-module='turn-fight'] .tf-badge {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-right: var(--space-1);
+  border-radius: 3px;
+  background: var(--tf-who);
+  color: var(--bg);
+  font-weight: 700;
+  text-align: center;
+}
+
+[data-module='turn-fight'] .tf-aircraft {
+  min-width: 0;
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3) 0;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--tf-who);
+  border-radius: var(--radius);
+}
+
+[data-module='turn-fight'] .tf-aircraft > legend {
+  padding: 0 var(--space-1);
+  color: var(--tf-who);
+  font-weight: 600;
+}
+
+/* Speed and G, and pitch beside them when Climb and dive is on: one column each. */
+[data-module='turn-fight'] .tf-aircraft-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: end; /* boxes line up even when a label wraps */
+  gap: 0 var(--space-2);
+}
+
+[data-module='turn-fight'] .tf-aircraft .control-unit {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-aircraft .control {
+  align-content: start;
+}
+
+[data-module='turn-fight'] .tf-aircraft .control input[type='number'] {
+  width: 4.25rem;
+}
+
+[data-module='turn-fight'] .tf-warning {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--caution);
+  color: var(--caution);
+  font-size: var(--text-sm);
+}
+
+/* The warning's box is always on the page (it is a live region); with no words it takes no room. */
+[data-module='turn-fight'] .tf-warning:empty {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+[data-module='turn-fight'] .tf-hint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-extras {
+  margin-bottom: var(--space-2);
+}
+
+[data-module='turn-fight'] .tf-extras .control {
+  margin-bottom: var(--space-2);
+}
+
+/* The plain line at the top of Fight setup. */
+[data-module='turn-fight'] .tf-intro {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The stage: toolbar, then the views, which take whatever room is left. */
+[data-module='turn-fight'] .tf-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-module='turn-fight'] .tf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+[data-module='turn-fight'] .tf-toolbar .control {
+  flex-wrap: nowrap;
+  margin: 0;
+}
+
+[data-module='turn-fight'] .tf-toolbar .control > label {
+  flex: 0 0 auto;
+}
+
+[data-module='turn-fight'] .tf-pill {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-fight'] .tf-phase {
+  color: var(--tf-nose);
+  letter-spacing: 0.06em;
+}
+
+[data-module='turn-fight'] .tf-stopped {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--caution);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-views {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+}
+
+/* V6's dark stage: --bg-raised, which is V6's #071018. */
+[data-module='turn-fight'] .tf-topdown-wrap,
+[data-module='turn-fight'] .tf-profile {
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+[data-module='turn-fight'] .tf-topdown {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[data-module='turn-fight'] .tf-profile {
+  height: clamp(9rem, 27vh, 11rem);
+}
+
+[data-module='turn-fight'] .tf-profile-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[data-module='turn-fight'] .tf-footer {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* The Result card and More detail. */
+[data-module='turn-fight'] .tf-readout {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-fight'] .tf-readout th,
+[data-module='turn-fight'] .tf-readout td {
+  padding: var(--space-1) var(--space-1);
+  text-align: right;
+  font-weight: normal;
+}
+
+[data-module='turn-fight'] .tf-readout th[scope='row'] {
+  color: var(--text-muted);
+  text-align: left;
+}
+
+[data-module='turn-fight'] .tf-readout thead th {
+  color: var(--tf-who);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-module='turn-fight'] .tf-readout td[colspan] {
+  color: var(--text);
+}
+
+/* Last, so a hidden panel or box stays hidden whatever display it was given above. */
+[data-module='turn-fight'] [hidden] {
+  display: none;
+}
