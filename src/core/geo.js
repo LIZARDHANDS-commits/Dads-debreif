@@ -12,16 +12,21 @@ export function makeLocalRef(lat, lon, radiusM = EARTH_RADIUS_M) {
   return { lat, lon, lat0: lat * Math.PI / 180, R: radiusM };
 }
 
-/** Latitude/longitude to local feet (`projectAll` line 2379, `kLatLonToLocal` line 2507). */
+/**
+ * Latitude/longitude to local feet (`projectAll` line 2379, `kLatLonToLocal` line 2507).
+ * Null when there is no reference yet, as in V6.
+ */
 export function latLonToLocalFt(ref, lat, lon) {
+  if (!ref) return null;
   return {
     x: (lon - ref.lon) * Math.PI / 180 * Math.cos(ref.lat0) * ref.R * FT_PER_M,
     y: (lat - ref.lat) * Math.PI / 180 * ref.R * FT_PER_M,
   };
 }
 
-/** Local feet back to latitude/longitude (`kLocalToLatLon`, line 2500). */
+/** Local feet back to latitude/longitude (`kLocalToLatLon`, line 2500). Null without a reference, as in V6. */
 export function localFtToLatLon(ref, x, y) {
+  if (!ref) return null;
   return {
     lat: ref.lat + (y / (FT_PER_M * ref.R)) * 180 / Math.PI,
     lon: ref.lon + (x / (FT_PER_M * ref.R * Math.cos(ref.lat0))) * 180 / Math.PI,

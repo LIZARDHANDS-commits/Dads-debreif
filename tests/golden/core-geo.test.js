@@ -52,6 +52,14 @@ test('latLonToLocalFt and localFtToLatLon are kLatLonToLocal and kLocalToLatLon'
   });
 });
 
+test('without a reference both conversions give null, as V6 does before any track loads', () => {
+  const noRef = loadV6(['kLocalToLatLon', 'kLatLonToLocal'], { marker: 'const KML_FT_PER_M=3.28084', prelude: 'const KML_FT_PER_M=3.28084; let kmlRef=null;' });
+  for (const ref of [null, undefined]) {
+    assert.equal(geo.latLonToLocalFt(ref, CYMJ.lat, CYMJ.lon), noRef.kLatLonToLocal(CYMJ.lat, CYMJ.lon));
+    assert.equal(geo.localFtToLatLon(ref, 1000, 2000), noRef.kLocalToLatLon(1000, 2000));
+  }
+});
+
 test('tiles match V6 lonLatToTile and tileBounds', () => {
   for (let z = 1; z <= 19; z++) {
     lats.slice(0, 20).forEach((lat, i) => {
