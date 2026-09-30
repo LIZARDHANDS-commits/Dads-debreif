@@ -12,11 +12,12 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 | Satellite photo and 3D view (task 8) | PR 1 (PR #229) | Merged to `main` (commit `64cc09a`). Three.js 3D camera and Esri satellite tiles. |
 | Polish & Rewind Fix (tasks 9/13, RW-01..03) | PR 2 (`traffic-polish-rewind`) | Merged to `main` (commit `4405cd9`). Callsign indexing safety on rewind verified (+422 lines of tests). |
 | Traffic Core 4 (tasks 10/11/12/15/18) | PR 3 (`traffic/pr-3-core-4`) | Merged to `main` (commit `73ee4f4`). Wind vector math, authentic 15 Wing types, 60° break, 45° descending final turn, D389 perch drift guidance, D46 true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green. |
+| Interactive Wind UI & Sim Updates (PATCH-014) | Direct on `main` | Merged to `main` (commit `8d6a517`). Bottom playback bar wind inputs wired, real-time dynamic crabbing and ground speed simulation updates. |
 
 ## Current Gate: Gate 1 Sign-Off
-- Full test pass: `npm test` passes 100% green (`2,937 passed, 0 failed, 0 todo, 1 skipped`).
+- Full test pass: `npm test` passes 100% green (`2,938 passed, 0 failed, 0 todo, 1 skipped`).
 - Production build: `npm run build` passes in ~300ms.
-- Awaiting Patrick's verification run of `docs/checklists/traffic.md`. Once signed off, Milestone 1 is formally complete.
+- Awaiting Patrick's verification run of [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md). Once signed off, Milestone 1 is formally complete.
 
 ## Settled numbers (Patrick's calls win over the manuals)
 
