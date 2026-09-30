@@ -4,11 +4,21 @@
 // A card is redrawn only when what it says has changed, so a screen left open all
 // day does no work between refreshes.
 import { h } from '../../ui-kit/dom.js';
+import { segments, LEVEL_WORDS } from './marks.js';
 
 // Beside the words of the result, never instead of them.
 const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–' };
 
 const note = (text, tone) => (text ? h('p', { class: `sof-note${tone ? ` is-${tone}` : ''}` }, text) : null);
+
+// The raw report as text, the words behind a limit or caution in <mark>s. Each mark reads in colour and in words (the
+// visually-hidden prefix), and the visible text is the report's own, unchanged. Pieces go in as text nodes only, and the
+// class comes from segments()' three fixed levels, never from the report.
+function rawText(line) {
+  return h('p', { class: 'sof-raw' }, ...segments(line.raw, line.marks).map((seg) => (seg.level
+    ? h('mark', { class: `sof-mark is-${seg.level}` }, h('span', { class: 'visually-hidden' }, LEVEL_WORDS[seg.level]), seg.text)
+    : seg.text)));
+}
 
 // One report line: its title with the time and age, the raw text as text, and every note in words.
 function report(kind, line) {
@@ -19,7 +29,7 @@ function report(kind, line) {
     'section',
     { class: `sof-report sof-${kind.toLowerCase()}${stale ? ' is-stale' : ''}`, dataset: { state: line.state } },
     h('h3', { class: 'sof-report-title' }, title, line.sourceName ? h('span', { class: 'sof-source' }, ` via ${line.sourceName}`) : null),
-    line.raw ? h('p', { class: 'sof-raw' }, line.raw) : null,
+    line.raw ? rawText(line) : null,
     note(line.staleText, 'bad'),
     note(line.words, line.raw ? null : 'bad'),
     note(line.refreshNote, 'bad'),

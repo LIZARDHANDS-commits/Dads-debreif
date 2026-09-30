@@ -91,7 +91,7 @@ function mount(root, app) {
     const snapshot = weather.snapshot();
     const now = app.time.now();
     const limits = settings.get();
-    const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now });
+    const screen = buildScreen({ airfields: app.airfields, snapshot, limits, now, timeZone: app.time.zone });
     const tafs = Object.fromEntries(Object.entries(snapshot.taf).map(([icao, entry]) => [icao, entry?.report ?? null]));
     const notes = tafNotes({ snapshot, now }); // a stale or failed TAF is said on the chips and the timeline rows too
     const waves = buildWaves({ plan: plan.get(), airfields: app.airfields, tafs, limits, now, timeZone: app.time.zone, selectedId, tafNotes: notes });

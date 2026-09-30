@@ -73,10 +73,10 @@ export function alertText(snapshot, now) {
 /**
  * The whole screen: { dtg, dtgIso, feed, alert, cards, credits }.
  * `airfields` is app.airfields; `snapshot` is createWeather's; `limits` the home
- * limits from Settings; `now` a Date. Cards are home first, then each alternate,
+ * limits from Settings; `now` a Date; `timeZone` home's (the day the marked TAF words are checked over). Cards are home first, then each alternate,
  * one per airfield.
  */
-export function buildScreen({ airfields, snapshot, limits, now }) {
+export function buildScreen({ airfields, snapshot, limits, now, timeZone }) {
   const home = airfields.home();
   const homeLimits = snapLimits(limits); // a typed limit is checked snapped up, the safe side (R1)
   const round = snapshot.lastRound;
@@ -96,6 +96,7 @@ export function buildScreen({ airfields, snapshot, limits, now }) {
       limits: homeLimits,
       options,
       now,
+      timeZone,
       // Before any round has run there is nothing to have failed; after one, a station it didn't get did.
       feed: { lastTry: round?.at ?? null, failed: Boolean(round && !round.fresh.metar.has(field.icao)) },
     });

@@ -4,13 +4,16 @@
 //
 // Every weather answer is wx's: the category, NATO state, limit check (wx's
 // `checkOptions(conditions, minima)`) and cautions, and a METAR's LAST OBS/NXT
-// remark (`lastObservation`, `nextObservation`). Nothing here reads a report's text.
+// remark (`lastObservation`, `nextObservation`). Nothing here reads a report's text: the marked
+// words (`marks`) are wx's own positions, only moved onto the text as shown.
 
 import { flightCategory, natoColour, DEFAULT_LIMITS } from '../../wx/limits.js';
-import { checkOptions } from '../../wx/alternates.js';
+import { checkOptions, homeAlternateTrigger, assessAlternate } from '../../wx/alternates.js';
 import { staleness, SOURCES } from '../../wx/sources.js';
 import { ageMinutes, toDate, MINUTE_MS } from '../../wx/dates.js';
 import { describeTrigger, minimaText, descentText } from './waves.js';
+import { bannerWindow } from './cautions.js';
+import { marksOfCheck, alignMarks } from './marks.js';
 
 const two = (n) => String(n).padStart(2, '0');
 
@@ -158,6 +161,28 @@ const staleIsUnknown = (metar) => metar.state === 'stale';
 // wx's reasons start with CEILING or VIS for the limit lines; the rest are cautions.
 const limitReason = (r) => /^(CEILING|VIS) /.test(r);
 
+// ---- Marked words on the TAF ------------------------------------------------------------------------
+
+/**
+ * The marks on a TAF's text: wx's own check of it over the banner's window, cut at the TAF's end, against
+ * the limits in use. Below-limit and at-limit pieces and dangerous weather, each with the words behind it.
+ * A TAF that is missing, cancelled, NIL or stale has none. An alternate with a visual descent (D80) is
+ * checked against that; PROB pieces are left to the wave call, as wx does without landing minima.
+ */
+function tafMarks(line, entry, { isHome, used, descent, now, timeZone }) {
+  const report = entry?.report;
+  if (line.state !== 'fresh' || !report || !now) return [];
+  const window = bannerWindow({ now, timeZone });
+  if (!window) return [];
+  const validTo = toDate(report.validTo);
+  const to = validTo ? new Date(Math.min(+window.to, +validTo)) : window.to;
+  if (+to <= +window.from) return [];
+  const w = { from: window.from, to };
+  const found = isHome ? homeAlternateTrigger(report, w, used) : assessAlternate(report, w, descent ? { visualDescent: descent } : { minima: used });
+  const pieces = [...found.hits, ...found.atLimit, ...found.cautions];
+  return alignMarks(pieces.flatMap((p) => marksOfCheck(p)), line.raw, report.raw);
+}
+
 // ---- The card ---------------------------------------------------------------------------------------------
 
 /**
@@ -173,9 +198,12 @@ const limitReason = (r) => /^(CEILING|VIS) /.test(r);
  *   600-2 is never used and the result is 'unknown', for the wave call to decide.
  * - `feed`: `{ lastTry, failed }` for the words about a missing or failed refresh.
  * - `now`: a Date. Without one every age is unknown and every report reads as stale.
- * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any }} [input]
+ * - `timeZone`: home's, for the day the banner looks at (default: the hour before now to the end of the TAF).
+ * The METAR and TAF lines carry `marks`, `[{ start, end, level }]` on their `raw` text, and the card `reasonSpans`,
+ * each wx reason to the `[{ start, end }]` of its words in the METAR's `raw`.
+ * @param {{ icao?: any, name?: any, role?: string, metar?: any, taf?: any, limits?: any, options?: any, now?: any, feed?: any, timeZone?: any }} [input]
  */
-export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {} } = {}) {
+export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {}, timeZone } = {}) {
   const at = toDate(now);
   const isHome = role === 'HOME';
   let used;
@@ -196,6 +224,12 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
   const conditions = metarLine.state === 'missing' || metarLine.state === 'nil' ? null : metar.report.conditions;
   const check = conditions ? checkOptions(conditions, used) : null;
   const watch = check ? [...check.watch.vicinity, ...check.watch.snow, ...check.watch.shallowFog] : [];
+  const parsedRaw = metar?.report?.raw;
+  const reasonSpans = {};
+  (check?.reasons ?? []).forEach((reason, i) => {
+    reasonSpans[reason] = alignMarks(check.reasonSpans?.[i] ?? [], metarLine.raw, parsedRaw);
+  });
+  const tafLine = tafModel(taf, at, feed ?? {});
 
   return {
     icao,
@@ -204,8 +238,9 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
     category: conditions ? flightCategory(conditions) : null,
     nato: conditions ? natoColour(conditions) : null,
     limitsText,
-    metar: metarLine,
-    taf: tafModel(taf, at, feed ?? {}),
+    metar: { ...metarLine, marks: check ? alignMarks(marksOfCheck(check), metarLine.raw, parsedRaw) : [] },
+    taf: { ...tafLine, marks: tafMarks(tafLine, taf, { isHome, used, descent, now: at, timeZone }) },
+    reasonSpans,
     result: resultModel(metarLine, conditions, used, at, descent),
     cautions: check ? check.cautions : [],
     cautionReasons: check ? check.reasons.filter((r) => !limitReason(r)) : [],

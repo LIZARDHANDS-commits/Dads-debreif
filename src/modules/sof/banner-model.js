@@ -6,6 +6,7 @@
 import {
   evaluate, tafCautionsForBanner, tafResultsOfWaves, acknowledge, acknowledgeAll, bannerNotEndedBefore,
 } from './cautions.js';
+import { markedWords } from './marks.js';
 
 /** Where the acknowledgements are kept, in the module's storage scope. */
 export const ACKS_KEY = 'cautionAcks';
@@ -23,7 +24,9 @@ export function tafInputs({ tafs, calls = [], homeIcao, now, timeZone }) {
   // caution over their whole span; looked at one result at a time, the same fog would be a line for each look.
   const byIcao = new Map();
   for (const { icao, result } of [...tafCautionsForBanner({ tafs, now, timeZone }), ...tafResultsOfWaves(calls, homeIcao)]) {
-    const one = byIcao.get(icao) ?? { icao, result: { status: result?.status, hits: [], cautions: [] } };
+    // The TAF's trimmed text goes with its result: wx's word positions are in it, for the marked words on the lines.
+    const raw = typeof tafs?.[icao]?.raw === 'string' ? tafs[icao].raw.trim() : null;
+    const one = byIcao.get(icao) ?? { icao, raw, result: { status: result?.status, hits: [], cautions: [] } };
     one.result.hits.push(...(Array.isArray(result?.hits) ? result.hits : []));
     one.result.cautions.push(...(Array.isArray(result?.cautions) ? result.cautions : []));
     byIcao.set(icao, one);
@@ -50,7 +53,7 @@ export function newKeys(before, lines) {
  *
  * Returns `{ enabled, show, count, heading, lines, ackAllLabel, announce, acknowledgedCount,
  * acks, memory, storable, write, fresh, signature }`. A line is `{ key, icao, level, symbol, levelWords,
- * text, stale }`. `announce` is the keys to announce to a screen reader: lines new since `shown`.
+ * text, stale, marks }`. `announce` is the keys to announce to a screen reader: lines new since `shown`.
  * `memory` (keys acknowledged this visit) is used only when nothing can be stored; `banner.memory` is what to keep. `acks` is the object to keep and `write` says it differs from what was stored (and can be stored).
  * @param {any} [args]
  */
@@ -69,6 +72,8 @@ export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled =
     levelWords: c.levelWords,
     text: c.text,
     stale: c.stale,
+    // The words of the report that triggered it, `[{ text, level }]`, each the report's own text.
+    marks: markedWords(c.raw, c.spans.map((span) => ({ ...span, level: c.level }))),
   }));
   const on = enabled !== false;
   const show = on && lines.length > 0;
@@ -86,7 +91,7 @@ export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled =
     write: result.storable && result.changed,
     fresh,
     memory: result.storable ? [] : [...remembered].filter((k) => active.has(k)), // still reported, so still acknowledged
-    signature: JSON.stringify([show, lines.map((l) => [l.key, l.text])]),
+    signature: JSON.stringify([show, lines.map((l) => [l.key, l.text, l.stale, l.marks])]),
   };
 }
 
