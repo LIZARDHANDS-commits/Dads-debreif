@@ -109,3 +109,24 @@ test('resetLabel changes the button text', () => {
   const menu = createSettingsMenu({ onReset: () => {}, resetLabel: 'Back to standard' });
   assert.equal(resetButton(menu).textContent, 'Back to standard');
 });
+
+test('Escape in the open menu closes it, reports it and focuses the header; otherwise it is left alone', () => {
+  const toggles = [];
+  const menu = createSettingsMenu({ onToggle: (c) => toggles.push(c) });
+  let focused = 0;
+  header(menu).focus = () => { focused += 1; };
+  const press = (key, defaultPrevented = false) => {
+    const event = { key, defaultPrevented, prevented: false, preventDefault() { this.prevented = true; } };
+    for (const fn of menu.element.listeners.keydown) fn(event);
+    return event;
+  };
+  assert.equal(press('Escape').prevented, false, 'closed: nothing happens');
+  menu.setCollapsed(false);
+  assert.equal(press('Enter').prevented, false);
+  assert.equal(press('Escape', true).prevented, false, 'something inside already used it');
+  assert.equal(menu.collapsed, false);
+  assert.equal(press('Escape').prevented, true);
+  assert.equal(menu.collapsed, true);
+  assert.deepEqual(toggles, [true]);
+  assert.equal(focused, 1);
+});

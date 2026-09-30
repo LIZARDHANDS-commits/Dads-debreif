@@ -1,7 +1,7 @@
 // The one settings menu every module screen keeps its own tuning numbers
 // behind (R22). App-wide choices stay in the header's Settings dialog. It starts closed, so the screen shows only the essentials, and it
 // opens in the page flow like any other panel, so it never covers a control
-// (R2, #34). See specs/SPEC-ui-kit.md.
+// (R2, #34). Escape closes it. See specs/SPEC-ui-kit.md.
 //
 //   const menu = createSettingsMenu({ title: 'Turn Sim settings', onReset: () => standards.reset() });
 //   menu.section('Turn').append(controls.number('g', { … }));
@@ -22,6 +22,16 @@ export function createSettingsMenu({ title = 'Module settings', collapsed = true
       h('div', { class: 'settings-footer' }, h('button', { type: 'button', class: 'settings-reset', onclick: () => onReset() }, resetLabel)),
     );
   }
+
+  // Escape inside the open menu closes it and puts focus back on its header,
+  // as a dialog would. The listener lives on the menu, so it goes with it.
+  panel.element.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || panel.collapsed) return;
+    event.preventDefault();
+    panel.setCollapsed(true);
+    onToggle?.(true);
+    panel.button.focus();
+  });
 
   // A titled group of controls. The title is text, never HTML.
   const section = (sectionTitle) => {

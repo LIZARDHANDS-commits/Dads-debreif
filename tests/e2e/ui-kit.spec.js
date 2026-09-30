@@ -129,6 +129,20 @@ test.describe('settings menu', () => {
     await expect(header).toHaveAttribute('aria-expanded', 'false');
     await expect(turnG).toBeHidden();
   });
+
+  test('Escape inside the open menu closes it and puts focus back on its header', async ({ page }) => {
+    await open(page);
+    const header = page.getByRole('button', { name: 'Turn settings' });
+    const turnG = page.getByLabel('Turn G');
+    await header.click();
+    await turnG.focus();
+    await page.keyboard.press('Escape');
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+    await expect(turnG).toBeHidden();
+    await expect(header).toBeFocused();
+    await page.keyboard.press('Escape'); // closed already: nothing happens
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+  });
 });
 
 test.describe('canvas view', () => {

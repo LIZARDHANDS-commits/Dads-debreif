@@ -53,21 +53,25 @@ function numberBox({ label, value, min, max, step, unit, onValue }) {
 }
 
 // An ICAO box with a button; Enter works too. Refusals are said in words.
-/** @param {{ label: string, buttonLabel?: string, value?: string, onSubmit: (icao: string, input: HTMLInputElement) => void }} options */
+/** @param {{ label: string, buttonLabel?: string, value?: string, onSubmit: (icao: string, input: HTMLInputElement) => string | { note: string } | void }} options */
 function icaoForm({ label, buttonLabel, value = '', onSubmit }) {
   const id = newId('icao');
   const input = h('input', { type: 'text', id, value, maxlength: 4, autocomplete: 'off', spellcheck: 'false', class: 'af-icao', 'aria-describedby': `${id}-msg` });
   const message = h('span', { class: 'control-message', id: `${id}-msg`, role: 'status' });
-  const say = (text) => {
+  // A string from onSubmit is a refusal; { note } is a plain remark, not an error.
+  const say = (text, invalid = true) => {
     message.textContent = text;
-    if (text) input.setAttribute('aria-invalid', 'true');
+    message.classList.toggle('is-note', Boolean(text) && !invalid);
+    if (text && invalid) input.setAttribute('aria-invalid', 'true');
     else input.removeAttribute('aria-invalid');
   };
   const submit = (event) => {
     event.preventDefault();
     const icao = readIcao(input.value);
     if (!ICAO.test(icao)) return say('Enter a four-letter ICAO id, like CYQR.');
-    say(onSubmit(icao, input) ?? '');
+    const result = onSubmit(icao, input) || '';
+    if (typeof result === 'string') say(result);
+    else say(result.note, false);
   };
   const button = buttonLabel ? h('button', { type: 'submit' }, buttonLabel) : null;
   const form = h('form', { class: 'af-icao-form', onsubmit: submit }, h('label', { for: id }, label), input, button, message);
@@ -89,9 +93,12 @@ export function createAirfieldsPanel({ airfields, now = () => new Date() }) {
     label: 'Home field',
     value: airfields.home().icao,
     onSubmit(icao, input) {
+      const wasAlternate = airfields.get().alternates.includes(icao);
       airfields.update({ home: icao });
       input.value = icao;
       if (!airfields.home().builtIn) openMore(icao);
+      // The drop is by design (the home field is never its own alternate), but say so (AF-5).
+      return wasAlternate ? { note: `${icao} is now home, so it was taken off the alternates.` } : '';
     },
   });
 
