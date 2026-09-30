@@ -1,0 +1,172 @@
+=== t=1780425071  (18:31:11Z) ===
+FORMATION: #2 TIGHT by 3,991 ft, AFT by 76°
+FORMATION: #3 TIGHT by 3,969 ft, FORE by 5,711 ft
+FORMATION: #4 TIGHT by 3,828 ft, AFT by 49°
+FORMATION: Lead 10 kt est. IAS, G --, SLOW (target 220 kt, low block)
+FORMATION: Alt 1,882 ft, GS 10 kt, est. IAS 10 kt
+FORMATION: G -- est., pitch 0° est., bank 0° est.
+FORMATION: Lat 50.33678, Lon -105.57050
+FORMATION: Alt 1,879 ft, GS 9 kt, est. IAS 9 kt
+FORMATION: G -- est., pitch 0° est., bank 0° est.
+FORMATION: Lat 50.33706, Lon -105.57019
+FORMATION: Alt 1,895 ft, GS 10 kt, est. IAS 9 kt
+FORMATION: G -- est., pitch -2° est., bank 0° recorded
+FORMATION: Lat 50.33742, Lon -105.56975
+FORMATION: Alt 1,863 ft, GS 9 kt, est. IAS 8 kt
+FORMATION: G -- est., pitch 4° est., bank 0° recorded
+FORMATION: Lat 50.33721, Lon -105.56924
+FORMATION: #2 Range 125 ft horizontal, aspect 4°, HCA 6°, closure -1 kt
+FORMATION: #3 Range 291 ft horizontal, aspect 6°, HCA 70°, closure -6 kt
+FORMATION: #4 Range 331 ft horizontal, aspect 31°, HCA 88°, closure -3 kt
+FORMATION: #1–#2: 125 ft horizontal, 125 ft 3D, closure -1 kt
+FORMATION: #1–#3: 291 ft horizontal, 291 ft 3D, closure -6 kt
+FORMATION: #1–#4: 331 ft horizontal, 332 ft 3D, closure -3 kt
+FORMATION: #2–#3: 166 ft horizontal, 166 ft 3D, closure -4 kt
+FORMATION: #2–#4: 227 ft horizontal, 227 ft 3D, closure +2 kt
+FORMATION: #3–#4: 141 ft horizontal, 144 ft 3D, closure 0 kt
+FORMATION: Load a flight to throw a tennis ball.
+FORMATION: Spread: 4000-6000 ft, sweep 0 to 10°
+FORMATION: Offset #3 aft: 7000 ±1000 ft
+FORMATION: Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G
+More detail | Live data | #1 Lead - ED2F5 | Alt 1,882 ft, GS 10 kt, est. IAS 10 kt | G -- est., pitch 0° est., bank 0° est. | Lat 50.33678, Lon -105.57050 | #2 60DF66 | Alt 1,879 ft, GS 9 kt, est. IAS 9 kt | G -- est., pitch 0° est., bank 0° est. | Lat 50.33706, Lon -105.57019 | #3 8738A6C9 | Alt 1,895 ft, GS 10 kt, est. IAS 9 kt | G -- est., pitch -2° est., bank 0° recorded | Lat 50.33742, Lon -105.56975 | #4 083AC | Alt 1,863 ft, GS 9 kt, est. IAS 8 kt | G -- est., pitch 4° est., bank 0° recorded | Lat 50.33721, Lon -105.56924 | From Lead | #2 Range 125 ft horizontal, aspect 4°, HCA 6°, closure -1 kt | #3 Range 291 ft horizontal, aspect 6°, HCA 70°, closure -6 kt | #4 Range 331 ft horizontal, aspect 31°, HCA 88°, closure -3 kt | Spacing | #1–#2: 125 ft horizontal, 125 ft 3D, closure -1 kt | #1–#3: 291 ft horizontal, 291 ft 3D, closure -6 kt | #1–#4: 331 ft horizontal, 332 ft 3D, closure -3 kt | #2–#3: 166 ft horizontal, 166 ft 3D, closure -4 kt | #2–#4: 227 ft horizontal, 227 ft 3D, closure +2 kt | #3–#4: 141 ft horizontal, 144 ft 3D, closure 0 kt | Positive closure means the range is shrinking; negative means it is opening.
+--- V6 functions on the same cleaned fixes ---
+V6 #1: Alt 1882 ft, GS 10 kt, estG --, pitch(V6 est path) -0.2 (estimated flight path), nativeG --, EM: ias 9.5 tr(V6 /2) 0.96 => D39 tr 1.92; lat/lon(V6, earlier fix) 50.33678,-105.57050
+V6 #2: Alt 1879 ft, GS 9 kt, estG --, pitch(V6 est path) 0.4 (estimated flight path), nativeG --, EM: ias 8.5 tr(V6 /2) 1.10 => D39 tr 2.20; lat/lon(V6, earlier fix) 50.33706,-105.57019
+V6 #3: Alt 1895 ft, GS 10 kt, estG --, pitch(V6 est path) 1.6 (native aircraft pitch), nativeG 0.94, EM: ias 9.4 tr(V6 /2) 4.26 => D39 tr 8.53; lat/lon(V6, earlier fix) 50.33741,-105.56970
+V6 #4: Alt 1863 ft, GS 9 kt, estG --, pitch(V6 est path) 1.0 (native aircraft pitch), nativeG 1.03, EM: ias 8.3 tr(V6 /2) 0.04 => D39 tr 0.08; lat/lon(V6, earlier fix) 50.33719,-105.56921
+V6 #2 vs Lead: Range 125 ft, AA 4, HCA 6, closure -1.4 kt; V6 classify: interval 9 foreAft -125 offsetAft - labels TIGHT
+V6 #3 vs Lead: Range 291 ft, AA 6, HCA 70, closure -5.6 kt; V6 classify: interval 31 foreAft -289 offsetAft - labels TIGHT/AFT
+V6 #4 vs Lead: Range 331 ft, AA 31, HCA 88, closure -3.0 kt; V6 classify: interval 172 foreAft -283 offsetAft - labels TIGHT/AFT
+V6 3-4: 141 ft, closure 0.0
+V6 1-2: 125 ft, closure -1.4
+V6 2-3: 166 ft, closure -3.5
+EM canvas 504x252: {"1":null,"2":null,"3":null}
+=== t=1780425857  (18:44:17Z) ===
+FORMATION: #2 TIGHT by 3,763 ft, AFT by 64°
+FORMATION: #3 TIGHT by 3,750 ft, FORE by 4,628 ft
+FORMATION: #4 TIGHT by 3,572 ft, AFT by 67°
+FORMATION: Lead 217 kt est. IAS, 1.3 G, FAST, HIGH G (target 200 kt, mid block)
+FORMATION: Alt 11,959 ft, GS 261 kt, est. IAS 217 kt
+FORMATION: G 1.31 est., pitch 1° est., bank 13° left est.
+FORMATION: Lat 50.04653, Lon -105.62244
+FORMATION: Alt 12,103 ft, GS 273 kt, est. IAS 227 kt
+FORMATION: G 1.24 est., pitch -1° est., bank 48° left est.
+FORMATION: Lat 50.04419, Lon -105.62277
+FORMATION: Alt 11,543 ft, GS 259 kt, est. IAS 217 kt
+FORMATION: G 1.58 est., pitch -3° est., bank 56° left recorded
+FORMATION: Lat 50.04327, Lon -105.62557
+FORMATION: Alt 11,503 ft, GS 287 kt, est. IAS 241 kt
+FORMATION: G 1.31 est., pitch 0° est., bank 29° left recorded
+FORMATION: Lat 50.04206, Lon -105.62712
+FORMATION: #2 Range 857 ft horizontal, aspect 16°, HCA 4°, closure -5 kt
+FORMATION: #3 Range 1,395 ft horizontal, aspect 10°, HCA 13°, closure -1 kt
+FORMATION: #4 Range 1,962 ft horizontal, aspect 13°, HCA 34°, closure +18 kt
+FORMATION: #1–#2: 857 ft horizontal, 869 ft 3D, closure -5 kt
+FORMATION: #1–#3: 1,395 ft horizontal, 1,456 ft 3D, closure -1 kt
+FORMATION: #1–#4: 1,962 ft horizontal, 2,014 ft 3D, closure +18 kt
+FORMATION: #2–#3: 733 ft horizontal, 923 ft 3D, closure +2 kt
+FORMATION: #2–#4: 1,277 ft horizontal, 1,411 ft 3D, closure +45 kt
+FORMATION: #3–#4: 571 ft horizontal, 572 ft 3D, closure +31 kt
+FORMATION: Load a flight to throw a tennis ball.
+FORMATION: Spread: 4000-6000 ft, sweep 0 to 10°
+FORMATION: Offset #3 aft: 7000 ±1000 ft
+FORMATION: Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G
+More detail | Live data | #1 Lead - ED2F5 | Alt 11,959 ft, GS 261 kt, est. IAS 217 kt | G 1.31 est., pitch 1° est., bank 13° left est. | Lat 50.04653, Lon -105.62244 | #2 60DF66 | Alt 12,103 ft, GS 273 kt, est. IAS 227 kt | G 1.24 est., pitch -1° est., bank 48° left est. | Lat 50.04419, Lon -105.62277 | #3 8738A6C9 | Alt 11,543 ft, GS 259 kt, est. IAS 217 kt | G 1.58 est., pitch -3° est., bank 56° left recorded | Lat 50.04327, Lon -105.62557 | #4 083AC | Alt 11,503 ft, GS 287 kt, est. IAS 241 kt | G 1.31 est., pitch 0° est., bank 29° left recorded | Lat 50.04206, Lon -105.62712 | From Lead | #2 Range 857 ft horizontal, aspect 16°, HCA 4°, closure -5 kt | #3 Range 1,395 ft horizontal, aspect 10°, HCA 13°, closure -1 kt | #4 Range 1,962 ft horizontal, aspect 13°, HCA 34°, closure +18 kt | Spacing | #1–#2: 857 ft horizontal, 869 ft 3D, closure -5 kt | #1–#3: 1,395 ft horizontal, 1,456 ft 3D, closure -1 kt | #1–#4: 1,962 ft horizontal, 2,014 ft 3D, closure +18 kt | #2–#3: 733 ft horizontal, 923 ft 3D, closure +2 kt | #2–#4: 1,277 ft horizontal, 1,411 ft 3D, closure +45 kt | #3–#4: 571 ft horizontal, 572 ft 3D, closure +31 kt | Positive closure means the range is shrinking; negative means it is opening.
+--- V6 functions on the same cleaned fixes ---
+V6 #1: Alt 11959 ft, GS 261 kt, estG 1.31, pitch(V6 est path) 1.3 (estimated flight path), nativeG --, EM: ias 217.1 tr(V6 /2) 0.50 => D39 tr 1.00; lat/lon(V6, earlier fix) 50.04653,-105.62244
+V6 #2: Alt 12103 ft, GS 273 kt, estG 1.24, pitch(V6 est path) -1.4 (estimated flight path), nativeG --, EM: ias 226.9 tr(V6 /2) 2.25 => D39 tr 4.51; lat/lon(V6, earlier fix) 50.04419,-105.62277
+V6 #3: Alt 11543 ft, GS 259 kt, estG 1.58, pitch(V6 est path) 4.9 (native aircraft pitch), nativeG 1.61, EM: ias 216.9 tr(V6 /2) 2.53 => D39 tr 5.05; lat/lon(V6, earlier fix) 50.04262,-105.62625
+V6 #4: Alt 11503 ft, GS 287 kt, estG 1.31, pitch(V6 est path) 5.2 (native aircraft pitch), nativeG 1.28, EM: ias 240.7 tr(V6 /2) 1.12 => D39 tr 2.23; lat/lon(V6, earlier fix) 50.04148,-105.62845
+V6 #2 vs Lead: Range 857 ft, AA 16, HCA 4, closure -5.4 kt; V6 classify: interval 237 foreAft -824 offsetAft - labels TIGHT/AFT
+V6 #3 vs Lead: Range 1395 ft, AA 10, HCA 13, closure -1.1 kt; V6 classify: interval 250 foreAft -1372 offsetAft - labels TIGHT/AFT
+V6 #4 vs Lead: Range 1962 ft, AA 13, HCA 34, closure 18.5 kt; V6 classify: interval 428 foreAft -1914 offsetAft - labels TIGHT/AFT
+V6 3-4: 571 ft, closure 31.1
+V6 1-2: 857 ft, closure -5.4
+V6 2-3: 733 ft, closure 2.1
+EM canvas 504x252: {"1":[291.8510638297872,211.85106382978722,94],"2":[306.4795918367347,190.79591836734693,98],"3":[291.3763440860215,186.72043010752688,93]}
+=== t=1780427965  (19:19:25Z) ===
+FORMATION: #2 TIGHT by 3,955 ft, AFT by 19°
+FORMATION: #3 TIGHT by 3,915 ft, FORE by 5,847 ft
+FORMATION: #4 TIGHT by 3,851 ft, AFT by 47°
+FORMATION: Lead 193 kt est. IAS, 1.0 G, on parameters (target 200 kt, mid block)
+FORMATION: Alt 12,226 ft, GS 233 kt, est. IAS 193 kt
+FORMATION: G 1.00 est., pitch 0° est., bank 1° left est.
+FORMATION: Lat 49.93708, Lon -105.64230
+FORMATION: Alt 12,223 ft, GS 233 kt, est. IAS 193 kt
+FORMATION: G 1.00 est., pitch 0° est., bank 1° left est.
+FORMATION: Lat 49.93707, Lon -105.64251
+FORMATION: Alt 12,218 ft, GS 234 kt, est. IAS 194 kt
+FORMATION: G 1.00 est., pitch 0° est., bank 1° left recorded
+FORMATION: Lat 49.93729, Lon -105.64297
+FORMATION: Alt 12,294 ft, GS 233 kt, est. IAS 193 kt
+FORMATION: G 1.00 est., pitch 0° est., bank 1° left recorded
+FORMATION: Lat 49.93735, Lon -105.64338
+FORMATION: #2 Range 51 ft horizontal, aspect 61°, HCA 0°, closure 0 kt
+FORMATION: #3 Range 175 ft horizontal, aspect 29°, HCA 0°, closure +1 kt
+FORMATION: #4 Range 271 ft horizontal, aspect 33°, HCA 0°, closure 0 kt
+FORMATION: #1–#2: 51 ft horizontal, 51 ft 3D, closure 0 kt
+FORMATION: #1–#3: 175 ft horizontal, 175 ft 3D, closure +1 kt
+FORMATION: #1–#4: 271 ft horizontal, 279 ft 3D, closure 0 kt
+FORMATION: #2–#3: 134 ft horizontal, 134 ft 3D, closure +1 kt
+FORMATION: #2–#4: 226 ft horizontal, 237 ft 3D, closure 0 kt
+FORMATION: #3–#4: 97 ft horizontal, 123 ft 3D, closure -1 kt
+FORMATION: Load a flight to throw a tennis ball.
+FORMATION: Spread: 4000-6000 ft, sweep 0 to 10°
+FORMATION: Offset #3 aft: 7000 ±1000 ft
+FORMATION: Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G
+More detail | Live data | #1 Lead - ED2F5 | Alt 12,226 ft, GS 233 kt, est. IAS 193 kt | G 1.00 est., pitch 0° est., bank 1° left est. | Lat 49.93708, Lon -105.64230 | #2 60DF66 | Alt 12,223 ft, GS 233 kt, est. IAS 193 kt | G 1.00 est., pitch 0° est., bank 1° left est. | Lat 49.93707, Lon -105.64251 | #3 8738A6C9 | Alt 12,218 ft, GS 234 kt, est. IAS 194 kt | G 1.00 est., pitch 0° est., bank 1° left recorded | Lat 49.93729, Lon -105.64297 | #4 083AC | Alt 12,294 ft, GS 233 kt, est. IAS 193 kt | G 1.00 est., pitch 0° est., bank 1° left recorded | Lat 49.93735, Lon -105.64338 | From Lead | #2 Range 51 ft horizontal, aspect 61°, HCA 0°, closure 0 kt | #3 Range 175 ft horizontal, aspect 29°, HCA 0°, closure +1 kt | #4 Range 271 ft horizontal, aspect 33°, HCA 0°, closure 0 kt | Spacing | #1–#2: 51 ft horizontal, 51 ft 3D, closure 0 kt | #1–#3: 175 ft horizontal, 175 ft 3D, closure +1 kt | #1–#4: 271 ft horizontal, 279 ft 3D, closure 0 kt | #2–#3: 134 ft horizontal, 134 ft 3D, closure +1 kt | #2–#4: 226 ft horizontal, 237 ft 3D, closure 0 kt | #3–#4: 97 ft horizontal, 123 ft 3D, closure -1 kt | Positive closure means the range is shrinking; negative means it is opening.
+--- V6 functions on the same cleaned fixes ---
+V6 #1: Alt 12226 ft, GS 233 kt, estG 1.00, pitch(V6 est path) 0.1 (estimated flight path), nativeG --, EM: ias 193.4 tr(V6 /2) 0.04 => D39 tr 0.08; lat/lon(V6, earlier fix) 49.93708,-105.64230
+V6 #2: Alt 12223 ft, GS 233 kt, estG 1.00, pitch(V6 est path) 0.1 (estimated flight path), nativeG --, EM: ias 193.3 tr(V6 /2) 0.03 => D39 tr 0.06; lat/lon(V6, earlier fix) 49.93707,-105.64251
+V6 #3: Alt 12218 ft, GS 234 kt, estG 1.00, pitch(V6 est path) 2.8 (native aircraft pitch), nativeG 0.92, EM: ias 194.3 tr(V6 /2) 0.04 => D39 tr 0.09; lat/lon(V6, earlier fix) 49.93800,-105.64376
+V6 #4: Alt 12294 ft, GS 233 kt, estG 1.00, pitch(V6 est path) -0.3 (native aircraft pitch), nativeG 0.98, EM: ias 193.4 tr(V6 /2) 0.09 => D39 tr 0.18; lat/lon(V6, earlier fix) 49.93802,-105.64412
+V6 #2 vs Lead: Range 51 ft, AA 61, HCA 0, closure -0.0 kt; V6 classify: interval 45 foreAft -25 offsetAft - labels TIGHT
+V6 #3 vs Lead: Range 175 ft, AA 29, HCA 0, closure 1.3 kt; V6 classify: interval 85 foreAft -153 offsetAft - labels TIGHT
+V6 #4 vs Lead: Range 271 ft, AA 33, HCA 0, closure 0.4 kt; V6 classify: interval 149 foreAft -226 offsetAft - labels TIGHT
+V6 3-4: 97 ft, closure -0.9
+V6 1-2: 51 ft, closure -0.0
+V6 2-3: 134 ft, closure 1.1
+EM canvas 504x252: {"1":null,"2":null,"3":null}
+=== t=1780429446  (19:44:06Z) ===
+FORMATION: #2 TIGHT by 3,956 ft, AFT by 28°
+FORMATION: #3 TIGHT by 3,909 ft, FORE by 5,789 ft
+FORMATION: #4 TIGHT by 3,802 ft, AFT by 49°
+FORMATION: Lead 237 kt est. IAS, 1.0 G, FAST (target 220 kt, low block)
+FORMATION: Alt 2,790 ft, GS 247 kt, est. IAS 237 kt
+FORMATION: G 1.00 est., pitch -3° est., bank 4° right est.
+FORMATION: Lat 50.41849, Lon -105.80691
+FORMATION: Alt 2,784 ft, GS 245 kt, est. IAS 235 kt
+FORMATION: G 1.00 est., pitch -3° est., bank 0° est.
+FORMATION: Lat 50.41841, Lon -105.80712
+FORMATION: Alt 2,768 ft, GS 239 kt, est. IAS 229 kt
+FORMATION: G 1.00 est., pitch -3° est., bank 5° left recorded
+FORMATION: Lat 50.41895, Lon -105.80759
+FORMATION: Alt 2,831 ft, GS 209 kt, est. IAS 201 kt
+FORMATION: G 1.00 est., pitch -3° est., bank 3° left recorded
+FORMATION: Lat 50.41935, Lon -105.80789
+FORMATION: #2 Range 56 ft horizontal, aspect 52°, HCA 1°, closure 0 kt
+FORMATION: #3 Range 230 ft horizontal, aspect 23°, HCA 3°, closure -11 kt
+FORMATION: #4 Range 389 ft horizontal, aspect 31°, HCA 2°, closure -24 kt
+FORMATION: #1–#2: 56 ft horizontal, 57 ft 3D, closure 0 kt
+FORMATION: #1–#3: 230 ft horizontal, 231 ft 3D, closure -11 kt
+FORMATION: #1–#4: 389 ft horizontal, 391 ft 3D, closure -24 kt
+FORMATION: #2–#3: 222 ft horizontal, 223 ft 3D, closure -8 kt
+FORMATION: #2–#4: 385 ft horizontal, 388 ft 3D, closure -19 kt
+FORMATION: #3–#4: 163 ft horizontal, 175 ft 3D, closure -9 kt
+FORMATION: Load a flight to throw a tennis ball.
+FORMATION: Spread: 4000-6000 ft, sweep 0 to 10°
+FORMATION: Offset #3 aft: 7000 ±1000 ft
+FORMATION: Lead: 220 kt low block, 200 kt mid, ±10 kt, 1.0 ±0.20 G
+More detail | Live data | #1 Lead - ED2F5 | Alt 2,790 ft, GS 247 kt, est. IAS 237 kt | G 1.00 est., pitch -3° est., bank 4° right est. | Lat 50.41849, Lon -105.80691 | #2 60DF66 | Alt 2,784 ft, GS 245 kt, est. IAS 235 kt | G 1.00 est., pitch -3° est., bank 0° est. | Lat 50.41841, Lon -105.80712 | #3 8738A6C9 | Alt 2,768 ft, GS 239 kt, est. IAS 229 kt | G 1.00 est., pitch -3° est., bank 5° left recorded | Lat 50.41895, Lon -105.80759 | #4 083AC | Alt 2,831 ft, GS 209 kt, est. IAS 201 kt | G 1.00 est., pitch -3° est., bank 3° left recorded | Lat 50.41935, Lon -105.80789 | From Lead | #2 Range 56 ft horizontal, aspect 52°, HCA 1°, closure 0 kt | #3 Range 230 ft horizontal, aspect 23°, HCA 3°, closure -11 kt | #4 Range 389 ft horizontal, aspect 31°, HCA 2°, closure -24 kt | Spacing | #1–#2: 56 ft horizontal, 57 ft 3D, closure 0 kt | #1–#3: 230 ft horizontal, 231 ft 3D, closure -11 kt | #1–#4: 389 ft horizontal, 391 ft 3D, closure -24 kt | #2–#3: 222 ft horizontal, 223 ft 3D, closure -8 kt | #2–#4: 385 ft horizontal, 388 ft 3D, closure -19 kt | #3–#4: 163 ft horizontal, 175 ft 3D, closure -9 kt | Positive closure means the range is shrinking; negative means it is opening.
+--- V6 functions on the same cleaned fixes ---
+V6 #1: Alt 2790 ft, GS 247 kt, estG 1.00, pitch(V6 est path) -2.8 (estimated flight path), nativeG --, EM: ias 236.8 tr(V6 /2) 0.15 => D39 tr 0.30; lat/lon(V6, earlier fix) 50.41849,-105.80691
+V6 #2: Alt 2784 ft, GS 245 kt, estG 1.00, pitch(V6 est path) -3.1 (estimated flight path), nativeG --, EM: ias 234.7 tr(V6 /2) 0.02 => D39 tr 0.04; lat/lon(V6, earlier fix) 50.41842,-105.80713
+V6 #3: Alt 2768 ft, GS 239 kt, estG 1.00, pitch(V6 est path) 4.3 (native aircraft pitch), nativeG 1.32, EM: ias 229.4 tr(V6 /2) 0.02 => D39 tr 0.04; lat/lon(V6, earlier fix) 50.41964,-105.81043
+V6 #4: Alt 2831 ft, GS 209 kt, estG 1.00, pitch(V6 est path) 5.2 (native aircraft pitch), nativeG 1.05, EM: ias 200.5 tr(V6 /2) 0.26 => D39 tr 0.53; lat/lon(V6, earlier fix) 50.41958,-105.80881
+V6 #2 vs Lead: Range 56 ft, AA 52, HCA 1, closure -0.1 kt; V6 classify: interval 44 foreAft -35 offsetAft - labels TIGHT
+V6 #3 vs Lead: Range 230 ft, AA 23, HCA 3, closure -10.8 kt; V6 classify: interval 91 foreAft -211 offsetAft - labels TIGHT
+V6 #4 vs Lead: Range 389 ft, AA 31, HCA 2, closure -24.0 kt; V6 classify: interval 198 foreAft -334 offsetAft - labels TIGHT/AFT
+V6 3-4: 163 ft, closure -9.0
+V6 1-2: 56 ft, closure -0.1
+V6 2-3: 222 ft, closure -8.3
+EM canvas 504x252: {"1":null,"2":[325.44117647058823,217.7941176470588,68],"3":[314.25531914893617,217.80851063829786,94]}
