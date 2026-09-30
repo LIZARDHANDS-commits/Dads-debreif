@@ -11,6 +11,7 @@ import { createRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
 import { createTopDownView } from './view.js';
 import { createProfileView } from './profile.js';
+import { createView3d } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
 
@@ -53,8 +54,13 @@ function mount(root, app) {
   let stopFrames = null;
   let lastReadout = -Infinity;
   let pendingReadout = null;
-  const views = []; // everything that draws the fight: { requestDraw, dispose }
-  const redraw = () => views.forEach((view) => view.requestDraw());
+  const views = []; // the 2D pictures, which draw the fight: { requestDraw, dispose }
+  let shown = '2d'; // the picture on screen; the `view` setting is what the person asked for
+  let wantView = settings.get().view;
+  let keepNote = false;
+  let switching = 0; // counts switches, so a late three.js load can't undo a later choice
+  // Whichever picture is showing draws; the other draws nothing and holds nothing.
+  const redraw = () => (shown === '3d' ? view3d.requestDraw() : views.forEach((view) => view.requestDraw()));
 
   const ui = createLayout({
     settings,
@@ -68,6 +74,7 @@ function mount(root, app) {
         resetFight();
       },
       moreToggled: (open) => open && renderReadouts(),
+      cameraView: (name) => view3d.setView(name),
     },
   });
   root.append(ui.element);
@@ -78,6 +85,37 @@ function mount(root, app) {
     requestDraw: () => settings.get().vertical && profile.requestDraw(),
     dispose: profile.dispose,
   });
+
+  // The 3D picture reads the same run as the 2D ones. Only the object is made now: three.js loads when 3D is switched on.
+  const view3d = createView3d(ui.canvas3d, { timers: app.scheduler, run: () => run, paint: () => settings.get().paint });
+
+  // Shows 2D, or 3D once three.js has loaded and WebGL has started. Neither touches the fight: no reset, no number changes.
+  async function applyView(want) {
+    const turn = ++switching;
+    if (want !== '3d') {
+      shown = '2d';
+      view3d.stop();
+      ui.showView('2d');
+      if (!keepNote) ui.setNote('');
+      redraw();
+      return;
+    }
+    ui.setNote('Loading 3D…');
+    const result = await view3d.start();
+    if (turn !== switching) return; // a later choice came first, and has dealt with it
+    if (!result.ok) {
+      if (result.reason === 'closed') return;
+      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
+      keepNote = true;
+      settings.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
+      keepNote = false;
+      return;
+    }
+    shown = '3d';
+    ui.showView('3d');
+    ui.setNote('');
+    view3d.requestDraw();
+  }
 
   function renderReadouts() {
     pendingReadout?.();
@@ -146,6 +184,10 @@ function mount(root, app) {
   const stopSettings = settings.subscribe((values) => {
     ui.applyLayout(values);
     const setup = setupKey(values);
+    if (values.view !== wantView) {
+      wantView = values.view;
+      applyView(wantView);
+    }
     if (setup !== lastSetup) {
       lastSetup = setup;
       resetFight(); // a new fight; playback speed and the height scale never get here (#20)
@@ -154,6 +196,7 @@ function mount(root, app) {
 
   ui.applyLayout(settings.get());
   renderReadouts();
+  if (wantView === '3d') applyView('3d'); // remembered from last time: three.js loads now, as it would on a switch
 
   app.keys({
     Space: () => setPlaying(!playing),
@@ -165,6 +208,7 @@ function mount(root, app) {
     pendingReadout?.();
     stopSettings();
     controls.dispose();
+    view3d.dispose();
     for (const view of views) view.dispose();
     stylesheet.remove();
   };

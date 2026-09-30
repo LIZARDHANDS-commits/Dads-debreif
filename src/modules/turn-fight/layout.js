@@ -9,7 +9,9 @@ import { h } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
+import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { RANGES, ALLOWED } from './state.js';
+import { VIEWS } from './view3d.js';
 import { limitWarning } from './t6-limit.js';
 
 // The choices come from state.js, so a saved value and a box can't disagree.
@@ -19,7 +21,8 @@ let nextId = 1;
 
 /**
  * settings: the remembered values (storage/settings.js); controls: ui-kit controls bound to them.
- * on: { playPause, reset, resetDefaults, moreToggled }, called from the buttons.
+ * on: { playPause, reset, resetDefaults, moreToggled, cameraView }, called from the buttons;
+ * cameraView(name) is one of the 3D view's one-click views ('overhead', 'blue', 'red').
  */
 export function createLayout({ settings, controls, on }) {
   // ── Fight setup column ──────────────────────────────────────────────
@@ -66,6 +69,8 @@ export function createLayout({ settings, controls, on }) {
   display.append(
     controls.choice('heightScale', { label: 'Side view height scale', options: times(ALLOWED.heightScale) }),
     h('p', { class: 'tf-hint' }, 'Stretches heights in the side view. It shows with Climb and dive.'),
+    controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }),
+    h('p', { class: 'tf-hint' }, 'How the aircraft are painted in the 3D view. Ship colours are Blue and Red.'),
   );
 
   const about = createPanel({ title: 'About this model', collapsed: true });
@@ -94,20 +99,32 @@ export function createLayout({ settings, controls, on }) {
     'div',
     { class: 'tf-toolbar' },
     playButton, resetButton,
+    controls.viewSwitch(),
     controls.select('playbackRate', { label: 'Playback speed', options: times(ALLOWED.playbackRate) }),
     timeText, phaseText,
   );
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
+  // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.
+  const note = h('p', { class: 'tf-note', role: 'status', hidden: true });
 
   const canvas = h('canvas', { class: 'tf-topdown' });
   const profileCanvas = h('canvas', { class: 'tf-profile-canvas' });
   const profile = h('section', { class: 'tf-profile', 'aria-label': 'Side view', hidden: true }, profileCanvas);
-  const views = h('div', { class: 'tf-views' }, h('div', { class: 'tf-topdown-wrap' }, canvas), profile);
+  // The 3D view draws inside `canvas3d` (a box; each start puts a new canvas in it), with its one-click views beside it.
+  const canvas3d = h('div', { class: 'tf-3d', hidden: true });
+  const cameraBar = h(
+    'div',
+    { class: 'tf-3d-bar', role: 'group', 'aria-label': 'Camera views', hidden: true },
+    Object.entries(VIEWS).map(([id, { label }]) => h('button', { type: 'button', class: 'button tf-3d-view', onclick: () => on.cameraView(id) }, label)),
+    h('span', { class: 'tf-3d-hint' }, 'Drag to turn it. Scroll or pinch to zoom. Grid squares are 1 NM.'),
+  );
+  const views = h('div', { class: 'tf-views' }, h('div', { class: 'tf-topdown-wrap' }, canvas, canvas3d, cameraBar), profile);
   const stage = h(
     'section',
     { class: 'tf-stage', 'aria-label': 'Fight' },
     toolbar,
     stopped,
+    note,
     views,
     h('p', { class: 'tf-footer' }, 'Simplified: constant speed and turn rate'),
   );
@@ -123,6 +140,19 @@ export function createLayout({ settings, controls, on }) {
 
   const element = h('div', { class: 'turn-fight' }, h('h1', { class: 'visually-hidden' }, 'Turn Fight'), setupCol, stage, resultCol);
 
+  // Which picture is on screen: '2d' or '3d'. The view setting is what the person chose; this is what shows.
+  let shown = '2d';
+  let sideViewWanted = false;
+  const showPictures = () => {
+    const in3d = shown === '3d';
+    canvas.hidden = in3d;
+    canvas3d.hidden = !in3d;
+    cameraBar.hidden = !in3d;
+    // The 3D scene replaces the whole drawing area, the side view with it.
+    profile.hidden = in3d || !sideViewWanted;
+    controls.setDisabled('paint', !in3d); // the paint shows only in 3D
+  };
+
   function showWarning(box, text) {
     if (box.warning.textContent !== (text ?? '')) box.warning.textContent = text ?? '';
   }
@@ -130,6 +160,7 @@ export function createLayout({ settings, controls, on }) {
   return {
     element,
     canvas,
+    canvas3d,
     profileCanvas,
     /** Shows the side view, and which controls go with each checkbox, from the settings. */
     applyLayout(values) {
@@ -139,10 +170,21 @@ export function createLayout({ settings, controls, on }) {
       resultCol.classList.toggle('is-collapsed', !values.resultOpen);
       blue.pitchBox.hidden = !values.vertical;
       red.pitchBox.hidden = !values.vertical;
-      profile.hidden = !values.vertical;
+      sideViewWanted = values.vertical;
+      showPictures();
       controls.setDisabled('heightScale', !values.vertical);
       showWarning(blue, limitWarning(values.blueKt, values.blueG));
       showWarning(red, limitWarning(values.redKt, values.redG));
+    },
+    /** Shows the 2D pictures or the 3D scene ('2d' or '3d'). */
+    showView(view) {
+      shown = view;
+      showPictures();
+    },
+    /** A short note under the toolbar ("3D needs a connection the first time."), or '' for none. */
+    setNote(text) {
+      note.textContent = text ?? '';
+      note.hidden = !text;
     },
     setPlaying(playing) {
       playButton.textContent = playing ? 'Pause' : 'Play';

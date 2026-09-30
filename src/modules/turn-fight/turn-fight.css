@@ -261,6 +261,109 @@
   color: var(--text);
 }
 
+/* The 2D | 3D switch sits in the toolbar as a compact choice; its legend stays for screen readers. */
+[data-module='turn-fight'] .tf-toolbar .control-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+[data-module='turn-fight'] .tf-toolbar .control-choice > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Why 3D did not start. */
+[data-module='turn-fight'] .tf-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--caution);
+  background: var(--bg-sunken);
+  font-size: var(--text-sm);
+}
+
+/* The 3D view: its box fills the drawing area, the camera buttons and the hint sit over its corner,
+   and the letters and MERGE word are placed over the picture by view3d.js. */
+[data-module='turn-fight'] .tf-3d {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-module='turn-fight'] .tf-3d.is-dragging {
+  cursor: grabbing;
+}
+
+[data-module='turn-fight'] .tf-3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+[data-module='turn-fight'] .tf-3d-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font: bold 12px system-ui, sans-serif;
+  pointer-events: none;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+
+[data-module='turn-fight'] .tf-3d-label-blue {
+  color: var(--tf-blue);
+}
+
+[data-module='turn-fight'] .tf-3d-label-red {
+  color: var(--tf-red);
+}
+
+[data-module='turn-fight'] .tf-3d-label-nose {
+  color: var(--tf-nose);
+  font-weight: normal;
+}
+
+/* Where the 2D view puts these words, at the bottom-right, so nothing covers an aircraft. */
+[data-module='turn-fight'] .tf-3d-first-nose {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  color: var(--tf-nose);
+  font: 12px system-ui, sans-serif;
+  pointer-events: none;
+}
+
+[data-module='turn-fight'] .tf-3d-bar {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+[data-module='turn-fight'] .tf-3d-bar .button {
+  pointer-events: auto;
+}
+
+[data-module='turn-fight'] .tf-3d-hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-shadow: 0 0 3px #000;
+}
+
 /* Last, so a hidden panel or box stays hidden whatever display it was given above. */
 [data-module='turn-fight'] [hidden] {
   display: none;

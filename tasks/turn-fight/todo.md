@@ -33,7 +33,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 **Checkpoint B:** tests pass, build under budget; code-review-and-quality; open PR B.
 
-- [ ] **5b. 2D/3D switch and the 3D view (Patrick 07:51Z).** `view3d.js` on ui-kit's `three-aircraft.js` and `ct156-model.js` (loaded through `loadThree()` only when 3D is switched on); ui-kit's `controls.viewSwitch()` on the stage toolbar, 2D by default and remembered; the Paint choice (Harvard default) in Turn Fight settings; Overhead, Chase Blue and Chase Red views; the no-connection and no-WebGL messages; frees WebGL on switch-back and unmount.
+- [x] **5b. 2D/3D switch and the 3D view (Patrick 07:51Z).** `view3d.js` on ui-kit's `three-aircraft.js` and `ct156-model.js` (loaded through `loadThree()` only when 3D is switched on); ui-kit's `controls.viewSwitch()` on the stage toolbar, 2D by default and remembered; the Paint choice (Harvard default) in Turn Fight settings; Overhead, Chase Blue and Chase Red views; the no-connection and no-WebGL messages; frees WebGL on switch-back and unmount.
   - Acceptance: the spec's "2D and 3D views"; switching never resets the fight; the 2D bundle doesn't grow by three.js.
   - Verify: unit tests of attitude and trail conversion; e2e switch while playing, no console errors, context released.
   - Dependencies: 4; ui-kit's 3D pieces are on main (#145). Size M.

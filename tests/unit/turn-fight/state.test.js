@@ -3,6 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_DEFAULT_SETUP, createFight } from '../../../src/modules/turn-fight/sim.js';
+import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../../src/ui-kit/controls.js';
+import { PAINT_DEFAULT } from '../../../src/ui-kit/ct156-model.js';
 import {
   DEFAULTS, FIGHT_KEYS, RANGES, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults,
 } from '../../../src/modules/turn-fight/state.js';
@@ -40,6 +42,16 @@ test('choices are limited to the ones on screen', () => {
   assert.deepEqual(ALLOWED.circles, [1, 2]);
   assert.deepEqual(ALLOWED.heightScale, [1, 2, 4]);
   assert.deepEqual(ALLOWED.playbackRate, [0.5, 1, 2, 4]);
+  assert.deepEqual(ALLOWED.view, ['2d', '3d']);
+  assert.deepEqual(ALLOWED.paint, ['harvard', 'ship']);
+});
+
+test('the view opens in 2D and the paint as a Harvard, and a saved value outside the choices is refused (2D/3D, D141)', () => {
+  assert.equal(DEFAULTS.view, VIEW_DEFAULT);
+  assert.equal(DEFAULTS.view, '2d');
+  assert.equal(DEFAULTS.paint, PAINT_DEFAULT);
+  assert.equal(DEFAULTS.paint, 'harvard');
+  assert.equal(ALLOWED.view, VIEW_ALLOWED);
 });
 
 test('setupFrom picks only the fight\'s numbers; display settings are not part of it', () => {
@@ -54,7 +66,8 @@ test('changing the setup changes its key; playback speed, height scale and colum
     { chase: true }, { vertical: true }, { bluePitchDeg: 10 }, { redPitchDeg: -10 }]) {
     assert.notEqual(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
   }
-  for (const change of [{ heightScale: 4 }, { heightScale: 1 }, { playbackRate: 4 }, { setupOpen: false }, { resultOpen: false }]) {
+  // Switching between 2D and 3D, or the paint, never starts the fight again.
+  for (const change of [{ heightScale: 4 }, { heightScale: 1 }, { playbackRate: 4 }, { setupOpen: false }, { resultOpen: false }, { view: '3d' }, { paint: 'ship' }]) {
     assert.equal(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
   }
 });
@@ -64,7 +77,9 @@ test('Reset to V6 defaults puts back the fight, Energy and the display settings,
   for (const key of ['circles', 'separationNm', 'blueKt', 'redKt', 'blueG', 'redG', 'chase', 'vertical', 'bluePitchDeg', 'redPitchDeg', 'energy', 'heightScale', 'playbackRate']) {
     assert.equal(patch[key], DEFAULTS[key], key);
   }
+  assert.equal(patch.paint, 'harvard');
   assert.ok(!('setupOpen' in patch) && !('resultOpen' in patch));
+  assert.ok(!('view' in patch), 'reset never switches the view');
   assert.ok(FIGHT_KEYS.every((k) => k in DEFAULTS));
 });
 
