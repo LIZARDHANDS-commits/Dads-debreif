@@ -34,10 +34,10 @@ So the map below has one shared `core` of pure, tested functions, one `ui-kit`, 
 
 | Module id | What it owns | Depends on | Replaces in V6 |
 |---|---|---|---|
-| `core` | Pure functions, no page access: units and conversions, angles and vectors, one heading convention, turn radius/rate, G and bank, ISA density and IAS estimate, aspect/HCA/closure, formation standards classifier, time formatting (Zulu/local). | none | Duplicated helpers across Turn Sim, KML, 3D, EM and BFM |
+| `core` | Pure functions, no page access: units and conversions, angles and vectors, one heading convention, turn radius/rate, G and bank, ISA density and IAS estimate, aspect/HCA/closure, formation standards classifier, time formatting (Zulu/local), the wind triangle (`wind.js`, #120), and one shared T-6A performance model (D128: V-n and stall line, IAS to TAS, thrust and drag fitted from the turn charts, the point-mass step, energy height, the max glide and the NFM zoom) that the Turn Fight, Traffic and Turn Sim all use. | none | Duplicated helpers across Turn Sim, KML, 3D, EM and BFM |
 | `storage` | Safe browser storage (never crashes when storage is blocked), one key naming scheme, versioned settings, named profiles, and file export/import. | `core` | Four key families; unguarded reads that can stop the whole page |
 | `airfields` | Home airfield and alternates as a setting: ICAO, position, elevation, time zone, charts, weather stations. Defaults to CYMJ. | `core`, `storage` | Moose Jaw hard-coded in about 15 places, with 3 different coordinates (R16) |
-| `ui-kit` | Shared look (colour tokens, cards, collapsible panels, toolbar), a control registry that binds inputs to settings, a pan/zoom canvas view, and one animation scheduler that runs only the open module. | `core` | Six CSS patch layers, 348 `!important`, side rails that cover controls, a Tab key that hides panels |
+| `ui-kit` | Shared look (colour tokens, cards, collapsible panels, toolbar), a control registry that binds inputs to settings, a pan/zoom canvas view, one animation scheduler that runs only the open module, and the map layers more than one module draws: the satellite tile loader and the VNC charts (moved from the debrief for Traffic and the SOF). | `core` | Six CSS patch layers, 348 `!important`, side rails that cover controls, a Tab key that hides panels |
 | `shell` | Home screen and module cards, routing (`#/debrief`, `#/turn-sim` …), module mount/unmount, the one Zulu/local switch, settings, About, Report a problem. | `ui-kit`, `storage`, `airfields`, `core` | Splash, launcher, tab bar, About, two hidden splash buttons, debug badges |
 | `flight-data` | ForeFlight KML parsing (with data-quality checks), projection, interpolation, derived speed/G/pitch, the Flight and Debrief data model, the playback clock, and the save/open debrief file. | `core`, `storage`, `airfields` | KML parsing, `DADS3DAPI`, four separate clocks, one global DFP list (R11, R17) |
 | `debrief` | The debrief viewer: 2D map and 3D view of the same flight (switch, not a separate tab), spacing and standards readouts, EM diagram, one tennis-ball solver, DFPs, map layers and charts, CSV export. | `flight-data`, `ui-kit`, `airfields`, `core` | KML viewer + 3D viewer + EM card (R11, R12, R17, R18) |
@@ -74,10 +74,12 @@ index.html              home screen
 src/
   app.js                entry: starts the shell
   shell/                router.js registry.js host.js home.js about.js header.js …
-  core/                 units.js angles.js geo.js flight-math.js standards.js time.js
+  core/                 units.js angles.js geo.js flight-math.js standards.js time.js tennis.js wind.js
+                        t6-performance.js t6a-turn-charts.js point-mass.js (the T-6A model, D128)
   storage/              store.js settings.js file.js
   airfields/            airfields.js  data/CYMJ.json …
-  ui-kit/               tokens.css panel.js controls.js canvas-view.js scheduler.js
+  ui-kit/               tokens.css base.css dom.js panel.js controls.js canvas-view.js scheduler.js
+                        map-tiles.js vnc.js (satellite tiles and VNC charts, from the debrief)
   flight-data/          kml.js flight.js clock.js debrief-file.js
   wx/                   metar.js taf.js limits.js sources.js
   modules/
@@ -86,7 +88,7 @@ src/
     turn-fight/         index.js … README.md
     traffic/            index.js … README.md
     sof/                index.js … README.md
-public/media/           card videos (WebM, about 2.3 MB total), chart images
+public/media/           card videos (WebM, about 2.3 MB total); charts/ the VNC chart images
 original/               untouched V6 reference (never edited)
 tests/
   unit/                 node --test, one file per core/wx/flight-data file

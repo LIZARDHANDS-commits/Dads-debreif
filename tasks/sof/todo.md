@@ -4,7 +4,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 - [x] SPEC-sof.md drafted, with SOF-1 to SOF-7
 - [x] Patrick approves SPEC-sof.md (2026-09-30 04:49Z)
-- [ ] SOF-1 to SOF-7 logged in the plan doc's Questions tab (through the coordinator)
+- [x] SOF-1 to SOF-7 logged in the plan doc (D102 to D108)
 
 ## Build
 
