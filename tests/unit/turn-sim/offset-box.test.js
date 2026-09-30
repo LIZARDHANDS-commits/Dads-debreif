@@ -81,11 +81,11 @@ test('Q44b: the solved delay fits #4 to the target as well as LATE or EARLY do (
 });
 
 test('SMM item 5: the delays of #3 and #4 after the front element are in the state, against the 10 to 15 s band, before the first step too', () => {
-  // The default: each 12.5 s after its front counterpart (the band's middle), inside the band.
+  // 'rearDelay' (BASE here): each 12.5 s after its front counterpart (the band's middle), inside the band.
   const dflt = createRun({ ...BASE, direction: 'right' });
   assert.deepEqual([dflt.state.offsetBox.minSec, dflt.state.offsetBox.maxSec], [10, 15]);
   assert.deepEqual(dflt.state.offsetBox.rear.map((r) => [r.id, r.delaySec, r.outsideBand]), [[3, 12.5, false], [4, 12.5, false]]);
-  // The ground track solves its own delays, which can fall outside the band: they are measured from the front counterpart's start (#3 from #1, #4 from #2).
+  // The ground track solves its own delays, which can fall outside the band: they are measured as Fig 16.30 does: #3 from the later front start, #4 from #3's start.
   const run = createRun({ ...GT, direction: 'right' });
   const box = run.state.offsetBox;
   assert.deepEqual(box.rear.map((r) => r.id), [3, 4]);
@@ -93,7 +93,7 @@ test('SMM item 5: the delays of #3 and #4 after the front element are in the sta
   assert.ok(solved.every(Number.isFinite));
   const started = {};
   while (run.step()) for (const a of run.state.aircraft) if (a.turning && started[a.id] === undefined) started[a.id] = run.state.tSec;
-  assert.ok(Math.abs(started[3] - started[1] - solved[0]) < 0.11 && Math.abs(started[4] - started[2] - solved[1]) < 0.11, `${JSON.stringify(started)} vs ${solved}`);
+  assert.ok(Math.abs(started[3] - Math.max(started[1], started[2]) - solved[0]) < 0.11 && Math.abs(started[4] - started[3] - solved[1]) < 0.11, `${JSON.stringify(started)} vs ${solved}`);
   for (const r of box.rear) assert.equal(r.outsideBand, r.delaySec < 10 || r.delaySec > 15);
   assert.equal(box.rear[1].outsideBand, true, 'the ground track puts #4 well past 15 s after the front element');
   // The band is a setting, and the flag follows it.

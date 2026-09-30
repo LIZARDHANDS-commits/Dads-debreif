@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, checkSettings, turnProblem } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
+// +-200 ft: the turn is flown in 0.05 s Euler steps (about 19 ft each) and the turn uses each step's end heading, so a 180 ends up to ~150 ft off the analytic spacing.
 const BASE = { ...DEFAULTS, crossTurnSolveSpacing: false, maneuver: 'cross180', turnDeg: 180, startHeadingDeg: 0, formation: 'twoShip', durationSec: 60 };
 const TOLERANCE_FT = 120; // Euler steps of 0.05 s: about 19 ft of flying each, and the turn uses the step's end heading
 
@@ -119,7 +120,7 @@ test('the solve can be turned off (about 2,000 ft as before), and the G is clamp
   while (fixed.step());
   assert.ok(Math.abs(fromLead(fixed.state.aircraft, 2).right - 2000) < 150);
   assert.equal(fixed.state.crossTurnSpacingNote, null);
-  // 12,000 ft would need a radius no G above 1.1 makes: clamped at 1.1 G, and the note says what it reached.
+  // 20,000 ft would need a radius no G above 1.1 makes: clamped at 1.1 G, and the note says what it reached.
   const far = createRun({ ...BASE, spacingFt: 20000, crossTurnSolveSpacing: true });
   while (far.step());
   assert.equal(far.state.crossTurnSpacingNote.clamped, true);
@@ -129,4 +130,6 @@ test('the solve can be turned off (about 2,000 ft as before), and the G is clamp
   const tight = createRun({ ...BASE, spacingFt: 200, crossTurnSolveSpacing: true });
   assert.equal(tight.state.crossTurnSpacingNote.clamped, true, 'a small spacing needs more G than is available');
   assert.ok(tight.state.crossTurnSpacingNote.solvedG > 3);
+  assert.equal(tight.state.crossTurnSpacingNote.solvedG, 7, 'clamped at the top G, 7');
+  assert.equal(DEFAULTS.crossTurnSolveSpacing, true, 'the solve is on by default');
 });

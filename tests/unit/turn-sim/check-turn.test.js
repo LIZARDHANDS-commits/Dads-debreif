@@ -61,3 +61,12 @@ test('the check turn is 30 degrees at most: a larger Turn degrees is brought bac
   assert.match(run.state.maneuverFallback, /30/);
   assert.equal(createRun({ ...BASE, turnDeg: 30 }).state.maneuverFallback, null);
 });
+
+test('through createRun a check turn asked for 90 degrees flies exactly 30, not 90', () => {
+  for (const formation of ['twoShip', 'weighted']) {
+    const run = createRun({ ...BASE, formation, turnDeg: 90 });
+    const start = run.state.aircraft.map((a) => a.headingRad);
+    while (run.step());
+    run.state.aircraft.forEach((a, i) => assert.ok(Math.abs(Math.abs(a.headingRad - start[i]) - Math.PI / 6) < 2e-4, `${formation} #${a.id}: turned ${((a.headingRad - start[i]) * 180 / Math.PI).toFixed(3)}`));
+  }
+});

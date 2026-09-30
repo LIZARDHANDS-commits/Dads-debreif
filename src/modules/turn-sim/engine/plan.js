@@ -162,6 +162,16 @@ function outsideSide(one, two, delayOneSec, delayTwoSec, dir, goalRad, speedFtps
   return Math.sign(-(p2.x - p1.x) * Math.sin(hNew) + (p2.y - p1.y) * Math.cos(hNew)) || 1;
 }
 
+/**
+ * The rear element's delays as the SMM measures them (Fig 16.30, audit yellow): #3 from the LATER of the front pair's starts, #4 from #3's
+ * start, so a solved timing reads the way a pilot times it. 'rearDelay' is defined as the fixed shift after each counterpart (#3 after #1,
+ * #4 after #2), so it reads that way.
+ */
+function rearDelaysAsMeasured(delaysSec, timing4) {
+  if (timing4 === 'rearDelay') return { 3: delaysSec[3] - delaysSec[1], 4: delaysSec[4] - delaysSec[2] };
+  return { 3: delaysSec[3] - Math.max(delaysSec[1], delaysSec[2]), 4: delaysSec[4] - delaysSec[3] };
+}
+
 /** The midpoint of two aircraft's start positions. */
 function mid0(a, b) {
   return { xFt: (a.xFt + b.xFt) / 2, yFt: (a.yFt + b.yFt) / 2 };
@@ -377,8 +387,8 @@ export function autoTimingStarts(aircraft, flight) {
  * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingRad, clockCueAircraft,
  *   timing ('time', 'clock' or 'auto'), clockCueSequence ('outsideIn' or 'manual'), speedKt, spacingFt }
  * Returns { autoStepSec, rearDelaysSec }: the auto step when the timing is auto and the turn is a delayed one, else null;
- * and, in the offset box's delayed turns without the clock cue (and the hook), the delays { 3: s, 4: s } of #3 and #4 after
- * their front counterparts' starts (#3 after #1, #4 after #2), else null.
+ * and, in the offset box's delayed turns (and the hook), the delays { 3: s, 4: s } of #3 and #4 as the SMM measures them: #3 after the
+ * later front start, #4 after #3's start (the hook: both after the front element, which turns together; 'rearDelay': #3 after #1, #4 after #2), else null.
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
@@ -550,6 +560,6 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     crossSolve,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
-    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - offsetPlan.delaysSec[1], 4: offsetPlan.delaysSec[4] - offsetPlan.delaysSec[2] } : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null),
+    rearDelaysSec: offsetPlan ? rearDelaysAsMeasured(offsetPlan.delaysSec, flight.offsetBox4Timing) : hookRearDelaysSec || (man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null),
   };
 }

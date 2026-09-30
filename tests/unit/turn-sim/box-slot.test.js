@@ -112,3 +112,42 @@ test('state.crossings lists the pairs that pass under 300 ft, known before the f
   while (run.step());
   assert.deepEqual(key(run.state.crossings), ['1-3', '2-4'], 'and after the run');
 });
+
+test('the band is read as Fig 16.30 does: #3 from the later front start, #4 from #3\'s start (default readings, both directions)', () => {
+  // [#3, #4] at the defaults. Delayed 90: #3 is 10.9 s after the later front start in both directions, inside the band; #4 turns as
+  // far after #3 as #2 does after #1 (the LAB cue), 16.1 s to the right, and before it (-16.1 s) to the left, where the outside aircraft goes first.
+  // Delayed 45 waits 38.6 s between the front pair, so #4 reads about 38.5 s from #3. The hook's rear element turns together, 18.9 s after the front.
+  const readings = { 'delayed90away right': [10.9, 16.1], 'delayed90away left': [10.9, -16.1], 'delayed45away right': [-0.5, 38.8], 'delayed45away left': [-0.5, -38.2], 'hook90 right': [18.9, 18.9], 'hook90 left': [18.9, 18.9] };
+  for (const [key, want] of Object.entries(readings)) {
+    const [maneuver, direction] = key.split(' ');
+    const run = createRun({ ...BASE, maneuver, turnDeg: maneuver === 'delayed90away' ? 90 : maneuver === 'delayed45away' ? 45 : 180, direction });
+    const got = run.state.offsetBox.rear.map((r) => r.delaySec);
+    assert.ok(Math.abs(got[0] - want[0]) < 0.3 && Math.abs(got[1] - want[1]) < 0.3, `${key}: ${got.map((x) => x.toFixed(1))} vs ${want}`);
+    const band = run.state.offsetBox.rear.map((r) => r.outsideBand);
+    assert.deepEqual(band, got.map((x) => x < 10 || x > 15), `${key}: the flag follows the reading`);
+  }
+  // The measured times are the flown ones.
+  const run = createRun({ ...BASE, maneuver: 'delayed90away', turnDeg: 90, direction: 'right' });
+  const started = {};
+  while (run.step()) for (const a of run.state.aircraft) if (a.turning && started[a.id] === undefined) started[a.id] = run.state.tSec;
+  const [three, four] = createRun({ ...BASE, maneuver: 'delayed90away', turnDeg: 90, direction: 'right' }).state.offsetBox.rear.map((r) => r.delaySec);
+  assert.ok(Math.abs(started[3] - Math.max(started[1], started[2]) - three) < 0.11 && Math.abs(started[4] - started[3] - four) < 0.11);
+});
+
+test('state.crossings is worked out only when read (a preview run is a whole run), and gives the same answer each time', () => {
+  const run = createRun({ ...BASE, maneuver: 'hook90', turnDeg: 180, direction: 'right' });
+  assert.equal(typeof Object.getOwnPropertyDescriptor(run.state, 'crossings').get, 'function');
+  assert.deepEqual(run.state.crossings, run.state.crossings);
+  run.reset();
+  assert.equal(run.state.crossings.length, 2);
+});
+
+test('state.crossings after startLeg: the leg\'s own steps only, not the first leg\'s preview (a second box hook crosses #2 with #3)', () => {
+  const run = createRun({ ...BASE, maneuver: 'hook90', turnDeg: 180, direction: 'right', durationSec: 120 });
+  while (run.step());
+  assert.deepEqual(run.state.crossings.map((c) => `${c.a}-${c.b}`).sort(), ['1-3', '2-4']);
+  run.startLeg();
+  assert.deepEqual(run.state.crossings, [], 'nothing flown yet in the new leg');
+  while (run.step());
+  assert.deepEqual(run.state.crossings.map((c) => `${c.a}-${c.b}`), ['2-3']);
+});
