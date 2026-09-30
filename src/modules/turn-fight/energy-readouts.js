@@ -46,10 +46,10 @@ export function energyFirstNoseText(state) {
 /**
  * Who won, or "Even fight". The engine may report a winner (`state.winner`: 'blue', 'red', or an object with `by`, `who` or
  * `name` saying which) and may not have the field yet, so this reads what is there and copes with null and undefined.
- * With no winner named, the answer is settled only when there is nothing more to wait for: both aircraft got their
- * chase started in the same step, or the fight has stopped (10 minutes); until then "--". Otherwise, with the engine
- * silent, whoever's chase started (the pursuit, `state.chase`) is named, since in Energy mode that is who won the
- * turn (SPEC step 4).
+ * With no winner named, whoever's chase started (the pursuit, `state.chase`) is named, since in Energy mode that is who
+ * won the turn (SPEC step 4). With nobody's chase started, the answer is "Even fight" once nothing separates them: both
+ * noses came on in the same step (a tie, Q48), both chases started together, or the fight has stopped (10 minutes); until
+ * then "--".
  */
 export function winnerText(state) {
   const named = (value) => {
@@ -62,7 +62,8 @@ export function winnerText(state) {
   if (state.winner === undefined || state.winner === null) {
     const chaser = state.chase && state.chase.by !== 'both' ? named(state.chase.by) : null;
     if (chaser) return `${chaser} wins`;
-    if (state.chase?.by === 'both' || state.stopped) return 'Even fight';
+    // Both noses came on in the same step, and no chase has started from behind: nothing to separate them.
+    if (state.chase?.by === 'both' || state.firstNose?.by === 'both' || state.stopped) return 'Even fight';
     return '--';
   }
   return 'Even fight'; // the engine reported a winner field that names nobody ('none', 'even', 'both', an empty object)

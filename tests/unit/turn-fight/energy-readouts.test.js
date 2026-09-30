@@ -131,6 +131,9 @@ test('a winner the engine names is read; a null or missing one is "--" until the
   assert.equal(winnerText({ chase: { by: 'blue' } }), 'Blue wins');
   assert.equal(winnerText({ chase: { by: 'red' } }), 'Red wins');
   assert.equal(winnerText({ chase: { by: 'both' } }), 'Even fight');
+  assert.equal(winnerText({ firstNose: { by: 'both' } }), 'Even fight', 'a tie at first nose-on, nobody chasing');
+  assert.equal(winnerText({ firstNose: { by: 'blue' } }), '--', 'someone has their nose on, and no chase has started: not decided');
+  assert.equal(winnerText({ firstNose: { by: 'both' }, chase: { by: 'red' } }), 'Red wins', 'a chase from behind decides it');
   assert.equal(winnerText({ winner: 'blue', chase: { by: 'red' } }), 'Blue wins', 'the engine\'s word comes first');
 });
 
