@@ -72,11 +72,12 @@ test('the scene has every route with its drawn path, the aircraft, the conflicts
   assert.equal(scene.aircraft[0].id, 'A1');
 });
 
-test('turn data: every rounded point has its radius and bank, and the ends of an entry or split have none', () => {
+test('turn data is the engine\'s: a radius and bank where V6 shows turn data, none at the first point of a pattern or the ends of an entry or split', () => {
   const setup = fresh();
   const scene = buildScene({ setup, state: createSim(setup).state(), selectedRouteId: null, trailOf: () => [] });
   const pattern = scene.routes.find((r) => r.id === 'PAT1');
-  assert.ok(pattern.points.every((p) => p.radiusFt > 0 && p.bankDeg > 0), 'a pattern rounds every point');
+  assert.equal(pattern.points[0].radiusFt, undefined);
+  assert.ok(pattern.points.slice(1).every((p) => p.radiusFt > 0 && p.bankDeg > 0));
   const entry = scene.routes.find((r) => r.id === 'ENT1');
   assert.equal(entry.points[0].radiusFt, undefined);
   assert.equal(entry.points.at(-1).radiusFt, undefined);

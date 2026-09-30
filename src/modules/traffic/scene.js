@@ -4,8 +4,7 @@
 //
 // Pure: it reads the engine's setup and state and returns plain data. It changes nothing
 // and works out no flight math of its own (radius, bank and the drawn path are the engine's).
-import { limitG, bankDegFromG } from '../../core/flight-math.js';
-import { DEFAULT_ROUTE_OPTIONS, drawPath, isClosedRoute, legDistances, pointTurnRadiusFt } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn } from './route.js';
 
 const isShowing = (route) => route.visible !== false;
 
@@ -35,24 +34,8 @@ export function decisionPoints(route, routes) {
 }
 
 /** Each leg's length with the middle of the leg, for the map to write it at: [{ routeId, x, y, ft }]. Routes that are hidden have none. */
-export function legMarks(routes) {
-  const marks = [];
-  for (const route of routes) {
-    if (!isShowing(route)) continue;
-    for (const leg of legDistances(route)) {
-      const a = route.points[leg.from - 1], b = route.points[leg.to - 1];
-      marks.push({ routeId: route.id, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, ft: leg.ft });
-    }
-  }
-  return marks;
-}
-
-// A point's turn: the radius the route options give and the bank its G gives. The first and last
-// points of an entry or split are not rounded, so they have none.
-function turnOf(point, index, route, options) {
-  if (!isClosedRoute(route) && (index === 0 || index === route.points.length - 1)) return {};
-  return { radiusFt: pointTurnRadiusFt(point, options), bankDeg: bankDegFromG(limitG(+point.g || 2, 9)) };
-}
+export const legMarks = (routes) =>
+  routes.filter(isShowing).flatMap((route) => legDistances(route).map(({ routeId, x, y, ft }) => ({ routeId, x, y, ft })));
 
 /**
  * The scene map2d draws (see the top of map2d.js). `state` is `sim.state()`, `trailOf` is
@@ -64,7 +47,7 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
     const decisions = decisionPoints(route, setup.routes);
     return {
       id: route.id, name: route.name, kind: route.kind, color: route.color, visible: isShowing(route),
-      points: route.points.map((p, i) => ({ ...p, decision: decisions.has(i), ...turnOf(p, i, route, options) })),
+      points: route.points.map((p, i) => ({ ...p, decision: decisions.has(i), ...pointTurn(route, i, options) })),
       path: isShowing(route) && route.points.length > 1 ? drawPath(route, options) : undefined,
     };
   });
