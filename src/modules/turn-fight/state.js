@@ -5,7 +5,7 @@ import { V6_DEFAULT_SETUP } from './sim.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { START_DEFAULTS } from './geometry.js';
-import { ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT } from './energy-sim.js';
+import { ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE } from './energy-sim.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { FT_PER_NM } from '../../core/units.js';
 
@@ -108,7 +108,7 @@ export const RANGES = Object.freeze({
   redAltFt: { min: 0, max: ENERGY_MAX_START_FT, step: 500, unit: 'ft' },
   blueKias: { min: 40, max: 316, step: 5, unit: 'KIAS' },
   redKias: { min: 40, max: 316, step: 5, unit: 'KIAS' },
-  mptKias: { min: 100, max: 220, step: 5, unit: 'KIAS' },
+  mptKias: { min: MPT_KIAS_RANGE[0], max: MPT_KIAS_RANGE[1], step: 5, unit: 'KIAS' }, // the engine's own range
   hardDeckFt: { min: 0, max: ENERGY_MAX_START_FT, step: 500, unit: 'ft' },
   stallKias: { min: 60, max: 120, step: 1, unit: 'KIAS' },
   shakerPct: { min: 50, max: 100, step: 1, unit: '%' },

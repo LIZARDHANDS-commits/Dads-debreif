@@ -1356,7 +1356,7 @@ test('Turn Fight settings has Energy and Model settings for checking only with E
   await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
   await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Pure');
   await expect(page.getByLabel('Chase after a head-on pass')).not.toBeChecked();
-  await expect(energyGroup(page)).toContainText('100 to 220 KIAS, default 160 KIAS.');
+  await expect(energyGroup(page)).toContainText('120 to 175 KIAS, default 160 KIAS.');
   await expect(energyGroup(page)).toContainText('0 to 25,000 ft, default 6,000 ft.');
   await expect(energyGroup(page)).toContainText('SMM 14.3 para 6');
   await expect(energyGroup(page)).toContainText('3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16)');

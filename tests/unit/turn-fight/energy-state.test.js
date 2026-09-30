@@ -2,7 +2,7 @@
 // the defaults are the engine's, the ranges are its setup checks, and the setup key follows the Energy fight.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEnergyFight, stepEnergyFight, ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT } from '../../../src/modules/turn-fight/energy-sim.js';
+import { createEnergyFight, stepEnergyFight, ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE } from '../../../src/modules/turn-fight/energy-sim.js';
 import { T6A_LIMITS, iasToTasKt } from '../../../src/core/t6-performance.js';
 import {
   DEFAULTS, RANGES, ALLOWED, ENERGY_KEYS, ENERGY_CHECK_KEYS, setupFrom, setupKey, energySetupFrom, startSetupFrom, energyProblem,
@@ -145,6 +145,16 @@ test('Reset to V6 defaults turns Energy off and puts every Energy setting back; 
   assert.deepEqual(Object.keys(check).sort(), [...ENERGY_CHECK_KEYS].sort());
   for (const key of ENERGY_CHECK_KEYS) assert.equal(check[key], DEFAULTS[key], key);
   assert.ok(!('blueMove' in check) && !('hardDeckFt' in check) && !('energy' in check));
+});
+
+test('the MPT speed box takes the engine\'s own range, and a saved speed outside it (110, 180) goes back to the default and flies', () => {
+  assert.deepEqual([RANGES.mptKias.min, RANGES.mptKias.max], [...MPT_KIAS_RANGE]);
+  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 110 }), { mptKias: 160 });
+  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 180 }), { mptKias: 160 });
+  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 120 }), {});
+  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 175 }), {});
+  for (const mptKias of [120, 175]) assert.doesNotThrow(() => createEnergyFight(energySetupFrom({ ...ENERGY_ON, mptKias })), `${mptKias} flies`);
+  assert.throws(() => createEnergyFight(energySetupFrom({ ...ENERGY_ON, mptKias: 110 })), RangeError);
 });
 
 test('a saved Energy number outside its range is put back; a saved move or pursuit outside the choices is refused', () => {
