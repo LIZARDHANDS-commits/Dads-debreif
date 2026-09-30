@@ -234,6 +234,21 @@ export function cueStatus(state) {
   return { lines, warning };
 }
 
+/**
+ * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
+ * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag).
+ */
+export function offsetBandLines(state) {
+  const box = state?.offsetBox;
+  if (!box) return null;
+  const band = `${box.minSec}-${box.maxSec} s`;
+  return box.rear.map((r) => ({
+    id: r.id,
+    outside: Boolean(r.outsideBand),
+    text: `${r.delaySec.toFixed(1)} s, ${r.outsideBand ? 'outside' : 'in the'} ${band}${r.outsideBand ? '' : ' band'}`,
+  }));
+}
+
 export function readoutsAt(state, settings, { standards, stallLimitG, distNm = false } = {}) {
   const std = standards ?? DEFAULT_STANDARDS;
   const gById = new Map((state?.aircraft ?? []).map((a) => [a.id, a.g]));
@@ -256,6 +271,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
+    offsetBand: offsetBandLines(state),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
     leadTurnDirection: state?.leadTurnDirection ?? null,

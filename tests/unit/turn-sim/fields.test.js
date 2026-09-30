@@ -50,3 +50,10 @@ test('#3 and #4 that cannot see a 5:30 cue in the offset box get the Q44c messag
   s.aircraft.pop();
   assert.equal(cueStatus(s).warning, "#3 can't see a 5:30 cue in the offset box; pick Time delay");
 });
+
+test('the offset box band lines say in the band or outside it, and are null without an offset box turn', async () => {
+  const { offsetBandLines } = await import('../../../src/modules/turn-sim/readouts.js');
+  assert.equal(offsetBandLines({ offsetBox: null }), null);
+  const lines = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12.5, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } });
+  assert.deepEqual(lines.map((l) => [l.id, l.outside, l.text]), [[3, false, '12.5 s, in the 10-15 s band'], [4, true, '18.0 s, outside 10-15 s']]);
+});

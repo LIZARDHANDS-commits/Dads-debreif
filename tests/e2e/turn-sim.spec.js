@@ -615,6 +615,22 @@ test('the SMM settings sit in the closed Turn Sim settings menu, each at its def
   await expect(box(page, 'Cross turn switch point')).toHaveValue('90');
 });
 
+test('the offset box shows #3 and #4 delays against the 10-15 s band in More detail, and flags one outside it', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Offset box' });
+  await panel(page, 'More detail').click();
+  const band = page.locator('.ts-detail li', { hasText: /^#[34] .* s, / });
+  await expect(band).toHaveCount(2);
+  await expect(band.first()).toHaveText('#3 12.5 s, in the 10-15 s band');
+  // A rear delay of 20 s is outside the band.
+  await panel(page, 'Turn Sim settings').click();
+  await box(page, 'Rear element delay').fill('20');
+  await expect(page.locator('.ts-detail li', { hasText: 'outside 10-15 s' }).first()).toBeVisible();
+  // Not in the offset box: no band lines.
+  await box(page, 'Formation').selectOption({ label: '4312' });
+  await expect(page.locator('.ts-detail li', { hasText: /10-15 s/ })).toHaveCount(0);
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {

@@ -425,6 +425,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       detail.body.append(
         h('h3', {}, 'Spacing'),
         h('ul', { class: 'ts-lines' }, r.pairTexts.map((t) => h('li', {}, t))),
+        ...(r.offsetBand
+          ? [h('h3', {}, 'Offset box delay'), h('ul', { class: 'ts-lines' }, r.offsetBand.map((b) => h('li', { class: b.outside ? 'tone-caution' : '' }, `#${b.id} ${b.text}`)))]
+          : []),
         h('h3', {}, 'Each wingman'),
         h('ul', { class: 'ts-lines' }, r.wingmen.map((t) => h('li', {}, t))),
         h('h3', {}, 'Summary'),
