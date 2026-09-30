@@ -534,11 +534,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return true;
     },
 
-    /** Removes every aircraft that has landed or is done (V6 "Clear inactive"), from this step on. A replay removes those same aircraft at the same step. */
+    /** Removes every aircraft that has landed or is done (V6 "Clear inactive"), from this step on. A replay removes those same aircraft at the same step. Returns how many it removed. */
     clearFinished() {
       settle();
       const ids = aircraft.filter((a) => !a.active).map((a) => a.id);
       if (ids.length) happen({ kind: 'remove', ids });
+      return ids.length;
     },
 
     /** The aircraft as `setup.aircraft` has them, so a profile can be saved with what was spawned. */

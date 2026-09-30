@@ -714,8 +714,12 @@ test('with 30 aircraft the replay after an edit does not freeze the page: frames
     new MutationObserver(() => window.__seen.push(el.textContent)).observe(el, { childList: true, characterData: true, subtree: true });
   });
   await page.keyboard.press('[');
+  await page.keyboard.press('Space'); // Play during the replay is ignored: the run must not be Running when it ends
   await expect(status(page)).toHaveText('Paused', { timeout: 60000 }); // after "Replaying…"
   expect(await page.evaluate(() => window.__seen)).toContain('Replaying…');
+  expect(await page.evaluate(() => window.__seen)).not.toContain('Running');
+  await page.waitForTimeout(400);
+  await expect(status(page)).toHaveText('Paused');
   const gaps = await page.evaluate(() => { window.__gaps.on = false; return window.__gaps; });
   expect(gaps.worst).toBeLessThan(500); // one long call would leave a gap as long as the whole replay
   expect(gaps.frames).toBeGreaterThan(20);

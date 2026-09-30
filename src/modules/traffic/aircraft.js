@@ -105,9 +105,7 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
   }
 
   function clearFinished() {
-    const before = sim.state().aircraft.length;
-    sim.clearFinished();
-    const cleared = before - sim.state().aircraft.length;
+    const cleared = sim.clearFinished();
     say(cleared ? `Cleared ${cleared} finished aircraft.` : 'No finished aircraft to clear.');
     onChange();
   }

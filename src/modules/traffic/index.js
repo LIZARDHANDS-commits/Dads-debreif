@@ -182,7 +182,7 @@ function mount(root, app) {
   // After an edit of a route, a point or an option the snapshots are stale, and the first step back flies the run again
   // from 0 (0.6 s for an hour of the built-in setup, about 5 s at 30 aircraft). A stretch over 200 s of sim time says
   // "Replaying…" in the bar and is flown a slice at a time, a few milliseconds of each frame, so the page stays alive
-  // (RW-03). Presses meanwhile are ignored, except Reset and Load, which drop the replay.
+  // (RW-03). Presses meanwhile (Play, Pause, Space, Rewind, ±10 s) are ignored, except Reset and Load, which drop the replay.
   const REPLAY_NOTICE_STEPS = 4000; // 200 s of sim time, about 30 ms at 7 aircraft
   const REPLAY_SLICE_STEPS = 25; // 1.25 s of sim time: about 2 ms at 30 aircraft, 12 ms at 200
   const REPLAY_FRAME_MS = 8; // how long one frame works on the replay before it lets the page draw
@@ -231,7 +231,7 @@ function mount(root, app) {
   }
 
   function play() {
-    if (clock.mode === 'running') return;
+    if (replaying || clock.mode === 'running') return; // a replay is on its way to a step: the move that follows it sets the mode
     clock.play();
     startFrames();
     changed();
@@ -250,6 +250,7 @@ function mount(root, app) {
   }
 
   function pause() {
+    if (replaying) return;
     stopFrames?.();
     stopFrames = null;
     clock.pause();

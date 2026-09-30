@@ -839,3 +839,24 @@ test('a new slice target while a replay is stale still restarts from 0 (nit 4)',
   ref.seekSteps(5000);
   assert.deepEqual(everything(sim), everything(ref));
 });
+
+test('clearFinished says how many it took out, counted after a replay left between slices has finished (nit 6)', () => {
+  const finished = (sim) => sim.state().aircraft.filter((a) => a.status === 'landed' || a.status === 'done').length;
+  const sim = createSim(fresh(), { seed: 1 });
+  let step = 0;
+  while (!finished(sim)) sim.seekSteps((step += STEPS_10S));
+  const now = finished(sim);
+  assert.equal(sim.clearFinished(), now);
+  assert.equal(sim.clearFinished(), 0, 'nothing more to clear');
+  // Part way through a replay the state is an earlier moment: the count is for the moment the replay was going to.
+  const target = step + 4000;
+  const reference = createSim(fresh(), { seed: 1 });
+  reference.seekSteps(target - 1);
+  const wanted = finished(reference);
+  assert.ok(wanted > 0);
+  const part = createSim(fresh(), { seed: 1 });
+  part.seekSteps(target);
+  part.forgetHistory();
+  assert.equal(part.seekStepsSlice(target - 1, 100), false);
+  assert.equal(part.clearFinished(), wanted, 'the aircraft finished at the end of the replay');
+});

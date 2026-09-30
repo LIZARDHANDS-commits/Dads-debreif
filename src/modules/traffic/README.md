@@ -104,7 +104,7 @@ sim.forgetHistory()   // a route, point or option was edited: going back now fli
 sim.reset()           // back to 0 s, every aircraft (spawned ones too) at its start and no longer landed, the dice from the seed again
 sim.spawn({ type, routeId, startPoint, delaySec, id })  // returns the new callsign
 sim.remove(id)        // true if it was there; a timed event: going back to before it shows the aircraft
-sim.clearFinished()   // drops every aircraft that has landed or is done (V6 "Clear inactive"), from this step on (timed like remove)
+sim.clearFinished()   // drops every aircraft that has landed or is done (V6 "Clear inactive"), from this step on (timed like remove); returns how many
 sim.aircraftSpecs()   // the aircraft as setup.aircraft has them, for saving a profile
 sim.trailOf(id)       // [{ x, y }]: a point every 0.5 s of sim time for the last 2 minutes, oldest first. V6 also adds the split point to the trail when a split is taken; this does not (display only)
 sim.diceState()       // where the dice are (changes with every roll; the golden tests compare it with V6's)
