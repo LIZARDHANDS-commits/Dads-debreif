@@ -78,3 +78,19 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Browser tests and checklist done: added every control with a flight loaded (R3, a fresh page per click, default layout then every panel open), leaving from 3D with the EM chart and tennis ball open (R4), offline after one visit (R6), and a hostile debrief file (10 MB note refused, script only text). docs/checklists/debrief.md written. Left open until Patrick (or anyone, D28) runs the checklist on the live link.
 
 **Checkpoint E:** open PR E; Patrick (or anyone, D28) runs the checklist.
+
+## Weather at the time of the flight (SPEC-debrief section, approved 2026-09-30 07:21Z)
+
+- [x] **12a. Time slices.** `weather/slices.js`: the last slice at or before the moment with its age, frame times for a window, scrubber ticks, the nearest airfield. Pure, tested in Node.
+- [ ] **12b. Source checks (needs a full-network environment).** Each source answers the live site's browser with no key:
+  - IEM METAR archive for CYMJ
+  - NASA GIBS GOES frames for a past date
+  - Open-Meteo historical forecast (HRDPS/HRRR, pressure levels)
+  - ECCC GeoMet radar and lightning with TIME
+
+  Record what works in /mnt/project-files/wx-sources/. Swap or drop a failing source with Patrick's word.
+- [ ] **12c. Weather menu and METAR line.** Weather menu beside Layers (all off, remembered). METAR line under the playback bar via `src/wx` `parseMetar`, and scrubber ticks.
+- [ ] **12d. Satellite layer.** Through the shared tile/WMS loader in ui-kit (app frame), with the corner label "Satellite HH:MMZ, N min before".
+- [ ] **12e. Winds aloft and model cloud.** Lead-line wind at Lead's altitude, and map arrows at a chosen height.
+- [ ] **12f. Saved radar and lightning.** When the flight ended less than 3 h ago, fetch frames and keep them with the flight. The debrief file carries weather via flight-data's format (through the coordinator). There's a size limit.
+- [ ] **12g. Browser tests and checklist lines.** Sources are stubbed in e2e with no live network. Checklist lines are added for the real sources.
