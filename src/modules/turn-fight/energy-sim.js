@@ -31,7 +31,7 @@ import { FT_PER_NM, G_FTPS2, KT_TO_FTPS } from '../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../core/angles.js';
 import {
   T6A_LIMITS, T6A_MANOEUVRE, stallLimitG, availableG, shakerG as coreShakerG, splitST6A, iasToTasKt, tasToIasKt, t6aExcessFn,
-  thrustPerWeight, dragPerWeight, energyHeightFt,
+  maxKiasT6A, thrustPerWeight, dragPerWeight, energyHeightFt,
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
@@ -159,7 +159,7 @@ const TUNING = Object.freeze({
   minKtas: 15,                // model setting: the point-mass step needs speed above zero; a stalled jet is kept at least this fast
   levelDoneDeg: 2,            // model setting: a level-off is done within this of level
   rollInSec: 3,               // model setting: an MPT entered straight (not handed over) rolls in for this long, pulling only as the bank builds
-  vmoMarginKias: 40,          // model setting: a chaser starts keeping its nose up this far under VMO (T-6A limit, core)
+  vmoMarginKias: 40,          // model setting: a chaser starts keeping its nose up this far under the top speed at its height (VMO, or Mach 0.67 above about 17,600 ft; T-6A limit, core)
   vmoLeadSec: 3,              // model setting: and looks this many seconds ahead at its speed
   vmoClimbPerKt: 0.02,        // model setting: nose-up path (sine) asked for per knot over that speed
   deckPullOutFactor: 1.3,     // model setting: a chaser's pull-out from a dive is worked out at this times the plain circle, for the speed it gains
@@ -307,6 +307,12 @@ function checkedSetup(setup) {
   need(Number.isFinite(s.hardDeckFt), 'hardDeckFt is a number', s.hardDeckFt);
   for (const k of ['blueAltFt', 'redAltFt']) need(Number.isFinite(s[k]) && s[k] >= s.hardDeckFt && s[k] <= ENERGY_MAX_START_FT, `${k} is from the hard deck (${feet(s.hardDeckFt)} ft) to ${feet(ENERGY_MAX_START_FT)} ft`, s[k]);
   for (const k of ['blueKias', 'redKias']) need(Number.isFinite(s[k]) && s[k] >= 40 && s[k] <= T6A_LIMITS.vmoKias, `${k} is from 40 to ${T6A_LIMITS.vmoKias} KIAS`, s[k]);
+  // The top speed depends on the start height: VMO up to about 17,600 ft, then Mach 0.67 (core's maxKiasT6A). The limit is
+  // taken to the whole knot the message names, so a merge at the limit as shown is accepted (25,000 ft: 269.98, shown as 270).
+  for (const [who, kiasKey, altKey] of [['Blue', 'blueKias', 'blueAltFt'], ['Red', 'redKias', 'redAltFt']]) {
+    const limitKias = Math.round(maxKiasT6A(s[altKey]));
+    need(s[kiasKey] <= limitKias, `${who}'s merge speed is above the T-6A's limit at ${feet(s[altKey])} ft (${limitKias} KIAS, Mach ${T6A_LIMITS.mmo})`, s[kiasKey]);
+  }
   need(Number.isFinite(s.ataDeg) && s.ataDeg >= 0 && s.ataDeg <= 180, 'ataDeg is 0 to 180', s.ataDeg);
   need(Number.isFinite(s.aaDeg) && s.aaDeg >= 0 && s.aaDeg <= 180, 'aaDeg is 0 to 180', s.aaDeg);
   need(s.ataSide === 'left' || s.ataSide === 'right', "ataSide is 'left' or 'right'", s.ataSide);
@@ -942,10 +948,10 @@ function aimPoint(p, target) {
 
 /**
  * Pursuit: point the nose at the aim point with a lift vector that also carries
- * the weight. Three limits, in this order of importance: the hard deck and VMO
+ * the weight. Three limits, in this order of importance: the hard deck and the top speed (VMO, or Mach 0.67 above about 17,600 ft)
  * (the lift a level-off needs comes first, and the chase gets what is left);
  * core's availableG (the stall line, +7 G, and +4.7 G while rolling); and the
- * shaker. A chaser does not sink through the deck or fly past VMO to catch
+ * shaker. A chaser does not sink through the deck or fly past the top speed to catch
  * the other. The deck guard looks ahead: the height the path would bottom out at
  * is the pull-out circle plus the height lost rolling the lift up to the horizon
  * first (a chaser in a steep or inverted bank, after a close overshoot, loses
@@ -977,7 +983,7 @@ function controlPursuit(ctx) {
   const alphaWanted = dot(wanted, e), betaWanted = dot(wanted, s);
   const capFor = (rolling) => Math.min(ctx.shaker, availableG(kias, rolling, p.stallKias));
 
-  // The flight path angle the deck and VMO ask for: the deck from the height the pull-out would bottom at, VMO from the speed a few seconds on.
+  // The flight path angle the deck and the speed limit ask for: the deck from the height the pull-out would bottom at, the limit (VMO, or Mach 0.67 above about 17,600 ft) from the speed a few seconds on.
   const gamma = f.climbRad;
   const pullOutG = Math.max(capFor(true) - 1, 0.5);
   // The drop is the height lost while rolling the lift up to the horizon first (a chaser in a steep or inverted bank
@@ -989,9 +995,9 @@ function controlPursuit(ctx) {
   const circleFt = gammaAfterRoll < 0 ? TUNING.deckPullOutFactor * (vFtps * vFtps / (G_FTPS2 * pullOutG)) * (1 - Math.cos(gammaAfterRoll)) : 0;
   const dropFt = rollLossFt + circleFt;
   const deckSin = clamp((p.hardDeckFt - (f.altFt - dropFt)) * TUNING.levelAltGainPerSec / vFtps, -0.95, 0.5);
-  const guardKias = T6A_LIMITS.vmoKias - TUNING.vmoMarginKias;
+  const guardKias = maxKiasT6A(f.altFt) - TUNING.vmoMarginKias; // the limit at this height, so it tightens as the chase climbs into the Mach limit and eases as it dives out of it
   const overKt = kias + c.kiasRateEff * TUNING.vmoLeadSec - guardKias;
-  const vmoSin = overKt > 0 ? Math.min(overKt * TUNING.vmoClimbPerKt, 0.6) : -1; // -1: no demand while the speed is well under VMO
+  const vmoSin = overKt > 0 ? Math.min(overKt * TUNING.vmoClimbPerKt, 0.6) : -1; // -1: no demand while the speed is well under the limit
   const gammaFloor = Math.asin(Math.max(deckSin, vmoSin));
   const alphaFloor = Math.cos(gamma) + (vFtps / G_FTPS2) * TUNING.levelOmegaPerSec * (gammaFloor - gamma);
 

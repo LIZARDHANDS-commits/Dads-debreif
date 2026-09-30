@@ -227,7 +227,7 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
 
 - **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
   - **Start altitude** for Blue and Red, each default 10,000 ft pressure altitude (see Start geometry and altitudes). That is the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and high enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
-  - For Blue and Red: **merge speed** in KIAS (default 220).
+  - For Blue and Red: **merge speed** in KIAS (default 220), from 40 up to the top speed at that aircraft's start height: 316 KIAS (VMO) up to about 17,600 ft, then Mach 0.67 (core #211), for example 300 KIAS at 20,000 ft and 270 KIAS at 25,000 ft. A higher speed is refused, with a message that names the limit at that height, for example "Blue's merge speed is above the T-6A's limit at 25,000 ft (270 KIAS, Mach 0.67)". The limit is taken to the whole knot the message shows.
   - Beside each aircraft, the move the model chose and why, for example "Pitch back: 220 KIAS, SMM entry 160 to 220", then "MPT 160 KIAS" once it's there.
 - **More energy settings**, the Energy section of Turn Fight settings:
   - **Move** for each aircraft: Auto (default), or force one of the moves below (Immelmann, Pitch back, Slice, Split S or MPT) to compare them.
@@ -253,7 +253,7 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
 - **Two flags only** (Patrick, 2026-09-30), in the result card, words plus colour, per aircraft:
   - **OVER G** when the aircraft pulls more than +7 G, or more than +4.7 G while rolling (SMM 14.17 cautions that this is easy in a pitch back above 190 KIAS). The aircraft still flies the G it pulled, so the flag shows what the move would cost.
   - **STALL** when the pull needs more lift than the wing has at that speed (above the stall line, 18 units AOA), or the speed falls below the 1 G stall speed, for example at the top of an Immelmann entered too slow. A stall costs the turn (Patrick, 2026-09-30; SMM 14.14 para 32: a high-speed stall stops the turn): while the flag is on, the G drops to 1 G, so the turn rate all but stops, until the pilot eases back to the shaker, 1 s later by default.
-  - Nothing else is flagged: no deck, VMO or entry-speed warnings.
+  - Nothing else is flagged: no deck, top-speed or entry-speed warnings.
 
 ### How the model flies (Auto)
 
@@ -299,8 +299,8 @@ This model is `core`'s shared T-6A performance model (SPEC-core, "API, fifth PR:
   - the load factor n turns the flight path through the bank angle μ: rate of climb-angle change (g/V)(n cos μ − cos γ) and, level, rate of heading change g·n·sin μ / (V cos γ);
   - speed changes by dV/dt = g((T − D)/W − sin γ).
   The step works on the velocity as a vector, not on heading and climb angle, so an Immelmann or split S passes straight up or down without dividing by cos 90° = 0. A fourth-order Runge-Kutta step at 0.02 s keeps the energy error far below what the screen shows.
-- **Speeds.** The charts are in indicated airspeed (IAS), and the motion uses true airspeed (TAS). TAS = IAS ÷ √σ, with σ the standard-atmosphere density ratio `core` already has (`isaDensityRatio`). Compressibility is ignored; the fight stays below 25,000 ft and VMO.
-- **Limits (T-6A V-n diagram, clean, 5,168 lb).** +7 G and −3.5 G symmetric; +4.7 G while rolling; the stall limit G = (KIAS ÷ 86)², which reaches 7 G at 227.5 KIAS; VMO 316 KIAS. The 86 kt is the agreed setting (Patrick, 2026-09-30), not a chart reading: the V-n curve itself reads about 89 kt (7 G near 236 KIAS), and VO, 227 KIAS, is a limit speed rather than the V-n corner, so 227.5 lining up with it is a coincidence of the 86.
+- **Speeds.** The charts are in indicated airspeed (IAS), and the motion uses true airspeed (TAS). TAS = IAS ÷ √σ, with σ the standard-atmosphere density ratio `core` already has (`isaDensityRatio`). Compressibility is ignored in the motion; the fight starts at or below 25,000 ft and stays under the top speed for its height (VMO up to about 17,600 ft, then Mach 0.67, core #211).
+- **Limits (T-6A V-n diagram, clean, 5,168 lb).** +7 G and −3.5 G symmetric; +4.7 G while rolling; the stall limit G = (KIAS ÷ 86)², which reaches 7 G at 227.5 KIAS; the top speed is VMO, 316 KIAS, up to about 17,600 ft, then Mach 0.67 (core #211, `maxKiasT6A`, in the model's IAS): 300 KIAS at 20,000 ft and 270 KIAS at 25,000 ft. A chaser starts keeping its nose up 40 KIAS under the top speed at its own height, so the guard tightens as it climbs and eases as it dives, and at 17,000 ft and below it is exactly what it was. The 86 kt is the agreed setting (Patrick, 2026-09-30), not a chart reading: the V-n curve itself reads about 89 kt (7 G near 236 KIAS), and VO, 227 KIAS, is a limit speed rather than the V-n corner, so 227.5 lining up with it is a coincidence of the 86.
 - **Thrust minus drag** comes from the T-6A sustained turn rate and radius charts (maximum power, clean, standard day). In a sustained turn, thrust equals drag, so each point on those charts gives the drag at that speed, altitude and G. A standard drag polar (drag = a zero-lift part plus a part growing with G² at a given speed) and a propeller thrust that falls with speed and density are fitted to the chart points at sea level, 10,000 and 20,000 ft. Then (T − D)/W at any speed, altitude and G comes from the fit. The chart points, read off by eye, are kept in a data file with their chart and reading notes.
 - **Weight** is fixed at the chart's weight (maximum take-off weight less the fuel to climb), with no fuel burn.
 
