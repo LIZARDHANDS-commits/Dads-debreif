@@ -17,7 +17,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
   - Verify: golden tests against all three copies; unit tests for known answers (4 G at 220 KTAS turns at 19.2°/s).
   - Dependencies: Phase 1. Files: `src/core/flight-math.js`, `tests/golden/core-flight-math.test.js`, `tests/unit/core/flight-math.test.js`. Size S.
 - [ ] **Task 7: air data and the EM chart point**
-  - Acceptance: `isaRhoRatio` (line 4154), the IAS estimate and the EM point (`metrics`, line 4158) match V6, including the halved turn rate (Q18, not fixed here).
+  - Acceptance: `isaRhoRatio` (line 4154), the IAS estimate and the EM point (`metrics`, line 4158) match V6, including the halved turn rate. Then, as a separate commit, remove the divide by 2 (D39) and update the golden value.
   - Verify: golden tests; a unit test that states the halving, so the later fix has to change it deliberately.
   - Dependencies: Phase 1. Files: as Task 6. Size S.
 - [ ] **Task 8: closure and estimated G**

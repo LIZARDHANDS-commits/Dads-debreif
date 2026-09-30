@@ -4,7 +4,7 @@ Spec: [`specs/SPEC-core.md`](../../specs/SPEC-core.md). Tasks: [`todo.md`](todo.
 
 ## Overview
 
-Move V6's flight math into `src/core/` one function at a time. Each port is pinned by a golden test that runs V6's own function next to it (R9). The work lands as three PRs: the base pieces other threads wait on, then turn performance, then formation standards. No number changes until Dad signs off (Q18, Q24 to Q26).
+Move V6's flight math into `src/core/` one function at a time. Each port is pinned by a golden test that runs V6's own function next to it (R9). The work lands as three PRs: the base pieces other threads wait on, then turn performance, then formation standards. Dad has approved the fixes in D39 to D47; each one lands after its port, as a separate change (D10).
 
 ## Architecture decisions
 
@@ -54,7 +54,7 @@ Move V6's flight math into `src/core/` one function at a time. Each port is pinn
 | The tennis-ball solvers are tangled with drawing and input boxes | High | Pull out only the math, with settings as arguments. If that isn't possible without edits, pin by running V6 in a browser page instead. Do this task early in PR 2. |
 | Engines round trig differently in the last digit | Low | Exact comparisons stay within one engine. Browser-recorded numbers are compared at 1e-12 relative. |
 | Infinite or huge inputs hang V6's angle loops | Medium | Documented in SPEC-core and the core README. The screens validate typed numbers (asked of `ui-kit`). A guard in `core` needs a decision. |
-| Dad's answers change numbers later | Medium | Each fix is its own change, updating the golden value, with a logged decision. |
+| Dad's approved fixes (D39 to D47) blur into the ports | Medium | Each port lands pinned to V6 first; each fix is its own later commit, citing its decision and updating the golden value (D10). |
 | Other threads build on `core`'s function names | Medium | PR 1 first. Any later rename goes through a PR and a note to the coordinator. |
 
 ## Parallel and sequential
