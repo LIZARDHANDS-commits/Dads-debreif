@@ -7,7 +7,7 @@ import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { timeText, phaseText, resultRows, moreDetailRows, geometryRows } from './readouts.js';
 import {
-  DEFAULTS, ALLOWED, ENERGY_KEYS, START_FALLBACK_KEYS, setupFrom, startSetupFrom, energySetupFrom, usableEnergyValues, energyProblemNote, setupKey, saneFix, v6Defaults, checkingDefaults,
+  DEFAULTS, ALLOWED, setupFrom, startSetupFrom, startEnergyRun, setupKey, saneFix, v6Defaults, checkingDefaults,
 } from './state.js';
 import { START_DEFAULTS } from './geometry.js';
 import { createRun, createEnergyRun, advanceRun, frameDtSec } from './playback.js';
@@ -64,28 +64,21 @@ function mount(root, app) {
   // together, which no box alone can refuse) says why beside the boxes and flies the default heights meanwhile.
   let ui = null; // the layout, made below; newRun says nothing to it until then
   let problemText = '';
+  let flownValues = null; // the settings an Energy run actually flies when they are not the person's; the start picture and pass line use them
   function newRun(values) {
     problemText = '';
+    flownValues = null;
     if (!values.energy) {
-      ui?.setEnergyProblem('');
+      ui?.setEnergyProblem('', null);
       return createRun(setupFrom(values));
     }
-    let usable = usableEnergyValues(values); // the settings, or the default start when energyProblem finds one
-    problemText = energyProblemNote(values);
-    let run;
-    try {
-      run = createEnergyRun(energySetupFrom(usable));
-    } catch (error) {
-      // No check of the engine's can blank the screen: whatever it refuses is said beside the boxes, and the start
-      // (or, failing that, every Energy setting) is flown at its default.
-      if (!(error instanceof RangeError)) throw error;
-      const reason = error.message.replace(/^Turn Fight energy setup: /, '').replace(/, got .*$/, '');
-      problemText = energyProblemNote(values, `${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`);
-      usable = { ...usable, ...Object.fromEntries(ENERGY_KEYS.map((key) => [key, DEFAULTS[key]])), ...Object.fromEntries(START_FALLBACK_KEYS.map((key) => [key, DEFAULTS[key]])) };
-      run = createEnergyRun(energySetupFrom(usable));
-    }
-    ui?.setEnergyProblem(problemText);
-    return run;
+    // The settings, or the default start when energyProblem finds one, or (the engine refusing what no check here saw) every
+    // Energy setting at its default; any other error is a fault and comes out (state.js startEnergyRun).
+    const started = startEnergyRun(values, createEnergyRun);
+    problemText = started.note;
+    if (started.flown !== values) flownValues = started.flown;
+    ui?.setEnergyProblem(problemText, flownValues);
+    return started.run;
   }
   let run = newRun(settings.get());
   let playing = false;
@@ -126,12 +119,12 @@ function mount(root, app) {
       cameraView: (name) => view3d.setView(name),
     },
   });
-  ui.setEnergyProblem(problemText);
+  ui.setEnergyProblem(problemText, flownValues);
   root.append(ui.element);
   views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
   // The picture in Turn Fight settings, Start geometry: drawn from the set numbers, so it follows them as they change.
   // (With Energy on the jets' speeds are the true airspeeds of their merge speeds.)
-  views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => startSetupFrom(settings.get()) }));
+  views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => startSetupFrom(flownValues ?? settings.get()) }));
   // The side view draws only while Climb and dive is on (and Energy is off: Energy has its own, the altitude graph); its panel is hidden (and 0 px) otherwise.
   const profile = createProfileView(ui.profileCanvas, { timers: app.scheduler, run: () => run, scale: () => settings.get().heightScale });
   views.push({

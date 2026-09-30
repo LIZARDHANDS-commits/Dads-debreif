@@ -245,6 +245,65 @@ export function energyProblemNote(values, reason = energyProblem(values)) {
   return `${reason} Until this is fixed the fight flies the default start altitudes (${feetText(d.blueAltFt)} ft), merge speeds (${d.blueKias} KIAS), hard deck (${feetText(d.hardDeckFt)} ft) and separation (${d.separationNm} NM).`;
 }
 
+/** The start of every message the engine's own setup checks raise (energy-sim.js need()): only these are the engine refusing a setup. */
+export const ENGINE_SETUP_PREFIX = 'Turn Fight energy setup: ';
+
+/** Whether an error is the engine refusing a setup (a RangeError with the engine's setup prefix), and not some other fault. */
+export function isSetupError(error) {
+  return error instanceof RangeError && typeof error.message === 'string' && error.message.startsWith(ENGINE_SETUP_PREFIX);
+}
+
+// What the screen calls the settings the engine names by key, for its refusals.
+const KEY_WORDS = Object.freeze({
+  blueAltFt: "Blue's start altitude", redAltFt: "Red's start altitude", blueKias: "Blue's merge speed", redKias: "Red's merge speed",
+  blueMove: "Blue's move", redMove: "Red's move", mptKias: 'The MPT speed', hardDeckFt: 'The hard deck', pursuit: 'The pursuit',
+  chaseAfterHeadOn: 'Chase after a head-on pass', separationNm: 'The start separation', stallKias: 'The stall speed',
+  shakerFrac: 'The shaker', midThrottle: 'The mid-range throttle', rollRateDegPerSec: 'The roll rate',
+  immelmannAboveKias: 'The Immelmann speed', splitSBelowKias: 'The split S speed', immelmannOffNoseDeg: 'The Immelmann off-nose angle',
+  immelmannMinTopKias: 'The lowest Immelmann top speed', pickLookaheadSec: 'The look-ahead', deckMarginFt: 'The deck margin',
+  stallSec: 'How long a stall lasts', ataDeg: 'The off-nose angle', aaDeg: 'The aspect angle', circles: 'The fight type', turnsStart: 'The turns',
+});
+
+/**
+ * The engine's refusal in words for the screen: its message without the prefix, the setting's key name (a name like
+ * "mptKias", never shown) put as the words for it, and ", got 110" as "(it was 110)". "The MPT speed is from 120 to 175 KIAS (it was 110)."
+ */
+export function setupErrorText(error) {
+  const message = String(error?.message ?? '').slice(ENGINE_SETUP_PREFIX.length);
+  const [, what, got] = /^(.*?)(?:, got (.*))?$/s.exec(message);
+  const first = /^([A-Za-z][A-Za-z0-9]*)\b/.exec(what)?.[1] ?? '';
+  const words = KEY_WORDS[first] ?? (/[a-z][A-Z]/.test(first) ? first.replace(/([A-Z])/g, ' $1').toLowerCase() : first);
+  const sentence = `${words}${what.slice(first.length)}`;
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}${got !== undefined ? ` (it was ${got})` : ''}.`;
+}
+
+/** Every Energy setting and the start settings at their defaults, over the person's other ones: what flies when the engine refuses what the screen thought was fine. */
+export function energyDefaultValues(values) {
+  return { ...values, ...Object.fromEntries([...ENERGY_KEYS, ...START_FALLBACK_KEYS].map((key) => [key, DEFAULTS[key]])) };
+}
+
+/**
+ * Starts an Energy fight from the settings with `create(engineSetup)` (playback.js createEnergyRun). The settings as they are,
+ * or the default start when energyProblem finds one; and if the engine still refuses the setup (its own RangeError, which a
+ * check here did not foresee), the engine's message in words and every Energy setting at its default, so a refusal never
+ * leaves the screen blank. Any other error is a fault: logged, and thrown again. Returns { run, note, flown }: the run, the
+ * words for beside the boxes ('' for none) and the settings actually flown, which the start picture and the pass line use.
+ */
+export function startEnergyRun(values, create) {
+  let flown = usableEnergyValues(values);
+  try {
+    return { run: create(energySetupFrom(flown)), note: energyProblemNote(values), flown };
+  } catch (error) {
+    if (!isSetupError(error)) {
+      console.error('Turn Fight Energy could not start:', error);
+      throw error;
+    }
+    flown = energyDefaultValues(values);
+    const note = `${setupErrorText(error)} Until this is fixed every Energy setting is at its default.`;
+    return { run: create(energySetupFrom(flown)), note, flown };
+  }
+}
+
 /** Changes exactly when the fight would have to start again. Energy mode is a different fight with its own numbers, so with it on the key is Energy's. */
 export function setupKey(values) {
   return JSON.stringify(values.energy ? { energy: true, ...energySetupFrom(values) } : setupFrom(values));

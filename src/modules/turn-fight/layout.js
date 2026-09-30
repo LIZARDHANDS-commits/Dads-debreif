@@ -339,6 +339,20 @@ export function createLayout({ settings, controls, on }) {
     controls.setDisabled('heightScale', in3d || !sideViewWanted || energyWanted); // the height scale is for the 2D side view only
   };
 
+  // The start geometry's words (HCA, the pass, the turns): from the settings, or from the ones an Energy fight flies instead.
+  let lastValues = null;
+  let flownOverride = null;
+  function renderStart() {
+    if (!lastValues) return;
+    const start = startSetupFrom(flownOverride ?? lastValues);
+    const hca = `Heading crossing angle (HCA): ${startGeometry(start).hcaDeg.toFixed(0)}°`;
+    if (hcaText.textContent !== hca) hcaText.textContent = hca;
+    const pass = passNote(start);
+    if (passText.textContent !== pass) passText.textContent = pass;
+    const turns = turnNote(start);
+    if (turnText.textContent !== turns) turnText.textContent = turns;
+  }
+
   function showWarning(box, text) {
     if (box.warning.textContent !== (text ?? '')) box.warning.textContent = text ?? '';
   }
@@ -377,19 +391,19 @@ export function createLayout({ settings, controls, on }) {
       energyAbout.hidden = !inEnergy;
       if (footer.textContent !== (inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER)) footer.textContent = inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER;
       // The pass, the pass note and the picture use the true airspeed of the merge speed in Energy.
-      const start = startSetupFrom(values);
-      const hca = `Heading crossing angle (HCA): ${startGeometry(start).hcaDeg.toFixed(0)}°`;
-      if (hcaText.textContent !== hca) hcaText.textContent = hca;
-      const pass = passNote(start);
-      if (passText.textContent !== pass) passText.textContent = pass;
-      const turns = turnNote(start);
-      if (turnText.textContent !== turns) turnText.textContent = turns;
+      lastValues = values;
+      renderStart();
       showWarning(blue, inEnergy ? '' : limitWarning(values.blueKt, values.blueG));
       showWarning(red, inEnergy ? '' : limitWarning(values.redKt, values.redG));
     },
-    /** The words for an Energy setup that cannot fly ('' for none). */
-    setEnergyProblem(text) {
+    /**
+     * The words for an Energy setup that cannot fly ('' for none), and the settings the fight flies instead when they are not
+     * the person's (null otherwise), which the pass line, the heading crossing angle and the turn note then use.
+     */
+    setEnergyProblem(text, flown = null) {
       if (energyProblem.textContent !== (text ?? '')) energyProblem.textContent = text ?? '';
+      flownOverride = flown;
+      renderStart();
     },
     /** The Energy graph's box, for energy-graph.js. */
     energyChart,
