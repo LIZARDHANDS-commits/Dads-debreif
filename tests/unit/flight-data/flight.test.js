@@ -181,6 +181,8 @@ test('no estimated G when its window touches a GPS gap; the same G either side o
   assert.equal(estimatedGAt(tr, t0 + 19.6), null); // window reaches 21.1, inside the gap
   assert.equal(estimatedGAt(tr, t0 + 24), null);
   assert.equal(estimatedGAt(tr, t0 + 29.4), null); // window starts at 27.9, still in the gap
+  assert.equal(estimatedGAt(tr, t0 + 29.5), null); // window starts on the fix that ends the gap: its heading is the gap's chord
+  assert.ok(Number.isFinite(estimatedGAt(tr, t0 + 18.5))); // window ends on the fix that starts the gap: its heading is the pair before
   assert.ok(Number.isFinite(estimatedGAt(tr, t0 + 30)));
   assert.equal(gAt(tr, t0 + 24).g, null);
 });

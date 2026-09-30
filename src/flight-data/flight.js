@@ -110,12 +110,16 @@ export function sampleAt(track, t) {
   };
 }
 
-/** True when any pair of fixes more than GAP_S apart overlaps the time from t0 to t1. */
+/**
+ * True when any pair of fixes more than GAP_S apart overlaps the time from t0
+ * to t1, including a gap that ends exactly at t0: headingAt(t0) takes the pair
+ * before t0, which is the gap's chord.
+ */
 function touchesGap(fixes, t0, t1) {
   const n = fixes.length;
   let i = t0 <= fixes[0].t ? 0 : bracket(fixes, Math.min(t0, fixes[n - 1].t));
   for (; i < n - 1 && fixes[i].t < t1; i++) {
-    if (fixes[i + 1].t > t0 && fixes[i + 1].t - fixes[i].t > GAP_S) return true;
+    if (fixes[i + 1].t >= t0 && fixes[i + 1].t - fixes[i].t > GAP_S) return true;
   }
   return false;
 }

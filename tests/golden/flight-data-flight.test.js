@@ -92,7 +92,7 @@ function SAME_HEADING(ours, pts, t, where) {
 
 /** True when a pair of fixes more than 5 s apart (a GPS gap, C4) overlaps t0 to t1. */
 function gapIn(pts, t0, t1) {
-  return pts.some((p, i) => i > 0 && p.t > t0 && pts[i - 1].t < t1 && p.t - pts[i - 1].t > 5);
+  return pts.some((p, i) => i > 0 && p.t >= t0 && pts[i - 1].t < t1 && p.t - pts[i - 1].t > 5);
 }
 
 /**
