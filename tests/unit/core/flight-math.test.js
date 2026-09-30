@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -38,6 +38,50 @@ test('limitG keeps G at least 1.01 and at most the cap', () => {
   assert.equal(limitG(12), 12);
   assert.equal(limitG(12, 9), 9);
   assert.ok(Number.isNaN(limitG(NaN)));
+});
+
+// A wingman (#2) flying a 4 G turn with G fix on, 3,000 ft spacing and strength 1.
+const wingman = { baseG: 4, gErr: 0, useErrorsAndCorrection: true, correction: 'gfix', aircraftId: 2, distToLeadFt: 3000, spacingFt: 3000, corrStrength: 1 };
+
+test('turnSimG: the G error is added, but only when errors are on', () => {
+  near(turnSimG({ ...wingman, correction: 'none', gErr: 0.3 }), 4.3, 1e-12);
+  assert.equal(turnSimG({ ...wingman, useErrorsAndCorrection: false, gErr: 0.3, distToLeadFt: 9000 }), 4);
+});
+
+test('turnSimG: the G error cannot take G under 1.01 before the correction', () => {
+  assert.equal(turnSimG({ ...wingman, correction: 'none', baseG: 1.01, gErr: -0.5 }), 1.01);
+});
+
+test('turnSimG: G fix pulls more G when too far back, less when too close', () => {
+  assert.equal(turnSimG(wingman), 4); // on the slot
+  near(turnSimG({ ...wingman, distToLeadFt: 4500 }), 4.25, 1e-12); // 1,500 ft back: 1500 / 6000
+  near(turnSimG({ ...wingman, distToLeadFt: 4500, corrStrength: 2 }), 4.5, 1e-12);
+  near(turnSimG({ ...wingman, distToLeadFt: 2250 }), 3.875, 1e-12); // 750 ft too close
+});
+
+test('turnSimG: the correction is at most 0.8 G either way', () => {
+  near(turnSimG({ ...wingman, distToLeadFt: 12000, corrStrength: 3 }), 4.8, 1e-12);
+  near(turnSimG({ ...wingman, distToLeadFt: 0, corrStrength: 3 }), 3.2, 1e-12);
+});
+
+test('turnSimG: the slot is the spacing times the aircraft number less 1; lead is never corrected', () => {
+  assert.equal(turnSimG({ ...wingman, aircraftId: 3, distToLeadFt: 6000 }), 4);
+  near(turnSimG({ ...wingman, aircraftId: 4, distToLeadFt: 12000 }), 4.5, 1e-12); // 3,000 ft back of slot 9,000
+  assert.equal(turnSimG({ ...wingman, aircraftId: 1, distToLeadFt: 9000 }), 4);
+});
+
+test('turnSimG (V6 order): G can end below 1, where the turn goes to NaN', () => {
+  // The limit to 1.01 comes first, then up to -0.8 G. Base G 1.5, right on top of lead:
+  // 1.5 - 0.8 = 0.7 G, and there is no turn.
+  const g = turnSimG({ ...wingman, baseG: 1.5, distToLeadFt: 0, corrStrength: 2 });
+  near(g, 0.7, 1e-12);
+  assert.ok(Number.isNaN(turnRateRadPerSec(ktToFtps(200), g)));
+  // At exactly 1.8 the full correction gives 1.0 G, and the turn rate is 0.
+  const one = turnSimG({ ...wingman, baseG: 1.8, distToLeadFt: 0, corrStrength: 2 });
+  assert.equal(one, 1);
+  assert.equal(turnRateRadPerSec(ktToFtps(200), one), 0);
+  // Even the 1.01 G floor gives 0.21 G.
+  near(turnSimG({ ...wingman, baseG: 1.01, distToLeadFt: 0, corrStrength: 2 }), 0.21, 1e-12);
 });
 
 /** Three moments one second apart on a steady turn of rateDeg per second at kt knots. */

@@ -3,8 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../src/core/units.js';
-import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
-import { loadV6, v6Number } from './v6-source.js';
+import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
+import { loadV6, v6FunctionText, v6Number } from './v6-source.js';
 import { seeded, spread, recordedTrack } from './inputs.js';
 
 const TURN_SIM = 'const FT_PER_NM=6076.12, KTS_TO_FPS';
@@ -75,6 +75,83 @@ test('below 1 G there is no turn: NaN, as in V6', () => {
   assert.ok(Number.isNaN(bankDegFromG(0.5)));
   assert.equal(turnRadiusFt(ktToFtps(200), 1), Infinity);
   assert.equal(turnRateRadPerSec(ktToFtps(200), 1), 0);
+});
+
+/**
+ * V6's G for one Turn Sim aircraft: its two lines from moveAircraftList (1582
+ * and 1583), cut out by text and run as they are, with the page's globals
+ * (baseG, $, dist, ac, a) given as arguments. Returns a function of one case
+ * that gives V6's G and the base G V6's own baseG() read from the G box.
+ */
+function v6TurnSimG() {
+  const body = v6FunctionText('moveAircraftList');
+  const lineG = body.match(/^ *let g=Math\.max\(1\.01,baseG\(\).*$/m);
+  const lineFix = body.match(/^ *if\(useErrorsAndCorrection && \$\('correction'\).*$/m);
+  assert.ok(lineG && lineFix, 'the two G lines are still in moveAircraftList');
+  const run = new Function('baseG', '$', 'dist', 'ac', 'a', 'useErrorsAndCorrection', `${lineG[0]}\n${lineFix[0]}\nreturn g;`);
+  const { baseG, box } = loadV6(['baseG'], { prelude: 'const box={value:0}; const $=()=>box;', expose: ['box'] });
+  const { dist } = loadV6(['dist']);
+  return c => {
+    box.value = c.gload; // the G box, which baseG() reads and limits to 1.01
+    const boxes = { correction: { value: c.correction }, spacing: { value: c.spacingFt }, corrStrength: { value: c.corrStrength } };
+    // Lead sits at the origin; the aircraft is distToLeadFt away on the x axis.
+    const a = { id: c.aircraftId, gErr: c.gErr, x: c.distToLeadFt, y: 0 };
+    return { g: run(baseG, id => boxes[id], dist, [{ x: 0, y: 0 }], a, c.useErrorsAndCorrection), baseG: baseG() };
+  };
+}
+
+/** Fixed edge cases first, then seeded random ones with plenty of low base G and hard corrections. */
+function turnSimGCases() {
+  const fix = { gload: 4, gErr: 0, useErrorsAndCorrection: true, correction: 'gfix', aircraftId: 2, distToLeadFt: 3000, spacingFt: 3000, corrStrength: 1 };
+  const cases = [
+    fix,
+    { ...fix, aircraftId: 1, distToLeadFt: 9000 },                            // lead is never corrected
+    { ...fix, correction: 'none', distToLeadFt: 9000 },                       // no correction model
+    { ...fix, useErrorsAndCorrection: false, gErr: 0.5, distToLeadFt: 9000 }, // planning pass: no error, no correction
+    { ...fix, gErr: 0.5 },                                                    // error, spacing already right
+    { ...fix, distToLeadFt: 3000 + 6000 * 0.8 },                              // correction exactly +0.8
+    { ...fix, aircraftId: 4, distToLeadFt: 9000, gload: 2 },                  // slot is spacing × 3
+    { ...fix, aircraftId: 3, distToLeadFt: 6000, gload: 2 },                  // right on the slot: no change
+    { ...fix, gload: 2, corrStrength: 0 },
+    { ...fix, gload: 2, spacingFt: 0, distToLeadFt: 0 },
+    { ...fix, gload: 1.8, distToLeadFt: 0, corrStrength: 2 },                 // the 1.8 case: G 1.0, turn rate 0
+    { ...fix, gload: 1.79, distToLeadFt: 0, corrStrength: 2 },                // just under: below 1 G
+    { ...fix, gload: 1.01, distToLeadFt: 0, corrStrength: 2 },                // base G at the limit, full -0.8
+    { ...fix, gload: 0.5, distToLeadFt: 0, corrStrength: 2 },                 // box under 1.01, limited by baseG()
+    { ...fix, gload: 0, gErr: -0.7, distToLeadFt: 0, corrStrength: 2 },       // error pushes under the limit first
+    { ...fix, gload: 3, gErr: -5, distToLeadFt: 0, corrStrength: 2 },         // limited to 1.01, then -0.8
+  ];
+  const r = seeded(0xc0de);
+  for (let i = 0; i < 600; i++) {
+    cases.push({
+      gload: i % 3 === 0 ? 0.8 + 1.4 * r() : 1 + 8 * r(),
+      gErr: -1 + 2 * r(),
+      useErrorsAndCorrection: r() < 0.9,
+      correction: r() < 0.8 ? 'gfix' : 'none',
+      aircraftId: 1 + Math.floor(4 * r()),
+      distToLeadFt: 12000 * r(),
+      spacingFt: 6000 * r(),
+      corrStrength: 3 * r(),
+    });
+  }
+  return cases;
+}
+
+test('Turn Sim G: V6 limits to 1.01, then corrects, so G can end below 1', () => {
+  const v6G = v6TurnSimG();
+  let below1 = 0, exactly1 = 0, corrected = 0;
+  for (const c of turnSimGCases()) {
+    const v6 = v6G(c);
+    const g = turnSimG({ ...c, baseG: v6.baseG });
+    assert.equal(g, v6.g, JSON.stringify(c));
+    if (g < 1) below1++;
+    if (g === 1) exactly1++;
+    if (c.useErrorsAndCorrection && c.correction === 'gfix' && c.aircraftId !== 1) corrected++;
+  }
+  // The cases really do reach the trouble spots, so the equality above says something.
+  assert.ok(below1 >= 20, `${below1} cases below 1 G`);
+  assert.ok(exactly1 >= 1, 'the exactly 1 G case');
+  assert.ok(corrected >= 300, `${corrected} corrected cases`);
 });
 
 test('isaDensityRatio matches the EM chart isaRhoRatio', () => {

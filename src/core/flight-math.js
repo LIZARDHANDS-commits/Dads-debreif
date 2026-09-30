@@ -48,6 +48,37 @@ export function turnRateRadPerSec(speedFtps, g) {
   return speedFtps / turnRadiusFt(speedFtps, g);
 }
 
+/**
+ * The G one Turn Sim aircraft turns at this step (`moveAircraftList`, lines
+ * 1582 and 1583). Everything V6 reads from the page comes in as an argument:
+ *
+ * - baseG: the G box as V6's `baseG()` gives it, already at least 1.01.
+ * - gErr: this aircraft's own G error (`a.gErr`), added only when
+ *   useErrorsAndCorrection is true.
+ * - useErrorsAndCorrection: true when the step is the real flight, false for
+ *   the planning pass that has no errors and no correction.
+ * - correction: the Correction model box, 'gfix' for "G fix".
+ * - aircraftId: the aircraft's number, 1 for lead. Lead is never corrected.
+ * - distToLeadFt: how far this aircraft is from lead now.
+ * - spacingFt: the Spacing box; its slot is spacingFt × (aircraftId − 1) from lead.
+ * - corrStrength: the Correction strength box.
+ *
+ * With G fix on, the wingman's G moves by (distance − slot) / 6,000 ft × strength,
+ * never more than 0.8 G either way: too far back pulls more G, too close pulls less.
+ *
+ * V6 limits G to 1.01 first and corrects after, so the result can be below 1 G
+ * (base G plus error under 1.8 with the full −0.8 correction). Then
+ * turnRateRadPerSec gives NaN, and V6's aircraft position with it.
+ */
+export function turnSimG({ baseG, gErr, useErrorsAndCorrection, correction, aircraftId, distToLeadFt, spacingFt, corrStrength }) {
+  let g = Math.max(MIN_TURN_G, baseG + (useErrorsAndCorrection ? gErr : 0));
+  if (useErrorsAndCorrection && correction === 'gfix' && aircraftId !== 1) {
+    const e = distToLeadFt - spacingFt * Math.abs(aircraftId - 1);
+    g += Math.max(-.8, Math.min(.8, e / 6000 * corrStrength));
+  }
+  return g;
+}
+
 // ── Air data and the EM chart point ──────────────────────────────────────────
 
 /**
