@@ -117,6 +117,13 @@ M = [
  ('flight.js', "if (a < startT || b > endT)", "if (a < startT)"),
  ('flight.js', "overlaps(slot) <= overlaps(worst)", "overlaps(slot) < overlaps(worst)"),
  ('flight.js', "Math.min(span(slot)[1], span(o)[1]) > Math.max", "Math.min(span(slot)[1], span(o)[1]) >= Math.max"),
+ # C9: all-or-nothing load
+ ('load.js', "files.length > MAX_TRACKS", "files.length > MAX_TRACKS + 1"),
+ ('load.js', "|| !files.length ||", "||"),
+ ('load.js', "|| tracks[slot])", ")"),
+ ('load.js', "slot > MAX_TRACKS ||", "slot > MAX_TRACKS + 1 ||"),
+ ('load.js', "!Number.isInteger(slot) ||", ""),
+ ('load.js', "cleanTrack(readKml(text, name))", "readKml(text, name)"),
 ]
 
 
