@@ -5,6 +5,7 @@ import { createSettings } from './storage/settings.js';
 import { createAirfields } from './airfields/airfields.js';
 import { createAirfieldsPanel } from './airfields/panel.js';
 import { createStandards } from './storage/standards.js';
+import { createExampleFetcher } from './shell/examples.js';
 import { createScheduler } from './ui-kit/scheduler.js';
 import { createHost } from './shell/host.js';
 import { parseRoute } from './shell/router.js';
@@ -33,6 +34,8 @@ const settings = createSettings(store.scope('app'), SHARED_DEFAULTS, { allowed: 
 const airfields = createAirfields({ store: store.scope('airfields') });
 // The formation standards the debrief and the Turn Sim judge by (R18, D89).
 const standards = createStandards({ store: store.scope('standards') });
+// The example flight's files, for modules as app.exampleText(asset).
+const exampleText = createExampleFetcher();
 const scheduler = createScheduler();
 const time = createTime({ settings, zone: () => airfields.home().timeZone });
 const statusLine = $('module-status');
@@ -45,6 +48,7 @@ const host = createHost({
   time,
   airfields,
   standards,
+  exampleText,
   onStatus: (text) => {
     statusLine.textContent = text;
     statusLine.hidden = !text;
@@ -178,4 +182,5 @@ if (import.meta.env?.PROD) {
 window.__ooda = Object.freeze({
   stats: () => ({ ...host.stats(), ...scheduler.stats() }),
   modules: MODULES.map((m) => m.id),
+  exampleText,
 });

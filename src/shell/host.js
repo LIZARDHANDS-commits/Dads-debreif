@@ -18,7 +18,7 @@ function shortcutAllowed(event) {
   return true;
 }
 
-export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, keyTarget = globalThis, onStatus = () => {} }) {
+export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, exampleText = null, keyTarget = globalThis, onStatus = () => {} }) {
   let current = null; // { id, cleanups: Set, scope, unmount }
   let openToken = 0;
 
@@ -67,6 +67,8 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
         reset: standards.reset,
         subscribe: tracked(standards),
       },
+      // The example flight's track files by asset name (src/shell/examples.js).
+      exampleText,
       storage: store.scope(session.id),
       scheduler: session.scope,
       time,

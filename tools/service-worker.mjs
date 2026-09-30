@@ -9,8 +9,10 @@ const WORKER_SOURCE = new URL('../src/shell/sw.js', import.meta.url);
 export const WORKER_FILE = 'sw.js';
 
 // Card videos stay online-only: a still picture shows in their place offline,
-// and keeping them would add about 2 MB to everyone's first visit.
-const SKIP = [/^\.vite\//, /^sw\.js$/, /\.map$/, /\.(webm|mp4)$/];
+// and keeping them would add about 2 MB to everyone's first visit. The example
+// flight's files (examples/) are kept only once someone opens the example
+// (src/shell/sw.js), so they don't add 0.7 MB to every first visit either.
+const SKIP = [/^\.vite\//, /^sw\.js$/, /\.map$/, /\.(webm|mp4)$/, /^examples\//];
 
 export function precacheList(files) {
   return files

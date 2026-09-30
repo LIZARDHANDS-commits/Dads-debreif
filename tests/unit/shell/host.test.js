@@ -240,3 +240,15 @@ test('modules share one set of standards, can change and reset them, and their s
   assert.equal(host.stats().subscriptions, 0);
   assert.deepEqual(standards.get(), V6_STANDARDS);
 });
+
+test('modules get the example flight fetcher as app.exampleText', async () => {
+  const scheduler = createScheduler({ raf: () => 1, caf: () => {}, setTimeout: () => 1, clearTimeout: () => {} });
+  const store = createStore(undefined);
+  const settings = createSettings(store.scope('app'), { timePrimary: 'zulu' });
+  const exampleText = async (asset) => `text of ${asset}`;
+  const host = createHost({ root: doc.createElement('main'), scheduler, store, settings, time: {}, exampleText, keyTarget: target() });
+  let app;
+  await host.open({ id: 'debrief', load: async () => ({ default: { id: 'debrief', mount: (r, a) => { app = a; } } }) });
+  assert.equal(await app.exampleText('585aab2601b787ed.kml'), 'text of 585aab2601b787ed.kml');
+  host.close();
+});
