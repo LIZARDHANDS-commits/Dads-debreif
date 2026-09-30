@@ -112,11 +112,18 @@ A landed or done aircraft keeps the place it stopped at. Conflicts are between a
 
 ### `readouts.js`: text, with V6's rounding
 
+Everything is plain text: put it on the page with `textContent`. Numbers are rounded as V6 rounds them (`Math.round`, so .5 goes up; NM and G with `toFixed`), and the golden test compares each string with V6's own.
+
 | Function | Returns |
 |---|---|
-| `clockText(tSec)` | `H:MM:SS`, e.g. `0:12:40`, `1:02:03` (V6's clock wrapped to `00:00` after an hour) |
-| `aircraftRows(state, setup)` | one row per aircraft: `{ id, type, routeName, leg, altFt, kt, status, statusText, startsText, cells }`. `statusText` is V6's Flying, Waiting, Landed or Done; `startsText` is `starts at 2:17` while it waits |
-| `conflictLines(state)` | `[{ level, text }]`, `text` starting `⚠ CONFLICT` or `△ CAUTION`; `[]` when there are none (the screen says `noConflictsText`) |
-| `legDistanceRows(route)` | `[{ leg: '1→2', ftText: '7170', nmText: '1.18', ft, nm }]` |
-| `turnDataText(point, options?)` | V6's `R 2474ft / bank 60°` |
+| `clockText(tSec)` | `H:MM:SS`, e.g. `0:12:40`, `1:02:03` (V6's clock wrapped to `00:00` after an hour). The fraction is dropped, so 59.999 s is `0:00:59`, as in V6; a time that is not a time reads `0:00:00` |
+| `startTimeText(tSec)` | `M:SS`, e.g. `2:17`, and `H:MM:SS` from an hour on |
+| `aircraftRows(state, setup)` | one row per aircraft, in the state's order: `{ id, type, color, routeName, leg, altFt, kt, status, statusText, startsText, labelText, cells }`. `statusText` is V6's `Flying`, `Waiting`, `Landed` or `Done`; `startsText` is `starts at 2:17` while it waits and empty otherwise; `labelText` is the map label `1880ft 100kt Pattern 1`; `cells` is V6's seven columns (AC, Type, Route, Leg, Alt, KT, Status) as text. An aircraft on a route that has gone is shown on the first route, as in V6 |
+| `conflictLines(state)` | `[{ level, a, b, text }]`, `text` like `⚠ CONFLICT A2/A5: 180 ft lat, 120 ft vert` or `△ CAUTION …`; `[]` when there are none, and the screen then shows `noConflictsText` (`No conflicts.`) |
+| `legDistanceRows(route)` | `[{ leg: '1→2', from, to, ft, nm, ftText: '7170', nmText: '1.18', labelText: '7170 ft' }]`, a pattern's last leg is `4→1`; `[]` for fewer than two points. The screen leaves out hidden routes, as V6's table does |
+| `pointRows(route, options?)` | `[{ number, titleText, dataText, turnText }]` per point: `Pattern 1 6 Downwind`, `2500ft/120kt/2.0G`, and the turn data, empty where V6 shows none (the first point of a pattern; the first and last of an entry or split) |
 | `pointDataText(point)` | V6's `1880ft/100kt/2.0G` |
+| `turnDataText(point, options?)` | V6's `R 736ft / bank 60°`: the radius the route options give, and the bank the point's G gives |
+| `noConflictsText` | `No conflicts.` |
+
+`options` is `setup.routeOptions` (default V6's).

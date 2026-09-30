@@ -21,6 +21,7 @@ const V6_FUNCTIONS = [
   'pointProg', 'posOnRoute', 'closestProg', 'nextCallsign', 'makeAircraft', 'spawnLive', 'reset',
   'currentAcRoute', 'acPos', 'acProfile', 'handleRouteEnd', 'crossedProg', 'checkDecisions',
   'resetAircraftToStarts', 'rebuildPositionsAtTime', 'step', 'conflicts', 'updatePanels',
+  'drawRoute', 'drawAircraft',
 ];
 
 /**
@@ -134,7 +135,9 @@ export function toV6Aircraft(a) {
  * has the names); change a value at any time and V6 sees it, as it would a box.
  * `random` replaces Math.random. `routes` and `aircraft` are V6 route and aircraft
  * objects. The returned `v6` has V6's functions by name, `state` (its globals),
- * `elements` (what updatePanels wrote) and `frame()`, one screen frame of 50 ms.
+ * `elements` (what updatePanels wrote), `textDrawnBy(callback)` (the map text V6's
+ * drawRoute and drawAircraft write, with the canvas and worldToScreen stood in) and
+ * `frame()`, one screen frame of 50 ms.
  *
  * Two things are left out of V6's frame so an hour of sim time takes seconds:
  * - V6 redraws its tables every frame, even paused (#49). `updatePanels` is V6's own
@@ -147,6 +150,7 @@ export function toV6Aircraft(a) {
  */
 export function loadV6Traffic({ settings = { ...V6_SETTINGS }, random = () => 0.5, routes = [], aircraft = [], cacheRoutes = false, panelsEachFrame = false } = {}) {
   const elements = new Map();
+  const drawn = [];
   const $ = (id) => {
     if (!elements.has(id)) {
       elements.set(id, {
@@ -165,6 +169,14 @@ export function loadV6Traffic({ settings = { ...V6_SETTINGS }, random = () => 0.
     const Math = Object.create(globalThis.Math); Math.random = __in.random;
     function draw() {}
     function refreshAll() {}
+    // What V6's drawing code writes on the map: the text of every fillText is kept in drawn, everything else is ignored.
+    let selectedRouteId = null, selectedPt = 0;
+    const worldToScreen = (p) => ({ x: p.x, y: p.y });
+    const drawn = __in.drawn;
+    const ctx = new Proxy({}, {
+      get: (_, key) => (key === 'fillText' ? (text) => { drawn.push(text); } : key === 'measureText' ? () => ({ width: 40 }) : () => {}),
+      set: () => true,
+    });
     function requestAnimationFrame() {}
     const state = {
       get routes() { return routes; }, set routes(v) { routes = v; },
@@ -194,9 +206,11 @@ export function loadV6Traffic({ settings = { ...V6_SETTINGS }, random = () => 0.
     ${wrappers}
     function updatePanels() { if (__in.panelsEachFrame) updatePanelsV6(); }
     state.clearCache = () => { ${cached.map((name) => `__${name}.clear();`).join(' ')} };
-    return { ${exposed}, state };`)({ routes, aircraft, $, random, panelsEachFrame });
+    return { ${exposed}, state };`)({ routes, aircraft, $, random, panelsEachFrame, drawn });
   v6.clearCache = v6.state.clearCache;
   v6.elements = elements;
+  /** The map text V6's drawing code writes when `callback` runs (for example `() => v6.drawRoute(route)`), in order. */
+  v6.textDrawnBy = (callback) => { drawn.length = 0; callback(); return drawn.splice(0); };
   v6.settings = settings;
   let ts = 1000; // V6's step reads its first timestamp as "last", so this frame moves nothing
   v6.frame = () => { v6.step(ts); ts += 50; };
