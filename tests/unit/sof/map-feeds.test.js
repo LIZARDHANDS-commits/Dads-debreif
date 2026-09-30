@@ -97,7 +97,7 @@ function radar(over = {}) {
   const clock = virtualClock('2026-09-30T07:15:00Z');
   const served = { eccc: 'ok', rv: 'ok', paused: false, ...over.served };
   const f = fakeFetch((url) => {
-    if (url.startsWith('https://api.rainviewer.com')) return served.rv === 'ok' ? json(fixture('rainviewer-weather-maps.json')) : fail();
+    if (new URL(url).host === 'api.rainviewer.com') return served.rv === 'ok' ? json(fixture('rainviewer-weather-maps.json')) : fail();
     if (served.eccc === 'down') return fail();
     if (url.includes('request=GetCapabilities')) return text(caps(url.includes('RSNO') ? 'RADAR_1KM_RSNO' : 'RADAR_1KM_RRAI'));
     return png(url);
@@ -316,7 +316,7 @@ test('with ECCC and RainViewer both failing the words say so, and there is nothi
 
 test('RainViewer\'s list is read with a size cap and shape check; a hostile list gives no frame', async () => {
   const clock = virtualClock();
-  const f = fakeFetch((url) => (url.startsWith('https://api.rainviewer.com') ? json({ radar: { past: [{ time: 1, path: '/../../evil' }] } }) : fail()));
+  const f = fakeFetch((url) => (new URL(url).host === 'api.rainviewer.com' ? json({ radar: { past: [{ time: 1, path: '/../../evil' }] } }) : fail()));
   const feed = createRadarFeed({ decode: async () => ({}), fetch: f, timers: clock.timers, now: clock.now });
   feed.setRequest(REQUEST);
   feed.enable(true);
