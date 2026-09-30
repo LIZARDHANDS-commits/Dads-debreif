@@ -20,11 +20,11 @@
   - Acceptance: every route in SPEC-shell.md renders; Coming soon cards aren't buttons.
   - Verify: `npm run dev` and look; e2e smoke test.
   - Files: index.html, src/app.js, src/shell/home.js, about.js, header.js, settings-dialog.js, .github/ISSUE_TEMPLATE/problem.yml
-- [ ] **6. Browser tests.** smoke (3 browsers in CI), overlap, click-through, module switching, storage blocked.
+- [x] **6. Browser tests.** smoke (3 browsers in CI), overlap, click-through, module switching, storage blocked.
   - Acceptance: all pass; any console error fails a test.
   - Verify: `npm run test:e2e`
   - Files: tests/e2e/*.spec.js, tests/e2e/helpers.js
-- [ ] **7. Card media.** re-encoded loops and stills, lazy loading, reduced motion.
+- [x] **7. Card media.** re-encoded loops and stills, lazy loading, reduced motion.
   - Acceptance: videos total 3 MB or less; none loads until its card is on screen; none plays with reduced motion.
   - Verify: size check in the build; e2e test for lazy loading and reduced motion.
   - Files: public/media/cards/*, src/shell/home.js, tools/check-size.mjs
