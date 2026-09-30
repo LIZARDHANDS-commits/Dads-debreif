@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildFlight } from '../../../src/flight-data/flight.js';
+import { buildFlight, headingAt, estimatedGAt } from '../../../src/flight-data/flight.js';
 import { loadExampleFlight } from '../../../src/flight-data/examples.js';
 import { shipsIn3d } from '../../../src/modules/debrief/view3d/frame.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
@@ -295,11 +295,10 @@ test('V6\'s one-target standard is gated by the same blocks; a standard that is 
 
 // #2 on the example flight at scrubber start+1676 to +1688, where the bank flickered while G read 1.0 to 2.1.
 // The readouts and the 3D view give the same bank (D40). Bank in degrees, left wing down positive.
-// Old: the ±1 s chords (V6's window, doubled by D40). Now: the heading change over t±1.5 s, est. G's window (M2).
-const EXAMPLE_BANK_PIN = {
-  old: [-0.4545, -31.3019, 3.2397, 19.9165, -3.5199, 1.9199, -33.5109, -78.0277, 15.3244, 61.0531, 0, 2.0397, -23.9087],
-  now: [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, -57.3814],
-};
+// The heading change over t±1.5 s, est. G's window (M2). At +1688 that window touches the GPS gap
+// after 1688.9 s, so G is "--" and the wings are level (audit of #194, Y2; it read −57.4° before).
+// The old ±1 s chord bank stays pinned on V6's path in tests/golden/debrief-3d.test.js.
+const EXAMPLE_BANK_PIN = [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, 0];
 
 test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same in the readouts and the 3D view', async () => {
   const flight = await loadExampleFlight(fromRepo);
@@ -309,7 +308,7 @@ test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same i
     assert.equal(shipsIn3d(flight, flight.startT + s)[1].bankDeg, bank);
     got.push(+bank.toFixed(4));
   }
-  assert.deepEqual(got, EXAMPLE_BANK_PIN.now);
+  assert.deepEqual(got, EXAMPLE_BANK_PIN);
 });
 
 /** A small repeatable noise in -0.5 to 0.5, so the test is the same every run. */
@@ -353,4 +352,34 @@ test('turnRateAt is the heading change over t±1.5 s, left positive; null when t
   const parked = buildFlight({ 1: track('Lead', () => [0, 0]) });
   assert.equal(turnRateAt(parked.tracks[1], T(30)), null);
   assert.equal(turnRateAt({ fixes: [] }, 0), null);
+});
+
+test('turnRateAt at the ends of the track divides by the window it has, not the full 3 s', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const tr = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))]) }).tracks[1];
+  const rate = (a, b) => (headingAt(tr, T(b)) - headingAt(tr, T(a))) / (b - a);
+  assert.ok(Math.abs(turnRateAt(tr, T(0)) - rate(0, 1.5)) < 1e-12);
+  assert.ok(Math.abs(turnRateAt(tr, T(60)) - rate(58.5, 60)) < 1e-12);
+});
+
+// Audit of #194, Y2: the bank used to be worked out across a gap while G said "--".
+test('no bank from a window that touches a GPS gap: wings level wherever est. G is unknown for the gap', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const flight = buildFlight({
+    1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))], { skip: [21, 22, 23, 24, 25, 26, 27] }),
+  });
+  const tr = flight.tracks[1];
+  assert.ok(turnRateAt(tr, T(10)) > 0);
+  for (let s = 18.6; s <= 29.5; s += 0.1) {
+    const t = T(s);
+    if (estimatedGAt(tr, t) !== null) continue;
+    assert.equal(turnRateAt(tr, t), null, `turn rate at start+${s.toFixed(1)}`);
+    assert.equal(readoutsAt(flight, t).ships[0].bankDeg, 0, `bank at start+${s.toFixed(1)}`);
+  }
+  assert.equal(turnRateAt(tr, T(29.5)), null); // starts on the fix that ends the gap
+  assert.ok(turnRateAt(tr, T(30)) > 0);
 });

@@ -2,7 +2,7 @@
 // and standards). Every number comes from flight-data (where each ship is)
 // and core (aspect, HCA, closure, standards); this file only picks the
 // moments and puts the answers in rows. No page access, so it's tested in Node.
-import { sampleAt, headingAt, pitchAt, gAt } from '../../flight-data/flight.js';
+import { sampleAt, headingAt, pitchAt, gAt, estimatedGAt } from '../../flight-data/flight.js';
 import { aspectAngleDeg, headingCrossAngleDeg, wrapPi } from '../../core/angles.js';
 import { closureKt, formatClosureKt as formatClosure, isaDensityRatio } from '../../core/flight-math.js';
 import { classifyDebriefPosition, classifyLeadParameters } from '../../core/standards.js';
@@ -61,8 +61,10 @@ export const TURN_WINDOW_S = 1.5;
  * Turn rate in radians a second, left (counter-clockwise) positive, from the
  * heading change over t−1.5 s to t+1.5 s: the window and the headings
  * flight-data's estimatedGAt uses for est. G, so the bank drawn from it agrees
- * with the G beside it (verification M2). Null when the track is too short,
- * or the aircraft is still at either end of the window (no heading, C7).
+ * with the G beside it (verification M2). Null whenever est. G over the same
+ * window is: the track too short, the aircraft still at either end (no
+ * heading, C7), the window touching a GPS gap, or a G above the T-6's 7 G
+ * (D32). Null draws the wings level, beside "G --" (audit of #194, Y2).
  */
 export function turnRateAt(track, t, windowS = TURN_WINDOW_S) {
   const f = track?.fixes;
@@ -70,6 +72,7 @@ export function turnRateAt(track, t, windowS = TURN_WINDOW_S) {
   const t0 = Math.max(f[0].t, t - windowS);
   const t1 = Math.min(f[f.length - 1].t, t + windowS);
   if (t1 - t0 < 0.5) return null;
+  if (estimatedGAt(track, t, windowS) === null) return null;
   const h0 = headingAt(track, t0);
   const h1 = headingAt(track, t1);
   if (h0 === null || h1 === null) return null;
