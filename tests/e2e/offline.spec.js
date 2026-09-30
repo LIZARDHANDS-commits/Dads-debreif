@@ -52,6 +52,40 @@ test('offline, the home cards show their stills and fetch no videos', async ({ p
   await context.setOffline(false);
 });
 
+test('the example flight downloads only when asked, and then works offline', async ({ page, context }) => {
+  const examples = [];
+  page.on('request', (req) => req.url().includes('/examples/') && examples.push(req.url()));
+  await visitThenGoOffline(page, context);
+  expect(examples).toEqual([]); // not part of the first visit
+  expect(await keptExamples(page)).toEqual([]);
+  await context.setOffline(false);
+
+  const asset = '585aab2601b787ed.kml';
+  const text = await page.evaluate((a) => window.__ooda.exampleText(a), asset);
+  expect(text.startsWith('<?xml')).toBe(true);
+  expect(text.length).toBe(2741913); // V6's file, un-gzipped
+  expect(await keptExamples(page)).toEqual([`examples/${asset}.gz`]);
+
+  await context.setOffline(true);
+  expect(await page.evaluate((a) => window.__ooda.exampleText(a), asset)).toBe(text);
+  await context.setOffline(false);
+});
+
+test('the debrief\'s VNC charts download only when shown, and then work offline', async ({ page, context }) => {
+  const charts = [];
+  page.on('request', (req) => req.url().includes('/media/debrief/') && charts.push(req.url()));
+  await visitThenGoOffline(page, context);
+  expect(charts).toEqual([]); // not part of the first visit
+  await context.setOffline(false);
+  const size = (file) => page.evaluate(async (f) => (await (await fetch(f)).arrayBuffer()).byteLength, file);
+  const bytes = await size('media/debrief/vnc-south.webp');
+  expect(bytes).toBe(2815862);
+  expect(await keptExamples(page, 'media/debrief/')).toEqual(['media/debrief/vnc-south.webp']);
+  await context.setOffline(true);
+  expect(await size('media/debrief/vnc-south.webp')).toBe(bytes);
+  await context.setOffline(false);
+});
+
 test('a newly published version shows the bar, and Reload switches to it', async ({ page }) => {
   // Stand-in for publishing a new build: the same worker with a different build id.
   let published = false;
@@ -83,4 +117,18 @@ test('a newly published version shows the bar, and Reload switches to it', async
 
 async function cacheNames(page) {
   return page.evaluate(async () => (await caches.keys()).filter((name) => name.startsWith('ooda:')));
+}
+
+// The files in `folder` (examples/ unless given) the service worker has kept, relative to the site.
+async function keptExamples(page, folder = 'examples/') {
+  return page.evaluate(async (dir) => {
+    const found = [];
+    for (const name of await caches.keys()) {
+      for (const req of await (await caches.open(name)).keys()) {
+        const path = new URL(req.url).pathname;
+        if (path.includes(`/${dir}`)) found.push(path.slice(path.indexOf(dir)));
+      }
+    }
+    return found;
+  }, folder);
 }

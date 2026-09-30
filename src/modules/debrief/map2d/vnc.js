@@ -106,3 +106,134 @@ export function triangleTransform(s0, s1, s2, d0, d1, d2) {
   const f = (d0.y * (s1.x * s2.y - s2.x * s1.y) + d1.y * (s2.x * s0.y - s0.x * s2.y) + d2.y * (s0.x * s1.y - s1.x * s0.y)) / den;
   return [a, b, c, d, e, f];
 }
+
+/** The chart images, re-encoded losslessly from V6's PNGs (same pixels, about half the size). */
+export const VNC_FILES = Object.freeze({ south: 'media/debrief/vnc-south.webp', north: 'media/debrief/vnc-north.webp' });
+
+/** Which charts each "VNC chart" choice shows (V6's Off, South, North, Both). */
+export const VNC_CHOICES = Object.freeze({ off: [], south: ['south'], north: ['north'], both: ['south', 'north'] });
+
+/** V6's fine-alignment sliders: nudge ±20 NM each way, scale 97 % to 103 %. */
+export const VNC_ALIGN_LIMITS = Object.freeze({ nudgeNm: [-20, 20], scalePct: [97, 103] });
+
+/** The box round points in local feet. */
+function boxOf(points) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+}
+
+/** The box round the chosen charts in local feet, to fit the view to them (V6 fitEmbeddedVncToView). */
+export function chartsBounds(keys, ref, align = VNC_DEFAULT_ALIGN) {
+  return boxOf(keys.flatMap((key) => vncWarpGrid(key, ref, align, 2)));
+}
+
+const cacheKey = (ref, a) => [ref.lat, ref.lon, a.nudgeEastNm, a.nudgeNorthNm, a.scalePct].join(',');
+
+/**
+ * The chart layer. Each chart's image is fetched the first time it's shown
+ * (R5), then warped once per alignment into an off-screen image laid out in
+ * local feet, north up, so each frame draws it with one drawImage (#43).
+ * base: the site's address, for the image files. onChange(): asks for a
+ * redraw when an image arrives or fails. makeImage and makeCanvas are for
+ * tests. Returns { draw, state, dispose }.
+ */
+export function createVncLayer({
+  base,
+  onChange,
+  makeImage = () => new Image(),
+  makeCanvas = (width, height) => Object.assign(document.createElement('canvas'), { width, height }),
+}) {
+  const charts = {}; // key → { image, ready, failed, warped: { key, canvas, box } }
+  let disposed = false;
+  let last = { wanted: 0, ready: 0, failed: 0 };
+
+  function chart(key) {
+    if (charts[key]) return charts[key];
+    const entry = { image: makeImage(), ready: false, failed: false, warped: null };
+    entry.image.onload = () => {
+      if (disposed) return;
+      entry.ready = true;
+      onChange();
+    };
+    entry.image.onerror = () => {
+      if (disposed) return;
+      entry.failed = true;
+      onChange();
+    };
+    entry.image.src = new URL(VNC_FILES[key], base).href;
+    charts[key] = entry;
+    return entry;
+  }
+
+  // V6's mesh of affine triangles, drawn once at about the image's own resolution.
+  function warp(key, image, ref, align) {
+    const cells = VNC_MESH_CELLS;
+    const grid = vncWarpGrid(key, ref, align, cells);
+    const box = boxOf(grid);
+    const W = image.naturalWidth;
+    const H = image.naturalHeight;
+    const ftPerPx = Math.max(box.maxX - box.minX, box.maxY - box.minY) / Math.max(W, H);
+    const canvas = makeCanvas(Math.ceil((box.maxX - box.minX) / ftPerPx), Math.ceil((box.maxY - box.minY) / ftPerPx));
+    const ctx = canvas.getContext('2d');
+    const to = (i, j) => {
+      const p = grid[j * (cells + 1) + i];
+      return { x: (p.x - box.minX) / ftPerPx, y: (box.maxY - p.y) / ftPerPx };
+    };
+    const from = (i, j) => ({ x: (i / cells) * W, y: (j / cells) * H });
+    const tri = (s, d) => {
+      const m = triangleTransform(...s, ...d);
+      if (!m) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(d[0].x, d[0].y);
+      ctx.lineTo(d[1].x, d[1].y);
+      ctx.lineTo(d[2].x, d[2].y);
+      ctx.closePath();
+      ctx.clip();
+      ctx.setTransform(...m);
+      ctx.drawImage(image, 0, 0);
+      ctx.restore();
+    };
+    for (let j = 0; j < cells; j++) {
+      for (let i = 0; i < cells; i++) {
+        tri([from(i, j), from(i + 1, j), from(i + 1, j + 1)], [to(i, j), to(i + 1, j), to(i + 1, j + 1)]);
+        tri([from(i, j), from(i + 1, j + 1), from(i, j + 1)], [to(i, j), to(i + 1, j + 1), to(i, j + 1)]);
+      }
+    }
+    return { key: cacheKey(ref, align), canvas, box };
+  }
+
+  return {
+    /**
+     * Draws the charts named in `keys` (VNC_CHOICES) at `opacityPct`. map:
+     * the canvas view (worldToScreen). ref: the map's origin. align:
+     * { nudgeEastNm, nudgeNorthNm, scalePct }.
+     */
+    draw(ctx, { keys, map, ref, align, opacityPct }) {
+      let ready = 0;
+      let failed = 0;
+      ctx.save();
+      ctx.globalAlpha = opacityPct / 100;
+      for (const key of keys) {
+        const entry = chart(key);
+        if (entry.failed) failed += 1;
+        if (!entry.ready) continue;
+        ready += 1;
+        if (entry.warped?.key !== cacheKey(ref, align)) entry.warped = warp(key, entry.image, ref, align);
+        const { canvas, box } = entry.warped;
+        const [x1, y1] = map.worldToScreen(box.minX, box.maxY);
+        const [x2, y2] = map.worldToScreen(box.maxX, box.minY);
+        ctx.drawImage(canvas, x1, y1, x2 - x1, y2 - y1);
+      }
+      ctx.restore();
+      last = { wanted: keys.length, ready, failed };
+    },
+    /** What the last draw found: { wanted, ready, failed } charts. */
+    state: () => last,
+    dispose() {
+      disposed = true;
+      for (const entry of Object.values(charts)) entry.image.onload = entry.image.onerror = null;
+    },
+  };
+}

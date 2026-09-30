@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+<Document>
+<when>2026-06-02T18:00:00Z</when><when>2026-06-02T18:00:02Z</when>
+<Placemark><LineString><coordinates>-105.5,50.3,500 -105.51,50.31,600
+ -105.52,50.32 bad,1,2</coordinates></LineString></Placemark>
+<Placemark><LineString><coordinates><![CDATA[-105.6,50.4,700 -105.61,50.41,710]]></coordinates></LineString></Placemark>
+<Placemark><Point><coordinates></coordinates></Point></Placemark>
+<GForce>1.5</GForce><GForce>2.0</GForce><GForce>40</GForce>
+<Pitch>3</Pitch><Pitch>100</Pitch><Pitch>-4</Pitch>
+</Document></kml>

@@ -40,6 +40,14 @@
   - Acceptance: Patrick (or anyone, D28) runs the checklist on the live link.
   - Files: src/*/README.md, docs/checklists/shell.md
 - [x] **11. Shared standards (`app.standards`).** One copy of the formation standards for the debrief and the Turn Sim (R18, D89).
-  - Acceptance: starts at V6's values; update() refuses out-of-range values with a message per field; reset() goes back to V6; saved values survive a reload and are checked field by field; module subscriptions end on close.
+  - Acceptance: starts at the default preset (V6's values at first; the SMM's since D114-D116, stored version 2, with older saves falling back); update() refuses out-of-range values with a message per field; reset() goes back to the default; saved values survive a reload and are checked field by field; module subscriptions end on close.
   - Verify: tests/unit/storage/standards.test.js, the standards test in tests/unit/shell/host.test.js.
   - Files: src/storage/standards.js, src/shell/host.js, src/app.js, specs/SPEC-shell.md, specs/SPEC-storage.md
+- [x] **12. Example flight files.** V6's four example tracks served from `public/examples/<asset>.gz` for flight-data's `loadExampleFlight`, as `app.exampleText(asset)`.
+  - Acceptance: identical to V6's files once un-gzipped; nothing downloads until asked (R5); once downloaded, kept for offline use (R6).
+  - Verify: tests/unit/shell/examples.test.js; the example test in tests/e2e/offline.spec.js.
+  - Files: public/examples/*, src/shell/examples.js, src/shell/sw.js, tools/service-worker.mjs, src/shell/host.js, src/app.js
+- [x] **13. Save and open files (`storage/file.js`).** Shared by the debrief file (R17) and the Turn Sim and Traffic setups.
+  - Acceptance: a download keeps the text exactly under a safe name; picked or dropped files are read as text in order; a file over the limit is refused before any is read; cancelling the picker gives an empty list.
+  - Verify: tests/unit/storage/file.test.js, tests/e2e/file.spec.js.
+  - Files: src/storage/file.js, specs/SPEC-storage.md

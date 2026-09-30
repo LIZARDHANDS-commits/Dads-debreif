@@ -27,7 +27,7 @@ Vertical slices, each leaving a working screen behind it:
 
 ## Pull requests
 
-- PR A: tasks 1 to 3 (screen, tracks, playback, readouts without standards).
+- PR A: tasks 1 to 3 (screen, tracks, playback, readouts without standards), in two parts: tasks 1 and 2 first, so the debrief opens from its card with loading and playback, then task 3.
 - PR B: tasks 4 and 5 (standards and DFPs with the debrief file).
 - PR C: tasks 6 and 7 (map layers).
 - PR D: task 8 (3D view).

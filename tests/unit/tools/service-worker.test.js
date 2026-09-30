@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { precacheList, buildId, renderWorker, writeWorker } from '../../../tools/service-worker.mjs';
 
-test('the offline copy keeps the app and stills, but not card videos or build notes', () => {
+test('the offline copy keeps the app and stills, but not card videos, build notes, the example flight or the VNC charts (kept on first use)', () => {
   const files = [
     'index.html',
     'assets/index-abc.js',
@@ -16,6 +16,8 @@ test('the offline copy keeps the app and stills, but not card videos or build no
     'media/cards/sof.webm',
     'media/cards/sof.mp4',
     'manifest.webmanifest',
+    'examples/585aab2601b787ed.kml.gz',
+    'media/debrief/vnc-south.webp',
   ];
   assert.deepEqual(precacheList(files), [
     './assets/index-abc.js',

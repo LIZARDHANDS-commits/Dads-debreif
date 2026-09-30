@@ -6,7 +6,7 @@ import { createHost } from '../../../src/shell/host.js';
 import { createScheduler } from '../../../src/ui-kit/scheduler.js';
 import { createStore } from '../../../src/storage/store.js';
 import { createStandards } from '../../../src/storage/standards.js';
-import { V6_STANDARDS } from '../../../src/core/standards.js';
+import { DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 const doc = installFakeDocument();
@@ -227,7 +227,7 @@ test('modules share one set of standards, can change and reset them, and their s
   const seen = [];
   let app;
   await host.open({ id: 'debrief', load: async () => ({ default: { id: 'debrief', mount: (r, a) => { app = a; a.standards.subscribe((s) => seen.push(s.offset.aftTargetFt)); } } }) });
-  assert.deepEqual(app.standards.get(), V6_STANDARDS);
+  assert.deepEqual(app.standards.get(), DEFAULT_STANDARDS);
   assert.ok(Object.isFrozen(app.standards.get().offset));
   assert.equal(app.standards.limits.offset.aftTargetFt.step, 100);
   assert.equal(app.standards.update({ offset: { aftTargetFt: -1 } }).ok, false);
@@ -238,5 +238,17 @@ test('modules share one set of standards, can change and reset them, and their s
   standards.reset();
   assert.deepEqual(seen, [9000], 'no calls after closing');
   assert.equal(host.stats().subscriptions, 0);
-  assert.deepEqual(standards.get(), V6_STANDARDS);
+  assert.deepEqual(standards.get(), DEFAULT_STANDARDS);
+});
+
+test('modules get the example flight fetcher as app.exampleText', async () => {
+  const scheduler = createScheduler({ raf: () => 1, caf: () => {}, setTimeout: () => 1, clearTimeout: () => {} });
+  const store = createStore(undefined);
+  const settings = createSettings(store.scope('app'), { timePrimary: 'zulu' });
+  const exampleText = async (asset) => `text of ${asset}`;
+  const host = createHost({ root: doc.createElement('main'), scheduler, store, settings, time: {}, exampleText, keyTarget: target() });
+  let app;
+  await host.open({ id: 'debrief', load: async () => ({ default: { id: 'debrief', mount: (r, a) => { app = a; } } }) });
+  assert.equal(await app.exampleText('585aab2601b787ed.kml'), 'text of 585aab2601b787ed.kml');
+  host.close();
 });
