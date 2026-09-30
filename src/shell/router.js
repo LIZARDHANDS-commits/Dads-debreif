@@ -27,8 +27,8 @@ export function hrefFor(route) {
  * What a route opens, and the note to show above it: a module that is not
  * built yet (`load: null`) opens home with "<title> is coming soon.", and an
  * unknown path opens home with a "no page" note.
- * @param {{ name: string, id?: string, path?: string }} route from parseRoute
  * @template {{ title: string }} P
+ * @param {{ name: string, id?: string, path?: string }} route from parseRoute
  * @param {{ home: P, about: P }} pages
  * @param {(id: string) => P & { load?: unknown }} findModule
  * @returns {{ entry: P, note: string | null }}
