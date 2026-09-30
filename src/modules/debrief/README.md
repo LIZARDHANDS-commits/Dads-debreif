@@ -15,7 +15,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `map2d/geometry.js` | Where the layers go, in map feet, tested in Node against V6's numbers: trail parts, spacing pairs, 3/9 line ends, the cone's outline. |
 | `map2d/overlays.js` | The built-in routes: placed on the map (the flight's, or Moose Jaw's with no flight) and drawn dashed under the tracks. |
 | `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
-| `map2d/tiles.js` | Web map tiles (Esri World Imagery) under the map: which tiles a view needs, fetching with retries, and drawing. Knows nothing of the debrief, so it can move to the ui-kit. |
+| (ui-kit) `map-tiles.js` | The satellite imagery under the map (Esri World Imagery) is not in this folder. The debrief uses the ui-kit's `map-tiles.js`, which `map2d/view.js` and `layout.js` import. |
 | `map2d/vnc.js` | The VNC charts: bounds and warp pinned to V6, and the layer that fetches each chart when first shown and warps it once per alignment. |
 | `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6. |
 | `em.js` | The EM chart: which chart to show, where a point lands on it (pinned to V6), each ship's point and 60 s trail from its track, and the panel's canvas. |
