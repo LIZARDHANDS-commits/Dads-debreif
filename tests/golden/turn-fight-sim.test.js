@@ -2,9 +2,10 @@
 // run unchanged in Node by turn-fight-v6.js with a stand-in page.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createV6Fight } from './turn-fight-v6.js';
+import { createV6Fight, parseV6Readouts } from './turn-fight-v6.js';
 import { seeded } from './inputs.js';
 import { createFight, stepFight, FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../src/modules/turn-fight/sim.js';
+import { timeText, phaseText, resultRows, moreDetailRows } from '../../src/modules/turn-fight/readouts.js';
 
 const STEP = 0.02;
 
@@ -95,6 +96,61 @@ function compareAircraft(mine, v6p, stepNo, name, who) {
 const isTie = (g) => (g.blueKt ?? 220) === (g.redKt ?? 220) && (g.blueG ?? 4) === (g.redG ?? 4)
   && (!g.vertical || (g.bluePitchDeg ?? 0) === (g.redPitchDeg ?? 0));
 
+// ── The readouts against the text V6 writes on the page ──────────────────────
+
+/**
+ * V6's readout text in the rebuild's words. This is the whole list of what
+ * differs from V6, and all of it is wording, not numbers (SPEC-turn-fight,
+ * "Readouts"): "sec" is "s", "BLUE @ +18.2 sec" is "Blue at +18.2 s", the phase
+ * is hyphenated, whole feet have thousands separators, and "-0 ft" (V6's
+ * rounding of a height a hair below zero) is "0 ft". Keyed by the readout's id.
+ */
+function v6InRebuildWords(text) {
+  const { time, phase, perf, live } = parseV6Readouts(text);
+  const ft = (x) => x.replace(/^(-?)(\d+) ft$/, (all, sign, digits) => {
+    const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return digits === '0' ? '0 ft' : `${sign}${grouped} ft`;
+  });
+  const seconds = (x) => x.replace(/ sec$/, ' s');
+  const first = live['First nose-on'];
+  return {
+    time,
+    phase: phase.replace(' CIRCLE', '-CIRCLE'),
+    speed: perf['Speed'],
+    g: perf['G'],
+    turnRate: perf['Turn rate'],
+    radius: perf['Turn radius'].map(ft),
+    time360: perf['360° time'],
+    range: live['Range'],
+    offNose: [live['Blue angle-off'], live['Red angle-off']],
+    sinceMerge: seconds(live['Time since merge']),
+    heightChange: live['ΔAlt'].map(ft),
+    heightBetween: ft(live['Vertical separation']),
+    firstNose: first === '--' ? '--' : first.replace(/^(BLUE|RED) @ (\+[\d.]+) sec$/, (all, who, t) => `${who[0]}${who.slice(1).toLowerCase()} at ${t} s`),
+  };
+}
+
+/** The rebuild's readouts, in the same shape. Height rows exist only with Climb and dive on. */
+function ourReadouts(state) {
+  const out = { time: timeText(state), phase: phaseText(state) };
+  for (const row of [...resultRows(state), ...moreDetailRows(state)]) out[row.id] = 'text' in row ? row.text : [row.blue, row.red];
+  return out;
+}
+
+let readoutsCompared = 0;
+function compareReadouts(v6, mine, stepNo, name) {
+  const want = v6InRebuildWords(v6.text);
+  const got = ourReadouts(mine);
+  if (!mine.setup.vertical) {
+    // With Climb and dive off the rebuild doesn't show height, and V6 shows zero.
+    assert.deepEqual([want.heightChange, want.heightBetween], [['0 ft', '0 ft'], '0 ft'], `${name}: V6's height at step ${stepNo}`);
+    delete want.heightChange;
+    delete want.heightBetween;
+  }
+  assert.deepEqual(got, want, `${name}: readouts at step ${stepNo}`);
+  readoutsCompared++;
+}
+
 /** What the grid has exercised, so the last test can say it was not all trivial. */
 const covered = { firstNose: 0, chaseAfterNoseOn: 0, vertical: 0, verticalChase: 0, oneCircle: 0, twoCircle: 0, unequalSpeed: 0, unequalG: 0 };
 
@@ -105,9 +161,15 @@ for (const setup of GRID) {
     const mine = createFight(fightSetup);
     near(mine.mergeSec, v6.S.merge, 1e-12, 'merge time', 0, name);
     let seenNose = false, seenMerge = false;
+    compareReadouts(v6, mine, 0, name);
     for (let i = 1; i <= STEPS; i++) {
       v6.step(FIGHT_STEP_SEC);
       stepFight(mine, FIGHT_STEP_SEC);
+      // Every 25th step, every step around the merge and first nose-on, and the last one.
+      const nearMerge = Math.abs(mine.timeSec - mine.mergeSec) < 0.1;
+      const nearNose = mine.firstNose && mine.timeSec - mine.firstNose.timeSec < 0.1;
+      const readoutsDue = i % 25 === 0 || i === STEPS || nearMerge || nearNose;
+      if (readoutsDue) compareReadouts(v6, mine, i, name);
       near(mine.timeSec, v6.t, 1e-12, 'fight time', i, name);
       if (mine.merged !== v6.S.done) assert.fail(`${name}: merged is ${mine.merged}, V6 ${v6.S.done}, at step ${i}`);
       seenMerge ||= mine.merged;
@@ -143,6 +205,10 @@ for (const setup of GRID) {
     near(mine.timeSec, FIGHT_MAX_SEC, 1e-6, 'stop time', STEPS, name);
   });
 }
+
+test('the readouts were compared many times: at the start, around the merge and first nose-on, and every 25th step', () => {
+  assert.ok(readoutsCompared > 50 * 1000, `${readoutsCompared} comparisons`);
+});
 
 test('the grid was not trivial: it reached first nose-on, the chase, climb and dive, both fight types, unequal fights', () => {
   assert.ok(covered.firstNose >= 40, `${covered.firstNose} setups reached first nose-on`);

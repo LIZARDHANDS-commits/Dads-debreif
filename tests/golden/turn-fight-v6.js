@@ -84,3 +84,26 @@ export function createV6Fight(setup = {}) {
     },
   };
 }
+
+const strip = (html) => html.replace(/<[^>]*>/g, '');
+
+/**
+ * V6's readout text (what `upd`, line 4275, wrote to bfmTime, bfmPhase,
+ * bfmPerf and bfmLive) taken apart, with V6's own words and no changes:
+ *   time  'T+16.4'          phase  'HEAD-TO-HEAD' | '1 CIRCLE' | '2 CIRCLE'
+ *   perf  { 'Speed': [blue, red], 'G': ..., 'Turn rate': ..., 'Turn radius': ..., '360° time': ... }
+ *   live  { 'Range': '0.63 NM', 'Blue angle-off': '0°', 'Red angle-off': ..., 'Time since merge': '1.8 sec',
+ *           'ΔAlt': [blue, red], 'Vertical separation': '0 ft', 'First nose-on': 'BLUE @ +18.2 sec' | '--' }
+ */
+export function parseV6Readouts(text) {
+  const perf = {};
+  for (const m of text.perf.matchAll(/<tr><td>([^<]*)<\/td><td>([^<]*)<\/td><td>([^<]*)<\/td><\/tr>/g)) perf[m[1]] = [m[2], m[3]];
+  const live = {};
+  for (const line of text.live.split('<br>').map(strip)) {
+    const alt = line.match(/^Blue ΔAlt: (.*) • Red ΔAlt: (.*)$/);
+    if (alt) { live['ΔAlt'] = [alt[1], alt[2]]; continue; }
+    const at = line.indexOf(': ');
+    live[line.slice(0, at)] = line.slice(at + 2);
+  }
+  return { time: text.time, phase: text.phase, perf, live };
+}
