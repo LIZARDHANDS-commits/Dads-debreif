@@ -25,13 +25,13 @@ for (const id of ['SPL1', 'ENT2']) {
 }
 test.todo('the built-in break starts 2,000 ± 500 ft past the threshold (TR-06, task 15)');
 test.todo('no step moves an aircraft more than 2 × speed × 0.05 s + 5 ft at a split or join, 20 seeds (TR-05, task 12)');
-// TR-20. The G the flown curve needs at its tightest corner (from the peak bank) may not pass the stall line
-// `stallLimitG(kias)` at that point's speed. Two built-in corners do: Split 3 point 2 (4.19 G at 150 kt against
+// TR-20. The G the flown curve needs at its tightest corner (from the peak bank) may not pass what the T-6A can pull at that point's speed
+// (core `availableG(kias)`: the stall line `stallLimitG(kias)`, at most +7 G). Two built-in corners do: Split 3 point 2 (4.19 G at 150 kt against
 // 3.04 G) and Split 2 point 2 (3.28 G). It is a todo until task 12 (banks that the speed can fly) fixes the
 // setup; the same numbers are in the cross-check table (t-corner-flown-* rows). Remove the `.todo` when it passes.
 test.todo('every corner of every built-in route is flown within the stall-line G at its speed (TR-20, task 12)', () => {
   const over = flownCorners(SETUP).filter((c) => c.margin > 0.05)
-    .map((c) => `${c.routeId} point ${c.point}: ${c.flownG.toFixed(2)} G flown at ${c.kt} kt, stall line ${c.stallG.toFixed(2)} G`);
+    .map((c) => `${c.routeId} point ${c.point}: ${c.flownG.toFixed(2)} G flown at ${c.kt} kt, stall line ${c.canPullG.toFixed(2)} G`);
   assert.deepEqual(over, []);
 });
 test.todo('the bank each point flies is within 5° of its turn data, or the point is flagged (TR-07, task 12)');
