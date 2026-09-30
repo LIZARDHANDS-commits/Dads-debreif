@@ -658,6 +658,26 @@ for (const [width, height] of [[1024, 768], [390, 844]]) {
   });
 }
 
+test('the Cross turn shows its second-half G and roll-out spacing, in the caution colour when the G is clamped', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const note = page.locator('.ts-cross-note');
+  await expect(note).toBeHidden();
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(note).toHaveText(/^Second half at \d\.\d G to roll out [\d,]+ ft apart$/);
+  await expect(note).not.toHaveClass(/is-clamped/);
+  // The switch lives in the settings menu, on by default.
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Set second-half G for LAB roll-out')).toBeChecked();
+  // Far apart, the G cannot go low enough: the note says so.
+  await box(page, 'Spacing').fill('20000');
+  await expect(note).toContainText('held at');
+  await expect(note).toHaveClass(/is-clamped/);
+  // Off flies the G setting all the way, as V6 did: no note.
+  await box(page, 'Set second-half G for LAB roll-out').uncheck();
+  await expect(note).toBeHidden();
+});
+
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js
 // (load: () => import('../modules/turn-sim/index.js')); until then the card says "Coming soon".
 test('opens from its card on the home screen', async ({ page }) => {

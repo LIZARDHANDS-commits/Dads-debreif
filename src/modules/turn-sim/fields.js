@@ -56,6 +56,7 @@ export const CLOCK_TOL = field('clockCueTolDeg', { label: 'Clock tolerance', uni
 export const REAR_DELAY = field('rearDelaySec', { label: 'Rear element delay', unit: 's', step: 0.5, hint: 'How long #3 and #4 wait after the front element. The SMM says 10 to 15 s.' });
 export const CROSS_FIRST_G = field('crossTurnFirstG', { label: 'Cross turn first-stage G', unit: 'G', step: 0.1, hint: 'The G setting is the second stage.' });
 export const CROSS_SWITCH = field('crossTurnSwitchDeg', { label: 'Cross turn switch point', unit: '°', step: 5, hint: 'Degrees turned before the second stage.' });
+export const CROSS_SOLVE = field('crossTurnSolveSpacing', { label: 'Set second-half G for LAB roll-out', hint: 'Off flies the G setting all the way, as V6 did.' });
 export const DURATION_COVERS = field('durationCoversTurn', { label: 'Run at least until the turn is done' });
 export const TWO_SIDE = field('twoSide', { label: '#2\'s side', hint: 'In 4312, 2134 and the two-ship.' });
 export const REAR_CHECK_ON = field('rearCheckOn', { label: 'Rear element check' });

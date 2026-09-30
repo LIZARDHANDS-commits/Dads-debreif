@@ -249,6 +249,19 @@ export function cueStatus(state) {
 }
 
 /**
+ * The cross turn's second-stage G, from state.crossTurnSpacingNote ({ solvedG, clamped, spacingFt }), or null in any other turn.
+ * `clamped` means the G hit its limit, so the roll-out spacing is not the one asked for (the screen shows it in the caution colour).
+ */
+export function crossTurnNote(state) {
+  const n = state?.crossTurnSpacingNote;
+  if (!n) return null;
+  const g = `${n.solvedG.toFixed(1)} G`;
+  return n.clamped
+    ? { clamped: true, text: `Second half held at ${g}, the most it can use: rolls out ${ft(n.spacingFt)} apart` }
+    : { clamped: false, text: `Second half at ${g} to roll out ${ft(n.spacingFt)} apart` };
+}
+
+/**
  * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
  * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag).
  */
@@ -293,6 +306,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
     offsetBand: offsetBandLines(state),
+    crossNote: crossTurnNote(state),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
     leadTurnDirection: state?.leadTurnDirection ?? null,

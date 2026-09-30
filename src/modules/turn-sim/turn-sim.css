@@ -432,3 +432,11 @@
     height: clamp(16rem, 80vw, 32rem);
   }
 }
+
+[data-module='turn-sim'] .ts-cross-note[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-cross-note.is-clamped {
+  color: var(--caution);
+}

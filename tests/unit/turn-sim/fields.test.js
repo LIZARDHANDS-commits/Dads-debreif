@@ -57,3 +57,12 @@ test('the offset box band lines say in the band or outside it, and are null with
   const lines = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12.5, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } });
   assert.deepEqual(lines.map((l) => [l.id, l.outside, l.text]), [[3, false, '12.5 s, in the 10-15 s band'], [4, true, '18.0 s, outside 10-15 s']]);
 });
+
+test('the cross turn note says the second-half G and the roll-out spacing, and flags a clamp', async () => {
+  const { crossTurnNote } = await import('../../../src/modules/turn-sim/readouts.js');
+  assert.equal(crossTurnNote({ crossTurnSpacingNote: null }), null);
+  assert.deepEqual(crossTurnNote({ crossTurnSpacingNote: { solvedG: 1.6, clamped: false, spacingFt: 6000 } }), { clamped: false, text: 'Second half at 1.6 G to roll out 6,000 ft apart' });
+  const held = crossTurnNote({ crossTurnSpacingNote: { solvedG: 1.1, clamped: true, spacingFt: 18500 } });
+  assert.equal(held.clamped, true);
+  assert.match(held.text, /^Second half held at 1\.1 G, the most it can use: rolls out 18,500 ft apart$/);
+});
