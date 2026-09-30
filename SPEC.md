@@ -18,7 +18,8 @@ The users are T-6 instructors and students debriefing sorties, and the SOF watch
 2. Vite is used only as the dev server and bundler (D13). The source still runs as plain modules.
 3. Hosting is GitHub Pages from this repo (D12). A service worker makes it work offline after one visit (D15, R6).
 4. Unit tests use Node's built-in test runner (`node --test`), so they need no extra packages. Browser tests use Playwright, which the baseline recorder already uses.
-5. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
+5. Runtime libraries are few, small and approved one by one (Boundaries: ask first). Approved so far: `uplot` for time-series graphs (D137), loaded only inside the module that draws a graph, with a text readout beside each graph for screen readers. `three` for 3D drawing waits on Patrick's look at a demo (D138).
+6. Live weather: METAR and TAF from MET Norway with Datamask as the backup (D64), radar from ECCC with RainViewer as the backup (D65), lightning from ECCC (D66); no proxy and no keys (D69).
 
 ## Why the code is split this way
 
