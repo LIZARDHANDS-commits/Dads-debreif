@@ -112,6 +112,15 @@ test('drawing shows B and R on the arrowheads and the MERGE mark, and no first n
   assert.ok(!ctx.calls.some((c) => c.fn === 'setLineDash' && c.args[0].length));
 });
 
+test('Q48: a tie labels the first nose-on line BOTH', () => {
+  const run = play(createRun({}), 40);
+  assert.equal(run.fight.firstNose.both, true);
+  const ctx = recorder();
+  drawTopDown(ctx, { width: 800, height: 500 }, run);
+  assert.ok(texts(ctx).includes('FIRST NOSE — BOTH'));
+  assert.ok(!texts(ctx).includes('FIRST NOSE — BLUE'));
+});
+
 test('drawing shows the dashed first nose-on line in #ffcc66 with its label once an aircraft has it', () => {
   const run = play(createRun({ blueKt: 250, redKt: 200 }), 40);
   assert.equal(run.fight.firstNose.by, 'red');

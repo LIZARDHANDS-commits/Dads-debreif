@@ -73,6 +73,7 @@ export function createLayout({ settings, controls, on }) {
     h('p', {}, h('b', {}, '1-circle: '), 'opposite turn directions after the merge. A radius fight.'),
     h('p', {}, h('b', {}, '2-circle: '), 'same turn direction after the merge. A rate fight.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
+    h('p', {}, 'With Climb and dive on, first nose-on needs the nose truly on the other jet; at a fixed climb or dive it may never come, and the chase then never starts.'),
     h('p', {}, 'Level, coordinated turns, each aircraft a point.'),
   );
 
