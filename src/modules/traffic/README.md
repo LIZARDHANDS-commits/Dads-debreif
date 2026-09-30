@@ -27,7 +27,7 @@ How it behaves:
 
 Not built yet: dragging points on the map and typing a point's position, Duplicate route, Delete route (when it is built it must refuse to delete the last route, because the engine throws when the routes are emptied while aircraft exist), editing an aircraft after it is spawned, plans, wind, the 3D view, the satellite photo, Rewind and the ±10 s buttons, profiles, PFLs and the rules.
 
-Tests: `tests/unit/traffic/` for each file (in Node, on a stand-in page), and `tests/e2e/traffic.spec.js` in Chromium on `tests/e2e/pages/traffic.html`, which mounts the module straight from `src/` so the tests don't wait for its entry in `src/shell/registry.js`. The tests that go through the route are skipped until that entry lands.
+Tests: `tests/unit/traffic/` for each file (in Node, on a stand-in page), and `tests/e2e/traffic.spec.js` in Chromium on `tests/e2e/pages/traffic.html`, which mounts the module straight from `src/` so the tests don't wait for its entry in `src/shell/registry.js`.
 
 ## Engine API
 

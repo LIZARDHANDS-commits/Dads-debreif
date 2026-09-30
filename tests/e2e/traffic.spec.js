@@ -1,8 +1,7 @@
 // Browser tests for the Traffic Pattern Sim (SPEC-traffic: Testing strategy). Every test
 // fails on a console error (fixtures.js, R7). Most run on a test page that mounts the sim
 // on the real shell host, straight from src/ (pages/traffic.html), so they don't wait for
-// the sim's entry in src/shell/registry.js. The tests that go through the route are skipped
-// until that entry lands.
+// the sim's entry in src/shell/registry.js; the last two tests go through the route.
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { fileURLToPath } from 'node:url';
 import { serveDist } from './static-server.js';
@@ -116,7 +115,7 @@ test('a bigger conflict bubble redraws the map, and the layers menu switches tra
   await playButton(page).click();
   const before = await picture(page);
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
-  await page.getByLabel('Conflict: lateral').fill('1500');
+  await page.getByLabel('Conflict: lateral').fill('8000'); // big enough to beat the 8 px smallest bubble at the fitted zoom
   await expect.poll(() => picture(page)).not.toBe(before);
   const withTrails = await picture(page);
   await page.getByRole('button', { name: /^Layers/ }).click();
@@ -355,10 +354,9 @@ test('on a phone (390 px wide) the page does not scroll sideways and the map kee
   await expect(page.locator('.point-row').first()).toBeVisible();
 });
 
-// The route tests wait for the Traffic Sim's entry in src/shell/registry.js
-// (load: () => import('../modules/traffic/index.js')); until then its card says "Coming soon".
+// The route tests: the Traffic Sim's card opens it, and a direct link does too.
 // The header's own button is named exactly 'Settings': the sim's menu is "Traffic settings".
-test.skip('opens from its card on the home screen', async ({ page }) => { // unskip when the registry entry lands
+test('opens from its card on the home screen', async ({ page }) => {
   await openRoute(page, '#/');
   await page.locator('a.card[href="#/traffic"]').click();
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
@@ -366,7 +364,7 @@ test.skip('opens from its card on the home screen', async ({ page }) => { // uns
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
 });
 
-test.skip('the route opens from a direct link and plays, spawns and edits a point', async ({ page }) => { // unskip when the registry entry lands
+test('the route opens from a direct link and plays, spawns and edits a point', async ({ page }) => {
   await openRoute(page, '#/traffic');
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'traffic');
   await expect(status(page)).toHaveText('Paused');

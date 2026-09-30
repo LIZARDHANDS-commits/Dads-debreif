@@ -43,7 +43,7 @@ export const MODULES = [
     title: 'Traffic Pattern Sim',
     blurb: 'Define patterns, then fly aircraft through them',
     media: media('traffic'),
-    load: null,
+    load: () => import('../modules/traffic/index.js'),
     prototype: true,
   },
   {
