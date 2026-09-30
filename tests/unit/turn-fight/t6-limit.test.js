@@ -1,14 +1,15 @@
 // The T-6 limit warning beside a G box (SPEC-turn-fight, "T-6 limit warning").
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { T6_STALL_SPEED_KT, T6_MAX_G, stallLimitG, limitWarning } from '../../../src/modules/turn-fight/t6-limit.js';
+import { T6A_LIMITS, stallLimitG } from '../../../src/core/t6-performance.js';
+import { limitWarning } from '../../../src/modules/turn-fight/t6-limit.js';
 
-test('the stall line is G = (speed / 86 kt) squared, and reaches 7 G at about 227.5 kt', () => {
-  assert.equal(T6_STALL_SPEED_KT, 86);
+test('the limits are core\'s: the stall line is G = (speed / 86 kt) squared, capped at 7 G, reached at about 227.5 kt', () => {
+  assert.equal(T6A_LIMITS.stallKias, 86);
+  assert.equal(T6A_LIMITS.maxG, 7);
   assert.equal(stallLimitG(86), 1);
   assert.equal(stallLimitG(172), 4);
   assert.ok(Math.abs(stallLimitG(227.5) - 7) < 0.02);
-  assert.equal(T6_MAX_G, 7);
 });
 
 test('V6\'s default, 220 KTAS at 4 G, is inside the limit (6.5 G), so there is no warning', () => {
