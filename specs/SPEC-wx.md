@@ -44,6 +44,7 @@ Out, for now:
 - Cloud: `FEW`, `SCT`, `BKN`, `OVC`, `VV` with a base in hundreds of feet, and an optional `CB` or `TCU` kept on the layer (issue #3: `BKN015CB` is a 1500 ft ceiling, V6 saw no ceiling). `///` base means unknown. `SKC`, `CLR`, `NSC`, `NCD` and `CAVOK` mean an explicit clear sky, which a change group uses to clear the cloud it inherited.
 - Ceiling: the lowest `BKN`, `OVC` or `VV` layer. `null` means no ceiling. The ceiling is **unknown** when such a layer has a `///` base, or when there is no cloud group at all and no `SKC`/`CLR`/`NSC`/`NCD`/`CAVOK`.
 - Times: a report's observation or issue time is the latest matching date no more than an hour after `now`, since reports are never written in the future. Group times resolve to the date nearest the valid period, so a group starting just before it stays in its own month. Impossible values (day 32, hour 25) give no time.
+- A repeated TAF header, as some feeds send it (`TAF AMD TAF AMD CYMJ ... CNL`), is read once, so a cancelled TAF reads as cancelled, not unreadable.
 - A METAR trend (`TEMPO`, `BECMG`, `NOSIG` at the end of an ICAO METAR) is kept apart as `trend`, not read as observed.
 - Weather: intensity (`-`, `+`, or `VC` for vicinity), descriptor (`MI BC PR DR BL SH TS FZ`) and phenomena (`RA SN FG ...`). `NSW` in a change group clears inherited weather.
 
@@ -96,7 +97,7 @@ Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600
 
 ### Data age
 
-- `ageMinutes(report, now)` (in `dates.js`) from the report's observation or issue time. What counts as stale is the SOF's call (R13) and lives in its spec.
+- `ageMinutes(report, now)` (in `dates.js`) from the report's observation or issue time, never the fetch time: a feed can serve a report days old as if it were current. What counts as stale is the SOF's call (R13) and lives in its spec.
 
 ## Interface
 
