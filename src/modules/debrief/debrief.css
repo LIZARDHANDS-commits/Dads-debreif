@@ -363,28 +363,15 @@
   color: var(--text-muted);
 }
 
-/* Standards panel */
+/* Debrief settings (standards-panel.js): ui-kit's settings menu, with the numbers in a column */
 [data-module='debrief'] .standards-panel,
 [data-module='debrief'] .more-detail {
   margin-top: var(--space-3);
 }
 
 [data-module='debrief'] .standards-summary {
-  margin-bottom: var(--space-3);
+  margin: 0;
   color: var(--text-muted);
-}
-
-[data-module='debrief'] .standards-group {
-  margin: 0 0 var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-[data-module='debrief'] .standards-group legend {
-  padding: 0 var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: 600;
 }
 
 [data-module='debrief'] .standards-group .control-number {

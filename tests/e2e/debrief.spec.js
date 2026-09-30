@@ -222,7 +222,7 @@ test('with a flight loaded, every control on show does something (R3)', async ({
   const openAll = async () => {
     await status(page).click();
     await page.getByRole('button', { name: 'More detail' }).click();
-    await page.getByRole('button', { name: 'Standards' }).click();
+    await page.getByRole('button', { name: 'Debrief settings' }).click();
     await page.getByRole('button', { name: 'Save, open, CSV' }).click();
     await page.getByRole('button', { name: '+ Add' }).click();
     await page.getByRole('button', { name: 'Edit DFP 1' }).click();
@@ -307,7 +307,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await loadExample(page);
     await status(page).click();
     await page.getByRole('button', { name: 'More detail' }).click();
-    await page.getByRole('button', { name: 'Standards' }).click();
+    await page.getByRole('button', { name: 'Debrief settings' }).click();
     await page.getByRole('button', { name: 'Save, open, CSV' }).click();
     await page.getByRole('button', { name: '+ Add' }).click();
     await page.getByRole('button', { name: 'Edit DFP 1' }).click();
@@ -394,7 +394,7 @@ test('standards: edit, refuse a bad value, keep after a reload, reset to the def
   await loadExample(page);
   const scrubber = page.getByLabel('Flight time');
   await scrubber.fill(String(Number(await scrubber.inputValue()) + 30 * 60));
-  const open = page.getByRole('button', { name: 'Standards' });
+  const open = page.getByRole('button', { name: 'Debrief settings' });
   await expect(open).toHaveAttribute('aria-expanded', 'false'); // closed at first (R22)
   await open.click();
   const summary = page.getByRole('list', { name: 'Standards in use' });
@@ -494,7 +494,7 @@ test('save a debrief, close it, open it again: same tracks, DFPs, standards and 
   await page.getByRole('button', { name: 'Edit DFP 1' }).click();
   await page.getByLabel('Name').fill('Rejoin');
   await page.getByLabel('Name').press('Tab');
-  await page.getByRole('button', { name: 'Standards' }).click();
+  await page.getByRole('button', { name: 'Debrief settings' }).click();
   await page.getByLabel('Spread maximum').fill('7000');
   await page.getByLabel('Spread maximum').press('Tab');
   const scrubber = page.getByLabel('Flight time');
