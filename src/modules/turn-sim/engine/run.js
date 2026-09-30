@@ -130,7 +130,7 @@ export function offsetBoxStatus(rearDelaysSec, minSec, maxSec) {
  *            outsideBand is true when the delay is under minSec or over maxSec (rearDelayMinSec, rearDelayMaxSec).
  *            maneuverFallback: null, or the reason the turn asked for could not be flown (the shackle and the cross turn are
  *            two-ship turns, settings.js turnProblem) and the default turn was flown instead.
- *            crossings: [{ a, b, minFt }], the pairs whose closest pass is under 300 ft (the box hook's rear aircraft fly nose to nose
+ *            crossings: [{ a, b, minFt }] (a getter, worked out the first time it is read), the pairs whose closest pass is under 300 ft (the box hook's rear aircraft fly nose to nose
  *            through their front aircraft's outbound leg), known before the first step (the screen: "300 ft vertical needed").
  *            leadTurnDirection: 'left' or 'right', the way Lead turns: the Direction box, except in the cross turn, where
  *            Lead turns toward #2 whatever the box says (the screen can show it).
@@ -162,7 +162,9 @@ export function createRun(settings, options = {}) {
   let planned = false;
   let planInfo = { autoStepSec: null, rearDelaysSec: null, crossSolve: null };
 
-  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, crossTurnSpacingNote: null, crossings: [], aircraft: [] };
+  const state = { tSec: 0, durationSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, startHeadingDeg: 0, rearCheck: null, offsetBox: null, leadTurnDirection: 'right', maneuverFallback: null, crossTurnSpacingNote: null, aircraft: [] };
+  // The crossings preview is a whole run made on a copy, so it is made the first time state.crossings is read (a fit-to-screen run never reads it).
+  Object.defineProperty(state, 'crossings', { enumerable: true, get: () => crossings() });
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   // How long the run lasts: the Duration, or longer when durationCoversTurn and the plan needs it (see settings.js).
@@ -180,7 +182,8 @@ export function createRun(settings, options = {}) {
   let previewCrossings = null;
   let pairMinFt = {};
   const crossings = () => {
-    const seen = { ...(previewCrossings || {}) };
+    if (previewCrossings === null) previewCrossings = crossingsPreview();
+    const seen = { ...previewCrossings };
     for (const [k, ft] of Object.entries(pairMinFt)) seen[k] = Math.min(seen[k] ?? Infinity, ft);
     return Object.entries(seen).filter(([, ft]) => ft < CROSSING_FT).map(([k, ft]) => ({ a: +k.split('-')[0], b: +k.split('-')[1], minFt: ft })).sort((x, y) => x.a - y.a || x.b - y.b);
   };
@@ -213,8 +216,6 @@ export function createRun(settings, options = {}) {
     state.durationSec = durationSec();
     state.finished = finished();
     state.turnComplete = allAircraftFinishedTurn(craft);
-    if (previewCrossings === null) previewCrossings = crossingsPreview();
-    state.crossings = crossings();
     state.startHeadingDeg = headingRadToCompassDeg(startHeadingRad);
     state.canStartLeg = tSec > 0 && (state.finished || state.turnComplete);
     // Before the first step nothing is planned yet, so the cue lines come from a plan made on copies.

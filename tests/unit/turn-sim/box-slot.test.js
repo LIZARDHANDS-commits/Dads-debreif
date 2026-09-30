@@ -133,3 +133,11 @@ test('the band is read as Fig 16.30 does: #3 from the later front start, #4 from
   const [three, four] = createRun({ ...BASE, maneuver: 'delayed90away', turnDeg: 90, direction: 'right' }).state.offsetBox.rear.map((r) => r.delaySec);
   assert.ok(Math.abs(started[3] - Math.max(started[1], started[2]) - three) < 0.11 && Math.abs(started[4] - started[3] - four) < 0.11);
 });
+
+test('state.crossings is worked out only when read (a preview run is a whole run), and gives the same answer each time', () => {
+  const run = createRun({ ...BASE, maneuver: 'hook90', turnDeg: 180, direction: 'right' });
+  assert.equal(typeof Object.getOwnPropertyDescriptor(run.state, 'crossings').get, 'function');
+  assert.deepEqual(run.state.crossings, run.state.crossings);
+  run.reset();
+  assert.equal(run.state.crossings.length, 2);
+});
