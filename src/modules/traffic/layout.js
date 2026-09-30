@@ -42,7 +42,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
 
   // Slots for pieces built elsewhere; an empty one takes no room.
   const slot = (name) => h('div', { class: `traffic-slot traffic-slot-${name}` });
-  const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts') };
+  const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
 
   // Left column: the routes list, + New route, and the selected route's point table.
   const list = h('ul', { class: 'route-list' });
@@ -77,9 +77,10 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
-  // Right column: the spawner, the aircraft list and the conflicts.
+  // Right column: the spawner, the aircraft list and the conflicts, with the Traffic settings
+  // menu (settings-panel.js) last, closed until asked for, and opening in the column's flow.
   const aircraftPanel = createPanel({ title: 'Aircraft', onToggle: (collapsed) => columnToggled('aircraft', !collapsed) });
-  aircraftPanel.body.append(slots.spawner, slots.aircraft, slots.conflicts);
+  aircraftPanel.body.append(slots.spawner, slots.aircraft, slots.conflicts, slots.settings);
   const aircraftCol = h('aside', { class: 'traffic-col traffic-col-aircraft', 'aria-label': 'Aircraft' }, aircraftPanel.element);
 
   const element = h('div', { class: 'traffic' }, h('h1', { class: 'visually-hidden' }, 'Traffic Pattern Sim'), routesCol, stage, aircraftCol);
@@ -120,7 +121,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     element,
     /** The map's <canvas>, for createMap2d. */
     canvas,
-    /** Empty places for the pieces built elsewhere: pointTable, leftExtras, spawner, aircraft, conflicts. */
+    /** Empty places for the pieces built elsewhere: pointTable, leftExtras, spawner, aircraft, conflicts, settings. */
     slots,
     /**
      * Shows the routes, one line each ({ id, name, kind, color, link? }), and which one is picked.
