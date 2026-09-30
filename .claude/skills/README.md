@@ -19,7 +19,7 @@ Each module (shell, core, wx, flight-data, debrief, Turn Sim, Turn Fight, Traffi
 
 frontend-ui-engineering covers keyboard access, labelled controls, empty, error and stale states, colour never being the only signal (SOF cautions), and design tokens instead of `!important`. Its examples are React/Tailwind and mobile-first: take the rules, not the code, and target desktop.
 
-security-and-hardening: a KML file or a weather reply is untrusted text. Never put it into `innerHTML` (use `h()` or `textContent`), check its shape and size where it enters, audit dependencies before a release, and set a Content Security Policy. Most of the skill (logins, passwords, databases, rate limits, SSRF) doesn't apply to a static site with no server.
+security-and-hardening: a KML file or a weather reply is untrusted text. Never put it into `innerHTML` (use `textContent`, or the ui-kit's text-safe `h()` from #54), check its shape and size where it enters, audit dependencies before a release, and set a Content Security Policy. Most of the skill (logins, passwords, databases, rate limits, SSRF) doesn't apply to a static site with no server.
 
 Note: code-review-and-quality also links to `.claude/references/performance-checklist.md`, which arrives with performance-optimization.
 
