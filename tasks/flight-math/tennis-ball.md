@@ -1,5 +1,14 @@
 # Tennis ball: V6's two solvers disagree (#19)
 
+**Decided by Patrick on 2026-09-30 (D62, D63).** There is one solver, `tennisBall` in `src/core/tennis.js`. It starts from the debrief map's solver, pinned to V6, and then:
+
+- The ball carries the shooter's whole velocity, climb included (Q33, D62).
+- The target flies its recorded path, climb included (Q34 and Q37, D62).
+- The cone is ±3° for a width of 6 (Q35, D63). This is flagged for review later.
+- INTERCEPT needs the target in the cone (Q36, D63). This is flagged for review later.
+
+The 3D arc's solver is not kept. Both views show this one solution. What follows is the comparison that led here.
+
 V6 works out the tennis ball twice: once for the debrief map (`getKmlTennisSolution`, line 3140) and once for the 3D view (`draw3DDogfightArc`, line 3970). Both write to the same readout, so a student can see one verdict and then the other. Both are now in `src/core/tennis.js`, each matching V6 exactly (`tests/golden/core-tennis.test.js`). The rebuild needs one. Choosing it is for Patrick and Dad.
 
 ## Where they differ
