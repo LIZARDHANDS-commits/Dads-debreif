@@ -1,0 +1,90 @@
+/* The Airfields settings section (src/airfields/panel.js). Colours and spacing come from ui-kit tokens. */
+.af-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.af-icao-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.af-icao {
+  width: 6ch;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.af-note,
+.af-minima {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.af-minima {
+  color: var(--text);
+}
+
+.af-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.af-table th,
+.af-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.af-table select {
+  max-width: 16rem;
+}
+
+.af-table input[type='number'] {
+  width: 6rem;
+}
+
+.af-id {
+  font-family: var(--font-mono);
+}
+
+.af-name {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.af-distance {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.af-number {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.af-more {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.af-field {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.af-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+}

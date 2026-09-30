@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Airfields test page</title>
+    <link rel="stylesheet" href="/src/ui-kit/tokens.css">
+    <link rel="stylesheet" href="/src/ui-kit/base.css">
+    <link rel="stylesheet" href="/src/airfields/airfields.css">
+    <style>body { padding: 1rem; max-width: 46rem; }</style>
+  </head>
+  <body>
+    <h1>Airfields test page</h1>
+    <main id="root"></main>
+    <script type="module">
+      // A page for tests/e2e/airfields.spec.js, loading src/ as plain modules.
+      import { createStore } from '/src/storage/store.js';
+      import { createAirfields } from '/src/airfields/airfields.js';
+      import { createAirfieldsPanel } from '/src/airfields/panel.js';
+
+      const airfields = createAirfields({ store: createStore(null).scope('airfields') });
+      const panel = createAirfieldsPanel({ airfields, now: () => new Date('2026-09-30T12:00:00Z') });
+      document.getElementById('root').append(panel.element);
+      window.__af = { airfields, panel };
+    </script>
+  </body>
+</html>
