@@ -196,7 +196,7 @@ test('a comma list of times, or several ranges, gives the last one', () => {
 });
 
 test('a default that is not a time is ignored in favour of the range', () => {
-  const xml = layerXml('RADAR_1KM_RRAI', dim('2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M', 'default="<script>alert(1)</script>"'));
+  const xml = layerXml('RADAR_1KM_RRAI', dim('2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M', 'default="soon"'));
   assert.equal(+parseLayerTimes(xml, 'RADAR_1KM_RRAI').latest, +utc('2026-09-30T07:12:00Z'));
   const junk = layerXml('RADAR_1KM_RRAI', dim('2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M', 'default="2026-13-45T99:99:99Z"'));
   assert.equal(+parseLayerTimes(junk, 'RADAR_1KM_RRAI').latest, +utc('2026-09-30T07:12:00Z'));
@@ -450,4 +450,42 @@ test('the RainViewer backup is aged from its frame time the same way', () => {
   const now = utc('2026-09-30T07:35:00Z');
   assert.equal(feedAge({ kind: 'radar', layerTime: rv.latest.time, now }).state, 'stale');
   assert.equal(feedAge({ kind: 'radar', layerTime: rv.latest.time, now: utc('2026-09-30T07:25:00Z') }).state, 'fresh');
+});
+
+// --- Audit fixes ------------------------------------------------------------
+
+test('hostile 256 KB replies are read in linear time, not minutes', () => {
+  const head = '<Name>RADAR_1KM_RRAI</Name>';
+  const size = 256 * 1024 - head.length - 64;
+  const inputs = [
+    head + '<Dimension ' + ' '.repeat(40_000),
+    head + '<Dimension a'.repeat(20_000),
+    head + '<Dimension name="time" ' + 'a'.repeat(size - 30),
+    head + '<Dimension name="time">' + '2026-09-30T07:00:00Z,'.repeat(Math.floor(size / 21)),
+    head + '<Dimension>'.repeat(Math.floor(size / 11)),
+  ];
+  for (const xml of inputs) {
+    assert.ok(xml.length <= 256 * 1024);
+    const t0 = performance.now();
+    parseLayerTimes(xml, 'RADAR_1KM_RRAI');
+    assert.ok(performance.now() - t0 < 50, `took ${Math.round(performance.now() - t0)} ms`);
+  }
+});
+
+test('a default outside the layer\'s own start and end is ignored', () => {
+  const range = '2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M';
+  const latest = (attrs) => parseLayerTimes(layerXml('RADAR_1KM_RRAI', dim(range, attrs)), 'RADAR_1KM_RRAI').latest;
+  assert.equal(+latest('default="2026-09-30T07:06:00Z"'), +utc('2026-09-30T07:06:00Z'));
+  assert.equal(+latest('default="2026-09-30T04:12:00Z"'), +utc('2026-09-30T04:12:00Z'));
+  assert.equal(+latest('default="2026-09-30T07:12:00Z"'), +utc('2026-09-30T07:12:00Z'));
+  assert.equal(+latest('default="2026-09-30T09:00:00Z"'), +utc('2026-09-30T07:12:00Z'));
+  assert.equal(+latest('default="2026-09-30T03:00:00Z"'), +utc('2026-09-30T07:12:00Z'));
+});
+
+test('a layer time more than 5 minutes ahead of the clock is unknown, not fresh', () => {
+  const now = utc('2026-09-30T07:30:00Z');
+  const unknown = { ageMs: null, ageMin: null, stale: true, state: 'unknown' };
+  assert.deepEqual(feedAge({ layerTime: utc('2026-09-30T07:35:01Z'), now }), unknown);
+  assert.deepEqual(feedAge({ layerTime: utc('2026-09-30T12:00:00Z'), now, kind: 'lightning' }), unknown);
+  assert.equal(feedAge({ layerTime: utc('2026-09-30T07:35:00Z'), now }).state, 'fresh');
 });

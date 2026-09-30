@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import worker, {
+import worker from '../../../relay/traffic.js';
+import {
   parseQuery, trimAircraft, createHandler, createMemoryCache,
   DEFAULT_ORIGINS, MAX_AIRCRAFT, MAX_REPLY_BYTES, CACHE_MS,
-} from '../../../relay/traffic.js';
+} from '../../../relay/lib.js';
 
 // A real adsb.lol /v2/point reply, trimmed to five aircraft (captured 2026-09-30, tests/fixtures/relay).
 const SAMPLE = readFileSync(new URL('../../fixtures/relay/adsblol-point-sample.json', import.meta.url), 'utf8');
@@ -145,7 +146,7 @@ test('aircraft come nearest to the asked point first', async () => {
   for (let i = 1; i < acs.length; i++) assert.ok(d(acs[i - 1]) <= d(acs[i]) + 1e-9);
 });
 
-test('the military flag comes from dbFlags bit 1 only', () => {
+test('the military flag comes from dbFlags bit 0 (value 1) only', () => {
   const flags = [1, 2, 3, 0, '1', undefined];
   const ac = flags.map((dbFlags, i) => ({ hex: `aabb0${i}`, lat: 1, lon: 1 + i / 100, dbFlags }));
   const out = trimAircraft({ ac }, { lat: 1, lon: 1 });
@@ -446,4 +447,50 @@ test('nothing is logged about who asked', async () => {
     Object.assign(console, original);
   }
   assert.deepEqual(seen, []);
+});
+
+// --- Audit fixes ------------------------------------------------------------
+
+test('the entry point exports only the Worker (helpers live in lib.js)', async () => {
+  const mod = await import('../../../relay/traffic.js');
+  assert.deepEqual(Object.keys(mod), ['default']);
+});
+
+test('the 5 s cache holds even when caches.default stores nothing (workers.dev)', async () => {
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'caches');
+  Object.defineProperty(globalThis, 'caches', { configurable: true, value: { default: { match: async () => undefined, put: async () => {} } } });
+  try {
+    const clock = { t: NOW };
+    const upstream = fakeUpstream();
+    const handle = createHandler({ fetch: upstream, now: () => clock.t });
+    for (let i = 0; i < 10; i++) await handle(get(GOOD));
+    assert.equal(upstream.calls.length, 1);
+    clock.t += CACHE_MS + 1;
+    await handle(get(GOOD));
+    assert.equal(upstream.calls.length, 2);
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'caches', had);
+    else delete globalThis.caches;
+  }
+});
+
+test('an upstream redirect is a 502 and is not followed', async () => {
+  const upstream = async (url, options) => {
+    upstream.calls.push({ url, options });
+    return new Response(null, { status: 302, headers: { location: 'https://evil.example/steal' } });
+  };
+  upstream.calls = [];
+  const { handle } = setup({ upstream });
+  const res = await handle(get(GOOD));
+  assert.equal(res.status, 502);
+  assert.equal(await res.text(), '{"error":"upstream unavailable"}');
+  assert.equal(upstream.calls.length, 1);
+});
+
+test('a list longer than the scan limit says truncated, even if few aircraft were valid', () => {
+  const ac = [{ hex: 'abcdef', lat: 1, lon: 1 }, ...Array.from({ length: 5100 }, () => null)];
+  const out = trimAircraft({ ac }, { lat: 1, lon: 1 });
+  assert.equal(out.count, 1);
+  assert.equal(out.truncated, true);
+  assert.equal(trimAircraft({ ac: ac.slice(0, 50) }, { lat: 1, lon: 1 }).truncated, false);
 });

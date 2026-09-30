@@ -34,6 +34,7 @@ const MAX_REPLY_CHARS = 256 * 1024; // a per-layer reply is about 20 KB; the who
 const MAX_TIMES = 1000;
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
+const CLOCK_SKEW_MS = 5 * MINUTE_MS;
 const MERCATOR_MAX_LAT = 85.0511;
 const EARTH_RADIUS_M = 6378137;
 const ISO_SECONDS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/;
@@ -130,8 +131,8 @@ export function parseLayerTimes(xml, layer) {
 
   let attrs = null;
   let text = null;
-  for (const m of section.matchAll(/<Dimension\s+((?:[^>"]|"[^"]*")*)>([^<]*)<\/Dimension>/g)) {
-    if (/\bname="time"/.test(m[1])) {
+  for (const m of section.matchAll(/<Dimension(?:\s([^<>]{0,1000}))?>([^<]{0,200000})<\/Dimension>/g)) {
+    if (/\bname="time"/.test(m[1] ?? '')) {
       [, attrs, text] = m;
       break;
     }
@@ -152,8 +153,10 @@ export function parseLayerTimes(xml, layer) {
     end = b;
     stepMs = to === undefined ? null : periodMs(period);
   }
+  // ECCC's default is its current time; believe it only when it lies inside the layer's own range.
   const given = isoTime(/\bdefault="([^"]*)"/.exec(attrs)?.[1]);
-  return Object.freeze({ layer, latest: given ?? end, start, end, stepMs });
+  const inside = given && given >= start && given <= end;
+  return Object.freeze({ layer, latest: inside ? given : end, start, end, stepMs });
 }
 
 // --- RainViewer, the backup radar --------------------------------------------
@@ -234,7 +237,7 @@ export function nextFeedSource(state, ecccOk, { after = 2 } = {}) {
  * kind 'radar' (default; also the coverage layer) or 'lightning'; layerTime a Date or ms.
  * Returns { ageMs, ageMin, stale, state } with state 'fresh', 'stale' or 'unknown'
  * (no usable time: age null, and counted stale so it is never shown as current).
- * A time slightly ahead of the clock is age 0. Throws RangeError for another kind.
+ * A time up to 5 minutes ahead of the clock is age 0; further ahead is 'unknown'. Throws RangeError for another kind.
  */
 export function feedAge({ kind = 'radar', layerTime, now = new Date() } = {}) {
   const limit = STALE_MS[kind];
@@ -242,6 +245,8 @@ export function feedAge({ kind = 'radar', layerTime, now = new Date() } = {}) {
   const then = layerTime instanceof Date ? +layerTime : layerTime;
   const clock = +now;
   if (!isNumber(then) || !isNumber(clock)) return { ageMs: null, ageMin: null, stale: true, state: 'unknown' };
+  // A time well ahead of the clock can't be trusted (a wrong clock or a bad reply); a few minutes is skew.
+  if (then - clock > CLOCK_SKEW_MS) return { ageMs: null, ageMin: null, stale: true, state: 'unknown' };
   const ageMs = Math.max(0, clock - then);
   const stale = ageMs > limit;
   return { ageMs, ageMin: Math.floor(ageMs / MINUTE_MS), stale, state: stale ? 'stale' : 'fresh' };
