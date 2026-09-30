@@ -131,9 +131,14 @@ const WHY = { below: "below the model's lowest level", above: "above the model's
 export function arrowStatus(arrows, altFt, modelLabel) {
   if (!arrows.length) return '';
   const missing = arrows.filter((a) => !a.wind);
-  if (!missing.length) return `${arrows.length} of ${arrows.length} points have model wind`;
-  if (missing.every((a) => a.why === 'time')) return `no ${modelLabel} wind for this time`;
-  const why = WHY[missing.find((a) => a.why !== 'time').why];
-  const where = missing.length === arrows.length ? 'here' : `at ${missing.length} of ${arrows.length} points`;
-  return `no model wind at ${feet(altFt)} ${where} (${why})`;
+  const have = arrows.length - missing.length;
+  if (!missing.length) return `${have} of ${arrows.length} points have model wind`;
+  // Why the rest have none, only when they all share one reason; with some drawn, say how many
+  // are missing rather than "no wind" (verification re-check of #213, W1).
+  const reasons = new Set(missing.map((a) => a.why));
+  const shared = reasons.size === 1 ? [...reasons][0] : null;
+  const where = have ? `at ${missing.length} of ${arrows.length} points` : 'here';
+  if (shared === 'time') return have ? `no ${modelLabel} wind for this time ${where}` : `no ${modelLabel} wind for this time`;
+  if (shared && WHY[shared]) return `no model wind at ${feet(altFt)} ${where} (${WHY[shared]})`;
+  return have ? `${have} of ${arrows.length} points have model wind` : `no model wind at ${feet(altFt)} here`;
 }
