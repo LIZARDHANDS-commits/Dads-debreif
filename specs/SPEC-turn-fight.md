@@ -1,6 +1,6 @@
 # Spec: `turn-fight`, the BFM Turn Fight
 
-Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) is a draft addition** for Patrick to approve (see Energy mode); the rest of the spec stays approved. Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
+Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). Changes go through a pull request. Module id `turn-fight` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`tasks/turn-fight/`](../tasks/turn-fight/plan.md) are the work.
 
@@ -187,9 +187,9 @@ Patrick answered the four questions this spec raised on 2026-09-30 ("agree with 
 - With Climb and dive on, the off-nose angle is measured in 3D, from each aircraft's nose (heading and pitch) to the line of sight including height, so first nose-on isn't called on a jet thousands of feet above or below. This changes first nose-on only with Climb and dive on.
 - Dad is still to confirm his school uses ATA and angle-off this way; renaming back is a label change.
 
-## Energy mode (FF23, D112, draft for Patrick to approve)
+## Energy mode (FF23, D112)
 
-Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bring the future feature "climbing and diving turns" (FF23) into this spec as an **Energy** mode. It gets built at the Turn Fight's turn, after the simple fight. The plan doc logs it as D112 (which also answers the manuals' Q68). It's new flight math, so it needs his approval words before it merges, and Dad checks the result against how the Harvard flies. Its numbers come from the flying manuals index (`/mnt/project-files/manuals/`, private; only numbers and references go in the repo).
+Patrick agreed on 2026-09-30 (05:27Z, in the Flying manuals index thread) to bring the future feature "climbing and diving turns" (FF23) into this spec as an **Energy** mode. It gets built at the Turn Fight's turn, after the simple fight. The plan doc logs it as D112 (which also answers the manuals' Q68). It's new flight math; Patrick approved it on 2026-09-30, and Dad checks the result against how the Harvard flies. Its numbers come from the flying manuals index (`/mnt/project-files/manuals/`, private; only numbers and references go in the repo).
 
 ### What it's for
 

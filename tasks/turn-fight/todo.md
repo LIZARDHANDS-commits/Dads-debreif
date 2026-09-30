@@ -42,7 +42,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 **Checkpoint C:** open PR C; Patrick or Dad runs the checklist.
 
-## Energy mode (FF23), once Patrick approves it
+## Energy mode (FF23), approved 2026-09-30
 
 - [ ] **8. T-6A performance in `core`.** `T6A_LIMITS`, `stallLimitG`, `availableG`, IAS and TAS, and `excessThrustPerWeight` fitted to the sustained-turn chart points (kept with their reading notes). Test-first.
   - Acceptance: the chart checks in the spec's Energy mode table; 7 G first at 227.5 KIAS.
