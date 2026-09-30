@@ -9,6 +9,8 @@ import { parseTaf } from '../../../src/wx/taf.js';
 import { natoColour, flightCategory, checkConditions, DEFAULT_LIMITS } from '../../../src/wx/limits.js';
 import { staleness, SOURCES } from '../../../src/wx/sources.js';
 import { cardModel, formatDuration, formatAge } from '../../../src/modules/sof/cards.js';
+import { createStore } from '../../../src/storage/store.js';
+import { createAirfields } from '../../../src/airfields/airfields.js';
 import { REAL, METAR, HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
 
 const NOW = new Date('2026-09-29T18:42:00Z'); // 42 minutes after the 1800Z METARs
@@ -108,6 +110,7 @@ test('a stale report keeps its category and limit result but marks them stale, n
   const c = home({ now: late, metar: metarEntry(METAR.belowLimits, late) });
   assert.equal(c.result.level, 'below');
   assert.equal(c.result.stale, true);
+  assert.equal(c.result.words, 'Below limits: CEILING 1500 FT < 2000 FT, VIS 2 SM < 3 SM (STALE report)');
   assert.equal(c.category, 'IFR');
   assert.equal(home({ metar: metarEntry(METAR.belowLimits) }).result.stale, false);
 });
@@ -265,7 +268,7 @@ test('an alternate with several minima options is below only when below every on
   // 600 ft and 2 SM is below 700-1.5 and 800-1 but exactly on 600-2: at the limit, not below.
   const c = alt({ metar: metarEntry('METAR CYQR 291800Z 27005KT 2SM BR BKN006 10/08 A2995'), limits: options });
   assert.notEqual(c.result.level, 'below');
-  assert.equal(c.limitsText, '600-2 or 700-1.5 or 800-1');
+  assert.equal(c.limitsText, '600-2 (or 700-1½, 800-1)');
 });
 
 // ---- Cautions and watch -----------------------------------------------------------------------------------
@@ -317,4 +320,61 @@ test('a card built from an alternate TAF and METAR together', () => {
   assert.equal(c.metar.state, 'fresh');
   assert.equal(c.taf.state, 'fresh');
   assert.equal(c.taf.label, 'TAF 1740Z, valid 29/18–30/18');
+});
+
+// ---- Review fixes ----------------------------------------------------------------------
+
+test('a stale or closed METAR never reads as plain "Within limits"', () => {
+  const late = at(20, 30);
+  const stale = home({ now: late, metar: metarEntry(METAR.fresh, late) }).result;
+  assert.equal(stale.level, 'within');
+  assert.equal(stale.words, 'Within limits (STALE report)');
+  const now = new Date('2026-09-30T03:00:00Z');
+  const closed = home({ now, metar: metarEntry(REAL.metar.CYMJ, now) }).result;
+  assert.equal(closed.words, 'Within limits (last observation)');
+  assert.equal(home({ metar: metarEntry(METAR.fresh) }).result.words, 'Within limits');
+});
+
+const airfields = () => {
+  const map = new Map();
+  const backend = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => { map.set(k, String(v)); }, removeItem: (k) => { map.delete(k); } };
+  return createAirfields({ store: createStore(backend).scope('airfields') });
+};
+const overcast800 = () => metarEntry('METAR CYQR 291800Z 27005KT 10SM OVC008 10/08 A2995');
+
+test('D80: a no-IFR alternate is never checked against 600-2', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'no-ifr', meaFt: 4500 } } });
+  const c = alt({ metar: overcast800(), options: a.checkOptions('CYQR') });
+  assert.equal(a.checkOptions('CYQR').minima, null);
+  assert.equal(c.result.level, 'unknown');
+  assert.equal(c.result.words, 'Visual descent from MEA: see the wave call');
+  assert.equal(c.limitsText, 'Visual descent from MEA 4,500 ft, 3 SM');
+});
+
+test('D80: a no-IFR alternate without an MEA says it needs one', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'no-ifr' } } });
+  const c = alt({ metar: overcast800(), options: a.checkOptions('CYQR') });
+  assert.equal(c.result.level, 'unknown');
+  assert.equal(c.limitsText, 'Visual descent, needs MEA');
+});
+
+test('D80: a GNSS-only alternate with an MEA uses the visual descent, not LNAV minima', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'gnss-only', meaFt: 4500 } } });
+  const c = alt({ metar: overcast800(), options: a.checkOptions('CYQR') });
+  assert.equal(c.result.level, 'unknown');
+  assert.equal(c.limitsText, 'Visual descent from MEA 4,500 ft, 3 SM');
+  // Cautions still come from the METAR.
+  const storm = alt({ metar: metarEntry('METAR CYQR 291800Z 22008KT 15SM VCTS FEW040CB 22/14 A2980'), options: a.checkOptions('CYQR') });
+  assert.ok(storm.cautions.includes('VCTS'));
+});
+
+test('a GNSS-only alternate with no MEA uses its LNAV minima from the whole options object', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'gnss-only' } } });
+  const c = alt({ metar: overcast800(), options: a.checkOptions('CYQR') });
+  assert.equal(c.limitsText, '800-2 (or 900-1½, 1000-1)');
+  assert.equal(c.result.level, 'at-limit'); // 800 ft is exactly on 800-2; visibility 10 SM
 });

@@ -11,14 +11,13 @@ import { utcOffsetMinutes, zoneAbbreviation } from '../../core/time.js';
 import { homeAlternateTrigger, arrivalWindow, assessAlternate } from '../../wx/alternates.js';
 import { DEFAULT_LIMITS, HOME_TRIGGERS } from '../../wx/limits.js';
 import { HOUR_MS } from '../../wx/dates.js';
-import { CATALOG, DEFAULT_HOME } from '../../airfields/catalog.js';
+import { formatPair, formatSm } from '../../airfields/format.js';
 
 /** As V6 (sof.html line 1220). */
 export const MAX_WAVES = 5;
 
 const MINUTE_MS = 60_000;
-const DAY_MINUTES = 1440;
-const HOME_ZONE = CATALOG[DEFAULT_HOME].timeZone; // Moose Jaw, only until the caller passes the home field's zone
+const DAY_MS = 24 * HOUR_MS;
 
 // ---- Local times to UTC ---------------------------------------------------------
 
@@ -30,7 +29,7 @@ export function parseClock(text) {
 }
 
 /** The calendar date in a time zone at an instant: { year, month (1-12), day }. */
-export function localDate(now, timeZone = HOME_ZONE) {
+export function localDate(now, timeZone) {
   const shifted = new Date(+now + utcOffsetMinutes(now, timeZone) * MINUTE_MS);
   return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
 }
@@ -43,36 +42,57 @@ function addDays({ year, month, day }, days) {
 
 /**
  * The UTC instant of a wall-clock time (minutes after midnight) on a local date.
- * A time that happens twice when the clocks go back takes the first; one that
- * never happens when they go forward moves an hour later, as JavaScript's own
- * Date does. Moose Jaw has no daylight saving, so it is always local + 6 h.
+ * A time that happens twice when the clocks go back takes the first occurrence,
+ * east or west of UTC; one that never happens when they go forward moves to the
+ * later instant, as JavaScript's own Date does. The two possible offsets are
+ * read a day either side, so it doesn't depend on which way the zone lies.
+ * Moose Jaw has no daylight saving, so it is always local + 6 h.
  */
-export function localToUtc({ year, month, day }, minutes, timeZone = HOME_ZONE) {
+export function localToUtc({ year, month, day }, minutes, timeZone) {
   const wall = Date.UTC(year, month - 1, day, 0, minutes);
-  const first = wall - utcOffsetMinutes(new Date(wall), timeZone) * MINUTE_MS;
-  const second = wall - utcOffsetMinutes(new Date(first), timeZone) * MINUTE_MS;
-  const candidates = [...new Set([first, second])];
+  const offsetAt = (t) => utcOffsetMinutes(new Date(t), timeZone) * MINUTE_MS;
+  const candidates = [...new Set([wall - offsetAt(wall - DAY_MS), wall - offsetAt(wall + DAY_MS)])];
   // A candidate is real when its own offset takes it back to the wall time.
-  const real = candidates.filter((t) => t + utcOffsetMinutes(new Date(t), timeZone) * MINUTE_MS === wall);
+  const real = candidates.filter((t) => t + offsetAt(t) === wall);
   return new Date(real.length ? Math.min(...real) : Math.max(...candidates));
 }
+
+const knownZone = (zone) => {
+  if (typeof zone !== 'string' || !zone) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * A day's plan `[{ name?, takeoff: 'HH:MM', land: 'HH:MM' }]` in home local time
  * as waves with UTC times, for Today or Tomorrow in the home zone (SOF-6).
+ * `now` (a Date) and `timeZone` (the home field's IANA zone) are required: there
+ * is no hidden clock and no default zone. If either is missing or unreadable,
+ * nothing is guessed: no waves, every entry in `skipped`, and a `problem`.
  * `date` ({ year, month, day }) overrides `day`, for callers and tests that
  * have a date already. A landing not after takeoff is the next day (V6 line 1442).
  * Only the first MAX_WAVES are read; a wave without two readable times is
- * listed in `skipped` with the reason, never guessed.
- * Returns { date, zone, waves: [{ name, takeoff, land, nextDay }], skipped }.
+ * listed in `skipped` with the reason.
+ * Returns { date, zone, waves: [{ name, takeoff, land, nextDay }], skipped, problem }.
  */
-export function planToUtc(plan, { now = new Date(), timeZone = HOME_ZONE, day = 'today', date } = {}) {
+export function planToUtc(plan, { now, timeZone, day = 'today', date } = {}) {
+  const entries = (Array.isArray(plan) ? plan : []).slice(0, MAX_WAVES);
+  const nameOf = (entry, index) => (typeof entry?.name === 'string' && entry.name.trim() ? entry.name.trim() : `W${index + 1}`);
+  const problem = !(now instanceof Date) || Number.isNaN(+now) ? 'The time now is not known'
+    : !knownZone(timeZone) ? 'The home time zone is not known' : null;
+  if (problem) {
+    return { date: null, zone: '', waves: [], skipped: entries.map((entry, index) => ({ index, name: nameOf(entry, index), problem })), problem };
+  }
   const today = localDate(now, timeZone);
   const on = date ?? (day === 'tomorrow' ? addDays(today, 1) : today);
   const waves = [];
   const skipped = [];
-  (Array.isArray(plan) ? plan : []).slice(0, MAX_WAVES).forEach((entry, index) => {
-    const name = typeof entry?.name === 'string' && entry.name.trim() ? entry.name.trim() : `W${index + 1}`;
+  entries.forEach((entry, index) => {
+    const name = nameOf(entry, index);
     const take = parseClock(entry?.takeoff);
     const land = parseClock(entry?.land);
     if (take == null || land == null) {
@@ -87,7 +107,7 @@ export function planToUtc(plan, { now = new Date(), timeZone = HOME_ZONE, day = 
       nextDay,
     });
   });
-  return { date: on, zone: zoneAbbreviation(localToUtc(on, 12 * 60, timeZone), timeZone), waves, skipped };
+  return { date: on, zone: zoneAbbreviation(localToUtc(on, 12 * 60, timeZone), timeZone), waves, skipped, problem: null };
 }
 
 /** A wave's home-weather window: takeoff to landing plus one hour (V6 lines 1441 to 1443). */
@@ -138,12 +158,23 @@ export function describeTrigger(limits) {
   const preset = PRESETS.find((p) => p.ceilingFt === ceilingFt && p.visSm === visSm);
   const id = preset?.id ?? 'custom';
   const name = preset?.name ?? 'Custom';
-  return { id, name, ceilingFt, visSm, label: `${name} ${ceilingFt}/${visSm}` };
+  return { id, name, ceilingFt, visSm, label: `${name} ${ceilingFt}/${formatSm(visSm)}` };
 }
 
-/** Minima options as words: "600-2" or "800-2 or 900-1.5 or 1000-1". */
-export function formatMinima(options) {
-  return (Array.isArray(options) ? options : []).map((m) => `${m.ceilingFt}-${m.visSm}`).join(' or ');
+/**
+ * Minima options as the Airfields panel writes them: "600-2", or
+ * "800-2 (or 900-1½, 1000-1)".
+ */
+export function minimaText(options) {
+  const [first, ...rest] = (Array.isArray(options) ? options : []).map(formatPair);
+  if (!first) return '';
+  return rest.length ? `${first} (or ${rest.join(', ')})` : first;
+}
+
+/** A visual descent (D80) in words: "Visual descent from MEA 4,500 ft, 3 SM". */
+export function descentText({ meaFt, visSm }) {
+  if (!Number.isFinite(meaFt)) return 'Visual descent, needs MEA';
+  return `Visual descent from MEA ${meaFt.toLocaleString('en-CA')} ft, ${formatSm(visSm)} SM`;
 }
 
 // ---- Words for a call --------------------------------------------------------------------
@@ -205,11 +236,28 @@ function detailLines(icao, result, windowFrom) {
   ];
 }
 
-/** What the chip shows: the earliest piece behind the call and its first reason, or null when there is none. */
-function firstReason(details, status) {
-  const level = status === 'below' ? 'below' : status === 'at-limit' ? 'at-limit' : null;
-  const lines = details.filter((d) => d.level === level);
-  return lines.length ? { text: lines[0].first, from: lines[0].from, reasons: lines[0].reasons } : null;
+/**
+ * What the chip shows: the earliest piece below the limits, else the earliest
+ * exactly at them, whatever the status. A TAF that covers only part of a wave
+ * can still show a hit it does know about. Null when there is none.
+ */
+function firstReason(details) {
+  const lines = ['below', 'at-limit'].map((level) => details.find((d) => d.level === level)).find(Boolean);
+  return lines ? { text: lines.first, from: lines.from, reasons: lines.reasons } : null;
+}
+
+/** Why a call can't be made: what the TAF covers against what the wave needs, or what couldn't be read. */
+function whyUnknown(result, window, endWord) {
+  if (result.status === 'not-covered') {
+    if (!result.validFrom || !result.validTo) return 'TAF valid period unknown';
+    if (+result.validFrom > +window.from) return `TAF valid from ${zulu(result.validFrom)}; ${endWord.start} ${zulu(window.from)}`;
+    return `TAF valid to ${zulu(result.validTo)}; ${endWord.end} ${zulu(endWord.at)}`;
+  }
+  if (result.status === 'incomplete') {
+    const first = result.problems?.[0];
+    return `A ceiling or visibility in the TAF can't be read${first ? `: ${first}` : ''}`;
+  }
+  return null;
 }
 
 // ---- Home and alternate calls -------------------------------------------------------------------
@@ -231,7 +279,9 @@ export function homeCall(wave, homeTaf, limits, icao = homeTaf?.station ?? 'HOME
     tone,
     label: used.label,
     limits: { ceilingFt: used.ceilingFt, visSm: used.visSm },
-    firstReason: firstReason(details, result.status),
+    firstReason: firstReason(details),
+    hasHit: result.hits.length > 0,
+    why: whyUnknown(result, window, { start: 'wave starts', end: 'wave ends', at: wave.land }),
     details,
     problems: result.problems,
     result,
@@ -250,9 +300,7 @@ export function alternateCall(wave, icao, taf, options = {}) {
   const [words, tone] = ALT_WORDS[result.status] ?? ALT_WORDS['no-time'];
   const descent = options.visualDescent;
   const minima = options.minima ?? [DEFAULT_LIMITS.alternate];
-  const minimaText = descent
-    ? `Visual descent: MEA ${Number.isFinite(descent.meaFt) ? `${descent.meaFt} ft` : 'not set'} + 500 ft, ${descent.visSm} SM`
-    : formatMinima(minima);
+  const usedText = descent ? descentText(descent) : minimaText(minima);
   const notSet = !descent && options.minimaChecked !== true;
   const details = detailLines(icao, result, window?.from ?? wave.land);
   return {
@@ -260,9 +308,11 @@ export function alternateCall(wave, icao, taf, options = {}) {
     status: result.status,
     words,
     tone,
-    minimaText,
-    note: notSet ? `Approaches not set: checked against ${minimaText}` : null,
-    firstReason: firstReason(details, result.status),
+    minimaText: usedText,
+    note: notSet ? `Approaches not set: checked against ${usedText}` : null,
+    firstReason: firstReason(details),
+    hasHit: result.hits.length > 0,
+    why: whyUnknown(result, window ?? { from: wave.land, to: wave.land }, { start: 'arrival window starts', end: 'arrival window ends', at: window?.to ?? wave.land }),
     details,
     warnings: result.warnings,
     problems: result.problems,

@@ -10,7 +10,7 @@
 import { checkConditions, flightCategory, natoColour, DEFAULT_LIMITS } from '../../wx/limits.js';
 import { staleness, SOURCES } from '../../wx/sources.js';
 import { ageMinutes, resolveDay, toDate, MINUTE_MS } from '../../wx/dates.js';
-import { describeTrigger, formatMinima } from './waves.js';
+import { describeTrigger, minimaText, descentText } from './waves.js';
 
 const two = (n) => String(n).padStart(2, '0');
 
@@ -138,15 +138,21 @@ function unknownWords(check, conditions) {
   return parts.join(', ');
 }
 
-function resultModel(metar, conditions, limits, now) {
+function resultModel(metar, conditions, limits, now, descent) {
   if (!conditions) return { level: 'none', words: 'No METAR', reasons: [], stale: false };
-  const check = checkAgainst(conditions, limits);
   const stale = metar.state === 'stale' || metar.state === 'closed' || !now;
+  // A report that isn't current never reads as plain words about the weather now.
+  const note = metar.state === 'closed' ? ' (last observation)' : stale ? ' (STALE report)' : '';
+  // A visual descent (D80) is checked over the arrival window by the wave call; a
+  // METAR against 600-2 would say the wrong thing here.
+  if (descent) return { level: 'unknown', words: `Visual descent from MEA: see the wave call${note}`, reasons: [], stale };
+  const check = checkAgainst(conditions, limits);
   // Limits first, as wx orders them; cautions are listed apart and don't change this.
-  if (check.belowLimits) return { level: 'below', words: `Below limits: ${check.reasons.filter(limitReason).join(', ')}`, reasons: check.reasons.filter(limitReason), stale };
-  if (check.ceilingUnknown || check.visibilityUnknown) return { level: 'unknown', words: `Unknown: ${unknownWords(check, conditions)}`, reasons: [], stale };
-  if (check.atLimit) return { level: 'at-limit', words: `At the limit: ${check.reasons.filter(limitReason).join(', ')}`, reasons: check.reasons.filter(limitReason), stale };
-  return { level: 'within', words: 'Within limits', reasons: [], stale };
+  const reasons = check.reasons.filter(limitReason);
+  if (check.belowLimits) return { level: 'below', words: `Below limits: ${reasons.join(', ')}${note}`, reasons, stale };
+  if (check.ceilingUnknown || check.visibilityUnknown) return { level: 'unknown', words: `Unknown: ${unknownWords(check, conditions)}${note}`, reasons: [], stale };
+  if (check.atLimit) return { level: 'at-limit', words: `At the limit: ${reasons.join(', ')}${note}`, reasons, stale };
+  return { level: 'within', words: `Within limits${note}`, reasons: [], stale };
 }
 
 // wx's reasons start with CEILING or VIS for the limit lines; the rest are cautions.
@@ -161,25 +167,28 @@ const limitReason = (r) => /^(CEILING|VIS) /.test(r);
  * - `metar`, `taf`: report entries as wx's fetchReports gives them,
  *   `{ raw, report, source }`, or null when there is none. Staleness is decided
  *   here from `now`, never from a status stored earlier.
- * - `limits`: home limits `{ ceilingFt, visSm }` (default Local (MTCA) 2000/3),
- *   or for an alternate a list of minima options from `airfields.checkOptions`
- *   (default V6's 600-2).
+ * - `limits`: home limits `{ ceilingFt, visSm }` (default Local (MTCA) 2000/3).
+ * - `options`: for an alternate, the whole `airfields.checkOptions(icao)` object.
+ *   Its minima are used (default V6's 600-2); when it has a `visualDescent` (D80)
+ *   600-2 is never used and the result is 'unknown', for the wave call to decide.
  * - `feed`: `{ lastTry, failed }` for the words about a missing or failed refresh.
  * - `now`: a Date. Without one every age is unknown and every report reads as stale.
  */
-export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, now, feed = {} } = {}) {
+export function cardModel({ icao = null, name = null, role = 'ALT', metar = null, taf = null, limits, options, now, feed = {} } = {}) {
   const at = toDate(now);
   const isHome = role === 'HOME';
   let used;
   let limitsText;
+  const descent = !isHome && options?.visualDescent ? options.visualDescent : null;
   if (isHome) {
     const trigger = describeTrigger(limits);
     used = [{ ceilingFt: trigger.ceilingFt, visSm: trigger.visSm }];
     limitsText = trigger.label;
   } else {
-    const list = (Array.isArray(limits) ? limits : limits ? [limits] : []).filter((m) => Number.isFinite(m?.ceilingFt) && Number.isFinite(m?.visSm));
+    const given = options?.minima ?? limits;
+    const list = (Array.isArray(given) ? given : given ? [given] : []).filter((m) => Number.isFinite(m?.ceilingFt) && Number.isFinite(m?.visSm));
     used = list.length ? list : [DEFAULT_LIMITS.alternate];
-    limitsText = formatMinima(used);
+    limitsText = descent ? descentText(descent) : minimaText(used);
   }
 
   const metarLine = metarModel(metar, at, feed ?? {});
@@ -196,7 +205,7 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
     limitsText,
     metar: metarLine,
     taf: tafModel(taf, at, feed ?? {}),
-    result: resultModel(metarLine, conditions, used, at),
+    result: resultModel(metarLine, conditions, used, at, descent),
     cautions: check ? check.cautions : [],
     cautionReasons: check ? check.reasons.filter((r) => !limitReason(r)) : [],
     watch,
