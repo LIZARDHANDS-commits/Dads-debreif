@@ -188,13 +188,16 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     const g = gAt(tr, t, { recorded: recordedG });
     const pitch = pitchAt(tr, t);
     // The bank of the turn over the same ±1.5 s as est. G, as the 3D view draws it (D40, item G, M2).
+    const turnRate = turnRateAt(tr, t);
     const bank = bankFromTrack({
-      turnRateRadPerS: turnRateAt(tr, t),
+      turnRateRadPerS: turnRate,
       speedKt: s.speedKt,
       recordedBankDeg: s.bankRecordedDeg,
       pitchDeg: pitch.deg,
       recordedG: g.source === 'recorded' ? g.g : null,
     });
+    // No turn rate and nothing recorded: the bank is unknown, not 0° (the 3D view still draws wings level).
+    const bankKnown = bank.source === 'recorded' || turnRate !== null;
     return {
       slot: tr.slot,
       inGap: s.inGap,
@@ -206,7 +209,7 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
       gSource: g.source,
       pitchDeg: pitch.deg,
       pitchSource: pitch.source,
-      bankDeg: bank.bankDeg, // left wing down positive
+      bankDeg: bankKnown ? bank.bankDeg : null, // left wing down positive; null when unknown
       bankSource: bank.source,
       lat: s.lat,
       lon: s.lon,
@@ -313,9 +316,8 @@ export function leadText(lead) {
 /** "More detail" lines for one ship's live data (D47, D61: each value says where it came from). */
 export function shipDetailText(ship) {
   if (ship.inGap) return ['GPS gap: no numbers until the track resumes'];
-  const bank = Number.isFinite(ship.bankDeg) && Math.round(ship.bankDeg) !== 0
-    ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}`
-    : '0°';
+  let bank = '--';
+  if (Number.isFinite(ship.bankDeg)) bank = Math.round(ship.bankDeg) !== 0 ? `${deg(Math.abs(ship.bankDeg))} ${ship.bankDeg > 0 ? 'left' : 'right'}` : '0°';
   return [
     `Alt ${ft(ship.altFt)}, GS ${kt(ship.gsKt)}, est. IAS ${kt(ship.iasKt)}`,
     `G ${Number.isFinite(ship.g) ? ship.g.toFixed(2) : '--'} ${src(ship.gSource)}, pitch ${deg(ship.pitchDeg)} ${src(ship.pitchSource)}, bank ${bank} ${src(ship.bankSource)}`,
