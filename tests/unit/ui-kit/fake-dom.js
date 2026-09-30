@@ -64,11 +64,25 @@ class FakeElement extends FakeNode {
   getAttribute(name) {
     return this.attributes[name] ?? null;
   }
-  addEventListener(type, fn) {
-    (this.listeners[type] ??= []).push(fn);
+  // Capture listeners run first, as they do on the target in a browser.
+  addEventListener(type, fn, capture = false) {
+    const list = (this.listeners[type] ??= []);
+    if (capture) list.unshift(fn);
+    else list.push(fn);
+  }
+  removeEventListener(type, fn) {
+    this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn);
   }
   dispatch(type) {
-    for (const fn of this.listeners[type] ?? []) fn({ type, target: this });
+    let stopped = false;
+    const event = { type, target: this, defaultPrevented: false };
+    event.preventDefault = () => { event.defaultPrevented = true; };
+    event.stopImmediatePropagation = () => { stopped = true; };
+    for (const fn of [...(this.listeners[type] ?? [])]) {
+      fn(event);
+      if (stopped) break;
+    }
+    return event;
   }
 }
 

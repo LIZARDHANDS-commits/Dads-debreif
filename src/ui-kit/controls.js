@@ -25,6 +25,8 @@ export function createControls(settings) {
   const byKey = new Map(); // setting key → the inputs (or fieldsets) bound to it
   const invalidKeys = new Set(); // number boxes now showing a "not accepted" message
   const guards = new Set(); // () => void, re-run when invalidKeys changes
+  const stopGuards = new Set(); // one per guard(), undoes it
+  const checks = new Map(); // number box key → () => boolean (reads the box now, shows the message)
   let unsubscribe = null;
 
   const markInvalid = (key, invalid) => {
@@ -97,6 +99,13 @@ export function createControls(settings) {
         settings.update({ [key]: n });
       });
       input.addEventListener('change', () => setInvalid(read() === null));
+      // Read the box as it is now, for a guarded action pressed before the box
+      // has sent "change" (a tap that leaves focus in the box on some phones).
+      checks.set(key, () => {
+        const ok = read() !== null;
+        setInvalid(!ok);
+        return ok;
+      });
 
       register(key, input);
       bind((values) => {
@@ -202,18 +211,39 @@ export function createControls(settings) {
       return [...invalidKeys];
     },
 
-    // Turns `button` off while a number box it depends on refuses what was
-    // typed, so an action never runs on a value the person can't see (TR-14).
+    // Holds back `button` while a number box it depends on refuses what was
+    // typed, so an action never runs on a value the person can't see (TR-14,
+    // D256). The button reads as unavailable (aria-disabled, dimmed) and its
+    // click is stopped before the module's own handler; its own `disabled`
+    // stays the module's. At the click every box is read again, so the check
+    // doesn't depend on the box having sent "change" first.
     // keys: the settings it uses; leave it out to depend on every number box.
     // Returns a function that stops guarding (dispose also stops it).
     guard(button, keys = null) {
-      const blocked = () => (keys ? keys.some((k) => invalidKeys.has(k)) : invalidKeys.size > 0);
+      const watched = () => keys ?? [...checks.keys()];
+      const blocked = () => watched().some((k) => invalidKeys.has(k));
       const sync = () => {
-        button.disabled = blocked();
+        if (blocked()) button.setAttribute('aria-disabled', 'true');
+        else button.removeAttribute('aria-disabled');
       };
+      const onClick = (event) => {
+        let ok = true;
+        for (const k of watched()) if (checks.get(k)?.() === false) ok = false;
+        if (ok) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      };
+      button.addEventListener('click', onClick, true);
       guards.add(sync);
       sync();
-      return () => guards.delete(sync);
+      const stop = () => {
+        guards.delete(sync);
+        stopGuards.delete(stop);
+        button.removeEventListener('click', onClick, true);
+        button.removeAttribute('aria-disabled');
+      };
+      stopGuards.add(stop);
+      return stop;
     },
 
     dispose() {
@@ -221,7 +251,8 @@ export function createControls(settings) {
       unsubscribe = null;
       syncs.clear();
       byKey.clear();
-      guards.clear();
+      for (const stop of [...stopGuards]) stop();
+      checks.clear();
       invalidKeys.clear();
     },
   };
