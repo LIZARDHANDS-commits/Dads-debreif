@@ -33,11 +33,15 @@ test('an unknown address says so and shows home', async ({ page }) => {
   await expect(page.locator('#route-notice')).toContainText('no page at "ptpt"');
 });
 
-test('the footer shows the build version, and Report a problem carries it @smoke', async ({ page }) => {
+test('the footer says when this copy was published, and Report a problem carries the version @smoke', async ({ page }) => {
   await openRoute(page, '#/about');
   const version = await page.locator('meta[name="app-version"]').getAttribute('content');
   expect(version).toMatch(/^\d{4}-\d{2}-\d{2} \S+$/);
-  await expect(page.locator('#app-version')).toHaveText(version);
+  const built = await page.locator('meta[name="app-built"]').getAttribute('content');
+  expect(built.slice(0, 10)).toBe(version.slice(0, 10));
+  const footer = page.locator('#app-updated');
+  await expect(footer).toHaveText(/^Updated \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}Z$/);
+  await expect(footer).toHaveAttribute('title', `Version ${version}`);
   const href = await page.locator('#report-problem').getAttribute('href');
   const url = new URL(href);
   expect(url.pathname).toBe('/LIZARDHANDS-commits/Dads-debreif/issues/new');

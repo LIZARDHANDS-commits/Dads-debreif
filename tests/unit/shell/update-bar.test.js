@@ -119,6 +119,29 @@ test('it looks for a new version every hour', async () => {
   assert.equal(container.registration.updates, 1);
 });
 
+test('coming back to the tab looks for a new version, at most every five minutes', async () => {
+  const container = fakeContainer();
+  const doc = new EventTarget();
+  doc.visibilityState = 'hidden';
+  let clock = 0;
+  await watchForUpdates({ container, doc, now: () => clock, onUpdate: () => {}, reload: () => {} });
+  const show = (state) => {
+    doc.visibilityState = state;
+    doc.dispatchEvent(new Event('visibilitychange'));
+  };
+  clock = 4 * 60 * 1000;
+  show('visible');
+  assert.equal(container.registration.updates, 0, 'too soon after opening');
+  clock = 6 * 60 * 1000;
+  show('hidden');
+  assert.equal(container.registration.updates, 0, 'not while hidden');
+  show('visible');
+  assert.equal(container.registration.updates, 1);
+  clock += 60 * 1000;
+  show('visible');
+  assert.equal(container.registration.updates, 1, 'not again within five minutes');
+});
+
 test('a blocked registration warns and carries on', async (t) => {
   const warn = t.mock.method(console, 'warn', () => {});
   const { ready } = setup({ fails: true });
