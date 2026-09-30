@@ -38,7 +38,7 @@ let nextMenu = 1;
 
 /**
  * A button that opens a small panel under the bar or column it sits in, and
- * closes it again on Escape or a click elsewhere. listen: app.listen, so the
+ * closes it again on Escape, a click elsewhere or tabbing out of it. listen: app.listen, so the
  * page-wide listener ends when the module closes.
  * Returns { element, body, button, setOpen, isOpen }.
  */
@@ -57,6 +57,11 @@ export function createMenu({ label, children = [], listen }) {
     e.preventDefault();
     setOpen(false);
     button.focus();
+  });
+  // Tabbing out of the menu, to the next control, closes it. (No relatedTarget means the window
+  // lost focus or a click landed on something that can't take it; the click case is handled below.)
+  element.addEventListener('focusout', (e) => {
+    if (e.relatedTarget && !element.contains(e.relatedTarget)) setOpen(false);
   });
   listen(document, 'pointerdown', (e) => {
     if (!element.contains(e.target)) setOpen(false);

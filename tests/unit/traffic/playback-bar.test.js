@@ -204,6 +204,20 @@ test('a menu opens from its button, is closed at first, and closes on a second p
   assert.equal(element.tagName, 'DIV');
 });
 
+test('tabbing out of an open menu closes it; moving inside it, or focus going nowhere in particular, does not', () => {
+  const menu = createMenu({ label: 'Layers', children: [h('input', { type: 'checkbox' }), h('input', { type: 'checkbox' })], listen: () => {} });
+  const focusOut = menu.element.listeners.focusout[0];
+  menu.setOpen(true);
+  focusOut({ relatedTarget: menu.body.childNodes[1] });
+  assert.equal(menu.isOpen(), true, 'from one box to the next stays open');
+  focusOut({ relatedTarget: menu.button });
+  assert.equal(menu.isOpen(), true, 'back to the button stays open');
+  focusOut({ relatedTarget: null });
+  assert.equal(menu.isOpen(), true, 'the window losing focus leaves it as it is');
+  focusOut({ relatedTarget: h('button', {}, 'Fit') });
+  assert.equal(menu.isOpen(), false, 'on to the next control outside it, it closes');
+});
+
 test('Escape closes an open menu and puts focus back on its button; a click elsewhere closes it, one inside does not', () => {
   const listeners = [];
   const menu = createMenu({ label: 'Layers', children: [h('p', { class: 'inside' }, 'x')], listen: (target, type, fn) => listeners.push({ target, type, fn }) });
