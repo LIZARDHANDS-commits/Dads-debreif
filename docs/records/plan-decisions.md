@@ -1,8 +1,330 @@
-<!-- Copied from the plan doc Decisions tab at the handover, 30 Sep 2026. D1-D146 and D158-D159 and D357-D367 are Patrick's own decisions; "Proposed" rows are judgement calls that count as accepted unless he rejects them. Add new decisions at the end with the next number. -->
+<!-- Copied from the plan doc Decisions tab at the handover, 30 Sep 2026. D1-D146, D158-D159, and D357-D388 are Patrick's own decisions; "Proposed" rows are judgement calls that count as accepted unless he rejects them. Add new decisions at the end with the next number. -->
 
-# Decisions
+# Master Decisions Register: By Category & Chronological Index
 
-Every design decision goes here with the reason for it, so nobody has to re-argue it later. "Proposed" rows are my recommendations that you haven't confirmed yet. Change a status to Decided or Reversed at any time.
+> [!IMPORTANT]
+> **Unified Single Decisions Source of Truth:**
+> - **TOP (Sections 1–5):** Structured, categorized decisions directory by module, V6 decoupling audit, and designer reference.
+> - **BOTTOM (Section 6):** Complete chronological register (D1 through D388) with full historical rationale and status updates.
+
+# Master Decisions Directory by Module & V6 Audit Review
+
+**Project:** Dad's Debrief (Moose Jaw CT-156 Harvard II Debrief Webtool)  
+**Deliverable:** Designer-Friendly By-Module Decisions Index, V6 Influence Audit & Agree/Disagree Triage  
+**Generated:** 2026-09-30  
+**Living Document:** Maintained alongside [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md) and [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md).
+
+---
+
+## 1. Executive Summary: The Overnight Decisions & V6 Audit
+
+Under Patrick's 09:31Z directive (*"go with their recommendation on any more judgement calls and log it as a decision for me to review"*), over 200 decisions (D147–D356) were logged overnight. 
+
+Because the project's original foundation rules (D29, D30, D38, Requirement R9) mandated matching legacy V6 to within $10^{-12}$ relative float precision, several overnight decisions compromised aerodynamic truth, preserved sensor noise, or created bizarre workarounds just to keep V6 golden tests passing.
+
+With **Patrick's ratification of V6 Decoupling (D368, D372)**, **Pilot Domain Tolerances (D371)**, and **Airfield Ground Truth (D373, D378)**, we have systematically audited every decision influenced by V6.
+
+---
+
+## 2. Audit of Decisions Influenced by Legacy V6: Agree vs. Disagree
+
+Below is the definitive triage of every decision influenced by V6, classified into:
+- ❌ **DISAGREE / REVERSE:** Where the team compromised aerodynamics or preserved V6 bugs.
+- ✅ **AGREE:** Where the team successfully corrected a V6 flaw or improved realism.
+- ⚠️ **CONFUSION POINT:** Where Patrick's specific pilot domain guidance is needed.
+
+| D# | Module | Decision Summary | What V6 Did | Team Overnight Recommendation | Antigravity Audit & Recommendation | Status |
+| :---: | :--- | :--- | :--- | :--- | :--- | :---: |
+| **D29** | Core | V6 numbers trusted as ground truth | Trusted V6 unconditionally | Pinned all math to V6 numbers | ❌ **DISAGREE.** V6 has known aero bugs (turn rates halved, G < 1.01 crashes). **Superseded by D368/D372.** | **Reversed** |
+| **D38** | Core | Tests require $10^{-12}$ float matching | IEEE 754 precision | Pinned exact browser float diffs | ❌ **DISAGREE.** Causes extreme test brittleness. **Superseded by D371 (pilot tolerances).** | **Superseded** |
+| **D156** | Traffic | Pattern hand for Runway 29L | Labeled left, drew right | Pinned V6 right-hand bug first, then flipped | ❌ **DISAGREE with pinning the bug.** Runway 29L is strictly left-hand per D378. | **Decoupled** |
+| **D157** | Traffic | Simulation clock display | Added 0.05s/step (time ran 1s late half the time) | Rounds to nearest millisecond for display | ✅ **AGREE.** Fixes confusing clock lag on screen. | **Approved** |
+| **D162** | Turn Sim | Simulation duration | Artificially stopped at 75s | Runs until last planned turn finishes + 10s | ✅ **AGREE.** Prevents cutting off formation runs before completion. | **Approved** |
+| **D171** | Turn Sim | Offset box lateral stagger | Defaulted to 1,000 ft stagger | Changed default stagger to 0 ft so box opens on spacing | ✅ **AGREE.** SMM Fig 16.30 draws elements abreast. 1,000 ft falsely flagged #2 WIDE. | **Approved** |
+| **D182** | Debrief | Estimated G upper cutoff | Capped at 9 G (allowed GPS glitches) | Caps at +7 G (T-6 limit); shows "G --" on spikes | ✅ **AGREE.** Prevents false G readings from GPS jumps. | **Approved** |
+| **D186** | Turn Fight | UI Reset button label | Reset to "V6 defaults" | Kept button labeled "Reset to V6 defaults" | ❌ **DISAGREE.** V6 defaults load uncertified numbers (2.0 G). **Superseded by D384** ("Reset to Standard Defaults"). | **Superseded** |
+| **D187** | Turn Fight | First nose-on time display | Measured from merge (+18.2 s) | Kept "+18.2 s after merge" display | ✅ **AGREE with UI readout**, but decoupled underlying timing from V6 frame ticks. | **Approved** |
+| **D188** | Turn Fight | 3D off-nose angle in climb/dive | Flat 2D check; ignored pitch | Measured 3D ATA from pitched nose (0 of 168 pitch pairs triggered) | ⚠️ **CONFUSION POINT 1 (See below).** Pure 3D prevents nose-on when both jets climb level. | **Needs Input** |
+| **D190** | SOF | Missing weather cloud group | Showed VFR / BLU | Shows UNK (Unknown) | ✅ **AGREE.** Safety-critical SOF must never guess missing data. | **Approved** |
+| **D198** | Traffic | V6 setup preservation | Used V6 setup as default | Kept V6 data in `moose-jaw-v6.json` | ❌ **DISAGREE.** V6 setup had wrong altitudes. Quarantined to archive. | **Quarantined** |
+| **D199** | Traffic | Break turn G (60° bank) | 1 G flat turn | Attempted 2 G / 60° break, then withdrew it in D209 | ✅ **AGREE with D199 / D382.** Restores true 60° (2 G) break at 3,500 ft MSL per D373/D378; D209 reversed. | **Restored (D382)** |
+| **D200** | Traffic | Final turn G (45° bank) | 1 G flat turn | Attempted 45° final turn, then withdrew it in D210 | ✅ **AGREE with D200 / D382.** Restores true 45° final turn to 2,700 ft straight-in per D373/D378; D210 reversed. | **Restored (D382)** |
+| **D213** | Debrief | Bank across GPS gaps | Kept banking across gaps | Set wings-level ("bank --") during GPS gaps | ✅ **AGREE.** Banking across a sensor gap is fictitious. | **Approved** |
+| **D219** | Debrief | Smoothing estimated G dips | Left 21 1-second G dips/spikes | Left noisy dips to avoid breaking V6 golden pins | ❌ **DISAGREE.** Keeping sensor noise just to satisfy V6 golden tests is wrong. **Superseded by D383** (median filtering). | **Superseded** |
+| **D228** | Turn Fight | Reset head-on geometry | Labeled "Head-on (V6)" | Reset 6 settings to V6 head-on | ❌ **DISAGREE with label.** Relabeled to "Neutral Head-on Merge". | **Revised** |
+| **D324** | Turn Sim | Spacing solver page state | Reused stale timing from last run | Calculates Auto timing afresh for each trial | ✅ **AGREE.** Eliminates hidden page state corruption. | **Approved** |
+| **D325** | Turn Sim | Solver trial scoring | Scored at arbitrary Duration cutoff | Scored at Duration setting to match V6 pin | ❌ **DISAGREE.** **Superseded by D385.** Solver will score at maneuver completion, not clock cutoff. | **Superseded** |
+| **D334** | Turn Sim | Pre-play aircraft dragging | Reset put all aircraft back to slot | Wingmen move; sets initial position error; Reset keeps drag | ✅ **AGREE.** Greatly improves student scenario setup workflow. | **Approved** |
+
+---
+
+## 3. Ratified Guidance on the Four Confusion Points
+
+Patrick has reviewed the overnight trade-offs and officially ratified the following decisions (D380–D388):
+
+### Confusion Point 1: 3D Off-Nose Angle vs Pitch Chase in Turn Fight (D188 -> Ratified as D386)
+- **Problem:** Pure 3D off-nose vector pointing prevented nose-on detection when both jets climbed at equal pitch (0 of 168 test fights triggered).
+- **Patrick's Decision:** Use **3D line-of-sight vector pointing with a 10° elevation capture cone** for Climb/Dive merges. This preserves realistic 3D altitude differences while allowing natural head-on pass detection.
+- **Status:** **Ratified in D386.**
+
+### Confusion Point 2: T-6 Stall Speed Calibration (D166 / D349 -> Ratified as D387)
+- **Problem:** Theoretical turn charts best fit 83 kt stall, while V-n diagram reads 89 kt.
+- **Patrick's Decision:** Retain Patrick's ratified **86 kt** stall speed and **125–175 KIAS** MPT range, evaluating flight readouts under the ratified `±10 kt` pilot domain tolerance (D371).
+- **Status:** **Ratified in D387.**
+
+### Confusion Point 3: Auto Mode Immelmann Entry Gate (D153 / D351 -> Ratified as D381)
+- **Problem:** Immelmann entries at low speeds lead to extreme energy bleed and prolonged time-to-MPT.
+- **Patrick's Decision:** **Immelmann depletes energy. At 140 KIAS or below, aircraft must NOT fly an Immelmann** and must choose either a **Split S** (if deck height allows) or a **slice turn**. *Pilot Domain Rule (Patrick):* A slice turn is descending (although losing less altitude than a Split S). **Never go below the hard deck:** if altitude margin does not allow a slice turn without breaching the deck, transition to level MPT to maintain the deck floor.
+- **Status:** **Ratified in D381.**
+
+### Confusion Point 4: SOF Alternate Landing Minima Fallback (D189 -> Ratified as D388)
+- **Problem:** TAF with PROB group below alternate minima when airfield landing minima are unset showed green "Meets minima".
+- **Patrick's Decision:** Show amber **"Incomplete"** status: *"PROB30 below 600-2; landing minima for CYQR not set"*. A safety-critical military SOF tool must never show a green tick when weather cannot be verified.
+- **Status:** **Ratified in D388.**
+
+---
+
+## 4. Module-by-Module Decisions Catalog (Designer & Developer Reference)
+
+### 4.1 General Architecture, Shell & Ground Rules
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D1** | Plain web app (HTML/CSS/JS) | Decided | Zero installation, runs in any browser from a web link. |
+| **D2** | Plain JavaScript with no framework | Decided | Plain JS modules; no React/Vue/Angular build complexity. |
+| **D3** | Original V6 in `original/` untouched | Decided | Archival UX reference only; never edited. |
+| **D5** | Public access, zero passwords | Decided | Freely accessible to students and instructors. |
+| **D6** | Desktop & laptop first (min 1280 px) | Decided | Responsive floor is 1280 × 800; mobile/tablets secondary. |
+| **D12** | GitHub Pages deployment | Decided | Auto-deploys from `main` branch. |
+| **D13** | Vite build engine | Decided | Fast compilation and preview server. |
+| **D15** | PWA offline capability | Decided | App shell caches for offline use; live weather requires connection. |
+| **D18** | Zulu time primary, Local secondary | Decided | One global toggle switches Zulu/Local across all modules. |
+| **D26** | "Report a Problem" GitHub link | Decided | Clean issue reporter in shell footer. |
+| **D27** | Identity: "DAD's OODA LOOP" | Decided | Site branding and title preserved. |
+| **D76** | Autonomous PR merge protocol | Decided | PRs merge automatically on green CI once spec is approved. |
+| **D183** | Minimum supported width 1280 px | Decided | UI designed for desktop/laptop; 1280 px horizontal floor. |
+| **D225** | Width warning banner (<1180 px) | Decided | Quiet warning note displayed on narrow windows. |
+| **D335** | Unsaved work exit protection | Decided | Native browser `beforeunload` dialog guards unsaved settings. |
+| **D357** | One module at a time | Decided | Serial module build order; zero cross-module sprawl. |
+| **D358** | End-of-module testing cadence | Decided | Comprehensive tests/visual audits run at module gates only. |
+| **D364** | No heavy stress / mutation tests | Decided | Standard unit/e2e tests only; no artificial fuzzing friction. |
+| **D365** | 3D views are bonuses | Decided | 3D Three.js views kept as bonus layers; zero blocking tests. |
+| **D368** | Complete V6 decoupling | Decided | Baseline math on standard aerodynamics and 15 Wing manuals. |
+| **D369/D371**| Ratified Pilot Domain Tolerances | Decided | Airspeed ±10/±20 kt, Alt ±100/±200 ft, Angles ±5/±10°, G ±0.5/±1.0. |
+| **D372** | Archival quarantine of V6 eval | Decided | Quarantined `tests/golden/`, `v6-compare.test.js`, and `v6-sof.js`. |
+| **D375** | Antigravity small-slice architecture| Decided | Parallel subagents for prep only; main integration strictly serial. |
+| **D376** | Module-by-module sign-off gates | Decided | Gate 0: Debrief/SOF, Gate 1: Traffic, Gate 2: Turn Fight, Gate 3: Turn Sim. |
+
+---
+
+### 4.2 Debrief Viewer (2D & 3D Flight Debrief)
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D16** | 2D / 3D view toggle | Decided | Toggle between top-down 2D canvas and Three.js 3D viewer. |
+| **D20** | ForeFlight KML track format | Decided | Primary input format; direct drag-and-drop parsing. |
+| **D21** | Native Debrief save/load file | Decided | Multi-track flights saved to JSON/CSV debrief files. |
+| **D31** | Estimated IAS conversion | Decided | Converts GPS ground speed to estimated IAS (`est. IAS`). |
+| **D32** | GPS gap handling | Decided | Gaps > 5s break track line and blank telemetry readouts. |
+| **D47** | Bank angle derivation | Decided | ForeFlight recorded bank preferred; estimated via turn rate when missing. |
+| **D48** | Formation numbering (4312) | Decided | Cockpit view left-to-right order: #2, Lead (#1), #3, #4. |
+| **D49** | GPS sanity check filters | Decided | Drops speeds > 450 kt, altitudes outside -500m to 20,000m. |
+| **D55** | Aircraft #4 colour styling | Decided | Drawn in high-contrast white with dark outline (was black in V6). |
+| **D56** | Pruned obsolete V6 debrief controls| Decided | Removed oblique view, dead error injectors, and redundant orbit buttons. |
+| **D61** | Estimated pitch & G default | Decided | Derived from track aerodynamics; recorded values toggleable. |
+| **D62** | Unified tennis-ball lead pursuit | Decided | Replaced two conflicting V6 solvers with single 3D intercept solver. |
+| **D75** | Progressive disclosure (R22) | Decided | Essentials first (map, status, playback); detail behind toggles. |
+| **D78** | #3 Fore/Aft standards judge | Decided | Offset standard judges fore/aft; spread standard judges interval. |
+| **D176** | Winds aloft via HRDPS/Open-Meteo | Decided | Canada's 2.5 km HRDPS model provides wind arrows and aloft data. |
+| **D182** | Estimated G capped at +7 G | Decided | Spikes above +7 G flagged as GPS glitches ("G --"). |
+| **D192** | Taxiing / Ground gate (<80 kt) | Decided | Formation judging suppressed while Lead is on ground/under 80 kt. |
+| **D193** | Altitude block judging (6k–15.5k) | Decided | Speed judged against Low (6,000 ft) or Mid (15,500 ft) block targets. |
+| **D194** | Bank smoothing window (3.0s) | Decided | Bank rate derived from ±1.5s window matching estimated G. |
+| **D208** | GPS gap marker in 3D | Decided | Hollow marker with "#N GPS gap" displayed during dropouts. |
+| **D213** | Wings-level across GPS gaps | Decided | Forces 0° bank across sensor dropouts. |
+| **D215** | Hourly wind model blending | Decided | Blends model wind across adjacent hours to eliminate step jumps. |
+| **D226** | Parked ramp state readout | Decided | Parked aircraft read "bank --" and "G --" rather than false 0° est. |
+| **D321** | Debrief file size cap (189 MiB) | Decided | Accommodates 4 full tracks plus high-res radar/lightning weather blocks. |
+
+---
+
+### 4.3 SOF Dashboard & Live Weather
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D8** | Multi-source weather with fallbacks | Decided | MET Norway primary, Datamask backup; ECCC radar, RainViewer backup. |
+| **D17** | Airfields configuration | Decided | Defaults to CYMJ Moose Jaw and standard Saskatchewan alternates. |
+| **D24** | All-day big-screen desk layout | Decided | Auto-refreshing cards, stale warnings, and DTG header. |
+| **D57** | Weather strictly-below limit check | Decided | Red only when strictly below minima; yellow at exact limit. |
+| **D58** | Dangerous weather caution banner | Decided | Acknowledgeable banner for VCTS, CB, TCU, and funnel clouds. |
+| **D59** | Dual home triggers (2000/3 & 3000/3)| Decided | Supports both Local MTCA (2000/3) and Cross-Country (3000/3) rules. |
+| **D60/D70**| Alternate arrival window (ETA ±1h) | Decided | Evaluates worst weather condition within 1 hour of ETA. |
+| **D64** | MET Norway tafmetar integration | Decided | Official open-licence NAV CANADA data relay. |
+| **D65** | Environment Canada 1 km radar | Decided | GeoMet composite radar with 6-minute refresh. |
+| **D66** | Live lightning layer & links | Decided | ECCC lightning density layer; external Blitzortung link. |
+| **D67** | Stale data timeout thresholds | Decided | METAR stale >75 min, Radar >20 min, Lightning >40 min, Cloud >60 min. |
+| **D71** | Precision vs Non-precision minima | Decided | 600-2 for precision, 800-2 for non-precision alternates. |
+| **D72** | TAF group parsing (BECMG/TEMPO) | Decided | Worst condition of BECMG period evaluated; TEMPO checked to minima. |
+| **D73** | GPS-only alternate warnings | Decided | Warns if alternate is <100 NM and both use GPS approaches. |
+| **D80/D81**| GNSS visual descent rules | Decided | Requires ceiling ≥ MEA + 500 ft − elevation; 3 SM visibility. |
+| **D189** | Unchecked PROB group handling | Proposed | Amber "Incomplete" when airfield landing minima are unspecified. |
+| **D190** | Missing sky condition handling | Decided | Malformed METAR without cloud group shows UNK, never false VFR. |
+| **D191** | Minima validation guards | Decided | Typo in custom minima triggers error rather than silent 600-2 fallback. |
+| **D220** | Stale METAR status display | Decided | Stale report reads "Unknown: report is N h old" with grey chips. |
+| **D221** | Caution banner expiration (1h) | Decided | Clears temporary cautions 1 hour after group end time. |
+| **D222** | Wave planning UX limits | Decided | Up to 5 waves; starts with blank times; names up to 12 chars. |
+| **D223** | Stale wave chip badge ("?") | Decided | Shows "?" on wave chip if forecast data is stale or failed. |
+| **D224** | Caution banner & timeline defaults | Decided | Banner and 24-hour timeline open by default; Zulu row first. |
+| **D322** | Caution alternates chip count | Decided | Chip explicitly notes "2 alternates (1 with caution)". |
+| **D352** | Lightning near home caution latch | Decided | Live lightning caution remains on banner during temporary feed outages. |
+| **D354** | Refined feed stale timeouts | Decided | Lightning 40 min, GOES cloud 60 min, Radar 20 min. |
+| **D355** | High-contrast yellow lightning marks| Decided | Yellow marks with dark outline maintain ≥3:1 contrast on satellite tiles. |
+| **D388** | Alternate Landing Minima Incomplete | Decided | Unchecked PROB group with unset landing minima displays amber "Incomplete" status. |
+
+---
+
+### 4.4 Traffic Pattern Sim
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D25** | Local pattern storage | Decided | Custom patterns saved locally in user browser; built-in presets provided. |
+| **D46** | True circular turn arcs | Decided | Eliminates V6 corner-tightening; turns fly constant-radius circular arcs. |
+| **D156** | Left-hand circuit default | Decided | Runway 29L flies left-hand pattern; corrects V6 inverted label. |
+| **D157** | Millisecond clock precision | Decided | Rounds clock to true second, eliminating V6's 1-second lag bug. |
+| **D195** | Pair spawner interval (20s) | Decided | "+ Pair" spawns wingman 20s behind (3,400 ft separation at 100 kt). |
+| **D196** | Minimum conflict bubble size | Decided | Conflict bubbles rendered at min 8 px / 12 px so visible when zoomed out. |
+| **D197** | Runway-specific circuit handedness | Decided | CYMJ 29L is left-hand, 11R is right-hand; magnetic converted to true. |
+| **D204** | Pilot tolerance cross-checks | Decided | Window height 2,150 ± 50 ft, speed 100 kt, final spacing 3,000 ft. |
+| **D329** | "Fit all routes" in Layers menu | Decided | Moved from bar to menu to maintain single-row layout at 1280 px. |
+| **D330** | Profiles panel placed top-left | Decided | Profiles and notes visible without scrolling below the fold. |
+| **D331** | Profile storage corruption guard | Decided | Profile store writes safety marker; refuses to overwrite damaged lists. |
+| **D332** | Maximum aircraft capacity (200) | Decided | Hard cap at 200 active aircraft with clear warning prompt. |
+| **D348** | Callsign preservation on rewind | Decided | Rewind preserves callsign identities and cleared statuses. |
+| **D363** | Traffic Core 4 vs Phase 2 queue | Decided | Phase 1 builds Core 4; PFLs/engine-outs/closed pattern deferred to PPQ. |
+| **D373** | CYMJ Moose Jaw pattern truth | Decided | Break at 3,500 ft MSL; straight-in at 2,700 ft MSL; elevation 1,892 ft. |
+| **D377** | Traffic end-to-end build order | Decided | Traffic module completely built and signed off before Turn Fight/Sim. |
+| **D378** | Active runway ground truth | Decided | Default runway is Runway 29L (298° true) left-hand circuits. |
+
+---
+
+### 4.5 Turn Fight (BFM 1v1 Simulation)
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D91** | Simultaneous nose-on tie rule | Decided | When both noses cross within 5° in same step, displays "Both at +T". |
+| **D92** | Centered neutral merge start | Decided | Start positions offset so aircraft meet exactly in center of screen. |
+| **D152** | Post-merge head-on pursuit delay | Decided | Mutual MPT maintained until an aircraft gets behind the other. |
+| **D153** | Auto mode vertical decision logic | Decided | Simulates Immelmann vs pitch back; picks fastest nose-on solution. |
+| **D165** | Split S pull profile & deck check | Decided | 5 G cap on Split S; slices instead if recovery altitude breaches deck. |
+| **D175** | Start altitude envelope (25,000 ft)| Decided | Allowed from deck to 25,000 ft; warning note above 15,000 ft. |
+| **D177** | MPT capture lead timing (3.0s) | Decided | 3s handover lead prevents severe speed decay during vertical pulls. |
+| **D178** | Hard deck & VMO guidance priority | Decided | Floor and speed limits take absolute precedence inside pursuit steering. |
+| **D179** | Initial move pre-calculation | Decided | First move calculated before Play so planned maneuver shows at T+0. |
+| **D180** | Discrete step tie detection | Decided | 0.02s step crossing counts as visual tie. |
+| **D181** | Heading vs 3D angle-off definition| Decided | Angle-off (HCA) is ground track diff; 3D off-nose is line-of-sight. |
+| **D186** | 3D view camera and model sizing | Decided | Harvard model rendered min 56 px; South 35° down camera angle. |
+| **D187** | Nose-on time measured from merge | Decided | Readout displays time after merge (e.g. "+18.2 s after merge"). |
+| **D205** | Ceiling limit handling | Decided | Vertical maneuvers capped at 25,000 ft ceiling. |
+| **D227** | Turn initiation control location | Decided | "When turns start" placed in Start Geometry settings panel. |
+| **D228** | Head-on merge reset | Decided | Resets ATA, AA, turn directions, height, and merge timing to neutral. |
+| **D229** | Height change reference point | Decided | Height change measured relative to each jet's own initial start height. |
+| **D230** | Turn side determination | Decided | Turn side evaluated at moment turns start (at pass or T+0). |
+| **D231** | Slant range vs Level separation | Decided | Initial slider sets level separation; live readout shows true 3D slant range. |
+| **D232** | Pre-merge phase indicator | Decided | Displays "TO THE PASS" prior to merge ("HEAD-TO-HEAD" at 0° ATA only). |
+| **D233** | Unified HCA and Aspect rows | Decided | Result card displays Slant Range; More Detail displays HCA and Aspect. |
+| **D234** | Dual Auto mutual best-response | Decided | Blue and Red iteratively calculate optimal initial counter-maneuvers. |
+| **D235** | Lookahead dry-run top speed gate | Decided | Predictive simulations enforce 120 KIAS minimum over-the-top speed. |
+| **D236** | High-speed pitch back handover | Decided | Entries >220 KIAS transition to MPT 6s early to prevent high-G stalls. |
+| **D319/D349**| MPT speed range (125–175 KIAS) | Decided | Input box clamped to 125–175 KIAS (fits T-6A level turn performance). |
+| **D336** | Decoupled fight outcome states | Decided | Outcomes: "Even fight", "Blue wins", "Red wins", or "No winner". |
+| **D338** | Energy setup error recovery | Decided | Unflyable speeds fall back cleanly to defaults with explanatory note. |
+| **D339** | Accessible screen reader flags | Decided | Flags announced politely on change without spamming live updates. |
+| **D341** | Altitude graph visualization | Decided | uPlot canvas with 24 px tick steps, T+0 dots, and distinct line widths. |
+| **D345** | Compressible Mach 0.67 envelope | Decided | Enforces true aerodynamic limit at high altitudes (270 KIAS at 25k). |
+| **D379** | Simple 2D flat 1v1 view default | Decided | Screen opens to Simple 2D 1v1 fight; Energy Mode is a toggle switch. |
+| **D381** | Low-Speed Vertical Choice (<=140 kt)| Decided | Immelmann depletes energy; <=140 KIAS must fly Split S (if deck allows) or slice (never Immelmann). |
+| **D384** | Standard Defaults Reset Button | Decided | Reset button relabeled "Reset to Standard Defaults" loading 15 Wing SMM standards (3.0 G). |
+| **D386** | 3D Off-Nose Merge Capture Cone | Decided | 3D line-of-sight pointing with 10° elevation capture cone for Climb/Dive merges. |
+
+---
+
+### 4.6 Turn Sim (Formation Geometry Simulation)
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D41** | "Toward" cue aircraft correction | Decided | "Toward" turns toward cue aircraft (fixed backwards V6 logic). |
+| **D42** | "Wide / Tight" error direction | Decided | Wide moves away from Lead, Tight toward Lead across all aircraft. |
+| **D43** | Outside aircraft turns first | Decided | Outside wingman initiates turn; wingmen do not wait for Lead. |
+| **D44** | Ideal Auto timing formula | Decided | Delay = $\text{spacing} / \text{speed} \times \cot(\theta/2)$; rolls out abreast. |
+| **D45** | Compass heading inputs | Decided | 000° is North (up screen), 090° East; right turns increase heading. |
+| **D74** | Minimum turn G floor (1.01 G) | Decided | G clamped at 1.01 G to prevent division-by-zero crashes. |
+| **D82** | Progressive disclosure of tools | Decided | Formation Graph, Solver, and Correction models hidden behind toggles. |
+| **D83** | Default start heading North (000°) | Decided | Formation defaults to flying up the screen. |
+| **D84** | Hook Turn is 180° formation turn | Decided | Rebuilt as true 180° turn per SMM and Dad (fixed V6 90° bug). |
+| **D85** | Shackle formation turn geometry | Decided | Aircraft cross paths (forming an X) and swap sides; ends on original heading. |
+| **D88** | Configurable clock cue targets | Decided | Wingmen can watch any picked aircraft and turn on target clock cue. |
+| **D89** | Unified formation judging standards| Decided | Shared standards across Debrief and Turn Sim; SMM defaults. |
+| **D90** | Rear element check turn timing | Decided | Delay begins after preceding element finishes turn. |
+| **D147** | Offset box rear delay (12.5s) | Decided | Midpoint of SMM 10–15s band (paras 112a, Figs 16.31–16.34). |
+| **D148** | Offset box Lead check turn (12.5°)| Decided | Lead check turn defaults to 12.5° (SMM 10–15° band). |
+| **D149** | Check turn menu option (30° max) | Decided | Check turn added to Turn menu; defaults to 30° (SMM para 58). |
+| **D150/D170**| Cross turn G profile (2 G -> 3 G) | Decided | Turns toward each other: 2 G to 90°, then solved G to roll out in LAB. |
+| **D151** | Delayed 45 ends Line Abreast | Decided | Aircraft cross without reaching 90°; ends in LAB with sides swapped. |
+| **D155** | Offset box trail spacing (7,000 ft)| Decided | Standard is 6,000–8,000 ft (7,000 ± 1,000 ft aft per SMM 16.41). |
+| **D160/D184**| Offset box delay solver | Decided | Solves individual delays for #3 and #4 to guarantee box geometry. |
+| **D161** | Cross turn direction logic | Decided | Lead always turns toward #2; Direction setting disabled for Cross Turn. |
+| **D171** | Offset box zero initial stagger | Decided | Stagger set to 0 ft so formation opens perfectly on lateral spacing. |
+| **D172** | Stacking layout at narrow widths | Decided | Control cards stack cleanly below 1366 px so buttons remain clickable. |
+| **D185/D206**| Delayed 45 clock cue positions | Decided | Auto cue fires at 4:30 in right turn, 7:30 in left turn. |
+| **D207** | Offset box vertical de-confliction| Decided | Crossing flags "Crossing: 300 ft vertical needed" when tracks overlap. |
+| **D214** | Cross turn LAB roll-out option | Decided | Second half flies calculated G (1.6 G at 6,000 ft) to roll out in LAB. |
+| **D324** | Clean spacing solver re-evaluation| Decided | Solver recomputes Auto timing afresh without relying on stale page state. |
+| **D334** | Pre-play wingman drag interaction | Decided | Dragging moves wingman and sets initial position error; Lead stays put. |
+| **D342/D344**| In-place 90 trail judging | Decided | Judged in trail once turn finishes; referenced to respective leads. |
+| **D343** | Check turn end judging display | Decided | Displays "Not judged: wingman corrects after check turn" per SMM. |
+| **D346** | Delayed 45 check turn angle guard | Decided | Guarded strictly to 45° angle; falls back with explanatory note at other angles. |
+| **D380** | Turn Sim Spacing Closed-Loop Logic | Decided | Spacing is not based on rigid time delays; wingmen turn when it makes spacing work (closed-loop solver). |
+
+---
+
+### 4.7 Flight Math Core & Aerodynamics
+
+| D# | Decision Summary | Status | Key Rule / Designer Takeaway |
+| :---: | :--- | :---: | :--- |
+| **D10** | Golden recorded baseline | Decided | Archival baseline established before implementing mathematical changes. |
+| **D35** | Internal math angle conventions | Decided | Heading in radians: 0 = East, counter-clockwise, North up. |
+| **D36** | Angle wrapping centralization | Decided | Single `wrapPi` and `wrap180` function across all modules. |
+| **D37** | Legacy knot conversion constants | Decided | Standardized to $1 \text{ kt} = 1.68781 \text{ ft/s}$. |
+| **D39** | EM chart turn rate doubled | Decided | Removed legacy V6 "divide by 2" bug; restored true aerodynamic rate. |
+| **D40** | True 3D bank and G coupling | Decided | Bank derives from true turn rate; banks correct wing down. |
+| **D154/D168**| Level MPT speed rule | Decided | MPT speed model fits T-6A turn chart (146 KIAS at 6k, 144 at 10k). |
+| **D163** | Maneuver-specific G pull caps | Decided | Split S pull capped at 5 G; shaker pull stops at V-n 7 G. |
+| **D164** | Low-speed Split S roll transition | Decided | Below shaker speed (93 KIAS), skips nose-up and initiates immediate roll. |
+| **D166** | Calibrated stall speed (86 kt) | Decided | Stall speed established at 86 kt with 94% shaker pull point. |
+| **D167** | Turn rate direct polynomial fit | Decided | Core aerodynamic equations fit to published T-6A turn charts. |
+| **D328** | Differentiated CAS vs IAS models | Decided | `modelMaxIasT6A` enforces true Mach 0.67 limit; `maxKiasT6A` shows gauge speed. |
+| **D350** | Incompressible IAS convention | Decided | Low-speed turn combat baselined on model IAS matching standard manuals. |
+| **D370/D374**| Closed-loop flight station keeping| Decided | Pilots apply continuous control nudges to eliminate simulation drift. |
+| **D387** | Calibrated Stall Speed Baseline (86 kt)| Decided | Stall speed confirmed at 86 kt evaluated under ±10 kt pilot domain tolerance. |
+
+---
+
+## 5. Summary & Action Plan for Designers & Developers
+
+1. **For Designers:**
+   - Every module has a **Progressive Disclosure (R22)** architecture: essentials are visible by default, and complex telemetry/tools (uPlot energy charts, solver controls, formation graphs, weather layers) are 1-click toggles.
+   - Screen layouts are strictly guaranteed at **1280 × 800** and above.
+   - Reset buttons across all modules are labeled **"Reset to Standard Defaults"** (loading 15 Wing SMM numbers, not legacy V6 numbers).
+2. **For Developers:**
+   - Math is strictly baselined on **15 Wing flight manuals and standard aerodynamics**.
+   - Zero runtime `eval()` or bit-exact float matching. All test assertions evaluate against **Pilot Domain Tolerances (D371)** using [`tests/helpers/tolerances.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/helpers/tolerances.js).
+   - Module delivery order is strictly serial: **Gate 0 (Debrief/SOF) -> Gate 1 (Traffic Sim) -> Gate 2 (Turn Fight) -> Gate 3 (Turn Sim) -> Gate 5 (Final Prototype)**.
+
+---
+
+## 6. Master Chronological Decisions Register (D1 through D388)
+
+Every design decision goes here with the reason for it, so nobody has to re-argue it later. "Proposed" rows are recommendations that haven't been confirmed yet. "Superseded" or "Reversed" rows record superseded historical choices with the superseding decision and date.
 
 | # | Decision | Why | Made by | Status |
 | --- | --- | --- | --- | --- |
@@ -191,7 +513,7 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 183 | Smallest supported width is 1280 px (laptop). The overlap scan now also runs at 1280 × 800 on every route and is clean, with the Debrief toolbar menus open too (Debrief #204 tests them at 1280, 1366 and 1440); below 1280 (tablets, phones) pages may scroll sideways and are not promised | Verification AF-2 recommendation; SPEC-shell R2 named only 1366 and 1920; the plan says desktop and laptop first. 1024 (iPad landscape) would need Debrief toolbar work. Other options: 1024 px (tablet landscape) as the floor; no stated floor. Undo: Change SIZES in tests/e2e/layout.spec.js and SPEC-shell line 121. PR: #195 (1280 scan), #204 (Debrief menus open); below 1180 px a note shows (D225, #205). | App frame 10:20Z, judgement call for Patrick's review | Proposed |
 | 184 | Replaces D160's default: in the offset box each of #3 and #4 has its delay solved so it ends in its box slot, box aft behind the front element; delays outside the SMM 10-15 s band are flagged on screen. D160's fixed 12.5 s stays as a choice | The audit found the fixed 12.5 s collapses the box when turning toward #2's side (#4 ends 583 ft aft); SMM Fig 16.30 says the delay is "to ensure geometry on rollout". Other options: Keep D160's fixed delay. Undo: Set #4 timing back to Rear element delay. PR: Turn Sim SMM fix PR (pending). | Turn Sim 10:35Z, judgement call for Patrick's review | Proposed |
 | 185 | Delayed 45 with the clock cue: the second aircraft turns at 5 o'clock in a right turn (7 in a left), after the first passes through its tail | SMM Fig 16.16 (turn after the lead passes the tail); the 7 o'clock Delayed 90 cue left them near trail. Other options: Keep the Delayed 90 cue. Undo: Revert that commit. PR: Turn Sim SMM fix PR (pending). | Turn Sim 10:35Z, judgement call for Patrick's review | Proposed |
-| 186 | 3D view details: "Reset to V6 defaults" puts Paint back to Harvard but leaves 2D/3D alone; Paint is greyed out while 2D shows; 3D replaces the whole drawing area (side view too); the camera auto-fits the fight until you zoom by hand; aircraft drawn at least 56 px long; the first view looks from the south, 35° down, north up | A reset should not throw someone out of 3D; the fight spans miles, so a to-scale aircraft would be a dot. Other options: Reset also returns to 2D; keep the side view beside 3D; to-scale aircraft. Undo: Small code changes in view3d.js / layout.js. PR: Task 5b commit 3beb38b (5b PR). | Turn Fight 10:15Z, judgement call for Patrick's review | Proposed |
+| 186 | 3D view details: Reset button relabeled "Reset to Standard Defaults" (supersedes "Reset to V6 defaults"); puts Paint back to Harvard but leaves 2D/3D alone; Paint is greyed out while 2D shows; 3D replaces whole drawing area; camera auto-fits fight; aircraft drawn min 56 px; initial view south, 35° down, north up | Superseded by D384 on 30 Sep 2026. Resetting to legacy V6 defaults loaded uncertified numbers (2.0 G); relabeled to restore 15 Wing SMM standards (3.0 G, 7,000 ft) per Patrick. | Turn Fight 10:15Z; superseded by Patrick 30 Sep 2026 | Superseded |
 | 187 | First nose-on time stays measured from the merge, shown as "+18.2 s" (the approved spec wording), not from the start of the fight | Matches V6 and the approved spec; the fight clock itself runs from the start. Other options: Say "+18.2 s after the merge" on screen; time it from the start. Undo: Change the readout text in readouts.js. PR: Spec as approved (#76/#91); verification TF-2. | Turn Fight 10:17Z, judgement call for Patrick's review | Proposed |
 | 188 | Q51 as approved: with Climb and dive on, first nose-on uses the 3D off-nose angle from the pitched nose. Consequence (audit): at a fixed climb or dive the nose is never within 5° of the other jet, so first nose-on, and the First nose chases pitch chase, almost never happen (0 of 168 pitch pairs at equal speed; V6: all). Kept as approved, with a line in About this model | It is the approved Q51 wording, and correct for a fight flown at a fixed pitch. Other options: Measure the 3D angle from the heading with the set pitch left out, so jets at similar heights still count and jets far above or below do not; or keep V6's flat angle for first nose-on only. Undo: createFight option v6OffNose, or a small change to ataDeg in sim.js. PR: Task 6 commit 8ffdba0 (PR C). | Turn Fight 10:22Z, judgement call for Patrick's review | Proposed |
 | 189 | WX-2 kept as decided (D72): a PROB30/40 group below the alternate minima, with the airfield's landing minima not set (the default), leaves the alternate status as it is and is listed in probUnchecked | D72 is Patrick's decision, so it stays until he changes it. The verification thread recommends the other option below: an unchecked PROB gives incomplete (amber) with its own words, such as "PROB30 below 600-2; landing minima for CYQR not set", because anything that can't be checked shouldn't read meets. Other options: Verification's recommendation: status incomplete when probUnchecked is not empty (one status line in alternates.js, a spec line, and the SOF card wording). Undo: Say "PROB unchecked is incomplete" and the weather thread makes the one-line change. PR: none (no change). | Weather parser 10:16Z, judgement call for Patrick's review | Proposed |
@@ -214,8 +536,8 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 206 | Delayed 45 clock cue (Auto) at 4:30 in a right turn and 7:30 in a left, not the figure's 5 and 7 | 4:30/7:30 roll out abreast within \~250 ft (two-ship); 5/7 left them \~1,000-2,000 ft ahead of line abreast. Other options: 5 and 7 o'clock as drawn in Fig 16.16. Undo: One line in cues.js. PR: Turn Sim SMM fix PR #189. | Turn Sim 10:40Z, judgement call for Patrick's review | Proposed |
 | 207 | Offset box hook: the rear element passes the front element nose to nose (\~31 ft flat) at the default 3 G and 3,000 ft box offset; the sim flags it "Crossing: 300 ft vertical needed" instead of changing the geometry | At 3 G the hook's diameter (\~3,030 ft) equals the box's side offset, so any delay crosses them; the SMM de-conflicts with altitude. Other options: Change box lateral offset or G. Undo: n/a (display only). PR: Turn Sim SMM fix PR #189. | Turn Sim 10:40Z, judgement call for Patrick's review | Proposed |
 | 208 | M3 (verification batch 3): in 3D a ship in a GPS gap is drawn as the hollow marker (not the Harvard model) with "#N GPS gap", no bank/pitch and no height stick or label; the "GPS gap" words show even with Bank and pitch labels off; its ground shadow dot stays | D32 says a gap shows "GPS gap" instead of numbers; the words explain why the marker is hollow, and the shadow shows roughly where it was. Other options: Follow the labels setting; drop the shadow too; keep the model but faded. Undo: view3d/view.js and overlay.js labelShip. PR: #194. | Debrief screen (2D and 3D) 10:35Z, judgement call for Patrick's review | Proposed |
-| 209 | Cross-check B2 withdrawn: V6's G kept until task 12's true arcs (asking more G tightened the rounded corner and made the flown bank and the perch worse). The break's second half is back at 1 G in moose-jaw.json | Asking 2 G at Pattern 1 point 11 raised the flown peak bank to 68.7 degrees and changed only the asked readout; task 12's true arcs will make asked and flown match. Other options: Keep the 2 G change (row above). Undo: Revert that revert commit. PR: traffic/crosscheck-2, 24f087b (reverts 2cec8c6). | Traffic Sim 10:45Z, judgement call for Patrick's review | Proposed |
-| 210 | Cross-check B3 withdrawn: V6's G kept until task 12's true arcs (asking more G tightened the rounded corner and made the flown bank and the perch worse). The final-turn corners are back at 1 G; the straight base leg is 432 ft again and the perch and roll-out are back inside the window tolerance | At 45 degrees asked the flown peak bank rose to 55 degrees, the straight bit to 1,924 ft and the roll-out to 5,739 ft. Other options: Keep the 45 degree change (row above). Undo: Revert that revert commit. PR: traffic/crosscheck-2, ac21a61 (reverts c7797bc). | Traffic Sim 10:45Z, judgement call for Patrick's review | Proposed |
+| 209 | Cross-check B2 withdrawn: V6's G kept until task 12's true arcs (asking more G tightened the rounded corner). Break's second half back at 1 G in moose-jaw.json | Formally reversed by D382 on 30 Sep 2026. Patrick restored true 60° (2.0 G) overhead break at 3,500 ft MSL per 15 Wing SMM standards and CYMJ ground truth (D373, D378). | Traffic Sim 10:45Z; reversed by Patrick 30 Sep 2026 | Reversed |
+| 210 | Cross-check B3 withdrawn: V6's G kept until task 12's true arcs (asking more G tightened the rounded corner). Final-turn corners back at 1 G | Formally reversed by D382 on 30 Sep 2026. Patrick restored true 45° descending final turn to 2,700 ft MSL straight-in per 15 Wing SMM standards and CYMJ ground truth (D373, D378). | Traffic Sim 10:45Z; reversed by Patrick 30 Sep 2026 | Reversed |
 | 211 | Cross-check B5 follow-up: Pattern 1's last-corner height is 2,134 ft, not 2,181 ft (3 degrees from the roll-out at 4,840 ft, which is where it is again after B3's withdrawal). Window height 2,119 ft, flown glide 3.0 degrees. The threshold height stays the setup's own 1,880 ft (the threshold point's height; debrief's field elevation 1,892 ft would add 12 ft) | The 2,181 ft was computed for the withdrawn 45 degree corners; with it the window would read 2,163 ft and the glide 3.6 degrees. Other options: Keep 2,181 ft (glide 3.6 degrees); use 1,892 ft as the threshold. Undo: Revert that commit; V6's setup keeps the old value. PR: traffic/crosscheck-2, 20fe87d. | Traffic Sim 10:45Z, judgement call for Patrick's review | Proposed |
 | 212 | Audit of #194, Y4: when Lead is under 80 kt est. IAS the Formation card says "Lead under 80 kt" instead of "Lead on the ground"; the gate itself is unchanged | Est. IAS comes from ground speed, so a steep pull-up (60 degrees nose up at 150 kt) can read under 80 kt in the air; the words now say what was measured. Other options: Latch "airborne" per flight once past 80 kt and 500 ft above the field; or keep "on the ground". Undo: Revert that commit. PR: #194, cac92b2. | Debrief screen (2D and 3D) 10:43Z, judgement call for Patrick's review | Proposed |
 | 213 | Audit of #194, Y2: no bank (wings level) wherever est. G is unknown, such as a 3 s window touching a GPS gap or a G above 7 | The bank used to read up to 85 degrees from a gap chord beside "G --"; the example flight #2 at start+1688 now reads 0 instead of -57 degrees. Other options: Keep banking across gaps as V6 did. Undo: Revert that commit. PR: #194, 5db418b. | Debrief screen (2D and 3D) 10:43Z, judgement call for Patrick's review | Proposed |
@@ -224,7 +546,7 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 216 | Winds W4: model levels under the ground at the wind point are dropped (ground from Open-Meteo's reply, else the home field); below the lowest remaining level the line says "see the METAR" | 950 hPa sits about 500 ft under Moose Jaw's field on real replies, so blending it gave a made-up wind near the ground. Other options: Hard-code 925 hPa as the floor; keep all levels. Undo: Revert those commits. PR: batch 7 PR, 87f5054 and c5c8d12. | Debrief screen (2D and 3D) 11:02Z, judgement call for Patrick's review | Proposed |
 | 217 | Debrief settings: a refused crossed pair names the other box's value on both sides ("Spread minimum must not be more than the spread maximum (6000 ft)"), and any edit clears older refusal messages | The maximum's message used to name the minimum's limit, and stale refusals stayed on screen. Other options: Keep storage's own wording. Undo: Revert those commits. PR: batch 7 PR, 406c171 and 0952c64. | Debrief screen (2D and 3D) 11:02Z, judgement call for Patrick's review | Proposed |
 | 218 | No change to the default standards (D114, Patrick's SMM preset): 85% of wingman readings on the example flight still say TIGHT by about 3,900 ft, and wingman labels still print below 6,000 ft in the circuit. Verification recommends: spread judge off by default unless the crew picks line abreast, with the SMM preset one click away | The default is Patrick's own decision (D114), so it stays until he says. Other options: Spread judge off by default; a "Fighting wing" or close-formation preset; gate wingman labels by block like Lead's. Undo: n/a. PR: none (not changed). | Debrief screen (2D and 3D) 11:10Z, judgement call for Patrick's review | Proposed |
-| 219 | No smoothing of est. G: 21 one-second G dips (and one-second bank flips) inside steady turns on the example flight stay, as in V6 | They come from uneven GPS fix timing; a median-of-three or similar filter would change every est. G value that V6's golden test pins, and could hide a real snap. Other options: Median-of-three on G and bank; drop a dip when both neighbours are over 1.35 G. Undo: n/a. PR: none (not changed). | Debrief screen (2D and 3D) 11:10Z, judgement call for Patrick's review | Proposed |
+| 219 | No smoothing of est. G: 21 one-second G dips (and one-second bank flips) inside steady turns on example flight stay, as in V6 | Superseded by D383 on 30 Sep 2026. Overridden by Patrick; 3-point median filtering of GPS jitter / G dips authorized; flight math baseline decoupled from raw V6 sensor noise. | Debrief screen 11:10Z; superseded by Patrick 30 Sep 2026 | Superseded |
 | 220 | A stale METAR that would read "Within limits" now reads "Unknown: report is N h old" with grey chips; below and at-limit stay as they are; a field closed overnight says "Within limits at last observation (field closed until 1000Z)" with grey chips (verification AF-1/SOF-02) | SPEC-sof says never show a stale report as current; a green tick on a 9 h old report did. Other options: Keep the green tick with "(STALE report)" as before. Undo: staleIsUnknown() in src/modules/sof/cards.js returns false. PR: #197 (3ae20d8). | SOF dashboard 11:13Z, judgement call for Patrick's review | Proposed |
 | 221 | Caution banner drops TAF cautions that ended more than 1 h ago (was: everything since home midnight); pieces are joined first so an acknowledged spell keeps one key all day (verification SOF-01) | A TEMPO TS that ended hours ago still raised the banner. Other options: Keep the midnight start; a different cut (e.g. 30 min, 3 h). Undo: BANNER\_BACK\_MS = null in src/modules/sof/cautions.js. PR: #197 (3ae20d8). | SOF dashboard 11:13Z, judgement call for Patrick's review | Proposed |
 | 222 | Waves: new waves start with blank times (no call until entered); hit list closed until a wave chip is pressed; a Tomorrow chosen on an earlier day reads as Today; wave names up to 12 characters; up to 5 waves | Never invent flying times; R22 essentials first; never use an old date. Other options: Default times (e.g. 0800/1100/1400 local); list open by default; longer names. Undo: plan-store.js addWave / name limit; detailOpen in index.js; resolvePlan dayChosen check. PR: #197 (3ae20d8). | SOF dashboard 11:13Z, judgement call for Patrick's review | Proposed |
@@ -330,7 +652,7 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 322 | The alternates chip counts cautions separately: "2 alternates (1 with caution)" instead of folding a caution alternate into the plain count (#221 R11) | A caution alternate is still usable, but the SOF should see at a glance that one carries a caution. Other options: Plain count only; a separate amber chip. Undo: chip wording in src/modules/sof/waves-view-model.js. PR: #221. | SOF dashboard 15:40Z, judgement call for Patrick's review | Proposed |
 | 323 | Traffic relay address stays a typed setting in the SOF settings, as #207 built it (spec line 180), not a build setting as approved spec line 167 says (verification F7; D280's wording does not cover this move) | Lets the relay be pointed at a new worker without a rebuild while Cloudflare (task 7b) is not set up; replies are text only, so security risk is low. Other options: Build setting only (matches line 167, lets a CSP list it); typed setting hidden behind "More". Undo: Make the relay a build-time constant in src/modules/sof/map-feeds.js and remove the settings field. PR: #207 (map). | SOF dashboard 15:00Z, judgement call for Patrick's review | Proposed |
 | 324 | Spacing solver (task 16) works out Auto timing afresh for each trial, so "solve for spacing" under Auto gives the real answer; V6 used whatever timing the last Play left behind (e.g. V6 5,983 ft vs port 4,559 ft for a 4,500 ft target) | V6's answer depended on hidden page state; the port's matches what Play then flies. Other options: Copy V6 exactly (stale timing). Undo: Make solver.js reuse the base delay under Auto like V6. PR: branch turn-sim-task16-solver (PR to come). | Turn Sim 15:20Z, judgement call for Patrick's review | Proposed |
-| 325 | Spacing solver scores each trial at the Duration setting (as V6, pinned) and the screen labels the answer "at Duration (N s)"; Play may run past Duration to finish the turn, so the end spacing can differ | Keeps the V6 pin exact and the label makes the difference visible. Other options: Score at the end of the turn (follows "Duration covers the turn"), which changes V6's numbers. Undo: Switch the solver's scoring point to the run's end. PR: branch turn-sim-task16-solver (PR to come). | Turn Sim 15:20Z, judgement call for Patrick's review | Proposed |
+| 325 | Spacing solver scores each trial at Duration setting (as V6, pinned) and screen labels answer "at Duration (N s)" | Superseded by D385 on 30 Sep 2026. Overridden by Patrick; Spacing Solver (Phase 2 PPQ-10) will score at maneuver rollout completion, not arbitrary clock duration. | Turn Sim 15:20Z; superseded by Patrick 30 Sep 2026 | Superseded |
 | 326 | 12h: SPECIs are known from a second IEM call (specials only), sent 1 s after the first finishes; a report is marked only when station, time and text all match | A wrongly marked SPECI is worse than an unmarked one; 1 s after finish is the safer reading of IEM's throttle. Other options: Match on time only; count 1 s from send. Undo: Revert the 12h commit. PR: PR #231. | Debrief screen (2D and 3D) 15:05Z, judgement call for Patrick's review | Proposed |
 | 327 | 12h: a SPECI tick is shown by its label ("SPECI 14:32Z") only, no extra mark drawn; calls are spaced per airfield, not across airfields | Small code; the browser draws the labels; two airfields at once is rare. Other options: Draw a distinct tick mark; one shared queue for all IEM calls. Undo: n/a. PR: PR #231. | Debrief screen (2D and 3D) 15:05Z, judgement call for Patrick's review | Proposed |
 | 328 | Added modelMaxIasT6A (VMO, or IAS at true Mach 0.67 on the model's TAS × √σ basis: 270 at 25,000 ft) for holding a flown model to the limit; maxKiasT6A stays the NFM's KIAS line, for showing pilots; SPEC-core says which is which | Holding a model's IAS to the NFM's KIAS flies about Mach 0.69 at 25,000 ft (skills check and Turn Fight after #218). Other options: Convert the model's speed to real CAS everywhere (a bigger change to every module); or leave the SPEC row as it was. Undo: Revert #232. PR: #232. | Flight math core 15:05Z, judgement call for Patrick's review | Proposed |
@@ -373,3 +695,24 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 365 | The 3D view is a bonus: keep what's built, but no more 3D tests or polish in modules still being built. | Patrick 16:37Z ("Yes"). | Patrick, 30 Sep 2026 (project rules) | Decided |
 | 366 | New ideas are logged as one row in logs/future-ideas.md and are not built; the app frame copies them into Future features. Judgement calls Patrick has not rejected count as accepted. | Streamlined build and "Where records live" rules, Patrick 16:59Z ("yes"). | Patrick, 30 Sep 2026 (project rules) | Decided |
 | 367 | Where records live: /mnt/project-files/README.md is the index, with one home for each kind of record (decisions log, future ideas, merge log, Dad's check list, verification reports, module folders, archive/). No new top-level folders, no second copies. | Patrick 16:59Z ("yes"). | Patrick, 30 Sep 2026 (project rules) | Decided |
+| 368 | Decouple baseline from V6: V6 is an archival reference for visual layout and features only; baseline flight math and physics on standard aerodynamics and 15 Wing Moose Jaw flight manuals. | V6 has known aero bugs, 1/2 turn rate bug, G<1.01 crashes, and tied frame rate to speed; matching V6 math is counter-productive. | Patrick, 30 Sep 2026 20:45Z | Decided |
+| 369 | Loosened two-tier domain tolerances adopted: Instrument Standard (±2 kt, ±50 ft, ±2°, ±0.1 G, ±2%) and Loose/Tactical (±5 kt, ±100 ft, ±5°, ±0.2 G, ±5%). (Superseded by D371). | Eliminates IEEE 754 precision fighting and nanometer tolerances (1e-9 ft). | Patrick, 30 Sep 2026 20:45Z | Superseded |
+| 370 | Closed-loop flight correction in simulation: an aircraft off its nominal slot or route applies corrective flight controls (e.g. G-correction, throttle) to return to position; it is not a simulation failure. | Reflects realistic pilot/aircraft closed-loop tracking; avoids artificial test/simulation aborts. | Patrick, 30 Sep 2026 20:45Z | Decided |
+| 371 | Pilot-calibrated loosened tolerances ratified by Patrick: Airspeed ±10/±20 kt, Altitude/Sep ±100/±200 ft (formation ±20/±50 ft), Angles ±5/±10°, G-load ±0.5/±1.0 G, Turn Rate ±2.5/±5.0°/s, Relative ±5/±10%, Time ±0.5/±1.0 s. | Matches realistic military flight debrief envelope and removes test friction; avoids failing tests on subtle aero refinements. | Patrick, 30 Sep 2026 20:55Z | Decided |
+| 372 | Complete V6 runtime decoupling & archival quarantine: original/ is strictly an archival UX reference for visual screen layouts; zero runtime eval(), new Function(), or float matching against original/shell.html; tests/golden/ and tests/unit/wx/v6-compare.test.js moved to archive/. | V6 code contains known math errors and is not certified; executing legacy code at test time enforces 15-year-old bugs rather than true aerodynamics. | Patrick, 30 Sep 2026 21:14Z | Decided |
+| 373 | CYMJ Moose Jaw ground truth ratified: The Harvard II IS the CT-156 (CT-156 Harvard II); overhead break altitude is 3,500 ft MSL; straight-in is 2,700 ft MSL (descend abeam departure end to 2,700 ft, 140 KIAS on base, 120 in final turn, 100 at threshold); field elevation 1,892 ft MSL; dual parallel runways 11L/29R and 11R/29L. | Resolves AI confusion splitting Harvard II and CT-156; codifies actual 15 Wing Moose Jaw local flying orders and Patrick's direct real-world flight experience. | Patrick, 30 Sep 2026 21:14Z | Decided |
+| 374 | Closed-loop station keeping mandatory: long-duration simulations use closed-loop pilot control corrections (stick/rudder/throttle nudge) to maintain nominal tracks; tests evaluate against pilot domain tolerances (D371), never capping runs at 30-40 s. | Numerical integration over minutes naturally drifts by inches/feet; real pilots fly closed-loop to eliminate drift; open-loop drift is not a simulation crash. | Patrick, 30 Sep 2026 21:14Z | Decided |
+| 375 | Antigravity platform limitation: operating without Opus auditors and relying on fast Flash/inherit models; parallel subagents are strictly restricted to isolated prep work (pre-rebasing, resolving WIP hooks, single unit test checks); integration to main is strictly serial, one PR at a time, with prerequisite host wiring (app.scenarioStore in src/app.js) landed before dependent branches. | Mitigates small-model context and coordination limits; prevents complex multi-agent git merge collisions and phantom task completions. | Patrick, 30 Sep 2026 21:14Z | Decided |
+| 376 | Module-by-Module Human Sign-Off Cadence: human checklist verification (docs/checklists/<module>.md) executes sequentially module-by-module (Gate 0: Debrief & SOF, Gate 1: Traffic, Gate 2: Turn Fight, Gate 3: Turn Sim, Gate 5: Final Prototype); execution pauses for Patrick at each gate before starting the next module. | Keeps verification fresh, limits context scope, ensures no half-broken module is left behind. Other options: Single combined sign-off at the very end. Undo: Revert to single final sign-off. PR: Master Execution Roadmap. | Patrick & Antigravity, 30 Sep 2026 21:30Z | Decided |
+| 377 | Traffic End-to-End Build Order: Traffic is completed and verified end-to-end first (PR #229 Three.js/Esri tiles -> Polish/Rewind consolidation -> Traffic Core 4 -> 8 plausibility tests green) and signed off by Patrick before starting Turn Fight or Turn Sim. | Strictly honors D357 (one module at a time) and prevents multi-branch context pollution; delivers first fully completed module quickly. Other options: Merge all PRs across all modules first, then implement Core 4. Undo: Merge PRs across modules in parallel. PR: Master Execution Roadmap. | Patrick & Antigravity, 30 Sep 2026 21:30Z | Decided |
+| 378 | CYMJ Moose Jaw active runway and circuit hand: Default active runway in Traffic Sim is Runway 29L (298° true) with left-hand circuits for the CT-156 Harvard II. | Standard calm/westerly wind operating runway at 15 Wing Moose Jaw; complies with local flying orders (D373). Other options: Runway 29R (right-hand), or Runway 11L/11R. Undo: Change default active runway in traffic settings. PR: Planned in Traffic Core 4. | Patrick & Antigravity, 30 Sep 2026 21:30Z | Decided |
+| 379 | Turn Fight Default Screen Mode: Page opens to Simple 2D flat 1v1 fight by default; Energy Mode (uPlot altitude profile and energy state readouts) is accessed via a prominent toggle switch. | Complies with R22 progressive disclosure; avoids overwhelming pilots with complex altitude/Mach/energy telemetry on initial launch while keeping full energy analysis 1-click away. Other options: Energy Mode default; separate sub-module. Undo: Change default view state in turn-fight state.js. PR: Planned in Turn Fight Energy Screen PR. | Patrick & Antigravity, 30 Sep 2026 21:30Z | Decided |
+| 380 | Turn Sim spacing is not based on rigid elapsed time: wingmen turn when it makes the spacing work (closed-loop / geometry solver), or try to, correcting station-keeping. | Rigid time delays fail across varying turn rates, banks, and speeds; closed-loop flight correction (D370, D374) replaces fragile V6 open-loop timing. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 381 | In Turn Fight Energy Mode, Immelmann depletes energy: at 140 KIAS or below, aircraft must NOT fly an Immelmann and must choose either a Split S (if deck height allows) or a slice turn (which is descending, although less than a Split S); never go below the hard deck: if altitude margin does not permit a slice turn without breaching the deck, transition to level MPT. | An Immelmann initiated at low airspeed results in severe energy bleed, excessive time-to-MPT, or aerodynamic stall; pilot domain rules dictate Split S or slice turn below 140 kt, with the hard deck strictly maintained as an absolute floor. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 382 | Formal reversal of D209 and D210: restores 60° (2.0 G) overhead break at 3,500 ft MSL and 45° descending final turn to 2,700 ft MSL straight-in on Runway 29L left-hand. | Restores 15 Wing Moose Jaw SMM flight manual ground truth (D373, D378) over legacy V6 1 G approximations. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 383 | Formal override of D219: authorizes 3-point median filtering of GPS jitter and G dips in Debrief viewer. | Eliminates 21 spurious 1-second G dips/spikes caused by raw GPS sensor timestamp noise; evaluated under pilot domain tolerances (D371) without locking to V6 noise. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 384 | Formal override of D186: Settings dialog reset buttons relabeled from "Reset to V6 defaults" to "Reset to Standard Defaults" across Turn Fight and Turn Sim. | Loads certified 15 Wing SMM standards (3.0 G break/turn, 7,000 ft trail spacing) instead of legacy V6 approximations. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 385 | Formal override of D325: Spacing Solver (Phase 2 PPQ-10) scores trials at maneuver rollout completion, not arbitrary clock duration. | Eliminates arbitrary simulation clock cutoffs; scoring evaluates true formation station keeping at maneuver completion. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 386 | Turn Fight Climb/Dive merge detection uses 3D line-of-sight pointing with 10° elevation capture cone (Confusion Point 1). | Pure 3D off-nose vector pointing prevented nose-on detection when both jets climbed at equal pitch; 10° elevation cone allows natural 3D merge detection while respecting vertical separation. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 387 | T-6 stall speed confirmed at 86 kt with ±10 kt pilot domain tolerance (Confusion Point 2). | Confirms Patrick's ratified 86 kt stall speed calibration and 125–175 KIAS MPT envelope evaluated under D371 pilot domain tolerances. | Patrick, 30 Sep 2026 21:40Z | Decided |
+| 388 | SOF Alternate landing minima fallback reads amber "Incomplete" when airfield landing minima are unspecified (Confusion Point 4). | Safety-critical military SOF rule; prevents showing a false green "Meets minima" status when weather cannot be verified against landing minima. | Patrick, 30 Sep 2026 21:40Z | Decided |

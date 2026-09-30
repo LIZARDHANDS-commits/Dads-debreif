@@ -6,17 +6,11 @@ Each item names the thread that raised it and where the detail is.
 
 ## Turn Fight
 
-**1. Split S below 120 KIAS, or a slice? (Turn Fight P1)**
-- **Question:** From 100 to 119 KIAS, does a Harvard slice really build 160 KIAS in about 7 s and 60° of turn, losing 600 to 700 ft?
-- **Why we ask:** In the model, Auto's split S from 100 to 119 KIAS takes 25 to 29 s and a full 360° to reach the MPT. It is 3 to 4 times slower than a slice, and it ends about 600 ft lower.
-- **Now:** Auto keeps the split S under 120 KIAS (SMM Table 14.1, D144). If Dad says the slice is right, the split point drops to about 100 (the SMM's slice band is 100 to 160).
-- Detail: verification/turn-fight-energy-209.md, P1.
+**1. Split S below 120 KIAS, or a slice? (Turn Fight P1) — RESOLVED BY PATRICK (D381)**
+- **Answered 2026-09-30 (D381):** At 140 KIAS or below, aircraft must NOT fly an Immelmann and must choose either a Split S (if deck height allows) or a slice turn. *Patrick's rule:* A slice turn is descending (although losing less altitude than a Split S). Never go below the hard deck: if altitude margin does not permit a slice turn without breaching the deck, transition to level MPT.
 
-**2. Lowest Immelmann top speed: 120, or about 140? (Turn Fight N3)**
-- **Question:** Should Auto's "Lowest Immelmann top speed" go up from 120 to about 140 KIAS?
-- **Why we ask:** Above about 240 KIAS, Auto's Immelmann takes 250° to 500° of turn to settle into the MPT. The worst case is 501° and 45 s at 259 KIAS and 20,000 ft. A pitch back takes about 100°.
-- **Now:** 120 (SMM 14.15 entry gate), logged as D351.
-- Detail: verification/turn-fight-energy-227.md, N3.
+**2. Lowest Immelmann top speed: 120, or about 140? (Turn Fight N3) — RESOLVED BY PATRICK (D381)**
+- **Answered 2026-09-30 (D381):** Immelmann depletes energy. Below 140 KIAS, an Immelmann is strictly forbidden (must fly Split S or slice turn). The minimum top speed threshold is codified in D381.
 
 ## Turn Sim
 
