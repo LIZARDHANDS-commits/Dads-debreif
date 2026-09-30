@@ -10,6 +10,8 @@ import { createAirfields } from '../../../src/airfields/airfields.js';
 import { MAX_WAVES } from '../../../src/modules/sof/waves.js';
 import { buildWaves, dayLabel, resolveSelected } from '../../../src/modules/sof/waves-view-model.js';
 import { HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
+import { smallHoursChange, noChange } from '../../fixtures/sof/timeline-zones.js';
+import { zoneAbbreviation } from '../../../src/core/time.js';
 
 const ZONE = 'America/Regina'; // Moose Jaw, CST all year
 const NOW = new Date('2026-09-29T18:42:00Z'); // 12:42 on the 29th at home
@@ -267,4 +269,36 @@ test('an alternate on a stale TAF says so on its card line and in the list of hi
   const alt = m.detail.alternates.find((a) => a.icao === 'CYQR');
   assert.match(alt.why ?? '', /STALE TAF/);
   assert.equal(alt.tone === 'ok', false, 'not a plain tick');
+});
+
+// ---- A day the clocks change: each time carries its own zone name ----------------------------------------------
+
+const TORONTO = 'America/Toronto';
+const HOUR = 3_600_000;
+
+for (const kind of ['forward', 'back']) {
+  const change = smallHoursChange(TORONTO, 2026, kind);
+  test(`on the day the clocks go ${kind} (${TORONTO}) a wave across the change names both zones, and the day says both`, { skip: change ? false : noChange(TORONTO, 2026, kind) }, () => {
+    const before = zoneAbbreviation(new Date(+change.at - 3 * HOUR), TORONTO);
+    const after = zoneAbbreviation(new Date(+change.at + 3 * HOUR), TORONTO);
+    assert.notEqual(before, after, 'the tz data has two names either side of the change');
+    const noon = new Date(+change.at + 8 * HOUR);
+    const at = (minutes) => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    const takeoff = at(change.wallMinutes - 30 < 0 ? 0 : change.wallMinutes - 30);
+    const land = at(change.wallMinutes + 3 * 60);
+    const across = model({ waves: [w('w1', takeoff, land)], timeZone: TORONTO, now: noon });
+    assert.equal(across.zone, `${before}/${after}`);
+    assert.equal(across.rows[0].title, `W1 ${takeoff.replace(':', '')} ${before}–${land.replace(':', '')} ${after}`);
+    // Two times after the change use the name after it, whatever the day began as.
+    const late = model({ waves: [w('w1', '15:00', '16:30')], timeZone: TORONTO, now: noon });
+    assert.equal(late.rows[0].title, `W1 1500–1630 ${after}`);
+    const early = model({ waves: [w('w1', '00:10', '00:40')], timeZone: TORONTO, now: noon });
+    assert.equal(early.rows[0].title, `W1 0010–0040 ${before}`);
+  });
+}
+
+test('an ordinary day names one zone, as before', () => {
+  const m = model({ waves: [EARLY], timeZone: ZONE });
+  assert.equal(m.zone, 'CST');
+  assert.equal(m.rows[0].title, 'W1 1230–1400 CST');
 });

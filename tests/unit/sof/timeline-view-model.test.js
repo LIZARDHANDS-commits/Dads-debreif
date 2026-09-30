@@ -12,6 +12,8 @@ import { planToUtc } from '../../../src/modules/sof/waves.js';
 import { timelineModel, timelineSignature } from '../../../src/modules/sof/timeline.js';
 import { timelineRows, buildTimelineView, moveFocus } from '../../../src/modules/sof/timeline-view-model.js';
 import { HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
+import { smallHoursChange, noChange } from '../../fixtures/sof/timeline-zones.js';
+import { zoneAbbreviation } from '../../../src/core/time.js';
 
 const ZONE = 'America/Regina'; // CST all year; the day 29 Sep is 06Z on the 29th to 06Z on the 30th
 const NOW = new Date('2026-09-29T18:42:00Z'); // 12:42 at home
@@ -287,4 +289,39 @@ test('the picture is redrawn when a note appears or goes: the signature changes'
   const b = view({ tafs, tafNotes: { CYMJ: STALE } }).signature;
   assert.notEqual(a, b);
   assert.equal(b, view({ tafs, tafNotes: { CYMJ: STALE } }).signature);
+});
+
+// ---- A day the clocks change: the title, the local row, the cards and the waves name the right zone ---------------
+
+const TORONTO = 'America/Toronto';
+const HOUR = 3_600_000;
+const pad = (n) => String(n).padStart(2, '0');
+
+for (const kind of ['forward', 'back']) {
+  const change = smallHoursChange(TORONTO, 2026, kind);
+  test(`on the day the clocks go ${kind} (${TORONTO}) the title, the local row and the cards say both zone names`, { skip: change ? false : noChange(TORONTO, 2026, kind) }, () => {
+    const before = zoneAbbreviation(new Date(+change.at - 3 * HOUR), TORONTO);
+    const after = zoneAbbreviation(new Date(+change.at + 3 * HOUR), TORONTO);
+    assert.notEqual(before, after);
+    const now = new Date(+change.at + 8 * HOUR);
+    // A TAF valid from the evening before to the evening after: one prevailing piece across the change.
+    const dd = (d, h) => `${pad(d.getUTCDate())}${pad(h)}`;
+    const start = new Date(+change.at - 12 * HOUR);
+    const end = new Date(+change.at + 30 * HOUR);
+    const raw = `TAF CYMJ ${dd(start, start.getUTCHours())}00Z ${dd(start, start.getUTCHours())}/${dd(end, end.getUTCHours())} 22010KT P6SM SKC`;
+    const tafs = { CYMJ: { raw, report: parseTaf(raw, { now: start }), source: 'metno' }, ...GOOD };
+    const v = view({ tafs, now, timeZone: TORONTO, waves: [{ name: 'W1', takeoff: new Date(+change.at - HOUR), land: new Date(+change.at + 2 * HOUR), nextDay: false }] });
+    assert.equal(v.title.endsWith(`(${before}/${after})`), true, v.title);
+    assert.equal(v.axis.find((a) => a.zone === 'local').label, `${before}/${after}`);
+    const card = row(v, 'CYMJ').pieces[0].card;
+    assert.match(card, new RegExp(`local \\d\\d:\\d\\d ${before}–\\d\\d:\\d\\d ${after}\\.`), card);
+    assert.match(v.waves[0].text, new RegExp(`local \\d\\d:\\d\\d ${before}–\\d\\d:\\d\\d ${after}\\.`), v.waves[0].text);
+  });
+}
+
+test('an ordinary day still says one zone in the title, the local row and the cards', () => {
+  const v = view({ tafs: { CYMJ: taf(HOME_TAF.good), ...GOOD } });
+  assert.equal(v.title, '24-hour timeline, Tue 29 Sep (CST)');
+  assert.equal(v.axis.find((a) => a.zone === 'local').label, 'CST');
+  assert.match(row(v, 'CYMJ').pieces[0].card, /local \d\d:\d\d–\d\d:\d\d CST\. Conditions/);
 });

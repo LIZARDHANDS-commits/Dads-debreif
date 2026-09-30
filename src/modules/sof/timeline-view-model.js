@@ -3,16 +3,15 @@
 // this feeds it the screen's reports, lays it out as rows of lines with percentages of
 // the day, puts every piece in words for the hover and focus card, and works out where
 // the arrow keys go. Nothing here reads a report or judges the weather.
-import { formatInZone } from '../../core/time.js';
 import { timelineModel, timelineSignature, stepPiece } from './timeline.js';
 import { snapLimits } from './settings-model.js';
 import { dayLabel } from './waves-view-model.js';
 import { withTafNote } from './taf-state.js';
+import { zoneSpan, dayZones } from './zone-words.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const hhmm = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}`;
 const pct = (x) => Math.round(x * 100 * 1e6) / 1e6; // a fraction of the day as a percentage, without float noise
-const localClock = (d, timeZone) => formatInZone(d, timeZone).slice(0, 5);
 
 /**
  * The rows timeline.js takes: home first, then each alternate. Home gets the home limits (as the
@@ -51,8 +50,8 @@ function packLanes(pieces) {
   });
 }
 
-function pieceView(icao, p, lane, timeZone, zone, state) {
-  const said = `${icao} ${p.text}. Zulu ${hhmm(p.fullFrom)}–${hhmm(p.fullTo)}, local ${localClock(p.fullFrom, timeZone)}–${localClock(p.fullTo, timeZone)} ${zone}.${p.summary ? ` Conditions: ${p.summary}.` : ''}`;
+function pieceView(icao, p, lane, timeZone, state) {
+  const said = `${icao} ${p.text}. Zulu ${hhmm(p.fullFrom)}–${hhmm(p.fullTo)}, local ${zoneSpan(p.fullFrom, p.fullTo, timeZone)}.${p.summary ? ` Conditions: ${p.summary}.` : ''}`;
   const card = state?.note ? `${said} (${state.note})` : said;
   return {
     id: p.id,
@@ -73,8 +72,8 @@ function pieceView(icao, p, lane, timeZone, zone, state) {
   };
 }
 
-function rowView(r, timeZone, zone, state) {
-  const pieces = packLanes(r.pieces).map((lane, i) => pieceView(r.icao, r.pieces[i], lane, timeZone, zone, state));
+function rowView(r, timeZone, state) {
+  const pieces = packLanes(r.pieces).map((lane, i) => pieceView(r.icao, r.pieces[i], lane, timeZone, state));
   // A row drawn from a stale TAF, or one that failed to refresh, says so beside whatever else it says.
   const words = state?.note ? withTafNote(r.words, state) : r.words;
   const lanes = 1 + Math.max(0, ...pieces.map((p) => p.lane));
@@ -91,7 +90,7 @@ function rowView(r, timeZone, zone, state) {
   };
 }
 
-function waveView(w) {
+function waveView(w, timeZone) {
   const mark = (m) => ({ left: pct(m.x), visible: m.visible, label: m.label });
   return {
     name: w.name,
@@ -101,7 +100,7 @@ function waveView(w) {
     clippedEnd: w.clippedEnd,
     landing: mark(w.landing),
     landingPlus1: mark(w.landingPlus1),
-    text: `${w.text}, local ${w.localText}. Landing ${hhmm(w.landing.at)}Z, landing + 1 h ${hhmm(w.landingPlus1.at)}Z.`,
+    text: `${w.text}, local ${zoneSpan(w.from, w.to, timeZone)}. Landing ${hhmm(w.landing.at)}Z, landing + 1 h ${hhmm(w.landingPlus1.at)}Z.`,
   };
 }
 
@@ -128,17 +127,19 @@ export function buildTimelineView({ airfields, snapshot, limits, waves = [], day
   const drawn = timelineSignature(model, { now: false });
   const signature = said.length ? JSON.stringify([drawn, said]) : drawn;
   if (model.problem) return { problem: model.problem, title: '24-hour timeline', signature, axis: [], rows: [], waves: [], now: null };
+  // The day's zone name, or both names on the day the clocks change.
+  const zone = dayZones(model.axis.from, model.axis.to, timeZone);
   return {
     problem: null,
-    title: `24-hour timeline, ${dayLabel(model.date)} (${model.zone})`,
+    title: `24-hour timeline, ${dayLabel(model.date)} (${zone})`,
     signature,
     axis: model.axis.rows.map((a) => ({
       zone: a.zone,
-      label: a.label,
+      label: a.zone === 'local' ? zone : a.label,
       ticks: a.ticks.map((t) => ({ left: pct(t.x), label: t.label, dayLabel: t.dayLabel })),
     })),
-    rows: model.rows.map((r) => rowView(r, timeZone, model.zone, tafNotes[r.icao])),
-    waves: model.waves.map(waveView),
+    rows: model.rows.map((r) => rowView(r, timeZone, tafNotes[r.icao])),
+    waves: model.waves.map((w) => waveView(w, timeZone)),
     now: model.now ? { left: pct(model.now.x), minute: model.now.minute, label: `Now ${hhmm(model.now.at)}Z` } : null,
   };
 }

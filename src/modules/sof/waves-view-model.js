@@ -3,8 +3,10 @@
 // makes every call with wx; this joins the two and puts them in words: a row and a chip
 // for each wave, the list of hits for the selected wave, and a line for each alternate
 // card. Nothing here reads a report or judges the weather.
-import { planToUtc, waveCalls, MAX_WAVES } from './waves.js';
+import { planToUtc, waveCalls, localToUtc, MAX_WAVES } from './waves.js';
 import { withTafNote } from './taf-state.js';
+import { dayZones } from './zone-words.js';
+import { zoneAbbreviation } from '../../core/time.js';
 
 const two = (n) => String(n).padStart(2, '0');
 const HOUR_MS = 3_600_000;
@@ -129,7 +131,11 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
     const wave = skip ? null : planned.waves[placed++];
     const call = wave ? calls.find((c) => c.wave === wave) : null;
     const name = skip?.name ?? wave.name;
-    const clock = entry.takeoff && entry.land ? `${entry.takeoff.replace(':', '')}–${entry.land.replace(':', '')} ${planned.zone}` : '';
+    // Each time takes its own zone name, so a wave across a clock change says both (EST 0030, EDT 0330).
+    const t = entry.takeoff?.replace(':', '');
+    const l = entry.land?.replace(':', '');
+    const zones = wave ? [zoneAbbreviation(wave.takeoff, timeZone), zoneAbbreviation(wave.land, timeZone)] : [planned.zone, planned.zone];
+    const clock = entry.takeoff && entry.land ? (zones[0] === zones[1] ? `${t}–${l} ${zones[0]}` : `${t} ${zones[0]}–${l} ${zones[1]}`) : '';
     const row = {
       id: entry.id,
       entryName: entry.name,
@@ -153,7 +159,7 @@ export function buildWaves({ plan, airfields, tafs = {}, limits, now, timeZone, 
     problem: planned.problem,
     day: plan.day,
     dayLabel: dayLabel(planned.date),
-    zone: planned.zone,
+    zone: planned.date ? dayZones(localToUtc(planned.date, 0, timeZone), localToUtc({ ...planned.date, day: planned.date.day + 1 }, 0, timeZone), timeZone) : planned.zone,
     rows,
     canAdd: entries.length < MAX_WAVES,
     limitNote: entries.length >= MAX_WAVES ? `Up to ${MAX_WAVES} waves` : '',
