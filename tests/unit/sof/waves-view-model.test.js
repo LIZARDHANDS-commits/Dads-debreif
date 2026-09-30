@@ -150,6 +150,14 @@ test('the chip says how many alternates meet their minima', () => {
   assert.equal(model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS } }).rows[0].chip.alternates, '3 of 3 alternates meet');
 });
 
+test('the chip adds "(1 with caution)" when an alternate meets its minima with thunderstorms or the like forecast', () => {
+  const stormy = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 TEMPO 2920/2922 4SM TSRA BKN040CB';
+  const tafs = { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS, CYQR: taf(stormy) };
+  const { chip } = model({ waves: [w('w1', '15:00', '16:30')], tafs }).rows[0];
+  assert.equal(chip.alternates, '3 of 3 alternates meet (1 with caution)');
+  assert.equal(model({ waves: [EARLY], tafs: { CYMJ: taf(HOME_TAF.good), ...GOOD_ALTS } }).rows[0].chip.alternates, '3 of 3 alternates meet', 'no caution, no words');
+});
+
 // ---- Selecting a wave lists every hit -----------------------------------------------------------------
 
 test('the first wave with a call is selected until another is chosen, and none can be chosen', () => {
