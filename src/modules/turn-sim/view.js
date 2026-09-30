@@ -187,7 +187,7 @@ function drawLead39(ctx, map, lead) {
   ctx.lineTo(bx, by);
   ctx.stroke();
   ctx.restore();
-  text(ctx, 'Lead 3/9', cx + 18, cy + 32, '#b9d8f5', 11);
+  text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
 }
 
 function drawTrails(ctx, map, trail) {
@@ -241,7 +241,11 @@ function drawSpacingLines(ctx, map, state, withNm) {
     ctx.lineTo(bx, by);
     ctx.stroke();
     ctx.setLineDash([]);
-    text(ctx, withNm ? formatNm(pair.distFt) : ft(pair.distFt), (ax + bx) / 2, (ay + by) / 2 - 6, '#c9d1d9', 11, 'center');
+    // A pair whose middle is on a third aircraft (#1 to #4 passes over #3) prints above that aircraft's "#3" tag, not on it.
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    const onShip = state.aircraft.some((c) => c.id !== pair.a && c.id !== pair.b && Math.hypot(map.worldToScreen(c.xFt, c.yFt)[0] - mx, map.worldToScreen(c.xFt, c.yFt)[1] - my) < 30);
+    text(ctx, withNm ? formatNm(pair.distFt) : ft(pair.distFt), mx, my - (onShip ? 24 : 6), '#c9d1d9', 11, 'center');
     ctx.setLineDash([6, 6]);
   }
   ctx.restore();
@@ -274,7 +278,8 @@ function drawTurnCircles(ctx, map, state, settings) {
     ctx.stroke();
     ctx.restore();
     // Under the circle, so it never sits on the spacing lines through the aircraft.
-    text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14, color, 11, 'center');
+    // Neighbours in a tight picture stagger by a row, so their words do not run together.
+    text(ctx, `#${a.id} ${g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14 + (a.id % 2 === 0 ? 13 : 0), color, 11, 'center');
   }
 }
 

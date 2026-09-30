@@ -47,6 +47,10 @@ test('#3 and #4 that cannot see a 5:30 cue in the offset box get the Q44c messag
     { mode: 'waiting', targetId: 2, clockPos: 5.5, cantSee: true },
   ]);
   assert.equal(cueStatus(s).warning, "#3 and #4 can't see their clock cue in the box, so they turn on the rear element timing instead.");
+  // N8: their lines agree with the warning, before and after the turn starts.
+  assert.deepEqual(cueStatus(s).lines.map((l) => l.text), ['starts the turn, nothing to wait for', "watching #1 for 5:30", 'turns on the rear element timing', 'turns on the rear element timing']);
+  s.aircraft[2].cue.mode = 'triggered';
+  assert.equal(cueStatus(s).lines[2].text, 'turns on the rear element timing');
   s.aircraft.pop();
   assert.equal(cueStatus(s).warning, "#3 can't see its clock cue in the box, so it turns on the rear element timing instead.");
 });
@@ -63,6 +67,10 @@ test('the offset box band lines say in the band or outside it, and are null with
   assert.deepEqual([box(16.1)[1].text, box(16.1)[1].outside, box(16.1)[1].info], ['turns 16.1 s after #3', false, true]);
   assert.deepEqual([box(-4.2)[1].text, box(-4.2)[1].outside], ['turns 4.2 s before #3', false]);
   assert.equal(box(-4.2)[0].outside, true); // #3 is still judged against the band
+  // N6: in the hook #3 and #4 start together, so #4 says so instead of a time after #3.
+  const hook = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 18.9, outsideBand: true }, { id: 4, delaySec: 18.9, outsideBand: true }] } }, 'boxSlot', 'hook90');
+  assert.deepEqual([hook[1].text, hook[1].outside, hook[1].info], ['turns with #3', false, true]);
+  assert.equal(hook[0].text, '18.9 s, outside the SMM 10-15 s; solved so the box keeps its shape');
   // Any other timing keeps both rows judged.
   const other = offsetBandLines({ offsetBox: { minSec: 10, maxSec: 15, rear: [{ id: 3, delaySec: 12, outsideBand: false }, { id: 4, delaySec: 18, outsideBand: true }] } }, 'rearDelay');
   assert.deepEqual(other.map((l) => l.text), ['12.0 s, in the 10-15 s band', '18.0 s, outside 10-15 s']);
@@ -84,4 +92,10 @@ test('planned crossings (state.crossings) read "Crossing: 300 ft vertical needed
     'Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4',
   ]);
   assert.deepEqual(separationFlags({ aircraft: [], crossings: [] }, { formation: 'offsetBox', maneuver: 'hook90' }, []), []);
+});
+
+test('N7: the Auto clock position reads 4:30 right and 7:30 left for the Delayed 45, and 7 right and 5 left otherwise', async () => {
+  const { clockAutoLabel } = await import('../../../src/modules/turn-sim/fields.js');
+  assert.equal(clockAutoLabel('delayed45away'), 'Auto (4:30 right, 7:30 left)');
+  for (const maneuver of ['delayed90away', 'hook90', 'inplace90', 'check30']) assert.equal(clockAutoLabel(maneuver), 'Auto (7 right, 5 left)');
 });
