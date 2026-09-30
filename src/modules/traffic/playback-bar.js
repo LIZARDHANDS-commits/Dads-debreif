@@ -1,7 +1,7 @@
 // The bar above the map (specs/SPEC-traffic.md: The screen, R22, R3). Row one
 // is the clock: Play or Pause, Rewind, -10 s, +10 s, Reset, the speed, the sim
 // time and Running / Paused / Rewinding. Row two is the view: the wind boxes,
-// the 2D | 3D switch, the Layers and Settings menus, and Fit.
+// the 2D | 3D switch, the Layers menu, and Fit.
 //
 // It shows what it is told and calls back when something is pressed; it never
 // runs the sim. Wind, layers and the 2D | 3D choice are settings, so they go
@@ -68,11 +68,10 @@ export function createMenu({ label, children = [], listen }) {
  * controls: ui-kit controls bound to the traffic settings (wind, layers, 2D | 3D).
  * on: { play, pause, reset, speed(x), fit, rewind?, step?(seconds) }.
  * available: { view3d, photo, reach }, each true once that feature is on the screen.
- * settingsPanel: the Settings panel ({ element }), shown in a Settings menu.
  * listen: app.listen.
  * Returns { element, setState({ mode, clockText, speed }) }.
  */
-export function createPlaybackBar({ controls, on, available = {}, settingsPanel = null, listen }) {
+export function createPlaybackBar({ controls, on, available = {}, listen }) {
   let mode = 'paused';
   const button = (label, onclick, extra = {}) => h('button', { type: 'button', class: 'button', onclick, ...extra }, label);
 
@@ -103,7 +102,6 @@ export function createPlaybackBar({ controls, on, available = {}, settingsPanel 
     ? controls.choice('view', { label: 'View', options: [{ value: '2d', label: '2D' }, { value: '3d', label: '3D' }] })
     : null;
   const layers = createMenu({ label: 'Layers', listen, children: layerItems(available).map((item) => controls.checkbox(item.key, { label: item.label })) });
-  const settings = settingsPanel ? createMenu({ label: 'Settings', listen, children: [settingsPanel.element] }) : null;
   const fit = button('Fit', () => on.fit());
 
   const element = h(
@@ -116,7 +114,7 @@ export function createPlaybackBar({ controls, on, available = {}, settingsPanel 
       h('label', { class: 'bar-speed' }, 'Speed ', speed),
       clock, status,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, layers.element, settings?.element, fit),
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, layers.element, fit),
   );
 
   const write = (node, text) => {

@@ -74,7 +74,7 @@ function setup(options = {}) {
   const controls = options.controls ?? stubControls();
   const listeners = [];
   const listen = (target, type, fn) => listeners.push({ target, type, fn });
-  const bar = createPlaybackBar({ controls, on, available: options.available, settingsPanel: options.settingsPanel, listen });
+  const bar = createPlaybackBar({ controls, on, available: options.available, listen });
   return { bar, calls, controls, listeners };
 }
 
@@ -201,12 +201,9 @@ test('every layer in the menu is a real setting with a default, and the photo on
   for (const item of LAYER_ITEMS) assert.equal(typeof DEFAULTS[item.key], 'boolean', item.key);
 });
 
-test('a Settings menu is there only when a settings panel is given, and holds it', () => {
+test('the bar has no Settings menu of its own: the Traffic settings live in the shared menu (settings-panel.js)', () => {
   assert.equal(pressable(setup().bar.element, 'Settings'), undefined);
-  const panel = { element: h('div', { class: 'settings-panel' }, 'Conflict limits') };
-  const { bar } = setup({ settingsPanel: panel });
-  assert.ok(pressable(bar.element, 'Settings'));
-  assert.ok(all(bar.element, (n) => n === panel.element).length === 1);
+  assert.equal(pressable(setup({ available: { photo: true, view3d: true } }).bar.element, 'Settings'), undefined);
 });
 
 test('a menu opens from its button, is closed at first, and closes on a second press', () => {
