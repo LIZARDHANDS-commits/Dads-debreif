@@ -100,8 +100,10 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   }
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
   await expect(page.getByText('Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?')).toBeVisible();
-  // Energy mode isn't built yet, so there is no box for it.
-  await expect(page.getByLabel('Energy (T-6)')).toHaveCount(0);
+  // Energy (T-6) is a checkbox, off, and none of its boxes show until it is ticked (R22).
+  await expect(page.getByLabel('Energy (T-6)')).not.toBeChecked();
+  await expect(page.getByLabel('Start altitude (ft)')).toHaveCount(2);
+  await expect(page.getByLabel('Start altitude (ft)').first()).toBeHidden();
   await expect(page.getByText('coming soon')).toHaveCount(0);
   await expect(page.getByLabel('Playback speed')).toHaveValue('1'); // the option at index 1 is 1×
   await expect(page.getByLabel('Playback speed').locator('option:checked')).toHaveText('1×');

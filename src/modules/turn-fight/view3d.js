@@ -18,7 +18,7 @@
 // nothing here does camera maths beyond choosing yaw, pitch, zoom and centre.
 // Units: feet, radians in the fight; degrees for the camera (as matchProjection
 // has it, where pitch 0 looks straight down and 90 looks along the ground).
-import { wrapPi, headingRad } from '../../core/angles.js';
+import { wrapPi, headingRad, degToRad } from '../../core/angles.js';
 import {
   loadThree, matchProjection, worldToScreen, altToZ, addLights, addSky, webglSupported,
 } from '../../ui-kit/three-aircraft.js';
@@ -64,6 +64,9 @@ const GRID_CELLS = 100;
 /** The marks' size on screen, in pixels. */
 const MERGE_MARK_PX = 7;
 const DASH_PX = [7, 5];
+
+/** Energy mode's hard deck: a flat, see-through plane at the deck's height, the colour of the first nose-on line, so it does not hide the aircraft or their trails. */
+export const DECK_OPACITY = 0.16;
 
 const VIEW_LABELS = Object.freeze({ overhead: 'Overhead', blue: 'Chase Blue', red: 'Chase Red' });
 /** The three one-click views, in the order of their buttons: { id: { label } }. */
@@ -116,10 +119,22 @@ export function turnDirection(fight, who, last = 0) {
  * Where and how one aircraft is drawn, from the fight's state alone: its place (feet, the height through
  * altToZ), heading (radians from east, counter-clockwise), pitch (only with Climb and dive on) and bank
  * (positive for a left turn). In the simple fight the bank is the level-turn bank for the fight's own
- * (limited) G: acos(1 / G), toward `direction` (turnDirection). Energy mode will bring its own bank.
+ * (limited) G: acos(1 / G), toward `direction` (turnDirection). In Energy mode (`fight.energy`) the bank is the
+ * aircraft's own, from the energy state (`bankDeg`, from the real horizon toward the turn, so it goes past 90° over the
+ * top of a loop), toward the way it is turning (`turnDir`, 0 before the turns start), and the pitch is its climb angle.
  */
 export function aircraftPose(fight, who, direction) {
   const a = fight[who];
+  if (fight.energy) {
+    return {
+      x: a.xFt,
+      y: a.yFt,
+      z: altToZ(a.zFt, ALT_SCALE),
+      headingRad: a.headingRad,
+      pitchRad: degToRad(a.climbDeg),
+      bankRad: (a.turnDir || 0) * degToRad(a.bankDeg),
+    };
+  }
   return {
     x: a.xFt,
     y: a.yFt,
@@ -385,6 +400,15 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     const mark = new THREE.LineSegments(crossGeometry, new THREE.LineBasicMaterial({ color: COLORS.nose, fog: false }));
     scene.add(mark);
 
+    // Energy mode's hard deck: one big flat see-through plane (X-Y, at the deck's height), shown only in Energy mode.
+    const deck = new THREE.Mesh(
+      new THREE.PlaneGeometry(GRID_STEP_FT * GRID_CELLS, GRID_STEP_FT * GRID_CELLS),
+      new THREE.MeshBasicMaterial({ color: COLORS.nose, transparent: true, opacity: DECK_OPACITY, side: THREE.DoubleSide, depthWrite: false, fog: false }),
+    );
+    deck.name = 'hard-deck';
+    deck.visible = false;
+    scene.add(deck);
+
     // The trails, as lines over a buffer big enough for a whole fight.
     const lines = {};
     for (const who of SHIPS) {
@@ -402,10 +426,11 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       red: label(LETTERS.red, 'tf-3d-label-red'),
       merge: label('MERGE', 'tf-3d-label-nose'),
       firstNose: label('', 'tf-3d-first-nose'),
+      deck: label('HARD DECK', 'tf-3d-label-deck'),
     };
-    host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose);
+    host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose, labels.deck);
     gl = {
-      canvas, renderer, scene, camera, sky, grid, mark, lines, labels,
+      canvas, renderer, scene, camera, sky, grid, mark, deck, lines, labels,
       planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
@@ -459,7 +484,9 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     }
     gl.noseFor = fight.firstNose;
     if (!fight.firstNose) return;
-    const { from, to, by, timeSec } = fight.firstNose;
+    // The simple fight names one aircraft (with `both` set for a tie); the Energy engine's `by` can be 'both', which is Blue's line to Red.
+    const { from, to, timeSec } = fight.firstNose;
+    const by = fight.firstNose.by === 'red' ? 'red' : 'blue';
     const other = by === 'blue' ? 'red' : 'blue';
     const geometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(from.xFt, from.yFt, altToZ(heightAtTime(trails[by], timeSec), ALT_SCALE)),
@@ -499,12 +526,14 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       applyAttitude(mesh, pose);
     }
 
-    const groundZ = -(GROUND_BELOW_FT + Math.max(Math.abs(bounds.minZ), Math.abs(bounds.maxZ)));
-    gl.grid.position.set(
-      Math.round(view.center.x / GRID_STEP_FT) * GRID_STEP_FT,
-      Math.round(view.center.y / GRID_STEP_FT) * GRID_STEP_FT,
-      altToZ(groundZ, ALT_SCALE),
-    );
+    // Energy heights are altitudes above sea level (the hard deck is one), so the ground grid sits at sea level and the
+    // deck plane at its own height over the same square; the simple fight's grid keeps its place below the lowest height.
+    const groundZ = fight.energy ? 0 : -(GROUND_BELOW_FT + Math.max(Math.abs(bounds.minZ), Math.abs(bounds.maxZ)));
+    const gridX = Math.round(view.center.x / GRID_STEP_FT) * GRID_STEP_FT;
+    const gridY = Math.round(view.center.y / GRID_STEP_FT) * GRID_STEP_FT;
+    gl.grid.position.set(gridX, gridY, altToZ(groundZ, ALT_SCALE));
+    gl.deck.visible = fight.energy === true;
+    if (gl.deck.visible) gl.deck.position.set(gridX, gridY, altToZ(fight.setup.hardDeckFt, ALT_SCALE));
     gl.mark.scale.setScalar(MERGE_MARK_PX / pxPerFt);
     gl.mark.visible = showsMergeMark(fight);
     if (gl.nose) {
@@ -528,6 +557,9 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     at({ x: 0, y: 0, z: 0 }, 8, 22, gl.labels.merge);
     const noseText = firstNoseText(fight.firstNose);
     if (gl.labels.firstNose.textContent !== noseText) gl.labels.firstNose.textContent = noseText;
+    // The deck's name floats over the plane beside the middle of the fight, at the deck's height.
+    gl.labels.deck.style.display = gl.deck.visible ? '' : 'none';
+    if (gl.deck.visible) at({ x: view.center.x, y: view.center.y, z: altToZ(fight.setup.hardDeckFt, ALT_SCALE) }, 8, 8, gl.labels.deck);
 
     drawn++;
     host.dataset.draws = String(drawn);
@@ -564,6 +596,8 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     }
     scene.mark.geometry.dispose();
     scene.mark.material.dispose();
+    scene.deck.geometry.dispose();
+    scene.deck.material.dispose();
     scene.grid.geometry.dispose();
     scene.grid.material.dispose();
     if (scene.nose) {
