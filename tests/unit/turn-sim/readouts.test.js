@@ -102,7 +102,7 @@ test('a two-ship has one wingman, one pair and no NaN anywhere (#17)', () => {
   assert.deepEqual(r.rows.map((x) => x.id), [2]);
   assert.deepEqual(r.pairs.map((p) => p.label), ['1-2']);
   assert.equal(r.minSepFt, 6000);
-  assert.equal(r.minSepText, 'Min sep 6,000 ft');
+  assert.equal(r.minSepText, 'Min sep now: 6,000 ft');
   assert.doesNotMatch(JSON.stringify(r), /NaN|null.*1-3/);
   assert.doesNotMatch([...r.pairTexts, ...r.wingmen, r.turnText, ...r.summary.flat()].join('|'), /NaN/);
 });
@@ -114,7 +114,7 @@ test('a four-ship lists its six pairs in V6 order, with NM only when asked', () 
   assert.equal(pairText(pairs[1]), '1-3: 6,000 ft');
   assert.equal(pairText(pairs[1], true), '1-3: 6,000 ft (0.99 NM)');
   assert.equal(readoutsAt(four(), SETTINGS, { distNm: true }).pairTexts[2], '1-4: 12,000 ft (1.97 NM)');
-  assert.equal(readoutsAt(four(), SETTINGS).minSepText, 'Min sep 6,000 ft');
+  assert.equal(readoutsAt(four(), SETTINGS).minSepText, 'Min sep now: 6,000 ft');
 });
 
 test('the turn line and summary use the set speed and G, limited as the flying limits them', () => {
@@ -328,7 +328,7 @@ test('the check turn is named in the summary only when it is flown, with the fig
 
 test('a close pass (300 to 1,000 ft) is flagged with its distance and pair, after any crossing', () => {
   const st = { ...four(), crossings: [{ a: 1, b: 3, minFt: 120 }], closePasses: [{ a: 1, b: 2, minFt: 893.6 }] };
-  assert.deepEqual(separationFlags(st, SETTINGS), ['Crossing: 300 ft vertical needed, #1 and #3', 'Close pass: 894 ft, #1 and #2: altitude separation needed']);
+  assert.deepEqual(separationFlags(st, SETTINGS), ['Crossing: 300 ft vertical needed, #1 and #3', 'Close pass in this run: 894 ft, #1 and #2: altitude separation needed']);
   assert.deepEqual(separationFlags({ ...four(), closePasses: [] }, SETTINGS), []);
 });
 

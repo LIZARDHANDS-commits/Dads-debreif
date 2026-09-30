@@ -224,7 +224,7 @@ test('changing a setting during a run stops it and goes back to the start; layer
   await box(page, 'Spacing').fill('7000');
   await expect(playButton(page)).toHaveText(/Play/);
   expect(await simTime(page)).toBe(0);
-  await expect(page.locator('.ts-line').first()).toHaveText('Min sep 7,000 ft');
+  await expect(page.locator('.ts-line').first()).toHaveText('Min sep now: 7,000 ft');
   // And Play flies the new plan.
   await playButton(page).click();
   await expect.poll(() => simTime(page)).toBeGreaterThan(0.5);
@@ -299,7 +299,7 @@ test('Aircraft errors: a wingman turning late is what the plan flies (#31)', asy
   await wide.selectOption({ label: 'Wide' });
   await page.getByLabel('by', { exact: true }).first().fill('1000');
   // #2's start moves out 1,000 ft: Lead and #2 are 7,000 ft apart.
-  await expect(page.locator('.ts-line').first()).toHaveText(/Min sep 6,000 ft/); // #3 and Lead are still 6,000 ft
+  await expect(page.locator('.ts-line').first()).toHaveText(/Min sep now: 6,000 ft/); // #3 and Lead are still 6,000 ft
   await panel(page, 'More detail').click();
   await expect(page.getByText(/^1-2: 7,000 ft/)).toBeVisible();
   await page.getByRole('button', { name: 'Reset to defaults' }).nth(1).click(); // the errors panel's own
@@ -767,7 +767,7 @@ test('a 15 degree check at 4,000 ft spacing in 4312 shows the close pass before 
   await expect(flags).toHaveCount(0); // at the defaults nothing is close
   await box(page, 'Check before the 45').fill('15');
   await box(page, 'Spacing').fill('4000');
-  await expect(flags).toHaveText(["Close pass: 894 ft, #1 and #3: altitude separation needed", "Close pass: 894 ft, #3 and #4: altitude separation needed"]); // measured: the two four-ship pairs
+  await expect(flags).toHaveText(["Close pass in this run: 894 ft, #1 and #3: altitude separation needed", "Close pass in this run: 894 ft, #3 and #4: altitude separation needed"]); // measured: the two four-ship pairs
   await box(page, 'Spacing').fill('6000');
   await expect(flags).toHaveCount(0);
 });
@@ -950,7 +950,9 @@ test('the offset box hook shows which pairs cross: 300 ft vertical needed', asyn
   await expect(flags).toHaveText(['Crossing: 300 ft vertical needed, #1 and #3', 'Crossing: 300 ft vertical needed, #2 and #4']);
   await box(page, 'Turn').selectOption({ label: 'Delayed 90' });
   // No crossing now; the box's Delayed 90 has one close pass (#1 and #4, 954 ft) that the engine reports.
-  await expect(flags).toHaveText(["Close pass: 954 ft, #1 and #4: altitude separation needed"]);
+  await expect(flags).toHaveText(["Close pass in this run: 954 ft, #1 and #4: altitude separation needed"]);
+  // The two numbers are different moments, and say so (C8): the card's is the aircraft now, the flag's is the closest they get in the run.
+  await expect(page.locator('.ts-line').first()).toHaveText(/^Min sep now: [\d,]+ ft$/);
 });
 
 test('without WebGL2 the Turn Sim stays in 2D, says why, and never downloads three.js', async ({ page }) => {
