@@ -3,7 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 // Browser tests run against the built site (`npm run build` first).
 // Locally only Chromium is installed; CI also runs Firefox and WebKit (R1).
 const CI = Boolean(process.env.CI);
-const PORT = 4173;
+// PW_PORT lets two worktrees run their tests at once without one testing the
+// other's build (with reuseExistingServer, a server already on the port is used).
+const PORT = Number(process.env.PW_PORT) || 4173;
 
 export default defineConfig({
   testDir: 'tests/e2e',

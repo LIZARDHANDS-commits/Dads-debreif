@@ -9,6 +9,12 @@ import { readFileSync } from 'node:fs';
 // of the live sites. A spec can add its own routes on top (the later one wins).
 const sofFixture = (name) => readFileSync(new URL(`../fixtures/sof/${name}`, import.meta.url), 'utf8');
 const CORS = { 'access-control-allow-origin': '*' };
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+// A 1×1 transparent PNG, for map tiles.
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64',
+);
 
 export const test = base.extend({
   page: async ({ page }, use) => {
@@ -17,6 +23,19 @@ export const test = base.extend({
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(`console error: ${msg.text()}`);
     });
+    // Anything that leaves this computer and has no stub below is answered with
+    // 204 and fails the test by name, so a live site never decides a result.
+    // Registered first, so every route below (and any a spec adds) wins over it.
+    await page.route(
+      (url) => /^(https?|wss?):$/.test(url.protocol) && !LOCAL_HOSTS.has(url.hostname),
+      (route) => {
+        errors.push(`unmocked request: ${route.request().url()}`);
+        return route.fulfill({ status: 204, headers: CORS });
+      },
+    );
+    // Traffic's photo layer (Esri World Imagery tiles).
+    await page.route(/^https:\/\/services\.arcgisonline\.com\//, (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', headers: CORS, body: ONE_PIXEL_PNG }));
     await page.route(/^https:\/\/api\.met\.no\//, (route) =>
       route.fulfill({
         status: 200,
