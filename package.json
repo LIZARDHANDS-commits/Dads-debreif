@@ -12,12 +12,14 @@
     "build": "vite build && node tools/check-size.mjs dist",
     "preview": "vite preview",
     "test": "node --test \"tests/**/*.test.js\"",
+    "typecheck": "tsc -p jsconfig.json",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.56.1",
     "fast-check": "4.10.2",
+    "typescript": "7.0.2",
     "vite": "8.3.1"
   },
   "dependencies": {

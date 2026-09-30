@@ -139,6 +139,8 @@ export function createAircraftMesh(THREE, { color, outline = null }) {
  * 'generic' (default, and for any unknown kind) is a slim fuselage, straight wing and
  * T-tail; 'dart' is a low-poly delta wing with a single fin. `color` and `outline` are as
  * for `createAircraftMesh`. Free it with `disposeAircraftMesh`.
+ * @param {any} THREE
+ * @param {{ color?: string, outline?: any, kind?: string }} [options]
  */
 export function createStandInMesh(THREE, { color, outline = null, kind = 'generic' } = {}) {
   const base = new THREE.Color(color);
