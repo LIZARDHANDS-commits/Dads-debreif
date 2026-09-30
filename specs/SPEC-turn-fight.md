@@ -25,6 +25,38 @@ V6 does all of this in its "Turn Fight" tab (lines 778 and 4232 to 4294 of `orig
 4. Nothing is loaded from the network, so the Turn Fight works offline after the first visit (R6).
 5. Open questions below never block the build. Each defaults to V6's behaviour until it's answered.
 
+## Tech stack
+
+Plain JavaScript ES modules with no framework and no new packages, as in the rest of the app (SPEC.md). Drawing is on a Canvas 2D through ui-kit's `createCanvasSurface`. Tests use Node's `node:test` and the Playwright set-up the app frame already has.
+
+## Commands
+
+```
+npm run dev                                   # the app with live reload; open the Turn Fight card
+npm test                                      # unit and golden tests (node --test)
+node --test tests/golden/turn-fight-sim.test.js   # just the V6 comparison
+npm run test:e2e                              # Playwright browser tests
+npm run build && npm run preview              # a local build, to measure (performance-optimization)
+python3 tools/rebuild_original.py /tmp/v6.html    # V6, to compare side by side
+```
+
+## Code style
+
+Pure functions with units in their names, turn math from `core`, and a comment naming the V6 line each piece comes from, so the port can be checked by eye:
+
+```js
+// src/modules/turn-fight/sim.js
+import { KT_TO_FTPS, FT_PER_NM } from '../../core/units.js';
+
+/** Seconds from the start to the merge (V6 `reset`, line 4240). */
+export function mergeTimeSec(separationNm, blueKt, redKt) {
+  return (separationNm * FT_PER_NM) / ((blueKt + redKt) * KT_TO_FTPS);
+}
+```
+
+- `sim.js` never reads the page, settings or the clock. It takes a plain setup object and returns a plain state, so the same numbers come out in Node and in the browser.
+- No `innerHTML`, `!important`, `setInterval` or `requestAnimationFrame` in the module (ui-kit rules, checked by `tests/unit/source-rules.test.js`).
+
 ## The screen
 
 Three columns at 1366 × 768 and up, none covering another (R2), each side column collapsed with a real button (ui-kit `panel.js`). No side rails and no Tab-key tricks (#34, #35).
@@ -156,6 +188,24 @@ docs/checklists/turn-fight.md         the sign-off checklist (R21)
 ```
 
 Adding the module to `src/shell/registry.js` (its `load`) and `tests/e2e/` go through the app frame thread, which owns those folders.
+
+## Skills used
+
+Patrick asked every thread to name the repo skills it uses (2026-09-30). These follow `.claude/skills/README.md`, and each PR lists the ones it applied.
+
+| Step | Skill (`.claude/skills/`) | How it's used here |
+|---|---|---|
+| This spec | spec-driven-development | The six core areas, assumptions listed up front, and Patrick's approval before any code |
+| The task plan | planning-and-task-breakdown | `tasks/turn-fight/`: vertical slices, each task with acceptance, verify and at most about 5 files, checkpoints between PRs |
+| Tasks 1 and 2 (the fight, readouts) | test-driven-development | The golden test against V6's own script is written first and must fail before `sim.js` exists. Each answered question starts as a failing test that states the change from V6 (D10) |
+| Every task | incremental-implementation | One task per commit, each leaving the app working; `npm test` before each commit |
+| Tasks 3 to 5 (the screen) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled controls, keyboard use, colour never the only signal, R22's essentials-first layout, tokens instead of `!important` |
+| Tasks 4 and 5 (drawing and playback) | performance-optimization, with `.claude/references/performance-checklist.md` | Measure a 4× fight with long trails at 1920 × 1080 on a local build; one change at a time; log each attempt in the PR |
+| When something breaks | debugging-and-error-recovery | A golden mismatch or red CI: reproduce, find the step where V6 and `sim.js` part, fix, add a regression test |
+| Before each PR leaves draft | code-review-and-quality, plus `/code-review` | The five-axis review with severity labels, and `.claude/references/definition-of-done.md` |
+| Polish, before sign-off | code-simplification, plus `/simplify` | Tidy without changing a number (the golden test must still pass) |
+
+security-and-hardening doesn't apply: the Turn Fight opens no files and fetches nothing. The only outside input is what people type, which ui-kit's number rule checks, and settings read back from browser storage, which are checked against the same ranges before use.
 
 ## Testing strategy
 

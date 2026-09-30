@@ -9,8 +9,8 @@ Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), draft for Pa
 | Any code | Patrick approves the spec | Patrick |
 | Any code | The coordinator says it's the Turn Fight's turn (after the debrief and the Turn Sim) | Coordinator |
 | Task 1 | Nothing new from `core`: `limitG`, `turnRadiusFt`, `turnRateRadPerSec`, `wrapPi`, `absAngleDeg`, `headingRad` and the units are merged and pinned against Turn Fight's copies | Flight math core thread (done) |
-| Task 3 | ui-kit `createControls`, `createPanel`, `createCanvasSurface` (merged in #65) | App frame thread (done) |
-| Task 3 | The module's `load` in `src/shell/registry.js`, and `tests/e2e/turn-fight.spec.js` | App frame thread, through the coordinator |
+| Tasks 3 to 5 | ui-kit `createControls`, `createPanel`, `createCanvasSurface` (merged in #65) | App frame thread (done) |
+| Tasks 3 and 4 | The module's `load` in `src/shell/registry.js`, and `tests/e2e/turn-fight.spec.js` | App frame thread, through the coordinator |
 
 ## Order and why
 
@@ -23,10 +23,10 @@ Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), draft for Pa
 ## Pull requests
 
 - PR A: tasks 1 and 2 (the fight and readouts, golden-tested; no screen yet).
-- PR B: tasks 3 and 4 (the screen, the extras, browser tests, README).
-- PR C: task 5 (answered questions, one commit each) and task 6 (checklist).
+- PR B: tasks 3 to 5 (the screen, the view, the extras, browser tests, README).
+- PR C: task 6 (answered questions, one commit each) and task 7 (polish and checklist).
 
-Each PR is reviewed with code-review-and-quality before it leaves draft, and merges on green under the merge rule once this spec is approved.
+Each PR is reviewed with code-review-and-quality before it leaves draft, lists the skills it applied (see the spec's Skills used), and merges on green under the merge rule once this spec is approved.
 
 ## Risks
 
