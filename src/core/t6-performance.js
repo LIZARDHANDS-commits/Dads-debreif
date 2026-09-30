@@ -12,9 +12,11 @@ import { T6A_FIT } from './t6a-turn-charts.js';
 import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js';
 
 /**
- * The T-6A V-n diagram and airspeed limits (clean, 5,168 lb, maximum take-off weight).
- * stallKias is the V-n stall line's 1 G stall speed; the turn charts' lighter jet
- * stalls near 83 kt instead; Patrick kept 86 (2026-09-30 09:29Z).
+ * The T-6A V-n diagram and airspeed limits (clean, at the V-n diagram's 5,168 lb).
+ * stallKias is the 1 G stall speed: 86 kt, which Patrick kept (2026-09-30
+ * 09:29Z). The V-n curve itself reads about 89 kt (7 G near 236 KIAS), and the
+ * turn charts imply about 83 kt at maximum power (likely because power on
+ * lowers the stall speed, NFM p.6-6). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,
@@ -238,7 +240,8 @@ export function shakerG(kias, { stallKias = T6A_LIMITS.stallKias, marginKt = T6A
 /**
  * The split S as the SMM flies it (14.16 para 41), at full power: raise the
  * nose to 20° up in the shaker, roll inverted at 0.5 G at the roll rate, then
- * pull through in the shaker, up to 5 G, until level. Below the shaker speed
+ * pull through in the shaker until level, up to 5 G (Patrick's cap, not the
+ * SMM's: its Table 14.1 gives about 4 G). Below the shaker speed
  * (93 KIAS) the nose can't come up without stalling, so the split S starts
  * with the roll: it gains no height first and loses about 300 ft more from
  * the entry, while the loss from the top hardly changes.

@@ -40,7 +40,7 @@ Out, for now:
 
 - Everything after `RMK` is ignored for conditions and kept as `remarks`. One remark is read: `LAST OBS/NXT 011000Z` (or `LAST STFD OBS/NXT`, with or without the day) sets `lastObservation: true` and `nextObservation` to the next report time after the observation, else `false` and `null`.
 - Tokens are read one at a time, so a TAF period like `2916/2920` can never be read as visibility (issue #1).
-- Visibility: `M` means "less than" and `P` means "more than". The value keeps its number and a qualifier: `M1/4SM` is `{ sm: 0.25, qualifier: 'less' }` (issue #3, V6 read it as 4 SM). A whole number joins a following fraction only when it is one or two digits (`1 1/2SM`). A fraction of a mile is always below one, so `11/2SM` is read as `1 1/2SM` with the space dropped (V6 read 5.5). Metric visibility is converted to SM; `9999` means 10 km or more. `CAVOK` means 10 km or more, no cloud that matters, no weather.
+- Visibility: `M` means "less than" and `P` means "more than". The value keeps its number and a qualifier: `M1/4SM` is `{ sm: 0.25, qualifier: 'less' }` (issue #3, V6 read it as 4 SM). A whole number joins a following fraction only when it is one or two digits (`1 1/2SM`). A fraction of a mile is always below one, so `11/2SM` is read as `1 1/2SM` with the space dropped (V6 read 5.5). Metric visibility is converted to SM; `9999` means 10 km or more. `CAVOK` means 10 km or more, no cloud that matters, no weather. `CAVOK` in the same group as a stated visibility below 10 km / 6 SM, cloud or weather contradicts it: the stated values are kept, never the better CAVOK ones, and `CAVOK` is listed as unread (WX-3).
 - Cloud: `FEW`, `SCT`, `BKN`, `OVC`, `VV` with a base in hundreds of feet, and an optional `CB` or `TCU` kept on the layer (issue #3: `BKN015CB` is a 1500 ft ceiling, V6 saw no ceiling). `///` base means unknown. `SKC`, `CLR`, `NSC`, `NCD` and `CAVOK` mean an explicit clear sky, which a change group uses to clear the cloud it inherited.
 - Ceiling: the lowest `BKN`, `OVC` or `VV` layer. `null` means no ceiling. The ceiling is **unknown** when such a layer has a `///` base, or when there is no cloud group at all and no `SKC`/`CLR`/`NSC`/`NCD`/`CAVOK`.
 - Times: a report's observation or issue time is the latest matching date no more than an hour after `now`, since reports are never written in the future. Group times resolve to the date nearest the valid period, so a group starting just before it stays in its own month. Impossible values (day 32, hour 25) give no time.
@@ -57,7 +57,7 @@ Out, for now:
 - The base forecast ends at the first `FM` or `BECMG`, not at the first group of any kind (issue #2, finding sof-c#7: a leading `TEMPO` stretched the base to the end of the TAF).
 - `TEMPO` and `PROB` are overlays, split wherever the prevailing conditions under them change, and each piece merged with the prevailing conditions it sits on.
 - `FM` and `BECMG` are applied in time order, and nothing earlier runs past an `FM`.
-- Anything that makes the forecast less than fully readable is listed in `taf.problems`: a group keyword with no readable time (its conditions are kept apart, never merged into the group before), `FM` groups out of time order, a group outside the valid period, an implausible valid period (over 30 hours, or more than a day from the issue time), or tokens that could not be read.
+- Anything that makes the forecast less than fully readable is listed in `taf.problems`: a group keyword with no readable time (its conditions are kept apart, never merged into the group before), `FM` groups out of time order, a group outside the valid period, a `BECMG`/`TEMPO`/`PROB` period that is longer than the TAF's valid period or runs past its end or ends at or before its start (together these catch one that ends before it starts, such as `TEMPO 2920/2916`, whichever month it resolves to, WX-1), an implausible valid period (ending at or before its start, over 30 hours, or more than a day from the issue time), or tokens that could not be read.
 
 ### Limit checks
 
@@ -102,8 +102,8 @@ Default limits are V6's WX SETUP defaults: home 2000 ft and 3 SM, alternates 600
 
 ### Classifications (V6 thresholds, unchanged)
 
-- NATO colour state from the lowest `SCT` or thicker layer and the visibility in metres: RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500, YLO1 700/3700, GRN 1500/5000, WHT 2500/8000, else BLU. V6's `nato()` at sof.html line 2009; its parsing bugs are fixed, not its thresholds. `UNK` when a layer's base is unknown and the colour isn't already RED.
-- Flight category, used only when the feed does not supply one: LIFR ceiling below 500 ft or visibility below 1 SM; IFR below 1000 ft or 3 SM; MVFR 3000 ft or 5 SM and below; else VFR. V6's `cat()` at sof.html line 576. `UNK` when nothing is known, or when a ceiling layer's base is unknown and the category isn't already LIFR.
+- NATO colour state from the lowest `SCT` or thicker layer and the visibility in metres: RED below 200 ft or 800 m, AMB 300/1600, YLO2 500/2500, YLO1 700/3700, GRN 1500/5000, WHT 2500/8000, else BLU. V6's `nato()` at sof.html line 2009; its parsing bugs are fixed, not its thresholds. `UNK` when a layer's base is unknown, or when there is no cloud group and no `SKC`/`CLR`/`NSC`/`NCD`/`CAVOK`, or no visibility (WX-5), and the colour isn't already RED.
+- Flight category, used only when the feed does not supply one: LIFR ceiling below 500 ft or visibility below 1 SM; IFR below 1000 ft or 3 SM; MVFR 3000 ft or 5 SM and below; else VFR. V6's `cat()` at sof.html line 576. `UNK` when nothing is known, or when a ceiling layer's base is unknown, no cloud is stated at all, or no visibility is stated (WX-5), and the category isn't already LIFR.
 
 ### Sources
 
@@ -145,7 +145,7 @@ assessAlternate(taf, arrivalWindow([eta1, eta2]), {
 // { status: 'below' | 'incomplete' | 'at-limit' | 'meets' | ..., hits, atLimit, cautions, probUnchecked, worst, warnings }
 ```
 
-Every function is pure: plain values in, plain values out, times as `Date` in UTC. Functions never throw on bad text, missing times or missing limits (missing limits fall back to the defaults); they return what they could read plus what they could not.
+Every function is pure: plain values in, plain values out, times as `Date` in UTC. Functions never throw on bad text, missing times or missing limits (missing limits fall back to the defaults; limits or minima that are given but can't be read add a problem and give `incomplete`, WX-7); they return what they could read plus what they could not.
 
 ## Commands
 
