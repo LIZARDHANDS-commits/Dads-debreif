@@ -1124,3 +1124,22 @@ test('the intro, About and the turn line hold for any start: a tail chase never 
   for (const wrong of ['head-on, then turn', 'same turn direction', 'opposite turn directions', 'after the merge']) expect(text).not.toContain(wrong);
   await expect(page.getByText('a nose-on happens only if they come back exactly head-on')).toBeVisible();
 });
+
+test('TF3-4: flipping a side at 0° or 180° (where it means nothing) does not restart the fight; at any other angle it does', async ({ page }) => {
+  await openStartGeometry(page);
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(2);
+  const before = await seconds(page);
+  await side(page, 'ATA side', 'Right').check(); // ATA 0°
+  await side(page, 'AA side', 'Right').check(); // AA 180°
+  await expect(playButton(page)).toHaveText('Pause'); // still playing
+  expect(await seconds(page)).toBeGreaterThanOrEqual(before);
+  // At another angle the side does change the fight, so it starts over.
+  await ataBox(page).fill('30');
+  await expect(time(page)).toHaveText('T+0.0');
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(1);
+  await side(page, 'ATA side', 'Left').check();
+  await expect(time(page)).toHaveText('T+0.0');
+});
