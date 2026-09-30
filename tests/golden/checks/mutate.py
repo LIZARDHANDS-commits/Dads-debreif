@@ -137,6 +137,17 @@ M = [
  ('standards.js',"interval = Math.abs(across(a, three, left));","interval = Math.abs(across(a, lead, left));"),
  ('standards.js',"      measureNote = 'front element';\n","\n"),
  ('standards.js',"return { labels: labels.length ? labels : ['ON SPACING'], intervalFt: aftDistance,","return { labels: labels.length ? labels : ['ON PARAMETERS'], intervalFt: aftDistance,"),
+ ('wind.js','const rel = degToRad(windFromDeg - trackDeg);','const rel = degToRad(trackDeg - windFromDeg);'),
+ ('wind.js','const crosswindKt = windKt * Math.sin(rel) + 0;','const crosswindKt = windKt * Math.sin(rel);'),
+ ('wind.js','const headwindKt = windKt * Math.cos(rel) + 0;','const headwindKt = windKt * Math.cos(rel);'),
+ ('wind.js','if (!(tasKt > 0 && Math.abs(crosswindKt) <= tasKt)) {','if (!(tasKt > 0 && Math.abs(crosswindKt) < tasKt)) {'),
+ ('wind.js','if (!(tasKt > 0 && Math.abs(crosswindKt) <= tasKt)) {','if (!(Math.abs(crosswindKt) <= tasKt)) {'),
+ ('wind.js','const crabDeg = 90 * Math.sign(crosswindKt);','const crabDeg = 90;'),
+ ('wind.js','const groundSpeedKt = tasKt * Math.cos(crab) - headwindKt;','const groundSpeedKt = tasKt - headwindKt;'),
+ ('wind.js','const canHoldTrack = groundSpeedKt > 0;','const canHoldTrack = groundSpeedKt >= 0;'),
+ ('wind.js','headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack','headingDeg: wrap360(trackDeg - crabDeg), groundSpeedKt: canHoldTrack'),
+ ('wind.js','return ((deg % 360) + 360) % 360;','return deg % 360;'),
+ ('wind.js','return Math.sqrt(1 + (v * v / (G_FTPS2 * radiusFt)) ** 2);','return Math.sqrt(1 + v * v / (G_FTPS2 * radiusFt));'),
 ]
 
 

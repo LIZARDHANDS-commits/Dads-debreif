@@ -47,3 +47,7 @@ Plan: [`plan.md`](plan.md). Every task is verified with `node --test "tests/**/*
 
 - [x] **D77:** the ±3° cone and INTERCEPT-needs-in-cone are confirmed; wording only.
 - [x] **D78 (#21):** when the offset standard is on, it alone judges #3's fore/aft in the debrief. Tests changed first (red), then `classifyDebriefPosition`.
+
+## For the Traffic Sim
+
+- [x] **Task 13: `wind.js`** (SPEC-traffic): `windTriangle` and `groundTurnG`, new math with known-answer tests first; nothing in V6 to pin. Merges once Patrick approves SPEC-traffic.

@@ -34,6 +34,7 @@ In `core`:
 | `flight-math.js` | Turn radius and rate, bank from G, ISA density ratio and IAS estimate, closure, estimated G, the EM chart point | 2 |
 | `tennis.js` | The tennis ball: one solver for both views, V6's debrief solver changed as Patrick decided (D62, D63) | 2, 3 |
 | `standards.js` | Formation standards classifier (debrief and Turn Sim) and V6's default standards preset (R18); #3's fore/aft per D78 | 3 |
+| `wind.js` | The wind triangle (crab, heading, ground speed) and the G to hold a ground-track turn: new, for the Traffic Sim (SPEC-traffic) and later the SOF crosswind (FF21) | 4 |
 
 Not in `core`: resolving a TAF's day-of-month into a date (`wx` owns it, in `src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
 
@@ -106,6 +107,20 @@ Changes made while porting:
 - `standardsSummaryLines` returns the lines; the screen joins them (V6 joined them with `<br>`).
 - `classifyLeadParameters` takes Lead's estimated G (from `gFromTrack`) as an argument, and uses Lead's ground speed as V6 does. D31 (compare est. IAS) is the debrief's to apply, by passing IAS as the speed.
 
+## API, fourth PR: wind (for SPEC-traffic)
+
+V6 has no wind, so there is nothing to pin: these are new, checked against known answers (`tests/unit/core/wind.test.js`), and with the wind calm they give V6's numbers exactly. They take **compass degrees** (000 north, 090 east), unlike the rest of `core`, because a wind comes that way from a METAR and Traffic routes are laid out that way. The wind is one steady wind, given as the direction it blows **from**.
+
+| Function | Returns |
+|---|---|
+| `windTriangle(trackDeg, tasKt, windFromDeg, windKt)` | `{ crabDeg, headingDeg, groundSpeedKt, headwindKt, crosswindKt, canHoldTrack }` |
+| `groundTurnG(groundSpeedKt, radiusFt)` | the G that holds a ground-track arc: √(1 + (GS² ÷ (g × r))²) |
+
+- crosswind = W × sin(D − T), + from the right; headwind = W × cos(D − T), − for a tailwind; crab = asin(crosswind ÷ TAS), + to the right; heading = T + crab, 0 to 360; ground speed = TAS × cos(crab) − headwind. Track 290°, 110 KTAS, wind 250° at 20 kt gives a crab of 6.7° left and 94 kt over the ground.
+- Calm gives exactly no crab, the track as the heading and the airspeed as the ground speed.
+- `canHoldTrack` is false when the crosswind is stronger than the airspeed (then the crab is ±90°, straight into the wind) or the ground speed would be 0 or less; `groundSpeedKt` is then 0. What to do then (the Traffic Sim crawls at 10 kt) is the screen's.
+- `groundTurnG` undoes `turnRadiusFt`: with no wind it gives the G the arc was drawn for. A 180 KTAS, 2 G arc (1,656 ft) needs 2.36 G at 200 kt over the ground.
+
 ## Things `core` will flag, not choose
 
 - **Two tennis-ball solvers disagreed** (issue #19). **Decided by Patrick on 2026-09-30 (D62, D63):** one solver, `tennisBall`. It is the debrief's, pinned to V6 in PR 2, and then changed one answer at a time in PR 3. The ball carries the shooter's whole velocity, climb included. The target flies its recorded path, climb included. The cone is ±3° for a width of 6, and INTERCEPT needs the target in the cone; Patrick confirmed both on 2026-09-30 (D77). The golden test still matches V6 when given V6's straight, level target path and no climb, apart from the cone rule. [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md) keeps the comparison that led here.
@@ -126,7 +141,7 @@ Note for the app frame: on Node 22, `node --test tests/unit tests/golden` fails 
 
 ```
 src/core/            README.md (what's here, the heading rule, how to change a number)
-                     units.js angles.js geo.js time.js (PR 1); flight-math.js tennis.js (PR 2); standards.js (PR 3)
+                     units.js angles.js geo.js time.js (PR 1); flight-math.js tennis.js (PR 2); standards.js (PR 3); wind.js (PR 4)
 tests/golden/        v6-source.js  loads V6's own functions from original/shell.html
                      inputs.js     fixed edge cases plus seeded random inputs
                      core-*.test.js  V6 vs core, function by function
@@ -150,7 +165,7 @@ export function headingCrossAngleDeg(h1, h2) {
 1. **Golden tests** (`tests/golden/core-*.test.js`, R9). `v6-source.js` cuts each V6 function out of `original/shell.html` by name (or out of the SOF and Traffic pages V6 embeds as base64) and runs it unchanged. Globals V6 reads are supplied by a small prelude. Each test runs V6 and `core` on the same inputs: fixed edge cases (±π, month ends, both 2026 clock changes, bad input) and a few hundred seeded random values around Moose Jaw.
 2. **Exact match by default.** A tolerance is allowed only where V6 itself has two copies that disagree, and the test says why.
 3. **Unit tests** (`tests/unit/core/`) check meaning against known answers: a minute of latitude is a nautical mile, 3 o'clock is on the right, Moose Jaw stays UTC-6 across both clock changes while Denver moves (R10).
-4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). After D78, 119 of 123 changes turn a test red. The other four are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`; 0.3048 for 1/3.28084 inside the tile-zoom rounding; and two guards kept from V6 that no input can reach (`emPoint`'s density floor of 0.15, since the ratio never falls below 0.297, and `gFromTrack`'s floor of 0.8 G, since its G is never below 1). Line coverage of `src/core` is 100%.
+4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). With `wind.js`, 129 of 134 changes turn a test red. The other five are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`; 0.3048 for 1/3.28084 inside the tile-zoom rounding; and two guards kept from V6 that no input can reach (`emPoint`'s density floor of 0.15, since the ratio never falls below 0.297, and `gFromTrack`'s floor of 0.8 G, since its G is never below 1); and `wind.js`'s `<` for `<=` where the crosswind equals the airspeed, since a crosswind exactly equal to the airspeed leaves no headway either way). Line coverage of `src/core` is 100%.
 5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 14,700 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 248 results that use `sin`, `cos`, `atan2` or `Math.pow` differ in the last digits (at most 3.2e-15 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
 
 ## Boundaries
