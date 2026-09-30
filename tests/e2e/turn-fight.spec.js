@@ -95,7 +95,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   await expect(page.getByLabel('Start separation')).toHaveValue('2');
   for (const who of [blue(page), red(page)]) {
     await expect(who.getByLabel('Speed (KTAS)')).toHaveValue('220');
-    await expect(who.getByLabel('Sustained G')).toHaveValue('4');
+    await expect(who.getByLabel('G', { exact: true })).toHaveValue('4');
     await expect(who.getByLabel('Pitch (°)')).toBeHidden();
   }
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
@@ -198,8 +198,8 @@ test('a bad number is refused with a message and the fight keeps its last good s
     [speed, '999', /Enter a number from 60 to 400 KTAS/],
     [speed, '59', /Enter a number from 60 to 400 KTAS/],
     [speed, '', /Enter a number from 60 to 400 KTAS/],
-    [blue(page).getByLabel('Sustained G'), '0.5', /Enter a number from 1\.1 to 9 G/],
-    [blue(page).getByLabel('Sustained G'), '10', /Enter a number from 1\.1 to 9 G/],
+    [blue(page).getByLabel('G', { exact: true }), '0.5', /Enter a number from 1\.1 to 9 G/],
+    [blue(page).getByLabel('G', { exact: true }), '10', /Enter a number from 1\.1 to 9 G/],
     [page.getByLabel('Start separation'), '11', /Enter a number from 0\.5 to 10 NM/],
     [page.getByLabel('Start separation'), '0', /Enter a number from 0\.5 to 10 NM/],
   ];
@@ -241,7 +241,7 @@ test('changing the setup starts the fight again; playback speed never does', asy
   await expect(page.getByRole('radio', { name: '1-circle' })).toBeChecked();
   for (const change of [
     () => red(page).getByLabel('Speed (KTAS)').fill('230'),
-    () => red(page).getByLabel('Sustained G').fill('5'),
+    () => red(page).getByLabel('G', { exact: true }).fill('5'),
     () => page.getByLabel('Start separation').fill('3'),
     () => page.getByLabel('First nose chases').check(),
     () => page.getByLabel('Climb and dive').check(),
@@ -261,9 +261,9 @@ test('the T-6 limit warning shows beside a G box that is too high for the speed,
   await expect(red(page).locator('.tf-warning')).toHaveText('');
   await expect(result(page).getByRole('row', { name: /Turn rate/ })).toContainText('°/s'); // still a fight
   await blue(page).getByLabel('Speed (KTAS)').fill('300');
-  await blue(page).getByLabel('Sustained G').fill('8');
+  await blue(page).getByLabel('G', { exact: true }).fill('8');
   await expect(blue(page).getByText("Above the T-6's 7 G limit")).toBeVisible();
-  await blue(page).getByLabel('Sustained G').fill('6.5');
+  await blue(page).getByLabel('G', { exact: true }).fill('6.5');
   await expect(blue(page).locator('.tf-warning')).toHaveText(''); // the words go; the live region stays
 });
 
@@ -280,8 +280,8 @@ test('Turn Fight settings is closed at first; it holds the height scale, and Res
   await page.getByText('1-circle', { exact: true }).click();
   await page.getByLabel('Start separation').fill('3');
   await red(page).getByLabel('Speed (KTAS)').fill('260');
-  await blue(page).getByLabel('Sustained G').fill('999');
-  await blue(page).getByLabel('Sustained G').blur();
+  await blue(page).getByLabel('G', { exact: true }).fill('999');
+  await blue(page).getByLabel('G', { exact: true }).blur();
   await page.getByLabel('Climb and dive').check();
   await page.getByLabel('First nose chases').check();
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
@@ -293,8 +293,8 @@ test('Turn Fight settings is closed at first; it holds the height scale, and Res
   await expect(page.getByRole('radio', { name: '2-circle' })).toBeChecked();
   await expect(page.getByLabel('Start separation')).toHaveValue('2');
   await expect(red(page).getByLabel('Speed (KTAS)')).toHaveValue('220');
-  await expect(blue(page).getByLabel('Sustained G')).toHaveValue('4');
-  await expect(blue(page).getByLabel('Sustained G')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('4');
+  await expect(blue(page).getByLabel('G', { exact: true })).not.toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByLabel('Climb and dive')).not.toBeChecked();
   await expect(page.getByLabel('First nose chases')).not.toBeChecked();
   await expect(page.getByLabel('Playback speed').locator('option:checked')).toHaveText('1×');
@@ -440,6 +440,253 @@ test('leaving the Turn Fight while it plays stops every frame, timer and listene
   await expect(playButton(page)).toHaveText('Play');
 });
 
+// ---- 2D | 3D switch and the 3D view (SPEC-turn-fight, "2D and 3D views", task 5b) ---------------------------------
+const viewChoice = (page, name) => page.getByRole('radio', { name, exact: true });
+const topdown = (page) => page.locator('canvas.tf-topdown');
+const canvas3d = (page) => page.locator('canvas.tf-3d-canvas');
+const note = (page) => page.locator('.tf-note');
+const draws3d = async (page) => Number((await page.locator('.tf-3d').getAttribute('data-draws')) ?? 0);
+
+// Remembers every WebGL context the page makes, to see that each one is released (isContextLost) when 3D is left.
+async function trackWebGl(page) {
+  await page.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext;
+    window.__gl = [];
+    HTMLCanvasElement.prototype.getContext = function getContext(type, ...rest) {
+      const context = real.call(this, type, ...rest);
+      if (context && /webgl/.test(type) && !window.__gl.includes(context)) window.__gl.push(context);
+      return context;
+    };
+  });
+}
+const liveContexts = (page) => page.evaluate(() => window.__gl.filter((gl) => !gl.isContextLost()).length);
+const contextsMade = (page) => page.evaluate(() => window.__gl.length);
+
+// The requests for three.js itself (its own file, not the ui-kit's three-aircraft.js that wraps it).
+function threeRequests(page) {
+  const seen = [];
+  page.on('request', (r) => {
+    if (/\/three\.module[^/]*\.js$/.test(new URL(r.url()).pathname)) seen.push(r.url());
+  });
+  return seen;
+}
+
+test('the View switch opens on 2D, sits by Play, and a 2D visit loads no three.js', async ({ page }) => {
+  const seen = threeRequests(page);
+  await trackWebGl(page);
+  await openRoute(page, '#/turn-fight');
+  await expect(page.getByRole('group', { name: 'View' })).toBeVisible();
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(viewChoice(page, '3D')).not.toBeChecked();
+  await expect(topdown(page)).toBeVisible();
+  await expect(page.locator('.tf-3d')).toBeHidden();
+  await expect(page.getByRole('group', { name: 'Camera views' })).toBeHidden();
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+  expect(seen).toEqual([]);
+  expect(await contextsMade(page)).toBe(0);
+  // Paint is in the Display section of the closed settings menu, greyed out while 2D shows.
+  await settingsButton(page).click();
+  await expect(page.getByLabel('Paint')).toBeDisabled();
+  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Harvard');
+});
+
+test('switching to 3D and back while the fight plays never resets it, and WebGL is freed each time', async ({ page }) => {
+  const seen = threeRequests(page);
+  await trackWebGl(page);
+  await openRoute(page, '#/turn-fight');
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(2);
+  const before = await seconds(page);
+
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect(topdown(page)).toBeHidden();
+  await expect(page.getByRole('group', { name: 'Camera views' })).toBeVisible();
+  await expect(playButton(page)).toHaveText('Pause'); // still playing: nothing was reset
+  expect(await seconds(page)).toBeGreaterThanOrEqual(before);
+  await expect.poll(() => seconds(page)).toBeGreaterThan(before + 1); // and it goes on in 3D
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(3);
+  expect(seen.length).toBeGreaterThan(0);
+  expect(await liveContexts(page)).toBe(1);
+  // Each aircraft keeps its letter, and the merge is marked.
+  await expect(page.locator('.tf-3d-label-blue')).toHaveText('B');
+  await expect(page.locator('.tf-3d-label-red')).toHaveText('R');
+  await expect(page.locator('.tf-3d-label-nose')).toHaveText('MERGE');
+
+  // Back to 2D while it plays: the fight goes on, the 2D picture is drawn, and the context is released.
+  await viewChoice(page, '2D').check();
+  await expect(topdown(page)).toBeVisible();
+  await expect(canvas3d(page)).toHaveCount(0);
+  expect(await liveContexts(page)).toBe(0);
+  await expect(playButton(page)).toHaveText('Pause');
+  const at2d = await seconds(page);
+  expect(at2d).toBeGreaterThan(before + 1);
+  await expect.poll(() => seconds(page)).toBeGreaterThan(at2d + 0.5);
+  await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', BLUE)).toBeGreaterThan(30);
+
+  // 3D again: three.js is not fetched a second time, and there is exactly one live context.
+  const fetched = seen.length;
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(1);
+  expect(seen.length).toBe(fetched);
+  expect(await liveContexts(page)).toBe(1);
+
+  // Paused, 3D asks for no frames at all.
+  await playButton(page).click();
+  await expect(playButton(page)).toHaveText('Play');
+  await expect.poll(() => page.evaluate(() => window.__ooda.stats().frames)).toBe(0); // the frame asked for at Pause may still draw
+  const still = await draws3d(page);
+  const idle = await page.evaluate(() => window.__ooda.stats());
+  await page.waitForTimeout(300);
+  expect(await draws3d(page)).toBe(still);
+  expect(await page.evaluate(() => window.__ooda.stats())).toMatchObject({ frames: 0, timers: idle.timers });
+
+  // The choice is remembered: after a reload it opens in 3D, and the fight opens at the start.
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'turn-fight');
+  await expect(viewChoice(page, '3D')).toBeChecked();
+  await expect(canvas3d(page)).toBeVisible();
+  await expect(time(page)).toHaveText('T+0.0');
+});
+
+test('the 3D view draws the fight: it changes as the fight moves, and the first nose-on shows', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const start = await canvas3d(page).screenshot();
+  await page.getByLabel('First nose chases').check();
+  await playTo(page, 40);
+  await expect(page.locator('.tf-3d-first-nose')).toHaveText(/FIRST NOSE — (BLUE|RED|BOTH)/);
+  await expect.poll(async () => (await canvas3d(page).screenshot()).equals(start)).toBe(false);
+  // Going to 2D and back leaves the time where it was.
+  const t = await time(page).textContent();
+  await viewChoice(page, '2D').check();
+  await viewChoice(page, '3D').check();
+  await expect(canvas3d(page)).toBeVisible();
+  expect(await time(page).textContent()).toBe(t);
+});
+
+test('Overhead, Chase Blue and Chase Red move the camera; dragging and the wheel change the view; none of it touches the fight', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await playTo(page, 20);
+  const t = await time(page).textContent();
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  const bar = page.getByRole('group', { name: 'Camera views' });
+  const shots = [await canvas3d(page).screenshot()];
+  for (const name of ['Overhead', 'Chase Blue', 'Chase Red']) {
+    const before = await draws3d(page);
+    await bar.getByRole('button', { name }).click();
+    await expect.poll(() => draws3d(page)).toBeGreaterThan(before);
+    shots.push(await canvas3d(page).screenshot());
+  }
+  for (let i = 1; i < shots.length; i++) expect(shots[i].equals(shots[i - 1]), `view ${i} differs from the one before`).toBe(false);
+
+  // A drag orbits and the wheel zooms; each draws and then the picture is still again.
+  const box = await page.locator('.tf-3d').boundingBox();
+  const mid = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const beforeDrag = await canvas3d(page).screenshot();
+  await page.mouse.move(mid.x, mid.y);
+  await page.mouse.down();
+  await page.mouse.move(mid.x + 80, mid.y + 30, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => (await canvas3d(page).screenshot()).equals(beforeDrag)).toBe(false);
+  const beforeWheel = await canvas3d(page).screenshot();
+  await page.mouse.wheel(0, -300);
+  await expect.poll(async () => (await canvas3d(page).screenshot()).equals(beforeWheel)).toBe(false);
+  await page.waitForTimeout(200);
+  const still = await draws3d(page);
+  await page.waitForTimeout(300);
+  expect(await draws3d(page)).toBe(still);
+
+  // Not one number moved.
+  expect(await time(page).textContent()).toBe(t);
+  await expect(playButton(page)).toHaveText('Play');
+});
+
+test('Paint is a choice in the Display section of Turn Fight settings, and it repaints the aircraft in 3D', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
+  await settingsButton(page).click();
+  const paint = page.getByLabel('Paint');
+  await expect(paint).toBeEnabled();
+  // The side view's height scale is for 2D only, so it is greyed out while 3D shows.
+  await expect(page.getByRole('group', { name: 'Side view height scale' }).getByRole('radio', { name: '2×' })).toBeDisabled();
+  await expect(paint.locator('option')).toHaveText(['Harvard', 'Ship colours']);
+  await expect(paint.locator('option:checked')).toHaveText('Harvard'); // the default
+  const harvard = await canvas3d(page).screenshot();
+  const drawn = await draws3d(page);
+  await paint.selectOption({ label: 'Ship colours' });
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(drawn);
+  await expect.poll(async () => (await canvas3d(page).screenshot()).equals(harvard)).toBe(false);
+  await expect(time(page)).toHaveText('T+0.0'); // a display choice never resets the fight
+  // Each aircraft keeps its B or R label, and the choice is remembered.
+  await expect(page.locator('.tf-3d-label-blue')).toHaveText('B');
+  await expect(page.locator('.tf-3d-label-red')).toHaveText('R');
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'turn-fight');
+  await settingsButton(page).click();
+  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Ship colours');
+  // Reset to V6 defaults puts Harvard back, and leaves the view where it is.
+  await resetDefaults(page).click();
+  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Harvard');
+  await expect(viewChoice(page, '3D')).toBeChecked();
+});
+
+// The app's service worker can answer the request for three.js from its own cache, past page.route, so it is blocked here.
+test.describe('three.js offline', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('when three.js will not load, the note says so, it stays on 2D, and 2D keeps working', async ({ page }) => {
+    await page.route('**/three.module*.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
+    await openRoute(page, '#/turn-fight');
+    await viewChoice(page, '3D').check();
+    await expect(note(page)).toHaveText('3D needs a connection the first time.');
+    await expect(viewChoice(page, '2D')).toBeChecked();
+    await expect(topdown(page)).toBeVisible();
+    await expect(canvas3d(page)).toHaveCount(0);
+    await playButton(page).click();
+    await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
+    await playButton(page).click();
+  });
+});
+
+test('with no WebGL, the note says so and it stays on 2D', async ({ page }) => {
+  await page.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function getContext(type, ...rest) {
+      return /webgl/.test(type) ? null : real.call(this, type, ...rest);
+    };
+  });
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await expect(note(page)).toHaveText('3D needs WebGL, which this browser does not have.');
+  await expect(viewChoice(page, '2D')).toBeChecked();
+  await expect(topdown(page)).toBeVisible();
+  await playButton(page).click();
+  await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
+  await playButton(page).click();
+});
+
+test('leaving the Turn Fight while 3D plays releases WebGL and stops every frame (R4)', async ({ page }) => {
+  await trackWebGl(page);
+  await openRoute(page, '#/turn-fight');
+  await viewChoice(page, '3D').check();
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await playButton(page).click();
+  await expect.poll(() => draws3d(page)).toBeGreaterThan(3);
+  expect(await liveContexts(page)).toBe(1);
+  await page.evaluate(() => { location.hash = '#/about'; });
+  await expect.poll(() => page.evaluate(() => window.__ooda.stats()))
+    .toMatchObject({ mounted: 'about', frames: 0, listeners: 0, subscriptions: 0 });
+  expect(await liveContexts(page)).toBe(0);
+});
+
 for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
   test.describe(`at ${size.width} × ${size.height}`, () => {
     test.use({ viewport: size });
@@ -453,8 +700,8 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       await page.getByRole('button', { name: 'More detail' }).click();
       await blue(page).getByLabel('Speed (KTAS)').fill('120'); // with a limit warning showing
       await blue(page).getByLabel('Speed (KTAS)').blur();
-      await blue(page).getByLabel('Sustained G').fill('999'); // and a refusal message
-      await blue(page).getByLabel('Sustained G').blur();
+      await blue(page).getByLabel('G', { exact: true }).fill('999'); // and a refusal message
+      await blue(page).getByLabel('G', { exact: true }).blur();
       expect(await layoutProblems(page)).toEqual([]);
       // The top-down view and the side view both fit their boxes.
       const canvases = await page.evaluate(() => [...document.querySelectorAll('canvas.tf-topdown, canvas.tf-profile-canvas')].map((c) => {
