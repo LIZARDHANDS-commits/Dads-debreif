@@ -147,6 +147,20 @@ test('Reset to defaults puts every setting back to defaults.js, reporting just t
   assert.equal(box(panel, 'Photo opacity').value, '100');
 });
 
+test('Reset to defaults takes the photo alignment from the setup, not from the defaults', () => {
+  const { panel, changes } = setup({ available: { photo: true }, photoHome: { photoTrim: 1.0, photoEastFt: 100, photoNorthFt: -200 } });
+  type(box(panel, 'Photo scale trim'), '0.9');
+  type(box(panel, 'Photo opacity'), '50');
+  type(box(panel, 'Conflict: lateral'), '300');
+  buttonNamed(panel, 'Reset to defaults').dispatch('click');
+  assert.equal(box(panel, 'Photo scale trim').value, '1', 'the setup\'s trim of 1.0, not 1.2');
+  assert.equal(box(panel, 'Photo east / west offset').value, '100');
+  assert.equal(box(panel, 'Photo north / south offset').value, '-200');
+  assert.equal(box(panel, 'Photo opacity').value, '100', 'everything else goes to the defaults');
+  assert.equal(box(panel, 'Conflict: lateral').value, '200');
+  assert.equal(changes.at(-1).values.photoTrim, 1.0);
+});
+
 test('Reset to defaults with nothing changed reports nothing, and it clears a refused number too', () => {
   const { panel, changes } = setup();
   buttonNamed(panel, 'Reset to defaults').dispatch('click');

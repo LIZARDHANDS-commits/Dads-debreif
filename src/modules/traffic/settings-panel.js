@@ -42,6 +42,10 @@ export const PANEL_KEYS = Object.freeze([
 
 const defaultsFor = (keys) => Object.fromEntries(keys.map((key) => [key, DEFAULTS[key]]));
 
+// The photo alignment a setup starts from; anything it doesn't give is the default.
+const HOME_KEYS = ['photoTrim', 'photoEastFt', 'photoNorthFt'];
+const pickHome = (home) => Object.fromEntries(HOME_KEYS.map((key) => [key, home?.[key] ?? DEFAULTS[key]]));
+
 // Only the settings this menu edits.
 const pick = (values) => Object.fromEntries(PANEL_KEYS.filter((key) => values?.[key] !== undefined).map((key) => [key, values[key]]));
 
@@ -86,10 +90,10 @@ function withHint(control, text) {
  * ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
  * Returns { element, set(values), collapsed, setCollapsed(bool) }.
  */
-export function createSettingsPanel({ values = {}, onChange, onToggle, available = {}, photoHome = defaultsFor(['photoTrim', 'photoEastFt', 'photoNorthFt']) } = {}) {
+export function createSettingsPanel({ values = {}, onChange, onToggle, available = {}, photoHome = defaultsFor(HOME_KEYS) } = {}) {
   const store = createLocalSettings({ ...defaultsFor(PANEL_KEYS), ...pick(values) }, onChange);
   const controls = createControls(store);
-  const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => store.update(defaultsFor(PANEL_KEYS)) });
+  const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => store.update({ ...defaultsFor(PANEL_KEYS), ...pickHome(photoHome) }) });
   const feet = (key, label, step = 50) => controls.number(key, { label, unit: 'ft', min: LIMITS[key][0], max: LIMITS[key][1], step });
 
   const limits = menu.section('Conflict limits');
@@ -119,7 +123,7 @@ export function createSettingsPanel({ values = {}, onChange, onToggle, available
   );
 
   if (available.photo) {
-    const home = () => store.update({ photoTrim: photoHome.photoTrim, photoEastFt: photoHome.photoEastFt, photoNorthFt: photoHome.photoNorthFt });
+    const home = () => store.update(pickHome(photoHome));
     menu.section('Photo').append(
       controls.number('photoOpacityPct', { label: 'Photo opacity', unit: '%', min: LIMITS.photoOpacityPct[0], max: LIMITS.photoOpacityPct[1], step: 5 }),
       controls.checkbox('photoAboveGrid', { label: 'Draw the photo above the grid' }),
