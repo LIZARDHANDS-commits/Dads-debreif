@@ -1,6 +1,6 @@
 # Spec: `turn-sim`, the Formation Turn Sim
 
-Status: **draft, waiting for Patrick's approval.** Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. New questions raised here are numbered TS1 to TS7 until the plan doc gives them Q numbers.
+Status: **draft, waiting for Patrick's approval.** Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. New questions raised here are TS1 to TS7, logged in the plan doc as Q41 to Q47.
 
 Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn. Until then this spec and the task plan in [`tasks/turn-sim/`](../tasks/turn-sim/) are the work.
 
@@ -272,16 +272,16 @@ Each has a default, so none blocks building.
 
 For Patrick:
 
-- **TS1. The hidden cards.** V6 has a Graph, a Solver and a Correction model that its users never saw (hidden in the page, #32). Recommended: leave out the Graph and Solver (logged as future ideas), and keep the Correction model under More setup, set to None, since it's Dad's and D74 was decided for it.
-- **TS2. Start heading default.** Recommended: 000 (fly up the screen). V6's 0 flew east, which after D45 would be 090.
-- **TS3. Hook turn and In-place 90 are identical in V6.** Recommended: keep one entry, "Hook / in-place 90". Default until answered: keep both, as V6.
+- **TS1 (Q41). The hidden cards.** V6 has a Graph, a Solver and a Correction model that its users never saw (hidden in the page, #32). Recommended: leave out the Graph and Solver (logged as future ideas), and keep the Correction model under More setup, set to None, since it's Dad's and D74 was decided for it.
+- **TS2 (Q42). Start heading default.** Recommended: 000 (fly up the screen). V6's 0 flew east, which after D45 would be 090.
+- **TS3 (Q43). Hook turn and In-place 90 are identical in V6.** Recommended: keep one entry, "Hook / in-place 90". Default until answered: keep both, as V6.
 
 For Dad (V6 behaviour stays until he answers):
 
-- **TS4. Shackle and offset box.** (a) Should shackle wingmen turn into Lead and hold for the rollback delay, as the note says? V6 turns them the same way and never holds (#15, #32). (b) Offset box #4 "LATE" rolls out about 21,000 ft aft on left turns; should the default depend on direction, or should #4 solve by ground track as the note says (#16)? (c) What should the offset box's clock cue be for #3 and #4, since they never reach 5:30 (#16)?
-- **TS5. Clock cue selectors.** What should "Clock cue aircraft", a wingman's own "Clock target" and "Clock cue sequence: Manual" do? In V6 they do nothing, so they're left out until he says.
+- **TS4 (Q44). Shackle and offset box.** (a) Should shackle wingmen turn into Lead and hold for the rollback delay, as the note says? V6 turns them the same way and never holds (#15, #32). (b) Offset box #4 "LATE" rolls out about 21,000 ft aft on left turns; should the default depend on direction, or should #4 solve by ground track as the note says (#16)? (c) What should the offset box's clock cue be for #3 and #4, since they never reach 5:30 (#16)?
+- **TS5 (Q45). Clock cue selectors.** What should "Clock cue aircraft", a wingman's own "Clock target" and "Clock cue sequence: Manual" do? In V6 they do nothing, so they're left out until he says.
 
 For Patrick or Dad:
 
-- **TS6. Standards.** Should the Turn Sim judge by the debrief's edited standards, or always by V6's? Default: V6's, as V6 does.
-- **TS7. Rear element check timing.** V6 starts it at a fixed time and it postpones any #3/#4 turn due during it (#31). Keep that, or start it only after #3 and #4 have finished turning? Default: V6's.
+- **TS6 (Q46). Standards.** Should the Turn Sim judge by the debrief's edited standards, or always by V6's? Default: V6's, as V6 does.
+- **TS7 (Q47). Rear element check timing.** V6 starts it at a fixed time and it postpones any #3/#4 turn due during it (#31). Keep that, or start it only after #3 and #4 have finished turning? Default: V6's.

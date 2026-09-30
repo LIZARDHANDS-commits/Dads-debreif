@@ -55,4 +55,4 @@ Each PR lists the skills it applied, is reviewed with code-review-and-quality be
 
 ## Open questions
 
-TS1 to TS7 in the spec. Each has a default, so none blocks the build.
+TS1 to TS7 in the spec (Q41 to Q47 in the plan doc). Each has a default, so none blocks the build.
