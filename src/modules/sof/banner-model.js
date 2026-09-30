@@ -4,7 +4,7 @@
 // lines to announce, and gives back the acknowledgements to keep. The banner's
 // DOM is banner-view.js.
 import {
-  evaluate, tafCautionsForBanner, tafResultsOfWaves, acknowledge, acknowledgeAll,
+  evaluate, tafCautionsForBanner, tafResultsOfWaves, acknowledge, acknowledgeAll, bannerNotEndedBefore,
 } from './cautions.js';
 
 /** Where the acknowledgements are kept, in the module's storage scope. */
@@ -55,7 +55,7 @@ export function newKeys(before, lines) {
  * @param {any} [args]
  */
 export function buildBanner({ cards, tafs, extra, acks, now, timeZone, enabled = true, shown = [], memory = [] } = {}) {
-  const result = evaluate({ cards, tafs, extra, acks, now, timeZone });
+  const result = evaluate({ cards, tafs, extra, acks, now, timeZone, notEndedBefore: bannerNotEndedBefore(now) });
   // With no readable day nothing can be stored (an acknowledgement with no day never expires), but Acknowledge
   // must still work: the keys acknowledged this visit are kept in memory by the caller and hide those lines.
   const remembered = new Set(result.storable ? [] : Array.isArray(memory) ? memory : []);

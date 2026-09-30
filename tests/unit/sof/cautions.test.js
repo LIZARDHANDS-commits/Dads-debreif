@@ -12,7 +12,7 @@ import { homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternate
 import { cardModel } from '../../../src/modules/sof/cards.js';
 import { homeCall, alternateCall, waveCalls } from '../../../src/modules/sof/waves.js';
 import {
-  ackDay, emptyAcks, readAcks, cautionList, evaluate, acknowledge, acknowledgeAll, tafResultsOfWaves, tafCautionsForBanner, bannerWindow,
+  ackDay, emptyAcks, readAcks, cautionList, evaluate, acknowledge, acknowledgeAll, tafResultsOfWaves, tafCautionsForBanner, bannerWindow, bannerNotEndedBefore,
 } from '../../../src/modules/sof/cautions.js';
 import { METAR, HOME_TAF, ALT_TAF } from '../../fixtures/sof/reports.js';
 
@@ -509,15 +509,15 @@ test('every airfield\'s TAF is checked over the day, and a missing TAF says so i
   assert.deepEqual(evaluate({ tafs, acks, ...ctx() }).fresh, []);
 });
 
-test('the banner window is from 1 h before now to the later of the end of today and now + 12 h', () => {
+test('the banner window is from local midnight (or 1 h before now, if earlier) to the later of the end of today and now + 12 h', () => {
   const w = bannerWindow(ctx());
-  assert.equal(+w.from, +at(29, 17, 42), 'an hour before now, not midnight at Moose Jaw');
+  assert.equal(+w.from, +at(29, 6), 'midnight at Moose Jaw, so a joined spell keeps one span all day');
   assert.equal(+w.to, +at(30, 6, 42), 'now + 12 h is later than the end of today');
   const evening = bannerWindow(ctx(at(29, 23)));
-  assert.equal(+evening.from, +at(29, 22));
+  assert.equal(+evening.from, +at(29, 6));
   assert.equal(+evening.to, +at(30, 11), 'late in the day it reaches into tomorrow');
   const early = bannerWindow(ctx(at(29, 8)));
-  assert.equal(+early.from, +at(29, 7));
+  assert.equal(+early.from, +at(29, 6), 'never later than midnight');
   assert.equal(+early.to, +at(30, 6), 'early in the day, the end of today');
   assert.equal(+bannerWindow(ctx(at(30, 5, 59))).to, +at(30, 17, 59), 'still the 29th at home: now + 12 h is later than 06:00Z');
 });
@@ -531,7 +531,7 @@ test('with no readable zone the banner window is now to now + 12 h; with no read
 
 test('the banner does not depend on the day being viewed: a TAF storm later today or in the next 12 h is raised, one after that is not', () => {
   const tempo = (from, to) => `TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO ${from}/${to} 3SM TSRA BKN030CB`;
-  const raised = (raw, now = NOW) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }) }).length > 0;
+  const raised = (raw, now = NOW) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }), notEndedBefore: bannerNotEndedBefore(now) }).length > 0;
   assert.equal(raised(tempo('2920', '2923')), true, 'this evening');
   assert.equal(raised(tempo('3004', '3006')), true, 'tonight, within 12 h of now');
   assert.equal(raised(tempo('3010', '3013')), false, 'past now + 12 h (30/06:42Z)');
@@ -542,7 +542,7 @@ test('the banner does not depend on the day being viewed: a TAF storm later toda
 
 test('a TAF caution that ended hours ago is not on the banner; one that ended 30 minutes ago still is', () => {
   const tempo = (from, to) => `TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO ${from}/${to} 3SM TSRA BKN030CB`;
-  const raised = (raw, now = NOW) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }) }).length > 0;
+  const raised = (raw, now = NOW) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }), notEndedBefore: bannerNotEndedBefore(now) }).length > 0;
   const now = at(29, 18, 30);
   assert.equal(raised(tempo('2913', '2915'), now), false, 'ended 3 h 30 min ago');
   assert.equal(raised(tempo('2916', '2918'), now), true, 'ended 30 min ago');
@@ -600,4 +600,46 @@ test('with no readable day acknowledgements are not kept, so they can never outl
   assert.equal(again.changed, false, 'and there is nothing to write');
   assert.equal(evaluate({ cards: storm(), acks: stored, ...noZone }).changed, false);
   assert.equal(evaluate({ cards: storm(), ...ctx() }).storable, true);
+});
+
+// ---- The cut is after the join, so an acknowledged fog does not come back mid-spell ---------------------------
+
+const FOG_SPELL = 'TAF CYMJ 301140Z 3012/0112 27010KT 1/2SM FG OVC002 BECMG 3016/3018 30015KT 1/2SM FG OVC002 FM302200 27010KT P6SM SKC';
+const fogKeys = (now) => {
+  const tafs = tafCautionsForBanner({ tafs: { CYMJ: parseTaf(FOG_SPELL, { now: at(30, 11, 40) }) }, ...ctx(now) });
+  return cautionList({ tafs, notEndedBefore: bannerNotEndedBefore(now) }).filter((c) => /FG/.test(c.reason) && c.group === 'PREVAILING').map((c) => c.key); // the BECMG has its own line, and its own end
+};
+
+test('one fog spell has one key all through it, whatever the time: the join is made before the cut', () => {
+  const early = fogKeys(at(30, 13));
+  assert.equal(early.length, 1);
+  assert.deepEqual(fogKeys(at(30, 17, 30)), early);
+  assert.deepEqual(fogKeys(at(30, 19, 30)), early, 'the first piece ended over an hour ago, the spell has not');
+});
+
+test('an acknowledgement of that fog made at 13Z still holds at 19:30Z', () => {
+  const at13 = at(30, 13);
+  const tafs13 = tafCautionsForBanner({ tafs: { CYMJ: parseTaf(FOG_SPELL, { now: at(30, 11, 40) }) }, ...ctx(at13) });
+  const first = evaluate({ tafs: tafs13, notEndedBefore: bannerNotEndedBefore(at13), ...ctx(at13) });
+  const acks = acknowledgeAll(first.acks, first.fresh);
+  const later = at(30, 19, 30);
+  const tafsLate = tafCautionsForBanner({ tafs: { CYMJ: parseTaf(FOG_SPELL, { now: at(30, 11, 40) }) }, ...ctx(later) });
+  assert.deepEqual(evaluate({ tafs: tafsLate, acks, notEndedBefore: bannerNotEndedBefore(later), ...ctx(later) }).fresh, []);
+});
+
+test('the cut still works after the join: a caution that ended hours ago goes, and BANNER_BACK_MS is the knob', () => {
+  assert.equal(+bannerNotEndedBefore(NOW), +NOW - 3_600_000);
+  const raw = 'TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO 2913/2915 3SM TSRA BKN030CB';
+  const list = (now) => cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }), notEndedBefore: bannerNotEndedBefore(now) });
+  assert.equal(list(at(29, 18, 30)).length, 0);
+  assert.equal(list(at(29, 15, 30)).length > 0, true);
+});
+
+test('just after local midnight the window still reaches back across it: 00:30 local sees an hour back', () => {
+  const now = at(29, 6, 30); // 00:30 at Moose Jaw
+  const w = bannerWindow(ctx(now));
+  assert.equal(+w.from, +at(29, 5, 30), 'now - 1 h, which is before local midnight (06Z)');
+  const raw = 'TAF CYMJ 290540Z 2900/3018 22010KT P6SM SKC TEMPO 2905/2906 3SM TSRA BKN030CB';
+  const shown = cautionList({ tafs: tafCautionsForBanner({ tafs: { CYMJ: homeTaf(raw) }, ...ctx(now) }), notEndedBefore: bannerNotEndedBefore(now) });
+  assert.equal(shown.length > 0, true, 'ended 30 min ago, before local midnight');
 });
