@@ -466,7 +466,8 @@ test('when three.js will not load, the note says so and 2D keeps working (task 1
   // (A later try after a real network failure loads; that retry is pinned in the ui-kit's loadThree test.)
   await page.route('**/three.module.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
   await open(page);
-  await viewChoice(page, '3D').click(); // the choice goes back to 2D by itself, so no checked-state wait here
+  // click, not check: the failed load puts 2D back at once, which check() reads as "did not change".
+  await viewChoice(page, '3D').click();
   await expect(page.locator('.ts-note')).toHaveText('3D needs a connection the first time.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(canvas(page)).toBeVisible();

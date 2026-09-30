@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { projectPoint, t6Points } from '../../../src/modules/debrief/view3d/scene.js';
 import {
-  loadThree, createAircraftMesh, createStandInMesh, disposeAircraftMesh, matchProjection, worldToScreen, altToZ, addLights, addSky, CAMERA_DISTANCE_FT,
+  loadThree, webglSupported, resetWebglCheck, createAircraftMesh, createStandInMesh, disposeAircraftMesh, matchProjection, worldToScreen, altToZ, addLights, addSky, CAMERA_DISTANCE_FT,
 } from '../../../src/ui-kit/three-aircraft.js';
 
 const THREE = await loadThree();
@@ -320,4 +320,36 @@ test('loadThree: the same module both times, and it is the real three', async ()
   assert.equal(await a, await b);
   assert.equal(await a, THREE);
   assert.equal(typeof THREE.OrthographicCamera, 'function');
+});
+
+test('webglSupported: true when a canvas gives a WebGL context, released at once, and asked only once', () => {
+  resetWebglCheck();
+  const asked = [];
+  let lost = 0;
+  const doc = { createElement: () => ({ getContext: (kind) => { asked.push(kind); return { getExtension: () => ({ loseContext: () => { lost += 1; } }) }; } }) };
+  assert.equal(webglSupported({ document: doc }), true);
+  assert.deepEqual(asked, ['webgl2']);
+  assert.equal(lost, 1);
+  assert.equal(webglSupported({ document: doc }), true);
+  assert.equal(asked.length, 1, 'the answer is cached');
+});
+
+test('webglSupported: false when no context comes back, or when asking throws', () => {
+  resetWebglCheck();
+  const none = { createElement: () => ({ getContext: () => null }) };
+  assert.equal(webglSupported({ document: none }), false);
+  resetWebglCheck();
+  const webgl1Only = { createElement: () => ({ getContext: (kind) => (kind === 'webgl' ? {} : null) }) };
+  assert.equal(webglSupported({ document: webgl1Only }), false, 'three needs WebGL2');
+  resetWebglCheck();
+  const throws = { createElement: () => { throw new Error('no canvas'); } };
+  assert.equal(webglSupported({ document: throws }), false);
+  resetWebglCheck();
+});
+
+test('webglSupported: a context that cannot be released early still counts', () => {
+  resetWebglCheck();
+  const doc = { createElement: () => ({ getContext: () => ({ getExtension: () => { throw new Error('no extension'); } }) }) };
+  assert.equal(webglSupported({ document: doc }), true);
+  resetWebglCheck();
 });

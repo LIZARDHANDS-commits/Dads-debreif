@@ -115,3 +115,19 @@ test('sof, recorded weather', async ({ page }) => {
   await expect(page.locator('article.sof-card')).toHaveCount(4);
   await shot(page, 'sof.png');
 });
+
+test('turn fight', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await expect(page.locator('.tf-play')).toBeVisible();
+  // The clock is paused, so let the views draw their first frame.
+  const drawn = () => page.locator('canvas.tf-topdown').evaluate((canvas) => {
+    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    let lit = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] > 150) lit += 1;
+    return lit;
+  });
+  await page.waitForFunction(() => document.querySelector('canvas.tf-topdown').width > 1);
+  await page.clock.runFor(100);
+  await expect.poll(drawn).toBeGreaterThan(100);
+  await shot(page, 'turn-fight.png');
+});
