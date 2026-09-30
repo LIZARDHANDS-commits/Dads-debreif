@@ -49,6 +49,7 @@ const host = createHost({
   airfields,
   standards,
   exampleText,
+  scenarioStore: store.scope('scenarios'),
   onStatus: (text) => {
     statusLine.textContent = text;
     statusLine.hidden = !text;

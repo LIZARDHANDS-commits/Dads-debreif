@@ -63,7 +63,7 @@ export function createLayout({ settings, controls, on }) {
   const menu = createSettingsMenu({
     title: 'Turn Fight settings',
     onReset: () => on.resetDefaults(),
-    resetLabel: 'Reset to V6 defaults',
+    resetLabel: 'Reset to Standard Defaults',
     // The column scrolls, so a menu opened near its foot is brought into view, Reset button and all.
     onToggle: (collapsed) => !collapsed && menu.element.scrollIntoView?.({ block: 'nearest' }),
   });

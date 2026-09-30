@@ -19,9 +19,9 @@ function shortcutAllowed(event) {
 }
 
 /**
- * @param {{ root: any, scheduler: any, store: any, settings: any, time: any, airfields?: any, standards?: any, exampleText?: any, keyTarget?: any, onStatus?: (text: string) => void }} options
+ * @param {{ root: any, scheduler: any, store: any, settings: any, time: any, airfields?: any, standards?: any, exampleText?: any, scenarioStore?: any, keyTarget?: any, onStatus?: (text: string) => void }} options
  */
-export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, exampleText = null, keyTarget = globalThis, onStatus = () => {} }) {
+export function createHost({ root, scheduler, store, settings, time, airfields = null, standards = null, exampleText = null, scenarioStore = null, keyTarget = globalThis, onStatus = () => {} }) {
   let current = null; // { id, cleanups: Set, scope, unmount }
   let openToken = 0;
 
@@ -72,6 +72,7 @@ export function createHost({ root, scheduler, store, settings, time, airfields =
       },
       // The example flight's track files by asset name (src/shell/examples.js).
       exampleText,
+      scenarioStore: scenarioStore ?? store.scope('scenarios'),
       storage: store.scope(session.id),
       scheduler: session.scope,
       time,

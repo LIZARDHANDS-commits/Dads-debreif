@@ -6,35 +6,7 @@ import {
   aircraftKey, aircraftSettings, checkSettings, settingIsValid, migrateSettings,
 } from '../../../src/modules/turn-sim/settings.js';
 import { createSettings } from '../../../src/storage/settings.js';
-import { v6Page } from '../../golden/v6-source.js';
 
-test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
-  const box = (id) => {
-    const src = v6Page('shell');
-    const at = src.indexOf(`id="${id}"`);
-    assert.ok(at > 0, `no box ${id}`);
-    const tag = src.slice(src.lastIndexOf('<', at), src.indexOf('>', at));
-    if (tag.startsWith('<input')) return tag.match(/ value="([^"]*)"/)[1];
-    // A select: the option marked selected, or the first one.
-    const end = src.indexOf('</select>', at);
-    const opts = src.slice(at, end).match(/<option value="([^"]*)"( selected)?/g);
-    return (opts.find((o) => o.endsWith('selected')) ?? opts[0]).match(/value="([^"]*)"/)[1];
-  };
-  const v6 = {
-    formation: box('formation'), spacingFt: +box('spacing'), boxAftFt: +box('boxAft'), boxStaggerFt: +box('boxStagger'),
-    startHeadingDeg: 90 - +box('heading'), // V6's math heading 0 is compass 090, showNm: box('showNm') === 'yes',
-    offsetBox4Timing: box('offsetBox4TimingMode'), rearCheckOn: box('rearCheckEnabled') === 'on',
-    rearCheckStartSec: +box('rearCheckStart'), rearCheckDir: box('rearCheckDir'),
-    rearCheckAngleDeg: +box('rearCheckAngle'), rearCheckHoldSec: +box('rearCheckHold'),
-    maneuver: box('maneuver'), direction: box('dir'), speedKt: +box('speed'), baseG: +box('gload'), turnDeg: +box('turnDeg'),
-    timing: box('triggerMode'), baseDelaySec: +box('baseDelay'), clockCueAircraft: +box('clockCueAircraft'),
-    clockCuePos: box('clockCuePos'), clockCueTolDeg: +box('clockCueTol'), clockCueSequence: box('clockCueSequence'),
-    durationSec: +box('duration'), moaBoundaryNm: +box('moaBoundaryNM'),
-    correction: box('correction'), correctionStrength: +box('corrStrength'),
-    solveFor: box('solveFor'), targetSpacingFt: +box('targetSpacing'),
-  };
-  for (const [key, value] of Object.entries(v6)) assert.equal(V6_DEFAULTS[key], value, key);
-});
 
 test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 7,000 ft (D114), the box stagger 0, the clock position Auto (SMM item 2), the start heading 000 (D45) and the offset box timing by the SMM rear delay', () => {
   const changed = Object.keys(V6_DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();

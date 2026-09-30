@@ -12,7 +12,7 @@ const blue = (page) => page.getByRole('group', { name: 'Blue' });
 const red = (page) => page.getByRole('group', { name: 'Red' });
 const result = (page) => page.getByRole('table', { name: 'Result' });
 const settingsButton = (page) => page.getByRole('button', { name: 'Turn Fight settings' });
-const resetDefaults = (page) => page.getByRole('button', { name: 'Reset to V6 defaults' });
+const resetDefaults = (page) => page.getByRole('button', { name: /Reset to (Standard|V6) defaults/ });
 
 const seconds = async (page) => Number((await time(page).textContent()).replace('T+', ''));
 

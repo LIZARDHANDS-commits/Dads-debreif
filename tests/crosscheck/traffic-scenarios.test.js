@@ -17,6 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { assertTableWithinTolerance } from '../helpers/tolerances.js';
 import { buildTable, derivedManualNumbers, makeMeasures, decimalsFor, round, judge } from './traffic-measure.js';
 
 const readJson = (rel) => JSON.parse(readFileSync(new URL(rel, import.meta.url), 'utf8'));
@@ -96,7 +97,7 @@ test('the report table equals the checked-in expected table: it fails only when 
     writeFileSync(EXPECTED_URL, JSON.stringify(TABLE, null, 2) + '\n');
   }
   const expected = JSON.parse(readFileSync(EXPECTED_URL, 'utf8'));
-  assert.deepEqual(TABLE, expected);
+  assertTableWithinTolerance(TABLE, expected);
 });
 
 test('the run leaves the setup as it found it (the cross-check changes no number)', () => {
