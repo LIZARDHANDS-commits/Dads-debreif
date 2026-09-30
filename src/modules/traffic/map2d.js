@@ -90,7 +90,7 @@ export function pointLabelLines(index, point) {
 }
 
 /** "R 2,474 ft / bank 60°" for a rounded point, with the most G it needs when that's known; else nothing. */
-export function turnDataText(point) {
+export function turnLabelText(point) {
   if (!Number.isFinite(point.radiusFt) || !Number.isFinite(point.bankDeg)) return '';
   const most = Number.isFinite(point.maxG) ? ` / most ${point.maxG.toFixed(1)} G` : '';
   return `R ${whole(point.radiusFt)} ft / bank ${whole(point.bankDeg)}°${most}`;
@@ -201,6 +201,22 @@ export function turnedShape(shape, headingDeg, sizePx) {
 
 export const aircraftSymbol = (headingDeg, sizePx) => turnedShape(AIRCRAFT_SHAPE, headingDeg, sizePx);
 
+/** The smallest a conflict bubble and a caution ring are drawn on screen, in pixels, so they can be seen when zoomed out. */
+export const MIN_BUBBLE_PX = 8;
+export const MIN_RING_PX = 12;
+const RING_OVER_BUBBLE_PX = 4;
+
+/**
+ * The radii, in pixels, of an aircraft's conflict bubble and caution ring at this zoom. They are the
+ * true size of the limits (in feet) when that is big enough to see, and never smaller than
+ * MIN_BUBBLE_PX and MIN_RING_PX; the ring is always bigger than the bubble.
+ */
+export function markRadiiPx(conflictLatFt, cautionLatFt, pxPerFt) {
+  const bubblePx = Math.max(conflictLatFt * pxPerFt, MIN_BUBBLE_PX);
+  const ringPx = Math.max(cautionLatFt * pxPerFt, MIN_RING_PX, bubblePx + RING_OVER_BUBBLE_PX);
+  return { bubblePx, ringPx };
+}
+
 /** Each aircraft's worst level, 'conflict' over 'caution', as a Map of id to level. */
 export function conflictLevels(conflicts) {
   const levels = new Map();
@@ -295,7 +311,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
   if (settings.layerTurnData) {
     for (const route of routes) {
       route.points.forEach((pt) => {
-        const words = turnDataText(pt);
+        const words = turnLabelText(pt);
         if (!words) return;
         const [x, y] = at(pt);
         text(words, x + 11, y + 29, palette.caution, { anchor: x });
@@ -315,6 +331,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
   }
 
   // Bubbles and rings first, so the aircraft sit on top of them.
+  const marks = markRadiiPx(settings.conflictLatFt, settings.cautionLatFt, pxPerFt);
   for (const ac of flying) {
     const [x, y] = at(ac);
     const level = levels.get(ac.id);
@@ -325,7 +342,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
       ctx.setLineDash([4, 4]);
       ctx.strokeStyle = hot ? palette.caution : colours.get(ac.id);
       ctx.lineWidth = hot ? 2.5 : 1.5;
-      circle(x, y, settings.cautionLatFt * pxPerFt);
+      circle(x, y, marks.ringPx);
       ctx.stroke();
       ctx.restore();
     }
@@ -335,7 +352,7 @@ export function drawScene(ctx, map, scene, settings, palette) {
       ctx.globalAlpha = hot ? 1 : 0.22;
       ctx.strokeStyle = hot ? palette.bad : colours.get(ac.id);
       ctx.lineWidth = hot ? 3 : 2;
-      circle(x, y, settings.conflictLatFt * pxPerFt);
+      circle(x, y, marks.bubblePx);
       if (hot) {
         ctx.save();
         ctx.globalAlpha = 0.15;

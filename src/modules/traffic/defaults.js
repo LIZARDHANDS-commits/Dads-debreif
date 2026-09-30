@@ -93,8 +93,8 @@ export const DEFAULTS = Object.freeze({
   spawnDelayS: 0,
   spawnPlan: 'random',
 
-  // + Pair: 15 s apart, on the same route.
-  pairGapS: 15,
+  // + Pair: 20 s apart, on the same route (15 s leaves 2,536 ft on final at 100 kt, under the 3,000 ft final spacing; about 18 s is needed).
+  pairGapS: 20,
   pairRoute: 'same',
 
   // New plan: named "Plan 1", no steps yet; when it runs out, Land.
@@ -157,7 +157,7 @@ export const DEFAULTS = Object.freeze({
 
 // The values a setting may hold besides its type, for createSettings(store, DEFAULTS, { allowed: ALLOWED }).
 // The 2D | 3D switch is the ui-kit's shared one, so its values come from there.
-export const ALLOWED = Object.freeze({ view: VIEW_ALLOWED });
+export const ALLOWED = /** @type {Record<string, any[]>} */ (/** @type {unknown} */ (Object.freeze({ view: VIEW_ALLOWED })));
 
 // The playback speeds on offer (the spec's "0.25× to 8×"), and the speed the
 // bar starts at.

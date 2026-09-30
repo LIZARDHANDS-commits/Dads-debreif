@@ -57,11 +57,13 @@ function withHint(control, text) {
 /**
  * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
  * onToggle(collapsed): the menu was opened or closed by the person.
+ * listen: app.listen, so the Escape listener ends when the module closes.
  * available: { rules, photo }. photoHome: the alignment "Reset photo alignment" and Reset to
  * defaults go back to ({ photoTrim, photoEastFt, photoNorthFt }); the setup's own, or the defaults.
  * Returns { element, collapsed, setCollapsed(bool), dispose() }.
+ * @param {{ controls: any, settings: any, onToggle: (collapsed: boolean) => void, listen: (target: any, type: string, handler: (e: any) => void) => any, available?: { rules?: boolean, photo?: boolean }, photoHome?: Record<string, any> }} options
  */
-export function createSettingsPanel({ controls, settings, onToggle, available = {}, photoHome = defaultsFor(HOME_KEYS) }) {
+export function createSettingsPanel({ controls, settings, onToggle, listen, available = {}, photoHome = defaultsFor(HOME_KEYS) }) {
   const menu = createSettingsMenu({ title: TITLE, onToggle, onReset: () => settings.update({ ...defaultsFor(PANEL_KEYS), ...pickHome(photoHome) }) });
   const feet = (key, label, step = 50) => controls.number(key, { label, unit: 'ft', min: LIMITS[key][0], max: LIMITS[key][1], step });
 
@@ -109,6 +111,15 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
   };
   const stopGreying = settings.subscribe(greyOut);
   greyOut(settings.get());
+
+  // Escape closes the menu, and focus goes back to its button so the keyboard doesn't lose its place.
+  listen(menu.element, 'keydown', (e) => {
+    if (e.key !== 'Escape' || menu.collapsed) return;
+    e.preventDefault();
+    menu.setCollapsed(true);
+    onToggle?.(true);
+    /** @type {HTMLElement | null} */ (menu.element.querySelector?.('.panel-toggle') ?? null)?.focus();
+  });
 
   return {
     element: menu.element,

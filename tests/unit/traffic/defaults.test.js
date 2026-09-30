@@ -96,8 +96,8 @@ test('row: the spawner starts at CT-156, the first entry, point 1, delay 0 s, pl
   row({ spawnType: 'CT-156', spawnRoute: 'first-entry', spawnStartPoint: 1, spawnDelayS: 0, spawnPlan: 'random' });
 });
 
-test('row: + Pair is 15 s apart on the same route', () => {
-  row({ pairGapS: 15, pairRoute: 'same' });
+test('row: + Pair is 20 s apart on the same route', () => {
+  row({ pairGapS: 20, pairRoute: 'same' });
 });
 
 test('row: a new plan is named "Plan 1" and lands when it runs out', () => {

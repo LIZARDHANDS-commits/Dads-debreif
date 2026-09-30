@@ -1,18 +1,19 @@
 import { test, expect } from './fixtures.js';
 import { openRoute } from './routes.js';
 
-test('home lists the Debrief Viewer, the Turn Sim, SOF and Turn Fight as PROTOTYPEs, one module as coming soon, and About @smoke', async ({ page }) => {
+test('home lists the Debrief Viewer, the Turn Sim, the Traffic Sim, SOF and Turn Fight as PROTOTYPEs, no module as coming soon, and About @smoke', async ({ page }) => {
   await openRoute(page, '#/');
   await expect(page).toHaveTitle("DAD's OODA LOOP");
   await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
   const cards = page.locator('.card');
   await expect(cards).toHaveCount(6);
-  await expect(page.locator('.card.is-planned')).toHaveCount(1);
+  await expect(page.locator('.card.is-planned')).toHaveCount(0); // every module now opens
   await expect(page.locator('a.card[href="#/debrief"]')).toBeVisible();
   const turnSim = page.locator('a.card[href="#/turn-sim"]');
   await expect(turnSim).toBeVisible();
   await expect(turnSim.locator('.badge-prototype')).toHaveText('PROTOTYPE'); // D135
   await expect(page.locator('a.card[href="#/sof"] .badge-prototype')).toHaveText('PROTOTYPE');
+  await expect(page.locator('a.card[href="#/traffic"] .badge-prototype')).toHaveText('PROTOTYPE');
   await expect(page.locator('a.card[href="#/turn-fight"] .badge-prototype')).toHaveText('PROTOTYPE');
   await expect(page.locator('a.card[href="#/debrief"] .badge-prototype')).toHaveCount(0);
   await expect(page.locator('.card.is-planned a, a.card.is-planned')).toHaveCount(0); // not clickable (R3)
@@ -29,11 +30,8 @@ test('About opens from its card and links back home @smoke', async ({ page }) =>
   await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
 });
 
-test('a module that is not built yet says so and shows home @smoke', async ({ page }) => {
-  await openRoute(page, '#/traffic');
-  await expect(page.locator('#route-notice')).toHaveText('Traffic Pattern Sim is coming soon.');
-  await expect(page.locator('.home')).toBeVisible();
-});
+// Every registry entry now has a load (Turn Fight and the Traffic Sim were the last two), so no
+// route shows the "is coming soon" notice any more; src/app.js keeps that path for future modules.
 
 test('addresses match without regard to case, and a not-found note keeps what was typed (AF-4)', async ({ page }) => {
   await openRoute(page, '#/About');
