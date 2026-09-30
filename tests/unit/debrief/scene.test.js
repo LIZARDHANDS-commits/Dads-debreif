@@ -55,3 +55,16 @@ test('no G to use: unknown pitch, G at or below 1.01, no G, or too slow', () => 
 test('recorded bank still wins over recorded G (D47)', () => {
   assert.deepEqual(bankFromTrack({ ...turn(200, 10), pitchDeg: 0, recordedG: 4, recordedBankDeg: 20 }), { bankDeg: -20, source: 'recorded' });
 });
+
+test('M2: a caller\'s turn rate (left positive) replaces the chord rate; null or unknown means wings level', () => {
+  const w = (10 * Math.PI) / 180; // 10° a second
+  const chord = bankFromTrack(turn(200, 10));
+  const given = bankFromTrack({ speedKt: 200, turnRateRadPerS: w });
+  assert.ok(Math.abs(given.bankDeg - chord.bankDeg) < 0.1, `${given.bankDeg} vs ${chord.bankDeg}`);
+  assert.equal(bankFromTrack({ speedKt: 200, turnRateRadPerS: -w }).bankDeg, -given.bankDeg);
+  assert.deepEqual(bankFromTrack({ speedKt: 200, turnRateRadPerS: null }), { bankDeg: 0, source: 'estimated' });
+  assert.deepEqual(bankFromTrack({ speedKt: 10, turnRateRadPerS: w }), { bankDeg: 0, source: 'estimated' });
+  // Level, with recorded G: acos(1/G) as before; recorded bank still wins (D47).
+  assert.ok(Math.abs(bankFromTrack({ speedKt: 200, turnRateRadPerS: w, pitchDeg: 0, recordedG: 3.5 }).bankDeg - acosDeg(3.5)) < 1e-9);
+  assert.deepEqual(bankFromTrack({ speedKt: 200, turnRateRadPerS: w, recordedBankDeg: 20 }), { bankDeg: -20, source: 'recorded' });
+});
