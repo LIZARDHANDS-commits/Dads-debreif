@@ -108,6 +108,8 @@ export const DEFAULTS = Object.freeze({
   baseG: 3.0,
   // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
   boxAftFt: 7000,
+  // Fig 16.30 draws each element 4,000 to 6,000 ft abreast: the box opens on Spacing. V6's 1,000 ft stagger put #2 at 7,000 ft, which read wide.
+  boxStaggerFt: 0,
   // D45 (Patrick, Q42): the start heading is a compass heading, 000 north and 090 east, and the default flies north,
   // up the screen. V6's default flew east.
   startHeadingDeg: 0,
@@ -126,6 +128,9 @@ export const DEFAULTS = Object.freeze({
   // The G setting is the second stage. V6 flew the whole turn at the G setting.
   crossTurnFirstG: 2.0,
   crossTurnSwitchDeg: 90,
+  // The Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart. #2 solves its second-stage G so the roll-out spacing is Spacing.
+  // false is V6's fixed G (about 2,000 ft apart).
+  crossTurnSolveSpacing: true,
   // A run lasts at least until the last aircraft has finished its turn and 10 s more, so a slow plan (a four-ship
   // Delayed 45 with Auto timing starts its last aircraft at 117 s) is never cut off at the Duration with aircraft
   // that have not turned. V6 stopped at the Duration whatever was still waiting: false gives that back.
@@ -188,6 +193,7 @@ export const SETTINGS_RULES = Object.freeze({
   durationCoversTurn: bool,
   crossTurnFirstG: number(1.01, 9),
   crossTurnSwitchDeg: number(10, 180),
+  crossTurnSolveSpacing: bool,
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 

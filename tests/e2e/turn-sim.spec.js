@@ -374,6 +374,11 @@ test('leaving the Turn Sim leaves no frames, timers, listeners or shortcuts behi
 
 // ---- 2D | 3D switch (SPEC-turn-sim: 2D/3D switch, task 19) --------------------------------------
 const viewChoice = (page, name) => page.getByRole('radio', { name, exact: true });
+// click() and then check the state: check() re-reads the radio at once and fails when the view has already moved on (a 3D load that fails goes back to 2D).
+const pickView = async (page, name) => {
+  await viewChoice(page, name).click();
+  await expect(viewChoice(page, name)).toBeChecked();
+};
 const threeRequests = (page) => {
   const seen = [];
   page.on('request', (r) => {
@@ -400,7 +405,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
   await playButton(page).click();
   await expect.poll(() => simTime(page)).toBeGreaterThan(1);
   const before = await simTime(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect(canvas3d(page)).toBeVisible();
   await expect(canvas(page)).toBeHidden();
   // The run went on: the time didn't go back to 0, and it still advances in 3D.
@@ -419,7 +424,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
   expect(await simTime(page)).toBe(paused);
 
   // Back to 2D: the same time, and 3D draws nothing more.
-  await viewChoice(page, '2D').check();
+  await pickView(page, '2D');
   await expect(canvas(page)).toBeVisible();
   expect(await simTime(page)).toBe(paused);
   const atSwitch = await draws3d(page);
@@ -430,7 +435,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
 
   // 3D again does not fetch three.js a second time.
   const fetched = seen.length;
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect(canvas3d(page)).toBeVisible();
   expect(seen.length).toBe(fetched);
 
@@ -443,7 +448,7 @@ test('switching to 3D mid-run keeps the time, loads three.js once, and the choic
 
 test('the 3D picture draws the same run, and a step moves it (task 19)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
   const first = await canvas3d(page).screenshot();
   // Paint is a choice in the closed settings menu, not on the bar.
@@ -461,7 +466,7 @@ test('when three.js will not load, the note says so and 2D keeps working (task 1
   // (A later try after a real network failure loads; that retry is pinned in the ui-kit's loadThree test.)
   await page.route('**/three.module.js', (route) => route.fulfill({ contentType: 'text/javascript', body: 'throw new Error("offline");' }));
   await open(page);
-  await viewChoice(page, '3D').check();
+  await viewChoice(page, '3D').click(); // the choice goes back to 2D by itself, so no checked-state wait here
   await expect(page.locator('.ts-note')).toHaveText('3D needs a connection the first time.');
   await expect(viewChoice(page, '2D')).toBeChecked();
   await expect(canvas(page)).toBeVisible();
@@ -472,7 +477,7 @@ test('when three.js will not load, the note says so and 2D keeps working (task 1
 
 test('leaving the Turn Sim while in 3D leaves no frames behind (task 19, R4)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await playButton(page).click();
   await expect.poll(() => draws3d(page)).toBeGreaterThan(2);
   await page.evaluate(() => window.__ts.close());
@@ -534,11 +539,11 @@ test('the Correction model is a checkbox in the settings menu, off by default, a
 
 test('a setup change made in 3D still fits the 2D picture when 2D comes back (audit)', async ({ page }) => {
   await open(page);
-  await viewChoice(page, '3D').check();
+  await pickView(page, '3D');
   await expect(canvas3d(page)).toBeVisible();
   await box(page, 'Spacing').fill('2500'); // refits: the 2D canvas is hidden right now
   await expect.poll(() => simTime(page)).toBe(0);
-  await viewChoice(page, '2D').check();
+  await pickView(page, '2D');
   await expect(canvas(page)).toBeVisible();
   // Lead (blue) is on the picture without pressing Fit.
   await expect.poll(() => pixelsNear(page, [0, 102, 255])).toBeGreaterThan(20);
@@ -629,6 +634,48 @@ test('the offset box shows #3 and #4 delays against the 10-15 s band in More det
   // Not in the offset box: no band lines.
   await box(page, 'Formation').selectOption({ label: '4312' });
   await expect(page.locator('.ts-detail li', { hasText: /10-15 s/ })).toHaveCount(0);
+});
+
+// TS-11: below the design width the columns stack, so the playback buttons are never covered.
+for (const [width, height] of [[1024, 768], [390, 844]]) {
+  test(`at ${width} x ${height} Play, Step and Reset are visible, not covered, and nothing sticks out sideways`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await open(page);
+    for (const name of ['Play', 'Step', 'Reset']) {
+      const el = name === 'Play' ? playButton(page) : button(page, name);
+      await el.scrollIntoViewIfNeeded();
+      const covered = await el.evaluate((node) => {
+        const r = node.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !(top === node || node.contains(top));
+      });
+      expect(covered, `${name} is covered`).toBe(false);
+    }
+    await playButton(page).click(); // a real click: Playwright refuses if something is over it
+    await expect.poll(() => simTime(page)).toBeGreaterThan(0.3);
+    await playButton(page).click();
+    expect(await layoutProblems(page)).toEqual([]);
+  });
+}
+
+test('the Cross turn shows its second-half G and roll-out spacing, in the caution colour when the G is clamped', async ({ page }) => {
+  await open(page);
+  await box(page, 'Formation').selectOption({ label: 'Two-ship' });
+  const note = page.locator('.ts-cross-note');
+  await expect(note).toBeHidden();
+  await box(page, 'Turn').selectOption({ label: 'Cross turn' });
+  await expect(note).toHaveText(/^Second half at \d\.\d G to roll out [\d,]+ ft apart$/);
+  await expect(note).not.toHaveClass(/is-clamped/);
+  // The switch lives in the settings menu, on by default.
+  await panel(page, 'Turn Sim settings').click();
+  await expect(box(page, 'Set second-half G for LAB roll-out')).toBeChecked();
+  // Far apart, the G cannot go low enough: the note says so.
+  await box(page, 'Spacing').fill('20000');
+  await expect(note).toContainText('held at');
+  await expect(note).toHaveClass(/is-clamped/);
+  // Off flies the G setting all the way, as V6 did: no note.
+  await box(page, 'Set second-half G for LAB roll-out').uncheck();
+  await expect(note).toBeHidden();
 });
 
 // The route tests wait for the Turn Sim's entry in src/shell/registry.js

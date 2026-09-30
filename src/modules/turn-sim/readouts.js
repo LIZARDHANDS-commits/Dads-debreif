@@ -52,6 +52,27 @@ function fleetOf(state) {
     .sort(byNumber);
 }
 
+/**
+ * The fleet in Lead's own frame for the classifier: Lead at the origin heading 0, every other aircraft turned to match
+ * and rounded to a hundredth of a foot. The classifier measures fore/aft and lateral from Lead's heading with cos and
+ * sin, so on a heading such as 000 or 300 a perfect formation comes out a hair off (1e-13 to 1e-7 ft) and reads FORE or
+ * WIDE. Turned into Lead's frame first, the numbers are exact where the formation is exact (TS-06). The picture and the
+ * distances are unchanged: only the judging sees this frame.
+ */
+function leadFrameFleet(state) {
+  const fleet = fleetOf(state);
+  const lead = fleet[0];
+  if (!lead) return fleet;
+  const c = Math.cos(lead.hdg);
+  const s = Math.sin(lead.hdg);
+  const round = (v) => Math.round(v * 100) / 100 + 0; // + 0: no -0
+  return fleet.map((a) => {
+    const dx = a.x - lead.x;
+    const dy = a.y - lead.y;
+    return { id: a.id, x: round(dx * c + dy * s), y: round(-dx * s + dy * c), hdg: a.id === lead.id ? 0 : a.hdg - lead.hdg };
+  });
+}
+
 /** Which standard judges aircraft `id` in this formation: #3 in the offset box by the offset standard, all others by spread. */
 export function judgedBy(id, formation) {
   return formation === 'offsetBox' && id === 3 ? 'offset' : 'spread';
@@ -62,13 +83,13 @@ export function judgedBy(id, formation) {
  * standard judges nothing, so that aircraft has no labels (judged: false);
  * core's classifier ignores the `on` switches, so this is where they count.
  *
- * @param {object} state      { aircraft: [{ id, xFt, yFt, headingRad }] }
- * @param {object} settings   the Turn Sim settings (formation: V6's 'weighted', 'weightedReverse', 'offsetBox', 'twoShip')
- * @param {object} [standards] app.standards.get(); falls back to DEFAULT_STANDARDS
+ * @param {any} state      { aircraft: [{ id, xFt, yFt, headingRad }] }
+ * @param {any} settings   the Turn Sim settings (formation: V6's 'weighted', 'weightedReverse', 'offsetBox', 'twoShip')
+ * @param {any} [standards] app.standards.get(); falls back to DEFAULT_STANDARDS
  */
 export function formationRows(state, settings, standards) {
   const std = standards ?? DEFAULT_STANDARDS;
-  const fleet = fleetOf(state);
+  const fleet = leadFrameFleet(state);
   if (fleet.length < 2 || fleet[0].id !== 1) return [];
   return fleet.slice(1).map((a) => {
     const key = judgedBy(a.id, settings.formation);
@@ -204,13 +225,6 @@ export function wingmanDetail(row) {
 }
 
 /**
- * Everything the Formation column shows for one state.
- *
- * @param {object} state      the engine's state: { tSec, finished, aircraft }
- * @param {object} settings   the Turn Sim settings
- * @param {object} [options]  { standards, stallLimitG, distNm }
- */
-/**
  * Each aircraft's clock-cue status, live from the engine (state.aircraft[i].cue), for Timing = clock cue; empty otherwise.
  * `warning` is Q44c: in the offset box #3 and #4 can't see a 5:30 cue (V6 never turns them), so the screen says so.
  */
@@ -235,6 +249,19 @@ export function cueStatus(state) {
 }
 
 /**
+ * The cross turn's second-stage G, from state.crossTurnSpacingNote ({ solvedG, clamped, spacingFt }), or null in any other turn.
+ * `clamped` means the G hit its limit, so the roll-out spacing is not the one asked for (the screen shows it in the caution colour).
+ */
+export function crossTurnNote(state) {
+  const n = state?.crossTurnSpacingNote;
+  if (!n) return null;
+  const g = `${n.solvedG.toFixed(1)} G`;
+  return n.clamped
+    ? { clamped: true, text: `Second half held at ${g}, the most it can use: rolls out ${ft(n.spacingFt)} apart` }
+    : { clamped: false, text: `Second half at ${g} to roll out ${ft(n.spacingFt)} apart` };
+}
+
+/**
  * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
  * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag).
  */
@@ -249,6 +276,13 @@ export function offsetBandLines(state) {
   }));
 }
 
+/**
+ * Everything the Formation column shows for one state.
+ *
+ * @param {any} state      the engine's state: { tSec, finished, aircraft }
+ * @param {any} settings   the Turn Sim settings
+ * @param {{ standards?: any, stallLimitG?: (kt: number) => number, distNm?: boolean }} [options]
+ */
 export function readoutsAt(state, settings, { standards, stallLimitG, distNm = false } = {}) {
   const std = standards ?? DEFAULT_STANDARDS;
   const gById = new Map((state?.aircraft ?? []).map((a) => [a.id, a.g]));
@@ -272,6 +306,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
     offsetBand: offsetBandLines(state),
+    crossNote: crossTurnNote(state),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
     leadTurnDirection: state?.leadTurnDirection ?? null,

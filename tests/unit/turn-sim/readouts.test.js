@@ -246,3 +246,29 @@ test('mutual support is only lost for a pair across the front, not one in trail'
   const far = state([ac(1, 0, 0), ac(2, -9000, 9000)]);
   assert.deepEqual(separationFlags(far, { ...SETTINGS, formation: 'twoShip' }), []);
 });
+
+// TS-06: a perfect formation must never read FORE or WIDE from floating-point noise, whatever way it faces.
+test('every formation reads ON SPACING at t = 0 on any start heading (TS-06)', async () => {
+  const { createRun } = await import('../../../src/modules/turn-sim/engine/run.js');
+  const { DEFAULTS } = await import('../../../src/modules/turn-sim/settings.js');
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const startHeadingDeg of [0, 45, 90, 180, 270, 300]) {
+      const settings = { ...DEFAULTS, formation, startHeadingDeg };
+      const rows = formationRows(createRun(settings).state, settings);
+      assert.ok(rows.length >= 1);
+      for (const row of rows) assert.deepEqual(row.labels, ['ON SPACING'], `${formation} at ${startHeadingDeg}: #${row.id} reads ${row.labels}`);
+    }
+  }
+});
+
+test('the offset box reads the same on every start heading, and never FORE or AFT at t = 0 (TS-06)', async () => {
+  const { createRun } = await import('../../../src/modules/turn-sim/engine/run.js');
+  const { DEFAULTS } = await import('../../../src/modules/turn-sim/settings.js');
+  const at = (startHeadingDeg) => {
+    const settings = { ...DEFAULTS, formation: 'offsetBox', startHeadingDeg };
+    return formationRows(createRun(settings).state, settings).map((r) => [r.id, r.labels, r.foreAftFt]);
+  };
+  const north = at(0);
+  for (const deg of [45, 90, 180, 270, 300]) assert.deepEqual(at(deg), north, `heading ${deg}`);
+  for (const [id, labels] of north) assert.ok(!labels.includes('FORE'), `#${id} reads ${labels}`);
+});

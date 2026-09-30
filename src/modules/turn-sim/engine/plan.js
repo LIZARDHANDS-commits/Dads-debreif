@@ -122,6 +122,14 @@ export function simulateDelayedTurnFinalPos(a, dir, goalRad, speedFtps, radiusFt
  * longest one, the first best one wins. The longest is V6's own (|centerGuess| or
  * 20 s, whichever is more, plus 1.25 turn times), or `maxDelaySec` when given.
  * Returns { delaySec, errFt }: V6 kept only the delay.
+ * @param {*} a
+ * @param {*} dir
+ * @param {number} goalRad
+ * @param {*} target
+ * @param {number} speedFtps
+ * @param {number} radiusFt
+ * @param {number} centerGuessSec
+ * @param {{ baseG?: number, minDelaySec?: number, maxDelaySec?: number | null }} opts
  */
 export function searchDelayToTarget(a, dir, goalRad, target, speedFtps, radiusFt, centerGuessSec, { baseG, minDelaySec = 0, maxDelaySec = null } = {}) {
   const turnTime = goalRad / Math.max(1e-6, turnRateRadPerSec(speedFtps, limitG(baseG)));
@@ -252,6 +260,27 @@ export function shackleHoldSec(gapFt, legRad, speedFtps, radiusFt) {
 }
 
 /**
+ * The cross turn's second-stage G (SMM Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart), the same for both aircraft so they
+ * roll out abreast. Across the original heading an aircraft turning toward the other moves R1 (1 - cos first) in the first stage
+ * and R2 (cos first - cos goal) in the second; the two swap sides, so the end spacing is 2 (that move) - gapFt. Solved for R2 with
+ * spacing = spacingFt, then turned back into G (radius = v^2 / (32.174 sqrt(g^2 - 1))). For a 180 with a 90 first stage
+ * R2 = gapFt - R1 when gapFt = spacingFt: at 220 kt, 4,000 ft gives about 3 G (the SMM's 60/2 then 70/3), 6,000 ft about 1.6 G.
+ * The G is clamped to [1.1, maxG]; when the clamp bites the clamped value is kept and `spacingFt` is what it reaches.
+ * Returns { solvedG, clamped, spacingFt }.
+ */
+export function solveCrossSecondG(gapFt, speedFtps, firstRad, goalRad, { crossTurnFirstG, spacingFt, crossTurnMaxG = 7 }) {
+  const r1 = turnRadiusFt(speedFtps, Math.max(1.01, crossTurnFirstG));
+  const k = turnRadiusFt(speedFtps, Math.SQRT2); // v^2 / G0
+  const stage1 = r1 * (1 - Math.cos(firstRad));
+  const swing = Math.cos(firstRad) - Math.cos(goalRad);
+  const needR = ((gapFt + Math.abs(spacingFt)) / 2 - stage1) / swing;
+  const rawG = needR > 0 ? Math.sqrt(1 + (k / needR) ** 2) : crossTurnMaxG;
+  const solvedG = Math.min(crossTurnMaxG, Math.max(1.1, rawG));
+  const achieved = 2 * (stage1 + turnRadiusFt(speedFtps, solvedG) * swing) - gapFt;
+  return { solvedG, clamped: needR <= 0 || solvedG !== rawG, spacingFt: achieved };
+}
+
+/**
  * The order the aircraft start their turns in, first to last (V6
  * `tacticalOrderForDelayIn`, line 1132): outside aircraft first; in the offset
  * box the front element first (far side first), then #3, then #4.
@@ -343,6 +372,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   order.forEach((a, i) => { delayIndex[a.id] = i; });
   const logicFlight = { direction: flight.direction, clockCueAircraft: flight.clockCueAircraft };
 
+  let crossSolve = null;
   for (const a of aircraft) {
     let d = 0;
     let dir = selectedDir;
@@ -406,6 +436,12 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
         const first = Math.min(degToRad(flight.crossTurnSwitchDeg), goal);
         legs = [{ dir, goalRad: first, gSetting: flight.crossTurnFirstG }];
         if (goal - first > 1e-9) legs.push({ dir, goalRad: goal - first });
+        // SMM Fig 16.21 note: roll out LAB, 4,000 to 6,000 ft apart. Both fly the first stage, then the same solved second-stage G,
+        // so the lateral spacing at roll-out is spacingFt and they end abreast (flight.crossTurnSolveSpacing; false is V6's fixed G).
+        if (flight.crossTurnSolveSpacing && partner && legs.length === 2) {
+          crossSolve = solveCrossSecondG(lateralGapFt(a, partner), ktToFtps(flight.speedKt), first, goal, flight);
+          legs[1].gSetting = crossSolve.solvedG;
+        }
       }
 
       if (man !== 'shackle45' && man !== 'cross180') {
@@ -439,6 +475,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.turnAccumRad = 0;
   }
   return {
+    crossSolve,
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
     rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3] - offsetPlan.delaysSec[1], 4: offsetPlan.delaysSec[4] - offsetPlan.delaysSec[2] } : man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null,

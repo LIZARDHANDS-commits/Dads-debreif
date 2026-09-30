@@ -12,7 +12,7 @@ import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import {
   buildField, errorFields, FORMATION, SPACING, START_HEADING, MANEUVER, DIRECTION, SPEED, G, TIMING, BASE_DELAY,
-  REAR_DELAY, CROSS_FIRST_G, CROSS_SWITCH, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
+  REAR_DELAY, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, DURATION_COVERS, TWO_SIDE, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER,
   CLOCK_POS, CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL, TURN_DEG, DURATION, MOA, BOX_AFT, BOX_STAGGER, BOX4_TIMING, CORRECTION, CORR_STRENGTH,
 } from './fields.js';
 
@@ -43,7 +43,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
 });
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */
-export const LAYOUT_ALLOWED = Object.freeze({ view: VIEW_ALLOWED, paint: PAINT_OPTIONS.map((o) => o.value) });
+export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
 const LAYERS_2D = ['lead39', 'turnCircles', 'errorLabels', 'spacingLines', 'clockMarks', 'breadcrumbs', 'crumbSec', 'distNm'];
@@ -67,7 +67,7 @@ function swatch(id) {
  * listen: app.listen, so page-wide listeners end when the Turn Sim closes.
  * say(text): a short spoken-and-shown confirmation (app.status), for buttons whose result isn't on the screen.
  */
-export function createLayout({ scenario, controls, layout, layoutControls, rules, defaults, listen, say = () => {} }) {
+export function createLayout({ scenario, controls, layout, layoutControls, rules, defaults, listen, say = (/** @type {string} */ _text) => {} }) {
   const handlers = {};
   const build = (def, as) => buildField({ controls, rules, defaults, def, as });
   const wrap = (built, extra = '') =>
@@ -145,7 +145,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   );
 
   // ---- Turn Sim settings: every tuning number, in the ui-kit's one closed menu (R22) ----
-  const tuningKeys = [TURN_DEG, DURATION, DURATION_COVERS, MOA, TWO_SIDE, BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER, CROSS_FIRST_G, CROSS_SWITCH, CORRECTION, CORR_STRENGTH].map((def) => def.key).filter((k) => rules[k]);
+  const tuningKeys = [TURN_DEG, DURATION, DURATION_COVERS, MOA, TWO_SIDE, BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER, CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE, CORRECTION, CORR_STRENGTH].map((def) => def.key).filter((k) => rules[k]);
   const settingsMenu = createSettingsMenu({
     title: 'Turn Sim settings',
     collapsed: !layout.get().settingsOpen,
@@ -168,7 +168,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   section('twoSide', 'Line abreast', [TWO_SIDE]);
   const turnDegInput = groups.turn.querySelector('input[type=number]'); // the first box in Turn and run
   section('offset', 'Offset box', [BOX_AFT, BOX_STAGGER, BOX4_TIMING, REAR_DELAY, REAR_CHECK_ON, REAR_CHECK_START, REAR_CHECK_DIR, REAR_CHECK_ANGLE, REAR_CHECK_HOLD, REAR_CHECK_AFTER], 'Used when Formation is the offset box.');
-  section('cross', 'Cross turn', [CROSS_FIRST_G, CROSS_SWITCH], 'Used when Turn is the cross turn.');
+  section('cross', 'Cross turn', [CROSS_FIRST_G, CROSS_SWITCH, CROSS_SOLVE], 'Used when Turn is the cross turn.');
   section('clock', 'Clock cue', [CLOCK_AIRCRAFT, CLOCK_SEQUENCE, CLOCK_TOL], 'Used when Timing is the clock position cue.');
   // The Correction model is a checkbox, off by default (Q41). On, it opens the model (G adjustment first, as it is
   // the one that corrects spacing) and its strength; off is the setting 'none'.
@@ -270,6 +270,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const card = h('ul', { class: 'ts-card', 'aria-label': 'Formation' });
   const minSep = h('p', { class: 'ts-line' });
   const turnLine = h('p', { class: 'ts-line ts-turn' });
+  const crossNote = h('p', { class: 'ts-line ts-cross-note', hidden: true });
   const flags = h('ul', { class: 'ts-flags', 'aria-live': 'polite' });
   let lastFlags = null;
   const cueList = h('ul', { class: 'ts-card ts-cues', 'aria-label': 'Clock cue status' });
@@ -277,7 +278,7 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
   const detail = createPanel({ title: 'More detail', collapsed: !layout.get().moreDetail, onToggle: (c) => layout.update({ moreDetail: !c }) });
   detail.element.classList.add('ts-subpanel', 'ts-detail');
   const formationPanel = createPanel({ title: 'Formation', onToggle: (c) => layout.update({ formationColumn: !c }) });
-  formationPanel.body.append(card, minSep, turnLine, flags, cueWarning, cueList, detail.element);
+  formationPanel.body.append(card, minSep, turnLine, crossNote, flags, cueWarning, cueList, detail.element);
 
   const setupCol = h('aside', { class: 'ts-col ts-col-setup', 'aria-label': 'Setup' }, setupPanel.element);
   const formationCol = h('aside', { class: 'ts-col ts-col-formation', 'aria-label': 'Formation' }, formationPanel.element);
@@ -398,6 +399,9 @@ export function createLayout({ scenario, controls, layout, layoutControls, rules
       minSep.textContent = r.minSepText ?? '';
       minSep.hidden = !r.minSepText;
       turnLine.textContent = r.turnText;
+      crossNote.textContent = r.crossNote?.text ?? '';
+      crossNote.hidden = !r.crossNote;
+      crossNote.classList.toggle('is-clamped', Boolean(r.crossNote?.clamped));
       // The flags are a live region: rebuild only when they change, or a screen reader says them again on every refresh.
       const flagKey = r.flags.join('|');
       if (flagKey !== lastFlags) {
