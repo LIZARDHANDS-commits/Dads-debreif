@@ -4,19 +4,20 @@
 // A card is redrawn only when what it says has changed, so a screen left open all
 // day does no work between refreshes.
 import { h } from '../../ui-kit/dom.js';
-import { segments, LEVEL_WORDS } from './marks.js';
+import { segments } from './marks.js';
 
 // Beside the words of the result, never instead of them.
 const LEVEL_SYMBOL = { below: '▼', 'at-limit': '●', within: '✓', unknown: '?', none: '–' };
 
 const note = (text, tone) => (text ? h('p', { class: `sof-note${tone ? ` is-${tone}` : ''}` }, text) : null);
 
-// The raw report as text, the words behind a limit or caution in <mark>s. Each mark reads in colour and in words (the
-// visually-hidden prefix), and the visible text is the report's own, unchanged. Pieces go in as text nodes only, and the
+// The raw report as text, the words behind a limit or caution in <mark>s. Each mark reads in colour and in words (a
+// visually-hidden prefix drawn by sof.css from the mark's class, so it is not in the text and is never copied), and the
+// text is the report's own, unchanged. Pieces go in as text nodes only, and the
 // class comes from segments()' three fixed levels, never from the report.
 function rawText(line) {
   return h('p', { class: 'sof-raw' }, ...segments(line.raw, line.marks).map((seg) => (seg.level
-    ? h('mark', { class: `sof-mark is-${seg.level}` }, h('span', { class: 'visually-hidden' }, LEVEL_WORDS[seg.level]), seg.text)
+    ? h('mark', { class: `sof-mark is-${seg.level}` }, seg.text)
     : seg.text)));
 }
 

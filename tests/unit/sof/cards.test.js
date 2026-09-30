@@ -473,3 +473,20 @@ test('marks: a TAF below the limits marks its group\'s words in the level below'
 test('marks: a cancelled TAF has none', () => {
   assert.deepEqual(home({ taf: tafEntry('TAF CYMJ 291740Z 2918/3006 CNL'), limits: { ceilingFt: 2000, visSm: 3 } }).taf.marks, []);
 });
+
+test('marks: a visual-descent alternate marks only cautions on the METAR, since its result is left to the wave call', () => {
+  const a = airfields();
+  a.update({ fields: { CYQR: { approach: 'gnss-only', meaFt: 3000 } } });
+  const options = { ...a.checkOptions('CYQR'), visualDescent: { meaFt: 3000, elevationFt: 200 } };
+  const c = alt({ metar: metarEntry('CYQR 291800Z 26005KT 2SM VCTS BKN005 10/08 A2995'), options });
+  assert.equal(c.result.level, 'unknown');
+  assert.deepEqual(words(c.metar.raw, c.metar.marks), [['VCTS', 'caution']]);
+});
+
+test('marks: an alternate TAF PROB piece below the minima is not marked as a limit, only its dangerous weather', () => {
+  const raw = 'TAF CYQR 291740Z 2918/3018 25015KT P6SM FEW080 PROB30 2920/2924 1SM TSRA BKN004CB';
+  const c = alt({ taf: tafEntry(raw), options: LOW_MINIMA, timeZone: 'America/Regina' });
+  const w = words(c.taf.raw, c.taf.marks);
+  assert.ok(w.some(([t, l]) => t === 'TSRA' && l === 'caution'), JSON.stringify(w));
+  assert.ok(w.every(([, l]) => l === 'caution'), JSON.stringify(w));
+});

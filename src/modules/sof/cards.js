@@ -179,9 +179,16 @@ function tafMarks(line, entry, { isHome, used, descent, now, timeZone }) {
   if (+to <= +window.from) return [];
   const w = { from: window.from, to };
   const found = isHome ? homeAlternateTrigger(report, w, used) : assessAlternate(report, w, descent ? { visualDescent: descent } : { minima: used });
-  const pieces = [...found.hits, ...found.atLimit, ...found.cautions];
-  return alignMarks(pieces.flatMap((p) => marksOfCheck(p)), line.raw, report.raw);
+  // Each list keeps its own kind: `cautions` pieces are there for their dangerous weather only, so a PROB piece wx
+  // leaves unchecked against the minima (probUnchecked) is never marked as a limit through it.
+  const cautionOnly = (p) => marksOfCheck(p).filter((m) => m.level === 'caution');
+  const marks = [...found.hits, ...found.atLimit].flatMap((p) => marksOfCheck(p)).concat(found.cautions.flatMap(cautionOnly));
+  return alignMarks(marks, line.raw, report.raw);
 }
+
+// The METAR's marks. A visual-descent alternate's result is left to the wave call (its minima are not the 600-2 this check
+// used), so only its dangerous weather is marked, never a limit.
+const metarMarks = (check, descent) => (descent ? marksOfCheck(check).filter((m) => m.level === 'caution') : marksOfCheck(check));
 
 // ---- The card ---------------------------------------------------------------------------------------------
 
@@ -238,7 +245,7 @@ export function cardModel({ icao = null, name = null, role = 'ALT', metar = null
     category: conditions ? flightCategory(conditions) : null,
     nato: conditions ? natoColour(conditions) : null,
     limitsText,
-    metar: { ...metarLine, marks: check ? alignMarks(marksOfCheck(check), metarLine.raw, parsedRaw) : [] },
+    metar: { ...metarLine, marks: check ? alignMarks(metarMarks(check, descent), metarLine.raw, parsedRaw) : [] },
     taf: { ...tafLine, marks: tafMarks(tafLine, taf, { isHome, used, descent, now: at, timeZone }) },
     reasonSpans,
     result: resultModel(metarLine, conditions, used, at, descent),
