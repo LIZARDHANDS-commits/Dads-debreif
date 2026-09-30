@@ -1,6 +1,6 @@
 # Turn Sim: plan
 
-Spec: [`specs/SPEC-turn-sim.md`](../../specs/SPEC-turn-sim.md), waiting for Patrick's approval. Tasks: [`todo.md`](todo.md).
+Spec: [`specs/SPEC-turn-sim.md`](../../specs/SPEC-turn-sim.md), approved by Patrick on 2026-09-30. Tasks: [`todo.md`](todo.md).
 
 Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn.
 
@@ -8,7 +8,6 @@ Building starts after the debrief screen, when the coordinator says it's the Tur
 
 | Needed for | What | Owner |
 |---|---|---|
-| Any code | Spec approved by Patrick | Patrick |
 | Any code | The coordinator's go (after the debrief screen) | Coordinator |
 | Task 4 on | ui-kit `controls.js`, `panel.js`, `canvas-view.js` and the scheduler (merged in #65) | App frame thread |
 | Task 7 | SPEC-core Task 12: the Turn Sim G correction pinned to V6, then D74's 1.01 floor | Flight math core thread |

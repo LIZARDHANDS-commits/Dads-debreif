@@ -1,6 +1,6 @@
 # Spec: `turn-sim`, the Formation Turn Sim
 
-Status: **draft, waiting for Patrick's approval.** Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. New questions raised here are TS1 to TS7, logged in the plan doc as Q41 to Q47.
+Status: **approved by Patrick on 2026-09-30** ("Spec turn sim approved", in the Turn Sim spec thread). Q41 to Q43 are unanswered, so their defaults stand. Changes go through a pull request. Module id `turn-sim` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. New questions raised here are TS1 to TS7, logged in the plan doc as Q41 to Q47.
 
 Building starts after the debrief screen, when the coordinator says it's the Turn Sim's turn. Until then this spec and the task plan in [`tasks/turn-sim/`](../tasks/turn-sim/) are the work.
 
