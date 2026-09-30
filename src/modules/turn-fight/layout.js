@@ -30,22 +30,22 @@ export function createLayout({ settings, controls, on }) {
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
-  // One aircraft's boxes: speed and G side by side, the T-6 limit warning right
-  // under them, and pitch (Climb and dive only) below.
+  // One aircraft's boxes: speed and G, with pitch beside them (Climb and dive
+  // only), and the T-6 limit warning right under them.
   function aircraft(who, letter, name) {
     const warning = h('p', { class: 'tf-warning', id: `tf-warning-${nextId++}`, hidden: true });
-    const speed = controls.number(`${who}Kt`, { label: 'Speed', ...RANGES[`${who}Kt`] });
+    // The unit is in the label, to keep the three boxes in one row (the refusal message still names it).
+    const speed = controls.number(`${who}Kt`, { label: 'Speed (KTAS)', ...RANGES[`${who}Kt`] });
     const g = controls.number(`${who}G`, { label: 'G', ...RANGES[`${who}G`] });
     const gInput = g.querySelector('input');
     gInput.setAttribute('aria-describedby', `${gInput.getAttribute('aria-describedby')} ${warning.id}`);
-    const pitchBox = h('div', { class: 'tf-pitch', hidden: true }, controls.number(`${who}PitchDeg`, { label: 'Pitch', ...RANGES[`${who}PitchDeg`] }));
+    const pitchBox = h('div', { class: 'tf-pitch', hidden: true }, controls.number(`${who}PitchDeg`, { label: 'Pitch (°)', ...RANGES[`${who}PitchDeg`] }));
     const element = h(
       'fieldset',
       { class: `tf-aircraft tf-${who}` },
       h('legend', {}, h('span', { class: 'tf-badge', 'aria-hidden': 'true' }, letter), name),
-      h('div', { class: 'tf-aircraft-row' }, speed, g),
+      h('div', { class: 'tf-aircraft-row' }, speed, g, pitchBox),
       warning,
-      pitchBox,
     );
     return { element, warning, pitchBox };
   }

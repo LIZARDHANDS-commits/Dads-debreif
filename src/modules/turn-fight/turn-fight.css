@@ -25,7 +25,7 @@
 }
 
 [data-module='turn-fight'] .tf-col-setup {
-  width: 19rem;
+  width: 20rem;
 }
 
 [data-module='turn-fight'] .tf-col-result {
@@ -84,10 +84,17 @@
   font-weight: 600;
 }
 
+/* Speed and G, and pitch beside them when Climb and dive is on: one column each. */
 [data-module='turn-fight'] .tf-aircraft-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 var(--space-3);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: end; /* boxes line up even when a label wraps */
+  gap: 0 var(--space-2);
+}
+
+[data-module='turn-fight'] .tf-aircraft .control-unit {
+  display: none;
 }
 
 [data-module='turn-fight'] .tf-aircraft .control {
@@ -96,11 +103,6 @@
 
 [data-module='turn-fight'] .tf-aircraft .control input[type='number'] {
   width: 4.25rem;
-}
-
-[data-module='turn-fight'] .tf-pitch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
 }
 
 [data-module='turn-fight'] .tf-warning {

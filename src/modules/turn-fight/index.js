@@ -10,6 +10,7 @@ import { DEFAULTS, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults } from './s
 import { createRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
 import { createTopDownView } from './view.js';
+import { createProfileView } from './profile.js';
 
 const STYLESHEET = new URL('./turn-fight.css', import.meta.url).href;
 
@@ -71,6 +72,12 @@ function mount(root, app) {
   });
   root.append(ui.element);
   views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
+  // The side view draws only while Climb and dive is on; its panel is hidden (and 0 px) otherwise.
+  const profile = createProfileView(ui.profileCanvas, { timers: app.scheduler, run: () => run, scale: () => settings.get().heightScale });
+  views.push({
+    requestDraw: () => settings.get().vertical && profile.requestDraw(),
+    dispose: profile.dispose,
+  });
 
   function renderReadouts() {
     pendingReadout?.();
