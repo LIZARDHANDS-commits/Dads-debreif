@@ -400,6 +400,54 @@ test('winds aloft: an error page instead of winds is not blamed on the connectio
   await expect(wind).not.toContainText('connection');
 });
 
+test('standards: a refusal names its own box and limit, and only the latest refusal stays on screen (#182 S1)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Debrief settings' }).click();
+  const messageOf = async (label) => page.locator(`#${await page.getByLabel(label, { exact: true }).getAttribute('aria-describedby')}`);
+  const max = page.getByLabel('Spread maximum', { exact: true });
+  const min = page.getByLabel('Spread minimum', { exact: true });
+
+  // Below the minimum: the message under Maximum talks about the maximum and the minimum it must not go under.
+  await max.fill('3000');
+  await max.press('Tab');
+  await expect(max).toHaveAttribute('aria-invalid', 'true');
+  await expect(await messageOf('Spread maximum')).toHaveText('Spread maximum must not be less than the spread minimum (4000 ft). Kept 6000 ft.');
+
+  // Another refusal elsewhere: the first message goes and that box shows its kept value again.
+  await min.fill('-5');
+  await min.press('Tab');
+  await expect(await messageOf('Spread minimum')).toHaveText('Spread minimum must be between 0 and 20,000 ft. Kept 4000 ft.');
+  await expect(await messageOf('Spread maximum')).toHaveText('');
+  await expect(max).toHaveAttribute('aria-invalid', 'false');
+  await expect(max).toHaveValue('6000');
+
+  // The other way round: a minimum above the maximum names the maximum.
+  await min.fill('7000');
+  await min.press('Tab');
+  await expect(await messageOf('Spread minimum')).toHaveText('Spread minimum must not be more than the spread maximum. Kept 4000 ft.');
+
+  // The sweep pair says the same in its own words, with the degree sign attached.
+  const most = page.getByLabel('Sweep, most', { exact: true });
+  await most.fill('-1');
+  await most.press('Tab');
+  await expect(await messageOf('Sweep, most')).toHaveText('Sweep, most must be between 0 and 45°. Kept 10°.');
+  const least = page.getByLabel('Sweep, least', { exact: true });
+  await least.fill('9');
+  await least.press('Tab');
+  await most.fill('5');
+  await most.press('Tab');
+  await expect(await messageOf('Sweep, most')).toHaveText('Sweep, most must not be less than the least sweep (9°). Kept 10°.');
+
+  // Any accepted value clears every message.
+  await max.fill('8000');
+  await max.press('Tab');
+  await expect(max).toHaveAttribute('aria-invalid', 'false');
+  for (const label of ['Spread minimum', 'Spread maximum', 'Sweep, least', 'Sweep, most']) await expect(await messageOf(label)).toHaveText('');
+  await expect(most).toHaveAttribute('aria-invalid', 'false');
+  await expect(most).toHaveValue('10');
+});
+
 test('standards: edit, refuse a bad value, keep after a reload, reset to the defaults (R18, D114-D116)', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
