@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Debrief 3D: today vs three.js (spike)</title>
+<style>
+  html, body { margin: 0; background: #0d1117; color: #d9e6f2; font: 14px system-ui, sans-serif; }
+  header { padding: 8px 14px; display: flex; gap: 16px; align-items: center; }
+  .panels { display: flex; gap: 8px; padding: 0 8px; }
+  .panel { flex: 1; min-width: 0; }
+  .panel h2 { margin: 0 0 4px; font-size: 15px; }
+  .box { position: relative; width: 100%; height: 700px; border: 1px solid #30363d; }
+  .box canvas.main { width: 100%; height: 100%; display: block; }
+  .only-three .panel.today { display: none; }
+</style>
+</head>
+<body>
+<header><span id="info">Loading example flight…</span>
+  <label>time <input id="slider" type="range" min="0" max="1000" value="0" style="width:400px"></label></header>
+<div class="panels">
+  <div class="panel today"><h2>Today</h2><div class="box"><canvas class="main" id="today"></canvas></div></div>
+  <div class="panel"><h2>three.js demo</h2><div class="box"><canvas class="main" id="three"></canvas></div></div>
+</div>
+<script type="module" src="./three-3d.js"></script>
+</body>
+</html>
