@@ -106,6 +106,12 @@ M = [
  ('flight.js', "lat: a.lat + (b.lat - a.lat) * k,", ""),
  ('flight.js', "lon: a.lon + (b.lon - a.lon) * k,", ""),
  ('flight.js', "n < 2 ? { ...f[0], inGap: false } : { ...f[n - 1]", "n < 1 ? { ...f[0], inGap: false } : { ...f[n - 1]"),
+ # C7: heading unknown when still
+ ('flight.js', "if (segmentKt(a, b) < STILL_KT) return null;", ""),
+ ('flight.js', "if (segmentKt(a, b) < STILL_KT) return null;", "if (segmentKt(a, b) <= STILL_KT + 0.1) return null;"),
+ ('flight.js', "if (!f || f.length < 2) return null;\n  const n = f.length;\n  const [a, b]", "if (!f || f.length < 2) return 0;\n  const n = f.length;\n  const [a, b]"),
+ ('flight.js', "|| h0 === null || h1 === null) return null;", ") return null;"),
+ ('flight.js', "|| h0 === null || h1 === null) return null;", "|| h0 === null) return null;"),
 ]
 
 

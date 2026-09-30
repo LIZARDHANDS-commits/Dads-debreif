@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readKml } from '../../src/flight-data/kml.js';
-import { buildFlight, sampleAt, headingAt, pitchAt, estimatedGAt } from '../../src/flight-data/flight.js';
+import { buildFlight, sampleAt, headingAt, pitchAt, estimatedGAt, STILL_KT } from '../../src/flight-data/flight.js';
 import { loadV6 } from './v6-source.js';
 import { spread } from './inputs.js';
 
@@ -76,6 +76,29 @@ const SAME_POINT = (ours, theirs, where, pts) => {
   assert.equal(ours.pitchRecordedDeg, theirs.pitchNative, `pitch ${where}`);
 };
 
+/** Whether the aircraft is still over V6's pair of points for t, under C7's rule. */
+function stillAt(pts, t) {
+  const n = pts.length;
+  const [a, b] = t <= pts[0].t ? [pts[0], pts[1]] : t >= pts[n - 1].t ? [pts[n - 2], pts[n - 1]] : pairAt(pts, t);
+  return segmentKt(a, b) < STILL_KT;
+}
+
+/** C7 (decided): heading is null where the aircraft is still; elsewhere it is V6's. */
+function SAME_HEADING(ours, pts, t, where) {
+  const theirs = v6.headingAtTrack({ pts }, t);
+  if (stillAt(pts, t)) assert.equal(ours, null, `heading ${where}`);
+  else assert.equal(ours, theirs, `heading ${where}`);
+}
+
+/** C7 (decided): no estimated G where the heading at either end of V6's window is unknown; elsewhere V6's. */
+function SAME_G(ours, pts, t, where, windowS = 1.5) {
+  const theirs = v6.estimatedGAtTrack({ pts }, t);
+  const t0 = Math.max(pts[0].t, t - windowS);
+  const t1 = Math.min(pts[pts.length - 1].t, t + windowS);
+  if (pts.length >= 3 && (stillAt(pts, t0) || stillAt(pts, t1))) assert.equal(ours, null, `est G ${where}`);
+  else assert.equal(ours, theirs, `est G ${where}`);
+}
+
 const SOURCE = { recorded: 'native aircraft pitch', estimated: 'estimated flight path', default: 'default' };
 
 for (const slots of [[1, 2, 3, 4], [3], [2, 4]]) {
@@ -100,12 +123,12 @@ for (const slots of [[1, 2, 3, 4], [3], [2, 4]]) {
       for (const t of times) {
         const where = `#${slot} at ${t}`;
         SAME_POINT(sampleAt(ours, t), v6.interpTrack(theirs, t), where, theirs.pts);
-        assert.equal(headingAt(ours, t), v6.headingAtTrack(theirs, t), `heading ${where}`);
+        SAME_HEADING(headingAt(ours, t), theirs.pts, t, where);
         const p = pitchAt(ours, t);
         const q = v6.aircraftPitchAtTrack(theirs, t);
         assert.equal(p.deg, q.deg, `pitch ${where}`);
         assert.equal(SOURCE[p.source], q.source, `pitch source ${where}`);
-        assert.equal(estimatedGAt(ours, t), v6.estimatedGAtTrack(theirs, t), `est G ${where}`);
+        SAME_G(estimatedGAt(ours, t), theirs.pts, t, where);
       }
     }
   });
@@ -127,7 +150,8 @@ test('short and single-fix tracks give V6\'s defaults', () => {
   const one = { fixes: [{ t: 10, xFt: 0, yFt: 0, altFt: 0, lat: 50, lon: -105, gRecorded: null, pitchRecordedDeg: null }] };
   const theirs = { pts: [{ t: 10, x: 0, y: 0, altFt: 0, lat: 50, lon: -105, gNative: null, pitchNative: null }] };
   for (const t of [0, 10, 20]) {
-    assert.equal(headingAt(one, t), v6.headingAtTrack(theirs, t));
+    assert.equal(v6.headingAtTrack(theirs, t), 0);
+    assert.equal(headingAt(one, t), null); // C7: no heading from one fix (V6: due east)
     assert.deepEqual([pitchAt(one, t).deg, SOURCE[pitchAt(one, t).source]], Object.values(v6.aircraftPitchAtTrack(theirs, t)));
     assert.equal(estimatedGAt(one, t), v6.estimatedGAtTrack(theirs, t));
   }
@@ -157,7 +181,7 @@ test('edge-case tracks match V6: tiny spans, steep dives, slow movers, two fixes
       const q = v6.aircraftPitchAtTrack(theirs, t);
       assert.equal(p.deg, q.deg, `pitch ${where}`);
       assert.equal(SOURCE[p.source], q.source, `pitch source ${where}`);
-      assert.equal(estimatedGAt(ours, t), v6.estimatedGAtTrack(theirs, t), `est G ${where}`);
+      SAME_G(estimatedGAt(ours, t), theirs.pts, t, where);
     }
   }
 });

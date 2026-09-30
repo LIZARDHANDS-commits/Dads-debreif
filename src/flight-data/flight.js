@@ -112,17 +112,27 @@ function between(a, b, k) {
 }
 
 /**
+ * Below this ground speed (knots) between two fixes the aircraft is taken as
+ * still: parked GPS jitter is under it 90 % of the time on all five real
+ * tracks, and taxiing is above it 99 % of the time (C7).
+ */
+export const STILL_KT = 3;
+
+/**
  * Heading in radians (0 = east, counter-clockwise, D35) from the pair of fixes
  * around t, or the first or last pair outside the track (V6 headingAtTrack,
- * line 2151). 0 for a track with fewer than 2 fixes.
+ * line 2151). Null when the aircraft is still over that pair (under STILL_KT)
+ * or the track has fewer than 2 fixes (C7; V6 gave 0, due east, so the 3/9
+ * line and labels flipped at random on the ramp).
  */
 export function headingAt(track, t) {
   const f = track.fixes;
-  if (!f || f.length < 2) return 0;
+  if (!f || f.length < 2) return null;
   const n = f.length;
   const [a, b] = t <= f[0].t ? [f[0], f[1]]
     : t >= f[n - 1].t ? [f[n - 2], f[n - 1]]
       : [f[bracket(f, t)], f[bracket(f, t) + 1]];
+  if (segmentKt(a, b) < STILL_KT) return null;
   return Math.atan2(b.yFt - a.yFt, b.xFt - a.xFt);
 }
 
@@ -152,8 +162,8 @@ export function pitchAt(track, t, windowS = 1.5) {
 /**
  * Load factor estimated from the turn over ±windowS seconds (V6
  * estimatedGAtTrack, line 2462), using core's gFromTrack for the formula.
- * Null when the track is too short, the aircraft is slower than 20 ft/s, or the
- * answer is outside 0.8 to 9 G.
+ * Null when the track is too short, the aircraft is slower than 20 ft/s or
+ * still at either end of the window (C7), or the answer is outside 0.8 to 9 G.
  */
 export function estimatedGAt(track, t, windowS = 1.5) {
   const f = track?.fixes;
@@ -163,6 +173,8 @@ export function estimatedGAt(track, t, windowS = 1.5) {
   if (t1 - t0 < 0.5) return null;
   const p0 = sampleAt(track, t0);
   const p1 = sampleAt(track, t1);
-  if (!p0 || !p1) return null;
-  return gFromTrack({ x: p0.xFt, y: p0.yFt }, headingAt(track, t0), { x: p1.xFt, y: p1.yFt }, headingAt(track, t1), t1 - t0);
+  const h0 = headingAt(track, t0);
+  const h1 = headingAt(track, t1);
+  if (!p0 || !p1 || h0 === null || h1 === null) return null; // C7: no G without a heading
+  return gFromTrack({ x: p0.xFt, y: p0.yFt }, h0, { x: p1.xFt, y: p1.yFt }, h1, t1 - t0);
 }

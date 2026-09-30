@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readKml } from '../../../src/flight-data/kml.js';
-import { buildFlight, sampleAt } from '../../../src/flight-data/flight.js';
+import { buildFlight, sampleAt, headingAt, estimatedGAt, STILL_KT } from '../../../src/flight-data/flight.js';
 
 const example = id => readKml(readFileSync(new URL(`../../../original/assets/${id}.kml`, import.meta.url), 'utf8')).fixes;
 const fix = (t, extra = {}) => ({ t, lat: 50, lon: -105 + t * 1e-4, altM: 1000, gRecorded: null, pitchRecordedDeg: null, bankRecordedDeg: null, ...extra });
@@ -71,4 +71,30 @@ test('latitude and longitude are interpolated like x and y (C6)', () => {
   assert.ok(Math.abs(p.lat - 50.0005) < 1e-12);
   assert.ok(Math.abs(p.lon - -104.999) < 1e-12);
   assert.equal(sampleAt(track, 2).lat, 50.002);
+});
+
+test('heading is unknown while the aircraft is still, instead of due east (C7, #22)', () => {
+  // 1e-4° of longitude at 50° N is about 23.4 ft; one per second is about 14 kt.
+  const fixes = [fix(0, { lon: -105 }), fix(1, { lon: -105 }), fix(2, { lon: -105 + 1e-6 }), fix(3, { lon: -105 + 1e-4 }), fix(4, { lon: -105 + 2e-4 })];
+  const track = buildFlight({ 1: { name: 'a', fixes } }).tracks[1];
+  assert.equal(STILL_KT, 3);
+  assert.equal(headingAt(track, -5), null); // duplicate fixes at the start
+  assert.equal(headingAt(track, 0.5), null);
+  assert.equal(headingAt(track, 1.5), null); // 0.23 ft in a second: GPS jitter on the ramp
+  assert.equal(headingAt(track, 2.5), 0); // moving east at taxi speed
+  assert.equal(headingAt(track, 10), 0);
+  // Just either side of 3 kt.
+  const ftPerDegLon = 6371000 * Math.PI / 180 * Math.cos(50 * Math.PI / 180) * 3.28084;
+  const at = kt => headingAt(buildFlight({ 1: { name: 'a', fixes: [fix(0, { lon: -105 }), fix(1, { lon: -105 + kt / 0.592484 / ftPerDegLon })] } }).tracks[1], 0.5);
+  assert.equal(at(2.99), null);
+  assert.equal(at(3.01), 0);
+});
+
+test('no G is estimated where the heading is unknown (C7)', () => {
+  // Fast enough over the window overall, but still at its start.
+  const fixes = [fix(0, { lon: -105 }), fix(1, { lon: -105 }), fix(2, { lon: -105 + 1e-3 }), fix(3, { lon: -105 + 2e-3, lat: 50.0005 }), fix(4, { lon: -105 + 3e-3, lat: 50.0015 })];
+  const track = buildFlight({ 1: { name: 'a', fixes } }).tracks[1];
+  assert.equal(headingAt(track, 0.5), null);
+  assert.equal(estimatedGAt(track, 2), null);
+  assert.ok(estimatedGAt(track, 3) > 1);
 });
