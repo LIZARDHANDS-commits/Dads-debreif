@@ -30,7 +30,7 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
   - Verify: unit tests of dfp.js; e2e save/open round trip.
   - Files: src/modules/debrief/dfp.js, index.js, tests/unit/debrief/dfp.test.js
   - Done: the DFPs list beside the Formation card (+ Add, ◀ ▶ in time order, go to one, Edit to rename, note or delete), kept in this browser per flight and never shown on another (#25). "Save, open, examples" (closed at first) saves a debrief file with the tracks, DFPs, standards and time, opens one back to the same state (R17), closes the flight (asking first when DFPs aren't in a saved file yet) and offers the example track files. A file that can't be read changes nothing. DFP flags on the map come with task 6.
-  - Note: the spec's `storage/file.js` download helper doesn't exist yet, so `file-panel.js` has a small `downloadText`; it can move to storage when another module needs it.
+  - Saves go through the shared `storage/file.js` (`downloadText`, #102).
 
 **Checkpoint B:** open PR B.
 

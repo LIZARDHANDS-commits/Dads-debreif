@@ -6,21 +6,6 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { EXAMPLE_FLIGHT } from '../../flight-data/examples.js';
 
 /**
- * Offers `text` to the user as a file called `name`, through a download link
- * made for the moment. The browser decides where it goes. timers: the
- * module's scheduler scope, which frees the file's memory a little later.
- */
-export function downloadText(name, text, type, timers) {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const link = h('a', { href: url, download: name, hidden: true });
-  document.body.append(link);
-  link.click();
-  link.remove();
-  // Kept a few seconds so every browser has started the download first.
-  timers.after(10_000, () => URL.revokeObjectURL(url));
-}
-
-/**
  * layout: the remembered layout settings (filesOpen). canExample: whether the
  * app serves the example files. on: { save(), open(file), close(), example(entry) }.
  * Returns { element, setCollapsed, setFlight(loaded), setBusy(busy) }.

@@ -18,7 +18,8 @@ import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createDfpPanel } from './dfp-panel.js';
-import { createFilePanel, downloadText } from './file-panel.js';
+import { createFilePanel } from './file-panel.js';
+import { downloadText } from '../../storage/file.js';
 import {
   addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps,
 } from './dfp.js';
@@ -184,7 +185,7 @@ function mount(root, app) {
         if (!flight) return;
         try {
           const text = toDebriefFile(flight, dfpsForFile(dfps), sessionSettings(currentStandards(), clock.t));
-          downloadText(debriefFileName(flight.startT), text, 'application/json', app.scheduler);
+          downloadText(text, debriefFileName(flight.startT), { type: 'application/json' });
           unsaved = false;
           ui.setMessage(null);
         } catch (err) {
@@ -216,7 +217,7 @@ function mount(root, app) {
       },
       example(entry) {
         app.exampleText(entry.asset)
-          .then((text) => downloadText(entry.download, text, 'application/vnd.google-earth.kml+xml', app.scheduler))
+          .then((text) => downloadText(text, entry.download, { type: 'application/vnd.google-earth.kml+xml' }))
           .catch(() => ui.setMessage("That example file couldn't be downloaded. Check the connection and try again."));
       },
     };
