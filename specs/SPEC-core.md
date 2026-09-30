@@ -135,7 +135,7 @@ V6 has no wind, so there is nothing to pin: this is new, checked against known a
 | `dragPerWeight(kias, altFt, g)` | Drag ÷ weight: a zero-lift part plus a part growing with G² | Turn Fight; the glide and zoom cross-checks |
 | `excessThrustPerWeight(kias, altFt, g)` | thrustPerWeight − dragPerWeight, (T − D)/W | Turn Fight |
 | `t6aExcessFn(ktas, altFt, g)` | `excessThrustPerWeight` in the form `stepPointMass` calls it (true airspeed in) | Turn Fight |
-| `speedOfSoundKt(altFt)` | The speed of sound on a standard day, √(γRT): 661.5 kt at sea level, 573.6 kt above 36,089 ft | `maxKiasT6A` |
+| `speedOfSoundKt(altFt)` | The speed of sound on a standard day, √(γRT): 661.5 kt at sea level, 573.6 kt above 36,089 ft | `machToKiasKt` |
 | `machToKiasKt(mach, altFt)` | The KIAS an airspeed indicator reads at a Mach number: standard calibrated airspeed, with compressibility, standard day. M0.67 is 279.1 KIAS at 25,000 ft, 245.3 at 31,000 ft | `maxKiasT6A` |
 | `maxKiasT6A(altFt)` | The top speed at a height, on the NFM's line (Fig 5-3): VMO 316 KIAS, or Mmo 0.67 where that is slower (above about 18,800 ft; 309 KIAS at 20,000 ft, 279 at 25,000 ft, 245 at 31,000 ft against the chart's 244). Compared with the model's IAS like VMO | Turn Fight |
 | `energyHeightFt(altFt, ktas)` | Altitude + V²/2g | Turn Fight readout, Traffic engine-out check, later the debrief |

@@ -79,7 +79,7 @@ test('the KIAS a Mach number reads: calibrated airspeed, standard day, with comp
   near(machToKiasKt(0.67, 25000), 279.1, 0.1, 'M0.67 at 25,000 ft');
   near(machToKiasKt(0.67, 31000), 245.3, 0.1, 'M0.67 at 31,000 ft');
   near(machToKiasKt(0.67, 40000), 199.3, 0.1, 'M0.67 at 40,000 ft (the stratosphere)');
-  near(machToKiasKt(0.67, 36089.2), machToKiasKt(0.67, 36089.3), 0.01, 'no step at the tropopause');
+  near(machToKiasKt(0.67, 11000 / 0.3048 - 1e-6), machToKiasKt(0.67, 11000 / 0.3048 + 1e-6), 1e-6, 'no step at the tropopause');
   assert.ok(machToKiasKt(0.67, 25000) > tasToIasKt(0.67 * speedOfSoundKt(25000), 25000), 'above the no-compressibility IAS');
   for (const bad of [NaN, Infinity]) assert.throws(() => machToKiasKt(0.67, bad), RangeError);
   for (const bad of [-0.1, 1, NaN]) assert.throws(() => machToKiasKt(bad, 10000), RangeError);

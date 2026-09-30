@@ -219,7 +219,7 @@ M = [
     ('t6-performance.js','Math.sqrt(1.4 * 287.05287 * (288.15 - 0.0065 * h))','Math.sqrt(1.4 * 287.05287 * (288.15 - 0.0065 * h * 1.01))'),
     ('t6-performance.js','return Math.min(T6A_LIMITS.vmoKias, machToKiasKt(T6A_LIMITS.mmo, altFt));','return machToKiasKt(T6A_LIMITS.mmo, altFt);'),
     ('t6-performance.js','if (h <= 11000) return ((288.15 - 0.0065 * h) / 288.15) ** 5.25588;','if (h <= 11000) return ((288.15 - 0.0065 * h) / 288.15) ** 5.2;'),
-    ('t6-performance.js','return 0.22336 * Math.exp(','return 0.2234 * 1.01 * Math.exp('),
+    ('t6-performance.js','return (216.65 / 288.15) ** 5.25588 * Math.exp(','return (216.65 / 288.15) ** 5.2 * Math.exp('),
     ('t6-performance.js','((1 + 0.2 * mach * mach) ** 3.5 - 1)','((1 + 0.2 * mach * mach) ** 3.4 - 1)'),
     ('t6-performance.js','if (!(mach >= 0 && mach < 1 && Number.isFinite(altFt))) {','if (!(mach >= 0 && mach < 1)) {'),
  ('point-mass.js','return dot(u, prevUp) < 0 ? scale(u, -1) : u;','return u;'),

@@ -17,8 +17,8 @@ import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js'
  * 09:29Z). The V-n curve itself reads about 89 kt (7 G near 236 KIAS), and the
  * turn charts imply about 83 kt at maximum power (likely because power on
  * lowers the stall speed, NFM p.6-6). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
- * mmo is the Mach limit, 0.67 (NFM Fig 5-3, p.5-9): slower than VMO above
- * 18,769 ft. maxKiasT6A gives the top speed at a height.
+ * mmo is the Mach limit, 0.67 (NFM Fig 5-3, p.5-9): slower than VMO from
+ * about 18,900 ft (the NFM says 18,769). maxKiasT6A gives the top speed at a height.
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,
@@ -66,7 +66,7 @@ export function speedOfSoundKt(altFt) {
 function isaPressureRatio(altFt) {
   const h = altFt * M_PER_FT;
   if (h <= 11000) return ((288.15 - 0.0065 * h) / 288.15) ** 5.25588;
-  return 0.22336 * Math.exp(-9.80665 * (h - 11000) / (287.05287 * 216.65));
+  return (216.65 / 288.15) ** 5.25588 * Math.exp(-9.80665 * (h - 11000) / (287.05287 * 216.65));
 }
 
 /**
