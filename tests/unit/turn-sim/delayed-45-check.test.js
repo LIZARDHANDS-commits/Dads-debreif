@@ -6,7 +6,7 @@
 // In this engine's box #2 is on Lead's right, so the pictures are the mirror of the figure's: Lead is the outside aircraft in a right turn.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, checkSettings } from '../../../src/modules/turn-sim/settings.js';
+import { DEFAULTS, MANEUVER_TURN_DEG, checkSettings } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 import { planCheckChain } from '../../../src/modules/turn-sim/engine/check-plan.js';
 
@@ -350,4 +350,17 @@ test('state.delayed45CheckFlown says which Delayed 45 is flown: auto is the chec
   assert.equal(flown({ formation: 'weighted', delayed45Check: 'none' }), false);
   assert.equal(flown({ formation: 'weighted', delayed45Check: 'check', timing: 'clock' }), false);
   assert.equal(flown({ formation: 'weighted', maneuver: 'delayed90away', turnDeg: 90 }), false);
+});
+
+test('crossings and closePasses never share a pair: the box hook right has crossings 1-3 and 2-4 and no close passes', () => {
+  const hook = createRun({ ...DEFAULTS, formation: 'offsetBox', maneuver: 'hook90', turnDeg: 180, direction: 'right' }).state;
+  assert.deepEqual(hook.crossings.map((c) => `${c.a}-${c.b}`), ['1-3', '2-4']);
+  assert.deepEqual(hook.closePasses, []);
+  for (const formation of ['twoShip', 'weighted', 'weightedReverse', 'offsetBox']) {
+    for (const maneuver of ['delayed90away', 'delayed45away', 'hook90']) {
+      const state = createRun({ ...DEFAULTS, formation, maneuver, turnDeg: MANEUVER_TURN_DEG[maneuver], spacingFt: 4000, delayed45Check: 'check', checkTurnDeg: 15 }).state;
+      const crossing = new Set(state.crossings.map((c) => `${c.a}-${c.b}`));
+      for (const c of state.closePasses) assert.ok(!crossing.has(`${c.a}-${c.b}`), `${formation} ${maneuver}: ${c.a}-${c.b} is in both`);
+    }
+  }
 });
