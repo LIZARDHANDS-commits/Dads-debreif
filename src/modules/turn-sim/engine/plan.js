@@ -114,21 +114,30 @@ export function turningOrder(aircraft, { formation, direction, startHeadingDeg }
 }
 
 /**
- * Auto timing: the delay between aircraft and each aircraft's start time (V6
- * `computeAutoDelay`, line 1369). V6's step is spacing x turn angle / speed;
- * aircraft start at index x step in the turning order. Returns
- * { stepSec, startsSec: { id: seconds } }.
- * V6 also writes the step into the Base delay box (rounded to 2 places); the
- * port never does, the step is shown instead (#16).
+ * The auto timing step between aircraft, in seconds: spacing / speed x cot(half
+ * the turn angle) (D44), the delay that rolls out line abreast. At V6's defaults
+ * (6,000 ft, 220 KTAS, 90°) that is 16.16 s, where V6's spacing x angle / speed
+ * (line 1391) gave 25.4 s. Turn degrees are limited to 10° to 180° so it stays finite.
+ */
+export function autoDelayStepSec(spacingFt, speedFtps, turnRad) {
+  return (Math.abs(spacingFt) / Math.max(1, speedFtps)) / Math.tan(Math.abs(turnRad) / 2);
+}
+
+/**
+ * Auto timing: the step and each aircraft's start time (V6 `computeAutoDelay`,
+ * line 1369, with D44's step). Aircraft start at index x step in the turning
+ * order (D43: the outside aircraft first, none waiting for Lead). Returns
+ * { stepSec, startsSec: { id: seconds } }. V6 also wrote the step into the Base
+ * delay box; the port never does, the step is shown instead (#16).
  *
  * flight: { formation, direction, startHeadingDeg, speedKt, turnDeg, spacingFt }
  */
 export function autoTimingStarts(aircraft, flight) {
   const order = turningOrder(aircraft, flight);
-  const v = Math.max(1, ktToFtps(flight.speedKt));
+  const v = ktToFtps(flight.speedKt);
   const theta = degToRad(+flight.turnDeg || 90);
   const spacing = +flight.spacingFt || 6000;
-  const stepSec = Math.max(0, (Math.abs(spacing) * Math.abs(theta)) / v);
+  const stepSec = autoDelayStepSec(spacing, v, theta);
   const startsSec = {};
   order.forEach((a, i) => { startsSec[a.id] = i * stepSec; });
   return { stepSec, startsSec };

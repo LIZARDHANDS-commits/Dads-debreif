@@ -16,8 +16,14 @@ const DIRECTIONS = ['right', 'left'];
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
 const scenario = (over) => ({ ...V6_DEFAULTS, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
 
-/** The auto step in seconds: V6's own computeAutoDelay, until D44 changes the formula. */
-const autoStepFor = (settings, probe) => probe.v6.computeAutoDelay();
+/**
+ * The auto step in seconds, D44: spacing / speed x cot(half the turn angle), written out here from the spec
+ * rather than taken from the port. V6's own step (spacing x angle / speed) was 25.4 s at the defaults.
+ */
+const autoStepFor = (settings, probe) => {
+  const v = Math.max(1, probe.v6.speedfps());
+  return (Math.abs(+settings.spacingFt || 6000) / v) / Math.tan(Math.abs((+settings.turnDeg || 90) * Math.PI / 180) / 2);
+};
 
 /** Steps V6 and the port together for one leg, comparing every step. Returns the number of steps. */
 function compareLeg(page, run, label, autoStep) {
@@ -65,8 +71,9 @@ function compareRun(settings, label, { legs = 1 } = {}) {
     const key = aircraftKey(id, 'turnLogic');
     v6Settings[key] = { toward: 'away', away: 'toward' }[settings[key]] ?? settings[key];
   }
-  // D43: with auto timing every aircraft starts at its own time, index x step, without waiting for Lead (V6 waited).
-  // That is exactly V6's TIME-delay flight with the step as the Base delay, so V6 flies it that way here.
+  // D43 and D44: with auto timing every aircraft starts at its own time, index x step, without waiting for Lead
+  // (V6 waited), and the step is spacing / speed x cot(half the turn). That is exactly V6's TIME-delay flight
+  // with that step as the Base delay, so V6 flies it that way here.
   let autoStep = null;
   if (settings.timing === 'auto' && /^delayed/.test(settings.maneuver)) {
     const probe = createV6Page(settings);
@@ -184,7 +191,7 @@ test('the closure over the real step is V6\'s: the change in the 1-3 distance ov
   assert.ok(rows.some((row) => Math.abs(row.closure13Ftps) > 1), 'the aircraft do close on each other in a delayed turn');
 });
 
-test('auto timing after D43 (V6\'s spacing x angle / speed, no wait for Lead): 4312, 2134, two-ship × delayed 90 and 45 × right and left, two legs', () => {
+test('auto timing after D43 and D44 (step = spacing / speed x cot(half the turn), no wait for Lead): 4312, 2134, two-ship × delayed 90 and 45 × right and left, two legs', () => {
   for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
     for (const maneuver of ['delayed90away', 'delayed45away']) {
       for (const direction of DIRECTIONS) {

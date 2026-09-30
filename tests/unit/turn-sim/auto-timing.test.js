@@ -43,3 +43,47 @@ test('the step is only there for a delayed turn with Timing = auto', () => {
   }
   assert.ok(DEFAULTS.timing === 'time');
 });
+
+test('D44: at V6\'s defaults the step is 16.16 s (V6 gave 25.4 s), and it is spacing / speed x cot(half the turn)', () => {
+  const run = createRun(V6);
+  run.step();
+  const v = 220 * 1.68781;
+  assert.ok(Math.abs(run.state.autoStepSec - 16.16) < 0.005, `${run.state.autoStepSec}`);
+  assert.equal(run.state.autoStepSec, (6000 / v) / Math.tan(Math.PI / 4));
+  // A 45° turn needs a longer step: cot(22.5°) is about 2.414 times bigger.
+  const forty = createRun({ ...V6, maneuver: 'delayed45away', turnDeg: 45 });
+  forty.step();
+  assert.ok(Math.abs(forty.state.autoStepSec / run.state.autoStepSec - 2.41421) < 1e-4);
+});
+
+test('D44: auto timing rolls the formation out line abreast at 6,000 ft, within 30 ft (the Euler step\'s own error)', () => {
+  // The tolerance is small but not zero: V6 flies in 0.05 s straight steps, and each aircraft's turn ends within
+  // 0.0001 rad of its goal, which is a few feet at a 2,474 ft radius; the worst case measured is about 16 ft.
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const [maneuver, turnDeg] of [['delayed90away', 90], ['delayed45away', 45]]) {
+      for (const direction of ['right', 'left']) {
+        const label = `${formation} ${maneuver} ${direction}`;
+        const run = createRun({ ...V6, formation, maneuver, turnDeg, direction, durationSec: 250 });
+        while (run.step());
+        assert.equal(run.state.turnComplete, true, label);
+        const ac = run.state.aircraft;
+        const h = ac[0].headingRad;
+        const side = (a) => a.xFt * Math.cos(h + Math.PI / 2) + a.yFt * Math.sin(h + Math.PI / 2);
+        const ahead = (a) => a.xFt * Math.cos(h) + a.yFt * Math.sin(h);
+        const across = [...ac].sort((a, b) => side(a) - side(b));
+        for (let i = 1; i < across.length; i++) {
+          assert.ok(Math.abs(side(across[i]) - side(across[i - 1]) - 6000) < 30, `${label}: spacing ${side(across[i]) - side(across[i - 1])}`);
+        }
+        for (const a of ac) assert.ok(Math.abs(ahead(a) - ahead(ac[0])) < 30, `${label}: #${a.id} fore/aft ${ahead(a) - ahead(ac[0])}`);
+      }
+    }
+  }
+});
+
+test('the step follows the settings: more speed shortens it, more spacing lengthens it, and Base delay leaves it alone', () => {
+  const step = (over) => { const r = createRun({ ...V6, ...over }); r.step(); return r.state.autoStepSec; };
+  assert.ok(step({ speedKt: 300 }) < step({}));
+  assert.ok(step({ spacingFt: 9000 }) > step({}));
+  assert.equal(step({ baseDelaySec: 3 }), step({}));
+  assert.ok(Number.isFinite(step({ turnDeg: 180 })) && step({ turnDeg: 180 }) >= 0);
+});
