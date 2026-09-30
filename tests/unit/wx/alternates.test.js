@@ -28,7 +28,7 @@ test('issue #2 (sof-c#7): IFR only before the first FM does not trigger an after
 test('issue #3: a BKN015CB ceiling triggers the home alternate', () => {
   const r = homeAlternateTrigger(taf(TAF.cbCeiling), WAVE);
   assert.equal(r.status, 'below');
-  assert.deepEqual(r.hits[0].reasons, ['CEILING 1500 FT < 2000 FT']);
+  assert.deepEqual(r.hits[0].reasons, ['CEILING 1500 FT < 2000 FT', 'CB/TCU (BKN015CB)']);
 });
 
 test('limits are an input (R16): 1000 ft / 1 SM home limits let the BKN015CB wave go', () => {
@@ -50,7 +50,7 @@ test('no TAF', () => {
 test('issue #4: an alternate in fog at ETA is below minima, not green', () => {
   const r = assessAlternate(taf(TAF.altFogLifting), at(29, 17));
   assert.equal(r.status, 'below');
-  assert.deepEqual(r.hits[0].reasons, ['CEILING 200 FT < 600 FT', 'VIS <1/4 SM < 2 SM', 'SIGNIFICANT WX (FG)']);
+  assert.deepEqual(r.hits[0].reasons, ['CEILING 200 FT < 600 FT', 'VIS <1/4 SM < 2 SM', 'SIGNIFICANT WX (FG)', 'CB/TCU (BKN002CB)']);
 });
 
 test('issue #4: the same alternate after the fog lifts meets minima', () => {
@@ -67,8 +67,10 @@ test('issue #4: a TEMPO active at ETA counts against the alternate', () => {
 });
 
 test('alternate limits are an input', () => {
-  const r = assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { limits: { ceilingFt: 400, visSm: 1 } });
+  const r = assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { limits: { ceilingFt: 400, visSm: 0.5 } });
   assert.equal(r.status, 'meets');
+  // The TEMPO's 1SM sits exactly on a 1 SM limit (Q27).
+  assert.equal(assessAlternate(taf(TAF.altTempoShowers), at(29, 18), { limits: { ceilingFt: 400, visSm: 1 } }).status, 'at-limit');
 });
 
 test('GNSS-only alternates: V6 had no rule, so the result asks for the MEA or a manual check (WX-4)', () => {
@@ -86,4 +88,38 @@ test('alternate without a TAF, or with an ETA outside it, is never green', () =>
 test('alternate TAF without a readable visibility is incomplete, not green', () => {
   const r = assessAlternate(taf('TAF CYQR 291140Z 2912/3012 27010KT BKN040'), at(29, 18));
   assert.equal(r.status, 'incomplete');
+});
+
+test('Q27: a forecast exactly on the home limits is at-limit (yellow), not below', () => {
+  const r = homeAlternateTrigger(taf('TAF CYMJ 291120Z 2912/3012 27010KT 3SM BR BKN020'), WAVE);
+  assert.equal(r.status, 'at-limit');
+  assert.deepEqual(r.hits, []);
+  assert.equal(r.atLimit.length, 1);
+  assert.equal(r.atLimit[0].kind, 'PREVAILING');
+  assert.deepEqual(r.atLimit[0].reasons, ['CEILING 2000 FT AT LIMIT 2000 FT', 'VIS 3 SM AT LIMIT 3 SM']);
+});
+
+test('Q27: a TEMPO exactly on the limits makes the trigger at-limit; below anywhere still wins', () => {
+  const tempoAt = 'TAF CYMJ 291120Z 2912/3012 27010KT P6SM SKC TEMPO 2916/2920 3SM BR BKN030';
+  assert.equal(homeAlternateTrigger(taf(tempoAt), WAVE).status, 'at-limit');
+  const mixed = 'TAF CYMJ 291120Z 2912/3012 27010KT 3SM BR BKN020 TEMPO 2917/2919 1SM BR';
+  assert.equal(homeAlternateTrigger(taf(mixed), WAVE).status, 'below');
+});
+
+test('Q27: an alternate exactly on its limits at ETA is at-limit', () => {
+  const r = assessAlternate(taf('TAF CYQR 291140Z 2912/3012 27010KT 2SM BR OVC006'), at(29, 18));
+  assert.equal(r.status, 'at-limit');
+});
+
+test('Q27: an unreadable forecast is incomplete even when another part is at a limit', () => {
+  const raw = 'TAF CYMJ 291120Z 2912/3012 27010KT BKN040 TEMPO 2917/2919 3SM BR BKN020';
+  assert.equal(homeAlternateTrigger(taf(raw), WAVE).status, 'incomplete');
+});
+
+test('Q28: dangerous weather in the window is listed as a caution without changing the limit status', () => {
+  const r = homeAlternateTrigger(taf('TAF CYMJ 291120Z 2912/3012 24012KT P6SM SCT050 PROB30 TEMPO 2917/2919 P6SM VCTS BKN050CB'), WAVE);
+  assert.equal(r.status, 'meets');
+  assert.equal(r.cautions.length, 1);
+  assert.equal(r.cautions[0].kind, 'PROB');
+  assert.deepEqual(r.cautions[0].cautions, ['VCTS', 'BKN050CB']);
 });

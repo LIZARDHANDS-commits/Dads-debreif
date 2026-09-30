@@ -32,6 +32,7 @@ In `core`:
 | `geo.js` | The debrief's flat local map (lat/lon ↔ feet), map tiles, Mercator | 1 |
 | `time.js` | Zulu and zone-aware formatting, KML time parsing, the Zulu DTG | 1 |
 | `flight-math.js` | Turn radius and rate, bank from G, ISA density ratio and IAS estimate, closure, estimated G, the EM chart point | 2 |
+| `tennis.js` | Both of V6's tennis-ball solvers, unchanged, until one is chosen (#19) | 2 |
 | `standards.js` | Formation standards classifier (debrief and Turn Sim) and V6's default standards preset (R18) | 3 |
 
 Not in `core`: resolving a TAF's day-of-month into a date (`wx` owns it, in `src/wx/dates.js`); anything that reads the page, a canvas or storage; KML parsing, interpolation and the playback clock (`flight-data`); weather parsing (`wx`); drawing.
@@ -69,10 +70,30 @@ Changes made while porting, none of which changes a number:
 - V6's five "wrap an angle" copies (`normAngleRad`, `wrapH`, `dAng`, `headingDelta`, `ad`) become `wrapPi`. Three are the identical loop. The 3D view's `headingDelta` returns −π where the loop keeps +π and differs by at most about 4e-14 rad on angles of many turns; Turn Fight's `ad` agrees to 1e-10°. The golden test pins both differences.
 - V6 uses 0.592484 for ft/s→kt in the debrief but 1.68781 for kt→ft/s everywhere else; they are not exact inverses (off by 4e-7). Both stay, named, until a decision says otherwise.
 
+## API, second PR
+
+| Function | V6 source |
+|---|---|
+| `MIN_TURN_G`, `limitG` | the G limits in 1582, 4237 and traffic 147–148 |
+| `bankDegFromG`, `turnRadiusFt`, `turnRateRadPerSec` | Turn Sim 788–789, Turn Fight `M` 4237, traffic 147–148 |
+| `isaDensityRatio`, `emPoint` | EM chart `isaRhoRatio` 4154, `metrics` 4158 |
+| `closureKt`, `formatClosureKt` | debrief `closureRateKt` 3119, `fmtClosureKt` 3131 |
+| `gFromTrack` | debrief `estimatedGAtTrack` 2462 |
+| `tennisDebrief`, `tennis3D` | debrief `getKmlTennisSolution` 3140, 3D `draw3DDogfightArc` 3970 |
+
+Changes made while porting:
+
+- The three copies of the turn physics become one. They differ only in how they limit G: Turn Sim limits it before calling (1.01 and up), Turn Fight inside `M` (1.01 and up), and the Traffic page to 1.01 to 9, reading an empty box as 2 G. `limitG(g, maxG)` covers all three.
+- Turn Fight works out the turn rate as gravity × √(g² − 1) / speed, Turn Sim as speed / radius. They differ in the last digit for about a third of inputs. `core` uses Turn Sim's order, and the golden test allows Turn Fight 1e-15 relative.
+- Functions that read the track take what they need instead: `emPoint` takes the three moments, `closureKt` the four positions and the time between them, and `gFromTrack` two positions and headings. Choosing the moments and reading the track at them is `flight-data`'s job, and each golden test shows how it has to do it.
+- The tennis solvers take their settings as numbers. Reading the boxes, the pitch estimate and the headings stays with the screen.
+- **D39 is fixed** in its own commit: `emPoint` shows the real turn rate, twice what V6 showed. The golden test expects exactly twice V6's value.
+
 ## Things `core` will flag, not choose
 
-- **Two tennis-ball solvers disagree** (issue #19): the debrief's `getKmlTennisSolution` (line 3140) and the 3D view's `draw3DDogfightArc` (line 3970). The second PR pins both against V6 and records where they differ; which one survives is for Patrick and Dad.
-- **Fixes Dad approved (D39 to D47):** EM turn rate without the divide by 2 (D39); 3D bank from the real rate, correct wing down, G only in level turns (D40); Turn Sim toward/away (D41) and wide/tight (D42); auto timing (D43, D44); compass start heading (D45); true circular arcs in Traffic (D46); recorded bank and estimated blank pitch (D47). Under D10, each function is first ported and pinned to V6's number, and the fix then lands as its own change that updates the golden value. None of them touches PR 1's functions. Q31 is answered (Patrick, 2026-09-30): in 4312, #2 flies on lead's left, as V6 draws it. In real life it depends on how the formation joined, so the Turn Sim port should make the side a setting with left as the default.
+- **Two tennis-ball solvers disagree** (issue #19): the debrief's `getKmlTennisSolution` (line 3140) and the 3D view's `draw3DDogfightArc` (line 3970). Both are in `tennis.js`, each pinned to V6. [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md) lists every difference, four moments where the verdicts split, and five questions for Dad. Which one survives is for Patrick and Dad.
+- **Below 1 G, Turn Sim's turn goes to NaN.** Turn Sim's G correction (line 1583) adds up to −0.8 G after the 1.01 limit. So when base G plus the aircraft's G error is under 1.8, a wingman's G can drop below 1 (at exactly 1.8 it reaches 1 G, and the turn rate is 0). Then `turnRateRadPerSec` gives NaN, as V6's `turnRate` does, and that aircraft's position becomes NaN. This was read from the code, not run. The Turn Sim port should limit G after the correction; that changes behaviour, so it needs a decision.
+- **Fixes Dad approved (D39 to D47):** EM turn rate without the divide by 2 (D39); 3D bank from the real rate, correct wing down, G only in level turns (D40); Turn Sim toward/away (D41) and wide/tight (D42); auto timing (D43, D44); compass start heading (D45); true circular arcs in Traffic (D46); recorded bank and estimated blank pitch (D47). Under D10, each function is first ported and pinned to V6's number, and the fix then lands as its own change that updates the golden value. None of them touches PR 1's functions. D39 landed in the second PR. Q31 is answered (Patrick, 2026-09-30): in 4312, #2 flies on lead's left, as V6 draws it. In real life it depends on how the formation joined, so the Turn Sim port should make the side a setting with left as the default.
 - **Infinite headings hang.** V6's angle-wrapping loops (`normDeg`, `normAngleRad` and their copies) never return for ±Infinity, and crawl on values past about 1e9. In V6, a huge number such as 1e20 typed into Turn Sim's Start heading box becomes the aircraft's heading (line 798), and with the clock or bearing cue trigger on, it reaches these loops (lines 1499 and 1528), so the page would freeze. This was read from the code, not run. `core` keeps the loops as they are. The fix is at the screen: `ui-kit` controls must reject non-finite and out-of-range numbers. A guard inside `core` would change no number V6 ever shows, but it would still change behaviour, so it needs a decision.
 
 ## Commands
@@ -87,7 +108,7 @@ Note for the app frame: on Node 22, `node --test tests/unit tests/golden` fails 
 
 ```
 src/core/            README.md (what's here, the heading rule, how to change a number)
-                     units.js angles.js geo.js time.js (PR 1); flight-math.js standards.js (later)
+                     units.js angles.js geo.js time.js (PR 1); flight-math.js tennis.js (PR 2); standards.js (PR 3)
 tests/golden/        v6-source.js  loads V6's own functions from original/shell.html
                      inputs.js     fixed edge cases plus seeded random inputs
                      core-*.test.js  V6 vs core, function by function
@@ -111,8 +132,8 @@ export function headingCrossAngleDeg(h1, h2) {
 1. **Golden tests** (`tests/golden/core-*.test.js`, R9). `v6-source.js` cuts each V6 function out of `original/shell.html` by name (or out of the SOF and Traffic pages V6 embeds as base64) and runs it unchanged. Globals V6 reads are supplied by a small prelude. Each test runs V6 and `core` on the same inputs: fixed edge cases (±π, month ends, both 2026 clock changes, bad input) and a few hundred seeded random values around Moose Jaw.
 2. **Exact match by default.** A tolerance is allowed only where V6 itself has two copies that disagree, and the test says why.
 3. **Unit tests** (`tests/unit/core/`) check meaning against known answers: a minute of latitude is a nautical mile, 3 o'clock is on the right, Moose Jaw stays UTC-6 across both clock changes while Denver moves (R10).
-4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). For PR 1, 56 of 58 changes turned a test red. The other two are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`, and 0.3048 for 1/3.28084 inside the tile-zoom rounding. Line coverage of `src/core` is 100%.
-5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 10,500 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 25 results, all from `sin`, `cos` and `atan2`, differ in the last digit (at most 4e-16 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
+4. **The tests must catch a broken port.** Before each PR, a mutation check breaks the ports on purpose, one change at a time (a constant nudged, a sign flipped, a boundary moved). After PR 2, 97 of 101 changes turn a test red. The other four are equivalent: `absAngleDeg(h1 - h2)` for `(h2 - h1)`; 0.3048 for 1/3.28084 inside the tile-zoom rounding; and two guards kept from V6 that no input can reach (`emPoint`'s density floor of 0.15, since the ratio never falls below 0.297, and `gFromTrack`'s floor of 0.8 G, since its G is never below 1). Line coverage of `src/core` is 100%.
+5. **Same answers in a browser.** Each PR also loads `src/core` in Chromium as plain ES modules and compares about 12,800 results with Node's, failing on anything beyond the last digits. Time and Intl results match exactly. 119 results that use `sin`, `cos`, `atan2` or `Math.pow` differ in the last digit (at most 1.2e-15 relative), because JavaScript engines may round these functions differently. The golden tests run V6 and `core` in the same engine, so they compare exactly. Any comparison with numbers recorded in a browser (such as `tests/golden/v6-baseline.json`) must allow at least 1e-12 relative. That tolerance is far below anything shown on screen, and it is the "stated tolerance" R9 asks for.
 
 ## Boundaries
 
@@ -133,5 +154,6 @@ The tasks, checkpoints and risks are in [`tasks/flight-math/plan.md`](../tasks/f
 
 ## Open questions
 
-1. The tennis-ball solvers: which one the rebuild keeps (Patrick or Dad, after the second PR shows the difference).
+1. The tennis-ball solvers: which one the rebuild keeps, or how to merge them. The questions for Dad are in [`tasks/flight-math/tennis-ball.md`](../tasks/flight-math/tennis-ball.md).
 2. Guard against infinite input inside `core`, or only at the screen (see above)? The default is at the screen only.
+3. Should the Turn Sim port limit G after its G correction, so a wingman never drops below 1 G? The default is to keep V6's order until this is decided.

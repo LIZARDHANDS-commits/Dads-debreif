@@ -14,7 +14,7 @@ Turns raw METAR and TAF text into plain data and answers the SOF's weather quest
 ## Where to change common things
 
 - **Default limits:** `DEFAULT_LIMITS` in `limits.js`. The SOF passes the user's settings, so this is only the starting value. Changing it needs a logged decision.
-- **Which weather raises a caution:** `checkConditions` in `limits.js`. The `watch` lists hold weather that is shown but not raised (question WX-2).
+- **Which weather raises a caution:** `checkConditions` in `limits.js`. `cautions` holds dangerous weather the SOF must acknowledge; `watch` holds weather that is only shown (Q28). `DANGEROUS_WEATHER` lists the codes.
 - **NATO colour or flight-category thresholds:** the `NATO` table and `flightCategory` in `limits.js`. Both are V6's values.
 - **A report that parses wrong:** add it to `tests/unit/wx/reports.js` with a failing test first, then fix `conditions.js` or `taf.js`.
 
