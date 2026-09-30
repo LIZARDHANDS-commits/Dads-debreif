@@ -14,10 +14,19 @@ async function waitForOfflineCopy(page) {
   });
 }
 
-test('after one visit, home and About open with the network off', async ({ page, context }) => {
+// One online visit, then the network goes off. Card videos stay off until
+// then: a video still downloading when the network drops logs a browser error
+// that has nothing to do with what these tests check.
+async function visitThenGoOffline(page, context) {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoute(page, '#/');
   await waitForOfflineCopy(page);
   await context.setOffline(true);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+}
+
+test('after one visit, home and About open with the network off', async ({ page, context }) => {
+  await visitThenGoOffline(page, context);
   await page.reload();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
   await expect(page.locator('.card')).toHaveCount(6);
@@ -26,6 +35,20 @@ test('after one visit, home and About open with the network off', async ({ page,
   const photo = page.locator('.about-photo img');
   await expect(photo).toBeVisible();
   expect(await photo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await context.setOffline(false);
+});
+
+test('offline, the home cards show their stills and fetch no videos', async ({ page, context }) => {
+  await visitThenGoOffline(page, context);
+  const failed = [];
+  page.on('requestfailed', (req) => failed.push(req.url()));
+  await page.reload();
+  await expect(page.locator('.card')).toHaveCount(6);
+  // Give the cards' visibility checks a few frames to run.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 300)))));
+  await expect(page.locator('.card-video.is-playing')).toHaveCount(0);
+  await expect(page.locator('.card-video source')).toHaveCount(0);
+  expect(failed).toEqual([]);
   await context.setOffline(false);
 });
 

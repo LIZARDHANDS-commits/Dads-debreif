@@ -56,7 +56,14 @@ body {
 
 .app-clock {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.clock-first {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .app-actions {

@@ -65,7 +65,7 @@ The registry lists each module's id, title, card text, card media and a `load()`
 | `app.scheduler` | A scheduler scope, disposed on unmount |
 | `app.listen(target, type, handler, options)` | Adds an event listener that's removed on unmount |
 | `app.keys({ 'KeyP': fn, … })` | Keyboard shortcuts that work only while this module is open and never while typing in a field |
-| `app.time` | The time formatters from `core/time.js`, following the shared setting |
+| `app.time` | Time from `core/time.js` for the home airfield: `zulu(date)` "18:00:00Z", `local(date)` "12:00:00 CST", `ordered(date)` both in the order Settings picked, `offsetMinutes(date)`, `zone`, `now()` |
 | `app.status(text)` | Shows a short message in the module's status line |
 
 Opening a route: the shell unmounts the current module (calls its cleanup, disposes its scheduler scope, removes its listeners, shortcuts and subscriptions, empties its root), then mounts the next. If loading or mounting throws, the shell shows an error card with a Report a problem link and the Home button still works.
@@ -88,7 +88,7 @@ src/shell/router.js      parses the hash into a route
 src/shell/host.js        mounts and unmounts modules, builds the app object
 src/shell/home.js        home screen and cards
 src/shell/about.js       About page
-src/shell/header.js      title, time, Settings, Report a problem
+src/shell/header.js      the header clock and app.time
 src/shell/settings-dialog.js
 src/shell/update-bar.js  new-version bar and service-worker registration
 src/shell/sw.js          the service worker; the build fills in its file list (tools/service-worker.mjs)

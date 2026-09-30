@@ -78,7 +78,9 @@ export default {
     const videos = cards.map((c) => c.video).filter(Boolean);
     const visible = new Set();
     const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const allowed = () => motionAllowed(app.settings.get().motion, reduced?.matches ?? false);
+    // Card videos aren't kept for offline use, so offline the stills stay up.
+    const online = () => globalThis.navigator?.onLine !== false;
+    const allowed = () => online() && motionAllowed(app.settings.get().motion, reduced?.matches ?? false);
 
     const update = () => {
       for (const video of videos) {
@@ -106,6 +108,8 @@ export default {
     }
     app.settings.subscribe(update);
     if (reduced) app.listen(reduced, 'change', update);
+    app.listen(globalThis, 'online', update);
+    app.listen(globalThis, 'offline', update);
 
     return () => {
       observer?.disconnect();
