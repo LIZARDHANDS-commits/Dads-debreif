@@ -8,9 +8,12 @@ const SIZES = [
 ];
 
 // Finds visible controls that overlap each other or stick out of the page.
+// While a modal dialog is open, only its controls count: the page behind it
+// can't be reached.
 async function layoutProblems(page) {
   return page.evaluate(() => {
-    const controls = [...document.querySelectorAll('a[href], button, input, select, textarea, [role="button"]')]
+    const scope = document.querySelector('dialog[open]') ?? document;
+    const controls = [...scope.querySelectorAll('a[href], button, input, select, textarea, [role="button"]')]
       .filter((el) => {
         const r = el.getBoundingClientRect();
         const style = getComputedStyle(el);
@@ -59,7 +62,17 @@ for (const size of SIZES) {
         return d.top >= 0 && d.left >= 0 && d.bottom <= innerHeight && d.right <= innerWidth;
       });
       expect(inDialog, 'dialog fits on screen').toBe(true);
-      expect((await layoutProblems(page)).filter((p) => !p.includes('overlaps') || p.includes('input') || p.includes('select'))).toEqual([]);
+      expect(await layoutProblems(page)).toEqual([]);
+      // Nothing sticks out past the dialog's own padding, where it would be clipped.
+      const clipped = await page.evaluate(() => {
+        const d = document.querySelector('dialog[open]');
+        const box = d.getBoundingClientRect();
+        const pad = parseFloat(getComputedStyle(d).paddingRight);
+        return [...d.querySelectorAll('button, input, select, table, summary, [role="button"]')]
+          .filter((el) => el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().right > box.right - pad + 1)
+          .map((el) => el.getAttribute('aria-label') || el.textContent.trim().slice(0, 30) || el.tagName);
+      });
+      expect(clipped).toEqual([]);
     });
   });
 }

@@ -131,3 +131,28 @@ test('stop() leaves nothing running or listening', () => {
   doc.become('visible');
   assert.equal(drawn.length, before);
 });
+
+test('the zone can follow the home airfield: read live on every call', () => {
+  let zone = 'America/Regina';
+  const time = createTime({ settings: fakeSettings(), zone: () => zone, now: () => NOON_Z });
+  assert.equal(time.zone, 'America/Regina');
+  assert.equal(time.local(), '12:00:00 CST');
+  zone = 'America/Edmonton';
+  assert.equal(time.zone, 'America/Edmonton');
+  assert.equal(time.local(), '12:00:00 MDT');
+  assert.equal(time.offsetMinutes(), -360);
+});
+
+test('the clock redraws at once when another watched source changes (the home airfield)', () => {
+  const settings = fakeSettings();
+  const airfields = fakeSettings();
+  const timers = fakeTimers();
+  const draws = [];
+  const time = createTime({ settings, now: () => NOON_Z });
+  const stop = startClock({ time, settings, timers, watch: [airfields], render: (a, b) => draws.push([a, b]), doc: fakeDoc() });
+  assert.equal(draws.length, 1);
+  airfields.set('local');
+  assert.equal(draws.length, 2);
+  stop();
+  assert.equal(airfields.listeners.size, 0, 'stop() unsubscribes from every watched source');
+});

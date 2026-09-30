@@ -6,8 +6,8 @@ The home screen and the frame around every module (spec: `specs/SPEC-shell.md`).
 - `router.js`: turns the address (`#/`, `#/about`, `#/<module-id>`) into a page.
 - `host.js`: opens one module at a time and cleans up everything it started when it closes.
 - `home.js`, `about.js`: the home screen and About page. **To change About's text,** edit `about.js`.
-- `header.js`: the header clock and `app.time`. Local time is Moose Jaw's (`HOME_ZONE`, America/Regina) until the airfield list arrives; the formatting itself is in `src/core/time.js`.
-- `settings-dialog.js`: the Settings dialog. Shared settings and their defaults are in `src/app.js`.
+- `header.js`: the header clock and `app.time`. Local time is the home airfield's zone, read from `src/airfields/` on every tick (`HOME_ZONE`, Moose Jaw's America/Regina, is only the fallback); the formatting itself is in `src/core/time.js`.
+- `settings-dialog.js`: the Settings dialog. Shared settings and their defaults are in `src/app.js`, which also passes in the Airfields section (`src/airfields/panel.js`).
 - `report.js`: the Report a problem link; the form itself is `.github/ISSUE_TEMPLATE/problem.yml`.
 - `update-bar.js`: registers the service worker and shows the "A new version is ready" bar.
 - `version.js`: the footer's "Updated 30 Sep 2026, 02:01Z" line.
