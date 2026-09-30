@@ -7,6 +7,7 @@ import { parseMetar } from '../../../src/wx/metar.js';
 import { parseTaf } from '../../../src/wx/taf.js';
 import { checkConditions, DEFAULT_LIMITS } from '../../../src/wx/limits.js';
 import { homeAlternateTrigger, assessAlternate } from '../../../src/wx/alternates.js';
+import { tokenize } from '../../../src/wx/conditions.js';
 import { NOW, METAR_NOW, at } from './reports.js';
 
 const text = (raw, span) => (span ? raw.slice(span.start, span.end) : null);
@@ -60,4 +61,12 @@ test('an inherited value points at the group that stated it', () => {
   const r = homeAlternateTrigger(parseTaf(raw, { now: NOW }), { from: at(29, 15), to: at(29, 16) }, DEFAULT_LIMITS.home);
   const tempo = r.hits.find((h) => h.kind === 'TEMPO');
   assert.deepEqual(tempo.reasonSpans.flat().map((s) => text(raw, s)), ['OVC008', '2SM']);
+});
+
+test('spans point into report.raw even when the text came with leading space, and only one trailing "=" is dropped', () => {
+  const m = parseMetar('  \n metar  cymj\t291500z   27010g20kt 250v310 15sm skc 10/08 a2995=', { now: METAR_NOW });
+  assert.equal(text(m.raw, m.conditions.wind.span), '27010g20kt 250v310');
+  const t = parseTaf('\n TAF CYMJ 291120Z 2912/3012 27010KT P6SM SKC', { now: NOW });
+  assert.equal(text(t.raw, t.groups[0].span), '27010KT P6SM SKC');
+  assert.deepEqual(tokenize('CYMJ 1SM==').tokens, ['CYMJ', '1SM=']);
 });

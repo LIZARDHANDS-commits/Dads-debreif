@@ -29,7 +29,8 @@ const hhmm = (d) => d.toISOString().slice(8, 16).replace('T', ' ');
  */
 export function parseTaf(raw, { now } = {}) {
   now = now ?? new Date();
-  const { tokens, spans, remarks } = tokenize(raw);
+  // Spans are offsets into taf.raw (the trimmed text), which the screen shows.
+  const { tokens, spans, remarks } = tokenize(String(raw ?? '').trim());
   const taf = {
     raw: String(raw ?? '').trim(),
     station: null,

@@ -30,8 +30,8 @@ export function tokenize(raw) {
   const words = [...source.matchAll(/\S+/g)].map((m) => ({ text: m[0].toUpperCase(), start: m.index, end: m.index + m[0].length }));
   const last = words.at(-1);
   if (last?.text.endsWith('=')) {
-    last.text = last.text.replace(/=+$/, '');
-    last.end = last.start + last.text.length;
+    last.text = last.text.slice(0, -1);
+    last.end -= 1;
     if (!last.text) words.pop();
   }
   const rmk = words.findIndex((w) => w.text === 'RMK');
@@ -94,6 +94,7 @@ export function readConditions(tokens, spans = []) {
       };
     } else if (c.wind && (m = t.match(WIND_VARIATION))) {
       c.wind.varyingDeg = [Number(m[1]), Number(m[2])];
+      c.wind.span = joinSpans([c.wind.span, spans[i]]);
     } else if (!c.visibility && VIS_WHOLE.test(t) && tokens[i + 1] && /^\d+\/\d+SM$/.test(tokens[i + 1])) {
       const [n, d] = tokens[i + 1].slice(0, -2).split('/').map(Number);
       c.visibility = { sm: Number(t) + n / d, qualifier: null, metres: null, raw: `${t} ${tokens[i + 1]}`, span: joinSpans([spans[i], spans[i + 1]]) };
@@ -156,7 +157,7 @@ export function readConditions(tokens, spans = []) {
   return out;
 }
 
-const isCeilingLayer = (l) => l.cover === 'BKN' || l.cover === 'OVC' || l.cover === 'VV';
+export const isCeilingLayer = (l) => l.cover === 'BKN' || l.cover === 'OVC' || l.cover === 'VV';
 
 /** Lowest BKN, OVC or VV layer with a known base, in feet; null when there is no ceiling. */
 export function ceilingFt(conditions) {

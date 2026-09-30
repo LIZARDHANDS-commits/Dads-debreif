@@ -1,7 +1,7 @@
 // Limit checks and classifications. Thresholds and the "strictly below" rule are
 // V6's (SPEC-wx, "Limit checks"); at-limit (Q27) and cautions (Q28) are Patrick's answers.
 
-import { ceilingFt, ceilingUnknown, formatVisibility, METRES_PER_SM } from './conditions.js';
+import { ceilingFt, ceilingUnknown, formatVisibility, isCeilingLayer, METRES_PER_SM } from './conditions.js';
 
 /** V6's WX SETUP defaults (sof.html line 180). The SOF passes the user's settings instead. */
 export const DEFAULT_LIMITS = Object.freeze({
@@ -112,7 +112,7 @@ export function checkConditions(conditions, limits) {
     reasons.push(text);
     reasonSpans.push(items.map((x) => x?.span).filter(Boolean));
   };
-  const ceilingLayer = (conditions?.sky ?? []).find((l) => (l.cover === 'BKN' || l.cover === 'OVC' || l.cover === 'VV') && l.baseFt === ceiling);
+  const ceilingLayer = (conditions?.sky ?? []).find((l) => isCeilingLayer(l) && l.baseFt === ceiling);
   if (ceilingBelow) reason(`CEILING ${ceiling} FT < ${limits.ceilingFt} FT`, [ceilingLayer]);
   else if (ceilingAtLimit) reason(`CEILING ${ceiling} FT AT LIMIT ${limits.ceilingFt} FT`, [ceilingLayer]);
   if (visBelow) reason(`VIS ${formatVisibility(vis)} < ${limits.visSm} SM`, [vis]);
