@@ -161,14 +161,7 @@ For the simple fight, everything is already in `core` and pinned against Turn Fi
 
 The fight itself (merge, turn directions, chase, first nose-on) is this module's `sim.js`, as the Turn Sim owns its integrator in the module map (SPEC.md). It uses only the `core` functions above. If the Flight math core thread would rather own it, it moves to `core` unchanged.
 
-**Energy mode needs new `core` functions.** They're general flight math that the debrief's EM chart could use later, so they belong in `core`, built by the Flight math core thread (or by this thread, if the coordinator agrees) test-first, at the Turn Fight's turn:
-
-| New in `core` | What it does |
-|---|---|
-| `t6-performance.js`: `T6A_LIMITS`, `stallLimitG(kias)`, `availableG(kias, rolling)` | The V-n limits and stall line above |
-| `iasToTasKt(kias, altFt)`, `tasToIasKt(ktas, altFt)` | IAS and TAS through `isaDensityRatio` |
-| `excessThrustPerWeight(kias, altFt, g)` | (T − D)/W from the fit to the sustained-turn charts, with the fitted constants and chart points in `t6a-turn-charts.js` |
-| `point-mass.js`: `stepPointMass(state, { g, bankRad }, dtSec, excessFn)` | One RK4 step of the motion above, on the velocity vector |
+**Energy mode uses `core`'s shared T-6A performance model** (D128, Patrick 2026-09-30 06:58Z). It is built by the Flight math core thread, test-first, as SPEC-core's "API, fifth PR: T-6A performance" (tasks 14 to 17 in `tasks/flight-math/todo.md`). The Turn Fight uses `T6A_LIMITS`, `stallLimitG`, `availableG`, `iasToTasKt` and `tasToIasKt`, `excessThrustPerWeight`, `energyHeightFt` and `stepPointMass` from it, and builds none of them itself.
 
 The moves (which bank and G each pilot uses, when a move ends) are the Turn Fight's own, in `energy-sim.js`.
 
@@ -254,6 +247,8 @@ The chaser only pulls what a T-6 can: its G is capped at the shaker, and at +7 G
 **Forced moves** (from More energy settings) fly the same way from the merge whatever the speed. The move still exits into the MPT, so a split S at 220 KIAS shows what it costs.
 
 ### The model (T-6A, point mass)
+
+This model is `core`'s shared T-6A performance model (SPEC-core, "API, fifth PR: T-6A performance"). It is described here because the Turn Fight is its first user, and its chart checks are the tests `core` builds it against.
 
 - **Motion.** Each aircraft is a point with speed V, a flight-path direction, and a lift direction set by its bank. Every 0.02 s step:
   - the load factor n turns the flight path through the bank angle μ: rate of climb-angle change (g/V)(n cos μ − cos γ) and, level, rate of heading change g·n·sin μ / (V cos γ);
@@ -371,7 +366,7 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 |---|---|---|
 | This spec | spec-driven-development | The six core areas, assumptions listed up front, and Patrick's approval before any code |
 | The task plan | planning-and-task-breakdown | `tasks/turn-fight/`: vertical slices, each task with acceptance, verify and at most about 5 files, checkpoints between PRs |
-| Tasks 8 to 10 (Energy mode) | test-driven-development | Every new formula starts as a failing known-answer test: a level turn gives today's `turnRadiusFt` and `turnRateRadPerSec` exactly; a steady climbing turn gives g·√(n² − cos²γ) / (V cos γ) (22.4°/s at 30°, 220 KTAS, 4 G); with thrust equal to drag, energy height stays constant round a loop; the stall line reaches 7 G at 227.5 KIAS; the fit meets the chart checks above |
+| Task 10 (Energy mode), with core's tasks 14 to 17 | test-driven-development | Every new formula starts as a failing known-answer test (core writes the model's; this module writes the moves'): a level turn gives today's `turnRadiusFt` and `turnRateRadPerSec` exactly; a steady climbing turn gives g·√(n² − cos²γ) / (V cos γ) (22.4°/s at 30°, 220 KTAS, 4 G); with thrust equal to drag, energy height stays constant round a loop; the stall line reaches 7 G at 227.5 KIAS; the fit meets the chart checks above |
 | Tasks 1 and 2 (the fight, readouts) | test-driven-development | The golden test against V6's own script is written first and must fail before `sim.js` exists. Each answered question starts as a failing test that states the change from V6 (D10) |
 | Every task | incremental-implementation | One task per commit, each leaving the app working; `npm test` before each commit |
 | Tasks 3 to 5 (the screen) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled controls, keyboard use, colour never the only signal, R22's essentials-first layout, tokens instead of `!important` |

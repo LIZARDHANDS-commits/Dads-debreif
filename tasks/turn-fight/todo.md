@@ -49,20 +49,12 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
 
 ## Energy mode (FF23), approved 2026-09-30
 
-- [ ] **8. T-6A performance in `core`.** `T6A_LIMITS`, `stallLimitG`, `availableG`, IAS and TAS, and `excessThrustPerWeight` fitted to the sustained-turn chart points (kept with their reading notes). Test-first.
-  - Acceptance: the chart checks in the spec's Energy mode table; 7 G first at 227.5 KIAS.
-  - Verify: `node --test tests/unit/core/t6-performance.test.js`.
-  - Dependencies: none (built by the Flight math core thread, or here if the coordinator agrees). Size M.
-  - Files: src/core/t6-performance.js, src/core/t6a-turn-charts.js, tests/unit/core/t6-performance.test.js
-- [ ] **9. The point-mass step in `core`.** One RK4 step on the velocity vector, given G, bank and (T − D)/W. Test-first.
-  - Acceptance: a level turn gives `turnRadiusFt` and `turnRateRadPerSec` exactly; a 30° climbing turn at 220 KTAS and 4 G gives 22.4°/s; energy height stays constant round a loop with thrust equal to drag; no NaN straight up or down.
-  - Verify: `node --test tests/unit/core/point-mass.test.js`.
-  - Dependencies: none. Size S.
-  - Files: src/core/point-mass.js, tests/unit/core/point-mass.test.js
+- [ ] **8-9. T-6A performance and the point-mass step: built by `core`, not here.** The Flight math core thread builds them as tasks 14 to 17 in `tasks/flight-math/todo.md` (SPEC-core, "API, fifth PR: T-6A performance"; D128). The Turn Fight uses them. The chart checks and known answers in the spec's Energy mode are those tasks' tests.
+  - Dependencies: none here; task 10 waits on them.
 - [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), the altitude side view with the hard deck as a reference line, and (once Patrick approves the SMM additions) the level MPT at the hard deck, the stall cost, the mid-range throttle for straight MPT entries, per-aircraft start altitudes, and Pure, Lead or Lag pursuit after first nose-on.
   - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); Auto picks the move from the merge speed as the spec table says, and from every merge speed between 100 and 250 KIAS reaches 160 ± 5 KIAS, then holds it; at the hard deck the level MPT settles at 150 KIAS minus altitude in thousands, within 5 kt; a stall gives 1 G for 1 s; the pursuit chaser never pulls past the shaker or 7 G; the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
   - Verify: `npm test`; e2e toggle; Dad flies each move.
-  - Dependencies: 5, 8, 9. Size M.
+  - Dependencies: 5, and core's tasks 14 to 17 (tasks 8-9 above). Size M.
   - Files: src/modules/turn-fight/{energy-sim,layout,profile,readouts}.js, tests/unit/turn-fight/energy-sim.test.js
 
 **Checkpoint D:** open PR D; add the Energy mode lines to the sign-off checklist.
