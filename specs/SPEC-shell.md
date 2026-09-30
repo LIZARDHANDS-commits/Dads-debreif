@@ -122,6 +122,7 @@ Browser (`tests/e2e/`, Playwright, every test fails on any console error, R7):
 - Storage blocked: the app opens and says settings won't be saved.
 - Offline (R6): after one visit, with the network off, a reload shows the home screen and About. A new build shows the new-version bar, and Reload switches to it and removes the old copy.
 - Size (R5): the build fails if the home screen needs more than 3 MB, or card videos total more than 3 MB (R15).
+- Screenshots (D142, `tests/e2e/visual.spec.js`): Chromium only, on Linux, at 1440 x 900, to catch a change that moves or covers something by accident. Covers home, About, the Settings dialog, and the Debrief Viewer empty and with the example flight. The clock is frozen at noon Zulu, card videos stay still pictures (reduced motion), other sites are answered with an empty reply (satellite tiles with a plain square), fonts are pinned to Liberation Sans and Mono, and the footer's "Updated" line is masked. A picture may differ by up to 1% of its pixels (`playwright.config.js`). References are in `tests/e2e/__screenshots__/visual.spec.js/`; change them with `npx playwright test tests/e2e/visual.spec.js --update-snapshots=all` (plain `--update-snapshots` rewrites only pictures that fail, so a small change within the 1% would keep an old picture) only in a PR that means to change the look, and look at the new pictures before committing. A module adds its own screen to this file when it is hooked in.
 
 ## Sign-off checklist (R21)
 
