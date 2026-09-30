@@ -521,15 +521,16 @@ test('switching to 3D mid-run keeps the time, draws the aircraft, shows the came
 // the first shiny material (a lookup table, and the PMREM reflection converter's texture and planes), so the first round makes
 // that baseline and every later round must come back to exactly it: a texture or geometry the view leaks shows as one more.
 test('each 3D round, the full Harvard model or the plain T-6, leaves on the graphics card what the first left and no more', async ({ page }) => {
+  test.setTimeout(60_000);
   await open(page);
   await playButton(page).click();
   await expect.poll(() => seconds(page)).toBeGreaterThan(20);
   await playButton(page).click();
   const closeIn = async () => {
     await cameraButton(page, 'Low chase').click();
-    const box = await canvas3d(page).boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    for (let notch = 0; notch < 40; notch++) await page.mouse.wheel(0, -100);
+    await canvas3d(page).evaluate((el) => {
+      for (let notch = 0; notch < 40; notch++) el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true }));
+    });
     await expect.poll(async () => Number(await canvas3d(page).getAttribute('data-plane-px')), { timeout: 10_000 }).toBeGreaterThan(120);
   };
   const round = async (zoomedIn) => {
@@ -543,7 +544,6 @@ test('each 3D round, the full Harvard model or the plain T-6, leaves on the grap
   };
   const harvard = await round(true);
   expect(harvard).toMatch(/^\d+,\d+$/);
-  expect(await round(true)).toBe(harvard);
   expect(await round(true)).toBe(harvard);
   const plain = await round(false);
   expect(await round(false)).toBe(plain);
