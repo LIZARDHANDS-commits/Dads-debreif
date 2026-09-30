@@ -59,9 +59,9 @@ test('rounding is V6\'s: G and rate and 360° time to one decimal, radius to who
   const s = createFight({ blueKt: 173, redKt: 301, blueG: 3.34, redG: 6.66, separationNm: 1.25 });
   const r = byId(resultRows(s)), m = byId(moreDetailRows(s));
   assert.deepEqual(pair(m.g), ['3.3', '6.7']);
-  assert.equal(r.turnRate.blue, `${s.perf.blue.rateDegPerSec.toFixed(1)}°/s`);
-  assert.equal(r.radius.red, `${formatWholeFt(s.perf.red.radiusFt)} ft`);
-  assert.equal(m.time360.blue, `${(360 / s.perf.blue.rateDegPerSec).toFixed(1)} s`);
+  assert.equal(r.turnRate.blue, '20.1°/s');
+  assert.equal(r.radius.red, '1,218 ft');
+  assert.equal(m.time360.blue, '17.9 s');
   assert.equal(r.range.text, '1.25 NM');
   assert.deepEqual(pair(m.speed), ['173 kt', '301 kt']);
 });

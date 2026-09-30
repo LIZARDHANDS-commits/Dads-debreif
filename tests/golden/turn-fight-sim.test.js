@@ -92,7 +92,7 @@ function compareAircraft(mine, v6p, stepNo, name, who) {
   near(mine.pitchRad, v6p.pitch, RAD_TOL, `${who} pitch`, stepNo, name);
 }
 
-/** Exact ties (same speed, G and pitch) are decided by rounding noise in V6, so who is named isn't pinned (Q48). */
+/** Exact ties (same speed, G and pitch) are decided by rounding noise in V6, so who is named, in the marked line and in the "Blue at / Red at" readout, isn't pinned (Q48). */
 const isTie = (g) => (g.blueKt ?? 220) === (g.redKt ?? 220) && (g.blueG ?? 4) === (g.redG ?? 4)
   && (!g.vertical || (g.bluePitchDeg ?? 0) === (g.redPitchDeg ?? 0));
 
@@ -141,6 +141,13 @@ let readoutsCompared = 0;
 function compareReadouts(v6, mine, stepNo, name) {
   const want = v6InRebuildWords(v6.text);
   const got = ourReadouts(mine);
+  if (isTie(mine.setup) && mine.firstNose) {
+    // Who is named on a tie isn't pinned (Q48); "--" before first nose-on still is, and so is the time.
+    const when = (text) => text.replace(/^(Blue|Red) at /, '');
+    assert.equal(when(got.firstNose), when(want.firstNose), `${name}: first nose-on time at step ${stepNo}`);
+    delete got.firstNose;
+    delete want.firstNose;
+  }
   if (!mine.setup.vertical) {
     // With Climb and dive off the rebuild doesn't show height, and V6 shows zero.
     assert.deepEqual([want.heightChange, want.heightBetween], [['0 ft', '0 ft'], '0 ft'], `${name}: V6's height at step ${stepNo}`);
@@ -181,7 +188,7 @@ for (const setup of GRID) {
         seenNose = true;
         near(got.timeSec, want.t, 1e-12, 'first nose-on time', i, name);
         if (isTie(fightSetup)) {
-          // Either aircraft may be named; the pair of points is the same.
+          // A tie: either aircraft may be named (see isTie); the pair of points is the same.
           const pts = (a, b) => [a.xFt ?? a.x, a.yFt ?? a.y, b.xFt ?? b.x, b.yFt ?? b.y].map(Math.abs);
           pts(got.from, got.to).forEach((v, k) => near(v, pts(want.from, want.to)[k], FT_TOL, 'first nose-on line', i, name));
         } else {

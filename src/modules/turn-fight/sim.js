@@ -52,7 +52,11 @@ export const V6_DEFAULT_SETUP = Object.freeze({
  * One aircraft's level turn at a speed and G (V6 `M`, line 4237): the G is
  * limited to 1.01 and up, radius is V²/(g√(G²−1)), rate is g√(G²−1)/V.
  * Core works the rate out as speed ÷ radius, which differs from V6's order in
- * the last digit only. `rateDegPerSec` is V6's `rate`.
+ * the last digit only (for about a third of speed and G pairs). Without First
+ * nose chases that stays a last-digit difference for 10 minutes. With it on, the
+ * chase is chaotic and the difference can grow after about 40 s; that growth is
+ * within V6's own spread between 50 and 60 frames a second, and the 10-minute
+ * golden grid uses rates that are bit-equal to V6's. `rateDegPerSec` is V6's `rate`.
  */
 export function levelTurn(speedKt, g) {
   const speedFtps = speedKt * KT_TO_FTPS;
@@ -195,7 +199,9 @@ function chaseOther(p, other, turnRateRadPerSec, d, vertical) {
  * One whole step of FIGHT_STEP_SEC (V6 `step`, lines 4242 to 4274). The step
  * that reaches the merge is cut there: the aircraft fly to the merge point,
  * meet at the centre, take their set pitch, and the rest of the step is flown
- * as the first step of the turns.
+ * as the first step of the turns. V6 line 4251, `if(d===0){S.done=true;continue}`,
+ * has no effect (d is 0 only when the merge has been reached, which has already
+ * set `done`, and the `continue` is the last statement), so it is not ported.
  */
 function stepOnce(state) {
   const { perf, setup } = state;
@@ -218,7 +224,6 @@ function stepOnce(state) {
           blue.pitchRad = 0; red.pitchRad = 0;
         }
       }
-      if (d === 0) { state.merged = true; continue; }
     } else {
       const oneCircle = setup.circles === 1;
       if (setup.chase && state.firstNose) {
