@@ -37,4 +37,4 @@ Each PR is reviewed with code-review-and-quality before it leaves draft, lists t
 | An even fight's first nose-on is decided by rounding noise | Leave exact ties out of the golden grid; the "Both" rule (Q48) gets its own unit tests. |
 | Long trails slow the drawing | A point every 0.1 s and the 10-minute stop cap it at 6,000 points per aircraft; measure at 4× on 1920 × 1080. |
 | The Energy mode fit misses the T-6A charts, or the V-n stall line and the turn chart disagree (about 1.5°/s at the peak) | Keep the chart points and tolerances in the tests; the stall speed is one constant Dad can change (86 or about 83 kt). |
-| Energy mode's moves don't fly like a Harvard | Dad flies each one before sign-off; bank, roll rate and hard deck are settings. |
+| Energy mode's moves don't fly like a Harvard | Dad flies each one before sign-off; bank, roll rate and stall speed are settings. |

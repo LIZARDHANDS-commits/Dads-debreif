@@ -54,7 +54,7 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Verify: `node --test tests/unit/core/point-mass.test.js`.
   - Dependencies: none. Size S.
   - Files: src/core/point-mass.js, tests/unit/core/point-mass.test.js
-- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with the six moves, the Energy checkbox and its settings, the extra readouts and flags, the altitude side view, and the hard-deck and low-speed stops.
+- [ ] **10. Energy mode in the Turn Fight.** `energy-sim.js` with the six moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), and the altitude side view with the hard deck as a reference line.
   - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
   - Verify: `npm test`; e2e toggle; Dad flies each move.
   - Dependencies: 5, 8, 9. Size M.
