@@ -9,8 +9,8 @@ Spec: [`specs/SPEC-debrief.md`](../../specs/SPEC-debrief.md), approved by Patric
 | Any code | Flight data PR #58 merged (reading, cleaning, flight model, clock, debrief file) | Flight data thread |
 | Any code | Flight math core PR #61 merged (turn math, EM point with D39, closure, estimated G) | Flight math core thread |
 | Task 1 | ui-kit `controls.js` and `canvas-view.js` | App frame thread |
-| Task 4 | `core/standards.js` (core PR 3) | Flight math core thread |
-| Task 9 | `core` tennis-ball changes for Q33 to Q37 | Flight math core thread |
+| Task 4 | `core/standards.js` (core PR 3): `V6_STANDARDS`, `classifyDebriefPosition(id, live, leadHdg, std)`, `classifyLeadParameters(lead, estG, std)` with est. IAS as `lead.spdKt` (D31), `standardsSummaryLines(std)`, `formationAxes(lead, hdg)` returning `{fwd, left}` | Flight math core thread |
+| Task 9 | `core` tennis-ball changes for D62 and D63 (Q33 to Q37) | Flight math core thread |
 
 Anything the debrief needs changed in those files goes through the coordinator.
 
