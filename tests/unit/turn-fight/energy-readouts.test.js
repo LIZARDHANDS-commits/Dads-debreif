@@ -115,26 +115,32 @@ test('first nose-on reads Blue, Red or Both with the time since the pass', () =>
   assert.equal(energyFirstNoseText({ ...state, firstNose: null }), '--');
 });
 
-test('a winner the engine names is read; a null or missing one is "--" until the fight is settled, then "Even fight"', () => {
-  assert.equal(winnerText({ winner: 'blue' }), 'Blue wins');
-  assert.equal(winnerText({ winner: 'Red' }), 'Red wins');
-  assert.equal(winnerText({ winner: { by: 'red' } }), 'Red wins');
-  assert.equal(winnerText({ winner: { who: 'blue' } }), 'Blue wins');
-  // The engine reports no winner: null, or no field at all.
-  assert.equal(winnerText({ winner: null, stopped: true }), 'Even fight');
-  assert.equal(winnerText({ stopped: true }), 'Even fight');
-  assert.equal(winnerText({ winner: undefined }), '--');
-  assert.equal(winnerText({ winner: null }), '--');
-  // A field that names nobody is "Even fight" at once.
-  for (const winner of ['none', 'even', 'both', {}, 'draw']) assert.equal(winnerText({ winner }), 'Even fight', JSON.stringify(winner));
-  // No engine field: whoever's chase started won the turn; both at once is even.
-  assert.equal(winnerText({ chase: { by: 'blue' } }), 'Blue wins');
-  assert.equal(winnerText({ chase: { by: 'red' } }), 'Red wins');
-  assert.equal(winnerText({ chase: { by: 'both' } }), 'Even fight');
-  assert.equal(winnerText({ firstNose: { by: 'both' } }), 'Even fight', 'a tie at first nose-on, nobody chasing');
-  assert.equal(winnerText({ firstNose: { by: 'blue' } }), '--', 'someone has their nose on, and no chase has started: not decided');
-  assert.equal(winnerText({ firstNose: { by: 'both' }, chase: { by: 'red' } }), 'Red wins', 'a chase from behind decides it');
-  assert.equal(winnerText({ winner: 'blue', chase: { by: 'red' } }), 'Blue wins', 'the engine\'s word comes first');
+test('the winner is what the engine says: evenFight, else a chase by one aircraft, else "--" while it runs and "No winner" at the 10-minute stop; nothing is guessed', () => {
+  // The engine's own flag first.
+  assert.equal(winnerText({ evenFight: true }), 'Even fight: nobody gets behind');
+  assert.equal(winnerText({ evenFight: true, stopped: true }), 'Even fight: nobody gets behind');
+  assert.equal(winnerText({ evenFight: false }), '--');
+  // A chase by one aircraft names the winner (who got behind the other).
+  assert.equal(winnerText({ evenFight: false, chase: { by: 'blue' } }), 'Blue wins');
+  assert.equal(winnerText({ evenFight: false, chase: { by: 'red' } }), 'Red wins');
+  assert.equal(winnerText({ chase: { by: 'blue' } }), 'Blue wins', 'no evenFight field (an older state): the chase still says');
+  // Nothing decided: "--" while it runs, "No winner" once it has stopped.
+  assert.equal(winnerText({}), '--');
+  assert.equal(winnerText({ chase: null }), '--');
+  assert.equal(winnerText({ evenFight: false, stopped: true }), 'No winner');
+  assert.equal(winnerText({ stopped: true }), 'No winner');
+  // Nothing else is guessed: a `winner` field, a tie at first nose-on with no flag, or both aircraft chasing name nobody.
+  for (const state of [{ winner: 'blue' }, { winner: { by: 'red' } }, { firstNose: { by: 'both' } }, { firstNose: { by: 'blue' } }, { chase: { by: 'both' } }]) {
+    assert.equal(winnerText(state), '--', JSON.stringify(state));
+  }
+  assert.equal(winnerText({ winner: 'blue', stopped: true }), 'No winner');
+  // And the engine's real fight: the default one is an even fight once both noses are on, at +17.1 s after the pass.
+  const fight = createEnergyFight({});
+  assert.equal(winnerText(fight), '--');
+  while (fight.timeSec < 40) stepEnergyFight(fight, 0.02);
+  assert.equal(fight.firstNose.by, 'both');
+  assert.equal(fight.evenFight, true);
+  assert.equal(winnerText(fight), 'Even fight: nobody gets behind');
 });
 
 test('the chase row appears only once a pursuit has started, and says when the chaser is behind the curve', () => {

@@ -1335,7 +1335,7 @@ test('the fight flies to the MPT: at T+30 both read MPT, 162 KIAS, 10,605 ft and
   await expect.poll(() => seconds(page)).toBeGreaterThan(0); // (still paused; the poll only reads)
   await playButton(page).click();
   await expect(resultRow(page, /First nose-on/)).toContainText('Both at +17.1 s', { timeout: 30_000 });
-  await expect(resultRow(page, /Winner/)).toContainText('Even fight');
+  await expect(resultRow(page, /Winner/)).toContainText('Even fight: nobody gets behind');
   await playButton(page).click();
 });
 
