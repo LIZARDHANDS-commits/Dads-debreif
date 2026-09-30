@@ -693,7 +693,6 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
 
     test('nothing overlaps or is cut off, first opened and with every panel open', async ({ page }) => {
       await openRoute(page, '#/turn-fight');
-      await page.waitForFunction(() => [...document.querySelectorAll('link[rel="stylesheet"]')].every((l) => l.sheet)); // the module adds its stylesheet as it opens; measure after it has loaded
       expect(await layoutProblems(page)).toEqual([]);
       await page.getByLabel('Climb and dive').check();
       await page.getByRole('button', { name: 'Turn Fight settings' }).click();
@@ -716,7 +715,6 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
 
     test('the pixel size of each canvas follows its box when a column collapses', async ({ page }) => {
       await openRoute(page, '#/turn-fight');
-      await page.waitForFunction(() => [...document.querySelectorAll('link[rel="stylesheet"]')].every((l) => l.sheet)); // the module adds its stylesheet as it opens; measure after it has loaded
       const box = () => page.locator('canvas.tf-topdown').evaluate((c) => ({ css: c.clientWidth, px: c.width }));
       const before = await box();
       await page.getByRole('button', { name: 'Result' }).click();

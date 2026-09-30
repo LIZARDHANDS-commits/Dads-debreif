@@ -4,7 +4,7 @@
 // drawing itself is checked in the browser (tests/e2e/turn-fight.spec.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadThree, matchProjection, worldToScreen } from '../../../src/ui-kit/three-aircraft.js';
+import { loadThree, matchProjection, worldToScreen, resetWebglCheck } from '../../../src/ui-kit/three-aircraft.js';
 import { createFight, stepFight } from '../../../src/modules/turn-fight/sim.js';
 import { createRun, advanceRun } from '../../../src/modules/turn-fight/playback.js';
 import {
@@ -371,6 +371,7 @@ test('an aircraft is at least its real length, and at least MIN_PLANE_PX long on
 
 /** The least of a page the view touches, so its start and stop can be checked in Node. */
 function fakePage({ webgl = true } = {}) {
+  resetWebglCheck(); // ui-kit remembers the answer; each fake page asks afresh
   const made = [];
   const element = (tag) => {
     const el = {

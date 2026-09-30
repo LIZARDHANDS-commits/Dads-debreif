@@ -18,7 +18,7 @@
 // has it, where pitch 0 looks straight down and 90 looks along the ground).
 import { wrapPi, headingRad } from '../../core/angles.js';
 import {
-  loadThree, matchProjection, worldToScreen, altToZ, addLights, addSky,
+  loadThree, matchProjection, worldToScreen, altToZ, addLights, addSky, webglSupported,
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, disposeCt156Model, CT156_UNIT_LENGTH } from '../../ui-kit/ct156-model.js';
 import { FT_PER_NM } from '../../core/units.js';
@@ -307,9 +307,10 @@ export function createView3d(host, { timers, run, paint, load = loadThree, win =
   function build() {
     const canvas = doc.createElement('canvas');
     canvas.className = 'tf-3d-canvas';
-    // Asked for here, so a browser with no WebGL is told apart from any other failure without three.js logging an error.
-    const attributes = { antialias: true };
-    const context = canvas.getContext('webgl2', attributes) ?? canvas.getContext('webgl', attributes);
+    // Checked first (ui-kit's webglSupported, WebGL2 as three needs), so a browser with no WebGL is told apart
+    // from any other failure without three.js logging an error.
+    if (!webglSupported({ document: doc })) throw new Error('no WebGL');
+    const context = canvas.getContext('webgl2', { antialias: true });
     if (!context) throw new Error('no WebGL');
     const renderer = new THREE.WebGLRenderer({ canvas, context, antialias: true });
     try {
