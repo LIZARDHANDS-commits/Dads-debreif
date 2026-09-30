@@ -38,6 +38,20 @@ test('an offset is right when the local time is midnight', () => {
   assert.equal(time.formatInZone(new Date('2026-07-01T06:00:00Z'), 'America/Regina'), '00:00:00');
 });
 
+test('offsets are right for years 0 to 99 too', () => {
+  const d = new Date(0);
+  d.setUTCFullYear(50, 5, 1);
+  assert.ok(Object.is(time.utcOffsetMinutes(d, 'UTC'), 0));
+});
+
+test('asking again for the same zone gives the same answer', () => {
+  const d = new Date('2026-07-01T18:00:00Z');
+  assert.equal(time.formatInZone(d, 'America/Denver'), '12:00:00');
+  assert.equal(time.formatInZone(d, 'America/Regina'), '12:00:00');
+  assert.equal(time.formatInZone(d, 'America/Denver'), '12:00:00');
+  assert.throws(() => time.formatInZone(d, 'Not/A_Zone'), RangeError);
+});
+
 test('offsets east of UTC and on the half hour work', () => {
   assert.equal(time.utcOffsetMinutes(new Date('2026-01-15T00:00:00Z'), 'Asia/Kolkata'), 330);
   assert.equal(time.utcOffsetMinutes(new Date('2026-01-15T00:00:00Z'), 'America/St_Johns'), -210);

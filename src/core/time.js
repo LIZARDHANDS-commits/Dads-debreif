@@ -31,19 +31,34 @@ export function formatDtgZulu(date) {
     `${MONTHS[date.getUTCMonth()]} ${String(date.getUTCFullYear()).slice(-2)}`;
 }
 
+// Building an Intl.DateTimeFormat costs about 70 µs and a clock can ask every
+// frame, so each style keeps one formatter per time zone.
+const CLOCK = ['en-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }];
+const ZONE_NAME = ['en-US', { timeZoneName: 'short' }];
+const WALL_CLOCK = ['en-US', {
+  hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+}];
+const formatters = new Map();
+
+function formatterFor(style, timeZone) {
+  let byZone = formatters.get(style);
+  if (!byZone) formatters.set(style, byZone = new Map());
+  let formatter = byZone.get(timeZone);
+  if (!formatter) byZone.set(timeZone, formatter = new Intl.DateTimeFormat(style[0], { ...style[1], timeZone }));
+  return formatter;
+}
+
 /**
  * A Date as "HH:MM:SS" wall-clock time in an IANA time zone
  * (SOF page `timeAt`, sof line 743, which always used the current time).
  */
 export function formatInZone(date, timeZone) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).format(date);
+  return formatterFor(CLOCK, timeZone).format(date);
 }
 
 /** Short zone name such as "CST" or "MDT" (SOF page `zoneAt`, sof line 744). */
 export function zoneAbbreviation(date, timeZone) {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' }).formatToParts(date);
+  const parts = formatterFor(ZONE_NAME, timeZone).formatToParts(date);
   return parts.find(p => p.type === 'timeZoneName')?.value || '';
 }
 
@@ -52,13 +67,13 @@ export function zoneAbbreviation(date, timeZone) {
  * New in the rebuild; V6 hard-coded UTC-6.
  */
 export function utcOffsetMinutes(date, timeZone) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
-    timeZone, hourCycle: 'h23',
-    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
-  }).formatToParts(date).map(p => [p.type, p.value]));
-  const wall = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  const parts = Object.fromEntries(formatterFor(WALL_CLOCK, timeZone).formatToParts(date).map(p => [p.type, p.value]));
+  // setUTCFullYear, unlike Date.UTC, doesn't turn years 0-99 into 1900-1999.
+  const wall = new Date(0);
+  wall.setUTCFullYear(+parts.year, +parts.month - 1, +parts.day);
+  wall.setUTCHours(+parts.hour, +parts.minute, +parts.second);
   // The parts have no milliseconds, so compare whole seconds (this also keeps UTC at 0, not -0).
-  return Math.round((wall - Math.floor(date.getTime() / 1000) * 1000) / 60000);
+  return Math.round((wall.getTime() - Math.floor(date.getTime() / 1000) * 1000) / 60000);
 }
 
 /**
