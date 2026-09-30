@@ -49,6 +49,7 @@ export function projectPoint(p, ctr, camera, size, pxRatio = 1) {
   return { x: size.width / 2 + x1 * zoom, y: size.height / 2 - y2 * zoom, depth: z2 };
 }
 
+// The reference the 3D tests check the three.js picture against (drawOrder here, t6Points and attitudeEuler below).
 /**
  * The order to draw aircraft in: far first, so near ones are painted over them
  * (#27). A smaller `depth` from projectPoint is nearer the viewer: looking
@@ -84,20 +85,36 @@ const MAX_BANK_DEG = 85;
  *   LEVEL_TURN_DEG_PER_S (Patrick, item G). In a pull-up, or a pull with no
  *   turn, V6's acos(1/G) drew a bank the aircraft didn't have.
  *
- * `before`, `now` and `after` are { x, y, t } about a second apart; `speedKt`
+ * The turn rate is the caller's `turnRateRadPerS` (left positive, null when
+ * unknown) when given: the readouts and the 3D view pass the heading change
+ * over t−1.5 s to t+1.5 s, the window est. G uses, so bank and G agree and
+ * neither flickers against the other (verification M2). Without it, the old
+ * chord rate from `before`, `now` and `after` ({ x, y, t } about a second
+ * apart), which the V6 golden tests still pin. `speedKt`
  * is the ground speed at `now`; `pitchDeg` is the nose angle (flight-data's
  * pitchAt, null if unknown). Pass `recordedG` only when recorded G is the one
  * shown (D61: the estimate from the track is the default).
+ * @param {{ before?: any, now?: any, after?: any, speedKt?: any, recordedBankDeg?: any, pitchDeg?: any,
+ *   recordedG?: any, turnRateRadPerS?: number | null }} p
  */
-export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg, pitchDeg = null, recordedG = null }) {
+export function bankFromTrack({ before, now, after, speedKt, recordedBankDeg, pitchDeg = null, recordedG = null, turnRateRadPerS }) {
   if (Number.isFinite(recordedBankDeg)) return { bankDeg: -recordedBankDeg, source: 'recorded' };
-  if (!now || !before || !after) return { bankDeg: 0, source: 'estimated' };
-  const h0 = Math.atan2(now.y - before.y, now.x - before.x);
-  const h1 = Math.atan2(after.y - now.y, after.x - now.x);
-  const t0 = Number.isFinite(before.t) ? before.t : now.t - 1;
-  const t1 = Number.isFinite(after.t) ? after.t : now.t + 1;
-  const turn = wrapPi(h1 - h0);
-  const rate = Math.abs(turn) / Math.max(0.125, (t1 - t0) / 2);
+  let turn;
+  let rate;
+  if (turnRateRadPerS !== undefined) {
+    // The turn rate the caller worked out over the same window as the G beside it (M2).
+    if (!Number.isFinite(turnRateRadPerS)) return { bankDeg: 0, source: 'estimated' };
+    turn = turnRateRadPerS;
+    rate = Math.abs(turnRateRadPerS);
+  } else {
+    if (!now || !before || !after) return { bankDeg: 0, source: 'estimated' };
+    const h0 = Math.atan2(now.y - before.y, now.x - before.x);
+    const h1 = Math.atan2(after.y - now.y, after.x - now.x);
+    const t0 = Number.isFinite(before.t) ? before.t : now.t - 1;
+    const t1 = Number.isFinite(after.t) ? after.t : now.t + 1;
+    turn = wrapPi(h1 - h0);
+    rate = Math.abs(turn) / Math.max(0.125, (t1 - t0) / 2);
+  }
   const vfps = (speedKt || 0) * KT_TO_FTPS;
   if (!(vfps > 20 && rate > 0.0001)) return { bankDeg: 0, source: 'estimated' };
   const level = Number.isFinite(pitchDeg) && Math.abs(pitchDeg) <= LEVEL_PITCH_DEG
@@ -130,6 +147,7 @@ const T6_SHAPE = Object.freeze({
   propR: [0.92, -0.25, 0],
 });
 
+// The reference the 3D tests check the three.js model's attitude against (attitude.test.js).
 /**
  * World corner points of the low-poly T-6 for an aircraft at `p` heading `hdg`,
  * rolled `bankRad` (left wing down positive) and pitched `pitchRad` (nose up
@@ -156,4 +174,16 @@ export function t6Points(p, hdg, bankRad, pitchRad, sizeFt) {
     out[name] = { x: p.x + f.x * fwd + l.x * left, y: p.y + f.y * fwd + l.y * left, altFt: alt0 + up };
   }
   return out;
+}
+
+/**
+ * The rotation the three.js model turns by, as an Euler angle: roll about the
+ * fuselage (x, left wing down positive, so the sign flips for three.js), then
+ * pitch about the wings (y, nose up positive, flipped likewise), then heading
+ * about the vertical (z). The same rigid turn as t6Points, tested against it.
+ * `ship` is a shipsIn3d entry: { bankDeg, pitchDeg, hdg (radians) }.
+ * @returns {{ x: number, y: number, z: number, order: 'ZYX' }}
+ */
+export function attitudeEuler(ship) {
+  return { x: -deg(ship.bankDeg), y: -deg(ship.pitchDeg), z: ship.hdg, order: 'ZYX' };
 }

@@ -14,7 +14,7 @@ import {
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../../ui-kit/ct156-model.js';
 import { SHIP_COLORS } from '../state.js';
 import { sampleAt } from '../../../flight-data/flight.js';
-import { formationCenter, projectPoint } from './scene.js';
+import { formationCenter, projectPoint, attitudeEuler } from './scene.js';
 import { shipsIn3d, groundDatumFt, heightLabel, groundGrid, GROUND_EXTENT_FT } from './frame.js';
 import { attachCameraInput } from './input.js';
 import {
@@ -27,7 +27,6 @@ const DATUM_FILL = '#17351b';
 const DATUM_EDGE = '#7ee787';
 const TRAIL_SAMPLES = 80; // points along each trail, as V6
 const STICK_PX = 3; // the height sticks' width on screen, as the 2D-canvas view drew them
-const rad = (d) => (d * Math.PI) / 180;
 
 /**
  * canvas: the 3D <canvas> (the overlay; the WebGL canvas goes right after
@@ -56,6 +55,10 @@ export function createView3d(canvas, {
 
   function start() {
     if (gl || loading) return;
+    if (!webGlWorks()) { // asked first: three.js would write a console error, and needn't be fetched
+      onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
+      return;
+    }
     loading = true;
     loadThree().then((module) => {
       loading = false;
@@ -64,7 +67,7 @@ export function createView3d(canvas, {
         gl = createPicture(module, glCanvas);
         THREE = module;
       } catch {
-        onUnavailable('3D needs WebGL, which is turned off in this browser.');
+        onUnavailable('3D needs WebGL 2, which this browser doesn\'t have or has turned off.');
         return;
       }
       surface.requestDraw();
@@ -108,7 +111,7 @@ export function createView3d(canvas, {
     if (on.altMarks3d) drawAltitudeScale(ctx, P, ctr, ships, datum);
     if (on.sticks3d) {
       const unit = heightLabel(on.datum3d);
-      for (const s of ships) drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: datum }), s.altFt - datum, unit);
+      for (const s of ships) if (!s.inGap) drawStickLabel(ctx, P(s), P({ x: s.x, y: s.y, altFt: datum }), s.altFt - datum, unit);
     }
     for (const s of ships) {
       if (modelled.has(s.slot)) labelShip(ctx, P(s), s, on);
@@ -132,6 +135,16 @@ export function createView3d(canvas, {
   };
 }
 
+// Whether this browser can make a WebGL 2 context, the only kind three.js
+// asks for, tried on a canvas of its own and let go again.
+function webGlWorks() {
+  const probe = document.createElement('canvas');
+  const context = probe.getContext('webgl2');
+  if (!context) return false;
+  context.getExtension?.('WEBGL_lose_context')?.loseContext();
+  return true;
+}
+
 // The WebGL side: renderer, scene, camera, lights, and a group rebuilt each
 // draw for the ground, grid, trails and sticks. Aircraft are kept per ship.
 function createPicture(THREE, glCanvas) {
@@ -143,14 +156,30 @@ function createPicture(THREE, glCanvas) {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
   const world = new THREE.Group();
   scene.add(world);
-  return { renderer, scene, camera, world, ships: new Map(), sky: null };
+  // materials: one of each kind, colour and opacity, made when first wanted and kept.
+  // size: what the renderer was last told, so it is told again only when it changes.
+  return { renderer, scene, camera, world, ships: new Map(), sky: null, materials: new Map(), size: null };
 }
 
+// A material of `kind` (basic, line or standard) made once and kept in the
+// picture, so a draw reuses it instead of building and freeing a dozen.
+function material(gl, THREE, kind, color, extra = {}) {
+  const key = `${kind}|${color}|${JSON.stringify(extra)}`;
+  let m = gl.materials.get(key);
+  if (!m) {
+    if (kind === 'basic') m = new THREE.MeshBasicMaterial({ color, fog: false, ...extra });
+    else if (kind === 'line') m = new THREE.LineBasicMaterial({ color, transparent: true, fog: false, ...extra });
+    else m = new THREE.MeshStandardMaterial({ color, ...extra });
+    gl.materials.set(key, m);
+  }
+  return m;
+}
+
+// Frees what a draw built: the geometries. Its materials are shared and kept (see material).
 function clearGroup(group) {
   for (const o of [...group.children]) {
     group.remove(o);
     o.geometry?.dispose();
-    o.material?.dispose();
   }
 }
 
@@ -159,14 +188,22 @@ function disposePicture(gl) {
   for (const { mesh } of gl.ships.values()) disposeAircraftMesh(mesh);
   gl.ships.clear();
   gl.sky?.dispose();
+  for (const m of gl.materials.values()) m.dispose();
+  gl.materials.clear();
   gl.renderer.dispose();
+  gl.renderer.forceContextLoss(); // hand the GPU context back now, not when the page collects it
 }
 
 /** Draws the picture; returns the slots drawn as a model (the rest get a 2D marker). */
 function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, datum }) {
   const { renderer, scene, world } = gl;
-  renderer.setPixelRatio(globalThis.devicePixelRatio || 1);
-  renderer.setSize(size.width, size.height, false);
+  const ratio = globalThis.devicePixelRatio || 1;
+  const told = gl.size;
+  if (told?.ratio !== ratio) renderer.setPixelRatio(ratio);
+  if (told?.ratio !== ratio || told.width !== size.width || told.height !== size.height) {
+    renderer.setSize(size.width, size.height, false); // the ratio changes the canvas's pixels too
+    gl.size = { ratio, width: size.width, height: size.height };
+  }
   matchProjection(THREE, gl.camera, ctr, camera, size);
 
   // V6's sky and far ground, fading to the horizon (#27).
@@ -186,11 +223,12 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   const Z = (altFt) => altToZ(altFt, camera.altScale);
   const dz = Z(datum);
   const ftPerPx = 1000 / camera.zoom;
-  const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, fog: false, ...extra });
+  const basic = (color, extra = {}) => material(gl, THREE, 'basic', color, extra);
+  const line = (color, opacity) => material(gl, THREE, 'line', color, { opacity });
 
   if (on.landscape3d) {
     const extent = GROUND_EXTENT_FT * 4;
-    const land = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), new THREE.MeshStandardMaterial({ color: LAND, roughness: 1, metalness: 0 }));
+    const land = new THREE.Mesh(new THREE.PlaneGeometry(extent, extent), material(gl, THREE, 'standard', LAND, { roughness: 1, metalness: 0 }));
     land.position.set(ctr.x, ctr.y, dz - 2 * camera.altScale);
     world.add(land);
   }
@@ -206,7 +244,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     const edge = new THREE.BufferGeometry().setFromPoints(
       [[min.x, min.y], [max.x, min.y], [max.x, max.y], [min.x, max.y]].map(([x, y]) => new THREE.Vector3(x, y, dz + 2)),
     );
-    world.add(new THREE.LineLoop(edge, new THREE.LineBasicMaterial({ color: DATUM_EDGE, transparent: true, opacity: 0.65, fog: false })));
+    world.add(new THREE.LineLoop(edge, line(DATUM_EDGE, 0.65)));
   }
   if (on.grid3d) {
     const { xs, ys, min, max } = groundGrid(ctr);
@@ -215,7 +253,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     for (const y of ys) pts.push(min.x, y, dz + 4, max.x, y, dz + 4);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    world.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: DATUM_EDGE, transparent: true, opacity: 0.22, fog: false })));
+    world.add(new THREE.LineSegments(g, line(DATUM_EDGE, 0.22)));
   }
 
   // Each ship's last trailSec3d seconds, broken where it's in a GPS gap (V6 drawTrails).
@@ -237,7 +275,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
       if (!pos.length) continue;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      world.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: SHIP_COLORS[tr.slot], transparent: true, opacity: 0.7, fog: false })));
+      world.add(new THREE.LineSegments(g, line(SHIP_COLORS[tr.slot], 0.7)));
     }
   }
 
@@ -246,7 +284,7 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     for (const s of ships) {
       const top = Z(s.altFt);
       const height = Math.abs(top - dz);
-      if (height > 0) {
+      if (height > 0 && !s.inGap) { // no stick for a ship in a GPS gap: its height is a guess (D32)
         const stick = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), basic(SHIP_COLORS[s.slot], { transparent: true, opacity: 0.85 }));
         stick.rotation.x = Math.PI / 2; // the cylinder's axis is Y; stand it up along Z
         stick.scale.set((STICK_PX / 2) * ftPerPx, height, (STICK_PX / 2) * ftPerPx);
@@ -261,11 +299,12 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
   }
 
   // The CT-156 Harvard for each ship with a heading (D138). Its size is the
-  // plane size setting, not stretched by the altitude scale.
+  // plane size setting, not stretched by the altitude scale. A ship in a GPS
+  // gap gets the hollow marker instead, with no attitude drawn (D32).
   const paint = on.paint3d ?? PAINT_DEFAULT;
   const key = `${paint}|${on.planeSize3d}`;
   for (const s of ships) {
-    if (on.model3d !== 't6' || s.hdg === null) continue;
+    if (on.model3d !== 't6' || s.hdg === null || s.inGap) continue;
     let entry = gl.ships.get(s.slot);
     if (entry && entry.key !== key) {
       disposeAircraftMesh(entry.mesh);
@@ -274,13 +313,14 @@ function renderPicture(gl, THREE, { size, flight, t, on, camera, ctr, ships, dat
     }
     if (!entry) {
       const mesh = createCt156Model(THREE, { color: SHIP_COLORS[s.slot], number: s.slot, paint, lengthFt: on.planeSize3d * CT156_UNIT_LENGTH });
-      mesh.rotation.order = 'ZYX';
+      mesh.rotation.order = attitudeEuler(s).order;
       scene.add(mesh);
       entry = { key, mesh };
       gl.ships.set(s.slot, entry);
     }
     entry.mesh.position.set(s.x, s.y, Z(s.altFt));
-    entry.mesh.rotation.set(-rad(s.bankDeg), -rad(s.pitchDeg), s.hdg);
+    const turn = attitudeEuler(s);
+    entry.mesh.rotation.set(turn.x, turn.y, turn.z);
     modelled.add(s.slot);
   }
   for (const [slot, { mesh }] of gl.ships) mesh.visible = modelled.has(slot);
