@@ -61,33 +61,41 @@ function bracket(fixes, t) {
  * recorded G and pitch interpolated in a straight line between the fixes
  * around t, and ground speed over that pair of fixes. Recorded bank (C2) is
  * interpolated the same way, the short way round. Before the first fix or
- * after the last, the end fix itself, with no speed. Latitude and longitude
- * are the earlier fix's, as in V6. `inGap` is true between two fixes more than
+ * after the last, the end fix itself with the speed of the first or last
+ * segment (C6; V6 gave no speed there, so lead read "SLOW"). Latitude and
+ * longitude are interpolated like x and y (C6; V6 used the earlier fix's). `inGap` is true between two fixes more than
  * GAP_S seconds apart (C4): the position there is a guess, so the debrief
  * blanks spacing readouts and breaks the line.
  */
 export function sampleAt(track, t) {
   const f = track.fixes;
   if (!f.length) return null;
-  if (t <= f[0].t) return { ...f[0], inGap: false };
-  if (t >= f[f.length - 1].t) return { ...f[f.length - 1], inGap: false };
+  const n = f.length;
+  if (t <= f[0].t) return n < 2 ? { ...f[0], inGap: false } : { ...f[0], speedKt: segmentKt(f[0], f[1]), inGap: false };
+  if (t >= f[n - 1].t) return n < 2 ? { ...f[0], inGap: false } : { ...f[n - 1], speedKt: segmentKt(f[n - 2], f[n - 1]), inGap: false };
   const lo = bracket(f, t);
   const a = f[lo];
   const b = f[lo + 1];
   const k = (t - a.t) / (b.t - a.t || 1);
-  const dt = b.t - a.t || 1;
   return {
     ...a,
     xFt: a.xFt + (b.xFt - a.xFt) * k,
     yFt: a.yFt + (b.yFt - a.yFt) * k,
     altFt: a.altFt + (b.altFt - a.altFt) * k,
+    lat: a.lat + (b.lat - a.lat) * k,
+    lon: a.lon + (b.lon - a.lon) * k,
     t,
-    speedKt: Math.hypot(b.xFt - a.xFt, b.yFt - a.yFt) / dt * FTPS_TO_KT,
+    speedKt: segmentKt(a, b),
     gRecorded: between(a.gRecorded, b.gRecorded, k),
     pitchRecordedDeg: between(a.pitchRecordedDeg, b.pitchRecordedDeg, k),
     bankRecordedDeg: bankBetween(a.bankRecordedDeg, b.bankRecordedDeg, k),
     inGap: b.t - a.t > GAP_S && t < b.t,
   };
+}
+
+/** Ground speed in knots between two fixes. */
+function segmentKt(a, b) {
+  return Math.hypot(b.xFt - a.xFt, b.yFt - a.yFt) / (b.t - a.t || 1) * FTPS_TO_KT;
 }
 
 /** Recorded bank between two fixes the short way round, so 170° to −170° passes through 180°, not 0° (C2). */

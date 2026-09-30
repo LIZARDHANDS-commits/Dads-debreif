@@ -37,14 +37,41 @@ function load(slots) {
   return { flight: buildFlight(ours), v6: v6.state() };
 }
 
-const SAME_POINT = (ours, theirs, where) => {
+/** The pair of V6 points around t, as interpTrack picks them (inside the track only). */
+function pairAt(pts, t) {
+  let lo = 0;
+  let hi = pts.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].t < t) lo = mid;
+    else hi = mid;
+  }
+  return [pts[lo], pts[lo + 1]];
+}
+const segmentKt = (a, b) => Math.hypot(b.x - a.x, b.y - a.y) / (b.t - a.t || 1) * 0.592484;
+
+const SAME_POINT = (ours, theirs, where, pts) => {
   assert.equal(ours.xFt, theirs.x, `x ${where}`);
   assert.equal(ours.yFt, theirs.y, `y ${where}`);
   assert.equal(ours.altFt, theirs.altFt, `altFt ${where}`);
   assert.equal(ours.t, theirs.t, `t ${where}`);
-  assert.equal(ours.lat, theirs.lat, `lat ${where}`);
-  assert.equal(ours.lon, theirs.lon, `lon ${where}`);
-  assert.equal(ours.speedKt, theirs.spdKt, `speed ${where}`);
+  const n = pts.length;
+  if (theirs.t <= pts[0].t || theirs.t >= pts[n - 1].t) {
+    // C6 (decided): at the ends V6 gave no speed; ours is the end segment's speed.
+    assert.equal(theirs.spdKt, undefined, `V6 end speed ${where}`);
+    const [a, b] = theirs.t <= pts[0].t ? [pts[0], pts[1]] : [pts[n - 2], pts[n - 1]];
+    assert.equal(ours.speedKt, segmentKt(a, b), `end speed ${where}`);
+    assert.equal(ours.lat, theirs.lat, `lat ${where}`);
+    assert.equal(ours.lon, theirs.lon, `lon ${where}`);
+  } else {
+    assert.equal(ours.speedKt, theirs.spdKt, `speed ${where}`);
+    // C6 (decided): V6 used the earlier fix's lat/lon; ours are interpolated like x and y.
+    const [a, b] = pairAt(pts, theirs.t);
+    assert.equal(theirs.lat, a.lat, `V6 lat ${where}`);
+    const k = (theirs.t - a.t) / (b.t - a.t || 1);
+    assert.equal(ours.lat, a.lat + (b.lat - a.lat) * k, `lat ${where}`);
+    assert.equal(ours.lon, a.lon + (b.lon - a.lon) * k, `lon ${where}`);
+  }
   assert.equal(ours.gRecorded, theirs.gNative, `G ${where}`);
   assert.equal(ours.pitchRecordedDeg, theirs.pitchNative, `pitch ${where}`);
 };
@@ -72,7 +99,7 @@ for (const slots of [[1, 2, 3, 4], [3], [2, 4]]) {
         ...ours.fixes.slice(0, 50).map(f => f.t + 0.25)];
       for (const t of times) {
         const where = `#${slot} at ${t}`;
-        SAME_POINT(sampleAt(ours, t), v6.interpTrack(theirs, t), where);
+        SAME_POINT(sampleAt(ours, t), v6.interpTrack(theirs, t), where, theirs.pts);
         assert.equal(headingAt(ours, t), v6.headingAtTrack(theirs, t), `heading ${where}`);
         const p = pitchAt(ours, t);
         const q = v6.aircraftPitchAtTrack(theirs, t);

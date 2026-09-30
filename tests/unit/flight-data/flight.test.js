@@ -51,3 +51,24 @@ test('sampleAt says when a time falls inside a gap of more than 5 s (C4)', () =>
   assert.deepEqual([-1, 0, 0.5, 1, 3, 6, 6.01, 11, 11.5, 11.8, 12, 13].map(inGap),
     [false, false, false, false, false, false, true, true, false, false, false, false]);
 });
+
+test('the first and last frame show the speed of the nearest segment, not none (C6, #24)', () => {
+  const fixes = [fix(0), fix(1, { lon: -105 + 2e-4 }), fix(3, { lon: -105 + 8e-4 })];
+  const track = buildFlight({ 1: { name: 'a', fixes } }).tracks[1];
+  const first = sampleAt(track, 0.5).speedKt;
+  const last = sampleAt(track, 2).speedKt;
+  assert.ok(first > 0 && last > 0 && Math.abs(first - last) > 1);
+  for (const t of [-10, 0]) assert.equal(sampleAt(track, t).speedKt, first);
+  for (const t of [3, 10]) assert.equal(sampleAt(track, t).speedKt, last);
+  // A single fix has no segment, so no speed.
+  assert.equal(sampleAt(buildFlight({ 1: { name: 'a', fixes: [fix(0)] } }).tracks[1], 0).speedKt, undefined);
+});
+
+test('latitude and longitude are interpolated like x and y (C6)', () => {
+  const fixes = [fix(0, { lat: 50, lon: -105 }), fix(2, { lat: 50.002, lon: -104.996 })];
+  const track = buildFlight({ 1: { name: 'a', fixes } }).tracks[1];
+  const p = sampleAt(track, 0.5);
+  assert.ok(Math.abs(p.lat - 50.0005) < 1e-12);
+  assert.ok(Math.abs(p.lon - -104.999) < 1e-12);
+  assert.equal(sampleAt(track, 2).lat, 50.002);
+});

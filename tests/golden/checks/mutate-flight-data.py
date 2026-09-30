@@ -99,7 +99,13 @@ M = [
  ('clean.js', "gaps.push({ fromT: fixes[i - 1].t, toT: fixes[i].t })", "gaps.push({ fromT: fixes[i].t, toT: fixes[i].t })"),
  ('flight.js', "inGap: b.t - a.t > GAP_S && t < b.t", "inGap: b.t - a.t > GAP_S"),
  ('flight.js', "inGap: b.t - a.t > GAP_S && t < b.t", "inGap: b.t - a.t >= GAP_S && t < b.t"),
- ('flight.js', "{ ...f[0], inGap: false }", "{ ...f[0], inGap: true }"),
+ ('flight.js', "{ ...f[0], speedKt: segmentKt(f[0], f[1]), inGap: false }", "{ ...f[0], speedKt: segmentKt(f[0], f[1]), inGap: true }"),
+ # C6: end-frame speed, interpolated lat/lon
+ ('flight.js', "speedKt: segmentKt(f[0], f[1])", "speedKt: segmentKt(f[n - 2], f[n - 1])"),
+ ('flight.js', "speedKt: segmentKt(f[n - 2], f[n - 1])", "speedKt: segmentKt(f[0], f[1])"),
+ ('flight.js', "lat: a.lat + (b.lat - a.lat) * k,", ""),
+ ('flight.js', "lon: a.lon + (b.lon - a.lon) * k,", ""),
+ ('flight.js', "n < 2 ? { ...f[0], inGap: false } : { ...f[n - 1]", "n < 1 ? { ...f[0], inGap: false } : { ...f[n - 1]"),
 ]
 
 
