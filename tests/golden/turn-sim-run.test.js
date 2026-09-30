@@ -10,12 +10,13 @@ import { createRun } from '../../src/modules/turn-sim/engine/run.js';
 import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
-const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 90, cross180: 180, inplace90: 90 }; // the shackle is no longer V6's: SMM 16.19 paras 61-62
+const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 180, cross180: 180, inplace90: 90 }; // the shackle is no longer V6's: SMM 16.19 paras 61-62
 const DIRECTIONS = ['right', 'left'];
 
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
-// Q47 has the check wait for #3 and #4's turns; V6 did not, so V6's runs are flown with it off.
-const scenario = (over) => ({ ...V6_DEFAULTS, rearCheckAfterTurns: false, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
+// Q47 has the check wait for #3 and #4's turns, and the hook's offset box rear delay (SMM 112a) starts #3 and #4 late; V6 did
+// neither, so V6's runs are flown with the wait off and no delay. V6's hook is 90 degrees; the SMM's is 180, and V6 flies 180 when told.
+const scenario = (over) => ({ ...V6_DEFAULTS, rearCheckAfterTurns: false, rearDelaySec: 0, ...over, turnDeg: over.turnDeg ?? TURN_DEG[over.maneuver ?? V6_DEFAULTS.maneuver] });
 
 /**
  * The auto step in seconds, D44: spacing / speed x cot(half the turn angle), written out here from the spec

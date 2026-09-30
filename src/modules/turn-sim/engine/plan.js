@@ -301,7 +301,7 @@ export function autoTimingStarts(aircraft, flight) {
  * `formation` and `startHeadingRad` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
- * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing.
+ * flight also has, for the offset box's delayed turns: baseG, boxAftFt, offsetBox4Timing; and rearDelaySec (the hook).
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
@@ -361,6 +361,8 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
       }
 
       if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
+      // SMM 16.41 para 112a: in the offset box the rear element turns a delay after the front element (V6: all together).
+      if (man === 'hook90' && form === 'offsetBox' && (a.id === 3 || a.id === 4)) d = flight.rearDelaySec;
 
       if (man === 'shackle45') {
         // The shackle (SMM 16.19 paras 61 and 62), flown by each pair about itself: #1 and #2, and #3 and #4.
@@ -412,6 +414,6 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
   return {
     autoStepSec: auto ? auto.stepSec : null,
     // The offset box's solved delays for #3 and #4 in seconds, before delay errors, else null (SMM item 5).
-    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3], 4: offsetPlan.delaysSec[4] } : null,
+    rearDelaysSec: offsetPlan ? { 3: offsetPlan.delaysSec[3], 4: offsetPlan.delaysSec[4] } : man === 'hook90' && form === 'offsetBox' ? { 3: flight.rearDelaySec, 4: flight.rearDelaySec } : null,
   };
 }

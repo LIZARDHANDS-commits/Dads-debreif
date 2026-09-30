@@ -202,6 +202,7 @@ export function createRun(settings) {
       baseG: cfg.baseG,
       boxAftFt: cfg.boxAftFt,
       offsetBox4Timing: cfg.offsetBox4Timing,
+      rearDelaySec: cfg.rearDelaySec,
     };
   }
 

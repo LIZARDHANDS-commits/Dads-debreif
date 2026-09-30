@@ -93,6 +93,14 @@ export const V6_DEFAULTS = Object.freeze({
   ),
 });
 
+/**
+ * The Turn degrees each turn sets when it is picked (V6 `updateManeuverDefaults`, line 2037, with the SMM's): the hook is
+ * 180 degrees (16.19 para 60), where V6's was 90.
+ */
+export const MANEUVER_TURN_DEG = Object.freeze({
+  delayed90away: 90, delayed45away: 45, hook90: 180, shackle45: 45, cross180: 180, inplace90: 90,
+});
+
 /** What the rebuild starts with: V6's values, plus each logged decision that changed one. */
 export const DEFAULTS = Object.freeze({
   ...V6_DEFAULTS,
@@ -109,6 +117,9 @@ export const DEFAULTS = Object.freeze({
   // Q44b (Patrick): #4 solves its own delay by ground track, to roll out 3,000 ft outside #2 and Box aft behind the
   // front element. V6 only had 'late' (#3's delay + base delay) and 'early' (#3's delay - base delay), which stay as choices.
   offsetBox4Timing: 'groundTrack',
+  // SMM 16.41 para 112a: in the offset box #3 and #4 delay 10 to 15 s after the front element turns, so they miss #1 and #2.
+  // The middle of the band. Used by the hook (and, as its own commit, the delayed turns). V6: no delay for the hook.
+  rearDelaySec: 12.5,
   // D48 (Q31, Patrick): which side #2 flies on in 4312 and 2134, left by default. V6 drew #2 on Lead's left in 4312
   // (2134 is its mirror); 'right' mirrors both. V6 had no such box, and 'left' is what it flew.
   twoSide: 'left',
@@ -162,6 +173,7 @@ export const SETTINGS_RULES = Object.freeze({
   rearCheckHoldSec: number(0, 120),
   rearCheckAfterTurns: bool,
   twoSide: oneOf(['left', 'right']),
+  rearDelaySec: number(0, 60),
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 

@@ -96,11 +96,13 @@ test('SMM item 5: the solved delays of #3 and #4 are in the state, against the 1
 test('SMM item 5: no solved delays for the other presets, the clock cue, or turns that start at once', () => {
   assert.equal(createRun({ ...BASE, formation: 'weighted' }).state.offsetBox, null);
   assert.equal(createRun({ ...BASE, timing: 'clock' }).state.offsetBox, null);
-  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) assert.equal(createRun({ ...BASE, maneuver }).state.offsetBox, null, maneuver);
+  for (const maneuver of ['inplace90', 'shackle45', 'cross180']) assert.equal(createRun({ ...BASE, maneuver }).state.offsetBox, null, maneuver);
+  // The hook has them: #3 and #4 delay after the front element (SMM 112a, tests/unit/turn-sim/hook.test.js).
+  assert.deepEqual(createRun({ ...BASE, maneuver: 'hook90' }).state.offsetBox.rear.map((r) => r.delaySec), [12.5, 12.5]);
 });
 
-test('SMM item 5: in-place, shackle, hook and cross turns in the offset box turn all four together, as V6 already does', () => {
-  for (const maneuver of ['inplace90', 'shackle45', 'hook90', 'cross180']) {
+test('SMM item 5: in-place, shackle and cross turns in the offset box turn all four together, as V6 already does (para 112b)', () => {
+  for (const maneuver of ['inplace90', 'shackle45', 'cross180']) {
     for (const rearCheckOn of [false, true]) {
       const run = createRun({ ...BASE, maneuver, rearCheckOn, rearCheckStartSec: 60, durationSec: 30 });
       run.step();
