@@ -186,6 +186,11 @@ export function makeMeasures(setup, seed) {
     return Math.atan((leg.a.alt - leg.b.alt) / leg.len) * DEG;
   };
   const windowHeight = (r) => positionAt(r, routePath(r).lengthFt - WINDOW_FT).alt;
+  /** Angle from where the turn at point index i rolls out to the last point of the route. */
+  const glideFromRollout = (r, i) => {
+    const from = turnEnds(r, i).end, to = r.points[r.points.length - 1];
+    return Math.atan((from.alt - to.alt) / Math.hypot(to.x - from.x, to.y - from.y)) * DEG;
+  };
   const initial = () => straightLeg(pat, 8);
   const downwind = () => straightLeg(pat, 10);
   const finalLeg = () => straightLeg(pat, 12);
@@ -205,7 +210,7 @@ export function makeMeasures(setup, seed) {
     'g-glide-straight-in-2': () => ({ value: legGlide(ent2, ent2.points.length - 2, ent2.points.length - 1) }),
 
     'g-glide-straight-in-1-flown': () => ({ value: flownGlide(spl1) }),
-    'g-glide-straight-in-2-flown': () => ({ value: flownGlide(ent2) }),
+    'g-glide-straight-in-2-flown': () => ({ value: glideFromRollout(ent2, 3) }),
 
     's-pattern-speed': () => ({ value: min(kts(pat, range(3, 9))) }),
     's-break-exit-speed': () => ({ value: P[10].kt }),

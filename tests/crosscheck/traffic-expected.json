@@ -184,7 +184,7 @@
   {
     "id": "g-glide-straight-in-2",
     "group": "Heights",
-    "title": "Glide angle on final, Entry 2 straight-in (last point to threshold)",
+    "title": "Glide angle on final, Entry 2 straight-in (from the glide-path point)",
     "sim": 3,
     "manual": 3,
     "unit": "deg",
@@ -198,15 +198,15 @@
   {
     "id": "g-glide-straight-in-2-flown",
     "group": "Heights",
-    "title": "Glide angle on final, Entry 2 straight-in (flown, from the roll-out)",
-    "sim": 3,
-    "manual": 3,
+    "title": "Glide angle on final, Entry 2 straight-in (from the roll-out, average)",
+    "sim": 1.9,
+    "manual": null,
     "unit": "deg",
     "page": "SMM 4.7 para 10; EFIG p.130",
-    "diff": 0,
+    "diff": null,
     "tolerance": 0.25,
-    "mode": "within",
-    "within": "yes",
+    "mode": "info",
+    "within": "n/a",
     "where": ""
   },
   {

@@ -196,8 +196,8 @@
     {
       "id": "g-glide-straight-in-2",
       "group": "Heights",
-      "title": "Glide angle on final, Entry 2 straight-in (last point to threshold)",
-      "checks": "Angle over the leg from the last route point before the threshold to the threshold, Entry 2.",
+      "title": "Glide angle on final, Entry 2 straight-in (from the glide-path point)",
+      "checks": "Angle over the leg from the glide-path point (2,700 ft, where the 3 degree path starts) to the threshold, Entry 2.",
       "manual": 3.0,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.130",
@@ -209,15 +209,16 @@
     {
       "id": "g-glide-straight-in-2-flown",
       "group": "Heights",
-      "title": "Glide angle on final, Entry 2 straight-in (flown, from the roll-out)",
-      "checks": "Angle over the last straight bit of the flown path, from where the last turn rolls out to the threshold. The row above measures from the corner point, which is further out than the roll-out.",
-      "manual": 3.0,
+      "title": "Glide angle on final, Entry 2 straight-in (from the roll-out, average)",
+      "checks": "Average angle from where the last turn rolls out, level at 2,700 ft, to the threshold: the level run before the glide-path point is included.",
+      "manual": null,
       "unit": "deg",
       "page": "SMM 4.7 para 10; EFIG p.130",
       "source": "manual",
       "tolerance": 0.25,
-      "mode": "within",
-      "measure": "atan(height drop / length) of the last straight bit of the flown path (routePath segs)"
+      "mode": "info",
+      "measure": "atan(height drop / distance) from the roll-out of the turn at ENT2 index 3 to the last point",
+      "note": "Shown for information: it includes the level run at 2,700 ft, so it is below 3 degrees by design; the row above is the glide."
     },
     {
       "id": "s-pattern-speed",
@@ -270,7 +271,7 @@
       "tolerance": 0,
       "mode": "atLeast",
       "measure": "min of PAT1 route.points[11..12].kt",
-      "note": "The manual's floor is the threshold crossing speed plus 10 kt."
+      "note": "Minimum for the final turn: 10 kt over the landing speed."
     },
     {
       "id": "s-window-speed",
