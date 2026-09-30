@@ -75,7 +75,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
     label: 'The formation from above. Drag to move, scroll or press + and − to zoom.',
     onUserMove,
     draw(ctx) {
-      if (needsFit && ready) {
+      if (needsFit && ready && map.size.width > 0 && map.size.height > 0) { // a hidden canvas (3D is showing) has no size: keep the fit for when 2D is back
         const bounds = needsFit;
         needsFit = null;
         map.fit(bounds, FIT_PADDING_PX);

@@ -34,6 +34,7 @@ export function roundCeilingFt(ft) {
  * computed pair), in the shape wx's assessAlternate takes. `checked` is false
  * while the approach type is not set. A no-IFR-approach field has no options
  * (null); see visualDescent().
+ * @param {{ approach?: string, lowestHatFt?: number | null, lowestVisSm?: number | null }} [field]
  */
 export function alternateMinima({ approach, lowestHatFt, lowestVisSm } = {}) {
   const type = Object.hasOwn(TABLE, approach) ? approach : 'not-set';
@@ -51,7 +52,10 @@ export function alternateMinima({ approach, lowestHatFt, lowestVisSm } = {}) {
   return { approach: type, checked: type !== 'not-set', options };
 }
 
-/** The landing minima PROB groups are checked against: the lowest HAT and its visibility, or null. */
+/**
+ * The landing minima PROB groups are checked against: the lowest HAT and its visibility, or null.
+ * @param {{ lowestHatFt?: number | null, lowestVisSm?: number | null }} [field]
+ */
 export function landingMinima({ lowestHatFt, lowestVisSm } = {}) {
   if (!Number.isFinite(lowestHatFt) || !Number.isFinite(lowestVisSm)) return null;
   return { ceilingFt: lowestHatFt, visSm: lowestVisSm };
@@ -62,6 +66,7 @@ export function landingMinima({ lowestHatFt, lowestVisSm } = {}) {
  * { meaFt, elevationFt, visSm }. A GNSS-only field uses it once an MEA is
  * entered; a no-IFR-approach field always does, so a missing MEA or elevation
  * reads as incomplete in wx rather than falling back to 600-2. Null otherwise.
+ * @param {{ approach?: string, meaFt?: number | null, elevationFt?: number | null, visualDescentVisSm?: number | null }} [field]
  */
 export function visualDescent({ approach, meaFt, elevationFt, visualDescentVisSm } = {}) {
   const hasMea = Number.isFinite(meaFt);

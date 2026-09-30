@@ -184,7 +184,7 @@ test('leaving the debrief while it plays stops everything it started (R4)', asyn
   await page.evaluate(() => { location.hash = '#/'; });
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'home');
   expect(await page.evaluate(() => window.__ooda.stats())).toEqual(fresh);
-  expect(await page.locator('link[href*="debrief"]').count()).toBe(0);
+  expect(await page.locator('link[rel="stylesheet"][href*="debrief"]').count()).toBe(0);
 });
 
 test('leaving from 3D with the EM chart and tennis ball open stops everything too (R4)', async ({ page }) => {
@@ -704,8 +704,16 @@ test('with no connection, the map says satellite imagery needs one and keeps the
   await expect(page.locator('.map-credit')).toHaveText(/needs a connection/, { timeout: 20_000 });
 });
 
+// The 3D view as seen: three.js's picture with the labels' canvas over it.
 const picture3d = (page) => page.locator('canvas.debrief-3d').evaluate((canvas) => {
-  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+  const both = document.createElement('canvas');
+  both.width = canvas.width;
+  both.height = canvas.height;
+  const ctx = both.getContext('2d');
+  const picture = canvas.parentElement.querySelector('canvas.debrief-3d-picture');
+  if (picture?.width) ctx.drawImage(picture, 0, 0, both.width, both.height);
+  ctx.drawImage(canvas, 0, 0);
+  const { data } = ctx.getImageData(0, 0, both.width, both.height);
   let hash = 0;
   for (let i = 0; i < data.length; i += 7) hash = (hash * 31 + data[i]) | 0;
   return hash;
@@ -768,6 +776,15 @@ test('3D: drag turns it, the wheel zooms, settings are kept, Reset view goes bac
   before = await picture3d(page);
   await page.keyboard.press('-');
   await expect.poll(() => picture3d(page)).not.toBe(before);
+
+  // The Harvard paint is the default; Ship colours repaints the models (D138).
+  await page.getByRole('button', { name: '3D settings' }).click();
+  await expect(page.getByLabel('Paint')).toHaveValue(/./);
+  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Harvard');
+  before = await picture3d(page);
+  await page.getByLabel('Paint').selectOption({ label: 'Ship colours' });
+  await expect.poll(() => picture3d(page)).not.toBe(before);
+  await page.keyboard.press('Escape');
 
   for (const name of ['Altitude sticks', 'Ground grid', 'Bank and pitch', 'Altitude scale', 'Compass', 'Landscape']) {
     await test.step(name, async () => {
@@ -979,4 +996,43 @@ test('METAR: off at first, fetched only when on, the report in force with ticks 
   await page.getByLabel('METAR', { exact: true }).uncheck();
   await expect(line).toBeHidden();
   await expect(scrubber).not.toHaveAttribute('list', /./);
+});
+
+// NASA GIBS GOES-West tiles, served here as a 1 × 1 green picture so no test needs the network.
+const GIBS = 'https://gibs.earthdata.nasa.gov/wmts/**';
+
+test('satellite weather: off at first, "not kept" after 90 days, then GOES frames for the playback time (SPEC-debrief: Weather)', async ({ page }) => {
+  const asked = [];
+  await page.route(GIBS, (route) => {
+    asked.push(route.request().url());
+    return route.fulfill({ status: 200, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' }, body: GREEN_TILE });
+  });
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  const credit = page.locator('.map-credit');
+  await page.getByRole('button', { name: 'Weather' }).click();
+  // The example flight is from 2026-06-02; NASA keeps about 90 days, so today it's gone.
+  await page.getByLabel('Satellite (GOES-West)').check();
+  await expect(credit).toHaveText('Satellite not kept: NASA keeps about 90 days of pictures.');
+  expect(asked).toEqual([]);
+  await page.getByLabel('Satellite (GOES-West)').uncheck();
+  await expect(credit).toBeHidden();
+
+  // A week after the flight, the frames are there: the one at or before the playback time.
+  await page.clock.setFixedTime(new Date('2026-06-09T12:00:00Z'));
+  await page.getByLabel('Satellite (GOES-West)').check();
+  await expect(credit).toHaveText(/^Satellite \d{2}:\d0Z, (at this moment|\d+ min before) · NASA GIBS, GOES-West$/, { timeout: 10_000 });
+  await expect.poll(() => pixelsNear(page, [0, 200, 60]), { timeout: 10_000 }).toBeGreaterThan(10_000);
+  expect(asked.length).toBeGreaterThan(0);
+  for (const url of asked) {
+    const m = url.match(/\/GOES-West_ABI_GeoColor\/default\/2026-06-02T(\d{2}):(\d{2}):00Z\/GoogleMapsCompatible_Level7\/(\d+)\/\d+\/\d+\.png$/);
+    expect(m, url).not.toBeNull();
+    expect(Number(m[2]) % 10).toBe(0); // on the ten-minute marks
+    expect(Number(m[3])).toBeLessThanOrEqual(7); // GeoColor stops at zoom 7
+  }
+  // Infrared is its own layer, stopping at zoom 6.
+  const before = asked.length;
+  await page.getByLabel('Satellite picture').selectOption({ label: 'Infrared' });
+  await expect.poll(() => asked.length).toBeGreaterThan(before);
+  expect(asked.slice(before).every((u) => /Band13_Clean_Infrared\/default\/.*\/GoogleMapsCompatible_Level6\/[0-6]\//.test(u))).toBe(true);
 });

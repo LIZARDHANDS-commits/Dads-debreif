@@ -42,10 +42,11 @@ You'll want two or more of your own ForeFlight track files (.kml) from one forma
 
 - [ ] **Weather** → **METAR**. A line under the playback bar gives the report in force from the airfield nearest Lead, with its time and age (for example "CYMJ 1400Z (12 min before) · VFR · wind 270/12 kt …"). Small ticks on the scrubber mark each report. Drag past a tick: the line changes to that report, never to a later one.
 - [ ] **Report as sent** shows the METAR exactly as issued. **METAR from** picks another airfield. Turn **METAR** off: the line and the ticks go.
+- [ ] With a flight from the last 90 days, **Weather** → **Satellite (GOES-West)** lays the satellite picture under the tracks, and the line under the map says its time and age ("Satellite 14:30Z, 2 min before"). Play: the picture changes every 10 minutes of flight time. **Satellite picture** → **Infrared** swaps it. With an older flight it says "Satellite not kept".
 
 ## 3D
 
-- [ ] The **3D** switch shows the same moment in 3D, and playback carries on without a jump. Switching back to 2D keeps the time.
+- [ ] The **3D** switch shows the same moment in 3D, and playback carries on without a jump. Each ship is a CT-156 Harvard in the Moose Jaw paint, with its number on the tail and nose; **3D settings** → **Paint** → **Ship colours** paints them plainly. Switching back to 2D keeps the time.
 - [ ] Drag turns the view and the wheel zooms. **3D settings** changes the camera, altitude scale, model, trail and ground options. **Reset view** goes back to V6's view.
 
 ## DFPs, save and open

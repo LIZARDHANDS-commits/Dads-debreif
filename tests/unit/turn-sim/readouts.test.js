@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
-import { stallLimitG } from '../../../src/core/t6-performance.js';
+import { stallLimitG, availableG } from '../../../src/core/t6-performance.js';
 import {
   formationRows, formationLine, mapLabel, readoutsAt, pairDistances, separationFlags, stallWarning, turnLine, TURN_DEGREES, pairText, ft, signedFt,
   STALL_G_WARNING, UNDER_SEPARATION_FT, MUTUAL_SUPPORT_FT,
@@ -223,4 +223,25 @@ test('with core\'s stall limit, the G warning fires above about 6.5 G at 220 kt 
   assert.equal(row(rows, 4).line.text, `ON SPACING ${STALL_G_WARNING}.`);
   // Only a warning: the readouts carry the set G unchanged.
   assert.match(readoutsAt(st, { ...SETTINGS, baseG: 7 }, { stallLimitG }).turnText, /^R /);
+});
+
+test('the warning also covers the +7 G cap: 8 G at 300 kt warns although the wing could give more (D128)', () => {
+  const maxG = (kt) => availableG(kt, false);
+  assert.ok(stallLimitG(300) > 7 && maxG(300) === 7);
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 8, speedKt: 300 }, { stallLimitG: maxG }).gWarning, STALL_G_WARNING);
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 7, speedKt: 300 }, { stallLimitG: maxG }).gWarning, null);
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 3 }, { stallLimitG: maxG }).gWarning, null);
+  assert.equal(readoutsAt(four(), { ...SETTINGS, baseG: 7 }, { stallLimitG: maxG }).gWarning, STALL_G_WARNING); // 220 kt: 6.5 G
+});
+
+test('mutual support is only lost for a pair across the front, not one in trail', () => {
+  // Same heading, 12,000 ft apart, but #2 is dead astern of Lead: not line abreast.
+  const trail = state([ac(1, 0, 0), ac(2, -12000, 0)]);
+  assert.deepEqual(separationFlags(trail, { ...SETTINGS, formation: 'twoShip' }), []);
+  // Within 30 degrees of the 3/9 line still counts (12,000 ft out, 5,000 ft back = about 23 degrees).
+  const near = state([ac(1, 0, 0), ac(2, -5000, 12000)]);
+  assert.deepEqual(separationFlags(near, { ...SETTINGS, formation: 'twoShip' }), ['Mutual support lost']);
+  // 45 degrees off the wing line is a stagger, not abreast.
+  const far = state([ac(1, 0, 0), ac(2, -9000, 9000)]);
+  assert.deepEqual(separationFlags(far, { ...SETTINGS, formation: 'twoShip' }), []);
 });

@@ -28,6 +28,8 @@ function nextObservation(match, time) {
  * Parse a METAR or SPECI.
  * `now` resolves the day-of-month in the observation time. A trend forecast at
  * the end (TEMPO, BECMG, NOSIG) is kept apart as `trend`, not read as observed.
+ * @param {string} raw
+ * @param {{ now?: Date }} [options]
  */
 export function parseMetar(raw, { now } = {}) {
   now = now ?? new Date();

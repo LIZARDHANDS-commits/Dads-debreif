@@ -10,6 +10,7 @@ Needs Node 22.12 or newer. Visitors to the site need nothing installed.
 npm install          # once
 npm run dev          # local site with live reload
 npm test             # unit and golden tests
+npm run typecheck    # type-check the JavaScript from its JSDoc comments
 npm run build        # builds dist/ and checks the size budget
 npm run test:e2e     # browser tests against the build
 ```
