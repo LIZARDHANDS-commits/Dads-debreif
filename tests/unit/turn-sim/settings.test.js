@@ -150,3 +150,16 @@ test('the clock position is text, "auto" is allowed, and version 1 numbers are m
   assert.equal(settings.get().clockCuePos, '4.5');
   assert.equal(settings.get().baseG, 4);
 });
+
+test('migrating version 1 turns the start heading from V6\'s math heading to a compass heading', () => {
+  const heading = (v) => migrateSettings({ startHeadingDeg: v }, 1).startHeadingDeg;
+  assert.equal(heading(0), 90); // east
+  assert.equal(heading(90), 0); // north
+  assert.equal(heading(180), 270); // west
+  assert.equal(heading(270), 180); // south
+  assert.equal(heading(-90), 180);
+  assert.equal(heading(360), 90);
+  assert.equal(heading(100), 350);
+  assert.equal(migrateSettings({ startHeadingDeg: 0 }, 2).startHeadingDeg, 0); // version 2 is already compass
+  assert.equal(migrateSettings({ speedKt: 250 }, 1).startHeadingDeg, undefined);
+});
