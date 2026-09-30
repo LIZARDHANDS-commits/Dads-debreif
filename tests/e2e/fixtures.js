@@ -3,6 +3,7 @@
 import { test as base, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'node:fs';
+import { serveMap } from './sof-map-feeds.js';
 
 // The SOF asks MET Norway and Datamask for weather as it opens, and every spec
 // that walks the routes opens it, so all of them get recorded weather instead
@@ -45,6 +46,8 @@ export const test = base.extend({
       }));
     await page.route(/^https:\/\/datamask\.org\//, (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: sofFixture('screen-datamask-not-found.json') }));
+    // The SOF's map asks ECCC, Esri and RainViewer as it opens: answered from fixtures too (sof-map-feeds.js).
+    await serveMap(page);
     await use(page);
     expect(errors, 'the page logged errors').toEqual([]);
   },

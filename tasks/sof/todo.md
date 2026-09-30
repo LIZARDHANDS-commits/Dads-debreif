@@ -45,11 +45,13 @@ Spec approved by Patrick on 2026-09-30. Build starts once the coordinator says i
   - Verify: `node --test tests/unit/sof/feeds.test.js`; e2e with fixture images; performance log in the PR.
   - Dependencies: 2; CSP entries (app frame). Size M.
   - Files: src/modules/sof/map.js, src/modules/sof/feeds.js, tests/unit/sof/feeds.test.js, tests/fixtures/sof/
+  - Built (map side): `map.js`, `map-view.js`, `map-layers.js`, `map-feeds.js`, `map-fetch.js`, `map-draw.js`, `map-controls.js`, `map-model.js`, with `tests/unit/sof/map-*.test.js` and the browser tests in `sof-map.spec.js` (hookup). Still to do: move the VNC charts out of the debrief (app frame), the CSP entries (`csp.md`), the registry hookup.
 - [ ] **7. Lightning, the ADS-B Exchange view and links.** The ADS-B Exchange view switch (sandboxed frame, removed when off or on unmount, falls back to a link; read their terms first); ECCC lightning density with opacity, stale after 30 min; lightning near home (if SOF-3 is yes) as a caution with its radius setting; Lightning map link; Runway view link per card (SOF-5 default). Re-read Blitzortung's terms before shipping the link.
   - Acceptance: lightning is visible by default (#9); the near-home check finds lightning in a fixture inside the radius and none outside it; links open in a new tab with `noopener noreferrer`.
   - Verify: `node --test tests/unit/sof/lightning.test.js`; e2e.
   - Dependencies: 6. Size S to M.
   - Files: src/modules/sof/lightning.js, src/modules/sof/map.js, tests/unit/sof/lightning.test.js, src/modules/sof/cards.js
+  - Built (map side): the ADS-B Exchange view (`adsbx.js`), lightning density layer, near-home check with its radius setting, cautions exposed on the screen model. Not built: the Lightning map link and the Runway view link. ADS-B Exchange's terms are read (finding in SPEC-sof, "As built").
 
 - [ ] **7b. The traffic relay and layer (SOF-7).** `relay/traffic.js` (Cloudflare Worker) with its tests first: number checks, 5 s cache, trimmed reply, CORS for the site only, size caps; adsb.lol terms read. Patrick sets up the free Cloudflare account with steps given then; the relay address goes into the build settings and the CSP (app frame, through the coordinator). The layer: symbols by track, military mark, stale fade, label options, hover facts, 10 s refresh while on, `Traffic unavailable` on failure.
   - Acceptance: the relay refuses anything but three in-range numbers; a hostile reply (huge, wrong shape, script in a callsign) draws nothing or plain text; the layer stops asking when off or unmounted (R4); the rest of the SOF works with the relay down.
