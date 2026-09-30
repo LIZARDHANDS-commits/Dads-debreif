@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { DEFAULTS, V6_DEFAULTS } from '../../../src/modules/turn-sim/settings.js';
 import { createRun } from '../../../src/modules/turn-sim/engine/run.js';
 
-const BASE = { ...DEFAULTS, formation: 'offsetBox', startHeadingDeg: 0, durationSec: 150 };
+const BASE = { ...DEFAULTS, offsetBox4Timing: 'rearDelay', formation: 'offsetBox', startHeadingDeg: 0, durationSec: 150 };
 
 function starts(settings) {
   const run = createRun(settings);

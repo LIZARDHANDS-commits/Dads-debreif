@@ -40,7 +40,7 @@ test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 
   const changed = Object.keys(V6_DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
   assert.deepEqual(changed, ['baseG', 'boxAftFt', 'boxStaggerFt', 'clockCuePos', 'offsetBox4Timing', 'startHeadingDeg']);
   assert.equal(V6_DEFAULTS.offsetBox4Timing, 'late');
-  assert.equal(DEFAULTS.offsetBox4Timing, 'rearDelay');
+  assert.equal(DEFAULTS.offsetBox4Timing, 'boxSlot');
   assert.deepEqual(checkSettings({ offsetBox4Timing: 'early' }).offsetBox4Timing, 'early');
   assert.equal(V6_DEFAULTS.baseG, 2.0);
   assert.equal(V6_DEFAULTS.boxAftFt, 8000);

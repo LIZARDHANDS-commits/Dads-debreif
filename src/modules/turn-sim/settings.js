@@ -120,7 +120,7 @@ export const DEFAULTS = Object.freeze({
   // after the front element has started. 'groundTrack' (Q44b, Patrick): #4 solves its own delay to roll out 3,000 ft
   // outside #2 and Box aft behind the front element. V6's 'late' (#3's delay + base delay) and 'early' (#3's delay - base
   // delay) stay as choices.
-  offsetBox4Timing: 'rearDelay',
+  offsetBox4Timing: 'boxSlot',
   // SMM 16.41 para 112a: in the offset box #3 and #4 delay 10 to 15 s after the front element turns, so they miss #1 and #2.
   // The middle of the band. Used by the hook (and, as its own commit, the delayed turns). V6: no delay for the hook.
   rearDelaySec: 12.5,
@@ -181,7 +181,7 @@ export const SETTINGS_RULES = Object.freeze({
   startHeadingDeg: number(0, 360), // compass degrees
   showNm: bool,
 
-  offsetBox4Timing: oneOf(['rearDelay', 'groundTrack', 'late', 'early']),
+  offsetBox4Timing: oneOf(['boxSlot', 'rearDelay', 'groundTrack', 'late', 'early']),
   rearCheckOn: bool,
   rearCheckStartSec: number(0, 600),
   rearCheckDir: oneOf(['left', 'right']),

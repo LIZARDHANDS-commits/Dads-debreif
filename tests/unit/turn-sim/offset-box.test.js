@@ -9,7 +9,7 @@ import { ktToFtps } from '../../../src/core/units.js';
 import { turnRadiusFt } from '../../../src/core/flight-math.js';
 
 // The Q44b numbers were worked out with V6's 1,000 ft stagger.
-const BASE = { ...DEFAULTS, boxStaggerFt: 1000, formation: 'offsetBox', maneuver: 'delayed90away', turnDeg: 90, baseDelaySec: 16, durationSec: 120 };
+const BASE = { ...DEFAULTS, offsetBox4Timing: 'rearDelay', boxStaggerFt: 1000, formation: 'offsetBox', maneuver: 'delayed90away', turnDeg: 90, baseDelaySec: 16, durationSec: 120 };
 /** The ground track (Q44b) and V6's timings are choices now; the SMM's rear delay is the default (see rear-delay.test.js). */
 const GT = { ...BASE, offsetBox4Timing: 'groundTrack' };
 const fly = (settings) => { const run = createRun(settings); while (run.step()); return run; };
@@ -23,7 +23,7 @@ function finalPlaces(run) {
 }
 
 test('Q44b: the ground track is a choice, the SMM rear delay is the default; V6 stays LATE', () => {
-  assert.equal(DEFAULTS.offsetBox4Timing, 'rearDelay');
+  assert.equal(DEFAULTS.offsetBox4Timing, 'boxSlot'); // audit R1: the box slot solve; 'rearDelay' (SMM 12.5 s) stays a choice
   assert.equal(V6_DEFAULTS.offsetBox4Timing, 'late');
 });
 
