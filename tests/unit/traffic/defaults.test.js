@@ -63,7 +63,7 @@ test('row: photo starts at 100 % opacity, above the grid, at the setup\'s own al
 });
 
 test('row: route options start with rounded turns on, radius from speed and G on, manual radius 1,800 ft', () => {
-  row({ roundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
+  row({ flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
 });
 
 test('row: a new pattern is left-hand with Land 20 % and Stay 80 %, and the runway box starts at 29', () => {

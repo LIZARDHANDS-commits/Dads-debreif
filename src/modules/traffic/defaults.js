@@ -42,8 +42,8 @@ export const DEFAULTS = Object.freeze({
   photoEastFt: 0,
   photoNorthFt: 0,
 
-  // Route options: rounded turns on, radius from speed and G on, manual radius 1,800 ft.
-  roundedTurns: true,
+  // Route options (flyRoundedTurns is V6's name): rounded turns on, radius from speed and G on, manual radius 1,800 ft.
+  flyRoundedTurns: true,
   radiusFromG: true,
   manualRadiusFt: 1800,
 

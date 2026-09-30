@@ -35,7 +35,7 @@ export const RULES = Object.freeze([
 export const PANEL_KEYS = Object.freeze([
   'conflictLatFt', 'conflictVertFt', 'cautionLatFt', 'cautionVertFt', 'finalSpacingFt', 'missChancePct',
   ...RULES.map((r) => r.key),
-  'roundedTurns', 'radiusFromG', 'manualRadiusFt',
+  'flyRoundedTurns', 'radiusFromG', 'manualRadiusFt',
   'photoOpacityPct', 'photoAboveGrid', 'photoTrim', 'photoEastFt', 'photoNorthFt',
 ]);
 
@@ -85,7 +85,7 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
   }
 
   menu.section('Route options').append(
-    controls.checkbox('roundedTurns', { label: 'Fly rounded turns' }),
+    controls.checkbox('flyRoundedTurns', { label: 'Fly rounded turns' }),
     controls.checkbox('radiusFromG', { label: 'Turn radius from speed and G' }),
     withHint(feet('manualRadiusFt', 'Manual turn radius', 100), 'Used only when the radius is not from speed and G.'),
   );
@@ -104,8 +104,8 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
 
   // The manual radius is used only when rounded turns are on and the radius isn't worked out from speed and G.
   const greyOut = (now) => {
-    controls.setDisabled('radiusFromG', !now.roundedTurns);
-    controls.setDisabled('manualRadiusFt', !now.roundedTurns || now.radiusFromG);
+    controls.setDisabled('radiusFromG', !now.flyRoundedTurns);
+    controls.setDisabled('manualRadiusFt', !now.flyRoundedTurns || now.radiusFromG);
   };
   const stopGreying = settings.subscribe(greyOut);
   greyOut(settings.get());

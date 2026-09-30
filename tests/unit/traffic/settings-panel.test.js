@@ -151,7 +151,7 @@ test('Reset to defaults puts every setting back to defaults.js, reporting just t
   changes.length = 0;
   buttonNamed(panel, 'Reset to defaults').dispatch('click');
   assert.equal(changes.length, 1, 'one report, no confirmation step');
-  assert.deepEqual(changes[0].patch, { conflictLatFt: DEFAULTS.conflictLatFt, finalSpacingFt: DEFAULTS.finalSpacingFt, [RULES[0].key]: true, roundedTurns: true, photoOpacityPct: 100 });
+  assert.deepEqual(changes[0].patch, { conflictLatFt: DEFAULTS.conflictLatFt, finalSpacingFt: DEFAULTS.finalSpacingFt, [RULES[0].key]: true, flyRoundedTurns: true, photoOpacityPct: 100 });
   for (const key of PANEL_KEYS) assert.equal(changes[0].values[key], DEFAULTS[key], key);
   assert.equal(box(panel, 'Conflict: lateral').value, '200');
   assert.equal(box(panel, 'Final spacing').value, '3000');
@@ -200,7 +200,7 @@ test('every box starts at its default, as the spec\'s table says', () => {
 });
 
 test('the boxes start at the settings\' values, so a saved or loaded setting shows', () => {
-  const partial = setup({ start: { conflictLatFt: 350, windKt: 30, roundedTurns: false } }).panel;
+  const partial = setup({ start: { conflictLatFt: 350, windKt: 30, flyRoundedTurns: false } }).panel;
   assert.equal(box(partial, 'Conflict: lateral').value, '350');
   assert.equal(box(partial, 'Caution: lateral').value, '500');
   assert.equal(box(partial, 'Fly rounded turns').checked, false);
