@@ -108,6 +108,8 @@ export const DEFAULTS = Object.freeze({
   baseG: 3.0,
   // D114 (Patrick 05:37Z): the offset standard is 7,000 ft, plus or minus 1,000 (SMM 16.41 para 109). V6: 8,000.
   boxAftFt: 7000,
+  // Fig 16.30 draws each element 4,000 to 6,000 ft abreast: the box opens on Spacing. V6's 1,000 ft stagger put #2 at 7,000 ft, which read wide.
+  boxStaggerFt: 0,
   // D45 (Patrick, Q42): the start heading is a compass heading, 000 north and 090 east, and the default flies north,
   // up the screen. V6's default flew east.
   startHeadingDeg: 0,

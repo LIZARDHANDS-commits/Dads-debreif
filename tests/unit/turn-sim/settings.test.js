@@ -36,9 +36,9 @@ test('V6_DEFAULTS are what V6 shows in its boxes (lines 527 to 600)', () => {
   for (const [key, value] of Object.entries(v6)) assert.equal(V6_DEFAULTS[key], value, key);
 });
 
-test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 7,000 ft (D114), the clock position Auto (SMM item 2), the start heading 000 (D45) and the offset box timing by the SMM rear delay', () => {
+test('the rebuild\'s defaults are V6\'s except G 3.0 (D113), the offset box aft 7,000 ft (D114), the box stagger 0, the clock position Auto (SMM item 2), the start heading 000 (D45) and the offset box timing by the SMM rear delay', () => {
   const changed = Object.keys(V6_DEFAULTS).filter((k) => DEFAULTS[k] !== V6_DEFAULTS[k]).sort();
-  assert.deepEqual(changed, ['baseG', 'boxAftFt', 'clockCuePos', 'offsetBox4Timing', 'startHeadingDeg']);
+  assert.deepEqual(changed, ['baseG', 'boxAftFt', 'boxStaggerFt', 'clockCuePos', 'offsetBox4Timing', 'startHeadingDeg']);
   assert.equal(V6_DEFAULTS.offsetBox4Timing, 'late');
   assert.equal(DEFAULTS.offsetBox4Timing, 'rearDelay');
   assert.deepEqual(checkSettings({ offsetBox4Timing: 'early' }).offsetBox4Timing, 'early');

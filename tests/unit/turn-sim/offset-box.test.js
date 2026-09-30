@@ -8,7 +8,8 @@ import { offsetBoxPlan, simulateDelayedTurnFinalPos } from '../../../src/modules
 import { ktToFtps } from '../../../src/core/units.js';
 import { turnRadiusFt } from '../../../src/core/flight-math.js';
 
-const BASE = { ...DEFAULTS, formation: 'offsetBox', maneuver: 'delayed90away', turnDeg: 90, baseDelaySec: 16, durationSec: 120 };
+// The Q44b numbers were worked out with V6's 1,000 ft stagger.
+const BASE = { ...DEFAULTS, boxStaggerFt: 1000, formation: 'offsetBox', maneuver: 'delayed90away', turnDeg: 90, baseDelaySec: 16, durationSec: 120 };
 /** The ground track (Q44b) and V6's timings are choices now; the SMM's rear delay is the default (see rear-delay.test.js). */
 const GT = { ...BASE, offsetBox4Timing: 'groundTrack' };
 const fly = (settings) => { const run = createRun(settings); while (run.step()); return run; };
@@ -123,4 +124,16 @@ test('the band edges: 10 and 15 s are inside, 9.99 and 15.01 s are outside', () 
   assert.deepEqual(edge(10, 15), [false, false]);
   assert.deepEqual(edge(9.99, 15.01), [true, true]);
   assert.equal(offsetBoxStatus(null, 10, 15), null);
+});
+
+test('the box opens on spacing: at the defaults #2 is spacingFt abreast of Lead (V6\'s 1,000 ft stagger read wide)', () => {
+  assert.equal(DEFAULTS.boxStaggerFt, 0);
+  assert.equal(V6_DEFAULTS.boxStaggerFt, 1000);
+  const run = createRun({ ...DEFAULTS, formation: 'offsetBox' });
+  const [one, two, three, four] = run.state.aircraft;
+  assert.ok(Math.abs(Math.hypot(two.xFt - one.xFt, two.yFt - one.yFt) - DEFAULTS.spacingFt) < 1e-6);
+  assert.ok(Math.abs(two.yFt - one.yFt) < 1e-6, 'abreast');
+  assert.ok(Math.abs(Math.abs(four.xFt - three.xFt) - DEFAULTS.spacingFt) < 1e-6, '#3 and #4 are spacingFt apart');
+  const wide = createRun({ ...DEFAULTS, formation: 'offsetBox', boxStaggerFt: 1000 }).state.aircraft;
+  assert.ok(Math.abs(Math.hypot(wide[1].xFt - wide[0].xFt, wide[1].yFt - wide[0].yFt) - (DEFAULTS.spacingFt + 1000)) < 1e-6, 'the stagger is still there to set');
 });
