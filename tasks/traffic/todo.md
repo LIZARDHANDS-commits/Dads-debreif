@@ -1,6 +1,6 @@
 # Traffic Pattern Sim: tasks
 
-Spec waiting for Patrick's approval. Build starts once he approves it and the coordinator says it's the Traffic Sim's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
+Spec approved by Patrick on 2026-09-30 (06:43Z). Build starts when the coordinator says it's the Traffic Sim's turn. See [`plan.md`](plan.md). Every task also meets `.claude/references/definition-of-done.md`, and the skill for each step is in the spec's Skills used.
 
 - [ ] **1. Routes (`route.js`), pinned to V6.** Route shape (patterns, entries, splits, points with label, position, altitude, KT, G), V6's builders for a new pattern, entry and split, rounded paths, lengths, position at a distance, point distance and closest point, cached per route. Turn math only from `core`. V6's data read in with y flipped to north. The golden test is written first and fails until `route.js` exists (test-driven-development).
   - Acceptance: matches V6's `roundedPoints`, `navSegs`, `routeLen`, `pointProg`, `posOnRoute`, `closestProg` and the three builders within 1e-9 ft on every built-in route and the generated grid (R9).

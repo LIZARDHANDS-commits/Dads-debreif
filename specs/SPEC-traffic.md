@@ -1,6 +1,6 @@
 # Spec: `traffic`, the Traffic Pattern Sim
 
-Status: **draft, waiting for Patrick's approval.** Changes go through a pull request. Module id `traffic` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. This spec's own questions are numbered T1 to T11; Patrick answered T2 to T6 on 2026-09-30 at 04:36Z (see Answered questions), and the open ones are under Open questions. They get plan-doc Q numbers when they're logged.
+Status: **approved by Patrick on 2026-09-30** ("approved", 06:43Z, in the Traffic spec thread). Changes go through a pull request. Module id `traffic` in [`SPEC.md`](../SPEC.md). Requirement IDs (R#), decisions (D#) and questions refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102. This spec's own questions are numbered T1 to T11; Patrick answered T2 to T6 on 2026-09-30 at 04:36Z (see Answered questions), and the open ones are under Open questions. They get plan-doc Q numbers when they're logged.
 
 The build starts when the coordinator says it's the Traffic Sim's turn, after the debrief, the Turn Sim and the Turn Fight. Until then this spec and [`tasks/traffic/`](../tasks/traffic/plan.md) are the work.
 

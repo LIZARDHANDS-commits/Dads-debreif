@@ -1,6 +1,6 @@
 # Traffic Pattern Sim: plan
 
-Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), a draft waiting for Patrick's approval. Tasks: [`todo.md`](todo.md).
+Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), approved by Patrick on 2026-09-30 (06:43Z). Tasks: [`todo.md`](todo.md).
 
 ## Waits on
 
