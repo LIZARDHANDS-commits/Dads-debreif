@@ -78,6 +78,36 @@ export function judgedBy(id, formation) {
   return formation === 'offsetBox' && id === 3 ? 'offset' : 'spread';
 }
 
+/** A perfect turn ends a hair off its slot: under 1 degree past the standard's own FORE edge is not FORE (N4). */
+export const FORE_TOLERANCE_DEG = 1;
+/** ... and an interval within 1 percent of the set spacing is not WIDE or TIGHT. The numbers still show. */
+export const SPACING_TOLERANCE = 0.01;
+
+/** Whether a FORE is only a hair over the standard's own FORE edge (within FORE_TOLERANCE_DEG of it), so it is not flagged. */
+function foreWithinTolerance(c, spread) {
+  if (Number.isFinite(spread.sweepMaxDeg) && Number.isFinite(c.sweepDeg)) return c.sweepDeg >= (Number.isFinite(spread.sweepMinDeg) ? spread.sweepMinDeg : 0) - FORE_TOLERANCE_DEG;
+  return c.foreAftFt <= (spread.foreAftTolFt ?? 0) + c.intervalFt * Math.tan(FORE_TOLERANCE_DEG * Math.PI / 180);
+}
+
+/**
+ * The labels of a spread-standard row with the Turn Sim's small tolerance applied (N4; core's standard is shared with the
+ * Debrief and is left as it is). Only FORE, WIDE and TIGHT are relaxed; AFT and the rest are as the standard says.
+ */
+function withinPilotTolerance(c, spacingFt, spread) {
+  const kept = c.labels.filter((label) => {
+    if (label === 'FORE') return !foreWithinTolerance(c, spread);
+    // Within 1 percent of the set spacing, and no more than that past the band's edge: a formation at the set spacing is
+    // still TIGHT when the standard is edited to want more than that.
+    if ((label === 'WIDE' || label === 'TIGHT') && spacingFt > 0) {
+      const slack = SPACING_TOLERANCE * spacingFt;
+      const past = label === 'WIDE' ? c.intervalFt - spread.maxFt : spread.minFt - c.intervalFt;
+      return !(Math.abs(c.intervalFt - spacingFt) <= slack && past <= slack);
+    }
+    return true;
+  });
+  return kept.length || !c.labels.length ? kept : ['ON SPACING'];
+}
+
 /**
  * One row per wingman: its labels and the numbers behind them. A switched-off
  * standard judges nothing, so that aircraft has no labels (judged: false);
@@ -95,12 +125,13 @@ export function formationRows(state, settings, standards) {
     const key = judgedBy(a.id, settings.formation);
     if (!std[key]?.on) return { id: a.id, judged: false, labels: [], standard: key };
     const c = classifyTurnSimPosition(a, fleet, settings.formation, std);
+    const labels = key === 'spread' ? withinPilotTolerance(c, settings.spacingFt, std.spread) : c.labels;
     return {
       id: a.id,
       judged: true,
       standard: key,
-      labels: c.labels,
-      onSpacing: c.labels.length === 1 && c.labels[0] === 'ON SPACING',
+      labels,
+      onSpacing: labels.length === 1 && labels[0] === 'ON SPACING',
       intervalFt: c.intervalFt,
       foreAftFt: c.foreAftFt,
       aftDistanceFt: c.aftDistanceFt ?? null,
@@ -240,7 +271,9 @@ export function cueStatus(state) {
     const cue = a.cue;
     if (!cue || cue.mode === 'off') continue;
     const at = clockLabel(cue.clockPos);
-    if (cue.mode === 'start') lines.push({ id: a.id, text: 'starts the turn, nothing to wait for' });
+    // In the box #3 and #4 never watch anything: their line says what does time them (N8), never "watching" or "cue came from".
+    if (cue.cantSee) lines.push({ id: a.id, text: 'turns on the rear element timing' });
+    else if (cue.mode === 'start') lines.push({ id: a.id, text: 'starts the turn, nothing to wait for' });
     else if (cue.mode === 'waiting') lines.push({ id: a.id, text: `watching #${cue.targetId} for ${at}` });
     else lines.push({ id: a.id, text: `cue came from #${cue.targetId}, turning` });
     if (cue.cantSee) {
@@ -272,15 +305,17 @@ export function crossTurnNote(state) {
  * The offset box's rear delays against the SMM's band (16.41 para 112), from state.offsetBox, or null when the turn has none.
  * Each line reads "#3 12.5 s, in the 10-15 s band" or "#4 18.0 s, outside 10-15 s" (the flag). With `timing` 'boxSlot' the delays are
  * solved to keep the box's shape, so an outside #3 delay is not an error and the flag says so, and #4 (which turns on the LAB cue
- * off #3) is an information line with no flag.
+ * off #3) is an information line with no flag; in the hook (`maneuver` 'hook90') #3 and #4 start together, so it reads "turns with #3".
  */
-export function offsetBandLines(state, timing = null) {
+export function offsetBandLines(state, timing = null, maneuver = null) {
   const box = state?.offsetBox;
   if (!box) return null;
   const band = `${box.minSec}-${box.maxSec} s`;
   return box.rear.map((r) => {
     // Box slot (Fig 16.30): only #3 delays 10 to 15 s; #4 turns on the normal LAB cue off #3, so its time from #3 is information, never a flag.
     if (timing === 'boxSlot' && r.id === 4) {
+      // The hook: #3 and #4 start together, so there is no time between them to print (N6).
+      if (maneuver === 'hook90') return { id: r.id, outside: false, info: true, text: 'turns with #3' };
       const secs = Math.abs(r.delaySec).toFixed(1);
       return { id: r.id, outside: false, info: true, text: `turns ${secs} s ${r.delaySec < 0 ? 'before' : 'after'} #3` };
     }
@@ -321,7 +356,7 @@ export function readoutsAt(state, settings, { standards, stallLimitG, distNm = f
     turnText: turnLine(settings),
     flags: separationFlags(state, settings, pairs),
     cue: cueStatus(state),
-    offsetBand: offsetBandLines(state, settings.offsetBox4Timing),
+    offsetBand: offsetBandLines(state, settings.offsetBox4Timing, settings.maneuver),
     crossNote: crossTurnNote(state),
     autoStepSec: state?.autoStepSec ?? null,
     maneuverFallback: state?.maneuverFallback ?? null,
