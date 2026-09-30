@@ -484,3 +484,31 @@ test('cautions.js keeps the lightning key when it is acknowledged, and its evalu
   const { acks: kept } = evaluate({ cards: [], tafs: [], acks, now: NOW, timeZone: 'America/Regina' });
   assert.deepEqual(kept.keys, [c.key]);
 });
+
+test('the coverage edge margin: a box holding home plus 20.5 NM but not 21 NM can\'t tell for a 20 NM radius', () => {
+  // Degrees of latitude and longitude for a distance at CYMJ: 1 degree of latitude is 60.04 NM.
+  const box = (nm) => ({ bounds: { west: HOME.lon - (nm + 0.02) / 38.37, south: HOME.lat - (nm + 0.02) / 60.04, east: HOME.lon + (nm + 0.02) / 38.37, north: HOME.lat + (nm + 0.02) / 60.04 }, cellsRead: 900 });
+  assert.equal(check({ samples: [], coverage: box(20.5) }).state, 'unknown');
+  assert.match(check({ samples: [], coverage: box(20.5) }).words, /^Can't tell/);
+  assert.equal(check({ samples: [], coverage: box(21.05) }).state, 'clear');
+});
+
+test('the sort puts METAR, then TAF, then LIGHTNING at the same airfield and level, whatever the input order', () => {
+  const c = check().caution;
+  const fake = (source) => ({ ...c, key: `CYMJ|${source}|x`, source, text: `Caution: ${source}` });
+  const three = [fake('METAR'), fake('TAF'), fake('LIGHTNING')];
+  const orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  for (const o of orders) {
+    const list = cautionList({ extra: o.map((i) => three[i]) });
+    assert.deepEqual(list.map((x) => x.source), ['METAR', 'TAF', 'LIGHTNING'], o.join());
+  }
+});
+
+test('near wording past the radius says "at the edge of the radius", not "within"', () => {
+  const edge = check({ samples: [north(20.6)] });
+  assert.equal(edge.state, 'near');
+  assert.equal(edge.words, 'Lightning about 20.6 NM north of home, at the edge of the 20 NM radius');
+  assert.equal(edge.caution.text, 'Caution: CYMJ lightning: about 20.6 NM north of home, at the edge of the 20 NM radius');
+  assert.equal(check({ samples: [north(20)] }).words, 'Lightning about 20 NM north of home, within 20 NM');
+  assert.equal(check({ samples: [north(19.9)] }).words, 'Lightning about 19.9 NM north of home, within 20 NM');
+});

@@ -218,7 +218,7 @@ export function lightningNearHome(args = {}) {
 
   const words = nearest.nm < NEAR_HOME_NM
     ? `Lightning at home, within ${label} NM`
-    : `Lightning about ${nmWords(nearest.nm, radius)} NM ${where} of home, within ${label} NM`;
+    : `Lightning about ${nmWords(nearest.nm, radius)} NM ${where} of home, ${nearest.nm > radius ? `at the edge of the ${label} NM radius` : `within ${label} NM`}`;
   const next = { id: held?.id ?? isoMinute(clock), lastNearAt: clock };
   const icao = typeof home.icao === 'string' && ICAO.test(home.icao) ? home.icao : DEFAULT_HOME;
   return { ...result, state: 'near', words, episode: next, caution: cautionOf({ icao, episode: next, words, layerTime }) };
