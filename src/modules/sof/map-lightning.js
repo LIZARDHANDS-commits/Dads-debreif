@@ -28,7 +28,7 @@ const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
  * Returns null when home is not a real place, or the box would leave the map or the size limit
  * (near the poles or the date line, which this screen is not for).
  */
-export function lightningBox({ home, radiusNm } = {}) {
+export function lightningBox({ home, radiusNm } = /** @type {any} */ ({})) {
   if (!home || !isNumber(home.lat) || !isNumber(home.lon) || Math.abs(home.lat) > 85 || Math.abs(home.lon) > 180) return null;
   const cellsEachWay = Math.ceil((clampRadius(radiusNm) + CELL_NM) / CELL_NM) + 1; // the radius, a cell, and a cell of margin for rounding
   const dLat = CELL_NM / NM_PER_DEG;

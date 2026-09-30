@@ -47,7 +47,7 @@ export function capabilitiesUrl(layer) {
  * only): a name from the list, a box in degrees in order and in range, a size in whole numbers, and an
  * optional time as exact ISO seconds. Throws RangeError for anything else.
  */
-export function extraMapUrl({ layer, bbox, width, height, time } = {}) {
+export function extraMapUrl({ layer, bbox, width, height, time } = /** @type {any} */ ({})) {
   if (!EXTRA_NAMES.has(layer)) throw new RangeError('layer is not one the SOF uses');
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 16 || height < 16 || width > 2048 || height > 2048) {
     throw new RangeError('width and height must be whole numbers from 16 to 2048');
@@ -55,7 +55,7 @@ export function extraMapUrl({ layer, bbox, width, height, time } = {}) {
   if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every(isNumber)) throw new RangeError('bbox must be four numbers');
   const [west, south, east, north] = bbox;
   if (west < -180 || east > 180 || south < -85 || north > 85 || west >= east || south >= north) throw new RangeError('bbox out of range');
-  const box = bboxToMercator(bbox).map((n) => String(Number(n.toFixed(2))));
+  const box = bboxToMercator(/** @type {[number, number, number, number]} */ (bbox)).map((n) => String(Number(n.toFixed(2))));
   let when = '';
   if (time !== undefined && time !== null) {
     const ms = time instanceof Date ? +time : NaN;
@@ -106,7 +106,7 @@ const hhmmZ = (d) => `${two(d.getUTCHours())}${two(d.getUTCMinutes())}Z`;
  * - on: whether the layer is on. hasImage, layerTime (Date or null), failed, busy, backup (RainViewer), now.
  * The age is the layer's own time, never when it was fetched.
  */
-export function feedLine({ label, kind = 'radar', on = true, hasImage = false, layerTime = null, failed = false, busy = false, backup = false, now = new Date() } = {}) {
+export function feedLine({ label, kind = 'radar', on = true, hasImage = false, layerTime = null, failed = false, busy = false, backup = false, now = new Date() } = /** @type {any} */ ({})) {
   const name = backup ? `${label} (RainViewer backup)` : label;
   if (!on) return { text: `${label} off`, symbol: '–', tone: 'off', stale: false };
   const time = layerTime ? feedAge({ kind, layerTime, now }) : null;
@@ -141,7 +141,7 @@ export function feedLine({ label, kind = 'radar', on = true, hasImage = false, l
  */
 export function createImageFeed({
   layer, kind = 'radar', urlFor, decode, timeless = false, refreshMs = REFRESH_MS.radar, retryMs = RETRY_MS,
-  paused = () => false, onAttempt = () => {}, fetch, timers, now = () => new Date(), onChange = () => {},
+  paused = () => false, onAttempt = (_ok) => {}, fetch, timers, now = () => new Date(), onChange = () => {},
 }) {
   const layerName = () => (typeof layer === 'function' ? layer() : layer);
   const closing = new AbortController();

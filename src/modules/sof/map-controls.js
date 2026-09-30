@@ -98,13 +98,15 @@ export function createMapControls(handlers) {
     layersButton.setAttribute('aria-expanded', String(open));
   }
   layersButton.addEventListener('click', () => setPanel(panel.hidden));
-  // Escape closes the menu and puts focus back on its button.
-  panel.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
+  // Escape closes the menu and puts focus back on its button, whether focus is inside the menu or still on the button.
+  const closeOnEscape = (event) => {
+    if (event.key !== 'Escape' || panel.hidden) return;
     event.stopPropagation();
     setPanel(false);
     layersButton.focus();
-  });
+  };
+  panel.addEventListener('keydown', closeOnEscape);
+  layersButton.addEventListener('keydown', closeOnEscape);
 
   // ---- Under the map ------------------------------------------------------------------------------------
   const status = h('ul', { class: 'sof-map-status', 'aria-label': 'Map feeds' });

@@ -282,7 +282,7 @@ export function createSofMap({ app, settings }) {
         }
         case 'routes':
           routes ??= ROUTES.map((r) => projectRoute(r, projection.ref));
-          for (const r of routes) drawRoute(ctx, view, r, layers.opacity.routes);
+          for (const r of routes) drawRoute(ctx, view, r, /** @type {any} */ (layers.opacity).routes);
           break;
         case 'rings':
           drawRings(ctx, view.worldToScreen(0, 0), view.view.scale, { radii: RING_NM, lightningNm: settings.get().lightningNm }, pal);

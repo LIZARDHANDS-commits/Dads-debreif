@@ -32,7 +32,7 @@ export class MapFetchError extends Error {
  * - signal: ends the request when it aborts (the module closing).
  * - accept: the Accept header, if any.
  */
-export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxBytes, accept } = {}) {
+export async function guardedFetch(fetch, url, { timers, signal, timeoutMs, maxBytes, accept } = /** @type {any} */ ({})) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || !Number.isFinite(maxBytes) || maxBytes <= 0) {
     throw new RangeError('guardedFetch needs a timeout and a byte cap');
   }

@@ -24,7 +24,7 @@ const isNumber = (v) => typeof v === 'number' && Number.isFinite(v);
  * built from numbers only (position to 3 decimals, zoom a whole number from 2 to 14). Returns null when
  * the place is not real.
  */
-export function adsbExchangeUrl({ lat, lon, zoom = 8 } = {}) {
+export function adsbExchangeUrl({ lat, lon, zoom = 8 } = /** @type {any} */ ({})) {
   if (!isNumber(lat) || !isNumber(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
   const z = isNumber(zoom) ? Math.min(14, Math.max(2, Math.round(zoom))) : 8;
   const n = (v) => Number(v.toFixed(3));

@@ -20,7 +20,7 @@ export const BASES = Object.freeze([
  * `on`: whether it starts on. `opacity`: has a slider, and its starting percent.
  * `needsRelay`: the switch is hidden until the traffic relay's address is set.
  */
-export const OVERLAYS = Object.freeze([
+export const OVERLAYS = Object.freeze(/** @type {Array<{ id: string, label: string, on: boolean, opacity?: number, needsRelay?: boolean }>} */ ([
   Object.freeze({ id: 'cloud', label: 'Satellite cloud picture (GOES)', on: false, opacity: 60 }),
   Object.freeze({ id: 'radar', label: 'Radar (rain or snow)', on: true, opacity: 75 }),
   Object.freeze({ id: 'coverage', label: 'Radar coverage', on: true, opacity: 60 }),
@@ -30,7 +30,7 @@ export const OVERLAYS = Object.freeze([
   Object.freeze({ id: 'rings', label: '25 and 50 NM rings', on: true }),
   Object.freeze({ id: 'airfields', label: 'Airfields with wind barbs', on: true }),
   Object.freeze({ id: 'traffic', label: 'Live traffic', on: false, needsRelay: true }),
-]);
+]));
 
 const BY_ID = new Map(OVERLAYS.map((o) => [o.id, o]));
 const BASE_IDS = new Set(BASES.map((b) => b.id));
@@ -62,7 +62,7 @@ export function defaultPrecip(now) {
 }
 
 /** Every layer at its starting state. */
-export function defaultLayers({ now } = {}) {
+export function defaultLayers({ now } = /** @type {any} */ ({})) {
   return {
     base: 'satellite',
     precip: defaultPrecip(now),
@@ -83,7 +83,7 @@ const snapPct = (n) => {
  * range, are the defaults; an opacity is kept to its slider's range and step.
  * Returns a new object and never throws.
  */
-export function cleanLayers(raw, { now } = {}) {
+export function cleanLayers(raw, { now } = /** @type {any} */ ({})) {
   const out = defaultLayers({ now });
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return out;
   if (typeof raw.base === 'string' && BASE_IDS.has(raw.base)) out.base = raw.base;
@@ -119,9 +119,9 @@ export function setBase(state, base) {
 }
 
 /** The traffic layer's label choice, or military only. Anything not on the list changes nothing. */
-export function setTrafficOption(state, { label, militaryOnly } = {}) {
+export function setTrafficOption(state, { label, militaryOnly } = /** @type {any} */ ({})) {
   const next = { ...state.traffic };
-  if (typeof label === 'string' && LABEL_IDS.has(label)) next.label = label;
+  if (typeof label === 'string' && LABEL_IDS.has(/** @type {any} */ (label))) next.label = /** @type {any} */ (label);
   if (typeof militaryOnly === 'boolean') next.militaryOnly = militaryOnly;
   return next.label === state.traffic.label && next.militaryOnly === state.traffic.militaryOnly ? state : { ...state, traffic: next };
 }

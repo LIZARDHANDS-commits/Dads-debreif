@@ -41,7 +41,7 @@ export function windWords(wind) {
  * with no barb (an old wind is never drawn as the wind now).
  * Each: { icao, name, home, lat, lon, category, old, wind, label, facts }.
  */
-export function airfieldMarks({ cards = [], fields = [], snapshot = {} } = {}) {
+export function airfieldMarks({ cards = [], fields = [], snapshot = {} } = /** @type {any} */ ({})) {
   const byIcao = new Map(fields.map((f) => [f.icao, f]));
   const marks = [];
   for (const card of cards) {

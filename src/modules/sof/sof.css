@@ -333,6 +333,17 @@
   font-size: var(--text-sm);
 }
 
+/* Selects in the map bar and menu look like the ui-kit's .control selects: the browser's own white would put light text on white. */
+[data-module='sof'] .sof-map-field select,
+[data-module='sof'] .sof-layers-panel select {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+}
+
 [data-module='sof'] .sof-map-btn[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent);
