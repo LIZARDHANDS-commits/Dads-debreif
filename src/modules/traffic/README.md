@@ -57,7 +57,7 @@ Every function that needs the route options takes them as an optional last argum
 | `legDistances(route)` | `[{ from, to, ft, nm }]`, one per leg, points counted from 1 (a pattern's last leg goes back to 1) |
 | `newPattern(id, name, opts?)`, `newEntry(id, name, patternId, routes, opts?)`, `newSplit(id, name, patternId, routes, opts?)` | V6's builders (`defaultPattern`, `defaultEntry`, `defaultSplit`): a route, not yet in any list. `opts.color` sets the colour; `newPattern` also takes `offsetEastFt` and `offsetNorthFt` |
 
-V6's own names are there too, for the tests and the editor: `roundedPoints`, `navSegs`, `routeLengthFt`, `pointDistFt`, `posOnRoute`, `closestDistFt`, `pointTurnRadiusFt`, `isClosedRoute`.
+V6's own functions are there too, for the tests and the editor: `roundedPoints`, `navSegs`, `routeLengthFt`, `pointDistFt` (V6 `pointProg`: distance to where the turn at a point starts), `posOnRoute` (`positionAt` with V6's `seg` and `u`), `closestDistFt` (V6 `closestProg`), `pointTurnRadiusFt`, `isClosedRoute`, and the constants `DEFAULT_ROUTE_OPTIONS`, `ROUTE_COLORS` and `nextRouteColor(routes)` (V6's palette in turn).
 
 ### `sim.js`: the flying
 
