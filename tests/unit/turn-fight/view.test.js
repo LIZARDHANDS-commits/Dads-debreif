@@ -163,10 +163,11 @@ test('an empty box draws nothing and does not throw', () => {
 
 test('R28: the MERGE mark shows only when the jets pass each other at the centre: not with the turns at once', () => {
   const at = (setup) => { const ctx = recorder(); drawTopDown(ctx, { width: 800, height: 500 }, createRun(setup)); return texts(ctx); };
-  assert.ok(at({ startAaDeg: 90 }).includes('MERGE'), 'a crossing start passes at the centre');
-  assert.ok(!at({ startAaDeg: 90, turnsAt: 'once' }).includes('MERGE'), 'the turns start at T+0, no pass');
-  assert.ok(!at({ startAaDeg: 0, redKt: 300 }).includes('MERGE'), 'the range is opening from the start');
-  assert.ok(at({}).includes('MERGE'), 'head-on, as V6');
+  const marked = (setup) => ['MERGE', 'PASS'].filter((word) => at(setup).includes(word));
+  assert.deepEqual(marked({ startAaDeg: 90 }), ['PASS'], 'a crossing start passes at the centre, 1.4 NM apart (TF3-5)');
+  assert.deepEqual(marked({ startAaDeg: 90, turnsAt: 'once' }), [], 'the turns start at T+0, no pass');
+  assert.deepEqual(marked({ startAaDeg: 0, redKt: 300 }), [], 'the range is opening from the start');
+  assert.deepEqual(marked({}), ['MERGE'], 'head-on, as V6');
 });
 
 const PICTURE_SIZE = { width: 240, height: 140 };
