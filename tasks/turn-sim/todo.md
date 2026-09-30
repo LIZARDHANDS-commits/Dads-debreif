@@ -81,23 +81,14 @@ Skills: test-driven-development and incremental-implementation for every task; f
 
 ### Checkpoint D: success criteria in the spec met; checklist handed to Patrick.
 
-## Phase 5: SMM exercises (PR E)
+## Phase 5: G-warm (PR E)
 
-The spec's "SMM formation additions", items 7 and 8 (Patrick 06:40Z). New features, so nothing in V6 to pin; each test states what the SMM reference says. New settings bump the settings version and go into profiles (task 13's field-by-field check covers them).
+The spec's "SMM formation additions", item 7 (Patrick 06:40Z). New, so nothing in V6 to pin; each test states what the SMM reference says. New settings bump the settings version and go into profiles (task 13's field-by-field check covers them). Item 8 (rejoins, fighting wing, fluid manoeuvring) is a future feature (Patrick 06:59Z), not a task.
 
 - [ ] **17. Sequences and G-warm (item 7).** `engine/sequence.js`: a list of turns flown one after another, each starting when the last ends, with an optional wings-level gap. The Exercises panel (collapsed) with a G-warm button: from LAB at 220 KIAS or more, in-place 90 at 3 G toward the wingman, 5 s wings level labelled "½ G push", hook at 4 G, in-place 90 at 3 G back (16.22 paras 70-71). 4-ship as spread-4 (16.44), picture checked with Patrick first.
   - Acceptance: two-ship G-warm ends on the start heading in LAB; each leg's G and the 5 s gap are stated in the test; a speed under 220 is raised to 220 with a note.
   - Files: `engine/sequence.js`, `exercises.js`, `settings.js`, tests. Size M.
-- [ ] **18. Pursuit wingman.** `engine/pursuit.js`: #2 flies toward a point defined relative to Lead (sweep and range) at its own speed and G limit, using lead, pure or lag pursuit (16.16). Range, closure and aspect for the readouts.
-  - Acceptance: from a stated start, pure pursuit on a straight-flying Lead closes to the set range without passing it; the G limit is never exceeded.
-  - Files: `engine/pursuit.js`, `tests/unit/turn-sim/pursuit.test.js`. Size M.
-- [ ] **19. Rejoins from line abreast (item 8).** Straight-ahead and turning (into or away, Lead at 30° bank), #2 to fighting wing on the same side (16.20 para 65); overtake setting default 10 kt, 0 to 20 (ch. 12 Rejoins). Overshoot flag.
-  - Acceptance: both rejoins end in the fighting wing window at the default overtake; a 20 kt overtake with a late correction shows the overshoot flag.
-  - Files: `engine/pursuit.js`, `exercises.js`, `readouts.js`, tests. Size M.
-- [ ] **20. Fighting wing and fluid manoeuvring (item 8).** Fighting wing: #2 holds 30° to 60° sweep at 500 to 1,000 ft (16.15; ch. 12; EFIG p.391) while Lead flies level turns and reversals; the card shows sweep, range and in or out of the window. Fluid manoeuvring, flat: #2 inside a 60° cone at 500 to 1,000 ft (16.17 para 42), with the 500 ft bubble flag (16.23). The loop, wingovers and barrel roll are left for a 3D version (future, could reuse the Turn Fight's Energy model). With a 4-ship picked, #1 and #2 fly it and the screen says so.
-  - Acceptance: a stated Lead reversal keeps #2 in its window at the default G; inside 500 ft shows the bubble flag.
-  - Files: `engine/pursuit.js`, `exercises.js`, `readouts.js`, `view.js`, tests. Size M.
-- [ ] **21. Exercises in the browser tests and checklist.** Add the Exercises panel to `tests/e2e/turn-sim.spec.js` (closed on a first visit, every button does something) and a checklist line per exercise.
+- [ ] **18. G-warm in the browser tests and checklist.** Add the Exercises panel to `tests/e2e/turn-sim.spec.js` (closed on a first visit, the button flies the sequence) and a checklist line.
   - Files: `tests/e2e/turn-sim.spec.js`, `docs/checklists/turn-sim.md`. Size S.
 
-### Checkpoint E: every SMM addition has a stated test; the first-time screen is unchanged; checklist updated. PR E.
+### Checkpoint E: G-warm has a stated test; the first-time screen is unchanged; checklist updated. PR E.
