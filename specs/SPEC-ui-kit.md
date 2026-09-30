@@ -194,6 +194,7 @@ controls.viewSwitch('mode')                        // or to another setting key
 - `controls.viewSwitch(key = 'view')` is exactly `controls.choice(key, { label: 'View', options: 2D, 3D })`; `VIEW_DEFAULT` is `'2d'` and `VIEW_ALLOWED` is `['2d', '3d']`, so every module seeds and validates the setting the same way.
 - **2D is the default.** three loads only when 3D is switched on: the module awaits `loadThree()` then, never at start-up.
 - If `loadThree()` fails (offline on the first visit), the module shows "3D needs a connection the first time." beside the switch, puts the setting back to `2d`, and the 2D view keeps working. A later try loads it (a failed load is not cached).
+- Before building a renderer, the module checks `webglSupported()` (from `three-aircraft.js`). When it is false (WebGL switched off or blocked), the module shows "3D needs WebGL, which this browser has turned off." beside the switch, puts the setting back to `2d`, and never creates a renderer, so three logs no "Error creating WebGL context". The answer is worked out once per page.
 - The 3D view uses `matchProjection` for its camera (no camera maths of its own) and `createAircraftMesh` or `createStandInMesh` for its aircraft; no flight math changes.
 
 ## Not overwhelming (R22)
@@ -219,6 +220,7 @@ menu.body;                                   // the container the sections live 
 - It starts closed (`collapsed: true`) unless the caller passes `collapsed: false`. Pass the module's name as the title ("Turn Sim settings", "SOF settings"); it defaults to "Module settings". Never title it plain "Settings", which is the header's app-wide button.
 - `onToggle(collapsed)` is called with the new state when the person opens or closes it. `setCollapsed()` from code does not call it, so a module that remembers the menu's state saves it in `onToggle` and restores it with `setCollapsed`.
 - The header is the panel's real button with `aria-expanded`, so the mouse, Enter, Space and Tab all work (#35).
+- Escape inside the open menu closes it, calls `onToggle(true)` and puts focus back on the header, as a dialog would. When it is closed, Escape does nothing.
 - `section(title)` returns a `<fieldset class="settings-group">` with a `<legend>` holding the title as text, never HTML. Sections appear in the order they are made.
 - With `onReset`, the menu has a "Reset to defaults" button (`resetLabel` changes the words) that calls it straight away, with no confirm dialog. Without `onReset`, there is no button.
 - Opening or closing it never covers other controls: it expands in the page flow like other panels (R2, #34).

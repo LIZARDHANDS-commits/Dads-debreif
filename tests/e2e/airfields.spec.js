@@ -102,6 +102,19 @@ test('changing the home field updates its line; one without a time zone says so'
   await expect(page.getByText(/Add its time zone under More airfield settings/)).toBeVisible();
 });
 
+test('making an alternate the home field says it was taken off the alternates (AF-5)', async ({ page }) => {
+  await open(page);
+  const home = page.getByLabel('Home field');
+  await home.fill('CYQR');
+  await home.press('Enter');
+  await expect(page.getByText('CYQR is now home, so it was taken off the alternates.')).toBeVisible();
+  await expect(home).not.toHaveAttribute('aria-invalid', 'true');
+  expect((await setup(page)).alternates).toEqual(['CYYN', 'CYXE']);
+  await home.fill('CYMJ');
+  await home.press('Enter');
+  await expect(page.getByText('CYQR is now home, so it was taken off the alternates.')).toHaveCount(0);
+});
+
 test('More shows built-in details read-only, the GNSS checkbox and Reset', async ({ page }) => {
   await open(page);
   await more(page).click();

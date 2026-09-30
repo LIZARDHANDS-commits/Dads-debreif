@@ -39,6 +39,32 @@ export function loadThree() {
   return threePromise;
 }
 
+let webgl = null;
+
+/**
+ * Whether this browser can draw WebGL, checked once on a spare canvas before any
+ * renderer is built, so a 3D view can stay in 2D quietly instead of three logging
+ * "Error creating WebGL context". The test context is released straight away.
+ * @param {{ document?: any }} [options]
+ */
+export function webglSupported({ document: doc = globalThis.document } = {}) {
+  if (webgl !== null) return webgl;
+  try {
+    const canvas = doc.createElement('canvas');
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    webgl = Boolean(gl);
+    gl?.getExtension?.('WEBGL_lose_context')?.loseContext();
+  } catch {
+    webgl = false;
+  }
+  return webgl;
+}
+
+/** For tests: forget the cached answer. */
+export function resetWebglCheck() {
+  webgl = null;
+}
+
 /** Height of a point in three.js world units: altitude in feet times the altitude-scale setting. */
 export function altToZ(altFt, altScale) {
   return (altFt || 0) * altScale;
