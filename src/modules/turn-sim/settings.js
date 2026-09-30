@@ -65,7 +65,7 @@ export const V6_DEFAULTS = Object.freeze({
   rearCheckHoldSec: 5,
 
   // Turn setup (lines 571 to 588)
-  maneuver: 'delayed90away', // 'delayed90away' | 'delayed45away' | 'hook90' | 'shackle45' | 'cross180' | 'inplace90'
+  maneuver: 'delayed90away', // 'delayed90away' | 'delayed45away' | 'hook90' | 'shackle45' | 'cross180' | 'inplace90' | 'check30' (the rebuild's)
   direction: 'right', // 'right' | 'left'
   speedKt: 220, // V6's "Speed KTAS": true airspeed, no wind
   baseG: 2.0,
@@ -98,7 +98,7 @@ export const V6_DEFAULTS = Object.freeze({
  * 180 degrees (16.19 para 60), where V6's was 90.
  */
 export const MANEUVER_TURN_DEG = Object.freeze({
-  delayed90away: 90, delayed45away: 45, hook90: 180, shackle45: 45, cross180: 180, inplace90: 90,
+  delayed90away: 90, delayed45away: 45, hook90: 180, shackle45: 45, cross180: 180, inplace90: 90, check30: 30,
 });
 
 /** What the rebuild starts with: V6's values, plus each logged decision that changed one. */
@@ -183,11 +183,11 @@ export const SETTINGS_RULES = Object.freeze({
   rearDelayMinSec: number(0, 60),
   rearDelayMaxSec: number(0, 60),
 
-  maneuver: oneOf(['delayed90away', 'delayed45away', 'hook90', 'shackle45', 'cross180', 'inplace90']),
+  maneuver: oneOf(['delayed90away', 'delayed45away', 'hook90', 'shackle45', 'cross180', 'inplace90', 'check30']),
   direction: oneOf(['right', 'left']),
   speedKt: number(1, 1000),
   baseG: number(1.01, 12),
-  turnDeg: number(10, 180),
+  turnDeg: number(5, 180), // 5 for the check turn (SMM 16.19 para 58: 30 degrees or less); V6's box started at 10
   timing: oneOf(['time', 'clock', 'auto']),
   baseDelaySec: number(0, 300),
   clockCueAircraft: numberOneOf([1, 2, 3, 4]),

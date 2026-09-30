@@ -75,7 +75,7 @@ test('every setting has a default, none is blank, and each default passes its ow
 
 test('the rules say what the todo says: Speed at least 1 kt, Turn degrees 10 to 180, finite numbers only', () => {
   assert.equal(SETTINGS_RULES.speedKt.min, 1);
-  assert.equal(SETTINGS_RULES.turnDeg.min, 10);
+  assert.equal(SETTINGS_RULES.turnDeg.min, 5);
   assert.equal(SETTINGS_RULES.turnDeg.max, 180);
   for (const [key, rule] of Object.entries(SETTINGS_RULES)) {
     if (rule.type !== 'number') continue;

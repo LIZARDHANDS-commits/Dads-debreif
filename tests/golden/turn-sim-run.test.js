@@ -11,7 +11,7 @@ import { createRun } from '../../src/modules/turn-sim/engine/run.js';
 import { createV6Page, v6SettingsForD42, v6SettingsForD48 } from './turn-sim-fake-page.js';
 import { seeded } from './inputs.js';
 
-const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 180, inplace90: 90 }; // the shackle (SMM 16.19 paras 61-62) and the cross turn (para 64) are no longer V6's
+const TURN_DEG = { delayed90away: 90, delayed45away: 45, hook90: 180, inplace90: 90, check30: 30 }; // the shackle (SMM 16.19 paras 61-62) and the cross turn (para 64) are no longer V6's
 const DIRECTIONS = ['right', 'left'];
 
 /** V6's Turn menu also sets Turn degrees (updateManeuverDefaults, line 2037), so a scenario does too. */
@@ -90,6 +90,8 @@ function compareRun(settings, label, { legs = 1, v6From = settings } = {}) {
   if (settings.timing === 'time' && settings.maneuver === 'delayed45away') {
     v6Settings.baseDelaySec = settings.baseDelaySec * (1 / Math.tan(degToRad(settings.turnDeg) / 2));
   }
+  // The check turn (SMM para 58) is V6's in-place turn through its Turn degrees.
+  if (v6Settings.maneuver === 'check30') v6Settings.maneuver = 'inplace90';
   // The Clock tolerance box is read as V6 meant to (it read the box itself and got 4 whatever it said, issue #32).
   const page = createV6Page(v6Settings, { readsClockTolerance: true });
   page.reset();
@@ -125,14 +127,14 @@ test('4312, 2134 and two-ship × delayed 90 and 45 × right and left, at V6\'s d
 test('hook and in-place 90 × every preset × right and left, at V6\'s defaults', () => {
   let n = 0;
   for (const formation of ['weighted', 'weightedReverse', 'offsetBox', 'twoShip']) {
-    for (const maneuver of ['hook90', 'inplace90']) {
+    for (const maneuver of ['hook90', 'inplace90', 'check30']) {
       for (const direction of DIRECTIONS) {
         compareRun(scenario({ formation, maneuver, direction }), `${formation} ${maneuver} ${direction}`, { legs: 2 });
         n++;
       }
     }
   }
-  assert.equal(n, 16);
+  assert.equal(n, 24);
 });
 
 test('time delay: a different base delay moves each start, and V6 and the port agree on the rollout', () => {
@@ -418,7 +420,7 @@ test('D48: #2 on Lead\'s right flies as V6 flies the mirror layout, 4312 and 213
       }
     }
   }
-  assert.equal(n, 16);
+  assert.equal(n, 20);
 });
 
 test('V6 itself: the rear check runs in leg 1 and never again in leg 2 (it clears the check only on Reset)', () => {

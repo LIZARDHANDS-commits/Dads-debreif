@@ -363,7 +363,8 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
         else d = auto ? +auto.startsSec[a.id] || 0 : delayIndex[a.id] * base;
       }
 
-      if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
+      // The check turn (SMM para 58) is the in-place turn through 30 degrees or less: Turn degrees does the rest.
+      if (man === 'hook90' || man === 'inplace90' || man === 'check30') { d = 0; dir = selectedDir; }
       // SMM 16.41 para 112a: in the offset box the rear element turns a delay after the front element (V6: all together).
       if (man === 'hook90' && form === 'offsetBox' && (a.id === 3 || a.id === 4)) d = flight.rearDelaySec;
 
