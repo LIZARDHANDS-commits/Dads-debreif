@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { ktToFtps } from '../../src/core/units.js';
 import { limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../src/core/flight-math.js';
 import { loadV6 } from './v6-source.js';
-import { seeded, spread } from './inputs.js';
+import { seeded, spread, recordedTrack } from './inputs.js';
 
 const TURN_SIM = 'const FT_PER_NM=6076.12, KTS_TO_FPS';
 const BFM = '<script id="bfmFight">';
@@ -122,23 +122,6 @@ test('emPoint is null when a moment is missing, as metrics is', () => {
 });
 
 // ── Closure and estimated G: V6's debrief functions run on the same tracks ──
-
-/** A recorded track: about one point a second on a turn whose rate and speed wander. */
-function recordedTrack(id, r, n = 40) {
-  const pts = [];
-  let x = 4000 * r(), y = 4000 * r(), h = 2 * Math.PI * r(), t = 1000 * r(), kt = 120 + 200 * r();
-  for (let i = 0; i < n; i++) {
-    pts.push({ t, x, y, altFt: 5000 + 3000 * r() });
-    const dt = r() < 0.1 ? 0.2 : r() < 0.1 ? 3 : 1;
-    const v = ktToFtps(kt) * (r() < 0.05 ? 0 : 1);
-    h += (-0.4 + 0.8 * r()) * dt;
-    x += v * Math.cos(h) * dt;
-    y += v * Math.sin(h) * dt;
-    t += dt;
-    kt += -10 + 20 * r();
-  }
-  return { id, pts };
-}
 
 function debriefV6() {
   return loadV6(['interpTrack', 'headingAtTrack', 'offsetKmlPoint', 'interpTrackWithError', 'normAngleRad', 'closureRateKt', 'estimatedGAtTrack', 'fmtClosureKt'], {
