@@ -1,7 +1,7 @@
 // Limit checks and classifications. Thresholds and the "strictly below" rule are
 // V6's (SPEC-wx, "Limit checks"); at-limit (Q27) and cautions (Q28) are Patrick's answers.
 
-import { ceilingFt, ceilingUnknown, formatVisibility, METRES_PER_SM } from './conditions.js';
+import { ceilingFt, ceilingUnknown, formatVisibility, isCeilingLayer, METRES_PER_SM } from './conditions.js';
 
 /** V6's WX SETUP defaults (sof.html line 180). The SOF passes the user's settings instead. */
 export const DEFAULT_LIMITS = Object.freeze({
@@ -85,9 +85,12 @@ export function checkConditions(conditions, limits) {
   const ceilingAtLimit = ceiling != null && ceiling === limits.ceilingFt;
   const visAtLimit = visibilityAtLimit(vis, limits.visSm) === true;
 
-  const thunderstorm = weather.filter(isThunderstorm).map((w) => w.raw);
-  const significant = weather.filter(isSignificant).map((w) => w.raw);
-  const convectiveCloud = (conditions?.sky ?? []).filter((l) => l.type).map((l) => l.raw);
+  const thunderstormItems = weather.filter(isThunderstorm);
+  const significantItems = weather.filter(isSignificant);
+  const convectiveItems = (conditions?.sky ?? []).filter((l) => l.type);
+  const thunderstorm = thunderstormItems.map((w) => w.raw);
+  const significant = significantItems.map((w) => w.raw);
+  const convectiveCloud = convectiveItems.map((l) => l.raw);
   const cautions = [...new Set([...thunderstorm, ...significant, ...convectiveCloud])];
   const watch = {
     vicinity: weather
@@ -102,14 +105,21 @@ export function checkConditions(conditions, limits) {
   const belowLimits = ceilingBelow || visBelow;
   const atLimit = !belowLimits && (ceilingAtLimit || visAtLimit);
 
+  // reasonSpans[k]: where in the raw text the words behind reasons[k] are (SOF banner).
   const reasons = [];
-  if (ceilingBelow) reasons.push(`CEILING ${ceiling} FT < ${limits.ceilingFt} FT`);
-  else if (ceilingAtLimit) reasons.push(`CEILING ${ceiling} FT AT LIMIT ${limits.ceilingFt} FT`);
-  if (visBelow) reasons.push(`VIS ${formatVisibility(vis)} < ${limits.visSm} SM`);
-  else if (visAtLimit) reasons.push(`VIS ${formatVisibility(vis)} AT LIMIT ${limits.visSm} SM`);
-  if (thunderstorm.length) reasons.push(`THUNDERSTORM / SEVERE WX (${thunderstorm.join(' ')})`);
-  if (significant.length) reasons.push(`SIGNIFICANT WX (${significant.join(' ')})`);
-  if (convectiveCloud.length) reasons.push(`CB/TCU (${convectiveCloud.join(' ')})`);
+  const reasonSpans = [];
+  const reason = (text, items) => {
+    reasons.push(text);
+    reasonSpans.push(items.map((x) => x?.span).filter(Boolean));
+  };
+  const ceilingLayer = (conditions?.sky ?? []).find((l) => isCeilingLayer(l) && l.baseFt === ceiling);
+  if (ceilingBelow) reason(`CEILING ${ceiling} FT < ${limits.ceilingFt} FT`, [ceilingLayer]);
+  else if (ceilingAtLimit) reason(`CEILING ${ceiling} FT AT LIMIT ${limits.ceilingFt} FT`, [ceilingLayer]);
+  if (visBelow) reason(`VIS ${formatVisibility(vis)} < ${limits.visSm} SM`, [vis]);
+  else if (visAtLimit) reason(`VIS ${formatVisibility(vis)} AT LIMIT ${limits.visSm} SM`, [vis]);
+  if (thunderstorm.length) reason(`THUNDERSTORM / SEVERE WX (${thunderstorm.join(' ')})`, thunderstormItems);
+  if (significant.length) reason(`SIGNIFICANT WX (${significant.join(' ')})`, significantItems);
+  if (convectiveCloud.length) reason(`CB/TCU (${convectiveCloud.join(' ')})`, convectiveItems);
 
   let level = 'within';
   if (belowLimits) level = 'below';
@@ -136,6 +146,7 @@ export function checkConditions(conditions, limits) {
     watch,
     level,
     reasons,
+    reasonSpans,
   };
 }
 

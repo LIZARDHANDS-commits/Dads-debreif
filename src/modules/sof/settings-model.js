@@ -16,9 +16,9 @@ const LOCAL = triggerLimits('local');
 
 /**
  * ceilingFt, visSm: the home alternate trigger, Local (MTCA) 2000/3 to begin with (V6, D59, D111).
- * banner: the new-caution banner (V6's "New-alert caution box"), used from task 3.
+ * banner: the new-caution banner (V6's "New-alert caution box"); its switch is in the menu (task 3).
  * lightningNm: the radius for lightning near home (V6's `lightningNm`), used from task 7.
- * The banner and the radius have no controls until those tasks; the defaults are kept here.
+ * The radius has no control until that task; its default is kept here.
  */
 export const SETTINGS_DEFAULTS = Object.freeze({
   ceilingFt: LOCAL.ceilingFt,

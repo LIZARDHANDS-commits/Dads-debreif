@@ -12,7 +12,7 @@ import { createSim, STEP_SEC } from '../../src/modules/traffic/sim.js';
 import { createDice } from '../../src/modules/traffic/dice.js';
 import { loadV6Traffic, toV6Route, toV6Aircraft, V6_SETTINGS } from './traffic-v6.js';
 
-export const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+export const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
 export const STEPS_PER_SEC = Math.round(1 / STEP_SEC);
 export const HOUR_STEPS = 3600 * STEPS_PER_SEC;
 
@@ -21,7 +21,7 @@ const TOLERANCE_FT = 1e-9;
 
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 
-/** The built-in setup, with the aircraft's start times as moose-jaw.json has them. */
+/** The built-in setup, with the aircraft's start times as moose-jaw-v6.json has them. */
 export const builtIn = () => clone(MOOSE_JAW);
 
 /** V6's page settings for a setup's route options and conflict limits. */

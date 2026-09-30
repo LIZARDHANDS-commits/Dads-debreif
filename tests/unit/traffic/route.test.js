@@ -9,7 +9,7 @@ import {
   routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, pointTurn, turnAtPoint, newPattern, newEntry, newSplit,
 } from '../../../src/modules/traffic/route.js';
 
-const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
 const pat1 = MOOSE_JAW.routes.find((r) => r.id === 'PAT1');
 
 const point = (x, y, alt = 2500, kt = 120, g = 2) => ({ label: '', x, y, alt, kt, g });

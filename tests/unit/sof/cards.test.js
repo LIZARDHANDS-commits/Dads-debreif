@@ -341,12 +341,27 @@ test('a card built from an alternate TAF and METAR together', () => {
 test('a stale or closed METAR never reads as plain "Within limits"', () => {
   const late = at(20, 30);
   const stale = home({ now: late, metar: metarEntry(METAR.fresh, late) }).result;
-  assert.equal(stale.level, 'within');
-  assert.equal(stale.words, 'Within limits (STALE report)');
+  assert.equal(stale.level, 'unknown', 'a stale report is not "within": nothing current says so');
+  assert.equal(stale.words, 'Unknown: report is 2 h 30 min old');
+  assert.equal(stale.stale, true);
   const now = new Date('2026-09-30T03:00:00Z');
   const closed = home({ now, metar: metarEntry(REAL.metar.CYMJ, now) }).result;
-  assert.equal(closed.words, 'Within limits (last observation)');
+  assert.match(closed.words, /^Within limits at last observation \(field closed until 1000Z\)$/);
+  assert.equal(home({ now, metar: metarEntry(REAL.metar.CYMJ, now) }).metar.state, 'closed');
   assert.equal(home({ metar: metarEntry(METAR.fresh) }).result.words, 'Within limits');
+});
+
+test('stale METAR gives level "unknown", not "within"; below limits stays below, at the limit stays at the limit', () => {
+  const late = at(20, 30);
+  assert.equal(home({ now: late, metar: metarEntry(METAR.fresh, late) }).result.level, 'unknown');
+  assert.equal(home({ now: late, metar: metarEntry(METAR.belowLimits, late) }).result.level, 'below');
+  assert.equal(home({ metar: metarEntry(METAR.fresh) }).result.level, 'within', 'fresh is unchanged');
+});
+
+test('a METAR whose age cannot be told says so, and is unknown too', () => {
+  const r = home({ metar: metarEntry('METAR CYMJ 27010KT 15SM FEW100 15/02 A2952') }).result;
+  assert.equal(r.level, 'unknown');
+  assert.equal(r.words, 'Unknown: report age unknown');
 });
 
 const airfields = () => {
