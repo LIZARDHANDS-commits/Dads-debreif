@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildFlight } from '../../../src/flight-data/flight.js';
 import { loadExampleFlight } from '../../../src/flight-data/examples.js';
+import { shipsIn3d } from '../../../src/modules/debrief/view3d/frame.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
 import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
   AIRBORNE_IAS_KT, LOW_BLOCK_FLOOR_FT, MID_BLOCK_CEILING_FT,
-  estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
+  turnRateAt, estIasKt, standardApplies, readoutsAt, formationAt, mapLabel, formationText, leadText, shipDetailText, vsLeadText, pairText,
 } from '../../../src/modules/debrief/readouts.js';
 
 const ref = makeLocalRef(50, -105);
@@ -288,4 +289,68 @@ test('V6\'s one-target standard is gated by the same blocks; a standard that is 
   const off = { ...V6_STANDARDS, lead: { ...V6_STANDARDS.lead, on: false } };
   assert.equal(at(3000, off).notJudged, null);
   assert.doesNotMatch(leadText(at(3000, off)).text, /not judged/);
+});
+
+// ── M2: bank over the same window as G ──
+
+// #2 on the example flight at scrubber start+1676 to +1688, where the bank flickered while G read 1.0 to 2.1.
+// The readouts and the 3D view give the same bank (D40). Bank in degrees, left wing down positive.
+// Old: the ±1 s chords (V6's window, doubled by D40). Now: the heading change over t±1.5 s, est. G's window (M2).
+const EXAMPLE_BANK_PIN = {
+  old: [-0.4545, -31.3019, 3.2397, 19.9165, -3.5199, 1.9199, -33.5109, -78.0277, 15.3244, 61.0531, 0, 2.0397, -23.9087],
+  now: [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, -57.3814],
+};
+
+test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same in the readouts and the 3D view', async () => {
+  const flight = await loadExampleFlight(fromRepo);
+  const got = [];
+  for (let s = 1676; s <= 1688; s++) {
+    const bank = readoutsAt(flight, flight.startT + s).ships[1].bankDeg;
+    assert.equal(shipsIn3d(flight, flight.startT + s)[1].bankDeg, bank);
+    got.push(+bank.toFixed(4));
+  }
+  assert.deepEqual(got, EXAMPLE_BANK_PIN.now);
+});
+
+/** A small repeatable noise in -0.5 to 0.5, so the test is the same every run. */
+function noise(seed) {
+  let a = seed;
+  return () => { a = (a * 1664525 + 1013904223) % 4294967296; return a / 4294967296 - 0.5; };
+}
+
+test('a steady level turn with noisy fixes: the bank never flips side and stays within 15° of acos(1/G) from the same window', () => {
+  const speed = 200 * KT_TO_FTPS;
+  for (const [g, dir] of [[1.5, 1], [1.5, -1], [3, 1], [3, -1], [1.3, 1]]) {
+    const omega = (32.174 * Math.sqrt(g * g - 1)) / speed;
+    const radius = speed / omega;
+    const r = noise(Math.round(g * 100) + dir + 2);
+    // Up to 10 ft of position noise on every fix: a couple of degrees of heading noise a second.
+    const turn = buildFlight({
+      1: track('Lead', (t) => [radius * Math.sin(omega * t) + 20 * r(), dir * radius * (1 - Math.cos(omega * t)) + 20 * r()], { seconds: 60 }),
+    });
+    let prevSide = 0;
+    for (let s = 3; s <= 57; s++) {
+      const ship = readoutsAt(turn, T(s)).ships[0];
+      assert.ok(Number.isFinite(ship.g), `G at ${s} s`);
+      const want = (Math.acos(1 / ship.g) * 180) / Math.PI;
+      assert.ok(Math.abs(Math.abs(ship.bankDeg) - want) < 15, `g ${g} at ${s} s: bank ${ship.bankDeg}, acos(1/G) ${want}`);
+      const side = Math.sign(ship.bankDeg);
+      assert.equal(side, dir, `g ${g} dir ${dir} at ${s} s: bank ${ship.bankDeg}`);
+      if (prevSide) assert.equal(side, prevSide);
+      prevSide = side;
+    }
+  }
+});
+
+test('turnRateAt is the heading change over t±1.5 s, left positive; null when the heading is unknown', () => {
+  const speed = 200 * KT_TO_FTPS;
+  const omega = 0.1;
+  const radius = speed / omega;
+  const left = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), radius * (1 - Math.cos(omega * t))]) });
+  const right = buildFlight({ 1: track('Lead', (t) => [radius * Math.sin(omega * t), -radius * (1 - Math.cos(omega * t))]) });
+  assert.ok(Math.abs(turnRateAt(left.tracks[1], T(30)) - omega) < 0.005);
+  assert.ok(Math.abs(turnRateAt(right.tracks[1], T(30)) + omega) < 0.005);
+  const parked = buildFlight({ 1: track('Lead', () => [0, 0]) });
+  assert.equal(turnRateAt(parked.tracks[1], T(30)), null);
+  assert.equal(turnRateAt({ fixes: [] }, 0), null);
 });

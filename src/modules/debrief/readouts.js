@@ -3,7 +3,7 @@
 // and core (aspect, HCA, closure, standards); this file only picks the
 // moments and puts the answers in rows. No page access, so it's tested in Node.
 import { sampleAt, headingAt, pitchAt, gAt } from '../../flight-data/flight.js';
-import { aspectAngleDeg, headingCrossAngleDeg } from '../../core/angles.js';
+import { aspectAngleDeg, headingCrossAngleDeg, wrapPi } from '../../core/angles.js';
 import { closureKt, formatClosureKt as formatClosure, isaDensityRatio } from '../../core/flight-math.js';
 import { classifyDebriefPosition, classifyLeadParameters } from '../../core/standards.js';
 import { bankFromTrack } from './view3d/scene.js';
@@ -52,6 +52,28 @@ function leadAirborne(leadPlace) {
 export function estIasKt(gsKt, altFt) {
   if (!Number.isFinite(gsKt)) return null;
   return gsKt * Math.sqrt(Math.max(0.15, isaDensityRatio(Number.isFinite(altFt) ? altFt : 6500)));
+}
+
+/** Est. G's window, seconds either side of t (flight-data's estimatedGAt); the bank's turn rate uses the same one (M2). */
+export const TURN_WINDOW_S = 1.5;
+
+/**
+ * Turn rate in radians a second, left (counter-clockwise) positive, from the
+ * heading change over t−1.5 s to t+1.5 s: the window and the headings
+ * flight-data's estimatedGAt uses for est. G, so the bank drawn from it agrees
+ * with the G beside it (verification M2). Null when the track is too short,
+ * or the aircraft is still at either end of the window (no heading, C7).
+ */
+export function turnRateAt(track, t, windowS = TURN_WINDOW_S) {
+  const f = track?.fixes;
+  if (!f || f.length < 3) return null;
+  const t0 = Math.max(f[0].t, t - windowS);
+  const t1 = Math.min(f[f.length - 1].t, t + windowS);
+  if (t1 - t0 < 0.5) return null;
+  const h0 = headingAt(track, t0);
+  const h1 = headingAt(track, t1);
+  if (h0 === null || h1 === null) return null;
+  return wrapPi(h1 - h0) / (t1 - t0);
 }
 
 /** A ship's place for core's formulas: { x, y } in map feet, plus V6's names for speed and altitude. */
@@ -160,11 +182,9 @@ export function readoutsAt(flight, t, { standards, recordedG = false } = {}) {
     const s = now[tr.slot];
     const g = gAt(tr, t, { recorded: recordedG });
     const pitch = pitchAt(tr, t);
-    // The bank of the turn over ±1 s, as the 3D view draws it (D40, item G).
+    // The bank of the turn over the same ±1.5 s as est. G, as the 3D view draws it (D40, item G, M2).
     const bank = bankFromTrack({
-      before: { ...at(sampleAt(tr, t - 1)), t: t - 1 },
-      now: { ...live[tr.slot], t },
-      after: { ...at(sampleAt(tr, t + 1)), t: t + 1 },
+      turnRateRadPerS: turnRateAt(tr, t),
       speedKt: s.speedKt,
       recordedBankDeg: s.bankRecordedDeg,
       pitchDeg: pitch.deg,

@@ -4,6 +4,7 @@
 // shape are V6's, pinned in scene.js.
 import { sampleAt, headingAt, pitchAt } from '../../../flight-data/flight.js';
 import { bankFromTrack } from './scene.js';
+import { turnRateAt } from '../readouts.js';
 
 /** V6's camera limits (its Yaw, Pitch and Zoom sliders and its mouse handlers). */
 export const CAMERA_LIMITS = Object.freeze({ yaw: [-180, 180], pitch: [5, 80], zoom: [10, 300] });
@@ -44,13 +45,9 @@ export function shipsIn3d(flight, t) {
     .sort((a, b) => a.slot - b.slot)
     .map((tr) => {
       const s = sampleAt(tr, t);
-      const before = sampleAt(tr, t - 1);
-      const after = sampleAt(tr, t + 1);
       const pitch = pitchAt(tr, t);
       const bank = bankFromTrack({
-        before: { x: before.xFt, y: before.yFt, t: t - 1 },
-        now: { x: s.xFt, y: s.yFt, t },
-        after: { x: after.xFt, y: after.yFt, t: t + 1 },
+        turnRateRadPerS: turnRateAt(tr, t), // over the same ±1.5 s as est. G (M2)
         speedKt: s.speedKt,
         recordedBankDeg: s.bankRecordedDeg,
         pitchDeg: pitch.deg,
