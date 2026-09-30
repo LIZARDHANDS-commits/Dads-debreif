@@ -5,7 +5,9 @@ import { LAYERS, getMapUrl, REFRESH_MS } from './feeds.js';
 import { createImageFeed, feedLine } from './map-feeds.js';
 import { guardedFetch, bytesToText, FETCH_LIMITS } from './map-fetch.js';
 import { lightningBox, decodeDensity } from './map-lightning.js';
-import { lightningNearHome } from './lightning.js';
+import { lightningNearHome, clampRadius } from './lightning.js';
+import { STALE_MS, feedAge } from './feeds.js';
+import { MINUTE_MS } from '../../wx/dates.js';
 import {
   initialTraffic, setTrafficOn, trafficDue, trafficRequested, trafficSucceeded, trafficFailed, trafficView,
 } from './traffic.js';
@@ -24,12 +26,29 @@ const FADING_AFTER_MS = 20_000;
  * - fetch, timers, now, onChange as createImageFeed.
  *
  * When the last try failed, or nothing has been read yet, lightning.js is given `null` for its
- * samples, so it says it can't tell rather than "clear".
+ * samples, so it says it can't tell rather than "clear" (`state` 'unknown'). What the banner is
+ * told is decided here (SPEC-sof, "Lightning near home", D278 and F1 of sof-recheck-207): a bad or
+ * old reading never takes a live caution off it.
+ * - Lightning was near at the last good reading, and now the try failed or the picture is stale:
+ *   `caution` stays, with the same key (an acknowledgement holds), worded "Lightning within N NM
+ *   (can't tell now, last seen M min ago)". A good reading, clear or near, replaces it.
+ * - No good reading has been had since the place was set, and a try has failed or the picture is
+ *   old: `caution` is a plain "Lightning: can't tell" line, amber, never counted as clear.
+ * - After a good clear reading: the same plain line once the picture is past the lightning stale limit, or the
+ *   last good reading is that old (a short blip stays on the strip only). Still loading: no line.
+ * The held line keeps its own key while it is shown; the episode is not extended, so a storm back after more than the
+ * episode gap (lightning.js) is a new caution that re-raises whatever was acknowledged before.
  * Returns { start, setPlace, refresh, wake, stop, result, line, state }.
  */
 export function createLightningWatch({ home, radiusNm, enabled = true, readPixels, fetch, timers, now = () => new Date(), onChange = () => {} }) {
   let box = null;
   let episode = null;
+  let lastNear = null; // the caution of the last good reading that had lightning near home
+  let lastNearRadius = null; // the radius that reading was for
+  let lastGoodAt = null; // when the last good reading (clear or near) was seen, ms
+  let gaveReading = false; // a good reading (clear or near) has been had for this place
+  let outageSince = null; // when the "can't tell" line began, for its key
+  let placeKey = null;
 
   const feed = createImageFeed({
     layer: LAYERS.lightning,
@@ -43,8 +62,100 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
     fetch,
     timers,
     now,
-    onChange,
+    onChange: () => {
+      answer(now()); // keeps what was last seen even when no one asks between two readings
+      onChange();
+    },
   });
+
+  /** The answer with F1's rule applied. `result` and the feed's own changes both come through here. */
+  function answer(at) {
+    const s = feed.state();
+    const h = home();
+    const radius = radiusNm();
+    const place = `${h.icao}|${h.lat}|${h.lon}`;
+    const r = clampRadius(radius);
+    if (place !== placeKey) {
+      placeKey = place;
+      lastNear = null;
+      gaveReading = false;
+      outageSince = null;
+      lastGoodAt = null;
+    } else if (lastNearRadius !== null && r < lastNearRadius) {
+      lastNear = null; // lightning inside the old radius may be outside a smaller one ...
+      gaveReading = false; // ... and nothing is known for the smaller radius, so the plain can't-tell line comes at once
+    }
+    if (lastNear === null) lastNearRadius = null;
+    const data = s.failures === 0 && s.image ? s.image : null; // a failed try is "no data", never "clear"
+    const found = lightningNearHome({
+      samples: data ? data.samples : null,
+      coverage: data ? data.coverage : undefined,
+      home: h,
+      radiusNm: radius,
+      layerTime: s.layerTime ?? undefined,
+      now: at,
+      enabled,
+      episode,
+    });
+    episode = found.episode;
+    if (found.state === 'near') {
+      lastNear = found.caution;
+      lastNearRadius = r;
+      gaveReading = true;
+      lastGoodAt = +at;
+      outageSince = null;
+      return found;
+    }
+    if (found.state === 'clear') {
+      lastNear = null;
+      gaveReading = true;
+      lastGoodAt = +at;
+      outageSince = null;
+      return found;
+    }
+    if (found.state === 'off') {
+      lastNear = null;
+      gaveReading = false;
+      lastGoodAt = null;
+      outageSince = null;
+      return found;
+    }
+    // 'unknown': it can't tell now.
+    const icao = lastNear?.icao ?? (typeof h.icao === 'string' && h.icao ? h.icao : 'CYMJ');
+    if (lastNear) {
+      // Keep the live caution, under its own key, for as long as no good reading replaces it. The episode is left as it is: it is
+      // only the same caution again if lightning is seen near within the episode gap (lightning.js), never after a long outage.
+      const seenMin = Math.max(0, Math.floor((+at - +lastNear.from) / MINUTE_MS));
+      const words = `Lightning within ${found.radiusNm} NM (can't tell now, last seen ${seenMin} min ago)`;
+      return { ...found, caution: { ...lastNear, reason: words, text: `Caution: ${icao} lightning: ${words.slice('Lightning '.length)}`, stale: true } };
+    }
+    const tried = s.failures > 0 || Boolean(s.image);
+    // With no good reading yet, any failed or old picture. After one, only a picture past the stale limit or a last good reading
+    // that old: a short blip stays on the strip.
+    const pictureStale = s.image && s.layerTime ? feedAge({ kind: 'lightning', layerTime: s.layerTime, now: at }).stale : false;
+    const longSinceGood = lastGoodAt !== null && +at - lastGoodAt > STALE_MS.lightning;
+    if (tried && (!gaveReading || pictureStale || longSinceGood)) {
+      outageSince ??= +at;
+      return {
+        ...found,
+        caution: {
+          key: `${icao}|LIGHTNING|CANT-TELL|${new Date(outageSince).toISOString().slice(0, 16)}Z`,
+          icao,
+          source: 'LIGHTNING',
+          level: 'caution', // amber: it is not a reading below limits, and it is never counted as clear
+          levelWords: 'Caution',
+          group: null,
+          from: new Date(outageSince),
+          to: null,
+          reason: "Lightning: can't tell",
+          stale: true,
+          text: "Lightning: can't tell",
+          acknowledged: false,
+        },
+      };
+    }
+    return found;
+  }
 
   function setPlace() {
     const next = lightningBox({ home: home(), radiusNm: radiusNm() });
@@ -72,20 +183,7 @@ export function createLightningWatch({ home, radiusNm, enabled = true, readPixel
     stop: () => feed.stop(),
     /** lightning.js's answer now (`lightningNearHome`), keeping its episode from one call to the next. */
     result(at = now()) {
-      const s = feed.state();
-      const data = s.failures === 0 && s.image ? s.image : null; // a failed try is "no data", never "clear"
-      const answer = lightningNearHome({
-        samples: data ? data.samples : null,
-        coverage: data ? data.coverage : undefined,
-        home: home(),
-        radiusNm: radiusNm(),
-        layerTime: s.layerTime ?? undefined,
-        now: at,
-        enabled,
-        episode,
-      });
-      episode = answer.episode;
-      return answer;
+      return answer(at);
     },
     /** The reading's own line for the status strip. */
     line(at = now()) {

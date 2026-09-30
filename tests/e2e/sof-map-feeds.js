@@ -81,8 +81,9 @@ export async function serveWeather(page) {
  * and read `requests` (ECCC and RainViewer addresses asked, in order), `pictures` (GetMap addresses), `tiles` (Esri)
  * and `adsbx` (page loads of the ADS-B Exchange frame).
  * A failure is always an unusable reply, never an HTTP error or an aborted request: Chrome logs those as console errors.
+ * `rewrite(xml)` changes each capabilities reply (sof.spec.js moves the layer times to the day it fixes its clock on).
  */
-export async function serveMap(page) {
+export async function serveMap(page, { rewrite = (xml) => xml } = {}) {
   const map = { eccc: 'up', lightning: 'clear', caps: { ...CAPS }, requests: [], pictures: [], tiles: [], adsbx: [] };
   await page.route(GEOMET, (route) => {
     const url = route.request().url();
@@ -90,7 +91,7 @@ export async function serveMap(page) {
     if (map.eccc === 'down') return route.fulfill({ status: 200, contentType: 'text/xml', headers: CORS, body: 'x'.repeat(300_000) });
     if (param(url, 'request') === 'GetCapabilities') {
       const file = map.caps[param(url, 'layer')];
-      return route.fulfill({ status: 200, contentType: 'text/xml', headers: CORS, body: file ? fixture(file) : '<none/>' });
+      return route.fulfill({ status: 200, contentType: 'text/xml', headers: CORS, body: file ? rewrite(fixture(file)) : '<none/>' });
     }
     map.pictures.push(url);
     const width = Number(param(url, 'width'));

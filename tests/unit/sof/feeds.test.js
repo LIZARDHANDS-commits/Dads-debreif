@@ -390,7 +390,8 @@ test('the state is never changed in place, and a damaged state starts over', () 
 
 test('the limits and refresh times are the spec\'s', () => {
   assert.equal(STALE_MS.radar, 20 * MIN);
-  assert.equal(STALE_MS.lightning, 30 * MIN);
+  assert.equal(STALE_MS.lightning, 40 * MIN); // sof-recheck-207 F3: real lag 12-18 min + 10 min refresh must not reach the limit
+  assert.equal(STALE_MS.cloud, 60 * MIN); // GOES's real lag is 25-38 min
   assert.equal(REFRESH_MS.radar, 6 * MIN);
   assert.equal(REFRESH_MS.lightning, 10 * MIN);
 });
@@ -405,14 +406,28 @@ test('radar is fresh up to 20 minutes old and stale after', () => {
   assert.equal(age(utc('2026-09-30T06:30:00Z')).ageMin, 60);
 });
 
-test('lightning is fresh up to 30 minutes old and stale after', () => {
-  const now = utc('2026-09-30T07:40:00Z');
+test('lightning is fresh up to 40 minutes old and stale after (F3: more margin than 30)', () => {
+  const now = utc('2026-09-30T07:50:00Z');
   const age = (layerTime) => feedAge({ kind: 'lightning', layerTime, now });
-  assert.equal(age(utc('2026-09-30T07:10:00Z')).state, 'fresh');
-  assert.equal(age(utc('2026-09-30T07:09:00Z')).state, 'stale');
+  assert.equal(age(utc('2026-09-30T07:10:00Z')).state, 'fresh'); // exactly 40 minutes
+  assert.equal(age(utc('2026-09-30T07:09:59Z')).state, 'stale');
   // The same age is stale for radar but fresh for lightning.
   assert.equal(feedAge({ kind: 'radar', layerTime: utc('2026-09-30T07:15:00Z'), now }).state, 'stale');
   assert.equal(age(utc('2026-09-30T07:15:00Z')).state, 'fresh');
+  // The real worst case (sof-recheck-207: layer lag 18 min plus a 10 min refresh, so 28 min) and a 35 min lag are fresh.
+  assert.equal(age(utc('2026-09-30T07:22:00Z')).state, 'fresh');
+  assert.equal(age(utc('2026-09-30T07:15:01Z')).state, 'fresh');
+});
+
+test('the GOES cloud picture has its own limit of 60 minutes, and a 37 minute lag (the real one) reads fresh (F3)', () => {
+  const now = utc('2026-09-30T14:17:00Z');
+  const age = (layerTime) => feedAge({ kind: 'cloud', layerTime, now });
+  assert.equal(age(utc('2026-09-30T13:40:00Z')).state, 'fresh'); // 37 min: ECCC's real default time at 14:17Z
+  assert.equal(age(utc('2026-09-30T13:17:00Z')).state, 'fresh'); // exactly 60 min
+  assert.equal(age(utc('2026-09-30T13:16:59Z')).state, 'stale');
+  // Radar stays at 20 minutes and lightning at 40: neither borrowed cloud's limit.
+  assert.equal(feedAge({ kind: 'radar', layerTime: utc('2026-09-30T13:40:00Z'), now }).state, 'stale');
+  assert.equal(feedAge({ kind: 'lightning', layerTime: utc('2026-09-30T13:30:00Z'), now }).state, 'stale');
 });
 
 test('the age comes from the layer\'s own time, not from when it was fetched', () => {
@@ -489,5 +504,6 @@ test('a layer time more than 5 minutes ahead of the clock is unknown, not fresh'
   const unknown = { ageMs: null, ageMin: null, stale: true, state: 'unknown' };
   assert.deepEqual(feedAge({ layerTime: utc('2026-09-30T07:35:01Z'), now }), unknown);
   assert.deepEqual(feedAge({ layerTime: utc('2026-09-30T12:00:00Z'), now, kind: 'lightning' }), unknown);
+  assert.deepEqual(feedAge({ layerTime: utc('2026-09-30T12:00:00Z'), now, kind: 'cloud' }), unknown);
   assert.equal(feedAge({ layerTime: utc('2026-09-30T07:35:00Z'), now }).state, 'fresh');
 });

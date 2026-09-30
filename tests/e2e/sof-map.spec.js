@@ -278,7 +278,47 @@ test('map: lightning inside the radius puts a caution in words on the map\'s str
   map.lightning = 'broken';
   await page.clock.runFor(11 * 60_000);
   await expect(statusItems(page).filter({ hasText: /lightning/i }).filter({ hasText: '?' }).first()).toBeVisible();
-  await expect(statusItems(page).filter({ hasText: /lightning/i }).filter({ hasText: '✓' })).toHaveCount(0);
+  await expect(statusItem(page, 'No lightning within')).toHaveCount(0);
+});
+
+test('F1: the banner still shows the near-home lightning caution, marked old, after the next lightning GetMap fails; acknowledged stays acknowledged', async ({ page }) => {
+  const { map } = await openMap(page, { install: true, map: { lightning: 'lit' } });
+  const lines = page.locator('.sof-banner-line .sof-banner-text').filter({ hasText: /lightning/i });
+  await expect(lines).toHaveCount(1);
+  await expect(lines).not.toContainText("can't tell");
+  // The next reading fails: the caution stays on the banner, worded as old, still one line.
+  map.lightning = 'broken';
+  await page.clock.runFor(11 * 60_000);
+  await expect(lines).toHaveCount(1);
+  await expect(lines).toContainText("can't tell now, last seen");
+  await expect(lines).toContainText('within 20 NM');
+  // Acknowledge it; a later failure does not bring it back.
+  await page.getByRole('button', { name: /^Acknowledge: .*ightning/ }).click();
+  await expect(lines).toHaveCount(0);
+  await page.clock.runFor(11 * 60_000); // now the picture is also past its stale limit
+  await expect(lines).toHaveCount(0);
+});
+
+test("F1: with ECCC failing from the start the banner says \"Lightning: can't tell\", never clear, and it goes when ECCC answers", async ({ page }) => {
+  const { map } = await openMap(page, { install: true, map: { eccc: 'down' } });
+  const lines = page.locator('.sof-banner-line .sof-banner-text').filter({ hasText: /lightning/i });
+  await expect(lines).toHaveCount(1);
+  await expect(lines).toHaveText(/Lightning: can't tell/);
+  await expect(statusItem(page, 'No lightning within')).toHaveCount(0);
+  map.eccc = 'up';
+  await page.clock.runFor(11 * 60_000);
+  await expect(lines).toHaveCount(0);
+  await expect(statusItem(page, 'No lightning within 20 NM of home')).toBeVisible();
+});
+
+test('F4: the lightning layer is drawn as a bright yellow mark, not ECCC\'s dark blue', async ({ page }) => {
+  await openMap(page, { map: { lightning: 'clear' } });
+  const box = await canvas(page).boundingBox();
+  // The fixture's picture is a lit block round the middle of the view (a point beside the home dot is inside it); the layer's mark is yellow, over the satellite and the blue radar.
+  await expect.poll(async () => {
+    const [r, g, b] = await pixelAt(page, box.width / 2 + box.width / 10, box.height / 2 + box.height / 10);
+    return r > 180 && g > 150 && b < 140;
+  }).toBe(true);
 });
 
 test('map: lightning near home raises one line on the caution banner, once, and acknowledging it keeps it away', async ({ page }) => {

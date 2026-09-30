@@ -5,7 +5,7 @@ import { createStore } from '../../../src/storage/store.js';
 import { createAirfields } from '../../../src/airfields/airfields.js';
 import { parseMetar } from '../../../src/wx/metar.js';
 import { buildScreen } from '../../../src/modules/sof/screen-model.js';
-import { windBarb, windWords, airfieldMarks, mapCredits, baseNote, statusItems } from '../../../src/modules/sof/map-model.js';
+import { windBarb, windWords, airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem } from '../../../src/modules/sof/map-model.js';
 import { defaultLayers, setBase } from '../../../src/modules/sof/map-layers.js';
 
 const NOW = new Date('2026-09-29T18:42:00Z');
@@ -119,4 +119,25 @@ test('the status strip lists only what is on, in a fixed order, and leaves out w
   assert.deepEqual(statusItems(lines, on).map((i) => i.id), ['radar', 'lightning', 'traffic']);
   assert.equal(statusItems(lines, on)[2].symbol, '');
   assert.equal(statusItems(lines, on)[1].tone, 'bad');
+});
+
+// ---- L2: the near-home line never shows a tick beside a STALE lightning map ----------------------------------------------
+
+const answer = (state, words) => ({ state, words });
+
+test('L2: near-home lightning keeps its warning, a clear reading keeps its tick, and can\'t tell keeps its question mark', () => {
+  assert.deepEqual(nearHomeItem(answer('near', 'Lightning about 12 NM east of home, within 20 NM'), { stale: false }), { id: 'nearhome', text: 'Lightning about 12 NM east of home, within 20 NM', symbol: '⚠', tone: 'bad' });
+  assert.deepEqual(nearHomeItem(answer('clear', 'No lightning within 20 NM of home'), { stale: false }), { id: 'nearhome', text: 'No lightning within 20 NM of home', symbol: '✓', tone: 'ok' });
+  assert.deepEqual(nearHomeItem(answer('clear', 'No lightning within 20 NM of home'), null), { id: 'nearhome', text: 'No lightning within 20 NM of home', symbol: '✓', tone: 'ok' }, 'layer off: nothing to disagree with');
+  assert.equal(nearHomeItem(answer('unknown', "Can't tell: no lightning data"), { stale: true }).symbol, '?');
+});
+
+test('L2: with the lightning map STALE the strip does not also show "No lightning within 20 NM ✓": STALE wins', () => {
+  const item = nearHomeItem(answer('clear', 'No lightning within 20 NM of home'), { stale: true });
+  assert.notEqual(item.symbol, '✓');
+  assert.equal(item.symbol, '?');
+  assert.equal(item.tone, 'busy');
+  assert.equal(item.text, 'No lightning within 20 NM of home (the lightning map is STALE)');
+  // A warning is never softened by a stale map.
+  assert.equal(nearHomeItem(answer('near', 'Lightning at home, within 20 NM'), { stale: true }).symbol, '⚠');
 });

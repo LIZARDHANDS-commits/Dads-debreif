@@ -21,6 +21,7 @@ import { ROUTES } from '../debrief/data/routes.js';
 import { LAYERS, getMapUrl, rainViewerTileUrl, REFRESH_MS } from './feeds.js';
 import { createImageFeed, createRadarFeed, extraMapUrl, feedLine, EXTRA_LAYERS } from './map-feeds.js';
 import { createLightningWatch, createTrafficFeed } from './map-loops.js';
+import { recolourLightning } from './map-lightning.js';
 import { trafficUrl } from './traffic.js';
 import {
   createProjection, homeView, cornersOf, radarImageRequest, imageStillFits, nearestWithin, RING_NM, SPAN_LIMITS,
@@ -28,7 +29,7 @@ import {
 import {
   cleanLayers, setLayerOn, setLayerOpacity, setBase, setPrecip, setTrafficOption, stackOrder, baseLayers, BASE_DIM,
 } from './map-layers.js';
-import { airfieldMarks, mapCredits, baseNote, statusItems } from './map-model.js';
+import { airfieldMarks, mapCredits, baseNote, statusItems, nearHomeItem } from './map-model.js';
 import { drawGeoImage, drawRings, drawAirfields, drawTraffic } from './map-draw.js';
 import { createMapControls } from './map-controls.js';
 import { createAdsbFrame, adsbExchangeUrl, zoomForScale } from './adsbx.js';
@@ -136,18 +137,29 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       bitmap.close();
     }
   }
+  // The lightning layer is drawn as a bright, outlined mark (map-lightning.js `recolourLightning`), not in ECCC's dark blue,
+  // which is 1.02 to 1.41 : 1 on the satellite. The near-home check reads the picture as ECCC drew it (`readPixels`), not this.
+  async function decodeLightning(bytes) {
+    const marked = recolourLightning(await readPixels(bytes));
+    if (!marked) return null;
+    const scratch = document.createElement('canvas');
+    scratch.width = marked.width;
+    scratch.height = marked.height;
+    scratch.getContext('2d').putImageData(new ImageData(marked.data, marked.width, marked.height), 0, 0);
+    return createImageBitmap(scratch);
+  }
   const paused = () => document.hidden || adsbOn;
   const shared = { fetch: fetchNet, timers, now, onChange: () => redraw() };
 
   const radar = createRadarFeed({ precip: () => layers.precip, decode, paused, ...shared });
   // One picture feed for the layers that follow the view. `external`: a layer feeds.js does not list (map-feeds.js EXTRA_LAYERS).
-  const picture = (layer, kind, refreshMs, { external = false, timeless = false } = {}) => createImageFeed({
-    layer, kind, urlFor: external ? extraUrl : ecccUrl, timeless, decode, refreshMs, paused, ...shared,
+  const picture = (layer, kind, refreshMs, { external = false, timeless = false, decodeWith = decode } = {}) => createImageFeed({
+    layer, kind, urlFor: external ? extraUrl : ecccUrl, timeless, decode: decodeWith, refreshMs, paused, ...shared,
   });
   const feeds = {
     coverage: picture(LAYERS.coverage, 'radar', REFRESH_MS.radar),
-    lightning: picture(LAYERS.lightning, 'lightning', REFRESH_MS.lightning),
-    cloud: picture(EXTRA_LAYERS.cloud, 'lightning', REFRESH_MS.lightning, { external: true }),
+    lightning: picture(LAYERS.lightning, 'lightning', REFRESH_MS.lightning, { decodeWith: decodeLightning }),
+    cloud: picture(EXTRA_LAYERS.cloud, 'cloud', REFRESH_MS.lightning, { external: true }),
     warnings: picture(EXTRA_LAYERS.warnings, 'lightning', REFRESH_MS.lightning, { external: true, timeless: true }),
   };
   const watch = createLightningWatch({
@@ -448,7 +460,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
       return { text: `Warnings as fetched ${hhmmZ(s.fetchedAt)} (${age < 1 ? 'just now' : `${age} min ago`})`, symbol: '✓', tone: 'ok', stale: false };
     }
     const label = { coverage: 'Radar coverage', lightning: 'Lightning map', cloud: 'Cloud' }[id];
-    return feedLine({ label, kind: id === 'coverage' ? 'radar' : 'lightning', on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
+    return feedLine({ label, kind: { coverage: 'radar', cloud: 'cloud' }[id] ?? 'lightning', on: true, hasImage: Boolean(s.image), layerTime: s.layerTime, failed: s.failures > 0 && !s.busy, busy: s.busy, now: t });
   }
 
   function syncMessage() {
@@ -462,7 +474,7 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     if (adsbOn) {
       controls.setStatus([
         { id: 'adsb', text: "ADS-B Exchange's own map is showing. Radar, lightning and airfields are not drawn over it.", symbol: '', tone: 'ok' },
-        nearHomeItem(t),
+        nearHome(t),
       ]);
       controls.setCredits('Traffic map: ADS-B Exchange (globe.adsbexchange.com), shown in a frame and opened in a new tab on request.');
       controls.setNote(null);
@@ -474,15 +486,14 @@ export function createSofMap({ app, settings, onLightning = () => {} }) {
     if (layers.on.traffic && relayOn()) {
       lines.traffic = { text: tv.statusText, symbol: tv.status === 'unavailable' ? '⚠' : tv.status === 'ok' ? '✓' : '⟳', tone: tv.status === 'unavailable' ? 'bad' : tv.status === 'ok' ? 'ok' : 'busy' };
     }
-    const items = statusItems({ ...lines, nearhome: nearHomeItem(t) }, { ...layers.on, nearhome: true, traffic: layers.on.traffic && relayOn() });
+    const items = statusItems({ ...lines, nearhome: nearHome(t) }, { ...layers.on, nearhome: true, traffic: layers.on.traffic && relayOn() });
     controls.setStatus(items);
     controls.setCredits(mapCredits(layers, { radarBackup: radar.state().source === 'rainviewer', trafficOn: layers.on.traffic && relayOn() }));
     controls.setNote(baseNote(layers));
   }
 
-  function nearHomeItem(t) {
-    const r = watch.result(t);
-    return { id: 'nearhome', text: r.words, symbol: r.state === 'near' ? '⚠' : r.state === 'clear' ? '✓' : '?', tone: r.state === 'near' ? 'bad' : r.state === 'clear' ? 'ok' : 'busy' };
+  function nearHome(t) {
+    return nearHomeItem(watch.result(t), layers.on.lightning ? lineOf('lightning', t) : null);
   }
 
   function sync() {

@@ -29,6 +29,9 @@ export const SETTINGS_DEFAULTS = Object.freeze({
   trafficRelay: '',
 });
 
+/** The hint under the banner switch. Lightning near home is not on the airfield cards (it is not a report), so it says where it shows instead (F6). */
+export const BANNER_HINT = 'The banner lists cautions you have not acknowledged. The airfield cards show every weather caution either way; lightning shows in the map strip.';
+
 /** The longest relay address kept; anything longer is the default (empty). */
 export const MAX_RELAY_CHARS = 200;
 

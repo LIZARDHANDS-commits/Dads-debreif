@@ -68,13 +68,16 @@ test('a fresh feed shows its own layer time and its age, with a symbol as well a
   assert.deepEqual(line(), { text: 'Radar 0712Z (4 min ago)', symbol: '✓', tone: 'ok', stale: false });
 });
 
-test('radar is stale after 20 minutes and lightning after 30, said in words', () => {
+test('radar is stale after 20 minutes, lightning after 40 and cloud after 60, said in words', () => {
   const at = (min) => new Date(+RADAR_TIME + min * MIN);
   assert.equal(line({ now: at(20) }).stale, false);
   assert.equal(line({ now: at(21) }).text, 'Radar STALE 0712Z (21 min ago)');
   assert.equal(line({ now: at(21) }).symbol, '⚠');
-  assert.equal(line({ kind: 'lightning', label: 'Lightning', now: at(29) }).stale, false);
-  assert.equal(line({ kind: 'lightning', label: 'Lightning', now: at(31) }).text, 'Lightning STALE 0712Z (31 min ago)');
+  assert.equal(line({ kind: 'lightning', label: 'Lightning', now: at(39) }).stale, false);
+  assert.equal(line({ kind: 'lightning', label: 'Lightning', now: at(41) }).text, 'Lightning STALE 0712Z (41 min ago)');
+  assert.equal(line({ kind: 'cloud', label: 'Cloud', now: at(37) }).text, 'Cloud 0712Z (37 min ago)', 'GOES normally runs 25 to 38 min behind: not STALE');
+  assert.equal(line({ kind: 'cloud', label: 'Cloud', now: at(59) }).stale, false);
+  assert.equal(line({ kind: 'cloud', label: 'Cloud', now: at(61) }).text, 'Cloud STALE 0712Z (1 h 1 min ago)');
 });
 
 test('failed says what is still on screen and how old it is, or that there is nothing', () => {

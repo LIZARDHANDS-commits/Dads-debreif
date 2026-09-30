@@ -103,6 +103,19 @@ export function baseNote(layers) {
 const ORDER = ['radar', 'coverage', 'lightning', 'nearhome', 'cloud', 'warnings', 'traffic'];
 
 /**
+ * The near-home lightning line for the strip: { id: 'nearhome', text, symbol, tone }, from lightning.js's answer
+ * (`state` 'near', 'clear', 'unknown' or 'off') and the lightning map's own line (`{ stale }`, or null when that layer is off).
+ * STALE wins (L2): a clear answer next to a STALE lightning map loses its tick and says so, so the strip never reads "STALE"
+ * and "No lightning within 20 NM ✓" side by side. A warning is never softened.
+ */
+export function nearHomeItem(result, mapLine = null) {
+  const near = result.state === 'near';
+  const clear = result.state === 'clear';
+  if (clear && mapLine?.stale === true) return { id: 'nearhome', text: `${result.words} (the lightning map is STALE)`, symbol: '?', tone: 'busy' };
+  return { id: 'nearhome', text: result.words, symbol: near ? '⚠' : clear ? '✓' : '?', tone: near ? 'bad' : clear ? 'ok' : 'busy' };
+}
+
+/**
  * The strip's items, in a fixed order, only for what is switched on: { id, text, symbol, tone }.
  * `lines` maps a feed id to its feedLine, or, for traffic, { text } (its own statusText).
  */
