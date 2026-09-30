@@ -148,7 +148,28 @@ charts.dispose();
 
 ## Not overwhelming (R22)
 
-Each screen shows only the essentials by default. Extra detail goes behind a switch the person turns on: a `controls.checkbox` for a layer or graph (off by default), or a `createPanel({ collapsed: true })` section titled "More …" for extra readouts and advanced settings. A module's spec lists what shows by default and what sits behind a switch, and its sign-off checklist opens it fresh and checks nothing optional is on.
+Each screen shows only the essentials by default. Tuning numbers go in the module's one Settings menu (`createSettingsMenu`), closed by default. Extra detail goes behind a switch the person turns on: a `controls.checkbox` for a layer or graph (off by default), or a `createPanel({ collapsed: true })` section titled "More …" for extra readouts and advanced settings. A module's spec lists what shows by default and what sits behind a switch, and its sign-off checklist opens it fresh and checks nothing optional is on.
+
+## Settings menu (R22)
+
+Every module screen keeps its tuning numbers behind one Settings menu that starts closed, so the screen shows only the essentials. It looks and works the same in every module. `src/ui-kit/settings-menu.js`, built on `createPanel`.
+
+```js
+const settings = createSettingsMenu({ title: 'Settings', onReset: () => standards.reset(), onToggle });
+const turn = settings.section('Turn');       // a titled group; returns an element to append controls to
+turn.append(controls.number('g', { label: 'Turn G', unit: 'G', min: 1, max: 6, step: 0.5 }));
+layout.append(settings.element);             // put this in the module's layout
+settings.collapsed;                          // true until opened
+settings.setCollapsed(false);                // open it from code
+settings.body;                               // the container the sections live in
+```
+
+- It starts closed (`collapsed: true`) unless the caller passes `collapsed: false`. The title defaults to "Settings".
+- The header is the panel's real button with `aria-expanded`, so the mouse, Enter, Space and Tab all work (#35).
+- `section(title)` returns a `<fieldset class="settings-section">` with a `<legend>` holding the title as text, never HTML. Sections appear in the order they are made.
+- With `onReset`, the menu has a "Reset to defaults" button (`resetLabel` changes the words) that calls it straight away, with no confirm dialog. Without `onReset`, there is no button.
+- Opening or closing it never covers other controls: it expands in the page flow like other panels (R2, #34).
+- Styles are in `base.css`, using tokens only.
 
 ## Boundaries
 
@@ -162,8 +183,9 @@ Each screen shows only the essentials by default. Extra detail goes behind a swi
 - `tests/unit/source-rules.test.js`: no `!important`, `setInterval` or bare `requestAnimationFrame` outside `ui-kit/scheduler.js`, and no `localStorage` outside `storage/`.
 - `tests/unit/ui-kit/canvas-view.test.js`: the transform maths: round trips, zoom keeps the point under the pointer still, the span limits, fit, and the visible bounds.
 - `tests/unit/ui-kit/map-tiles.test.js` (moved from the debrief) and `vnc.test.js` (moves at SOF task 6): which tiles a view needs and the 64-tile limit, retries and giving up, the least-recently-drawn cache, nothing loaded after `dispose`; the VNC warp and bounds, and each chart fetched only when first shown.
+- `tests/unit/ui-kit/settings-menu.test.js`: closed by default and opens with `collapsed: false`; a section title is inserted as text; sections keep their order; the Reset button exists only with `onReset`, calls it on click, and takes a custom label.
 - Browser (with the shell): panels open and close with the mouse and the keyboard, and Tab moves between controls.
-- Browser (`tests/e2e/ui-kit.spec.js`, on a test page that loads the modules): each control updates its setting, follows outside changes, and refuses bad numbers with a message; the canvas view pans, zooms and uses the keys, draws only when asked, leaves the arrows to the page with `arrowKeys: false`, and stops listening after `dispose`; `setDisabled` greys out a control; the canvas surface redraws only on request or resize.
+- Browser (`tests/e2e/ui-kit.spec.js`, on a test page that loads the modules): each control updates its setting, follows outside changes, and refuses bad numbers with a message; the canvas view pans, zooms and uses the keys, draws only when asked, leaves the arrows to the page with `arrowKeys: false`, and stops listening after `dispose`; `setDisabled` greys out a control; the Settings menu starts closed, opens from the keyboard, holds a working number control, calls Reset and closes again; the canvas surface redraws only on request or resize.
 
 ## Success criteria
 

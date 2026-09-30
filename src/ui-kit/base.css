@@ -138,6 +138,32 @@ button:disabled {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
+/* The Settings menu every module keeps its tuning numbers in (ui-kit/settings-menu.js) */
+.settings-body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings-section {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-section > legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.settings-footer {
+  margin-top: var(--space-4);
+}
+
 /* Controls bound to settings (ui-kit/controls.js) */
 .control {
   display: flex;
