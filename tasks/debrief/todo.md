@@ -51,12 +51,13 @@ Build starts once PR #58 and PR #61 are merged. See [`plan.md`](plan.md).
 
 **Checkpoint C:** open PR C.
 
-- [ ] **8. 3D view.** Scene pinned to V6 (projection, attitude), then D40 bank, recorded bank (D47), pitch as nose up/down, depth order, one fixed ground, altitude ×2 label, sticks for both models; shared playback and readouts.
+- [x] **8. 3D view.** Scene pinned to V6 (projection, attitude), then D40 bank, recorded bank (D47), pitch as nose up/down, depth order, one fixed ground, altitude ×2 label, sticks for both models; shared playback and readouts.
   - Acceptance: R12 (switch while playing keeps the time; never blank); each fix is its own commit updating the golden value.
   - Verify: golden scene tests; e2e view switch; performance log.
   - Files: src/modules/debrief/view3d/{scene,view}.js, tests/golden/debrief-3d.test.js, tests/unit/debrief/scene.test.js
   - Done so far: scene pinned to V6 (#74); bank from the real turn rate, recorded bank first (D40, D47); the T-6 rolls and pitches as one body (#14, #27); near aircraft drawn over far ones (#27). Pitch comes from flight-data's `pitchAt` (D61).
   - Field-elevation datum: `app.airfields.home().elevationFt`, or 1892 ft while that's null or not wired in yet (Airfields #79).
+  - Done: a 2D/3D switch above the map, on the one clock, so switching while playing keeps the time (R12). With no flight, 3D shows the same "load a flight" message as 2D. "3D settings" (shown only in 3D) has V6's camera, aircraft, altitude ×, size, trail, datum and layer switches, remembered, with Reset view for the camera. Drag turns the view and the wheel or + and − zoom, within V6's limits. The ground and its 5,000 ft grid are fixed to the ground at whole multiples, so the formation moves over it (#27); only the field datum is called "AGL". The altitude ruler stands at the left edge (V6 put it 42,000 ft off, out of view at most zooms). Measured at 1920 × 1080 at 16×: 16.7 ms median frame.
 
 **Checkpoint D:** open PR D.
 

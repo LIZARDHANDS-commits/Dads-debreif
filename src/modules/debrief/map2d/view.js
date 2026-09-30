@@ -31,6 +31,7 @@ const SATELLITE_DARKEN = 'rgba(5, 10, 18, 0.22)'; // V6's, so the tracks stand o
 export function createMapView(canvas, { timers, time, layers, labels = () => ({}), dfps = () => [], onImagery = () => {} }) {
   let flight = null;
   let paths = [];
+  let needsFit = false; // a flight arrived while the map was hidden (3D showing)
   let routeName = '';
   let route = null; // the chosen route in this flight's map feet
 
@@ -75,6 +76,10 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
     label: 'Map of the flight: drag to move, scroll or press + and − to zoom',
     arrowKeys: false, // ← and → step playback (SPEC-debrief: Keyboard)
     draw(ctx) {
+      if (needsFit && flight && map.size.width > 1) {
+        needsFit = false;
+        map.fit(flightBounds(flight));
+      }
       const on = layers();
       const t = time();
       const ships = shipsAt(flight, t);
@@ -112,8 +117,12 @@ export function createMapView(canvas, { timers, time, layers, labels = () => ({}
       flight = next;
       paths = trackPaths(next);
       placeRoute();
-      if (next) map.fit(flightBounds(next));
-      else map.requestDraw();
+      // A hidden map has no size to fit to, so it fits when it next shows.
+      if (next && canvas.clientWidth) map.fit(flightBounds(next));
+      else {
+        needsFit = Boolean(next);
+        map.requestDraw();
+      }
     },
     /** Fits the whole flight to the view again. */
     fit() {

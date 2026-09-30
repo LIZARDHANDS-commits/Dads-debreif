@@ -17,7 +17,9 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 | `data/routes.js` | V6's 19 built-in routes as points, checked against V6's KML by `tests/golden/debrief-routes.test.js`. |
 | `map2d/tiles.js` | Web map tiles (Esri World Imagery) under the map: which tiles a view needs, fetching with retries, and drawing. Knows nothing of the debrief, so it can move to the ui-kit. |
 | `map2d/vnc.js` | The VNC charts' bounds and warp, pinned to V6 (not drawn yet). |
-| `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6 (not drawn yet). |
+| `view3d/scene.js` | The 3D view's projection, depth order and attitude, pinned to V6. |
+| `view3d/frame.js` | What the 3D view shows at one moment, as plain values: each ship's place and attitude, the ground datum, the camera limits and drag/wheel steps, and the fixed ground grid. |
+| `view3d/view.js` | Draws the 3D view on its canvas and turns and zooms it with the mouse and keys. |
 | `dfp.js` | The DFP list: add, time order, labels, notes, previous/next, and which flight they belong to. |
 | `dfp-panel.js` | The DFPs list beside the Formation card: + Add, previous/next, go to one, and Edit to rename, write a note or delete. Labels and notes only ever go in as text. |
 | `standards-panel.js` | The Standards panel (closed at first): edits `app.standards`, the one copy the Turn Sim reads too. |

@@ -16,6 +16,8 @@ import { readoutsAt, formationAt, mapLabel } from './readouts.js';
 import { createStandardsPanel } from './standards-panel.js';
 import { createLayout } from './layout.js';
 import { createMapView } from './map2d/view.js';
+import { createView3d } from './view3d/view.js';
+import { FIELD_ELEVATION_FT } from './data/cymj.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createDfpPanel } from './dfp-panel.js';
 import { createFilePanel } from './file-panel.js';
@@ -72,6 +74,18 @@ function mount(root, app) {
     },
   });
 
+  const view3d = createView3d(ui.canvas3d, {
+    timers: app.scheduler,
+    flight: () => flight,
+    time: () => clock?.t ?? 0,
+    settings: () => layout.get(),
+    // The field datum is the home field's elevation, or Moose Jaw's until one is set.
+    fieldFt: () => app.airfields?.home()?.elevationFt ?? FIELD_ELEVATION_FT,
+    setCamera: (patch) => layout.update(patch),
+  });
+  // Only the view that's showing draws (#39).
+  const redraw = () => (layout.get().view === '3d' ? view3d : map).requestDraw();
+
   // Readouts update at most READOUT_MS apart while playing (SPEC-debrief:
   // Performance), and at once for a step, a seek or a pause.
   const READOUT_MS = 100;
@@ -97,7 +111,7 @@ function mount(root, app) {
       stopFrames = null;
     }
     bar.sync();
-    map.requestDraw();
+    redraw();
     queueReadouts();
   }
 
@@ -149,7 +163,7 @@ function mount(root, app) {
     if (changed && dfpKey) app.storage.set(dfpKey, dfps);
     if (changed) unsaved = true;
     dfpPanel.render(dfps, Boolean(flight));
-    map.requestDraw();
+    redraw();
   }
 
   // Lead's place at time t (the first ship's with no Lead), for a DFP's flag.
@@ -279,7 +293,7 @@ function mount(root, app) {
     ui.applyLayout(values);
     standardsPanel?.setCollapsed(!values.standardsOpen);
     filePanel.setCollapsed(!values.filesOpen);
-    map.requestDraw();
+    redraw();
   });
 
   app.keys({
@@ -293,7 +307,7 @@ function mount(root, app) {
   app.airfields?.subscribe(() => bar.sync());
   // Edited standards change the labels at once (R18).
   app.standards?.subscribe(() => {
-    map.requestDraw();
+    redraw();
     if (clock) renderReadouts();
   });
 
@@ -306,6 +320,7 @@ function mount(root, app) {
     controls.dispose();
     standardsPanel?.dispose();
     map.dispose();
+    view3d.dispose();
     stylesheet.remove();
   };
 }

@@ -43,6 +43,24 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   followLead: false,
   route: '', // none, or one of V6's built-in routes by name
   routeOpacity: 80,
+  // The 3D view, with V6's settings (markup lines 729 to 751). "Free orbit"
+  // is gone: it was the same as Centre formation (#26).
+  view: '2d',
+  cam3d: 'followLead',
+  yaw3d: -35,
+  pitch3d: 52,
+  zoom3d: 70,
+  altScale3d: 2,
+  model3d: 't6',
+  planeSize3d: 260,
+  attLabels3d: true,
+  trailSec3d: 90,
+  landscape3d: true,
+  groundRef3d: true,
+  datum3d: 'min',
+  grid3d: true,
+  sticks3d: true,
+  altMarks3d: true,
 });
 
 /** The whole sortie down to about 500 ft across (SPEC-debrief, #23). */
