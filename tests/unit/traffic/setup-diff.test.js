@@ -2,7 +2,8 @@
 // only where the manual cross-check corrected it (tests/crosscheck/, decisions-for-review.md):
 //   g on Entry 2 points 2 and 3 and Split 1 points 2, 3 and 4 (45 degree corners), counting from 0;
 //   alt on Pattern 1 point 12 and Split 1 point 5 (heights on a 3 degree final);
-//   one inserted point in Entry 2, at index 4, on the straight line between its neighbours.
+//   one inserted point in Entry 2, at index 4, on the straight line between its neighbours;
+//   the label of a point that V6 called "New Point", which now has a pilot's name (verification TR-18).
 // Anything else fails, so a position, speed, aircraft or route cannot move unnoticed.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,6 +19,8 @@ const ALLOWED = {
   SPL1: { 2: ['g'], 3: ['g'], 4: ['g'], 5: ['alt'] },
   PAT1: { 12: ['alt'] },
 };
+/** V6's name for a point nobody named; the built-in setup gives each one a pilot's name. */
+const NEW_POINT = 'New Point';
 /** The one point added: route and index in the default file. */
 const INSERTED = { routeId: 'ENT2', index: 4 };
 const COLLINEAR_FT = 1e-6;
@@ -45,9 +48,27 @@ test('every route is V6\'s except for the allowed points and fields', () => {
       assert.deepEqual(Object.keys(point).sort(), Object.keys(original).sort(), `${route.id} point ${i}: fields`);
       for (const key of Object.keys(original)) {
         if (allowed.includes(key)) continue;
+        if (key === 'label' && original.label === NEW_POINT) continue; // renamed: checked below
         assert.equal(point[key], original[key], `${route.id} point ${i}: ${key} must be V6's`);
       }
     });
+  }
+});
+
+test('no built-in point is labelled New Point, and only V6\'s New Points were renamed (TR-18)', () => {
+  for (const route of DEFAULT.routes) {
+    const v6 = V6.routes.find((r) => r.id === route.id);
+    const added = route.id === INSERTED.routeId ? 1 : 0;
+    route.points.forEach((point, i) => {
+      assert.notEqual(point.label, NEW_POINT, `${route.id} point ${i}: still New Point`);
+      assert.equal(typeof point.label, 'string');
+      assert.ok(point.label.trim().length > 0 && point.label.length <= 24, `${route.id} point ${i}: a short name`);
+      if (added && i === INSERTED.index) return;
+      const original = v6.points[added && i > INSERTED.index ? i - 1 : i];
+      if (original.label !== NEW_POINT) assert.equal(point.label, original.label, `${route.id} point ${i}: V6's name stays`);
+    });
+    const names = route.points.map((p) => p.label);
+    assert.equal(new Set(names).size, names.length, `${route.id}: no two points share a name`);
   }
 });
 

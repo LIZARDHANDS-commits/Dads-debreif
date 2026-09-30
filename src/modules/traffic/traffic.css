@@ -270,28 +270,30 @@
   font-size: var(--text-sm);
 }
 
-/* The playback bar: the clock on the first row, the view on the second. Its menus open under
-   the whole bar, so they never reach past the map's column. */
+/* The playback bar: the clock controls, then the view controls, in one row where they fit (at 1280 px wide
+   with both columns open they do, UI-01) and wrapping onto the next when they don't (a narrower window, or the
+   wind boxes and 2D | 3D switch once they are on). Its menus open under the whole bar, so they never reach past
+   the map's column. */
 [data-module='traffic'] .traffic-bar {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 [data-module='traffic'] .bar-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+  display: contents;
 }
 
-[data-module='traffic'] .bar-row .button {
+[data-module='traffic'] .bar-row .button,
+[data-module='traffic'] .bar-row .menu-button {
   padding-inline: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 [data-module='traffic'] .bar-play {
-  min-width: 5rem;
+  min-width: 4.75rem; /* the same width for Play and Pause, so the row doesn't shift */
 }
 
 [data-module='traffic'] .bar-speed {
@@ -304,7 +306,7 @@
 
 [data-module='traffic'] .bar-speed select {
   min-height: 2.25rem;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg-sunken);
@@ -312,7 +314,7 @@
 }
 
 [data-module='traffic'] .bar-clock {
-  margin: 0 0 0 var(--space-2);
+  margin: 0 0 0 var(--space-1);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -320,7 +322,7 @@
 
 [data-module='traffic'] .bar-status {
   margin: 0;
-  min-width: 4.5rem;
+  min-width: 3.75rem;
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
@@ -389,8 +391,18 @@
   min-width: 0;
 }
 
-[data-module='traffic'] .spawner .control-select {
-  grid-template-columns: 1fr 9rem;
+/* A select is as wide as its longest choice (TR-16: "Pattern 2" was clipped in a fixed box), no less than a number
+   box and no wider than what the label leaves. */
+[data-module='traffic'] .spawner .control.control-select {
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-2);
+}
+
+[data-module='traffic'] .spawner .control-select select {
+  width: auto;
+  min-width: 6.5rem;
+  max-width: 100%;
+  justify-self: end;
 }
 
 [data-module='traffic'] .spawner .control-message {

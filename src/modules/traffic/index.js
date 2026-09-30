@@ -64,8 +64,8 @@ function mount(root, app) {
       pause,
       rewind,
       step: (seconds) => stepBy(seconds),
-      reset: resetRun,
       fit: () => (shown === '3d' ? view3d.preset('fit') : map.fit()),
+      fitAll: () => map.fitAll(),
       speed: (x) => settings.update({ speed: x }),
     },
   });
@@ -79,7 +79,7 @@ function mount(root, app) {
       camera: (name) => view3d.preset(name),
     },
   });
-  const aircraftPanel = createAircraftPanel({ controls, settings, sim, setup, onChange: () => changed() });
+  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed() });
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
@@ -99,14 +99,14 @@ function mount(root, app) {
   // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
   const photo = setup.view?.photo ?? {};
   const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
-  // Profiles and notes: a closed section at the foot of the left column (profiles-panel.js, profile.js).
+  // Profiles and notes: a closed section at the top of the left column, so it is in the first screen when opened (profiles-panel.js, profile.js).
   const profilesPanel = createProfilesPanel({
     store: profileStore,
     current: { name: start.entry?.kind === 'saved' ? start.profile.name : nextProfileName(profileStore.list().profiles.map((p) => p.name)), notes: start.profile.notes },
     capture: (name, notes) => captureProfile({ name, airfield, notes, setup, aircraft: sim.aircraftSpecs(), seed: sim.seed, settings: settings.get() }),
     load: (profile, entry) => loadProfile(profile, entry),
   });
-  ui.slots.leftExtras.append(profilesPanel.element);
+  ui.slots.profiles.append(profilesPanel.element);
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);

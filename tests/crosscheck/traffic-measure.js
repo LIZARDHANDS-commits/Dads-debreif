@@ -104,6 +104,29 @@ function peakBankDeg(route, i) {
   return peak;
 }
 
+/** Id of the cross-check row for the flown G at one corner: route id and the point as it counts on screen (from 1). */
+export const cornerRowId = (routeId, point) => `t-corner-flown-${routeId}-p${point}`;
+
+/**
+ * Every corner of every route (a turn of 10 degrees or more), with the G its flown curve needs at its tightest
+ * (from the peak bank) and the G the T-6A can pull at the point's speed (`availableG`: the stall line, at most +7 G; speed read as KIAS).
+ * `margin` is flown minus that limit: zero or less is fine.
+ * @param {object} setup the built-in setup
+ * @returns {{ id: string, routeId: string, point: number, kt: number, asked: number, flownG: number, canPullG: number, margin: number }[]}
+ */
+export function flownCorners(setup) {
+  const rows = [];
+  for (const r of setup.routes) {
+    r.points.forEach((p, i) => {
+      if (pointTurn(r, i) === null || rawTurnDeg(r, i) < 10) return;
+      const flownG = 1 / Math.cos(peakBankDeg(r, i) / DEG);
+      const canPullG = availableG(p.kt);
+      rows.push({ id: cornerRowId(r.id, i + 1), routeId: r.id, point: i + 1, kt: p.kt, asked: p.g, flownG, canPullG, margin: flownG - canPullG });
+    });
+  }
+  return rows;
+}
+
 /** One aircraft flown alone round a pattern that never lands; the sim time at which each distance is reached. */
 function flySolo(setup, route, startIndex, targetsFt, extraRoutes = []) {
   const alone = { ...setup, routes: [{ ...route, landOdds: 0 }, ...extraRoutes], aircraft: [] };
@@ -195,7 +218,13 @@ export function makeMeasures(setup, seed) {
   const downwind = () => straightLeg(pat, 10);
   const finalLeg = () => straightLeg(pat, 12);
 
+  const cornerMeasures = Object.fromEntries(flownCorners(setup).map((c) => [c.id, () => ({
+    value: c.margin,
+    where: `${c.flownG.toFixed(2)} G flown at ${c.kt} kt, can pull ${c.canPullG.toFixed(2)} G (stall line or +7 G), ${c.asked} G asked`,
+  })]));
+
   return {
+    ...cornerMeasures,
     'h-pattern-height': () => ({ value: min(alts(pat, range(3, 11))) }),
     'h-pattern-height-printed': () => ({ value: min(alts(pat, range(3, 11))) }),
     'h-closed-height': () => ({ value: spl3.points[spl3.points.length - 1].alt }),

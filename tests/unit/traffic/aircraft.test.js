@@ -31,6 +31,12 @@ const type = (input, text) => {
   input.dispatch('change');
 };
 
+/** A stand-in for the module's scheduler: `after` queues the call, `tick()` runs what is queued. */
+function fakeTimers() {
+  const queued = [];
+  return { after: (ms, cb) => (queued.push(cb), () => queued.splice(queued.indexOf(cb), 1)), tick: () => queued.splice(0).forEach((cb) => cb()) };
+}
+
 function setup(options = {}) {
   const kept = new Map();
   const memory = { get: (key, fallback) => (kept.has(key) ? kept.get(key) : fallback), set: (key, value) => kept.set(key, value) };
@@ -38,9 +44,10 @@ function setup(options = {}) {
   const traffic = structuredClone(MOOSE_JAW);
   const sim = createSim(traffic);
   const changes = [];
-  const panel = createAircraftPanel({ controls: createControls(settings), settings, sim, setup: traffic, onChange: () => changes.push(sim.state().aircraft.length), ...options });
+  const controls = createControls(settings);
+  const panel = createAircraftPanel({ controls, timers: options.timers ?? fakeTimers(), settings, sim, setup: traffic, onChange: () => changes.push(sim.state().aircraft.length), ...options });
   panel.update(sim.state());
-  return { panel, sim, settings, traffic, changes, spawner: panel.elements.spawner, list: panel.elements.aircraft, conflicts: panel.elements.conflicts };
+  return { panel, controls, sim, settings, traffic, changes, spawner: panel.elements.spawner, list: panel.elements.aircraft, conflicts: panel.elements.conflicts };
 }
 
 test('the spawner starts on the first entry (the first pattern when there is none), as the Defaults table says', () => {
@@ -251,4 +258,78 @@ test('while playing the lists are rewritten at most every 100 ms; paused, at onc
   sim.stepTo(180);
   panel.update(sim.state(), { playing: false, now: 1102 });
   assert.notEqual(shown(), written, 'paused: at once');
+});
+
+// TR-14: neither button acts while a box it reads is refused, and the spawner's line names the box.
+test('+ Spawn and + Pair hold back while Start at point is refused, and the line names the box', () => {
+  const timers = fakeTimers();
+  const { spawner, sim, changes } = setup({ timers });
+  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
+  const before = sim.state().aircraft.length;
+  assert.equal(spawn.getAttribute('aria-disabled'), null);
+  type(inputFor(spawner, 'Start at point'), '0'); // out of range: refused, the setting keeps its last good value
+  assert.equal(spawn.getAttribute('aria-disabled'), 'true');
+  assert.equal(pair.getAttribute('aria-disabled'), 'true');
+  spawn.dispatch('click');
+  pair.dispatch('click');
+  timers.tick();
+  assert.equal(sim.state().aircraft.length, before, 'nothing was added');
+  assert.deepEqual(changes, [], 'and the screen was not told');
+  assert.match(withClass(spawner, 'spawn-message')[0].textContent, /Nothing was added: fix the Start at point box first\./);
+  // Put it right: both act again.
+  type(inputFor(spawner, 'Start at point'), '1');
+  assert.equal(spawn.getAttribute('aria-disabled'), null);
+  spawn.dispatch('click');
+  pair.dispatch('click');
+  assert.equal(sim.state().aircraft.length, before + 3);
+});
+
+test('a Delay typed but not yet "changed" is read at the click, so + Spawn still holds back', () => {
+  const timers = fakeTimers();
+  const { spawner, sim } = setup({ timers });
+  const before = sim.state().aircraft.length;
+  const delay = inputFor(spawner, 'Delay');
+  delay.value = '99999'; // no change event: the guard reads the box at the click
+  delay.dispatch('input');
+  buttonNamed(spawner, '+ Spawn').dispatch('click');
+  timers.tick();
+  assert.equal(sim.state().aircraft.length, before);
+  assert.match(withClass(spawner, 'spawn-message')[0].textContent, /fix the Delay box first/);
+});
+
+test('a refused Pair gap holds back + Pair only, and the line names it', () => {
+  // No screen has a Pair gap box yet, so one is made on the same controls, as a settings box would be.
+  const timers = fakeTimers();
+  const { spawner, sim, controls } = setup({ timers });
+  const gap = controls.number('pairGapS', { label: 'Pair gap', unit: 's', min: 0, max: 86_400, step: 1 });
+  const before = sim.state().aircraft.length;
+  type(inputFor(gap, 'Pair gap'), '-5');
+  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
+  assert.equal(pair.getAttribute('aria-disabled'), 'true');
+  assert.equal(spawn.getAttribute('aria-disabled'), null, '+ Spawn does not read the gap');
+  pair.dispatch('click');
+  timers.tick();
+  assert.equal(sim.state().aircraft.length, before);
+  assert.match(withClass(spawner, 'spawn-message')[0].textContent, /fix the Pair gap box first/);
+  spawn.dispatch('click');
+  assert.equal(sim.state().aircraft.length, before + 1, '+ Spawn still works');
+});
+
+// PR-04: a saved profile holds 200 aircraft at most, so the spawner stops there, with the same limit in its words.
+test('the 201st aircraft is refused at + Spawn and + Pair, with the limit in the sentence (PR-04)', () => {
+  const { spawner, sim, changes } = setup();
+  while (sim.state().aircraft.length < 199) sim.spawn({ type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 0 });
+  const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
+  const say = () => words(withClass(spawner, 'spawn-message')[0]);
+  pair.dispatch('click'); // 199 + 2 = 201
+  assert.equal(sim.state().aircraft.length, 199, 'a pair that would pass the limit adds neither aircraft');
+  assert.match(say(), /Nothing was added: that would make 201 aircraft \(the most is 200\)\. Clear finished aircraft or remove some first\./);
+  spawn.dispatch('click'); // the 200th is allowed
+  assert.equal(sim.state().aircraft.length, 200);
+  assert.match(say(), /^Added /);
+  const before = changes.length;
+  spawn.dispatch('click');
+  assert.equal(sim.state().aircraft.length, 200);
+  assert.match(say(), /that would make 201 aircraft \(the most is 200\)/);
+  assert.equal(changes.length, before, 'and the screen was not told of a change');
 });

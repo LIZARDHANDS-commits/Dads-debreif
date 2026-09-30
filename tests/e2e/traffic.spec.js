@@ -149,6 +149,130 @@ test('spawn an aircraft and it appears in the list, waits for its delay, and fli
   await expect(rows).toHaveCount(8);
 });
 
+test('the playback bar is one row at 1280 x 800 with both columns open (UI-01)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  const oneRow = async () => (await page.locator('.traffic-bar').evaluate((bar) => {
+    const seen = [...bar.querySelectorAll('.bar-play, .bar-row > .button, .bar-speed, .bar-clock, .bar-status, .traffic-menu > .menu-button')];
+    const tops = seen.map((e) => [e.textContent.trim().slice(0, 10), Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)]);
+    const fits = [...bar.querySelectorAll('button, .bar-clock, .bar-status')].every((e) => e.getBoundingClientRect().right <= bar.getBoundingClientRect().right + 0.5);
+    return { tops, fits };
+  }));
+  const check = async () => {
+    const { tops, fits } = await oneRow();
+    expect(tops.length).toBeGreaterThanOrEqual(10); // Play, Rewind, -10 s, +10 s, Reset, speed, clock, status, Fit, Layers
+    const middles = tops.map(([, y]) => y);
+    expect(Math.max(...middles) - Math.min(...middles), JSON.stringify(tops)).toBeLessThanOrEqual(6);
+    expect(fits, 'nothing is cut off by the map\'s column').toBe(true);
+  };
+  await check(); // paused
+  await button(page, '+10 s').click();
+  await playButton(page).click();
+  await expect(status(page)).toHaveText('Running');
+  await check();
+  await playButton(page).click();
+  await button(page, 'Rewind').click();
+  await expect(status(page)).toHaveText('Rewinding'); // the longest status word
+  await check();
+});
+
+
+test('Fit frames Pattern 1, Fit all frames every route, and Fit goes back (TR-17)', async ({ page }) => {
+  await open(page);
+  const first = await picture(page);
+  await page.getByRole('button', { name: /^Layers/ }).click();
+  await button(page, 'Fit all routes').click(); // in the Layers menu, which closes after it
+  await expect(page.getByRole('button', { name: /^Layers/ })).toHaveAttribute('aria-expanded', 'false');
+  await expect.poll(() => picture(page)).not.toBe(first); // the long entry legs are in, so everything is smaller
+  await button(page, 'Fit').click();
+  await expect.poll(() => picture(page)).toBe(first);
+});
+
+test('+ Spawn and + Pair add nothing while a box they read is refused, and say which box (TR-14)', async ({ page }) => {
+  await open(page);
+  const rows = page.locator('.aircraft-row');
+  await expect(rows).toHaveCount(7);
+  const start = page.getByLabel('Start at point', { exact: true });
+  const delay = page.getByLabel('Delay', { exact: true });
+  const pair = page.getByRole('button', { name: /^\+ Pair/ });
+  // A start point that isn't a whole number in range: the box shows its message, the buttons hold back.
+  await start.fill('0');
+  await start.press('Tab'); // leaving the box is when it shows "not accepted"
+  await expect(page.locator('.spawner .control-message').first()).not.toHaveText('');
+  await expect(button(page, '+ Spawn')).toHaveAttribute('aria-disabled', 'true');
+  await expect(pair).toHaveAttribute('aria-disabled', 'true');
+  await button(page, '+ Spawn').click({ force: true }); // aria-disabled: Playwright waits for "enabled" otherwise
+  await pair.click({ force: true });
+  await expect(rows).toHaveCount(7);
+  await expect(page.locator('.spawn-message')).toContainText('Start at point');
+  await expect(page.locator('.spawn-message')).toContainText('Nothing was added');
+  // A delay out of range, typed and clicked without leaving the box (no change event yet).
+  await start.fill('1');
+  await expect(button(page, '+ Spawn')).not.toHaveAttribute('aria-disabled');
+  await delay.fill('99999');
+  await button(page, '+ Spawn').evaluate((el) => el.click()); // no blur first: the guard reads the box at the click
+  await expect(rows).toHaveCount(7);
+  await expect(page.locator('.spawn-message')).toContainText('Delay');
+  await pair.click({ force: true });
+  await expect(rows).toHaveCount(7);
+  // Put it right and both work again.
+  await delay.fill('5');
+  await expect(button(page, '+ Spawn')).not.toHaveAttribute('aria-disabled');
+  await button(page, '+ Spawn').click();
+  await expect(rows).toHaveCount(8);
+  await pair.click();
+  await expect(rows).toHaveCount(10);
+});
+
+test('the Traffic settings button is in the first screen at 1280 x 800 with the 7 built-in aircraft, above the aircraft list (TR-15)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await expect(page.locator('.aircraft-row')).toHaveCount(7);
+  const settings = page.getByRole('button', { name: /^Traffic settings/ });
+  await expect(settings).toBeInViewport({ ratio: 1 });
+  const box = await settings.boundingBox();
+  const list = await page.locator('.aircraft-list').boundingBox();
+  expect(box.y + box.height).toBeLessThanOrEqual(800);
+  expect(box.y + box.height).toBeLessThanOrEqual(list.y);
+  // More aircraft don't push it off the screen.
+  for (let i = 0; i < 3; i++) await button(page, '+ Spawn').click();
+  await expect(page.locator('.aircraft-row')).toHaveCount(10);
+  await expect(settings).toBeInViewport({ ratio: 1 });
+});
+
+test('the spawner\'s selects are as wide as their longest choice, so no name is clipped (TR-16)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await button(page, '+ New route').click();
+  await button(page, 'Pattern').click(); // "Pattern 2": the name that was clipped
+  await expect(page.locator('#traffic-spawn-route option')).toHaveCount(10);
+  await page.getByLabel('Name', { exact: true }).fill('Outer pattern'); // and a longer one of the pilot's own
+  await expect(page.locator('#traffic-spawn-route option').last()).toHaveText('Outer pattern');
+  // What the browser needs to show the widest choice (a copy, taken out of the grid so it sizes to its content) against the box the select has.
+  const clipped = await page.locator('.spawner select').evaluateAll((selects) => selects.map((select) => {
+    const shown = select.getBoundingClientRect().width;
+    const copy = select.cloneNode(true);
+    copy.removeAttribute('id');
+    Object.assign(copy.style, { position: 'absolute', visibility: 'hidden', width: 'auto', minWidth: '0', maxWidth: 'none' });
+    select.parentNode.appendChild(copy);
+    const needed = copy.getBoundingClientRect().width;
+    copy.remove();
+    return needed > shown + 0.5 ? `${select.id}: needs ${Math.round(needed)} px, has ${Math.round(shown)} px` : null;
+  }).filter(Boolean));
+  expect(clipped).toEqual([]);
+  // And each box stays inside its column, clear of its label.
+  const column = await page.locator('.spawner').boundingBox();
+  const places = await page.locator('.spawner .control-select').evaluateAll((l) => l.map((row) => ({
+    label: row.querySelector('label').getBoundingClientRect().right,
+    left: row.querySelector('select').getBoundingClientRect().left,
+    right: row.querySelector('select').getBoundingClientRect().right,
+  })));
+  for (const { label, left, right } of places) {
+    expect(right).toBeLessThanOrEqual(column.x + column.width + 0.5);
+    expect(left).toBeGreaterThanOrEqual(label);
+  }
+});
+
 test('the Traffic settings menu opens, and a route point can be changed on the left', async ({ page }) => {
   await open(page);
   const menu = page.getByRole('button', { name: /^Traffic settings/ });
@@ -212,7 +336,7 @@ test('keyboard only: Tab order, Space and Enter on Play, Escape closes the Layer
     order.push(await focused());
   }
   const at = (name) => order.findIndex((n) => n.includes(name));
-  const inOrder = ['Routes', 'Pattern 1', 'Entry 1', '+ New route', 'Play', 'Reset', 'Layers', 'Fit', 'Aircraft'];
+  const inOrder = ['Routes', 'Pattern 1', 'Entry 1', '+ New route', 'Play', 'Reset', 'Fit', 'Layers', 'Aircraft'];
   const places = inOrder.map(at);
   expect(places.every((n) => n >= 0), `every stop is reached: ${order.join(' | ')}`).toBe(true);
   expect(places, `in this order: ${order.join(' | ')}`).toEqual([...places].sort((a, b) => a - b));
@@ -281,24 +405,22 @@ test('Reset to defaults works on the first real click after typing in a settings
   await page.getByRole('button', { name: /^Traffic settings/ }).click();
   const lateral = page.getByLabel('Conflict: lateral');
   const reset = page.getByRole('button', { name: 'Reset to defaults' });
-  // The menu is longer than the screen, so the column scrolls when a box takes focus; the button's place is
-  // measured from that box, which moves with it.
-  const gap = async () => (await reset.boundingBox()).y - (await lateral.boundingBox()).y;
-  const gapWithout = await gap();
+  await reset.scrollIntoViewIfNeeded();
+  // How far the button is below the box, so the page scrolling to a focused box (the menu is no longer last in the column) doesn't count as a move.
+  const below = async () => (await reset.boundingBox()).y - (await lateral.boundingBox()).y;
+  const gapWithout = await below();
   await lateral.focus();
   await expect(page.locator('.settings-item:focus-within .settings-hint')).toBeVisible();
-  expect(await gap(), 'the hint takes no room').toBe(gapWithout);
+  expect(await below(), 'the hint takes no room').toBe(gapWithout);
   await lateral.fill('350');
   await expect(lateral).toHaveValue('350');
-  expect(await gap()).toBe(gapWithout);
-  await reset.scrollIntoViewIfNeeded();
+  expect(await below()).toBe(gapWithout);
   await reset.click(); // one real mouse click
   await expect(lateral).toHaveValue('200');
   // The same after Enter.
   await lateral.fill('350');
   await lateral.press('Enter');
-  expect(await gap()).toBe(gapWithout);
-  await reset.scrollIntoViewIfNeeded();
+  expect(await below()).toBe(gapWithout);
   await reset.click();
   await expect(lateral).toHaveValue('200');
 });
@@ -869,6 +991,90 @@ test('save a profile, reload the page: it opens on the last profile, and Load br
   await open(page);
   await openProfiles(page);
   await expect(profileList(page)).toHaveValue('built-in:moose-jaw-v6');
+});
+
+test('after a keyboard Delete, focus stays inside Profiles and notes (PR-01)', async ({ page }) => {
+  await open(page);
+  await openProfiles(page);
+  await profileName(page).fill('Keyboard one');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText('Saved "Keyboard one".');
+  await button(page, 'Delete').focus();
+  await page.keyboard.press('Enter');
+  await expect(confirmBox(page)).toBeVisible();
+  await page.keyboard.press('Shift+Tab'); // from Cancel (which has focus) to the question's Delete
+  await page.keyboard.press('Enter');
+  await expect(profileMessage(page)).toHaveText('Deleted "Keyboard one".');
+  expect(await page.evaluate(() => document.activeElement?.closest('.profiles') !== null)).toBe(true);
+  await expect(profileList(page)).toBeFocused();
+});
+
+test('with Profiles and notes open at 1280 x 800, its name, list and Save are inside the first screen, also with a route picked (UI-02)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await openProfiles(page);
+  for (const control of [profileName(page), profileList(page), button(page, 'Save'), button(page, 'Load'), button(page, 'Delete')]) await expect(control).toBeInViewport({ ratio: 1 });
+  await page.locator('[data-route-id="PAT1"]').click();
+  await expect(page.locator('.point-row')).toHaveCount(13);
+  for (const control of [profileName(page), button(page, 'Save')]) await expect(control).toBeInViewport({ ratio: 1 });
+  // And closed, it is one line above the routes: the first look is still the routes list.
+  await profilesToggle(page).click();
+  await expect(profileName(page)).toBeHidden();
+  await expect(page.locator('[data-route-id="PAT1"]')).toBeInViewport({ ratio: 1 });
+});
+
+test('a 40-character name with no spaces does not widen Profiles and notes at 1280 (PR-02)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await page.locator('[data-route-id="PAT1"]').click();
+  await openProfiles(page);
+  const long = 'W'.repeat(40);
+  // Nothing in the section sticks out of it, and the section stays inside its column.
+  const sticksOut = () => page.evaluate(() => {
+    const section = document.querySelector('.profiles');
+    const column = section.closest('.traffic-col');
+    const limit = section.parentElement.getBoundingClientRect().right + 0.5;
+    const out = [...section.querySelectorAll('*')].filter((e) => !e.hidden && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > limit).map((e) => `${e.className || e.tagName}`);
+    const wide = [section.parentElement, column].filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.className} ${e.scrollWidth} > ${e.clientWidth}`);
+    return { out, wide };
+  });
+  await profileName(page).fill(long);
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText(`Saved "${long}".`);
+  expect(await sticksOut()).toEqual({ out: [], wide: [] });
+  // The Replace question, with the same long name.
+  await button(page, 'Save').click();
+  await expect(confirmBox(page)).toContainText(long);
+  expect(await sticksOut()).toEqual({ out: [], wide: [] });
+  await button(page, 'Cancel').click();
+  // Its entry in the list, and Delete's question.
+  await profileList(page).selectOption({ label: `${long} (CYMJ)` });
+  await button(page, 'Delete').click();
+  await expect(confirmBox(page)).toContainText(long);
+  expect(await sticksOut()).toEqual({ out: [], wide: [] });
+});
+
+test('no accessibility violations with the Profiles and notes section open, and with a confirm showing', async ({ page }) => {
+  await open(page);
+  await openProfiles(page);
+  await expectNoA11yViolations(page);
+  // Save over a name that is there: the confirm shows in the section.
+  await profileName(page).fill('Alpha');
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText('Saved "Alpha".');
+  await page.getByLabel('Notes', { exact: true }).fill('second version');
+  await button(page, 'Save').click();
+  await expect(confirmBox(page)).toBeVisible();
+  await expectNoA11yViolations(page);
+  await button(page, 'Cancel').click();
+  await expect(confirmBox(page)).toBeHidden();
+  // Delete: the same, for its confirm.
+  await profileList(page).selectOption({ label: 'Alpha (CYMJ)' });
+  await button(page, 'Delete').click();
+  await expect(confirmBox(page)).toContainText('Delete the saved profile "Alpha"?');
+  await expectNoA11yViolations(page);
+  await page.keyboard.press('Escape');
+  await expect(confirmBox(page)).toBeHidden();
 });
 
 test('a loaded profile plays, and its routes, edits and settings come back as saved', async ({ page }) => {

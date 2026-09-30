@@ -9,6 +9,10 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
+import { MOST_AIRCRAFT } from './profile.js';
+
+/** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
+const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
 
 /** The aircraft types the spawner offers, in V6's order. */
 export const SPAWN_TYPES = Object.freeze(Object.keys(TYPE_COLORS));
@@ -65,11 +69,12 @@ export function detailText(row) {
 
 /**
  * controls, settings: the ui-kit controls bound to the traffic settings, and those settings.
+ * timers: the module's scheduler (`after`), so a pending line is cancelled when the module closes.
  * sim, setup: the engine's sim and the setup it flies. onChange(): called after the run changed
  * (an aircraft was added or cleared), so the screen can redraw.
  * Returns { elements: { spawner, aircraft, conflicts }, update(state, { playing, now }), routesChanged() }.
  */
-export function createAircraftPanel({ controls, settings, sim, setup, onChange }) {
+export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange }) {
   // ---- the spawner ----------------------------------------------------------
   const message = h('p', { class: 'spawn-message', role: 'status' });
   const say = (text) => {
@@ -93,6 +98,9 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
     if (asked.problem) return say(asked.problem);
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
+    // A saved profile holds MOST_AIRCRAFT at most (PR-04): stop here, in the same words Save would use.
+    const total = sim.state().aircraft.length + (second ? 2 : 1);
+    if (total > MOST_AIRCRAFT) return say(`Nothing was added: that would make ${total} aircraft (the most is ${MOST_AIRCRAFT}). Clear finished aircraft or remove some first.`);
     try {
       const ids = [sim.spawn(asked.spec)];
       if (second) ids.push(sim.spawn(second.spec)); // the same route, as the spawner has it
@@ -114,6 +122,7 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
 
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
+  const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
@@ -125,12 +134,28 @@ export function createAircraftPanel({ controls, settings, sim, setup, onChange }
     h(
       'div',
       { class: 'spawn-buttons' },
-      h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn'),
+      spawnButton,
       pairButton,
       h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
     ),
     message,
   );
+
+  // TR-14: neither button acts while a box it reads refuses what was typed (the setting would keep its last good
+  // value, which the person can't see). The box shows its own message; the spawner's line names the box too.
+  const guardButton = (button, keys) => {
+    button.addEventListener('click', (event) => {
+      // The guard has run by the end of the click: if it held the action back, say which box to fix.
+      timers.after(0, () => {
+        if (!event.defaultPrevented) return;
+        const bad = keys.filter((k) => controls.invalid().includes(k)).map((k) => BOX_NAMES[k]);
+        if (bad.length) say(`Nothing was added: fix the ${bad.join(' and ')} box first.`);
+      });
+    }, true); // registered first, so it sees the click before the guard stops it
+    controls.guard(button, keys);
+  };
+  guardButton(spawnButton, ['spawnStartPoint', 'spawnDelayS']);
+  guardButton(pairButton, ['spawnStartPoint', 'spawnDelayS', 'pairGapS']);
 
   // ---- the aircraft list and the conflicts ------------------------------------
   const listBody = h('ul', { class: 'aircraft-list' });

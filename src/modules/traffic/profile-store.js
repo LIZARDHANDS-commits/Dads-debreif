@@ -14,8 +14,14 @@ import { BUILT_IN, MOST_SAVED, MOST_STORED_CHARS, PROFILE_VERSION, checkProfile,
 
 const PROFILES_KEY = 'profiles';
 const LAST_KEY = 'last';
+/** How many skipped-entry sentences the list shows before summarising the rest. */
+const MOST_SKIPPED_SHOWN = 5;
+// The app's storage gives the fallback for text that isn't JSON, just as for a key that isn't there, so a list that
+// has gone bad can't be told from an empty one. This mark, written with every list, tells them apart: a list that
+// reads as nothing after this page has written one has been damaged (PR-03, D269).
+const WRITTEN_KEY = 'profiles-written';
 
-const FOREIGN = "The profiles saved in this browser are from a different version of this page, so nothing was saved or changed. Use Remove unreadable in Profiles and notes to clear them.";
+const FOREIGN = "The profiles saved in this browser are damaged or from a different version of this page, so nothing was saved or changed. Use Remove unreadable in Profiles and notes to clear them.";
 
 /**
  * storage: `app.storage`. Returns:
@@ -27,7 +33,8 @@ const FOREIGN = "The profiles saved in this browser are from a different version
  *   discardUnreadable()   { ok, persisted, removed }: drops the entries that can't be read (all of a list from another version)
  *   lastUsed()   { kind: 'built-in', id } or { kind: 'saved', name } or null
  *   setLast(entry)
- * @param {{ get: (name: string, fallback?: any) => any, set: (name: string, value: any) => boolean, remove?: (name: string) => void, persistent?: boolean }} storage
+ * The storage may also have `raw(name)` (the stored text, unparsed): with it, text that isn't JSON is found at once.
+ * @param {{ get: (name: string, fallback?: any) => any, raw?: (name: string) => string | null, set: (name: string, value: any) => boolean, remove?: (name: string) => void, persistent?: boolean }} storage
  */
 export function createProfileStore(storage) {
   const read = (key) => {
@@ -45,13 +52,36 @@ export function createProfileStore(storage) {
     }
   };
 
-  const stored = () => readEntries(read(PROFILES_KEY));
+  // The stored text as the storage layer keeps it, where it can give it (`raw(name)`): text that isn't JSON is damaged.
+  const damagedText = () => {
+    try {
+      const text = storage.raw?.(PROFILES_KEY);
+      if (typeof text !== 'string') return false;
+      JSON.parse(text);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+  const stored = () => {
+    const value = read(PROFILES_KEY);
+    if (damagedText() || ((value === null || value === undefined) && read(WRITTEN_KEY) === true)) return { state: 'foreign', entries: [] };
+    return readEntries(value);
+  };
+  const writeList = (next) => {
+    const persisted = write(PROFILES_KEY, next);
+    write(WRITTEN_KEY, true);
+    return persisted;
+  };
   const doc = (entries) => ({ version: PROFILE_VERSION, profiles: entries.map((e) => e.profile ?? e.raw) });
 
   function list() {
     const { state, entries } = stored();
     if (state === 'foreign') return { profiles: [], skipped: ['The saved profiles in this browser could not be read, so they were skipped.'], unreadable: 0, foreign: true };
-    const skipped = entries.map((e) => e.skipped).filter((s) => s !== null);
+    const said = entries.map((e) => e.skipped).filter((s) => s !== null);
+    // Five sentences are enough: every other entry that isn't a profile is counted in one line (PR-06).
+    const notProfiles = entries.filter((e) => !e.profile).length;
+    const skipped = said.length > MOST_SKIPPED_SHOWN ? [...said.slice(0, MOST_SKIPPED_SHOWN), `And ${notProfiles - MOST_SKIPPED_SHOWN} more were skipped.`] : said;
     if (entries.length > MOST_SAVED * 2) skipped.push('More profiles were saved than this page keeps, and the rest were skipped.');
     return { profiles: entries.filter((e) => e.profile).map((e) => e.profile), skipped, unreadable: entries.filter((e) => !e.profile).length, foreign: false };
   }
@@ -78,7 +108,7 @@ export function createProfileStore(storage) {
       if (size > MOST_STORED_CHARS) {
         return { ok: false, problem: `The saved profiles would take more than ${MOST_STORED_CHARS.toLocaleString('en-CA')} characters in this browser (${size.toLocaleString('en-CA')}). Delete a profile to make room.` };
       }
-      return { ok: true, persisted: write(PROFILES_KEY, next), profile: clean };
+      return { ok: true, persisted: writeList(next), profile: clean };
     },
 
     remove(name) {
@@ -87,7 +117,7 @@ export function createProfileStore(storage) {
       const at = entries.findIndex((e) => e.profile?.name === name);
       if (at < 0) return { ok: false, persisted: true, problem: 'That profile is not in the list any more.' };
       entries.splice(at, 1);
-      return { ok: true, persisted: write(PROFILES_KEY, doc(entries)) };
+      return { ok: true, persisted: writeList(doc(entries)) };
     },
 
     discardUnreadable() {
@@ -96,7 +126,7 @@ export function createProfileStore(storage) {
       const kept = entries.filter((e) => e.profile);
       const removed = entries.length - kept.length;
       if (state === 'ok' && removed === 0) return { ok: true, persisted: true, removed: 0 };
-      return { ok: true, persisted: write(PROFILES_KEY, doc(kept)), removed };
+      return { ok: true, persisted: writeList(doc(kept)), removed };
     },
 
     lastUsed() {

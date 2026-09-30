@@ -168,6 +168,73 @@ test('profiles from another version of the page are left alone: Save and Delete 
   assert.equal(profiles.save(profile('Mine')).ok, false);
 });
 
+// PR-03 (D269: a Save or Delete never loses what this page can't read). The app's storage hands back the
+// fallback for text that is not JSON, exactly as for a key that isn't there, so the store keeps a mark that it has
+// written the list; a list that then reads as nothing has been damaged. Where the storage can also give the raw
+// text (`raw(name)`), damaged text is found even before this page has saved anything.
+const KEY = 'ooda:v1:traffic:profiles';
+
+test('a saved list whose text has been damaged is reported as unreadable, and Save, Delete and the list leave it alone (PR-03)', () => {
+  const { browser, profiles } = open();
+  profiles.save(profile('Alpha'));
+  browser.items.set(KEY, '{not json');
+  const listed = open(browser).profiles.list();
+  assert.equal(listed.foreign, true);
+  assert.deepEqual(listed.profiles, []);
+  const again = open(browser).profiles;
+  const saved = again.save(profile('Fresh save'));
+  assert.equal(saved.ok, false);
+  assert.match(saved.problem, /damaged or from a different version of this page, so nothing was saved/);
+  assert.equal(again.remove('Alpha').ok, false);
+  assert.equal(browser.items.get(KEY), '{not json', 'nothing was written');
+  // Remove unreadable clears it, and then Save works.
+  assert.deepEqual(again.discardUnreadable(), { ok: true, persisted: true, removed: 0 });
+  assert.equal(again.list().foreign, false);
+  assert.equal(again.save(profile('Fresh save')).ok, true);
+  assert.deepEqual(again.list().profiles.map((p) => p.name), ['Fresh save']);
+});
+
+test('where the storage gives the raw text, text that is not JSON is unreadable even in a browser that never saved (PR-03)', () => {
+  const written = [];
+  const storage = { get: (name, fallback) => fallback, set: (name, value) => (written.push([name, value]), true), raw: (name) => (name === 'profiles' ? '{not json' : null), persistent: true };
+  const profiles = createProfileStore(storage);
+  assert.equal(profiles.list().foreign, true);
+  assert.equal(profiles.save(profile('Fresh save')).ok, false);
+  assert.deepEqual(written, [], 'nothing was written');
+  // No text at all is not damaged.
+  const empty = createProfileStore({ ...storage, raw: () => null });
+  assert.equal(empty.list().foreign, false);
+  assert.equal(empty.save(profile('Fresh save')).ok, true);
+});
+
+test('a list that was never saved, or that holds nothing, is not reported as damaged', () => {
+  const { profiles } = open();
+  assert.equal(profiles.list().foreign, false);
+  profiles.save(profile('Alpha'));
+  profiles.remove('Alpha');
+  assert.equal(profiles.list().foreign, false);
+  assert.equal(profiles.save(profile('Beta')).ok, true);
+});
+
+test('skipped sentences past five are summarised in one line (PR-06)', () => {
+  const { profiles, storage } = open();
+  const names = Array.from({ length: 60 }, (_, i) => `Profile ${i + 1}`);
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: names.map((n) => profile(n)) }); // 20 are kept, 20 more are read and skipped, and the rest are only carried
+  const listed = profiles.list();
+  assert.equal(listed.profiles.length, MOST_SAVED);
+  assert.equal(listed.skipped.length, 7, 'five sentences, one line counting the rest, and the overflow sentence');
+  assert.match(listed.skipped[0], /"Profile 21" was skipped: only 20 profiles are kept\./);
+  assert.equal(listed.skipped[5], 'And 35 more were skipped.', '40 entries are not profiles (21 to 60), five of them shown');
+  assert.equal(listed.skipped[6], 'More profiles were saved than this page keeps, and the rest were skipped.', 'always last, never swallowed by the count');
+  // Five or fewer are all shown, as they were.
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: names.slice(0, 25).map((n) => profile(n)) }); // 20 kept, 5 skipped
+  assert.equal(profiles.list().skipped.length, 5);
+  assert.ok(!profiles.list().skipped.some((s) => /^And /.test(s)));
+  // Six sentences, no overflow: five and a line for the one more.
+  storage.set('profiles', { version: PROFILE_VERSION, profiles: names.slice(0, 26).map((n) => profile(n)) });
+  assert.deepEqual(profiles.list().skipped.slice(5), ['And 1 more were skipped.']);
+});
+
 test('Remove unreadable drops only the entries that can\'t be read; on another version\'s list it clears the list', () => {
   const { profiles, storage } = open();
   storage.set('profiles', { version: PROFILE_VERSION, profiles: [profile('Good'), { junk: true }, profile('Also good'), 5] });

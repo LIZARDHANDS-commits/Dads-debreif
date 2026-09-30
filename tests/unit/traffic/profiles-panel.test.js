@@ -207,6 +207,16 @@ test('Delete asks first, then removes the saved profile and says so; a built-in 
   assert.equal(button(el, 'Delete').disabled, true);
 });
 
+test('after a Delete is confirmed, focus goes to the list, not to the Delete button that has just been disabled (PR-01)', () => {
+  const { el, list, confirmBox } = setup({ prefill: [saved('Alpha')] });
+  list().value = 'saved:Alpha';
+  list().dispatch('change');
+  press(el, 'Delete');
+  press(confirmBox(), 'Delete');
+  assert.equal(button(el, 'Delete').disabled, true);
+  assert.equal(globalThis.document.activeElement, list(), 'the list has focus, so the next Tab moves on from inside the section');
+});
+
 test('Escape closes a question and puts focus back on the button that asked', () => {
   const { el, confirmBox } = setup();
   press(el, 'Load');
@@ -296,7 +306,7 @@ test('profiles from another version of the page are left alone: the section says
   const foreign = { version: 2, profiles: [saved('Future')] };
   createStore(browser).scope('traffic').set('profiles', foreign);
   const { el, nameBox, message, store } = setup({ browser });
-  assert.match(words(withClass(el, 'profiles-unreadable-text')[0]), /^The profiles saved in this browser are from a different version of this page and can't be read\./);
+  assert.match(words(withClass(el, 'profiles-unreadable-text')[0]), /^The profiles saved in this browser are damaged or from a different version of this page and can't be read\./);
   nameBox().value = 'Mine';
   press(el, 'Save');
   assert.match(message(), /different version of this page, so nothing was saved/);

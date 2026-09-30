@@ -2,7 +2,15 @@
    the first look is unchanged (R22). Kept in its own file so it doesn't touch traffic.css. */
 [data-module='traffic'] .profiles {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* a long name can't make the column wider than the section (PR-02) */
   gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Names and sentences with a name in them break anywhere rather than run past the column (a 40-character name with no spaces). */
+[data-module='traffic'] .profiles :is(.profiles-message, .profiles-note, .profiles-skipped, .profiles-confirm, .profiles-confirm-text, .profiles-unreadable, .profiles-unreadable-text) {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 [data-module='traffic'] .profiles-field {

@@ -209,15 +209,19 @@ test('setColumnOpen collapses or opens a column from outside (a remembered layou
   assert.deepEqual(calls, []);
 });
 
-test('the right column has room for the spawner, the aircraft list, the conflicts and, last, the settings menu; the left for the point table', () => {
+test('the right column has room for the spawner, the settings menu (above the aircraft list, TR-15), the aircraft list and the conflicts; the left for the point table', () => {
   const { ui } = setup();
   const [, routes, , aircraft] = ui.element.childNodes;
   for (const name of ['spawner', 'aircraft', 'conflicts', 'settings']) assert.ok(aircraft.contains(ui.slots[name]), name);
   const body = ui.slots.settings.parentNode;
-  assert.equal(body.childNodes.at(-1), ui.slots.settings, 'the settings menu comes last, under the readouts');
+  assert.deepEqual([...body.childNodes], [ui.slots.spawner, ui.slots.settings, ui.slots.aircraft, ui.slots.conflicts], 'the settings menu sits under the spawner, above the readouts, so it is found without scrolling');
   assert.ok(routes.contains(ui.slots.pointTable));
   assert.ok(routes.contains(ui.slots.leftExtras));
-  assert.deepEqual(Object.keys(ui.slots), ['pointTable', 'leftExtras', 'spawner', 'aircraft', 'conflicts', 'settings']);
+  // Profiles and notes sit above the routes list, so opened it is in the first screen (UI-02).
+  const routesBody = ui.slots.profiles.parentNode;
+  assert.ok(routes.contains(ui.slots.profiles));
+  assert.equal(routesBody.childNodes[0], ui.slots.profiles, 'first in the left column');
+  assert.deepEqual(Object.keys(ui.slots), ['pointTable', 'leftExtras', 'profiles', 'spawner', 'aircraft', 'conflicts', 'settings']);
 });
 
 test('the one-line hint shows over the map when given, and goes away when cleared', () => {

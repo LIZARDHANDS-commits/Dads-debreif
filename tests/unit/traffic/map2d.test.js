@@ -4,11 +4,14 @@
 // it, since colour is never the only signal) is pinned without a browser.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createSim } from '../../../src/modules/traffic/sim.js';
+import { buildScene } from '../../../src/modules/traffic/scene.js';
 import { toScreen, visibleBounds } from '../../../src/ui-kit/canvas-view.js';
 import {
   HINT_TEXT, LEVEL_MARKS, TYPE_COLORS, MAP_MIN_SPAN_FT, MAP_MAX_SPAN_FT,
   paletteFrom, heightSpeedText, feetText, windText, windBlowsTowardDeg, pointLabelLines, turnLabelText, hintFor,
-  sceneBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
+  sceneBounds, focusBounds, gridStepFt, gridLines, gridLabel, routeStyle, labelAnchor, legLabels, legsToLabel,
   turnedShape, aircraftSymbol, conflictLevels, markRadiiPx, MIN_BUBBLE_PX, MIN_RING_PX, isFlying, aircraftColor, drawScene, createMap2d,
   PHOTO_OFFLINE_TEXT, photoAlignment, photoToWorld, worldToPhoto, photoView, photoCaption,
 } from '../../../src/modules/traffic/map2d.js';
@@ -478,7 +481,7 @@ function fakeCanvas(width, height, rec) {
 
 // A map on a stand-in canvas. Stand-ins for the page's getComputedStyle and ResizeObserver are
 // put in place for the test and taken away after it.
-function withMap(t, { width = 800, height = 600, layers = LAYERS_ON, ...more } = {}) {
+function withMap(t, { width = 800, height = 600, layers = LAYERS_ON, first = scene, ...more } = {}) {
   const rec = recordingContext();
   const frames = [];
   const observers = [];
@@ -506,7 +509,7 @@ function withMap(t, { width = 800, height = 600, layers = LAYERS_ON, ...more } =
     Reflect.deleteProperty(globalThis, 'getComputedStyle');
     Reflect.deleteProperty(globalThis, 'ResizeObserver');
   });
-  const data = { current: scene() };
+  const data = { current: first() };
   const canvas = fakeCanvas(width, height, rec);
   const map = createMap2d(canvas, { timers, scene: () => data.current, settings: () => layers, ...more });
   return {
@@ -532,15 +535,30 @@ test('the page\'s colours are read once, not on every frame, until refreshColour
   assert.equal(styleReads.count, 2, 'a theme change reads them again, and redraws');
 });
 
-test('the first draw frames every route, so the whole pattern is on screen', (t) => {
+test('the first draw frames the pattern, so it is on screen (the entry legs may run off the map)', (t) => {
   const { map, flush } = withMap(t);
   flush();
-  const dots = [pattern, entry, split].flatMap((r) => r.points);
-  for (const p of dots) {
+  for (const p of pattern.points) {
     const [x, y] = map.worldToScreen(p.x, p.y);
     assert.ok(x >= 0 && x <= 800 && y >= 0 && y <= 600, `(${p.x}, ${p.y}) is at ${x}, ${y}`);
   }
   assert.ok(MAP_MIN_SPAN_FT < MAP_MAX_SPAN_FT);
+});
+
+test('Fit all routes frames every route, entries and splits too', (t) => {
+  const { map, flush } = withMap(t);
+  flush();
+  const focused = map.view.scale;
+  map.fitAll();
+  flush();
+  assert.ok(map.view.scale < focused, 'the far entry is in, so the picture is smaller');
+  for (const p of [pattern, entry, split].flatMap((r) => r.points)) {
+    const [x, y] = map.worldToScreen(p.x, p.y);
+    assert.ok(x >= 0 && x <= 800 && y >= 0 && y <= 600, `(${p.x}, ${p.y}) is at ${x}, ${y}`);
+  }
+  map.fit();
+  flush();
+  near(map.view.scale, focused, 1e-12); // Fit goes back to the pattern
 });
 
 test('Fit frames the routes again after the routes have changed', (t) => {
@@ -564,8 +582,20 @@ test('a map with no size yet (hidden) frames the routes when it first has one', 
   resize();
   flush();
   assert.ok(rec.written().includes('Pattern 1'));
-  const [x, y] = map.worldToScreen(-9000, 0);
+  const [x, y] = map.worldToScreen(-3000, 0);
   assert.ok(x >= 0 && x <= 800 && y >= 0 && y <= 600);
+});
+
+test('Fit all pressed while the map has no size frames every route when it first has one', (t) => {
+  const { map, canvas, flush, resize } = withMap(t, { width: 0, height: 0 });
+  flush();
+  map.fitAll();
+  canvas.clientWidth = 800;
+  canvas.clientHeight = 600;
+  resize();
+  flush();
+  const [x] = map.worldToScreen(-9000, 0); // the far end of the entry
+  assert.ok(x >= 0 && x <= 800);
 });
 
 test('a map that is closed stops asking for frames', (t) => {
@@ -758,4 +788,69 @@ test('closing the map stops the photo: no late tile draws, no retries left', (t)
   map.dispose();
   for (const image of images) assert.equal(image.onload, null, 'the tiles no longer call back');
   assert.equal(frames.length, 0);
+});
+
+// The first view (TR-17): the pattern being watched, not the 15 NM entry legs
+
+const BUILT_IN = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+const builtInScene = () => {
+  const sim = createSim(structuredClone(BUILT_IN), { seed: 1 });
+  return buildScene({ setup: structuredClone(BUILT_IN), state: sim.state(), selectedRouteId: null, trailOf: sim.trailOf });
+};
+/** How far the pattern reaches across the picture, in pixels, along its longer side. */
+const patternSpanPx = (map, sceneData) => {
+  const points = sceneData.routes.find((r) => r.kind === 'pattern').path;
+  const xs = [], ys = [];
+  for (const p of points) {
+    const [x, y] = map.worldToScreen(p.x, p.y);
+    xs.push(x);
+    ys.push(y);
+  }
+  return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+};
+
+for (const [width, height] of [[800, 600], [1000, 500], [400, 700]]) {
+  test(`on the built-in setup the first fit puts Pattern 1 across at least 60% of the map's shorter side (${width} x ${height})`, (t) => {
+    const { map, flush } = withMap(t, { width, height, first: builtInScene });
+    flush();
+    const span = patternSpanPx(map, builtInScene());
+    assert.ok(span >= 0.6 * Math.min(width, height), `Pattern 1 spans ${Math.round(span)} px of ${Math.min(width, height)}`);
+  });
+}
+
+test('Fit all routes on the built-in setup puts every route on the map, and the pattern gets smaller', (t) => {
+  const { map, flush } = withMap(t, { first: builtInScene });
+  flush();
+  const focused = patternSpanPx(map, builtInScene());
+  map.fitAll();
+  flush();
+  assert.ok(patternSpanPx(map, builtInScene()) < focused * 0.6, 'the 15 NM entry legs take most of the room');
+  for (const route of builtInScene().routes) {
+    for (const p of route.points) {
+      const [x, y] = map.worldToScreen(p.x, p.y);
+      assert.ok(x >= 0 && x <= 800 && y >= 0 && y <= 600, `${route.name}: (${Math.round(p.x)}, ${Math.round(p.y)}) is at ${Math.round(x)}, ${Math.round(y)}`);
+    }
+  }
+});
+
+test('the focus box is the first showing pattern and the flying aircraft near it, else every route', () => {
+  const p1 = { kind: 'pattern', points: [{ x: 0, y: 0 }, { x: 1000, y: 400 }] };
+  const far = { kind: 'entry', points: [{ x: -90_000, y: 0 }, { x: 0, y: 0 }] };
+  assert.deepEqual(focusBounds([far, p1]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'the entry leg is left out');
+  const near = { status: 'flying', x: 1400, y: -300 }, distant = { status: 'flying', x: -50_000, y: 0 }, waiting = { status: 'waiting', x: 1200, y: 900 };
+  assert.deepEqual(focusBounds([far, p1], [near, distant, waiting]), { minX: 0, minY: -300, maxX: 1400, maxY: 400 }, 'a flying aircraft near the pattern is in; far or waiting ones are not');
+  // "Near" is within half the pattern's longer side (500 ft here), on every side.
+  const flying = (x, y) => ({ status: 'flying', x, y });
+  assert.deepEqual(focusBounds([p1], [flying(1500, 200)]), { minX: 0, minY: 0, maxX: 1500, maxY: 400 }, 'just inside on the right');
+  assert.deepEqual(focusBounds([p1], [flying(1501, 200)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside on the right');
+  assert.deepEqual(focusBounds([p1], [flying(-501, 200)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside on the left');
+  assert.deepEqual(focusBounds([p1], [flying(500, 901)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside above');
+  assert.deepEqual(focusBounds([p1], [flying(500, -501)]), { minX: 0, minY: 0, maxX: 1000, maxY: 400 }, 'just outside below');
+  assert.deepEqual(focusBounds([p1], [flying(500, -500)]), { minX: 0, minY: -500, maxX: 1000, maxY: 400 }, 'just inside below');
+  assert.deepEqual(focusBounds([p1], [flying(-500, 900)]), { minX: -500, minY: 0, maxX: 1000, maxY: 900 }, 'a corner exactly on the limit is in');
+  assert.deepEqual(focusBounds([far, { ...p1, visible: false }]), sceneBounds([far, { ...p1, visible: false }]), 'no pattern showing: every route');
+  assert.deepEqual(focusBounds([far]), sceneBounds([far]));
+  assert.equal(focusBounds([], []), null);
+  const path = { kind: 'pattern', points: [{ x: 0, y: 0 }], path: [{ x: -20, y: -30 }, { x: 40, y: 60 }] };
+  assert.deepEqual(focusBounds([path]), { minX: -20, minY: -30, maxX: 40, maxY: 60 }, 'the drawn path where a route has one');
 });

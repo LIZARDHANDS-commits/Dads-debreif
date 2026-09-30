@@ -1,5 +1,5 @@
 // "Profiles and notes" (specs/SPEC-traffic.md: The screen, Profiles and notes; task 7, bug #48): a
-// collapsed section at the foot of the left column, so the first look stays simple (R22). It holds the
+// collapsed section at the top of the left column, so the first look stays simple (R22). It holds the
 // profile's name, the list of profiles (the built-in setups first, read-only, then the ones saved in
 // this browser), Save, Load, Delete, and the notes box.
 //
@@ -79,7 +79,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     unreadableCount = unreadable;
     unreadableBox.hidden = unreadable === 0 && !foreign;
     unreadableText.textContent = foreign
-      ? "The profiles saved in this browser are from a different version of this page and can't be read. They are kept as they are until you remove them."
+      ? "The profiles saved in this browser are damaged or from a different version of this page and can't be read. They are kept as they are until you remove them."
       : `${unreadable} saved profile${unreadable === 1 ? '' : 's'} can't be read. ${unreadable === 1 ? 'It is' : 'They are'} kept as ${unreadable === 1 ? 'it is' : 'they are'} until you remove ${unreadable === 1 ? 'it' : 'them'}.`;
     kept.hidden = store.persistent;
     showSelection();
@@ -170,6 +170,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     ask(`Remove ${what}? This can't be undone.`, 'Remove', button, () => {
       const result = store.discardUnreadable();
       fillList();
+      if (unreadableBox.hidden) list.focus(); // the button that asked has just gone
       say(result.removed ? `Removed ${result.removed} unreadable profile${result.removed === 1 ? '' : 's'}.` : 'Removed the profiles that could not be read.');
     });
   }
@@ -180,6 +181,7 @@ export function createProfilesPanel({ store, capture, load, current = {} }) {
     ask(`Delete the saved profile "${entry.name}"? This can't be undone.`, 'Delete', deleteButton, () => {
       const result = store.remove(entry.name);
       fillList();
+      if (deleteButton.disabled) list.focus(); // Delete has just been disabled under the focus: keep it in the section (PR-01)
       if (!result.ok) return say(result.problem);
       say(result.persisted ? `Deleted "${entry.name}".` : `Deleted "${entry.name}" for this visit, but ${KEPT_FOR_NOW}.`);
     });
