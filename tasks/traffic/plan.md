@@ -14,7 +14,7 @@ Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), approved by Patric
 | Task 8 | The debrief's satellite tile loader moved into `ui-kit` | Debrief and app frame threads, through the coordinator |
 | Task 10 | `windTriangle` in `src/core/wind.js`, with known-answer tests (merged, #120) | Flight math core thread (done) |
 | Tasks 10, 17 and 23 | `core`'s shared T-6A performance model: `iasToTasKt`, `T6A_GLIDE`, `glideSinkFpm`, `zoomT6A` (SPEC-core, "API, fifth PR"; core tasks 14 to 17, built at the Turn Fight's turn) | Flight math core thread, through the coordinator |
-| Task 12 | T2 to T6 answered by Patrick (2026-09-30); T1 (decision points) waits on his word, T5b and T6b on Dad; each defaults as the spec says | Patrick, Dad |
+| Task 12 | T2 to T6, T11 answered by Patrick (2026-09-30); T5b, T6b and T10 closed on the defaults (Patrick 07:21Z); T1 builds on its default (decision points and plans) | Patrick (done) |
 | Task 14 | Patrick and Dad at the screen to redraw the Moose Jaw routes over the true-scale photo, and their list of ground references (T8) | Patrick, Dad |
 
 ## Order and why

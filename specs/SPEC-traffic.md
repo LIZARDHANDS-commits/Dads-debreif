@@ -291,7 +291,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **The overhead break (SMM 4.17, 4.18).**
 - A pattern point can be marked **Break**. The aircraft flies initial at Pattern speed and height, then at the break point rolls into a level 180° turn at 60° of bank and 2 G with the power at idle, and rolls out on downwind.
-- The speed bleeds off evenly with distance from 220 KIAS at the break to the Inner downwind speed (120 for the CT-156) at a downwind point, by default abeam the threshold (T10 asks Dad how fast a Harvard really slows at idle, to check this).
+- The speed bleeds off evenly with distance from 220 KIAS at the break to the Inner downwind speed (120 for the CT-156) at a downwind point, by default abeam the threshold (T10: kept as the default, a setting Dad can change at sign-off).
 - Because the speed falls through the turn, the break isn't a circle: at a steady 60° the radius shrinks with the speed (2,744 ft at 220 KIAS, 1,276 ft at 150, at 3,500 ft). The sim flies it in 0.05 s steps, and downwind is wherever the break puts it. The map and Leg distances show the downwind spacing from the runway (for example "Downwind 3,900 ft from the centreline").
 - **Wind.** The break point is 2,000 ft past the threshold with a 10 kt headwind on initial, later with more headwind and earlier with less (SMM 4.17 para 39, 4.18 para 42). The manual gives no number per knot, so the sim moves the break point to keep the time from roll-out to the perch the same as with a 10 kt headwind, which is what the rule is for; the readout says so. The bank isn't changed for a crosswind; the aircraft crabs once it's on downwind (SMM 4.18).
 
@@ -314,7 +314,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 
 **Simulated engine-outs from the pattern (SMM 13.17, 13.18).**
 - Each CT-156 or Siskin row has **Engine out**, and a plan can say "engine out at point N" for a set-piece lesson.
-- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 1,100 ft. The zoom's numbers are `core`'s `zoomT6A` (SPEC-core, T-6A performance, from NFM Fig 3-4), shared with the other modules; Dad confirms them for the CT-156 (T10).
+- The aircraft **zooms** straight ahead, trading speed for height, as the T-6A flight manual flies it: 2 s to react, then 20° nose up held until 145 KIAS with the prop feathered, then easing over into the 125 KIAS glide (SMM 13.17 para 34a). From 220 KIAS at 3,500 ft it gains about 1,100 ft. The zoom's numbers are `core`'s `zoomT6A` (SPEC-core, T-6A performance, from NFM Fig 3-4), shared with the other modules; they stay as they are for the CT-156 (T10, closed on the default).
 - It then turns towards the runway and **glides** at 125 KIAS, 2 NM per 1,000 ft through the air with the prop feathered, or 110 KIAS and 1 NM per 1,000 ft if the prop is left windmilling (`core`'s `T6A_GLIDE`, from the T-6A max glide chart), with the wind changing its range over the ground. It picks the closest key it can reach on a sensible heading, joins the PFL circle at a tangent (SMM 13.13, 13.17 paras 34, 38), lowers the gear and lands.
 - With no key in reach it's flagged "can't make the runway: eject" and leaves the sim. In the final turn or on a straight-in final there's no zoom (SMM 13.17 para 40): it glides straight ahead if the runway is in reach, and otherwise ejects.
 - Other traffic carries on as before (no avoiding action), so the conflict check shows what the "simulated traffic" call is about.
@@ -325,7 +325,7 @@ Patrick asked for the overhead break (slowing from 220 to 120 KIAS), the descend
 | Gear down, in the PFL | 120 KIAS, about 2,600 ft per 360° at 30° of bank | SMM 13.6 para 13 |
 | Clean turn while gliding | about 1,700 ft per 360° at 30° of bank, 125 KIAS | SMM 13.5 para 11 |
 | High Key at Moose Jaw | 5,000 ft MSL ideal (3,000 to 4,000 ft above the field) | SMM 13.5 paras 7, 8 |
-| Zoom | `core`'s `zoomT6A` (SPEC-core, T-6A performance) | NFM Fig 3-4, p.3-12 (Dad to confirm, T10) |
+| Zoom | `core`'s `zoomT6A` (SPEC-core, T-6A performance) | NFM Fig 3-4, p.3-12 (T10, kept) |
 | Airstart attempt | costs about 1,200 ft; not below 2,000 ft above the field | NFM Fig 3-5 notes, p.3-13; SMM 13.17 para 36 |
 
 Later ideas logged in the plan doc: a go-around or low approach as a choice at the Window (FF27) and a touch-and-go into the closed pattern (FF28), both now part of R27 below, and a check of landing spacing on the runway (FF29).
@@ -594,20 +594,12 @@ Each has a default, which is what gets built until it's answered, and a recommen
 
 **T8. The references for the redraw.** Which ground reference each point of the Moose Jaw pattern flies over (for example "downwind over the highway"), from Patrick and Dad. Default: V6's routes and 1.2 trim until they redraw them (see The built-in setup). Recommendation: send the list whenever it's handy; the redraw itself happens on screen once task 8 is built.
 
-**T11 (Q75). Spacing on final, and how often someone misses traffic.** How much room does a pilot want ahead on final before turning in (default: at least 3,000 ft to the aircraft ahead at roll-out), and how often should a Random aircraft miss the traffic and turn anyway (default 10 %)? Recommendation: Patrick or Dad gives a number for each; they're one setting each under Conflict limits.
-
-**For Dad (his flying knowledge)**
-
-**T6b. Turns set at 1 G, and turns too tight for their legs.** Points 11 to 13 of the built-in Pattern 1 are set at 1 G, which in a level turn means no bank at all, and point 10's legs are too short for its 2 G turn (it needs 2.3 G). Default: fly them as V6 does, tightened where they don't fit and flagged. Recommendation: set every pattern turn to 60°, 2 G (Patrick's rule) when the routes are redrawn, and move any point whose turn still doesn't fit.
-
-**T5b. Tutor and Astra numbers.** The CT-114 has no published circuit speeds, and the Astra's Entry speed is V6's own number. Default: the type table as it stands (Patrick: "looks about right"). Recommendation: Dad corrects any number he knows better; each is one row of data.
-
-**T10 (Q74). The Harvard's slow-down and zoom.** How fast does a Harvard slow down at idle in a 60° break (the default spreads 220 to 120 KIAS evenly from the break to abeam the threshold), and is the T-6A flight manual's zoom right for the CT-156 (2 s to react, 20° nose up until 145 KIAS, about 70 % of the speed-for-height trade, so about 1,100 ft from 220 KIAS; NFM Fig 3-4)? The engine-out check depends on the zoom. Recommendation: Dad gives a number for each, or they stay as placeholders.
-
 ## Answered questions
 
 Patrick, 2026-09-30 at 04:36Z. Each answer lands as its own logged change after V6 is pinned (D10).
 
+- **T11 (Q75). Spacing on final, and how often someone misses traffic** (Patrick, 07:20Z, "agreed to both"): at least 3,000 ft to the aircraft ahead at roll-out, and a 10 % chance a Random aircraft misses the traffic and turns anyway. Both are settings.
+- **T5b (Q76), T6b (Q77) and T10 (Q74), the questions for Dad** (Patrick, 07:21Z, "Keep those. go"): closed on the current defaults, with no email to Dad. The Tutor and Astra rows stay as the type table has them; the 1 G and too-tight turns of the built-in Pattern 1 fly as V6 does, tightened where they don't fit and flagged, until the redraw (T8) sets pattern turns to 60°, 2 G; the break slows evenly from 220 KIAS to the Inner downwind speed abeam the threshold; the zoom is `core`'s `zoomT6A` (NFM Fig 3-4). Each stays a setting, so Dad can change any of them at the final sign-off.
 - **T2. Home field not Moose Jaw:** a satellite photo and a runway-number box for now; automatic later, with runway data (FF20). See The built-in setup.
 - **T3. Aircraft types:** V6's four: CT-156, CT-157, CT-102 (the new Astra II) and CT-114.
 - **T4. Conflict limits:** 200 ft lateral and 200 ft vertical for a conflict, 500 ft and 500 ft for caution, for now. The Moose Jaw pattern can hold 10 to 12 aircraft at different speeds and heights, which is what the sim is for. ("Dad's own numbers" meant: V6's boxes start at 1,500 ft / 500 ft but its Moose Jaw setup opens at 200 ft / 200 ft, so it wasn't clear which Dad meant to count as too close.)
