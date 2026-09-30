@@ -46,3 +46,7 @@ Load up to four ForeFlight tracks (or the example flight), see them on the map a
 npm test                                   # tests/unit/debrief, tests/golden/debrief-*
 npm run build && npx playwright test tests/e2e/debrief.spec.js
 ```
+
+The browser tests cover the spec's list: loading and status (R11), one clock for 2D and 3D (R12), nothing overlapping at 1366 × 768 and 1920 × 1080 with every panel open (R2), every control doing something with a flight loaded (R3), leaving with nothing left running (R4), offline after one visit (R6), save and reopen (R17), standards kept and reset (R18), the layout remembered (R22) and hostile files shown only as text.
+
+The hand check before sign-off is [docs/checklists/debrief.md](../../../docs/checklists/debrief.md) (R21), run on the live link.

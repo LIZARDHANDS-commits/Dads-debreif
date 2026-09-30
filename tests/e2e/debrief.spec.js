@@ -187,6 +187,117 @@ test('leaving the debrief while it plays stops everything it started (R4)', asyn
   expect(await page.locator('link[href*="debrief"]').count()).toBe(0);
 });
 
+test('leaving from 3D with the EM chart and tennis ball open stops everything too (R4)', async ({ page }) => {
+  await openRoute(page, '#/');
+  const fresh = await page.evaluate(() => window.__ooda.stats());
+  await page.evaluate(() => { location.hash = '#/debrief'; });
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'debrief');
+  await loadExample(page);
+  await page.getByRole('button', { name: 'Tools' }).click();
+  await page.getByRole('checkbox', { name: 'EM chart' }).check();
+  await page.getByRole('checkbox', { name: 'Tennis ball' }).check();
+  await page.keyboard.press('Escape');
+  await page.getByText('3D', { exact: true }).click();
+  await page.getByRole('button', { name: 'Play' }).click();
+  expect(await page.evaluate(() => window.__ooda.stats().frames)).toBeGreaterThan(0);
+  await page.evaluate(() => { location.hash = '#/'; });
+  await page.waitForFunction(() => window.__ooda.stats().mounted === 'home');
+  expect(await page.evaluate(() => window.__ooda.stats())).toEqual(fresh);
+});
+
+// R3 with a flight loaded (buttons.spec.js clicks through the empty screen):
+// every control on show does something you can see: the page changes, a map
+// redraws, a file downloads, a file picker or a question opens. Each click
+// starts from a fresh page, first with the default layout, then with every
+// panel open, so one click (collapsing a column, say) can't hide the rest.
+test('with a flight loaded, every control on show does something (R3)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.addInitScript(() => {
+    if (location.protocol.startsWith('http')) localStorage.clear();
+  });
+  let events = 0;
+  page.on('download', () => { events++; });
+  page.on('filechooser', () => { events++; });
+  page.on('dialog', (dialog) => { events++; dialog.dismiss(); });
+  const openAll = async () => {
+    await status(page).click();
+    await page.getByRole('button', { name: 'More detail' }).click();
+    await page.getByRole('button', { name: 'Standards' }).click();
+    await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await page.getByRole('button', { name: 'Edit DFP 1' }).click();
+  };
+  const tag = () => page.evaluate(() =>
+    [...document.querySelectorAll('#view a[href], #view button, #view label.button')]
+      .filter((el) => el.getClientRects().length > 0 && !el.disabled && !el.closest('[hidden]'))
+      .map((el, index) => {
+        el.dataset.testControl = String(index);
+        return { index, text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40) };
+      }));
+  const snapshot = () => page.evaluate(async () => {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return [...document.querySelectorAll('#view canvas')].map((c) => (c.width && c.height ? c.toDataURL() : '')).join('|');
+  });
+  const fresh = async (setup) => {
+    await page.goto('about:blank');
+    await openRoute(page, '#/debrief');
+    await loadExample(page);
+    await setup();
+    return tag();
+  };
+  const idle = [];
+  const seen = new Set();
+  for (const setup of [async () => {}, openAll]) {
+    const list = await fresh(setup);
+    expect(list.length).toBeGreaterThan(12);
+    for (const control of list) {
+      if (seen.has(control.text)) continue;
+      seen.add(control.text);
+      await fresh(setup);
+      const target = page.locator(`[data-test-control="${control.index}"]`);
+      // The same control as on the first page (the screen is built the same way each time).
+      expect(await target.evaluate((el) => (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40))).toBe(control.text);
+      const pictures = await snapshot();
+      await page.evaluate(() => {
+        window.__changes = 0;
+        new MutationObserver((m) => { window.__changes += m.length; })
+          .observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+      });
+      const eventsBefore = events;
+      await target.click();
+      const redrawn = (await snapshot()) !== pictures;
+      const changes = await page.evaluate(() => window.__changes);
+      if (!redrawn && !changes && events === eventsBefore) idle.push(control.text);
+    }
+  }
+  expect(seen.size).toBeGreaterThan(25);
+  expect(idle, 'controls that did nothing').toEqual([]);
+});
+
+// R6: after one visit the debrief opens with the network off, and the example
+// flight plays again if it was loaded before.
+test('offline after one visit: the debrief opens and the example flight loads again (R6)', async ({ page, context }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // no card videos mid-download when the network drops
+  await openRoute(page, '#/debrief');
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      await new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+    }
+  });
+  await loadExample(page);
+  await context.setOffline(true);
+  await page.reload();
+  await page.waitForFunction(() => window.__ooda?.stats().mounted === 'debrief');
+  await expect(status(page)).toHaveText('No flight loaded');
+  await loadExample(page);
+  const scrubber = page.getByLabel('Flight time');
+  const before = await scrubber.inputValue();
+  await page.getByRole('button', { name: 'Ahead 1 second' }).click();
+  await expect(scrubber).toHaveValue(String(Number(before) + 1));
+  await context.setOffline(false);
+});
+
 // R2: with a flight loaded and every panel open, no control covers another
 // or runs off the page, at the smallest supported screen and a big one.
 for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
@@ -439,6 +550,33 @@ test('Export CSV: disabled with no flight, then one row a second for all four sh
   const span = Number(await scrubber.getAttribute('max')) - Number(await scrubber.getAttribute('min'));
   expect(Math.abs(lines.length - 1 - span)).toBeLessThanOrEqual(1);
   expect(lines[1].split(',')).toHaveLength(header.length);
+});
+
+test('a hostile debrief file: a 10 MB note is refused, and a script in a note is only text', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await loadExample(page);
+  await addDfpAt(page, 10);
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
+  const file = JSON.parse(readFileSync(await download.path(), 'utf8'));
+  await page.getByRole('button', { name: 'Close flight' }).click();
+  await expect(status(page)).toHaveText('No flight loaded');
+
+  const open = (dfps) => page.locator('input[type="file"][accept^=".json"]').setInputFiles({
+    name: 'hostile.dadsdebrief.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ ...file, dfps })),
+  });
+  await open([{ ...file.dfps[0], note: `${'x'.repeat(10 * 1024 * 1024)}<script>window.__pwned=1</script>` }]);
+  await expect(page.getByText(/DFP 1 is damaged/)).toBeVisible();
+  await expect(status(page)).toHaveText('No flight loaded');
+
+  const script = '<img src=x onerror="window.__pwned=1"><script>window.__pwned=1</script>';
+  await open([{ ...file.dfps[0], label: script, note: script }]);
+  await expect(status(page)).toHaveText(/^4 tracks loaded/);
+  await expect(dfpRows(page).locator('.dfp-label')).toHaveText([script]);
+  await page.getByRole('button', { name: `Edit ${script}` }).click();
+  await expect(page.getByLabel('Note')).toHaveValue(script);
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await page.locator('.debrief img, .debrief script').count()).toBe(0);
 });
 
 test('a debrief file that can\'t be read changes nothing, and says why', async ({ page }) => {
