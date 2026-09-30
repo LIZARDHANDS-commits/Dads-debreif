@@ -94,6 +94,8 @@ function newAircraft(slot, settings) {
  *            finished: the run has reached its Duration (V6's loop stops there).
  *            turnComplete: every aircraft has finished its turn (V6 line 1435).
  *            canStartLeg: Play now should start a new leg (V6 lines 2002 and 2011).
+ *            autoStepSec: the auto timing step in seconds once the turn is planned (a delayed
+ *            turn with Timing = auto), else null. It is shown, never written into Base delay.
  *            aircraft has the aircraft that exist (a two-ship has ids 1 and 2). g is the G it
  *            flies; bankDeg is its bank while turning and 0 while flying straight.
  *   step()   one 0.05 s step. The first call after reset plans the turn (V6's first
@@ -116,8 +118,9 @@ export function createRun(settings) {
   let rows = [];
   let tSec = 0;
   let planned = false;
+  let autoStepSec = null;
 
-  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, aircraft: [] };
+  const state = { tSec: 0, finished: false, turnComplete: false, canStartLeg: false, autoStepSec: null, aircraft: [] };
 
   const speedFtps = () => ktToFtps(cfg.speedKt);
   const finished = () => tSec >= cfg.durationSec;
@@ -126,6 +129,7 @@ export function createRun(settings) {
     state.tSec = tSec;
     state.finished = finished();
     state.turnComplete = allAircraftFinishedTurn(craft);
+    state.autoStepSec = autoStepSec;
     state.canStartLeg = tSec > 0 && (state.finished || state.turnComplete);
     state.aircraft.length = 0;
     for (const a of craft) {
@@ -143,6 +147,9 @@ export function createRun(settings) {
     }
   }
 
+  // The clock cue is not flown yet (task 9): it flies as a plain time delay.
+  const effectiveTiming = () => (cfg.timing === 'auto' ? 'auto' : 'time');
+
   function flight() {
     return {
       formation,
@@ -152,6 +159,9 @@ export function createRun(settings) {
       turnDeg: cfg.turnDeg,
       baseDelaySec: cfg.baseDelaySec,
       clockCueAircraft: cfg.clockCueAircraft,
+      timing: effectiveTiming(),
+      speedKt: cfg.speedKt,
+      spacingFt: cfg.spacingFt,
     };
   }
 
@@ -180,6 +190,7 @@ export function createRun(settings) {
     rows = [];
     tSec = 0;
     planned = false;
+    autoStepSec = null;
     publish();
   }
 
@@ -195,7 +206,7 @@ export function createRun(settings) {
       a.done = false;
     }
     syncFormation();
-    planTurn(craft, flight(), { useErrors: true });
+    autoStepSec = planTurn(craft, flight(), { useErrors: true }).autoStepSec;
     record();
     planned = true;
   }
@@ -213,7 +224,7 @@ export function createRun(settings) {
       a.active = false;
       a.done = false;
     }
-    planTurn(craft, flight(), { useErrors: true });
+    autoStepSec = planTurn(craft, flight(), { useErrors: true }).autoStepSec;
     record();
     planned = true;
     publish();
@@ -227,6 +238,7 @@ export function createRun(settings) {
     }
     moveAircraft(craft, {
       tSec,
+      timing: effectiveTiming(),
       speedFtps: speedFtps(),
       baseG: cfg.baseG,
       turnDegDefault: cfg.turnDeg,

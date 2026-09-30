@@ -24,6 +24,12 @@ function compareLeg(page, run, label) {
     page.step();
     assert.equal(run.step(), true, `${label}: the port stopped early at step ${steps}`);
     steps++;
+    if (steps === 1) {
+      // V6 writes its auto step into the Base delay box (2 places); the port keeps it in state.autoStepSec instead.
+      const auto = page.$('triggerMode').value === 'auto' && /^delayed/.test(page.$('maneuver').value);
+      assert.equal(run.state.autoStepSec === null, !auto, `${label}: autoStepSec`);
+      if (auto) assert.equal(run.state.autoStepSec.toFixed(2), (+page.$('baseDelay').value).toFixed(2), `${label}: auto step`);
+    }
     const where = `${label}: step ${steps} t=${page.time()}`;
     assert.equal(run.state.tSec, page.time(), where);
     const v6 = page.aircraft();
@@ -169,4 +175,41 @@ test('the closure over the real step is V6\'s: the change in the 1-3 distance ov
   assert.equal(rows[0].closure13Ftps, 0);
   for (let i = 1; i < rows.length; i++) assert.equal(rows[i].closure13Ftps, (rows[i - 1].pairs['1-3'] - rows[i].pairs['1-3']) / 0.05);
   assert.ok(rows.some((row) => Math.abs(row.closure13Ftps) > 1), 'the aircraft do close on each other in a delayed turn');
+});
+
+test('auto timing (V6\'s spacing x angle / speed, and its wait for Lead to start): 4312, 2134, two-ship × delayed 90 and 45 × right and left, two legs', () => {
+  for (const formation of ['weighted', 'weightedReverse', 'twoShip']) {
+    for (const maneuver of ['delayed90away', 'delayed45away']) {
+      for (const direction of DIRECTIONS) {
+        compareRun(scenario({ formation, maneuver, direction, timing: 'auto' }), `auto ${formation} ${maneuver} ${direction}`, { legs: 2 });
+      }
+    }
+  }
+});
+
+test('auto timing with other turns (no effect) and seeded speed, spacing, G, turn degrees and errors', () => {
+  const r = seeded(0xa070);
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  for (const maneuver of ['hook90', 'inplace90', 'shackle45', 'cross180']) {
+    compareRun(scenario({ maneuver, timing: 'auto' }), `auto ${maneuver}`);
+  }
+  for (let i = 0; i < 40; i++) {
+    const s = scenario({
+      formation: pick(['weighted', 'weightedReverse', 'twoShip']),
+      maneuver: pick(['delayed90away', 'delayed45away']),
+      direction: pick(DIRECTIONS),
+      timing: 'auto',
+      spacingFt: Math.round(2000 + 8000 * r()),
+      speedKt: Math.round(120 + 200 * r()),
+      baseG: Math.round((1.5 + 4 * r()) * 100) / 100,
+      turnDeg: Math.round(20 + 160 * r()),
+      durationSec: 90,
+      startHeadingDeg: Math.round(360 * r()),
+    });
+    for (const id of [1, 2, 3, 4]) {
+      if (r() < 0.5) s[aircraftKey(id, 'delayErrSec')] = Math.round((10 * r() - 5) * 10) / 10;
+      if (r() < 0.3) s[aircraftKey(id, 'gError')] = Math.round((2 * r() - 1) * 100) / 100;
+    }
+    compareRun(s, `auto seeded ${i}`, { legs: i % 4 === 0 ? 2 : 1 });
+  }
 });

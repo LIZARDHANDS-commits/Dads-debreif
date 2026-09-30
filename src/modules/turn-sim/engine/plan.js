@@ -9,6 +9,7 @@
 // the aircraft's left on the map; "selected direction" is +1 for a left turn
 // (counter-clockwise) and -1 for a right turn, as V6 has it (line 1179).
 import { degToRad } from '../../../core/angles.js';
+import { ktToFtps } from '../../../core/units.js';
 import { rightVector } from './formation.js';
 
 /** The turn direction sign for the Direction box: right is -1 (clockwise), left is +1 (V6 line 1179). */
@@ -113,12 +114,35 @@ export function turningOrder(aircraft, { formation, direction, startHeadingDeg }
 }
 
 /**
+ * Auto timing: the delay between aircraft and each aircraft's start time (V6
+ * `computeAutoDelay`, line 1369). V6's step is spacing x turn angle / speed;
+ * aircraft start at index x step in the turning order. Returns
+ * { stepSec, startsSec: { id: seconds } }.
+ * V6 also writes the step into the Base delay box (rounded to 2 places); the
+ * port never does, the step is shown instead (#16).
+ *
+ * flight: { formation, direction, startHeadingDeg, speedKt, turnDeg, spacingFt }
+ */
+export function autoTimingStarts(aircraft, flight) {
+  const order = turningOrder(aircraft, flight);
+  const v = Math.max(1, ktToFtps(flight.speedKt));
+  const theta = degToRad(+flight.turnDeg || 90);
+  const spacing = +flight.spacingFt || 6000;
+  const stepSec = Math.max(0, (Math.abs(spacing) * Math.abs(theta)) / v);
+  const startsSec = {};
+  order.forEach((a, i) => { startsSec[a.id] = i * stepSec; });
+  return { stepSec, startsSec };
+}
+
+/**
  * Plans the turn for every aircraft (V6 `setupTurnStartsFor`, line 1174, with
  * the time-delay trigger): sets each aircraft's start time, direction and goal,
  * and clears its turn progress. `aircraft` is the active aircraft, changed in
  * place, each with xFt, yFt, headingRad, delayErrSec, turnLogic and clockTarget.
  *
- * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingDeg, clockCueAircraft }
+ * flight: { formation, maneuver, direction, turnDeg, baseDelaySec, startHeadingDeg, clockCueAircraft,
+ *   timing ('time' or 'auto'), speedKt, spacingFt }
+ * Returns { autoStepSec }: the auto step when the timing is auto and the turn is a delayed one, else null.
  * `formation` and `startHeadingDeg` are the ones now in force: V6 changes both
  * when a new leg starts (see run.js).
  *
@@ -128,12 +152,14 @@ export function turningOrder(aircraft, { formation, direction, startHeadingDeg }
  * Only the delayed turns are delayed; every other turn starts at once.
  */
 export function planTurn(aircraft, flight, { useErrors = true } = {}) {
-  const base = flight.baseDelaySec;
   const man = flight.maneuver;
   const selectedDir = selectedDirSign(flight.direction);
   const goal = degToRad(flight.turnDeg);
   const form = flight.formation;
   const delayed = man === 'delayed90away' || man === 'delayed45away';
+  const auto = flight.timing === 'auto' && delayed ? autoTimingStarts(aircraft, flight) : null;
+  // In the offset box V6's Base delay box holds the auto step, rounded to 2 places (line 1397), and its plan reads it.
+  const base = auto ? Number(auto.stepSec.toFixed(2)) : flight.baseDelaySec;
   const order = turningOrder(aircraft, flight);
   const delayIndex = {};
   order.forEach((a, i) => { delayIndex[a.id] = i; });
@@ -144,7 +170,7 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     let dir = selectedDir;
     let g = goal;
 
-    if (delayed) d = delayIndex[a.id] * base;
+    if (delayed) d = auto && form !== 'offsetBox' ? +auto.startsSec[a.id] || 0 : delayIndex[a.id] * base;
 
     if (man === 'hook90' || man === 'inplace90') { d = 0; dir = selectedDir; }
 
@@ -170,9 +196,10 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     if (a.id === 1) dir = selectedDir;
     else dir = turnDirFromLogic(a, aircraft, dir, logicFlight);
 
-    // In the offset box's delayed turns every aircraft turns the selected way (V6 line 1240).
+    // In the offset box's delayed turns every aircraft turns the selected way (V6 line 1241).
     if (form === 'offsetBox' && delayed) dir = selectedDir;
 
+    a.cueArmed = flight.timing !== 'time' && delayed && a.id !== 1;
     a.turnStartSec = d + (useErrors ? a.delayErrSec : 0);
     a.turnDir = dir;
     a.turnGoalRad = g;
@@ -183,4 +210,5 @@ export function planTurn(aircraft, flight, { useErrors = true } = {}) {
     a.done = false;
     a.turnAccumRad = 0;
   }
+  return { autoStepSec: auto ? auto.stepSec : null };
 }
