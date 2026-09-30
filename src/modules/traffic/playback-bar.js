@@ -74,11 +74,12 @@ export function createMenu({ label, children = [], listen }) {
  * on: { play, pause, reset, speed(x), fit, rewind?, step?(seconds) }.
  * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
  * listen: app.listen.
- * Returns { element, setState({ mode, clockText, speed }) }.
+ * Returns { element, setState({ mode, clockText, speed, note }) }: a note ("Replaying…") stands in for the status words until it is cleared with null.
  * @param {{ controls: any, on: Record<string, any>, available?: { wind?: boolean, view3d?: boolean, photo?: boolean, reach?: boolean }, listen: any }} options
  */
 export function createPlaybackBar({ controls, on, available = {}, listen }) {
   let mode = 'paused';
+  let note = null; // words shown in place of the mode's while something is busy
   const button = (label, onclick, extra = {}) => h('button', { type: 'button', class: 'button', onclick, ...extra }, label);
 
   // Row one: the clock.
@@ -129,15 +130,16 @@ export function createPlaybackBar({ controls, on, available = {}, listen }) {
 
   return {
     element,
-    /** Shows the clock's state: mode 'paused' | 'running' | 'rewinding', the clock as text, the speed. */
-    setState({ mode: nextMode, clockText, speed: nextSpeed } = /** @type {{ mode?: string, clockText?: string, speed?: number }} */ ({})) {
+    /** Shows the clock's state: mode 'paused' | 'running' | 'rewinding', the clock as text, the speed, and a note in place of the status words. */
+    setState({ mode: nextMode, clockText, speed: nextSpeed, note: nextNote } = /** @type {{ mode?: string, clockText?: string, speed?: number, note?: string | null }} */ ({})) {
+      if (nextNote !== undefined) note = nextNote || null;
       if (nextMode !== undefined && STATUS_TEXT[nextMode]) {
         mode = nextMode;
-        write(status, STATUS_TEXT[mode]);
         write(playGlyph, mode === 'paused' ? '▶' : '❚❚');
         write(playWord, mode === 'paused' ? 'Play' : 'Pause');
         rewind?.setAttribute('aria-pressed', String(mode === 'rewinding'));
       }
+      write(status, note ?? STATUS_TEXT[mode]);
       if (clockText !== undefined) write(clockTime, clockText);
       if (nextSpeed !== undefined && speed.value !== String(nextSpeed)) speed.value = String(nextSpeed);
     },
