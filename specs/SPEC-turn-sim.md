@@ -168,6 +168,17 @@ Changes that don't change a number V6's Step button shows:
 - V6's saved profiles were kept by the old single file in its own browser storage, which the new site can't read. Nothing to migrate.
 - **Export CSV** (in Profiles): one row per 0.05 s step over the whole run, with time, the pair distances that exist, minimum separation and 1-3 closure in ft/s, V6's columns (`turn_spacing.csv`). The download link is released after use.
 
+## 2D/3D switch (Patrick, 2026-09-30 07:51Z)
+
+Patrick asked for a 2D/3D switch in every simulator ("can we just do them all in 3d/2d switch on and off now?"). The Turn Sim gets one:
+
+- A **2D / 3D** switch on the Stage bar. **2D is the default**, and the switch is remembered in this browser with the other layout choices.
+- 3D shows the same run from the same engine state: each aircraft as the shared T-6 model from ui-kit `three-aircraft.js`, at its position and heading, banked by the `bankDeg` the engine reports, with its trail. The camera starts behind and above Lead, and the user can orbit, zoom and follow Lead. Everything else (playback, readouts, Formation card, Settings) is shared with 2D.
+- The Turn Sim is flat, so every aircraft flies at one altitude in 3D. The crossing note in the shackle and cross turn (SMM item 6) still applies.
+- three.js and the model load **only when 3D is first switched on**, so a 2D-only visit downloads nothing extra. Leaving the Turn Sim or switching back to 2D stops 3D's frames (R4).
+- Colours are the Turn Sim's (#1 blue, #2 green, #3 red, #4 white with a dark outline). The Moose Jaw CT-156 paint with coloured tails and numbers comes later through the shared model.
+- No flight math changes: the golden pins are untouched, and 3D only draws.
+
 ## SMM formation additions (Patrick, 2026-09-30 06:40Z)
 
 Patrick asked what else from the SMM the Turn Sim should model, and said to include everything offered: "Includeall of this including your futur ideas". References are SMM section and paragraph numbers (and one EFIG page); the manuals' own text stays out of this repo. Items 1 to 6 change or add to turns V6 already flies, so each is pinned to V6 first (where V6 has the turn) and lands as its own commit (D10). Item 7 (G-warm) is a new exercise, built last (Phase 5, PR E). Item 8 (rejoins, fighting wing, fluid manoeuvring) is a future feature (Patrick, 06:59Z). The plan doc gets a decision number for each from the app frame thread.
@@ -226,6 +237,7 @@ src/modules/turn-sim/
     step.js            one fixed step: G (core, D74), turn, move
     run.js             a run: start, continue a leg, history by time, CSV rows
   layout.js            the three columns, panels, playback bar
+  view3d.js            the 3D view on ui-kit three-aircraft.js, loaded only when switched on
   view.js              drawing: grid, MOA box, trails, breadcrumbs, 3/9 lines, turn circles, clock marks, labels
   exercises.js         the Exercises panel (G-warm)
   graph.js             the spacing graph (Q41), drawn only while open
@@ -316,7 +328,7 @@ Each PR description lists the skills it applied.
 
 - Every engine function and whole-run scenario has a golden test against V6, and each of D41 to D45, D48, D74 and the flight changes from Q43 (hook), Q44 (shackle, #4 solver), Q45 (clock cue selectors) and Q47 (rear check) is its own commit with a test that states it.
 - R2, R3, R4, R7 and R22 pass their browser tests on the Turn Sim route; results are the same at any frame rate and playback speed.
-- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the item still with Dad (the offset box clock cue, Q44c), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
+- Issues #15, #16, #17, #30, #31 and #32 are closed or reduced to the offset box clock cue message (Q44c, D87: #3 and #4 use the 10-15 s delay), and the Turn Sim parts of #29, #33, #34, #35, #39 and #43 are gone.
 - Each SMM formation addition being built (items 1 to 7) has a test that states it, and the changes to V6's turns (items 2 to 5) are each their own commit after the V6 pin.
 - Patrick or Dad signs off the checklist on the live site.
 
@@ -331,12 +343,11 @@ Patrick answered all seven on 2026-09-30 (in the "Open questions explained" thre
 | Q43 (TS3) hook and in-place 90 | Don't merge. Hook: same direction through 180°, fuselages lined up in the middle. In-place 90: a 90° turn. | Turns |
 | Q44a (TS4) shackle | Ends on the original heading, same spacing, each aircraft on the opposite side: an X from above. | Turns |
 | Q44b (TS4) offset box #4 | Finish the ground-track solver so #4 works out its own timing. | Timing |
-| Q44c (TS4) offset box clock cue | Keep the on-screen message; ask Dad which cue #3 and #4 should use; revise later. | Timing |
+| Q44c (TS4) offset box clock cue | Keep the on-screen message. Closed by Patrick 07:21Z (D87, "Keep those. go"): #3 and #4 use the SMM 10-15 s delay (16.41 para 112) as a setting; no question to Dad. | Timing |
 | Q45 (TS5) clock cue selectors | Wire them up. | Timing |
 | Q46 (TS6) standards | Follow the debrief's edited standards. | Assumptions; Readouts |
 | Q47 (TS7) rear check | Start at the set time or once #3 and #4 finish turning, whichever is later. | Timing |
 
 ## Open questions
 
-- **For Dad (Q44c):** which cue should #3 and #4 use in the offset box, since they never see 5:30? Until then, the on-screen message.
 - **For Patrick, before those commits:** the rollout pictures for the hook, the 4-ship shackle, the delayed 45 into and away from the wingman, and the 4-ship G-warm, drawn from the rebuilt engine.

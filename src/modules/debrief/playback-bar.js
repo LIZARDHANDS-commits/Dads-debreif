@@ -30,6 +30,8 @@ export function createPlaybackBar({ time }) {
     value: '0',
     oninput: () => clock.seek(Number(scrubber.value)),
   });
+  // Report ticks under the scrubber (a METAR or SPECI each), drawn by the browser from a list.
+  const ticks = h('datalist', { id: 'debrief-report-ticks' });
   const first = h('span', { class: 'playback-time' });
   const second = h('span', { class: 'playback-time-second' });
   const times = h('p', { class: 'playback-times', 'aria-live': 'off' }, first, ' ', second);
@@ -37,7 +39,7 @@ export function createPlaybackBar({ time }) {
   const element = h(
     'div',
     { class: 'playback', role: 'group', 'aria-label': 'Playback' },
-    play, back, ahead, speed, scrubber, times, reset,
+    play, back, ahead, speed, scrubber, ticks, times, reset,
   );
 
   function sync() {
@@ -75,5 +77,14 @@ export function createPlaybackBar({ time }) {
       sync();
     },
     sync,
+    /** Marks these times (seconds since 1970) on the scrubber; none clears them. */
+    setTicks(times) {
+      const key = times.join(',');
+      if (ticks.dataset.key === key) return;
+      ticks.dataset.key = key;
+      ticks.replaceChildren(...times.map((t) => h('option', { value: String(Math.floor(t)) })));
+      if (times.length) scrubber.setAttribute('list', ticks.id);
+      else scrubber.removeAttribute('list');
+    },
   };
 }
