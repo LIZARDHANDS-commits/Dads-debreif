@@ -50,16 +50,22 @@ class Element {
 
   /** Descendants with this exact qualified name (e.g. 'gx:coord'), in document order. */
   getElementsByTagName(name) {
-    const found = [];
-    const walk = el => {
-      for (const c of el.children) {
-        if (typeof c === 'string') continue;
-        if (c.name === name) found.push(c);
-        walk(c);
-      }
-    };
-    walk(this);
-    return found;
+    if (!this.byName) {
+      // One walk indexes every descendant by name; a KML file is searched for
+      // about twenty names, and the tree never changes after parsing.
+      this.byName = new Map();
+      const walk = el => {
+        for (const c of el.children) {
+          if (typeof c === 'string') continue;
+          const list = this.byName.get(c.name);
+          if (list) list.push(c);
+          else this.byName.set(c.name, [c]);
+          walk(c);
+        }
+      };
+      walk(this);
+    }
+    return [...(this.byName.get(name) ?? [])];
   }
 }
 

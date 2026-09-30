@@ -186,6 +186,7 @@ print(f'{len(M) - len(survived)} of {len(M)} changes caught')
 # Known equivalent, so not listed above: V6's "|| 1" guards in sampleAt
 # (b.t - a.t is never 0 there, because the fixes around t differ in time), and
 # the G formula itself, which is core's gFromTrack and is checked by core's own
-# mutation run.
+# mutation run. Also xml.js returning its name index's own array rather than a
+# copy: no caller changes the list, the copy only guards future ones.
 for s in survived:
     print('SURVIVED', s)
