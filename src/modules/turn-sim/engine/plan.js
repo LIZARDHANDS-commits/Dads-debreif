@@ -122,6 +122,14 @@ export function simulateDelayedTurnFinalPos(a, dir, goalRad, speedFtps, radiusFt
  * longest one, the first best one wins. The longest is V6's own (|centerGuess| or
  * 20 s, whichever is more, plus 1.25 turn times), or `maxDelaySec` when given.
  * Returns { delaySec, errFt }: V6 kept only the delay.
+ * @param {*} a
+ * @param {*} dir
+ * @param {number} goalRad
+ * @param {*} target
+ * @param {number} speedFtps
+ * @param {number} radiusFt
+ * @param {number} centerGuessSec
+ * @param {{ baseG?: number, minDelaySec?: number, maxDelaySec?: number | null }} opts
  */
 export function searchDelayToTarget(a, dir, goalRad, target, speedFtps, radiusFt, centerGuessSec, { baseG, minDelaySec = 0, maxDelaySec = null } = {}) {
   const turnTime = goalRad / Math.max(1e-6, turnRateRadPerSec(speedFtps, limitG(baseG)));
