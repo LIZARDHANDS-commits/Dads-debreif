@@ -633,6 +633,37 @@ test('after a keyboard Delete, focus stays inside Profiles and notes (PR-01)', a
   await expect(profileList(page)).toBeFocused();
 });
 
+test('a 40-character name with no spaces does not widen Profiles and notes at 1280 (PR-02)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await open(page);
+  await page.locator('[data-route-id="PAT1"]').click();
+  await openProfiles(page);
+  const long = 'W'.repeat(40);
+  // Nothing in the section sticks out of it, and the section stays inside its column.
+  const sticksOut = () => page.evaluate(() => {
+    const section = document.querySelector('.profiles');
+    const column = section.closest('.traffic-col');
+    const limit = section.parentElement.getBoundingClientRect().right + 0.5;
+    const out = [...section.querySelectorAll('*')].filter((e) => !e.hidden && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > limit).map((e) => `${e.className || e.tagName}`);
+    const wide = [section.parentElement, column].filter((e) => e.scrollWidth > e.clientWidth).map((e) => `${e.className} ${e.scrollWidth} > ${e.clientWidth}`);
+    return { out, wide };
+  });
+  await profileName(page).fill(long);
+  await button(page, 'Save').click();
+  await expect(profileMessage(page)).toHaveText(`Saved "${long}".`);
+  expect(await sticksOut()).toEqual({ out: [], wide: [] });
+  // The Replace question, with the same long name.
+  await button(page, 'Save').click();
+  await expect(confirmBox(page)).toContainText(long);
+  expect(await sticksOut()).toEqual({ out: [], wide: [] });
+  await button(page, 'Cancel').click();
+  // Its entry in the list, and Delete's question.
+  await profileList(page).selectOption({ label: `${long} (CYMJ)` });
+  await button(page, 'Delete').click();
+  await expect(confirmBox(page)).toContainText(long);
+  expect(await sticksOut()).toEqual({ out: [], wide: [] });
+});
+
 test('no accessibility violations with the Profiles and notes section open, and with a confirm showing', async ({ page }) => {
   await open(page);
   await openProfiles(page);
