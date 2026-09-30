@@ -76,3 +76,39 @@ test('\'rearDelay\' (the fixed rearDelaySec) is still a choice, and \'boxSlot\' 
   const run = createRun({ ...BASE, maneuver: 'delayed90away', turnDeg: 90, direction: 'right', offsetBox4Timing: 'rearDelay' });
   assert.deepEqual(run.state.offsetBox.rear.map((r) => r.delaySec), [12.5, 12.5]);
 });
+
+test('the clock cue in the box: the rear fallback uses the box slot shift, so #3 and #4 still end boxAftFt behind in their slots, both directions', () => {
+  for (const [maneuver, turnDeg] of [['delayed90away', 90], ['hook90', 180]]) {
+    for (const direction of ['right', 'left']) {
+      const label = `clock ${maneuver} ${direction}`;
+      const { run, p, three, four } = fly({ ...BASE, timing: 'clock', clockCuePos: 'auto', maneuver, turnDeg, direction });
+      assert.equal(run.state.turnComplete, true, `${label}: all turned`);
+      const h = p[1].headingRad;
+      const lateral = (a) => -(a.xFt - p[1].xFt) * Math.sin(h) + (a.yFt - p[1].yFt) * Math.cos(h);
+      const sign = Math.sign(lateral(p[2]));
+      assert.ok(lateral(p[3]) * sign > 0 && lateral(p[3]) * sign < lateral(p[2]) * sign, `${label}: #3 between Lead and #2`);
+      assert.ok(lateral(p[4]) * sign > lateral(p[2]) * sign, `${label}: #4 outside #2`);
+      assert.ok(Math.abs(-three.ahead - DEFAULTS.boxAftFt) < AFT_TOLERANCE_FT, `${label}: #3 ${(-three.ahead).toFixed(0)} ft aft`);
+      assert.ok(Math.abs(-four.ahead - DEFAULTS.boxAftFt) < AFT_TOLERANCE_FT, `${label}: #4 ${(-four.ahead).toFixed(0)} ft aft`);
+    }
+  }
+});
+
+test('under the clock cue the fixed rearDelay is still there as a choice: #3 turns rearDelaySec after #1', () => {
+  const run = createRun({ ...BASE, timing: 'clock', clockCuePos: 'auto', maneuver: 'delayed90away', turnDeg: 90, direction: 'right', offsetBox4Timing: 'rearDelay' });
+  const at = {};
+  while (run.step()) for (const a of run.state.aircraft) if (a.turning && at[a.id] === undefined) at[a.id] = run.state.tSec;
+  assert.ok(Math.abs(at[3] - at[1] - 12.5) < 0.11, JSON.stringify(at));
+});
+
+test('state.crossings lists the pairs that pass under 300 ft, known before the first step: the box hook has them, the delayed 90 does not', () => {
+  const near = (direction) => createRun({ ...BASE, maneuver: 'hook90', turnDeg: 180, direction }).state.crossings;
+  const key = (list) => list.map((c) => `${c.a}-${c.b}`).sort();
+  assert.deepEqual(key(near('right')), ['1-3', '2-4']);
+  assert.deepEqual(key(near('left')), ['2-3']);
+  for (const c of near('right')) assert.ok(c.minFt < 300 && c.minFt > 0, `${c.minFt}`);
+  assert.deepEqual(createRun({ ...BASE, maneuver: 'delayed90away', turnDeg: 90, direction: 'right' }).state.crossings, []);
+  const run = createRun({ ...BASE, maneuver: 'hook90', turnDeg: 180, direction: 'right' });
+  while (run.step());
+  assert.deepEqual(key(run.state.crossings), ['1-3', '2-4'], 'and after the run');
+});

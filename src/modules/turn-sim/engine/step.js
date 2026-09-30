@@ -37,6 +37,12 @@ export function flownG(baseG, gError) {
  */
 function mayTurn(a, aircraft, tSec, flight) {
   if (a.active) return true;
+  if (a.followIds) {
+    // The box slot fallback under the clock cue: after the mean of the front aircraft's actual starts, and never before all have started.
+    const front = a.followIds.map((id) => aircraft.find((x) => x.id === id));
+    if (front.some((x) => !x || x.startedAtSec === undefined)) return false;
+    return tSec >= front.reduce((sum, x) => sum + x.startedAtSec, 0) / front.length + a.followDelaySec;
+  }
   if (a.followId) {
     const front = aircraft.find((x) => x.id === a.followId);
     return !!front && front.startedAtSec !== undefined && tSec >= front.startedAtSec + a.followDelaySec;
