@@ -17,8 +17,8 @@ import { stepPointMass, pointMassState, pointMassFlight } from './point-mass.js'
  * 09:29Z). The V-n curve itself reads about 89 kt (7 G near 236 KIAS), and the
  * turn charts imply about 83 kt at maximum power (likely because power on
  * lowers the stall speed, NFM p.6-6). 7 G at 227.5 KIAS matching VO (227) is a coincidence.
- * mmo is the Mach limit, 0.67 (NFM Fig 4-1-2): above about 18,800 ft it is
- * slower than VMO. maxKiasT6A gives the top speed at a height.
+ * mmo is the Mach limit, 0.67 (NFM Fig 4-1-2): slower than VMO above about
+ * 18,800 ft in the NFM's KIAS, about 17,600 ft in the model's IAS (see maxKiasT6A).
  */
 export const T6A_LIMITS = Object.freeze({
   maxG: 7, minG: -3.5, rollingMaxG: 4.7, rollingMinG: -1,
@@ -63,8 +63,9 @@ export function speedOfSoundKt(altFt) {
  * The fastest the T-6A may fly at altFt, in KIAS: VMO (316), or Mmo (0.67)
  * where that is slower. The Mach line is in the model's own IAS (TAS × √σ, no
  * compressibility), so it starts near 17,600 ft and sits a few knots under the
- * NFM's KIAS line (270 against about 279 at 25,000 ft): the safe side.
- * altFt must be finite, or it throws a RangeError.
+ * NFM's KIAS line (270 against about 279 at 25,000 ft): the safe side. Good to
+ * 36,089 ft; above that isaDensityRatio holds σ fixed, so the line goes flat
+ * (209 KIAS), above the T-6A's 31,000 ft ceiling. altFt must be finite, or it throws a RangeError.
  */
 export function maxKiasT6A(altFt) {
   const mmoKias = tasToIasKt(T6A_LIMITS.mmo * speedOfSoundKt(altFt), altFt);
