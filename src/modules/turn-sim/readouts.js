@@ -226,7 +226,7 @@ export function wingmanDetail(row) {
 
 /**
  * Each aircraft's clock-cue status, live from the engine (state.aircraft[i].cue), for Timing = clock cue; empty otherwise.
- * `warning` is Q44c: in the offset box #3 and #4 can't see a 5:30 cue (V6 never turns them), so the screen says so.
+ * `warning` is Q44c: in the offset box #3 and #4 can't see their clock cue, so they turn on the rear element timing instead, and the screen says so.
  */
 export function cueStatus(state) {
   const lines = [];
@@ -244,7 +244,10 @@ export function cueStatus(state) {
       blindPos = at;
     }
   }
-  const warning = blind.length ? `${blind.map((id) => `#${id}`).join(' and ')} can't see a ${blindPos} cue in the offset box; pick Time delay` : null;
+  const many = blind.length > 1;
+  const warning = blind.length
+    ? `${blind.map((id) => `#${id}`).join(' and ')} can't see ${many ? 'their' : 'its'} clock cue in the box, so ${many ? 'they turn' : 'it turns'} on the rear element timing instead.`
+    : null;
   return { lines, warning };
 }
 

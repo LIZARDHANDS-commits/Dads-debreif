@@ -46,9 +46,9 @@ test('#3 and #4 that cannot see a 5:30 cue in the offset box get the Q44c messag
     { mode: 'waiting', targetId: 1, clockPos: 5.5, cantSee: true },
     { mode: 'waiting', targetId: 2, clockPos: 5.5, cantSee: true },
   ]);
-  assert.equal(cueStatus(s).warning, "#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay");
+  assert.equal(cueStatus(s).warning, "#3 and #4 can't see their clock cue in the box, so they turn on the rear element timing instead.");
   s.aircraft.pop();
-  assert.equal(cueStatus(s).warning, "#3 can't see a 5:30 cue in the offset box; pick Time delay");
+  assert.equal(cueStatus(s).warning, "#3 can't see its clock cue in the box, so it turns on the rear element timing instead.");
 });
 
 test('the offset box band lines say in the band or outside it, and are null without an offset box turn', async () => {

@@ -497,11 +497,11 @@ test('the clock cue shows its position box and live status lines, and says when 
   // Q44c: at 5:30 in the offset box, #3 and #4 have nothing to see.
   await box(page, 'Formation').selectOption({ label: 'Offset box' });
   await box(page, 'Clock position').first().selectOption({ label: '5:30' });
-  await expect(page.getByText("can't see a 5:30 cue")).toHaveText("#3 and #4 can't see a 5:30 cue in the offset box; pick Time delay");
+  await expect(page.getByText("can't see their clock cue")).toHaveText("#3 and #4 can't see their clock cue in the box, so they turn on the rear element timing instead.");
   // Time delay again: the cue lines and the message are gone.
   await box(page, 'Timing').selectOption({ label: 'Time delay' });
   await expect(cues).toBeHidden();
-  await expect(page.getByText("can't see a 5:30 cue")).toBeHidden();
+  await expect(page.getByText("can't see their clock cue")).toBeHidden();
 });
 
 test('Auto timing shows the engine\'s step read-only and leaves Base delay alone', async ({ page }) => {
