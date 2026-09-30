@@ -25,6 +25,7 @@ import { createPlaybackBar } from './playback-bar.js';
 import { createDfpPanel } from './dfp-panel.js';
 import { createFilePanel } from './file-panel.js';
 import { downloadText } from '../../storage/file.js';
+import { toCsv, csvFileName } from './export-csv.js';
 import {
   addDfp, renameDfp, setDfpNote, removeDfp, nextDfp, previousDfp, flightFingerprint, dfpStorageKey, readStoredDfps, dfpLabel,
 } from './dfp.js';
@@ -251,6 +252,10 @@ function mount(root, app) {
           if (patch && app.standards) app.standards.update(patch);
           return { flight: next, dfps: dfpsFromFile(opened.dfps, leadAt), t: opened.settings[TIME_KEY] };
         });
+      },
+      csv() {
+        if (!flight) return;
+        downloadText(toCsv(flight), csvFileName(flight.startT), { type: 'text/csv' });
       },
       close() {
         if (!flight) return;

@@ -197,7 +197,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     await status(page).click();
     await page.getByRole('button', { name: 'More detail' }).click();
     await page.getByRole('button', { name: 'Standards' }).click();
-    await page.getByRole('button', { name: 'Save, open, examples' }).click();
+    await page.getByRole('button', { name: 'Save, open, CSV' }).click();
     await page.getByRole('button', { name: '+ Add' }).click();
     await page.getByRole('button', { name: 'Edit DFP 1' }).click();
     await page.getByRole('button', { name: 'Layers' }).click();
@@ -391,7 +391,7 @@ test('save a debrief, close it, open it again: same tracks, DFPs, standards and 
   await scrubber.fill(String(start + 25 * 60));
   const shownTime = await playTime(page).textContent();
 
-  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save debrief' }).click()]);
   expect(download.suggestedFilename()).toMatch(/^debrief-\d{4}-\d\d-\d\d-\d{4}Z\.dadsdebrief\.json$/);
   const saved = await download.path();
@@ -422,11 +422,30 @@ test('save a debrief, close it, open it again: same tracks, DFPs, standards and 
   await expect(status(page)).toHaveText(/^4 tracks loaded/);
 });
 
+test('Export CSV: disabled with no flight, then one row a second for all four ships (#28)', async ({ page }) => {
+  await openRoute(page, '#/debrief');
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
+  const button = page.getByRole('button', { name: 'Export CSV' });
+  await expect(button).toBeDisabled();
+  await loadExample(page);
+  await expect(button).toBeEnabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+  expect(download.suggestedFilename()).toMatch(/^debrief-\d{4}-\d\d-\d\d-\d{4}Z\.csv$/);
+  const lines = readFileSync(await download.path(), 'utf8').trimEnd().split('\r\n');
+  const header = lines[0].split(',');
+  expect(header[0]).toBe('time (Zulu)');
+  for (const slot of [1, 2, 3, 4]) expect(header).toContain(`#${slot} GPS gap`);
+  const scrubber = page.getByLabel('Flight time');
+  const span = Number(await scrubber.getAttribute('max')) - Number(await scrubber.getAttribute('min'));
+  expect(Math.abs(lines.length - 1 - span)).toBeLessThanOrEqual(1);
+  expect(lines[1].split(',')).toHaveLength(header.length);
+});
+
 test('a debrief file that can\'t be read changes nothing, and says why', async ({ page }) => {
   await openRoute(page, '#/debrief');
   await loadExample(page);
   await addDfpAt(page, 10);
-  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   await page.locator('input[type="file"][accept^=".json"]').setInputFiles({ name: 'odd.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"something else"}') });
   await expect(page.getByRole('alert')).toContainText('Nothing was changed.');
   await expect(status(page)).toHaveText(/^4 tracks loaded/);
@@ -435,7 +454,7 @@ test('a debrief file that can\'t be read changes nothing, and says why', async (
 
 test('the example track files download as ordinary .kml files', async ({ page }) => {
   await openRoute(page, '#/debrief');
-  await page.getByRole('button', { name: 'Save, open, examples' }).click();
+  await page.getByRole('button', { name: 'Save, open, CSV' }).click();
   const link = page.locator('.example-files button').first();
   const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
   expect(download.suggestedFilename()).toBe(await link.textContent());
