@@ -116,7 +116,8 @@ imagery.dispose();                                  // in the module's cleanup
 - At most 300 tiles are kept, and the least recently drawn go first.
 - A failed tile is tried twice more, after 2 s and 6 s, through the scheduler scope, so the retries stop when the module closes. The last try goes without CORS. A tile that still fails is counted in `state().failed`, so the module can say "satellite imagery needs a connection" and show its grid (R6).
 - Each tile that arrives calls `onChange` once. The canvas view already draws at most once a frame, however many tiles land (#43).
-- `tilesFor(corners, pxPerFt)` is the pure part (which tiles, at which zoom) and is unit-tested. `makeImage` is there for tests.
+- A source may set `maxZoom` (its finest zoom level; NASA GIBS GOES stops at 7 for GeoColor and 6 for infrared). Closer in than that, the layer keeps asking for that zoom and stretches each tile to its bounds. Esri has no `maxZoom`, so it follows the map's scale as before.
+- `tilesFor(corners, pxPerFt, maxZoom)` is the pure part (which tiles, at which zoom) and is unit-tested. `makeImage` is there for tests.
 
 `src/ui-kit/vnc.js` (today still `src/modules/debrief/map2d/vnc.js`, until SOF task 6) holds the two embedded VNC charts, South (Moose Jaw and Regina) and North (Saskatoon and Moose Jaw), with V6's bounds, its 3 × 3 correction mesh and its alignment controls.
 
