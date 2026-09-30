@@ -242,14 +242,155 @@ test('spawns at the same step (a pair) and at different steps replay in order, w
   assert.deepEqual(forward.state.aircraft.slice(-3).map((a) => a.id), [...ids, third]);
 });
 
-test('after an aircraft is removed it stays gone when going back', () => {
+// RW-01: remove and Clear finished are timed events at the step they happened in. Going back, or back and forward
+// again, shows every aircraft that stays exactly as the forward run had it, and the removed one until that step.
+
+/** Flies to `stepS` (recording what is asked before it), edits, and records on to `end`; every 200 steps and a few steps around S and 0 are recorded. */
+function runWithEdit({ seed, stepS, edit, end = 14000 }) {
+  const sim = createSim(fresh(), { seed });
+  const around = [0, 1, 7, stepS - 201, stepS - 1, stepS, stepS + 1, stepS + 199, stepS + 201, end];
+  const every200 = Array.from({ length: end / STEPS_10S + 1 }, (_, i) => i * STEPS_10S);
+  const spots = [...new Set([...around, ...every200])].filter((n) => n >= 0 && n <= end).sort((a, b) => a - b);
+  const before = record(sim, spots.filter((n) => n < stepS));
+  sim.seekSteps(stepS);
+  const result = edit(sim);
+  const after = record(sim, spots.filter((n) => n >= stepS));
+  return { sim, spots, forward: new Map([...before, ...after]), stepS, end, result };
+}
+
+function assertReplaysTheForwardRun({ sim, spots, forward, end }, label) {
+  // -10 s at a time from the end to 0, then +10 s at a time back to the end.
+  for (let step = end; step > 0; step -= STEPS_10S) {
+    sim.seekSteps(step);
+    assert.deepEqual(everything(sim), forward.get(step), `${label}: walking back, step ${step}`);
+  }
+  sim.seekSteps(0);
+  assert.deepEqual(everything(sim), forward.get(0), `${label}: step 0`);
+  for (let step = STEPS_10S; step <= end; step += STEPS_10S) {
+    sim.seekSteps(step);
+    assert.deepEqual(everything(sim), forward.get(step), `${label}: walking forward, step ${step}`);
+  }
+  for (const step of shuffled(spots, 11)) {
+    sim.seekSteps(step);
+    assert.deepEqual(everything(sim), forward.get(step), `${label}: hop to step ${step}`);
+  }
+}
+
+for (const seed of [1, 7, 12345]) {
+  test(`remove('A1') at a step: every other aircraft is as the forward run had it, going back and forward again, and A1 is gone from that step on (seed ${seed}, RW-01)`, () => {
+    const stepS = 6100;
+    const run = runWithEdit({ seed, stepS, edit: (sim) => sim.remove('A1') });
+    assert.equal(run.result, true);
+    assert.ok(run.forward.get(stepS - 1).state.aircraft.some((a) => a.id === 'A1'), 'A1 is there the step before');
+    assert.equal(run.forward.get(stepS).state.aircraft.some((a) => a.id === 'A1'), false);
+    assertReplaysTheForwardRun(run, 'remove');
+    for (const step of [stepS, stepS + 1, run.end]) {
+      run.sim.seekSteps(step);
+      assert.equal(run.sim.state().aircraft.some((a) => a.id === 'A1'), false, `A1 is gone at step ${step}`);
+    }
+    run.sim.seekSteps(stepS - 1);
+    assert.equal(run.sim.state().aircraft.some((a) => a.id === 'A1'), true, 'and still there before it');
+  });
+}
+
+for (const seed of [1, 7, 12345]) {
+  test(`clearFinished() at a step: the aircraft that stay are as the forward run had them, going back and forward again (seed ${seed}, RW-01)`, () => {
+    // The first moment, on a 10 s mark, with a finished aircraft.
+    const scout = createSim(fresh(), { seed });
+    let stepS = 0;
+    while (!scout.state().aircraft.some((a) => a.status === 'landed' || a.status === 'done')) scout.seekSteps((stepS += STEPS_10S));
+    stepS += 50; // between two snapshots
+    const run = runWithEdit({ seed, stepS, end: Math.max(14000, Math.ceil((stepS + 2000) / STEPS_10S) * STEPS_10S), edit: (sim) => { const n = sim.state().aircraft.length; sim.clearFinished(); return n - sim.state().aircraft.length; } });
+    assert.ok(run.result >= 1, 'something was cleared');
+    assertReplaysTheForwardRun(run, 'clear');
+    run.sim.seekSteps(0);
+    assert.equal(run.sim.state().aircraft.length, 7, 'before the clear every aircraft is there');
+  });
+}
+
+test('remove, then a spawn that takes the freed callsign: going back and forward shows both aircraft as they were', () => {
+  const sim = createSim(fresh(), { seed: 3 });
+  sim.seekSteps(4000);
+  sim.remove('A2');
+  sim.seekSteps(4400);
+  assert.equal(sim.spawn({ routeId: 'ENT1' }), 'A2', 'the new aircraft takes the callsign');
+  const forward = record(sim, [4400, 4401, 6000, 9000]); // the moments after the spawn, as the forward run had them
+  sim.seekSteps(3999);
+  const beforeRemoval = everything(sim);
+  sim.seekSteps(4000);
+  const atRemoval = everything(sim);
+  sim.seekSteps(4399);
+  const between = everything(sim);
+  sim.seekSteps(0);
+  for (const step of shuffled([4400, 4401, 6000, 9000], 4)) {
+    sim.seekSteps(step);
+    assert.deepEqual(everything(sim), forward.get(step), `step ${step}`);
+  }
+  sim.seekSteps(3999);
+  assert.deepEqual(everything(sim), beforeRemoval);
+  assert.equal(sim.state().aircraft.find((a) => a.id === 'A2').startsAt, 137, 'the setup\'s A2 before the removal');
+  sim.seekSteps(4000);
+  assert.deepEqual(everything(sim), atRemoval);
+  sim.seekSteps(4399);
+  assert.deepEqual(everything(sim), between);
+  assert.equal(sim.state().aircraft.some((a) => a.id === 'A2'), false, 'no A2 between the removal and the spawn');
+});
+
+test('a removal survives a later route edit: the replay from 0 has the aircraft until the removal step, and equals the edited setup flown with the same removal', () => {
+  const setup = fresh();
+  const sim = createSim(setup, { seed: 1 });
+  sim.seekSteps(3000);
+  sim.remove('A1');
+  sim.seekSteps(5000);
+  setup.routes.find((r) => r.id === 'PAT1').points[1].kt = 95;
+  sim.forgetHistory();
+  const edited = fresh();
+  edited.routes.find((r) => r.id === 'PAT1').points[1].kt = 95;
+  const reference = createSim(edited, { seed: 1 });
+  reference.seekSteps(3000);
+  reference.remove('A1');
+  for (const step of [4000, 2999, 3000, 3001, 5000]) {
+    reference.seekSteps(step);
+    sim.seekSteps(step);
+    assert.deepEqual(everything(sim), everything(reference), `step ${step}`);
+  }
+  assert.equal(sim.state().aircraft.some((a) => a.id === 'A1'), false);
+  sim.seekSteps(2999);
+  assert.equal(sim.state().aircraft.some((a) => a.id === 'A1'), true);
+});
+
+test('Reset and aircraftSpecs keep the aircraft the run has after every removal and spawn, wherever the run is when they are asked', () => {
+  const sim = createSim(fresh(), { seed: 1 });
+  sim.seekSteps(2000);
+  sim.remove('A1');
+  sim.seekSteps(4000);
+  const spawned = sim.spawn({ routeId: 'ENT1', delaySec: 20 });
+  const ids = () => sim.aircraftSpecs().map((s) => s.id);
+  const want = ['A2', 'A3', 'A4', 'A5', 'A6', 'A7', spawned];
+  assert.deepEqual(ids(), want);
+  sim.seekSteps(100); // before both
+  assert.deepEqual(ids(), want, 'the saved aircraft do not depend on where the clock is');
+  sim.reset();
+  assert.deepEqual(sim.state().aircraft.map((a) => a.id), want);
+  assert.equal(sim.steps, 0);
+});
+
+test('after an aircraft is removed it stays gone from that moment on, going back and forward (before it, the run had it: RW-01)', () => {
   const sim = createSim(fresh(), { seed: 1 });
   sim.seek(300);
   sim.remove('A1');
+  const has = () => sim.state().aircraft.some((a) => a.id === 'A1');
+  assert.equal(has(), false);
+  sim.seek(400);
+  assert.equal(has(), false);
+  sim.seek(300);
+  assert.equal(has(), false, 'gone at the moment it was removed');
   sim.seek(100);
-  assert.equal(sim.state().aircraft.some((a) => a.id === 'A1'), false);
+  assert.equal(has(), true, 'the run before the removal had it (this was `false` while a removal dropped the history)');
   sim.seek(0);
-  assert.equal(sim.state().aircraft.some((a) => a.id === 'A1'), false);
+  assert.equal(has(), true);
+  sim.seek(500);
+  assert.equal(has(), false);
 });
 
 test('after a route is edited, forgetHistory makes going back fly the edited route from the start', () => {

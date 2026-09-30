@@ -21,10 +21,11 @@
 // numbers, same dice, same trails. V6 rebuilt the whole run from 0 at every rewind frame, at
 // speed times the real distance, and re-rolled every choice.
 //
-// Spawning and removing aircraft are timed events (RW-01, RW-02): each is recorded at the step it happened
-// in, the snapshots up to that step stay valid, and a replay applies it at that step exactly as the live run
-// did. So going back to before a spawn or a removal shows the run as it was, and going forward again flies it
-// in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0.
+// Spawning and removing aircraft (Clear finished too) are timed events (RW-01, RW-02): each is recorded at the step
+// it happened in, the snapshots up to that step stay valid, and a replay applies it at that step exactly as the live
+// run did. So going back to before a spawn or a removal shows the run as it was, and going forward again flies it
+// in the same steps. Only an edit of the routes themselves (`forgetHistory`) makes the past be flown again from 0,
+// and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
 import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
@@ -301,13 +302,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     fromBase();
   }
 
-  /** (Until removals are timed events too.) The aircraft is gone from every replay as well. */
-  function dropFromReplays(gone) {
-    base = base.filter((rec) => !gone(rec));
-    events = events.filter((ev) => ev.kind !== 'spawn' || !gone(ev.rec));
-    nextEvent = Math.min(nextEvent, events.length);
-  }
-
   /** Something changed that earlier snapshots don't know about (an aircraft added or removed, a route edited): they no longer say what the run was. */
   function forgetHistory() {
     history.clear();
@@ -477,21 +471,17 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       forgetHistory();
     },
 
-    /** Removes an aircraft from the run (true if it was there). */
+    /** Removes an aircraft from the run, from this step on (true if it was there): going back to before it shows the aircraft. */
     remove(id) {
-      const before = aircraft.length;
-      aircraft = aircraft.filter((a) => a.id !== id);
-      dropFromReplays((rec) => rec.id === id);
-      forgetHistory();
-      return aircraft.length < before;
+      if (!aircraft.some((a) => a.id === id)) return false;
+      happen({ kind: 'remove', ids: [id] });
+      return true;
     },
 
-    /** Removes every aircraft that has landed or is done (V6 "Clear inactive"). */
+    /** Removes every aircraft that has landed or is done (V6 "Clear inactive"), from this step on. A replay removes those same aircraft at the same step. */
     clearFinished() {
-      const finished = new Set(aircraft.filter((a) => !a.active).map((a) => a.id));
-      aircraft = aircraft.filter((a) => a.active);
-      dropFromReplays((rec) => finished.has(rec.id));
-      forgetHistory();
+      const ids = aircraft.filter((a) => !a.active).map((a) => a.id);
+      if (ids.length) happen({ kind: 'remove', ids });
     },
 
     /** The aircraft as `setup.aircraft` has them, so a profile can be saved with what was spawned. */
