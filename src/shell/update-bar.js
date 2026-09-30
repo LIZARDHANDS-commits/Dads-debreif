@@ -48,6 +48,8 @@ export async function watchForUpdates({ container, url = './sw.js', timers, onUp
     console.warn("Offline mode isn't available in this browser:", err);
     return null;
   }
+  // Some browsers that block service workers resolve with nothing instead of refusing.
+  if (!registration) return null;
 
   let reloading = false;
   let offered = null;
