@@ -513,14 +513,14 @@
       "id": "t-straight-in-bank-asked",
       "group": "Turns",
       "title": "Straight-in turns: bank asked",
-      "checks": "Highest bank asked at the corners of Split 1 (onto base, onto the 45-degree leg and onto final).",
+      "checks": "Highest bank asked at the three corners of Split 1 (onto base, onto the 45-degree leg and onto final).",
       "manual": 45,
       "unit": "deg",
       "page": "SMM 4.6 para 9, 4.16 para 36; EFIG p.131; Patrick Q3 (05:04Z)",
       "source": "patrick",
       "tolerance": 5,
       "mode": "within",
-      "measure": "max of pointTurn(SPL1, 2..5).bankDeg"
+      "measure": "max of pointTurn(SPL1, i).bankDeg for the corners, index 2, 3, 4"
     },
     {
       "id": "t-corner-g-margin",

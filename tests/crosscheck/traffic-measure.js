@@ -230,7 +230,7 @@ export function makeMeasures(setup, seed) {
     't-final-turn-bank-flown': () => ({ value: max([11, 12].map((i) => peakBankDeg(pat, i))) }),
     't-final-turn-heading-change': () => ({ value: norm360(downwind().headingDeg - finalLeg().headingDeg) }),
     't-final-turn-straight': () => ({ value: straightLeg(pat, 11).len }),
-    't-straight-in-bank-asked': () => ({ value: max([2, 3, 4, 5].map((i) => bankAsked(spl1, i))) }),
+    't-straight-in-bank-asked': () => ({ value: max([2, 3, 4].map((i) => bankAsked(spl1, i))) }),
     't-corner-g-margin': () => {
       let worst = { margin: -Infinity, where: '' };
       for (const r of setup.routes) {
