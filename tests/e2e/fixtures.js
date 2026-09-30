@@ -27,7 +27,7 @@ export const test = base.extend({
     // 204 and fails the test by name, so a live site never decides a result.
     // Registered first, so every route below (and any a spec adds) wins over it.
     await page.route(
-      (url) => /^(https?|wss?):$/.test(url.protocol) && !LOCAL_HOSTS.has(url.hostname),
+      (url) => /^https?:$/.test(url.protocol) && !LOCAL_HOSTS.has(url.hostname), // page.route never sees WebSockets
       (route) => {
         errors.push(`unmocked request: ${route.request().url()}`);
         return route.fulfill({ status: 204, headers: CORS });
