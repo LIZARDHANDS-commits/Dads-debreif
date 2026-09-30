@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { lightningBox } from '../../../src/modules/sof/map-lightning.js';
 import { trafficUrl } from '../../../src/modules/sof/traffic.js';
 import { createLightningWatch, createTrafficFeed } from '../../../src/modules/sof/map-loops.js';
-import { virtualClock, fakeFetch, text, png, json, fail, fixture } from './map-testkit.js';
+import { virtualClock, fakeFetch, text, png, pngBytes, json, fail, fixture } from './map-testkit.js';
 
 const MIN = 60_000;
 const HOME = { icao: 'CYMJ', lat: 50.3303, lon: -105.559 };
@@ -18,7 +18,7 @@ function watch({ lit = [], radius = 20, picture = 'ok' } = {}) {
   const state = { lit, radius, picture };
   const f = fakeFetch((url) => {
     if (state.picture === 'down') return fail();
-    return url.includes('GetCapabilities') ? text(fixture('geomet-caps-Lightning_2.5km_Density.xml')) : png();
+    return url.includes('GetCapabilities') ? text(fixture('geomet-caps-Lightning_2.5km_Density.xml')) : png(url);
   });
   const changes = [];
   const w = createLightningWatch({
@@ -356,4 +356,28 @@ test('with the relay quiet, positions fade second by second and are gone after a
   await clock.advance(40_000);
   assert.equal(feed.view().count, 0);
   feed.stop();
+});
+
+// ---- A cut-off or wrong picture is "can't tell", never a clear sky (R1) -------------------------------------
+
+test('a truncated picture (transparent rows where the rest should be) makes the lightning check say it cannot tell', async () => {
+  const clock = virtualClock('2026-09-30T07:05:00Z');
+  const box = lightningBox({ home: HOME, radiusNm: 20 });
+  for (const body of [pngBytes(box.width, box.height, { iend: false }), pngBytes(box.width, box.height - 1), pngBytes(65535, 65535)]) {
+    let decoded = 0;
+    const f = fakeFetch((url) => (url.includes('GetCapabilities')
+      ? text(fixture('geomet-caps-Lightning_2.5km_Density.xml'))
+      : new Response(body, { status: 200, headers: { 'content-type': 'image/png' } })));
+    const w = createLightningWatch({
+      home: () => HOME,
+      radiusNm: () => 20,
+      readPixels: async () => { decoded += 1; return { data: new Uint8ClampedArray(box.width * box.height * 4), width: box.width, height: box.height }; },
+      fetch: f, timers: clock.timers, now: clock.now,
+    });
+    w.start();
+    await clock.settle();
+    assert.equal(decoded, 0, 'never decoded');
+    assert.equal(w.result().state, 'unknown');
+    w.stop();
+  }
 });

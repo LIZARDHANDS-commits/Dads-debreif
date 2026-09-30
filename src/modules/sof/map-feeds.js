@@ -210,7 +210,7 @@ export function createImageFeed({
         const asked = request;
         const url = urlFor({ layer: name, request: asked, time: timeless ? undefined : time });
         const reply = await guardedFetch(fetch, url, { timers, signal: closing.signal, accept: 'image/png', ...FETCH_LIMITS.image });
-        if (!isPng(reply.contentType, reply.bytes)) throw new Error('not a picture');
+        if (!isPng(reply.contentType, reply.bytes, { width: asked.width, height: asked.height })) throw new Error('not a picture');
         const image = await decode(reply.bytes);
         if (image === null || image === undefined) throw new Error('picture unreadable');
         if (stopped) {

@@ -9,7 +9,7 @@ import {
   capabilitiesUrl, extraMapUrl, layerTimeOf, feedLine, createImageFeed, createRadarFeed, EXTRA_LAYERS,
   RAINVIEWER_LIST_URL, RETRY_MS, VIEW_SETTLE_MS,
 } from '../../../src/modules/sof/map-feeds.js';
-import { virtualClock, fakeFetch, text, png, json, fail, fixture } from './map-testkit.js';
+import { virtualClock, fakeFetch, text, png, pngBytes, json, fail, fixture } from './map-testkit.js';
 
 const MIN = 60_000;
 const caps = (layer) => fixture(`geomet-caps-${layer}.xml`);
@@ -100,7 +100,7 @@ function radar(over = {}) {
     if (url.startsWith('https://api.rainviewer.com')) return served.rv === 'ok' ? json(fixture('rainviewer-weather-maps.json')) : fail();
     if (served.eccc === 'down') return fail();
     if (url.includes('request=GetCapabilities')) return text(caps(url.includes('RSNO') ? 'RADAR_1KM_RSNO' : 'RADAR_1KM_RRAI'));
-    return png();
+    return png(url);
   });
   const changes = [];
   const closed = [];
@@ -249,7 +249,7 @@ test('a reply that is not a picture (a WMS error in a 200) is a failure', async 
 test('a picture that will not decode is a failure and the old picture stays', async () => {
   const clock = virtualClock();
   let bad = false;
-  const f = fakeFetch((url) => (url.includes('GetCapabilities') ? text(caps('RADAR_1KM_RRAI')) : png()));
+  const f = fakeFetch((url) => (url.includes('GetCapabilities') ? text(caps('RADAR_1KM_RRAI')) : png(url)));
   const feed = createRadarFeed({ decode: async () => (bad ? null : { ok: 1 }), fetch: f, timers: clock.timers, now: clock.now });
   feed.setRequest(REQUEST);
   feed.enable(true);
@@ -371,7 +371,7 @@ test('a feed with a request in flight when asked again asks once more afterwards
     most = Math.max(most, open);
     await new Promise((r) => setImmediate(r));
     open -= 1;
-    return url.includes('GetCapabilities') ? text(caps('RADAR_1KM_RRAI')) : png();
+    return url.includes('GetCapabilities') ? text(caps('RADAR_1KM_RRAI')) : png(url);
   });
   const feed = createImageFeed({
     layer: LAYERS.radarRain, urlFor: () => 'https://x.test/', decode: async () => ({}), fetch: f, timers: clock.timers, now: clock.now,
@@ -384,3 +384,27 @@ test('a feed with a request in flight when asked again asks once more afterwards
   assert.equal(most, 1);
   feed.stop();
 });
+
+// ---- A picture that is not the picture asked for is a failure (R1) -------------------------------------------
+
+for (const [name, reply] of [
+  ['a bomb header', () => new Response(pngBytes(65535, 65535), { status: 200, headers: { 'content-type': 'image/png' } })],
+  ['the wrong size', () => new Response(pngBytes(REQUEST.width - 1, REQUEST.height), { status: 200, headers: { 'content-type': 'image/png' } })],
+  ['no IEND (cut off)', () => new Response(pngBytes(REQUEST.width, REQUEST.height, { iend: false }), { status: 200, headers: { 'content-type': 'image/png' } })],
+]) {
+  test(`a picture with ${name} is a failed try: it is never decoded and nothing is held`, async () => {
+    const clock = virtualClock();
+    let decoded = 0;
+    const f = fakeFetch((url) => (url.includes('GetCapabilities') ? text(caps('RADAR_1KM_RRAI')) : reply()));
+    const feed = createRadarFeed({ decode: async () => { decoded += 1; return { ok: 1 }; }, fetch: f, timers: clock.timers, now: clock.now });
+    feed.setRequest(REQUEST);
+    feed.enable(true);
+    await clock.settle();
+    assert.equal(decoded, 0);
+    const s = feed.state();
+    assert.equal(s.image, null);
+    assert.ok(s.failures >= 1);
+    assert.equal(feed.line().text, 'Radar failed, nothing to show');
+    feed.stop();
+  });
+}

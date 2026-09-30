@@ -5,7 +5,19 @@ import { readFileSync } from 'node:fs';
 
 export const fixture = (name) => readFileSync(new URL(`../../fixtures/sof/${name}`, import.meta.url), 'utf8');
 
-/** A PNG's first bytes: enough for the checks that look at the signature. */
+/**
+ * A PNG's shell: the signature, an IHDR saying `width` x `height` and, unless `iend` is false, the IEND trailer.
+ * There is no picture data (the tests' decoders are fakes); it is what the size and truncation checks read.
+ */
+export function pngBytes(width = 16, height = 16, { iend = true } = {}) {
+  const out = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52];
+  for (const n of [width, height]) out.push((n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255);
+  out.push(8, 6, 0, 0, 0, 0, 0, 0, 0); // depth, RGBA, methods, then the IHDR's CRC (not checked here)
+  if (iend) out.push(0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82);
+  return new Uint8Array(out);
+}
+
+/** A PNG's first bytes: enough for the checks that look at the signature only. */
 export const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -77,6 +89,11 @@ export function fakeFetch(route) {
 }
 
 export const text = (body, contentType = 'text/xml') => new Response(body, { status: 200, headers: { 'content-type': contentType } });
-export const png = () => new Response(PNG, { status: 200, headers: { 'content-type': 'image/png' } });
+/** A picture reply of the size the address asks for (`width` and `height` in its query), or `size` when given. */
+export function png(url, size = null) {
+  const q = url ? new URL(url).searchParams : new URLSearchParams();
+  const [w, h] = size ?? [Number(q.get('width') ?? 16), Number(q.get('height') ?? 16)];
+  return new Response(pngBytes(w, h), { status: 200, headers: { 'content-type': 'image/png' } });
+}
 export const json = (body) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 export const fail = () => new Response('no', { status: 503 });

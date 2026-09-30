@@ -2,7 +2,8 @@
 // the abort that every SOF map request has (SPEC-sof, Security; R4).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { guardedFetch, MapFetchError, FETCH_LIMITS, bytesToText, isPng } from '../../../src/modules/sof/map-fetch.js';
+import { guardedFetch, MapFetchError, FETCH_LIMITS, bytesToText, isPng, pngSize } from '../../../src/modules/sof/map-fetch.js';
+import { pngBytes } from './map-testkit.js';
 
 // A scheduler scope stand-in whose clock the test turns by hand.
 function fakeTimers() {
@@ -153,4 +154,43 @@ test('isPng wants the image type and the PNG signature (a WMS error is XML in a 
   assert.equal(isPng('text/xml', png), false);
   assert.equal(isPng('image/png', new TextEncoder().encode('<ServiceExceptionReport>')), false);
   assert.equal(isPng(null, png), false);
+});
+
+// ---- A picture must be the picture that was asked for (R1) ---------------------------------------------
+
+test('pngSize reads the width and height from the IHDR, big-endian, and nothing else', () => {
+  assert.deepEqual(pngSize(pngBytes(900, 700)), { width: 900, height: 700 });
+  assert.deepEqual(pngSize(pngBytes(65535, 65536)), { width: 65535, height: 65536 });
+  assert.equal(pngSize(new Uint8Array(10)), null);
+  const wrongChunk = pngBytes(10, 10);
+  wrongChunk[12] = 0x58; // the first chunk is not IHDR
+  assert.equal(pngSize(wrongChunk), null);
+});
+
+test('a picture of the size asked for, with its IEND trailer, is accepted', () => {
+  assert.equal(isPng('image/png', pngBytes(900, 700), { width: 900, height: 700 }), true);
+  assert.equal(isPng('image/png', pngBytes(2048, 2048), { width: 2048, height: 2048 }), true);
+});
+
+test('a decompression bomb\'s header is refused before anything decodes it', () => {
+  // 65535 x 65535 in a few dozen bytes: decoding it would ask for 16 GB
+  assert.equal(isPng('image/png', pngBytes(65535, 65535), { width: 900, height: 700 }), false);
+  assert.equal(isPng('image/png', pngBytes(65535, 65535), { width: 65535, height: 65535 }), false, 'never above 2048, even if it was "asked for"');
+  assert.equal(isPng('image/png', pngBytes(2049, 10), { width: 2049, height: 10 }), false);
+  assert.equal(isPng('image/png', pngBytes(0, 0), { width: 0, height: 0 }), false);
+});
+
+test('a picture of another size than asked for is refused', () => {
+  assert.equal(isPng('image/png', pngBytes(899, 700), { width: 900, height: 700 }), false);
+  assert.equal(isPng('image/png', pngBytes(900, 701), { width: 900, height: 700 }), false);
+  assert.equal(isPng('image/png', pngBytes(700, 900), { width: 900, height: 700 }), false);
+});
+
+test('a picture without its IEND trailer in the last 12 bytes (cut off in transit) is refused', () => {
+  assert.equal(isPng('image/png', pngBytes(900, 700, { iend: false }), { width: 900, height: 700 }), false);
+  const trailing = new Uint8Array([...pngBytes(900, 700), 0]); // something after the trailer
+  assert.equal(isPng('image/png', trailing, { width: 900, height: 700 }), false);
+  const wrongTrailer = pngBytes(900, 700);
+  wrongTrailer[wrongTrailer.length - 1] ^= 1;
+  assert.equal(isPng('image/png', wrongTrailer, { width: 900, height: 700 }), false);
 });
