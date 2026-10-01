@@ -126,6 +126,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.lastLap = -1;
     a.splitTaken = {};
     a.trail = [];
+    a.command = null;
+    a.engineFailed = false;
+    delete a.customAlt;
+    delete a.customKt;
+    delete a.customHeading;
+    delete a.customX;
+    delete a.customY;
+    delete a.touchAndGo;
     return a;
   }
 
@@ -219,11 +227,37 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   /** Everything V6's `step` does for one aircraft in one step of play (line 454). */
   function fly(a) {
+    if (a.command === 'breakout') {
+      const p = whereIs(a);
+      a.customX = (a.customX ?? p.x) + Math.sin((a.customHeading * Math.PI) / 180) * ktToFtps(a.customKt ?? 140) * STEP_SEC;
+      a.customY = (a.customY ?? p.y) + Math.cos((a.customHeading * Math.PI) / 180) * ktToFtps(a.customKt ?? 140) * STEP_SEC;
+      a.customAlt = Math.min(3500, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) + 25 * STEP_SEC);
+      a.headingDeg = a.customHeading;
+      a.gsKt = a.customKt ?? 140;
+      if (steps % TRAIL_EVERY_STEPS === 0) {
+        a.trail.push({ x: a.customX, y: a.customY });
+        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
+      }
+      return;
+    }
+
     const route = routeOf(a);
     const options = routeOptions();
     const before = a.distFt;
     const p = whereIs(a, route);
-    const iasKt = p.kt ?? a.fallbackKt;
+    let iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
+
+    if (a.engineFailed) {
+      // Airspeed decays toward 110 KIAS best glide
+      iasKt = a.customKt = Math.max(110, (a.customKt ?? (p.kt ?? a.fallbackKt)) - 15 * STEP_SEC);
+      // Emergency glide descent: ~1,000 fpm = 16.7 ft/sec
+      a.customAlt = Math.max(1880, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) - 16.7 * STEP_SEC);
+      if (a.customAlt <= 1880) {
+        a.active = false;
+        a.landed = true;
+      }
+    }
+
     let gsKt = iasKt;
     let crabDeg = 0;
     let headingDeg = p.headingDeg;
@@ -231,7 +265,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const windKt = getWindKt();
     const windFromDeg = getWindFromDeg();
     if (windKt > 0 && iasKt > 0) {
-      const altFt = p.alt ?? a.fallbackAlt;
+      const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
       const tasKt = iasToTasKt(iasKt, altFt);
       const wt = windTriangle(p.headingDeg, tasKt, windFromDeg, windKt);
       gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
@@ -600,20 +634,69 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return aircraft.find((a) => a.id === id)?.trail.slice() ?? [];
     },
 
+    /**
+     * Issues an in-flight command to an aircraft: 'breakout', 'engine_fail', 'go_around', 'touch_and_go'.
+     */
+    command(aircraftId, action) {
+      settle();
+      const a = aircraft.find((ac) => ac.id === aircraftId);
+      if (!a) return false;
+      if (action === 'breakout') {
+        const curP = whereIs(a);
+        a.command = 'breakout';
+        a.customHeading = ((a.headingDeg ?? 118) + 90) % 360;
+        a.customAlt = Math.max(a.customAlt ?? (curP.alt ?? 2500), 3500);
+        a.customKt = 140;
+        a.customX = curP.x;
+        a.customY = curP.y;
+      } else if (action === 'engine_fail') {
+        a.engineFailed = true;
+        a.command = 'engine_fail';
+        a.customKt = 110;
+      } else if (action === 'go_around') {
+        a.command = 'go_around';
+        a.landed = false;
+        a.active = true;
+        a.engineFailed = false;
+        delete a.customX;
+        delete a.customY;
+        delete a.customHeading;
+        const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
+        if (pat) {
+          a.routeId = pat.id;
+          a.distFt = pointDistFt(pat, 1, routeOptions());
+          a.customAlt = 2500;
+          a.customKt = 140;
+        }
+      } else if (action === 'touch_and_go') {
+        a.touchAndGo = true;
+        a.landed = false;
+      }
+      return true;
+    },
+
+    nextCallsign,
+
     /** What is where right now. */
     state() {
       const list = aircraft.map((a) => {
         const p = whereIs(a);
-        const iasKt = p.kt ?? a.fallbackKt;
+        const iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
+        const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
+        const x = a.customX ?? p.x;
+        const y = a.customY ?? p.y;
+        const headingDeg = a.customHeading ?? (a.headingDeg ?? p.headingDeg);
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
-          x: p.x, y: p.y, alt: p.alt ?? a.fallbackAlt, kt: iasKt,
-          headingDeg: a.headingDeg ?? p.headingDeg,
-          trackDeg: p.headingDeg,
+          x, y, alt: altFt, kt: iasKt,
+          headingDeg,
+          trackDeg: a.customHeading ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
           groundSpeedKt: a.gsKt ?? iasKt,
           leg: p.seg + 1, distFt: a.distFt,
           status: statusOf(a), startsAt: a.startsAt,
+          engineFailed: Boolean(a.engineFailed),
+          command: a.command ?? null,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

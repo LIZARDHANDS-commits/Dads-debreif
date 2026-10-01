@@ -187,7 +187,9 @@ function buildRoundedPoints(route, options) {
     const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i };
     const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i };
     out.push(start);
-    const steps = Math.max(5, Math.min(28, Math.ceil(turn * 10)));
+    const steps = options.trueArcs
+      ? Math.max(16, Math.min(48, Math.ceil(turn * 20)))
+      : Math.max(5, Math.min(28, Math.ceil(turn * 10)));
     if (options.trueArcs) {
       const arc = circularArcPoints(start, { ...cur, alt: curAlt, src: i }, end, vin, vout, turn, steps, d, radius, turnTargetAlt);
       for (const p of arc) out.push(p);
@@ -196,6 +198,21 @@ function buildRoundedPoints(route, options) {
     }
   }
   if (options.trueArcs && route.id === 'PAT1') {
+    // Overhead break: V² aerodynamic drag deceleration (220 to 140 KIAS)
+    const breakStartIdx = out.findIndex((p) => p.src === 9);
+    const breakEndIdx = out.findLastIndex((p) => p.src === 10);
+    if (breakStartIdx >= 0 && breakEndIdx > breakStartIdx) {
+      let totalD = 0;
+      for (let k = breakStartIdx; k < breakEndIdx; k++) totalD += dist(out[k], out[k + 1]);
+      let runD = 0;
+      for (let k = breakStartIdx; k < breakEndIdx; k++) {
+        runD += dist(out[k], out[k + 1]);
+        const u = totalD ? runD / totalD : 1;
+        out[k + 1].kt = Math.round(220 * Math.exp(-0.452 * u));
+      }
+    }
+
+    // Final turn: continuous descending turn with symmetric cubic easing ((3500 + 2119)/2 = 2809.5 ft)
     const firstIdx = out.findIndex((p) => p.src === 11);
     const lastIdx = out.findLastIndex((p) => p.src === 12);
     if (firstIdx >= 0 && lastIdx > firstIdx) {
@@ -206,7 +223,9 @@ function buildRoundedPoints(route, options) {
       out[firstIdx].alt = startAlt;
       for (let k = firstIdx; k < lastIdx; k++) {
         runD += dist(out[k], out[k + 1]);
-        out[k + 1].alt = startAlt + (endAlt - startAlt) * (totalD ? runD / totalD : 1);
+        const u = totalD ? runD / totalD : 1;
+        const easedU = u + 0.05 * u * (1 - u) * (1 - 2 * u);
+        out[k + 1].alt = startAlt + (endAlt - startAlt) * easedU;
       }
     }
   }

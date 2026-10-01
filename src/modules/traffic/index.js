@@ -77,6 +77,7 @@ function mount(root, app) {
       newRoute: (kind) => newRoute(kind),
       toggleColumn: () => app.scheduler.after(0, () => redraw()),
       camera: (name) => view3d.preset(name),
+      toggleHeightLines: (active) => view3d.setHeightLines(active),
     },
   });
   const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed() });
@@ -129,6 +130,7 @@ function mount(root, app) {
     source: {
       scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] }), // 3D draws no trails
       settings: () => settings.get(),
+      anchor: () => setup.anchor,
       time: () => sim.t,
     },
     onLost: () => noteAndReturnTo2d('3D stopped: the graphics were reset. Switch 3D on to start it again.'),
@@ -139,7 +141,7 @@ function mount(root, app) {
   let keepNote = false;
 
   /** Layers only the 2D map draws are greyed out in 3D (labels and caution rings show in both). */
-  const LAYERS_2D_ONLY = ['layerTrails', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerPhoto'];
+  const LAYERS_2D_ONLY = ['layerTrails', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles'];
 
   /** Whichever picture is showing draws; the other does nothing, so 3D costs nothing in 2D and the reverse. */
   function redraw() {

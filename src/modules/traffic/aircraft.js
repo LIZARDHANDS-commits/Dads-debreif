@@ -17,6 +17,18 @@ const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS
 import { SPAWN_TYPES } from './types.js';
 export { SPAWN_TYPES };
 
+export const PILOT_SPAWN_PRESETS = Object.freeze([
+  { id: 'custom', label: 'Preset: (Custom point)', routeId: '', point: 1 },
+  { id: 'initial', label: 'Initial (3,500 ft, 220 kt, Run-in)', routeId: 'PAT1', point: 9 },
+  { id: 'downwind', label: 'Downwind (3,500 ft, 140 kt, Mid-pattern)', routeId: 'PAT1', point: 6 },
+  { id: 'perch', label: 'Perch (3,500 ft, 120 kt, Final turn)', routeId: 'PAT1', point: 12 },
+  { id: 'final2m', label: '2-Mile Final (2,700 ft, 120 kt, Straight-in)', routeId: 'ENT2', point: 4 },
+  { id: 'final1m', label: '1-Mile Final (2,120 ft, 110 kt, Short final)', routeId: 'PAT1', point: 13 },
+  { id: 'takeoff', label: 'Takeoff (RWY 29L Threshold, 100 kt)', routeId: 'PAT1', point: 1 },
+  { id: 'rejoin45', label: 'Rejoin 45° Line (Entry 1, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
+  { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (Entry 2, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
+]);
+
 /** The most points a start-point box accepts (the engine's own check is the route's length). */
 const MOST_POINTS = 999;
 
@@ -118,13 +130,29 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     onChange();
   }
 
+  const presetSelect = h('select', {
+    id: 'traffic-spawn-preset',
+    class: 'traffic-spawn-preset',
+    onchange: () => {
+      const chosen = PILOT_SPAWN_PRESETS.find((p) => p.id === presetSelect.value);
+      if (chosen && chosen.routeId) {
+        settings.update({ spawnRoute: chosen.routeId, spawnStartPoint: chosen.point });
+        routeSelect.value = chosen.routeId;
+      }
+    },
+  });
+  for (const preset of PILOT_SPAWN_PRESETS) presetSelect.appendChild(h('option', { value: preset.id }, preset.label));
+
+  const callsignBadge = h('span', { class: 'traffic-callsign-badge' }, sim.nextCallsign ? `Next: ${sim.nextCallsign()}` : '');
+
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
   const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
-    h('h3', { class: 'traffic-subtitle' }, 'Spawn'),
+    h('div', { class: 'spawner-head' }, h('h3', { class: 'traffic-subtitle' }, 'Spawn'), callsignBadge),
+    h('div', { class: 'control control-select' }, h('label', { for: presetSelect.id }, 'Preset point'), presetSelect),
     controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
     h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
     controls.number('spawnStartPoint', { label: 'Start at point', min: 1, max: MOST_POINTS, step: 1 }),
@@ -174,16 +202,47 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (listKey !== shown.list) {
       shown.list = listKey;
       clear(listBody);
+      if (callsignBadge && sim.nextCallsign) {
+        const next = `Next: ${sim.nextCallsign()}`;
+        if (callsignBadge.textContent !== next) callsignBadge.textContent = next;
+      }
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
+        const isFlying = row.status === 'flying';
+        const actions = isFlying
+          ? h(
+              'div',
+              { class: 'aircraft-actions' },
+              h('button', {
+                type: 'button',
+                class: 'button button-tiny',
+                title: 'Breakout of circuit pattern',
+                onclick: (e) => { e.stopPropagation(); sim.command(row.id, 'breakout'); onChange(); },
+              }, 'Breakout'),
+              h('button', {
+                type: 'button',
+                class: `button button-tiny ${row.engineFailed ? 'is-active danger' : 'danger'}`,
+                title: 'Simulate engine failure (110 KIAS glide)',
+                onclick: (e) => { e.stopPropagation(); sim.command(row.id, 'engine_fail'); onChange(); },
+              }, row.engineFailed ? 'Failed' : 'Eng Fail'),
+              h('button', {
+                type: 'button',
+                class: 'button button-tiny',
+                title: 'Go-around from final',
+                onclick: (e) => { e.stopPropagation(); sim.command(row.id, 'go_around'); onChange(); },
+              }, 'Go-Around'),
+            )
+          : null;
+
         listBody.appendChild(
           h(
             'li',
-            { class: `aircraft-row status-${row.status}`, dataset: { aircraftId: row.id } },
+            { class: `aircraft-row status-${row.status} ${row.engineFailed ? 'has-engine-fail' : ''}`, dataset: { aircraftId: row.id } },
             h('span', { class: 'aircraft-name' }, swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`),
             ' ',
             h('span', { class: 'aircraft-detail' }, detailText(row)),
+            actions,
           ),
         );
       }

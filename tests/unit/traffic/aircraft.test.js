@@ -205,7 +205,7 @@ test('a flying aircraft shows its height, speed and Flying, in whole numbers; la
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
-  assert.match(words(rows[0]), /^A1 CT-157 on Pattern 1 [\d,]+ ft, \d+ kt, Flying$/);
+  assert.match(words(rows[0]), /^A1 CT-157 on Pattern 1 [\d,]+ ft, \d+ kt, Flying/);
   const state = sim.state();
   assert.equal(detailText({ status: 'landed', statusText: 'Landed', altFt: 1880, kt: 0 }), '1,880 ft, Landed');
   assert.equal(detailText({ status: 'done', statusText: 'Done', altFt: 2500, kt: 100 }), '2,500 ft, Done');

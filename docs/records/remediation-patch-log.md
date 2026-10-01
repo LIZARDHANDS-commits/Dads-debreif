@@ -20,6 +20,12 @@
 | [**PATCH-007**](#patch-007-relabel-settings-reset-buttons-to-standard-defaults) | M0 | 2026-09-30 22:16Z | UI / SMM | Relabel Settings Reset Buttons to "Reset to Standard Defaults" | Pass |
 | [**PATCH-008**](#patch-008-turn-sim-settings-test-v6-parser-decoupling) | M0 | 2026-09-30 22:19Z | Bug Fix | Remove Legacy `v6Page` HTML Parsing Test from `settings.test.js` | Pass |
 | [**PATCH-009**](#patch-009-roadmap-navigable-table-of-contents--gaps-codification) | M0 | 2026-09-30 22:18Z | Documentation | Add TOC, Gaps 1–7 Risk Mitigations, and Living Log to Roadmap | Pass |
+| [**PATCH-010**](#patch-010-consolidation--deduplication-of-hot-ram-system-rule-and-master-roadmap) | M0 | 2026-09-30 22:30Z | System Rules | Consolidation & Deduplication of Hot RAM System Rule | Pass |
+| [**PATCH-011**](#patch-011-milestone-1-pr-1-merged-threejs-3d-view--esri-satellite-tiles-pr-229) | M1 | 2026-09-30 22:38Z | 3D View | Merged Three.js 3D View & Esri Satellite Tiles (PR #229) | Pass |
+| [**PATCH-012**](#patch-012-milestone-1-pr-2-consolidated-traffic-polish--rewind-fix) | M1 | 2026-09-30 22:43Z | Sim Engine | Consolidated Traffic Polish & Rewind Fix | Pass |
+| [**PATCH-013**](#patch-013-milestone-1-pr-3-traffic-core-4-implementation--plausibility-gate) | M1 | 2026-09-30 23:15Z | Aero & SMM | Traffic Core 4 Implementation & Plausibility Gate | Pass |
+| [**PATCH-014**](#patch-014-interactive-wind-ui-inputs--dynamic-simulation-updates) | M1 | 2026-09-30 23:25Z | UI & Physics | Interactive Wind UI Inputs & Dynamic Simulation Updates | Pass |
+| [**PATCH-015**](#patch-015-closed-loop-vector-pursuit-3d-visualization-suite--pilot-intuitive-controls) | M1 | 2026-09-30 23:55Z | 3D & Pilot UX | Closed-Loop Vector Pursuit, 3D Suite & Pilot-Intuitive Controls | Pass |
 
 ---
 
@@ -330,5 +336,44 @@
   Provides interactive wind control for Patrick's Gate 1 inspection and ensures wind physics respond dynamically to user input.
 * **Verification:**  
   `npm test` passed 100% green (`2,938 passed, 0 failed, 0 todo, 1 skipped` in 40.5s). `npm run typecheck` passed cleanly (0 errors). `npm run build` passed in 304ms.
+
+---
+
+### PATCH-015: Closed-Loop Vector Pursuit, 3D Visualization Suite & Pilot-Intuitive Controls
+* **Date & Time:** 2026-09-30 23:55 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+  * [`src/modules/traffic/readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/readouts.js)
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+  * [`src/modules/traffic/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/layout.js)
+  * [`src/modules/traffic/index.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/index.js)
+  * [`src/modules/traffic/traffic.css`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/traffic.css)
+  * [`tests/crosscheck/traffic-expected.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/crosscheck/traffic-expected.json)
+  * [`tests/unit/traffic/aircraft.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/aircraft.test.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js) (NEW)
+  * [`tests/unit/traffic/view3d.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/view3d.test.js)
+* **Problem / Flaw Addressed:**  
+  1. Final turn geometry had an unnatural 12.3° vertical elbow drop-off at Point 12 (Window, 2,119 ft MSL) due to linear descent against abrupt corner offsets.
+  2. Overhead break decelerated linearly instead of obeying aerodynamic $V^2$ induced drag ($V(u) = 220 \cdot e^{-0.452 u}$, decelerating 220 to 140 KIAS).
+  3. Aircraft lacked dynamic in-flight controls (`Breakout`, `Engine Fail` glide to 110 KIAS, `Go-Around`).
+  4. Spawner was constrained to raw numeric point IDs rather than pilot-intuitive points (`Initial`, `Downwind`, `Perch`, `2-Mile Final`, `1-Mile Final`, `Takeoff`, `Rejoin Lines`) and lacked callsign preview.
+  5. 3D view lacked camera translation/panning (right-click / middle-click / shift-drag), satellite photo ground projection plane, and vertical plumb lines with ground shadow reference rings.
+* **Changes Made:**
+  1. Updated `route.js`: Implemented continuous cubic easing descent along the final turn ($u \in [0, 1]$), smooth $V^2$ aerodynamic drag deceleration along the 180° break arc, and increased arc point density to 24 slices.
+  2. Implemented `sim.command(aircraftId, action)` in `sim.js` supporting `'breakout'`, `'engine_fail'`, and `'go_around'` with automatic speed and vertical profile transitions; exposed `sim.nextCallsign()`.
+  3. Exported `PILOT_SPAWN_PRESETS` in `aircraft.js`, added intuitive spawn preset dropdown and next callsign preview badge (`Next: A#`), and mounted in-flight action buttons (`Breakout`, `Eng Fail`, `Go-Around`) onto active aircraft rows.
+  4. Added `panCamera` and pointer event listeners in `view3d.js` enabling camera panning via right-click drag, middle-click drag, Shift + left-click drag, and Shift + Arrow keys.
+  5. Added satellite photo ground plane in 3D using `THREE.PlaneGeometry` with canvas texture sourced from `createTileLayer`, enabled via Layers menu.
+  6. Added "Height lines" toggle in 3D controls toolbar displaying dashed vertical plumb lines (`LineDashedMaterial`) with ground shadow rings below airborne aircraft.
+  7. Added unit tests in `commands.test.js` (4/4 passed) and updated `aircraft.test.js`, `view3d.test.js`, and `traffic-expected.json`.
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D374**, and **D390**. Elevates Traffic Sim into a modern 3D simulation suite with authentic Moose Jaw aerodynamics, responsive pilot controls, and intuitive visual references.
+* **Verification:**  
+  `npm test` passed 100% green (`2,943 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 451ms.
+
 
 
