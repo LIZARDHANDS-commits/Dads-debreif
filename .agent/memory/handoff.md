@@ -6,7 +6,8 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 01 Oct 2026, 04:15Z (Antigravity).
 
 ## Current State & Documentation Directory
-- **Branch:** `main` (cleanly compiling, 100% green test suite: 2,948 passed, 0 failed, 1 skipped).
+- **Branch:** `main` (commit `7422e3d`, cleanly compiling, 100% green test suite: 2,948 passed, 0 failed, 1 skipped).
+- **Patch Log Ledger:** [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md) up to date through PATCH-019 (with PATCH-015 and PATCH-017 explicitly clarified as visual route geometry and 3D suite, preserving `sim.js` for upcoming vector slices).
 - **Master Specification (The Aerodynamic Truth):** [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md)  
   *Defines full 3D Cartesian flight equations, dual guidance doctrine (Localizer on outer/final vs. Pure Pursuit to Perch on inner downwind), roll rates (30–50°/s), and CT-156 Harvard II performance integration.*
 - **Execution Plan (Architecture & Flowcharts):** [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md)  
