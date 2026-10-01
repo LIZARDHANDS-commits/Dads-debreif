@@ -303,19 +303,19 @@ test('the look-ahead is only worked out above 220, and only as far as it is need
 
 test('at a 250 KIAS merge head-on neither move scores (the noses meet head-on, which is no chase), so the geometry picks the Immelmann, and says so', () => {
   // This pinned "34 s against none" before: a head-on pass counted as a win. It is not one, so the look-ahead finds nothing.
-  const s = createEnergyFight({ blueKias: 250, redKias: 250, pursuit: 'none' });
+  const s = createEnergyFight({ blueKias: 250, redKias: 250, pursuit: 'none', chaseAfterHeadOn: false });
   for (const ac of [s.blue, s.red]) {
     assert.equal(ac.move, 'immelmann');
     assert.match(ac.why, /^Immelmann: 250 KIAS, other aircraft 180° off the nose, over the top at 1\d\d KIAS$/);
   }
   assert.deepEqual(s.plan.blue.race, { immelmann: null, pitchBack: null });
-  const m = runUntil({ blueKias: 250, redKias: 250, pursuit: 'none' }, (st) => st.merged);
+  const m = runUntil({ blueKias: 250, redKias: 250, pursuit: 'none', chaseAfterHeadOn: false }, (st) => st.merged);
   assert.equal(m.blue.why, s.blue.why, 'the moves shown before the turns are the moves flown');
 });
 
 test('at a 316 KIAS merge head-on the geometry picks the Immelmann too, and says it is outside the SMM band', () => {
   // This pinned "pitch back, 14 s against 56 s" before: again a head-on pass scored as a win.
-  const s = createEnergyFight({ blueKias: 316, redKias: 316, pursuit: 'none' });
+  const s = createEnergyFight({ blueKias: 316, redKias: 316, pursuit: 'none', chaseAfterHeadOn: false });
   assert.equal(s.blue.move, 'immelmann');
   assert.match(s.blue.why, /^Immelmann: 316 KIAS, other aircraft 180° off the nose, over the top at 161 KIAS, outside the SMM band \(200 to 250 KIAS\)$/);
   assert.deepEqual(s.plan.blue.race, { immelmann: null, pitchBack: null });
@@ -864,8 +864,8 @@ test('after first nose-on the winner chases and the other keeps its MPT', () => 
   assert.equal(s.red.why, 'MPT 160 KIAS');
 });
 
-test('a head-on re-pass is first nose-on but not a pursuit: both keep turning in the MPT (default, pending Patrick\'s word)', () => {
-  const s = runUntil({}, (st) => st.timeSec > st.mergeSec + 40, 80);
+test('without chaseAfterHeadOn a head-on re-pass is first nose-on but not a pursuit: both keep turning in the MPT', () => {
+  const s = runUntil({ chaseAfterHeadOn: false }, (st) => st.timeSec > st.mergeSec + 40, 80);
   assert.equal(s.firstNose.by, 'both');
   near(s.firstNose.timeSec - s.mergeSec, 17.1, 1, 'with the 4 G holds it is +17.1 s (+18.5 s before them; V6 gives +18.2 s)');
   for (const who of ['blue', 'red']) assert.notEqual(s[who].move, 'pursuit', who);
@@ -876,14 +876,21 @@ test('a pursuit starts only from behind: the other\'s aspect angle is 150° or l
   const behind = runUntil({ ...PERCH, pursuit: 'pure' }, (st) => st.chase, 10);
   assert.equal(behind.chase.by, 'blue');
   assert.ok(behind.aaDeg <= 150, `${behind.aaDeg}`);
-  const headOn = runUntil({ turnsStart: 'now', separationNm: 1, ataDeg: 0, aaDeg: 180 }, (st) => st.timeSec > 5, 6);
+  const headOn = runUntil({ turnsStart: 'now', separationNm: 1, ataDeg: 0, aaDeg: 180, chaseAfterHeadOn: false }, (st) => st.timeSec > 5, 6);
   assert.equal(headOn.firstNose.by, 'both');
   assert.equal(headOn.chase, null);
 });
 
-test('chaseAfterHeadOn is off by default: a head-on pass keeps both in the MPT', () => {
-  assert.equal(ENERGY_DEFAULT_SETUP.chaseAfterHeadOn, false);
-  const s = runUntil({}, (st) => st.timeSec > st.mergeSec + 60, 90);
+test('chaseAfterHeadOn is on by default (D394): a head-on pass starts pursuit', () => {
+  assert.equal(ENERGY_DEFAULT_SETUP.chaseAfterHeadOn, true);
+  const s = runUntil({}, (st) => st.chase, 80);
+  assert.equal(s.firstNose.by, 'both');
+  assert.equal(s.chase.by, 'both');
+  for (const who of ['blue', 'red']) assert.equal(s[who].move, 'pursuit');
+});
+
+test('with chaseAfterHeadOn disabled explicitly, a head-on pass keeps both in the MPT', () => {
+  const s = runUntil({ chaseAfterHeadOn: false }, (st) => st.timeSec > st.mergeSec + 60, 90);
   assert.equal(s.firstNose.by, 'both');
   assert.equal(s.chase, null);
   for (const who of ['blue', 'red']) assert.notEqual(s[who].move, 'pursuit');
@@ -1151,7 +1158,7 @@ test('a forced G is bounded: 0 to 12 G', () => {
 });
 
 test('the Auto settings have bounds: the off-nose angle 0 to 180, the top speed 0 to VMO, the look-ahead 0 to 120 s', () => {
-  assert.deepEqual([P.immelmannOffNoseDeg, P.immelmannMinTopKias, P.pickLookaheadSec, P.chaseAfterHeadOn], [120, 120, 60, false]);
+  assert.deepEqual([P.immelmannOffNoseDeg, P.immelmannMinTopKias, P.pickLookaheadSec, P.chaseAfterHeadOn], [120, 120, 60, true]);
   assert.throws(() => createEnergyFight({ immelmannOffNoseDeg: 181 }), /immelmannOffNoseDeg/);
   assert.throws(() => createEnergyFight({ immelmannOffNoseDeg: -1 }), /immelmannOffNoseDeg/);
   assert.throws(() => createEnergyFight({ immelmannMinTopKias: 400 }), /immelmannMinTopKias/);
@@ -1216,8 +1223,8 @@ test('the model is core\'s: nothing in the module works out its own drag, thrust
 
 // ── Second audit ─────────────────────────────────────────────────────────────
 
-test('a head-on first nose-on is marked once but does not block a later pursuit from behind', () => {
-  for (const setup of [{ blueKias: 300, redKias: 280 }, { circles: 1, redKias: 200 }]) {
+test('a head-on first nose-on is marked once but does not block a later pursuit from behind (with chaseAfterHeadOn: false)', () => {
+  for (const setup of [{ blueKias: 300, redKias: 280, chaseAfterHeadOn: false }, { circles: 1, redKias: 200, chaseAfterHeadOn: false }]) {
     let first = null;
     const s = runUntil(setup, (st) => { if (st.firstNose && !first) first = { ...st.firstNose }; return st.chase; }, 400);
     assert.ok(first, `${JSON.stringify(setup)}: a first nose-on`);
@@ -1227,8 +1234,8 @@ test('a head-on first nose-on is marked once but does not block a later pursuit 
     assert.ok(s.chase.aaDeg <= 150, `${s.chase.aaDeg}`);
     assert.equal(s[s.chase.by].move, 'pursuit');
   }
-  // The default head-on fight still never chases, for the whole ten minutes.
-  const d = runUntil({}, () => false, 600);
+  // With chaseAfterHeadOn off, the default head-on fight still never chases, for the whole ten minutes.
+  const d = runUntil({ chaseAfterHeadOn: false }, () => false, 600);
   assert.equal(d.firstNose.by, 'both');
   assert.equal(d.chase, null);
 });
@@ -1326,7 +1333,7 @@ test('both aircraft Auto: each aircraft\'s predicted time for the move it picked
     { blueKias: 260, redKias: 230, turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 },
     { blueKias: 250, redKias: 250, turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 }, // Blue's pick was made against Red's first choice, and Red's own pick against Blue's last
     { blueKias: 250, redKias: 250, turnsStart: 'now', separationNm: 0.7, ataDeg: 45, aaDeg: 30 },
-    { blueKias: 316, redKias: 316, turnsStart: 'now', separationNm: 1.5, ataDeg: 120, aaDeg: 100, aaSide: 'right' },
+    { blueKias: 316, redKias: 316, turnsStart: 'now', separationNm: 1.5, ataDeg: 120, aaDeg: 100, aaSide: 'right', chaseAfterHeadOn: false },
     { blueKias: 316, redKias: 250, turnsStart: 'now', separationNm: 1, ataDeg: 120, aaDeg: 60 },
     { blueKias: 250, redKias: 250, turnsStart: 'now', separationNm: 1, ataDeg: 120, aaDeg: 60 },
     { blueKias: 316, redKias: 316, turnsStart: 'now', separationNm: 1, ataDeg: 30, aaDeg: 120 },
@@ -1361,8 +1368,8 @@ test('both Auto: Red\'s gated Immelmann is not assumed in Blue\'s race, and a Re
 });
 
 test('a head-on pass is not a win in the race, and with chaseAfterHeadOn it is', () => {
-  // The default head-on at 250 KIAS: both noses come on together at 175° aspect, which scores for nobody.
-  const setup = { blueKias: 250, redKias: 250 };
+  // Without chaseAfterHeadOn at 250 KIAS: both noses come on together at 175° aspect, which scores for nobody.
+  const setup = { blueKias: 250, redKias: 250, chaseAfterHeadOn: false };
   const r = createEnergyFight(setup).plan.blue.race;
   assert.deepEqual(r, { immelmann: null, pitchBack: null });
   for (const move of ['immelmann', 'pitchBack']) assert.equal(realScore(setup, 'blue', move), null, `${move}: the real fight scores none either`);
@@ -1583,10 +1590,10 @@ test('F3: below the stall speed STALL reads from T+0, before the pass, and not a
 test('F4: the result can say "even fight": evenFight is set once both noses came on together and nobody has got behind the other', () => {
   const s = createEnergyFight();
   assert.equal(s.evenFight, false, 'not before a nose-on');
-  const done = runUntil({}, (st) => st.stopped, FIGHT_MAX_SEC + 5);
+  const done = runUntil({ chaseAfterHeadOn: false }, (st) => st.stopped, FIGHT_MAX_SEC + 5);
   assert.equal(done.firstNose.by, 'both');
   assert.equal(done.chase, null);
-  assert.equal(done.evenFight, true, 'the default mirror fight ends even');
+  assert.equal(done.evenFight, true, 'a mirror fight without head-on chase ends even');
   // Not even when one gets behind the other, or when a chase starts.
   const unequal = runUntil({ redKias: 180 }, (st) => st.chase && st.timeSec > st.chase.timeSec + 5, 400);
   assert.ok(unequal.chase);

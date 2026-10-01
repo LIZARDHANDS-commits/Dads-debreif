@@ -1304,9 +1304,12 @@ test('Energy shows its defaults at T+0: 220 KIAS and 10,000 ft each, the move wi
   await expect(page.locator('.tf-pass')).toHaveText('Pass at T+14.1 s');
 });
 
-test('the fight flies to the MPT: at T+30 both read MPT, 162 KIAS, 10,605 ft and 3.3 G after 9.1 s and 140° of turn, with "MPT 160 KIAS" beside each; a tie is an even fight', async ({ page }) => {
+test('the fight flies to the MPT: without head-on chase both read MPT, 162 KIAS, 10,605 ft and 3.3 G after 9.1 s and 140° of turn; a tie is an even fight', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await energyBox(page).check();
+  await settingsButton(page).click();
+  await page.getByLabel('Chase after a head-on pass').uncheck();
+  await settingsButton(page).click();
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await playButton(page).click();
   await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(29.9);
@@ -1315,7 +1318,7 @@ test('the fight flies to the MPT: at T+30 both read MPT, 162 KIAS, 10,605 ft and
   // The engine's numbers at T+30.0 are 162 KIAS, 10,605 ft and 3.3 G; the pause lands a poll later, so the altitude is
   // held to the engine's own at the time shown (the time reads to 0.1 s, about 2 ft of height).
   expect(t).toBeLessThan(40);
-  const engine = engineAt({}, t);
+  const engine = engineAt({ chaseAfterHeadOn: false }, t);
   await expect(resultRow(page, /Move/)).toHaveText(/MPT.*MPT/);
   await expect(resultRow(page, /Speed \(KIAS\)/)).toHaveText(/16[123] KIAS.*16[123] KIAS/);
   const heights = feetIn(await resultRow(page, /Altitude/).innerText());
@@ -1340,6 +1343,17 @@ test('the fight flies to the MPT: at T+30 both read MPT, 162 KIAS, 10,605 ft and
   await playButton(page).click();
 });
 
+test('by default (D394), the head-on pass initiates active combat pursuit: both aircraft switch to pursuit', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
+  await energyBox(page).check();
+  await page.getByLabel('Playback speed').selectOption({ label: '4×' });
+  await playButton(page).click();
+  await expect(resultRow(page, /First nose-on/)).toContainText('Both at +17.1 s', { timeout: 30_000 });
+  await expect(resultRow(page, /Chase/)).toContainText('Chasing', { timeout: 30_000 });
+  await expect(resultRow(page, /Move/)).toHaveText(/Pursuit.*Pursuit/);
+  await playButton(page).click();
+});
+
 test('Turn Fight settings has Energy and Model settings for checking only with Energy on, in order, each box at the engine\'s default with its range', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await settingsButton(page).click();
@@ -1356,7 +1370,7 @@ test('Turn Fight settings has Energy and Model settings for checking only with E
   await expect(page.getByLabel('MPT speed (KIAS)')).toHaveValue('160');
   await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
   await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Pure');
-  await expect(page.getByLabel('Chase after a head-on pass')).not.toBeChecked();
+  await expect(page.getByLabel('Chase after a head-on pass')).toBeChecked();
   await expect(energyGroup(page)).toContainText('125 to 175 KIAS, default 160 KIAS.');
   await expect(energyGroup(page)).toContainText('0 to 25,000 ft, default 6,000 ft.');
   await expect(energyGroup(page)).toContainText('SMM 14.3 para 6');
@@ -1440,6 +1454,7 @@ test('STALL shows in words and colour: a slow Immelmann stalls at the top, the r
   await openRoute(page, '#/turn-fight');
   await energyBox(page).check();
   await settingsButton(page).click();
+  await page.getByLabel('Chase after a head-on pass').uncheck();
   await page.getByLabel('Blue\'s move').selectOption({ label: 'Immelmann' });
   await atOnce(page).check();
   await blue(page).getByLabel('Merge speed (KIAS)').fill('120');
@@ -1462,7 +1477,7 @@ test('STALL shows in words and colour: a slow Immelmann stalls at the top, the r
   const flags = resultRow(page, /Flags/);
   // The engine has the stall from T+8.2 (86 KIAS is the stall speed) to T+21.2, while the speed is below it.
   await expect(flags.locator('td').first()).toHaveText('STALL', { timeout: 30_000 });
-  await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(12);
+  await expect.poll(() => seconds(page), { timeout: 30_000, intervals: [50] }).toBeGreaterThan(12);
   await playButton(page).click();
   expect(await seconds(page)).toBeLessThan(21);
   const seen = await page.evaluate(() => window.__seen);
@@ -1623,7 +1638,7 @@ test('Energy settings are remembered across a reload, and Reset to V6 defaults t
   await page.getByLabel('Blue\'s move').selectOption({ label: 'Slice' });
   await page.getByLabel('Hard deck (ft MSL)').fill('7000');
   await page.getByLabel('Pursuit').selectOption({ label: 'Lead' });
-  await page.getByLabel('Chase after a head-on pass').check();
+  await page.getByLabel('Chase after a head-on pass').uncheck();
   await checkGroup(page).getByLabel('Stall speed (KIAS)').fill('83');
   await blue(page).getByLabel('Merge speed (KIAS)').fill('150');
   await blue(page).getByLabel('Start altitude (ft)').fill('9000');
@@ -1638,7 +1653,7 @@ test('Energy settings are remembered across a reload, and Reset to V6 defaults t
   await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Slice');
   await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('7000');
   await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Lead');
-  await expect(page.getByLabel('Chase after a head-on pass')).toBeChecked();
+  await expect(page.getByLabel('Chase after a head-on pass')).not.toBeChecked();
   await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveValue('83');
   await expect(page.locator('.tf-energy-summary')).toHaveText('Altitude at T+0.0: Blue 9,000 ft, Red 10,000 ft. Hard deck 7,000 ft.');
   await expect(time(page)).toHaveText('T+0.0'); // a fight always opens at the start
@@ -1656,7 +1671,7 @@ test('Energy settings are remembered across a reload, and Reset to V6 defaults t
   await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Auto');
   await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
   await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Pure');
-  await expect(page.getByLabel('Chase after a head-on pass')).not.toBeChecked();
+  await expect(page.getByLabel('Chase after a head-on pass')).toBeChecked();
   await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveValue('86');
   // And a reload after the reset opens with Energy off.
   await energyBox(page).uncheck();

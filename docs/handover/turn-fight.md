@@ -21,22 +21,24 @@ A two-aircraft turning fight with two modes:
 ## Status: Completed (Milestone 2 / Gate 2 Sign-Off Ready)
 
 Turn Fight is 100% complete and fully verified:
-- **504/504 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
-- **67/67 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 18 Energy tests and axe accessibility).
+- **505/505 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
+- **68/68 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 19 Energy tests and axe accessibility).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
 - **Vite production build clean** (`npm run build`, sizes within budget).
 - **Tactical 3D Suite** integrated: vertical dashed plumb lines and ground-shadow contact discs (D392).
 - **Immelmann G-Law** calibrated: 5.0 G pull to stick shaker then rides boundary (D393).
+- **Active Combat Pursuit Default** enabled: head-on re-merge breaks out of passive circles into vector pursuit AI (D394).
 - **8 Forensic Traps neutralized**: coordinate snap, mutual pursuit, D386 10° elevation cone, topKiasAt Mach 0.67 corner, D381 Immelmann <= 140 KIAS slice/split-S constraint, Neutral Head-on UI relabeling, test expectation alignments, and head-on pass check bypass.
 - **Patrick Gate 2 Sign-Off Ready**: Checklist at `docs/checklists/turn-fight.md`.
 
-## Implemented Work (PATCH-023)
+## Implemented Work (PATCH-023 & PATCH-024)
 
 | What | Where | State |
 |---|---|---|
-| Energy screen (PR D, task 10's screen half) | Merged and integrated with engine on main | 100% complete. Error catch narrowed to engine setup errors; unit tests verify RangeError containment. All 18 Energy E2E tests passing green. |
+| Energy screen (PR D, task 10's screen half) | Merged and integrated with engine on main | 100% complete. Error catch narrowed to engine setup errors; unit tests verify RangeError containment. All 19 Energy E2E tests passing green. |
 | Tactical 3D Suite (D392) | `src/modules/turn-fight/view3d.js` | 100% complete. `computeFloorZ` and `computePlumbGeometry` tested and verified in 2D/3D. |
 | Immelmann G-Law (D393) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 5.0 G pull to shaker line via `pullCmdG(ctx)`. |
+| Active Combat Pursuit (D394) | `src/modules/turn-fight/energy-sim.js` | 100% complete. `chaseAfterHeadOn` defaulted to true; fighters dogfight across re-merge. |
 | MPT Range & Aerodynamic Limits | `state.js`, `energy-sim.js` | 100% complete. 125 to 175 KIAS MPT range; Mach 0.67 corner speed (269 KIAS at 25,000 ft). |
 | Standard Defaults (D384) | `state.js`, `layout.js` | 100% complete. "Reset to Standard Defaults" loading SMM 3.0 G standards. |
 | Neutral Head-on (D368/D372) | `layout.js`, `tests/e2e/` | 100% complete. Relabeled from legacy V6 text. |

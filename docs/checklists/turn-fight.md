@@ -42,8 +42,8 @@ Keep V6 (the old single-file tool) open in another tab for the side-by-side line
 
 Open **Turn Fight settings** (it is closed at first).
 
-- [ ] The menu has two sections in this order, **Start geometry** then **Display**, and a **Reset to V6 defaults** button. There is nothing about Energy yet.
-- [ ] **Start geometry**: has Red's position off Blue's nose (ATA) and its side, Red's aspect angle (AA) and its side, a heading crossing angle (HCA) line, a small picture of the start, **Red starts above Blue (ft)**, **When the turns start**, and a **Head-on (V6)** button.
+- [ ] The menu has two sections in this order, **Start geometry** then **Display**, and a **Reset to Standard Defaults** button (D384). There is nothing about Energy yet.
+- [ ] **Start geometry**: has Red's position off Blue's nose (ATA) and its side, Red's aspect angle (AA) and its side, a heading crossing angle (HCA) line, a small picture of the start, **Red starts above Blue (ft)**, **When the turns start**, and a **Neutral Head-on** button.
 - [ ] **Display**: has **Side view height scale** and **Paint**. Paint is greyed out in 2D, and **Side view height scale** is greyed out in 3D or without Climb and dive.
 - [ ] Try a bad number in a box: a letter, or **Start separation** 50. The box refuses it and says the range, for example "Enter a number from 0.5 to 10 NM." The fight doesn't change.
 - [ ] Change **Start separation** to 4. The fight starts again, and Start geometry now says "Pass at" a later time (about T+32.7 s).
@@ -52,14 +52,14 @@ Open **Turn Fight settings** (it is closed at first).
 
 Each change here starts the fight again at T+0.0.
 
-- [ ] **Head-on (V6)**, the opening one: ATA 0°, AA 180°, HCA 180°, "Pass at T+16.4 s". The MERGE cross shows in the picture.
+- [ ] **Neutral Head-on**, the opening one: ATA 0°, AA 180°, HCA 180°, "Pass at T+16.4 s". The MERGE cross shows in the picture.
 - [ ] **Crossing**: set AA to 90. HCA reads 90°, the note says "Pass at T+16.4 s", and the jets cross at right angles. The small picture shows the new start. The turn line says which way each jet will turn: set AA side to Right and it says "Blue turns right, Red turns right". Play to the pass: the jets go by about 1.4 NM apart, so the yellow mark is labelled PASS, not MERGE. Put AA side back to Left.
 - [ ] **Beam**: set ATA to 90 and AA to 90. The note says "No pass: the turns start at once" and no MERGE or PASS mark is drawn, because the range isn't closing.
 - [ ] **Tail chase**: set ATA to 0 and AA to 0 (Blue dead astern of Red). HCA reads 0°, and with equal speeds the note says "No pass: the turns start at once". Set Blue's **Speed** to 260: now the note says "Pass at T+180.0 s", the time Blue takes to catch up. At 4× speed play to the pass: **First nose-on** reads "Blue at +0.0 s", because Blue has had Red on its nose the whole way (it never reads Red at that moment).
 - [ ] At ATA 0° or 180°, and AA 0° or 180°, the side buttons mean nothing: flipping one while the fight plays doesn't restart it. At any other angle, flipping a side restarts the fight.
-- [ ] Put Blue's **Speed** back to 220 and press **Head-on (V6)**, then set **When the turns start** → **At once**. It starts the turns at T+0 even at the head-on start. Back to **At the pass** and they wait for the pass.
+- [ ] Put Blue's **Speed** back to 220 and press **Neutral Head-on**, then set **When the turns start** → **At once**. It starts the turns at T+0 even at the head-on start. Back to **At the pass** and they wait for the pass.
 - [ ] With **Climb and dive** on, **Red starts above Blue (ft)** works (it is greyed out otherwise). Set 2,000: the fight starts again, the side view shows Red above Blue, and **Height between** in More detail reads 2,000 ft at T+0.
-- [ ] Press **Head-on (V6)**: ATA, AA, height and the turns go back to head-on, level and at the pass. It doesn't touch your speeds, G or fight type.
+- [ ] Press **Neutral Head-on**: ATA, AA, height and the turns go back to head-on, level and at the pass. It doesn't touch your speeds, G or fight type.
 
 ## The 2D and 3D views
 
@@ -90,7 +90,7 @@ Each change here starts the fight again at T+0.0.
 
 - [ ] Change **Fight type**, **Blue**'s speed and G, tick **First nose chases**, pick 2× speed and choose 3D. Reload the page. Every one of them is as you left it, and the time is T+0.0.
 - [ ] Open **Turn Fight settings**, change a Start geometry number, and reload. It is kept.
-- [ ] Press **Reset to V6 defaults**. The fight, both aircraft, both checkboxes, pitch, height scale, playback speed, Paint and all of Start geometry go back to V6's, and the fight starts again at T+0.0. The **View** stays as you had it (2D or 3D), and the columns stay as open or folded as they were.
+- [ ] Press **Reset to Standard Defaults** (D384). The fight, both aircraft, both checkboxes, pitch, height scale, playback speed, Paint and all of Start geometry go back to standard defaults, and the fight starts again at T+0.0. The **View** stays as you had it (2D or 3D), and the columns stay as open or folded as they were.
 
 ## The readouts
 
@@ -114,7 +114,7 @@ Energy mode flies the jets with real thrust, drag and stall limits, instead of a
 - [ ] Play at 4×. About 9 seconds after the pass, and 140° of turn later, each jet's words change to "MPT 160 KIAS" and the Result's **To the MPT** reads "9.1 s, 140°". At T+30 both read MPT, about 162 KIAS, about 10,605 ft and 3.3 G, and the phase reads 2-CIRCLE. **More detail** shows a bank of about 73° and a Ps of about -30 ft/s at T+30 (the MPT gives up a little speed and height each second; the bank settles near 72° later).
 - [ ] Keep playing: **First nose-on** reads "Both at +17.1 s" and **Winner** reads "Even fight: nobody gets behind". (When one jet starts its chase from behind, the word is "Blue wins" or "Red wins" instead; before either, it reads "--", and "No winner" if the fight runs to its 10-minute stop.)
 - [ ] **Turn Fight settings** now has four parts, in this order: **Start geometry**, **Energy**, **Display**, **Model settings for checking**. Untick Energy and the Energy and Model settings parts go away.
-- [ ] **Energy** holds **Blue's move** and **Red's move** (Auto, Immelmann, Pitch back, Slice, Split S, MPT), **MPT speed (KIAS)** 160 (125 to 175 KIAS per D349), **Hard deck (ft MSL)** 6,000, **Pursuit** Pure and **Chase after a head-on pass** unticked. Each box shows its range and default, and a number outside the range gives a message and marks the box, like the other boxes.
+- [ ] **Energy** holds **Blue's move** and **Red's move** (Auto, Immelmann, Pitch back, Slice, Split S, MPT), **MPT speed (KIAS)** 160 (125 to 175 KIAS per D349), **Hard deck (ft MSL)** 6,000, **Pursuit** Pure and **Chase after a head-on pass** ticked (D394). Each box shows its range and default, and a number outside the range gives a message and marks the box, like the other boxes.
 - [ ] Set Blue's move to **Split S** (Red stays Auto). Blue's words read "Split S: set by you at 220 KIAS (forced move)". At about T+20 Blue is near 9,880 ft, lower than Red at about 10,810 ft, and Blue's **Move** reads Split S. Set it back to **Auto**. In Auto mode, at 140 KIAS or below, aircraft must fly a Split S or slice turn, never an Immelmann (D381).
 - [ ] **STALL**: set Blue's move to **Immelmann**, tick **At once** (Start geometry), and set Blue's Merge speed to 120. From about T+8 s to T+21 s, Blue's Flags cell reads **STALL** in red and bold, a line under the table says "Blue STALL: ... KIAS is below the 86 KIAS stall speed", and Red still reads **None**. The words say STALL, and the colour is only extra. (A screen reader is told once, "Flags: Blue STALL", not every time the numbers in the line change.) **OVER G** works the same way when a jet is pulling above +7 G; Auto never does that by itself, so you will not see it in a normal Auto fight (the model keeps Auto within limits). Only these two flags exist. (Immelmann pulls 5.0 G to shaker line, D393).
 - [ ] **Model settings for checking** is at the bottom of the menu with its own **Reset to defaults** button. It lists 15 boxes (Stall speed, Shaker, How long a stall lasts, Mid-range throttle, Lead point, Lag point, Roll rate, Pitch back bank at 160 and at 220, Auto: Immelmann or pitch back above, Auto: split S below, Immelmann off-nose angle, Lowest Immelmann top speed, Look-ahead, Deck margin). Change one (Stall speed to 83): the fight starts again. Press its **Reset to defaults**: it goes back to 86. The other settings above it do not change.

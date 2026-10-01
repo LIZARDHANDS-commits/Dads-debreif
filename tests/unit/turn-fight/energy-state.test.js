@@ -20,9 +20,9 @@ test('Energy opens off, and every Energy setting opens at the engine\'s own defa
   for (const [key, value] of Object.entries(setup)) {
     if (!shared.includes(key)) assert.deepEqual(value, ENERGY_DEFAULT_SETUP[key], key);
   }
-  // The spec's list: 10,000 ft and 220 KIAS each, Auto, MPT 160, deck 6,000, Pure, head-on chase off; stall 86, shaker 94 %.
+  // The spec's list: 10,000 ft and 220 KIAS each, Auto, MPT 160, deck 6,000, Pure, head-on chase on (D394); stall 86, shaker 94 %.
   assert.deepEqual([DEFAULTS.blueAltFt, DEFAULTS.redAltFt, DEFAULTS.blueKias, DEFAULTS.redKias], [10000, 10000, 220, 220]);
-  assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['auto', 'auto', 160, 6000, 'pure', false]);
+  assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['auto', 'auto', 160, 6000, 'pure', true]);
   assert.deepEqual([DEFAULTS.stallKias, DEFAULTS.shakerPct, DEFAULTS.stallSec, DEFAULTS.midThrottlePct], [86, 94, 1, 50]);
   assert.deepEqual([DEFAULTS.rollRateDegPerSec, DEFAULTS.pitchBackBank160Deg, DEFAULTS.pitchBackBank220Deg], [90, 60, 30]);
   assert.deepEqual([DEFAULTS.immelmannAboveKias, DEFAULTS.splitSBelowKias, DEFAULTS.immelmannOffNoseDeg, DEFAULTS.immelmannMinTopKias, DEFAULTS.pickLookaheadSec, DEFAULTS.deckMarginFt], [220, 120, 120, 120, 60, 1000]);
@@ -147,7 +147,7 @@ test('with Energy on, the setup key is Energy\'s: it follows the Energy and figh
   const base = setupKey(ENERGY_ON);
   assert.notEqual(base, setupKey(DEFAULTS), 'switching Energy on starts the fight again');
   for (const change of [{ blueAltFt: 9000 }, { redKias: 250 }, { blueMove: 'splitS' }, { redMove: 'slice' }, { mptKias: 150 }, { hardDeckFt: 5000 },
-    { pursuit: 'lead' }, { chaseAfterHeadOn: true }, { stallKias: 83 }, { shakerPct: 90 }, { stallSec: 2 }, { midThrottlePct: 30 }, { leadSec: 2 },
+    { pursuit: 'lead' }, { chaseAfterHeadOn: false }, { stallKias: 83 }, { shakerPct: 90 }, { stallSec: 2 }, { midThrottlePct: 30 }, { leadSec: 2 },
     { lagSec: 2 }, { rollRateDegPerSec: 60 }, { pitchBackBank160Deg: 50 }, { pitchBackBank220Deg: 25 }, { immelmannAboveKias: 230 },
     { splitSBelowKias: 110 }, { immelmannOffNoseDeg: 100 }, { immelmannMinTopKias: 100 }, { pickLookaheadSec: 30 }, { deckMarginFt: 500 },
     { circles: 1 }, { separationNm: 3 }, { startAtaDeg: 30 }, { startAaDeg: 90 }, { turnsAt: 'once' }]) {

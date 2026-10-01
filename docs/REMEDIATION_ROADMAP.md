@@ -263,8 +263,8 @@ flowchart TD
 | :--- | :--- | :--- | :---: |
 | **`docs/records/plan-requirements.md`** | **R9:** *"the new version produces the same spacing... as V6... V6's numbers are trusted as correct (Decision 29)"* | **R9 (Ratified):** *"Flight math, geometry, and simulation baselined on standard aerodynamics and 15 Wing Moose Jaw flight manuals (`../manuals/`). Verified within pilot domain tolerances (±10 kt standard, ±20 kt loose; ±100 ft standard, ±200 ft loose; ±5°/±10°; ±0.5/±1.0 G; ±2.5/±5.0°/s)."* | Milestone 4 |
 | **`docs/records/plan-requirements.md`** | **R24–R32:** Broad scope mixing core traffic with PFLs, closed patterns, and prediction engines into one unachievable lump. | **R24–R32 (Ratified):** Partition into **Phase 1 Prototype Core** (wind vectors, 4 aircraft types, 60° break at 3,500 ft, 45° final turn / straight-in at 2,700 ft) vs. **Phase 2 Staged Features** (`PPQ-01` to `PPQ-04`). | Milestone 4 |
-| **`docs/records/plan-decisions.md`** | **D29:** *"V6's calculated numbers... are trusted as correct"*<br/>**D38:** *"Tests allow a relative difference of 1e-12"* | **D29 (Superseded by D368, D372):** V6 is an archival UI reference only.<br/>**D38 (Superseded by D369, D371):** Replaced with pilot tolerances.<br/>**D368–D388:** Formalized and ratified. | **Done** |
-| **`docs/records/decisions-log.md`** | Rows D368–D370 logged | Added **D371–D388** (Tolerances, V6 quarantine, CYMJ truth, Closed-loop flight, Antigravity limit, Module gates, Traffic build order, CYMJ 29L LH, Turn Fight 2D default, SMM break/final, Median filter, Standard Defaults, Rollout scoring, 3D merge cone, Stall 86 kt, Alternate minima). | **Done** |
+| **`docs/records/plan-decisions.md`** | **D29:** *"V6's calculated numbers... are trusted as correct"*<br/>**D38:** *"Tests allow a relative difference of 1e-12"* | **D29 (Superseded by D368, D372):** V6 is an archival UI reference only.<br/>**D38 (Superseded by D369, D371):** Replaced with pilot tolerances.<br/>**D368–D394:** Formalized and ratified. | **Done** |
+| **`docs/records/decisions-log.md`** | Rows D368–D370 logged | Added **D371–D394** (Tolerances, V6 quarantine, CYMJ truth, Closed-loop flight, Antigravity limit, Module gates, Traffic build order, CYMJ 29L LH, Turn Fight 2D default, SMM break/final, Median filter, Standard Defaults, Rollout scoring, 3D merge cone, Stall 86 kt, Alternate minima, Traffic vectors/circuits D389-D391, 3D Tactical Suite D392, Immelmann G law D393, Active Combat Pursuit D394). | **Done** |
 | **`specs/SPEC-core.md`** | Cites R9 V6 golden tests as truth. | Baseline on aerodynamics and 15 Wing flight manuals. Deprecate legacy golden tests in favor of pilot domain tolerances. | Milestone 4 |
 | **`specs/SPEC-wx.md`** | Lines 171–178 cite `v6-compare.test.js` and `v6-sof.js`. | Quarantined both files to `archive/tests/wx/`. Eliminate V6 `new Function()` eval. | **Done** |
 | **`specs/SPEC-traffic.md`** | Mandates PFLs, engine-out glides, and fly-throughs for traffic completion. | Add **Phase 1 vs. Phase 2 Scope Declaration**: Phase 1 builds Core 4 on Runway 29L left-hand; PFLs and complex pattern rules deferred to Phase 2 (`POST_PROTOTYPE_QUEUE.md`). | Milestone 4 |
@@ -324,7 +324,8 @@ flowchart TD
   - Integrate Tactical 3D Suite (`computeFloorZ`, `computePlumbGeometry`, plumb lines and ground-shadow contact discs per D392).
   - Enforce Immelmann pull G law (5.0 G to shaker boundary then rides shaker line per D393).
   - Neutralize 8 forensic V6 traps (mutual pursuit, coordinate snap, elevation cone, MPT range 125-175, Neutral Head-on rename, pass nose check bypass).
-  - All 504 unit tests, 67 Playwright E2E tests, typecheck, and build passing 100% green.
+  - Enable active combat pursuit across head-on re-merge by default per Patrick's ratification (D394).
+  - All 505 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
 - [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)

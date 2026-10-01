@@ -52,13 +52,13 @@ test('the About text on the MPT bank is what the model does: about 69° at the d
   assert.match(about, /about 69° at the deck/);
   assert.match(about, /about 72° in the constant-speed MPT/);
   // The numbers in the text are the engine's own, not remembered ones: fly the two MPTs and read the bank.
-  const level = createEnergyFight({ hardDeckFt: 6000, blueAltFt: 6500, redAltFt: 6500, blueKias: 160, redKias: 160 });
+  const level = createEnergyFight({ hardDeckFt: 6000, blueAltFt: 6500, redAltFt: 6500, blueKias: 160, redKias: 160, pursuit: 'none' });
   for (let i = 0; i < 120 / 0.02; i++) stepEnergyFight(level, 0.02);
   assert.equal(level.blue.move, 'levelMpt');
   assert.ok(Math.abs(level.blue.bankDeg - 68.5) < 0.5, `level MPT bank ${level.blue.bankDeg}`);
   assert.ok(Math.abs(level.blue.kias - 146) < 1, `level MPT speed ${level.blue.kias}`);
   assert.ok(Math.abs(level.blue.g - 2.7) < 0.1, `level MPT G ${level.blue.g}`);
-  const cs = createEnergyFight({});
+  const cs = createEnergyFight({ pursuit: 'none' });
   for (let i = 0; i < 60 / 0.02; i++) stepEnergyFight(cs, 0.02);
   assert.equal(cs.blue.move, 'mpt');
   assert.ok(Math.abs(cs.blue.bankDeg - 72.2) < 0.5, `constant-speed MPT bank ${cs.blue.bankDeg}`);

@@ -38,7 +38,7 @@ test('the words beside each aircraft are the engine\'s: the spec\'s own example 
 });
 
 test('once at the MPT the words say "MPT 160 KIAS" and the card gives the time and degrees of turn it took', () => {
-  const fight = fly({ blueKias: 180, redKias: 180 }, 40);
+  const fight = fly({ blueKias: 180, redKias: 180, pursuit: 'none' }, 40);
   assert.equal(fight.blue.mptReached, true);
   assert.equal(moveWhyText(fight.blue), 'MPT 160 KIAS');
   const rows = energyResultRows(fight);
@@ -150,8 +150,8 @@ test('the winner is what the engine says: evenFight, else a chase by one aircraf
     assert.equal(winnerText(state), '--', JSON.stringify(state));
   }
   assert.equal(winnerText({ winner: 'blue', stopped: true }), 'No winner');
-  // And the engine's real fight: the default one is an even fight once both noses are on, at +17.1 s after the pass.
-  const fight = createEnergyFight({});
+  // And the engine's real fight: without head-on chase it is an even fight once both noses are on, at +17.1 s after the pass.
+  const fight = createEnergyFight({ chaseAfterHeadOn: false });
   assert.equal(winnerText(fight), '--');
   while (fight.timeSec < 40) stepEnergyFight(fight, 0.02);
   assert.equal(fight.firstNose.by, 'both');

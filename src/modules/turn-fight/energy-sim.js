@@ -94,7 +94,7 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   mptKias: 160,
   hardDeckFt: 6000,
   pursuit: 'pure',
-  chaseAfterHeadOn: false,
+  chaseAfterHeadOn: true,
   // Model settings for checking.
   stallKias: T6A_LIMITS.stallKias,
   shakerFrac: 0.94,
@@ -139,7 +139,7 @@ const SLICE_ENTRY_LOW_KIAS = 100; // SMM 14.18: the slice is flown from 100 to 1
 // and its Table 14.1 says about 4 G. The numbers come from T6A_MANOEUVRE; this file flies the same law.
 /** One definition of "rolling": a bank change faster than this (deg/s) is a roll. The roll itself is 90°/s; the MPT's trim is a few deg/s. It drives OVER G's 4.7 G limit, the MPT's 4 G while rolling, and the chaser's cap. Model setting. */
 const ROLLING_DEG_PER_SEC = 15;
-/** A pursuit starts only from behind: the other's aspect angle is at most this. A head-on re-pass (above it) starts no pursuit unless `chaseAfterHeadOn` is set (default off, pending Patrick's word). Model setting. */
+/** A pursuit starts from behind (aspect <= 150°), or across a head-on re-pass with `chaseAfterHeadOn` (default true per Patrick's ratification, D394). Model setting. */
 const PURSUIT_MAX_AA_DEG = 150;
 const FORCE_G_MAX = 12;           // a what-if G of 0 to 12 (core's +7 G limit, and some way past it)
 

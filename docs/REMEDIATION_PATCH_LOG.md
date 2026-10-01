@@ -617,6 +617,37 @@
   - `npm run typecheck` passed (0 errors).
   - `npm run build` passed in 541ms with all bundles within budget.
 
+---
+
+### PATCH-024: Milestone 2 Active Combat Pursuit Default (D394)
+* **Date & Time:** 2026-10-01 07:25 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`tests/unit/turn-fight/energy-state.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-state.test.js)
+  * [`tests/unit/turn-fight/energy-readouts.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-readouts.test.js)
+  * [`tests/unit/turn-fight/energy-layout.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-layout.test.js)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  In head-on 2-circle fights in Energy Mode, both aircraft were orbiting in passive circles rather than aggressively re-engaging to "kill" each other. This occurred because `controlPursuit` was gated behind `onTheOther()` (`aspectAngle <= 150°`) unless `chaseAfterHeadOn` was enabled, which was previously defaulted to `false` pending pilot ratification.
+* **Changes Made:**
+  1. Defaulted `chaseAfterHeadOn` to `true` in `ENERGY_DEFAULT_SETUP` (`energy-sim.js:97`) and updated documentation per Patrick's D394 ratification.
+  2. Preserved isolated non-pursuit unit tests with explicit `{ chaseAfterHeadOn: false }` or `{ pursuit: 'none' }`.
+  3. Added Playwright E2E assertion in `tests/e2e/turn-fight.spec.js` confirming both aircraft switch to active combat pursuit (`move: 'pursuit'`) after the merge.
+* **Reasoning / Rationale:**  
+  Decision **D394**. Aligns dogfight simulation with John Boyd Energy-Maneuverability (E-M) theory and real-world BFM flow. As fighters merge and re-merge, pilots do not fly passive open-loop rate spirals; they aggressively acquire line of sight, pull lead/pure pursuit vectors, and trade altitude for speed to secure a firing solution.
+* **Verification:**  
+  - 505/505 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+  - 68/68 Playwright E2E tests passing.
+  - `npm run typecheck` passed (0 errors).
+  - `npm run build` passed.
+
+
 
 
 
