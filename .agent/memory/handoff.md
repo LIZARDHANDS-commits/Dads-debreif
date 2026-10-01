@@ -3,26 +3,37 @@
 Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 
 ## Last updated
-30 Sep 2026, 23:55Z (Antigravity).
+01 Oct 2026, 05:15Z (Antigravity).
 
-## Current State
-- **Branch:** `main` (cleanly compiling, 100% green test suite).
-- **Milestone 0 (Foundation & V6 Decoupling):** Complete and landed on `main`. Golden tests quarantined, pilot domain tolerances active, `app.scenarioStore` pre-wired.
-- **Milestone 1 (Traffic Pattern Sim):**
-  - PR 1 (Series PR 1): Three.js 3D view and Esri satellite tile rendering merged (PR #229).
-  - PR 2 (Series PR 2): Consolidated polish & rewind fix landed, preserving callsign indexing safety on rewind (+422 lines of rewind tests).
-  - PR 3 (Series PR 3, Core 4): SMM performance profiles in `types.js`, wind vector math, 60° break, 45° descending final turn, D389 perch drift guidance, true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green.
-  - PATCH-014: Interactive wind inputs and dynamic simulation updates on `main`.
-  - **Decision D390 (Approved):** Transition Traffic Sim to Closed-Loop Vector Pursuit physics (unifying with Turn Fight/Turn Sim), 180° break with V² drag deceleration, downwind corridor capture, 180° continuous descending final turn, 3.0° glide slope intercept at 2.54 NM, pilot-intuitive operational spawner, in-flight action commands (Breakout, Engine Fail, Go-Around), 3D camera panning, 3D satellite ground projection, and 3D height drop lines.
-- **Test Baseline:** `npm test` passes 100% green (`2,938 passed, 0 failed, 0 todo, 1 skipped`). `npm run typecheck` passes with zero errors. `npm run build` compiles in ~300ms.
-- **Ledgers & Docs:** Logged `D390` in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`. Implementation plan artifact: [`wind_adaptive_aerodynamic_flight_plan.md`](file:///C:/Users/patri/.gemini/antigravity/brain/82e5a6eb-6e73-4c60-ac9f-3bdfb518207e/wind_adaptive_aerodynamic_flight_plan.md).
+## Current State & Documentation Directory
+- **Branch:** `main` (cleanly compiling, 100% green test suite: 2,965 passed, 0 failed, 1 skipped).
+- **Patch Log Ledger:** [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md) up to date through PATCH-021 (Stage 1 Vector Physics Slices A–E & Stage 2 Pilot Controls Slices F–G fully completed).
+- **Master Specification (The Aerodynamic Truth):** [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md)  
+  *Defines full 3D Cartesian flight equations, dual guidance doctrine (Localizer on outer/final vs. Pure Pursuit to Perch on inner downwind), roll rates (30–50°/s), and CT-156 Harvard II performance integration.*
+- **Execution Plan (Architecture & Flowcharts):** [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md)  
+  *Contains Before vs. After code diagrams showing how only `sim.js: fly(a)` changes while 90% of files stay untouched, plus the clean 4-step pipeline.*
+- **Living Task Checklist (The Progress List):** [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md)  
+  *Authoritative checklist: Stage 1 (Slices A–E) [x] and Stage 2 (Slices F–G) [x] 100% completed.*
+- **Safety Pre-Edit Backup:** [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak).
+- **Ratified Decisions:** `D390` & `D391` logged in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+
+## Staged Execution Roadmap
+* **Stage 1: Core Physics Engine in `sim.js` (Slices A–E) — COMPLETED [x]**
+  - [x] Slice A: 3D Cartesian vector state & step integrator in `fly(a)`.
+  - [x] Slice B: 180° level break at 60° bank (2.0 G), $V^2$ induced drag deceleration (220 $\to$ 140 kt), natural wind drift.
+  - [x] Slice C: Dynamic wind perch calculation and closed-loop pure pursuit on Inner Downwind at 140 KIAS.
+  - [x] Slice D: Continuous descending final turn (35° nominal bank, 30°–45° bounds, cubic 3,500 $\to$ 2,700 ft MSL) and 3.0° glide slope descent to threshold.
+  - [x] Slice E: Closed pattern (Touch-and-go rolls past departure end, climbs to 3,500 ft MSL at 140 kt, turns crosswind to rejoin Inner Downwind).
+* **Stage 2: Pilot UI Controls (Slices F–G) — COMPLETED [x]**
+  - [x] Slice F: Operational spawner presets & multi-track display toggles.
+  - [x] Slice G: In-flight pilot action commands (`Breakout`, `Go-Around`).
 
 ## Immediate Next Step
-1. **Implement D390:** Execute implementation plan in thin verifiable slices:
-   - Slice 1: Simulation Physics & Closed-Loop Vector Steering in `src/modules/traffic/sim.js`.
-   - Slice 2: Pilot-Intuitive Spawner & In-Flight Commands in `src/modules/traffic/aircraft.js`.
-   - Slice 3: 3D Visualization Suite (Panning, Satellite ground plane, Height drop lines) in `src/modules/traffic/view3d.js` and `layout.js`.
-2. **Gate 1 Re-Verification:** Patrick tests interactive controls on `http://localhost:5173/#/traffic`.
+Gate 1 Verification Checklist (`docs/checklists/traffic.md`) & human sign-off with Patrick.
+- All 2,965 tests pass 100% green (`npm test`).
+- Typecheck clean (`npm run typecheck`).
+- Production build passes in ~348ms (`npm run build`).
 
 ## Waiting on Patrick
-- None (Approved to build D390).
+- Milestone 1 (Traffic Pattern Sim) Gate 1 sign-off before proceeding to Milestone 2 (Turn Fight).
+

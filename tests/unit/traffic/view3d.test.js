@@ -12,7 +12,7 @@ import { KT_TO_FTPS, G_FTPS2 } from '../../../src/core/units.js';
 import {
   hdgRadOf, turnRateRadPerS, bankRadFromTurn, createAttitude, applyPose, planeLengthFt, modelKindFor,
   planePx, wantsFullModel, ringRadiusFt, FULL_MODEL_PX, FULL_MODEL_KEEP_PX,
-  routeSignature, groundFt, sceneBox, fitCamera, orbit, zoomBy, cameraFor, chaseCamera, CAMERA_LIMITS,
+  routeSignature, groundFt, sceneBox, fitCamera, orbit, zoomBy, panCamera, cameraFor, chaseCamera, CAMERA_LIMITS,
   T6_LENGTH_FT, MIN_PLANE_PX, ALT_SCALE, MAX_FULL_T6, createSceneKit, threeStats, softwareRenderer, resetSoftwareCheck,
 } from '../../../src/modules/traffic/view3d.js';
 
@@ -541,4 +541,27 @@ test('when there are more aircraft than the drop lines have room for, the old bu
   assert.equal(drops.geometry.attributes.position.count >= 130, true);
   kit.dispose();
   assert.equal(tracker.disposed.has(drops.geometry), true, 'the new one is freed with the kit');
+});
+
+test('panCamera moves center based on zoom, yaw and pitch; 0 dx/dy leaves center unchanged', () => {
+  const center = { x: 1000, y: 2000, z: 500 };
+  const cam = { yawDeg: 0, pitchDeg: 0, zoom: 1000, altScale: 1 }; // 1 px = 1 ft, looking north
+  const unshifted = panCamera(center, cam, 0, 0);
+  assert.deepEqual(unshifted, center);
+
+  // Dragging mouse right (dx = 100): view center moves west (x - 100)
+  const pannedEast = panCamera(center, cam, 100, 0);
+  near(pannedEast.x, 900);
+  near(pannedEast.y, 2000);
+
+  // Dragging mouse down (dy = 100): view center moves north (y + 100)
+  const pannedSouth = panCamera(center, cam, 0, 100);
+  near(pannedSouth.x, 1000);
+  near(pannedSouth.y, 2100);
+
+  // Yawed 90 degrees (looking east): dragging right moves south (y + 100)
+  const camEast = { yawDeg: 90, pitchDeg: 0, zoom: 1000, altScale: 1 };
+  const pannedEastYaw = panCamera(center, camEast, 100, 0);
+  near(pannedEastYaw.x, 1000);
+  near(pannedEastYaw.y, 2100);
 });

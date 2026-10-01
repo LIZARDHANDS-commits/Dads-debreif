@@ -36,7 +36,7 @@ export const routeDetail = (row) => row.link || row.kind;
  * on: { selectRoute(id | null), newRoute(kind), toggleColumn(name, open), camera(name) } where name is 'routes' or 'aircraft'
  * for a column and 'fit', 'high' or 'low' for a camera button (the 3D view's; they show only while 3D does).
  * available: { pfl } (the PFL choice in + New route).
- * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void }, available?: { pfl?: boolean } }} options
+ * @param {{ bar: any, listen: any, on?: { selectRoute?: (id: string | null) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void, toggleHeightLines?: (active: boolean) => void }, available?: { pfl?: boolean } }} options
  */
 export function createLayout({ bar, listen, on = {}, available = {} }) {
   let selectedId = null;

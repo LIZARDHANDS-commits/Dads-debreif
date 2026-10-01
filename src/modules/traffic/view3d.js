@@ -18,10 +18,13 @@ import {
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
-import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX } from './map2d.js';
+import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView } from './map2d.js';
+import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
+import { makeLocalRef } from '../../core/geo.js';
 
 /** Every axis is drawn at the same scale: a foot of height is a foot of ground (SPEC-traffic: the 3D view). */
 export const ALT_SCALE = 1;
+export const PHOTO_SPAN_FT = 80_000;
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
@@ -223,6 +226,23 @@ export function zoomBy(cam, deltaY) {
   return { ...cam, zoom: clamp(cam.zoom * (deltaY < 0 ? WHEEL_ZOOM.in : WHEEL_ZOOM.out), CAMERA_LIMITS.zoom) };
 }
 
+/** A camera pan from a drag of (dx, dy) pixels. */
+export function panCamera(center, cam, dx, dy) {
+  const pxPerFt = Math.max(1e-4, cam.zoom / 1000);
+  const yaw = rad(cam.yawDeg);
+  const pitch = rad(cam.pitchDeg);
+  const cosPitch = Math.max(0.15, Math.cos(pitch));
+  const cosYaw = Math.cos(yaw);
+  const sinYaw = Math.sin(yaw);
+  const dxFt = dx / pxPerFt;
+  const dyFt = dy / pxPerFt / cosPitch;
+  return {
+    x: center.x - (dxFt * cosYaw - dyFt * sinYaw),
+    y: center.y - (-dxFt * sinYaw - dyFt * cosYaw),
+    z: center.z,
+  };
+}
+
 /** Turns the camera's yaw part-way to a target, the short way round. */
 const swingTo = (from, to, share) => wrapDeg(from + wrapDeg(to - from) * share);
 
@@ -299,40 +319,86 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     return geometry;
   };
   let dropGeometry = newDropGeometry(dropCapacity);
-  const dropMaterial = new THREE.LineBasicMaterial({ color: DROP_COLOR, transparent: true, opacity: 0.5, fog: false });
+  const dropMaterial = new THREE.LineDashedMaterial({ color: '#8fc4ff', dashSize: 150, gapSize: 100, transparent: true, opacity: 0.85, fog: false });
   const drops = new THREE.LineSegments(dropGeometry, dropMaterial);
   drops.frustumCulled = false;
   root.add(drops);
   let dropCount = 0;
   let fullModels = false; // the zoom is close enough for the full Harvard model
 
+  const shadows = new Map(); // aircraft id -> LineLoop
+  const shadowMaterial = new THREE.LineBasicMaterial({ color: '#58a6ff', transparent: true, opacity: 0.6, fog: false });
+
+
+  // Satellite photo ground plane
+  const photoGeometry = new THREE.PlaneGeometry(PHOTO_SPAN_FT, PHOTO_SPAN_FT);
+  const photoMaterial = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0.95,
+    depthWrite: false,
+    fog: false,
+    side: THREE.DoubleSide,
+  });
+  const photoMesh = new THREE.Mesh(photoGeometry, photoMaterial);
+  photoMesh.visible = false;
+  root.add(photoMesh);
+
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
   grid.material.fog = false;
   root.add(grid);
 
-  function syncRoutes(list) {
+  function syncRoutes(list, options = {}) {
     const wanted = new Set();
+    const showWind = options.layerWindTrack !== false;
+    const showSmm = options.layerSmmReference !== false;
+
     for (const route of list) {
-      if (route.visible === false || !route.path || route.path.length < 2) continue;
-      wanted.add(route.id);
-      const sig = routeSignature(route);
-      const have = routeLines.get(route.id);
-      if (have && have.sig === sig) continue;
-      if (have) freeLine(have.line);
-      const positions = new Float32Array(route.path.length * 3);
-      route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const dash = DASH_FT[route.kind];
-      const material = dash
-        ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
-        : new THREE.LineBasicMaterial({ color: route.color, fog: false });
-      const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
-      if (dash) line.computeLineDistances();
-      line.frustumCulled = false;
-      root.add(line);
-      routeLines.set(route.id, { line, sig });
+      if (route.visible === false) continue;
+      const isPat1 = route.id === 'PAT1';
+      const hasCalm = Boolean(route.calmPath);
+
+      if (route.path && route.path.length >= 2 && (!isPat1 || !hasCalm || showWind)) {
+        wanted.add(route.id);
+        const sig = routeSignature(route);
+        const have = routeLines.get(route.id);
+        if (!have || have.sig !== sig) {
+          if (have) freeLine(have.line);
+          const positions = new Float32Array(route.path.length * 3);
+          route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          const dash = DASH_FT[route.kind];
+          const material = dash
+            ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
+            : new THREE.LineBasicMaterial({ color: route.color, fog: false });
+          const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
+          if (dash) line.computeLineDistances();
+          line.frustumCulled = false;
+          root.add(line);
+          routeLines.set(route.id, { line, sig });
+        }
+      }
+
+      if (isPat1 && hasCalm && showSmm) {
+        const calmId = route.id + '_calm';
+        wanted.add(calmId);
+        const sig = `${routeSignature(route)}_calm`;
+        const have = routeLines.get(calmId);
+        if (!have || have.sig !== sig) {
+          if (have) freeLine(have.line);
+          const positions = new Float32Array(route.calmPath.length * 3);
+          route.calmPath.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          const material = new THREE.LineDashedMaterial({ color: '#8b949e', dashSize: 400, gapSize: 300, transparent: true, opacity: 0.6, fog: false });
+          const line = new THREE.LineLoop(geometry, material);
+          line.computeLineDistances();
+          line.frustumCulled = false;
+          root.add(line);
+          routeLines.set(calmId, { line, sig });
+        }
+      }
     }
     for (const [id, { line }] of routeLines) {
       if (wanted.has(id)) continue;
@@ -366,6 +432,8 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     const lengthFt = planeLengthFt(options.zoom);
     const present = new Set();
     const wantRings = options.layerCautionRings !== false;
+    const wantHeightLines = options.layerHeightLines !== false;
+    drops.visible = wantHeightLines;
     if (flying.length * DROP_FLOATS > dropCapacity) {
       // A new geometry, not a new attribute on the old one: the old buffer on the graphics card goes with dispose().
       dropCapacity = Math.max(flying.length * DROP_FLOATS, dropCapacity * 2);
@@ -388,9 +456,23 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: ac.headingDeg, bankRad, pitchRad }, lengthFt);
 
       const z = altToZ(ac.alt, ALT_SCALE);
+      const groundZ = Math.min(floor, z);
       dropAt.setXYZ(n * 2, ac.x, ac.y, z);
-      dropAt.setXYZ(n * 2 + 1, ac.x, ac.y, Math.min(floor, z));
+      dropAt.setXYZ(n * 2 + 1, ac.x, ac.y, groundZ);
       n++;
+
+      if (wantHeightLines) {
+        let shadow = shadows.get(ac.id);
+        if (!shadow) {
+          shadow = new THREE.LineLoop(ringGeometry, shadowMaterial);
+          shadow.frustumCulled = false;
+          root.add(shadow);
+          shadows.set(ac.id, shadow);
+        }
+        shadow.visible = true;
+        shadow.position.set(ac.x, ac.y, groundZ);
+        shadow.scale.set(120, 120, 1);
+      }
 
       let ring = rings.get(ac.id);
       if (wantRings) {
@@ -412,8 +494,29 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     }
     dropAt.needsUpdate = true;
     dropGeometry.setDrawRange(0, n * 2);
+    if (drops.computeLineDistances) drops.computeLineDistances();
     dropCount = n;
-    // An aircraft that has landed, finished or gone is put away; one that has gone from the list is freed.
+
+    for (const [id, shadow] of shadows) {
+      if (present.has(id) && wantHeightLines) continue;
+      shadow.removeFromParent();
+      shadows.delete(id);
+    }
+
+    if (photoMesh) {
+      if (options.photoTexture && options.layerPhoto !== false) {
+        photoMesh.visible = true;
+        if (photoMaterial.map !== options.photoTexture) {
+          photoMaterial.map = options.photoTexture;
+          photoMaterial.needsUpdate = true;
+        }
+        photoMaterial.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100;
+        photoMesh.position.set(0, 0, floor - 2);
+      } else {
+        photoMesh.visible = false;
+      }
+    }
+
     const listed = new Set(scene.aircraft.map((a) => a.id));
     for (const [id, { mesh }] of planes) {
       if (!present.has(id)) mesh.visible = false;
@@ -436,7 +539,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     /** Brings the objects in line with `scene` (routes, aircraft, conflicts) and options: { paint, layerCautionRings, cautionLatFt, zoom, groundFt, time }. */
     sync(scene, options) {
       if (disposed) return;
-      syncRoutes(scene.routes);
+      syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
     },
     /** The ground grid follows the view in whole steps, so it looks endless and still. */
@@ -466,6 +569,11 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       dropGeometry.dispose();
       dropMaterial.dispose();
       dropCount = 0;
+      for (const shadow of shadows.values()) shadow.removeFromParent();
+      shadows.clear();
+      shadowMaterial.dispose();
+      photoGeometry.dispose();
+      photoMaterial.dispose();
       grid.geometry.dispose();
       grid.material.dispose();
       root.clear();
@@ -529,6 +637,36 @@ export function resetSoftwareCheck() {
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
+function paintBaseAirfield(ctx) {
+  ctx.fillStyle = '#243b2f';
+  ctx.fillRect(0, 0, 1024, 1024);
+  // Airfield perimeter / infield
+  ctx.fillStyle = '#2d4839';
+  ctx.beginPath();
+  ctx.ellipse(512, 512, 220, 160, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  // Runways
+  ctx.save();
+  ctx.translate(512, 512);
+  ctx.rotate(-0.5); // align with Runway 29L heading (~298° true)
+  // Runway 29L / 11R
+  ctx.fillStyle = '#182026';
+  ctx.fillRect(-180, -12, 360, 24);
+  // Runway 29R / 11L
+  ctx.fillRect(-160, 32, 320, 20);
+  // Runway 04 / 22 cross runway
+  ctx.fillRect(-15, -140, 20, 280);
+  // Threshold & centerline markings
+  ctx.strokeStyle = '#e6edf3';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.moveTo(-160, 0);
+  ctx.lineTo(160, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /**
  * host: the element the view puts its canvases in (a box the size of the map). timers: the module's scheduler scope
  * (frame). source: { scene(): the scene map2d draws (routes with path, aircraft, conflicts), settings(): the Traffic
@@ -554,6 +692,65 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let wantPreset = null; // a camera button pressed before there was something to frame
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
+  let heightLines = true; // height plumb lines and ground shadows
+  let photoCanvas = null;
+  let photoTexture = null;
+  let imagery = null;
+  let photoDebounce = null;
+
+  function ensurePhotoTexture(options) {
+    if (options.layerPhoto === false || !source.anchor?.() || win.document?.createElement === undefined) return null;
+    const anchor = source.anchor();
+    if (!anchor) return null;
+
+    if (!photoCanvas) {
+      photoCanvas = win.document.createElement('canvas');
+      photoCanvas.width = 1024;
+      photoCanvas.height = 1024;
+      const ctx = photoCanvas.getContext?.('2d');
+      if (ctx) paintBaseAirfield(ctx);
+      photoTexture = new THREE.CanvasTexture(photoCanvas);
+    }
+
+    const ref = makeLocalRef(anchor.lat, anchor.lon);
+    const align = photoAlignment(options);
+    const fixedMap = {
+      view: { scale: 1024 / PHOTO_SPAN_FT },
+      visibleBounds: () => ({ minX: -PHOTO_SPAN_FT / 2, minY: -PHOTO_SPAN_FT / 2, maxX: PHOTO_SPAN_FT / 2, maxY: PHOTO_SPAN_FT / 2 }),
+      worldToScreen: (wx, wy) => [
+        ((wx + PHOTO_SPAN_FT / 2) / PHOTO_SPAN_FT) * 1024,
+        ((PHOTO_SPAN_FT / 2 - wy) / PHOTO_SPAN_FT) * 1024,
+      ],
+    };
+
+    function paintPhoto() {
+      if (!photoCanvas || !imagery || disposed || !gl) return;
+      const ctx = photoCanvas.getContext?.('2d');
+      if (!ctx) return;
+      paintBaseAirfield(ctx);
+      imagery.draw(ctx, photoView(fixedMap, ref, align));
+      if (photoTexture) photoTexture.needsUpdate = true;
+      requestDraw();
+    }
+
+    if (!imagery) {
+      imagery = createTileLayer({
+        source: ESRI_IMAGERY,
+        timers,
+        onChange: () => {
+          if (disposed || !gl) return;
+          if (photoDebounce) timers.clearTimeout?.(photoDebounce);
+          photoDebounce = timers.after(150, () => {
+            photoDebounce = null;
+            paintPhoto();
+          });
+        },
+      });
+      paintPhoto();
+    }
+
+    return photoTexture;
+  }
 
   const sizeOf = (canvas) => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
 
@@ -630,6 +827,12 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     gl = null;
     kit.dispose();
     sky.dispose();
+    if (photoDebounce) timers.clearTimeout?.(photoDebounce);
+    photoDebounce = null;
+    photoTexture?.dispose();
+    photoTexture = null;
+    photoCanvas = null;
+    imagery = null;
     // What three.js still counts on the graphics card, for the leak check (data-gpu; see probeMemory): the ui-kit's T-6 frees
     // everything it made and so does the view, so this is what three.js keeps for itself, the same as after one Harvard.
     const { memory } = renderer.info;
@@ -683,12 +886,19 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       }
     }
     if (follow) followAircraft(data);
-    const shown = dragging?.cam ?? view.cam;
-    const focus = view.center;
+    const shown = dragging?.isPan ? view.cam : (dragging?.cam ?? view.cam);
+    const focus = dragging?.isPan ? dragging.center : view.center;
 
+    const photoTex = ensurePhotoTexture(options);
     kit.sync(data, {
       paint: options.paint, layerCautionRings: options.layerCautionRings, cautionLatFt: options.cautionLatFt,
       zoom: shown.zoom, groundFt: floor, time: source.time(),
+      layerHeightLines: options.layerHeightLines ?? heightLines,
+      layerWindTrack: options.layerWindTrack,
+      layerSmmReference: options.layerSmmReference,
+      layerPhoto: options.layerPhoto,
+      photoTexture: photoTex,
+      photoOpacityPct: options.photoOpacityPct,
     });
     kit.placeGrid(focus, floor);
     matchProjection(THREE, camera, focus, shown, size, 1);
@@ -779,12 +989,16 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     pendingFrame = null;
   }
 
-  // ---- the person's hands: drag to turn and tilt, wheel or + and - to zoom --------------------
+  // ---- the person's hands: drag to turn and tilt, wheel or + and - to zoom, pan with right/middle/shift-drag ----
   const endDrag = (e) => {
     if (!dragging || e.pointerId !== dragging.id) return;
-    view = { ...view, cam: dragging.cam };
+    if (dragging.isPan) {
+      view = { ...view, center: dragging.center };
+    } else {
+      view = { ...view, cam: dragging.cam };
+    }
     dragging = null;
-    gl?.canvas.classList.remove('is-dragging');
+    gl?.canvas.classList.remove('is-dragging', 'is-panning');
   };
   const zoomTo = (deltaY) => {
     view = { ...view, cam: zoomBy(view.cam, deltaY) };
@@ -792,21 +1006,40 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   };
   const hands = /** @type {[string, (e: any) => void][]} */ ([
     ['pointerdown', (e) => {
-      if (e.button !== 0) return;
-      dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, cam: view.cam };
+      if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
+      const isPan = e.button === 1 || e.button === 2 || e.shiftKey;
+      dragging = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        cam: view.cam,
+        center: { ...view.center },
+        isPan,
+      };
       gl.canvas.setPointerCapture?.(e.pointerId);
-      gl.canvas.classList.add('is-dragging');
+      gl.canvas.classList.add(isPan ? 'is-panning' : 'is-dragging');
     }],
     ['pointermove', (e) => {
       if (!dragging || e.pointerId !== dragging.id) return;
-      dragging.cam = orbit(dragging.cam, e.clientX - dragging.x, e.clientY - dragging.y);
+      const dx = e.clientX - dragging.x;
+      const dy = e.clientY - dragging.y;
+      if (dragging.isPan) {
+        if (follow) follow = null; // user panned: detach chase
+        dragging.center = panCamera(dragging.center, view.cam, dx, dy);
+        view.center = dragging.center;
+      } else {
+        dragging.cam = orbit(dragging.cam, dx, dy);
+        if (follow) follow.autoYaw = false; // turned by hand: the chase camera stops swinging behind
+      }
       dragging.x = e.clientX;
       dragging.y = e.clientY;
-      if (follow) follow.autoYaw = false; // turned by hand: the chase camera stops swinging behind
       requestDraw();
     }],
     ['pointerup', endDrag],
     ['pointercancel', endDrag],
+    ['contextmenu', (e) => {
+      e.preventDefault();
+    }],
     ['wheel', (e) => {
       e.preventDefault();
       if (e.deltaY) zoomTo(e.deltaY);
@@ -816,8 +1049,13 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       const turn = KEY_ORBIT_PX[e.key];
       if (turn) {
         e.preventDefault();
-        if (follow) follow.autoYaw = false;
-        view = { ...view, cam: orbit(view.cam, turn[0], turn[1]) };
+        if (e.shiftKey) {
+          if (follow) follow = null;
+          view = { ...view, center: panCamera(view.center, view.cam, -turn[0], -turn[1]) };
+        } else {
+          if (follow) follow.autoYaw = false;
+          view = { ...view, cam: orbit(view.cam, turn[0], turn[1]) };
+        }
         requestDraw();
         return;
       }
@@ -879,9 +1117,19 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     requestDraw,
     /** A camera button: 'fit', 'high' (High look-down) or 'low' (Low chase). Done at the next frame, when the size is known. */
     preset(name) {
+      if (name === 'height' || name === 'heightLines') {
+        heightLines = !heightLines;
+        requestDraw();
+        return;
+      }
       wantPreset = name;
       requestDraw();
     },
+    setHeightLines(active) {
+      heightLines = Boolean(active);
+      requestDraw();
+    },
+    isHeightLines: () => heightLines,
     isChasing: () => follow !== null,
     stats: () => ({
       loaded: gl !== null, visible, drawn, pending: pendingFrame !== null, averageMs, slowestMs,

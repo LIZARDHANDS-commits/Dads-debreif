@@ -14,10 +14,17 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 | Traffic Core 4 (tasks 10/11/12/15/18) | PR 3 (`traffic/pr-3-core-4`) | Merged to `main` (commit `73ee4f4`). Wind vector math, authentic 15 Wing types, 60° break, 45° descending final turn, D389 perch drift guidance, D46 true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green. |
 | Interactive Wind UI & Sim Updates (PATCH-014) | Direct on `main` | Merged to `main` (commit `8d6a517`). Bottom playback bar wind inputs wired, real-time dynamic crabbing and ground speed simulation updates. |
 
-## Current Gate: Gate 1 Refinements (D390)
-- In progress (D390): Implementing Closed-Loop Vector Pursuit flight physics (180° break with V² drag, downwind corridor capture, 180° descending final turn, 3.0° glide slope intercept at 2.54 NM), Pilot Spawner with operational points & intent dropdowns, In-Flight commands (Breakout, Engine Fail, Go-Around), and 3D visual suite (Pan, Photo ground projection, dotted Height lines).
-- Full test baseline: `npm test` passes 100% green (`2,938 passed, 0 failed, 0 todo, 1 skipped`).
-- Production build: `npm run build` passes in ~300ms.
+## Current Gate: Gate 1 Refinements (D390 / D391)
+- **Authoritative Master Specification:** [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md) (single source of truth for aerodynamics, guidance laws, and equations).
+- **Execution Plan:** [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md) (Before/After diagrams, 4-step pipeline).
+- **Living Task Checklist:** [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md) (discrete Stage 1 & Stage 2 slices).
+- **Safety Pre-Edit Backup:** [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak).
+- Landed: PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering), height drop lines moved to Layers menu.
+- Landed: PATCH-020 (Stage 1 Vector Physics Slices A–E in `sim.js: fly(a)`, overhead break drag curve, dynamic perch capture, adaptive final turn descent easing, touch-and-go closed pattern circuit, and crosscheck expected table realignment).
+- Landed: PATCH-021 (Stage 2 Pilot UI Controls: operational spawner presets for Inner Downwind/Perch/Final, multi-track display toggles, in-flight Breakout and Go-around action buttons).
+- Next up: Gate 1 Verification Checklist (`docs/checklists/traffic.md`) & human sign-off with Patrick.
+- Full test baseline: `npm test` passes 100% green (2,965 passed, 0 failed, 1 skipped).
+- Production build: `npm run build` passes in ~348ms.
 - Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 
 ## Settled numbers (Patrick's calls win over the manuals)

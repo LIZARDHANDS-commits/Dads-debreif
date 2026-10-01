@@ -206,6 +206,10 @@
   cursor: grabbing;
 }
 
+[data-module='traffic'] .traffic-map3d.is-panning {
+  cursor: move;
+}
+
 [data-module='traffic'] .traffic-labels3d {
   position: absolute;
   inset: 0;
@@ -425,6 +429,29 @@
   display: none;
 }
 
+[data-module='traffic'] .spawner-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .traffic-callsign-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  font-size: var(--text-xs, 0.75rem);
+  font-family: var(--font-mono, monospace);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-module='traffic'] .traffic-spawn-preset {
+  width: 100%;
+}
+
 [data-module='traffic'] .aircraft,
 [data-module='traffic'] .conflicts {
   margin-top: var(--space-4);
@@ -446,16 +473,58 @@
 
 [data-module='traffic'] .aircraft-row {
   display: grid;
-  gap: 0 var(--space-2);
+  gap: var(--space-1) var(--space-2);
   padding: var(--space-1) 0;
   border-bottom: 1px solid var(--border);
   font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .aircraft-row.has-engine-fail {
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid var(--bad, #ef4444);
+  padding-left: var(--space-1);
 }
 
 [data-module='traffic'] .aircraft-name {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+[data-module='traffic'] .aircraft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-left: 1rem;
+  margin-top: var(--space-1);
+}
+
+[data-module='traffic'] .button-tiny {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  min-height: 0;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+
+[data-module='traffic'] .button-tiny:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-strong);
+}
+
+[data-module='traffic'] .button-tiny.danger {
+  color: var(--bad, #ef4444);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+[data-module='traffic'] .button-tiny.danger.is-active {
+  background: var(--bad, #ef4444);
+  color: #fff;
+  border-color: var(--bad, #ef4444);
 }
 
 [data-module='traffic'] .aircraft-swatch {

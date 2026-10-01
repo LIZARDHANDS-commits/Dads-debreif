@@ -56,7 +56,7 @@ export const cleanName = (value) => (typeof value === 'string' ? value.replace(U
 /** The settings a profile keeps, each with its own check (the type of its default, and its range or list). */
 export const PROFILE_SETTING_KEYS = Object.freeze([
   'speed', 'windFromDeg', 'windKt',
-  'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings', 'layerPhoto', 'layerEngineReach',
+  'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings', 'layerHeightLines', 'layerPhoto', 'layerEngineReach', 'layerWindTrack', 'layerSmmReference',
   'photoOpacityPct', 'photoAboveGrid', 'photoTrim', 'photoEastFt', 'photoNorthFt',
   'flyRoundedTurns', 'radiusFromG', 'manualRadiusFt',
   'conflictLatFt', 'conflictVertFt', 'cautionLatFt', 'cautionVertFt',

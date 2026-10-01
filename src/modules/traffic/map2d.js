@@ -373,16 +373,52 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
   for (const route of routes) {
     const path = route.path ?? route.points;
     if (path.length < 2) continue;
-    const style = routeStyle(route.kind);
-    const chosen = route.id === picked;
-    ctx.save();
-    ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
-    line(path, route.color, chosen ? style.width + 1.5 : style.width, style.dash, route.kind === 'pattern');
-    ctx.restore();
+
+    const isPat1 = route.id === 'PAT1';
+    const hasCalm = Boolean(route.calmPath);
+    const showWind = settings.layerWindTrack !== false;
+    const showSmm = settings.layerSmmReference !== false;
+
+    if (isPat1 && hasCalm) {
+      if (showSmm) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        line(route.calmPath, route.color, 2, [6, 6], true);
+        ctx.restore();
+      }
+      if (showWind) {
+        const chosen = route.id === picked;
+        ctx.save();
+        ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
+        line(route.path, route.color, chosen ? 4.5 : 3, [], true);
+        ctx.restore();
+      }
+    } else {
+      const style = routeStyle(route.kind);
+      const chosen = route.id === picked;
+      ctx.save();
+      ctx.globalAlpha = picked !== null && !chosen ? 0.55 : 1;
+      line(path, route.color, chosen ? style.width + 1.5 : style.width, style.dash, route.kind === 'pattern');
+      ctx.restore();
+    }
+
     const name = labelAnchor(path, route.kind === 'pattern');
     if (name) {
       const [x, y] = at(name);
-      text(route.name, x + 6, y - 6, route.color, { size: 12, bold: chosen, anchor: x });
+      text(route.name, x + 6, y - 6, route.color, { size: 12, bold: route.id === picked, anchor: x });
+    }
+
+    if (isPat1 && route.windPerch && showWind && settings.layerPoints !== false) {
+      const [wx, wy] = at(route.windPerch);
+      ctx.save();
+      circle(wx, wy, 4.5);
+      ctx.fillStyle = '#ff7b72';
+      ctx.fill();
+      ctx.strokeStyle = palette.halo;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      text('Perch (Wind)', wx + 7, wy + 4, '#ff7b72', { size: 10, bold: true, anchor: wx });
+      ctx.restore();
     }
   }
   if (settings.layerLegDistances) {

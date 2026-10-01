@@ -205,7 +205,7 @@ test('a flying aircraft shows its height, speed and Flying, in whole numbers; la
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
-  assert.match(words(rows[0]), /^A1 CT-157 on Pattern 1 [\d,]+ ft, \d+ kt, Flying$/);
+  assert.match(words(rows[0]), /^A1 CT-157 on Pattern 1 [\d,]+ ft, \d+ kt, Flying/);
   const state = sim.state();
   assert.equal(detailText({ status: 'landed', statusText: 'Landed', altFt: 1880, kt: 0 }), '1,880 ft, Landed');
   assert.equal(detailText({ status: 'done', statusText: 'Done', altFt: 2500, kt: 100 }), '2,500 ft, Done');
@@ -332,4 +332,22 @@ test('the 201st aircraft is refused at + Spawn and + Pair, with the limit in the
   assert.equal(sim.state().aircraft.length, 200);
   assert.match(say(), /that would make 201 aircraft \(the most is 200\)/);
   assert.equal(changes.length, before, 'and the screen was not told of a change');
+});
+
+test('flying aircraft rows show Breakout and Go-around buttons that issue commands', () => {
+  const { panel, list, sim } = setup();
+  sim.stepTo(60);
+  panel.update(sim.state());
+  const rows = withClass(list, 'aircraft-row');
+  const row0 = rows[0];
+  const breakoutBtn = buttonNamed(row0, 'Breakout');
+  const goAroundBtn = buttonNamed(row0, 'Go-around');
+  assert.ok(breakoutBtn, 'Breakout button is rendered on flying aircraft');
+  assert.ok(goAroundBtn, 'Go-around button is rendered on flying aircraft');
+
+  breakoutBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'breakout');
+
+  goAroundBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'go_around');
 });
