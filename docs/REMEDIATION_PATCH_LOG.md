@@ -642,10 +642,33 @@
 * **Reasoning / Rationale:**  
   Decision **D394**. Aligns dogfight simulation with John Boyd Energy-Maneuverability (E-M) theory and real-world BFM flow. As fighters merge and re-merge, pilots do not fly passive open-loop rate spirals; they aggressively acquire line of sight, pull lead/pure pursuit vectors, and trade altitude for speed to secure a firing solution.
 * **Verification:**  
-  - 505/505 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+---
+
+### PATCH-025: Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D395)
+* **Date & Time:** 2026-10-01 08:05 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  When testing Energy Mode with altitude separation (e.g. Blue at 11,000 ft / 240 KIAS, Red at 9,000 ft / 200 KIAS), aircraft circled passively in MPT down to the hard deck without fighting. Root-cause analysis revealed that `noseOffDeg(state, ac)` computed a pure 3D vector angle. With a 2,000 ft vertical split, the elevation angle exceeded 55°, so neither aircraft ever satisfied `ata <= 5.0°`. Because pitch guidance into pursuit is only active after pursuit starts (`controlPursuit`), neither aircraft could pitch down or up while in MPT, producing a complete mathematical deadlock. Furthermore, `checkFirstNose` returned early if `state.chase` was already truthy, preventing the second aircraft from entering pursuit once its turn brought its nose on target.
+* **Changes Made:**
+  1. Added `noseOffAzDeg(from, to)` to calculate horizontal azimuth line-of-sight tracking angle.
+  2. Updated `isAcNoseOn(state, ac, target)` to evaluate azimuth tracking ($\le 5.0^\circ$) across starting altitude differences (`blueAltFt !== redAltFt`) per Decision **D386** / **D395**.
+  3. Updated `checkFirstNose(state)` to ensure both aircraft enter combat pursuit as their noses track the opponent.
+  4. Added dedicated unit test in `tests/unit/turn-fight/energy-sim.test.js` asserting that an Energy Mode fight with altitude split achieves first nose-on, both aircraft enter pursuit, and minimum range closes under 0.15 NM (verified to 0.09 NM / 518 ft).
+* **Reasoning / Rationale:**  
+  Decision **D395** (and **D386**). Honors real-world pilot BFM and John Boyd E-M theory: visual/radar azimuth tracking across altitude splits initiates aggressive 3D combat pursuit (diving/climbing to convert energy and pull lead/pure pursuit).
+* **Verification:**  
+  - 506/506 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
   - 68/68 Playwright E2E tests passing.
   - `npm run typecheck` passed (0 errors).
-  - `npm run build` passed.
+  - `npm run build` passed in 486ms.
+
 
 
 

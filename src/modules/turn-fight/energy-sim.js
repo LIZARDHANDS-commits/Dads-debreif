@@ -1244,14 +1244,33 @@ function startTurns(state, override = null) {
   state.mergeSec = state.timeSec;
 }
 
+/** Horizontal azimuth off-nose angle (degrees, 0-180). */
+function noseOffAzDeg(from, to) {
+  const dx = to.xFt - from.xFt, dy = to.yFt - from.yFt;
+  return radToDeg(Math.abs(wrapPi(Math.atan2(dy, dx) - from.headingRad)));
+}
+
 /**
- * The one nose-on rule: `ac`'s nose is within 5° of `target` (3D, Q51) and the
- * target's aspect angle is PURSUIT_MAX_AA_DEG or less, so the chase starts from
+ * Whether this aircraft's nose tracks the other (D386):
+ * 1. 3D off-nose vector angle <= FIRST_NOSE_DEG (5.0°), OR
+ * 2. Across starting altitude differences, azimuth line-of-sight tracking <= FIRST_NOSE_DEG (5.0°).
+ */
+function isAcNoseOn(state, ac, target) {
+  if (noseOffDeg(state, ac) <= FIRST_NOSE_DEG) return true;
+  if (state.setup.blueAltFt !== state.setup.redAltFt) {
+    return noseOffAzDeg(ac, target) <= FIRST_NOSE_DEG;
+  }
+  return false;
+}
+
+/**
+ * The one nose-on rule: `ac`'s nose tracks `target` (3D or azimuth across altitude difference, D386)
+ * and the target's aspect angle is PURSUIT_MAX_AA_DEG or less, so the chase starts from
  * behind; or `chaseAfterHeadOn` is set, and any nose-on counts. The fight's chase
  * and the look-ahead's score both use it, so they cannot disagree.
  */
 function onTheOther(state, ac, target) {
-  if (noseOffDeg(state, ac) > FIRST_NOSE_DEG) return false;
+  if (!isAcNoseOn(state, ac, target)) return false;
   return state.setup.chaseAfterHeadOn || 180 - noseOffDeg(state, target) <= PURSUIT_MAX_AA_DEG;
 }
 
@@ -1261,16 +1280,16 @@ const noseOffDeg = (state, ac) => (ac.who === 'blue' ? state.ataBlueDeg : state.
 /**
  * The first nose-on is marked once (the first aircraft whose nose is within 5° of
  * the other; both in one step reads "both", Q48), head-on or not. The chase is
- * separate: every step until one starts, each aircraft whose nose is on the
+ * separate: every step until both are pursuing, each aircraft whose nose is on the
  * other (onTheOther) starts a pursuit for the rest of the fight. So a head-on
  * first nose-on, which starts no pursuit, does not block a pursuit from behind
  * later. With `chaseAfterHeadOn` the head-on nose-on starts it too.
  */
 function checkFirstNose(state) {
-  if (!state.merged || state.chase) return;
-  const blueOn = noseOffDeg(state, state.blue) <= FIRST_NOSE_DEG, redOn = noseOffDeg(state, state.red) <= FIRST_NOSE_DEG;
-  if (!blueOn && !redOn) return;
-  if (!state.firstNose) {
+  if (!state.merged) return;
+  const blueOn = isAcNoseOn(state, state.blue, state.red);
+  const redOn = isAcNoseOn(state, state.red, state.blue);
+  if (!state.firstNose && (blueOn || redOn)) {
     const by = blueOn && redOn ? 'both' : blueOn ? 'blue' : 'red';
     const from = by === 'red' ? state.red : state.blue;
     const to = by === 'red' ? state.blue : state.red;
@@ -1279,11 +1298,15 @@ function checkFirstNose(state) {
   if (state.setup.pursuit === 'none') return;
   const chasers = [];
   for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
-    if (onTheOther(state, ac, target)) chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
+    if (ac.ctl.mode !== 'pursuit' && onTheOther(state, ac, target)) {
+      chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
+    }
   }
   if (!chasers.length) return;
   for (const { ac } of chasers) startPursuit(state, ac);
-  state.chase = { by: chasers.length === 2 ? 'both' : chasers[0].ac.who, timeSec: state.timeSec, aaDeg: chasers[0].aspectDeg };
+  if (!state.chase) {
+    state.chase = { by: chasers.length === 2 ? 'both' : chasers[0].ac.who, timeSec: state.timeSec, aaDeg: chasers[0].aspectDeg };
+  }
 }
 
 /** The aim points the screen can draw: where each chaser is pointing the nose for the next step. */

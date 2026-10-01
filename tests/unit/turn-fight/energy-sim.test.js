@@ -1708,3 +1708,18 @@ test('F2 at the deck: a forced pitch back from 221 to 316 KIAS started at the 6,
   }
   assert.ok(worst > 150, `the check is live: the worst is ${worst.toFixed(0)}°`);
 });
+
+test('D395: an Energy Mode fight starting with altitude separation acquires in azimuth and engages in 3D combat', () => {
+  const s = createEnergyFight({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200 });
+  let minRange = Infinity;
+  while (s.timeSec < 80 && !s.stopped) {
+    stepEnergyFight(s, FIGHT_STEP_SEC);
+    minRange = Math.min(minRange, s.rangeFt);
+  }
+  assert.ok(s.firstNose, 'first nose-on is achieved across altitude split');
+  assert.ok(s.chase, 'combat pursuit starts');
+  assert.equal(s.blue.move, 'pursuit', 'Blue enters combat pursuit');
+  assert.equal(s.red.move, 'pursuit', 'Red enters combat pursuit');
+  assert.ok(minRange < 0.15 * 6076.12, `dogfight merge closes range under 0.15 NM (closed to ${(minRange / 6076.12).toFixed(2)} NM)`);
+});
+

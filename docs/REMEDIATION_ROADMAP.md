@@ -322,10 +322,9 @@ flowchart TD
   - Add polling intervals `{ intervals: [50] }` to Split S Playwright e2e test to prevent race condition.
   - Adopt fuzzy regex matching / case-insensitive locator in `tests/e2e/turn-fight.spec.js` to prevent brittle float/string failures under domain tolerances.
   - Integrate Tactical 3D Suite (`computeFloorZ`, `computePlumbGeometry`, plumb lines and ground-shadow contact discs per D392).
-  - Enforce Immelmann pull G law (5.0 G to shaker boundary then rides shaker line per D393).
-  - Neutralize 8 forensic V6 traps (mutual pursuit, coordinate snap, elevation cone, MPT range 125-175, Neutral Head-on rename, pass nose check bypass).
   - Enable active combat pursuit across head-on re-merge by default per Patrick's ratification (D394).
-  - All 505 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
+  - Resolve 3D merge azimuth line-of-sight tracking across vertical altitude splits (D386, D395) so fighters engage into active pursuit rather than passive rate circles.
+  - All 506 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
 - [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)

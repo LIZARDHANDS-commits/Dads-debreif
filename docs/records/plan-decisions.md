@@ -247,6 +247,10 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D381** | Low-Speed Vertical Choice (<=140 kt)| Decided | Immelmann depletes energy; <=140 KIAS must fly Split S (if deck allows) or slice (never Immelmann). |
 | **D384** | Standard Defaults Reset Button | Decided | Reset button relabeled "Reset to Standard Defaults" loading 15 Wing SMM standards (3.0 G). |
 | **D386** | 3D Off-Nose Merge Capture Cone | Decided | 3D line-of-sight pointing with 10° elevation capture cone for Climb/Dive merges. |
+| **D392** | 3D Tactical Plumb Lines & Discs | Decided | Dotted vertical plumb lines and 70-ft ground-shadow contact discs in 3D view with deck breach plunge warning. |
+| **D393** | Immelmann 5.0 G / Shaker Pull | Decided | Immelmann pull calibrated at 5.0 G until stick shaker AOA, then rides stick shaker over apex. |
+| **D394** | chaseAfterHeadOn true by default | Decided | Turn Fight Energy Mode defaults chaseAfterHeadOn to true for active 3D BFM dogfight engagement. |
+| **D395** | Energy Mode 3D Merge Azimuth Acquisition | Decided | When engaging with altitude separation (blueAltFt !== redAltFt), nose-on detects azimuth line-of-sight tracking (<= 5°), initiating 3D combat pursuit for both aircraft. |
 
 ---
 
