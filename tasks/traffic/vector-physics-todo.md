@@ -3,7 +3,7 @@
 **Task List ID:** `traffic-vector-todo`  
 **Master Specification:** [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md)  
 **Execution Plan:** [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md)  
-**Safety & Code Backup:** [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak)  
+**Safety & Code Backup:** Preserved in git history (`bf40037`) after verification.  
 
 ---
 

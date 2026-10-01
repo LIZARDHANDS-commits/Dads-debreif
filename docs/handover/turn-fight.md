@@ -21,7 +21,7 @@ A two-aircraft turning fight with two modes:
 ## Status: Completed (Milestone 2 / Gate 2 Sign-Off Ready)
 
 Turn Fight is 100% complete and fully verified:
-- **506/506 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
+- **508/508 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
 - **68/68 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 19 Energy tests and axe accessibility).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
 - **Vite production build clean** (`npm run build`, sizes within budget).

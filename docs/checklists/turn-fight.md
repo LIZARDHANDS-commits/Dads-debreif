@@ -4,7 +4,7 @@ Anyone can run this in about forty minutes, in any up-to-date browser on a deskt
 
 Link: https://lizardhands-commits.github.io/Dads-debreif/#/turn-fight
 
-Keep V6 (the old single-file tool) open in another tab for the side-by-side lines. The numbers below are what the Turn Fight shows on its opening settings. Energy mode isn't on the screen yet, so it isn't checked here.
+Keep V6 (the old single-file tool) open in another tab for the side-by-side lines. The numbers below are what the Turn Fight shows on its opening settings. (Simple 2D mode opens by default; Energy mode is checked in Section 10 below).
 
 ## First look
 
@@ -42,7 +42,7 @@ Keep V6 (the old single-file tool) open in another tab for the side-by-side line
 
 Open **Turn Fight settings** (it is closed at first).
 
-- [ ] The menu has two sections in this order, **Start geometry** then **Display**, and a **Reset to Standard Defaults** button (D384). There is nothing about Energy yet.
+- [ ] In Simple mode, the menu has two sections in this order, **Start geometry** then **Display**, and a **Reset to Standard Defaults** button (D384). (When Energy mode is toggled, Energy and Model settings sections appear).
 - [ ] **Start geometry**: has Red's position off Blue's nose (ATA) and its side, Red's aspect angle (AA) and its side, a heading crossing angle (HCA) line, a small picture of the start, **Red starts above Blue (ft)**, **When the turns start**, and a **Neutral Head-on** button.
 - [ ] **Display**: has **Side view height scale** and **Paint**. Paint is greyed out in 2D, and **Side view height scale** is greyed out in 3D or without Climb and dive.
 - [ ] Try a bad number in a box: a letter, or **Start separation** 50. The box refuses it and says the range, for example "Enter a number from 0.5 to 10 NM." The fight doesn't change.

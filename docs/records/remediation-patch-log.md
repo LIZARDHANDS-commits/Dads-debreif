@@ -30,6 +30,14 @@
 | [**PATCH-017**](#patch-017-visual-wind-adjusted-track-overlay--dynamic-perch-calculation) | M1 | 2026-10-01 00:45Z | Aero & Route | Visual Wind-Adjusted Track Overlay & Dynamic Perch Calculation | Pass |
 | [**PATCH-018**](#patch-018-3d-satellite-ground-plane-fix--airfield-ground-truth-baseline) | M1 | 2026-10-01 03:40Z | 3D & Ground | 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline | Pass |
 | [**PATCH-019**](#patch-019-master-vector-physics-specification-mathematical-equations--simjs-pre-vector-snapshot) | M1 | 2026-10-01 04:15Z | Aero & Spec | Master Vector Physics Spec, Equations, Snapshot & Checklist | Pass |
+| [**PATCH-020**](#patch-020-stage-1-vector-physics-slices-ae-integration--crosscheck-realignment) | M1 | 2026-10-01 05:05Z | Aero & SMM | Stage 1 Vector Physics Slices A–E Integration & Crosscheck Realignment | Pass |
+| [**PATCH-021**](#patch-021-stage-2-pilot-ui-controls-slices-f--g-integration) | M1 | 2026-10-01 05:15Z | UI & SMM | Stage 2 Pilot UI Controls (Slices F & G) Integration | Pass |
+| [**PATCH-022**](#patch-022-v20-ui-badge-zero-wind-track-realignment--closed-pattern-climb-physics) | M1 | 2026-10-01 05:40Z | UI & Physics | V2.0 UI Badge, Zero-Wind Track Realignment & Closed Pattern Climb Physics | Pass |
+| [**PATCH-023**](#patch-023-closed-pattern-guidance-calm-wind-rounded-arcs-high-key-pfl--spawner-clean-up) | M1 | 2026-10-01 09:30Z | Aero & Pilot UX | Closed Pattern Guidance, Calm-Wind Rounded Arcs, High Key PFL & Spawner Clean-Up | Pass |
+| [**PATCH-024**](#patch-024-milestone-2-turn-fight-energy-screen--tactical-3d-suite-integration) | M2 | 2026-10-01 07:00Z | 3D & Energy | Milestone 2 Turn Fight Energy Screen & Tactical 3D Suite Integration | Pass |
+| [**PATCH-025**](#patch-025-milestone-2-active-combat-pursuit-default-d403) | M2 | 2026-10-01 07:25Z | BFM Physics | Milestone 2 Active Combat Pursuit Default (D403) | Pass |
+| [**PATCH-026**](#patch-026-energy-mode-3d-merge-azimuth-acquisition-across-vertical-separation-d404) | M2 | 2026-10-01 08:05Z | BFM & 3D | Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D404) | Pass |
+| [**PATCH-027**](#patch-027-pilot-stall-authority-loss--post-merge-3d-pursuit-entry-d405) | M2 | 2026-10-01 09:05Z | Aero & BFM | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D405) | Pass |
 
 ---
 
@@ -571,6 +579,167 @@
   Decisions **D370**, **D380**, **D382**, **D389**, **D390**, and **D391**. Eliminates all remaining legacy V6 rectangular geometry and delivers authentic 3D military circuit flight dynamics.
 * **Verification:**  
   100% green test suite across entire repository (`npm test`: 2,965 passed, 0 failed, 1 skipped); `npm run typecheck` passed (0 errors); `npm run build` passed in 469ms.
+
+---
+
+### PATCH-023: Closed Pattern Guidance, Calm-Wind Rounded Arcs, High Key PFL & Spawner Clean-Up
+* **Date & Time:** 2026-10-01 09:30 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+  * [`src/modules/traffic/traffic.css`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/traffic.css)
+  * [`src/modules/traffic/data/moose-jaw.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/data/moose-jaw.json)
+  * [`src/modules/traffic/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/layout.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`tests/unit/traffic/aircraft.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/aircraft.test.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js)
+* **Problem / Flaw Addressed:**  
+  1. Closed pattern aircraft circled indefinitely past departure end rather than rolling out wings-level onto downwind and capturing the Perch.
+  2. Spawner UI top-right contained redundant "Preset point" and "Start at point" controls.
+  3. Calm-wind (0 kt) overhead break and final turn flew square piecewise polygonal lines rather than rounded aerodynamic arcs.
+  4. Emergency tactical button was labeled "Low Key" instead of standard "High Key" (5,000 ft MSL threshold overflight heading 298°).
+  5. PFL glide steering navigated diamond waypoints instead of a continuous 360° circular arc at 120 kt / 30° bank.
+  6. Ghost tracks from legacy polyline routes (SPL1–SPL4) cluttered 2D/3D views and triggered random dice-roll track switching.
+* **Changes Made:**
+  1. **Closed Pattern Guidance:** In `sim.js: fly(a)`, implemented 180° climbing turn (50° bank / 2,100 fpm) to 3,500 ft MSL / 140 kt, wings-level rollout on heading 118° direct to Perch, and robust along-track Perch capture transitioning into the descending final turn. Spawning at Point 2 on PAT1 initializes directly at Departure End in `closed_pattern` phase.
+  2. **Spawner Clean-Up:** In `aircraft.js`, removed redundant "Preset point" dropdown, standardized on working "Start at point" control, and added a live dynamic waypoint caption (`↳ Departure End (Closed Pattern): 2,400 ft, 140 kt`).
+  3. **Calm-Wind Rounded Arcs:** In `route.js`, updated `generateWindAdjustedTrack` to generate smooth, continuous 180° circular arcs (60° break with $V^2$ drag bleed from 220 to 140 kt, and 35° bank descending final turn from 3,500 to 2,119 ft at 120 kt) even at 0 kt wind.
+  4. **High Key Command:** Relabeled button to "High Key" on aircraft cards; implemented extended centerline intercept fix vectoring so aircraft overflies threshold at 5,000 ft MSL facing runway axis (298°).
+  5. **Continuous Circular Arc PFL Glide:** Generated continuous 360° circular gliding arc at 120 kt / 30° bank from High Key down through Low Key to threshold.
+  6. **Stage 1 Split Deactivation:** In `moose-jaw.json`, set `visible: false` and `splitOdds: 0` on `SPL1`–`SPL4`, reassigned A3 to `PAT1`, and filtered `kind === 'split'` out of pilot-facing route selectors.
+* **Reasoning / Rationale:**  
+  Decisions **D399** and **D400**. Satisfies all pilot operational requirements for circuit navigation, simplifies the UI, and aligns flight geometry with authentic 15 Wing Moose Jaw standards.
+* **Verification:**  
+  100% green test suite across entire repository (`npm test`: 2,975 passed, 0 failed, 1 skipped; 609/609 traffic unit tests passing); `npm run typecheck` passed (0 errors); `npm run build` passed in 284ms.
+
+---
+
+### PATCH-024: Milestone 2 Turn Fight Energy Screen & Tactical 3D Suite Integration
+* **Date & Time:** 2026-10-01 07:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/view3d.js)
+  * [`src/modules/turn-fight/state.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/state.js)
+  * [`src/modules/turn-fight/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/layout.js)
+  * [`src/modules/turn-fight/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/sim.js)
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/view3d.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/view3d.test.js)
+  * [`tests/unit/turn-fight/energy-state.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-state.test.js)
+  * [`tests/unit/turn-fight/energy-layout.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-layout.test.js)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/checklists/turn-fight.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/turn-fight.md)
+  * [`docs/handover/turn-fight.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/turn-fight.md)
+  * [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md)
+  * [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+* **Problem / Flaw Addressed:**  
+  1. Turn Fight lacked its interactive Energy Mode telemetry screen (uPlot altitude profile against hard deck, energy state readouts, and T-6A flight envelope checks).
+  2. Pilot spatial awareness in vertical 3D space lacked ground reference indicators (altitude estimation against the hard deck plane or ground).
+  3. Legacy V6 code patterns contained traps: coordinate snapping, mutual pursuit collisions, elevation cone blindness, stale button labels (`Head-on (V6)`), and out-of-range MPT speeds.
+  4. Immelmann maneuver in Energy Mode lacked codified pull G limits and low-speed energy protection.
+* **Changes Made:**
+  1. **Tactical 3D Suite (D401):** Implemented `computeFloorZ` and `computePlumbGeometry` in `view3d.js`. Renders dynamic dotted vertical plumb lines (`THREE.LineDashedMaterial`, `computeLineDistances()`) from aircraft to floor, and 35-ft radius ground contact shadow discs (`THREE.RingGeometry`, floor offset +1.0 ft). Simple mode floors to terrain grid; Energy mode floors to Hard Deck plane; breaches plunge floor to 0 ft MSL.
+  2. **Immelmann G-Law & Low Speed Gate (D381, D402):** Immelmann pulls 5.0 G until reaching the stick shaker boundary, then rides the shaker line via `pullCmdG(ctx)`. At $\le 140$ KIAS, aircraft must fly a Split S or slice turn, never an Immelmann.
+  3. **Aero Limits & Corner Calibration:** Aligned `topKiasAt(altFt)` in `state.js` with `energyTopKias` (Mach 0.67 corner speed: 316 KIAS to 17,566 ft, 269 KIAS at 25,000 ft). Aligned MPT speed range to 125–175 KIAS per D349.
+  4. **Forensic Trap Neutralization:**
+     - Neutralized coordinate snap and mutual pursuit collision in `sim.js`.
+     - Neutralized head-on pass check bypass in `sim.js:276` to ensure proper initial nose-on tracking.
+     - Relabeled UI preset button from `Head-on (V6)` to `Neutral Head-on` in `layout.js:150` and updated E2E locators.
+     - Relabeled reset button to `Reset to Standard Defaults` (D384) with backwards-compatible `standardDefaults()` alias.
+     - Added setup error containment in `state.js:startEnergyRun` with unit test coverage.
+  5. **Playwright E2E Stabilization:** Added `{ intervals: [50] }` to prevent overshooting during 4× forced Split S polling, updated MPT range hint assertion (`125 to 175 KIAS`), and made `resetDefaults` locator case-insensitive.
+* **Reasoning / Rationale:**  
+  Decisions **D368**, **D371**, **D372**, **D379**, **D381**, **D384**, **D386**, **D387**, **D401**, and **D402**. Fully delivers Milestone 2 and readies Turn Fight for Gate 2 Patrick sign-off.
+* **Verification:**  
+  - 504/504 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+  - 67/67 Playwright E2E tests passed 100% green (`npx playwright test tests/e2e/turn-fight.spec.js`).
+  - `npm run typecheck` passed (0 errors).
+  - `npm run build` passed in 541ms with all bundles within budget.
+
+---
+
+### PATCH-025: Milestone 2 Active Combat Pursuit Default (D403)
+* **Date & Time:** 2026-10-01 07:25 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`tests/unit/turn-fight/energy-state.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-state.test.js)
+  * [`tests/unit/turn-fight/energy-readouts.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-readouts.test.js)
+  * [`tests/unit/turn-fight/energy-layout.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-layout.test.js)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  In head-on 2-circle fights in Energy Mode, both aircraft were orbiting in passive circles rather than aggressively re-engaging to "kill" each other. This occurred because `controlPursuit` was gated behind `onTheOther()` (`aspectAngle <= 150°`) unless `chaseAfterHeadOn` was enabled, which was previously defaulted to `false` pending pilot ratification.
+* **Changes Made:**
+  1. Defaulted `chaseAfterHeadOn` to `true` in `ENERGY_DEFAULT_SETUP` (`energy-sim.js:97`) and updated documentation per Patrick's D403 ratification.
+  2. Preserved isolated non-pursuit unit tests with explicit `{ chaseAfterHeadOn: false }` or `{ pursuit: 'none' }`.
+  3. Added Playwright E2E assertion in `tests/e2e/turn-fight.spec.js` confirming both aircraft switch to active combat pursuit (`move: 'pursuit'`) after the merge.
+* **Reasoning / Rationale:**  
+  Decision **D403**. Aligns dogfight simulation with John Boyd Energy-Maneuverability (E-M) theory and real-world BFM flow. As fighters merge and re-merge, pilots do not fly passive open-loop rate spirals; they aggressively acquire line of sight, pull lead/pure pursuit vectors, and trade altitude for speed to secure a firing solution.
+* **Verification:**  
+  - 506/506 unit tests passed 100% green.
+  - 68/68 Playwright E2E tests passed 100% green.
+
+---
+
+### PATCH-026: Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D404)
+* **Date & Time:** 2026-10-01 08:05 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  When testing Energy Mode with altitude separation (e.g. Blue at 11,000 ft / 240 KIAS, Red at 9,000 ft / 200 KIAS), aircraft circled passively in MPT down to the hard deck without fighting. Root-cause analysis revealed that `noseOffDeg(state, ac)` computed a pure 3D vector angle. With a 2,000 ft vertical split, the elevation angle exceeded 55°, so neither aircraft ever satisfied `ata <= 5.0°`. Because pitch guidance into pursuit is only active after pursuit starts (`controlPursuit`), neither aircraft could pitch down or up while in MPT, producing a complete mathematical deadlock. Furthermore, `checkFirstNose` returned early if `state.chase` was already truthy, preventing the second aircraft from entering pursuit once its turn brought its nose on target.
+* **Changes Made:**
+  1. Added `noseOffAzDeg(from, to)` to calculate horizontal azimuth line-of-sight tracking angle.
+  2. Updated `isAcNoseOn(state, ac, target)` to evaluate azimuth tracking ($\le 5.0^\circ$) across starting altitude differences (`blueAltFt !== redAltFt`) per Decision **D386** / **D404**.
+  3. Updated `checkFirstNose(state)` to ensure both aircraft enter combat pursuit as their noses track the opponent.
+  4. Added dedicated unit test in `tests/unit/turn-fight/energy-sim.test.js` asserting that an Energy Mode fight with altitude split achieves first nose-on, both aircraft enter pursuit, and minimum range closes under 0.15 NM (verified to 0.09 NM / 518 ft).
+* **Reasoning / Rationale:**  
+  Decision **D404** (and **D386**). Honors real-world pilot BFM and John Boyd E-M theory: visual/radar azimuth tracking across altitude splits initiates aggressive 3D combat pursuit (diving/climbing to convert energy and pull lead/pure pursuit).
+* **Verification:**  
+  - 506/506 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+  - 68/68 Playwright E2E tests passing.
+  - `npm run typecheck` passed (0 errors).
+
+---
+
+### PATCH-027: Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D405)
+* **Date & Time:** 2026-10-01 09:05 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  1. Low-energy aircraft (e.g. Red starting at 9,000 ft / 200 KIAS vs Blue at 11,000 ft / 240 KIAS) zoom-climbed into stall (dropping to 21 KIAS), yet continued to track nose-on and were erroneously awarded winning chase states while stalled with zero aerodynamic authority.
+  2. Premature azimuth acquisition at T=0 during head-on starts before the merge pass aborted user-commanded opening vertical maneuvers (e.g. forced Immelmann at 120 KIAS) into diving pursuit, preventing the aircraft from stalling at the apex as expected.
+* **Changes Made:**
+  1. Enforced pilot stall authority loss: Stalled aircraft lose aerodynamic roll/pitch authority (`maxRollDelta = 0`, bank freezes) and cannot claim nose-on or pursuit win (`isAcNoseOn` and `onTheOther` require `!ac.stall`).
+  2. Refined altitude-split azimuth engagement: Azimuth line-of-sight tracking across altitude differences transitions fighters from level MPT into 3D combat pursuit only after the merge pass (`timeSec > mergeSec + 1.0` and both in MPT), preventing premature disruption of commanded opening maneuvers.
+  3. Added comprehensive unit tests in `tests/unit/turn-fight/energy-sim.test.js` validating higher-energy Blue victory, stalled Red disqualification, and stall tracking loss.
+* **Reasoning / Rationale:**  
+  Decision **D405**. Conforms to Boyd E-M physics and aerodynamic ground truth: stalled wings lose aerodynamic control authority; fighters complete opening maneuvers before 3D pursuit; high-energy aircraft legitimately win while low-energy aircraft stall during zoom climbs.
+* **Verification:**  
+  - 508/508 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+  - 68/68 Playwright E2E tests passed 100% green (`npx playwright test tests/e2e/turn-fight.spec.js`).
+  - `npm run typecheck` passed (0 errors).
+  - `npm run build` compiled clean in 355ms.
 
 
 

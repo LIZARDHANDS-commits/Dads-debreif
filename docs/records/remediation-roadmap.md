@@ -263,8 +263,8 @@ flowchart TD
 | :--- | :--- | :--- | :---: |
 | **`docs/records/plan-requirements.md`** | **R9:** *"the new version produces the same spacing... as V6... V6's numbers are trusted as correct (Decision 29)"* | **R9 (Ratified):** *"Flight math, geometry, and simulation baselined on standard aerodynamics and 15 Wing Moose Jaw flight manuals (`../manuals/`). Verified within pilot domain tolerances (±10 kt standard, ±20 kt loose; ±100 ft standard, ±200 ft loose; ±5°/±10°; ±0.5/±1.0 G; ±2.5/±5.0°/s)."* | Milestone 4 |
 | **`docs/records/plan-requirements.md`** | **R24–R32:** Broad scope mixing core traffic with PFLs, closed patterns, and prediction engines into one unachievable lump. | **R24–R32 (Ratified):** Partition into **Phase 1 Prototype Core** (wind vectors, 4 aircraft types, 60° break at 3,500 ft, 45° final turn / straight-in at 2,700 ft) vs. **Phase 2 Staged Features** (`PPQ-01` to `PPQ-04`). | Milestone 4 |
-| **`docs/records/plan-decisions.md`** | **D29:** *"V6's calculated numbers... are trusted as correct"*<br/>**D38:** *"Tests allow a relative difference of 1e-12"* | **D29 (Superseded by D368, D372):** V6 is an archival UI reference only.<br/>**D38 (Superseded by D369, D371):** Replaced with pilot tolerances.<br/>**D368–D388:** Formalized and ratified. | **Done** |
-| **`docs/records/decisions-log.md`** | Rows D368–D370 logged | Added **D371–D388** (Tolerances, V6 quarantine, CYMJ truth, Closed-loop flight, Antigravity limit, Module gates, Traffic build order, CYMJ 29L LH, Turn Fight 2D default, SMM break/final, Median filter, Standard Defaults, Rollout scoring, 3D merge cone, Stall 86 kt, Alternate minima). | **Done** |
+| **`docs/records/plan-decisions.md`** | **D29:** *"V6's calculated numbers... are trusted as correct"*<br/>**D38:** *"Tests allow a relative difference of 1e-12"* | **D29 (Superseded by D368, D372):** V6 is an archival UI reference only.<br/>**D38 (Superseded by D369, D371):** Replaced with pilot tolerances.<br/>**D368–D405:** Formalized and ratified. | **Done** |
+| **`docs/records/decisions-log.md`** | Rows D368–D370 logged | Added **D371–D405** (Tolerances, V6 quarantine, CYMJ truth, Closed-loop flight, Antigravity limit, Module gates, Traffic build order, CYMJ 29L LH, Turn Fight 2D default, SMM break/final, Median filter, Standard Defaults, Rollout scoring, 3D merge cone, Stall 86 kt, Alternate minima, Traffic vectors/circuits D389-D391, 3D Tactical Suite D401, Immelmann G law D402, Active Combat Pursuit D403, Merge Azimuth D404, Stall Authority Loss D405). | **Done** |
 | **`specs/SPEC-core.md`** | Cites R9 V6 golden tests as truth. | Baseline on aerodynamics and 15 Wing flight manuals. Deprecate legacy golden tests in favor of pilot domain tolerances. | Milestone 4 |
 | **`specs/SPEC-wx.md`** | Lines 171–178 cite `v6-compare.test.js` and `v6-sof.js`. | Quarantined both files to `archive/tests/wx/`. Eliminate V6 `new Function()` eval. | **Done** |
 | **`specs/SPEC-traffic.md`** | Mandates PFLs, engine-out glides, and fly-throughs for traffic completion. | Add **Phase 1 vs. Phase 2 Scope Declaration**: Phase 1 builds Core 4 on Runway 29L left-hand; PFLs and complex pattern rules deferred to Phase 2 (`POST_PROTOTYPE_QUEUE.md`). | Milestone 4 |
@@ -308,20 +308,25 @@ flowchart TD
 - [x] **Task 1.2 (Series PR 1):** Merge PR #229 (Traffic 3D view & satellite tiles) to `main`.
 - [x] **Task 1.3:** Consolidate `origin/handover/traffic-polish` and `origin/handover/traffic-rewind-fix` onto single branch `traffic-polish-rewind`. Preserve `tests/unit/traffic/rewind.test.js` (+422 lines) to verify callsign indexing safety under rapid rewind.
 - [x] **Task 1.4 (Series PR 2):** Merge consolidated Traffic polish & rewind fix to `main` (commit `4405cd9`).
-- [ ] **Task 1.5 (Series PR 3):** Implement Traffic Core 4 (wind vector integration, 4 aircraft types flying manual speeds, 60° break turn at 3,500 ft MSL, 45° descending final turn to threshold / straight-in at 2,700 ft MSL on Runway 29L left-hand per D378).
+- [x] **Task 1.5 (Series PR 3):** Implement Traffic Core 4 (wind vector integration, 4 aircraft types flying manual speeds, 60° break turn at 3,500 ft MSL, 45° descending final turn to threshold / straight-in at 2,700 ft MSL on Runway 29L left-hand per D378).
   - Flip 8 `test.todo` stubs in `tests/unit/traffic/plausibility.test.js` to passing green assertions.
   - Run `UPDATE_CROSSCHECK=1 node tests/crosscheck/traffic-scenarios.test.js` to regenerate `traffic-expected.json` with authentic SMM circuit numbers (Gap 2 resolved).
 - [ ] **Gate 1 (Traffic Sign-Off):** Patrick runs `docs/checklists/traffic.md`. Once signed off, Traffic is complete.
 
 #### Milestone 2: Turn Fight (BFM) Module Build (PR 4)
-- [ ] **Task 2.1 (Parallel Agent B):** Rebase `origin/handover/turn-fight-energy-screen` (tip `226729d`) onto `main`. Simple 2D flat 1v1 fight remains default view on launch with toggle to Energy Mode per D379 (R22).
-- [ ] **Task 2.2 (Series PR 4):** Merge uPlot Energy screen and integrate with energy simulation engine already on `main`.
-- [ ] **Task 2.3:** Resolve WIP hooks from commit `226729d`:
+- [x] **Task 2.1 (Parallel Agent B):** Rebase `origin/handover/turn-fight-energy-screen` (tip `226729d`) onto `main`. Simple 2D flat 1v1 fight remains default view on launch with toggle to Energy Mode per D379 (R22).
+- [x] **Task 2.2 (Series PR 4):** Merge uPlot Energy screen and integrate with energy simulation engine already on `main`.
+- [x] **Task 2.3:** Resolve WIP hooks from commit `226729d`:
   - Wire `topKiasAt` in `src/modules/turn-fight/state.js` to `energyTopKias` (from `energy-sim.js:55`).
-  - Add unit test for engine setup error catch (`RangeError` guard).
-  - Add polling intervals to Split S Playwright e2e test to prevent race condition.
-  - Adopt fuzzy regex matching / `expectTextNearNumber` in `tests/e2e/turn-fight.spec.js:120` to prevent brittle float/string failures under domain tolerances.
-- [ ] **Gate 2 (Turn Fight Sign-Off):** Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
+  - Add unit test for engine setup error catch (`RangeError` guard in `energy-state.test.js`).
+  - Add polling intervals `{ intervals: [50] }` to Split S Playwright e2e test to prevent race condition.
+  - Adopt fuzzy regex matching / case-insensitive locator in `tests/e2e/turn-fight.spec.js` to prevent brittle float/string failures under domain tolerances.
+  - Integrate Tactical 3D Suite (`computeFloorZ`, `computePlumbGeometry`, plumb lines and ground-shadow contact discs per D401).
+  - Enable active combat pursuit across head-on re-merge by default per Patrick's ratification (D403).
+  - Resolve 3D merge azimuth line-of-sight tracking across vertical altitude splits (D386, D404) so fighters engage into active pursuit rather than passive rate circles.
+  - Enforce pilot stall authority loss (`maxRollDelta = 0`, freeze bank, disqualification from nose-on/pursuit win) & post-merge 3D pursuit entry (D405).
+  - All 508 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
+- [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
 - [ ] **Task 3.1 (Parallel Agent C):** Consolidate `turn-sim-215-recheck`, `turn-sim-223-fixes`, and `turn-sim-screen-audit`.
@@ -386,6 +391,13 @@ All non-essential and complex features are preserved on remote branches and docu
   - Added `.agents/` to `.gitignore`.
   - Relabeled Turn Fight Settings reset button to "Reset to Standard Defaults" in `layout.js:66` and updated e2e test regex in `turn-fight.spec.js:15`.
 * **2026-09-30 22:17Z (Roadmap Enhancement):** Integrated Table of Contents, Gaps 1–3, and Gaps 4–7 risk mitigations into living execution roadmap.
+* **2026-09-30 22:38Z (Milestone 1, PR 1):** Merged PR #229 (Three.js 3D View & Esri Satellite Tiles) to `main` (PATCH-011).
+* **2026-09-30 22:43Z (Milestone 1, PR 2):** Merged consolidated Traffic polish and rewind fix to `main` (PATCH-012).
+* **2026-09-30 23:15Z (Milestone 1, PR 3):** Merged Traffic Core 4 implementation (wind vector, 4 aircraft types, 60° break, 35° final turn on 29L LH). 8 `test.todo` stubs flipped to passing green (PATCH-013).
+* **2026-10-01 05:40Z (Traffic Vector Flight & Slices A–G):** Integrated 3D Cartesian aerodynamics, wind-shifted perch pursuit, closed-pattern climb dynamics, V2.0 UI badge, and pilot tactical buttons (`Breakout`, `Go-Around`) (PATCH-020, PATCH-021, PATCH-022).
+* **2026-10-01 09:30Z (Traffic SMM Circuit Polishing & Split Deactivation):** Implemented closed pattern rollout to Perch on 118°, Point 2 closed pattern spawn, calm-wind rounded arcs (60° break / 35° final turn), High Key 5,000 ft threshold overflight, continuous 360° circular PFL glide arc, and Stage 1 deactivation of splits SPL1–SPL4 (PATCH-023, D399, D400).
+* **2026-10-01 07:00Z–09:05Z (Milestone 2 Turn Fight BFM):** Merged uPlot Energy screen & Tactical 3D Suite (plumb lines, contact shadow discs, PATCH-024, D401, D402). Defaulted Active Combat Pursuit across re-merges (PATCH-025, D403). Resolved 3D merge azimuth tracking across altitude splits (PATCH-026, D404). Enforced pilot stall authority loss (<86 kt) and post-merge 3D pursuit entry (PATCH-027, D405). Turn Fight test suite 100% green (508 unit tests, 68 Playwright E2E tests).
+* **2026-10-01 10:00Z (Master Alignment & Audit):** 3,045 tests passing (0 failures, 1 skipped), `npm run typecheck` clean (0 errors), `npm run build` clean (292 ms). Ready for Patrick's Gate 1 & Gate 2 formal sign-offs.
 
 ---
 

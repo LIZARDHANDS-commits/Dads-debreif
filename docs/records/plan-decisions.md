@@ -1,11 +1,11 @@
-<!-- Copied from the plan doc Decisions tab at the handover, 30 Sep 2026. D1-D146, D158-D159, and D357-D388 are Patrick's own decisions; "Proposed" rows are judgement calls that count as accepted unless he rejects them. Add new decisions at the end with the next number. -->
+<!-- Copied from the plan doc Decisions tab at the handover, 30 Sep 2026. D1-D146, D158-D159, and D357-D405 are Patrick's own decisions; "Proposed" rows are judgement calls that count as accepted unless he rejects them. Add new decisions at the end with the next number. -->
 
 # Master Decisions Register: By Category & Chronological Index
 
 > [!IMPORTANT]
 > **Unified Single Decisions Source of Truth:**
 > - **TOP (Sections 1–5):** Structured, categorized decisions directory by module, V6 decoupling audit, and designer reference.
-> - **BOTTOM (Section 6):** Complete chronological register (D1 through D388) with full historical rationale and status updates.
+> - **BOTTOM (Section 6):** Complete chronological register (D1 through D405) with full historical rationale and status updates.
 
 # Master Decisions Directory by Module & V6 Audit Review
 
@@ -206,6 +206,18 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D377** | Traffic end-to-end build order | Decided | Traffic module completely built and signed off before Turn Fight/Sim. |
 | **D378** | Active runway ground truth | Decided | Default runway is Runway 29L (298° true) left-hand circuits. |
 | **D382** | 60° Overhead Break & 45° Final Turn | Decided | Restores true 60° (2.0 G) break at 3,500 ft MSL and 45° descending final turn to 2,700 ft MSL straight-in on Runway 29L left-hand (reverses D209/D210). |
+| **D389** | Constant 60° break & wind-shifted perch | Decided | 60° bank / 2.0 G level break in all wind; downwind guides to wind-shifted perch for 30–40° final turn. |
+| **D390** | Traffic closed-loop vector pursuit & 3D suite | Decided | Decouples aircraft from 1D rails to 3D Cartesian vectors; continuous break bleed (220->140 kt); 3.0° glide slope; 3D pan & height drop lines. |
+| **D391** | Nominal 35° final turn & closed pattern climb | Decided | Final turn bank target nominal 35° (30°–45° bounds); closed pattern climbs to 3,500 ft at 140 kt past departure end. |
+| **D392** | Hybrid vector-energy engine architecture | Decided | Ground-track guidance with wind crab for published legs; t6-performance.js and flight-math.js for tactical maneuvers. |
+| **D393** | PFL flight commands (Closed to High Key & Engine Fail)| Decided | Closed pattern climb to High Key (5,400 ft / 120 kt) and Engine Failure glide/tangent intercept. |
+| **D394** | Go-around wave-off rejoin | Decided | Climbout (2,500 ft -> departure zoom -> 3,500 ft / 220 kt) turns crosswind to rejoin PAT_OUTER. |
+| **D395** | Breakout geometry & airspace departure | Decided | Climb to 3,500 ft / 140 kt, accelerate to 180 kt towards P_breakout (2 NM south), continue 1 NM south, then turn to rejoin. |
+| **D396** | Moose Jaw PFL key geometry | Decided | Runway 29L High Key (threshold overflight 5,000 ft MSL / 120 kt per D400), Low Key abeam threshold (3,900 ft / 120 kt), Base Key (2,900 ft / 105 kt). |
+| **D397** | Tactical maneuvers dropdown | Decided | Group in-flight aircraft commands under collapsible Maneuvers dropdown. |
+| **D398** | Pattern naming & default startup | Decided | PAT_INNER tactical pattern; startup scenario spawns 2 aircraft (Initial 3,500 ft / 220 kt, Downwind 3,500 ft / 140 kt). (Crosscheck retirement deferred to sign-off). |
+| **D399** | Stage 1 polyline splits operational deactivation | Decided | In moose-jaw.json, set SPL1–SPL4 visible: false, splitOdds: 0; reassign A3 to PAT1; filter kind === 'split' from spawner/routes. |
+| **D400** | Closed pattern rollout, calm-wind arcs & High Key PFL | Decided | Closed pattern climbs and rolls out on 118° direct to Perch; spawner uses 'Start at point' with dynamic captions; calm-wind rounded arcs (60° break, 35° final turn); High Key 5,000 ft threshold overflight with continuous 360° circular PFL glide arc. |
 
 ---
 
@@ -331,7 +343,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 
 ---
 
-## 6. Master Chronological Decisions Register (D1 through D388)
+## 6. Master Chronological Decisions Register (D1 through D405)
 
 Every design decision goes here with the reason for it, so nobody has to re-argue it later. "Proposed" rows are recommendations that haven't been confirmed yet. "Superseded" or "Reversed" rows record superseded historical choices with the superseding decision and date.
 
