@@ -426,3 +426,25 @@
   Decisions **D370**, **D382**, and **D389**. Restores realistic pilot aerodynamic maneuvers and visual cues in the visual circuit.
 * **Verification:**  
   `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 439ms.
+
+---
+
+### PATCH-018: 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline
+* **Date & Time:** 2026-10-01 03:40 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main` (commit `ff80c96`)
+* **Files Modified:**
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+* **Problem / Flaw Addressed:**  
+  1. The 3D satellite floor remained invisible/transparent because `fixedMap.worldToScreen` returned an object `{ x, y }`, whereas `map-tiles.js:107` expected an array `[x, y]`, causing array destructuring (`const [x1, y1] = toScreen(...)`) to throw `TypeError: toScreen(...) is not iterable`.
+  2. Single-sided plane geometry (`THREE.FrontSide`) caused backface culling from certain grazing camera angles, and matching ground elevation caused potential z-fighting against the wireframe grid.
+  3. If external Esri web tiles were delayed or offline, the 3D ground was completely empty.
+* **Changes Made:**
+  1. Corrected `fixedMap.worldToScreen` to return `[x, y]`, enabling `createTileLayer.draw` to paint satellite tiles onto `photoCanvas`.
+  2. Added `THREE.DoubleSide` to `photoMaterial` and set elevation to `floor - 2` to prevent backface culling and z-fighting.
+  3. Implemented `paintBaseAirfield(ctx)` painting the Moose Jaw runway complex (Runways 29L/11R, 29R/11L, 04/22) and prairie grass baseline immediately upon texture creation, so the airfield ground is always visible even prior to web tile arrival.
+  4. Updated visibility condition to `options.layerPhoto !== false` (on by default).
+* **Reasoning / Rationale:**  
+  Guarantees instant, reliable visual reference on the 3D floor matching the 2D map view.
+* **Verification:**  
+  `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 573ms.
