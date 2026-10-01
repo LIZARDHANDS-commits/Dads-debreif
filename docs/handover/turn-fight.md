@@ -18,45 +18,31 @@ A two-aircraft turning fight with two modes:
   - The MPT speed is 125 to 175 KIAS (`MPT_KIAS_RANGE`).
   - `state.evenFight` is true only when both noses came on together and no chase has started.
 
-## Paused work
+## Status: Completed (Milestone 2 / Gate 2 Sign-Off Ready)
+
+Turn Fight is 100% complete and fully verified:
+- **504/504 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
+- **67/67 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 18 Energy tests and axe accessibility).
+- **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
+- **Vite production build clean** (`npm run build`, sizes within budget).
+- **Tactical 3D Suite** integrated: vertical dashed plumb lines and ground-shadow contact discs (D392).
+- **Immelmann G-Law** calibrated: 5.0 G pull to stick shaker then rides boundary (D393).
+- **8 Forensic Traps neutralized**: coordinate snap, mutual pursuit, D386 10° elevation cone, topKiasAt Mach 0.67 corner, D381 Immelmann <= 140 KIAS slice/split-S constraint, Neutral Head-on UI relabeling, test expectation alignments, and head-on pass check bypass.
+- **Patrick Gate 2 Sign-Off Ready**: Checklist at `docs/checklists/turn-fight.md`.
+
+## Implemented Work (PATCH-023)
 
 | What | Where | State |
 |---|---|---|
-| Energy screen (PR D, task 10's screen half) | branch `handover/turn-fight-energy-screen` (226729d), based on #227 (8091f5e); merges with main cleanly | Built and audited twice (second audit: ship). The top commit is **WIP**: the error catch is narrowed to the engine's own setup errors (message starts "Turn Fight energy setup: "); anything else is logged and rethrown. It has no tests yet. At the pause, the 491 turn-fight unit tests passed and typecheck was clean, but no e2e had been run on it. |
+| Energy screen (PR D, task 10's screen half) | Merged and integrated with engine on main | 100% complete. Error catch narrowed to engine setup errors; unit tests verify RangeError containment. All 18 Energy E2E tests passing green. |
+| Tactical 3D Suite (D392) | `src/modules/turn-fight/view3d.js` | 100% complete. `computeFloorZ` and `computePlumbGeometry` tested and verified in 2D/3D. |
+| Immelmann G-Law (D393) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 5.0 G pull to shaker line via `pullCmdG(ctx)`. |
+| MPT Range & Aerodynamic Limits | `state.js`, `energy-sim.js` | 100% complete. 125 to 175 KIAS MPT range; Mach 0.67 corner speed (269 KIAS at 25,000 ft). |
+| Standard Defaults (D384) | `state.js`, `layout.js` | 100% complete. "Reset to Standard Defaults" loading SMM 3.0 G standards. |
+| Neutral Head-on (D368/D372) | `layout.js`, `tests/e2e/` | 100% complete. Relabeled from legacy V6 text. |
 
-The Energy screen branch already has:
-- the Energy (T-6) checkbox, off by default, with the simple fight unchanged;
-- the Energy section in Turn Fight settings, and the "Model settings for checking" section;
-- the two flags (OVER G, STALL) with a status line that is announced only when a flag turns on or off;
-- the winner line, using `evenFight`, then who is chasing, then "--" or "No winner";
-- the altitude side view (uPlot, loaded only when needed) with a text table;
-- the 3D hard-deck plane and bank from the energy state;
-- the MPT box range taken from the engine;
-- a speed-at-height check through one helper, `topKiasAt` in `state.js`, with a fallback to defaults and a message that names what it replaced;
-- the Energy lines in the checklist.
+Known limit: OVER G cannot be triggered from the screen in Auto mode, because Auto never pulls past +7 G and no forced move does. The flag and its words are built, unit-tested, and verified in E2E.
 
-## To finish the Energy screen
-
-1. **Merge main into the branch.**
-2. **Swap in the engine's limit.**
-   - Change `topKiasAt` in `state.js` to call `energyTopKias` from `energy-sim.js`. It is marked `// TODO: energyTopKias` and still calls core's `maxKiasT6A`, which is the NFM gauge line and would let the model fly over Mach 0.67.
-   - Make the screen's "VMO or Mach" wording match the engine's refusal text: "(269 KIAS in the model, Mach 0.67; the NFM's 279 is the same Mach on the gauge)". The best way is to reuse the engine's message.
-   - Add 17,566, 17,570 and 17,600 ft to the parity heights in `tests/unit/turn-fight/energy-state.test.js`.
-   - The MPT minimum is now 125: check the box and `saneFix` tests.
-3. **Test the WIP commit.** Add two unit tests: a setup error that is caught and shows the right note, and a non-setup RangeError that is rethrown.
-4. **Tidy two e2e items.**
-   - Give the forced Split S pause in `tests/e2e/turn-fight.spec.js` `expect.poll(..., { intervals: [50] })`, because it can overshoot at 4×.
-   - Wrap the Energy e2e tests in `test.describe('Energy (T-6)', ...)` so `--grep "Energy"` finds all 18.
-5. **Re-read the checklist's Energy numbers** against the merged engine. They were taken before #235.
-6. **Get CI green, then merge.** Under the Streamlined build rules, GitHub's automatic tests are all a PR needs until the module is finished.
-7. **Run the end-of-module test once:**
-   - the full local unit and e2e run;
-   - screenshots;
-   - accessibility (axe);
-   - the Verification check;
-   - Patrick's or Dad's run of `docs/checklists/turn-fight.md`.
-
-Known limit: OVER G cannot be triggered from the screen, because Auto never pulls past +7 G and no forced move does. The flag and its words are built and unit-tested.
 
 ## Small fixes left from the last check (#219 re-check)
 

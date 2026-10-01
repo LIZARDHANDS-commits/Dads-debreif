@@ -30,3 +30,5 @@ Re-checks after fixes (2026-09-30 10:40-12:40Z): core-t6a (#184), wx (#193, #198
 - 15:40Z: Turn Sim #223 re-check (turn-sim-recheck-223.md): the check turn matches SMM Figs 16.17/16.31/16.34 and N3 is closed. C1 Medium: the check is flown at any Turn degrees and breaks away from 45. C3 cue and D281 delay are for Dad.
 - 15:45Z: Energy #227 re-check (turn-fight-energy-227.md): F1-F8 and S1 PASS (slow slice 0/1,224 fail; pitch back at most 180°). N1 Medium confirmed: the Mach guard flies true M0.689-0.696 (fix = modelMaxIasT6A, D328/D347).
 - 16:05Z: SOF #228 (sof-recheck-228.md): marks sit on the right words (390 real checks + 71 edge cases). M3 Medium: the banner is 2x taller and the cards go below the fold at 1920. M2/L2 pilot judgement, M1 Low. SOF #221 is confirmed on the live site.
+- 23:15Z: Turn Fight Milestone 2 / Gate 2 verification PASS ([turn-fight-verification.md](turn-fight-verification.md)): 504/504 unit tests green, 67/67 Playwright E2E tests green, 0 typecheck errors, build clean. 8 forensic traps neutralized, Tactical 3D Suite (D392) and Immelmann 5.0 G shaker-ride law (D393) verified. Gate 2 sign-off ready.
+

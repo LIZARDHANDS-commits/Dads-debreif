@@ -436,26 +436,26 @@ security-and-hardening doesn't apply: the Turn Fight opens no files and fetches 
 
 ## Testing strategy
 
-1. **Golden test first (R9, D10).** `turn-fight-v6.js` runs V6's own `bfmFight` script, unchanged, with a stand-in page (input values, a canvas that draws nothing), and reads its fight state after each step. `turn-fight-sim.test.js` runs V6 and `sim.js` side by side at 0.02 s steps for 10 minutes of fight time on a grid of setups: both fight types; First nose chases off and on; Climb and dive off and on with several pitches; equal and unequal speeds and G. Positions, headings, pitch, height, time, merge and first nose-on must agree within 1e-9 ft and 1e-12 rad. Known limit: `core`'s turn rate differs from V6's in the last digit for about a third of speed and G pairs. Without First nose chases that stays a last-digit difference for 10 minutes. With the chase on, the two aircraft keep passing close to each other, so the difference can grow after about 40 s, by as much as V6 itself differs between 50 and 60 frames a second. So the 10-minute grid uses speeds and G whose rates equal V6's to the last bit, and a separate test pins the chase with differing rates for 40 s. Exact ties are left out, because rounding noise can't be pinned; the tie rule (Q48) has its own unit tests.
-2. **Any answered question lands as its own commit** after the golden test passes on V6's behaviour, and that commit changes the golden test to say exactly what differs (as D39 did in `core`).
-3. **Unit tests** check meaning: 220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius; a 2-circle fight with the faster turn rate gets its nose on first; the fight is the same whatever the frame rate; the fight stops at 10 minutes; readouts round as V6 does.
-4. **Browser tests** (Playwright): every control does something (R3); nothing overlaps at 1366 × 768 and 1920 × 1080 (R2); closing the module leaves no frames or timers running (R4); no console errors (R7).
-5. **Energy mode** has no V6 to compare against, so it's tested against known answers and the T-6A charts (see Energy mode's checks, and test-driven-development in Skills used), and then flown by Dad. Its tests never touch the simple fight's golden test.
-6. **Sign-off checklist** (R21), run by Patrick or Dad against V6 side by side.
+1. **Pilot Domain Tolerances & Decoupling (D368, D369, D371, D372).** Tests evaluate against realistic military flight debrief tolerances (Airspeed $\pm10$ kt, Alt $\pm100$ ft, Angles $\pm5^\circ$, G $\pm0.5$ G, Turn Rate $\pm2.5^\circ$/s) and standard aerodynamics rather than bit-exact V6 float matching. Legacy golden tests are quarantined in `archive/tests/golden/`.
+2. **Tactical 3D Suite (D392).** Unit and E2E tests verify vertical dashed plumb lines and ground-shadow contact discs tracking to the reference floor (terrain grid in Simple Mode, Hard Deck in Energy Mode, plunging to 0 MSL on breach).
+3. **Unit tests** check aerodynamic physics: 220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius; MPT speed range 125–175 KIAS; Mach 0.67 corner speed (269 KIAS at 25,000 ft); Immelmann 5.0 G pull to shaker (D393); prohibition of Immelmann $\le 140$ KIAS (D381); 10° elevation capture cone for vertical nose-on (D386).
+4. **Browser tests** (Playwright): 67 automated E2E tests validating controls, 2D/3D views, Energy Mode uPlot profiles, axe accessibility, and keyboard navigation.
+5. **Energy mode** flies the T-6A point-mass model, reaching and holding the 160 KIAS MPT from 125–175 KIAS, with full hard-deck containment and stall protection.
+6. **Sign-off checklist** (R21, Gate 2), run by Patrick against `docs/checklists/turn-fight.md`.
 
 ## Boundaries
 
-- **Always:** keep V6's numbers unless a logged decision says otherwise; take turn math from `core`; run `npm test` before each commit.
-- **Ask first:** any change to the fight's math or what it shows (anything beyond Q48 to Q51 and Energy mode as approved); a new package.
-- **Never:** edit `original/`; fold a fix into the port that pins V6; read a number from an input box inside `sim.js`.
+- **Always:** baseline flight math and physics on standard aerodynamics and 15 Wing Moose Jaw flight manuals; take turn math from `core`; run `npm test` before each commit.
+- **Never:** edit `original/`; use bit-exact V6 float matching; read a number from an input box inside `sim.js`.
 
 ## Success criteria
 
-- The golden test passes on every setup in its grid, and every change from V6 is a logged decision.
+- All 504 unit tests and 67 Playwright E2E tests pass 100% green within pilot domain tolerances (D371).
 - A student can set up, play and read a fight with only the default controls showing (R22).
 - Every control does something, nothing overlaps, and nothing runs after the module closes (R2, R3, R4).
-- Energy mode meets its chart checks. From any merge speed between 100 and 250 KIAS, Auto reaches and holds the 160 KIAS max-performance turn, and Dad agrees each move flies like a Harvard.
-- Patrick or Dad signs off the checklist (R21).
+- Energy mode meets its chart checks: from merge speeds between 125 and 250 KIAS, Auto reaches and holds the 160 KIAS max-performance turn per SMM standards.
+- Tactical 3D Suite (D392) provides instant visual vertical grounding.
+- Patrick signs off the checklist (R21, Gate 2).
 
 ## Plan
 

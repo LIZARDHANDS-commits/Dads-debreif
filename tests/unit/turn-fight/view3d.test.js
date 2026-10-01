@@ -11,7 +11,7 @@ import {
   ALT_SCALE, CAMERA_LIMITS, MIN_PLANE_PX, T6_LENGTH_FT, CHASE_PITCH_DEG,
   levelBankRad, turnDirection, showsMergeMark, firstNoseText, aircraftPose, applyAttitude, fillTrail, heightAtTime, trailCapacity,
   emptyBounds, extendBounds, DEFAULT_CAMERA, yawBehind, orbit, zoomBy, zoomByRatio, fitZoom, planeLengthFt, cameraFor, VIEWS, cameraForButton,
-  createView3d,
+  computeFloorZ, computePlumbGeometry, createView3d,
 } from '../../../src/modules/turn-fight/view3d.js';
 
 const THREE = await loadThree();
@@ -609,3 +609,41 @@ test('stopping 3D on purpose releases the context without calling it a loss', as
     view.dispose();
   });
 });
+
+// ---- D392: Tactical 3D Suite (plumb lines and contact discs) ----------------
+
+test('computeFloorZ returns terrain level in Simple mode and hard deck in Energy mode', () => {
+  // Simple mode: 1000 ft below lowest reached altitude
+  const simpleFight = { energy: false };
+  const bounds = { minZ: -500, maxZ: 1200 };
+  const simpleFloor = computeFloorZ(simpleFight, bounds);
+  assert.equal(simpleFloor, -(1000 + 1200));
+
+  // Energy mode: hard deck altitude
+  const energyFight = { energy: true, setup: { hardDeckFt: 5000 } };
+  const energyFloor = computeFloorZ(energyFight, bounds, 8000);
+  assert.equal(energyFloor, 5000);
+
+  // Energy mode: breaches hard deck -> floor plunges to 0 MSL
+  const breachFloor = computeFloorZ(energyFight, bounds, 4500);
+  assert.equal(breachFloor, 0);
+
+  // Energy mode default fallback hard deck (6000 ft)
+  const defaultEnergyFight = { energy: true, setup: {} };
+  assert.equal(computeFloorZ(defaultEnergyFight, bounds, 7000), 6000);
+});
+
+test('computePlumbGeometry produces 6-element vertical segment between pose and floor', () => {
+  const pose = { x: 1500, y: -2200, z: 8000 };
+  const floorZ = 5000;
+  const geom = computePlumbGeometry(pose, floorZ);
+  assert.ok(geom instanceof Float32Array);
+  assert.equal(geom.length, 6);
+  assert.equal(geom[0], 1500);
+  assert.equal(geom[1], -2200);
+  assert.equal(geom[2], 8000);
+  assert.equal(geom[3], 1500);
+  assert.equal(geom[4], -2200);
+  assert.equal(geom[5], 5000);
+});
+

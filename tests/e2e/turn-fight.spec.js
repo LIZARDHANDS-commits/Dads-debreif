@@ -14,7 +14,7 @@ const blue = (page) => page.getByRole('group', { name: 'Blue' });
 const red = (page) => page.getByRole('group', { name: 'Red' });
 const result = (page) => page.getByRole('table', { name: 'Result' });
 const settingsButton = (page) => page.getByRole('button', { name: 'Turn Fight settings' });
-const resetDefaults = (page) => page.getByRole('button', { name: /Reset to (Standard|V6) defaults/ });
+const resetDefaults = (page) => page.getByRole('button', { name: /Reset to (Standard|V6) defaults/i });
 
 const seconds = async (page) => Number((await time(page).textContent()).replace('T+', ''));
 
@@ -806,7 +806,7 @@ const turnsAt = (page, name) => page.getByRole('group', { name: 'When the turns 
 const hcaLine = (page) => page.locator('.tf-hca:not(.tf-pass)');
 const passLine = (page) => page.locator('.tf-pass');
 const turnsLine = (page) => page.locator('.tf-turns');
-const headOnButton = (page) => page.getByRole('button', { name: 'Head-on (V6)', exact: true });
+const headOnButton = (page) => page.getByRole('button', { name: 'Neutral Head-on', exact: true });
 const moreButton = (page) => page.getByRole('button', { name: 'More detail' });
 const moreRow = (page, name) => page.getByRole('table', { name: 'More detail' }).getByRole('row', { name });
 
@@ -839,7 +839,7 @@ test('Start geometry in the settings menu shows the six defaults and the heading
   await expect(time(page)).toHaveText('T+0.0');
 });
 
-test('a beam start: HCA 180°, the fight starts over, Play turns at once with no MERGE mark; Head-on (V6) puts all six back, paused', async ({ page }) => {
+test('a beam start: HCA 180°, the fight starts over, Play turns at once with no MERGE mark; Neutral Head-on puts all six back, paused', async ({ page }) => {
   await openStartGeometry(page);
   // The MERGE mark is drawn in the first nose-on colour; at V6's start it is there at T+0.
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', NOSE)).toBeGreaterThan(20);
@@ -959,7 +959,7 @@ test('refused start entries (blank, 200, -5, 6,000) show their message and mark 
   await expect(hcaLine(page)).toHaveText('Heading crossing angle (HCA): 60°');
 });
 
-test('Start geometry works from the keyboard: Tab order, arrow keys change a side, Enter and Space press Head-on (V6); Space in a box does not play', async ({ page }) => {
+test('Start geometry works from the keyboard: Tab order, arrow keys change a side, Enter and Space press Neutral Head-on; Space in a box does not play', async ({ page }) => {
   await openStartGeometry(page);
   await ataBox(page).focus();
   await page.keyboard.press('Space'); // a box: Space is not Play
@@ -1357,7 +1357,7 @@ test('Turn Fight settings has Energy and Model settings for checking only with E
   await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
   await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Pure');
   await expect(page.getByLabel('Chase after a head-on pass')).not.toBeChecked();
-  await expect(energyGroup(page)).toContainText('120 to 175 KIAS, default 160 KIAS.');
+  await expect(energyGroup(page)).toContainText('125 to 175 KIAS, default 160 KIAS.');
   await expect(energyGroup(page)).toContainText('0 to 25,000 ft, default 6,000 ft.');
   await expect(energyGroup(page)).toContainText('SMM 14.3 para 6');
   await expect(energyGroup(page)).toContainText('3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16)');
@@ -1415,7 +1415,7 @@ test('a forced move flies from the merge whatever the speed: Split S for Blue re
   await expect(resultRow(page, /Move/)).toHaveText(/Split S.*Pitch back/);
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await playButton(page).click();
-  await expect.poll(() => seconds(page), { timeout: 30_000 }).toBeGreaterThan(19.9);
+  await expect.poll(() => seconds(page), { timeout: 30_000, intervals: [50] }).toBeGreaterThan(19.9);
   await playButton(page).click();
   // The pause lands a poll after T+20, and the moves change on their own (Red's pitch back ends near T+23, Blue's Split S
   // goes on to an Immelmann near T+27), so no time window is pinned: the Move and Altitude rows are the engine's own at the

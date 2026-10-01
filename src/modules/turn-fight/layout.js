@@ -147,11 +147,11 @@ export function createLayout({ settings, controls, on }) {
   const hcaText = h('p', { class: 'tf-hca', 'aria-live': 'polite' });
   const passText = h('p', { class: 'tf-hca tf-pass', 'aria-live': 'polite' });
   const turnText = h('p', { class: 'tf-turns', 'aria-live': 'polite' });
-  const headOnButton = h('button', { type: 'button', class: 'button', onclick: () => on.headOn() }, 'Head-on (V6)');
+  const headOnButton = h('button', { type: 'button', class: 'button', onclick: () => on.headOn() }, 'Neutral Head-on');
   const sideChoices = [['left', 'Left'], ['right', 'Right']];
   const redAbove = controls.number('redAboveFt', { label: 'Red starts above Blue (ft)', ...RANGES.redAboveFt });
   startSection.append(
-    h('p', { class: 'tf-hint' }, 'Where the fight starts. Head-on is V6\'s start. Changing these starts the fight again.'),
+    h('p', { class: 'tf-hint' }, 'Where the fight starts. Neutral head-on is the standard start. Changing these starts the fight again.'),
     h('div', { class: 'tf-start-row' },
       controls.number('startAtaDeg', { label: 'Red\'s position off Blue\'s nose (ATA)', ...RANGES.startAtaDeg }),
       controls.choice('startAtaSide', { label: 'ATA side', options: sideChoices })),

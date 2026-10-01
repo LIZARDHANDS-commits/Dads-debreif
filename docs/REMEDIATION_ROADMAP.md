@@ -314,14 +314,18 @@ flowchart TD
 - [ ] **Gate 1 (Traffic Sign-Off):** Patrick runs `docs/checklists/traffic.md`. Once signed off, Traffic is complete.
 
 #### Milestone 2: Turn Fight (BFM) Module Build (PR 4)
-- [ ] **Task 2.1 (Parallel Agent B):** Rebase `origin/handover/turn-fight-energy-screen` (tip `226729d`) onto `main`. Simple 2D flat 1v1 fight remains default view on launch with toggle to Energy Mode per D379 (R22).
-- [ ] **Task 2.2 (Series PR 4):** Merge uPlot Energy screen and integrate with energy simulation engine already on `main`.
-- [ ] **Task 2.3:** Resolve WIP hooks from commit `226729d`:
+- [x] **Task 2.1 (Parallel Agent B):** Rebase `origin/handover/turn-fight-energy-screen` (tip `226729d`) onto `main`. Simple 2D flat 1v1 fight remains default view on launch with toggle to Energy Mode per D379 (R22).
+- [x] **Task 2.2 (Series PR 4):** Merge uPlot Energy screen and integrate with energy simulation engine already on `main`.
+- [x] **Task 2.3:** Resolve WIP hooks from commit `226729d`:
   - Wire `topKiasAt` in `src/modules/turn-fight/state.js` to `energyTopKias` (from `energy-sim.js:55`).
-  - Add unit test for engine setup error catch (`RangeError` guard).
-  - Add polling intervals to Split S Playwright e2e test to prevent race condition.
-  - Adopt fuzzy regex matching / `expectTextNearNumber` in `tests/e2e/turn-fight.spec.js:120` to prevent brittle float/string failures under domain tolerances.
-- [ ] **Gate 2 (Turn Fight Sign-Off):** Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
+  - Add unit test for engine setup error catch (`RangeError` guard in `energy-state.test.js`).
+  - Add polling intervals `{ intervals: [50] }` to Split S Playwright e2e test to prevent race condition.
+  - Adopt fuzzy regex matching / case-insensitive locator in `tests/e2e/turn-fight.spec.js` to prevent brittle float/string failures under domain tolerances.
+  - Integrate Tactical 3D Suite (`computeFloorZ`, `computePlumbGeometry`, plumb lines and ground-shadow contact discs per D392).
+  - Enforce Immelmann pull G law (5.0 G to shaker boundary then rides shaker line per D393).
+  - Neutralize 8 forensic V6 traps (mutual pursuit, coordinate snap, elevation cone, MPT range 125-175, Neutral Head-on rename, pass nose check bypass).
+  - All 504 unit tests, 67 Playwright E2E tests, typecheck, and build passing 100% green.
+- [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
 - [ ] **Task 3.1 (Parallel Agent C):** Consolidate `turn-sim-215-recheck`, `turn-sim-223-fixes`, and `turn-sim-screen-audit`.

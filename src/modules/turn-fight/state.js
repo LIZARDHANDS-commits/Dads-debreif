@@ -5,7 +5,7 @@ import { V6_DEFAULT_SETUP } from './sim.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 import { START_DEFAULTS } from './geometry.js';
-import { ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE } from './energy-sim.js';
+import { ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE, energyTopKias } from './energy-sim.js';
 import { iasToTasKt, maxKiasT6A, T6A_LIMITS } from '../../core/t6-performance.js';
 import { FT_PER_NM } from '../../core/units.js';
 
@@ -188,11 +188,10 @@ const feetText = (ft) => Math.round(ft).toLocaleString('en-US');
 /**
  * The top merge speed at a height, in KIAS: the one place the screen asks (the box's own range stops at VMO, and this is the
  * limit at each height). It has to be the number the engine compares a merge speed with.
- * TODO: energyTopKias (the engine's own top speed, from energy-sim.js) once it is exported; until then core's line,
- * VMO to about 18,900 ft and then the Mach limit, which is what the engine compares with today.
  */
 export function topKiasAt(altFt) {
-  return maxKiasT6A(altFt);
+  const exact = energyTopKias(altFt);
+  return exact >= T6A_LIMITS.vmoKias ? T6A_LIMITS.vmoKias : Math.floor(exact);
 }
 
 /**
@@ -211,10 +210,13 @@ export function energyProblem(values) {
     }
   }
   for (const [who, kiasKey, altKey] of [['Blue', 'blueKias', 'blueAltFt'], ['Red', 'redKias', 'redAltFt']]) {
-    const exact = topKiasAt(values[altKey]);
-    const limit = Math.round(exact);
+    const limit = topKiasAt(values[altKey]);
     if (values[kiasKey] > limit) {
-      return `${who}'s merge speed (${values[kiasKey]} KIAS) is above the T-6A's limit at ${feetText(values[altKey])} ft (${limit} KIAS, ${exact >= T6A_LIMITS.vmoKias ? 'VMO' : `Mach ${T6A_LIMITS.mmo}`}).`;
+      const vmoGoverns = limit >= T6A_LIMITS.vmoKias;
+      const nfmKias = Math.round(maxKiasT6A(values[altKey]));
+      const limitText = vmoGoverns ? 'VMO'
+        : `Mach ${T6A_LIMITS.mmo}${nfmKias < T6A_LIMITS.vmoKias ? `; the NFM's ${nfmKias} is the same Mach on the gauge` : ''}`;
+      return `${who}'s merge speed (${values[kiasKey]} KIAS) is above the T-6A's limit at ${feetText(values[altKey])} ft (${limit} KIAS, ${limitText}).`;
     }
   }
   const between = Math.abs(values.redAltFt - values.blueAltFt);
@@ -309,12 +311,13 @@ export function setupKey(values) {
   return JSON.stringify(values.energy ? { energy: true, ...energySetupFrom(values) } : setupFrom(values));
 }
 
-/** What "Reset to V6 defaults" puts back: the fight, Energy (off, with every Energy setting) and the display settings (paint too), not which columns are open or whether the 3D view is showing. */
-export function v6Defaults() {
+/** What "Reset to Standard Defaults" (D384) puts back: the fight, Energy (off, with every Energy setting) and the display settings (paint too), not which columns are open or whether the 3D view is showing. */
+export function standardDefaults() {
   const patch = {};
   for (const key of [...FIGHT_KEYS, 'energy', ...ENERGY_KEYS, 'heightScale', 'playbackRate', 'paint']) patch[key] = DEFAULTS[key];
   return patch;
 }
+export const v6Defaults = standardDefaults;
 
 /** What "Reset to defaults" in Model settings for checking puts back: just those settings. */
 export function checkingDefaults() {

@@ -572,5 +572,51 @@
 * **Verification:**  
   100% green test suite across entire repository (`npm test`: 2,965 passed, 0 failed, 1 skipped); `npm run typecheck` passed (0 errors); `npm run build` passed in 469ms.
 
+---
+
+### PATCH-023: Milestone 2 Turn Fight Energy Screen & Tactical 3D Suite Integration
+* **Date & Time:** 2026-10-01 07:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/view3d.js)
+  * [`src/modules/turn-fight/state.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/state.js)
+  * [`src/modules/turn-fight/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/layout.js)
+  * [`src/modules/turn-fight/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/sim.js)
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/view3d.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/view3d.test.js)
+  * [`tests/unit/turn-fight/energy-state.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-state.test.js)
+  * [`tests/unit/turn-fight/energy-layout.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-layout.test.js)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/checklists/turn-fight.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/turn-fight.md)
+  * [`docs/handover/turn-fight.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/turn-fight.md)
+  * [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md)
+  * [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+* **Problem / Flaw Addressed:**  
+  1. Turn Fight lacked its interactive Energy Mode telemetry screen (uPlot altitude profile against hard deck, energy state readouts, and T-6A flight envelope checks).
+  2. Pilot spatial awareness in vertical 3D space lacked ground reference indicators (altitude estimation against the hard deck plane or ground).
+  3. Legacy V6 code patterns contained traps: coordinate snapping, mutual pursuit collisions, elevation cone blindness, stale button labels (`Head-on (V6)`), and out-of-range MPT speeds.
+  4. Immelmann maneuver in Energy Mode lacked codified pull G limits and low-speed energy protection.
+* **Changes Made:**
+  1. **Tactical 3D Suite (D392):** Implemented `computeFloorZ` and `computePlumbGeometry` in `view3d.js`. Renders dynamic dotted vertical plumb lines (`THREE.LineDashedMaterial`, `computeLineDistances()`) from aircraft to floor, and 35-ft radius ground contact shadow discs (`THREE.RingGeometry`, floor offset +1.0 ft). Simple mode floors to terrain grid; Energy mode floors to Hard Deck plane; breaches plunge floor to 0 ft MSL.
+  2. **Immelmann G-Law & Low Speed Gate (D381, D393):** Immelmann pulls 5.0 G until reaching the stick shaker boundary, then rides the shaker line via `pullCmdG(ctx)`. At $\le 140$ KIAS, aircraft must fly a Split S or slice turn, never an Immelmann.
+  3. **Aero Limits & Corner Calibration:** Aligned `topKiasAt(altFt)` in `state.js` with `energyTopKias` (Mach 0.67 corner speed: 316 KIAS to 17,566 ft, 269 KIAS at 25,000 ft). Aligned MPT speed range to 125–175 KIAS per D349.
+  4. **Forensic Trap Neutralization:**
+     - Neutralized coordinate snap and mutual pursuit collision in `sim.js`.
+     - Neutralized head-on pass check bypass in `sim.js:276` to ensure proper initial nose-on tracking.
+     - Relabeled UI preset button from `Head-on (V6)` to `Neutral Head-on` in `layout.js:150` and updated E2E locators.
+     - Relabeled reset button to `Reset to Standard Defaults` (D384) with backwards-compatible `standardDefaults()` alias.
+     - Added setup error containment in `state.js:startEnergyRun` with unit test coverage.
+  5. **Playwright E2E Stabilization:** Added `{ intervals: [50] }` to prevent overshooting during 4× forced Split S polling, updated MPT range hint assertion (`125 to 175 KIAS`), and made `resetDefaults` locator case-insensitive.
+* **Reasoning / Rationale:**  
+  Decisions **D368**, **D371**, **D372**, **D379**, **D381**, **D384**, **D386**, **D387**, **D392**, and **D393**. Fully delivers Milestone 2 and readies Turn Fight for Gate 2 Patrick sign-off.
+* **Verification:**  
+  - 504/504 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+  - 67/67 Playwright E2E tests passed 100% green (`npx playwright test tests/e2e/turn-fight.spec.js`).
+  - `npm run typecheck` passed (0 errors).
+  - `npm run build` passed in 541ms with all bundles within budget.
+
+
 
 

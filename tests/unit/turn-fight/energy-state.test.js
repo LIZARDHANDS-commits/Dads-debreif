@@ -6,7 +6,8 @@ import { createEnergyFight, stepEnergyFight, ENERGY_DEFAULT_SETUP, ENERGY_MOVES,
 import { T6A_LIMITS, iasToTasKt } from '../../../src/core/t6-performance.js';
 import {
   DEFAULTS, RANGES, ALLOWED, ENERGY_KEYS, ENERGY_CHECK_KEYS, setupFrom, setupKey, energySetupFrom, startSetupFrom, energyProblem,
-  saneFix, v6Defaults, checkingDefaults, usableEnergyValues, energyProblemNote, START_FALLBACK_KEYS, topKiasAt,
+  saneFix, v6Defaults, standardDefaults, checkingDefaults, usableEnergyValues, energyProblemNote, START_FALLBACK_KEYS, topKiasAt,
+  startEnergyRun, isSetupError, setupErrorText,
 } from '../../../src/modules/turn-fight/state.js';
 
 const ENERGY_ON = { ...DEFAULTS, energy: true };
@@ -197,10 +198,12 @@ test('the MPT speed box takes the engine\'s own range, and a saved speed outside
   assert.deepEqual([RANGES.mptKias.min, RANGES.mptKias.max], [...MPT_KIAS_RANGE]);
   assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 110 }), { mptKias: 160 });
   assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 180 }), { mptKias: 160 });
-  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 120 }), {});
+  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 120 }), { mptKias: 160 });
+  assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 125 }), {});
   assert.deepEqual(saneFix({ ...DEFAULTS, mptKias: 175 }), {});
-  for (const mptKias of [120, 175]) assert.doesNotThrow(() => createEnergyFight(energySetupFrom({ ...ENERGY_ON, mptKias })), `${mptKias} flies`);
+  for (const mptKias of [125, 175]) assert.doesNotThrow(() => createEnergyFight(energySetupFrom({ ...ENERGY_ON, mptKias })), `${mptKias} flies`);
   assert.throws(() => createEnergyFight(energySetupFrom({ ...ENERGY_ON, mptKias: 110 })), RangeError);
+  assert.throws(() => createEnergyFight(energySetupFrom({ ...ENERGY_ON, mptKias: 120 })), RangeError);
 });
 
 test('a saved Energy number outside its range is put back; a saved move or pursuit outside the choices is refused', () => {
@@ -208,4 +211,45 @@ test('a saved Energy number outside its range is put back; a saved move or pursu
   assert.deepEqual(saneFix({ ...DEFAULTS, blueKias: 40, redKias: 316, blueAltFt: 0, redAltFt: 25000 }), {});
   assert.ok(ALLOWED.blueMove.includes('splitS') && !ALLOWED.blueMove.includes('loop'));
   assert.ok(ALLOWED.pursuit.includes('lag') && !ALLOWED.pursuit.includes('none'), 'the engine\'s "none" is for tests, not a choice');
+});
+
+test('standardDefaults returns standard defaults and matches v6Defaults (D384)', () => {
+  assert.equal(standardDefaults, v6Defaults);
+  const std = standardDefaults();
+  assert.equal(std.energy, false);
+  for (const key of ENERGY_KEYS) assert.equal(std[key], DEFAULTS[key]);
+});
+
+test('startEnergyRun runs cleanly, handles engine setup RangeError with fallback, and rethrows unexpected errors', () => {
+  const values = { ...ENERGY_ON, blueKias: 220 };
+  const mockCreate = (setup) => ({ setup, isRun: true });
+  const result = startEnergyRun(values, mockCreate);
+  assert.ok(result.run.isRun);
+  assert.equal(result.note, '');
+  assert.equal(result.flown.blueKias, 220);
+
+  // Engine setup error is captured and returns default flown settings
+  let calls = 0;
+  const setupErrorCreate = (setup) => {
+    calls++;
+    if (calls === 1) {
+      throw new RangeError('Turn Fight energy setup: mptKias is from 125 to 175 KIAS, got 110');
+    }
+    return { setup, isRun: true };
+  };
+  const fallback = startEnergyRun(values, setupErrorCreate);
+  assert.ok(fallback.run.isRun);
+  assert.match(fallback.note, /The MPT speed is from 125 to 175 KIAS \(it was 110\)\. Until this is fixed every Energy setting is at its default\./);
+  assert.equal(fallback.flown.mptKias, DEFAULTS.mptKias);
+
+  // Unexpected RangeError (no prefix) or other Error is rethrown
+  const unexpectedRangeError = () => {
+    throw new RangeError('Invalid array length');
+  };
+  assert.throws(() => startEnergyRun(values, unexpectedRangeError), RangeError);
+
+  const unexpectedTypeError = () => {
+    throw new TypeError('Cannot read property of undefined');
+  };
+  assert.throws(() => startEnergyRun(values, unexpectedTypeError), TypeError);
 });

@@ -31,7 +31,7 @@ test('Model settings for checking lists every box the spec lists, once each, in 
 });
 
 test('every hint gives the range and the engine\'s default, from the same numbers the box uses', () => {
-  assert.equal(rangeHint('mptKias'), '120 to 175 KIAS, default 160 KIAS.');
+  assert.equal(rangeHint('mptKias'), '125 to 175 KIAS, default 160 KIAS.');
   assert.equal(rangeHint('hardDeckFt'), '0 to 25,000 ft, default 6,000 ft.');
   assert.equal(rangeHint('shakerPct'), '50 to 100%, default 94%.');
   assert.equal(rangeHint('immelmannOffNoseDeg'), '0 to 180°, default 120°.');

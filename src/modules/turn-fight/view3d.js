@@ -204,6 +204,35 @@ export function heightAtTime(points, timeSec) {
   return a.zFt + ((b.zFt - a.zFt) * (timeSec - a.timeSec)) / (b.timeSec - a.timeSec);
 }
 
+/**
+ * Computes the reference floor height (feet) for tactical plumb lines and ground shadows (D392).
+ * Simple Mode: terrain grid level below lowest height flown.
+ * Energy Mode: Hard Deck plane (hardDeckFt). If the aircraft breaches the hard deck, floor plunges to 0 ft MSL.
+ */
+export function computeFloorZ(fight, bounds, altFt = null) {
+  if (fight?.energy) {
+    const deck = fight.setup?.hardDeckFt ?? 6000;
+    if (altFt !== null && altFt < deck) {
+      return 0; // Plunge to sea level if hard deck is breached
+    }
+    return deck;
+  }
+  const minZ = bounds?.minZ ?? 0;
+  const maxZ = bounds?.maxZ ?? 0;
+  return -(GROUND_BELOW_FT + Math.max(Math.abs(minZ), Math.abs(maxZ)));
+}
+
+/**
+ * Computes the 2-point vertical line coordinates [x, y, z_aircraft, x, y, z_floor] for a plumb line (D392).
+ */
+export function computePlumbGeometry(pose, floorZ) {
+  const zFloor = altToZ(floorZ, ALT_SCALE);
+  return new Float32Array([
+    pose.x, pose.y, pose.z,
+    pose.x, pose.y, zFloor,
+  ]);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The camera.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,6 +450,40 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       lines[who] = line;
     }
 
+    // D392: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
+    const plumbLines = {};
+    const shadowDiscs = {};
+    for (const who of SHIPS) {
+      const plumbGeom = new THREE.BufferGeometry();
+      plumbGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+      const plumbMat = new THREE.LineDashedMaterial({
+        color: COLORS[who],
+        dashSize: 20,
+        gapSize: 15,
+        transparent: true,
+        opacity: 0.65,
+        fog: false,
+      });
+      const plumbLine = new THREE.Line(plumbGeom, plumbMat);
+      plumbLine.frustumCulled = false;
+      scene.add(plumbLine);
+      plumbLines[who] = plumbLine;
+
+      const discGeom = new THREE.RingGeometry(0, 35, 32);
+      const discMat = new THREE.MeshBasicMaterial({
+        color: COLORS[who],
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        fog: false,
+      });
+      const disc = new THREE.Mesh(discGeom, discMat);
+      disc.frustumCulled = false;
+      scene.add(disc);
+      shadowDiscs[who] = disc;
+    }
+
     const labels = {
       blue: label(LETTERS.blue, 'tf-3d-label-blue'),
       red: label(LETTERS.red, 'tf-3d-label-red'),
@@ -430,7 +493,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     };
     host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose, labels.deck);
     gl = {
-      canvas, renderer, scene, camera, sky, grid, mark, deck, lines, labels,
+      canvas, renderer, scene, camera, sky, grid, mark, deck, lines, plumbLines, shadowDiscs, labels,
       planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
@@ -524,6 +587,17 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       mesh.position.set(pose.x, pose.y, pose.z);
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       applyAttitude(mesh, pose);
+
+      // D392: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
+      const floorZ = computeFloorZ(fight, bounds, fight[who].zFt);
+      const plumbData = computePlumbGeometry(pose, floorZ);
+      const plumbAttr = gl.plumbLines[who].geometry.attributes.position;
+      plumbAttr.array.set(plumbData);
+      plumbAttr.needsUpdate = true;
+      gl.plumbLines[who].computeLineDistances();
+
+      const zFloor = altToZ(floorZ, ALT_SCALE);
+      gl.shadowDiscs[who].position.set(pose.x, pose.y, zFloor + 1.0);
     }
 
     // Energy heights are altitudes above sea level (the hard deck is one), so the ground grid sits at sea level and the
@@ -593,6 +667,14 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
     for (const line of Object.values(scene.lines)) {
       line.geometry.dispose();
       line.material.dispose();
+    }
+    for (const line of Object.values(scene.plumbLines)) {
+      line.geometry.dispose();
+      line.material.dispose();
+    }
+    for (const disc of Object.values(scene.shadowDiscs)) {
+      disc.geometry.dispose();
+      disc.material.dispose();
     }
     scene.mark.geometry.dispose();
     scene.mark.material.dispose();

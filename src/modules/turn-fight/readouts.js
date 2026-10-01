@@ -80,13 +80,15 @@ export function resultRows(state) {
  */
 export function moreDetailRows(state) {
   const { blue, red } = state.perf;
+  const turnsAtOnce = state.setup.turnsStart === 'now' || state.setup.turnsAt === 'once' || !state.mergeMark;
+  const timeLabel = turnsAtOnce ? 'Time since the turns started' : 'Time since the pass';
   const rows = [
     pairRow('speed', 'Speed', 'more', `${blue.speedKt} kt`, `${red.speedKt} kt`),
     pairRow('g', 'G', 'more', blue.g.toFixed(1), red.g.toFixed(1)),
     pairRow('time360', '360° time', 'more', `${(360 / blue.rateDegPerSec).toFixed(1)} s`, `${(360 / red.rateDegPerSec).toFixed(1)} s`),
     pairRow('offNose', 'Off-nose angle (ATA)', 'more', `${ataDeg(state, state.blue, state.red).toFixed(0)}°`, `${ataDeg(state, state.red, state.blue).toFixed(0)}°`),
     textRow('angleOff', 'Angle-off (HCA)', 'more', `${headingCrossAngleDeg(state.blue.headingRad, state.red.headingRad).toFixed(0)}°`),
-    textRow('sinceMerge', 'Time since the pass', 'more', `${sinceMergeSec(state).toFixed(1)} s`),
+    textRow('sinceMerge', timeLabel, 'more', `${sinceMergeSec(state).toFixed(1)} s`),
   ];
   if (state.setup.vertical) {
     rows.push(

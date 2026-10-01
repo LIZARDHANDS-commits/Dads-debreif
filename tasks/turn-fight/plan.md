@@ -13,9 +13,9 @@ Master Plan: [`turn_fight_completion_plan.md`](file:///C:/Users/patri/.gemini/an
 
 | Needed for | What | Owner | Status |
 |---|---|---|---|
-| Execution | Traffic Sim PR 3 (D390) merge to `main` | Traffic thread | In progress (waiting for push/merge) |
-| Task 10.1 | Branch integration `handover/turn-fight-energy-screen` | Turn Fight thread | Staged cleanly with `-Xignore-space-change` |
-| Verification | Gate 2 sign-off run by Patrick | Patrick | Paused until green verification |
+| Execution | Traffic Sim PR 3 (D390) merge to `main` | Traffic thread | Merged to main (`f86ef86`) |
+| Task 10.1 | Branch integration `handover/turn-fight-energy-screen` | Turn Fight thread | Merged and resolved |
+| Verification | Gate 2 sign-off run by Patrick | Patrick | READY FOR PATRICK (`docs/checklists/turn-fight.md`) |
 
 ## Execution Phases & Architecture
 

@@ -119,6 +119,24 @@ export function ataDeg(state, from, other) {
   return state.setup.vertical && !state.v6OffNose ? offNose3dDeg(from, other) : offNoseDeg(from, other);
 }
 
+/**
+ * Whether the other aircraft is inside this one's nose capture cone (D386):
+ * Level / 2D: Azimuth off-nose <= FIRST_NOSE_DEG (5.0°).
+ * Climb & dive (3D): Azimuth off-nose <= 5.0° AND elevation off-nose <= 10.0°.
+ */
+export function isNoseOn(state, from, other) {
+  if (state.setup.vertical && !state.v6OffNose) {
+    const dx = other.xFt - from.xFt, dy = other.yFt - from.yFt, dz = other.zFt - from.zFt;
+    const dH = Math.hypot(dx, dy);
+    if (dH === 0 && dz === 0) return offNoseDeg(from, other) <= FIRST_NOSE_DEG;
+    const deltaAz = Math.abs(wrapPi(Math.atan2(dy, dx) - from.headingRad)) * 180 / Math.PI;
+    const thetaLos = Math.atan2(dz, dH) * 180 / Math.PI;
+    const deltaEl = Math.abs(from.pitchRad * 180 / Math.PI - thetaLos);
+    return deltaAz <= FIRST_NOSE_DEG && deltaEl <= 10.0;
+  }
+  return ataDeg(state, from, other) <= FIRST_NOSE_DEG;
+}
+
 /** Straight-line distance between the aircraft in feet, including height (V6 `upd`, line 4276). */
 export function rangeFt(state) {
   return Math.hypot(state.red.xFt - state.blue.xFt, state.red.yFt - state.blue.yFt, state.red.zFt - state.blue.zFt);
@@ -237,11 +255,6 @@ function fly(p, perf, d, vertical) {
  * `by` still names an aircraft for code that reads it ('blue' for a tie, never
  * rounding noise), and the line still runs from Blue to Red in that case.
  */
-function checkFirstNose(state) {
-  if (!state.merged || state.firstNose) return;
-  markFirstNose(state, ataDeg(state, state.blue, state.red), ataDeg(state, state.red, state.blue));
-}
-
 /** Marks first nose-on from the two off-nose angles when either is within FIRST_NOSE_DEG (both: a tie, Q48). */
 function markFirstNose(state, blueOff, redOff) {
   if (!(blueOff <= FIRST_NOSE_DEG || redOff <= FIRST_NOSE_DEG)) return;
@@ -256,6 +269,11 @@ function markFirstNose(state, blueOff, redOff) {
     from: { xFt: state[by].xFt, yFt: state[by].yFt },
     to: { xFt: state[other].xFt, yFt: state[other].yFt },
   };
+}
+
+function checkFirstNose(state) {
+  if (!state.merged || state.firstNose) return;
+  markFirstNose(state, ataDeg(state, state.blue, state.red), ataDeg(state, state.red, state.blue));
 }
 
 /** Rounding noise in an off-nose angle at the start (degrees): 5° less this counts as within 5°. */
@@ -345,14 +363,18 @@ function stepOnce(state) {
       }
     } else {
       const oneCircle = setup.circles === 1;
-      if (setup.chase && state.firstNose) {
+      const { turnDir } = state;
+      if (setup.chase && state.firstNose && state.firstNose.by !== 'both') {
         const first = state.firstNose.by, second = first === 'blue' ? 'red' : 'blue';
         chaseOther(state[first], state[second], perf[first].rateRadPerSec, d, vertical);
-        chaseOther(state[second], state[first], perf[second].rateRadPerSec, d, vertical);
+        const dir = second === 'blue' ? turnDir.blue : (oneCircle ? -turnDir.red : turnDir.red);
+        state[second].headingRad = wrapPi(state[second].headingRad + dir * perf[second].rateRadPerSec * d);
+      } else if (setup.chase && state.firstNose && state.firstNose.by === 'both') {
+        chaseOther(blue, red, perf.blue.rateRadPerSec, d, vertical);
+        chaseOther(red, blue, perf.red.rateRadPerSec, d, vertical);
       } else {
         // Blue turns counter-clockwise; Red the same way in a 2-circle fight, the other way in a 1-circle fight.
         // (Each turns toward the other: +1 is left. At head-on that is V6's way, Blue and Red both left.)
-        const { turnDir } = state;
         blue.headingRad += turnDir.blue * perf.blue.rateRadPerSec * d;
         red.headingRad += (oneCircle ? -turnDir.red : turnDir.red) * perf.red.rateRadPerSec * d;
       }
