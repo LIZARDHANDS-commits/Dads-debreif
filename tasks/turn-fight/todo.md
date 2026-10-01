@@ -95,10 +95,10 @@ Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fi
   - [x] 2. `docs/handover/turn-fight.md`: Update status to 100% Complete; record passing tests.
   - [x] 3. `docs/checklists/turn-fight.md`: Update Section 8 (Checkpoint D); replace V6 labels with SMM standards; add D381, D384, D386, D392, D393.
   - [x] 4. `docs/REMEDIATION_ROADMAP.md`: Mark Milestone 2 tasks 2.1, 2.2, 2.3 complete `[x]`; mark Gate 2 READY.
-  - [x] 5. `docs/REMEDIATION_PATCH_LOG.md`: Append PATCH-023 ("Milestone 2 Turn Fight Energy Screen & Tactical 3D Suite Integration").
+  - [x] 5. `docs/REMEDIATION_PATCH_LOG.md`: Append PATCH-024 ("Energy Screen & Tactical 3D Suite"), PATCH-025 ("Combat Pursuit Default D403"), PATCH-026 ("Azimuth Acquisition across Vertical Separation D404"), PATCH-027 ("Pilot Stall Authority Loss D405").
   - [x] 6. `tasks/turn-fight/todo.md` & `tasks/turn-fight/plan.md`: Mark 100% complete.
   - [x] 7. `specs/SPEC-turn-fight.md`: Update tolerances, reset button labels, and ratified decisions.
-  - [x] 8. `docs/records/decisions-log.md` & `docs/records/plan-decisions.md`: Record D392 (Tactical Plumb Lines & Ground Shadows) and D393 (Immelmann Pull G Law).
+  - [x] 8. `docs/records/decisions-log.md` & `docs/records/plan-decisions.md`: Record D401 (Tactical Plumb Lines & Ground Shadows), D402 (Immelmann Pull G Law), D403 (chaseAfterHeadOn Default), D404 (3D Azimuth Acquisition), D405 (Pilot Stall Authority Loss).
   - [x] 9. `docs/records/verification/index.md`: Register verification report.
 
 - [x] **10.10 Checkpoint D & Patrick's Gate 2 Sign-Off Readiness.**
