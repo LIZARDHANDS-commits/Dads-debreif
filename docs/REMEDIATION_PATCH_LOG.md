@@ -25,9 +25,9 @@
 | [**PATCH-012**](#patch-012-milestone-1-pr-2-consolidated-traffic-polish--rewind-fix) | M1 | 2026-09-30 22:43Z | Sim Engine | Consolidated Traffic Polish & Rewind Fix | Pass |
 | [**PATCH-013**](#patch-013-milestone-1-pr-3-traffic-core-4-implementation--plausibility-gate) | M1 | 2026-09-30 23:15Z | Aero & SMM | Traffic Core 4 Implementation & Plausibility Gate | Pass |
 | [**PATCH-014**](#patch-014-interactive-wind-ui-inputs--dynamic-simulation-updates) | M1 | 2026-09-30 23:25Z | UI & Physics | Interactive Wind UI Inputs & Dynamic Simulation Updates | Pass |
-| [**PATCH-015**](#patch-015-closed-loop-vector-pursuit-3d-visualization-suite--pilot-intuitive-controls) | M1 | 2026-09-30 23:55Z | 3D & Pilot UX | Closed-Loop Vector Pursuit, 3D Suite & Pilot-Intuitive Controls | Pass |
+| [**PATCH-015**](#patch-015-3d-visualization-suite-spawner-presets--polyline-final-turn-smoothing) | M1 | 2026-09-30 23:55Z | 3D & Pilot UX | 3D Visualization Suite, Spawner Presets & Polyline Smoothing | Pass |
 | [**PATCH-016**](#patch-016-3d-render-loop-decoupling-layer-relocation--ui-cleanup) | M1 | 2026-10-01 00:20Z | 3D & UI | 3D Render Loop Decoupling, Layer Relocation & UI Cleanup | Pass |
-| [**PATCH-017**](#patch-017-aerodynamic-vector-flight-model--wind-compensated-perch-guidance) | M1 | 2026-10-01 00:45Z | Aero & Route | Aerodynamic Vector Flight Model & Wind-Compensated Perch Guidance | Pass |
+| [**PATCH-017**](#patch-017-visual-wind-adjusted-track-overlay--dynamic-perch-calculation) | M1 | 2026-10-01 00:45Z | Aero & Route | Visual Wind-Adjusted Track Overlay & Dynamic Perch Calculation | Pass |
 | [**PATCH-018**](#patch-018-3d-satellite-ground-plane-fix--airfield-ground-truth-baseline) | M1 | 2026-10-01 03:40Z | 3D & Ground | 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline | Pass |
 | [**PATCH-019**](#patch-019-master-vector-physics-specification-mathematical-equations--simjs-pre-vector-snapshot) | M1 | 2026-10-01 04:15Z | Aero & Spec | Master Vector Physics Spec, Equations, Snapshot & Checklist | Pass |
 
@@ -343,7 +343,7 @@
 
 ---
 
-### PATCH-015: Closed-Loop Vector Pursuit, 3D Visualization Suite & Pilot-Intuitive Controls
+### PATCH-015: 3D Visualization Suite, Spawner Presets & Polyline Final Turn Smoothing
 * **Date & Time:** 2026-09-30 23:55 UTC
 * **Milestone:** Milestone 1 (Traffic Pattern Sim)
 * **Branch:** `main`
@@ -361,9 +361,9 @@
   * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js) (NEW)
   * [`tests/unit/traffic/view3d.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/view3d.test.js)
 * **Problem / Flaw Addressed:**  
-  1. Final turn geometry had an unnatural 12.3° vertical elbow drop-off at Point 12 (Window, 2,119 ft MSL) due to linear descent against abrupt corner offsets.
-  2. Overhead break decelerated linearly instead of obeying aerodynamic $V^2$ induced drag ($V(u) = 220 \cdot e^{-0.452 u}$, decelerating 220 to 140 KIAS).
-  3. Aircraft lacked dynamic in-flight controls (`Breakout`, `Engine Fail` glide to 110 KIAS, `Go-Around`).
+  1. Final turn drawn polyline geometry had an unnatural 12.3° vertical elbow drop-off at Point 12 (Window, 2,119 ft MSL) due to linear descent against abrupt corner offsets.
+  2. Overhead break polyline decelerated linearly instead of obeying aerodynamic $V^2$ induced drag ($V(u) = 220 \cdot e^{-0.452 u}$, decelerating 220 to 140 KIAS).
+  3. Aircraft backend lacked basic command hooks (`sim.command` for breakout, engine fail glide to 110 KIAS, go-around).
   4. Spawner was constrained to raw numeric point IDs rather than pilot-intuitive points (`Initial`, `Downwind`, `Perch`, `2-Mile Final`, `1-Mile Final`, `Takeoff`, `Rejoin Lines`) and lacked callsign preview.
   5. 3D view lacked camera translation/panning (right-click / middle-click / shift-drag), satellite photo ground projection plane, and vertical plumb lines with ground shadow reference rings.
 * **Changes Made:**
@@ -372,10 +372,11 @@
   3. Exported `PILOT_SPAWN_PRESETS` in `aircraft.js`, added intuitive spawn preset dropdown and next callsign preview badge (`Next: A#`), and mounted in-flight action buttons (`Breakout`, `Eng Fail`, `Go-Around`) onto active aircraft rows.
   4. Added `panCamera` and pointer event listeners in `view3d.js` enabling camera panning via right-click drag, middle-click drag, Shift + left-click drag, and Shift + Arrow keys.
   5. Added satellite photo ground plane in 3D using `THREE.PlaneGeometry` with canvas texture sourced from `createTileLayer`, enabled via Layers menu.
-  6. Added "Height lines" toggle in 3D controls toolbar displaying dashed vertical plumb lines (`LineDashedMaterial`) with ground shadow rings below airborne aircraft.
+  6. Added "Height lines" toggle displaying dashed vertical plumb lines (`LineDashedMaterial`) with ground shadow rings below airborne aircraft.
   7. Added unit tests in `commands.test.js` (4/4 passed) and updated `aircraft.test.js`, `view3d.test.js`, and `traffic-expected.json`.
+  8. **Simulation Scope Note:** This patch smoothed the *drawn polyline routes* in `route.js` and upgraded UI/3D controls. The flying aircraft in `sim.js` remained driven by 1D polyline distance (`a.distFt`); full Cartesian vector flight was deferred to Stage 1 of the vector physics roadmap.
 * **Reasoning / Rationale:**  
-  Decisions **D370**, **D374**, and **D390**. Elevates Traffic Sim into a modern 3D simulation suite with authentic Moose Jaw aerodynamics, responsive pilot controls, and intuitive visual references.
+  Decisions **D370**, **D374**, and **D390**. Elevates Traffic Sim with intuitive pilot controls, smooth polyline geometry, and modern 3D visual references.
 * **Verification:**  
   `npm test` passed 100% green (`2,943 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 451ms.
 
@@ -404,7 +405,7 @@
 
 ---
 
-### PATCH-017: Aerodynamic Vector Flight Model & Wind-Compensated Perch Guidance
+### PATCH-017: Visual Wind-Adjusted Track Overlay & Dynamic Perch Calculation
 * **Date & Time:** 2026-10-01 00:45 UTC
 * **Milestone:** Milestone 1 (Traffic Pattern Sim)
 * **Branch:** `main`
@@ -419,15 +420,16 @@
   * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
   * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js) (NEW)
 * **Problem / Flaw Addressed:**  
-  Aircraft in Traffic Sim were constrained to rigid calm-wind 1D waypoints. When wind was present, the overhead break had unnatural straight segments, and the final turn could not adapt to wind drift, causing aircraft to overshoot or plunge off the extended runway centerline.
+  Pilots in Traffic Sim had no visual reference displaying where an aircraft would drift under active wind, nor where the ideal wind-shifted Perch waypoint should be located for a continuous descending final turn.
 * **Changes Made:**
-  1. Exported `computeWindPerch(route, windFromDeg, windKt, options)` calculating exact wind drift offset $\vec{P}_{\text{perch}} = \vec{P}_{\text{perch, calm}} - \vec{W} \cdot T_{\text{turn}}$ ($T_{\text{turn}} \approx 29.8\text{ s}$ for 180° turn at 120 KIAS, 35° bank).
-  2. Exported `generateWindAdjustedTrack(route, windFromDeg, windKt, options)` constructing full 3D Cartesian trajectory: 60° bank / 2.0 G level break turn with natural wind drift & $V^2$ aerodynamic drag deceleration ($220 \to 140$ KIAS); direct crabbed ground track to shifted Perch; continuous 180° descending final turn ($3500 \to 2700$ ft MSL cubic easing) rolling out wings level on runway centerline; 3.0° glide slope descent ($120 \to 100$ KIAS) to 1,892 ft MSL threshold.
+  1. Exported `computeWindPerch(route, windFromDeg, windKt, options)` in `route.js` calculating exact wind drift offset $\vec{P}_{\text{perch}} = \vec{P}_{\text{perch, calm}} - \vec{W} \cdot T_{\text{turn}}$ ($T_{\text{turn}} \approx 29.8\text{ s}$ for 180° turn at 120 KIAS, 35° bank).
+  2. Exported `generateWindAdjustedTrack(route, windFromDeg, windKt, options)` constructing full 3D Cartesian trajectory geometry: 60° bank / 2.0 G level break turn with natural wind drift & $V^2$ aerodynamic drag deceleration ($220 \to 140$ KIAS); direct crabbed ground track to shifted Perch; continuous 180° descending final turn ($3500 \to 2700$ ft MSL cubic easing) rolling out wings level on runway centerline; 3.0° glide slope descent ($120 \to 100$ KIAS) to 1,892 ft MSL threshold.
   3. Added `layerWindTrack` and `layerSmmReference` layer toggles to `DEFAULTS`, `PROFILE_SETTING_KEYS`, and `LAYER_ITEMS`.
   4. Rendered active wind track (solid), SMM calm reference corridor (dashed), and dynamic `"Perch (Wind)"` marker with warm highlight on both 2D canvas and 3D Three.js scene.
   5. Added unit tests in `tests/unit/traffic/vector-sim.test.js` (5/5 passed).
+  6. **Simulation Scope Note:** This patch implemented the *visual track calculation and map rendering* in `route.js` and `scene.js`. The running aircraft simulation engine in `sim.js` was NOT yet converted to Cartesian vectors and remained on the 1D polyline waypoint stepper (`a.distFt += ...`), with the vector engine scheduled for Stage 1 (Slices A–E) in `tasks/traffic/vector-physics-todo.md`.
 * **Reasoning / Rationale:**  
-  Decisions **D370**, **D382**, and **D389**. Restores realistic pilot aerodynamic maneuvers and visual cues in the visual circuit.
+  Decisions **D370**, **D382**, and **D389**. Provides pilots with clear visual ground track and Perch references under varying wind conditions.
 * **Verification:**  
   `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 439ms.
 
