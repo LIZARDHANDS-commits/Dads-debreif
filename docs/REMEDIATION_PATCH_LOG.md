@@ -490,3 +490,33 @@
   Decisions **D370**, **D371**, **D375**, and **D391**. Guarantees that code execution proceeds against a locked, peer-reviewed, and mathematically complete foundation with zero ambiguity.
 * **Verification:**  
   100% green test suite (`npm test`: 2,948 passed, 0 failed, 1 skipped); `npm run typecheck` clean (0 errors); `npm run build` passed in 354ms.
+
+---
+
+### PATCH-020: Stage 1 Vector Physics Slices A–E Integration & Crosscheck Realignment
+* **Date & Time:** 2026-10-01 05:05 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js)
+  * [`tests/crosscheck/traffic-expected.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/crosscheck/traffic-expected.json)
+  * [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md)
+* **Problem / Flaw Addressed:**  
+  1. Aircraft simulation was previously operating as 1D scalar distance "slot-cars on rails" stepping along static waypoints, lacking authentic 3D Cartesian aerodynamics in a moving airmass.
+  2. Downwind speed and phase coupling caused aircraft taking splits (such as SPL2) to remain trapped at 140 KIAS instead of cruising at 220 KIAS.
+  3. Closest aircraft threshold spacing in crosscheck was pinned to the legacy slot-car value (11 ft, 0.1 s).
+* **Changes Made:**
+  1. **Slice A:** Added continuous 3D Cartesian vector fields `{ x, y, alt, headingDeg, bankDeg, iasKt, phase, trackDeg, crabDeg, gsKt }`, 3D velocity integration $\dot{x}, \dot{y}, \dot{z}$, coordinated turn kinematics ($\omega = \frac{g\tan\phi}{v_{\text{tas}}}$), roll rate limiter ($\dot{\phi} \le 45^\circ/\text{s}$), and full Cartesian snapshot/restore.
+  2. **Slice B:** Implemented overhead break trigger at Point 9 with $60^\circ$ bank ($2.0\text{ G}$), $V^2$ induced drag deceleration curve $V(u) = 220 \cdot e^{-0.452 u}$ down to 140 KIAS, natural wind drift integration $\vec{W}$ throughout turn, and wings-level rollout at $\psi = 118^\circ$.
+  3. **Slice C:** Dynamic wind perch calculation $\vec{P}_{\text{perch}} = \vec{P}_{\text{perch, calm}} - \vec{W} \cdot T_{\text{turn}}$ ($T_{\text{turn}} \approx 29.8\text{ s}$), pure pursuit direct-to-perch steer at 140 KIAS / 3,500 ft MSL with wind crab, capture within 150 ft radius, decelerating to 120 KIAS for final turn.
+  4. **Slice D:** Adaptive final turn with nominal $35^\circ$ bank, continuous cubic descent easing ($3,500 \to 2,700\text{ ft MSL}$), wings-level rollout on runway centerline ($298^\circ$ true), 3.0° glide slope capture at $15,417\text{ ft}$ ($2.54\text{ NM}$), descent at 100 KIAS down to threshold ($1,892\text{ ft MSL}$).
+  5. **Slice E:** Closed pattern touch-and-go circuit cycling (80% touch-and-go / 20% full stop), roll along runway, climb at 1,500 fpm to 3,500 ft MSL at 140 KIAS, left crosswind turn into Inner Downwind.
+  6. **Speed/Phase Decoupling:** Reverted hardcoded `iasKt` in `fly(a)` and `state()` to use route point speeds, scoped 140 KIAS strictly to PAT1 downwind, and reset `a.phase = 'route'` upon split branching and target merge.
+  7. **Crosscheck Realignment:** Updated `f-final-spacing` in `traffic-expected.json` to reflect authentic aerodynamic threshold spacing (719 ft, 4.3 s separation).
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D382**, **D389**, **D390**, and **D391**. Replaces legacy polyline slot-car stepping with authentic 3D Cartesian aerodynamics matching 15 Wing Moose Jaw SMM Ch 16 procedures.
+* **Verification:**  
+  100% green test suite across entire repository (`2,961 passed, 0 failed, 1 skipped` in 48.9s); `npm run typecheck` passed (0 errors); `npm run build` passed in 335ms.
+

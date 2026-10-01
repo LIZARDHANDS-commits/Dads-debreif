@@ -73,6 +73,7 @@ function lerp(a, b, u, seg, headingDeg) {
     kt: kt + ((b.kt ?? 120) - kt) * u,
     g: g + ((b.g ?? 2) - g) * u,
     seg, u, headingDeg,
+    phase: a.phase ?? b.phase,
   };
 }
 
@@ -228,6 +229,17 @@ function buildRoundedPoints(route, options) {
         const easedU = u + 0.05 * u * (1 - u) * (1 - 2 * u);
         out[k + 1].alt = startAlt + (endAlt - startAlt) * easedU;
       }
+    }
+  }
+  if (route.id === 'PAT1') {
+    for (const p of out) {
+      const src = p.src ?? 0;
+      if (src < 9) p.phase = 'initial';
+      else if (src === 9) p.phase = 'break';
+      else if (src === 10) { p.phase = 'downwind'; p.kt = 140; }
+      else if (src === 11) p.phase = 'final_turn';
+      else if (src === 12) p.phase = 'final';
+      else p.phase = 'initial';
     }
   }
   if (closed && out.length) out.push({ ...out[0] });

@@ -28,12 +28,19 @@
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
 import { ktToFtps } from '../../core/units.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
+import { bankDegFromG } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
+
+/** Standard gravity in ft/s² for coordinated turn kinematics. */
+export const G_FTPS2 = 32.174;
+
+/** Maximum roll rate authority in deg/s (SPEC-traffic-vector). */
+export const MAX_ROLL_RATE_DPS = 45;
 
 /** Standard aircraft types and their colors. Supports legacy V6 names plus Hawk and Hornet. */
 export const TYPE_COLORS = Object.freeze({
@@ -105,7 +112,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   const history = new Map(); // step -> snapshot (taken before the events at that step)
   let every = SNAPSHOT_EVERY_STEPS;
 
-  const routeOptions = () => setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+  const routeOptions = () => ({
+    ...DEFAULT_ROUTE_OPTIONS,
+    ...(setup.routeOptions ?? {}),
+    windKt: setup.windKt ?? setup.routeOptions?.windKt ?? 0,
+    windFromDeg: setup.windFromDeg ?? setup.routeOptions?.windFromDeg ?? 360,
+  });
   const routeById = (id) => setup.routes.find((r) => r.id === id);
   /** The route an aircraft is on now; V6 falls back to the first route if it has gone. */
   const routeOf = (a) => routeById(a.routeId) || setup.routes[0];
@@ -134,6 +146,19 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a.customX;
     delete a.customY;
     delete a.touchAndGo;
+
+    // Continuous 3D Cartesian vector state initialization (Slice A & B)
+    const p = posOnRoute(route, a.distFt, routeOptions());
+    a.x = a.customX ?? p.x;
+    a.y = a.customY ?? p.y;
+    a.alt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
+    a.iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
+    a.headingDeg = a.customHeading ?? p.headingDeg;
+    a.bankDeg = 0;
+    a.phase = p.phase || (route.id === 'PAT1' && (a.startIndex === 9 || p.seg === 9) ? 'break' : 'initial');
+    a.trackDeg = a.headingDeg;
+    a.crabDeg = 0;
+    a.gsKt = a.iasKt;
     return a;
   }
 
@@ -198,6 +223,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         if (dice() < (split.splitOdds ?? 0.5)) {
           a.routeId = split.id;
           a.distFt = 0;
+          a.phase = 'route';
         }
       }
     }
@@ -213,6 +239,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const curPos = whereIs(a, route);
       a.routeId = target.id;
       a.distFt = closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt);
+      const nextP = whereIs(a, target);
+      a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
       // TR-08: a straight-in joining at the threshold (first point) rolls landing decision once
       if (mergeIndex === 0) {
         if (dice() < (target.landOdds ?? 0.2)) {
@@ -229,13 +257,25 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function fly(a) {
     if (a.command === 'breakout') {
       const p = whereIs(a);
-      a.customX = (a.customX ?? p.x) + Math.sin((a.customHeading * Math.PI) / 180) * ktToFtps(a.customKt ?? 140) * STEP_SEC;
-      a.customY = (a.customY ?? p.y) + Math.cos((a.customHeading * Math.PI) / 180) * ktToFtps(a.customKt ?? 140) * STEP_SEC;
-      a.customAlt = Math.min(3500, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) + 25 * STEP_SEC);
+      const iasKt = a.customKt ?? a.iasKt ?? 140;
+      const vAir = ktToFtps(iasKt);
+      const headingRad = ((a.customHeading ?? 118) * Math.PI) / 180;
+      const dotX = vAir * Math.sin(headingRad);
+      const dotY = vAir * Math.cos(headingRad);
+      a.customX = (a.customX ?? a.x ?? p.x) + dotX * STEP_SEC;
+      a.customY = (a.customY ?? a.y ?? p.y) + dotY * STEP_SEC;
+      a.customAlt = Math.min(3500, (a.customAlt ?? a.alt ?? (p.alt ?? a.fallbackAlt)) + 25 * STEP_SEC);
+      a.x = a.customX;
+      a.y = a.customY;
+      a.alt = a.customAlt;
       a.headingDeg = a.customHeading;
-      a.gsKt = a.customKt ?? 140;
+      a.trackDeg = a.customHeading;
+      a.bankDeg = 0;
+      a.iasKt = iasKt;
+      a.gsKt = iasKt;
+      a.phase = 'breakout';
       if (steps % TRAIL_EVERY_STEPS === 0) {
-        a.trail.push({ x: a.customX, y: a.customY });
+        a.trail.push({ x: a.x, y: a.y });
         if (a.trail.length > TRAIL_POINTS) a.trail.shift();
       }
       return;
@@ -245,7 +285,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const options = routeOptions();
     const before = a.distFt;
     const p = whereIs(a, route);
-    let iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
+    a.phase = p.phase || (route.kind === 'pattern' ? 'initial' : 'route');
+    const isDownwind = route.id === 'PAT1' && a.phase === 'downwind';
+    let iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
 
     if (a.engineFailed) {
       // Airspeed decays toward 110 KIAS best glide
@@ -257,16 +299,33 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         a.landed = true;
       }
     }
+    a.iasKt = iasKt;
+
+    const targetAlt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
+    a.alt = targetAlt;
+
+    const windKt = getWindKt();
+    const windFromDeg = getWindFromDeg();
+
+    let tasKt = iasKt;
+    let vAir = ktToFtps(iasKt);
+    let Wx = 0;
+    let Wy = 0;
+
+    if (windKt > 0) {
+      tasKt = iasToTasKt(iasKt, a.alt);
+      vAir = ktToFtps(tasKt);
+      const windRad = (windFromDeg * Math.PI) / 180;
+      const windFtps = ktToFtps(windKt);
+      Wx = -windFtps * Math.sin(windRad);
+      Wy = -windFtps * Math.cos(windRad);
+    }
 
     let gsKt = iasKt;
     let crabDeg = 0;
     let headingDeg = p.headingDeg;
 
-    const windKt = getWindKt();
-    const windFromDeg = getWindFromDeg();
     if (windKt > 0 && iasKt > 0) {
-      const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
-      const tasKt = iasToTasKt(iasKt, altFt);
       const wt = windTriangle(p.headingDeg, tasKt, windFromDeg, windKt);
       gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
       crabDeg = wt.crabDeg;
@@ -276,14 +335,43 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.gsKt = gsKt;
     a.crabDeg = crabDeg;
     a.headingDeg = headingDeg;
+    a.trackDeg = p.headingDeg;
+
+    // Coordinated bank kinematics with roll rate limiter (45°/s)
+    let targetBankDeg = 0;
+    if (a.phase === 'break') {
+      targetBankDeg = 60; // 60° bank (2.0 G level turn)
+    } else if (a.phase === 'final_turn') {
+      targetBankDeg = 35; // Nominal 35° bank in descending final turn
+    } else if (a.phase === 'downwind' || a.phase === 'final' || a.phase === 'glide_slope') {
+      targetBankDeg = 0; // Wings level on downwind and straight-in approach
+    } else if (p.g && p.g > 1) {
+      targetBankDeg = bankDegFromG(p.g);
+    }
+    const maxRollDelta = MAX_ROLL_RATE_DPS * STEP_SEC;
+    const bankDelta = Math.max(-maxRollDelta, Math.min(maxRollDelta, targetBankDeg - (a.bankDeg ?? 0)));
+    a.bankDeg = (a.bankDeg ?? 0) + bankDelta;
+
+    // 3D Cartesian velocity components (ft/s)
+    const headingRad = (a.headingDeg * Math.PI) / 180;
+    const dotX = vAir * Math.sin(headingRad) + Wx;
+    const dotY = vAir * Math.cos(headingRad) + Wy;
+    a.dotX = dotX;
+    a.dotY = dotY;
 
     a.distFt += ktToFtps(gsKt) * STEP_SEC;
     const lengthFt = routeLengthFt(route, options);
     if (route.kind === 'pattern') checkDecisions(a, before, a.distFt);
     if (a.active && lengthFt && a.distFt >= lengthFt && !isClosedRoute(route)) handleRouteEnd(a, a.distFt - lengthFt);
+
+    // Continuous 3D Cartesian position update at current progress
+    const cur = whereIs(a, routeOf(a));
+    a.x = a.customX ?? cur.x;
+    a.y = a.customY ?? cur.y;
+    a.alt = a.customAlt ?? (cur.alt ?? a.fallbackAlt);
+
     if (steps % TRAIL_EVERY_STEPS === 0) {
-      const cur = whereIs(a);
-      a.trail.push({ x: cur.x, y: cur.y });
+      a.trail.push({ x: a.x, y: a.y });
       if (a.trail.length > TRAIL_POINTS) a.trail.shift();
     }
   }
@@ -667,10 +755,38 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.distFt = pointDistFt(pat, 1, routeOptions());
           a.customAlt = 2500;
           a.customKt = 140;
+          const p = posOnRoute(pat, a.distFt, routeOptions());
+          a.x = p.x;
+          a.y = p.y;
+          a.alt = 2500;
+          a.iasKt = 140;
+          a.headingDeg = p.headingDeg;
+          a.bankDeg = 0;
+          a.phase = 'touch_and_go';
         }
       } else if (action === 'touch_and_go') {
         a.touchAndGo = true;
         a.landed = false;
+        a.active = true;
+        a.engineFailed = false;
+        delete a.customX;
+        delete a.customY;
+        delete a.customHeading;
+        const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
+        if (pat) {
+          a.routeId = pat.id;
+          a.distFt = pointDistFt(pat, 0, routeOptions());
+          a.customAlt = 1892;
+          a.customKt = 100;
+          const p = posOnRoute(pat, a.distFt, routeOptions());
+          a.x = p.x;
+          a.y = p.y;
+          a.alt = 1892;
+          a.iasKt = 100;
+          a.headingDeg = p.headingDeg;
+          a.bankDeg = 0;
+          a.phase = 'touch_and_go';
+        }
       }
       return true;
     },
@@ -680,17 +796,21 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /** What is where right now. */
     state() {
       const list = aircraft.map((a) => {
+        const route = routeOf(a);
         const p = whereIs(a);
-        const iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
+        const isDownwind = route?.id === 'PAT1' && a.phase === 'downwind';
+        const iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
         const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
-        const x = a.customX ?? p.x;
-        const y = a.customY ?? p.y;
+        const x = a.customX ?? a.x ?? p.x;
+        const y = a.customY ?? a.y ?? p.y;
         const headingDeg = a.customHeading ?? (a.headingDeg ?? p.headingDeg);
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
           x, y, alt: altFt, kt: iasKt,
           headingDeg,
-          trackDeg: a.customHeading ?? p.headingDeg,
+          bankDeg: a.bankDeg ?? 0,
+          phase: a.phase ?? 'initial',
+          trackDeg: a.trackDeg ?? a.customHeading ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
           groundSpeedKt: a.gsKt ?? iasKt,
           leg: p.seg + 1, distFt: a.distFt,
