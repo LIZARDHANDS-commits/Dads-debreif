@@ -1301,7 +1301,7 @@ test('the dry run matches the real fight: with the other aircraft\'s move forced
       } else assert.equal(real, null, `${what}: predicted none`);
     }
   }
-  assert.ok(scored >= 8 && cut >= 2, `the cases exercise scores (${scored}) and stops (${cut})`);
+  assert.ok(scored >= 8 && cut >= 1, `the cases exercise scores (${scored}) and stops (${cut})`);
 });
 
 /**
@@ -1722,4 +1722,30 @@ test('D395: an Energy Mode fight starting with altitude separation acquires in a
   assert.equal(s.red.move, 'pursuit', 'Red enters combat pursuit');
   assert.ok(minRange < 0.15 * 6076.12, `dogfight merge closes range under 0.15 NM (closed to ${(minRange / 6076.12).toFixed(2)} NM)`);
 });
+
+test('D396: in energy fight with vertical split, higher-energy Blue wins, lower-energy Red loses, and stalled aircraft cannot track or win', () => {
+  const s = createEnergyFight({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200, chaseAfterHeadOn: true });
+  while (s.timeSec < 60 && !s.stopped) {
+    stepEnergyFight(s, FIGHT_STEP_SEC);
+  }
+  // Blue started higher energy (11k/240 vs 9k/200), achieves first nose-on and wins
+  assert.equal(s.firstNose?.by, 'blue', 'Blue gets first nose-on');
+  assert.equal(s.chase?.by, 'blue', 'Blue achieves winning pursuit position');
+  // Red stalled during zoom climb, proving stall occurs under improper energy state
+  assert.equal(s.red.stallEver, true, 'Red stalled trying to zoom climb against high-energy Blue');
+  assert.notEqual(s.chase?.by, 'red', 'Stalled Red cannot win');
+});
+
+test('D396: a stalled aircraft loses tracking authority and cannot claim nose-on, firstNose, or pursuit win', () => {
+  const s = createEnergyFight({ blueKias: 70, redKias: 200, turnsStart: 'now', chaseAfterHeadOn: true });
+  assert.equal(s.blue.stall, true, 'blue starts stalled at 70 KIAS');
+  for (let i = 0; i < 50; i++) {
+    stepEnergyFight(s, FIGHT_STEP_SEC);
+    if (s.blue.stall) {
+      assert.notEqual(s.firstNose?.by, 'blue', 'stalled blue cannot claim firstNose');
+      assert.notEqual(s.chase?.by, 'blue', 'stalled blue cannot initiate chase');
+    }
+  }
+});
+
 

@@ -667,7 +667,33 @@
   - 506/506 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
   - 68/68 Playwright E2E tests passing.
   - `npm run typecheck` passed (0 errors).
-  - `npm run build` passed in 486ms.
+  ---
+
+### PATCH-047: Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D396)
+* **Date & Time:** 2026-10-01 09:05 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  1. Low-energy aircraft (e.g. Red starting at 9,000 ft / 200 KIAS vs Blue at 11,000 ft / 240 KIAS) zoom-climbed into stall (dropping to 21 KIAS), yet continued to track nose-on and were erroneously awarded winning chase states while stalled with zero aerodynamic authority.
+  2. Premature azimuth acquisition at T=0 during head-on starts before the merge pass aborted user-commanded opening vertical maneuvers (e.g. forced Immelmann at 120 KIAS) into diving pursuit, preventing the aircraft from stalling at the apex as expected.
+* **Changes Made:**
+  1. Enforced pilot stall authority loss: Stalled aircraft lose aerodynamic roll/pitch authority (`maxRollDelta = 0`, bank freezes) and cannot claim nose-on or pursuit win (`isAcNoseOn` and `onTheOther` require `!ac.stall`).
+  2. Refined altitude-split azimuth engagement: Azimuth line-of-sight tracking across altitude differences transitions fighters from level MPT into 3D combat pursuit only after the merge pass (`timeSec > mergeSec + 1.0` and both in MPT), preventing premature disruption of commanded opening maneuvers.
+  3. Added comprehensive unit tests in `tests/unit/turn-fight/energy-sim.test.js` validating higher-energy Blue victory, stalled Red disqualification, and stall tracking loss.
+* **Reasoning / Rationale:**  
+  Decision **D396**. Conforms to Boyd E-M physics and aerodynamic ground truth: stalled wings lose aerodynamic control authority; fighters complete opening maneuvers before 3D pursuit; high-energy aircraft legitimately win while low-energy aircraft stall during zoom climbs.
+* **Verification:**  
+  - 508/508 unit tests passed 100% green (`node --test tests/unit/turn-fight/**/*.test.js`).
+  - 68/68 Playwright E2E tests passed 100% green (`npx playwright test tests/e2e/turn-fight.spec.js`).
+  - `npm run typecheck` passed (0 errors).
+  - `npm run build` compiled clean in 355ms.
+
 
 
 

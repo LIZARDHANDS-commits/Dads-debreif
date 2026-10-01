@@ -1047,7 +1047,6 @@ function controlPursuit(ctx) {
   const alphaFloor = Math.cos(gamma) + (vFtps / G_FTPS2) * TUNING.levelOmegaPerSec * (gammaFloor - gamma);
 
   const build = (cap) => {
-    // Within the cap the chase keeps its direction; if the lift the guard needs is then more than it gets, the guard comes first.
     let alpha = alphaWanted, beta = betaWanted;
     const mag = Math.hypot(alpha, beta);
     if (mag > cap) { alpha *= cap / mag; beta *= cap / mag; }
@@ -1171,8 +1170,9 @@ function stepAircraft(state, ac, other, d) {
     g = c.forceG === null ? Math.min(gWanted, ctx.shaker) : gWanted;
   }
 
-  // Bank changes at the roll rate, never instantly.
-  const roll = rollToward(ac.bankRad, cmd.bankRad, degToRad(p.rollRateDegPerSec) * d, cmd.prefer);
+  // Bank changes at the roll rate, never instantly. When stalled, aerodynamic roll authority is lost (bank freezes).
+  const maxRollDelta = ac.stall ? 0 : degToRad(p.rollRateDegPerSec) * d;
+  const roll = rollToward(ac.bankRad, cmd.bankRad, maxRollDelta, cmd.prefer);
   ac.bankRad = roll.bank;
   ac.rollDegPerSec = radToDeg(roll.movedRad) / d;
   ac.rolling = isRolling(roll.movedRad, d);
@@ -1256,11 +1256,8 @@ function noseOffAzDeg(from, to) {
  * 2. Across starting altitude differences, azimuth line-of-sight tracking <= FIRST_NOSE_DEG (5.0°).
  */
 function isAcNoseOn(state, ac, target) {
-  if (noseOffDeg(state, ac) <= FIRST_NOSE_DEG) return true;
-  if (state.setup.blueAltFt !== state.setup.redAltFt) {
-    return noseOffAzDeg(ac, target) <= FIRST_NOSE_DEG;
-  }
-  return false;
+  if (ac.stall) return false;
+  return noseOffDeg(state, ac) <= FIRST_NOSE_DEG;
 }
 
 /**
@@ -1270,7 +1267,7 @@ function isAcNoseOn(state, ac, target) {
  * and the look-ahead's score both use it, so they cannot disagree.
  */
 function onTheOther(state, ac, target) {
-  if (!isAcNoseOn(state, ac, target)) return false;
+  if (ac.stall || !isAcNoseOn(state, ac, target)) return false;
   return state.setup.chaseAfterHeadOn || 180 - noseOffDeg(state, target) <= PURSUIT_MAX_AA_DEG;
 }
 
@@ -1298,14 +1295,35 @@ function checkFirstNose(state) {
   if (state.setup.pursuit === 'none') return;
   const chasers = [];
   for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
-    if (ac.ctl.mode !== 'pursuit' && onTheOther(state, ac, target)) {
+    if (ac.ctl.mode !== 'pursuit' && !ac.stall && onTheOther(state, ac, target)) {
       chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
     }
   }
-  if (!chasers.length) return;
-  for (const { ac } of chasers) startPursuit(state, ac);
+  // Across altitude separation (D395): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
+  if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+    if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
+      const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
+      if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
+        startPursuit(state, state.blue);
+        startPursuit(state, state.red);
+      }
+    }
+  }
+
+
+  if (chasers.length) {
+    for (const { ac } of chasers) startPursuit(state, ac);
+    if (!state.chase) {
+      state.chase = { by: chasers.length === 2 ? 'both' : chasers[0].ac.who, timeSec: state.timeSec, aaDeg: chasers[0].aspectDeg };
+    }
+  }
   if (!state.chase) {
-    state.chase = { by: chasers.length === 2 ? 'both' : chasers[0].ac.who, timeSec: state.timeSec, aaDeg: chasers[0].aspectDeg };
+    for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
+      if (!ac.stall && onTheOther(state, ac, target)) {
+        state.chase = { by: ac.who, timeSec: state.timeSec, aaDeg: 180 - noseOffDeg(state, target) };
+        break;
+      }
+    }
   }
 }
 

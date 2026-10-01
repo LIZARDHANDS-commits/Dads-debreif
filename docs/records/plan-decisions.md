@@ -251,6 +251,8 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D393** | Immelmann 5.0 G / Shaker Pull | Decided | Immelmann pull calibrated at 5.0 G until stick shaker AOA, then rides stick shaker over apex. |
 | **D394** | chaseAfterHeadOn true by default | Decided | Turn Fight Energy Mode defaults chaseAfterHeadOn to true for active 3D BFM dogfight engagement. |
 | **D395** | Energy Mode 3D Merge Azimuth Acquisition | Decided | When engaging with altitude separation (blueAltFt !== redAltFt), nose-on detects azimuth line-of-sight tracking (<= 5°), initiating 3D combat pursuit for both aircraft. |
+| **D396** | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry | Decided | Stalled aircraft lose aerodynamic roll/pitch authority (bank freezes, maxRollDelta = 0) and cannot track or claim nose-on or pursuit win (isAcNoseOn and onTheOther require !ac.stall). Across vertical separation, azimuth acquisition engages both fighters into 3D combat pursuit only after the merge pass (timeSec > mergeSec + 1.0 and both in MPT), preventing premature abort of user-commanded maneuvers (e.g. Immelmann) at T=0. Higher-energy aircraft legitimately win while low-energy aircraft stall during zoom climbs per Boyd E-M physics. |
+
 
 ---
 
