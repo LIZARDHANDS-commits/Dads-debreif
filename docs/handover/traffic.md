@@ -21,9 +21,10 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 - **Safety Pre-Edit Backup:** [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak).
 - Landed: PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering), height drop lines moved to Layers menu.
 - Landed: PATCH-020 (Stage 1 Vector Physics Slices A–E in `sim.js: fly(a)`, overhead break drag curve, dynamic perch capture, adaptive final turn descent easing, touch-and-go closed pattern circuit, and crosscheck expected table realignment).
-- Next up: Stage 2 (UI Controls): Slices F–G (spawner presets, multi-track display toggles, in-flight action commands).
-- Full test baseline: `npm test` passes 100% green (2,961 passed, 0 failed, 1 skipped).
-- Production build: `npm run build` passes in ~335ms.
+- Landed: PATCH-021 (Stage 2 Pilot UI Controls: operational spawner presets for Inner Downwind/Perch/Final, multi-track display toggles, in-flight Breakout and Go-around action buttons).
+- Next up: Gate 1 Verification Checklist (`docs/checklists/traffic.md`) & human sign-off with Patrick.
+- Full test baseline: `npm test` passes 100% green (2,965 passed, 0 failed, 1 skipped).
+- Production build: `npm run build` passes in ~348ms.
 - Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 
 ## Settled numbers (Patrick's calls win over the manuals)

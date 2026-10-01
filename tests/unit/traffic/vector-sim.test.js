@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeWindPerch, generateWindAdjustedTrack } from '../../../src/modules/traffic/route.js';
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
+import { PILOT_SPAWN_PRESETS } from '../../../src/modules/traffic/aircraft.js';
 import { ktToFtps } from '../../../src/core/units.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
@@ -400,6 +401,66 @@ test('Slice E: in-flight touch-and-go pilot command re-enters closed pattern', (
   assert.equal(aCmd.kt, 100);
   assert.equal(aCmd.alt, 1892);
   assert.equal(aCmd.bankDeg, 0);
+});
+
+test('Slice F: PILOT_SPAWN_PRESETS provides operational pilot-intuitive spawn points', () => {
+  const ids = PILOT_SPAWN_PRESETS.map((p) => p.id);
+  assert.ok(ids.includes('initial'));
+  assert.ok(ids.includes('downwind'));
+  assert.ok(ids.includes('perch'));
+  assert.ok(ids.includes('final2m'));
+  assert.ok(ids.includes('final1m'));
+  assert.ok(ids.includes('takeoff'));
+
+  const downwind = PILOT_SPAWN_PRESETS.find((p) => p.id === 'downwind');
+  assert.equal(downwind.routeId, 'PAT1');
+  assert.equal(downwind.point, 11);
+  assert.match(downwind.label, /Inner Downwind/);
+
+  const perch = PILOT_SPAWN_PRESETS.find((p) => p.id === 'perch');
+  assert.equal(perch.routeId, 'PAT1');
+  assert.equal(perch.point, 12);
+
+  const final2m = PILOT_SPAWN_PRESETS.find((p) => p.id === 'final2m');
+  assert.equal(final2m.routeId, 'ENT2');
+  assert.equal(final2m.point, 4);
+});
+
+test('Slice G: in-flight breakout command climbs to 3,500 ft, turns 90 deg and accelerates to 140 kt', () => {
+  const setup = structuredClone(MOOSE_JAW);
+  setup.aircraft = [
+    { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 11, startsAtSec: 0 }
+  ];
+  const sim = createSim(setup, { seed: 1 });
+  sim.stepTo(10);
+
+  const initialHdg = sim.state().aircraft[0].headingDeg;
+  sim.command('A1', 'breakout');
+
+  // Step 20 seconds forward in breakout
+  sim.stepTo(30);
+  const aBreak = sim.state().aircraft[0];
+  assert.equal(aBreak.command, 'breakout');
+  assert.equal(aBreak.status, 'flying');
+  assert.equal(Math.round(aBreak.headingDeg), Math.round((initialHdg + 90) % 360));
+  assert.equal(aBreak.kt, 140);
+  assert.equal(aBreak.alt, 3500);
+});
+
+test('Slice G: in-flight go-around command climbs to 2,500 ft, accelerates to 140 kt and rejoins circuit', () => {
+  const setup = structuredClone(MOOSE_JAW);
+  setup.aircraft = [
+    { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 12, startsAtSec: 0 }
+  ];
+  const sim = createSim(setup, { seed: 1 });
+  sim.stepTo(10);
+
+  sim.command('A1', 'go_around');
+  const aGo = sim.state().aircraft[0];
+  assert.equal(aGo.command, 'go_around');
+  assert.equal(aGo.alt, 2500);
+  assert.equal(aGo.kt, 140);
+  assert.equal(aGo.phase, 'touch_and_go');
 });
 
 

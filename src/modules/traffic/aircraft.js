@@ -20,10 +20,10 @@ export { SPAWN_TYPES };
 export const PILOT_SPAWN_PRESETS = Object.freeze([
   { id: 'custom', label: 'Preset: (Custom point)', routeId: '', point: 1 },
   { id: 'initial', label: 'Initial (3,500 ft, 220 kt, Run-in)', routeId: 'PAT1', point: 9 },
-  { id: 'downwind', label: 'Downwind (3,500 ft, 140 kt, Mid-pattern)', routeId: 'PAT1', point: 6 },
+  { id: 'downwind', label: 'Inner Downwind (3,500 ft, 140 kt)', routeId: 'PAT1', point: 11 },
   { id: 'perch', label: 'Perch (3,500 ft, 120 kt, Final turn)', routeId: 'PAT1', point: 12 },
   { id: 'final2m', label: '2-Mile Final (2,700 ft, 120 kt, Straight-in)', routeId: 'ENT2', point: 4 },
-  { id: 'final1m', label: '1-Mile Final (2,120 ft, 110 kt, Short final)', routeId: 'PAT1', point: 13 },
+  { id: 'final1m', label: '1-Mile Final (2,120 ft, 100 kt, Short final)', routeId: 'PAT1', point: 13 },
   { id: 'takeoff', label: 'Takeoff (RWY 29L Threshold, 100 kt)', routeId: 'PAT1', point: 1 },
   { id: 'rejoin45', label: 'Rejoin 45° Line (Entry 1, 3,500 ft, 220 kt)', routeId: 'ENT1', point: 1 },
   { id: 'rejoinStraight', label: 'Rejoin Straight-In Line (Entry 2, 2,700 ft, 140 kt)', routeId: 'ENT2', point: 1 },
@@ -209,13 +209,50 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
+        const children = [
+          h('span', { class: 'aircraft-name' }, swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`),
+          ' ',
+          h('span', { class: 'aircraft-detail' }, detailText(row)),
+        ];
+        if (row.status === 'flying') {
+          const breakoutBtn = h(
+            'button',
+            {
+              type: 'button',
+              class: 'button-tiny',
+              title: 'Breakout: climb to 3,500 ft, turn 90° away',
+              onclick: (e) => {
+                e?.stopPropagation?.();
+                sim.command(row.id, 'breakout');
+                onChange?.();
+              },
+            },
+            'Breakout',
+          );
+          const goAroundBtn = h(
+            'button',
+            {
+              type: 'button',
+              class: 'button-tiny',
+              title: 'Go-around: climb to 2,500 ft, re-enter pattern',
+              onclick: (e) => {
+                e?.stopPropagation?.();
+                sim.command(row.id, 'go_around');
+                onChange?.();
+              },
+            },
+            'Go-around',
+          );
+          children.push(h('div', { class: 'aircraft-actions' }, breakoutBtn, goAroundBtn));
+        }
         listBody.appendChild(
           h(
             'li',
-            { class: `aircraft-row status-${row.status}`, dataset: { aircraftId: row.id } },
-            h('span', { class: 'aircraft-name' }, swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`),
-            ' ',
-            h('span', { class: 'aircraft-detail' }, detailText(row)),
+            {
+              class: `aircraft-row status-${row.status}${row.engineFailed ? ' has-engine-fail' : ''}`,
+              dataset: { aircraftId: row.id },
+            },
+            ...children,
           ),
         );
       }

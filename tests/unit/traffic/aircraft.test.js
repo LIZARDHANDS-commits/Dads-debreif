@@ -333,3 +333,21 @@ test('the 201st aircraft is refused at + Spawn and + Pair, with the limit in the
   assert.match(say(), /that would make 201 aircraft \(the most is 200\)/);
   assert.equal(changes.length, before, 'and the screen was not told of a change');
 });
+
+test('flying aircraft rows show Breakout and Go-around buttons that issue commands', () => {
+  const { panel, list, sim } = setup();
+  sim.stepTo(60);
+  panel.update(sim.state());
+  const rows = withClass(list, 'aircraft-row');
+  const row0 = rows[0];
+  const breakoutBtn = buttonNamed(row0, 'Breakout');
+  const goAroundBtn = buttonNamed(row0, 'Go-around');
+  assert.ok(breakoutBtn, 'Breakout button is rendered on flying aircraft');
+  assert.ok(goAroundBtn, 'Go-around button is rendered on flying aircraft');
+
+  breakoutBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'breakout');
+
+  goAroundBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'go_around');
+});

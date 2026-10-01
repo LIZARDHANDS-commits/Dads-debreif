@@ -64,7 +64,13 @@ export function aircraftRows(state, setup) {
   return state.aircraft.map((a) => {
     const routeName = (routes.find((r) => r.id === a.routeId) ?? routes[0])?.name ?? '';
     const altFt = Math.round(a.alt), kt = Math.round(a.kt);
-    const statusText = a.engineFailed ? 'ENG FAIL' : (a.command === 'breakout' ? 'Breakout' : STATUS_TEXT[a.status] || a.status);
+    const statusText = a.engineFailed
+      ? 'ENG FAIL'
+      : a.command === 'breakout'
+        ? 'Breakout'
+        : a.command === 'go_around'
+          ? 'Go-around'
+          : STATUS_TEXT[a.status] || a.status;
     return {
       id: a.id, type: a.type, color: a.color, routeName, routeId: a.routeId, leg: a.leg, altFt, kt, status: a.status, statusText,
       engineFailed: Boolean(a.engineFailed), command: a.command ?? null,

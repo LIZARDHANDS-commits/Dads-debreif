@@ -53,15 +53,15 @@
 
 ## Stage 2: Pilot UI Controls & Visual Enhancements
 
-- [ ] **Slice F: Operational Spawner Presets & Multi-Track Display Toggles**
-  - [ ] Update Spawner dropdown in `aircraft.js` / `layout.js` to offer pilot-intuitive points:
+- [x] **Slice F: Operational Spawner Presets & Multi-Track Display Toggles**
+  - [x] Update Spawner dropdown in `aircraft.js` / `layout.js` to offer pilot-intuitive points:
         `Initial (220 kt)`, `Inner Downwind (140 kt)`, `Perch (120 kt)`, `2-Mile Final (120 kt)`, `1-Mile Final (100 kt)`, `Takeoff (100 kt)`.
-  - [ ] Add map display toggle in Layers menu:
-        `Both (Reference + Wind-adjusted)` (default), `Wind-adjusted only`, `SMM reference only`, `Neither`.
-  - [ ] Verify test suite and UI responsiveness.
+  - [x] Add map display toggle in Layers menu:
+        `Both (Reference + Wind-adjusted)` (default), `Wind-adjusted only`, `SMM reference only`, `Neither` (via `layerWindTrack` and `layerSmmReference` layer checkboxes).
+  - [x] Verify test suite and UI responsiveness.
 
-- [ ] **Slice G: In-Flight Pilot Command Actions**
-  - [ ] Enable in-flight action buttons on aircraft cards: `Go-Around` and `Breakout`.
-  - [ ] Implement `Breakout`: climb immediately to $3,500\text{ ft MSL}$, turn 90° away from pattern, accelerate to $140\text{ KIAS}$.
-  - [ ] Implement `Go-Around`: maintain runway heading, climb to $2,500\text{ ft MSL}$, accelerate to $140\text{ KIAS}$, re-enter circuit past departure end.
-  - [ ] Full Gate 1 local verification and Patrick sign-off.
+- [x] **Slice G: In-Flight Pilot Command Actions**
+  - [x] Enable in-flight action buttons on aircraft cards: `Go-Around` and `Breakout`.
+  - [x] Implement `Breakout`: climb immediately to $3,500\text{ ft MSL}$, turn 90° away from pattern, accelerate to $140\text{ KIAS}$.
+  - [x] Implement `Go-Around`: maintain runway heading, climb to $2,500\text{ ft MSL}$, accelerate to $140\text{ KIAS}$, re-enter circuit past departure end.
+  - [x] Full Gate 1 local verification and Patrick sign-off.

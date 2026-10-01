@@ -520,3 +520,28 @@
 * **Verification:**  
   100% green test suite across entire repository (`2,961 passed, 0 failed, 1 skipped` in 48.9s); `npm run typecheck` passed (0 errors); `npm run build` passed in 335ms.
 
+---
+
+### PATCH-021: Stage 2 Pilot UI Controls (Slices F & G) Integration
+* **Date & Time:** 2026-10-01 05:15 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+  * [`src/modules/traffic/readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/readouts.js)
+  * [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md)
+  * [`tests/unit/traffic/aircraft.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/aircraft.test.js)
+  * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js)
+* **Problem / Flaw Addressed:**  
+  1. Pilots spawning aircraft lacked immediate access to operational pattern points (specifically Inner Downwind at Point 11 with 140 KIAS vs. Outer Downwind at Point 6).
+  2. Pilots lacked interactive in-flight control over emergency commands (`Breakout` and `Go-Around`) directly from the aircraft cards in the right-hand panel.
+* **Changes Made:**
+  1. **Slice F (Spawner Presets):** Updated `PILOT_SPAWN_PRESETS` in `aircraft.js` to accurately map Inner Downwind (3,500 ft, 140 kt) to Point 11 on PAT1, and verified multi-track display toggles (`layerWindTrack` and `layerSmmReference`) in the Layers dropdown.
+  2. **Slice G (In-Flight Pilot Commands):** Rendered interactive `Breakout` and `Go-around` buttons on flying aircraft cards in `aircraft.js` styled with `.button-tiny` from `traffic.css`. Updated `readouts.js` to report `Go-around` in aircraft status cells when active.
+  3. **Unit Tests:** Added unit tests verifying preset configurations and command execution in `vector-sim.test.js` and `aircraft.test.js`. Checked off Slices F and G in `tasks/traffic/vector-physics-todo.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D384**, and **D391**. Gives pilots direct, intuitive control over vector pattern entries and standard flight abort/re-entry procedures per 15 Wing SMM Ch 16.
+* **Verification:**  
+  100% green test suite across entire repository (`2,965 passed, 0 failed, 1 skipped` in 49.8s); `npm run typecheck` passed (0 errors); `npm run build` passed in 348ms.
+
+
