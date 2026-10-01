@@ -321,10 +321,11 @@ flowchart TD
   - Add unit test for engine setup error catch (`RangeError` guard in `energy-state.test.js`).
   - Add polling intervals `{ intervals: [50] }` to Split S Playwright e2e test to prevent race condition.
   - Adopt fuzzy regex matching / case-insensitive locator in `tests/e2e/turn-fight.spec.js` to prevent brittle float/string failures under domain tolerances.
-  - Integrate Tactical 3D Suite (`computeFloorZ`, `computePlumbGeometry`, plumb lines and ground-shadow contact discs per D392).
-  - Enable active combat pursuit across head-on re-merge by default per Patrick's ratification (D394).
-  - Resolve 3D merge azimuth line-of-sight tracking across vertical altitude splits (D386, D395) so fighters engage into active pursuit rather than passive rate circles.
-  - All 506 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
+  - Integrate Tactical 3D Suite (`computeFloorZ`, `computePlumbGeometry`, plumb lines and ground-shadow contact discs per D401).
+  - Enable active combat pursuit across head-on re-merge by default per Patrick's ratification (D403).
+  - Resolve 3D merge azimuth line-of-sight tracking across vertical altitude splits (D386, D404) so fighters engage into active pursuit rather than passive rate circles.
+  - Enforce pilot stall authority loss (`maxRollDelta = 0`, freeze bank, disqualification from nose-on/pursuit win) & post-merge 3D pursuit entry (D405).
+  - All 508 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
 - [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
