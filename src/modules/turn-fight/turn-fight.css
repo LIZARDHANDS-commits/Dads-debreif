@@ -203,7 +203,8 @@
 
 /* V6's dark stage: --bg-raised, which is V6's #071018. */
 [data-module='turn-fight'] .tf-topdown-wrap,
-[data-module='turn-fight'] .tf-profile {
+[data-module='turn-fight'] .tf-profile,
+[data-module='turn-fight'] .tf-energy-panel {
   position: relative;
   min-height: 0;
   border: 1px solid var(--border);
@@ -348,7 +349,8 @@
   color: var(--tf-red);
 }
 
-[data-module='turn-fight'] .tf-3d-label-nose {
+[data-module='turn-fight'] .tf-3d-label-nose,
+[data-module='turn-fight'] .tf-3d-label-deck {
   color: var(--tf-nose);
   font-weight: normal;
 }
@@ -383,6 +385,115 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
   text-shadow: 0 0 3px #000;
+}
+
+/* Energy (T-6): each aircraft's start altitude and merge speed, the move the model chose, and the note about high starts. */
+[data-module='turn-fight'] .tf-energy-row {
+  margin-top: var(--space-2);
+}
+
+/* These two labels may wrap: "Start altitude (ft)" and "Merge speed (KIAS)" share the row. */
+[data-module='turn-fight'] .tf-energy-row .control > label {
+  white-space: normal;
+}
+
+/* "10000" and "220" need more than the simple boxes' 4.25rem. */
+[data-module='turn-fight'] .tf-aircraft .tf-energy-row input[type='number'] {
+  width: 5.5rem;
+}
+
+[data-module='turn-fight'] .tf-move {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--tf-who);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-move:empty {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-alt-note {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--caution);
+}
+
+/* Words first, colour beside them: a flag is on when the cell says OVER G or STALL, and it is also coloured and bold. */
+[data-module='turn-fight'] .tf-readout .tf-flag {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+[data-module='turn-fight'] .tf-flag-notes {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-flag-notes:empty {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-flag-notes li {
+  margin: 0 0 var(--space-1);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--bad);
+}
+
+/* Energy's side view: the key, the altitude graph, its summary line and its table, in one panel that takes the room it needs. */
+[data-module='turn-fight'] .tf-energy-panel {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  overflow-y: auto;
+  max-height: 16rem;
+}
+
+[data-module='turn-fight'] .tf-energy-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-energy-key .tf-blue,
+[data-module='turn-fight'] .tf-energy-key .tf-red {
+  color: var(--tf-who);
+}
+
+[data-module='turn-fight'] .tf-deck-key {
+  color: var(--tf-nose);
+}
+
+/* uPlot sizes itself to this box (energy-graph.js). */
+[data-module='turn-fight'] .tf-energy-chart {
+  flex: none;
+  width: 100%;
+  height: clamp(7rem, 20vh, 9rem);
+}
+
+[data-module='turn-fight'] .tf-energy-summary {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-module='turn-fight'] .tf-energy-table summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-energy-table .tf-readout {
+  margin-top: var(--space-1);
+}
+
+[data-module='turn-fight'] .tf-check-reset {
+  margin-top: var(--space-2);
 }
 
 /* Last, so a hidden panel or box stays hidden whatever display it was given above. */
