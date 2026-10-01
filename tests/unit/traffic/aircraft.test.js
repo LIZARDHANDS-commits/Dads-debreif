@@ -55,6 +55,9 @@ test('the spawner starts on the first entry (the first pattern when there is non
   assert.equal(defaultSpawnRouteId(routes), 'ENT1');
   assert.equal(defaultSpawnRouteId(routes.filter((r) => r.kind !== 'entry')), 'PAT1');
   assert.equal(defaultSpawnRouteId([]), '');
+  assert.equal(defaultSpawnRouteId([{ id: 'S1', kind: 'split' }]), 'S1', 'falls back to first route when only splits exist');
+  assert.equal(defaultSpawnRouteId([{ id: 'CUSTOM' }]), 'CUSTOM', 'handles missing kind cleanly');
+  assert.equal(defaultSpawnRouteId([null, undefined, { id: 'PAT1', kind: 'pattern' }]), 'PAT1', 'handles null/undefined route entries cleanly');
   assert.equal(spawnRouteId('first-entry', routes), 'ENT1');
   assert.equal(spawnRouteId('SPL2', routes), 'SPL2');
   assert.equal(spawnRouteId('GONE', routes), 'ENT1', 'a route that has gone falls back to the default');
@@ -116,25 +119,25 @@ test('the boxes decide the aircraft: type, route, start point and delay', () => 
   const { spawner, sim, settings } = setup();
   settings.update({ spawnType: 'CT-114' });
   const route = inputFor(spawner, 'Route');
-  route.value = 'SPL1';
+  route.value = 'ENT2';
   route.dispatch('change');
   type(inputFor(spawner, 'Start at point'), '3');
   type(inputFor(spawner, 'Delay'), '45');
   buttonNamed(spawner, '+ Spawn').dispatch('click');
   const added = sim.state().aircraft.at(-1);
-  assert.deepEqual([added.type, added.routeId, added.startsAt], ['CT-114', 'SPL1', 45]);
-  assert.equal(settings.get().spawnRoute, 'SPL1');
+  assert.deepEqual([added.type, added.routeId, added.startsAt], ['CT-114', 'ENT2', 45]);
+  assert.equal(settings.get().spawnRoute, 'ENT2');
 });
 
 test('the spawner keeps its own route when a route is picked elsewhere, and follows a route that is added', () => {
   const { panel, spawner, traffic } = setup();
   const route = inputFor(spawner, 'Route');
-  route.value = 'SPL2';
+  route.value = 'ENT3';
   route.dispatch('change');
   traffic.routes.push({ ...traffic.routes[1], id: 'ENT9', name: 'Entry 9' });
   panel.routesChanged();
-  assert.equal(inputFor(spawner, 'Route').value, 'SPL2', 'its own choice stays');
-  assert.equal(tagged(inputFor(spawner, 'Route'), 'OPTION').length, 10);
+  assert.equal(inputFor(spawner, 'Route').value, 'ENT3', 'its own choice stays');
+  assert.equal(tagged(inputFor(spawner, 'Route'), 'OPTION').length, 6);
   assert.equal(words(tagged(inputFor(spawner, 'Route'), 'OPTION').at(-1)), 'Entry 9');
 });
 
@@ -177,11 +180,12 @@ test('a refused spawn adds nothing, says why, and never throws', () => {
 });
 
 test('Clear finished drops the aircraft that have landed or are done, and says how many', () => {
-  const { spawner, sim } = setup();
+  const { spawner, sim, traffic } = setup();
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), '');
   buttonNamed(spawner, 'Clear finished').dispatch('click');
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'No finished aircraft to clear.');
   // An entry with nothing to join ends "Done": a route of its own.
+  delete traffic.routes.find((r) => r.id === 'ENT1').attachTo;
   sim.spawn({ routeId: 'ENT1', startPoint: 4 });
   sim.stepTo(60 * 20);
   const finished = sim.state().aircraft.filter((a) => a.status === 'landed' || a.status === 'done').length;
@@ -334,20 +338,46 @@ test('the 201st aircraft is refused at + Spawn and + Pair, with the limit in the
   assert.equal(changes.length, before, 'and the screen was not told of a change');
 });
 
-test('flying aircraft rows show Breakout and Go-around buttons that issue commands', () => {
+test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted Go-around buttons', () => {
   const { panel, list, sim } = setup();
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
   const row0 = rows[0];
   const breakoutBtn = buttonNamed(row0, 'Breakout');
+  const highKeyBtn = buttonNamed(row0, 'High Key');
+  const pflBtn = buttonNamed(row0, 'PFL');
   const goAroundBtn = buttonNamed(row0, 'Go-around');
+
   assert.ok(breakoutBtn, 'Breakout button is rendered on flying aircraft');
+  assert.ok(highKeyBtn, 'High Key button is rendered on flying aircraft');
+  assert.ok(pflBtn, 'PFL button is rendered on flying aircraft');
   assert.ok(goAroundBtn, 'Go-around button is rendered on flying aircraft');
 
+  // Go-around is disabled before the landing window (e.g. on climbout)
+  assert.equal(goAroundBtn.disabled, true, 'Go-around is disabled outside the final approach window');
+  goAroundBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, null, 'Clicking disabled Go-around does not trigger command');
+
+  // Breakout issues command from anywhere
   breakoutBtn.dispatch('click');
   assert.equal(sim.state().aircraft[0].command, 'breakout');
 
-  goAroundBtn.dispatch('click');
-  assert.equal(sim.state().aircraft[0].command, 'go_around');
+  // High Key issues climb_high_key command
+  highKeyBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'climb_high_key');
+
+  // PFL issues pfl_current command
+  pflBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'pfl_current');
+
+  // Aircraft on final approach window (point 13 = threshold / final) has Go-around enabled
+  const id = sim.spawn({ id: 'AFINAL', routeId: 'PAT1', startPoint: 13, delaySec: 0 });
+  panel.update(sim.state());
+  const finalRow = withClass(list, 'aircraft-row').find((r) => r.dataset.aircraftId === id);
+  assert.ok(finalRow, 'Final approach aircraft row is rendered');
+  const finalGaBtn = buttonNamed(finalRow, 'Go-around');
+  assert.equal(finalGaBtn.disabled, false, 'Go-around is enabled on final approach');
+  finalGaBtn.dispatch('click');
+  assert.equal(sim.state().aircraft.find((a) => a.id === id).command, 'go_around');
 });

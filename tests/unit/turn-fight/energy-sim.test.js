@@ -881,7 +881,7 @@ test('a pursuit starts only from behind: the other\'s aspect angle is 150° or l
   assert.equal(headOn.chase, null);
 });
 
-test('chaseAfterHeadOn is on by default (D394): a head-on pass starts pursuit', () => {
+test('chaseAfterHeadOn is on by default (D403): a head-on pass starts pursuit', () => {
   assert.equal(ENERGY_DEFAULT_SETUP.chaseAfterHeadOn, true);
   const s = runUntil({}, (st) => st.chase, 80);
   assert.equal(s.firstNose.by, 'both');
@@ -1709,7 +1709,7 @@ test('F2 at the deck: a forced pitch back from 221 to 316 KIAS started at the 6,
   assert.ok(worst > 150, `the check is live: the worst is ${worst.toFixed(0)}°`);
 });
 
-test('D395: an Energy Mode fight starting with altitude separation acquires in azimuth and engages in 3D combat', () => {
+test('D404: an Energy Mode fight starting with altitude separation acquires in azimuth and engages in 3D combat', () => {
   const s = createEnergyFight({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200 });
   let minRange = Infinity;
   while (s.timeSec < 80 && !s.stopped) {
@@ -1723,7 +1723,7 @@ test('D395: an Energy Mode fight starting with altitude separation acquires in a
   assert.ok(minRange < 0.15 * 6076.12, `dogfight merge closes range under 0.15 NM (closed to ${(minRange / 6076.12).toFixed(2)} NM)`);
 });
 
-test('D396: in energy fight with vertical split, higher-energy Blue wins, lower-energy Red loses, and stalled aircraft cannot track or win', () => {
+test('D405: in energy fight with vertical split, higher-energy Blue wins, lower-energy Red loses, and stalled aircraft cannot track or win', () => {
   const s = createEnergyFight({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200, chaseAfterHeadOn: true });
   while (s.timeSec < 60 && !s.stopped) {
     stepEnergyFight(s, FIGHT_STEP_SEC);
@@ -1736,7 +1736,7 @@ test('D396: in energy fight with vertical split, higher-energy Blue wins, lower-
   assert.notEqual(s.chase?.by, 'red', 'Stalled Red cannot win');
 });
 
-test('D396: a stalled aircraft loses tracking authority and cannot claim nose-on, firstNose, or pursuit win', () => {
+test('D405: a stalled aircraft loses tracking authority and cannot claim nose-on, firstNose, or pursuit win', () => {
   const s = createEnergyFight({ blueKias: 70, redKias: 200, turnsStart: 'now', chaseAfterHeadOn: true });
   assert.equal(s.blue.stall, true, 'blue starts stalled at 70 KIAS');
   for (let i = 0; i < 50; i++) {

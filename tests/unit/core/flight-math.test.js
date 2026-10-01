@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack, rollToward, dampedClimbG } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -136,3 +136,28 @@ test('gFromTrack reads back the G of a steady level turn', () => {
   assert.equal(gFromTrack(null, 0, p1, 0, 1), null, 'a missing moment');
   assert.equal(gFromTrack(p0, 0, undefined, 0, 1), null);
 });
+
+test('rollToward smoothly rolls toward target bank angle within maxDelta', () => {
+  const maxDelta = 0.1; // rad
+  const step1 = rollToward(0, 0.5, maxDelta);
+  near(step1.bank, 0.1, 1e-12);
+  assert.equal(step1.movedRad, 0.1);
+
+  const step2 = rollToward(0.45, 0.5, maxDelta);
+  near(step2.bank, 0.5, 1e-12);
+  near(step2.movedRad, 0.05, 1e-12);
+
+  // wrapPi shortest arc
+  const wrapStep = rollToward(-3.1, 3.1, maxDelta);
+  assert.ok(Math.abs(wrapStep.movedRad) <= maxDelta);
+});
+
+test('dampedClimbG computes 1 G in level flight and increases with climb error', () => {
+  const v = ktToFtps(140);
+  const gLevel = dampedClimbG(0, 0, v, 1.0);
+  near(gLevel, 1.0, 1e-12);
+
+  const gPull = dampedClimbG(0, 0.1, v, 1.0);
+  assert.ok(gPull > 1.0);
+});
+

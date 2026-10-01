@@ -205,7 +205,7 @@ export function heightAtTime(points, timeSec) {
 }
 
 /**
- * Computes the reference floor height (feet) for tactical plumb lines and ground shadows (D392).
+ * Computes the reference floor height (feet) for tactical plumb lines and ground shadows (D401).
  * Simple Mode: terrain grid level below lowest height flown.
  * Energy Mode: Hard Deck plane (hardDeckFt). If the aircraft breaches the hard deck, floor plunges to 0 ft MSL.
  */
@@ -223,7 +223,7 @@ export function computeFloorZ(fight, bounds, altFt = null) {
 }
 
 /**
- * Computes the 2-point vertical line coordinates [x, y, z_aircraft, x, y, z_floor] for a plumb line (D392).
+ * Computes the 2-point vertical line coordinates [x, y, z_aircraft, x, y, z_floor] for a plumb line (D401).
  */
 export function computePlumbGeometry(pose, floorZ) {
   const zFloor = altToZ(floorZ, ALT_SCALE);
@@ -450,7 +450,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       lines[who] = line;
     }
 
-    // D392: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
+    // D401: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
     const plumbLines = {};
     const shadowDiscs = {};
     for (const who of SHIPS) {
@@ -588,7 +588,7 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       applyAttitude(mesh, pose);
 
-      // D392: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
+      // D401: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
       const floorZ = computeFloorZ(fight, bounds, fight[who].zFt);
       const plumbData = computePlumbGeometry(pose, floorZ);
       const plumbAttr = gl.plumbLines[who].geometry.attributes.position;

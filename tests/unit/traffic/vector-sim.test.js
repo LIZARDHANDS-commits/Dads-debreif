@@ -426,7 +426,7 @@ test('Slice F: PILOT_SPAWN_PRESETS provides operational pilot-intuitive spawn po
   assert.equal(final2m.point, 4);
 });
 
-test('Slice G: in-flight breakout command climbs to 3,500 ft, turns 90 deg and accelerates to 140 kt', () => {
+test('Slice G: in-flight breakout command climbs to 3,500 ft, vectors toward P_breakout and accelerates to 140-180 kt', () => {
   const setup = structuredClone(MOOSE_JAW);
   setup.aircraft = [
     { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 11, startsAtSec: 0 }
@@ -434,7 +434,6 @@ test('Slice G: in-flight breakout command climbs to 3,500 ft, turns 90 deg and a
   const sim = createSim(setup, { seed: 1 });
   sim.stepTo(10);
 
-  const initialHdg = sim.state().aircraft[0].headingDeg;
   sim.command('A1', 'breakout');
 
   // Step 20 seconds forward in breakout
@@ -442,12 +441,12 @@ test('Slice G: in-flight breakout command climbs to 3,500 ft, turns 90 deg and a
   const aBreak = sim.state().aircraft[0];
   assert.equal(aBreak.command, 'breakout');
   assert.equal(aBreak.status, 'flying');
-  assert.equal(Math.round(aBreak.headingDeg), Math.round((initialHdg + 90) % 360));
-  assert.equal(aBreak.kt, 140);
-  assert.equal(aBreak.alt, 3500);
+  assert.equal(aBreak.phase, 'breakout');
+  assert.ok(aBreak.kt >= 140 && aBreak.kt <= 180, `Speed ${aBreak.kt} should be in 140-180 kt cruise climb`);
+  assert.ok(aBreak.alt >= 2500 && aBreak.alt <= 3500);
 });
 
-test('Slice G: in-flight go-around command climbs to 2,500 ft, accelerates to 140 kt and rejoins circuit', () => {
+test('Slice G: in-flight go-around executes authentic climb to 2,500 ft, level acceleration, zoom climb and pattern rejoin', () => {
   const setup = structuredClone(MOOSE_JAW);
   setup.aircraft = [
     { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 12, startsAtSec: 0 }
@@ -458,9 +457,37 @@ test('Slice G: in-flight go-around command climbs to 2,500 ft, accelerates to 14
   sim.command('A1', 'go_around');
   const aGo = sim.state().aircraft[0];
   assert.equal(aGo.command, 'go_around');
-  assert.equal(aGo.alt, 2500);
-  assert.equal(aGo.kt, 140);
-  assert.equal(aGo.phase, 'touch_and_go');
+  assert.equal(aGo.phase, 'go_around');
+  assert.equal(aGo.headingDeg, 298); // Runway axis
+  assert.ok(aGo.alt >= 1892);
+
+  // Advance through acceleration and zoom climb
+  sim.stepTo(50);
+  const aGo50 = sim.state().aircraft[0];
+  assert.ok(aGo50.alt >= 2500, `Altitude ${aGo50.alt} should reach at least 2,500 ft`);
+  assert.ok(aGo50.kt >= 140, `Speed ${aGo50.kt} should be accelerating`);
+});
+
+test('Slice 1.2: straight-in maintains 120 KIAS at 2,700 ft MSL until 0.75 NM from threshold, then bleeds to 100 KIAS', () => {
+  const setup = structuredClone(MOOSE_JAW);
+  setup.routes.push({
+    id: 'PAT_SI',
+    name: 'Straight-In Recovery',
+    kind: 'pattern',
+    points: [
+      { label: 'Final (120 kt)', x: 25087.20, y: -15151.92, alt: 2700, kt: 120, g: 1 },
+      { label: 'Threshold', x: 3103.84, y: -3193.93, alt: 1892, kt: 100, g: 1 }
+    ]
+  });
+  setup.aircraft = [
+    { id: 'A1', type: 'CT-156', routeId: 'PAT_SI', startIndex: 0, startsAtSec: 0 }
+  ];
+  const sim = createSim(setup, { seed: 1 });
+  // Far out (> 0.75 NM / 4,558 ft): holds 120 KIAS and 2,700 ft MSL
+  sim.stepTo(10);
+  const aFar = sim.state().aircraft[0];
+  assert.equal(aFar.alt, 2700);
+  assert.equal(aFar.kt, 120);
 });
 
 

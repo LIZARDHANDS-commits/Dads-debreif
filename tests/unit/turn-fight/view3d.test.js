@@ -610,7 +610,7 @@ test('stopping 3D on purpose releases the context without calling it a loss', as
   });
 });
 
-// ---- D392: Tactical 3D Suite (plumb lines and contact discs) ----------------
+// ---- D401: Tactical 3D Suite (plumb lines and contact discs) ----------------
 
 test('computeFloorZ returns terrain level in Simple mode and hard deck in Energy mode', () => {
   // Simple mode: 1000 ft below lowest reached altitude

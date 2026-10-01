@@ -41,7 +41,7 @@ function setup(options = {}) {
     toggleColumn: (name, open) => calls.push(['column', name, open]),
     camera: (name) => calls.push(['camera', name]),
   };
-  const ui = createLayout({ bar, listen, on, available: options.available });
+  const ui = createLayout({ bar, listen, on, available: options.available, filterSplits: options.filterSplits });
   return { ui, bar, calls, listeners };
 }
 
@@ -306,3 +306,28 @@ test('a line on the map says why 3D can\'t start, in 2D too, and clears again', 
   ui.setNote3d(null);
   assert.equal(note.hidden, true);
 });
+
+test('filterSplits filters out kind split and clears selection when split route is passed', () => {
+  const { ui } = setup({ filterSplits: true });
+  // With filterSplits: true, Split 1 should not appear in the routes list
+  ui.setRoutes(ROUTES);
+  const rows = withClass(ui.element, 'route-row');
+  assert.deepEqual(rows.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1']);
+
+  // Selecting a valid pattern route shows its point table
+  ui.setRoutes(ROUTES, 'p1');
+  const section = one(ui.element, 'point-table-section');
+  assert.equal(section.hidden, false);
+  assert.equal(words(one(ui.element, 'point-table-title')), 'Pattern 1');
+
+  // Attempting to select a split route clears selection and hides the table
+  ui.setRoutes(ROUTES, 's1');
+  assert.equal(section.hidden, true);
+  assert.equal(words(one(ui.element, 'point-table-title')), '');
+
+  // Robust against null or undefined route items
+  ui.setRoutes([null, undefined, ...ROUTES]);
+  const rowsAfter = withClass(ui.element, 'route-row');
+  assert.deepEqual(rowsAfter.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1']);
+});
+

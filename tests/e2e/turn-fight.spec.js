@@ -1343,7 +1343,7 @@ test('the fight flies to the MPT: without head-on chase both read MPT, 162 KIAS,
   await playButton(page).click();
 });
 
-test('by default (D394), the head-on pass initiates active combat pursuit: both aircraft switch to pursuit', async ({ page }) => {
+test('by default (D403), the head-on pass initiates active combat pursuit: both aircraft switch to pursuit', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await energyBox(page).check();
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });

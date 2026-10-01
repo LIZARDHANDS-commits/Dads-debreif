@@ -63,9 +63,10 @@ function mount(root, app) {
       play,
       pause,
       rewind,
+      reset: resetRun,
       step: (seconds) => stepBy(seconds),
       fit: () => (shown === '3d' ? view3d.preset('fit') : map.fit()),
-      fitAll: () => map.fitAll(),
+      fitAll: () => (shown === '3d' ? view3d.preset('fit') : map.fitAll()),
       speed: (x) => settings.update({ speed: x }),
     },
   });
@@ -79,6 +80,7 @@ function mount(root, app) {
       camera: (name) => view3d.preset(name),
       toggleHeightLines: (active) => view3d.setHeightLines(active),
     },
+    filterSplits: true,
   });
   const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed() });
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
@@ -199,10 +201,13 @@ function mount(root, app) {
   }
 
   function showRoutes() {
-    ui.setRoutes(routeRows(setup.routes), selectedRouteId);
+    const visibleRoutes = setup.routes.filter((r) => r.kind !== 'split');
+    ui.setRoutes(routeRows(visibleRoutes), selectedRouteId);
   }
 
   function selectRoute(id) {
+    const route = setup.routes.find((r) => r.id === id);
+    if (route && route.kind === 'split') id = null;
     selectedRouteId = id;
     showRoutes();
     editor.show(id);

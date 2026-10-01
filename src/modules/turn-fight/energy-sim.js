@@ -139,7 +139,7 @@ const SLICE_ENTRY_LOW_KIAS = 100; // SMM 14.18: the slice is flown from 100 to 1
 // and its Table 14.1 says about 4 G. The numbers come from T6A_MANOEUVRE; this file flies the same law.
 /** One definition of "rolling": a bank change faster than this (deg/s) is a roll. The roll itself is 90°/s; the MPT's trim is a few deg/s. It drives OVER G's 4.7 G limit, the MPT's 4 G while rolling, and the chaser's cap. Model setting. */
 const ROLLING_DEG_PER_SEC = 15;
-/** A pursuit starts from behind (aspect <= 150°), or across a head-on re-pass with `chaseAfterHeadOn` (default true per Patrick's ratification, D394). Model setting. */
+/** A pursuit starts from behind (aspect <= 150°), or across a head-on re-pass with `chaseAfterHeadOn` (default true per Patrick's ratification, D403). Model setting. */
 const PURSUIT_MAX_AA_DEG = 150;
 const FORCE_G_MAX = 12;           // a what-if G of 0 to 12 (core's +7 G limit, and some way past it)
 
@@ -1299,7 +1299,7 @@ function checkFirstNose(state) {
       chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
     }
   }
-  // Across altitude separation (D395): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
+  // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
   if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
