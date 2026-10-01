@@ -30,6 +30,14 @@
 | [**PATCH-017**](#patch-017-visual-wind-adjusted-track-overlay--dynamic-perch-calculation) | M1 | 2026-10-01 00:45Z | Aero & Route | Visual Wind-Adjusted Track Overlay & Dynamic Perch Calculation | Pass |
 | [**PATCH-018**](#patch-018-3d-satellite-ground-plane-fix--airfield-ground-truth-baseline) | M1 | 2026-10-01 03:40Z | 3D & Ground | 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline | Pass |
 | [**PATCH-019**](#patch-019-master-vector-physics-specification-mathematical-equations--simjs-pre-vector-snapshot) | M1 | 2026-10-01 04:15Z | Aero & Spec | Master Vector Physics Spec, Equations, Snapshot & Checklist | Pass |
+| [**PATCH-020**](#patch-020-stage-1-vector-physics-slices-ae-integration--crosscheck-realignment) | M1 | 2026-10-01 05:05Z | Aero & SMM | Stage 1 Vector Physics Slices A–E Integration & Crosscheck Realignment | Pass |
+| [**PATCH-021**](#patch-021-stage-2-pilot-ui-controls-slices-f--g-integration) | M1 | 2026-10-01 05:15Z | UI & SMM | Stage 2 Pilot UI Controls (Slices F & G) Integration | Pass |
+| [**PATCH-022**](#patch-022-v20-ui-badge-zero-wind-track-realignment--closed-pattern-climb-physics) | M1 | 2026-10-01 05:40Z | UI & Physics | V2.0 UI Badge, Zero-Wind Track Realignment & Closed Pattern Climb Physics | Pass |
+| [**PATCH-023**](#patch-023-closed-pattern-guidance-calm-wind-rounded-arcs-high-key-pfl--spawner-clean-up) | M1 | 2026-10-01 09:30Z | Aero & Pilot UX | Closed Pattern Guidance, Calm-Wind Rounded Arcs, High Key PFL & Spawner Clean-Up | Pass |
+| [**PATCH-024**](#patch-024-milestone-2-turn-fight-energy-screen--tactical-3d-suite-integration) | M2 | 2026-10-01 07:00Z | 3D & Energy | Milestone 2 Turn Fight Energy Screen & Tactical 3D Suite Integration | Pass |
+| [**PATCH-025**](#patch-025-milestone-2-active-combat-pursuit-default-d403) | M2 | 2026-10-01 07:25Z | BFM Physics | Milestone 2 Active Combat Pursuit Default (D403) | Pass |
+| [**PATCH-026**](#patch-026-energy-mode-3d-merge-azimuth-acquisition-across-vertical-separation-d404) | M2 | 2026-10-01 08:05Z | BFM & 3D | Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D404) | Pass |
+| [**PATCH-027**](#patch-027-pilot-stall-authority-loss--post-merge-3d-pursuit-entry-d405) | M2 | 2026-10-01 09:05Z | Aero & BFM | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D405) | Pass |
 
 ---
 

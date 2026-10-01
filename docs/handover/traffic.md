@@ -27,7 +27,7 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 - Landed: PATCH-021 (Stage 2 Pilot UI Controls: operational spawner presets for Inner Downwind/Perch/Final, multi-track display toggles, in-flight Breakout and Go-around action buttons).
 - Landed: PATCH-022 (V2.0 visual indicator badge, zero-wind V6 outer loop elimination, CT-156 authentic 50° bank closed-pattern climbing turn physics).
 - Landed: PATCH-023 (Closed pattern wings-level 118° rollout to Perch; spawner clean-up keeping working 'Start at point' with dynamic waypoint caption; calm-wind 180° rounded arcs for 60° break and 35° final turn; High Key 5,000 ft threshold overflight heading 298°; continuous 360° circular PFL glide arc; Stage 1 deactivation of SPL1–SPL4).
-- Full test baseline: `npm test` passes 100% green (2,975 passed, 0 failed, 1 skipped; 609/609 traffic tests).
+- Full test baseline: `npm test` passes 100% green (3,045 passed, 0 failed, 1 skipped; 609/609 traffic tests).
 - Production build: `npm run build` passes in ~284ms.
 - Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 
@@ -46,7 +46,8 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 
 - Route redraw with Patrick and Dad (Q59, task 14). V6 routes stay until then.
 - Conflict box sizes (question for Dad, see HANDOVER.md).
-- Not built (future features): PFLs, engine-outs, prediction, live rules, fly-through, departure-end break, closed pattern, set up a conflict, engine-out reach.
+- Built in Milestone 1: Closed pattern (50° bank climb, 118° downwind rollout to Perch), High Key PFL (5,000 ft threshold overflight with continuous 360° circular glide arc), calm-wind rounded arcs, Breakout, Go-around.
+- Deferred to Phase 2 (`POST_PROTOTYPE_QUEUE.md`): Prediction engine, fly-through, conflict setup, engine-out reach.
 
 ## Tips
 

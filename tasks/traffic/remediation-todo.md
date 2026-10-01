@@ -62,8 +62,8 @@
 - [ ] **Slice 3.1: Critical P0 Transport & Spawner Fixes**
   - [x] Wire `reset: resetRun` in `index.js:58-71` to fix Playback Bar Reset button crash
   - [x] Fix "Fit all routes" in 3D mode in `index.js:68` (`view3d.preset('fit')`)
-  - [ ] Fix Spawner "Preset: (Custom point)" dead state in `aircraft.js:137-142`
-  - [ ] Add two-way synchronization between manual route/point controls and preset dropdown
+  - [x] Fix Spawner "Preset: (Custom point)" dead state in `aircraft.js:137-142` *(Superseded by D400 / PATCH-023: redundant preset dropdown removed)*
+  - [x] Add two-way synchronization between manual route/point controls and preset dropdown *(Superseded by D400 / PATCH-023: standardized on "Start at point" with live dynamic caption)*
 - [ ] **Slice 3.2: Archival Quarantine & Obsolete Control Deprecation (P1)**
   - [ ] Remove `moose-jaw-v6` from built-in profiles in `profile.js:307` (D368/D372)
   - [ ] Deprecate `flyRoundedTurns`, `radiusFromG`, and `manualRadiusFt` from `settings-panel.js`
