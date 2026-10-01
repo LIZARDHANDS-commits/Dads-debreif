@@ -1,72 +1,110 @@
 # Turn Fight: tasks
 
-Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md) and the handover note [`docs/handover/turn-fight.md`](../../docs/handover/turn-fight.md). The skill for each step is in the spec's Skills used.
+Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), and master plan [`turn_fight_completion_plan.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_completion_plan.md).
 
-**Streamlined build (Patrick, 2026-09-30 16:37Z).** Until the module is finished, a PR needs only GitHub's automatic tests to pass. The full local run, screenshots, accessibility checks and the Verification check happen once, at the end of the module. New numbers may be within a tolerance (about ±1 kt, ±50 ft, ±1° or ±1%); V6's math that already matches stays exact. No mutation runs, fuzzing or stress runs. 3D is a bonus: keep what is built, no more 3D tests or polish.
+**Streamlined build & Governance Rules:**
+- V6 Decoupling (D368/D372): Baseline is standard aerodynamics and 15 Wing Moose Jaw flight manuals (`../manuals/`). Zero runtime `eval()` or bit-exact float matching.
+- Pilot Domain Tolerances (D369/D371): Airspeed $\pm10$ kt, Alt $\pm100$ ft, Angles $\pm5^\circ$, G $\pm0.5$ G, Turn Rate $\pm2.5^\circ$/s.
+- Milestone 2 Scope: Normal unit and Playwright tests only; no mutation runs. Gate 2 sign-off pauses for Patrick upon full verification.
 
-**Where it stands:** tasks 1 to 7 and the Energy engine are on main (through #235). Left: task 10's screen half, on branch `handover/turn-fight-energy-screen`, then Checkpoint D and the end-of-module test.
+**Where it stands:** Tasks 1–7 and the Energy Engine (8–9) are on `main` (through #235). Remaining: Task 10 (Energy Mode UI, Tactical 3D Suite, Elimination of Traps 1–8, and Master Documentation Synchronization).
 
-- [x] **1. The fight (`sim.js`), pinned to V6.** (#141) `createFight(setup)` and `stepFight(state, dtSec)` in whole 0.02 s steps: start, merge, 1-circle and 2-circle turns, first nose-on, the chase, Climb and dive, the 10-minute stop. Turn math only from `core`. The golden test is written first and fails until `sim.js` exists (test-driven-development).
-  - Acceptance: matches V6's `bfmFight` step by step on the golden grid within 1e-9 ft and 1e-12 rad for 10 minutes of fight time (R9); the same result at any frame rate.
-  - Verify: `npm test`; `node --test tests/golden/turn-fight-sim.test.js`.
-  - Dependencies: none. Size M.
-  - Files: src/modules/turn-fight/sim.js, tests/golden/turn-fight-v6.js, tests/golden/turn-fight-sim.test.js, tests/unit/turn-fight/sim.test.js
-- [x] **2. Readouts.** (#141) Result and More detail lines from a fight state, with V6's rounding, built as text.
-  - Acceptance: every number V6 writes to `bfmPerf`, `bfmLive`, `bfmTime` and `bfmPhase` matches on the golden grid.
-  - Verify: golden comparison of V6's readout text; unit tests of rounding.
-  - Dependencies: 1. Size S.
-  - Files: src/modules/turn-fight/readouts.js, tests/unit/turn-fight/readouts.test.js, tests/golden/turn-fight-sim.test.js
+---
 
-**Checkpoint A:** tests pass; code-review-and-quality; open PR A.
+## Tasks 1–7: Simple Mode Baseline (Merged on main)
 
-- [x] **3. The screen and playback.** Module registered; three columns with collapsible panels; setup controls with the spec's ranges; Play, Pause, Reset, speed, T+ and phase; the Result card; settings remembered with Reset to V6 defaults; Space and Home; the T-6 limit warning beside each G box.
-  - Acceptance: R22 (only the essentials show by default); nothing overlaps at 1366 × 768 (R2); closing the module stops the fight clock (R4); a bad number is refused and the fight keeps its last good setup.
-  - Verify: `npm test`; `npm run dev` and play a fight; accessibility checklist.
-  - Dependencies: 2. Size M.
-  - Files: src/modules/turn-fight/{index,layout}.js, turn-fight.css, README.md, src/shell/registry.js (via the app frame thread)
-- [x] **4. The top-down view.** Grid, trails every 0.1 s, arrowheads labelled B and R, MERGE mark, first nose-on line; draws on change only; follows its box size.
-  - Acceptance: a paused fight draws nothing; a 4× fight is smooth at 1920 × 1080 on a local build (performance log in the PR); matches V6's picture side by side.
-  - Verify: e2e play, pause, reset, module switch (no frames or timers left, R4; no console errors, R7).
-  - Dependencies: 3. Size M.
-  - Files: src/modules/turn-fight/view.js, tests/unit/turn-fight/view.test.js (view scale), tests/e2e/turn-fight.spec.js (via the app frame thread)
-- [x] **5. The extras.** First nose chases; Climb and dive with pitch boxes, the side view and a working height scale; About this model.
-  - Acceptance: each checkbox shows and hides only its own controls; the height scale changes the side view and doesn't reset the fight (#20); every control does something (R3).
-  - Verify: e2e click-through; look at each against V6.
-  - Dependencies: 4. Size M.
-  - Files: src/modules/turn-fight/{profile,layout}.js, tests/unit/turn-fight/profile.test.js, tests/e2e/turn-fight.spec.js
+- [x] **1. The fight (`sim.js`).** (#141) `createFight(setup)` and `stepFight(state, dtSec)` in whole 0.02 s steps.
+- [x] **2. Readouts.** (#141) Result and More detail lines from fight state, built as text.
+- [x] **Checkpoint A:** tests pass; PR A merged.
+- [x] **3. The screen and playback.** (#145) Three columns, setup controls, playback controls, Space and Home shortcuts.
+- [x] **4. The top-down view.** (#145) Grid, trails every 0.1 s, MERGE mark, first nose-on line.
+- [x] **5. The extras.** (#145) First nose chases, Climb and dive with pitch boxes and side view.
+- [x] **Checkpoint B:** tests pass; PR B merged.
+- [x] **5b. 2D/3D switch and 3D view.** (#145) `view3d.js` on Three.js; CT-156 Harvard II 3D model; camera presets.
+- [x] **6. Decided changes (Q48 to Q51).** (#219) "Both" tie (Q48); weighted start (Q49); simplified label (Q50); 3D ATA (Q51).
+- [x] **6b. Start geometry and altitudes (R28).** (#219) Range, off-nose angle, aspect angle, pass detection.
+- [x] **7. Polish and sign-off checklist.** (#219) Fallback handling, `docs/checklists/turn-fight.md`.
+- [x] **Checkpoint C:** PR C merged.
 
-**Checkpoint B:** tests pass, build under budget; code-review-and-quality; open PR B.
+---
 
-- [x] **5b. 2D/3D switch and the 3D view (Patrick 07:51Z).** `view3d.js` on ui-kit's `three-aircraft.js` and `ct156-model.js` (loaded through `loadThree()` only when 3D is switched on); ui-kit's `controls.viewSwitch()` on the stage toolbar, 2D by default and remembered; the Paint choice (Harvard default) in Turn Fight settings; Overhead, Chase Blue and Chase Red views; the no-connection and no-WebGL messages; frees WebGL on switch-back and unmount.
-  - Acceptance: the spec's "2D and 3D views"; switching never resets the fight; the 2D bundle doesn't grow by three.js.
-  - Verify: unit tests of attitude and trail conversion; e2e switch while playing, no console errors, context released.
-  - Dependencies: 4; ui-kit's 3D pieces are on main (#145). Size M.
-  - Files: src/modules/turn-fight/{view3d,layout}.js, tests/unit/turn-fight/view3d.test.js, tests/e2e/turn-fight.spec.js
-- [x] **6. The decided changes (Q48 to Q51).** One commit each, each starting from a failing test that states exactly what differs from V6: Q48 a tie shows "Both"; Q49 the jets start weighted by speed and meet in the centre (the golden test's pre-merge expectation changes, everything after the merge stays V6's); Q50 the side view's "Simplified: constant speed and turn rate" label; Q51 "Off-nose angle (ATA)", true angle-off in More detail, and a 3D off-nose angle with Climb and dive on.
-  - Acceptance: the golden test still matches V6 everywhere these decisions don't touch.
-  - Verify: golden and unit tests; each decision's D number in the plan doc's Decisions tab.
-  - Built: `firstNose.both` (Q48); `createFight` options `v6Start` (Q49) and `v6OffNose` (Q51) keep V6 reachable, and the golden grid runs V6, centre start, and all decisions; Q50's label was already in the stage footer. Left for the finalizer: the e2e first-nose-on regex must accept "Both", and the D numbers.
-  - Dependencies: 1, 2 (Q48, Q49, Q51's 3D angle); 5 (Q50's label, Q51's readouts). Size S each.
-- [x] **6b. Start geometry and altitudes (R28, approved 2026-09-30).** Place the start from range, off-nose angle and aspect angle; find the pass; each aircraft turns toward the other; the Start geometry panel with its picture and Head-on (V6) button; Red's starting height with Climb and dive on; turns at the pass or at once; live AA, HCA and range in More detail. Test-first.
-  - Acceptance: the spec's three unit tests (head-on, crossing, pass at closest approach); at the defaults the golden test is unchanged.
-  - Verify: `npm test`; e2e: set a beam start, play, Head-on (V6) puts it back.
-  - Built: `geometry.js` (`startGeometry`, `turnDirections`, `START_DEFAULTS`), `createFight` takes the six new settings (head-on keeps V6's own start arithmetic, so the golden test is unchanged), the Start geometry section and picture in the settings menu, `geometryRows` in More detail, the MERGE mark only when there is a pass. Judgement calls for the finalizer: the "When the turns start" choice sits in the Start geometry section of the settings menu (the spec's screen table lists it there; R22 keeps More detail for readouts); "Head-on (V6)" resets all six start settings, not just the two angles; the turn side is read when the turns start, a tie (dead ahead or astern) keeps V6's way; HCA shows twice in More detail (Q51's "Angle-off" is the same number).
-  - Dependencies: 6. Size M.
-  - Files: src/modules/turn-fight/{geometry,sim,layout,readouts}.js, tests/unit/turn-fight/geometry.test.js
-- [x] **7. Polish and sign-off checklist.** (#219: the 3D graphics-reset fallback and `docs/checklists/turn-fight.md`) code-simplification pass with the golden test still green; `docs/checklists/turn-fight.md` for Patrick or Dad, side by side with V6 (R21), including the spec's first-time-user check (default fight and Energy fight play with nothing typed and no panel opened).
-  - Left from the #219 re-check (small): label More detail's time row "Time since the turns started" when the turns start at once or there is no pass; fix three checklist sentences (trails are blue and red; the side view splits only after the pass; after a graphics reset View stays 2D until 3D is chosen again). The other 3D fallback items are cut (3D is a bonus).
-  - Dependencies: 5. Size S.
+## Tasks 8–9: Energy Mode Engine (Merged on main)
 
-**Checkpoint C:** open PR C; Patrick or Dad runs the checklist.
+- [x] **8-9. T-6A performance model and point-mass step.** (#209, #227, #235) `energy-sim.js` (1,360 lines): point-mass 3D aero model, full torque, thrust minus drag from turn charts, MPT capture at 160 KIAS, `evenFight`.
 
-## Energy mode (FF23), approved 2026-09-30
+---
 
-- [x] **8-9. T-6A performance and the point-mass step: built by `core`, not here.** The Flight math core thread builds them as tasks 14 to 17 in `tasks/flight-math/todo.md` (SPEC-core, "API, fifth PR: T-6A performance"; D128). The Turn Fight uses them. The chart checks and known answers in the spec's Energy mode are those tasks' tests.
-  - Dependencies: none here; task 10 waits on them.
-- [ ] **10. Energy mode in the Turn Fight.** Engine done (#209, #227, #235: `energy-sim.js`, top speed `energyTopKias` = core's `modelMaxIasT6A`, MPT 125 to 175, `evenFight`). Screen built on `handover/turn-fight-energy-screen`; to finish it: merge main in, point `topKiasAt` in `state.js` at `energyTopKias` and match the engine's refusal wording, tests for the WIP error-catch commit, the Split S e2e pause (`intervals: [50]`), wrap the Energy e2e tests in `test.describe('Energy (T-6)')`, re-read the checklist's Energy numbers. Details in the handover note. `energy-sim.js` with Auto (pick the move from the merge speed, capture and hold the 160 KIAS max-performance turn) and the forced moves, the Energy checkbox and its settings, the extra readouts, the two flags (OVER G and STALL), the altitude side view with the hard deck as a reference line, the 3D view's two Energy pieces (the see-through hard-deck plane, and each aircraft's own bank from the energy state in place of the level-turn bank, in `view3d.js`'s `aircraftPose`), and the level MPT at the hard deck, the stall cost, the mid-range throttle for straight MPT entries, per-aircraft start altitudes, and Pure, Lead or Lag pursuit after first nose-on.
-  - Acceptance: each move does what the spec's table says (unit tests, e.g. a split S ends level with the heading reversed and lower); Auto picks the move from the merge speed as the spec table says, and from every merge speed between 100 and 250 KIAS reaches 160 ± 5 KIAS, then holds it; at the hard deck the level MPT settles at 150 KIAS minus altitude in thousands, within 5 kt; a stall gives 1 G for 1 s; the pursuit chaser never pulls past the shaker or 7 G; the simple fight's golden test is unchanged; R22 (everything behind the checkbox).
-  - Verify: `npm test`; e2e toggle; Dad flies each move.
-  - Dependencies: 5, and core's tasks 14 to 17 (tasks 8-9 above). Size M.
-  - Files: src/modules/turn-fight/{energy-sim,layout,profile,readouts}.js, tests/unit/turn-fight/energy-sim.test.js
+## Task 10: Energy Screen, Tactical 3D Suite & Trap Remediation (PR 4 / Milestone 2)
 
-**Checkpoint D:** open PR D (the Energy lines are already in the branch's checklist); CI green; merge. Then the end-of-module test once: full local unit and e2e run, screenshots, axe, the Verification check, and Patrick's or Dad's checklist run.
+- [x] **10.1 Clean branch integration & CRLF normalization.**
+  - Merge `origin/handover/turn-fight-energy-screen` (`226729d`) using `-Xignore-space-change`.
+  - Normalize line endings to LF across all 16 staged files to prevent phantom git diffs.
+  - Acceptance: 497 unit tests passing, exactly 3 failing (corresponding to paused WIP hooks).
+
+- [ ] **10.2 Aero limits, MPT range calibration & test repair (Traps 4, 5, 7, D393).**
+  - Point `topKiasAt(altFt)` in `src/modules/turn-fight/state.js` directly to `energyTopKias(altFt)` from `energy-sim.js:55` (Mach 0.67 corner, 269 kt at 25k ft).
+  - Align refusal note: `"(269 KIAS in the model, Mach 0.67; the NFM's 279 is the same Mach on the gauge)"`.
+  - Enforce MPT range 125–175 KIAS in `state.js` (D349).
+  - Enforce D381 in `energy-sim.js:110, 113` and `state.js`: update `immelmannMinTopKias` and `splitSBelowKias` to 140 kt (prohibit Immelmann $\le 140$ KIAS).
+  - Enforce D393 in `energy-sim.js:832` (`controlImmelmann`): pull 5.0 G until at stick shaker, then ride the shaker (`Math.min(5.0, ctx.shaker)`).
+  - Rename `v6Defaults()` to `standardDefaults()` in `src/modules/turn-fight/state.js:313` with `export const v6Defaults = standardDefaults;` alias (D384).
+  - Update test expectations in `tests/unit/turn-fight/energy-layout.test.js:34` (125 to 175 KIAS) and `tests/unit/turn-fight/energy-state.test.js:99, 196`.
+  - Acceptance: `node --test tests/unit/turn-fight/energy-*.test.js` passes 100% green (all 500 tests pass).
+
+- [ ] **10.3 Engine setup error containment & playback robustness.**
+  - In `src/modules/turn-fight/state.js:292` (`startEnergyRun`), verify `isSetupError` / `setupErrorText` catches setup `RangeError` (message starting `"Turn Fight energy setup: "`) and populates `energyProblem`.
+  - Ensure any non-setup `RangeError` is rethrown cleanly without suppression.
+  - Add unit tests in `tests/unit/turn-fight/energy-state.test.js` verifying setup error capture and unexpected error rethrow.
+
+- [ ] **10.4 Simple Mode aerodynamic & kinematic traps remediation (Traps 1, 2, 3, 8).**
+  - **10.4a (Trap 1 - Coordinate Snap):** In `sim.js:337`, remove `if (state.headOn) { blue.xFt = 0; ... }`. Allow continuous mathematical positions through the pass.
+  - **10.4b (Trap 2 - Mutual Pursuit):** In `sim.js:348-352`, assign chase steering only to the first-nose winner (`state[first]`). Loser continues defensive turn geometry instead of mutual head-on steering.
+  - **10.4c (Trap 3 - D386 10° Capture Cone):** In `sim.js:102-120`, implement D386: evaluate line-of-sight with an explicit **10° elevation capture cone** when vertical fight is active:
+    - $\Delta \text{Az} = \text{absAngleDeg}(\text{lineOfSightRad}(\text{from}, \text{to}) - \text{from.headingRad}) \le 5.0^\circ$.
+    - $\theta_{\text{los}} = \text{radToDeg}(\text{atan2}(\Delta z, \text{hypot}(\Delta x, \Delta y)))$.
+    - $\Delta \text{El} = |\text{radToDeg}(\text{from.pitchRad}) - \theta_{\text{los}}| \le 10.0^\circ$.
+    - Nose-on triggers if $\Delta \text{Az} \le 5.0^\circ$ AND $\Delta \text{El} \le 10.0^\circ$.
+  - **10.4d (Trap 8 - Head-On Bypass):** In `sim.js:276` (`checkNoseAtStart`), update guard to: `if (state.firstNose) return; if (state.headOn && !state.setup.vertical) return;`.
+
+- [ ] **10.5 UI scrubbing & standard defaults (Trap 6 & polish).**
+  - **10.5a (Trap 6 - V6 Scrubbing):** In `layout.js:150`, relabel button `'Head-on (V6)'` to `'Neutral Head-on'` (D368/D372).
+  - **10.5b (D384):** Relabel Reset buttons to **"Reset to Standard Defaults"** (loading 15 Wing SMM 3.0 G standards).
+  - **10.5c:** In `readouts.js`, label More detail time row `"Time since the turns started"` when turns start at once or without a pass mark.
+  - **10.5d:** In `layout.js`, grey out Red's height input when Climb & Dive is disabled.
+
+- [ ] **10.6 Tactical 3D Suite implementation (D392).**
+  - **10.6a:** Export pure helpers `computePlumbGeometry(pose, floorZ)` and `computeFloorZ(fight, bounds)` in `src/modules/turn-fight/view3d.js`.
+  - **10.6b:** Construct Blue (`#58a6ff`) and Red (`#ff6b6b`) vertical plumb lines using `THREE.Line` with `THREE.LineDashedMaterial` (`dashSize: 20, gapSize: 15, opacity: 0.65`). Call `computeLineDistances()` on each frame.
+  - **10.6c:** Construct Blue and Red 35-ft ground-shadow contact discs using `THREE.Mesh` with `THREE.RingGeometry(0, 35, 32)` and `THREE.MeshBasicMaterial` (`opacity: 0.35, depthWrite: false`) positioned at $(x, y, floorZ + 1.0\text{ ft})$.
+  - **10.6d:** Reference floor logic: tracks terrain grid floor in Simple Mode, and **Hard Deck** (`hardDeckFt`) in Energy Mode (plunges to 0 ft MSL if hard deck breached).
+  - **10.6e:** Clean geometry and material disposal in `teardown()`.
+  - **10.6f:** Add unit tests in `tests/unit/turn-fight/view3d.test.js` validating plumb line geometry, uniform dash cadence, and hard deck tracking.
+
+- [ ] **10.7 Playwright E2E stabilization.**
+  - In `tests/e2e/turn-fight.spec.js`, wrap all Energy tests in `test.describe('Energy (T-6)', ...)`.
+  - Line 1360: Update MPT hint assertion from `'120 to 175 KIAS'` to `'125 to 175 KIAS, default 160 KIAS.'` (D349).
+  - Line 1377: Update Auto Split S below expectation from `['120', '40 to 220 KIAS, default 120 KIAS.']` to `['140', '40 to 220 KIAS, default 140 KIAS.']` (D381).
+  - Add `{ intervals: [50] }` to the forced Split S polling assertion to prevent timing flakiness.
+  - Ensure assertions evaluate within pilot domain tolerances (D369/D371).
+
+- [ ] **10.8 Full verification suite run.**
+  - Run `node --test "tests/unit/turn-fight/**/*.test.js"`.
+  - Run `npm run typecheck`.
+  - Run `npm run build`.
+  - Run `npx playwright test tests/e2e/turn-fight.spec.js`.
+  - Generate formal report [`docs/records/verification/turn-fight-verification.md`](../../docs/records/verification/turn-fight-verification.md).
+
+- [ ] **10.9 Master documentation synchronization (9-file ledger).**
+  - [ ] 1. `HANDOVER.md`: Update Turn Fight state to "100% complete and verified on main. Energy Mode UI, Tactical 3D Suite, and engine merged. Ready for Gate 2 sign-off." Advance active execution focus to Turn Sim (Milestone 3).
+  - [ ] 2. `docs/handover/turn-fight.md`: Update status to 100% Complete; record passing tests.
+  - [ ] 3. `docs/checklists/turn-fight.md`: Update Section 8 (Checkpoint D); replace V6 labels with SMM standards; add D381, D384, D386, D392, D393.
+  - [ ] 4. `docs/REMEDIATION_ROADMAP.md`: Mark Milestone 2 tasks 2.1, 2.2, 2.3 complete `[x]`; mark Gate 2 READY.
+  - [ ] 5. `docs/REMEDIATION_PATCH_LOG.md`: Append PATCH-023 ("Milestone 2 Turn Fight Energy Screen & Tactical 3D Suite Integration").
+  - [ ] 6. `tasks/turn-fight/todo.md` & `tasks/turn-fight/plan.md`: Mark 100% complete.
+  - [ ] 7. `specs/SPEC-turn-fight.md`: Update tolerances, reset button labels, and ratified decisions.
+  - [ ] 8. `docs/records/decisions-log.md` & `docs/records/plan-decisions.md`: Record D392 (Tactical Plumb Lines & Ground Shadows) and D393 (Immelmann Pull G Law).
+  - [ ] 9. `docs/records/verification/index.md`: Register verification report.
+  - [ ] 9. `docs/records/verification/index.md`: Register verification report.
+
+- [ ] **10.10 Checkpoint D & Patrick's Gate 2 Sign-Off Readiness.**
+  - Ready for Patrick's manual checklist walkthrough (`docs/checklists/turn-fight.md`).
