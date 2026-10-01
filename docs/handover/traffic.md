@@ -15,13 +15,14 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 | Interactive Wind UI & Sim Updates (PATCH-014) | Direct on `main` | Merged to `main` (commit `8d6a517`). Bottom playback bar wind inputs wired, real-time dynamic crabbing and ground speed simulation updates. |
 
 ## Current Gate: Gate 1 Refinements (D390 / D391)
+- **Authoritative Master Specification:** [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md) (single source of truth for aerodynamics, guidance laws, and equations).
+- **Execution Plan:** [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md) (Before/After diagrams, 4-step pipeline).
+- **Living Task Checklist:** [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md) (discrete Stage 1 & Stage 2 slices).
+- **Safety Pre-Edit Backup:** [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak).
 - Landed: PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering), height drop lines moved to Layers menu.
-- In progress (D390/D391): Transitioning Traffic Sim to 3D Cartesian Closed-Loop Vector Pursuit physics in thin verifiable slices (tasks/traffic/vector-physics-plan.md):
-  - Slice A: Cartesian vector step in `sim.js: fly(a)`. Backup saved in `src/modules/traffic/sim.js.pre-vector.bak`.
-  - Slice B: 180° break with V² drag deceleration (220->140 KIAS at 2.0 G).
-  - Slice C: Dynamic wind perch point and crabbed direct downwind steering.
-  - Slice D: Adaptive descending final turn (35° nominal bank, 30°–45° bounds) and 3.0° glide slope descent to threshold.
-  - Slice E: Closed pattern past departure end climbing to 3,500 ft MSL to join outer downwind.
+- In progress (D390/D391): Transitioning Traffic Sim to 3D Cartesian Closed-Loop Vector Pursuit physics in thin verifiable slices:
+  - Stage 1 (Core Physics): Slices A–E in `sim.js: fly(a)`.
+  - Stage 2 (UI Controls): Slices F–G (spawner presets, in-flight action commands).
 - Full test baseline: `npm test` passes 100% green (2,948 passed, 0 failed, 1 skipped).
 - Production build: `npm run build` passes in ~350ms.
 - Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).

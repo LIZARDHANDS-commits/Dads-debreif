@@ -113,7 +113,7 @@ stateDiagram-v2
     FULL_STOP --> [*]: Landing Rollout Complete
     TOUCH_AND_GO --> UPWIND_CLIMB: Past Departure End, Climb to 3,500 ft MSL
     UPWIND_CLIMB --> CROSSWIND_TURN: 180° Turn to Downwind at 140 KIAS
-    CROSSWIND_TURN --> DOWNWIND_STEER: Merge onto Outer Downwind Corridor
+    CROSSWIND_TURN --> DOWNWIND_STEER: Merge onto Inner Downwind Corridor
 ```
 
 ### Piece 1: Initial Approach Corridor (`INITIAL`)
@@ -163,10 +163,10 @@ stateDiagram-v2
 * **Decision (TR-08):** Evaluates `landOdds`:
   * **Full Stop (20% default):** Rolls out along runway to full stop.
   * **Touch-and-Go (80% default):** Applies takeoff power, accelerates, and initiates closed pattern.
-* **Closed Pattern Circuit (Joining Outer Downwind):**
+* **Closed Pattern Circuit (Joining Inner Downwind):**
   * Initiates past departure end (abeam threshold + 4,000 ft).
   * Climbs to **3,500 ft MSL** at 140 KIAS.
-  * Rolls into left crosswind turn to merge smoothly onto the outer downwind circuit at 140 KIAS, joining the exact same downwind corridor as the overhead break rollout.
+  * Rolls into left crosswind turn to merge smoothly onto the inner downwind circuit at 140 KIAS, joining the exact same downwind corridor as the overhead break rollout.
 
 ---
 
@@ -194,6 +194,6 @@ stateDiagram-v2
 2. **Slice B (`sim.js`):** Break turn maneuver trigger & $V^2$ aerodynamic drag curve.
 3. **Slice C (`sim.js`):** Dynamic Perch calculation & direct downwind crab steering.
 4. **Slice D (`sim.js`):** Adaptive final turn (target 35°, bounds 30°–45°) & 3.0° continuous glide slope descent.
-5. **Slice E (`sim.js`):** Closed pattern initiation past departure end climbing to 3,500 ft MSL to join outer downwind.
+5. **Slice E (`sim.js`):** Closed pattern initiation past departure end climbing to 3,500 ft MSL to join inner downwind.
 6. **Slice F (`map2d.js` & `view3d.js`):** Multi-track visual layer toggles (Both / Wind / SMM / None).
 7. **Slice G (Verification):** Plausibility test suite, regression check, and sign-off.
