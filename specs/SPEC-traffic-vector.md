@@ -40,6 +40,25 @@ Every simulation step (`dt = 0.05 s`):
    $$\omega = \frac{g \cdot \tan\phi}{v_{\text{air}}}, \quad \psi_{t+dt} = \psi_t + \omega \cdot dt$$
    $$n = \frac{1}{\cos\phi} \quad (\text{Load factor } G)$$
 
+### 2.2 Closed-Loop Guidance Laws (Localizer vs. Pure Pursuit)
+1. **Localizer-Style Tracking (Outer Pattern & Final Approach):**
+   Given corridor course $\tau_{\text{ref}}$ (e.g. $298^\circ$ true for Runway 29L) and reference anchor $(x_0, y_0)$:
+   $$e_{\text{xtrack}} = (x - x_0) \cdot \cos\tau_{\text{ref}} - (y - y_0) \cdot \sin\tau_{\text{ref}}\text{ (feet)}$$
+   $$\psi_{\text{cmd}} = \tau_{\text{ref}} + \theta_{\text{crab}} + \text{clamp}(K_p \cdot e_{\text{xtrack}}, \; -30^\circ, \; +30^\circ) \quad \text{where } K_p = 0.02^\circ/\text{ft}$$
+2. **Pure Pursuit Guidance (Inner Downwind to Dynamic Perch):**
+   Given current position $(x, y)$ and wind-shifted Perch $\vec{P}_{\text{perch}} = (x_p, y_p)$:
+   $$\beta_{\text{direct}} = \text{atan2}(x_p - x, \; y_p - y)$$
+   $$\psi_{\text{cmd}} = \text{windCorrectedHeading}(\beta_{\text{direct}}, V_{\text{tas}}, \vec{W})$$
+3. **Continuous Cubic Descent Curve (Final Turn):**
+   Progress normalized over the 180° turn: $u = \frac{\Delta\psi}{180^\circ} \in [0, 1]$:
+   $$z(u) = 3500 - (3500 - 2700) \cdot (3u^2 - 2u^3) = 3500 - 800 \cdot (3u^2 - 2u^3)\text{ ft MSL}$$
+   *Guarantees $\dot{z} = 0$ at Perch entry ($u = 0$) and $\dot{z} = 0$ at straight-in centerline rollout ($u = 1$), eliminating vertical elbow kinks.*
+4. **3.0° Glide Slope Capture (Centerline to Threshold):**
+   Distance to threshold $D = \sqrt{(x - x_{\text{thresh}})^2 + (y - y_{\text{thresh}})^2}$:
+   $$\text{Capture Distance: } D_{\text{intercept}} = \frac{2700 - 1892}{\tan(3.0^\circ)} = 15,417\text{ ft (2.54 NM)}$$
+   $$\text{Target Altitude: } z_{\text{cmd}}(D) = 1892 + D \cdot \tan(3.0^\circ)\text{ ft MSL}$$
+   $$\text{Vertical Descent Speed: } \dot{z} = -v_{\text{ground}} \cdot \tan(3.0^\circ) \approx -550\text{ fpm}$$
+
 ---
 
 ## 3. Harvard II (CT-156 / T-6A) Performance Integration
