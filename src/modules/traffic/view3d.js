@@ -24,6 +24,7 @@ import { makeLocalRef } from '../../core/geo.js';
 
 /** Every axis is drawn at the same scale: a foot of height is a foot of ground (SPEC-traffic: the 3D view). */
 export const ALT_SCALE = 1;
+export const PHOTO_SPAN_FT = 80_000;
 
 /** Camera limits. pitch is degrees from straight down (0 looks down, 90 is level); zoom is pixels to 1,000 ft. */
 export const CAMERA_LIMITS = Object.freeze({ pitch: [0, 85], zoom: [0.3, 4000] });
@@ -328,12 +329,12 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   const shadows = new Map(); // aircraft id -> LineLoop
   const shadowMaterial = new THREE.LineBasicMaterial({ color: '#58a6ff', transparent: true, opacity: 0.6, fog: false });
 
+
   // Satellite photo ground plane
-  const PHOTO_SPAN_FT = 140_000;
   const photoGeometry = new THREE.PlaneGeometry(PHOTO_SPAN_FT, PHOTO_SPAN_FT);
   const photoMaterial = new THREE.MeshBasicMaterial({
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.95,
     depthWrite: false,
     fog: false,
   });
@@ -472,17 +473,20 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       shadows.delete(id);
     }
 
-    if (options.photoTexture && options.layerPhoto) {
-      photoMesh.visible = true;
-      photoMaterial.map = options.photoTexture;
-      photoMaterial.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100;
-      photoMaterial.needsUpdate = true;
-      photoMesh.position.set(0, 0, floor + (options.photoAboveGrid ? 0.5 : -0.5));
-    } else {
-      photoMesh.visible = false;
+    if (photoMesh) {
+      if (options.photoTexture && options.layerPhoto) {
+        photoMesh.visible = true;
+        if (photoMaterial.map !== options.photoTexture) {
+          photoMaterial.map = options.photoTexture;
+          photoMaterial.needsUpdate = true;
+        }
+        photoMaterial.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100;
+        photoMesh.position.set(0, 0, floor - 1);
+      } else {
+        photoMesh.visible = false;
+      }
     }
 
-    // An aircraft that has landed, finished or gone is put away; one that has gone from the list is freed.
     const listed = new Set(scene.aircraft.map((a) => a.id));
     for (const [id, { mesh }] of planes) {
       if (!present.has(id)) mesh.visible = false;
@@ -632,48 +636,58 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let photoCanvas = null;
   let photoTexture = null;
   let imagery = null;
+  let photoDebounce = null;
 
-  const PHOTO_SPAN_FT = 140_000;
-  const mockPhotoMap = {
-    view: { scale: 1024 / PHOTO_SPAN_FT },
-    visibleBounds: () => ({ minX: -PHOTO_SPAN_FT / 2, minY: -PHOTO_SPAN_FT / 2, maxX: PHOTO_SPAN_FT / 2, maxY: PHOTO_SPAN_FT / 2 }),
-    worldToScreen: (wx, wy) => ({
-      x: ((wx + PHOTO_SPAN_FT / 2) / PHOTO_SPAN_FT) * 1024,
-      y: ((PHOTO_SPAN_FT / 2 - wy) / PHOTO_SPAN_FT) * 1024,
-    }),
-  };
-
-  function getPhotoTexture(options) {
+  function ensurePhotoTexture(options) {
     if (!options.layerPhoto || !source.anchor?.() || win.document?.createElement === undefined) return null;
+    const anchor = source.anchor();
+    if (!anchor) return null;
+
     if (!photoCanvas) {
       photoCanvas = win.document.createElement('canvas');
       photoCanvas.width = 1024;
       photoCanvas.height = 1024;
       photoTexture = new THREE.CanvasTexture(photoCanvas);
     }
-    const anchor = source.anchor();
-    if (!anchor) return null;
+
     const ref = makeLocalRef(anchor.lat, anchor.lon);
     const align = photoAlignment(options);
-    imagery ??= createTileLayer({
-      source: ESRI_IMAGERY,
-      timers,
-      onChange: () => {
-        if (!gl || disposed) return;
-        renderPhoto(ref, align);
-        if (photoTexture) photoTexture.needsUpdate = true;
-        requestDraw();
-      },
-    });
-    renderPhoto(ref, align);
-    return photoTexture;
-  }
+    const fixedMap = {
+      view: { scale: 1024 / PHOTO_SPAN_FT },
+      visibleBounds: () => ({ minX: -PHOTO_SPAN_FT / 2, minY: -PHOTO_SPAN_FT / 2, maxX: PHOTO_SPAN_FT / 2, maxY: PHOTO_SPAN_FT / 2 }),
+      worldToScreen: (wx, wy) => ({
+        x: ((wx + PHOTO_SPAN_FT / 2) / PHOTO_SPAN_FT) * 1024,
+        y: ((PHOTO_SPAN_FT / 2 - wy) / PHOTO_SPAN_FT) * 1024,
+      }),
+    };
 
-  function renderPhoto(ref, align) {
-    const ctx = photoCanvas?.getContext('2d');
-    if (!ctx || !imagery) return;
-    imagery.draw(ctx, photoView(mockPhotoMap, ref, align));
-    if (photoTexture) photoTexture.needsUpdate = true;
+    function paintPhoto() {
+      if (!photoCanvas || !imagery || disposed || !gl) return;
+      const ctx = photoCanvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, 1024, 1024);
+      imagery.draw(ctx, photoView(fixedMap, ref, align));
+      if (photoTexture) photoTexture.needsUpdate = true;
+      requestDraw();
+    }
+
+    if (!imagery) {
+      imagery = createTileLayer({
+        source: ESRI_IMAGERY,
+        timers,
+        onChange: () => {
+          if (disposed || !gl) return;
+          if (photoDebounce) timers.clearTimeout?.(photoDebounce);
+          photoDebounce = timers.after(150, () => {
+            photoDebounce = null;
+            paintPhoto();
+          });
+        },
+      });
+      paintPhoto();
+    }
+
+    return photoTexture;
   }
 
   const sizeOf = (canvas) => ({ width: Math.max(1, canvas.clientWidth), height: Math.max(1, canvas.clientHeight) });
@@ -751,6 +765,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     gl = null;
     kit.dispose();
     sky.dispose();
+    if (photoDebounce) timers.clearTimeout?.(photoDebounce);
+    photoDebounce = null;
     photoTexture?.dispose();
     photoTexture = null;
     photoCanvas = null;
@@ -811,13 +827,14 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const shown = dragging?.isPan ? view.cam : (dragging?.cam ?? view.cam);
     const focus = dragging?.isPan ? dragging.center : view.center;
 
-    const photoTex = getPhotoTexture(options);
+    const photoTex = ensurePhotoTexture(options);
     kit.sync(data, {
       paint: options.paint, layerCautionRings: options.layerCautionRings, cautionLatFt: options.cautionLatFt,
       zoom: shown.zoom, groundFt: floor, time: source.time(),
-      layerHeightLines: heightLines,
-      layerPhoto: options.layerPhoto, photoOpacityPct: options.photoOpacityPct, photoAboveGrid: options.photoAboveGrid,
+      layerHeightLines: options.layerHeightLines ?? heightLines,
+      layerPhoto: options.layerPhoto,
       photoTexture: photoTex,
+      photoOpacityPct: options.photoOpacityPct,
     });
     kit.placeGrid(focus, floor);
     matchProjection(THREE, camera, focus, shown, size, 1);

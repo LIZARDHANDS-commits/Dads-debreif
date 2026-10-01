@@ -209,40 +209,13 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
-        const isFlying = row.status === 'flying';
-        const actions = isFlying
-          ? h(
-              'div',
-              { class: 'aircraft-actions' },
-              h('button', {
-                type: 'button',
-                class: 'button button-tiny',
-                title: 'Breakout of circuit pattern',
-                onclick: (e) => { e.stopPropagation(); sim.command(row.id, 'breakout'); onChange(); },
-              }, 'Breakout'),
-              h('button', {
-                type: 'button',
-                class: `button button-tiny ${row.engineFailed ? 'is-active danger' : 'danger'}`,
-                title: 'Simulate engine failure (110 KIAS glide)',
-                onclick: (e) => { e.stopPropagation(); sim.command(row.id, 'engine_fail'); onChange(); },
-              }, row.engineFailed ? 'Failed' : 'Eng Fail'),
-              h('button', {
-                type: 'button',
-                class: 'button button-tiny',
-                title: 'Go-around from final',
-                onclick: (e) => { e.stopPropagation(); sim.command(row.id, 'go_around'); onChange(); },
-              }, 'Go-Around'),
-            )
-          : null;
-
         listBody.appendChild(
           h(
             'li',
-            { class: `aircraft-row status-${row.status} ${row.engineFailed ? 'has-engine-fail' : ''}`, dataset: { aircraftId: row.id } },
+            { class: `aircraft-row status-${row.status}`, dataset: { aircraftId: row.id } },
             h('span', { class: 'aircraft-name' }, swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`),
             ' ',
             h('span', { class: 'aircraft-detail' }, detailText(row)),
-            actions,
           ),
         );
       }

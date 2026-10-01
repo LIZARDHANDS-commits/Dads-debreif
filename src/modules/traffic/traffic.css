@@ -229,23 +229,7 @@
   max-width: calc(100% - var(--space-4));
 }
 
-[data-module='traffic'] .traffic-tools3d {
-  position: absolute;
-  z-index: 2;
-  top: var(--space-2);
-  left: calc(var(--space-2) + 16.5rem);
-  display: flex;
-  gap: var(--space-1);
-}
-
-[data-module='traffic'] .traffic-btn-height-lines.is-active {
-  background: var(--bg-raised);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 [data-module='traffic'] .traffic-camera[hidden],
-[data-module='traffic'] .traffic-tools3d[hidden],
 [data-module='traffic'] .traffic-note3d[hidden] {
   display: none;
 }

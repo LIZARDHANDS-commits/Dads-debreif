@@ -78,23 +78,6 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
   const stage3d = h('div', { class: 'traffic-3d', hidden: true });
   const cameraButton = (name, label) => h('button', { type: 'button', class: 'button', onclick: () => on.camera?.(name) }, label);
   const camera = h('div', { class: 'traffic-camera', role: 'group', 'aria-label': 'Camera', hidden: true }, cameraButton('fit', 'Fit'), cameraButton('high', 'High look-down'), cameraButton('low', 'Low chase'));
-  const heightLinesBtn = h(
-    'button',
-    {
-      type: 'button',
-      class: 'button traffic-btn-height-lines is-active',
-      'aria-pressed': 'true',
-      title: 'Toggle vertical height reference lines to ground',
-      onclick: () => {
-        const active = heightLinesBtn.getAttribute('aria-pressed') !== 'true';
-        heightLinesBtn.setAttribute('aria-pressed', String(active));
-        heightLinesBtn.classList.toggle('is-active', active);
-        on.toggleHeightLines?.(active);
-      },
-    },
-    'Height lines',
-  );
-  const tools3d = h('div', { class: 'traffic-tools3d', role: 'group', 'aria-label': '3D display options', hidden: true }, heightLinesBtn);
   const note3d = h('p', { class: 'traffic-note3d', role: 'status', hidden: true });
   let photoText = '';
   let view = '2d';
@@ -102,7 +85,7 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
     'section',
     { class: 'traffic-stage', 'aria-label': 'Map and playback' },
     bar.element,
-    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, camera, tools3d, hint, credit, note3d),
+    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, camera, hint, credit, note3d),
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
@@ -183,7 +166,6 @@ export function createLayout({ bar, listen, on = {}, available = {} }) {
       canvas.hidden = view === '3d';
       stage3d.hidden = view !== '3d';
       camera.hidden = view !== '3d';
-      tools3d.hidden = view !== '3d';
       credit.hidden = !photoText || view === '3d';
     },
     /** A short line on the map ("Loading 3D…", "3D needs WebGL"), or '' for none. */

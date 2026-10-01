@@ -22,6 +22,7 @@ export const LAYER_ITEMS = Object.freeze([
   { key: 'layerTurnData', label: 'Turn data (radius and bank)' },
   { key: 'layerBubbles', label: 'Conflict bubbles' },
   { key: 'layerCautionRings', label: 'Caution rings' },
+  { key: 'layerHeightLines', label: 'Height drop lines (3D)', needs: 'view3d' },
   { key: 'layerPhoto', label: 'Satellite photo', needs: 'photo' },
   { key: 'layerEngineReach', label: 'Engine-out reach', needs: 'reach' },
 ]);
