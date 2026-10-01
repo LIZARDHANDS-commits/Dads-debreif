@@ -337,6 +337,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     opacity: 0.95,
     depthWrite: false,
     fog: false,
+    side: THREE.DoubleSide,
   });
   const photoMesh = new THREE.Mesh(photoGeometry, photoMaterial);
   photoMesh.visible = false;
@@ -503,14 +504,14 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     }
 
     if (photoMesh) {
-      if (options.photoTexture && options.layerPhoto) {
+      if (options.photoTexture && options.layerPhoto !== false) {
         photoMesh.visible = true;
         if (photoMaterial.map !== options.photoTexture) {
           photoMaterial.map = options.photoTexture;
           photoMaterial.needsUpdate = true;
         }
         photoMaterial.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100;
-        photoMesh.position.set(0, 0, floor - 1);
+        photoMesh.position.set(0, 0, floor - 2);
       } else {
         photoMesh.visible = false;
       }
@@ -636,6 +637,36 @@ export function resetSoftwareCheck() {
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
+function paintBaseAirfield(ctx) {
+  ctx.fillStyle = '#243b2f';
+  ctx.fillRect(0, 0, 1024, 1024);
+  // Airfield perimeter / infield
+  ctx.fillStyle = '#2d4839';
+  ctx.beginPath();
+  ctx.ellipse(512, 512, 220, 160, -0.4, 0, Math.PI * 2);
+  ctx.fill();
+  // Runways
+  ctx.save();
+  ctx.translate(512, 512);
+  ctx.rotate(-0.5); // align with Runway 29L heading (~298° true)
+  // Runway 29L / 11R
+  ctx.fillStyle = '#182026';
+  ctx.fillRect(-180, -12, 360, 24);
+  // Runway 29R / 11L
+  ctx.fillRect(-160, 32, 320, 20);
+  // Runway 04 / 22 cross runway
+  ctx.fillRect(-15, -140, 20, 280);
+  // Threshold & centerline markings
+  ctx.strokeStyle = '#e6edf3';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.moveTo(-160, 0);
+  ctx.lineTo(160, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /**
  * host: the element the view puts its canvases in (a box the size of the map). timers: the module's scheduler scope
  * (frame). source: { scene(): the scene map2d draws (routes with path, aircraft, conflicts), settings(): the Traffic
@@ -668,7 +699,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let photoDebounce = null;
 
   function ensurePhotoTexture(options) {
-    if (!options.layerPhoto || !source.anchor?.() || win.document?.createElement === undefined) return null;
+    if (options.layerPhoto === false || !source.anchor?.() || win.document?.createElement === undefined) return null;
     const anchor = source.anchor();
     if (!anchor) return null;
 
@@ -676,6 +707,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       photoCanvas = win.document.createElement('canvas');
       photoCanvas.width = 1024;
       photoCanvas.height = 1024;
+      const ctx = photoCanvas.getContext?.('2d');
+      if (ctx) paintBaseAirfield(ctx);
       photoTexture = new THREE.CanvasTexture(photoCanvas);
     }
 
@@ -684,17 +717,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const fixedMap = {
       view: { scale: 1024 / PHOTO_SPAN_FT },
       visibleBounds: () => ({ minX: -PHOTO_SPAN_FT / 2, minY: -PHOTO_SPAN_FT / 2, maxX: PHOTO_SPAN_FT / 2, maxY: PHOTO_SPAN_FT / 2 }),
-      worldToScreen: (wx, wy) => ({
-        x: ((wx + PHOTO_SPAN_FT / 2) / PHOTO_SPAN_FT) * 1024,
-        y: ((PHOTO_SPAN_FT / 2 - wy) / PHOTO_SPAN_FT) * 1024,
-      }),
+      worldToScreen: (wx, wy) => [
+        ((wx + PHOTO_SPAN_FT / 2) / PHOTO_SPAN_FT) * 1024,
+        ((PHOTO_SPAN_FT / 2 - wy) / PHOTO_SPAN_FT) * 1024,
+      ],
     };
 
     function paintPhoto() {
       if (!photoCanvas || !imagery || disposed || !gl) return;
-      const ctx = photoCanvas.getContext('2d');
+      const ctx = photoCanvas.getContext?.('2d');
       if (!ctx) return;
-      ctx.clearRect(0, 0, 1024, 1024);
+      paintBaseAirfield(ctx);
       imagery.draw(ctx, photoView(fixedMap, ref, align));
       if (photoTexture) photoTexture.needsUpdate = true;
       requestDraw();
