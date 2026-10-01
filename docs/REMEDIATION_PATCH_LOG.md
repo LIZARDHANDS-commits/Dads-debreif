@@ -26,6 +26,10 @@
 | [**PATCH-013**](#patch-013-milestone-1-pr-3-traffic-core-4-implementation--plausibility-gate) | M1 | 2026-09-30 23:15Z | Aero & SMM | Traffic Core 4 Implementation & Plausibility Gate | Pass |
 | [**PATCH-014**](#patch-014-interactive-wind-ui-inputs--dynamic-simulation-updates) | M1 | 2026-09-30 23:25Z | UI & Physics | Interactive Wind UI Inputs & Dynamic Simulation Updates | Pass |
 | [**PATCH-015**](#patch-015-closed-loop-vector-pursuit-3d-visualization-suite--pilot-intuitive-controls) | M1 | 2026-09-30 23:55Z | 3D & Pilot UX | Closed-Loop Vector Pursuit, 3D Suite & Pilot-Intuitive Controls | Pass |
+| [**PATCH-016**](#patch-016-3d-render-loop-decoupling-layer-relocation--ui-cleanup) | M1 | 2026-10-01 00:20Z | 3D & UI | 3D Render Loop Decoupling, Layer Relocation & UI Cleanup | Pass |
+| [**PATCH-017**](#patch-017-aerodynamic-vector-flight-model--wind-compensated-perch-guidance) | M1 | 2026-10-01 00:45Z | Aero & Route | Aerodynamic Vector Flight Model & Wind-Compensated Perch Guidance | Pass |
+| [**PATCH-018**](#patch-018-3d-satellite-ground-plane-fix--airfield-ground-truth-baseline) | M1 | 2026-10-01 03:40Z | 3D & Ground | 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline | Pass |
+| [**PATCH-019**](#patch-019-master-vector-physics-specification-mathematical-equations--simjs-pre-vector-snapshot) | M1 | 2026-10-01 04:15Z | Aero & Spec | Master Vector Physics Spec, Equations, Snapshot & Checklist | Pass |
 
 ---
 
@@ -448,3 +452,39 @@
   Guarantees instant, reliable visual reference on the 3D floor matching the 2D map view.
 * **Verification:**  
   `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 573ms.
+
+---
+
+### PATCH-019: Master Vector Physics Specification, Mathematical Equations & sim.js Pre-Vector Snapshot
+* **Date & Time:** 2026-10-01 04:15 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main` (commits `620b229`, `7156052`, `f81c135`)
+* **Files Created:**
+  * [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak) (Safety backup)
+  * [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md) (Master specification)
+  * [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md) (Execution plan & Before/After code diagrams)
+  * [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md) (Living task checklist for Slices A–G)
+* **Files Modified:**
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md) (Decision D391)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md) (Decision D391)
+  * [`docs/handover/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/traffic.md)
+  * [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md)
+* **Problem / Flaw Addressed:**  
+  1. Transitioning Traffic Sim from legacy 1D "slot-car on rails" polyline progression to authentic 3D Cartesian vector flight required an authoritative mathematical specification that formalizes closed-loop steering, localizer corridor tracking, pure pursuit, vertical cubic transitions, and authentic Harvard II aero parameters without breaking existing tests.
+  2. Safe engineering discipline required preserving an exact pre-modification snapshot of `sim.js` (`src/modules/traffic/sim.js.pre-vector.bak`) committed to Git history prior to code edits.
+  3. All team documents (handover, decisions, living checklists) required formal synchronization to eliminate gaps and ambiguities (such as Inner vs. Outer Downwind terminology).
+* **Changes Made:**
+  1. Created pre-edit safety snapshot: `src/modules/traffic/sim.js.pre-vector.bak`.
+  2. Formulated, ratified, and logged Decision **D391** in master decisions registers.
+  3. Created `specs/SPEC-traffic-vector.md` providing closed-form equations for:
+     * Localizer cross-track steering error and intercept cut angle.
+     * Pure pursuit direct vector steering on Inner Downwind to wind-shifted Perch $\vec{P}_{\text{perch}}$.
+     * Continuous 180° descending final turn with cubic vertical profile ($3,500 \to 2,700\text{ ft MSL}$) and 3.0° glide slope descent ($15,417\text{ ft}$ intercept to threshold).
+     * Complete Harvard II aerodynamic data table (mass, wing area, $C_L$, induced drag, turn radius, roll rate limits).
+  4. Established `tasks/traffic/vector-physics-plan.md` featuring Before vs. After code architecture diagrams and a 4-step execution pipeline.
+  5. Established `tasks/traffic/vector-physics-todo.md` breaking execution into two discrete stages: Stage 1 (pure physics in `sim.js`, Slices A–E) and Stage 2 (pilot UI controls & toggles, Slices F–G).
+  6. Updated `docs/handover/traffic.md` and `.agent/memory/handoff.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D371**, **D375**, and **D391**. Guarantees that code execution proceeds against a locked, peer-reviewed, and mathematically complete foundation with zero ambiguity.
+* **Verification:**  
+  100% green test suite (`npm test`: 2,948 passed, 0 failed, 1 skipped); `npm run typecheck` clean (0 errors); `npm run build` passed in 354ms.

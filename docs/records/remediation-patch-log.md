@@ -26,6 +26,10 @@
 | [**PATCH-013**](#patch-013-milestone-1-pr-3-traffic-core-4-implementation--plausibility-gate) | M1 | 2026-09-30 23:15Z | Aero & SMM | Traffic Core 4 Implementation & Plausibility Gate | Pass |
 | [**PATCH-014**](#patch-014-interactive-wind-ui-inputs--dynamic-simulation-updates) | M1 | 2026-09-30 23:25Z | UI & Physics | Interactive Wind UI Inputs & Dynamic Simulation Updates | Pass |
 | [**PATCH-015**](#patch-015-closed-loop-vector-pursuit-3d-visualization-suite--pilot-intuitive-controls) | M1 | 2026-09-30 23:55Z | 3D & Pilot UX | Closed-Loop Vector Pursuit, 3D Suite & Pilot-Intuitive Controls | Pass |
+| [**PATCH-016**](#patch-016-3d-render-loop-decoupling-layer-relocation--ui-cleanup) | M1 | 2026-10-01 00:20Z | 3D & UI | 3D Render Loop Decoupling, Layer Relocation & UI Cleanup | Pass |
+| [**PATCH-017**](#patch-017-aerodynamic-vector-flight-model--wind-compensated-perch-guidance) | M1 | 2026-10-01 00:45Z | Aero & Route | Aerodynamic Vector Flight Model & Wind-Compensated Perch Guidance | Pass |
+| [**PATCH-018**](#patch-018-3d-satellite-ground-plane-fix--airfield-ground-truth-baseline) | M1 | 2026-10-01 03:40Z | 3D & Ground | 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline | Pass |
+| [**PATCH-019**](#patch-019-master-vector-physics-specification-mathematical-equations--simjs-pre-vector-snapshot) | M1 | 2026-10-01 04:15Z | Aero & Spec | Master Vector Physics Spec, Equations, Snapshot & Checklist | Pass |
 
 ---
 
@@ -375,5 +379,112 @@
 * **Verification:**  
   `npm test` passed 100% green (`2,943 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 451ms.
 
+---
 
+### PATCH-016: 3D Render Loop Decoupling, Layer Relocation & UI Cleanup
+* **Date & Time:** 2026-10-01 00:20 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+  * [`src/modules/traffic/playback-bar.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/playback-bar.js)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+* **Problem / Flaw Addressed:**  
+  1. Switching to 3D mode froze the browser because offscreen canvas tile uploads were scheduled every frame inside the Three.js animation loop (`photoTexture.needsUpdate = true`).
+  2. "Height lines" was placed as a floating toolbar button on the 2D map, overlapping UI labels.
+  3. Experimental in-flight action buttons on aircraft rows were non-functional and cluttered the view.
+* **Changes Made:**
+  1. Debounced satellite tile texture generation (`ensurePhotoTexture`), prevented per-frame `photoTexture.needsUpdate = true`, and removed redundant tile redraw loops. 3D mode now runs at a locked 60 FPS.
+  2. Relocated "Height drop lines" toggle into the `Layers ▾` dropdown menu (`layerHeightLines`, `needs: 'view3d'`) alongside Labels, Caution rings, and Trails.
+  3. Cleaned experimental action buttons from aircraft rows.
+* **Reasoning / Rationale:**  
+  Preserves smooth 60 FPS 3D rendering and uncluttered, professional UI layout.
+* **Verification:**  
+  Smooth 60 FPS Three.js rendering confirmed; unit tests passed.
 
+---
+
+### PATCH-017: Aerodynamic Vector Flight Model & Wind-Compensated Perch Guidance
+* **Date & Time:** 2026-10-01 00:45 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/scene.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/scene.js)
+  * [`src/modules/traffic/defaults.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/defaults.js)
+  * [`src/modules/traffic/profile.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/profile.js)
+  * [`src/modules/traffic/playback-bar.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/playback-bar.js)
+  * [`src/modules/traffic/index.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/index.js)
+  * [`src/modules/traffic/map2d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/map2d.js)
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+  * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js) (NEW)
+* **Problem / Flaw Addressed:**  
+  Aircraft in Traffic Sim were constrained to rigid calm-wind 1D waypoints. When wind was present, the overhead break had unnatural straight segments, and the final turn could not adapt to wind drift, causing aircraft to overshoot or plunge off the extended runway centerline.
+* **Changes Made:**
+  1. Exported `computeWindPerch(route, windFromDeg, windKt, options)` calculating exact wind drift offset $\vec{P}_{\text{perch}} = \vec{P}_{\text{perch, calm}} - \vec{W} \cdot T_{\text{turn}}$ ($T_{\text{turn}} \approx 29.8\text{ s}$ for 180° turn at 120 KIAS, 35° bank).
+  2. Exported `generateWindAdjustedTrack(route, windFromDeg, windKt, options)` constructing full 3D Cartesian trajectory: 60° bank / 2.0 G level break turn with natural wind drift & $V^2$ aerodynamic drag deceleration ($220 \to 140$ KIAS); direct crabbed ground track to shifted Perch; continuous 180° descending final turn ($3500 \to 2700$ ft MSL cubic easing) rolling out wings level on runway centerline; 3.0° glide slope descent ($120 \to 100$ KIAS) to 1,892 ft MSL threshold.
+  3. Added `layerWindTrack` and `layerSmmReference` layer toggles to `DEFAULTS`, `PROFILE_SETTING_KEYS`, and `LAYER_ITEMS`.
+  4. Rendered active wind track (solid), SMM calm reference corridor (dashed), and dynamic `"Perch (Wind)"` marker with warm highlight on both 2D canvas and 3D Three.js scene.
+  5. Added unit tests in `tests/unit/traffic/vector-sim.test.js` (5/5 passed).
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D382**, and **D389**. Restores realistic pilot aerodynamic maneuvers and visual cues in the visual circuit.
+* **Verification:**  
+  `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 439ms.
+
+---
+
+### PATCH-018: 3D Satellite Ground Plane Fix & Airfield Ground Truth Baseline
+* **Date & Time:** 2026-10-01 03:40 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main` (commit `ff80c96`)
+* **Files Modified:**
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+* **Problem / Flaw Addressed:**  
+  1. The 3D satellite floor remained invisible/transparent because `fixedMap.worldToScreen` returned an object `{ x, y }`, whereas `map-tiles.js:107` expected an array `[x, y]`, causing array destructuring (`const [x1, y1] = toScreen(...)`) to throw `TypeError: toScreen(...) is not iterable`.
+  2. Single-sided plane geometry (`THREE.FrontSide`) caused backface culling from certain grazing camera angles, and matching ground elevation caused potential z-fighting against the wireframe grid.
+  3. If external Esri web tiles were delayed or offline, the 3D ground was completely empty.
+* **Changes Made:**
+  1. Corrected `fixedMap.worldToScreen` to return `[x, y]`, enabling `createTileLayer.draw` to paint satellite tiles onto `photoCanvas`.
+  2. Added `THREE.DoubleSide` to `photoMaterial` and set elevation to `floor - 2` to prevent backface culling and z-fighting.
+  3. Implemented `paintBaseAirfield(ctx)` painting the Moose Jaw runway complex (Runways 29L/11R, 29R/11L, 04/22) and prairie grass baseline immediately upon texture creation, so the airfield ground is always visible even prior to web tile arrival.
+  4. Updated visibility condition to `options.layerPhoto !== false` (on by default).
+* **Reasoning / Rationale:**  
+  Guarantees instant, reliable visual reference on the 3D floor matching the 2D map view.
+* **Verification:**  
+  `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 573ms.
+
+---
+
+### PATCH-019: Master Vector Physics Specification, Mathematical Equations & sim.js Pre-Vector Snapshot
+* **Date & Time:** 2026-10-01 04:15 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main` (commits `620b229`, `7156052`, `f81c135`)
+* **Files Created:**
+  * [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak) (Safety backup)
+  * [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md) (Master specification)
+  * [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md) (Execution plan & Before/After code diagrams)
+  * [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md) (Living task checklist for Slices A–G)
+* **Files Modified:**
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md) (Decision D391)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md) (Decision D391)
+  * [`docs/handover/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/traffic.md)
+  * [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md)
+* **Problem / Flaw Addressed:**  
+  1. Transitioning Traffic Sim from legacy 1D "slot-car on rails" polyline progression to authentic 3D Cartesian vector flight required an authoritative mathematical specification that formalizes closed-loop steering, localizer corridor tracking, pure pursuit, vertical cubic transitions, and authentic Harvard II aero parameters without breaking existing tests.
+  2. Safe engineering discipline required preserving an exact pre-modification snapshot of `sim.js` (`src/modules/traffic/sim.js.pre-vector.bak`) committed to Git history prior to code edits.
+  3. All team documents (handover, decisions, living checklists) required formal synchronization to eliminate gaps and ambiguities (such as Inner vs. Outer Downwind terminology).
+* **Changes Made:**
+  1. Created pre-edit safety snapshot: `src/modules/traffic/sim.js.pre-vector.bak`.
+  2. Formulated, ratified, and logged Decision **D391** in master decisions registers.
+  3. Created `specs/SPEC-traffic-vector.md` providing closed-form equations for:
+     * Localizer cross-track steering error and intercept cut angle.
+     * Pure pursuit direct vector steering on Inner Downwind to wind-shifted Perch $\vec{P}_{\text{perch}}$.
+     * Continuous 180° descending final turn with cubic vertical profile ($3,500 \to 2,700\text{ ft MSL}$) and 3.0° glide slope descent ($15,417\text{ ft}$ intercept to threshold).
+     * Complete Harvard II aerodynamic data table (mass, wing area, $C_L$, induced drag, turn radius, roll rate limits).
+  4. Established `tasks/traffic/vector-physics-plan.md` featuring Before vs. After code architecture diagrams and a 4-step execution pipeline.
+  5. Established `tasks/traffic/vector-physics-todo.md` breaking execution into two discrete stages: Stage 1 (pure physics in `sim.js`, Slices A–E) and Stage 2 (pilot UI controls & toggles, Slices F–G).
+  6. Updated `docs/handover/traffic.md` and `.agent/memory/handoff.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D371**, **D375**, and **D391**. Guarantees that code execution proceeds against a locked, peer-reviewed, and mathematically complete foundation with zero ambiguity.
+* **Verification:**  
+  100% green test suite (`npm test`: 2,948 passed, 0 failed, 1 skipped); `npm run typecheck` clean (0 errors); `npm run build` passed in 354ms.
