@@ -168,3 +168,27 @@ export function gFromTrack(p0, h0, p1, h1, dtSec) {
   if (!Number.isFinite(g) || g < 0.8 || g > 9) return null;
   return g;
 }
+
+// ── Shared Flight Guidance & Control Utilities ──────────────────────────────
+
+/**
+ * Moves a bank angle toward a target by at most maxDeltaRad;
+ * wrapPi ensures shortest-arc roll, and prefer (+1 or -1) picks direction if 180° off.
+ * Returns { bank, movedRad }.
+ */
+export function rollToward(bank, target, maxDeltaRad, prefer = 1) {
+  let delta = wrapPi(target - bank);
+  if (Math.abs(delta) > Math.PI - 1e-3) delta = prefer * Math.PI;
+  const moved = Math.abs(delta) <= maxDeltaRad ? delta : Math.sign(delta) * maxDeltaRad;
+  return { bank: wrapPi(bank + moved), movedRad: Math.abs(moved) };
+}
+
+/**
+ * G required for first-order damped flight path angle convergence toward targetClimbRad:
+ * n = cos(climb) + (V / g) * omega * (targetClimb - climb).
+ * omega defaults to 1.0 rad/s (standard T-6 roundout).
+ */
+export function dampedClimbG(climbRad, targetClimbRad, speedFtps, omega = 1.0) {
+  return Math.cos(climbRad) + (speedFtps / G_FTPS2) * omega * (targetClimbRad - climbRad);
+}
+

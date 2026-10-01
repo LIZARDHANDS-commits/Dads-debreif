@@ -4,7 +4,7 @@
 //
 // Pure: it reads the engine's setup and state and returns plain data. It changes nothing
 // and works out no flight math of its own (radius, bank and the drawn path are the engine's).
-import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch, generateWindAdjustedTrack } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch, generateWindAdjustedTrack, generatePflTrack } from './route.js';
 
 const isShowing = (route) => route.visible !== false;
 
@@ -47,13 +47,17 @@ export function buildScene({ setup, state, selectedRouteId, trailOf }) {
   const windFromDeg = setup.windFromDeg ?? 360;
   const routes = setup.routes.map((route) => {
     const decisions = decisionPoints(route, setup.routes);
-    const isPat1 = route.id === 'PAT1' && route.points?.length >= 13;
+    const isPat1 = route.id === 'PAT1' && route.points?.length >= 4;
     const isPat1Wind = isPat1 && windKt > 0;
     return {
       id: route.id, name: route.name, kind: route.kind, color: route.color, visible: isShowing(route),
       points: route.points.map((p, i) => ({ ...p, decision: decisions.has(i), ...pointTurn(route, i, options) })),
       path: isShowing(route) && route.points.length > 1
-        ? (isPat1 ? generateWindAdjustedTrack(route, windFromDeg, windKt, options) : drawPath(route, options))
+        ? (isPat1
+            ? generateWindAdjustedTrack(route, windFromDeg, windKt, options)
+            : (route.id === 'ENT4' || route.kind === 'pfl' || /pfl/i.test(route.name)
+                ? generatePflTrack(route, windFromDeg, windKt, options)
+                : drawPath(route, options)))
         : undefined,
       calmPath: isShowing(route) && isPat1Wind ? generateWindAdjustedTrack(route, 360, 0, options) : undefined,
       windPerch: isShowing(route) && isPat1Wind ? computeWindPerch(route, windFromDeg, windKt, options) : null,

@@ -16,15 +16,19 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 
 ## Current Gate: Gate 1 Refinements (D390 / D391)
 - **Authoritative Master Specification:** [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md) (single source of truth for aerodynamics, guidance laws, and equations).
+- **Master Flight Pattern Matrix:** [`docs/traffic-pattern-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/traffic-pattern-matrix.md) (authoritative reference for PAT1, PAT_OUTER, PAT_SI, Breakout, and PFLs).
+- **Architecture Remediation Plan:** [`tasks/traffic/remediation-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/remediation-plan.md) (4-phase segmented plan).
+- **Living Remediation Checklist:** [`tasks/traffic/remediation-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/remediation-todo.md).
 - **Execution Plan:** [`tasks/traffic/vector-physics-plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-plan.md) (Before/After diagrams, 4-step pipeline).
 - **Living Task Checklist:** [`tasks/traffic/vector-physics-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-physics-todo.md) (discrete Stage 1 & Stage 2 slices).
 - **Safety Pre-Edit Backup:** [`src/modules/traffic/sim.js.pre-vector.bak`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js.pre-vector.bak).
 - Landed: PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering), height drop lines moved to Layers menu.
 - Landed: PATCH-020 (Stage 1 Vector Physics Slices A–E in `sim.js: fly(a)`, overhead break drag curve, dynamic perch capture, adaptive final turn descent easing, touch-and-go closed pattern circuit, and crosscheck expected table realignment).
 - Landed: PATCH-021 (Stage 2 Pilot UI Controls: operational spawner presets for Inner Downwind/Perch/Final, multi-track display toggles, in-flight Breakout and Go-around action buttons).
-- Next up: Gate 1 Verification Checklist (`docs/checklists/traffic.md`) & human sign-off with Patrick.
-- Full test baseline: `npm test` passes 100% green (2,965 passed, 0 failed, 1 skipped).
-- Production build: `npm run build` passes in ~348ms.
+- Landed: PATCH-022 (V2.0 visual indicator badge, zero-wind V6 outer loop elimination, CT-156 authentic 50° bank closed-pattern climbing turn physics).
+- Landed: PATCH-023 (Closed pattern wings-level 118° rollout to Perch; spawner clean-up keeping working 'Start at point' with dynamic waypoint caption; calm-wind 180° rounded arcs for 60° break and 35° final turn; High Key 5,000 ft threshold overflight heading 298°; continuous 360° circular PFL glide arc; Stage 1 deactivation of SPL1–SPL4).
+- Full test baseline: `npm test` passes 100% green (2,975 passed, 0 failed, 1 skipped; 609/609 traffic tests).
+- Production build: `npm run build` passes in ~284ms.
 - Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 
 ## Settled numbers (Patrick's calls win over the manuals)

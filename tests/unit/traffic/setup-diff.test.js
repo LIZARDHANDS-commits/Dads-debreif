@@ -30,12 +30,16 @@ const INSERTED = { routeId: 'ENT2', index: 4 };
 const COLLINEAR_FT = 1e-6;
 
 test('everything outside the routes is V6\'s', () => {
-  const { routes: a, routeOptions: roA, ...restDefault } = DEFAULT;
-  const { routes: b, routeOptions: roB, ...restV6 } = V6;
+  const { routes: a, routeOptions: roA, aircraft: acA, ...restDefault } = DEFAULT;
+  const { routes: b, routeOptions: roB, aircraft: acB, ...restV6 } = V6;
   const { trueArcs: _tA, ...optsDefault } = roA ?? {};
   assert.deepEqual(restDefault, restV6);
   assert.deepEqual(optsDefault, roB);
   assert.deepEqual(a.map((r) => r.id), b.map((r) => r.id));
+  // A3 reassigned from SPL4 to PAT1 for operational deactivation (Stage 1)
+  const normalizedAcA = acA.map((ac) => (ac.id === 'A3' ? { ...ac, routeId: 'SPL4' } : ac));
+  assert.deepEqual(normalizedAcA, acB);
+  assert.equal(acA.find((ac) => ac.id === 'A3')?.routeId, 'PAT1');
 });
 
 test('every route is V6\'s except for the allowed points and fields', () => {
@@ -43,7 +47,13 @@ test('every route is V6\'s except for the allowed points and fields', () => {
     const v6 = V6.routes.find((r) => r.id === route.id);
     const { points, ...restDefault } = route;
     const { points: v6Points, ...restV6 } = v6;
-    assert.deepEqual(restDefault, restV6, `${route.id}: route fields`);
+    if (route.kind === 'split') {
+      assert.equal(restDefault.visible, false);
+      assert.equal(restDefault.splitOdds, 0);
+      assert.deepEqual({ ...restDefault, visible: true, splitOdds: 0.5 }, restV6, `${route.id}: route fields`);
+    } else {
+      assert.deepEqual(restDefault, restV6, `${route.id}: route fields`);
+    }
 
     const added = route.id === INSERTED.routeId ? 1 : 0;
     assert.equal(points.length, v6Points.length + added, `${route.id}: number of points`);

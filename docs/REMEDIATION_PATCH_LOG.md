@@ -572,5 +572,40 @@
 * **Verification:**  
   100% green test suite across entire repository (`npm test`: 2,965 passed, 0 failed, 1 skipped); `npm run typecheck` passed (0 errors); `npm run build` passed in 469ms.
 
+---
+
+### PATCH-023: Closed Pattern Guidance, Calm-Wind Rounded Arcs, High Key PFL & Spawner Clean-Up
+* **Date & Time:** 2026-10-01 09:30 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+  * [`src/modules/traffic/traffic.css`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/traffic.css)
+  * [`src/modules/traffic/data/moose-jaw.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/data/moose-jaw.json)
+  * [`src/modules/traffic/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/layout.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`tests/unit/traffic/aircraft.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/aircraft.test.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js)
+* **Problem / Flaw Addressed:**  
+  1. Closed pattern aircraft circled indefinitely past departure end rather than rolling out wings-level onto downwind and capturing the Perch.
+  2. Spawner UI top-right contained redundant "Preset point" and "Start at point" controls.
+  3. Calm-wind (0 kt) overhead break and final turn flew square piecewise polygonal lines rather than rounded aerodynamic arcs.
+  4. Emergency tactical button was labeled "Low Key" instead of standard "High Key" (5,000 ft MSL threshold overflight heading 298°).
+  5. PFL glide steering navigated diamond waypoints instead of a continuous 360° circular arc at 120 kt / 30° bank.
+  6. Ghost tracks from legacy polyline routes (SPL1–SPL4) cluttered 2D/3D views and triggered random dice-roll track switching.
+* **Changes Made:**
+  1. **Closed Pattern Guidance:** In `sim.js: fly(a)`, implemented 180° climbing turn (50° bank / 2,100 fpm) to 3,500 ft MSL / 140 kt, wings-level rollout on heading 118° direct to Perch, and robust along-track Perch capture transitioning into the descending final turn. Spawning at Point 2 on PAT1 initializes directly at Departure End in `closed_pattern` phase.
+  2. **Spawner Clean-Up:** In `aircraft.js`, removed redundant "Preset point" dropdown, standardized on working "Start at point" control, and added a live dynamic waypoint caption (`↳ Departure End (Closed Pattern): 2,400 ft, 140 kt`).
+  3. **Calm-Wind Rounded Arcs:** In `route.js`, updated `generateWindAdjustedTrack` to generate smooth, continuous 180° circular arcs (60° bank / 2.0 G break with $V^2$ drag bleed from 220 to 140 kt, and 35° bank descending final turn from 3,500 to 2,119 ft at 120 kt) even at 0 kt wind.
+  4. **High Key Command:** Relabeled button to "High Key" on aircraft cards; implemented extended centerline intercept fix vectoring so aircraft overflies threshold at 5,000 ft MSL facing runway axis (298°).
+  5. **Continuous Circular Arc PFL Glide:** Generated continuous 360° circular gliding arc at 120 kt / 30° bank from High Key down through Low Key to threshold.
+  6. **Stage 1 Split Deactivation:** In `moose-jaw.json`, set `visible: false` and `splitOdds: 0` on `SPL1`–`SPL4`, reassigned A3 to `PAT1`, and filtered `kind === 'split'` out of pilot-facing route selectors.
+* **Reasoning / Rationale:**  
+  Decisions **D399** and **D400**. Satisfies all pilot operational requirements for circuit navigation, simplifies the UI, and aligns flight geometry with authentic 15 Wing Moose Jaw standards.
+* **Verification:**  
+  100% green test suite across entire repository (`npm test`: 2,975 passed, 0 failed, 1 skipped; 609/609 traffic unit tests passing); `npm run typecheck` passed (0 errors); `npm run build` passed in 284ms.
+
 
 

@@ -380,3 +380,23 @@ test('the turn follows the route options and the point\'s speed and G', () => {
   assert.equal(manual.radiusFt, 2500);
   near(manual.bankDeg, 75.5225, 1e-3);
 });
+
+test('PAT1 in calm wind with trueArcs generates authentic rounded circular arcs for overhead break and final turn', () => {
+  const options = { flyRoundedTurns: true, trueArcs: true, radiusFromG: true, windKt: 0, windFromDeg: 360 };
+  const path = routePath(pat1, options);
+  assert.ok(path.points.length > 50, 'produces high-density trajectory');
+
+  // Overhead break phase exists and exhibits circular 180° turn with deceleration
+  const breakPts = path.points.filter((p) => p.phase === 'break');
+  assert.ok(breakPts.length >= 10, 'break has continuous curve points');
+  const breakStart = breakPts[0], breakEnd = breakPts.at(-1);
+  assert.ok(breakStart.kt >= 200, 'break starts at 220 kt');
+  assert.ok(breakEnd.kt <= 150, 'break ends near 140 kt');
+
+  // Final turn phase exists and exhibits continuous descending turn
+  const ftPts = path.points.filter((p) => p.phase === 'final_turn');
+  assert.ok(ftPts.length >= 10, 'final turn has continuous curve points');
+  assert.ok(ftPts[0].alt > ftPts.at(-1).alt, 'final turn descends smoothly');
+  assert.equal(ftPts[0].alt, 3500);
+  assert.ok(ftPts.at(-1).alt <= 2700);
+});

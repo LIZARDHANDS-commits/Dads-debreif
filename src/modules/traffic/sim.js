@@ -155,7 +155,24 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.iasKt = a.customKt ?? (p.kt ?? a.fallbackKt);
     a.headingDeg = a.customHeading ?? p.headingDeg;
     a.bankDeg = 0;
-    a.phase = p.phase || (route.id === 'PAT1' && (a.startIndex === 9 || p.seg === 9) ? 'break' : 'initial');
+    const isClosedPatternStart = route.id === 'PAT1' && (a.startIndex === 1 || /closed\s*pattern/i.test(route.points?.[a.startIndex]?.label));
+    if (isClosedPatternStart) {
+      a.phase = 'closed_pattern';
+      a.closedPatternGuidance = true;
+      a.customAlt = 2400;
+      a.customKt = 140;
+      a.alt = 2400;
+      a.iasKt = 140;
+      a.customHeading = 298;
+      a.headingDeg = 298;
+      a.customX = route.points[a.startIndex]?.x ?? -4066.03;
+      a.customY = route.points[a.startIndex]?.y ?? 680.56;
+      a.x = a.customX;
+      a.y = a.customY;
+    } else {
+      const isBrkPoint = route.id === 'PAT1' && (a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(route.points?.[a.startIndex]?.label));
+      a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
+    }
     a.trackDeg = a.headingDeg;
     a.crabDeg = 0;
     a.gsKt = a.iasKt;
@@ -267,25 +284,525 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   /** Everything V6's `step` does for one aircraft in one step of play (line 454). */
   function fly(a) {
+    const windKt = getWindKt();
+    const windFromDeg = getWindFromDeg();
+    const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
+    const windFtps = ktToFtps(windKt);
+    const Wx = windFtps * Math.sin(blowToRad);
+    const Wy = windFtps * Math.cos(blowToRad);
+
     if (a.command === 'breakout') {
       const p = whereIs(a);
-      const iasKt = a.customKt ?? a.iasKt ?? 140;
+      const curX = a.customX ?? a.x ?? p.x;
+      const curY = a.customY ?? a.y ?? p.y;
+      let curHdg = a.customHeading ?? a.headingDeg ?? 118;
+      let altFt = a.customAlt ?? a.alt ?? 2500;
+      let iasKt = a.customKt ?? a.iasKt ?? 140;
+
+      // Immediate climb to 3,500 ft MSL at standard climb rate
+      if (altFt < 3500) {
+        altFt = Math.min(3500, altFt + 30 * STEP_SEC);
+        if (iasKt < 140) iasKt = Math.min(140, iasKt + 4 * STEP_SEC);
+      } else {
+        altFt = 3500;
+        const targetKt = a.breakoutPhase === 'intercept_rejoin' ? 220 : 180;
+        if (iasKt < targetKt) iasKt = Math.min(targetKt, iasKt + 4 * STEP_SEC);
+      }
+
+      // Multi-phase state machine matching Split 2 geometry:
+      // Phase 1: vector_outbound -> fly towards Outbound waypoint (2 NM south of pattern)
+      // Phase 2: fly_south -> continue south along radial towards Rejoin leg turn
+      // Phase 3: intercept_rejoin -> turn onto rejoin line towards 45° entry merge
+      // Rejoin: merge back into PAT1 at point 7 (45° leg entry) at 3,500 ft / 220 kt
+      if (!a.breakoutPhase) a.breakoutPhase = 'vector_outbound';
+
+      let targetX = -15652.8;
+      let targetY = -38011.9;
+      let targetBank = 35;
+
+      if (a.breakoutPhase === 'vector_outbound') {
+        targetX = -15652.8;
+        targetY = -38011.9;
+        const dist = Math.hypot(targetX - curX, targetY - curY);
+        if (dist < 3500 || curY <= -37000) {
+          a.breakoutPhase = 'fly_south';
+        }
+      }
+
+      if (a.breakoutPhase === 'fly_south') {
+        targetX = 2047.2;
+        targetY = -50911.9;
+        const dist = Math.hypot(targetX - curX, targetY - curY);
+        if (dist < 3500 || curY <= -49000) {
+          a.breakoutPhase = 'intercept_rejoin';
+        }
+      }
+
+      if (a.breakoutPhase === 'intercept_rejoin') {
+        targetX = 21702.2;
+        targetY = -19342.8;
+        const dist = Math.hypot(targetX - curX, targetY - curY);
+        if (dist < 3500 || curY >= -20000) {
+          // Reached 45° entry merge point! Rejoin PAT1 at point 7 (45° leg)
+          const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
+          if (pat) {
+            a.routeId = pat.id;
+            a.distFt = pointDistFt(pat, 7, routeOptions());
+            const pRejoin = posOnRoute(pat, a.distFt, routeOptions());
+            a.customX = pRejoin.x;
+            a.customY = pRejoin.y;
+            a.x = pRejoin.x;
+            a.y = pRejoin.y;
+            a.customHeading = pRejoin.headingDeg;
+            a.headingDeg = pRejoin.headingDeg;
+            a.customAlt = 3500;
+            a.customKt = 220;
+            a.phase = 'initial';
+          }
+          a.command = null;
+          delete a.breakoutPhase;
+          delete a.breakoutTarget;
+          return;
+        }
+      }
+
+      // Closed-loop vector guidance toward (targetX, targetY)
+      const targetBearingDeg = (Math.atan2(targetX - curX, targetY - curY) * 180 / Math.PI + 360) % 360;
+      let diffDeg = ((targetBearingDeg - curHdg + 540) % 360) - 180;
+      const maxTurnStep = 45 * STEP_SEC;
+      if (Math.abs(diffDeg) > maxTurnStep) {
+        curHdg = (curHdg + Math.sign(diffDeg) * maxTurnStep + 360) % 360;
+        a.bankDeg = Math.sign(diffDeg) * targetBank;
+      } else {
+        curHdg = targetBearingDeg;
+        a.bankDeg = 0;
+      }
+
+      a.customHeading = curHdg;
+      a.customAlt = altFt;
+      a.customKt = iasKt;
+
       const vAir = ktToFtps(iasKt);
-      const headingRad = ((a.customHeading ?? 118) * Math.PI) / 180;
-      const dotX = vAir * Math.sin(headingRad);
-      const dotY = vAir * Math.cos(headingRad);
-      a.customX = (a.customX ?? a.x ?? p.x) + dotX * STEP_SEC;
-      a.customY = (a.customY ?? a.y ?? p.y) + dotY * STEP_SEC;
-      a.customAlt = Math.min(3500, (a.customAlt ?? a.alt ?? (p.alt ?? a.fallbackAlt)) + 25 * STEP_SEC);
+      const headingRad = (curHdg * Math.PI) / 180;
+      const dotX = vAir * Math.sin(headingRad) + Wx;
+      const dotY = vAir * Math.cos(headingRad) + Wy;
+      a.customX = curX + dotX * STEP_SEC;
+      a.customY = curY + dotY * STEP_SEC;
       a.x = a.customX;
       a.y = a.customY;
-      a.alt = a.customAlt;
-      a.headingDeg = a.customHeading;
-      a.trackDeg = a.customHeading;
-      a.bankDeg = 0;
+      a.alt = altFt;
+      a.headingDeg = curHdg;
+      a.trackDeg = (Math.atan2(dotX, dotY) * 180 / Math.PI + 360) % 360;
       a.iasKt = iasKt;
-      a.gsKt = iasKt;
+      a.gsKt = Math.hypot(dotX, dotY) / 1.68781;
       a.phase = 'breakout';
+
+      if (steps % TRAIL_EVERY_STEPS === 0) {
+        a.trail.push({ x: a.x, y: a.y });
+        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
+      }
+      return;
+    }
+
+    if (a.command === 'climb_high_key' || a.command === 'climb_low_key') {
+      const p = whereIs(a);
+      const curX = a.customX ?? a.x ?? p.x;
+      const curY = a.customY ?? a.y ?? p.y;
+      let curHdg = a.customHeading ?? a.headingDeg ?? 118;
+      let altFt = a.customAlt ?? a.alt ?? 2500;
+      let iasKt = a.customKt ?? a.iasKt ?? 140;
+
+      if (!a.pflPhase) a.pflPhase = (a.command === 'climb_low_key') ? 'climb_lk' : 'climb_hk';
+
+      const thX = 3103.84, thY = -3193.93;
+      const lkX = 251.5, lkY = -8558.8;
+      const rwyHdg = 298;
+
+      let targetX = thX, targetY = thY, targetBank = 30;
+      let useDirectArc = false;
+
+      if (a.pflPhase === 'climb_hk') {
+        // Full power climb to High Key (5,000 ft MSL over threshold facing down runway 298°)
+        altFt = Math.min(5000, altFt + 35 * STEP_SEC);
+        if (altFt >= 4800) {
+          iasKt = Math.max(120, iasKt - 4 * STEP_SEC);
+        } else {
+          iasKt = 140;
+        }
+
+        const rwyRad = (rwyHdg * Math.PI) / 180;
+        const rwyUx = Math.sin(rwyRad);
+        const rwyUy = Math.cos(rwyRad);
+        const relX = curX - thX;
+        const relY = curY - thY;
+        const alongRwy = relX * rwyUx + relY * rwyUy;
+        const crossRwy = relX * (-rwyUy) + relY * rwyUx;
+
+        // Vector to extended final southeast of threshold before crossing inbound
+        const fixDist = 6000;
+        const fixX = thX - rwyUx * fixDist;
+        const fixY = thY - rwyUy * fixDist;
+
+        if (altFt < 4500 || alongRwy > -1500) {
+          targetX = fixX;
+          targetY = fixY;
+        } else {
+          targetX = thX;
+          targetY = thY;
+        }
+
+        const distToTh = Math.hypot(thX - curX, thY - curY);
+        if (altFt >= 4700 && (distToTh < 1500 || (alongRwy >= -300 && alongRwy <= 1200 && Math.abs(crossRwy) < 1500))) {
+          curHdg = rwyHdg;
+          altFt = 5000;
+          iasKt = 120;
+          a.pflPhase = 'hk_to_lk_arc';
+          a.pflTurnAccum = 0;
+        }
+      } else if (a.pflPhase === 'climb_lk') {
+        // Full power climb to Low Key (~3,800-3,900 ft MSL at 120 kt)
+        altFt = Math.min(3900, altFt + 35 * STEP_SEC);
+        iasKt = 120;
+        targetX = lkX;
+        targetY = lkY;
+        const distToLK = Math.hypot(lkX - curX, lkY - curY);
+        if (altFt >= 3800) {
+          a.pflPhase = 'lk_to_final_arc';
+          a.pflTurnAccum = 0;
+          curHdg = 118;
+        }
+      }
+
+      if (a.pflPhase === 'hk_to_lk_arc') {
+        // Continuous circular arc gliding turn from High Key to Low Key:
+        // 180° left turn at 120 KIAS gliding down from 5,000 ft to 3,500 ft
+        useDirectArc = true;
+        iasKt = 120;
+        altFt = Math.max(3500, altFt - 28 * STEP_SEC);
+        const gAcc = 32.174;
+        const bankRad = (30 * Math.PI) / 180;
+        const omega = (gAcc * Math.tan(bankRad)) / Math.max(1, ktToFtps(iasKt));
+        const turnStep = (omega * STEP_SEC * 180) / Math.PI;
+        a.pflTurnAccum = (a.pflTurnAccum ?? 0) + turnStep;
+        curHdg = (curHdg - turnStep + 360) % 360;
+        a.bankDeg = -30;
+        if (a.pflTurnAccum >= 175 || Math.abs(curHdg - 118) <= 5) {
+          a.pflPhase = 'lk_to_final_arc';
+          a.pflTurnAccum = 0;
+          curHdg = 118;
+          a.bankDeg = 0;
+        }
+      }
+
+      if (a.pflPhase === 'lk_to_final_arc' || a.pflPhase === 'low_key_turn') {
+        // Continuous circular arc gliding turn from Low Key to Final:
+        // 180° left turn at 120 KIAS descending from 3,500 ft to 2,100 ft
+        useDirectArc = true;
+        iasKt = 120;
+        altFt = Math.max(2100, altFt - 26 * STEP_SEC);
+        const gAcc = 32.174;
+        const bankRad = (30 * Math.PI) / 180;
+        const omega = (gAcc * Math.tan(bankRad)) / Math.max(1, ktToFtps(iasKt));
+        const turnStep = (omega * STEP_SEC * 180) / Math.PI;
+        a.pflTurnAccum = (a.pflTurnAccum ?? 0) + turnStep;
+        curHdg = (curHdg - turnStep + 360) % 360;
+        a.bankDeg = -30;
+        if (a.pflTurnAccum >= 175 || Math.abs(curHdg - 298) <= 5) {
+          a.pflPhase = 'final_glide';
+          a.pflTurnAccum = 0;
+          curHdg = rwyHdg;
+          a.bankDeg = 0;
+        }
+      }
+
+      if (a.pflPhase === 'final_glide' || a.pflPhase === 'base_to_final') {
+        targetX = thX;
+        targetY = thY;
+        iasKt = Math.max(100, iasKt - 2 * STEP_SEC);
+        altFt = Math.max(1892, altFt - 18 * STEP_SEC);
+        const dist = Math.hypot(targetX - curX, targetY - curY);
+        if (dist < 800 || altFt <= 1895) {
+          altFt = 1892;
+          a.customAlt = 1892;
+          a.landed = true;
+          a.active = false;
+          a.command = null;
+          delete a.pflPhase;
+          delete a.pflTurnAccum;
+          return;
+        }
+      }
+
+      if (!useDirectArc) {
+        const targetBearingDeg = (Math.atan2(targetX - curX, targetY - curY) * 180 / Math.PI + 360) % 360;
+        let diffDeg = ((targetBearingDeg - curHdg + 540) % 360) - 180;
+        const maxTurnStep = 45 * STEP_SEC;
+        if (Math.abs(diffDeg) > maxTurnStep) {
+          curHdg = (curHdg + Math.sign(diffDeg) * maxTurnStep + 360) % 360;
+          a.bankDeg = Math.sign(diffDeg) * targetBank;
+        } else {
+          curHdg = targetBearingDeg;
+          a.bankDeg = 0;
+        }
+      }
+
+      a.customHeading = curHdg;
+      a.customAlt = altFt;
+      a.customKt = iasKt;
+
+      const vAir = ktToFtps(iasKt);
+      const headingRad = (curHdg * Math.PI) / 180;
+      const dotX = vAir * Math.sin(headingRad) + Wx;
+      const dotY = vAir * Math.cos(headingRad) + Wy;
+      a.customX = curX + dotX * STEP_SEC;
+      a.customY = curY + dotY * STEP_SEC;
+      a.x = a.customX;
+      a.y = a.customY;
+      a.alt = altFt;
+      a.headingDeg = curHdg;
+      a.trackDeg = (Math.atan2(dotX, dotY) * 180 / Math.PI + 360) % 360;
+      a.iasKt = iasKt;
+      a.gsKt = Math.hypot(dotX, dotY) / 1.68781;
+      a.phase = 'pfl';
+
+      if (steps % TRAIL_EVERY_STEPS === 0) {
+        a.trail.push({ x: a.x, y: a.y });
+        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
+      }
+      return;
+    }
+
+    if (a.command === 'pfl_current' || (a.command === 'engine_fail' && a.customX !== undefined)) {
+      const p = whereIs(a);
+      const curX = a.customX ?? a.x ?? p.x;
+      const curY = a.customY ?? a.y ?? p.y;
+      let curHdg = a.customHeading ?? a.headingDeg ?? 118;
+      let altFt = a.customAlt ?? a.alt ?? 2500;
+      let iasKt = a.customKt ?? a.iasKt ?? 140;
+
+      if (!a.pflPhase) {
+        a.pflPhase = iasKt > 130 ? 'zoom_climb' : 'glide_eval';
+      }
+
+      const thX = 3103.84, thY = -3193.93;
+      const lkX = 251.5, lkY = -8558.8;
+      const bkX = 7200, bkY = -7500;
+      const rwyHdg = 298;
+
+      let targetX = thX, targetY = thY, targetBank = 30;
+      let useDirectArc = false;
+
+      if (a.pflPhase === 'zoom_climb') {
+        // Zoom climb: convert excess speed to altitude
+        altFt += 35 * STEP_SEC;
+        iasKt = Math.max(125, iasKt - 12 * STEP_SEC);
+        if (iasKt <= 125) {
+          iasKt = 125;
+          a.pflPhase = 'glide_eval';
+        }
+      }
+
+      if (a.pflPhase === 'glide_eval' || a.pflPhase === 'glide_intercept') {
+        iasKt = 125;
+        altFt = Math.max(1892, altFt - 20 * STEP_SEC);
+
+        // Assess energy: does the aircraft have enough energy to fly the circular pattern?
+        const hAGL = altFt - 1892;
+        const distToLK = Math.hypot(lkX - curX, lkY - curY);
+        // Circling via Low Key -> Base -> Final takes ~18,000 ft of glide
+        const distCircle = distToLK + 16000;
+        const maxGlideDist = hAGL * 10; // ~10:1 glide ratio in T-6
+        const hasEnergyForCircle = maxGlideDist >= distCircle && altFt >= 3000;
+
+        if (hasEnergyForCircle) {
+          // Sufficient energy: vector toward Low Key to join circular arc
+          targetX = lkX;
+          targetY = lkY;
+          if (distToLK < 2500) {
+            a.pflPhase = 'lk_to_final_arc';
+            a.pflTurnAccum = 0;
+            curHdg = 118;
+          }
+        } else {
+          // Insufficient energy: fly DIRECT to the keys / threshold
+          if (altFt >= 2600 && Math.hypot(bkX - curX, bkY - curY) < Math.hypot(thX - curX, thY - curY)) {
+            targetX = bkX;
+            targetY = bkY;
+            if (Math.hypot(bkX - curX, bkY - curY) < 2500) a.pflPhase = 'direct_final';
+          } else {
+            targetX = thX;
+            targetY = thY;
+            if (Math.hypot(thX - curX, thY - curY) < 1000 || altFt <= 1895) a.pflPhase = 'direct_final';
+          }
+        }
+      }
+
+      if (a.pflPhase === 'lk_to_final_arc' || a.pflPhase === 'low_key_turn') {
+        // Continuous circular arc gliding turn from Low Key to Final
+        useDirectArc = true;
+        iasKt = 120;
+        altFt = Math.max(2100, altFt - 26 * STEP_SEC);
+        const gAcc = 32.174;
+        const bankRad = (30 * Math.PI) / 180;
+        const omega = (gAcc * Math.tan(bankRad)) / Math.max(1, ktToFtps(iasKt));
+        const turnStep = (omega * STEP_SEC * 180) / Math.PI;
+        a.pflTurnAccum = (a.pflTurnAccum ?? 0) + turnStep;
+        curHdg = (curHdg - turnStep + 360) % 360;
+        a.bankDeg = -30;
+        if (a.pflTurnAccum >= 175 || Math.abs(curHdg - 298) <= 5) {
+          a.pflPhase = 'final_glide';
+          a.pflTurnAccum = 0;
+          curHdg = rwyHdg;
+          a.bankDeg = 0;
+        }
+      }
+
+      if (a.pflPhase === 'final_glide' || a.pflPhase === 'direct_final' || a.pflPhase === 'base_to_final' || a.pflPhase === 'landing') {
+        targetX = thX;
+        targetY = thY;
+        iasKt = Math.max(100, iasKt - 2 * STEP_SEC);
+        altFt = Math.max(1892, altFt - 18 * STEP_SEC);
+        const dist = Math.hypot(targetX - curX, targetY - curY);
+        if (dist < 800 || altFt <= 1895) {
+          altFt = 1892;
+          a.customAlt = 1892;
+          a.landed = true;
+          a.active = false;
+          a.command = null;
+          delete a.pflPhase;
+          delete a.pflTurnAccum;
+          return;
+        }
+      }
+
+      if (!useDirectArc) {
+        const targetBearingDeg = (Math.atan2(targetX - curX, targetY - curY) * 180 / Math.PI + 360) % 360;
+        let diffDeg = ((targetBearingDeg - curHdg + 540) % 360) - 180;
+        const maxTurnStep = 45 * STEP_SEC;
+        if (Math.abs(diffDeg) > maxTurnStep) {
+          curHdg = (curHdg + Math.sign(diffDeg) * maxTurnStep + 360) % 360;
+          a.bankDeg = Math.sign(diffDeg) * targetBank;
+        } else {
+          curHdg = targetBearingDeg;
+          a.bankDeg = 0;
+        }
+      }
+
+      a.customHeading = curHdg;
+      a.customAlt = altFt;
+      a.customKt = iasKt;
+
+      const vAir = ktToFtps(iasKt);
+      const headingRad = (curHdg * Math.PI) / 180;
+      const dotX = vAir * Math.sin(headingRad) + Wx;
+      const dotY = vAir * Math.cos(headingRad) + Wy;
+      a.customX = curX + dotX * STEP_SEC;
+      a.customY = curY + dotY * STEP_SEC;
+      a.x = a.customX;
+      a.y = a.customY;
+      a.alt = altFt;
+      a.headingDeg = curHdg;
+      a.trackDeg = (Math.atan2(dotX, dotY) * 180 / Math.PI + 360) % 360;
+      a.iasKt = iasKt;
+      a.gsKt = Math.hypot(dotX, dotY) / 1.68781;
+      a.phase = 'pfl';
+
+      if (steps % TRAIL_EVERY_STEPS === 0) {
+        a.trail.push({ x: a.x, y: a.y });
+        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
+      }
+      return;
+    }
+
+    if (a.command === 'go_around') {
+      const p = whereIs(a);
+      const curX = a.customX ?? a.x ?? p.x;
+      const curY = a.customY ?? a.y ?? p.y;
+      const depX = -4066.03; // Departure end of Runway 29L
+      const rwyHeadingDeg = 298; // Runway axis
+
+      if (!a.gaPhase) a.gaPhase = 'climb_2500';
+
+      let iasKt = a.customKt ?? a.iasKt ?? 140;
+      let altFt = a.customAlt ?? a.alt ?? 1892;
+      let hdgDeg = a.customHeading ?? rwyHeadingDeg;
+      let bankDeg = 0;
+
+      if (a.gaPhase === 'climb_2500') {
+        hdgDeg = rwyHeadingDeg;
+        bankDeg = 0;
+        iasKt = 140;
+        altFt = Math.min(2500, altFt + 25 * STEP_SEC);
+        if (altFt >= 2500) {
+          altFt = 2500;
+          a.gaPhase = 'accel_to_dep';
+        }
+      } else if (a.gaPhase === 'accel_to_dep') {
+        hdgDeg = rwyHeadingDeg;
+        bankDeg = 0;
+        altFt = 2500;
+        iasKt = Math.min(210, iasKt + 8 * STEP_SEC);
+        if (curX <= depX) {
+          a.gaPhase = 'zoom_climb';
+        }
+      } else if (a.gaPhase === 'zoom_climb') {
+        hdgDeg = rwyHeadingDeg;
+        bankDeg = 0;
+        altFt = Math.min(3500, altFt + 45 * STEP_SEC);
+        if (iasKt > 180) iasKt = Math.max(180, iasKt - 6 * STEP_SEC);
+        else iasKt = Math.min(180, iasKt + 4 * STEP_SEC);
+
+        if (altFt >= 3500) {
+          altFt = 3500;
+          a.gaPhase = 'level_accel';
+        }
+      } else if (a.gaPhase === 'level_accel') {
+        hdgDeg = rwyHeadingDeg;
+        bankDeg = 0;
+        altFt = 3500;
+        iasKt = Math.min(220, iasKt + 8 * STEP_SEC);
+        if (iasKt >= 220) {
+          a.gaPhase = 'crosswind_rejoin';
+        }
+      } else if (a.gaPhase === 'crosswind_rejoin') {
+        altFt = 3500;
+        iasKt = 220;
+        const targetHdg = 118;
+        const diff = ((targetHdg - hdgDeg + 540) % 360) - 180;
+        const maxTurn = 45 * STEP_SEC;
+        if (Math.abs(diff) > maxTurn) {
+          hdgDeg = (hdgDeg + Math.sign(diff) * maxTurn + 360) % 360;
+          bankDeg = Math.sign(diff) * 45;
+        } else {
+          hdgDeg = targetHdg;
+          bankDeg = 0;
+          a.command = null;
+          delete a.gaPhase;
+          a.phase = 'downwind';
+        }
+      }
+
+      a.customKt = iasKt;
+      a.customAlt = altFt;
+      a.customHeading = hdgDeg;
+      a.bankDeg = bankDeg;
+
+      const vAir = ktToFtps(iasKt);
+      const headingRad = (hdgDeg * Math.PI) / 180;
+      const dotX = vAir * Math.sin(headingRad) + Wx;
+      const dotY = vAir * Math.cos(headingRad) + Wy;
+
+      a.customX = curX + dotX * STEP_SEC;
+      a.customY = curY + dotY * STEP_SEC;
+      a.x = a.customX;
+      a.y = a.customY;
+      a.alt = altFt;
+      a.headingDeg = hdgDeg;
+      a.trackDeg = (Math.atan2(dotX, dotY) * 180 / Math.PI + 360) % 360;
+      a.iasKt = iasKt;
+      a.gsKt = Math.hypot(dotX, dotY) / 1.68781;
+      a.phase = 'go_around';
+
       if (steps % TRAIL_EVERY_STEPS === 0) {
         a.trail.push({ x: a.x, y: a.y });
         if (a.trail.length > TRAIL_POINTS) a.trail.shift();
@@ -297,9 +814,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const options = routeOptions();
     const before = a.distFt;
     const p = whereIs(a, route);
-    if (a.phase !== 'closed_pattern' && a.phase !== 'touch_and_go') {
+    if (a.phase !== 'closed_pattern' && a.phase !== 'touch_and_go' && a.phase !== 'downwind') {
       a.phase = p.phase || (route.kind === 'pattern' ? 'initial' : 'route');
     }
+
     const isDownwind = route.id === 'PAT1' && a.phase === 'downwind';
     let iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
 
@@ -307,10 +825,28 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // Airspeed decays toward 110 KIAS best glide
       iasKt = a.customKt = Math.max(110, (a.customKt ?? (p.kt ?? a.fallbackKt)) - 15 * STEP_SEC);
       // Emergency glide descent: ~1,000 fpm = 16.7 ft/sec
-      a.customAlt = Math.max(1880, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) - 16.7 * STEP_SEC);
-      if (a.customAlt <= 1880) {
+      a.customAlt = Math.max(1892, (a.customAlt ?? (p.alt ?? a.fallbackAlt)) - 16.7 * STEP_SEC);
+      if (a.customAlt <= 1892) {
         a.active = false;
         a.landed = true;
+      }
+    } else {
+      // 15 Wing Moose Jaw SMM Ch 16 speed gate: Hold 120 KIAS at 2,700 ft MSL until 0.75 NM from threshold
+      const isStraightIn = route.id === 'PAT_SI' || a.phase === 'straight_in';
+      if (isStraightIn) {
+        const thX = 3103.84, thY = -3193.93;
+        const curX = a.customX ?? a.x ?? p.x;
+        const curY = a.customY ?? a.y ?? p.y;
+        const distToTh = Math.hypot(thX - curX, thY - curY);
+        const WINDOW_FT = 4558; // 0.75 NM (Window)
+        if (distToTh > WINDOW_FT) {
+          iasKt = a.customKt = 120;
+          a.customAlt = 2700;
+        } else {
+          const u = Math.max(0, Math.min(1, distToTh / WINDOW_FT));
+          iasKt = a.customKt = Math.round(100 + 20 * u);
+          a.customAlt = Math.round(1892 + (2700 - 1892) * u);
+        }
       }
     }
     a.iasKt = iasKt;
@@ -326,21 +862,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const targetAlt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
     a.alt = targetAlt;
 
-    const windKt = getWindKt();
-    const windFromDeg = getWindFromDeg();
-
     let tasKt = iasKt;
     let vAir = ktToFtps(iasKt);
-    let Wx = 0;
-    let Wy = 0;
 
     if (windKt > 0) {
       tasKt = iasToTasKt(iasKt, a.alt);
       vAir = ktToFtps(tasKt);
-      const windRad = (windFromDeg * Math.PI) / 180;
-      const windFtps = ktToFtps(windKt);
-      Wx = -windFtps * Math.sin(windRad);
-      Wy = -windFtps * Math.cos(windRad);
     }
 
     let gsKt = iasKt;
@@ -379,6 +906,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // Closed pattern trigger past departure end on touch-and-go
       if (a.phase === 'touch_and_go' && (a.x ?? 0) <= -4000) {
         a.phase = 'closed_pattern';
+        a.closedPatternGuidance = true;
       }
 
       if (a.phase === 'closed_pattern') {
@@ -388,12 +916,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const gAcc = 32.174;
         const bankRad = (50 * Math.PI) / 180;
         const omega = (gAcc * Math.tan(bankRad)) / Math.max(1, vAir);
-        a.customHeading = (((a.customHeading ?? a.headingDeg) - (omega * STEP_SEC * 180 / Math.PI)) % 360 + 360) % 360;
+        const turnStepDeg = (omega * STEP_SEC * 180) / Math.PI;
+        a.closedTurnAccum = (a.closedTurnAccum ?? 0) + turnStepDeg;
+        a.customHeading = (((a.customHeading ?? a.headingDeg) - turnStepDeg) % 360 + 360) % 360;
         headingDeg = a.customHeading;
 
-        // Roll out wings-level on downwind heading (118° true) pointing directly toward Perch
-        if (a.customAlt >= 3500 && Math.abs(headingDeg - 118) <= 20) {
+        // Roll out wings-level on downwind heading (118° true) pointing directly toward Perch once the 180° turn is made
+        if (a.closedTurnAccum >= 175 || Math.abs(headingDeg - 118) <= 5) {
           a.phase = 'downwind';
+          delete a.closedTurnAccum;
           const perch = computeWindPerch(route, windFromDeg, windKt, options);
           if (perch) {
             a.customHeading = (Math.atan2(perch.x - (a.customX ?? a.x), perch.y - (a.customY ?? a.y)) * 180 / Math.PI + 360) % 360;
@@ -402,28 +933,42 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         }
       } else if (a.phase === 'downwind') {
         iasKt = a.customKt = 140;
-        a.customAlt = 3500;
+        a.customAlt = Math.min(3500, (a.customAlt ?? a.alt) + 35 * STEP_SEC);
         const perch = computeWindPerch(route, windFromDeg, windKt, options);
         if (perch) {
           const curX = a.customX ?? a.x;
           const curY = a.customY ?? a.y;
-          const distToPerch = Math.hypot(perch.x - curX, perch.y - curY);
-          a.customHeading = (Math.atan2(perch.x - curX, perch.y - curY) * 180 / Math.PI + 360) % 360;
+          const toPerchX = perch.x - curX;
+          const toPerchY = perch.y - curY;
+          a.customHeading = (Math.atan2(toPerchX, toPerchY) * 180 / Math.PI + 360) % 360;
           headingDeg = a.customHeading;
-          if (distToPerch <= 150) {
+          const hdgRad = (headingDeg * Math.PI) / 180;
+          const distToPerch = Math.hypot(toPerchX, toPerchY);
+          const alongTrack = toPerchX * Math.sin(hdgRad) + toPerchY * Math.cos(hdgRad);
+          if (distToPerch <= 200 || (alongTrack <= 0 && distToPerch <= 500)) {
             a.phase = 'final_turn';
             a.customKt = 120;
+            // Seamlessly synchronize distFt to current position on route to avoid any teleportation jump
+            const rLen = routeLengthFt(route, options);
+            const lapOffset = rLen > 0 ? Math.floor(a.distFt / rLen) * rLen : 0;
+            a.distFt = lapOffset + closestDistFt(route, { x: curX, y: curY }, options);
             delete a.customAlt;
             delete a.customHeading;
             delete a.customX;
             delete a.customY;
+            delete a.closedPatternGuidance;
           }
         }
       }
     }
 
+
+    // Update visual heading immediately so flight physics and readout match
+    const effectiveHdg = a.customHeading ?? headingDeg;
+    a.headingDeg = effectiveHdg;
+
     // 3D Cartesian velocity components (ft/s)
-    const headingRad = (a.headingDeg * Math.PI) / 180;
+    const headingRad = (effectiveHdg * Math.PI) / 180;
     const dotX = vAir * Math.sin(headingRad) + Wx;
     const dotY = vAir * Math.cos(headingRad) + Wy;
     a.dotX = dotX;
@@ -807,38 +1352,53 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (action === 'breakout') {
         const curP = whereIs(a);
         a.command = 'breakout';
-        a.customHeading = ((a.headingDeg ?? 118) + 90) % 360;
-        a.customAlt = Math.max(a.customAlt ?? (curP.alt ?? 2500), 3500);
-        a.customKt = 140;
-        a.customX = curP.x;
-        a.customY = curP.y;
-      } else if (action === 'engine_fail') {
+        a.breakoutPhase = 'vector_outbound';
+        a.customAlt = a.alt ?? (curP.alt ?? 2500);
+        a.customKt = Math.max(a.iasKt ?? 140, 140);
+        a.customX = a.x ?? curP.x;
+        a.customY = a.y ?? curP.y;
+        a.customHeading = a.headingDeg ?? curP.headingDeg ?? 118;
+        a.phase = 'breakout';
+      } else if (action === 'climb_high_key' || action === 'climb_low_key') {
+        const curP = whereIs(a);
+        a.command = action;
+        a.pflPhase = action === 'climb_high_key' ? 'climb_hk' : 'climb_lk';
+        a.landed = false;
+        a.active = true;
+        a.customAlt = a.alt ?? (curP.alt ?? 2500);
+        a.customKt = Math.max(a.iasKt ?? 140, 140);
+        a.customX = a.x ?? curP.x;
+        a.customY = a.y ?? curP.y;
+        a.customHeading = a.headingDeg ?? curP.headingDeg ?? 118;
+        a.phase = 'pfl';
+      } else if (action === 'pfl_current' || action === 'engine_fail') {
+        const curP = whereIs(a);
         a.engineFailed = true;
-        a.command = 'engine_fail';
-        a.customKt = 110;
+        a.command = 'pfl_current';
+        a.landed = false;
+        a.active = true;
+        a.customAlt = a.alt ?? (curP.alt ?? 2500);
+        a.customKt = a.iasKt ?? (curP.kt ?? 140);
+        a.customX = a.x ?? curP.x;
+        a.customY = a.y ?? curP.y;
+        a.customHeading = a.headingDeg ?? curP.headingDeg ?? 118;
+        a.pflPhase = a.customKt > 130 ? 'zoom_climb' : 'glide_intercept';
+        a.phase = 'pfl';
       } else if (action === 'go_around') {
         a.command = 'go_around';
+        a.gaPhase = 'climb_2500';
         a.landed = false;
         a.active = true;
         a.engineFailed = false;
-        delete a.customX;
-        delete a.customY;
-        delete a.customHeading;
-        const pat = setup.routes.find((r) => r.id === 'PAT1') ?? setup.routes[0];
-        if (pat) {
-          a.routeId = pat.id;
-          a.distFt = pointDistFt(pat, 1, routeOptions());
-          a.customAlt = 2500;
-          a.customKt = 140;
-          const p = posOnRoute(pat, a.distFt, routeOptions());
-          a.x = p.x;
-          a.y = p.y;
-          a.alt = 2500;
-          a.iasKt = 140;
-          a.headingDeg = p.headingDeg;
-          a.bankDeg = 0;
-          a.phase = 'touch_and_go';
-        }
+        const curP = whereIs(a);
+        a.customX = a.x ?? curP.x;
+        a.customY = a.y ?? curP.y;
+        a.customAlt = a.alt ?? 1892;
+        a.customKt = Math.max(120, a.iasKt ?? 120);
+        a.customHeading = 298;
+        a.headingDeg = 298;
+        a.bankDeg = 0;
+        a.phase = 'go_around';
       } else if (action === 'touch_and_go') {
         a.touchAndGo = true;
         a.landed = false;
@@ -875,7 +1435,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const p = whereIs(a);
         const isDownwind = route?.id === 'PAT1' && a.phase === 'downwind';
         const iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
-        const altFt = a.landed ? (p.alt ?? 1880) : (a.customAlt ?? (p.alt ?? a.fallbackAlt));
+        const altFt = a.landed ? (p.alt ?? 1892) : (a.customAlt ?? (p.alt ?? a.fallbackAlt));
         const x = a.customX ?? a.x ?? p.x;
         const y = a.customY ?? a.y ?? p.y;
         const headingDeg = a.customHeading ?? (a.headingDeg ?? p.headingDeg);
