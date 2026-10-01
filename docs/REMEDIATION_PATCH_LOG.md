@@ -375,6 +375,54 @@
 * **Verification:**  
   `npm test` passed 100% green (`2,943 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 451ms.
 
+---
 
+### PATCH-016: 3D Render Loop Decoupling, Layer Relocation & UI Cleanup
+* **Date & Time:** 2026-10-01 00:20 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+  * [`src/modules/traffic/playback-bar.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/playback-bar.js)
+  * [`src/modules/traffic/aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/aircraft.js)
+* **Problem / Flaw Addressed:**  
+  1. Switching to 3D mode froze the browser because offscreen canvas tile uploads were scheduled every frame inside the Three.js animation loop (`photoTexture.needsUpdate = true`).
+  2. "Height lines" was placed as a floating toolbar button on the 2D map, overlapping UI labels.
+  3. Experimental in-flight action buttons on aircraft rows were non-functional and cluttered the view.
+* **Changes Made:**
+  1. Debounced satellite tile texture generation (`ensurePhotoTexture`), prevented per-frame `photoTexture.needsUpdate = true`, and removed redundant tile redraw loops. 3D mode now runs at a locked 60 FPS.
+  2. Relocated "Height drop lines" toggle into the `Layers ▾` dropdown menu (`layerHeightLines`, `needs: 'view3d'`) alongside Labels, Caution rings, and Trails.
+  3. Cleaned experimental action buttons from aircraft rows.
+* **Reasoning / Rationale:**  
+  Preserves smooth 60 FPS 3D rendering and uncluttered, professional UI layout.
+* **Verification:**  
+  Smooth 60 FPS Three.js rendering confirmed; unit tests passed.
 
+---
 
+### PATCH-017: Aerodynamic Vector Flight Model & Wind-Compensated Perch Guidance
+* **Date & Time:** 2026-10-01 00:45 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/scene.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/scene.js)
+  * [`src/modules/traffic/defaults.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/defaults.js)
+  * [`src/modules/traffic/profile.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/profile.js)
+  * [`src/modules/traffic/playback-bar.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/playback-bar.js)
+  * [`src/modules/traffic/index.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/index.js)
+  * [`src/modules/traffic/map2d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/map2d.js)
+  * [`src/modules/traffic/view3d.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/view3d.js)
+  * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js) (NEW)
+* **Problem / Flaw Addressed:**  
+  Aircraft in Traffic Sim were constrained to rigid calm-wind 1D waypoints. When wind was present, the overhead break had unnatural straight segments, and the final turn could not adapt to wind drift, causing aircraft to overshoot or plunge off the extended runway centerline.
+* **Changes Made:**
+  1. Exported `computeWindPerch(route, windFromDeg, windKt, options)` calculating exact wind drift offset $\vec{P}_{\text{perch}} = \vec{P}_{\text{perch, calm}} - \vec{W} \cdot T_{\text{turn}}$ ($T_{\text{turn}} \approx 29.8\text{ s}$ for 180° turn at 120 KIAS, 35° bank).
+  2. Exported `generateWindAdjustedTrack(route, windFromDeg, windKt, options)` constructing full 3D Cartesian trajectory: 60° bank / 2.0 G level break turn with natural wind drift & $V^2$ aerodynamic drag deceleration ($220 \to 140$ KIAS); direct crabbed ground track to shifted Perch; continuous 180° descending final turn ($3500 \to 2700$ ft MSL cubic easing) rolling out wings level on runway centerline; 3.0° glide slope descent ($120 \to 100$ KIAS) to 1,892 ft MSL threshold.
+  3. Added `layerWindTrack` and `layerSmmReference` layer toggles to `DEFAULTS`, `PROFILE_SETTING_KEYS`, and `LAYER_ITEMS`.
+  4. Rendered active wind track (solid), SMM calm reference corridor (dashed), and dynamic `"Perch (Wind)"` marker with warm highlight on both 2D canvas and 3D Three.js scene.
+  5. Added unit tests in `tests/unit/traffic/vector-sim.test.js` (5/5 passed).
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D382**, and **D389**. Restores realistic pilot aerodynamic maneuvers and visual cues in the visual circuit.
+* **Verification:**  
+  `npm test` passed 100% green (`2,948 passed, 0 failed, 1 skipped`). `npm run typecheck` passed (0 errors). `npm run build` passed in 439ms.

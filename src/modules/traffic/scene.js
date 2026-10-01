@@ -4,7 +4,7 @@
 //
 // Pure: it reads the engine's setup and state and returns plain data. It changes nothing
 // and works out no flight math of its own (radius, bank and the drawn path are the engine's).
-import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch } from './route.js';
 
 const isShowing = (route) => route.visible !== false;
 
@@ -43,12 +43,18 @@ export const legMarks = (routes) =>
  */
 export function buildScene({ setup, state, selectedRouteId, trailOf }) {
   const options = setup.routeOptions ?? DEFAULT_ROUTE_OPTIONS;
+  const windKt = setup.windKt ?? 0;
+  const windFromDeg = setup.windFromDeg ?? 360;
   const routes = setup.routes.map((route) => {
     const decisions = decisionPoints(route, setup.routes);
+    const isPat1Wind = route.id === 'PAT1' && windKt > 0;
+    const windOptions = { ...options, windKt, windFromDeg };
     return {
       id: route.id, name: route.name, kind: route.kind, color: route.color, visible: isShowing(route),
       points: route.points.map((p, i) => ({ ...p, decision: decisions.has(i), ...pointTurn(route, i, options) })),
-      path: isShowing(route) && route.points.length > 1 ? drawPath(route, options) : undefined,
+      path: isShowing(route) && route.points.length > 1 ? drawPath(route, isPat1Wind ? windOptions : options) : undefined,
+      calmPath: isShowing(route) && isPat1Wind ? drawPath(route, { ...options, windKt: 0 }) : undefined,
+      windPerch: isShowing(route) && isPat1Wind ? computeWindPerch(route, windFromDeg, windKt, options) : null,
     };
   });
   const trails = Object.create(null); // keyed by callsign: a callsign like __proto__ is an ordinary key here

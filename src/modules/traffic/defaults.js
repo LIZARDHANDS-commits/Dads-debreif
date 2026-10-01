@@ -36,6 +36,8 @@ export const DEFAULTS = Object.freeze({
   layerCautionRings: true,
   layerHeightLines: true,
   layerPhoto: true,
+  layerWindTrack: true,
+  layerSmmReference: true,
   layerLegDistances: false,
   layerTurnData: false,
   layerEngineReach: false,

@@ -23,6 +23,8 @@ export const LAYER_ITEMS = Object.freeze([
   { key: 'layerBubbles', label: 'Conflict bubbles' },
   { key: 'layerCautionRings', label: 'Caution rings' },
   { key: 'layerHeightLines', label: 'Height drop lines (3D)', needs: 'view3d' },
+  { key: 'layerWindTrack', label: 'Wind-adjusted track', needs: 'windTrack' },
+  { key: 'layerSmmReference', label: 'SMM calm reference', needs: 'windTrack' },
   { key: 'layerPhoto', label: 'Satellite photo', needs: 'photo' },
   { key: 'layerEngineReach', label: 'Engine-out reach', needs: 'reach' },
 ]);
@@ -76,7 +78,7 @@ export function createMenu({ label, children = [], listen }) {
  * available: { wind, view3d, photo, reach }, each true once that feature is on the screen.
  * listen: app.listen.
  * Returns { element, setState({ mode, clockText, speed, note }) }: a note ("Replaying…") stands in for the status words until it is cleared with null.
- * @param {{ controls: any, on: Record<string, any>, available?: { wind?: boolean, view3d?: boolean, photo?: boolean, reach?: boolean }, listen: any }} options
+ * @param {{ controls: any, on: Record<string, any>, available?: { wind?: boolean, view3d?: boolean, photo?: boolean, reach?: boolean, windTrack?: boolean }, listen: any }} options
  */
 export function createPlaybackBar({ controls, on, available = {}, listen }) {
   let mode = 'paused';

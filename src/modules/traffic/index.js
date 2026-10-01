@@ -58,7 +58,7 @@ function mount(root, app) {
   const bar = createPlaybackBar({
     controls,
     listen: app.listen,
-    available: { photo: true, view3d: true, wind: true },
+    available: { photo: true, view3d: true, wind: true, windTrack: true },
     on: {
       play,
       pause,

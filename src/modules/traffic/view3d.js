@@ -347,28 +347,57 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   grid.material.fog = false;
   root.add(grid);
 
-  function syncRoutes(list) {
+  function syncRoutes(list, options = {}) {
     const wanted = new Set();
+    const showWind = options.layerWindTrack !== false;
+    const showSmm = options.layerSmmReference !== false;
+
     for (const route of list) {
-      if (route.visible === false || !route.path || route.path.length < 2) continue;
-      wanted.add(route.id);
-      const sig = routeSignature(route);
-      const have = routeLines.get(route.id);
-      if (have && have.sig === sig) continue;
-      if (have) freeLine(have.line);
-      const positions = new Float32Array(route.path.length * 3);
-      route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      const dash = DASH_FT[route.kind];
-      const material = dash
-        ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
-        : new THREE.LineBasicMaterial({ color: route.color, fog: false });
-      const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
-      if (dash) line.computeLineDistances();
-      line.frustumCulled = false;
-      root.add(line);
-      routeLines.set(route.id, { line, sig });
+      if (route.visible === false) continue;
+      const isPat1 = route.id === 'PAT1';
+      const hasCalm = Boolean(route.calmPath);
+
+      if (route.path && route.path.length >= 2 && (!isPat1 || !hasCalm || showWind)) {
+        wanted.add(route.id);
+        const sig = routeSignature(route);
+        const have = routeLines.get(route.id);
+        if (!have || have.sig !== sig) {
+          if (have) freeLine(have.line);
+          const positions = new Float32Array(route.path.length * 3);
+          route.path.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          const dash = DASH_FT[route.kind];
+          const material = dash
+            ? new THREE.LineDashedMaterial({ color: route.color, dashSize: dash[0], gapSize: dash[1], fog: false })
+            : new THREE.LineBasicMaterial({ color: route.color, fog: false });
+          const line = route.kind === 'pattern' ? new THREE.LineLoop(geometry, material) : new THREE.Line(geometry, material);
+          if (dash) line.computeLineDistances();
+          line.frustumCulled = false;
+          root.add(line);
+          routeLines.set(route.id, { line, sig });
+        }
+      }
+
+      if (isPat1 && hasCalm && showSmm) {
+        const calmId = route.id + '_calm';
+        wanted.add(calmId);
+        const sig = `${routeSignature(route)}_calm`;
+        const have = routeLines.get(calmId);
+        if (!have || have.sig !== sig) {
+          if (have) freeLine(have.line);
+          const positions = new Float32Array(route.calmPath.length * 3);
+          route.calmPath.forEach((p, i) => positions.set([p.x, p.y, altToZ(p.alt, ALT_SCALE)], i * 3));
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          const material = new THREE.LineDashedMaterial({ color: '#8b949e', dashSize: 400, gapSize: 300, transparent: true, opacity: 0.6, fog: false });
+          const line = new THREE.LineLoop(geometry, material);
+          line.computeLineDistances();
+          line.frustumCulled = false;
+          root.add(line);
+          routeLines.set(calmId, { line, sig });
+        }
+      }
     }
     for (const [id, { line }] of routeLines) {
       if (wanted.has(id)) continue;
@@ -509,7 +538,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     /** Brings the objects in line with `scene` (routes, aircraft, conflicts) and options: { paint, layerCautionRings, cautionLatFt, zoom, groundFt, time }. */
     sync(scene, options) {
       if (disposed) return;
-      syncRoutes(scene.routes);
+      syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
     },
     /** The ground grid follows the view in whole steps, so it looks endless and still. */
@@ -832,6 +861,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       paint: options.paint, layerCautionRings: options.layerCautionRings, cautionLatFt: options.cautionLatFt,
       zoom: shown.zoom, groundFt: floor, time: source.time(),
       layerHeightLines: options.layerHeightLines ?? heightLines,
+      layerWindTrack: options.layerWindTrack,
+      layerSmmReference: options.layerSmmReference,
       layerPhoto: options.layerPhoto,
       photoTexture: photoTex,
       photoOpacityPct: options.photoOpacityPct,
