@@ -541,7 +541,36 @@
   3. **Unit Tests:** Added unit tests verifying preset configurations and command execution in `vector-sim.test.js` and `aircraft.test.js`. Checked off Slices F and G in `tasks/traffic/vector-physics-todo.md`.
 * **Reasoning / Rationale:**  
   Decisions **D370**, **D384**, and **D391**. Gives pilots direct, intuitive control over vector pattern entries and standard flight abort/re-entry procedures per 15 Wing SMM Ch 16.
+
+---
+
+### PATCH-022: V2.0 UI Badge, Zero-Wind Track Realignment & Closed Pattern Climb Physics
+* **Date & Time:** 2026-10-01 05:40 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`index.html`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/index.html)
+  * [`src/shell/shell.css`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/shell/shell.css)
+  * [`src/shell/home.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/shell/home.js)
+  * [`src/modules/traffic/scene.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/scene.js)
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`tests/crosscheck/traffic-expected.json`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/crosscheck/traffic-expected.json)
+* **Problem / Flaw Addressed:**  
+  1. The user lacked a clear visual indicator in the top navbar to verify that the browser had loaded the latest modern build rather than a cached older version.
+  2. At zero wind speed, the drawn track across the ground for PAT1 fell back to legacy V6 rectangular geometry (points 1–8 extending out miles) with a steep 463 ft altitude cliff drop between points 11 and 12, whereas wind > 0 drew a sleek, modern track.
+  3. Closed pattern (touch-and-go) circuits were flying legacy wide spacing and snapping to the wind-adjusted downwind with teleportation, rather than performing an authentic Harvard II climbing turn.
+  4. Aircraft transitioning from downwind to final turn kept `a.customAlt = 3500` pinned, preventing smooth descent to threshold.
+* **Changes Made:**
+  1. **UI V2.0 Badge:** Added `<span class="version-badge">V2.0</span>` next to "DAD'S OODA LOOP" in the top navbar and Home screen hero heading, styled with high-contrast military HUD green monospace styling.
+  2. **Zero-Wind Track Alignment:** In `scene.js`, routed PAT1 through `generateWindAdjustedTrack` at all wind speeds (including zero wind). In `route.js`, replaced the `baseRounded` loop in `generateWindAdjustedTrack` with a direct Runway / Initial approach along runway heading (298° true) from Threshold to Break Point 9, completely eliminating legacy V6 outer rectangles and the final turn altitude cliff.
+  3. **Closed Pattern Aerodynamics:** Upgraded touch-and-go circuit kinematics in `sim.js: fly(a)` to authentic CT-156 Harvard II specifications: $50^\circ$ bank ($45^\circ\text{–}60^\circ$ range), $10^\circ\text{–}15^\circ$ nose-up climb ($\sim 2,100\text{ fpm} = 35\text{ ft/s}$) up to 3,500 ft MSL past departure end. Roll out wings-level on downwind heading ($118^\circ$ true) pointing directly toward $\vec{P}_{\text{perch}}$ via pure pursuit.
+  4. **Descent & Landing State Cleanup:** Explicitly cleared custom altitude and heading overrides upon entering `final_turn` and `final`, allowing continuous cubic descent ($3,500 \to 2,700\text{ ft MSL}$) and 3.0° glide slope descent down to threshold ($1,892\text{ ft MSL}$). Ensured landed aircraft report runway surface elevation.
+  5. **Crosscheck Realignment:** Re-measured and realigned `f-final-spacing` in `traffic-expected.json` to 2,079 ft (realistic aerodynamic threshold spacing).
+* **Reasoning / Rationale:**  
+  Decisions **D370**, **D380**, **D382**, **D389**, **D390**, and **D391**. Eliminates all remaining legacy V6 rectangular geometry and delivers authentic 3D military circuit flight dynamics.
 * **Verification:**  
-  100% green test suite across entire repository (`2,965 passed, 0 failed, 1 skipped` in 49.8s); `npm run typecheck` passed (0 errors); `npm run build` passed in 348ms.
+  100% green test suite across entire repository (`npm test`: 2,965 passed, 0 failed, 1 skipped); `npm run typecheck` passed (0 errors); `npm run build` passed in 469ms.
+
 
 

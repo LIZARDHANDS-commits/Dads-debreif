@@ -31,7 +31,7 @@ import { iasToTasKt } from '../../core/t6-performance.js';
 import { bankDegFromG } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { createDice } from './dice.js';
-import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, computeWindPerch } from './route.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -209,7 +209,19 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const wrapped = newLap > oldLap || (newDist % lengthFt) < (oldDist % lengthFt);
     if (wrapped && a.lastLap !== newLap) {
       a.lastLap = newLap;
-      if (dice() < (route.landOdds ?? 0.2)) { a.active = false; a.landed = true; return; }
+      if (dice() < (route.landOdds ?? 0.2)) {
+        a.active = false;
+        a.landed = true;
+        a.alt = 1880;
+        delete a.customAlt;
+        delete a.customHeading;
+        delete a.customX;
+        delete a.customY;
+        delete a.customKt;
+        return;
+      } else {
+        a.phase = 'touch_and_go';
+      }
     }
     // Each split from this pattern rolls in turn, and a later one can override an earlier one (V6 bug #47, kept for now).
     for (const split of setup.routes) {
@@ -285,7 +297,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const options = routeOptions();
     const before = a.distFt;
     const p = whereIs(a, route);
-    a.phase = p.phase || (route.kind === 'pattern' ? 'initial' : 'route');
+    if (a.phase !== 'closed_pattern' && a.phase !== 'touch_and_go') {
+      a.phase = p.phase || (route.kind === 'pattern' ? 'initial' : 'route');
+    }
     const isDownwind = route.id === 'PAT1' && a.phase === 'downwind';
     let iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
 
@@ -300,6 +314,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
     }
     a.iasKt = iasKt;
+
+    if (!a.engineFailed && !a.breakout && (a.phase === 'final_turn' || a.phase === 'final')) {
+      delete a.customAlt;
+      delete a.customHeading;
+      delete a.customX;
+      delete a.customY;
+      delete a.customKt;
+    }
 
     const targetAlt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
     a.alt = targetAlt;
@@ -337,10 +359,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.headingDeg = headingDeg;
     a.trackDeg = p.headingDeg;
 
-    // Coordinated bank kinematics with roll rate limiter (45°/s)
     let targetBankDeg = 0;
     if (a.phase === 'break') {
       targetBankDeg = 60; // 60° bank (2.0 G level turn)
+    } else if (a.phase === 'closed_pattern') {
+      targetBankDeg = 50; // 45°–60° bank in closed pattern climbing turn
     } else if (a.phase === 'final_turn') {
       targetBankDeg = 35; // Nominal 35° bank in descending final turn
     } else if (a.phase === 'downwind' || a.phase === 'final' || a.phase === 'glide_slope') {
@@ -352,12 +375,64 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const bankDelta = Math.max(-maxRollDelta, Math.min(maxRollDelta, targetBankDeg - (a.bankDeg ?? 0)));
     a.bankDeg = (a.bankDeg ?? 0) + bankDelta;
 
+    if (route.id === 'PAT1') {
+      // Closed pattern trigger past departure end on touch-and-go
+      if (a.phase === 'touch_and_go' && (a.x ?? 0) <= -4000) {
+        a.phase = 'closed_pattern';
+      }
+
+      if (a.phase === 'closed_pattern') {
+        iasKt = a.customKt = 140;
+        // 10°–15° nose-up climb (~2,100 fpm = 35 ft/s) to 3,500 ft MSL
+        a.customAlt = Math.min(3500, (a.customAlt ?? a.alt) + 35 * STEP_SEC);
+        const gAcc = 32.174;
+        const bankRad = (50 * Math.PI) / 180;
+        const omega = (gAcc * Math.tan(bankRad)) / Math.max(1, vAir);
+        a.customHeading = (((a.customHeading ?? a.headingDeg) - (omega * STEP_SEC * 180 / Math.PI)) % 360 + 360) % 360;
+        headingDeg = a.customHeading;
+
+        // Roll out wings-level on downwind heading (118° true) pointing directly toward Perch
+        if (a.customAlt >= 3500 && Math.abs(headingDeg - 118) <= 20) {
+          a.phase = 'downwind';
+          const perch = computeWindPerch(route, windFromDeg, windKt, options);
+          if (perch) {
+            a.customHeading = (Math.atan2(perch.x - (a.customX ?? a.x), perch.y - (a.customY ?? a.y)) * 180 / Math.PI + 360) % 360;
+            headingDeg = a.customHeading;
+          }
+        }
+      } else if (a.phase === 'downwind') {
+        iasKt = a.customKt = 140;
+        a.customAlt = 3500;
+        const perch = computeWindPerch(route, windFromDeg, windKt, options);
+        if (perch) {
+          const curX = a.customX ?? a.x;
+          const curY = a.customY ?? a.y;
+          const distToPerch = Math.hypot(perch.x - curX, perch.y - curY);
+          a.customHeading = (Math.atan2(perch.x - curX, perch.y - curY) * 180 / Math.PI + 360) % 360;
+          headingDeg = a.customHeading;
+          if (distToPerch <= 150) {
+            a.phase = 'final_turn';
+            a.customKt = 120;
+            delete a.customAlt;
+            delete a.customHeading;
+            delete a.customX;
+            delete a.customY;
+          }
+        }
+      }
+    }
+
     // 3D Cartesian velocity components (ft/s)
     const headingRad = (a.headingDeg * Math.PI) / 180;
     const dotX = vAir * Math.sin(headingRad) + Wx;
     const dotY = vAir * Math.cos(headingRad) + Wy;
     a.dotX = dotX;
     a.dotY = dotY;
+
+    if (a.customHeading !== undefined) {
+      a.customX = (a.customX ?? a.x) + dotX * STEP_SEC;
+      a.customY = (a.customY ?? a.y) + dotY * STEP_SEC;
+    }
 
     a.distFt += ktToFtps(gsKt) * STEP_SEC;
     const lengthFt = routeLengthFt(route, options);
@@ -800,7 +875,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const p = whereIs(a);
         const isDownwind = route?.id === 'PAT1' && a.phase === 'downwind';
         const iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
-        const altFt = a.customAlt ?? (p.alt ?? a.fallbackAlt);
+        const altFt = a.landed ? (p.alt ?? 1880) : (a.customAlt ?? (p.alt ?? a.fallbackAlt));
         const x = a.customX ?? a.x ?? p.x;
         const y = a.customY ?? a.y ?? p.y;
         const headingDeg = a.customHeading ?? (a.headingDeg ?? p.headingDeg);

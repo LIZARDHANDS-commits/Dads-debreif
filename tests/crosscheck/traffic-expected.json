@@ -1011,15 +1011,15 @@
     "id": "f-final-spacing",
     "group": "Alignment and spacing",
     "title": "Spacing on final: closest two aircraft at the threshold",
-    "sim": 719,
+    "sim": 2079,
     "manual": 3000,
     "unit": "ft",
     "page": "SPEC-traffic T11 (Patrick, 07:20Z); EFIG p.393 gives 2,000 for stream landing",
-    "diff": -2281,
+    "diff": -921,
     "tolerance": 0,
     "mode": "atLeast",
     "within": "no",
-    "where": "A2 then A6, 4.3 s apart; 30 crossings in 3600 s"
+    "where": "A2 then A1, 12.3 s apart; 31 crossings in 3600 s"
   },
   {
     "id": "e-break-to-perch-time",

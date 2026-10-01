@@ -568,7 +568,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
  */
 export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
   if (route.id !== 'PAT1' || !route.points || route.points.length < 13) {
-    return routePath(route, options).points;
+    return buildRoundedPoints(route, options);
   }
 
   const pts = route.points;
@@ -586,12 +586,21 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
 
   const track = [];
 
-  // 1. Initial legs from Threshold through Climbout up to Break (points with src < 9)
-  const baseRounded = buildRoundedPoints(route, { ...options, windKt: 0 });
-  for (const p of baseRounded) {
-    if ((p.src ?? 0) < 9) {
-      track.push({ ...p, phase: 'initial' });
-    }
+  // 1. Runway / Initial approach from Threshold directly to Break Point (Point 9)
+  const initDist = Math.hypot(brk.x - th.x, brk.y - th.y);
+  const initSteps = Math.max(6, Math.ceil(initDist / 600));
+  for (let k = 0; k < initSteps; k++) {
+    const u = k / initSteps;
+    track.push({
+      x: th.x + (brk.x - th.x) * u,
+      y: th.y + (brk.y - th.y) * u,
+      alt: Math.round(1880 + (3500 - 1880) * u),
+      kt: Math.round(100 + (220 - 100) * u),
+      g: 1,
+      src: 0,
+      phase: 'initial',
+      headingDeg: rwyHeadingDeg,
+    });
   }
 
   // 2. Overhead Break (60° bank / 2.0 G level turn to downwind heading)
