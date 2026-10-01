@@ -210,7 +210,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D390** | Traffic closed-loop vector pursuit & 3D suite | Decided | Decouples aircraft from 1D rails to 3D Cartesian vectors; continuous break bleed (220->140 kt); 3.0° glide slope; 3D pan & height drop lines. |
 | **D391** | Nominal 35° final turn & closed pattern climb | Decided | Final turn bank target nominal 35° (30°–45° bounds); closed pattern climbs to 3,500 ft at 140 kt past departure end. |
 | **D392** | Hybrid vector-energy engine architecture | Decided | Ground-track guidance with wind crab for published legs; t6-performance.js and flight-math.js for tactical maneuvers. |
-| **D393** | PFL flight commands (Closed to High Key & Engine Fail)| Decided | Closed pattern climb to High Key (5,400 ft / 120 kt) and Engine Failure glide/tangent intercept. |
+| **D393** | PFL flight commands (Closed to High Key & Engine Fail)| Decided | Closed pattern climb to High Key (5,400 ft [superseded by D400: 5,000 ft threshold overflight] / 120 kt) and Engine Failure glide/tangent intercept. |
 | **D394** | Go-around wave-off rejoin | Decided | Climbout (2,500 ft -> departure zoom -> 3,500 ft / 220 kt) turns crosswind to rejoin PAT_OUTER. |
 | **D395** | Breakout geometry & airspace departure | Decided | Climb to 3,500 ft / 140 kt, accelerate to 180 kt towards P_breakout (2 NM south), continue 1 NM south, then turn to rejoin. |
 | **D396** | Moose Jaw PFL key geometry | Decided | Runway 29L High Key (threshold overflight 5,000 ft MSL / 120 kt per D400), Low Key abeam threshold (3,900 ft / 120 kt), Base Key (2,900 ft / 105 kt). |
