@@ -815,7 +815,7 @@ function controlBankMove(ctx) {
   const turned = c.turnDeg >= TUNING.maxBankMoveTurnDeg;
   if ((there && !ac.rolling && c.t > 0.5) || turned) c.next = 'mpt';
   const rolling = ac.rolling || willRoll(ctx, c.holdBankRad, c.prefer);
-  const g = rolling ? Math.min(pullCmdG(ctx), T6A_LIMITS.rollingMaxG) : pullCmdG(ctx);
+  const g = rolling ? (pullCmdG(ctx) > MANEUVER_PULL_G ? pullCmdG(ctx) : Math.min(pullCmdG(ctx), T6A_LIMITS.rollingMaxG)) : pullCmdG(ctx);
   return { g, bankRad: c.holdBankRad, prefer: c.prefer, throttle: 1 };
 }
 
@@ -1308,24 +1308,12 @@ function checkFirstNose(state) {
     }
   }
   // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
-  if (!chasers.length && Math.abs(state.blue.zFt - state.red.zFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+  if (!chasers.length && Math.abs(state.setup.blueAltFt - state.setup.redAltFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
       if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
         startPursuit(state, state.blue);
         startPursuit(state, state.red);
-        if (!state.firstNose) {
-          const both = azBlue <= FIRST_NOSE_DEG && azRed <= FIRST_NOSE_DEG;
-          const by = both ? 'both' : azBlue <= FIRST_NOSE_DEG ? 'blue' : 'red';
-          const from = by === 'red' ? state.red : state.blue;
-          const to = by === 'red' ? state.blue : state.red;
-          state.firstNose = { by, timeSec: state.timeSec, from: { xFt: from.xFt, yFt: from.yFt }, to: { xFt: to.xFt, yFt: to.yFt } };
-        }
-        if (!state.chase) {
-          const both = azBlue <= FIRST_NOSE_DEG && azRed <= FIRST_NOSE_DEG;
-          const by = both ? 'both' : azBlue <= FIRST_NOSE_DEG ? 'blue' : 'red';
-          state.chase = { by, timeSec: state.timeSec, aaDeg: 180 - (by === 'red' ? azBlue : azRed) };
-        }
       }
     }
   }

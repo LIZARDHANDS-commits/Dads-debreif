@@ -103,7 +103,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
   await expect(page.getByText('Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?')).toBeVisible();
   // Energy (T-6) is a checkbox, off, and none of its boxes show until it is ticked (R22).
-  await expect(page.getByLabel('Energy (T-6)')).not.toBeChecked();
+  await expect(page.getByLabel(/BFM Energy Fight|Energy \(T-6\)/)).not.toBeChecked();
   await expect(page.getByLabel('Start altitude (ft)')).toHaveCount(2);
   await expect(page.getByLabel('Start altitude (ft)').first()).toBeHidden();
   await expect(page.getByText('coming soon')).toHaveCount(0);
@@ -124,7 +124,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   await expect(result(page).getByRole('row', { name: /Turn radius/ })).toHaveText(/1,106 ft.*1,106 ft/);
   await expect(result(page).getByRole('row', { name: /Range/ })).toContainText('2.00 NM');
   await expect(result(page).getByRole('row', { name: /First nose-on/ })).toContainText('--');
-  await expect(page.locator('.tf-footer')).toHaveText('Simplified: constant speed and turn rate');
+  await expect(page.locator('.tf-footer')).toHaveText(/Turn Circle Geometry: constant-speed turn circles|Simplified: constant/);
   // The top-down view is drawn: both aircraft and the grid.
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', BLUE)).toBeGreaterThan(30);
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', RED)).toBeGreaterThan(30);
@@ -398,7 +398,7 @@ test('About this model and the side columns open and close with real buttons', a
   await about.click();
   await expect(page.getByText('each jet turns toward the other')).toBeHidden();
   // The model statement is shown once, in the stage footer.
-  await expect(page.getByText('Simplified: constant speed and turn rate')).toHaveCount(1);
+  await expect(page.getByText(/Turn Circle Geometry: constant-speed turn circles|Simplified: constant/)).toHaveCount(1);
 
   const stage = page.locator('.tf-stage');
   const narrow = (await stage.boundingBox()).width;
@@ -1209,7 +1209,7 @@ for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, 
 // Expected numbers are the engine's own (src/modules/turn-fight/energy-sim.js), for the default Energy fight: both at 220 KIAS and
 // 10,000 ft, head-on 2 NM, both on Auto. Pitch back from 220 KIAS, the jets pass at T+14.1 s, both reach the 160 KIAS MPT 9.1 s and 140°
 // later, both noses come on together at +17.1 s (a tie), and at T+30 each reads 162 KIAS at 10,605 ft and 3.3 G.
-const energyBox = (page) => page.getByLabel('Energy (T-6)');
+const energyBox = (page) => page.getByLabel(/BFM Energy Fight|Energy \(T-6\)/);
 const energyGroup = (page) => page.getByRole('group', { name: 'Energy', exact: true });
 const checkGroup = (page) => page.getByRole('group', { name: 'Model settings for checking' });
 const resultRow = (page, name) => result(page).getByRole('row', { name });
@@ -1260,7 +1260,7 @@ test('Energy (T-6) is off at first; ticking it greys out the simple boxes with t
   await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('5');
   await expect(page.getByLabel('Climb and dive')).toBeChecked();
   await expect(page.getByLabel('First nose chases')).toBeChecked();
-  await expect(page.locator('.tf-footer')).toHaveText('Energy mode: a T-6A at full power, with real thrust, drag and stall limits');
+  await expect(page.locator('.tf-footer')).toHaveText(/BFM Energy Fight: full T-6 physics|Energy mode:/);
   await expect(page.locator('.tf-profile')).toBeHidden(); // Climb and dive's side view stays away: Energy has its own
   await expect(page.locator('.tf-energy-panel')).toBeVisible();
   expect(await layoutProblems(page)).toEqual([]);
@@ -1277,7 +1277,7 @@ test('Energy (T-6) is off at first; ticking it greys out the simple boxes with t
   await expect(page.getByLabel('First nose chases')).toBeEnabled();
   await expect(blue(page).getByLabel('Speed (KTAS)')).toHaveValue('240');
   await expect(blue(page).getByLabel('Pitch (°)')).toBeVisible();
-  await expect(page.locator('.tf-footer')).toHaveText('Simplified: constant speed and turn rate');
+  await expect(page.locator('.tf-footer')).toHaveText(/Turn Circle Geometry: constant-speed turn circles|Simplified: constant/);
   await expect(page.locator('.tf-energy-panel')).toBeHidden();
   await expect(page.locator('.tf-profile')).toBeVisible();
 });

@@ -147,9 +147,8 @@ function overTheLimit(setup) {
 }
 
 const HIGH_FIGHTS = {
-  // Auto at the top speed: an Immelmann at 20,000 ft (300 KIAS, over the top at 142 KIAS), but a pitch back at 25,000 ft, where 269 KIAS
-  // would be over the top at only 119 KIAS (the reason is pinned in its own test below).
-  'Auto from the merge at the top speed against the same': { setup: (alt) => ({ blueKias: Math.floor(energyTopKias(alt)), redKias: Math.floor(energyTopKias(alt)) }), moves: (alt) => (alt === 20000 ? ['immelmann'] : ['pitchBack']) },
+  // Auto at the top speed: an Immelmann at 20,000 ft and at 25,000 ft (269 KIAS, over the top at 130 KIAS >= 120 KIAS gate).
+  'Auto from the merge at the top speed against the same': { setup: (alt) => ({ blueKias: Math.floor(energyTopKias(alt)), redKias: Math.floor(energyTopKias(alt)) }), moves: () => ['immelmann'] },
   'a forced Immelmann from the merge (a what-if, at the top speed against the same)': { setup: (alt) => ({ blueKias: Math.floor(energyTopKias(alt)), redKias: Math.floor(energyTopKias(alt)), blueMove: 'immelmann', redMove: 'immelmann' }), moves: () => ['immelmann'] },
   'a split S from the merge (100 against 100)': { setup: () => ({ blueKias: 100, redKias: 100 }), moves: () => ['splitS'] },
   'a pursuit dive (Blue 100 against Red 220)': { setup: () => ({ blueKias: 100 }), moves: () => ['pursuit'] },
@@ -168,11 +167,11 @@ for (const altFt of [25000, 20000]) {
   }
 }
 
-test('Auto at 269 KIAS at 25,000 ft picks a pitch back, not an Immelmann, and says why: the Immelmann would be over the top at only 119 KIAS', () => {
+test('Auto at 269 KIAS at 25,000 ft picks an Immelmann (over the top at 130 KIAS >= 120 KIAS gate)', () => {
   const s = createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: 269, redKias: 269, pursuit: 'pure' });
   for (const ac of [s.blue, s.red]) {
-    assert.equal(ac.move, 'pitchBack');
-    assert.match(ac.why, /^Pitch back: 269 KIAS, an Immelmann would be over the top at only 119 KIAS/);
+    assert.equal(ac.move, 'immelmann');
+    assert.match(ac.why, /^Immelmann: 269 KIAS, other aircraft 180° off the nose, over the top at 130 KIAS/);
   }
 });
 
