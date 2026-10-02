@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import { headingCrossAngleDeg } from '../../../src/core/angles.js';
 import { createFight, stepFight, ataDeg } from '../../../src/modules/turn-fight/sim.js';
 import {
-  timeText, phaseText, resultRows, moreDetailRows, geometryRows, firstNoseText, formatWholeFt,
+  timeText, phaseText, resultRows, moreDetailRows, geometryRows, firstNoseText, formatWholeFt, aircraftTagLines,
 } from '../../../src/modules/turn-fight/readouts.js';
+
 
 const byId = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
 const pair = (r) => [r.blue, r.red];
@@ -267,3 +268,24 @@ test('R28: height change counts from each aircraft\'s start height, and the heig
   assert.equal(byId(moreDetailRows(s)).heightChange.red, '0 ft', 'level pitch: no change for Red');
   assert.equal(byId(moreDetailRows(s)).heightBetween.text, '3,000 ft');
 });
+
+test('aircraftTagLines produces speed, G-load and maneuver lines for both simple and energy modes', () => {
+  const simple = createFight({ blueKt: 250, blueG: 4.5 });
+  const bTag = aircraftTagLines(simple, simple.blue, 'blue');
+  assert.equal(bTag.title, '250 KTAS · 4.5 G');
+  assert.equal(bTag.detail, 'Straight');
+
+  const energyFight = {
+    energy: true,
+    merged: true,
+  };
+  const ac = { kias: 160, g: 3.2, moveLabel: 'MPT' };
+  const eTag = aircraftTagLines(energyFight, ac, 'blue');
+  assert.equal(eTag.title, '160 KIAS · 3.2 G');
+  assert.equal(eTag.detail, 'MPT');
+
+  const shakerAc = { kias: 110, g: 2.0, moveLabel: 'Slice', onShaker: true };
+  const sTag = aircraftTagLines(energyFight, shakerAc, 'red');
+  assert.equal(sTag.detail, 'Slice (Shaker)');
+});
+

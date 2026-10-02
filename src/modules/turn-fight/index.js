@@ -121,7 +121,11 @@ function mount(root, app) {
   });
   ui.setEnergyProblem(problemText, flownValues);
   root.append(ui.element);
-  views.push(createTopDownView(ui.canvas, { timers: app.scheduler, run: () => run }));
+  views.push(createTopDownView(ui.canvas, {
+    timers: app.scheduler,
+    run: () => run,
+    options: () => ({ dataTags: settings.get().dataTags }),
+  }));
   // The picture in Turn Fight settings, Start geometry: drawn from the set numbers, so it follows them as they change.
   // (With Energy on the jets' speeds are the true airspeeds of their merge speeds.)
   views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => startSetupFrom(flownValues ?? settings.get()) }));
@@ -145,8 +149,10 @@ function mount(root, app) {
     timers: app.scheduler,
     run: () => run,
     paint: () => settings.get().paint,
+    options: () => ({ dataTags: settings.get().dataTags }),
     onLost: () => stayIn2d('3D stopped (the graphics card was reset); showing 2D.'),
   });
+
 
   // Goes back to 2D and says why. The fight is not touched: it plays on in 2D.
   function stayIn2d(message) {

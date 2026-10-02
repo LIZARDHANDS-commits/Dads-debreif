@@ -113,6 +113,17 @@ test('drawing shows B and R on the arrowheads and the MERGE mark, and no first n
   assert.ok(!ctx.calls.some((c) => c.fn === 'setLineDash' && c.args[0].length));
 });
 
+test('drawing with dataTags option shows airspeed, G-load and maneuver labels beside B and R', () => {
+  const run = createRun({ blueKt: 240, blueG: 4.8 });
+  const ctx = recorder();
+  drawTopDown(ctx, { width: 800, height: 500 }, run, { dataTags: true });
+  const t = texts(ctx);
+  assert.ok(t.includes('B') && t.includes('R'));
+  assert.ok(t.includes('240 KTAS · 4.8 G'));
+  assert.ok(t.includes('Straight'));
+});
+
+
 test('Q48: a tie labels the first nose-on line BOTH', () => {
   const run = play(createRun({}), 40);
   assert.equal(run.fight.firstNose.both, true);

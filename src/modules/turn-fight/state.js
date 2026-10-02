@@ -57,11 +57,13 @@ export const DEFAULTS = Object.freeze({
   ...energyDefaults(),
   heightScale: 2,
   playbackRate: 1,
+  dataTags: true,
   view: VIEW_DEFAULT,
   paint: PAINT_DEFAULT,
   setupOpen: true,
   resultOpen: true,
 });
+
 
 /** The settings that make up a fight; changing one resets it (V6 `reset`, line 4294). */
 export const FIGHT_KEYS = Object.freeze(Object.keys({ ...V6_DEFAULT_SETUP, ...START_DEFAULTS }));
@@ -334,9 +336,10 @@ export function setupKey(values) {
 /** What "Reset to Standard Defaults" (D384) puts back: the fight, Energy (off, with every Energy setting) and the display settings (paint too), not which columns are open or whether the 3D view is showing. */
 export function standardDefaults() {
   const patch = {};
-  for (const key of [...FIGHT_KEYS, 'energy', ...ENERGY_KEYS, 'heightScale', 'playbackRate', 'paint']) patch[key] = DEFAULTS[key];
+  for (const key of [...FIGHT_KEYS, 'energy', ...ENERGY_KEYS, 'heightScale', 'playbackRate', 'dataTags', 'paint']) patch[key] = DEFAULTS[key];
   return patch;
 }
+
 export const v6Defaults = standardDefaults;
 
 /** What "Reset to defaults" in Model settings for checking puts back: just those settings. */

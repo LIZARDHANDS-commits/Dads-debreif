@@ -28,6 +28,7 @@ import { FIGHT_MAX_SEC } from './sim.js';
 import { TRAIL_INTERVAL_SEC } from './trails.js';
 import { MIN_REACH_FT } from './view.js';
 import { passMarkWord } from './geometry.js';
+import { aircraftTagLines } from './readouts.js';
 
 /** The fight's heights go in as they are: no height scale in 3D (the 2D side view's scale is for that view only). */
 export const ALT_SCALE = 1;
@@ -341,7 +342,7 @@ export function cameraFor(cam, { bounds, fight, size }) {
  *   was reset). By then the view has freed everything and stopped drawing, so the screen only has to show 2D.
  * win: for tests. Returns { start, stop, requestDraw, setView, stats, dispose }.
  */
-export function createView3d(host, { timers, run, paint, onLost = () => {}, load = loadThree, win = globalThis }) {
+export function createView3d(host, { timers, run, paint, options = () => ({}), onLost = () => {}, load = loadThree, win = globalThis }) {
   const doc = host.ownerDocument;
   let THREE = null;
   let gl = null; // the scene and everything that holds GPU resources, only between start() and stop()
@@ -623,9 +624,46 @@ export function createView3d(host, { timers, run, paint, onLost = () => {}, load
       const s = worldToScreen(THREE, camera, point, box.width, box.height);
       el.style.transform = `translate(${Math.round(s.x + dx)}px, ${Math.round(s.y + dy)}px)`;
     };
-    at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, -22, -26, gl.labels.blue);
+    const showDataTags = Boolean(options?.()?.dataTags);
+    const updateLabel = (el, letter, who) => {
+      if (!showDataTags) {
+        if (el.dataset.tagged) {
+          delete el.dataset.tagged;
+          delete el.dataset.tagText;
+          el.textContent = letter;
+        } else if (el.textContent !== letter) {
+          el.textContent = letter;
+        }
+        return;
+      }
+      const tag = aircraftTagLines(fight, fight[who], who);
+      const text = `${letter}|${tag.title}|${tag.detail}`;
+      if (el.dataset.tagText !== text) {
+        el.dataset.tagged = 'true';
+        el.dataset.tagText = text;
+        el.textContent = '';
+        const ship = doc.createElement('span');
+        ship.className = 'tf-3d-ship';
+        ship.textContent = letter;
+        const boxEl = doc.createElement('span');
+        boxEl.className = 'tf-3d-tag-body';
+        const titleSpan = doc.createElement('span');
+        titleSpan.className = 'tf-3d-tag-title';
+        titleSpan.textContent = tag.title;
+        const detailSpan = doc.createElement('span');
+        detailSpan.className = 'tf-3d-tag-detail';
+        detailSpan.textContent = tag.detail;
+        boxEl.append(titleSpan, detailSpan);
+        el.append(ship, boxEl);
+      }
+    };
+    updateLabel(gl.labels.blue, LETTERS.blue, 'blue');
+    updateLabel(gl.labels.red, LETTERS.red, 'red');
+
+    at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, showDataTags ? -40 : -22, -26, gl.labels.blue);
     at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, 12, -26, gl.labels.red);
     gl.labels.merge.style.display = showsMergeMark(fight) ? '' : 'none';
+
     const markWord = passMarkWord(fight);
     if (gl.labels.merge.textContent !== markWord) gl.labels.merge.textContent = markWord;
     at({ x: 0, y: 0, z: 0 }, 8, 22, gl.labels.merge);

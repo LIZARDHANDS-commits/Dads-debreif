@@ -73,7 +73,7 @@ test('changing the setup changes its key; playback speed, height scale and colum
     assert.notEqual(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
   }
   // Switching between 2D and 3D, or the paint, never starts the fight again.
-  for (const change of [{ heightScale: 4 }, { heightScale: 1 }, { playbackRate: 4 }, { setupOpen: false }, { resultOpen: false }, { view: '3d' }, { paint: 'ship' }]) {
+  for (const change of [{ heightScale: 4 }, { heightScale: 1 }, { playbackRate: 4 }, { setupOpen: false }, { resultOpen: false }, { view: '3d' }, { paint: 'ship' }, { dataTags: false }]) {
     assert.equal(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
   }
 });
@@ -81,9 +81,10 @@ test('changing the setup changes its key; playback speed, height scale and colum
 test('Reset to V6 defaults puts back the fight, Energy and the display settings, not the open columns', () => {
   const patch = v6Defaults();
   for (const key of ['circles', 'separationNm', 'blueKt', 'redKt', 'blueG', 'redG', 'chase', 'vertical', 'bluePitchDeg', 'redPitchDeg',
-    'startAtaDeg', 'startAtaSide', 'startAaDeg', 'startAaSide', 'redAboveFt', 'turnsAt', 'energy', 'heightScale', 'playbackRate']) {
+    'startAtaDeg', 'startAtaSide', 'startAaDeg', 'startAaSide', 'redAboveFt', 'turnsAt', 'energy', 'heightScale', 'playbackRate', 'dataTags']) {
     assert.equal(patch[key], DEFAULTS[key], key);
   }
+
   assert.equal(patch.paint, 'harvard');
   assert.ok(!('setupOpen' in patch) && !('resultOpen' in patch));
   assert.ok(!('view' in patch), 'reset never switches the view');

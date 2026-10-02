@@ -193,6 +193,8 @@ export function createLayout({ settings, controls, on }) {
 
   const display = menu.section('Display');
   display.append(
+    controls.checkbox('dataTags', { label: 'Data tags on aircraft' }),
+    h('p', { class: 'tf-hint' }, 'Shows airspeed, G-load and active maneuver directly beside each aircraft.'),
     controls.choice('heightScale', { label: 'Side view height scale', options: times(ALLOWED.heightScale) }),
     h('p', { class: 'tf-hint' }, 'Stretches heights in the side view (2D, with Climb and dive).'),
     controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }),
@@ -247,9 +249,11 @@ export function createLayout({ settings, controls, on }) {
     { class: 'tf-toolbar' },
     playButton, resetButton,
     controls.viewSwitch(),
+    controls.checkbox('dataTags', { label: 'Data tags' }),
     controls.select('playbackRate', { label: 'Playback speed', options: times(ALLOWED.playbackRate) }),
     timeText, phaseText, versionPill,
   );
+
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
   // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.
   const note = h('p', { class: 'tf-note', role: 'status' });

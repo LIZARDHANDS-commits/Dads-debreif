@@ -117,3 +117,33 @@ export function geometryRows(state) {
     pairRow('bank', 'Derived bank angle', 'more', bankDeg(state.perf.blue.g), bankDeg(state.perf.red.g)),
   ];
 }
+
+/**
+ * Aircraft data tag lines (title and detail) for map/HUD labels:
+ * Speed, G-load, and current maneuver.
+ */
+export function aircraftTagLines(fight, ac, who) {
+  if (!fight || !ac) return { title: '', detail: '' };
+  if (fight.energy) {
+    const kias = Math.round(ac.kias ?? ac.ktas ?? ac.mergeKias ?? 0);
+    const gVal = ac.g ?? 1.0;
+    const g = Number.isFinite(gVal) ? gVal.toFixed(1) : '1.0';
+    let move = ac.moveLabel || ac.move || (fight.merged ? 'MPT' : 'Straight');
+    if (ac.stall) move += ' (STALL)';
+    else if (ac.onShaker) move += ' (Shaker)';
+    return {
+      title: `${kias} KIAS · ${g} G`,
+      detail: move,
+    };
+  }
+  const setup = fight.setup ?? {};
+  const speed = Math.round(who === 'blue' ? (setup.blueKt ?? ac.ktas ?? 220) : (setup.redKt ?? ac.ktas ?? 220));
+  const gVal = who === 'blue' ? (setup.blueG ?? 5) : (setup.redG ?? 5);
+  const g = Number.isFinite(gVal) ? gVal.toFixed(1) : '5.0';
+  const move = fight.merged ? `${setup.circles ?? 2}-circle turn` : 'Straight';
+  return {
+    title: `${speed} KTAS · ${g} G`,
+    detail: move,
+  };
+}
+
