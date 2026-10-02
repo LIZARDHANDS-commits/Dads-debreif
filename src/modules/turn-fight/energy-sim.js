@@ -35,6 +35,7 @@ import {
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
+import { turnRadiusFt } from '../../core/flight-math.js';
 
 /** The moves a setup can force; 'auto' lets the model choose (step 1). */
 export const ENERGY_MOVES = Object.freeze(['auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
@@ -152,6 +153,7 @@ const TUNING = Object.freeze({
   captureLeadSec: 3,       // model setting: a bank move hands to the MPT when its speed, this many seconds ahead, would reach the MPT speed
   captureLeadFastSec: 3.7, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft
   captureLeadFromKias: 235, // model setting: entered at or under this speed the lead is captureLeadSec
+  minBankMoveTurnDeg: 90,     // model setting: minimum turn before speed-based handover to MPT (Phase 1A)
   maxBankMoveTurnDeg: 170,    // model setting: a pitch back or slice that has not found the MPT speed by here hands to the MPT anyway
   speedTauSec: 4,             // model setting: the MPT closes on its speed with this time constant
   speedLeadSec: 3,            // model setting: and judges its speed this many seconds ahead, so it does not overshoot
@@ -986,10 +988,55 @@ function physicalBankCommand(ctx, bankDeg, g, throttle) {
   return { g, bankRad: target, prefer: inv ? ac.turnDir : -ac.turnDir, throttle };
 }
 
-/** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), or `lagSec` behind it (lag). */
-function aimPoint(p, target) {
-  const shift = p.pursuit === 'lead' ? p.leadSec : p.pursuit === 'lag' ? -p.lagSec : 0;
-  return add(posOf(target.pm), scale(velOf(target.pm), shift));
+/**
+ * Curved Control Zone aim point 1,500 ft along the turn circle circumference behind the target.
+ * (Falcon BMS / CNATRA P-825 doctrine; BFM Phase 2B)
+ */
+export function curvedControlZonePoint(target, arcLenFt = 1500) {
+  if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
+  const pm = target.pm;
+  const vFtps = Math.hypot(pm.vx, pm.vy);
+  if (vFtps < 1) return posOf(pm);
+
+  const dir = target.turnDir || 0;
+  const g = target.g ?? 1.0;
+  const isTurning = Math.abs(dir) > 0.1 && g >= 1.15;
+  const r = isTurning ? turnRadiusFt(vFtps, g) : Infinity;
+
+  if (!isTurning || !Number.isFinite(r) || r > 20000) {
+    const u = { x: pm.vx / vFtps, y: pm.vy / vFtps };
+    return { x: pm.x - u.x * arcLenFt, y: pm.y - u.y * arcLenFt, z: pm.z };
+  }
+
+  const psi = Math.atan2(pm.vy, pm.vx);
+  // Turn center in horizontal plane: normal rotated 90° toward turnDir
+  const cx = pm.x - dir * r * Math.sin(psi);
+  const cy = pm.y + dir * r * Math.cos(psi);
+
+  // Angular position of target from turn center
+  const theta0 = Math.atan2(pm.y - cy, pm.x - cx);
+
+  // 1,500 ft behind along the curved circumference
+  const dTheta = (arcLenFt / r) * dir;
+  const thetaCZ = theta0 - dTheta;
+
+  return {
+    x: cx + r * Math.cos(thetaCZ),
+    y: cy + r * Math.sin(thetaCZ),
+    z: pm.z,
+  };
+}
+
+/** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), or the curved Control Zone 1,500 ft behind along the turn circle (lag). */
+export function aimPoint(p, target) {
+  if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
+  if (p.pursuit === 'lead') {
+    return add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
+  }
+  if (p.pursuit === 'lag') {
+    return curvedControlZonePoint(target, 1500);
+  }
+  return posOf(target.pm);
 }
 
 /**
@@ -1026,8 +1073,22 @@ function controlPursuit(ctx) {
   const cosGamma = Math.sqrt(Math.max(0, 1 - vHat.z * vHat.z));
   const e = cosGamma > 0.02 ? unit(weightPerp) : ac.pm.up;
   const s = cross(vHat, e);
-  const alphaWanted = dot(wanted, e), betaWanted = dot(wanted, s);
-  const capFor = (rolling) => Math.min(ctx.shaker, availableG(kias, rolling, p.stallKias));
+  let alphaWanted = dot(wanted, e), betaWanted = dot(wanted, s);
+
+  // Energy retention governor (Phase 1C): prevent zoom-climb stalls down to 68 KIAS while permitting D405 zoom climbs
+  if (kias < 140 && f.climbRad > 0) {
+    const bleedRatio = clamp((kias - p.stallKias) / (140 - p.stallKias), 0, 1);
+    alphaWanted = Math.min(alphaWanted, Math.cos(f.climbRad) * bleedRatio - Math.sin(f.climbRad) * (1 - bleedRatio));
+  }
+
+  const capFor = (rolling) => {
+    let cap = Math.min(ctx.shaker, availableG(kias, rolling, p.stallKias));
+    if (kias < 140 && f.climbRad > 0) {
+      const bleedRatio = clamp((kias - p.stallKias) / (140 - p.stallKias), 0, 1);
+      cap = Math.min(cap, 1.0 + 1.0 * bleedRatio);
+    }
+    return cap;
+  };
 
   // The flight path angle the deck and the speed limit ask for: the deck from the height the pull-out would bottom at, the limit (VMO, or true Mach 0.67 above about 17,570 ft, energyTopKias) from the speed a few seconds on.
   const gamma = f.climbRad;
@@ -1296,6 +1357,53 @@ const noseOffDeg = (state, ac) => (ac.who === 'blue' ? state.ataBlueDeg : state.
  * first nose-on, which starts no pursuit, does not block a pursuit from behind
  * later. With `chaseAfterHeadOn` the head-on nose-on starts it too.
  */
+/**
+ * 3D Austin/Carbone tactical advantage score (0.0 to 1.0) using ATA, AA, range, and specific energy height.
+ * (Phase 2A)
+ * - ATA: 0° = nose-on (1.0)
+ * - AA: 0° = on bandit's six (1.0)
+ * - Range: gun engagement envelope up to 9,000 ft
+ * - Energy: specific energy height differential
+ */
+export function tacticalAdvantage(ac, target) {
+  const ata = noseAngleDeg(ac, target);
+  const aa = 180 - noseAngleDeg(target, ac);
+  const rangeFt = len(sub(posOf(target.pm), posOf(ac.pm)));
+  const GUN_RANGE = 3000;
+
+  const ataScore = clamp(1 - ata / 180, 0, 1);
+  const aaScore = clamp(1 - aa / 180, 0, 1);
+  const rangeScore = clamp(1 - rangeFt / (GUN_RANGE * 3), 0, 1);
+
+  const altAc = ac.altFt ?? ac.pm.z;
+  const ktasAc = ac.ktas ?? (len(velOf(ac.pm)) / KT_TO_FTPS);
+  const eAc = ac.energyHeightFt ?? energyHeightFt(altAc, ktasAc);
+
+  const altTarget = target.altFt ?? target.pm.z;
+  const ktasTarget = target.ktas ?? (len(velOf(target.pm)) / KT_TO_FTPS);
+  const eTarget = target.energyHeightFt ?? energyHeightFt(altTarget, ktasTarget);
+
+  const energyScore = clamp(0.5 + (eAc - eTarget) / 6000, 0, 1);
+
+  return 0.35 * ataScore + 0.35 * aaScore + 0.20 * rangeScore + 0.10 * energyScore;
+}
+
+/**
+ * Post-merge tactical pursuit breakout gate (Phase 2C):
+ * Decisive tactical advantage triggers pursuit entry even without 5° boresight lock.
+ */
+function shouldPursueTactical(state, ac, target) {
+  if (ac.ctl.mode === 'pursuit' || ac.stall) return false;
+  if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
+  if (!state.setup.chaseAfterHeadOn && 180 - noseOffDeg(state, target) > PURSUIT_MAX_AA_DEG) return false;
+  const f = pointMassFlight(ac.pm);
+  if (ac.kias < 140 && f.climbRad > 0) return false;
+  const ata = noseAngleDeg(ac, target);
+  const adv = tacticalAdvantage(ac, target);
+  const advTarget = tacticalAdvantage(target, ac);
+  return adv > 0.52 && (adv - advTarget) >= 0.05 && ata < 45;
+}
+
 function checkFirstNose(state) {
   if (!state.merged) return;
   const blueOn = isAcNoseOn(state, state.blue, state.red);
@@ -1309,12 +1417,12 @@ function checkFirstNose(state) {
   if (state.setup.pursuit === 'none') return;
   const chasers = [];
   for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
-    if (ac.ctl.mode !== 'pursuit' && !ac.stall && onTheOther(state, ac, target)) {
+    if (ac.ctl.mode !== 'pursuit' && !ac.stall && (onTheOther(state, ac, target) || shouldPursueTactical(state, ac, target))) {
       chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
     }
   }
   // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
-  if (!chasers.length && Math.abs(state.setup.blueAltFt - state.setup.redAltFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+  if (!chasers.length && Math.abs(state.blue.altFt - state.red.altFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
       if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
@@ -1324,7 +1432,6 @@ function checkFirstNose(state) {
     }
   }
 
-
   if (chasers.length) {
     for (const { ac } of chasers) startPursuit(state, ac);
     if (!state.chase) {
@@ -1333,7 +1440,7 @@ function checkFirstNose(state) {
   }
   if (!state.chase) {
     for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
-      if (!ac.stall && onTheOther(state, ac, target)) {
+      if (!ac.stall && (onTheOther(state, ac, target) || shouldPursueTactical(state, ac, target))) {
         state.chase = { by: ac.who, timeSec: state.timeSec, aaDeg: 180 - noseOffDeg(state, target) };
         break;
       }

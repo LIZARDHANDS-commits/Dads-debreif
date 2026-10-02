@@ -85,7 +85,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.1', h('span', { class: 'tf-version-sub' }, '• Harvard II 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.2', h('span', { class: 'tf-version-sub' }, '• 3D BFM AI & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
@@ -241,7 +241,7 @@ export function createLayout({ settings, controls, on }) {
   const resetButton = h('button', { type: 'button', class: 'button', onclick: () => on.reset() }, 'Reset');
   const timeText = h('span', { class: 'tf-pill tf-time' }, 'T+0.0');
   const phaseText = h('span', { class: 'tf-pill tf-phase' }, 'HEAD-TO-HEAD');
-  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.1: Harvard II 5.0 G Standard' }, 'v2.1 · 5.0 G');
+  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.2: 3D BFM AI & Harvard II 5.0 G' }, 'v2.2 · BFM AI');
   const toolbar = h(
     'div',
     { class: 'tf-toolbar' },
