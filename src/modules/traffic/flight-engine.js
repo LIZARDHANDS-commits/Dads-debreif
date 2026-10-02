@@ -593,8 +593,13 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
       aircraft.waypointIndex = idx;
     }
 
-    const fromWp = wps[(idx - 1 + wps.length) % wps.length] || wps[0];
     const toWp = wps[idx];
+    let fromWp;
+    if (idx === 0 || Math.hypot(toWp.x - wps[(idx - 1 + wps.length) % wps.length].x, toWp.y - wps[(idx - 1 + wps.length) % wps.length].y) < 100) {
+      fromWp = aircraft._legStart || { x: aircraft.x, y: aircraft.y };
+    } else {
+      fromWp = wps[(idx - 1 + wps.length) % wps.length];
+    }
     const nextWp = wps[(idx + 1) % wps.length] || toWp;
     aircraft.toWp = toWp;
 
@@ -607,18 +612,44 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
     aircraft.alongTrackFt = alongTrack;
 
     // Lead turn advance
+    const isFlyOver = toWp.phase === 'high_key';
     const tau1 = Math.atan2(toWp.x - fromWp.x, toWp.y - fromWp.y);
     const tau2 = Math.atan2(nextWp.x - toWp.x, nextWp.y - toWp.y);
     const turnAngleDeg = Math.abs(wrapDeg180(radToDeg(tau2 - tau1)));
     const targetTurnBank = Math.abs(toWp.bankDeg || 30);
-    const leadDist = Math.min(calcLeadTurnDist(vAirFtps, targetTurnBank, turnAngleDeg), 0.65 * segLength);
+    const leadDist = isFlyOver ? 0 : Math.min(calcLeadTurnDist(vAirFtps, targetTurnBank, Math.min(turnAngleDeg, 90)), 0.65 * segLength);
 
-    // Waypoint capture condition: along-track past lead distance or proximity <= 150 ft
-    if ((alongTrack >= segLength - leadDist && segLength > 100) || distToWp <= 150) {
+    // Waypoint capture condition: along-track past lead distance with bounded cross-track, or proximity <= 150 ft
+    const canCaptureAlongTrack = alongTrack >= segLength - leadDist && segLength > 100 && Math.abs(crossTrack) <= Math.max(500, leadDist);
+    if (canCaptureAlongTrack || distToWp <= 150) {
       if (idx + 1 < wps.length) {
         aircraft.waypointIndex = idx + 1;
+        const nextWp = wps[idx + 1];
+        // Update phase and config from nav plan
+        if (nextWp.phase && (!navPlan || !navPlan.loop)) aircraft.phase = nextWp.phase;
+        if (nextWp.config) aircraft.config = nextWp.config;
+        // Anchor new leg start
+        aircraft._legStart = { x: toWp.x, y: toWp.y };
+        // Cut engine at High Key for PFL profile
+        if (navPlan && !navPlan.loop) {
+          // PFL engine cut: when leaving High Key (wp 0), cut engine for glide
+          if (idx === 0 && aircraft.command === 'climb_high_key') {
+            aircraft.engineFailed = true;
+          }
+          if (idx === 1 && aircraft.command === 'climb_low_key') {
+            aircraft.engineFailed = true;
+          }
+        }
       } else if (navPlan.loop) {
         aircraft.waypointIndex = 0;
+      }
+      if (idx + 1 >= wps.length && !navPlan.loop) {
+        // Reached end of non-looping plan (PFL at threshold)
+        if (aircraft.alt <= 1942) { // field elev 1892 + 50 ft buffer
+          aircraft.landed = true;
+          aircraft.active = false;
+          aircraft.status = 'landed';
+        }
       }
     }
 
@@ -694,7 +725,10 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
     if (aircraft.engineFailed) {
       // Gliding flight
       const config = aircraft.config || 'clean';
-      const sinkFpm = glideSinkFpm(config, aircraft.iasKt ?? 125, aircraft.alt ?? 3500);
+      let sinkFpm = glideSinkFpm(config, aircraft.iasKt ?? 125, aircraft.alt ?? 3500);
+      if (aircraft.command === 'climb_high_key' && aircraft.phase !== 'high_key') {
+        sinkFpm *= 1.35; // Prototype simplification: increased drag on spiral after High Key
+      }
       aircraft.alt -= (sinkFpm / 60) * dt;
 
       // Target glide speed per config (clean: 125, gearDown: 120, landing: 100)

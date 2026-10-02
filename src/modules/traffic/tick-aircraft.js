@@ -114,6 +114,10 @@ function setupPhysicsPlan(a) {
     a.engineFailed = (a.command === 'pfl_current' || a.command === 'engine_fail');
     a.model = 'NRG';
     a.phase = (a.command === 'climb_low_key') ? 'low_key' : 'high_key';
+    const targetWp = a.navPlan.waypoints[a.waypointIndex];
+    a.targetAltFt = targetWp.alt;
+    a.targetSpeedKt = targetWp.kias;
+    a._legStart = { x: a.x ?? 0, y: a.y ?? 0 };
     a._activeCommand = a.command;
     return;
   }
