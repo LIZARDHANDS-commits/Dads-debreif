@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's 3D view, the parts that are plain values (SPEC-turn-fight, "2D and 3D views"): the attitude
 // it draws (bank from G, heading and pitch into the scene's axes), the trail conversion, the camera choices, and
 // how the view starts and stops. three runs in Node without WebGL, so the real three.js checks the axes; the

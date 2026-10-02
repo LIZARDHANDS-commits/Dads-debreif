@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's remembered settings (SPEC-turn-fight, "The screen", "Number boxes"):
 // V6's defaults, the ranges, and what comes back from browser storage.
 import test from 'node:test';

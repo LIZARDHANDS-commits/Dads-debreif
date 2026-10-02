@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // Energy mode's settings (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for checking"):
 // the defaults are the engine's, the ranges are its setup checks, and the setup key follows the Energy fight.
 import test from 'node:test';

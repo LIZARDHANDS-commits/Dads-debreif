@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Energy side view's graph (SPEC-turn-fight, "Energy mode"; SPEC.md, uPlot D137): its data, its options, and that
 // uPlot is only ever fetched by import() when the graph starts, and freed when it stops.
 import test from 'node:test';

@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's readout lines (SPEC-turn-fight, "Readouts"): V6's rounding, as text.
 // tests/golden/turn-fight-sim.test.js compares every one with the text V6 writes.
 import test from 'node:test';

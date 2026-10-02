@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Energy screen's words and lists (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for
 // checking", "Start geometry and altitudes"): the hints, the note beside a high start altitude, and the About lines on the
 // MPT bank, each held to the engine and the spec. The screen itself is checked in the browser (tests/e2e/turn-fight.spec.js).

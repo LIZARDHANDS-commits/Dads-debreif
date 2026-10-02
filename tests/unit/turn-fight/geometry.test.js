@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's start geometry (SPEC-turn-fight, "Start geometry and altitudes (R28)"):
 // placing the two jets from range, off-nose angle (ATA) and aspect angle (AA), the HCA that
 // follows, the pass (the closest point of approach), and which way each jet turns.

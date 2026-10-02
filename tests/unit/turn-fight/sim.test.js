@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's fight (SPEC-turn-fight, Testing strategy 3): what the numbers mean.
 // tests/golden/turn-fight-sim.test.js pins the same code to V6 step by step.
 import test from 'node:test';

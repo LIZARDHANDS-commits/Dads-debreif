@@ -806,7 +806,7 @@ function levelOffG(ctx, climbTargetRad) {
 
 /** Bank move controller shared by the pitch back and the slice: hold the entry bank at the set G (the shaker once it is the lower), and hand to the MPT as the speed nears it. */
 function controlBankMove(ctx) {
-  const { ac, p, kias } = ctx;
+  const { ac, p, kias, f } = ctx;
   const c = ac.ctl;
   // The MPT is near when the speed, a little ahead, reaches it from the side the move started on.
   const ramp = clamp((c.entryKias - TUNING.captureLeadFromKias) / (T6A_LIMITS.vmoKias - TUNING.captureLeadFromKias), 0, 1);
@@ -843,6 +843,7 @@ function controlImmelmann(ctx) {
   if (Math.abs(climb) < TUNING.levelDoneDeg) c.next = 'pick';
   return { g: levelOffG(ctx, 0), bankRad: upright, prefer: c.prefer, throttle: 1 };
 }
+
 
 /**
  * A failed Immelmann (it stalled before the top): wings level by the real
@@ -1034,10 +1035,12 @@ export function aimPoint(p, target) {
     return add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
   }
   if (p.pursuit === 'lag') {
-    return curvedControlZonePoint(target, 1500);
+    if (p.lagSec === 0) return posOf(target.pm);
+    return curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
   }
   return posOf(target.pm);
 }
+
 
 /**
  * Pursuit: point the nose at the aim point with a lift vector that also carries

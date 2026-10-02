@@ -1,3 +1,4 @@
+// OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // Playing a fight: the frame limit, whole fight steps, and trails that keep one
 // point every 0.1 s whatever the frame rate (SPEC-turn-fight, "Frame time",
 // "One fixed step", "Trails").
