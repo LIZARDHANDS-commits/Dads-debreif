@@ -744,13 +744,52 @@
 
 ---
 
-### PATCH-028: Turn Fight (BFM 1v1) 5.0 G Law, D386 Cone, BFM Doctrine & Test Harmonization
-* **Date & Time:** 2026-10-01 22:15 UTC
+### PATCH-028: Pre-Phase Vector Guidance Migration Documentation Synchronization (D406, R34)
+* **Date & Time:** 2026-10-02 01:25 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`specs/SPEC-traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic.md)
+  * [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md)
+  * [`docs/traffic-pattern-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/traffic-pattern-matrix.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/records/plan-requirements.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-requirements.md)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md)
+  * [`docs/handover/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/traffic.md)
+  * [`tasks/traffic/todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/todo.md)
+  * [`tasks/traffic/plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/plan.md)
+  * [`tasks/traffic/vector-migration-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-migration-todo.md)
+  * [`docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md)
+  * [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md)
+  * [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md)
+* **Problem / Flaw Addressed:**  
+  Traffic Sim maintained a competing hybrid flight model where 1D polyline "rails" fought 3D vector guidance, causing zero-wind turn breaks, polygonal PFL corners, speed gate mismatches, break teleportation, and 10° glide slope plunge. Architectural documentation was fragmented across `SPEC-traffic.md` and draft `SPEC-traffic-vector.md`.
+* **Changes Made:**
+  1. Unified `specs/SPEC-traffic.md`: merged 3D Cartesian vector flight engine specifications (§2–§6), track-intercept guidance, KIN/NRG performance models, and two-dropdown spawner UI while preserving UI/layout/storage sections. Formally superseded `SPEC-traffic-vector.md`.
+  2. Overwrote `docs/traffic-pattern-matrix.md` with authoritative Cartesian coordinates, headings, altitudes, and speeds for Moose Jaw RWY 29L/11R circuits and PFL profiles.
+  3. Registered Decision **D406** in `docs/records/plan-decisions.md` (Sections 4.4 and 6) and `docs/records/decisions-log.md`.
+  4. Registered Requirement **R34** in `docs/records/plan-requirements.md`.
+  5. Created standalone checklist `tasks/traffic/vector-migration-todo.md` and aligned `tasks/traffic/plan.md`, `tasks/traffic/todo.md`, `HANDOVER.md`, `docs/handover/traffic.md`, `POST_PROTOTYPE_QUEUE.md`, `.agent/memory/handoff.md`, and `docs/REMEDIATION_ROADMAP.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D389–D400**, **D406**, Requirement **R34**. Completely aligns master registers, specifications, and checklists prior to cutting code for Phase 1 (`src/modules/traffic/flight-engine.js`).
+* **Verification:**  
+  - `npm run typecheck` passed (0 errors).
+  - All 3,045 unit and crosscheck tests passed 100% green (`npm test`).
+  - All 609 traffic unit tests passing.
+  - File integrity and cross-references verified.
+
+---
+
+### PATCH-029: Turn Fight (BFM 1v1) 5.0 G Law, D386 Cone, BFM AI v2.2 & Test Harmonization
+* **Date & Time:** 2026-10-02 11:55 UTC
 * **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
 * **Branch:** `next-module`
 * **Files Modified:**
   * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
   * [`src/modules/turn-fight/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/layout.js)
+  * [`src/modules/turn-fight/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/sim.js)
+  * [`src/shell/registry.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/shell/registry.js)
   * [`src/modules/turn-fight/readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/readouts.js)
   * [`src/modules/turn-fight/energy-readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-readouts.js)
   * [`src/modules/turn-fight/playback.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/playback.js)
@@ -760,25 +799,27 @@
   * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
   * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
 * **Problem / Flaw Addressed:**  
-  1. Maneuver pull law in `energy-sim.js` was artificially capped at 4.0 G instead of authentic 5.0 G per SMM Ch 14 and pilot ratification (D406/D407).
+  1. Maneuver pull law in `energy-sim.js` was artificially capped at 4.0 G instead of authentic 5.0 G per SMM Ch 14 and pilot ratification (D407).
   2. D386 elevation acquisition cone was missing ($\le 5^\circ$ azimuth and $\le 10^\circ$ elevation across vertical separation), and ghost pursuit steering was assigned simultaneously to both aircraft.
   3. UI labels retained legacy V6 phrasing ('Energy (T-6)', 'Simplified') rather than military debrief doctrine ('BFM Energy Fight', 'Turn Circle Geometry').
   4. Derived bank angle readout ($\phi = \arccos(1/G)$) was missing from geometry tables.
   5. Brittle microsecond assertions in tests caused failures under chaotic 3D flight dynamics when authentic 5.0 G physics and rolling limits were introduced.
+  6. Post-merge flight was locked into passive MPT circles with 68 kt zoom-climb stalls.
 * **Changes Made:**
   1. Standardized `MANEUVER_PULL_G = 5.0` with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling limit guard and authentic 170° `maxBankMoveTurnDeg` in `TUNING`.
   2. Implemented D386 elevation acquisition cone ($\Delta\text{az} \le 5^\circ$ AND $\Delta\text{el} \le 10^\circ$ across altitude splits $\ge 100\text{ ft}$) and assigned pursuit steering strictly to winner (`!both`).
   3. Added Aspect Angle row to `energyMoreRows` and implemented bi-directional key adapter between Simple and Energy modes (`simpleSetupFromEnergy`, `energySetupFrom`).
   4. Mode toggle relabeled to 'BFM Energy Fight', simple/energy footers updated with BFM doctrine explanations, and derived coordinated bank angle row added to `geometryRows`.
   5. Harmonized test expectations with D371 pilot domain tolerances (±10°, ±10 kt, ±0.5 G, ±100 ft) and physical invariants (zero NaN/Infinity, hard deck floor guard, VMO cap, stall authority loss).
+  6. Implemented 3D BFM AI suite: D404 dynamic altitude separation breakout, pursuit energy governor (preventing 68 kt stalls), Austin/Carbone tactical advantage scoring, and curved Control Zone aim point. Bumped Turn Fight UI to v2.2.
 * **Reasoning / Rationale:**  
-  Decisions **D406–D411** (and **D371**, **D386**). Aligns Turn Fight with real-world military BFM training doctrine, authentic CT-156 Harvard II aerobatics, and pilot domain tolerances. Avoids brittle test fixture lock-in while strictly enforcing aerodynamic invariants.
+  Decisions **D407–D411** (and **D371**, **D386**). Aligns Turn Fight with real-world military BFM training doctrine, authentic CT-156 Harvard II aerobatics, and pilot domain tolerances. Avoids brittle test fixture lock-in while strictly enforcing aerodynamic invariants.
 * **Verification:**  
   - 185/185 tests in `energy-sim.test.js` PASS (100% green).
   - 508/508 unit tests in `tests/unit/turn-fight/**/*.test.js` PASS (100% green).
   - 3,046 repo unit tests in `npm test` PASS (100% green).
   - `npm run typecheck` passed cleanly (0 errors).
-  - `npm run build` compiled clean in 502ms.
+  - `npm run build` compiled clean.
 
 
 

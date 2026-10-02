@@ -311,7 +311,8 @@ flowchart TD
 - [x] **Task 1.5 (Series PR 3):** Implement Traffic Core 4 (wind vector integration, 4 aircraft types flying manual speeds, 60° break turn at 3,500 ft MSL, 45° descending final turn to threshold / straight-in at 2,700 ft MSL on Runway 29L left-hand per D378).
   - Flip 8 `test.todo` stubs in `tests/unit/traffic/plausibility.test.js` to passing green assertions.
   - Run `UPDATE_CROSSCHECK=1 node tests/crosscheck/traffic-scenarios.test.js` to regenerate `traffic-expected.json` with authentic SMM circuit numbers (Gap 2 resolved).
-- [ ] **Gate 1 (Traffic Sign-Off):** Patrick runs `docs/checklists/traffic.md`. Once signed off, Traffic is complete.
+- [x] **Task 1.6 (Pre-Phase Vector Guidance Migration):** Ratified D406 and R34. Merged vector guidance specifications into unified [`specs/SPEC-traffic.md`](specs/SPEC-traffic.md) superseding `SPEC-traffic-vector.md`. Committed authoritative pattern matrix [`docs/traffic-pattern-matrix.md`](docs/traffic-pattern-matrix.md). Standalone migration checklist in [`tasks/traffic/vector-migration-todo.md`](tasks/traffic/vector-migration-todo.md).
+- [ ] **Gate 1 (Traffic Sign-Off):** Complete Vector Guidance Migration Phases 1–5 (`flight-engine.js`, `nav-plans.js`, `sim.js` swap, spawner UI redesign, polish). Then Patrick runs `docs/checklists/traffic.md`. Once signed off, Traffic is complete.
 
 #### Milestone 2: Turn Fight (BFM) Module Build (PR 4)
 - [x] **Task 2.1 (Parallel Agent B):** Rebase `origin/handover/turn-fight-energy-screen` (tip `226729d`) onto `main`. Simple 2D flat 1v1 fight remains default view on launch with toggle to Energy Mode per D379 (R22).
@@ -405,6 +406,7 @@ All non-essential and complex features are preserved on remote branches and docu
 * **2026-10-01 09:30Z (Traffic SMM Circuit Polishing & Split Deactivation):** Implemented closed pattern rollout to Perch on 118°, Point 2 closed pattern spawn, calm-wind rounded arcs (60° break / 35° final turn), High Key 5,000 ft threshold overflight, continuous 360° circular PFL glide arc, and Stage 1 deactivation of splits SPL1–SPL4 (PATCH-023, D399, D400).
 * **2026-10-01 07:00Z–09:05Z (Milestone 2 Turn Fight BFM):** Merged uPlot Energy screen & Tactical 3D Suite (plumb lines, contact shadow discs, PATCH-024, D401, D402). Defaulted Active Combat Pursuit across re-merges (PATCH-025, D403). Resolved 3D merge azimuth tracking across altitude splits (PATCH-026, D404). Enforced pilot stall authority loss (<86 kt) and post-merge 3D pursuit entry (PATCH-027, D405). Turn Fight test suite 100% green (508 unit tests, 68 Playwright E2E tests).
 * **2026-10-01 10:00Z (Master Alignment & Audit):** 3,045 tests passing (0 failures, 1 skipped), `npm run typecheck` clean (0 errors), `npm run build` clean (292 ms). Ready for Patrick's Gate 1 & Gate 2 formal sign-offs.
+* **2026-10-02 01:25Z (Vector Guidance Migration Pre-Phase):** Ratified D406 and R34. Unified `specs/SPEC-traffic.md` (superseding `SPEC-traffic-vector.md`), committed authoritative `docs/traffic-pattern-matrix.md` with Cartesian waypoints, registered D406/R34 in master registers, aligned HANDOVER.md, docs/handover/traffic.md, tasks/traffic/{plan.md, todo.md, vector-migration-todo.md}, and POST_PROTOTYPE_QUEUE.md.
 
 ---
 
@@ -419,8 +421,10 @@ All non-essential and complex features are preserved on remote branches and docu
 - **Project Records & Memory:**
   - [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md) — Top-level project handover and module status table.
   - [`.agent/rules/dads-debrief.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/rules/dads-debrief.md) — Patrick's Streamlined Build rules and ground rules.
-  - [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md) — Master decisions register (D1–D388).
-  - [`docs/records/plan-requirements.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-requirements.md) — Master requirements register (R1–R33).
+  - [`specs/SPEC-traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic.md) — Unified Traffic Sim Specification (D406, R34).
+  - [`docs/traffic-pattern-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/traffic-pattern-matrix.md) — Authoritative Flight Pattern Matrix (Cartesian waypoints).
+  - [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md) — Master decisions register (D1–D406).
+  - [`docs/records/plan-requirements.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-requirements.md) — Master requirements register (R1–R34).
   - [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md) — Judgement calls log.
   - [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md) — Session handoff state.
   - [`.agent/memory/graveyard.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/graveyard.md) — Dropped approaches register.

@@ -3,51 +3,27 @@
 Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 
 ## Last updated
-02 Oct 2026, 04:15Z (Antigravity).
+02 Oct 2026, 12:00Z (Antigravity).
 
 ## Current State & Documentation Directory
-- **Branch:** `next-module` (on track, all 5 slices committed: `269f887`, `080da94`, `8fe0468`, `57958b0`, `e32342b`).
-- **Deconfliction Status with Concurrent Session:**
-  - **Main / Traffic Sim:** Closed pattern, High Key PFL, and vector guidance complete through Milestone 1.
-  - **Next-Module / Turn Fight BFM:** Completed Milestone 2 + Remediation Plan v2 (Tasks 11–15, PATCH-028, D406–D411).
-  - **Zero file overlap:** Modules strictly segregated. Shared decision records and handover files synchronized.
-- **Code & Test Health:**
-  - `tests/unit/turn-fight/**/*.test.js`: **508/508 PASS (100% GREEN)**.
-  - `npm test`: **3,046 PASS, 0 FAIL, 1 skipped (100% GREEN)**.
-  - `npm run typecheck`: **PASSED (0 errors)**.
-  - `npm run build`: **PASSED (clean in 502ms)**.
-  - Production flight physics clean (`MANEUVER_PULL_G = 5`, rolling guard 4.7 G).
-- **Milestone Status:**
-  - **Gate 2 (Turn Fight Sign-Off): READY FOR PATRICK.** Checklist at [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md).
+- **Branch:** `next-module` (merging to `main`).
+- **Turn Fight (Milestone 2):** Complete through BFM AI v2.2 (PATCH-029, D407–D411). Authentic 5.0 G maneuver pull law, 4.7 G rolling limit, D386 elevation acquisition cone, ghost pursuit fix, aspect angle readout, mode renaming ("Turn Circle Geometry" vs "BFM Energy Fight"), derived bank angle readout, test harmonization with pilot domain tolerances (D371), D404 dynamic altitude split pursuit breakout, Austin/Carbone tactical advantage scoring, pursuit energy governor (preventing 68 kt stalls), curved Control Zone aim point, and v2.2 UI badge. All unit tests, typecheck, build green. Ready for Gate 2 sign-off.
+- **Traffic Sim (Milestone 1):** Vector Guidance Migration (D406, R34) Pre-Phase documentation synchronization complete. All master registers, module handovers, specs, and roadmaps are aligned.
+  - Working spec: [`specs/SPEC-traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic.md) (unified spec superseding `SPEC-traffic-vector.md`).
+  - Pattern matrix: [`docs/traffic-pattern-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/traffic-pattern-matrix.md) (authoritative Moose Jaw geometries and leg dynamics).
+  - Migration plan & checklist: [`tasks/traffic/vector-migration-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-migration-todo.md) and [`tasks/traffic/plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/plan.md).
 
-## What Was Accomplished Across Slices 1–5
-1. **Slice 1 (Engagement Logic & D386 Cone):**
-   - Implemented D386 elevation acquisition cone ($\Delta\text{az} \le 5^\circ$ AND $\Delta\text{el} \le 10^\circ$) across altitude separation $\ge 100\text{ ft}$.
-   - Eliminated ghost pursuit; single pursuit steering assigned strictly to winner (`!both`).
-   - Wired dynamic altitude gate and normalized `firstNose` schema (`{ by: 'both' }`).
-2. **Slice 2 (Display & Readouts):**
-   - Added Aspect Angle row to `energyMoreRows(state)` in `energy-readouts.js`.
-   - Wired two-way API key adapter (`simpleSetupFromEnergy`, `energySetupFrom`) in `playback.js` and `state.js`.
-   - Cleaned residual V6 text references across UI strings and comments.
-3. **Slice 3 (UI Mode Renaming & BFM Doctrine — D409/D410):**
-   - Relabeled modes to **"Turn Circle Geometry"** (Simple) vs **"BFM Energy Fight"** (Energy).
-   - Added derived coordinated bank angle readout row ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
-   - Updated About panel to reflect authentic military BFM doctrine: 2-circle (Rate Fight) vs 1-circle (Radius Fight).
-   - Relabeled `chaseAfterHeadOn` toggle to "Chase from head-on".
-4. **Slice 4 (Test Harmonization under D371 Pilot Domain Tolerances):**
-   - Harmonized pitch back turn angle expectations to D371 pilot tolerances ($\le 210^\circ$, $\le 235^\circ$, $\le 265^\circ$ at the 6,000 ft deck).
-   - Harmonized roll-in G check to account for 4.7 G rolling limit and 5.0 G steady pull.
-   - Aligned dry run test helpers and `noseOnRule` with D386 elevation cone and disqualification on `stallEver`/`overGEver`.
-   - Updated E2E locators in `tests/e2e/turn-fight.spec.js` for new mode label and footers.
-5. **Slice 5 (Documentation Synchronization & Patch Register):**
-   - Recorded Decisions D406–D411 across `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
-   - Logged `PATCH-028` in `docs/REMEDIATION_PATCH_LOG.md` and `docs/records/remediation-patch-log.md`.
-   - Checked off Tasks 11–15 in `tasks/turn-fight/todo.md`.
-   - Updated module status in `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.
+## Milestones Status Overview
+* **Milestone 0: Ground Truth & Decoupling Foundation** — COMPLETED [x]
+* **Milestone 1: Traffic Pattern Sim (Gate 1)** — Pre-Phase Vector Guidance Migration Complete [x]; Phases 1–5 in progress.
+* **Milestone 2: Turn Fight 1v1 BFM & Energy Screen (Gate 2)** — COMPLETED & READY FOR GATE 2 SIGN-OFF [x] (Checklist: `docs/checklists/turn-fight.md`)
+* **Milestone 3: Turn Sim / Formation (Gate 3)** — QUEUED (PR 5)
+* **Milestone 4: Debrief 3D View & Tacview Integration** — QUEUED
+* **Milestone 5: Final Prototype Acceptance (Gate 5)** — QUEUED
 
-## Immediate Next Steps
-1. **Gate 2 Sign-Off:** Patrick executes interactive walkthrough on `localhost:4173` using [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md).
-2. **Milestone 3 (Turn Sim Formation):** Once Patrick signs off Gate 2, proceed to Milestone 3 (Tasks 3.1–3.2: Hook Turn 180° rebuild per SMM Ch 16, formation grid, PR 5).
+## Immediate Next Step
+1. Gate 2 Sign-Off: Patrick executes interactive walkthrough on `localhost:4174` using [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md).
+2. Traffic Sim Vector Migration: Resume Phase 1 (`src/modules/traffic/flight-engine.js`).
 
 ## Waiting on Patrick
-- Gate 2 checklist walkthrough and sign-off.
+- Gate 1 / Gate 2 sign-off walkthroughs as scheduled.

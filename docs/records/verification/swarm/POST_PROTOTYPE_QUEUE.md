@@ -35,16 +35,21 @@ All 8 unmerged remote branches comprising **9,278 lines of code and tests across
 
 ## 3. Authoritative Post-Prototype Feature Register (Phase 2)
 
+> [!NOTE]
+> **Traffic Vector Engine Integration (D392–D400, D406):**  
+> Core PFL aerodynamics (High Key, Low Key, Base Key, `glideSinkFpm`), Breakout vectors, Go-Around wave-off climbout, and Closed Pattern aerodynamics (50° bank climb, 118° rollout to Perch) are now integrated directly into the core 3D vector guidance engine ([`specs/SPEC-traffic.md`](../../../specs/SPEC-traffic.md)).  
+> Only custom interactive PFL route builders, multi-key plan sequencing, and advanced ATC hold/prediction logic remain in the Phase 2 queue.
+
 | Feature ID | Feature Name | Target Module | Preserved Anchor | Code Lines Preserved | Prerequisites | Phase 2 Priority |
 | :--- | :--- | :--- | :--- | :---: | :--- | :---: |
-| **PPQ-01** | Practice Forced Landings (PFLs) | Traffic Sim | `specs/SPEC-traffic.md:309-315` | Specification & Core math | Traffic Core merged | High |
-| **PPQ-02** | Simulated Engine-Outs & Glide Engine | Traffic Sim | `specs/SPEC-traffic.md:316-337` | Specification & `src/core/` | PPQ-01, T-6A glide model | High |
-| **PPQ-03** | Prediction Engine & Automated SMM Rules | Traffic Sim | `specs/SPEC-traffic.md:363-364` | Specification & Rules list | Traffic Core merged | Medium |
-| **PPQ-04** | Fly-Through & Departure-End Break | Traffic Sim | `specs/SPEC-traffic.md:346-347` | Specification & Triggers | PPQ-03 | Medium |
-| **PPQ-05** | Closed Pattern Simulation (Extend/Unable) | Traffic Sim | `specs/SPEC-traffic.md:348` | Specification & SMM 13.11 | PPQ-03 | Medium |
-| **PPQ-06** | Interactive "Set Up a Conflict" Tool | Traffic Sim | `specs/SPEC-traffic.md:367-374` | Specification & Spawner | PPQ-03 | Low |
-| **PPQ-07** | Engine-Out Reach Map Layer & Check | Traffic Sim | `specs/SPEC-traffic.md:375-383` | Specification & Geometry | PPQ-02 | Medium |
-| **PPQ-08** | Multi-Aircraft Ordered Plan Programming | Traffic Sim | `specs/SPEC-traffic.md:390-394` | Specification & Aircraft state | Traffic Core merged | Low |
+| **PPQ-01** | Custom PFL Route Builder & Orbit Editor *(Core PFL built in vector engine: D396, D400, D406)* | Traffic Sim | `specs/SPEC-traffic.md` | Specification & Core math | Vector engine merged | High |
+| **PPQ-02** | Multi-Key Plan Sequencing & In-Flight Triggers *(Core glide & zoom built: D392, D393, D406)* | Traffic Sim | `specs/SPEC-traffic.md` | Specification & `src/core/` | PPQ-01, T-6A glide model | High |
+| **PPQ-03** | Prediction Engine & Automated SMM Rules | Traffic Sim | `specs/SPEC-traffic.md` | Specification & Rules list | Vector engine merged | Medium |
+| **PPQ-04** | Fly-Through & Departure-End Break | Traffic Sim | `specs/SPEC-traffic.md` | Specification & Triggers | PPQ-03 | Medium |
+| **PPQ-05** | Dynamic Closed Pattern ATC Hold Logic *(Closed pattern aero built: D400, D406)* | Traffic Sim | `specs/SPEC-traffic.md` | Specification & SMM 13.11 | PPQ-03 | Medium |
+| **PPQ-06** | Interactive "Set Up a Conflict" Tool | Traffic Sim | `specs/SPEC-traffic.md` | Specification & Spawner | PPQ-03 | Low |
+| **PPQ-07** | Engine-Out Reach Map Layer & Pre-Flight Check | Traffic Sim | `specs/SPEC-traffic.md` | Specification & Geometry | PPQ-02 | Medium |
+| **PPQ-08** | Multi-Aircraft Custom Scripted Plans | Traffic Sim | `specs/SPEC-traffic.md` | Specification & Aircraft state | Vector engine merged | Low |
 | **PPQ-09** | Sequence Integrator & G-Warm Exercises UI | Turn Sim | `origin/handover/turn-sim-sequences` | 459 lines engine | Turn Sim Core merged | High |
 | **PPQ-10** | Spacing Graph & Optimization Solver Screen | Turn Sim | `src/modules/turn-sim/engine/solver.js` | Engine merged on `main` | Turn Sim Core merged | Medium |
 | **PPQ-11** | SMM Dynamic Maneuvers (Rejoins, Fighting Wing) | Turn Sim | `specs/SPEC-turn-sim.md:213-219` | Specification & Future ideas | PPQ-09 | Low |
