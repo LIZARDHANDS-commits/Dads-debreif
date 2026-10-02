@@ -1186,8 +1186,8 @@ test('the Auto settings have bounds: the off-nose angle 0 to 180, the top speed 
   assert.match(geometry.blue.why, /^Immelmann: 250 KIAS, other aircraft \d+° off the nose, over the top at \d+ KIAS$/);
 });
 
-test('the pursuits a screen offers are Pure, Lead and Lag; "none" is for tests and is still accepted', () => {
-  assert.deepEqual([...PURSUITS], ['pure', 'lead', 'lag']);
+test('the pursuits a screen offers are Tactical, Pure, Lead and Lag; "none" is for tests and is still accepted', () => {
+  assert.deepEqual([...PURSUITS], ['tactical', 'pure', 'lead', 'lag']);
   assert.doesNotThrow(() => createEnergyFight({ pursuit: 'none' }));
   assert.throws(() => createEnergyFight({ pursuit: 'sideways' }), /pursuit/);
 });

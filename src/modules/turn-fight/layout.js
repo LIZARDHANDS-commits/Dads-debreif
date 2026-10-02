@@ -186,8 +186,8 @@ export function createLayout({ settings, controls, on }) {
     h('p', { class: 'tf-hint' }, `${rangeHint('mptKias')} The max-performance turn (MPT) speed, SMM 14.3 para 6.`),
     controls.number('hardDeckFt', { label: 'Hard deck (ft MSL)', ...RANGES.hardDeckFt }),
     h('p', { class: 'tf-hint' }, `${rangeHint('hardDeckFt')} 6,000 ft MSL is 3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16). It is where the model changes to the level MPT.`),
-    controls.select('pursuit', { label: 'Pursuit', options: [['pure', 'Pure'], ['lead', 'Lead'], ['lag', 'Lag']] }),
-    h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: nose on the other (Pure), where it will be in 1 s (Lead) or was 1 s ago (Lag). Default Pure (SMM 12.30 and 16.16).'),
+    controls.select('pursuit', { label: 'Pursuit', options: [['tactical', 'Tactical (Dynamic)'], ['pure', 'Pure'], ['lead', 'Lead'], ['lag', 'Lag']] }),
+    h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: Tactical (Dynamic) smoothly blends Lag in Control Zone -> Pure -> Lead for snapshot. Pure, Lead, and Lag force static instructor curves (SMM 12.30 and 16.16).'),
     controls.checkbox('chaseAfterHeadOn', { label: 'Chase from head-on' }),
     h('p', { class: 'tf-hint' }, 'Off by default: a head-on first nose-on is marked but starts no chase. On: it starts the pursuit too.'),
   );

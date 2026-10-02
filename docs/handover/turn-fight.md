@@ -73,6 +73,7 @@ Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's G
 | Derived Bank Angle Readout (D410) | `src/modules/turn-fight/readouts.js` | 100% complete. Coordinated bank angle row (phi = arccos(1/G)) in Geometry Mode table. |
 | Pilot Domain Test Harmonization (D411) | `tests/unit/turn-fight/energy-sim.test.js` | 100% complete. Brittle assertions harmonized with D371 domain tolerances and invariants. |
 | Tactical AI Maneuver Selection Engine (D416–D418 / PATCH-029) | `src/modules/turn-fight/energy-sim.js`, `state.js`, `layout.js`, `readouts.js` | 100% complete. Austin/Carbone advantage matrix, lookahead utility ranking, MPT dynamic breakout, dedicated test suite. |
+| Continuous Blended Tactical Pursuit (D419 / PATCH-030) | `src/modules/turn-fight/energy-sim.js`, `layout.js`, `tests/unit/turn-fight/energy-tactical.test.js` | 100% complete. Continuous convex combination of Control Zone lag, pure tracking, and muzzle lead; human telemetry labels (`ac.why`). |
 
 Known limit: OVER G cannot be triggered from the screen in Auto mode, because Auto never pulls past +7 G and no forced move does. The flag and its words are built, unit-tested, and verified in E2E.
 
@@ -96,7 +97,7 @@ Cut under the Streamlined build (3D is a bonus): the other 3D fallback items. Th
 - The split S pulls up to 5.0 G at the shaker (D144). Above 220 KIAS, Auto picks an Immelmann or a pitch back by a short look-ahead, whichever gets there faster (D145).
 - Slice vs Split S below 140 KIAS settled by Patrick (D381): Immelmann is strictly forbidden at or below 140 KIAS; aircraft flies Split S if deck margin allows, else a descending slice turn, or level MPT if nearing the hard deck. Lowest Immelmann entry/top speed settled at 140 KIAS (D381).
 - 5.0 G tactical maneuver pull law & 4.7 G rolling G limit ratified (D407).
-- Only OVER G and STALL are flagged. Pursuit is Pure by default (D132); chaseAfterHeadOn defaulted to true (D403).
+- Only OVER G and STALL are flagged. Pursuit is Pure by default in engine baseline (D132); chaseAfterHeadOn defaulted to true (D403); Tactical (Dynamic) pursuit smoothly blends Lag -> Pure -> Lead with human telemetry labels (D419).
 - Every manual KIAS (VMO, stall, charts) is compared with the model's IAS, which has no compressibility (D273). The Mach limit alone is checked as true Mach 0.67 (review rows D345, D347, D349 and D350).
 
 ## Open
@@ -106,5 +107,5 @@ Cut under the Streamlined build (3D is a bonus): the other 3D fallback items. Th
   - MPT role in Harvard II BFM syllabus: tactical tracking vs 2-circle rate tool;
   - Pursuit commitment angular window (ATA threshold);
   - Pursuit energy floor / G-unload threshold to regain corner speed.
-- Future: Dynamic pursuit AI / chaser picks its own pursuit (FF42), 25k ft service ceiling limiter (FF45), unified point-mass engine (FF47).
+- Future: 25k ft service ceiling limiter (FF45), unified point-mass engine (FF47). [FF42 delivered via D419].
 

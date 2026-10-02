@@ -32,7 +32,7 @@ test('Energy opens off, and every Energy setting opens at the engine\'s own defa
   for (const [key, value] of Object.entries(setup)) {
     if (!shared.includes(key)) assert.deepEqual(value, ENERGY_DEFAULT_SETUP[key], key);
   }
-  // The spec's list: 10,000 ft and 220 KIAS each, Auto, MPT 160, deck 6,000, Pure, head-on chase on (D403); stall 86, shaker 94 %.
+  // The spec's list: 10,000 ft and 220 KIAS each, Auto, MPT 160, deck 6,000, Tactical (Dynamic), head-on chase on (D403); stall 86, shaker 94 %.
   assert.deepEqual([DEFAULTS.blueAltFt, DEFAULTS.redAltFt, DEFAULTS.blueKias, DEFAULTS.redKias], [10000, 10000, 220, 220]);
   assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['auto', 'auto', 160, 6000, 'pure', true]);
   assert.deepEqual([DEFAULTS.stallKias, DEFAULTS.shakerPct, DEFAULTS.stallSec, DEFAULTS.midThrottlePct], [86, 94, 1, 50]);

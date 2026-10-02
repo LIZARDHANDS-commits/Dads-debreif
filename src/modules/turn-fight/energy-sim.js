@@ -40,7 +40,7 @@ import { turnRadiusFt } from '../../core/flight-math.js';
 /** The moves a setup can force; 'auto' lets the model choose (step 1). */
 export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
 /** The pursuits a screen offers. A setup also accepts 'none' (nobody chases), for tests and what-ifs; it is not one of the choices. */
-export const PURSUITS = Object.freeze(['pure', 'lead', 'lag']);
+export const PURSUITS = Object.freeze(['tactical', 'pure', 'lead', 'lag']);
 /**
  * Energy mode starts each aircraft between the hard deck and this height.
  * Above ENERGY_ACCURATE_MAX_FT the model's turn rate reads low (core is fixing
@@ -414,7 +414,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     stall: false, stallReason: '', stallEver: false,
     onShaker: false, chaseLimited: false, aim: null,
     rolling: false, rollDegPerSec: 0,
-    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0 },
+    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0 },
   };
   readOut(ac, 1, 1, p);
   readSlow(ac, p);
@@ -973,7 +973,7 @@ function chooseTurnDirections(state) {
 function startMove(state, ac, move, why, kias) {
   const p = state.setup;
   const c = ac.ctl;
-  c.t = 0; c.turnDeg = 0; c.phase = 'main'; c.mode = move;
+  c.t = 0; c.turnDeg = 0; c.mptTurnDeg = 0; c.phase = 'main'; c.mode = move;
   c.entryKias = kias;
   c.halfUntilShaker = false; c.capture = false; c.level = false; c.levelAltFt = null; c.down = false;
   c.upZ0 = Math.sign(ac.pm.up.z) || 1;
@@ -1005,7 +1005,7 @@ function startMove(state, ac, move, why, kias) {
 /** A pitch back or slice has found the MPT speed: fly the MPT's capture law from here, under the move's own name. */
 function handToMpt(ac) {
   const c = ac.ctl;
-  c.mode = 'mpt'; c.capture = true; c.t = 0;
+  c.mode = 'mpt'; c.capture = true; c.t = 0; c.mptTurnDeg = 0;
   c.halfUntilShaker = false; c.level = false; c.levelAltFt = null;
   c.mptEvalTimer = 0;
 }
@@ -1017,7 +1017,13 @@ function startPursuit(state, ac) {
   c.halfUntilShaker = false; c.capture = false; c.level = false; c.levelAltFt = null;
   c.forceG = null; c.chaseLimited = false;
   ac.move = 'pursuit'; ac.moveLabel = MOVE_LABELS.pursuit;
-  ac.why = `${{ pure: 'Pure', lead: 'Lead', lag: 'Lag' }[state.setup.pursuit]} pursuit after first nose-on`;
+  const other = ac.who === 'blue' ? state.red : state.blue;
+  if (state.setup.pursuit === 'tactical') {
+    const calc = tacticalAimCalculation(state.setup, other, ac);
+    ac.why = `${calc.label} after first nose-on`;
+  } else {
+    ac.why = `${{ pure: 'Pure', lead: 'Lead', lag: 'Lag' }[state.setup.pursuit]} pursuit after first nose-on`;
+  }
 }
 
 /** The sign of the carried bank that rolls the lift toward the turn side, now (it flips with the carried frame over the top). */
@@ -1292,8 +1298,60 @@ export function curvedControlZonePoint(target, arcLenFt = 1500) {
   };
 }
 
-/** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), or the curved Control Zone 1,500 ft behind along the turn circle (lag). */
-export function aimPoint(p, target) {
+/**
+ * Continuous blended aim point for Tactical Pursuit (Lag -> Pure -> Lead):
+ * Modulates smoothly as a convex combination of Lag (Control Zone), Pure (target pos), and Lead (muzzle lead).
+ * Returns { aim: {x, y, z}, wLag, wLead, wPure, label }.
+ */
+export function tacticalAimCalculation(p, target, ac) {
+  if (!target || !target.pm) return { aim: { x: 0, y: 0, z: 0 }, wLag: 0, wLead: 0, wPure: 1, label: 'Pursuit: Pure (Tracking)' };
+  const targetPos = posOf(target.pm);
+  if (!ac || !ac.pm) return { aim: targetPos, wLag: 0, wLead: 0, wPure: 1, label: 'Pursuit: Pure (Tracking)' };
+
+  const acPos = posOf(ac.pm);
+  const toTarget = sub(targetPos, acPos);
+  const rangeFt = len(toTarget);
+  if (rangeFt < 1e-3) return { aim: targetPos, wLag: 0, wLead: 0, wPure: 1, label: 'Pursuit: Pure (Tracking)' };
+
+  // Range rate / closure: Vc = -d(range)/dt = -dot(toTarget / range, Vtarget - Vac)
+  const relVel = sub(velOf(target.pm), velOf(ac.pm));
+  const closureFtps = -dot(scale(toTarget, 1 / rangeFt), relVel);
+  const closureKt = closureFtps / KT_TO_FTPS;
+
+  // 1. Lag weight: dominates at long range (>3000 ft) or high closure (>60 kt) to stay in Control Zone
+  const rangeLag = clamp((rangeFt - 1800) / 2200, 0, 1);
+  const closureLag = clamp((closureKt - 40) / 60, 0, 1);
+  const wLag = clamp(Math.max(rangeLag, closureLag), 0, 1);
+
+  // 2. Lead weight: pulls ahead inside gun envelope (R < 2500 ft) when closure is under control
+  const rangeLead = clamp((2200 - rangeFt) / 1000, 0, 1);
+  const closureLeadPenalty = clamp((closureKt - 30) / 40, 0, 1);
+  const wLead = clamp((1 - wLag) * rangeLead * (1 - closureLeadPenalty), 0, 1);
+
+  // 3. Pure weight: convex complement
+  const wPure = Math.max(0, 1 - wLag - wLead);
+
+  // Discrete anchor points
+  const lagPoint = curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
+  const leadTof = clamp(rangeFt / 3000, 0.2, (p.leadSec ?? 1.0));
+  const leadPoint = add(targetPos, scale(velOf(target.pm), leadTof));
+  const purePoint = targetPos;
+
+  // Continuous convex combination
+  const aim = add(
+    add(scale(lagPoint, wLag), scale(leadPoint, wLead)),
+    scale(purePoint, wPure)
+  );
+
+  let label = 'Pursuit: Pure (Tracking)';
+  if (wLag > 0.5) label = 'Pursuit: Lag (Control Zone Entry)';
+  else if (wLead > 0.5) label = 'Pursuit: Lead (Snapshot)';
+
+  return { aim, wLag, wLead, wPure, label };
+}
+
+/** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), the curved Control Zone 1,500 ft behind (lag), or continuous dynamic blend (tactical). */
+export function aimPoint(p, target, ac = null) {
   if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
   if (p.pursuit === 'lead') {
     return add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
@@ -1301,6 +1359,9 @@ export function aimPoint(p, target) {
   if (p.pursuit === 'lag') {
     if (p.lagSec === 0) return posOf(target.pm);
     return curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
+  }
+  if (p.pursuit === 'tactical') {
+    return tacticalAimCalculation(p, target, ac).aim;
   }
   return posOf(target.pm);
 }
@@ -1324,7 +1385,12 @@ function controlPursuit(ctx) {
   const c = ac.ctl;
   const vHat = unit(velOf(ac.pm));
   const vFtps = f.ktas * KT_TO_FTPS;
-  const toAim = sub(aimPoint(p, other), posOf(ac.pm));
+  const calc = p.pursuit === 'tactical' ? tacticalAimCalculation(p, other, ac) : null;
+  const aim = calc ? calc.aim : aimPoint(p, other, ac);
+  if (calc) {
+    ac.why = `${calc.label} after first nose-on`;
+  }
+  const toAim = sub(aim, posOf(ac.pm));
   const distance = len(toAim);
   const weightPerp = sub({ x: 0, y: 0, z: 1 }, scale(vHat, vHat.z)); // the weight's part square to the path
   // The lift (in G) that carries the weight and turns at the rate the pointing error asks for.
@@ -1539,7 +1605,11 @@ function stepAircraft(state, ac, other, d) {
   flyStep(ac, g, cmd.throttle, d);
   const before = f.headingRad;
   const after = pointMassFlight(ac.pm).headingRad;
-  ac.ctl.turnDeg += Math.abs(radToDeg(wrapPi(after - before)));
+  const turnDelta = Math.abs(radToDeg(wrapPi(after - before)));
+  ac.ctl.turnDeg += turnDelta;
+  if (c.mode === 'mpt' || c.mode === 'levelMpt') {
+    c.mptTurnDeg = (c.mptTurnDeg || 0) + turnDelta;
+  }
   readOut(ac, g, cmd.throttle, p, ctx.shaker, !state.dry);
   // The readout shows STALL for the speed it shows: still on under the stall speed, on as it falls through it.
   ac.stall = timed || ac.kias < p.stallKias;
@@ -1731,7 +1801,7 @@ function checkFirstNose(state) {
 function readAims(state) {
   for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
     if (ac.ctl.mode !== 'pursuit') { ac.aim = null; continue; }
-    const aim = aimPoint(state.setup, target);
+    const aim = aimPoint(state.setup, target, ac);
     ac.aim = { xFt: aim.x, yFt: aim.y, zFt: aim.z };
   }
 }
