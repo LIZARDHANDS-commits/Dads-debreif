@@ -102,13 +102,15 @@ test('the announcement names the flags that are on and nothing that changes with
 test('More detail has TAS, climb angle, bank, Ps and energy height, from the engine\'s numbers, and the pass geometry', () => {
   const fight = fly({}, 12);
   const rows = energyMoreRows(fight);
-  assert.deepEqual(rows.map((r) => r.id), ['tas', 'climb', 'bank', 'ps', 'energyHeight', 'offNose', 'angleOff', 'sinceMerge']);
+  assert.deepEqual(rows.map((r) => r.id), ['tas', 'climb', 'bank', 'ps', 'energyHeight', 'offNose', 'aspect', 'angleOff', 'sinceMerge']);
   assert.equal(row(rows, 'tas').blue, `${Math.round(fight.blue.ktas)} kt`);
   assert.equal(row(rows, 'climb').blue, `${fight.blue.climbDeg.toFixed(0)}°`);
   assert.equal(row(rows, 'bank').blue, `${fight.blue.bankDeg.toFixed(0)}°`);
   assert.match(row(rows, 'ps').blue, /^[+-][\d,]+ ft\/s$/);
   assert.match(row(rows, 'energyHeight').blue, /^[\d,]+ ft$/);
   assert.ok(Number.parseInt(row(rows, 'energyHeight').blue.replace(/,/g, ''), 10) > fight.blue.altFt);
+  assert.equal(row(rows, 'aspect').blue, `${(180 - fight.ataBlueDeg).toFixed(0)}°`);
+  assert.equal(row(rows, 'aspect').red, `${(180 - fight.ataRedDeg).toFixed(0)}°`);
   assert.equal(row(rows, 'angleOff').text, `${fight.headingCrossDeg.toFixed(0)}°`);
   assert.match(row(rows, 'sinceMerge').text, /^\d+\.\d s$/);
 });

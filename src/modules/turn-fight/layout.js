@@ -212,7 +212,7 @@ export function createLayout({ settings, controls, on }) {
 
   const about = createPanel({ title: 'About this model', collapsed: true });
   about.body.append(
-    h('p', {}, h('b', {}, '2-circle: '), 'each jet turns toward the other. A rate fight. ', h('b', {}, '1-circle: '), 'Red turns away from Blue, so the two share one circle. A radius fight. Head-on this is V6\'s same and opposite directions.'),
+    h('p', {}, h('b', {}, '2-circle: '), 'each jet turns toward the other. A rate fight. ', h('b', {}, '1-circle: '), 'Red turns away from Blue, so the two share one circle. A radius fight.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
     h('p', {}, 'With Climb and dive on, first nose-on needs the nose truly on the other jet; at a fixed climb or dive it may never come, and the chase then never starts.'),
     h('p', {}, 'The aspect angle (AA) and off-nose angle (ATA) are measured in 3D with Climb and dive on, so with a height difference at T+0 the AA reads less than 180° even when Red points at Blue.'),

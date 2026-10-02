@@ -152,17 +152,37 @@ export function energySetupFrom(values) {
     separationNm: values.separationNm,
     blueAltFt: values.blueAltFt, redAltFt: values.redAltFt,
     blueKias: values.blueKias, redKias: values.redKias,
-    ataDeg: start.startAtaDeg, ataSide: start.startAtaSide, aaDeg: start.startAaDeg, aaSide: start.startAaSide,
-    turnsStart: values.turnsAt === 'once' ? 'now' : 'pass',
+    ataDeg: values.ataDeg ?? start.startAtaDeg,
+    ataSide: values.ataSide ?? start.startAtaSide,
+    aaDeg: values.aaDeg ?? start.startAaDeg,
+    aaSide: values.aaSide ?? start.startAaSide,
+    turnsStart: values.turnsStart ?? (values.turnsAt === 'once' ? 'now' : 'pass'),
     blueMove: values.blueMove, redMove: values.redMove, mptKias: values.mptKias, hardDeckFt: values.hardDeckFt,
     pursuit: values.pursuit, chaseAfterHeadOn: values.chaseAfterHeadOn,
-    stallKias: values.stallKias, shakerFrac: values.shakerPct / 100, stallSec: values.stallSec,
-    midThrottle: values.midThrottlePct / 100, leadSec: values.leadSec, lagSec: values.lagSec,
+    stallKias: values.stallKias,
+    shakerFrac: values.shakerPct !== undefined ? values.shakerPct / 100 : (values.shakerFrac ?? 0.94),
+    stallSec: values.stallSec,
+    midThrottle: values.midThrottlePct !== undefined ? values.midThrottlePct / 100 : (values.midThrottle ?? 0.5),
+    leadSec: values.leadSec, lagSec: values.lagSec,
     rollRateDegPerSec: values.rollRateDegPerSec,
     pitchBackBank160Deg: values.pitchBackBank160Deg, pitchBackBank220Deg: values.pitchBackBank220Deg,
     immelmannAboveKias: values.immelmannAboveKias, splitSBelowKias: values.splitSBelowKias,
     immelmannOffNoseDeg: values.immelmannOffNoseDeg, immelmannMinTopKias: values.immelmannMinTopKias,
     pickLookaheadSec: values.pickLookaheadSec, deckMarginFt: values.deckMarginFt,
+  };
+}
+
+/**
+ * Adapts an Energy setup (ataDeg, aaDeg, turnsStart) to Simple setup keys (startAtaDeg, startAaDeg, turnsAt).
+ */
+export function simpleSetupFromEnergy(energySetup) {
+  return {
+    ...energySetup,
+    startAtaDeg: energySetup.ataDeg ?? energySetup.startAtaDeg,
+    startAtaSide: energySetup.ataSide ?? energySetup.startAtaSide,
+    startAaDeg: energySetup.aaDeg ?? energySetup.startAaDeg,
+    startAaSide: energySetup.aaSide ?? energySetup.startAaSide,
+    turnsAt: energySetup.turnsStart ? (energySetup.turnsStart === 'now' ? 'once' : 'pass') : energySetup.turnsAt,
   };
 }
 

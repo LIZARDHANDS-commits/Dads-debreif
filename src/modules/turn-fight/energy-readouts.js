@@ -126,6 +126,7 @@ export function energyMoreRows(state) {
     pair('ps', 'Ps (specific excess power)', 'more', signedFtps(blue.psFtps), signedFtps(red.psFtps)),
     pair('energyHeight', 'Energy height', 'more', `${formatWholeFt(blue.energyHeightFt)} ft`, `${formatWholeFt(red.energyHeightFt)} ft`),
     pair('offNose', 'Off-nose angle (ATA)', 'more', `${state.ataBlueDeg.toFixed(0)}°`, `${state.ataRedDeg.toFixed(0)}°`),
+    pair('aspect', 'Aspect angle (AA)', 'more', `${(180 - state.ataBlueDeg).toFixed(0)}°`, `${(180 - state.ataRedDeg).toFixed(0)}°`),
     text('angleOff', 'Angle-off (HCA)', 'more', `${state.headingCrossDeg.toFixed(0)}°`),
     text('sinceMerge', 'Time since the pass', 'more', `${Math.max(0, state.timeSec - (state.mergeSec ?? state.timeSec)).toFixed(1)} s`),
   ];

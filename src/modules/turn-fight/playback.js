@@ -59,17 +59,21 @@ export function createEnergyRun(setup) {
  */
 export function energyScreenFight(engine) {
   const s = engine.setup;
+  const turnsStart = s.turnsStart ?? (s.turnsAt === 'now' || s.turnsAt === 'once' ? 'now' : 'pass');
   const geometry = startGeometry({
     separationNm: s.separationNm,
     blueKt: iasToTasKt(s.blueKias, s.blueAltFt),
     redKt: iasToTasKt(s.redKias, s.redAltFt),
-    startAtaDeg: s.ataDeg, startAtaSide: s.ataSide, startAaDeg: s.aaDeg, startAaSide: s.aaSide,
-    turnsAt: s.turnsStart === 'now' ? 'once' : 'pass',
+    startAtaDeg: s.ataDeg ?? s.startAtaDeg,
+    startAtaSide: s.ataSide ?? s.startAtaSide,
+    startAaDeg: s.aaDeg ?? s.startAaDeg,
+    startAaSide: s.aaSide ?? s.startAaSide,
+    turnsAt: turnsStart === 'now' ? 'once' : 'pass',
   });
   const fight = Object.create(engine);
   fight.energy = true;
-  fight.mergeMark = s.turnsStart !== 'now' && geometry.closing;
-  fight.headOn = s.ataDeg === 0 && s.aaDeg === 180;
+  fight.mergeMark = turnsStart !== 'now' && geometry.closing;
+  fight.headOn = (s.ataDeg ?? s.startAtaDeg) === 0 && (s.aaDeg ?? s.startAaDeg) === 180;
   fight.start = { hcaDeg: geometry.hcaDeg, passSec: geometry.closing ? geometry.passSec : 0, closing: geometry.closing, passRangeFt: geometry.passRangeFt };
   fight.startZFt = { blue: s.blueAltFt, red: s.redAltFt };
   return fight;
