@@ -389,8 +389,9 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
 
     case 'final_turn': {
       const headingDiff = Math.abs(wrapDeg180((aircraft.headingDeg ?? 0) - CYMJ_RWY_HDG_DEG));
-      const onCenterline = aircraft.crossTrackFt === undefined || Math.abs(aircraft.crossTrackFt) < 50;
-      if ((aircraft.turnAccumDeg ?? 0) >= 180 || (headingDiff <= 5 && onCenterline)) {
+      // Transition to final when heading is within 15° of runway
+      // (don't require onCenterline — crossTrackFt is to waypoint track, not runway)
+      if ((aircraft.turnAccumDeg ?? 0) >= 180 || headingDiff <= 15) {
         aircraft.phase = 'final';
         aircraft.targetBankDeg = 0;
         aircraft.targetSpeedKt = 100;

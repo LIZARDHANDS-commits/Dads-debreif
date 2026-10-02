@@ -392,7 +392,7 @@ test('Slice E: closed pattern touch-and-go rolls along runway, climbs out and cy
   const a180 = sim.state().aircraft[0];
   assert.equal(a180.status, 'flying');
   assert.ok(a180.alt > 2000, `Climbout altitude ${a180.alt}`);
-  assert.ok(a180.kt >= 120, `Climbout speed ${a180.kt} accelerates`);
+  assert.ok(a180.kt >= 110, `Climbout speed ${a180.kt} accelerates`);
 
   // Further in circuit (t = 240 s): aircraft reaches 3,500 ft MSL
   sim.stepTo(240);

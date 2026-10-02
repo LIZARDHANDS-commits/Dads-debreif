@@ -303,6 +303,9 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
   // Waypoint mode check in nav plan
   const navPlan = resolveNavPlan(a, route);
   const wps = navPlan?.waypoints;
+  if (wps && a.waypointIndex !== undefined && wps[a.waypointIndex]?.mode === 'physics') {
+    return true;
+  }
 
   // Position along route (+0.5 offset resolves exact point boundary ambiguity)
   if (route && a.distFt !== undefined) {
@@ -313,13 +316,10 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
     if (route.points?.[p?.seg]?.mode === 'physics') {
       return true;
     }
-    if (p?.phase === 'break' || p?.phase === 'final_turn') {
-      return true;
-    }
   }
 
-  // Aircraft phase triggers
-  if (a.phase === 'break' || a.phase === 'final_turn' || a.phase === 'closed_pattern') {
+  // Active contingency maneuvers trigger physics
+  if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
     return true;
   }
 
@@ -550,9 +550,10 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     a.headingDeg = wt.headingDeg;
     a.trackDeg = trackDeg;
 
-    // Bank angle in rail mode
+    // Bank angle in rail mode: turns bank according to G, straight legs stay wings level
     let targetBankDeg = 0;
-    if (p.g && p.g > 1) {
+    const isStraightLeg = p.phase === 'initial' || p.phase === 'downwind' || p.phase === 'final' || p.phase === 'landing';
+    if (!isStraightLeg && p.g && p.g > 1) {
       targetBankDeg = bankDegFromG(p.g);
     }
     const maxRollDelta = 45 * stepDt;

@@ -70,9 +70,9 @@ const PAT_INNER_WPS = [
   wp({ x: 17150,  y: -28181,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Downwind',       mode: 'rails'   }),
   wp({ x: 21906,  y: -19364,  alt: 3500,  kias: 220,  phase: 'initial',         label: '45° Leg',        mode: 'rails'   }),
   wp({ x: 19741,  y: -12172,  alt: 3500,  kias: 220,  phase: 'initial',         label: 'Initial',        mode: 'rails'   }),
-  wp({ x:  -288,  y:  -1441,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'break',    label: 'Break',     mode: 'physics' }),
+  wp({ x:  -288,  y:  -1441,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'break',    label: 'Break',     mode: 'rails'   }),
   wp({ x: -3385,  y:  -4323,  alt: 3500,  kias: 140,  phase: 'inner_downwind',  label: 'Break Exit',     mode: 'rails'   }),
-  wp({ x:  7146,  y: -10275,  alt: 3500,  kias: 120,  bankDeg: 35, g: 1.4, phase: 'final_turn', label: 'Perch', mode: 'physics' }),
+  wp({ x:  7146,  y: -10275,  alt: 3500,  kias: 120,  bankDeg: 35, g: 1.4, phase: 'final_turn', label: 'Perch', mode: 'rails'   }),
   wp({ x:  9076,  y:  -6411,  alt: 2119,  kias: 110,  phase: 'final',           label: 'Window',         mode: 'rails'   }),
 ];
 
