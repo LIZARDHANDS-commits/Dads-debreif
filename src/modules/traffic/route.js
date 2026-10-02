@@ -574,57 +574,40 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
  * @param {Record<string, any>} [options]
  * @returns {{ x: number, y: number, headingDeg: number, alt?: number } | null}
  */
+let _breakCache = { wFrom: null, wKt: null, result: null };
 export function computeBreakRollout(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  const pts = route?.points || route?.waypoints;
-  if (!pts || pts.length < 10) return null;
-  const brkIdx = pts.findIndex((p) => /^break$/i.test(p.label?.trim()) || (p.phase === 'break' && !/exit/i.test(p.label)));
-  const nominal = brkIdx >= 0 ? pts[brkIdx] : pts[9];
-  if (!nominal) return null;
+  // Cache — only recompute when wind changes
+  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.result) {
+    return _breakCache.result;
+  }
 
-  const startX = nominal.x ?? -288;
-  const startY = nominal.y ?? -1441;
+  const pts = route?.points || route?.waypoints;
+  if (!pts || pts.length < 11) return null;
+
+  // Use static Point 10 (Break Exit) as the calm-wind baseline.
+  // It's factory-calibrated to the physics engine's break turn output.
+  const brkExit = pts[10];
+  const baseX = brkExit?.x ?? -3385;
+  const baseY = brkExit?.y ?? -4323;
   const rwyHeadingDeg = 298;
   const downwindHeadingDeg = (rwyHeadingDeg - 180 + 360) % 360;
 
-  const g = 32.174;
-  const bankRad = (60 * Math.PI) / 180;
-  const tanBank = Math.tan(bankRad);
-  const dt = 0.2;
-
+  // For non-zero wind, compute the wind drift during the ~20s break turn
+  // and add it as an offset to the calm-wind position.
+  const breakDurationSec = 20; // approximate break turn duration from physics trace
   const windFtps = ktToFtps(windKt);
   const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
-  const wx = windFtps * Math.sin(blowToRad);
-  const wy = windFtps * Math.cos(blowToRad);
+  const windDriftX = windFtps * Math.sin(blowToRad) * breakDurationSec;
+  const windDriftY = windFtps * Math.cos(blowToRad) * breakDurationSec;
 
-  let curX = startX;
-  let curY = startY;
-  let curHeadingDeg = rwyHeadingDeg;
-  let turnAccum = 0;
-
-  while (turnAccum < 175) {
-    const u = turnAccum / 180;
-    const curIas = 220 * Math.exp(-0.452 * u);
-    const tasKt = iasToTasKt(curIas, nominal.alt ?? 3500);
-    const tasFtps = ktToFtps(tasKt);
-    const omega = (g * tanBank) / Math.max(1, tasFtps);
-    const dTurnDeg = Math.min((omega * dt * 180) / Math.PI, 175 - turnAccum);
-
-    turnAccum += dTurnDeg;
-    curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
-
-    const hdgRad = (curHeadingDeg * Math.PI) / 180;
-    const vx = tasFtps * Math.sin(hdgRad) + wx;
-    const vy = tasFtps * Math.cos(hdgRad) + wy;
-    curX += vx * dt;
-    curY += vy * dt;
-  }
-
-  return {
-    x: curX,
-    y: curY,
-    alt: nominal.alt ?? 3500,
+  const result = {
+    x: baseX + windDriftX,
+    y: baseY + windDriftY,
+    alt: brkExit?.alt ?? 3500,
     headingDeg: downwindHeadingDeg,
   };
+  _breakCache = { wFrom: windFromDeg, wKt: windKt, result };
+  return result;
 }
 
 /**

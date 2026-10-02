@@ -43,7 +43,7 @@ The closed pattern uses free Cartesian vector guidance directly driving aircraft
 - Go-around climb profile: ✅ (Needs smooth `rollToward` and wind crab)
 - Wind-shifted Perch calculation: ✅ (Matches D389)
 - Break decel formula (`route.js`): ✅ (Pre-computed, needs dynamic sim integration)
-- Localizer cross-track guidance: ❌ Not implemented
+- Localizer cross-track guidance: ✅ (Implemented in flight-engine.js L662-666)
 - Dynamic final turn bank modulation: ❌ Not implemented
 - Cubic descent curve: ❌ Not implemented
 - 3.0° glide slope capture: ❌ Not implemented (currently a 10° plunge)
@@ -173,6 +173,9 @@ if (alongTrack >= segLength - leadDist) advanceWaypoint();
 │ [Cancel PFL]                   Model: NRG ▼│
 └─────────────────────────────────────────────┘
 ```
+
+### 2.5 Dynamic Downwind Geometry (`computeBreakRollout`)
+Point 10 (Break Exit) position is dynamically computed by `computeBreakRollout()` in route.js, mirroring `computeWindPerch()` for Point 11. Both ends of the downwind leg are wind-adjusted.
 
 ---
 
@@ -306,10 +309,13 @@ Aircraft spawns engine-out at best glide (125 KIAS clean), heading toward field 
 KIN model. Lineup on RWY 29L threshold at 0 KIAS, heading 298°. Accelerate down runway, rotate at 85 KIAS, climb on runway heading at 140 KIAS to 2,500 ft MSL, transition to closed pattern at departure end.
 
 ### 4.9 BREAKOUT — Circuit Breakout
-KIN model. Immediate climbing turn (30–45° bank, 1,500–2,000 fpm) to 3,500 ft MSL. Steers toward breakout point 2.0 NM south of outer pattern center. Re-enters via ENT_OHB or ENT_SI.
+KIN model. Immediate climbing turn (30–45° bank, 1,500–2,000 fpm) to 4,500 ft MSL (Updated per Patrick's approval, 2026-10-02). Steers toward breakout point 2.0 NM south of outer pattern center. Re-enters via ENT_OHB or ENT_SI.
 
 ### 4.10 GO_AROUND — Wave-off Climbout
 KIN model. Full power, climb straight ahead on 298° to 2,500 ft, level accel to departure end, zoom to 3,500 ft / 180 KIAS, accelerate to 220, crosswind turn to rejoin PAT_INNER downwind.
+
+### 4.11 CLOSED_PATTERN — Closed Pattern Command
+Closed Pattern — aircraft enters PHYSICS mode, climbs to 3,500 ft in a 45° bank left turn, tracks toward the wind-corrected break rollout position. On completion, blends onto rails and joins the downwind leg.
 
 ---
 
@@ -462,10 +468,10 @@ Every setting starts filled in so the first look is clean and intuitive:
 - [ ] **Task 2.2**: Pattern-specific guidance overrides (break arc, perch pursuit, cubic descent, 3.0° glide slope)
 
 ### Phase 3: Integration (sim.js Swap)
-- [ ] **Task 3.1**: Replace rails in `sim.js` (`fly(a)` calls `stepAircraft()`)
-- [ ] **Task 3.2**: Migrate existing command blocks (breakout, PFL, go-around, closed pattern)
-- [ ] **Task 3.3**: Sync display via `scene.js`
-- [ ] **Task 3.4**: Update test suites (`sim.test.js`, `vector-sim.test.js`, `route.test.js`)
+- [x] **Task 3.1**: Replace rails in `sim.js` (`fly(a)` calls `stepAircraft()`)
+- [x] **Task 3.2**: Migrate existing command blocks (breakout, PFL, go-around, closed pattern)
+- [x] **Task 3.3**: Sync display via `scene.js`
+- [x] **Task 3.4**: Update test suites (`sim.test.js`, `vector-sim.test.js`, `route.test.js`)
 
 ### Phase 4: Spawn UI Redesign
 - [ ] **Task 4.1**: Build two-dropdown spawn UI (Pattern + Start Point)

@@ -668,6 +668,10 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
         env,
         { maxInterceptDeg: 30 }
       );
+    } else if (aircraft.phase === 'final_turn') {
+      // Keep turning - don't track to waypoint during the turn
+      // Just maintain the current bank, the turn completion check handles stopping
+      desiredHeadingDeg = aircraft.headingDeg - 20; // Always offset left
     } else {
       desiredHeadingDeg = calcInterceptHeading(fromWp, toWp, aircraft, aircraft.tasKt, env);
     }

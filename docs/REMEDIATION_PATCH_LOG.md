@@ -38,7 +38,16 @@
 | [**PATCH-025**](#patch-025-milestone-2-active-combat-pursuit-default-d403) | M2 | 2026-10-01 07:25Z | BFM Physics | Milestone 2 Active Combat Pursuit Default (D403) | Pass |
 | [**PATCH-026**](#patch-026-energy-mode-3d-merge-azimuth-acquisition-across-vertical-separation-d404) | M2 | 2026-10-01 08:05Z | BFM & 3D | Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D404) | Pass |
 | [**PATCH-027**](#patch-027-pilot-stall-authority-loss--post-merge-3d-pursuit-entry-d405) | M2 | 2026-10-01 09:05Z | Aero & BFM | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D405) | Pass |
-| [**PATCH-028**](#patch-028-turn-fight-bfm-1v1-50-g-law-d386-cone-bfm-doctrine--test-harmonization) | M2 | 2026-10-01 22:15Z | Aero & BFM | 5.0 G Pull Law, D386 Cone, BFM Doctrine & Pilot Domain Test Harmonization | Pass |
+| [**PATCH-028**](#patch-028-pre-phase-vector-guidance-migration-documentation-synchronization-d406-r34) | M1 | 2026-10-02 01:25Z | Aero & Spec | Pre-Phase Vector Guidance Migration Documentation Synchronization (D406, R34) | Pass |
+| [**PATCH-029**](#patch-029-turn-fight-bfm-1v1-50-g-law-d386-cone-bfm-ai-v22--test-harmonization) | M2 | 2026-10-02 11:55Z | Aero & BFM | 5.0 G Pull Law, D386 Cone, BFM AI v2.2 & Pilot Domain Test Harmonization | Pass |
+| [**PATCH-030**](#patch-030-simjs-surgery--deleted-flya-wired-tickaircraft-eliminated-shadow-variables) | M1 | 2026-10-02 19:32Z | Sim Engine | sim.js Surgery: Deleted fly(a), Wired tickAircraft(), Eliminated 159 Shadow Variables | Pass |
+| [**PATCH-031**](#patch-031-teleport-fix-1--clear-stale-waypointindex-on-blend-complete) | M1 | 2026-10-02 19:32Z | Sim Engine | Teleport Fix 1: Clear Stale waypointIndex on Blend Complete | Pass |
+| [**PATCH-032**](#patch-032-teleport-fix-2--position-based-shouldenterphysics) | M1 | 2026-10-02 19:32Z | Sim Engine | Teleport Fix 2: Position-Based shouldEnterPhysics | Pass |
+| [**PATCH-033**](#patch-033-teleport-fix-3--phase-aware-enterblending-targets-window-point-12) | M1 | 2026-10-02 19:32Z | Sim Engine | Teleport Fix 3: Phase-Aware enterBlending Targets Window Point 12 for Final Approach | Pass |
+| [**PATCH-034**](#patch-034-computebreakrollout--wind-adjusted-downwind-start-position) | M1 | 2026-10-02 19:58Z | Aero & Route | computeBreakRollout(): Wind-Adjusted Downwind Start Position | Pass |
+| [**PATCH-035**](#patch-035-pfl--high-key-3-bugs-fixed--135x-prototype-drag) | M1 | 2026-10-02 20:03Z | Aero & Engine | PFL / High Key 3 Bugs Fixed + 1.35× Prototype Drag | Pass |
+| [**PATCH-036**](#patch-036-breakout-altitude-standardized-to-4500-ft) | M1 | 2026-10-02 20:16Z | SMM & Aero | Breakout Altitude Standardized from 3,500 ft to 4,500 ft | Pass |
+| [**PATCH-037**](#patch-037-closed-pattern-command--45-bank-climbing-left-turn) | M1 | 2026-10-02 20:16Z | Aero & Maneuver | Closed Pattern Command: 45° Bank Climbing Left Turn | Pass |
 
 ---
 
@@ -820,6 +829,177 @@
   - 3,046 repo unit tests in `npm test` PASS (100% green).
   - `npm run typecheck` passed cleanly (0 errors).
   - `npm run build` compiled clean.
+
+---
+
+### PATCH-030: sim.js Surgery — Deleted fly(a), Wired tickAircraft(), Eliminated Shadow Variables
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`tasks/traffic/todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/todo.md)
+* **Problem / Flaw Addressed:**  
+  `sim.js` maintained a legacy hybrid simulation architecture where `fly(a)` (~710 lines) ran parallel math and maintained 159 shadow state variables (`customX`, `customY`, `customAlt`, `customHeading`, `customKt`, etc.) that drifted out of sync with 3D Cartesian vector flight physics.
+* **Changes Made:**
+  1. Deleted `fly(a)` (~710 lines) from `sim.js`.
+  2. Replaced per-frame simulation logic with single `tickAircraft(a, dt, fieldElevFt, wind, activeRwy, route, bounds)` call in `stepOnce()`.
+  3. Eliminated all 159 shadow variables across `toStart()`, `checkDecisions()`, `command()`, and `state()`.
+  4. Added simulation `mode` ('RAIL' | 'PHYSICS' | 'BLENDING') to `state()` output, and properly deep-cloned blend objects in snapshot and rewind buffers.
+  5. Reduced `sim.js` footprint from 1,466 lines to 752 lines (net -714 lines).
+* **Reasoning / Rationale:**  
+  Enforces single source of truth for aircraft state via the `tick-aircraft.js` three-mode state machine. Eliminates shadow-variable drift and dual-model divergence.
+* **Verification:**  
+  6/6 behavioral flight invariants pass (`flight-invariants.test.js`); zero shadow variables remain.
+
+---
+
+### PATCH-031: Teleport Fix 1 — Clear Stale waypointIndex on Blend Complete
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+* **Problem / Flaw Addressed:**  
+  Premature perch jump: when blending completed back onto rails, `a.waypointIndex` retained its pre-blend value. On subsequent frames, distance calculations evaluated against the stale index, causing an immediate false trigger into the perch turn.
+* **Changes Made:**
+  Explicitly cleared `a.waypointIndex = undefined` upon completing the BLENDING phase (`t >= blendDuration`), forcing rail tracking to re-index from actual track distance (`distFt`).
+* **Reasoning / Rationale:**  
+  Guarantees rail state re-synchronization without relying on stale legacy waypoints.
+* **Verification:**  
+  Circuit progression invariant test passes; zero premature perch triggers.
+
+---
+
+### PATCH-032: Teleport Fix 2 — Position-Based shouldEnterPhysics
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+* **Problem / Flaw Addressed:**  
+  Break rollout snap: `shouldEnterPhysics()` relied on `a.waypointIndex` matching the break entry point. If `waypointIndex` was stale or skipped due to time-step integration, aircraft failed to enter physics or snapped instantaneously to the rollout waypoint.
+* **Changes Made:**
+  Refactored `shouldEnterPhysics()` to evaluate aircraft position along the route using `posOnRoute(distFt)` rather than relying on stale discrete `waypointIndex`.
+* **Reasoning / Rationale:**  
+  Continuous geometric detection prevents missed transitions regardless of frame rate or time-step variations.
+* **Verification:**  
+  Continuous motion invariant test passes; smooth overhead break rollout.
+
+---
+
+### PATCH-033: Teleport Fix 3 — Phase-Aware enterBlending Targets Window Point 12
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+* **Problem / Flaw Addressed:**  
+  Final approach snap: upon completing the final turn, generic `findClosestRoutePoint()` snapped the aircraft backward or forward to an incorrect rail point rather than the Window / Final Approach fix.
+* **Changes Made:**
+  Made `enterBlending()` phase-aware: when transitioning from final turn physics, explicitly target Window Point 12 for the final approach leg. Added forward-progress guard in `enterBlending` preventing backward `distFt` snaps. Set RAIL fallback speed to `a.fallbackKt` instead of hardcoded 140 kt.
+* **Reasoning / Rationale:**  
+  Ensures final approach alignment follows Moose Jaw SMM procedure onto the extended runway centerline without coordinate teleportation.
+* **Verification:**  
+  6/6 behavioral flight invariants pass; smooth rollout onto final approach.
+
+---
+
+### PATCH-034: computeBreakRollout() — Wind-Adjusted Downwind Start Position
+* **Date & Time:** 2026-10-02 19:58 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `fa0b9b6`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+* **Problem / Flaw Addressed:**  
+  Downwind start position (Point 10) was statically hardcoded. While the perch turn end (Point 11) had dynamic wind adjustment via `computeWindPerch()`, the break turn rollout remained fixed, distorting downwind leg crabbing and spacing under crosswinds.
+* **Changes Made:**
+  Implemented `computeBreakRollout(wind, fieldElevFt)` in `src/modules/traffic/route.js`:
+  1. Analytically simulates the 180° decelerating overhead break turn ($V(u) = 220 \cdot e^{-0.452 u}$, 60° bank, integrating wind drift).
+  2. Dynamically calculates exit coordinates (calm rollout: $x = -2908\text{ ft}, y = -4109\text{ ft}$, heading $118^\circ$).
+  3. Integrated `computeBreakRollout` into `generateWindAdjustedTrack()`, ensuring both ends of the downwind leg are dynamically wind-adjusted.
+* **Reasoning / Rationale:**  
+  Symmetric wind correction for both entry and exit of the pattern downwind leg per Moose Jaw SMM procedures.
+* **Verification:**  
+  31/31 route tests, 46/46 sim tests, and 6/6 invariant tests pass.
+
+---
+
+### PATCH-035: PFL / High Key 3 Bugs Fixed & Prototype Drag Multiplier
+* **Date & Time:** 2026-10-02 20:03 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `8dc5240`
+* **Files Modified:**
+  * [`src/modules/traffic/flight-engine.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/flight-engine.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+* **Problem / Flaw Addressed:**  
+  Three critical flaws in PFL / High Key flight dynamics:
+  1. High Key and Runway Threshold share identical $x, y$ coordinates $(3104, -3194)$, causing `atan2(0,0)` heading calculation to evaluate to $000^\circ$ (due North).
+  2. `climb_high_key` command in `setupPhysicsPlan` omitted target altitude and speed, failing to climb under power.
+  3. Non-looping PFL plans lacked waypoint capture phase state transitions, failed to cut engine at High Key, and failed to touch down at threshold.
+* **Changes Made:**
+  1. Fixed coincident waypoints: used `_legStart` reference for direct-to heading calculation when waypoint delta is zero.
+  2. Set `targetAltFt = 5000` and `targetSpeedKt = 125` in `setupPhysicsPlan` for `climb_high_key`, enabling powered climb to High Key.
+  3. Implemented PFL phase state machine in `stepAircraft`: updates phase/config from nav plan waypoints, cuts engine (`engineFailed = true`) at High Key for unpowered glide descent, and lands at Threshold when `alt <= 1942 ft` MSL.
+  4. Added fly-over protection for High Key and cross-track bounded capture ($\le 500\text{ ft}$) preventing premature triggers during turns.
+  5. Implemented 1.35× sink rate prototype drag multiplier on spiral glide descent after High Key per operator calibration.
+* **Reasoning / Rationale:**  
+  Faithful reproduction of Moose Jaw T-6 / CT-156 PFL procedures from 5,000 ft High Key down to touchdown.
+* **Verification:**  
+  99/99 tests pass across tick-aircraft, flight-engine, invariants, and commands.
+
+---
+
+### PATCH-036: Breakout Altitude Standardized to 4,500 ft
+* **Date & Time:** 2026-10-02 20:16 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `9803e19`
+* **Files Modified:**
+  * [`src/modules/traffic/flight-engine.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/flight-engine.js)
+  * [`src/modules/traffic/nav-plans.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/nav-plans.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js)
+  * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js)
+* **Problem / Flaw Addressed:**  
+  Breakout altitude was previously set to 3,500 ft MSL, identical to the pattern downwind altitude, conflicting with Moose Jaw local air traffic procedures where breakout aircraft climb above pattern altitude to deconflict.
+* **Changes Made:**
+  Standardized breakout target altitude from 3,500 ft to 4,500 ft MSL across `flight-engine.js`, `nav-plans.js`, and `tick-aircraft.js`. Updated corresponding unit test assertions.
+* **Reasoning / Rationale:**  
+  Authentic 15 Wing Moose Jaw breakout altitude procedure providing 1,000 ft vertical clearance above the 3,500 ft pattern downwind.
+* **Verification:**  
+  Updated test assertions in `commands.test.js` and `vector-sim.test.js` pass cleanly.
+
+---
+
+### PATCH-037: Closed Pattern Command — 45° Bank Climbing Left Turn
+* **Date & Time:** 2026-10-02 20:16 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `9803e19`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`src/modules/traffic/flight-engine.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/flight-engine.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js)
+* **Problem / Flaw Addressed:**  
+  Missing procedural command for closed pattern circuit entry following touch-and-go or low approach on Runway 29L.
+* **Changes Made:**
+  1. Added `closed_pattern` command to `PHYSICS_COMMANDS`.
+  2. Aircraft enters `PHYSICS` mode, initiates a 45° bank climbing left turn, climbs to 3,500 ft MSL, and tracks toward the wind-corrected break rollout position (`computeBreakRollout()`).
+  3. Added proportional track-intercept steering in `calcBankTarget` with 45° bank limit for the `closed_pattern` phase.
+  4. Defined completion condition: within 600 ft of rollout point, altitude within 150 ft of 3,500 ft, and heading within 30° of 118°; then smoothly transitions into `BLENDING` onto downwind rails.
+* **Reasoning / Rationale:**  
+  Accurate simulation of Moose Jaw closed pattern touch-and-go re-entry to the downwind leg.
+* **Verification:**  
+  37/37 tests pass across tick-aircraft, invariants, and commands.
 
 
 

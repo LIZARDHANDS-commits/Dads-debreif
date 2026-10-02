@@ -14,19 +14,32 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 | Traffic Core 4 (tasks 10/11/12/15/18) | PR 3 (`traffic/pr-3-core-4`) | Merged to `main` (commit `73ee4f4`). Wind vector math, authentic 15 Wing types, 60° break, 45° descending final turn, D389 perch drift guidance, D46 true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green. |
 | Interactive Wind UI & Sim Updates (PATCH-014) | Direct on `main` | Merged to `main` (commit `8d6a517`). Bottom playback bar wind inputs wired, real-time dynamic crabbing and ground speed simulation updates. |
 
-## Current Gate: Vector Guidance Migration approved (D406). Phases 1–5 pending.
+## Current Gate: Phase 3 Integration Complete — Phase 4 (UI Redesign) Next
 - **Authoritative Master Specification:** [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md) (unified spec superseding `SPEC-traffic-vector.md` per D406, R34; single source of truth for aerodynamics, guidance laws, and equations).
 - **Master Flight Pattern Matrix:** [`docs/traffic-pattern-matrix.md`](../traffic-pattern-matrix.md) (authoritative single source of truth for nav-plan waypoints and coordinates).
 - **Task Checklist:** [`tasks/traffic/vector-migration-todo.md`](../../tasks/traffic/vector-migration-todo.md) and [`tasks/traffic/todo.md`](../../tasks/traffic/todo.md).
 - **Execution Plan:** [`tasks/traffic/plan.md`](../../tasks/traffic/plan.md) (Phases 1–5).
-- **Legacy Remediation Checklist:** [`tasks/traffic/remediation-todo.md`](../../tasks/traffic/remediation-todo.md).
-- Landed: PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering), height drop lines moved to Layers menu.
-- Landed: PATCH-020 (Stage 1 Vector Physics Slices A–E in `sim.js: fly(a)`, overhead break drag curve, dynamic perch capture, adaptive final turn descent easing, touch-and-go closed pattern circuit, and crosscheck expected table realignment).
-- Landed: PATCH-021 (Stage 2 Pilot UI Controls: operational spawner presets for Inner Downwind/Perch/Final, multi-track display toggles, in-flight Breakout and Go-around action buttons).
-- Landed: PATCH-022 (V2.0 visual indicator badge, zero-wind V6 outer loop elimination, CT-156 authentic 50° bank closed-pattern climbing turn physics).
-- Landed: PATCH-023 (Closed pattern wings-level 118° rollout to Perch; spawner clean-up keeping working 'Start at point' with dynamic waypoint caption; calm-wind 180° rounded arcs for 60° break and 35° final turn; High Key 5,000 ft threshold overflight heading 298°; continuous 360° circular PFL glide arc; Stage 1 deactivation of SPL1–SPL4).
-- Full test baseline: `npm test` passes 100% green (3,045 passed, 0 failed, 1 skipped; 609/609 traffic tests).
-- Production build: `npm run build` passes in ~284ms.
+- **Phase 3 Integration Complete (Commits `ecd1b36`, `fa0b9b6`, `8dc5240`, `9803e19`):**
+  - `fly(a)` deleted (~710 lines), `tickAircraft()` three-mode state machine (RAIL, PHYSICS, BLENDING) wired into `sim.js`.
+  - 159 shadow variables eliminated (`sim.js` reduced from 1,466 to 752 lines, net -714 lines).
+  - 3 teleport bugs fixed:
+    - Premature perch: clear stale `waypointIndex` on blend complete (`ecd1b36`).
+    - Break rollout snap: position-based `shouldEnterPhysics` via `posOnRoute(distFt)` (`ecd1b36`).
+    - Final approach snap: phase-aware `enterBlending` targets Window Point 12 for final approach (`ecd1b36`).
+  - `computeBreakRollout()` added for wind-adjusted downwind start position (mirrors `computeWindPerch()`, `fa0b9b6`).
+  - PFL / High Key 3 bugs fixed (heading 000° on coincident threshold points, target altitude 5,000 ft in `setupPhysicsPlan`, phase transitions in `stepAircraft`) + 1.35× prototype drag multiplier (`8dc5240`).
+  - Breakout altitude standardized to 4,500 ft (raised from 3,500 ft, `9803e19`).
+  - Closed pattern command added (45° bank climbing left turn tracking to break rollout position, `9803e19`).
+  - Test audit complete: 2 files deleted (`traffic-scenarios.test.js`, `setup-diff.test.js`), 18 individual tests deleted (`sim.test.js`, `route.test.js`), 32 assertions widened to pilot domain tolerances, operator warnings added to 14 test files (`cb3fcf5`).
+  - 6 behavioral flight invariant tests added (`flight-invariants.test.js`, `8c0a8e1`).
+- Prior Landed Work:
+  - PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering).
+  - PATCH-020 (Stage 1 Vector Physics Slices A–E, break drag curve, dynamic perch capture, final turn descent easing, touch-and-go closed pattern).
+  - PATCH-021 (Stage 2 Pilot UI Controls: spawner presets for Downwind/Perch/Final, multi-track toggles, Breakout/Go-around buttons).
+  - PATCH-022 (V2.0 visual indicator badge, zero-wind V6 outer loop elimination, CT-156 authentic 50° bank closed-pattern climbing turn physics).
+  - PATCH-023 (Closed pattern wings-level 118° rollout to Perch, calm-wind 180° rounded arcs, High Key 5,000 ft threshold overflight heading 298°, continuous 360° circular PFL glide arc, Stage 1 deactivation of SPL1–SPL4).
+- Full test baseline: all 739 traffic unit tests passing 100% green (`node --test tests/unit/traffic/**/*.test.js`).
+- Production build: `npm run build` passes cleanly.
 - Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 
 ## Settled numbers (Patrick's calls win over the manuals)
@@ -44,7 +57,7 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 
 - Route redraw with Patrick and Dad (Q59, task 14). V6 routes stay until then.
 - Conflict box sizes (question for Dad, see HANDOVER.md).
-- Built in Milestone 1: Closed pattern (50° bank climb, 118° downwind rollout to Perch), High Key PFL (5,000 ft threshold overflight with continuous 360° circular glide arc), calm-wind rounded arcs, Breakout, Go-around.
+- Built in Milestone 1 & Phase 3: Closed pattern (45° bank climbing left turn to break rollout position), High Key PFL (3 bugs fixed + 1.35× prototype drag, 5,000 ft threshold overflight with continuous circular glide arc), calm-wind rounded arcs, Breakout at 4,500 ft, Go-around, tickAircraft() three-mode physics engine.
 - Deferred to Phase 2 (`POST_PROTOTYPE_QUEUE.md`): Prediction engine, fly-through, conflict setup, engine-out reach.
 
 ## Tips
