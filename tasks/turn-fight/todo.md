@@ -111,9 +111,9 @@ Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fi
 Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Plan: [`plan.md`](plan.md).
 Master Plan: [`turn_fight_remediation_v2.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_remediation_v2.md).
 
-- [ ] **11. Phase 1: Flight Math — Immelmann G-Law (D406).**
-  - [ ] 11.1 Update `MANEUVER_PULL_G = 5` in `src/modules/turn-fight/energy-sim.js:66` (Harvard II routinely pulls 5 G in tactical maneuvers).
-  - [ ] 11.2 Update 7 unit tests in `tests/unit/turn-fight/energy-sim.test.js` to assert 5.0 G maneuver pull within pilot domain tolerances (D371). Verify full test suite passes.
+- [ ] **11. Phase 1: Flight Math — Immelmann G-Law (D407).**
+  - [x] 11.1 Update `MANEUVER_PULL_G = 5` in `src/modules/turn-fight/energy-sim.js:66` (Harvard II routinely pulls 5 G in tactical maneuvers) and guard rolling G with `T6A_LIMITS.rollingMaxG = 4.7`. (Completed; clean authentic physics).
+  - [ ] 11.2 Update 7 unit tests in `tests/unit/turn-fight/energy-sim.test.js` to assert 5.0 G maneuver pull within pilot domain tolerances (D371). (Deferred to Phase 5 per Patrick's directive to keep physics clean and prevent stalling on legacy baselines).
 
 - [ ] **12. Phase 2: Engagement Logic — D386, Ghost Pursuit, Schema, Altitude Gate (D410).**
   - [ ] 12.1 Wire D386 `isNoseOn()` into `src/modules/turn-fight/sim.js:checkFirstNose()`: activate the 10° elevation capture cone for Simple Mode Climb/Dive merges.

@@ -37,11 +37,11 @@ Turn Fight baseline is 100% complete and verified:
 
 | Phase | Task | Description | Status |
 |---|---|---|---|
-| **Phase 1** | Task 11 | Raise `MANEUVER_PULL_G = 5` in `energy-sim.js` (D406); update 7 unit tests | Staged / Next |
-| **Phase 2** | Task 12 | Wire D386 in `sim.js`, D386 in `energy-sim.js`, fix ghost pursuit, dynamic altitude gate, schema harmonization (D410) | Staged |
-| **Phase 3** | Task 13 | Fix Aspect Angle swap in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | Staged |
-| **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D408) | Staged |
-| **Phase 5** | Task 15 | Log D406–D410 in decisions register, update handovers, run full 3,045+ verification | Staged |
+| **Phase 1** | Task 11 | Raise `MANEUVER_PULL_G = 5` in `energy-sim.js` & rolling limit guard (D407); update tests | Code Complete (Tests Deferred) |
+| **Phase 2** | Task 12 | Wire D386 in `sim.js`, D386 in `energy-sim.js`, fix ghost pursuit, dynamic altitude gate, schema harmonization (D411) | Ready to Implement |
+| **Phase 3** | Task 13 | Fix Aspect Angle swap in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | Ready to Implement |
+| **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D409/D410) | Ready to Implement |
+| **Phase 5** | Task 15 | Log D407–D411 in decisions register, update handovers, run full verification & test harmonization | Pending |
 
 ## Implemented Work (PATCH-024, PATCH-025, PATCH-026, PATCH-027)
 

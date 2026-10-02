@@ -17,15 +17,15 @@ Historical Audit: [`AUDIT_DECISIONS_D112_D405.md`](file:///C:/Users/patri/.gemin
   - Traffic Sim session operates in `Dads-debreif/` on `main`, focusing exclusively on `src/modules/traffic/` (Option C: Full Vector Guidance Migration).
   - Turn Fight session operates in `next_module_worktree/` on `next-module`, focusing exclusively on `src/modules/turn-fight/` (Remediation Plan v2).
   - Zero file overlap. Shared documentation files are synchronized.
-- **Remediation Plan v2 (Tasks 11–15):** Formulated from the 5-agent forensic audit and Patrick's `/grill-me` design ratification (D406–D410). Ready for serial execution.
+- **Remediation Plan v2 (Tasks 11–15):** Formulated from the 5-agent forensic audit and Patrick's `/grill-me` design ratification (D407–D411). Ready for serial execution.
 
 ---
 
 ## 2. Active Remediation Phases (Remediation Plan v2)
 
-### Phase 1: Flight Math — Immelmann G-Law (Task 11 / D406)
-- **Task 11.1:** Raise `MANEUVER_PULL_G` from 4 to 5 in `src/modules/turn-fight/energy-sim.js:66`. Harvard II routinely pulls 5 G in tactical maneuvers (limit 7 G). Split S already uses 5 G.
-- **Task 11.2:** Update 7 unit tests in `tests/unit/turn-fight/energy-sim.test.js` to assert 5.0 G maneuver pull within pilot domain tolerances (D371). Verify full test suite passes.
+### Phase 1: Flight Math — Immelmann G-Law (Task 11 / D407)
+- **Task 11.1:** Raise `MANEUVER_PULL_G` from 4 to 5 in `src/modules/turn-fight/energy-sim.js:66` and guard rolling G with `T6A_LIMITS.rollingMaxG = 4.7`. (Completed in code; authentic Harvard II physics).
+- **Task 11.2:** Update 7 unit tests in `tests/unit/turn-fight/energy-sim.test.js` to assert 5.0 G maneuver pull within pilot domain tolerances (D371). (Deferred to Phase 5 per Patrick's directive).
 
 ### Phase 2: Engagement Logic — D386, Ghost Pursuit, Schema, Altitude Gate (Task 12 / D410)
 - **Task 12.1:** Wire D386 `isNoseOn()` into `sim.js:checkFirstNose()`: activate the 10° elevation capture cone for Simple Mode Climb/Dive merges.

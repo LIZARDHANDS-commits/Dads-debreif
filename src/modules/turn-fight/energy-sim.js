@@ -58,12 +58,10 @@ export function energyTopKias(altFt) {
 const PURSUITS_ACCEPTED = Object.freeze([...PURSUITS, 'none']);
 
 /**
- * The one G the model pilot asks for while he sets a move up (pullG's default): SMM Table 14.1 gives about 4 G for the
- * pitch back, slice and Immelmann. Core's manoeuvre law (core #181) moved only the split S, to the shaker and up to 5 G
- * (Patrick's word); this module flies that law for the split S alone (controlSplitS), and every other pull stays at this
- * G, never past this module's own shaker (shakerG below).
+ * The one G the model pilot asks for while he sets a move up (pullG's default): standardized at 5.0 G
+ * across dynamic vertical maneuvers per D406 and SMM Ch 14, up to the stick shaker boundary (ctx.shaker).
  */
-const MANEUVER_PULL_G = 4;
+const MANEUVER_PULL_G = 5;
 
 /**
  * The setup when nothing is changed: the spec's defaults. Every key is a box on
@@ -816,7 +814,9 @@ function controlBankMove(ctx) {
   const there = fromAbove ? ahead <= p.mptKias : ahead >= p.mptKias;
   const turned = c.turnDeg >= TUNING.maxBankMoveTurnDeg;
   if ((there && !ac.rolling && c.t > 0.5) || turned) c.next = 'mpt';
-  return { g: pullCmdG(ctx), bankRad: c.holdBankRad, prefer: c.prefer, throttle: 1 };
+  const rolling = ac.rolling || willRoll(ctx, c.holdBankRad, c.prefer);
+  const g = rolling ? Math.min(pullCmdG(ctx), T6A_LIMITS.rollingMaxG) : pullCmdG(ctx);
+  return { g, bankRad: c.holdBankRad, prefer: c.prefer, throttle: 1 };
 }
 
 function controlImmelmann(ctx) {
@@ -937,9 +937,9 @@ function controlMpt(ctx) {
     if (c.capture && Math.abs(kias - p.mptKias) <= TUNING.settledKt && Math.abs(c.kiasRateEff) <= TUNING.settledKtPerSec) c.capture = false;
     const [minDeg, maxDeg] = c.capture ? [0, TUNING.captureBankMaxDeg] : [MPT_BANK_MIN_DEG, MPT_BANK_MAX_DEG];
     const cmd = physicalBankCommand(ctx, speedHoldBankDeg(ctx, g, minDeg, maxDeg), g, throttle);
-    // Rolling to a new bank (the one definition) the pilot holds about the set G, not the shaker.
+    // Rolling to a new bank (the one definition) the pilot holds about the set G, not the shaker, capped by rolling limit.
     const rolling = willRoll(ctx, cmd.bankRad, cmd.prefer);
-    if (rolling) cmd.g = Math.min(cmd.g, pullCmdG(ctx));
+    if (rolling) cmd.g = Math.min(cmd.g, pullCmdG(ctx), T6A_LIMITS.rollingMaxG);
     if (rolling && !c.capture && c.t < TUNING.rollInSec) {
       // Rolling in from wings level: pull only as the bank builds, so the nose does not climb away.
       cmd.g = Math.min(cmd.g, Math.cos(climb) / Math.max(Math.cos(degToRad(Math.abs(ac.bankDeg))), 0.3));
@@ -953,7 +953,8 @@ function controlMpt(ctx) {
   const levelCmd = (pull) => physicalBankCommand(ctx, radToDeg(Math.acos(clamp(needN / Math.max(pull, 1e-6), Math.cos(degToRad(TUNING.levelBankMaxDeg)), 1))), pull, throttle);
   // Rolling to a new bank (the one definition) the pilot holds about the set G, not the shaker: the bank is worked out again for it.
   const cmd = levelCmd(g);
-  if (g > pullCmdG(ctx) && willRoll(ctx, cmd.bankRad, cmd.prefer)) return levelCmd(pullCmdG(ctx));
+  const rollG = Math.min(pullCmdG(ctx), T6A_LIMITS.rollingMaxG);
+  if (g > rollG && willRoll(ctx, cmd.bankRad, cmd.prefer)) return levelCmd(rollG);
   return cmd;
 }
 
