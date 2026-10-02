@@ -41,39 +41,39 @@
 
 ---
 
-## Task 3: Write Three-Mode State Machine [M] — 🔄 IN PROGRESS
+## Task 3: Write Three-Mode State Machine [M] — ✅ COMPLETE
 
 **Decomposed into 3 sub-tasks to isolate sim.js risk:**
 
-### Task 3A: Write `tick-aircraft.js` standalone module [M] — 🔄 AGENT DEPLOYED
-- [ ] New file: `src/modules/traffic/tick-aircraft.js`
-- [ ] `tickAircraft(a, dt, wind, route, routeOptions)` function with RAIL/PHYSICS/BLENDING modes
-- [ ] `shouldEnterPhysics(a, route, routeOptions)` checks waypoint mode and commands
-- [ ] Cubic smoothstep BLENDING (1.0s, interruptible by commands)
-- [ ] Imports from flight-engine.js, nav-plans.js, route.js — zero coupling to sim.js
-- [ ] Handles: break turn, final turn, breakout, go-around, PFL, engine fail
-- [ ] Zero shadow variables (customX/Y/Alt/Heading/Kt all absent)
+### Task 3A: Write `tick-aircraft.js` standalone module [M] — ✅ DONE
+- [x] New file: `src/modules/traffic/tick-aircraft.js`
+- [x] `tickAircraft(a, dt, wind, route, routeOptions)` function with RAIL/PHYSICS/BLENDING modes
+- [x] `shouldEnterPhysics(a, route, routeOptions)` checks waypoint mode and commands
+- [x] Cubic smoothstep BLENDING (1.0s, interruptible by commands)
+- [x] Imports from flight-engine.js, nav-plans.js, route.js — zero coupling to sim.js
+- [x] Handles: break turn, final turn, breakout, go-around, PFL, engine fail
+- [x] Zero shadow variables (customX/Y/Alt/Heading/Kt all absent)
 
 ### Task 3B: ~~Unit tests for tick-aircraft.js~~ — ❌ SKIPPED
 > **Rationale:** The 3,145 existing tests + 6 behavioral invariants validate through the real
 > `sim.js → tickAircraft() → flight-engine.js` path. Isolated mock-object tests for a ~200-line
 > module are busywork. If `npm test` passes after 3C wiring, the state machine works.
 
-### Task 3C: Surgical sim.js wiring [S] — ⏳ AFTER 3A+3B (SERIAL, ONE AGENT)
-- [ ] Import `tickAircraft` from `tick-aircraft.js`
-- [ ] Replace `fly(a)` call in `stepOnce()` with `tickAircraft(a, dt, wind, route, options)`
-- [ ] Clean up `state()`: remove `customX ?? a.x` fallbacks (read `a.x` directly)
-- [ ] Clean up `command()`: remove shadow variable initialization
-- [ ] Clean up `toStart()`: remove `delete a.custom*`
-- [ ] Remove or archive `fly(a)` function (710 lines)
-- [ ] Eliminate all 159 shadow variable occurrences
-- [ ] `npm test` — full suite green
-- [ ] Behavioral invariant tests still pass
+### Task 3C: Surgical sim.js wiring [S] — ✅ DONE
+- [x] Import `tickAircraft` from `tick-aircraft.js`
+- [x] Replace `fly(a)` call in `stepOnce()` with `tickAircraft(a, dt, wind, route, options)`
+- [x] Clean up `state()`: remove `customX ?? a.x` fallbacks (read `a.x` directly)
+- [x] Clean up `command()`: remove shadow variable initialization
+- [x] Clean up `toStart()`: remove `delete a.custom*`
+- [x] Remove or archive `fly(a)` function (710 lines)
+- [x] Eliminate all 159 shadow variable occurrences
+- [x] `npm test` — full suite green
+- [x] Behavioral invariant tests still pass
 
-### Task 3-Research: Prepare sim.js surgery plan [XS] — 🔄 AGENT DEPLOYED
-- [ ] Map exact line numbers for all 159 shadow variable occurrences
-- [ ] Document exactly which lines to delete vs replace in state()/command()/toStart()
-- [ ] Produce a surgical brief for Agent 3C
+### Task 3-Research: Prepare sim.js surgery plan [XS] — ✅ DONE
+- [x] Map exact line numbers for all 159 shadow variable occurrences
+- [x] Document exactly which lines to delete vs replace in state()/command()/toStart()
+- [x] Produce a surgical brief for Agent 3C
 
 ---
 

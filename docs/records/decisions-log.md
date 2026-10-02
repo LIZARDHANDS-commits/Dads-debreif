@@ -266,3 +266,6 @@ Add rows after the last row. Leave "D" empty; the app frame fills it in.
 
 
 | 2026-10-02T13:56Z | Traffic | PFL prototype: increased drag after High Key on the spiral profile to make landing parameters work. Real pilots use config changes (gear/flaps) and S-turns; prototype uses a drag multiplier. Good enough for now. | Patrick approved | Keep current drag | Revert drag multiplier in flight-engine.js PFL handling | Pending |
+| 2026-10-02T21:02Z | Traffic | Breakout altitude approved at 4,500 ft MSL (up from SMM 3,500 ft) for vertical separation | Patrick approved | Revert to 3,500 ft | Change targetAltFt in flight-engine.js, tick-aircraft.js, nav-plans.js back to 3500 | Pending D-number |
+| 2026-10-02T21:02Z | Traffic | PFL 1.35× drag multiplier is a STOPGAP — PFL needs more refinement later. Acceptable for prototype. | Patrick approved | Remove multiplier, implement proper config-based drag | Remove sinkFpm *= 1.35 in flight-engine.js | Pending D-number |
+| 2026-10-02T21:02Z | Traffic | Closed pattern 45° bank climbing left turn approved | Patrick approved | Reduce to 30° | Change targetBankDeg in tick-aircraft.js setupPhysicsPlan | Pending D-number |

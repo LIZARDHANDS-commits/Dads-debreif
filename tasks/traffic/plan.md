@@ -35,7 +35,7 @@ Integrate the proven standalone flight math (`flight-engine.js`, `nav-plans.js`)
 
 ---
 
-## 3. Three-Mode State Machine
+## 3. Three-Mode State Machine — ✅ COMPLETE
 
 ```
         ┌──────────────────────────────────────────────────┐
@@ -76,10 +76,10 @@ Integrate the proven standalone flight math (`flight-engine.js`, `nav-plans.js`)
 | `flight-engine.js` (732 lines, 62 tests) | ✅ Ready, standalone | `wip/sim-3-worktree` commit `13444b5` |
 | `nav-plans.js` (370 lines, 39 tests) | ✅ Ready, standalone | `wip/sim-3-worktree` commit `3fc3cee` |
 | Test cleanup (31 deleted, 32 converted) | ✅ Done | `wip/test-audit-and-cleanup` branch |
-| `tickAircraft()` state machine | ❌ To write | ~200 lines in `sim.js` |
-| `shouldEnterPhysics(a)` | ❌ To write | ~30 lines, checks waypoint type |
-| Behavioral invariant tests | ❌ To write | `tests/unit/traffic/flight-invariants.test.js` |
-| SPEC update (add NEVER rules) | ❌ To write | `specs/SPEC-traffic.md` |
+| `tickAircraft()` state machine | ✅ Complete | `src/modules/traffic/tick-aircraft.js` |
+| `shouldEnterPhysics(a)` | ✅ Complete | `src/modules/traffic/tick-aircraft.js` |
+| Behavioral invariant tests | ✅ Complete | `tests/unit/traffic/flight-invariants.test.js` |
+| SPEC update (add NEVER rules) | ✅ Complete | `specs/SPEC-traffic.md` |
 
 ---
 

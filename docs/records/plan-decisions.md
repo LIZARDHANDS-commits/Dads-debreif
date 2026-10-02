@@ -5,7 +5,7 @@
 > [!IMPORTANT]
 > **Unified Single Decisions Source of Truth:**
 > - **TOP (Sections 1–5):** Structured, categorized decisions directory by module, V6 decoupling audit, and designer reference.
-> - **BOTTOM (Section 6):** Complete chronological register (D1 through D406) with full historical rationale and status updates.
+> - **BOTTOM (Section 6):** Complete chronological register (D1 through D415) with full historical rationale and status updates.
 
 # Master Decisions Directory by Module & V6 Audit Review
 
@@ -220,6 +220,9 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D400** | Closed pattern rollout, calm-wind arcs & High Key PFL | Decided | Closed pattern climbs and rolls out on 118° direct to Perch; spawner uses 'Start at point' with dynamic captions; calm-wind rounded arcs (60° break, 35° final turn); High Key 5,000 ft threshold overflight with continuous 360° circular PFL glide arc. |
 | **D406** | Vector Guidance Migration Ratification | Approved | Replace 1D scalar polyline flight control (`a.distFt`) with unified 3D Cartesian vector physics engine; routes become visual overlays; track-intercept guidance, KIN/NRG models, two-dropdown spawn UI. |
 | **D412** | Hybrid Rails/Physics Architecture for Traffic Sim | Approved | Refine the Vector Guidance Migration (D406) from pure-vector to Hybrid Rails/Physics. Aircraft fly on smooth pre-computed rail paths (via `generateWindAdjustedTrack()`) for stable legs (initial, downwind, approach, entries) and switch to flight-engine.js physics for dynamic maneuvers (break, final turn, closed pattern, PFL, breakout, go-around, takeoff). Transitions use 2-3 second smooth blend. Decision IDs D407-D411 reserved for Turn Fight on next-module branch. |
+| **D413** | Breakout altitude approved at 4,500 ft MSL | Ratified | Breakout altitude approved at 4,500 ft MSL (up from SMM 3,500 ft) for vertical separation. Patrick approved 2026-10-02. Target altitude updated across flight-engine.js, tick-aircraft.js, nav-plans.js. |
+| **D414** | PFL 1.35× drag multiplier stopgap | Ratified | PFL 1.35× drag multiplier is a STOPGAP — PFL needs more refinement later. Acceptable for prototype. Patrick approved 2026-10-02. |
+| **D415** | Closed pattern 45° bank climbing left turn | Ratified | Closed pattern 45° bank climbing left turn approved. Aircraft enters PHYSICS mode, climbs to 3,500 ft in a 45° bank left turn tracking to wind-corrected break rollout position. Patrick approved 2026-10-02. |
 
 ---
 
@@ -345,7 +348,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 
 ---
 
-## 6. Master Chronological Decisions Register (D1 through D405)
+## 6. Master Chronological Decisions Register (D1 through D415)
 
 Every design decision goes here with the reason for it, so nobody has to re-argue it later. "Proposed" rows are recommendations that haven't been confirmed yet. "Superseded" or "Reversed" rows record superseded historical choices with the superseding decision and date.
 
@@ -758,6 +761,9 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 405 | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry: When an aircraft stalls, it loses aerodynamic roll/pitch authority (bank freezes, maxRollDelta = 0) and cannot track or claim nose-on or pursuit win (isAcNoseOn and onTheOther require !ac.stall). Across vertical separation, azimuth acquisition engages both fighters from level MPT into 3D combat pursuit only after the merge pass (timeSec > mergeSec + 1.0 and both in MPT), preventing premature abort of user-commanded maneuvers (e.g. Immelmann) at T=0. Higher-energy aircraft legitimately win while low-energy aircraft stall during zoom climbs per Boyd E-M physics. | Respects Boyd E-M physics and aerodynamic ground truth: stalled aircraft lose control authority; fighters complete opening maneuvers before 3D pursuit; prevents low-energy stalled aircraft from falsely winning. | Patrick & Antigravity, 01 Oct 2026 08:50Z | Decided |
 | 406 | Vector Guidance Migration Ratification — Unified Flight Engine for Traffic Sim: Replace the 1D scalar polyline flight control (`a.distFt`) with a unified 3D Cartesian vector physics flight engine. All aircraft are always physics-driven. Routes become visual display overlays. Track intercept guidance, KIN/NRG dual performance model, two-dropdown spawn UI. Spec: `specs/SPEC-traffic.md`. Pattern matrix: `docs/traffic-pattern-matrix.md`. | Replaces hybrid rails/vector architecture with single unified 3D physics flight engine; resolves zero-wind turn breaks, PFL shape bugs, and glide slope plunges. | Patrick, 02 Oct 2026 | Approved |
 | 412 | Hybrid Rails/Physics Architecture for Traffic Sim: Refine the Vector Guidance Migration (D406) from pure-vector to Hybrid Rails/Physics. Aircraft fly on smooth pre-computed rail paths (via `generateWindAdjustedTrack()`) for stable legs (initial, downwind, approach, entries) and switch to flight-engine.js physics for dynamic maneuvers (break, final turn, closed pattern, PFL, breakout, go-around, takeoff). Transitions use 2-3 second smooth blend. Decision IDs D407-D411 reserved for Turn Fight on next-module branch. | Refines pure-vector guidance with proven wind-adjusted rail paths for straight-and-level legs while preserving authentic 3D physics for high-g and emergency maneuvers. | Patrick, 02 Oct 2026 | Approved |
+| 413 | Breakout altitude approved at 4,500 ft MSL (up from SMM 3,500 ft) for vertical separation | Vertical separation clearance in traffic pattern; target altitude updated across flight-engine.js, tick-aircraft.js, nav-plans.js. | Patrick approved, 02 Oct 2026 | Ratified |
+| 414 | PFL 1.35× drag multiplier is a STOPGAP — PFL needs more refinement later. Acceptable for prototype | Increased drag after High Key on spiral profile to make landing parameters work; real pilots use config changes (gear/flaps) and S-turns, stopgap acceptable for prototype. | Patrick approved, 02 Oct 2026 | Ratified |
+| 415 | Closed pattern 45° bank climbing left turn approved | Aircraft enters PHYSICS mode, climbs to 3,500 ft in a 45° bank left turn, tracks toward wind-corrected break rollout position, then blends onto rails to join downwind leg. | Patrick approved, 02 Oct 2026 | Ratified |
 
 
 
