@@ -20,7 +20,7 @@ The traffic sim currently suffers from a **hybrid architecture** where two fligh
    - Speed interpolated between waypoints
    - Used for: normal OHB circuit, entries, straight-in, final turn
 2. **System B "Vector Guidance"** (~500 lines in `sim.js`):
-   - Aircraft updates `a.customX/Y/Heading` each step with physics
+   - Aircraft updated shadow variables (`a.customX/Y/Heading`, now banned under Invariant 2) each step with physics
    - Used for: closed pattern climb, breakout, go-around, PFL commands
    - **Critical flaw**: At the Perch, the code `delete`s all vector state and forces the aircraft back onto rails for the final turn
 
@@ -34,7 +34,7 @@ The traffic sim currently suffers from a **hybrid architecture** where two fligh
 | **Final turn dogleg at zero wind** | Perch at 4,307 ft but turn diameter is 4,013 ft | Rolls out 316 ft off centerline |
 
 ### 1.3 Why the Closed Pattern Works
-The closed pattern uses free Cartesian vector guidance with `a.customX/Y/Heading`. It works at all wind conditions because it is **always physics-driven**. The rest of the circuit fails because it uses rails.
+The closed pattern uses free Cartesian vector guidance directly driving aircraft coordinates (not shadow variables). It works at all wind conditions because it is **always physics-driven**. The rest of the circuit fails because it uses rails.
 
 ### 1.4 What's Already Implemented (~30%)
 - Closed pattern climb + downwind pursuit to Perch: ✅ (Needs wind crab on heading)
@@ -51,7 +51,44 @@ The closed pattern uses free Cartesian vector guidance with `a.customX/Y/Heading
 - `rollToward()`, `dampedClimbG()`, `glideSinkFpm()`: ❌ Never imported into `sim.js`
 
 ### 1.5 The Fix: One Unified Flight Engine (D406, D412, R34)
-Replace the entire `fly(a)` function in `sim.js` with calls to a unified flight engine (`flight-engine.js`). Per D412, the architecture was refined from pure-vector to Hybrid Rails/Physics: aircraft fly on smooth pre-computed rail paths (via `generateWindAdjustedTrack()`) for stable legs (initial, downwind, approach, entries) and switch to `flight-engine.js` physics for dynamic maneuvers (break, final turn, closed pattern, PFL, breakout, go-around, takeoff). Transitions use a 2–3 second smooth blend. Published patterns provide both visual display overlays and exact ground-track rails for stable segments.
+Replace the entire `fly(a)` function in `sim.js` with calls to a unified flight engine (`flight-engine.js`). Per D412, the architecture was refined from pure-vector to Hybrid Rails/Physics: aircraft fly on smooth pre-computed rail paths (via `generateWindAdjustedTrack()`) for stable legs (initial, downwind, approach, entries) and switch to `flight-engine.js` physics for dynamic maneuvers (break, final turn, closed pattern, PFL, breakout, go-around, takeoff). Transitions from physics back to rails use a 1.0s BLENDING mode (rail to physics is instant; see Hard Invariants). Published patterns provide both visual display overlays and exact ground-track rails for stable segments.
+
+---
+
+## Hard Invariants — NEVER Rules
+
+> These rules are absolute. No agent, implementation, or optimization may violate them.
+
+### Invariant 1: Single Coordinate Owner
+At any simulation step, exactly ONE of three modes owns `a.x`, `a.y`, `a.alt`, `a.heading`:
+- **RAIL**: `distFt` advances, `posOnRoute()` derives coordinates
+- **PHYSICS**: `flight-engine.js` `stepAircraft()` owns coordinates exclusively  
+- **BLENDING**: timer-driven lerp owns coordinates during transition
+
+There is no dual-write period. There are no hybrid states.
+
+### Invariant 2: Zero Shadow Coordinates
+The following variables are BANNED and must never exist in `sim.js`:
+- `customX`, `customY`, `customAlt`, `customHeading`, `customKt`
+- `blendFrom`, `blendTo`, or any variable that stores a second set of coordinates
+- Any pattern where two systems compute coordinates and one is "selected"
+
+If you need both positions (physics result + rail target), use the BLENDING mode with a start/target pair owned by a single lerp function.
+
+### Invariant 3: BLENDING Mode Protocol
+- **PHYSICS → BLENDING**: When a maneuver completes, record `blendStart = {x,y,alt,heading}` from physics result, compute `blendTarget = posOnRoute(route, closestDistFt(route, a.x, a.y))`, set `a.mode = 'BLENDING'`.
+- **Duration**: 1.0 second, cubic smoothstep interpolation: `s = 3u² − 2u³` where `u = elapsed / 1.0`.
+- **Completion**: When `u ≥ 1.0`, set `a.distFt` from target, delete blend state, set `a.mode = 'RAIL'`.
+- **Interruption**: If a pilot command is issued during BLENDING, cancel the blend immediately, set `a.mode = 'PHYSICS'`, and execute the command from the current interpolated position.
+
+### Invariant 4: Asymmetric Transitions  
+- **RAIL → PHYSICS**: Instant. No blend needed. The flight-engine's roll rate limiter (45°/s) naturally smooths the turn entry.
+- **PHYSICS → RAIL**: Always via BLENDING (1.0s). Never a single-frame snap.
+
+### Break Deceleration (Preserved)
+The overhead break uses idle/prop-feathering drag modeled as:
+`V(u) = 220 × e^(−0.452 × u)` where u ∈ [0, 1] is normalized turn progress.
+This function (`calcBreakDecelSpeed` in `flight-engine.js`) must not be modified or bypassed.
 
 ---
 
@@ -303,7 +340,7 @@ When PFL pattern is selected and "From Area" start point chosen, three extra inp
 
 1. **Aircraft NEVER disappear randomly.** They keep flying their pattern continuously.
 2. **If an aircraft finishes a route with no next instruction**: revert to OHB (PAT_INNER) pattern.
-3. **Smooth vector blending**: all transitions between patterns/phases use roll-rate-limited heading changes over 3–5 seconds (30–50°/s). No instantaneous heading or speed jumps.
+3. **Transitions**: Transitions follow Hard Invariants (RAIL → PHYSICS is instant, roll-rate smoothed at 45°/s; PHYSICS → RAIL uses 1.0s BLENDING mode). No instantaneous heading or speed jumps.
 4. **Landing is explicit**: aircraft only land when probability rolls at threshold (20% full stop, 80% touch-and-go).
 5. **Wind is always applied**: zero wind is NOT a special case. The same physics runs at 0 kt and 30 kt.
 6. **Accelerated stall protection**: bank angle capped at accelerated stall limit. At 120 KIAS: max bank 59°. At 140 KIAS: max bank 68°.
