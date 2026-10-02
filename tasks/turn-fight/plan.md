@@ -170,16 +170,16 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
 - Update documentation ledger: `docs/records/decisions-log.md`, `docs/records/plan-decisions.md` (recording tactical AI decisions), `HANDOVER.md`, `docs/handover/turn-fight.md`, and `docs/REMEDIATION_ROADMAP.md`.
 
 **Acceptance criteria:**
-- [ ] 100% of unit and E2E tests pass cleanly.
-- [ ] Zero TypeScript / typecheck errors.
-- [ ] Clean build within performance budgets.
-- [ ] Documentation synchronized and ready for Patrick's review.
+- [x] 100% of unit and E2E tests pass cleanly.
+- [x] Zero TypeScript / typecheck errors.
+- [x] Clean build within performance budgets.
+- [x] Documentation synchronized and ready for Patrick's review.
 
 **Verification:**
-- [ ] `npm test`
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npx playwright test tests/e2e/turn-fight.spec.js`
+- [x] `npm test`
+- [x] `npm run typecheck`
+- [x] `npm run build`
+- [x] `npx playwright test tests/e2e/turn-fight.spec.js`
 
 **Dependencies:** Tasks 16–19.
 **Files likely touched:** `tests/unit/turn-fight/energy-tactical.test.js`, `docs/*`

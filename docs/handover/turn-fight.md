@@ -21,11 +21,11 @@ A two-aircraft turning fight with two modes:
 ## Status: 100% Complete & Gate 2 Sign-Off Ready
 
 Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's Gate 2 sign-off:
-- **508/508 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
-- **3,046 repo tests green** (`npm test`, 0 failures, 1 skipped).
+- **515/515 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
+- **3,174 repo tests green** (`npm test`, 0 failures, 1 skipped).
 - **68/68 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 19 Energy tests and axe accessibility).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
-- **Vite production build clean** (`npm run build`, built in 502ms).
+- **Vite production build clean** (`npm run build`, built in 476ms).
 - **Standardized 5.0 G Maneuver Pull Law (D406/D407):** Authentic 5.0 G tactical maneuver pull with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling guard and authentic 170° maxBankMoveTurnDeg in `TUNING`.
 - **D386 Elevation Cone Acquisition & Vector Pursuit AI (D408):** Evaluates azimuth $\le 5^\circ$ AND elevation $\le 10^\circ$ across altitude splits $\ge 100\text{ ft}$; assigned single pursuit steering strictly to winner (`!both`).
 - **Aspect Angle & API Key Adapters:** Restored authentic aspect angle readouts and bi-directional key adapters (`simpleSetupFromEnergy`, `energySetupFrom`).
@@ -33,9 +33,13 @@ Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's G
 - **Derived Bank Angle Readout (D410):** Added coordinated bank angle readout ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
 - **Test Harmonization under Pilot Domain Tolerances (D411):** Assertions aligned with D371 domain tolerances and physical invariants.
 - **Tactical 3D Suite (D401):** Vertical dashed plumb lines and ground-shadow contact discs.
-- **Decision Registers Synchronized:** D1 through D411 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
+- **Tactical AI Maneuver Selection Engine (Tasks 16–20 / D416–D418 [Task D412–D414]):**
+  - **Austin/Carbone 3D Advantage Matrix (D416):** Evaluates line-of-sight angles, slant range, and specific energy; `shouldPursueTactical` breakout gate breaks out of passive MPT circles into aggressive pursuit toward opponent's control zone when advantage $> 0.45$ and ATA $< 45^\circ$.
+  - **Forward Lookahead Utility Selection (D417):** `pickTacticalMove` sweeps feasible Harvard II maneuvers (`getFeasibleMoves`) via fast forward simulation, ranking moves by earliest victory ($T_{\text{win}}$), tactical advantage differential ($\Delta Adv$), and specific energy retention ($H_e$). Produces structured pilot rationale strings (`why`).
+  - **Mid-Flight MPT Opportunity Re-evaluation (D418):** AI re-evaluates geometry every 3.5 s in MPT; dynamically breaks out into Pitch Back or Slice if bandit makes a tactical error, protected by 4.0 s hysteresis lockout timer and Hard Deck floor margin.
+- **Decision Registers Synchronized:** D1 through D418 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
 
-## Remediation Plan v2 Queue (Tasks 11–15) — ALL COMPLETE
+## Remediation Plan v2 & v3 Queue (Tasks 11–20) — ALL COMPLETE
 
 | Phase | Task | Description | Status |
 |---|---|---|---|
@@ -44,8 +48,13 @@ Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's G
 | **Phase 3** | Task 13 | Fix Aspect Angle in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | **100% Complete** |
 | **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D409/D410) | **100% Complete** |
 | **Phase 5** | Task 15 | Log D406–D411 in decisions register, update handovers, run full verification & test harmonization | **100% Complete** |
+| **Phase 6** | Task 16 | Predictor synchronization (`judge` checks `shouldPursueTactical`) & rollout exit trap neutralization (`c.next = 'mpt'`) | **100% Complete** |
+| **Phase 6** | Task 17 | Candidate generation (`getFeasibleMoves`) & utility ranking (`pickTacticalMove` ranking by $T_{\text{win}}$, $\Delta Adv$, $H_e$) | **100% Complete** |
+| **Phase 6** | Task 18 | UI integration: 'tactical' in move dropdowns, lookahead slider (10–45 s), tactical readout rationale | **100% Complete** |
+| **Phase 6** | Task 19 | Mid-flight opportunity re-evaluation in `controlMpt` (3.5 s cadence, 4.0 s lockout timer, Hard Deck margin) | **100% Complete** |
+| **Phase 6** | Task 20 | Dedicated unit tests (`energy-tactical.test.js`), test harmonization, documentation sync, Gate 2 sign-off ready | **100% Complete** |
 
-## Implemented Work (PATCH-024 through PATCH-028)
+## Implemented Work (PATCH-024 through PATCH-029)
 
 | What | Where | State |
 |---|---|---|
@@ -63,6 +72,7 @@ Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's G
 | BFM Doctrine UI & Mode Renaming (D409) | `src/modules/turn-fight/layout.js` | 100% complete. "Turn Circle Geometry" vs "BFM Energy Fight" and authentic BFM doctrine. |
 | Derived Bank Angle Readout (D410) | `src/modules/turn-fight/readouts.js` | 100% complete. Coordinated bank angle row (phi = arccos(1/G)) in Geometry Mode table. |
 | Pilot Domain Test Harmonization (D411) | `tests/unit/turn-fight/energy-sim.test.js` | 100% complete. Brittle assertions harmonized with D371 domain tolerances and invariants. |
+| Tactical AI Maneuver Selection Engine (D416–D418 / PATCH-029) | `src/modules/turn-fight/energy-sim.js`, `state.js`, `layout.js`, `readouts.js` | 100% complete. Austin/Carbone advantage matrix, lookahead utility ranking, MPT dynamic breakout, dedicated test suite. |
 
 Known limit: OVER G cannot be triggered from the screen in Auto mode, because Auto never pulls past +7 G and no forced move does. The flag and its words are built, unit-tested, and verified in E2E.
 

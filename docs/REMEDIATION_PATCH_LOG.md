@@ -1001,6 +1001,49 @@
 * **Verification:**  
   37/37 tests pass across tick-aircraft, invariants, and commands.
 
+---
+
+### PATCH-038: Turn Fight Tactical AI Maneuver Selection Engine & Gate 2 Verification
+* **Date & Time:** 2026-10-02 22:50 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM — Gate 2 Sign-Off Ready)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`src/modules/turn-fight/state.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/state.js)
+  * [`src/modules/turn-fight/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/layout.js)
+  * [`src/modules/turn-fight/readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/readouts.js)
+  * [`src/modules/turn-fight/energy-readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-readouts.js)
+  * [`tests/unit/turn-fight/energy-tactical.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-tactical.test.js) (NEW)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/handover/turn-fight.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/turn-fight.md)
+  * [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md)
+  * [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md)
+  * [`tasks/turn-fight/todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/turn-fight/todo.md)
+  * [`tasks/turn-fight/plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/turn-fight/plan.md)
+* **Problem / Flaw Addressed:**  
+  1. Turn Fight Auto mode relied on static textbook lookups rather than dynamic tactical advantage evaluation, unable to adapt to dynamic altitude splits or aggressive adversary tactics.
+  2. Rollout from Immelmann and Split S suffered from exit traps (`c.next = 'pick'` re-entering pitch back or slice dive loops).
+  3. No dynamic mid-flight re-evaluation existed while sustained in MPT: fighters orbited indefinitely even when the adversary bled energy or overshot.
+  4. Predictor dry runs did not register tactical breakout wins.
+* **Changes Made:**
+  1. Synchronized predictor `judge` in `noseOnSec` to evaluate `onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you)` with sub-2ms dry-run performance (Task 16).
+  2. Neutralized rollout exit traps: in `controlImmelmann` and `controlSplitS`, set `c.next = 'mpt'` to cleanly transition into sustained rate tracking (Task 16).
+  3. Implemented `getFeasibleMoves(ac, setup)` with authentic Harvard II operational envelopes and `pickTacticalMove(state, who, lookaheadSec)` multi-dimensional utility scoring ranking candidates by $T_{\text{win}}$, $\Delta Adv$, and $H_e$ with structured explanation string `why` (Task 17 / D416, D417).
+  4. Integrated UI controls: added `'tactical'` to `ENERGY_MOVES`, added 'Tactical AI (Dynamic Utility)' to move dropdowns, added `tacticalLookaheadSec` slider (10–45 s), and displayed decision rationale in Result card (Task 18).
+  5. Implemented mid-flight opportunistic re-evaluation in `controlMpt` (3.5 s cadence, 4.0 s hysteresis lockout timer, Hard Deck margin) (Task 19 / D418).
+  6. Harmonized E2E test assertions in `tests/e2e/turn-fight.spec.js` for data tags and updated BFM help text.
+  7. Added dedicated unit test suite `tests/unit/turn-fight/energy-tactical.test.js` (all 515 turn-fight unit tests green).
+* **Reasoning / Rationale:**  
+  Decisions **D416–D418** (ratified as Tasks D412–D414). Elevates AI to an authentic tactical adversary that selects winning BFM maneuvers and exploits bandit mistakes according to real-world fighter combat principles.
+* **Verification:**  
+  - `npm run typecheck`: clean (0 errors).
+  - `node --test tests/unit/turn-fight/*.test.js`: 515 passed, 0 failed.
+  - `npm test`: 3,174 passed, 0 failed, 1 skipped.
+  - `npm run build`: built in 476ms, all size budgets kept.
+  - `npx playwright test tests/e2e/turn-fight.spec.js`: 68 passed, 0 failed.
+
 
 
 

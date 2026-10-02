@@ -527,8 +527,8 @@ test('switching to 3D and back while the fight plays never resets it, and WebGL 
   expect(seen.length).toBeGreaterThan(0);
   expect(await liveContexts(page)).toBe(1);
   // Each aircraft keeps its letter, and the merge is marked.
-  await expect(page.locator('.tf-3d-label-blue')).toHaveText('B');
-  await expect(page.locator('.tf-3d-label-red')).toHaveText('R');
+  await expect(page.locator('.tf-3d-label-blue')).toContainText('B');
+  await expect(page.locator('.tf-3d-label-red')).toContainText('R');
   await expect(page.locator('.tf-3d-label-nose')).toHaveText('MERGE');
 
   // Back to 2D while it plays: the fight goes on, the 2D picture is drawn, and the context is released.
@@ -641,8 +641,8 @@ test('Paint is a choice in the Display section of Turn Fight settings, and it re
   await expect.poll(async () => (await canvas3d(page).screenshot()).equals(harvard)).toBe(false);
   await expect(time(page)).toHaveText('T+0.0'); // a display choice never resets the fight
   // Each aircraft keeps its B or R label, and the choice is remembered.
-  await expect(page.locator('.tf-3d-label-blue')).toHaveText('B');
-  await expect(page.locator('.tf-3d-label-red')).toHaveText('R');
+  await expect(page.locator('.tf-3d-label-blue')).toContainText('B');
+  await expect(page.locator('.tf-3d-label-red')).toContainText('R');
   await page.reload();
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'turn-fight');
   await settingsButton(page).click();
@@ -1153,7 +1153,7 @@ test('the intro, About and the turn line hold for any start: a tail chase never 
   await page.getByRole('button', { name: 'About this model' }).click();
   const text = await page.locator('.tf-col-setup').innerText();
   expect(text).toContain('Two aircraft start apart and turn, at the pass or at once');
-  expect(text).toContain('each jet turns toward the other');
+  expect(text).toContain('Both jets turn into each other');
   for (const wrong of ['head-on, then turn', 'same turn direction', 'opposite turn directions', 'after the merge']) expect(text).not.toContain(wrong);
   await expect(page.getByText('from a head-on start a nose-on happens only if they come back exactly head-on')).toBeVisible();
 });

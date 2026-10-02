@@ -337,6 +337,13 @@ flowchart TD
   - Added derived coordinated bank angle readout ($\phi = \arccos(1/G)$) to Geometry Mode readouts table (D410).
   - Harmonized test expectations with D371 pilot domain tolerances (±10°, ±10 kt, ±0.5 G, ±100 ft) and physical invariants; all 3,046 repo unit tests, typecheck, and build passing 100% green (D411).
   - Appended PATCH-028 to `docs/REMEDIATION_PATCH_LOG.md` and reconciled decision registers.
+- [x] **Task 2.5 (Remediation Plan v3: Tactical AI Maneuver Selection Engine - PATCH-029, D416–D418 / Tasks 16–20):**
+  - Austin/Carbone 3D advantage matrix (`tacticalAdvantage`) & post-merge tactical pursuit breakout gate (`shouldPursueTactical`) (D416/Task D412).
+  - Forward lookahead candidate evaluation & utility ranking engine (`pickTacticalMove`, `getFeasibleMoves`, ranking by $T_{\text{win}}$, $\Delta Adv$, $H_e$) with structured explanation `why` (D417/Task D413).
+  - UI integration: 'Tactical AI (Dynamic Utility)' in Blue/Red move dropdowns, lookahead slider (10–45 s), tactical rationale readouts in energy-readouts.js.
+  - Mid-flight dynamic opportunity re-evaluation in MPT (3.5 s cadence, 4.0 s hysteresis lockout timer, Hard Deck margin) (D418/Task D414).
+  - Dedicated unit tests `tests/unit/turn-fight/energy-tactical.test.js`, full verification (515 unit tests, 68/68 E2E tests, 3,174 repo tests, 0 typecheck errors, clean build).
+  - Appended PATCH-029 to `docs/REMEDIATION_PATCH_LOG.md` and reconciled decision registers.
 - [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
