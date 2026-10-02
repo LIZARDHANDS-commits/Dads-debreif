@@ -35,31 +35,30 @@
 
 ---
 
-## Phase 1: Core Flight Engine (`flight-engine.js`)
+## Phase 1: Core Flight Engine (`flight-engine.js`) — ✅ COMPLETE
 
-- [ ] **Phase 1, Task 1.1: Create `flight-engine.js` — track intercept guidance**
-  - **Details**: Implement `stepAircraft(aircraft, dt, wind, navPlan)` to update position, heading, bank, airspeed, groundspeed, and phase. Track intercept with cross-track error and along-track distance. Lead-turn initiation: $\text{leadDist} = R \times \tan(\theta/2)$. Wind correction via `windTriangle()` on every step.
+- [x] **Phase 1, Task 1.1: Create `flight-engine.js` — track intercept guidance**
+  - **Committed**: `13444b5` — `stepAircraft()`, cross-track, along-track, lead turns, wind crab. 62 unit tests.
   - **Acceptance**: Unit tests for straight flight, level turns, climbing turns, wind drift, and cross-track correction pass.
 
-- [ ] **Phase 1, Task 1.2: KIN performance model**
-  - **Details**: Implement `updateSpeedKIN(a, dt, target)` with linear accel/decel (4 kt/s up, 6 kt/s down). Implement `updateAltKIN(a, dt, target)` (climb 2,100 fpm, descend 1,500 fpm). Break special: $V^2$ drag decel formula $V(u) = 220 \times e^{-0.452u}$. Final turn special: cubic descent $z(u) = 3500 - 800(3u^2 - 2u^3)$.
-  - **Acceptance**: Speed and altitude converge cleanly; break decel matches formula; cubic descent has zero vertical rate ($dz = 0$) at both endpoints.
+- [x] **Phase 1, Task 1.2: KIN performance model**
+  - **Committed**: `13444b5` — linear accel/decel (+4.0/-2.7 kt/s), break V² decel, cubic descent. 11 challenge tests.
+  - **Acceptance**: Speed and altitude converge cleanly; break decel matches formula; cubic descent has zero vertical rate at both endpoints.
 
-- [ ] **Phase 1, Task 1.3: NRG performance model**
-  - **Details**: Implement `updateSpeedNRG(a, dt)` via `excessThrustPerWeight()` or best glide. Implement `updateAltNRG(a, dt)` via `glideSinkFpm(config, ias, alt)`. Energy gate: evaluate `energyHeightFt()` vs distance to threshold. Configuration management: clean $\to$ gear down $\to$ landing flaps based on energy window. $V_{fe}$ guard: no gear/flaps extension above 147 KIAS.
+- [x] **Phase 1, Task 1.3: NRG performance model**
+  - **Committed**: `13444b5` — `excessThrustPerWeight()`, `glideSinkFpm()`, energy gate, config management, Vfe guard. 13 stress tests.
   - **Acceptance**: Glide sink rates match `T6A_GLIDE`; energy gate correctly branches high/low energy PFL profiles.
 
-- [ ] **Phase 1, Task 1.4: Phase state machine**
-  - **Details**: Implement phase transitions for `initial`, `break`, `inner_downwind`, `final_turn`, `final`, `landing`, `takeoff_climb`, `closed_pattern`, `si_descent`, `si_downwind`, `si_base`, `si_final`, `breakout`, `go_around`, `pfl_inbound`, `high_key`, `low_key`, `base_key`, `pfl_final`, and `entry`. Configure target bank, target speed, target altitude, guidance mode, and transition triggers.
+- [x] **Phase 1, Task 1.4: Phase state machine**
+  - **Committed**: `13444b5` — all circuit and emergency phases covered.
   - **Acceptance**: Full OHB circuit, SI pattern, PFL, breakout, and go-around phase transitions verified in unit tests.
 
 ---
 
 ## Phase 2: Pattern Definitions (`nav-plans.js`)
 
-- [ ] **Phase 2, Task 2.1: Define all nav plans in `nav-plans.js`**
-  - **Details**: Define PAT_INNER, PAT_SI, ENT_OHB, ENT_SI, PFL_HIGH_KEY, PFL_FROM_AREA, TAKEOFF, BREAKOUT, and GO_AROUND. Populate waypoints directly from `docs/traffic-pattern-matrix.md`. Dynamic Perch calculation via `computeWindPerch()` called at runtime. PFL_FROM_AREA: calculate spawn position and heading from radial/distance/altitude inputs.
-  - **Acceptance**: All nav-plan waypoints match the pattern matrix; geometry verified at calm and 10–20 kt crosswind.
+- [x] **Phase 2, Task 2.1: Define all nav plans in `nav-plans.js`**
+  - **Committed**: `3fc3cee` — 7 patterns + 3 factories + spawn presets + 39 tests. Typecheck clean.
 
 - [ ] **Phase 2, Task 2.2: Pattern-specific guidance overrides**
   - **Details**: Break: arc guidance (constant bank, induced drag decel). Inner downwind: pure pursuit to dynamic Perch. Final turn: cubic descent + modulated bank (30°–45°). Final approach: localizer cross-track guidance + 3.0° glide slope. PFL orbit: circular arc at 30° bank.

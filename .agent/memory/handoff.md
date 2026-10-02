@@ -1,22 +1,24 @@
 # Handoff — Traffic Sim Vector Guidance Migration
 
-> Updated: 2026-10-02T03:50Z
-> Last commit: `13444b5` — flight-engine.js + 62 tests + D412
+> Updated: 2026-10-02T04:14Z
+> Last commit: `3fc3cee` — nav-plans.js + 39 tests (Phase 2 NP-1)
 
 ## Current State
 
-**Branch**: `main` at `13444b5`
-**Working tree**: Clean (all agent mess reverted)
-**Tests**: 3,131 pass, 0 fail, 1 skipped
+**Branch**: `main` at `3fc3cee`
+**Working tree**: Clean
+**Tests**: 3,170 pass, 0 fail, 1 skipped
 
 ### What's Built
 
 | File | Lines | Tests | Status |
 |---|---|---|---|
-| `src/modules/traffic/flight-engine.js` | 732 | 62/62 pass | ✅ Committed |
+| `src/modules/traffic/flight-engine.js` | 733 | 62/62 pass | ✅ Committed |
 | `tests/unit/traffic/flight-engine.test.js` | 716 | 62 pass | ✅ Committed |
 | `tests/unit/traffic/flight-engine-challenge.test.js` | 431 | 11 pass | ✅ Committed |
 | `tests/unit/traffic/flight-engine-stress.test.js` | 538 | 13 pass | ✅ Committed |
+| `src/modules/traffic/nav-plans.js` | 370 | 39/39 pass | ✅ Committed |
+| `tests/unit/traffic/nav-plans.test.js` | 245 | 39 pass | ✅ Committed |
 
 ### What's NOT Built Yet
 
@@ -132,25 +134,32 @@ From `excessThrustPerWeight()`:
 - 180 KIAS, full throttle: **+2.7 kt/s**
 - 180 KIAS, half throttle: **+0.4 kt/s** (near-level)
 
-## Remaining Work (5 Steps)
+## Remaining Work
 
-### Step 1: Update the 4 original documents (NEXT)
-Apply aero corrections, add hybrid architecture to §2, add mode column to matrix.
+### ✅ Step 1: Update the 4 original documents — DONE
+Aero corrections, hybrid architecture added, mode columns added. Patrick did this manually.
 
-### Step 2: Task breakdown for Steps 3-4
-Break nav-plans.js and sim.js rewrite into small implementable tasks.
+### ✅ Step 2: Task breakdown — DONE
+Detailed plan in `tasks/traffic/plan.md` artifact. 9 tasks across 4 phases.
 
-### Step 3: Build nav-plans.js (~1 hr)
-Pattern definitions from traffic-pattern-matrix.md with mode flags. ~30 unit tests.
+### ✅ Step 3: Build nav-plans.js — DONE
+Committed at `3fc3cee`. 370 lines, 39 tests, typecheck clean.
 
-### Step 4: Rewrite fly(a) in sim.js (~2 hrs)
-Gut 710-line old fly(a). Replace with hybrid: rails interpolation + physics calls + blend. Keep 756-line sim harness.
+### Step 4: Rewrite fly(a) in sim.js (NEXT)
+Detailed task plan (approved by Patrick):
+- **SIM-1**: Hybrid mode dispatcher (no behavior change) — add phaseMode(), snap-back evaluator, blend state
+- **SIM-2**: OHB break + final turn → physics (highest risk, fail fast)
+- **SIM-3**: Command block migration (breakout, PFL, go-around, closed pattern)
+- **SIM-4**: Display sync + dead code removal
+- **TEST-1**: Test rebaseline
+**Critical**: Rails must use `generateWindAdjustedTrack()` path, NOT `buildRoundedPoints()`
 
-### Step 5: Spawn UI + CT-157 removal (~1 hr)
-Two-dropdown system. PFL From Area inputs.
+### Step 5: Spawn UI + CT-157 removal
+- **UI-1**: Two-dropdown spawn system
+- **UI-2**: CT-157 removal + aircraft persistence fix
 
-### Step 6: Visual verification in browser
-All patterns at zero wind and 20 kt crosswind.
+### Step 6: Polish + visual verification
+- **POL-1**: Settings cleanup, reset label, visual verification
 
 ## Decision Register
 
