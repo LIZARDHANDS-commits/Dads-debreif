@@ -1,28 +1,25 @@
 # Handoff — Traffic Sim Vector Guidance Migration
 
-> Updated: 2026-10-02T04:14Z
-> Last commit: `3fc3cee` — nav-plans.js + 39 tests (Phase 2 NP-1)
+> Updated: 2026-10-02T05:33Z
+> Last commit: `7374abf` — SIM-2 OHB break + final turn physics with smooth blend
 
 ## Current State
 
-**Branch**: `main` at `3fc3cee`
+**Branch**: `main` at `7374abf`
 **Working tree**: Clean
-**Tests**: 3,170 pass, 0 fail, 1 skipped
+**Tests**: 3,165 pass, 0 fail, 1 skipped
 
 ### What's Built
 
 | File | Lines | Tests | Status |
 |---|---|---|---|
-| `src/modules/traffic/flight-engine.js` | 733 | 62/62 pass | ✅ Committed |
-| `tests/unit/traffic/flight-engine.test.js` | 716 | 62 pass | ✅ Committed |
-| `tests/unit/traffic/flight-engine-challenge.test.js` | 431 | 11 pass | ✅ Committed |
-| `tests/unit/traffic/flight-engine-stress.test.js` | 538 | 13 pass | ✅ Committed |
-| `src/modules/traffic/nav-plans.js` | 370 | 39/39 pass | ✅ Committed |
-| `tests/unit/traffic/nav-plans.test.js` | 245 | 39 pass | ✅ Committed |
+| `src/modules/traffic/flight-engine.js` | 733 | 86 pass | ✅ Committed (`13444b5`) |
+| `src/modules/traffic/nav-plans.js` | 370 | 39 pass | ✅ Committed (`3fc3cee`) |
+| `src/modules/traffic/sim.js` (SIM-1) | +88 | 3,165 pass | ✅ Committed (`88f4406`) — hybrid dispatcher |
+| `src/modules/traffic/sim.js` (SIM-2) | +158 | 3,165 pass | ✅ Committed (`7374abf`) — break + final turn physics + blend |
 
 ### What's NOT Built Yet
-
-- `nav-plans.js` — pattern definitions with mode flags
+- **SIM-3**: Command blocks (Breakout, PFL, Go-around, Closed pattern) via `stepAircraft()`
 - `sim.js` rewrite — hybrid fly(a) replacement
 - Spawn UI — two-dropdown system
 - CT-157 removal

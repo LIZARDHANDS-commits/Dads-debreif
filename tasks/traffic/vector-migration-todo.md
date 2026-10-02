@@ -68,9 +68,8 @@
 
 ## Phase 3: Integration (`sim.js` Swap)
 
-- [ ] **Phase 3, Task 3.1: Replace rails in `sim.js`**
-  - **Details**: In `fly(a)`: route flight execution directly to `stepAircraft()` from `flight-engine.js`. Remove all `a.customX/Y/Heading/Alt/Kt` fields so aircraft state is canonical. Remove `posOnRoute()` calls from sim loop (preserve in display editor only). Retain `distFt` as secondary display metric.
-  - **Acceptance**: Aircraft fly correct patterns at 0 wind, 10 kt, and 20 kt crosswind. No regressions in rewind, conflict detection, or spawn/remove.
+- [x] **Phase 3, Task 3.1: Replace rails in `sim.js` (SIM-1 & SIM-2)**
+  - **Committed**: `88f4406` (SIM-1 hybrid dispatcher) and `7374abf` (SIM-2 OHB break + final turn dynamic physics + 2.0s Hermite smoothstep blend). All 3,165 tests pass.
 
 - [ ] **Phase 3, Task 3.2: Migrate existing command blocks**
   - **Details**: Convert breakout (lines 294–405), PFL (407–715), go-around (717–811), and closed pattern (905–963) into flight-engine phase definitions. Replace bank snaps with `rollToward()`, hardcoded sink rates with `glideSinkFpm()`, and add wind crab angle.
