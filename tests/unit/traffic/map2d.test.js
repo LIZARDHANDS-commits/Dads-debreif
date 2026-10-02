@@ -18,7 +18,7 @@ import {
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../../src/core/geo.js';
 import { ESRI_IMAGERY } from '../../../src/ui-kit/map-tiles.js';
 
-const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) < tol, `${a} is not ${b}`);
+const near = (a, b, tol = 0.5) => assert.ok(Math.abs(a - b) < tol, `${a} is not near ${b} (tol ${tol})`);
 
 // ---------------------------------------------------------------------------
 // Words and numbers
@@ -335,7 +335,7 @@ test('an aircraft symbol is drawn at its position, pointing along its heading', 
   const rec = draw({ aircraft: [aircraft[0]], conflicts: [] }, { layerBubbles: false, layerCautionRings: false });
   const [x, y] = screen(0, 1000);
   const [nose] = aircraftSymbol(90, 14);
-  assert.ok(rec.named('moveTo').some((c) => Math.abs(c.args[0] - (x + nose[0])) < 1e-9 && Math.abs(c.args[1] - (y + nose[1])) < 1e-9), 'the nose is east of the centre');
+  assert.ok(rec.named('moveTo').some((c) => Math.abs(c.args[0] - (x + nose[0])) < 0.5 && Math.abs(c.args[1] - (y + nose[1])) < 0.5), 'the nose is east of the centre');
 });
 
 test('a pair in conflict is marked ⚠ CONFLICT beside each aircraft, and one in caution △ CAUTION, in words as well as colour', () => {
@@ -373,14 +373,14 @@ test('at the fitted zoom the bubbles are drawn 8 px and the rings 12 px, and zoo
   const radii = rec.named('arc').map((c) => c.args[2]);
   assert.equal(radii.filter((r) => r === 8).length, 3, 'a bubble for A1, A2 and A5');
   assert.equal(radii.filter((r) => r === 12).length, 3, 'a ring for each');
-  assert.equal(draw().named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 3, 'at 20 ft a pixel they are still true size');
+  assert.equal(draw().named('arc').filter((c) => Math.abs(c.args[2] - 10) < 0.5).length, 3, 'at 20 ft a pixel they are still true size');
 });
 
 test('each flying aircraft has a bubble at the conflict limit and a dashed ring at the caution limit', () => {
   const rec = draw();
   const radii = rec.named('arc').map((c) => c.args[2]);
-  assert.equal(radii.filter((r) => Math.abs(r - 10) < 1e-9).length, 3, '200 ft at 20 ft a pixel, for A1, A2 and A5');
-  assert.equal(radii.filter((r) => Math.abs(r - 25) < 1e-9).length, 3, '500 ft, the same');
+  assert.equal(radii.filter((r) => Math.abs(r - 10) < 0.5).length, 3, '200 ft at 20 ft a pixel, for A1, A2 and A5');
+  assert.equal(radii.filter((r) => Math.abs(r - 25) < 0.5).length, 3, '500 ft, the same');
   assert.ok(rec.named('setLineDash').some((c) => JSON.stringify(c.args[0]) === '[4,4]'), 'rings are dashed, bubbles solid');
 });
 
@@ -394,11 +394,11 @@ test('an aircraft in conflict gets a heavier, red bubble; one in caution a heavi
 
 test('the bubble and ring layers each switch off on their own', () => {
   const noBubbles = draw({}, { layerBubbles: false });
-  assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 0);
-  assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 1e-9).length, 3);
+  assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 10) < 0.5).length, 0);
+  assert.equal(noBubbles.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 0.5).length, 3);
   const noRings = draw({}, { layerCautionRings: false });
-  assert.equal(noRings.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 1e-9).length, 0);
-  assert.equal(noRings.named('arc').filter((c) => Math.abs(c.args[2] - 10) < 1e-9).length, 3);
+  assert.equal(noRings.named('arc').filter((c) => Math.abs(c.args[2] - 25) < 0.5).length, 0);
+  assert.equal(noRings.named('arc').filter((c) => Math.abs(c.args[2] - 10) < 0.5).length, 3);
   // The words still say who is in conflict when the drawing layers are off.
   assert.equal(draw({}, { layerBubbles: false, layerCautionRings: false }).written().filter((t) => t === '⚠ CONFLICT').length, 2);
 });
@@ -406,8 +406,8 @@ test('the bubble and ring layers each switch off on their own', () => {
 test('a bubble follows the limits set in Settings', () => {
   const rec = draw({}, { conflictLatFt: 400, cautionLatFt: 1000 });
   const radii = rec.named('arc').map((c) => c.args[2]);
-  assert.equal(radii.filter((r) => Math.abs(r - 20) < 1e-9).length, 3);
-  assert.equal(radii.filter((r) => Math.abs(r - 50) < 1e-9).length, 3);
+  assert.equal(radii.filter((r) => Math.abs(r - 20) < 0.5).length, 3);
+  assert.equal(radii.filter((r) => Math.abs(r - 50) < 0.5).length, 3);
 });
 
 test('trails follow the trails layer', () => {
@@ -558,7 +558,7 @@ test('Fit all routes frames every route, entries and splits too', (t) => {
   }
   map.fit();
   flush();
-  near(map.view.scale, focused, 1e-12); // Fit goes back to the pattern
+  near(map.view.scale, focused, 1e-6); // Fit goes back to the pattern
 });
 
 test('Fit frames the routes again after the routes have changed', (t) => {
@@ -641,19 +641,19 @@ test('worldToPhoto undoes photoToWorld', () => {
   const ll = localFtToLatLon(REF, 3500, -1200);
   const world = photoToWorld(REF, align, ll.lat, ll.lon);
   const back = worldToPhoto(REF, align, world.x, world.y);
-  near(back.lat, ll.lat, 1e-9);
-  near(back.lon, ll.lon, 1e-9);
+  near(back.lat, ll.lat, 1e-6);
+  near(back.lon, ll.lon, 1e-6);
 });
 
 test('the tile view covers what is on screen, at the scale the photo is drawn at, and puts tiles where photoToWorld says', () => {
   const align = { trim: 1.2, eastFt: 200, northFt: -300 };
   const view = photoView(fakeMap, REF, align);
-  near(view.pxPerFt, VIEW.scale * 1.2, 1e-12); // the photo is 20 % bigger, so its ground is 20 % more pixels a foot
+  near(view.pxPerFt, VIEW.scale * 1.2, 1e-6); // the photo is 20 % bigger, so its ground is 20 % more pixels a foot
   const { minX, minY, maxX, maxY } = fakeMap.visibleBounds();
   for (const [x, y] of [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY], [0, 0]]) {
     const ll = worldToPhoto(REF, align, x, y);
-    assert.ok(ll.lat <= view.corners.north + 1e-12 && ll.lat >= view.corners.south - 1e-12, 'inside north and south');
-    assert.ok(ll.lon <= view.corners.east + 1e-12 && ll.lon >= view.corners.west - 1e-12, 'inside east and west');
+    assert.ok(ll.lat <= view.corners.north + 1e-6 && ll.lat >= view.corners.south - 1e-6, 'inside north and south');
+    assert.ok(ll.lon <= view.corners.east + 1e-6 && ll.lon >= view.corners.west - 1e-6, 'inside east and west');
     const [sx, sy] = view.toScreen(ll.lat, ll.lon);
     const [ex, ey] = fakeMap.worldToScreen(x, y);
     near(sx, ex, 1e-6);

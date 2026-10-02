@@ -364,7 +364,7 @@ test('the turn at a point is its radius and bank, and there is none where V6 sho
   const pattern = route('pattern', [point(0, 0), point(6000, 0), point(6000, 4000), point(0, 4000)]);
   const turns = at(pattern);
   assert.equal(turns[0], null);
-  for (const t of turns.slice(1)) { near(t.radiusFt, 736.112, 1e-3); near(t.bankDeg, 60, 1e-9); }
+  for (const t of turns.slice(1)) { near(t.radiusFt, 736.112, 1e-3); near(t.bankDeg, 60, 0.1); }
   const entry = route('entry', pattern.points);
   assert.deepEqual(at(entry).map((t) => t === null), [true, false, false, true]);
   assert.equal(pointTurn(pattern, 4), null, 'a point that is not there');

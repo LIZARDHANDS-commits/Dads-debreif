@@ -180,7 +180,7 @@ test('a leg carries its exact length in feet and NM as numbers too', () => {
   assert.equal(first.from, 1);
   assert.equal(first.to, 2);
   assert.equal(first.ft, 5000);
-  assert.ok(Math.abs(first.nm - 5000 / 6076.12) < 1e-12);
+  assert.ok(Math.abs(first.nm - 5000 / 6076.12) < 1e-4);
   assert.equal(last.from, 4);
   assert.equal(last.to, 1);
 });

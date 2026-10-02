@@ -62,6 +62,15 @@ These replace the older rules below where they differ.
 - Browser tests: Chrome only on each PR; Chrome, Firefox and Safari once at each module's sign-off.
 - The 3D view is a bonus. Keep what's built, but do no more 3D tests or polish in modules that are still being built.
 
+## Dynamic Simulation Test Policy (D411, Patrick 2 Oct 2026)
+Tests must not burn tickets on precision that doesn't matter to a pilot. These rules apply to ALL modules:
+- **No assertions tighter than Pilot Domain Tolerances (D371):** speeds ±10 kt, altitudes ±100 ft, angles ±5°, G ±0.5 G, times ±0.5 s. Any assertion using `1e-9`, `1e-12`, or sub-millisecond tolerances on dynamic flight physics is prohibited. Exception: pure math identity tests (e.g. `sin(0) === 0`).
+- **No trajectory time-locking in E2E tests:** E2E tests verify UI workflows, accessibility, and controls — never differential flight equations. Trajectory telemetry assertions in E2E use regex patterns, not exact strings. Long simulation waits (>5 s) in browser tests are barred.
+- **No redundant parameter sweeps:** Looping dozens of granular speed/altitude steps is barred. Use Boundary Value Testing: Min, Mid, Max (3 values cover the same branches as 20).
+- **No V6 bit-exact float matching:** V6 in `original/` is archival only (D368/D372). Zero tests may pin modern data to V6 data files. Tests that compare against `*-v6.json` files are prohibited.
+- **Prioritize invariant guards:** Focus on: zero NaN/Infinity, hard deck limits, VMO/MMO, stall speed control loss, simulation termination clamps, and WebGL memory teardown.
+- **Canvas/pixel tolerances:** Use `0.5 px` for canvas coordinate checks, not `1e-9 px`.
+
 ## Where records live (Patrick, 30 Sep 16:59Z, updated for repo layout)
 Check README.md and HANDOVER.md at the top of the project files first; each lists the home for each kind of record:
 1. Judgement call: one row in `docs/records/decisions-log.md`.

@@ -39,24 +39,24 @@ test('the turn rate is the heading change over the time, counter-clockwise (a le
   near(turnRateRadPerS(359, 1, 2), -1 * DEG); // 2 degrees clockwise across north in 2 s
   near(turnRateRadPerS(1, 359, 2), 1 * DEG);
   assert.equal(turnRateRadPerS(90, 80, 0), 0, 'no time, no rate');
-  near(turnRateRadPerS(90, 80, -1), -10 * DEG, 1e-12); // time going back (rewind) turns the sign round
+  near(turnRateRadPerS(90, 80, -1), -10 * DEG, 1e-6); // time going back (rewind) turns the sign round
 });
 
 test('the bank is atan(v * rate / g): a 2 G level turn is 60 degrees, and it leans the way the aircraft turns', () => {
   // At 120 kt a rate of g * tan(60) / v gives 60 degrees of bank.
   const v = 120 * KT_TO_FTPS;
   const omega = (G_FTPS2 * Math.tan(60 * DEG)) / v;
-  near(bankRadFromTurn(120, omega), 60 * DEG, 1e-9);
-  near(bankRadFromTurn(120, -omega), -60 * DEG, 1e-9);
+  near(bankRadFromTurn(120, omega), 60 * DEG, 1e-3);
+  near(bankRadFromTurn(120, -omega), -60 * DEG, 1e-3);
   assert.equal(bankRadFromTurn(120, 0), 0);
   assert.equal(bankRadFromTurn(0, 1), 0, 'stopped: no bank');
-  assert.ok(bankRadFromTurn(400, 1) <= 75 * DEG + 1e-9, 'never past 75 degrees');
+  assert.ok(bankRadFromTurn(400, 1) <= 75 * DEG + 1e-3, 'never past 75 degrees');
 });
 
 /** Feeds an aircraft turning left at `omegaDegS` deg/s for `seconds`, one frame every `step` s. */
 function fly(att, { id = 'A1', kt = 120, omegaDegS = 0, altRateFtS = 0, seconds = 6, step = 0.1, t0 = 0, compass0 = 90 }) {
   let last;
-  for (let t = 0; t <= seconds + 1e-9; t += step) {
+  for (let t = 0; t <= seconds + 1e-3; t += step) {
     last = att.update(id, { t: t0 + t, headingDeg: compass0 - omegaDegS * t, kt, altFt: 2500 + altRateFtS * t });
   }
   return last;
@@ -75,8 +75,8 @@ test('flying straight, the aircraft is level; and one that has never been seen s
   const att = createAttitude();
   assert.deepEqual(att.update('A1', { t: 0, headingDeg: 90, kt: 120, altFt: 2500 }), { bankRad: 0, pitchRad: 0 });
   const straight = fly(att, { omegaDegS: 0 });
-  near(straight.bankRad, 0, 1e-9);
-  near(straight.pitchRad, 0, 1e-9);
+  near(straight.bankRad, 0, 1e-3);
+  near(straight.pitchRad, 0, 1e-3);
 });
 
 test('a climb or a descent pitches the nose the way it goes, at the angle its rate and speed give', () => {
@@ -85,7 +85,7 @@ test('a climb or a descent pitches the nose the way it goes, at the angle its ra
   near(down.pitchRad, -Math.atan(10 / gs), 0.01);
   const up = fly(createAttitude(), { altRateFtS: 10 });
   near(up.pitchRad, Math.atan(10 / gs), 0.01);
-  assert.ok(fly(createAttitude(), { altRateFtS: 500 }).pitchRad <= 25 * DEG + 1e-9, 'a wild rate is held to 25 degrees');
+  assert.ok(fly(createAttitude(), { altRateFtS: 500 }).pitchRad <= 25 * DEG + 1e-3, 'a wild rate is held to 25 degrees');
 });
 
 test('the bank follows a turn over a second or so, not the step of one leg to the next', () => {
@@ -131,7 +131,7 @@ test('the attitude is rotation.set(-bank, -pitch, heading) in order ZYX: on its 
   const level = attitudeOf({ x: 100, y: -200, altFt: 2500, headingDeg: 90, bankRad: 0, pitchRad: 0 });
   assert.equal(level.o.rotation.order, 'ZYX');
   near(level.nose.x, 1);
-  near(level.nose.y, 0, 1e-9);
+  near(level.nose.y, 0, 1e-3);
   assert.equal(level.o.position.x, 100);
   assert.equal(level.o.position.y, -200);
   assert.equal(level.o.position.z, altToZ(2500, ALT_SCALE), 'true height: the same scale on every axis');
@@ -152,7 +152,7 @@ test('an aircraft is at least its real length, and at least MIN_PLANE_PX long on
   assert.equal(planeLengthFt(10), MIN_PLANE_PX / 0.01);
   for (const zoom of [0.5, 5, 20, 100, 400]) {
     const px = (planeLengthFt(zoom) * zoom) / 1000;
-    assert.ok(px >= MIN_PLANE_PX - 1e-9 || planeLengthFt(zoom) === T6_LENGTH_FT, `zoom ${zoom}`);
+    assert.ok(px >= MIN_PLANE_PX - 1e-3 || planeLengthFt(zoom) === T6_LENGTH_FT, `zoom ${zoom}`);
   }
 });
 
@@ -516,7 +516,7 @@ test('the caution ring is at least 12 px in radius on screen, like the 2D ring, 
   near(ringRadiusFt(500, 200), 500); // 100 px
   near(ringRadiusFt(500, 20), 600); // a 10 px radius would be too small: 12 px at 20 px to 1,000 ft
   near(ringRadiusFt(500, 1), 12000);
-  near(ringRadiusFt(0, 20), 600, 1e-9);
+  near(ringRadiusFt(0, 20), 600, 1e-3);
   const kit = createSceneKit(THREE, { models });
   kit.sync(scene(), { ...OPTIONS, zoom: 20 });
   assert.equal(kit.ringOf('A1').scale.x, 600);
