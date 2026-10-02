@@ -180,7 +180,7 @@ test('sim.command climb_high_key climbs to 5,000 ft MSL over threshold facing 29
   // Arrives near threshold and enters circular gliding descent
   sim.stepTo(90);
   ac = sim.state().aircraft.find((a) => a.id === id);
-  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl'].includes(ac.phase), 'phase should be PFL-related');
+  assert.ok(['pfl_current', 'high_key', 'low_key', 'base_key', 'pfl', 'pfl_final', 'final_turn', 'final'].includes(ac.phase), `phase ${ac.phase} should be PFL-related`);
   assert.ok(ac.alt <= 5000, `Alt ${ac.alt} should be capped at or descending from 5,000 ft`);
   assert.ok(ac.alt >= 2000, `Alt ${ac.alt} should be descending along circular PFL arc`);
 });

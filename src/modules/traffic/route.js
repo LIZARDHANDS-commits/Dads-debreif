@@ -575,109 +575,46 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
  * @returns {{ x: number, y: number, headingDeg: number, alt?: number } | null}
  */
 let _breakCache = { wFrom: null, wKt: null, result: null };
-export function computeBreakRollout(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  // Cache — only recompute when wind changes
-  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.result) {
-    return _breakCache.result;
-  }
 
+/**
+ * Simulates the 180° decelerating overhead break turn.
+ * @param {any} route
+ * @param {number} [windFromDeg]
+ * @param {number} [windKt]
+ * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any> } | null}
+ */
+function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   const pts = route?.points || route?.waypoints;
   if (!pts || pts.length < 11) return null;
 
-  // Use static Point 10 (Break Exit) as the calm-wind baseline.
-  // It's factory-calibrated to the physics engine's break turn output.
-  const brkExit = pts[10];
-  const baseX = brkExit?.x ?? -3385;
-  const baseY = brkExit?.y ?? -4323;
-  const rwyHeadingDeg = 298;
-  const downwindHeadingDeg = (rwyHeadingDeg - 180 + 360) % 360;
-
-  // For non-zero wind, compute the wind drift during the ~20s break turn
-  // and add it as an offset to the calm-wind position.
-  const breakDurationSec = 20; // approximate break turn duration from physics trace
-  const windFtps = ktToFtps(windKt);
-  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
-  const windDriftX = windFtps * Math.sin(blowToRad) * breakDurationSec;
-  const windDriftY = windFtps * Math.cos(blowToRad) * breakDurationSec;
-
-  const result = {
-    x: baseX + windDriftX,
-    y: baseY + windDriftY,
-    alt: brkExit?.alt ?? 3500,
-    headingDeg: downwindHeadingDeg,
-  };
-  _breakCache = { wFrom: windFromDeg, wKt: windKt, result };
-  return result;
-}
-
-/**
- * Generates the wind-adjusted ground track coordinates for Pattern 1 (D370, D382, D389).
- */
-export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  if (route.id !== 'PAT1' || !route.points || route.points.length < 13) {
-    return buildRoundedPoints(route, options);
-  }
-
-  const pts = route.points.map((p) => ({ ...p }));
-  const perch = computeWindPerch(route, windFromDeg, windKt, options);
-  if (perch && pts[11]) { pts[11] = { ...pts[11], x: perch.x, y: perch.y }; }
-  const breakRollout = computeBreakRollout(route, windFromDeg, windKt, options);
-  if (breakRollout && pts[10]) { pts[10] = { ...pts[10], x: breakRollout.x, y: breakRollout.y }; }
-
-  const th = pts[0];   // Threshold
-  const dep = pts[1];  // Departure End
-  const brk = pts[9];  // Break Point
+  const th = pts[0];
+  const dep = pts[1];
+  const brk = pts[9];
+  const rwyLen = Math.hypot(dep.x - th.x, dep.y - th.y);
+  const rwyUx = (dep.x - th.x) / rwyLen;
+  const rwyUy = (dep.y - th.y) / rwyLen;
   const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
   const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
   const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
 
-  const rwyLen = Math.hypot(dep.x - th.x, dep.y - th.y);
-  const rwyUx = (dep.x - th.x) / rwyLen;
-  const rwyUy = (dep.y - th.y) / rwyLen;
+  const useRwyBreak = (windKt ?? 0) <= 0;
+  const breakStartX = useRwyBreak ? th.x + rwyUx * 2000 : brk.x;
+  const breakStartY = useRwyBreak ? th.y + rwyUy * 2000 : brk.y;
 
   const windFtps = ktToFtps(windKt);
   const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
   const wx = windFtps * Math.sin(blowToRad);
   const wy = windFtps * Math.cos(blowToRad);
 
-  const track = [];
-
-  // 1. Initial legs from Threshold through Climbout up to Break (points with src < 9)
-  const baseRounded = buildRoundedPoints(route, { ...options, windKt: 0 });
-  for (const p of baseRounded) {
-    if ((p.src ?? 0) === 9) break;
-    track.push({ ...p, phase: 'initial' });
-  }
-
-  // Break start point:
-  // In calm wind (windKt <= 0), break starts 2,000 ft past threshold on runway centerline (TR-06).
-  // In wind (windKt > 0), break starts at calibrated break waypoint (pts[9]).
-  const useRwyBreak = (windKt ?? 0) <= 0;
-  const breakStartX = useRwyBreak ? th.x + rwyUx * 2000 : brk.x;
-  const breakStartY = useRwyBreak ? th.y + rwyUy * 2000 : brk.y;
-
-  if (useRwyBreak) {
-    track.push({
-      x: breakStartX,
-      y: breakStartY,
-      alt: 3500,
-      kt: 220,
-      g: 2,
-      src: 9,
-      phase: 'break',
-      headingDeg: rwyHeadingDeg,
-    });
-  }
-
-  // 2. Overhead Break (60° bank / 2.0 G level turn to downwind heading)
   let curX = breakStartX;
   let curY = breakStartY;
   let curHeadingDeg = rwyHeadingDeg;
   let curIas = 220;
   const breakDt = 0.2;
   const g = 32.174;
-
   let turnAccum = 0;
+  const arcPoints = [];
+
   while (turnAccum < 180) {
     const tasKt = iasToTasKt(curIas, 3500);
     const tasFtps = ktToFtps(tasKt);
@@ -696,7 +633,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     curY += vy * breakDt;
 
     const isRollout = turnAccum >= 180;
-    track.push({
+    arcPoints.push({
       x: curX,
       y: curY,
       alt: 3500,
@@ -708,7 +645,96 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     });
   }
 
-  // 3. Direct Steer to Calculated Wind Perch
+  return {
+    rollout: {
+      x: curX,
+      y: curY,
+      alt: pts[10]?.alt ?? 3500,
+      headingDeg: downwindHeadingDeg,
+    },
+    arcPoints,
+    breakStartX,
+    breakStartY,
+    rwyHeadingDeg,
+    downwindHeadingDeg,
+  };
+}
+
+export function computeBreakRollout(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
+  if (_breakCache.wFrom === windFromDeg && _breakCache.wKt === windKt && _breakCache.result) {
+    return _breakCache.result;
+  }
+
+  const sim = simulateBreakArc(route, windFromDeg, windKt);
+  if (!sim) return null;
+
+  _breakCache = { wFrom: windFromDeg, wKt: windKt, result: sim.rollout };
+  return sim.rollout;
+}
+
+/**
+ * Generates the wind-adjusted ground track coordinates for Pattern 1 (D370, D382, D389).
+ */
+export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
+  if (route.id !== 'PAT1' || !route.points || route.points.length < 13) {
+    return buildRoundedPoints(route, options);
+  }
+
+  const pts = route.points.map((p) => ({ ...p }));
+  const perch = computeWindPerch(route, windFromDeg, windKt, options);
+  if (perch && pts[11]) { pts[11] = { ...pts[11], x: perch.x, y: perch.y }; }
+
+  const breakSim = simulateBreakArc(route, windFromDeg, windKt);
+  const breakRollout = breakSim?.rollout ?? computeBreakRollout(route, windFromDeg, windKt, options);
+  if (breakRollout && pts[10]) { pts[10] = { ...pts[10], x: breakRollout.x, y: breakRollout.y }; }
+
+  const th = pts[0];   // Threshold
+  const dep = pts[1];  // Departure End
+  const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
+  const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
+  const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
+
+  const windFtps = ktToFtps(windKt);
+  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
+  const wx = windFtps * Math.sin(blowToRad);
+  const wy = windFtps * Math.cos(blowToRad);
+
+  const track = [];
+
+  // 1. Initial legs from Threshold through Climbout up to Break (points with src < 9)
+  const baseRounded = buildRoundedPoints(route, { ...options, windKt: 0 });
+  for (const p of baseRounded) {
+    if ((p.src ?? 0) === 9) break;
+    track.push({ ...p, phase: 'initial' });
+  }
+
+  // 2. Overhead Break (60° bank / 2.0 G level turn to downwind heading)
+  const useRwyBreak = (windKt ?? 0) <= 0;
+  if (useRwyBreak && breakSim) {
+    track.push({
+      x: breakSim.breakStartX,
+      y: breakSim.breakStartY,
+      alt: 3500,
+      kt: 220,
+      g: 2,
+      src: 9,
+      phase: 'break',
+      headingDeg: rwyHeadingDeg,
+    });
+  }
+
+  let curX = breakRollout?.x ?? -3385;
+  let curY = breakRollout?.y ?? -4323;
+
+  if (breakSim && breakSim.arcPoints.length > 0) {
+    for (const p of breakSim.arcPoints) {
+      track.push(p);
+    }
+    curX = breakSim.rollout.x;
+    curY = breakSim.rollout.y;
+  }
+
+  // 3. Direct Steer from Break Rollout to Calculated Wind Perch
   const dwDist = Math.hypot(perch.x - curX, perch.y - curY);
   const dwSteps = Math.max(5, Math.ceil(dwDist / 1000));
   const dwStartX = curX;
@@ -731,10 +757,11 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   }
 
   // 4. Descending Final Turn (180° turn at 120 KIAS, linear descent 3,500 to 2,119 ft per TR-02)
+  const g = 32.174;
   curX = perch.x;
   curY = perch.y;
-  curHeadingDeg = downwindHeadingDeg;
-  curIas = 120;
+  let curHeadingDeg = downwindHeadingDeg;
+  let curIas = 120;
   const ftDt = 0.2;
   const ftTasKt = iasToTasKt(curIas, 3100);
   const ftTasFtps = ktToFtps(ftTasKt);

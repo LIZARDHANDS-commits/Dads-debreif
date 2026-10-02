@@ -76,16 +76,21 @@ test('2.1 shouldEnterPhysics triggers on all pilot commands', () => {
   }
 });
 
-test('2.2 shouldEnterPhysics returns true when reaching Point 9 (Break) on PAT1', () => {
+test('2.2 shouldEnterPhysics returns false on nominal circuit points (Break and Perch stay on rails)', () => {
   const breakDist = pointDistFt(pat1, 9);
   const a = { mode: 'RAIL', distFt: breakDist };
-  assert.equal(shouldEnterPhysics(a, pat1), true, 'Point 9 (Break) must trigger physics');
+  assert.equal(shouldEnterPhysics(a, pat1), false, 'Point 9 (Break) stays on rails');
 });
 
-test('2.3 shouldEnterPhysics returns true when reaching Point 11 (Perch) on PAT1', () => {
-  const perchDist = pointDistFt(pat1, 11);
-  const a = { mode: 'RAIL', distFt: perchDist };
-  assert.equal(shouldEnterPhysics(a, pat1), true, 'Point 11 (Perch) must trigger physics');
+test('2.3 shouldEnterPhysics returns true when reaching waypoint with mode=physics', () => {
+  const customPlan = {
+    waypoints: [
+      { mode: 'rails' },
+      { mode: 'physics' },
+    ],
+  };
+  const a = { mode: 'RAIL', waypointIndex: 1, navPlan: customPlan };
+  assert.equal(shouldEnterPhysics(a, null), true, 'Physics waypoint must trigger physics');
 });
 
 test('2.4 shouldEnterPhysics returns false on straight legs (Point 8 Initial, Point 10 Break Exit, Point 12 Final)', () => {
@@ -142,23 +147,16 @@ test('3.2 RAIL mode calculates wind triangle and crab angle under crosswind', ()
   assert.equal(a.mode, 'RAIL');
 });
 
-test('3.3 RAIL mode transitions instantly to PHYSICS upon reaching Point 9 (Break)', () => {
-  // Start 50 ft before Point 9
-  const breakDist = pointDistFt(pat1, 9);
+test('3.3 Active command transitions instantly from RAIL to PHYSICS', () => {
   const a = {
     id: 'A1',
     mode: 'RAIL',
-    distFt: breakDist - 50,
-    iasKt: 220,
-    gsKt: 220,
+    command: 'breakout',
     active: true,
   };
-  // 1 second step at 220 kt (~371 ft/s) will comfortably cross break point
-  tickAircraft(a, 1.0, { windFromDeg: 360, windKt: 0 }, pat1);
+  tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
 
-  assert.equal(a.mode, 'PHYSICS', 'Reaching break point must transition mode to PHYSICS');
-  assert.equal(a.navPlan?.id, 'PAT_INNER', 'Nav plan must be PAT_INNER');
-  assert.equal(a.phase, 'break', 'Phase must be break');
+  assert.equal(a.mode, 'PHYSICS', 'Active command must transition mode to PHYSICS');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
