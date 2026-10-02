@@ -124,15 +124,15 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
 - In `src/modules/turn-fight/energy-readouts.js`: render the tactical choice rationale and score summary in the Result card.
 
 **Acceptance criteria:**
-- [ ] `'tactical'` selectable from UI dropdowns for Blue and Red independently.
-- [ ] `'auto'` remains default and produces identical textbook behavior for existing tests.
-- [ ] Lookahead slider dynamically controls search horizon (10–45 s).
-- [ ] Tactical decision rationale visible in post-merge readout.
+- [x] `'tactical'` selectable from UI dropdowns for Blue and Red independently.
+- [x] `'auto'` remains default and produces identical textbook behavior for existing tests.
+- [x] Lookahead slider dynamically controls search horizon (10–45 s).
+- [x] Tactical decision rationale visible in post-merge readout.
 
 **Verification:**
-- [ ] Tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
-- [ ] E2E tests pass: `npx playwright test tests/e2e/turn-fight.spec.js`
-- [ ] Typecheck succeeds: `npm run typecheck`
+- [x] Tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
+- [x] E2E tests pass: `npx playwright test tests/e2e/turn-fight.spec.js`
+- [x] Typecheck succeeds: `npm run typecheck`
 
 **Dependencies:** Tasks 16, 17.
 **Files likely touched:** `src/modules/turn-fight/state.js`, `src/modules/turn-fight/energy-sim.js`, `src/modules/turn-fight/layout.js`, `src/modules/turn-fight/energy-readouts.js`
@@ -152,8 +152,8 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
 - [x] Hard deck and energy floor guards strictly respected during breakout maneuvers.
 
 **Verification:**
-- [ ] Unit tests pass: `node --test tests/unit/turn-fight/energy-tactical.test.js`
-- [ ] Playback visual inspection in 2D and 3D views.
+- [x] Unit tests pass: `node --test tests/unit/turn-fight/energy-tactical.test.js`
+- [x] Playback visual inspection in 2D and 3D views.
 
 **Dependencies:** Tasks 16, 17, 18.
 **Files likely touched:** `src/modules/turn-fight/energy-sim.js`
