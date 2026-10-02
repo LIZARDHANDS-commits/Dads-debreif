@@ -184,6 +184,35 @@
   letter-spacing: 0.06em;
 }
 
+[data-module='turn-fight'] .tf-version-pill {
+  color: var(--accent, #58a6ff);
+  font-weight: 600;
+  font-size: var(--text-xs, 0.75rem);
+  letter-spacing: 0.05em;
+  border-color: rgba(88, 166, 255, 0.4);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+[data-module='turn-fight'] .tf-version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  color: var(--tf-nose, #ffcc66);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-2);
+}
+
+[data-module='turn-fight'] .tf-version-sub {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
 [data-module='turn-fight'] .tf-stopped {
   margin: 0;
   padding: var(--space-2) var(--space-3);

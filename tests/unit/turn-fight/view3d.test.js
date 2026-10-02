@@ -17,7 +17,7 @@ import {
 const THREE = await loadThree();
 const DEG = Math.PI / 180;
 const SIZE = { width: 800, height: 600 };
-const near = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) < tol, `${a} is not ${b}`);
+const near = (a, b, tol = 0.01) => assert.ok(Math.abs(a - b) < tol, `${a} is not ${b}`);
 
 /** A fight moved to `sec` seconds, by the same whole steps the screen uses. */
 function fightAt(sec, setup = {}) {

@@ -30,9 +30,9 @@ export const MODULES = [
   },
   {
     id: 'turn-fight',
-    eyebrow: 'BFM',
+    eyebrow: 'BFM · v2.1',
     title: 'Turn Fight',
-    blurb: '1-circle, 2-circle and vertical fights',
+    blurb: '1-circle, 2-circle and vertical fights (Harvard II 5.0 G)',
     media: media('turn-fight'),
     load: () => import('../modules/turn-fight/index.js'),
     prototype: true,

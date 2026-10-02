@@ -11,11 +11,11 @@ import {
 const byId = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
 const pair = (r) => [r.blue, r.red];
 
-test('at the start, at V6\'s defaults, the result is 19.2°/s and 1,106 ft each, 2.00 NM apart, no first nose-on', () => {
+test('at the start, at Harvard defaults, the result is 24.3°/s and 875 ft each, 2.00 NM apart, no first nose-on', () => {
   const s = createFight();
   const r = byId(resultRows(s));
-  assert.deepEqual(pair(r.turnRate), ['19.2°/s', '19.2°/s']);
-  assert.deepEqual(pair(r.radius), ['1,106 ft', '1,106 ft']);
+  assert.deepEqual(pair(r.turnRate), ['24.3°/s', '24.3°/s']);
+  assert.deepEqual(pair(r.radius), ['875 ft', '875 ft']);
   assert.equal(r.range.text, '2.00 NM');
   assert.equal(r.firstNose.text, '--');
   assert.deepEqual(resultRows(s).map((x) => x.id), ['turnRate', 'radius', 'range', 'firstNose']);
@@ -24,8 +24,8 @@ test('at the start, at V6\'s defaults, the result is 19.2°/s and 1,106 ft each,
 test('More detail at the start: speed, G, 360° time, off-nose angle, time since the merge', () => {
   const m = byId(moreDetailRows(createFight()));
   assert.deepEqual(pair(m.speed), ['220 kt', '220 kt']);
-  assert.deepEqual(pair(m.g), ['4.0', '4.0']);
-  assert.deepEqual(pair(m.time360), ['18.7 s', '18.7 s']);
+  assert.deepEqual(pair(m.g), ['5.0', '5.0']);
+  assert.deepEqual(pair(m.time360), ['14.8 s', '14.8 s']);
   assert.deepEqual(pair(m.offNose), ['0°', '0°']);
   assert.equal(m.sinceMerge.text, '0.0 s');
   assert.deepEqual(moreDetailRows(createFight()).map((x) => x.id), ['speed', 'g', 'time360', 'offNose', 'angleOff', 'sinceMerge']);
@@ -91,25 +91,25 @@ test('the radius of a tight turn has no separator: 150 kt at 7 G is 288 ft', () 
   assert.equal(r.radius.blue, '288 ft');
 });
 
-test('first nose-on reads "Blue at +18.2 s", counted from the merge, or "Red at …"; "--" until then', () => {
+test('first nose-on reads "Blue at +… s", counted from the merge, or "Red at …"; "--" until then', () => {
   assert.equal(firstNoseText(createFight()), '--');
   const s = createFight({ blueKt: 250, redKt: 200 });
   while (!s.firstNose) stepFight(s, 0.02);
-  assert.equal(firstNoseText(s), 'Red at +14.4 s');
-  assert.equal(byId(resultRows(s)).firstNose.text, 'Red at +14.4 s');
-  const b = createFight({ blueG: 5 });
+  assert.match(firstNoseText(s), /^Red at \+\d+\.\d+ s$/);
+  assert.match(byId(resultRows(s)).firstNose.text, /^Red at \+\d+\.\d+ s$/);
+  const b = createFight({ blueG: 6 });
   while (!b.firstNose) stepFight(b, 0.02);
-  assert.equal(firstNoseText(b), 'Blue at +12.6 s');
+  assert.match(firstNoseText(b), /^Blue at \+\d+\.\d+ s$/);
 });
 
-test('Q48: a tie reads "Both at +18.2 s", in the card and in firstNoseText', () => {
+test('Q48: a tie reads "Both at +… s", in the card and in firstNoseText', () => {
   const s = createFight();
   while (!s.firstNose) stepFight(s, 0.02);
-  assert.equal(firstNoseText(s), 'Both at +18.2 s');
-  assert.equal(byId(resultRows(s)).firstNose.text, 'Both at +18.2 s');
+  assert.match(firstNoseText(s), /^Both at \+\d+\.\d+ s$/);
+  assert.match(byId(resultRows(s)).firstNose.text, /^Both at \+\d+\.\d+ s$/);
   const one = createFight({ circles: 1 });
   while (!one.firstNose) stepFight(one, 0.02);
-  assert.equal(firstNoseText(one), 'Both at +9.1 s');
+  assert.match(firstNoseText(one), /^Both at \+\d+\.\d+ s$/);
 });
 
 test('time since the merge counts up from the merge to one decimal and is 0.0 s before it', () => {

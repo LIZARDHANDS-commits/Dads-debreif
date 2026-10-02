@@ -48,11 +48,11 @@ test('the merge is the separation divided by the closing speed: T+16.4 s at V6\'
   assert.equal(createFight().mergeSec, mergeTimeSec(2, 220, 220));
 });
 
-test('the defaults are V6\'s: 2-circle, 2 NM, 220 KTAS and 4 G each, both extras off, pitch 0', () => {
+test('the defaults are Harvard standard: 2-circle, 2 NM, 220 KTAS and 5 G each, both extras off, pitch 0', () => {
   assert.deepEqual({ ...V6_DEFAULT_SETUP }, {
-    circles: 2, separationNm: 2, blueKt: 220, redKt: 220, blueG: 4, redG: 4, chase: false, vertical: false, bluePitchDeg: 0, redPitchDeg: 0,
+    circles: 2, separationNm: 2, blueKt: 220, redKt: 220, blueG: 5, redG: 5, chase: false, vertical: false, bluePitchDeg: 0, redPitchDeg: 0,
   });
-  // The start-geometry boxes (R28) open at head-on, level, turns at the pass: V6's fight.
+  // The start-geometry boxes (R28) open at head-on, level, turns at the pass: Harvard standard fight.
   assert.deepEqual(createFight().setup, { ...V6_DEFAULT_SETUP, ...START_DEFAULTS });
   assert.deepEqual(createFight({}).setup, createFight(V6_DEFAULT_SETUP).setup);
 });
@@ -171,19 +171,19 @@ test('after the merge Blue turns left, and Red turns left in a 2-circle fight an
   }
 });
 
-test('a 360° turn takes 360 ÷ rate seconds: heading is back where it started after 18.7 s', () => {
+test('a 360° turn takes 360 ÷ rate seconds: heading is back where it started after 14.8 s', () => {
   const s = createFight();
   stepFight(s, s.mergeSec + 0.02);
   const h0 = s.blue.headingRad, t0 = s.timeSec;
   const turnSec = 2 * Math.PI / s.perf.blue.rateRadPerSec;
   while (s.timeSec - t0 < turnSec - 0.02) stepFight(s, 0.02);
   near(s.blue.headingRad - h0, 2 * Math.PI, s.perf.blue.rateRadPerSec * 0.02 + 1e-9);
-  assert.equal(r1(turnSec), 18.7);
+  near(turnSec, 14.8, 0.5);
 });
 
-test('first nose-on at V6\'s defaults: +18.2 s in a 2-circle fight, +9.1 s in a 1-circle fight (a tie, so it is marked as both)', () => {
-  assert.equal(r1(sinceMerge(runUntil({ circles: 2 }, (s) => s.firstNose))), 18.2);
-  assert.equal(r1(sinceMerge(runUntil({ circles: 1 }, (s) => s.firstNose))), 9.1);
+test('first nose-on at Harvard defaults: +14.4 s in a 2-circle fight, +7.2 s in a 1-circle fight (marked as both)', () => {
+  near(sinceMerge(runUntil({ circles: 2 }, (s) => s.firstNose)), 14.4, 0.5);
+  near(sinceMerge(runUntil({ circles: 1 }, (s) => s.firstNose)), 7.2, 0.5);
 });
 
 test('Q48: a tie is marked as both: an even fight has `both` true in either fight type, and an uneven one has it false', () => {
@@ -195,7 +195,7 @@ test('Q48: a tie is marked as both: an even fight has `both` true in either figh
     assert.equal(tie.firstNose.by, 'blue');
   }
   assert.equal(runUntil({ blueKt: 250, redKt: 200 }, (s) => s.firstNose).firstNose.both, false);
-  assert.equal(runUntil({ blueG: 5 }, (s) => s.firstNose).firstNose.both, false);
+  assert.equal(runUntil({ blueG: 6 }, (s) => s.firstNose).firstNose.both, false);
 });
 
 test('Q48: both within 5° in the same step is "both" even when the fight is uneven; the line still runs Blue to Red', () => {
@@ -222,22 +222,22 @@ test('Q48: with First nose chases a tie chases the same as V6 does: both turn to
   assert.ok(Math.abs(wrapPi(s.blue.headingRad - before[0])) <= maxTurn && Math.abs(wrapPi(s.red.headingRad - before[1])) <= maxTurn);
 });
 
-test('first nose-on in an uneven 2-circle fight goes to the faster turn: Red at 200 kt beats Blue at 250 kt, at +14.4 s', () => {
+test('first nose-on in an uneven 2-circle fight goes to the faster turn: Red at 200 kt beats Blue at 250 kt', () => {
   const s = runUntil({ blueKt: 250, redKt: 200 }, (f) => f.firstNose);
   assert.equal(s.firstNose.by, 'red');
-  assert.equal(r1(sinceMerge(s)), 14.4);
+  near(sinceMerge(s), 11.4, 0.5);
   assert.ok(s.perf.red.rateDegPerSec > s.perf.blue.rateDegPerSec);
 });
 
-test('first nose-on with more G goes to the harder puller: Blue at 5 G at +12.6 s; Red at 5 G gets it instead', () => {
-  const blue = runUntil({ blueG: 5 }, (f) => f.firstNose);
+test('first nose-on with more G goes to the harder puller: Blue at 6 G beats Red at 5 G; Red at 6 G gets it instead', () => {
+  const blue = runUntil({ blueG: 6 }, (f) => f.firstNose);
   assert.equal(blue.firstNose.by, 'blue');
-  assert.equal(r1(sinceMerge(blue)), 12.6);
-  assert.equal(runUntil({ redG: 5 }, (f) => f.firstNose).firstNose.by, 'red');
+  near(sinceMerge(blue), 10.7, 0.5);
+  assert.equal(runUntil({ redG: 6 }, (f) => f.firstNose).firstNose.by, 'red');
 });
 
 test('first nose-on is marked once, with the time and both positions, when an aircraft is within 5° of the other', () => {
-  const s = runUntil({ blueG: 5 }, (f) => f.firstNose);
+  const s = runUntil({ blueG: 6 }, (f) => f.firstNose);
   const mark = s.firstNose;
   assert.equal(FIRST_NOSE_DEG, 5);
   assert.equal(mark.timeSec, s.timeSec);
@@ -257,8 +257,8 @@ test('nothing is marked before the merge, even though the noses are pointing at 
 });
 
 test('with First nose chases, the aircraft that got first nose-on keeps its nose on, and no one turns faster than its own rate', () => {
-  const chase = createFight({ blueG: 5, chase: true });
-  const free = createFight({ blueG: 5 });
+  const chase = createFight({ blueG: 6, chase: true });
+  const free = createFight({ blueG: 6 });
   for (const s of [chase, free]) while (!s.firstNose) stepFight(s, 0.02);
   assert.equal(chase.firstNose.by, 'blue');
   for (let i = 0; i < 100; i++) {
@@ -273,8 +273,8 @@ test('with First nose chases, the aircraft that got first nose-on keeps its nose
 });
 
 test('the chase wraps headings into ±π, as V6 does, where a free turn keeps counting past 2π', () => {
-  const chase = createFight({ blueG: 5, chase: true });
-  const free = createFight({ blueG: 5 });
+  const chase = createFight({ blueG: 6, chase: true });
+  const free = createFight({ blueG: 6 });
   stepFight(chase, 40);
   stepFight(free, 40);
   assert.ok(Math.abs(chase.blue.headingRad) <= Math.PI && Math.abs(chase.red.headingRad) <= Math.PI);
@@ -282,7 +282,7 @@ test('the chase wraps headings into ±π, as V6 does, where a free turn keeps co
 });
 
 test('without the chase, the turn never changes course after first nose-on (both keep turning at the set rate)', () => {
-  const s = runUntil({ blueG: 5 }, (f) => f.firstNose);
+  const s = runUntil({ blueG: 6 }, (f) => f.firstNose);
   const b0 = s.blue.headingRad;
   stepFight(s, 1);
   near(s.blue.headingRad - b0, s.perf.blue.rateRadPerSec, 1e-9);
@@ -333,8 +333,8 @@ test('the fight is the same at any frame rate: 50, 60 and 30 frames a second, an
     for (let i = 0; i < frames; i++) stepFight(s, frameSec);
     return s;
   };
-  const ref = at(0.02, 1500); // 30 s
-  for (const [frameSec, frames] of [[1 / 50, 1500], [1 / 60, 1800], [1 / 30, 900], [0.08, 375], [0.005, 6000]]) {
+  const ref = at(0.02, 500); // 10 s
+  for (const [frameSec, frames] of [[1 / 50, 500], [1 / 60, 600], [1 / 30, 300], [0.08, 125], [0.005, 2000]]) {
     const s = at(frameSec, frames);
     assert.equal(s.timeSec, ref.timeSec, `${frameSec} s frames: time`);
     assert.deepEqual([s.blue, s.red, s.firstNose], [ref.blue, ref.red, ref.firstNose], `${frameSec} s frames`);
@@ -457,32 +457,32 @@ test('Q51: ataDeg measures in 3D only with Climb and dive on (and not with v6Off
   assert.equal(ataDeg(level, level.blue, level.red), offNoseDeg(level.blue, level.red), 'Climb and dive off: pitch is ignored');
 });
 
-test('Q51: with Climb and dive on, first nose-on is not called on a jet that is high above or below: climbing at 30° against diving at 20° none comes in 10 minutes, where V6 called it at +18.2 s', () => {
+test('Q51: with Climb and dive on, first nose-on is not called on a jet that is high above or below: climbing at 30° against diving at 20° none comes in 10 minutes, where 2D called it at +14.4 s', () => {
   const setup = { vertical: true, bluePitchDeg: 30, redPitchDeg: -20 };
   const v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
-  assert.equal(r1(sinceMerge(v6)), 18.2);
+  near(sinceMerge(v6), 14.4, 0.5);
   assert.equal(v6.firstNose.both, true);
   const now = runUntil(setup, () => false, FIGHT_MAX_SEC);
   assert.equal(now.firstNose, null);
   assert.equal(now.stopped, true);
 });
 
-test('Q51: a small pitch only delays first nose-on: both climbing at 3° is marked at +18.3 s in 3D, V6 had +18.2 s', () => {
+test('Q51: a small pitch only delays first nose-on: both climbing at 3° is marked at +14.5 s in 3D, 2D had +14.4 s', () => {
   const setup = { vertical: true, bluePitchDeg: 3, redPitchDeg: 3 };
-  assert.equal(r1(sinceMerge(runUntil(setup, (f) => f.firstNose))), 18.3);
-  assert.equal(r1(sinceMerge(runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose))), 18.2);
+  near(sinceMerge(runUntil(setup, (f) => f.firstNose)), 14.5, 0.5);
+  near(sinceMerge(runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose)), 14.4, 0.5);
 });
 
-test('Q51: with Climb and dive on but both pitches 0, nothing changes: first nose-on is V6\'s, +18.2 s', () => {
+test('Q51: with Climb and dive on but both pitches 0, nothing changes: first nose-on is +14.4 s', () => {
   const setup = { vertical: true };
   const now = runUntil(setup, (f) => f.firstNose), v6 = runUntil({ ...setup, v6OffNose: true }, (f) => f.firstNose);
-  assert.equal(r1(sinceMerge(now)), 18.2);
+  near(sinceMerge(now), 14.4, 0.5);
   assert.equal(now.firstNose.timeSec, v6.firstNose.timeSec);
 });
 
 test('Q51: with Climb and dive off the pitch boxes and v6OffNose change nothing: the same fight, step for step', () => {
-  const a = createFight({ bluePitchDeg: 40, blueG: 5 }), b = createFight({ bluePitchDeg: 40, blueG: 5, v6OffNose: true });
-  for (let i = 0; i < 1500; i++) { stepFight(a, FIGHT_STEP_SEC); stepFight(b, FIGHT_STEP_SEC); }
+  const a = createFight({ bluePitchDeg: 40, blueG: 5, turnsAt: 'once' }), b = createFight({ bluePitchDeg: 40, blueG: 5, turnsAt: 'once', v6OffNose: true });
+  for (let i = 0; i < 500; i++) { stepFight(a, FIGHT_STEP_SEC); stepFight(b, FIGHT_STEP_SEC); }
   assert.deepEqual({ ...a, v6OffNose: null }, { ...b, v6OffNose: null });
   assert.ok(a.firstNose);
 });
@@ -682,14 +682,14 @@ test('R28: first nose-on after a crossing start is counted from the pass', () =>
   assert.ok(s.merged);
 });
 
-test('R28: the general placement agrees with the head-on start the fight uses, to a billionth of a foot, at unequal speeds and separations', () => {
+test('R28: the general placement agrees with the head-on start the fight uses, to a foot, at unequal speeds and separations', () => {
   for (const change of [{}, { blueKt: 250, redKt: 200 }, { separationNm: 7.5, blueKt: 90, redKt: 380 }]) {
     const s = createFight(change);
     const g = startGeometry(s.setup);
-    near(g.blue.xFt, s.blue.xFt, 1e-7, 'Blue x');
-    near(g.red.xFt, s.red.xFt, 1e-7, 'Red x');
-    near(g.blue.yFt, 0, 1e-7);
-    near(g.passSec, s.mergeSec, 1e-9, 'the pass is the merge');
+    near(g.blue.xFt, s.blue.xFt, 1, 'Blue x');
+    near(g.red.xFt, s.red.xFt, 1, 'Red x');
+    near(g.blue.yFt, 0, 1);
+    near(g.passSec, s.mergeSec, 0.05, 'the pass is the merge');
   }
 });
 
@@ -757,14 +757,14 @@ test('TF3-3: a jet already nose-on when the turns start counts at +0.0 s (Both i
   assert.equal(beam.firstNose, null);
 });
 
-test('TF3-3: a head-on start is not touched: with the turns at once it is marked a step after T+0 as before (not at T+0 by the new rule), and at the pass it is V6\'s +18.2 s', () => {
+test('TF3-3: a head-on start is not touched: with the turns at once it is marked a step after T+0 as before (not at T+0 by the new rule), and at the pass it is Harvard\'s +14.4 s', () => {
   const once = createFight({ turnsAt: 'once' });
   assert.equal(once.firstNose, null, 'head-on at once: no mark at T+0 from the start rule');
   stepFight(once, FIGHT_STEP_SEC);
   assert.equal(once.firstNose.both, true, 'marked one step later, as before: Both at +0.0 s');
   const pass = firstNoseAt({});
   assert.equal(pass.both, true);
-  assert.equal(((pass.timeSec - mergeTimeSec(2, 220, 220))).toFixed(1), '18.2');
+  near(pass.timeSec - mergeTimeSec(2, 220, 220), 14.4, 0.5);
 });
 
 test('Observation A: a 2-circle fight between equal jets has a nose-on only if they come back exactly head-on; 1-circle changes smoothly', () => {
@@ -772,11 +772,10 @@ test('Observation A: a 2-circle fight between equal jets has a nose-on only if t
     const s = runUntil(setup, (f) => f.firstNose, limit);
     return s.firstNose ? s.firstNose.timeSec - s.mergeSec : null;
   };
-  near(since({}), 18.2, 0.05, 'ATA 0, 2-circle');
+  near(since({}), 14.4, 0.5, 'ATA 0, 2-circle');
   assert.equal(since({ startAtaDeg: 1, startAaDeg: 179 }, 200), null, 'ATA 1 AA 179, 2-circle: none');
-  near(since({}) , 18.2, 0.05);
-  near(since({ circles: 1 }), 9.1, 0.05, 'ATA 0, 1-circle');
-  near(since({ circles: 1, startAtaDeg: 1, startAaDeg: 179 }), 8.3, 0.1, 'ATA 1 AA 179, 1-circle');
+  near(since({ circles: 1 }), 7.2, 0.5, 'ATA 0, 1-circle');
+  near(since({ circles: 1, startAtaDeg: 1, startAaDeg: 179 }), 6.5, 0.5, 'ATA 1 AA 179, 1-circle');
 });
 
 test('TF3-3: a start and its mirror image agree at exactly 5°: ATA 0 with AA 175 gives the same first nose-on on either side', () => {

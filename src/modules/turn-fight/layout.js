@@ -85,7 +85,8 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const intro = h('p', { class: 'tf-intro' }, 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.1', h('span', { class: 'tf-version-sub' }, '• Harvard II 5.0 G'));
+  const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
@@ -240,13 +241,14 @@ export function createLayout({ settings, controls, on }) {
   const resetButton = h('button', { type: 'button', class: 'button', onclick: () => on.reset() }, 'Reset');
   const timeText = h('span', { class: 'tf-pill tf-time' }, 'T+0.0');
   const phaseText = h('span', { class: 'tf-pill tf-phase' }, 'HEAD-TO-HEAD');
+  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.1: Harvard II 5.0 G Standard' }, 'v2.1 · 5.0 G');
   const toolbar = h(
     'div',
     { class: 'tf-toolbar' },
     playButton, resetButton,
     controls.viewSwitch(),
     controls.select('playbackRate', { label: 'Playback speed', options: times(ALLOWED.playbackRate) }),
-    timeText, phaseText,
+    timeText, phaseText, versionPill,
   );
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
   // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.

@@ -10,10 +10,10 @@ import {
   DEFAULTS, FIGHT_KEYS, G_LABEL, RANGES, ALLOWED, setupFrom, setupKey, saneFix, v6Defaults,
 } from '../../../src/modules/turn-fight/state.js';
 
-test('every setting opens at V6\'s value: 2-circle, 2 NM, 220 KTAS, 4 G, extras off, pitch 0°, height 2×, playback 1×', () => {
+test('every setting opens at Harvard default: 2-circle, 2 NM, 220 KTAS, 5 G, extras off, pitch 0°, height 2×, playback 1×', () => {
   assert.equal(DEFAULTS.circles, 2);
   assert.equal(DEFAULTS.separationNm, 2);
-  assert.deepEqual([DEFAULTS.blueKt, DEFAULTS.redKt, DEFAULTS.blueG, DEFAULTS.redG], [220, 220, 4, 4]);
+  assert.deepEqual([DEFAULTS.blueKt, DEFAULTS.redKt, DEFAULTS.blueG, DEFAULTS.redG], [220, 220, 5, 5]);
   assert.deepEqual([DEFAULTS.chase, DEFAULTS.vertical, DEFAULTS.energy], [false, false, false]);
   assert.deepEqual([DEFAULTS.bluePitchDeg, DEFAULTS.redPitchDeg], [0, 0]);
   assert.equal(DEFAULTS.heightScale, 2);
@@ -67,7 +67,7 @@ test('setupFrom picks only the fight\'s numbers; display settings are not part o
 
 test('changing the setup changes its key; playback speed, height scale and column state do not (#20)', () => {
   const base = setupKey(DEFAULTS);
-  for (const change of [{ circles: 1 }, { separationNm: 3 }, { blueKt: 230 }, { redKt: 230 }, { blueG: 5 }, { redG: 5 },
+  for (const change of [{ circles: 1 }, { separationNm: 3 }, { blueKt: 230 }, { redKt: 230 }, { blueG: 6 }, { redG: 6 },
     { chase: true }, { vertical: true }, { bluePitchDeg: 10 }, { redPitchDeg: -10 },
     { startAtaDeg: 30 }, { startAaDeg: 90 }, { redAboveFt: 1000 }, { turnsAt: 'once' }]) {
     assert.notEqual(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
@@ -92,7 +92,7 @@ test('Reset to V6 defaults puts back the fight, Energy and the display settings,
 
 test('a saved number outside its range is put back to the default; good ones stay', () => {
   assert.deepEqual(saneFix({ ...DEFAULTS, blueKt: 500, redG: 0.2, separationNm: 11, bluePitchDeg: 61, redKt: 100 }), {
-    blueKt: 220, redG: 4, separationNm: 2, bluePitchDeg: 0,
+    blueKt: 220, redG: 5, separationNm: 2, bluePitchDeg: 0,
   });
   assert.deepEqual(saneFix(DEFAULTS), {});
   assert.deepEqual(saneFix({ ...DEFAULTS, blueKt: 60, blueG: 9, separationNm: 0.5, redPitchDeg: -60 }), {});

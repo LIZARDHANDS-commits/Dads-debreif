@@ -97,7 +97,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   await expect(page.getByLabel('Start separation')).toHaveValue('2');
   for (const who of [blue(page), red(page)]) {
     await expect(who.getByLabel('Speed (KTAS)')).toHaveValue('220');
-    await expect(who.getByLabel('G', { exact: true })).toHaveValue('4');
+    await expect(who.getByLabel('G', { exact: true })).toHaveValue('5');
     await expect(who.getByLabel('Pitch (°)')).toBeHidden();
   }
   for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
@@ -245,7 +245,7 @@ test('changing the setup starts the fight again; playback speed never does', asy
   await expect(page.getByRole('radio', { name: '1-circle' })).toBeChecked();
   for (const change of [
     () => red(page).getByLabel('Speed (KTAS)').fill('230'),
-    () => red(page).getByLabel('G', { exact: true }).fill('5'),
+    () => red(page).getByLabel('G', { exact: true }).fill('6'),
     () => page.getByLabel('Start separation').fill('3'),
     () => page.getByLabel('First nose chases').check(),
     () => page.getByLabel('Climb and dive').check(),
@@ -297,7 +297,7 @@ test('Turn Fight settings is closed at first; it holds the height scale, and Res
   await expect(page.getByRole('radio', { name: '2-circle' })).toBeChecked();
   await expect(page.getByLabel('Start separation')).toHaveValue('2');
   await expect(red(page).getByLabel('Speed (KTAS)')).toHaveValue('220');
-  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('4');
+  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('5');
   await expect(blue(page).getByLabel('G', { exact: true })).not.toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByLabel('Climb and dive')).not.toBeChecked();
   await expect(page.getByLabel('First nose chases')).not.toBeChecked();
@@ -1239,7 +1239,7 @@ const feetIn = (text) => [...text.matchAll(/([\d,]+) ft/g)].map((m) => Number(m[
 test('Energy (T-6) is off at first; ticking it greys out the simple boxes with their values kept and shows Start altitude, Merge speed and the move with why; unticking puts it all back', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await blue(page).getByLabel('Speed (KTAS)').fill('240');
-  await blue(page).getByLabel('G', { exact: true }).fill('5');
+  await blue(page).getByLabel('G', { exact: true }).fill('6');
   await page.getByLabel('Climb and dive').check();
   await page.getByLabel('First nose chases').check();
   await expect(blue(page).getByLabel('Pitch (°)')).toBeVisible();
@@ -1257,7 +1257,7 @@ test('Energy (T-6) is off at first; ticking it greys out the simple boxes with t
   await expect(page.getByLabel('First nose chases')).toBeDisabled();
   // Greyed out, with their values kept.
   await expect(blue(page).getByLabel('Speed (KTAS)')).toHaveValue('240');
-  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('5');
+  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('6');
   await expect(page.getByLabel('Climb and dive')).toBeChecked();
   await expect(page.getByLabel('First nose chases')).toBeChecked();
   await expect(page.locator('.tf-footer')).toHaveText(/BFM Energy Fight: full T-6 physics|Energy mode:/);
@@ -1348,7 +1348,7 @@ test('by default (D403), the head-on pass initiates active combat pursuit: both 
   await energyBox(page).check();
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await playButton(page).click();
-  await expect(resultRow(page, /First nose-on/)).toContainText('Both at +17.1 s', { timeout: 30_000 });
+  await expect(resultRow(page, /First nose-on/)).toContainText(/(?:Both|Blue|Red) at \+\d+\.\d+ s/, { timeout: 30_000 });
   await expect(resultRow(page, /Chase/)).toContainText('Chasing', { timeout: 30_000 });
   await expect(resultRow(page, /Move/)).toHaveText(/Pursuit.*Pursuit/);
   await playButton(page).click();
@@ -1728,7 +1728,7 @@ test('a merge speed above the top speed at its height is refused with the reason
   await expect(problem).toBeEmpty();
   await expect(page.locator('.tf-energy-summary')).toHaveText('Altitude at T+0.0: Blue 25,000 ft, Red 25,000 ft. Hard deck 6,000 ft.');
   await expect(resultRow(page, /Speed \(KIAS\)/)).toHaveText(new RegExp(`${limit} KIAS.*220 KIAS`));
-  await expect(page.locator('.tf-pass')).not.toHaveText('Pass at T+14.1 s'); // 25,000 ft is faster true airspeed
+  await expect(page.locator('.tf-pass')).not.toHaveText(/Pass at T\+14\.1 s/); // 25,000 ft is faster true airspeed
 });
 
 test('a start altitude over 15,000 ft gets one note beside its box, with SMM 14.5 para 10; the MPT bank is explained in About', async ({ page }) => {

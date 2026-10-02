@@ -43,13 +43,14 @@ export const V6_DEFAULT_SETUP = Object.freeze({
   separationNm: 2,
   blueKt: 220,
   redKt: 220,
-  blueG: 4,
-  redG: 4,
+  blueG: 5,
+  redG: 5,
   chase: false,
   vertical: false,
   bluePitchDeg: 0,
   redPitchDeg: 0,
 });
+export const HARVARD_DEFAULT_SETUP = V6_DEFAULT_SETUP;
 
 // The start geometry's own defaults and helpers live in geometry.js (R28).
 export { START_DEFAULTS };

@@ -1134,8 +1134,13 @@ function stepAircraft(state, ac, other, d) {
   const cmd = controlFor(ctx);
 
   // A forced G is pulled as it is, past the stall line if need be.
+  // In normal flight, the model pilot rides the stick shaker to stay out of high-speed / accelerated stall.
   let gWanted = cmd.g;
-  if (c.forceG !== null && c.mode !== 'pursuit') gWanted = c.forceG;
+  if (c.forceG !== null && c.mode !== 'pursuit') {
+    gWanted = c.forceG;
+  } else {
+    gWanted = Math.min(gWanted, ctx.shaker);
+  }
 
   // Stall: the pull needs more than the stall line, or the speed is under the stall speed.
   // STALL starts when that becomes true and lasts stallSec, and for as long as the speed is under the
@@ -1171,8 +1176,9 @@ function stepAircraft(state, ac, other, d) {
     g = c.forceG === null ? Math.min(gWanted, ctx.shaker) : gWanted;
   }
 
-  // Bank changes at the roll rate, never instantly. When stalled, aerodynamic roll authority is lost (bank freezes).
-  const maxRollDelta = ac.stall ? 0 : degToRad(p.rollRateDegPerSec) * d;
+  // Bank changes at the roll rate, never instantly. When stalled, aerodynamic roll authority is reduced (~30%), allowing wings-level recovery.
+  const rollRate = ac.stall ? 0.3 * p.rollRateDegPerSec : p.rollRateDegPerSec;
+  const maxRollDelta = degToRad(rollRate) * d;
   const roll = rollToward(ac.bankRad, cmd.bankRad, maxRollDelta, cmd.prefer);
   ac.bankRad = roll.bank;
   ac.rollDegPerSec = radToDeg(roll.movedRad) / d;
