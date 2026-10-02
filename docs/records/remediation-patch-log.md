@@ -741,5 +741,43 @@
   - `npm run typecheck` passed (0 errors).
   - `npm run build` compiled clean in 355ms.
 
+---
+
+### PATCH-028: Pre-Phase Vector Guidance Migration Documentation Synchronization (D406, R34)
+* **Date & Time:** 2026-10-02 01:25 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`specs/SPEC-traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic.md)
+  * [`specs/SPEC-traffic-vector.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic-vector.md)
+  * [`docs/traffic-pattern-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/traffic-pattern-matrix.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/records/plan-requirements.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-requirements.md)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md)
+  * [`docs/handover/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/traffic.md)
+  * [`tasks/traffic/todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/todo.md)
+  * [`tasks/traffic/plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/plan.md)
+  * [`tasks/traffic/vector-migration-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-migration-todo.md)
+  * [`docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md)
+  * [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md)
+  * [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md)
+* **Problem / Flaw Addressed:**  
+  Traffic Sim maintained a competing hybrid flight model where 1D polyline "rails" fought 3D vector guidance, causing zero-wind turn breaks, polygonal PFL corners, speed gate mismatches, break teleportation, and 10° glide slope plunge. Architectural documentation was fragmented across `SPEC-traffic.md` and draft `SPEC-traffic-vector.md`.
+* **Changes Made:**
+  1. Unified `specs/SPEC-traffic.md`: merged 3D Cartesian vector flight engine specifications (§2–§6), track-intercept guidance, KIN/NRG performance models, and two-dropdown spawner UI while preserving UI/layout/storage sections. Formally superseded `SPEC-traffic-vector.md`.
+  2. Overwrote `docs/traffic-pattern-matrix.md` with authoritative Cartesian coordinates, headings, altitudes, and speeds for Moose Jaw RWY 29L/11R circuits and PFL profiles.
+  3. Registered Decision **D406** in `docs/records/plan-decisions.md` (Sections 4.4 and 6) and `docs/records/decisions-log.md`.
+  4. Registered Requirement **R34** in `docs/records/plan-requirements.md`.
+  5. Created standalone checklist `tasks/traffic/vector-migration-todo.md` and aligned `tasks/traffic/plan.md`, `tasks/traffic/todo.md`, `HANDOVER.md`, `docs/handover/traffic.md`, `POST_PROTOTYPE_QUEUE.md`, `.agent/memory/handoff.md`, and `docs/REMEDIATION_ROADMAP.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D389–D400**, **D406**, Requirement **R34**. Completely aligns master registers, specifications, and checklists prior to cutting code for Phase 1 (`src/modules/traffic/flight-engine.js`).
+* **Verification:**  
+  - `npm run typecheck` passed (0 errors).
+  - All 3,045 unit and crosscheck tests passed 100% green (`npm test`).
+  - All 609 traffic unit tests passing.
+  - File integrity and cross-references verified.
+
+
 
 

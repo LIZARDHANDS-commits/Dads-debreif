@@ -23,7 +23,7 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 * **Milestone 5: Final Prototype Acceptance (Gate 5)** — QUEUED
 
 ## Immediate Next Step
-1. Phase 1 — Create `src/traffic/flight-engine.js` (core flight physics, aircraft performance envelope, track intercept calculation, and bank-angle dynamics per `specs/SPEC-traffic.md` §3).
+1. Phase 1 — Create `src/modules/traffic/flight-engine.js` (core flight physics, aircraft performance envelope, track intercept calculation, and bank-angle dynamics per `specs/SPEC-traffic.md` §3).
 2. Write unit tests for `flight-engine.js` covering standard/tactical rate turns, wind triangle, and track interception.
 
 ## Waiting on Patrick

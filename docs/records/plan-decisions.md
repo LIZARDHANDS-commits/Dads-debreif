@@ -218,6 +218,7 @@ Patrick has reviewed the overnight trade-offs and officially ratified the follow
 | **D398** | Pattern naming & default startup | Decided | PAT_INNER tactical pattern; startup scenario spawns 2 aircraft (Initial 3,500 ft / 220 kt, Downwind 3,500 ft / 140 kt). (Crosscheck retirement deferred to sign-off). |
 | **D399** | Stage 1 polyline splits operational deactivation | Decided | In moose-jaw.json, set SPL1–SPL4 visible: false, splitOdds: 0; reassign A3 to PAT1; filter kind === 'split' from spawner/routes. |
 | **D400** | Closed pattern rollout, calm-wind arcs & High Key PFL | Decided | Closed pattern climbs and rolls out on 118° direct to Perch; spawner uses 'Start at point' with dynamic captions; calm-wind rounded arcs (60° break, 35° final turn); High Key 5,000 ft threshold overflight with continuous 360° circular PFL glide arc. |
+| **D406** | Vector Guidance Migration Ratification | Approved | Replace 1D scalar polyline flight control (`a.distFt`) with unified 3D Cartesian vector physics engine; routes become visual overlays; track-intercept guidance, KIN/NRG models, two-dropdown spawn UI. |
 
 ---
 
