@@ -32,7 +32,8 @@ import { bankDegFromG } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, computeWindPerch } from './route.js';
-import { stepAircraft } from './flight-engine.js'; // SIM-1: imported for future SIM-2 physics branch (not called yet)
+import { stepAircraft, calcBreakDecelSpeed } from './flight-engine.js';
+import { wrapDeg180 } from '../../core/angles.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -254,6 +255,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.trackDeg = a.headingDeg;
     a.crabDeg = 0;
     a.gsKt = a.iasKt;
+    a.blendT = 0;
+    a.blendFrom = null;
+    delete a._physicsPhase;
     return a;
   }
 
@@ -898,11 +902,133 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return;
     }
 
+    // ── SIM-2 Dynamic Physics Execution Block (D412) ───────────────────
+    const isPhysicsSim2 = a.phase === 'break' || a.phase === 'break_turn' || a.phase === 'final_turn';
+    if (isPhysicsSim2) {
+      if (a._physicsPhase !== a.phase) {
+        a._physicsPhase = a.phase;
+        a.turnAccumDeg = 0;
+        if (a.phase === 'break' || a.phase === 'break_turn') {
+          a.targetBankDeg = -60;
+          a.bankDeg = -60;
+          a.visualBankDeg = 0;
+          a.targetAltFt = 3500;
+          a.targetSpeedKt = 140;
+          a.iasKt = a.iasKt ?? 220;
+          a.kt = a.iasKt;
+          a.alt = a.alt ?? 3500;
+          a.headingDeg = a.headingDeg ?? 298;
+        } else if (a.phase === 'final_turn') {
+          a.targetBankDeg = -35;
+          a.bankDeg = -35;
+          a.visualBankDeg = -35;
+          a.targetAltFt = 2700;
+          a.targetSpeedKt = 120;
+          a.iasKt = 120;
+          a.kt = 120;
+          a.alt = a.alt ?? 3500;
+          a.headingDeg = a.headingDeg ?? 118;
+        }
+        a.blendFrom = null;
+        a.blendT = 0;
+      }
+
+      const isBreak = a.phase === 'break' || a.phase === 'break_turn';
+      const targetRolloutHdg = isBreak ? 118 : 298;
+      const diffToTarget = wrapDeg180(targetRolloutHdg - (a.headingDeg ?? targetRolloutHdg));
+
+      if (isBreak) {
+        a.visualBankDeg = Math.min(60, (a.visualBankDeg ?? 0) + 45 * STEP_SEC);
+      }
+
+      let desiredHdg;
+      if (isBreak) {
+        desiredHdg = (a.turnAccumDeg ?? 0) < 178 ? ((a.headingDeg ?? 298) - 45 + 360) % 360 : 118;
+      } else {
+        desiredHdg = ((a.turnAccumDeg ?? 0) < 165 && Math.abs(diffToTarget) > 10)
+          ? ((a.headingDeg ?? targetRolloutHdg) - 35 + 360) % 360
+          : targetRolloutHdg;
+      }
+
+      const rad = (desiredHdg * Math.PI) / 180;
+      const turnNav = {
+        waypoints: [
+          { x: a.x ?? 0, y: a.y ?? 0, alt: a.alt ?? 3500, kias: a.iasKt ?? (isBreak ? 220 : 120) },
+          { x: (a.x ?? 0) + 10000 * Math.sin(rad), y: (a.y ?? 0) + 10000 * Math.cos(rad), alt: isBreak ? 3500 : 2700, kias: isBreak ? 140 : 120 }
+        ],
+        loop: false
+      };
+      a.waypointIndex = 1;
+
+      stepAircraft(a, turnNav, { windFromDeg, windKt }, STEP_SEC);
+
+      if (isBreak) {
+        const u = Math.min(1, (a.turnAccumDeg ?? 0) / 180);
+        a.iasKt = calcBreakDecelSpeed(u);
+        a.kt = a.iasKt;
+        a.alt = 3500;
+      } else {
+        a.iasKt = 120;
+        a.kt = 120;
+      }
+
+      if (steps % TRAIL_EVERY_STEPS === 0) {
+        a.trail.push({ x: a.x, y: a.y });
+        if (a.trail.length > TRAIL_POINTS) a.trail.shift();
+      }
+
+      // Check rollout transition
+      const rolledOut = (a.turnAccumDeg ?? 0) >= 180 || Math.abs(diffToTarget) <= 5;
+      if (rolledOut || a.phase === 'inner_downwind' || (!isBreak && a.phase === 'final')) {
+        const nextPhase = isBreak ? 'downwind' : 'final';
+        a.phase = nextPhase;
+        delete a._physicsPhase;
+        a.targetBankDeg = 0;
+        a.bankDeg = 0;
+        delete a.visualBankDeg;
+        if (isBreak) {
+          a.iasKt = 140;
+          a.kt = 140;
+          a.targetSpeedKt = 140;
+        } else {
+          a.targetSpeedKt = 100;
+        }
+
+        const route = routeOf(a);
+        const options = routeOptions();
+        const rLen = routeLengthFt(route, options);
+        const lapOffset = rLen > 0 ? Math.floor(a.distFt / rLen) * rLen : 0;
+        a.distFt = lapOffset + closestDistFt(route, { x: a.x, y: a.y }, options);
+        const railPos = posOnRoute(route, a.distFt, options);
+
+        if (isBreak) {
+          a.customX = a.x;
+          a.customY = a.y;
+        } else {
+          delete a.customX;
+          delete a.customY;
+          delete a.customHeading;
+        }
+
+        // Start Hermite blend transition into rails
+        a.blendFrom = {
+          x: a.x,
+          y: a.y,
+          alt: a.alt,
+          headingDeg: a.headingDeg,
+          bankDeg: a.bankDeg ?? 0,
+          iasKt: a.iasKt ?? (railPos.kt ?? a.fallbackKt),
+        };
+        a.blendT = 0;
+      }
+      return;
+    }
+
     const route = routeOf(a);
     const options = routeOptions();
     const before = a.distFt;
     const p = whereIs(a, route);
-    if (a.phase !== 'closed_pattern' && a.phase !== 'touch_and_go' && a.phase !== 'downwind') {
+    if (a.phase !== 'closed_pattern' && a.phase !== 'touch_and_go' && a.phase !== 'downwind' && a.phase !== 'final') {
       a.phase = p.phase || (route.kind === 'pattern' ? 'initial' : 'route');
     }
 
@@ -1077,6 +1203,24 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.x = a.customX ?? cur.x;
     a.y = a.customY ?? cur.y;
     a.alt = a.customAlt ?? (cur.alt ?? a.fallbackAlt);
+
+    if (a.blendFrom !== null) {
+      a.blendT = Math.min(1.0, a.blendT + STEP_SEC / 2.0); // 2.0 second blend
+      const s = a.blendT * a.blendT * (3 - 2 * a.blendT); // cubic Hermite smoothstep
+      a.x = (1 - s) * a.blendFrom.x + s * a.x;
+      a.y = (1 - s) * a.blendFrom.y + s * a.y;
+      a.alt = (1 - s) * a.blendFrom.alt + s * a.alt;
+      const targetHdg = a.customHeading ?? headingDeg;
+      const dHdg = wrapDeg180(targetHdg - a.blendFrom.headingDeg);
+      a.headingDeg = ((a.blendFrom.headingDeg + s * dHdg) % 360 + 360) % 360;
+      a.bankDeg = (1 - s) * a.blendFrom.bankDeg + s * (a.bankDeg ?? 0);
+      a.iasKt = (1 - s) * a.blendFrom.iasKt + s * (a.customKt ?? iasKt);
+
+      if (a.blendT >= 1.0) {
+        a.blendFrom = null;
+        a.blendT = 0;
+      }
+    }
 
     if (steps % TRAIL_EVERY_STEPS === 0) {
       a.trail.push({ x: a.x, y: a.y });
@@ -1508,6 +1652,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.iasKt = 100;
           a.headingDeg = p.headingDeg;
           a.bankDeg = 0;
+          delete a.visualBankDeg;
+          delete a._physicsPhase;
           a.phase = 'touch_and_go';
         }
       }
@@ -1522,16 +1668,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const route = routeOf(a);
         const p = whereIs(a);
         const isDownwind = route?.id === 'PAT1' && a.phase === 'downwind';
-        const iasKt = a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt));
-        const altFt = a.landed ? (p.alt ?? 1892) : (a.customAlt ?? (p.alt ?? a.fallbackAlt));
+        const isPhysics = a.phase === 'break' || a.phase === 'break_turn' || a.phase === 'final_turn';
+        const iasKt = isPhysics ? (a.iasKt ?? a.kt) : (a.customKt ?? (isDownwind ? 140 : (p.kt ?? a.fallbackKt)));
+        const altFt = isPhysics ? a.alt : (a.landed ? (p.alt ?? 1892) : (a.customAlt ?? (p.alt ?? a.fallbackAlt)));
         const x = a.customX ?? a.x ?? p.x;
         const y = a.customY ?? a.y ?? p.y;
         const headingDeg = a.customHeading ?? (a.headingDeg ?? p.headingDeg);
+        const bankDeg = a.visualBankDeg !== undefined ? Math.abs(a.visualBankDeg) : Math.abs(a.bankDeg ?? 0);
         return {
           id: a.id, type: a.type, color: a.color, routeId: a.routeId,
           x, y, alt: altFt, kt: iasKt,
           headingDeg,
-          bankDeg: a.bankDeg ?? 0,
+          bankDeg,
           phase: a.phase ?? 'initial',
           trackDeg: a.trackDeg ?? a.customHeading ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
