@@ -1,9 +1,15 @@
-# Authoritative Specification: 3D Vector Aerodynamics & Flight Guidance Engine (Traffic Sim)
+# SUPERSEDED — merged into SPEC-traffic.md on 2026-10-02
 
-**Document ID:** `SPEC-traffic-vector`  
+> **NOTICE**: This specification is obsolete and has been superseded.  
+> All authoritative 3D vector guidance, aerodynamic baseline, flight state machine, and pattern definitions have been merged into [`specs/SPEC-traffic.md`](SPEC-traffic.md).  
+> Coordinate definitions live in [`docs/traffic-pattern-matrix.md`](../docs/traffic-pattern-matrix.md).
+
+# Authoritative Specification: 3D Vector Aerodynamics & Flight Guidance Engine (Traffic Sim) (ARCHIVAL REFERENCE ONLY)
+
+**Document ID:** `SPEC-traffic-vector` (SUPERSEDED)  
 **Applicability:** `src/modules/traffic/` (Moose Jaw CYMJ Runway 29L Left-Hand Circuit)  
-**Parent Specifications:** `specs/SPEC-traffic.md`, `HANDOVER.md`, `docs/REMEDIATION_ROADMAP.md`  
-**Ratified Decisions:** D370 (Closed-loop flight), D371 (Pilot domain tolerances), D373/D378 (CYMJ 29L LH ground truth), D382 (60° break, 45° final turn), D389 (Dynamic perch drift compensation), D390 (Vector simulation & 3D suite), D391 (35° target bank, closed pattern to inner downwind, roll rates).
+**Parent Specifications:** `specs/SPEC-traffic.md` (unified), `HANDOVER.md`, `docs/REMEDIATION_ROADMAP.md`  
+**Ratified Decisions:** D370 (Closed-loop flight), D371 (Pilot domain tolerances), D373/D378 (CYMJ 29L LH ground truth), D382 (60° break, 45° final turn), D389 (Dynamic perch drift compensation), D390 (Vector simulation & 3D suite), D391 (35° target bank, closed pattern to inner downwind, roll rates), D406 (Vector Guidance Migration Ratification).
 
 ---
 

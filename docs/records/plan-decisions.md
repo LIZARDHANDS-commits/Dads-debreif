@@ -1,11 +1,11 @@
-<!-- Copied from the plan doc Decisions tab at the handover, 30 Sep 2026. D1-D146, D158-D159, and D357-D405 are Patrick's own decisions; "Proposed" rows are judgement calls that count as accepted unless he rejects them. Add new decisions at the end with the next number. -->
+<!-- Copied from the plan doc Decisions tab at the handover, 30 Sep 2026. D1-D146, D158-D159, and D357-D406 are Patrick's own decisions; "Proposed" rows are judgement calls that count as accepted unless he rejects them. Add new decisions at the end with the next number. -->
 
 # Master Decisions Register: By Category & Chronological Index
 
 > [!IMPORTANT]
 > **Unified Single Decisions Source of Truth:**
 > - **TOP (Sections 1–5):** Structured, categorized decisions directory by module, V6 decoupling audit, and designer reference.
-> - **BOTTOM (Section 6):** Complete chronological register (D1 through D405) with full historical rationale and status updates.
+> - **BOTTOM (Section 6):** Complete chronological register (D1 through D406) with full historical rationale and status updates.
 
 # Master Decisions Directory by Module & V6 Audit Review
 
@@ -754,6 +754,8 @@ Every design decision goes here with the reason for it, so nobody has to re-argu
 | 403 | Turn Fight Energy Mode chaseAfterHeadOn Defaulted to True: In Energy Mode, `chaseAfterHeadOn` is defaulted to `true` (previously `false`). When aircraft pass head-on at the merge or re-merge, they actively break out of passive MPT orbits into combat vector pursuit (`controlPursuit`), pulling lead/pure pursuit and diving to convert energy for weapons employment. | Ratified by Patrick (01 Oct 2026 07:20Z) based on John Boyd Energy-Maneuverability (E-M) doctrine and authentic BFM flow. Eliminates passive circular orbiting and initiates real dogfight re-engagement. | Patrick, 01 Oct 2026 07:20Z | Decided |
 | 404 | Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation: When aircraft engage with altitude separation (blueAltFt !== redAltFt), nose-on detection evaluates azimuth line-of-sight tracking within 5° (noseOffAzDeg <= FIRST_NOSE_DEG), initiating 3D combat pursuit. If one aircraft initiates pursuit, the second aircraft also enters pursuit once its nose tracks across the opponent. | Resolves mathematical deadlock where 2,000 ft altitude splits created 55°+ 3D elevation offsets in level MPT turns, preventing pursuit initiation; aligns with D386 and real BFM. | Patrick & Antigravity, 01 Oct 2026 08:05Z | Decided |
 | 405 | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry: When an aircraft stalls, it loses aerodynamic roll/pitch authority (bank freezes, maxRollDelta = 0) and cannot track or claim nose-on or pursuit win (isAcNoseOn and onTheOther require !ac.stall). Across vertical separation, azimuth acquisition engages both fighters from level MPT into 3D combat pursuit only after the merge pass (timeSec > mergeSec + 1.0 and both in MPT), preventing premature abort of user-commanded maneuvers (e.g. Immelmann) at T=0. Higher-energy aircraft legitimately win while low-energy aircraft stall during zoom climbs per Boyd E-M physics. | Respects Boyd E-M physics and aerodynamic ground truth: stalled aircraft lose control authority; fighters complete opening maneuvers before 3D pursuit; prevents low-energy stalled aircraft from falsely winning. | Patrick & Antigravity, 01 Oct 2026 08:50Z | Decided |
+| 406 | Vector Guidance Migration Ratification — Unified Flight Engine for Traffic Sim: Replace the 1D scalar polyline flight control (`a.distFt`) with a unified 3D Cartesian vector physics flight engine. All aircraft are always physics-driven. Routes become visual display overlays. Track intercept guidance, KIN/NRG dual performance model, two-dropdown spawn UI. Spec: `specs/SPEC-traffic.md`. Pattern matrix: `docs/traffic-pattern-matrix.md`. | Replaces hybrid rails/vector architecture with single unified 3D physics flight engine; resolves zero-wind turn breaks, PFL shape bugs, and glide slope plunges. | Patrick, 02 Oct 2026 | Approved |
+
 
 
 

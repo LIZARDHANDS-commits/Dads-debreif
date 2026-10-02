@@ -50,7 +50,7 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Built from 07:15Z (D134); pause
   - Verify: unit tests of the profile checks; e2e save, reload, load.
   - Dependencies: 6. Size M.
   - Files: src/modules/traffic/profile.js, src/modules/traffic/index.js, tests/unit/traffic/profile.test.js
-- [ ] **8. Satellite photo and 3D view.** *Built: PR #229 (CI green, not merged). No more 3D work (Streamlined build).* The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view on ui-kit's shared `three-aircraft.js` (Patrick 07:51Z), loaded only when 3D is switched on: routes at their heights, the shared T-6 for the CT-156 and CT-157 and a simple shape for the other types, banking with their turns, framed on the routes, drag, wheel and three buttons, caution rings in 3D; 2D stays the default.
+- [x] **8. Satellite photo and 3D view.** *Done: PR #229 merged to main (commit 64cc09a). No more 3D work (Streamlined build).* The photo from ui-kit's tile loader with the Esri credit, the profile's alignment and Reset photo alignment; the 3D view on ui-kit's shared `three-aircraft.js` (Patrick 07:51Z), loaded only when 3D is switched on: routes at their heights, the shared T-6 for the CT-156 and CT-157 and a simple shape for the other types, banking with their turns, framed on the routes, drag, wheel and three buttons, caution rings in 3D; 2D stays the default.
   - Acceptance: fixes the photo and 3D parts of #49; with the network off the map says the photo needs a connection; smooth at 8× on 1920 × 1080 (performance log in the PR).
   - Verify: e2e offline; look at both against V6.
   - Dependencies: 4; the tile loader is in ui-kit (`map-tiles.js`, #133); the 3D view uses the shared three.js piece once the app frame lands it. Size M.
@@ -161,3 +161,42 @@ Spec approved by Patrick on 2026-09-30 (06:43Z). Built from 07:15Z (D134); pause
   - Verify: `npm test` runs the scenarios; the report is attached to the PR.
   - Dependencies: 16, 18, and core's T-6A model. Size S.
   - Files: tests/crosscheck/traffic-scenarios.test.js, src/modules/traffic/data/crosscheck-scenarios.json
+
+## Vector Guidance Migration (D406)
+
+Spec: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md) | Pattern Matrix: [`docs/traffic-pattern-matrix.md`](../../docs/traffic-pattern-matrix.md) | Requirements: R34
+
+### Pre-Phase: Documentation Sync
+- [x] Merge `SPEC-traffic.md` + `SPEC-traffic-vector.md` into one unified spec in repo
+- [x] Commit `refined_pattern_matrix.md` to `docs/traffic-pattern-matrix.md`
+- [x] Register D406 (Vector Guidance Migration ratification) in `docs/records/plan-decisions.md` & `docs/records/decisions-log.md`
+- [x] Register R34 (Traffic Sim 3D Vector Flight Engine) in `docs/records/plan-requirements.md`
+- [x] Update: HANDOVER.md, docs/handover/traffic.md, tasks/traffic/todo.md, tasks/traffic/plan.md, POST_PROTOTYPE_QUEUE.md, .agent/memory/handoff.md
+- [x] Create standalone checklist `tasks/traffic/vector-migration-todo.md`
+
+### Phase 1: Core Flight Engine (`flight-engine.js`)
+- [ ] Task 1.1: Create `flight-engine.js` — track intercept guidance (`stepAircraft()`, cross-track, along-track, lead turns, wind crab)
+- [ ] Task 1.2: KIN performance model (linear accel/decel, break $V^2$ drag decel, final turn cubic descent)
+- [ ] Task 1.3: NRG performance model (`excessThrustPerWeight()`, `glideSinkFpm()`, energy gate, config management, $V_{fe}$ guard)
+- [ ] Task 1.4: Phase state machine (transitions across circuit & emergency phases)
+
+### Phase 2: Pattern Definitions (`nav-plans.js`)
+- [ ] Task 2.1: Define all nav plans in `nav-plans.js` using `docs/traffic-pattern-matrix.md` coordinates
+- [ ] Task 2.2: Pattern-specific guidance overrides (break arc, perch pursuit, cubic descent, 3.0° glide slope, PFL orbit)
+
+### Phase 3: Integration (`sim.js` Swap)
+- [ ] Task 3.1: Replace rails in `sim.js` (`fly(a)` calls `stepAircraft()`)
+- [ ] Task 3.2: Migrate existing command blocks (breakout, PFL, go-around, closed pattern)
+- [ ] Task 3.3: Sync display via `scene.js`
+- [ ] Task 3.4: Update tests (`sim.test.js`, `vector-sim.test.js`, `route.test.js`)
+
+### Phase 4: Spawn UI Redesign
+- [ ] Task 4.1: Build two-dropdown spawn UI (Pattern + Start Point) with PFL "From Area" inputs
+- [ ] Task 4.2: Clean up aircraft types (remove fictional CT-157, confirm Harvard default)
+- [ ] Task 4.3: Fix aircraft disappearance (never drop without explicit landing; fallback to OHB)
+
+### Phase 5: Polish & Cleanup
+- [ ] Task 5.1: Settings panel cleanup (retire dead rounded-turns options)
+- [ ] Task 5.2: Visual polish (solid patterns, dotted entries)
+- [ ] Task 5.3: Reset button label ("Reset to Standard Defaults", D384)
+
