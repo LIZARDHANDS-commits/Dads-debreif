@@ -103,3 +103,38 @@ Spec approved by Patrick on 2026-09-30. See [`plan.md`](plan.md), [`SPEC-turn-fi
 
 - [x] **10.10 Checkpoint D & Patrick's Gate 2 Sign-Off Readiness.**
   - READY FOR PATRICK. Manual checklist walkthrough at `docs/checklists/turn-fight.md`.
+
+---
+
+## Remediation Plan v2 (Post-Audit Ratified Tasks)
+
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Plan: [`plan.md`](plan.md).
+Master Plan: [`turn_fight_remediation_v2.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_remediation_v2.md).
+
+- [ ] **11. Phase 1: Flight Math — Immelmann G-Law (D406).**
+  - [ ] 11.1 Update `MANEUVER_PULL_G = 5` in `src/modules/turn-fight/energy-sim.js:66` (Harvard II routinely pulls 5 G in tactical maneuvers).
+  - [ ] 11.2 Update 7 unit tests in `tests/unit/turn-fight/energy-sim.test.js` to assert 5.0 G maneuver pull within pilot domain tolerances (D371). Verify full test suite passes.
+
+- [ ] **12. Phase 2: Engagement Logic — D386, Ghost Pursuit, Schema, Altitude Gate (D410).**
+  - [ ] 12.1 Wire D386 `isNoseOn()` into `src/modules/turn-fight/sim.js:checkFirstNose()`: activate the 10° elevation capture cone for Simple Mode Climb/Dive merges.
+  - [ ] 12.2 Implement D386 elevation cone in `src/modules/turn-fight/energy-sim.js:isAcNoseOn()`: evaluate azimuth $\le 5^\circ$ AND elevation $\le 10^\circ$ across altitude differences.
+  - [ ] 12.3 Fix ghost pursuit in `src/modules/turn-fight/energy-sim.js:1303-1311`: set `state.firstNose` and `state.chase` when altitude separation fallback triggers pursuit.
+  - [ ] 12.4 Dynamic altitude separation gate: update `setup.blueAltFt !== setup.redAltFt` to dynamic check `Math.abs(state.blue.zFt - state.red.zFt) >= 100` (D371).
+  - [ ] 12.5 Standardize `firstNose` schema across both modes: unify on `{ by: 'both' }` pattern; update `src/modules/turn-fight/readouts.js:45` to check `mark.by === 'both'`.
+
+- [ ] **13. Phase 3: Display & Readouts.**
+  - [ ] 13.1 Fix inverted Aspect Angle calculation in `src/modules/turn-fight/readouts.js:113` (`180 - ataDeg(state, other, from)`).
+  - [ ] 13.2 Add Aspect Angle row to Energy Mode readouts table in `src/modules/turn-fight/energy-readouts.js`.
+  - [ ] 13.3 Add API key adapter in `src/modules/turn-fight/playback.js` / `state.js` mapping Simple Mode keys (`startAtaDeg`, `startAaDeg`, `turnsAt`) to Energy Mode keys (`ataDeg`, `aaDeg`, `turnsStart`).
+  - [ ] 13.4 Remove residual user-facing V6 text references in `src/modules/turn-fight/layout.js:215` and `geometry.js:150`; tighten test regex in `tests/e2e/turn-fight.spec.js:17`.
+
+- [ ] **14. Phase 4: UI Labels & Mode Descriptions (D408).**
+  - [ ] 14.1 Rename modes with one-line descriptions in `src/modules/turn-fight/layout.js`: "Turn Circle Geometry" vs. "BFM Energy Fight".
+  - [ ] 14.2 Add bank angle readout derived from G ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
+  - [ ] 14.3 Update 1-circle / 2-circle help text per BFM doctrine: Rate Fight (2-circle) vs. Radius Fight (1-circle).
+  - [ ] 14.4 Relabel `chaseAfterHeadOn` to "Chase from head-on" in More Settings with one-line tooltip.
+
+- [ ] **15. Phase 5: Documentation Sync & Verification.**
+  - [ ] 15.1 Record decisions D406–D410 in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+  - [ ] 15.2 Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `.agent/memory/handoff.md`.
+  - [ ] 15.3 Run full verification: `npm test` (all 3,045+ pass), `npm run typecheck` (0 errors), `npm run build` (clean), `npx playwright test tests/e2e/turn-fight.spec.js`.

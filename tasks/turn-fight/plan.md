@@ -1,93 +1,67 @@
-# Turn Fight: Implementation Plan
+# Turn Fight: Implementation & Remediation Plan
 
 Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md), approved by Patrick. Tasks: [`todo.md`](todo.md).
-Master Plan: [`turn_fight_completion_plan.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_completion_plan.md).
-
-## Current Status & Context
-
-- **Simple Mode & 3D Baseline (Tasks 1–7):** Merged to `main` through PRs #141, #145, #219. Simple 2D flat 1v1 fight, top-down view, 3D Harvard II view, start geometry, and readouts are live.
-- **Energy Simulation Engine (Tasks 8–9):** Merged to `main` through PRs #209, #227, #235 (`energy-sim.js`, 1,360 lines of point-mass 3D aero, full torque, MPT capture at 160 KIAS, `evenFight`).
-- **Energy UI & Tactical 3D Suite (Task 10 / PR 4):** Staged from `handover/turn-fight-energy-screen` (`226729d`). Completes the Energy Screen, eliminates 8 forensic V6 traps, adds the Tactical 3D Suite (dotted vertical plumb lines & ground-shadow contact discs), stabilizes e2e tests, and synchronizes all master documentation for Milestone 2 / Gate 2 sign-off.
-
-## Waits on
-
-| Needed for | What | Owner | Status |
-|---|---|---|---|
-| Execution | Traffic Sim PR 3 (D390) merge to `main` | Traffic thread | Merged to main (`f86ef86`) |
-| Task 10.1 | Branch integration `handover/turn-fight-energy-screen` | Turn Fight thread | Merged and resolved |
-| Verification | Gate 2 sign-off run by Patrick | Patrick | READY FOR PATRICK (`docs/checklists/turn-fight.md`) |
-
-## Execution Phases & Architecture
-
-### Phase 1: Clean Upstream & Branch Merge
-- When Traffic Sim merges D390 to `main`, pull `main` and ensure clean working tree.
-- Staged branch `origin/handover/turn-fight-energy-screen` (`226729d`) normalized to LF line endings.
-
-### Phase 2: Aero Limits & MPT Range Calibration (Resolving Traps 4, 5, 7, D392)
-- `src/modules/turn-fight/state.js`:
-  - Hook up `topKiasAt(altFt)` directly to `energyTopKias(altFt)` imported from `energy-sim.js:55`.
-  - Refusal note: `"(269 KIAS in the model, Mach 0.67; the NFM's 279 is the same Mach on the gauge)"`.
-  - Enforce MPT speed box range 125–175 KIAS (D349).
-  - Enforce D381: prohibit Immelmann selection when merge speed $\le 140$ KIAS.
-  - Rename `v6Defaults()` to `standardDefaults()` (D384) with `export const v6Defaults = standardDefaults;` for compatibility.
-- `src/modules/turn-fight/energy-sim.js`:
-  - Enforce D381: update `immelmannMinTopKias` and `splitSBelowKias` to 140 kt.
-  - Enforce D392 in `controlImmelmann` (`energy-sim.js:832`): pull 5.0 G until at stick shaker, then ride the shaker (`Math.min(5.0, ctx.shaker)`).
-- `tests/unit/turn-fight/energy-layout.test.js` & `energy-state.test.js`:
-  - Update expectations to 125–175 KIAS and 269 kt corner speed; verify all 500 unit tests pass.
-
-### Phase 3: Setup Error Containment & Playback Robustness
-- `src/modules/turn-fight/state.js` & `playback.js`:
-  - Verify `startEnergyRun` in `src/modules/turn-fight/state.js:292` handles setup `RangeError` (message starting `"Turn Fight energy setup: "`) via `isSetupError` and logs `energyProblem`.
-  - Ensure any non-setup `RangeError` is rethrown cleanly without suppression.
-- `tests/unit/turn-fight/energy-state.test.js`:
-  - Add unit tests verifying both setup `RangeError` capture and unexpected `RangeError` rethrow in `startEnergyRun`.
-
-### Phase 4: Simple Mode Aerodynamic & Kinematic Traps Remediation (Traps 1, 2, 3, 6, 8)
-- **Trap 1 (`sim.js:337`):** Remove coordinate snap `if (state.headOn) { blue.xFt = 0; ... }`; allow continuous mathematical flight.
-- **Trap 2 (`sim.js:348-352`):** Direct chase steering only to the first-nose winner; loser maintains defensive turn geometry instead of mutual head-on collision.
-- **Trap 3 (`sim.js:102-120`):** Implement D386: in Climb/Dive vertical mode, evaluate line-of-sight with an explicit **10° elevation capture cone**:
-  - Azimuth off-nose: $\Delta \text{Az} = \text{absAngleDeg}(\text{lineOfSightRad}(\text{from}, \text{to}) - \text{from.headingRad}) \le 5.0^\circ$.
-  - Target elevation angle: $\theta_{\text{los}} = \text{radToDeg}(\text{atan2}(\Delta z, \text{hypot}(\Delta x, \Delta y)))$.
-  - Elevation off-nose: $\Delta \text{El} = |\text{radToDeg}(\text{from.pitchRad}) - \theta_{\text{los}}| \le 10.0^\circ$.
-  - Nose-on in Climb/Dive triggers if $\Delta \text{Az} \le 5.0^\circ$ AND $\Delta \text{El} \le 10.0^\circ$.
-- **Trap 8 (`sim.js:276`):** Guard nose check at start: `if (state.firstNose) return; if (state.headOn && !state.setup.vertical) return;`.
-- **Trap 6 & UI Polish:**
-  - `layout.js:150`: Relabel `'Head-on (V6)'` to `'Neutral Head-on'` (D368/D372).
-  - Relabel Reset buttons to **"Reset to Standard Defaults"** (D384).
-  - Grey out Red's height input when Climb & Dive is disabled.
-  - `readouts.js`: Label More detail time row `"Time since the turns started"` when turns start at once or without a pass mark.
-
-### Phase 5: Tactical 3D Suite Implementation (D392)
-- `src/modules/turn-fight/view3d.js`:
-  - Pure helpers `computePlumbGeometry(pose, floorZ)` and `computeFloorZ(fight, bounds)`.
-  - Construct `gl.plumbLines` (Blue `#58a6ff` and Red `#ff6b6b`) using `THREE.LineDashedMaterial` (`dashSize: 20, gapSize: 15, opacity: 0.65`). Call `computeLineDistances()` on each frame.
-  - Construct `gl.shadowDiscs` using `THREE.Mesh` and `THREE.RingGeometry(0, 35, 32)` with `THREE.MeshBasicMaterial` (`opacity: 0.35, depthWrite: false`) positioned at $(x, y, floorZ + 1.0\text{ ft})$.
-  - Floor behavior: terrain grid floor in Simple Mode; **Hard Deck** (`hardDeckFt`) in Energy Mode (plunges to 0 ft MSL if hard deck breached).
-  - Clean disposal on unmount/teardown.
-- `tests/unit/turn-fight/view3d.test.js`:
-  - Unit tests verifying plumb line geometry, uniform dash cadence, and hard deck tracking.
-
-### Phase 6: Playwright E2E Stabilization
-- `tests/e2e/turn-fight.spec.js`:
-  - Wrap all Energy tests in `test.describe('Energy (T-6)', ...)`.
-  - Line 1360: Update MPT hint assertion from `'120 to 175 KIAS'` to `'125 to 175 KIAS, default 160 KIAS.'` (D349).
-  - Line 1377: Update Auto Split S below expectation from `['120', '40 to 220 KIAS, default 120 KIAS.']` to `['140', '40 to 220 KIAS, default 140 KIAS.']` (D381).
-  - Add `{ intervals: [50] }` to the forced Split S polling assertion.
-  - Assertions evaluate within pilot domain tolerances (D369/D371).
-
-### Phase 7: Verification & Master Documentation Synchronization
-- Run full test suite: `node --test`, `npm run typecheck`, `npm run build`, `npx playwright test`.
-- Write formal report: [`docs/records/verification/turn-fight-verification.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/verification/turn-fight-verification.md).
-- Synchronize all 9 authoritative documents across the repository.
+Master Plan Artifact: [`turn_fight_remediation_v2.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_remediation_v2.md).
+Historical Audit: [`AUDIT_DECISIONS_D112_D405.md`](file:///C:/Users/patri/.gemini/antigravity/brain/66038a38-d895-463b-ba27-91be766e007c/AUDIT_DECISIONS_D112_D405.md).
 
 ---
 
-## Risks & Mitigations
+## 1. Current Status & Context
+
+- **Initial Rebuild (Tasks 1–10):** 100% complete and verified on branch `next-module`:
+  - Tasks 1–7: Simple 2D flat 1v1 fight, top-down view, 3D Harvard II view, start geometry, and readouts live.
+  - Tasks 8–9: Energy simulation engine (`energy-sim.js`, 1,416 lines, point-mass 3D aero, full torque, MPT capture at 160 KIAS, `evenFight`).
+  - Task 10: Energy Screen UI (uPlot), 8 forensic traps neutralized, Tactical 3D Suite (plumb lines & ground-shadow contact discs per D401), active combat pursuit default (D403), 3D merge azimuth tracking (D404), and pilot stall authority loss (D405).
+  - Test suites: 508 unit tests green, 68 Playwright E2E tests green, typecheck clean, build clean.
+- **Deconfliction with Traffic Sim Session (`4ff89e6a-1f5c-41ed-a7b0-f636c0f17775`):**
+  - Traffic Sim session operates in `Dads-debreif/` on `main`, focusing exclusively on `src/modules/traffic/` (Option C: Full Vector Guidance Migration).
+  - Turn Fight session operates in `next_module_worktree/` on `next-module`, focusing exclusively on `src/modules/turn-fight/` (Remediation Plan v2).
+  - Zero file overlap. Shared documentation files are synchronized.
+- **Remediation Plan v2 (Tasks 11–15):** Formulated from the 5-agent forensic audit and Patrick's `/grill-me` design ratification (D406–D410). Ready for serial execution.
+
+---
+
+## 2. Active Remediation Phases (Remediation Plan v2)
+
+### Phase 1: Flight Math — Immelmann G-Law (Task 11 / D406)
+- **Task 11.1:** Raise `MANEUVER_PULL_G` from 4 to 5 in `src/modules/turn-fight/energy-sim.js:66`. Harvard II routinely pulls 5 G in tactical maneuvers (limit 7 G). Split S already uses 5 G.
+- **Task 11.2:** Update 7 unit tests in `tests/unit/turn-fight/energy-sim.test.js` to assert 5.0 G maneuver pull within pilot domain tolerances (D371). Verify full test suite passes.
+
+### Phase 2: Engagement Logic — D386, Ghost Pursuit, Schema, Altitude Gate (Task 12 / D410)
+- **Task 12.1:** Wire D386 `isNoseOn()` into `sim.js:checkFirstNose()`: activate the 10° elevation capture cone for Simple Mode Climb/Dive merges.
+- **Task 12.2:** Implement D386 elevation cone in `energy-sim.js:isAcNoseOn()`: evaluate azimuth $\le 5^\circ$ AND elevation $\le 10^\circ$ across altitude differences.
+- **Task 12.3:** Fix ghost pursuit in `energy-sim.js:1303-1311`: set `state.firstNose` and `state.chase` when altitude separation fallback triggers pursuit, ensuring UI displays winner.
+- **Task 12.4:** Dynamic altitude separation gate: change `setup.blueAltFt !== setup.redAltFt` to dynamic check `Math.abs(state.blue.zFt - state.red.zFt) >= 100` (D371).
+- **Task 12.5:** Standardize `firstNose` object schema: unify on `{ by: 'both' }` pattern; update `readouts.js:45` to check `mark.by === 'both'`.
+
+### Phase 3: Display & Readouts (Task 13)
+- **Task 13.1:** Fix inverted Aspect Angle calculation in `readouts.js:113`: change `180 - ataDeg(state, from, other)` to `180 - ataDeg(state, other, from)`.
+- **Task 13.2:** Add Aspect Angle row to Energy Mode readouts table in `energy-readouts.js`.
+- **Task 13.3:** Add API key adapter in `playback.js` / `state.js` mapping Simple Mode keys (`startAtaDeg`, `startAaDeg`, `turnsAt`) to Energy Mode keys (`ataDeg`, `aaDeg`, `turnsStart`).
+- **Task 13.4:** Remove residual user-facing V6 text references: clean `layout.js:215` and `geometry.js:150`; tighten test regex in `turn-fight.spec.js:17`.
+
+### Phase 4: UI Labels & Mode Descriptions (Task 14 / D408)
+- **Task 14.1:** Rename modes with one-line descriptions in `layout.js`:
+  - Simple Mode $\rightarrow$ **"Turn Circle Geometry"** ("Constant-speed turn circles — rate vs radius, no energy bleed").
+  - Energy Mode $\rightarrow$ **"BFM Energy Fight"** ("Full T-6 physics — energy management, stalls, pursuit curves").
+- **Task 14.2:** Add bank angle readout derived from G ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
+- **Task 14.3:** Update 1-circle / 2-circle help text per BFM doctrine:
+  - 2-circle (Rate Fight): "Both jets turn into each other. Two separate circles."
+  - 1-circle (Radius Fight): "Jets turn opposite cockpit directions but same geographic direction. One shared circle."
+- **Task 14.4:** Relabel `chaseAfterHeadOn` to "Chase from head-on" in More Settings with one-line tooltip.
+
+### Phase 5: Documentation Sync & Verification (Task 15)
+- **Task 15.1:** Record decisions D406–D410 in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+- **Task 15.2:** Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `.agent/memory/handoff.md`.
+- **Task 15.3:** Run full verification: `npm test` (all 3,045+ pass), `npm run typecheck` (0 errors), `npm run build` (clean), `npx playwright test tests/e2e/turn-fight.spec.js`.
+
+---
+
+## 3. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Concurrent Traffic Sim session creates merge conflict | Staged changes touch ONLY `src/modules/turn-fight/` and `tests/*/turn-fight*`. Zero overlap with `traffic/`. We pull `main` after Traffic merges. |
-| Incompressible vs compressible IAS drift at high altitude | Model calculates aerodynamic IAS via $TAS \times \sqrt{\sigma}$ (D273/D350). VMO corner strictly enforced at Mach 0.67 / 269 KIAS (D345/D347). Pilot domain tolerance ($\pm10$ kt) absorbs minor gauge compressibilities. |
-| Plumb line dashed material loses cadence during 3D zoom | Frame loop explicitly executes `computeLineDistances()` on updated line geometries. |
-| WebGL resource leak on frequent 2D/3D toggling | Geometries (`BufferGeometry`, `RingGeometry`) and materials are tracked in `gl` context and explicitly disposed in `teardown()`. |
+| Concurrent Traffic Sim session creates merge conflict | Staged changes touch ONLY `src/modules/turn-fight/` and `tests/*/turn-fight*`. Zero overlap with `traffic/`. |
+| 5.0 G maneuver pull alters trajectory timings | Unit tests assert within pilot domain tolerances (D371: $\pm0.5$ G, $\pm0.5$ s). Shaker caps pull at low speed. |
+| D386 wiring alters nose-on trigger times | Simple Mode tests use pilot domain angular tolerances ($\pm5^\circ$). |
+| Mode renaming breaks Playwright E2E locators | Locators updated in `turn-fight.spec.js` in lockstep with UI label changes. |

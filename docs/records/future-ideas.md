@@ -18,3 +18,6 @@ Numbers are the plan doc's FF numbers.
 | FF | Date | Module | Idea | Why |
 |---|---|---|---|---|
 | FF44 | 30 Sep 2026 | Traffic Sim | Live wind input controls in playback bar | Expose wind from/speed number inputs in the bottom playback bar so users can interactively adjust wind direction/speed and observe aircraft crabbing live. *(Built in PATCH-014, commit `8d6a517`)* |
+| FF45 | 01 Oct 2026 | Turn Fight | Operational service ceiling limiter at 25,000 ft MSL (D205) | In Energy Mode mutual vertical pursuit climbs, clamp energy or enforce service ceiling so aircraft cannot climb indefinitely beyond 25,000 ft MSL. |
+| FF46 | 01 Oct 2026 | Turn Sim | Geometric vertical step/offset deconfliction in Offset Box Hook (D207) | Deconflict the 31-ft nose-to-nose flat proximity in offset box hook turns with authentic SMM Ch 16 vertical separation or offset adjustment rather than caution flag only. |
+| FF47 | 01 Oct 2026 | Turn Fight | Unified point-mass physics engine across all modes | Merge Simple Mode's kinematic circle geometry and Energy Mode's 3D aerodynamic engine into a single unified physical simulation. |

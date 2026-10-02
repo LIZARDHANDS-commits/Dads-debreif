@@ -18,20 +18,30 @@ A two-aircraft turning fight with two modes:
   - The MPT speed is 125 to 175 KIAS (`MPT_KIAS_RANGE`).
   - `state.evenFight` is true only when both noses came on together and no chase has started.
 
-## Status: Completed (Milestone 2 / Gate 2 Sign-Off Ready)
+## Status: Baseline Complete / Remediation Plan v2 Active
 
-Turn Fight is 100% complete and fully verified:
+Turn Fight baseline is 100% complete and verified:
 - **508/508 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
 - **68/68 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 19 Energy tests and axe accessibility).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
 - **Vite production build clean** (`npm run build`, sizes within budget).
 - **Tactical 3D Suite** integrated: vertical dashed plumb lines and ground-shadow contact discs (D401).
-- **Immelmann G-Law** calibrated: 5.0 G pull to stick shaker then rides boundary (D402).
 - **Active Combat Pursuit Default** enabled: head-on re-merge breaks out of passive circles into vector pursuit AI (D403).
 - **3D Merge Azimuth Acquisition across Altitude Separation** resolved: line-of-sight tracking across vertical splits initiates 3D combat pursuit for both aircraft (D386, D404).
 - **Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry** enforced: stalled aircraft lose control authority and cannot claim nose-on or pursuit win (D405).
 - **8 Forensic Traps neutralized**: coordinate snap, mutual pursuit, D386 10° elevation cone, topKiasAt Mach 0.67 corner, D381 Immelmann <= 140 KIAS slice/split-S constraint, Neutral Head-on UI relabeling, test expectation alignments, and head-on pass check bypass.
-- **Patrick Gate 2 Sign-Off Ready**: Checklist at `docs/checklists/turn-fight.md`.
+- **Decision Supersession Log**: Fully synchronized in `docs/records/plan-decisions.md` (D1–D406).
+- **Remediation Plan v2 Active Queue:** 12 tasks across 5 phases ([`turn_fight_remediation_v2.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_remediation_v2.md) and `tasks/turn-fight/todo.md`), ratified via `/grill-me` interview with Patrick.
+
+## Active Remediation Plan v2 Queue (Tasks 11–15)
+
+| Phase | Task | Description | Status |
+|---|---|---|---|
+| **Phase 1** | Task 11 | Raise `MANEUVER_PULL_G = 5` in `energy-sim.js` (D406); update 7 unit tests | Staged / Next |
+| **Phase 2** | Task 12 | Wire D386 in `sim.js`, D386 in `energy-sim.js`, fix ghost pursuit, dynamic altitude gate, schema harmonization (D410) | Staged |
+| **Phase 3** | Task 13 | Fix Aspect Angle swap in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | Staged |
+| **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D408) | Staged |
+| **Phase 5** | Task 15 | Log D406–D410 in decisions register, update handovers, run full 3,045+ verification | Staged |
 
 ## Implemented Work (PATCH-024, PATCH-025, PATCH-026, PATCH-027)
 
@@ -39,7 +49,7 @@ Turn Fight is 100% complete and fully verified:
 |---|---|---|
 | Energy screen (PR D, task 10's screen half) | Merged and integrated with engine on main | 100% complete. Error catch narrowed to engine setup errors; unit tests verify RangeError containment. All 19 Energy E2E tests passing green. |
 | Tactical 3D Suite (D401) | `src/modules/turn-fight/view3d.js` | 100% complete. `computeFloorZ` and `computePlumbGeometry` tested and verified in 2D/3D. |
-| Immelmann G-Law (D402) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 5.0 G pull to shaker line via `pullCmdG(ctx)`. |
+| Immelmann G-Law (D402/D406) | `src/modules/turn-fight/energy-sim.js` | 5.0 G pull to shaker line via `pullCmdG(ctx)` standardized across vertical moves. |
 | Active Combat Pursuit (D403) | `src/modules/turn-fight/energy-sim.js` | 100% complete. `chaseAfterHeadOn` defaulted to true; fighters dogfight across re-merge. |
 | 3D Merge Azimuth Acquisition (D404) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Azimuth tracking across vertical splits initiates 3D combat pursuit; both aircraft actively engage. |
 | Pilot Stall Authority Loss (D405) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Stalled aircraft freeze bank; azimuth trigger post-merge only; high-energy Blue wins. |
