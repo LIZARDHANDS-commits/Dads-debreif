@@ -5,7 +5,8 @@
 > **Date**: 2026-10-02  
 > **Module ID**: `traffic` in [`SPEC.md`](../SPEC.md)  
 > **Authoritative Companion**: Master Pattern Matrix at [`docs/traffic-pattern-matrix.md`](../docs/traffic-pattern-matrix.md) (single source of truth for waypoints & coordinates)  
-> **Decisions**: D6, D10, D46, D109, D110, D117, D118, D134, D158, D368–D400, D406 | **Requirements**: R2, R3, R4, R6, R8, R9, R14, R16, R21, R22, R24–R27, R34  
+> **Decisions**: D6, D10, D46, D109, D110, D117, D118, D134, D158, D368–D400, D406, D412 | **Requirements**: R2, R3, R4, R6, R8, R9, R14, R16, R21, R22, R24–R27, R34  
+> **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js.  
 
 ---
 
@@ -49,8 +50,8 @@ The closed pattern uses free Cartesian vector guidance with `a.customX/Y/Heading
 - Accelerated stall protection: ❌ Not implemented
 - `rollToward()`, `dampedClimbG()`, `glideSinkFpm()`: ❌ Never imported into `sim.js`
 
-### 1.5 The Fix: One Unified Flight Engine (D406, R34)
-Replace the entire `fly(a)` function in `sim.js` with calls to a unified flight engine (`flight-engine.js`). Every aircraft is **always** physics-driven via Cartesian 3D vector integration. Published patterns become visual display overlays — they do not constrain the aircraft to physical rails.
+### 1.5 The Fix: One Unified Flight Engine (D406, D412, R34)
+Replace the entire `fly(a)` function in `sim.js` with calls to a unified flight engine (`flight-engine.js`). Per D412, the architecture was refined from pure-vector to Hybrid Rails/Physics: aircraft fly on smooth pre-computed rail paths (via `generateWindAdjustedTrack()`) for stable legs (initial, downwind, approach, entries) and switch to `flight-engine.js` physics for dynamic maneuvers (break, final turn, closed pattern, PFL, breakout, go-around, takeoff). Transitions use a 2–3 second smooth blend. Published patterns provide both visual display overlays and exact ground-track rails for stable segments.
 
 ---
 
@@ -114,8 +115,8 @@ if (alongTrack >= segLength - leadDist) advanceWaypoint();
 
 ### 2.3 KIN vs NRG Performance Models
 - **KIN (Kinematic)** — default for normal pattern traffic:
-  - Speed: linear accel/decel toward nav-plan target (4 kt/s up, 6 kt/s down)
-  - Altitude: fixed climb/descent rate (2,100 fpm up, 1,500 fpm down)
+  - Speed: linear accel/decel toward nav-plan target (+4.0 kt/s up, -2.7 kt/s down, computed from T-6 `excessThrustPerWeight()`)
+  - Altitude: climb via `excessThrustPerWeight()` and formula/physics-based descent (caps removed per D412)
   - Special: break decel uses V² drag formula: $V(u) = 220 \cdot e^{-0.452 u}$
 - **NRG (Energy)** — for PFL, engine failure, breakout:
   - Speed: `excessThrustPerWeight()` determines accel/decel from physics
