@@ -32,6 +32,7 @@ import { bankDegFromG } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, computeWindPerch } from './route.js';
+import { stepAircraft } from './flight-engine.js'; // SIM-1: imported for future SIM-2 physics branch (not called yet)
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -80,6 +81,83 @@ const SNAPSHOT_EVERY_STEPS = 200;
  * (every 20 s, then 40 s, ...), so a very long run's memory stays bounded and a rewind is still quick.
  */
 const MOST_SNAPSHOTS = 720;
+
+/**
+ * SIM-1 D412 Hybrid Mode Dispatcher — maps each flight phase to its mode.
+ *
+ * 'rails'   — stable legs where the polyline rail drives position
+ * 'physics' — dynamic manoeuvres where flight-engine.js drives position
+ * 'blend'   — (reserved) smooth interpolation from physics back to rails
+ *
+ * For SIM-1 every phase ultimately falls through to the existing rails code.
+ * SIM-2 will flip individual phases to 'physics' one at a time.
+ *
+ * @param {string} phase
+ * @returns {'rails'|'physics'|'blend'}
+ */
+export function phaseMode(phase) {
+  switch (phase) {
+    // ── Physics phases (D412) ──────────────────────────────────────────
+    case 'break':
+    case 'break_turn':
+    case 'final_turn':
+    case 'closed_pattern':
+    case 'breakout':
+    case 'go_around':
+    case 'pfl_inbound':
+    case 'pfl_orbit':
+    case 'pfl_final':
+    case 'high_key':
+    case 'low_key':
+    case 'base_key':
+    case 'lineup':
+    case 'takeoff_roll':
+    case 'initial_climb':
+      return 'physics';
+
+    // ── Rails phases (D412) ────────────────────────────────────────────
+    case 'initial':
+    case 'downwind':
+    case 'crosswind':
+    case 'entry':
+    case 'inner_downwind':
+    case 'final':
+    case 'final_approach':
+    case 'landing':
+    case 'si_downwind':
+    case 'si_base':
+    case 'si_final':
+    case 'si_descent':
+    case 'climb':
+    case 'takeoff_climb':
+      return 'rails';
+
+    // ── Default: unknown phases stay on rails ──────────────────────────
+    default:
+      return 'rails';
+  }
+}
+
+/**
+ * SIM-1 Snap-back evaluator: can the aircraft transition from physics back to
+ * its rail position?  All four conditions must be met simultaneously:
+ *   ±5° heading of rail path tangent
+ *   ±25 ft altitude of rail path altitude
+ *   ±5° bank (absolute)
+ *   ±5 kt speed of rail target speed
+ *
+ * @param {{ headingDeg?: number, alt?: number, bankDeg?: number, iasKt?: number }} aircraft
+ * @param {{ headingDeg?: number, alt?: number, kt?: number }} railPos
+ * @returns {boolean}
+ */
+export function canSnapBack(aircraft, railPos) {
+  if (!aircraft || !railPos) return false;
+  const hdgDiff = Math.abs(((aircraft.headingDeg ?? 0) - (railPos.headingDeg ?? 0) + 540) % 360 - 180);
+  const altDiff = Math.abs((aircraft.alt ?? 0) - (railPos.alt ?? 0));
+  const bankDiff = Math.abs(aircraft.bankDeg ?? 0);
+  const spdDiff = Math.abs((aircraft.iasKt ?? 0) - (railPos.kt ?? 0));
+  return hdgDiff <= 5 && altDiff <= 25 && bankDiff <= 5 && spdDiff <= 5;
+}
 
 /**
  * Has the aircraft's distance along a pattern gone past `target` between two steps
@@ -290,6 +368,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const windFtps = ktToFtps(windKt);
     const Wx = windFtps * Math.sin(blowToRad);
     const Wy = windFtps * Math.cos(blowToRad);
+
+    // ── SIM-1 Hybrid Mode Dispatcher (D412) ─────────────────────────────
+    // Read the aircraft's current phase and look up its D412 mode.
+    // Initialize blend state fields if missing.
+    // For SIM-1 all modes fall through to existing rails code below.
+    // SIM-2 will route 'physics' phases to stepAircraft() instead.
+    const _mode = phaseMode(a.phase || 'initial');   // 'rails' | 'physics' | 'blend'
+    if (a.blendT === undefined) a.blendT = 0;        // blend progress 0→1
+    if (a.blendFrom === undefined) a.blendFrom = null; // {x, y, alt, hdg} at blend start
+    // ── End SIM-1 dispatcher (all modes use rails for now) ──────────────
 
     if (a.command === 'breakout') {
       const p = whereIs(a);
