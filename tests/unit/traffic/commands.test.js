@@ -41,7 +41,7 @@ test('sim.command engine_fail slows towards 110 KIAS and initiates emergency des
   assert.ok(acAfter.alt < acBefore.alt);
 });
 
-test('sim.command breakout turns away from circuit and climbs to 3,500 ft at 140 kt', () => {
+test('sim.command breakout turns away from circuit and climbs to 4,500 ft at 140 kt', () => {
   const sim = createSim(SETUP, { seed: 1 });
   sim.stepTo(20);
   const acBefore = sim.state().aircraft.find((a) => a.id === 'A1');
@@ -84,11 +84,11 @@ test('sim.command breakout completes multi-phase Split 2 exit, south leg, and re
   const ok = sim.command(id, 'breakout');
   assert.equal(ok, true);
 
-  // Flies through breakout climb to 3,500 ft and vectors outbound
+  // Flies through breakout climb to 4,500 ft and vectors outbound
   sim.stepTo(30);
   let ac = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(ac.command, 'breakout');
-  assert.ok(Math.abs(ac.alt - 3500) <= 100, 'alt ~3500 ft');
+  assert.ok(Math.abs(ac.alt - 4500) <= 100, 'alt ~4500 ft');
   assert.ok(ac.kt > 100, 'speed > 100 kt');
 
   // Progresses southwards along the Split 2 corridor

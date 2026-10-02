@@ -265,3 +265,4 @@ Add rows after the last row. Leave "D" empty; the app frame fills it in.
 
 
 
+| 2026-10-02T13:56Z | Traffic | PFL prototype: increased drag after High Key on the spiral profile to make landing parameters work. Real pilots use config changes (gear/flaps) and S-turns; prototype uses a drag multiplier. Good enough for now. | Patrick approved | Keep current drag | Revert drag multiplier in flight-engine.js PFL handling | Pending |
