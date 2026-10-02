@@ -42,7 +42,7 @@ export function phaseText(state) {
 export function firstNoseText(state) {
   const mark = state.firstNose;
   if (!mark) return '--';
-  const who = mark.both ? 'Both' : mark.by === 'blue' ? 'Blue' : 'Red';
+  const who = mark.by === 'both' || mark.both ? 'Both' : mark.by === 'blue' ? 'Blue' : 'Red';
   return `${who} at +${(mark.timeSec - state.mergeSec).toFixed(1)} s`;
 }
 

@@ -1254,11 +1254,18 @@ function noseOffAzDeg(from, to) {
 /**
  * Whether this aircraft's nose tracks the other (D386):
  * 1. 3D off-nose vector angle <= FIRST_NOSE_DEG (5.0°), OR
- * 2. Across starting altitude differences, azimuth line-of-sight tracking <= FIRST_NOSE_DEG (5.0°).
+ * 2. Across altitude differences, azimuth <= 5.0° AND elevation <= 10.0°.
  */
 function isAcNoseOn(state, ac, target) {
   if (ac.stall) return false;
-  return noseOffDeg(state, ac) <= FIRST_NOSE_DEG;
+  if (noseOffDeg(state, ac) <= FIRST_NOSE_DEG) return true;
+  const dx = target.xFt - ac.xFt, dy = target.yFt - ac.yFt, dz = target.zFt - ac.zFt;
+  const dH = Math.hypot(dx, dy);
+  if (dH === 0) return false;
+  const deltaAz = Math.abs(wrapPi(Math.atan2(dy, dx) - ac.headingRad)) * 180 / Math.PI;
+  const thetaLos = Math.atan2(dz, dH) * 180 / Math.PI;
+  const deltaEl = Math.abs(ac.climbDeg - thetaLos);
+  return deltaAz <= FIRST_NOSE_DEG && deltaEl <= 10.0;
 }
 
 /**
@@ -1301,12 +1308,24 @@ function checkFirstNose(state) {
     }
   }
   // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
-  if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+  if (!chasers.length && Math.abs(state.blue.zFt - state.red.zFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
       if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
         startPursuit(state, state.blue);
         startPursuit(state, state.red);
+        if (!state.firstNose) {
+          const both = azBlue <= FIRST_NOSE_DEG && azRed <= FIRST_NOSE_DEG;
+          const by = both ? 'both' : azBlue <= FIRST_NOSE_DEG ? 'blue' : 'red';
+          const from = by === 'red' ? state.red : state.blue;
+          const to = by === 'red' ? state.blue : state.red;
+          state.firstNose = { by, timeSec: state.timeSec, from: { xFt: from.xFt, yFt: from.yFt }, to: { xFt: to.xFt, yFt: to.yFt } };
+        }
+        if (!state.chase) {
+          const both = azBlue <= FIRST_NOSE_DEG && azRed <= FIRST_NOSE_DEG;
+          const by = both ? 'both' : azBlue <= FIRST_NOSE_DEG ? 'blue' : 'red';
+          state.chase = { by, timeSec: state.timeSec, aaDeg: 180 - (by === 'red' ? azBlue : azRed) };
+        }
       }
     }
   }
