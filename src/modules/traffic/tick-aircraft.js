@@ -21,7 +21,7 @@ import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { stepAircraft } from './flight-engine.js';
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
-import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS, computeBreakRollout } from './route.js';
 
 /** Duration of the smooth transition from physics back to rail (seconds). */
 export const BLEND_DURATION_SEC = 1.0;
@@ -34,6 +34,7 @@ export const PHYSICS_COMMANDS = Object.freeze(new Set([
   'engine_fail',
   'climb_high_key',
   'climb_low_key',
+  'closed_pattern',
 ]));
 
 /**
@@ -74,8 +75,11 @@ export function resolveNavPlan(a, route) {
 /**
  * Configures the navigation plan and target state when transitioning into PHYSICS mode.
  * @param {Object} a - Aircraft state
+ * @param {Object} [route] - Route definition
+ * @param {Object} [env] - Wind environment
+ * @param {Object} [routeOptions] - Route options
  */
-function setupPhysicsPlan(a) {
+function setupPhysicsPlan(a, route = null, env = null, routeOptions = DEFAULT_ROUTE_OPTIONS) {
   if (a.command === 'breakout') {
     a.navPlan = makeBreakout({
       x: a.x ?? 0,
@@ -87,6 +91,42 @@ function setupPhysicsPlan(a) {
     a.waypointIndex = 0;
     a.phase = 'breakout';
     a._activeCommand = 'breakout';
+    a.targetAltFt = 4500;
+    return;
+  }
+
+  if (a.command === 'closed_pattern' || a.phase === 'closed_pattern' || a.closedPattern) {
+    const windFrom = env?.windFromDeg ?? 360;
+    const windKt = env?.windKt ?? 0;
+    const patRoute = route || resolveNavPlan(a, route) || getNavPlan('PAT_INNER');
+    const breakRollout = computeBreakRollout(patRoute, windFrom, windKt, routeOptions) || {
+      x: -2908,
+      y: -4109,
+      alt: 3500,
+      headingDeg: 118,
+    };
+    a._closedTarget = {
+      x: breakRollout.x,
+      y: breakRollout.y,
+      alt: 3500,
+      headingDeg: breakRollout.headingDeg ?? 118,
+    };
+    a.navPlan = {
+      id: 'CLOSED_PATTERN',
+      model: 'KIN',
+      loop: false,
+      waypoints: [
+        { x: a.x ?? 0, y: a.y ?? 0, alt: a.alt ?? 2000, kias: 140, phase: 'closed_pattern', mode: 'physics' },
+        { x: breakRollout.x, y: breakRollout.y, alt: 3500, kias: 140, phase: 'closed_pattern', mode: 'physics' },
+      ],
+    };
+    a.waypointIndex = 0;
+    a.phase = 'closed_pattern';
+    a._activeCommand = a.command || 'closed_pattern';
+    a.targetAltFt = 3500;
+    a.targetSpeedKt = 140;
+    a.targetBankDeg = 45;
+    a._legStart = { x: a.x ?? 0, y: a.y ?? 0 };
     return;
   }
 
@@ -187,6 +227,20 @@ function isManeuverComplete(a, navPlan) {
     return false;
   }
 
+  // 5. Closed pattern completion:
+  if (a.command === 'closed_pattern' || a.phase === 'closed_pattern' || navPlan?.id === 'CLOSED_PATTERN') {
+    const target = a._closedTarget || (navPlan?.waypoints ? navPlan.waypoints[navPlan.waypoints.length - 1] : null);
+    if (target) {
+      const dist = Math.hypot((a.x ?? 0) - target.x, (a.y ?? 0) - target.y);
+      const altDiff = Math.abs((a.alt ?? 0) - (target.alt ?? 3500));
+      const hdgDiff = Math.abs(wrapDeg180((a.headingDeg ?? 0) - (target.headingDeg ?? 118)));
+      if (dist <= 600 && altDiff <= 150 && hdgDiff <= 30) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // 5. Waypoint mode transition in general:
   const wps = navPlan?.waypoints;
   if (wps && a.waypointIndex !== undefined && a.waypointIndex < wps.length) {
@@ -265,7 +319,7 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
   }
 
   // Aircraft phase triggers
-  if (a.phase === 'break' || a.phase === 'final_turn') {
+  if (a.phase === 'break' || a.phase === 'final_turn' || a.phase === 'closed_pattern') {
     return true;
   }
 
@@ -361,13 +415,14 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       delete a._blendTarget;
       delete a._blendTimer;
       a.mode = 'PHYSICS';
-      setupPhysicsPlan(a);
+      setupPhysicsPlan(a, route, env, routeOptions);
       stepAircraft(a, a.navPlan, env, stepDt);
       if (isManeuverComplete(a, a.navPlan)) {
-        if (a.command === 'breakout' || a.command === 'go_around') {
+        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
           a.command = null;
           delete a._activeCommand;
         }
+        delete a._closedTarget;
         if (!a.landed && a.active !== false) {
           enterBlending(a, route, routeOptions);
         }
@@ -424,20 +479,21 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
   if (a.mode === 'PHYSICS') {
     if (a.command && PHYSICS_COMMANDS.has(a.command)) {
       if (a._activeCommand !== a.command) {
-        setupPhysicsPlan(a);
+        setupPhysicsPlan(a, route, env, routeOptions);
         a._activeCommand = a.command;
       }
-    } else if (!a.navPlan || (a.phase === 'break' && (a.waypointIndex === 9 || !a.targetBankDeg)) || (a.phase === 'final_turn' && (a.waypointIndex === 11 || !a.targetBankDeg))) {
-      setupPhysicsPlan(a);
+    } else if (!a.navPlan || (a.phase === 'break' && (a.waypointIndex === 9 || !a.targetBankDeg)) || (a.phase === 'final_turn' && (a.waypointIndex === 11 || !a.targetBankDeg)) || (a.phase === 'closed_pattern' && !a._closedTarget)) {
+      setupPhysicsPlan(a, route, env, routeOptions);
     }
 
     stepAircraft(a, a.navPlan, env, stepDt);
 
     if (isManeuverComplete(a, a.navPlan)) {
-      if (a.command === 'breakout' || a.command === 'go_around') {
+      if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
         a.command = null;
         delete a._activeCommand;
       }
+      delete a._closedTarget;
       if (!a.landed && a.active !== false) {
         enterBlending(a, route, routeOptions);
       }
@@ -451,13 +507,14 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     // Check if aircraft should enter physics before stepping rail
     if (shouldEnterPhysics(a, route, routeOptions)) {
       a.mode = 'PHYSICS';
-      setupPhysicsPlan(a);
+      setupPhysicsPlan(a, route, env, routeOptions);
       stepAircraft(a, a.navPlan, env, stepDt);
       if (isManeuverComplete(a, a.navPlan)) {
-        if (a.command === 'breakout' || a.command === 'go_around') {
+        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
           a.command = null;
           delete a._activeCommand;
         }
+        delete a._closedTarget;
         if (!a.landed && a.active !== false) {
           enterBlending(a, route, routeOptions);
         }
@@ -505,7 +562,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     // Check if waypoint reached at new position triggers transition to PHYSICS
     if (shouldEnterPhysics(a, route, routeOptions)) {
       a.mode = 'PHYSICS';
-      setupPhysicsPlan(a);
+      setupPhysicsPlan(a, route, env, routeOptions);
     }
 
     return a;

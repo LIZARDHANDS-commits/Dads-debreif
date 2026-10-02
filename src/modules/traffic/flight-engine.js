@@ -153,7 +153,11 @@ export function calcBankTarget(aircraft, desiredHeadingDeg, dt = 0, maxRollRateD
   const maxStallBank = calcStallBankLimit(aircraft.iasKt ?? 140, STALL_SPEED_KIAS);
 
   let targetBank = 0;
-  if (aircraft.targetBankDeg && Math.abs(aircraft.targetBankDeg) > 0 && Math.abs(deltaHdg) > 3) {
+  if (aircraft.phase === 'closed_pattern') {
+    const bankLimit = Math.abs(aircraft.targetBankDeg || 45);
+    targetBank = Math.max(-bankLimit, Math.min(bankLimit, deltaHdg * 1.5));
+    if (Math.abs(deltaHdg) < 0.5) targetBank = 0;
+  } else if (aircraft.targetBankDeg && Math.abs(aircraft.targetBankDeg) > 0 && Math.abs(deltaHdg) > 3) {
     targetBank = Math.sign(deltaHdg) * Math.abs(aircraft.targetBankDeg);
   } else {
     // Proportional bank for fine track holding: ~1.5° bank per degree heading error
@@ -317,7 +321,7 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
   // Handle in-flight commands
   if (aircraft.command === 'breakout' && aircraft.phase !== 'breakout') {
     aircraft.phase = 'breakout';
-    aircraft.targetAltFt = 3500;
+    aircraft.targetAltFt = 4500;
     aircraft.targetBankDeg = -35;
     return;
   }
