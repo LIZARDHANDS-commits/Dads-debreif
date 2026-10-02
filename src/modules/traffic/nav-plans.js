@@ -202,13 +202,11 @@ export const TAKEOFF = Object.freeze({
  * @returns {Readonly<NavPlan>}
  */
 export function makeBreakout(from) {
-  const breakoutX = -10974;   // Abeam dep end x
-  const breakoutY = -12100 - (2.0 * FT_PER_NM); // 2 NM south of outer pattern
   const wps = [
     wp({ x: from.x,    y: from.y,    alt: from.alt, kias: from.iasKt ?? 140, phase: 'breakout',    label: 'Breakout Start', mode: 'physics' }),
-    wp({ x: breakoutX, y: breakoutY, alt: 3500,     kias: 220,               phase: 'breakout',    label: 'Breakout Point', mode: 'physics' }),
-    // Re-entry: fly to ENT_OHB entry gate
-    wp({ x: -8694,     y: -66644,    alt: 3500,     kias: 220,               phase: 'entry',       label: 'Rejoin Entry',   mode: 'rails'   }),
+    wp({ x: -15652.8,  y: -38011.9,  alt: 3500,     kias: 180,               phase: 'breakout',    label: 'Breakout Point', mode: 'physics' }),
+    wp({ x: 2047.2,    y: -50911.9,  alt: 3500,     kias: 220,               phase: 'breakout',    label: 'South Turn',     mode: 'physics' }),
+    wp({ x: 21906,     y: -19364,    alt: 3500,     kias: 220,               phase: 'entry',       label: 'Rejoin Merge',   mode: 'rails'   }),
   ];
   return Object.freeze({
     id: 'BREAKOUT',
