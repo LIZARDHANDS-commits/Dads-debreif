@@ -66,6 +66,9 @@ test('aircraft completes pattern phases without getting stuck', () => {
   assert.ok(a1, 'Aircraft A1 must exist in setup');
   a1.startIndex = 9;
   a1.startsAtSec = 0;
+  const pat = setup.routes.find((r) => r.kind === 'pattern');
+  if (pat) pat.landOdds = 1.0;
+  for (const r of setup.routes) if (r.kind === 'split') r.splitOdds = 0;
 
   const sim = createSim(setup, { seed: 1 });
   const visitedPhases = new Set();

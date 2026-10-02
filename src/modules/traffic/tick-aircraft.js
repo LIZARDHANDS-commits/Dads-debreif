@@ -21,7 +21,7 @@ import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { stepAircraft } from './flight-engine.js';
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
-import { posOnRoute, closestDistFt, routeLengthFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
 
 /** Duration of the smooth transition from physics back to rail (seconds). */
 export const BLEND_DURATION_SEC = 1.0;
@@ -246,11 +246,6 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
   const navPlan = resolveNavPlan(a, route);
   const wps = navPlan?.waypoints;
 
-  // Explicit waypoint index on aircraft
-  if (a.waypointIndex !== undefined && wps?.[a.waypointIndex]?.mode === 'physics') {
-    return true;
-  }
-
   // Position along route (+0.5 offset resolves exact point boundary ambiguity)
   if (route && a.distFt !== undefined) {
     const p = posOnRoute(route, a.distFt + 0.5, routeOptions);
@@ -296,10 +291,28 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
     return;
   }
 
-  const closestDist = closestDistFt(route, a, routeOptions);
+  let closestDist = closestDistFt(route, a, routeOptions);
+
+  // Phase-aware guard against Initial leg ambiguity after final turn (both share heading 298°)
+  if (a.phase === 'final' || a.phase === 'final_turn' || a.phase === 'short_final') {
+    const perchDist = pointDistFt(route, 11, routeOptions);
+    if (closestDist < perchDist) {
+      // If closestDist snapped to Initial leg (seg 8, < perchDist), target Window rollout
+      const rLen = routeLengthFt(route, routeOptions);
+      const wDist = pointDistFt(route, 12, routeOptions);
+      closestDist = Math.min(rLen, wDist + 3180);
+    }
+  }
+
   const rLen = routeLengthFt(route, routeOptions);
   const lapOffset = (rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
-  const targetDistFt = lapOffset + closestDist;
+  let targetDistFt = lapOffset + closestDist;
+
+  // If blend would snap distFt backward by more than half the route,
+  // add a lap to maintain forward progress toward route end
+  if (rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
+    targetDistFt += rLen;
+  }
   const p = posOnRoute(route, targetDistFt, routeOptions);
 
   a._blendTarget = {
@@ -396,6 +409,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       delete a._blendStart;
       delete a._blendTarget;
       delete a._blendTimer;
+      delete a.waypointIndex;
       a.mode = 'RAIL';
     }
 
@@ -458,8 +472,8 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     const p = posOnRoute(route, a.distFt, routeOptions);
     a.x = p.x;
     a.y = p.y;
-    a.alt = p.alt ?? 3500;
-    a.iasKt = p.kt ?? 140;
+    a.alt = p.alt ?? a.fallbackAlt ?? a.alt ?? 3500;
+    a.iasKt = p.kt ?? a.fallbackKt ?? a.iasKt ?? 140;
     a.kt = a.iasKt;
     if (p.phase) {
       a.phase = p.phase;
