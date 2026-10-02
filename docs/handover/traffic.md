@@ -14,20 +14,17 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 | Traffic Core 4 (tasks 10/11/12/15/18) | PR 3 (`traffic/pr-3-core-4`) | Merged to `main` (commit `73ee4f4`). Wind vector math, authentic 15 Wing types, 60° break, 45° descending final turn, D389 perch drift guidance, D46 true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green. |
 | Interactive Wind UI & Sim Updates (PATCH-014) | Direct on `main` | Merged to `main` (commit `8d6a517`). Bottom playback bar wind inputs wired, real-time dynamic crabbing and ground speed simulation updates. |
 
-## Current Gate: Vector Guidance Migration approved (D406). Phases 1–5 pending.
-- **Authoritative Master Specification:** [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md) (unified spec superseding `SPEC-traffic-vector.md` per D406, R34; single source of truth for aerodynamics, guidance laws, and equations).
-- **Master Flight Pattern Matrix:** [`docs/traffic-pattern-matrix.md`](../traffic-pattern-matrix.md) (authoritative single source of truth for nav-plan waypoints and coordinates).
-- **Task Checklist:** [`tasks/traffic/vector-migration-todo.md`](../../tasks/traffic/vector-migration-todo.md) and [`tasks/traffic/todo.md`](../../tasks/traffic/todo.md).
-- **Execution Plan:** [`tasks/traffic/plan.md`](../../tasks/traffic/plan.md) (Phases 1–5).
-- **Legacy Remediation Checklist:** [`tasks/traffic/remediation-todo.md`](../../tasks/traffic/remediation-todo.md).
-- Landed: PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering), height drop lines moved to Layers menu.
-- Landed: PATCH-020 (Stage 1 Vector Physics Slices A–E in `sim.js: fly(a)`, overhead break drag curve, dynamic perch capture, adaptive final turn descent easing, touch-and-go closed pattern circuit, and crosscheck expected table realignment).
-- Landed: PATCH-021 (Stage 2 Pilot UI Controls: operational spawner presets for Inner Downwind/Perch/Final, multi-track display toggles, in-flight Breakout and Go-around action buttons).
-- Landed: PATCH-022 (V2.0 visual indicator badge, zero-wind V6 outer loop elimination, CT-156 authentic 50° bank closed-pattern climbing turn physics).
-- Landed: PATCH-023 (Closed pattern wings-level 118° rollout to Perch; spawner clean-up keeping working 'Start at point' with dynamic waypoint caption; calm-wind 180° rounded arcs for 60° break and 35° final turn; High Key 5,000 ft threshold overflight heading 298°; continuous 360° circular PFL glide arc; Stage 1 deactivation of SPL1–SPL4).
-- Full test baseline: `npm test` passes 100% green (3,045 passed, 0 failed, 1 skipped; 609/609 traffic tests).
-- Production build: `npm run build` passes in ~284ms.
-- Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
+## Current Gate: Vector Guidance Migration — Phase 1+2 complete, Phase 3 next
+
+- **Architecture**: D412 Hybrid Rails/Physics. Rails for stable legs, physics (flight-engine.js) for dynamic maneuvers, 2-3 s blend transitions.
+- **Built and committed**:
+  - `flight-engine.js` (733 lines, 86 tests) — stepAircraft(), KIN/NRG models, phase state machine. Commit `13444b5`.
+  - `nav-plans.js` (370 lines, 39 tests) — all 7 patterns + 3 factories + spawn presets. Commit `3fc3cee`.
+- **Test policy**: D413 (D411 mirror) — no assertions tighter than pilot domain tolerances. 5 V6-pinning tests deleted (D414), 17 assertions loosened (D416). Commit `8ccab9f`.
+- **Test baseline**: 3,165 pass, 0 fail, 1 skipped. Typecheck clean. Build green.
+- **Detailed task plan**: 9 tasks across Phases 2-5 in [`tasks/traffic/plan.md`](../../tasks/traffic/plan.md) artifact.
+- **Next step**: SIM-1 — Hybrid mode dispatcher in fly(a), zero behavior change refactor.
+- **Authoritative docs**: [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md), [`docs/traffic-pattern-matrix.md`](../traffic-pattern-matrix.md), [`tasks/traffic/vector-migration-todo.md`](../../tasks/traffic/vector-migration-todo.md).
 
 ## Settled numbers (Patrick's calls win over the manuals)
 
