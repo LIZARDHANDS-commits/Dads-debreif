@@ -1,3 +1,15 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
+// ║                                                                    ║
+// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
+// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
+// ║  make it pass. Instead:                                            ║
+// ║    1. Ask the operator what to do.                                 ║
+// ║    2. The test tolerance may need widening, OR                     ║
+// ║    3. There may be a genuine flight behavior bug.                  ║
+// ║  Never force physics to match a test value.                        ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
 // What the screen hands the map (src/modules/traffic/scene.js): the routes with their
 // drawn path and turn data, the leg lengths with their middles, and the routes list rows.
 // It reads the engine's setup and state and changes nothing.

@@ -1,3 +1,15 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
+// ║                                                                    ║
+// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
+// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
+// ║  make it pass. Instead:                                            ║
+// ║    1. Ask the operator what to do.                                 ║
+// ║    2. The test tolerance may need widening, OR                     ║
+// ║    3. There may be a genuine flight behavior bug.                  ║
+// ║  Never force physics to match a test value.                        ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
 // The playback clock (src/modules/traffic/clock.js): it turns frame times into fixed 0.05 s
 // steps of the engine, keeping the part of a frame that isn't a whole step, so a run comes
 // out the same at any frame rate.

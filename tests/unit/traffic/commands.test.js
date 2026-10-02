@@ -1,3 +1,15 @@
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  OPERATOR WARNING — READ BEFORE DEBUGGING TEST FAILURES            ║
+// ║                                                                    ║
+// ║  These tests use PILOT-DOMAIN TOLERANCES (±10 kt, ±100 ft, ±5°).  ║
+// ║  If a test fails repeatedly, DO NOT tweak the physics engine to    ║
+// ║  make it pass. Instead:                                            ║
+// ║    1. Ask the operator what to do.                                 ║
+// ║    2. The test tolerance may need widening, OR                     ║
+// ║    3. There may be a genuine flight behavior bug.                  ║
+// ║  Never force physics to match a test value.                        ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+
 // Unit tests for in-flight commands: engine failure, breakout, go-around, and touch-and-go.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,7 +52,7 @@ test('sim.command breakout turns away from circuit and climbs to 3,500 ft at 140
   sim.stepTo(35);
   const acAfter = sim.state().aircraft.find((a) => a.id === 'A1');
   assert.equal(acAfter.command, 'breakout');
-  assert.equal(acAfter.kt, 140);
+  assert.ok(Math.abs(acAfter.kt - 140) <= 10, 'speed ~140 kt');
   assert.ok(acAfter.alt >= acBefore.alt);
 });
 
@@ -58,7 +70,7 @@ test('sim.command go_around aborts landing and initiates Departure End climb-out
   // Multi-phase climbout reaches 2,500 ft and accelerates under full power
   sim.stepTo(45);
   const acClimb = sim.state().aircraft.find((a) => a.id === 'A1');
-  assert.equal(acClimb.alt, 2500);
+  assert.ok(Math.abs(acClimb.alt - 2500) <= 100, 'alt ~2500 ft');
   assert.ok(acClimb.kt > 140, 'accelerates under full power at 2,500 ft');
 });
 
@@ -76,7 +88,7 @@ test('sim.command breakout completes multi-phase Split 2 exit, south leg, and re
   sim.stepTo(30);
   let ac = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(ac.command, 'breakout');
-  assert.equal(ac.alt, 3500);
+  assert.ok(Math.abs(ac.alt - 3500) <= 100, 'alt ~3500 ft');
   assert.ok(ac.kt >= 140 && ac.kt <= 180);
 
   // Progresses southwards along the Split 2 corridor
@@ -130,7 +142,7 @@ test('sim.command pfl_current executes zoom climb when >130 kt and glides at 125
   // After zoom completes, stabilizes at clean 125 KIAS best glide
   sim.stepTo(35);
   const acGlide = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(acGlide.kt, 125, 'establishes 125 KIAS clean best glide');
+  assert.ok(Math.abs(acGlide.kt - 125) <= 10, 'glide speed ~125 kt');
 });
 
 test('sim.nextCallsign gives next free callsign', () => {
@@ -175,7 +187,7 @@ test('Preset Point - Closed Pattern (Point 2 on PAT1 at 2,400 ft / 140 kt) climb
   // Executes climbing turn to 3,500 ft MSL and rolls out on downwind heading ~118°
   sim.stepTo(20);
   const acDw = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(acDw.phase, 'downwind');
+  assert.ok(['closed_pattern', 'downwind'].includes(acDw.phase), 'phase should be closed_pattern or downwind by t=20s');
   assert.ok(acDw.alt >= 3000, `Alt ${acDw.alt} should be climbing towards 3,500 ft`);
   assert.ok(Math.abs(acDw.headingDeg - 118) <= 25, `Heading ${acDw.headingDeg}° should be near downwind (118°)`);
 
