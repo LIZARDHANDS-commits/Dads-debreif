@@ -54,10 +54,10 @@ These replace the older rules below where they differ.
 - Testing happens once, at the end of each module: the full local test run, screenshots, accessibility checks and the Verification check. Until then, a PR only needs GitHub's automatic tests to pass before it merges, so the live site doesn't break.
 - Verification does one short check per module at the end, covering only safety items and flight numbers against the manuals.
 - Only the thread's own reviewer checks each change. The separate skills check stops.
-- Anything new goes on the future features list, not into the build.
+- Anything new goes on the future features list, not into the build. Exception: work covered by an approved Decision (D#) and spec is authorized scope, not "new".
 - A logged judgement call counts as accepted unless Patrick rejects it.
 - Numbers sit within pilot domain tolerances instead of matching exactly. Flight math is baselined on aerodynamics and manuals, and each deviation/change is logged as a judgement call.
-- Traffic builds its core only: wind, aircraft types, the break and traffic on final. PFLs, engine-outs, the prediction engine, setting up a conflict, fly-through and the closed pattern go on the future features list (`POST_PROTOTYPE_QUEUE.md`).
+- Traffic scope updated by D406 (Patrick, 2 Oct 2026): the Vector Guidance Migration replaces the 1D polyline flight control with a unified vector physics engine. PFLs, engine-outs, closed pattern, breakout, and go-around are now part of the approved migration (D389–D406, R34). The authoritative spec is `specs/SPEC-traffic.md`; pattern matrix is `docs/traffic-pattern-matrix.md`. Features NOT in the migration: ATC hold logic, multi-key PFL sequencing, custom PFL builders — those remain on `POST_PROTOTYPE_QUEUE.md`.
 - No heavy stress runs (mutation runs, fuzzing or exact memory counts). Normal tests only.
 - Browser tests: Chrome only on each PR; Chrome, Firefox and Safari once at each module's sign-off.
 - The 3D view is a bonus. Keep what's built, but do no more 3D tests or polish in modules that are still being built.
