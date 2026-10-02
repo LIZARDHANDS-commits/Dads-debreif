@@ -71,18 +71,18 @@ describe('nav-plans: PAT_INNER', () => {
     assert.equal(wp0.phase, 'landing');
   });
 
-  it('Break at wp 9 is physics mode, 60° bank, 220 KIAS', () => {
+  it('Break at wp 9 is rails mode, 60° bank, 220 KIAS', () => {
     const wp9 = PAT_INNER.waypoints[9];
     assert.equal(wp9.phase, 'break');
-    assert.equal(wp9.mode, 'physics');
+    assert.equal(wp9.mode, 'rails');
     assert.equal(wp9.bankDeg, 60);
     assert.equal(wp9.kias, 220);
   });
 
-  it('Perch at wp 11 is physics mode, 35° bank, final_turn phase', () => {
+  it('Perch at wp 11 is rails mode, 35° bank, final_turn phase', () => {
     const wp11 = PAT_INNER.waypoints[11];
     assert.equal(wp11.phase, 'final_turn');
-    assert.equal(wp11.mode, 'physics');
+    assert.equal(wp11.mode, 'rails');
     assert.equal(wp11.bankDeg, 35);
     assert.equal(wp11.kias, 120);
   });

@@ -18,6 +18,7 @@ import { FT_PER_NM, ktToFtps } from '../../core/units.js';
 import { limitG, turnRadiusFt, bankDegFromG } from '../../core/flight-math.js';
 import { unitVectorFromCompassDeg } from '../../core/angles.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
+import { windTriangle } from '../../core/wind.js';
 
 /** V6's route options when the boxes are left alone (built-in profile, line 613). */
 export const DEFAULT_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
@@ -756,16 +757,28 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     });
   }
 
-  // 4. Descending Final Turn (180° turn at 120 KIAS, linear descent 3,500 to 2,119 ft per TR-02)
+  // 4. Descending Final Turn: Wind-smoothed continuous transition from Perch to Final
   const g = 32.174;
   curX = perch.x;
   curY = perch.y;
-  let curHeadingDeg = downwindHeadingDeg;
   let curIas = 120;
   const ftDt = 0.2;
   const ftTasKt = iasToTasKt(curIas, 3100);
   const ftTasFtps = ktToFtps(ftTasKt);
-  const ftOmega = (g * Math.tan((35 * Math.PI) / 180)) / Math.max(1, ftTasFtps);
+
+  // Compute crabbed heading at Perch (matches incoming downwind ground track)
+  const wtPerch = windTriangle(dwTrackDeg, ftTasKt, windFromDeg, windKt);
+  const entryHeadingDeg = wtPerch.canHoldTrack ? wtPerch.headingDeg : dwTrackDeg;
+
+  // Compute crabbed heading on Final (matches outgoing runway centerline ground track)
+  const wtFinal = windTriangle(rwyHeadingDeg, ftTasKt, windFromDeg, windKt);
+  const exitHeadingDeg = wtFinal.canHoldTrack ? wtFinal.headingDeg : rwyHeadingDeg;
+
+  // Total angular heading change turning left from entry to exit
+  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
+  if (totalTurnDeg < 30) totalTurnDeg += 360;
+
+  let curHeadingDeg = entryHeadingDeg;
   let ftTurnAccum = 0;
 
   track.push({
@@ -773,35 +786,48 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     y: curY,
     alt: 3500,
     kt: 120,
-    g: 1.22,
+    g: 1.0,
     src: 11,
     phase: 'final_turn',
     headingDeg: curHeadingDeg,
   });
 
-  while (ftTurnAccum < 180) {
-    const dTurnDeg = Math.min((ftOmega * ftDt * 180) / Math.PI, 180 - ftTurnAccum);
+  while (ftTurnAccum < totalTurnDeg) {
+    const u = ftTurnAccum / totalTurnDeg;
+
+    // Smooth bank profile: ramp in over first 15%, hold 35° (G=1.22), ramp out over last 15%
+    let bankDeg = 35;
+    if (u < 0.15) {
+      bankDeg = 35 * Math.sin((u / 0.15) * (Math.PI / 2));
+    } else if (u > 0.85) {
+      bankDeg = 35 * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
+    }
+    const bankRad = (Math.max(5, bankDeg) * Math.PI) / 180;
+    const ftOmega = (g * Math.tan(bankRad)) / Math.max(1, ftTasFtps);
+    const dTurnDeg = Math.min((ftOmega * ftDt * 180) / Math.PI, totalTurnDeg - ftTurnAccum);
+
     ftTurnAccum += dTurnDeg;
     curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
 
-    const u = ftTurnAccum / 180;
     const curAlt = 3500 - (3500 - 2119) * u;
-
     const hdgRad = (curHeadingDeg * Math.PI) / 180;
     const vx = ftTasFtps * Math.sin(hdgRad) + wx;
     const vy = ftTasFtps * Math.cos(hdgRad) + wy;
     curX += vx * ftDt;
     curY += vy * ftDt;
 
+    const currentG = 1 / Math.cos((bankDeg * Math.PI) / 180);
+    const isRollout = ftTurnAccum >= totalTurnDeg;
+
     track.push({
       x: curX,
       y: curY,
       alt: Math.round(curAlt),
       kt: 120,
-      g: 1.22,
-      src: ftTurnAccum >= 180 ? 12 : 11,
-      phase: 'final_turn',
-      headingDeg: curHeadingDeg,
+      g: Number(currentG.toFixed(2)),
+      src: isRollout ? 12 : 11,
+      phase: isRollout ? 'final' : 'final_turn',
+      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
     });
   }
 
@@ -824,7 +850,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       g: 1,
       src: 0,
       phase: 'final',
-      headingDeg: rwyHeadingDeg,
+      headingDeg: exitHeadingDeg,
     });
   }
 
