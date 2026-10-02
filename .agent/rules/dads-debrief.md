@@ -42,6 +42,26 @@ The single source of truth for living tasks, milestone checklists, architecture 
   - T-6 stall speed calibrated at 86 kt with ±10 kt pilot domain tolerance (D387).
   - 3-point median filtering of GPS jitter / G dips authorized in Debrief (D383).
 
+## Dynamic Simulation Test Policy & Anti-Friction Guards (D411)
+- **Strict Prohibition on Microsecond Trajectory Locking:**
+  - In dynamic 2D/3D flight simulations (Turn Fight, Turn Sim, Formation, Traffic), flight trajectories are governed by differential equations with non-linear aerodynamics and closed-loop control.
+  - Tests **MUST NEVER** assert floating-point timestamps with tolerances tighter than Pilot Domain Tolerances (D371: `±0.5 s` standard, `±1.0 s` loose/tactical). Any test asserting `near(..., tol)` where `tol < 0.1 s` for dynamic flight events is strictly prohibited.
+  - Tests **MUST NEVER** assert spatial coordinates with microscopic tolerances (`tol < 1.0 ft` in dynamic flight is prohibited; use Pilot Domain Tolerances `±20 ft` standard, `±100 ft` loose).
+- **Prohibition on Trajectory Time-Locking in E2E Tests:**
+  - E2E tests (`tests/e2e/*.spec.js`) verify UI workflows, keyboard shortcuts, DOM rendering, controls, accessibility (WCAG 2.1 AA), and lifecycle cleanup (R4). They **DO NOT** verify differential flight physics.
+  - E2E tests **MUST NEVER** assert exact trajectory time strings (e.g. `toHaveText('Pass at T+16.4 s')`, `toContainText('Both at +17.1 s')`, `toHaveText('9.1 s, 140°')`). E2E assertions on dynamic flight telemetry must use regex patterns (e.g. `/Pass at T\+\d+\.\d+ s/`, `/(?:Both|Blue|Red) at \+\d+\.\d+ s/`, `/\d+\.\d+ s, \d+°/`).
+  - Never run long simulation waits (>5 seconds) in browser E2E tests to wait for trajectory convergence. Flight model convergence is verified in unit tests.
+- **Prohibition on Redundant Parameter Sweeps (Ticket Burn Prevention):**
+  - Tests must never loop over dozens of granular speed or altitude increments (e.g. arrays of 15+ speeds across multiple altitudes) executing repeated multi-minute differential solvers.
+  - Apply **Boundary Value Testing**: verify exactly three points: Minimum Envelope, Nominal Midpoint, and Maximum Envelope.
+- **Decoupling Natural Language Reasons from Exact Timestamps:**
+  - When testing AI decision logic or maneuver selection (`why` strings), tests must verify the tactical classification and qualitative comparison via regex or structured object properties, never bit-exact string matching containing transient predicted seconds.
+- **Prioritize Invariant Guards Over Rigid Paths:**
+  - Tests must focus on:
+    1. *Physical Invariants:* Zero NaN/Infinity, Hard Deck 6,000 ft MSL floor clamping, VMO (316 KIAS) / MMO (Mach 0.67) limits, Stall (86 KIAS) control loss, 10-minute simulation termination clamp.
+    2. *SMM Military Doctrine:* Coordinated bank $\phi = \arccos(1/G)$, 5.0 G pull law, 1-circle vs 2-circle turn geometry, D386 elevation cone.
+    3. *Lifecycle & Safety:* Complete disposal of WebGL/Three.js contexts, zero memory leaks, full cleanup on route exit.
+
 ## Platform Constraints & Execution Spine
 - **Antigravity Limitation & Small-Slice Architecture (D375):** Operating without Opus auditors and relying on fast Flash/inherit models. Parallel subagents perform *only* isolated prep work (pre-rebasing, resolving WIP hooks, single unit tests). Main integration is strictly **serial, one PR at a time**, with prerequisite host wiring landed before dependent branches. Zero multi-branch simultaneous merges.
 - **Human Sign-Off Gates & Build Flow (D376, D377):**

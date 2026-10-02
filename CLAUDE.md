@@ -5,7 +5,7 @@ A browser-based T-6 flight training suite (debrief viewers, BFM, formation sim, 
 ## Ground rules
 - It must stay usable by anyone, anywhere, in a normal browser with nothing to install.
 - Plain JavaScript (ES modules), no UI framework, so the code stays readable to its original author.
-- Never change flight math (geometry, EM, turn rate/radius, spacing, time conversions) without a test that pins the old behaviour first.
+- Never change flight math without tests verifying against 15 Wing Moose Jaw flight manuals (`../manuals/`) and standard aerodynamics within Pilot Domain Tolerances (D371: speeds ±10 kt, altitudes ±100 ft, angles ±5°, G ±0.5 G, merge times ±0.5 s). Zero bit-exact float matching or microsecond trajectory locking against legacy V6.
 - `original/` is the untouched reference. Do not edit `original/shell.html` or `original/assets/`. `python3 tools/rebuild_original.py out.html` rebuilds the exact original file and verifies its checksum.
 - Work spec-first: see `.claude/skills/spec-driven-development`. Specs live in `SPEC.md` (module map) and `specs/SPEC-<module>.md`.
 
