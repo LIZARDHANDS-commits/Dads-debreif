@@ -111,5 +111,9 @@ export function moreDetailRows(state) {
  */
 export function geometryRows(state) {
   const aspect = (from, other) => `${(180 - ataDeg(state, from, other)).toFixed(0)}°`;
-  return [pairRow('aspect', 'Aspect angle (AA)', 'more', aspect(state.blue, state.red), aspect(state.red, state.blue))];
+  const bankDeg = (g) => (g > 1.01 ? `${(Math.acos(1 / g) * (180 / Math.PI)).toFixed(0)}°` : '0°');
+  return [
+    pairRow('aspect', 'Aspect angle (AA)', 'more', aspect(state.blue, state.red), aspect(state.red, state.blue)),
+    pairRow('bank', 'Derived bank angle', 'more', bankDeg(state.perf.blue.g), bankDeg(state.perf.red.g)),
+  ];
 }

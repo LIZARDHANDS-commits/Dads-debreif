@@ -195,14 +195,23 @@ test('reading the state changes nothing in it', () => {
 
 // ── R28: live AA, HCA and range ──────────────────────────────────────────────
 
-test('R28: the one new More detail row is the aspect angle (AA); HCA is the "Angle-off (HCA)" row and Range stays in Result (no duplicates)', () => {
+test('R28 / D409: More detail geometry rows include aspect angle (AA) and derived bank angle', () => {
   const rows = geometryRows(createFight());
-  assert.deepEqual(rows.map((r) => r.id), ['aspect']);
-  assert.deepEqual(rows.map((r) => r.label), ['Aspect angle (AA)']);
+  assert.deepEqual(rows.map((r) => r.id), ['aspect', 'bank']);
+  assert.deepEqual(rows.map((r) => r.label), ['Aspect angle (AA)', 'Derived bank angle']);
   assert.ok(rows.every((r) => r.group === 'more'));
   const all = [...resultRows(createFight()), ...moreDetailRows(createFight()), ...rows].map((r) => r.id);
   assert.equal(new Set(all).size, all.length, 'every row id is unique across both tables');
   assert.equal(byId(moreDetailRows(createFight())).angleOff.label, 'Angle-off (HCA)');
+});
+
+test('D409: derived bank angle in geometry rows is arccos(1/G)', () => {
+  const s = createFight({ blueG: 2, redG: 3 });
+  const rows = byId(geometryRows(s));
+  assert.equal(rows.bank.blue, '60°', '2.0 G -> 60° bank');
+  assert.equal(rows.bank.red, '71°', '3.0 G -> 71° bank (arccos(1/3))');
+  const level = createFight({ blueG: 1, redG: 1 });
+  assert.equal(byId(geometryRows(level)).bank.blue, '0°', '1.0 G -> 0° bank');
 });
 
 test('R28: head-on at the start reads AA 180° for both, HCA 180°, range 2.00 NM', () => {

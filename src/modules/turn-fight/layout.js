@@ -22,8 +22,8 @@ const times = (values) => values.map((v) => [v, `${v}×`]);
 
 let nextId = 1;
 
-const SIMPLE_FOOTER = 'Simplified: constant speed and turn rate';
-const ENERGY_FOOTER = 'Energy mode: a T-6A at full power, with real thrust, drag and stall limits';
+const SIMPLE_FOOTER = 'Turn Circle Geometry: constant-speed turn circles — rate vs radius, no energy bleed';
+const ENERGY_FOOTER = 'BFM Energy Fight: full T-6 physics — energy management, stalls, pursuit curves';
 
 /** The plain names of Energy's moves, for the Move boxes (the engine's ids are the values). */
 const MOVE_NAMES = Object.freeze({ auto: 'Auto', immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S', mpt: 'MPT' });
@@ -128,7 +128,7 @@ export function createLayout({ settings, controls, on }) {
 
   const chase = controls.checkbox('chase', { label: 'First nose chases' });
   const vertical = controls.checkbox('vertical', { label: 'Climb and dive' });
-  const energy = controls.checkbox('energy', { label: 'Energy (T-6)' });
+  const energy = controls.checkbox('energy', { label: 'BFM Energy Fight' });
   // Why an Energy setup cannot fly (two numbers that don't go together): in words, where the boxes are.
   const energyProblem = h('p', { class: 'tf-warning tf-energy-problem', id: `tf-energy-problem-${nextId++}`, 'aria-live': 'polite' });
 
@@ -186,7 +186,7 @@ export function createLayout({ settings, controls, on }) {
     h('p', { class: 'tf-hint' }, `${rangeHint('hardDeckFt')} 6,000 ft MSL is 3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16). It is where the model changes to the level MPT.`),
     controls.select('pursuit', { label: 'Pursuit', options: [['pure', 'Pure'], ['lead', 'Lead'], ['lag', 'Lag']] }),
     h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: nose on the other (Pure), where it will be in 1 s (Lead) or was 1 s ago (Lag). Default Pure (SMM 12.30 and 16.16).'),
-    controls.checkbox('chaseAfterHeadOn', { label: 'Chase after a head-on pass' }),
+    controls.checkbox('chaseAfterHeadOn', { label: 'Chase from head-on' }),
     h('p', { class: 'tf-hint' }, 'Off by default: a head-on first nose-on is marked but starts no chase. On: it starts the pursuit too.'),
   );
 
@@ -212,7 +212,7 @@ export function createLayout({ settings, controls, on }) {
 
   const about = createPanel({ title: 'About this model', collapsed: true });
   about.body.append(
-    h('p', {}, h('b', {}, '2-circle: '), 'each jet turns toward the other. A rate fight. ', h('b', {}, '1-circle: '), 'Red turns away from Blue, so the two share one circle. A radius fight.'),
+    h('p', {}, h('b', {}, '2-circle (Rate Fight): '), 'Both jets turn into each other. Two separate circles. ', h('b', {}, '1-circle (Radius Fight): '), 'Jets turn opposite cockpit directions but same geographic direction. One shared circle.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
     h('p', {}, 'With Climb and dive on, first nose-on needs the nose truly on the other jet; at a fixed climb or dive it may never come, and the chase then never starts.'),
     h('p', {}, 'The aspect angle (AA) and off-nose angle (ATA) are measured in 3D with Climb and dive on, so with a height difference at T+0 the AA reads less than 180° even when Red points at Blue.'),
@@ -221,7 +221,7 @@ export function createLayout({ settings, controls, on }) {
   );
   // Energy (T-6) help, in the same closed About panel, shown only with the box ticked.
   const energyAbout = h('div', { class: 'tf-energy-about', hidden: true },
-    h('p', {}, h('b', {}, 'Energy (T-6): '), 'each T-6 flies at full power, using the vertical (Immelmann, pitch back, slice or split S) to get from its merge speed to the 160 KIAS max-performance turn (MPT), then holds it (SMM 14.3 para 6, 14.4 para 8). The move it chose and why shows beside each aircraft.'),
+    h('p', {}, h('b', {}, 'BFM Energy Fight: '), 'each T-6 flies at full power, using the vertical (Immelmann, pitch back, slice or split S) to get from its merge speed to the 160 KIAS max-performance turn (MPT), then holds it (SMM 14.3 para 6, 14.4 para 8). The move it chose and why shows beside each aircraft.'),
     ...ENERGY_ABOUT.map((line) => h('p', {}, line)),
   );
   about.body.append(energyAbout);
