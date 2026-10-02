@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // Energy mode's settings (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for checking"):
 // the defaults are the engine's, the ranges are its setup checks, and the setup key follows the Energy fight.
@@ -38,8 +49,8 @@ test('the Energy defaults fly at once, and every default is in its own range', (
 
 test('the three groups of Energy settings cover every Energy key once', () => {
   assert.equal(new Set(ENERGY_KEYS).size, ENERGY_KEYS.length);
-  // The spec lists twelve model settings; lead and lag, the two pitch back banks and the two split points each make a pair.
-  assert.equal(ENERGY_CHECK_KEYS.length, 15);
+  // The spec lists twelve model settings; lead and lag, the two pitch back banks, the two split points each make a pair, plus tactical AI lookahead.
+  assert.equal(ENERGY_CHECK_KEYS.length, 16);
   for (const key of ENERGY_KEYS) assert.ok(key in DEFAULTS, key);
   // The moves and pursuits the boxes offer are the engine's.
   assert.deepEqual(ALLOWED.blueMove, [...ENERGY_MOVES]);

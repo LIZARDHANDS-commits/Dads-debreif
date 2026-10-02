@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The Delayed 45 with the check turn (verification N3; SMM 16.19 Figs 16.17, 16.34 and 16.31; decision D148). Summaries in my own words:
 // - Fig 16.17 (two-ship): one aircraft turns its 45 at once; the other checks 10-15 degrees toward it, then turns 45 plus the check at the
 //   figure's clock cue (5 right, 7 left). Both end on the 45 heading, abreast and tighter than the plain turn's spacing, and quicker.

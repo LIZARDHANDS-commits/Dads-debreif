@@ -12,6 +12,27 @@ Each item names the thread that raised it and where the detail is.
 **2. Lowest Immelmann top speed: 120, or about 140? (Turn Fight N3) — RESOLVED BY PATRICK (D381)**
 - **Answered 2026-09-30 (D381):** Immelmann depletes energy. Below 140 KIAS, an Immelmann is strictly forbidden (must fly Split S or slice turn). The minimum top speed threshold is codified in D381.
 
+**10. Pitch Back minimum turn before level unload (Turn Fight BFM-1)**
+- **Question:** What is the authentic minimum heading change a Harvard II pilot completes during a Pitch Back before unloading to level flight or transitioning to MPT? (e.g. 90°, 120°, or 140°?).
+- **Why we ask:** SMM Ch 14 states the pitch back is a climbing reversal executed "before 180°". Without a minimum turn angle gate, a speed-based lookahead previously caused the aircraft to abort the pitch back after turning only 23°.
+- **Now:** A 90° minimum turn constraint is enforced (`c.turnDeg >= 90`) before speed-based handover to MPT is permitted, with hard-deck protection (`altFt - hardDeckFt < 1000`).
+
+**11. Max Performance Turn (MPT) tactical tracking vs. blind circle (Turn Fight BFM-2)**
+- **Question:** In the 15 Wing Harvard II BFM syllabus, is the Max Performance Turn (MPT at 160 KIAS) treated primarily as a 2-circle rate fight tool that actively tracks and maneuvers relative to the bandit, or is it flown as a fixed reference circle?
+- **Why we ask:** In the original simulation, aircraft entered a canned 160 KIAS circle that maintained bank and airspeed blindly without referencing the opponent's position or turn circle.
+- **Now:** Aircraft in MPT monitor the opponent; when tactical advantage exists (Austin/Carbone matrix > 0.45, ATA < 45°) or dynamic altitude separation exceeds 100 ft, fighters break out of the level MPT into active 3D combat pursuit.
+
+**12. Pursuit engagement criterion & attack window (Turn Fight BFM-3)**
+- **Question:** What angular window (Antenna Train Angle / ATA) triggers a Harvard II pilot to commit from a neutral rate turn into aggressive pursuit tracking?
+- **Why we ask:** Standard military doctrine (e.g. CNATRA P-825) uses an "attack window" of roughly 30°–45° ATA off the bandit's tail. Previously, the sim required an exact 5° boresight (`FIRST_NOSE_DEG = 5.0°`) which caused aircraft in 2-circle fights to orbit indefinitely without ever triggering pursuit.
+- **Now:** Tactical pursuit engages when ATA is within 45° and tactical advantage is positive, or when dynamic altitude splits allow line-of-sight tracking within 5° azimuth.
+
+**13. Pursuit energy floor / G-unload threshold (Turn Fight BFM-4)**
+- **Question:** Below what airspeed should a pursuing Harvard II pilot unload G and lower pitch to regain corner speed, rather than continuing to pull max G in a vertical climb?
+- **Why we ask:** In mutual vertical pursuit, chasers pulling continuous 5.0 G into high pitch angles could bleed airspeed down to 68 KIAS into a deep stall.
+- **Now:** An energy governor enforces a 140 KIAS floor during climbing pursuit: when KIAS falls below 140 and the aircraft is climbing, maximum commanded G is clamped to $\le 2.0$ G and vertical pitch demand is eased to prevent aerodynamic stall and recover corner speed.
+
+
 ## Turn Sim
 
 **3. The 5 o'clock cue on a Delayed 45 (Turn Sim C3)**

@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The cross turn as the SMM flies it (16.19 para 64, Figure 16.21): Lead and the wingman turn toward each other at once, 2 G
 // for the first 90 degrees, then 3 G, cross, and roll out after 180 degrees on the reciprocal heading. V6 flew all of it at
 // one G, and with the Direction box pointing away from #2 both turned the same way and never crossed.

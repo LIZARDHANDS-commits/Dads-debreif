@@ -269,7 +269,8 @@ flowchart TD
 | **`specs/SPEC-wx.md`** | Lines 171–178 cite `v6-compare.test.js` and `v6-sof.js`. | Quarantined both files to `archive/tests/wx/`. Eliminate V6 `new Function()` eval. | **Done** |
 | **`specs/SPEC-traffic.md`** | Mandates PFLs, engine-out glides, and fly-throughs for traffic completion. | Add **Phase 1 vs. Phase 2 Scope Declaration**: Phase 1 builds Core 4 on Runway 29L left-hand; PFLs and complex pattern rules deferred to Phase 2 (`POST_PROTOTYPE_QUEUE.md`). | Milestone 4 |
 | **`specs/SPEC-turn-sim.md`** | References bit-exact V6 turn rollout timings and 90° hook turn bug. | Base turn delays on SMM ch. 16 formulas; fly Hook Turn as true 180° turn; label reset button "Reset to Standard Defaults". | Milestone 4 |
-| **`specs/SPEC-turn-fight.md`** | Notes 30s test cutoff due to float divergence; specifies "Reset to V6 defaults". | Remove cutoff note; adopt pilot tolerances and closed-loop corrections allowing full 10-minute dogfights. Page opens to Simple 2D flat 1v1 fight by default with Energy Mode toggle (D379); label reset button "Reset to Standard Defaults". | Milestone 4 |
+| **`specs/SPEC-turn-fight.md`** | Notes 30s test cutoff due to float divergence; specifies "Reset to V6 defaults". | Remove cutoff note; adopt pilot tolerances and closed-loop corrections allowing full 10-minute dogfights. Page opens to Simple 2D flat 1v1 fight by default with Energy Mode toggle (D379); label reset button "Reset to Standard Defaults". Purged R9 golden test pinning. | **Done** |
+
 | **`tasks/sof/todo.md`** | Tasks 1–10 unchecked (phantom incomplete). | **Check off completed tasks 1, 2, 4–10** (100% built and verified on `main`). | Milestone 4 |
 | **`tasks/traffic/todo.md`** | Tasks 1–6 (PFLs, closed patterns, prediction engine) listed as active blockers. | **Prune tasks 1–6 to `POST_PROTOTYPE_QUEUE.md`**. Stage tasks for PR #229, polish/rewind, and Core 4. | Milestone 4 |
 | **`HANDOVER.md`** | Lists outdated module completion states. | Update module status table: Debrief (100%), SOF (100%), Traffic (PR #229 ready), Turn Fight (Energy engine on main), Turn Sim (Solver on main). | Milestone 4 |
@@ -345,11 +346,12 @@ flowchart TD
 - [ ] **Gate 3 (Turn Sim Sign-Off):** Patrick runs `docs/checklists/turn-sim.md`. Once signed off, Turn Sim is complete.
 
 #### Milestone 4: Comprehensive Documentation Ratification Pass
-- [ ] **Task 4.1:** Ratify `docs/records/plan-requirements.md` (R9 updated to manuals/tolerances; R24–R32 phased).
-- [ ] **Task 4.2:** Reconcile `HANDOVER.md` module status table to true 100% merged states.
+- [x] **Task 4.1:** Ratify `docs/records/plan-requirements.md` (R9 updated to manuals/tolerances; R24–R32 phased).
+- [x] **Task 4.2:** Reconcile `HANDOVER.md` module status table to true 100% merged states.
 - [ ] **Task 4.3:** Check off completed tasks 1, 2, 4–10 in `tasks/sof/todo.md`.
 - [ ] **Task 4.4:** Prune non-core tasks from `tasks/traffic/todo.md` to `POST_PROTOTYPE_QUEUE.md`.
-- [ ] **Task 4.5:** Update `SPEC-*.md` R9 references to pilot domain tolerances and standard aerodynamics.
+- [x] **Task 4.5:** Update `SPEC-*.md` R9 references to pilot domain tolerances and standard aerodynamics (SPEC-turn-fight.md updated).
+
 
 #### Milestone 5: End-to-End Desktop Prototype Sign-Off
 - [ ] **Task 5.1:** Remake visual regression snapshots (`npx playwright test --update-snapshots=all`).

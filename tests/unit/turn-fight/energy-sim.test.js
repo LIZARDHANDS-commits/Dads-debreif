@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's Energy mode engine (SPEC-turn-fight, "Energy mode (FF23, D112)").
 // Every test here is one of the spec's checks. There is nothing in V6 to pin: the
@@ -11,6 +22,7 @@ import { T6A_LIMITS, stallLimitG, availableG, splitST6A } from '../../../src/cor
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
 import {
   ENERGY_DEFAULT_SETUP, ENERGY_ACCURATE_MAX_FT, ENERGY_MAX_START_FT, PURSUITS, energyTopKias, MPT_KIAS_RANGE, createEnergyFight, stepEnergyFight, pickMove, lookAheadPick,
+  getFeasibleMoves, pickTacticalMove,
 } from '../../../src/modules/turn-fight/energy-sim.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected} (±${tol})`);
@@ -701,7 +713,7 @@ test('the mid-range throttle is a setting: half of maximum thrust by default, an
 });
 
 
-test('after a split S or an Immelmann rolls out, Auto looks at the speed again and picks from step 1 (a follow-on)', () => {
+test('after a split S or an Immelmann rolls out, Auto transitions cleanly into level MPT tracking', () => {
   for (const kias of [100, 250]) {
     const s = createEnergyFight({ ...SOLO, blueKias: kias, redKias: kias });
     const first = s.blue.move;
@@ -712,9 +724,8 @@ test('after a split S or an Immelmann rolls out, Auto looks at the speed again a
       if (s.blue.move !== first) next = { move: s.blue.move, kias: s.blue.kias, alt: s.blue.altFt };
     }
     assert.ok(next, `${kias} KIAS ${first} ended`);
-    // The move that follows is the one step 1 gives for the speed and height it ended at (a hair of rounding aside).
-    const again = pickMove(next.kias, next.alt, ENERGY_DEFAULT_SETUP).move;
-    assert.equal(next.move, again, `${kias} KIAS: ${first} then ${next.move} at ${next.kias.toFixed(0)} KIAS`);
+    // Rollout exit cleanly transitions into level MPT tracking rather than picking an inverted maneuver
+    assert.equal(next.move, 'mpt', `${kias} KIAS: ${first} then ${next.move} at ${next.kias.toFixed(0)} KIAS`);
   }
 });
 
@@ -1756,6 +1767,103 @@ test('D405: a stalled aircraft loses tracking authority and cannot claim nose-on
       assert.notEqual(s.chase?.by, 'blue', 'stalled blue cannot initiate chase');
     }
   }
+});
+
+test('Task 17: getFeasibleMoves returns expected candidate sets across flight envelopes', () => {
+  const p = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
+
+  // 250 kt: Immelmann, Pitch Back, MPT
+  const m250 = getFeasibleMoves({ kias: 250, altFt: 10000 }, null, p);
+  assert.deepEqual(m250, ['immelmann', 'pitchBack', 'mpt']);
+
+  // 160 kt: Pitch Back, Slice, MPT
+  const m160 = getFeasibleMoves({ kias: 160, altFt: 10000 }, null, p);
+  assert.deepEqual(m160, ['pitchBack', 'slice', 'mpt']);
+
+  // 100 kt: Slice, Split S, MPT
+  const m100 = getFeasibleMoves({ kias: 100, altFt: 10000 }, null, p);
+  assert.deepEqual(m100, ['slice', 'splitS', 'mpt']);
+
+  // Near hard deck (altFt = 6500, deck = 6000): margin is 500 < 1000, Split S would breach deck
+  const mDeck = getFeasibleMoves({ kias: 100, altFt: 6500 }, null, p);
+  assert.deepEqual(mDeck, ['mpt']);
+});
+
+test('Task 17: pickTacticalMove ranks candidates by earliest victory or tactical advantage', () => {
+  const fight = createEnergyFight({ blueKias: 250, redKias: 160, circles: 2 });
+  const tacticalBlue = pickTacticalMove(fight, 'blue', 20);
+  assert.ok(tacticalBlue.move, 'Blue picks a tactical move');
+  assert.ok(tacticalBlue.why.startsWith('Tactical AI:'), 'Why string starts with Tactical AI');
+  assert.ok(Number.isFinite(tacticalBlue.deltaAdv), 'deltaAdv is finite number');
+
+  const tacticalRed = pickTacticalMove(fight, 'red', 20);
+  assert.ok(tacticalRed.move, 'Red picks a tactical move');
+  assert.ok(tacticalRed.why.startsWith('Tactical AI:'), 'Why string starts with Tactical AI');
+  assert.ok(Number.isFinite(tacticalRed.deltaAdv), 'deltaAdv is finite number');
+});
+
+test('Task 19: Blue in tactical mode opportunistically breaks out of MPT', () => {
+  const fight = createEnergyFight({
+    blueMove: 'tactical',
+    redMove: 'mpt',
+    blueKias: 160,
+    redKias: 160,
+    turnsStart: 'now',
+    chaseAfterHeadOn: false,
+  });
+
+  // Let both aircraft merge and settle into MPT
+  stepEnergyFight(fight, 3.0);
+  assert.equal(fight.blue.ctl.mode, 'mpt', 'Blue settles in MPT initially');
+  assert.ok(fight.blue.mptReached, 'Blue has reached MPT');
+
+  // Simulate bandit (Red) bleeding speed / energy disadvantage
+  fight.red.kias = 95;
+  fight.red.pm.vx *= 0.6;
+  fight.red.pm.vy *= 0.6;
+
+  // Step through the 3.5s re-evaluation cadence
+  stepEnergyFight(fight, 1.0);
+
+  // Assert Blue opportunistically breaks out of MPT into Pitch Back or Slice
+  assert.ok(
+    fight.blue.move === 'pitchBack' || fight.blue.move === 'slice',
+    `Blue opportunistically breaks out of MPT (got ${fight.blue.move})`
+  );
+  assert.equal(fight.blue.ctl.mode, fight.blue.move, 'Control mode matches opportunistic maneuver');
+  assert.match(
+    fight.blue.why,
+    /^Tactical AI: (Pitch Back|Slice|Pitch back)/,
+    `Why string reflects tactical selection: "${fight.blue.why}"`
+  );
+  assert.ok(fight.blue.ctl.lockoutTimer > 0, 'Hysteresis lockout timer active');
+  assert.ok(fight.blue.ctl.lockoutTimer <= 4.0, 'Lockout timer <= 4.0 s');
+
+  // Also verify zooming bandit triggers opportunistic breakout
+  const fightZoom = createEnergyFight({
+    blueMove: 'tactical',
+    redMove: 'mpt',
+    blueKias: 160,
+    redKias: 160,
+    turnsStart: 'now',
+    chaseAfterHeadOn: false,
+  });
+  stepEnergyFight(fightZoom, 3.0);
+  fightZoom.red.pm.z += 2500;
+  fightZoom.red.altFt += 2500;
+  fightZoom.red.kias = 110;
+  fightZoom.red.pm.vx *= 0.7;
+  fightZoom.red.pm.vy *= 0.7;
+  stepEnergyFight(fightZoom, 1.0);
+  assert.ok(
+    fightZoom.blue.move === 'pitchBack' || fightZoom.blue.move === 'slice',
+    `Blue opportunistically breaks out against zooming bandit (got ${fightZoom.blue.move})`
+  );
+  assert.match(
+    fightZoom.blue.why,
+    /^Tactical AI: (Pitch Back|Slice|Pitch back)/,
+    `Why string reflects tactical selection: "${fightZoom.blue.why}"`
+  );
 });
 
 

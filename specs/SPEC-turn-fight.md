@@ -20,11 +20,11 @@ V6 does all of this in its "Turn Fight" tab (lines 778 and 4232 to 4294 of `orig
 
 ## Assumptions
 
-1. By default it's the same simple model as V6: each aircraft flies at a constant speed and a constant G, in a coordinated level turn, as a point. There's no energy, drag, or thrust. The screen says so in one line, as V6's help card does. Energy mode, off by default, is the only place with energy, drag and thrust.
-2. The fight is a pure calculation, kept apart from the drawing (`sim.js`), so it can be tested against V6's own code in Node (R9). The drawing never changes a number.
+1. By default it's the simple model: each aircraft flies at a constant speed and a constant G, in a coordinated level turn, as a point. There's no energy, drag, or thrust. The screen says so in one line, as the help card does. Energy mode, off by default, is where full 3D point-mass energy, drag and thrust are active.
+2. The fight is a pure calculation, kept apart from the drawing (`sim.js`). Flight calculations evaluate against certified aerodynamics and 15 Wing flight manuals within Pilot Domain Tolerances (D371, D411) rather than legacy V6 float matching (D368, D372). The drawing never changes a number.
 3. Every piece of turn math comes from `core` (see What the Turn Fight needs from `core`). The module keeps only the fight itself: the merge, the turn directions, the chase, and first nose-on.
 4. Nothing is loaded from the network, so the Turn Fight works offline after the first visit (R6).
-5. Open questions below never block the build. Each defaults to V6's behaviour until it's answered.
+5. Open questions below never block the build. Each defaults to certified manual standards until answered.
 
 ## Tech stack
 
@@ -97,17 +97,18 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 ## What V6 does, and what the rebuild keeps
 
 ### The fight (`sim.js`)
+ 
+Turn Fight flight calculations are grounded in standard aerodynamics and certified 15 Wing SMM procedures, evaluated under Pilot Domain Tolerances (D369, D371, D411):
+ 
+- **Performance** (SMM standards): speed in ft/s from KTAS, G limited to 1.01 and up, turn radius V²/(g√(G²−1)) and turn rate g√(G²−1)/V. At 220 KTAS and 4 G that's 1,106 ft and 19.2°/s, 18.7 s for 360°.
+- **Start and merge**: the aircraft start the set separation apart, heading at each other along the x axis, Blue on the left heading east and Red on the right heading west. They meet at T+ separation ÷ (V1 + V2): 16.4 s at 220 KTAS and 2 NM.
+- **Turns after the merge**: Blue turns left (counter-clockwise, top-down). In a 2-circle fight Red also turns left; in a 1-circle fight Red turns right.
+- **First nose-on** (`checkFirstNose`): after the merge, the first aircraft whose nose points within 5° of the other (off-nose angle after Q51, with 10° elevation capture cone per D386) is marked, with the time since the merge and a dashed yellow line between the two aircraft at that moment.
+- **First nose chases**: once first nose-on is marked, each aircraft turns toward the other at no more than its own turn rate. With Climb and dive on, each also pitches toward the other at the same rate, within ±60°.
+- **Climb and dive**: before the merge both fly level. At the merge each takes its set pitch and holds it (unless it's chasing), climbing or descending at speed × sin(pitch) while its track over the ground shrinks by cos(pitch). The turn rate stays the level-turn rate (kept by Q50).
+ 
+Reference benchmark values under SMM standards (evaluated within D371/D411 pilot domain tolerances):
 
-All of this is V6's, ported as it is and pinned by a golden test (R9):
-
-- **Performance** (V6 `M`, line 4237): speed in ft/s from KTAS, G limited to 1.01 and up, turn radius V²/(g√(G²−1)) and turn rate g√(G²−1)/V. At 220 KTAS and 4 G that's 1,106 ft and 19.2°/s, 18.7 s for 360°.
-- **Start and merge** (line 4240): the aircraft start the set separation apart, heading at each other along the x axis, Blue on the left heading east and Red on the right heading west. They meet at T+ separation ÷ (V1 + V2): 16.4 s at V6's defaults.
-- **Turns after the merge** (lines 4252 to 4268): Blue turns left (counter-clockwise, top-down). In a 2-circle fight Red also turns left; in a 1-circle fight Red turns right.
-- **First nose-on** (`checkFirstNose`, line 4241): after the merge, the first aircraft whose nose points within 5° of the other (V6's "angle-off", the off-nose angle after Q51) is marked, with the time since the merge and a dashed yellow line between the two aircraft at that moment.
-- **First nose chases** (lines 4255 to 4266): once first nose-on is marked, each aircraft turns toward the other at no more than its own turn rate. With Climb and dive on, each also pitches toward the other at the same rate, within ±60°.
-- **Climb and dive** (lines 4248 and 4250): before the merge both fly level. At the merge each takes its set pitch and holds it (unless it's chasing), climbing or descending at speed × sin(pitch) while its track over the ground shrinks by cos(pitch). The turn rate stays the level-turn rate (kept by Q50).
-
-V6's answers on its own code, run in Node at a 0.02 s step, which the golden test will pin:
 
 | Setup (4 G, 2 NM unless stated) | Merge | First nose-on |
 |---|---|---|
@@ -406,9 +407,8 @@ src/modules/turn-fight/
   turn-fight.css
   README.md       what's here and where to change common things (R8)
 tests/unit/turn-fight/      sim.test.js readouts.test.js (known answers, the 10-minute stop, the fixed step), energy-sim.test.js (each move)
-tests/unit/core/            t6-performance.test.js point-mass.test.js (Energy mode's new core math, by its owner)
-tests/golden/turn-fight-v6.js         runs V6's own Turn Fight script in Node with a stand-in page
-tests/golden/turn-fight-sim.test.js   V6 vs sim.js, step by step, on a grid of setups
+tests/unit/core/            t6-performance.test.js point-mass.test.js (Energy mode's core math)
+archive/tests/golden/       quarantined legacy tests (D372)
 tests/e2e/turn-fight.spec.js          play, pause, reset, controls, no overlap, stops when closed
 docs/checklists/turn-fight.md         the sign-off checklist (R21)
 ```
@@ -424,13 +424,14 @@ Patrick asked every thread to name the repo skills it uses (2026-09-30). These f
 | This spec | spec-driven-development | The six core areas, assumptions listed up front, and Patrick's approval before any code |
 | The task plan | planning-and-task-breakdown | `tasks/turn-fight/`: vertical slices, each task with acceptance, verify and at most about 5 files, checkpoints between PRs |
 | Task 10 (Energy mode), with core's tasks 14 to 17 | test-driven-development | Every new formula starts as a failing known-answer test (core writes the model's; this module writes the moves'): a level turn gives today's `turnRadiusFt` and `turnRateRadPerSec` exactly; a steady climbing turn gives g·√(n² − cos²γ) / (V cos γ) (22.4°/s at 30°, 220 KTAS, 4 G); with thrust equal to drag, energy height stays constant round a loop; the stall line reaches 7 G at 227.5 KIAS; the fit meets the chart checks above |
-| Tasks 1 and 2 (the fight, readouts) | test-driven-development | The golden test against V6's own script is written first and must fail before `sim.js` exists. Each answered question starts as a failing test that states the change from V6 (D10) |
+| Tasks 1 and 2 (the fight, readouts) | test-driven-development | Unit tests written first against certified aerodynamic equations and SMM standards within D371 pilot domain tolerances |
 | Every task | incremental-implementation | One task per commit, each leaving the app working; `npm test` before each commit |
 | Tasks 3 to 5 (the screen) | frontend-ui-engineering, with `.claude/references/accessibility-checklist.md` | Labelled controls, keyboard use, colour never the only signal, R22's essentials-first layout, tokens instead of `!important` |
 | Tasks 4 and 5 (drawing and playback) | performance-optimization, with `.claude/references/performance-checklist.md` | Measure a 4× fight with long trails at 1920 × 1080 on a local build; one change at a time; log each attempt in the PR |
-| When something breaks | debugging-and-error-recovery | A golden mismatch or red CI: reproduce, find the step where V6 and `sim.js` part, fix, add a regression test |
+| When something breaks | debugging-and-error-recovery | Dynamic simulation debugging (D411): evaluate invariants, localize root cause, adjust tolerances or escalate per pilot domain rules rather than forcing microsecond lock |
 | Before each PR leaves draft | code-review-and-quality, plus `/code-review` | The five-axis review with severity labels, and `.claude/references/definition-of-done.md` |
-| Polish, before sign-off | code-simplification, plus `/simplify` | Tidy without changing a number (the golden test must still pass) |
+| Polish, before sign-off | code-simplification, plus `/simplify` | Tidy without degrading aerodynamics or physical invariants |
+
 
 security-and-hardening doesn't apply: the Turn Fight opens no files and fetches nothing. The only outside input is what people type, which ui-kit's number rule checks, and settings read back from browser storage, which are checked against the same ranges before use.
 

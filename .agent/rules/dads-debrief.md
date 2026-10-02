@@ -61,9 +61,9 @@ The single source of truth for living tasks, milestone checklists, architecture 
     1. *Physical Invariants:* Zero NaN/Infinity, Hard Deck 6,000 ft MSL floor clamping, VMO (316 KIAS) / MMO (Mach 0.67) limits, Stall (86 KIAS) control loss, 10-minute simulation termination clamp.
     2. *SMM Military Doctrine:* Coordinated bank $\phi = \arccos(1/G)$, 5.0 G pull law, 1-circle vs 2-circle turn geometry, D386 elevation cone.
     3. *Lifecycle & Safety:* Complete disposal of WebGL/Three.js contexts, zero memory leaks, full cleanup on route exit.
-- **MANDATORY OPERATOR ESCALATION RULE FOR REPEATED TEST FAILURES:**
-  - **"If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work."**
-  - Under NO circumstance should an agent degrade aerodynamic formulas, 5.0 G SMM pull laws, stick shaker limits, energy retention governors, or flight physics just to satisfy outdated or brittle test assertions. When physical improvements or bug fixes cause legacy tests to fail due to hardcoded timestamps or obsolete assumptions, the test fixtures and assertions must be updated to reflect reality, or escalated to the operator.
+- **MANDATORY OPERATOR ESCALATION RULE (2x Test Failure Threshold):**
+  - **"If a test fails twice (2x test fail), DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or aerodynamic formulas to force tests to pass! STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION."**
+  - Tests that repeatedly fail are likely poorly designed, time-locked to legacy numbers (e.g. obsolete 4.0 G baselines), or asserting microscopic trajectory floats. Under D411, tests must be updated, harmonized, or pruned—never accommodated by degrading aerodynamic fidelity. Every test file in the repository carries this banner at the top as an active guardrail.
 
 ## Platform Constraints & Execution Spine
 - **Antigravity Limitation & Small-Slice Architecture (D375):** Operating without Opus auditors and relying on fast Flash/inherit models. Parallel subagents perform *only* isolated prep work (pre-rebasing, resolving WIP hooks, single unit tests). Main integration is strictly **serial, one PR at a time**, with prerequisite host wiring landed before dependent branches. Zero multi-branch simultaneous merges.

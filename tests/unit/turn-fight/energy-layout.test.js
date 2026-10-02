@@ -1,12 +1,23 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Energy screen's words and lists (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for
 // checking", "Start geometry and altitudes"): the hints, the note beside a high start altitude, and the About lines on the
 // MPT bank, each held to the engine and the spec. The screen itself is checked in the browser (tests/e2e/turn-fight.spec.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createEnergyFight, stepEnergyFight, ENERGY_ACCURATE_MAX_FT } from '../../../src/modules/turn-fight/energy-sim.js';
+import { createEnergyFight, stepEnergyFight, ENERGY_ACCURATE_MAX_FT, ENERGY_MOVES, MOVE_LABELS } from '../../../src/modules/turn-fight/energy-sim.js';
 import { ALTITUDE_NOTE, ENERGY_ABOUT, CHECK_SETTINGS, rangeHint } from '../../../src/modules/turn-fight/layout.js';
-import { ENERGY_CHECK_KEYS, RANGES, DEFAULTS } from '../../../src/modules/turn-fight/state.js';
+import { ENERGY_CHECK_KEYS, RANGES, DEFAULTS, ALLOWED } from '../../../src/modules/turn-fight/state.js';
 
 test('the note beside a start altitude above 15,000 ft is the spec\'s, in one note: the low turn rate, and SMM 14.5 para 10', () => {
   assert.equal(ENERGY_ACCURATE_MAX_FT, 15000);
@@ -70,4 +81,29 @@ test('the About and hint text quote no manual: numbers and page references only'
   const all = [...ENERGY_ABOUT, ALTITUDE_NOTE, ...CHECK_SETTINGS.map(([, , hint]) => hint)].join(' ');
   assert.ok(!/["“”]/.test(all), 'no quotation marks in the help text');
   for (const ref of all.match(/SMM[\d .a-z]*/g) ?? []) assert.match(ref, /SMM(\s+\d+(\.\d+)?)?(\s+paras?\s+\d+( to \d+| and \d+)?)?/, ref);
+});
+
+test('Task 18: tactical move is selectable and tacticalLookaheadSec exists in defaults and settings', () => {
+  assert.ok(ENERGY_MOVES.includes('tactical'), 'tactical is in ENERGY_MOVES');
+  assert.ok(ALLOWED.blueMove.includes('tactical'), 'tactical is in ALLOWED.blueMove');
+  assert.ok(ALLOWED.redMove.includes('tactical'), 'tactical is in ALLOWED.redMove');
+  assert.equal(MOVE_LABELS.tactical, 'Tactical AI');
+
+  assert.equal(DEFAULTS.tacticalLookaheadSec, 20);
+  assert.ok('tacticalLookaheadSec' in RANGES);
+  assert.equal(RANGES.tacticalLookaheadSec.min, 10);
+  assert.equal(RANGES.tacticalLookaheadSec.max, 45);
+  assert.equal(RANGES.tacticalLookaheadSec.default, 20);
+  assert.ok(ENERGY_CHECK_KEYS.includes('tacticalLookaheadSec'));
+
+  const checkItem = CHECK_SETTINGS.find(([k]) => k === 'tacticalLookaheadSec');
+  assert.ok(checkItem, 'tacticalLookaheadSec is in CHECK_SETTINGS');
+  assert.equal(checkItem[1], 'Tactical AI lookahead (s)');
+
+  // Verifying tactical can be selected and runs in createEnergyFight
+  const fight = createEnergyFight({ blueMove: 'tactical', redMove: 'tactical' });
+  assert.equal(fight.setup.blueMove, 'tactical');
+  assert.equal(fight.setup.redMove, 'tactical');
+  assert.ok(fight.blue.move, 'Blue selected a move');
+  assert.ok(fight.blue.why.startsWith('Tactical AI:'), 'Blue why text starts with Tactical AI');
 });

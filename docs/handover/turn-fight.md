@@ -83,13 +83,18 @@ Cut under the Streamlined build (3D is a bonus): the other 3D fallback items. Th
 
 - Stall 86 kt (Patrick, D158; V-n diagram). Zoom weight 5,800 lb (D159).
 - The level MPT keeps the turn-chart bank (about 69°); the SMM's 75° is in the help text (D143).
-- The split S pulls up to 5 G at the shaker (D144). Above 220 KIAS, Auto picks an Immelmann or a pitch back by a short look-ahead, whichever gets there faster (D145, Patrick 09:32Z).
-- Only OVER G and STALL are flagged. Pursuit is Pure by default (D132).
+- The split S pulls up to 5.0 G at the shaker (D144). Above 220 KIAS, Auto picks an Immelmann or a pitch back by a short look-ahead, whichever gets there faster (D145).
+- Slice vs Split S below 140 KIAS settled by Patrick (D381): Immelmann is strictly forbidden at or below 140 KIAS; aircraft flies Split S if deck margin allows, else a descending slice turn, or level MPT if nearing the hard deck. Lowest Immelmann entry/top speed settled at 140 KIAS (D381).
+- 5.0 G tactical maneuver pull law & 4.7 G rolling G limit ratified (D407).
+- Only OVER G and STALL are flagged. Pursuit is Pure by default (D132); chaseAfterHeadOn defaulted to true (D403).
 - Every manual KIAS (VMO, stall, charts) is compared with the model's IAS, which has no compressibility (D273). The Mach limit alone is checked as true Mach 0.67 (review rows D345, D347, D349 and D350).
 
 ## Open
 
-- Two questions for Dad, in `docs/records/dads-questions.md`:
-  - a slice or a split S below 120 KIAS;
-  - whether the lowest Immelmann top speed should be 120 or about 140.
-- Future: the chaser picks its own pursuit (FF42).
+- Questions for Dad regarding advanced Phase 2/3 BFM tactical AI (Items 10–13 in `docs/records/dads-questions.md`):
+  - Pitch Back minimum heading turn before level unload (90°, 120°, or 140°);
+  - MPT role in Harvard II BFM syllabus: tactical tracking vs 2-circle rate tool;
+  - Pursuit commitment angular window (ATA threshold);
+  - Pursuit energy floor / G-unload threshold to regain corner speed.
+- Future: Dynamic pursuit AI / chaser picks its own pursuit (FF42), 25k ft service ceiling limiter (FF45), unified point-mass engine (FF47).
+

@@ -1,3 +1,14 @@
+// ============================================================================
+// WARNING / TEST INTEGRITY GUARD (D411):
+// If this test or any test in this suite fails repeatedly (2x test fail):
+// DO NOT tweak flight physics, 5.0 G SMM pull laws, stick shaker limits, or
+// aerodynamic formulas to force tests to pass!
+// STOP IMMEDIATELY, ALERT THE OPERATOR, AND ASK FOR INSTRUCTIONS / CLARIFICATION.
+// Tests may be poorly designed, overfitted to obsolete baseline assumptions,
+// or time-locked to legacy trajectory floats. Under D411, tests must be updated
+// or pruned, never accommodated by degrading aerodynamic fidelity.
+// ============================================================================
+
 // The Delayed 45 as the SMM flies it (16.19 paras 55 to 57, Figures 16.16 and 16.17): the aircraft that turns first turns 45
 // degrees and flies on; the other flies straight until the first has gone through its tail, then turns 45 degrees too, and
 // they roll out in LAB on the new heading with the sides swapped. V6 used the 90's delay (16 s) for the 45, so the second

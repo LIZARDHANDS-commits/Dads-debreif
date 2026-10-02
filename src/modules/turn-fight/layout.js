@@ -26,7 +26,7 @@ const SIMPLE_FOOTER = 'Turn Circle Geometry: constant-speed turn circles — rat
 const ENERGY_FOOTER = 'BFM Energy Fight: full T-6 physics — energy management, stalls, pursuit curves';
 
 /** The plain names of Energy's moves, for the Move boxes (the engine's ids are the values). */
-const MOVE_NAMES = Object.freeze({ auto: 'Auto', immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S', mpt: 'MPT' });
+const MOVE_NAMES = Object.freeze({ tactical: 'Tactical AI (Dynamic Utility)', auto: 'Auto', immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S', mpt: 'MPT' });
 
 /**
  * The note beside a start altitude above 15,000 ft (the spec's words): one note, not two warnings. It goes once core's
@@ -69,6 +69,7 @@ export const CHECK_SETTINGS = Object.freeze([
   ['immelmannMinTopKias', 'Lowest Immelmann top speed (KIAS)', 'An Immelmann that would be over the top slower than this is never picked.'],
   ['pickLookaheadSec', 'Look-ahead (s)', 'How far ahead Auto races the two moves above its split point. 0 turns the race off.'],
   ['deckMarginFt', 'Deck margin (ft)', 'Under the MPT band and closer than this to the hard deck, Auto flies the level MPT instead of a slice or split S.'],
+  ['tacticalLookaheadSec', 'Tactical AI lookahead (s)', 'Forward lookahead horizon in seconds used by Tactical AI to evaluate candidate moves.'],
 ]);
 
 /**

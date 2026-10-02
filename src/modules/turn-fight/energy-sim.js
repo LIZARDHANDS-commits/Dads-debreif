@@ -38,7 +38,7 @@ import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
 import { turnRadiusFt } from '../../core/flight-math.js';
 
 /** The moves a setup can force; 'auto' lets the model choose (step 1). */
-export const ENERGY_MOVES = Object.freeze(['auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
+export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
 /** The pursuits a screen offers. A setup also accepts 'none' (nobody chases), for tests and what-ifs; it is not one of the choices. */
 export const PURSUITS = Object.freeze(['pure', 'lead', 'lag']);
 /**
@@ -108,6 +108,7 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   immelmannOffNoseDeg: 120,
   immelmannMinTopKias: 120,
   pickLookaheadSec: 60,
+  tacticalLookaheadSec: 20,
   deckMarginFt: 1000,
   splitSBelowKias: 120,
   pullG: MANEUVER_PULL_G,
@@ -177,7 +178,8 @@ const TUNING = Object.freeze({
   dryRunMaxSec: 40,           // model setting: the Immelmann dry run gives up after this long
 });
 
-const MOVE_LABELS = Object.freeze({
+export const MOVE_LABELS = Object.freeze({
+  tactical: 'Tactical AI',
   immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S',
   mpt: 'MPT', levelMpt: 'Level MPT', pursuit: 'Pursuit',
 });
@@ -354,6 +356,7 @@ function checkedSetup(setup) {
   need(Number.isFinite(s.immelmannOffNoseDeg) && s.immelmannOffNoseDeg >= 0 && s.immelmannOffNoseDeg <= 180, 'immelmannOffNoseDeg is 0 to 180', s.immelmannOffNoseDeg);
   need(Number.isFinite(s.immelmannMinTopKias) && s.immelmannMinTopKias >= 0 && s.immelmannMinTopKias <= T6A_LIMITS.vmoKias, `immelmannMinTopKias is 0 to ${T6A_LIMITS.vmoKias}`, s.immelmannMinTopKias);
   need(Number.isFinite(s.pickLookaheadSec) && s.pickLookaheadSec >= 0 && s.pickLookaheadSec <= 120, 'pickLookaheadSec is 0 to 120', s.pickLookaheadSec);
+  need(Number.isFinite(s.tacticalLookaheadSec) && s.tacticalLookaheadSec >= 0, 'tacticalLookaheadSec is 0 or more', s.tacticalLookaheadSec);
   need(Number.isFinite(s.deckMarginFt) && s.deckMarginFt >= 0 && s.deckMarginFt <= 10000, 'deckMarginFt is 0 to 10000', s.deckMarginFt);
   need(Number.isFinite(s.stallSec) && s.stallSec >= 0, 'stallSec is 0 or more', s.stallSec);
   need(Number.isFinite(s.midThrottle) && s.midThrottle > 0 && s.midThrottle <= 1, 'midThrottle is above 0 and up to 1', s.midThrottle);
@@ -411,7 +414,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     stall: false, stallReason: '', stallEver: false,
     onShaker: false, chaseLimited: false, aim: null,
     rolling: false, rollDegPerSec: 0,
-    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0 },
+    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0 },
   };
   readOut(ac, 1, 1, p);
   readSlow(ac, p);
@@ -483,6 +486,7 @@ function atThePass(state) {
 function chooseFirstMove(state, ac, other, start = null) {
   const p = state.setup;
   const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
+  if (forced === 'tactical') return pickTacticalMove(state, ac.who);
   return forced === 'auto' ? autoPick(state, ac, other, ac.mergeKias, start) : { move: forced, why: forcedWhy(forced, ac.mergeKias) };
 }
 
@@ -533,6 +537,8 @@ export function lookAheadPick(state, who) {
   if (!state.merged && state.plan[who]) return state.plan[who];
   const ac = state[who];
   const other = who === 'blue' ? state.red : state.blue;
+  const forced = ac.who === 'blue' ? state.setup?.blueMove : state.setup?.redMove;
+  if (forced === 'tactical') return pickTacticalMove(state, ac.who);
   return autoPick(state, ac, other, ac.kias);
 }
 
@@ -593,7 +599,8 @@ function noseOnSec(from, who, move, kias, cutSec) {
   // `flags`: OVER G and STALL belong to a step the move has flown. At the pick itself they are the last move's.
   const judge = (flags) => {
     if (flags && (me.overG || me.stall)) return { sec: null };
-    const mine = onTheOther(sim, me, you), theirs = onTheOther(sim, you, me);
+    const mine = onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you);
+    const theirs = onTheOther(sim, you, me) || shouldPursueTactical(sim, you, me);
     if (theirs && !mine) return { sec: null };
     return mine ? { sec: sim.timeSec - t0 } : null;
   };
@@ -621,11 +628,243 @@ function immelmannTopKias(p, ac, other, kias) {
   sim.ctl.prevKias = sim.kias; sim.ctl.kiasRateEff = 0;
   let low = sim.kias;
   for (let t = 0; t < TUNING.dryRunMaxSec; t += FIGHT_STEP_SEC) {
-    stepAircraft(alone, sim, { pm: other.pm }, FIGHT_STEP_SEC);
+    stepAircraft(alone, sim, { pm: other?.pm ?? other }, FIGHT_STEP_SEC);
     low = Math.min(low, sim.kias);
     if (sim.ctl.phase !== 'main' || sim.move !== 'immelmann') break;
   }
   return low;
+}
+
+/**
+ * Determine candidate maneuvers from authentic Harvard II envelopes and safety limits.
+ * - immelmann: 180 <= KIAS <= 316 (T6A_LIMITS.vmoKias), apex speed >= (setup.immelmannMinTopKias ?? 120)
+ * - pitchBack: 150 <= KIAS <= 260
+ * - slice: 90 <= KIAS <= 175 and (ac.altFt - setup.hardDeckFt) > (setup.deckMarginFt ?? 1000)
+ * - splitS: (setup.stallKias ?? 86) <= ac.kias <= 140 (D381), ac.altFt - lossFt > setup.hardDeckFt
+ * - mpt: Always feasible
+ *
+ * @param {any} ac - Aircraft state or partial state
+ * @param {any} [other] - Opponent aircraft state
+ * @param {any} [setup] - Fight setup options
+ * @returns {string[]} Array of candidate move names
+ */
+export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP) {
+  const s = { ...ENERGY_DEFAULT_SETUP, ...(setup || {}) };
+  const hardDeckFt = s.hardDeckFt ?? ENERGY_DEFAULT_SETUP.hardDeckFt;
+  const deckMarginFt = s.deckMarginFt ?? 1000;
+  const stallKias = s.stallKias ?? T6A_LIMITS.stallKias;
+  const rollRateDegPerSec = s.rollRateDegPerSec ?? ENERGY_DEFAULT_SETUP.rollRateDegPerSec;
+  const immelmannMinTopKias = s.immelmannMinTopKias ?? 120;
+
+  const kias = ac?.kias ?? (ac?.pm ? tasToIasKt(len(velOf(ac.pm)) / KT_TO_FTPS, ac.pm.z) : 200);
+  const altFt = ac?.altFt ?? ac?.pm?.z ?? 10000;
+
+  const moves = [];
+
+  // 1. Immelmann: 180 <= KIAS <= 316, apex speed >= immelmannMinTopKias
+  if (kias >= 180 && kias <= T6A_LIMITS.vmoKias) {
+    let fullAc = ac;
+    if (!ac?.pm || !ac?.ctl) {
+      const ktas = iasToTasKt(kias, altFt);
+      fullAc = newAircraft(ac?.who ?? 'blue', { x: 0, y: 0, z: altFt, ktas, headingRad: 0 }, s, kias, null);
+    }
+    let fullOther = other;
+    if (!fullOther || !fullOther.pm) {
+      const ktas = iasToTasKt(fullAc.kias ?? kias, altFt);
+      fullOther = newAircraft('red', { x: 10000, y: 0, z: altFt, ktas, headingRad: Math.PI }, s, fullAc.kias ?? kias, null);
+    }
+    let apex = 0;
+    try {
+      apex = immelmannTopKias(s, fullAc, fullOther, kias);
+    } catch {
+      apex = 0;
+    }
+    if (apex >= immelmannMinTopKias) {
+      moves.push('immelmann');
+    }
+  }
+
+  // 2. Pitch Back: 150 <= KIAS <= 260
+  if (kias >= 150 && kias <= 260) {
+    moves.push('pitchBack');
+  }
+
+  // 3. Slice: 90 <= KIAS <= 175 and altitude margin > deckMarginFt
+  if (kias >= 90 && kias <= 175 && (altFt - hardDeckFt) > deckMarginFt) {
+    moves.push('slice');
+  }
+
+  // 4. Split S: stallKias <= KIAS <= 140 (D381), altFt - lossFt > hardDeckFt
+  if (kias >= stallKias && kias <= 140) {
+    const lossFt = splitST6A(kias, altFt, { stallKias, rollRateDegPerSec }).fromTopFt;
+    if (altFt - lossFt > hardDeckFt) {
+      moves.push('splitS');
+    }
+  }
+
+  // 5. MPT: Always feasible (baseline sustained rate turn)
+  moves.push('mpt');
+
+  return moves;
+}
+
+/**
+ * Dynamic tactical maneuver selector using forward simulation dry-runs and utility scoring.
+ * Evaluates all feasible candidate moves for `who` against `other` over lookahead horizon.
+ *
+ * Ranking criteria:
+ * 1. Primary: Earliest victory timestamp (winSec).
+ * 2. Secondary: Highest tactical advantage differential (ΔAdv).
+ * 3. Tertiary: Specific energy height (He) tie-breaker.
+ *
+ * @param {any} state - Fight state
+ * @param {any} who - 'blue', 'red', or aircraft object
+ * @param {number} [lookaheadSec] - Lookahead horizon in seconds (default 20 s)
+ * @returns {{ move: string, why: string, winSec: number|null, deltaAdv: number }}
+ */
+export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tacticalLookaheadSec ?? 20)) {
+  const whoName = typeof who === 'string' ? who : (who?.who ?? 'blue');
+  const otherName = whoName === 'blue' ? 'red' : 'blue';
+  const meAc = state[whoName];
+  const otherAc = state[otherName];
+  const setup = state.setup ?? ENERGY_DEFAULT_SETUP;
+
+  const candidates = getFeasibleMoves(meAc, otherAc, setup);
+  if (!candidates.length) {
+    return {
+      move: 'mpt',
+      why: 'Tactical AI: MPT baseline',
+      winSec: null,
+      deltaAdv: 0,
+    };
+  }
+
+  const evaluated = [];
+
+  for (const move of candidates) {
+    const sim = structuredClone(state);
+    sim.dry = true;
+    const me = sim[whoName], you = sim[otherName];
+    let t0;
+
+    if (!sim.merged) {
+      sim.plan = { ...(state.plan || {}), [whoName]: { move, why: '' } };
+      const wholeSteps = Math.floor((sim.setup.turnsStart === 'now' ? 0 : secondsToPass(sim)) / FIGHT_STEP_SEC) - 2;
+      if (wholeSteps > 0 && wholeSteps * FIGHT_STEP_SEC < FIGHT_MAX_SEC) {
+        flyStraight(sim, wholeSteps * FIGHT_STEP_SEC);
+        sim.timeSec += wholeSteps * FIGHT_STEP_SEC;
+        readPair(sim);
+      }
+      while (!sim.merged && !sim.stopped) {
+        stepOnce(sim);
+        if (sim.timeSec >= FIGHT_MAX_SEC - 1e-6) sim.stopped = true;
+      }
+      t0 = sim.mergeSec ?? sim.timeSec;
+      startMove(sim, me, move, '', me.kias);
+    } else {
+      startMove(sim, me, move, '', me.kias);
+      t0 = sim.timeSec;
+    }
+
+    const until = t0 + lookaheadSec;
+    let winSec = null;
+    let lost = false;
+    let valid = true;
+
+    // Check initial condition at t0
+    const win0 = onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you);
+    const loss0 = onTheOther(sim, you, me) || shouldPursueTactical(sim, you, me);
+    if (win0 && !loss0) {
+      winSec = 0;
+    } else if (loss0 && !win0) {
+      lost = true;
+    }
+
+    if (winSec === null && !lost) {
+      while (sim.timeSec < until - 1e-9 && !sim.stopped) {
+        stepOnce(sim);
+        if (sim.timeSec >= FIGHT_MAX_SEC - 1e-6) sim.stopped = true;
+
+        if (me.stall || me.overG) {
+          valid = false;
+          break;
+        }
+
+        const win = onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you);
+        const loss = onTheOther(sim, you, me) || shouldPursueTactical(sim, you, me);
+
+        if (win && !loss) {
+          winSec = sim.timeSec - t0;
+          break;
+        }
+        if (loss && !win) {
+          lost = true;
+          break;
+        }
+      }
+    }
+
+    const advMe = tacticalAdvantage(me, you);
+    const advYou = tacticalAdvantage(you, me);
+    const deltaAdv = advMe - advYou;
+    const alt = me.altFt ?? me.pm.z;
+    const ktas = me.ktas ?? (len(velOf(me.pm)) / KT_TO_FTPS);
+    const he = energyHeightFt(alt, ktas);
+
+    evaluated.push({
+      move,
+      valid,
+      winSec,
+      lost,
+      deltaAdv,
+      he,
+    });
+  }
+
+  // Rank candidates
+  evaluated.sort((a, b) => {
+    // 0. Valid beats invalid
+    if (a.valid !== b.valid) return a.valid ? -1 : 1;
+
+    // 1. Victory: earliest winSec wins
+    const aWins = a.winSec !== null && a.winSec !== undefined;
+    const bWins = b.winSec !== null && b.winSec !== undefined;
+    if (aWins && bWins) {
+      if (Math.abs(a.winSec - b.winSec) > 1e-4) return a.winSec - b.winSec;
+      if (Math.abs(a.deltaAdv - b.deltaAdv) > 1e-4) return b.deltaAdv - a.deltaAdv;
+      if (Math.abs(a.he - b.he) > 1.0) return b.he - a.he;
+      return 0;
+    }
+    if (aWins !== bWins) return aWins ? -1 : 1;
+
+    // 2. Penalty: non-loss beats loss
+    if (a.lost !== b.lost) return a.lost ? 1 : -1;
+
+    // 3. Highest deltaAdv
+    if (Math.abs(a.deltaAdv - b.deltaAdv) > 1e-4) return b.deltaAdv - a.deltaAdv;
+
+    // 4. Highest He
+    if (Math.abs(a.he - b.he) > 1.0) return b.he - a.he;
+
+    return 0;
+  });
+
+  const best = evaluated[0];
+  let why;
+  const label = MOVE_LABELS[best.move] ?? best.move;
+  if (best.winSec !== null && best.winSec !== undefined) {
+    why = `Tactical AI: ${label} predicted victory in ${best.winSec.toFixed(1)} s (earliest intercept)`;
+  } else {
+    const sign = best.deltaAdv >= 0 ? '+' : '';
+    why = `Tactical AI: ${label} chosen for positional advantage (ΔAdv ${sign}${best.deltaAdv.toFixed(2)})`;
+  }
+
+  return {
+    move: best.move,
+    why,
+    winSec: best.winSec,
+    deltaAdv: best.deltaAdv,
+  };
 }
 
 // ── Readouts ────────────────────────────────────────────────────────────────
@@ -768,6 +1007,7 @@ function handToMpt(ac) {
   const c = ac.ctl;
   c.mode = 'mpt'; c.capture = true; c.t = 0;
   c.halfUntilShaker = false; c.level = false; c.levelAltFt = null;
+  c.mptEvalTimer = 0;
 }
 
 /** From the first nose-on the chaser flies pursuit, for the rest of the fight. */
@@ -840,7 +1080,7 @@ function controlImmelmann(ctx) {
     return { g: Math.min(1, ctx.shaker), bankRad: upright, prefer: c.prefer, throttle: 1 };
   }
   // Level: pull or ease to level flight, upright.
-  if (Math.abs(climb) < TUNING.levelDoneDeg) c.next = 'pick';
+  if (Math.abs(climb) < TUNING.levelDoneDeg) c.next = 'mpt';
   return { g: levelOffG(ctx, 0), bankRad: upright, prefer: c.prefer, throttle: 1 };
 }
 
@@ -854,7 +1094,7 @@ function controlImmelmannRecover(ctx, climbDeg) {
   const { ac } = ctx;
   const c = ac.ctl;
   const cmd = physicalBankCommand(ctx, 0, levelOffG(ctx, 0), 1);
-  if (!ac.stall && Math.abs(climbDeg) < TUNING.levelDoneDeg && Math.abs(ac.bankDeg) < 30) c.next = 'pick';
+  if (!ac.stall && Math.abs(climbDeg) < TUNING.levelDoneDeg && Math.abs(ac.bankDeg) < 30) c.next = 'mpt';
   return cmd;
 }
 
@@ -886,7 +1126,7 @@ function controlSplitS(ctx) {
     if (!(c.down && climb >= 0)) return { g: pull, bankRad: invertedBank, prefer: c.prefer, throttle: 1 };
     c.phase = 'level';
   }
-  if (Math.abs(radToDeg(climb)) < TUNING.levelDoneDeg) c.next = 'pick';
+  if (Math.abs(radToDeg(climb)) < TUNING.levelDoneDeg) c.next = 'mpt';
   return { g: levelOffG(ctx, 0), bankRad: invertedBank, prefer: c.prefer, throttle: 1 };
 }
 
@@ -912,10 +1152,34 @@ function speedHoldBankDeg(ctx, g, minDeg, maxDeg) {
 
 /** The MPT: constant-speed above the hard deck, level at it. */
 function controlMpt(ctx) {
-  const { ac, p, f, kias } = ctx;
+  const { state, ac, p, f, kias, d } = ctx;
   const c = ac.ctl;
   const vFtps = f.ktas * KT_TO_FTPS;
   const climb = f.climbRad;
+
+  // Mid-fight tactical opportunity re-evaluation in MPT
+  if (!state.dry && state.merged && (c.mode === 'mpt' || c.mode === 'levelMpt')) {
+    if (c.lockoutTimer > 0) c.lockoutTimer = Math.max(0, c.lockoutTimer - d);
+    c.mptEvalTimer = (c.mptEvalTimer || 0) + d;
+    if (c.mptEvalTimer >= 3.5 && (c.lockoutTimer || 0) <= 0) {
+      c.mptEvalTimer = 0;
+      const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
+      if (forced === 'tactical') {
+        const altMargin = ((ac.altFt ?? f.altFt) - p.hardDeckFt) > (p.deckMarginFt ?? 1000);
+        if (altMargin && !ac.stall && !ac.overG) {
+          const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
+          if (best && best.move !== 'mpt' && best.move !== 'levelMpt') {
+            if ((best.winSec !== null && best.winSec !== undefined) || best.deltaAdv > 0.25) {
+              startMove(state, ac, best.move, best.why, kias);
+              c.lockoutTimer = 4.0;
+              return controlFor(ctx);
+            }
+          }
+        }
+      }
+    }
+  }
+
   // A move handed to the MPT keeps its name until the speed is within 5 kt of the MPT speed, then reads MPT.
   if (ac.move !== 'mpt' && ac.move !== 'levelMpt' && Math.abs(kias - p.mptKias) <= MPT_WITHIN_KT) {
     ac.move = 'mpt'; ac.moveLabel = MOVE_LABELS.mpt; ac.why = `MPT ${round(p.mptKias)} KIAS`;
@@ -1157,7 +1421,7 @@ function controlFor(ctx) {
     case 'pitchBack': case 'slice': return controlBankMove(ctx);
     case 'immelmann': return controlImmelmann(ctx);
     case 'splitS': return controlSplitS(ctx);
-    case 'mpt': return controlMpt(ctx);
+    case 'mpt': case 'levelMpt': return controlMpt(ctx);
     case 'pursuit': return controlPursuit(ctx);
     default: return { g: 1, bankRad: 0, prefer: 1, throttle: 1 };
   }
@@ -1184,12 +1448,23 @@ function stepAircraft(state, ac, other, d) {
   c.kiasRateEff = 0.8 * c.kiasRateEff + 0.2 * rate;
   c.prevKias = kias;
   c.t += d;
+  if (c.lockoutTimer > 0 && c.mode !== 'mpt' && c.mode !== 'levelMpt') {
+    c.lockoutTimer = Math.max(0, c.lockoutTimer - d);
+  }
 
   // A move that has ended hands to the next one.
   if (c.next) {
     const next = c.next; c.next = null;
-    if (next === 'mpt') handToMpt(ac);
-    else { const pick = autoPick(state, ac, other, kias); startMove(state, ac, pick.move, pick.why, kias); }
+    if (next === 'mpt') {
+      if (ac.move === 'immelmann' || ac.move === 'splitS') {
+        ac.move = 'mpt';
+        ac.moveLabel = MOVE_LABELS.mpt;
+      }
+      handToMpt(ac);
+    } else {
+      const pick = autoPick(state, ac, other, kias);
+      startMove(state, ac, pick.move, pick.why, kias);
+    }
   } else if (c.t > TUNING.moveMaxSec && BANK_MOVE_MODES.includes(c.mode)) {
     c.next = 'pick';
   }
@@ -1396,6 +1671,7 @@ export function tacticalAdvantage(ac, target) {
  * Decisive tactical advantage triggers pursuit entry even without 5° boresight lock.
  */
 function shouldPursueTactical(state, ac, target) {
+  if (state.setup.pursuit === 'none') return false;
   if (ac.ctl.mode === 'pursuit' || ac.stall) return false;
   if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
   if (!state.setup.chaseAfterHeadOn && 180 - noseOffDeg(state, target) > PURSUIT_MAX_AA_DEG) return false;

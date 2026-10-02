@@ -55,9 +55,139 @@ Historical Audit: [`AUDIT_DECISIONS_D112_D405.md`](file:///C:/Users/patri/.gemin
 - **Task 15.2:** Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `.agent/memory/handoff.md`.
 - **Task 15.3:** Run full verification: `npm test` (all 3,045+ pass), `npm run typecheck` (0 errors), `npm run build` (clean), `npx playwright test tests/e2e/turn-fight.spec.js`.
 
+
 ---
 
-## 3. Risks & Mitigations
+## 4. Phase 6: Tactical AI Maneuver Selection Engine (Tasks 16–20)
+
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Tasks: [`todo.md`](todo.md).
+Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
+
+### Task 16: Predictor Synchronization & Exit Traps Neutralization
+**Description:** Synchronize the lookahead trajectory predictor with the Austin/Carbone tactical advantage matrix and eliminate post-maneuver rollout traps.
+- In `src/modules/turn-fight/energy-sim.js:noseOnSec`: update `judge()` to check `onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you)`, ensuring the dry-run predictor registers tactical breakout wins.
+- Optimize dry-run simulation step: run `noseOnSec` with $\Delta t = 0.08\text{ s}$ or $0.10\text{ s}$ (instead of $0.02\text{ s}$), achieving sub-2ms multi-move trajectory sweeps without UI stutter.
+- In `controlImmelmann` and `controlSplitS`: change rollout handover from `c.next = 'pick'` to `c.next = 'mpt'`, stopping the sudden $110^\circ$ slice snap and 30-second Split S roller coaster.
+
+**Acceptance criteria:**
+- [ ] `noseOnSec` detects both boresight nose-on and `shouldPursueTactical` breakout.
+- [ ] Lookahead dry runs complete in $\le 2\text{ ms}$ for 4 candidate evaluations.
+- [ ] Immelmann apex rollout transitions cleanly into level MPT tracking rather than snapping into an inverted slice.
+- [ ] Split S dive recovery transitions smoothly into level MPT tracking rather than re-triggering an immediate second Split S.
+
+**Verification:**
+- [ ] Tests pass: `node --test tests/unit/turn-fight/energy-sim.test.js`
+- [ ] Build succeeds: `npm run build`
+
+**Dependencies:** None (builds directly on Task 15 baseline).
+**Files likely touched:** `src/modules/turn-fight/energy-sim.js`
+**Estimated scope:** Small (1 file, ~30 lines).
+
+---
+
+### Task 17: Candidate Generation & Tactical Utility Scoring Engine
+**Description:** Implement candidate maneuver generation across operational envelopes and a multi-dimensional utility scoring engine to select moves that win the engagement.
+- Implement `getFeasibleMoves(ac, setup)`:
+  - `immelmann`: $180 \le KIAS \le 316$ ($V_{MO}$), apex speed $\ge 120$ KIAS.
+  - `pitchBack`: $150 \le KIAS \le 260$.
+  - `slice`: $90 \le KIAS \le 175$, alt margin $> 1,000$ ft above Hard Deck.
+  - `splitS`: $86 \le KIAS \le 140$ (D381), alt margin $> \text{lossFt} + 500$ ft above Hard Deck.
+  - `mpt`: always feasible (baseline sustained rate turn).
+- Implement `pickTacticalMove(state, who, lookaheadSec)`:
+  - Sweeps feasible candidates using forward lookahead (default 20 s).
+  - Primary rank: Earliest victory timestamp ($T_{\text{win}}$) via `shouldPursueTactical` or `onTheOther`.
+  - Secondary rank: Highest cumulative tactical advantage differential ($\Delta Adv = Adv_{\text{me}} - Adv_{\text{target}}$).
+  - Tertiary rank: Specific energy height retention ($H_e = h + V^2 / 2g$).
+  - Returns `{ move, score, winSec, deltaAdv, why }`.
+
+**Acceptance criteria:**
+- [x] Envelope filtering respects Harvard II aerodynamic limits and safety margins.
+- [x] Utility ranking prioritizes winning moves over static lookup tables.
+- [x] Full explanation string (`why`) articulates the tactical justification for the chosen maneuver.
+
+**Verification:**
+- [x] Existing and new unit tests pass: `node --test tests/unit/turn-fight/energy-sim.test.js`
+- [x] Full module unit tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
+- [x] Typecheck succeeds: `npm run typecheck`
+
+**Dependencies:** Task 16.
+**Files likely touched:** `src/modules/turn-fight/energy-sim.js`, `tests/unit/turn-fight/energy-tactical.test.js`
+**Estimated scope:** Medium (2 files).
+
+---
+
+### Task 18: UI Integration & Settings Wiring
+**Description:** Integrate the Tactical AI maneuver option into the UI controls, state management, and readouts while preserving 100% backward compatibility for legacy `'auto'`.
+- In `src/modules/turn-fight/state.js`: add `'tactical'` to `ENERGY_MOVES` (`['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']`).
+- In `src/modules/turn-fight/energy-sim.js:pickMove`: dispatch to `pickTacticalMove` when move is `'tactical'`; keep existing textbook lookup when move is `'auto'`.
+- In `src/modules/turn-fight/layout.js`: add `'Tactical AI (Dynamic Utility)'` to Blue/Red move dropdowns; add `tacticalLookaheadSec` slider (range 10–45 s, default 20 s, step 1 s) under "Model settings for checking".
+- In `src/modules/turn-fight/energy-readouts.js`: render the tactical choice rationale and score summary in the Result card.
+
+**Acceptance criteria:**
+- [ ] `'tactical'` selectable from UI dropdowns for Blue and Red independently.
+- [ ] `'auto'` remains default and produces identical textbook behavior for existing tests.
+- [ ] Lookahead slider dynamically controls search horizon (10–45 s).
+- [ ] Tactical decision rationale visible in post-merge readout.
+
+**Verification:**
+- [ ] Tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
+- [ ] E2E tests pass: `npx playwright test tests/e2e/turn-fight.spec.js`
+- [ ] Typecheck succeeds: `npm run typecheck`
+
+**Dependencies:** Tasks 16, 17.
+**Files likely touched:** `src/modules/turn-fight/state.js`, `src/modules/turn-fight/energy-sim.js`, `src/modules/turn-fight/layout.js`, `src/modules/turn-fight/energy-readouts.js`
+**Estimated scope:** Medium (4 files).
+
+---
+
+### Task 19: Mid-Fight Opportunity Re-evaluation in `controlMpt`
+**Description:** Enable dynamic maneuver breakout from sustained rate turns (MPT) when opportunistic energy or positional advantages arise during the dogfight.
+- In `controlMpt`: add a throttled re-evaluation cadence (every 3.0 to 4.0 s while in MPT).
+- When operating in `'tactical'` mode, evaluate candidate maneuvers if the tactical advantage differential improves significantly or opponent overshoots/zooms.
+- Apply a hysteresis lockout timer (minimum 4.0 s between maneuver transitions) to prevent rapid oscillatory state fluttering.
+
+**Acceptance criteria:**
+- [x] Aircraft in MPT can break out into a Pitch Back or Slice if an offensive advantage presents itself.
+- [x] No state fluttering or erratic bank oscillations during rate turns.
+- [x] Hard deck and energy floor guards strictly respected during breakout maneuvers.
+
+**Verification:**
+- [ ] Unit tests pass: `node --test tests/unit/turn-fight/energy-tactical.test.js`
+- [ ] Playback visual inspection in 2D and 3D views.
+
+**Dependencies:** Tasks 16, 17, 18.
+**Files likely touched:** `src/modules/turn-fight/energy-sim.js`
+**Estimated scope:** Small (1 file, ~40 lines).
+
+---
+
+### Task 20: Verification, Test Harmonization & Gate 2 Checkpoint
+**Description:** Run full test suite, harmonize test fixtures under D371/D411 pilot domain tolerances, and prepare Gate 2 sign-off report.
+- Run complete test suite: `npm test` across all 3,090+ tests.
+- Run Playwright E2E suite: `npx playwright test tests/e2e/turn-fight.spec.js`.
+- Typecheck: `npm run typecheck`.
+- Production build: `npm run build`.
+- Update documentation ledger: `docs/records/decisions-log.md`, `docs/records/plan-decisions.md` (recording tactical AI decisions), `HANDOVER.md`, `docs/handover/turn-fight.md`, and `docs/REMEDIATION_ROADMAP.md`.
+
+**Acceptance criteria:**
+- [ ] 100% of unit and E2E tests pass cleanly.
+- [ ] Zero TypeScript / typecheck errors.
+- [ ] Clean build within performance budgets.
+- [ ] Documentation synchronized and ready for Patrick's review.
+
+**Verification:**
+- [ ] `npm test`
+- [ ] `npm run typecheck`
+- [ ] `npm run build`
+- [ ] `npx playwright test tests/e2e/turn-fight.spec.js`
+
+**Dependencies:** Tasks 16–19.
+**Files likely touched:** `tests/unit/turn-fight/energy-tactical.test.js`, `docs/*`
+**Estimated scope:** Medium (documentation + verification).
+
+---
+
+## 5. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -65,3 +195,5 @@ Historical Audit: [`AUDIT_DECISIONS_D112_D405.md`](file:///C:/Users/patri/.gemin
 | 5.0 G maneuver pull alters trajectory timings | Unit tests assert within pilot domain tolerances (D371: $\pm0.5$ G, $\pm0.5$ s). Shaker caps pull at low speed. |
 | D386 wiring alters nose-on trigger times | Simple Mode tests use pilot domain angular tolerances ($\pm5^\circ$). |
 | Mode renaming breaks Playwright E2E locators | Locators updated in `turn-fight.spec.js` in lockstep with UI label changes. |
+| Lookahead dry runs cause frame drops or UI stutter | Stepping lookahead simulation with $\Delta t = 0.08\text{ s}$ or $0.10\text{ s}$ keeps total evaluation time under 2 ms. |
+| Tactical AI breaks existing unit tests expecting textbook moves | Preserving `'auto'` as the legacy SMM textbook lookup ensures 100% backward compatibility for all existing tests. |

@@ -139,3 +139,39 @@ Master Plan: [`turn_fight_remediation_v2.md`](file:///C:/Users/patri/.gemini/ant
   - [x] 15.2 Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `.agent/memory/handoff.md`.
   - [x] 15.3 Run full verification: `npm test` (all 3,046 pass), `npm run typecheck` (0 errors), `npm run build` (clean in 502ms).
 
+---
+
+## Remediation Plan v3: Tactical AI Maneuver Selection Engine (Tasks 16–20)
+
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Plan: [`plan.md`](plan.md).
+Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
+
+- [x] **16. Task 16: Predictor Synchronization & Exit Traps Neutralization.**
+  - [x] 16.1 Synchronize `judge()` in `src/modules/turn-fight/energy-sim.js:noseOnSec`: evaluate `onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you)`.
+  - [x] 16.2 Optimize dry-run step: evaluate tactical pursuit breakout in lookahead; mirror `pursuit === 'none'` guard in `shouldPursueTactical`.
+  - [x] 16.3 Fix rollout exit traps: In `controlImmelmann` and `controlSplitS`, set `c.next = 'mpt'` instead of `c.next = 'pick'`, transitioning `ac.move = 'mpt'` to prevent violent slice snapping and Split S dive loops.
+
+- [x] **17. Task 17: Candidate Generation & Tactical Utility Scoring Engine.**
+  - [x] 17.1 Implement `getFeasibleMoves(ac, setup)` with authentic Harvard II operational envelopes (Immelmann $\le 316$ kt, Pitch Back 150–260 kt, Slice 90–175 kt, Split S 86–140 kt, MPT always).
+  - [x] 17.2 Implement `pickTacticalMove(state, who, lookaheadSec)`: rank candidate trajectories by earliest victory ($T_{\text{win}}$), tactical advantage differential ($\Delta Adv$), and specific energy ($H_e$).
+  - [x] 17.3 Generate structured explanation string (`why`) articulating tactical justification for the chosen maneuver.
+
+- [x] **18. Task 18: UI Integration & Settings Wiring.**
+  - [x] 18.1 Add `'tactical'` to `ENERGY_MOVES` in `src/modules/turn-fight/energy-sim.js` and `state.js` while preserving `'auto'` as textbook baseline.
+  - [x] 18.2 Dispatch to `pickTacticalMove` in `src/modules/turn-fight/energy-sim.js:chooseFirstMove` when move is `'tactical'`.
+  - [x] 18.3 Add `'Tactical AI (Dynamic Utility)'` to Blue/Red move dropdowns in `src/modules/turn-fight/layout.js`.
+  - [x] 18.4 Add `tacticalLookaheadSec` control (10–45 s, default 20 s) to "Model settings for checking" in `src/modules/turn-fight/layout.js`.
+  - [x] 18.5 Display tactical choice rationale and score breakdown in `src/modules/turn-fight/energy-readouts.js` / Result view.
+
+- [x] **19. Task 19: Mid-Fight Opportunity Re-evaluation in `controlMpt`.**
+  - [x] 19.1 Add throttled re-evaluation cadence (every 3–4 s in MPT) for aircraft in `'tactical'` mode.
+  - [x] 19.2 Trigger maneuver breakout into Pitch Back or Slice when opportunistic positional advantage arises.
+  - [x] 19.3 Enforce hysteresis lockout timer (minimum 4 s) to prevent state fluttering or rapid bank reversals.
+
+- [x] **20. Task 20: Verification, Test Harmonization & Gate 2 Sign-Off.**
+  - [x] 20.1 Add dedicated unit test suite `tests/unit/turn-fight/energy-tactical.test.js` validating envelopes, ranking, exits, and MPT breakout.
+  - [x] 20.2 Harmonize legacy test assertions under D371/D411 pilot domain tolerances without microsecond trajectory locking.
+  - [x] 20.3 Full verification: `npm test` (all 3,174 pass), `npm run typecheck`, `npm run build`, and Playwright E2E.
+  - [x] 20.4 Synchronize documentation (`decisions-log.md`, `plan-decisions.md`, `HANDOVER.md`, `turn-fight.md`, `REMEDIATION_ROADMAP.md`).
+
+
