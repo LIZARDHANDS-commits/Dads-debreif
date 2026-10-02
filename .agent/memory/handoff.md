@@ -3,57 +3,51 @@
 Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 
 ## Last updated
-02 Oct 2026, 02:15Z (Antigravity).
+02 Oct 2026, 04:15Z (Antigravity).
 
 ## Current State & Documentation Directory
-- **Branch:** `next-module` (clean, fully synced with `origin/main` and `origin/next-module` at commit `40de4d3`).
-- **Deconfliction Status with Concurrent Session (`4ff89e6a-1f5c-41ed-a7b0-f636c0f17775`):**
-  - **Other Session (Traffic Sim):** Operating in `Dads-debreif/` on `main`, landed commit `40b8e0d` with `D406: Vector Guidance Migration Ratification`.
-  - **This Session (Turn Fight BFM):** Operating in `next_module_worktree/` on `next-module`. Renumbered Turn Fight pull law to **`D407`** (Maneuver Pull Law: 5.0 G) to deconflict with Traffic Sim D406.
-  - **Zero file overlap:** Modules and tasks are strictly segregated. Shared decision records and handover files are fully synchronized.
-- **Swarm Execution Status:**
-  - Halted cleanly on user request due to credit/quota constraints. All 13 subagents and recurring crons killed. Zero background processes active.
-  - Authoritative Swarm Resume Handover: [`.agents/teamwork/SWARM_HANDOVER_RESUME.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/.agents/teamwork/SWARM_HANDOVER_RESUME.md).
+- **Branch:** `next-module` (on track, all 5 slices committed: `269f887`, `080da94`, `8fe0468`, `57958b0`, `e32342b`).
+- **Deconfliction Status with Concurrent Session:**
+  - **Main / Traffic Sim:** Closed pattern, High Key PFL, and vector guidance complete through Milestone 1.
+  - **Next-Module / Turn Fight BFM:** Completed Milestone 2 + Remediation Plan v2 (Tasks 11–15, PATCH-028, D406–D411).
+  - **Zero file overlap:** Modules strictly segregated. Shared decision records and handover files synchronized.
 - **Code & Test Health:**
-  - `src/modules/turn-fight/energy-sim.js` has `MANEUVER_PULL_G = 5` and rolling limit clamps (`T6A_LIMITS.rollingMaxG = 4.7`) cleanly implemented with zero hacks.
+  - `tests/unit/turn-fight/**/*.test.js`: **508/508 PASS (100% GREEN)**.
+  - `npm test`: **3,046 PASS, 0 FAIL, 1 skipped (100% GREEN)**.
   - `npm run typecheck`: **PASSED (0 errors)**.
-  - Test assertion updates deferred to post-swarm (Phase 5) per Patrick's explicit directive.
+  - `npm run build`: **PASSED (clean in 502ms)**.
+  - Production flight physics clean (`MANEUVER_PULL_G = 5`, rolling guard 4.7 G).
+- **Milestone Status:**
+  - **Gate 2 (Turn Fight Sign-Off): READY FOR PATRICK.** Checklist at [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md).
 
-## What Was Accomplished This Session
-1. **Full BFM Ratification & Forensic Audit (D112–D405):**
-   - 294 decisions audited; 47 pre-D368 high-risk items resolved; 28 historical supersessions logged in `docs/records/plan-decisions.md`.
-   - Ratified BFM geometry (1-circle vs 2-circle) against USAF AFTTP 3-3, Robert Shaw, and 15 Wing Moose Jaw SMM Ch 12/14/16.
-   - Ratified Decisions D407 (5.0 G Maneuver Pull Law), D408 (Chase from head-on), D409 (Mode renaming & derived bank angle), D410 (BFM doctrine help text), D411 (Engagement logic bug fixes).
-2. **Phase 1 Flight Math Implemented in Code:**
-   - Updated `MANEUVER_PULL_G = 5` in `src/modules/turn-fight/energy-sim.js`.
-   - Guarded rolling maneuvers in `controlBankMove` and `controlMpt` with `T6A_LIMITS.rollingMaxG = 4.7`.
-   - Restored authentic `maxBankMoveTurnDeg: 170` in `TUNING`.
-   - Confirmed typecheck clean (`tsc -p jsconfig.json` exit 0).
-3. **Clean Swarm Halt & Handover Artifacts:**
-   - Halted `/teamwork-preview` cleanly without orphaned background jobs.
-   - Generated `.agents/teamwork/SWARM_HANDOVER_RESUME.md` with turnkey resume instructions for next swarm or single agent.
+## What Was Accomplished Across Slices 1–5
+1. **Slice 1 (Engagement Logic & D386 Cone):**
+   - Implemented D386 elevation acquisition cone ($\Delta\text{az} \le 5^\circ$ AND $\Delta\text{el} \le 10^\circ$) across altitude separation $\ge 100\text{ ft}$.
+   - Eliminated ghost pursuit; single pursuit steering assigned strictly to winner (`!both`).
+   - Wired dynamic altitude gate and normalized `firstNose` schema (`{ by: 'both' }`).
+2. **Slice 2 (Display & Readouts):**
+   - Added Aspect Angle row to `energyMoreRows(state)` in `energy-readouts.js`.
+   - Wired two-way API key adapter (`simpleSetupFromEnergy`, `energySetupFrom`) in `playback.js` and `state.js`.
+   - Cleaned residual V6 text references across UI strings and comments.
+3. **Slice 3 (UI Mode Renaming & BFM Doctrine — D409/D410):**
+   - Relabeled modes to **"Turn Circle Geometry"** (Simple) vs **"BFM Energy Fight"** (Energy).
+   - Added derived coordinated bank angle readout row ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
+   - Updated About panel to reflect authentic military BFM doctrine: 2-circle (Rate Fight) vs 1-circle (Radius Fight).
+   - Relabeled `chaseAfterHeadOn` toggle to "Chase from head-on".
+4. **Slice 4 (Test Harmonization under D371 Pilot Domain Tolerances):**
+   - Harmonized pitch back turn angle expectations to D371 pilot tolerances ($\le 210^\circ$, $\le 235^\circ$, $\le 265^\circ$ at the 6,000 ft deck).
+   - Harmonized roll-in G check to account for 4.7 G rolling limit and 5.0 G steady pull.
+   - Aligned dry run test helpers and `noseOnRule` with D386 elevation cone and disqualification on `stallEver`/`overGEver`.
+   - Updated E2E locators in `tests/e2e/turn-fight.spec.js` for new mode label and footers.
+5. **Slice 5 (Documentation Synchronization & Patch Register):**
+   - Recorded Decisions D406–D411 across `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+   - Logged `PATCH-028` in `docs/REMEDIATION_PATCH_LOG.md` and `docs/records/remediation-patch-log.md`.
+   - Checked off Tasks 11–15 in `tasks/turn-fight/todo.md`.
+   - Updated module status in `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.
 
-## Immediate Next Steps (Serial Resume Queue)
-1. **Phase 2 (Task 12 — Engagement Logic & D386 Cone):**
-   - Wire `isNoseOn()` into `sim.js:checkFirstNose()` (azimuth $\le 5^\circ$, elevation $\le 10^\circ$).
-   - Add elevation cone to `energy-sim.js:isAcNoseOn()`.
-   - Fix ghost pursuit in `energy-sim.js:1303-1311` (set `state.firstNose` & `state.chase`).
-   - Update dynamic altitude gate (`Math.abs(zFt) >= 100`).
-   - Normalize schema to `{ by: 'both' }` and update `readouts.js:45`.
-2. **Phase 3 (Task 13 — Display & Readouts):**
-   - Fix inverted Aspect Angle in `readouts.js:113` (`180 - ataDeg(state, other, from)`).
-   - Add Aspect Angle row to `energy-readouts.js`.
-   - Add API key adapter in `playback.js`/`state.js`.
-   - Clean residual V6 text in `layout.js:215` and `geometry.js:150`.
-3. **Phase 4 (Task 14 — UI Labels & Doctrine):**
-   - Rename modes in `layout.js` ("Turn Circle Geometry" vs. "BFM Energy Fight").
-   - Add derived bank angle readout in Geometry Mode: $\phi = \arccos(1/G)$.
-   - Update 1-circle / 2-circle BFM help text; relabel chase toggle to "Chase from head-on".
-4. **Phase 5 (Task 15 — Test Harmonization & Verification):**
-   - Update `energy-sim.test.js` (line 44 `pullG: 5`, lookahead race timings to 5.0 G values within D371 $\pm0.5$ s).
-   - Update Playwright E2E locators in `tests/e2e/turn-fight.spec.js`.
-   - Verify `npm test`, `npm run typecheck`, and `npm run build`.
+## Immediate Next Steps
+1. **Gate 2 Sign-Off:** Patrick executes interactive walkthrough on `localhost:4173` using [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md).
+2. **Milestone 3 (Turn Sim Formation):** Once Patrick signs off Gate 2, proceed to Milestone 3 (Tasks 3.1–3.2: Hook Turn 180° rebuild per SMM Ch 16, formation grid, PR 5).
 
 ## Waiting on Patrick
-- None — all specifications, decisions, and instructions are fully ratified.
-- Can be resumed via `/teamwork-preview` or directly in a single session once credits reset.
+- Gate 2 checklist walkthrough and sign-off.

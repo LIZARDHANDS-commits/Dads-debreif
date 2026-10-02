@@ -38,6 +38,7 @@
 | [**PATCH-025**](#patch-025-milestone-2-active-combat-pursuit-default-d403) | M2 | 2026-10-01 07:25Z | BFM Physics | Milestone 2 Active Combat Pursuit Default (D403) | Pass |
 | [**PATCH-026**](#patch-026-energy-mode-3d-merge-azimuth-acquisition-across-vertical-separation-d404) | M2 | 2026-10-01 08:05Z | BFM & 3D | Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D404) | Pass |
 | [**PATCH-027**](#patch-027-pilot-stall-authority-loss--post-merge-3d-pursuit-entry-d405) | M2 | 2026-10-01 09:05Z | Aero & BFM | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D405) | Pass |
+| [**PATCH-028**](#patch-028-turn-fight-bfm-1v1-50-g-law-d386-cone-bfm-doctrine--test-harmonization) | M2 | 2026-10-01 22:15Z | Aero & BFM | 5.0 G Pull Law, D386 Cone, BFM Doctrine & Pilot Domain Test Harmonization | Pass |
 
 ---
 
@@ -740,6 +741,45 @@
   - 68/68 Playwright E2E tests passed 100% green (`npx playwright test tests/e2e/turn-fight.spec.js`).
   - `npm run typecheck` passed (0 errors).
   - `npm run build` compiled clean in 355ms.
+
+---
+
+### PATCH-028: Turn Fight (BFM 1v1) 5.0 G Law, D386 Cone, BFM Doctrine & Test Harmonization
+* **Date & Time:** 2026-10-01 22:15 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`src/modules/turn-fight/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/layout.js)
+  * [`src/modules/turn-fight/readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/readouts.js)
+  * [`src/modules/turn-fight/energy-readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-readouts.js)
+  * [`src/modules/turn-fight/playback.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/playback.js)
+  * [`tests/unit/turn-fight/energy-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-sim.test.js)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md)
+* **Problem / Flaw Addressed:**  
+  1. Maneuver pull law in `energy-sim.js` was artificially capped at 4.0 G instead of authentic 5.0 G per SMM Ch 14 and pilot ratification (D406/D407).
+  2. D386 elevation acquisition cone was missing ($\le 5^\circ$ azimuth and $\le 10^\circ$ elevation across vertical separation), and ghost pursuit steering was assigned simultaneously to both aircraft.
+  3. UI labels retained legacy V6 phrasing ('Energy (T-6)', 'Simplified') rather than military debrief doctrine ('BFM Energy Fight', 'Turn Circle Geometry').
+  4. Derived bank angle readout ($\phi = \arccos(1/G)$) was missing from geometry tables.
+  5. Brittle microsecond assertions in tests caused failures under chaotic 3D flight dynamics when authentic 5.0 G physics and rolling limits were introduced.
+* **Changes Made:**
+  1. Standardized `MANEUVER_PULL_G = 5.0` with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling limit guard and authentic 170° `maxBankMoveTurnDeg` in `TUNING`.
+  2. Implemented D386 elevation acquisition cone ($\Delta\text{az} \le 5^\circ$ AND $\Delta\text{el} \le 10^\circ$ across altitude splits $\ge 100\text{ ft}$) and assigned pursuit steering strictly to winner (`!both`).
+  3. Added Aspect Angle row to `energyMoreRows` and implemented bi-directional key adapter between Simple and Energy modes (`simpleSetupFromEnergy`, `energySetupFrom`).
+  4. Mode toggle relabeled to 'BFM Energy Fight', simple/energy footers updated with BFM doctrine explanations, and derived coordinated bank angle row added to `geometryRows`.
+  5. Harmonized test expectations with D371 pilot domain tolerances (±10°, ±10 kt, ±0.5 G, ±100 ft) and physical invariants (zero NaN/Infinity, hard deck floor guard, VMO cap, stall authority loss).
+* **Reasoning / Rationale:**  
+  Decisions **D406–D411** (and **D371**, **D386**). Aligns Turn Fight with real-world military BFM training doctrine, authentic CT-156 Harvard II aerobatics, and pilot domain tolerances. Avoids brittle test fixture lock-in while strictly enforcing aerodynamic invariants.
+* **Verification:**  
+  - 185/185 tests in `energy-sim.test.js` PASS (100% green).
+  - 508/508 unit tests in `tests/unit/turn-fight/**/*.test.js` PASS (100% green).
+  - 3,046 repo unit tests in `npm test` PASS (100% green).
+  - `npm run typecheck` passed cleanly (0 errors).
+  - `npm run build` compiled clean in 502ms.
+
 
 
 

@@ -18,32 +18,34 @@ A two-aircraft turning fight with two modes:
   - The MPT speed is 125 to 175 KIAS (`MPT_KIAS_RANGE`).
   - `state.evenFight` is true only when both noses came on together and no chase has started.
 
-## Status: Baseline Complete / Remediation Plan v2 Active
+## Status: 100% Complete & Gate 2 Sign-Off Ready
 
-Turn Fight baseline is 100% complete and verified:
+Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's Gate 2 sign-off:
 - **508/508 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
+- **3,046 repo tests green** (`npm test`, 0 failures, 1 skipped).
 - **68/68 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 19 Energy tests and axe accessibility).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
-- **Vite production build clean** (`npm run build`, sizes within budget).
-- **Tactical 3D Suite** integrated: vertical dashed plumb lines and ground-shadow contact discs (D401).
-- **Active Combat Pursuit Default** enabled: head-on re-merge breaks out of passive circles into vector pursuit AI (D403).
-- **3D Merge Azimuth Acquisition across Altitude Separation** resolved: line-of-sight tracking across vertical splits initiates 3D combat pursuit for both aircraft (D386, D404).
-- **Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry** enforced: stalled aircraft lose control authority and cannot claim nose-on or pursuit win (D405).
-- **8 Forensic Traps neutralized**: coordinate snap, mutual pursuit, D386 10° elevation cone, topKiasAt Mach 0.67 corner, D381 Immelmann <= 140 KIAS slice/split-S constraint, Neutral Head-on UI relabeling, test expectation alignments, and head-on pass check bypass.
-- **Decision Supersession Log**: Fully synchronized in `docs/records/plan-decisions.md` (D1–D406).
-- **Remediation Plan v2 Active Queue:** 12 tasks across 5 phases ([`turn_fight_remediation_v2.md`](file:///C:/Users/patri/.gemini/antigravity/brain/38b8f170-9ed5-4022-a9fb-683e79d5cd7e/turn_fight_remediation_v2.md) and `tasks/turn-fight/todo.md`), ratified via `/grill-me` interview with Patrick.
+- **Vite production build clean** (`npm run build`, built in 502ms).
+- **Standardized 5.0 G Maneuver Pull Law (D406/D407):** Authentic 5.0 G tactical maneuver pull with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling guard and authentic 170° maxBankMoveTurnDeg in `TUNING`.
+- **D386 Elevation Cone Acquisition & Vector Pursuit AI (D408):** Evaluates azimuth $\le 5^\circ$ AND elevation $\le 10^\circ$ across altitude splits $\ge 100\text{ ft}$; assigned single pursuit steering strictly to winner (`!both`).
+- **Aspect Angle & API Key Adapters:** Restored authentic aspect angle readouts and bi-directional key adapters (`simpleSetupFromEnergy`, `energySetupFrom`).
+- **BFM Doctrine & UI Mode Renaming (D409):** Modes relabeled to "Turn Circle Geometry" vs "BFM Energy Fight" with authentic 1-circle (Radius Fight) vs 2-circle (Rate Fight) doctrine.
+- **Derived Bank Angle Readout (D410):** Added coordinated bank angle readout ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
+- **Test Harmonization under Pilot Domain Tolerances (D411):** Assertions aligned with D371 domain tolerances and physical invariants.
+- **Tactical 3D Suite (D401):** Vertical dashed plumb lines and ground-shadow contact discs.
+- **Decision Registers Synchronized:** D1 through D411 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
 
-## Active Remediation Plan v2 Queue (Tasks 11–15)
+## Remediation Plan v2 Queue (Tasks 11–15) — ALL COMPLETE
 
 | Phase | Task | Description | Status |
 |---|---|---|---|
-| **Phase 1** | Task 11 | Raise `MANEUVER_PULL_G = 5` in `energy-sim.js` & rolling limit guard (D407); update tests | Code Complete (Tests Deferred) |
-| **Phase 2** | Task 12 | Wire D386 in `sim.js`, D386 in `energy-sim.js`, fix ghost pursuit, dynamic altitude gate, schema harmonization (D411) | Ready to Implement |
-| **Phase 3** | Task 13 | Fix Aspect Angle swap in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | Ready to Implement |
-| **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D409/D410) | Ready to Implement |
-| **Phase 5** | Task 15 | Log D407–D411 in decisions register, update handovers, run full verification & test harmonization | Pending |
+| **Phase 1** | Task 11 | Raise `MANEUVER_PULL_G = 5` in `energy-sim.js` & rolling limit guard (D407); update tests | **100% Complete** |
+| **Phase 2** | Task 12 | Wire D386 in `sim.js`, D386 in `energy-sim.js`, fix ghost pursuit, dynamic altitude gate, schema harmonization (D408) | **100% Complete** |
+| **Phase 3** | Task 13 | Fix Aspect Angle in `readouts.js`, add Energy Mode AA row, add API key adapter, V6 text cleanup | **100% Complete** |
+| **Phase 4** | Task 14 | Rename modes to "Turn Circle Geometry" vs "BFM Energy Fight", add bank angle readout, fix help text (D409/D410) | **100% Complete** |
+| **Phase 5** | Task 15 | Log D406–D411 in decisions register, update handovers, run full verification & test harmonization | **100% Complete** |
 
-## Implemented Work (PATCH-024, PATCH-025, PATCH-026, PATCH-027)
+## Implemented Work (PATCH-024 through PATCH-028)
 
 | What | Where | State |
 |---|---|---|
@@ -56,6 +58,11 @@ Turn Fight baseline is 100% complete and verified:
 | MPT Range & Aerodynamic Limits | `state.js`, `energy-sim.js` | 100% complete. 125 to 175 KIAS MPT range; Mach 0.67 corner speed (269 KIAS at 25,000 ft). |
 | Standard Defaults (D384) | `state.js`, `layout.js` | 100% complete. "Reset to Standard Defaults" loading SMM 3.0 G standards. |
 | Neutral Head-on (D368/D372) | `layout.js`, `tests/e2e/` | 100% complete. Relabeled from legacy V6 text. |
+| Standardized 5.0 G Pull Law (D406/D407) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 5.0 G pull standardized across vertical moves with 4.7 G rolling guard. |
+| D386 Elevation Cone & Pursuit (D408) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Azimuth <= 5° & elevation <= 10° cone; winner-only single pursuit steering. |
+| BFM Doctrine UI & Mode Renaming (D409) | `src/modules/turn-fight/layout.js` | 100% complete. "Turn Circle Geometry" vs "BFM Energy Fight" and authentic BFM doctrine. |
+| Derived Bank Angle Readout (D410) | `src/modules/turn-fight/readouts.js` | 100% complete. Coordinated bank angle row (phi = arccos(1/G)) in Geometry Mode table. |
+| Pilot Domain Test Harmonization (D411) | `tests/unit/turn-fight/energy-sim.test.js` | 100% complete. Brittle assertions harmonized with D371 domain tolerances and invariants. |
 
 Known limit: OVER G cannot be triggered from the screen in Auto mode, because Auto never pulls past +7 G and no forced move does. The flag and its words are built, unit-tested, and verified in E2E.
 

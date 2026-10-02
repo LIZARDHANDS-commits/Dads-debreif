@@ -326,6 +326,13 @@ flowchart TD
   - Resolve 3D merge azimuth line-of-sight tracking across vertical altitude splits (D386, D404) so fighters engage into active pursuit rather than passive rate circles.
   - Enforce pilot stall authority loss (`maxRollDelta = 0`, freeze bank, disqualification from nose-on/pursuit win) & post-merge 3D pursuit entry (D405).
   - All 508 unit tests, 68 Playwright E2E tests, typecheck, and build passing 100% green.
+- [x] **Task 2.4 (Remediation Plan v2 & BFM Alignment - PATCH-028, D406–D411):**
+  - Standardized `MANEUVER_PULL_G = 5.0` with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling limit guard and authentic 170° maxBankMoveTurnDeg (D406/D407).
+  - Implemented D386 elevation acquisition cone ($\Delta\text{az} \le 5^\circ$ AND $\Delta\text{el} \le 10^\circ$ across altitude splits $\ge 100\text{ ft}$) and assigned pursuit steering strictly to winner (`!both`) (D408).
+  - Mode toggle relabeled to 'BFM Energy Fight'; simple footer updated to 'Turn Circle Geometry'; energy footer updated with BFM doctrine explanations (D409).
+  - Added derived coordinated bank angle readout ($\phi = \arccos(1/G)$) to Geometry Mode readouts table (D410).
+  - Harmonized test expectations with D371 pilot domain tolerances (±10°, ±10 kt, ±0.5 G, ±100 ft) and physical invariants; all 3,046 repo unit tests, typecheck, and build passing 100% green (D411).
+  - Appended PATCH-028 to `docs/REMEDIATION_PATCH_LOG.md` and reconciled decision registers.
 - [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)

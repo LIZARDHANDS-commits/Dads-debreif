@@ -12,12 +12,14 @@
 
 Turn Fight (BFM 1v1) has undergone a comprehensive aerodynamic, architectural, visual, and forensic overhaul. The module is fully decoupled from legacy V6 artifacts, certified against 15 Wing Moose Jaw CT-156 Harvard II SMM and aerodynamic standards under pilot domain tolerances (D369/D371), equipped with the Tactical 3D Suite (D392), and verified clean across all suites.
 
-- **Unit Tests:** 504 / 504 PASS (100% green via `node --test tests/unit/turn-fight/**/*.test.js`)
-- **Playwright E2E Tests:** 67 / 67 PASS (100% green via `npx playwright test tests/e2e/turn-fight.spec.js`)
+- **Unit Tests:** 508 / 508 PASS (100% green via `node --test tests/unit/turn-fight/**/*.test.js`)
+- **Full Repository Suite:** 3,046 / 3,046 PASS (100% green via `npm test`, 1 skipped)
+- **Playwright E2E Tests:** 68 / 68 PASS (100% green via `npx playwright test tests/e2e/turn-fight.spec.js`)
 - **Static Analysis (Typecheck):** 0 errors (`npm run typecheck`)
-- **Production Build (Vite):** 0 warnings / errors, bundle within strict size budget (`npm run build`)
+- **Production Build (Vite):** 0 warnings / errors, bundle within strict size budget (`npm run build`, clean in 502ms)
 - **Forensic Traps Neutralized:** 8 of 8 resolved and verified
-- **New Aerodynamic Standards:** D381 (Split S <=140 KIAS), D384 (Reset to Standard Defaults), D386 (10° Elevation Cone), D392 (Tactical 3D Plumb & Contact Discs), D393 (Immelmann 5.0 G Shaker-Ride G-Law).
+- **Remediation Plan v2 Delivered:** Tasks 11–15 complete (PATCH-028, Decisions D406–D411).
+- **New Aerodynamic Standards:** D381 (Split S <=140 KIAS), D384 (Reset to Standard Defaults), D386 (10° Elevation Cone), D392 (Tactical 3D Plumb & Contact Discs), D406/D407 (5.0 G Shaker-Ride G-Law with 4.7 G Rolling Guard), D408 (Single Pursuit Steering AI), D409 (BFM Energy Fight & Rate vs Radius Doctrine), D410 (Derived Bank Angle Readout), D411 (Pilot Domain Tolerance Harmonization).
 
 ---
 
@@ -25,11 +27,11 @@ Turn Fight (BFM 1v1) has undergone a comprehensive aerodynamic, architectural, v
 
 ### 2.1 Unit Tests (Node Native Test Runner)
 Command: `node --test tests/unit/turn-fight/**/*.test.js`
-- `tests/unit/turn-fight/energy-below-mmo.test.js`: 17 tests PASS
+- `tests/unit/turn-fight/energy-below-mmo.test.js`: 40 tests PASS
 - `tests/unit/turn-fight/energy-graph.test.js`: 19 tests PASS
 - `tests/unit/turn-fight/energy-layout.test.js`: 42 tests PASS
 - `tests/unit/turn-fight/energy-readouts.test.js`: 41 tests PASS
-- `tests/unit/turn-fight/energy-sim.test.js`: 134 tests PASS
+- `tests/unit/turn-fight/energy-sim.test.js`: 185 tests PASS
 - `tests/unit/turn-fight/energy-state.test.js`: 27 tests PASS
 - `tests/unit/turn-fight/geometry.test.js`: 31 tests PASS
 - `tests/unit/turn-fight/layout.test.js`: 35 tests PASS
@@ -38,11 +40,12 @@ Command: `node --test tests/unit/turn-fight/**/*.test.js`
 - `tests/unit/turn-fight/sim.test.js`: 48 tests PASS
 - `tests/unit/turn-fight/state.test.js`: 11 tests PASS
 - `tests/unit/turn-fight/view3d.test.js`: 36 tests PASS (including plumb line and contact disc tests)
-**Total Unit Tests:** 504 passed, 0 failed, 0 skipped.
+**Total Turn Fight Unit Tests:** 508 passed, 0 failed, 0 skipped.
+**Total Full Test Suite (`npm test`):** 3,046 passed, 0 failed, 1 skipped.
 
 ### 2.2 End-to-End Tests (Playwright Chromium)
 Command: `npx playwright test tests/e2e/turn-fight.spec.js`
-- 67 tests PASS in 2.9m (including keyboard navigation, WebGL 2 / 3D orbit, energy screen transitions, altitude graph rendering, and reset to standard defaults).
+- 68 tests PASS in 2.9m (including keyboard navigation, WebGL 2 / 3D orbit, energy screen transitions, altitude graph rendering, and reset to standard defaults).
 
 ### 2.3 Typecheck & Build
 - `npm run typecheck`: Clean (0 errors across codebase).
