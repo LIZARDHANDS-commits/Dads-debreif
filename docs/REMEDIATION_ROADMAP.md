@@ -452,5 +452,7 @@ All non-essential and complex features are preserved on remote branches and docu
   - [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md) — Judgement calls log.
   - [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md) — Session handoff state.
   - [`.agent/memory/graveyard.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/graveyard.md) — Dropped approaches register.
-- **Flight Manuals Index:**
+- **Flight Manuals Index & Ground Truth Registers:**
+  - [`docs/smm-aerobatics-catalog.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/smm-aerobatics-catalog.md) — **Authoritative SMM Aerobatics & Flight Maneuver Catalog (Ratified Sole Source of Truth, Patrick D428).**
+  - [`docs/records/manuals-discrepancy-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/manuals-discrepancy-matrix.md) — Master Flying Manuals Discrepancy & Reconciliation Matrix.
   - [`manuals/README.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md) — Index of Harvard Gen Book, SMM, EFIG, and T-6A NFM.
