@@ -54,8 +54,8 @@ test('the shared settings store accepts the defaults and every key can be change
   }
 });
 
-test('row: playback speed starts at 8×, one of the speeds on offer (0.25× to 8×)', () => {
-  row({ speed: 8 });
+test('row: playback speed starts at 1×, one of the speeds on offer (0.25× to 8×)', () => {
+  row({ speed: 1 });
   assert.deepEqual([...SPEEDS], [0.25, 0.5, 1, 2, 4, 8]);
   assert.ok(SPEEDS.includes(DEFAULTS.speed));
 });

@@ -23,6 +23,7 @@
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.js';
+import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
@@ -31,8 +32,15 @@ const FIT_PADDING_PX = 60; // room round the routes for the labels beside the ai
 const HOME_SETUP = 'Moose Jaw';
 export const HINT_TEXT = `Press Play to watch the ${HOME_SETUP} traffic.`;
 
-/** V6's aircraft colours (line 139); an aircraft can bring its own. Every aircraft also carries its callsign. */
-export const TYPE_COLORS = Object.freeze({ 'CT-157': '#a5d6ff', 'CT-156': '#7ee787', 'CT-102': '#ffcc66', 'CT-114': '#ff6b6b' });
+/** V6's aircraft colours with full 15 Wing fleet support (CT-102B, CT-155, CF-188); an aircraft can bring its own. */
+export const TYPE_COLORS = Object.freeze(
+  Object.create(FLEET_COLORS, Object.getOwnPropertyDescriptors({
+    'CT-157': '#a5d6ff',
+    'CT-156': '#7ee787',
+    'CT-102': '#ffcc66',
+    'CT-114': '#ff6b6b',
+  }))
+);
 const FALLBACK_COLOR = '#c7d8e7';
 
 /** The words that go with the colours, so colour is never the only signal. */
@@ -251,7 +259,7 @@ export function conflictLevels(conflicts) {
 }
 
 export const isFlying = (ac) => ac.status === 'flying';
-export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FALLBACK_COLOR;
+export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_COLORS[ac.type] ?? FALLBACK_COLOR;
 
 // ---------------------------------------------------------------------------
 // The satellite photo (specs/SPEC-traffic.md: Layers, the Photo section of the settings menu)

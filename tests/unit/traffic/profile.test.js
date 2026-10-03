@@ -61,7 +61,7 @@ test('each built-in profile has its data file\'s routes, aircraft and anchor exa
     assert.equal(entry.profile.seed, 1);
     assert.equal(entry.profile.notes, '');
     const s = entry.profile.settings;
-    assert.equal(s.speed, 8);
+    assert.equal(s.speed, entry.id === 'moose-jaw-v6' ? 8 : 1);
     assert.equal(s.layerPhoto, true);
     assert.equal(s.photoTrim, 1.2);
     assert.equal(s.photoOpacityPct, 100);

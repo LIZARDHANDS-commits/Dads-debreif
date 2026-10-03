@@ -138,8 +138,17 @@ export function planeLengthFt(zoom) {
   return Math.max(T6_LENGTH_FT, MIN_PLANE_PX / (zoom / 1000));
 }
 
-/** The CT-156 and CT-157 are the shared T-6; every other type is a stand-in shape until it has its own model. */
+/** The CT-156 and CT-157 are the shared T-6; every other type (CT-102B, CT-102, CT-114, CT-155, CF-188) is a stand-in shape until it has its own model. */
 export const modelKindFor = (type) => (type === 'CT-156' || type === 'CT-157' ? 'ct156' : 'standin');
+
+/**
+ * Stand-in mesh kind for aircraft types without dedicated custom 3D models.
+ * CT-102B, CT-102, and CT-157 map to 'generic' (turboprop trainer stand-in mesh with straight wings).
+ */
+export function standInKindFor(type) {
+  if (type === 'CT-102B' || type === 'CT-102' || type === 'CT-157') return 'generic';
+  return 'generic';
+}
 
 // ---------------------------------------------------------------------------
 // The scene's box and the camera (pure)
@@ -418,7 +427,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
     const have = planes.get(ac.id);
     if (have && have.kind === kind && (kind !== 'ct156' || have.paint === paint)) return have.mesh;
     if (have) disposeAircraftMesh(have.mesh); // the T-6 in another paint or another detail: built again
-    const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint };
+    const options = { color: aircraftColor(ac), number: numberOf(ac.id), paint, type: ac.type };
     const mesh = models[kind](THREE, options);
     mesh.rotation.order = 'ZYX';
     root.add(mesh);
@@ -593,12 +602,12 @@ export function threeStats(kit) {
   return { geometries: geometries.size, materials: materials.size };
 }
 
-// The two models the view uses: the shared T-6 (the Harvard scheme by default) and the plain stand-in.
+// The models the view uses: the shared T-6 (the Harvard scheme by default) and the stand-in.
 function defaultModels() {
   return {
     ct156: (THREE, { color, number, paint }) => createCt156Model(THREE, { color, number, paint, lengthFt: CT156_UNIT_LENGTH }),
     t6plain: (THREE, { color }) => createAircraftMesh(THREE, { color, outline: '#0b1620' }),
-    standin: (THREE, { color }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: 'generic' }),
+    standin: (THREE, { color, type }) => createStandInMesh(THREE, { color, outline: '#0b1620', kind: standInKindFor(type) }),
   };
 }
 

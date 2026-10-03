@@ -642,25 +642,50 @@ test('6.1 Full OHB sequence: initial -> break -> inner_downwind -> final_turn ->
   assert.equal(a.phase, 'landing', 'Final should transition to landing at threshold');
 });
 
-test('6.2 Threshold landing roll: 20% full stop (landed), 80% touch-and-go (climb)', () => {
-  // Test with forced dice or mock
-  const aStop = { phase: 'landing', distToThreshold: 0, diceRoll: 0.10 }; // < 0.20
+test('6.2 Threshold landing roll: deterministic intent evaluation (full_stop, touch_and_go, go_around)', () => {
+  // Explicit full_stop intent
+  const aStop = { phase: 'landing', distToThreshold: 0, intent: 'full_stop' };
   evaluatePhaseTransitions(aStop, null, null, 0.1);
   assert.equal(aStop.phase, 'full_stop');
+  assert.equal(aStop.status, 'landed');
   assert.equal(aStop.landed, true);
   assert.equal(aStop.active, false);
 
-  const aTng = { phase: 'landing', distToThreshold: 0, diceRoll: 0.50 }; // >= 0.20
+  // Explicit touch_and_go intent
+  const aTng = { phase: 'landing', distToThreshold: 0, intent: 'touch_and_go' };
   evaluatePhaseTransitions(aTng, null, null, 0.1);
-  assert.equal(aTng.phase, 'takeoff_climb');
+  assert.equal(aTng.phase, 'touch_and_go');
   assert.equal(aTng.landed, false);
   assert.equal(aTng.active, true);
+  assert.equal(aTng.iasKt, 140);
+
+  // Default intent (unassigned) defaults to touch_and_go
+  const aDefault = { phase: 'landing', distToThreshold: 0 };
+  evaluatePhaseTransitions(aDefault, null, null, 0.1);
+  assert.equal(aDefault.phase, 'touch_and_go');
+  assert.equal(aDefault.landed, false);
+  assert.equal(aDefault.active, true);
+  assert.equal(aDefault.iasKt, 140);
+
+  // Explicit go_around intent
+  const aGoAround = { phase: 'landing', distToThreshold: 0, intent: 'go_around' };
+  evaluatePhaseTransitions(aGoAround, null, null, 0.1);
+  assert.equal(aGoAround.phase, 'go_around');
+  assert.equal(aGoAround.landed, false);
+  assert.equal(aGoAround.active, true);
+  assert.equal(aGoAround.targetAltFt, 2500);
 });
 
 test('6.3 Touch-and-go rolls on runway, accelerates to 140 KIAS, climbs past departure end', () => {
+  // Without contingency command: follows Fallback Doctrine (climbs along runway heading 298° toward 2,500 / 3,500 ft)
   const a = { phase: 'takeoff_climb', x: -4100, y: 700, iasKt: 140, alt: 2500 };
   evaluatePhaseTransitions(a, null, null, 0.1);
-  assert.equal(a.phase, 'closed_pattern', 'Past departure end (x <= -4000) should trigger closed_pattern');
+  assert.equal(a.phase, 'climb', 'Past departure end with no command continues outer pattern climb');
+
+  // With contingency command: closed_pattern
+  const aCmd = { phase: 'takeoff_climb', x: -4100, y: 700, iasKt: 140, alt: 2500, command: 'closed_pattern' };
+  evaluatePhaseTransitions(aCmd, null, null, 0.1);
+  assert.equal(aCmd.phase, 'closed_pattern', 'Past departure end with closed_pattern command triggers closed_pattern');
 });
 
 test('6.4 Closed pattern climb: 50° bank climbing turn to 3,500 ft rolls out to inner_downwind', () => {

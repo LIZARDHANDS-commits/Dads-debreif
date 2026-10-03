@@ -89,7 +89,7 @@ test('the spawner starts on the first entry (the first pattern when there is non
 test('a fresh spawner asks for a CT-156 on Entry 1, at point 1, with no delay', () => {
   const asked = spawnSpec({ ...DEFAULTS }, MOOSE_JAW.routes);
   assert.deepEqual(asked, { spec: { type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 0 } });
-  assert.deepEqual([...SPAWN_TYPES], ['CT-157', 'CT-156', 'CT-102', 'CT-114']);
+  assert.deepEqual([...SPAWN_TYPES], ['CT-156', 'CT-102B', 'CT-157', 'CT-155', 'CT-114', 'CF-188']);
 });
 
 test('a start point that is not a whole number from 1, past the route\'s last point, or a bad delay is refused in plain words', () => {
@@ -122,7 +122,7 @@ test('engine problems are said in words, and an unknown one is not passed on', (
 test('every spawner box is labelled: Type, Route, Start at point and Delay', () => {
   const { spawner } = setup();
   for (const label of ['Type', 'Route', 'Start at point', 'Delay']) assert.ok(inputFor(spawner, label), label);
-  assert.equal(inputFor(spawner, 'Type').value, '1', 'CT-156 is the second in the list');
+  assert.equal(inputFor(spawner, 'Type').value, '0', 'CT-156 is the first in the list');
   assert.equal(inputFor(spawner, 'Route').value, 'ENT1');
   assert.equal(inputFor(spawner, 'Start at point').value, '1');
   assert.equal(inputFor(spawner, 'Delay').value, '0');
@@ -222,7 +222,7 @@ test('the aircraft list has a row for each aircraft: callsign, type, route, and 
   const { list } = setup();
   const rows = withClass(list, 'aircraft-row');
   assert.equal(rows.length, 7);
-  assert.equal(words(rows[0]), 'A1 CT-157 on Pattern 1 Waiting, starts at 0:12');
+  assert.equal(words(rows[0]), 'A1 CT-156 on Pattern 1 Waiting, starts at 0:12');
   assert.equal(words(withClass(list, 'aircraft-empty')[0]), 'No aircraft yet. Use + Spawn to add one.');
   assert.equal(withClass(list, 'aircraft-empty')[0].hidden, true);
 });
@@ -232,7 +232,7 @@ test('a flying aircraft shows its height, speed and Flying, in whole numbers; la
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
-  assert.match(words(rows[0]), /^A1 CT-157 on Pattern 1 [\d,]+ ft, \d+ kt, Flying/);
+  assert.match(words(rows[0]), /^A1 CT-156 on Pattern 1 [\d,]+ ft, \d+ kt, Flying/);
   const state = sim.state();
   assert.equal(detailText({ status: 'landed', statusText: 'Landed', altFt: 1880, kt: 0 }), '1,880 ft, Landed');
   assert.equal(detailText({ status: 'done', statusText: 'Done', altFt: 2500, kt: 100 }), '2,500 ft, Done');

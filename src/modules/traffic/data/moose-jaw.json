@@ -165,7 +165,7 @@
     }
   ],
   "aircraft": [
-    {"id":"A1","type":"CT-157","routeId":"PAT1","startIndex":0,"startsAtSec":12},
+    {"id":"A1","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":12},
     {"id":"A2","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":137},
     {"id":"A3","type":"CT-156","routeId":"PAT1","startIndex":0,"startsAtSec":177},
     {"id":"A4","type":"CT-156","routeId":"ENT4","startIndex":0,"startsAtSec":592},
@@ -176,7 +176,7 @@
   "routeOptions": {"flyRoundedTurns":true,"radiusFromG":true,"manualRadiusFt":1800,"trueArcs":true},
   "conflictLimits": {"latFt":200,"vertFt":200,"cautionLatFt":500,"cautionVertFt":500},
   "view": {
-    "playbackSpeed": 8,
+    "playbackSpeed": 1,
     "zoom": 0.95,
     "showTrails": true,
     "showLabels": true,

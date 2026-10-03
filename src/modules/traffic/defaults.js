@@ -13,8 +13,8 @@ import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
 export const DEFAULTS = Object.freeze({
-  // Playback speed: 8×, as V6's built-in setup.
-  speed: 8,
+  // Playback speed: 1× (1x real-time speed, rebaselined from 8x).
+  speed: 1,
 
   // 2D or 3D: 2D (the ui-kit's shared default); the 3D camera starts at Fit.
   view: VIEW_DEFAULT,
