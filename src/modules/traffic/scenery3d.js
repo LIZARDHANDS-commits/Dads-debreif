@@ -1,4 +1,4 @@
-﻿// 15 Wing Moose Jaw (CYMJ) 3D Airfield Scenery & Landmarks (D138, D141, D373, D378, D411).
+// 15 Wing Moose Jaw (CYMJ) 3D Airfield Scenery & Landmarks (D138, D141, D373, D378, D411).
 // Procedural 3D models for the north flight line: the CYMJ Control Tower, the arch/barrel flight-line
 // hangars, and three more buildings, each painted with a small canvas texture and given a label sprite.
 //
@@ -67,32 +67,30 @@ export const CYMJ_BUILDING_COORDS = Object.freeze({
  */
 export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
   Object.freeze({
-    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 912, y: 3160, height: 52,
+    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 930, y: 3140, height: 52,
+    rotation: -0.58,
     footprint: Object.freeze([[-60, -178], [-95, -50], [-147, 6], [-146, 102], [-53, 212], [63, 126], [78, 75]]),
     glassCurve: Object.freeze([[160, 73], [190, -60], [150, -170], [16, -223]]),
     badge: Object.freeze([20, 10]),
     roof: '#d8dadc', wall: '#c9ccd0', accent: '#c8102e',
   }),
   Object.freeze({
-    id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -120, y: 3550, height: 34, rotation: -0.22,
+    id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -360, y: 4050, height: 34, rotation: -0.75,
     roof: '#0d9488', wall: '#f1f5f9', accent: '#0f766e',
   }),
   Object.freeze({
-    id: 'athletic-field', name: 'Athletic Field', type: 'field', x: 180, y: 3520, height: 1, rotation: -0.22,
-  }),
-  Object.freeze({
-    id: 'base-rec-center', name: 'Base Fitness & Rec Centre', type: 'building', x: 309, y: 3381, height: 34,
-    footprint: Object.freeze([[-129, 94], [126, 53], [128, -102], [-125, -45]]),
+    id: 'base-rec-center', name: 'Base Fitness & Rec Centre', type: 'building', x: 435, y: 3370, height: 34, rotation: -0.22,
+    footprint: Object.freeze([[-120, -75], [120, -75], [120, 75], [-120, 75]]),
     roof: '#d6d8db', wall: '#e2e8f0', accent: '#3b82f6',
   }),
   Object.freeze({
-    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 2117, y: 3118, height: 48,
-    footprint: Object.freeze([[-159, 194], [157, 47], [174, -190], [-173, -51]]),
+    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 2380, y: 3070, height: 48, rotation: -0.49,
+    footprint: Object.freeze([[-120, -85], [120, -85], [120, 85], [-120, 85]]),
     roof: '#9aa3ad', wall: '#e7ebef', accent: '#1d4ed8',
   }),
   Object.freeze({
-    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2311, y: 3439, height: 48,
-    footprint: Object.freeze([[-141, 204], [157, 62], [140, -201], [-158, -67]]),
+    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2560, y: 3380, height: 48, rotation: -0.49,
+    footprint: Object.freeze([[-125, -90], [125, -90], [125, 90], [-125, 90]]),
     roof: '#9aa3ad', wall: '#e7ebef', accent: '#0f766e',
   }),
 ]);
@@ -350,64 +348,6 @@ function drawBarracksWall(ctx, w, h) {
   }
 }
 
-/** Athletic baseball/softball diamond with red clay infield and green grass outfield. */
-function drawAthleticDiamond(ctx, w, h) {
-  ctx.clearRect(0, 0, w, h);
-  const cx = w * 0.5;
-  const cy = h * 0.75;
-  const rOutfield = w * 0.44;
-
-  // Outfield grass arc
-  ctx.fillStyle = '#15803d';
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, rOutfield, -Math.PI * 0.75, -Math.PI * 0.25);
-  ctx.closePath();
-  ctx.fill();
-
-  // Infield dirt fan (red clay)
-  const rInfield = rOutfield * 0.55;
-  ctx.fillStyle = '#b45309';
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, rInfield, -Math.PI * 0.75, -Math.PI * 0.25);
-  ctx.closePath();
-  ctx.fill();
-
-  // Infield inner grass diamond
-  const dSize = rInfield * 0.52;
-  ctx.fillStyle = '#16a34a';
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - 12);
-  ctx.lineTo(cx - dSize * 0.7, cy - dSize * 0.7 - 12);
-  ctx.lineTo(cx, cy - dSize * 1.4 - 12);
-  ctx.lineTo(cx + dSize * 0.7, cy - dSize * 0.7 - 12);
-  ctx.closePath();
-  ctx.fill();
-
-  // Chalk foul lines
-  ctx.strokeStyle = '#f8fafc';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx - rOutfield * Math.cos(Math.PI / 4), cy - rOutfield * Math.sin(Math.PI / 4));
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + rOutfield * Math.cos(Math.PI / 4), cy - rOutfield * Math.sin(Math.PI / 4));
-  ctx.stroke();
-
-  // Pitcher's mound & bases
-  ctx.fillStyle = '#b45309';
-  ctx.beginPath();
-  ctx.arc(cx, cy - dSize * 0.7 - 12, 6, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(cx - 3, cy - 4, 6, 6);
-  ctx.fillRect(cx + dSize * 0.7 - 3, cy - dSize * 0.7 - 15, 6, 6);
-  ctx.fillRect(cx - 3, cy - dSize * 1.4 - 15, 6, 6);
-  ctx.fillRect(cx - dSize * 0.7 - 3, cy - dSize * 0.7 - 15, 6, 6);
-}
-
 /** The textures every building shares, made once per scenery (null where there is no canvas). */
 function makeKit(THREE) {
   return {
@@ -417,7 +357,6 @@ function makeKit(THREE) {
     cab: canvasTexture(THREE, 256, 64, drawCab),
     glass: canvasTexture(THREE, 256, 128, drawCurvedGlass),
     barracksWall: canvasTexture(THREE, 256, 128, drawBarracksWall, [4, 1]),
-    diamond: canvasTexture(THREE, 512, 512, drawAthleticDiamond),
   };
 }
 
@@ -851,38 +790,6 @@ function createBarracksU(THREE, spec, floor, kit) {
 }
 
 /**
- * The Athletic Field & Baseball Diamond adjacent to the student barracks:
- * An authentic clay/dirt infield diamond with grass outfield and chalk base paths.
- */
-function createAthleticField(THREE, spec, floor, kit) {
-  const group = new THREE.Group();
-  group.name = spec.id;
-  group.userData = { type: 'field', ...spec };
-  group.position.set(spec.x, spec.y, floor);
-  group.rotation.z = spec.rotation ?? 0;
-
-  const size = 320;
-  const fieldGeo = new THREE.PlaneGeometry(size, size);
-  const fieldMat = new THREE.MeshBasicMaterial({
-    color: kit.diamond ? '#ffffff' : '#15803d',
-    map: kit.diamond ?? null,
-    transparent: true,
-    opacity: 0.95,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
-  });
-  const fieldMesh = new THREE.Mesh(fieldGeo, fieldMat);
-  fieldMesh.name = `${spec.id}-surface`;
-  fieldMesh.position.set(0, 0, 0.3);
-  group.add(fieldMesh);
-
-  return group;
-}
-
-/**
  * Creates the complete CYMJ 3D Airfield Scenery group.
  * @param {any} THREE The Three.js module.
  * @param {{ floor?: number, anchor?: any }} [options] Configuration options.
@@ -911,7 +818,6 @@ export function createAirfieldScenery(THREE, { floor = DEFAULT_FLOOR_FT, anchor 
   const buildings = CYMJ_EXTRA_BUILDINGS.map((spec) => {
     if (spec.id === 'main-building') return createGlassPalace(THREE, spec, floor, kit);
     if (spec.id === 'barracks-u') return createBarracksU(THREE, spec, floor, kit);
-    if (spec.id === 'athletic-field') return createAthleticField(THREE, spec, floor, kit);
     return createBoxBuilding(THREE, spec, floor);
   });
   for (const b of buildings) root.add(b);

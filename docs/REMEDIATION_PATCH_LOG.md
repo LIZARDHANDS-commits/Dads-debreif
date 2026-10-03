@@ -48,6 +48,10 @@
 | [**PATCH-035**](#patch-035-pfl--high-key-3-bugs-fixed--135x-prototype-drag) | M1 | 2026-10-02 20:03Z | Aero & Engine | PFL / High Key 3 Bugs Fixed + 1.35× Prototype Drag | Pass |
 | [**PATCH-036**](#patch-036-breakout-altitude-standardized-to-4500-ft) | M1 | 2026-10-02 20:16Z | SMM & Aero | Breakout Altitude Standardized from 3,500 ft to 4,500 ft | Pass |
 | [**PATCH-037**](#patch-037-closed-pattern-command--45-bank-climbing-left-turn) | M1 | 2026-10-02 20:16Z | Aero & Maneuver | Closed Pattern Command: 45° Bank Climbing Left Turn | Pass |
+| [**PATCH-049**](#patch-049-turn-fight-altitude-split-canopy-visual-pursuit-d429) | M2 | 2026-10-03 15:35Z | BFM AI & Aero | Altitude-Split Canopy Visual Acquisition Pursuit (D429) | Pass |
+| [**PATCH-050**](#patch-050-traffic-3d-visual-landmarks-buildings-cameras-sun-d430-d434) | M1 | 2026-10-03 15:45Z | 3D & UX | 3D Visual Landmarks, Traced Buildings, Camera Suite & SW Sun (D430–D434) | Pass |
+| [**PATCH-051**](#patch-051-breakout-rejoin-high-key-and-pfl-architecture-d435-d436) | M1 | 2026-10-03 23:05Z | Aero & SMM | Breakout 2 NM Rejoin, High Key Controller & PFL Architecture (D435–D436) | Pass |
+| [**PATCH-052**](#patch-052-traffic-single-click-button-responsiveness-and-dom-stability-d437) | M1 | 2026-10-03 23:15Z | UI & Architecture | Single-Click Button Responsiveness & Stable In-Place DOM Updates (D437) | Pass |
 
 ---
 
@@ -1285,3 +1289,106 @@
   - `npm test`: 3,218 passed, 0 failed, 1 skipped.
   - `npm run typecheck`: clean (0 errors).
   - `npm run build`: built in 492ms, all size budgets kept.
+
+---
+
+### PATCH-049: Turn Fight Altitude-Split Canopy Visual Pursuit (D429)
+* **Date & Time:** 2026-10-03 15:35 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `docs/records/decisions-log.md`
+  * `docs/records/plan-decisions.md`
+  * `.agent/memory/handoff.md`
+* **Problem / Flaw Addressed:**  
+  When fighters started with altitude separation (e.g. Blue 6,000 ft, Red 7,000 ft), the rigid 5.0° boresight crossing gate caused aircraft to passively orbit for 12–15 seconds waiting for horizontal azimuth to sweep 175° before engaging.
+* **Changes Made:**
+  1. Relaxed post-merge pursuit breakout gate from rigid 5.0° boresight crossing to forward canopy visual acquisition (`CANOPY_VISUAL_DEG = 60.0°`) across altitude differences.
+  2. Permitted breakout from either `mpt` or `levelMpt`.
+* **Reasoning / Rationale:**  
+  Decision **D429**. Models authentic pilot visual tracking through the bubble canopy; once clear of merge pass, fighters acquire target visually within forward 60° field and immediately initiate 3D combat maneuvering.
+* **Verification:**  
+  All 558 Turn Fight unit tests passing; altitude-split circle delay eliminated.
+
+---
+
+### PATCH-050: Traffic 3D Visual Landmarks, Buildings, Cameras & SW Sun (D430–D434)
+* **Date & Time:** 2026-10-03 15:45 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/scenery3d.js`
+  * `src/modules/traffic/landmarks3d.js`
+  * `src/modules/traffic/camera-views.js`
+  * `src/modules/traffic/camera-bar.js`
+  * `src/modules/traffic/view3d.js`
+* **Problem / Flaw Addressed:**  
+  Airfield buildings were procedurally misaligned with satellite concrete footprints; circuit visual navigation cues were absent; default graphics quality caused frame drops on low-end machines; dynamic lighting created inconsistent building face contrast.
+* **Changes Made:**
+  1. Defaulted `graphicsQuality` to 'low' (Performance) for smooth 60 FPS frame rates.
+  2. Built dedicated 3D camera menu bar with Fit, High look-down, Top-down, Tower, Chase, Cockpit, and Padlock runway views, plus an airborne aircraft Follow dropdown.
+  3. Traced Glass Palace, Rec Centre, Student Barracks, and Hangars 5 & 6 directly onto satellite footprints with accurate headings and deleted non-existent athletic field diamond.
+  4. Added off-field visual circuit navigation landmarks (Window Farm on 29L extended centerline, Sukanen Ship museum, Fiat Farm auto wrecker, Arrow Tree Rows).
+  5. Established fixed south-west afternoon sun lighting (225°, 45° elevation) without expensive shadow maps.
+* **Reasoning / Rationale:**  
+  Decisions **D430–D434**. Conforms all 3D features to authentic satellite footprints and pilot circuit reference points.
+* **Verification:**  
+  3D scene renders cleanly with zero WebGL errors and verified satellite alignment.
+
+---
+
+### PATCH-051: Breakout 2 NM Rejoin, High Key Controller & PFL Architecture (D435–D436)
+* **Date & Time:** 2026-10-03 23:05 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified / Created:**
+  * `src/modules/traffic/breakout.js`
+  * `src/modules/traffic/high-key.js`
+  * `src/modules/traffic/pfl-solver.js` (new)
+  * `src/modules/traffic/pfl-rail.js` (new)
+  * `src/modules/traffic/sim.js`
+  * `src/modules/traffic/tick-aircraft.js`
+  * `src/modules/traffic/map2d.js`
+  * `src/modules/traffic/aircraft.js`
+  * `tests/unit/traffic/high-key.test.js`
+  * `tests/unit/traffic/pfl-solver.test.js` (new)
+  * `tests/unit/traffic/pfl-rail.test.js` (new)
+  * `tests/unit/traffic/pfl.test.js` (new)
+* **Problem / Flaw Addressed:**  
+  Breakout rejoin previously cut across the pattern; High Key climb guidance suffered from numerical deadlocks; forced landings lacked authentic SMM Ch 16 energy trades, adaptive bank corner cutting, and terrain clamping.
+* **Changes Made:**
+  1. Rectified breakout rejoin geometry to join 2 NM prior on ENT1 along the 3,500 ft run-in corridor.
+  2. Implemented High Key SE approach intercept and continuous pitch arrest controller (`calcHighKeyPitch`, D435) with arrival gates governed by Pilot Domain Tolerances (D371).
+  3. Built authentic Precautionary Forced Landing (PFL) architecture (D436):
+     - Kinetic energy zoom apex (`zoomT6A`) with pilot energy trade (+700 to +1,000 ft gain if >150 kt; level decel if <=150 kt).
+     - SMM Ch 13 adaptive bank corner cutting (35° nominal, 45° tight bank when marginal energy saves aircraft).
+     - Pre-synthesized 3D wind-shaped rail (`mode = 'RAIL'`) with continuous telemetry and config schedule (Clean -> Gear Down -> Flaps TO -> Flaps LDG).
+     - Dynamic 2D wind-drifted glide footprint ring with range HUD.
+     - 6 tactical badges ([PFL: ZOOM], [PFL: HIGH KEY], [PFL: LOW KEY], [PFL: BASE KEY], [PFL: DIRECT], [CRASH SHORT]).
+     - Off-runway terrain contact clamp at 1,892 ft MSL (`status = 'crashed'` off-runway, `'landed'` on threshold).
+* **Reasoning / Rationale:**  
+  Decisions **D435–D436**. Replaces open-loop Euler drift with deterministic wind-compensated kinematic rails.
+* **Verification:**  
+  11/11 High Key unit tests, 18/18 PFL solver & rail tests, 4/4 PFL sim integration tests passing green.
+
+---
+
+### PATCH-052: Traffic Single-Click Button Responsiveness & Stable DOM Updates (D437)
+* **Date & Time:** 2026-10-03 23:15 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/aircraft.js`
+  * `src/modules/traffic/playback-bar.js`
+  * `src/modules/traffic/layout.js`
+  * `tests/unit/traffic/aircraft.test.js`
+* **Problem / Flaw Addressed:**  
+  Buttons across the Traffic module required double-clicking because `aircraft.js:write()` recreated rows every 100ms on altitude changes, wiping the DOM between `mousedown` and `mouseup` and cancelling the browser click event.
+* **Changes Made:**
+  1. Decoupled structural row DOM from continuous altitude/speed readouts in `aircraft.js`; updated telemetry text nodes in place on stable DOM elements.
+  2. Implemented dual `pointerdown` + `click` event listeners with 250ms debounce across all playback controls, action buttons (Breakout, Closed Pattern, High Key, PFL, Go-around), layout toggles, and route rows.
+* **Reasoning / Rationale:**  
+  Decision **D437**. Restores immediate, single-click responsiveness across all mobile, tablet, and desktop pointer interactions.
+* **Verification:**  
+  30/30 `aircraft.test.js` tests passing; single-click verified on dev server.

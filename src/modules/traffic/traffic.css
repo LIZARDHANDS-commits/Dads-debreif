@@ -543,6 +543,28 @@
   gap: var(--space-1);
 }
 
+[data-module='traffic'] .pfl-badge {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  margin-left: 0.35rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #38bdf8;
+  white-space: nowrap;
+}
+
+[data-module='traffic'] .pfl-badge.badge-crash {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--bad, #ef4444);
+  color: var(--bad, #ef4444);
+}
+
 [data-module='traffic'] .aircraft-actions {
   display: flex;
   flex-wrap: wrap;

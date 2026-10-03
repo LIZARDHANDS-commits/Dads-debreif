@@ -146,6 +146,24 @@ In dynamic pattern climbs (such as Closed Patterns, Go-Arounds, or missed approa
 4. **Continuous Downwind Intercept:**
    The aircraft continues tracking straight downwind along that wind-killed heading, tangent-capturing the downwind rail or perch waypoint with zero spatial discontinuity ($< 15\text{ ft/frame}$).
 
+### Pillar 9: Kinematic Rejoin & Approach Rails for Inbound Alignments (Teardrop & Circuit Rails)
+When an aircraft is commanded to capture an inbound heading or fix (e.g. High Key 1/8 NM run-in on heading $298^\circ$ at 5,000 ft, or a circuit entry radial):
+1. **Opposite/Offset Heading Principle**: If the aircraft's current vector points away from or opposite to the inbound run-in direction (e.g. departing northwest on $298^\circ$ while the High Key run-in requires entering from the southeast on $298^\circ$), it cannot fly a straight line or reactive PID.
+2. **Strict Prohibition on Frame-by-Frame Cross-Track Mode Switches**: Never switch commanded headings between forward and reverse based on cross-track or along-track boundary lines (`alongTrack > 200` vs `<= 200`). This creates limit cycles, alternating bank commands, and endless circling.
+3. **Pre-Synthesize a Full Kinematic Rail**:
+   - **Climbing Turn Arc**: A coordinated climbing turn (35°–45° bank, 140 kt) with Pillar 8 climb arrest pitch decay over the final 300 ft to level off at target altitude (5,000 ft).
+   - **Wind-Drift Integrated Downwind Leg**: Flies parallel to the target line, carrying wind crab.
+   - **Base-to-Final Turn Arc**: A smooth continuous curve rolling out wings-level on the target inbound track at least 1/8 NM prior to the target fix.
+   - **Stabilized Straight Run-in**: Straight flight along the exact inbound track (e.g. 660 ft at 5,000 ft, decelerating 140 → 120 kt) transitioning seamlessly to the downstream rail.
+
+### Pillar 10: Open-Route vs Closed-Route Blending (The `lapOffset` Trap)
+In simulation engines where progress along flight rails is tracked by scalar route distance (`distFt`):
+1. **Closed Patterns (`route.kind === 'pattern'`)**: Loop indefinitely. They require `lapOffset = Math.floor(distFt / rLen) * rLen` so aircraft do not rewind to lap 0.
+2. **Open One-Way Routes (Entries, Transitions, PFLs, `route.kind !== 'pattern'`)**: Do NOT loop. Distance along an open route is strictly `closestDist`.
+3. **The Trap**: Applying `lapOffset` to an open route adds previously accumulated flight distance on top of the intercept point, immediately exceeding the route's total length (`distFt > rLen`). On the very next tick, route completion fires (`distFt >= len`), dumping the aircraft into the attached pattern with massive overshoot or setting `active = false`, causing the aircraft to teleport and disappear.
+4. **The Rule**: Always guard lap offset calculations by route type:
+   $$\text{targetDistFt} = \text{isClosedRoute}(\text{route}) \;?\; (\text{lapOffset} + \text{closestDist}) : \text{closestDist}$$
+
 ---
 
 ## 4. Reusable Reference Implementation

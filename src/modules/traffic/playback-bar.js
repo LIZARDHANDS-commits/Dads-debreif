@@ -147,15 +147,30 @@ export function createMenu({ label, children = [], listen }) {
  */
 export function createPlaybackBar({ controls, settings, on, available = {}, listen }) {
   let mode = 'paused';
-  let note = null; // words shown in place of the mode's while something is busy
-  const button = (label, onclick, extra = {}) => h('button', { type: 'button', class: 'button', onclick, ...extra }, label);
+  let note = null;
+  const makeInstant = (fn) => {
+    let last = 0;
+    return (e) => {
+      if (e && e.button !== undefined && e.button !== 0) return;
+      const now = Date.now();
+      if (now - last < 250) return;
+      last = now;
+      fn?.(e);
+    };
+  };
+  const button = (label, onclick, extra = {}) => {
+    const handler = makeInstant(onclick);
+    return h('button', { type: 'button', class: 'button', onpointerdown: handler, onclick: handler, ...extra }, label);
+  };
 
   // Row one: the clock.
   const playGlyph = h('span', { 'aria-hidden': 'true' }, '▶');
   const playWord = h('span', {}, 'Play');
-  const play = h('button', { type: 'button', class: 'button primary bar-play', onclick: () => (mode === 'paused' ? on.play() : on.pause()) }, playGlyph, ' ', playWord);
+  const playHandler = makeInstant(() => (mode === 'paused' ? on.play() : on.pause()));
+  const play = h('button', { type: 'button', class: 'button primary bar-play', onpointerdown: playHandler, onclick: playHandler }, playGlyph, ' ', playWord);
+  const rewindHandler = makeInstant(() => (mode === 'rewinding' ? on.pause() : on.rewind()));
   const rewind = on.rewind
-    ? h('button', { type: 'button', class: 'button', 'aria-pressed': 'false', onclick: () => (mode === 'rewinding' ? on.pause() : on.rewind()) }, h('span', { 'aria-hidden': 'true' }, '⏪'), ' Rewind')
+    ? h('button', { type: 'button', class: 'button', 'aria-pressed': 'false', onpointerdown: rewindHandler, onclick: rewindHandler }, h('span', { 'aria-hidden': 'true' }, '⏪'), ' Rewind')
     : null;
   const back = on.step ? button('−10 s', () => on.step(-10), { title: 'Back 10 seconds' }) : null;
   const ahead = on.step ? button('+10 s', () => on.step(10), { title: 'Ahead 10 seconds' }) : null;
@@ -242,6 +257,9 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
 
   const presetButtons = LAYER_PRESET_ITEMS.map((preset) => {
     const isDefault = preset.id === activePresetId;
+    const trigger = makeInstant(() => {
+      applyPreset(preset);
+    });
     const btn = h(
       'button',
       {
@@ -251,9 +269,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
         'aria-checked': String(isDefault),
         'aria-pressed': String(isDefault),
         'data-preset': preset.id,
-        onclick: () => {
-          applyPreset(preset);
-        },
+        onpointerdown: trigger,
+        onclick: trigger,
       },
       preset.label,
     );
@@ -305,12 +322,13 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
 
   // "Fit all routes" is the last item of the Layers menu, so the bar keeps one row at 1280 px (UI-01); Fit, the usual
   // one, stays in the bar.
+  const fitAllTrigger = makeInstant(() => {
+    layers.setOpen(false);
+    layers.button.focus();
+    on.fitAll();
+  });
   const fitAll = on.fitAll
-    ? h('button', { type: 'button', class: 'button menu-item', title: 'Frame every route, the long entries too', onclick: () => {
-      layers.setOpen(false);
-      layers.button.focus();
-      on.fitAll();
-    } }, 'Fit all routes')
+    ? h('button', { type: 'button', class: 'button menu-item', title: 'Frame every route, the long entries too', onpointerdown: fitAllTrigger, onclick: fitAllTrigger }, 'Fit all routes')
     : null;
 
   const hiddenLayers = h(

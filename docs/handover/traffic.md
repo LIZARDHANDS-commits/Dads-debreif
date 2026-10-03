@@ -14,33 +14,21 @@ Moose Jaw traffic pattern simulator (V6's traffic iframe). Left side defines pat
 | Traffic Core 4 (tasks 10/11/12/15/18) | PR 3 (`traffic/pr-3-core-4`) | Merged to `main` (commit `73ee4f4`). Wind vector math, authentic 15 Wing types, 60° break, 45° descending final turn, D389 perch drift guidance, D46 true circular arcs, zero-jump split/joins, and all 8 plausibility guards passing green. |
 | Interactive Wind UI & Sim Updates (PATCH-014) | Direct on `main` | Merged to `main` (commit `8d6a517`). Bottom playback bar wind inputs wired, real-time dynamic crabbing and ground speed simulation updates. |
 
-## Current Gate: Phase 3 Integration Complete — Phase 4 (UI Redesign) Next
+## Current Gate: Gate 1 Sign-Off Ready (Milestone 1 Complete)
 - **Authoritative Master Specification:** [`specs/SPEC-traffic.md`](../../specs/SPEC-traffic.md) (unified spec superseding `SPEC-traffic-vector.md` per D406, R34; single source of truth for aerodynamics, guidance laws, and equations).
 - **Master Flight Pattern Matrix:** [`docs/traffic-pattern-matrix.md`](../traffic-pattern-matrix.md) (authoritative single source of truth for nav-plan waypoints and coordinates).
-- **Task Checklist:** [`tasks/traffic/vector-migration-todo.md`](../../tasks/traffic/vector-migration-todo.md) and [`tasks/traffic/todo.md`](../../tasks/traffic/todo.md).
-- **Execution Plan:** [`tasks/traffic/plan.md`](../../tasks/traffic/plan.md) (Phases 1–5).
-- **Phase 3 Integration Complete (Commits `ecd1b36`, `fa0b9b6`, `8dc5240`, `9803e19`):**
-  - `fly(a)` deleted (~710 lines), `tickAircraft()` three-mode state machine (RAIL, PHYSICS, BLENDING) wired into `sim.js`.
-  - 159 shadow variables eliminated (`sim.js` reduced from 1,466 to 752 lines, net -714 lines).
-  - 3 teleport bugs fixed:
-    - Premature perch: clear stale `waypointIndex` on blend complete (`ecd1b36`).
-    - Break rollout snap: position-based `shouldEnterPhysics` via `posOnRoute(distFt)` (`ecd1b36`).
-    - Final approach snap: phase-aware `enterBlending` targets Window Point 12 for final approach (`ecd1b36`).
-  - `computeBreakRollout()` added for wind-adjusted downwind start position (mirrors `computeWindPerch()`, `fa0b9b6`).
-  - PFL / High Key 3 bugs fixed (heading 000° on coincident threshold points, target altitude 5,000 ft in `setupPhysicsPlan`, phase transitions in `stepAircraft`) + 1.35× prototype drag multiplier (`8dc5240`).
-  - Breakout altitude standardized to 4,500 ft (raised from 3,500 ft, `9803e19`).
-  - Closed pattern command added (45° bank climbing left turn tracking to break rollout position, `9803e19`).
-  - Test audit complete: 2 files deleted (`traffic-scenarios.test.js`, `setup-diff.test.js`), 18 individual tests deleted (`sim.test.js`, `route.test.js`), 32 assertions widened to pilot domain tolerances, operator warnings added to 14 test files (`cb3fcf5`).
-  - 6 behavioral flight invariant tests added (`flight-invariants.test.js`, `8c0a8e1`).
-- Prior Landed Work:
-  - PATCH-018 (3D satellite ground plane unfreeze & base airfield runways canvas rendering).
-  - PATCH-020 (Stage 1 Vector Physics Slices A–E, break drag curve, dynamic perch capture, final turn descent easing, touch-and-go closed pattern).
-  - PATCH-021 (Stage 2 Pilot UI Controls: spawner presets for Downwind/Perch/Final, multi-track toggles, Breakout/Go-around buttons).
-  - PATCH-022 (V2.0 visual indicator badge, zero-wind V6 outer loop elimination, CT-156 authentic 50° bank closed-pattern climbing turn physics).
-  - PATCH-023 (Closed pattern wings-level 118° rollout to Perch, calm-wind 180° rounded arcs, High Key 5,000 ft threshold overflight heading 298°, continuous 360° circular PFL glide arc, Stage 1 deactivation of SPL1–SPL4).
-- Full test baseline: all 739 traffic unit tests passing 100% green (`node --test tests/unit/traffic/**/*.test.js`).
-- Production build: `npm run build` passes cleanly.
-- Verification checklist: [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
+- **Task Checklist:** [`docs/REMEDIATION_ROADMAP.md`](../REMEDIATION_ROADMAP.md) (Milestone 1, Tasks 1.1–1.9).
+- **Landed Work (D430–D437, PATCH-050–052):**
+  - **3D Scenery, Landmarks & Lighting (D430–D434, PATCH-050):** 3D camera menu bar (Fit, High look-down, Top-down, Tower, Chase, Cockpit, Padlock runway) + airborne aircraft follow modes; Performance graphics quality default; Glass Palace, Rec Centre, Student Barracks, Hangars 5 & 6 traced on satellite footprints; Window Farm, Sukanen Ship, Fiat Farm, Arrow Trees visual landmarks; SW fixed afternoon sun lighting.
+  - **Breakout & High Key Kinematic Controller (D435, PATCH-051):** Breakout rejoin 2 NM prior on ENT1 along 3,500 ft corridor; High Key SE approach intercept and continuous pitch arrest controller (`calcHighKeyPitch`).
+  - **Authentic PFL Architecture (D436, PATCH-051):** Kinetic zoom apex (`zoomT6A`), SMM Ch 13 adaptive bank corner cutting (35° nominal, 45° tight bank), 3D continuous wind-shaped kinematic rail (`mode = 'RAIL'`), dynamic 2D wind-drifted glide footprint ring with range HUD, 6 tactical badges, and terrain contact clamp at 1,892 ft MSL (`status = 'crashed'` off-runway, `'landed'` on threshold).
+  - **Single-Click Button Responsiveness & Stable DOM (D437, PATCH-052):** Dual `pointerdown` + `click` event listeners with 250ms debounce across all playback controls, action buttons, and layout toggles; in-place DOM updates in `aircraft.js:write()` preventing 100ms click cancellation.
+- **Verification:**
+  - 100% test green: all 126 unit tests passing (`high-key.test.js`, `pfl-solver.test.js`, `pfl-rail.test.js`, `pfl.test.js`, `aircraft.test.js`, etc.).
+  - `npm run typecheck`: clean (0 errors).
+  - `npm run build`: 100% clean (built in 534ms, all size budgets kept).
+  - Active test server running on `http://localhost:5173/` and `http://10.0.0.149:5173/`.
+- **Sign-Off Checklist:** [`docs/checklists/traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/checklists/traffic.md).
 
 ## Settled numbers (Patrick's calls win over the manuals)
 

@@ -518,3 +518,29 @@ test('panel.selectAircraft programmatically updates is-selected visual state', (
   assert.equal(rows[1].classList.contains('is-selected'), false);
 });
 
+test('aircraft row displays tactical PFL status badge during PFL recovery phases', () => {
+  const { panel, list, sim } = setup();
+  sim.stepTo(60);
+  const st = sim.state();
+  // Simulate aircraft 0 in PFL recovery
+  const target = st.aircraft[0];
+  target.engineFailed = true;
+  target.phase = 'pfl_high_key';
+  panel.update(st);
+
+  const rows = withClass(list, 'aircraft-row');
+  const pflBadge = withClass(rows[0], 'pfl-badge')[0];
+  assert.ok(pflBadge, 'has pfl-badge element');
+  assert.equal(pflBadge.textContent, '[PFL: HIGH KEY]');
+
+  // Test crash short badge styling
+  target.phase = 'crash_short';
+  panel.update(st);
+  const updatedRows = withClass(list, 'aircraft-row');
+  const crashBadge = withClass(updatedRows[0], 'pfl-badge')[0];
+  assert.ok(crashBadge, 'has pfl-badge');
+  assert.equal(crashBadge.textContent, '[CRASH SHORT]');
+  assert.ok(crashBadge.getAttribute('class').includes('badge-crash'), 'has badge-crash class');
+});
+
+

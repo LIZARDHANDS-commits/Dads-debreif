@@ -261,6 +261,169 @@ export function conflictLevels(conflicts) {
 export const isFlying = (ac) => ac.status === 'flying';
 export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_COLORS[ac.type] ?? FALLBACK_COLOR;
 
+/**
+ * Calculates 2D dynamic glide footprint ring in local feet.
+ * CYMJ Moose Jaw field elevation: 1,892 ft MSL.
+ * Clean glide ratio: 2.0 NM / 1,000 ft (12,152.24 ft / 1,000 ft).
+ * Sink rate: 1,350 fpm (22.5 ft/s).
+ *
+ * @param {{ x?: number, y?: number, alt?: number }} a
+ * @param {number} [windFromDeg=360]
+ * @param {number} [windKt=0]
+ * @returns {{ cx: number, cy: number, rGlide: number, tGlide: number, altDiff: number, driftFt: number, wxFtps: number, wyFtps: number }}
+ */
+export function calculateGlideFootprint(a, windFromDeg = 360, windKt = 0) {
+  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : 1892;
+  const altDiff = Math.max(0, alt - 1892);
+  const rGlide = (altDiff / 1000) * 2.0 * 6076.12;
+  const tGlide = altDiff / (1350 / 60);
+
+  const fromDeg = Number.isFinite(windFromDeg) ? windFromDeg : 360;
+  const kt = Number.isFinite(windKt) && windKt > 0 ? windKt : 0;
+  const blowToRad = (((fromDeg % 360) + 180) * Math.PI) / 180;
+  const wxFtps = (kt * 1.68781) * Math.sin(blowToRad);
+  const wyFtps = (kt * 1.68781) * Math.cos(blowToRad);
+
+  const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
+  const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
+  const cx = ax + wxFtps * tGlide;
+  const cy = ay + wyFtps * tGlide;
+  const driftFt = Math.hypot(wxFtps * tGlide, wyFtps * tGlide);
+
+  return { cx, cy, rGlide, tGlide, altDiff, driftFt, wxFtps, wyFtps };
+}
+
+/**
+ * Checks if an aircraft has engine failure or PFL active.
+ *
+ * @param {any} a
+ * @returns {boolean}
+ */
+export function isPflActive(a) {
+  if (!a) return false;
+  if (a.engineFailed === true) return true;
+  if (typeof a.phase === 'string' && (a.phase.startsWith('pfl') || a.phase === 'crash_short' || a.phase === 'crashed')) return true;
+  if (a.command === 'pfl_current' || a.command === 'engine_fail' || a.command === 'climb_high_key' || a.command === 'climb_low_key') return true;
+  if (a.pflActive === true) return true;
+  return false;
+}
+
+/**
+ * Determines if the dynamic glide footprint ring should be rendered for an aircraft.
+ *
+ * @param {any} a
+ * @param {string|null} [selectedAircraftId=null]
+ * @returns {boolean}
+ */
+export function shouldShowGlideFootprint(a, selectedAircraftId = null) {
+  if (!a) return false;
+  if (isPflActive(a)) return true;
+  if (selectedAircraftId && a.id === selectedAircraftId && (a.command?.startsWith('pfl') || a.engineFailed)) return true;
+  return false;
+}
+
+/**
+ * Determines tactical PFL status badge for an aircraft in PFL recovery.
+ * Returns null if not in PFL recovery.
+ *
+ * Badges:
+ * - `[CRASH SHORT]` (unrecoverable / below glide slope / crashed)
+ * - `[PFL: ZOOM]` (during zoom climb/decel)
+ * - `[PFL: HIGH KEY]` (joining High Key or orbit)
+ * - `[PFL: LOW KEY]` (joining Low Key downwind)
+ * - `[PFL: BASE KEY]` (joining Base Key)
+ * - `[PFL: DIRECT]` (gliding direct to threshold)
+ *
+ * @param {any} ac
+ * @returns {string|null}
+ */
+export function getPflBadge(ac) {
+  if (!ac) return null;
+  const active = ac.engineFailed === true ||
+    ac.command === 'pfl_current' ||
+    ac.command === 'engine_fail' ||
+    ac.command === 'climb_high_key' ||
+    ac.command === 'climb_low_key' ||
+    ac.pflActive === true ||
+    (typeof ac.phase === 'string' && (
+      ac.phase.startsWith('pfl') ||
+      ac.phase.includes('high_key') ||
+      ac.phase.includes('low_key') ||
+      ac.phase.includes('base_key') ||
+      ac.phase.includes('crash')
+    ));
+
+  if (!active) return null;
+
+  const phase = (ac.phase || '').toLowerCase();
+  const status = (ac.status || '').toLowerCase();
+
+  // 1. Crash short / unrecoverable
+  if (status === 'crashed' || phase === 'crash_short' || phase === 'pfl_crash' || phase === 'crashed') {
+    return '[CRASH SHORT]';
+  }
+
+  // 2. Zoom climb / decel
+  if (phase === 'pfl_zoom' || phase === 'zoom' || phase === 'pfl_decel') {
+    return '[PFL: ZOOM]';
+  }
+
+  // 3. High Key or Orbit
+  if (
+    phase === 'pfl_high_key' ||
+    phase === 'high_key' ||
+    phase === 'high_key_run_in' ||
+    phase === 'pfl_orbit' ||
+    phase === 'orbit' ||
+    phase === 'pfl_inbound' ||
+    ac.command === 'climb_high_key'
+  ) {
+    return '[PFL: HIGH KEY]';
+  }
+
+  // 4. Low Key
+  if (phase === 'pfl_low_key' || phase === 'low_key' || ac.command === 'climb_low_key') {
+    return '[PFL: LOW KEY]';
+  }
+
+  // 5. Base Key
+  if (phase === 'pfl_base_key' || phase === 'base_key') {
+    return '[PFL: BASE KEY]';
+  }
+
+  // 6. Direct to threshold
+  if (
+    phase === 'pfl_direct' ||
+    phase === 'direct_threshold' ||
+    phase === 'pfl_direct_threshold' ||
+    phase === 'pfl_final' ||
+    phase === 'direct'
+  ) {
+    return '[PFL: DIRECT]';
+  }
+
+  // Fallback heuristic based on altitude / speed if phase is generic ('pfl' or not yet refined)
+  const alt = ac.altFt ?? ac.alt ?? 3500;
+  const kt = ac.kt ?? 120;
+  if (alt <= 1892 && (status === 'crashed' || status === 'landed')) {
+    return '[CRASH SHORT]';
+  }
+  if (kt > 150) {
+    return '[PFL: ZOOM]';
+  }
+  if (alt >= 4500) {
+    return '[PFL: HIGH KEY]';
+  }
+  if (alt >= 3400) {
+    return '[PFL: LOW KEY]';
+  }
+  if (alt >= 2700) {
+    return '[PFL: BASE KEY]';
+  }
+  return '[PFL: DIRECT]';
+}
+
+
 // ---------------------------------------------------------------------------
 // The satellite photo (specs/SPEC-traffic.md: Layers, the Photo section of the settings menu)
 //
@@ -500,6 +663,42 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     }
   }
 
+  // Dynamic Glide Footprint Ring (SMM Ch 13 / PFL forced landing recovery)
+  const windFromDeg = settings.windFromDeg ?? scene.windFromDeg ?? 360;
+  const windKt = settings.windKt ?? scene.windKt ?? 0;
+  for (const ac of flying) {
+    if (shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) {
+      const footprint = calculateGlideFootprint(ac, windFromDeg, windKt);
+      if (footprint.rGlide > 0) {
+        const [scx, scy] = map.worldToScreen(footprint.cx, footprint.cy);
+        const rPx = footprint.rGlide * pxPerFt;
+        if (rPx > 1) {
+          ctx.save();
+          ctx.globalAlpha = 0.55;
+          ctx.beginPath();
+          ctx.arc(scx, scy, rPx, 0, Math.PI * 2);
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Shifted center crosshair indicating wind-drifted glide center
+          ctx.beginPath();
+          ctx.moveTo(scx - 4, scy);
+          ctx.lineTo(scx + 4, scy);
+          ctx.moveTo(scx, scy - 4);
+          ctx.lineTo(scx, scy + 4);
+          ctx.stroke();
+
+          // Tactical HUD range label
+          const nmRange = (footprint.rGlide / 6076.12).toFixed(1);
+          text(`PFL GLIDE (${nmRange} NM)`, scx, scy - rPx - 4, '#38bdf8', { size: 10, bold: true, align: 'center', anchor: scx });
+          ctx.restore();
+        }
+      }
+    }
+  }
+
   // Aircraft: the symbol along its heading, its callsign, height and speed, and the word for any conflict.
   for (const ac of flying) {
     const [x, y] = at(ac);
@@ -516,6 +715,11 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     if (settings.layerLabels) text(heightSpeedText(ac), x + 12, y + 7, palette.text, { anchor: x });
     const level = levels.get(ac.id);
     if (level) text(LEVEL_MARKS[level], x + 12, y + 21, level === 'conflict' ? palette.bad : palette.caution, { bold: true, anchor: x });
+    const pflBadge = getPflBadge(ac);
+    if (pflBadge) {
+      const badgeY = level ? y + 33 : (settings.layerLabels ? y + 21 : y + 7);
+      text(pflBadge, x + 12, badgeY, pflBadge === '[CRASH SHORT]' ? palette.bad : '#38bdf8', { size: 10, bold: true, anchor: x });
+    }
   }
 
   drawWind(ctx, map, settings, palette, text);

@@ -31,6 +31,7 @@ import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 import { tickAircraft, initMode } from './tick-aircraft.js';
 import { makePflFromArea } from './nav-plans.js';
+import { buildPflRail } from './pfl-rail.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -302,7 +303,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const route = routeOf(a);
       const beforeDist = a.distFt;
       tickAircraft(a, STEP_SEC, wind, route, opt);
-      if (a.mode === 'RAIL' && route) {
+      if (a.mode === 'RAIL' && route && !a.pflRail) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
           checkDecisions(a, beforeDist, a.distFt);
@@ -313,7 +314,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       }
 
       // Fallback Doctrine: continuous pattern training loop
-      if (a.active && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
+      if (a.active && !a.pflRail && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
         if (!a.command) {
           // If no contingency command is active, climb to 2,500 ft MSL along runway heading (298°),
           // turn crosswind climbing to 3,500 ft MSL, and rejoin outer pattern for another overhead break.
@@ -495,7 +496,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   // ── What the screen asks ───────────────────────────────────────────────────
 
   function statusOf(a) {
-    if (!a.active) return a.landed ? 'landed' : 'done';
+    if (!a.active) {
+      if (a.status === 'crashed') return 'crashed';
+      return a.landed ? 'landed' : 'done';
+    }
     return t < a.startsAt ? 'waiting' : 'flying';
   }
 
@@ -735,15 +739,21 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a._blendTimer;
         a.phase = 'pfl';
       } else if (action === 'pfl_current' || action === 'engine_fail') {
+        const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+        const pflRail = buildPflRail(a, env, options);
+        a.pflRail = pflRail;
+        a.pflRailIndex = 0;
+        a.distFt = 0;
+        a.engineFailed = true;
+        a.mode = 'RAIL';
         a.command = action;
         a.landed = false;
         a.active = true;
-        a.engineFailed = true;
-        a.mode = 'PHYSICS';
         delete a._blendStart;
         delete a._blendTarget;
         delete a._blendTimer;
-        a.phase = 'pfl';
+        a.phase = pflRail[0]?.phase || 'pfl_zoom';
+        a.config = pflRail[0]?.config || 'clean';
       } else if (action === 'go_around') {
         a.command = action;
         a.landed = false;
@@ -795,9 +805,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     state() {
       const list = aircraft.map((a) => {
         const route = routeOf(a);
-        const p = whereIs(a);
+        const p = a.pflRail ? a : whereIs(a);
         const iasKt = a.iasKt ?? (p.kt ?? a.fallbackKt);
-        const altFt = a.landed ? (p.alt ?? 1892) : (a.alt ?? (p.alt ?? a.fallbackAlt));
+        const altFt = a.landed ? (a.alt ?? p.alt ?? 1892) : (a.alt ?? (p.alt ?? a.fallbackAlt));
         const x = a.x ?? p.x;
         const y = a.y ?? p.y;
         const headingDeg = a.headingDeg ?? p.headingDeg;
@@ -812,13 +822,16 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
           groundSpeedKt: a.gsKt ?? iasKt,
-          leg: p.seg + 1, distFt: a.distFt,
+          leg: p.seg !== undefined ? p.seg + 1 : 1, distFt: a.distFt,
           status: statusOf(a), startsAt: a.startsAt,
+          active: a.active,
+          landed: Boolean(a.landed),
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
           closedPatternBankDeg: a.closedPatternBankDeg,
           closedPatternPitchDeg: a.closedPatternPitchDeg,
+          config: a.config,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

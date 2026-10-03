@@ -920,7 +920,8 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   // Low Key target with wind shift (compensates for wind drift during final turn):
   const ftTasKt = iasToTasKt(120, 3100);
   const ftTasFtps = ktToFtps(ftTasKt);
-  const ftOmega = (g * Math.tan((35 * Math.PI) / 180)) / Math.max(1, ftTasFtps);
+  const finalBankDeg = /** @type {any} */ (options)?.bankDeg ?? 35;
+  const ftOmega = (g * Math.tan((finalBankDeg * Math.PI) / 180)) / Math.max(1, ftTasFtps);
   const finalTurnSec = Math.PI / ftOmega;
   const finalShiftX = -wx * finalTurnSec;
   const finalShiftY = -wy * finalTurnSec;
@@ -1033,9 +1034,9 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
 
   while (ftTurnAccum < totalTurnDeg) {
     const u = ftTurnAccum / totalTurnDeg;
-    let bDeg = 35;
-    if (u < 0.15) bDeg = 35 * Math.sin((u / 0.15) * (Math.PI / 2));
-    else if (u > 0.85) bDeg = 35 * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
+    let bDeg = finalBankDeg;
+    if (u < 0.15) bDeg = finalBankDeg * Math.sin((u / 0.15) * (Math.PI / 2));
+    else if (u > 0.85) bDeg = finalBankDeg * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
     const bRad = (Math.max(5, bDeg) * Math.PI) / 180;
     const curOmega = (g * Math.tan(bRad)) / Math.max(1, ftTasFtps);
     const dTurn = Math.min((curOmega * dt * 180) / Math.PI, totalTurnDeg - ftTurnAccum);

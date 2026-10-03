@@ -106,3 +106,11 @@ Each agent checks its work with a top-down 3D screenshot against the photo befor
 6. Camera menu: Fit, Top-down, Tower, Chase, Cockpit, Padlock (runway) + Follow dropdown of flying aircraft.
 
 Agent D's scope adds: index.js row-click wiring and the 3D-bar graphics switch + 'low' default.
+
+## Update (3 Oct 22:40Z): Building Transforms from Patrick's Annotations (media_1791066497960.jpg)
+- **Deleted Baseball Diamond:** Completely removed `athletic-field` (mesh, canvas diamond texture generator, and test assertions).
+- **Slewed and Turned Student Barracks (`barracks-u`):** Moved northwest to `(-360, 4050)` and rotated to `-0.75` rad (~43°), aligning the spine along the crescent street grid with wings extending southeast directly onto the cyan satellite roof footprint.
+- **Clockwise Rotation of Glass Palace (`main-building`):** Rotated clockwise with `rotation: -0.58` rad at `(930, 3140)` so the curved glass curtain wall faces southeast towards Hangar 3 and the ramp/apron, with the flat back facing northwest toward the parking lot.
+- **Rectangular Hangars 5 & 6 Shifted to Satellite Pads:** Replaced skewed rhombuses/parallelograms with clean rectangular footprints (`240x170` and `250x180` ft) rotated `-0.49` rad to match Runway 29L flight line heading (298°), shifted east to `(2380, 3070)` and `(2560, 3380)`.
+- **Shifted Base Fitness & Rec Centre (`base-rec-center`):** Moved east to `(435, 3370)` with clean rectangular footprint (`240x150` ft, rotation `-0.22` rad).
+

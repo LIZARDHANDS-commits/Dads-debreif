@@ -38,7 +38,20 @@
 | [**PATCH-025**](#patch-025-milestone-2-active-combat-pursuit-default-d403) | M2 | 2026-10-01 07:25Z | BFM Physics | Milestone 2 Active Combat Pursuit Default (D403) | Pass |
 | [**PATCH-026**](#patch-026-energy-mode-3d-merge-azimuth-acquisition-across-vertical-separation-d404) | M2 | 2026-10-01 08:05Z | BFM & 3D | Energy Mode 3D Merge Azimuth Acquisition across Vertical Separation (D404) | Pass |
 | [**PATCH-027**](#patch-027-pilot-stall-authority-loss--post-merge-3d-pursuit-entry-d405) | M2 | 2026-10-01 09:05Z | Aero & BFM | Pilot Stall Authority Loss & Post-Merge 3D Pursuit Entry (D405) | Pass |
-| [**PATCH-028**](#patch-028-turn-fight-bfm-1v1-50-g-law-d386-cone-bfm-doctrine--test-harmonization) | M2 | 2026-10-01 22:15Z | Aero & BFM | 5.0 G Pull Law, D386 Cone, BFM Doctrine & Pilot Domain Test Harmonization | Pass |
+| [**PATCH-028**](#patch-028-pre-phase-vector-guidance-migration-documentation-synchronization-d406-r34) | M1 | 2026-10-02 01:25Z | Aero & Spec | Pre-Phase Vector Guidance Migration Documentation Synchronization (D406, R34) | Pass |
+| [**PATCH-029**](#patch-029-turn-fight-bfm-1v1-50-g-law-d386-cone-bfm-ai-v22--test-harmonization) | M2 | 2026-10-02 11:55Z | Aero & BFM | 5.0 G Pull Law, D386 Cone, BFM AI v2.2 & Pilot Domain Test Harmonization | Pass |
+| [**PATCH-030**](#patch-030-simjs-surgery--deleted-flya-wired-tickaircraft-eliminated-shadow-variables) | M1 | 2026-10-02 19:32Z | Sim Engine | sim.js Surgery: Deleted fly(a), Wired tickAircraft(), Eliminated 159 Shadow Variables | Pass |
+| [**PATCH-031**](#patch-031-teleport-fix-1--clear-stale-waypointindex-on-blend-complete) | M1 | 2026-10-02 19:32Z | Sim Engine | Teleport Fix 1: Clear Stale waypointIndex on Blend Complete | Pass |
+| [**PATCH-032**](#patch-032-teleport-fix-2--position-based-shouldenterphysics) | M1 | 2026-10-02 19:32Z | Sim Engine | Teleport Fix 2: Position-Based shouldEnterPhysics | Pass |
+| [**PATCH-033**](#patch-033-teleport-fix-3--phase-aware-enterblending-targets-window-point-12) | M1 | 2026-10-02 19:32Z | Sim Engine | Teleport Fix 3: Phase-Aware enterBlending Targets Window Point 12 for Final Approach | Pass |
+| [**PATCH-034**](#patch-034-computebreakrollout--wind-adjusted-downwind-start-position) | M1 | 2026-10-02 19:58Z | Aero & Route | computeBreakRollout(): Wind-Adjusted Downwind Start Position | Pass |
+| [**PATCH-035**](#patch-035-pfl--high-key-3-bugs-fixed--135x-prototype-drag) | M1 | 2026-10-02 20:03Z | Aero & Engine | PFL / High Key 3 Bugs Fixed + 1.35× Prototype Drag | Pass |
+| [**PATCH-036**](#patch-036-breakout-altitude-standardized-to-4500-ft) | M1 | 2026-10-02 20:16Z | SMM & Aero | Breakout Altitude Standardized from 3,500 ft to 4,500 ft | Pass |
+| [**PATCH-037**](#patch-037-closed-pattern-command--45-bank-climbing-left-turn) | M1 | 2026-10-02 20:16Z | Aero & Maneuver | Closed Pattern Command: 45° Bank Climbing Left Turn | Pass |
+| [**PATCH-049**](#patch-049-turn-fight-altitude-split-canopy-visual-pursuit-d429) | M2 | 2026-10-03 15:35Z | BFM AI & Aero | Altitude-Split Canopy Visual Acquisition Pursuit (D429) | Pass |
+| [**PATCH-050**](#patch-050-traffic-3d-visual-landmarks-buildings-cameras-sun-d430-d434) | M1 | 2026-10-03 15:45Z | 3D & UX | 3D Visual Landmarks, Traced Buildings, Camera Suite & SW Sun (D430–D434) | Pass |
+| [**PATCH-051**](#patch-051-breakout-rejoin-high-key-and-pfl-architecture-d435-d436) | M1 | 2026-10-03 23:05Z | Aero & SMM | Breakout 2 NM Rejoin, High Key Controller & PFL Architecture (D435–D436) | Pass |
+| [**PATCH-052**](#patch-052-traffic-single-click-button-responsiveness-and-dom-stability-d437) | M1 | 2026-10-03 23:15Z | UI & Architecture | Single-Click Button Responsiveness & Stable In-Place DOM Updates (D437) | Pass |
 
 ---
 
@@ -821,6 +834,561 @@
   - `npm run typecheck` passed cleanly (0 errors).
   - `npm run build` compiled clean.
 
+---
 
+### PATCH-030: sim.js Surgery — Deleted fly(a), Wired tickAircraft(), Eliminated Shadow Variables
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`tasks/traffic/todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/todo.md)
+* **Problem / Flaw Addressed:**  
+  `sim.js` maintained a legacy hybrid simulation architecture where `fly(a)` (~710 lines) ran parallel math and maintained 159 shadow state variables (`customX`, `customY`, `customAlt`, `customHeading`, `customKt`, etc.) that drifted out of sync with 3D Cartesian vector flight physics.
+* **Changes Made:**
+  1. Deleted `fly(a)` (~710 lines) from `sim.js`.
+  2. Replaced per-frame simulation logic with single `tickAircraft(a, dt, fieldElevFt, wind, activeRwy, route, bounds)` call in `stepOnce()`.
+  3. Eliminated all 159 shadow variables across `toStart()`, `checkDecisions()`, `command()`, and `state()`.
+  4. Added simulation `mode` ('RAIL' | 'PHYSICS' | 'BLENDING') to `state()` output, and properly deep-cloned blend objects in snapshot and rewind buffers.
+  5. Reduced `sim.js` footprint from 1,466 lines to 752 lines (net -714 lines).
+* **Reasoning / Rationale:**  
+  Enforces single source of truth for aircraft state via the `tick-aircraft.js` three-mode state machine. Eliminates shadow-variable drift and dual-model divergence.
+* **Verification:**  
+  6/6 behavioral flight invariants pass (`flight-invariants.test.js`); zero shadow variables remain.
 
+---
 
+### PATCH-031: Teleport Fix 1 — Clear Stale waypointIndex on Blend Complete
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+* **Problem / Flaw Addressed:**  
+  Premature perch jump: when blending completed back onto rails, `a.waypointIndex` retained its pre-blend value. On subsequent frames, distance calculations evaluated against the stale index, causing an immediate false trigger into the perch turn.
+* **Changes Made:**
+  Explicitly cleared `a.waypointIndex = undefined` upon completing the BLENDING phase (`t >= blendDuration`), forcing rail tracking to re-index from actual track distance (`distFt`).
+* **Reasoning / Rationale:**  
+  Guarantees rail state re-synchronization without relying on stale legacy waypoints.
+* **Verification:**  
+  Circuit progression invariant test passes; zero premature perch triggers.
+
+---
+
+### PATCH-032: Teleport Fix 2 — Position-Based shouldEnterPhysics
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+* **Problem / Flaw Addressed:**  
+  Break rollout snap: `shouldEnterPhysics()` relied on `a.waypointIndex` matching the break entry point. If `waypointIndex` was stale or skipped due to time-step integration, aircraft failed to enter physics or snapped instantaneously to the rollout waypoint.
+* **Changes Made:**
+  Refactored `shouldEnterPhysics()` to evaluate aircraft position along the route using `posOnRoute(distFt)` rather than relying on stale discrete `waypointIndex`.
+* **Reasoning / Rationale:**  
+  Continuous geometric detection prevents missed transitions regardless of frame rate or time-step variations.
+* **Verification:**  
+  Continuous motion invariant test passes; smooth overhead break rollout.
+
+---
+
+### PATCH-033: Teleport Fix 3 — Phase-Aware enterBlending Targets Window Point 12
+* **Date & Time:** 2026-10-02 19:32 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `ecd1b36`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+* **Problem / Flaw Addressed:**  
+  Final approach snap: upon completing the final turn, generic `findClosestRoutePoint()` snapped the aircraft backward or forward to an incorrect rail point rather than the Window / Final Approach fix.
+* **Changes Made:**
+  Made `enterBlending()` phase-aware: when transitioning from final turn physics, explicitly target Window Point 12 for the final approach leg. Added forward-progress guard in `enterBlending` preventing backward `distFt` snaps. Set RAIL fallback speed to `a.fallbackKt` instead of hardcoded 140 kt.
+* **Reasoning / Rationale:**  
+  Ensures final approach alignment follows Moose Jaw SMM procedure onto the extended runway centerline without coordinate teleportation.
+* **Verification:**  
+  6/6 behavioral flight invariants pass; smooth rollout onto final approach.
+
+---
+
+### PATCH-034: computeBreakRollout() — Wind-Adjusted Downwind Start Position
+* **Date & Time:** 2026-10-02 19:58 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `fa0b9b6`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+* **Problem / Flaw Addressed:**  
+  Downwind start position (Point 10) was statically hardcoded. While the perch turn end (Point 11) had dynamic wind adjustment via `computeWindPerch()`, the break turn rollout remained fixed, distorting downwind leg crabbing and spacing under crosswinds.
+* **Changes Made:**
+  Implemented `computeBreakRollout(wind, fieldElevFt)` in `src/modules/traffic/route.js`:
+  1. Analytically simulates the 180° decelerating overhead break turn ($V(u) = 220 \cdot e^{-0.452 u}$, 60° bank, integrating wind drift).
+  2. Dynamically calculates exit coordinates (calm rollout: $x = -2908\text{ ft}, y = -4109\text{ ft}$, heading $118^\circ$).
+  3. Integrated `computeBreakRollout` into `generateWindAdjustedTrack()`, ensuring both ends of the downwind leg are dynamically wind-adjusted.
+* **Reasoning / Rationale:**  
+  Symmetric wind correction for both entry and exit of the pattern downwind leg per Moose Jaw SMM procedures.
+* **Verification:**  
+  31/31 route tests, 46/46 sim tests, and 6/6 invariant tests pass.
+
+---
+
+### PATCH-035: PFL / High Key 3 Bugs Fixed & Prototype Drag Multiplier
+* **Date & Time:** 2026-10-02 20:03 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `8dc5240`
+* **Files Modified:**
+  * [`src/modules/traffic/flight-engine.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/flight-engine.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+* **Problem / Flaw Addressed:**  
+  Three critical flaws in PFL / High Key flight dynamics:
+  1. High Key and Runway Threshold share identical $x, y$ coordinates $(3104, -3194)$, causing `atan2(0,0)` heading calculation to evaluate to $000^\circ$ (due North).
+  2. `climb_high_key` command in `setupPhysicsPlan` omitted target altitude and speed, failing to climb under power.
+  3. Non-looping PFL plans lacked waypoint capture phase state transitions, failed to cut engine at High Key, and failed to touch down at threshold.
+* **Changes Made:**
+  1. Fixed coincident waypoints: used `_legStart` reference for direct-to heading calculation when waypoint delta is zero.
+  2. Set `targetAltFt = 5000` and `targetSpeedKt = 125` in `setupPhysicsPlan` for `climb_high_key`, enabling powered climb to High Key.
+  3. Implemented PFL phase state machine in `stepAircraft`: updates phase/config from nav plan waypoints, cuts engine (`engineFailed = true`) at High Key for unpowered glide descent, and lands at Threshold when `alt <= 1942 ft` MSL.
+  4. Added fly-over protection for High Key and cross-track bounded capture ($\le 500\text{ ft}$) preventing premature triggers during turns.
+  5. Implemented 1.35× sink rate prototype drag multiplier on spiral glide descent after High Key per operator calibration.
+* **Reasoning / Rationale:**  
+  Faithful reproduction of Moose Jaw T-6 / CT-156 PFL procedures from 5,000 ft High Key down to touchdown.
+* **Verification:**  
+  99/99 tests pass across tick-aircraft, flight-engine, invariants, and commands.
+
+---
+
+### PATCH-036: Breakout Altitude Standardized to 4,500 ft
+* **Date & Time:** 2026-10-02 20:16 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `9803e19`
+* **Files Modified:**
+  * [`src/modules/traffic/flight-engine.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/flight-engine.js)
+  * [`src/modules/traffic/nav-plans.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/nav-plans.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js)
+  * [`tests/unit/traffic/vector-sim.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/vector-sim.test.js)
+* **Problem / Flaw Addressed:**  
+  Breakout altitude was previously set to 3,500 ft MSL, identical to the pattern downwind altitude, conflicting with Moose Jaw local air traffic procedures where breakout aircraft climb above pattern altitude to deconflict.
+* **Changes Made:**
+  Standardized breakout target altitude from 3,500 ft to 4,500 ft MSL across `flight-engine.js`, `nav-plans.js`, and `tick-aircraft.js`. Updated corresponding unit test assertions.
+* **Reasoning / Rationale:**  
+  Authentic 15 Wing Moose Jaw breakout altitude procedure providing 1,000 ft vertical clearance above the 3,500 ft pattern downwind.
+* **Verification:**  
+  Updated test assertions in `commands.test.js` and `vector-sim.test.js` pass cleanly.
+
+---
+
+### PATCH-037: Closed Pattern Command — 45° Bank Climbing Left Turn
+* **Date & Time:** 2026-10-02 20:16 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim — Phase 3)
+* **Branch:** `wip/test-audit-and-cleanup`
+* **Commit:** `9803e19`
+* **Files Modified:**
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`src/modules/traffic/flight-engine.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/flight-engine.js)
+  * [`tests/unit/traffic/commands.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/commands.test.js)
+* **Problem / Flaw Addressed:**  
+  Missing procedural command for closed pattern circuit entry following touch-and-go or low approach on Runway 29L.
+* **Changes Made:**
+  1. Added `closed_pattern` command to `PHYSICS_COMMANDS`.
+  2. Aircraft enters `PHYSICS` mode, initiates a 45° bank climbing left turn, climbs to 3,500 ft MSL, and tracks toward the wind-corrected break rollout position (`computeBreakRollout()`).
+  3. Added proportional track-intercept steering in `calcBankTarget` with 45° bank limit for the `closed_pattern` phase.
+  4. Defined completion condition: within 600 ft of rollout point, altitude within 150 ft of 3,500 ft, and heading within 30° of 118°; then smoothly transitions into `BLENDING` onto downwind rails.
+* **Reasoning / Rationale:**  
+  Accurate simulation of Moose Jaw closed pattern touch-and-go re-entry to the downwind leg.
+* **Verification:**  
+  37/37 tests pass across tick-aircraft, invariants, and commands.
+
+---
+
+### PATCH-038: Turn Fight Tactical AI Maneuver Selection Engine & Gate 2 Verification
+* **Date & Time:** 2026-10-02 22:50 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM — Gate 2 Sign-Off Ready)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * [`src/modules/turn-fight/energy-sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-sim.js)
+  * [`src/modules/turn-fight/state.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/state.js)
+  * [`src/modules/turn-fight/layout.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/layout.js)
+  * [`src/modules/turn-fight/readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/readouts.js)
+  * [`src/modules/turn-fight/energy-readouts.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/turn-fight/energy-readouts.js)
+  * [`tests/unit/turn-fight/energy-tactical.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/turn-fight/energy-tactical.test.js) (NEW)
+  * [`tests/e2e/turn-fight.spec.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/e2e/turn-fight.spec.js)
+  * [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md)
+  * [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md)
+  * [`docs/handover/turn-fight.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/handover/turn-fight.md)
+  * [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md)
+  * [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md)
+  * [`tasks/turn-fight/todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/turn-fight/todo.md)
+  * [`tasks/turn-fight/plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/turn-fight/plan.md)
+* **Problem / Flaw Addressed:**  
+  1. Turn Fight Auto mode relied on static textbook lookups rather than dynamic tactical advantage evaluation, unable to adapt to dynamic altitude splits or aggressive adversary tactics.
+  2. Rollout from Immelmann and Split S suffered from exit traps (`c.next = 'pick'` re-entering pitch back or slice dive loops).
+  3. No dynamic mid-flight re-evaluation existed while sustained in MPT: fighters orbited indefinitely even when the adversary bled energy or overshot.
+  4. Predictor dry runs did not register tactical breakout wins.
+* **Changes Made:**
+  1. Synchronized predictor `judge` in `noseOnSec` to evaluate `onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you)` with sub-2ms dry-run performance (Task 16).
+  2. Neutralized rollout exit traps: in `controlImmelmann` and `controlSplitS`, set `c.next = 'mpt'` to cleanly transition into sustained rate tracking (Task 16).
+  3. Implemented `getFeasibleMoves(ac, setup)` with authentic Harvard II operational envelopes and `pickTacticalMove(state, who, lookaheadSec)` multi-dimensional utility scoring ranking candidates by $T_{\text{win}}$, $\Delta Adv$, and $H_e$ with structured explanation string `why` (Task 17 / D416, D417).
+  4. Integrated UI controls: added `'tactical'` to `ENERGY_MOVES`, added 'Tactical AI (Dynamic Utility)' to move dropdowns, added `tacticalLookaheadSec` slider (10–45 s), and displayed decision rationale in Result card (Task 18).
+  5. Implemented mid-flight opportunistic re-evaluation in `controlMpt` (3.5 s cadence, 4.0 s hysteresis lockout timer, Hard Deck margin) (Task 19 / D418).
+  6. Harmonized E2E test assertions in `tests/e2e/turn-fight.spec.js` for data tags and updated BFM help text.
+  7. Added dedicated unit test suite `tests/unit/turn-fight/energy-tactical.test.js` (all 515 turn-fight unit tests green).
+* **Reasoning / Rationale:**  
+  Decisions **D416–D418** (ratified as Tasks D412–D414). Elevates AI to an authentic tactical adversary that selects winning BFM maneuvers and exploits bandit mistakes according to real-world fighter combat principles.
+* **Verification:**  
+  - `npm run typecheck`: clean (0 errors).
+  - `node --test tests/unit/turn-fight/*.test.js`: 515 passed, 0 failed.
+  - `npm test`: 3,174 passed, 0 failed, 1 skipped.
+  - `npm run build`: built in 476ms, all size budgets kept.
+  - `npx playwright test tests/e2e/turn-fight.spec.js`: 68 passed, 0 failed.
+
+---
+
+### PATCH-039: Wind-Adaptive PFL Track on Rails & Threshold Touchdown (D420)
+* **Date & Time:** 2026-10-02 21:45 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/nav-plans.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/nav-plans.js)
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`tests/unit/traffic/route.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/route.test.js)
+  * [`tests/unit/traffic/nav-plans.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/nav-plans.test.js)
+* **Problem / Flaw Addressed:**  
+  1. The legacy PFL generator (`generatePflTrack`) integrated an unconstrained 360° circular arc with pure wind drift, causing the flight path to drift miles off-field and into the terrain.
+  2. PFL waypoints were marked `mode: 'physics'`, causing numerical drift in differential glide equations that missed the runway threshold.
+  3. Aircraft completing PFL had no landing clamp at the runway threshold.
+* **Changes Made:**
+  1. Replaced unconstrained PFL orbit with an authentic 4-segment wind-adaptive track generator:
+     - **Segment 1 (High Key Turn):** 180° descending turn from High Key (5,000 ft $\to$ 3,700 ft MSL, 125 $\to$ 120 KIAS) with natural wind drift and smooth roll-in.
+     - **Segment 2 (Downwind Leg to Low Key):** Straight leg heading $\approx 118^\circ$ (wind-crabbed) to dynamic Low Key (`lowKey = nominalLowKey + shift`, compensating for final turn drift).
+     - **Segment 3 (Low Key to Final Approach):** Smooth descending turn (3,700 ft $\to$ 2,119 ft MSL, 120 KIAS, 35° bank) with boundary condition crab matching.
+     - **Segment 4 (Final to Touchdown):** Straight glide along runway centerline (2,119 ft $\to$ 1,892 ft MSL, 120 $\to$ 100 KIAS) terminating **exactly at the threshold with 0.00 ft miss distance**.
+  2. Updated `buildPath` in `route.js` to dispatch PFL routes (`ENT4`, `PFL`, `PFL_HIGH_KEY`) through `generatePflTrack()`.
+  3. Changed `PFL_HIGH_KEY_WPS` waypoints to `mode: 'rails'` in `nav-plans.js`.
+  4. Added PFL landing termination in `handleRouteEnd` in `sim.js`, ensuring aircraft safely touch down and stop on the numbers.
+  5. Added comprehensive unit tests in `route.test.js` verifying 0.00 ft miss distance across calm, 25 kt crosswind, and 25 kt headwind conditions.
+* **Reasoning / Rationale:**  
+  Decision **D420**. PFL procedures in SMM Ch 16 require an authentic forced landing pattern terminating at touchdown on the runway threshold. Putting nominal PFL on rails with dynamic aerodynamic compensation guarantees repeatable, rock-solid execution across all wind environments.
+* **Verification:**  
+  - `node --test tests/unit/traffic/*.test.js`: all 740 tests passed, 0 failed.
+  - PFL threshold miss distance: 0.00 ft calm, 0.00 ft in 25 kt crosswind, 0.00 ft in 25 kt headwind.
+---
+
+### PATCH-040: Combat Resolution — 2.0 s Continuous WEZ Gun Kill & Auto-Pause (D421)
+* **Date & Time:** 2026-10-02 23:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/index.js`
+  * `src/modules/turn-fight/energy-readouts.js`
+  * `src/modules/turn-fight/turn-fight.css`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Fighters had no decisive combat resolution; even when one fighter achieved dominant tracking inside the gun envelope, simulation continued indefinitely in sterile pursuit.
+* **Changes Made:**
+  1. Implemented WEZ Gun tracking detection in `energy-sim.js`: evaluated continuous tracking timer (`ac.ctl.wezTrackSec`) when in rear control zone, ATA <= 15°, target AA <= 60°, range < 2,500 ft, and not stalled.
+  2. At 2.0 s continuous tracking, triggered `state.kill = { victor, timeSec, rangeFt, ataDeg }` and flagged `state.stopped = true`.
+  3. Added HUD victor banner in `layout.js` with auto-pause in `index.js`, providing "Continue Engagement" and "Reset Fight" buttons.
+  4. Added prominent combat victory row in `energy-readouts.js`.
+  5. Added unit tests validating WEZ accumulation, reset on breakout, and kill trigger.
+* **Reasoning / Rationale:**  
+  Decision **D421**. Gives conclusive combat outcome to BFM engagements per tactical fighter doctrine.
+* **Verification:**  
+  All unit tests in `energy-tactical.test.js` passed; build succeeded.
+
+---
+
+### PATCH-041: Dynamic 3D Centroid Camera & Tactical Visual Cues (D422)
+* **Date & Time:** 2026-10-03 00:15 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/view3d.js`
+  * `src/modules/turn-fight/turn-fight.css`
+  * `tests/unit/turn-fight/view3d.test.js`
+* **Problem / Flaw Addressed:**  
+  Static bounds midpoint left fighters drifting off-center during 3D vertical maneuvers; HUD data tags sat directly on top of 3D aircraft models; pilots lacked visual cues for lift vector and WEZ cone.
+* **Changes Made:**
+  1. Updated `cameraFor` in `view3d.js`: dynamic centroid camera tracks aircraft midpoint $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$ with adaptive distance framing.
+  2. Displaced aircraft HUD data tags (-60px for Blue, +40px for Red) with leader lines connecting tags to aircraft centroids.
+  3. Added wing-normal 3D lift vector lines and 15° WEZ aiming cone attached to tracking aircraft nose.
+* **Reasoning / Rationale:**  
+  Decision **D422**. Ensures optimal framing and authentic visual debrief references during dynamic BFM dogfights.
+* **Verification:**  
+  All `view3d.test.js` unit tests passed; Three.js context cleanup verified.
+
+---
+
+### PATCH-042: Tactical Engagement Presets & 1.2 NM Re-baseline (D423)
+* **Date & Time:** 2026-10-03 01:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/state.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/index.js`
+  * `tests/unit/turn-fight/state.test.js`
+  * `tests/unit/turn-fight/energy-state.test.js`
+* **Problem / Flaw Addressed:**  
+  Legacy 2.0 NM start separation generated 15+ seconds of passive head-on transit dead time; zero-degree start ATA had no lateral offset.
+* **Changes Made:**
+  1. Re-baselined default start separation to 1.2 NM and start ATA to 5° (750 ft lateral turning room) in `state.js`.
+  2. Added 5 canonical 1-click tactical scenario presets: Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, and Radius vs Rate.
+  3. Integrated preset select handler in `layout.js` and `index.js`.
+* **Reasoning / Rationale:**  
+  Decision **D423**. Eliminates boring pre-merge transit time and provides instant access to canonical BFM training scenarios.
+* **Verification:**  
+  All `state.test.js` and `energy-state.test.js` tests passed.
+
+---
+
+### PATCH-043: Turn Fight BFM Energy Fight Default-On & Progressive Disclosure Architecture (D424 / D425)
+* **Date & Time:** 2026-10-03 01:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/state.js`
+  * `src/modules/turn-fight/layout.js`
+  * `tests/unit/turn-fight/state.test.js`
+  * `tests/unit/turn-fight/energy-layout.test.js`
+* **Problem / Flaw Addressed:**  
+  Turn Fight opened to legacy flat 2D turn circles by default; 16 developer checking parameters cluttered the student interface.
+* **Changes Made:**
+  1. Defaulted `energy: true` in `DEFAULTS` and `standardDefaults()` in `state.js`, opening directly into authentic 3D BFM Energy Fight (superseding D379 per D425).
+  2. Retired arcade "Climb and dive" from Simple Mode, preserving Simple Mode as a clean flat 2D rate/radius reference.
+  3. Quarantined 16 "Model settings for checking" behind `?debug=aero` URL query parameter.
+  4. Streamlined move dropdown labels to clean military nomenclature (`Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and manual overrides).
+* **Reasoning / Rationale:**  
+  Decisions **D424** and **D425**. Elevates authentic 3D aerodynamics as the primary user experience while strictly adhering to progressive disclosure (R22).
+* **Verification:**  
+  Unit tests and build clean.
+
+---
+
+### PATCH-044: Immelmann Apex 140 kt Gate Removal (D426)
+* **Date & Time:** 2026-10-03 02:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Artificial 140 kt apex gate in `getFeasibleMoves` prevented pilots/AI from attempting Immelmanns across the authentic T-6 operating envelope.
+* **Changes Made:**
+  1. Removed artificial 140 kt apex gate from `getFeasibleMoves`; allowed Immelmann attempts from 180 to 316 KIAS entries per Patrick's directive ("let it try if it wants").
+  2. Relied on authentic stall shaker dynamics, AOA limits, and departure recovery.
+* **Reasoning / Rationale:**  
+  Decision **D426**. Honors pilot decision-making and authentic aircraft flight characteristics without artificial software speed governors.
+* **Verification:**  
+  All `energy-tactical.test.js` tests green.
+
+---
+
+### PATCH-045: Physical Hitbox (35 ft) & Sequential Combat Telemetry (D427)
+* **Date & Time:** 2026-10-03 02:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Simulation permitted aircraft to pass through each other with 0 ft separation without physical consequences.
+* **Changes Made:**
+  1. Exported `COLLISION_HITBOX_FT = 35.0` (matching CT-156 wingspan 33.4 ft and length 33.3 ft).
+  2. Implemented `checkMidAirCollision`: triggers when 3D Euclidean range < 35 ft post-merge.
+  3. Records `state.collision = { timeSec, impactKias, relativeSpeedKt, closingRateKt, altitudeFt }` while preserving prior `state.kill` in telemetry for sequential debrief analysis.
+* **Reasoning / Rationale:**  
+  Decision **D427**. Establishes physical airframe boundaries and eliminates unphysical ghost aircraft penetration.
+* **Verification:**  
+  Unit tests in `energy-tactical.test.js` verified hitbox boundary triggers at 34.9 ft and non-trigger at 35.1 ft.
+
+---
+
+### PATCH-046: Analytical TCPA Predictive Deconfliction Gate & Out-of-Plane Rolling Lag (D427)
+* **Date & Time:** 2026-10-03 03:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Pure pursuit tracking at high closure rates caused attackers to ram defenders from behind.
+* **Changes Made:**
+  1. Implemented closed-form analytical vector TCPA calculation `computeTcpa(ac, target)`: computes $t_{\text{CPA}} = -\frac{\vec{r} \cdot \vec{V}_{\text{rel}}}{|\vec{V}_{\text{rel}}|^2}$ and projected miss distance $d_{\text{miss}}$.
+  2. Implemented predictive collision gate: triggers when $t_{\text{CPA}} \in [0.5, 1.5]\text{ s}$ and $d_{\text{miss}} < 75\text{ ft}$.
+  3. Context-dependent out-of-plane lag roll: computes defender turn-plane normal $\hat{n} = \frac{\vec{V}_{\text{def}} \times \vec{a}_{\text{def}}}{|\vec{V}_{\text{def}} \times \vec{a}_{\text{def}}|}$ and displaces aim point 85 ft along $\hat{n}$, inducing natural flight-path overshoot and safe canopy-to-canopy clearance.
+  4. Dynamically clamped deck pull-out floor to prevent dive overshoot during high-speed deconfliction.
+* **Reasoning / Rationale:**  
+  Decision **D427**. Models authentic tactical military deconfliction doctrine and sets up realistic defender scissors reversals.
+* **Verification:**  
+  Unit tests verified analytical TCPA formulas and out-of-plane aim displacement.
+
+---
+
+### PATCH-047: Ballistic Tumble State Machine Down to Terrain (D427)
+* **Date & Time:** 2026-10-03 03:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/index.js`
+  * `src/modules/turn-fight/energy-readouts.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Collisions previously froze the simulation instantly, preventing realistic observation of the post-collision aircraft departure.
+* **Changes Made:**
+  1. Implemented post-collision ballistic tumble state machine (`ac.tumble`): cuts thrust to 0, severs flight controls, applies bluff-body aerodynamic drag ($C_D \approx 1.2$), gravity drop $\ddot{z} = -32.174\text{ ft/s}^2$, and severity-scaled rotational integration using CT-156 inertia ratios ($I_{xx} \ll I_{yy} \ll I_{zz}$).
+  2. Permitted simulation to continue in real time until reaching terrain (0 ft MSL), where `state.stopped = true` is set.
+  3. Added HUD collision alert banner in `layout.js` and telemetry row in `energy-readouts.js`.
+* **Reasoning / Rationale:**  
+  Decision **D427**. Models authentic ballistic aerodynamic hull departure following mid-air collisions.
+* **Verification:**  
+  Unit tests verified drag deceleration, gravity acceleration, and terrain clamping at 0 ft MSL.
+
+---
+
+### PATCH-048: Turn Fight Settings Toggles, Full Test Harmonization & Gate 2 Verification (D425–D427)
+* **Date & Time:** 2026-10-03 04:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM — Gate 2 Sign-Off Ready)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/state.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/energy-sim.js`
+  * `package.json`
+  * `index.html`
+  * `tests/unit/turn-fight/energy-sim.test.js`
+  * `docs/records/decisions-log.md`
+  * `docs/records/plan-decisions.md`
+  * `docs/handover/turn-fight.md`
+  * `HANDOVER.md`
+  * `docs/REMEDIATION_ROADMAP.md`
+* **Problem / Flaw Addressed:**  
+  Settings checkboxes for collision systems were missing from main settings; version number inconsistency in UI pills (`v2.2` vs `v2.3`); legacy tests failed due to strict time-locking or unisolated collision detection.
+* **Changes Made:**
+  1. Added `collisionDetection` and `collisionAvoidance` checkboxes into main Turn Fight settings modal.
+  2. Updated version strings across `package.json`, `index.html`, and `layout.js` to `V2.5` (`2.5.0`).
+  3. Fixed altitude variable definition in `stepAircraft` tumble handling.
+  4. Harmonized `energy-sim.test.js` tests by isolating aerodynamic governor checks from ballistic crash hulls (`collisionDetection: false`) and preserving legacy 4.0 G baseline for Test 1305.
+  5. Formally registered D425–D427 in `decisions-log.md` and `plan-decisions.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D425–D427**. Completes all 30 Turn Fight remediation tasks and achieves 100% test green status across the repository.
+* **Verification:**  
+  - `node --test tests/unit/turn-fight/*.test.js`: 558/558 passed, 0 failed.
+  - `npm test`: 3,218 passed, 0 failed, 1 skipped.
+  - `npm run typecheck`: clean (0 errors).
+  - `npm run build`: built in 492ms, all size budgets kept.
+
+---
+
+### PATCH-049: Turn Fight Altitude-Split Canopy Visual Pursuit (D429)
+* **Date & Time:** 2026-10-03 15:35 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `docs/records/decisions-log.md`
+  * `docs/records/plan-decisions.md`
+  * `.agent/memory/handoff.md`
+* **Problem / Flaw Addressed:**  
+  When fighters started with altitude separation (e.g. Blue 6,000 ft, Red 7,000 ft), the rigid 5.0° boresight crossing gate caused aircraft to passively orbit for 12–15 seconds waiting for horizontal azimuth to sweep 175° before engaging.
+* **Changes Made:**
+  1. Relaxed post-merge pursuit breakout gate from rigid 5.0° boresight crossing to forward canopy visual acquisition (`CANOPY_VISUAL_DEG = 60.0°`) across altitude differences.
+  2. Permitted breakout from either `mpt` or `levelMpt`.
+* **Reasoning / Rationale:**  
+  Decision **D429**. Models authentic pilot visual tracking through the bubble canopy; once clear of merge pass, fighters acquire target visually within forward 60° field and immediately initiate 3D combat maneuvering.
+* **Verification:**  
+  All 558 Turn Fight unit tests passing; altitude-split circle delay eliminated.
+
+---
+
+### PATCH-050: Traffic 3D Visual Landmarks, Buildings, Cameras & SW Sun (D430–D434)
+* **Date & Time:** 2026-10-03 15:45 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/scenery3d.js`
+  * `src/modules/traffic/landmarks3d.js`
+  * `src/modules/traffic/camera-views.js`
+  * `src/modules/traffic/camera-bar.js`
+  * `src/modules/traffic/view3d.js`
+* **Problem / Flaw Addressed:**  
+  Airfield buildings were procedurally misaligned with satellite concrete footprints; circuit visual navigation cues were absent; default graphics quality caused frame drops on low-end machines; dynamic lighting created inconsistent building face contrast.
+* **Changes Made:**
+  1. Defaulted `graphicsQuality` to 'low' (Performance) for smooth 60 FPS frame rates.
+  2. Built dedicated 3D camera menu bar with Fit, High look-down, Top-down, Tower, Chase, Cockpit, and Padlock runway views, plus an airborne aircraft Follow dropdown.
+  3. Traced Glass Palace, Rec Centre, Student Barracks, and Hangars 5 & 6 directly onto satellite footprints with accurate headings and deleted non-existent athletic field diamond.
+  4. Added off-field visual circuit navigation landmarks (Window Farm on 29L extended centerline, Sukanen Ship museum, Fiat Farm auto wrecker, Arrow Tree Rows).
+  5. Established fixed south-west afternoon sun lighting (225°, 45° elevation) without expensive shadow maps.
+* **Reasoning / Rationale:**  
+  Decisions **D430–D434**. Conforms all 3D features to authentic satellite footprints and pilot circuit reference points.
+* **Verification:**  
+  3D scene renders cleanly with zero WebGL errors and verified satellite alignment.
+
+---
+
+### PATCH-051: Breakout 2 NM Rejoin, High Key Controller & PFL Architecture (D435–D436)
+* **Date & Time:** 2026-10-03 23:05 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified / Created:**
+  * `src/modules/traffic/breakout.js`
+  * `src/modules/traffic/high-key.js`
+  * `src/modules/traffic/pfl-solver.js` (new)
+  * `src/modules/traffic/pfl-rail.js` (new)
+  * `src/modules/traffic/sim.js`
+  * `src/modules/traffic/tick-aircraft.js`
+  * `src/modules/traffic/map2d.js`
+  * `src/modules/traffic/aircraft.js`
+  * `tests/unit/traffic/high-key.test.js`
+  * `tests/unit/traffic/pfl-solver.test.js` (new)
+  * `tests/unit/traffic/pfl-rail.test.js` (new)
+  * `tests/unit/traffic/pfl.test.js` (new)
+* **Problem / Flaw Addressed:**  
+  Breakout rejoin previously cut across the pattern; High Key climb guidance suffered from numerical deadlocks; forced landings lacked authentic SMM Ch 16 energy trades, adaptive bank corner cutting, and terrain clamping.
+* **Changes Made:**
+  1. Rectified breakout rejoin geometry to join 2 NM prior on ENT1 along the 3,500 ft run-in corridor.
+  2. Implemented High Key SE approach intercept and continuous pitch arrest controller (`calcHighKeyPitch`, D435) with arrival gates governed by Pilot Domain Tolerances (D371).
+  3. Built authentic Precautionary Forced Landing (PFL) architecture (D436):
+     - Kinetic energy zoom apex (`zoomT6A`) with pilot energy trade (+700 to +1,000 ft gain if >150 kt; level decel if <=150 kt).
+     - SMM Ch 13 adaptive bank corner cutting (35° nominal, 45° tight bank when marginal energy saves aircraft).
+     - Pre-synthesized 3D wind-shaped rail (`mode = 'RAIL'`) with continuous telemetry and config schedule (Clean -> Gear Down -> Flaps TO -> Flaps LDG).
+     - Dynamic 2D wind-drifted glide footprint ring with range HUD.
+     - 6 tactical badges ([PFL: ZOOM], [PFL: HIGH KEY], [PFL: LOW KEY], [PFL: BASE KEY], [PFL: DIRECT], [CRASH SHORT]).
+     - Off-runway terrain contact clamp at 1,892 ft MSL (`status = 'crashed'` off-runway, `'landed'` on threshold).
+* **Reasoning / Rationale:**  
+  Decisions **D435–D436**. Replaces open-loop Euler drift with deterministic wind-compensated kinematic rails.
+* **Verification:**  
+  11/11 High Key unit tests, 18/18 PFL solver & rail tests, 4/4 PFL sim integration tests passing green.
+
+---
+
+### PATCH-052: Traffic Single-Click Button Responsiveness & Stable DOM Updates (D437)
+* **Date & Time:** 2026-10-03 23:15 UTC
+* **Milestone:** Milestone 1 (Traffic Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * `src/modules/traffic/aircraft.js`
+  * `src/modules/traffic/playback-bar.js`
+  * `src/modules/traffic/layout.js`
+  * `tests/unit/traffic/aircraft.test.js`
+* **Problem / Flaw Addressed:**  
+  Buttons across the Traffic module required double-clicking because `aircraft.js:write()` recreated rows every 100ms on altitude changes, wiping the DOM between `mousedown` and `mouseup` and cancelling the browser click event.
+* **Changes Made:**
+  1. Decoupled structural row DOM from continuous altitude/speed readouts in `aircraft.js`; updated telemetry text nodes in place on stable DOM elements.
+  2. Implemented dual `pointerdown` + `click` event listeners with 250ms debounce across all playback controls, action buttons (Breakout, Closed Pattern, High Key, PFL, Go-around), layout toggles, and route rows.
+* **Reasoning / Rationale:**  
+  Decision **D437**. Restores immediate, single-click responsiveness across all mobile, tablet, and desktop pointer interactions.
+* **Verification:**  
+  30/30 `aircraft.test.js` tests passing; single-click verified on dev server.

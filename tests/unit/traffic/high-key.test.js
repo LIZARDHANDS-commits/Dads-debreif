@@ -23,6 +23,7 @@ import {
   calcHighKeyPitch,
   calcHighKeyTargetSpeed,
   calcHighKeyIntercept,
+  buildHighKeyApproachRail,
   stepHighKey,
 } from '../../../src/modules/traffic/high-key.js';
 import { initAircraftState, stepAircraft } from '../../../src/modules/traffic/flight-engine.js';
@@ -298,3 +299,155 @@ test('Invariant Guards: zero coordinate snapping or NaN/Infinity across full pro
     prevY = ac.y;
   }
 });
+
+// ── 9. KINEMATIC APPROACH RAIL SYNTHESIS ────────────────────────────────────
+test('buildHighKeyApproachRail: generates authentic circuit rail with required telemetry fields', () => {
+  const env = { windFromDeg: 360, windKt: 10 };
+  const acDepart = { x: -4066, y: 681, alt: 2400, headingDeg: 298, iasKt: 140, bankDeg: 0 };
+
+  const rail = buildHighKeyApproachRail(acDepart, env);
+  assert.ok(Array.isArray(rail), 'Rail must be an array');
+  assert.ok(rail.length > 20, `Rail should contain comprehensive waypoints, got ${rail.length}`);
+  assert.equal(rail.id, 'HIGH_KEY_APPROACH');
+  assert.equal(rail.model, 'KIN');
+  assert.equal(rail.loop, false);
+
+  for (const wp of rail) {
+    assert.ok(Number.isFinite(wp.x), 'wp.x must be finite');
+    assert.ok(Number.isFinite(wp.y), 'wp.y must be finite');
+    assert.ok(Number.isFinite(wp.alt), 'wp.alt must be finite');
+    assert.ok(Number.isFinite(wp.kt), 'wp.kt must be finite');
+    assert.ok(Number.isFinite(wp.headingDeg), 'wp.headingDeg must be finite');
+    assert.ok(Number.isFinite(wp.bankDeg), 'wp.bankDeg must be finite');
+    assert.ok(Number.isFinite(wp.g), 'wp.g must be finite');
+    assert.ok(typeof wp.phase === 'string', 'wp.phase must be a string');
+  }
+
+  // Last waypoint must terminate at High Key (3104, -3194) at 5,000 ft and 120 KIAS
+  const lastWp = rail[rail.length - 1];
+  const distToHk = Math.hypot(lastWp.x - HIGH_KEY_PT.x, lastWp.y - HIGH_KEY_PT.y);
+  assert.ok(distToHk <= 1.0, `Terminal waypoint must match High Key within 1 ft, got ${distToHk} ft`);
+  assert.equal(lastWp.alt, 5000, 'Terminal altitude must be 5,000 ft');
+  assert.equal(lastWp.kt, 120, 'Terminal speed must be 120 KIAS');
+
+  // Verify south/southeast arrival rail generation
+  const acSe = { x: 5000, y: -6000, alt: 5000, headingDeg: 340, iasKt: 140, bankDeg: 0 };
+  const railSe = buildHighKeyApproachRail(acSe, env);
+  assert.ok(railSe.length > 5, 'SE approach rail must have waypoints');
+  const lastSeWp = railSe[railSe.length - 1];
+  assert.ok(Math.hypot(lastSeWp.x - HIGH_KEY_PT.x, lastSeWp.y - HIGH_KEY_PT.y) <= 1.0);
+});
+
+// ── 10. NORTHWEST DEPARTURE: FULL CIRCUIT FLIGHT TO HIGH KEY ─────────────────
+test('Northwest departure: flies authentic circuit to High Key with zero circling and seamless PFL transition', () => {
+  const pat = mooseJaw.routes[0];
+  const env = { windFromDeg: 360, windKt: 0 };
+
+  const ac = initAircraftState({
+    id: 'A1',
+    type: 'CT-156',
+    x: -4066,
+    y: 681,
+    alt: 2400,
+    headingDeg: 298,
+    iasKt: 140,
+    bankDeg: 0,
+    phase: 'climb_high_key',
+    command: 'climb_high_key',
+    mode: 'PHYSICS',
+  });
+
+  let maxAlt = ac.alt;
+  let simulatedTime = 0;
+  let transitioned = false;
+  let capturedRunIn = false;
+
+  const dt = 0.05;
+  const maxTime = 130; // 130 seconds max to prevent any infinite looping
+
+  while (simulatedTime < maxTime) {
+    stepHighKey(ac, pat, env, dt);
+    stepAircraft(ac, ac.navPlan, env, dt);
+
+    if (ac.alt > maxAlt) maxAlt = ac.alt;
+
+    // Check corridor alignment prior to or during run-in
+    const distToRunIn = Math.hypot(ac.x - RUN_IN_PT.x, ac.y - RUN_IN_PT.y);
+    const deltaHdgRwy = Math.abs(wrapDeg180(ac.headingDeg - RWY_HDG_DEG));
+    if ((ac._highKeyPhase === 3 || distToRunIn <= 500) && deltaHdgRwy <= 10 && ac.alt >= 4900) {
+      capturedRunIn = true;
+    }
+
+    if (ac.phase === 'pfl_high_key' || ac._highKeyPhase === 'complete') {
+      transitioned = true;
+      break;
+    }
+
+    simulatedTime += dt;
+  }
+
+  // 1. Must reach High Key without circling (in ~100-115 seconds, well under maxTime)
+  assert.ok(transitioned, `Aircraft must transition to pfl_high_key, ended at t=${simulatedTime.toFixed(1)}s`);
+  assert.ok(simulatedTime >= 85 && simulatedTime <= 125, `Flight time should be ~106s for circuit, took ${simulatedTime.toFixed(1)}s`);
+
+  // 2. Altitude arrest per Pillar 8: zero overshoot above 5,050 ft
+  assert.ok(maxAlt <= 5050, `Altitude must not overshoot 5,050 ft MSL, peak was ${maxAlt} ft`);
+  assert.ok(Math.abs(ac.alt - 5000) <= 50, `Altitude at High Key must be 5,000 ft (±50 ft), got ${ac.alt} ft`);
+
+  // 3. Captured run-in corridor aligned with runway heading
+  assert.ok(capturedRunIn, 'Aircraft must capture run-in corridor aligned with runway heading 298°');
+
+  // 4. Deceleration to 120 KIAS at High Key
+  assert.ok(Math.abs(ac.iasKt - 120) <= 10, `Airspeed at High Key must be 120 KIAS (±10 kt), got ${ac.iasKt}`);
+
+  // 5. Position at High Key within pilot domain tolerance
+  const distToHk = Math.hypot(HIGH_KEY_PT.x - ac.x, HIGH_KEY_PT.y - ac.y);
+  assert.ok(distToHk <= 150, `Distance to High Key must be <= 150 ft, got ${distToHk} ft`);
+
+  // 6. Mode switches to RAIL for PFL descent
+  assert.equal(ac.mode, 'RAIL', 'Mode must switch to RAIL upon High Key transition');
+});
+
+// ── 11. SOUTH/SOUTHEAST ARRIVAL: TANGENTIAL CAPTURE TO HIGH KEY ──────────────
+test('South/Southeast arrival: smooth tangential capture into run-in and PFL transition', () => {
+  const pat = mooseJaw.routes[0];
+  const env = { windFromDeg: 360, windKt: 0 };
+
+  const ac = initAircraftState({
+    id: 'A1',
+    type: 'CT-156',
+    x: 5000,
+    y: -6000,
+    alt: 5000,
+    headingDeg: 330,
+    iasKt: 140,
+    bankDeg: 0,
+    phase: 'climb_high_key',
+    command: 'climb_high_key',
+    mode: 'PHYSICS',
+  });
+
+  let simulatedTime = 0;
+  let transitioned = false;
+  const dt = 0.05;
+  const maxTime = 60;
+
+  while (simulatedTime < maxTime) {
+    stepHighKey(ac, pat, env, dt);
+    stepAircraft(ac, ac.navPlan, env, dt);
+
+    if (ac.phase === 'pfl_high_key' || ac._highKeyPhase === 'complete') {
+      transitioned = true;
+      break;
+    }
+
+    simulatedTime += dt;
+  }
+
+  assert.ok(transitioned, `SE arrival must transition to pfl_high_key, ended at t=${simulatedTime.toFixed(1)}s`);
+  const distToHk = Math.hypot(HIGH_KEY_PT.x - ac.x, HIGH_KEY_PT.y - ac.y);
+  assert.ok(distToHk <= 250, `Distance to High Key must be <= 250 ft, got ${distToHk} ft`);
+  assert.ok(Math.abs(ac.iasKt - 120) <= 10, `Airspeed at High Key must be 120 KIAS (±10 kt), got ${ac.iasKt}`);
+  assert.equal(ac.mode, 'RAIL', 'Mode must switch to RAIL upon High Key transition');
+});
+

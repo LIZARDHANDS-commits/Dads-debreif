@@ -21,9 +21,10 @@ import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { stepAircraft, calcInterceptHeading, calcCrossTrackError, CYMJ_DOWNWIND_HDG_DEG } from './flight-engine.js';
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
-import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs } from './route.js';
 import { stepBreakout } from './breakout.js';
 import { stepHighKey } from './high-key.js';
+import { PFL_AIRFIELD } from './pfl-solver.js';
 export { stepBreakout } from './breakout.js';
 export { stepHighKey } from './high-key.js';
 
@@ -446,7 +447,7 @@ export function initMode(a) {
  * @returns {boolean}
  */
 export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
-  if (!a) return false;
+  if (!a || a.pflRail) return false;
 
   // Active pilot command always triggers physics
   if (a.command && PHYSICS_COMMANDS.has(a.command)) {
@@ -544,12 +545,13 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
   }
 
   const rLen = routeLengthFt(route, routeOptions);
-  const lapOffset = (rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
-  let targetDistFt = lapOffset + closestDist;
+  const isClosed = route ? isClosedRoute(route) : false;
+  const lapOffset = (isClosed && rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
+  let targetDistFt = isClosed ? (lapOffset + closestDist) : closestDist;
 
   // If blend would snap distFt backward by more than half the route,
   // add a lap to maintain forward progress toward route end
-  if (rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
+  if (isClosed && rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
     targetDistFt += rLen;
   }
   const p = posOnRoute(route, targetDistFt, routeOptions);
@@ -588,6 +590,71 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
   const windFromDeg = wind?.windFromDeg ?? 360;
   const windKt = wind?.windKt ?? 0;
   const env = { windFromDeg, windKt };
+
+  // ── PFL KINEMATIC RAIL MODE ──────────────────────────────────────────────
+  if (a.mode === 'RAIL' && a.pflRail && a.pflRail.length > 0) {
+    if (a.pflRail[0].cumDistFt === undefined) {
+      let cumDist = 0;
+      a.pflRail[0].cumDistFt = 0;
+      for (let i = 1; i < a.pflRail.length; i++) {
+        cumDist += Math.hypot(a.pflRail[i].x - a.pflRail[i - 1].x, a.pflRail[i].y - a.pflRail[i - 1].y);
+        a.pflRail[i].cumDistFt = cumDist;
+      }
+    }
+
+    const gsKt = a.gsKt ?? a.iasKt ?? 120;
+    const gsFtps = ktToFtps(gsKt);
+    a.distFt = (a.distFt ?? 0) + gsFtps * stepDt;
+
+    let idx = a.pflRailIndex ?? 0;
+    while (idx < a.pflRail.length - 1 && (a.pflRail[idx + 1].cumDistFt ?? 0) <= a.distFt) {
+      idx++;
+    }
+    a.pflRailIndex = idx;
+    const wp = a.pflRail[idx];
+
+    a.x = wp.x;
+    a.y = wp.y;
+    a.alt = wp.alt;
+    a.iasKt = wp.kias ?? wp.kt ?? 120;
+    a.kt = a.iasKt;
+    a.headingDeg = wp.headingDeg;
+    a.bankDeg = wp.bankDeg ?? 0;
+    a.g = wp.g ?? 1.0;
+    a.phase = wp.phase;
+    a.config = wp.config;
+    if (wp.tag) {
+      a.tag = wp.tag;
+    }
+
+    const tasKt = (windKt > 0) ? iasToTasKt(a.iasKt, a.alt) : a.iasKt;
+    const wt = windTriangle(a.headingDeg, Math.max(1, tasKt), windFromDeg, windKt);
+    a.gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
+    a.groundSpeedKt = a.gsKt;
+    a.crabDeg = wt.crabDeg;
+    a.trackDeg = wt.canHoldTrack ? wrapDeg360(a.headingDeg - wt.crabDeg) : a.headingDeg;
+
+    // Terrain contact and landing check
+    const CYMJ_THRESH_X = PFL_AIRFIELD.thresholdX;
+    const CYMJ_THRESH_Y = PFL_AIRFIELD.thresholdY;
+
+    if (a.alt <= 1892 || a.pflRailIndex >= a.pflRail.length - 1) {
+      const distToThresh = Math.hypot(a.x - CYMJ_THRESH_X, a.y - CYMJ_THRESH_Y);
+      if (a.pflRail.classification === 'crash_short' || distToThresh > 3000) {
+        a.alt = 1892;
+        a.status = 'crashed';
+        a.landed = true;
+        a.active = false;
+      } else {
+        a.alt = 1892;
+        a.status = 'landed';
+        a.landed = true;
+        a.active = false;
+      }
+    }
+
+    return a;
+  }
 
   // ── BLENDING MODE ────────────────────────────────────────────────────────
   if (a.mode === 'BLENDING') {

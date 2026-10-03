@@ -102,10 +102,13 @@ test('instantiates scenery group and asserts tower, 4 hangars, and apron slab ex
   assert.ok(barracks.getObjectByName('barracks-u-east-wing'), 'barracks east wing exists');
   assert.ok(barracks.getObjectByName('barracks-u-courtyard-lawn'), 'barracks courtyard lawn exists');
 
-  // Athletic Field
-  const athleticField = scenery.getObjectByName('athletic-field');
-  assert.ok(athleticField, 'athletic field exists');
-  assert.ok(athleticField.getObjectByName('athletic-field-surface'), 'field surface exists');
+  // Athletic Field (deleted per user instruction)
+  assert.equal(scenery.getObjectByName('athletic-field'), undefined, 'athletic field was deleted');
+
+  // Base Rec Centre, Hangar 5, Hangar 6
+  assert.ok(scenery.getObjectByName('base-rec-center'), 'Base Rec Centre exists');
+  assert.ok(scenery.getObjectByName('hangar-5'), 'Hangar 5 exists');
+  assert.ok(scenery.getObjectByName('hangar-6'), 'Hangar 6 exists');
 
   // Glass Palace (2 CFFTS HQ)
   const glassPalace = scenery.getObjectByName('main-building');

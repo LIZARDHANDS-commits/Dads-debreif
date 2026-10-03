@@ -10,6 +10,7 @@ import { TYPE_COLORS } from './sim.js';
 import { aircraftRows, conflictLines, noConflictsText } from './readouts.js';
 import { LIMITS } from './defaults.js';
 import { MOST_AIRCRAFT } from './profile.js';
+import { getPflBadge } from './map2d.js';
 
 /** The spawner's number boxes as the person sees them, by setting (for the line that names the box to fix). */
 const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
@@ -297,10 +298,51 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     }
   }
 
+  function findChildWithClass(parent, cls) {
+    if (parent.querySelector) {
+      const el = parent.querySelector('.' + cls);
+      if (el) return el;
+    }
+    for (const child of (parent.childNodes || [])) {
+      const c = child.getAttribute?.('class') || child.className || '';
+      if (c.split(' ').includes(cls)) return child;
+      const found = findChildWithClass(child, cls);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const makeActionButton = (label, title, actionFn, isActive = false, extraClass = '', disabled = false) => {
+    let lastTime = 0;
+    const trigger = (e) => {
+      if (e && e.button !== undefined && e.button !== 0) return;
+      e?.stopPropagation?.();
+      const now = Date.now();
+      if (now - lastTime < 250) return;
+      lastTime = now;
+      actionFn(e);
+    };
+    return h(
+      'button',
+      {
+        type: 'button',
+        class: `button-tiny${extraClass ? ' ' + extraClass : ''}${isActive ? ' is-active' : ''}${disabled ? ' disabled' : ''}`,
+        disabled,
+        title,
+        onpointerdown: trigger,
+        onclick: trigger,
+      },
+      label,
+    );
+  };
+
   /** Writes the state into the list and the conflicts, changing only what is different. */
   function write(state) {
     const rows = aircraftRows(state, setup);
-    const listKey = JSON.stringify([selectedAircraftId, rows.map((r) => [r.id, r.type, r.routeName, detailText(r), r.color])]);
+    const listKey = JSON.stringify([
+      selectedAircraftId,
+      rows.map((r) => [r.id, r.type, r.routeName, r.status, r.color, getPflBadge(r), r.command, r.engineFailed]),
+    ]);
     if (listKey !== shown.list) {
       shown.list = listKey;
       clear(listBody);
@@ -311,25 +353,26 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       for (const row of rows) {
         const swatch = h('span', { class: 'aircraft-swatch', 'aria-hidden': 'true' });
         swatch.style.setProperty('--ac', row.color);
+        const pflBadge = getPflBadge(row);
+        const nameChildren = [swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`];
+        if (pflBadge) {
+          const badgeClass = pflBadge === '[CRASH SHORT]' ? 'pfl-badge badge-crash' : 'pfl-badge';
+          nameChildren.push(h('span', { class: badgeClass }, pflBadge));
+        }
         const children = [
-          h('span', { class: 'aircraft-name' }, swatch, h('strong', {}, row.id), ` ${row.type} on ${row.routeName}`),
+          h('span', { class: 'aircraft-name' }, ...nameChildren),
           ' ',
           h('span', { class: 'aircraft-detail' }, detailText(row)),
         ];
         if (row.status === 'flying') {
-          const breakoutBtn = h(
-            'button',
-            {
-              type: 'button',
-              class: `button-tiny${row.command === 'breakout' ? ' is-active' : ''}`,
-              title: 'Breakout: climb immediately to 3,500 ft, vector south to breakout point, and rejoin via entry gate',
-              onclick: (e) => {
-                e?.stopPropagation?.();
-                sim.command(row.id, 'breakout');
-                onChange?.();
-              },
-            },
+          const breakoutBtn = makeActionButton(
             'Breakout',
+            'Breakout: climb immediately to 3,500 ft, vector south to breakout point, and rejoin via entry gate',
+            () => {
+              sim.command(row.id, 'breakout');
+              onChange?.();
+            },
+            row.command === 'breakout',
           );
           const closedBankSelect = h(
             'select',
@@ -346,70 +389,52 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
           );
           closedBankSelect.value = String(row.closedPatternBankDeg || settings.get().closedPatternBankDeg || 50);
 
-          const closedPatternBtn = h(
-            'button',
-            {
-              type: 'button',
-              class: `button-tiny${row.command === 'closed_pattern' ? ' is-active' : ''}`,
-              title: 'Closed Pattern: climb to 3,500 ft, 140 kt, selected bank turn into downwind',
-              onclick: (e) => {
-                e?.stopPropagation?.();
-                const bankDeg = Number(closedBankSelect.value) || 50;
-                const pitchDeg = Number(row.closedPatternPitchDeg ?? settings.get().closedPatternPitchDeg ?? 10);
-                sim.command(row.id, 'closed_pattern', { bankDeg, pitchDeg });
-                onChange?.();
-              },
-            },
+          const closedPatternBtn = makeActionButton(
             'Closed Pattern',
-          );
-          const highKeyBtn = h(
-            'button',
-            {
-              type: 'button',
-              class: `button-tiny${row.command === 'climb_high_key' || row.command === 'climb_low_key' ? ' is-active' : ''}`,
-              title: 'High Key: fly over threshold facing down the runway at 5,000 ft, then glide PFL profile',
-              onclick: (e) => {
-                e?.stopPropagation?.();
-                sim.command(row.id, 'climb_high_key');
-                onChange?.();
-              },
+            'Closed Pattern: climb to 3,500 ft, 140 kt, selected bank turn into downwind',
+            () => {
+              const bankDeg = Number(closedBankSelect.value) || 50;
+              const pitchDeg = Number(row.closedPatternPitchDeg ?? settings.get().closedPatternPitchDeg ?? 10);
+              sim.command(row.id, 'closed_pattern', { bankDeg, pitchDeg });
+              onChange?.();
             },
+            row.command === 'closed_pattern',
+          );
+          const highKeyBtn = makeActionButton(
             'High Key',
-          );
-          const pflBtn = h(
-            'button',
-            {
-              type: 'button',
-              class: `button-tiny danger${row.command === 'pfl_current' || row.engineFailed ? ' is-active' : ''}`,
-              title: 'PFL (Current Position): simulate engine failure, zoom climb if >130 kt, glide 125 kt to intercept PFL profile',
-              onclick: (e) => {
-                e?.stopPropagation?.();
-                sim.command(row.id, 'pfl_current');
-                onChange?.();
-              },
+            'High Key: fly over threshold facing down the runway at 5,000 ft, then glide PFL profile',
+            () => {
+              sim.command(row.id, 'climb_high_key');
+              onChange?.();
             },
+            row.command === 'climb_high_key' || row.command === 'climb_low_key',
+          );
+          const pflBtn = makeActionButton(
             'PFL',
+            'PFL (Current Position): simulate engine failure, zoom climb if >130 kt, glide 125 kt to intercept PFL profile',
+            () => {
+              sim.command(row.id, 'pfl_current');
+              onChange?.();
+            },
+            row.command === 'pfl_current' || row.engineFailed,
+            'danger',
           );
           // Go-around only works after the window (when slowing to 100 knots)
           const canGoAround = row.phase === 'final' || row.phase === 'short_final' ||
             (row.leg >= 13) || (row.altFt <= 2200 && row.kt <= 110);
-          const goAroundBtn = h(
-            'button',
-            {
-              type: 'button',
-              class: `button-tiny${canGoAround ? '' : ' disabled'}${row.command === 'go_around' ? ' is-active' : ''}`,
-              disabled: !canGoAround,
-              title: canGoAround
-                ? 'Go-around: abort landing, climb to 2,500 ft, accelerate to 220 kt and re-enter pattern'
-                : 'Go-around available only on final approach after the window (slowing to 100 kt)',
-              onclick: (e) => {
-                e?.stopPropagation?.();
-                if (!canGoAround) return;
-                sim.command(row.id, 'go_around');
-                onChange?.();
-              },
-            },
+          const goAroundBtn = makeActionButton(
             'Go-around',
+            canGoAround
+              ? 'Go-around: abort landing, climb to 2,500 ft, accelerate to 220 kt and re-enter pattern'
+              : 'Go-around available only on final approach after the window (slowing to 100 kt)',
+            () => {
+              if (!canGoAround) return;
+              sim.command(row.id, 'go_around');
+              onChange?.();
+            },
+            row.command === 'go_around',
+            '',
+            !canGoAround,
           );
           const intentSelect = h(
             'select',
@@ -471,7 +496,13 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             {
               class: `aircraft-row status-${row.status}${row.engineFailed ? ' has-engine-fail' : ''}${isSelected ? ' is-selected' : ''}`,
               dataset: { aircraftId: row.id },
-              onclick: () => {
+              onpointerdown: (e) => {
+                if (e?.target && (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT')) return;
+                setSelected(row.id);
+                onSelectAircraft?.(row.id);
+              },
+              onclick: (e) => {
+                if (e?.target && (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT')) return;
                 setSelected(row.id);
                 onSelectAircraft?.(row.id);
               },
@@ -481,6 +512,18 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         );
       }
       emptyNote.hidden = rows.length > 0;
+    } else {
+      // In-place update: altitude and speed numbers update smoothly without destroying button DOM
+      const lis = listBody.childNodes || listBody.children || [];
+      for (let i = 0; i < rows.length; i++) {
+        const li = lis[i];
+        if (!li) continue;
+        const detailSpan = findChildWithClass(li, 'aircraft-detail');
+        if (detailSpan) {
+          const txt = detailText(rows[i]);
+          if (detailSpan.textContent !== txt) detailSpan.textContent = txt;
+        }
+      }
     }
     const lines = conflictLines(state);
     const conflictKey = JSON.stringify(lines.map((l) => l.text));

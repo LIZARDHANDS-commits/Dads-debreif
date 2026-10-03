@@ -28,7 +28,7 @@
 import { wrapDeg180 } from '../../core/angles.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
-import { posOnRoute, closestDistFt, routeLengthFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS } from './route.js';
 
 // ── Ground Truth Geometry Constants ──────────────────────────────────────────
 export const BREAKOUT_PT = Object.freeze({ x: -10974, y: -24252 });
@@ -173,10 +173,11 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
 
   const closestDist = closestDistFt(route, a, routeOptions);
   const rLen = routeLengthFt(route, routeOptions);
-  const lapOffset = (rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
-  let targetDistFt = lapOffset + closestDist;
+  const isClosed = route ? isClosedRoute(route) : false;
+  const lapOffset = (isClosed && rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
+  let targetDistFt = isClosed ? (lapOffset + closestDist) : closestDist;
 
-  if (rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
+  if (isClosed && rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
     targetDistFt += rLen;
   }
   const p = posOnRoute(route, targetDistFt, routeOptions);

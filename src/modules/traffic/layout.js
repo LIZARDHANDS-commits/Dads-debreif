@@ -52,7 +52,20 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
   // The 3D view: a box the size of the map for its canvases (made when 3D opens), the three camera buttons over
   // it, and a line for "Loading 3D…" or why 3D can't start (that one shows in 2D too, where the person stays).
   const stage3d = h('div', { class: 'traffic-3d', hidden: true });
-  const cameraButton = (name, label) => h('button', { type: 'button', class: 'button', onclick: () => on.camera?.(name) }, label);
+  const makeInstant = (fn) => {
+    let last = 0;
+    return (e) => {
+      if (e && e.button !== undefined && e.button !== 0) return;
+      const now = Date.now();
+      if (now - last < 250) return;
+      last = now;
+      fn?.(e);
+    };
+  };
+  const cameraButton = (name, label) => {
+    const trigger = makeInstant(() => on.camera?.(name));
+    return h('button', { type: 'button', class: 'button', onpointerdown: trigger, onclick: trigger }, label);
+  };
   const camera = h('div', { class: 'traffic-camera', role: 'group', 'aria-label': 'Camera', hidden: true }, cameraButton('fit', 'Fit'), cameraButton('high', 'High look-down'), cameraButton('low', 'Low chase'));
   const note3d = h('p', { class: 'traffic-note3d', role: 'status', hidden: true });
   let photoText = '';
@@ -89,9 +102,10 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     for (const row of rows) {
       const swatch = h('span', { class: `route-swatch kind-${row.kind}`, 'aria-hidden': 'true' });
       swatch.style.setProperty('--route', row.color);
+      const trigger = makeInstant(() => on.selectRoute?.(row.id));
       const rowButton = h(
         'button',
-        { type: 'button', class: 'route-row', dataset: { routeId: row.id }, 'aria-current': row.id === selectedId ? 'true' : null, onclick: () => on.selectRoute?.(row.id) },
+        { type: 'button', class: 'route-row', dataset: { routeId: row.id }, 'aria-current': row.id === selectedId ? 'true' : null, onpointerdown: trigger, onclick: trigger },
         swatch,
         h('span', { class: 'route-name' }, row.name),
         h('span', { class: 'route-detail' }, routeDetail(row)),
