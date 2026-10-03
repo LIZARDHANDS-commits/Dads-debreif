@@ -25,6 +25,9 @@
 
 import { FT_PER_NM } from '../../core/units.js';
 import { computeWindPerch } from './route.js';
+import { RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
+
+export { RUNWAYS, DEFAULT_RUNWAY };
 
 /**
  * @typedef {{ x: number, y: number, alt: number, kias: number, bankDeg: number, g: number, phase: string, label: string, mode: string, config?: string, tag?: string }} Waypoint
@@ -313,6 +316,29 @@ export const NAV_PLANS = Object.freeze({
  */
 export function getNavPlan(id) {
   return NAV_PLANS[id] ?? null;
+}
+
+/**
+ * Returns the published SMM route set for the specified runway.
+ * Ground truth (D373, D378): CYMJ Moose Jaw active runway is Runway 29L (298°T, left-hand).
+ * Runway 11R is deferred to Phase 5 / Post-Prototype.
+ *
+ * @param {string} [runwayId='29L']
+ * @returns {ReadonlyArray<Readonly<NavPlan>> & { PAT_INNER: Readonly<NavPlan>, PAT_SI: Readonly<NavPlan>, ENT_OHB: Readonly<NavPlan>, ENT_SI: Readonly<NavPlan>, PFL_HIGH_KEY: Readonly<NavPlan> }}
+ */
+export function getPublishedRoutesForRunway(runwayId = DEFAULT_RUNWAY) {
+  if (runwayId !== '29L') {
+    throw new Error(`Runway ${runwayId} route synthesis is coming soon (deferred to Phase 5). Only Runway 29L is currently supported.`);
+  }
+
+  const routes = [PAT_INNER, PAT_SI, ENT_OHB, ENT_SI, PFL_HIGH_KEY];
+  return Object.freeze(Object.assign(routes, {
+    PAT_INNER,
+    PAT_SI,
+    ENT_OHB,
+    ENT_SI,
+    PFL_HIGH_KEY,
+  }));
 }
 
 /**

@@ -11,7 +11,7 @@
 // when their callbacks aren't given, and the wind boxes, the 3D switch, the photo
 // and Engine-out reach layers when `available` doesn't say they exist.
 import { h } from '../../ui-kit/dom.js';
-import { DEFAULTS, SPEEDS, LIMITS } from './defaults.js';
+import { DEFAULTS, SPEEDS, LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
 
 /** The layers, in the order the Layers menu lists them (the spec's Layers row). `needs` is a feature that has to exist. */
 export const LAYER_ITEMS = Object.freeze([
@@ -177,6 +177,35 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     : null;
   const viewSwitch = available.view3d ? controls.viewSwitch() : null; // the ui-kit's shared 2D | 3D switch
 
+  const runwaySelect = h(
+    'select',
+    {
+      class: 'bar-runway',
+      'aria-label': 'Active runway',
+      onchange: () => {
+        const val = runwaySelect.value;
+        settings?.update?.({ runway: val });
+        on.runwayChange?.(val);
+      },
+    },
+    RUNWAYS.map((r) => {
+      const opt = h(
+        'option',
+        {
+          value: r.id,
+          disabled: Boolean(r.disabled),
+        },
+        r.label,
+      );
+      if (r.disabled) {
+        opt.disabled = true;
+        opt.setAttribute?.('disabled', '');
+      }
+      return opt;
+    }),
+  );
+  runwaySelect.value = settings?.get?.()?.runway ?? DEFAULT_RUNWAY;
+
   // Layer settings binding & presets.
   const layerControls = layerItems(available).map((item) => {
     const el = controls?.checkbox ? controls.checkbox(item.key, { label: item.label }) : null;
@@ -262,7 +291,12 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
   }
 
   if (settings?.subscribe) {
-    settings.subscribe(() => syncPresetButtons());
+    settings.subscribe((vals) => {
+      syncPresetButtons();
+      if (vals?.runway && runwaySelect.value !== vals.runway) {
+        runwaySelect.value = vals.runway;
+      }
+    });
   }
 
   for (const [, input] of layerInputs) {
@@ -311,7 +345,7 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
       clock, status,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, fit, layers.element),
+    h('div', { class: 'bar-row bar-view' }, wind, runwaySelect, viewSwitch, fit, layers.element),
   );
 
   const write = (node, text) => {

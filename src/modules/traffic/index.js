@@ -57,6 +57,7 @@ function mount(root, app) {
   // ---- the screen -----------------------------------------------------------------
   const bar = createPlaybackBar({
     controls,
+    settings,
     listen: app.listen,
     available: { photo: true, view3d: true, wind: true, windTrack: true },
     on: {
@@ -68,6 +69,9 @@ function mount(root, app) {
       fit: () => (shown === '3d' ? view3d.preset('fit') : map.fit()),
       fitAll: () => (shown === '3d' ? view3d.preset('fit') : map.fitAll()),
       speed: (x) => settings.update({ speed: x }),
+      runwayChange: (runwayId) => {
+        changed();
+      },
     },
   });
   const ui = createLayout({

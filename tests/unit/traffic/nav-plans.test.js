@@ -19,6 +19,7 @@ import { strict as assert } from 'node:assert';
 import {
   PAT_INNER, PAT_SI, ENT_OHB, ENT_SI, PFL_HIGH_KEY, TAKEOFF,
   NAV_PLANS, getNavPlan,
+  getPublishedRoutesForRunway, RUNWAYS, DEFAULT_RUNWAY,
   makeBreakout, makeGoAround, makePflFromArea,
   SPAWN_PRESETS, PATTERN_NAMES, startPointsForPattern, findSpawnPreset,
   findWaypointIndexByTag, findWaypointByTag,
@@ -328,6 +329,37 @@ describe('nav-plans: semantic waypoint tags & lookup helpers', () => {
 
     const { plan: pfl } = makePflFromArea(90, 10, 8000);
     assert.equal(pfl.waypoints[pfl.waypoints.length - 1].tag, 'threshold');
+  });
+});
+
+describe('nav-plans: published routes for runway', () => {
+  it('RUNWAYS contains 29L (Active) and 11R (Coming soon)', () => {
+    assert.equal(RUNWAYS.length, 2);
+    assert.deepEqual(RUNWAYS[0], { id: '29L', label: 'Runway 29L (Active)', headingDeg: 298, active: true });
+    assert.deepEqual(RUNWAYS[1], { id: '11R', label: 'Runway 11R (Coming soon)', headingDeg: 118, disabled: true });
+    assert.equal(DEFAULT_RUNWAY, '29L');
+  });
+
+  it('getPublishedRoutesForRunway("29L") returns authentic published SMM routes', () => {
+    const routes = getPublishedRoutesForRunway('29L');
+    assert.ok(routes);
+    assert.equal(routes.PAT_INNER, PAT_INNER);
+    assert.equal(routes.PAT_SI, PAT_SI);
+    assert.equal(routes.ENT_OHB, ENT_OHB);
+    assert.equal(routes.ENT_SI, ENT_SI);
+    assert.equal(routes.PFL_HIGH_KEY, PFL_HIGH_KEY);
+  });
+
+  it('getPublishedRoutesForRunway() defaults to 29L', () => {
+    const routes = getPublishedRoutesForRunway();
+    assert.equal(routes.PAT_INNER, PAT_INNER);
+  });
+
+  it('getPublishedRoutesForRunway("11R") throws descriptive error for deferred runway', () => {
+    assert.throws(
+      () => getPublishedRoutesForRunway('11R'),
+      /11R.*coming soon/i,
+    );
   });
 });
 

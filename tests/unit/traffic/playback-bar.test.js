@@ -18,7 +18,7 @@ import { installFakeDom } from './fake-dom-extras.js';
 import { h } from '../../../src/ui-kit/dom.js';
 import { createControls } from '../../../src/ui-kit/controls.js';
 import { createSettings } from '../../../src/storage/settings.js';
-import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
+import { DEFAULTS, LIMITS, RUNWAYS, DEFAULT_RUNWAY } from '../../../src/modules/traffic/defaults.js';
 import {
   LAYER_ITEMS, LAYER_PRESETS, LAYER_PRESET_ITEMS, STATUS_TEXT, layerItems, speedLabel, createMenu, createPlaybackBar,
 } from '../../../src/modules/traffic/playback-bar.js';
@@ -57,12 +57,14 @@ function setup(options = {}) {
     speed: (x) => calls.push(['speed', x]),
     rewind: () => calls.push('rewind'),
     step: (s) => calls.push(['step', s]),
+    runwayChange: (r) => calls.push(['runwayChange', r]),
     ...options.on,
   };
   const controls = options.controls ?? stubControls();
   const listeners = [];
   const listen = (target, type, fn) => listeners.push({ target, type, fn });
-  const bar = createPlaybackBar({ controls, on, available: options.available, listen });
+  const settings = options.settings;
+  const bar = createPlaybackBar({ controls, settings, on, available: options.available, listen });
   return { bar, calls, controls, listeners };
 }
 
@@ -341,7 +343,7 @@ function withRealControls(options = {}) {
   const kept = new Map();
   const store = { get: (k, fallback) => (kept.has(k) ? kept.get(k) : fallback), set: (k, v) => kept.set(k, v) };
   const settings = createSettings(store, DEFAULTS);
-  return { settings, ...setup({ controls: createControls(settings), available: { wind: true, ...options.available }, ...options }) };
+  return { settings, ...setup({ settings, controls: createControls(settings), available: { wind: true, ...options.available }, ...options }) };
 }
 
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
@@ -455,4 +457,46 @@ test('a note replaces the status words while it is set ("Replaying…"), and cle
   assert.equal(status(), 'Paused');
   bar.setState({ note: '' });
   assert.equal(status(), 'Paused');
+});
+
+test('runway selector renders with Runway 29L (Active) selected by default, and Runway 11R (Coming soon) disabled', () => {
+  const { bar } = setup();
+  const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
+  assert.ok(select, 'Active runway select element is rendered');
+  assert.equal(select.value, '29L');
+
+  const options = tagged(select, 'OPTION');
+  assert.equal(options.length, 2);
+
+  const opt29L = options.find((o) => o.value === '29L');
+  assert.ok(opt29L);
+  assert.equal(words(opt29L), 'Runway 29L (Active)');
+  assert.equal(opt29L.disabled, false);
+
+  const opt11R = options.find((o) => o.value === '11R');
+  assert.ok(opt11R);
+  assert.equal(words(opt11R), 'Runway 11R (Coming soon)');
+  assert.equal(opt11R.disabled, true);
+});
+
+test('selecting or changing runway triggers on.runwayChange and updates settings', () => {
+  let changedRunway = null;
+  const { bar, settings } = withRealControls({
+    on: {
+      runwayChange: (val) => {
+        changedRunway = val;
+      },
+    },
+  });
+
+  const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
+  assert.ok(select);
+  assert.equal(select.value, '29L');
+  assert.equal(settings.get().runway, '29L');
+
+  select.value = '11R';
+  select.dispatch('change');
+
+  assert.equal(changedRunway, '11R');
+  assert.equal(settings.get().runway, '11R');
 });
