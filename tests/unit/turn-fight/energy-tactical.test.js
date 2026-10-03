@@ -586,5 +586,21 @@ test('Task 28: aimPoint does not displace aim point when collisionAvoidance === 
   assert.deepEqual(aim, baseAim);
 });
 
+test('D425: Immelmann can be attempted across full entry envelope (180-316 KIAS) without 140 kt apex gate', () => {
+  // At 185 KIAS (entry speed near low end of Immelmann envelope where apex speed would be low),
+  // Immelmann must be included in feasible moves without being gated out by an artificial apex limit.
+  const moves185 = getFeasibleMoves({ kias: 185, altFt: 10000 });
+  assert.ok(moves185.includes('immelmann'), 'Immelmann is feasible at 185 KIAS');
+
+  // At 240 KIAS (nominal entry speed)
+  const moves240 = getFeasibleMoves({ kias: 240, altFt: 10000 });
+  assert.ok(moves240.includes('immelmann'), 'Immelmann is feasible at 240 KIAS');
+
+  // Below 180 KIAS (e.g. 175 KIAS), Immelmann is not in envelope
+  const moves175 = getFeasibleMoves({ kias: 175, altFt: 10000 });
+  assert.ok(!moves175.includes('immelmann'), 'Immelmann is not feasible below 180 KIAS entry envelope');
+});
+
+
 
 

@@ -669,27 +669,9 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
 
   const moves = [];
 
-  // 1. Immelmann: 180 <= KIAS <= 316, apex speed >= immelmannMinTopKias
+  // 1. Immelmann: 180 <= KIAS <= 316 (it can try if it wants; if low energy over top, stall recovery handles it)
   if (kias >= 180 && kias <= T6A_LIMITS.vmoKias) {
-    let fullAc = ac;
-    if (!ac?.pm || !ac?.ctl) {
-      const ktas = iasToTasKt(kias, altFt);
-      fullAc = newAircraft(ac?.who ?? 'blue', { x: 0, y: 0, z: altFt, ktas, headingRad: 0 }, s, kias, null);
-    }
-    let fullOther = other;
-    if (!fullOther || !fullOther.pm) {
-      const ktas = iasToTasKt(fullAc.kias ?? kias, altFt);
-      fullOther = newAircraft('red', { x: 10000, y: 0, z: altFt, ktas, headingRad: Math.PI }, s, fullAc.kias ?? kias, null);
-    }
-    let apex = 0;
-    try {
-      apex = immelmannTopKias(s, fullAc, fullOther, kias);
-    } catch {
-      apex = 0;
-    }
-    if (apex >= immelmannMinTopKias) {
-      moves.push('immelmann');
-    }
+    moves.push('immelmann');
   }
 
   // 2. Pitch Back: 150 <= KIAS <= 260
@@ -1968,7 +1950,7 @@ export function shouldPursueTactical(state, ac, target) {
   if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
   if (!state.setup.chaseAfterHeadOn && 180 - noseOffDeg(state, target) > PURSUIT_MAX_AA_DEG) return false;
   const f = pointMassFlight(ac.pm);
-  if (ac.kias < 140 && f.climbRad > 0) return false;
+  if (ac.kias < (state.setup?.stallKias ?? T6A_LIMITS.stallKias) && f.climbRad > 0) return false;
   const ata = noseAngleDeg(ac, target);
   const adv = tacticalAdvantage(ac, target);
   const advTarget = tacticalAdvantage(target, ac);
