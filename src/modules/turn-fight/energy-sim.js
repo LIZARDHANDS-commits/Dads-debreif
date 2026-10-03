@@ -41,6 +41,7 @@ import { turnRadiusFt } from '../../core/flight-math.js';
 export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
 /** The pursuits a screen offers. A setup also accepts 'none' (nobody chases), for tests and what-ifs; it is not one of the choices. */
 export const PURSUITS = Object.freeze(['tactical', 'pure', 'lead', 'lag']);
+export const COLLISION_HITBOX_FT = 35.0; // CT-156 wingspan 33.4 ft, length 33.3 ft
 /**
  * Energy mode starts each aircraft between the hard deck and this height.
  * Above ENERGY_ACCURATE_MAX_FT the model's turn rate reads low (core is fixing
@@ -413,6 +414,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     mptReached: false, toMptSec: 0, toMptDeg: 0,
     overG: false, overGReason: '', overGEver: false,
     stall: false, stallReason: '', stallEver: false,
+    collided: false,
     onShaker: false, chaseLimited: false, aim: null,
     rolling: false, rollDegPerSec: 0,
     ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0, wezTrackSec: 0 },
@@ -2009,6 +2011,7 @@ function stepOnce(state) {
   state.evenFight = state.firstNose?.by === 'both' && !state.chase;
   readAims(state);
   checkWezGun(state, remaining);
+  checkMidAirCollision(state, FIGHT_STEP_SEC);
 }
 
 /**
@@ -2037,6 +2040,39 @@ export function checkWezGun(state, d = FIGHT_STEP_SEC) {
     } else {
       ac.ctl.wezTrackSec = 0;
     }
+  }
+}
+
+/**
+ * Physical Hitbox & Mid-Air Collision Detector (Task 27):
+ * Triggers collision state when 3D separation drops below 35 ft (CT-156 wingspan/length).
+ */
+export function checkMidAirCollision(state, d = FIGHT_STEP_SEC) {
+  if (state.setup?.collisionDetection === false) return;
+  if (state.collision) return;
+  const postMerge = !state.merged || state.timeSec > (state.mergeSec ?? 0) + 1.0;
+  if (!postMerge) return;
+  if (state.rangeFt < COLLISION_HITBOX_FT) {
+    const dvx = state.blue.pm.vx - state.red.pm.vx;
+    const dvy = state.blue.pm.vy - state.red.pm.vy;
+    const dvz = state.blue.pm.vz - state.red.pm.vz;
+    const relativeSpeedKt = Math.hypot(dvx, dvy, dvz) / KT_TO_FTPS;
+    const r = state.rangeFt;
+    const rx = (state.blue.xFt ?? state.blue.pm.x) - (state.red.xFt ?? state.red.pm.x);
+    const ry = (state.blue.yFt ?? state.blue.pm.y) - (state.red.yFt ?? state.red.pm.y);
+    const rz = (state.blue.zFt ?? state.blue.pm.z) - (state.red.zFt ?? state.red.pm.z);
+    const closingRateKt = r > 0 ? -((rx * dvx + ry * dvy + rz * dvz) / r) / KT_TO_FTPS : 0;
+    const altBlue = state.blue.altFt ?? state.blue.pm.z;
+    const altRed = state.red.altFt ?? state.red.pm.z;
+    state.collision = {
+      timeSec: state.timeSec,
+      impactKias: (state.blue.kias + state.red.kias) / 2,
+      relativeSpeedKt: Math.round(relativeSpeedKt),
+      closingRateKt: Math.round(closingRateKt),
+      altitudeFt: Math.round((altBlue + altRed) / 2),
+    };
+    state.blue.collided = true;
+    state.red.collided = true;
   }
 }
 

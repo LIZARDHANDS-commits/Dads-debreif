@@ -15,6 +15,8 @@ import {
   pickTacticalMove,
   shouldPursueTactical,
   checkWezGun,
+  checkMidAirCollision,
+  COLLISION_HITBOX_FT,
 } from '../../../src/modules/turn-fight/energy-sim.js';
 
 test('tacticalAimCalculation maintains convex combination wLag + wLead + wPure = 1.0 across flight envelopes', () => {
@@ -359,4 +361,119 @@ test('Task 22: WEZ Gun tracking resets if target breaks out of 15° cone or open
   checkWezGun(state, 0.02);
   assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when attacker stalls');
 });
+
+test('Task 27: checkMidAirCollision triggers state.collision when 3D range drops below 35 ft', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.timeSec = 5.0;
+  state.blue.kias = 220;
+  state.red.kias = 200;
+  state.blue.altFt = 10000;
+  state.red.altFt = 10000;
+  state.blue.pm.x = 0;
+  state.blue.pm.y = 0;
+  state.blue.pm.z = 10000;
+  state.blue.xFt = 0;
+  state.blue.yFt = 0;
+  state.blue.zFt = 10000;
+  state.blue.pm.vx = 220 * 1.68781;
+  state.blue.pm.vy = 0;
+  state.blue.pm.vz = 0;
+
+  state.red.pm.x = 30;
+  state.red.pm.y = 0;
+  state.red.pm.z = 10000;
+  state.red.xFt = 30;
+  state.red.yFt = 0;
+  state.red.zFt = 10000;
+  state.red.pm.vx = -200 * 1.68781;
+  state.red.pm.vy = 0;
+  state.red.pm.vz = 0;
+
+  state.rangeFt = 30;
+
+  checkMidAirCollision(state);
+
+  assert.ok(state.collision, 'state.collision should be triggered');
+  assert.equal(state.collision.timeSec, 5.0);
+  assert.equal(state.collision.impactKias, 210);
+  assert.equal(state.collision.altitudeFt, 10000);
+  assert.equal(state.blue.collided, true);
+  assert.equal(state.red.collided, true);
+  assert.ok(state.collision.closingRateKt > 0, 'closing rate should be positive');
+  assert.ok(state.collision.relativeSpeedKt > 0, 'relative speed should be positive');
+});
+
+test('Task 27: checkMidAirCollision does not trigger when 3D range is 35 ft or above', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.timeSec = 5.0;
+  state.rangeFt = 36;
+  state.blue.pm.x = 0;
+  state.red.pm.x = 36;
+  state.blue.xFt = 0;
+  state.red.xFt = 36;
+
+  checkMidAirCollision(state);
+
+  assert.ok(!state.collision, 'collision should not trigger');
+  assert.equal(state.blue.collided, false);
+  assert.equal(state.red.collided, false);
+
+  // Boundary check at exactly COLLISION_HITBOX_FT (35 ft)
+  state.rangeFt = COLLISION_HITBOX_FT;
+  state.red.pm.x = COLLISION_HITBOX_FT;
+  state.red.xFt = COLLISION_HITBOX_FT;
+  checkMidAirCollision(state);
+
+  assert.ok(!state.collision, 'collision should not trigger at exactly 35 ft');
+  assert.equal(state.blue.collided, false);
+  assert.equal(state.red.collided, false);
+});
+
+test('Task 27: checkMidAirCollision preserves existing state.kill for sequential debrief logging', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.timeSec = 5.0;
+  state.rangeFt = 30;
+  state.blue.pm.x = 0;
+  state.red.pm.x = 30;
+  state.blue.xFt = 0;
+  state.red.xFt = 30;
+
+  // Pre-existing Gun Kill
+  state.kill = {
+    victor: 'blue',
+    timeSec: 4.5,
+    rangeFt: 800,
+    ataDeg: 2,
+  };
+
+  checkMidAirCollision(state);
+
+  // Both kill and collision should be present
+  assert.ok(state.kill, 'state.kill must be preserved');
+  assert.equal(state.kill.victor, 'blue');
+  assert.equal(state.kill.timeSec, 4.5);
+  assert.equal(state.kill.rangeFt, 800);
+
+  assert.ok(state.collision, 'state.collision must also be recorded');
+  assert.equal(state.blue.collided, true);
+  assert.equal(state.red.collided, true);
+});
+
+test('Task 27: checkMidAirCollision respects state.setup.collisionDetection === false', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.setup.collisionDetection = false;
+  state.timeSec = 5.0;
+  state.rangeFt = 20; // Well below 35 ft
+  state.blue.pm.x = 0;
+  state.red.pm.x = 20;
+  state.blue.xFt = 0;
+  state.red.xFt = 20;
+
+  checkMidAirCollision(state);
+
+  assert.ok(!state.collision, 'collision should not trigger when detection is disabled');
+  assert.equal(state.blue.collided, false);
+  assert.equal(state.red.collided, false);
+});
+
 
