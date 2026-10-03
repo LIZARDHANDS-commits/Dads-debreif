@@ -39,9 +39,9 @@ export function tilesFor(corners, pxPerFt, maxZoom = Infinity) {
 /**
  * source: { url(z, x, y), maxZoom? }. timers: a scheduler scope (after). onChange():
  * called when a tile arrives or fails for good, to ask for a redraw.
- * makeImage: for tests. Returns { draw, state, dispose }.
+ * makeImage: for tests. maxKept: maximum cached tiles in memory. Returns { draw, state, dispose }.
  */
-export function createTileLayer({ source, timers, onChange, makeImage = () => new Image() }) {
+export function createTileLayer({ source, timers, onChange, makeImage = () => new Image(), maxKept = MAX_KEPT }) {
   const tiles = new Map(); // key → { image, ready, failed, tries }
   let disposed = false;
 
@@ -79,7 +79,7 @@ export function createTileLayer({ source, timers, onChange, makeImage = () => ne
       load(key, source.url(z, x, y), entry);
     }
     tiles.set(key, entry);
-    while (tiles.size > MAX_KEPT) {
+    while (tiles.size > maxKept) {
       const [oldest, gone] = tiles.entries().next().value;
       gone.retry?.();
       gone.image.onload = gone.image.onerror = null;

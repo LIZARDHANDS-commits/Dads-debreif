@@ -98,19 +98,19 @@ test('onToggle is told when the person opens or closes the menu, but not when th
   assert.equal(panel.collapsed, true);
 });
 
-test('at first it shows only the conflict limits', () => {
+test('at first it shows conflict limits and closed pattern sections', () => {
   const { panel } = setup();
-  assert.deepEqual(legends(panel), ['Conflict limits']);
+  assert.deepEqual(legends(panel), ['Conflict limits', 'Closed pattern']);
 });
 
 test('the photo section appears when the photo is on the screen, and 3D view when 3D is', () => {
   const photo = setup({ available: { photo: true } }).panel;
-  assert.deepEqual(legends(photo), ['Conflict limits', 'Photo']);
+  assert.deepEqual(legends(photo), ['Conflict limits', 'Closed pattern', 'Photo']);
   assert.ok(box(photo, 'Photo opacity'));
   const view3d = setup({ available: { view3d: true } }).panel;
-  assert.deepEqual(legends(view3d), ['Conflict limits', '3D view']);
+  assert.deepEqual(legends(view3d), ['Conflict limits', 'Closed pattern', '3D view']);
   const both = setup({ available: { photo: true, view3d: true } }).panel;
-  assert.deepEqual(legends(both), ['Conflict limits', 'Photo', '3D view']);
+  assert.deepEqual(legends(both), ['Conflict limits', 'Closed pattern', 'Photo', '3D view']);
 });
 
 test('conflict limits sit in Conflict limits section', () => {
@@ -170,7 +170,7 @@ test('every box has a visible label, so screen readers say what it is', () => {
   const { panel } = setup({ available: { photo: true } });
   const labelled = new Set(tagged(panel.element, 'LABEL').map((l) => l.getAttribute('for')));
   const inputs = tagged(panel.element, 'INPUT');
-  assert.equal(inputs.length, 5, '5 number boxes');
+  assert.equal(inputs.length, 6, '6 number boxes');
   for (const input of inputs) assert.ok(labelled.has(input.id), `input ${input.id} has a label`);
 });
 
@@ -251,28 +251,28 @@ test('the conflict limits carry a one-line hint that a screen reader reads with 
     assert.ok(item.hint.length <= 60, 'one short line');
   }
   const everyHint = all(panel.element, (n) => n.getAttribute?.('class') === 'settings-hint');
-  assert.equal(everyHint.length, 4);
+  assert.equal(everyHint.length, 6);
 });
 
 test('the 3D view\'s Paint choice is in the menu, Harvard first and by default, and Reset to Standard Defaults puts it back', () => {
   const { panel, settings } = setup({ available: { view3d: true } });
   assert.ok(legends(panel).length >= 0);
-  const selects = tagged(panel.element, 'SELECT');
-  assert.equal(selects.length, 1);
   const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint');
   assert.ok(label, 'a "Paint" label');
-  assert.equal(selects[0].id, label.getAttribute('for'));
-  const hintId = selects[0].getAttribute('aria-describedby');
+  const selects = tagged(panel.element, 'SELECT');
+  const paintSelect = selects.find((s) => s.id === label.getAttribute('for'));
+  assert.ok(paintSelect, 'select for Paint');
+  const hintId = paintSelect.getAttribute('aria-describedby');
   assert.ok(hintId, 'the hint is tied to the select, so a screen reader reads it');
   const hint = tagged(panel.element, 'P').find((p) => p.getAttribute('id') === hintId);
   assert.match(words(hint), /zoomed right in/, 'and says when the paint shows');
   assert.ok(words(hint).length <= 60);
-  const options = tagged(selects[0], 'OPTION').map(words);
+  const options = tagged(paintSelect, 'OPTION').map(words);
   assert.deepEqual(options, ['Harvard', 'Ship colours']);
   assert.equal(settings.get().paint, 'harvard');
   assert.equal(DEFAULTS.paint, 'harvard');
-  selects[0].value = '1';
-  selects[0].dispatch('change');
+  paintSelect.value = '1';
+  paintSelect.dispatch('change');
   assert.equal(settings.get().paint, 'ship');
   const reset = buttonNamed(panel, 'Reset to Standard Defaults');
   assert.ok(reset, 'Reset to Standard Defaults button found');
@@ -289,5 +289,43 @@ test('Reset button has title and label "Reset to Standard Defaults" (D384)', () 
 
 test('without the 3D view there is no Paint choice (R3)', () => {
   const { panel } = setup({ available: {} });
-  assert.equal(tagged(panel.element, 'SELECT').length, 0);
+  const paintLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Paint');
+  assert.equal(paintLabel, undefined);
+});
+
+test('Closed pattern settings include Bank angle select and Pitch angle number input', () => {
+  const { panel, settings } = setup();
+  const bankLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Bank angle');
+  assert.ok(bankLabel, 'Bank angle label exists');
+  const pitchLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Pitch angle');
+  assert.ok(pitchLabel, 'Pitch angle label exists');
+
+  const selects = tagged(panel.element, 'SELECT');
+  const bankSelect = selects.find((s) => s.id === bankLabel.getAttribute('for'));
+  assert.ok(bankSelect, 'Bank angle select exists');
+  assert.equal(settings.get().closedPatternBankDeg, 50);
+
+  const pitchInput = box(panel, 'Pitch angle');
+  assert.ok(pitchInput, 'Pitch angle input exists');
+  assert.equal(pitchInput.value, '10');
+  assert.equal(settings.get().closedPatternPitchDeg, 10);
+
+  type(pitchInput, '12');
+  assert.equal(settings.get().closedPatternPitchDeg, 12);
+});
+
+test('the 3D view Graphics Quality selector switches between High and Performance', () => {
+  const { panel, settings } = setup({ available: { view3d: true } });
+  const label = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Graphics');
+  assert.ok(label, 'a "Graphics" label exists');
+  const select = tagged(panel.element, 'SELECT').find((s) => s.id === label.getAttribute('for'));
+  assert.ok(select, 'a select for Graphics exists');
+  assert.equal(settings.get().graphicsQuality, 'high');
+  assert.equal(DEFAULTS.graphicsQuality, 'high');
+  select.value = '1';
+  select.dispatch('change');
+  assert.equal(settings.get().graphicsQuality, 'low');
+  const reset = buttonNamed(panel, 'Reset to Standard Defaults');
+  reset.dispatch('click');
+  assert.equal(settings.get().graphicsQuality, 'high');
 });

@@ -159,11 +159,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     if (isClosedPatternStart) {
       a.mode = 'PHYSICS';
       a.phase = 'closed_pattern';
+      a.command = 'closed_pattern';
       a.alt = 2400;
       a.iasKt = 140;
       a.headingDeg = 298;
       a.x = route.points[a.startIndex]?.x ?? -4066.03;
       a.y = route.points[a.startIndex]?.y ?? 680.56;
+      a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+      a.closedPatternPitchDeg = a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
+      a._closedPhase = 1;
     } else {
       const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
       a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
@@ -693,9 +697,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     },
 
     /**
-     * Issues an in-flight command to an aircraft: 'breakout', 'engine_fail', 'go_around', 'touch_and_go'.
+     * Issues an in-flight command to an aircraft: 'breakout', 'engine_fail', 'go_around', 'touch_and_go', 'closed_pattern'.
      */
-    command(aircraftId, action) {
+    command(aircraftId, action, options = {}) {
       settle();
       const a = aircraft.find((ac) => ac.id === aircraftId);
       if (!a) return false;
@@ -708,6 +712,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a._blendTarget;
         delete a._blendTimer;
         a.phase = 'breakout';
+        a.intent = 'overhead';
       } else if (action === 'closed_pattern') {
         a.command = action;
         a.landed = false;
@@ -717,6 +722,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a._blendTarget;
         delete a._blendTimer;
         a.phase = 'closed_pattern';
+        a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+        a.closedPatternPitchDeg = options?.pitchDeg ?? a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
+        a._closedPhase = 1;
       } else if (action === 'climb_high_key' || action === 'climb_low_key') {
         a.command = action;
         a.landed = false;
@@ -809,6 +817,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
+          closedPatternBankDeg: a.closedPatternBankDeg,
+          closedPatternPitchDeg: a.closedPatternPitchDeg,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

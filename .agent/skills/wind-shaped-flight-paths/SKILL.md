@@ -7,9 +7,10 @@ description: Synthesizes smooth, aerodynamically authentic, wind-compensated fli
 
 ## 1. Overview & Core Philosophy
 
-Standard trajectory generation in simulators typically falls into one of two traps:
+Standard trajectory generation in simulators typically falls into one of three traps:
 1. **Open-Loop / PID Physics Steering**: Aircraft suffer crab oscillation, S-turning, overshoot on final, or crash short of thresholds under changing wind fields.
 2. **Pure Geometric Splines (Bézier / Hermite)**: Look robotic and artificial, with instantaneous attitude snaps, zero centrifugal drift, and disregard for aerodynamic G-limits.
+3. **Robotic Discrete State Machines**: Dividing continuous 3D maneuvers into disjointed stages with artificial wait timers (e.g. "climb → wait 1.5s wings level → re-bank to turn to perch"), creating unnatural stop-and-go behavior, attitude jitter, and fragile brittle test suites. Continuous aerodynamic maneuvers must be formulated as closed-loop functions of altitude error, heading error, and wind-relative geometry.
 
 **Kinematic Rail Synthesis** solves this by pre-computing a continuous, physically authentic trajectory where:
 - Aerodynamic equations of motion ($G$, bank $\phi$, turn rate $\omega$, airspeed $V$) govern the path.
@@ -122,6 +123,28 @@ interface RailWaypoint {
   phase: string;      // 'break' | 'downwind' | 'final_turn' | 'final' | 'landing'
 }
 ```
+
+### Pillar 8: Coupled 3D Turn-and-Climb Arrest (The Lift-Vector Perch Slice & Level-Off)
+In dynamic pattern climbs (such as Closed Patterns, Go-Arounds, or missed approach climbs into downwind), pitch attitude, bank angle, and altitude capture must be tightly coupled rather than treated as sequential steps:
+
+1. **Vertical Lift Component Dumping:**
+   To arrest climb rate smoothly ($dh/dt \to 0$) exactly at target altitude $h_{\text{target}}$, scale climb pitch $\theta$ linearly over the final 300 ft buffer ($\Delta h \le 300\text{ ft}$):
+   $$\theta(h) = \theta_{\text{climb}} \cdot \max\left(0, \frac{h_{\text{target}} - h}{300}\right)$$
+
+2. **Horizontal Lift-Vector Slicing (Bank Modulation up to 90°):**
+   In the final 300 ft of climb, allow bank angle to modulate upward (up to $90^\circ$ for an unloaded slice). Dumping vertical lift ($L \cos\phi \to 0$) prevents altitude overshoot, while direct application of horizontal lift ($L \sin\phi$) accelerates turn convergence onto the wind-adjusted target waypoint (e.g. the wind-adjusted perch).
+
+3. **Proportional Rollout onto Wind-Killed Vector:**
+   Rather than snapping wings level or holding a rigid bank angle until a timer expires, smoothly roll out towards $0^\circ$ bank proportionally as heading error to the wind-adjusted track drops below $25^\circ$:
+   $$\phi_{\text{target}} = \begin{cases} 
+   0^\circ & |\Delta\psi| \le 2.5^\circ \\
+   \text{clamp}\left(\Delta\psi \cdot 1.8, -\phi_{\text{nom}}, \phi_{\text{nom}}\right) & |\Delta\psi| < 25^\circ \\
+   -\phi_{\text{slice}} & \text{otherwise}
+   \end{cases}$$
+   Wings roll level ($\phi = 0^\circ$) precisely as the aircraft captures the wind-killed heading pointing directly at the downstream waypoint at pattern speed.
+
+4. **Continuous Downwind Intercept:**
+   The aircraft continues tracking straight downwind along that wind-killed heading, tangent-capturing the downwind rail or perch waypoint with zero spatial discontinuity ($< 15\text{ ft/frame}$).
 
 ---
 
@@ -246,6 +269,33 @@ export function buildIntermediaryLeg(pStart, pEnd, alt, tasKt, windFromDeg, wind
   }
   return waypoints;
 }
+
+/**
+ * Calculates coupled climb arrest pitch decay, slice bank modulation, and proportional rollout.
+ */
+export function calculateClimbArrestSlice(currentAlt, targetAlt, currentHdgDeg, targetHdgDeg, nominalBankDeg = 50, climbPitchDeg = 10) {
+  const altDiff = targetAlt - currentAlt;
+  // 1. Scale pitch linearly over the last 300 ft of climb
+  const pitchDeg = altDiff <= 300 ? Math.max(0, climbPitchDeg * Math.max(0, altDiff) / 300) : climbPitchDeg;
+
+  // 2. Shortest angular difference to wind-killed target track
+  let deltaHdg = ((targetHdgDeg - currentHdgDeg + 540) % 360) - 180;
+
+  // 3. Proportional rollout / slice bank selection
+  let targetBankDeg = 0;
+  if (Math.abs(deltaHdg) <= 2.5) {
+    targetBankDeg = 0;
+  } else if (Math.abs(deltaHdg) < 25) {
+    targetBankDeg = Math.max(-nominalBankDeg, Math.min(nominalBankDeg, deltaHdg * 1.8));
+  } else {
+    // In final 300 ft, allow slice bank up to 90° to dump vertical lift
+    const isSlice = altDiff <= 300;
+    const maxBank = isSlice ? Math.min(90, nominalBankDeg + 20) : nominalBankDeg;
+    targetBankDeg = deltaHdg < 0 ? -maxBank : maxBank;
+  }
+
+  return { pitchDeg, targetBankDeg, deltaHdg };
+}
 ```
 
 ---
@@ -257,5 +307,6 @@ export function buildIntermediaryLeg(pStart, pEnd, alt, tasKt, windFromDeg, wind
 - [ ] **Backward-Invert Exit Maneuver**: Offset the start of the final turn by $-\vec{W} \cdot T_{\text{turn}}$ to guarantee centerline capture.
 - [ ] **Connect Intermediary Legs**: Draw straight ground tracks between dynamic endpoints and apply dynamic crab.
 - [ ] **Apply Attitude Blending**: Smoothly ramp bank angle in/out (sinusoidal $15\%$ profile) to prevent jerky animations.
+- [ ] **Coupled 3D Turn-and-Climb Arrest**: Scale pitch linearly over the final 300 ft, modulate slice bank up to $90^\circ$ to dump vertical lift, and roll out proportionally onto the wind-killed track.
 - [ ] **Clamp Elevation**: Parameterize altitude against cumulative distance $s$, clamping to the runway threshold.
 - [ ] **Emit Full Telemetry**: Include $(x, y, z, \text{IAS}, \psi, \phi, G)$ on all rail nodes.

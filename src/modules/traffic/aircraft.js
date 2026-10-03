@@ -87,9 +87,10 @@ export function detailText(row) {
  * timers: the module's scheduler (`after`), so a pending line is cancelled when the module closes.
  * sim, setup: the engine's sim and the setup it flies. onChange(): called after the run changed
  * (an aircraft was added or cleared), so the screen can redraw.
+ * onSelectAircraft: optional callback called when an aircraft row is clicked.
  * Returns { elements: { spawner, aircraft, conflicts }, update(state, { playing, now }), routesChanged() }.
  */
-export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange }) {
+export function createAircraftPanel({ controls, timers, settings, sim, setup, onChange, onSelectAircraft = null }) {
   // ---- the spawner ----------------------------------------------------------
   const message = h('p', { class: 'spawn-message', role: 'status' });
   const say = (text) => {
@@ -283,11 +284,23 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   let shown = { list: '', conflicts: '' };
   let last = -Infinity;
+  let selectedAircraftId = null;
+
+  function setSelected(id) {
+    selectedAircraftId = id;
+    for (const li of (listBody.children || listBody.childNodes || [])) {
+      const isTarget = li.dataset?.aircraftId === id;
+      li.classList?.toggle?.('is-selected', isTarget);
+      const classes = (li.getAttribute?.('class') || '').split(' ').filter((c) => c && c !== 'is-selected');
+      if (isTarget) classes.push('is-selected');
+      li.setAttribute?.('class', classes.join(' '));
+    }
+  }
 
   /** Writes the state into the list and the conflicts, changing only what is different. */
   function write(state) {
     const rows = aircraftRows(state, setup);
-    const listKey = JSON.stringify(rows.map((r) => [r.id, r.type, r.routeName, detailText(r), r.color]));
+    const listKey = JSON.stringify([selectedAircraftId, rows.map((r) => [r.id, r.type, r.routeName, detailText(r), r.color])]);
     if (listKey !== shown.list) {
       shown.list = listKey;
       clear(listBody);
@@ -318,15 +331,32 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             },
             'Breakout',
           );
+          const closedBankSelect = h(
+            'select',
+            {
+              class: 'aircraft-closed-bank-select',
+              'aria-label': `Closed pattern bank angle for ${row.id}`,
+              onchange: (e) => {
+                e?.stopPropagation?.();
+              },
+            },
+            h('option', { value: '45' }, '45°'),
+            h('option', { value: '50' }, '50°'),
+            h('option', { value: '60' }, '60°'),
+          );
+          closedBankSelect.value = String(row.closedPatternBankDeg || settings.get().closedPatternBankDeg || 50);
+
           const closedPatternBtn = h(
             'button',
             {
               type: 'button',
               class: `button-tiny${row.command === 'closed_pattern' ? ' is-active' : ''}`,
-              title: 'Closed Pattern: climb immediately to 2,400 ft, 140 kt, 60° bank turn into closed downwind',
+              title: 'Closed Pattern: climb to 3,500 ft, 140 kt, selected bank turn into downwind',
               onclick: (e) => {
                 e?.stopPropagation?.();
-                sim.command(row.id, 'closed_pattern');
+                const bankDeg = Number(closedBankSelect.value) || 50;
+                const pitchDeg = Number(row.closedPatternPitchDeg ?? settings.get().closedPatternPitchDeg ?? 10);
+                sim.command(row.id, 'closed_pattern', { bankDeg, pitchDeg });
                 onChange?.();
               },
             },
@@ -386,6 +416,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             {
               class: 'aircraft-intent-select',
               'aria-label': `Landing behaviour for ${row.id}`,
+              onclick: (e) => {
+                e?.stopPropagation?.();
+              },
               onchange: (e) => {
                 e?.stopPropagation?.();
                 const target = e.target;
@@ -400,16 +433,48 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             h('option', { value: 'go_around' }, 'Go-around'),
           );
           intentSelect.value = row.intent || 'touch_and_go';
-          const intentWrap = h('label', { class: 'aircraft-intent-wrap' }, 'Landing: ', intentSelect);
+          const intentWrap = h(
+            'label',
+            {
+              class: 'aircraft-intent-wrap',
+              onclick: (e) => {
+                e?.stopPropagation?.();
+              },
+            },
+            'Landing: ',
+            intentSelect,
+          );
 
-          children.push(h('div', { class: 'aircraft-actions' }, breakoutBtn, closedPatternBtn, highKeyBtn, pflBtn, goAroundBtn, intentWrap));
+          children.push(
+            h(
+              'div',
+              {
+                class: 'aircraft-actions',
+                onclick: (e) => {
+                  e?.stopPropagation?.();
+                },
+              },
+              breakoutBtn,
+              closedPatternBtn,
+              closedBankSelect,
+              highKeyBtn,
+              pflBtn,
+              goAroundBtn,
+              intentWrap,
+            ),
+          );
         }
+        const isSelected = selectedAircraftId === row.id;
         listBody.appendChild(
           h(
             'li',
             {
-              class: `aircraft-row status-${row.status}${row.engineFailed ? ' has-engine-fail' : ''}`,
+              class: `aircraft-row status-${row.status}${row.engineFailed ? ' has-engine-fail' : ''}${isSelected ? ' is-selected' : ''}`,
               dataset: { aircraftId: row.id },
+              onclick: () => {
+                setSelected(row.id);
+                onSelectAircraft?.(row.id);
+              },
             },
             ...children,
           ),
@@ -446,5 +511,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       fillStartPoints();
       updatePointCaption();
     },
+    selectAircraft: setSelected,
+    selectedAircraft: () => selectedAircraftId,
   };
 }

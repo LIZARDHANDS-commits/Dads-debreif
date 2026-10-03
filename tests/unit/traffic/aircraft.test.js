@@ -445,3 +445,76 @@ test('PFL From Area: the sim clamps the three inputs to their ranges (minimum an
   assert.ok(Math.abs(alts[low] - 3000) <= 100, `min alt ${alts[low]}`);
   assert.ok(Math.abs(alts[high] - 15000) <= 100, `max alt ${alts[high]}`);
 });
+
+test('aircraft row click triggers onSelectAircraft callback and applies is-selected class', () => {
+  const selected = [];
+  const { list } = setup({ onSelectAircraft: (id) => selected.push(id) });
+  const rows = withClass(list, 'aircraft-row');
+  assert.ok(rows.length >= 2, 'has aircraft rows');
+  assert.equal(rows[0].classList.contains('is-selected'), false);
+
+  // Clicking first row selects it
+  rows[0].dispatch('click');
+  assert.deepEqual(selected, [rows[0].dataset.aircraftId]);
+  assert.equal(rows[0].classList.contains('is-selected'), true);
+  assert.ok(rows[0].getAttribute('class').includes('is-selected'));
+
+  // Clicking second row transfers selection
+  rows[1].dispatch('click');
+  assert.deepEqual(selected, [rows[0].dataset.aircraftId, rows[1].dataset.aircraftId]);
+  assert.equal(rows[0].classList.contains('is-selected'), false);
+  assert.equal(rows[1].classList.contains('is-selected'), true);
+  assert.ok(!rows[0].getAttribute('class').includes('is-selected'));
+  assert.ok(rows[1].getAttribute('class').includes('is-selected'));
+});
+
+test('clicking action buttons stops propagation and does not trigger onSelectAircraft', () => {
+  const selected = [];
+  const { panel, list, sim } = setup({ onSelectAircraft: (id) => selected.push(id) });
+  sim.stepTo(60);
+  panel.update(sim.state());
+
+  const rows = withClass(list, 'aircraft-row');
+  const flyingRow = rows[0];
+  const breakoutBtn = buttonNamed(flyingRow, 'Breakout');
+  assert.ok(breakoutBtn, 'has Breakout button');
+
+  // Click the Breakout button
+  breakoutBtn.dispatch('click');
+  assert.equal(selected.length, 0, 'Breakout button click did not trigger onSelectAircraft');
+  assert.equal(flyingRow.classList.contains('is-selected'), false);
+
+  // Click PFL button
+  const pflBtn = buttonNamed(flyingRow, 'PFL');
+  assert.ok(pflBtn, 'has PFL button');
+  pflBtn.dispatch('click');
+  assert.equal(selected.length, 0, 'PFL button click did not trigger onSelectAircraft');
+
+  // Clicking the row body directly does trigger selection
+  flyingRow.dispatch('click');
+  assert.deepEqual(selected, [flyingRow.dataset.aircraftId]);
+  assert.equal(flyingRow.classList.contains('is-selected'), true);
+});
+
+test('panel.selectAircraft programmatically updates is-selected visual state', () => {
+  const { panel, list } = setup();
+  const rows = withClass(list, 'aircraft-row');
+  const id0 = rows[0].dataset.aircraftId;
+  const id1 = rows[1].dataset.aircraftId;
+
+  panel.selectAircraft(id0);
+  assert.equal(panel.selectedAircraft(), id0);
+  assert.equal(rows[0].classList.contains('is-selected'), true);
+  assert.equal(rows[1].classList.contains('is-selected'), false);
+
+  panel.selectAircraft(id1);
+  assert.equal(panel.selectedAircraft(), id1);
+  assert.equal(rows[0].classList.contains('is-selected'), false);
+  assert.equal(rows[1].classList.contains('is-selected'), true);
+
+  panel.selectAircraft(null);
+  assert.equal(panel.selectedAircraft(), null);
+  assert.equal(rows[0].classList.contains('is-selected'), false);
+  assert.equal(rows[1].classList.contains('is-selected'), false);
+});
+

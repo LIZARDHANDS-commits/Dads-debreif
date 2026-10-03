@@ -52,7 +52,7 @@ test('sim.command engine_fail slows towards 110 KIAS and initiates emergency des
   assert.ok(acAfter.alt < acBefore.alt);
 });
 
-test('sim.command breakout turns away from circuit and climbs to 4,500 ft at 140 kt', () => {
+test('sim.command breakout turns away from circuit, climbs to 4,500 ft, and accelerates towards 220 kt', () => {
   const sim = createSim(SETUP, { seed: 1 });
   sim.stepTo(20);
   const acBefore = sim.state().aircraft.find((a) => a.id === 'A1');
@@ -63,7 +63,7 @@ test('sim.command breakout turns away from circuit and climbs to 4,500 ft at 140
   sim.stepTo(35);
   const acAfter = sim.state().aircraft.find((a) => a.id === 'A1');
   assert.equal(acAfter.command, 'breakout');
-  assert.ok(Math.abs(acAfter.kt - 140) <= 10, 'speed ~140 kt');
+  assert.ok(acAfter.kt >= 140 && acAfter.kt <= 220, `speed accelerating towards 220 kt, got ${acAfter.kt}`);
   assert.ok(acAfter.alt >= acBefore.alt);
 });
 

@@ -80,6 +80,7 @@ export function aircraftRows(state, setup) {
     return {
       id: a.id, type: a.type, color: a.color, routeName, routeId: a.routeId, leg: a.leg, altFt, kt, status: a.status, statusText,
       engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase, intent: a.intent ?? 'touch_and_go',
+      closedPatternBankDeg: a.closedPatternBankDeg, closedPatternPitchDeg: a.closedPatternPitchDeg,
       startsText: a.status === 'waiting' ? `starts at ${startTimeText(a.startsAt)}` : '',
       labelText: `${altFt}ft ${kt}kt ${routeName}`,
       cells: [a.id, a.type, routeName, String(a.leg), String(altFt), String(kt), statusText],

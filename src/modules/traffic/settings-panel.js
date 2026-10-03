@@ -28,8 +28,11 @@ export const PANEL_KEYS = Object.freeze([
   'conflictVertFt',
   'cautionLatFt',
   'cautionVertFt',
+  'closedPatternBankDeg',
+  'closedPatternPitchDeg',
   'photoOpacityPct',
   'paint',
+  'graphicsQuality',
 ]);
 
 const defaultsFor = (keys) => Object.fromEntries(keys.map((key) => [key, DEFAULTS[key]]));
@@ -80,6 +83,25 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
     withHint(feet('cautionVertFt', 'Caution: vertical'), 'Inside this and the lateral limit is a caution.'),
   );
 
+  const closedSec = menu.section('Closed pattern');
+  closedSec.append(
+    withHint(controls.select('closedPatternBankDeg', {
+      label: 'Bank angle',
+      options: [
+        { value: 45, label: '45°' },
+        { value: 50, label: '50° (Standard)' },
+        { value: 60, label: '60°' },
+      ],
+    }), 'Target bank angle for closed pattern climbing turn.'),
+    withHint(controls.number('closedPatternPitchDeg', {
+      label: 'Pitch angle',
+      unit: '°',
+      min: LIMITS.closedPatternPitchDeg[0],
+      max: LIMITS.closedPatternPitchDeg[1],
+      step: 1,
+    }), 'Target pitch attitude during initial climb.'),
+  );
+
   if (available.photo) {
     menu.section('Photo').append(
       controls.number('photoOpacityPct', { label: 'Photo opacity', unit: '%', min: LIMITS.photoOpacityPct[0], max: LIMITS.photoOpacityPct[1], step: 5 }),
@@ -87,8 +109,17 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
   }
 
   if (available.view3d) {
-    // "Paint: Harvard / Ship colours" for the 3D T-6 (SPEC-ui-kit, "Paint"); the other types have no scheme.
-    menu.section('3D view').append(withHint(controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }), 'Shows zoomed right in; from further off, a plain T-6.'));
+    const sec3d = menu.section('3D view');
+    sec3d.append(
+      withHint(controls.select('graphicsQuality', {
+        label: 'Graphics',
+        options: [
+          { value: 'high', label: 'High (Sharp satellite & full 3D)' },
+          { value: 'low', label: 'Performance (Fast & low memory)' },
+        ],
+      }), 'High loads sharp zoom-18 satellite tiles and up to 24 full Harvard models. Performance saves memory and runs faster on slower laptops.'),
+      withHint(controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }), 'Shows zoomed right in; from further off, a plain T-6.'),
+    );
   }
 
   return {

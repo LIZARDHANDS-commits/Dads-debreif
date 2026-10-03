@@ -19,9 +19,9 @@ import { wrapDeg180 } from '../../core/angles.js';
 import { bankDegFromG } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
-import { stepAircraft } from './flight-engine.js';
+import { stepAircraft, calcInterceptHeading, calcCrossTrackError, CYMJ_DOWNWIND_HDG_DEG } from './flight-engine.js';
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
-import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS, computeBreakRollout } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs } from './route.js';
 
 /** Duration of the smooth transition from physics back to rail (seconds). */
 export const BLEND_DURATION_SEC = 1.0;
@@ -99,53 +99,37 @@ export function evaluateWaypointTrigger(wp) {
  * @param {Object} [routeOptions] - Route options
  */
 function setupPhysicsPlan(a, route = null, env = null, routeOptions = DEFAULT_ROUTE_OPTIONS) {
-  if (a.command === 'breakout') {
-    a.navPlan = makeBreakout({
-      x: a.x ?? 0,
-      y: a.y ?? 0,
-      alt: a.alt ?? 3500,
-      headingDeg: a.headingDeg ?? 118,
-      iasKt: a.iasKt ?? 140,
-    });
-    a.waypointIndex = 0;
+  if (a.command === 'breakout' || a.phase === 'breakout') {
     a.phase = 'breakout';
     a._activeCommand = 'breakout';
     a.targetAltFt = 4500;
+    a.targetSpeedKt = 220;
+    a.navPlan = {
+      id: 'BREAKOUT',
+      model: 'KIN',
+      loop: false,
+      waypoints: [],
+    };
+    a.waypointIndex = 0;
     return;
   }
 
   if (a.command === 'closed_pattern' || a.phase === 'closed_pattern' || a.closedPattern) {
-    const windFrom = env?.windFromDeg ?? 360;
-    const windKt = env?.windKt ?? 0;
-    const patRoute = route || resolveNavPlan(a, route) || getNavPlan('PAT_INNER');
-    const breakRollout = computeBreakRollout(patRoute, windFrom, windKt, routeOptions) || {
-      x: -2908,
-      y: -4109,
-      alt: 3500,
-      headingDeg: 118,
-    };
-    a._closedTarget = {
-      x: breakRollout.x,
-      y: breakRollout.y,
-      alt: 3500,
-      headingDeg: breakRollout.headingDeg ?? 118,
-    };
-    a.navPlan = {
-      id: 'CLOSED_PATTERN',
-      model: 'KIN',
-      loop: false,
-      waypoints: [
-        { x: a.x ?? 0, y: a.y ?? 0, alt: a.alt ?? 2000, kias: 140, phase: 'closed_pattern', mode: 'physics' },
-        { x: breakRollout.x, y: breakRollout.y, alt: 3500, kias: 140, phase: 'closed_pattern', mode: 'physics' },
-      ],
-    };
-    a.waypointIndex = 0;
+    const bank = a.closedPatternBankDeg || 50;
+    a._closedPhase = a._closedPhase || 1;
     a.phase = 'closed_pattern';
     a._activeCommand = a.command || 'closed_pattern';
     a.targetAltFt = 3500;
     a.targetSpeedKt = 140;
-    a.targetBankDeg = 45;
-    a._legStart = { x: a.x ?? 0, y: a.y ?? 0 };
+    a.targetBankDeg = -bank;
+    a.pitchDeg = a.closedPatternPitchDeg || 10;
+    a.navPlan = {
+      id: 'CLOSED_PATTERN',
+      model: 'KIN',
+      loop: false,
+      waypoints: [],
+    };
+    a.waypointIndex = 0;
     return;
   }
 
@@ -212,6 +196,246 @@ function setupPhysicsPlan(a, route = null, env = null, routeOptions = DEFAULT_RO
 }
 
 /**
+ * Closed Pattern Maneuver Controller:
+ * Smooth continuous pilot maneuver (Patrick's Lead Pilot Guidance):
+ * 1. Climbing turn at 140 KIAS at commanded bank angle (default 50° left).
+ * 2. Over 3,200 to 3,500 ft MSL (last 300 ft of climb), pitch smoothly decays towards 0° (arresting climb).
+ * 3. Bank modulates smoothly (up to 90° if needed in upper 300 ft) to dump vertical lift
+ *    and draw the velocity vector smoothly towards the wind-adjusted perch point on the wind-killed heading.
+ * 4. As track aligns with that wind-killed perch bearing at 3,500 ft MSL, bank smoothly rolls wings level (0°).
+ * 5. Straight downwind tracking at 140 kt towards perch seamlessly captures the downwind rail (zero teleportation).
+ *
+ * @param {Object} a - Aircraft state object
+ * @param {Object} [route] - Active route
+ * @param {Object} [env] - Wind environment
+ * @param {number} [stepDt=0.05] - Time step in seconds
+ * @param {Object} [routeOptions=DEFAULT_ROUTE_OPTIONS] - Route options
+ */
+export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, routeOptions = DEFAULT_ROUTE_OPTIONS) {
+  if (!a || (a.phase !== 'closed_pattern' && a.command !== 'closed_pattern')) return;
+
+  const patRoute = route || resolveNavPlan(a, route) || getNavPlan('PAT_INNER');
+  const windFromDeg = env?.windFromDeg ?? 360;
+  const windKt = env?.windKt ?? 0;
+  const tasKt = iasToTasKt(a.iasKt || 140, a.alt || 3500);
+
+  a.targetAltFt = 3500;
+  a.targetSpeedKt = 140;
+
+  // Compute wind-adjusted perch point
+  const perch = computeWindPerch(patRoute, windFromDeg, windKt, routeOptions) || { x: 7146, y: -10275 };
+  const dx = perch.x - (a.x ?? 0);
+  const dy = perch.y - (a.y ?? 0);
+  const bearingToPerch = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+
+  // Wind-killed heading to track directly to perch
+  const wt = windTriangle(bearingToPerch, Math.max(1, tasKt), windFromDeg, windKt);
+  const targetHdg = wt.canHoldTrack ? wt.headingDeg : bearingToPerch;
+  a.desiredHeadingDeg = targetHdg;
+
+  const deltaHdg = wrapDeg180(targetHdg - (a.headingDeg ?? 0));
+  const alt = a.alt ?? 2400;
+  const climbPitch = a.closedPatternPitchDeg || 10;
+  const nominalBank = a.closedPatternBankDeg || 50;
+
+  // Continuous pitch decay in last 300 ft (3,200 to 3,500 ft MSL)
+  if (alt >= 3200) {
+    a.pitchDeg = Math.max(0, climbPitch * (3500 - alt) / 300);
+  } else {
+    a.pitchDeg = climbPitch;
+  }
+
+  // Continuous bank modulation:
+  // Closed pattern at CYMJ is a left turn (decreasing heading).
+  // Approaching target heading (deltaHdg within 25°), roll wings level smoothly.
+  if (Math.abs(deltaHdg) <= 2.5) {
+    a.targetBankDeg = 0;
+  } else if (Math.abs(deltaHdg) < 25) {
+    a.targetBankDeg = Math.max(-nominalBank, Math.min(nominalBank, deltaHdg * 1.8));
+  } else {
+    const isSlice = alt >= 3200 && deltaHdg < -10;
+    const activeBank = isSlice ? Math.min(90, nominalBank + 20) : nominalBank;
+    a.targetBankDeg = -activeBank;
+  }
+
+  // Downwind Rail Intercept & Seamless Capture
+  const wingsLevel = Math.abs(a.bankDeg ?? 0) <= 5.0;
+  const altCaptured = Math.abs(alt - 3500) <= 100;
+  const hdgAligned = Math.abs(deltaHdg) <= 20.0;
+
+  if (wingsLevel && altCaptured && hdgAligned) {
+    const segs = navSegs(patRoute, routeOptions);
+    const dwSegs = segs.filter((s) => s.a.phase === 'downwind' || s.a.src === 10);
+    const dwSeg = dwSegs.length > 0
+      ? {
+          a: dwSegs[0].a,
+          b: dwSegs[dwSegs.length - 1].b,
+          len: Math.hypot(dwSegs[dwSegs.length - 1].b.x - dwSegs[0].a.x, dwSegs[dwSegs.length - 1].b.y - dwSegs[0].a.y),
+        }
+      : (segs.find((s) => s.a.src === 10) || segs.find((s) => s.a.phase === 'downwind') || segs[0]);
+    const p10Dist = pointDistFt(patRoute, 10, routeOptions);
+    const p11Dist = pointDistFt(patRoute, 11, routeOptions);
+
+    if (dwSeg) {
+      const distToPerchStart = Math.hypot(dwSeg.b.x - (a.x ?? 0), dwSeg.b.y - (a.y ?? 0));
+      const railDist = p11Dist - distToPerchStart;
+      const railPos = posOnRoute(patRoute, railDist, routeOptions);
+      const distToRail = Math.hypot(railPos.x - (a.x ?? 0), railPos.y - (a.y ?? 0));
+
+      const isDownwindLeg = railDist >= p10Dist + 50 && railDist <= p11Dist + 100;
+      if ((distToRail <= 40 && isDownwindLeg) || distToPerchStart < 600) {
+        a.mode = 'RAIL';
+        a.distFt = Math.max(p10Dist + 100, Math.min(p11Dist, railDist));
+        a.phase = 'downwind';
+        a.command = null;
+        a.targetBankDeg = 0;
+        a.pitchDeg = 0;
+        delete a._activeCommand;
+        delete a._closedPhase;
+        delete a._closedTarget;
+        delete a._phase2Timer;
+        delete a.desiredHeadingDeg;
+      }
+    }
+  }
+}
+
+/**
+ * Breakout Maneuver Controller:
+ * Smooth continuous pilot maneuver (Patrick's Lead Pilot Guidance & SMM Chapter 16):
+ * 1. Accelerates and climbs to 220 KIAS and 4,500 ft MSL while vectoring toward Breakout Point (-10974, -24252).
+ *    In the last 300 ft of climb (4,200 to 4,500 ft MSL), pitch smoothly decays to 0° (Pillar 8 climb arrest).
+ * 2. Continuous Descending Rejoin Arc: From Breakout Point, enters a smooth descending left arc (4,500 ft -> 3,500 ft at 220 KIAS)
+ *    curving toward the active entry line (Entry 1 / ENT1, 2 NM prior to downwind).
+ *    Pitch smoothly decays to 0° over the last 300 ft (3,800 to 3,500 ft MSL).
+ * 3. Seamless Tangent Entry Capture: Tangentially captures Entry 1 at 3,500 ft MSL and 220 KIAS with zero teleportation.
+ *    Transitions intent to 'overhead' so standard Overhead Break is flown at the pattern.
+ *
+ * @param {Object} a - Aircraft state object
+ * @param {Object} [route] - Active route
+ * @param {Object} [env] - Wind environment
+ * @param {number} [stepDt=0.05] - Time step in seconds
+ * @param {Object} [routeOptions=DEFAULT_ROUTE_OPTIONS] - Route options
+ */
+export function stepBreakout(a, route = null, env = null, stepDt = 0.05, routeOptions = DEFAULT_ROUTE_OPTIONS) {
+  if (!a || (a.phase !== 'breakout' && a.command !== 'breakout')) return;
+
+  const windFromDeg = env?.windFromDeg ?? 360;
+  const windKt = env?.windKt ?? 0;
+  const tasKt = iasToTasKt(a.iasKt || 220, a.alt || 4500);
+
+  a.targetSpeedKt = 220;
+  a.intent = 'overhead';
+
+  const BREAKOUT_PT = { x: -10974, y: -24252 };
+  const pEntryMid = { x: 4806, y: -46304 };
+  const pEntryGate = { x: 17000, y: -28031 };
+
+  // Determine stage: Stage 1 = climb to breakout point; Stage 2 = descending rejoin arc to Entry 1
+  const distToBreakoutPt = Math.hypot(BREAKOUT_PT.x - (a.x ?? 0), BREAKOUT_PT.y - (a.y ?? 0));
+  const pastBreakout = (a._breakoutStage === 2) || (distToBreakoutPt <= 2500 && (a.alt ?? 0) >= 4200) || ((a.y ?? 0) <= BREAKOUT_PT.y + 500 && (a.alt ?? 0) >= 4300);
+
+  if (!pastBreakout) {
+    // ── STAGE 1: Climbing Turn to 4,500 ft toward Breakout Point ──
+    a._breakoutStage = 1;
+    a.targetAltFt = 4500;
+
+    // Pitch attitude: climb nominal 10°, decaying smoothly to 0° in last 300 ft (4,200 to 4,500 ft MSL)
+    const alt = a.alt ?? 3500;
+    if (alt >= 4200) {
+      a.pitchDeg = Math.max(0, 10 * (4500 - alt) / 300);
+    } else {
+      a.pitchDeg = 10;
+    }
+
+    // Steering toward Breakout Point
+    const dx = BREAKOUT_PT.x - (a.x ?? 0);
+    const dy = BREAKOUT_PT.y - (a.y ?? 0);
+    const bearingToPt = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+    const wt = windTriangle(bearingToPt, Math.max(1, tasKt), windFromDeg, windKt);
+    const targetHdg = wt.canHoldTrack ? wt.headingDeg : bearingToPt;
+    a.desiredHeadingDeg = targetHdg;
+
+    const deltaHdg = wrapDeg180(targetHdg - (a.headingDeg ?? 0));
+    if (Math.abs(deltaHdg) <= 2.5) {
+      a.targetBankDeg = 0;
+    } else if (Math.abs(deltaHdg) < 25) {
+      a.targetBankDeg = Math.max(-45, Math.min(45, deltaHdg * 1.8));
+    } else {
+      a.targetBankDeg = deltaHdg < 0 ? -45 : 45;
+    }
+    return;
+  }
+
+  // ── STAGE 2: Descending Rejoin Arc toward Entry 1 ──
+  a._breakoutStage = 2;
+  a.targetAltFt = 3500;
+
+  // Pitch attitude: smooth descent from 4,500 ft to 3,500 ft, decaying to 0° in last 300 ft (3,800 to 3,500 ft MSL)
+  const alt = a.alt ?? 4500;
+  if (alt <= 3500) {
+    a.pitchDeg = 0;
+  } else if (alt <= 3800) {
+    a.pitchDeg = Math.min(0, -3.5 * (alt - 3500) / 300);
+  } else {
+    a.pitchDeg = -3.5;
+  }
+
+  // Calculate intercept heading to smoothly capture the Entry 1 line
+  const interceptHdg = calcInterceptHeading(pEntryMid, pEntryGate, a, Math.max(1, tasKt), env, {
+    kGain: 0.0008,
+    maxInterceptDeg: 45,
+  });
+  a.desiredHeadingDeg = interceptHdg;
+
+  const deltaHdg = wrapDeg180(interceptHdg - (a.headingDeg ?? 0));
+  if (Math.abs(deltaHdg) <= 2.5) {
+    a.targetBankDeg = 0;
+  } else if (Math.abs(deltaHdg) < 25) {
+    a.targetBankDeg = Math.max(-40, Math.min(40, deltaHdg * 1.8));
+  } else {
+    a.targetBankDeg = deltaHdg < 0 ? -35 : 35;
+  }
+
+  // Calculate cross-track error and along-track progress relative to Entry 1
+  const dxLine = pEntryGate.x - pEntryMid.x;
+  const dyLine = pEntryGate.y - pEntryMid.y;
+  const lenLine = Math.hypot(dxLine, dyLine);
+  const ux = dxLine / lenLine;
+  const uy = dyLine / lenLine;
+  const vx = (a.x ?? 0) - pEntryMid.x;
+  const vy = (a.y ?? 0) - pEntryMid.y;
+  const along = vx * ux + vy * uy;
+  const cross = vx * uy - vy * ux;
+
+  // ── Intercept & Rail Capture Check ──
+  // In Stage 2, aircraft curves toward the entry/initial corridor at 3,500 ft MSL and 220 KIAS.
+  // When close to the corridor (within ±250 ft), smoothly blend back onto the rail.
+  const patRoute = route || resolveNavPlan(a, route) || getNavPlan('PAT_INNER');
+  if (patRoute && a._breakoutStage === 2) {
+    const targetDist = closestDistFt(patRoute, a, routeOptions);
+    const targetPos = posOnRoute(patRoute, targetDist, routeOptions);
+    const distToRail = Math.hypot(targetPos.x - (a.x ?? 0), targetPos.y - (a.y ?? 0));
+    const altCaptured = Math.abs(alt - 3500) <= 100;
+    const isEntryOrInitial = targetPos.phase === 'initial' || targetPos.phase === 'entry' || targetPos.seg === 6 || targetPos.seg === 7;
+    const hdgAligned = Math.abs(wrapDeg180((a.headingDeg ?? 0) - targetPos.headingDeg)) <= 45;
+
+    if (distToRail <= 250 && altCaptured && isEntryOrInitial && hdgAligned) {
+      a.phase = targetPos.phase || 'initial';
+      a.command = null;
+      a.intent = 'overhead';
+      delete a._activeCommand;
+      delete a._breakoutStage;
+      delete a.desiredHeadingDeg;
+      delete a.navPlan;
+      delete a.waypointIndex;
+      enterBlending(a, patRoute, routeOptions);
+      return;
+    }
+  }
+}
+
+/**
  * Evaluates whether an in-flight physics maneuver is complete and ready to blend back to rail.
  * @param {Object} a - Aircraft state
  * @param {Object} [navPlan] - Navigation plan
@@ -236,11 +460,8 @@ function isManeuverComplete(a, navPlan) {
     return true;
   }
 
-  // 3. Breakout completion:
-  if (a.command === 'breakout' || navPlan?.id === 'BREAKOUT') {
-    if (a.phase === 'entry' || (a.waypointIndex !== undefined && a.waypointIndex >= 2)) {
-      return true;
-    }
+  // 3. Breakout completion: continuous controller stepBreakout handles rail capture directly
+  if (a.command === 'breakout' || a.phase === 'breakout' || navPlan?.id === 'BREAKOUT') {
     return false;
   }
 
@@ -254,14 +475,14 @@ function isManeuverComplete(a, navPlan) {
 
   // 5. Closed pattern completion:
   if (a.command === 'closed_pattern' || a.phase === 'closed_pattern' || navPlan?.id === 'CLOSED_PATTERN') {
-    const target = a._closedTarget || (navPlan?.waypoints ? navPlan.waypoints[navPlan.waypoints.length - 1] : null);
-    if (target) {
-      const dist = Math.hypot((a.x ?? 0) - target.x, (a.y ?? 0) - target.y);
-      const altDiff = Math.abs((a.alt ?? 0) - (target.alt ?? 3500));
-      const hdgDiff = Math.abs(wrapDeg180((a.headingDeg ?? 0) - (target.headingDeg ?? 118)));
-      if (dist <= 600 && altDiff <= 150 && hdgDiff <= 30) {
-        return true;
-      }
+    const wingsLevel = Math.abs(a.bankDeg ?? 0) <= 5.0;
+    const altCaptured = Math.abs((a.alt ?? 0) - 3500) <= 100;
+    const hdgAligned = Math.abs(wrapDeg180((a.headingDeg ?? 0) - CYMJ_DOWNWIND_HDG_DEG)) <= 25;
+    const perch = computeWindPerch(null, 360, 0) || { x: 7146, y: -10275 };
+    const distToPerch = Math.hypot(perch.x - (a.x ?? 0), perch.y - (a.y ?? 0));
+    if (wingsLevel && altCaptured && hdgAligned && distToPerch <= 1500) {
+      a.phase = 'downwind';
+      return true;
     }
     return false;
   }
@@ -407,6 +628,17 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
     }
   }
 
+  // Phase-aware guard for downwind / closed pattern: ensure target distance is on downwind leg
+  if (a.phase === 'downwind' || a.phase === 'inner_downwind' || a.phase === 'closed_pattern') {
+    const pts = route?.points || route?.waypoints || [];
+    let p10Idx = pts.findIndex((p) => p.tag === 'break_exit' || /break\s*exit/i.test(p.label || ''));
+    if (p10Idx < 0 && pts.length > 10) p10Idx = 10;
+    const minDwDist = p10Idx >= 0 ? pointDistFt(route, p10Idx, routeOptions) : 0;
+    if (closestDist < minDwDist) {
+      closestDist = minDwDist;
+    }
+  }
+
   const rLen = routeLengthFt(route, routeOptions);
   const lapOffset = (rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
   let targetDistFt = lapOffset + closestDist;
@@ -462,13 +694,28 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       delete a._blendTimer;
       a.mode = 'PHYSICS';
       setupPhysicsPlan(a, route, env, routeOptions);
+      if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
+        stepClosedPattern(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL') return a;
+      }
+      if (a.phase === 'breakout' || a.command === 'breakout') {
+        stepBreakout(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL') return a;
+      }
       stepAircraft(a, a.navPlan, env, stepDt);
+      if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
+        stepClosedPattern(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL') return a;
+      }
+      if (a.phase === 'breakout' || a.command === 'breakout') {
+        stepBreakout(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL') return a;
+      }
       if (isManeuverComplete(a, a.navPlan)) {
         if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
           a.command = null;
           delete a._activeCommand;
         }
-        delete a._closedTarget;
         if (!a.landed && a.active !== false) {
           enterBlending(a, route, routeOptions);
         }
@@ -533,19 +780,44 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       const curWp = a.navPlan?.waypoints?.[a.waypointIndex] ?? route?.points?.[a.waypointIndex];
       const isBreakWp = a.tag === 'break' || curWp?.tag === 'break' || /break/i.test(curWp?.label || '') || a.waypointIndex === 9;
       const isPerchWp = a.tag === 'perch' || curWp?.tag === 'perch' || /perch/i.test(curWp?.label || '') || a.waypointIndex === 11;
-      if (!a.navPlan || (a.phase === 'break' && (isBreakWp || !a.targetBankDeg)) || (a.phase === 'final_turn' && (isPerchWp || !a.targetBankDeg)) || (a.phase === 'closed_pattern' && !a._closedTarget)) {
+      if (!a.navPlan || (a.phase === 'break' && (isBreakWp || !a.targetBankDeg)) || (a.phase === 'final_turn' && (isPerchWp || !a.targetBankDeg)) || (a.phase === 'closed_pattern' && !a._closedPhase)) {
         setupPhysicsPlan(a, route, env, routeOptions);
       }
     }
 
+    if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
+      stepClosedPattern(a, route, env, stepDt, routeOptions);
+      if (a.mode === 'RAIL') {
+        return a;
+      }
+    }
+    if (a.phase === 'breakout' || a.command === 'breakout') {
+      stepBreakout(a, route, env, stepDt, routeOptions);
+      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
+        return a;
+      }
+    }
+
     stepAircraft(a, a.navPlan, env, stepDt);
+
+    if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
+      stepClosedPattern(a, route, env, stepDt, routeOptions);
+      if (a.mode === 'RAIL') {
+        return a;
+      }
+    }
+    if (a.phase === 'breakout' || a.command === 'breakout') {
+      stepBreakout(a, route, env, stepDt, routeOptions);
+      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
+        return a;
+      }
+    }
 
     if (isManeuverComplete(a, a.navPlan)) {
       if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
         a.command = null;
         delete a._activeCommand;
       }
-      delete a._closedTarget;
       if (!a.landed && a.active !== false) {
         enterBlending(a, route, routeOptions);
       }
@@ -560,13 +832,28 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     if (shouldEnterPhysics(a, route, routeOptions)) {
       a.mode = 'PHYSICS';
       setupPhysicsPlan(a, route, env, routeOptions);
+      if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
+        stepClosedPattern(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL') return a;
+      }
+      if (a.phase === 'breakout' || a.command === 'breakout') {
+        stepBreakout(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+      }
       stepAircraft(a, a.navPlan, env, stepDt);
+      if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
+        stepClosedPattern(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL') return a;
+      }
+      if (a.phase === 'breakout' || a.command === 'breakout') {
+        stepBreakout(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+      }
       if (isManeuverComplete(a, a.navPlan)) {
         if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
           a.command = null;
           delete a._activeCommand;
         }
-        delete a._closedTarget;
         if (!a.landed && a.active !== false) {
           enterBlending(a, route, routeOptions);
         }

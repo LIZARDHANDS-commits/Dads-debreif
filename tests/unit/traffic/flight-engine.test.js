@@ -688,10 +688,10 @@ test('6.3 Touch-and-go rolls on runway, accelerates to 140 KIAS, climbs past dep
   assert.equal(aCmd.phase, 'closed_pattern', 'Past departure end with closed_pattern command triggers closed_pattern');
 });
 
-test('6.4 Closed pattern climb: 50° bank climbing turn to 3,500 ft rolls out to inner_downwind', () => {
+test('6.4 Closed pattern climb: progression is managed by stepClosedPattern continuous controller', () => {
   const a = { phase: 'closed_pattern', turnAccumDeg: 180, headingDeg: 118, alt: 3500 };
   evaluatePhaseTransitions(a, null, null, 0.1);
-  assert.equal(a.phase, 'inner_downwind', 'Closed pattern rollout should join inner_downwind');
+  assert.equal(a.phase, 'closed_pattern', 'evaluatePhaseTransitions leaves closed_pattern to stepClosedPattern controller');
 });
 
 test('6.5 Straight-in recovery sequence: si_descent -> si_downwind -> si_base -> si_final', () => {

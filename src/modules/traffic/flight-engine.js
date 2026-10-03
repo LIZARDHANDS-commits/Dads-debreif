@@ -154,9 +154,16 @@ export function calcBankTarget(aircraft, desiredHeadingDeg, dt = 0, maxRollRateD
 
   let targetBank = 0;
   if (aircraft.phase === 'closed_pattern') {
-    const bankLimit = Math.abs(aircraft.targetBankDeg || 45);
-    targetBank = Math.max(-bankLimit, Math.min(bankLimit, deltaHdg * 1.5));
-    if (Math.abs(deltaHdg) < 0.5) targetBank = 0;
+    const nominalBank = aircraft.closedPatternBankDeg || 50;
+    const isClosedSlice = (aircraft.alt ?? 0) >= 3200 && Math.abs(deltaHdg) > 25;
+    const maxBank = isClosedSlice ? Math.min(90, nominalBank + 20) : nominalBank;
+    if (Math.abs(deltaHdg) <= 2) {
+      targetBank = 0;
+    } else if (Math.abs(deltaHdg) < 25) {
+      targetBank = Math.max(-maxBank, Math.min(maxBank, deltaHdg * 1.8));
+    } else {
+      targetBank = deltaHdg < 0 ? -maxBank : Math.min(maxBank, deltaHdg * 1.8);
+    }
   } else if (aircraft.targetBankDeg && Math.abs(aircraft.targetBankDeg) > 0 && Math.abs(deltaHdg) > 3) {
     targetBank = Math.sign(deltaHdg) * Math.abs(aircraft.targetBankDeg);
   } else {
@@ -175,8 +182,10 @@ export function calcBankTarget(aircraft, desiredHeadingDeg, dt = 0, maxRollRateD
     if (Math.abs(deltaHdg) < 0.5) targetBank = 0;
   }
 
-  // Accelerated stall protection clamp
-  const clampedTargetBank = Math.sign(targetBank) * Math.min(Math.abs(targetBank), maxStallBank);
+  // Accelerated stall protection clamp (allow unloaded climb arrest up to 90° for closed pattern slice)
+  const isClosedSlice = aircraft.phase === 'closed_pattern' && (aircraft.alt ?? 0) >= 3200;
+  const bankLimit = isClosedSlice ? 90 : maxStallBank;
+  const clampedTargetBank = Math.sign(targetBank) * Math.min(Math.abs(targetBank), bankLimit);
 
   if (dt > 0) {
     const maxDeltaRad = degToRad(maxRollRateDps) * dt;
@@ -468,12 +477,7 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
     }
 
     case 'closed_pattern': {
-      if ((aircraft.turnAccumDeg ?? 0) >= 180 || (aircraft.headingDeg >= 113 && aircraft.headingDeg <= 123)) {
-        aircraft.phase = 'inner_downwind';
-        aircraft.targetBankDeg = 0;
-        aircraft.targetAltFt = 3500;
-        aircraft.targetSpeedKt = 120;
-      }
+      // 4-Phase closed pattern progression is managed by stepClosedPattern controller in tick-aircraft.js
       break;
     }
 
@@ -572,6 +576,9 @@ export function initAircraftState(spawnSpec = {}, navPlan = null, env = null) {
     engineFailed: spawnSpec.engineFailed || false,
     command: spawnSpec.command || null,
     intent: spawnSpec.intent || 'touch_and_go',
+    closedPatternBankDeg: spawnSpec.closedPatternBankDeg,
+    closedPatternPitchDeg: spawnSpec.closedPatternPitchDeg,
+    _closedPhase: spawnSpec._closedPhase,
     distFt: spawnSpec.distFt ?? 0,
     turnAccumDeg: spawnSpec.turnAccumDeg ?? 0,
     trail: spawnSpec.trail || [],
@@ -616,7 +623,7 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
   const vAirFtps = ktToFtps(aircraft.tasKt);
 
   // 2. Guidance & Waypoint Navigation
-  let desiredHeadingDeg = aircraft.headingDeg ?? 0;
+  let desiredHeadingDeg = aircraft.desiredHeadingDeg ?? aircraft.headingDeg ?? 0;
   const wps = navPlan?.waypoints || [];
 
   if (wps.length > 0) {
