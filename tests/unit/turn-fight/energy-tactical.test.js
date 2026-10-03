@@ -601,6 +601,175 @@ test('D425: Immelmann can be attempted across full entry envelope (180-316 KIAS)
   assert.ok(!moves175.includes('immelmann'), 'Immelmann is not feasible below 180 KIAS entry envelope');
 });
 
+test('Task 29: collision initializes ballistic tumble state machine with authentic rotational rates', () => {
+  // Test low relative speed (< 35 kt)
+  const stateLow = {
+    setup: { collisionDetection: true },
+    merged: true,
+    timeSec: 10.0,
+    mergeSec: 0,
+    rangeFt: 25.0,
+    blue: {
+      who: 'blue',
+      kias: 160,
+      altFt: 10000,
+      pm: { x: 0, y: 0, z: 10000, vx: 200, vy: 0, vz: 0 },
+      ctl: { mode: 'mpt' },
+    },
+    red: {
+      who: 'red',
+      kias: 160,
+      altFt: 10000,
+      pm: { x: 20, y: 0, z: 10000, vx: 230, vy: 0, vz: 0 }, // dvx = -30 ft/s (~18 kt)
+      ctl: { mode: 'mpt' },
+    },
+  };
+  checkMidAirCollision(stateLow);
+  assert.ok(stateLow.collision, 'Collision recorded');
+  assert.ok(stateLow.blue.tumble, 'Blue tumble initialized');
+  assert.ok(stateLow.red.tumble, 'Red tumble initialized');
+  assert.equal(stateLow.blue.why, 'Departure: Ballistic tumble after mid-air collision');
+  assert.equal(stateLow.blue.move, 'tumble');
+  assert.equal(stateLow.blue.moveLabel, 'Collision Tumble');
+  assert.equal(stateLow.blue.tumble.pDegPerSec, 150);
+  assert.equal(stateLow.blue.tumble.qDegPerSec, -60);
+  assert.equal(stateLow.blue.tumble.rDegPerSec, 50);
+  assert.equal(stateLow.red.tumble.pDegPerSec, -150);
+  assert.equal(stateLow.red.tumble.qDegPerSec, 60);
+  assert.equal(stateLow.red.tumble.rDegPerSec, -50);
+
+  // Test medium relative speed (35 to 90 kt)
+  const stateMed = {
+    setup: { collisionDetection: true },
+    merged: true,
+    timeSec: 10.0,
+    mergeSec: 0,
+    rangeFt: 20.0,
+    blue: {
+      who: 'blue',
+      kias: 200,
+      altFt: 10000,
+      pm: { x: 0, y: 0, z: 10000, vx: 300, vy: 0, vz: 0 },
+      ctl: { mode: 'mpt' },
+    },
+    red: {
+      who: 'red',
+      kias: 200,
+      altFt: 10000,
+      pm: { x: 20, y: 0, z: 10000, vx: 200, vy: 0, vz: 0 }, // dvx = 100 ft/s (~59 kt)
+      ctl: { mode: 'mpt' },
+    },
+  };
+  checkMidAirCollision(stateMed);
+  assert.equal(stateMed.blue.tumble.pDegPerSec, 450);
+  assert.equal(stateMed.blue.tumble.qDegPerSec, -200);
+  assert.equal(stateMed.blue.tumble.rDegPerSec, 160);
+  assert.equal(stateMed.red.tumble.pDegPerSec, -450);
+  assert.equal(stateMed.red.tumble.qDegPerSec, 200);
+  assert.equal(stateMed.red.tumble.rDegPerSec, -160);
+
+  // Test high relative speed (> 90 kt)
+  const stateHigh = {
+    setup: { collisionDetection: true },
+    merged: true,
+    timeSec: 10.0,
+    mergeSec: 0,
+    rangeFt: 20.0,
+    blue: {
+      who: 'blue',
+      kias: 220,
+      altFt: 10000,
+      pm: { x: 0, y: 0, z: 10000, vx: 350, vy: 0, vz: 0 },
+      ctl: { mode: 'mpt' },
+    },
+    red: {
+      who: 'red',
+      kias: 220,
+      altFt: 10000,
+      pm: { x: 20, y: 0, z: 10000, vx: -350, vy: 0, vz: 0 }, // dvx = 700 ft/s (~414 kt)
+      ctl: { mode: 'mpt' },
+    },
+  };
+  checkMidAirCollision(stateHigh);
+  assert.equal(stateHigh.blue.tumble.pDegPerSec, 900);
+  assert.equal(stateHigh.blue.tumble.qDegPerSec, -400);
+  assert.equal(stateHigh.blue.tumble.rDegPerSec, 300);
+  assert.equal(stateHigh.red.tumble.pDegPerSec, -900);
+  assert.equal(stateHigh.red.tumble.qDegPerSec, 400);
+  assert.equal(stateHigh.red.tumble.rDegPerSec, -300);
+});
+
+test('Task 29: tumbling aircraft decelerates due to bluff-body drag and drops under gravity', () => {
+  const fight = createEnergyFight({ turnsStart: 'now' });
+  fight.merged = true;
+  fight.timeSec = 5.0;
+  fight.mergeSec = 0;
+  fight.rangeFt = 20.0;
+  fight.blue.pm = { x: 0, y: 0, z: 10000, vx: 300, vy: 0, vz: 0 };
+  fight.red.pm = { x: 15, y: 0, z: 10000, vx: -300, vy: 0, vz: 0 };
+  fight.blue.altFt = 10000;
+  fight.red.altFt = 10000;
+
+  checkMidAirCollision(fight);
+  assert.ok(fight.blue.tumble, 'Tumble active');
+
+  const initialKias = fight.blue.kias;
+  const initialAltFt = fight.blue.altFt;
+  let bankRotated = false;
+
+  // Step 2 seconds into tumble
+  for (let i = 0; i < 2.0 / 0.02; i++) {
+    stepEnergyFight(fight, 0.02);
+    if (Math.abs(fight.blue.bankRad) > 0.01) bankRotated = true;
+  }
+
+  // Under bluff-body drag, speed must decay significantly
+  assert.ok(fight.blue.kias < initialKias, 'Airspeed decelerates under bluff-body drag');
+  // Under gravity, altitude must drop significantly
+  assert.ok(fight.blue.altFt < initialAltFt - 50, 'Altitude drops under gravity');
+  // Controls severed: throttle at 0 and g at 0
+  assert.equal(fight.blue.throttle, 0, 'Thrust cut to 0');
+  assert.equal(fight.blue.g, 0, 'Aerodynamic G cut to 0');
+  // Angles integrate
+  assert.ok(bankRotated, 'Bank angle rotates during tumble');
+  assert.ok(fight.blue.pm.vz < 0, 'Vertical velocity is downward');
+});
+
+test('Task 29: terrain impact clamps altitude at 0 ft MSL and halts simulation with state.stopped = true', () => {
+  const fight = createEnergyFight({ turnsStart: 'now' });
+  fight.merged = true;
+  fight.timeSec = 5.0;
+  fight.mergeSec = 0;
+  // Initialize low altitude tumble (100 ft MSL)
+  fight.blue.altFt = 100;
+  fight.blue.pm = { x: 0, y: 0, z: 100, vx: 100, vy: 0, vz: -150 };
+  fight.blue.tumble = { pDegPerSec: 450, qDegPerSec: -200, rDegPerSec: 160 };
+  fight.blue.why = 'Departure: Ballistic tumble after mid-air collision';
+  fight.blue.move = 'tumble';
+
+  fight.red.altFt = 100;
+  fight.red.pm = { x: 50, y: 0, z: 100, vx: -100, vy: 0, vz: -150 };
+  fight.red.tumble = { pDegPerSec: -450, qDegPerSec: 200, rDegPerSec: -160 };
+  fight.red.why = 'Departure: Ballistic tumble after mid-air collision';
+  fight.red.move = 'tumble';
+
+  // Step forward until impact
+  for (let i = 0; i < 2.0 / 0.02; i++) {
+    stepEnergyFight(fight, 0.02);
+    if (fight.stopped) break;
+  }
+
+  assert.equal(fight.stopped, true, 'Simulation halted on terrain impact');
+  assert.equal(fight.blue.altFt, 0, 'Blue altitude clamped at 0 ft MSL');
+  assert.equal(fight.blue.pm.z, 0, 'Blue pm.z clamped at 0');
+  assert.equal(fight.blue.why, 'Impact: Hull loss at terrain (0 ft MSL)');
+
+  // Subsequent steps do nothing once stopped
+  const timeStopped = fight.timeSec;
+  stepEnergyFight(fight, 1.0);
+  assert.equal(fight.timeSec, timeStopped, 'Simulation remains stopped after terrain impact');
+});
+
 
 
 

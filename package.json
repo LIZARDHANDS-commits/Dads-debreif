@@ -1,7 +1,7 @@
 {
   "name": "dads-ooda-loop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "DAD's OODA LOOP: T-6 debrief and flight-training tools that run in any browser",
   "type": "module",
   "engines": {

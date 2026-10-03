@@ -97,6 +97,9 @@ export function energyResultRows(state) {
     const victorName = state.kill.victor === 'blue' ? 'Blue' : 'Red';
     rows.push(text('combatResult', 'Combat Result', 'result', `${victorName} Kill (WEZ Gun at T+${state.kill.timeSec.toFixed(1)}s)`));
   }
+  if (state.collision) {
+    rows.push(text('collisionResult', 'Combat Result', 'result', `Mid-Air Collision at T+${state.collision.timeSec.toFixed(1)}s (Impact ${Math.round(state.collision.impactKias)} KIAS, Closure ${state.collision.closingRateKt} kt)`));
+  }
   rows.push(
     pair('kias', 'Speed (KIAS)', 'result', `${round(blue.kias)} KIAS`, `${round(red.kias)} KIAS`),
     pair('alt', 'Altitude', 'result', `${formatWholeFt(blue.altFt)} ft`, `${formatWholeFt(red.altFt)} ft`),

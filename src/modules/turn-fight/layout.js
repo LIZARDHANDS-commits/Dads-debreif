@@ -216,6 +216,10 @@ export function createLayout({ settings, controls, on }) {
     h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: Tactical (Dynamic) smoothly blends Lag in Control Zone -> Pure -> Lead for snapshot. Pure, Lead, and Lag force static instructor curves (SMM 12.30 and 16.16).'),
     controls.checkbox('chaseAfterHeadOn', { label: 'Chase from head-on' }),
     h('p', { class: 'tf-hint' }, 'Off by default: a head-on first nose-on is marked but starts no chase. On: it starts the pursuit too.'),
+    controls.checkbox('collisionDetection', { label: 'Mid-air collision' }),
+    h('p', { class: 'tf-hint' }, 'On: aircraft closer than 35 ft collide and tumble. Off: they pass through each other.'),
+    controls.checkbox('collisionAvoidance', { label: 'Collision avoidance' }),
+    h('p', { class: 'tf-hint' }, 'On: pilots roll out of plane to clear each other when a collision is predicted.'),
   );
 
   const display = menu.section('Display');
@@ -282,6 +286,7 @@ export function createLayout({ settings, controls, on }) {
   );
 
   const killBanner = h('div', { class: 'tf-kill-banner', hidden: true });
+  const collisionBanner = h('div', { class: 'tf-collision-banner', hidden: true });
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
   // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.
   const note = h('p', { class: 'tf-note', role: 'status' });
@@ -335,6 +340,7 @@ export function createLayout({ settings, controls, on }) {
     { class: 'tf-stage', 'aria-label': 'Fight' },
     toolbar,
     killBanner,
+    collisionBanner,
     stopped,
     note,
     views,
@@ -482,6 +488,25 @@ export function createLayout({ settings, controls, on }) {
     hideKillBanner() {
       killBanner.hidden = true;
       killBanner.replaceChildren();
+    },
+    showCollisionBanner(collision, onReset) {
+      collisionBanner.hidden = false;
+      const feet = (x) => Math.round(x).toLocaleString('en-US');
+      const text = `MID-AIR COLLISION: Dual Departure & Hull Loss at T+${collision.timeSec.toFixed(1)}s (Closure ${collision.closingRateKt} kt, Alt ${feet(collision.altitudeFt)} ft)`;
+      const textSpan = h('span', { class: 'tf-collision-banner-text' }, text);
+      const resetBtn = h('button', {
+        type: 'button',
+        class: 'button tf-collision-reset-btn',
+        onclick: () => {
+          collisionBanner.hidden = true;
+          if (typeof onReset === 'function') onReset();
+        },
+      }, 'Reset Fight');
+      collisionBanner.replaceChildren(textSpan, resetBtn);
+    },
+    hideCollisionBanner() {
+      collisionBanner.hidden = true;
+      collisionBanner.replaceChildren();
     },
     get moreOpen() {
       return !more.collapsed;

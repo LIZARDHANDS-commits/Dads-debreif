@@ -249,6 +249,35 @@
   flex: 0 0 auto;
 }
 
+[data-module='turn-fight'] .tf-collision-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--bad);
+  border-left: 4px solid var(--bad);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-collision-banner[hidden] {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-collision-banner-text {
+  flex: 1 1 auto;
+  color: var(--bad);
+}
+
+[data-module='turn-fight'] .tf-collision-reset-btn {
+  flex: 0 0 auto;
+}
+
 [data-module='turn-fight'] .tf-views {
   flex: 1 1 0;
   min-width: 0;

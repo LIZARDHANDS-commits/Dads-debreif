@@ -117,6 +117,7 @@ function energyDefaults() {
     // More energy settings.
     blueMove: 'tactical', redMove: 'tactical', mptKias: e.mptKias, hardDeckFt: e.hardDeckFt,
     pursuit: e.pursuit, chaseAfterHeadOn: e.chaseAfterHeadOn,
+    collisionDetection: e.collisionDetection, collisionAvoidance: e.collisionAvoidance,
     // Model settings for checking (numbers no manual gives).
     stallKias: e.stallKias, shakerPct: Math.round(e.shakerFrac * 100), stallSec: e.stallSec,
     midThrottlePct: Math.round(e.midThrottle * 100), leadSec: e.leadSec, lagSec: e.lagSec,
@@ -130,7 +131,7 @@ function energyDefaults() {
 
 /** The settings of Energy's first view, of "More energy settings", and of "Model settings for checking". */
 export const ENERGY_FIRST_KEYS = Object.freeze(['blueAltFt', 'redAltFt', 'blueKias', 'redKias']);
-export const ENERGY_MORE_KEYS = Object.freeze(['blueMove', 'redMove', 'mptKias', 'hardDeckFt', 'pursuit', 'chaseAfterHeadOn']);
+export const ENERGY_MORE_KEYS = Object.freeze(['blueMove', 'redMove', 'mptKias', 'hardDeckFt', 'pursuit', 'chaseAfterHeadOn', 'collisionDetection', 'collisionAvoidance']);
 export const ENERGY_CHECK_KEYS = Object.freeze([
   'stallKias', 'shakerPct', 'stallSec', 'midThrottlePct', 'leadSec', 'lagSec', 'rollRateDegPerSec', 'pitchBackBank160Deg',
   'pitchBackBank220Deg', 'immelmannAboveKias', 'splitSBelowKias', 'immelmannOffNoseDeg', 'immelmannMinTopKias', 'pickLookaheadSec', 'deckMarginFt',
@@ -260,6 +261,7 @@ export function energySetupFrom(values) {
     turnsStart: values.turnsStart ?? (values.turnsAt === 'once' ? 'now' : 'pass'),
     blueMove: values.blueMove, redMove: values.redMove, mptKias: values.mptKias, hardDeckFt: values.hardDeckFt,
     pursuit: values.pursuit, chaseAfterHeadOn: values.chaseAfterHeadOn,
+    collisionDetection: values.collisionDetection !== false, collisionAvoidance: values.collisionAvoidance !== false,
     stallKias: values.stallKias,
     shakerFrac: values.shakerPct !== undefined ? values.shakerPct / 100 : (values.shakerFrac ?? 0.94),
     stallSec: values.stallSec,
@@ -381,7 +383,7 @@ export function isSetupError(error) {
 const KEY_WORDS = Object.freeze({
   blueAltFt: "Blue's start altitude", redAltFt: "Red's start altitude", blueKias: "Blue's merge speed", redKias: "Red's merge speed",
   blueMove: "Blue's move", redMove: "Red's move", mptKias: 'The MPT speed', hardDeckFt: 'The hard deck', pursuit: 'The pursuit',
-  chaseAfterHeadOn: 'Chase after a head-on pass', separationNm: 'The start separation', stallKias: 'The stall speed',
+  chaseAfterHeadOn: 'Chase after a head-on pass', collisionDetection: 'Collision detection', collisionAvoidance: 'Collision avoidance', separationNm: 'The start separation', stallKias: 'The stall speed',
   shakerFrac: 'The shaker', midThrottle: 'The mid-range throttle', rollRateDegPerSec: 'The roll rate',
   immelmannAboveKias: 'The Immelmann speed', splitSBelowKias: 'The split S speed', immelmannOffNoseDeg: 'The Immelmann off-nose angle',
   immelmannMinTopKias: 'The lowest Immelmann top speed', pickLookaheadSec: 'The look-ahead', deckMarginFt: 'The deck margin',

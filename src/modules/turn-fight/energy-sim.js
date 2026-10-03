@@ -35,7 +35,7 @@ import {
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
-import { turnRadiusFt } from '../../core/flight-math.js';
+import { turnRadiusFt, isaDensityRatio } from '../../core/flight-math.js';
 
 /** The moves a setup can force; 'auto' lets the model choose (step 1). */
 export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
@@ -99,6 +99,8 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   hardDeckFt: 6000,
   pursuit: 'pure',
   chaseAfterHeadOn: true,
+  collisionDetection: true,
+  collisionAvoidance: true,
   // Model settings for checking.
   stallKias: T6A_LIMITS.stallKias,
   shakerFrac: 0.94,
@@ -188,6 +190,7 @@ export const MOVE_LABELS = Object.freeze({
   immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S',
   lowYoYo: 'Low Yo-Yo', highYoYo: 'High Yo-Yo',
   mpt: 'MPT', levelMpt: 'Level MPT', pursuit: 'Pursuit',
+  tumble: 'Collision Tumble',
 });
 
 // ── Small vector helpers (the point-mass step's own are private) ─────────────
@@ -1708,6 +1711,46 @@ const belowStallText = (kias, p) => `${kias.toFixed(1)} KIAS is below the ${+p.s
 const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS', 'lowYoYo', 'highYoYo']);
 
 function stepAircraft(state, ac, other, d) {
+  if (ac.tumble) {
+    ac.throttle = 0;
+    const z = ac.altFt ?? ac.pm.z;
+    const sigma = isaDensityRatio(z);
+    const kDrag = 0.00052 * sigma;
+    let vx = ac.pm.vx, vy = ac.pm.vy, vz = ac.pm.vz;
+    let x = ac.pm.x, y = ac.pm.y, posZ = ac.pm.z;
+    const V = Math.hypot(vx, vy, vz);
+    const ax = -kDrag * V * vx;
+    const ay = -kDrag * V * vy;
+    const az = -kDrag * V * vz - 32.174;
+    vx += ax * d;
+    vy += ay * d;
+    vz += az * d;
+    x += vx * d;
+    y += vy * d;
+    posZ += vz * d;
+    ac.pm = { ...ac.pm, x, y, z: posZ, vx, vy, vz };
+    ac.xFt = x;
+    ac.yFt = y;
+    ac.zFt = posZ;
+    ac.altFt = posZ;
+    const speedKt = Math.hypot(vx, vy, vz) / KT_TO_FTPS;
+    ac.ktas = speedKt;
+    ac.kias = tasToIasKt(speedKt, posZ);
+    ac.bankRad = wrapPi(ac.bankRad + degToRad(ac.tumble.pDegPerSec) * d);
+    ac.headingRad = wrapPi(ac.headingRad + degToRad(ac.tumble.rDegPerSec) * d);
+    ac.climbDeg = clamp(ac.climbDeg + ac.tumble.qDegPerSec * d, -89, 89);
+    ac.bankDeg = radToDeg(ac.bankRad);
+    ac.g = 0;
+    if (ac.altFt <= 0) {
+      ac.altFt = 0;
+      ac.pm.z = 0;
+      ac.zFt = 0;
+      state.stopped = true;
+      ac.why = 'Impact: Hull loss at terrain (0 ft MSL)';
+    }
+    return;
+  }
+
   const p = state.setup;
   const c = ac.ctl;
   const f = pointMassFlight(ac.pm);
@@ -1876,7 +1919,7 @@ function noseOffAzDeg(from, to) {
  * 2. Across altitude differences, azimuth <= 5.0° AND elevation <= 10.0°.
  */
 function isAcNoseOn(state, ac, target) {
-  if (ac.stall) return false;
+  if (ac.stall || ac.tumble) return false;
   if (noseOffDeg(state, ac) <= FIRST_NOSE_DEG) return true;
   const dx = target.xFt - ac.xFt, dy = target.yFt - ac.yFt, dz = target.zFt - ac.zFt;
   const dH = Math.hypot(dx, dy);
@@ -1894,7 +1937,7 @@ function isAcNoseOn(state, ac, target) {
  * and the look-ahead's score both use it, so they cannot disagree.
  */
 function onTheOther(state, ac, target) {
-  if (ac.stall || !isAcNoseOn(state, ac, target)) return false;
+  if (ac.stall || ac.tumble || !isAcNoseOn(state, ac, target)) return false;
   return state.setup.chaseAfterHeadOn || 180 - noseOffDeg(state, target) <= PURSUIT_MAX_AA_DEG;
 }
 
@@ -1946,7 +1989,7 @@ export function tacticalAdvantage(ac, target) {
  */
 export function shouldPursueTactical(state, ac, target) {
   if (state.setup.pursuit === 'none') return false;
-  if (ac.ctl.mode === 'pursuit' || ac.stall) return false;
+  if (ac.ctl.mode === 'pursuit' || ac.stall || ac.tumble) return false;
   if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
   if (!state.setup.chaseAfterHeadOn && 180 - noseOffDeg(state, target) > PURSUIT_MAX_AA_DEG) return false;
   const f = pointMassFlight(ac.pm);
@@ -2079,7 +2122,7 @@ export function checkWezGun(state, d = FIGHT_STEP_SEC) {
     const postMerge = state.merged === true && state.timeSec > (state.mergeSec ?? 0) + 1.0;
     const ata = noseOffDeg(state, ac);
     const aa = 180 - noseOffDeg(state, target);
-    const inEnvelope = postMerge && !ac.stall && state.rangeFt < 2500 && ata <= 15.0 && aa <= 60.0;
+    const inEnvelope = postMerge && !ac.stall && !ac.tumble && state.rangeFt < 2500 && ata <= 15.0 && aa <= 60.0;
     if (inEnvelope) {
       ac.ctl.wezTrackSec = (ac.ctl.wezTrackSec || 0) + d;
       if (ac.ctl.wezTrackSec >= 2.0 - 1e-6) {
@@ -2128,6 +2171,35 @@ export function checkMidAirCollision(state, d = FIGHT_STEP_SEC) {
     };
     state.blue.collided = true;
     state.red.collided = true;
+
+    let p, q, rRate;
+    if (relativeSpeedKt < 35) {
+      p = 150; q = 60; rRate = 50;
+    } else if (relativeSpeedKt <= 90) {
+      p = 450; q = 200; rRate = 160;
+    } else {
+      p = 900; q = 400; rRate = 300;
+    }
+
+    state.blue.tumble = {
+      pDegPerSec: p,
+      qDegPerSec: -q,
+      rDegPerSec: rRate,
+    };
+    state.blue.why = 'Departure: Ballistic tumble after mid-air collision';
+    state.blue.move = 'tumble';
+    state.blue.moveLabel = 'Collision Tumble';
+    if (state.blue.ctl) state.blue.ctl.mode = 'tumble';
+
+    state.red.tumble = {
+      pDegPerSec: -p,
+      qDegPerSec: q,
+      rDegPerSec: -rRate,
+    };
+    state.red.why = 'Departure: Ballistic tumble after mid-air collision';
+    state.red.move = 'tumble';
+    state.red.moveLabel = 'Collision Tumble';
+    if (state.red.ctl) state.red.ctl.mode = 'tumble';
   }
 }
 

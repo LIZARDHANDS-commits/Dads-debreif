@@ -133,7 +133,7 @@ export function aircraftPose(fight, who, direction) {
       z: altToZ(a.zFt, ALT_SCALE),
       headingRad: a.headingRad,
       pitchRad: degToRad(a.climbDeg),
-      bankRad: (a.turnDir || 0) * degToRad(a.bankDeg),
+      bankRad: a.tumble ? a.bankRad : (a.turnDir || 0) * degToRad(a.bankDeg),
     };
   }
   return {

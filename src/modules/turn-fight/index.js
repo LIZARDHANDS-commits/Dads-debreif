@@ -255,6 +255,10 @@ function mount(root, app) {
         setPlaying(true);
       });
     }
+    if (run.engine?.collision && !run.fight.collisionHandled) {
+      run.fight.collisionHandled = true;
+      ui.showCollisionBanner(run.engine.collision, () => resetFight());
+    }
     if (run.fight.stopped) {
       endPlaying();
       ui.setStopped(STOPPED_TEXT);
@@ -285,9 +289,11 @@ function mount(root, app) {
   function resetFight() {
     endPlaying();
     ui.hideKillBanner();
+    ui.hideCollisionBanner();
     run = newRun(settings.get());
     run.fight.killHandled = false;
     run.fight.killDismissed = false;
+    run.fight.collisionHandled = false;
     ui.setStopped(null);
     renderReadouts();
     redraw();
