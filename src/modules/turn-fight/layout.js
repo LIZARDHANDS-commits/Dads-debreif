@@ -22,11 +22,19 @@ const times = (values) => values.map((v) => [v, `${v}×`]);
 
 let nextId = 1;
 
-const SIMPLE_FOOTER = 'Turn Circle Geometry: constant-speed turn circles — rate vs radius, no energy bleed';
+const SIMPLE_FOOTER = 'Simple 2D Circles: constant-speed turn circles — rate vs radius, no vertical bleed';
 const ENERGY_FOOTER = 'BFM Energy Fight: full T-6 physics — energy management, stalls, pursuit curves';
 
 /** The plain names of Energy's moves, for the Move boxes (the engine's ids are the values). */
-const MOVE_NAMES = Object.freeze({ tactical: 'Tactical AI (Dynamic Utility)', auto: 'Auto', immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S', mpt: 'MPT' });
+const MOVE_NAMES = Object.freeze({
+  tactical: 'Tactical AI (Dynamic Pilot)',
+  auto: 'Textbook SMM Auto',
+  immelmann: 'Manual: Immelmann',
+  pitchBack: 'Manual: Pitch back',
+  slice: 'Manual: Slice',
+  splitS: 'Manual: Split S',
+  mpt: 'Manual: MPT',
+});
 
 /**
  * The note beside a start altitude above 15,000 ft (the spec's words): one note, not two warnings. It goes once core's
@@ -147,6 +155,7 @@ export function createLayout({ settings, controls, on }) {
 
   const chase = controls.checkbox('chase', { label: 'First nose chases' });
   const vertical = controls.checkbox('vertical', { label: 'Climb and dive' });
+  vertical.hidden = true;
   const energy = controls.checkbox('energy', { label: 'BFM Energy Fight' });
   // Why an Energy setup cannot fly (two numbers that don't go together): in words, where the boxes are.
   const energyProblem = h('p', { class: 'tf-warning tf-energy-problem', id: `tf-energy-problem-${nextId++}`, 'aria-live': 'polite' });
@@ -404,7 +413,8 @@ export function createLayout({ settings, controls, on }) {
       red.pitchBox.hidden = !values.vertical || inEnergy;
       sideViewWanted = values.vertical;
       showPictures();
-      for (const key of ['blueKt', 'redKt', 'blueG', 'redG', 'chase', 'vertical', 'bluePitchDeg', 'redPitchDeg']) controls.setDisabled(key, inEnergy);
+      for (const key of ['blueKt', 'redKt', 'blueG', 'redG', 'chase', 'bluePitchDeg', 'redPitchDeg']) controls.setDisabled(key, inEnergy);
+      controls.setDisabled('vertical', true);
       controls.setDisabled('redAboveFt', !values.vertical || inEnergy);
       for (const box of [blue, red]) {
         box.energyRow.hidden = !inEnergy;
@@ -413,7 +423,8 @@ export function createLayout({ settings, controls, on }) {
       showAltNote(blue.altNote, inEnergy && values.blueAltFt > ENERGY_ACCURATE_MAX_FT);
       showAltNote(red.altNote, inEnergy && values.redAltFt > ENERGY_ACCURATE_MAX_FT);
       energySection.hidden = !inEnergy;
-      checkSection.hidden = !inEnergy;
+      const showCheck = inEnergy && typeof window !== 'undefined' && Boolean(window.location?.search?.includes('debug=aero'));
+      checkSection.hidden = !showCheck;
       energyAbout.hidden = !inEnergy;
       if (footer.textContent !== (inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER)) footer.textContent = inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER;
       // The pass, the pass note and the picture use the true airspeed of the merge speed in Energy.

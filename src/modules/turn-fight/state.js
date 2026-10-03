@@ -115,7 +115,7 @@ function energyDefaults() {
     // The first view (with Energy on): start altitude and merge speed for each aircraft.
     blueAltFt: e.blueAltFt, redAltFt: e.redAltFt, blueKias: e.blueKias, redKias: e.redKias,
     // More energy settings.
-    blueMove: e.blueMove, redMove: e.redMove, mptKias: e.mptKias, hardDeckFt: e.hardDeckFt,
+    blueMove: 'tactical', redMove: 'tactical', mptKias: e.mptKias, hardDeckFt: e.hardDeckFt,
     pursuit: e.pursuit, chaseAfterHeadOn: e.chaseAfterHeadOn,
     // Model settings for checking (numbers no manual gives).
     stallKias: e.stallKias, shakerPct: Math.round(e.shakerFrac * 100), stallSec: e.stallSec,
@@ -151,7 +151,7 @@ export const DEFAULTS = Object.freeze({
   ...V6_DEFAULT_SETUP,
   separationNm: 1.2,
   ...START_DEFAULTS, // R28: head-on, level, turns at the pass
-  energy: false,
+  energy: true,
   ...energyDefaults(),
   heightScale: 2,
   playbackRate: 1,
@@ -434,7 +434,7 @@ export function setupKey(values) {
   return JSON.stringify(values.energy ? { energy: true, ...energySetupFrom(values) } : setupFrom(values));
 }
 
-/** What "Reset to Standard Defaults" (D384) puts back: the fight, Energy (off, with every Energy setting) and the display settings (paint too), not which columns are open or whether the 3D view is showing. */
+/** What "Reset to Standard Defaults" (D384) puts back: the fight, Energy (on, with every Energy setting) and the display settings (paint too), not which columns are open or whether the 3D view is showing. */
 export function standardDefaults() {
   const patch = {};
   for (const key of [...FIGHT_KEYS, 'energy', ...ENERGY_KEYS, 'heightScale', 'playbackRate', 'dataTags', 'paint']) patch[key] = DEFAULTS[key];

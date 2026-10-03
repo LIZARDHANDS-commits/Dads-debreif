@@ -22,11 +22,11 @@ import {
   START_DEFAULTS, TACTICAL_PRESETS,
 } from '../../../src/modules/turn-fight/state.js';
 
-test('every setting opens at Harvard default: 2-circle, 1.2 NM, 220 KTAS, 5 G, extras off, pitch 0°, height 2×, playback 1×', () => {
+test('every setting opens at Harvard default: 2-circle, 1.2 NM, 220 KTAS, 5 G, BFM Energy on, pitch 0°, height 2×, playback 1×', () => {
   assert.equal(DEFAULTS.circles, 2);
   assert.equal(DEFAULTS.separationNm, 1.2);
   assert.deepEqual([DEFAULTS.blueKt, DEFAULTS.redKt, DEFAULTS.blueG, DEFAULTS.redG], [220, 220, 5, 5]);
-  assert.deepEqual([DEFAULTS.chase, DEFAULTS.vertical, DEFAULTS.energy], [false, false, false]);
+  assert.deepEqual([DEFAULTS.chase, DEFAULTS.vertical, DEFAULTS.energy], [false, false, true]);
   assert.deepEqual([DEFAULTS.bluePitchDeg, DEFAULTS.redPitchDeg], [0, 0]);
   assert.equal(DEFAULTS.heightScale, 2);
   assert.equal(DEFAULTS.playbackRate, 1);
@@ -78,15 +78,16 @@ test('setupFrom picks only the fight\'s numbers; display settings are not part o
 });
 
 test('changing the setup changes its key; playback speed, height scale and column state do not (#20)', () => {
-  const base = setupKey(DEFAULTS);
+  const simpleDefaults = { ...DEFAULTS, energy: false };
+  const base = setupKey(simpleDefaults);
   for (const change of [{ circles: 1 }, { separationNm: 3 }, { blueKt: 230 }, { redKt: 230 }, { blueG: 6 }, { redG: 6 },
     { chase: true }, { vertical: true }, { bluePitchDeg: 10 }, { redPitchDeg: -10 },
     { startAtaDeg: 30 }, { startAaDeg: 90 }, { redAboveFt: 1000 }, { turnsAt: 'once' }]) {
-    assert.notEqual(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
+    assert.notEqual(setupKey({ ...simpleDefaults, ...change }), base, JSON.stringify(change));
   }
   // Switching between 2D and 3D, or the paint, never starts the fight again.
   for (const change of [{ heightScale: 4 }, { heightScale: 1 }, { playbackRate: 4 }, { setupOpen: false }, { resultOpen: false }, { view: '3d' }, { paint: 'ship' }, { dataTags: false }]) {
-    assert.equal(setupKey({ ...DEFAULTS, ...change }), base, JSON.stringify(change));
+    assert.equal(setupKey({ ...simpleDefaults, ...change }), base, JSON.stringify(change));
   }
 });
 
