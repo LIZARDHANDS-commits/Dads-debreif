@@ -317,6 +317,17 @@
   font-size: var(--text-md);
 }
 
+[data-module='traffic'] .bar-runway {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
 [data-module='traffic'] .bar-clock {
   margin: 0 0 0 var(--space-1);
   font-family: var(--font-mono);
@@ -549,6 +560,27 @@
   background: var(--bad, #ef4444);
   color: #fff;
   border-color: var(--bad, #ef4444);
+}
+
+[data-module='traffic'] .aircraft-intent-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+}
+
+[data-module='traffic'] .aircraft-intent-select {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  min-height: 0;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
 }
 
 [data-module='traffic'] .aircraft-swatch {

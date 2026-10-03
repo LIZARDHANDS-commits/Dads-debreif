@@ -30,6 +30,7 @@ import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 import { tickAircraft, initMode } from './tick-aircraft.js';
+import { makePflFromArea } from './nav-plans.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -132,6 +133,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.routeId = route.id;
     a.active = true;
     a.landed = false;
+    a.intent = a.intent ?? (route?.landOdds === 1 ? 'full_stop' : 'touch_and_go');
     a.distFt = pointDistFt(route, Math.min(+a.startIndex || 0, route.points.length - 1), routeOptions());
     a.lastLap = -1;
     a.splitTaken = {};
@@ -152,7 +154,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.iasKt = p.kt ?? a.fallbackKt;
     a.headingDeg = p.headingDeg;
     a.bankDeg = 0;
-    const isClosedPatternStart = route.id === 'PAT1' && (a.startIndex === 1 || /closed\s*pattern/i.test(route.points?.[a.startIndex]?.label));
+    const startWp = route.points?.[a.startIndex];
+    const isClosedPatternStart = route.id === 'PAT1' && (startWp?.tag === 'departure_end' || a.startIndex === 1 || /closed\s*pattern/i.test(startWp?.label || ''));
     if (isClosedPatternStart) {
       a.mode = 'PHYSICS';
       a.phase = 'closed_pattern';
@@ -162,12 +165,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.x = route.points[a.startIndex]?.x ?? -4066.03;
       a.y = route.points[a.startIndex]?.y ?? 680.56;
     } else {
-      const isBrkPoint = route.id === 'PAT1' && (a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(route.points?.[a.startIndex]?.label));
+      const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
       a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
     }
     a.trackDeg = a.headingDeg;
     a.crabDeg = 0;
     a.gsKt = a.iasKt;
+    a.tag = startWp?.tag ?? p.tag ?? route.points?.[p.seg]?.tag;
     return a;
   }
 
@@ -175,15 +179,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. Like V6's it notes,
    * once, the height of its start point (2,500 ft if that has none), for a route with no legs.
    */
-  function makeAircraft({ id, type, routeId, startIndex, startsAt }) {
-    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt });
+  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent }) {
+    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent });
   }
 
   /** An aircraft from a `setup.aircraft` entry. */
-  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec });
+  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec, intent: spec.intent });
 
   /** What an aircraft is before it flies: enough to make it again with `toStart`. */
-  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt });
+  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt, intent: a.intent });
   const freshFrom = (rec) => toStart({ ...rec });
 
   /** A callsign is in use if an aircraft has it now or a spawn still to come (the run was rewound past it) will give it. */
@@ -215,9 +219,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const wrapped = newLap > oldLap || (newDist % lengthFt) < (oldDist % lengthFt);
     if (wrapped && a.lastLap !== newLap) {
       a.lastLap = newLap;
-      if (dice() < (route.landOdds ?? 0.2)) {
+      if (a.intent === 'full_stop' || (route.landOdds === 1.0 && a.intent !== 'go_around')) {
         a.active = false;
         a.landed = true;
+        a.status = 'landed';
+        a.phase = 'full_stop';
         a.alt = 1880;
         a.mode = 'RAIL';
         delete a._blendStart;
@@ -265,11 +271,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.distFt = closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt);
       const nextP = whereIs(a, target);
       a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
-      // TR-08: a straight-in joining at the threshold (first point) rolls landing decision once
+      // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
       if (mergeIndex === 0) {
-        if (dice() < (target.landOdds ?? 0.2)) {
+        if (a.intent === 'full_stop' || (target.landOdds === 1.0 && a.intent !== 'go_around')) {
           a.active = false;
           a.landed = true;
+          a.status = 'landed';
+          a.phase = 'full_stop';
+        } else {
+          a.phase = 'touch_and_go';
         }
       }
       return;
@@ -297,6 +307,23 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           handleRouteEnd(a, a.distFt - len);
         }
       }
+
+      // Fallback Doctrine: continuous pattern training loop
+      if (a.active && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
+        if (!a.command) {
+          // If no contingency command is active, climb to 2,500 ft MSL along runway heading (298°),
+          // turn crosswind climbing to 3,500 ft MSL, and rejoin outer pattern for another overhead break.
+          a.phase = 'takeoff_climb';
+          a.targetAltFt = 2500;
+          a.targetSpeedKt = 140;
+          a.headingDeg = 298;
+          const pat = (route && route.kind === 'pattern') ? route : (setup.routes.find((r) => r.kind === 'pattern') || setup.routes[0]);
+          if (pat && a.routeId !== pat.id) {
+            a.routeId = pat.id;
+          }
+        }
+      }
+
       if (steps % TRAIL_EVERY_STEPS === 0) {
         a.trail.push({ x: a.x, y: a.y });
         if (a.trail.length > TRAIL_POINTS) a.trail.shift();
@@ -577,9 +604,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
      * Adds an aircraft. `type` is a V6 type name (default CT-156), `routeId` a route (default the first),
      * `startPoint` counts from 1 as on screen (default 1; past the last point it is the last), `delaySec`
      * is from now (default 0). Returns its callsign. `id` picks the callsign.
-     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string }} [spec]
+     * @param {{ type?: string, routeId?: string, startPoint?: number, delaySec?: number, id?: string, intent?: string }} [spec]
      */
-    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id } = {}) {
+    spawn({ type = 'CT-156', routeId, startPoint = 1, delaySec = 0, id, intent } = {}) {
       settle();
       if (!TYPE_COLORS[type]) throw new RangeError(`unknown aircraft type ${type}`);
       const route = routeId === undefined ? setup.routes[0] : routeById(routeId);
@@ -588,9 +615,25 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!Number.isInteger(startPoint) || startPoint < 1) throw new RangeError(`the start point counts from 1, not ${startPoint}`);
       if (!Number.isFinite(delaySec)) throw new RangeError(`the delay must be a number of seconds, not ${delaySec}`);
       if (id !== undefined && inUse(id)) throw new RangeError(`callsign ${id} is in use`);
-      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec }));
+      const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec, intent }));
       happen({ kind: 'spawn', rec });
       return rec.id;
+    },
+
+    /**
+     * A new aircraft already in an engine-out glide at a point in the training area (Phase 2.5):
+     * `radialDeg` °T and `distNm` NM from the field, `altFt` MSL, at 125 KIAS heading back toward the field,
+     * then the PFL command takes it to High Key and onto the PFL rails. Returns its callsign.
+     * @param {{ type?: string, radialDeg?: number, distNm?: number, altFt?: number, id?: string }} [spec]
+     */
+    spawnPflFromArea({ type = 'CT-156', radialDeg = 180, distNm = 5, altFt = 7500, id } = {}) {
+      const { spawn: from } = makePflFromArea(radialDeg, distNm, altFt); // clamps the three inputs to their ranges
+      const route = setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
+      const callsign = this.spawn({ type, routeId: route?.id, startPoint: 1, delaySec: 0, id });
+      const a = aircraft.find((ac) => ac.id === callsign);
+      Object.assign(a, { x: from.x, y: from.y, alt: from.alt, iasKt: from.iasKt, headingDeg: from.headingDeg, bankDeg: 0 });
+      this.command(callsign, 'pfl_current');
+      return callsign;
     },
 
     /**
@@ -665,6 +708,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a._blendTarget;
         delete a._blendTimer;
         a.phase = 'breakout';
+      } else if (action === 'closed_pattern') {
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        a.mode = 'PHYSICS';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'closed_pattern';
       } else if (action === 'climb_high_key' || action === 'climb_low_key') {
         a.command = action;
         a.landed = false;
@@ -720,6 +772,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return true;
     },
 
+    /** Sets the landing intent for an active aircraft: 'touch_and_go', 'full_stop', 'go_around'. */
+    setIntent(aircraftId, intent) {
+      settle();
+      const a = aircraft.find((ac) => ac.id === aircraftId);
+      if (!a) return false;
+      a.intent = intent;
+      return true;
+    },
+
     nextCallsign,
 
     /** What is where right now. */
@@ -739,6 +800,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           headingDeg,
           bankDeg: a.bankDeg ?? 0,
           phase: a.phase ?? 'initial',
+          tag: a.tag ?? p.tag ?? route?.points?.[p.seg]?.tag,
           trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,
           crabDeg: a.crabDeg ?? 0,
           groundSpeedKt: a.gsKt ?? iasKt,
@@ -746,6 +808,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           status: statusOf(a), startsAt: a.startsAt,
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
+          intent: a.intent ?? 'touch_and_go',
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

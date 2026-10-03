@@ -96,9 +96,41 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (message.textContent !== text) message.textContent = text;
   };
 
+  const pointSelect = h('select', {
+    id: 'traffic-spawn-start-point',
+    onchange: () => {
+      const val = parseInt(pointSelect.value, 10) || 1;
+      settings.update({ spawnStartPoint: val });
+    },
+  });
+
+  const fillStartPoints = () => {
+    clear(pointSelect);
+    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
+    const routesToUse = validRoutes.length > 0 ? validRoutes : setup.routes;
+    const routeId = spawnRouteId(settings.get().spawnRoute, routesToUse);
+    const route = routesToUse.find((r) => r.id === routeId);
+    const pts = route?.points ?? [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const idx = i + 1;
+      const isClosed = route?.id === 'PAT1' && i === 1;
+      const label = p.label || p.tag || `Point ${idx}`;
+      const extra = isClosed ? ' (Closed Pattern)' : '';
+      const alt = isClosed ? 2400 : (p.alt ?? 2500);
+      const kt = isClosed ? 140 : (p.kt ?? 120);
+      pointSelect.appendChild(h('option', { value: String(idx) }, `${idx}: ${label}${extra} (${alt} ft, ${kt} kt)`));
+    }
+    const current = settings.get().spawnStartPoint ?? 1;
+    pointSelect.value = String(current);
+  };
+
   const routeSelect = h('select', {
     id: 'traffic-spawn-route',
-    onchange: () => settings.update({ spawnRoute: routeSelect.value }),
+    onchange: () => {
+      settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
+      fillStartPoints();
+    },
   });
   const fillRoutes = () => {
     clear(routeSelect);
@@ -107,6 +139,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     routeSelect.value = spawnRouteId(settings.get().spawnRoute, visibleRoutes.length > 0 ? visibleRoutes : setup.routes);
   };
   fillRoutes();
+  fillStartPoints();
 
   // The spawner keeps its own choice of route: picking a route on the left doesn't change it (#45).
   function spawn(pair) {
@@ -156,6 +189,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     } else {
       pointCaption.textContent = '';
     }
+    if (vals?.spawnStartPoint !== undefined && pointSelect.value !== String(vals.spawnStartPoint)) {
+      pointSelect.value = String(vals.spawnStartPoint);
+    }
   };
   settings.subscribe?.(updatePointCaption);
   updatePointCaption();
@@ -163,13 +199,50 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
   const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
+
+  // PFL From Area: an aircraft already gliding with the engine out, somewhere in the training area. Closed until asked for.
+  const pflBox = (id, label, unit, value, min, max) => {
+    const input = h('input', { id, type: 'number', value: String(value), min: String(min), max: String(max), step: '1', inputmode: 'numeric' });
+    return { input, element: h('div', { class: 'control control-number' }, h('label', { for: id }, `${label} (${unit})`), input) };
+  };
+  const pflRadial = pflBox('traffic-pfl-radial', 'Radial', '°T', 180, 0, 360);
+  const pflDist = pflBox('traffic-pfl-dist', 'Distance', 'NM', 5, 1, 30);
+  const pflAlt = pflBox('traffic-pfl-alt', 'Altitude', 'ft MSL', 7500, 3000, 15000);
+  const spawnPfl = () => {
+    const [radialDeg, distNm, altFt] = [pflRadial, pflDist, pflAlt].map((b) => Number(b.input.value));
+    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL From Area: radial, distance and altitude must be numbers.');
+    if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
+    try {
+      const id = sim.spawnPflFromArea({ type: settings.get().spawnType, radialDeg, distNm, altFt });
+      say(`Added ${id}: engine out, inbound to High Key.`);
+    } catch (err) {
+      if (!(err instanceof RangeError)) console.error('Adding a PFL aircraft failed:', err);
+      say(engineProblem(err));
+    }
+    onChange();
+  };
+  const pflPanel = h(
+    'details',
+    { class: 'spawner-pfl' },
+    h('summary', {}, 'PFL From Area'),
+    pflRadial.element,
+    pflDist.element,
+    pflAlt.element,
+    h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL'),
+  );
+  const startPointControl = h(
+    'div',
+    { class: 'control control-select' },
+    h('label', { for: pointSelect.id }, 'Start at point'),
+    pointSelect,
+  );
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
     h('div', { class: 'spawner-head' }, h('h3', { class: 'traffic-subtitle' }, 'Spawn'), callsignBadge),
     controls.select('spawnType', { label: 'Type', options: SPAWN_TYPES.map((type) => [type, type]) }),
     h('div', { class: 'control control-select' }, h('label', { for: routeSelect.id }, 'Route'), routeSelect),
-    controls.number('spawnStartPoint', { label: 'Start at point', min: 1, max: MOST_POINTS, step: 1 }),
+    startPointControl,
     pointCaption,
     controls.number('spawnDelayS', { label: 'Delay', unit: 's', min: LIMITS.spawnDelayS[0], max: LIMITS.spawnDelayS[1], step: 1 }),
     h(
@@ -179,6 +252,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       pairButton,
       h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
     ),
+    pflPanel,
     message,
   );
 
@@ -244,6 +318,20 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             },
             'Breakout',
           );
+          const closedPatternBtn = h(
+            'button',
+            {
+              type: 'button',
+              class: `button-tiny${row.command === 'closed_pattern' ? ' is-active' : ''}`,
+              title: 'Closed Pattern: climb immediately to 2,400 ft, 140 kt, 60° bank turn into closed downwind',
+              onclick: (e) => {
+                e?.stopPropagation?.();
+                sim.command(row.id, 'closed_pattern');
+                onChange?.();
+              },
+            },
+            'Closed Pattern',
+          );
           const highKeyBtn = h(
             'button',
             {
@@ -293,7 +381,28 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             },
             'Go-around',
           );
-          children.push(h('div', { class: 'aircraft-actions' }, breakoutBtn, highKeyBtn, pflBtn, goAroundBtn));
+          const intentSelect = h(
+            'select',
+            {
+              class: 'aircraft-intent-select',
+              'aria-label': `Landing behaviour for ${row.id}`,
+              onchange: (e) => {
+                e?.stopPropagation?.();
+                const target = e.target;
+                if (target && target.value) {
+                  sim.setIntent?.(row.id, target.value);
+                  onChange?.();
+                }
+              },
+            },
+            h('option', { value: 'touch_and_go' }, 'Touch & Go'),
+            h('option', { value: 'full_stop' }, 'Full Stop'),
+            h('option', { value: 'go_around' }, 'Go-around'),
+          );
+          intentSelect.value = row.intent || 'touch_and_go';
+          const intentWrap = h('label', { class: 'aircraft-intent-wrap' }, 'Landing: ', intentSelect);
+
+          children.push(h('div', { class: 'aircraft-actions' }, breakoutBtn, closedPatternBtn, highKeyBtn, pflBtn, goAroundBtn, intentWrap));
         }
         listBody.appendChild(
           h(
@@ -334,6 +443,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     /** The routes changed (one was made, renamed or removed): the spawner's route list follows. */
     routesChanged() {
       fillRoutes();
+      fillStartPoints();
       updatePointCaption();
     },
   };

@@ -3,11 +3,32 @@
 //
 // Defines circuit and pattern speeds (KIAS) for the 15 Wing Moose Jaw aircraft:
 //   - CT-156 Harvard II (default trainer)
-//   - CT-157 Siskin II (Pilatus PC-21)
-//   - CT-102 Astra II (Grob G 120TP)
-//   - CT-114 Tutor (Snowbirds jet)
+//   - CT-102B Astra II (Grob G 120TP) — elementary trainer (CT-102 alias)
+//   - CT-157 Siskin II (Pilatus PC-21) — advanced turboprop trainer
 //   - CT-155 Hawk (lead-in fighter trainer)
+//   - CT-114 Tutor (Snowbirds demo jet)
 //   - CF-188 Hornet (tactical fighter)
+
+const ct102bProfile = Object.freeze({
+  id: 'CT-102B',
+  name: 'Astra II',
+  designation: 'Grob G 120TP',
+  role: 'Elementary Flight Trainer',
+  speeds: Object.freeze({
+    entry: 180,
+    break: 180,
+    pattern: 180,
+    closed: 120,
+    downwind: 120,
+    base: 120,
+    finalTurn: 100,
+    approach: 100,
+    threshold: 80,
+    landing: 80,
+  }),
+  color: '#ffcc66',
+  fallbackKt: 150,
+});
 
 /** Standard aircraft type profiles and circuit speeds (KIAS). */
 export const AIRCRAFT_TYPES = Object.freeze({
@@ -31,6 +52,8 @@ export const AIRCRAFT_TYPES = Object.freeze({
     color: '#7ee787',
     fallbackKt: 180,
   }),
+  'CT-102B': ct102bProfile,
+  'CT-102': ct102bProfile,
   'CT-157': Object.freeze({
     id: 'CT-157',
     name: 'Siskin II',
@@ -51,25 +74,25 @@ export const AIRCRAFT_TYPES = Object.freeze({
     color: '#a5d6ff',
     fallbackKt: 125,
   }),
-  'CT-102': Object.freeze({
-    id: 'CT-102',
-    name: 'Astra II',
-    designation: 'Grob G 120TP',
-    role: 'Elementary Flight Trainer',
+  'CT-155': Object.freeze({
+    id: 'CT-155',
+    name: 'Hawk',
+    designation: 'BAE Hawk 115',
+    role: 'Fighter Lead-In Trainer',
     speeds: Object.freeze({
-      entry: 180,
-      break: 180,
-      pattern: 180,
-      closed: 120,
-      downwind: 120,
-      base: 120,
-      finalTurn: 100,
-      approach: 100,
-      threshold: 80,
-      landing: 80,
+      entry: 300,
+      break: 300,
+      pattern: 300,
+      closed: 175,
+      downwind: 160,
+      base: 175,
+      finalTurn: 150,
+      approach: 150,
+      threshold: 130,
+      landing: 130,
     }),
-    color: '#ffcc66',
-    fallbackKt: 150,
+    color: '#d29922',
+    fallbackKt: 250,
   }),
   'CT-114': Object.freeze({
     id: 'CT-114',
@@ -90,26 +113,6 @@ export const AIRCRAFT_TYPES = Object.freeze({
     }),
     color: '#ff6b6b',
     fallbackKt: 230,
-  }),
-  'CT-155': Object.freeze({
-    id: 'CT-155',
-    name: 'Hawk',
-    designation: 'BAE Hawk 115',
-    role: 'Fighter Lead-In Trainer',
-    speeds: Object.freeze({
-      entry: 300,
-      break: 300,
-      pattern: 300,
-      closed: 175,
-      downwind: 160,
-      base: 175,
-      finalTurn: 150,
-      approach: 150,
-      threshold: 130,
-      landing: 130,
-    }),
-    color: '#d29922',
-    fallbackKt: 250,
   }),
   'CF-188': Object.freeze({
     id: 'CF-188',
@@ -143,8 +146,8 @@ export const TYPE_FALLBACK_KT = Object.freeze(
   Object.fromEntries(Object.entries(AIRCRAFT_TYPES).map(([id, t]) => [id, t.fallbackKt]))
 );
 
-/** Default types offered in the spawner (matching original V6 order for compatibility). */
-export const SPAWN_TYPES = Object.freeze(['CT-157', 'CT-156', 'CT-102', 'CT-114']);
+/** Default types offered in the spawner with primary trainer CT-156 first. */
+export const SPAWN_TYPES = Object.freeze(['CT-156', 'CT-102B', 'CT-157', 'CT-155', 'CT-114', 'CF-188']);
 
 /** All supported types including Hawk and Hornet. */
 export const ALL_AIRCRAFT_TYPES = Object.freeze(Object.keys(AIRCRAFT_TYPES));

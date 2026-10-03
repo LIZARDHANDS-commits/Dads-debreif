@@ -13,20 +13,12 @@
 // data. All names go in as text (h, textContent), never as HTML.
 import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
-import { createMenu } from './playback-bar.js';
 
 export const SIMPLIFIED_NOTE = 'Simplified: aircraft fly their routes at set speeds, no avoiding action.';
 
-/** What + New route offers, in order. `needs` is a feature that has to exist. */
-export const NEW_ROUTE_CHOICES = Object.freeze([
-  { kind: 'pattern', label: 'Pattern' },
-  { kind: 'entry', label: 'Entry' },
-  { kind: 'split', label: 'Split' },
-  { kind: 'pfl', label: 'PFL', needs: 'pfl' },
-]);
-
-/** The choices to list, leaving out those whose feature isn't built yet: available = { pfl }. */
-export const newRouteChoices = (available = {}) => NEW_ROUTE_CHOICES.filter((c) => !c.needs || available[c.needs] === true);
+/** Backwards-compatibility stub: published military procedures are immutable. */
+export const NEW_ROUTE_CHOICES = Object.freeze([]);
+export const newRouteChoices = () => NEW_ROUTE_CHOICES;
 
 /** The second line of a route's row: where it joins ("→ Pattern 1 P8", "P6 → P1"), or its kind. */
 export const routeDetail = (row) => row.link || row.kind;
@@ -40,33 +32,17 @@ export const routeDetail = (row) => row.link || row.kind;
  */
 export function createLayout({ bar, listen, on = {}, available = {}, filterSplits = false }) {
   let selectedId = null;
-  let closedRoute = null; // the route whose details were just closed with ✕, to give focus back to its row
+  let closedRoute = null;
 
   // Slots for pieces built elsewhere; an empty one takes no room.
   const slot = (name) => h('div', { class: `traffic-slot traffic-slot-${name}` });
   const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
 
-  // Left column: Profiles and notes (closed: one line), the routes list, + New route, and the selected route's point table.
+  // Left column: Profiles and notes (closed: one line), and the routes list.
   const list = h('ul', { class: 'route-list' });
-  const empty = h('p', { class: 'route-empty' }, 'No routes yet. Use + New route to make one.');
-  const newRoute = createMenu({
-    label: '+ New route',
-    listen,
-    children: newRouteChoices(available).map((choice) =>
-      h('button', { type: 'button', class: 'button menu-item', onclick: () => {
-        newRoute.setOpen(false);
-        newRoute.button.focus(); // the choice is gone, so keyboard focus goes back to the button
-        on.newRoute?.(choice.kind);
-      } }, choice.label)),
-  });
-  const tableTitle = h('h3', { class: 'point-table-title' });
-  const tableClose = h('button', { type: 'button', class: 'button point-table-close', 'aria-label': 'Close route details', onclick: () => {
-    closedRoute = selectedId;
-    on.selectRoute?.(null);
-  } }, '✕');
-  const tableSection = h('section', { class: 'point-table-section', hidden: true }, h('div', { class: 'point-table-head' }, tableTitle, tableClose), slots.pointTable);
+  const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
   const routesPanel = createPanel({ title: 'Routes', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
-  routesPanel.body.append(slots.profiles, list, empty, newRoute.element, tableSection, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
+  routesPanel.body.append(slots.profiles, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
   const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Routes' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.
@@ -144,9 +120,6 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
       const displayRows = filterSplits ? rows.filter((row) => row && row.kind !== 'split') : rows.filter(Boolean);
       selectedId = displayRows.some((row) => row.id === selected) ? selected : null;
       renderRoutes(displayRows);
-      const picked = displayRows.find((row) => row.id === selectedId);
-      tableSection.hidden = !picked;
-      tableTitle.textContent = picked ? picked.name : '';
     },
     /** Opens or collapses a side column ('routes' or 'aircraft') without calling toggleColumn. */
     setColumnOpen(name, open) {

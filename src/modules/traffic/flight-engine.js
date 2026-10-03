@@ -409,17 +409,27 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
     }
 
     case 'landing': {
-      // Explicit landing probability roll: 20% full stop, 80% touch-and-go
-      const roll = aircraft.diceRoll ?? Math.random();
-      if (roll < 0.20) {
+      // Deterministic intent evaluation (Stream D - Deterministic Doctrine)
+      const intent = aircraft.intent || 'touch_and_go';
+      if (intent === 'full_stop') {
         aircraft.phase = 'full_stop';
+        aircraft.status = 'landed';
         aircraft.landed = true;
         aircraft.active = false;
-        aircraft.status = 'landed';
-      } else {
-        aircraft.phase = 'takeoff_climb';
+      } else if (intent === 'go_around') {
+        aircraft.phase = 'go_around';
         aircraft.landed = false;
         aircraft.active = true;
+        aircraft.targetAltFt = 2500;
+        aircraft.targetSpeedKt = 140;
+        aircraft.targetBankDeg = 0;
+      } else {
+        // 'touch_and_go' (or unassigned/default)
+        aircraft.phase = 'touch_and_go';
+        aircraft.landed = false;
+        aircraft.active = true;
+        aircraft.iasKt = 140;
+        aircraft.kt = 140;
         aircraft.targetSpeedKt = 140;
         aircraft.targetAltFt = 2500;
         aircraft.targetBankDeg = 0;
@@ -427,15 +437,32 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
       break;
     }
 
+    case 'touch_and_go':
     case 'takeoff_climb':
     case 'climb': {
-      // Past departure end (x <= -4000)
-      if (aircraft.x <= -4000) {
-        aircraft.phase = 'closed_pattern';
-        aircraft.turnAccumDeg = 0;
-        aircraft.targetBankDeg = -50; // 50° left bank climb
-        aircraft.targetAltFt = 3500;
-        aircraft.targetSpeedKt = 140;
+      // Past departure end (e.g. past x <= -3000 ft or climbout)
+      if (aircraft.x <= -3000) {
+        if (aircraft.command === 'closed_pattern') {
+          aircraft.phase = 'closed_pattern';
+          aircraft.turnAccumDeg = 0;
+          aircraft.targetBankDeg = -50; // 50° left bank climb
+          aircraft.targetAltFt = 3500;
+          aircraft.targetSpeedKt = 140;
+        } else if (!aircraft.command) {
+          // Fallback Doctrine: if no contingency command is active,
+          // it climbs to 2,500 ft MSL along runway heading (298°), turns crosswind
+          // climbing to 3,500 ft MSL, and rejoins the outer pattern for another overhead break
+          if (aircraft.alt < 2500) {
+            aircraft.phase = 'takeoff_climb';
+            aircraft.targetAltFt = 2500;
+            aircraft.targetSpeedKt = 140;
+            aircraft.targetBankDeg = 0;
+          } else {
+            aircraft.phase = 'climb';
+            aircraft.targetAltFt = 3500;
+            aircraft.targetSpeedKt = 180;
+          }
+        }
       }
       break;
     }
@@ -544,6 +571,7 @@ export function initAircraftState(spawnSpec = {}, navPlan = null, env = null) {
     landed: false,
     engineFailed: spawnSpec.engineFailed || false,
     command: spawnSpec.command || null,
+    intent: spawnSpec.intent || 'touch_and_go',
     distFt: spawnSpec.distFt ?? 0,
     turnAccumDeg: spawnSpec.turnAccumDeg ?? 0,
     trail: spawnSpec.trail || [],

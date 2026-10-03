@@ -70,10 +70,10 @@ function setup({ browser = fakeBrowser(), current, prefill = [] } = {}) {
 }
 const saved = (name) => ({ ...structuredClone(BUILT_IN[0].profile), name });
 
-test('it is a closed section titled Profiles and notes, so the first look stays simple', () => {
+test('it is a closed section titled Scenarios and notes, so the first look stays simple', () => {
   const { el } = setup();
-  assert.equal(TITLE, 'Profiles and notes');
-  assert.equal(words(el.childNodes[0]), 'Profiles and notes');
+  assert.equal(TITLE, 'Scenarios and notes');
+  assert.equal(words(el.childNodes[0]), 'Scenarios and notes');
   const toggle = tagged(el, 'BUTTON')[0];
   assert.equal(toggle.getAttribute('aria-expanded'), 'false');
 });

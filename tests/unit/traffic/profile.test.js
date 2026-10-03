@@ -61,7 +61,7 @@ test('each built-in profile has its data file\'s routes, aircraft and anchor exa
     assert.equal(entry.profile.seed, 1);
     assert.equal(entry.profile.notes, '');
     const s = entry.profile.settings;
-    assert.equal(s.speed, 8);
+    assert.equal(s.speed, entry.id === 'moose-jaw-v6' ? 8 : 1);
     assert.equal(s.layerPhoto, true);
     assert.equal(s.photoTrim, 1.2);
     assert.equal(s.photoOpacityPct, 100);
@@ -256,11 +256,11 @@ test('links: an entry or split must join a pattern that is there, at a point tha
   [raw, r] = entry();
   r.attachTo = 5;
   refused(raw, /joins something that is not a route/);
-  const split = good();
+  const split = clone(BUILT_IN[1].profile);
   const s = split.routes.find((x) => x.kind === 'split');
   s.sourceRoute = 'NOPE';
   refused(split, /joins a route that is not there/);
-  const odds = good();
+  const odds = clone(BUILT_IN[1].profile);
   odds.routes.find((x) => x.kind === 'split').splitOdds = 2;
   refused(odds, /splitOdds that is not from 0 to 1/);
   // A route that has been left "Not linked" (an empty link) is fine.

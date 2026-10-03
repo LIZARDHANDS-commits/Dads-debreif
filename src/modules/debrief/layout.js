@@ -227,32 +227,8 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
   ], { compact: true });
   // Tools: each opens its own panel below the stage and closes it again (#37).
   const toolsMenu = menu('Tools', 'debrief-tools', [
-    controls.checkbox('emOpen', { label: 'EM chart' }),
     controls.checkbox('tennisOpen', { label: 'Tennis ball' }),
   ]);
-
-  // The EM chart's panel, below the stage so it never covers the map (#37).
-  const emCanvas = h('canvas', { class: 'debrief-em-canvas' });
-  const emNote = h('p', { class: 'debrief-em-note' });
-  const emPanel = h(
-    'section',
-    { class: 'debrief-em', 'aria-label': 'EM chart', hidden: true },
-    emCanvas,
-    h(
-      'div',
-      { class: 'debrief-em-side' },
-      h('h2', {}, 'EM chart'),
-      controls.select('emChart', { label: 'Chart', options: [
-        { value: 'auto', label: 'Nearest the formation' },
-        { value: '6500', label: '6,500 ft' },
-        { value: '8000', label: '8,000 ft' },
-        { value: '13000', label: '13,000 ft' },
-      ] }),
-      controls.checkbox('emTrail', { label: 'Trail (60 s)' }),
-      h('button', { type: 'button', class: 'button', onclick: () => layout.update({ emOpen: false }) }, 'Close EM chart'),
-      emNote,
-    ),
-  );
 
   // The 3D view's settings, in 3D only (SPEC-debrief: The screen).
   const { yaw: YAW, pitch: PITCH, zoom: ZOOM } = CAMERA_LIMITS;
@@ -297,7 +273,6 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     bar.element,
     metarLine,
     savedWxLive,
-    emPanel,
   );
 
   // Formation column: the Formation card and More detail (readouts-panel.js).
@@ -431,7 +406,6 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
       shownView = values.view;
       placeOpenMenus();
     }
-    emPanel.hidden = !values.emOpen;
     const open = values.statusDetails && Boolean(flight);
     statusDetails.hidden = !open;
     statusButton.setAttribute('aria-expanded', String(open));
@@ -444,12 +418,6 @@ export function createLayout({ layout, controls, bar, canExample, listen, flight
     element,
     canvas,
     canvas3d,
-    emCanvas,
-    /** Says which chart the EM panel shows and how its numbers are found. */
-    setEmChart(altitude) {
-      const text = `${altitude.toLocaleString('en-US')} ft chart. IAS is estimated from ground speed (no wind); turn rate is from the track.`;
-      if (emNote.textContent !== text) emNote.textContent = text;
-    },
     summary: () => flightSummary(flight),
     showFlight(next) {
       flight = next;

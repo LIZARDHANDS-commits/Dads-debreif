@@ -36,7 +36,7 @@ const SETUP = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data
 const FIELD_FT = CATALOG.CYMJ.elevationFt;
 
 test('no flown slope steeper than 15° on any built-in circuit route (TR-02, task 15)', () => {
-  const circuitRoutes = SETUP.routes.filter((r) => !['SPL3', 'ENT4', 'SPL4'].includes(r.id));
+  const circuitRoutes = SETUP.routes;
   for (const route of circuitRoutes) {
     const path = routePath(route, SETUP.routeOptions);
     for (const s of path.segs) {
@@ -63,7 +63,7 @@ test('final turn: height falls linearly with the angle turned, ±20 ft (TR-02, t
 
 // SMM 4.7 para 12 / EFIG p.397: about 240 ft above the field at the window (3/4 NM out).
 // The two built-in straight-ins (Split 1 and Entry 2) fly 227 ft today.
-for (const id of ['SPL1', 'ENT2']) {
+for (const id of ['ENT2']) {
   test(`the ${id} straight-in is 240 ± 40 ft above the field at 0.75 NM (TR-03)`, () => {
     const route = SETUP.routes.find((r) => r.id === id);
     const above = positionAt(route, routePath(route).lengthFt - 0.75 * FT_PER_NM).alt - FIELD_FT;

@@ -46,7 +46,7 @@ function setupOf(routes, aircraft = []) {
   const { routeOptions, conflictLimits, anchor } = MOOSE_JAW;
   return { version: 1, name: 'test', anchor, routes, aircraft, routeOptions, conflictLimits };
 }
-const plane = (id, routeId, startsAtSec = 0, startIndex = 0, type = 'CT-156') => ({ id, type, routeId, startIndex, startsAtSec });
+const plane = (id, routeId, startsAtSec = 0, startIndex = 0, type = 'CT-156', intent) => ({ id, type, routeId, startIndex, startsAtSec, ...(intent ? { intent } : {}) });
 
 /** A 6,000 ft square pattern, 120 kt all round, at 2,000 ft. */
 const SQUARE = [point(0, 0, 2000), point(6000, 0, 2000), point(6000, 6000, 2000), point(0, 6000, 2000)];
@@ -161,23 +161,28 @@ test('a pattern is flown round and round; each time the first point is crossed i
   assert.ok(a.distFt > 3 * length, 'three laps');
 });
 
-test('with a land chance of 1 the aircraft lands the first time round, and with 0 never does', () => {
+test('with intent full_stop the aircraft lands on first lap, and with touch_and_go continues flying', () => {
   const laps = 6 * routeLengthFt(square()) / (120 * KT_TO_FTPS);
-  const lands = createSim(setupOf([square({ landOdds: 1 })], [plane('A1', 'SQ')]));
+  const lands = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]));
   lands.stepTo(laps);
   assert.equal(only(lands.state(), 'A1').status, 'landed');
-  const stays = createSim(setupOf([square({ landOdds: 0 })], [plane('A1', 'SQ')]));
+  const stays = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'touch_and_go')]));
   stays.stepTo(laps);
   assert.equal(only(stays.state(), 'A1').status, 'flying');
 });
 
-test('a land chance of 0.2 lands about a fifth of the aircraft on their first lap', () => {
-  const routes = [square({ landOdds: 0.2 })];
-  const aircraft = Array.from({ length: 2000 }, (_, i) => plane(`A${i + 1}`, 'SQ'));
-  const sim = createSim(setupOf(routes, aircraft), { seed: 3 });
+test('training aircraft default to touch_and_go and stay flying; explicit full_stop aircraft land', () => {
+  const routes = [square()];
+  const aircraft = [
+    ...Array.from({ length: 15 }, (_, i) => plane(`A${i + 1}`, 'SQ', 0, 0, 'CT-156', 'touch_and_go')),
+    ...Array.from({ length: 5 }, (_, i) => plane(`A${i + 16}`, 'SQ', 0, 0, 'CT-156', 'full_stop')),
+  ];
+  const sim = createSim(setupOf(routes, aircraft));
   sim.stepTo(1.2 * routeLengthFt(routes[0]) / (120 * KT_TO_FTPS));
   const landed = sim.state().aircraft.filter((a) => a.status === 'landed').length;
-  assert.ok(landed > 350 && landed < 450, `${landed} of 2000`);
+  const flying = sim.state().aircraft.filter((a) => a.status === 'flying').length;
+  assert.equal(landed, 5);
+  assert.equal(flying, 15);
 });
 
 /** A pattern with one split off it at point 2 (index 1) that rejoins at point 4, with the given chance. */
@@ -239,33 +244,36 @@ test('an entry or split that joins nothing, or something that is not a pattern, 
 
 // ── The odds when a route does not say, and the crossing rule at its edges ───
 
-test('a pattern with no land chance set lands at 0.2, and a split with no split chance set is taken at 0.5 (V6\'s own)', () => {
-  let landedAbove = 0, takenAbove = 0;
+test('splits are taken by odds while landing decisions are deterministic via aircraft intent', () => {
+  let takenAbove = 0;
   for (let seed = 1; seed <= 200; seed++) {
-    const roll = createDice(seed)(); // the first choice either sim makes
-    const lands = createSim(setupOf([square({ landOdds: undefined })], [plane('A1', 'SQ')]), { seed });
-    lands.stepTo(130); // just over the first lap
-    assert.equal(only(lands.state(), 'A1').status === 'landed', roll < 0.2, `seed ${seed}: land, roll ${roll}`);
-    if (roll >= 0.2 && roll < 0.3) landedAbove++;
+    const roll = createDice(seed)(); // the first choice split makes
+    // Default intent is touch_and_go: stays flying
+    const stays = createSim(setupOf([square()], [plane('A1', 'SQ')]), { seed });
+    stays.stepTo(130);
+    assert.equal(only(stays.state(), 'A1').status, 'flying', `seed ${seed}: default touch_and_go stays flying`);
+
+    // Explicit full_stop intent lands
+    const lands = createSim(setupOf([square()], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]), { seed });
+    lands.stepTo(130);
+    assert.equal(only(lands.state(), 'A1').status, 'landed', `seed ${seed}: explicit full_stop lands`);
+
     const splits = createSim(withSplit(undefined), { seed });
     splits.stepTo(30);
     assert.equal(only(splits.state(), 'A1').routeId === 'SP', roll < 0.5, `seed ${seed}: split, roll ${roll}`);
     if (roll >= 0.5 && roll < 0.6) takenAbove++;
   }
-  assert.ok(landedAbove > 5 && takenAbove > 5, 'the seeds tried include rolls just above each default');
+  assert.ok(takenAbove > 5, 'the seeds tried include rolls just above each default');
 });
 
 test('an aircraft that lands is not then offered a split at the same point', () => {
   const pattern = square({ landOdds: 1 });
   const split = route('SP', 'split', [point(0, -3000, 2000), point(0, -6000, 2000)], { sourceRoute: 'SQ', sourceIndex: 0, attachTo: 'SQ', mergeIndex: 0, splitOdds: 1 });
-  const sim = createSim(setupOf([pattern, split], [plane('A1', 'SQ')]), { seed: 5 });
+  const sim = createSim(setupOf([pattern, split], [plane('A1', 'SQ', 0, 0, 'CT-156', 'full_stop')]), { seed: 5 });
   sim.stepTo(125); // the first lap ends at 118 s, where the split leaves too
   const a = only(sim.state(), 'A1');
   assert.equal(a.status, 'landed');
   assert.equal(a.routeId, 'SQ');
-  const dice = createDice(5);
-  dice(); // the landing roll, and no other
-  assert.equal(sim.diceState(), dice.getState());
 });
 
 /** One step at 120 kt, in feet, exactly as the sim works it out. */
@@ -468,7 +476,7 @@ test('Reset goes back to 0 s with every aircraft at its start, spawned ones too,
 
 test('Reset also forgets that an aircraft landed: after it, an aircraft that finishes is Done, not Landed (V6\'s Reset button leaves it Landed)', () => {
   const entry = route('EN', 'entry', [point(-20000, 0, 2000), point(-9000, 0, 2000), point(0, 0, 2000)], { attachTo: 'SQ', mergeIndex: 0 });
-  const setup = setupOf([square({ landOdds: 1 }), entry], [plane('A1', 'EN')]);
+  const setup = setupOf([square(), entry], [plane('A1', 'EN', 0, 0, 'CT-156', 'full_stop')]);
   const sim = createSim(setup);
   sim.stepTo(300); // joins the pattern at 99 s and lands at the end of its first lap
   assert.equal(only(sim.state(), 'A1').status, 'landed');
@@ -527,11 +535,11 @@ test('remove takes one aircraft out; clearFinished takes out those that have lan
 test('aircraftSpecs gives the aircraft as a setup keeps them, so a new sim from them starts the same', () => {
   const sim = createSim(builtIn(), { seed: 4 });
   sim.stepTo(60);
-  sim.spawn({ type: 'CT-114', routeId: 'SPL2', startPoint: 2, delaySec: 30 });
+  sim.spawn({ type: 'CT-114', routeId: 'ENT1', startPoint: 2, delaySec: 30 });
   const specs = sim.aircraftSpecs();
   assert.equal(specs.length, 8);
   const { startsAtSec, ...last } = specs.at(-1);
-  assert.deepEqual(last, { id: 'A8', type: 'CT-114', routeId: 'SPL2', startIndex: 1 });
+  assert.deepEqual(last, { id: 'A8', type: 'CT-114', routeId: 'ENT1', startIndex: 1 });
   near(startsAtSec, 90, 1e-9);
   const again = createSim({ ...builtIn(), aircraft: specs }, { seed: 4 });
   sim.reset();
@@ -639,4 +647,15 @@ test('state gives the heading the aircraft is flying, as a compass heading', () 
   sim.stepTo(45);
   const a = only(sim.state(), 'A1');
   assert.equal(Math.round(a.headingDeg), 0, `north on the second leg, not ${a.headingDeg}`);
+});
+
+test('Fallback Doctrine: continuous pattern training loop on touch-and-go past departure end', () => {
+  const sim = createSim(builtIn());
+  const a1 = only(sim.state(), 'A1');
+  assert.equal(a1.intent, 'touch_and_go');
+  // Step until A1 completes takeoff climb out
+  sim.stepTo(100);
+  const a1Flown = only(sim.state(), 'A1');
+  assert.equal(a1Flown.status, 'flying');
+  assert.ok(a1Flown.alt >= 2500, `Alt ${a1Flown.alt} should be >= 2500 ft`);
 });

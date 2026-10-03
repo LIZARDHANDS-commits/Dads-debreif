@@ -12,9 +12,18 @@
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
 
+export const RUNWAYS = Object.freeze([
+  { id: '29L', label: 'Runway 29L (Active)', headingDeg: 298, active: true },
+  { id: '11R', label: 'Runway 11R (Coming soon)', headingDeg: 118, disabled: true },
+]);
+export const DEFAULT_RUNWAY = '29L';
+
 export const DEFAULTS = Object.freeze({
-  // Playback speed: 8×, as V6's built-in setup.
-  speed: 8,
+  // Active runway: CYMJ Moose Jaw Runway 29L (298°T, left-hand circuits).
+  runway: DEFAULT_RUNWAY,
+
+  // Playback speed: 1× (1x real-time speed, rebaselined from 8x).
+  speed: 1,
 
   // 2D or 3D: 2D (the ui-kit's shared default); the 3D camera starts at Fit.
   view: VIEW_DEFAULT,

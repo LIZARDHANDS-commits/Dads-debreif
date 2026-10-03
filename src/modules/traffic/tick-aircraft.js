@@ -73,6 +73,25 @@ export function resolveNavPlan(a, route) {
 }
 
 /**
+ * Evaluates whether a waypoint triggers a specific maneuver or physics phase based on its tag, label, or mode.
+ * @param {Object} [wp] - Waypoint or route point
+ * @returns {{ trigger: string | null, phase?: string, targetBankDeg?: number }}
+ */
+export function evaluateWaypointTrigger(wp) {
+  if (!wp) return { trigger: null };
+  if (wp.tag === 'break' || (/break/i.test(wp.label || '') && !/rollout|exit/i.test(wp.label || ''))) {
+    return { trigger: 'break', phase: 'break', targetBankDeg: -60 };
+  }
+  if (wp.tag === 'perch' || /perch/i.test(wp.label || '')) {
+    return { trigger: 'final_turn', phase: 'final_turn', targetBankDeg: -35 };
+  }
+  if (wp.mode === 'physics') {
+    return { trigger: 'physics', phase: wp.phase };
+  }
+  return { trigger: null };
+}
+
+/**
  * Configures the navigation plan and target state when transitioning into PHYSICS mode.
  * @param {Object} a - Aircraft state
  * @param {Object} [route] - Route definition
@@ -161,20 +180,26 @@ function setupPhysicsPlan(a, route = null, env = null, routeOptions = DEFAULT_RO
     a._activeCommand = a.command;
     return;
   }
-
   // Waypoint-based triggers (Break at Point 9, Perch at Point 11)
-  if (a.phase === 'break' || a.waypointIndex === 9 || a.waypointIndex === 10) {
+  const curWp = a.navPlan?.waypoints?.[a.waypointIndex] ?? route?.points?.[a.waypointIndex];
+  const wpTrigger = evaluateWaypointTrigger(curWp);
+  const isBreak = a.phase === 'break' || wpTrigger.trigger === 'break' || curWp?.tag === 'break' || /break/i.test(curWp?.label || '') || a.waypointIndex === 9 || a.waypointIndex === 10;
+  const isFinalTurn = a.phase === 'final_turn' || wpTrigger.trigger === 'final_turn' || curWp?.tag === 'perch' || /perch/i.test(curWp?.label || '') || a.waypointIndex === 11 || a.waypointIndex === 12;
+
+  if (isBreak) {
     a.navPlan = getNavPlan('PAT_INNER');
-    a.waypointIndex = 10;
+    const exitIdx = a.navPlan?.waypoints?.findIndex((w) => w.tag === 'break_rollout' || /break\s*(rollout|exit)/i.test(w.label));
+    a.waypointIndex = exitIdx >= 0 ? exitIdx : 10;
     a.phase = 'break';
     a.turnAccumDeg = 0;
     a.targetBankDeg = -60;
     return;
   }
 
-  if (a.phase === 'final_turn' || a.waypointIndex === 11 || a.waypointIndex === 12) {
+  if (isFinalTurn) {
     a.navPlan = getNavPlan('PAT_INNER');
-    a.waypointIndex = 12;
+    const winIdx = a.navPlan?.waypoints?.findIndex((w) => w.tag === 'window' || /window/i.test(w.label));
+    a.waypointIndex = winIdx >= 0 ? winIdx : 12;
     a.phase = 'final_turn';
     a.turnAccumDeg = 0;
     a.targetBankDeg = -35;
@@ -366,11 +391,18 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
 
   // Phase-aware guard against Initial leg ambiguity after final turn (both share heading 298°)
   if (a.phase === 'final' || a.phase === 'final_turn' || a.phase === 'short_final') {
-    const perchDist = pointDistFt(route, 11, routeOptions);
-    if (closestDist < perchDist) {
-      // If closestDist snapped to Initial leg (seg 8, < perchDist), target Window rollout
+    const pts = route?.points || route?.waypoints || [];
+    let perchIdx = pts.findIndex((p) => p.tag === 'perch' || /perch/i.test(p.label || ''));
+    if (perchIdx < 0 && pts.length > 11) perchIdx = 11;
+
+    let windowIdx = pts.findIndex((p) => p.tag === 'window' || p.tag === 'final_turn_rollout' || /window/i.test(p.label || ''));
+    if (windowIdx < 0 && pts.length > 12) windowIdx = 12;
+
+    const minFinalDist = perchIdx >= 0 ? pointDistFt(route, perchIdx, routeOptions) : pointDistFt(route, 11, routeOptions);
+    if (closestDist < minFinalDist) {
+      // If closestDist snapped to Initial leg (seg 8, < minFinalDist), target Window rollout
       const rLen = routeLengthFt(route, routeOptions);
-      const wDist = pointDistFt(route, 12, routeOptions);
+      const wDist = windowIdx >= 0 ? pointDistFt(route, windowIdx, routeOptions) : pointDistFt(route, 12, routeOptions);
       closestDist = Math.min(rLen, wDist + 3180);
     }
   }
@@ -394,6 +426,7 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
     iasKt: p.kt ?? a.iasKt ?? 140,
     distFt: targetDistFt,
     phase: p.phase ?? a.phase,
+    tag: p.tag ?? route?.points?.[p.seg]?.tag,
   };
 }
 
@@ -477,6 +510,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       if (target) {
         a.distFt = target.distFt;
         if (target.phase) a.phase = target.phase;
+        if (target.tag) a.tag = target.tag;
       }
       delete a._blendStart;
       delete a._blendTarget;
@@ -495,8 +529,13 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         setupPhysicsPlan(a, route, env, routeOptions);
         a._activeCommand = a.command;
       }
-    } else if (!a.navPlan || (a.phase === 'break' && (a.waypointIndex === 9 || !a.targetBankDeg)) || (a.phase === 'final_turn' && (a.waypointIndex === 11 || !a.targetBankDeg)) || (a.phase === 'closed_pattern' && !a._closedTarget)) {
-      setupPhysicsPlan(a, route, env, routeOptions);
+    } else {
+      const curWp = a.navPlan?.waypoints?.[a.waypointIndex] ?? route?.points?.[a.waypointIndex];
+      const isBreakWp = a.tag === 'break' || curWp?.tag === 'break' || /break/i.test(curWp?.label || '') || a.waypointIndex === 9;
+      const isPerchWp = a.tag === 'perch' || curWp?.tag === 'perch' || /perch/i.test(curWp?.label || '') || a.waypointIndex === 11;
+      if (!a.navPlan || (a.phase === 'break' && (isBreakWp || !a.targetBankDeg)) || (a.phase === 'final_turn' && (isPerchWp || !a.targetBankDeg)) || (a.phase === 'closed_pattern' && !a._closedTarget)) {
+        setupPhysicsPlan(a, route, env, routeOptions);
+      }
     }
 
     stepAircraft(a, a.navPlan, env, stepDt);
@@ -551,6 +590,11 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     a.kt = a.iasKt;
     if (p.phase) {
       a.phase = p.phase;
+    }
+    if (p.tag) {
+      a.tag = p.tag;
+    } else if (route?.points?.[p.seg]?.tag) {
+      a.tag = route.points[p.seg].tag;
     }
 
     // Calculate wind triangle for ground speed and crab angle

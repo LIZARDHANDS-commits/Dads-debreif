@@ -38,14 +38,14 @@ test('the defaults reach the setup as the spec\'s Defaults table says: 200 ft an
   const setup = {};
   applyToSetup(setup, { ...DEFAULTS });
   assert.deepEqual(setup.conflictLimits, { latFt: 200, vertFt: 200, cautionLatFt: 500, cautionVertFt: 500 });
-  assert.deepEqual(setup.routeOptions, { flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
+  assert.deepEqual(setup.routeOptions, { flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800, trueArcs: true });
 });
 
 test('changed settings are copied across', () => {
   const setup = {};
   applyToSetup(setup, { ...DEFAULTS, conflictLatFt: 300, conflictVertFt: 250, cautionLatFt: 900, cautionVertFt: 800, flyRoundedTurns: false, radiusFromG: false, manualRadiusFt: 2500 });
   assert.deepEqual(setup.conflictLimits, { latFt: 300, vertFt: 250, cautionLatFt: 900, cautionVertFt: 800 });
-  assert.deepEqual(setup.routeOptions, { flyRoundedTurns: false, radiusFromG: false, manualRadiusFt: 2500 });
+  assert.deepEqual(setup.routeOptions, { flyRoundedTurns: false, radiusFromG: false, manualRadiusFt: 2500, trueArcs: true });
 });
 
 test('numbers past their range are held to it, and things that are not numbers fall back to the default', () => {

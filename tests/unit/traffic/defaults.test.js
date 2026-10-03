@@ -26,7 +26,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../../src/ui-kit/controls.js';
-import { ALLOWED, DEFAULTS, LIMITS, SPEEDS } from '../../../src/modules/traffic/defaults.js';
+import { ALLOWED, DEFAULTS, LIMITS, SPEEDS, RUNWAYS, DEFAULT_RUNWAY } from '../../../src/modules/traffic/defaults.js';
 import { createSettings } from '../../../src/storage/settings.js';
 
 // Checks a group of settings against the values the table gives for them.
@@ -54,8 +54,8 @@ test('the shared settings store accepts the defaults and every key can be change
   }
 });
 
-test('row: playback speed starts at 8×, one of the speeds on offer (0.25× to 8×)', () => {
-  row({ speed: 8 });
+test('row: playback speed starts at 1×, one of the speeds on offer (0.25× to 8×)', () => {
+  row({ speed: 1 });
   assert.deepEqual([...SPEEDS], [0.25, 0.5, 1, 2, 4, 8]);
   assert.ok(SPEEDS.includes(DEFAULTS.speed));
 });
@@ -230,4 +230,15 @@ test('the 2D | 3D setting is the ui-kit\'s shared one: it starts at VIEW_DEFAULT
   assert.equal(settings.get().view, '3d');
   settings.update({ view: 'sideways' });
   assert.equal(settings.get().view, '3d', 'anything else is refused');
+});
+
+test('RUNWAYS defines 29L as active and 11R as coming soon/disabled', () => {
+  assert.ok(Object.isFrozen(RUNWAYS));
+  assert.equal(DEFAULT_RUNWAY, '29L');
+  assert.equal(DEFAULTS.runway, '29L');
+  assert.equal(RUNWAYS.length, 2);
+  assert.equal(RUNWAYS[0].id, '29L');
+  assert.equal(RUNWAYS[0].active, true);
+  assert.equal(RUNWAYS[1].id, '11R');
+  assert.equal(RUNWAYS[1].disabled, true);
 });

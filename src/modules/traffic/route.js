@@ -75,6 +75,7 @@ function lerp(a, b, u, seg, headingDeg) {
     g: g + ((b.g ?? 2) - g) * u,
     seg, u, headingDeg,
     phase: a.phase ?? b.phase,
+    tag: u < 0.5 ? (a.tag ?? b.tag) : (b.tag ?? a.tag),
   };
 }
 
@@ -120,11 +121,12 @@ function bez(a, b, c, u) {
     kt: v * v * (a.kt ?? 120) + 2 * v * u * (b.kt ?? 120) + u * u * (c.kt ?? 120),
     g: b.g ?? 2,
     src: b.src ?? 0,
+    tag: b.tag,
   };
 }
 
 /** A route point as the path keeps it: its place, height, speed and G, and which point it came from. */
-const pathPoint = (p, src) => ({ x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, src });
+const pathPoint = (p, src) => ({ x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, src, tag: p.tag });
 
 function circularArcPoints(start, cur, end, vin, vout, turn, steps, d, radius, nextAlt) {
   const z = vin.x * vout.y - vin.y * vout.x;
@@ -149,6 +151,7 @@ function circularArcPoints(start, cur, end, vin, vout, turn, steps, d, radius, n
       kt: cur.kt ?? 120,
       g: cur.g ?? 2,
       src: cur.src ?? 0,
+      tag: cur.tag,
     });
   }
   return pts;
@@ -187,17 +190,17 @@ function buildRoundedPoints(route, options) {
     const curAlt = isPat1Final12 ? 2810 : cur.alt;
     const turnTargetAlt = isPat1Final11 ? 2810 : (isPat1Final12 ? 2119 : next.alt);
 
-    const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i };
-    const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i };
+    const start = { ...add(cur, mul(vin, -d)), alt: curAlt, kt: cur.kt, g: cur.g, src: i, tag: cur.tag };
+    const end = { ...add(cur, mul(vout, d)), alt: turnTargetAlt, kt: cur.kt, g: cur.g, src: i, tag: cur.tag };
     out.push(start);
     const steps = options.trueArcs
       ? Math.max(16, Math.min(48, Math.ceil(turn * 20)))
       : Math.max(5, Math.min(28, Math.ceil(turn * 10)));
     if (options.trueArcs) {
-      const arc = circularArcPoints(start, { ...cur, alt: curAlt, src: i }, end, vin, vout, turn, steps, d, radius, turnTargetAlt);
+      const arc = circularArcPoints(start, { ...cur, alt: curAlt, src: i, tag: cur.tag }, end, vin, vout, turn, steps, d, radius, turnTargetAlt);
       for (const p of arc) out.push(p);
     } else {
-      for (let k = 1; k <= steps; k++) out.push(bez(start, { ...cur, src: i }, end, k / steps));
+      for (let k = 1; k <= steps; k++) out.push(bez(start, { ...cur, src: i, tag: cur.tag }, end, k / steps));
     }
   }
   if (options.trueArcs && route.id === 'PAT1') {
@@ -365,7 +368,7 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
   const pts = route.points;
   if (!segs.length) {
     const p = pts[0] ?? point(0, 0);
-    return { x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, seg: 0, u: 0, headingDeg: 0 };
+    return { x: p.x, y: p.y, alt: p.alt, kt: p.kt, g: p.g, seg: 0, u: 0, headingDeg: 0, tag: p.tag };
   }
   let f = closed ? (((distFt % total) + total) % total) : Math.max(0, Math.min(distFt, total));
   for (const s of segs) {
@@ -376,7 +379,7 @@ export function posOnRoute(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
     f -= s.len;
   }
   const last = pts[pts.length - 1];
-  return { x: last.x, y: last.y, alt: last.alt, kt: last.kt, g: last.g, seg: pts.length - 1, u: 1, headingDeg: segs[segs.length - 1].headingDeg };
+  return { x: last.x, y: last.y, alt: last.alt, kt: last.kt, g: last.g, seg: pts.length - 1, u: 1, headingDeg: segs[segs.length - 1].headingDeg, tag: last.tag };
 }
 
 /** Distance along the flown path of the place nearest to `target` (V6 `closestProg`, line 224). */
@@ -515,10 +518,10 @@ export function newSplit(id, name, patternId, routes, { color = nextRouteColor(r
  * @param {Record<string, any>} [options]
  */
 export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  const pts = route?.points;
-  if (!pts || pts.length < 12) return null;
-  const perchIdx = pts.findIndex((p) => /perch/i.test(p.label));
-  const nominal = perchIdx >= 0 ? pts[perchIdx] : pts[11];
+  const pts = route?.points || route?.waypoints;
+  if (!pts || pts.length === 0) return null;
+  const perchPoint = pts.find((p) => p.tag === 'perch' || /perch/i.test(p.label)) ?? pts[11];
+  const nominal = perchPoint;
   if (!nominal) return null;
 
   const opt = /** @type {Record<string, any>} */ (options);
@@ -589,11 +592,13 @@ let _breakCache = { wFrom: null, wKt: null, result: null };
  */
 function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   const pts = route?.points || route?.waypoints;
-  if (!pts || pts.length < 11) return null;
+  if (!pts || pts.length === 0) return null;
 
-  const th = pts[0];
-  const dep = pts[1];
-  const brk = pts[9];
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts[0];
+  const dep = pts.find((p) => p.tag === 'departure_end' || /departure/i.test(p.label)) ?? pts[1];
+  const breakPoint = pts.find((p) => p.tag === 'break' || /break/i.test(p.label)) ?? pts[9];
+  const brk = breakPoint;
+  if (!th || !dep || !brk) return null;
   const rwyLen = Math.hypot(dep.x - th.x, dep.y - th.y);
   const rwyUx = (dep.x - th.x) / rwyLen;
   const rwyUy = (dep.y - th.y) / rwyLen;
@@ -663,14 +668,17 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
       src: isRollout ? 10 : 9,
       phase: isRollout ? 'downwind' : 'break',
       headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
+      tag: isRollout ? 'break_rollout' : 'break',
     });
   }
+
+  const rolloutPt = pts.find((p) => p.tag === 'break_rollout' || /break\s*exit/i.test(p.label)) ?? pts[10];
 
   return {
     rollout: {
       x: curX,
       y: curY,
-      alt: pts[10]?.alt ?? 3500,
+      alt: rolloutPt?.alt ?? pts[10]?.alt ?? 3500,
       headingDeg: exitHeadingDeg,
     },
     arcPoints,
@@ -703,14 +711,18 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
 
   const pts = route.points.map((p) => ({ ...p }));
   const perch = computeWindPerch(route, windFromDeg, windKt, options);
-  if (perch && pts[11]) { pts[11] = { ...pts[11], x: perch.x, y: perch.y }; }
+  const perchIdx = pts.findIndex((p) => p.tag === 'perch' || /perch/i.test(p.label));
+  const targetPerchIdx = perchIdx >= 0 ? perchIdx : 11;
+  if (perch && pts[targetPerchIdx]) { pts[targetPerchIdx] = { ...pts[targetPerchIdx], x: perch.x, y: perch.y }; }
 
   const breakSim = simulateBreakArc(route, windFromDeg, windKt);
   const breakRollout = breakSim?.rollout ?? computeBreakRollout(route, windFromDeg, windKt, options);
-  if (breakRollout && pts[10]) { pts[10] = { ...pts[10], x: breakRollout.x, y: breakRollout.y }; }
+  const breakRolloutIdx = pts.findIndex((p) => p.tag === 'break_rollout' || /break\s*exit/i.test(p.label));
+  const targetBreakRolloutIdx = breakRolloutIdx >= 0 ? breakRolloutIdx : 10;
+  if (breakRollout && pts[targetBreakRolloutIdx]) { pts[targetBreakRolloutIdx] = { ...pts[targetBreakRolloutIdx], x: breakRollout.x, y: breakRollout.y }; }
 
-  const th = pts[0];   // Threshold
-  const dep = pts[1];  // Departure End
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts[0];   // Threshold
+  const dep = pts.find((p) => p.tag === 'departure_end' || /departure/i.test(p.label)) ?? pts[1];  // Departure End
   const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
   const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
   const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
@@ -726,7 +738,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   const baseRounded = buildRoundedPoints(route, { ...options, windKt: 0 });
   for (const p of baseRounded) {
     if ((p.src ?? 0) === 9) break;
-    track.push({ ...p, phase: 'initial' });
+    track.push({ ...p, phase: 'initial', tag: p.tag ?? route.points?.[p.src]?.tag });
   }
 
   // 2. Overhead Break (60° bank / 2.0 G level turn to downwind heading)
@@ -741,6 +753,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       src: 9,
       phase: 'break',
       headingDeg: rwyHeadingDeg,
+      tag: 'break',
     });
   }
 
@@ -774,6 +787,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       src: 10,
       phase: 'downwind',
       headingDeg: dwTrackDeg,
+      tag: 'downwind',
     });
   }
 
@@ -810,6 +824,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     src: 11,
     phase: 'final_turn',
     headingDeg: curHeadingDeg,
+    tag: 'perch',
   });
 
   while (ftTurnAccum < totalTurnDeg) {
@@ -848,6 +863,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       src: isRollout ? 12 : 11,
       phase: isRollout ? 'final' : 'final_turn',
       headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
+      tag: isRollout ? 'window' : 'final_turn',
     });
   }
 
@@ -871,6 +887,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
       src: 0,
       phase: 'final',
       headingDeg: exitHeadingDeg,
+      tag: k === finalSteps ? 'threshold' : 'final',
     });
   }
 
@@ -889,7 +906,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
  */
 export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
   const pts = route?.points || route?.waypoints || [];
-  const th = pts.find((p) => /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
+  const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
   const rwyHeadingDeg = 298;
   const windFtps = ktToFtps(windKt);
   const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
@@ -908,7 +925,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   const finalShiftX = -wx * finalTurnSec;
   const finalShiftY = -wy * finalTurnSec;
 
-  const nominalLowKey = pts.find((p) => /low\s*key/i.test(p.label) || /perch/i.test(p.label)) ?? { x: 7145.74, y: -10274.62, alt: 3700 };
+  const nominalLowKey = pts.find((p) => p.tag === 'low_key' || /low\s*key/i.test(p.label) || /perch/i.test(p.label)) ?? { x: 7145.74, y: -10274.62, alt: 3700 };
   const lowKey = {
     x: nominalLowKey.x + finalShiftX,
     y: nominalLowKey.y + finalShiftY,
@@ -916,7 +933,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   };
 
   // High Key start (directly over threshold at 5,000 ft MSL):
-  const highKeyPt = pts.find((p) => /high\s*key/i.test(p.label) || (p.alt ?? 0) >= 4800) ?? th;
+  const highKeyPt = pts.find((p) => p.tag === 'high_key' || /high\s*key/i.test(p.label) || (p.alt ?? 0) >= 4800) ?? th;
   let curX = highKeyPt.x;
   let curY = highKeyPt.y;
 
@@ -941,6 +958,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     src: 0,
     phase: 'pfl_high_key',
     headingDeg: curHeadingDeg,
+    tag: 'high_key',
   });
 
   while (turnAccum < maxHkTurn) {
@@ -967,6 +985,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
       src: 0,
       phase: 'pfl_high_key',
       headingDeg: curHeadingDeg,
+      tag: 'high_key',
     });
   }
 
@@ -992,6 +1011,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
       src: 1,
       phase: 'pfl_low_key',
       headingDeg: dwHdgDeg,
+      tag: k === dwSteps ? 'low_key' : 'downwind',
     });
   }
 
@@ -1042,6 +1062,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
       src: isRollout ? 3 : 2,
       phase: isRollout ? 'pfl_final' : 'pfl_base_key',
       headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
+      tag: isRollout ? 'final' : 'base_key',
     });
   }
 
@@ -1065,8 +1086,13 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
       src: 3,
       phase: 'pfl_final',
       headingDeg: exitHeadingDeg,
+      tag: k === finalSteps ? 'threshold' : 'final',
     });
   }
+
+  // The drag-adaptive spiral: clean at High Key, gear down at Low Key, landing flaps from Base Key to the threshold.
+  const PFL_CONFIG = { pfl_high_key: 'clean', pfl_low_key: 'gearDown', pfl_base_key: 'landing', pfl_final: 'landing' };
+  for (const p of track) p.config = PFL_CONFIG[p.phase] ?? 'clean';
 
   return track;
 }

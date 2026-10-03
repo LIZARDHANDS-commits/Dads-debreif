@@ -603,45 +603,6 @@
   gap: var(--space-1) var(--space-4);
   align-items: center;
 }
-
-/* The EM chart: below the stage, so the map shrinks rather than being covered (#37). */
-[data-module='debrief'] .debrief-em[hidden] {
-  display: none;
-}
-
-[data-module='debrief'] .debrief-em {
-  display: grid;
-  grid-template-columns: auto minmax(12rem, 18rem);
-  justify-content: center;
-  align-items: start;
-  gap: var(--space-3);
-}
-
-[data-module='debrief'] .debrief-em-side {
-  display: grid;
-  gap: var(--space-2);
-  justify-items: start;
-}
-
-[data-module='debrief'] .debrief-em-side h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-[data-module='debrief'] .debrief-em-canvas {
-  display: block;
-  height: min(28vh, 18rem);
-  aspect-ratio: 2 / 1;
-  max-width: 100%;
-  border-radius: var(--radius);
-}
-
-[data-module='debrief'] .debrief-em-note {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
 /* The tennis ball's panel in the Formation column. */
 [data-module='debrief'] .tennis-panel[hidden] {
   display: none;

@@ -30,7 +30,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
 import { createClock } from '../../../src/modules/traffic/clock.js';
-import { newSplit } from '../../../src/modules/traffic/route.js';
+import { newEntry } from '../../../src/modules/traffic/route.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const fresh = () => structuredClone(MOOSE_JAW);
@@ -430,10 +430,10 @@ test('after a route is edited, forgetHistory makes going back fly the edited rou
   assert.deepEqual(edited, everything(other));
 });
 
-test('a split added mid-run: after forgetHistory, -10 s and +10 s land on the run that has the split from 0 (#46)', () => {
+test('a route modified mid-run: after forgetHistory, -10 s and +10 s land on the run that has the edit from 0 (#46)', () => {
   const build = (setup) => {
-    const split = newSplit('SPLX', 'Split X', 'PAT1', setup.routes);
-    setup.routes.push(split);
+    const pat = setup.routes.find((r) => r.id === 'PAT1');
+    pat.points[1].kt = 100;
   };
   const setup = fresh();
   const sim = createSim(setup, { seed: 3 });
@@ -669,7 +669,7 @@ test('replayCost is the steps a seek would fly: at most 10 s behind a snapshot, 
 /** The built-in setup with `n` aircraft spawned on it (30 in the spec's own performance line). */
 function crowded(n, seed = 1) {
   const sim = createSim(fresh(), { seed });
-  const routes = ['PAT1', 'ENT1', 'ENT2', 'ENT3', 'ENT4', 'SPL1'];
+  const routes = ['PAT1', 'ENT1', 'ENT2'];
   for (let i = sim.state().aircraft.length; i < n; i++) sim.spawn({ routeId: routes[i % routes.length], delaySec: i * 3 });
   return sim;
 }
