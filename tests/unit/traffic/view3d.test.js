@@ -37,6 +37,7 @@ import {
   planePx, wantsFullModel, ringRadiusFt, FULL_MODEL_PX, FULL_MODEL_KEEP_PX,
   routeSignature, groundFt, sceneBox, fitCamera, orbit, zoomBy, panCamera, cameraFor, chaseCamera, CAMERA_LIMITS,
   T6_LENGTH_FT, MIN_PLANE_PX, ALT_SCALE, MAX_FULL_T6, createSceneKit, threeStats, softwareRenderer, resetSoftwareCheck,
+  createView3d,
 } from '../../../src/modules/traffic/view3d.js';
 
 const THREE = await loadThree();
@@ -588,3 +589,131 @@ test('panCamera moves center based on zoom, yaw and pitch; 0 dx/dy leaves center
   near(pannedEastYaw.x, 1000);
   near(pannedEastYaw.y, 2100);
 });
+
+test('kit target(id), currentTarget(), and nextTarget() cycle airborne aircraft and gracefully fall back', () => {
+  const kit = createSceneKit(THREE, { models });
+  kit.sync(scene(), OPTIONS);
+  assert.equal(kit.currentTarget(), null, 'initially null target');
+
+  // target(id) sets current target
+  kit.target('A1');
+  assert.equal(kit.currentTarget(), 'A1');
+
+  // nextTarget(+1) cycles to next flying aircraft A2 (A3 is waiting)
+  assert.equal(kit.nextTarget(+1), 'A2');
+  assert.equal(kit.currentTarget(), 'A2');
+
+  // nextTarget(+1) cycles back to A1
+  assert.equal(kit.nextTarget(+1), 'A1');
+  assert.equal(kit.currentTarget(), 'A1');
+
+  // nextTarget(-1) cycles backward to A2
+  assert.equal(kit.nextTarget(-1), 'A2');
+  assert.equal(kit.currentTarget(), 'A2');
+
+  // target(null) clears target
+  kit.target(null);
+  assert.equal(kit.currentTarget(), null);
+
+  // Graceful fallback when currently followed aircraft lands
+  kit.target('A1');
+  assert.equal(kit.currentTarget(), 'A1');
+  kit.sync(scene({
+    aircraft: [
+      { id: 'A1', type: 'CT-156', x: 0, y: 1000, alt: 1890, kt: 0, headingDeg: 90, status: 'landed', color: '#7ee787' },
+      { id: 'A2', type: 'CT-114', x: -500, y: 900, alt: 2400, kt: 150, headingDeg: 90, status: 'flying', color: '#ff6b6b' },
+      { id: 'A3', type: 'CT-157', x: 0, y: 0, alt: 0, kt: 0, headingDeg: 0, status: 'waiting', color: '#a5d6ff' },
+    ],
+  }), OPTIONS);
+  assert.equal(kit.currentTarget(), 'A2', 'gracefully falls back to next flying aircraft A2');
+
+  // When all aircraft land, fallback clears to null
+  kit.sync(scene({
+    aircraft: [
+      { id: 'A1', type: 'CT-156', x: 0, y: 1000, alt: 1890, kt: 0, headingDeg: 90, status: 'landed', color: '#7ee787' },
+      { id: 'A2', type: 'CT-114', x: -500, y: 900, alt: 1890, kt: 0, headingDeg: 90, status: 'landed', color: '#ff6b6b' },
+    ],
+  }), OPTIONS);
+  assert.equal(kit.currentTarget(), null, 'clears target when no aircraft are flying');
+
+  kit.dispose();
+  assert.equal(kit.currentTarget(), null);
+});
+
+test('createView3d target(id), currentTarget(), nextTarget() cycling, and graceful fallback', () => {
+  let currentScene = scene();
+  let drawCount = 0;
+  const mockHost = {
+    dataset: {},
+    append: () => {},
+  };
+  const mockTimers = {
+    frame: (cb) => { drawCount++; cb(); return () => {}; },
+    after: (ms, cb) => { cb(); return () => {}; },
+  };
+  const mockWin = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  };
+  const view = createView3d({
+    host: mockHost,
+    timers: mockTimers,
+    source: {
+      scene: () => currentScene,
+      settings: () => ({ graphicsQuality: 'high', fullModels: true }),
+      time: () => 10,
+    },
+    win: mockWin,
+  });
+
+  // Initially no target
+  assert.equal(view.currentTarget(), null);
+  assert.equal(view.isChasing(), false);
+
+  // target('A1') sets follow and begins chase
+  view.target('A1');
+  assert.equal(view.currentTarget(), 'A1');
+  assert.equal(view.isChasing(), true);
+
+  // nextTarget(+1) cycles to A2 (airborne), skipping A3 (waiting)
+  assert.equal(view.nextTarget(+1), 'A2');
+  assert.equal(view.currentTarget(), 'A2');
+
+  // nextTarget(+1) wraps around back to A1
+  assert.equal(view.nextTarget(+1), 'A1');
+  assert.equal(view.currentTarget(), 'A1');
+
+  // nextTarget(-1) cycles backward to A2
+  assert.equal(view.nextTarget(-1), 'A2');
+  assert.equal(view.currentTarget(), 'A2');
+
+  // target(null) clears follow
+  view.target(null);
+  assert.equal(view.currentTarget(), null);
+  assert.equal(view.isChasing(), false);
+
+  // target('A1') then A1 lands -> gracefully falls back to A2
+  view.target('A1');
+  assert.equal(view.currentTarget(), 'A1');
+  currentScene = scene({
+    aircraft: [
+      { id: 'A1', type: 'CT-156', x: 0, y: 1000, alt: 1890, kt: 0, headingDeg: 90, status: 'landed', color: '#7ee787' },
+      { id: 'A2', type: 'CT-114', x: -500, y: 900, alt: 2400, kt: 150, headingDeg: 90, status: 'flying', color: '#ff6b6b' },
+      { id: 'A3', type: 'CT-157', x: 0, y: 0, alt: 0, kt: 0, headingDeg: 0, status: 'waiting', color: '#a5d6ff' },
+    ],
+  });
+  assert.equal(view.currentTarget(), 'A2', 'gracefully switched to next flying aircraft A2');
+
+  // When all aircraft land -> clears follow
+  currentScene = scene({
+    aircraft: [
+      { id: 'A1', type: 'CT-156', x: 0, y: 1000, alt: 1890, kt: 0, headingDeg: 90, status: 'landed', color: '#7ee787' },
+      { id: 'A2', type: 'CT-114', x: -500, y: 900, alt: 1890, kt: 0, headingDeg: 90, status: 'landed', color: '#ff6b6b' },
+    ],
+  });
+  assert.equal(view.currentTarget(), null);
+  assert.equal(view.isChasing(), false);
+
+  view.dispose();
+});
+
