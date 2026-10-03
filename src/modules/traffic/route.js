@@ -271,7 +271,10 @@ function buildPath(route, options) {
   let points;
   const isPat1 = route.id === 'PAT1';
   const isCompactPat1 = isPat1 && (route.points?.length ?? 0) < 10;
-  if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
+  const isPfl = route.id === 'ENT4' || route.id === 'PFL' || route.id === 'PFL_HIGH_KEY' || route.kind === 'pfl' || /pfl/i.test(route.name);
+  if (options.flyRoundedTurns !== false && isPfl) {
+    points = generatePflTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
+  } else if (options.flyRoundedTurns !== false && (isCompactPat1 || (isPat1 && (options.trueArcs || (options.windKt ?? 0) > 0)))) {
     points = generateWindAdjustedTrack(route, options.windFromDeg ?? 360, options.windKt ?? 0, options);
   } else {
     points = buildRoundedPoints(route, options);
@@ -582,7 +585,7 @@ let _breakCache = { wFrom: null, wKt: null, result: null };
  * @param {any} route
  * @param {number} [windFromDeg]
  * @param {number} [windKt]
- * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any> } | null}
+ * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any>, breakStartX: number, breakStartY: number, rwyHeadingDeg: number, downwindHeadingDeg: number } | null}
  */
 function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   const pts = route?.points || route?.waypoints;
@@ -875,83 +878,193 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
 }
 
 /**
- * Generates continuous 360° circular arc PFL gliding track at 120 knots from High Key (5,000 ft MSL)
- * over the threshold facing down the runway (298°), through Low Key (~3,500 ft, 1.0 NM abeam),
- * Base Key (~2,700 ft) to touchdown (1,880 ft MSL).
+ * Generates continuous 4-segment Practice Forced Landing (PFL) gliding track from High Key (5,000 ft MSL)
+ * over the threshold facing down the runway (298°), through Low Key (~3,700 ft, wind-compensated perch),
+ * Base Key (~2,900 ft), to final rollout and threshold touchdown (1,892 ft MSL).
+ *
+ * Segment 1 (High Key Turn): 180° descending turn from 5,000 ft -> 3,700 ft MSL, 125 -> 120 KIAS.
+ * Segment 2 (Downwind Leg to Low Key): Straight leg heading ~118° (wind crabbed) to dynamic Low Key.
+ * Segment 3 (Low Key to Final Approach): Smooth descending turn (35° bank) with crab boundary matching.
+ * Segment 4 (Final to Touchdown): Straight glide along runway centerline terminating exactly at threshold.
  */
 export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
-  const pts = route?.points || [];
-  const th = pts.find((p) => /threshold/i.test(p.label)) ?? pts[0] ?? { x: 3103.84, y: -3193.93 };
+  const pts = route?.points || route?.waypoints || [];
+  const th = pts.find((p) => /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
   const rwyHeadingDeg = 298;
   const windFtps = ktToFtps(windKt);
   const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
   const wx = windFtps * Math.sin(blowToRad);
   const wy = windFtps * Math.cos(blowToRad);
 
-  const track = [];
+  const g = 32.174;
   const dt = 0.2;
-  const tasKt = iasToTasKt(120, 3500);
-  const tasFtps = ktToFtps(tasKt);
-  const pflRadiusFt = 3038; // 1.0 NM diameter
-  const omega = tasFtps / pflRadiusFt;
+  const track = [];
 
-  let curX = th.x;
-  let curY = th.y;
-  let curHeadingDeg = rwyHeadingDeg;
+  // Low Key target with wind shift (compensates for wind drift during final turn):
+  const ftTasKt = iasToTasKt(120, 3100);
+  const ftTasFtps = ktToFtps(ftTasKt);
+  const ftOmega = (g * Math.tan((35 * Math.PI) / 180)) / Math.max(1, ftTasFtps);
+  const finalTurnSec = Math.PI / ftOmega;
+  const finalShiftX = -wx * finalTurnSec;
+  const finalShiftY = -wy * finalTurnSec;
+
+  const nominalLowKey = pts.find((p) => /low\s*key/i.test(p.label) || /perch/i.test(p.label)) ?? { x: 7145.74, y: -10274.62, alt: 3700 };
+  const lowKey = {
+    x: nominalLowKey.x + finalShiftX,
+    y: nominalLowKey.y + finalShiftY,
+    alt: 3700,
+  };
+
+  // High Key start (directly over threshold at 5,000 ft MSL):
+  const highKeyPt = pts.find((p) => /high\s*key/i.test(p.label) || (p.alt ?? 0) >= 4800) ?? th;
+  let curX = highKeyPt.x;
+  let curY = highKeyPt.y;
+
+  // Segment 1: High Key Turn (5,000 ft -> 3,700 ft, 125 KIAS -> 120 KIAS)
+  const hkTasKt = iasToTasKt(125, 4500);
+  const hkTasFtps = ktToFtps(hkTasKt);
+  const hkBankDeg = 30;
+  const hkOmega = (g * Math.tan((hkBankDeg * Math.PI) / 180)) / Math.max(1, hkTasFtps);
+
+  const wtTh = windTriangle(rwyHeadingDeg, hkTasKt, windFromDeg, windKt);
+  let curHeadingDeg = wtTh.canHoldTrack ? wtTh.headingDeg : rwyHeadingDeg;
+
   let turnAccum = 0;
+  const maxHkTurn = 180;
 
-  // High Key (Point 0): over threshold at 5,000 ft MSL facing 298°
   track.push({
     x: curX,
     y: curY,
     alt: 5000,
-    kt: 120,
-    g: 1.1,
+    kt: 125,
+    g: 1.0,
     src: 0,
     phase: 'pfl_high_key',
     headingDeg: curHeadingDeg,
   });
 
-  while (turnAccum < 360) {
-    const dTurn = Math.min((omega * dt * 180) / Math.PI, 360 - turnAccum);
+  while (turnAccum < maxHkTurn) {
+    const dTurn = Math.min((hkOmega * dt * 180) / Math.PI, maxHkTurn - turnAccum);
     turnAccum += dTurn;
     curHeadingDeg = (curHeadingDeg - dTurn + 360) % 360;
 
-    const u = turnAccum / 360;
-    const curAlt = 5000 - (5000 - 1892) * u;
-    const curKt = turnAccum > 315 ? Math.round(120 - 20 * ((turnAccum - 315) / 45)) : 120;
+    const u = turnAccum / maxHkTurn;
+    const curAlt = 5000 - (5000 - 3700) * u;
+    const curKt = 125 - (125 - 120) * u;
 
     const hdgRad = (curHeadingDeg * Math.PI) / 180;
-    const vx = tasFtps * Math.sin(hdgRad) + wx;
-    const vy = tasFtps * Math.cos(hdgRad) + wy;
+    const vx = hkTasFtps * Math.sin(hdgRad) + wx;
+    const vy = hkTasFtps * Math.cos(hdgRad) + wy;
     curX += vx * dt;
     curY += vy * dt;
-
-    let src = 0;
-    let phase = 'pfl';
-    if (turnAccum <= 180) {
-      src = turnAccum >= 175 ? 2 : 1;
-      phase = 'pfl_high_key';
-    } else if (turnAccum <= 270) {
-      src = 2;
-      phase = 'pfl_low_key';
-    } else if (turnAccum <= 330) {
-      src = 3;
-      phase = 'pfl_base_key';
-    } else {
-      src = 4;
-      phase = 'pfl_final';
-    }
 
     track.push({
       x: curX,
       y: curY,
       alt: Math.round(curAlt),
-      kt: curKt,
-      g: 1.1,
-      src,
-      phase,
+      kt: Math.round(curKt),
+      g: 1.15,
+      src: 0,
+      phase: 'pfl_high_key',
       headingDeg: curHeadingDeg,
+    });
+  }
+
+  // Segment 2: Downwind Leg (Rollout to Low Key)
+  const dwDist = Math.hypot(lowKey.x - curX, lowKey.y - curY);
+  const dwSteps = Math.max(5, Math.ceil(dwDist / 1000));
+  const dwStartX = curX;
+  const dwStartY = curY;
+  const dwTrackRad = Math.atan2(lowKey.x - dwStartX, lowKey.y - dwStartY);
+  const dwTrackDeg = (dwTrackRad * 180 / Math.PI + 360) % 360;
+
+  const wtDw = windTriangle(dwTrackDeg, 120, windFromDeg, windKt);
+  const dwHdgDeg = wtDw.canHoldTrack ? wtDw.headingDeg : dwTrackDeg;
+
+  for (let k = 1; k <= dwSteps; k++) {
+    const u = k / dwSteps;
+    track.push({
+      x: dwStartX + (lowKey.x - dwStartX) * u,
+      y: dwStartY + (lowKey.y - dwStartY) * u,
+      alt: 3700,
+      kt: 120,
+      g: 1.0,
+      src: 1,
+      phase: 'pfl_low_key',
+      headingDeg: dwHdgDeg,
+    });
+  }
+
+  // Segment 3: Descending Final Turn (Low Key to Final Approach)
+  curX = lowKey.x;
+  curY = lowKey.y;
+
+  const wtPerch = windTriangle(dwTrackDeg, ftTasKt, windFromDeg, windKt);
+  const entryHeadingDeg = wtPerch.canHoldTrack ? wtPerch.headingDeg : dwTrackDeg;
+
+  const wtFinal = windTriangle(rwyHeadingDeg, ftTasKt, windFromDeg, windKt);
+  const exitHeadingDeg = wtFinal.canHoldTrack ? wtFinal.headingDeg : rwyHeadingDeg;
+
+  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
+  if (totalTurnDeg < 30) totalTurnDeg += 360;
+
+  curHeadingDeg = entryHeadingDeg;
+  let ftTurnAccum = 0;
+
+  while (ftTurnAccum < totalTurnDeg) {
+    const u = ftTurnAccum / totalTurnDeg;
+    let bDeg = 35;
+    if (u < 0.15) bDeg = 35 * Math.sin((u / 0.15) * (Math.PI / 2));
+    else if (u > 0.85) bDeg = 35 * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
+    const bRad = (Math.max(5, bDeg) * Math.PI) / 180;
+    const curOmega = (g * Math.tan(bRad)) / Math.max(1, ftTasFtps);
+    const dTurn = Math.min((curOmega * dt * 180) / Math.PI, totalTurnDeg - ftTurnAccum);
+
+    ftTurnAccum += dTurn;
+    curHeadingDeg = (curHeadingDeg - dTurn + 360) % 360;
+
+    const curAlt = 3700 - (3700 - 2119) * u;
+    const hdgRad = (curHeadingDeg * Math.PI) / 180;
+    const vx = ftTasFtps * Math.sin(hdgRad) + wx;
+    const vy = ftTasFtps * Math.cos(hdgRad) + wy;
+    curX += vx * dt;
+    curY += vy * dt;
+
+    const currentG = 1 / Math.cos((bDeg * Math.PI) / 180);
+    const isRollout = ftTurnAccum >= totalTurnDeg;
+
+    track.push({
+      x: curX,
+      y: curY,
+      alt: Math.round(curAlt),
+      kt: 120,
+      g: Number(currentG.toFixed(2)),
+      src: isRollout ? 3 : 2,
+      phase: isRollout ? 'pfl_final' : 'pfl_base_key',
+      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
+    });
+  }
+
+  // Segment 4: Final Approach straight-in to Threshold (2,119 ft -> 1,892 ft MSL)
+  const finalDist = Math.hypot(th.x - curX, th.y - curY);
+  const finalSteps = Math.max(10, Math.ceil(finalDist / 1000));
+  const finalStartX = curX;
+  const finalStartY = curY;
+  const startAlt = track.at(-1)?.alt ?? 2119;
+
+  for (let k = 1; k <= finalSteps; k++) {
+    const u = k / finalSteps;
+    const kt = Math.round(120 - 20 * u);
+    const alt = Math.round(startAlt - (startAlt - 1892) * u);
+    track.push({
+      x: finalStartX + (th.x - finalStartX) * u,
+      y: finalStartY + (th.y - finalStartY) * u,
+      alt,
+      kt,
+      g: 1.0,
+      src: 3,
+      phase: 'pfl_final',
+      headingDeg: exitHeadingDeg,
     });
   }
 
