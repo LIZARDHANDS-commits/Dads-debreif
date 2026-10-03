@@ -22,6 +22,10 @@ import { iasToTasKt } from '../../core/t6-performance.js';
 import { stepAircraft, calcInterceptHeading, calcCrossTrackError, CYMJ_DOWNWIND_HDG_DEG } from './flight-engine.js';
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
 import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs } from './route.js';
+import { stepBreakout } from './breakout.js';
+import { stepHighKey } from './high-key.js';
+export { stepBreakout } from './breakout.js';
+export { stepHighKey } from './high-key.js';
 
 /** Duration of the smooth transition from physics back to rail (seconds). */
 export const BLEND_DURATION_SEC = 1.0;
@@ -146,10 +150,26 @@ function setupPhysicsPlan(a, route = null, env = null, routeOptions = DEFAULT_RO
     return;
   }
 
+  if (a.command === 'climb_high_key') {
+    a.phase = 'climb_high_key';
+    a._activeCommand = 'climb_high_key';
+    a.model = 'KIN';
+    a.targetAltFt = 5000;
+    a.targetSpeedKt = 140;
+    a.engineFailed = false;
+    a.navPlan = {
+      id: 'HIGH_KEY',
+      pattern: 'PFL',
+      model: 'KIN',
+      waypoints: [],
+    };
+    a.waypointIndex = 0;
+    return;
+  }
+
   if (
     a.command === 'pfl_current' ||
     a.command === 'engine_fail' ||
-    a.command === 'climb_high_key' ||
     a.command === 'climb_low_key'
   ) {
     a.navPlan = getNavPlan('PFL_HIGH_KEY');
@@ -307,133 +327,7 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
  *    In the last 300 ft of climb (4,200 to 4,500 ft MSL), pitch smoothly decays to 0° (Pillar 8 climb arrest).
  * 2. Continuous Descending Rejoin Arc: From Breakout Point, enters a smooth descending left arc (4,500 ft -> 3,500 ft at 220 KIAS)
  *    curving toward the active entry line (Entry 1 / ENT1, 2 NM prior to downwind).
- *    Pitch smoothly decays to 0° over the last 300 ft (3,800 to 3,500 ft MSL).
- * 3. Seamless Tangent Entry Capture: Tangentially captures Entry 1 at 3,500 ft MSL and 220 KIAS with zero teleportation.
- *    Transitions intent to 'overhead' so standard Overhead Break is flown at the pattern.
- *
- * @param {Object} a - Aircraft state object
- * @param {Object} [route] - Active route
- * @param {Object} [env] - Wind environment
- * @param {number} [stepDt=0.05] - Time step in seconds
- * @param {Object} [routeOptions=DEFAULT_ROUTE_OPTIONS] - Route options
- */
-export function stepBreakout(a, route = null, env = null, stepDt = 0.05, routeOptions = DEFAULT_ROUTE_OPTIONS) {
-  if (!a || (a.phase !== 'breakout' && a.command !== 'breakout')) return;
 
-  const windFromDeg = env?.windFromDeg ?? 360;
-  const windKt = env?.windKt ?? 0;
-  const tasKt = iasToTasKt(a.iasKt || 220, a.alt || 4500);
-
-  a.targetSpeedKt = 220;
-  a.intent = 'overhead';
-
-  const BREAKOUT_PT = { x: -10974, y: -24252 };
-  const pEntryMid = { x: 4806, y: -46304 };
-  const pEntryGate = { x: 17000, y: -28031 };
-
-  // Determine stage: Stage 1 = climb to breakout point; Stage 2 = descending rejoin arc to Entry 1
-  const distToBreakoutPt = Math.hypot(BREAKOUT_PT.x - (a.x ?? 0), BREAKOUT_PT.y - (a.y ?? 0));
-  const pastBreakout = (a._breakoutStage === 2) || (distToBreakoutPt <= 2500 && (a.alt ?? 0) >= 4200) || ((a.y ?? 0) <= BREAKOUT_PT.y + 500 && (a.alt ?? 0) >= 4300);
-
-  if (!pastBreakout) {
-    // ── STAGE 1: Climbing Turn to 4,500 ft toward Breakout Point ──
-    a._breakoutStage = 1;
-    a.targetAltFt = 4500;
-
-    // Pitch attitude: climb nominal 10°, decaying smoothly to 0° in last 300 ft (4,200 to 4,500 ft MSL)
-    const alt = a.alt ?? 3500;
-    if (alt >= 4200) {
-      a.pitchDeg = Math.max(0, 10 * (4500 - alt) / 300);
-    } else {
-      a.pitchDeg = 10;
-    }
-
-    // Steering toward Breakout Point
-    const dx = BREAKOUT_PT.x - (a.x ?? 0);
-    const dy = BREAKOUT_PT.y - (a.y ?? 0);
-    const bearingToPt = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
-    const wt = windTriangle(bearingToPt, Math.max(1, tasKt), windFromDeg, windKt);
-    const targetHdg = wt.canHoldTrack ? wt.headingDeg : bearingToPt;
-    a.desiredHeadingDeg = targetHdg;
-
-    const deltaHdg = wrapDeg180(targetHdg - (a.headingDeg ?? 0));
-    if (Math.abs(deltaHdg) <= 2.5) {
-      a.targetBankDeg = 0;
-    } else if (Math.abs(deltaHdg) < 25) {
-      a.targetBankDeg = Math.max(-45, Math.min(45, deltaHdg * 1.8));
-    } else {
-      a.targetBankDeg = deltaHdg < 0 ? -45 : 45;
-    }
-    return;
-  }
-
-  // ── STAGE 2: Descending Rejoin Arc toward Entry 1 ──
-  a._breakoutStage = 2;
-  a.targetAltFt = 3500;
-
-  // Pitch attitude: smooth descent from 4,500 ft to 3,500 ft, decaying to 0° in last 300 ft (3,800 to 3,500 ft MSL)
-  const alt = a.alt ?? 4500;
-  if (alt <= 3500) {
-    a.pitchDeg = 0;
-  } else if (alt <= 3800) {
-    a.pitchDeg = Math.min(0, -3.5 * (alt - 3500) / 300);
-  } else {
-    a.pitchDeg = -3.5;
-  }
-
-  // Calculate intercept heading to smoothly capture the Entry 1 line
-  const interceptHdg = calcInterceptHeading(pEntryMid, pEntryGate, a, Math.max(1, tasKt), env, {
-    kGain: 0.0008,
-    maxInterceptDeg: 45,
-  });
-  a.desiredHeadingDeg = interceptHdg;
-
-  const deltaHdg = wrapDeg180(interceptHdg - (a.headingDeg ?? 0));
-  if (Math.abs(deltaHdg) <= 2.5) {
-    a.targetBankDeg = 0;
-  } else if (Math.abs(deltaHdg) < 25) {
-    a.targetBankDeg = Math.max(-40, Math.min(40, deltaHdg * 1.8));
-  } else {
-    a.targetBankDeg = deltaHdg < 0 ? -35 : 35;
-  }
-
-  // Calculate cross-track error and along-track progress relative to Entry 1
-  const dxLine = pEntryGate.x - pEntryMid.x;
-  const dyLine = pEntryGate.y - pEntryMid.y;
-  const lenLine = Math.hypot(dxLine, dyLine);
-  const ux = dxLine / lenLine;
-  const uy = dyLine / lenLine;
-  const vx = (a.x ?? 0) - pEntryMid.x;
-  const vy = (a.y ?? 0) - pEntryMid.y;
-  const along = vx * ux + vy * uy;
-  const cross = vx * uy - vy * ux;
-
-  // ── Intercept & Rail Capture Check ──
-  // In Stage 2, aircraft curves toward the entry/initial corridor at 3,500 ft MSL and 220 KIAS.
-  // When close to the corridor (within ±250 ft), smoothly blend back onto the rail.
-  const patRoute = route || resolveNavPlan(a, route) || getNavPlan('PAT_INNER');
-  if (patRoute && a._breakoutStage === 2) {
-    const targetDist = closestDistFt(patRoute, a, routeOptions);
-    const targetPos = posOnRoute(patRoute, targetDist, routeOptions);
-    const distToRail = Math.hypot(targetPos.x - (a.x ?? 0), targetPos.y - (a.y ?? 0));
-    const altCaptured = Math.abs(alt - 3500) <= 100;
-    const isEntryOrInitial = targetPos.phase === 'initial' || targetPos.phase === 'entry' || targetPos.seg === 6 || targetPos.seg === 7;
-    const hdgAligned = Math.abs(wrapDeg180((a.headingDeg ?? 0) - targetPos.headingDeg)) <= 45;
-
-    if (distToRail <= 250 && altCaptured && isEntryOrInitial && hdgAligned) {
-      a.phase = targetPos.phase || 'initial';
-      a.command = null;
-      a.intent = 'overhead';
-      delete a._activeCommand;
-      delete a._breakoutStage;
-      delete a.desiredHeadingDeg;
-      delete a.navPlan;
-      delete a.waypointIndex;
-      enterBlending(a, patRoute, routeOptions);
-      return;
-    }
-  }
-}
 
 /**
  * Evaluates whether an in-flight physics maneuver is complete and ready to blend back to rail.
@@ -462,6 +356,16 @@ function isManeuverComplete(a, navPlan) {
 
   // 3. Breakout completion: continuous controller stepBreakout handles rail capture directly
   if (a.command === 'breakout' || a.phase === 'breakout' || navPlan?.id === 'BREAKOUT') {
+    return false;
+  }
+
+  // 4. Closed Pattern completion: continuous controller stepClosedPattern handles rail capture directly
+  if (a.command === 'closed_pattern' || a.phase === 'closed_pattern' || navPlan?.id === 'CLOSED_PATTERN') {
+    return false;
+  }
+
+  // 5. High Key completion: continuous controller stepHighKey handles transition to PFL
+  if (a.command === 'climb_high_key' || a.phase === 'climb_high_key' || navPlan?.id === 'HIGH_KEY') {
     return false;
   }
 
@@ -698,21 +602,29 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         stepClosedPattern(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL') return a;
       }
+      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
+        stepHighKey(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+      }
       if (a.phase === 'breakout' || a.command === 'breakout') {
         stepBreakout(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL') return a;
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
       }
       stepAircraft(a, a.navPlan, env, stepDt);
       if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
         stepClosedPattern(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL') return a;
       }
+      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
+        stepHighKey(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+      }
       if (a.phase === 'breakout' || a.command === 'breakout') {
         stepBreakout(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL') return a;
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
       }
       if (isManeuverComplete(a, a.navPlan)) {
-        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
+        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'climb_high_key') {
           a.command = null;
           delete a._activeCommand;
         }
@@ -791,6 +703,12 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         return a;
       }
     }
+    if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
+      stepHighKey(a, route, env, stepDt, routeOptions);
+      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
+        return a;
+      }
+    }
     if (a.phase === 'breakout' || a.command === 'breakout') {
       stepBreakout(a, route, env, stepDt, routeOptions);
       if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
@@ -806,6 +724,12 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         return a;
       }
     }
+    if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
+      stepHighKey(a, route, env, stepDt, routeOptions);
+      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
+        return a;
+      }
+    }
     if (a.phase === 'breakout' || a.command === 'breakout') {
       stepBreakout(a, route, env, stepDt, routeOptions);
       if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
@@ -814,7 +738,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     }
 
     if (isManeuverComplete(a, a.navPlan)) {
-      if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
+      if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'climb_high_key') {
         a.command = null;
         delete a._activeCommand;
       }
@@ -836,6 +760,10 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         stepClosedPattern(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL') return a;
       }
+      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
+        stepHighKey(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+      }
       if (a.phase === 'breakout' || a.command === 'breakout') {
         stepBreakout(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
@@ -845,12 +773,16 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         stepClosedPattern(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL') return a;
       }
+      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
+        stepHighKey(a, route, env, stepDt, routeOptions);
+        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+      }
       if (a.phase === 'breakout' || a.command === 'breakout') {
         stepBreakout(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
       }
       if (isManeuverComplete(a, a.navPlan)) {
-        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern') {
+        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'climb_high_key') {
           a.command = null;
           delete a._activeCommand;
         }

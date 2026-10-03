@@ -341,6 +341,12 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
     aircraft.targetBankDeg = 0;
     return;
   }
+  if (aircraft.command === 'climb_high_key' && aircraft.phase !== 'climb_high_key') {
+    aircraft.phase = 'climb_high_key';
+    aircraft.targetAltFt = 5000;
+    aircraft.targetSpeedKt = 140;
+    return;
+  }
   if ((aircraft.command === 'pfl_current' || aircraft.command === 'engine_fail') && !aircraft.engineFailed) {
     aircraft.engineFailed = true;
     aircraft.model = 'NRG';
@@ -478,6 +484,12 @@ export function evaluatePhaseTransitions(aircraft, navPlan, env, dt = 0.05) {
 
     case 'closed_pattern': {
       // 4-Phase closed pattern progression is managed by stepClosedPattern controller in tick-aircraft.js
+      break;
+    }
+
+    case 'climb_high_key':
+    case 'high_key': {
+      // High key progression is managed by stepHighKey controller
       break;
     }
 
