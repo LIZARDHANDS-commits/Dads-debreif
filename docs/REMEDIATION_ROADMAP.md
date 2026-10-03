@@ -351,7 +351,12 @@ flowchart TD
   - Task 24: Re-baselined start separation to 1.2 NM and ATA to 5° (750 ft lateral turning room) + 5 canonical 1-click tactical presets (Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, Radius vs Rate) (D423 / PATCH-042).
   - Task 25: BFM Energy Fight default-on (`DEFAULTS.energy = true`), progressive disclosure (checking settings quarantined behind `?debug=aero`), military move labels (D424 / PATCH-043).
   - Task 26: Test harmonization under D411, full regression verification (545/545 turn-fight unit tests, 3,205+ repo tests, typecheck clean, build clean), and documentation ratification (PATCH-044).
-- [x] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. All 26 tasks complete, 100% green.
+- [x] **Task 2.7 (Remediation Plan v5: Mid-Air Collision Hitbox, TCPA Deconfliction, Ballistic Tumble & UI Settings - PATCH-045 through PATCH-048 / Tasks 27–30 / D425–D427):**
+  - Task 27: Physical Hitbox (35 ft) & sequential combat telemetry (D427 / PATCH-045).
+  - Task 28: Analytical closed-form TCPA predictive gate (0.5–1.5 s, miss < 75 ft) & context-dependent out-of-plane lag roll deconfliction (85 ft along turn-plane normal) (D427 / PATCH-046).
+  - Task 29: Ballistic tumble state machine (`ac.tumble`) with bluff-body drag ($C_D \approx 1.2$), gravity drop, rotational integration ($I_{xx} \ll I_{yy} \ll I_{zz}$), real-time continuation down to terrain ($0\text{ ft MSL}$), HUD collision banner, and debrief telemetry (D427 / PATCH-047).
+  - Task 30: UI Settings checkboxes (`collisionDetection` and `collisionAvoidance` in main settings modal), Immelmann apex 140 kt limit removal (D426), D379 supersession by D425, full regression verification (558/558 unit tests, 3,218+ repo tests, typecheck clean, build clean) (PATCH-048).
+- [x] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. All 30 tasks complete, 100% green.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
 - [ ] **Task 3.1 (Parallel Agent C):** Consolidate `turn-sim-215-recheck`, `turn-sim-223-fixes`, and `turn-sim-screen-audit`.

@@ -108,7 +108,7 @@ Task 30: UI Settings Toggles, D379 Supersession & Full Test Harmonization
 ---
 
 ## Checkpoint: Full Gate 2 Verification
-- [ ] 550+ unit tests in `tests/unit/turn-fight/` pass 100%
-- [ ] All 3,205+ repo tests pass
-- [ ] Typecheck and build pass cleanly
-- [ ] Ready for Patrick's final Gate 2 sign-off checklist run (`docs/checklists/turn-fight.md`)
+- [x] 550+ unit tests in `tests/unit/turn-fight/` pass 100%
+- [x] All 3,205+ repo tests pass
+- [x] Typecheck and build pass cleanly
+- [x] Ready for Patrick's final Gate 2 sign-off checklist run (`docs/checklists/turn-fight.md`)

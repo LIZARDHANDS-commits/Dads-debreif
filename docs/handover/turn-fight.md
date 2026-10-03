@@ -20,9 +20,9 @@ A two-aircraft turning fight with two modes:
 
 ## Status: 100% Complete & Gate 2 Sign-Off Ready
 
-Turn Fight (BFM 1v1) is 100% complete across all 26 tasks, fully verified, and ready for Patrick's Gate 2 sign-off:
-- **545/545 unit tests green** (`tests/unit/turn-fight/**/*.test.js`, 100% pass).
-- **3,205+ repo tests green** (`npm test`, 0 failures).
+Turn Fight (BFM 1v1) is 100% complete across all 30 tasks, fully verified, and ready for Patrick's Gate 2 sign-off:
+- **558/558 unit tests green** (`tests/unit/turn-fight/**/*.test.js`, 100% pass).
+- **3,218+ repo tests green** (`npm test`, 0 failures).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
 - **Vite production build clean** (`npm run build`, built cleanly).
 - **Standardized 5.0 G Maneuver Pull Law (D406/D407):** Authentic 5.0 G tactical maneuver pull with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling guard and authentic 170° maxBankMoveTurnDeg in `TUNING`.
@@ -41,9 +41,14 @@ Turn Fight (BFM 1v1) is 100% complete across all 26 tasks, fully verified, and r
   - **Combat Resolution (D421 / PATCH-040):** 2.0 s continuous WEZ Gun Tracking kill solution (<2,500 ft, ATA <= 15°, AA <= 60°, !ac.stall) with auto-pause, HUD victory banner, and continue/reset controls.
   - **Dynamic 3D Centroid Camera & Tactical Cues (D422 / PATCH-041):** Midpoint (P_blue + P_red)/2 camera framing with adaptive zoom; displaced HUD data tags (-60px / +40px) with leader lines; lift vectors and 15° WEZ aiming cone.
   - **Tactical Engagement Presets & 1.2 NM Re-baseline (D423 / PATCH-042):** Separation re-baselined to 1.2 NM with 5° ATA (750 ft lateral room); 5 canonical presets (Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, Radius vs Rate).
-  - **BFM Energy Fight Default-On & Progressive Disclosure (D424 / PATCH-043):** Defaults directly to 3D BFM Energy Fight; developer checking settings quarantined behind `?debug=aero`; clean military move labels.
+  - **BFM Energy Fight Default-On & Progressive Disclosure (D424 / D425 / PATCH-043):** Defaults directly to 3D BFM Energy Fight; developer checking settings quarantined behind `?debug=aero`; clean military move labels.
   - **Test Suite Harmonization & Gate 2 Preparation (PATCH-044):** All 545 turn-fight unit tests and 3,205+ repo tests green under D411 test policy.
-- **Decision Registers Synchronized:** D1 through D424 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
+- **Remediation Plan v5 Mid-Air Collision Hitbox, TCPA Deconfliction, Ballistic Tumble & UI Settings (Tasks 27–30 / D425–D427 / PATCH-045–PATCH-048):**
+  - **Physical Hitbox (35 ft) & Sequential Telemetry (D427 / PATCH-045):** 35 ft 3D Euclidean hitbox triggers collision state; preserves prior WEZ gun kill in telemetry.
+  - **Analytical TCPA & Out-of-Plane Lag Roll Deconfliction (D427 / PATCH-046):** Analytical closed-form TCPA predicts closest approach within 0.5–1.5 s and miss < 75 ft; rolls lift vector out-of-plane (85 ft along turn-plane normal $\hat{n}$) creating natural overshoot and scissors reversal.
+  - **Ballistic Tumble State Machine (D427 / PATCH-047):** Real-time departure physics with severed controls, zero thrust, bluff-body drag ($C_D \approx 1.2$), gravity drop, and CT-156 rotational rates ($I_{xx} \ll I_{yy} \ll I_{zz}$) continuing down to terrain impact ($0\text{ ft MSL}$); HUD collision banner and debrief table rows.
+  - **UI Settings Toggles, Immelmann Apex Gate Removal & Version 2.5 (D425–D427 / PATCH-048):** Checkboxes for `collisionDetection` and `collisionAvoidance` in main settings modal (default on); Immelmann apex 140 kt limit removed (pilot can try if they want); full suite verified (558 unit tests, 3,218+ repo tests).
+- **Decision Registers Synchronized:** D1 through D427 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
 
 ## Remediation Plan v2, v3 & v4 Queue (Tasks 11–26) — ALL COMPLETE
 
@@ -65,8 +70,12 @@ Turn Fight (BFM 1v1) is 100% complete across all 26 tasks, fully verified, and r
 | **Phase 7** | Task 24 | Tactical engagement presets & 1.2 NM re-baseline (D423 / PATCH-042) | **100% Complete** |
 | **Phase 7** | Task 25 | BFM Energy Fight default-on & progressive disclosure architecture (D424 / PATCH-043) | **100% Complete** |
 | **Phase 7** | Task 26 | Test harmonization under D411, full regression verification & Gate 2 preparation (PATCH-044) | **100% Complete** |
+| **Phase 8** | Task 27 | Physical Hitbox (35 ft) & sequential combat telemetry (D427 / PATCH-045) | **100% Complete** |
+| **Phase 8** | Task 28 | Analytical TCPA predictive deconfliction & out-of-plane lag roll (D427 / PATCH-046) | **100% Complete** |
+| **Phase 8** | Task 29 | Post-collision ballistic tumble physics down to terrain impact & HUD banner (D427 / PATCH-047) | **100% Complete** |
+| **Phase 8** | Task 30 | UI settings toggles, Immelmann 140 kt apex gate removal, D379 supersession & Gate 2 sign-off (D425–D427 / PATCH-048) | **100% Complete** |
 
-## Implemented Work (PATCH-024 through PATCH-044)
+## Implemented Work (PATCH-024 through PATCH-048)
 
 | What | Where | State |
 |---|---|---|
@@ -86,6 +95,16 @@ Turn Fight (BFM 1v1) is 100% complete across all 26 tasks, fully verified, and r
 | Pilot Domain Test Harmonization (D411) | `tests/unit/turn-fight/energy-sim.test.js` | 100% complete. Brittle assertions harmonized with D371 domain tolerances and invariants. |
 | Tactical AI Maneuver Selection Engine (D416–D418 / PATCH-029) | `src/modules/turn-fight/energy-sim.js`, `state.js`, `layout.js`, `readouts.js` | 100% complete. Austin/Carbone advantage matrix, lookahead utility ranking, MPT dynamic breakout, dedicated test suite. |
 | Continuous Blended Tactical Pursuit (D419 / PATCH-030) | `src/modules/turn-fight/energy-sim.js`, `layout.js`, `tests/unit/turn-fight/energy-tactical.test.js` | 100% complete. Continuous convex combination of Control Zone lag, pure tracking, and muzzle lead; human telemetry labels (`ac.why`). |
+| MPT Utility Decay & Circle Cuts (D420 / PATCH-039) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Low Yo-Yo (140-220 KIAS) and High Yo-Yo (180-280 KIAS) circle-cuts; 25% MPT penalty after 360° turn. |
+| WEZ Gun Kill & Auto-Pause (D421 / PATCH-040) | `energy-sim.js`, `layout.js`, `index.js`, `readouts.js` | 100% complete. 2.0 s continuous WEZ gun tracking kill solution with HUD banner and auto-pause. |
+| Dynamic 3D Centroid Camera (D422 / PATCH-041) | `src/modules/turn-fight/view3d.js`, `turn-fight.css` | 100% complete. Camera tracks (P_blue + P_red)/2 with adaptive zoom; displaced HUD data tags with leader lines; lift vectors and 15° cone. |
+| Tactical Engagement Presets (D423 / PATCH-042) | `state.js`, `layout.js`, `index.js` | 100% complete. 1.2 NM start separation and 5° ATA re-baseline; 5 canonical presets. |
+| BFM Energy Fight Default & Progressive Disclosure (D424/D425 / PATCH-043) | `state.js`, `layout.js` | 100% complete. Defaults directly to 3D BFM Energy Fight; checking settings quarantined behind ?debug=aero. |
+| Immelmann Apex 140 kt Limit Removal (D426 / PATCH-044) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Immelmann apex speed gate removed per Patrick's directive ("let it try if it wants"). |
+| Physical 35 ft Hitbox & Sequential Telemetry (D427 / PATCH-045) | `src/modules/turn-fight/energy-sim.js` | 100% complete. 35 ft 3D Euclidean hitbox triggers collision state; preserves gun kills in telemetry. |
+| Analytical TCPA Predictive Deconfliction (D427 / PATCH-046) | `src/modules/turn-fight/energy-sim.js` | 100% complete. Vector TCPA (0.5-1.5 s, <75 ft) triggers 85 ft out-of-plane lag roll along turn-plane normal. |
+| Ballistic Tumble State Machine (D427 / PATCH-047) | `energy-sim.js`, `layout.js`, `energy-readouts.js` | 100% complete. Post-collision bluff-body drag, gravity drop, rotational tumble down to 0 ft MSL terrain impact. |
+| UI Settings Toggles & Gate 2 Verification (D425–D427 / PATCH-048) | `state.js`, `layout.js`, `index.html` | 100% complete. Checkboxes for collisionDetection and collisionAvoidance; version 2.5; 558 unit tests green. |
 
 Known limit: OVER G cannot be triggered from the screen in Auto mode, because Auto never pulls past +7 G and no forced move does. The flag and its words are built, unit-tested, and verified in E2E.
 

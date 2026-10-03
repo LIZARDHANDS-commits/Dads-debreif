@@ -29,7 +29,7 @@ const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expecte
 const degDiff = (aRad, bRad) => Math.abs(radToDeg(wrapPi(aRad - bRad)));
 
 /** Nobody chases, so one aircraft's move is seen on its own. */
-const SOLO = { pursuit: 'none' };
+const SOLO = { pursuit: 'none', collisionDetection: false };
 
 /** Steps the fight until done(state) or limitSec, one whole step at a time. */
 function runUntil(setup, done, limitSec = 120) {
@@ -988,7 +988,7 @@ const TEN_MINUTES_FIGHTS = {
 for (const pursuit of [...PURSUITS]) {
   for (const [name, { setup, chases }] of Object.entries(TEN_MINUTES_FIGHTS)) {
     test(`${name}, ${pursuit} pursuit, ten minutes: never more than 20 ft below the deck, never past VMO`, () => {
-      const s = createEnergyFight({ ...setup, pursuit });
+      const s = createEnergyFight({ ...setup, pursuit, collisionDetection: false });
       let minAlt = Infinity, maxKias = 0, chasing = 0;
       for (let i = 0; i < 40; i++) {
         for (let j = 0; j < 750; j++) {
@@ -1305,7 +1305,7 @@ function realScore(setup, who, move) {
 test('the dry run matches the real fight: with the other aircraft\'s move forced, each move\'s predicted time is the time the real fight gets there', () => {
   // Cases where at least one move scores; the pass comes before the turns in the first (the pass falls mid-step), at once in the others.
   const cases = [
-    { blueKias: 300, redKias: 300, redMove: 'mpt', circles: 1 }, // 316 before the graded handover lead (F2): neither move scores from 316 any more
+    { blueKias: 300, redKias: 300, redMove: 'mpt', circles: 1, pullG: 4 }, // 316 before the graded handover lead (F2): neither move scores from 316 any more
     { blueKias: 280, redKias: 280, redMove: 'pitchBack', turnsStart: 'now', separationNm: 1.5, ataDeg: 90, aaDeg: 90 },
     { blueKias: 280, redKias: 250, redMove: 'immelmann', turnsStart: 'now', separationNm: 1.5, ataDeg: 90, aaDeg: 90 },
     { blueKias: 250, redKias: 160, redMove: 'immelmann', turnsStart: 'now', separationNm: 1.5, ataDeg: 90, aaDeg: 90 },

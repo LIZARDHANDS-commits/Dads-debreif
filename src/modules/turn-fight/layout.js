@@ -94,7 +94,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.3', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.5', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',
@@ -274,7 +274,7 @@ export function createLayout({ settings, controls, on }) {
   const resetButton = h('button', { type: 'button', class: 'button', onclick: () => on.reset() }, 'Reset');
   const timeText = h('span', { class: 'tf-pill tf-time' }, 'T+0.0');
   const phaseText = h('span', { class: 'tf-pill tf-phase' }, 'HEAD-TO-HEAD');
-  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.2: 3D BFM AI & Harvard II 5.0 G' }, 'v2.2 · BFM AI');
+  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.5: 3D BFM AI & Harvard II 5.0 G' }, 'v2.5 · BFM AI');
   const toolbar = h(
     'div',
     { class: 'tf-toolbar' },

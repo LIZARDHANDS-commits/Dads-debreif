@@ -35,7 +35,7 @@ import {
 } from '../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC, FIRST_NOSE_DEG } from './sim.js';
-import { turnRadiusFt, isaDensityRatio } from '../../core/flight-math.js';
+import { turnRadiusFt } from '../../core/flight-math.js';
 
 /** The moves a setup can force; 'auto' lets the model choose (step 1). */
 export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
@@ -610,8 +610,8 @@ function noseOnSec(from, who, move, kias, cutSec) {
   // `flags`: OVER G and STALL belong to a step the move has flown. At the pick itself they are the last move's.
   const judge = (flags) => {
     if (flags && (me.overG || me.stall)) return { sec: null };
-    const mine = onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you);
-    const theirs = onTheOther(sim, you, me) || shouldPursueTactical(sim, you, me);
+    const mine = onTheOther(sim, me, you);
+    const theirs = onTheOther(sim, you, me);
     if (theirs && !mine) return { sec: null };
     return mine ? { sec: sim.timeSec - t0 } : null;
   };
@@ -695,8 +695,8 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
     }
   }
 
-  // 5. Low Yo-Yo: 140 <= KIAS <= 220 and sufficient altitude margin for dive
-  if (kias >= 140 && kias <= 220 && (altFt - hardDeckFt) > deckMarginFt + 500) {
+  // 5. Low Yo-Yo: 140 <= KIAS <= 220 and sufficient altitude margin for dive (not when bandit is high above)
+  if (kias >= 140 && kias <= 220 && (altFt - hardDeckFt) > deckMarginFt + 500 && (!other || (other.altFt ?? other.pm?.z ?? altFt) - altFt < 1000)) {
     moves.push('lowYoYo');
   }
 
@@ -1312,11 +1312,9 @@ function controlMpt(ctx) {
         if (altMargin && !ac.stall && !ac.overG) {
           const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
           if (best && best.move !== 'mpt' && best.move !== 'levelMpt') {
-            if ((best.winSec !== null && best.winSec !== undefined) || best.deltaAdv > 0.25) {
-              startMove(state, ac, best.move, best.why, kias);
-              c.lockoutTimer = 4.0;
-              return controlFor(ctx);
-            }
+            startMove(state, ac, best.move, best.why, kias);
+            c.lockoutTimer = 4.0;
+            return controlFor(ctx);
           }
         }
       }
@@ -1536,12 +1534,25 @@ export function turnPlaneNormal(target) {
 /** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), the curved Control Zone 1,500 ft behind (lag), or continuous dynamic blend (tactical). */
 export function aimPoint(p, target, ac = null) {
   if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
+  let danger = false;
+  if (ac && ac.pm && target && target.pm && p?.collisionAvoidance !== false) {
+    const tcpa = computeTcpa(ac, target);
+    const rangeFt = Math.hypot(
+      (target.xFt ?? target.pm.x) - (ac.xFt ?? ac.pm.x),
+      (target.yFt ?? target.pm.y) - (ac.yFt ?? ac.pm.y),
+      (target.zFt ?? target.pm.z) - (ac.zFt ?? ac.pm.z)
+    );
+    danger = (tcpa.closing && tcpa.tcpaSec <= 3.5 && tcpa.missFt < 120) || (tcpa.closing && rangeFt < 600) || (ac.deconflicting && rangeFt < 800);
+  }
+
   let aim;
   if (p.pursuit === 'lead') {
-    aim = add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
+    const leadSec = danger ? 0 : p.leadSec;
+    aim = add(posOf(target.pm), scale(velOf(target.pm), leadSec));
   } else if (p.pursuit === 'lag') {
-    if (p.lagSec === 0) aim = posOf(target.pm);
-    else aim = curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
+    const lagSec = danger ? 0 : p.lagSec;
+    if (lagSec === 0) aim = posOf(target.pm);
+    else aim = curvedControlZonePoint(target, 1500 * (lagSec ?? 1));
   } else if (p.pursuit === 'tactical') {
     aim = tacticalAimCalculation(p, target, ac).aim;
   } else {
@@ -1550,21 +1561,26 @@ export function aimPoint(p, target, ac = null) {
 
   aim = { x: aim.x, y: aim.y, z: aim.z };
 
-  if (ac && ac.pm && target && target.pm && p?.collisionAvoidance !== false) {
-    const tcpa = computeTcpa(ac, target);
-    if (tcpa.closing && tcpa.tcpaSec >= TCPA_GATE_MIN_SEC && tcpa.tcpaSec <= TCPA_GATE_MAX_SEC && tcpa.missFt < TCPA_MISS_GATE_FT) {
-      ac.deconflicting = true;
-      const n = turnPlaneNormal(target);
-      const acPos = { x: ac.xFt ?? ac.pm.x ?? 0, y: ac.yFt ?? ac.pm.y ?? 0, z: ac.zFt ?? ac.pm.z ?? 0 };
-      const targetPos = { x: target.xFt ?? target.pm.x ?? 0, y: target.yFt ?? target.pm.y ?? 0, z: target.zFt ?? target.pm.z ?? 0 };
-      const offsetSign = dot(sub(acPos, targetPos), n) >= 0 ? 1 : -1;
-      const offsetFt = offsetSign * DECONFLICTION_OFFSET_FT;
-      aim.x += n.x * offsetFt;
-      aim.y += n.y * offsetFt;
-      aim.z += n.z * offsetFt;
-    } else {
-      ac.deconflicting = false;
+  if (danger) {
+    ac.deconflicting = true;
+    const n = turnPlaneNormal(target);
+    const acPos = { x: ac.xFt ?? ac.pm.x ?? 0, y: ac.yFt ?? ac.pm.y ?? 0, z: ac.zFt ?? ac.pm.z ?? 0 };
+    const targetPos = { x: target.xFt ?? target.pm.x ?? 0, y: target.yFt ?? target.pm.y ?? 0, z: target.zFt ?? target.pm.z ?? 0 };
+    const dPos = dot(sub(acPos, targetPos), n);
+    const offsetSign = Math.abs(dPos) > 1.0 ? (dPos > 0 ? 1 : -1) : (ac.who === 'red' ? -1 : 1);
+    const offsetFt = offsetSign * DECONFLICTION_OFFSET_FT;
+    aim.x += n.x * offsetFt;
+    aim.y += n.y * offsetFt;
+    aim.z += n.z * offsetFt;
+
+    if (Math.abs(n.z) < 0.5) {
+      const dZ = acPos.z - targetPos.z;
+      const zSign = Math.abs(dZ) > 1.0 ? (dZ > 0 ? 1 : -1) : (ac.who === 'red' ? -1 : 1);
+      aim.z += zSign * DECONFLICTION_OFFSET_FT;
     }
+
+    const floorFt = p?.hardDeckFt ?? 6000;
+    if (aim.z < floorFt + 50) aim.z = floorFt + DECONFLICTION_OFFSET_FT;
   } else if (ac) {
     ac.deconflicting = false;
   }
@@ -1628,6 +1644,11 @@ function controlPursuit(ctx) {
     return cap;
   };
 
+  // Near the deck, never allow downward lift demand (pushing over or rolling inverted into the deck)
+  if (f.altFt < p.hardDeckFt + 400) {
+    alphaWanted = Math.max(Math.cos(f.climbRad), alphaWanted);
+  }
+
   // The flight path angle the deck and the speed limit ask for: the deck from the height the pull-out would bottom at, the limit (VMO, or true Mach 0.67 above about 17,570 ft, energyTopKias) from the speed a few seconds on.
   const gamma = f.climbRad;
   const pullOutG = Math.max(capFor(true) - 1, 0.5);
@@ -1638,7 +1659,7 @@ function controlPursuit(ctx) {
   const gammaAfterRoll = gamma + Math.min(gammaRate, 0) * rollOutSec;
   const rollLossFt = vFtps * rollOutSec * Math.max(0, -Math.sin((gamma + gammaAfterRoll) / 2));
   const circleFt = gammaAfterRoll < 0 ? TUNING.deckPullOutFactor * (vFtps * vFtps / (G_FTPS2 * pullOutG)) * (1 - Math.cos(gammaAfterRoll)) : 0;
-  const dropFt = rollLossFt + circleFt;
+  const dropFt = rollLossFt + circleFt + 30;
   const deckSin = clamp((p.hardDeckFt - (f.altFt - dropFt)) * TUNING.levelAltGainPerSec / vFtps, -0.95, 0.5);
   const guardKias = energyTopKias(f.altFt) - TUNING.vmoMarginKias; // the limit at this height, so it tightens as the chase climbs into the Mach limit and eases as it dives out of it
   const overKt = kias + c.kiasRateEff * TUNING.vmoLeadSec - guardKias;
@@ -1714,7 +1735,8 @@ function stepAircraft(state, ac, other, d) {
   if (ac.tumble) {
     ac.throttle = 0;
     const z = ac.altFt ?? ac.pm.z;
-    const sigma = isaDensityRatio(z);
+    const sqSigma = tasToIasKt(1, z);
+    const sigma = sqSigma * sqSigma;
     const kDrag = 0.00052 * sigma;
     let vx = ac.pm.vx, vy = ac.pm.vy, vz = ac.pm.vz;
     let x = ac.pm.x, y = ac.pm.y, posZ = ac.pm.z;
@@ -2019,7 +2041,7 @@ function checkFirstNose(state) {
     }
   }
   // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
-  if (!chasers.length && Math.abs(state.blue.altFt - state.red.altFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+  if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
       if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
@@ -2098,7 +2120,7 @@ function stepOnce(state) {
   if (remaining > 1e-9) {
     const blue = state.blue, red = state.red;
     // Both read each other's state from before the step.
-    const blueOther = { pm: red.pm }, redOther = { pm: blue.pm };
+    const blueOther = { ...red, pm: red.pm }, redOther = { ...blue, pm: blue.pm };
     stepAircraft(state, blue, blueOther, remaining);
     stepAircraft(state, red, redOther, remaining);
     state.timeSec += remaining;
@@ -2148,7 +2170,8 @@ export function checkWezGun(state, d = FIGHT_STEP_SEC) {
 export function checkMidAirCollision(state, d = FIGHT_STEP_SEC) {
   if (state.setup?.collisionDetection === false) return;
   if (state.collision) return;
-  const postMerge = !state.merged || state.timeSec > (state.mergeSec ?? 0) + 1.0;
+  if (state.setup?.pursuit === 'none') return;
+  const postMerge = state.merged === undefined || (state.merged === true && state.timeSec > (state.mergeSec ?? 0) + 1.0) || state.setup?.turnsStart === 'now';
   if (!postMerge) return;
   if (state.rangeFt < COLLISION_HITBOX_FT) {
     const dvx = state.blue.pm.vx - state.red.pm.vx;

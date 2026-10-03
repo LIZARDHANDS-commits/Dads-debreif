@@ -1076,3 +1076,212 @@
 * **Verification:**  
   - `node --test tests/unit/traffic/*.test.js`: all 740 tests passed, 0 failed.
   - PFL threshold miss distance: 0.00 ft calm, 0.00 ft in 25 kt crosswind, 0.00 ft in 25 kt headwind.
+---
+
+### PATCH-040: Combat Resolution — 2.0 s Continuous WEZ Gun Kill & Auto-Pause (D421)
+* **Date & Time:** 2026-10-02 23:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/index.js`
+  * `src/modules/turn-fight/energy-readouts.js`
+  * `src/modules/turn-fight/turn-fight.css`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Fighters had no decisive combat resolution; even when one fighter achieved dominant tracking inside the gun envelope, simulation continued indefinitely in sterile pursuit.
+* **Changes Made:**
+  1. Implemented WEZ Gun tracking detection in `energy-sim.js`: evaluated continuous tracking timer (`ac.ctl.wezTrackSec`) when in rear control zone, ATA <= 15°, target AA <= 60°, range < 2,500 ft, and not stalled.
+  2. At 2.0 s continuous tracking, triggered `state.kill = { victor, timeSec, rangeFt, ataDeg }` and flagged `state.stopped = true`.
+  3. Added HUD victor banner in `layout.js` with auto-pause in `index.js`, providing "Continue Engagement" and "Reset Fight" buttons.
+  4. Added prominent combat victory row in `energy-readouts.js`.
+  5. Added unit tests validating WEZ accumulation, reset on breakout, and kill trigger.
+* **Reasoning / Rationale:**  
+  Decision **D421**. Gives conclusive combat outcome to BFM engagements per tactical fighter doctrine.
+* **Verification:**  
+  All unit tests in `energy-tactical.test.js` passed; build succeeded.
+
+---
+
+### PATCH-041: Dynamic 3D Centroid Camera & Tactical Visual Cues (D422)
+* **Date & Time:** 2026-10-03 00:15 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/view3d.js`
+  * `src/modules/turn-fight/turn-fight.css`
+  * `tests/unit/turn-fight/view3d.test.js`
+* **Problem / Flaw Addressed:**  
+  Static bounds midpoint left fighters drifting off-center during 3D vertical maneuvers; HUD data tags sat directly on top of 3D aircraft models; pilots lacked visual cues for lift vector and WEZ cone.
+* **Changes Made:**
+  1. Updated `cameraFor` in `view3d.js`: dynamic centroid camera tracks aircraft midpoint $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$ with adaptive distance framing.
+  2. Displaced aircraft HUD data tags (-60px for Blue, +40px for Red) with leader lines connecting tags to aircraft centroids.
+  3. Added wing-normal 3D lift vector lines and 15° WEZ aiming cone attached to tracking aircraft nose.
+* **Reasoning / Rationale:**  
+  Decision **D422**. Ensures optimal framing and authentic visual debrief references during dynamic BFM dogfights.
+* **Verification:**  
+  All `view3d.test.js` unit tests passed; Three.js context cleanup verified.
+
+---
+
+### PATCH-042: Tactical Engagement Presets & 1.2 NM Re-baseline (D423)
+* **Date & Time:** 2026-10-03 01:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/state.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/index.js`
+  * `tests/unit/turn-fight/state.test.js`
+  * `tests/unit/turn-fight/energy-state.test.js`
+* **Problem / Flaw Addressed:**  
+  Legacy 2.0 NM start separation generated 15+ seconds of passive head-on transit dead time; zero-degree start ATA had no lateral offset.
+* **Changes Made:**
+  1. Re-baselined default start separation to 1.2 NM and start ATA to 5° (750 ft lateral turning room) in `state.js`.
+  2. Added 5 canonical 1-click tactical scenario presets: Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, and Radius vs Rate.
+  3. Integrated preset select handler in `layout.js` and `index.js`.
+* **Reasoning / Rationale:**  
+  Decision **D423**. Eliminates boring pre-merge transit time and provides instant access to canonical BFM training scenarios.
+* **Verification:**  
+  All `state.test.js` and `energy-state.test.js` tests passed.
+
+---
+
+### PATCH-043: Turn Fight BFM Energy Fight Default-On & Progressive Disclosure Architecture (D424 / D425)
+* **Date & Time:** 2026-10-03 01:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/state.js`
+  * `src/modules/turn-fight/layout.js`
+  * `tests/unit/turn-fight/state.test.js`
+  * `tests/unit/turn-fight/energy-layout.test.js`
+* **Problem / Flaw Addressed:**  
+  Turn Fight opened to legacy flat 2D turn circles by default; 16 developer checking parameters cluttered the student interface.
+* **Changes Made:**
+  1. Defaulted `energy: true` in `DEFAULTS` and `standardDefaults()` in `state.js`, opening directly into authentic 3D BFM Energy Fight (superseding D379 per D425).
+  2. Retired arcade "Climb and dive" from Simple Mode, preserving Simple Mode as a clean flat 2D rate/radius reference.
+  3. Quarantined 16 "Model settings for checking" behind `?debug=aero` URL query parameter.
+  4. Streamlined move dropdown labels to clean military nomenclature (`Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and manual overrides).
+* **Reasoning / Rationale:**  
+  Decisions **D424** and **D425**. Elevates authentic 3D aerodynamics as the primary user experience while strictly adhering to progressive disclosure (R22).
+* **Verification:**  
+  Unit tests and build clean.
+
+---
+
+### PATCH-044: Immelmann Apex 140 kt Gate Removal (D426)
+* **Date & Time:** 2026-10-03 02:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Artificial 140 kt apex gate in `getFeasibleMoves` prevented pilots/AI from attempting Immelmanns across the authentic T-6 operating envelope.
+* **Changes Made:**
+  1. Removed artificial 140 kt apex gate from `getFeasibleMoves`; allowed Immelmann attempts from 180 to 316 KIAS entries per Patrick's directive ("let it try if it wants").
+  2. Relied on authentic stall shaker dynamics, AOA limits, and departure recovery.
+* **Reasoning / Rationale:**  
+  Decision **D426**. Honors pilot decision-making and authentic aircraft flight characteristics without artificial software speed governors.
+* **Verification:**  
+  All `energy-tactical.test.js` tests green.
+
+---
+
+### PATCH-045: Physical Hitbox (35 ft) & Sequential Combat Telemetry (D427)
+* **Date & Time:** 2026-10-03 02:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Simulation permitted aircraft to pass through each other with 0 ft separation without physical consequences.
+* **Changes Made:**
+  1. Exported `COLLISION_HITBOX_FT = 35.0` (matching CT-156 wingspan 33.4 ft and length 33.3 ft).
+  2. Implemented `checkMidAirCollision`: triggers when 3D Euclidean range < 35 ft post-merge.
+  3. Records `state.collision = { timeSec, impactKias, relativeSpeedKt, closingRateKt, altitudeFt }` while preserving prior `state.kill` in telemetry for sequential debrief analysis.
+* **Reasoning / Rationale:**  
+  Decision **D427**. Establishes physical airframe boundaries and eliminates unphysical ghost aircraft penetration.
+* **Verification:**  
+  Unit tests in `energy-tactical.test.js` verified hitbox boundary triggers at 34.9 ft and non-trigger at 35.1 ft.
+
+---
+
+### PATCH-046: Analytical TCPA Predictive Deconfliction Gate & Out-of-Plane Rolling Lag (D427)
+* **Date & Time:** 2026-10-03 03:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Pure pursuit tracking at high closure rates caused attackers to ram defenders from behind.
+* **Changes Made:**
+  1. Implemented closed-form analytical vector TCPA calculation `computeTcpa(ac, target)`: computes $t_{\text{CPA}} = -\frac{\vec{r} \cdot \vec{V}_{\text{rel}}}{|\vec{V}_{\text{rel}}|^2}$ and projected miss distance $d_{\text{miss}}$.
+  2. Implemented predictive collision gate: triggers when $t_{\text{CPA}} \in [0.5, 1.5]\text{ s}$ and $d_{\text{miss}} < 75\text{ ft}$.
+  3. Context-dependent out-of-plane lag roll: computes defender turn-plane normal $\hat{n} = \frac{\vec{V}_{\text{def}} \times \vec{a}_{\text{def}}}{|\vec{V}_{\text{def}} \times \vec{a}_{\text{def}}|}$ and displaces aim point 85 ft along $\hat{n}$, inducing natural flight-path overshoot and safe canopy-to-canopy clearance.
+  4. Dynamically clamped deck pull-out floor to prevent dive overshoot during high-speed deconfliction.
+* **Reasoning / Rationale:**  
+  Decision **D427**. Models authentic tactical military deconfliction doctrine and sets up realistic defender scissors reversals.
+* **Verification:**  
+  Unit tests verified analytical TCPA formulas and out-of-plane aim displacement.
+
+---
+
+### PATCH-047: Ballistic Tumble State Machine Down to Terrain (D427)
+* **Date & Time:** 2026-10-03 03:30 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/energy-sim.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/index.js`
+  * `src/modules/turn-fight/energy-readouts.js`
+  * `tests/unit/turn-fight/energy-tactical.test.js`
+* **Problem / Flaw Addressed:**  
+  Collisions previously froze the simulation instantly, preventing realistic observation of the post-collision aircraft departure.
+* **Changes Made:**
+  1. Implemented post-collision ballistic tumble state machine (`ac.tumble`): cuts thrust to 0, severs flight controls, applies bluff-body aerodynamic drag ($C_D \approx 1.2$), gravity drop $\ddot{z} = -32.174\text{ ft/s}^2$, and severity-scaled rotational integration using CT-156 inertia ratios ($I_{xx} \ll I_{yy} \ll I_{zz}$).
+  2. Permitted simulation to continue in real time until reaching terrain (0 ft MSL), where `state.stopped = true` is set.
+  3. Added HUD collision alert banner in `layout.js` and telemetry row in `energy-readouts.js`.
+* **Reasoning / Rationale:**  
+  Decision **D427**. Models authentic ballistic aerodynamic hull departure following mid-air collisions.
+* **Verification:**  
+  Unit tests verified drag deceleration, gravity acceleration, and terrain clamping at 0 ft MSL.
+
+---
+
+### PATCH-048: Turn Fight Settings Toggles, Full Test Harmonization & Gate 2 Verification (D425–D427)
+* **Date & Time:** 2026-10-03 04:00 UTC
+* **Milestone:** Milestone 2 (Turn Fight 1v1 BFM — Gate 2 Sign-Off Ready)
+* **Branch:** `next-module`
+* **Files Modified:**
+  * `src/modules/turn-fight/state.js`
+  * `src/modules/turn-fight/layout.js`
+  * `src/modules/turn-fight/energy-sim.js`
+  * `package.json`
+  * `index.html`
+  * `tests/unit/turn-fight/energy-sim.test.js`
+  * `docs/records/decisions-log.md`
+  * `docs/records/plan-decisions.md`
+  * `docs/handover/turn-fight.md`
+  * `HANDOVER.md`
+  * `docs/REMEDIATION_ROADMAP.md`
+* **Problem / Flaw Addressed:**  
+  Settings checkboxes for collision systems were missing from main settings; version number inconsistency in UI pills (`v2.2` vs `v2.3`); legacy tests failed due to strict time-locking or unisolated collision detection.
+* **Changes Made:**
+  1. Added `collisionDetection` and `collisionAvoidance` checkboxes into main Turn Fight settings modal.
+  2. Updated version strings across `package.json`, `index.html`, and `layout.js` to `V2.5` (`2.5.0`).
+  3. Fixed altitude variable definition in `stepAircraft` tumble handling.
+  4. Harmonized `energy-sim.test.js` tests by isolating aerodynamic governor checks from ballistic crash hulls (`collisionDetection: false`) and preserving legacy 4.0 G baseline for Test 1305.
+  5. Formally registered D425–D427 in `decisions-log.md` and `plan-decisions.md`.
+* **Reasoning / Rationale:**  
+  Decisions **D425–D427**. Completes all 30 Turn Fight remediation tasks and achieves 100% test green status across the repository.
+* **Verification:**  
+  - `node --test tests/unit/turn-fight/*.test.js`: 558/558 passed, 0 failed.
+  - `npm test`: 3,218 passed, 0 failed, 1 skipped.
+  - `npm run typecheck`: clean (0 errors).
+  - `npm run build`: built in 492ms, all size budgets kept.

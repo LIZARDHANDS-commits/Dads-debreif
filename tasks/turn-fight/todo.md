@@ -225,28 +225,28 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
 Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Plan: [`plan-collision.md`](plan-collision.md).  
 Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D425–D429).
 
-- [ ] **27. Task 27: Physical Hitbox (35 ft) & Collision State Tracking.**
-  - [ ] 27.1 Implement 3D Euclidean range check ($R_{3D} < 35.0\text{ ft}$) in `energy-sim.js`.
-  - [ ] 27.2 Record `state.collision` object (time, impact speed, closure rate, altitude).
-  - [ ] 27.3 Ensure sequential record in telemetry when a gun kill precedes collision.
-  - [ ] 27.4 Add unit tests in `tests/unit/turn-fight/energy-tactical.test.js` validating hitbox boundary.
+- [x] **27. Task 27: Physical Hitbox (35 ft) & Collision State Tracking.**
+  - [x] 27.1 Implement 3D Euclidean range check ($R_{3D} < 35.0\text{ ft}$) in `energy-sim.js`.
+  - [x] 27.2 Record `state.collision` object (time, impact speed, closure rate, altitude).
+  - [x] 27.3 Ensure sequential record in telemetry when a gun kill precedes collision.
+  - [x] 27.4 Add unit tests in `tests/unit/turn-fight/energy-tactical.test.js` validating hitbox boundary.
 
-- [ ] **28. Task 28: Analytical TCPA & Context-Dependent Lag Roll Deconfliction.**
-  - [ ] 28.1 Implement analytical vector TCPA ($t_{\text{CPA}} = -\frac{\vec{r} \cdot \vec{V}_{\text{rel}}}{|\vec{V}_{\text{rel}}|^2}$) and projected miss distance $d_{\text{miss}}$.
-  - [ ] 28.2 Evaluate predictive collision gate ($t_{\text{CPA}} \in [0.5, 1.5]\text{ s}$ and $d_{\text{miss}} < 75\text{ ft}$).
-  - [ ] 28.3 Implement context-dependent deconfliction: port-to-port/canopy-to-canopy in head-on pass; out-of-plane rolling lag displacement (85 ft along defender turn-plane normal $\hat{n}$) in offensive pursuit.
-  - [ ] 28.4 Add unit tests in `tests/unit/turn-fight/energy-tactical.test.js`.
+- [x] **28. Task 28: Analytical TCPA & Context-Dependent Lag Roll Deconfliction.**
+  - [x] 28.1 Implement analytical vector TCPA ($t_{\text{CPA}} = -\frac{\vec{r} \cdot \vec{V}_{\text{rel}}}{|\vec{V}_{\text{rel}}|^2}$) and projected miss distance $d_{\text{miss}}$.
+  - [x] 28.2 Evaluate predictive collision gate ($t_{\text{CPA}} \in [0.5, 1.5]\text{ s}$ and $d_{\text{miss}} < 75\text{ ft}$).
+  - [x] 28.3 Implement context-dependent deconfliction: port-to-port/canopy-to-canopy in head-on pass; out-of-plane rolling lag displacement (85 ft along defender turn-plane normal $\hat{n}$) in offensive pursuit.
+  - [x] 28.4 Add unit tests in `tests/unit/turn-fight/energy-tactical.test.js`.
 
-- [ ] **29. Task 29: Post-Collision Ballistic Tumble Physics, Real-Time Flow & HUD Banners.**
-  - [ ] 29.1 Implement unguided ballistic tumble state machine (`ac.tumble`): controls severed, throttle 0, bluff-body drag $C_D \approx 1.2$, gravity drop $\ddot{z} = -32.174\text{ ft/s}^2$, and rotational integration ($I_{xx} \ll I_{yy} \ll I_{zz}$).
-  - [ ] 29.2 Simulation continues in real time upon collision; automatically halts and announces when reaching terrain ($0\text{ ft MSL}$).
-  - [ ] 29.3 Implement HUD Collision Banner with impact telemetry.
-  - [ ] 29.4 Add telemetry row in `energy-readouts.js` and render tumbling orientation in `view3d.js`.
+- [x] **29. Task 29: Post-Collision Ballistic Tumble Physics, Real-Time Flow & HUD Banners.**
+  - [x] 29.1 Implement unguided ballistic tumble state machine (`ac.tumble`): controls severed, throttle 0, bluff-body drag $C_D \approx 1.2$, gravity drop $\ddot{z} = -32.174\text{ ft/s}^2$, and rotational integration ($I_{xx} \ll I_{yy} \ll I_{zz}$).
+  - [x] 29.2 Simulation continues in real time upon collision; automatically halts and announces when reaching terrain ($0\text{ ft MSL}$).
+  - [x] 29.3 Implement HUD Collision Banner with impact telemetry.
+  - [x] 29.4 Add telemetry row in `energy-readouts.js` and render tumbling orientation in `view3d.js`.
 
-- [ ] **30. Task 30: UI Settings Toggles, D379 Supersession & Test Suite Harmonization.**
-  - [ ] 30.1 Add checkboxes for `collisionDetection` and `collisionAvoidance` in main Turn Fight Settings modal (both default `true`).
-  - [ ] 30.2 Formalize D379 supersession by D425 (BFM Energy Fight is opening default).
-  - [ ] 30.3 Harmonize E2E and unit test suites under D411.
-  - [ ] 30.4 Verify full suite (`npm test`, `npm run typecheck`, `npm run build`).
-  - [ ] 30.5 Update documentation records (`decisions-log.md`, `plan-decisions.md`, `HANDOVER.md`, `REMEDIATION_ROADMAP.md`).
+- [x] **30. Task 30: UI Settings Toggles, D379 Supersession & Test Suite Harmonization.**
+  - [x] 30.1 Add checkboxes for `collisionDetection` and `collisionAvoidance` in main Turn Fight Settings modal (both default `true`).
+  - [x] 30.2 Formalize D379 supersession by D425 (BFM Energy Fight is opening default).
+  - [x] 30.3 Harmonize E2E and unit test suites under D411.
+  - [x] 30.4 Verify full suite (`npm test`, `npm run typecheck`, `npm run build`).
+  - [x] 30.5 Update documentation records (`decisions-log.md`, `plan-decisions.md`, `HANDOVER.md`, `REMEDIATION_ROADMAP.md`).
 
