@@ -2040,11 +2040,14 @@ function checkFirstNose(state) {
       chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
     }
   }
-  // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
+  // Across altitude separation (D404/D429): visual canopy acquisition engages fighters from level MPT into 3D combat pursuit
   if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
-    if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
+    const blueMpt = state.blue.ctl.mode === 'mpt' || state.blue.ctl.mode === 'levelMpt';
+    const redMpt = state.red.ctl.mode === 'mpt' || state.red.ctl.mode === 'levelMpt';
+    if (blueMpt && redMpt) {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
-      if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
+      const CANOPY_VISUAL_DEG = 60.0;
+      if (azBlue <= CANOPY_VISUAL_DEG || azRed <= CANOPY_VISUAL_DEG) {
         startPursuit(state, state.blue);
         startPursuit(state, state.red);
       }

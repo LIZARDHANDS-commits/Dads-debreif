@@ -14,7 +14,7 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
   - Loop, Cuban 8, Cloverleaf target entry is 230 KIAS with inverse dynamic G pull law (more G if slow, less G if fast); target exit is 230 KIAS.
   - Immelmann dynamically feasible at any speed > 220 KIAS.
   - SMM Aerobatics Sequence Mode registered as FF48 in `docs/records/future-ideas.md`.
-- **Turn Fight (Milestone 2):** 100% COMPLETE across all 30 tasks, Remediation Plans v2–v5, BFM AI v2.5 (PATCH-024 through PATCH-048, D401–D427). All 558 unit tests, Playwright E2E tests, typecheck, build green (3,218+ repo tests pass). Ready for Gate 2 sign-off.
+- **Turn Fight (Milestone 2):** 100% COMPLETE across all 30 tasks, Remediation Plans v2–v5, BFM AI v2.5 (PATCH-024 through PATCH-049, D401–D429). Altitude-split circling resolved via canopy visual acquisition (D429). All 558 unit tests, Playwright E2E tests, typecheck, build green (3,218+ repo tests pass). Ready for Gate 2 sign-off.
 - **Traffic Pattern Sim (Milestone 1):**
   - Core 3-mode state machine (`RAIL`, `PHYSICS`, `BLENDING`) complete.
   - Architecture and bloat remediation report completed and moved to [`archive/reports/traffic-sim-architecture-and-bloat-report.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/archive/reports/traffic-sim-architecture-and-bloat-report.md).
