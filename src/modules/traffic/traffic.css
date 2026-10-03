@@ -562,6 +562,27 @@
   border-color: var(--bad, #ef4444);
 }
 
+[data-module='traffic'] .aircraft-intent-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+}
+
+[data-module='traffic'] .aircraft-intent-select {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  min-height: 0;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+}
+
 [data-module='traffic'] .aircraft-swatch {
   flex: none;
   width: 0.75rem;

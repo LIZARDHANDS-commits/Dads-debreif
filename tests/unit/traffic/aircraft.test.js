@@ -288,13 +288,13 @@ test('while playing the lists are rewritten at most every 100 ms; paused, at onc
 });
 
 // TR-14: neither button acts while a box it reads is refused, and the spawner's line names the box.
-test('+ Spawn and + Pair hold back while Start at point is refused, and the line names the box', () => {
+test('+ Spawn and + Pair hold back while Delay is refused, and the line names the box', () => {
   const timers = fakeTimers();
   const { spawner, sim, changes } = setup({ timers });
   const spawn = buttonNamed(spawner, '+ Spawn'), pair = buttonNamed(spawner, '+ Pair, 20 s apart');
   const before = sim.state().aircraft.length;
   assert.equal(spawn.getAttribute('aria-disabled'), null);
-  type(inputFor(spawner, 'Start at point'), '0'); // out of range: refused, the setting keeps its last good value
+  type(inputFor(spawner, 'Delay'), '-1'); // out of range: refused, the setting keeps its last good value
   assert.equal(spawn.getAttribute('aria-disabled'), 'true');
   assert.equal(pair.getAttribute('aria-disabled'), 'true');
   spawn.dispatch('click');
@@ -302,9 +302,9 @@ test('+ Spawn and + Pair hold back while Start at point is refused, and the line
   timers.tick();
   assert.equal(sim.state().aircraft.length, before, 'nothing was added');
   assert.deepEqual(changes, [], 'and the screen was not told');
-  assert.match(withClass(spawner, 'spawn-message')[0].textContent, /Nothing was added: fix the Start at point box first\./);
+  assert.match(withClass(spawner, 'spawn-message')[0].textContent, /Nothing was added: fix the Delay box first\./);
   // Put it right: both act again.
-  type(inputFor(spawner, 'Start at point'), '1');
+  type(inputFor(spawner, 'Delay'), '0');
   assert.equal(spawn.getAttribute('aria-disabled'), null);
   spawn.dispatch('click');
   pair.dispatch('click');
@@ -368,19 +368,33 @@ test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted G
   const rows = withClass(list, 'aircraft-row');
   const row0 = rows[0];
   const breakoutBtn = buttonNamed(row0, 'Breakout');
+  const closedBtn = buttonNamed(row0, 'Closed Pattern');
   const highKeyBtn = buttonNamed(row0, 'High Key');
   const pflBtn = buttonNamed(row0, 'PFL');
   const goAroundBtn = buttonNamed(row0, 'Go-around');
 
   assert.ok(breakoutBtn, 'Breakout button is rendered on flying aircraft');
+  assert.ok(closedBtn, 'Closed Pattern button is rendered on flying aircraft');
   assert.ok(highKeyBtn, 'High Key button is rendered on flying aircraft');
   assert.ok(pflBtn, 'PFL button is rendered on flying aircraft');
   assert.ok(goAroundBtn, 'Go-around button is rendered on flying aircraft');
 
+  // Closed Pattern issues closed_pattern command
+  closedBtn.dispatch('click');
+  assert.equal(sim.state().aircraft[0].command, 'closed_pattern');
+
+  // Landing Behaviour select updates aircraft intent
+  const intentSelect = tagged(row0, 'SELECT').find((s) => s.getAttribute?.('class')?.includes('aircraft-intent-select'));
+  assert.ok(intentSelect, 'Landing Behaviour select is rendered');
+  assert.equal(intentSelect.value, 'touch_and_go');
+  intentSelect.value = 'full_stop';
+  intentSelect.dispatch('change');
+  assert.equal(sim.state().aircraft[0].intent, 'full_stop');
+
   // Go-around is disabled before the landing window (e.g. on climbout)
   assert.equal(goAroundBtn.disabled, true, 'Go-around is disabled outside the final approach window');
   goAroundBtn.dispatch('click');
-  assert.equal(sim.state().aircraft[0].command, null, 'Clicking disabled Go-around does not trigger command');
+  assert.equal(sim.state().aircraft[0].command, 'closed_pattern', 'Clicking disabled Go-around does not change command');
 
   // Breakout issues command from anywhere
   breakoutBtn.dispatch('click');

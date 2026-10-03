@@ -66,18 +66,20 @@ export function aircraftRows(state, setup) {
     const altFt = Math.round(a.alt), kt = Math.round(a.kt);
     const statusText = a.command === 'breakout'
       ? 'Breakout'
-      : a.command === 'climb_high_key' || a.command === 'climb_low_key'
-        ? 'High Key'
-        : a.command === 'pfl_current'
-          ? 'PFL'
-          : a.command === 'go_around'
-            ? 'Go-around'
-            : a.engineFailed
-              ? 'ENG FAIL'
-              : STATUS_TEXT[a.status] || a.status;
+      : a.command === 'closed_pattern'
+        ? 'Closed Pattern'
+        : a.command === 'climb_high_key' || a.command === 'climb_low_key'
+          ? 'High Key'
+          : a.command === 'pfl_current'
+            ? 'PFL'
+            : a.command === 'go_around'
+              ? 'Go-around'
+              : a.engineFailed
+                ? 'ENG FAIL'
+                : STATUS_TEXT[a.status] || a.status;
     return {
       id: a.id, type: a.type, color: a.color, routeName, routeId: a.routeId, leg: a.leg, altFt, kt, status: a.status, statusText,
-      engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase,
+      engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase, intent: a.intent ?? 'touch_and_go',
       startsText: a.status === 'waiting' ? `starts at ${startTimeText(a.startsAt)}` : '',
       labelText: `${altFt}ft ${kt}kt ${routeName}`,
       cells: [a.id, a.type, routeName, String(a.leg), String(altFt), String(kt), statusText],

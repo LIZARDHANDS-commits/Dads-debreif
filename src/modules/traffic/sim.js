@@ -772,6 +772,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return true;
     },
 
+    /** Sets the landing intent for an active aircraft: 'touch_and_go', 'full_stop', 'go_around'. */
+    setIntent(aircraftId, intent) {
+      settle();
+      const a = aircraft.find((ac) => ac.id === aircraftId);
+      if (!a) return false;
+      a.intent = intent;
+      return true;
+    },
+
     nextCallsign,
 
     /** What is where right now. */
