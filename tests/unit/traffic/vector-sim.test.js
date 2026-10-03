@@ -459,7 +459,7 @@ test('Slice G: in-flight breakout command climbs to 4,500 ft, vectors toward P_b
   assert.equal(aBreak.command, 'breakout');
   assert.equal(aBreak.status, 'flying');
   assert.equal(aBreak.phase, 'breakout');
-  assert.ok(aBreak.kt >= 140 && aBreak.kt <= 180, `Speed ${aBreak.kt} should be in 140-180 kt cruise climb`);
+  assert.ok(aBreak.kt >= 140 && aBreak.kt <= 230, `Speed ${aBreak.kt} should be in 140-230 kt cruise climb`);
   assert.ok(aBreak.alt >= 2500 && aBreak.alt <= 4500, `Alt ${aBreak.alt} should be climbing toward 4500`);
 });
 

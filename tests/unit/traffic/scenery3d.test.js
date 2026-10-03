@@ -111,10 +111,8 @@ test('instantiates scenery group and asserts tower, 4 hangars, and apron slab ex
   const glassPalace = scenery.getObjectByName('main-building');
   assert.ok(glassPalace, 'Glass Palace exists');
   assert.ok(glassPalace.getObjectByName('main-building-glass-wall'), 'glass curtain wall exists');
-  assert.ok(glassPalace.getObjectByName('main-building-atrium-roof'), 'atrium roof exists');
-  assert.ok(glassPalace.getObjectByName('main-building-wing-1'), 'rear wing 1 exists');
-  assert.ok(glassPalace.getObjectByName('main-building-wing-2'), 'rear wing 2 exists');
-  assert.ok(glassPalace.getObjectByName('main-building-wing-3'), 'rear wing 3 exists');
+  assert.ok(glassPalace.getObjectByName('main-building-body'), 'body traced on the satellite outline exists');
+  assert.equal(glassPalace.getObjectByName('main-building-wing-1'), undefined, 'the old finger wings are gone');
 
   disposeAirfieldScenery(scenery);
 });

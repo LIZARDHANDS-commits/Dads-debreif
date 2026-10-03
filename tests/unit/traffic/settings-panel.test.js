@@ -320,12 +320,12 @@ test('the 3D view Graphics Quality selector switches between High and Performanc
   assert.ok(label, 'a "Graphics" label exists');
   const select = tagged(panel.element, 'SELECT').find((s) => s.id === label.getAttribute('for'));
   assert.ok(select, 'a select for Graphics exists');
-  assert.equal(settings.get().graphicsQuality, 'high');
-  assert.equal(DEFAULTS.graphicsQuality, 'high');
-  select.value = '1';
-  select.dispatch('change');
   assert.equal(settings.get().graphicsQuality, 'low');
+  assert.equal(DEFAULTS.graphicsQuality, 'low');
+  select.value = '0';
+  select.dispatch('change');
+  assert.equal(settings.get().graphicsQuality, 'high');
   const reset = buttonNamed(panel, 'Reset to Standard Defaults');
   reset.dispatch('click');
-  assert.equal(settings.get().graphicsQuality, 'high');
+  assert.equal(settings.get().graphicsQuality, 'low');
 });

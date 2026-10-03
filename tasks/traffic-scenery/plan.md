@@ -75,3 +75,34 @@ downwind and "1/3 sky, 2/3 ground" in the final turn (EFIG p.134, 150, 183).
 - Sukanen Ship intersection: is this Hwy 2 x Sukanen access road south of the field? (EFIG p.211 puts it under the downwind leg.)
 - "Auto Wrecker (Flat/Fiat Farm)": the diagram reads "Flat Farm"; which name does Dad use?
 - Any landmark Dad uses that is missing from the EFIG list?
+
+## Update 3 Oct 15:10 (Patrick's corrections)
+
+**Overlay rule (Patrick):** every 3D model must sit exactly on its footprint in the satellite photo. Footprints are
+traced from the photo (or from Patrick's red outlines on a 3D screenshot) in local feet; no invented shapes.
+Each agent checks its work with a top-down 3D screenshot against the photo before reporting done.
+
+**Done this round:**
+- [x] Glass Palace rebuilt on its traced outline, curved glass on the ramp (south-east) side, Big 2 on the roof;
+      the three finger-wing boxes removed.
+- [x] Rec Centre, Hangar 5 and Hangar 6 moved onto the red outlines (traced, about 20 ft).
+- [x] `landmarks3d.js`: Window Farm, Sukanen Ship, Fiat Farm, Arrow Tree Rows (hourglass of 11 N-S tree rows)
+      from Patrick's pins. 10/10 scenery + landmark tests pass. Not yet wired into the 3D view.
+
+**Agentic run order (D375: one agent per step, I review between steps):**
+1. Agent A: wire `landmarks3d.js` into view3d + top-down overlay screenshot check. (serial)
+2. Agent B: lighting (Task 1) + canopy (Task 2). (serial, view3d)
+3. Agent C: windsock (Task 3) + Hwy 2 ribbon, in `landmarks3d.js`. (after A)
+4. Agent D: camera Phase 3 menu (Fit / Tower / Chase / Cockpit / Padlock + follow dropdown). (after B)
+5. Me: settings toggle + records (Tasks 6-7), full test run, build, Patrick review.
+
+## Grill-me answers (Patrick, 3 Oct 15:11-15:27)
+1. Glass Palace glass side: Patrick will send a close-up photo. Until then keep south-east; fix when photo lands.
+2. index.js: ALLOWED for the ~2-line display-only wiring (list row click -> view3d.target(id)). Log in decisions-log.
+3. Landmarks: always on at every quality; no setting (Task 6 drops the landmark toggle).
+4. Graphics: default to **Performance ('low')**; add a quick High/Performance switch in the 3D bar (next to Fit /
+   High look-down / Low chase), keep the Traffic settings entry too.
+5. Sun: fixed mid-afternoon summer sun from the south-west, ~45 deg up.
+6. Camera menu: Fit, Top-down, Tower, Chase, Cockpit, Padlock (runway) + Follow dropdown of flying aircraft.
+
+Agent D's scope adds: index.js row-click wiring and the 3D-bar graphics switch + 'low' default.

@@ -31,7 +31,7 @@ export const DEFAULTS = Object.freeze({
   // The 3D aircraft's paint: the Harvard scheme (the ui-kit's PAINT_DEFAULT), or plain ship colours.
   paint: PAINT_DEFAULT,
   // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
-  graphicsQuality: 'high',
+  graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
   // Wind: calm, 360°T at 0 kt.
   windFromDeg: 360,

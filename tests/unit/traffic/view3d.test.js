@@ -401,6 +401,23 @@ test('dispose frees every geometry and material the kit made, leaves nothing in 
   assert.doesNotThrow(() => kit.dispose());
 });
 
+test('the circuit landmarks group is added to the scene and fully freed and removed on dispose (D411)', (t) => {
+  const tracker = trackDisposals(t);
+  const kit = createSceneKit(THREE, { models });
+  kit.sync(scene(), OPTIONS);
+  const group = kit.root.getObjectByName('circuit-landmarks');
+  assert.ok(group, 'landmarks are in the scene');
+  assert.ok(group.children.length >= 4, 'every landmark built');
+  const owned = tracker.ownedBy(group);
+  assert.ok(owned.size > 0);
+  kit.dispose();
+  const left = [...owned].filter((item) => !tracker.disposed.has(item));
+  assert.deepEqual(left.map((item) => item.type), [], 'every landmark geometry and material freed');
+  assert.equal(group.parent, null, 'detached from the scene');
+  assert.equal(group.children.length, 0);
+  assert.equal(kit.root.getObjectByName('circuit-landmarks'), undefined);
+});
+
 test('switching the caution rings off frees the rings, and a paint change replaces only the T-6s', (t) => {
   const tracker = trackDisposals(t);
   const kit = createSceneKit(THREE, { models });

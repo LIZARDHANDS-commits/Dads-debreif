@@ -1,11 +1,11 @@
-// 15 Wing Moose Jaw (CYMJ) 3D Airfield Scenery & Landmarks (D138, D141, D373, D378, D411).
+﻿// 15 Wing Moose Jaw (CYMJ) 3D Airfield Scenery & Landmarks (D138, D141, D373, D378, D411).
 // Procedural 3D models for the north flight line: the CYMJ Control Tower, the arch/barrel flight-line
 // hangars, and three more buildings, each painted with a small canvas texture and given a label sprite.
 //
 // Coordinates & Aerodrome Context:
-// - Local origin (0, 0) is Moose Jaw ARP: Lat 50.3303° N, Lon -105.5592° W.
+// - Local origin (0, 0) is Moose Jaw ARP: Lat 50.3303Â° N, Lon -105.5592Â° W.
 // - Runway 29L threshold: (X = 3104 ft, Y = -3194 ft), departure end: (X = -4066 ft, Y = 680 ft).
-// - Runway heading: 298° true.
+// - Runway heading: 298Â° true.
 // - The flight line / apron / hangars sit NORTH of the parallel runways (Y about 2,400 to 4,000 ft),
 //   placed against the satellite photo.
 // - Field elevation: 1880 ft MSL (floor default).
@@ -62,20 +62,16 @@ export const CYMJ_BUILDING_COORDS = Object.freeze({
 });
 
 /**
- * Three more buildings from the satellite photo (positions read off the photo, so about 50 ft). Footprints are
- * [x, y] in feet round the building's centre; they are boxes, not the real roof shapes.
+ * More buildings, traced from Patrick's red outlines on the 3D screenshot (3 Oct), so each model sits on its roof in
+ * the satellite photo (about 20 ft). Footprints are [x, y] in feet round the building's centre, north-up.
  */
-/** A rounded fan: a flat back with a curved front, 24 points. */
-const ROUNDED_MAIN_FOOTPRINT = Object.freeze(Array.from({ length: 25 }, (_, i) => {
-  const a = Math.PI * (i / 24);
-  return Object.freeze([Math.round(210 * Math.cos(a)), Math.round(-120 + 240 * Math.sin(a))]);
-}));
-
 export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
   Object.freeze({
-    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 880, y: 2915, height: 55,
-    footprint: ROUNDED_MAIN_FOOTPRINT,
-    roof: '#d8d2c4', wall: '#bdb6a6', accent: '#c8102e',
+    id: 'main-building', name: 'Glass Palace (2 CFFTS HQ)', type: 'building', x: 912, y: 3160, height: 52,
+    footprint: Object.freeze([[-60, -178], [-95, -50], [-147, 6], [-146, 102], [-53, 212], [63, 126], [78, 75]]),
+    glassCurve: Object.freeze([[160, 73], [190, -60], [150, -170], [16, -223]]),
+    badge: Object.freeze([20, 10]),
+    roof: '#d8dadc', wall: '#c9ccd0', accent: '#c8102e',
   }),
   Object.freeze({
     id: 'barracks-u', name: 'Student Barracks', type: 'barracks', x: -120, y: 3550, height: 34, rotation: -0.22,
@@ -85,19 +81,19 @@ export const CYMJ_EXTRA_BUILDINGS = Object.freeze([
     id: 'athletic-field', name: 'Athletic Field', type: 'field', x: 180, y: 3520, height: 1, rotation: -0.22,
   }),
   Object.freeze({
-    id: 'base-rec-center', name: 'Base Fitness & Rec Centre', type: 'building', x: 520, y: 3120, height: 38, rotation: 0.1,
-    footprint: Object.freeze([[-110, -75], [110, -75], [110, 75], [-110, 75]]),
-    roof: '#334155', wall: '#e2e8f0', accent: '#3b82f6',
+    id: 'base-rec-center', name: 'Base Fitness & Rec Centre', type: 'building', x: 309, y: 3381, height: 34,
+    footprint: Object.freeze([[-129, 94], [126, 53], [128, -102], [-125, -45]]),
+    roof: '#d6d8db', wall: '#e2e8f0', accent: '#3b82f6',
   }),
   Object.freeze({
-    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 1947, y: 2973, height: 48, rotation: 0.5,
-    footprint: Object.freeze([[-168, -142], [168, -142], [168, 142], [-168, 142]]),
-    roof: '#7b8696', wall: '#e7ebef', accent: '#1d4ed8',
+    id: 'hangar-5', name: 'Hangar 5', type: 'building', x: 2117, y: 3118, height: 48,
+    footprint: Object.freeze([[-159, 194], [157, 47], [174, -190], [-173, -51]]),
+    roof: '#9aa3ad', wall: '#e7ebef', accent: '#1d4ed8',
   }),
   Object.freeze({
-    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2217, y: 3127, height: 48, rotation: 0.5,
-    footprint: Object.freeze([[-180, -155], [180, -155], [180, 155], [-180, 155]]),
-    roof: '#7b8696', wall: '#e7ebef', accent: '#0f766e',
+    id: 'hangar-6', name: 'Hangar 6', type: 'building', x: 2311, y: 3439, height: 48,
+    footprint: Object.freeze([[-141, 204], [157, 62], [140, -201], [-158, -67]]),
+    roof: '#9aa3ad', wall: '#e7ebef', accent: '#0f766e',
   }),
 ]);
 
@@ -683,10 +679,9 @@ function createBoxBuilding(THREE, spec, floor) {
 }
 
 /**
- * The 2 CFFTS "Glass Palace" Operations & Training Headquarters:
- * A distinctive curved glass curtain wall along the east-facing atrium,
- * 3 staggered finger wings extending off the west back,
- * and the "THE BIG 2 - BEST IN THE WEST" squadron patch decal on the roof.
+ * The 2 CFFTS "Glass Palace": traced from the satellite footprint (Patrick's red outline, 3 Oct).
+ * An extruded body on the real outline; the south-east side (facing the ramp) is one curved glass curtain wall,
+ * and "THE BIG 2 - BEST IN THE WEST" patch sits on the roof.
  */
 function createGlassPalace(THREE, spec, floor, kit) {
   const group = new THREE.Group();
@@ -694,81 +689,48 @@ function createGlassPalace(THREE, spec, floor, kit) {
   group.userData = { type: 'building', ...spec };
   group.position.set(spec.x, spec.y, floor);
   group.rotation.z = spec.rotation ?? 0;
+  const h = spec.height ?? 52;
 
-  const arcRadius = 175;
-  const arcHeight = spec.height ?? 52;
+  // Footprint: the straight back walls, then the curved glass front sampled from a smooth curve.
+  const curve = new THREE.CatmullRomCurve3(spec.glassCurve.map(([x, y]) => new THREE.Vector3(x, y, 0)));
+  const arc = curve.getPoints(24);
+  const outline = [...spec.footprint.map(([x, y]) => new THREE.Vector2(x, y)), ...arc.map((p) => new THREE.Vector2(p.x, p.y))];
 
-  // 1. Curved glass curtain wall (cylinder sector spanning -PI/2 to +PI/2, facing +X / East)
-  const glassGeo = new THREE.CylinderGeometry(arcRadius, arcRadius, arcHeight, 32, 1, true, -Math.PI / 2, Math.PI);
-  glassGeo.rotateX(Math.PI / 2);
-  glassGeo.translate(0, 0, arcHeight / 2);
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: kit.glass ? '#ffffff' : '#62a8d3',
-    map: kit.glass ?? null,
-    transparent: true,
-    opacity: 0.85,
-    roughness: 0.15,
-    metalness: 0.5,
-    side: THREE.DoubleSide,
+  const roofMat = new THREE.MeshStandardMaterial({ color: spec.roof, roughness: 0.6, metalness: 0.1 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: spec.wall, roughness: 0.7, metalness: 0.05 });
+  const bodyGeo = new THREE.ExtrudeGeometry(new THREE.Shape(outline), { depth: h, bevelEnabled: false });
+  const body = new THREE.Mesh(bodyGeo, [roofMat, wallMat]);
+  body.name = `${spec.id}-body`;
+  group.add(body);
+
+  // The glass skin: a ribbon 1 ft proud of the curved front, the full height of the building.
+  const pos = [];
+  const uv = [];
+  const idx = [];
+  arc.forEach((p, i) => {
+    pos.push(p.x, p.y, 0, p.x, p.y, h);
+    uv.push(i / (arc.length - 1), 0, i / (arc.length - 1), 1);
+    if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
   });
-  const glassWall = new THREE.Mesh(glassGeo, glassMat);
-  glassWall.name = `${spec.id}-glass-wall`;
-  group.add(glassWall);
+  const glassGeo = new THREE.BufferGeometry();
+  glassGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  glassGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  glassGeo.setIndex(idx);
+  glassGeo.computeVertexNormals();
+  glassGeo.scale(1.004, 1.004, 1);
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: kit.glass ? '#ffffff' : '#62a8d3', map: kit.glass ?? null,
+    roughness: 0.15, metalness: 0.5, side: THREE.DoubleSide,
+  });
+  const glass = new THREE.Mesh(glassGeo, glassMat);
+  glass.name = `${spec.id}-glass-wall`;
+  group.add(glass);
 
-  // 2. Curved roof covering the atrium
-  const roofShape = new THREE.Shape();
-  roofShape.moveTo(0, -arcRadius);
-  for (let i = 0; i <= 32; i++) {
-    const a = -Math.PI / 2 + (i / 32) * Math.PI;
-    roofShape.lineTo(arcRadius * Math.cos(a), arcRadius * Math.sin(a));
-  }
-  roofShape.lineTo(0, -arcRadius);
-  roofShape.closePath();
-  const roofGeo = new THREE.ShapeGeometry(roofShape);
-  const roofMat = new THREE.MeshStandardMaterial({ color: '#e5e7eb', roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
-  const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-  roofMesh.name = `${spec.id}-atrium-roof`;
-  roofMesh.position.z = arcHeight;
-  group.add(roofMesh);
-
-  // 3. Flat back wall closing the atrium
-  const wallMat = new THREE.MeshStandardMaterial({ color: '#d8dee4', roughness: 0.7, metalness: 0.05, side: THREE.DoubleSide });
-  const backShape = new THREE.Shape();
-  backShape.moveTo(0, -arcRadius);
-  backShape.lineTo(0, arcRadius);
-  backShape.lineTo(-10, arcRadius);
-  backShape.lineTo(-10, -arcRadius);
-  backShape.closePath();
-  const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: arcHeight, bevelEnabled: false });
-  const backMesh = new THREE.Mesh(backGeo, wallMat);
-  backMesh.name = `${spec.id}-atrium-back`;
-  group.add(backMesh);
-
-  // 4. Three finger wings radiating off the back (west) of the building
-  const wingConfigs = [
-    { x: -95, y: 95, rot: 0.18, w: 175, d: 60, h: arcHeight - 8 },
-    { x: -115, y: 0, rot: 0, w: 215, d: 65, h: arcHeight - 6 },
-    { x: -95, y: -95, rot: -0.18, w: 175, d: 60, h: arcHeight - 8 },
-  ];
-  for (let i = 0; i < wingConfigs.length; i++) {
-    const w = wingConfigs[i];
-    const wingGeo = new THREE.BoxGeometry(w.w, w.d, w.h);
-    wingGeo.translate(-w.w / 2, 0, w.h / 2);
-    const wingMesh = new THREE.Mesh(wingGeo, [wallMat, wallMat, wallMat, wallMat, roofMat, roofMat]);
-    wingMesh.name = `${spec.id}-wing-${i + 1}`;
-    wingMesh.position.set(w.x, w.y, 0);
-    wingMesh.rotation.z = w.rot;
-    group.add(wingMesh);
-  }
-
-  // 5. "THE BIG 2 - BEST IN THE WEST" decal on the curved atrium roof
-  const big2 = createBig2Badge(THREE, 150);
+  const big2 = createBig2Badge(THREE, 130);
   if (big2) {
-    big2.position.set(arcRadius * 0.48, 0, arcHeight + 0.5);
-    big2.rotation.z = -Math.PI / 2;
+    big2.position.set(spec.badge[0], spec.badge[1], h + 0.5);
     group.add(big2);
   }
-
   return group;
 }
 

@@ -14,7 +14,7 @@
 //   createSceneKit       the three.js objects for the routes, aircraft, rings and ground, with their freeing
 //   createView3d         the canvases, the renderer, the camera's hands (drag, wheel, keys) and the frame
 import {
-  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addLights, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
+  loadThree, webglSupported, matchProjection, worldToScreen, altToZ, addSky, createStandInMesh, createAircraftMesh, disposeAircraftMesh,
 } from '../../ui-kit/three-aircraft.js';
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
@@ -22,7 +22,20 @@ import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, 
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT } from './scenery3d.js';
+import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
+import { topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
+import { createCameraBar } from './camera-bar.js';
+
+/** The viewpoints worked out from a place (the tower) or an aircraft each frame, rather than framed once. */
+const POV_VIEWS = new Set(['tower', 'cockpit', 'padlock']);
+
+/** The camera for a Tower, Cockpit or Padlock view; `target` is the followed aircraft, or null (Tower only). */
+export function povCamera(name, target, size, floorFt) {
+  if (name === 'cockpit' && target) return cockpitCamera(target, size);
+  if (name === 'padlock' && target) return padlockCamera(target, size);
+  return towerCamera(target ?? null, size, floorFt);
+}
 
 /** Every axis is drawn at the same scale: a foot of height is a foot of ground (SPEC-traffic: the 3D view). */
 export const ALT_SCALE = 1;
@@ -392,6 +405,12 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
   const scenery = createAirfieldScenery(THREE);
   root.add(scenery);
 
+  // Circuit landmarks (Window Farm, Sukanen, Fiat Farm, Arrow Trees): always on.
+  const landmarks = createLandmarks(THREE, { floor: DEFAULT_FLOOR_FT });
+  root.add(landmarks);
+  const windsocks = createWindsocks(THREE, { floor: DEFAULT_FLOOR_FT });
+  root.add(windsocks);
+
   const grid = new THREE.GridHelper(GRID_STEP_FT * GRID_CELLS, GRID_CELLS, '#2c5a44', '#1c3a30');
   grid.rotation.x = Math.PI / 2; // GridHelper lies in X-Z; the ground here is X-Y
   grid.material.fog = false;
@@ -609,6 +628,8 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       scenery.visible = options.layerBuildings !== false;
       scenery.position.set(0, 0, floor - DEFAULT_FLOOR_FT);
     }
+    // Circuit landmarks: always on at every quality, same floor as the airfield scenery.
+    landmarks.position.set(0, 0, floor - DEFAULT_FLOOR_FT);
 
     const listed = new Set(scene.aircraft.map((a) => a.id));
     for (const [id, { mesh }] of planes) {
@@ -635,6 +656,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       lastScene = scene;
       syncRoutes(scene.routes, options);
       syncAircraft(scene, options);
+      updateWindsocks(windsocks, scene.windFromDeg, scene.windKt);
     },
     /** The ground grid follows the view in whole steps, so it looks endless and still. */
     placeGrid(focus, groundFtNow) {
@@ -725,6 +747,8 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
         disposeAirfieldScenery(scenery);
         scenery.removeFromParent();
       }
+      disposeLandmarks(landmarks);
+      disposeWindsocks(windsocks);
       photoGeometry.dispose();
       photoMaterial.dispose();
       midGeometry.dispose();
@@ -824,6 +848,33 @@ function paintBaseAirfield(ctx) {
   ctx.restore();
 }
 
+/** Sun direction for the Traffic scene: a fixed mid-afternoon summer sun from the south-west, 45° above the horizon. */
+export const SUN_AZIMUTH_DEG = 225;
+export const SUN_ELEVATION_DEG = 45;
+
+/**
+ * Traffic's lighting: one warm DirectionalLight (sun) and one HemisphereLight (sky blue above, prairie brown below).
+ * No shadow maps. MeshBasicMaterial (the satellite ground) ignores lights. World frame: X east, Y north, Z up.
+ * Returns { hemisphere, sun, dispose() }; dispose() removes both from the scene and frees them.
+ */
+export function addTrafficLights(THREE, scene) {
+  const hemisphere = new THREE.HemisphereLight('#bcd6f5', '#7a6646', 1.1);
+  const sun = new THREE.DirectionalLight('#ffeccc', 2.4);
+  sun.castShadow = false;
+  const az = SUN_AZIMUTH_DEG * Math.PI / 180, el = SUN_ELEVATION_DEG * Math.PI / 180;
+  sun.position.set(Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el)).multiplyScalar(1000);
+  scene.add(hemisphere, sun, sun.target);
+  return {
+    hemisphere,
+    sun,
+    dispose() {
+      scene.remove(hemisphere, sun, sun.target);
+      hemisphere.dispose?.();
+      sun.dispose?.();
+    },
+  };
+}
+
 /**
  * host: the element the view puts its canvases in (a box the size of the map). timers: the module's scheduler scope
  * (frame). source: { scene(): the scene map2d draws (routes with path, aircraft, conflicts), settings(): the Traffic
@@ -850,6 +901,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
   let heightLines = true; // height plumb lines and ground shadows
+  let viewMode = 'fit'; // the Camera menu's choice: fit, high, top, tower, low (Chase), cockpit or padlock
+  let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
+  let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
   let coreCanvas = null;
   let coreTexture = null;
   let coreImagery = null;
@@ -1034,16 +1088,43 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     }
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2);
-    addLights(THREE, scene);
+    const lights = addTrafficLights(THREE, scene);
     const sky = addSky(THREE, scene);
     const kit = createSceneKit(THREE);
     scene.add(kit.root);
     const style = win.getComputedStyle?.(canvas);
     const palette = paletteFrom((name) => style?.getPropertyValue(name).trim() ?? '');
-    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, sky, kit, palette };
+    gl = { canvas, labels, ctx: labels.getContext('2d'), renderer, scene, camera, sky, lights, kit, palette };
     if (win.__traffic3dLeakCheck) probeMemory(renderer, camera);
     for (const [type, fn] of hands) canvas.addEventListener(type, fn, type === 'wheel' ? { passive: false } : undefined);
     canvas.addEventListener('webglcontextlost', contextLost);
+    cameraBar = createCameraBar({
+      onView: (id) => api.preset(id),
+      onFollow: (id) => setTarget(id),
+      onQuality: setGraphicsQuality,
+    });
+    host.append(cameraBar.element);
+  }
+
+  /**
+   * The bar's High | Performance switch writes the same graphicsQuality setting as the Traffic settings panel: through
+   * source.setSettings when given, otherwise by choosing it in the settings panel's own Graphics box, so both stay in step.
+   */
+  function setGraphicsQuality(quality) {
+    if (source.setSettings) source.setSettings({ graphicsQuality: quality });
+    else {
+      const doc = win.document;
+      const label = [...(doc?.querySelectorAll?.('label') ?? [])].find((l) => l.textContent.trim() === 'Graphics' && l.getAttribute('for'));
+      const box = /** @type {HTMLSelectElement | null} */ (label ? doc.getElementById(label.getAttribute('for')) : null);
+      if (box) {
+        const index = [...box.options].findIndex((o) => (quality === 'low' ? /^Performance/ : /^High/).test(o.textContent.trim()));
+        if (index !== -1) {
+          box.value = String(box.options[index].value);
+          box.dispatchEvent(new win.Event('change'));
+        }
+      }
+    }
+    requestDraw();
   }
 
   // For the leak check (tests only, set from a test page): draws one Harvard on its own and disposes it, then notes what the
@@ -1082,12 +1163,15 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     resizer = null;
     dragging = null;
     if (!gl) return;
-    const { canvas, labels, renderer, kit, sky } = gl;
+    const { canvas, labels, renderer, kit, sky, lights } = gl;
     for (const [type, fn] of hands) canvas.removeEventListener(type, fn);
     canvas.removeEventListener('webglcontextlost', contextLost);
+    cameraBar?.dispose();
+    cameraBar = null;
     gl = null;
     kit.dispose();
     sky.dispose();
+    lights.dispose();
     farTier.dispose();
     midTier.dispose();
     tightTier.dispose();
@@ -1138,8 +1222,25 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       wantPreset = null;
       fitted = true;
       chasePending = false;
+      viewMode = name;
+      noteText = '';
       if (name === 'low') startChase(data, box, size);
-      else {
+      else if (name === 'top') {
+        follow = null;
+        view = topDownCamera(box, size);
+      } else if (POV_VIEWS.has(name)) {
+        if (follow && !data.aircraft.some((a) => a.id === follow.id && isFlying(a))) fallbackTarget(data);
+        const target = follow ? data.aircraft.find((a) => a.id === follow.id && isFlying(a)) : null;
+        if (!target && NEEDS_AIRCRAFT.has(name)) {
+          viewMode = 'fit';
+          follow = null;
+          view = cameraFor('fit', box, size);
+          noteText = `${name === 'cockpit' ? 'Cockpit' : 'Padlock'} needs an aircraft: choose one in Follow, or press ].`;
+        } else {
+          view = povCamera(name, target, size, floor);
+          if (follow) follow.autoYaw = false;
+        }
+      } else {
         follow = null;
         view = cameraFor(name, box, size);
       }
@@ -1152,7 +1253,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
         chasePending = false;
       }
     }
-    if (follow) followAircraft(data);
+    if (follow && POV_VIEWS.has(viewMode)) {
+      const target = data.aircraft.find((a) => a.id === follow.id && isFlying(a)) ?? fallbackTarget(data);
+      if (target) {
+        const next = povCamera(viewMode, target, size, floor);
+        // The person's zoom is kept; the look follows the aircraft unless they are turning the view by hand.
+        view = { center: next.center, cam: dragging ? view.cam : { ...next.cam, zoom: view.cam.zoom } };
+      }
+    } else if (follow) followAircraft(data);
+    cameraBar?.setView(viewMode);
+    cameraBar?.update({ flying: data.aircraft.filter(isFlying).map((a) => a.id), followId: follow?.id ?? null, quality: options.graphicsQuality });
+    cameraBar?.setNote(noteText);
     const shown = dragging?.isPan ? view.cam : (dragging?.cam ?? view.cam);
     const focus = dragging?.isPan ? dragging.center : view.center;
 
@@ -1285,7 +1396,14 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const ac = data.aircraft?.find((a) => a.id === id && isFlying(a));
     if (ac) {
       const size = gl?.canvas ? sizeOf(gl.canvas) : { width: 900, height: 600 };
-      view = chaseCamera(ac, size);
+      if (POV_VIEWS.has(viewMode)) {
+        follow.autoYaw = false;
+        view = povCamera(viewMode, ac, size, groundFt(data.routes ?? []));
+      } else {
+        viewMode = 'low';
+        view = chaseCamera(ac, size);
+      }
+      noteText = '';
     }
     requestDraw();
   }
@@ -1439,7 +1557,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     }],
   ]);
 
-  return {
+  const api = {
     /**
      * Shows the 3D view, loading three.js the first time. Resolves { ok: true }, or { ok: false, reason }: 'gl' when
      * the browser has no WebGL (checked before anything is built), 'load' when three.js could not be fetched (offline
@@ -1508,6 +1626,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     },
     isHeightLines: () => heightLines,
     isChasing: () => follow !== null,
+    /** The Camera menu's current view id (fit, high, top, tower, low, cockpit, padlock) and any note beside it. */
+    cameraView: () => ({ view: viewMode, note: noteText }),
     target: setTarget,
     currentTarget,
     nextTarget,
@@ -1523,4 +1643,5 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       teardown();
     },
   };
+  return api;
 }

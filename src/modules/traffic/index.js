@@ -84,7 +84,7 @@ function mount(root, app) {
     },
     filterSplits: true,
   });
-  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed() });
+  const aircraftPanel = createAircraftPanel({ controls, timers: app.scheduler, settings, sim, setup, onChange: () => changed(), onSelectAircraft: (id) => view3d?.target(id) });
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
