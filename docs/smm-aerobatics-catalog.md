@@ -22,11 +22,11 @@ All entry gates, target G-loads, power settings, apex floats, and exit criteria 
 
 | Maneuver | Syllabus Phase | Citation | Target Entry KIAS | Suggested Torque | Entry / Pull G Law | Apex Target Speed & Attitude | Exit Gate & Target KIAS |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Aileron Roll** | Contact / CH | SMM 7.4 | **230 KIAS** | MAX | 1.0 G (20° nose up) | Coordinated roll rate, zero rudder | Wings level on heading, 230 KIAS (±10 kt) |
+| **Aileron Roll** | Contact / CH | SMM 7.4 | **230 KIAS** | MAX | Smooth 20° pitch-up, 1.0 G ballistic roll | Coordinated roll rate, zero rudder | Wings level on heading, 230 KIAS (±10 kt) |
 | **The Loop** | Contact / CH | SMM 7.5 | **230 KIAS** | MAX | **Dynamic G pull** (more G if slow, less if fast) | 100–120 KIAS inverted, float horizon | Level flight, **230 KIAS**, on heading |
 | **Cuban Eight** | Contact / CH | SMM 7.6 | **230 KIAS** | MAX | **Dynamic G pull** (more G if slow, less if fast) | 45° dive line, half-roll at ~0.5 G | Accelerate to **230 KIAS** into 2nd half / exit |
 | **Cloverleaf** | Contact / CH | SMM 7.7 | **230 KIAS** | MAX | **Dynamic G pull** (2.5–3.5 G nominal) | 100–110 KIAS inverted, 90° reference | Roll out level 90° off entry heading, **230 KIAS** |
-| **Hesitation Roll (Airspeed Reset)** | Contact / CH | SMM 7.8 | **As Flown (180–230 kt)** | MAX | Roll inverted, 0 G pause | Pause inverted while nose falls to dive attitude | Roll upright in dive, **accelerate to 230 KIAS** |
+| **Hesitation Roll (Airspeed Reset)** | Contact / CH | SMM 7.8 | **As Flown (180–230 kt)** | MAX | Smooth 20° pitch-up, roll inverted, pause | Inverted pause sets calibrated dive attitude | Roll upright in dive, **accelerate to target KIAS (230–280 kt)** |
 | **Roll Off the Top (Immelmann)** | Contact / CH | SMM 7.9 | **Any speed > 220 KIAS** | MAX | 3.5–4.0 G pull | Half-roll at 10–20° above horizon | Level flight, 120–140 KIAS, 180° heading |
 | **Half Roll Pull Through (Split-S)** | Contact / CH | SMM 7.10 | **120–140 KIAS** | IDLE | 0.5 G roll, 3–4 G pull | Inverted nose-level check | Pull out at 230 KIAS, 180° heading |
 | **Vertical Eight** | Advanced / BFM | SMM 14.19 | **280 KIAS** | MAX | 4.0–5.0 G pull | 100 KIAS apex (loop 1 and loop 2) | Level flight, 280 KIAS on entry heading |
@@ -48,8 +48,10 @@ All entry gates, target G-loads, power settings, apex floats, and exit criteria 
 ### 7.4 The Aileron Roll
 - **Entry Airspeed:** 230 KIAS.
 - **Power:** MAX.
-- **Flight Path:** Raise the nose smoothly ~20° above the horizon. Relax elevator back pressure to achieve a 1.0 G ballistic arc, then apply coordinated aileron in the direction of roll. Maintain roll rate with aileron; slight barreling is natural and should not be countered with heavy forward stick.
-- **Exit Gate:** Wings level on the original reference line at 230 KIAS (±10 kt).
+- **Flight Path & Mechanics:**
+  1. **Initiation:** Raise the nose smoothly to **20° nose-up** attitude on reference heading.
+  2. **Roll Execution:** Relax elevator back pressure to achieve a 1.0 G ballistic arc, then apply coordinated aileron in the direction of roll. Maintain roll rate with aileron; slight barreling is natural and should not be countered with heavy forward stick.
+  3. **Exit Gate:** Wings level on the original reference line at 230 KIAS (±10 kt).
 
 ### 7.5 The Loop (Dynamic G Pull Law)
 - **Target Entry Airspeed:** **230 KIAS**.
@@ -79,14 +81,17 @@ All entry gates, target G-loads, power settings, apex floats, and exit criteria 
 > [!IMPORTANT]
 > **Operational Definition:** The Hesitation Roll is **NOT a civilian/competition 4-point roll.** In 15 Wing Moose Jaw training (SMM 7.8 paras 18–20), it is an aileron roll with a deliberate pause/hesitation **at the inverted position** designed to reset or build energy between maneuvers.
 
-- **Purpose:** Linking maneuver used to gain airspeed and set up follow-on vertical aerobatics (Loop, Cuban 8, Cloverleaf).
+- **Purpose:** Tactical linking maneuver used to gain airspeed and set up follow-on vertical aerobatics (Loop, Cuban 8, Cloverleaf, Vertical 8).
 - **Entry Airspeed:** Whatever airspeed is available exiting a previous maneuver (typically 180–230 KIAS).
 - **Power:** MAX.
-- **Flight Path & Mechanics:**
-  1. Roll the aircraft smoothly inverted through 180° of roll.
-  2. **The Hesitation:** As the aircraft reaches the inverted position, neutralize ailerons and **hesitate** (pause). Allow the nose of the aircraft to drop through the horizon into a shallow dive attitude while inverted.
-  3. **The Rollout:** Continue the roll in the same direction back to wings-level upright.
-  4. **The Acceleration:** The resulting nose-down dive attitude allows the aircraft to rapidly accelerate back to the target **230 KIAS entry gate** for the next vertical figure.
+- **Flight Path & Mechanics (Patrick Operational Directive, D428):**
+  1. **Initiation:** Pitch up smoothly to **20° nose-up** attitude on reference heading (identical initiation to the aileron roll).
+  2. **Roll Inverted:** Roll smoothly inverted through 180° of roll.
+  3. **The Hesitation (Setting the Dive Attitude):** At inverted, neutralize ailerons and **hesitate** (pause). Hold wings level inverted as the nose falls naturally through the horizon. The pilot uses this inverted pause to **SET the specific dive attitude required for the follow-on figure**:
+     - *Shallower dive attitude* (~10°–15° nose-down) if accelerating to 230–250 KIAS (e.g., follow-on Loop, Cuban Eight, Cloverleaf, or Immelmann).
+     - *Steeper dive attitude* (~25°–30° nose-down) if accelerating to 280 KIAS (e.g., follow-on Vertical Eight or Vertical Roll).
+  4. **The Rollout:** Once the target dive attitude is established on the horizon reference, roll smoothly upright back to wings-level in the established dive.
+  5. **The Acceleration:** Accelerate along the set dive line directly to the target entry airspeed for the next figure, pulling up into the figure as target entry speed is reached.
 
 ### 7.9 Roll Off the Top (Basic Immelmann)
 - **Entry Airspeed:** **Any speed above 220 KIAS** (nominal 250 KIAS in SMM Table 7.1).
@@ -151,17 +156,18 @@ The SMM Aerobatics Sequence Mode utilizes authentic Canadian military training s
 1. **Takeoff & Climb:** Climb to 10,000 ft MSL, trim at 230 KIAS.
 2. **The Loop:** 230 KIAS entry, dynamic G pull, float inverted 110 KIAS, exit at **230 KIAS**.
 3. **The Cuban Eight:** 230 KIAS entry, half-roll on 45° dive lines, exit at **230 KIAS**.
-4. **Hesitation Roll (Airspeed Reset):** Roll inverted, pause as nose drops through horizon to establish shallow dive, roll upright, accelerate back to **230 KIAS**.
+4. **Hesitation Roll (Airspeed Reset):** Pitch up 20°, roll inverted, pause as nose drops through horizon to establish calibrated dive attitude (~15° dive), roll upright, accelerate to **230 KIAS** entry into Cloverleaf.
 5. **The Cloverleaf:** 230 KIAS entry, 2.5–3.5 G pull, 90° roll at apex, exit at **230 KIAS** (90° heading change).
 6. **Roll Off the Top (Immelmann):** Any speed $>220\text{ KIAS}$ (e.g. 240 KIAS), pull 4.0 G, roll upright at +15°, exit 130 KIAS on 180° heading.
 7. **Half Roll Pull Through (Split-S):** 130 KIAS entry, IDLE power, 0.5 G roll, 3.5 G pull-out back to 230 KIAS.
 
 ### Sequence 2: Tactical Energy & BFM Flow (Phase III)
-1. **Vertical Eight:** 280 KIAS entry, 4.5 G pull into upper loop, lower half-loop, exit 280 KIAS.
-2. **Pitch Back:** 210 KIAS, 35° bank, 4.0 G climbing reversal, hand to MPT at 160 KIAS.
-3. **Level MPT:** Sustained 69° bank, 160 KIAS, 17 units AOA for 360° turn.
-4. **Slice Turn:** 140 KIAS, 110° bank descending reversal, recover to level flight.
-5. **Tactical Split-S:** 115 KIAS entry, MAX power, 5.0 G pull in shaker, lose 1,700 ft, exit 220 KIAS.
+1. **Hesitation Roll (High-Energy Dive Reset):** Pitch up 20°, roll inverted, pause as nose drops into steep calibrated dive attitude (~30° dive), roll upright, accelerate to **280 KIAS** entry into Vertical Eight.
+2. **Vertical Eight:** 280 KIAS entry, 4.5 G pull into upper loop, lower half-loop, exit 280 KIAS.
+3. **Pitch Back:** 210 KIAS, 35° bank, 4.0 G climbing reversal, hand to MPT at 160 KIAS.
+4. **Level MPT:** Sustained 69° bank, 160 KIAS, 17 units AOA for 360° turn.
+5. **Slice Turn:** 140 KIAS, 110° bank descending reversal, recover to level flight.
+6. **Tactical Split-S:** 115 KIAS entry, MAX power, 5.0 G pull in shaker, lose 1,700 ft, exit 220 KIAS.
 
 ---
 

@@ -359,6 +359,10 @@ flowchart TD
 - [x] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. All 30 tasks complete, 100% green.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
+> [!IMPORTANT]
+> **Operational Finding & Architectural Directive (Patrick, 03 Oct 2026):**  
+> Turn Sim requires a **full architectural overhaul and assessment** before proceeding. Currently, simulated aircraft do not behave according to authentic SMM doctrine (e.g. after Delayed 45, all aircraft end up in a straight row / trail). Do not build on broken legacy V6 heuristics; a root-and-branch overhaul of the trajectory solver, turn sequencing, and wingman tracking mechanics against SMM Chapter 16 is required. (See `docs/handover/turn-sim.md` and `.agents/turn-sim-architecture-and-bloat-report.md`).
+
 - [ ] **Task 3.1 (Parallel Agent C):** Consolidate `turn-sim-215-recheck`, `turn-sim-223-fixes`, and `turn-sim-screen-audit`.
   - Rebuild Hook Turn as a true 180° formation turn per SMM Chapter 16 and Dad (Gap 3 resolved).
   - Update `tests/e2e/turn-sim.spec.js:227` regex matchers to accommodate standard SMM spacing (7,000 ft aft) and domain tolerances.

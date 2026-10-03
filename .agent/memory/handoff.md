@@ -17,7 +17,7 @@ Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 * **Milestone 0: Ground Truth & Decoupling Foundation** — COMPLETED [x]
 * **Milestone 1: Traffic Pattern Sim (Gate 1)** — Pre-Phase Vector Guidance Migration Complete [x]; Phases 1–5 in progress.
 * **Milestone 2: Turn Fight 1v1 BFM & Energy Screen (Gate 2)** — COMPLETED & READY FOR GATE 2 SIGN-OFF [x] (Checklist: `docs/checklists/turn-fight.md`)
-* **Milestone 3: Turn Sim / Formation (Gate 3)** — QUEUED (PR 5)
+* **Milestone 3: Turn Sim / Formation (Gate 3)** — QUEUED (Full architectural overhaul & assessment required per Patrick directive: SMM non-compliance, aircraft end up in a row after Delayed 45)
 * **Milestone 4: Debrief 3D View & Tacview Integration** — QUEUED
 * **Milestone 5: Final Prototype Acceptance (Gate 5)** — QUEUED
 
