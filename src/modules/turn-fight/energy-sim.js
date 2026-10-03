@@ -1950,7 +1950,7 @@ export function shouldPursueTactical(state, ac, target) {
   if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
   if (!state.setup.chaseAfterHeadOn && 180 - noseOffDeg(state, target) > PURSUIT_MAX_AA_DEG) return false;
   const f = pointMassFlight(ac.pm);
-  if (ac.kias < (state.setup?.stallKias ?? T6A_LIMITS.stallKias) && f.climbRad > 0) return false;
+  if (ac.kias < 140 && f.climbRad > 0) return false;
   const ata = noseAngleDeg(ac, target);
   const adv = tacticalAdvantage(ac, target);
   const advTarget = tacticalAdvantage(target, ac);
