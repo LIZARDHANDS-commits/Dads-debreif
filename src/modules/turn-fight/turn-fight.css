@@ -221,6 +221,63 @@
   font-size: var(--text-sm);
 }
 
+[data-module='turn-fight'] .tf-kill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--tf-nose);
+  border-left: 4px solid var(--tf-nose);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-kill-banner[hidden] {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-kill-banner-text {
+  flex: 1 1 auto;
+}
+
+[data-module='turn-fight'] .tf-kill-continue-btn {
+  flex: 0 0 auto;
+}
+
+[data-module='turn-fight'] .tf-collision-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--bad);
+  border-left: 4px solid var(--bad);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-collision-banner[hidden] {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-collision-banner-text {
+  flex: 1 1 auto;
+  color: var(--bad);
+}
+
+[data-module='turn-fight'] .tf-collision-reset-btn {
+  flex: 0 0 auto;
+}
+
 [data-module='turn-fight'] .tf-views {
   flex: 1 1 0;
   min-width: 0;
@@ -376,6 +433,32 @@
 
 [data-module='turn-fight'] .tf-3d-label-red {
   color: var(--tf-red);
+}
+
+.tf-3d-label.blue::after,
+[data-module='turn-fight'] .tf-3d-label.blue::after,
+[data-module='turn-fight'] .tf-3d-label-blue::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  right: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--tf-blue, #58a6ff);
+  opacity: 0.6;
+}
+
+.tf-3d-label.red::after,
+[data-module='turn-fight'] .tf-3d-label.red::after,
+[data-module='turn-fight'] .tf-3d-label-red::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--tf-red, #ff6b6b);
+  opacity: 0.6;
 }
 
 [data-module='turn-fight'] .tf-3d-label-nose,

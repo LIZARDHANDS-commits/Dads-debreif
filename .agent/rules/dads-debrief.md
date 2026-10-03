@@ -13,9 +13,10 @@ The single source of truth for living tasks, milestone checklists, architecture 
 | Document | Purpose / Role | Location |
 | :--- | :--- | :--- |
 | **Living Execution Roadmap** | Sole authoritative checklist (`- [x]`) for Milestones 0–5, critical gaps 1–7, and Phase 2 queue | [`docs/REMEDIATION_ROADMAP.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_ROADMAP.md) |
+| **SMM Aerobatics Catalog** | **Sole source of truth for all CT-156 aerobatics, entry/exit gates & G laws (D428)** | [`docs/smm-aerobatics-catalog.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/smm-aerobatics-catalog.md) |
 | **Remediation Patch Log** | Ledger of every technical fix, file change, bug fix, and quarantine action | [`docs/REMEDIATION_PATCH_LOG.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/REMEDIATION_PATCH_LOG.md) |
 | **Flight Manuals Index** | Ground truth aero numbers, pattern geometries, and SMM procedures (private) | [`manuals/README.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md) |
-| **Decisions & Requirements** | Formal master registers for ratified decisions (D1–D388) and requirements (R1–R33) | [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md), [`plan-requirements.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-requirements.md) |
+| **Decisions & Requirements** | Formal master registers for ratified decisions (D1–D428) and requirements (R1–R34) | [`docs/records/plan-decisions.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-decisions.md), [`plan-requirements.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/plan-requirements.md) |
 | **Module Handover & Status** | Live completion status table across modules and current workstream context | [`HANDOVER.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/HANDOVER.md) |
 | **Sign-Off Checklists** | Human verification checklists run by Patrick at each milestone gate | `docs/checklists/<module>.md` |
 

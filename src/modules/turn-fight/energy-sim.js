@@ -41,6 +41,11 @@ import { turnRadiusFt } from '../../core/flight-math.js';
 export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
 /** The pursuits a screen offers. A setup also accepts 'none' (nobody chases), for tests and what-ifs; it is not one of the choices. */
 export const PURSUITS = Object.freeze(['tactical', 'pure', 'lead', 'lag']);
+export const COLLISION_HITBOX_FT = 35.0; // CT-156 wingspan 33.4 ft, length 33.3 ft
+export const TCPA_GATE_MIN_SEC = 0.5;
+export const TCPA_GATE_MAX_SEC = 1.5;
+export const TCPA_MISS_GATE_FT = 75.0;
+export const DECONFLICTION_OFFSET_FT = 85.0; // 85 ft out-of-plane clearance
 /**
  * Energy mode starts each aircraft between the hard deck and this height.
  * Above ENERGY_ACCURATE_MAX_FT the model's turn rate reads low (core is fixing
@@ -94,6 +99,8 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   hardDeckFt: 6000,
   pursuit: 'pure',
   chaseAfterHeadOn: true,
+  collisionDetection: true,
+  collisionAvoidance: true,
   // Model settings for checking.
   stallKias: T6A_LIMITS.stallKias,
   shakerFrac: 0.94,
@@ -181,7 +188,9 @@ const TUNING = Object.freeze({
 export const MOVE_LABELS = Object.freeze({
   tactical: 'Tactical AI',
   immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S',
+  lowYoYo: 'Low Yo-Yo', highYoYo: 'High Yo-Yo',
   mpt: 'MPT', levelMpt: 'Level MPT', pursuit: 'Pursuit',
+  tumble: 'Collision Tumble',
 });
 
 // ── Small vector helpers (the point-mass step's own are private) ─────────────
@@ -412,9 +421,11 @@ function newAircraft(who, pose, p, kias, forceG) {
     mptReached: false, toMptSec: 0, toMptDeg: 0,
     overG: false, overGReason: '', overGEver: false,
     stall: false, stallReason: '', stallEver: false,
+    collided: false,
+    deconflicting: false,
     onShaker: false, chaseLimited: false, aim: null,
     rolling: false, rollDegPerSec: 0,
-    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0 },
+    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0, wezTrackSec: 0 },
   };
   readOut(ac, 1, 1, p);
   readSlow(ac, p);
@@ -599,8 +610,8 @@ function noseOnSec(from, who, move, kias, cutSec) {
   // `flags`: OVER G and STALL belong to a step the move has flown. At the pick itself they are the last move's.
   const judge = (flags) => {
     if (flags && (me.overG || me.stall)) return { sec: null };
-    const mine = onTheOther(sim, me, you) || shouldPursueTactical(sim, me, you);
-    const theirs = onTheOther(sim, you, me) || shouldPursueTactical(sim, you, me);
+    const mine = onTheOther(sim, me, you);
+    const theirs = onTheOther(sim, you, me);
     if (theirs && !mine) return { sec: null };
     return mine ? { sec: sim.timeSec - t0 } : null;
   };
@@ -661,27 +672,9 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
 
   const moves = [];
 
-  // 1. Immelmann: 180 <= KIAS <= 316, apex speed >= immelmannMinTopKias
+  // 1. Immelmann: 180 <= KIAS <= 316 (it can try if it wants; if low energy over top, stall recovery handles it)
   if (kias >= 180 && kias <= T6A_LIMITS.vmoKias) {
-    let fullAc = ac;
-    if (!ac?.pm || !ac?.ctl) {
-      const ktas = iasToTasKt(kias, altFt);
-      fullAc = newAircraft(ac?.who ?? 'blue', { x: 0, y: 0, z: altFt, ktas, headingRad: 0 }, s, kias, null);
-    }
-    let fullOther = other;
-    if (!fullOther || !fullOther.pm) {
-      const ktas = iasToTasKt(fullAc.kias ?? kias, altFt);
-      fullOther = newAircraft('red', { x: 10000, y: 0, z: altFt, ktas, headingRad: Math.PI }, s, fullAc.kias ?? kias, null);
-    }
-    let apex = 0;
-    try {
-      apex = immelmannTopKias(s, fullAc, fullOther, kias);
-    } catch {
-      apex = 0;
-    }
-    if (apex >= immelmannMinTopKias) {
-      moves.push('immelmann');
-    }
+    moves.push('immelmann');
   }
 
   // 2. Pitch Back: 150 <= KIAS <= 260
@@ -702,7 +695,17 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
     }
   }
 
-  // 5. MPT: Always feasible (baseline sustained rate turn)
+  // 5. Low Yo-Yo: 140 <= KIAS <= 220 and sufficient altitude margin for dive (not when bandit is high above)
+  if (kias >= 140 && kias <= 220 && (altFt - hardDeckFt) > deckMarginFt + 500 && (!other || (other.altFt ?? other.pm?.z ?? altFt) - altFt < 1000)) {
+    moves.push('lowYoYo');
+  }
+
+  // 6. High Yo-Yo: 180 <= KIAS <= 280
+  if (kias >= 180 && kias <= 280) {
+    moves.push('highYoYo');
+  }
+
+  // 7. MPT: Always feasible (baseline sustained rate turn)
   moves.push('mpt');
 
   return moves;
@@ -819,6 +822,18 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
       deltaAdv,
       he,
     });
+  }
+
+  // MPT utility decay: penalize MPT when aircraft has been circling > 360° without closure
+  const mptTurnDeg = meAc?.ctl?.mptTurnDeg ?? 0;
+  if (mptTurnDeg > 360) {
+    const penaltyFactor = 0.75; // 25% penalty
+    for (const e of evaluated) {
+      if (e.move === 'mpt') {
+        e.deltaAdv *= penaltyFactor;
+        e.he *= penaltyFactor;
+      }
+    }
   }
 
   // Rank candidates
@@ -995,6 +1010,14 @@ function startMove(state, ac, move, why, kias) {
       c.holdBankRad = carriedBankFor(ac.pm, 0, dir); // wings level, whichever way up the carried frame is
       if (move === 'splitS') c.phase = 'pitchUp';
       break;
+    case 'lowYoYo':
+      c.phase = 'dive';
+      c.holdBankRad = ac.bankRad ?? 0;
+      break;
+    case 'highYoYo':
+      c.phase = 'climb';
+      c.holdBankRad = ac.bankRad ?? 0;
+      break;
     case 'mpt':
       c.halfUntilShaker = kias > p.mptKias; // rolling straight in from above its speed: PCL to mid-range until the shaker
       break;
@@ -1137,6 +1160,120 @@ function controlSplitS(ctx) {
 }
 
 /**
+ * Bank angle in degrees that points the aircraft's lift vector toward the target.
+ */
+function bankTowardTargetDeg(ac, other, defaultBankDeg = 60) {
+  if (!other || !other.pm) return defaultBankDeg;
+  const fr = horizonFrame(ac.pm);
+  const toTarget = sub(posOf(other.pm), posOf(ac.pm));
+  const dist = len(toTarget);
+  if (dist < 1e-3) return defaultBankDeg;
+  const los = scale(toTarget, 1 / dist);
+  const losPerp = sub(los, scale(fr.vHat, dot(los, fr.vHat)));
+  const m = len(losPerp);
+  if (m < 1e-4) return defaultBankDeg;
+  const losDir = scale(losPerp, 1 / m);
+  const dir = ac.turnDir || 1;
+  const cosBeta = dot(losDir, fr.upH);
+  const sinBeta = dot(losDir, scale(fr.leftH, dir));
+  const bankDeg = Math.abs(radToDeg(Math.atan2(sinBeta, cosBeta)));
+  return Number.isFinite(bankDeg) ? bankDeg : defaultBankDeg;
+}
+
+/**
+ * Low Yo-Yo: diving circle cut.
+ * - Phase 'dive': Unload to 1.5G, roll wings toward target, push nose 15° below horizon
+ * - Phase 'cut': Hold 2.0G pull through the bottom, accelerating
+ * - Phase 'pull': As nose comes through horizon, pull 4G back up toward bandit's altitude
+ * - Completion: When level or climbing with nose within 30° of target bearing: c.next = 'mpt'
+ * - Duration guard: Max 8 seconds, then hand to MPT
+ */
+function controlLowYoYo(ctx) {
+  const { ac, other, p, f } = ctx;
+  const c = ac.ctl;
+
+  if (c.t >= 8.0) c.next = 'mpt';
+  if ((f.altFt - p.hardDeckFt) <= p.deckMarginFt) c.next = 'mpt';
+
+  const climbDeg = radToDeg(f.climbRad);
+  const ata = (other && other.pm) ? noseAngleDeg(ac, other) : 0;
+  const targetBank = bankTowardTargetDeg(ac, other, 60);
+
+  if (c.phase === 'dive') {
+    if (climbDeg <= -15.0 || c.t >= 3.0) {
+      c.phase = 'cut';
+    }
+    const bankCmdDeg = clamp(targetBank, 30, 85);
+    return physicalBankCommand(ctx, bankCmdDeg, 1.5, 1);
+  }
+
+  if (c.phase === 'cut') {
+    if (climbDeg >= -2.0) {
+      c.phase = 'pull';
+    }
+    const bankCmdDeg = clamp(targetBank, 30, 75);
+    return physicalBankCommand(ctx, bankCmdDeg, 2.0, 1);
+  }
+
+  // Phase 'pull'
+  if (climbDeg >= -1.0 && ata <= 30.0) {
+    c.next = 'mpt';
+  }
+
+  const pullG = Math.min(4.0, ctx.shaker);
+  const bankCmdDeg = clamp(targetBank, 20, 60);
+  return physicalBankCommand(ctx, bankCmdDeg, pullG, 1);
+}
+
+/**
+ * High Yo-Yo: climbing lag displacement.
+ * - Phase 'climb': Pull 3-4G to raise nose 25° above horizon, bleeding speed
+ * - Phase 'apex': At apex (speed dropped 30-40 KIAS), roll lift vector toward target
+ * - Phase 'dive': Unload and nose back down toward target, accelerating
+ * - Completion: When descending with nose within 30° of target bearing: c.next = 'mpt'
+ * - Duration guard: Max 10 seconds, then hand to MPT
+ */
+function controlHighYoYo(ctx) {
+  const { ac, other, p, f, kias } = ctx;
+  const c = ac.ctl;
+
+  if (c.t >= 10.0) c.next = 'mpt';
+  if ((f.altFt - p.hardDeckFt) <= p.deckMarginFt) c.next = 'mpt';
+
+  const climbDeg = radToDeg(f.climbRad);
+  const ata = (other && other.pm) ? noseAngleDeg(ac, other) : 0;
+  const targetBank = bankTowardTargetDeg(ac, other, 60);
+
+  if (c.phase === 'climb') {
+    const speedBled = (c.entryKias - kias) >= 30;
+    if (climbDeg >= 25.0 || speedBled || c.t >= 3.5) {
+      c.phase = 'apex';
+      c.apexT = c.t;
+    }
+    const pullG = Math.min(3.5, ctx.shaker);
+    const bankCmdDeg = clamp(targetBank * 0.4, 15, 35);
+    return physicalBankCommand(ctx, bankCmdDeg, pullG, 1);
+  }
+
+  if (c.phase === 'apex') {
+    if (c.t - (c.apexT || c.t) >= 1.5 || climbDeg <= 10.0) {
+      c.phase = 'dive';
+    }
+    const apexG = Math.min(2.5, ctx.shaker);
+    const bankCmdDeg = clamp(targetBank, 45, 110);
+    return physicalBankCommand(ctx, bankCmdDeg, apexG, 1);
+  }
+
+  // Phase 'dive'
+  if (climbDeg <= 0 && ata <= 30.0) {
+    c.next = 'mpt';
+  }
+
+  const bankCmdDeg = clamp(targetBank, 20, 75);
+  return physicalBankCommand(ctx, bankCmdDeg, 1.5, 1);
+}
+
+/**
  * The bank that steers the speed to the MPT speed: how fast the speed should
  * close on it sets the flight path angle that thrust minus drag allows, and the
  * bank is what gives the lift to fly that path at the G being pulled. Speed
@@ -1175,11 +1312,9 @@ function controlMpt(ctx) {
         if (altMargin && !ac.stall && !ac.overG) {
           const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
           if (best && best.move !== 'mpt' && best.move !== 'levelMpt') {
-            if ((best.winSec !== null && best.winSec !== undefined) || best.deltaAdv > 0.25) {
-              startMove(state, ac, best.move, best.why, kias);
-              c.lockoutTimer = 4.0;
-              return controlFor(ctx);
-            }
+            startMove(state, ac, best.move, best.why, kias);
+            c.lockoutTimer = 4.0;
+            return controlFor(ctx);
           }
         }
       }
@@ -1350,22 +1485,108 @@ export function tacticalAimCalculation(p, target, ac) {
   return { aim, wLag, wLead, wPure, label };
 }
 
+/**
+ * Analytical Time-to-Closest-Point-of-Approach (TCPA) and Miss Distance (Task 28):
+ * Closed-form 3D vector calculation of CPA time and projected spatial clearance.
+ */
+export function computeTcpa(ac, target) {
+  if (!ac || !target || !ac.pm || !target.pm) {
+    return { tcpaSec: Infinity, missFt: Infinity, closing: false };
+  }
+  const rx = (target.xFt ?? target.pm.x ?? 0) - (ac.xFt ?? ac.pm.x ?? 0);
+  const ry = (target.yFt ?? target.pm.y ?? 0) - (ac.yFt ?? ac.pm.y ?? 0);
+  const rz = (target.zFt ?? target.pm.z ?? 0) - (ac.zFt ?? ac.pm.z ?? 0);
+  const vx = (target.pm.vx ?? 0) - (ac.pm.vx ?? 0);
+  const vy = (target.pm.vy ?? 0) - (ac.pm.vy ?? 0);
+  const vz = (target.pm.vz ?? 0) - (ac.pm.vz ?? 0);
+  const vv = vx * vx + vy * vy + vz * vz;
+  if (vv < 1.0) {
+    return { tcpaSec: Infinity, missFt: Math.hypot(rx, ry, rz), closing: false };
+  }
+  const rv = rx * vx + ry * vy + rz * vz;
+  if (rv >= 0) {
+    return { tcpaSec: 0, missFt: Math.hypot(rx, ry, rz), closing: false };
+  }
+  const tcpaSec = -rv / vv;
+  const cpaX = rx + vx * tcpaSec;
+  const cpaY = ry + vy * tcpaSec;
+  const cpaZ = rz + vz * tcpaSec;
+  const missFt = Math.hypot(cpaX, cpaY, cpaZ);
+  return { tcpaSec, missFt, closing: true };
+}
+
+/**
+ * Defender turn-plane normal vector n_hat (Task 28):
+ * In a turn, n_hat is orthogonal to velocity and lift/normal axis (V x up).
+ * In straight/wings-level flight, falls back to local vertical {0, 0, 1}.
+ */
+export function turnPlaneNormal(target) {
+  if (!target || !target.pm) return { x: 0, y: 0, z: 1 };
+  if (Math.abs(target.turnDir || 0) > 0.1 && (target.g ?? 1.0) > 1.2) {
+    const up = target.pm.up || { x: 0, y: 0, z: 1 };
+    const n = cross(velOf(target.pm), up);
+    const nl = len(n);
+    return nl > 1e-6 ? scale(n, 1 / nl) : { x: 0, y: 0, z: 1 };
+  }
+  return { x: 0, y: 0, z: 1 };
+}
+
 /** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), the curved Control Zone 1,500 ft behind (lag), or continuous dynamic blend (tactical). */
 export function aimPoint(p, target, ac = null) {
   if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
-  if (p.pursuit === 'lead') {
-    return add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
+  let danger = false;
+  if (ac && ac.pm && target && target.pm && p?.collisionAvoidance !== false) {
+    const tcpa = computeTcpa(ac, target);
+    const rangeFt = Math.hypot(
+      (target.xFt ?? target.pm.x) - (ac.xFt ?? ac.pm.x),
+      (target.yFt ?? target.pm.y) - (ac.yFt ?? ac.pm.y),
+      (target.zFt ?? target.pm.z) - (ac.zFt ?? ac.pm.z)
+    );
+    danger = (tcpa.closing && tcpa.tcpaSec <= 3.5 && tcpa.missFt < 120) || (tcpa.closing && rangeFt < 600) || (ac.deconflicting && rangeFt < 800);
   }
-  if (p.pursuit === 'lag') {
-    if (p.lagSec === 0) return posOf(target.pm);
-    return curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
-  }
-  if (p.pursuit === 'tactical') {
-    return tacticalAimCalculation(p, target, ac).aim;
-  }
-  return posOf(target.pm);
-}
 
+  let aim;
+  if (p.pursuit === 'lead') {
+    const leadSec = danger ? 0 : p.leadSec;
+    aim = add(posOf(target.pm), scale(velOf(target.pm), leadSec));
+  } else if (p.pursuit === 'lag') {
+    const lagSec = danger ? 0 : p.lagSec;
+    if (lagSec === 0) aim = posOf(target.pm);
+    else aim = curvedControlZonePoint(target, 1500 * (lagSec ?? 1));
+  } else if (p.pursuit === 'tactical') {
+    aim = tacticalAimCalculation(p, target, ac).aim;
+  } else {
+    aim = posOf(target.pm);
+  }
+
+  aim = { x: aim.x, y: aim.y, z: aim.z };
+
+  if (danger) {
+    ac.deconflicting = true;
+    const n = turnPlaneNormal(target);
+    const acPos = { x: ac.xFt ?? ac.pm.x ?? 0, y: ac.yFt ?? ac.pm.y ?? 0, z: ac.zFt ?? ac.pm.z ?? 0 };
+    const targetPos = { x: target.xFt ?? target.pm.x ?? 0, y: target.yFt ?? target.pm.y ?? 0, z: target.zFt ?? target.pm.z ?? 0 };
+    const dPos = dot(sub(acPos, targetPos), n);
+    const offsetSign = Math.abs(dPos) > 1.0 ? (dPos > 0 ? 1 : -1) : (ac.who === 'red' ? -1 : 1);
+    const offsetFt = offsetSign * DECONFLICTION_OFFSET_FT;
+    aim.x += n.x * offsetFt;
+    aim.y += n.y * offsetFt;
+    aim.z += n.z * offsetFt;
+
+    if (Math.abs(n.z) < 0.5) {
+      const dZ = acPos.z - targetPos.z;
+      const zSign = Math.abs(dZ) > 1.0 ? (dZ > 0 ? 1 : -1) : (ac.who === 'red' ? -1 : 1);
+      aim.z += zSign * DECONFLICTION_OFFSET_FT;
+    }
+
+    const floorFt = p?.hardDeckFt ?? 6000;
+    if (aim.z < floorFt + 50) aim.z = floorFt + DECONFLICTION_OFFSET_FT;
+  } else if (ac) {
+    ac.deconflicting = false;
+  }
+
+  return aim;
+}
 
 /**
  * Pursuit: point the nose at the aim point with a lift vector that also carries
@@ -1386,7 +1607,7 @@ function controlPursuit(ctx) {
   const vHat = unit(velOf(ac.pm));
   const vFtps = f.ktas * KT_TO_FTPS;
   const calc = p.pursuit === 'tactical' ? tacticalAimCalculation(p, other, ac) : null;
-  const aim = calc ? calc.aim : aimPoint(p, other, ac);
+  const aim = aimPoint(p, other, ac);
   if (calc) {
     ac.why = `${calc.label} after first nose-on`;
   }
@@ -1423,6 +1644,11 @@ function controlPursuit(ctx) {
     return cap;
   };
 
+  // Near the deck, never allow downward lift demand (pushing over or rolling inverted into the deck)
+  if (f.altFt < p.hardDeckFt + 400) {
+    alphaWanted = Math.max(Math.cos(f.climbRad), alphaWanted);
+  }
+
   // The flight path angle the deck and the speed limit ask for: the deck from the height the pull-out would bottom at, the limit (VMO, or true Mach 0.67 above about 17,570 ft, energyTopKias) from the speed a few seconds on.
   const gamma = f.climbRad;
   const pullOutG = Math.max(capFor(true) - 1, 0.5);
@@ -1433,7 +1659,7 @@ function controlPursuit(ctx) {
   const gammaAfterRoll = gamma + Math.min(gammaRate, 0) * rollOutSec;
   const rollLossFt = vFtps * rollOutSec * Math.max(0, -Math.sin((gamma + gammaAfterRoll) / 2));
   const circleFt = gammaAfterRoll < 0 ? TUNING.deckPullOutFactor * (vFtps * vFtps / (G_FTPS2 * pullOutG)) * (1 - Math.cos(gammaAfterRoll)) : 0;
-  const dropFt = rollLossFt + circleFt;
+  const dropFt = rollLossFt + circleFt + 30;
   const deckSin = clamp((p.hardDeckFt - (f.altFt - dropFt)) * TUNING.levelAltGainPerSec / vFtps, -0.95, 0.5);
   const guardKias = energyTopKias(f.altFt) - TUNING.vmoMarginKias; // the limit at this height, so it tightens as the chase climbs into the Mach limit and eases as it dives out of it
   const overKt = kias + c.kiasRateEff * TUNING.vmoLeadSec - guardKias;
@@ -1487,6 +1713,8 @@ function controlFor(ctx) {
     case 'pitchBack': case 'slice': return controlBankMove(ctx);
     case 'immelmann': return controlImmelmann(ctx);
     case 'splitS': return controlSplitS(ctx);
+    case 'lowYoYo': return controlLowYoYo(ctx);
+    case 'highYoYo': return controlHighYoYo(ctx);
     case 'mpt': case 'levelMpt': return controlMpt(ctx);
     case 'pursuit': return controlPursuit(ctx);
     default: return { g: 1, bankRad: 0, prefer: 1, throttle: 1 };
@@ -1501,9 +1729,50 @@ function gText(g, other) {
 /** "85.6 KIAS is below the 86 KIAS stall speed": one decimal, so a speed just under the stall speed does not read as equal to it. */
 const belowStallText = (kias, p) => `${kias.toFixed(1)} KIAS is below the ${+p.stallKias.toFixed(1)} KIAS stall speed`;
 
-const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS']);
+const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS', 'lowYoYo', 'highYoYo']);
 
 function stepAircraft(state, ac, other, d) {
+  if (ac.tumble) {
+    ac.throttle = 0;
+    const z = ac.altFt ?? ac.pm.z;
+    const sqSigma = tasToIasKt(1, z);
+    const sigma = sqSigma * sqSigma;
+    const kDrag = 0.00052 * sigma;
+    let vx = ac.pm.vx, vy = ac.pm.vy, vz = ac.pm.vz;
+    let x = ac.pm.x, y = ac.pm.y, posZ = ac.pm.z;
+    const V = Math.hypot(vx, vy, vz);
+    const ax = -kDrag * V * vx;
+    const ay = -kDrag * V * vy;
+    const az = -kDrag * V * vz - 32.174;
+    vx += ax * d;
+    vy += ay * d;
+    vz += az * d;
+    x += vx * d;
+    y += vy * d;
+    posZ += vz * d;
+    ac.pm = { ...ac.pm, x, y, z: posZ, vx, vy, vz };
+    ac.xFt = x;
+    ac.yFt = y;
+    ac.zFt = posZ;
+    ac.altFt = posZ;
+    const speedKt = Math.hypot(vx, vy, vz) / KT_TO_FTPS;
+    ac.ktas = speedKt;
+    ac.kias = tasToIasKt(speedKt, posZ);
+    ac.bankRad = wrapPi(ac.bankRad + degToRad(ac.tumble.pDegPerSec) * d);
+    ac.headingRad = wrapPi(ac.headingRad + degToRad(ac.tumble.rDegPerSec) * d);
+    ac.climbDeg = clamp(ac.climbDeg + ac.tumble.qDegPerSec * d, -89, 89);
+    ac.bankDeg = radToDeg(ac.bankRad);
+    ac.g = 0;
+    if (ac.altFt <= 0) {
+      ac.altFt = 0;
+      ac.pm.z = 0;
+      ac.zFt = 0;
+      state.stopped = true;
+      ac.why = 'Impact: Hull loss at terrain (0 ft MSL)';
+    }
+    return;
+  }
+
   const p = state.setup;
   const c = ac.ctl;
   const f = pointMassFlight(ac.pm);
@@ -1672,7 +1941,7 @@ function noseOffAzDeg(from, to) {
  * 2. Across altitude differences, azimuth <= 5.0° AND elevation <= 10.0°.
  */
 function isAcNoseOn(state, ac, target) {
-  if (ac.stall) return false;
+  if (ac.stall || ac.tumble) return false;
   if (noseOffDeg(state, ac) <= FIRST_NOSE_DEG) return true;
   const dx = target.xFt - ac.xFt, dy = target.yFt - ac.yFt, dz = target.zFt - ac.zFt;
   const dH = Math.hypot(dx, dy);
@@ -1690,7 +1959,7 @@ function isAcNoseOn(state, ac, target) {
  * and the look-ahead's score both use it, so they cannot disagree.
  */
 function onTheOther(state, ac, target) {
-  if (ac.stall || !isAcNoseOn(state, ac, target)) return false;
+  if (ac.stall || ac.tumble || !isAcNoseOn(state, ac, target)) return false;
   return state.setup.chaseAfterHeadOn || 180 - noseOffDeg(state, target) <= PURSUIT_MAX_AA_DEG;
 }
 
@@ -1740,9 +2009,9 @@ export function tacticalAdvantage(ac, target) {
  * Post-merge tactical pursuit breakout gate (Phase 2C):
  * Decisive tactical advantage triggers pursuit entry even without 5° boresight lock.
  */
-function shouldPursueTactical(state, ac, target) {
+export function shouldPursueTactical(state, ac, target) {
   if (state.setup.pursuit === 'none') return false;
-  if (ac.ctl.mode === 'pursuit' || ac.stall) return false;
+  if (ac.ctl.mode === 'pursuit' || ac.stall || ac.tumble) return false;
   if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
   if (!state.setup.chaseAfterHeadOn && 180 - noseOffDeg(state, target) > PURSUIT_MAX_AA_DEG) return false;
   const f = pointMassFlight(ac.pm);
@@ -1750,7 +2019,8 @@ function shouldPursueTactical(state, ac, target) {
   const ata = noseAngleDeg(ac, target);
   const adv = tacticalAdvantage(ac, target);
   const advTarget = tacticalAdvantage(target, ac);
-  return adv > 0.52 && (adv - advTarget) >= 0.05 && ata < 45;
+  const ataThreshold = (adv - advTarget) > 0.15 ? 65 : 45;
+  return adv > 0.52 && (adv - advTarget) >= 0.05 && ata < ataThreshold;
 }
 
 function checkFirstNose(state) {
@@ -1771,7 +2041,7 @@ function checkFirstNose(state) {
     }
   }
   // Across altitude separation (D404): visual azimuth acquisition engages both fighters from level MPT into 3D combat pursuit
-  if (!chasers.length && Math.abs(state.blue.altFt - state.red.altFt) >= 100 && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+  if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     if (state.blue.ctl.mode === 'mpt' && state.red.ctl.mode === 'mpt') {
       const azBlue = noseOffAzDeg(state.blue, state.red), azRed = noseOffAzDeg(state.red, state.blue);
       if (azBlue <= FIRST_NOSE_DEG || azRed <= FIRST_NOSE_DEG) {
@@ -1850,7 +2120,7 @@ function stepOnce(state) {
   if (remaining > 1e-9) {
     const blue = state.blue, red = state.red;
     // Both read each other's state from before the step.
-    const blueOther = { pm: red.pm }, redOther = { pm: blue.pm };
+    const blueOther = { ...red, pm: red.pm }, redOther = { ...blue, pm: blue.pm };
     stepAircraft(state, blue, blueOther, remaining);
     stepAircraft(state, red, redOther, remaining);
     state.timeSec += remaining;
@@ -1860,6 +2130,100 @@ function stepOnce(state) {
   // An even fight: both noses came on together and nobody has got behind the other (the result card says so, verification F4).
   state.evenFight = state.firstNose?.by === 'both' && !state.chase;
   readAims(state);
+  checkWezGun(state, remaining);
+  checkMidAirCollision(state, FIGHT_STEP_SEC);
+}
+
+/**
+ * Weapon employment zone (WEZ) gun solution detector (Task 22):
+ * Tracks continuous time in firing envelope and awards gun kill at 2.0 s.
+ */
+export function checkWezGun(state, d = FIGHT_STEP_SEC) {
+  readPair(state);
+  for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
+    const postMerge = state.merged === true && state.timeSec > (state.mergeSec ?? 0) + 1.0;
+    const ata = noseOffDeg(state, ac);
+    const aa = 180 - noseOffDeg(state, target);
+    const inEnvelope = postMerge && !ac.stall && !ac.tumble && state.rangeFt < 2500 && ata <= 15.0 && aa <= 60.0;
+    if (inEnvelope) {
+      ac.ctl.wezTrackSec = (ac.ctl.wezTrackSec || 0) + d;
+      if (ac.ctl.wezTrackSec >= 2.0 - 1e-6) {
+        if (!state.kill) {
+          state.kill = {
+            victor: ac.who,
+            timeSec: state.timeSec,
+            rangeFt: Math.round(state.rangeFt),
+            ataDeg: Math.round(ata),
+          };
+        }
+      }
+    } else {
+      ac.ctl.wezTrackSec = 0;
+    }
+  }
+}
+
+/**
+ * Physical Hitbox & Mid-Air Collision Detector (Task 27):
+ * Triggers collision state when 3D separation drops below 35 ft (CT-156 wingspan/length).
+ */
+export function checkMidAirCollision(state, d = FIGHT_STEP_SEC) {
+  if (state.setup?.collisionDetection === false) return;
+  if (state.collision) return;
+  if (state.setup?.pursuit === 'none') return;
+  const postMerge = state.merged === undefined || (state.merged === true && state.timeSec > (state.mergeSec ?? 0) + 1.0) || state.setup?.turnsStart === 'now';
+  if (!postMerge) return;
+  if (state.rangeFt < COLLISION_HITBOX_FT) {
+    const dvx = state.blue.pm.vx - state.red.pm.vx;
+    const dvy = state.blue.pm.vy - state.red.pm.vy;
+    const dvz = state.blue.pm.vz - state.red.pm.vz;
+    const relativeSpeedKt = Math.hypot(dvx, dvy, dvz) / KT_TO_FTPS;
+    const r = state.rangeFt;
+    const rx = (state.blue.xFt ?? state.blue.pm.x) - (state.red.xFt ?? state.red.pm.x);
+    const ry = (state.blue.yFt ?? state.blue.pm.y) - (state.red.yFt ?? state.red.pm.y);
+    const rz = (state.blue.zFt ?? state.blue.pm.z) - (state.red.zFt ?? state.red.pm.z);
+    const closingRateKt = r > 0 ? -((rx * dvx + ry * dvy + rz * dvz) / r) / KT_TO_FTPS : 0;
+    const altBlue = state.blue.altFt ?? state.blue.pm.z;
+    const altRed = state.red.altFt ?? state.red.pm.z;
+    state.collision = {
+      timeSec: state.timeSec,
+      impactKias: (state.blue.kias + state.red.kias) / 2,
+      relativeSpeedKt: Math.round(relativeSpeedKt),
+      closingRateKt: Math.round(closingRateKt),
+      altitudeFt: Math.round((altBlue + altRed) / 2),
+    };
+    state.blue.collided = true;
+    state.red.collided = true;
+
+    let p, q, rRate;
+    if (relativeSpeedKt < 35) {
+      p = 150; q = 60; rRate = 50;
+    } else if (relativeSpeedKt <= 90) {
+      p = 450; q = 200; rRate = 160;
+    } else {
+      p = 900; q = 400; rRate = 300;
+    }
+
+    state.blue.tumble = {
+      pDegPerSec: p,
+      qDegPerSec: -q,
+      rDegPerSec: rRate,
+    };
+    state.blue.why = 'Departure: Ballistic tumble after mid-air collision';
+    state.blue.move = 'tumble';
+    state.blue.moveLabel = 'Collision Tumble';
+    if (state.blue.ctl) state.blue.ctl.mode = 'tumble';
+
+    state.red.tumble = {
+      pDegPerSec: -p,
+      qDegPerSec: q,
+      rDegPerSec: -rRate,
+    };
+    state.red.why = 'Departure: Ballistic tumble after mid-air collision';
+    state.red.move = 'tumble';
+    state.red.moveLabel = 'Collision Tumble';
+    if (state.red.ctl) state.red.ctl.mode = 'tumble';
+  }
 }
 
 /**

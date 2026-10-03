@@ -8,8 +8,8 @@ import { createControls } from '../../ui-kit/controls.js';
 import { timeText, phaseText, resultRows, moreDetailRows, geometryRows } from './readouts.js';
 import {
   DEFAULTS, ALLOWED, setupFrom, startSetupFrom, startEnergyRun, setupKey, saneFix, v6Defaults, checkingDefaults,
+  START_DEFAULTS, TACTICAL_PRESETS,
 } from './state.js';
-import { START_DEFAULTS } from './geometry.js';
 import { createRun, createEnergyRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
 import { createTopDownView, createStartPictureView } from './view.js';
@@ -101,6 +101,16 @@ function mount(root, app) {
       reset: () => resetFight(),
       resetDefaults() {
         settings.update(v6Defaults());
+        ui?.setPreset?.('neutral-merge');
+        showSettingsInBoxes();
+        resetFight();
+      },
+      onPreset(presetKey) {
+        const preset = TACTICAL_PRESETS[presetKey];
+        if (!preset) return;
+        const { name, ...values } = preset;
+        settings.update(values);
+        ui?.setPreset?.(presetKey);
         showSettingsInBoxes();
         resetFight();
       },
@@ -235,6 +245,20 @@ function mount(root, app) {
     advanceRun(run, dt);
     redraw();
     queueReadouts();
+    if (run.engine?.kill && !run.fight.killDismissed && !run.fight.killHandled) {
+      run.fight.killHandled = true;
+      endPlaying();
+      ui.showKillBanner(run.engine.kill, () => {
+        run.fight.killDismissed = true;
+        run.fight.stopped = false;
+        if (run.engine) run.engine.stopped = false;
+        setPlaying(true);
+      });
+    }
+    if (run.engine?.collision && !run.fight.collisionHandled) {
+      run.fight.collisionHandled = true;
+      ui.showCollisionBanner(run.engine.collision, () => resetFight());
+    }
     if (run.fight.stopped) {
       endPlaying();
       ui.setStopped(STOPPED_TEXT);
@@ -264,7 +288,12 @@ function mount(root, app) {
   // Changing the setup starts the fight again, paused, as in V6 (`reset`, line 4240).
   function resetFight() {
     endPlaying();
+    ui.hideKillBanner();
+    ui.hideCollisionBanner();
     run = newRun(settings.get());
+    run.fight.killHandled = false;
+    run.fight.killDismissed = false;
+    run.fight.collisionHandled = false;
     ui.setStopped(null);
     renderReadouts();
     redraw();

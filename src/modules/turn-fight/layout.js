@@ -10,7 +10,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { RANGES, DEFAULTS, ALLOWED, G_LABEL, startSetupFrom } from './state.js';
+import { RANGES, DEFAULTS, ALLOWED, G_LABEL, startSetupFrom, TACTICAL_PRESETS } from './state.js';
 import { VIEWS } from './view3d.js';
 import { startGeometry, passNote, turnNote } from './geometry.js';
 import { limitWarning } from './t6-limit.js';
@@ -22,11 +22,19 @@ const times = (values) => values.map((v) => [v, `${v}×`]);
 
 let nextId = 1;
 
-const SIMPLE_FOOTER = 'Turn Circle Geometry: constant-speed turn circles — rate vs radius, no energy bleed';
+const SIMPLE_FOOTER = 'Simple 2D Circles: constant-speed turn circles — rate vs radius, no vertical bleed';
 const ENERGY_FOOTER = 'BFM Energy Fight: full T-6 physics — energy management, stalls, pursuit curves';
 
 /** The plain names of Energy's moves, for the Move boxes (the engine's ids are the values). */
-const MOVE_NAMES = Object.freeze({ tactical: 'Tactical AI (Dynamic Utility)', auto: 'Auto', immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S', mpt: 'MPT' });
+const MOVE_NAMES = Object.freeze({
+  tactical: 'Tactical AI (Dynamic Pilot)',
+  auto: 'Textbook SMM Auto',
+  immelmann: 'Manual: Immelmann',
+  pitchBack: 'Manual: Pitch back',
+  slice: 'Manual: Slice',
+  splitS: 'Manual: Split S',
+  mpt: 'Manual: MPT',
+});
 
 /**
  * The note beside a start altitude above 15,000 ft (the spec's words): one note, not two warnings. It goes once core's
@@ -86,8 +94,25 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.3', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.5', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
+  const presetSelect = h(
+    'select',
+    {
+      class: 'tf-preset-select',
+      id: `tf-preset-${nextId++}`,
+      onchange: (e) => on.onPreset?.(e.target.value),
+    },
+    ...Object.entries(TACTICAL_PRESETS).map(([key, p]) =>
+      h('option', { value: key }, p.name),
+    ),
+  );
+  const presetField = h(
+    'div',
+    { class: 'control control-select tf-preset-control' },
+    h('label', { for: presetSelect.id }, 'Tactical Preset'),
+    presetSelect,
+  );
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
@@ -130,6 +155,7 @@ export function createLayout({ settings, controls, on }) {
 
   const chase = controls.checkbox('chase', { label: 'First nose chases' });
   const vertical = controls.checkbox('vertical', { label: 'Climb and dive' });
+  vertical.hidden = true;
   const energy = controls.checkbox('energy', { label: 'BFM Energy Fight' });
   // Why an Energy setup cannot fly (two numbers that don't go together): in words, where the boxes are.
   const energyProblem = h('p', { class: 'tf-warning tf-energy-problem', id: `tf-energy-problem-${nextId++}`, 'aria-live': 'polite' });
@@ -190,6 +216,10 @@ export function createLayout({ settings, controls, on }) {
     h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: Tactical (Dynamic) smoothly blends Lag in Control Zone -> Pure -> Lead for snapshot. Pure, Lead, and Lag force static instructor curves (SMM 12.30 and 16.16).'),
     controls.checkbox('chaseAfterHeadOn', { label: 'Chase from head-on' }),
     h('p', { class: 'tf-hint' }, 'Off by default: a head-on first nose-on is marked but starts no chase. On: it starts the pursuit too.'),
+    controls.checkbox('collisionDetection', { label: 'Mid-air collision' }),
+    h('p', { class: 'tf-hint' }, 'On: aircraft closer than 35 ft collide and tumble. Off: they pass through each other.'),
+    controls.checkbox('collisionAvoidance', { label: 'Collision avoidance' }),
+    h('p', { class: 'tf-hint' }, 'On: pilots roll out of plane to clear each other when a collision is predicted.'),
   );
 
   const display = menu.section('Display');
@@ -232,7 +262,7 @@ export function createLayout({ settings, controls, on }) {
 
   const setupPanel = createPanel({ title: 'Fight setup', onToggle: (collapsed) => settings.update({ setupOpen: !collapsed }) });
   setupPanel.body.append(
-    intro, fightType, separation, blue.element, red.element,
+    intro, presetField, fightType, separation, blue.element, red.element,
     h('div', { class: 'tf-extras' }, chase, vertical, energy),
     energyProblem,
     menu.element, about.element,
@@ -244,7 +274,7 @@ export function createLayout({ settings, controls, on }) {
   const resetButton = h('button', { type: 'button', class: 'button', onclick: () => on.reset() }, 'Reset');
   const timeText = h('span', { class: 'tf-pill tf-time' }, 'T+0.0');
   const phaseText = h('span', { class: 'tf-pill tf-phase' }, 'HEAD-TO-HEAD');
-  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.2: 3D BFM AI & Harvard II 5.0 G' }, 'v2.2 · BFM AI');
+  const versionPill = h('span', { class: 'tf-pill tf-version-pill', title: 'Turn Fight v2.5: 3D BFM AI & Harvard II 5.0 G' }, 'v2.5 · BFM AI');
   const toolbar = h(
     'div',
     { class: 'tf-toolbar' },
@@ -255,6 +285,8 @@ export function createLayout({ settings, controls, on }) {
     timeText, phaseText, versionPill,
   );
 
+  const killBanner = h('div', { class: 'tf-kill-banner', hidden: true });
+  const collisionBanner = h('div', { class: 'tf-collision-banner', hidden: true });
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
   // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.
   const note = h('p', { class: 'tf-note', role: 'status' });
@@ -307,6 +339,8 @@ export function createLayout({ settings, controls, on }) {
     'section',
     { class: 'tf-stage', 'aria-label': 'Fight' },
     toolbar,
+    killBanner,
+    collisionBanner,
     stopped,
     note,
     views,
@@ -385,7 +419,8 @@ export function createLayout({ settings, controls, on }) {
       red.pitchBox.hidden = !values.vertical || inEnergy;
       sideViewWanted = values.vertical;
       showPictures();
-      for (const key of ['blueKt', 'redKt', 'blueG', 'redG', 'chase', 'vertical', 'bluePitchDeg', 'redPitchDeg']) controls.setDisabled(key, inEnergy);
+      for (const key of ['blueKt', 'redKt', 'blueG', 'redG', 'chase', 'bluePitchDeg', 'redPitchDeg']) controls.setDisabled(key, inEnergy);
+      controls.setDisabled('vertical', true);
       controls.setDisabled('redAboveFt', !values.vertical || inEnergy);
       for (const box of [blue, red]) {
         box.energyRow.hidden = !inEnergy;
@@ -394,7 +429,8 @@ export function createLayout({ settings, controls, on }) {
       showAltNote(blue.altNote, inEnergy && values.blueAltFt > ENERGY_ACCURATE_MAX_FT);
       showAltNote(red.altNote, inEnergy && values.redAltFt > ENERGY_ACCURATE_MAX_FT);
       energySection.hidden = !inEnergy;
-      checkSection.hidden = !inEnergy;
+      const showCheck = inEnergy && typeof window !== 'undefined' && Boolean(window.location?.search?.includes('debug=aero'));
+      checkSection.hidden = !showCheck;
       energyAbout.hidden = !inEnergy;
       if (footer.textContent !== (inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER)) footer.textContent = inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER;
       // The pass, the pass note and the picture use the true airspeed of the merge speed in Energy.
@@ -434,6 +470,44 @@ export function createLayout({ settings, controls, on }) {
       if (text && document.activeElement === playButton) resetButton.focus();
       playButton.disabled = Boolean(text);
     },
+    showKillBanner(kill, onContinue) {
+      killBanner.hidden = false;
+      const victor = kill.victor === 'blue' ? 'Blue' : 'Red';
+      const text = `${victor} Victory: Gun Kill at T+${kill.timeSec.toFixed(1)}s (Range ${kill.rangeFt} ft, ATA ${kill.ataDeg}°)`;
+      const textSpan = h('span', { class: 'tf-kill-banner-text' }, text);
+      const continueBtn = h('button', {
+        type: 'button',
+        class: 'button tf-kill-continue-btn',
+        onclick: () => {
+          killBanner.hidden = true;
+          if (typeof onContinue === 'function') onContinue();
+        },
+      }, 'Continue Engagement');
+      killBanner.replaceChildren(textSpan, continueBtn);
+    },
+    hideKillBanner() {
+      killBanner.hidden = true;
+      killBanner.replaceChildren();
+    },
+    showCollisionBanner(collision, onReset) {
+      collisionBanner.hidden = false;
+      const feet = (x) => Math.round(x).toLocaleString('en-US');
+      const text = `MID-AIR COLLISION: Dual Departure & Hull Loss at T+${collision.timeSec.toFixed(1)}s (Closure ${collision.closingRateKt} kt, Alt ${feet(collision.altitudeFt)} ft)`;
+      const textSpan = h('span', { class: 'tf-collision-banner-text' }, text);
+      const resetBtn = h('button', {
+        type: 'button',
+        class: 'button tf-collision-reset-btn',
+        onclick: () => {
+          collisionBanner.hidden = true;
+          if (typeof onReset === 'function') onReset();
+        },
+      }, 'Reset Fight');
+      collisionBanner.replaceChildren(textSpan, resetBtn);
+    },
+    hideCollisionBanner() {
+      collisionBanner.hidden = true;
+      collisionBanner.replaceChildren();
+    },
     get moreOpen() {
       return !more.collapsed;
     },
@@ -470,6 +544,10 @@ export function createLayout({ settings, controls, on }) {
     /** Whether the altitude table is open (it is only built while it is). */
     get tableOpen() {
       return energyTable.open;
+    },
+    presetSelect,
+    setPreset(key) {
+      if (presetSelect && key in TACTICAL_PRESETS) presetSelect.value = key;
     },
   };
 }

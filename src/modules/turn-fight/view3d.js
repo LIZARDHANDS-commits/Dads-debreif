@@ -133,7 +133,7 @@ export function aircraftPose(fight, who, direction) {
       z: altToZ(a.zFt, ALT_SCALE),
       headingRad: a.headingRad,
       pitchRad: degToRad(a.climbDeg),
-      bankRad: (a.turnDir || 0) * degToRad(a.bankDeg),
+      bankRad: a.tumble ? a.bankRad : (a.turnDir || 0) * degToRad(a.bankDeg),
     };
   }
   return {
@@ -317,15 +317,46 @@ export function cameraForButton(name) {
  */
 export function cameraFor(cam, { bounds, fight, size }) {
   if (cam.mode === 'blue' || cam.mode === 'red') {
-    const a = fight[cam.mode];
+    const a = fight?.[cam.mode];
+    if (a) {
+      return {
+        center: { x: a.xFt, y: a.yFt, z: a.zFt },
+        camera: { yawDeg: wrapDeg(yawBehind(a.headingRad) + cam.yawDeg), pitchDeg: cam.pitchDeg, zoom: cam.zoom, altScale: ALT_SCALE },
+      };
+    }
+  }
+  if (fight?.blue && fight?.red) {
+    const center = {
+      x: (fight.blue.xFt + fight.red.xFt) / 2,
+      y: (fight.blue.yFt + fight.red.yFt) / 2,
+      z: (fight.blue.zFt + fight.red.zFt) / 2,
+    };
+    let zoom = cam.zoom;
+    if (cam.zoomAuto) {
+      const dx = fight.blue.xFt - fight.red.xFt;
+      const dy = fight.blue.yFt - fight.red.yFt;
+      const dz = fight.blue.zFt - fight.red.zFt;
+      const spanFt = Math.max(3000, Math.hypot(dx, dy, dz) * 1.6);
+      const boxMin = size ? Math.min(size.width, size.height) : 600;
+      zoom = clamp((boxMin * 0.75) / (spanFt / 1000), CAMERA_LIMITS.zoom);
+    }
     return {
-      center: { x: a.xFt, y: a.yFt, z: a.zFt },
-      camera: { yawDeg: wrapDeg(yawBehind(a.headingRad) + cam.yawDeg), pitchDeg: cam.pitchDeg, zoom: cam.zoom, altScale: ALT_SCALE },
+      center,
+      camera: { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom, altScale: ALT_SCALE },
     };
   }
   return {
-    center: { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2, z: (bounds.minZ + bounds.maxZ) / 2 },
-    camera: { yawDeg: cam.yawDeg, pitchDeg: cam.pitchDeg, zoom: cam.zoomAuto ? fitZoom(bounds, size) : cam.zoom, altScale: ALT_SCALE },
+    center: {
+      x: bounds ? (bounds.minX + bounds.maxX) / 2 : 0,
+      y: bounds ? (bounds.minY + bounds.maxY) / 2 : 0,
+      z: bounds ? (bounds.minZ + bounds.maxZ) / 2 : 0,
+    },
+    camera: {
+      yawDeg: cam.yawDeg,
+      pitchDeg: cam.pitchDeg,
+      zoom: cam.zoomAuto && bounds && size ? fitZoom(bounds, size) : cam.zoom,
+      altScale: ALT_SCALE,
+    },
   };
 }
 
@@ -485,9 +516,54 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       shadowDiscs[who] = disc;
     }
 
+    // Tactical 3D Suite - Lift vectors (100 ft along local +Z axis normal to wings in G-pull direction)
+    const liftVectors = {};
+    for (const who of SHIPS) {
+      const liftGeom = new THREE.BufferGeometry();
+      const liftPts = new Float32Array([
+        0, 0, 0,        0, 0, 100,
+        0, 0, 100,     -5, 0, 85,
+        0, 0, 100,      5, 0, 85,
+        0, 0, 100,      0, -5, 85,
+        0, 0, 100,      0, 5, 85,
+      ]);
+      liftGeom.setAttribute('position', new THREE.BufferAttribute(liftPts, 3));
+      const liftMat = new THREE.LineBasicMaterial({
+        color: COLORS[who],
+        transparent: true,
+        opacity: 0.85,
+        fog: false,
+      });
+      const liftVector = new THREE.LineSegments(liftGeom, liftMat);
+      liftVector.frustumCulled = false;
+      scene.add(liftVector);
+      liftVectors[who] = liftVector;
+    }
+
+    // Tactical 3D Suite - 15° WEZ aiming cone wireframe
+    const wezHeight = 2500;
+    const wezRadius = Math.tan(degToRad(15)) * wezHeight;
+    const wezGeom = new THREE.ConeGeometry(wezRadius, wezHeight, 16, 1, true);
+    wezGeom.translate(0, -wezHeight / 2, 0);
+    wezGeom.rotateZ(Math.PI / 2);
+    const wezMat = new THREE.MeshBasicMaterial({
+      color: COLORS.nose,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.45,
+      fog: false,
+    });
+    const wezCone = new THREE.Mesh(wezGeom, wezMat);
+    wezCone.name = 'wez-cone';
+    wezCone.frustumCulled = false;
+    wezCone.visible = false;
+    scene.add(wezCone);
+    scene.wezCone = wezCone;
+    scene.liftVectors = liftVectors;
+
     const labels = {
-      blue: label(LETTERS.blue, 'tf-3d-label-blue'),
-      red: label(LETTERS.red, 'tf-3d-label-red'),
+      blue: label(LETTERS.blue, 'tf-3d-label-blue blue'),
+      red: label(LETTERS.red, 'tf-3d-label-red red'),
       merge: label('MERGE', 'tf-3d-label-nose'),
       firstNose: label('', 'tf-3d-first-nose'),
       deck: label('HARD DECK', 'tf-3d-label-deck'),
@@ -495,6 +571,7 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     host.replaceChildren(canvas, labels.blue, labels.red, labels.merge, labels.firstNose, labels.deck);
     gl = {
       canvas, renderer, scene, camera, sky, grid, mark, deck, lines, plumbLines, shadowDiscs, labels,
+      liftVectors, wezCone,
       planes: {}, paint: null, nose: null, noseFor: null, ratio: 0, width: 0, height: 0,
       data: null, // what has been read from the current run: its trails, bounds, and how much of each is written
       directions: { blue: 0, red: 0 },
@@ -589,6 +666,11 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
       mesh.scale.setScalar(lengthFt / CT156_UNIT_LENGTH);
       applyAttitude(mesh, pose);
 
+      // Tactical 3D Suite - Lift vector (100 ft along local +Z axis normal to wings in G-pull direction)
+      const lift = gl.liftVectors[who];
+      lift.position.set(pose.x, pose.y, pose.z);
+      applyAttitude(lift, pose);
+
       // D401: Tactical 3D Suite - Plumb lines and ground-shadow contact discs
       const floorZ = computeFloorZ(fight, bounds, fight[who].zFt);
       const plumbData = computePlumbGeometry(pose, floorZ);
@@ -599,6 +681,58 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
 
       const zFloor = altToZ(floorZ, ALT_SCALE);
       gl.shadowDiscs[who].position.set(pose.x, pose.y, zFloor + 1.0);
+    }
+
+    // Tactical 3D Suite: WEZ aiming cone display
+    let trackingWho = null;
+    let bestTrackSec = 0;
+    for (const who of SHIPS) {
+      const target = who === 'blue' ? 'red' : 'blue';
+      const ac = fight[who];
+      const tgt = fight[target];
+      if (!ac || !tgt) continue;
+
+      const trackSec = ac.ctl?.wezTrackSec || fight.engine?.[who]?.ctl?.wezTrackSec || 0;
+      let inWez = trackSec > 0;
+
+      if (!inWez) {
+        const dx = tgt.xFt - ac.xFt;
+        const dy = tgt.yFt - ac.yFt;
+        const dz = (tgt.zFt ?? 0) - (ac.zFt ?? 0);
+        const rangeFt = Math.hypot(dx, dy, dz);
+        if (rangeFt > 0 && rangeFt < 3000) {
+          const pitchRad = fight.energy
+            ? degToRad(ac.climbDeg || 0)
+            : (fight.setup?.vertical ? (ac.pitchRad || 0) : 0);
+          const nx = Math.cos(pitchRad) * Math.cos(ac.headingRad);
+          const ny = Math.cos(pitchRad) * Math.sin(ac.headingRad);
+          const nz = Math.sin(pitchRad);
+          const cosAngle = Math.max(-1, Math.min(1, (nx * dx + ny * dy + nz * dz) / rangeFt));
+          const ataDeg = (Math.acos(cosAngle) * 180) / Math.PI;
+          if (ataDeg <= 15.0) {
+            inWez = true;
+          }
+        }
+      }
+
+      if (inWez) {
+        if (!trackingWho || trackSec > bestTrackSec) {
+          trackingWho = who;
+          bestTrackSec = trackSec;
+        }
+      }
+    }
+
+    if (trackingWho && gl.wezCone) {
+      const pose = aircraftPose(fight, trackingWho, gl.directions[trackingWho]);
+      gl.wezCone.position.set(pose.x, pose.y, pose.z);
+      applyAttitude(gl.wezCone, pose);
+      if (gl.wezCone.material?.color) {
+        gl.wezCone.material.color.set(COLORS[trackingWho] || COLORS.nose);
+      }
+      gl.wezCone.visible = true;
+    } else if (gl.wezCone) {
+      gl.wezCone.visible = false;
     }
 
     // Energy heights are altitudes above sea level (the hard deck is one), so the ground grid sits at sea level and the
@@ -660,8 +794,8 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     updateLabel(gl.labels.blue, LETTERS.blue, 'blue');
     updateLabel(gl.labels.red, LETTERS.red, 'red');
 
-    at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, showDataTags ? -40 : -22, -26, gl.labels.blue);
-    at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, 12, -26, gl.labels.red);
+    at({ x: fight.blue.xFt, y: fight.blue.yFt, z: altToZ(fight.blue.zFt, ALT_SCALE) }, showDataTags ? -60 : -22, showDataTags ? -45 : -26, gl.labels.blue);
+    at({ x: fight.red.xFt, y: fight.red.yFt, z: altToZ(fight.red.zFt, ALT_SCALE) }, showDataTags ? 40 : 12, showDataTags ? -45 : -26, gl.labels.red);
     gl.labels.merge.style.display = showsMergeMark(fight) ? '' : 'none';
 
     const markWord = passMarkWord(fight);
@@ -713,6 +847,14 @@ export function createView3d(host, { timers, run, paint, options = () => ({}), o
     for (const disc of Object.values(scene.shadowDiscs)) {
       disc.geometry.dispose();
       disc.material.dispose();
+    }
+    for (const lv of Object.values(scene.liftVectors || {})) {
+      lv.geometry.dispose();
+      lv.material.dispose();
+    }
+    if (scene.wezCone) {
+      scene.wezCone.geometry.dispose();
+      scene.wezCone.material.dispose();
     }
     scene.mark.geometry.dispose();
     scene.mark.material.dispose();

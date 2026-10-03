@@ -25,16 +25,19 @@ import {
 const ENERGY_ON = { ...DEFAULTS, energy: true };
 const NUMBER_ENERGY_KEYS = ENERGY_KEYS.filter((k) => k in RANGES);
 
-test('Energy opens off, and every Energy setting opens at the engine\'s own default', () => {
-  assert.equal(DEFAULTS.energy, false);
+test('Energy opens on, and every Energy setting opens at the engine\'s own default (with Tactical AI default)', () => {
+  assert.equal(DEFAULTS.energy, true);
   const setup = energySetupFrom(DEFAULTS);
-  const shared = ['ataDeg', 'ataSide', 'aaDeg', 'aaSide', 'turnsStart']; // the start geometry is the simple fight's own
+  const shared = ['separationNm', 'ataDeg', 'ataSide', 'aaDeg', 'aaSide', 'turnsStart', 'blueMove', 'redMove']; // the start geometry is the simple fight's own
+  assert.equal(setup.separationNm, 1.2);
+  assert.equal(setup.blueMove, 'tactical');
+  assert.equal(setup.redMove, 'tactical');
   for (const [key, value] of Object.entries(setup)) {
     if (!shared.includes(key)) assert.deepEqual(value, ENERGY_DEFAULT_SETUP[key], key);
   }
-  // The spec's list: 10,000 ft and 220 KIAS each, Auto, MPT 160, deck 6,000, Tactical (Dynamic), head-on chase on (D403); stall 86, shaker 94 %.
+  // The spec's list: 10,000 ft and 220 KIAS each, Tactical AI, MPT 160, deck 6,000, Tactical (Dynamic), head-on chase on (D403); stall 86, shaker 94 %.
   assert.deepEqual([DEFAULTS.blueAltFt, DEFAULTS.redAltFt, DEFAULTS.blueKias, DEFAULTS.redKias], [10000, 10000, 220, 220]);
-  assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['auto', 'auto', 160, 6000, 'pure', true]);
+  assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['tactical', 'tactical', 160, 6000, 'pure', true]);
   assert.deepEqual([DEFAULTS.stallKias, DEFAULTS.shakerPct, DEFAULTS.stallSec, DEFAULTS.midThrottlePct], [86, 94, 1, 50]);
   assert.deepEqual([DEFAULTS.rollRateDegPerSec, DEFAULTS.pitchBackBank160Deg, DEFAULTS.pitchBackBank220Deg], [90, 60, 30]);
   assert.deepEqual([DEFAULTS.immelmannAboveKias, DEFAULTS.splitSBelowKias, DEFAULTS.immelmannOffNoseDeg, DEFAULTS.immelmannMinTopKias, DEFAULTS.pickLookaheadSec, DEFAULTS.deckMarginFt], [220, 120, 120, 120, 60, 1000]);
@@ -104,7 +107,7 @@ test('energyProblem says what the engine would refuse for two numbers together, 
     }
     assert.equal(energyProblem(values) !== '', refused, JSON.stringify(change));
   }
-  assert.equal(energyProblem({ ...DEFAULTS, hardDeckFt: 20000 }), '', 'Energy off never complains');
+  assert.equal(energyProblem({ ...DEFAULTS, energy: false, hardDeckFt: 20000 }), '', 'Energy off never complains');
   assert.equal(energyProblem({ ...ENERGY_ON, blueAltFt: 5000 }), 'Blue\'s start altitude (5,000 ft) must be from the hard deck (6,000 ft) to 25,000 ft.');
   assert.equal(energyProblem({ ...ENERGY_ON, separationNm: 0.5, redAltFt: 20000 }), 'The start separation (0.5 NM) must be more than the height between the aircraft (10,000 ft).');
 });
@@ -147,17 +150,17 @@ test('while the start cannot fly, the fight, the pass and the start picture use 
   assert.equal(shown.separationNm, DEFAULTS.separationNm);
   assert.equal(shown.blueKt, iasToTasKt(DEFAULTS.blueKias, DEFAULTS.blueAltFt));
   const note = energyProblemNote(values);
-  assert.ok(note.startsWith(`${energyProblem(values)} Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (2 NM).`), note);
-  assert.equal(note.endsWith('separation (2 NM).'), true);
+  assert.ok(note.startsWith(`${energyProblem(values)} Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (1.2 NM).`), note);
+  assert.equal(note.endsWith('separation (1.2 NM).'), true);
   assert.equal(energyProblemNote(ENERGY_ON), '');
   assert.equal(usableEnergyValues(ENERGY_ON), ENERGY_ON);
-  assert.equal(usableEnergyValues({ ...DEFAULTS, blueKias: 300, blueAltFt: 25000 }).blueKias, 300, 'Energy off never replaces anything');
+  assert.equal(usableEnergyValues({ ...DEFAULTS, energy: false, blueKias: 300, blueAltFt: 25000 }).blueKias, 300, 'Energy off never replaces anything');
   assert.doesNotThrow(() => createEnergyFight(energySetupFrom(usable)));
 });
 
 test('with Energy on, the setup key is Energy\'s: it follows the Energy and fight settings, and not the greyed-out simple ones or the display', () => {
   const base = setupKey(ENERGY_ON);
-  assert.notEqual(base, setupKey(DEFAULTS), 'switching Energy on starts the fight again');
+  assert.notEqual(base, setupKey({ ...DEFAULTS, energy: false }), 'switching Energy on starts the fight again');
   for (const change of [{ blueAltFt: 9000 }, { redKias: 250 }, { blueMove: 'splitS' }, { redMove: 'slice' }, { mptKias: 150 }, { hardDeckFt: 5000 },
     { pursuit: 'lead' }, { chaseAfterHeadOn: false }, { stallKias: 83 }, { shakerPct: 90 }, { stallSec: 2 }, { midThrottlePct: 30 }, { leadSec: 2 },
     { lagSec: 2 }, { rollRateDegPerSec: 60 }, { pitchBackBank160Deg: 50 }, { pitchBackBank220Deg: 25 }, { immelmannAboveKias: 230 },
@@ -172,11 +175,12 @@ test('with Energy on, the setup key is Energy\'s: it follows the Energy and figh
 });
 
 test('with Energy off, the simple fight\'s key is exactly what it was: the Energy settings never restart it', () => {
-  const base = setupKey(DEFAULTS);
-  assert.equal(base, JSON.stringify(setupFrom(DEFAULTS)));
+  const energyOff = { ...DEFAULTS, energy: false };
+  const base = setupKey(energyOff);
+  assert.equal(base, JSON.stringify(setupFrom(energyOff)));
   for (const key of ENERGY_KEYS) {
     const value = typeof DEFAULTS[key] === 'number' ? DEFAULTS[key] + 1 : DEFAULTS[key] === 'auto' ? 'splitS' : DEFAULTS[key] === 'pure' ? 'lead' : !DEFAULTS[key];
-    assert.equal(setupKey({ ...DEFAULTS, [key]: value }), base, key);
+    assert.equal(setupKey({ ...energyOff, [key]: value }), base, key);
   }
 });
 
@@ -190,15 +194,16 @@ test('the percentages go to the engine as fractions, and a side at 0° or 180° 
 });
 
 test('the start pass and picture use the true airspeed of the merge speed with Energy on, and the simple speed without', () => {
-  assert.deepEqual(startSetupFrom(DEFAULTS), setupFrom(DEFAULTS));
+  const energyOff = { ...DEFAULTS, energy: false };
+  assert.deepEqual(startSetupFrom(energyOff), setupFrom(energyOff));
   const on = startSetupFrom({ ...ENERGY_ON, blueKt: 100 });
   assert.ok(Math.abs(on.blueKt - iasToTasKt(220, 10000)) < 1e-9);
   assert.ok(on.blueKt > 220, 'TAS is above IAS at 10,000 ft');
 });
 
-test('Reset to V6 defaults turns Energy off and puts every Energy setting back; Reset to defaults in Model settings puts back only those', () => {
+test('Reset to V6 defaults keeps Energy on and puts every Energy setting back; Reset to defaults in Model settings puts back only those', () => {
   const patch = v6Defaults();
-  assert.equal(patch.energy, false);
+  assert.equal(patch.energy, true);
   for (const key of ENERGY_KEYS) assert.equal(patch[key], DEFAULTS[key], key);
   const check = checkingDefaults();
   assert.deepEqual(Object.keys(check).sort(), [...ENERGY_CHECK_KEYS].sort());
@@ -228,7 +233,7 @@ test('a saved Energy number outside its range is put back; a saved move or pursu
 test('standardDefaults returns standard defaults and matches v6Defaults (D384)', () => {
   assert.equal(standardDefaults, v6Defaults);
   const std = standardDefaults();
-  assert.equal(std.energy, false);
+  assert.equal(std.energy, true);
   for (const key of ENERGY_KEYS) assert.equal(std[key], DEFAULTS[key]);
 });
 

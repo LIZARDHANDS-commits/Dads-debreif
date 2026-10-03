@@ -344,9 +344,25 @@ flowchart TD
   - Mid-flight dynamic opportunity re-evaluation in MPT (3.5 s cadence, 4.0 s hysteresis lockout timer, Hard Deck margin) (D418/Task D414).
   - Dedicated unit tests `tests/unit/turn-fight/energy-tactical.test.js`, full verification (515 unit tests, 68/68 E2E tests, 3,174 repo tests, 0 typecheck errors, clean build).
   - Appended PATCH-029 to `docs/REMEDIATION_PATCH_LOG.md` and reconciled decision registers.
-- [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
+- [x] **Task 2.6 (Remediation Plan v4: Anti-Stalemate, Combat Resolution, Centroid Camera, Presets & Harmonization - PATCH-039 through PATCH-044 / Tasks 21–26 / D420–D424):**
+  - Task 21: MPT utility decay (25% penalty after >360° without closure) & dynamic vertical circle cuts (Low Yo-Yo 140–220 KIAS, High Yo-Yo 180–280 KIAS) (D420 / PATCH-039).
+  - Task 22: Combat Resolution — 2.0 s continuous WEZ Gun Tracking kill solution (range < 2,500 ft, ATA <= 15°, AA <= 60°, !ac.stall) with HUD auto-pause banner and continue/reset controls (D421 / PATCH-040).
+  - Task 23: Dynamic 3D centroid camera tracking ((P_blue + P_red)/2) with adaptive distance zoom, displaced HUD data tags (-60px / +40px) with leader lines, lift vectors, and 15° WEZ cone (D422 / PATCH-041).
+  - Task 24: Re-baselined start separation to 1.2 NM and ATA to 5° (750 ft lateral turning room) + 5 canonical 1-click tactical presets (Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, Radius vs Rate) (D423 / PATCH-042).
+  - Task 25: BFM Energy Fight default-on (`DEFAULTS.energy = true`), progressive disclosure (checking settings quarantined behind `?debug=aero`), military move labels (D424 / PATCH-043).
+  - Task 26: Test harmonization under D411, full regression verification (545/545 turn-fight unit tests, 3,205+ repo tests, typecheck clean, build clean), and documentation ratification (PATCH-044).
+- [x] **Task 2.7 (Remediation Plan v5: Mid-Air Collision Hitbox, TCPA Deconfliction, Ballistic Tumble & UI Settings - PATCH-045 through PATCH-048 / Tasks 27–30 / D425–D427):**
+  - Task 27: Physical Hitbox (35 ft) & sequential combat telemetry (D427 / PATCH-045).
+  - Task 28: Analytical closed-form TCPA predictive gate (0.5–1.5 s, miss < 75 ft) & context-dependent out-of-plane lag roll deconfliction (85 ft along turn-plane normal) (D427 / PATCH-046).
+  - Task 29: Ballistic tumble state machine (`ac.tumble`) with bluff-body drag ($C_D \approx 1.2$), gravity drop, rotational integration ($I_{xx} \ll I_{yy} \ll I_{zz}$), real-time continuation down to terrain ($0\text{ ft MSL}$), HUD collision banner, and debrief telemetry (D427 / PATCH-047).
+  - Task 30: UI Settings checkboxes (`collisionDetection` and `collisionAvoidance` in main settings modal), Immelmann apex 140 kt limit removal (D426), D379 supersession by D425, full regression verification (558/558 unit tests, 3,218+ repo tests, typecheck clean, build clean) (PATCH-048).
+- [x] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. All 30 tasks complete, 100% green.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
+> [!IMPORTANT]
+> **Operational Finding & Architectural Directive (Patrick, 03 Oct 2026):**  
+> Turn Sim requires a **full architectural overhaul and assessment** before proceeding. Currently, simulated aircraft do not behave according to authentic SMM doctrine (e.g. after Delayed 45, all aircraft end up in a straight row / trail). Do not build on broken legacy V6 heuristics; a root-and-branch overhaul of the trajectory solver, turn sequencing, and wingman tracking mechanics against SMM Chapter 16 is required. (See `docs/handover/turn-sim.md` and `.agents/turn-sim-architecture-and-bloat-report.md`).
+
 - [ ] **Task 3.1 (Parallel Agent C):** Consolidate `turn-sim-215-recheck`, `turn-sim-223-fixes`, and `turn-sim-screen-audit`.
   - Rebuild Hook Turn as a true 180° formation turn per SMM Chapter 16 and Dad (Gap 3 resolved).
   - Update `tests/e2e/turn-sim.spec.js:227` regex matchers to accommodate standard SMM spacing (7,000 ft aft) and domain tolerances.
@@ -440,5 +456,7 @@ All non-essential and complex features are preserved on remote branches and docu
   - [`docs/records/decisions-log.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/decisions-log.md) — Judgement calls log.
   - [`.agent/memory/handoff.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/handoff.md) — Session handoff state.
   - [`.agent/memory/graveyard.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/.agent/memory/graveyard.md) — Dropped approaches register.
-- **Flight Manuals Index:**
+- **Flight Manuals Index & Ground Truth Registers:**
+  - [`docs/smm-aerobatics-catalog.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/smm-aerobatics-catalog.md) — **Authoritative SMM Aerobatics & Flight Maneuver Catalog (Ratified Sole Source of Truth, Patrick D428).**
+  - [`docs/records/manuals-discrepancy-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/records/manuals-discrepancy-matrix.md) — Master Flying Manuals Discrepancy & Reconciliation Matrix.
   - [`manuals/README.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/manuals/README.md) — Index of Harvard Gen Book, SMM, EFIG, and T-6A NFM.

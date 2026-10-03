@@ -50,7 +50,7 @@ test('the words beside each aircraft are the engine\'s: the spec\'s own example 
 });
 
 test('once at the MPT the words say "MPT 160 KIAS" and the card gives the time and degrees of turn it took', () => {
-  const fight = fly({ blueKias: 180, redKias: 180, pursuit: 'none' }, 40);
+  const fight = fly({ blueKias: 180, redKias: 180, pursuit: 'none', collisionDetection: false }, 30);
   assert.equal(fight.blue.mptReached, true);
   assert.equal(moveWhyText(fight.blue), 'MPT 160 KIAS');
   const rows = energyResultRows(fight);
@@ -205,4 +205,35 @@ test('the altitude table has a row every 10 s from T+0 and the latest point last
   const at20 = createEnergyRun({});
   for (let i = 0; i < 20 / 0.02; i++) advanceRun(at20, 0.02);
   assert.deepEqual(altitudeRows(at20.trails).map((r) => Math.round(r.timeSec)), [0, 10, 20]);
+});
+
+test('energyResultRows includes prominent Combat Result row when kill is present', () => {
+  const fight = createEnergyFight({});
+  fight.kill = { victor: 'blue', timeSec: 14.2, rangeFt: 1850, ataDeg: 8 };
+  const rows = energyResultRows(fight);
+  assert.equal(rows[0].id, 'combatResult');
+  assert.equal(rows[0].label, 'Combat Result');
+  assert.equal(rows[0].text, 'Blue Kill (WEZ Gun at T+14.2s)');
+  assert.equal(winnerText(fight), 'Blue wins');
+
+  fight.kill.victor = 'red';
+  const redRows = energyResultRows(fight);
+  assert.equal(redRows[0].text, 'Red Kill (WEZ Gun at T+14.2s)');
+  assert.equal(winnerText(fight), 'Red wins');
+});
+
+test('energyResultRows includes prominent Combat Result row when collision is present', () => {
+  const fight = createEnergyFight({});
+  fight.collision = { timeSec: 18.5, impactKias: 215, closingRateKt: 320, altitudeFt: 9800 };
+  const rows = energyResultRows(fight);
+  assert.equal(rows[0].label, 'Combat Result');
+  assert.equal(rows[0].text, 'Mid-Air Collision at T+18.5s (Impact 215 KIAS, Closure 320 kt)');
+
+  // When both kill and collision are present, kill is top row, collision is second
+  fight.kill = { victor: 'blue', timeSec: 16.0, rangeFt: 1200, ataDeg: 5 };
+  const bothRows = energyResultRows(fight);
+  assert.equal(bothRows[0].id, 'combatResult');
+  assert.equal(bothRows[0].text, 'Blue Kill (WEZ Gun at T+16.0s)');
+  assert.equal(bothRows[1].id, 'collisionResult');
+  assert.equal(bothRows[1].text, 'Mid-Air Collision at T+18.5s (Impact 215 KIAS, Closure 320 kt)');
 });

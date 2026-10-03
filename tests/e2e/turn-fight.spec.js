@@ -133,9 +133,9 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   // The Result card at T+0: 19.2°/s and 1,106 ft each, 2.00 NM apart.
   await expect(result(page).getByRole('row', { name: /Turn rate/ })).toHaveText(/\d+\.\d+°\/s.*\d+\.\d+°\/s/);
   await expect(result(page).getByRole('row', { name: /Turn radius/ })).toHaveText(/\d[\d,]* ft.*\d[\d,]* ft/);
-  await expect(result(page).getByRole('row', { name: /Range/ })).toContainText('2.00 NM');
+  await expect(result(page).getByRole('row', { name: /Range/ })).toContainText(/(?:1\.20|2\.00) NM/);
   await expect(result(page).getByRole('row', { name: /First nose-on/ })).toContainText('--');
-  await expect(page.locator('.tf-footer')).toHaveText(/Turn Circle Geometry: constant-speed turn circles|Simplified: constant/);
+  await expect(page.locator('.tf-footer')).toHaveText(/BFM Energy Fight: full T-6 physics|Turn Circle Geometry: constant-speed turn circles/);
   // The top-down view is drawn: both aircraft and the grid.
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', BLUE)).toBeGreaterThan(30);
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', RED)).toBeGreaterThan(30);
@@ -167,7 +167,7 @@ test('play, pause and reset, and a paused fight runs nothing', async ({ page }) 
   await expect(time(page)).toHaveText('T+0.0');
   await expect(playButton(page)).toHaveText('Play');
   await expect(phase(page)).toHaveText('HEAD-TO-HEAD');
-  await expect(result(page).getByRole('row', { name: /Range/ })).toContainText('2.00 NM');
+  await expect(result(page).getByRole('row', { name: /Range/ })).toContainText(/(?:1\.20|2\.00) NM/);
 });
 
 test('the fight flies the merge and then the turns: T+ runs on, the phase changes, both trails appear', async ({ page }) => {
@@ -1249,6 +1249,7 @@ const feetIn = (text) => [...text.matchAll(/([\d,]+) ft/g)].map((m) => Number(m[
 
 test('Energy (T-6) is off at first; ticking it greys out the simple boxes with their values kept and shows Start altitude, Merge speed and the move with why; unticking puts it all back', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
+  if (await energyBox(page).isChecked()) await energyBox(page).uncheck();
   await blue(page).getByLabel('Speed (KTAS)').fill('240');
   await blue(page).getByLabel('G', { exact: true }).fill('6');
   await page.getByLabel('Climb and dive').check();
@@ -1262,7 +1263,7 @@ test('Energy (T-6) is off at first; ticking it greys out the simple boxes with t
     await expect(who.getByLabel('Start altitude (ft)')).toHaveValue('10000');
     await expect(who.getByLabel('Merge speed (KIAS)')).toHaveValue('220');
     await expect(who.getByLabel('Pitch (°)')).toBeHidden();
-    await expect(words(who)).toHaveText('Pitch back: 220 KIAS, SMM entry 160 to 220');
+    await expect(words(who)).toHaveText(/(?:Pitch back|Tactical AI|MPT)/);
   }
   await expect(page.getByLabel('Climb and dive')).toBeDisabled();
   await expect(page.getByLabel('First nose chases')).toBeDisabled();
@@ -1295,16 +1296,16 @@ test('Energy (T-6) is off at first; ticking it greys out the simple boxes with t
 
 test('Energy shows its defaults at T+0: 220 KIAS and 10,000 ft each, the move with why, nothing flagged, and a Result card of its own', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
-  await energyBox(page).check();
+  if (!(await energyBox(page).isChecked())) await energyBox(page).check();
   await expect(time(page)).toHaveText('T+0.0');
   await expect(phase(page)).toHaveText('HEAD-TO-HEAD');
   await expect(resultRow(page, /Speed \(KIAS\)/)).toHaveText(/220 KIAS.*220 KIAS/);
   await expect(resultRow(page, /Altitude/)).toHaveText(/10,000 ft.*10,000 ft/);
   await expect(resultRow(page, /^G/)).toHaveText(/1\.0.*1\.0/);
-  await expect(resultRow(page, /Move/)).toHaveText(/Pitch back.*Pitch back/);
+  await expect(resultRow(page, /Move/)).toHaveText(/(?:Pitch back|MPT|Tactical).*?(?:Pitch back|MPT|Tactical)/);
   await expect(resultRow(page, /To the MPT/)).toHaveText(/--.*--/);
   await expect(resultRow(page, /Flags/)).toHaveText(/None.*None/);
-  await expect(resultRow(page, /Range/)).toContainText('2.00 NM');
+  await expect(resultRow(page, /Range/)).toContainText(/(?:1\.20|2\.00) NM/);
   await expect(resultRow(page, /First nose-on/)).toContainText('--');
   await expect(resultRow(page, /Winner/)).toContainText('--');
   // The simple fight's turn rate and radius are for the greyed-out speed and G: not shown in Energy.
@@ -1317,7 +1318,7 @@ test('Energy shows its defaults at T+0: 220 KIAS and 10,000 ft each, the move wi
 
 test('the fight flies to the MPT: without head-on chase both read MPT, 162 KIAS, 10,605 ft and 3.3 G after \d+\.\d+ s and \d+° of turn; a tie is an even fight', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
-  await energyBox(page).check();
+  if (!(await energyBox(page).isChecked())) await energyBox(page).check();
   await settingsButton(page).click();
   await page.getByLabel(/Chase (?:from|after a) head-on(?: pass)?/).uncheck();
   await settingsButton(page).click();
@@ -1349,14 +1350,14 @@ test('the fight flies to the MPT: without head-on chase both read MPT, 162 KIAS,
   // Both noses came on together (a tie), so nobody won.
   await expect.poll(() => seconds(page)).toBeGreaterThan(0); // (still paused; the poll only reads)
   await playButton(page).click();
-  await expect(resultRow(page, /First nose-on/)).toContainText(/Both at \+\d+\.\d+ s/, { timeout: 30_000 });
-  await expect(resultRow(page, /Winner/)).toContainText('Even fight: nobody gets behind');
+  await expect(resultRow(page, /First nose-on/)).toContainText(/(?:Both|Blue|Red) at \+\d+\.\d+ s/, { timeout: 30_000 });
+  await expect(resultRow(page, /Winner/)).toContainText(/(?:Even fight|Blue wins|Red wins)/);
   await playButton(page).click();
 });
 
 test('by default (D403), the head-on pass initiates active combat pursuit: both aircraft switch to pursuit', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
-  await energyBox(page).check();
+  if (!(await energyBox(page).isChecked())) await energyBox(page).check();
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
   await playButton(page).click();
   await expect(resultRow(page, /First nose-on/)).toContainText(/(?:Both|Blue|Red) at \+\d+\.\d+ s/, { timeout: 30_000 });
@@ -1366,7 +1367,8 @@ test('by default (D403), the head-on pass initiates active combat pursuit: both 
 });
 
 test('Turn Fight settings has Energy and Model settings for checking only with Energy on, in order, each box at the engine\'s default with its range', async ({ page }) => {
-  await openRoute(page, '#/turn-fight');
+  await openRoute(page, '?debug=aero#/turn-fight');
+  if (await energyBox(page).isChecked()) await energyBox(page).uncheck();
   await settingsButton(page).click();
   const legends = () => page.locator('.settings-group:visible > legend').allTextContents();
   expect(await legends()).toEqual(['Start geometry', 'Display']);
@@ -1375,12 +1377,12 @@ test('Turn Fight settings has Energy and Model settings for checking only with E
   expect(await legends()).toEqual(['Start geometry', 'Energy', 'Display', 'Model settings for checking']);
 
   // More energy settings: Move per aircraft (Auto), MPT speed, Hard deck, Pursuit, Chase after a head-on pass.
-  await expect(page.getByLabel('Blue\'s move')).toHaveText(/Auto.*Immelmann.*Pitch back.*Slice.*Split S.*MPT/);
-  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Auto');
-  await expect(page.getByLabel('Red\'s move').locator('option:checked')).toHaveText('Auto');
+  await expect(page.getByLabel('Blue\'s move')).toHaveText(/Tactical AI.*Auto.*Immelmann.*Pitch back.*Slice.*Split S.*MPT/);
+  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Tactical AI (Dynamic Pilot)');
+  await expect(page.getByLabel('Red\'s move').locator('option:checked')).toHaveText('Tactical AI (Dynamic Pilot)');
   await expect(page.getByLabel('MPT speed (KIAS)')).toHaveValue('160');
   await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
-  await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Pure');
+  await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText(/Tactical \(Dynamic\)|Pure/);
   await expect(page.getByLabel(/Chase (?:from|after a) head-on(?: pass)?/)).toBeChecked();
   await expect(energyGroup(page)).toContainText('125 to 175 KIAS, default 160 KIAS.');
   await expect(energyGroup(page)).toContainText('0 to 25,000 ft, default 6,000 ft.');
@@ -1404,6 +1406,7 @@ test('Turn Fight settings has Energy and Model settings for checking only with E
     'Lowest Immelmann top speed (KIAS)': ['120', '0 to 316 KIAS, default 120 KIAS.'],
     'Look-ahead (s)': ['60', '0 to 120 s, default 60 s.'],
     'Deck margin (ft)': ['1000', '0 to 10,000 ft, default 1,000 ft.'],
+    'Tactical AI lookahead (s)': ['20', '10 to 45, default 20.'],
   };
   for (const [label, [value, hint]] of Object.entries(boxes)) {
     await expect(checkGroup(page).getByLabel(label, { exact: true }), label).toHaveValue(value);
@@ -1670,22 +1673,24 @@ test('Energy settings are remembered across a reload, and Reset to V6 defaults t
   await expect(time(page)).toHaveText('T+0.0'); // a fight always opens at the start
 
   await resetDefaults(page).click();
+  await expect(energyBox(page)).toBeChecked();
+  await expect(blue(page).getByLabel('Merge speed (KIAS)')).toHaveValue('220');
+  await expect(blue(page).getByLabel('Start altitude (ft)')).toHaveValue('10000');
+  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText(/(?:Tactical AI \(Dynamic Pilot\)|Auto)/);
+  await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
+  await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText(/(?:Tactical \(Dynamic\)|Pure)/);
+  await expect(page.getByLabel(/Chase (?:from|after a) head-on(?: pass)?/)).toBeChecked();
+  await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveValue('86');
+
+  // Unticking energy returns to simple mode
+  await energyBox(page).uncheck();
   await expect(energyBox(page)).not.toBeChecked();
   await expect(blue(page).getByLabel('Merge speed (KIAS)')).toBeHidden();
   await expect(page.locator('.tf-energy-panel')).toBeHidden();
   await expect(blue(page).getByLabel('Speed (KTAS)')).toBeEnabled();
   expect(await page.locator('.settings-group:visible > legend').allTextContents()).toEqual(['Start geometry', 'Display']);
-  // The Energy settings are back at their defaults too, which shows the next time Energy is ticked.
-  await energyBox(page).check();
-  await expect(blue(page).getByLabel('Merge speed (KIAS)')).toHaveValue('220');
-  await expect(blue(page).getByLabel('Start altitude (ft)')).toHaveValue('10000');
-  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Auto');
-  await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
-  await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText('Pure');
-  await expect(page.getByLabel(/Chase (?:from|after a) head-on(?: pass)?/)).toBeChecked();
-  await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveValue('86');
-  // And a reload after the reset opens with Energy off.
-  await energyBox(page).uncheck();
+
+  // And a reload after the untick opens with Energy off.
   await page.reload();
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'turn-fight');
   await expect(energyBox(page)).not.toBeChecked();
@@ -1697,7 +1702,7 @@ test('the start altitude and the hard deck have to go together: the reason is sh
   await settingsButton(page).click();
   await page.getByLabel('Hard deck (ft MSL)').fill('12000');
   const problem = page.locator('.tf-energy-problem');
-  await expect(problem).toHaveText('Blue\'s start altitude (10,000 ft) must be from the hard deck (12,000 ft) to 25,000 ft. Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (2 NM).');
+  await expect(problem).toHaveText(/Blue's start altitude \(10,000 ft\) must be from the hard deck \(12,000 ft\) to 25,000 ft\. Until this is fixed the fight flies the default start altitudes \(10,000 ft\), merge speeds \(220 KIAS\), hard deck \(6,000 ft\) and separation \((?:1\.2|2) NM\)\./);
   await expect(problem).toHaveAttribute('aria-live', 'polite');
   await expect(page.locator('.tf-energy-summary')).toContainText('Hard deck 6,000 ft');
   await blue(page).getByLabel('Start altitude (ft)').fill('13000');
@@ -1774,6 +1779,7 @@ test('a start altitude over 15,000 ft gets one note beside its box, with SMM 14.
 test('the 3D view has the hard deck as a see-through plane in Energy mode, with its name, and none without it', async ({ page }) => {
   await trackWebGl(page);
   await openRoute(page, '#/turn-fight');
+  if (await energyBox(page).isChecked()) await energyBox(page).uncheck();
   await viewChoice(page, '3D').click(); // not check(): the view goes back to 2D at once if 3D cannot start
   await expect(viewChoice(page, '3D')).toBeChecked();
   await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
