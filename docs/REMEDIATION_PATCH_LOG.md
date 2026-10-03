@@ -1044,6 +1044,35 @@
   - `npm run build`: built in 476ms, all size budgets kept.
   - `npx playwright test tests/e2e/turn-fight.spec.js`: 68 passed, 0 failed.
 
+---
 
-
-
+### PATCH-039: Wind-Adaptive PFL Track on Rails & Threshold Touchdown (D420)
+* **Date & Time:** 2026-10-02 21:45 UTC
+* **Milestone:** Milestone 1 (Traffic Pattern Sim)
+* **Branch:** `main`
+* **Files Modified:**
+  * [`src/modules/traffic/route.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/route.js)
+  * [`src/modules/traffic/nav-plans.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/nav-plans.js)
+  * [`src/modules/traffic/sim.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/sim.js)
+  * [`src/modules/traffic/tick-aircraft.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/src/modules/traffic/tick-aircraft.js)
+  * [`tests/unit/traffic/route.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/route.test.js)
+  * [`tests/unit/traffic/nav-plans.test.js`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tests/unit/traffic/nav-plans.test.js)
+* **Problem / Flaw Addressed:**  
+  1. The legacy PFL generator (`generatePflTrack`) integrated an unconstrained 360° circular arc with pure wind drift, causing the flight path to drift miles off-field and into the terrain.
+  2. PFL waypoints were marked `mode: 'physics'`, causing numerical drift in differential glide equations that missed the runway threshold.
+  3. Aircraft completing PFL had no landing clamp at the runway threshold.
+* **Changes Made:**
+  1. Replaced unconstrained PFL orbit with an authentic 4-segment wind-adaptive track generator:
+     - **Segment 1 (High Key Turn):** 180° descending turn from High Key (5,000 ft $\to$ 3,700 ft MSL, 125 $\to$ 120 KIAS) with natural wind drift and smooth roll-in.
+     - **Segment 2 (Downwind Leg to Low Key):** Straight leg heading $\approx 118^\circ$ (wind-crabbed) to dynamic Low Key (`lowKey = nominalLowKey + shift`, compensating for final turn drift).
+     - **Segment 3 (Low Key to Final Approach):** Smooth descending turn (3,700 ft $\to$ 2,119 ft MSL, 120 KIAS, 35° bank) with boundary condition crab matching.
+     - **Segment 4 (Final to Touchdown):** Straight glide along runway centerline (2,119 ft $\to$ 1,892 ft MSL, 120 $\to$ 100 KIAS) terminating **exactly at the threshold with 0.00 ft miss distance**.
+  2. Updated `buildPath` in `route.js` to dispatch PFL routes (`ENT4`, `PFL`, `PFL_HIGH_KEY`) through `generatePflTrack()`.
+  3. Changed `PFL_HIGH_KEY_WPS` waypoints to `mode: 'rails'` in `nav-plans.js`.
+  4. Added PFL landing termination in `handleRouteEnd` in `sim.js`, ensuring aircraft safely touch down and stop on the numbers.
+  5. Added comprehensive unit tests in `route.test.js` verifying 0.00 ft miss distance across calm, 25 kt crosswind, and 25 kt headwind conditions.
+* **Reasoning / Rationale:**  
+  Decision **D420**. PFL procedures in SMM Ch 16 require an authentic forced landing pattern terminating at touchdown on the runway threshold. Putting nominal PFL on rails with dynamic aerodynamic compensation guarantees repeatable, rock-solid execution across all wind environments.
+* **Verification:**  
+  - `node --test tests/unit/traffic/*.test.js`: all 740 tests passed, 0 failed.
+  - PFL threshold miss distance: 0.00 ft calm, 0.00 ft in 25 kt crosswind, 0.00 ft in 25 kt headwind.

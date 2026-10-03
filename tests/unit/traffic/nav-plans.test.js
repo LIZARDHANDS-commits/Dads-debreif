@@ -134,8 +134,8 @@ describe('nav-plans: PFL_HIGH_KEY', () => {
     assert.deepEqual(configs, ['clean', 'gearDown', 'landing', 'landing']);
   });
 
-  it('all waypoints are physics mode', () => {
-    assert.ok(PFL_HIGH_KEY.waypoints.every(w => w.mode === 'physics'));
+  it('all waypoints are rails mode', () => {
+    assert.ok(PFL_HIGH_KEY.waypoints.every(w => w.mode === 'rails'));
   });
 });
 

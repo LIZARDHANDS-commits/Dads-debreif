@@ -29,7 +29,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   DEFAULT_ROUTE_OPTIONS, routePath, drawPath, positionAt, posOnRoute, legDistances, roundedPoints, navSegs,
-  routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, pointTurn, turnAtPoint, newPattern, newEntry, newSplit,
+  routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, pointTurn, turnAtPoint, newPattern, newEntry, newSplit, generatePflTrack,
 } from '../../../src/modules/traffic/route.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
@@ -340,4 +340,42 @@ test('PAT1 in calm wind with trueArcs generates authentic rounded circular arcs 
   assert.ok(ftPts[0].alt > ftPts.at(-1).alt, 'final turn descends smoothly');
   assert.equal(ftPts[0].alt, 3500);
   assert.ok(ftPts.at(-1).alt <= 2700);
+});
+
+test('generatePflTrack generates 4-segment wind-adaptive track terminating at threshold with 0 miss distance', () => {
+  const ent4 = MOOSE_JAW.routes.find((r) => r.id === 'ENT4');
+  const th = ent4.points.find((p) => /threshold/i.test(p.label)) ?? ent4.points.at(-1);
+
+  // 1. Calm wind (0 kt)
+  const calmTrack = generatePflTrack(ent4, 360, 0);
+  assert.ok(calmTrack.length >= 50, 'produces high-density PFL trajectory');
+  assert.equal(calmTrack[0].alt, 5000, 'starts at High Key 5,000 ft MSL');
+  assert.equal(calmTrack[0].kt, 125, 'starts at 125 KIAS');
+  assert.equal(calmTrack[0].phase, 'pfl_high_key');
+
+  const calmEnd = calmTrack.at(-1);
+  assert.equal(calmEnd.alt, 1892, 'ends at field elevation 1,892 ft MSL');
+  assert.equal(calmEnd.kt, 100, 'touches down at 100 KIAS');
+  assert.equal(calmEnd.phase, 'pfl_final');
+  near(Math.hypot(calmEnd.x - th.x, calmEnd.y - th.y), 0, 1e-4);
+
+  // 2. Strong 25 kt crosswind from 360°
+  const xwindTrack = generatePflTrack(ent4, 360, 25);
+  assert.ok(xwindTrack.length >= 50);
+  const xwindEnd = xwindTrack.at(-1);
+  assert.equal(xwindEnd.alt, 1892, 'ends at field elevation in 25 kt crosswind');
+  assert.equal(xwindEnd.kt, 100);
+  near(Math.hypot(xwindEnd.x - th.x, xwindEnd.y - th.y), 0, 1e-4);
+
+  // 3. Strong 25 kt headwind along runway (298°)
+  const headwindTrack = generatePflTrack(ent4, 298, 25);
+  const headwindEnd = headwindTrack.at(-1);
+  assert.equal(headwindEnd.alt, 1892, 'ends at field elevation in headwind');
+  near(Math.hypot(headwindEnd.x - th.x, headwindEnd.y - th.y), 0, 1e-4);
+
+  // 4. buildPath on PFL route produces the wind-adaptive track
+  const path = routePath(ent4, { flyRoundedTurns: true, windKt: 20, windFromDeg: 360 });
+  const pathEnd = path.points.at(-1);
+  assert.equal(pathEnd.alt, 1892);
+  near(Math.hypot(pathEnd.x - th.x, pathEnd.y - th.y), 0, 1e-4);
 });

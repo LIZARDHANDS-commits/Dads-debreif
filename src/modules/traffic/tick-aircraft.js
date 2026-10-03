@@ -241,7 +241,20 @@ function isManeuverComplete(a, navPlan) {
     return false;
   }
 
-  // 5. Waypoint mode transition in general:
+  // 5. Active emergency glide commands continue in physics:
+  if (a.command === 'pfl_current' || a.command === 'engine_fail') {
+    return false;
+  }
+
+  // Guard climb_high_key and climb_low_key until target waypoint is reached:
+  if (a.command === 'climb_high_key' && !a.engineFailed && (a.waypointIndex ?? 0) === 0) {
+    return false;
+  }
+  if (a.command === 'climb_low_key' && !a.engineFailed && (a.waypointIndex ?? 0) <= 1) {
+    return false;
+  }
+
+  // 6. Waypoint mode transition in general:
   const wps = navPlan?.waypoints;
   if (wps && a.waypointIndex !== undefined && a.waypointIndex < wps.length) {
     const currentWp = wps[a.waypointIndex];

@@ -250,6 +250,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function handleRouteEnd(a, overshootFt) {
     const route = routeOf(a);
     if (route.kind === 'pattern') { a.distFt = overshootFt; return; }
+    const isPfl = route.id === 'ENT4' || route.id === 'PFL' || route.id === 'PFL_HIGH_KEY' || route.kind === 'pfl' || /pfl/i.test(route.name);
+    if (isPfl) {
+      a.active = false;
+      a.landed = true;
+      a.phase = 'landing';
+      return;
+    }
     const target = routeById(route.attachTo);
     if (target && target.kind === 'pattern') {
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));

@@ -156,10 +156,10 @@ export const ENT_SI = Object.freeze({
 // Pattern matrix §5. NRG model. Engine-out glide with config transitions.
 
 const PFL_HIGH_KEY_WPS = [
-  wp({ x: 3104,  y: -3194,  alt: 5000,  kias: 125,  phase: 'high_key',   label: 'High Key',   mode: 'physics', config: 'clean'    }),
-  wp({ x: 7146,  y:-10275,  alt: 3700,  kias: 120,  phase: 'low_key',    label: 'Low Key',    mode: 'physics', config: 'gearDown' }),
-  wp({ x: 9076,  y: -6411,  alt: 2900,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'physics', config: 'landing'  }),
-  wp({ x: 3104,  y: -3194,  alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold', mode: 'physics', config: 'landing' }),
+  wp({ x: 3104,  y: -3194,  alt: 5000,  kias: 125,  phase: 'high_key',   label: 'High Key',   mode: 'rails', config: 'clean'    }),
+  wp({ x: 7146,  y:-10275,  alt: 3700,  kias: 120,  phase: 'low_key',    label: 'Low Key',    mode: 'rails', config: 'gearDown' }),
+  wp({ x: 9076,  y: -6411,  alt: 2900,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'rails', config: 'landing'  }),
+  wp({ x: 3104,  y: -3194,  alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold', mode: 'rails', config: 'landing' }),
 ];
 
 export const PFL_HIGH_KEY = Object.freeze({
@@ -271,10 +271,10 @@ export function makePflFromArea(radialDeg = 90, distNm = 10, altFt = 8000) {
 
   const wps = [
     wp({ x: spawnX, y: spawnY, alt: altFt,    kias: 125, phase: 'pfl_inbound', label: 'Spawn (From Area)', mode: 'physics', config: 'clean' }),
-    wp({ x: THRESH_X, y: THRESH_Y, alt: 5000, kias: 125, phase: 'high_key',   label: 'High Key',         mode: 'physics', config: 'clean' }),
-    wp({ x:  7146, y: -10275,  alt: 3700,     kias: 120, phase: 'low_key',     label: 'Low Key',          mode: 'physics', config: 'gearDown' }),
-    wp({ x:  9076, y:  -6411,  alt: 2900,     kias: 120, phase: 'base_key',    label: 'Base Key',         mode: 'physics', config: 'landing'  }),
-    wp({ x: THRESH_X, y: THRESH_Y, alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold',    mode: 'physics', config: 'landing'  }),
+    wp({ x: THRESH_X, y: THRESH_Y, alt: 5000, kias: 125, phase: 'high_key',   label: 'High Key',         mode: 'rails', config: 'clean' }),
+    wp({ x:  7146, y: -10275,  alt: 3700,     kias: 120, phase: 'low_key',     label: 'Low Key',          mode: 'rails', config: 'gearDown' }),
+    wp({ x:  9076, y:  -6411,  alt: 2900,     kias: 120, phase: 'base_key',    label: 'Base Key',         mode: 'rails', config: 'landing'  }),
+    wp({ x: THRESH_X, y: THRESH_Y, alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold',    mode: 'rails', config: 'landing'  }),
   ];
 
   const plan = Object.freeze({
