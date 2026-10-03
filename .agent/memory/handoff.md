@@ -3,27 +3,38 @@
 Rewritten by `/save` at the end of each session. Read by `/sync` at the start.
 
 ## Last updated
-03 Oct 2026, 04:15Z (Antigravity).
+03 Oct 2026, 12:25 local / 18:25Z (Antigravity).
 
 ## Current State & Documentation Directory
-- **Branch:** `next-module` (merging to `main`).
-- **Turn Fight (Milestone 2):** 100% COMPLETE across all 30 tasks, Remediation Plans v2–v5, BFM AI v2.5 (PATCH-024 through PATCH-048, D401–D427). Authentic 5.0 G maneuver pull law, 4.7 G rolling limit, D386 elevation acquisition cone, ghost pursuit fix, aspect angle readout, mode renaming ("Turn Circle Geometry" vs "BFM Energy Fight"), derived bank angle readout, test harmonization with pilot domain tolerances (D371/D411), Austin/Carbone tactical advantage matrix, forward lookahead utility maneuver selection, mid-flight MPT dynamic opportunity re-evaluation, Low/High Yo-Yos (D420), 2.0s WEZ gun kill with auto-pause (D421), dynamic centroid 3D camera & cues (D422), 1.2 NM baseline & presets (D423), Energy Fight default-on (D424/D425), Immelmann apex 140 kt limit removal (D426), 35 ft hitbox, analytical TCPA predictive deconfliction, ballistic tumble state machine (D427), UI settings toggles, and v2.5 badges. All 558 unit tests, Playwright E2E tests, typecheck, build green (3,218+ repo tests pass). Ready for Gate 2 sign-off.
-- **Traffic Sim (Milestone 1):** Vector Guidance Migration (D406, R34) Pre-Phase documentation synchronization complete. All master registers, module handovers, specs, and roadmaps are aligned.
-  - Working spec: [`specs/SPEC-traffic.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/specs/SPEC-traffic.md) (unified spec superseding `SPEC-traffic-vector.md`).
-  - Pattern matrix: [`docs/traffic-pattern-matrix.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/docs/traffic-pattern-matrix.md) (authoritative Moose Jaw geometries and leg dynamics).
-  - Migration plan & checklist: [`tasks/traffic/vector-migration-todo.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/vector-migration-todo.md) and [`tasks/traffic/plan.md`](file:///c:/Users/patri/Documents/antigravity/wise-mendeleev/Dads-debreif/tasks/traffic/plan.md).
+- **Branch:** `next-module` (up to date with `origin/next-module`, ahead of `main`).
+- **SMM Aerobatics Catalog (D428 Ratified Sole Source of Truth):**
+  - Authoritative reference: [`docs/smm-aerobatics-catalog.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/smm-aerobatics-catalog.md).
+  - Both Aileron Roll and Hesitation Roll initiate with a 20° smooth pitch-up first.
+  - Hesitation Roll is NOT a 4-point roll; rolls inverted, pauses while nose drops through horizon to SET calibrated dive attitude (~15° for 230–250 kt; ~30° for 280 kt), rolls upright in dive to accelerate to entry speed.
+  - Loop, Cuban 8, Cloverleaf target entry is 230 KIAS with inverse dynamic G pull law (more G if slow, less G if fast); target exit is 230 KIAS.
+  - Immelmann dynamically feasible at any speed > 220 KIAS.
+  - SMM Aerobatics Sequence Mode registered as FF48 in `docs/records/future-ideas.md`.
+- **Turn Fight (Milestone 2):** 100% COMPLETE across all 30 tasks, Remediation Plans v2–v5, BFM AI v2.5 (PATCH-024 through PATCH-048, D401–D427). All 558 unit tests, Playwright E2E tests, typecheck, build green (3,218+ repo tests pass). Ready for Gate 2 sign-off.
+- **Traffic Pattern Sim (Milestone 1):**
+  - Core 3-mode state machine (`RAIL`, `PHYSICS`, `BLENDING`) complete.
+  - Architecture and bloat remediation report completed and moved to [`archive/reports/traffic-sim-architecture-and-bloat-report.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/archive/reports/traffic-sim-architecture-and-bloat-report.md).
+- **Turn Sim (Milestone 3):**
+  - Flagged for full architectural overhaul & assessment in [`docs/handover/turn-sim.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/handover/turn-sim.md) per Patrick directive (aircraft end up in a row after Delayed 45; legacy V6 heuristics broken).
+  - Four paused branches on hold pending overhaul. Detailed technical audit in [`.agents/turn-sim-architecture-and-bloat-report.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/.agents/turn-sim-architecture-and-bloat-report.md).
 
 ## Milestones Status Overview
 * **Milestone 0: Ground Truth & Decoupling Foundation** — COMPLETED [x]
-* **Milestone 1: Traffic Pattern Sim (Gate 1)** — Pre-Phase Vector Guidance Migration Complete [x]; Phases 1–5 in progress.
+* **Milestone 1: Traffic Pattern Sim (Gate 1)** — Core Engine & Physics Complete [x]; Spawner / UI modernization ready.
 * **Milestone 2: Turn Fight 1v1 BFM & Energy Screen (Gate 2)** — COMPLETED & READY FOR GATE 2 SIGN-OFF [x] (Checklist: `docs/checklists/turn-fight.md`)
 * **Milestone 3: Turn Sim / Formation (Gate 3)** — QUEUED (Full architectural overhaul & assessment required per Patrick directive: SMM non-compliance, aircraft end up in a row after Delayed 45)
 * **Milestone 4: Debrief 3D View & Tacview Integration** — QUEUED
 * **Milestone 5: Final Prototype Acceptance (Gate 5)** — QUEUED
 
-## Immediate Next Step
-1. Gate 2 Sign-Off: Patrick executes interactive walkthrough on `localhost:4174` using [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md).
-2. Traffic Sim Vector Migration: Resume Phase 1 (`src/modules/traffic/flight-engine.js`).
+## Immediate Next Steps & Options for Patrick
+1. **Gate 2 Sign-Off (Turn Fight):** Run the interactive walkthrough checklist [`docs/checklists/turn-fight.md`](file:///C:/Users/patri/.gemini/antigravity/worktrees/wise-mendeleev/next_module_worktree/docs/checklists/turn-fight.md) on `localhost:4174` (or preview build).
+2. **Turn Sim Architectural Assessment & Overhaul:** Begin the root-and-branch restructuring of Turn Sim trajectory/slot tracking to fix SMM formation behaviors (e.g. Delayed 45).
+3. **SMM Aerobatics Sequence Mode (FF48):** Build the autonomous single-aircraft SMM aerobatics routine player demo in 3D.
+4. **Merge `next-module` to `main`:** Bring all completed Turn Fight v2.5 BFM features, SMM catalog ratification, and Traffic Sim Phase 3 into `main`.
 
 ## Waiting on Patrick
-- Gate 1 / Gate 2 sign-off walkthroughs as scheduled.
+- Decision on which of the 4 paths above to tackle next!
