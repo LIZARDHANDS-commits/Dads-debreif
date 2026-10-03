@@ -344,7 +344,14 @@ flowchart TD
   - Mid-flight dynamic opportunity re-evaluation in MPT (3.5 s cadence, 4.0 s hysteresis lockout timer, Hard Deck margin) (D418/Task D414).
   - Dedicated unit tests `tests/unit/turn-fight/energy-tactical.test.js`, full verification (515 unit tests, 68/68 E2E tests, 3,174 repo tests, 0 typecheck errors, clean build).
   - Appended PATCH-029 to `docs/REMEDIATION_PATCH_LOG.md` and reconciled decision registers.
-- [ ] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. Once signed off, Turn Fight is complete.
+- [x] **Task 2.6 (Remediation Plan v4: Anti-Stalemate, Combat Resolution, Centroid Camera, Presets & Harmonization - PATCH-039 through PATCH-044 / Tasks 21–26 / D420–D424):**
+  - Task 21: MPT utility decay (25% penalty after >360° without closure) & dynamic vertical circle cuts (Low Yo-Yo 140–220 KIAS, High Yo-Yo 180–280 KIAS) (D420 / PATCH-039).
+  - Task 22: Combat Resolution — 2.0 s continuous WEZ Gun Tracking kill solution (range < 2,500 ft, ATA <= 15°, AA <= 60°, !ac.stall) with HUD auto-pause banner and continue/reset controls (D421 / PATCH-040).
+  - Task 23: Dynamic 3D centroid camera tracking ((P_blue + P_red)/2) with adaptive distance zoom, displaced HUD data tags (-60px / +40px) with leader lines, lift vectors, and 15° WEZ cone (D422 / PATCH-041).
+  - Task 24: Re-baselined start separation to 1.2 NM and ATA to 5° (750 ft lateral turning room) + 5 canonical 1-click tactical presets (Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, Radius vs Rate) (D423 / PATCH-042).
+  - Task 25: BFM Energy Fight default-on (`DEFAULTS.energy = true`), progressive disclosure (checking settings quarantined behind `?debug=aero`), military move labels (D424 / PATCH-043).
+  - Task 26: Test harmonization under D411, full regression verification (545/545 turn-fight unit tests, 3,205+ repo tests, typecheck clean, build clean), and documentation ratification (PATCH-044).
+- [x] **Gate 2 (Turn Fight Sign-Off):** READY FOR PATRICK. Patrick runs `docs/checklists/turn-fight.md`. All 26 tasks complete, 100% green.
 
 #### Milestone 3: Turn Sim (Formation) Module Build (PR 5)
 - [ ] **Task 3.1 (Parallel Agent C):** Consolidate `turn-sim-215-recheck`, `turn-sim-223-fixes`, and `turn-sim-screen-audit`.

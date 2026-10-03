@@ -304,13 +304,13 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
 - Consolidate move dropdowns into `Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and `Manual Override`.
 
 **Acceptance criteria:**
-- [ ] Module opens directly into 3D BFM Energy Fight with clean, intuitive controls.
-- [ ] Simple Mode is clean flat 2D geometry with no arcade vertical physics.
-- [ ] Checking numbers hidden from students, accessible via debug query.
+- [x] Module opens directly into 3D BFM Energy Fight with clean, intuitive controls.
+- [x] Simple Mode is clean flat 2D geometry with no arcade vertical physics.
+- [x] Checking numbers hidden from students, accessible via debug query.
 
 **Verification:**
-- [ ] Browser visual inspection.
-- [ ] Axe accessibility check passes (WCAG 2.1 AA).
+- [x] Browser visual inspection.
+- [x] Axe accessibility check passes (WCAG 2.1 AA).
 
 **Dependencies:** Task 24.  
 **Files likely touched:** `src/modules/turn-fight/layout.js`, `src/modules/turn-fight/state.js`, `src/modules/turn-fight/sim.js`  
@@ -327,15 +327,15 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
 - Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.
 
 **Acceptance criteria:**
-- [ ] 100% of unit, typecheck, build, and E2E tests pass cleanly.
-- [ ] Zero microscopic trajectory float assertions (D411 compliant).
-- [ ] Documentation fully synchronized.
+- [x] 100% of unit, typecheck, build, and E2E tests pass cleanly.
+- [x] Zero microscopic trajectory float assertions (D411 compliant).
+- [x] Documentation fully synchronized.
 
 **Verification:**
-- [ ] `npm test`
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npx playwright test tests/e2e/turn-fight.spec.js`
+- [x] `npm test`
+- [x] `npm run typecheck`
+- [x] `npm run build`
+- [x] `npx playwright test tests/e2e/turn-fight.spec.js`
 
 **Dependencies:** Tasks 21–25.  
 **Files likely touched:** `tests/unit/turn-fight/**/*.test.js`, `tests/e2e/turn-fight.spec.js`, `docs/*`  

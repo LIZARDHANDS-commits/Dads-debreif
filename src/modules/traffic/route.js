@@ -582,7 +582,7 @@ let _breakCache = { wFrom: null, wKt: null, result: null };
  * @param {any} route
  * @param {number} [windFromDeg]
  * @param {number} [windKt]
- * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any> } | null}
+ * @returns {{ rollout: { x: number, y: number, alt: number, headingDeg: number }, arcPoints: Array<any>, breakStartX?: number, breakStartY?: number, rwyHeadingDeg?: number, downwindHeadingDeg?: number } | null}
  */
 function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   const pts = route?.points || route?.waypoints;

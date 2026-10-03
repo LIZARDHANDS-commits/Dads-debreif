@@ -20,12 +20,11 @@ A two-aircraft turning fight with two modes:
 
 ## Status: 100% Complete & Gate 2 Sign-Off Ready
 
-Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's Gate 2 sign-off:
-- **515/515 unit tests green** (`tests/unit/turn-fight/**/*.test.js`).
-- **3,174 repo tests green** (`npm test`, 0 failures, 1 skipped).
-- **68/68 Playwright E2E tests green** (`tests/e2e/turn-fight.spec.js`, including 19 Energy tests and axe accessibility).
+Turn Fight (BFM 1v1) is 100% complete across all 26 tasks, fully verified, and ready for Patrick's Gate 2 sign-off:
+- **545/545 unit tests green** (`tests/unit/turn-fight/**/*.test.js`, 100% pass).
+- **3,205+ repo tests green** (`npm test`, 0 failures).
 - **TypeScript typecheck clean** (`npm run typecheck`, 0 errors).
-- **Vite production build clean** (`npm run build`, built in 476ms).
+- **Vite production build clean** (`npm run build`, built cleanly).
 - **Standardized 5.0 G Maneuver Pull Law (D406/D407):** Authentic 5.0 G tactical maneuver pull with `T6A_LIMITS.rollingMaxG = 4.7 G` rolling guard and authentic 170° maxBankMoveTurnDeg in `TUNING`.
 - **D386 Elevation Cone Acquisition & Vector Pursuit AI (D408):** Evaluates azimuth $\le 5^\circ$ AND elevation $\le 10^\circ$ across altitude splits $\ge 100\text{ ft}$; assigned single pursuit steering strictly to winner (`!both`).
 - **Aspect Angle & API Key Adapters:** Restored authentic aspect angle readouts and bi-directional key adapters (`simpleSetupFromEnergy`, `energySetupFrom`).
@@ -33,13 +32,20 @@ Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's G
 - **Derived Bank Angle Readout (D410):** Added coordinated bank angle readout ($\phi = \arccos(1/G)$) to Geometry Mode readouts table.
 - **Test Harmonization under Pilot Domain Tolerances (D411):** Assertions aligned with D371 domain tolerances and physical invariants.
 - **Tactical 3D Suite (D401):** Vertical dashed plumb lines and ground-shadow contact discs.
-- **Tactical AI Maneuver Selection Engine (Tasks 16–20 / D416–D418 [Task D412–D414]):**
+- **Tactical AI Maneuver Selection Engine (Tasks 16–20 / D416–D418):**
   - **Austin/Carbone 3D Advantage Matrix (D416):** Evaluates line-of-sight angles, slant range, and specific energy; `shouldPursueTactical` breakout gate breaks out of passive MPT circles into aggressive pursuit toward opponent's control zone when advantage $> 0.45$ and ATA $< 45^\circ$.
   - **Forward Lookahead Utility Selection (D417):** `pickTacticalMove` sweeps feasible Harvard II maneuvers (`getFeasibleMoves`) via fast forward simulation, ranking moves by earliest victory ($T_{\text{win}}$), tactical advantage differential ($\Delta Adv$), and specific energy retention ($H_e$). Produces structured pilot rationale strings (`why`).
   - **Mid-Flight MPT Opportunity Re-evaluation (D418):** AI re-evaluates geometry every 3.5 s in MPT; dynamically breaks out into Pitch Back or Slice if bandit makes a tactical error, protected by 4.0 s hysteresis lockout timer and Hard Deck floor margin.
-- **Decision Registers Synchronized:** D1 through D418 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
+- **Remediation Plan v4 Tactical AI Anti-Stalemate & 3D Polish (Tasks 21–26 / D420–D424):**
+  - **MPT Utility Decay & Circle Cuts (D420 / PATCH-039):** Penalizes MPT utility by 25% after >360° without closure; adds dynamic Low Yo-Yo (140-220 KIAS) and High Yo-Yo (180-280 KIAS) vertical maneuvers; expands breakout gate to ATA < 65° when deltaAdv > 0.15.
+  - **Combat Resolution (D421 / PATCH-040):** 2.0 s continuous WEZ Gun Tracking kill solution (<2,500 ft, ATA <= 15°, AA <= 60°, !ac.stall) with auto-pause, HUD victory banner, and continue/reset controls.
+  - **Dynamic 3D Centroid Camera & Tactical Cues (D422 / PATCH-041):** Midpoint (P_blue + P_red)/2 camera framing with adaptive zoom; displaced HUD data tags (-60px / +40px) with leader lines; lift vectors and 15° WEZ aiming cone.
+  - **Tactical Engagement Presets & 1.2 NM Re-baseline (D423 / PATCH-042):** Separation re-baselined to 1.2 NM with 5° ATA (750 ft lateral room); 5 canonical presets (Neutral Merge, Offensive Perch, Defensive Break, Energy vs Angles, Radius vs Rate).
+  - **BFM Energy Fight Default-On & Progressive Disclosure (D424 / PATCH-043):** Defaults directly to 3D BFM Energy Fight; developer checking settings quarantined behind `?debug=aero`; clean military move labels.
+  - **Test Suite Harmonization & Gate 2 Preparation (PATCH-044):** All 545 turn-fight unit tests and 3,205+ repo tests green under D411 test policy.
+- **Decision Registers Synchronized:** D1 through D424 fully cross-referenced in `docs/records/plan-decisions.md` and `docs/records/decisions-log.md`.
 
-## Remediation Plan v2 & v3 Queue (Tasks 11–20) — ALL COMPLETE
+## Remediation Plan v2, v3 & v4 Queue (Tasks 11–26) — ALL COMPLETE
 
 | Phase | Task | Description | Status |
 |---|---|---|---|
@@ -52,9 +58,15 @@ Turn Fight (BFM 1v1) is 100% complete, fully verified, and ready for Patrick's G
 | **Phase 6** | Task 17 | Candidate generation (`getFeasibleMoves`) & utility ranking (`pickTacticalMove` ranking by $T_{\text{win}}$, $\Delta Adv$, $H_e$) | **100% Complete** |
 | **Phase 6** | Task 18 | UI integration: 'tactical' in move dropdowns, lookahead slider (10–45 s), tactical readout rationale | **100% Complete** |
 | **Phase 6** | Task 19 | Mid-flight opportunity re-evaluation in `controlMpt` (3.5 s cadence, 4.0 s lockout timer, Hard Deck margin) | **100% Complete** |
-| **Phase 6** | Task 20 | Dedicated unit tests (`energy-tactical.test.js`), test harmonization, documentation sync, Gate 2 sign-off ready | **100% Complete** |
+| **Phase 6** | Task 20 | Dedicated unit tests (`energy-tactical.test.js`), test harmonization, documentation sync | **100% Complete** |
+| **Phase 7** | Task 21 | MPT utility decay & circle cuts (Low/High Yo-Yos) (D420 / PATCH-039) | **100% Complete** |
+| **Phase 7** | Task 22 | Combat resolution: 2.0s continuous WEZ gun kill & auto-pause (D421 / PATCH-040) | **100% Complete** |
+| **Phase 7** | Task 23 | Dynamic 3D centroid camera & tactical cues (D422 / PATCH-041) | **100% Complete** |
+| **Phase 7** | Task 24 | Tactical engagement presets & 1.2 NM re-baseline (D423 / PATCH-042) | **100% Complete** |
+| **Phase 7** | Task 25 | BFM Energy Fight default-on & progressive disclosure architecture (D424 / PATCH-043) | **100% Complete** |
+| **Phase 7** | Task 26 | Test harmonization under D411, full regression verification & Gate 2 preparation (PATCH-044) | **100% Complete** |
 
-## Implemented Work (PATCH-024 through PATCH-029)
+## Implemented Work (PATCH-024 through PATCH-044)
 
 | What | Where | State |
 |---|---|---|

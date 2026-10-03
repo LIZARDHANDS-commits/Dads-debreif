@@ -205,15 +205,48 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
   - [x] 24.2 Implement 1-click "Tactical Scenario" dropdown in `layout.js` (Neutral Merge, Offensive Perch, Defensive Break, Energy vs. Angles, Radius vs. Rate).
   - [x] 24.3 Wire preset handler in `index.js` / `state.js` updating speeds, altitudes, and geometry simultaneously.
 
-- [ ] **25. Task 25: UI Bloat Pruning, Mode Architecture & Progressive Disclosure (R22).**
-  - [ ] 25.1 Default `energy: true` in `state.js` so the module opens directly into 3D BFM Energy Fight.
-  - [ ] 25.2 Retire arcade "Climb and dive" from Simple Mode; standardize Simple Mode as clean flat 2D turn circle geometry.
-  - [ ] 25.3 Move 16 checking parameters out of student menu into developer debug panel (`?debug=aero`).
-  - [ ] 25.4 Consolidate move dropdowns into `Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and `Manual Override`.
+- [x] **25. Task 25: UI Bloat Pruning, Mode Architecture & Progressive Disclosure (R22).**
+  - [x] 25.1 Default `energy: true` in `state.js` so the module opens directly into 3D BFM Energy Fight.
+  - [x] 25.2 Retire arcade "Climb and dive" from Simple Mode; standardize Simple Mode as clean flat 2D turn circle geometry.
+  - [x] 25.3 Move 16 checking parameters out of student menu into developer debug panel (`?debug=aero`).
+  - [x] 25.4 Consolidate move dropdowns into `Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and `Manual Override`.
 
-- [ ] **26. Task 26: Test Suite Harmonization & Documentation Ratification.**
-  - [ ] 26.1 Update unit tests in `tests/unit/turn-fight/` for new defaults (1.2 NM, tactical default, kill auto-pause, presets).
-  - [ ] 26.2 Update Playwright E2E tests in `tests/e2e/turn-fight.spec.js` asserting regex telemetry patterns.
-  - [ ] 26.3 Full verification: `npm test` (all 3,174+ pass), `npm run typecheck` (0 errors), `npm run build` (clean).
-  - [ ] 26.4 Record decisions D420–D424 in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
-  - [ ] 26.5 Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.
+- [x] **26. Task 26: Test Suite Harmonization & Documentation Ratification.**
+  - [x] 26.1 Update unit tests in `tests/unit/turn-fight/` for new defaults (1.2 NM, tactical default, kill auto-pause, presets).
+  - [x] 26.2 Update Playwright E2E tests in `tests/e2e/turn-fight.spec.js` asserting regex telemetry patterns.
+  - [x] 26.3 Full verification: `npm test` (all 3,205+ pass), `npm run typecheck` (0 errors), `npm run build` (clean).
+  - [x] 26.4 Record decisions D420–D424 in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+  - [x] 26.5 Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.
+
+---
+
+## Remediation Plan v5: Mid-Air Collision Hitbox, TCPA Deconfliction, Ballistic Tumble & UI Settings (Tasks 27–30)
+
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Plan: [`plan-collision.md`](plan-collision.md).  
+Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D425–D429).
+
+- [ ] **27. Task 27: Physical Hitbox (35 ft) & Collision State Tracking.**
+  - [ ] 27.1 Implement 3D Euclidean range check ($R_{3D} < 35.0\text{ ft}$) in `energy-sim.js`.
+  - [ ] 27.2 Record `state.collision` object (time, impact speed, closure rate, altitude).
+  - [ ] 27.3 Ensure sequential record in telemetry when a gun kill precedes collision.
+  - [ ] 27.4 Add unit tests in `tests/unit/turn-fight/energy-tactical.test.js` validating hitbox boundary.
+
+- [ ] **28. Task 28: Analytical TCPA & Context-Dependent Lag Roll Deconfliction.**
+  - [ ] 28.1 Implement analytical vector TCPA ($t_{\text{CPA}} = -\frac{\vec{r} \cdot \vec{V}_{\text{rel}}}{|\vec{V}_{\text{rel}}|^2}$) and projected miss distance $d_{\text{miss}}$.
+  - [ ] 28.2 Evaluate predictive collision gate ($t_{\text{CPA}} \in [0.5, 1.5]\text{ s}$ and $d_{\text{miss}} < 75\text{ ft}$).
+  - [ ] 28.3 Implement context-dependent deconfliction: port-to-port/canopy-to-canopy in head-on pass; out-of-plane rolling lag displacement (85 ft along defender turn-plane normal $\hat{n}$) in offensive pursuit.
+  - [ ] 28.4 Add unit tests in `tests/unit/turn-fight/energy-tactical.test.js`.
+
+- [ ] **29. Task 29: Post-Collision Ballistic Tumble Physics, Real-Time Flow & HUD Banners.**
+  - [ ] 29.1 Implement unguided ballistic tumble state machine (`ac.tumble`): controls severed, throttle 0, bluff-body drag $C_D \approx 1.2$, gravity drop $\ddot{z} = -32.174\text{ ft/s}^2$, and rotational integration ($I_{xx} \ll I_{yy} \ll I_{zz}$).
+  - [ ] 29.2 Simulation continues in real time upon collision; automatically halts and announces when reaching terrain ($0\text{ ft MSL}$).
+  - [ ] 29.3 Implement HUD Collision Banner with impact telemetry.
+  - [ ] 29.4 Add telemetry row in `energy-readouts.js` and render tumbling orientation in `view3d.js`.
+
+- [ ] **30. Task 30: UI Settings Toggles, D379 Supersession & Test Suite Harmonization.**
+  - [ ] 30.1 Add checkboxes for `collisionDetection` and `collisionAvoidance` in main Turn Fight Settings modal (both default `true`).
+  - [ ] 30.2 Formalize D379 supersession by D425 (BFM Energy Fight is opening default).
+  - [ ] 30.3 Harmonize E2E and unit test suites under D411.
+  - [ ] 30.4 Verify full suite (`npm test`, `npm run typecheck`, `npm run build`).
+  - [ ] 30.5 Update documentation records (`decisions-log.md`, `plan-decisions.md`, `HANDOVER.md`, `REMEDIATION_ROADMAP.md`).
+

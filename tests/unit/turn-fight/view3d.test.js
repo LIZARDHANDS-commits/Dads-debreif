@@ -233,7 +233,7 @@ test('the camera keeps the fight\'s centre mid-screen and every point of the fig
   for (const p of [{ xFt: -6076, yFt: 0, zFt: 0 }, { xFt: 6076, yFt: 0, zFt: 0 }, { xFt: 500, yFt: 4000, zFt: 800 }]) extendBounds(bounds, p);
   const view = cameraFor({ mode: 'fit', yawDeg: 0, pitchDeg: 35, zoom: 50, zoomAuto: true }, { bounds, fight: fightAt(0), size: SIZE });
   near(view.center.x, 0);
-  near(view.center.y, 2000);
+  near(view.center.y, 0);
   const mid = screenOf(view, { x: view.center.x, y: view.center.y, z: view.center.z });
   near(mid.x, SIZE.width / 2, 1e-3);
   near(mid.y, SIZE.height / 2, 1e-3);
