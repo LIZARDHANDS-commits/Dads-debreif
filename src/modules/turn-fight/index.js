@@ -235,6 +235,16 @@ function mount(root, app) {
     advanceRun(run, dt);
     redraw();
     queueReadouts();
+    if (run.engine?.kill && !run.fight.killDismissed && !run.fight.killHandled) {
+      run.fight.killHandled = true;
+      endPlaying();
+      ui.showKillBanner(run.engine.kill, () => {
+        run.fight.killDismissed = true;
+        run.fight.stopped = false;
+        if (run.engine) run.engine.stopped = false;
+        setPlaying(true);
+      });
+    }
     if (run.fight.stopped) {
       endPlaying();
       ui.setStopped(STOPPED_TEXT);
@@ -264,7 +274,10 @@ function mount(root, app) {
   // Changing the setup starts the fight again, paused, as in V6 (`reset`, line 4240).
   function resetFight() {
     endPlaying();
+    ui.hideKillBanner();
     run = newRun(settings.get());
+    run.fight.killHandled = false;
+    run.fight.killDismissed = false;
     ui.setStopped(null);
     renderReadouts();
     redraw();

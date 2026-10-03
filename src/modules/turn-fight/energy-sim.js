@@ -181,6 +181,7 @@ const TUNING = Object.freeze({
 export const MOVE_LABELS = Object.freeze({
   tactical: 'Tactical AI',
   immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S',
+  lowYoYo: 'Low Yo-Yo', highYoYo: 'High Yo-Yo',
   mpt: 'MPT', levelMpt: 'Level MPT', pursuit: 'Pursuit',
 });
 
@@ -414,7 +415,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     stall: false, stallReason: '', stallEver: false,
     onShaker: false, chaseLimited: false, aim: null,
     rolling: false, rollDegPerSec: 0,
-    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0 },
+    ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0, wezTrackSec: 0 },
   };
   readOut(ac, 1, 1, p);
   readSlow(ac, p);
@@ -702,7 +703,17 @@ export function getFeasibleMoves(ac, other = null, setup = ENERGY_DEFAULT_SETUP)
     }
   }
 
-  // 5. MPT: Always feasible (baseline sustained rate turn)
+  // 5. Low Yo-Yo: 140 <= KIAS <= 220 and sufficient altitude margin for dive
+  if (kias >= 140 && kias <= 220 && (altFt - hardDeckFt) > deckMarginFt + 500) {
+    moves.push('lowYoYo');
+  }
+
+  // 6. High Yo-Yo: 180 <= KIAS <= 280
+  if (kias >= 180 && kias <= 280) {
+    moves.push('highYoYo');
+  }
+
+  // 7. MPT: Always feasible (baseline sustained rate turn)
   moves.push('mpt');
 
   return moves;
@@ -819,6 +830,18 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
       deltaAdv,
       he,
     });
+  }
+
+  // MPT utility decay: penalize MPT when aircraft has been circling > 360° without closure
+  const mptTurnDeg = meAc?.ctl?.mptTurnDeg ?? 0;
+  if (mptTurnDeg > 360) {
+    const penaltyFactor = 0.75; // 25% penalty
+    for (const e of evaluated) {
+      if (e.move === 'mpt') {
+        e.deltaAdv *= penaltyFactor;
+        e.he *= penaltyFactor;
+      }
+    }
   }
 
   // Rank candidates
@@ -995,6 +1018,14 @@ function startMove(state, ac, move, why, kias) {
       c.holdBankRad = carriedBankFor(ac.pm, 0, dir); // wings level, whichever way up the carried frame is
       if (move === 'splitS') c.phase = 'pitchUp';
       break;
+    case 'lowYoYo':
+      c.phase = 'dive';
+      c.holdBankRad = ac.bankRad ?? 0;
+      break;
+    case 'highYoYo':
+      c.phase = 'climb';
+      c.holdBankRad = ac.bankRad ?? 0;
+      break;
     case 'mpt':
       c.halfUntilShaker = kias > p.mptKias; // rolling straight in from above its speed: PCL to mid-range until the shaker
       break;
@@ -1134,6 +1165,120 @@ function controlSplitS(ctx) {
   }
   if (Math.abs(radToDeg(climb)) < TUNING.levelDoneDeg) c.next = 'mpt';
   return { g: levelOffG(ctx, 0), bankRad: invertedBank, prefer: c.prefer, throttle: 1 };
+}
+
+/**
+ * Bank angle in degrees that points the aircraft's lift vector toward the target.
+ */
+function bankTowardTargetDeg(ac, other, defaultBankDeg = 60) {
+  if (!other || !other.pm) return defaultBankDeg;
+  const fr = horizonFrame(ac.pm);
+  const toTarget = sub(posOf(other.pm), posOf(ac.pm));
+  const dist = len(toTarget);
+  if (dist < 1e-3) return defaultBankDeg;
+  const los = scale(toTarget, 1 / dist);
+  const losPerp = sub(los, scale(fr.vHat, dot(los, fr.vHat)));
+  const m = len(losPerp);
+  if (m < 1e-4) return defaultBankDeg;
+  const losDir = scale(losPerp, 1 / m);
+  const dir = ac.turnDir || 1;
+  const cosBeta = dot(losDir, fr.upH);
+  const sinBeta = dot(losDir, scale(fr.leftH, dir));
+  const bankDeg = Math.abs(radToDeg(Math.atan2(sinBeta, cosBeta)));
+  return Number.isFinite(bankDeg) ? bankDeg : defaultBankDeg;
+}
+
+/**
+ * Low Yo-Yo: diving circle cut.
+ * - Phase 'dive': Unload to 1.5G, roll wings toward target, push nose 15° below horizon
+ * - Phase 'cut': Hold 2.0G pull through the bottom, accelerating
+ * - Phase 'pull': As nose comes through horizon, pull 4G back up toward bandit's altitude
+ * - Completion: When level or climbing with nose within 30° of target bearing: c.next = 'mpt'
+ * - Duration guard: Max 8 seconds, then hand to MPT
+ */
+function controlLowYoYo(ctx) {
+  const { ac, other, p, f } = ctx;
+  const c = ac.ctl;
+
+  if (c.t >= 8.0) c.next = 'mpt';
+  if ((f.altFt - p.hardDeckFt) <= p.deckMarginFt) c.next = 'mpt';
+
+  const climbDeg = radToDeg(f.climbRad);
+  const ata = (other && other.pm) ? noseAngleDeg(ac, other) : 0;
+  const targetBank = bankTowardTargetDeg(ac, other, 60);
+
+  if (c.phase === 'dive') {
+    if (climbDeg <= -15.0 || c.t >= 3.0) {
+      c.phase = 'cut';
+    }
+    const bankCmdDeg = clamp(targetBank, 30, 85);
+    return physicalBankCommand(ctx, bankCmdDeg, 1.5, 1);
+  }
+
+  if (c.phase === 'cut') {
+    if (climbDeg >= -2.0) {
+      c.phase = 'pull';
+    }
+    const bankCmdDeg = clamp(targetBank, 30, 75);
+    return physicalBankCommand(ctx, bankCmdDeg, 2.0, 1);
+  }
+
+  // Phase 'pull'
+  if (climbDeg >= -1.0 && ata <= 30.0) {
+    c.next = 'mpt';
+  }
+
+  const pullG = Math.min(4.0, ctx.shaker);
+  const bankCmdDeg = clamp(targetBank, 20, 60);
+  return physicalBankCommand(ctx, bankCmdDeg, pullG, 1);
+}
+
+/**
+ * High Yo-Yo: climbing lag displacement.
+ * - Phase 'climb': Pull 3-4G to raise nose 25° above horizon, bleeding speed
+ * - Phase 'apex': At apex (speed dropped 30-40 KIAS), roll lift vector toward target
+ * - Phase 'dive': Unload and nose back down toward target, accelerating
+ * - Completion: When descending with nose within 30° of target bearing: c.next = 'mpt'
+ * - Duration guard: Max 10 seconds, then hand to MPT
+ */
+function controlHighYoYo(ctx) {
+  const { ac, other, p, f, kias } = ctx;
+  const c = ac.ctl;
+
+  if (c.t >= 10.0) c.next = 'mpt';
+  if ((f.altFt - p.hardDeckFt) <= p.deckMarginFt) c.next = 'mpt';
+
+  const climbDeg = radToDeg(f.climbRad);
+  const ata = (other && other.pm) ? noseAngleDeg(ac, other) : 0;
+  const targetBank = bankTowardTargetDeg(ac, other, 60);
+
+  if (c.phase === 'climb') {
+    const speedBled = (c.entryKias - kias) >= 30;
+    if (climbDeg >= 25.0 || speedBled || c.t >= 3.5) {
+      c.phase = 'apex';
+      c.apexT = c.t;
+    }
+    const pullG = Math.min(3.5, ctx.shaker);
+    const bankCmdDeg = clamp(targetBank * 0.4, 15, 35);
+    return physicalBankCommand(ctx, bankCmdDeg, pullG, 1);
+  }
+
+  if (c.phase === 'apex') {
+    if (c.t - (c.apexT || c.t) >= 1.5 || climbDeg <= 10.0) {
+      c.phase = 'dive';
+    }
+    const apexG = Math.min(2.5, ctx.shaker);
+    const bankCmdDeg = clamp(targetBank, 45, 110);
+    return physicalBankCommand(ctx, bankCmdDeg, apexG, 1);
+  }
+
+  // Phase 'dive'
+  if (climbDeg <= 0 && ata <= 30.0) {
+    c.next = 'mpt';
+  }
+
+  const bankCmdDeg = clamp(targetBank, 20, 75);
+  return physicalBankCommand(ctx, bankCmdDeg, 1.5, 1);
 }
 
 /**
@@ -1487,6 +1632,8 @@ function controlFor(ctx) {
     case 'pitchBack': case 'slice': return controlBankMove(ctx);
     case 'immelmann': return controlImmelmann(ctx);
     case 'splitS': return controlSplitS(ctx);
+    case 'lowYoYo': return controlLowYoYo(ctx);
+    case 'highYoYo': return controlHighYoYo(ctx);
     case 'mpt': case 'levelMpt': return controlMpt(ctx);
     case 'pursuit': return controlPursuit(ctx);
     default: return { g: 1, bankRad: 0, prefer: 1, throttle: 1 };
@@ -1501,7 +1648,7 @@ function gText(g, other) {
 /** "85.6 KIAS is below the 86 KIAS stall speed": one decimal, so a speed just under the stall speed does not read as equal to it. */
 const belowStallText = (kias, p) => `${kias.toFixed(1)} KIAS is below the ${+p.stallKias.toFixed(1)} KIAS stall speed`;
 
-const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS']);
+const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS', 'lowYoYo', 'highYoYo']);
 
 function stepAircraft(state, ac, other, d) {
   const p = state.setup;
@@ -1740,7 +1887,7 @@ export function tacticalAdvantage(ac, target) {
  * Post-merge tactical pursuit breakout gate (Phase 2C):
  * Decisive tactical advantage triggers pursuit entry even without 5° boresight lock.
  */
-function shouldPursueTactical(state, ac, target) {
+export function shouldPursueTactical(state, ac, target) {
   if (state.setup.pursuit === 'none') return false;
   if (ac.ctl.mode === 'pursuit' || ac.stall) return false;
   if (!state.merged || state.timeSec <= (state.mergeSec ?? 0) + 1.0) return false;
@@ -1750,7 +1897,8 @@ function shouldPursueTactical(state, ac, target) {
   const ata = noseAngleDeg(ac, target);
   const adv = tacticalAdvantage(ac, target);
   const advTarget = tacticalAdvantage(target, ac);
-  return adv > 0.52 && (adv - advTarget) >= 0.05 && ata < 45;
+  const ataThreshold = (adv - advTarget) > 0.15 ? 65 : 45;
+  return adv > 0.52 && (adv - advTarget) >= 0.05 && ata < ataThreshold;
 }
 
 function checkFirstNose(state) {
@@ -1860,6 +2008,36 @@ function stepOnce(state) {
   // An even fight: both noses came on together and nobody has got behind the other (the result card says so, verification F4).
   state.evenFight = state.firstNose?.by === 'both' && !state.chase;
   readAims(state);
+  checkWezGun(state, remaining);
+}
+
+/**
+ * Weapon employment zone (WEZ) gun solution detector (Task 22):
+ * Tracks continuous time in firing envelope and awards gun kill at 2.0 s.
+ */
+export function checkWezGun(state, d = FIGHT_STEP_SEC) {
+  readPair(state);
+  for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
+    const postMerge = state.merged === true && state.timeSec > (state.mergeSec ?? 0) + 1.0;
+    const ata = noseOffDeg(state, ac);
+    const aa = 180 - noseOffDeg(state, target);
+    const inEnvelope = postMerge && !ac.stall && state.rangeFt < 2500 && ata <= 15.0 && aa <= 60.0;
+    if (inEnvelope) {
+      ac.ctl.wezTrackSec = (ac.ctl.wezTrackSec || 0) + d;
+      if (ac.ctl.wezTrackSec >= 2.0 - 1e-6) {
+        if (!state.kill) {
+          state.kill = {
+            victor: ac.who,
+            timeSec: state.timeSec,
+            rangeFt: Math.round(state.rangeFt),
+            ataDeg: Math.round(ata),
+          };
+        }
+      }
+    } else {
+      ac.ctl.wezTrackSec = 0;
+    }
+  }
 }
 
 /**

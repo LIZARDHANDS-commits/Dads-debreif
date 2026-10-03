@@ -1772,13 +1772,13 @@ test('D405: a stalled aircraft loses tracking authority and cannot claim nose-on
 test('Task 17: getFeasibleMoves returns expected candidate sets across flight envelopes', () => {
   const p = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
 
-  // 250 kt: Immelmann, Pitch Back, MPT
+  // 250 kt: Immelmann, Pitch Back, High Yo-Yo, MPT
   const m250 = getFeasibleMoves({ kias: 250, altFt: 10000 }, null, p);
-  assert.deepEqual(m250, ['immelmann', 'pitchBack', 'mpt']);
+  assert.deepEqual(m250, ['immelmann', 'pitchBack', 'highYoYo', 'mpt']);
 
-  // 160 kt: Pitch Back, Slice, MPT
+  // 160 kt: Pitch Back, Slice, Low Yo-Yo, MPT
   const m160 = getFeasibleMoves({ kias: 160, altFt: 10000 }, null, p);
-  assert.deepEqual(m160, ['pitchBack', 'slice', 'mpt']);
+  assert.deepEqual(m160, ['pitchBack', 'slice', 'lowYoYo', 'mpt']);
 
   // 100 kt: Slice, Split S, MPT
   const m100 = getFeasibleMoves({ kias: 100, altFt: 10000 }, null, p);

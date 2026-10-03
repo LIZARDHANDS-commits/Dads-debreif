@@ -221,6 +221,34 @@
   font-size: var(--text-sm);
 }
 
+[data-module='turn-fight'] .tf-kill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--tf-nose);
+  border-left: 4px solid var(--tf-nose);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+[data-module='turn-fight'] .tf-kill-banner[hidden] {
+  display: none;
+}
+
+[data-module='turn-fight'] .tf-kill-banner-text {
+  flex: 1 1 auto;
+}
+
+[data-module='turn-fight'] .tf-kill-continue-btn {
+  flex: 0 0 auto;
+}
+
 [data-module='turn-fight'] .tf-views {
   flex: 1 1 0;
   min-width: 0;

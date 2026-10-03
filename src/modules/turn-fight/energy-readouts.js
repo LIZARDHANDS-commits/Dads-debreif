@@ -68,6 +68,7 @@ export const EVEN_FIGHT_TEXT = 'Even fight: nobody gets behind';
  * nobody has yet, "--" while the fight runs and "No winner" once it has stopped at the 10 minutes. Nothing else is guessed.
  */
 export function winnerText(state) {
+  if (state.kill) return `${NAMES[state.kill.victor]} wins`;
   if (state.evenFight === true) return EVEN_FIGHT_TEXT;
   const chaser = state.chase?.by;
   if (chaser === 'blue' || chaser === 'red') return `${NAMES[chaser]} wins`;
@@ -91,7 +92,12 @@ const text = (id, label, group, value) => ({ id, label, group, text: value });
 export function energyResultRows(state) {
   const { blue, red } = state;
   const toMpt = (ac) => (ac.mptReached ? `${ac.toMptSec.toFixed(1)} s, ${round(ac.toMptDeg)}°` : '--');
-  const rows = [
+  const rows = [];
+  if (state.kill) {
+    const victorName = state.kill.victor === 'blue' ? 'Blue' : 'Red';
+    rows.push(text('combatResult', 'Combat Result', 'result', `${victorName} Kill (WEZ Gun at T+${state.kill.timeSec.toFixed(1)}s)`));
+  }
+  rows.push(
     pair('kias', 'Speed (KIAS)', 'result', `${round(blue.kias)} KIAS`, `${round(red.kias)} KIAS`),
     pair('alt', 'Altitude', 'result', `${formatWholeFt(blue.altFt)} ft`, `${formatWholeFt(red.altFt)} ft`),
     pair('g', 'G', 'result', blue.g.toFixed(1), red.g.toFixed(1)),
@@ -103,7 +109,7 @@ export function energyResultRows(state) {
     }),
     text('range', 'Range', 'result', `${(state.rangeFt / FT_PER_NM).toFixed(2)} NM`),
     text('firstNose', 'First nose-on', 'result', energyFirstNoseText(state)),
-  ];
+  );
   if (state.chase) rows.push(pair('chase', 'Chase', 'result', chaseText(blue), chaseText(red)));
   rows.push(text('winner', 'Winner', 'result', winnerText(state)));
   return rows;

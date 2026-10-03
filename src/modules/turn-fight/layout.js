@@ -255,6 +255,7 @@ export function createLayout({ settings, controls, on }) {
     timeText, phaseText, versionPill,
   );
 
+  const killBanner = h('div', { class: 'tf-kill-banner', hidden: true });
   const stopped = h('p', { class: 'tf-stopped', role: 'status', hidden: true });
   // Why 3D did not start ("3D needs a connection the first time."); always on the page, so it is heard when it appears.
   const note = h('p', { class: 'tf-note', role: 'status' });
@@ -307,6 +308,7 @@ export function createLayout({ settings, controls, on }) {
     'section',
     { class: 'tf-stage', 'aria-label': 'Fight' },
     toolbar,
+    killBanner,
     stopped,
     note,
     views,
@@ -433,6 +435,25 @@ export function createLayout({ settings, controls, on }) {
       // A disabled button drops keyboard focus, so Reset takes it first.
       if (text && document.activeElement === playButton) resetButton.focus();
       playButton.disabled = Boolean(text);
+    },
+    showKillBanner(kill, onContinue) {
+      killBanner.hidden = false;
+      const victor = kill.victor === 'blue' ? 'Blue' : 'Red';
+      const text = `${victor} Victory: Gun Kill at T+${kill.timeSec.toFixed(1)}s (Range ${kill.rangeFt} ft, ATA ${kill.ataDeg}°)`;
+      const textSpan = h('span', { class: 'tf-kill-banner-text' }, text);
+      const continueBtn = h('button', {
+        type: 'button',
+        class: 'button tf-kill-continue-btn',
+        onclick: () => {
+          killBanner.hidden = true;
+          if (typeof onContinue === 'function') onContinue();
+        },
+      }, 'Continue Engagement');
+      killBanner.replaceChildren(textSpan, continueBtn);
+    },
+    hideKillBanner() {
+      killBanner.hidden = true;
+      killBanner.replaceChildren();
     },
     get moreOpen() {
       return !more.collapsed;

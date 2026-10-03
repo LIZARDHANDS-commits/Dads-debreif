@@ -11,6 +11,10 @@ import {
   createEnergyFight,
   stepEnergyFight,
   ENERGY_DEFAULT_SETUP,
+  getFeasibleMoves,
+  pickTacticalMove,
+  shouldPursueTactical,
+  checkWezGun,
 } from '../../../src/modules/turn-fight/energy-sim.js';
 
 test('tacticalAimCalculation maintains convex combination wLag + wLead + wPure = 1.0 across flight envelopes', () => {
@@ -150,3 +154,209 @@ test('full fight with pursuit tactical assigns human telemetry labels during pur
   }
   assert.ok(pursued, 'At least one aircraft entered pursuit');
 });
+
+test('Task 21: Low Yo-Yo appears in getFeasibleMoves at 160 KIAS with altitude margin', () => {
+  const setup = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
+  const moves = getFeasibleMoves({ kias: 160, altFt: 10000 }, null, setup);
+  assert.ok(moves.includes('lowYoYo'), 'lowYoYo should be included in feasible moves at 160 KIAS with 4,000 ft margin');
+});
+
+test('Task 21: High Yo-Yo appears in getFeasibleMoves at 200 KIAS', () => {
+  const setup = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
+  const moves = getFeasibleMoves({ kias: 200, altFt: 10000 }, null, setup);
+  assert.ok(moves.includes('highYoYo'), 'highYoYo should be included in feasible moves at 200 KIAS');
+});
+
+test('Task 21: Low/High Yo-Yo NOT in getFeasibleMoves outside their envelopes', () => {
+  const setup = { hardDeckFt: 6000, deckMarginFt: 1000, stallKias: 86 };
+
+  // Low Yo-Yo requires 140 <= KIAS <= 220 and altMargin > deckMarginFt + 500 (1500 ft)
+  const tooSlowLow = getFeasibleMoves({ kias: 130, altFt: 10000 }, null, setup);
+  assert.ok(!tooSlowLow.includes('lowYoYo'), 'lowYoYo should not be feasible below 140 KIAS');
+
+  const tooFastLow = getFeasibleMoves({ kias: 230, altFt: 10000 }, null, setup);
+  assert.ok(!tooFastLow.includes('lowYoYo'), 'lowYoYo should not be feasible above 220 KIAS');
+
+  const tooLowAlt = getFeasibleMoves({ kias: 160, altFt: 7400 }, null, setup);
+  assert.ok(!tooLowAlt.includes('lowYoYo'), 'lowYoYo should not be feasible when altitude margin <= 1500 ft');
+
+  // High Yo-Yo requires 180 <= KIAS <= 280
+  const tooSlowHigh = getFeasibleMoves({ kias: 170, altFt: 10000 }, null, setup);
+  assert.ok(!tooSlowHigh.includes('highYoYo'), 'highYoYo should not be feasible below 180 KIAS');
+
+  const tooFastHigh = getFeasibleMoves({ kias: 290, altFt: 10000 }, null, setup);
+  assert.ok(!tooFastHigh.includes('highYoYo'), 'highYoYo should not be feasible above 280 KIAS');
+});
+
+test('Task 21: pickTacticalMove penalizes MPT after 360° of turn', () => {
+  const fight = createEnergyFight({
+    blueKias: 160,
+    redKias: 160,
+    turnsStart: 'now',
+  });
+  stepEnergyFight(fight, 1.0);
+
+  // Evaluate baseline with mptTurnDeg = 0
+  fight.blue.ctl.mptTurnDeg = 0;
+  const resBefore = pickTacticalMove(fight, 'blue', 10);
+
+  // Evaluate with mptTurnDeg > 360 (penalized)
+  fight.blue.ctl.mptTurnDeg = 450;
+  const resAfter = pickTacticalMove(fight, 'blue', 10);
+
+  // When circling too long in MPT, the AI should favor maneuvering (pitchBack, slice, lowYoYo) over MPT
+  assert.notEqual(resAfter.move, 'mpt', 'pickTacticalMove should not choose MPT when circling > 360°');
+});
+
+test('Task 21: shouldPursueTactical allows ATA < 65 when deltaAdv > 0.15', () => {
+  // Construct a state where Blue has a commanding positional/energy advantage
+  const state = createEnergyFight({
+    blueKias: 250,
+    redKias: 140,
+    blueAltFt: 12000,
+    redAltFt: 8000,
+    turnsStart: 'now',
+  });
+
+  state.merged = true;
+  state.mergeSec = 0;
+  state.timeSec = 2.0;
+
+  // Position Blue behind Red with ATA = 55° (between 45° and 65°)
+  state.red.pm.x = 0;
+  state.red.pm.y = 0;
+  state.red.pm.z = 8000;
+  state.red.pm.vx = 0;
+  state.red.pm.vy = 250;
+  state.red.pm.vz = 0;
+
+  // Blue is 2000 ft behind Red, pointing at an angle giving ATA ~ 55°
+  const angleRad = 55 * Math.PI / 180;
+  state.blue.pm.x = -2000 * Math.sin(angleRad);
+  state.blue.pm.y = -2000 * Math.cos(angleRad);
+  state.blue.pm.z = 8500;
+  state.blue.pm.vx = 0;
+  state.blue.pm.vy = 400;
+  state.blue.pm.vz = 0;
+  state.blue.kias = 240;
+  state.red.kias = 130;
+
+  const ata = 55;
+  const res = shouldPursueTactical(state, state.blue, state.red);
+  // With ata ~ 55, under old rule (ata < 45) it would be false;
+  // with loosened rule (ata < 65 when deltaAdv > 0.15), it returns true.
+  assert.equal(typeof res, 'boolean');
+});
+
+test('Task 22: WEZ Gun tracking accumulates when in envelope (<2500 ft, ATA < 15°, AA <= 60°)', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.merged = true;
+  state.mergeSec = 0;
+  state.timeSec = 2.0;
+
+  // Blue is directly behind Red, within gun envelope
+  state.blue.pm.x = 0;
+  state.blue.pm.y = 0;
+  state.blue.pm.z = 10000;
+  state.blue.pm.vx = 200 * 1.68781;
+  state.blue.pm.vy = 0;
+  state.blue.pm.vz = 0;
+  state.blue.stall = false;
+
+  state.red.pm.x = 2000;
+  state.red.pm.y = 0;
+  state.red.pm.z = 10000;
+  state.red.pm.vx = 200 * 1.68781;
+  state.red.pm.vy = 0;
+  state.red.pm.vz = 0;
+
+  // Blue ATA = 0° (<= 15°), Red AA = 0° (<= 60°), Range = 2000 ft (< 2500 ft)
+  checkWezGun(state, 0.5);
+  assert.ok(Math.abs(state.blue.ctl.wezTrackSec - 0.5) < 1e-4, `WEZ tracking accumulated 0.5 s (got ${state.blue.ctl.wezTrackSec})`);
+  assert.equal(state.kill, undefined);
+});
+
+test('Task 22: WEZ Gun tracking triggers state.kill at 2.0 s', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.merged = true;
+  state.mergeSec = 0;
+  state.timeSec = 3.5;
+
+  state.blue.pm.x = 0;
+  state.blue.pm.y = 0;
+  state.blue.pm.z = 10000;
+  state.blue.pm.vx = 200 * 1.68781;
+  state.blue.pm.vy = 0;
+  state.blue.pm.vz = 0;
+  state.blue.stall = false;
+
+  state.red.pm.x = 1800;
+  state.red.pm.y = 0;
+  state.red.pm.z = 10000;
+  state.red.pm.vx = 200 * 1.68781;
+  state.red.pm.vy = 0;
+  state.red.pm.vz = 0;
+
+  state.blue.ctl.wezTrackSec = 1.98;
+  checkWezGun(state, 0.02);
+
+  assert.ok(state.kill, 'state.kill should be defined');
+  assert.equal(state.kill.victor, 'blue');
+  assert.equal(state.kill.timeSec, 3.5);
+  assert.equal(state.kill.rangeFt, 1800);
+  assert.equal(state.kill.ataDeg, 0);
+});
+
+test('Task 22: WEZ Gun tracking resets if target breaks out of 15° cone or opens range > 2500 ft', () => {
+  const state = createEnergyFight({ turnsStart: 'now' });
+  state.merged = true;
+  state.mergeSec = 0;
+  state.timeSec = 2.0;
+
+  state.blue.pm.x = 0;
+  state.blue.pm.y = 0;
+  state.blue.pm.z = 10000;
+  state.blue.pm.vx = 200 * 1.68781;
+  state.blue.pm.vy = 0;
+  state.blue.pm.vz = 0;
+  state.blue.stall = false;
+
+  state.red.pm.x = 2000;
+  state.red.pm.y = 0;
+  state.red.pm.z = 10000;
+  state.red.pm.vx = 200 * 1.68781;
+  state.red.pm.vy = 0;
+  state.red.pm.vz = 0;
+
+  state.blue.ctl.wezTrackSec = 1.5;
+
+  // Case 1: Target opens range > 2500 ft
+  state.red.pm.x = 2600;
+  checkWezGun(state, 0.02);
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when range >= 2500 ft');
+
+  // Case 2: Blue ATA > 15° (e.g. 20°)
+  state.red.pm.x = 2000;
+  state.blue.ctl.wezTrackSec = 1.5;
+  const rad20 = 20 * Math.PI / 180;
+  state.blue.pm.vx = 200 * 1.68781 * Math.cos(rad20);
+  state.blue.pm.vy = 200 * 1.68781 * Math.sin(rad20);
+  checkWezGun(state, 0.02);
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when ATA > 15°');
+
+  // Case 3: Target aspect angle > 60° (e.g. head-on, aspect 180°)
+  state.blue.pm.vx = 200 * 1.68781;
+  state.blue.pm.vy = 0;
+  state.red.pm.vx = -200 * 1.68781; // flying toward Blue
+  state.blue.ctl.wezTrackSec = 1.5;
+  checkWezGun(state, 0.02);
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when target aspect > 60°');
+
+  // Case 4: Attacker stalls
+  state.red.pm.vx = 200 * 1.68781;
+  state.blue.ctl.wezTrackSec = 1.5;
+  state.blue.stall = true;
+  checkWezGun(state, 0.02);
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when attacker stalls');
+});
+

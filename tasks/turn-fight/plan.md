@@ -197,3 +197,189 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
 | Mode renaming breaks Playwright E2E locators | Locators updated in `turn-fight.spec.js` in lockstep with UI label changes. |
 | Lookahead dry runs cause frame drops or UI stutter | Stepping lookahead simulation with $\Delta t = 0.08\text{ s}$ or $0.10\text{ s}$ keeps total evaluation time under 2 ms. |
 | Tactical AI breaks existing unit tests expecting textbook moves | Preserving `'auto'` as the legacy SMM textbook lookup ensures 100% backward compatibility for all existing tests. |
+
+
+---
+
+## Remediation Plan v4: Tactical AI Anti-Stalemate, 3D Dynamic Centroid Tracking & UI Streamlining (Tasks 21–26)
+
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Tasks: [`todo.md`](todo.md).  
+Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D420–D424).
+
+### Task 21: Breaking the MPT Trap & Circle-Cutting BFM Maneuvers (Low & High Yo-Yo)
+**Description:** Eliminate the MPT lock-in trap where aircraft circle passively at 160 KIAS for 10 minutes. Implement authentic circle-cutting BFM maneuvers, activate universal mid-flight re-evaluation, and apply utility decay to sustained rate circling.
+- In `src/modules/turn-fight/energy-sim.js:controlMpt`: update line 1173 to `if (forced === 'tactical' || forced === 'auto')`, ensuring every aircraft dynamically evaluates opportunities to break out of MPT.
+- Add `lowYoYo` (diving circle cut, unloading to 1.5–2.0 G, converting altitude to airspeed and angular closure across the chord) and `highYoYo` (climbing lag displacement, pulling nose out-of-plane to bleed speed, tighten apex turn radius, and roll back down into lag pursuit) to `getFeasibleMoves` and flight controllers.
+- In `pickTacticalMove`: track cumulative MPT turn angle (`c.mptTurnDeg`). After $> 360^\circ$ of turn in MPT without reducing ATA or closing range, apply a $25\%$ utility penalty to `mpt` so the AI breaks out into an out-of-plane maneuver.
+- In `shouldPursueTactical`: loosen the pursuit breakout threshold to allow pursuit entry when $\text{ATA} < 65^\circ$ (instead of $45^\circ$) when $\Delta\text{Adv} > 0.15$.
+
+**Acceptance criteria:**
+- [x] Aircraft in MPT do not circle indefinitely; they actively execute out-of-plane maneuvers (Pitch Back, Slice, Low Yo-Yo, High Yo-Yo) to gain positional kills.
+- [x] Low Yo-Yo unloads G and cuts turn circle chord; High Yo-Yo climbs out-of-plane to preserve energy and prevent overshoots.
+- [x] Opposing rate fights break stalemates within 2 turns.
+
+**Verification:**
+- [x] Unit tests pass: `node --test tests/unit/turn-fight/energy-tactical.test.js`
+- [x] Visual verification in 2D and 3D views.
+
+**Dependencies:** Tasks 16–20.  
+**Files likely touched:** `src/modules/turn-fight/energy-sim.js`, `tests/unit/turn-fight/energy-tactical.test.js`  
+**Estimated scope:** Medium (2 files).
+
+---
+
+### Task 22: Combat Resolution — WEZ Gun Kill Solution & Tactical Freeze
+**Description:** Implement decisive combat termination when an offensive fighter establishes a valid Weapon Employment Zone (WEZ) / Gun tracking solution.
+- In `src/modules/turn-fight/energy-sim.js`: detect valid WEZ tracking (in Control Zone, $\text{ATA} < 15^\circ$, Range $< 2,500\text{ ft}$ for $2.0\text{ s}$ continuous tracking).
+- Trigger `state.kill = { victor: who, timeSec: state.timeSec }`.
+- In `src/modules/turn-fight/index.js` & `layout.js`: auto-pause the simulation when a kill is achieved, announce a decisive "Blue Kill / Victory" or "Red Kill / Victory" banner in the HUD, and provide 1-click "Continue Engagement" and "Reset" buttons.
+
+**Acceptance criteria:**
+- [x] Achieving a sustained 2.0 s tracking solution inside the Control Zone triggers a decisive kill event.
+- [x] Simulation auto-pauses upon kill with prominent victor banner.
+- [x] "Continue Engagement" allows user to resume flight if desired.
+
+**Verification:**
+- [x] Unit tests pass: `node --test tests/unit/turn-fight/energy-tactical.test.js`
+- [x] Browser interactive playback check.
+
+**Dependencies:** Task 21.  
+**Files likely touched:** `src/modules/turn-fight/energy-sim.js`, `src/modules/turn-fight/index.js`, `src/modules/turn-fight/energy-readouts.js`, `src/modules/turn-fight/layout.js`  
+**Estimated scope:** Medium (4 files).
+
+---
+
+### Task 23: Dynamic 3D Centroid Camera & Displaced HUD Data Tags
+**Description:** Prevent the 3D camera from panning away from the engagement and displace aircraft data tags so they never cover the 3D aircraft models.
+- In `src/modules/turn-fight/view3d.js`: update default 3D camera tracking to dynamically follow the engagement centroid: $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$.
+- Add adaptive camera zoom framing that adjusts distance to keep both fighters comfortably framed in view as range varies.
+- In `src/modules/turn-fight/turn-fight.css` & `view3d.js`: offset aircraft data tags by $+30\text{ px}$ vertically and $+40\text{ px}$ laterally with an elevated leader line, keeping the aircraft mesh, bank attitude, and control surfaces 100% visible.
+- Add tactical 3D visual cues: 3D lift vector arrows (showing pull direction) and a $15^\circ$ WEZ aiming cone when pointing near target.
+
+**Acceptance criteria:**
+- [ ] 3D camera smoothly centers on the fight midpoint throughout the entire engagement without panning away.
+- [ ] Data tags never obscure the aircraft 3D models.
+- [ ] Lift vectors and WEZ aiming cones render cleanly at 60 fps.
+
+**Verification:**
+- [ ] Browser visual inspection on `localhost:4174`.
+- [ ] Typecheck clean: `npm run typecheck`.
+
+**Dependencies:** Task 22.  
+**Files likely touched:** `src/modules/turn-fight/view3d.js`, `src/modules/turn-fight/turn-fight.css`, `src/modules/turn-fight/layout.js`  
+**Estimated scope:** Medium (3 files).
+
+---
+
+### Task 24: Geometry Re-Baselining & 1-Click Tactical Engagement Presets
+**Description:** Eliminate the 16.4 s pre-merge dead time and knife-edge centerline collisions. Add 1-click authentic fighter syllabus presets.
+- In `src/modules/turn-fight/state.js`: re-baseline default `separationNm` from 2.0 NM to 1.2 NM (slashing dead time to 9.8 s) and set default `startAtaDeg = 5°` (750 ft lateral turning room offset).
+- In `src/modules/turn-fight/layout.js`: add a "Tactical Scenario" preset dropdown at the top of the Setup panel:
+  1. *Neutral High-Aspect Merge (Default)*: 1.2 NM, 750 ft lateral offset, 250 KIAS corner speed, 10,000 ft MSL.
+  2. *Offensive Perch*: Blue 1.0 NM behind Red's six, 30° aspect, Blue 220 kt / 11,000 ft, Red 180 kt / 10,000 ft.
+  3. *Defensive Break*: Red 0.5 NM on Blue's six with weapon lock; Blue defending at 180 kt break speed.
+  4. *Energy vs. Angles*: Blue high energy (270 kt, 14,000 ft) vs. Red tight angles (160 kt, 10,000 ft).
+  5. *Radius vs. Rate Fight (1-Circle vs 2-Circle)*: 1.0 NM merge, opposite vs same turn direction.
+
+**Acceptance criteria:**
+- [ ] Default engagement merges cleanly at $T+9.8\text{ s}$ with authentic turning room.
+- [ ] Selecting any preset immediately reconfigures all speeds, altitudes, and geometry cleanly.
+- [ ] "Neutral Head-on" button restores 1.2 NM baseline with 750 ft turning room.
+
+**Verification:**
+- [ ] Unit tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
+- [ ] Browser interactive verification.
+
+**Dependencies:** Tasks 21–23.  
+**Files likely touched:** `src/modules/turn-fight/state.js`, `src/modules/turn-fight/layout.js`, `src/modules/turn-fight/geometry.js`  
+**Estimated scope:** Medium (3 files).
+
+---
+
+### Task 25: UI Bloat Pruning, Mode Architecture & Progressive Disclosure (R22)
+**Description:** Streamline the Turn Fight interface to eliminate clutter, default directly to BFM Energy Fight, and quarantine internal solver numbers.
+- In `src/modules/turn-fight/state.js`: default `energy: true` so the module opens directly into the authentic 3D BFM Energy Fight.
+- In `src/modules/turn-fight/layout.js`: retire arcade "Climb and dive" from Simple Mode; keep Simple Mode strictly as a flat 2D turn circle rate/radius reference (`Simple 2D Circles (Rate vs Radius)`).
+- Move the 16 "Model settings for checking" number boxes out of the student menu into a developer debug panel (`?debug=aero` or collapsed accordion).
+- Consolidate move dropdowns into `Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and `Manual Override`.
+
+**Acceptance criteria:**
+- [ ] Module opens directly into 3D BFM Energy Fight with clean, intuitive controls.
+- [ ] Simple Mode is clean flat 2D geometry with no arcade vertical physics.
+- [ ] Checking numbers hidden from students, accessible via debug query.
+
+**Verification:**
+- [ ] Browser visual inspection.
+- [ ] Axe accessibility check passes (WCAG 2.1 AA).
+
+**Dependencies:** Task 24.  
+**Files likely touched:** `src/modules/turn-fight/layout.js`, `src/modules/turn-fight/state.js`, `src/modules/turn-fight/sim.js`  
+**Estimated scope:** Small/Medium (3 files).
+
+---
+
+### Task 26: Test Suite Harmonization & Documentation Ratification
+**Description:** Verify all unit, golden, and Playwright E2E tests under D371/D411 pilot domain tolerances, and register decisions D420–D424.
+- Update unit tests in `tests/unit/turn-fight/` for new defaults (1.2 NM, tactical default, kill auto-pause, presets).
+- Update Playwright E2E tests in `tests/e2e/turn-fight.spec.js` asserting regex telemetry patterns.
+- Run full verification: `npm test` (all 3,174+ pass), `npm run typecheck` (0 errors), `npm run build` (clean).
+- Record decisions D420–D424 in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+- Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.
+
+**Acceptance criteria:**
+- [ ] 100% of unit, typecheck, build, and E2E tests pass cleanly.
+- [ ] Zero microscopic trajectory float assertions (D411 compliant).
+- [ ] Documentation fully synchronized.
+
+**Verification:**
+- [ ] `npm test`
+- [ ] `npm run typecheck`
+- [ ] `npm run build`
+- [ ] `npx playwright test tests/e2e/turn-fight.spec.js`
+
+**Dependencies:** Tasks 21–25.  
+**Files likely touched:** `tests/unit/turn-fight/**/*.test.js`, `tests/e2e/turn-fight.spec.js`, `docs/*`  
+**Estimated scope:** Medium (tests & docs).
+
+
+---
+
+## 6. Execution Strategy: Parallel vs. Serial Dependency Analysis
+
+```
+Track A (Physics & Tactical Engine):
+  Task 21 (Breaking MPT Trap & Circle Cuts)
+      │
+      ▼
+  Task 22 (Combat Resolution & Kill Freeze)
+      │
+      ├─────────────────────────────────────────┐
+      │                                         │
+      ▼                                         ▼
+Track B (Visuals & Camera - PARALLEL):     Track C (Geometry & Presets - PARALLEL):
+  Task 23 (Centroid Camera & Tag Offsets)    Task 24 (1.2 NM Re-baseline & Presets)
+      │                                         │
+      └────────────────────┬────────────────────┘
+                           │
+                           ▼
+Integration & Progressive Disclosure:
+  Task 25 (UI Bloat Pruning & Mode Defaults)
+      │
+      ▼
+Verification & Gate Sign-Off:
+  Task 26 (Test Harmonization & Ratification)
+```
+
+### Which Slices Can Be Done in Parallel:
+1. **Task 23 (Dynamic Centroid Camera & Displaced Tags) can run in PARALLEL with Task 24 (Geometry Re-baseline & Scenario Presets):**
+   - **Reason:** Task 23 touches exclusively presentation code (`view3d.js`, `turn-fight.css`), modifying camera projection and DOM tag offsets. Task 24 touches setup logic (`state.js`, `geometry.js`, and `layout.js` preset listeners). They touch zero common code blocks and have zero shared mutable state.
+2. **Task 23 (Camera & Visuals) can run in PARALLEL with Task 21/22:**
+   - **Reason:** The camera tracks any two aircraft coordinates $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$. It does not depend on which specific tactical maneuver (Low Yo-Yo vs. MPT) the AI executes.
+
+### Which Slices MUST Be Done in Series:
+1. **Task 21 $\to$ Task 22 MUST be Sequential:**
+   - **Reason:** Combat resolution (Task 22: WEZ Gun Kill detection) directly depends on Task 21's tactical pursuit entry laws and Control Zone tracking logic. You cannot evaluate a valid Gun Tracking kill until the AI can properly enter and hold tactical pursuit.
+2. **Tasks 21, 22, 23, 24 $\to$ Task 25 MUST be Sequential:**
+   - **Reason:** Task 25 prunes dead UI elements, consolidates move dropdowns, and defaults the module to BFM Energy Fight. Doing this before Tasks 21–24 are completed would break intermediate testing and hide controls needed to verify maneuver candidate generation.
+3. **Task 25 $\to$ Task 26 MUST be Sequential:**
+   - **Reason:** Task 26 runs the full test suite (`npm test`, E2E, build) and ratifies decisions D420–D424. All UI, engine, and camera changes must be landed and stable before running the final verification gate.

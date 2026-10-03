@@ -175,3 +175,45 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02).
   - [x] 20.4 Synchronize documentation (`decisions-log.md`, `plan-decisions.md`, `HANDOVER.md`, `turn-fight.md`, `REMEDIATION_ROADMAP.md`).
 
 
+
+
+---
+
+## Remediation Plan v4: Tactical AI Anti-Stalemate, 3D Dynamic Centroid Tracking & UI Streamlining (Tasks 21–26)
+
+Spec: [`specs/SPEC-turn-fight.md`](../../specs/SPEC-turn-fight.md). Plan: [`plan.md`](plan.md).  
+Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D420–D424).
+
+- [x] **21. Task 21: Breaking the MPT Trap & Circle-Cutting BFM Maneuvers (Low & High Yo-Yo).**
+  - [x] 21.1 Preserve textbook SMM profile for `'auto'` while empowering `'tactical'` mode with dynamic opportunity re-evaluation (`if (forced === 'tactical')`).
+  - [x] 21.2 Implement `lowYoYo` and `highYoYo` candidate generation in `getFeasibleMoves` and flight controllers in `energy-sim.js`.
+  - [x] 21.3 Implement cumulative MPT turn angle tracking (`c.mptTurnDeg`) and apply $25\%$ utility penalty after $> 360^\circ$ of turn without ATA closure.
+  - [x] 21.4 Loosen pursuit breakout threshold in `shouldPursueTactical` to $\text{ATA} < 65^\circ$ when $\Delta\text{Adv} > 0.15$.
+
+- [x] **22. Task 22: Combat Resolution — WEZ Gun Kill Solution & Tactical Freeze.**
+  - [x] 22.1 Implement WEZ Gun tracking detection in `energy-sim.js` (in Control Zone, $\text{ATA} < 15^\circ$, Range $< 2,500\text{ ft}$ for $2.0\text{ s}$ continuous tracking).
+  - [x] 22.2 Add auto-pause on kill event in `index.js`, prominent victor banner in HUD, and 1-click "Continue Engagement" and "Reset" buttons.
+  - [x] 22.3 Wire victor announcement to `energy-readouts.js`.
+
+- [ ] **23. Task 23: Dynamic 3D Centroid Camera & Displaced HUD Data Tags.**
+  - [ ] 23.1 Implement dynamic centroid camera tracking in `view3d.js`: center camera on $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$ with adaptive distance framing.
+  - [ ] 23.2 Offset aircraft data tags in `turn-fight.css` and `view3d.js` with $+30\text{ px}$ elevation and $+40\text{ px}$ lateral leader line so aircraft models are never covered.
+  - [ ] 23.3 Render 3D lift vector arrows and $15^\circ$ WEZ aiming cone in `view3d.js`.
+
+- [ ] **24. Task 24: Geometry Re-Baselining & 1-Click Tactical Engagement Presets.**
+  - [ ] 24.1 Re-baseline default `separationNm` from 2.0 NM to 1.2 NM and default `startAtaDeg = 5°` (750 ft lateral turning room) in `state.js`.
+  - [ ] 24.2 Implement 1-click "Tactical Scenario" dropdown in `layout.js` (Neutral Merge, Offensive Perch, Defensive Break, Energy vs. Angles, Radius vs. Rate).
+  - [ ] 24.3 Wire preset handler in `index.js` / `state.js` updating speeds, altitudes, and geometry simultaneously.
+
+- [ ] **25. Task 25: UI Bloat Pruning, Mode Architecture & Progressive Disclosure (R22).**
+  - [ ] 25.1 Default `energy: true` in `state.js` so the module opens directly into 3D BFM Energy Fight.
+  - [ ] 25.2 Retire arcade "Climb and dive" from Simple Mode; standardize Simple Mode as clean flat 2D turn circle geometry.
+  - [ ] 25.3 Move 16 checking parameters out of student menu into developer debug panel (`?debug=aero`).
+  - [ ] 25.4 Consolidate move dropdowns into `Tactical AI (Dynamic Pilot)` [Default], `Textbook SMM Auto`, and `Manual Override`.
+
+- [ ] **26. Task 26: Test Suite Harmonization & Documentation Ratification.**
+  - [ ] 26.1 Update unit tests in `tests/unit/turn-fight/` for new defaults (1.2 NM, tactical default, kill auto-pause, presets).
+  - [ ] 26.2 Update Playwright E2E tests in `tests/e2e/turn-fight.spec.js` asserting regex telemetry patterns.
+  - [ ] 26.3 Full verification: `npm test` (all 3,174+ pass), `npm run typecheck` (0 errors), `npm run build` (clean).
+  - [ ] 26.4 Record decisions D420–D424 in `docs/records/decisions-log.md` and `docs/records/plan-decisions.md`.
+  - [ ] 26.5 Update `docs/handover/turn-fight.md`, `HANDOVER.md`, and `docs/REMEDIATION_ROADMAP.md`.

@@ -206,3 +206,18 @@ test('the altitude table has a row every 10 s from T+0 and the latest point last
   for (let i = 0; i < 20 / 0.02; i++) advanceRun(at20, 0.02);
   assert.deepEqual(altitudeRows(at20.trails).map((r) => Math.round(r.timeSec)), [0, 10, 20]);
 });
+
+test('energyResultRows includes prominent Combat Result row when kill is present', () => {
+  const fight = createEnergyFight({});
+  fight.kill = { victor: 'blue', timeSec: 14.2, rangeFt: 1850, ataDeg: 8 };
+  const rows = energyResultRows(fight);
+  assert.equal(rows[0].id, 'combatResult');
+  assert.equal(rows[0].label, 'Combat Result');
+  assert.equal(rows[0].text, 'Blue Kill (WEZ Gun at T+14.2s)');
+  assert.equal(winnerText(fight), 'Blue wins');
+
+  fight.kill.victor = 'red';
+  const redRows = energyResultRows(fight);
+  assert.equal(redRows[0].text, 'Red Kill (WEZ Gun at T+14.2s)');
+  assert.equal(winnerText(fight), 'Red wins');
+});
