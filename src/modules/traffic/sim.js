@@ -30,6 +30,7 @@ import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 import { tickAircraft, initMode } from './tick-aircraft.js';
+import { makePflFromArea } from './nav-plans.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -617,6 +618,22 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const rec = baseOf(makeAircraft({ id: id ?? nextCallsign(), type, routeId: route.id, startIndex: startPoint - 1, startsAt: t + delaySec, intent }));
       happen({ kind: 'spawn', rec });
       return rec.id;
+    },
+
+    /**
+     * A new aircraft already in an engine-out glide at a point in the training area (Phase 2.5):
+     * `radialDeg` °T and `distNm` NM from the field, `altFt` MSL, at 125 KIAS heading back toward the field,
+     * then the PFL command takes it to High Key and onto the PFL rails. Returns its callsign.
+     * @param {{ type?: string, radialDeg?: number, distNm?: number, altFt?: number, id?: string }} [spec]
+     */
+    spawnPflFromArea({ type = 'CT-156', radialDeg = 180, distNm = 5, altFt = 7500, id } = {}) {
+      const { spawn: from } = makePflFromArea(radialDeg, distNm, altFt); // clamps the three inputs to their ranges
+      const route = setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
+      const callsign = this.spawn({ type, routeId: route?.id, startPoint: 1, delaySec: 0, id });
+      const a = aircraft.find((ac) => ac.id === callsign);
+      Object.assign(a, { x: from.x, y: from.y, alt: from.alt, iasKt: from.iasKt, headingDeg: from.headingDeg, bankDeg: 0 });
+      this.command(callsign, 'pfl_current');
+      return callsign;
     },
 
     /**

@@ -443,3 +443,19 @@ test('generatePflTrack points contain semantic tags', () => {
   assert.ok(baseKeyPts.length > 0, 'has base_key tagged points');
   assert.ok(thPts.length > 0, 'has threshold tagged points');
 });
+
+test('generatePflTrack carries the drag-adaptive config: clean at High Key, gear down, then landing flaps, ending at 1,892 ft and 100 kt', () => {
+  const pfl = { id: 'PFL', kind: 'pfl', points: [
+    { label: 'High Key', tag: 'high_key', x: 3104, y: -3194, alt: 5000, kt: 125 },
+    { label: 'Low Key', tag: 'low_key', x: 7146, y: -10275, alt: 3700, kt: 120 },
+    { label: 'Threshold', tag: 'threshold', x: 3104, y: -3194, alt: 1892, kt: 100 },
+  ] };
+  const track = generatePflTrack(pfl, 360, 0);
+  const configs = new Set(track.map((p) => p.config));
+  assert.deepEqual([...configs].sort(), ['clean', 'gearDown', 'landing']);
+  assert.equal(track[0].config, 'clean');
+  const last = track.at(-1);
+  assert.equal(last.config, 'landing');
+  assert.ok(Math.abs(last.alt - 1892) <= 20, `ends at field elevation, ${last.alt}`);
+  assert.ok(Math.abs(last.kt - 100) <= 10, `ends at 100 kt, ${last.kt}`);
+});

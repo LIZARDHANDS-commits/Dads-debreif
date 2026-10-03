@@ -1090,6 +1090,10 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     });
   }
 
+  // The drag-adaptive spiral: clean at High Key, gear down at Low Key, landing flaps from Base Key to the threshold.
+  const PFL_CONFIG = { pfl_high_key: 'clean', pfl_low_key: 'gearDown', pfl_base_key: 'landing', pfl_final: 'landing' };
+  for (const p of track) p.config = PFL_CONFIG[p.phase] ?? 'clean';
+
   return track;
 }
 

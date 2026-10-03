@@ -404,3 +404,30 @@ test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted G
   finalGaBtn.dispatch('click');
   assert.equal(sim.state().aircraft.find((a) => a.id === id).command, 'go_around');
 });
+
+test('PFL From Area: three boxes with the defaults; + Spawn PFL adds an engine-out aircraft at the radial, distance and altitude, gliding at 125 kt toward the field', () => {
+  const { spawner, sim, panel } = setup();
+  const radial = inputFor(spawner, 'Radial (\u00b0T)'), dist = inputFor(spawner, 'Distance (NM)'), alt = inputFor(spawner, 'Altitude (ft MSL)');
+  assert.deepEqual([radial.value, dist.value, alt.value], ['180', '5', '7500']);
+  const before = sim.state().aircraft.length;
+  buttonNamed(spawner, '+ Spawn PFL').dispatch('click');
+  panel.update(sim.state());
+  const added = sim.state().aircraft.at(-1);
+  assert.equal(sim.state().aircraft.length, before + 1);
+  assert.equal(added.engineFailed, true);
+  assert.equal(added.command, 'pfl_current');
+  assert.ok(Math.abs(added.alt - 7500) <= 100, `alt ${added.alt}`);
+  assert.ok(Math.abs(added.kt - 125) <= 10, `kt ${added.kt}`);
+  // 5 NM on the 180� radial is south of the anchor: y is about -30,380 ft from it.
+  assert.ok(added.y < -25000, `south of the field, y ${added.y}`);
+  assert.equal(added.headingDeg, 0, 'heading is the reciprocal of the radial, toward the field');
+});
+
+test('PFL From Area: the sim clamps the three inputs to their ranges (minimum and maximum envelope)', () => {
+  const { sim } = setup();
+  const low = sim.spawnPflFromArea({ radialDeg: 0, distNm: 0.1, altFt: 100 });
+  const high = sim.spawnPflFromArea({ radialDeg: 360, distNm: 99, altFt: 99999 });
+  const alts = Object.fromEntries(sim.state().aircraft.map((a) => [a.id, a.alt]));
+  assert.ok(Math.abs(alts[low] - 3000) <= 100, `min alt ${alts[low]}`);
+  assert.ok(Math.abs(alts[high] - 15000) <= 100, `max alt ${alts[high]}`);
+});

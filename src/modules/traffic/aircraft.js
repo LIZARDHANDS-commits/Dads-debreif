@@ -163,6 +163,37 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
   const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
+
+  // PFL From Area: an aircraft already gliding with the engine out, somewhere in the training area. Closed until asked for.
+  const pflBox = (id, label, unit, value, min, max) => {
+    const input = h('input', { id, type: 'number', value: String(value), min: String(min), max: String(max), step: '1', inputmode: 'numeric' });
+    return { input, element: h('div', { class: 'control control-number' }, h('label', { for: id }, `${label} (${unit})`), input) };
+  };
+  const pflRadial = pflBox('traffic-pfl-radial', 'Radial', '°T', 180, 0, 360);
+  const pflDist = pflBox('traffic-pfl-dist', 'Distance', 'NM', 5, 1, 30);
+  const pflAlt = pflBox('traffic-pfl-alt', 'Altitude', 'ft MSL', 7500, 3000, 15000);
+  const spawnPfl = () => {
+    const [radialDeg, distNm, altFt] = [pflRadial, pflDist, pflAlt].map((b) => Number(b.input.value));
+    if (![radialDeg, distNm, altFt].every(Number.isFinite)) return say('PFL From Area: radial, distance and altitude must be numbers.');
+    if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
+    try {
+      const id = sim.spawnPflFromArea({ type: settings.get().spawnType, radialDeg, distNm, altFt });
+      say(`Added ${id}: engine out, inbound to High Key.`);
+    } catch (err) {
+      if (!(err instanceof RangeError)) console.error('Adding a PFL aircraft failed:', err);
+      say(engineProblem(err));
+    }
+    onChange();
+  };
+  const pflPanel = h(
+    'details',
+    { class: 'spawner-pfl' },
+    h('summary', {}, 'PFL From Area'),
+    pflRadial.element,
+    pflDist.element,
+    pflAlt.element,
+    h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL'),
+  );
   const spawner = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
@@ -179,6 +210,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       pairButton,
       h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
     ),
+    pflPanel,
     message,
   );
 
