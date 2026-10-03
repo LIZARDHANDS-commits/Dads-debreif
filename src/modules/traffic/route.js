@@ -607,25 +607,41 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   const wx = windFtps * Math.sin(blowToRad);
   const wy = windFtps * Math.cos(blowToRad);
 
+  const tasInit = iasToTasKt(220, 3500);
+  const tasDownwind = iasToTasKt(140, 3500);
+
+  // Initial leg crabbed heading entering break (matches incoming runway centerline track)
+  const wtInit = windTriangle(rwyHeadingDeg, tasInit, windFromDeg, windKt);
+  const entryHeadingDeg = wtInit.canHoldTrack ? wtInit.headingDeg : rwyHeadingDeg;
+
+  // Downwind leg crabbed heading exiting break (matches outgoing downwind track)
+  const wtDw = windTriangle(downwindHeadingDeg, tasDownwind, windFromDeg, windKt);
+  const exitHeadingDeg = wtDw.canHoldTrack ? wtDw.headingDeg : downwindHeadingDeg;
+
+  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
+  if (totalTurnDeg < 30) totalTurnDeg += 360;
+
   let curX = breakStartX;
   let curY = breakStartY;
-  let curHeadingDeg = rwyHeadingDeg;
+  let curHeadingDeg = entryHeadingDeg;
   let curIas = 220;
   const breakDt = 0.2;
   const g = 32.174;
   let turnAccum = 0;
   const arcPoints = [];
 
-  while (turnAccum < 180) {
-    const tasKt = iasToTasKt(curIas, 3500);
-    const tasFtps = ktToFtps(tasKt);
+  while (turnAccum < totalTurnDeg) {
+    const u = turnAccum / totalTurnDeg;
+
+    const curTasKt = iasToTasKt(curIas, 3500);
+    const tasFtps = ktToFtps(curTasKt);
     const omega = (g * Math.tan((60 * Math.PI) / 180)) / Math.max(1, tasFtps);
-    const dTurnDeg = Math.min((omega * breakDt * 180) / Math.PI, 180 - turnAccum);
+    const dTurnDeg = Math.min((omega * breakDt * 180) / Math.PI, totalTurnDeg - turnAccum);
+
     turnAccum += dTurnDeg;
     curHeadingDeg = (curHeadingDeg - dTurnDeg + 360) % 360;
 
-    const progress = turnAccum / 180;
-    curIas = 220 * Math.exp(-0.452 * progress);
+    curIas = 220 * Math.exp(-0.452 * u);
 
     const hdgRad = (curHeadingDeg * Math.PI) / 180;
     const vx = tasFtps * Math.sin(hdgRad) + wx;
@@ -633,7 +649,8 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
     curX += vx * breakDt;
     curY += vy * breakDt;
 
-    const isRollout = turnAccum >= 180;
+    const isRollout = turnAccum >= totalTurnDeg;
+
     arcPoints.push({
       x: curX,
       y: curY,
@@ -642,7 +659,7 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
       g: isRollout ? 1 : 2,
       src: isRollout ? 10 : 9,
       phase: isRollout ? 'downwind' : 'break',
-      headingDeg: isRollout ? downwindHeadingDeg : curHeadingDeg,
+      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
     });
   }
 
@@ -651,13 +668,13 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
       x: curX,
       y: curY,
       alt: pts[10]?.alt ?? 3500,
-      headingDeg: downwindHeadingDeg,
+      headingDeg: exitHeadingDeg,
     },
     arcPoints,
     breakStartX,
     breakStartY,
     rwyHeadingDeg,
-    downwindHeadingDeg,
+    downwindHeadingDeg: exitHeadingDeg,
   };
 }
 
