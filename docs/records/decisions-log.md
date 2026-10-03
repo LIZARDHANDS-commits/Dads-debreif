@@ -285,3 +285,5 @@ Add rows after the last row. Leave "D" empty; the app frame fills it in.
 | D424 | 02:00 | Turn Fight | BFM Energy Fight Default-On & Progressive Disclosure Architecture: Module defaults directly to 3D BFM Energy Fight with Tactical AI pilots; checking settings quarantined behind ?debug=aero; clean military move labels. | Elevates high-fidelity 3D aerodynamics as the primary product experience; eliminates overwhelming developer/verification sliders for student pilots while keeping them URL-accessible. | 2D simple mode default-on; public developer checking sliders. | next-module / PATCH-043 | Revert DEFAULTS.energy and progressive disclosure in layout.js/state.js |
 
 
+
+| 2026-10-03 07:00Z | turn-fight | D425: Removed the 140 kt Immelmann apex gate (supersedes D379/D381 apex limit); added 35 ft mid-air collision, TCPA lag-roll deconfliction, ballistic tumble, and Settings toggles (both on by default); version 0.3.0 / V2.2 | Patrick: 'let it try if it wants'; collision per his spec | Keep the gate | 40ca9a5 and earlier | Revert the commits or turn the Settings toggles off |
