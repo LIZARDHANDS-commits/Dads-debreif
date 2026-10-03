@@ -21,6 +21,7 @@ import {
   NAV_PLANS, getNavPlan,
   makeBreakout, makeGoAround, makePflFromArea,
   SPAWN_PRESETS, PATTERN_NAMES, startPointsForPattern, findSpawnPreset,
+  findWaypointIndexByTag, findWaypointByTag,
 } from '../../../src/modules/traffic/nav-plans.js';
 
 // ── Structure: every static plan has the fields the flight engine needs ──────
@@ -252,3 +253,81 @@ describe('nav-plans: spawn presets', () => {
     assert.equal(preset.factory, 'makePflFromArea');
   });
 });
+
+// ── Semantic Waypoint Tags & Lookup Helpers ─────────────────────────────────
+
+describe('nav-plans: semantic waypoint tags & lookup helpers', () => {
+  it('PAT_INNER has correct semantic tags for key waypoints', () => {
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'threshold'), 0);
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'departure_end'), 1);
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'break'), 9);
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'break_rollout'), 10);
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'perch'), 11);
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'window'), 12);
+  });
+
+  it('PAT_SI has correct semantic tags', () => {
+    assert.equal(findWaypointIndexByTag(PAT_SI, 'threshold'), 0);
+    assert.equal(findWaypointIndexByTag(PAT_SI, 'final'), 9);
+    assert.equal(findWaypointIndexByTag(PAT_SI, 'window'), 10);
+  });
+
+  it('PFL_HIGH_KEY has correct semantic tags', () => {
+    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'high_key'), 0);
+    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'low_key'), 1);
+    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'base_key'), 2);
+    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'threshold'), 3);
+  });
+
+  it('TAKEOFF has correct semantic tags', () => {
+    assert.equal(findWaypointIndexByTag(TAKEOFF, 'lineup'), 0);
+    assert.equal(findWaypointIndexByTag(TAKEOFF, 'takeoff_roll'), 1);
+    assert.equal(findWaypointIndexByTag(TAKEOFF, 'liftoff'), 2);
+    assert.equal(findWaypointIndexByTag(TAKEOFF, 'climb'), 3);
+    assert.equal(findWaypointIndexByTag(TAKEOFF, 'departure_end'), 4);
+  });
+
+  it('findWaypointByTag returns the waypoint object matching tag', () => {
+    const wp = findWaypointByTag(PAT_INNER, 'perch');
+    assert.ok(wp);
+    assert.equal(wp.tag, 'perch');
+    assert.equal(wp.phase, 'final_turn');
+    assert.equal(wp.bankDeg, 35);
+  });
+
+  it('findWaypointByTag falls back to regex label match on untagged routes', () => {
+    const untaggedRoute = {
+      points: [
+        { label: 'Runway 29L Threshold', x: 3104, y: -3194 },
+        { label: 'Departure End', x: -4066, y: 681 },
+        { label: 'Perch Point (35 deg bank)', x: 7146, y: -10275 },
+      ],
+    };
+    assert.equal(findWaypointIndexByTag(untaggedRoute, 'threshold'), 0);
+    assert.equal(findWaypointIndexByTag(untaggedRoute, 'departure_end'), 1);
+    assert.equal(findWaypointIndexByTag(untaggedRoute, 'perch'), 2);
+
+    const wp = findWaypointByTag(untaggedRoute, 'perch');
+    assert.ok(wp);
+    assert.equal(wp.label, 'Perch Point (35 deg bank)');
+  });
+
+  it('findWaypointByTag and findWaypointIndexByTag return null / -1 when not found', () => {
+    assert.equal(findWaypointIndexByTag(PAT_INNER, 'nonexistent_tag'), -1);
+    assert.equal(findWaypointByTag(PAT_INNER, 'nonexistent_tag'), null);
+    assert.equal(findWaypointIndexByTag(null, 'threshold'), -1);
+    assert.equal(findWaypointByTag(null, 'threshold'), null);
+  });
+
+  it('dynamic factories attach tags to generated waypoints', () => {
+    const breakout = makeBreakout({ x: 1000, y: 1000 });
+    assert.equal(breakout.waypoints[0].tag, 'breakout_start');
+
+    const goAround = makeGoAround({ x: 2000, y: 2000 });
+    assert.equal(goAround.waypoints[0].tag, 'go_around_start');
+
+    const { plan: pfl } = makePflFromArea(90, 10, 8000);
+    assert.equal(pfl.waypoints[pfl.waypoints.length - 1].tag, 'threshold');
+  });
+});
+

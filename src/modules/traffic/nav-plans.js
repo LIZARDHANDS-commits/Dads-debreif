@@ -27,7 +27,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { computeWindPerch } from './route.js';
 
 /**
- * @typedef {{ x: number, y: number, alt: number, kias: number, bankDeg: number, g: number, phase: string, label: string, mode: string, config?: string }} Waypoint
+ * @typedef {{ x: number, y: number, alt: number, kias: number, bankDeg: number, g: number, phase: string, label: string, mode: string, config?: string, tag?: string }} Waypoint
  * @typedef {{ id: string, model: string, loop: boolean, color: string, display: string, waypoints: ReadonlyArray<Readonly<Waypoint>> }} NavPlan
  * @typedef {{ pattern: string, startPoint: string, navPlanId: string|null, waypointIndex: number, x: number|null, y: number|null, alt: number|null, kias: number, headingDeg: number|null, phase: string, factory?: string }} SpawnPreset
  */
@@ -52,6 +52,7 @@ function wp(fields) {
     label:   fields.label   ?? '',
     mode:    fields.mode    ?? 'rails',
     config:  fields.config  ?? undefined,
+    tag:     fields.tag     ?? undefined,
   };
 }
 
@@ -61,19 +62,19 @@ function wp(fields) {
 // shifts it upwind. The caller passes the shifted perch into getNavPlan().
 
 const PAT_INNER_WPS = [
-  wp({ x:  3104,  y:  -3194,  alt: 1880,  kias: 100,  phase: 'landing',        label: 'Threshold',      mode: 'rails'   }),
-  wp({ x: -4066,  y:    681,  alt: 2500,  kias: 140,  phase: 'takeoff_climb',   label: 'Departure End',  mode: 'rails'   }),
-  wp({ x:-14866,  y:   7020,  alt: 3500,  kias: 180,  phase: 'climb',           label: 'Climb Out',      mode: 'rails'   }),
-  wp({ x:-21000,  y:  10327,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'crosswind', label: 'Upwind Turn', mode: 'rails' }),
-  wp({ x:-28411,  y:  -1450,  alt: 3500,  kias: 220,  phase: 'crosswind',       label: 'Crosswind',      mode: 'rails'   }),
-  wp({ x:-10974,  y: -12100,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Abeam Dep End',  mode: 'rails'   }),
-  wp({ x: 17150,  y: -28181,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Downwind',       mode: 'rails'   }),
-  wp({ x: 21906,  y: -19364,  alt: 3500,  kias: 220,  phase: 'initial',         label: '45° Leg',        mode: 'rails'   }),
-  wp({ x: 19741,  y: -12172,  alt: 3500,  kias: 220,  phase: 'initial',         label: 'Initial',        mode: 'rails'   }),
-  wp({ x:  -288,  y:  -1441,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'break',    label: 'Break',     mode: 'rails'   }),
-  wp({ x: -3385,  y:  -4323,  alt: 3500,  kias: 140,  phase: 'inner_downwind',  label: 'Break Exit',     mode: 'rails'   }),
-  wp({ x:  7146,  y: -10275,  alt: 3500,  kias: 120,  bankDeg: 35, g: 1.4, phase: 'final_turn', label: 'Perch', mode: 'rails'   }),
-  wp({ x:  9076,  y:  -6411,  alt: 2119,  kias: 110,  phase: 'final',           label: 'Window',         mode: 'rails'   }),
+  wp({ x:  3104,  y:  -3194,  alt: 1880,  kias: 100,  phase: 'landing',        label: 'Threshold',      mode: 'rails', tag: 'threshold'      }),
+  wp({ x: -4066,  y:    681,  alt: 2500,  kias: 140,  phase: 'takeoff_climb',   label: 'Departure End',  mode: 'rails', tag: 'departure_end'  }),
+  wp({ x:-14866,  y:   7020,  alt: 3500,  kias: 180,  phase: 'climb',           label: 'Climb Out',      mode: 'rails', tag: 'climbout'        }),
+  wp({ x:-21000,  y:  10327,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'crosswind', label: 'Upwind Turn', mode: 'rails', tag: 'upwind' }),
+  wp({ x:-28411,  y:  -1450,  alt: 3500,  kias: 220,  phase: 'crosswind',       label: 'Crosswind',      mode: 'rails', tag: 'crosswind'     }),
+  wp({ x:-10974,  y: -12100,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Abeam Dep End',  mode: 'rails', tag: 'downwind_entry'}),
+  wp({ x: 17150,  y: -28181,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Downwind',       mode: 'rails', tag: 'downwind'       }),
+  wp({ x: 21906,  y: -19364,  alt: 3500,  kias: 220,  phase: 'initial',         label: '45° Leg',        mode: 'rails', tag: 'entry_45'      }),
+  wp({ x: 19741,  y: -12172,  alt: 3500,  kias: 220,  phase: 'initial',         label: 'Initial',        mode: 'rails', tag: 'initial'       }),
+  wp({ x:  -288,  y:  -1441,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'break',    label: 'Break',     mode: 'rails', tag: 'break'   }),
+  wp({ x: -3385,  y:  -4323,  alt: 3500,  kias: 140,  phase: 'inner_downwind',  label: 'Break Exit',     mode: 'rails', tag: 'break_rollout' }),
+  wp({ x:  7146,  y: -10275,  alt: 3500,  kias: 120,  bankDeg: 35, g: 1.4, phase: 'final_turn', label: 'Perch', mode: 'rails', tag: 'perch' }),
+  wp({ x:  9076,  y:  -6411,  alt: 2119,  kias: 110,  phase: 'final',           label: 'Window',         mode: 'rails', tag: 'window'        }),
 ];
 
 export const PAT_INNER = Object.freeze({
@@ -90,19 +91,19 @@ export const PAT_INNER = Object.freeze({
 
 const PAT_SI_WPS = [
   // Shared with PAT_INNER (wps 0–5)
-  wp({ x:  3104,  y:  -3194,  alt: 1880,  kias: 100,  phase: 'landing',        label: 'Threshold',      mode: 'rails'   }),
-  wp({ x: -4066,  y:    681,  alt: 2500,  kias: 140,  phase: 'takeoff_climb',   label: 'Departure End',  mode: 'rails'   }),
-  wp({ x:-14866,  y:   7020,  alt: 3500,  kias: 180,  phase: 'climb',           label: 'Climb Out',      mode: 'rails'   }),
-  wp({ x:-21000,  y:  10327,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'crosswind', label: 'Upwind Turn', mode: 'rails' }),
-  wp({ x:-28411,  y:  -1450,  alt: 3500,  kias: 220,  phase: 'crosswind',       label: 'Crosswind',      mode: 'rails'   }),
-  wp({ x:-10974,  y: -12100,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Abeam Dep End',  mode: 'rails'   }),
+  wp({ x:  3104,  y:  -3194,  alt: 1880,  kias: 100,  phase: 'landing',        label: 'Threshold',      mode: 'rails', tag: 'threshold'      }),
+  wp({ x: -4066,  y:    681,  alt: 2500,  kias: 140,  phase: 'takeoff_climb',   label: 'Departure End',  mode: 'rails', tag: 'departure_end'  }),
+  wp({ x:-14866,  y:   7020,  alt: 3500,  kias: 180,  phase: 'climb',           label: 'Climb Out',      mode: 'rails', tag: 'climbout'        }),
+  wp({ x:-21000,  y:  10327,  alt: 3500,  kias: 220,  bankDeg: 60, g: 2, phase: 'crosswind', label: 'Upwind Turn', mode: 'rails', tag: 'upwind' }),
+  wp({ x:-28411,  y:  -1450,  alt: 3500,  kias: 220,  phase: 'crosswind',       label: 'Crosswind',      mode: 'rails', tag: 'crosswind'     }),
+  wp({ x:-10974,  y: -12100,  alt: 3500,  kias: 220,  phase: 'downwind',        label: 'Abeam Dep End',  mode: 'rails', tag: 'downwind_entry'}),
   // Straight-in divergence
-  wp({ x: -3233,  y: -16592,  alt: 2700,  kias: 140,  phase: 'si_downwind',     label: 'SI Downwind',    mode: 'rails'   }),
-  wp({ x: 21427,  y: -30872,  alt: 2700,  kias: 140,  bankDeg: 45, g: 1.4, phase: 'si_base', label: 'SI Base Turn', mode: 'rails' }),
-  wp({ x: 26407,  y: -22172,  alt: 2700,  kias: 120,  phase: 'si_base',         label: 'SI Base',        mode: 'rails'   }),
-  wp({ x: 16828,  y: -10708,  alt: 2700,  kias: 120,  phase: 'si_final',        label: 'SI Final (2 NM)', mode: 'rails'  }),
-  wp({ x:  6663,  y:  -4560,  alt: 2250,  kias: 120,  phase: 'si_final',        label: 'Window (¾ NM)',  mode: 'rails'   }),
-  wp({ x:  3104,  y:  -3194,  alt: 1880,  kias: 100,  phase: 'landing',         label: 'Threshold',      mode: 'rails'   }),
+  wp({ x: -3233,  y: -16592,  alt: 2700,  kias: 140,  phase: 'si_downwind',     label: 'SI Downwind',    mode: 'rails', tag: 'downwind'       }),
+  wp({ x: 21427,  y: -30872,  alt: 2700,  kias: 140,  bankDeg: 45, g: 1.4, phase: 'si_base', label: 'SI Base Turn', mode: 'rails', tag: 'base'   }),
+  wp({ x: 26407,  y: -22172,  alt: 2700,  kias: 120,  phase: 'si_base',         label: 'SI Base',        mode: 'rails', tag: 'base'           }),
+  wp({ x: 16828,  y: -10708,  alt: 2700,  kias: 120,  phase: 'si_final',        label: 'SI Final (2 NM)', mode: 'rails', tag: 'final'        }),
+  wp({ x:  6663,  y:  -4560,  alt: 2250,  kias: 120,  phase: 'si_final',        label: 'Window (¾ NM)',  mode: 'rails', tag: 'window'        }),
+  wp({ x:  3104,  y:  -3194,  alt: 1880,  kias: 100,  phase: 'landing',         label: 'Threshold',      mode: 'rails', tag: 'threshold'     }),
 ];
 
 export const PAT_SI = Object.freeze({
@@ -118,10 +119,10 @@ export const PAT_SI = Object.freeze({
 // Pattern matrix §3. Dotted line, merges into PAT_INNER at wp 7.
 
 const ENT_OHB_WPS = [
-  wp({ x: -8694,  y: -66644,  alt: 3500,  kias: 220,  phase: 'entry',    label: 'Entry Start',  mode: 'rails' }),
-  wp({ x:  4806,  y: -46304,  alt: 3500,  kias: 220,  phase: 'entry',    label: 'Entry Mid',    mode: 'rails' }),
-  wp({ x: 17000,  y: -28031,  alt: 3500,  kias: 220,  phase: 'entry',    label: 'Entry Gate',   mode: 'rails' }),
-  wp({ x: 21689,  y: -19427,  alt: 3500,  kias: 220,  phase: 'initial',  label: 'Merge → PAT_INNER #7', mode: 'rails' }),
+  wp({ x: -8694,  y: -66644,  alt: 3500,  kias: 220,  phase: 'entry',    label: 'Entry Start',  mode: 'rails', tag: 'entry_start' }),
+  wp({ x:  4806,  y: -46304,  alt: 3500,  kias: 220,  phase: 'entry',    label: 'Entry Mid',    mode: 'rails', tag: 'entry_mid'   }),
+  wp({ x: 17000,  y: -28031,  alt: 3500,  kias: 220,  phase: 'entry',    label: 'Entry Gate',   mode: 'rails', tag: 'entry_gate'  }),
+  wp({ x: 21689,  y: -19427,  alt: 3500,  kias: 220,  phase: 'initial',  label: 'Merge → PAT_INNER #7', mode: 'rails', tag: 'merge' }),
 ];
 
 export const ENT_OHB = Object.freeze({
@@ -137,10 +138,10 @@ export const ENT_OHB = Object.freeze({
 // Pattern matrix §4. Dotted line, merges into PAT_SI at wp 8.
 
 const ENT_SI_WPS = [
-  wp({ x: -3850,  y: -69669,  alt: 3500,  kias: 160,  phase: 'entry',    label: 'Entry Start',  mode: 'rails' }),
-  wp({ x: 20000,  y: -33669,  alt: 2700,  kias: 140,  phase: 'entry',    label: 'Entry Mid',    mode: 'rails' }),
-  wp({ x: 26449,  y: -21979,  alt: 2700,  kias: 120,  phase: 'entry',    label: 'Entry Gate',   mode: 'rails' }),
-  wp({ x: 26407,  y: -22172,  alt: 2700,  kias: 120,  phase: 'si_base',  label: 'Merge → PAT_SI #8', mode: 'rails' }),
+  wp({ x: -3850,  y: -69669,  alt: 3500,  kias: 160,  phase: 'entry',    label: 'Entry Start',  mode: 'rails', tag: 'entry_start' }),
+  wp({ x: 20000,  y: -33669,  alt: 2700,  kias: 140,  phase: 'entry',    label: 'Entry Mid',    mode: 'rails', tag: 'entry_mid'   }),
+  wp({ x: 26449,  y: -21979,  alt: 2700,  kias: 120,  phase: 'entry',    label: 'Entry Gate',   mode: 'rails', tag: 'entry_gate'  }),
+  wp({ x: 26407,  y: -22172,  alt: 2700,  kias: 120,  phase: 'si_base',  label: 'Merge → PAT_SI #8', mode: 'rails', tag: 'merge' }),
 ];
 
 export const ENT_SI = Object.freeze({
@@ -156,10 +157,10 @@ export const ENT_SI = Object.freeze({
 // Pattern matrix §5. NRG model. Engine-out glide with config transitions.
 
 const PFL_HIGH_KEY_WPS = [
-  wp({ x: 3104,  y: -3194,  alt: 5000,  kias: 125,  phase: 'high_key',   label: 'High Key',   mode: 'rails', config: 'clean'    }),
-  wp({ x: 7146,  y:-10275,  alt: 3700,  kias: 120,  phase: 'low_key',    label: 'Low Key',    mode: 'rails', config: 'gearDown' }),
-  wp({ x: 9076,  y: -6411,  alt: 2900,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'rails', config: 'landing'  }),
-  wp({ x: 3104,  y: -3194,  alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold', mode: 'rails', config: 'landing' }),
+  wp({ x: 3104,  y: -3194,  alt: 5000,  kias: 125,  phase: 'high_key',   label: 'High Key',   mode: 'rails', config: 'clean',    tag: 'high_key'  }),
+  wp({ x: 7146,  y:-10275,  alt: 3700,  kias: 120,  phase: 'low_key',    label: 'Low Key',    mode: 'rails', config: 'gearDown', tag: 'low_key'   }),
+  wp({ x: 9076,  y: -6411,  alt: 2900,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'rails', config: 'landing',  tag: 'base_key'  }),
+  wp({ x: 3104,  y: -3194,  alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold', mode: 'rails', config: 'landing',  tag: 'threshold' }),
 ];
 
 export const PFL_HIGH_KEY = Object.freeze({
@@ -175,11 +176,11 @@ export const PFL_HIGH_KEY = Object.freeze({
 // Pattern matrix §6. KIN model.
 
 const TAKEOFF_WPS = [
-  wp({ x:  3104,  y: -3194,  alt: FIELD_ELEV, kias:   0, phase: 'lineup',        label: 'Lineup',        mode: 'physics' }),
-  wp({ x:  1500,  y: -2250,  alt: FIELD_ELEV, kias:  85, phase: 'takeoff_roll',   label: 'Rotation',      mode: 'physics' }),
-  wp({ x:   500,  y: -1660,  alt: 1900,       kias: 100, phase: 'initial_climb',  label: 'Liftoff',       mode: 'physics' }),
-  wp({ x: -2000,  y:  -190,  alt: 2200,       kias: 140, phase: 'climb',          label: 'Gear Up',       mode: 'physics' }),
-  wp({ x: -4066,  y:   681,  alt: 2500,       kias: 140, phase: 'climb',          label: 'Departure End', mode: 'physics' }),
+  wp({ x:  3104,  y: -3194,  alt: FIELD_ELEV, kias:   0, phase: 'lineup',        label: 'Lineup',        mode: 'physics', tag: 'lineup'        }),
+  wp({ x:  1500,  y: -2250,  alt: FIELD_ELEV, kias:  85, phase: 'takeoff_roll',   label: 'Rotation',      mode: 'physics', tag: 'takeoff_roll' }),
+  wp({ x:   500,  y: -1660,  alt: 1900,       kias: 100, phase: 'initial_climb',  label: 'Liftoff',       mode: 'physics', tag: 'liftoff'      }),
+  wp({ x: -2000,  y:  -190,  alt: 2200,       kias: 140, phase: 'climb',          label: 'Gear Up',       mode: 'physics', tag: 'climb'        }),
+  wp({ x: -4066,  y:   681,  alt: 2500,       kias: 140, phase: 'climb',          label: 'Departure End', mode: 'physics', tag: 'departure_end'}),
 ];
 
 export const TAKEOFF = Object.freeze({
@@ -205,10 +206,10 @@ export function makeBreakout(from) {
   const breakoutX = -10974;   // Abeam dep end x
   const breakoutY = -12100 - (2.0 * FT_PER_NM); // 2 NM south of outer pattern
   const wps = [
-    wp({ x: from.x,    y: from.y,    alt: from.alt, kias: from.iasKt ?? 140, phase: 'breakout',    label: 'Breakout Start', mode: 'physics' }),
-    wp({ x: breakoutX, y: breakoutY, alt: 4500,     kias: 220,               phase: 'breakout',    label: 'Breakout Point', mode: 'physics' }),
+    wp({ x: from.x,    y: from.y,    alt: from.alt, kias: from.iasKt ?? 140, phase: 'breakout',    label: 'Breakout Start', mode: 'physics', tag: 'breakout_start' }),
+    wp({ x: breakoutX, y: breakoutY, alt: 4500,     kias: 220,               phase: 'breakout',    label: 'Breakout Point', mode: 'physics', tag: 'breakout_point' }),
     // Re-entry: fly to ENT_OHB entry gate
-    wp({ x: -8694,     y: -66644,    alt: 3500,     kias: 220,               phase: 'entry',       label: 'Rejoin Entry',   mode: 'rails'   }),
+    wp({ x: -8694,     y: -66644,    alt: 3500,     kias: 220,               phase: 'entry',       label: 'Rejoin Entry',   mode: 'rails',   tag: 'merge' }),
   ];
   return Object.freeze({
     id: 'BREAKOUT',
@@ -230,10 +231,10 @@ export function makeBreakout(from) {
  */
 export function makeGoAround(from) {
   const wps = [
-    wp({ x: from.x, y: from.y, alt: from.alt, kias: from.iasKt ?? 100, phase: 'go_around', label: 'Go-Around Start', mode: 'physics' }),
-    wp({ x: -4066,  y:   681,  alt: 2500,     kias: 140,               phase: 'go_around', label: 'Departure End',   mode: 'physics' }),
-    wp({ x:-14866,  y:  7020,  alt: 3500,      kias: 180,              phase: 'climb',     label: 'Climb Out',       mode: 'physics' }),
-    wp({ x:-21000,  y: 10327,  alt: 3500,      kias: 220,              phase: 'crosswind', label: 'Rejoin Upwind',   mode: 'rails'   }),
+    wp({ x: from.x, y: from.y, alt: from.alt, kias: from.iasKt ?? 100, phase: 'go_around', label: 'Go-Around Start', mode: 'physics', tag: 'go_around_start' }),
+    wp({ x: -4066,  y:   681,  alt: 2500,     kias: 140,               phase: 'go_around', label: 'Departure End',   mode: 'physics', tag: 'departure_end'   }),
+    wp({ x:-14866,  y:  7020,  alt: 3500,      kias: 180,              phase: 'climb',     label: 'Climb Out',       mode: 'physics', tag: 'climbout'        }),
+    wp({ x:-21000,  y: 10327,  alt: 3500,      kias: 220,              phase: 'crosswind', label: 'Rejoin Upwind',   mode: 'rails',   tag: 'upwind'          }),
   ];
   return Object.freeze({
     id: 'GO_AROUND',
@@ -270,11 +271,11 @@ export function makePflFromArea(radialDeg = 90, distNm = 10, altFt = 8000) {
   const headingDeg = (radialDeg + 180) % 360;  // Reciprocal: toward field
 
   const wps = [
-    wp({ x: spawnX, y: spawnY, alt: altFt,    kias: 125, phase: 'pfl_inbound', label: 'Spawn (From Area)', mode: 'physics', config: 'clean' }),
-    wp({ x: THRESH_X, y: THRESH_Y, alt: 5000, kias: 125, phase: 'high_key',   label: 'High Key',         mode: 'rails', config: 'clean' }),
-    wp({ x:  7146, y: -10275,  alt: 3700,     kias: 120, phase: 'low_key',     label: 'Low Key',          mode: 'rails', config: 'gearDown' }),
-    wp({ x:  9076, y:  -6411,  alt: 2900,     kias: 120, phase: 'base_key',    label: 'Base Key',         mode: 'rails', config: 'landing'  }),
-    wp({ x: THRESH_X, y: THRESH_Y, alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold',    mode: 'rails', config: 'landing'  }),
+    wp({ x: spawnX, y: spawnY, alt: altFt,    kias: 125, phase: 'pfl_inbound', label: 'Spawn (From Area)', mode: 'physics', config: 'clean',    tag: 'spawn'     }),
+    wp({ x: THRESH_X, y: THRESH_Y, alt: 5000, kias: 125, phase: 'high_key',   label: 'High Key',         mode: 'rails',   config: 'clean',    tag: 'high_key'  }),
+    wp({ x:  7146, y: -10275,  alt: 3700,     kias: 120, phase: 'low_key',     label: 'Low Key',          mode: 'rails',   config: 'gearDown', tag: 'low_key'   }),
+    wp({ x:  9076, y:  -6411,  alt: 2900,     kias: 120, phase: 'base_key',    label: 'Base Key',         mode: 'rails',   config: 'landing',  tag: 'base_key'  }),
+    wp({ x: THRESH_X, y: THRESH_Y, alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold',    mode: 'rails',   config: 'landing',  tag: 'threshold' }),
   ];
 
   const plan = Object.freeze({
@@ -312,6 +313,53 @@ export const NAV_PLANS = Object.freeze({
  */
 export function getNavPlan(id) {
   return NAV_PLANS[id] ?? null;
+}
+
+/**
+ * Finds the index of a waypoint by its semantic tag in a route, nav plan, or waypoint array.
+ * @param {any} routeOrPlan - NavPlan, Route, or array of waypoints
+ * @param {string} tag - Semantic tag to match
+ * @returns {number} Index of the matching waypoint, or -1 if not found
+ */
+export function findWaypointIndexByTag(routeOrPlan, tag) {
+  if (!routeOrPlan || !tag) return -1;
+  const pts = Array.isArray(routeOrPlan)
+    ? routeOrPlan
+    : (routeOrPlan.waypoints || routeOrPlan.points || []);
+  const exact = pts.findIndex((p) => p && p.tag === tag);
+  if (exact >= 0) return exact;
+
+  // Fallback label matching for routes or waypoints lacking explicit tags
+  const cleanTag = tag.toLowerCase().replace(/_/g, ' ');
+  return pts.findIndex((p) => {
+    if (!p?.label) return false;
+    const l = p.label.toLowerCase();
+    if (tag === 'perch') return /perch/i.test(l);
+    if (tag === 'break') return /break\b/i.test(l) && !/exit/i.test(l);
+    if (tag === 'break_rollout') return /break\s*exit/i.test(l);
+    if (tag === 'window') return /window/i.test(l);
+    if (tag === 'threshold') return /threshold/i.test(l);
+    if (tag === 'departure_end') return /departure/i.test(l);
+    if (tag === 'high_key') return /high\s*key/i.test(l);
+    if (tag === 'low_key') return /low\s*key/i.test(l);
+    if (tag === 'base_key') return /base\s*key/i.test(l);
+    return l.includes(cleanTag);
+  });
+}
+
+/**
+ * Finds a waypoint by its semantic tag in a route, nav plan, or waypoint array.
+ * @param {any} routeOrPlan - NavPlan, Route, or array of waypoints
+ * @param {string} tag - Semantic tag to match
+ * @returns {any} The matching waypoint or null
+ */
+export function findWaypointByTag(routeOrPlan, tag) {
+  const idx = findWaypointIndexByTag(routeOrPlan, tag);
+  if (idx < 0) return null;
+  const pts = Array.isArray(routeOrPlan)
+    ? routeOrPlan
+    : (routeOrPlan.waypoints || routeOrPlan.points || []);
+  return pts[idx] ?? null;
 }
 
 // ── Spawn presets (for the two-dropdown UI, Phase 4) ────────────────────────

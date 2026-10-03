@@ -28,7 +28,7 @@ import {
   tickAircraft,
   shouldEnterPhysics,
   initMode,
-  enterBlending,
+  enterBlending, evaluateWaypointTrigger,
   BLEND_DURATION_SEC,
   PHYSICS_COMMANDS,
 } from '../../../src/modules/traffic/tick-aircraft.js';
@@ -443,4 +443,86 @@ test('7.4 Zero wind executes identically without branching errors', () => {
   assert.equal(a.crabDeg, 0, 'Zero wind produces 0 crab');
   near(a.gsKt, a.iasKt, 0.01, 'Zero wind ground speed equals indicated airspeed');
   assert.equal(a.mode, 'RAIL');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite 8: Semantic Waypoint Triggers & Tag Preservation
+// ─────────────────────────────────────────────────────────────────────────────
+test('8.1 evaluateWaypointTrigger identifies break and perch triggers via tag or label', () => {
+  const breakWp = { tag: 'break', label: 'Overhead Break' };
+  const trigBreak = evaluateWaypointTrigger(breakWp);
+  assert.equal(trigBreak.trigger, 'break');
+  assert.equal(trigBreak.phase, 'break');
+  assert.equal(trigBreak.targetBankDeg, -60);
+
+  const perchWp = { tag: 'perch', label: 'Perch Point' };
+  const trigPerch = evaluateWaypointTrigger(perchWp);
+  assert.equal(trigPerch.trigger, 'final_turn');
+  assert.equal(trigPerch.phase, 'final_turn');
+  assert.equal(trigPerch.targetBankDeg, -35);
+
+  const untaggedBreak = { label: 'Break Entry 220 KIAS' };
+  assert.equal(evaluateWaypointTrigger(untaggedBreak).trigger, 'break');
+
+  const untaggedPerch = { label: 'Perch 120 KIAS 35 Bank' };
+  assert.equal(evaluateWaypointTrigger(untaggedPerch).trigger, 'final_turn');
+
+  const physicsWp = { mode: 'physics', phase: 'climb' };
+  assert.equal(evaluateWaypointTrigger(physicsWp).trigger, 'physics');
+
+  const standardWp = { tag: 'threshold', label: 'Runway Threshold' };
+  assert.equal(evaluateWaypointTrigger(standardWp).trigger, null);
+  assert.equal(evaluateWaypointTrigger(null).trigger, null);
+});
+
+test('8.2 enterBlending uses semantic tags to disambiguate final approach rollout from initial leg', () => {
+  const taggedPat = {
+    ...pat1,
+    points: pat1.points.map((p, i) => {
+      if (i === 11) return { ...p, tag: 'perch' };
+      if (i === 12) return { ...p, tag: 'window' };
+      return p;
+    }),
+  };
+
+  const a = {
+    id: 'A1',
+    mode: 'PHYSICS',
+    phase: 'final_turn',
+    x: 4000,
+    y: -4000,
+    alt: 2200,
+    headingDeg: 298,
+    iasKt: 120,
+    turnAccumDeg: 180,
+  };
+
+  enterBlending(a, taggedPat);
+  assert.equal(a.mode, 'BLENDING');
+  assert.ok(a._blendTarget, 'Blend target computed');
+  assert.equal(a._blendTarget.tag, 'window', 'Target must have window tag on final approach rollout');
+});
+
+test('8.3 tickAircraft preserves waypoint tag in RAIL and BLENDING modes', () => {
+  const taggedRoute = {
+    id: 'TAGGED',
+    name: 'Tagged',
+    kind: 'pattern',
+    points: [
+      { x: 0, y: 0, alt: 2500, kt: 120, g: 1.0, tag: 'threshold', label: 'Threshold' },
+      { x: 10000, y: 0, alt: 2500, kt: 120, g: 1.0, tag: 'downwind', label: 'Downwind' },
+    ],
+  };
+
+  const a = {
+    id: 'A1',
+    mode: 'RAIL',
+    distFt: 0,
+    iasKt: 120,
+    active: true,
+  };
+
+  tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, taggedRoute);
+  assert.equal(a.mode, 'RAIL');
+  assert.equal(a.tag, 'threshold');
 });

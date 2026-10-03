@@ -29,7 +29,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   DEFAULT_ROUTE_OPTIONS, routePath, drawPath, positionAt, posOnRoute, legDistances, roundedPoints, navSegs,
-  routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, pointTurn, turnAtPoint, newPattern, newEntry, newSplit, generatePflTrack,
+  routeLengthFt, pointDistFt, closestDistFt, pointTurnRadiusFt, pointTurn, turnAtPoint, newPattern, newEntry, newSplit, generatePflTrack, computeWindPerch, computeBreakRollout,
 } from '../../../src/modules/traffic/route.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
@@ -378,4 +378,68 @@ test('generatePflTrack generates 4-segment wind-adaptive track terminating at th
   const pathEnd = path.points.at(-1);
   assert.equal(pathEnd.alt, 1892);
   near(Math.hypot(pathEnd.x - th.x, pathEnd.y - th.y), 0, 1e-4);
+});
+
+test('semantic waypoint tags are preserved across posOnRoute and routePath', () => {
+  const taggedRoute = {
+    id: 'TAGGED',
+    name: 'Tagged Route',
+    kind: 'entry',
+    points: [
+      { x: 0, y: 0, alt: 2500, kt: 120, g: 1.0, tag: 'threshold', label: 'Threshold' },
+      { x: 5000, y: 0, alt: 2500, kt: 120, g: 1.0, tag: 'climbout', label: 'Climbout' },
+      { x: 5000, y: 5000, alt: 3500, kt: 140, g: 2.0, tag: 'perch', label: 'Perch' },
+    ],
+  };
+
+  const p = posOnRoute(taggedRoute, 0);
+  assert.equal(p.tag, 'threshold');
+
+  const pPerch = posOnRoute(taggedRoute, 10000);
+  assert.equal(pPerch.tag, 'perch');
+
+  const path = routePath(taggedRoute, { flyRoundedTurns: false });
+  assert.equal(path.points[0].tag, 'threshold');
+  assert.equal(path.points.at(-1).tag, 'perch');
+});
+
+test('computeWindPerch finds perch waypoint by tag or label without hardcoded index', () => {
+  const taggedRoute = {
+    points: [
+      { x: 0, y: 0, tag: 'wp0', label: 'WP0' },
+      { x: 1000, y: 1000, tag: 'perch', label: 'Dynamic Perch', alt: 3500 },
+    ],
+  };
+  const result = computeWindPerch(taggedRoute, 360, 10);
+  assert.ok(result);
+  assert.equal(result.calmX, 1000);
+  assert.equal(result.calmY, 1000);
+});
+
+test('simulateBreakArc finds break waypoint by tag without hardcoded index', () => {
+  const taggedRoute = {
+    points: [
+      { x: 3104, y: -3194, tag: 'threshold', label: 'Threshold' },
+      { x: -4066, y: 681, tag: 'departure_end', label: 'Departure' },
+      { x: -288, y: -1441, tag: 'break', label: 'Overhead Break Entry', alt: 3500, kt: 220 },
+      { x: -3385, y: -4323, tag: 'break_rollout', label: 'Downwind Rollout', alt: 3500, kt: 140 },
+    ],
+  };
+  const rollout = computeBreakRollout(taggedRoute, 360, 0);
+  assert.ok(rollout);
+  near(rollout.headingDeg, 118, 5.0);
+});
+
+test('generatePflTrack points contain semantic tags', () => {
+  const ent4 = MOOSE_JAW.routes.find((r) => r.id === 'ENT4');
+  const track = generatePflTrack(ent4, 360, 0);
+  const highKeyPts = track.filter((p) => p.tag === 'high_key');
+  const lowKeyPts = track.filter((p) => p.tag === 'low_key');
+  const baseKeyPts = track.filter((p) => p.tag === 'base_key');
+  const thPts = track.filter((p) => p.tag === 'threshold');
+
+  assert.ok(highKeyPts.length > 0, 'has high_key tagged points');
+  assert.ok(lowKeyPts.length > 0, 'has low_key tagged points');
+  assert.ok(baseKeyPts.length > 0, 'has base_key tagged points');
+  assert.ok(thPts.length > 0, 'has threshold tagged points');
 });
