@@ -10,7 +10,7 @@ import { createPanel } from '../../ui-kit/panel.js';
 import { createSettingsMenu } from '../../ui-kit/settings-menu.js';
 import { createReadoutTable } from './readouts-panel.js';
 import { PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { RANGES, DEFAULTS, ALLOWED, G_LABEL, startSetupFrom } from './state.js';
+import { RANGES, DEFAULTS, ALLOWED, G_LABEL, startSetupFrom, TACTICAL_PRESETS } from './state.js';
 import { VIEWS } from './view3d.js';
 import { startGeometry, passNote, turnNote } from './geometry.js';
 import { limitWarning } from './t6-limit.js';
@@ -88,6 +88,23 @@ export function createLayout({ settings, controls, on }) {
   // ── Fight setup column ──────────────────────────────────────────────
   const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.3', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
+  const presetSelect = h(
+    'select',
+    {
+      class: 'tf-preset-select',
+      id: `tf-preset-${nextId++}`,
+      onchange: (e) => on.onPreset?.(e.target.value),
+    },
+    ...Object.entries(TACTICAL_PRESETS).map(([key, p]) =>
+      h('option', { value: key }, p.name),
+    ),
+  );
+  const presetField = h(
+    'div',
+    { class: 'control control-select tf-preset-control' },
+    h('label', { for: presetSelect.id }, 'Tactical Preset'),
+    presetSelect,
+  );
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
@@ -232,7 +249,7 @@ export function createLayout({ settings, controls, on }) {
 
   const setupPanel = createPanel({ title: 'Fight setup', onToggle: (collapsed) => settings.update({ setupOpen: !collapsed }) });
   setupPanel.body.append(
-    intro, fightType, separation, blue.element, red.element,
+    intro, presetField, fightType, separation, blue.element, red.element,
     h('div', { class: 'tf-extras' }, chase, vertical, energy),
     energyProblem,
     menu.element, about.element,
@@ -491,6 +508,10 @@ export function createLayout({ settings, controls, on }) {
     /** Whether the altitude table is open (it is only built while it is). */
     get tableOpen() {
       return energyTable.open;
+    },
+    presetSelect,
+    setPreset(key) {
+      if (presetSelect && key in TACTICAL_PRESETS) presetSelect.value = key;
     },
   };
 }

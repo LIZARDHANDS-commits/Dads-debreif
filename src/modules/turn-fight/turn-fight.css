@@ -406,6 +406,32 @@
   color: var(--tf-red);
 }
 
+.tf-3d-label.blue::after,
+[data-module='turn-fight'] .tf-3d-label.blue::after,
+[data-module='turn-fight'] .tf-3d-label-blue::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  right: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--tf-blue, #58a6ff);
+  opacity: 0.6;
+}
+
+.tf-3d-label.red::after,
+[data-module='turn-fight'] .tf-3d-label.red::after,
+[data-module='turn-fight'] .tf-3d-label-red::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 10px;
+  width: 1px;
+  height: 12px;
+  background: var(--tf-red, #ff6b6b);
+  opacity: 0.6;
+}
+
 [data-module='turn-fight'] .tf-3d-label-nose,
 [data-module='turn-fight'] .tf-3d-label-deck {
   color: var(--tf-nose);

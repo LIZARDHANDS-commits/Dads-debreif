@@ -28,7 +28,8 @@ const NUMBER_ENERGY_KEYS = ENERGY_KEYS.filter((k) => k in RANGES);
 test('Energy opens off, and every Energy setting opens at the engine\'s own default', () => {
   assert.equal(DEFAULTS.energy, false);
   const setup = energySetupFrom(DEFAULTS);
-  const shared = ['ataDeg', 'ataSide', 'aaDeg', 'aaSide', 'turnsStart']; // the start geometry is the simple fight's own
+  const shared = ['separationNm', 'ataDeg', 'ataSide', 'aaDeg', 'aaSide', 'turnsStart']; // the start geometry is the simple fight's own
+  assert.equal(setup.separationNm, 1.2);
   for (const [key, value] of Object.entries(setup)) {
     if (!shared.includes(key)) assert.deepEqual(value, ENERGY_DEFAULT_SETUP[key], key);
   }
@@ -147,8 +148,8 @@ test('while the start cannot fly, the fight, the pass and the start picture use 
   assert.equal(shown.separationNm, DEFAULTS.separationNm);
   assert.equal(shown.blueKt, iasToTasKt(DEFAULTS.blueKias, DEFAULTS.blueAltFt));
   const note = energyProblemNote(values);
-  assert.ok(note.startsWith(`${energyProblem(values)} Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (2 NM).`), note);
-  assert.equal(note.endsWith('separation (2 NM).'), true);
+  assert.ok(note.startsWith(`${energyProblem(values)} Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (1.2 NM).`), note);
+  assert.equal(note.endsWith('separation (1.2 NM).'), true);
   assert.equal(energyProblemNote(ENERGY_ON), '');
   assert.equal(usableEnergyValues(ENERGY_ON), ENERGY_ON);
   assert.equal(usableEnergyValues({ ...DEFAULTS, blueKias: 300, blueAltFt: 25000 }).blueKias, 300, 'Energy off never replaces anything');

@@ -195,15 +195,15 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
   - [x] 22.2 Add auto-pause on kill event in `index.js`, prominent victor banner in HUD, and 1-click "Continue Engagement" and "Reset" buttons.
   - [x] 22.3 Wire victor announcement to `energy-readouts.js`.
 
-- [ ] **23. Task 23: Dynamic 3D Centroid Camera & Displaced HUD Data Tags.**
-  - [ ] 23.1 Implement dynamic centroid camera tracking in `view3d.js`: center camera on $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$ with adaptive distance framing.
-  - [ ] 23.2 Offset aircraft data tags in `turn-fight.css` and `view3d.js` with $+30\text{ px}$ elevation and $+40\text{ px}$ lateral leader line so aircraft models are never covered.
-  - [ ] 23.3 Render 3D lift vector arrows and $15^\circ$ WEZ aiming cone in `view3d.js`.
+- [x] **23. Task 23: Dynamic 3D Centroid Camera & Displaced HUD Data Tags.**
+  - [x] 23.1 Implement dynamic centroid camera tracking in `view3d.js`: center camera on $(\vec{P}_{\text{blue}} + \vec{P}_{\text{red}})/2$ with adaptive distance framing.
+  - [x] 23.2 Offset aircraft data tags in `turn-fight.css` and `view3d.js` with $+30\text{ px}$ elevation and $+40\text{ px}$ lateral leader line so aircraft models are never covered.
+  - [x] 23.3 Render 3D lift vector arrows and $15^\circ$ WEZ aiming cone in `view3d.js`.
 
-- [ ] **24. Task 24: Geometry Re-Baselining & 1-Click Tactical Engagement Presets.**
-  - [ ] 24.1 Re-baseline default `separationNm` from 2.0 NM to 1.2 NM and default `startAtaDeg = 5°` (750 ft lateral turning room) in `state.js`.
-  - [ ] 24.2 Implement 1-click "Tactical Scenario" dropdown in `layout.js` (Neutral Merge, Offensive Perch, Defensive Break, Energy vs. Angles, Radius vs. Rate).
-  - [ ] 24.3 Wire preset handler in `index.js` / `state.js` updating speeds, altitudes, and geometry simultaneously.
+- [x] **24. Task 24: Geometry Re-Baselining & 1-Click Tactical Engagement Presets.**
+  - [x] 24.1 Re-baseline default `separationNm` from 2.0 NM to 1.2 NM and default `startAtaDeg = 5°` (750 ft lateral turning room) in `state.js`.
+  - [x] 24.2 Implement 1-click "Tactical Scenario" dropdown in `layout.js` (Neutral Merge, Offensive Perch, Defensive Break, Energy vs. Angles, Radius vs. Rate).
+  - [x] 24.3 Wire preset handler in `index.js` / `state.js` updating speeds, altitudes, and geometry simultaneously.
 
 - [ ] **25. Task 25: UI Bloat Pruning, Mode Architecture & Progressive Disclosure (R22).**
   - [ ] 25.1 Default `energy: true` in `state.js` so the module opens directly into 3D BFM Energy Fight.

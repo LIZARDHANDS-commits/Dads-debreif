@@ -257,13 +257,13 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
 - Add tactical 3D visual cues: 3D lift vector arrows (showing pull direction) and a $15^\circ$ WEZ aiming cone when pointing near target.
 
 **Acceptance criteria:**
-- [ ] 3D camera smoothly centers on the fight midpoint throughout the entire engagement without panning away.
-- [ ] Data tags never obscure the aircraft 3D models.
-- [ ] Lift vectors and WEZ aiming cones render cleanly at 60 fps.
+- [x] 3D camera smoothly centers on the fight midpoint throughout the entire engagement without panning away.
+- [x] Data tags never obscure the aircraft 3D models.
+- [x] Lift vectors and WEZ aiming cones render cleanly at 60 fps.
 
 **Verification:**
-- [ ] Browser visual inspection on `localhost:4174`.
-- [ ] Typecheck clean: `npm run typecheck`.
+- [x] Browser visual inspection on `localhost:4174`.
+- [x] Typecheck clean: `npm run typecheck`.
 
 **Dependencies:** Task 22.  
 **Files likely touched:** `src/modules/turn-fight/view3d.js`, `src/modules/turn-fight/turn-fight.css`, `src/modules/turn-fight/layout.js`  
@@ -282,13 +282,13 @@ Design Ratification: `/grill-me` alignment with Patrick (2026-10-02, Decisions D
   5. *Radius vs. Rate Fight (1-Circle vs 2-Circle)*: 1.0 NM merge, opposite vs same turn direction.
 
 **Acceptance criteria:**
-- [ ] Default engagement merges cleanly at $T+9.8\text{ s}$ with authentic turning room.
-- [ ] Selecting any preset immediately reconfigures all speeds, altitudes, and geometry cleanly.
-- [ ] "Neutral Head-on" button restores 1.2 NM baseline with 750 ft turning room.
+- [x] Default engagement merges cleanly at $T+9.8\text{ s}$ with authentic turning room.
+- [x] Selecting any preset immediately reconfigures all speeds, altitudes, and geometry cleanly.
+- [x] "Neutral Head-on" button restores 1.2 NM baseline with 750 ft turning room.
 
 **Verification:**
-- [ ] Unit tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
-- [ ] Browser interactive verification.
+- [x] Unit tests pass: `node --test tests/unit/turn-fight/**/*.test.js`
+- [x] Browser interactive verification.
 
 **Dependencies:** Tasks 21–23.  
 **Files likely touched:** `src/modules/turn-fight/state.js`, `src/modules/turn-fight/layout.js`, `src/modules/turn-fight/geometry.js`  

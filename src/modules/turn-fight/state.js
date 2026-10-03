@@ -4,10 +4,105 @@
 import { V6_DEFAULT_SETUP } from './sim.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { START_DEFAULTS } from './geometry.js';
+import { START_DEFAULTS as GEOMETRY_START_DEFAULTS } from './geometry.js';
 import { ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE, energyTopKias } from './energy-sim.js';
 import { iasToTasKt, maxKiasT6A, T6A_LIMITS } from '../../core/t6-performance.js';
 import { FT_PER_NM } from '../../core/units.js';
+
+/**
+ * Tactical start defaults for the Turn Fight state (Task 24 re-baseline).
+ * Authentic 750 ft lateral turning room offset corresponds to 5° ATA.
+ */
+export const START_DEFAULTS = Object.freeze({
+  ...GEOMETRY_START_DEFAULTS,
+  startAtaDeg: 5,
+});
+
+/**
+ * 5 canonical tactical engagement presets (Task 24).
+ */
+export const TACTICAL_PRESETS = Object.freeze({
+  'neutral-merge': Object.freeze({
+    name: 'Neutral High-Aspect Merge (Default)',
+    separationNm: 1.2,
+    startAtaDeg: 5,
+    startAaDeg: 175,
+    startAtaSide: 'left',
+    startAaSide: 'left',
+    blueKt: 250,
+    redKt: 250,
+    blueKias: 250,
+    redKias: 250,
+    blueAltFt: 10000,
+    redAltFt: 10000,
+    redAboveFt: 0,
+    circles: 2,
+  }),
+  'offensive-perch': Object.freeze({
+    name: 'Offensive Perch (Blue Advantage)',
+    separationNm: 1.0,
+    startAtaDeg: 0,
+    startAaDeg: 30,
+    startAtaSide: 'left',
+    startAaSide: 'left',
+    blueKt: 220,
+    redKt: 180,
+    blueKias: 220,
+    redKias: 180,
+    blueAltFt: 11000,
+    redAltFt: 10000,
+    redAboveFt: -1000,
+    circles: 2,
+  }),
+  'defensive-break': Object.freeze({
+    name: 'Defensive Break (Red Locked on Six)',
+    separationNm: 0.5,
+    startAtaDeg: 150,
+    startAaDeg: 15,
+    startAtaSide: 'left',
+    startAaSide: 'left',
+    blueKt: 180,
+    redKt: 240,
+    blueKias: 180,
+    redKias: 240,
+    blueAltFt: 9500,
+    redAltFt: 10000,
+    redAboveFt: 500,
+    circles: 2,
+  }),
+  'energy-vs-angles': Object.freeze({
+    name: 'Energy vs Angles (High vs Low)',
+    separationNm: 1.2,
+    startAtaDeg: 15,
+    startAaDeg: 165,
+    startAtaSide: 'left',
+    startAaSide: 'left',
+    blueKt: 280,
+    redKt: 160,
+    blueKias: 280,
+    redKias: 160,
+    blueAltFt: 14000,
+    redAltFt: 10000,
+    redAboveFt: -4000,
+    circles: 2,
+  }),
+  'radius-vs-rate': Object.freeze({
+    name: 'Radius vs Rate (1-Circle vs 2-Circle)',
+    separationNm: 1.0,
+    startAtaDeg: 10,
+    startAaDeg: 170,
+    startAtaSide: 'left',
+    startAaSide: 'left',
+    blueKt: 240,
+    redKt: 240,
+    blueKias: 240,
+    redKias: 240,
+    blueAltFt: 10000,
+    redAltFt: 10000,
+    redAboveFt: 0,
+    circles: 1,
+  }),
+});
 
 /**
  * Energy mode's settings and their opening values, the engine's own (ENERGY_DEFAULT_SETUP). Two are kept as
@@ -54,6 +149,7 @@ export const ENERGY_KEYS = Object.freeze([...ENERGY_FIRST_KEYS, ...ENERGY_MORE_K
  */
 export const DEFAULTS = Object.freeze({
   ...V6_DEFAULT_SETUP,
+  separationNm: 1.2,
   ...START_DEFAULTS, // R28: head-on, level, turns at the pass
   energy: false,
   ...energyDefaults(),
@@ -92,7 +188,7 @@ export const G_LABEL = 'G';
 
 /** The number boxes' limits (SPEC-turn-fight, "Number boxes"); `step` is V6's arrow step. */
 export const RANGES = Object.freeze({
-  separationNm: { min: 0.5, max: 10, step: 0.5, unit: 'NM' },
+  separationNm: { min: 0.5, max: 10, step: 0.1, unit: 'NM' },
   blueKt: { min: 60, max: 400, step: 5, unit: 'KTAS' },
   redKt: { min: 60, max: 400, step: 5, unit: 'KTAS' },
   blueG: { min: 1.1, max: 9, step: 0.1, unit: 'G' },
