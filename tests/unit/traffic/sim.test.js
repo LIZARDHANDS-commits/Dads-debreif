@@ -535,11 +535,11 @@ test('remove takes one aircraft out; clearFinished takes out those that have lan
 test('aircraftSpecs gives the aircraft as a setup keeps them, so a new sim from them starts the same', () => {
   const sim = createSim(builtIn(), { seed: 4 });
   sim.stepTo(60);
-  sim.spawn({ type: 'CT-114', routeId: 'SPL2', startPoint: 2, delaySec: 30 });
+  sim.spawn({ type: 'CT-114', routeId: 'ENT1', startPoint: 2, delaySec: 30 });
   const specs = sim.aircraftSpecs();
   assert.equal(specs.length, 8);
   const { startsAtSec, ...last } = specs.at(-1);
-  assert.deepEqual(last, { id: 'A8', type: 'CT-114', routeId: 'SPL2', startIndex: 1 });
+  assert.deepEqual(last, { id: 'A8', type: 'CT-114', routeId: 'ENT1', startIndex: 1 });
   near(startsAtSec, 90, 1e-9);
   const again = createSim({ ...builtIn(), aircraft: specs }, { seed: 4 });
   sim.reset();

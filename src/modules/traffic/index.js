@@ -23,7 +23,6 @@ import { createMap2d, hintFor, photoCaption } from './map2d.js';
 import { createView3d } from './view3d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
-import { createIdMaker, createRouteEditor, makeRoute } from './editor.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
@@ -79,7 +78,6 @@ function mount(root, app) {
     listen: app.listen,
     on: {
       selectRoute,
-      newRoute: (kind) => newRoute(kind),
       toggleColumn: () => app.scheduler.after(0, () => redraw()),
       camera: (name) => view3d.preset(name),
       toggleHeightLines: (active) => view3d.setHeightLines(active),
@@ -90,19 +88,6 @@ function mount(root, app) {
   ui.slots.spawner.append(aircraftPanel.elements.spawner);
   ui.slots.aircraft.append(aircraftPanel.elements.aircraft);
   ui.slots.conflicts.append(aircraftPanel.elements.conflicts);
-  // The left column: the selected route's points (the layout shows it under the routes list).
-  let nextId = createIdMaker(setup.routes);
-  const editor = createRouteEditor({
-    setup,
-    onChange: ({ structure, routeId, remap }) => {
-      if (remap) sim.remapStarts(routeId, remap); // aircraft that start on this route keep their starting place
-      sim.forgetHistory(); // the route was edited: going back flies the edited route from 0
-      if (structure) routesChanged();
-      else changed();
-    },
-  });
-  ui.slots.pointTable.append(editor.element);
-  ui.slots.leftExtras.append(editor.message);
   // "Reset photo alignment" goes back to the setup's own trim and offsets (V6's photo block, T8).
   const photo = setup.view?.photo ?? {};
   const photoHome = { photoTrim: photo.trim ?? DEFAULTS.photoTrim, photoEastFt: photo.offsetEastFt ?? DEFAULTS.photoEastFt, photoNorthFt: photo.offsetNorthFt ?? DEFAULTS.photoNorthFt };
@@ -214,7 +199,6 @@ function mount(root, app) {
     if (route && route.kind === 'split') id = null;
     selectedRouteId = id;
     showRoutes();
-    editor.show(id);
     redraw();
   }
 
@@ -238,28 +222,16 @@ function mount(root, app) {
     setup.anchor = structuredClone(profile.anchor);
     setup.routes = structuredClone(profile.routes);
     setup.aircraft = structuredClone(profile.aircraft);
-    nextId = createIdMaker(setup.routes);
     sim.rebuild({ seed: profile.seed });
     clock.reset();
     airfield = profile.airfield;
     place = entry?.kind === 'built-in' ? 'Moose Jaw' : '';
     selectedRouteId = null;
-    editor.show(null);
     settings.update({ ...profileSettingDefaults(), ...profile.settings }); // the subscriber below copies them into the setup
     showRoutes();
     aircraftPanel.routesChanged();
     map.fit();
     changed();
-  }
-
-  /** + New route: makes the route, adds it, and picks it so its points show. */
-  function newRoute(kind) {
-    const made = makeRoute(kind, { routes: setup.routes, selectedId: selectedRouteId, nextId });
-    if (made.problem) return editor.say(made.problem);
-    setup.routes.push(made.route);
-    selectRoute(made.route.id);
-    editor.say(`Added ${made.route.name}.`);
-    routesChanged();
   }
 
   // ---- playback ----------------------------------------------------------------------
@@ -374,7 +346,6 @@ function mount(root, app) {
     }
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
-    editor.refresh();
     if (values.view !== wantView) applyView(values.view);
     changed();
   });
@@ -409,7 +380,6 @@ function mount(root, app) {
     stopFrames?.();
     stopSettings();
     settingsPanel.dispose();
-    editor.dispose();
     controls.dispose();
     view3d.dispose(); // three.js, the renderer and everything drawn with it
     map.dispose();

@@ -82,7 +82,7 @@ test('the spawner starts on the first entry (the first pattern when there is non
   assert.equal(defaultSpawnRouteId([{ id: 'CUSTOM' }]), 'CUSTOM', 'handles missing kind cleanly');
   assert.equal(defaultSpawnRouteId([null, undefined, { id: 'PAT1', kind: 'pattern' }]), 'PAT1', 'handles null/undefined route entries cleanly');
   assert.equal(spawnRouteId('first-entry', routes), 'ENT1');
-  assert.equal(spawnRouteId('SPL2', routes), 'SPL2');
+  assert.equal(spawnRouteId('ENT2', routes), 'ENT2');
   assert.equal(spawnRouteId('GONE', routes), 'ENT1', 'a route that has gone falls back to the default');
 });
 
@@ -155,12 +155,12 @@ test('the boxes decide the aircraft: type, route, start point and delay', () => 
 test('the spawner keeps its own route when a route is picked elsewhere, and follows a route that is added', () => {
   const { panel, spawner, traffic } = setup();
   const route = inputFor(spawner, 'Route');
-  route.value = 'ENT3';
+  route.value = 'ENT2';
   route.dispatch('change');
   traffic.routes.push({ ...traffic.routes[1], id: 'ENT9', name: 'Entry 9' });
   panel.routesChanged();
-  assert.equal(inputFor(spawner, 'Route').value, 'ENT3', 'its own choice stays');
-  assert.equal(tagged(inputFor(spawner, 'Route'), 'OPTION').length, 6);
+  assert.equal(inputFor(spawner, 'Route').value, 'ENT2', 'its own choice stays');
+  assert.equal(tagged(inputFor(spawner, 'Route'), 'OPTION').length, 4);
   assert.equal(words(tagged(inputFor(spawner, 'Route'), 'OPTION').at(-1)), 'Entry 9');
 });
 
