@@ -17,6 +17,12 @@ import {
   checkWezGun,
   checkMidAirCollision,
   COLLISION_HITBOX_FT,
+  computeTcpa,
+  turnPlaneNormal,
+  TCPA_GATE_MIN_SEC,
+  TCPA_GATE_MAX_SEC,
+  TCPA_MISS_GATE_FT,
+  DECONFLICTION_OFFSET_FT,
 } from '../../../src/modules/turn-fight/energy-sim.js';
 
 test('tacticalAimCalculation maintains convex combination wLag + wLead + wPure = 1.0 across flight envelopes', () => {
@@ -475,5 +481,110 @@ test('Task 27: checkMidAirCollision respects state.setup.collisionDetection === 
   assert.equal(state.blue.collided, false);
   assert.equal(state.red.collided, false);
 });
+
+test('Task 28: computeTcpa calculates accurate closed-form time and miss distance on crossing trajectories', () => {
+  // Target flying West at 200 ft/s, initial pos (0, 400, 10000) -> vx = -200, vy = 0
+  // Ac flying North at 200 ft/s, initial pos (-400, 50, 10000) -> vx = 0, vy = 200
+  // Relative position: r = (400, 350, 0)
+  // Relative velocity: vRel = (-200, -200, 0)
+  // vv = 80000
+  // rv = 400 * (-200) + 350 * (-200) = -150000
+  // tcpaSec = 150000 / 80000 = 1.875 s
+  // At t = 1.875 s:
+  // cpaX = 400 - 200 * 1.875 = 25 ft
+  // cpaY = 350 - 200 * 1.875 = -25 ft
+  // missFt = hypot(25, -25) = 35.355 ft
+  const target = {
+    pm: { x: 0, y: 400, z: 10000, vx: -200, vy: 0, vz: 0 },
+  };
+  const ac = {
+    pm: { x: -400, y: 50, z: 10000, vx: 0, vy: 200, vz: 0 },
+  };
+
+  const tcpa = computeTcpa(ac, target);
+  assert.equal(tcpa.closing, true);
+  // D411 tolerance: ±0.5 s for time, ±20 ft for spatial coords
+  assert.ok(Math.abs(tcpa.tcpaSec - 1.875) <= 0.1, `tcpaSec ${tcpa.tcpaSec} matches 1.875 s within tolerance`);
+  assert.ok(Math.abs(tcpa.missFt - 35.355) <= 1.0, `missFt ${tcpa.missFt} matches 35.355 ft within tolerance`);
+});
+
+test('Task 28: computeTcpa returns closing: false when aircraft are opening/diverging', () => {
+  const target = {
+    pm: { x: 1000, y: 0, z: 10000, vx: 200, vy: 0, vz: 0 },
+  };
+  const ac = {
+    pm: { x: 0, y: 0, z: 10000, vx: -200, vy: 0, vz: 0 },
+  };
+
+  const tcpa = computeTcpa(ac, target);
+  assert.equal(tcpa.closing, false);
+  assert.equal(tcpa.tcpaSec, 0);
+  assert.ok(Math.abs(tcpa.missFt - 1000) <= 1.0, `missFt ${tcpa.missFt} reflects initial separation`);
+});
+
+test('Task 28: aimPoint displaces aim point out-of-plane when TCPA gate triggers (<75 ft, 0.5-1.5 s)', () => {
+  // Set up geometry where TCPA is 1.0 s (within [0.5, 1.5] s) and miss distance is 50 ft (< 75 ft)
+  // Target at (300, 50, 10000), vx = -150, vy = 0, vz = 0
+  // Ac at (0, 0, 10000), vx = 150, vy = 0, vz = 0
+  // r = (300, 50, 0), vRel = (-300, 0, 0), vv = 90000, rv = -90000
+  // tcpaSec = 1.0 s, cpaX = 0, cpaY = 50, cpaZ = 0 -> missFt = 50 ft (< 75 ft)
+  // Target wings level -> turnPlaneNormal is (0, 0, 1)
+  // acPos.z - targetPos.z = 0 -> dot(acPos - targetPos, n) = 0 >= 0 -> offset is +85 ft along n (z)
+  const setup = { ...ENERGY_DEFAULT_SETUP, pursuit: 'pure' };
+  const target = {
+    pm: { x: 300, y: 50, z: 10000, vx: -150, vy: 0, vz: 0 },
+    turnDir: 0,
+    g: 1.0,
+  };
+  const ac = {
+    pm: { x: 0, y: 0, z: 10000, vx: 150, vy: 0, vz: 0 },
+    deconflicting: false,
+  };
+
+  const baseAim = { x: target.pm.x, y: target.pm.y, z: target.pm.z };
+  const aim = aimPoint(setup, target, ac);
+
+  assert.equal(ac.deconflicting, true);
+  assert.equal(aim.x, baseAim.x);
+  assert.equal(aim.y, baseAim.y);
+  assert.ok(Math.abs(aim.z - (baseAim.z + DECONFLICTION_OFFSET_FT)) <= 1.0);
+
+  // Also verify turning defender produces out-of-plane offset orthogonal to turn plane
+  const turnTarget = {
+    pm: { x: 300, y: 0, z: 10000, vx: -150, vy: 0, vz: 0, up: { x: 0, y: 0, z: 1 } },
+    turnDir: 1,
+    g: 3.0,
+  };
+  const turnAc = {
+    pm: { x: 0, y: 50, z: 10000, vx: 150, vy: 0, vz: 0 },
+    deconflicting: false,
+  };
+  const n = turnPlaneNormal(turnTarget);
+  // n = cross((-150, 0, 0), (0, 0, 1)) = (0, 150, 0) -> normalized (0, 1, 0)
+  assert.ok(Math.abs(n.y - 1.0) <= 0.05);
+  const turnAim = aimPoint(setup, turnTarget, turnAc);
+  assert.equal(turnAc.deconflicting, true);
+  assert.ok(Math.abs(turnAim.y - (turnTarget.pm.y + DECONFLICTION_OFFSET_FT)) <= 1.0);
+});
+
+test('Task 28: aimPoint does not displace aim point when collisionAvoidance === false', () => {
+  const setup = { ...ENERGY_DEFAULT_SETUP, pursuit: 'pure', collisionAvoidance: false };
+  const target = {
+    pm: { x: 300, y: 50, z: 10000, vx: -150, vy: 0, vz: 0 },
+    turnDir: 0,
+    g: 1.0,
+  };
+  const ac = {
+    pm: { x: 0, y: 0, z: 10000, vx: 150, vy: 0, vz: 0 },
+    deconflicting: false,
+  };
+
+  const baseAim = { x: target.pm.x, y: target.pm.y, z: target.pm.z };
+  const aim = aimPoint(setup, target, ac);
+
+  assert.equal(ac.deconflicting, false);
+  assert.deepEqual(aim, baseAim);
+});
+
 
 

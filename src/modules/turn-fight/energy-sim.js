@@ -42,6 +42,10 @@ export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pit
 /** The pursuits a screen offers. A setup also accepts 'none' (nobody chases), for tests and what-ifs; it is not one of the choices. */
 export const PURSUITS = Object.freeze(['tactical', 'pure', 'lead', 'lag']);
 export const COLLISION_HITBOX_FT = 35.0; // CT-156 wingspan 33.4 ft, length 33.3 ft
+export const TCPA_GATE_MIN_SEC = 0.5;
+export const TCPA_GATE_MAX_SEC = 1.5;
+export const TCPA_MISS_GATE_FT = 75.0;
+export const DECONFLICTION_OFFSET_FT = 85.0; // 85 ft out-of-plane clearance
 /**
  * Energy mode starts each aircraft between the hard deck and this height.
  * Above ENERGY_ACCURATE_MAX_FT the model's turn rate reads low (core is fixing
@@ -415,6 +419,7 @@ function newAircraft(who, pose, p, kias, forceG) {
     overG: false, overGReason: '', overGEver: false,
     stall: false, stallReason: '', stallEver: false,
     collided: false,
+    deconflicting: false,
     onShaker: false, chaseLimited: false, aim: null,
     rolling: false, rollDegPerSec: 0,
     ctl: { mode: 'pending', forceG: forceG ?? null, stallTimer: 0, stallCond: false, prevKias: kias, kiasRateEff: 0, mptEvalTimer: 0, lockoutTimer: 0, mptTurnDeg: 0, wezTrackSec: 0 },
@@ -1497,22 +1502,90 @@ export function tacticalAimCalculation(p, target, ac) {
   return { aim, wLag, wLead, wPure, label };
 }
 
+/**
+ * Analytical Time-to-Closest-Point-of-Approach (TCPA) and Miss Distance (Task 28):
+ * Closed-form 3D vector calculation of CPA time and projected spatial clearance.
+ */
+export function computeTcpa(ac, target) {
+  if (!ac || !target || !ac.pm || !target.pm) {
+    return { tcpaSec: Infinity, missFt: Infinity, closing: false };
+  }
+  const rx = (target.xFt ?? target.pm.x ?? 0) - (ac.xFt ?? ac.pm.x ?? 0);
+  const ry = (target.yFt ?? target.pm.y ?? 0) - (ac.yFt ?? ac.pm.y ?? 0);
+  const rz = (target.zFt ?? target.pm.z ?? 0) - (ac.zFt ?? ac.pm.z ?? 0);
+  const vx = (target.pm.vx ?? 0) - (ac.pm.vx ?? 0);
+  const vy = (target.pm.vy ?? 0) - (ac.pm.vy ?? 0);
+  const vz = (target.pm.vz ?? 0) - (ac.pm.vz ?? 0);
+  const vv = vx * vx + vy * vy + vz * vz;
+  if (vv < 1.0) {
+    return { tcpaSec: Infinity, missFt: Math.hypot(rx, ry, rz), closing: false };
+  }
+  const rv = rx * vx + ry * vy + rz * vz;
+  if (rv >= 0) {
+    return { tcpaSec: 0, missFt: Math.hypot(rx, ry, rz), closing: false };
+  }
+  const tcpaSec = -rv / vv;
+  const cpaX = rx + vx * tcpaSec;
+  const cpaY = ry + vy * tcpaSec;
+  const cpaZ = rz + vz * tcpaSec;
+  const missFt = Math.hypot(cpaX, cpaY, cpaZ);
+  return { tcpaSec, missFt, closing: true };
+}
+
+/**
+ * Defender turn-plane normal vector n_hat (Task 28):
+ * In a turn, n_hat is orthogonal to velocity and lift/normal axis (V x up).
+ * In straight/wings-level flight, falls back to local vertical {0, 0, 1}.
+ */
+export function turnPlaneNormal(target) {
+  if (!target || !target.pm) return { x: 0, y: 0, z: 1 };
+  if (Math.abs(target.turnDir || 0) > 0.1 && (target.g ?? 1.0) > 1.2) {
+    const up = target.pm.up || { x: 0, y: 0, z: 1 };
+    const n = cross(velOf(target.pm), up);
+    const nl = len(n);
+    return nl > 1e-6 ? scale(n, 1 / nl) : { x: 0, y: 0, z: 1 };
+  }
+  return { x: 0, y: 0, z: 1 };
+}
+
 /** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), the curved Control Zone 1,500 ft behind (lag), or continuous dynamic blend (tactical). */
 export function aimPoint(p, target, ac = null) {
   if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
+  let aim;
   if (p.pursuit === 'lead') {
-    return add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
+    aim = add(posOf(target.pm), scale(velOf(target.pm), p.leadSec));
+  } else if (p.pursuit === 'lag') {
+    if (p.lagSec === 0) aim = posOf(target.pm);
+    else aim = curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
+  } else if (p.pursuit === 'tactical') {
+    aim = tacticalAimCalculation(p, target, ac).aim;
+  } else {
+    aim = posOf(target.pm);
   }
-  if (p.pursuit === 'lag') {
-    if (p.lagSec === 0) return posOf(target.pm);
-    return curvedControlZonePoint(target, 1500 * (p.lagSec ?? 1));
-  }
-  if (p.pursuit === 'tactical') {
-    return tacticalAimCalculation(p, target, ac).aim;
-  }
-  return posOf(target.pm);
-}
 
+  aim = { x: aim.x, y: aim.y, z: aim.z };
+
+  if (ac && ac.pm && target && target.pm && p?.collisionAvoidance !== false) {
+    const tcpa = computeTcpa(ac, target);
+    if (tcpa.closing && tcpa.tcpaSec >= TCPA_GATE_MIN_SEC && tcpa.tcpaSec <= TCPA_GATE_MAX_SEC && tcpa.missFt < TCPA_MISS_GATE_FT) {
+      ac.deconflicting = true;
+      const n = turnPlaneNormal(target);
+      const acPos = { x: ac.xFt ?? ac.pm.x ?? 0, y: ac.yFt ?? ac.pm.y ?? 0, z: ac.zFt ?? ac.pm.z ?? 0 };
+      const targetPos = { x: target.xFt ?? target.pm.x ?? 0, y: target.yFt ?? target.pm.y ?? 0, z: target.zFt ?? target.pm.z ?? 0 };
+      const offsetSign = dot(sub(acPos, targetPos), n) >= 0 ? 1 : -1;
+      const offsetFt = offsetSign * DECONFLICTION_OFFSET_FT;
+      aim.x += n.x * offsetFt;
+      aim.y += n.y * offsetFt;
+      aim.z += n.z * offsetFt;
+    } else {
+      ac.deconflicting = false;
+    }
+  } else if (ac) {
+    ac.deconflicting = false;
+  }
+
+  return aim;
+}
 
 /**
  * Pursuit: point the nose at the aim point with a lift vector that also carries
@@ -1533,7 +1606,7 @@ function controlPursuit(ctx) {
   const vHat = unit(velOf(ac.pm));
   const vFtps = f.ktas * KT_TO_FTPS;
   const calc = p.pursuit === 'tactical' ? tacticalAimCalculation(p, other, ac) : null;
-  const aim = calc ? calc.aim : aimPoint(p, other, ac);
+  const aim = aimPoint(p, other, ac);
   if (calc) {
     ac.why = `${calc.label} after first nose-on`;
   }
