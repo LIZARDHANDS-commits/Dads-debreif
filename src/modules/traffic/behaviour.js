@@ -28,7 +28,7 @@ const FINAL_WORDS = { touch_and_go: 'touch-and-go', full_stop: 'full stop', go_a
 
 /**
  * The tag for aircraft `a` (the sim's own state for it), or null when none shows (landed, not started, or in a PFL,
- * whose own tag shows instead). `ctx` = { route, fieldElevFt, onFinal, toThresholdFt, windowFt }: the route it is on,
+ * whose own tag shows instead). `a.siPattern` is true for an aircraft flying the SI pattern (sim.js). `ctx` = { route, fieldElevFt, onFinal, toThresholdFt, windowFt }: the route it is on,
  * the field height, whether it is lined up on final, and how far it is from the threshold and the window is.
  */
 export function behaviourOf(a, ctx = {}) {
@@ -53,7 +53,7 @@ function patternOf(a, ctx) {
   if (a.highKeyFlight) return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
   if (flown === 'CLOSED_FLOWN') return { pattern: 'CLOSED', next: 'downwind next', stage: 'closed' };
   if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };
-  if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'STRAIGHT-IN', next: 'final next', stage: 'straight_in' };
+  if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'STRAIGHT-IN', next: 'final next', stage: 'straight_in_downwind' };
   if (flown === 'EXTEND_FLOWN') {
     return a.phase === 'final_turn' || a.phase === 'final'
       ? { pattern: 'FINAL', next: finalWord(a), stage: 'final' }
@@ -68,7 +68,7 @@ function patternOf(a, ctx) {
   }
   switch (a.phase) {
     case 'climb': case 'climb_out': case 'touch_and_go': return { pattern: 'UPWIND', next: 'crosswind next', stage: 'upwind' };
-    case 'crosswind': case 'outer_downwind': return { pattern: 'OUTER', next: 'initial next', stage: 'outer' };
+    case 'crosswind': case 'outer_downwind': return { pattern: 'OUTER', next: a.siPattern ? 'straight-in next' : 'initial next', stage: 'outer' };
     case 'initial': return { pattern: 'OHB', next: 'break next', stage: 'initial' };
     case 'break': return { pattern: 'OHB', next: 'final turn next', stage: 'break' };
     case 'downwind': return { pattern: 'OHB', next: 'final turn next', stage: 'inner_downwind' };
