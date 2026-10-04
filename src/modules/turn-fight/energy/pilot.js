@@ -5,6 +5,7 @@
 //
 // TF-57 PR 1 moved these here from energy-sim.js unchanged; PR 3 makes this the one place that picks moves.
 import { splitST6A } from '../../../core/t6-performance.js';
+import { FIGHT_STEP_SEC } from '../sim.js';
 import { MPT_WITHIN_KT, IMMELMANN_BAND_KIAS, PITCH_BACK_BAND_KIAS, SLICE_ENTRY_LOW_KIAS, TUNING, MOVE_LABELS, ENERGY_DEFAULT_SETUP, round, feet } from './setup.js';
 import { noseAngleDeg, noseOffAzDeg } from './frame.js';
 import { startMove, handToMpt, startPursuit } from './moves/index.js';
@@ -211,19 +212,22 @@ function endLostChase(state, ac, other, kias, d) {
  * when a chase is possible (pursuit not none), the fight is not lost below the deck, the jet is more than the deck
  * margin above the deck and not stalled or OVER G, and the best run is one a pilot would fly.
  *
- * The look-ahead is spread over the fight's steps (TF-62, Patrick 4 Oct 19:38Z): each step works through at most
- * smartLookStepsPerStep of its dry-run steps, so the screen never freezes, and the pilot starts the move once the
- * look-ahead is done (about half a second later, typically; an estimate). 0 works it all out in this step, as before.
+ * The pilot takes smartDecisionSec to decide (TF-62, Patrick 4 Oct 19:38Z: spread it out): the look-ahead starts from
+ * where the jet will be then, flying on as it is, and its work is shared evenly over the steps until then, so the
+ * screen never freezes; the move starts at that moment. 0 decides in this step, all at once, as before.
  * Returns true when it started a move in this step.
  */
 function smartPickNow(state, ac, kias) {
   if (!canPick(state, ac)) return false;
   const p = state.setup;
   ac.ctl.mptEvalTimer = 0;
-  const spread = p.smartLookStepsPerStep ?? 0;
-  if (!(spread > 0)) return startPick(state, ac, pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20), kias);
-  PENDING.set(ac, tacticalPickSteps(state, ac.who, p.tacticalLookaheadSec ?? 20));
-  return workOnPick(state, ac, kias);
+  const sec = p.tacticalLookaheadSec ?? 20;
+  const steps = Math.round((p.smartDecisionSec ?? 0) / FIGHT_STEP_SEC);
+  if (steps < 1) return startPick(state, ac, pickTacticalMove(state, ac.who, sec), kias);
+  const gen = tacticalPickSteps(state, ac.who, sec, steps * FIGHT_STEP_SEC);
+  const first = gen.next(); // the copy flies on to the moment of the pick, then says how much work is left
+  PENDING.set(ac, { gen, stepsLeft: steps, perStep: Math.ceil((first.value?.work ?? 0) / steps) + 1, result: first.done ? first.value : null });
+  return false;
 }
 
 /** A look-ahead being worked through, per aircraft. Kept off the fight state, so copies of the fight (dry runs) never carry one. */
@@ -243,16 +247,23 @@ function startPick(state, ac, best, kias) {
   return true;
 }
 
-/** One step's share of a pending look-ahead; the pick is dropped if the jet can no longer use it (a chase began, a stall, below the deck margin). */
+/**
+ * One step's share of a pending look-ahead; at the moment of the pick it starts the move. Dropped if the jet can no
+ * longer use it: a chase began, a stall, or it came within the deck margin.
+ */
 function workOnPick(state, ac, kias) {
-  const steps = PENDING.get(ac);
-  if (!steps) return false;
+  const job = PENDING.get(ac);
+  if (!job) return false;
   if (!canPick(state, ac) || (ac.ctl.mode !== 'mpt' && ac.ctl.mode !== 'levelMpt')) { PENDING.delete(ac); return false; }
-  for (let i = 0; i < state.setup.smartLookStepsPerStep; i++) {
-    const next = steps.next();
-    if (next.done) { PENDING.delete(ac); return startPick(state, ac, next.value, kias); }
+  job.stepsLeft -= 1;
+  const share = job.stepsLeft <= 0 ? Infinity : job.perStep;
+  for (let i = 0; i < share && !job.result; i++) {
+    const next = job.gen.next();
+    if (next.done) job.result = next.value;
   }
-  return false;
+  if (job.stepsLeft > 0) return false;
+  PENDING.delete(ac);
+  return startPick(state, ac, job.result, kias);
 }
 
 /**

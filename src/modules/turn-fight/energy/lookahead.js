@@ -202,10 +202,16 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
 /**
  * pickTacticalMove one dry step at a time (TF-62): a generator that yields after each step of a candidate's dry run and
  * returns the pick, so the pilot can spread the look-ahead over several fight steps instead of freezing the screen.
- * The fight is copied once, on the first next(), so every candidate starts from the same moment.
+ * The fight is copied once, on the first next(), so every candidate starts from the same moment. With `leadSec` the
+ * copy first flies on that long as it is (the jet keeps flying its move while the pilot thinks), so the candidates
+ * start from where the jet will be when the pick is made. Its first yield is { work }: the most dry steps still to come.
  */
-export function* tacticalPickSteps(live, who, lookaheadSec = (live.setup?.tacticalLookaheadSec ?? 20)) {
+export function* tacticalPickSteps(live, who, lookaheadSec = (live.setup?.tacticalLookaheadSec ?? 20), leadSec = 0) {
   const state = structuredClone(live);
+  if (leadSec > 0) {
+    state.dry = true;
+    for (let t = 0; t < leadSec - 1e-9 && !state.stopped; t += FIGHT_STEP_SEC) stepOnce(state);
+  }
   const whoName = typeof who === 'string' ? who : (who?.who ?? 'blue');
   const otherName = whoName === 'blue' ? 'red' : 'blue';
   const meAc = state[whoName];
@@ -213,6 +219,7 @@ export function* tacticalPickSteps(live, who, lookaheadSec = (live.setup?.tactic
   const setup = state.setup ?? ENERGY_DEFAULT_SETUP;
 
   const candidates = getFeasibleMoves(meAc, otherAc, setup);
+  yield { work: candidates.length * Math.ceil(lookaheadSec / FIGHT_STEP_SEC) };
   if (!candidates.length) {
     return {
       move: 'mpt',
