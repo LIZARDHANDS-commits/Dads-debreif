@@ -44,7 +44,7 @@ How to read this plan: steps are in the order to do them. Only what is in a step
 - [ ] TF-Q13: keep the 10-minute stop, shown in plain words? (`pf/reset/1-requirements/questions.md:135`)
 - [ ] TF-Q14: keep the names "BFM Energy Fight" and "Turn Circle Geometry"? (`pf/reset/1-requirements/questions.md:136`)
 - [ ] TF-Q16: when the jets start at different heights, how big a height split counts for first nose-on (0 to 10 ft, 100 ft, or the canopy look the code uses)? The code does neither of the first two; Patrick decides (`pf/reset/1-requirements/questions.md:138`).
-- [ ] Questions for Dad, kept in `../../questions-for-dad.md`: TF-Q6 (at what point a jet leaves its turn and chases) and TF-Q10 (which of the six check-list items go to Dad and in what words: pitch back minimum turn, the MPT's role, the pursuit commitment window, the pursuit energy floor) (`pf/reset/1-requirements/questions.md:128`, `pf/reset/1-requirements/questions.md:132`, `archive/docs/handover/turn-fight.md:136`).
+- [x] Answered by Patrick on 4 Oct, in place of Dad (decisions TF-55 and TF-56): Questions for Dad, kept in `../../questions-for-dad.md`: TF-Q6 (at what point a jet leaves its turn and chases) and TF-Q10 (which of the six check-list items go to Dad and in what words: pitch back minimum turn, the MPT's role, the pursuit commitment window, the pursuit energy floor) (`pf/reset/1-requirements/questions.md:128`, `pf/reset/1-requirements/questions.md:132`, `archive/docs/handover/turn-fight.md:136`).
 
 ## Step 5. Sign-off
 

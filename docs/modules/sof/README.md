@@ -36,14 +36,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 
 ### For Dad
 
-Flying calls, kept in `../../questions-for-dad.md` and sent to him in one message when Patrick chooses. The tool uses the best guess until he answers.
-
-- **SOF-Q4:** see `../../questions-for-dad.md`
-- **SOF-Q5:** see `../../questions-for-dad.md`
-- **SOF-Q6:** see `../../questions-for-dad.md`
-- **SOF-Q7:** see `../../questions-for-dad.md`
-- **SOF-Q8:** see `../../questions-for-dad.md`
-- **SOF-Q12:** see `../../questions-for-dad.md`
+All answered by Patrick on 4 Oct, in place of Dad: SOF-Q5 to Q8 are decisions SOF-33 to SOF-36 in `decisions.md`; SOF-Q4 and SOF-Q12 (wind and the favoured runway) are SOF-37, with both on the future list (`future.md`). The answers are also marked in `../../questions-for-dad.md`.
 
 Dad's flying questions for every module are in `../../questions-for-dad.md`.
 

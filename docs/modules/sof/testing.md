@@ -53,7 +53,7 @@ Dad's open SOF questions (SOF-Q5 to SOF-Q8, SOF-Q12) are settings or named defau
 | SOF-R24 Not colour alone, keyboard, text only | S5; a report that looks like HTML shows as text; the accessibility scan; keyboard walks through the banner, waves and timeline | Each change (scan and unit); sign-off (keyboard walks) | Tab through the screen |
 | SOF-R25 The SOF checklist is run and signed | No automatic check. `archive/docs/checklists/sof.md` is updated for the one-screen rebuild and run after it (SOF-Q13), the same day against NAV CANADA and V6 | Sign-off | The checklist itself |
 | SOF-R26 The everyday extras | New: the Zulu and local clocks agree with the DTG; the radar loop steps through the last hour's pictures, each with its own time; tapping a card centres the map on that airfield; Other airfields and About open from buttons and start closed. The NATO chart, Large text and the links are on the future list and get no tests | Each change (unit); sign-off (browser) | |
-| SOF-R27 Wind and crosswind | New: crosswind worked out by hand for each runway from the wind and the runway heading; amber just over 15 kt dry (10 wet, 5 icy), red just over 25 kt dry; a 30 kt wind or gust gives the warning and 35 kt the cease-flying caution; changing a setting changes the call; nothing stops past a limit (S4, T10) | Each change | Dad checks the numbers and their page references |
+| SOF-R27 Wind and crosswind | Future list (4 Oct 09:22Z), not tested now. When built: crosswind worked out by hand for each runway from the wind and the runway heading; amber just over 15 kt dry (10 wet, 5 icy), red just over 25 kt dry; a 30 kt wind or gust gives the warning and 35 kt the cease-flying caution; changing a setting changes the call; nothing stops past a limit (S4, T10) | Each change | Dad checks the numbers and their page references |
 | SOF-R28 Extra map layers, off by default except radar coverage | Fresh map: radar, lightning and radar coverage on, the rest off; each turns on and off; label overlap as in SOF-R14 | Each change (unit); sign-off (browser) | |
 
 **At SOF sign-off:** both SOF browser files in full, the hands-on checklist above and `archive/docs/checklists/sof.md`, and one look in real Safari. Sign-off comes after the one-screen rebuild (SOF-Q13).
@@ -77,7 +77,7 @@ Anyone can run it, in the real app, from the module's default start, on a laptop
 - [ ] Click every control once (SOF-R20)
 - [ ] Tab through the screen (SOF-R24)
 - [ ] The checklist itself (SOF-R25)
-- [ ] Dad checks the numbers and their page references (SOF-R27)
+- [ ] Dad checks the numbers and their page references (SOF-R27; future list, only once it is built)
 
 > The old checklist below was written before the reset. It is refreshed against the requirements above when the module's work resumes: lines that test V6 numbers or exact times are rewritten or dropped.
 
