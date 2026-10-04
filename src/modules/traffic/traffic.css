@@ -955,6 +955,24 @@
   opacity: 0.5;
 }
 
+/* Traffic Sim version badge in playback bar */
+[data-module='traffic'] .traffic-version-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: var(--radius, 4px);
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.4);
+  color: #58a6ff;
+  user-select: none;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
 /* Narrow screens: one column, the map and its bar first, then the routes and the aircraft, so the
    map keeps a useful size (a phone, or a small window). The page scrolls instead of each column. */
 @media (max-width: 900px) {

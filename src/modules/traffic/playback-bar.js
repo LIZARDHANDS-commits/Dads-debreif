@@ -12,6 +12,7 @@
 // and Engine-out reach layers when `available` doesn't say they exist.
 import { h } from '../../ui-kit/dom.js';
 import { DEFAULTS, SPEEDS, LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
+import { TRAFFIC_VERSION } from './version.js';
 
 /** The layers, in the order the Layers menu lists them (the spec's Layers row). `needs` is a feature that has to exist. */
 export const LAYER_ITEMS = Object.freeze([
@@ -149,12 +150,18 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
   let mode = 'paused';
   let note = null;
   const makeInstant = (fn) => {
-    let last = 0;
+    let lastPointerTime = 0;
     return (e) => {
       if (e && e.button !== undefined && e.button !== 0) return;
+      const isPointerDown = e?.type === 'pointerdown';
+      const isClick = e?.type === 'click';
       const now = Date.now();
-      if (now - last < 250) return;
-      last = now;
+      if (isClick && (now - lastPointerTime < 350)) {
+        return;
+      }
+      if (isPointerDown) {
+        lastPointerTime = now;
+      }
       fn?.(e);
     };
   };
@@ -353,6 +360,16 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
 
   const fit = button('Fit', () => on.fit(), { title: 'Frame the first pattern shown and the aircraft near it' });
 
+  const versionBadge = h(
+    'span',
+    {
+      class: 'traffic-version-badge',
+      title: `Traffic Pattern Sim ${TRAFFIC_VERSION}`,
+      'aria-label': `Traffic Pattern Sim version ${TRAFFIC_VERSION}`,
+    },
+    TRAFFIC_VERSION,
+  );
+
   const element = h(
     'div',
     { class: 'traffic-bar', role: 'group', 'aria-label': 'Playback and view' },
@@ -361,7 +378,7 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       { class: 'bar-row bar-transport' },
       play, rewind, back, ahead, reset,
       h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
-      clock, status,
+      clock, status, versionBadge,
     ),
     h('div', { class: 'bar-row bar-view' }, wind, runwaySelect, viewSwitch, fit, layers.element),
   );
