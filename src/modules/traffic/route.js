@@ -305,6 +305,10 @@ function sameSignature(entry, route, options) {
   const sig = entry.sig, pts = route.points;
   if (sig.length !== 7 + 5 * pts.length) return false;
   if (sig[0] !== route.kind || !Object.is(sig[1], options.flyRoundedTurns) || !Object.is(sig[2], options.radiusFromG) || !Object.is(sig[3], options.manualRadiusFt) || !Object.is(sig[4], options.trueArcs) || !Object.is(sig[5], options.windKt ?? 0) || !Object.is(sig[6], options.windFromDeg ?? 360)) return false;
+  // A flown path (a manoeuvre flown once by the simulated pilot) is never edited in place, only given a new points
+  // list, and it can hold thousands of points: comparing each one on every call made a gliding PFL cost about 3 ms
+  // a step. The same list is the same path.
+  if (route.kind === 'flown') return entry.pts === pts;
   for (let i = 0, k = 7; i < pts.length; i++, k += 5) {
     const p = pts[i];
     if (!Object.is(sig[k], p.x) || !Object.is(sig[k + 1], p.y) || !Object.is(sig[k + 2], p.alt) || !Object.is(sig[k + 3], p.kt) || !Object.is(sig[k + 4], p.g)) return false;
@@ -324,7 +328,7 @@ export function routePath(route, options = DEFAULT_ROUTE_OPTIONS) {
   if (!entries) pathCache.set(route, entries = []);
   for (const entry of entries) if (sameSignature(entry, route, options)) return entry.path;
   const path = buildPath(route, options);
-  entries.push({ sig: signatureOf(route, options), path });
+  entries.push({ sig: signatureOf(route, options), path, pts: route.points });
   if (entries.length > MOST_PATHS_PER_ROUTE) entries.shift();
   return path;
 }

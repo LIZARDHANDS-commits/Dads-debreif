@@ -401,8 +401,8 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 - **Layers menu**: trails, altitude/speed labels, waypoint points, leg distances, conflict bubbles, caution rings, satellite photo. Under More: opacity, grid order, photo alignment.
 - **Routes list**: one line per route with color, kind, and link; "+ New route" dropdown.
 - **Selected route**: name, point table (number, label, alt, speed phase, bank/G).
-- **Spawner**: Pattern dropdown, Start Point dropdown, model (KIN/NRG), delay, + Spawn, + Pair (20 s apart, max 200 aircraft), Clear finished.
-- **Aircraft list**: callsign, type, pattern, altitude, airspeed, status, GS/crab, and Maneuver menu (Breakout, Go-Around, PFL, Remove).
+- **Spawner**: Pattern dropdown, Start Point dropdown, model (KIN/NRG), delay, + Spawn, + Pair (20 s apart, max 200 aircraft), Clear finished, and **Spawn a conflict** (Patrick, 4 Oct 19:24Z): with an aircraft selected, it adds one on the spawner's route, started at the point and after the delay (up to 2 minutes) that bring it within the caution distance (500 ft and 500 ft) of the selected aircraft at least 20 s ahead, appearing at least 1 NM from everyone and meeting no one else first (estimates). It works this out by flying everyone ahead on a copy of the run with no deconfliction (`scenario-timing.js` `conflictSpawnPlan`); if nothing on that route meets it in the next 3 minutes, it says so and adds nothing. Then the deconfliction, or the person, manages it.
+- **Aircraft list**: callsign, type, pattern, altitude, airspeed, status, GS/crab, and Maneuver menu (Breakout, Go-Around, PFL, Remove). It stays on one screen (Patrick, 4 Oct 19:27Z): rows that would run past the bottom of the window wait behind a "More (n)" button, which opens the whole list and becomes "Show fewer"; the selected aircraft always shows.
 - **Conflicts**: pair readouts with lateral and vertical separation in red (⚠ CONFLICT) or yellow (△ CAUTION).
 - **Settings menu**: all numbers and toggles live in one closed "Traffic settings" panel (R22).
 

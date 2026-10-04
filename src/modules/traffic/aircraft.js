@@ -16,6 +16,7 @@ import { getPflBadge } from './map2d.js';
 const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS: 'Delay', pairGapS: 'Pair gap' });
 
 import { SPAWN_TYPES } from './types.js';
+import { conflictSpawnPlan } from './scenario-timing.js';
 export { SPAWN_TYPES };
 
 export const PILOT_SPAWN_PRESETS = Object.freeze([
@@ -172,6 +173,40 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     onChange();
   }
 
+  // Spawn a conflict (Patrick, 4 Oct 19:24Z): a new aircraft on the spawner's route, started where and when it will
+  // meet the selected aircraft, so that one of them has to manage it (scenario-timing.js conflictSpawnPlan).
+  const routeName = (id) => setup.routes.find((r) => r.id === id)?.name ?? id;
+  function spawnConflict() {
+    const targetId = selectedAircraftId;
+    const target = sim.state().aircraft.find((a) => a.id === targetId);
+    if (!target || target.status !== 'flying') return say('Spawn a conflict: select a flying aircraft first.');
+    if (sim.state().aircraft.length + 1 > MOST_AIRCRAFT) return say(`Nothing was added: the most is ${MOST_AIRCRAFT} aircraft. Clear finished aircraft or remove some first.`);
+    const validRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
+    const routeId = spawnRouteId(settings.get().spawnRoute, validRoutes.length > 0 ? validRoutes : setup.routes);
+    say(`Working out where an aircraft on ${routeName(routeId)} meets ${targetId}…`);
+    // A moment later, so the line above shows while it works (it flies everyone ahead on a copy of the run).
+    timers.after(0, () => {
+      let plan = null;
+      try {
+        plan = conflictSpawnPlan(sim, setup, targetId, routeId, { type: settings.get().spawnType });
+      } catch (err) {
+        console.error('Spawn a conflict failed:', err);
+      }
+      if (!plan) return say(`No start on ${routeName(routeId)} meets ${targetId} in the next 3 minutes. Try another route.`);
+      try {
+        const id = sim.spawn({ type: settings.get().spawnType, routeId, startPoint: plan.startPoint, delaySec: plan.delaySec });
+        const route = setup.routes.find((r) => r.id === routeId);
+        const where = route?.points?.[plan.startPoint - 1]?.label ?? `point ${plan.startPoint}`;
+        const when = plan.delaySec > 0 ? `in ${Math.round(plan.delaySec)} s` : 'now';
+        say(`Added ${id} on ${routeName(routeId)} at ${where}, ${when}: it meets ${targetId} in about ${Math.round(plan.inSec)} s.`);
+      } catch (err) {
+        if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
+        say(engineProblem(err));
+      }
+      onChange();
+    });
+  }
+
   function clearFinished() {
     const cleared = sim.clearFinished();
     say(cleared ? `Cleared ${cleared} finished aircraft.` : 'No finished aircraft to clear.');
@@ -208,6 +243,13 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const pairLabel = () => `+ Pair, ${settings.get().pairGapS} s apart`;
   const pairButton = h('button', { type: 'button', class: 'button', onclick: () => spawn(true) }, pairLabel());
   const spawnButton = h('button', { type: 'button', class: 'button primary', onclick: () => spawn(false) }, '+ Spawn');
+  const conflictButton = h('button', { type: 'button', class: 'button', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict');
+  // The button waits for a selected aircraft (Patrick: "when an aircraft is selected").
+  const conflictButtonFollows = () => {
+    const on = Boolean(selectedAircraftId);
+    conflictButton.disabled = !on;
+    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : 'Select an aircraft first';
+  };
 
   // PFL From Area: an aircraft already gliding with the engine out, somewhere in the training area. Closed until asked for.
   const pflBox = (id, label, unit, value, min, max) => {
@@ -260,6 +302,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       spawnButton,
       pairButton,
       h('button', { type: 'button', class: 'button', onclick: clearFinished }, 'Clear finished'),
+      conflictButton,
     ),
     pflPanel,
     message,
@@ -284,7 +327,36 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   // ---- the aircraft list and the conflicts ------------------------------------
   const listBody = h('ul', { class: 'aircraft-list' });
   const emptyNote = h('p', { class: 'aircraft-empty' }, 'No aircraft yet. Use + Spawn to add one.');
-  const aircraft = h('section', { class: 'aircraft', 'aria-label': 'Aircraft' }, h('h3', { class: 'traffic-subtitle' }, 'Aircraft'), listBody, emptyNote);
+  // The list stays on one screen (Patrick, 4 Oct 19:27Z): rows that would run past the bottom of the window wait
+  // behind a "More" button, which opens the whole list (and closes it again). The selected aircraft always shows.
+  let showAll = false;
+  const moreButton = h('button', {
+    type: 'button',
+    class: 'button aircraft-more',
+    hidden: true,
+    onclick: () => {
+      showAll = !showAll;
+      fold();
+    },
+  }, 'More');
+  function fold() {
+    const lis = [...(listBody.children || listBody.childNodes || [])];
+    for (const li of lis) li.hidden = false;
+    moreButton.hidden = true;
+    const room = typeof window !== 'undefined' && Number.isFinite(window.innerHeight) ? window.innerHeight : null;
+    if (room === null || !listBody.getBoundingClientRect) return; // no screen to measure (tests)
+    const limit = room - 44; // leave room for the button itself
+    const past = lis.filter((li) => (li.getBoundingClientRect?.().bottom ?? 0) > limit && li.dataset?.aircraftId !== selectedAircraftId);
+    if (!past.length) return;
+    moreButton.hidden = false;
+    if (showAll) {
+      moreButton.textContent = 'Show fewer';
+      return;
+    }
+    for (const li of past) li.hidden = true;
+    moreButton.textContent = `More (${past.length})`;
+  }
+  const aircraft = h('section', { class: 'aircraft', 'aria-label': 'Aircraft' }, h('h3', { class: 'traffic-subtitle' }, 'Aircraft'), listBody, moreButton, emptyNote);
 
   const conflictBody = h('ul', { class: 'conflict-list' });
   const noConflicts = h('p', { class: 'conflict-none' }, noConflictsText);
@@ -296,6 +368,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   function setSelected(id) {
     selectedAircraftId = id;
+    conflictButtonFollows();
     for (const li of (listBody.children || listBody.childNodes || [])) {
       const isTarget = li.dataset?.aircraftId === id;
       li.classList?.toggle?.('is-selected', isTarget);
@@ -303,6 +376,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       if (isTarget) classes.push('is-selected');
       li.setAttribute?.('class', classes.join(' '));
     }
+    fold();
   }
 
   function findChildWithClass(parent, cls) {
@@ -523,6 +597,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         );
       }
       emptyNote.hidden = rows.length > 0;
+      fold();
     } else {
       // In-place update: altitude and speed numbers update smoothly without destroying button DOM
       const lis = listBody.childNodes || listBody.children || [];
