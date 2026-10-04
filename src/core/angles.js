@@ -98,6 +98,26 @@ export function headingCrossAngleDeg(h1, h2) {
   return absAngleDeg(h2 - h1);
 }
 
+/** The angle between two 3-D vectors in degrees, 0 to 180; null when either has no length. */
+function angleBetween3dDeg(a, b) {
+  const la = Math.hypot(a.x, a.y, a.z), lb = Math.hypot(b.x, b.y, b.z);
+  if (!(la > 0) || !(lb > 0)) return null;
+  const c = (a.x * b.x + a.y * b.y + a.z * b.z) / (la * lb);
+  return radToDeg(Math.acos(Math.min(1, Math.max(-1, c))));
+}
+
+/** 3-D aspect angle in degrees, 0 to 180: from the target's tail to the observer along the target's velocity (0 directly behind, 180 in front; SMM 16.16 para 40b). Positions { x, y, z }, velocity { x, y, z }. */
+export function aspectAngle3dDeg(observer, target, targetVel) {
+  if (!observer || !target || !targetVel) return null;
+  return angleBetween3dDeg(targetVel, { x: target.x - observer.x, y: target.y - observer.y, z: (target.z ?? 0) - (observer.z ?? 0) });
+}
+
+/** 3-D heading crossing angle in degrees, 0 to 180: the angle between the two velocity vectors (SMM 16.16 para 40c). */
+export function headingCrossAngle3dDeg(v1, v2) {
+  if (!v1 || !v2) return null;
+  return angleBetween3dDeg(v1, v2);
+}
+
 /** Compass heading in degrees (000 = north, clockwise) to a code heading in radians. */
 export function compassDegToHeadingRad(compassDeg) {
   return degToRad(90 - compassDeg);

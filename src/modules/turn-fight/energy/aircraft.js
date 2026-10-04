@@ -3,7 +3,7 @@
 // limits and keeps the readouts. Nothing here works out drag, thrust or the stall line itself.
 import { KT_TO_FTPS, G_FTPS2 } from '../../../core/units.js';
 import { wrapPi, degToRad, radToDeg } from '../../../core/angles.js';
-import { T6A_LIMITS, stallLimitG, tasToIasKt, t6aExcessFn, thrustPerWeight, dragPerWeight, energyHeightFt } from '../../../core/t6-performance.js';
+import { T6A_LIMITS, stallLimitG, tasToIasKt, energyHeightFt, excessFnFor } from '../../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../../core/point-mass.js';
 import { rollToward } from '../../../core/flight-math.js';
 import { MPT_WITHIN_KT, TUNING, shakerG, round, belowStallText } from './setup.js';
@@ -11,15 +11,6 @@ import { scale, unit, clamp, velOf, physicalBankDeg } from './frame.js';
 import { controlFor, isRolling } from './moves/index.js';
 import { handOver, reconsiderInMpt } from './pilot.js';
 import { smoothInputs } from './smoothing.js';
-
-/** (thrust − drag) ÷ weight at a throttle: 1 is maximum power, through core's function; less scales the thrust only. */
-export function excessFnFor(throttle) {
-  if (throttle === 1) return t6aExcessFn;
-  return (ktas, altFt, g) => {
-    const kias = tasToIasKt(ktas, altFt);
-    return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
-  };
-}
 
 export function newAircraft(who, pose, p, kias, forceG) {
   const pm = pointMassState({ x: pose.x, y: pose.y, altFt: pose.z, ktas: pose.ktas, headingRad: pose.headingRad });

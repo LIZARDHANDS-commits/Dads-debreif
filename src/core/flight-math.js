@@ -230,6 +230,9 @@ export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxA
   return { bankDeg: bankDeg + rate * dt, rollRateDps: rate };
 }
 
+/** easeRoll under a general name: it limits any value's rate and the rate's change (a G onset, a roll), not only bank. */
+export const easeValue = easeRoll;
+
 /**
  * G required for first-order damped flight path angle convergence toward targetClimbRad:
  * n = cos(climb) + (V / g) * omega * (targetClimb - climb).

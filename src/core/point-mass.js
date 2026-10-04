@@ -19,10 +19,12 @@ import { G_FTPS2, KT_TO_FTPS } from './units.js';
 const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 const len = (a) => Math.sqrt(dot(a, a));
 const scale = (a, k) => ({ x: a.x * k, y: a.y * k, z: a.z * k });
+const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
 const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
 
-/** The aircraft's up, square to the flight path, kept pointing the same way as prevUp. */
-function upFrom(vHat, prevUp) {
+/** The aircraft's up, square to the flight path, kept pointing the same way as prevUp. Exported for frames that must carry the vertical the same way (Turn Sim's slot). */
+export function upFrom(vHat, prevUp) {
   const c = vHat.z;
   let u = { x: -c * vHat.x, y: -c * vHat.y, z: 1 - c * vHat.z };
   let m = len(u);
@@ -106,4 +108,42 @@ export function pointMassFlight(state) {
     headingRad: Math.atan2(state.vy, state.vx),
     climbRad: Math.atan2(state.vz, horizontal),
   };
+}
+
+/**
+ * The G and bank (from the horizon, right positive) that give the lift vector `lift` (in G) for a path `vHat`
+ * with up `up`: the inverse of the step's lift. With no lift the bank is `fallbackBankRad`.
+ */
+export function gAndBankForLift(lift, vHat, up, fallbackBankRad = 0) {
+  const g = len(lift);
+  const rightC = cross(vHat, up);
+  const bankRad = g > 1e-9 ? Math.atan2(dot(lift, rightC) / g, dot(lift, up) / g) : fallbackBankRad;
+  return { g, bankRad };
+}
+
+/**
+ * The lift (in G) a pursuit asks for: it carries the weight and turns the path toward the aim at `gainPerSec`
+ * of turn rate per radian of pointing error. `toAim` is the vector from the aircraft to the aim point (any aim:
+ * pure, lead, lag or a slot), `vFtps` the true airspeed. Returns { wanted, weightPerp }; the caller caps it.
+ */
+export function liftTowardAim(vHat, toAim, vFtps, gainPerSec) {
+  const distance = len(toAim);
+  const weightPerp = sub({ x: 0, y: 0, z: 1 }, scale(vHat, vHat.z)); // the weight's part square to the path
+  let wanted = weightPerp;
+  if (distance > 1e-6) {
+    const u = scale(toAim, 1 / distance);
+    const error = Math.acos(Math.min(1, Math.max(-1, dot(u, vHat))));
+    const toward = sub(u, scale(vHat, dot(u, vHat)));
+    const m = len(toward);
+    if (m > 1e-9) wanted = add(weightPerp, scale(toward, (vFtps * gainPerSec * error / G_FTPS2) / m));
+  }
+  return { wanted, weightPerp };
+}
+
+/** The unit normal of a turn's plane, velocity × up; straight up when the caller says the aircraft is not turning. */
+export function turnPlaneNormal(vel, up, turning) {
+  if (!turning) return { x: 0, y: 0, z: 1 };
+  const n = cross(vel, up || { x: 0, y: 0, z: 1 });
+  const nl = len(n);
+  return nl > 1e-6 ? scale(n, 1 / nl) : { x: 0, y: 0, z: 1 };
 }

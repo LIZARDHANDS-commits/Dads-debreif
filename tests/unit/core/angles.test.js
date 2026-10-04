@@ -74,3 +74,12 @@ test('wrapDeg360 and the compass bearing of a vector (x east, y north)', () => {
   assert.ok(Math.abs(angles.compassDegFromVector(0, -1) - 180) < 1e-9);
   assert.ok(Math.abs(angles.compassDegFromVector(-1, 0) - 270) < 1e-9);
 });
+
+test('3-D aspect is 0 directly behind the target and 180 in front; 3-D HCA is the angle between the two paths', async () => {
+  const { aspectAngle3dDeg, headingCrossAngle3dDeg } = await import('../../../src/core/angles.js');
+  const v = { x: 300, y: 0, z: 0 };
+  assert.ok(Math.abs(aspectAngle3dDeg({ x: -1000, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, v)) < 1e-9);
+  assert.ok(Math.abs(aspectAngle3dDeg({ x: 1000, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, v) - 180) < 1e-9);
+  assert.ok(Math.abs(aspectAngle3dDeg({ x: 0, y: 0, z: -1000 }, { x: 0, y: 0, z: 0 }, v) - 90) < 1e-9, 'straight below is 90°');
+  assert.ok(Math.abs(headingCrossAngle3dDeg(v, { x: 0, y: 0, z: 300 }) - 90) < 1e-9, 'one level, one straight up: 90°');
+});

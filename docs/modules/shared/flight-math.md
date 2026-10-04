@@ -19,9 +19,14 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `rollToward(bank, target, maxDelta)` | flight-math.js | Rolls toward a bank by at most a step, the short way round | kinematics |
 | `bankDegFromTurnRate(v, rate)` | flight-math.js | Bank a turn at this rate needs at this true airspeed (ft/s); right turn positive | aero, atan(v × rate / g) |
 | `easeRoll(bank, rollRate, target, dt, limits)` | flight-math.js | One step of a smooth roll toward a bank: the roll rate builds up, holds at its limit and dies away so the wings stop on the target without overshoot | kinematics; the Traffic limits (45°/s, 90°/s²) are estimates |
+| `easeValue` | flight-math.js | easeRoll under a general name: limits any value's rate and the change of that rate (a G onset, a roll) | kinematics |
 | `dampedClimbG(...)` | flight-math.js | G to bring the flight path smoothly onto a target climb angle | kinematics |
 | `gFromTrack(p0, h0, p1, h1, dt)` | flight-math.js | G of a level turn read off a recorded track | aero |
 | `stepPointMass(state, control, dt)` | point-mass.js | One step of an aircraft flown by G and bank, through loops and vertical | aero, Runge-Kutta |
+| `upFrom(vHat, prevUp)` | point-mass.js | The aircraft's up, square to the path, carried through the vertical the way the step carries it | geometry |
+| `gAndBankForLift(lift, vHat, up)` | point-mass.js | The G and bank that give a lift vector: the inverse of the step's lift | geometry |
+| `liftTowardAim(vHat, toAim, vFtps, gain)` | point-mass.js | The lift a pursuit asks for: carry the weight and turn toward any aim point (pure, lead, lag, a slot) | kinematics; the gain is the module's |
+| `turnPlaneNormal(vel, up, turning)` | point-mass.js | The unit normal of a turn's plane | geometry |
 
 ## Speed, height and energy
 
@@ -31,6 +36,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `machToKiasKt`, `speedOfSoundKt` | t6-performance.js | KIAS for a Mach number; speed of sound | aero |
 | `isaDensityRatio(alt)` | flight-math.js | Air density as a fraction of sea level | standard atmosphere |
 | `energyHeightFt(alt, ktas)` | t6-performance.js | Height plus the height the speed is worth | aero |
+| `excessFnFor(throttle)` | t6-performance.js | The point-mass step's excess-power callback at part throttle: thrust scales with the throttle, drag does not | aero |
 | `pitchDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH` | t6-performance.js | Nose attitude: climb angle plus angle of attack, which grows with G and falls with speed squared (about 11° in a 180 KIAS climb) | climb angle aero; angle of attack an estimate matched to SMM 3.14 para 35 and EFIG p.126 |
 | `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G | fitted to the T-6A sustained turn chart (`T6A_FIT`) |
 | `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | V-n limits, stall line, G available now | NFM; stall 86 KIAS (Patrick, 30 Sep) |
@@ -58,6 +64,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `wrapDeg180`, `wrapPi`, `angleDiffRad`, `headingRad` | angles.js | Angle wrapping and differences, math radians | geometry |
 | `compassDegToHeadingRad`, `headingRadToCompassDeg`, `unitVectorFromCompassDeg` | angles.js | Compass degrees to code headings and back | geometry |
 | `relativeBearingDeg`, `aspectAngleDeg`, `headingCrossAngleDeg`, `clockToRelativeDeg` | angles.js | Bearing off the nose, aspect, heading crossing angle, clock code | geometry |
+| `aspectAngle3dDeg`, `headingCrossAngle3dDeg` | angles.js | 3-D aspect angle (from the target's tail) and heading crossing angle, from velocity vectors (SMM 16.16 para 40) | geometry |
 | `closureKt` | flight-math.js | Closure between two aircraft | geometry |
 | `closestApproach`, `dangerGate`, `clearanceSide`, `firstEntry`, `firstEntrySampled` | closest-approach.js | Closest approach of two straight tracks (time, miss, range now); the danger test that holds until the range opens; which side to dodge; the first time two aircraft are inside a cylinder (lateral and vertical) of each other, straight or along predicted tracks (ALL-27) | geometry |
 | `latLonToLocalFt`, `localFtToLatLon`, `distance` | geo.js | Map feet and lat/lon | flat-earth projection |
