@@ -27,6 +27,8 @@ export const EVADE = Object.freeze({
   flinchBankDeg: 60,
   /** The move-over slides this far toward the inner runway, ft (Patrick's card, Q5: half the 29L-29R gap; an estimate, on the questions for Dad). */
   moveOverFt: 500,
+  /** The move-over adds power and levels off here, ft MSL, until the upwind end, then goes around (Patrick, 4 Oct 19:01Z). */
+  moveOverLevelAltFt: 2100,
   /** A PFL's bank away: out to flinchFt over this, then back onto its circle over the next, s (estimates; about 30° of extra bank at most). */
   bankAwayOutSec: 12,
   bankAwayBackSec: 20,

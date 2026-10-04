@@ -75,6 +75,9 @@ const BANK_PER_DEG = 3;
 const TRACK_PER_FT = 0.05;
 /** Height capture: the climb rate is the height to go over this time, so the level-off is smooth. An estimate. */
 export const LEVEL_OFF_SEC = 6;
+
+/** Steepest a move-over comes down to its level-off height, degrees: the straight-in's own glide path (an estimate). */
+const MOVE_OVER_DESCENT_DEG = 3;
 /** Radius for the line-holding law once on a line: small corrections only. An estimate. */
 export const HOLD_RADIUS_FT = 3000;
 /** The simulated pilot's time step, seconds. */
@@ -332,14 +335,17 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
  * headingDeg, bankDeg } in a wind, onto Pattern 1's outer downwind (see
  * flyOuter). `sideFt` moves the line it flies up the runway that far to the
  * right of the runway track (the deconfliction's move-over toward the inner
- * runway, SMM 4.21 paras 50-51). Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
+ * runway, SMM 4.21 paras 50-51). `levelAltFt`, when given, is the height the
+ * move-over adds power and levels at, coming down to it on a 3° path (an
+ * estimate) if it is higher, until the upwind end (Patrick, 4 Oct 19:01Z).
+ * Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
  */
-export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0) {
+export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0, levelAltFt = null) {
   const rwy = lineOf(points[0], points[1]);
   const r = (rwy.trackDeg + 90) * Math.PI / 180;
   const shift = (p) => ({ ...p, x: p.x + sideFt * Math.sin(r), y: p.y + sideFt * Math.cos(r) });
   const centre = sideFt ? lineOf(shift(points[0]), shift(points[1])) : rwy;
-  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0 };
+  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0, levelAltFt };
   return flyOuter(points, centre, 0, { windFromDeg, windKt }, start).track;
 }
 
@@ -403,7 +409,10 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
     if (stage === 'goAround') {
       const aoa = pitchDegFromClimb(0, ktToFtps(tasKt), s.ias, g);
       const takeoffClimb = ktToFtps(tasKt) * sinDeg(Math.max(0, CIRCUIT.takeoffPitchDeg - aoa));
-      climb = clamp((CIRCUIT.goAroundAltFt - s.alt) / LEVEL_OFF_SEC, 0, takeoffClimb); // never down to it from above
+      // A go-around never comes down to its height from above; a move-over comes down to its own on a 3° path.
+      const levelAlt = goAround.levelAltFt ?? CIRCUIT.goAroundAltFt;
+      const mostDown = goAround.levelAltFt == null ? 0 : -ktToFtps(tasKt) * sinDeg(MOVE_OVER_DESCENT_DEG);
+      climb = clamp((levelAlt - s.alt) / LEVEL_OFF_SEC, mostDown, takeoffClimb);
       accel = s.ias >= CIRCUIT.patternKias - 0.01 ? 0 : accelFor(s.ias, s.alt, g, climb);
     } else if (stage === 'zoom') {
       const v = ktToFtps(tasKt);
