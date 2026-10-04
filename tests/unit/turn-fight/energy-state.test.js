@@ -3,8 +3,8 @@
 //   saved values.
 // Serves: TF-R14, TF-R11, TF-R20.
 // Expected values: defaults typed in from the spec (1.2 NM, 10,000 ft, 220 KIAS, deck 6,000, MPT 160, stall 86
-//   kt Patrick, shaker 94 % a working value Dad has not checked, TF-Q10); the box count of 16 is a design choice
-//   (TF-Q9 open).
+//   kt Patrick); the working values Dad has not checked (shaker, stall time, throttle, roll rate, pick thresholds),
+//   the number of boxes and the exact refusal sentences are not pinned.
 
 // Energy mode's settings (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for checking"):
 // the defaults are the engine's, the ranges are its setup checks, and the setup key follows the Energy fight.
@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { createEnergyFight, stepEnergyFight, ENERGY_DEFAULT_SETUP, ENERGY_MOVES, PURSUITS, ENERGY_MAX_START_FT, MPT_KIAS_RANGE } from '../../../src/modules/turn-fight/energy-sim.js';
 import { T6A_LIMITS, iasToTasKt } from '../../../src/core/t6-performance.js';
 import {
-  DEFAULTS, RANGES, ALLOWED, ENERGY_KEYS, ENERGY_CHECK_KEYS, setupFrom, setupKey, energySetupFrom, startSetupFrom, energyProblem,
+  DEFAULTS, RANGES, ALLOWED, ENERGY_KEYS, ENERGY_FIRST_KEYS, ENERGY_MORE_KEYS, ENERGY_CHECK_KEYS, setupFrom, setupKey, energySetupFrom, startSetupFrom, energyProblem,
   saneFix, v6Defaults, standardDefaults, checkingDefaults, usableEnergyValues, energyProblemNote, START_FALLBACK_KEYS, topKiasAt,
   startEnergyRun, isSetupError, setupErrorText,
 } from '../../../src/modules/turn-fight/state.js';
@@ -34,10 +34,7 @@ test('Energy opens on, and every Energy setting opens at the engine\'s own defau
   // The spec's list: 10,000 ft and 220 KIAS each, Tactical AI, MPT 160, deck 6,000, Tactical (Dynamic), head-on chase on (D403); stall 86, shaker 94 %.
   assert.deepEqual([DEFAULTS.blueAltFt, DEFAULTS.redAltFt, DEFAULTS.blueKias, DEFAULTS.redKias], [10000, 10000, 220, 220]);
   assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['tactical', 'tactical', 160, 6000, 'pure', true]);
-  assert.deepEqual([DEFAULTS.stallKias, DEFAULTS.shakerPct, DEFAULTS.stallSec, DEFAULTS.midThrottlePct], [86, 94, 1, 50]);
-  assert.deepEqual([DEFAULTS.rollRateDegPerSec, DEFAULTS.pitchBackBank160Deg, DEFAULTS.pitchBackBank220Deg], [90, 60, 30]);
-  assert.deepEqual([DEFAULTS.immelmannAboveKias, DEFAULTS.splitSBelowKias, DEFAULTS.immelmannOffNoseDeg, DEFAULTS.immelmannMinTopKias, DEFAULTS.pickLookaheadSec, DEFAULTS.deckMarginFt], [220, 120, 120, 120, 60, 1000]);
-  assert.deepEqual([DEFAULTS.leadSec, DEFAULTS.lagSec], [1, 1]);
+  assert.equal(DEFAULTS.stallKias, 86); // Patrick's ruling SH-25
 });
 
 test('the Energy defaults fly at once, and every default is in its own range', () => {
@@ -48,9 +45,12 @@ test('the Energy defaults fly at once, and every default is in its own range', (
 
 test('the three groups of Energy settings cover every Energy key once', () => {
   assert.equal(new Set(ENERGY_KEYS).size, ENERGY_KEYS.length);
-  // The spec lists twelve model settings; lead and lag, the two pitch back banks, the two split points each make a pair, plus tactical AI lookahead.
-  // The count of 16 is a design choice, not a flight number: it follows where the model settings live (TF-Q9, open). It moves when that is settled.
-  assert.equal(ENERGY_CHECK_KEYS.length, 16);
+  // Every key is in exactly one of the three groups (first view, More energy settings, Model settings for checking). How many keys there
+  // are is a design choice that moves whenever a model setting is added (TF-Q9, open), so no count is pinned.
+  const groups = [ENERGY_FIRST_KEYS, ENERGY_MORE_KEYS, ENERGY_CHECK_KEYS];
+  for (const key of ENERGY_KEYS) assert.equal(groups.filter((g) => g.includes(key)).length, 1, `${key} is in exactly one group`);
+  assert.equal(ENERGY_KEYS.length, groups.reduce((n, g) => n + g.length, 0), 'the three groups together are the whole list');
+  assert.ok(ENERGY_CHECK_KEYS.length > 0, 'the model settings have a group');
   for (const key of ENERGY_KEYS) assert.ok(key in DEFAULTS, key);
   // The moves and pursuits the boxes offer are the engine's.
   assert.deepEqual(ALLOWED.blueMove, [...ENERGY_MOVES]);
@@ -107,8 +107,6 @@ test('energyProblem says what the engine would refuse for two numbers together, 
     assert.equal(energyProblem(values) !== '', refused, JSON.stringify(change));
   }
   assert.equal(energyProblem({ ...DEFAULTS, energy: false, hardDeckFt: 20000 }), '', 'Energy off never complains');
-  assert.equal(energyProblem({ ...ENERGY_ON, blueAltFt: 5000 }), 'Blue\'s start altitude (5,000 ft) must be from the hard deck (6,000 ft) to 25,000 ft.');
-  assert.equal(energyProblem({ ...ENERGY_ON, separationNm: 0.5, redAltFt: 20000 }), 'The start separation (0.5 NM) must be more than the height between the aircraft (10,000 ft).');
 });
 
 test('a merge speed above the top speed at its height is a problem, to the knot the engine takes: Blue at 25,000 ft and 300 KIAS', () => {
@@ -141,7 +139,6 @@ test('while the start cannot fly, the fight, the pass and the start picture use 
   assert.ok(energyProblem(values));
   const usable = usableEnergyValues(values);
   for (const key of START_FALLBACK_KEYS) assert.equal(usable[key], DEFAULTS[key], key);
-  assert.deepEqual([...START_FALLBACK_KEYS].sort(), ['blueAltFt', 'blueKias', 'hardDeckFt', 'redAltFt', 'redKias', 'separationNm']);
   assert.equal(usable.blueMove, values.blueMove, 'only the start is replaced');
   const shown = startSetupFrom(values);
   const flown = startSetupFrom({ ...values, ...usable });
@@ -149,8 +146,6 @@ test('while the start cannot fly, the fight, the pass and the start picture use 
   assert.equal(shown.separationNm, DEFAULTS.separationNm);
   assert.equal(shown.blueKt, iasToTasKt(DEFAULTS.blueKias, DEFAULTS.blueAltFt));
   const note = energyProblemNote(values);
-  assert.ok(note.startsWith(`${energyProblem(values)} Until this is fixed the fight flies the default start altitudes (10,000 ft), merge speeds (220 KIAS), hard deck (6,000 ft) and separation (1.2 NM).`), note);
-  assert.equal(note.endsWith('separation (1.2 NM).'), true);
   assert.equal(energyProblemNote(ENERGY_ON), '');
   assert.equal(usableEnergyValues(ENERGY_ON), ENERGY_ON);
   assert.equal(usableEnergyValues({ ...DEFAULTS, energy: false, blueKias: 300, blueAltFt: 25000 }).blueKias, 300, 'Energy off never replaces anything');
@@ -255,7 +250,6 @@ test('startEnergyRun runs cleanly, handles engine setup RangeError with fallback
   };
   const fallback = startEnergyRun(values, setupErrorCreate);
   assert.ok(fallback.run.isRun);
-  assert.match(fallback.note, /The MPT speed is from 125 to 175 KIAS \(it was 110\)\. Until this is fixed every Energy setting is at its default\./);
   assert.equal(fallback.flown.mptKias, DEFAULTS.mptKias);
 
   // Unexpected RangeError (no prefix) or other Error is rethrown

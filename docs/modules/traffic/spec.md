@@ -234,6 +234,8 @@ Dotted line, 4 waypoints joining PAT_SI at the base leg (2,700 ft / 120 KIAS).
 
 Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIGH_KEY, 4.6 PFL_PATTERN and 4.7 PFL_FROM_AREA.
 
+One runway for now: every PFL flies to 29L, and one that makes the runway ends in a touch-and-go (Patrick, 4 Oct 11:53Z, TR-49).
+
 1. **Two ways in.** The PFL button is an engine failure where the aircraft is, power off from that moment. High Key (TR-R31) is practice: the aircraft arrives at High Key under power (PR 4), then flies this same glide.
 2. **The pattern is a circle.** 0.5 NM radius in calm air, left-hand for 29L, closing tangent to the centreline at the threshold (SMM 13.6 para 13). No straight legs.
    - High Key: over the threshold on runway heading, window 5,000-6,000 ft MSL (WFO S2 art 403 para 1a; Patrick 06:30Z).

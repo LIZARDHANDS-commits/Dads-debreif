@@ -16,6 +16,7 @@ import {
   T6A_LIMITS,
 } from '../../core/t6-performance.js';
 import { legOffsetsFt } from '../../core/geo.js';
+import { ROLL } from './circuit.js';
 import { FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, RUNWAY_29L_HDG_DEG, DOWNWIND_29L_HDG_DEG } from './airfield.js';
 
 // Physical & Airfield Constants (CYMJ Runway 29L; the numbers and their sources are in airfield.js)
@@ -721,7 +722,8 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
   }
 
   // 3. Bank Dynamics & Roll Rate Limiting
-  const maxRollRateDps = (aircraft.command === 'breakout' || aircraft.phase === 'breakout') ? 90 : 45;
+  // One roll rate for every manoeuvre, the breakout included (Traffic spec item 5: 45°/s, an estimate; no manual page gives a normal roll rate).
+  const maxRollRateDps = ROLL.maxRateDps;
   calcBankTarget(aircraft, desiredHeadingDeg, dt, maxRollRateDps);
 
   // 4. Coordinated Turn Heading Integration

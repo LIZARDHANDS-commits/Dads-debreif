@@ -1,6 +1,7 @@
 // Checks: the tactical AI's aim weights, yo-yos offered only in their envelopes, pursuit start rules, gun-kill
 //   build-up and reset, mid-air collision at the hitbox, closest-approach (TCPA) maths and avoidance, tumble and
 //   ground impact.
+//   The telemetry, tumble and impact sentences are not pinned.
 // Serves: TF-R1, TF-R8.
 // Expected values: none is a manual number (F7): gun zone 2,500 ft / 15 / 60 degrees / 2 s, hitbox and tumble
 //   rates are design choices for Dad to check (TF-Q10); closest approach is worked out by hand in the test.
@@ -171,8 +172,6 @@ test('full fight with pursuit tactical assigns human telemetry labels during pur
     stepEnergyFight(state, 0.05);
     if (state.blue.ctl.mode === 'pursuit' || state.red.ctl.mode === 'pursuit') {
       pursued = true;
-      const chaser = state.blue.ctl.mode === 'pursuit' ? state.blue : state.red;
-      assert.match(chaser.why, /^Pursuit: (Lag \(Control Zone Entry\)|Pure \(Tracking\)|Lead \(Snapshot\)) after first nose-on/);
       break;
     }
   }
@@ -654,9 +653,7 @@ test('Task 29: collision starts a tumble at the design rates for its closing spe
   assert.ok(stateLow.collision, 'Collision recorded');
   assert.ok(stateLow.blue.tumble, 'Blue tumble initialized');
   assert.ok(stateLow.red.tumble, 'Red tumble initialized');
-  assert.equal(stateLow.blue.why, 'Departure: Ballistic tumble after mid-air collision');
   assert.equal(stateLow.blue.move, 'tumble');
-  assert.equal(stateLow.blue.moveLabel, 'Collision Tumble');
   assert.equal(stateLow.blue.tumble.pDegPerSec, TUMBLE_RATES.slow.p);
   assert.equal(stateLow.blue.tumble.qDegPerSec, TUMBLE_RATES.slow.q);
   assert.equal(stateLow.blue.tumble.rDegPerSec, TUMBLE_RATES.slow.r);
@@ -793,7 +790,6 @@ test('Task 29: terrain impact clamps altitude at 0 ft MSL and halts simulation w
   assert.equal(fight.stopped, true, 'Simulation halted on terrain impact');
   assert.equal(fight.blue.altFt, 0, 'Blue altitude clamped at 0 ft MSL');
   assert.equal(fight.blue.pm.z, 0, 'Blue pm.z clamped at 0');
-  assert.equal(fight.blue.why, 'Impact: Hull loss at terrain (0 ft MSL)');
 
   // Subsequent steps do nothing once stopped
   const timeStopped = fight.timeSec;

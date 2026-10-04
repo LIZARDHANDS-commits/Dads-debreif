@@ -121,7 +121,8 @@ function energyDefaults() {
     // Model settings for checking (numbers no manual gives).
     stallKias: e.stallKias, shakerPct: Math.round(e.shakerFrac * 100), stallSec: e.stallSec,
     midThrottlePct: Math.round(e.midThrottle * 100), leadSec: e.leadSec, lagSec: e.lagSec,
-    rollRateDegPerSec: e.rollRateDegPerSec, pitchBackBank160Deg: e.pitchBackBank160Deg, pitchBackBank220Deg: e.pitchBackBank220Deg,
+    rollRateDegPerSec: e.rollRateDegPerSec, gOnsetGPerSec: e.gOnsetGPerSec, rollAccelDegPerSec2: e.rollAccelDegPerSec2,
+    pitchBackBank160Deg: e.pitchBackBank160Deg, pitchBackBank220Deg: e.pitchBackBank220Deg,
     immelmannAboveKias: e.immelmannAboveKias, splitSBelowKias: e.splitSBelowKias,
     immelmannOffNoseDeg: e.immelmannOffNoseDeg, immelmannMinTopKias: e.immelmannMinTopKias,
     pickLookaheadSec: e.pickLookaheadSec, deckMarginFt: e.deckMarginFt,
@@ -133,7 +134,7 @@ function energyDefaults() {
 export const ENERGY_FIRST_KEYS = Object.freeze(['blueAltFt', 'redAltFt', 'blueKias', 'redKias']);
 export const ENERGY_MORE_KEYS = Object.freeze(['blueMove', 'redMove', 'mptKias', 'hardDeckFt', 'pursuit', 'chaseAfterHeadOn', 'collisionDetection', 'collisionAvoidance']);
 export const ENERGY_CHECK_KEYS = Object.freeze([
-  'stallKias', 'shakerPct', 'stallSec', 'midThrottlePct', 'leadSec', 'lagSec', 'rollRateDegPerSec', 'pitchBackBank160Deg',
+  'stallKias', 'shakerPct', 'stallSec', 'midThrottlePct', 'leadSec', 'lagSec', 'rollRateDegPerSec', 'gOnsetGPerSec', 'rollAccelDegPerSec2', 'pitchBackBank160Deg',
   'pitchBackBank220Deg', 'immelmannAboveKias', 'splitSBelowKias', 'immelmannOffNoseDeg', 'immelmannMinTopKias', 'pickLookaheadSec', 'deckMarginFt',
   'tacticalLookaheadSec',
 ]);
@@ -218,6 +219,8 @@ export const RANGES = Object.freeze({
   leadSec: { min: 0, max: 5, step: 0.5, unit: 's' },
   lagSec: { min: 0, max: 5, step: 0.5, unit: 's' },
   rollRateDegPerSec: { min: 30, max: 180, step: 10, unit: '°/s' },
+  gOnsetGPerSec: { min: 0, max: 20, step: 1, unit: 'G/s' }, // 0 turns it off
+  rollAccelDegPerSec2: { min: 0, max: 1000, step: 20, unit: '°/s²' }, // 0 turns it off
   pitchBackBank160Deg: { min: 10, max: 90, step: 5, unit: '°' },
   pitchBackBank220Deg: { min: 10, max: 90, step: 5, unit: '°' },
   immelmannAboveKias: { min: 160, max: 316, step: 5, unit: 'KIAS' },
@@ -268,6 +271,7 @@ export function energySetupFrom(values) {
     midThrottle: values.midThrottlePct !== undefined ? values.midThrottlePct / 100 : (values.midThrottle ?? 0.5),
     leadSec: values.leadSec, lagSec: values.lagSec,
     rollRateDegPerSec: values.rollRateDegPerSec,
+    gOnsetGPerSec: values.gOnsetGPerSec, rollAccelDegPerSec2: values.rollAccelDegPerSec2,
     pitchBackBank160Deg: values.pitchBackBank160Deg, pitchBackBank220Deg: values.pitchBackBank220Deg,
     immelmannAboveKias: values.immelmannAboveKias, splitSBelowKias: values.splitSBelowKias,
     immelmannOffNoseDeg: values.immelmannOffNoseDeg, immelmannMinTopKias: values.immelmannMinTopKias,
@@ -385,6 +389,7 @@ const KEY_WORDS = Object.freeze({
   blueMove: "Blue's move", redMove: "Red's move", mptKias: 'The MPT speed', hardDeckFt: 'The hard deck', pursuit: 'The pursuit',
   chaseAfterHeadOn: 'Chase after a head-on pass', collisionDetection: 'Collision detection', collisionAvoidance: 'Collision avoidance', separationNm: 'The start separation', stallKias: 'The stall speed',
   shakerFrac: 'The shaker', midThrottle: 'The mid-range throttle', rollRateDegPerSec: 'The roll rate',
+  gOnsetGPerSec: 'The G onset', rollAccelDegPerSec2: 'The roll acceleration',
   immelmannAboveKias: 'The Immelmann speed', splitSBelowKias: 'The split S speed', immelmannOffNoseDeg: 'The Immelmann off-nose angle',
   immelmannMinTopKias: 'The lowest Immelmann top speed', pickLookaheadSec: 'The look-ahead', deckMarginFt: 'The deck margin',
   tacticalLookaheadSec: 'The tactical AI lookahead',

@@ -77,6 +77,10 @@ export const ENERGY_DEFAULT_SETUP = Object.freeze({
   leadSec: 1,
   lagSec: 1,
   rollRateDegPerSec: 90,
+  // Smooth pilot inputs (TF-57 PR 2), Patrick's "brisk" (4 Oct 10:38Z). Both are estimates until a manual or Patrick's practice
+  // gives a number; 0 turns that one off (G or roll then changes in one step, as before).
+  gOnsetGPerSec: 6,            // how fast the pilot's G builds or eases, G per second
+  rollAccelDegPerSec2: 360,    // how fast the roll rate builds and dies away: 90°/s reached in 0.25 s
   pitchBackBank160Deg: 60,
   pitchBackBank220Deg: 30,
   immelmannAboveKias: 220,
@@ -127,7 +131,7 @@ export const FORCE_G_MAX = 12;           // a what-if G of 0 to 12 (core's +7 G 
  */
 export const TUNING = Object.freeze({
   captureLeadSec: 3,       // model setting: a bank move hands to the MPT when its speed, this many seconds ahead, would reach the MPT speed
-  captureLeadFastSec: 3.7, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft
+  captureLeadFastSec: 4.0, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft. Was 3.7 s; 4.0 s since roll builds smoothly (TF-57 PR 2): the slower roll-in let a 312 KIAS pitch back climb past 75° before the hand-over, and 4.0 s hands over in 190 to 279° of turn (estimate, model setting)
   captureLeadFromKias: 235, // model setting: entered at or under this speed the lead is captureLeadSec
   minBankMoveTurnDeg: 90,     // model setting: minimum turn before speed-based handover to MPT (Phase 1A)
   maxBankMoveTurnDeg: 170,    // model setting: a pitch back or slice that has not found the MPT speed by here hands to the MPT anyway
@@ -222,6 +226,7 @@ export function checkedSetup(setup) {
   need(PURSUITS_ACCEPTED.includes(s.pursuit), `pursuit is one of ${PURSUITS.join(', ')} (or none)`, s.pursuit);
   need(Number.isFinite(s.mptKias) && s.mptKias >= MPT_KIAS_RANGE[0] && s.mptKias <= MPT_KIAS_RANGE[1], `mptKias is from ${MPT_KIAS_RANGE[0]} to ${MPT_KIAS_RANGE[1]} KIAS`, s.mptKias);
   for (const k of ['stallKias', 'rollRateDegPerSec', 'pullG', 'immelmannAboveKias', 'splitSBelowKias']) need(finitePositive(s[k]), `${k} is above 0`, s[k]);
+  for (const k of ['gOnsetGPerSec', 'rollAccelDegPerSec2']) need(Number.isFinite(s[k]) && s[k] >= 0, `${k} is 0 (off) or more`, s[k]);
   need(Number.isFinite(s.shakerFrac) && s.shakerFrac > 0 && s.shakerFrac <= 1, 'shakerFrac is above 0 and up to 1', s.shakerFrac);
   need(Number.isFinite(s.immelmannOffNoseDeg) && s.immelmannOffNoseDeg >= 0 && s.immelmannOffNoseDeg <= 180, 'immelmannOffNoseDeg is 0 to 180', s.immelmannOffNoseDeg);
   need(Number.isFinite(s.immelmannMinTopKias) && s.immelmannMinTopKias >= 0 && s.immelmannMinTopKias <= T6A_LIMITS.vmoKias, `immelmannMinTopKias is 0 to ${T6A_LIMITS.vmoKias}`, s.immelmannMinTopKias);

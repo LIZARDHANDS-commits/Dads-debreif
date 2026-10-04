@@ -390,23 +390,23 @@ test('Slice E: closed pattern touch-and-go rolls along runway, climbs out and cy
   assert.ok(Math.abs(a240.alt - 3500) <= 500);
 });
 
-test('Slice E: in-flight touch-and-go pilot command re-enters closed pattern', () => {
+test('Slice E: a touch-and-go asked for in flight makes the next landing a touch-and-go, with no jump to the threshold', () => {
   const setup = structuredClone(MOOSE_JAW);
   setup.aircraft = [
     { id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 9, startsAtSec: 0 }
   ];
   const sim = createSim(setup, { seed: 1 });
   sim.stepTo(10);
+  const before = sim.state().aircraft[0];
 
   // Command touch-and-go
   const ok = sim.command('A1', 'touch_and_go');
   assert.equal(ok, true);
 
   const aCmd = sim.state().aircraft[0];
-  assert.equal(aCmd.phase, 'touch_and_go');
-  assert.ok(Math.abs(aCmd.kt - 100) <= 10);
-  assert.ok(Math.abs(aCmd.alt - 1892) <= 100);
-  assert.equal(aCmd.bankDeg, 0);
+  assert.equal(aCmd.intent, 'touch_and_go');
+  assert.ok(Math.hypot(aCmd.x - before.x, aCmd.y - before.y) < 1, 'it stays where it is, no jump to the threshold (Traffic spec item 21)');
+  assert.ok(Math.abs(aCmd.alt - before.alt) < 1, 'and at its height');
 });
 
 test('Slice F: PILOT_SPAWN_PRESETS provides operational pilot-intuitive spawn points', () => {
