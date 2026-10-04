@@ -85,23 +85,23 @@ The reset is finished when every file in the register is either in the new layou
 
 Each waits for the one before to merge; Patrick reviews each from a plain summary and merges, or says merge (`pf/reset/briefs/stage-3-briefs.md:72`).
 
-- [ ] Pause or not: Patrick decides whether pushes to main stop while these pull requests land, so his Antigravity work and the pull requests do not collide (`pf/reset/consolidation-plan.md:45`). This is on the waiting list below.
-- [ ] PR 1, the rule book: `AGENTS.md`, `CLAUDE.md`, `.claude/agents/` and `docs/README.md`. Until it merges, use plain general-purpose agents, not the old `writer` and `auditor` (`pf/reset/briefs/stage-3-briefs.md:73`). Skills go to `.agent/skills` with `.claude/skills` as a link (`pf/reset/consolidation-plan.md:189`).
-- [ ] PR 2, the docs: this plan, `FUTURE.md`, `REQUIREMENTS.md`, `TESTING.md`, `DECISIONS.md`, `questions-for-dad.md`, `references/` and the module folders (`pf/reset/briefs/stage-3-briefs.md:74`).
-- [ ] PR 3, the archive: every file marked for archive moves into `archive/` with a README map (old path to where its content lives now); nothing is deleted without Patrick's word. No Turn Sim code is archived before the Turn Sim review decides (`pf/reset/briefs/stage-3-briefs.md:75`, `pf/reset/briefs/stage-3-briefs.md:80`).
-- [ ] PR 4, tests and CI: retire and rewrite tests as the test register says, turn CI back on with the "every change" set, and set publishing as the policy says. The live site stays offline until Patrick picks public or Pro (`pf/reset/briefs/stage-3-briefs.md:76`).
-- [ ] PR 5, links: fix every broken link and stale pointer, such as test headers pointing at `archive/tests/golden/` and specs citing replaced decisions (`pf/reset/briefs/stage-3-briefs.md:77`).
+- [x] Pause or not: Patrick decides whether pushes to main stop while these pull requests land, so his Antigravity work and the pull requests do not collide (`pf/reset/consolidation-plan.md:45`). Patrick paused pushes to main on 4 Oct at 05:29Z; the pause lifted when PR 5 merged at 07:49Z.
+- [x] PR 1, the rule book: `AGENTS.md`, `CLAUDE.md`, `.claude/agents/` and `docs/README.md`. Until it merges, use plain general-purpose agents, not the old `writer` and `auditor` (`pf/reset/briefs/stage-3-briefs.md:73`). Skills go to `.agent/skills` with `.claude/skills` as a link (`pf/reset/consolidation-plan.md:189`). Merged as #243.
+- [x] PR 2, the docs: this plan, `FUTURE.md`, `REQUIREMENTS.md`, `TESTING.md`, `DECISIONS.md`, `questions-for-dad.md`, `references/` and the module folders (`pf/reset/briefs/stage-3-briefs.md:74`). Merged as #244.
+- [x] PR 3, the archive: every file marked for archive moves into `archive/` with a README map (old path to where its content lives now); nothing is deleted without Patrick's word. No Turn Sim code is archived before the Turn Sim review decides (`pf/reset/briefs/stage-3-briefs.md:75`, `pf/reset/briefs/stage-3-briefs.md:80`). Merged as #245.
+- [x] PR 4, tests and CI: retire and rewrite tests as the test register says, turn CI back on with the "every change" set, and set publishing as the policy says. The live site stays offline until Patrick picks public or Pro (`pf/reset/briefs/stage-3-briefs.md:76`). Merged as #246.
+- [x] PR 5, links: fix every broken link and stale pointer, such as test headers pointing at `archive/tests/golden/` and specs citing replaced decisions (`pf/reset/briefs/stage-3-briefs.md:77`). Merged as #247.
 - [x] Decide which Traffic faults block CI from turning back on: Play not restarting after Pause or Reset, three layout problems at 1280 and 1366 pixels, and two 3D files returning 404 (`pf/reset/consolidation-plan.md:266`). Patrick, 4 Oct 06:54Z: "Just delete those shitty tests". The failing Traffic checks are out of CI: PFL Test 4 went to `archive/tests/unit/traffic/pfl-test-4.js`, and Traffic left the layout and every-button browser walks. The faults stay on `modules/traffic/plan.md`, steps 1 and 3.
-- [ ] No change to flight math or any number a simulator flies in any of these pull requests (`pf/reset/briefs/stage-3-briefs.md:81`).
+- [x] No change to flight math or any number a simulator flies in any of these pull requests (`pf/reset/briefs/stage-3-briefs.md:81`). Held across #243 to #247.
 
 ### Step 2. GitHub tidy (thread 8)
 
 Starts once Patrick approves this plan. Nothing is closed, merged or deleted before his yes (`pf/reset/briefs/stage-3-briefs.md:95`).
 
-- [ ] PR #162 (Dependabot, Playwright 1.56 to 1.63): merge only with a green run (`archive/HANDOVER.md:105`). It is also a pointer in the [Shared plan](modules/shared/plan.md).
-- [ ] The 75 remote branches (31 have commits not on main): none is deleted unless the register shows the work is on main or in a bundle (`pf/reset/briefs/stage-3-briefs.md:101`).
+- [x] PR #162 (Dependabot, Playwright 1.56 to 1.63): merge only with a green run (`archive/HANDOVER.md:105`). It is also a pointer in the [Shared plan](modules/shared/plan.md). Closed on Patrick's "Close it", 4 Oct 07:37Z: 1.63 fails the two offline tests; the update is on the [Shared future list](modules/shared/future.md).
+- [x] The 75 remote branches (31 have commits not on main): none is deleted unless the register shows the work is on main or in a bundle (`pf/reset/briefs/stage-3-briefs.md:101`). 73 branches deleted on 4 Oct.
 - [ ] The four old Turn Sim branches stay until the Turn Sim plan carries the flag; it does, in [Turn Sim Step 1](modules/turn-sim/plan.md) (`pf/reset/briefs/stage-3-briefs.md:101`).
-- [ ] The 47 issues: each gets a row and a closing comment saying where it landed (`pf/reset/briefs/stage-3-briefs.md:102`).
+- [x] The 47 issues: each gets a row and a closing comment saying where it landed (`pf/reset/briefs/stage-3-briefs.md:102`). All 47 closed on 4 Oct.
 - [ ] Old memory called PRs #240 and #242 open; they are already merged (`pf/reset/0-lessons/lessons.md:144`).
 
 ### Step 3. The live-site choice
@@ -151,12 +151,11 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 The one list. Each line is a question; the working answer applies until he says otherwise (`AGENTS.md:103`).
 
 - [ ] **Live site: public, or private with GitHub Pro.** Patrick's choice: pending (`pf/reset/6-plan-and-rules/ask-rows.md:17`).
-- [ ] **Pause pushes to main during the clean-up pull requests?** Not needed until this plan is approved (`pf/reset/consolidation-plan.md:45`).
 - [ ] **PFL review items:** the new PFL work since the reset (D438 to D440), the pre-built PFL track (D436) and the PFL missing from the live manoeuvres, all held for the PFL review (`docs/modules/traffic/plan.md:13`).
 - [ ] **Turn Sim review questions A to E,** on live controllers or planned paths, speed basis, the 300 ft stack, the clock cue and the error settings (`docs/modules/turn-sim/plan.md:25`).
 - [ ] **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
 - [ ] **Traffic replay test at sign-off only:** `tests/unit/traffic/rewind.test.js` never finishes, so it runs in the sign-off run, not on every change, until the Traffic work makes it finish reliably (flaky-test rule Q-T4; `docs/modules/traffic/testing.md`, "The rewind hang"; list in `tools/unit-tests.mjs`).
-- [ ] **Turn Fight turn to the MPT, for Patrick and Dad:** from many starts the model takes 192 to 252 degrees of turn to reach the maximum performance turn, against the SMM's aim of under 180 (SMM 14.17 para 42), and flies the level MPT at 68.5 degrees of bank against the SMM's about 75. No physics was changed; the tests check "before a full circle" and print the gap (`tests/unit/turn-fight/energy-sim.test.js`, `tests/unit/turn-fight/energy-layout.test.js`).
+- [x] **Turn Fight turn to the MPT:** Patrick ruled on 4 Oct at 07:40Z that reaching the MPT is not a requirement; a jet flies it only when the fight needs it. TF-R6 gets reworded with him ([Turn Fight plan](modules/turn-fight/plan.md), Step 1), and the check that every jet reaches and holds the MPT was archived on his word (`archive/tests/unit/turn-fight/energy-sim-mpt-reach.js`).
 - [ ] **PROTOTYPE flags** come off only at the combined sign-off (`archive/HANDOVER.md:103`).
 - [ ] **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 - [ ] **Dad's questions and the screenshots question:** when to send, and the second ask (steps 6 and 7).
