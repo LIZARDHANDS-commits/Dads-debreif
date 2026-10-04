@@ -67,9 +67,8 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
         type: 'button',
         class: 'button ts-move-button',
         dataset: { move: b.key, dir: word.toLowerCase() },
-        'aria-label': `${b.label} ${word.toLowerCase()}`,
         onclick: () => handlers.press?.(b.key, dir),
-      }, h('span', {}, word), hint);
+      }, h('span', { class: 'visually-hidden' }, `${b.label} `), h('span', {}, word), hint); // read out as "Delayed 90 Left into #2"
     };
     return h('div', { class: 'ts-move', role: 'group', 'aria-label': b.label },
       h('span', { class: 'ts-move-name' }, b.label), side(1, 'Left'), side(-1, 'Right'));
