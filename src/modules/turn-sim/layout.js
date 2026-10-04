@@ -18,20 +18,28 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   setupColumn: true,
   formationColumn: true,
   tracks: true, // each aircraft's ground track, for the whole flight
-  lead39: true,
+  lead39: false, // Lead's 3/9 line (off by default from layout version 3, TS-56)
+  lead75: false, // Lead's 7 and 5 o'clock lines: the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
   planned: true, // the paths still to fly, dashed
   turnCircles: false,
   autoFit: true, // the camera keeps every aircraft in the picture (spec section 10.3); a pan or zoom pauses it, Fit brings it back
   view: VIEW_DEFAULT, // '2d' or '3d'
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
-export const LAYOUT_VERSION = 2; // 1 was the plan-mode screen's
+export const LAYOUT_VERSION = 3; // 1 was the plan-mode screen's; 3 turned the 3/9 line off by default (TS-56)
+
+/** A saved version 2 layout keeps every choice but the 3/9 line, which takes the new default (off). Older ones start fresh. */
+export function migrateLayout(values, version) {
+  if (version !== 2) return {};
+  const { lead39: _lead39, ...rest } = values;
+  return rest;
+}
 
 /** The layout values that only allow some choices (createSettings' `allowed`). */
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
-const LAYERS_2D = ['lead39', 'planned', 'turnCircles'];
+const LAYERS_2D = ['lead39', 'lead75', 'planned', 'turnCircles'];
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
@@ -173,6 +181,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const layersMenu = menu('Layers', 'ts-layers', [
     lc.checkbox('tracks', { label: 'Ground tracks' }),
     lc.checkbox('lead39', { label: 'Lead 3/9 line' }),
+    lc.checkbox('lead75', { label: 'Lead 7 and 5 o\'clock lines' }),
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
     lc.checkbox('autoFit', { label: 'Fit all aircraft' }),

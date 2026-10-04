@@ -100,6 +100,7 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       drawGrid(ctx, map);
       if (Number.isFinite(settings.moaBoundaryNm)) drawMoa(ctx, map, settings.moaBoundaryNm);
       if (layers.lead39 && lead) drawLead39(ctx, map, lead);
+      if (layers.lead75 && lead) drawLead75(ctx, map, lead);
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trail);
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
@@ -218,6 +219,35 @@ function drawLead39(ctx, map, lead) {
   ctx.stroke();
   ctx.restore();
   text(ctx, 'Lead 3/9', cx - 16, cy - 26, '#b9d8f5', 11, 'right'); // above the line, off the circle labels below
+}
+
+/**
+ * Lead's 7 and 5 o'clock lines: from Lead out past his tail, 30° either side of it (each clock hour is 30°), so 60° of
+ * sweep back from his 3/9 line, the back edge of the fighting wing cone (SMM 12.29 para 69, Fig 12.19). Dashed, as the 3/9 line.
+ */
+function drawLead75(ctx, map, lead) {
+  const len = Math.max(map.size.width, map.size.height) / map.view.scale * 0.75;
+  const [cx, cy] = map.worldToScreen(lead.xFt, lead.yFt);
+  // Left of the tail is +, so 7 o'clock is the tail +30° and 5 o'clock the tail -30°.
+  const lines = [{ clock: '5', h: lead.headingRad + Math.PI - Math.PI / 6 }, { clock: '7', h: lead.headingRad + Math.PI + Math.PI / 6 }];
+  ctx.save();
+  ctx.strokeStyle = '#58a6ff';
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 6]);
+  for (const { h } of lines) {
+    const [ex, ey] = map.worldToScreen(lead.xFt + Math.cos(h) * len, lead.yFt + Math.sin(h) * len);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+  ctx.restore();
+  const labelAt = 140 / map.view.scale; // 140 px out along each line, clear of the 3/9 label
+  for (const { clock, h } of lines) {
+    const [lx, ly] = map.worldToScreen(lead.xFt + Math.cos(h) * labelAt, lead.yFt + Math.sin(h) * labelAt);
+    text(ctx, `Lead ${clock}`, lx + 6, ly, '#b9d8f5', 11);
+  }
 }
 
 function drawTrails(ctx, map, trail) {
