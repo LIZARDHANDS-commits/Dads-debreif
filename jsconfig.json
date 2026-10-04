@@ -20,7 +20,8 @@
     "skipLibCheck": true,
     // three.js ships no types and its source is JavaScript, so tsc would check all of
     // three.js. This stand-in makes every three.js value "any" until we add @types/three.
-    "paths": { "three": ["./types/three.d.ts"] }
+    // three's own add-ons (three/addons/..., such as the wide lines) are JavaScript too: the same stand-in.
+    "paths": { "three": ["./types/three.d.ts"], "three/addons/*": ["./types/three.d.ts"] }
   },
   "include": ["src/ui-kit", "src/core", "src/flight-data", "src/airfields", "src/wx", "src/modules/debrief", "src/modules/sof", "relay", "src/modules/turn-fight", "src/modules/traffic", "src/modules/turn-sim", "src/shell", "src/storage", "src/app.js"]
 }

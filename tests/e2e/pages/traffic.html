@@ -15,7 +15,7 @@
     <header id="bar">Traffic Sim test page <span id="module-status" role="status" hidden style="margin-left: 1rem"></span></header>
     <main id="view"></main>
     <!-- The site's build bundles three.js; straight from src/ the bare name needs a map to the installed copy. -->
-    <script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js" } }</script>
+    <script type="importmap">{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }</script>
     <script type="module">
       // Mounts the Traffic Sim on the real host and scheduler, straight from src/, so its
       // browser tests don't wait for its entry in the shell's registry (tests/e2e/traffic.spec.js).
