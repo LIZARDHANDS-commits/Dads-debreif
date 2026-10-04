@@ -8,7 +8,7 @@ Built much further than the old file; the roadmap calls it ready for Patrick, an
 
 ## What is next
 
-The plan's steps, in order: Step 1: Refresh spec.md against the new requirements; Step 2: Build the gaps between decided and built; Step 3: Check the possible faults from the reset's browser run; Step 4: Settle the open screen questions when work resumes; Step 5: Sign-off. Only what is in `plan.md` gets built.
+The plan's steps, in order: Step 1: Refresh spec.md against the new requirements; Step 1b: Refactor the pilot layer (TF-57); Step 2: Build the gaps between decided and built; Step 3: Check the possible faults from the reset's browser run; Step 4: Settle the open screen questions when work resumes; Step 5: Sign-off. Only what is in `plan.md` gets built.
 
 ## The files
 
