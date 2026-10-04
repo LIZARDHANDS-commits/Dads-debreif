@@ -18,6 +18,7 @@ import {
   PHYSICS_COMMANDS,
 } from '../../../src/modules/traffic/tick-aircraft.js';
 import { posOnRoute, pointDistFt } from '../../../src/modules/traffic/route.js';
+import { iasToTasKt } from '../../../src/core/t6-performance.js';
 import { getNavPlan } from '../../../src/modules/traffic/nav-plans.js';
 
 const MOOSE_JAW = JSON.parse(
@@ -426,7 +427,7 @@ test('7.4 Zero wind executes identically without branching errors', () => {
   tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
 
   assert.equal(a.crabDeg, 0, 'Zero wind produces 0 crab');
-  near(a.gsKt, a.iasKt, 0.01, 'Zero wind ground speed equals indicated airspeed');
+  near(a.gsKt, iasToTasKt(a.iasKt, a.alt), 0.01, 'Zero wind ground speed equals true airspeed (Traffic spec item 8)');
   assert.equal(a.mode, 'RAIL');
 });
 
