@@ -600,8 +600,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.phase = 'straight_in';
   }
 
-  /** An aircraft that started on a straight-in (ENT2) flies the SI pattern lap after lap (Patrick, 4 Oct 23:15Z; TR-61). */
-  const onSiPattern = (a) => isStraightIn(routeById(a.startRouteId));
+  /**
+   * An aircraft flies the SI pattern lap after lap when its card's Pattern menu says SI, or, until it is set, when it
+   * started on a straight-in (ENT2) (Patrick, 4 Oct 23:15Z and 23:23Z; TR-61, TR-62).
+   */
+  const onSiPattern = (a) => (a.patternChoice ? a.patternChoice === 'si' : isStraightIn(routeById(a.startRouteId)));
 
   /**
    * The SI pattern (Traffic spec 4.15, TR-61): after its touch-and-go an aircraft that started on a straight-in flies
@@ -1300,6 +1303,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return true;
     },
 
+    /** Sets the pattern an aircraft flies each lap: 'ohb' or 'si' (the card's Pattern menu; Traffic spec 4.15). */
+    setPattern(aircraftId, pattern) {
+      settle();
+      const a = aircraft.find((ac) => ac.id === aircraftId);
+      if (!a || (pattern !== 'ohb' && pattern !== 'si')) return false;
+      a.patternChoice = pattern;
+      return true;
+    },
+
     nextCallsign,
 
     /** What is where right now. */
@@ -1347,6 +1359,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
+          pattern: onSiPattern(a) ? 'si' : 'ohb',
           closedPatternBankDeg: a.closedPatternBankDeg,
           config: a.config,
           pflRail: a.pflRail ?? null,
