@@ -139,6 +139,24 @@ export function excessThrustPerWeight(kias, altFt, g) {
   return thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
 }
 
+/**
+ * Pitch attitude: the angle of attack the wing needs on top of the flight path
+ * angle. AoA = aoa180Deg × G × (180 ÷ KIAS)², set so the normal 180 KIAS climb
+ * shows about 10-12° nose up and the 140 KIAS best-rate climb about 15°, with
+ * this model's full-power climb angles (SMM 3.14 para 35; EFIG p.126). It then
+ * gives about 2° at 220 KIAS level. An estimate until checked on screen.
+ */
+export const T6A_PITCH = Object.freeze({ aoa180Deg: 2.8 });
+
+/**
+ * Pitch attitude in degrees, nose up positive: flight path angle (climb rate ÷
+ * true airspeed, both ft/s) plus angle of attack at this KIAS and G (T6A_PITCH).
+ */
+export function pitchDegFromClimb(climbFtps, tasFtps, kias, g = 1) {
+  const gamma = Math.asin(Math.max(-1, Math.min(1, climbFtps / Math.max(tasFtps, 1)))) * 180 / Math.PI;
+  return gamma + T6A_PITCH.aoa180Deg * g * (180 / Math.max(kias, 60)) ** 2;
+}
+
 /** excessThrustPerWeight as stepPointMass's excessFn, which passes true airspeed. */
 export function t6aExcessFn(ktas, altFt, g) {
   return excessThrustPerWeight(tasToIasKt(ktas, altFt), altFt, g);

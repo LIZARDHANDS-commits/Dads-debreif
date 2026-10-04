@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack, rollToward, dampedClimbG, gFromBankDeg, turnRateFromBankRadPerSec, turnRadiusFromBankFt } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack, rollToward, dampedClimbG, gFromBankDeg, turnRateFromBankRadPerSec, turnRadiusFromBankFt, bankDegFromTurnRate, easeRoll } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -180,4 +180,29 @@ test('given the bank: 60° is 2 G, and radius and rate agree with the G-based fu
 test('a standard-rate turn: 3° per second at 120 KTAS takes about 18° of bank', () => {
   // Worked out: bank = tan⁻¹(3°/s × v ÷ g) = 18.24° (standard aerodynamics).
   near(radToDeg(turnRateFromBankRadPerSec(ktToFtps(120), 18.25)), 3, 0.02);
+});
+
+test('the bank a turn needs: the rate of a 60° turn at 220 kt gives 60° back, a left turn banks left', () => {
+  const v = ktToFtps(220);
+  const rate = turnRateFromBankRadPerSec(v, 60);
+  near(bankDegFromTurnRate(v, rate), 60, 1e-9);
+  near(bankDegFromTurnRate(v, -rate), -60, 1e-9);
+  assert.equal(bankDegFromTurnRate(v, 0), 0);
+});
+
+test('easeRoll rolls from level to 60° smoothly and stops there without overshooting', () => {
+  // Limits as the Traffic sim uses them (45°/s, 90°/s²; estimates). Generous limit: the roll is done within 4 s (about 2 s at 45°/s).
+  const limits = { maxRateDps: 45, maxAccelDps2: 90 };
+  const dt = 0.05;
+  let s = { bankDeg: 0, rollRateDps: 0 };
+  let maxBank = 0;
+  for (let t = 0; t < 4; t += dt) {
+    const next = easeRoll(s.bankDeg, s.rollRateDps, 60, dt, limits);
+    assert.ok(Math.abs(next.rollRateDps) <= 45 + 1e-9, 'roll rate stays within its limit');
+    assert.ok(Math.abs(next.rollRateDps - s.rollRateDps) <= 90 * dt + 1e-9, 'roll rate builds up, never steps');
+    s = next;
+    maxBank = Math.max(maxBank, s.bankDeg);
+  }
+  near(s.bankDeg, 60, 0.5);
+  assert.ok(maxBank <= 60 + 0.5, `no overshoot past 60° (reached ${maxBank})`);
 });

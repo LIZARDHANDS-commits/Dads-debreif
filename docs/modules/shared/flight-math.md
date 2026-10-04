@@ -17,6 +17,8 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `turnRadiusFt(v, g)`, `turnRateRadPerSec(v, g)` | flight-math.js | The same, given G instead of bank | aero |
 | `limitG(g, max)`, `MIN_TURN_G` | flight-math.js | Keeps G above 1.01 so a turn exists | design choice (D74) |
 | `rollToward(bank, target, maxDelta)` | flight-math.js | Rolls toward a bank by at most a step, the short way round | kinematics |
+| `bankDegFromTurnRate(v, rate)` | flight-math.js | Bank a turn at this rate needs at this true airspeed (ft/s); right turn positive | aero, atan(v × rate / g) |
+| `easeRoll(bank, rollRate, target, dt, limits)` | flight-math.js | One step of a smooth roll toward a bank: the roll rate builds up, holds at its limit and dies away so the wings stop on the target without overshoot | kinematics; the Traffic limits (45°/s, 90°/s²) are estimates |
 | `dampedClimbG(...)` | flight-math.js | G to bring the flight path smoothly onto a target climb angle | kinematics |
 | `gFromTrack(p0, h0, p1, h1, dt)` | flight-math.js | G of a level turn read off a recorded track | aero |
 | `stepPointMass(state, control, dt)` | point-mass.js | One step of an aircraft flown by G and bank, through loops and vertical | aero, Runge-Kutta |
@@ -29,6 +31,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `machToKiasKt`, `speedOfSoundKt` | t6-performance.js | KIAS for a Mach number; speed of sound | aero |
 | `isaDensityRatio(alt)` | flight-math.js | Air density as a fraction of sea level | standard atmosphere |
 | `energyHeightFt(alt, ktas)` | t6-performance.js | Height plus the height the speed is worth | aero |
+| `pitchDegFromClimb(climb, tas, kias, g)`, `T6A_PITCH` | t6-performance.js | Nose attitude: climb angle plus angle of attack, which grows with G and falls with speed squared (about 11° in a 180 KIAS climb) | climb angle aero; angle of attack an estimate matched to SMM 3.14 para 35 and EFIG p.126 |
 | `thrustPerWeight`, `dragPerWeight`, `excessThrustPerWeight` | t6-performance.js | Full-power thrust, drag and what is left to climb or speed up with. Climb rate = excess × TAS. Pass the turn's real G | fitted to the T-6A sustained turn chart (`T6A_FIT`) |
 | `T6A_LIMITS`, `stallLimitG`, `availableG` | t6-performance.js | V-n limits, stall line, G available now | NFM; stall 86 KIAS (Patrick, 30 Sep) |
 | `maxKiasT6A`, `modelMaxIasT6A` | t6-performance.js | Top speed at a height (VMO 316 or Mmo 0.67) | NFM Fig 5-3, p.5-9 |
@@ -69,10 +72,12 @@ These live in `src/modules/traffic/` today. The refactor moves or replaces them 
 | What | Where now | What happens to it |
 |---|---|---|
 | Moose Jaw numbers (threshold, runway heading, field elevation, pattern and key heights, PFL circle) | `airfield.js` | Stays there; any number still typed elsewhere moves in by PR 5 |
-| Wind-shaped circuit path: wind perch, break arc, final turn | `route.js` (`computeWindPerch`, `simulateBreakArc`, `generateWindAdjustedTrack`) | Becomes the circuit path in PR 2 |
+| The circuit, built by flying it: climb-out, crosswind at 220 KIAS, fixed downwind and base, break, perch moved so the final turn rolls out at the window | `circuit.js` (`buildCircuit`, `breakPointAlongFt`, `CIRCUIT`, `ROLL`) | New in PR 2; `generateWindAdjustedTrack` in `route.js` now calls it |
+| The path follower: moves an aircraft along a built path, with heading, bank, roll and pitch from the path | `path-follower.js` (`followRoute`, `trackAt`) | New in PR 2; uses the core functions above |
+| Old wind perch and break arc (closed pattern targeting) | `route.js` (`computeWindPerch`, `simulateBreakArc`, `computeBreakRollout`) | Still used by the closed pattern; replaced in PR 4 |
 | PFL circle and its old height schedule | `route.js` (`generatePflTrack`), `pfl-rail.js`, `pfl-solver.js` | Rebuilt in PR 3 |
 | The 1,350 ft/min sink literal | `pfl-rail.js`, `pfl-solver.js`, `map2d.js` | Replaced by `glideSinkFpm` in PR 3 |
 | Glide speeds 125 / 120 / 100 | `flight-engine.js` | Settled with the PFL spec in PR 3 (Patrick's C1: 125 clean, 120 gear down) |
-| IAS used as TAS in calm air; heading passed where track is meant | `tick-aircraft.js`, `flight-engine.js` | Fixed in PR 2 |
+| IAS used as TAS in calm air; heading passed where track is meant | `tick-aircraft.js`, `flight-engine.js` | Fixed in `tick-aircraft.js` in PR 2; `flight-engine.js` in PR 4 |
 | Bank laws, intercept gain, climb-arrest pitch, break deceleration | `flight-engine.js`, `tick-aircraft.js`, `high-key.js`, `breakout.js` | One guidance law in PR 2 and PR 4 |
 | Turn rate from bank, G from bank, g = 32.174 inline | `high-key.js`, `pfl-rail.js`, `pfl-solver.js`, `flight-engine.js` | Removed with those files' rewrites (PR 2 to PR 4) |

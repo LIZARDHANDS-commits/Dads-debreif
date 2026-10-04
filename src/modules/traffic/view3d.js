@@ -3,7 +3,7 @@
 // (three-aircraft.js, ct156-model.js). It reads the engine's state (where each aircraft is, its heading, height
 // and speed) and draws it: the routes as lines at their heights, the shared T-6 for the CT-156 and CT-157 and a
 // stand-in shape for the other types, banking with their turns, and a caution ring round each aircraft. It works
-// out no flight math of its own: heading, bank and pitch are only read off how the state changes.
+// out no flight math of its own: it draws the sim's bank and pitch, and reads them off how the state changes only when the state has none.
 //
 // three.js is loaded (a dynamic import, the ui-kit's loadThree) only when 3D is switched on, and everything it
 // builds is freed when the person switches back to 2D and when the module closes. The renderer's canvas is made
@@ -137,6 +137,18 @@ export function createAttitude() {
     },
     forget: (id) => seen.delete(id),
     clear: () => seen.clear(),
+  };
+}
+
+/**
+ * The attitude to draw: the sim's own bank (right positive, so it turns round here) and pitch when it gives
+ * them, so the picture shows what is flown (Traffic spec item 9). `readOff` (from createAttitude) is only the
+ * fallback for an aircraft whose state has no bank or pitch.
+ */
+export function attitudeOf(ac, readOff) {
+  return {
+    bankRad: Number.isFinite(ac?.bankDeg) ? -rad(ac.bankDeg) : readOff.bankRad,
+    pitchRad: Number.isFinite(ac?.pitchDeg) ? rad(ac.pitchDeg) : readOff.pitchRad,
   };
 }
 
@@ -521,7 +533,7 @@ export function createSceneKit(THREE, { models = defaultModels() } = {}) {
       const kind = modelKindFor(ac.type) === 'ct156' ? (fullLeft-- > 0 ? 'ct156' : 't6plain') : 'standin';
       const mesh = planeFor(ac, kind, options.paint ?? PAINT_DEFAULT);
       mesh.visible = true;
-      const { bankRad, pitchRad } = attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt });
+      const { bankRad, pitchRad } = attitudeOf(ac, attitude.update(ac.id, { t: options.time ?? 0, headingDeg: ac.headingDeg, kt: ac.kt, altFt: ac.alt }));
       applyPose(mesh, { x: ac.x, y: ac.y, altFt: ac.alt, headingDeg: ac.headingDeg, bankRad, pitchRad }, lengthFt);
 
       const z = altToZ(ac.alt, ALT_SCALE);

@@ -14,6 +14,7 @@ import {
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
   T6A_GLIDE, glideSinkFpm, glideRatio, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
   T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A, modelMaxIasT6A,
+  pitchDegFromClimb,
 } from '../../../src/core/t6-performance.js';
 import {
   T6A_TURN_POINTS, T6A_TURN_STALL_LIMIT, T6A_TURN_ZERO, T6A_TURN_150_200, T6A_TURN_OTHER, T6A_FIT,
@@ -518,4 +519,16 @@ test('glideRatio: the chart\'s 2 NM per 1,000 ft clean is about 12.2 ft flown pe
   near(glideRatio('clean'), 2 * FT_PER_NM / 1000, 1e-9, 'clean');
   near(glideRatio('landing'), 1.1 * FT_PER_NM / 1000, 1e-9, 'landing flap');
   assert.throws(() => glideRatio('spoilers'), RangeError);
+});
+
+test('nose attitude: climb angle plus angle of attack, more nose up when slower, pulling or climbing', () => {
+  // Properties only: the angle-of-attack size is an estimate (T6A_PITCH), so no exact attitude is pinned here.
+  const tas = (kias) => iasToTasKt(kias, 3500) * KT_TO_FTPS;
+  const level220 = pitchDegFromClimb(0, tas(220), 220, 1);
+  const level140 = pitchDegFromClimb(0, tas(140), 140, 1);
+  assert.ok(level220 > 0 && level220 < level140, 'level flight is a little nose up, more so when slower');
+  assert.ok(pitchDegFromClimb(0, tas(220), 220, 2) > level220, 'a 2 G turn needs more angle of attack');
+  const climbFtps = 2000 / 60;
+  const climb = pitchDegFromClimb(climbFtps, tas(180), 180, 1) - pitchDegFromClimb(0, tas(180), 180, 1);
+  assert.ok(Math.abs(climb - Math.asin(climbFtps / tas(180)) * 180 / Math.PI) < 1e-9, 'a climb adds its flight path angle');
 });

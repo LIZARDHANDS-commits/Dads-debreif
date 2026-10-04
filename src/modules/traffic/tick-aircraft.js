@@ -16,7 +16,6 @@
 
 import { ktToFtps } from '../../core/units.js';
 import { wrapDeg180 } from '../../core/angles.js';
-import { bankDegFromG } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { stepAircraft, calcInterceptHeading, calcCrossTrackError, CYMJ_DOWNWIND_HDG_DEG } from './flight-engine.js';
@@ -25,6 +24,7 @@ import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, isClosedRoute, D
 import { stepBreakout } from './breakout.js';
 import { stepHighKey } from './high-key.js';
 import { PFL_AIRFIELD } from './pfl-solver.js';
+import { followRoute } from './path-follower.js';
 export { stepBreakout } from './breakout.js';
 export { stepHighKey } from './high-key.js';
 
@@ -307,10 +307,11 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
       if ((distToRail <= 40 && isDownwindLeg) || distToPerchStart < 600) {
         a.mode = 'RAIL';
         a.distFt = Math.max(p10Dist + 100, Math.min(p11Dist, railDist));
+        // The aircraft is a little off the rail here: close the gap smoothly instead of snapping (spec item 13a).
+        const capturePos = posOnRoute(patRoute, a.distFt, routeOptions);
+        a.joinOffset = { x: (a.x ?? capturePos.x) - capturePos.x, y: (a.y ?? capturePos.y) - capturePos.y };
         a.phase = 'downwind';
         a.command = null;
-        a.targetBankDeg = 0;
-        a.pitchDeg = 0;
         delete a._activeCommand;
         delete a._closedPhase;
         delete a._closedTarget;
@@ -637,7 +638,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       a.tag = wp0.tag;
     }
 
-    const tasKt = (windKt > 0) ? iasToTasKt(a.iasKt, a.alt) : a.iasKt;
+    const tasKt = iasToTasKt(a.iasKt, a.alt);
     const wt = windTriangle(a.headingDeg, Math.max(1, tasKt), windFromDeg, windKt);
     a.gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
     a.groundSpeedKt = a.gsKt;
@@ -734,7 +735,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
       const startBank = start.bankDeg ?? 0;
       a.bankDeg = startBank * (1 - s);
 
-      const tasKt = (windKt > 0) ? iasToTasKt(a.iasKt, a.alt) : a.iasKt;
+      const tasKt = iasToTasKt(a.iasKt, a.alt);
       const wt = windTriangle(a.headingDeg, Math.max(1, tasKt), windFromDeg, windKt);
       a.gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
       a.groundSpeedKt = a.gsKt;
@@ -853,46 +854,8 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
 
     if (!route) return a;
 
-    // Advance ground distance along route
-    const currentGsKt = a.gsKt ?? a.iasKt ?? a.kt ?? 140;
-    const gsFtps = ktToFtps(currentGsKt);
-    a.distFt = (a.distFt ?? 0) + gsFtps * stepDt;
-
-    // Derive position and parameters from route
-    const p = posOnRoute(route, a.distFt, routeOptions);
-    a.x = p.x;
-    a.y = p.y;
-    a.alt = p.alt ?? a.fallbackAlt ?? a.alt ?? 3500;
-    a.iasKt = p.kt ?? a.fallbackKt ?? a.iasKt ?? 140;
-    a.kt = a.iasKt;
-    if (p.phase) {
-      a.phase = p.phase;
-    }
-    if (p.tag) {
-      a.tag = p.tag;
-    } else if (route?.points?.[p.seg]?.tag) {
-      a.tag = route.points[p.seg].tag;
-    }
-
-    // Calculate wind triangle for ground speed and crab angle
-    const tasKt = (windKt > 0) ? iasToTasKt(a.iasKt, a.alt) : a.iasKt;
-    const trackDeg = p.headingDeg;
-    const wt = windTriangle(trackDeg, Math.max(1, tasKt), windFromDeg, windKt);
-    a.gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
-    a.groundSpeedKt = a.gsKt;
-    a.crabDeg = wt.crabDeg;
-    a.headingDeg = wt.headingDeg;
-    a.trackDeg = trackDeg;
-
-    // Bank angle in rail mode: turns bank according to G, straight legs stay wings level
-    let targetBankDeg = 0;
-    const isStraightLeg = p.phase === 'initial' || p.phase === 'downwind' || p.phase === 'final' || p.phase === 'landing';
-    if (!isStraightLeg && p.g && p.g > 1) {
-      targetBankDeg = bankDegFromG(p.g);
-    }
-    const maxRollDelta = 45 * stepDt;
-    const bankDelta = Math.max(-maxRollDelta, Math.min(maxRollDelta, targetBankDeg - (a.bankDeg ?? 0)));
-    a.bankDeg = (a.bankDeg ?? 0) + bankDelta;
+    // The path follower moves the aircraft: position, heading, bank and pitch (Traffic spec items 1-9).
+    followRoute(a, route, env, stepDt, routeOptions);
 
     // Check if waypoint reached at new position triggers transition to PHYSICS
     if (shouldEnterPhysics(a, route, routeOptions)) {
