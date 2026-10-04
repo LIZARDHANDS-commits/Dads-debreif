@@ -27,7 +27,7 @@ import { FT_PER_NM } from '../../core/units.js';
 import { windVectorFtps } from '../../core/wind.js';
 import { glideRatio, iasToTasKt } from '../../core/t6-performance.js';
 import { PFL, PFL_CONFIGS, PFL_CONFIG_LABELS } from './pfl.js';
-import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT } from './airfield.js';
+import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT, PATTERN_ALT_FT, trueToMagnetic } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 import { T6_LENGTH_FT } from './types.js';
 
@@ -86,11 +86,11 @@ export const heightSpeedText = (ac) => `${whole(ac.alt)} ft ${whole(ac.kt)} kt`;
 /** "1,250 ft", a leg's length on the map. */
 export const feetText = (ft) => `${whole(ft)} ft`;
 
-/** "Wind 250°T 20 kt", or nothing when the wind is calm. */
+/** "Wind 242°M 20 kt" for a wind from 250° true, or nothing when the wind is calm: magnetic, as the runways are (Patrick, 4 Oct). */
 export function windText(fromDeg, kt) {
   if (!(kt > 0)) return '';
-  const from = String(Math.round(fromDeg) % 360 || 360).padStart(3, '0');
-  return `Wind ${from}°T ${whole(kt)} kt`;
+  const from = String(trueToMagnetic(fromDeg)).padStart(3, '0');
+  return `Wind ${from}°M ${whole(kt)} kt`;
 }
 
 /** The direction the wind blows towards, in degrees true (the arrow points this way). */
@@ -805,7 +805,7 @@ function drawPoints(ctx, route, at, text, palette, circle) {
   });
 }
 
-// The wind arrow and "Wind 250°T 20 kt" in the top right corner, only when it isn't calm.
+// The wind arrow and "Wind 242°M 20 kt" in the top right corner, only when it isn't calm.
 function drawWind(ctx, map, settings, palette, text) {
   const words = windText(settings.windFromDeg, settings.windKt);
   if (!words) return;

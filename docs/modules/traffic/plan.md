@@ -90,7 +90,8 @@ Screen changes only: nothing in `src/core`, and no default, range or flying beha
 - [x] "Routes on the map" also shows or hides the PFL circle; its row is the Layers menu's "PFL ground circle" switch, so the two agree (Patrick, 4 Oct). DADS v2.10.33.
 - [x] The route rows carry the name only, no second label ("pattern", "→ Overhead break P1"); "Hidden" shows beside a route that is off the map (Patrick, 4 Oct). DADS v2.10.33.
 - [x] The wind dial in the Setup column turns with the 3D view, so its N, runway and wind arrow line up with the picture on screen; in 2D it is north up (Patrick, 4 Oct, screenshots of the 3D view turned and of the dial). Dragging the turned dial still sets the wind it points at. DADS v2.10.34.
-- [ ] The wind is shown in degrees magnetic, as the runways are (Patrick, 4 Oct). Needs the magnetic variation at Moose Jaw from a source or Patrick's ruling (today the code assumes about 8° East with no page: TR-7 reads 29 as 298° true). The wind setting stays in true underneath, so the flying does not change.
+- [x] The wind is shown in degrees magnetic, as the runways are: the dial's readout and the map's corner label (Patrick, 4 Oct). The dial drags and steps in tens of degrees magnetic. The variation is 8° East, an estimate until a page backs it (airfield.js MAG_VARIATION_DEG_E; on the waiting list). The wind setting and the flying stay in true. DADS v2.10.35.
+- [x] The dial's runway lines up exactly with the runway on the ground in 3D: each direction is drawn as the tilted camera shows it, so a steep tilt squashes the dial's compass (Patrick, 4 Oct). DADS v2.10.35. Needs the magnetic variation at Moose Jaw from a source or Patrick's ruling (today the code assumes about 8° East with no page: TR-7 reads 29 as 298° true). The wind setting stays in true underneath, so the flying does not change.
 
 ## Step 6. Check the camera, graphics and scenery work against the code
 

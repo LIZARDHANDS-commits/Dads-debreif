@@ -65,10 +65,11 @@ test('height and speed read "2,500 ft 220 kt", rounded, never "-0"', () => {
 });
 
 test('the wind label is written only when it isn\'t calm, in three digits, as a METAR gives it', () => {
-  assert.equal(windText(250, 20), 'Wind 250°T 20 kt');
-  assert.equal(windText(90, 5), 'Wind 090°T 5 kt');
-  assert.equal(windText(360, 12), 'Wind 360°T 12 kt');
-  assert.equal(windText(0, 12), 'Wind 360°T 12 kt');
+  // Shown in magnetic, 8° East at Moose Jaw (an estimate, airfield.js MAG_VARIATION_DEG_E): 250°T is 242°M.
+  assert.equal(windText(250, 20), 'Wind 242°M 20 kt');
+  assert.equal(windText(98, 5), 'Wind 090°M 5 kt');
+  assert.equal(windText(8, 12), 'Wind 360°M 12 kt');
+  assert.equal(windText(368, 12), 'Wind 360°M 12 kt');
   assert.equal(windText(360, 0), '');
   assert.equal(windText(250, 0), '');
 });
@@ -470,7 +471,7 @@ test('the wind shows in the corner with its arrow only when it isn\'t calm', () 
   const calm = draw();
   assert.ok(!calm.written().some((t) => t.startsWith('Wind')));
   const rec = draw({}, { windFromDeg: 250, windKt: 20 });
-  assert.ok(rec.written().includes('Wind 250°T 20 kt'));
+  assert.ok(rec.written().includes('Wind 242°M 20 kt'));
   const label = rec.named('fillText').find((c) => c.args[0].startsWith('Wind'));
   assert.equal(label.textAlign, 'right');
   assert.ok(label.args[1] < SIZE.width && label.args[2] < 60, 'in the top right corner');

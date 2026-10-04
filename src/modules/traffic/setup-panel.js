@@ -15,6 +15,7 @@ import { windTriangle } from '../../core/wind.js';
 import { FT_PER_NM } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
+import { trueToMagnetic, magneticToTrue } from './airfield.js';
 
 /** How many aircraft Random puts up (Patrick, 11:05Z). */
 export const RANDOM_COUNT = 5;
@@ -33,7 +34,7 @@ export const BUSY_PFL_AREA = Object.freeze({ radialDeg: 120, distNm: 6, altFt: 8
 export const BUSY_STRAIGHT_IN_SEC = 30;
 /** Random keeps its aircraft at least this far apart, so none starts inside another's conflict ring (estimate). */
 export const RANDOM_SPACING_FT = FT_PER_NM;
-/** While dragging, the dial moves in tens of degrees, the steps a METAR gives a wind in; the arrow keys with Shift give single degrees. */
+/** While dragging, the dial moves in tens of degrees magnetic, the steps an ATIS gives a wind in; the arrow keys with Shift give single degrees. */
 export const DIAL_STEP_DEG = 10;
 
 const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: startPoint - 1, startsAtSec });
@@ -185,10 +186,14 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     const d = ((Math.round(deg) % 360) + 360) % 360;
     settings.update({ windFromDeg: d === 0 ? 360 : d });
   };
+  // The bearing under the pointer, undoing the dial's turn and squash (see draw), set in tens of degrees magnetic.
   const fromPointer = (e) => {
     const box = canvas.getBoundingClientRect?.();
     if (!box || !box.width) return;
-    setFrom(dialBearing(e.clientX - (box.left + box.width / 2), e.clientY - (box.top + box.height / 2)) + facing); // the dial may be turned
+    const dx = e.clientX - (box.left + box.width / 2);
+    const upPx = (box.top + box.height / 2) - e.clientY;
+    const trueDeg = facing.yawDeg + (Math.atan2(dx, upPx / facing.squash) * 180) / Math.PI;
+    setFrom(magneticToTrue(Math.round(trueToMagnetic(trueDeg) / DIAL_STEP_DEG) * DIAL_STEP_DEG));
   };
   let dragging = false;
   dial.addEventListener('pointerdown', (e) => {
@@ -202,12 +207,14 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   dial.addEventListener('pointerup', stop);
   dial.addEventListener('pointercancel', stop);
   dial.addEventListener('keydown', (e) => {
+    // Steps in magnetic: tens land on round magnetic figures, Shift gives single degrees, Home is 360°M.
     const step = e.shiftKey ? 1 : DIAL_STEP_DEG;
-    const now = settings.get().windFromDeg;
-    const to = { ArrowRight: now + step, ArrowUp: now + step, ArrowLeft: now - step, ArrowDown: now - step, PageUp: now + 30, PageDown: now - 30, Home: 360 }[e.key];
+    const mag = trueToMagnetic(settings.get().windFromDeg);
+    const snap = (m, dir) => (step === 1 ? m + dir : (dir > 0 ? Math.floor(m / step) * step + step : Math.ceil(m / step) * step - step));
+    const to = { ArrowRight: snap(mag, 1), ArrowUp: snap(mag, 1), ArrowLeft: snap(mag, -1), ArrowDown: snap(mag, -1), PageUp: mag + 30, PageDown: mag - 30, Home: 360 }[e.key];
     if (to === undefined) return;
     e.preventDefault();
-    setFrom(to);
+    setFrom(magneticToTrue(to));
   });
 
   const wind = h('div', { class: 'setup-wind', role: 'group', 'aria-label': 'Wind' },
@@ -232,9 +239,16 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     ctx.clearRect(0, 0, DIAL_PX, DIAL_PX);
     const c = DIAL_PX / 2, r = c - 14;
     const text = token('--text', '#e5edf5'), muted = token('--text-muted', '#8aa0b4'), accent = token('--accent', '#38bdf8'), card = token('--bg-sunken', '#0b1620');
-    // Turned by the bearing the picture's top faces (0 in 2D, the camera's in 3D), so N, the runway and the wind
-    // arrow sit on the dial as they do on screen (Patrick, 4 Oct).
-    const polar = (deg, radius) => [c + radius * Math.sin(((deg - facing) * Math.PI) / 180), c - radius * Math.cos(((deg - facing) * Math.PI) / 180)];
+    // Each direction is drawn the way it runs on the screen (Patrick, 4 Oct: the runway lines up with the one on the
+    // ground). The 3D view looks down at a tilt, so across the screen is kept and up the screen is shortened by
+    // squash (the cosine of the tilt): a ground bearing b shows along (sin(b - yaw), squash * cos(b - yaw)).
+    // In 2D yaw is 0 and squash 1, a plain north-up compass.
+    const polar = (deg, radius) => {
+      const a = ((deg - facing.yawDeg) * Math.PI) / 180;
+      const x = Math.sin(a), y = facing.squash * Math.cos(a);
+      const n = Math.hypot(x, y) || 1;
+      return [c + (radius * x) / n, c - (radius * y) / n];
+    };
     ctx.fillStyle = card;
     ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = muted; ctx.lineWidth = 1; ctx.stroke();
@@ -261,28 +275,35 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     ctx.globalAlpha = 1;
     ctx.fillStyle = text; ctx.font = '700 13px ui-monospace, monospace';
     const [rx, ry] = polar(from + 180, r * 0.6); // the readout sits opposite the arrow, clear of it
-    ctx.fillText(`${String(from).padStart(3, '0')}°T`, rx, ry);
+    ctx.fillText(`${String(trueToMagnetic(from)).padStart(3, '0')}°M`, rx, ry);
   }
 
   function show(values) {
     const from = values.windFromDeg, kt = values.windKt;
+    const mag = trueToMagnetic(from);
     dial.setAttribute('aria-valuenow', String(from));
-    dial.setAttribute('aria-valuetext', kt > 0 ? `from ${from}° true` : `calm, set to ${from}° true`);
+    dial.setAttribute('aria-valuetext', kt > 0 ? `from ${mag}° magnetic` : `calm, set to ${mag}° magnetic`);
     const words = runwayWindText(from, kt, values.runway);
     if (components.textContent !== words) components.textContent = words;
     draw(values);
   }
-  let facing = 0; // the compass bearing at the top of the dial: the picture's, so the dial matches the screen
+  // How the picture shows the ground: yawDeg, the bearing up the screen; squash, how much a tilted 3D camera shortens
+  // distances up the screen (1 straight down; never below 0.2, so the dial stays readable when looking level).
+  let facing = { yawDeg: 0, squash: 1 };
   show(settings.get());
   const stopSettings = settings.subscribe(show);
 
   return {
     element,
-    /** Turns the dial so `deg` (the compass bearing the top of the picture faces) is at its top; 0 is north up. */
-    setFacing(deg) {
-      const next = ((Math.round(Number(deg) || 0) % 360) + 360) % 360;
-      if (next === facing) return;
-      facing = next;
+    /**
+     * Draws the dial as the picture shows the ground: `yawDeg` is the bearing up the screen, `tiltDeg` how far the
+     * 3D camera is tilted from straight down (0 for the 2D map). (0, 0) is a north-up compass.
+     */
+    setFacing(yawDeg, tiltDeg = 0) {
+      const yaw = ((Math.round(Number(yawDeg) || 0) % 360) + 360) % 360;
+      const squash = Math.max(0.2, Math.cos(((Number(tiltDeg) || 0) * Math.PI) / 180));
+      if (yaw === facing.yawDeg && Math.abs(squash - facing.squash) < 0.005) return;
+      facing = { yawDeg: yaw, squash };
       draw(settings.get());
     },
     /** Shows the scenario loaded in the drop-down, or none ("Choose a scenario"). */
