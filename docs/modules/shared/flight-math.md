@@ -59,8 +59,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `compassDegToHeadingRad`, `headingRadToCompassDeg`, `unitVectorFromCompassDeg` | angles.js | Compass degrees to code headings and back | geometry |
 | `relativeBearingDeg`, `aspectAngleDeg`, `headingCrossAngleDeg`, `clockToRelativeDeg` | angles.js | Bearing off the nose, aspect, heading crossing angle, clock code | geometry |
 | `closureKt` | flight-math.js | Closure between two aircraft | geometry |
-| `closestApproach`, `dangerGate`, `clearanceSide` | closest-approach.js | Closest approach of two straight tracks (time, miss, range now); the danger test that holds until the range opens; which side to dodge (ALL-27) | geometry |
-| `firstEntry`, `firstEntrySampled` (and a copy of `closestApproach`) | `src/modules/traffic/closest-approach.js` for now | The first time two aircraft are inside a cylinder (lateral and vertical) of each other, straight or along predicted tracks | geometry. Traffic moves these into `src/core/closest-approach.js` and drops its copy of `closestApproach` (ALL-27) |
+| `closestApproach`, `dangerGate`, `clearanceSide`, `firstEntry`, `firstEntrySampled` | closest-approach.js | Closest approach of two straight tracks (time, miss, range now); the danger test that holds until the range opens; which side to dodge; the first time two aircraft are inside a cylinder (lateral and vertical) of each other, straight or along predicted tracks (ALL-27) | geometry |
 | `latLonToLocalFt`, `localFtToLatLon`, `distance` | geo.js | Map feet and lat/lon | flat-earth projection |
 | `FT_PER_NM`, `KT_TO_FTPS`, `G_FTPS2` and the rest | units.js | Unit constants, once | standard values |
 

@@ -12,7 +12,7 @@
 import { posOnRoute } from './route.js';
 import { ktToFtps } from '../../core/units.js';
 import { wrapDeg180 } from '../../core/angles.js';
-import { firstEntrySampled } from './closest-approach.js';
+import { firstEntrySampled } from '../../core/closest-approach.js';
 
 /** Every number the deconfliction uses, each with its source (design section 4). */
 export const DECONFLICT = Object.freeze({

@@ -6,7 +6,7 @@
 // caution are Patrick's (TR-Q11); the right-of-way rows are the Flying Orders and SMM paragraphs in deconflict.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closestApproach, firstEntry, firstEntrySampled } from '../../../src/modules/traffic/closest-approach.js';
+import { closestApproach, firstEntry, firstEntrySampled } from '../../../src/core/closest-approach.js';
 import { rightOfWay, freeze } from '../../../src/modules/traffic/deconflict.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 
