@@ -19,8 +19,10 @@ async function tagControls(page) {
   );
 }
 
-// Traffic is left out of this walk on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"); its
-// faults are on docs/modules/traffic/plan.md, step 3.
+// Traffic is left out of this walk on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"). Its one
+// fault here was the walk's own: it counted the buttons inside the closed "PFL From Area" panel, which keep a box
+// in Chromium though no one can see them (docs/modules/traffic/plan.md, step 4). With about 70 controls, each on a
+// fresh page, Traffic would make this walk heavy, so its buttons are checked by its own tests instead.
 const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
 
 for (const route of CHECKED_ROUTES) {
