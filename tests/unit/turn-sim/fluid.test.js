@@ -298,3 +298,50 @@ test('the wingovers: about 45° up and down, up to 120° of bank, about 3 G, out
   assertBackInTheCone(f, 'after the wingovers');
   assert.deepEqual(failures.slice(0, 5), []);
 });
+
+test('the barrel roll: 45° up, level inverted 90° off the line, 45° down, back on the line at about 230 KIAS; #2 ends back in the cone', () => {
+  // SMM 14.8 para 19 and Fig 14.1; Table 14.1 (230 KIAS, 3 G); Patrick's picks 19:20Z rows 5 and 6 (level inverted at the
+  // 90° point, about 45° of pitch; the brief's 60° pitch, AFM7 p.17, not passed). Shared margins: ±5°, ±10 kt. Two
+  // minutes is generous for the set-up and a roll of about 20 s.
+  const f = inFightingWing();
+  f.change('fluid');
+  const failures = [];
+  const watch = alwaysTrue(failures);
+  fly(f, 30, watch);
+  const lead = f.state.aircraft[0];
+  f.pressFluid('wingsLevel');
+  fly(f, 5, watch);
+  const h0 = lead.headingRad;
+  assert.notEqual(f.pressFluid('barrelRoll', -1), 'refused');
+  let up = -90;
+  let down = 90;
+  let pitch = 0;
+  let far = { off: 0 };
+  let speeds = null;
+  fly(f, 120, (ff, before) => {
+    watch(ff, before);
+    const now = ff.state.fluid.session.now();
+    if (now.key === 'barrelRoll') {
+      const gamma = Math.asin(Math.max(-1, Math.min(1, lead.climbFtps / lead.tasFtps))) / DEG;
+      up = Math.max(up, gamma);
+      down = Math.min(down, gamma);
+      pitch = Math.max(pitch, Math.abs(lead.pitchDeg));
+      const off = Math.abs(Math.atan2(Math.sin(lead.headingRad - h0), Math.cos(lead.headingRad - h0))) / DEG;
+      if (off > far.off) far = { off, gamma, bank: lead.bankDeg };
+    }
+    if (now.speeds?.exitKias != null) speeds = now.speeds;
+  });
+  assert.ok(Math.abs(up - 45) <= TOLERANCES.ANGLE_DEG, `${up.toFixed(1)}° up`);
+  assert.ok(Math.abs(down + 45) <= TOLERANCES.ANGLE_DEG, `${(-down).toFixed(1)}° down`);
+  assert.ok(pitch <= 60, `Lead's pitch reached ${pitch.toFixed(0)}°`);
+  assert.ok(Math.abs(far.off - 90) <= TOLERANCES.ANGLE_DEG, `${far.off.toFixed(0)}° off the line at the far point`);
+  assert.ok(Math.abs(far.gamma) <= TOLERANCES.ANGLE_DEG && Math.abs(far.bank) >= 180 - TOLERANCES.ANGLE_DEG, `level inverted there (${far.gamma.toFixed(1)}° climb, ${far.bank.toFixed(0)}° bank)`);
+  assert.ok(speeds, 'the roll finished with its entry and exit speeds');
+  assert.ok(Math.abs(speeds.entryKias - 230) <= TOLERANCES.AIRSPEED_KT, `entry ${Math.round(speeds.entryKias)} KIAS`);
+  assert.ok(Math.abs(speeds.exitKias - 230) <= TOLERANCES.AIRSPEED_KT, `exit ${Math.round(speeds.exitKias)} KIAS`);
+  const dh = Math.abs(Math.atan2(Math.sin(lead.headingRad - h0), Math.cos(lead.headingRad - h0))) / DEG;
+  assert.ok(dh <= TOLERANCES.ANGLE_DEG, `back on the line (${dh.toFixed(1)}° off)`);
+  assert.ok(Math.abs(lead.bankDeg) < TOLERANCES.ANGLE_DEG, 'Lead wings level after the roll');
+  assertBackInTheCone(f, 'after the barrel roll');
+  assert.deepEqual(failures.slice(0, 5), []);
+});

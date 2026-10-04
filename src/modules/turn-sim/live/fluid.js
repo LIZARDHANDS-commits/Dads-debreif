@@ -13,7 +13,7 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
@@ -187,6 +187,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
       case 'loop': return [loop()];
       case 'wingover': return [wingovers(dir)];
+      case 'barrelRoll': return [barrelRoll(dir)];
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
@@ -321,9 +322,9 @@ export function rangeWord(rangeFt) {
 /**
  * The readouts for the card and the tags (design 5.5), from the two aircraft as they are: range (straight line), aspect
  * (0 at Lead's tail, SMM 16.16 para 40b; Patrick row 10), HCA (para 40c), closure, line of sight rate, #2's state (the
- * distance only while Lead manoeuvres, the distance and the cone straight and level) and the flags. prev: the aircraft a step ago ({ lead, wing } with xFt, yFt, altAboveFt) for the rates, or null.
+ * distance only while Lead manoeuvres, the distance and the cone straight and level) and the flags. manKey: the manoeuvre Lead flies (for its pitch limit, the barrel roll 60°). prev: the aircraft a step ago ({ lead, wing } with xFt, yFt, altAboveFt) for the rates, or null.
  */
-export function fluidReadouts(lead, wing, prev, blockFt) {
+export function fluidReadouts(lead, wing, prev, blockFt, manKey = null) {
   const p = (a) => ({ x: a.xFt, y: a.yFt, z: a.altAboveFt ?? 0 });
   const vel = (a) => {
     const horiz = Math.sqrt(Math.max(0, a.tasFtps ** 2 - (a.climbFtps ?? 0) ** 2));
@@ -354,6 +355,8 @@ export function fluidReadouts(lead, wing, prev, blockFt) {
   if (wing.g > FLUID.wingGLimit) flags.push(`#2 is pulling ${wing.g.toFixed(1)} G; the limit is 5 G (SMM 16.17 para 44a).`);
   if (lead.g > FLUID.leadGLimit) flags.push(`Lead is pulling ${lead.g.toFixed(1)} G; the limit is 4 G (Orders B2 ch 8).`);
   if (aspectDeg > FLUID.aspectHcaFlagDeg && hcaDeg > FLUID.aspectHcaFlagDeg && losDps < FLUID.lowLosDps) flags.push('More than 90° of aspect with more than 90° of HCA and low line of sight (SMM 16.17 para 44b).');
+  const maxPitch = manKey ? FLUID_MOVES[manKey]?.maxPitch : null;
+  if (maxPitch && Math.abs(lead.pitchDeg ?? 0) > maxPitch.deg) flags.push(`Lead's pitch is ${Math.round(Math.abs(lead.pitchDeg))}°; the barrel roll's limit is ${maxPitch.deg}° (${maxPitch.source}).`);
   for (const [a, name] of [[lead, 'Lead'], [wing, '#2']]) {
     if (blockFt + (a.altAboveFt ?? 0) < FLUID.hardDeckMslFt) flags.push(`${name} is below 3,000 ft AGL, the fluid manoeuvring minimum (Orders B2 ch 8 para 1f; Gen Book p.11).`);
     if (a.g > shakerG(a.kias) - 0.01) flags.push(`${name} is at the stick shaker.`);

@@ -32,7 +32,14 @@
 //    horizon, about 45° of pitch above and below the horizon, up to 120° of bank, about 3 G, out on a heading about 180°
 //    from the entry; then the second the other way (para 47: "ideally"), back to the entry heading. Flown as a planned
 //    nose path (followNose below) with the nose rate set for about 3 G: the 120° of bank and the 45° come out of it.
-// The barrel roll and the standard sequence follow in this piece (spec 10.3).
+//  - Barrel roll (V2.19; SMM 14.8 paras 18-19, Fig 14.1; Table 14.1; Patrick's picks 19:20Z rows 5 and 6): PCL MAX,
+//    on a reference line at 230 KIAS, a 3 G wings-level pull and the roll blended in; the nose circles a point on the
+//    horizon 45° off the line: 45° off at 45° pitch up and about 90° of bank, 90° off level and inverted, 45° off at 45°
+//    pitch down, then level on the line at 230 KIAS. The nose moves round that circle with the back pressure set by a G
+//    plan: 3 G at the entry (Table 14.1), reduced over the top to 2.25 G (para 19: "the back pressure must be reduced";
+//    2.25 is an estimate that brings the exit back to about 230 KIAS, Fig 14.1 "adjust rate as required for 230 KIAS
+//    exit"), back up to 3 G coming down. Pitch over 60° is flagged (AFM7 brief p.17, Exercise 4), never held.
+// The standard sequence follows in this piece (spec 10.3).
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.js';
@@ -77,6 +84,11 @@ export const LEAD = Object.freeze({
   noseEndDps2: 3, // and how gently he slows it onto the end of the path, 3°/s² (an estimate): the pull-out to level
   noseSteerPerSec: 1.2, // how fast he steers back onto the planned nose path, per second (an estimate)
   shakerShare: 0.9, // he pulls no more than 90% of the stick shaker's G on a planned nose path (an estimate)
+  barrelKias: 230, // SMM Table 14.1, 14.8 para 19 (entry and exit)
+  barrelG: 3, // entry load (SMM Table 14.1; Fig 14.1 "3G, wings level pull and begin roll")
+  barrelTopG: 2.25, // the back pressure reduced over the top (SMM 14.8 para 19): 2.25 G is an estimate (230 KIAS out)
+  barrelPitchDeg: 45, // SMM 14.8 para 19 (45° pitch up and down at the quarter points); Patrick's pick row 6
+  barrelOffDeg: 45, // the nose circles a point 45° off the reference line (SMM 14.8 para 19: 45° off, then 90° off)
 });
 
 /** The buttons Lead has in the baseline (design 5.1, cut down by Patrick 21:44Z), with their words. */
@@ -93,6 +105,11 @@ export const FLUID_MOVES = Object.freeze({
   wingover: {
     label: 'Wingovers', sided: true, interruptible: false, source: 'SMM 16.17 para 47',
     speeds: { entryKias: 230, exitKias: null, source: 'SMM 16.17 para 47 (about 230 in; the exit is not given)' },
+  },
+  barrelRoll: {
+    label: 'Barrel roll', sided: true, interruptible: false, source: 'SMM 14.8 paras 18-19, Fig 14.1; Table 14.1',
+    speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 14.1, 14.8 para 19, Fig 14.1' },
+    maxPitch: { deg: 60, source: 'AFM7 brief p.17, Exercise 4' },
   },
   terminate: { label: 'Terminate', sided: false, interruptible: false, source: 'SMM 16.17 paras 45-46, 48; AFM7 brief p.17' },
 });
@@ -491,6 +508,60 @@ export function wingovers(dir) {
       return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
     },
   };
+}
+
+/**
+ * The barrel roll (SMM 14.8 paras 18-19, Fig 14.1), dir +1 left, -1 right: the speed set-up to 230 KIAS on the heading
+ * Lead has (the reference line), then the nose round its circle (see the header) with the G plan, then level. Never cut
+ * short (a press waits).
+ */
+export function barrelRoll(dir) {
+  return {
+    key: 'barrelRoll',
+    label: `Barrel roll ${dir > 0 ? 'left' : 'right'}`,
+    interruptible: false,
+    init: () => ({ stage: 'setup' }),
+    step(st, mem) {
+      if (mem.stage === 'setup') {
+        const s = speedSetUp(st, mem, LEAD.barrelKias);
+        if (s) return { ...s, cue: { mode: 'pure', latDeg: 15 }, done: false };
+        mem.stage = 'roll';
+        mem.h0 = headingOf(st);
+        mem.s = 0;
+        mem.rate = 0;
+        mem.t = 0;
+        mem.entryKias = st.kias;
+      }
+      const path = barrelPath(mem.h0, dir);
+      let r = { g: 1, bank: 0, u: 1, end: true };
+      if (mem.stage === 'roll') {
+        mem.t += STEP_SEC;
+        const u = path.at(mem.s).u;
+        const plan = LEAD.barrelG - (LEAD.barrelG - LEAD.barrelTopG) * Math.sin(Math.PI * u) ** 2;
+        r = followNose(st, path, mem, 1 + (plan - 1) * Math.min(1, mem.t));
+        if (r.end) mem.stage = 'exit';
+      }
+      if (mem.stage === 'exit') r = { ...r, g: gForClimb(st, 0, 0.6), bank: 0 };
+      // The exit speed is read as the nose comes back to the horizon on the line (SMM 14.8 para 19).
+      if (mem.stage === 'exit' && mem.exitKias === undefined) mem.exitKias = st.kias;
+      const u = r.u;
+      const phase = mem.stage === 'exit' ? 'level' : u < 0.25 ? 'pull and roll' : u < 0.5 ? 'to inverted' : u < 0.75 ? 'nose down' : 'back to the line';
+      const done = mem.stage === 'exit' && level(st);
+      // #2 like the loop (Patrick card 19:21Z), drifting in the cone, back to 15° once level (23:02Z).
+      const cue = mem.stage === 'exit' ? { mode: 'pure', latDeg: 15 } : { mode: overTheTopMode(u), latDeg: 15, hold: 0 };
+      return { g: r.g, bank: r.bank, phase, cue, done, entryKias: mem.entryKias, exitKias: mem.exitKias };
+    },
+  };
+}
+
+/** The barrel roll's nose path: a circle of 45° about a point on the horizon 45° off the reference line, toward the roll. */
+function barrelPath(h0, dir) {
+  const A = LEAD.barrelPitchDeg * DEG;
+  const off = LEAD.barrelOffDeg * DEG;
+  return cachedPath(`barrel ${h0} ${dir}`, () => nosePath((u) => {
+    const phi = 2 * Math.PI * u;
+    return noseAt(h0 + dir * off * (1 - Math.cos(phi)), A * Math.sin(phi));
+  }, 1));
 }
 
 /** Planned nose paths, kept by their numbers (a few at a time). */

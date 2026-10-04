@@ -512,7 +512,7 @@ export function createFormation(options = {}) {
         f.prev = { lead: { ...lead }, wing: { ...wing } };
         f.session.step(lead, wing);
         state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
-        f.readouts = fluidReadouts(lead, wing, f.prev, opts.blockFt);
+        f.readouts = fluidReadouts(lead, wing, f.prev, opts.blockFt, f.session.now().key);
         state.planned = f.session.planned();
         keepTrack();
         keepRecord();
