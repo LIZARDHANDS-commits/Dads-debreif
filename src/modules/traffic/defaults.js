@@ -137,9 +137,8 @@ export const DEFAULTS = Object.freeze({
   finalSpacingFt: 3000,
   missChancePct: 10,
 
-  // Automatic deconfliction (deconflict.js): off until Patrick has seen it working (his card said on; the
-  // overnight build ships it off, a provisional call for his morning review, 4 Oct 12:20Z).
-  autoDeconflict: false,
+  // Automatic deconfliction (deconflict.js): on at the start (Patrick, 4 Oct 16:59Z, TR-50).
+  autoDeconflict: true,
 
   // Rules: every rule on.
   ruleExtendDownwind: true,
