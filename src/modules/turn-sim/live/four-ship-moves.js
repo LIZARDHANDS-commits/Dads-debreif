@@ -21,7 +21,7 @@ import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
   recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
-  slotFor, REJOIN, straightAhead, sweepOut,
+  slotFor, REJOIN, straightAhead, sweepOut, LENGTH_FT,
 } from './transitions.js';
 import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords, FW_STEP_DOWN_FT } from './four-ship-slots.js';
 
@@ -325,21 +325,45 @@ function straightToEchelon(start, t0, opts, sTo) {
 }
 
 /**
- * R2: fighting wing to finger, turning (SMM 16.34 para 96, 16.38 para 106; AFM7 brief p.21): Lead turns into #2 at 30° of
- * bank; #2 joins the inside first; #3 crosses to the outside only once #2 is in place, #4 only once #3 is.
+ * The turning rejoin's crossing (SMM 16.34 para 96; AFM7 brief p.21, "Turning Rejoins"): #3 and #4 pass about two aircraft
+ * lengths behind Lead and slightly lower. Two lengths is centre to centre here; 15 ft lower is the crossings' estimate
+ * (CROSS_LOW_FT). Where #3 and #4 wait on the cut-off line, behind #2 on the inside, until the one ahead is stable: 150 and
+ * 300 ft behind Lead, 20 and 30 ft low (estimates: far enough back that no one closes on the aircraft ahead while waiting).
+ */
+const TRJ = Object.freeze({ passBehindLengths: 2, waitBehindFt: { 3: 150, 4: 300 }, waitLowFt: { 3: 20, 4: 30 } });
+
+/**
+ * R2: fighting wing to finger, turning (SMM 16.34 para 96, 16.38 para 106; AFM7 brief p.21). Lead turns into #2 at 30° of
+ * bank at 200 KIAS; #2 joins the inside first. #3 and #4 take the same cut-off line as #2 and close on Lead, aiming to pass
+ * about two aircraft lengths behind him and slightly lower; they wait on the inside, behind #2, and only once #2 is stable in
+ * position does #3 cross behind Lead to echelon on the outer wing; #4 crosses (behind Lead and #3) only once #3 is stable.
  */
 function turningToFinger(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [(c) => {
     const fin = fourSlots('finger', s);
     const join = (id) => toSlot(c, rejoinTo, fin[id], { advanceTol: 10, overtakeKias: REJOIN.overtakeKias });
     const off2 = comeOffFirst(c, 2, 1);
+    const across = { track: 1, bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }; // enough bank to stay with Lead's 30° turn (estimate)
+    // #3 and #4's paths, in Lead's frame: wait on the inside behind #2, cross under Lead's tail two lengths back, then forward and up.
+    const waitAt = (id) => place(c, -TRJ.waitBehindFt[id], s * ech().left, -TRJ.waitLowFt[id]);
+    const crossFor = (id) => {
+      const slot = inLeadFrame(fin, id); // #3 on Lead's outer wing, #4 on #3's
+      const back = -TRJ.passBehindLengths * LENGTH_FT + (id === 4 ? ech().fwd : 0); // #4 passes behind #3 as well (#3 sits an echelon's step back)
+      const low = -CROSS_LOW_FT - (id === 4 ? FOUR_LOWER_FT : 0);
+      return [
+        slide(place(c, back, 0, low), across),
+        slide(place(c, back, slot.left, low), across),
+        toSlot(c, slide, fin[id], { bankCapDeg: 45, overtakeKias: 10, undertakeKias: 10 }),
+      ];
+    };
+    const waitFor = (id, gate) => rejoinTo(waitAt(id), { track: 1, advanceTol: 10, overtakeKias: REJOIN.overtakeKias, holdUntil: gate });
     return {
       lead: [...toSpeed(c, 'finger'), turnSeg(wholeDegree(c.start[0].headingRad + s * FINGER_TURN_DEG * DEG), s, REJOIN.leadBankDeg)],
       wings: [
         { id: 2, phases: () => [...off2, join(2)] },
-        // #3 and #4 come off the stack while they wait, well behind (the stack is the separation until then, AFM8 brief p.18 item 6).
-        { id: 3, phases: (done) => [hold(c, 3, 1, { holdUntil: done[2].times[off2.length].arrive }, place(c, 0, 0, fin[3].alt).alt), join(3)] },
-        { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1].arrive }, place(c, 0, 0, fin[4].alt).alt), join(4)] },
+        // #3 closes on the same cut-off line, then waits behind #2 until #2 is in place; #4 the same, further back, until #3 is.
+        { id: 3, phases: (done) => [waitFor(3, done[2].times[off2.length].arrive), ...crossFor(3)] },
+        { id: 4, phases: (done) => [waitFor(4, done[3].times[3].arrive), ...crossFor(4)] },
       ],
     };
   }]);
