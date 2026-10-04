@@ -28,7 +28,7 @@ import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
 import { startJoin } from './path-follower.js';
 import { routeLengthFt } from './route.js';
-import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT, PFL_KEY_ALT_FT } from './airfield.js';
 
 /** The PFL's flying numbers, each with its source. Orders and SMM numbers are defaults, not walls. */
 export const PFL = Object.freeze({
@@ -628,6 +628,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   let outcome = null;
   let touchdown = null;
   let eject = null;
+  let goingShort = false; // can't make the runway: glide on toward it until Low Key, then eject
+  let pastLowKey = false;
   const notes = [];
   const MAX_STEPS = 30000;
 
@@ -645,6 +647,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     if (passed && passed !== lastKey) {
       lastKey = passed;
       if (passed.key && ['high_key', 'low_key', 'final_key'].includes(passed.key)) s.tag = passed.key;
+      if (passed.key === 'low_key') pastLowKey = true;
       if (passed.highKeyCheck) {
         // At High Key from the area (spec 4.5 item 9): orbit or take the gear early above the window, false High Key inside it.
         const rest = path.slice(seg + 1);
@@ -717,7 +720,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       let want = /** @type {number} */ (glideKias(cfg));
       if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
       // Going direct and short: trade speed late, down to 80 KIAS or the stall plus margin (spec 4.5 item 10).
-      if (plan.kind === 'direct' && margin < 0) {
+      if (plan.kind === 'direct' && margin < 0 && !goingShort) {
         // Distance still to fly along the path, not straight-line: going direct it may first fly past the runway and turn back.
         if (pathFtTo(path, proj, 'aim') < 6076) {
           // The speed whose kinetic energy covers the deficit: V² − 2g × deficit (true airspeed), no slower than the trade floor.
@@ -745,7 +748,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     }
 
     // The decision layer, once a second (spec 4.5 items 6-7, 9-10).
-    if (state !== 'zoom' && state !== 'slow' && n % 10 === 0) {
+    if (!goingShort && state !== 'zoom' && state !== 'slow' && n % 10 === 0) {
       if (state === 'apex') state = 'glide';
       // Before the landing flap it aims a third down with gear and T/O flap; with it, at the first 1,000 ft (Patrick 09:49Z).
       const tdKey = path.some((p) => p.key === 'touchdown') ? 'touchdown' : 'aim';
@@ -788,11 +791,12 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
         else if (!direct) outcome = 'eject';
       }
+      // It can't make the runway: it glides on toward it as it is until Low Key or Low Key height, then ejects (Patrick 18:05Z).
       if (outcome === 'eject') {
-        eject = { x: s.x, y: s.y, alt: s.alt };
+        outcome = null;
+        goingShort = true;
+        notes.push(`short of the runway at ${Math.round(s.alt)} ft`);
         setRec('Eject');
-        pilot.record();
-        break;
       }
       // The words on the tag (spec 4.5 item 14).
       let decision;
@@ -840,6 +844,13 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     }
 
     pilot.step(bank, climb, accel);
+    if (goingShort && (pastLowKey || s.alt <= PFL_KEY_ALT_FT.lowKey)) {
+      outcome = 'eject';
+      eject = { x: s.x, y: s.y, alt: s.alt };
+      setRec('Eject');
+      pilot.record();
+      break;
+    }
     // A path point every 0.2 s, between the pilot's own every 0.4 s, so the follower's turn rate changes in small steps.
     if (s.k % 4 === 2 && s.alt > ground) pilot.record();
 
