@@ -52,12 +52,12 @@ function setup(options = {}) {
   return { ui, bar, calls, listeners };
 }
 
-test('the screen is three columns: Routes, the map with its bar above it, and Aircraft', () => {
+test('the screen is three columns: Setup, the map with its bar above it, and Aircraft', () => {
   const { ui, bar } = setup();
   const [heading, routes, stage, aircraft] = ui.element.childNodes;
   assert.equal(heading.tagName, 'H1');
   assert.equal(words(heading), 'Traffic Pattern Sim');
-  assert.equal(routes.getAttribute('aria-label'), 'Routes');
+  assert.equal(routes.getAttribute('aria-label'), 'Setup');
   assert.equal(stage.getAttribute('aria-label'), 'Map and playback');
   assert.equal(aircraft.getAttribute('aria-label'), 'Aircraft');
   // The bar comes before the map in the stage, so it sits above the map, not on it (#34, #35).
@@ -160,7 +160,7 @@ test('each side column collapses from a real button and says so; the other keeps
     assert.equal(column.classList.contains('is-collapsed'), false);
     assert.deepEqual(calls.splice(0), [['column', name, false], ['column', name, true]]);
   }
-  assert.equal(words(withClass(routes, 'panel-toggle')[0]), 'Routes');
+  assert.equal(words(withClass(routes, 'panel-toggle')[0]), 'Setup');
   assert.equal(words(withClass(aircraft, 'panel-toggle')[0]), 'Aircraft');
 });
 
@@ -187,8 +187,8 @@ test('the right column has room for the spawner, the settings menu (above the ai
   // Profiles and notes sit above the routes list, so opened it is in the first screen (UI-02).
   const routesBody = ui.slots.profiles.parentNode;
   assert.ok(routes.contains(ui.slots.profiles));
-  assert.equal(routesBody.childNodes[0], ui.slots.profiles, 'first in the left column');
-  assert.deepEqual(Object.keys(ui.slots), ['pointTable', 'leftExtras', 'profiles', 'spawner', 'aircraft', 'conflicts', 'settings']);
+  assert.equal(routesBody.childNodes[1], ui.slots.profiles, 'next after the scenarios and wind, still in the first screen');
+  assert.deepEqual(Object.keys(ui.slots), ['setup', 'pointTable', 'leftExtras', 'profiles', 'spawner', 'aircraft', 'conflicts', 'settings']);
 });
 
 test('the one-line hint shows over the map when given, and goes away when cleared', () => {

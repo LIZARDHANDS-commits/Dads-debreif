@@ -10,7 +10,7 @@ import { h } from '../../ui-kit/dom.js';
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
 import { DEFAULTS, ALLOWED } from './defaults.js';
-import { captureProfile, nextProfileName, profileSettingDefaults, startingProfile } from './profile.js';
+import { BUILT_IN, captureProfile, nextProfileName, profileSettingDefaults, startingProfile } from './profile.js';
 import { createProfileStore } from './profile-store.js';
 import { createProfilesPanel } from './profiles-panel.js';
 import { createSim } from './sim.js';
@@ -23,6 +23,7 @@ import { createMap2d, hintFor, photoCaption } from './map2d.js';
 import { createView3d } from './view3d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
+import { createSetupPanel, scenarioAircraft } from './setup-panel.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
@@ -58,7 +59,7 @@ function mount(root, app) {
     controls,
     settings,
     listen: app.listen,
-    available: { photo: true, view3d: true, wind: true, windTrack: true },
+    available: { photo: true, view3d: true, windTrack: true }, // the wind is set in the Setup column (setup-panel.js)
     on: {
       play,
       pause,
@@ -99,6 +100,9 @@ function mount(root, app) {
     load: (profile, entry) => loadProfile(profile, entry),
   });
   ui.slots.profiles.append(profilesPanel.element);
+  // Scenarios and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
+  const setupPanel = createSetupPanel({ controls, settings, onScenario: (id) => loadScenario(id) });
+  ui.slots.setup.append(setupPanel.element);
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
@@ -227,10 +231,28 @@ function mount(root, app) {
     airfield = profile.airfield;
     place = entry?.kind === 'built-in' ? 'Moose Jaw' : '';
     selectedRouteId = null;
+    setupPanel.setActive(null);
     settings.update({ ...profileSettingDefaults(), ...profile.settings }); // the subscriber below copies them into the setup
     showRoutes();
     aircraftPanel.routesChanged();
     map.fit();
+    changed();
+  }
+
+  /**
+   * A scenario button: its aircraft replace the run's, on the routes already on screen, paused at 0:00.
+   * The routes, the wind and the settings stay as they are. Random gets new dice on every press.
+   */
+  function loadScenario(id) {
+    cancelReplay();
+    stopFrames?.();
+    stopFrames = null;
+    const seed = Math.floor(Math.random() * 2 ** 31); // only Random uses it: a new picture each press, repeatable once made
+    setup.aircraft = scenarioAircraft(id, { routes: setup.routes.filter((r) => r.kind !== 'split'), builtIn: BUILT_IN[0].profile.aircraft, seed, type: settings.get().spawnType });
+    sim.rebuild();
+    clock.reset();
+    setupPanel.setActive(id);
+    aircraftPanel.routesChanged();
     changed();
   }
 
@@ -380,6 +402,7 @@ function mount(root, app) {
     stopFrames?.();
     stopSettings();
     settingsPanel.dispose();
+    setupPanel.dispose();
     controls.dispose();
     view3d.dispose(); // three.js, the renderer and everything drawn with it
     map.dispose();

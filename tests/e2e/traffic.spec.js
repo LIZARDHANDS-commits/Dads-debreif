@@ -318,7 +318,7 @@ test('keyboard only: Tab order, Space and Enter on Play, Escape closes the Layer
     order.push(await focused());
   }
   const at = (name) => order.findIndex((n) => n.includes(name));
-  const inOrder = ['Routes', 'Pattern 1', 'Entry 1', 'Play', 'Reset', 'Fit', 'Layers', 'Aircraft'];
+  const inOrder = ['Setup', 'Pattern 1', 'Entry 1', 'Play', 'Reset', 'Fit', 'Layers', 'Aircraft'];
   const places = inOrder.map(at);
   expect(places.every((n) => n >= 0), `every stop is reached: ${order.join(' | ')}`).toBe(true);
   expect(places, `in this order: ${order.join(' | ')}`).toEqual([...places].sort((a, b) => a - b));

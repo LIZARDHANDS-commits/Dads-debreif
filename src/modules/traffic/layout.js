@@ -1,5 +1,5 @@
 // The Traffic Sim's screen (specs/SPEC-traffic.md: The screen, R2, R22): three
-// columns, none covering another. Routes on the left, the map in the middle
+// columns, none covering another. Setup on the left (scenarios, wind, routes), the map in the middle
 // with the playback bar above it (not on it), Aircraft on the right. Each side
 // column collapses with a real button (ui-kit panel.js), and the map takes the room.
 //
@@ -36,14 +36,14 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
 
   // Slots for pieces built elsewhere; an empty one takes no room.
   const slot = (name) => h('div', { class: `traffic-slot traffic-slot-${name}` });
-  const slots = { pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
+  const slots = { setup: slot('setup'), pointTable: slot('point-table'), leftExtras: slot('left-extras'), profiles: slot('profiles'), spawner: slot('spawner'), aircraft: slot('aircraft'), conflicts: slot('conflicts'), settings: slot('settings') };
 
-  // Left column: Profiles and notes (closed: one line), and the routes list.
+  // Left column, "Setup" (Patrick, 4 Oct 11:05Z): the scenario buttons and the wind, Profiles and notes (closed: one line), and the routes list.
   const list = h('ul', { class: 'route-list' });
   const empty = h('p', { class: 'route-empty' }, 'No routes yet.');
-  const routesPanel = createPanel({ title: 'Routes', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
-  routesPanel.body.append(slots.profiles, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
-  const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Routes' }, routesPanel.element);
+  const routesPanel = createPanel({ title: 'Setup', onToggle: (collapsed) => columnToggled('routes', !collapsed) });
+  routesPanel.body.append(slots.setup, slots.profiles, list, empty, slots.pointTable, slots.leftExtras); // Profiles and notes on top: opened, it is in the first screen (UI-02)
+  const routesCol = h('aside', { class: 'traffic-col traffic-col-routes', 'aria-label': 'Setup' }, routesPanel.element);
 
   // Middle: the bar, then the map with its one-line hint, then the note under it.
   const canvas = h('canvas', { class: 'traffic-map' });
@@ -124,7 +124,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     element,
     /** The map's <canvas>, for createMap2d. */
     canvas,
-    /** Empty places for the pieces built elsewhere: pointTable, leftExtras, profiles, spawner, aircraft, conflicts, settings. */
+    /** Empty places for the pieces built elsewhere: setup, pointTable, leftExtras, profiles, spawner, aircraft, conflicts, settings. */
     slots,
     /**
      * Shows the routes, one line each ({ id, name, kind, color, link? }), and which one is picked.
