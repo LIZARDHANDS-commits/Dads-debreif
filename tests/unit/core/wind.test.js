@@ -80,5 +80,6 @@ test('the wind vector points the way the air moves: from 270° blows east', () =
   near(w.y, 0, 1e-9, 'north');
   const s = windVectorFtps(360, 20);
   near(s.y, -33.7562, 1e-9, 'a north wind blows south');
-  assert.deepEqual(windVectorFtps(123, 0), { x: 0, y: 0 });
+  const calm = windVectorFtps(123, 0);
+  near(Math.hypot(calm.x, calm.y), 0, 1e-12, 'no wind, no vector');
 });
