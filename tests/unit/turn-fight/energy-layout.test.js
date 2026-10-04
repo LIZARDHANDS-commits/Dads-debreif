@@ -91,10 +91,10 @@ test('the About and hint text quote no manual: numbers and page references only'
   for (const ref of all.match(/SMM[\d .a-z]*/g) ?? []) assert.match(ref, /SMM(\s+\d+(\.\d+)?)?(\s+paras?\s+\d+( to \d+| and \d+)?)?/, ref);
 });
 
-test('Task 18: tactical move is selectable and tacticalLookaheadSec exists in defaults and settings', () => {
-  assert.ok(ENERGY_MOVES.includes('tactical'), 'tactical is in ENERGY_MOVES');
-  assert.ok(ALLOWED.blueMove.includes('tactical'), 'tactical is in ALLOWED.blueMove');
-  assert.ok(ALLOWED.redMove.includes('tactical'), 'tactical is in ALLOWED.redMove');
+test('Task 18: Smart is selectable, the old tactical name still runs, and tacticalLookaheadSec exists in defaults and settings', () => {
+  assert.ok(ENERGY_MOVES.includes('tactical'), 'the engine still takes the old name');
+  assert.ok(ALLOWED.blueMove.includes('auto'), 'Smart is in ALLOWED.blueMove');
+  assert.ok(ALLOWED.redMove.includes('auto'), 'Smart is in ALLOWED.redMove');
 
   assert.ok('tacticalLookaheadSec' in RANGES);
   assert.ok(ENERGY_CHECK_KEYS.includes('tacticalLookaheadSec'));

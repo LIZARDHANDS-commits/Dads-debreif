@@ -76,6 +76,7 @@ function noseOnSec(from, who, move, kias, cutSec) {
   // `flags`: OVER G and STALL belong to a step the move has flown. At the pick itself they are the last move's.
   const judge = (flags) => {
     if (flags && (me.overG || me.stall)) return { sec: null };
+    if (sim.deckLoss) return sim.deckLoss.winner === who ? { sec: sim.timeSec - t0 } : { sec: null }; // below the deck loses the fight (TF-R6)
     const mine = onTheOther(sim, me, you);
     const theirs = onTheOther(sim, you, me);
     if (theirs && !mine) return { sec: null };
@@ -202,7 +203,7 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
   if (!candidates.length) {
     return {
       move: 'mpt',
-      why: 'Tactical AI: MPT baseline',
+      why: 'Smart: MPT baseline',
       winSec: null,
       deltaAdv: 0,
     };
@@ -247,6 +248,10 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
 
         if (me.stall || me.overG) {
           valid = false;
+          break;
+        }
+        if (sim.deckLoss) { // below the deck loses the fight (TF-R6)
+          if (sim.deckLoss.winner === whoName) winSec = sim.timeSec - t0; else lost = true;
           break;
         }
 
@@ -325,10 +330,10 @@ export function pickTacticalMove(state, who, lookaheadSec = (state.setup?.tactic
   let why;
   const label = MOVE_LABELS[best.move] ?? best.move;
   if (best.winSec !== null && best.winSec !== undefined) {
-    why = `Tactical AI: ${label} predicted victory in ${best.winSec.toFixed(1)} s (earliest intercept)`;
+    why = `Smart: ${label} predicted victory in ${best.winSec.toFixed(1)} s (earliest intercept)`;
   } else {
     const sign = best.deltaAdv >= 0 ? '+' : '';
-    why = `Tactical AI: ${label} chosen for positional advantage (ΔAdv ${sign}${best.deltaAdv.toFixed(2)})`;
+    why = `Smart: ${label} chosen for positional advantage (ΔAdv ${sign}${best.deltaAdv.toFixed(2)})`;
   }
 
   return {

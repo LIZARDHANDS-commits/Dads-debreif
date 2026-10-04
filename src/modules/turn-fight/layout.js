@@ -27,13 +27,12 @@ const ENERGY_FOOTER = 'BFM Energy Fight: full T-6 physics — energy management,
 
 /** The plain names of Energy's moves, for the Move boxes (the engine's ids are the values). */
 const MOVE_NAMES = Object.freeze({
-  tactical: 'Tactical AI (Dynamic Pilot)',
-  auto: 'Textbook SMM Auto',
-  immelmann: 'Manual: Immelmann',
-  pitchBack: 'Manual: Pitch back',
-  slice: 'Manual: Slice',
-  splitS: 'Manual: Split S',
-  mpt: 'Manual: MPT',
+  auto: 'Smart',
+  immelmann: 'Set move: Immelmann',
+  pitchBack: 'Set move: Pitch back',
+  slice: 'Set move: Slice',
+  splitS: 'Set move: Split S',
+  mpt: 'Set move: MPT',
 });
 
 /**
@@ -73,13 +72,13 @@ export const CHECK_SETTINGS = Object.freeze([
   ['rollAccelDegPerSec2', 'Roll acceleration (°/s²)', 'How fast the roll rate builds and dies away: 360 reaches 90°/s in 0.25 s. Estimate: Patrick\'s brisk choice (4 Oct 2026). 0 turns it off.'],
   ['pitchBackBank160Deg', 'Pitch back bank at 160 KIAS (°)', 'More bank when slower (EFIG p.441).'],
   ['pitchBackBank220Deg', 'Pitch back bank at 220 KIAS (°)', 'Less bank when faster, in a line from the 160 KIAS bank.'],
-  ['immelmannAboveKias', 'Auto: Immelmann or pitch back above (KIAS)', 'Above this, Auto races the Immelmann against the pitch back.'],
-  ['splitSBelowKias', 'Auto: split S below (KIAS)', 'Below this Auto flies a split S (a slice above it).'],
-  ['immelmannOffNoseDeg', 'Immelmann off-nose angle (°)', 'With no chase in the look-ahead, Auto flies the Immelmann when the other aircraft is more than this off the nose.'],
+  ['immelmannAboveKias', 'Smart: Immelmann or pitch back above (KIAS)', 'Above this, Smart races the Immelmann against the pitch back.'],
+  ['splitSBelowKias', 'Smart: split S below (KIAS)', 'Below this Smart flies a split S (a slice above it).'],
+  ['immelmannOffNoseDeg', 'Immelmann off-nose angle (°)', 'With no chase in the look-ahead, Smart flies the Immelmann when the other aircraft is more than this off the nose.'],
   ['immelmannMinTopKias', 'Lowest Immelmann top speed (KIAS)', 'An Immelmann that would be over the top slower than this is never picked.'],
-  ['pickLookaheadSec', 'Look-ahead (s)', 'How far ahead Auto races the two moves above its split point. 0 turns the race off.'],
-  ['deckMarginFt', 'Deck margin (ft)', 'Under the MPT band and closer than this to the hard deck, Auto flies the level MPT instead of a slice or split S.'],
-  ['tacticalLookaheadSec', 'Tactical AI lookahead (s)', 'Forward lookahead horizon in seconds used by Tactical AI to evaluate candidate moves.'],
+  ['pickLookaheadSec', 'Look-ahead (s)', 'How far ahead Smart races the two moves above its split point. 0 turns the race off.'],
+  ['deckMarginFt', 'Deck margin (ft)', 'Under the MPT band and closer than this to the hard deck, Smart flies the level MPT instead of a slice or split S.'],
+  ['tacticalLookaheadSec', 'Smart look-ahead in the MPT (s)', 'How far ahead Smart flies each move it could change to in the MPT, to see which wins.'],
 ]);
 
 /**
@@ -96,7 +95,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.10', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.11', h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',
@@ -204,12 +203,12 @@ export function createLayout({ settings, controls, on }) {
   // ── Energy (T-6): More energy settings, shown with the checkbox on ──────
   const energySection = menu.section('Energy');
   energySection.hidden = true;
-  const moveOptions = ENERGY_MOVES.map((id) => [id, MOVE_NAMES[id]]);
+  const moveOptions = ENERGY_MOVES.filter((id) => MOVE_NAMES[id]).map((id) => [id, MOVE_NAMES[id]]); // 'tactical' is Smart's old name, not shown
   energySection.append(
     h('p', { class: 'tf-hint' }, 'More energy settings. Changing any of them starts the fight again.'),
     controls.select('blueMove', { label: 'Blue\'s move', options: moveOptions }),
     controls.select('redMove', { label: 'Red\'s move', options: moveOptions }),
-    h('p', { class: 'tf-hint' }, 'Auto (default) picks from the merge speed (SMM Table 14.1). Forcing a move flies it from the pass whatever the speed, then exits into the MPT, so you can compare them.'),
+    h('p', { class: 'tf-hint' }, 'Smart (default) picks the first move from the merge speed (SMM Table 14.1), then in the MPT looks ahead for a better move. A set move is flown from the pass whatever the speed, then exits into the MPT, so you can compare them.'),
     controls.number('mptKias', { label: 'MPT speed (KIAS)', ...RANGES.mptKias }),
     h('p', { class: 'tf-hint' }, `${rangeHint('mptKias')} The max-performance turn (MPT) speed, SMM 14.3 para 6.`),
     controls.number('hardDeckFt', { label: 'Hard deck (ft MSL)', ...RANGES.hardDeckFt }),

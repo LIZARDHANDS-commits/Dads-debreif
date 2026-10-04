@@ -41,9 +41,10 @@ export function controlMpt(ctx) {
   }
   if (!c.level) {
     const verticalSpeed = vFtps * Math.sin(climb);
-    if (f.altFt + verticalSpeed * TUNING.levelLeadSec <= p.hardDeckFt) {
+    const levelFt = p.hardDeckFt + TUNING.levelMptAboveDeckFt; // a little above the deck: below it loses the fight (TF-R6)
+    if (f.altFt + verticalSpeed * TUNING.levelLeadSec <= levelFt) {
       c.level = true;
-      c.levelAltFt = p.hardDeckFt; // it aims at the deck itself, from above or a little below
+      c.levelAltFt = levelFt;
       ac.move = 'levelMpt'; ac.moveLabel = MOVE_LABELS.levelMpt;
       ac.why = `Level MPT at the ${feet(p.hardDeckFt)} ft deck`;
     }

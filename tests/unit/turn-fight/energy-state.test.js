@@ -21,19 +21,19 @@ import {
 const ENERGY_ON = { ...DEFAULTS, energy: true };
 const NUMBER_ENERGY_KEYS = ENERGY_KEYS.filter((k) => k in RANGES);
 
-test('Energy opens on, and every Energy setting opens at the engine\'s own default (with Tactical AI default)', () => {
+test('Energy opens on, and every Energy setting opens at the engine\'s own default (Smart pilot by default)', () => {
   assert.equal(DEFAULTS.energy, true);
   const setup = energySetupFrom(DEFAULTS);
   const shared = ['separationNm', 'ataDeg', 'ataSide', 'aaDeg', 'aaSide', 'turnsStart', 'blueMove', 'redMove']; // the start geometry is the simple fight's own
   assert.equal(setup.separationNm, 1.2);
-  assert.equal(setup.blueMove, 'tactical');
-  assert.equal(setup.redMove, 'tactical');
+  assert.equal(setup.blueMove, 'auto');
+  assert.equal(setup.redMove, 'auto');
   for (const [key, value] of Object.entries(setup)) {
     if (!shared.includes(key)) assert.deepEqual(value, ENERGY_DEFAULT_SETUP[key], key);
   }
-  // The spec's list: 10,000 ft and 220 KIAS each, Tactical AI, MPT 160, deck 6,000, Tactical (Dynamic), head-on chase on (D403); stall 86, shaker 94 %.
+  // The spec's list: 10,000 ft and 220 KIAS each, Smart pilot, MPT 160, deck 6,000, Tactical (Dynamic), head-on chase on (D403); stall 86, shaker 94 %.
   assert.deepEqual([DEFAULTS.blueAltFt, DEFAULTS.redAltFt, DEFAULTS.blueKias, DEFAULTS.redKias], [10000, 10000, 220, 220]);
-  assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['tactical', 'tactical', 160, 6000, 'pure', true]);
+  assert.deepEqual([DEFAULTS.blueMove, DEFAULTS.redMove, DEFAULTS.mptKias, DEFAULTS.hardDeckFt, DEFAULTS.pursuit, DEFAULTS.chaseAfterHeadOn], ['auto', 'auto', 160, 6000, 'pure', true]);
   assert.equal(DEFAULTS.stallKias, 86); // Patrick's ruling SH-25
 });
 
