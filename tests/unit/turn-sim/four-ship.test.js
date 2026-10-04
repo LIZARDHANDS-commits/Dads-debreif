@@ -261,6 +261,29 @@ test('delayed 45: #2 turns first and never the wrong way; each other aircraft ch
   }
 });
 
+test('delayed 45 with the check turn switched off: a plain chain, nobody heads away from the turn, line abreast at one spacing (Patrick 4 Oct 11:28Z; SMM 16.43 para 118 standard timing)', () => {
+  for (const wingSide of SIDES) {
+    for (const [dir] of DIRS) {
+      const f = createFormation({ ships: 4, wingSide, check45: false });
+      const h0 = f.state.aircraft[0].headingRad;
+      f.press('delayed45', dir);
+      fly(f, (_b, after) => {
+        for (const a of after) {
+          const off = -dir * Math.atan2(Math.sin(a.headingRad - h0), Math.cos(a.headingRad - h0)) / DEG;
+          // Half a degree allows for the roll easing in (as the first aircraft's check above).
+          assert.ok(off <= 0.5, `${a.name} headed ${off.toFixed(1)}° away from the turn`);
+        }
+      });
+      const byLeft = lateralOrder(f.state.aircraft).map((id) => f.state.aircraft.find((a) => a.id === id));
+      for (let i = 1; i < 4; i++) {
+        const rel = relativeTo(byLeft[i - 1], byLeft[i]);
+        assert.ok(Math.abs(rel.fwd) <= MARGIN_FT, `${byLeft[i].name} abeam, ${rel.fwd.toFixed(0)} ft fore or aft`);
+        assert.ok(Math.abs(Math.abs(rel.left) - SPACING_FT) <= MARGIN_FT, `gap ${Math.abs(rel.left).toFixed(0)} ft`);
+      }
+    }
+  }
+});
+
 // ---- physical limits, separation, smoothness ---------------------------------------------------
 
 test('bank never goes past the manoeuvre\'s bank, and G never past 3, for all four in every button', () => {

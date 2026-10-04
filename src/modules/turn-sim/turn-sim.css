@@ -482,3 +482,17 @@
   }
 }
 
+
+/* The 4-ship's Delayed 45 check-turn tick box: box and words on one line, Setup-sized. */
+[data-module='turn-sim'] .ts-check .control-checkbox {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-check .control-checkbox > label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}

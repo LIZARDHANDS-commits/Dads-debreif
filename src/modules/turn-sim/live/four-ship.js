@@ -22,6 +22,7 @@
 //    #4, #3, Lead, #2 for a left turn with #2 on Lead's left).
 //  - Delayed 45: #2 turns 45, then every other aircraft checks 10 to 15 degrees toward
 //    the aircraft ahead of it in the chain and turns 45 (AFM8 brief p.18, SMM Fig 16.34).
+//    A Setup toggle (Patrick, 4 Oct 11:28Z) flies it without the check, as a plain chain.
 //  - Hook: all four turn 180 at 70/3 together (AFM8 brief p.18, SMM 16.45 para 121).
 import { makeAircraft } from './flight.js';
 import { planManoeuvre, relativeTo, dryRun, exactWaitSec, turnSeg, wholeDegree, unit, dot, onStep, DEG, TURN_BANK_DEG, MANOEUVRES } from './manoeuvres.js';
@@ -150,13 +151,15 @@ function allTogether(aircraft, key, dir, t0) {
 
 /**
  * The plan for a four-ship button press: aircraft [Lead, #2, #3, #4] as they are now;
- * key: one of FOUR_SHIP_KEYS; dir +1 left, -1 right; t0 formation time now.
+ * key: one of FOUR_SHIP_KEYS; dir +1 left, -1 right; t0 formation time now; check45: the
+ * delayed 45 with its check turn (default) or as a plain chain of standard turns (the Setup
+ * toggle, Patrick 4 Oct 11:28Z).
  * Returns { plans: { id: { segments } }, note, firstId? }.
  */
-export function planFour(aircraft, key, dir, t0) {
+export function planFour(aircraft, key, dir, t0, { check45 = true } = {}) {
   if (!FOUR_SHIP_KEYS.includes(key)) throw new Error(`${key} is not a four-ship manoeuvre`);
   const m = MANOEUVRES[key];
-  if (m.kind === 'delayed') return delayedChain(aircraft, m, dir, t0, m.turnDeg === 45);
+  if (m.kind === 'delayed') return delayedChain(aircraft, m, dir, t0, check45 && m.turnDeg === 45);
   return allTogether(aircraft, key, dir, t0);
 }
 
