@@ -40,6 +40,7 @@ import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from './evade.js';
 import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
+import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
@@ -1273,6 +1274,22 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** What is where right now. */
     state() {
+      const rwy = circuitRunway();
+      const win = routeById('PAT1')?.points?.[12];
+      const windowFt = rwy && win ? Math.hypot(win.x - rwy.th.x, win.y - rwy.th.y) : NaN;
+      // The behaviour tag (behaviour.js, TR-60): where the aircraft stands against the runway, for a straight-in's final.
+      const tagOf = (a, route, kt, alt, x, y, leg) => {
+        let onFinal = false, toThresholdFt = NaN;
+        if (rwy && Number.isFinite(x) && Number.isFinite(y)) {
+          const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
+          const along = (x - rwy.th.x) * ux + (y - rwy.th.y) * uy, across = Math.abs((x - rwy.th.x) * uy - (y - rwy.th.y) * ux);
+          const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? 0) - compassDegFromVector(ux, uy)));
+          onFinal = along < 0 && across < 2000 && off < 30;
+          toThresholdFt = Math.hypot(x - rwy.th.x, y - rwy.th.y);
+        }
+        const b = behaviourOf({ ...a, kt, alt, leg }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
+        return behaviourLabel(b, a.deconflict?.label ?? null) ?? a.deconflict?.label ?? null;
+      };
       const list = aircraft.map((a) => {
         const route = routeOf(a);
         const p = a.pflRail ? a : whereIs(a);
@@ -1308,6 +1325,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
           deconflict: a.deconflict?.label ?? null,
+          behaviour: t < a.startsAt ? null : tagOf({ ...a, trackDeg: a.trackDeg ?? headingDeg }, route, iasKt, altFt, x, y, p.seg !== undefined ? p.seg + 1 : 1),
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };
