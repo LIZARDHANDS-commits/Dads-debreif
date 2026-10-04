@@ -29,7 +29,7 @@
 import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
-import { tickAircraft, initMode } from './tick-aircraft.js';
+import { tickAircraft } from './tick-aircraft.js';
 import { startJoin, startSideStep } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
@@ -37,7 +37,7 @@ import { buildGoAround } from './circuit.js';
 import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
-import { buildFlinch, buildClimbAhead, buildRejoin, EVADE } from './evade.js';
+import { buildFlinch, buildClimbAhead, EVADE } from './evade.js';
 import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
@@ -158,9 +158,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.command = null;
     a.engineFailed = false;
     a.mode = 'RAIL';
-    delete a._blendStart;
-    delete a._blendTarget;
-    delete a._blendTimer;
     delete a.touchAndGo;
 
     // Continuous 3D Cartesian vector state initialization (Slice A & B)
@@ -180,7 +177,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.x = route.points[a.startIndex]?.x ?? -4066.03;
       a.y = route.points[a.startIndex]?.y ?? 680.56;
       a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
-      a.closedPatternPitchDeg = a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
       startClosedPattern(a);
     } else {
       const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
@@ -281,12 +277,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.landed = false;
     a.active = true;
     delete a.joinOffset;
-    delete a.navPlan;
-    delete a._activeCommand;
-    delete a._closedPhase;
-    delete a._blendStart;
-    delete a._blendTarget;
-    delete a._blendTimer;
   }
 
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
@@ -306,9 +296,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         a.phase = 'full_stop';
         a.alt = 1880;
         a.mode = 'RAIL';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
         return;
       } else {
         a.phase = 'touch_and_go';
@@ -379,11 +366,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.active = true;
     a.engineFailed = false;
     delete a.joinOffset;
-    delete a.navPlan;
-    delete a._activeCommand;
-    delete a._blendStart;
-    delete a._blendTarget;
-    delete a._blendTimer;
   }
 
   /** A straight-in: an entry or split that ends on the runway rather than merging into the pattern. */
@@ -403,9 +385,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
     startFlown(a, buildBreakout(stateOf(a), windNow(), rejoin, leg, bankDeg), 'BREAKOUT_FLOWN', 'Breakout', joinTo ? 'join' : null, joinTo?.id ?? null);
     delete a.rejoinRouteId;
-    delete a._blendStart;
-    delete a._blendTarget;
-    delete a._blendTimer;
     a.phase = 'breakout';
     a.intent = 'overhead';
   }
@@ -424,20 +403,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.landed = false;
     a.active = true;
     delete a.joinOffset;
-    delete a.navPlan;
-    delete a._activeCommand;
-    delete a._breakoutStage;
-    delete a._rejoinTurning;
-    delete a.commandedBankDeg;
-    delete a.desiredHeadingDeg;
-  }
-
-  /** A broken-out straight-in, past the breakout point: the flown way back onto its own straight-in (Q7). */
-  function startRejoin(a) {
-    delete a.breakoutRejoinDue;
-    const route = routeById(a.rejoinRouteId);
-    if (!isStraightIn(route)) { delete a.rejoinRouteId; return; } // the overhead rejoin carries on instead
-    startFlown(a, buildRejoin(stateOf(a), windNow(), route), 'REJOIN_FLOWN', 'Rejoin', 'join', route.id);
   }
 
   /**
@@ -628,7 +593,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       tickAircraft(a, STEP_SEC, wind, route, opt);
       if (a.pflDone) pflEnded(a);
       if (a.goAroundDone) goAroundEnded(a);
-      if (a.breakoutRejoinDue) startRejoin(a);
       if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
@@ -644,22 +608,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       // A closed pattern asked for short of the upwind end pulls up once past it (TR-R33).
       if (a.active && a.pendingClosed && a.mode === 'RAIL' && !beforeUpwindEnd(a)) startClosedPattern(a);
 
-      // Fallback Doctrine: continuous pattern training loop
       delete a.pflEndedThisStep;
-      if (a.active && !a.pflRail && !a.pflFlight && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
-        if (!a.command) {
-          // If no contingency command is active, climb to 2,500 ft MSL along runway heading (298°),
-          // turn crosswind climbing to 3,500 ft MSL, and rejoin outer pattern for another overhead break.
-          a.phase = 'takeoff_climb';
-          a.targetAltFt = 2500;
-          a.targetSpeedKt = 140;
-          a.headingDeg = 298;
-          const pat = (route && route.kind === 'pattern') ? route : (setup.routes.find((r) => r.kind === 'pattern') || setup.routes[0]);
-          if (pat && a.routeId !== pat.id) {
-            a.routeId = pat.id;
-          }
-        }
-      }
 
       if (steps % TRAIL_EVERY_STEPS === 0) {
         a.trail.push({ x: a.x, y: a.y });
@@ -711,14 +660,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     return {
       t, steps, dice: dice.getState(),
       aircraft: aircraft.map((a) => {
-        const { trail, splitTaken, _blendStart, _blendTarget, ...rest } = a;
+        const { trail, splitTaken, ...rest } = a;
         const flat = new Float64Array(trail.length * 2);
         trail.forEach((p, i) => { flat[2 * i] = p.x; flat[2 * i + 1] = p.y; });
         return {
           ...rest,
           splitTaken: { ...splitTaken },
-          _blendStart: _blendStart ? { ..._blendStart } : undefined,
-          _blendTarget: _blendTarget ? { ..._blendTarget } : undefined,
           trail: flat,
         };
       }),
@@ -731,11 +678,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     nextEvent = events.findIndex((ev) => ev.step >= steps);
     if (nextEvent < 0) nextEvent = events.length;
     dice.setState(snap.dice);
-    aircraft = snap.aircraft.map(({ trail, splitTaken, _blendStart, _blendTarget, ...rest }) => ({
+    aircraft = snap.aircraft.map(({ trail, splitTaken, ...rest }) => ({
       ...rest,
       splitTaken: { ...splitTaken },
-      _blendStart: _blendStart ? { ..._blendStart } : undefined,
-      _blendTarget: _blendTarget ? { ..._blendTarget } : undefined,
       trail: Array.from({ length: trail.length / 2 }, (_, i) => ({ x: trail[2 * i], y: trail[2 * i + 1] })),
     }));
   }
@@ -1053,7 +998,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         startBreakout(a);
       } else if (action === 'closed_pattern') {
         a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
-        a.closedPatternPitchDeg = options?.pitchDeg ?? a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
         // The pull-up starts at or after the upwind end of the runway (TR-R33, WFO art 402): an aircraft
         // on final or on the runway touches and goes, and pulls up once past the upwind end.
         if (a.mode === 'RAIL' && beforeUpwindEnd(a)) {
@@ -1096,20 +1040,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a.pflFlight;
         delete a.goAroundFlight;
         delete a.joinOffset;
-        delete a.navPlan;
-        delete a._activeCommand;
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-      } else if (action === 'climb_low_key') {
-        a.command = action;
-        a.landed = false;
-        a.active = true;
-        a.mode = 'PHYSICS';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        a.phase = 'pfl';
       } else if (action === 'engine_fail' || action === 'pfl_current') {
         // The PFL button: an engine failure where the aircraft is, flown as Traffic spec 4.5 says (pfl.js).
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
@@ -1126,9 +1056,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.active = true;
           delete a.status;
           a.engineFailed = false;
-          delete a._blendStart;
-          delete a._blendTarget;
-          delete a._blendTimer;
           goFromRunway(a);
         }
       }
@@ -1176,7 +1103,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
           closedPatternBankDeg: a.closedPatternBankDeg,
-          closedPatternPitchDeg: a.closedPatternPitchDeg,
           config: a.config,
           pflRail: a.pflRail ?? null,
           pflDecision: a.pflDecision ?? null,

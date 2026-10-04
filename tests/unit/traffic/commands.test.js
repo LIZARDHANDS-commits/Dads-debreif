@@ -148,27 +148,6 @@ test('sim.command breakout completes multi-phase Split 2 exit, south leg, and re
   assert.ok(ac.alt >= 3000, 'maintains altitude during breakout');
 });
 
-test('sim.command climb_low_key executes full power climb to Low Key (3,900 ft / 120 kt)', () => {
-  const sim = createSim(SETUP, { seed: 1 });
-  const id = sim.spawn({ id: 'A_LK', routeId: 'PAT1', startPoint: 11, delaySec: 0 });
-  sim.stepTo(5);
-
-  const ok = sim.command(id, 'climb_low_key');
-  assert.equal(ok, true);
-
-  // Aircraft enters PFL profile
-  sim.stepTo(15);
-  const acClimb = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(acClimb.command, 'climb_low_key');
-  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl', 'climb_low_key', 'pfl_low_key', 'base_key', 'pfl_final'].includes(acClimb.phase), 'phase should be PFL-related');
-  assert.ok(acClimb.alt > 2000, `Alt ${acClimb.alt} should be in PFL glide`);
-
-  // After capturing Low Key, proceeds into PFL descent
-  sim.stepTo(40);
-  const acDescend = sim.state().aircraft.find((a) => a.id === id);
-  assert.ok(acDescend.alt <= 3500, `Alt ${acDescend.alt} should descend on PFL profile`);
-});
-
 test('sim.command pfl_current executes zoom climb when above 150 KIAS and glides at 125 kt', () => {
   const sim = createSim(SETUP, { seed: 1 });
   // Initial run-in is at 220 kt

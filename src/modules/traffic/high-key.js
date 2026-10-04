@@ -3,15 +3,14 @@
 import { degToRad, wrapDeg180 } from '../../core/angles.js';
 import { ktToFtps } from '../../core/units.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
-import { CYMJ_RWY_HDG_DEG } from './flight-engine.js';
-import { THRESHOLD_29L, PFL_KEY_ALT_FT } from './airfield.js';
+import { THRESHOLD_29L, PFL_KEY_ALT_FT, RUNWAY_29L_HDG_DEG } from './airfield.js';
 import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, powerClimb, HOLD_RADIUS_FT } from './circuit.js';
 import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { legOffsetsFt } from '../../core/geo.js';
 
 // ── HIGH KEY GROUND TRUTH CONSTANTS ──────────────────────────────────────────
 export const HIGH_KEY_PT = Object.freeze({ x: THRESHOLD_29L.x, y: THRESHOLD_29L.y, alt: PFL_KEY_ALT_FT.highKey });
-export const RWY_HDG_DEG = CYMJ_RWY_HDG_DEG ?? 298;
+export const RWY_HDG_DEG = RUNWAY_29L_HDG_DEG;
 const RAD_RWY = degToRad(RWY_HDG_DEG);
 const UX_RWY = Math.sin(RAD_RWY); // -0.88294759...
 const UY_RWY = Math.cos(RAD_RWY); // +0.46947156...

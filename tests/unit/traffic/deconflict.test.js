@@ -121,8 +121,8 @@ test('right of way follows the orders and the SMM', () => {
 });
 
 test('a broken aircraft stops nothing: one with no position is left out, the others are still checked', () => {
-  const good = { id: 'A1', active: true, x: 0, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'PHYSICS' };
-  const broken = { id: 'A2', active: true, x: NaN, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'PHYSICS' };
+  const good = { id: 'A1', active: true, x: 0, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'RAIL' };
+  const broken = { id: 'A2', active: true, x: NaN, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'RAIL' };
   const frozen = freeze([good, broken], () => null, () => null);
   assert.deepEqual(frozen.map((f) => f.id), ['A1']);
 });
