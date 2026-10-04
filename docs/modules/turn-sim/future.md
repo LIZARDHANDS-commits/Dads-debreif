@@ -36,3 +36,12 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 - Dragging a wingman to a new start (TS-R17).
 - G-warm (two-ship and four-ship; TS-Q19), entry to line abreast, rejoins (TS-Q20): first in `plan.md` Step 4.
 - V6's other layers: breadcrumbs with time stamps, spacing lines, clock marks, NM labels (the drawing code is still in `view.js`).
+
+## Changing formation: what the 2-ship build left out (TS-53)
+
+- Fluid manoeuvring: its button is greyed ("coming later"); entering it (the 2 s break from echelon, Lead's 30° turn from fighting wing, through fighting wing from line abreast) and leaving it wait for live fighting wing and fluid (design section 3 M10).
+- Live fighting wing: #2 holding the cone while Lead turns and climbs; the manoeuvre buttons from fighting wing, echelon and route (greyed outside line abreast for now).
+- The Overshoot button and rejoin mistakes (too hot, too much bank), SMM 12.27; break and rejoin (design M7); the turning rejoin with Lead turning away from #2 (SMM Fig 16.24) and the in-place-turn rejoin (M9); the hot or cold line choice, an overtake box and a bank-cap box under More.
+- The dynamic entry to line abreast (both turn onto a new heading together, design M8); the 4-ship changes (design section 5).
+- Training errors flown through a change (they apply to the manoeuvres only).
+- Speed bled in the turns and idle-thrust and speed-brake slowing (the 1.5 kt/s slow-down is an estimate until an idle drag figure is found).

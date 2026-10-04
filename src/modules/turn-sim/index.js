@@ -20,6 +20,8 @@ import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, in
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
 import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
+import { rejoinReadout } from './live/transitions.js';
+import { createChangeUi } from './transitions-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
 import { createTurnSimView } from './view.js';
 import { createView3d } from './view3d.js';
@@ -32,6 +34,10 @@ const MAX_STEPS_PER_FRAME = 40;
 const READOUT_MS = 100;
 /** The follow camera keeps this much room around the pair: a turn circle and a bit more, each side. */
 const FOLLOW_MARGIN_FT = 1500;
+/** Closer than this the camera zooms in by itself, so the close formations can be seen (spec section 10). */
+const CLOSE_ZOOM_FT = 1000;
+/** The tightest picture the auto-zoom asks for, feet across: an echelon is about 45 ft apart. */
+const CLOSE_SPAN_MIN_FT = 250;
 
 /** The buttons, in screen order (spec section 3). */
 const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn'].map((key) => ({
@@ -64,14 +70,18 @@ function cardFor(state, wingSide) {
   const across = Math.abs(rel.left);
   const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) * 180 / Math.PI;
   const c = state.current;
-  let flying = `Line abreast on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
-  if (c) {
+  let flying = `Flying straight on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
+  if (c?.change) {
+    flying = `Flying: ${c.change.flying}`;
+  } else if (c) {
     const sided = MANOEUVRES[c.key].sided;
     flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;
   }
   const j = state.judged;
   let judged = null;
-  if (j) {
+  if (j?.text) {
+    judged = { text: j.text, tone: j.tone }; // a change of formation, judged against the spec table
+  } else if (j) {
     const words = j.labels.join(', ');
     const numbers = j.shape === 'trail'
       ? `${ftText(j.gapFt)} in trail, ${ftText(Math.abs(j.offsetFt))} off line`
@@ -112,7 +122,8 @@ function mount(root, app) {
   const formation = createFormation({ ...setup.get() });
   const state = formation.state; // one live object, updated in place
 
-  const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS) });
+  const changeUi = createChangeUi({ onChange: (to, options) => pressChange(to, options) });
+  const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS), changeUi });
   root.append(ui.element);
 
   let playing = false;
@@ -132,6 +143,11 @@ function mount(root, app) {
   };
   /** How much ground the camera keeps in view: both aircraft, with room for a turn circle each side. */
   const spanFt = () => {
+    // Close together (a close formation, or the last part of a rejoin): zoom in so the pair can be seen, and back out when they open up.
+    if (state.aircraft.length === 2) {
+      const apart = Math.hypot(state.aircraft[0].xFt - state.aircraft[1].xFt, state.aircraft[0].yFt - state.aircraft[1].yFt);
+      if (apart < CLOSE_ZOOM_FT) return Math.max(CLOSE_SPAN_MIN_FT, 4 * apart + 200);
+    }
     const c = centre();
     let reach = 0;
     for (const a of state.aircraft) reach = Math.max(reach, Math.hypot(a.xFt - c.x, a.yFt - c.y));
@@ -158,6 +174,11 @@ function mount(root, app) {
       labels: () => ({}),
       follow,
       planned: () => state.planned,
+      rejoin: () => {
+        if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
+        const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
+        return { leadId: 1, wingId: 2, rangeFt: r.rangeFt, closureKt: r.closureKt };
+      },
     },
   });
   // three.js loads only when 3D is first switched on.
@@ -222,6 +243,12 @@ function mount(root, app) {
     lastReadout = performance.now();
     const wingSide = setup.get().wingSide;
     ui.renderCard(state.aircraft.length > 2 ? cardForFour(state, wingSide) : cardFor(state, wingSide));
+    if (state.aircraft.length === 2) {
+      const where = formation.where();
+      changeUi.update(state, where);
+      changeUi.renderCard(state, where);
+      ui.setMovesEnabled(!['fw', 'echelon', 'route', 'astern'].includes(where.key)); // the manoeuvres are line abreast only
+    } else ui.setMovesEnabled(true);
   }
   function queueCard() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
@@ -282,7 +309,16 @@ function mount(root, app) {
     refresh();
   }
 
+  /** A "Change formation" button: flown at once, or queued behind the one being flown (spec section 10). */
+  function pressChange(to, options) {
+    const how = formation.change(to, options);
+    if (how === 'queued') app.status(`${state.queued.label} is next.`);
+    if (how !== 'refused') play();
+    refresh();
+  }
+
   ui.onPress(press);
+  changeUi.onSideChanged(renderCard);
   ui.onPlayPause(() => (playing ? pause() : play()));
   ui.onResetRun(resetRun);
   ui.onSpeed((x) => {

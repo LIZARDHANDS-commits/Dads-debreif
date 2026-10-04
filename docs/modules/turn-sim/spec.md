@@ -150,6 +150,70 @@ How it is flown. Geometry is the V2.8 fix above. Vertical is the smooth height l
 
 Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix tools, the card text); the speed segment in `live/flight.js`; small hooks in `live/formation.js` (build, start, finish), `layout.js` (the Errors section and card lines) and `index.js` (settings and `cardFor`).
 
+## 10. Changing formation (2-ship)
+
+**What it does.** A new "Change formation" group of buttons sits above the manoeuvre buttons: Line abreast, Fighting wing, Echelon, Route and Fluid manoeuvring, plus a Side switch (Keep, L or R). Press one and the pair flies the manuals' transition from whatever formation they are in now. Where the manuals don't join two formations directly, the transition goes through an in-between formation, for example fighting wing to echelon through route (from-to table, `design.md` section 4). The button for the current formation is greyed out. Line astern and the rejoin options sit behind "More".
+
+**How it flies.**
+- **Planned paths:** every transition is planned when you press the button, in the same style as the manoeuvres: pre-planned paths, roll 90°/s, and smooth hand-overs with no jump in position, track, bank, roll rate, pitch rate or speed.
+- **Speed:** the pair flies 200 KIAS outside line abreast and 220 KIAS in line abreast (SMM 12.23 para 53, SMM 16.18 para 49; Patrick 11:08Z). Lead slows or speeds up during the transition. Speed changes are smooth ramps, and they happen only during transitions (Patrick 11:09Z). Speeding up uses the T-6's full-power figure from the core. Slowing down uses 1.5 kt/s, an estimate, because idle thrust and the speed brake are not modelled.
+- **Rejoins:**
+  - The default rejoin from line abreast is a turning rejoin: Lead turns into #2, and #2 rejoins to fighting wing (SMM 16.20 para 65, Fig 16.25; AFM7 p.17; Patrick 11:09Z).
+  - Pressing Echelon from line abreast flies the hot turning rejoin straight to echelon (SMM 16.20 para 66).
+  - #2 overtakes Lead by 10-20 KIAS in a turning rejoin (EFIG p.374) and 20-30 KIAS straight ahead (EFIG p.371), and stays below Lead.
+  - #2's bank in a rejoin is capped at 60°, an estimate, flagged on screen and never a wall.
+- **Entering fluid manoeuvring:**
+  - from echelon by the 2-second break (SMM 16.17 para 43);
+  - from fighting wing by Lead's 30° turn, then max power (AFM7 p.17);
+  - from line abreast through fighting wing.
+- **After a change:** the manoeuvre buttons work only in line abreast for now; they are greyed out in other formations. Fighting wing and fluid manoeuvring themselves (Lead's moves, #2 staying in the cone) are a separate step.
+
+**The positions** (the formation counts as established when #2 is inside these):
+
+| Formation | #2's position | Source |
+|---|---|---|
+| Line abreast | 4,000-6,000 ft abeam, 0-10° sweep | SMM 16.18 para 49 |
+| Fighting wing | 500-1,000 ft, 30-60° sweep, below Lead; default 750 ft and 45° (estimate) | SMM 12.29 para 69 |
+| Route | 1 to 3 wingspans out on the wing-tip line | SMM 12.6 para 15 |
+| Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet) | SMM 12.4 paras 11-12 |
+| Line astern | directly behind and below, about 10 ft nose to tail | SMM 12.5 para 13 |
+
+**Screen.**
+- **Formation card:** shows "Now:" and "Flying:". During a rejoin it adds range, closure, Lead's clock position, ON LINE, HOT or COLD (hot and cold at 60° and 30°, estimates), and height against Lead. After each change, the card judges the new formation against the table above.
+- **Camera:** zooms in by itself when the pair is closer than about 1,000 ft and back out when they open up.
+
+**Flags, never walls.**
+- Lead above 4 G in fighting wing or fluid manoeuvring, and above 3 G in close formation (2 CFFTS Orders B2 ch 8; Gen Book p.11).
+- #2 at or above Lead's height during a rejoin (SMM 12.27 para 65).
+- Less than 500 ft separation in fluid manoeuvring (SMM 16.13 para 31).
+
+**When things go wrong.**
+- **A press while a change is flying** waits its turn, as the manoeuvres do (TS-45).
+- **A picture that fits no formation:** the planner works out the nearest formation from the pair's real positions. If none fits, it flies a rejoin from wherever #2 is.
+
+**Not in this step:** the Overshoot button and rejoin mistakes (to `future.md`), the 4-ship changes (their own design), fighting wing and fluid manoeuvring flying (their own design).
+
+**Checks (light):**
+- every from-to pair ends in the target formation's band;
+- smooth hand-overs, including through speed changes;
+- #2 never above Lead in a rejoin;
+- bank never past the cap.
+
+No time gates. A generous limit of 3 minutes per change catches a planner that never finishes (estimate).
+
+**Confirmed by Patrick, 4 Oct 11:45Z ("Agreed").**
+
+**As built (first build, version badge not yet bumped; all numbers below with no manual or ruling behind them are estimates).**
+- **The buttons.** "Change formation" sits above the manoeuvre buttons: Line abreast, Fighting wing, Echelon, Route, Fluid manoeuvring (greyed, "coming later": live fighting wing and fluid are a later step) and the Side switch (Keep, L, R). Line astern and the rejoin choice are behind "More". The button for the formation the pair is in is greyed ("You are here"). The manoeuvre buttons are greyed in fighting wing, echelon, route and line astern, with the reason beside them; after an in-place turn (in trail) they work as before.
+- **How it plans.** Lead flies ordinary segments (a speed change, and in a turning rejoin a pause then a 30° turn into #2). #2's path is worked out by a dry run in which #2 flies toward its slot in Lead's frame the way a pilot would (small heading changes for slides, bank for the rejoin), through the same flight step as every other aircraft; the bank and speed it commanded are recorded and replayed, so the path drawn is the path flown. Code: `live/transitions.js` (planner, `planGoTo`), `transitions-panel.js` (buttons and card lines), small hooks in `live/formation.js`, `layout.js`, `index.js`, `view.js`.
+- **The from-to routes** (design section 4): station changes between echelon, route and line astern by slides of about 5 kt (8 ft/s, estimate) crossing behind and below Lead; drop back and sweep out to fighting wing at about 12 ft/s; close through route from fighting wing at a 10-20 KIAS overtake, slowing to about 5 kt at route; entry to line abreast with Lead accelerating to 220 KIAS at full power while #2 turns away to open out; from line abreast a rejoin to fighting wing first, flown straight through it for the hot turning rejoin to echelon. A change of side (the Side switch) is made behind Lead in the formation the pair is in, never across his nose.
+- **The turning rejoin.** Lead slows to 200 KIAS, pauses until #2 has closed to about 2,000 ft ("Lead will pause, allow No. 2 to establish closure", AFM8 brief p.19), then turns 30° into #2 at 30° bank (SMM 12.24 para 54). #2's bank is capped at 60° (estimate); its overtake is 15 KIAS (EFIG p.374). The planner takes the first turn that keeps the overshoot lane (inside 1,000 ft #2 never more than 100 ft ahead of Lead's 3/9 line, and below Lead inside 2,000 ft); if none does, Lead holds straight and #2 flies the straight-ahead rejoin (SMM 12.26 paras 62-63). The rejoin choice under More is "Turning, Lead turns into #2" (the default) or "Straight ahead". Turning away, in-place turns, hot and cold line choices and an overtake box are not built (`future.md`).
+- **The slots** (where the planner sends #2, all estimates inside the table's bands): fighting wing 750 ft at 45° sweep, 60 ft below Lead; route 2 wingspans (67 ft) out, 25 ft back, 5 ft low; echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Setup spacing.
+- **The card.** "Now:" (the formation the pair is in, read from where #2 really is), the existing "Flying:" line (for a change, "Line abreast right to Echelon right (hot turning rejoin)"), the rejoin block during a rejoin from line abreast (range, closure, Lead's clock position and ON LINE / HOT / COLD at 60° and 30°, #2's height against Lead), the flags (Lead's G over 4 in fighting wing and over 3 in close formation; #2 at or above Lead's height inside 2,000 ft; #2 at the 60° bank cap), and, once the change ends, the judgement against the table above. During a rejoin the picture draws a dashed range ring around Lead and a closure arrow on #2. The camera zooms in by itself under about 1,000 ft apart (down to a 250 ft picture) and back out when they open up.
+- **When it cannot be planned.** Nothing changes; the card says why in one line ("No safe rejoin from here: ..."), for example when the plan would take more than 3 minutes or ends outside the band. A press while a change is flying is queued, as the manoeuvres are (TS-45). A pair that fits no formation (in trail, mid-turn) is planned as a straight-ahead rejoin from where #2 is. Training errors are not applied to a change.
+- **Speed.** Lead's speed changes use `{ kind: 'speed', toKias, rateKtps }` segments; until the shared one in `live/flight.js` is swapped in, `flyStep` in `live/transitions.js` flies them itself (marked TEMPORARY there).
+- **Checks.** `tests/unit/turn-sim/transitions.test.js` (a handful, no time gates): every from-to pair ends in the target's band at 200 KIAS (220 in line abreast); smooth hand-overs through speed changes; #2 below Lead and in the overshoot lane in a rejoin, bank inside the caps; the queue.
+
 ---
 
 # Part 2. Plan mode: the spec from before the reset

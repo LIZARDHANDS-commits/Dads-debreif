@@ -509,3 +509,53 @@
   font-size: var(--text-sm);
   color: var(--text-muted);
 }
+
+
+/* Change formation (spec section 10): a two-column grid of buttons like the manoeuvre buttons, the Side switch, and More. */
+[data-module='turn-sim'] .ts-change {
+  margin: 0 0 var(--space-3);
+}
+
+[data-module='turn-sim'] .ts-change[hidden],
+[data-module='turn-sim'] .ts-change-card[hidden] {
+  display: none;
+}
+
+[data-module='turn-sim'] .ts-change-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+[data-module='turn-sim'] .ts-change-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  text-align: center;
+}
+
+[data-module='turn-sim'] .ts-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-side-button[aria-pressed='true'] {
+  font-weight: 700;
+  outline: 2px solid var(--accent, currentColor);
+}
+
+[data-module='turn-sim'] .ts-more > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+[data-module='turn-sim'] .ts-rejoin,
+[data-module='turn-sim'] .ts-flags {
+  margin: 0 0 var(--space-2);
+}

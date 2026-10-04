@@ -20,7 +20,7 @@ const TRAIL_ALPHA = 0.55;
 const LABEL_TONES = { good: '#7ee787', caution: '#ffcc66', none: '#9bb8c6' };
 const SPACING_LINES = new Set(['1-2', '1-3', '1-4', '3-4']); // V6 drew these four
 /** The widest and narrowest picture, in feet across: the whole MOA and a bit more, down to a few hundred feet. */
-const MIN_SPAN_FT = 400;
+const MIN_SPAN_FT = 120; // down to an echelon: the pair about 45 ft apart (spec section 10)
 const MAX_SPAN_FT = 60 * FT_PER_NM * 2;
 const FIT_PADDING_PX = 40;
 /** How far the follow camera's zoom moves toward the zoom it wants, each frame: a gentle ease rather than a jump. */
@@ -103,6 +103,8 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       const { trail, marks } = source.trails();
       if (layers.tracks !== false) drawTrails(ctx, map, trail);
       if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
+      const rejoin = source.rejoin?.();
+      if (rejoin) drawRejoin(ctx, map, state, rejoin);
       if (layers.breadcrumbs) drawBreadcrumbs(ctx, map, marks, layers.crumbSec, state.tSec);
       if (layers.spacingLines) drawSpacingLines(ctx, map, state, layers.distNm);
       if (layers.turnCircles && !state.finished) {
@@ -254,6 +256,47 @@ function drawPlanned(ctx, map, planned, now) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/** During a rejoin: a dashed range ring around Lead through #2, and an arrow on #2 toward Lead as long as the closure (spec section 10). */
+function drawRejoin(ctx, map, state, { leadId, wingId, rangeFt, closureKt }) {
+  const lead = state.aircraft.find((a) => a.id === leadId);
+  const wing = state.aircraft.find((a) => a.id === wingId);
+  if (!lead || !wing) return;
+  const [lx, ly] = map.worldToScreen(lead.xFt, lead.yFt);
+  const [wx, wy] = map.worldToScreen(wing.xFt, wing.yFt);
+  ctx.save();
+  ctx.strokeStyle = '#ffcc66';
+  ctx.fillStyle = '#ffcc66';
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.8;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.arc(lx, ly, rangeFt * map.view.scale, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // The closure arrow: toward Lead when closing, away when opening; 1 px per knot, at least 12 px so a small closure still shows.
+  const dist = Math.hypot(lx - wx, ly - wy);
+  if (dist > 1 && Math.abs(closureKt) >= 1) {
+    const len = Math.max(12, Math.min(90, Math.abs(closureKt)));
+    const dir = Math.sign(closureKt);
+    const ux = ((lx - wx) / dist) * dir;
+    const uy = ((ly - wy) / dist) * dir;
+    const tipX = wx + ux * (20 + len);
+    const tipY = wy + uy * (20 + len);
+    ctx.beginPath();
+    ctx.moveTo(wx + ux * 20, wy + uy * 20);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - ux * 8 - uy * 5, tipY - uy * 8 + ux * 5);
+    ctx.lineTo(tipX - ux * 8 + uy * 5, tipY - uy * 8 - ux * 5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+  text(ctx, `${Math.round(rangeFt).toLocaleString('en-CA')} ft, ${closureKt >= 0 ? '+' : ''}${Math.round(closureKt)} kt`, wx + 14, wy + 34, '#ffcc66', 11);
 }
 
 /** The circle each banked aircraft is flying now, from its own true airspeed and bank, on the side its bank is (left positive). */
