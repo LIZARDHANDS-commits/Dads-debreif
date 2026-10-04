@@ -21,7 +21,7 @@ import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
   recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
-  slotFor, REJOIN, straightAhead, sweepOut, LENGTH_FT,
+  slotFor, REJOIN, straightAhead, sweepOut, LENGTH_FT, stopAt, cornerBehind,
 } from './transitions.js';
 import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords, FW_STEP_DOWN_FT } from './four-ship-slots.js';
 
@@ -378,128 +378,170 @@ function slideTo(start, t0, opts, s, to) {
 }
 
 /**
- * F1 and F2: finger to echelon (SMM 16.32 paras 87-88; AFM7 brief p.19). Echelon on #2's side (F2): #3 and #4 move back
- * and down, pass behind and below #2 and Lead, #4 lower and behind #3, and take echelon on #2 and #3. Echelon on the other
- * side (F1): #3 and #4 move out to make room, then #2 crosses behind and below Lead.
+ * The close station change's technique, the 2-ship's (SMM 12.20 paras 44-45, Figs 12.12-12.13; transitions.js legsFor's
+ * crossClose), for one wingman: back and down into the corner behind where it is and stop; across at a steady rate to
+ * directly behind its new place and stop; then forward and up into it (`last`, a phase onto the new place). The corner is
+ * in the frame of `track`: back, the fore-aft place; fromLeft, toLeft, the lateral places now and at the end; low, the
+ * height against Lead. first: extra settings for the first phase (a gate). The phases are in that order, so a later
+ * wingman can gate on times[0] (in the corner), [1] (across) or [2] (in place).
+ */
+function crossTo(c, track, fromLeft, toLeft, back, low, last, first = {}) {
+  return [stopAt(place(c, back, fromLeft, low), { track, ...first }), stopAt(place(c, back, toLeft, low), { track }), last];
+}
+/** The corner behind a close place (the 2-ship's, transitions.js cornerBehind): { fwd, alt } in the frame flown off. */
+const corner = (c) => cornerBehind(ech(), c.spacingFt);
+/** Up into a close place from directly behind it (SMM 12.20 para 45: "move forward and up"): a slow slide, as the 2-ship's. */
+const upInto = (c, slot) => toSlot(c, slide, slot, { fwdRate: 5 });
+/**
+ * Finger to echelon on #3's side: how far #3 (with #4 on its wing) moves out, back and slightly down beyond its echelon
+ * place to make room for #2 (SMM 16.32 para 87; AFM7 brief p.19 item 1, frame 2). The manuals give no distance: these are
+ * estimates, about half a wingspan out, most of a length back and 5 ft down.
+ */
+const MAKE_ROOM = Object.freeze({ outFt: 15, backFt: 25, downFt: 5 });
+
+/**
+ * F1 and F2: finger to echelon (SMM 16.32 paras 87-88; AFM7 brief p.19), each wingman flying the 2-ship's crossing technique.
+ * Echelon on #3's side (F1, para 87; AFM7 p.19 item 1): #3, with #4 on its wing, moves out, back and slightly down to make
+ * room while #2 moves back and down into the corner behind Lead (frame 2); #2 crosses behind and below Lead and moves up
+ * into echelon (frame 3); then #3 and #4 regain normal spacing (frame 4). Echelon on #2's side (F2, para 88 reversed; AFM7
+ * p.19 item 2): crossThreeFour.
  */
 function fingerToEchelon(start, t0, opts, s, e) {
-  if (e === s) {
-    return legsInTurn(start, t0, opts, [(c) => {
-      const back3 = behind() + ech().fwd; // behind #2 as well as Lead
-      return {
-        lead: [],
-        wings: [
-          { id: 2, phases: () => [hold(c, 2, 1)] },
-          { id: 3, phases: () => [slide(place(c, back3, -s * ech().left, -CROSS_LOW_FT - 5), { track: 1 }), slide(place(c, back3, s * 2 * ech().left, -CROSS_LOW_FT - 5), { track: 1 }), slide(place(c, 2 * ech().fwd, s * 2 * ech().left, 2 * ech().alt), { track: 1 })] },
-          { id: 4, phases: (done) => [
-            slide(place(c, behind(), -s * ech().left, -CROSS_LOW_FT - 5 - FOUR_LOWER_FT - 5), { track: 3 }),
-            slide(place(c, behind(), s * ech().left, -CROSS_LOW_FT - 5 - FOUR_LOWER_FT - 5), { track: 3, holdUntil: done[3].times[2].arrive }),
-            slide(place(c, ech().fwd, s * ech().left, 3 * ech().alt), { track: 3 }),
-          ] },
-        ],
-      };
-    }]);
-  }
+  if (e === s) return crossThreeFour(start, t0, opts, -s, s, 'echelon');
+  const ech4 = fourSlots('echelon', -s);
   return legsInTurn(start, t0, opts, [
+    (c) => ({
+      lead: [],
+      wings: [
+        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, corner(c).alt), { track: 1 })] },
+        { id: 3, phases: () => [stopAt(place(c, 2 * ech().fwd - MAKE_ROOM.backFt, -s * (2 * ech().left + MAKE_ROOM.outFt), 2 * ech().alt - MAKE_ROOM.downFt), { track: 1 })] },
+        { id: 4, phases: () => [hold(c, 4, 3)] },
+      ],
+    }),
+    (c) => ({
+      lead: [],
+      wings: [
+        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, -s * ech().left, corner(c).alt), { track: 1 }), upInto(c, ech4[2])] },
+        { id: 3, phases: () => [hold(c, 3, 1)] },
+        { id: 4, phases: () => [hold(c, 4, 3)] },
+      ],
+    }),
     (c) => ({
       lead: [],
       wings: [
         { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => [slide(place(c, 2 * ech().fwd, -s * 2 * ech().left, 2 * ech().alt), { track: 1 })] },
-        { id: 4, phases: () => [slide(place(c, ech().fwd, -s * ech().left, 3 * ech().alt), { track: 3 })] },
+        { id: 3, phases: () => [upInto(c, ech4[3])] },
+        { id: 4, phases: () => [toSlot(c, slide, ech4[4])] },
       ],
     }),
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [slide(place(c, behind(), s * ech().left, -CROSS_LOW_FT), { track: 1 }), slide(place(c, behind(), -s * ech().left, -CROSS_LOW_FT), { track: 1 }), slide(place(c, ech().fwd, -s * ech().left, ech().alt), { track: 1 })] },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-  ]);
-}
-
-/** F3: echelon to finger, the reverse of F1 or F2 (SMM 16.32 paras 87-88 reversed: an estimate, the manuals give one way). */
-function echelonToFinger(start, t0, opts, e, s) {
-  if (e === s) {
-    // #3 and #4 go back across behind and below to the other side.
-    return legsInTurn(start, t0, opts, [(c) => {
-      const back3 = behind() + ech().fwd;
-      return {
-        lead: [],
-        wings: [
-          { id: 2, phases: () => [hold(c, 2, 1)] },
-          { id: 3, phases: () => [slide(place(c, back3, s * 2 * ech().left, -CROSS_LOW_FT - 5), { track: 1 }), slide(place(c, back3, -s * ech().left, -CROSS_LOW_FT - 5), { track: 1 }), slide(place(c, ech().fwd, -s * ech().left, ech().alt), { track: 1 })] },
-          { id: 4, phases: (done) => [
-            slide(place(c, behind(), s * ech().left, -CROSS_LOW_FT - 5 - FOUR_LOWER_FT - 5), { track: 3 }),
-            slide(place(c, behind(), -s * ech().left, -CROSS_LOW_FT - 5 - FOUR_LOWER_FT - 5), { track: 3, holdUntil: done[3].times[2].arrive }),
-            slide(place(c, ech().fwd, -s * ech().left, 2 * ech().alt), { track: 3 }),
-          ] },
-        ],
-      };
-    }]);
-  }
-  // #2 crosses back behind and below Lead, then #3 and #4 move in a place.
-  return legsInTurn(start, t0, opts, [
-    (c) => ({
-      lead: [],
-      wings: [
-        { id: 2, phases: () => [slide(place(c, behind(), -s * ech().left, -CROSS_LOW_FT), { track: 1 }), slide(place(c, behind(), s * ech().left, -CROSS_LOW_FT), { track: 1 }), slide(place(c, ech().fwd, s * ech().left, ech().alt), { track: 1 })] },
-        { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [hold(c, 4, 3)] },
-      ],
-    }),
-    (c) => {
-      const fin = fourSlots('finger', s);
-      return {
-        lead: [],
-        wings: [
-          { id: 2, phases: () => [hold(c, 2, 1)] },
-          { id: 3, phases: () => [toSlot(c, slide, fin[3])] },
-          { id: 4, phases: () => [toSlot(c, slide, fin[4])] },
-        ],
-      };
-    },
   ]);
 }
 
 /**
- * F4: finger to box and back (SMM 16.32 para 91; AFM7 brief p.20): #2 and #3 hold; #4 moves back and down to pass
- * behind #3, into a loose line astern, then power moves it into line astern on Lead; back the same way to its echelon on #3.
+ * #3 and #4 change sides together, #2 holding (SMM 16.32 para 88; AFM7 brief p.19 item 2): #3 moves back and down into the
+ * corner behind #2 and Lead and stops, crosses at a steady rate to directly behind its new place and stops, then moves up
+ * into it; #4 moves into a column behind and lower than #3 (frame 3) and crosses with it, then, once #3 is across, out and
+ * up into echelon on #3. from, to: #3's side now and at the end (+1 left, -1 right); key: the formation at the end,
+ * 'echelon' (all on #2's side, #2 on side `to`) or 'finger' (#2 on side -to).
+ */
+function crossThreeFour(start, t0, opts, from, to, key) {
+  const slots = fourSlots(key, key === 'echelon' ? to : -to);
+  return legsInTurn(start, t0, opts, [(c) => {
+    const back3 = corner(c).fwd + ech().fwd; // behind #2 as well as Lead
+    const low3 = -CROSS_LOW_FT - 5;
+    const low4 = low3 - FOUR_LOWER_FT - 5;
+    const fromLeft3 = from * (key === 'echelon' ? 1 : 2) * ech().left; // #3 is one echelon out in finger, two in echelon
+    const toLeft3 = to * (key === 'echelon' ? 2 : 1) * ech().left;
+    return {
+      lead: [],
+      wings: [
+        { id: 2, phases: () => [hold(c, 2, 1)] },
+        { id: 3, phases: () => crossTo(c, 1, fromLeft3, toLeft3, back3, low3, upInto(c, slots[3])) },
+        {
+          id: 4,
+          phases: (done) => [
+            // into the column behind and below #3, held against #3 so it crosses with it, and left only once #3 is across
+            stopAt(place(c, corner(c).fwd, 0, low4), { track: 3, holdUntil: done[3].times[1].t1 }),
+            stopAt(place(c, corner(c).fwd, to * ech().left, low4), { track: 3 }),
+            upInto(c, slots[4]),
+          ],
+        },
+      ],
+    };
+  }]);
+}
+
+/**
+ * F3: echelon to finger. With #2 staying (finger on #2's side, the echelon's #3 and #4 to the other side) it is SMM 16.32
+ * para 88 itself: crossThreeFour. With #2 changing sides (finger on the far side from the echelon) the manuals give no
+ * picture (para 87's mirror, an estimate): #2 moves back and down into the corner, crosses behind and below Lead and moves
+ * up into echelon on the other side; then #3 and #4 move in a place to finger. e: the echelon's side; s: #2's side at the end.
+ */
+function echelonToFinger(start, t0, opts, e, s) {
+  if (e === s) return crossThreeFour(start, t0, opts, s, -s, 'finger');
+  const fin = fourSlots('finger', s);
+  return legsInTurn(start, t0, opts, [
+    (c) => ({
+      lead: [],
+      wings: [
+        { id: 2, phases: () => crossTo(c, 1, -s * ech().left, s * ech().left, corner(c).fwd, corner(c).alt, upInto(c, fin[2])) },
+        { id: 3, phases: () => [hold(c, 3, 1)] },
+        { id: 4, phases: () => [hold(c, 4, 3)] },
+      ],
+    }),
+    (c) => ({
+      lead: [],
+      wings: [
+        { id: 2, phases: () => [hold(c, 2, 1)] },
+        { id: 3, phases: () => [upInto(c, fin[3])] },
+        { id: 4, phases: () => [toSlot(c, slide, fin[4])] },
+      ],
+    }),
+  ]);
+}
+
+/**
+ * F4: finger to box and back (SMM 16.32 para 91; AFM7 brief p.20): #2 and #3 hold; #4 moves back and down to pass behind
+ * #3 and stops, across to behind Lead and stops ("stabilize in a loose line astern"), then power moves it up into line
+ * astern on Lead. Back: the same way reversed, to its echelon on #3 (an estimate: the manuals give one way).
  */
 function fingerBox(start, t0, opts, s, toBox) {
   return legsInTurn(start, t0, opts, [(c) => {
-    const back = behind() + ech().fwd;
+    const back = corner(c).fwd + ech().fwd; // behind #3 as well as Lead
     const low = -CROSS_LOW_FT - 5;
+    const fin4Left = -s * 2 * ech().left; // #4's lateral place in finger, in Lead's frame
     const four = toBox
-      ? [slide(place(c, back, -s * 2 * ech().left, low), { track: 1 }), slide(place(c, back, 0, low), { track: 1 }), slide(place(c, ast().fwd - 15, 0, ast().alt - 4), { track: 1 }), slide(place(c, ast().fwd, 0, ast().alt), { track: 1 })]
-      : [slide(place(c, back, 0, low), { track: 1 }), slide(place(c, back, -s * 2 * ech().left, low), { track: 1 }), toSlot(c, slide, fourSlots('finger', s)[4])];
+      ? crossTo(c, 1, fin4Left, 0, back, low, upInto(c, fourSlots('box', s)[4]))
+      : crossTo(c, 1, 0, fin4Left, back, low, upInto(c, fourSlots('finger', s)[4]));
     return { lead: [], wings: [{ id: 2, phases: () => [hold(c, 2, 1)] }, { id: 3, phases: () => [hold(c, 3, 1)] }, { id: 4, phases: () => four }] };
   }]);
 }
 
 /**
- * F5: finger to line astern and back (SMM 16.32 paras 86, 89-90). To line astern: #3 drops back far enough for #2 to take
- * position before it moves across; #2 moves back and across behind Lead; then #3 moves across behind #2; #4 follows #3
- * and takes line astern on it. Back: #2 moves out and up first, then #3, then #4 regains its place.
+ * F5: finger to line astern and back (SMM 16.32 paras 86, 89-90). To line astern: #2 and #3 (with #4 on its wing) move
+ * back and slightly down together, #3 far enough back for #2 to take position first; #2 crosses behind Lead and moves up
+ * into line astern; only then does #3 move across behind #2, and as it does, #4 moves into line astern on #3 (para 86: #3
+ * does not move laterally until #2 is in). Back (para 90): #2 moves to its side and up into echelon; once it is out of line
+ * astern, #3 moves to the other side and up into echelon on Lead; then #4 regains echelon on #3.
  */
 function fingerTrail(start, t0, opts, s, toTrail) {
   const trail = fourSlots('trail', 0);
   if (toTrail) {
+    // #3's corner: back far enough that #2's crossing passes well ahead of it (two line astern places, plus 15 ft: estimates)
+    const back3 = 2 * ast().fwd - 15;
     return legsInTurn(start, t0, opts, [
       (c) => ({
         lead: [],
         wings: [
-          { id: 2, phases: () => [hold(c, 2, 1)] },
-          { id: 3, phases: () => [slide(place(c, 2 * ast().fwd - 15, -s * ech().left, 2 * ast().alt), { track: 1 })] },
-          { id: 4, phases: () => [slide(place(c, behind(), -s * ech().left, 3 * ast().alt - 6), { track: 3 }), slide(place(c, behind(), 0, 3 * ast().alt - 6), { track: 3 }), toSlot(c, slide, trail[4])] },
+          { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, corner(c).alt), { track: 1 })] },
+          { id: 3, phases: () => [stopAt(place(c, back3, -s * ech().left, 2 * ast().alt), { track: 1 })] },
+          { id: 4, phases: () => [hold(c, 4, 3)] },
         ],
       }),
       (c) => ({
         lead: [],
         wings: [
-          { id: 2, phases: () => [slide(place(c, behind(), s * ech().left, ast().alt - 2), { track: 1 }), slide(place(c, behind(), 0, ast().alt - 2), { track: 1 }), toSlot(c, slide, trail[2])] },
+          { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, 0, corner(c).alt), { track: 1 }), upInto(c, trail[2])] },
           { id: 3, phases: () => [hold(c, 3, 1)] },
           { id: 4, phases: () => [hold(c, 4, 3)] },
         ],
@@ -508,8 +550,8 @@ function fingerTrail(start, t0, opts, s, toTrail) {
         lead: [],
         wings: [
           { id: 2, phases: () => [hold(c, 2, 1)] },
-          { id: 3, phases: () => [slide(place(c, 2 * ast().fwd - 15, 0, 2 * ast().alt), { track: 1 }), toSlot(c, slide, trail[3])] },
-          { id: 4, phases: () => [hold(c, 4, 3)] },
+          { id: 3, phases: () => [stopAt(place(c, back3, 0, 2 * ast().alt), { track: 1 }), upInto(c, trail[3])] },
+          { id: 4, phases: () => [stopAt(place(c, corner(c).fwd, 0, 3 * ast().alt), { track: 3 }), upInto(c, trail[4])] },
         ],
       }),
     ]);
@@ -519,7 +561,7 @@ function fingerTrail(start, t0, opts, s, toTrail) {
     (c) => ({
       lead: [],
       wings: [
-        { id: 2, phases: () => [slide(place(c, ast().fwd, s * ech().left, ast().alt), { track: 1 }), toSlot(c, slide, fin[2])] },
+        { id: 2, phases: () => [stopAt(place(c, corner(c).fwd, s * ech().left, ast().alt), { track: 1 }), upInto(c, fin[2])] },
         { id: 3, phases: () => [hold(c, 3, 1)] },
         { id: 4, phases: () => [hold(c, 4, 3)] },
       ],
@@ -528,7 +570,7 @@ function fingerTrail(start, t0, opts, s, toTrail) {
       lead: [],
       wings: [
         { id: 2, phases: () => [hold(c, 2, 1)] },
-        { id: 3, phases: () => [slide(place(c, 2 * ast().fwd, -s * ech().left, 2 * ast().alt), { track: 1 }), toSlot(c, slide, fin[3])] },
+        { id: 3, phases: () => [stopAt(place(c, 2 * ast().fwd, -s * ech().left, 2 * ast().alt), { track: 1 }), upInto(c, fin[3])] },
         { id: 4, phases: () => [hold(c, 4, 3)] },
       ],
     }),
@@ -537,7 +579,7 @@ function fingerTrail(start, t0, opts, s, toTrail) {
       wings: [
         { id: 2, phases: () => [hold(c, 2, 1)] },
         { id: 3, phases: () => [hold(c, 3, 1)] },
-        { id: 4, phases: () => [slide(place(c, ast().fwd, -s * ech().left, fin[4].alt), { track: 3 }), toSlot(c, slide, fin[4])] },
+        { id: 4, phases: () => [stopAt(place(c, ast().fwd, -s * ech().left, fin[4].alt), { track: 3 }), upInto(c, fin[4])] },
       ],
     }),
   ]);
@@ -719,7 +761,8 @@ export function planChangeFour(aircraft, to, options = {}, t0 = 0) {
   return {
     ok: true,
     plans,
-    note: `${fromWords} to ${toWords}: ${hows.join(', then ')}.`,
+    // Finger to finger is the one change not authorized (SMM 16.33 para 93): the route goes through echelon instead.
+    note: `${fromWords} to ${toWords}: ${hows.join(', then ')}${from.key === 'finger' && to === 'finger' ? ' (finger to finger is not flown directly, SMM 16.33 para 93)' : ''}.`,
     label,
     flying: `${fromWords} to ${toWords} (${hows.join(', then ')})`,
     from: from.key,

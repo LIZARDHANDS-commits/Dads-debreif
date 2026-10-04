@@ -281,3 +281,34 @@ test('4-ship: the turn buttons turn every formation, each wingman rolling with L
     }
   }
 });
+
+test('4-ship station changes wait for the one ahead: #2 crosses to echelon only once #3 has made room, and in finger to line astern #3 moves across only once #2 is in', () => {
+  // SMM 16.32 para 87 and AFM7 brief p.19 item 1: #3 (with #4) moves out, back and down to make room before #2 crosses
+  // behind Lead. Paras 86 and 89: in finger to line astern #3 drops back but does not move laterally until #2 is in line
+  // astern. Room is "wider than #3's echelon place" (two echelon places out, 90 ft, from the 2-ship table above).
+  const f = createFormation({ ships: 4, wingSide: 'right' });
+  changeTo(f, 'fw', {}, -1);
+  changeTo(f, 'finger', {}, -1);
+  assert.equal(f.change('echelon', { side: 'left' }), 'started');
+  let crossed = false;
+  fly(f, 'finger to echelon on #3\'s side', (_b, after) => {
+    const a = byId(after);
+    if (link(a.get(1), a.get(2)).across < 10 && !crossed) {
+      crossed = true;
+      assert.ok(link(a.get(1), a.get(3)).across > 90, '#3 has made room before #2 crosses behind Lead');
+    }
+  });
+  assert.ok(crossed, '#2 crossed behind Lead');
+  assert.deepEqual(wrongs('echelon', f.state.aircraft, 1), []);
+
+  const g = createFormation({ ships: 4, wingSide: 'right' });
+  changeTo(g, 'fw', {}, -1);
+  changeTo(g, 'finger', {}, -1);
+  assert.equal(g.change('trail'), 'started');
+  const across3 = link(g.state.aircraft[0], g.state.aircraft[2]).across;
+  fly(g, 'finger to line astern', (_b, after) => {
+    const a = byId(after);
+    if (link(a.get(1), a.get(3)).across < across3 - 10) assert.ok(asternLink(link(a.get(1), a.get(2))), '#3 moves across only once #2 is in line astern');
+  });
+  assert.deepEqual(wrongs('trail', g.state.aircraft, 0), []);
+});
