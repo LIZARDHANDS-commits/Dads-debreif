@@ -588,7 +588,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const choice = roll(a, odds.downwind);
         const ent2 = routeById('ENT2');
         if (choice === 'straight_in' && ent2) {
-          startFlown(a, buildDownwindStraightIn(pat.points, stateOf(a), windNow()), 'STRAIGHT_IN_FLOWN', 'Straight-in', 'join', ent2.id);
+          startFlown(a, buildDownwindStraightIn(pat.points, stateOf(a), windNow(), ent2), 'STRAIGHT_IN_FLOWN', 'Straight-in', 'join', ent2.id);
           a.phase = 'straight_in';
         } else if (choice === 'high_key') startHighKeyClimb(a);
       }

@@ -1,8 +1,8 @@
 // Checks: Randomize behaviour (Traffic spec 4.13; Patrick, 4 Oct 21:52Z to 22:29Z) flies what a pilot would expect.
 // The rolls are repeatable; with the setting at 0 an aircraft always carries on and at 100 never does; a closed
 // pattern or High Key chosen on the upwind starts before the crosswind turn, within 3/4 mile past the departure
-// end; and the straight-in from the outer downwind comes down to 2,700 ft and 120 KIAS lined up with the runway.
-// Expected values: TR-3 (3,500 to 2,700 ft, 140 then 120 KIAS, up to 45° of bank; SMM 4.5 para 8, 4.7 para 12),
+// end; and the straight-in from the outer downwind comes down to 2,700 ft and rolls out on the straight-in's base at 140 KIAS.
+// Expected values: Patrick, 22:44Z, and SMM 4.16 para 36 (3,500 to 2,700 ft, level and slow, base below 147 KIAS),
 // Patrick's 3/4 mile (21:54Z); margins from the shared table (±100 ft, ±10 kt, ±5°).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,15 +28,18 @@ test('the rolls are repeatable, and the setting decides how often an aircraft do
   }
 });
 
-test('the straight-in from the outer downwind comes down to 2,700 ft and 120 KIAS lined up with the runway (TR-3)', () => {
-  const rwy = { a: PAT.points[0], b: PAT.points[1] };
+test('the straight-in from the outer downwind comes down to 2,700 ft and rolls out on the straight-in base leg at 140 KIAS (Patrick, 22:44Z; SMM 4.16 para 36)', () => {
+  const ent2 = MJ.routes.find((r) => r.id === 'ENT2');
+  const base = { a: ent2.points[1], b: ent2.points[2] };
+  const baseTrack = Math.atan2(base.b.x - base.a.x, base.b.y - base.a.y) * 180 / Math.PI;
   for (const [windFromDeg, windKt] of [[360, 0], [260, 15], [200, 25]]) {
-    const path = buildDownwindStraightIn(PAT.points, { x: PAT.points[5].x, y: PAT.points[5].y, alt: 3500, kias: 220, headingDeg: 118, bankDeg: 0 }, { windFromDeg, windKt });
+    const path = buildDownwindStraightIn(PAT.points, { x: PAT.points[5].x, y: PAT.points[5].y, alt: 3500, kias: 220, headingDeg: 118, bankDeg: 0 }, { windFromDeg, windKt }, ent2);
     const end = path.at(-1);
-    assert.ok(Math.abs(legOffsetsFt(rwy.a, rwy.b, end).crossFt) <= 100, 'on the centreline');
-    assert.ok(legOffsetsFt(rwy.a, rwy.b, end).alongFt < -2 * 6076, 'a long final, short of the threshold');
+    const o = legOffsetsFt(base.a, base.b, end);
+    assert.ok(Math.abs(o.crossFt) <= 100 && o.alongFt > 0 && o.alongFt < Math.hypot(base.b.x - base.a.x, base.b.y - base.a.y), 'on the base leg, short of the Entry Gate');
     assert.ok(Math.abs(end.alt - RANDOM.straightInAltFt) <= 100, 'at 2,700 ft');
-    assert.ok(Math.abs(end.kt - RANDOM.finalTurnKias) <= 10, 'at 120 KIAS');
+    assert.ok(Math.abs(end.kt - RANDOM.straightInKias) <= 10, 'at 140 KIAS');
+    assert.ok(Math.abs(wrapDeg180(end.headingDeg - baseTrack)) <= 15, 'heading along the base leg (±15° for the crab)');
     assert.ok(path.every((p) => p.alt <= 3500 + 100), 'never climbs');
     assert.ok(path.every((p) => p.g <= gFromBankDeg(RANDOM.turnBankDeg + 5)), 'no more than about 45° of bank');
   }
