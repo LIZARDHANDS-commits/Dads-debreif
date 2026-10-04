@@ -169,7 +169,7 @@ const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'split
 /** A move that has ended (ctl.next) hands to the next one: to the MPT, or a new Auto pick; a bank move flown past moveMaxSec is picked again next step. */
 export function handOver(state, ac, other, kias, d = 0) {
   const c = ac.ctl;
-  if (c.mode === 'pursuit' && endLostChase(ac, other, d)) return;
+  if (c.mode === 'pursuit' && endLostChase(state, ac, other, kias, d)) return;
   if (c.next) {
     const next = c.next; c.next = null;
     if (next === 'mpt') {
@@ -178,6 +178,7 @@ export function handOver(state, ac, other, kias, d = 0) {
         ac.moveLabel = MOVE_LABELS.mpt;
       }
       handToMpt(ac);
+      smartPickNow(state, ac, kias); // the Smart pilot picks its next move as the last one ends, the MPT being one option (Patrick, 4 Oct 18:09Z)
     } else {
       const pick = autoPick(state, ac, other, kias);
       startMove(state, ac, pick.move, pick.why, kias);
@@ -192,44 +193,51 @@ export function handOver(state, ac, other, kias, d = 0) {
  * chaseLostAtaDeg off the other for chaseLostSec. It flies the MPT and the pilot picks again from there; a new
  * nose-on starts a new chase. Returns true when it ended this step.
  */
-function endLostChase(ac, other, d) {
+function endLostChase(state, ac, other, kias, d) {
   const c = ac.ctl;
   c.lostSec = noseAngleDeg(ac, other) > TUNING.chaseLostAtaDeg ? (c.lostSec ?? 0) + d : 0;
   if (c.lostSec < TUNING.chaseLostSec) return false;
   c.lostSec = 0;
   handToMpt(ac);
   ac.move = 'mpt'; ac.moveLabel = MOVE_LABELS.mpt;
-  ac.why = `Chase lost: nose more than ${TUNING.chaseLostAtaDeg}° off the other for ${TUNING.chaseLostSec} s, back to the MPT to pick again`;
+  ac.why = `Chase lost: nose more than ${TUNING.chaseLostAtaDeg}° off the other for ${TUNING.chaseLostSec} s, picking again`;
+  smartPickNow(state, ac, kias); // and the Smart pilot picks its next move at once (Patrick, 4 Oct 18:09Z)
+  return true;
+}
+
+/**
+ * The Smart pilot's look-ahead pick (TF-59): flies each move it could change to ahead in a copy of the fight and
+ * starts the best, unless that is the MPT (which the jet is already in). Only after the pass, not in a dry run,
+ * when a chase is possible (pursuit not none), the fight is not lost below the deck, the jet is more than the deck
+ * margin above the deck and not stalled or OVER G, and the best run is one a pilot would fly. Returns true when it
+ * started a move.
+ */
+function smartPickNow(state, ac, kias) {
+  const p = state.setup, c = ac.ctl;
+  const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
+  if (state.dry || !state.merged || !isSmart(forced) || p.pursuit === 'none' || state.deckLoss) return false;
+  if (ac.altFt - p.hardDeckFt <= (p.deckMarginFt ?? 1000) || ac.stall || ac.overG) return false;
+  c.mptEvalTimer = 0;
+  const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
+  if (!best || !best.valid || best.move === 'mpt' || best.move === 'levelMpt') return false;
+  startMove(state, ac, best.move, best.why, kias);
+  c.lockoutTimer = 4.0;
   return true;
 }
 
 /**
  * The pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, once the MPT has found
- * its speed, above the deck margin and not stalled or OVER G, it runs the look-ahead and takes any move but the MPT. Runs before the MPT's
- * controller, so a new move flies from this same step. Not in a dry run, and not before the pass.
+ * its speed (smartPickNow). Runs before the MPT's controller, so a new move flies from this same step.
  */
 export function reconsiderInMpt(ctx) {
-  const { state, ac, p, f, kias, d } = ctx;
+  const { state, ac, kias, d } = ctx;
   const c = ac.ctl;
   if (!state.dry && state.merged && (c.mode === 'mpt' || c.mode === 'levelMpt')) {
     if (c.lockoutTimer > 0) c.lockoutTimer = Math.max(0, c.lockoutTimer - d);
     c.mptEvalTimer = (c.mptEvalTimer || 0) + d;
     if (c.mptEvalTimer >= 3.5 && (c.lockoutTimer || 0) <= 0) {
       c.mptEvalTimer = 0;
-      const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
-      // The Smart pilot looks again in the MPT with the look-ahead (TF-59), only when a chase is possible and the fight is not decided.
-      if (isSmart(forced) && p.pursuit !== 'none' && !state.deckLoss) {
-        const altMargin = ((ac.altFt ?? f.altFt) - p.hardDeckFt) > (p.deckMarginFt ?? 1000);
-        // Only once settled in the MPT (its speed found): a pilot does not start a new move halfway through recovering from the last.
-        if (altMargin && !c.capture && !ac.stall && !ac.overG) {
-          const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
-          if (best && best.move !== 'mpt' && best.move !== 'levelMpt') {
-            startMove(state, ac, best.move, best.why, kias);
-            c.lockoutTimer = 4.0;
-            return;
-          }
-        }
-      }
+      if (!c.capture) smartPickNow(state, ac, kias);
     }
   }
 }

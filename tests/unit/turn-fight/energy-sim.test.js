@@ -856,7 +856,8 @@ test('after first nose-on the winner chases and the other keeps its MPT', () => 
 
 test('without chaseAfterHeadOn a head-on re-pass is first nose-on but not a pursuit: both keep turning in the MPT', () => {
   // Flown to the event (first nose-on), counting Blue's turn since the pass, then 20 s on to show no pursuit starts. 120 s is only a safety stop.
-  const s = createEnergyFight({ chaseAfterHeadOn: false });
+  // Both fly the default fight's first move, the pitch back, as a set move into the MPT, so the Smart pilot's later picks (TF-59) do not change the geometry being checked.
+  const s = createEnergyFight({ chaseAfterHeadOn: false, blueMove: 'pitchBack', redMove: 'pitchBack' });
   let turnedDeg = 0, prev = null;
   for (let i = 0; i < 120 / FIGHT_STEP_SEC && !s.firstNose; i++) {
     stepEnergyFight(s, FIGHT_STEP_SEC);
