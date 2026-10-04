@@ -41,7 +41,7 @@ For flying numbers: Patrick's practice first, then the 15 Wing Moose Jaw manuals
 
 **Every brief** for an agent or a new piece of work says: the task from `plan.md` and the files it may touch; the model and effort; "read `AGENTS.md` and the module's folder first"; "search for existing flight math before writing new"; the testing lines under Testing below, copied in full; and what to report (what was done, what is untested or unseen, what was unsure).
 
-## Agents and models (Patrick, 4 Oct 2026 22:29Z)
+## Agents and models (Patrick, 4 Oct 2026 22:29Z; Fable line 22:38Z)
 
 A fresh agent has to re-read files and be briefed, so small jobs are cheaper done by the thread itself. Agents pay off only on big, self-contained pieces.
 
@@ -51,7 +51,7 @@ A fresh agent has to re-read files and be briefed, so small jobs are cheaper don
   - **Opus:** flight code, maths, and anything that changes how aircraft fly.
   - **Sonnet:** screens, layout, menus, wording, docs, and manual-reading researchers.
   - **Haiku:** mechanical lookups only.
-  - **Fable:** not used. It's too costly for this work.
+  - **Fable:** only after Opus fails twice on the same problem, or for a one-off architecture review, and the thread tells Patrick first.
 - **Thinking:** medium by default, and high only for designing or debugging flight maths.
 
 ## Flying numbers and manuals
