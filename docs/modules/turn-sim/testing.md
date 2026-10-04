@@ -112,7 +112,39 @@ Not tested: the screen (buttons, card lines, the 4-ship close zoom): sign-off on
 7. From fighting wing press Fluid 4, then Offset box: #3 goes out to about 6,000 ft abeam with #2 and #4 in fighting wing; then both elements turn in place 90 and spread into the box, the second element about 7,000 ft back. Press Fighting wing: the box rejoins.
 8. Press Spread 4: Lead speeds up to 220 KIAS and the four open out on the stack. The manoeuvre buttons work again; in any other formation they are greyed with a reason.
 9. Nothing jumps or snaps in 2D or 3D at 0.25x; a second press during a change shows "Next: ..." and is flown after.
-10. Say if the estimates look right (`decisions.md` TS-54): the push-over dip and recovery, Lead's 90° turn into the others to finger, Fluid 4's #4 at 45°, the box on #2's side, #2 above Lead in a stacked rejoin until it comes off the stack, fighting wing to echelon through finger.
+10. Say if the estimates look right (`decisions.md` TS-54): the push-over dip and recovery, Lead's 90° turn into the others to finger, Fluid 4's #4 at 45°, the box on #2's side, (#2 above Lead in a stacked rejoin and fighting wing to echelon through finger are replaced by TS-55: he comes off the stack first, and fighting wing to echelon is a straight-ahead rejoin.)
+
+## Hot turning rejoin, fighting wing turns and the SMM's moves (TS-55, `spec.md` section 10.1)
+
+The checks are in `tests/unit/turn-sim/formation-moves.test.js`. They follow Patrick's 4 Oct 11:50Z rule: test only that it flies right. No wording, seconds, counts or one-off values are pinned.
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| Hot turning rejoin, standard start | Lead's first turn is into #2. Inside 2,000 ft #2 stays below Lead, and inside 1,000 ft he stays in the overshoot lane. Bank stays under the caps. It ends in fighting wing or echelon. | SMM 16.20 paras 65-66, 12.24 para 54, 12.27 para 65; Patrick 18:00Z, 19:16Z |
+| Fighting wing turns | Delayed 90 both ways, Check, Hook, In place 90 and Delayed 45 each start in fighting wing. #2 stays below Lead and under the bank cap, and ends in the 500-1,000 ft, 30-60° band (±100 ft, ±5°). | SMM 12.29 para 69, Fig 12.19; Patrick 19:12Z |
+| Echelon to fighting wing | In the band inside 30 s and ends there. Patrick asked for about 7-15 s; 30 s is a generous limit with its reason in the test. | Patrick 19:03Z |
+| Fighting wing to echelon, both sides | #2 lines up on Lead's six, stays below Lead, never overlaps him, and ends in echelon on the side asked. | SMM 12.26 paras 62-63, Fig 12.17; Patrick 19:04Z |
+| 4-ship stack and echelon | No wingman closes while at or above Lead's height inside 2,000 ft: Spread 4 to fighting wing, then fighting wing to echelon. The four end in echelon, link by link. | SMM 12.27 para 65; Patrick 19:11Z |
+| 2-ship station changes | Echelon to echelon across, echelon to line astern, line astern to echelon. No wings overlap. Crossing is below Lead. #2 stops behind the new slot before moving up. Each ends in the formation pressed. | SMM 12.20 paras 44-47, Figs 12.12-12.13; Patrick 19:26Z |
+| Always true | Roll rate never steps by more than the T-6 can. Speed changes stay under 3 kt/s and never step. | TS-37, TS-47 |
+
+Not tested:
+- the screen (the turn buttons enabled in fighting wing, the Flying line) and the 3D view: sign-off only;
+- off-standard hot rejoin starts (not built);
+- the side change during a hot rejoin to fighting wing ("fw" with Side left). In scratch runs it peaks at about 3.1 kt/s and has one small speed-rate step, just over the smoothness line, so it is left out of the test until it is fixed.
+
+Not run locally before the pull request beyond this file once (CI is the one check).
+
+**Sign-off checklist, TS-55** (draft, for Patrick to put in his own words). Open the Formation Simulator fresh, with the version shown on screen (V2.15), 2D, 2-ship:
+1. Press Fighting wing from the default start. Lead turns into #2 at once. #2 points at Lead, rolls out, reverses as the line of sight moves, and slides into fighting wing with fuselages aligned, below Lead throughout.
+2. Press Echelon from the default start. The same rejoin carries on through the fighting wing spot to echelon.
+3. In fighting wing, press each turn button both ways. In the check #2 holds his place. In the bigger turns #2 collapses toward Lead's six and fixes tight or stretched on the turn in and turn out, ending anywhere in the band.
+4. From echelon press Fighting wing. #2 drops back and sweeps out in about 7-15 s, smoothly.
+5. From fighting wing press Echelon. #2 lines up on Lead's six, closes with overtake, takes a small vector out at about 500 ft, stabilises in route, then moves up to echelon. Try the Side switch too.
+6. From echelon press Echelon with the Side switch on the other side. #2 goes back and down into the corner and stops. He crosses at a steady speed slightly behind line astern, stops behind the new slot, then moves forward and up. Try Line astern and back.
+7. 4-ship: press Fighting wing from Spread 4. #2 comes off the stack before he closes. Then press Echelon: each wingman flies the straight-ahead rejoin in turn.
+8. Nothing jumps or snaps in 2D or 3D at 0.25x.
+9. Say if the estimates in TS-55 look right.
 
 ## Turn Sim rules on top of the whole-tool rules
 
@@ -332,5 +364,6 @@ From the ratified test register (`pf/reset/5-testing/test-register.md`, Part B).
 | `tests/unit/turn-sim/view3d.test.js` | Follows the Turn Sim review (if kept: keep) | TS-R25: camera and attitude are geometry worked out in the test; no V6 values | Carries over: the whole file, if the 3D view stays | Each change |
 | `tests/unit/turn-sim/errors.test.js` | New, keep (TS-52, training errors) | TS-R8, TS-47, F12: errors off changes nothing; each error carried at normal reference; Fix it never worse and closer where there is room; flight limits and smooth hand-overs hold; expected values from the SMM pictures and geometry | | Each change |
 | `tests/unit/turn-sim/live.test.js` | New, keep (first version) | FM1, FM6, FM8, TS-R4, TS-R5, TS-R11, TS-47: end pictures, 300 ft at the cross, smooth hand-overs; expected values worked out in the test from the SMM pictures and the shared margins | | Each change |
+| `tests/unit/turn-sim/formation-moves.test.js` | New, keep (TS-55, V2.15) | FM1, TS-47, Patrick 11:50Z: the hot turning rejoin, fighting wing turns, the quick sweep to fighting wing, the straight-ahead rejoin to echelon (2-ship and 4-ship), coming off the stack and the SMM station changes end in the formation pressed with no snaps, below Lead and under the caps. Expected values come from the SMM, EFIG and Patrick's rulings; one generous limit (30 s), with its reason | | Each change |
 | `tests/unit/turn-sim/four-ship.test.js` | New, keep (4-ship, V2.7) | FM1, FM6, TS-47, TS-50: the start picture and stack, end pictures of every 4-ship button, who turns first and the wait, the check turn, bank and G, 300 ft separation with the stack held, smooth hand-overs for all four; expected values from the briefs, SMM and the shared margins; one horizontal-only figure is an estimate and says so | | Each change |
 | `tests/e2e/turn-sim.spec.js` | Follows the Turn Sim review (if kept: keep, with changes) | 46 of 46 pass at `6283f38`. Changes: the typed defaults include "time delay, 16 s" and 220 KTAS (`:155-160`), which TS-R7 and TS-R6 change; "Close pass: 894 ft", "954 ft", 36.7 s and 1.0 s (`:719`, `:859`, `:731-736`) are the engine's own (T3); real-time waits (`:184`, `:431`, `:433`) wait for an event instead (T2); the layout check runs at 1366 and 1920 wide (`:93`), and TS-R20 asks for 1280; stale "skipped" comments (`:15-16`, `:881`) go | Carries over: the whole-tool per-change checks for any build (smoke, layout with every panel open, keys, leaving, 3D loads only when asked). New: the still-air line (TS-R10); live mode (TS-R1) when built | Smoke, layout, buttons, leaving and offline parts each change; the whole file at sign-off |

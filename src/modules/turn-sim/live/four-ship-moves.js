@@ -21,9 +21,9 @@ import { STEP_SEC, copyAircraft, planDone } from './flight.js';
 import { relativeTo, turnSeg, wholeDegree, onStep, DEG, TURN_BANK_DEG } from './manoeuvres.js';
 import {
   recordFlight, trackTwice, flyStep, dryRunT, speedSeg, phase, slide, dropBack, closeThrough, rejoinTo, openOut,
-  slotFor, REJOIN,
+  slotFor, REJOIN, straightAhead, sweepOut,
 } from './transitions.js';
-import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords } from './four-ship-slots.js';
+import { FOUR_FORMATIONS, fourSlots, isStacked, classifyFour, judgeFourFormation, refsFor, fourWords, FW_STEP_DOWN_FT } from './four-ship-slots.js';
 
 /** A generous limit on one 4-ship change (design section 9: Spread 4 to finger is estimated at 4 to 6 minutes); it only catches a plan that never ends. */
 export const FOUR_CHANGE_LIMIT_SEC = 480;
@@ -145,6 +145,18 @@ const toSlot = (c, kind, slot, over = {}) => kind(place(c, slot.fwd, slot.left, 
 const fwFollow = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 30, kcap: 0.05, d0: 100, vrelMax: 120, decel: 2, bankCapDeg: 60, overtakeKias: 25, undertakeKias: 25, advanceTol: 25, finalTol: 6, ...over });
 /** Settle onto a slot off the formation reference after closing on a point near it (a short slide). */
 const settle = (slot, over = {}) => dropBack(slot, { advanceTol: 6, finalTol: 6, vrel0: 16, ...over });
+/**
+ * A rejoining wingman comes off its stack first (Patrick 4 Oct 19:11Z, "come off first"; SMM 12.27 para 65): one at or above
+ * Lead's height holds where it is while it steps down to FW_STEP_DOWN_FT below Lead, at the gentle stack rate, and only then
+ * closes, so it is never at or above Lead while closing. Returns the hold phase, or nothing when it is below Lead already.
+ */
+function comeOffFirst(c, id, track) {
+  const me = c.by.get(id);
+  const above = me.altAboveFt - c.leadAlt;
+  if (above < 0) return [];
+  const sec = Math.max(4, (above + FW_STEP_DOWN_FT) / GENTLE_ALT_FTPS);
+  return [hold(c, id, track, { holdUntil: c.t0 + sec, altSec: sec }, c.leadAlt - FW_STEP_DOWN_FT)];
+}
 /** Where a slot off #2 or #3 is in Lead's frame once everyone is in place (all on one heading, so the offsets add). */
 function inLeadFrame(slots, id) {
   let fwd = 0;
@@ -189,7 +201,9 @@ const toSpeed = (c, key) => (Math.abs(c.start[0].kias - FOUR_FORMATIONS[key].kia
  */
 function rejoinToFw(start, t0, opts, s) {
   const c = context(start, t0, opts);
-  const slots = fourSlots('fw', s, { stacked: c.stacked });
+  const slots = { ...fourSlots('fw', s, { stacked: c.stacked }) };
+  // #2's +300 ft comes off before it closes: it rejoins to fighting wing below Lead, starting down at once (Patrick 19:11Z).
+  if (slots[2].alt >= 0) slots[2] = { ...slots[2], alt: -FW_STEP_DOWN_FT };
   const speed = toSpeed(c, 'fw');
   const far = (id) => FAR_OVERTAKE_KIAS * (Math.abs(relativeTo(c.start[0], c.by.get(id)).left) > 3000 ? 1 : 0) || REJOIN.overtakeKias;
   const wings = [
@@ -239,14 +253,16 @@ function entryToSpread(start, t0, opts, s, fromFinger) {
 
 /**
  * F6: finger, echelon, box, line astern or route to fighting wing (SMM 16.32 para 92, 16.38 para 105): the wingmen drop
- * back slowly, each stabilising behind the one it flies off, then move across into place; no stack from a close formation.
+ * back, each behind the one it flies off, then move across into place; no stack from a close formation. Expeditious
+ * (Patrick 4 Oct 19:03Z, "about 7-15 seconds", TS-55; the SMM's "slowly" gives way to his ruling): the quick sweep of
+ * the 2-ship (transitions.js sweepOut), still in two steps so no one cuts across the wingman beside it.
  */
 function openToFw(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [(c) => {
     const slots = fourSlots('fw', s, { stacked: false });
     const wing = (id) => {
       const rel = relativeTo(c.by.get(slots[id].ref), c.by.get(id));
-      return { id, phases: () => [dropBack(place(c, slots[id].fwd, rel.left, slots[id].alt), { track: slots[id].ref, advanceTol: 25 }), toSlot(c, settle, slots[id])] };
+      return { id, phases: () => [sweepOut(place(c, slots[id].fwd, rel.left, slots[id].alt), { track: slots[id].ref, advanceTol: 60 }), toSlot(c, sweepOut, slots[id])] };
     };
     return { lead: toSpeed(c, 'fw'), wings: [wing(2), wing(3), wing(4)] };
   }]);
@@ -262,13 +278,45 @@ function closeFromFw(start, t0, opts, s, to) {
     const fin = fourSlots(to === 'route' ? 'route' : 'finger', s);
     const low = (slot) => ({ ...slot, alt: slot.alt - 25 }); // close level or slightly low, then up into place (transitions.js closeThrough)
     const legsFor = (id) => [toSlot(c, closeThrough, low(route[id]), { advanceTol: 6 }), toSlot(c, slide, fin[id])];
-    const gateOn = (id, prev) => (done) => [hold(c, id, id === 4 ? 3 : 1, { holdUntil: done[prev].times[0].arrive }), ...legsFor(id)];
+    const off2 = comeOffFirst(c, 2, 1);
+    const gateOn = (id, prev) => (done) => [hold(c, id, id === 4 ? 3 : 1, { holdUntil: done[prev].times[prev === 2 ? off2.length : 0].arrive }), ...legsFor(id)];
     return {
       lead: toSpeed(c, to),
       wings: [
-        { id: 2, phases: () => legsFor(2) },
+        { id: 2, phases: () => [...off2, ...legsFor(2)] },
         { id: 3, phases: gateOn(3, 2) },
         { id: 4, phases: (done) => gateOn(4, 3)({ 3: { times: [done[3].times[1]] } }) },
+      ],
+    };
+  }]);
+}
+
+/**
+ * Fighting wing to echelon as a straight-ahead rejoin (Patrick 4 Oct 19:04Z, TS-55; SMM 12.26 paras 62-63, Fig 12.17; EFIG
+ * p.371), replacing the route through finger. Each wingman rejoins on the one it will fly off in echelon: lines up on its
+ * six just below the wake, closes with overtake, takes the small vector to the echelon side at about 500 ft, stabilises in
+ * route and moves up the wing-tip line to echelon. #2 comes off the stack first (19:11Z). "Wait for the one ahead"
+ * (SMM 16.34 para 95; AFM7 brief p.18 item 2d): #3 holds its place off #2 until #2 has reached its vector point, and #4
+ * holds off #3 the same way, so each lines up behind a wingman that has already left fighting wing (the gate is an estimate).
+ */
+function straightToEchelon(start, t0, opts, sTo) {
+  return legsInTurn(start, t0, opts, [(c) => {
+    const ech4 = fourSlots('echelon', sTo);
+    const route = slotFor('route', sTo);
+    const legsFor = (id) => {
+      const { ref } = ech4[id];
+      const refAlt = ref === 1 ? 0 : ech4[ref].alt;
+      const at = (fwd, left, alt) => place(c, fwd, left, refAlt + alt);
+      return [...straightAhead(at, place(c, route.fwd, route.left, ech4[id].alt), { track: ref }), toSlot(c, slide, ech4[id])];
+    };
+    const off2 = comeOffFirst(c, 2, 1);
+    const vectorIndex = 1; // straightAhead's second phase (the closing leg) arrives at the vector point
+    return {
+      lead: toSpeed(c, 'echelon'),
+      wings: [
+        { id: 2, phases: () => [...off2, ...legsFor(2)] },
+        { id: 3, phases: (done) => [hold(c, 3, 2, { holdUntil: done[2].times[off2.length + vectorIndex].arrive }), ...legsFor(3)] },
+        { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1 + vectorIndex].arrive }), ...legsFor(4)] },
       ],
     };
   }]);
@@ -282,12 +330,13 @@ function turningToFinger(start, t0, opts, s) {
   return legsInTurn(start, t0, opts, [(c) => {
     const fin = fourSlots('finger', s);
     const join = (id) => toSlot(c, rejoinTo, fin[id], { advanceTol: 10, overtakeKias: REJOIN.overtakeKias });
+    const off2 = comeOffFirst(c, 2, 1);
     return {
       lead: [...toSpeed(c, 'finger'), turnSeg(wholeDegree(c.start[0].headingRad + s * FINGER_TURN_DEG * DEG), s, REJOIN.leadBankDeg)],
       wings: [
-        { id: 2, phases: () => [join(2)] },
+        { id: 2, phases: () => [...off2, join(2)] },
         // #3 and #4 come off the stack while they wait, well behind (the stack is the separation until then, AFM8 brief p.18 item 6).
-        { id: 3, phases: (done) => [hold(c, 3, 1, { holdUntil: done[2].times[0].arrive }, place(c, 0, 0, fin[3].alt).alt), join(3)] },
+        { id: 3, phases: (done) => [hold(c, 3, 1, { holdUntil: done[2].times[off2.length].arrive }, place(c, 0, 0, fin[3].alt).alt), join(3)] },
         { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1].arrive }, place(c, 0, 0, fin[4].alt).alt), join(4)] },
       ],
     };
@@ -553,6 +602,7 @@ const EDGES = [
   { from: 'fw', to: 'finger', cost: 70, sides: 'same', fly: (st, t, o, s) => (o.rejoin === 'straight' ? { ...closeFromFw(st, t, o, s, 'finger'), how: 'straight-ahead rejoin to finger, through route' } : turningOrStraight(st, t, o, s)), how: 'turning rejoin to finger' },
   { from: 'route', to: 'finger', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'finger'), how: 'in from route' },
   { from: 'finger', to: 'route', cost: 15, sides: 'same', fly: (st, t, o, s) => slideTo(st, t, o, s, 'route'), how: 'out to route' },
+  { from: 'fw', to: 'echelon', cost: 90, sides: 'any', fly: (st, t, o, s, sTo) => straightToEchelon(st, t, o, sTo), how: 'straight-ahead rejoin to echelon' },
   { from: 'finger', to: 'echelon', cost: 40, sides: 'any', fly: (st, t, o, s, sTo) => fingerToEchelon(st, t, o, s, sTo), how: 'crossunder to echelon' },
   { from: 'echelon', to: 'finger', cost: 40, sides: 'any', fly: (st, t, o, s, sTo) => echelonToFinger(st, t, o, s, sTo), how: 'crossunder to finger' },
   { from: 'finger', to: 'box', cost: 40, sides: 'same', fly: (st, t, o, s) => fingerBox(st, t, o, s, true), how: '#4 into the box' },

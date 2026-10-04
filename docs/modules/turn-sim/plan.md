@@ -4,6 +4,8 @@ How to read this plan: steps are in the order to do them. Step 1, the review, is
 
 ## Where it stands
 
+On screen the module is called **Pat's Formation Simulator** (from V2.14). Its code name stays `turn-sim`.
+
 1. From V2.6 the Turn Sim shows the first version of live mode: a 2-ship in line abreast with manoeuvre buttons, flown on a new core (`spec.md` Part 1). Before that it flew the SMM turns in plan mode only, and Patrick's 3 October finding was that it needed a full overhaul (`docs/handover/turn-sim.md:4`).
 2. Patrick wants two modes: plan mode, and live mode where the formation flies along and a manoeuvre button makes it fly that manoeuvre; whether to rebuild, start a new core or fix what is there is decided by the review in Step 1 (`pf/reset/1-requirements/requirements.md:327`, `pf/reset/consolidation-plan.md:285`).
 3. Four old branches and one backup bundle hold about 1,200 lines of Turn Sim work that is not on main; they are flagged in Step 1 as work to reuse and are not to be deleted until this plan carries the flag (`pf/reset/2-inventory/agents/agent-4-outside.md:8`, `pf/reset/2-inventory/file-register.md:47`).
@@ -72,6 +74,15 @@ The three lists below are kept from the review's brief as references. Nothing in
 - [ ] Patrick flies every Change formation button in the real app (the "Changing formation" checklist in `testing.md`).
 - [x] The planned 4-ship work (V2.13, `spec.md` section 8.1, TS-54; Patrick 4 Oct 17:10Z, 17:19Z), from the four-ship design: G-warm from Spread 4; close 4-ship position changes (finger, echelon, box, line astern, route); 4-ship rejoins to fighting wing and finger, turning (Lead turns into the others) and straight ahead; Fluid 4 and the offset box in and out (Fluid manoeuvring greyed); the 4-ship fighting wing places. Checks in `tests/unit/turn-sim/g-warm.test.js` and `four-ship-changes.test.js`.
 - [ ] Patrick flies G-warm and the 4-ship Change formation buttons in the real app (the "4-ship G-warm and changes" checklist in `testing.md`).
+- [x] Formation moves the manuals' way (V2.15, `spec.md` section 10.1, TS-55; Patrick 4 Oct 18:00Z to 19:26Z, each ruling in the project files at `turn-sim-review/requirements-log.md`), on planned paths, not live physics:
+  - **Hot turning rejoin, from the standard start:** Lead turns into #2 at once, #2 points, reverses and captures fighting wing with fuselages aligned, or carries on to echelon. Fig 16.25 is not to scale, so the SMM's text is flown (card "Standard first").
+  - **Fighting wing band and turns:** anywhere in 500-1,000 ft and 30-60° is in position. The turn buttons work in fighting wing: #2 collapses toward Lead's six and fixes tight or stretched on the turn in and turn out.
+  - **Coming off the stack first:** a rejoining wingman at or above Lead steps down before he closes (2-ship and 4-ship).
+  - **Echelon and fighting wing moves:** echelon to fighting wing in about 13 s. Fighting wing to echelon is a straight-ahead rejoin, 2-ship and 4-ship, replacing the 4-ship's route through finger.
+  - **SMM station changes, 2-ship:** back and down into the corner, across at a steady speed, then forward and up, with real stops.
+  - Checks in `tests/unit/turn-sim/formation-moves.test.js`.
+- [ ] Patrick flies them in the real app (the "TS-55" checklist in `testing.md`).
+- [ ] Next, from the same rulings: hot rejoin off-standard starts (wide, close, ahead, high, tight, fast), turns in the other formations, the 4-ship station changes as SMM 16.32-16.33 and the AFM7/AFM8 pictures, 3D echelon, the fit-all camera, and the info tags.
 - [ ] Next for formations, each with its own short spec and Patrick's yes: live fighting wing and fluid manoeuvring (the Fluid button is greyed until then; the second four-ship piece), manoeuvring in the offset box and Fluid 4, Overshoot and rejoin mistakes (`future.md`).
 
 ## Step 5. Sign-off

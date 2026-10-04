@@ -278,6 +278,64 @@ No time gates. A generous limit of 3 minutes per change catches a planner that n
 - **Speed.** Lead's speed changes use `{ kind: 'speed', toKias, rateKtps }` segments; until the shared one in `live/flight.js` is swapped in, `flyStep` in `live/transitions.js` flies them itself (marked TEMPORARY there).
 - **Checks.** `tests/unit/turn-sim/transitions.test.js` (a handful, no time gates): every from-to pair ends in the target's band at 200 KIAS (220 in line abreast); smooth hand-overs through speed changes; #2 below Lead and in the overshoot lane in a rejoin, bank inside the caps; the queue.
 
+### 10.1 Hot turning rejoin, fighting wing turns and the SMM's moves (V2.15, TS-55, built 4 Oct, not yet in Patrick's sign-off)
+
+Patrick's rulings of 4 Oct, 18:00Z to 19:26Z. Each is listed in the project files at `turn-sim-review/requirements-log.md`, rows 7-13. Numbers with no manual or ruling behind them are estimates.
+
+**What changes on screen.** In fighting wing the turn buttons (Delayed 90, Delayed 45, Check, In place, Hook) now work; Shackle and Cross turn stay greyed there. Nothing else moves or disappears. The Flying line names the new moves: "hot turning rejoin", "drop back and sweep out, expeditious", "straight-ahead rejoin" and "station change".
+
+**How each move flies.**
+- **Planned paths** (18:00Z): every move is planned at the press and is kinematic, not flown by live physics.
+  - #2 either rides a kinematic line, with each step's pose worked out at the press (`live/kinematic.js`, `live/kinematic-moves.js`), or flies a goal-seeking dry run that is recorded at the press.
+  - Roll stays within 90°/s. Speed changes stay under about 3 kt/s. Nothing jumps.
+- **Hot turning rejoin, from the standard start only** (18:00Z, 19:01Z; card "Standard first" 19:16Z; SMM 16.20 para 65b(2), para 66).
+  - The standard start is line abreast at the Spacing setting, on the line, level, at a matched 220 KIAS. The tolerances are estimates: 100 ft across, 500 ft fore and aft, 100 ft height, 10 kt and 5°.
+  - Lead turns into #2 at once at 30° of bank and slows to 200 KIAS.
+  - #2 points at Lead (bank up to 60°), rolls out, and reverses when the line of sight starts to move.
+  - #2 then captures fighting wing with fuselages aligned, or carries on through the fighting wing spot to echelon, route or line astern.
+  - Fig 16.25 is not to scale, so the manual's text is flown, not the figure's line.
+  - Any other start flies the section 10 turning rejoin until the off-standard starts are built.
+- **Coming off the stack** (card 19:11Z; SMM 12.27 para 65): a rejoining wingman at or above Lead's height holds his place while he steps down to 60 ft below Lead, at about 15 ft/s. Only then does he close. This applies to the 2-ship and the 4-ship.
+- **Fighting wing turns** (19:12Z).
+  - Fighting wing is a band: 500-1,000 ft and 30-60° of sweep from Lead's wing line (SMM Fig 12.19). #2 stays where he is inside the band.
+  - When Lead turns, #2 collapses toward Lead's six on Lead's turn circle, then uses the turn in and the turn out to fix tight or stretched. Whatever is left is judged against the band.
+  - Lead flies the button's own angle: Check 20°, Delayed 45, Delayed 90, In place 90, Hook 180.
+  - A turn of 30° or less (the check) is flown at 30° of bank. It is gentle, so #2 keeps his side and sweep (AFM7 brief p.14 item 5a).
+  - Bigger turns are flown at 45° of bank, an estimate, and #2 collapses (item 5b).
+  - #2's bank is capped at 60°, and his speed stays within 15 KIAS of Lead's.
+- **Echelon, route or line astern to fighting wing** (19:03Z: about 7-15 s).
+  - #2 goes straight for the slot, up to 20 KIAS faster or slower than Lead, at up to 45° of bank. He is in the band in about 13 s.
+  - The 4-ship drops back, then moves out, so no one cuts across the wingman beside him.
+  - SMM 16.32 para 92 says "slowly"; Patrick's ruling wins.
+- **Fighting wing to echelon, route or line astern** (19:04Z): a straight-ahead rejoin (SMM 12.26 paras 62-63, Fig 12.17; EFIG p.371).
+  - Line up on Lead's six, 750 ft back and 20 ft below the wake.
+  - Close at about 21 KIAS overtake.
+  - At about 500 ft, take a small vector toward the echelon side, aiming slightly away. Slow and stabilise in route, then move up the wing-tip line into echelon.
+  - In the 4-ship each wingman rejoins on the one ahead of him in echelon. #3 and #4 start once the one ahead has reached his vector point. This replaces the route through finger.
+- **2-ship close station changes** (19:26Z; SMM 12.20 paras 44-47, Figs 12.12-12.13).
+  - Echelon to echelon:
+    - back and down into the corner, with the nose at least 10 ft behind Lead's tail (12 ft more is used, an estimate) and at line astern's height, below the prop wash; then a real stop, held 2 s;
+    - across at a steady 8 ft/s, with a small heading change, slightly aft of line astern;
+    - a stop directly behind the new slot;
+    - then forward and up at about 5 ft/s.
+  - Echelon to line astern is the first half of that; line astern to echelon is the second half.
+  - No wings overlap.
+
+**Not in this step:**
+- off-standard hot rejoin starts (next, with the Errors panel and Fix tools);
+- turns in the other formations;
+- the 4-ship station changes as SMM 16.32-16.33 and the AFM7/AFM8 pictures;
+- 3D echelon, the fit-all camera and the info tags.
+
+**Checks (light).** `tests/unit/turn-sim/formation-moves.test.js` checks that each move:
+- ends in the formation pressed;
+- has no snaps;
+- stays below Lead while closing;
+- keeps its bank under the cap;
+- keeps wings from overlapping in the station changes.
+
+The quick sweep has one generous limit, with its reason beside it. No values are pinned.
+
 ---
 
 # Part 2. Plan mode: the spec from before the reset

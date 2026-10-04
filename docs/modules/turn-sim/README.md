@@ -1,5 +1,7 @@
 # Turn Sim
 
+On screen this module is called **Pat's Formation Simulator** (from V2.14). Its code name stays `turn-sim`, in the folder names, the decision prefix TS- and the tests.
+
 This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. From V2.7 a Setup option makes it a 4-ship (Spread 4, `spec.md` section 8). Start here, then read only the file you need.
 
 ## Where it stands
@@ -29,7 +31,8 @@ Each has a working answer that the tool uses until it is settled.
 
 - **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words), and the **4-ship** (V2.7; `testing.md`, "4-ship" checklist). The 4-ship's working answers to confirm (TS-50): the delayed 45's check turn is 10°, the altitude stack is the brief's on either side, and the check leaves the first aircraft to check about 200 ft tight.
 - **Fly the Change formation buttons** (TS-53, built 4 Oct, `testing.md`, "Sign-off checklist, changing formation"), and confirm the estimates: fighting wing default 750 ft at 45° and 60 ft below Lead, Lead's pause then 30° turn into #2, #2's 60° bank cap and 15 KIAS overtake, hot and cold line at 60° and 30°, the close-formation offsets.
-- **Fly G-warm and the 4-ship Change formation buttons** (TS-54, V2.13, built 4 Oct; `testing.md`, "Sign-off checklist, 4-ship G-warm and changes"), and confirm the estimates in TS-54. One source conflict to settle: in a rejoin from a stacked fighting wing #2 keeps its stack (+300 ft) until near the end, but SMM 12.27 para 65 says a rejoining wingman is never at or above Lead's height. Options: keep the stack until close (the brief's stack as separation, working answer), take #2 off the stack before it closes, or your own.
+- **Fly G-warm and the 4-ship Change formation buttons** (TS-54, V2.13, built 4 Oct; `testing.md`, "Sign-off checklist, 4-ship G-warm and changes"), and confirm the estimates in TS-54. The stack conflict is settled: you chose "come off first" (19:11Z, TS-55).
+- **Fly the TS-55 moves** (V2.15, built 4 Oct; `testing.md`, "Sign-off checklist, TS-55"): the hot turning rejoin from the standard start, fighting wing turns, echelon to fighting wing, the straight-ahead rejoin to echelon, coming off the stack and the SMM station changes. Then confirm the estimates listed in TS-55.
 - **Retire the plan-mode code and its tests?** (`plan.md` Step 3).
 - **The low block height** for the IAS-to-TAS conversion (8,000 ft is an estimate, TS-38), and whether the wingman passes above (the working answer) or below in the crossing turns (TS-42).
 - **The hook's G change** at the 90° point is not flown when on speed and spacing (TS-48); confirm.

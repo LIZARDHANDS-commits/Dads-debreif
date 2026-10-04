@@ -30,6 +30,7 @@ import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 import { relativeTo, unit, wholeDegree, turnSeg, onStep, DEG } from './manoeuvres.js';
 import { judgePair, SWEEP_MAX_DEG } from './formation.js';
+import { applyPose } from './kinematic.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -189,6 +190,16 @@ function stepCommanded(a, targetBankDeg, t, profile) {
  */
 export function flyStep(a, plan, t) {
   const seg = plan.segments[0];
+  if (seg?.kind === 'poseTrack') {
+    // A kinematic pre-planned line (kinematic.js, TS-55): the pose for each step was worked out at the press.
+    seg.i ??= 0;
+    applyPose(a, seg.poses[seg.i++]);
+    if (seg.i >= seg.poses.length) {
+      plan.segments.shift();
+      a.turning = plan.segments.length > 0 || a.bankDeg !== 0;
+    }
+    return;
+  }
   if (seg?.kind === 'bankTrack') {
     seg.i ??= 0;
     const [bank, kias] = seg.points[seg.i++];
@@ -317,6 +328,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let aligning = false;
   let ok = false;
   let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
+  let stoppedAt = null; // when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45)
 
   for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
     // Both aircraft are read at the same instant (the start of the step).
@@ -326,8 +338,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     reentered = false;
     if (times[k].t0 === null) times[k].t0 = t;
 
-    // The reference slot moves toward the phase's slot at the phase's rates.
-    for (const [axis, v, target, rate] of [['f', 'vf', ph.slot.fwd, ph.fwdRate], ['l', 'vl', ph.slot.left, ph.latRate]]) {
+    // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
+    // the fighting wing turns of TS-55) works out its slot afresh every step from where Lead and #2 are.
+    const slot = ph.goal ? ph.goal(L, W, t) : ph.slot;
+    for (const [axis, v, target, rate] of [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]]) {
       if (!Number.isFinite(rate)) {
         ref[axis] = target;
         ref[v] = 0;
@@ -339,7 +353,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         if (Math.abs(target - ref[axis]) < 0.05) ref[axis] = target;
       }
     }
-    const arrived = ref.f === ph.slot.fwd && ref.l === ph.slot.left;
+    const arrived = ph.goal ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? 2) : ref.f === ph.slot.fwd && ref.l === ph.slot.left;
 
     // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
     const { px, py, vpx, vpy } = refPoint(L, Lprev, ref, ph.world);
@@ -358,7 +372,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const relVel = Math.hypot(W.tasFtps * Math.cos(W.headingRad) - vpx, W.tasFtps * Math.sin(W.headingRad) - vpy);
       const last = k === phases.length - 1;
       if (arrived && times[k].arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol)) times[k].arrive = t;
-      if (arrived && !last && d <= ph.advanceTol && gateOpen) {
+      // A phase with stopFtps is a real stop: #2 must have stopped on it (relative speed under stopFtps) and held there dwellSec.
+      if (ph.stopFtps && arrived && d <= ph.advanceTol && relVel <= ph.stopFtps) stoppedAt ??= t;
+      const stopDone = !ph.stopFtps || (stoppedAt !== null && t - stoppedAt >= (ph.dwellSec ?? 0) - 1e-9);
+      if (arrived && !last && d <= ph.advanceTol && gateOpen && stopDone) {
+        stoppedAt = null;
         times[k].t1 = t;
         k++;
         const next = phases[k];
@@ -454,20 +472,72 @@ export function phase(slot, over = {}) {
     finalTol: 1.5,
     altSec: null, // seconds over which the height changes (null: the whole leg)
     altRateFtps: null, // when set, the height change takes at least |change| / this many seconds (the 4-ship's stack; null: no floor)
+    stopFtps: null, // when set, a real stop: the next phase starts only once #2's speed against the slot is under this...
+    dwellSec: 0, // ...and has been for this long (the station change's "stabilize", SMM 12.20 para 45)
     ...over,
   };
 }
 
 /** A station change in close formation (SMM 12.20 paras 44-47): about 5 kt, wings level but for a degree or two of heading. */
 export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
+/**
+ * A station change's corner or end point, flown as a real stop (SMM 12.20 para 45: "stabilize in this position", "stop the
+ * aircraft", "stabilize directly behind the echelon position"): #2 stops on it and holds 2 s before moving on. The 1 ft/s
+ * and 2 s are estimates.
+ */
+export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: 2, stopFtps: 1, dwellSec: 2, ...over });
+/**
+ * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
+ * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
+ * enough for the tail to pass below the prop wash (line astern's height: an estimate).
+ */
+export const cornerBehind = (slot, spacingFt) => {
+  const astern = slotFor('astern', 0, spacingFt);
+  return { fwd: astern.fwd - 12, left: slot.left, alt: astern.alt };
+};
 /** Drop back slowly (SMM 16.32 para 92): a few knots slower than Lead. */
 export const dropBack = (slot, over = {}) => phase(slot, { fwdRate: 12, latRate: 12, vrel0: 14, advanceTol: 25, finalTol: 6, bankCapDeg: 20, ...over });
+/**
+ * Echelon, route or line astern to fighting wing, expeditious (Patrick 19:03Z: "take ~7-15 seconds", TS-55): the slot is chased at
+ * once with up to 20 KIAS under or over Lead, 45° bank, and the height change over the first 6 s. All the rates are estimates.
+ */
+export const sweepOut = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 30, kcap: 0.1, d0: 50, vrelMax: 200, decel: 3, bankCapDeg: 45, overtakeKias: 20, undertakeKias: 20, advanceTol: 25, finalTol: 6, altSec: 6, ...over });
 /** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
 export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
 export const rejoinTo = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 25, kcap: 0.1, d0: 500, vrelMax: 260, decel: 3, bankCapDeg: REJOIN.bankCapDeg, overtakeKias: REJOIN.overtakeKias, undertakeKias: 25, advanceTol: 40, finalTol: 3, altSec: 10, ...over });
 /** Entry to line abreast (SMM 16.18 para 51): #2 turns away 20-40° to open out while Lead holds 220 KIAS. */
 export const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 150, vrel0: 40, kcap: 0.1, d0: 300, vrelMax: 220, decel: 2, bankCapDeg: 45, overtakeKias: 25, undertakeKias: 15, advanceTol: 30, finalTol: 25, ...over });
+
+/** The straight-ahead rejoin's places in feet, in the frame of the aircraft rejoined on (estimates, see straightAhead). */
+export const STRAIGHT_AHEAD = {
+  sixFt: -750, // line up on the six at the default fighting wing range, inside Fig 12.17's 1,000 ft (estimate)
+  belowWakeFt: -20, // "fly just below lead's wake" (EFIG p.371); 20 ft is an estimate
+  closeTowardFt: -150, // the closing leg's aim, ahead on the six line, so the closure holds until the vector point (estimate)
+  vectorAtFt: 500, // "at approximately 500 ft" the small vector toward the echelon side (Fig 12.17, point 2; SMM 12.26 para 63)
+};
+
+/**
+ * A straight-ahead rejoin from fighting wing to route (SMM 12.26 paras 62-63, Fig 12.17; EFIG p.371): line up on the six of the
+ * aircraft rejoined on, just below its wake; close with 20-30 KIAS overtake (EFIG p.371); from about 500 ft behind (Fig 12.17,
+ * point 2) take a small vector to the side wanted, which aims slightly away from it, reduce the overtake and stabilise in route
+ * (point 3). The caller then moves up the wing-tip line to echelon (point 4). at(fwd, left, alt) turns a place in the frame of
+ * the aircraft rejoined on into a phase slot; route is the route slot itself; over (e.g. { track }) goes on every phase.
+ * @param {(fwd: number, left: number, alt: number) => { fwd: number, left: number, alt: number }} at
+ * @param {{ fwd: number, left: number, alt: number }} route
+ * @param {{ endInRoute?: boolean, track?: number }} [options]
+ */
+export function straightAhead(at, route, { endInRoute = false, ...over } = {}) {
+  const A = STRAIGHT_AHEAD;
+  const quick = { fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15, ...over };
+  return [
+    phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60 }),
+    // close along the six line at about 21 KIAS overtake, inside EFIG p.371's 20-30, until the vector point
+    phase(at(A.closeTowardFt, 0, A.belowWakeFt), { ...quick, vrel0: 36, kcap: 0, vrelMax: 50, decel: 3, bankCapDeg: 20, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
+    // then route, closing level or slightly low (SMM 16.15 para 38) and slowing as it comes in
+    closeThrough(endInRoute ? route : { ...route, alt: route.alt - 25 }, { overtakeKias: 30, vrel0: 6, kcap: 0.04, decel: 1, advanceTol: 6, ...(endInRoute ? { finalTol: 1.5 } : {}), ...over }),
+  ];
+}
 
 /**
  * The legs from one formation to another, as a list of phases, with #2 on side s now and sTo to end
@@ -490,9 +560,12 @@ function legsFor(from, s, to, sTo, spacingFt) {
 
   // Cross behind Lead to the other side, in the formation the pair is in. Fighting wing is crossed in place only when the target is
   // fighting wing or line abreast; for the close formations it closes first and crosses there, which is far quicker.
+  // A close crossover (SMM 12.20 paras 44-45, Figs 12.12-12.13): back and down into the corner and stop; across at a steady
+  // rate (a small heading change, slide's 8 ft/s: an estimate), passing slightly aft of line astern; stop directly behind
+  // the new slot; then forward and up into it. The caller adds the last move.
+  const corner = (key, side) => cornerBehind(slot(key, side), spacingFt);
   const crossClose = () => {
-    const astern = slot('astern', 0);
-    phases.push(slide({ fwd: astern.fwd - 12, left: slot(at, side).left, alt: astern.alt }), slide(astern), slide(slot(at, sTo)));
+    phases.push(stopAt(corner(at, side)), stopAt(corner(at, sTo)), slide(slot(at, sTo), { fwdRate: 5 }));
     side = sTo;
   };
   const closeTarget = to === 'echelon' || to === 'route';
@@ -508,7 +581,6 @@ function legsFor(from, s, to, sTo, spacingFt) {
       crossClose();
     }
   }
-  const lateral = at === 'astern' ? 0 : slot(at, side).left;
 
   if (to === 'lab') {
     phases.push(openOut(slot('lab', sTo)));
@@ -518,29 +590,28 @@ function legsFor(from, s, to, sTo, spacingFt) {
       if (!phases.length) return phases;
       phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 }));
     } else {
-      // drop back first, then sweep out (SMM 16.32 para 92; 16.38 para 105)
-      phases.push(dropBack({ fwd: fw.fwd, left: lateral, alt: fw.alt }, { advanceTol: 25 }), dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 }));
+      // drop back and sweep out in one expeditious move, about 7-15 s to the band (Patrick 19:03Z, TS-55); SMM 16.32 para 92 says
+      // "slowly drop back", and Patrick's ruling wins (rule book, What wins). Speed changes stay near 2 kt/s.
+      phases.push(sweepOut(fw));
     }
   } else {
     if (at === 'fw') {
-      // close through route (SMM 16.15 para 38; AFM7 p.18), level or slightly low, then on to the target
-      const route = slot('route', side);
+      // The straight-ahead rejoin (Patrick 19:04Z, TS-55; SMM 12.26 paras 62-63 and Fig 12.17; EFIG p.371), on the side wanted.
+      if (to !== 'astern') side = sTo;
+      phases.push(...straightAhead((fwd, left, alt) => ({ fwd, left, alt }), slot('route', side), { endInRoute: to === 'route' }));
       at = 'route';
-      if (side !== sTo) {
-        phases.push(closeThrough({ ...route, alt: -30 }, { advanceTol: 6 }));
-        crossClose();
-        if (to === 'route') return phases;
-      } else if (to === 'route') {
-        phases.push(closeThrough(route, { finalTol: 1.5 }));
-        return phases;
-      } else {
-        phases.push(closeThrough({ ...route, alt: -30 }, { advanceTol: 6 }));
-      }
+      if (to === 'route') return phases;
     }
     if (to === 'astern') {
+      // Echelon to line astern (SMM 12.20 para 46): the first half of the crossover, stopping directly astern (slightly aft,
+      // the corner's spacing), then adjusting power to move up into position.
       const astern = slot('astern', 0);
-      if (at !== 'astern') phases.push(slide({ fwd: astern.fwd - 12, left: slot(at, side).left, alt: astern.alt }));
+      if (at !== 'astern') phases.push(stopAt(corner(at, side)), stopAt({ ...corner(at, side), left: 0 }));
       phases.push(slide(astern));
+    } else if (at === 'astern') {
+      // Line astern to echelon (SMM 12.20 para 47): the latter part of the crossover: across to directly behind the slot and
+      // stop, then forward and up into it.
+      phases.push(stopAt(corner(to, sTo)), slide(slot(to, sTo), { fwdRate: 5 }));
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }
@@ -549,7 +620,7 @@ function legsFor(from, s, to, sTo, spacingFt) {
 }
 
 /** The words for how a change is flown. */
-function describe(from, to, rejoinKind) {
+export function describe(from, to, rejoinKind) {
   const fromLab = from === 'lab' || from === 'other';
   if (fromLab && to === 'lab') return 'in line abreast';
   if (fromLab) {
@@ -557,8 +628,8 @@ function describe(from, to, rejoinKind) {
     return to === 'fw' ? how : to === 'echelon' ? how : `${how} to fighting wing, then ${to === 'route' ? 'close to route' : 'close and cross behind'}`;
   }
   if (to === 'lab') return 'entry to line abreast, Lead speeds up to 220 KIAS';
-  if (to === 'fw') return from === 'fw' ? 'flow to the other side behind Lead' : 'drop back and sweep out';
-  if (from === 'fw') return 'close through route';
+  if (to === 'fw') return from === 'fw' ? 'flow to the other side behind Lead' : 'drop back and sweep out, expeditious';
+  if (from === 'fw') return 'straight-ahead rejoin';
   return 'station change';
 }
 

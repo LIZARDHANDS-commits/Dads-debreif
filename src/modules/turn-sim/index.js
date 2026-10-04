@@ -22,6 +22,7 @@ import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/transitions.js';
+import { FW_TURN_KEYS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
 import { createTurnSimView } from './view.js';
@@ -251,7 +252,9 @@ function mount(root, app) {
     changeUi.renderCard(state, whereAll);
     if (state.aircraft.length === 2) {
       const where = whereAll;
-      ui.setMovesEnabled(!['fw', 'echelon', 'route', 'astern'].includes(where.key)); // the manoeuvres are line abreast only
+      // The manoeuvres are line abreast moves; in fighting wing the turn buttons turn the formation (TS-55).
+      if (where.key === 'fw') ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
+      else ui.setMovesEnabled(!['echelon', 'route', 'astern'].includes(where.key));
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
