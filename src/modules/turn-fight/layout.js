@@ -95,7 +95,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.12', h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.13", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',
@@ -164,7 +164,7 @@ export function createLayout({ settings, controls, on }) {
   // The one closed settings menu. Start geometry and Energy sections are made
   // here ahead of Display when those arrive (most-used first).
   const menu = createSettingsMenu({
-    title: 'Turn Fight settings',
+    title: "Pat's Fight and Turn Sim settings",
     onReset: () => on.resetDefaults(),
     resetLabel: 'Reset to Standard Defaults',
     // The column scrolls, so a menu opened near its foot is brought into view, Reset button and all.
@@ -362,7 +362,7 @@ export function createLayout({ settings, controls, on }) {
   let lastFlags = '';
   const resultCol = h('aside', { class: 'tf-col tf-col-result', 'aria-label': 'Result' }, resultPanel.element);
 
-  const element = h('div', { class: 'turn-fight' }, h('h1', { class: 'visually-hidden' }, 'Turn Fight'), setupCol, stage, resultCol);
+  const element = h('div', { class: 'turn-fight' }, h('h1', { class: 'visually-hidden' }, "Pat's Fight and Turn Sim"), setupCol, stage, resultCol);
 
   // Which picture is on screen: '2d' or '3d'. The view setting is what the person chose; this is what shows.
   let shown = '2d';

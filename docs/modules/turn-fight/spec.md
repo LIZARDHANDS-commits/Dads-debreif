@@ -10,6 +10,8 @@ Moved from `specs/SPEC-turn-fight.md` (the old copy is in `archive/specs/`).
 
 Status: **approved by Patrick on 2026-09-30** ("Spec turn flight approved", in the Turn Fight spec thread). Patrick answered its four questions (Q48 to Q51) on 2026-09-30; each change lands as its own commit after V6 is pinned. **Energy mode (FF23, D112) approved by Patrick on 2026-09-30** ("Energy mode approved", 06:16Z, in this thread). **Start geometry and altitudes (R28), the SMM additions to Energy mode (level turn at the deck, stall cost, throttle, pursuit), and the defaults-and-simplicity rule approved by Patrick on 2026-09-30** ("Agreed", 07:13Z, in this thread). Changes go through a pull request. Module id `turn-fight` in [`archive/SPEC.md`](../../../archive/SPEC.md). Requirement IDs (R#), decisions (D#) and questions (Q#) refer to the plan doc: https://claude.ai/code/artifact/29712036-a126-43c3-ac39-57ba919ff102
 
+Screen name: **Pat's Fight and Turn Sim** (TF-60, Patrick 4 Oct). This spec still calls it the Turn Fight; the module id stays `turn-fight`.
+
 The build starts when the coordinator says it's the Turn Fight's turn, after the debrief and the Turn Sim. Until then this spec and [`archive/tasks/turn-fight`](../../../archive/tasks/turn-fight/plan.md) are the work.
 
 ## Objective
