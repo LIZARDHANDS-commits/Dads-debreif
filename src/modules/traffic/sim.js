@@ -186,6 +186,14 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.crabDeg = 0;
     a.gsKt = a.iasKt;
     a.tag = startWp?.tag ?? p.tag ?? route.points?.[p.seg]?.tag;
+    // An aircraft that starts in the training area with its engine failed: at its radial, distance and height,
+    // 125 KIAS heading for the field, then the PFL (Traffic spec 4.5 and 5.2).
+    if (a.area) {
+      const { spawn: from } = makePflFromArea(a.area.radialDeg, a.area.distNm, a.area.altFt);
+      Object.assign(a, { x: from.x, y: from.y, alt: from.alt, iasKt: from.iasKt, headingDeg: from.headingDeg, trackDeg: from.headingDeg, gsKt: from.iasKt, bankDeg: 0 });
+      startPflFlight(a, windNow(), { settings: setup.settings });
+      a.command = 'pfl_current';
+    }
     return a;
   }
 
@@ -193,15 +201,15 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. Like V6's it notes,
    * once, the height of its start point (2,500 ft if that has none), for a route with no legs.
    */
-  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent }) {
-    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent });
+  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent, area }) {
+    return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent, ...(area ? { area: { ...area } } : {}) });
   }
 
   /** An aircraft from a `setup.aircraft` entry. */
-  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec, intent: spec.intent });
+  const aircraftFromSpec = (spec) => makeAircraft({ id: spec.id, type: spec.type, routeId: spec.routeId, startIndex: spec.startIndex, startsAt: spec.startsAtSec, intent: spec.intent, area: spec.area });
 
   /** What an aircraft is before it flies: enough to make it again with `toStart`. */
-  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt, intent: a.intent });
+  const baseOf = (a) => ({ id: a.id, type: a.type, color: a.color, fallbackKt: a.fallbackKt, fallbackAlt: a.fallbackAlt, startRouteId: a.startRouteId, startIndex: a.startIndex, startsAt: a.startsAt, intent: a.intent, ...(a.area ? { area: { ...a.area } } : {}) });
   const freshFrom = (rec) => toStart({ ...rec });
 
   /** A callsign is in use if an aircraft has it now or a spawn still to come (the run was rewound past it) will give it. */
@@ -967,7 +975,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** The aircraft as `setup.aircraft` has them, so a profile can be saved with what was spawned. */
     aircraftSpecs() {
-      return rosterAtEnd().map((rec) => ({ id: rec.id, type: rec.type, routeId: rec.startRouteId, startIndex: rec.startIndex, startsAtSec: rec.startsAt }));
+      return rosterAtEnd().map((rec) => ({ id: rec.id, type: rec.type, routeId: rec.startRouteId, startIndex: rec.startIndex, startsAtSec: rec.startsAt, ...(rec.area ? { area: { ...rec.area } } : {}) }));
     },
 
     /** Where the dice are in their sequence (a number that changes with every roll). */
