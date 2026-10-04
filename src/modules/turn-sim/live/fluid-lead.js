@@ -12,9 +12,14 @@
 //  - Level turn: 60/2 at PCL MAX (AFM7 brief p.17, AFM8 brief p.19, Exercise 1); 30° gentle (AFM7 p.17's first stage);
 //    70/3 steep (SMM 16.18 para 50, a line abreast number used here as "steep", an estimate). Holds height.
 //  - Wings level ends a turn. Reversal: not a manual manoeuvre (manoeuvre-geometry.md 5.2); Patrick's list.
+//  - Climb and descend (V2.18): not FM manoeuvres in the manuals (manoeuvre-geometry.md 5.2); Patrick's list and design
+//    5.1. Lead changes only his pitch: 15° up or down (design 5.1, an estimate) through 2,000 ft (an estimate), then
+//    levels off at the new height, keeping the bank he had (a climbing or descending turn if he was turning; the
+//    climbing and descending turns of Fig 12.22's box). PCL stays MAX (SMM 16.17 para 43: constant power), so the speed
+//    bleeds in the climb and builds in the descent on the shared point mass.
 //  - Terminate: Lead's gentle, predictable level turn while #2 goes back to fighting wing (SMM 16.17 paras 45-46, 48;
 //    AFM7 brief p.17; Patrick's pick 19:20Z row 7).
-// Climb and descend, the loop, the barrel roll, the wingovers and the standard sequence wait for a later piece (spec 10.3).
+// The barrel roll, the wingovers, the side swap and the standard sequence wait for a later piece (spec 10.3).
 import { stepPointMass } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.js';
@@ -37,6 +42,12 @@ export const LEAD = Object.freeze({
   fwKias: 200, // fighting wing speed (TS-53; SMM 12.23 para 53)
   slowKtps: 1.5, // slowing with the power back: the Turn Sim's 1.5 kt/s estimate (TS-53)
   earlyCueSec: 4, // how long a new turn's lag (into #2) or lead (away from #2) lasts before pure: an estimate
+  climbDeg: 15, // the climb or descent angle (design 5.1, an estimate)
+  climbChangeFt: 2000, // how far a climb or descent goes before levelling off (an estimate)
+  levelOffFt: 800, // the climb eases onto the new height over its last 800 ft (an estimate)
+  pitchCueDps: 0.5, // #2 reads Lead's nose as rising or falling past 0.5°/s of pitch rate (an estimate)
+  climbPitchDps: 3, // how fast Lead raises or lowers the nose into and out of the climb or descent (an estimate)
+  minPushG: 0.5, // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a); 0.5 G at the push over is an estimate
 });
 
 /** The buttons Lead has in the baseline (design 5.1, cut down by Patrick 21:44Z), with their words. */
@@ -44,6 +55,8 @@ export const FLUID_MOVES = Object.freeze({
   levelTurn: { label: 'Level turn', sided: true, interruptible: true, source: 'AFM7 brief p.17 (60/2 at PCL MAX)' },
   wingsLevel: { label: 'Wings level', sided: false, interruptible: true, source: 'ends a turn' },
   reversal: { label: 'Reversal', sided: false, interruptible: true, source: "Patrick's list (not a manual manoeuvre)" },
+  climb: { label: 'Climb', sided: false, interruptible: true, source: "Patrick's list; design 5.1 (15° and 2,000 ft are estimates)" },
+  descend: { label: 'Descend', sided: false, interruptible: true, source: "Patrick's list; design 5.1 (15° and 2,000 ft are estimates)" },
   terminate: { label: 'Terminate', sided: false, interruptible: false, source: 'SMM 16.17 paras 45-46, 48; AFM7 brief p.17' },
 });
 
@@ -189,6 +202,45 @@ export function reversal(fromBankTurnSimDeg, bankDeg) {
   const dir = fromBankTurnSimDeg > 0 ? -1 : 1; // the new turn's way
   const c = levelTurn(dir, bankDeg, { label: `Reversal to the ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°` });
   return { ...c, key: 'reversal' };
+}
+
+/**
+ * #2's pursuit for a nose that rises or falls (Patrick's loop rule, 17:12Z, carried over to the climb and descent, an
+ * estimate): lag while Lead's nose comes up, lead while it goes down, pure once it is steady. Lag sits outside Lead's
+ * pull and lead inside his push, so both keep #2 just below Lead's path (EFIG p.391: lead inside the turn circle, lag
+ * outside). pitchDps: Lead's flight path's pitch rate, up positive.
+ */
+function pitchCue(pitchDps) {
+  return pitchDps > LEAD.pitchCueDps ? 'lag' : pitchDps < -LEAD.pitchCueDps ? 'lead' : 'pure';
+}
+
+/**
+ * Climb (sign +1) or descend (-1): Lead changes his pitch only, 15° (estimate) through 2,000 ft (estimate), easing onto
+ * the new height over the last 800 ft (estimate), at the bank he had (bankDeg, point-mass convention), and then holds
+ * that height and bank until the next press. PCL MAX throughout (SMM 16.17 para 43).
+ */
+export function climbOrDescend(sign, bankDeg = 0) {
+  const word = sign > 0 ? 'Climb' : 'Descend';
+  return {
+    key: sign > 0 ? 'climb' : 'descend',
+    label: `${word} ${LEAD.climbDeg}°, ${LEAD.climbChangeFt.toLocaleString('en-CA')} ft`,
+    interruptible: true,
+    init: (st) => ({ hTarget: st.pm.z + sign * LEAD.climbChangeFt, gammaPrev: st.gammaRad }),
+    step(st, mem) {
+      const toGo = mem.hTarget - st.pm.z;
+      const want = Math.max(-1, Math.min(1, toGo / LEAD.levelOffFt)) * LEAD.climbDeg * DEG;
+      const pitchDps = (st.gammaRad - mem.gammaPrev) / DEG / STEP_SEC;
+      mem.gammaPrev = st.gammaRad;
+      const near = Math.abs(toGo) < 20 && Math.abs(st.gammaRad) < 0.5 * DEG;
+      const phase = near ? 'level' : Math.abs(toGo) < LEAD.levelOffFt ? 'levelling off' : sign > 0 ? 'climbing' : 'descending';
+      // The nose moves at no more than 3°/s (estimate): the same damped climb, its target brought nearer.
+      const omega = 0.4;
+      const reach = (LEAD.climbPitchDps * DEG) / omega;
+      const aim = st.gammaRad + Math.max(-reach, Math.min(reach, want - st.gammaRad));
+      const g = Math.max(LEAD.minPushG, gForClimb(st, aim, omega));
+      return { g, bank: bankDeg, phase, cue: { mode: pitchCue(pitchDps), latDeg: Math.abs(bankDeg) > 45 ? 10 : 15 }, done: false };
+    },
+  };
 }
 
 /** The entry from fighting wing (AFM7 brief p.17): a 30° bank turn away from #2 while all call ready, then 60° and PCL MAX. */

@@ -13,7 +13,7 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING } from './fluid-wing.js';
 
 const dt = STEP_SEC;
@@ -128,7 +128,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       next = ctl.init(st, { wingSide: w.side });
     }
     kMax += 1;
-    entries.set(kMax, toEntry(kMax, st, w, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end }));
+    entries.set(kMax, toEntry(kMax, st, w, { ctl, mem: next, queue, man, phase: r.phase, cue: r.cue, end, askBank: r.bank }));
   }
 
   /** Re-plan from step j: everything Lead flies after it is worked out again, starting with the controller ctl. */
@@ -166,6 +166,9 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     switch (key) {
       case 'levelTurn': return [levelTurn(dir, bank)];
       case 'wingsLevel': return [wingsLevel()];
+      // A pitch change only: the bank Lead is asking for now is kept (point-mass convention).
+      case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
+      case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
@@ -197,21 +200,21 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     press(key, dir = 1) {
       const now = E(kNow);
       if (ended !== null || now.man.key === 'terminate' || entries.get(kMax).man.key === 'terminate') return { refused: 'Terminate is being flown; fluid manoeuvring is ending.' };
-      const ctls = controllersFor(key, dir, now);
+      const curMan = now.man;
+      const interruptible = (curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false)) && now.ctl.interruptible !== false;
+      // Started now, or once the manoeuvre being flown has finished (its last step); the controllers are worked out from
+      // where Lead will be then.
+      let j = kNow;
+      if (!interruptible) while (j - kNow < WAIT_LIMIT_STEPS && E(j + 1).man.id === curMan.id) j++;
+      const ctls = controllersFor(key, dir, E(j));
       if (ctls.reason) return { refused: ctls.reason };
       const man = { id: manId++, key, label: label(key, dir) };
       const [first, ...rest] = ctls;
-      const curMan = now.man;
-      const interruptible = curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false);
-      if (interruptible && now.ctl.interruptible !== false) {
-        replanFrom(kNow, first, rest, man);
+      replanFrom(j, first, rest, man);
+      if (interruptible) {
         queued = null;
         return 'started';
       }
-      // Wait for the manoeuvre being flown to finish (its last step), then start this one there.
-      let j = kNow;
-      while (j - kNow < WAIT_LIMIT_STEPS && E(j + 1).man.id === curMan.id) j++;
-      replanFrom(j, first, rest, man);
       queued = { key, label: man.label, startK: j };
       return 'queued';
     },

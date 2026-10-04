@@ -12,7 +12,8 @@
 //  - #2 stays 500 to 1,000 ft from Lead (SMM 16.17 para 42), inside the 60° cone, 30° either side of Lead's tail
 //    (Patrick's pick 19:20Z row 2), at the distance set (600 ft, Patrick's pick row 3) within the shared ±100 ft;
 //  - Lead's level turn is level (shared ±100 ft); nobody rolls faster than 90°/s (TS-37) and G never jumps;
-//  - Terminate ends with the pair in fighting wing (Patrick's pick row 7).
+//  - Terminate ends with the pair in fighting wing (Patrick's pick row 7);
+//  - climb and descend (V2.18): Lead climbs or descends and levels off, #2 follows in the cone, G stays positive.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFormation } from '../../../src/modules/turn-sim/live/formation.js';
@@ -117,4 +118,37 @@ test('a reversal needs a turn to reverse, and a distance outside 500-1,000 ft is
   assert.equal(checkFluidRange(400).ok, false);
   assert.equal(checkFluidRange(1200).ok, false);
   assert.equal(checkFluidRange(750).ok, true);
+});
+
+test('climb and descend: Lead pitches up or down and levels off, #2 follows him in the cone at the distance set, G stays positive', () => {
+  // Patrick's list and design 5.1 (Lead's climb and descend); #2 follows Lead's plane of motion (SMM 16.16 para 39c);
+  // Lead keeps positive G (2 CFFTS Orders B2 ch 8 para 1a).
+  const f = inFightingWing();
+  f.change('fluid');
+  const failures = [];
+  const watch = inTheCone(failures);
+  const positive = (ff) => {
+    for (const a of ff.state.aircraft) if (a.g <= 0) failures.push(`${a.name} at ${a.g.toFixed(2)} G`);
+  };
+  fly(f, 30, watch);
+  f.pressFluid('wingsLevel');
+  fly(f, 10, watch);
+  const lead = f.state.aircraft[0];
+  const alt0 = lead.altAboveFt;
+  assert.equal(f.pressFluid('climb'), 'started');
+  fly(f, 60, (ff, before) => { // a generous minute to climb and level off
+    watch(ff, before);
+    positive(ff);
+  });
+  assert.ok(lead.altAboveFt > alt0 + 1000, `Lead climbed (${Math.round(lead.altAboveFt - alt0)} ft)`);
+  assert.ok(Math.abs(lead.climbFtps) < 5, `Lead levelled off (${lead.climbFtps.toFixed(1)} ft/s)`);
+  const alt1 = lead.altAboveFt;
+  assert.equal(f.pressFluid('descend'), 'started');
+  fly(f, 60, (ff, before) => {
+    watch(ff, before);
+    positive(ff);
+  });
+  assert.ok(lead.altAboveFt < alt1 - 1000, `Lead descended (${Math.round(lead.altAboveFt - alt1)} ft)`);
+  assert.ok(Math.abs(lead.climbFtps) < 5, `Lead levelled off (${lead.climbFtps.toFixed(1)} ft/s)`);
+  assert.deepEqual(failures.slice(0, 5), []);
 });
