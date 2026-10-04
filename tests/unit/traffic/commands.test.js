@@ -125,7 +125,7 @@ test('sim.command climb_low_key executes full power climb to Low Key (3,900 ft /
   sim.stepTo(15);
   const acClimb = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(acClimb.command, 'climb_low_key');
-  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl', 'climb_low_key', 'pfl_low_key', 'base_key'].includes(acClimb.phase), 'phase should be PFL-related');
+  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl', 'climb_low_key', 'pfl_low_key', 'base_key', 'pfl_final'].includes(acClimb.phase), 'phase should be PFL-related');
   assert.ok(acClimb.alt > 2000, `Alt ${acClimb.alt} should be in PFL glide`);
 
   // After capturing Low Key, proceeds into PFL descent

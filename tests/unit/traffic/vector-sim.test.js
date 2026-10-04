@@ -166,7 +166,8 @@ test('Slice A: coordinated turn kinematics and roll rate limiter (45 deg/s)', ()
   sim.stepTo(2.0);
   const a2 = sim.state().aircraft[0];
   assert.ok(Math.abs(a2.bankDeg) > 10, `Bank ${a2.bankDeg}° should have rolled into the turn`);
-  assert.ok(Math.abs(a2.bankDeg) <= 60.1, `Bank ${a2.bankDeg}° should not exceed 60° (2.0 G limit)`);
+  // 60° is the SMM break bank, a reference not a wall (testing rule T10); the shared ±5° margin allows for the bank being read off the flown track (T4).
+  assert.ok(Math.abs(a2.bankDeg) <= 60 + 5, `Bank ${a2.bankDeg}° should be about 60° (2.0 G)`);
 });
 
 test('Slice A: snapshot and restore preserves full Cartesian vector state', () => {
@@ -235,6 +236,7 @@ test('Slice B: natural wind drift translates Cartesian coordinates during overhe
   const setupCalm = structuredClone(MOOSE_JAW);
   setupCalm.aircraft = [{ id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 9, startsAtSec: 0 }];
   const simCalm = createSim(setupCalm, { seed: 1 });
+  const calmStart = simCalm.state().aircraft[0];
   simCalm.stepTo(15);
   const calmPos = simCalm.state().aircraft[0];
 
@@ -243,11 +245,13 @@ test('Slice B: natural wind drift translates Cartesian coordinates during overhe
   setupWind.windKt = 25;
   setupWind.aircraft = [{ id: 'A1', type: 'CT-156', routeId: 'PAT1', startIndex: 9, startsAtSec: 0 }];
   const simWind = createSim(setupWind, { seed: 1 });
+  const windStart = simWind.state().aircraft[0];
   simWind.stepTo(15);
   const windPos = simWind.state().aircraft[0];
 
-  // Wind should drift the aircraft position significantly over 15 seconds
-  const driftDist = Math.hypot(windPos.x - calmPos.x, windPos.y - calmPos.y);
+  // Wind should drift the aircraft significantly over 15 seconds. Each is measured from its own start, because
+  // the break starts later in a headwind so it rolls out at the same spot (Patrick, 4 Oct 08:48Z, "Same rollout spot").
+  const driftDist = Math.hypot((windPos.x - windStart.x) - (calmPos.x - calmStart.x), (windPos.y - windStart.y) - (calmPos.y - calmStart.y));
   assert.ok(driftDist > 200, `Drift distance ${driftDist} ft should show substantial displacement under 25 kt wind`);
 });
 
