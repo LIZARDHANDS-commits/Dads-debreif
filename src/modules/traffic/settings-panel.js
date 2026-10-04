@@ -116,14 +116,8 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
   if (available.view3d) {
     const sec3d = menu.section('3D view');
     sec3d.append(
-      withHint(controls.select('graphicsQuality', {
-        label: 'Graphics',
-        options: [
-          { value: 'high', label: 'High (Sharp satellite & full 3D)' },
-          { value: 'low', label: 'Performance (Fast & low memory)' },
-        ],
-      }), 'High loads sharp zoom-18 satellite tiles and up to 24 full Harvard models. Performance saves memory and runs faster on slower laptops.'),
-      withHint(controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }), 'Shows zoomed right in; from further off, a plain T-6.'),
+      // Graphics (High or Performance) is switched in the 3D view's own bar only (Patrick, 4 Oct: it was in both).
+      withHint(controls.select('paint', { label: 'Paint (3D)', options: PAINT_OPTIONS }), 'Shows zoomed right in; from further off, a plain T-6.'),
     );
   }
 

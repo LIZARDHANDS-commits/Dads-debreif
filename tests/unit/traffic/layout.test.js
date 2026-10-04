@@ -216,29 +216,20 @@ test('the photo\'s credit sits in the map\'s corner: shown with its words, hidde
   assert.equal(credit.getAttribute('aria-live'), 'polite');
 });
 
-test('the 3D view has a box in the map, and the three camera buttons show only while 3D does', () => {
-  const { ui, calls } = setup();
+test('the 3D view has a box in the map that shows only while 3D does, and no camera buttons of its own (the 3D bar has the Camera menu; Patrick, 4 Oct)', () => {
+  const { ui } = setup();
   const wrap = one(ui.element, 'traffic-map-wrap');
   const stage = one(ui.element, 'traffic-3d');
-  const camera = one(ui.element, 'traffic-camera');
   assert.equal(ui.stage3d, stage);
   assert.equal(stage.parentNode, wrap, 'in the map\'s box, so 3D fills the map');
   assert.equal(stage.hidden, true, '2D is what opens');
-  assert.equal(camera.hidden, true);
+  assert.equal(withClass(ui.element, 'traffic-camera').length, 0, 'the Fit, High look-down and Low chase buttons are gone');
   ui.setView('3d');
   assert.equal(ui.canvas.hidden, true, 'the 2D map steps aside');
   assert.equal(stage.hidden, false);
-  assert.equal(camera.hidden, false);
-  assert.deepEqual(tagged(camera, 'BUTTON').map(words), ['Fit', 'High look-down', 'Low chase']);
-  assert.equal(camera.getAttribute('aria-label'), 'Camera');
-  for (const name of ['Fit', 'High look-down', 'Low chase']) pressable(camera, name).dispatch('click');
-  assert.deepEqual(calls, [['camera', 'fit'], ['camera', 'high'], ['camera', 'low']]);
   ui.setView('2d');
   assert.equal(ui.canvas.hidden, false);
   assert.equal(stage.hidden, true);
-  assert.equal(camera.hidden, true);
-  ui.setView('nonsense');
-  assert.equal(stage.hidden, true, 'anything but 3d is 2D');
 });
 
 test('the photo\'s credit is for the 2D map: it hides in 3D and comes back with 2D', () => {

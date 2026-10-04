@@ -25,10 +25,10 @@ export const routeDetail = (row) => (row.visible === false ? 'Hidden' : '');
 
 /**
  * bar: the playback bar (playback-bar.js). listen: app.listen.
- * on: { toggleRoute(id), newRoute(kind), toggleColumn(name, open), camera(name) } where name is 'routes' or 'aircraft'
- * for a column and 'fit', 'high' or 'low' for a camera button (the 3D view's; they show only while 3D does).
+ * on: { toggleRoute(id), newRoute(kind), toggleColumn(name, open) } where name is 'routes' or 'aircraft' for a column.
+ * The 3D view's camera is chosen in its own bar (camera-bar.js); the three buttons that repeated it went (Patrick, 4 Oct).
  * available: { pfl } (the PFL choice in + New route).
- * @param {{ bar: any, listen: any, on?: { toggleRoute?: (id: string) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void, camera?: (name: string) => void, toggleHeightLines?: (active: boolean) => void }, available?: { pfl?: boolean }, filterSplits?: boolean }} options
+ * @param {{ bar: any, listen: any, on?: { toggleRoute?: (id: string) => void, newRoute?: (kind: string) => void, toggleColumn?: (name: string, open: boolean) => void }, available?: { pfl?: boolean }, filterSplits?: boolean }} options
  */
 export function createLayout({ bar, listen, on = {}, available = {}, filterSplits = false }) {
   let closedRoute = null;
@@ -64,11 +64,6 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
       fn?.(e);
     };
   };
-  const cameraButton = (name, label) => {
-    const trigger = makeInstant(() => on.camera?.(name));
-    return h('button', { type: 'button', class: 'button', onpointerdown: trigger, onclick: trigger }, label);
-  };
-  const camera = h('div', { class: 'traffic-camera', role: 'group', 'aria-label': 'Camera', hidden: true }, cameraButton('fit', 'Fit'), cameraButton('high', 'High look-down'), cameraButton('low', 'Low chase'));
   const note3d = h('p', { class: 'traffic-note3d', role: 'status', hidden: true });
   let photoText = '';
   let view = '2d';
@@ -76,7 +71,7 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
     'section',
     { class: 'traffic-stage', 'aria-label': 'Map and playback' },
     bar.element,
-    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, camera, hint, credit, note3d),
+    h('div', { class: 'traffic-map-wrap' }, canvas, stage3d, hint, credit, note3d),
     h('p', { class: 'traffic-note' }, SIMPLIFIED_NOTE),
   );
 
@@ -154,7 +149,6 @@ export function createLayout({ bar, listen, on = {}, available = {}, filterSplit
       view = next === '3d' ? '3d' : '2d';
       canvas.hidden = view === '3d';
       stage3d.hidden = view !== '3d';
-      camera.hidden = view !== '3d';
       credit.hidden = !photoText || view === '3d';
     },
     /** A short line on the map ("Loading 3D…", "3D needs WebGL"), or '' for none. */

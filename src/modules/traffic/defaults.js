@@ -52,7 +52,7 @@ export const DEFAULTS = Object.freeze({
   layerPflCircle: true,
   layerLegDistances: false,
   layerTurnData: false,
-  layerEngineReach: false,
+  layerEngineReach: true, // the PFL glide circle: drawn since it was built, now behind this tick (Patrick, 4 Oct)
 
   // Photo (More in Layers): opacity 100 %, drawn above the grid, the setup's
   // own alignment (1.2 trim until the redraw, T8; no offset).

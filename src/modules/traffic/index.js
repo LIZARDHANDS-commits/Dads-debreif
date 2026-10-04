@@ -59,7 +59,7 @@ function mount(root, app) {
     controls,
     settings,
     listen: app.listen,
-    available: { photo: true, view3d: true, windTrack: true }, // the wind is set in the Setup column (setup-panel.js)
+    available: { photo: true, view3d: true, windTrack: true, reach: true }, // the wind is set in the Setup column (setup-panel.js)
     on: {
       play,
       pause,
@@ -80,8 +80,6 @@ function mount(root, app) {
     on: {
       toggleRoute,
       toggleColumn: () => app.scheduler.after(0, () => redraw()),
-      camera: (name) => view3d.preset(name),
-      toggleHeightLines: (active) => view3d.setHeightLines(active),
     },
     filterSplits: true,
   });
@@ -95,6 +93,7 @@ function mount(root, app) {
   // The Scenario drop-down and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
   const setupPanel = createSetupPanel({ controls, settings, onScenario: (id) => loadScenario(id) });
   ui.slots.setup.append(setupPanel.element);
+  setupPanel.addRunway(bar.runway); // the Active runway list, under the wind (Patrick, 4 Oct)
   if (opensBusy) setupPanel.setActive('busy');
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);

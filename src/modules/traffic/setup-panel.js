@@ -303,6 +303,13 @@ export function createSetupPanel({ controls, settings, onScenario }) {
       yawDeg = next;
       draw(settings.get());
     },
+    /** Puts the Active runway list (built by the playback bar) in the Wind group, under the head and cross wind line. */
+    addRunway(select) {
+      if (!select) return;
+      const id = select.id || 'traffic-setup-runway';
+      select.id = id;
+      wind.append(h('div', { class: 'control control-select setup-runway' }, h('label', { for: id }, 'Runway'), select));
+    },
     /** Shows the scenario loaded in the drop-down, or none ("Choose a scenario"). */
     setActive(id) {
       showScenario(id);

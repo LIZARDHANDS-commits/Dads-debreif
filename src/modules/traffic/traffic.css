@@ -286,18 +286,6 @@
   pointer-events: none;
 }
 
-[data-module='traffic'] .traffic-camera {
-  position: absolute;
-  z-index: 2;
-  top: var(--space-2);
-  left: var(--space-2);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  max-width: calc(100% - var(--space-4));
-}
-
-[data-module='traffic'] .traffic-camera[hidden],
 [data-module='traffic'] .traffic-note3d[hidden] {
   display: none;
 }
@@ -825,10 +813,12 @@
   top: calc(100% + var(--space-1));
   left: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-  gap: var(--space-1) var(--space-4);
+  grid-template-columns: 1fr; /* one item a row: the presets, then More (Patrick, 4 Oct) */
+  gap: var(--space-1);
   align-content: start;
-  width: min(100%, 40rem);
+  width: max-content;
+  min-width: 12rem;
+  max-width: min(100vw - 2rem, 22rem);
   max-height: calc(100dvh - var(--header-height) - 10rem);
   overflow-y: auto;
   padding: var(--space-3);
@@ -976,4 +966,35 @@
     height: min(70vh, 32rem);
     min-height: 18rem;
   }
+}
+
+/* Layers: the preset in use shows as chosen; every layer's tick sits under More (Patrick, 4 Oct). */
+[data-module='traffic'] .layer-preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--bg-sunken);
+  font-weight: 700;
+}
+
+[data-module='traffic'] .traffic-layer-more {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+[data-module='traffic'] .traffic-layer-more > summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+[data-module='traffic'] .traffic-layer-controls {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+/* The Active runway list in the Setup column's Wind group (Patrick, 4 Oct: moved from the bar, as it is). */
+[data-module='traffic'] .setup-runway {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }

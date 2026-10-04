@@ -1,7 +1,9 @@
 // The bar above the map (specs/SPEC-traffic.md: The screen, R22, R3). Row one
 // is the clock: Play or Pause, Rewind, -10 s, +10 s, Reset, the speed, the sim
 // time and Running / Paused / Rewinding. Row two is the view: the wind boxes,
-// the 2D | 3D switch, Fit, and the Layers menu (which ends with Fit all routes).
+// the 2D | 3D switch, the Fit menu (Fit pattern, Fit all routes) and the Layers menu: the three
+// presets, then every layer under More (Patrick, 4 Oct). The runway list is built here but sits in the
+// Setup column (`runway`).
 //
 // It shows what it is told and calls back when something is pressed; it never
 // runs the sim. Wind, layers and the 2D | 3D choice are settings, so they go
@@ -16,19 +18,19 @@ import { TRAFFIC_VERSION } from './version.js';
 
 /** The layers, in the order the Layers menu lists them (the spec's Layers row). `needs` is a feature that has to exist. */
 export const LAYER_ITEMS = Object.freeze([
-  { key: 'layerTrails', label: 'Trails' },
+  // "(2D)": only the 2D map draws it. The PFL ground circle is switched from the Routes on the map list (Patrick, 4 Oct).
+  { key: 'layerTrails', label: 'Trails (2D)' },
   { key: 'layerLabels', label: 'Height and speed labels' },
-  { key: 'layerPoints', label: 'Route points' },
-  { key: 'layerLegDistances', label: 'Leg distances' },
-  { key: 'layerTurnData', label: 'Turn data (radius and bank)' },
-  { key: 'layerBubbles', label: 'Conflict bubbles' },
+  { key: 'layerPoints', label: 'Route points (2D)' },
+  { key: 'layerLegDistances', label: 'Leg distances (2D)' },
+  { key: 'layerTurnData', label: 'Turn data, radius and bank (2D)' },
+  { key: 'layerBubbles', label: 'Conflict bubbles (2D)' },
   { key: 'layerCautionRings', label: 'Caution rings' },
   { key: 'layerHeightLines', label: 'Height drop lines (3D)', needs: 'view3d' },
   { key: 'layerWindTrack', label: 'Wind-adjusted track', needs: 'windTrack' },
   { key: 'layerSmmReference', label: 'SMM calm reference', needs: 'windTrack' },
-  { key: 'layerPflCircle', label: 'PFL ground circle' },
   { key: 'layerPhoto', label: 'Satellite photo', needs: 'photo' },
-  { key: 'layerEngineReach', label: 'Engine-out reach', needs: 'reach' },
+  { key: 'layerEngineReach', label: 'Engine-out reach (glide circle)', needs: 'reach' },
 ]);
 
 /** The layers to list, leaving out those whose feature isn't built yet: available = { photo, reach }. */
@@ -70,7 +72,7 @@ export const LAYER_PRESETS = Object.freeze({
       layerWindTrack: true,
       layerSmmReference: true,
       layerPhoto: true,
-      layerEngineReach: false,
+      layerEngineReach: true, // the PFL glide circle, shown since it was built (Patrick, 4 Oct: keep it as a tick)
     }),
   }),
   fullTelemetry: Object.freeze({
@@ -260,12 +262,21 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     return null;
   }
 
+  // A preset is shown as chosen only while the layers match it (Patrick, 4 Oct): read from the settings when there
+  // are any, so the opening layers, which match no preset, light none.
+  const listedKeys = new Set(layerItems(available).map((item) => item.key));
+  function presetFromSettings() {
+    const values = settings.get();
+    const found = LAYER_PRESET_ITEMS.find((preset) => Object.entries(preset.layers).every(([key, val]) => !listedKeys.has(key) || Boolean(values[key]) === val));
+    return found?.id ?? null;
+  }
   function getActivePresetId() {
+    if (settings?.get) return presetFromSettings();
     return detectActivePreset() ?? activePresetId;
   }
 
   const presetButtons = LAYER_PRESET_ITEMS.map((preset) => {
-    const isDefault = preset.id === activePresetId;
+    const isDefault = preset.id === getActivePresetId();
     const trigger = makeInstant(() => {
       applyPreset(preset);
     });
@@ -329,38 +340,44 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
     input.addEventListener?.('change', () => syncPresetButtons());
   }
 
-  // "Fit all routes" is the last item of the Layers menu, so the bar keeps one row at 1280 px (UI-01); Fit, the usual
-  // one, stays in the bar.
-  const fitAllTrigger = makeInstant(() => {
-    layers.setOpen(false);
-    layers.button.focus();
-    on.fitAll();
-  });
-  const fitAll = on.fitAll
-    ? h('button', { type: 'button', class: 'button menu-item', title: 'Frame every route, the long entries too', onpointerdown: fitAllTrigger, onclick: fitAllTrigger }, 'Fit all routes')
-    : null;
-
-  const hiddenLayers = h(
-    'div',
-    { class: 'traffic-layer-controls', hidden: true },
-    ...layerControls.map((c) => c.el).filter(Boolean),
+  // Every layer, one tick each, under More at the foot of the Layers menu (Patrick, 4 Oct: they had been built but hidden).
+  const moreLayers = h(
+    'details',
+    { class: 'traffic-layer-more' },
+    h('summary', {}, 'More'),
+    h('div', { class: 'traffic-layer-controls' }, ...layerControls.map((c) => c.el).filter(Boolean)),
   );
 
   const layers = createMenu({
     label: 'Layers',
     listen,
-    children: [
-      ...presetButtons.map((p) => p.btn),
-      fitAll,
-      hiddenLayers,
-    ].filter(Boolean),
+    children: [...presetButtons.map((p) => p.btn), moreLayers],
   });
 
   layers.button.addEventListener('click', () => {
     syncPresetButtons();
   });
 
-  const fit = button('Fit', () => on.fit(), { title: 'Frame the first pattern shown and the aircraft near it' });
+  // Fit (Patrick, 4 Oct): a menu with the pattern and every route, when both can be done; otherwise one Fit button.
+  const fitItem = (label, title, call) => {
+    const trigger = makeInstant(() => {
+      fitMenu.setOpen(false);
+      fitMenu.button.focus();
+      call();
+    });
+    return h('button', { type: 'button', class: 'button menu-item', title, onpointerdown: trigger, onclick: trigger }, label);
+  };
+  const fitMenu = on.fitAll
+    ? createMenu({
+      label: 'Fit',
+      listen,
+      children: [
+        fitItem('Fit pattern', 'Frame the first pattern shown and the aircraft near it', () => on.fit()),
+        fitItem('Fit all routes', 'Frame every route, the long entries too', () => on.fitAll()),
+      ],
+    })
+    : null;
+  const fit = fitMenu ? fitMenu.element : button('Fit', () => on.fit(), { title: 'Frame the first pattern shown and the aircraft near it' });
 
   const versionBadge = h(
     'span',
@@ -382,7 +399,7 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
       h('label', { class: 'bar-speed' }, h('span', { class: 'visually-hidden' }, 'Speed '), speed),
       clock, status, versionBadge,
     ),
-    h('div', { class: 'bar-row bar-view' }, wind, runwaySelect, viewSwitch, fit, layers.element),
+    h('div', { class: 'bar-row bar-view' }, wind, viewSwitch, fit, layers.element),
   );
 
   const write = (node, text) => {
@@ -391,6 +408,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
 
   return {
     element,
+    /** The Active runway list, for the Setup column (Patrick, 4 Oct: it moved there from the bar, as it is). */
+    runway: runwaySelect,
     applyPreset,
     setPreset(presetId) {
       const preset = typeof presetId === 'string' ? LAYER_PRESETS[presetId] : presetId;

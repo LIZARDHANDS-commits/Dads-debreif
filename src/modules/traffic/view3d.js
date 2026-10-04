@@ -618,7 +618,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     pflGround.position.z = lift;
     const present = new Set();
     for (const ac of scene.aircraft) {
-      if (!isFlying(ac) || !shouldShowGlideFootprint(ac, null)) continue;
+      if (options.layerEngineReach === false || !isFlying(ac) || !shouldShowGlideFootprint(ac, null)) continue; // the Engine-out reach tick
       const footprint = calculateGlideFootprint(ac, scene.windFromDeg ?? 360, scene.windKt ?? 0);
       if (!(footprint.rGlide > 0)) continue;
       present.add(ac.id);
@@ -1107,7 +1107,6 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
   let wantPreset = null; // a camera button pressed before there was something to frame
   let follow = null; // { id, autoYaw }: the chase camera
   let chasePending = false; // Low chase was asked for with nothing flying: it starts on the first aircraft that does
-  let heightLines = true; // height plumb lines and ground shadows
   let viewMode = 'field'; // the Camera menu's choice: field (Over the field), fit, high, top, tower, low (Chase), cockpit or padlock
   let noteText = ''; // a short word in the 3D bar, such as why Cockpit fell back to Fit
   let cameraBar = null; // the 3D bar (camera-bar.js), made with the canvas and freed with it
@@ -1500,7 +1499,8 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       aircraftScale: options.aircraftScale,
       zoom: shown.zoom, groundFt: floor, time: source.time(),
       fullModels: options.fullModels ?? true,
-      layerHeightLines: options.layerHeightLines ?? heightLines,
+      layerHeightLines: options.layerHeightLines !== false,
+      layerEngineReach: options.layerEngineReach,
       layerWindTrack: options.layerWindTrack,
       layerSmmReference: options.layerSmmReference,
       layerPflCircle: options.layerPflCircle,
@@ -1874,21 +1874,11 @@ export function createView3d({ host, timers, source, onLost = () => {}, onFacing
       teardown();
     },
     requestDraw,
-    /** A camera button: 'fit', 'high' (High look-down) or 'low' (Low chase). Done at the next frame, when the size is known. */
+    /** A camera view by id ('fit', 'high', 'low', … as camera-views.js lists them). Done at the next frame, when the size is known. */
     preset(name) {
-      if (name === 'height' || name === 'heightLines') {
-        heightLines = !heightLines;
-        requestDraw();
-        return;
-      }
       wantPreset = name;
       requestDraw();
     },
-    setHeightLines(active) {
-      heightLines = Boolean(active);
-      requestDraw();
-    },
-    isHeightLines: () => heightLines,
     isChasing: () => follow !== null,
     /** The Camera menu's current view id (fit, high, top, tower, low, cockpit, padlock) and any note beside it. */
     cameraView: () => ({ view: viewMode, note: noteText }),

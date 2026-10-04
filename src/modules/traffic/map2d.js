@@ -699,7 +699,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
   const windFromDeg = settings.windFromDeg ?? scene.windFromDeg ?? 360;
   const windKt = settings.windKt ?? scene.windKt ?? 0;
   for (const ac of flying) {
-    if (shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) {
+    if (settings.layerEngineReach !== false && shouldShowGlideFootprint(ac, scene.selectedAircraftId ?? null)) { // the Engine-out reach tick
       const footprint = calculateGlideFootprint(ac, windFromDeg, windKt);
       if (footprint.rGlide > 0) {
         const [scx, scy] = map.worldToScreen(footprint.cx, footprint.cy);
