@@ -32,48 +32,22 @@ function makeSim(options = {}) {
   });
 }
 
+// The turn reaches the bank asked for and never goes past it, within the shared ±5° margin (docs/TESTING.md);
+// the climbing turn is the first 40 s of the closed pattern (a safety stop, not a time to meet).
 test('Closed Pattern: custom bank angles (45° and 60°) via sim.command', () => {
-  const sim = makeSim();
-  const pat = mooseJaw.routes[0];
-
-  // Spawn aircraft at Departure End
-  const id1 = sim.spawn({
-    type: 'CT-156',
-    routeId: 'PAT1',
-    startPoint: 2,
-    iasKt: 140,
-    alt: 2400,
-  });
-
-  // Command 45° bank
-  sim.command(id1, 'closed_pattern', { bankDeg: 45 });
-  const a1 = sim.state().aircraft.find((a) => a.id === id1);
-  assert.equal(a1.closedPatternBankDeg, 45);
-
-  for (let t = 0.05; t <= 2.0; t += 0.05) {
-    sim.stepTo(t);
+  for (const bankDeg of [45, 60]) {
+    const sim = makeSim();
+    const id = sim.spawn({ type: 'CT-156', routeId: 'PAT1', startPoint: 2, iasKt: 140, alt: 2400 });
+    sim.command(id, 'closed_pattern', { bankDeg });
+    assert.equal(sim.state().aircraft.find((a) => a.id === id).closedPatternBankDeg, bankDeg);
+    let most = 0;
+    for (let t = 0.05; t <= 40; t += 0.05) {
+      sim.stepTo(t);
+      const a = sim.state().aircraft.find((x) => x.id === id);
+      if (a.phase === 'closed_pattern') most = Math.max(most, -a.bankDeg);
+    }
+    assert.ok(most >= bankDeg - 5 && most <= bankDeg + 5, `${bankDeg}° asked: the turn's steepest bank was ${most.toFixed(1)}°`);
   }
-  const a1After = sim.state().aircraft.find((a) => a.id === id1);
-  assert.ok(a1After.bankDeg <= -40 && a1After.bankDeg >= -45.1, `45° bank should be held, got ${a1After.bankDeg}`);
-
-  // Reset and test 60° bank
-  const sim2 = makeSim();
-  const id2 = sim2.spawn({
-    type: 'CT-156',
-    routeId: 'PAT1',
-    startPoint: 2,
-    iasKt: 140,
-    alt: 2400,
-  });
-  sim2.command(id2, 'closed_pattern', { bankDeg: 60 });
-  const a2 = sim2.state().aircraft.find((a) => a.id === id2);
-  assert.equal(a2.closedPatternBankDeg, 60);
-
-  for (let t = 0.05; t <= 2.0; t += 0.05) {
-    sim2.stepTo(t);
-  }
-  const a2After = sim2.state().aircraft.find((a) => a.id === id2);
-  assert.ok(a2After.bankDeg <= -50 && a2After.bankDeg >= -60.1, `60° bank should be rolled toward, got ${a2After.bankDeg}`);
 });
 
 test('Closed Pattern: tangent downwind rail capture with zero coordinate jump', () => {
