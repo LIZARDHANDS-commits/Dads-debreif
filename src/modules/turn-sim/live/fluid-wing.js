@@ -301,7 +301,9 @@ function tailErrorAt(E, k, kMin) {
     const r = sub3(pathPointAt(E, k, kMin).fp.base, e.pos);
     const now = Math.atan2(dot3(r, left), -dot3(r, nose));
     const want = Math.asin(Math.max(-1, Math.min(1, v.latFt / Math.max(v.rangeFt, 1))));
-    err = wrapAngle(want - now);
+    // The cue's hold (1 unless said): 0 through a wingover or a barrel roll, where #2 goes where Lead was and drifts in
+    // the cone, then settles back onto 15° as the averaging brings the hold back in (Patrick 23:02Z).
+    err = wrapAngle(want - now) * (e.cue?.hold ?? 1);
   }
   e.tailErrS = err;
   return err;

@@ -31,6 +31,7 @@ const HOLD_DEG = 15; // Patrick 22:28Z ("lets go with hold 15")
 const SET_FT = 600; // Patrick 19:20Z row 3 (the default)
 const ROLL_MAX_DPS = 90; // TS-37
 const ROLL_SLACK_DPS = 0.5; // rounding of the eased roll
+const DEG = Math.PI / 180;
 
 /** A 2-ship flown from the default start into fighting wing (a generous 3 minutes: TS-53's change limit). */
 function inFightingWing() {
@@ -249,5 +250,51 @@ test('the side swap: through a hard reversal #2 may cross to the other side, onl
     assertBackInTheCone(f, what);
   }
   if (crossedAt !== null) assert.ok(crossedAt <= CONE_HALF_DEG, `#2 crossed behind Lead, aspect ${crossedAt.toFixed(1)}° at the cross`);
+  assert.deepEqual(failures.slice(0, 5), []);
+});
+
+test('the wingovers: about 45° up and down, up to 120° of bank, about 3 G, out 180° from the entry and back on it; #2 ends back in the cone', () => {
+  // SMM 16.17 para 47: entry about 230 KIAS, about 45° of pitch above and below the horizon (the flight path, not the
+  // nose), up to 120° of bank, about 3 G, the first wingover out on a heading about 180° from the entry, the second the
+  // other way. Shared margins: ±5°, ±10 kt, ±0.5 G. Two minutes is generous for the set-up and the two wingovers.
+  const f = inFightingWing();
+  f.change('fluid');
+  const failures = [];
+  const watch = alwaysTrue(failures);
+  fly(f, 30, watch);
+  const lead = f.state.aircraft[0];
+  f.pressFluid('wingsLevel');
+  fly(f, 5, watch);
+  const h0 = lead.headingRad;
+  assert.notEqual(f.pressFluid('wingover', 1), 'refused');
+  let up = -90;
+  let down = 90;
+  let bank = 0;
+  let maxG = 0;
+  let away = 0;
+  let speeds = null;
+  fly(f, 120, (ff, before) => {
+    watch(ff, before);
+    const now = ff.state.fluid.session.now();
+    if (now.key === 'wingover') {
+      const gamma = Math.asin(Math.max(-1, Math.min(1, lead.climbFtps / lead.tasFtps))) / DEG;
+      up = Math.max(up, gamma);
+      down = Math.min(down, gamma);
+      bank = Math.max(bank, Math.abs(lead.bankDeg));
+      maxG = Math.max(maxG, lead.g);
+      away = Math.max(away, Math.abs(Math.atan2(Math.sin(lead.headingRad - h0), Math.cos(lead.headingRad - h0))) / DEG);
+    }
+    if (now.speeds?.exitKias != null) speeds = now.speeds;
+  });
+  assert.ok(Math.abs(up - 45) <= TOLERANCES.ANGLE_DEG, `${up.toFixed(1)}° up`);
+  assert.ok(Math.abs(down + 45) <= TOLERANCES.ANGLE_DEG, `${(-down).toFixed(1)}° down`);
+  assert.ok(bank <= 120 + TOLERANCES.ANGLE_DEG && bank > 90, `${bank.toFixed(0)}° of bank`);
+  assert.ok(maxG <= 3 + TOLERANCES.G_FORCE, `Lead pulled ${maxG.toFixed(2)} G`);
+  assert.ok(away >= 180 - TOLERANCES.ANGLE_DEG, `the first wingover turned ${away.toFixed(0)}°`);
+  assert.ok(speeds && Math.abs(speeds.entryKias - 230) <= TOLERANCES.AIRSPEED_KT, 'entered at about 230 KIAS');
+  const dh = Math.abs(Math.atan2(Math.sin(lead.headingRad - h0), Math.cos(lead.headingRad - h0))) / DEG;
+  assert.ok(dh <= TOLERANCES.ANGLE_DEG, `back on the entry heading (${dh.toFixed(1)}° off)`);
+  assert.ok(Math.abs(lead.bankDeg) < TOLERANCES.ANGLE_DEG, 'Lead wings level after the wingovers');
+  assertBackInTheCone(f, 'after the wingovers');
   assert.deepEqual(failures.slice(0, 5), []);
 });

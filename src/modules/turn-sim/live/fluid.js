@@ -13,7 +13,7 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
@@ -186,6 +186,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'climb': return [climbOrDescend(1, at.askBank ?? st.bank)];
       case 'descend': return [climbOrDescend(-1, at.askBank ?? st.bank)];
       case 'loop': return [loop()];
+      case 'wingover': return [wingovers(dir)];
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];

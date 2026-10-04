@@ -1,7 +1,7 @@
 // The fluid manoeuvring group (spec section 10.3, TS-57): Lead's buttons while fluid manoeuvring runs, its settings
 // behind "Fluid settings", and the card's fluid lines (what Lead flies, #2's pursuit, range, aspect, HCA, closure, the
 // cone state and the flags). The baseline Patrick asked for (21:44Z): level turns with a bank choice, wings level, a
-// reversal and Terminate; from V2.18 climb and descend, and the loop. Everything is built with h(), so all text goes in as text. Flags are never walls.
+// reversal and Terminate; from V2.18 climb and descend, and the loop; from V2.19 the wingovers. Everything is built with h(), so all text goes in as text. Flags are never walls.
 import { h, clear } from '../../ui-kit/dom.js';
 import { FLUID, LEVEL_BANKS, PURSUIT_WORDS, checkFluidRange } from './live/fluid.js';
 
@@ -14,6 +14,8 @@ export const FLUID_BUTTONS = Object.freeze([
   { key: 'climb', dir: 1, label: 'Climb' },
   { key: 'descend', dir: 1, label: 'Descend' },
   { key: 'loop', dir: 1, label: 'Loop' },
+  { key: 'wingover', dir: 1, label: 'Wingovers L' },
+  { key: 'wingover', dir: -1, label: 'Wingovers R' },
   { key: 'terminate', dir: 1, label: 'Terminate' },
 ]);
 /** How #2 is flown: Planned (scripted, the default) or Live (his own physics, a later piece). */
@@ -39,7 +41,7 @@ export function pursuitWord(wingCue) {
  */
 export function speedsLine(sp) {
   const kt = (n) => `${Math.round(n)} KIAS`;
-  const book = `SMM ${sp.book.entryKias} in, ${sp.book.exitKias} out: ${sp.book.source}`;
+  const book = sp.book.exitKias == null ? `SMM ${sp.book.source}` : `SMM ${sp.book.entryKias} in, ${sp.book.exitKias} out: ${sp.book.source}`;
   if (sp.entryKias === null) return `${sp.label}: setting up ${kt(sp.book.entryKias)} for the entry (${book})`;
   return `${sp.label}: entry ${kt(sp.entryKias)}, exit ${sp.exitKias === null ? 'still to come' : kt(sp.exitKias)} (${book})`;
 }
