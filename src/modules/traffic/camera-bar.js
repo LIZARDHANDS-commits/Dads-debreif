@@ -1,4 +1,4 @@
-// The 3D view's own little control bar (tasks/traffic-camera/plan.md, Phase 3): a Camera menu (Fit, High look-down,
+// The 3D view's own little control bar (tasks/traffic-camera/plan.md, Phase 3): a Camera menu (Over the field, Fit, High look-down,
 // Top-down, Tower, Chase, Cockpit, Padlock), a Follow menu of the aircraft flying, a High | Performance graphics
 // switch and a short status note. It lives inside the 3D stage, so it is only there while 3D is on. Plain DOM,
 // labelled, keyboard reachable (native selects and buttons); every listener is removed by dispose() (D411).

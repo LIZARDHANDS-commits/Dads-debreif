@@ -15,6 +15,7 @@ export const RWY_29L_THRESHOLD = Object.freeze({ x: THRESHOLD_29L.x, y: THRESHOL
 
 /** The views the Camera menu offers, in menu order. */
 export const CAMERA_VIEWS = Object.freeze([
+  { id: 'field', label: 'Over the field' },
   { id: 'fit', label: 'Fit' },
   { id: 'high', label: 'High look-down' },
   { id: 'top', label: 'Top-down' },
