@@ -387,6 +387,16 @@ Code: `sim.js` `siPatternTick` and `startStraightInFromDownwind`, `randomize.js`
 3. Randomize does not roll on the outer downwind for an SI-pattern aircraft (it always flies the straight-in); its upwind and final rolls still apply.
 4. **When data fails:** without ENT2 or Pattern 1's outer downwind in the setup it carries on round the overhead.
 
+### 4.16 The aircraft card's menu (Patrick, 4 Oct 23:23Z)
+
+Code: `aircraft.js` (the card), `sim.js` `setPattern`. TR-62.
+
+1. Each flying aircraft's card has one dropdown: **Pattern**, **Landing behaviour** or **Manoeuvres** (the default when the card first shows). Picking one shows that menu's buttons on the card; Remove stays on the card's name line.
+   - Pattern: **OHB** and **SI**. SI flies the SI pattern each lap (4.15); OHB the overhead. It takes effect at the next outer downwind. Until set, an aircraft that started on ENT2 flies SI and every other aircraft OHB.
+   - Landing behaviour: **Touch & Go**, **Full Stop** and **Go-around** (what was the Landing dropdown).
+   - Manoeuvres: **Breakout**, **Closed Pattern** with its bank, **High Key**, **PFL** and **Go-around**, as before.
+2. The highlighted button is the aircraft's current choice. The menu each card shows is remembered while the page is open.
+
 ---
 
 ## 5. Spawn UI

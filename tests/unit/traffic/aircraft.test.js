@@ -387,13 +387,21 @@ test('flying aircraft rows show Breakout, High Key, PFL, and window-restricted G
   closedBtn.dispatch('click');
   assert.equal(sim.state().aircraft[0].command, 'closed_pattern');
 
-  // Landing Behaviour select updates aircraft intent
-  const intentSelect = tagged(row0, 'SELECT').find((s) => s.getAttribute?.('class')?.includes('aircraft-intent-select'));
-  assert.ok(intentSelect, 'Landing Behaviour select is rendered');
-  assert.equal(intentSelect.value, 'touch_and_go');
-  intentSelect.value = 'full_stop';
-  intentSelect.dispatch('change');
+  // The card's menu (Patrick, 4 Oct 23:23Z): Landing behaviour shows its buttons, which set the aircraft's intent.
+  const menuOf = (row) => tagged(row, 'SELECT').find((s) => s.getAttribute?.('class')?.includes('aircraft-menu-select'));
+  assert.equal(menuOf(row0).value, 'manoeuvres', 'the card opens on Manoeuvres');
+  menuOf(row0).value = 'landing';
+  menuOf(row0).dispatch('change');
+  const landingRow = withClass(list, 'aircraft-row')[0];
+  buttonNamed(landingRow, 'Full Stop').dispatch('click');
   assert.equal(sim.state().aircraft[0].intent, 'full_stop');
+  // Pattern shows OHB and SI, which set the pattern it flies each lap.
+  menuOf(landingRow).value = 'pattern';
+  menuOf(landingRow).dispatch('change');
+  buttonNamed(withClass(list, 'aircraft-row')[0], 'SI').dispatch('click');
+  assert.equal(sim.state().aircraft[0].pattern, 'si');
+  menuOf(withClass(list, 'aircraft-row')[0]).value = 'manoeuvres';
+  menuOf(withClass(list, 'aircraft-row')[0]).dispatch('change');
 
   // Go-around is disabled before the landing window (e.g. on climbout)
   assert.equal(goAroundBtn.disabled, true, 'Go-around is disabled outside the final approach window');

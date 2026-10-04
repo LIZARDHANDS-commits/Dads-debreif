@@ -673,16 +673,7 @@
   border-color: var(--bad, #ef4444);
 }
 
-[data-module='traffic'] .aircraft-intent-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  margin-left: 0.25rem;
-}
-
-[data-module='traffic'] .aircraft-intent-select {
+[data-module='traffic'] .aircraft-menu-select {
   padding: 0.1rem 0.3rem;
   font-size: 0.72rem;
   line-height: 1.1;

@@ -365,6 +365,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   let shown = { list: '', conflicts: '' };
   let last = -Infinity;
   let selectedAircraftId = null;
+  // Which menu each aircraft card shows (Patrick, 4 Oct 23:23Z): 'pattern', 'landing' or 'manoeuvres' (the default).
+  const cardMenus = new Map();
 
   function setSelected(id) {
     selectedAircraftId = id;
@@ -422,7 +424,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const rows = aircraftRows(state, setup);
     const listKey = JSON.stringify([
       selectedAircraftId,
-      rows.map((r) => [r.id, r.type, r.routeName, r.status, r.color, getPflBadge(r), r.command, r.engineFailed]),
+      rows.map((r) => [r.id, r.type, r.routeName, r.status, r.color, getPflBadge(r), r.command, r.engineFailed, r.intent, r.pattern, cardMenus.get(r.id)]),
     ]);
     if (listKey !== shown.list) {
       shown.list = listKey;
@@ -521,39 +523,42 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             '',
             !canGoAround,
           );
-          const intentSelect = h(
+          // The card's menu (Patrick, 4 Oct 23:23Z): pick Pattern, Landing behaviour or Manoeuvres and that menu's buttons show.
+          const menu = cardMenus.get(row.id) ?? 'manoeuvres';
+          const menuSelect = h(
             'select',
             {
-              class: 'aircraft-intent-select',
-              'aria-label': `Landing behaviour for ${row.id}`,
+              class: 'aircraft-menu-select',
+              'aria-label': `Menu for ${row.id}`,
               onclick: (e) => {
                 e?.stopPropagation?.();
               },
               onchange: (e) => {
                 e?.stopPropagation?.();
-                const target = e.target;
-                if (target && target.value) {
-                  sim.setIntent?.(row.id, target.value);
-                  onChange?.();
-                }
+                cardMenus.set(row.id, e.target?.value || 'manoeuvres');
+                write(state);
               },
             },
-            h('option', { value: 'touch_and_go' }, 'Touch & Go'),
-            h('option', { value: 'full_stop' }, 'Full Stop'),
-            h('option', { value: 'go_around' }, 'Go-around'),
+            h('option', { value: 'pattern' }, 'Pattern'),
+            h('option', { value: 'landing' }, 'Landing behaviour'),
+            h('option', { value: 'manoeuvres' }, 'Manoeuvres'),
           );
-          intentSelect.value = row.intent || 'touch_and_go';
-          const intentWrap = h(
-            'label',
-            {
-              class: 'aircraft-intent-wrap',
-              onclick: (e) => {
-                e?.stopPropagation?.();
-              },
-            },
-            'Landing: ',
-            intentSelect,
-          );
+          menuSelect.value = menu;
+          // Pattern: OHB, or the SI pattern lap after lap (Traffic spec 4.15); takes effect at the next outer downwind.
+          const patternButtons = [['ohb', 'OHB', 'OHB: fly the overhead pattern each lap'], ['si', 'SI', 'SI: descend from abeam the departure end to 2,700 ft and fly the straight-in each lap']]
+            .map(([value, label, title]) => makeActionButton(label, title, () => {
+              sim.setPattern?.(row.id, value);
+              onChange?.();
+            }, row.pattern === value));
+          // Landing behaviour: what it does at the end of final.
+          const landingButtons = [['touch_and_go', 'Touch & Go'], ['full_stop', 'Full Stop'], ['go_around', 'Go-around']]
+            .map(([value, label]) => makeActionButton(label, `Landing behaviour: ${label}`, () => {
+              sim.setIntent?.(row.id, value);
+              onChange?.();
+            }, (row.intent || 'touch_and_go') === value, 'aircraft-landing'));
+          const buttons = menu === 'pattern' ? patternButtons
+            : menu === 'landing' ? landingButtons
+              : [breakoutBtn, closedPatternBtn, closedBankSelect, highKeyBtn, pflBtn, goAroundBtn];
 
           children.push(
             h(
@@ -564,13 +569,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
                   e?.stopPropagation?.();
                 },
               },
-              breakoutBtn,
-              closedPatternBtn,
-              closedBankSelect,
-              highKeyBtn,
-              pflBtn,
-              goAroundBtn,
-              intentWrap,
+              menuSelect,
+              ...buttons,
             ),
           );
         }
