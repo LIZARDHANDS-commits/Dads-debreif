@@ -28,6 +28,7 @@ export const PANEL_KEYS = Object.freeze([
   'conflictVertFt',
   'cautionLatFt',
   'cautionVertFt',
+  'autoDeconflict',
   'closedPatternBankDeg',
   'closedPatternPitchDeg',
   'aircraftScale',
@@ -82,6 +83,7 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
     withHint(feet('conflictVertFt', 'Conflict: vertical'), 'Inside this and the lateral limit is a conflict.'),
     withHint(feet('cautionLatFt', 'Caution: lateral'), 'Inside this and the vertical limit is a caution.'),
     withHint(feet('cautionVertFt', 'Caution: vertical'), 'Inside this and the lateral limit is a caution.'),
+    withHint(controls.checkbox('autoDeconflict', { label: 'Automatic deconfliction' }), 'Aircraft give way by the Flying Orders and the SMM, and break out if still too close.'),
   );
 
   const closedSec = menu.section('Closed pattern');

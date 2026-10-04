@@ -323,14 +323,15 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
   const rwyTrack = centre.trackDeg;
   const start = goAround
     ? { x: goAround.x, y: goAround.y, alt: goAround.alt, ias: goAround.ias, hdg: goAround.hdg, src: 0, phase: 'go_around' }
-    : { x: th.x, y: th.y, alt: THRESHOLD_DATA_ELEV_FT, ias: CIRCUIT.thresholdKias, hdg: 0, src: 0, phase: 'initial' };
+    : { x: th.x, y: th.y, alt: THRESHOLD_DATA_ELEV_FT, ias: CIRCUIT.thresholdKias, hdg: 0, src: 0, phase: 'climb' };
   const pilot = makePilot(start, wind);
   const { s } = pilot;
   if (goAround) s.bank = goAround.bank ?? 0;
   else s.hdg = pilot.headingFor(rwyTrack);
   pilot.record();
-  // The go-around names its phases as it flies them; the circuit's come from its route points.
-  const phase = (ph) => { if (goAround) s.phase = ph; };
+  // Each leg is named as it is flown: climb-out, crosswind, the outer downwind, then initial from the 45° leg. The go-around's
+  // downwind is the one Pattern 1 joins it onto, so it keeps the name 'downwind'.
+  const phase = (ph) => { s.phase = goAround || ph !== 'downwind' ? ph : 'outer_downwind'; };
   const runwayLen = Math.hypot(points[1].x - th.x, points[1].y - th.y);
   const crosswindTrack = wrapDeg360(rwyTrack - 90);
   const downwind = lineOf(points[5], points[6]);
@@ -409,7 +410,7 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
       if (readyToTurnOnto(base, s, pilot.trackDeg(), R, gs, gsOn(base))) { stage = 'base'; capturing = true; pilot.mark({ src: 6 }); }
     } else if (stage === 'base') {
       bank = onto(base);
-      if (readyToTurnOnto(leg45, s, pilot.trackDeg(), R, gs, gsOn(leg45))) { stage = 'leg45'; capturing = true; pilot.mark({ src: 7 }); }
+      if (readyToTurnOnto(leg45, s, pilot.trackDeg(), R, gs, gsOn(leg45))) { stage = 'leg45'; capturing = true; phase('initial'); pilot.mark({ src: 7 }); }
     } else if (stage === 'leg45') {
       bank = onto(leg45);
       if (readyToTurnOnto(centre, s, pilot.trackDeg(), R, gs, gsOn(centre))) { stage = 'initial'; capturing = true; pilot.mark({ src: 8 }); }

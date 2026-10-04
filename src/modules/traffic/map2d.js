@@ -363,6 +363,8 @@ export function getPflBadge(ac) {
   if (!ac) return null;
   if (ac.status === 'ejected') return '[EJECT]';
   if (ac.pflDecision) return ac.config ? `[PFL: ${ac.pflDecision} · ${ac.config}]` : `[PFL: ${ac.pflDecision}]`;
+  // What the automatic deconfliction is doing with it (deconflict.js), in pilot words.
+  if (ac.deconflict) return ac.deconflict;
   const active = ac.engineFailed === true ||
     ac.command === 'pfl_current' ||
     ac.command === 'engine_fail' ||

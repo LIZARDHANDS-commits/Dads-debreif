@@ -14,7 +14,7 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
 
 ## Asked for by Patrick, waiting for his yes to move into the plan
 
-- Automatic deconfliction (Patrick, 4 Oct 09:40Z). Only when a conflict is close to happening, never far out:
+- Automatic deconfliction (Patrick, 4 Oct 09:40Z). Moved into `plan.md` and built in part on Patrick's go (11:54Z; spec 4.12). Still to build: the flinch before the breakout; the move-over slide 500 ft toward the inner runway before the go-around (Q5, estimate; the real 29L/29R gap is a question for Dad); the straight-ahead climb of about 500 ft before a fly-through's breakout turns (Q4, estimate); rejoining on the same kind of entry after a breakout (Q7); a PFL banking away (Q3). The original ask, kept for reference: only when a conflict is close to happening, never far out:
   - an aircraft that gets too close to another flinches (as in the turn-fight sim), then goes into a breakout;
   - right-of-way rules: an aircraft that would perch and fly into a straight-in breaks out instead;
   - a straight-in that has to go around, or one that someone perches on by accident, goes between the runways;
