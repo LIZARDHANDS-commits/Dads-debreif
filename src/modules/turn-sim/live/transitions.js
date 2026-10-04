@@ -475,6 +475,11 @@ export function phase(slot, over = {}) {
 export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
 /** Drop back slowly (SMM 16.32 para 92): a few knots slower than Lead. */
 export const dropBack = (slot, over = {}) => phase(slot, { fwdRate: 12, latRate: 12, vrel0: 14, advanceTol: 25, finalTol: 6, bankCapDeg: 20, ...over });
+/**
+ * Echelon, route or line astern to fighting wing, expeditious (Patrick 19:03Z: "take ~7-15 seconds", TS-55): the slot is chased at
+ * once with up to 20 KIAS under or over Lead, 45° bank, and the height change over the first 6 s. All the rates are estimates.
+ */
+export const sweepOut = (slot, over = {}) => phase(slot, { fwdRate: Infinity, latRate: Infinity, vrel0: 30, kcap: 0.1, d0: 50, vrelMax: 200, decel: 3, bankCapDeg: 45, overtakeKias: 20, undertakeKias: 20, advanceTol: 25, finalTol: 6, altSec: 6, ...over });
 /** Close from fighting wing through route (SMM 16.15 para 38; AFM7 p.18): 10-20 KIAS overtake, slowing to about 5 kt at route. */
 export const closeThrough = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 40, vrel0: 8, kcap: 0.05, d0: 100, vrelMax: 50, overtakeKias: 20, advanceTol: 6, bankCapDeg: 25, ...over });
 /** The rejoin to a formation (SMM 12.24, 16.20): the slot is chased at once, the closing speed falls with range, bank up to the cap. */
@@ -521,7 +526,6 @@ function legsFor(from, s, to, sTo, spacingFt) {
       crossClose();
     }
   }
-  const lateral = at === 'astern' ? 0 : slot(at, side).left;
 
   if (to === 'lab') {
     phases.push(openOut(slot('lab', sTo)));
@@ -531,8 +535,9 @@ function legsFor(from, s, to, sTo, spacingFt) {
       if (!phases.length) return phases;
       phases.push(dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 }));
     } else {
-      // drop back first, then sweep out (SMM 16.32 para 92; 16.38 para 105)
-      phases.push(dropBack({ fwd: fw.fwd, left: lateral, alt: fw.alt }, { advanceTol: 25 }), dropBack(fw, { advanceTol: 6, finalTol: 6, vrel0: 16 }));
+      // drop back and sweep out in one expeditious move, about 7-15 s to the band (Patrick 19:03Z, TS-55); SMM 16.32 para 92 says
+      // "slowly drop back", and Patrick's ruling wins (rule book, What wins). Speed changes stay near 2 kt/s.
+      phases.push(sweepOut(fw));
     }
   } else {
     if (at === 'fw') {
@@ -570,7 +575,7 @@ export function describe(from, to, rejoinKind) {
     return to === 'fw' ? how : to === 'echelon' ? how : `${how} to fighting wing, then ${to === 'route' ? 'close to route' : 'close and cross behind'}`;
   }
   if (to === 'lab') return 'entry to line abreast, Lead speeds up to 220 KIAS';
-  if (to === 'fw') return from === 'fw' ? 'flow to the other side behind Lead' : 'drop back and sweep out';
+  if (to === 'fw') return from === 'fw' ? 'flow to the other side behind Lead' : 'drop back and sweep out, expeditious';
   if (from === 'fw') return 'close through route';
   return 'station change';
 }
