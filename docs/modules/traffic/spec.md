@@ -288,6 +288,7 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
 | Widen when high | Pattern PFLs only: more than 100 ft high with all drag out: widen before Final Key, up to 6,000 ft outside the circle | Patrick 10:10Z, 17:10Z; 100 ft and 6,000 ft are **estimates** |
 | Start of the glide | Holds the bank it has for 1 s, then turns for the join, so the hand-over has no step in turn rate | **Estimate** (reaction time); Patrick 09:21Z, no snap at hand-overs |
 | Zoom | 2 G, push through 140, capture 125; only above 150 KIAS | EFIG p.408; Patrick 4440, 06:35Z |
+| Pitch changes | The nose moves by changing G, never in a step: G builds and eases at up to 2 G/s (changing at up to 8 G/s²); the glide may pull up to 2 G in all, never past the stall line and never below 0 G; drag counts the whole G, turn and pitch together (TR-51) | Patrick 4 Oct 17:49Z, 17:52Z; 2 G is his; 2 G/s and 8 G/s² are **estimates** |
 
 ### 4.8 TAKEOFF — Runway Departure
 
