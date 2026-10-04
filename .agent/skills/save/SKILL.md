@@ -1,18 +1,16 @@
 ---
 name: save
-description: End of a piece of work. Record decisions, ideas and questions, update the handover files, test, commit and push.
+description: End of a piece of work. Record decisions, ideas and questions in the module's folder, update its README and plan ticks, test, commit on a work branch and push.
 ---
 
 # /save
 
-1. Record what happened, one line or row each:
-   - judgement calls in `docs/records/decisions-log.md` (time, module, decision, why, other options, PR or commit, how to undo);
-   - new ideas in `docs/records/future-ideas.md` (not built);
-   - questions for Dad in `docs/records/dads-questions.md`;
-   - approaches tried and dropped in `.agent/memory/graveyard.md`, with why;
-   - check reports in `docs/records/verification/<module>-<what>.md`.
-2. Update `docs/handover/<module>.md` (done, left, open) and the module status table in `HANDOVER.md` if it changed.
-3. Rewrite `.agent/memory/handoff.md`: date, branch, what was done, the exact next step, anything waiting on Patrick. Clear finished notes from `.agent/memory/scratchpad.md`.
-4. Run `npm test` and `npm run typecheck` (and `npm run build` if code changed). Don't commit red tests; note them in the handoff instead.
-5. Commit on the work branch (never straight to `main`) with a plain message saying what changed, and push. Open or update the PR.
-6. Tell Patrick in a few lines what was saved and what is next.
+1. Record what happened, in the module's folder (`docs/modules/<module>/`), one line or row each:
+   - decisions in `decisions.md`, with the module's prefix and the next free number, and update the spec, requirements or testing file it changes in the same piece of work;
+   - new ideas in `future.md` (not built);
+   - approaches tried and dropped in `decisions.md`, with why;
+   - questions for Dad in `docs/questions-for-dad.md`, each with its working answer.
+2. Update the module's `README.md` (where it stands, what's next, open questions) and tick the finished tasks in its `plan.md`. Anything now waiting on Patrick goes on the waiting list in `docs/PLAN.md`.
+3. Run the checks `docs/TESTING.md` lists for every change (and `npm run build` if code changed). If one fails, say so in the PR and the status; never skip or disable a test to get green.
+4. Commit on a work branch with a plain-English name that says what changed, for example "Traffic: break turn follows the wind" (decision or task numbers may follow in brackets), and push. Open or update the PR.
+5. Tell Patrick in a few lines what was saved, what is next, and what is untested or unseen.
