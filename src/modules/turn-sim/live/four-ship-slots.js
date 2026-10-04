@@ -56,6 +56,7 @@ export const FLUID4_ABEAM_FT = 6000;
 const BOX_SLOT_MARGIN_FT = 500;
 /** The shared table's margin, ±100 ft (docs/TESTING.md). */
 const MARGIN_FT = 100;
+const MARGIN_DEG = 5;
 
 const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
 const fwAt = (deg, side) => ({ fwd: -FW4.rangeFt * Math.sin(deg * DEG), left: side * FW4.rangeFt * Math.cos(deg * DEG) });
@@ -183,7 +184,9 @@ export function classifyFour(aircraft) {
     const across2 = Math.abs(relativeTo(L, two).left);
     if (r3.fwd < -3000 && r3.fwd > -13000 && r3.left * c2.side > 0 && Math.abs(r3.left) < across2 && c34.key === 'lab' && c34.side === c2.side) return { key: 'offsetBox', side: c2.side };
   }
-  return { key: 'other', side };
+  // No formation: #2's side only when it is clearly to one side (in a column after an in-place turn it is not, and the
+  // side last seen is used instead; 100 ft is the shared margin).
+  return { key: 'other', side: Math.abs(relativeTo(L, two).left) > MARGIN_FT ? side : 0 };
 }
 
 /** The words for where the four are: "Finger left (#3 and #4 left)", "Spread 4, #2 right". */
@@ -210,16 +213,19 @@ export function fourWords(where) {
 
 const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
-/** A fighting wing link judged against SMM 12.29 para 69's band: 500-1,000 ft, 30-60°. */
+/**
+ * A fighting wing link judged against SMM 12.29 para 69's band, 500-1,000 ft and 30-60°, with the shared margins round it
+ * (±100 ft, ±5°: design section 7, docs/TESTING.md): #3 and #4's default sits at the flat end of the band (30°).
+ */
 function judgeFwLink(ref, wing) {
   const rel = relativeTo(ref, wing);
   const range = Math.hypot(rel.fwd, rel.left);
   const sweep = Math.atan2(-rel.fwd, Math.max(Math.abs(rel.left), 1e-6)) / DEG;
   const labels = [];
-  if (range < 500) labels.push('TOO CLOSE');
-  else if (range > 1000) labels.push('TOO FAR');
-  if (sweep < 30) labels.push('TOO FLAT');
-  else if (sweep > 60) labels.push('TOO FAR BACK');
+  if (range < 500 - MARGIN_FT) labels.push('TOO CLOSE');
+  else if (range > 1000 + MARGIN_FT) labels.push('TOO FAR');
+  if (sweep < 30 - MARGIN_DEG) labels.push('TOO FLAT');
+  else if (sweep > 60 + MARGIN_DEG) labels.push('TOO FAR BACK');
   return { labels, numbers: `${ft(range)} (500-1,000), sweep ${Math.round(sweep)}° (30-60°)`, side: Math.sign(rel.left) };
 }
 

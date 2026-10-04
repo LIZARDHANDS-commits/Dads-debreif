@@ -257,10 +257,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fourLine.hidden = ships !== 4;
       check45Field.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
-      if (changeUi) {
-        changeUi.element.hidden = ships === 4; // formation changes are the 2-ship's for now (spec section 10)
-        changeUi.cardElement.hidden = ships === 4;
-      }
+      changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
     },
     /** The manoeuvre buttons work in line abreast only: greyed in the other formations, with the reason beside them. */
     /**
