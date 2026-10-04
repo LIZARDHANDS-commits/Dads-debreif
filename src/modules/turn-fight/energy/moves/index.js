@@ -11,6 +11,7 @@ import { controlLowYoYo } from './low-yo-yo.js';
 import { controlHighYoYo } from './high-yo-yo.js';
 import { controlMpt } from './mpt.js';
 import { controlPursuit, tacticalAimCalculation } from './pursuit.js';
+import { controlClimbOut } from './climb-out.js';
 export { isRolling, willRoll } from './common.js';
 
 // ── Moves: start and controllers ────────────────────────────────────────────
@@ -96,6 +97,7 @@ export function controlFor(ctx) {
     case 'highYoYo': return controlHighYoYo(ctx);
     case 'mpt': case 'levelMpt': return controlMpt(ctx);
     case 'pursuit': return controlPursuit(ctx);
+    case 'climbOut': return controlClimbOut(ctx);
     default: return { g: 1, bankRad: 0, prefer: 1, throttle: 1 };
   }
 }

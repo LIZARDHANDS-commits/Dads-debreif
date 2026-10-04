@@ -1,6 +1,6 @@
 // What every move shares: the pull G, the level-off, the bank toward the other, a bank from the real horizon,
 // and the one definition of rolling.
-import { KT_TO_FTPS } from '../../../../core/units.js';
+import { KT_TO_FTPS, G_FTPS2 } from '../../../../core/units.js';
 import { degToRad, radToDeg } from '../../../../core/angles.js';
 import { rollToward, dampedClimbG } from '../../../../core/flight-math.js';
 import { TUNING, ROLLING_DEG_PER_SEC } from '../setup.js';
@@ -9,6 +9,24 @@ import { dot, len, scale, add, sub, cross, unit, clamp, posOf, horizonFrame, car
 /** The pull G the model asks for while it sets a move up: the set G (4 by default), never past the shaker. The one place every 4 G hold goes through. */
 export function pullCmdG(ctx) {
   return Math.min(ctx.p.pullG, ctx.shaker);
+}
+
+/**
+ * The height a jet loses before its dive bottoms out: rolling the lift up to the horizon first (a jet in a steep or
+ * inverted bank must roll before it can pull out, and its nose keeps falling at the rate its lift gives now), then the
+ * pull-out circle at `pullOutG` above 1 G (worked out at deckPullOutFactor times the plain circle, for the speed it
+ * gains), plus 30 ft. Used by the chase's deck guard and the deck guard of every other move.
+ */
+export function deckDropFt(ctx, pullOutG) {
+  const { ac, p, f } = ctx;
+  const vFtps = f.ktas * KT_TO_FTPS;
+  const gamma = f.climbRad;
+  const rollOutSec = Math.abs(ac.bankDeg) / p.rollRateDegPerSec;
+  const gammaRate = (ac.g * Math.cos(degToRad(ac.bankDeg)) - Math.cos(gamma)) * G_FTPS2 / vFtps; // the path's rate in the vertical plane now (rad/s)
+  const gammaAfterRoll = gamma + Math.min(gammaRate, 0) * rollOutSec;
+  const rollLossFt = vFtps * rollOutSec * Math.max(0, -Math.sin((gamma + gammaAfterRoll) / 2));
+  const circleFt = gammaAfterRoll < 0 ? TUNING.deckPullOutFactor * (vFtps * vFtps / (G_FTPS2 * pullOutG)) * (1 - Math.cos(gammaAfterRoll)) : 0;
+  return rollLossFt + circleFt + 30;
 }
 
 /** A level-off's G: the vertical-plane pull that closes on a flight path angle with a first-order lag. */

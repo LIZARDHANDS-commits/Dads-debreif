@@ -1,12 +1,11 @@
 // Pursuit: where a chaser aims (pure, lead, lag, or the tactical blend), the closest-approach check and the
 // out-of-plane offset that keeps it clear of the other, and the controller that points the nose at the aim.
-import { KT_TO_FTPS, G_FTPS2 } from '../../../../core/units.js';
-import { degToRad } from '../../../../core/angles.js';
+import { KT_TO_FTPS } from '../../../../core/units.js';
 import { availableG } from '../../../../core/t6-performance.js';
 import { turnRadiusFt, dampedClimbG } from '../../../../core/flight-math.js';
 import { DECONFLICTION_OFFSET_FT, energyTopKias, TUNING } from '../setup.js';
 import { dot, len, scale, add, sub, cross, unit, clamp, velOf, posOf } from '../frame.js';
-import { willRoll } from './common.js';
+import { willRoll, deckDropFt } from './common.js';
 import { closestApproach, dangerGate, clearanceSide } from '../../../../core/closest-approach.js';
 import { liftTowardAim, gAndBankForLift, turnPlaneNormal as coreTurnPlaneNormal } from '../../../../core/point-mass.js';
 
@@ -234,12 +233,7 @@ export function controlPursuit(ctx) {
   const pullOutG = Math.max(capFor(true) - 1, 0.5);
   // The drop is the height lost while rolling the lift up to the horizon first (a chaser in a steep or inverted bank
   // must roll before it can pull out, and its nose keeps falling at the rate its lift gives now), then the pull-out circle.
-  const rollOutSec = Math.abs(ac.bankDeg) / p.rollRateDegPerSec;
-  const gammaRate = (ac.g * Math.cos(degToRad(ac.bankDeg)) - Math.cos(gamma)) * G_FTPS2 / vFtps; // the path's rate in the vertical plane now (rad/s)
-  const gammaAfterRoll = gamma + Math.min(gammaRate, 0) * rollOutSec;
-  const rollLossFt = vFtps * rollOutSec * Math.max(0, -Math.sin((gamma + gammaAfterRoll) / 2));
-  const circleFt = gammaAfterRoll < 0 ? TUNING.deckPullOutFactor * (vFtps * vFtps / (G_FTPS2 * pullOutG)) * (1 - Math.cos(gammaAfterRoll)) : 0;
-  const dropFt = rollLossFt + circleFt + 30;
+  const dropFt = deckDropFt(ctx, pullOutG);
   const deckSin = clamp((p.hardDeckFt - (f.altFt - dropFt)) * TUNING.levelAltGainPerSec / vFtps, -0.95, 0.5);
   const guardKias = energyTopKias(f.altFt) - TUNING.vmoMarginKias; // the limit at this height, so it tightens as the chase climbs into the Mach limit and eases as it dives out of it
   const overKt = kias + c.kiasRateEff * TUNING.vmoLeadSec - guardKias;

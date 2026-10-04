@@ -31,6 +31,8 @@ const playUntil = (run, done, what) => {
 // The pitch back in progress: banked well past a level turn's and climbing (a pitch back climbs while it reverses, Turn Fight testing rule F2).
 const inThePitchBack = (run) => run.engine.blue.bankDeg > 60 && run.engine.blue.climbDeg > 10;
 const noseOnFirst = (run) => Boolean(run.engine.firstNose);
+// A head-on pass set up directly, so the tie (first nose-on by both) does not depend on which way the default fight goes (TF-59).
+const HEAD_ON = { turnsStart: 'now', separationNm: 1, ataDeg: 0, aaDeg: 180 };
 
 test('in Energy mode the pose is the aircraft\'s own: bank from the energy state toward the turn, pitch from the climb angle, height from its altitude', () => {
   const run = playUntil(createEnergyRun({}), inThePitchBack, 'the pitch back'); // the pitch back: heavily banked and climbing
@@ -82,7 +84,7 @@ test('the MERGE mark, the pass word and first nose-on read the Energy run as the
   assert.equal(showsMergeMark(createEnergyRun({ turnsStart: 'now' }).fight), false);
   assert.equal(passMarkWord(createEnergyRun({ aaDeg: 90 }).fight), 'PASS');
   assert.equal(firstNoseText(null), '');
-  const tie = playUntil(createEnergyRun({}), noseOnFirst, 'first nose-on'); // the equal fight ties: the engine says by 'both'
+  const tie = playUntil(createEnergyRun(HEAD_ON), noseOnFirst, 'first nose-on'); // the equal fight ties: the engine says by 'both'
   assert.equal(tie.engine.firstNose.by, 'both');
   assert.equal(firstNoseText(tie.fight.firstNose), 'FIRST NOSE — BOTH');
 });
@@ -191,7 +193,7 @@ test('in the Energy scene the aircraft are drawn with their own bank and pitch, 
   const { THREE, scenes } = await threeWithSceneCapture();
   const page = fakePage();
   await withPageDocument(page, async () => {
-    const current = playUntil(createEnergyRun({}), inThePitchBack, 'the pitch back');
+    const current = playUntil(createEnergyRun(HEAD_ON), inThePitchBack, 'the pitch back');
     const queue = [];
     const view = createView3d(page.host, {
       timers: { frame: (fn) => { queue.push(fn); return () => {}; }, after: () => () => {} },

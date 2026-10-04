@@ -3,7 +3,7 @@
 // bad setup into a plain-words refusal. Nothing here flies.
 import { T6A_LIMITS, stallLimitG, maxKiasT6A, modelMaxIasT6A } from '../../../core/t6-performance.js';
 
-/** The moves a setup can force; 'auto' lets the model choose (step 1). */
+/** The moves a setup can choose; 'auto' is the Smart pilot (TF-59), 'tactical' an older name for the same pilot kept so saved setups still load. */
 export const ENERGY_MOVES = Object.freeze(['tactical', 'auto', 'immelmann', 'pitchBack', 'slice', 'splitS', 'mpt']);
 /** The pursuits a screen offers. A setup also accepts 'none' (nobody chases), for tests and what-ifs; it is not one of the choices. */
 export const PURSUITS = Object.freeze(['tactical', 'pure', 'lead', 'lag']);
@@ -146,6 +146,11 @@ export const TUNING = Object.freeze({
   levelBankMaxDeg: 88,        // model setting: the most bank the level MPT uses to hold its height
   chaseGainPerSec: 2,         // model setting: pursuit asks for this much turn rate per radian of pointing error
   immelmannRollStartDeg: 25,  // model setting: the roll upright starts this far above level on the way down the back (SMM 14.15)
+  chaseLostAtaDeg: 90,        // model setting (estimate, TF-57 PR 3): a chaser whose nose stays more than this far off the other has lost the shot
+  chaseLostSec: 2,            // model setting (estimate): for this long, then the chase ends and the jet flies the MPT and picks again
+  levelMptAboveDeckFt: 300,   // model setting (estimate): the level MPT holds this far above the hard deck, since below the deck loses the fight (TF-R6)
+  climbOutDeg: 20,            // model setting (estimate): a jet below the deck climbs back out at this climb angle, wings level
+  climbOutAboveDeckFt: 500,   // model setting (estimate): and levels off this far above the deck
   moveMaxSec: 60,             // model setting: a move that has not ended by now hands over
   minKtas: 15,                // model setting: the point-mass step needs speed above zero; a stalled jet is kept at least this fast
   levelDoneDeg: 2,            // model setting: a level-off is done within this of level
@@ -153,12 +158,15 @@ export const TUNING = Object.freeze({
   vmoMarginKias: 40,          // model setting: a chaser starts keeping its nose up this far under the top speed at its height (VMO, or true Mach 0.67 in the model's IAS above about 17,570 ft; energyTopKias)
   vmoLeadSec: 3,              // model setting: and looks this many seconds ahead at its speed
   vmoClimbPerKt: 0.02,        // model setting: nose-up path (sine) asked for per knot over that speed
+  deckGuardAboveFt: 100,      // model setting (estimate): every move but the chase pulls out of a dive that would bottom out less than this above the deck
   deckPullOutFactor: 1.3,     // model setting: a chaser's pull-out from a dive is worked out at this times the plain circle, for the speed it gains
   dryRunMaxSec: 40,           // model setting: the Immelmann dry run gives up after this long
 });
 
 export const MOVE_LABELS = Object.freeze({
-  tactical: 'Tactical AI',
+  tactical: 'Smart',
+  auto: 'Smart',
+  climbOut: 'Climb out',
   immelmann: 'Immelmann', pitchBack: 'Pitch back', slice: 'Slice', splitS: 'Split S',
   lowYoYo: 'Low Yo-Yo', highYoYo: 'High Yo-Yo',
   mpt: 'MPT', levelMpt: 'Level MPT', pursuit: 'Pursuit',

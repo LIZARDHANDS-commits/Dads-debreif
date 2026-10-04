@@ -15,10 +15,10 @@
 //   energy/setup.js       defaults, the spec's fixed numbers, tuning numbers, move names, the setup check
 //   energy/fight.js       the start, a new fight, one fight step
 //   energy/aircraft.js    one aircraft: its readouts and one step through the limits and core's point-mass step
-//   energy/pilot.js       who decides: Auto's table, the first moves, hand-overs, the MPT re-pick, starting a chase
+//   energy/pilot.js       who decides: the Smart pilot's table, the first moves, hand-overs, the MPT re-pick, starting and ending a chase
 //   energy/moves/         one file per move, each flying its move and saying when it is done
 //   energy/smoothing.js   the layer between the pilot's inputs and the aircraft (off until PR 2)
-//   energy/lookahead.js   flying copies of the fight to judge a move: Auto's race, the Tactical dry runs
+//   energy/lookahead.js   flying copies of the fight to judge a move: the table's race, the Smart pilot's MPT dry runs
 //   energy/judge.js       nose-on, the chase, the advantage score, gun kill, mid-air collision
 //   energy/frame.js       vectors, the real horizon's frame, bank and angles between two jets
 //

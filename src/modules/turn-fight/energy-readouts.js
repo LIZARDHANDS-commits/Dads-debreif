@@ -69,6 +69,7 @@ export const EVEN_FIGHT_TEXT = 'Even fight: nobody gets behind';
  */
 export function winnerText(state) {
   if (state.kill) return `${NAMES[state.kill.victor]} wins`;
+  if (state.deckLoss) return state.deckLoss.winner ? `${NAMES[state.deckLoss.winner]} wins` : 'No winner';
   if (state.evenFight === true) return EVEN_FIGHT_TEXT;
   const chaser = state.chase?.by;
   if (chaser === 'blue' || chaser === 'red') return `${NAMES[chaser]} wins`;
@@ -96,6 +97,11 @@ export function energyResultRows(state) {
   if (state.kill) {
     const victorName = state.kill.victor === 'blue' ? 'Blue' : 'Red';
     rows.push(text('combatResult', 'Combat Result', 'result', `${victorName} Kill (WEZ Gun at T+${state.kill.timeSec.toFixed(1)}s)`));
+  }
+  if (state.deckLoss) {
+    const { loser, timeSec } = state.deckLoss;
+    const who = loser === 'both' ? 'Both jets' : NAMES[loser];
+    rows.push(text('deckResult', 'Combat Result', 'result', `${who} below the hard deck at T+${timeSec.toFixed(1)}s: fight lost, climbing out`));
   }
   if (state.collision) {
     rows.push(text('collisionResult', 'Combat Result', 'result', `Mid-Air Collision at T+${state.collision.timeSec.toFixed(1)}s (Impact ${Math.round(state.collision.impactKias)} KIAS, Closure ${state.collision.closingRateKt} kt)`));

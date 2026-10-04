@@ -115,7 +115,7 @@ function energyDefaults() {
     // The first view (with Energy on): start altitude and merge speed for each aircraft.
     blueAltFt: e.blueAltFt, redAltFt: e.redAltFt, blueKias: e.blueKias, redKias: e.redKias,
     // More energy settings.
-    blueMove: 'tactical', redMove: 'tactical', mptKias: e.mptKias, hardDeckFt: e.hardDeckFt,
+    blueMove: 'auto', redMove: 'auto', mptKias: e.mptKias, hardDeckFt: e.hardDeckFt,
     pursuit: e.pursuit, chaseAfterHeadOn: e.chaseAfterHeadOn,
     collisionDetection: e.collisionDetection, collisionAvoidance: e.collisionAvoidance,
     // Model settings for checking (numbers no manual gives).
@@ -176,8 +176,9 @@ export const ALLOWED = Object.freeze({
   view: [...VIEW_ALLOWED],
   paint: PAINT_OPTIONS.map((option) => option.value),
   // Energy mode (SPEC-turn-fight, "More energy settings")
-  blueMove: [...ENERGY_MOVES],
-  redMove: [...ENERGY_MOVES],
+  // 'tactical' is the old name of Smart: the engine still takes it, a saved one falls back to Smart ('auto').
+  blueMove: ENERGY_MOVES.filter((m) => m !== 'tactical'),
+  redMove: ENERGY_MOVES.filter((m) => m !== 'tactical'),
   pursuit: [...PURSUITS],
   // R28, Start geometry
   startAtaSide: ['left', 'right'],

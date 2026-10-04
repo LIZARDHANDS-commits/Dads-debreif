@@ -11,7 +11,7 @@ import { newAircraft, readOut, stepAircraft } from './aircraft.js';
 import { startMove } from './moves/index.js';
 import { aimPoint } from './moves/pursuit.js';
 import { chooseFirstMove, heldPick, startChases } from './pilot.js';
-import { markFirstNose, markChase, checkWezGun, checkMidAirCollision } from './judge.js';
+import { markFirstNose, markChase, checkWezGun, checkMidAirCollision, markDeckLoss } from './judge.js';
 
 /**
  * Where the start puts both aircraft (SPEC-turn-fight, "Start geometry"):
@@ -60,7 +60,7 @@ export function createEnergyFight(setup = {}) {
   const state = {
     setup: s,
     timeSec: 0, carrySec: 0, merged: false, mergeSec: null, stopped: false,
-    firstNose: null, chase: null, evenFight: false, plan: {},
+    firstNose: null, chase: null, deckLoss: null, evenFight: false, plan: {},
     blue, red,
     rangeFt: 0, ataBlueDeg: 0, ataRedDeg: 0, aaDeg: 0, headingCrossDeg: 0,
   };
@@ -192,6 +192,7 @@ export function stepOnce(state) {
   }
   readPair(state);
   if (state.merged) {
+    markDeckLoss(state);
     markFirstNose(state);
     if (state.setup.pursuit !== 'none') markChase(state, startChases(state));
   }
