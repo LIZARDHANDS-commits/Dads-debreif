@@ -39,7 +39,10 @@
 //    plan: 3 G at the entry (Table 14.1), reduced over the top to 2.25 G (para 19: "the back pressure must be reduced";
 //    2.25 is an estimate that brings the exit back to about 230 KIAS, Fig 14.1 "adjust rate as required for 230 KIAS
 //    exit"), back up to 3 G coming down. Pitch over 60° is flagged (AFM7 brief p.17, Exercise 4), never held.
-// The standard sequence follows in this piece (spec 10.3).
+//  - The standard sequence (V2.19; SMM 16.17 para 42, as written there): a level turn, a loop, two wingovers and a
+//    barrel roll, flown one after the other. The level turn is at the chosen bank (60/2 by default, AFM7 brief p.17
+//    Exercise 1) for 180° (an estimate: the SMM gives no amount; EFIG p.76's fighting wing turns are about 180°), then
+//    each manoeuvre's own speed set-up leads into the next.
 import { stepPointMass, gAndBankForLift } from '../../../core/point-mass.js';
 import { easeValue, dampedClimbG } from '../../../core/flight-math.js';
 import { t6aExcessFn, tasToIasKt, shakerG } from '../../../core/t6-performance.js';
@@ -111,6 +114,7 @@ export const FLUID_MOVES = Object.freeze({
     speeds: { entryKias: 230, exitKias: 230, source: 'SMM Table 14.1, 14.8 para 19, Fig 14.1' },
     maxPitch: { deg: 60, source: 'AFM7 brief p.17, Exercise 4' },
   },
+  sequence: { label: 'Standard sequence', sided: true, interruptible: false, source: 'SMM 16.17 para 42' },
   terminate: { label: 'Terminate', sided: false, interruptible: false, source: 'SMM 16.17 paras 45-46, 48; AFM7 brief p.17' },
 });
 
@@ -182,7 +186,7 @@ export function stepLead(st, ask) {
     const target = s.bank + wrapPi((ask.bank - s.bank) * DEG) / DEG; // the near way round
     const r = easeValue(s.bank, s.rollRate, target, half, ROLL);
     const pm = stepPointMass(s.pm, { g: g.bankDeg, bankRad: r.bankDeg * DEG }, half, excess);
-    s = finish({ pm, bank: r.bankDeg, rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
+    s = finish({ pm, bank: wrapDeg(r.bankDeg), rollRate: r.rollRateDps, g: g.bankDeg, gRate: g.rollRateDps, blockFt: s.blockFt });
   }
   return s;
 }
@@ -562,6 +566,19 @@ function barrelPath(h0, dir) {
     const phi = 2 * Math.PI * u;
     return noseAt(h0 + dir * off * (1 - Math.cos(phi)), A * Math.sin(phi));
   }, 1));
+}
+
+/**
+ * The standard sequence's parts (SMM 16.17 para 42), in its order: a level turn dir (+1 left) at bankDeg for 180°
+ * (an estimate), a loop, two wingovers rolling dir first, a barrel roll dir.
+ */
+export function sequenceParts(dir, bankDeg) {
+  return [
+    levelTurn(dir, bankDeg, { turnDeg: 180, label: `Level turn ${dir > 0 ? 'left' : 'right'}, ${Math.round(bankDeg)}°, 180°` }),
+    loop(),
+    wingovers(dir),
+    barrelRoll(dir),
+  ];
 }
 
 /** Planned nose paths, kept by their numbers (a few at a time). */

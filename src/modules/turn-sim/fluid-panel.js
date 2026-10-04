@@ -1,7 +1,7 @@
 // The fluid manoeuvring group (spec section 10.3, TS-57): Lead's buttons while fluid manoeuvring runs, its settings
 // behind "Fluid settings", and the card's fluid lines (what Lead flies, #2's pursuit, range, aspect, HCA, closure, the
 // cone state and the flags). The baseline Patrick asked for (21:44Z): level turns with a bank choice, wings level, a
-// reversal and Terminate; from V2.18 climb and descend, and the loop; from V2.19 the wingovers and the barrel roll. Everything is built with h(), so all text goes in as text. Flags are never walls.
+// reversal and Terminate; from V2.18 climb and descend, and the loop; from V2.19 the wingovers, the barrel roll and the SMM's standard sequence. Everything is built with h(), so all text goes in as text. Flags are never walls.
 import { h, clear } from '../../ui-kit/dom.js';
 import { FLUID, LEVEL_BANKS, PURSUIT_WORDS, checkFluidRange } from './live/fluid.js';
 
@@ -18,6 +18,8 @@ export const FLUID_BUTTONS = Object.freeze([
   { key: 'wingover', dir: -1, label: 'Wingovers R' },
   { key: 'barrelRoll', dir: 1, label: 'Barrel roll L' },
   { key: 'barrelRoll', dir: -1, label: 'Barrel roll R' },
+  { key: 'sequence', dir: 1, label: 'Standard sequence L' },
+  { key: 'sequence', dir: -1, label: 'Standard sequence R' },
   { key: 'terminate', dir: 1, label: 'Terminate' },
 ]);
 /** How #2 is flown: Planned (scripted, the default) or Live (his own physics, a later piece). */

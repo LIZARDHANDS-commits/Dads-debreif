@@ -13,7 +13,7 @@ import { shakerG } from '../../../core/t6-performance.js';
 import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
-import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll } from './fluid-lead.js';
+import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop, wingovers, barrelRoll, sequenceParts } from './fluid-lead.js';
 import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
@@ -129,6 +129,8 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       if (queue.length) {
         ctl = queue[0];
         queue = queue.slice(1);
+        // The next part of the standard sequence: its own name on the card, in the same group (a press waits for all).
+        if (man.group !== undefined) man = { id: manId++, key: ctl.key, label: `${FLUID_MOVES.sequence.label}: ${ctl.label}`, group: man.group };
       } else if (ctl.key === 'terminate' || ctl.key === 'steady') {
         end = ctl.key === 'terminate';
         ctl = steady();
@@ -188,6 +190,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       case 'loop': return [loop()];
       case 'wingover': return [wingovers(dir)];
       case 'barrelRoll': return [barrelRoll(dir)];
+      case 'sequence': return sequenceParts(dir, bank);
       case 'reversal':
         if (Math.abs(tsBank) < 10) return { reason: 'Reversal needs a turn to reverse: press a level turn first.' };
         return [reversal(tsBank, Math.max(bank, Math.abs(tsBank) > 5 ? Math.min(Math.abs(tsBank), LEAD.levelBanks.steep) : bank))];
@@ -220,21 +223,24 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       const now = E(kNow);
       if (ended !== null || now.man.key === 'terminate' || entries.get(kMax).man.key === 'terminate') return { refused: 'Terminate is being flown; fluid manoeuvring is ending.' };
       const curMan = now.man;
-      const interruptible = (curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false)) && now.ctl.interruptible !== false;
+      const interruptible = (curMan.key === 'hold' || (FLUID_MOVES[curMan.key]?.interruptible ?? false)) && now.ctl.interruptible !== false && curMan.group === undefined;
       // Started now, or once the manoeuvre being flown has finished (its last step); the controllers are worked out from
       // where Lead will be then.
       let j = kNow;
-      if (!interruptible) while (j - kNow < WAIT_LIMIT_STEPS && E(j + 1).man.id === curMan.id) j++;
+      const group = (m) => m.group ?? m.id;
+      if (!interruptible) while (j - kNow < WAIT_LIMIT_STEPS && group(E(j + 1).man) === group(curMan)) j++;
       const ctls = controllersFor(key, dir, E(j));
       if (ctls.reason) return { refused: ctls.reason };
-      const man = { id: manId++, key, label: label(key, dir) };
       const [first, ...rest] = ctls;
+      const id = manId++;
+      // The standard sequence is flown as its parts, each named on the card, one group (SMM 16.17 para 42).
+      const man = key === 'sequence' ? { id, key: first.key, label: `${FLUID_MOVES.sequence.label}: ${first.label}`, group: id } : { id, key, label: label(key, dir) };
       replanFrom(j, first, rest, man);
       if (interruptible) {
         queued = null;
         return 'started';
       }
-      queued = { key, label: man.label, startK: j };
+      queued = { key, label: key === 'sequence' ? label(key, dir) : man.label, startK: j };
       return 'queued';
     },
     /** Flies one step: applies the planned poses to the two aircraft. */

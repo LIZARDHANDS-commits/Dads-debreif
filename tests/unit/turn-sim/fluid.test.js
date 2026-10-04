@@ -345,3 +345,26 @@ test('the barrel roll: 45° up, level inverted 90° off the line, 45° down, bac
   assertBackInTheCone(f, 'after the barrel roll');
   assert.deepEqual(failures.slice(0, 5), []);
 });
+
+test('the standard sequence flies a level turn, a loop, two wingovers and a barrel roll in that order; #2 ends back in the cone', () => {
+  // SMM 16.17 para 42: "a level turn, a loop, two wingovers ... and a barrel roll". Four minutes is generous for the
+  // four manoeuvres and their speed set-ups (about two minutes in all).
+  const f = inFightingWing();
+  f.change('fluid');
+  const failures = [];
+  const watch = alwaysTrue(failures);
+  fly(f, 30, watch);
+  f.pressFluid('wingsLevel');
+  fly(f, 5, watch);
+  assert.equal(f.pressFluid('sequence', 1), 'started');
+  const order = [];
+  fly(f, 240, (ff, before) => {
+    watch(ff, before);
+    const key = ff.state.fluid.session.now().key;
+    if (order[order.length - 1] !== key) order.push(key);
+  });
+  assert.deepEqual(order, ['levelTurn', 'loop', 'wingover', 'barrelRoll', 'hold']);
+  assert.ok(Math.abs(f.state.aircraft[0].bankDeg) < TOLERANCES.ANGLE_DEG, 'Lead wings level at the end');
+  assertBackInTheCone(f, 'after the sequence');
+  assert.deepEqual(failures.slice(0, 5), []);
+});
