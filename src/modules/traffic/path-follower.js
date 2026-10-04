@@ -15,7 +15,7 @@ import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
-import { iasToTasKt, pitchDegFromClimb } from '../../core/t6-performance.js';
+import { iasToTasKt, pitchDegFromClimb, glideDragPerWeight, glideRatio } from '../../core/t6-performance.js';
 import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
 
@@ -44,19 +44,45 @@ const JOIN_MAX_SEC = 15;
  * glide and its circle; Patrick's card Q3): out to `peakFt` over `outSec`, back over `backSec`, each a
  * smooth step (no jump in place, track or turn rate at either end). Sets `a.sideStep`; the follower adds
  * it to the place on the path. `dirDeg` is the compass direction to step toward.
+ * While `a.sideStep.glideConfig` is set (a glide configuration name, set each step by the PFL), the step
+ * costs height, as it would a gliding pilot (Patrick, "charge and re-plan"; TR-55): the extra drag of the
+ * extra G it pulls, and the extra ground it covers at the glide ratio. The loss is `a.sideStep.lossFt`.
  */
 export function startSideStep(a, dirDeg, peakFt, outSec, backSec) {
   const r = dirDeg * Math.PI / 180;
   a.sideStep = { ux: Math.sin(r), uy: Math.cos(r), peakFt, outSec, backSec, t: 0 };
 }
 
-/** Offset (ft) and its rate (ft/s) along the side step at its time t: a quintic smooth step out, then back. */
+/** Offset (ft), its rate (ft/s) and its acceleration (ft/s²) along the side step at its time t: a quintic smooth step out, then back. */
 function sideStepAt(st) {
   const out = st.t < st.outSec;
   const T = out ? st.outSec : st.backSec;
   const u = Math.min(1, (out ? st.t : st.t - st.outSec) / T);
   const f = 10 * u ** 3 - 15 * u ** 4 + 6 * u ** 5, df = (30 * u ** 2 - 60 * u ** 3 + 30 * u ** 4) / T;
-  return out ? { d: st.peakFt * f, rate: st.peakFt * df } : { d: st.peakFt * (1 - f), rate: -st.peakFt * df };
+  const ddf = (60 * u - 180 * u ** 2 + 120 * u ** 3) / (T * T);
+  return out ? { d: st.peakFt * f, rate: st.peakFt * df, accel: st.peakFt * ddf }
+    : { d: st.peakFt * (1 - f), rate: -st.peakFt * df, accel: -st.peakFt * ddf };
+}
+
+/**
+ * Height a gliding side step costs over one step `dt` (ft): the drag of the G it pulls on top of the path's own
+ * turn, less the drag the path's turn already costs, through the air flown; plus the extra ground it covers at
+ * the glide ratio. Standard aerodynamics on core's glide drag (glideDragPerWeight, glideRatio).
+ */
+function sideStepLossFt(st, step, route, distFt, env, options, kias, altFt, dt) {
+  const cfg = st.glideConfig;
+  const path = pathGroundVelocity(route, distFt, env, options);
+  const gs = Math.max(1, Math.hypot(path.x, path.y));
+  const turn = pathTurnAccel(route, distFt, gs, options); // right positive
+  // Right of the track, compass x east and y north.
+  const nx = path.y / gs, ny = -path.x / gs;
+  const ax = nx * turn + st.ux * step.accel, ay = ny * turn + st.uy * step.accel;
+  const gPlanned = Math.hypot(1, turn / G_FTPS2);
+  const gWithStep = Math.hypot(1, Math.hypot(ax, ay) / G_FTPS2);
+  const airFt = ktToFtps(iasToTasKt(kias, altFt)) * dt;
+  const dragFt = (glideDragPerWeight(cfg, kias, altFt, gWithStep) - glideDragPerWeight(cfg, kias, altFt, gPlanned)) * airFt;
+  const extraGroundFt = (Math.hypot(path.x + st.ux * step.rate, path.y + st.uy * step.rate) - gs) * dt;
+  return dragFt + extraGroundFt / glideRatio(cfg);
 }
 
 /** The path's own sideways (turning) acceleration at `distFt`, ft/s², right positive, at ground speed `gsFtps`. */
@@ -213,16 +239,21 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     a.y += j.y;
     if (u >= 1) delete a.joinOffset;
   }
+  let sideStepLoss = 0;
   if (a.sideStep) {
     const st = a.sideStep;
     st.t += dt;
-    const { d, rate } = sideStepAt(st);
-    a.x += st.ux * d;
-    a.y += st.uy * d;
-    joinRate = { x: (joinRate?.x ?? 0) + st.ux * rate, y: (joinRate?.y ?? 0) + st.uy * rate };
+    const step = sideStepAt(st);
+    a.x += st.ux * step.d;
+    a.y += st.uy * step.d;
+    joinRate = { x: (joinRate?.x ?? 0) + st.ux * step.rate, y: (joinRate?.y ?? 0) + st.uy * step.rate };
+    if (st.glideConfig) {
+      st.lossFt = (st.lossFt ?? 0) + sideStepLossFt(st, step, route, a.distFt, env, options, p.kt ?? a.iasKt ?? 125, p.alt ?? a.alt ?? 3500, dt);
+    }
+    sideStepLoss = st.lossFt ?? 0;
     if (st.t >= st.outSec + st.backSec) delete a.sideStep;
   }
-  a.alt = p.alt ?? a.fallbackAlt ?? a.alt ?? 3500;
+  a.alt = (p.alt ?? a.fallbackAlt ?? a.alt ?? 3500) - sideStepLoss;
   a.iasKt = p.kt ?? a.fallbackKt ?? a.iasKt ?? 140;
   if (joinBlend) {
     a.alt += joinBlend.alt;

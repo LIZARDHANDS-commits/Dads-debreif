@@ -32,7 +32,7 @@ import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOn
 import { tickAircraft } from './tick-aircraft.js';
 import { startJoin, startSideStep } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
-import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
+import { startPflFlight, resumePflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 import { buildGoAround } from './circuit.js';
 import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 import { buildClosedPattern } from './closed-pattern.js';
@@ -598,7 +598,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (!a.active || t < a.startsAt) continue;
       const route = routeOf(a);
       const beforeDist = a.distFt;
+      const sideStepping = Boolean(a.sideStep);
       tickAircraft(a, STEP_SEC, wind, route, opt);
+      // A PFL's bank away has ended, its height charged: re-plan the glide from where it really is (TR-55).
+      if (sideStepping && !a.sideStep && a.pflFlight && !a.pflDone) resumePflFlight(a, wind, setup.settings);
       if (a.pflDone) pflEnded(a);
       if (a.goAroundDone) goAroundEnded(a);
       if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.goAroundFlight && !a.highKeyFlight && !a.pflEndedThisStep) {
