@@ -20,7 +20,7 @@ import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { stepAircraft, calcInterceptHeading, calcCrossTrackError, CYMJ_DOWNWIND_HDG_DEG } from './flight-engine.js';
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
-import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs } from './route.js';
+import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs, routePath } from './route.js';
 import { stepBreakout } from './breakout.js';
 import { stepHighKey } from './high-key.js';
 import { PFL_AIRFIELD } from './pfl-solver.js';
@@ -243,8 +243,11 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
   a.targetAltFt = 3500;
   a.targetSpeedKt = 140;
 
-  // Compute wind-adjusted perch point
-  const perch = computeWindPerch(patRoute, windFromDeg, windKt, routeOptions) || { x: 7146, y: -10275 };
+  // The perch to aim at: on the built circuit (trueArcs), the circuit's own perch, where its downwind
+  // ends, so the aircraft meets the downwind it will join. Aiming at the older wind perch instead left
+  // it circling (Patrick, 4 Oct 09:14Z). Other routes keep the older wind perch.
+  const builtPerch = routeOptions?.trueArcs ? routePath(patRoute, routeOptions).points.find((p) => p.tag === 'perch') : null;
+  const perch = builtPerch || computeWindPerch(patRoute, windFromDeg, windKt, routeOptions) || { x: 7146, y: -10275 };
   const dx = perch.x - (a.x ?? 0);
   const dy = perch.y - (a.y ?? 0);
   const bearingToPerch = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
@@ -284,6 +287,25 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
   const altCaptured = Math.abs(alt - 3500) <= 100;
   const hdgAligned = Math.abs(deltaHdg) <= 20.0;
 
+  // Started too close to the perch to reach it (inside its own turn), it would circle it for ever
+  // (Patrick, 4 Oct 09:14Z). After a full turn at pattern height, join the circuit where it is nearest,
+  // closing the gap smoothly. PR 4 replaces this with aiming at the downwind line.
+  if (altCaptured && Number.isFinite(a._cpLastHdg)) a._cpTurnedDeg = (a._cpTurnedDeg ?? 0) + Math.abs(wrapDeg180((a.headingDeg ?? 0) - a._cpLastHdg));
+  a._cpLastHdg = a.headingDeg ?? 0;
+  if ((a._cpTurnedDeg ?? 0) > 360) {
+    a.mode = 'RAIL';
+    a.distFt = closestDistFt(patRoute, { x: a.x ?? 0, y: a.y ?? 0 }, routeOptions);
+    const joinPos = posOnRoute(patRoute, a.distFt, routeOptions);
+    a.joinOffset = { x: (a.x ?? joinPos.x) - joinPos.x, y: (a.y ?? joinPos.y) - joinPos.y };
+    if (joinPos.phase) a.phase = joinPos.phase;
+    a.command = null;
+    delete a._cpTurnedDeg;
+    delete a._cpLastHdg;
+    delete a._closedPhase;
+    delete a.desiredHeadingDeg;
+    return;
+  }
+
   if (wingsLevel && altCaptured && hdgAligned) {
     const segs = navSegs(patRoute, routeOptions);
     const dwSegs = segs.filter((s) => s.a.phase === 'downwind' || s.a.src === 10);
@@ -312,6 +334,8 @@ export function stepClosedPattern(a, route = null, env = null, stepDt = 0.05, ro
         a.joinOffset = { x: (a.x ?? capturePos.x) - capturePos.x, y: (a.y ?? capturePos.y) - capturePos.y };
         a.phase = 'downwind';
         a.command = null;
+        delete a._cpTurnedDeg;
+        delete a._cpLastHdg;
         delete a._activeCommand;
         delete a._closedPhase;
         delete a._closedTarget;

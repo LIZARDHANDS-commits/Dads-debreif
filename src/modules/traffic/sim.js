@@ -215,6 +215,43 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── One step ───────────────────────────────────────────────────────────────
 
+  /** The circuit's runway as the pattern draws it: threshold, upwind end and length. */
+  function circuitRunway() {
+    const pat = setup.routes.find((r) => r.id === 'PAT1');
+    const th = pat?.points?.[0], up = pat?.points?.[1];
+    if (!th || !up) return null;
+    return { th, up, len: Math.hypot(up.x - th.x, up.y - th.y) };
+  }
+
+  /**
+   * True while an aircraft is lined up with the runway (on final or over it, heading along it, within
+   * 2,000 ft of the centreline and 3 NM of the threshold) and short of the upwind end.
+   */
+  function beforeUpwindEnd(a) {
+    const rwy = circuitRunway();
+    if (!rwy) return false;
+    const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
+    const dx = (a.x ?? 0) - rwy.th.x, dy = (a.y ?? 0) - rwy.th.y;
+    const along = dx * ux + dy * uy, across = Math.abs(dx * uy - dy * ux);
+    const rwyTrack = (Math.atan2(ux, uy) * 180 / Math.PI + 360) % 360;
+    const off = Math.abs((((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack) % 360 + 540) % 360 - 180);
+    return across < 2000 && off < 60 && along > -3 * 6076 && along < rwy.len;
+  }
+
+  /** Starts the closed pattern's climbing turn from where the aircraft is. */
+  function startClosedPattern(a) {
+    a.pendingClosed = false;
+    a.command = 'closed_pattern';
+    a.landed = false;
+    a.active = true;
+    a.mode = 'PHYSICS';
+    delete a._blendStart;
+    delete a._blendTarget;
+    delete a._blendTimer;
+    a.phase = 'closed_pattern';
+    a._closedPhase = 1;
+  }
+
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
   function checkDecisions(a, oldDist, newDist) {
     const route = routeOf(a);
@@ -317,6 +354,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           handleRouteEnd(a, a.distFt - len);
         }
       }
+
+      // A closed pattern asked for short of the upwind end pulls up once past it (TR-R33).
+      if (a.active && a.pendingClosed && a.mode === 'RAIL' && !beforeUpwindEnd(a)) startClosedPattern(a);
 
       // Fallback Doctrine: continuous pattern training loop
       if (a.active && !a.pflRail && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
@@ -723,17 +763,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         a.phase = 'breakout';
         a.intent = 'overhead';
       } else if (action === 'closed_pattern') {
-        a.command = action;
-        a.landed = false;
-        a.active = true;
-        a.mode = 'PHYSICS';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        a.phase = 'closed_pattern';
         a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
         a.closedPatternPitchDeg = options?.pitchDeg ?? a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
-        a._closedPhase = 1;
+        // The pull-up starts at or after the upwind end of the runway (TR-R33, WFO art 402): an aircraft
+        // on final or on the runway touches and goes, and pulls up once past the upwind end.
+        if (a.mode === 'RAIL' && beforeUpwindEnd(a)) {
+          a.pendingClosed = true;
+          a.intent = 'touch_and_go';
+          a.landed = false;
+          a.active = true;
+        } else {
+          startClosedPattern(a);
+        }
       } else if (action === 'climb_high_key') {
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
         const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
