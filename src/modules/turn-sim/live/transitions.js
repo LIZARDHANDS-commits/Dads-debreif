@@ -164,7 +164,6 @@ export function judgeFormation(key, lead, wing, spacingFt = 6000) {
 
 // ---- flying: the temporary speed and recorded-bank handlers ---------------------------------
 
-const smootherstep = (u) => u * u * u * (10 - 15 * u + 6 * u * u);
 
 /** Sets the indicated airspeed and keeps the true airspeed in proportion (the height is held, so the ratio is constant). */
 function setKias(a, kias) {
@@ -183,31 +182,13 @@ function stepCommanded(a, targetBankDeg, t, profile) {
 }
 
 /**
- * TEMPORARY until the speed segment lands in flight.js (another thread is adding
- * `{ kind: 'speed', toKias, rateKtps }` to stepAircraft). Until then this wrapper flies the
- * segments the planner needs that flight.js does not know, and hands everything else to
- * stepAircraft unchanged:
- *   { kind: 'speed', toKias, rateKtps }       straight and level, a smootherstep from the speed now to
- *                                             toKias, taking |change| / rateKtps seconds (rateKtps is the
- *                                             average rate), acceleration zero at both ends.
+ * Flies one step of a plan that may hold the recorded-bank segment of design section 6, which
+ * flight.js does not know; everything else, the speed segment included, goes to stepAircraft:
  *   { kind: 'bankTrack', points: [[bankDeg, kias], …] }   replays what the planner's dry run commanded,
  *                                             one entry a step; kias may be null for "unchanged".
- * The bank-track segment is the recorded-bank segment of design section 6 and stays here.
  */
 export function flyStep(a, plan, t) {
   const seg = plan.segments[0];
-  if (seg?.kind === 'speed') {
-    if (seg.t0 === undefined) {
-      seg.t0 = t;
-      seg.fromKias = a.kias;
-      seg.durSec = Math.max(STEP_SEC, Math.abs(seg.toKias - a.kias) / seg.rateKtps);
-    }
-    const u = Math.min(1, (t + STEP_SEC - seg.t0) / seg.durSec);
-    setKias(a, u >= 1 - 1e-9 ? seg.toKias : seg.fromKias + (seg.toKias - seg.fromKias) * smootherstep(u));
-    stepAircraft(a, { segments: [], profile: plan.profile }, t);
-    if (u >= 1 - 1e-9) plan.segments.shift();
-    return;
-  }
   if (seg?.kind === 'bankTrack') {
     seg.i ??= 0;
     const [bank, kias] = seg.points[seg.i++];

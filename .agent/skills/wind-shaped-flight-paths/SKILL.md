@@ -146,15 +146,12 @@ In dynamic pattern climbs (such as Closed Patterns, Go-Arounds, or missed approa
 4. **Continuous Downwind Intercept:**
    The aircraft continues tracking straight downwind along that wind-killed heading, tangent-capturing the downwind rail or perch waypoint with zero spatial discontinuity ($< 15\text{ ft/frame}$).
 
-### Pillar 9: Kinematic Rejoin & Approach Rails for Inbound Alignments (Teardrop & Circuit Rails)
-When an aircraft is commanded to capture an inbound heading or fix (e.g. High Key 1/8 NM run-in on heading $298^\circ$ at 5,000 ft, or a circuit entry radial):
-1. **Opposite/Offset Heading Principle**: If the aircraft's current vector points away from or opposite to the inbound run-in direction (e.g. departing northwest on $298^\circ$ while the High Key run-in requires entering from the southeast on $298^\circ$), it cannot fly a straight line or reactive PID.
-2. **Strict Prohibition on Frame-by-Frame Cross-Track Mode Switches**: Never switch commanded headings between forward and reverse based on cross-track or along-track boundary lines (`alongTrack > 200` vs `<= 200`). This creates limit cycles, alternating bank commands, and endless circling.
-3. **Pre-Synthesize a Full Kinematic Rail**:
-   - **Climbing Turn Arc**: A coordinated climbing turn (35°–45° bank, 140 kt) with Pillar 8 climb arrest pitch decay over the final 300 ft to level off at target altitude (5,000 ft).
-   - **Wind-Drift Integrated Downwind Leg**: Flies parallel to the target line, carrying wind crab.
-   - **Base-to-Final Turn Arc**: A smooth continuous curve rolling out wings-level on the target inbound track at least 1/8 NM prior to the target fix.
-   - **Stabilized Straight Run-in**: Straight flight along the exact inbound track (e.g. 660 ft at 5,000 ft, decelerating 140 → 120 kt) transitioning seamlessly to the downstream rail.
+### Pillar 9: High Key from Anywhere: One Live Climbing Turn onto the Run-in
+When an aircraft is sent to High Key from wherever it is (Traffic spec 1a item 23, refactor PR 4):
+1. **Fly it once, from where the aircraft is.** A full-power climbing turn at 140 KIAS, banked at the closed-pattern setting (45°, 50° standard, or 60°), with the climb rate from excess thrust at the turn's real G (`buildHighKeyClimb` in `src/modules/traffic/high-key.js`). No pre-drawn High Key rail.
+2. **Aim at the run-in.** The turn rolls out wings level on the 1/8 NM run-in (760 ft) on the runway track that ends at High Key, 5,000 ft MSL, a few seconds early (5 s, an estimate) so the roll-out is finished in time. If the climb would arrive low, the join on the extended centreline moves further out and the turn is flown again (up to 8 tries).
+3. **The path follower flies it**, like every other path. Never switch commanded headings frame by frame on cross-track or along-track lines (`alongTrack > 200` vs `<= 200`): that makes limit cycles, alternating bank and endless circling.
+4. **No slide at any hand-over.** At High Key the PFL takes over from where the aircraft is, carrying its bank and roll rate. Every hand-over (High Key, go-around, breakout rejoin, touch-and-go, PFL end) joins the next path from the aircraft's own position, heading, bank and turn rate (`startJoin`). There is no timed 1 s slide onto the path and no snap. `tests/unit/traffic/smooth-transitions.test.js` checks this for every manoeuvre, step by step.
 
 ### Pillar 10: Open-Route vs Closed-Route Blending (The `lapOffset` Trap)
 In simulation engines where progress along flight rails is tracked by scalar route distance (`distFt`):

@@ -1,9 +1,10 @@
 // One aircraft flying a planned programme, one fixed step at a time (Turn Sim
 // first version, Patrick 4 Oct 2026: every aircraft flies a pre-planned path
 // that is kinematically accurate). A programme is a short list of segments
-// (hold straight, turn to a heading at a bank); the bank eases in and out at
-// the ruled roll rate, the heading changes at the coordinated-turn rate for
-// that bank and true airspeed, and the height follows a smooth profile.
+// (hold straight, turn to a heading at a bank, change speed); the bank eases in
+// and out at the ruled roll rate, the heading changes at the coordinated-turn
+// rate for that bank and true airspeed, the height follows a smooth profile and
+// the speed a smooth ramp.
 //
 // The same function flies the real aircraft and the dry runs the planner uses
 // to work out a manoeuvre, so the path drawn ahead is the path flown.
@@ -75,6 +76,15 @@ export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps) {
 }
 
 /**
+ * The smootherstep curve from 0 to 1 (u from 0 to 1) and its slope: no rate and no acceleration at
+ * either end. Every smooth change in the Turn Sim (height legs, speed changes) uses this one curve.
+ */
+export const smoother = (u) => u * u * u * (10 - 15 * u + 6 * u * u);
+export const smootherSlope = (u) => 30 * u * u * (1 - u) * (1 - u);
+/** The smootherstep's steepest slope is this many times its average one (at the middle). */
+export const SMOOTHER_PEAK = 1.875;
+
+/**
  * Height on a smooth profile: legs { t0, t1, fromFt, toFt } in formation seconds. Each leg
  * starts and ends with no climb and no vertical acceleration (the smootherstep curve), so
  * the pitch and the pitch rate carry straight on across every join.
@@ -86,12 +96,23 @@ export function heightAt(profile, t) {
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
-    return {
-      altAboveFt: leg.fromFt + rise * u * u * u * (10 - 15 * u + 6 * u * u),
-      climbFtps: (rise * 30 * u * u * (1 - u) * (1 - u)) / span,
-    };
+    return { altAboveFt: leg.fromFt + rise * smoother(u), climbFtps: (rise * smootherSlope(u)) / span };
   }
   return null;
+}
+
+/**
+ * The speed on a running speed change (plan.speedLeg: { t0, t1, fromKias, toKias, tasPerKias })
+ * at formation time t: { kias, tasFtps, rateKtps }. Indicated airspeed follows the smootherstep
+ * from fromKias to toKias, so the acceleration starts and ends at zero; true airspeed is indicated
+ * times the ratio at the block height when the change began (the Turn Sim flies its height changes
+ * at that one density too, F3/F4).
+ */
+export function speedAt(leg, t) {
+  const span = Math.max(leg.t1 - leg.t0, 1e-9);
+  const u = Math.min(1, Math.max(0, (t - leg.t0) / span));
+  const kias = u >= 1 ? leg.toKias : leg.fromKias + (leg.toKias - leg.fromKias) * smoother(u);
+  return { kias, tasFtps: kias * leg.tasPerKias, rateKtps: ((leg.toKias - leg.fromKias) * smootherSlope(u)) / span };
 }
 
 /**
@@ -102,6 +123,17 @@ export function heightAt(profile, t) {
  *   { kind: 'turn', toRad, dir, bankDeg, rollOut }
  *        turn the `dir` way (+1 left, -1 right) at bankDeg (magnitude) to heading toRad;
  *        rollOut false hands the bank straight on to the next segment (the cross turn's two stages).
+ *   { kind: 'speed', toKias, rateKtps, withNext }
+ *        change indicated airspeed from what it is now to toKias at an average of rateKtps
+ *        (knots per second; the smootherstep's steepest point is SMOOTHER_PEAK times that), so
+ *        the change takes |toKias - kias| / rateKtps seconds and the acceleration starts and ends
+ *        at zero; position and track carry straight on (each step moves at the step's mean speed).
+ *        The planner checks the rate against what the aircraft can do (errors.js: full-power excess
+ *        thrust to speed up). By default it is flown like a hold: straight and level until the new
+ *        speed is reached. withNext: true starts the change and hands straight on to the next
+ *        segment in the same step, so the speed changes during the turns and holds that follow
+ *        (the plan isn't done until the change is). A change that starts while another is still
+ *        running waits for it, so the acceleration never jumps.
  * With no segments left the aircraft flies straight and level.
  */
 export function stepAircraft(a, plan, t) {
@@ -109,7 +141,20 @@ export function stepAircraft(a, plan, t) {
   const seg = plan.segments[0];
   let targetBank = 0;
 
-  if (seg?.kind === 'hold') {
+  if (seg?.kind === 'speed') {
+    if (!plan.speedLeg && !seg.begun) {
+      const rate = Math.abs(seg.rateKtps);
+      const change = seg.toKias - a.kias;
+      const span = rate > 0 ? Math.abs(change) / rate : 0;
+      seg.begun = true;
+      if (Math.abs(change) > 1e-9 && span > 0) plan.speedLeg = { t0: t, t1: t + span, fromKias: a.kias, toKias: seg.toKias, tasPerKias: a.tasFtps / a.kias };
+    }
+    if (seg.begun && (seg.withNext || !plan.speedLeg)) {
+      plan.segments.shift();
+      return stepAircraft(a, plan, t); // the next segment flies this same step
+    }
+    // otherwise: straight and level while the speed changes (or while an earlier change finishes)
+  } else if (seg?.kind === 'hold') {
     if (t + dt / 2 >= seg.untilSec) plan.segments.shift();
   } else if (seg?.kind === 'turn') {
     const toGo = angleToGo(a.headingRad, seg.toRad, seg.dir);
@@ -141,10 +186,19 @@ export function stepAircraft(a, plan, t) {
   const bankBefore = a.bankDeg;
   const headingBefore = a.headingRad;
   const climbBefore = a.climbFtps;
+  const tasBefore = a.tasFtps;
+  if (plan.speedLeg) {
+    const sp = speedAt(plan.speedLeg, t + dt);
+    a.kias = sp.kias;
+    a.tasFtps = sp.tasFtps;
+    if (t + dt >= plan.speedLeg.t1 - 1e-9) plan.speedLeg = null;
+  }
+  // The step's mean true airspeed: the same number when the speed is constant, so nothing else changes.
+  const tas = (tasBefore + a.tasFtps) / 2;
   const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, ROLL);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
-  const turned = stepTurnRad(a.tasFtps, bankBefore, a.bankDeg);
+  const turned = stepTurnRad(tas, bankBefore, a.bankDeg);
   a.headingRad = wrapPi(headingBefore + turned);
   a.g = gFromBankDeg(a.bankDeg);
   a.turning = a.bankDeg !== 0 || plan.segments.length > 0;
@@ -156,10 +210,10 @@ export function stepAircraft(a, plan, t) {
   } else {
     a.climbFtps = 0;
   }
-  // Constant speed: the path is flown at the aircraft's true airspeed (Patrick, card 09:54Z), along the
-  // step's middle heading and with the step's mean climb, so the path has no lean either way.
+  // The path is flown at the aircraft's true airspeed (constant, Patrick card 09:54Z, except in a speed
+  // segment), along the step's middle heading and with the step's mean climb, so the path has no lean either way.
   const climb = (climbBefore + a.climbFtps) / 2;
-  const horiz = Math.sqrt(Math.max(0, a.tasFtps * a.tasFtps - climb * climb));
+  const horiz = Math.sqrt(Math.max(0, tas * tas - climb * climb));
   const middle = headingBefore + turned / 2;
   a.xFt += Math.cos(middle) * horiz * dt;
   a.yFt += Math.sin(middle) * horiz * dt;
@@ -176,7 +230,7 @@ function pitchAboveHorizonDeg(a) {
   return pitchDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
 }
 
-/** True when the aircraft has flown every segment and its wings are level. */
+/** True when the aircraft has flown every segment, its wings are level and no speed change is still running. */
 export function planDone(a, plan) {
-  return plan.segments.length === 0 && a.bankDeg === 0 && a.rollRateDps === 0;
+  return plan.segments.length === 0 && a.bankDeg === 0 && a.rollRateDps === 0 && !plan.speedLeg;
 }

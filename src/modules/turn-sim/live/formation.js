@@ -8,10 +8,10 @@
 // the first aircraft and the one the others are judged from.
 import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
-import { STEP_SEC, makeAircraft, planDone } from './flight.js';
-import { MANOEUVRES, planManoeuvre, relativeTo, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
+import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
 import { flyStep, dryRunT, planGoTo, classifyPair, judgeFormation } from './transitions.js';
-import { resolveErrors, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
+import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
 
 /**
@@ -103,7 +103,7 @@ export function judgePair(lead, wing, spacingFt, shape = 'abreast') {
 
 /**
  * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4),
- * and the err* training-error settings (errors.js, 2-ship only for now; rng replaces Math.random for the random error).
+ * and the err* training-error settings and fix* Fix tools (errors.js, 2-ship only for now; rng replaces Math.random for the random error).
  * Returns an object whose `state` is updated in place by step(), press() and reset().
  * @param {Record<string, any>} [options]
  */
@@ -189,7 +189,7 @@ export function createFormation(options = {}) {
     const plan = four
       ? planFour(state.aircraft, key, dir, state.tSec, { check45: opts.check45 !== false })
       : state.errors
-        ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot)
+        ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot, { tools: resolveFixTools(opts), blockFt: opts.blockFt })
         : planManoeuvre(state.aircraft, key, dir, state.tSec);
     if (plan.slotAfter) state.slot = plan.slotAfter; // the next press starts after this one ends
     state.plans = plan.plans;

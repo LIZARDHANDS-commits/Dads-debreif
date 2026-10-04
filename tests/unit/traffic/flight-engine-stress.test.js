@@ -468,7 +468,7 @@ test('STRESS 5.1: Normal flight roll rate never exceeds 45°/s across rapid bank
   );
 });
 
-test('STRESS 5.2: Tactical flight roll rate (breakout) allows up to 90°/s but never exceeds 90°/s', () => {
+test('STRESS 5.2: the breakout rolls no faster than every other manoeuvre, 45°/s (Traffic spec item 5)', () => {
   const navPlan = {
     waypoints: [
       { x: 0, y: 0, alt: 3500, kias: 140 },
@@ -503,16 +503,14 @@ test('STRESS 5.2: Tactical flight roll rate (breakout) allows up to 90°/s but n
 
   const peakTacticalRollRate = Math.max(...maxObservedRollRates);
 
-  // Must not exceed 90.0°/s (plus float epsilon)
+  // One roll rate for every manoeuvre, the breakout included (Traffic spec item 5: 45°/s, an estimate).
   assert.ok(
-    peakTacticalRollRate <= 90.0 + 1e-4,
-    `Tactical peak roll rate ${peakTacticalRollRate.toFixed(2)}°/s exceeds 90°/s limit!`
+    peakTacticalRollRate <= 45.0 + 1e-4,
+    `Breakout peak roll rate ${peakTacticalRollRate.toFixed(2)}°/s exceeds the 45°/s roll rate`
   );
-
-  // Must exceed normal limit (45°/s) to prove tactical roll rate is active
   assert.ok(
-    peakTacticalRollRate > 45.1,
-    `Tactical breakout roll rate ${peakTacticalRollRate.toFixed(2)}°/s should exceed 45°/s normal limit`
+    peakTacticalRollRate >= 44.9,
+    `Breakout roll rate should reach the 45°/s roll rate during the roll-in (reached ${peakTacticalRollRate.toFixed(2)}°/s)`
   );
 });
 

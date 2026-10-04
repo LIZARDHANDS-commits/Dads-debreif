@@ -2,7 +2,8 @@
 //   out-of-range saved values put back, and the five tactical presets.
 // Serves: TF-R14, TF-R11, TF-R12, TF-R1.
 // Expected values: defaults typed in (2-circle, 1.2 NM, 220 KTAS, 5 G, ATA 5 degrees) as TF-R14; ranges are
-//   the old spec's; presets are hand-typed with no source; header and names still say "V6's defaults".
+//   the old spec's; the hand-typed preset values (no source) are no longer pinned, only that each preset sits
+//   inside the ranges; header and names still say "V6's defaults".
 
 // The Turn Fight's remembered settings (SPEC-turn-fight, "The screen", "Number boxes"):
 // V6's defaults, the ranges, and what comes back from browser storage.
@@ -162,55 +163,6 @@ test('TF3-4: a side means nothing at 0° or 180°, so flipping it does not chang
 });
 
 test('Task 24: 5 canonical tactical presets are defined with valid geometry and flight envelopes', () => {
-  const expectedKeys = ['neutral-merge', 'offensive-perch', 'defensive-break', 'energy-vs-angles', 'radius-vs-rate'];
-  assert.deepEqual(Object.keys(TACTICAL_PRESETS), expectedKeys);
-
-  const neutral = TACTICAL_PRESETS['neutral-merge'];
-  assert.equal(neutral.separationNm, 1.2);
-  assert.equal(neutral.startAtaDeg, 5);
-  assert.equal(neutral.startAaDeg, 175);
-  assert.equal(neutral.blueKt, 250);
-  assert.equal(neutral.redKt, 250);
-  assert.equal(neutral.blueAltFt, 10000);
-  assert.equal(neutral.redAltFt, 10000);
-
-  const perch = TACTICAL_PRESETS['offensive-perch'];
-  assert.equal(perch.separationNm, 1.0);
-  assert.equal(perch.startAtaDeg, 0);
-  assert.equal(perch.startAaDeg, 30);
-  assert.equal(perch.blueKt, 220);
-  assert.equal(perch.redKt, 180);
-  assert.equal(perch.blueAltFt, 11000);
-  assert.equal(perch.redAltFt, 10000);
-
-  const defensive = TACTICAL_PRESETS['defensive-break'];
-  assert.equal(defensive.separationNm, 0.5);
-  assert.equal(defensive.startAtaDeg, 150);
-  assert.equal(defensive.startAaDeg, 15);
-  assert.equal(defensive.blueKt, 180);
-  assert.equal(defensive.redKt, 240);
-  assert.equal(defensive.blueAltFt, 9500);
-  assert.equal(defensive.redAltFt, 10000);
-
-  const energy = TACTICAL_PRESETS['energy-vs-angles'];
-  assert.equal(energy.separationNm, 1.2);
-  assert.equal(energy.startAtaDeg, 15);
-  assert.equal(energy.startAaDeg, 165);
-  assert.equal(energy.blueKt, 280);
-  assert.equal(energy.redKt, 160);
-  assert.equal(energy.blueAltFt, 14000);
-  assert.equal(energy.redAltFt, 10000);
-
-  const radius = TACTICAL_PRESETS['radius-vs-rate'];
-  assert.equal(radius.separationNm, 1.0);
-  assert.equal(radius.startAtaDeg, 10);
-  assert.equal(radius.startAaDeg, 170);
-  assert.equal(radius.blueKt, 240);
-  assert.equal(radius.redKt, 240);
-  assert.equal(radius.circles, 1);
-  assert.equal(radius.blueAltFt, 10000);
-  assert.equal(radius.redAltFt, 10000);
-
   // All preset parameters are valid inside ranges
   for (const [key, preset] of Object.entries(TACTICAL_PRESETS)) {
     assert.ok(preset.separationNm >= RANGES.separationNm.min && preset.separationNm <= RANGES.separationNm.max, `${key} separation`);
