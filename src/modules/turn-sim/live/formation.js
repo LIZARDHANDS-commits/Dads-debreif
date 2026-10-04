@@ -10,6 +10,7 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -21,6 +22,7 @@ export const LIVE_DEFAULTS = Object.freeze({
   kias: 220, // SMM 16.18 para 50
   blockFt: 8000, // estimate until Patrick gives the low block height
   headingDeg: 0, // Lead flies 000 at the start
+  ships: /** @type {2 | 4} */ (2), // 2-ship (the default) or 4-ship (Spread 4, live/four-ship.js)
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -97,7 +99,7 @@ export function judgePair(lead, wing, spacingFt, shape = 'abreast') {
 }
 
 /**
- * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg.
+ * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4).
  * Returns an object whose `state` is updated in place by step(), press() and reset().
  */
 export function createFormation(options = {}) {
@@ -128,10 +130,12 @@ export function createFormation(options = {}) {
       name: '#2',
     };
     state.tSec = 0;
-    state.aircraft = [lead, wing];
+    state.aircraft = opts.ships === 4
+      ? fourShipStart({ spacingFt: opts.spacingFt, wingSide: opts.wingSide, headingRad: h, kias: opts.kias, tasFtps: tas })
+      : [lead, wing];
     state.current = null;
     state.queued = null;
-    state.plans = { 1: { segments: [] }, 2: { segments: [] } };
+    state.plans = Object.fromEntries(state.aircraft.map((a) => [a.id, { segments: [] }]));
     state.planned = {};
     state.tracks = {};
     state.judged = null;
@@ -164,8 +168,8 @@ export function createFormation(options = {}) {
 
   function start(key, dir) {
     const m = MANOEUVRES[key];
-    const [lead, wing] = state.aircraft;
-    const plan = planManoeuvre([lead, wing], key, dir, state.tSec);
+    const four = state.aircraft.length > 2;
+    const plan = four ? planFour(state.aircraft, key, dir, state.tSec) : planManoeuvre(state.aircraft, key, dir, state.tSec);
     state.plans = plan.plans;
     state.planned = {};
     let endSec = state.tSec;
@@ -191,7 +195,7 @@ export function createFormation(options = {}) {
 
   function finish() {
     const [lead, wing] = state.aircraft;
-    state.judged = { label: state.current.label, ...judgePair(lead, wing, state.spacingFt, state.current.shape) };
+    state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
     state.current = null;
     state.planned = {};
     state.flown++;
@@ -222,6 +226,7 @@ export function createFormation(options = {}) {
      */
     press(key, dir = 1) {
       if (!MANOEUVRES[key]) throw new Error(`No manoeuvre called ${key}`);
+      if (state.aircraft.length > 2 && !FOUR_SHIP_KEYS.includes(key)) throw new Error(`${key} is not a four-ship manoeuvre`);
       if (!state.current) {
         start(key, dir);
         return 'started';

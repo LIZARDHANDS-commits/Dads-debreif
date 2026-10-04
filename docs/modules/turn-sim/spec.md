@@ -6,7 +6,7 @@ This file has two parts. The first is the spec for the **first version of live m
 
 ## 1. What it is
 
-A 2-ship in line abreast that flies along on its own. You press a manoeuvre button and the pair flies it the way the SMM draws it, then carries on in line abreast until the next press. The camera follows the pair and each aircraft's ground track stays drawn. This is the first slice of live mode (TS-R1). Plan mode, the 4-ship, errors and the rest of V6's features come later, one at a time, on the same flying core (section 6).
+A 2-ship in line abreast that flies along on its own. You press a manoeuvre button and the pair flies it the way the SMM draws it, then carries on in line abreast until the next press. The camera follows the pair and each aircraft's ground track stays drawn. This is the first slice of live mode (TS-R1). From V2.7 a Setup option turns the pair into a 4-ship (Spread 4, section 8); the default stays the 2-ship. Plan mode, errors and the rest of V6's features come later, one at a time, on the same flying core (section 6).
 
 ## 2. How the aircraft fly
 
@@ -40,7 +40,7 @@ Each button has a left and a right version unless noted. With #2 on Lead's right
 | Shackle (one button) | Both turn 45 toward each other at 70/3; the wingman passes 300 ft above Lead; both turn back together. | Original heading, sides swapped (an X) | paras 61-63, Fig 16.20 |
 | Cross turn (one button) | Both turn toward each other for the first 90° (F6b), cross with 300 ft vertical, then 70/3 to 180°. | Line abreast flying back the other way; each aircraft ends on the ground side the other started on, so #2 is still on the same hand of Lead | para 64, Fig 16.21 |
 
-Not in the first version (later, in this order unless Patrick reorders): G-warm, entry to line abreast, rejoins, other formations, 4-ship.
+Not in the first version (later, in this order unless Patrick reorders): G-warm, entry to line abreast, rejoins, other formations. The 4-ship has its own buttons and is in section 8 (V2.7).
 
 ## 4. The screen
 
@@ -48,7 +48,7 @@ Picture: `turn-sim-review/first-version/screen-mockup.png` in the project files.
 
 **On the screen**
 - Top bar: Play/Pause, Reset, playback speed (0.25× to 4×), time, 2D/3D, Layers.
-- Left: the manoeuvre buttons (section 3), then Setup with two boxes: Spacing (default 6,000 ft, the briefs' wide side; 4,000 to 6,000 is the SMM band) and "#2 on Lead's" Right or Left (default Right). Below them, one fixed line: "220 KIAS · 8,000 ft · 3 G turns (71° bank) · still air · roll 90°/s".
+- Left: the manoeuvre buttons (section 3), then Setup with three boxes: Formation (2-ship, the default, or 4-ship, section 8), Spacing (default 6,000 ft, the briefs' wide side; 4,000 to 6,000 is the SMM band) and "#2 on Lead's" Right or Left (default Right). Below them, one fixed line: "220 KIAS · 8,000 ft · 3 G turns (71° bank) · still air · roll 90°/s".
 - Centre: the picture. The camera follows the middle of the pair and eases its zoom to keep both in view with a turn circle's room each side (it stops zooming for you once you zoom yourself, until Reset). Ground tracks for the whole flight, a 1 NM ground grid, Lead's 3/9 line, and both aircraft's planned paths drawn dashed while a manoeuvre is flown.
 - Layers (closed menu): ground tracks (on), 3/9 line (on), planned path (on), turn circles (off), 3D paint.
 - Right, the Formation card: what is being flown and who goes first; spacing, sweep and height difference now; the last roll-out judged (on spacing, wide, tight, fore, aft, with the numbers), judged only after roll-out; each aircraft's KIAS, heading, bank and G.
@@ -72,11 +72,44 @@ Picture: `turn-sim-review/first-version/screen-mockup.png` in the project files.
 - Each manoeuvre is one small path-builder in `src/modules/turn-sim/live/manoeuvres.js`; a new button is a new builder.
 - The V6 feature list is on `future.md`.
 
-Code: `src/modules/turn-sim/live/flight.js` (one aircraft, one step), `live/manoeuvres.js` (the builders), `live/formation.js` (the pair, presses, tracks, judging), `index.js` (the mount), `layout.js` (the screen), `view.js` and `view3d.js` (the pictures). Shared math only from `src/core/` (`easeRoll`, `turnRateFromBankRadPerSec`, `gFromBankDeg`, `bankDegFromG`, `turnRadiusFromBankFt`, `pitchDegFromClimb`, `iasToTasKt`, `wrapPi`).
+Code: `src/modules/turn-sim/live/flight.js` (one aircraft, one step), `live/manoeuvres.js` (the builders), `live/formation.js` (the formation, presses, tracks, judging), `live/four-ship.js` and `live/four-ship-card.js` (the 4-ship, section 8), `index.js` (the mount), `layout.js` (the screen), `view.js` and `view3d.js` (the pictures). Shared math only from `src/core/` (`easeRoll`, `turnRateFromBankRadPerSec`, `gFromBankDeg`, `bankDegFromG`, `turnRadiusFromBankFt`, `pitchDegFromClimb`, `iasToTasKt`, `wrapPi`).
 
 ## 7. Checks (light, per the rule book)
 
-Pilot-recognisable end pictures only (`tests/unit/turn-sim/live.test.js`): each button, both directions and with #2 on either side, ends in the picture in section 3 (who is where, which way they face, spacing within ±100 ft of the start, heading within ±5°); bank never passes the manoeuvre's bank by more than half a degree and G stays at 3; the shackle and cross turn keep at least 300 ft vertical at the cross; every hand-over is smooth (F12: no jump in position, track, bank or pitch, roll rate within 90°/s, its build-up within 360°/s², pitch rate never stepping by more than 0.5°/s, about 0.1 G); a press while flying is queued. No time gates. CI on the pull request is the one check. Sign-off: Patrick flies every button in the real app from the default start.
+Pilot-recognisable end pictures only (`tests/unit/turn-sim/live.test.js`): each button, both directions and with #2 on either side, ends in the picture in section 3 (who is where, which way they face, spacing within ±100 ft of the start, heading within ±5°); bank never passes the manoeuvre's bank by more than half a degree and G stays at 3; the shackle and cross turn keep at least 300 ft vertical at the cross; every hand-over is smooth (F12: no jump in position, track, bank or pitch, roll rate within 90°/s, its build-up within 360°/s², pitch rate never stepping by more than 0.5°/s, about 0.1 G); a press while flying is queued. No time gates. CI on the pull request is the one check. Sign-off: Patrick flies every button in the real app from the default start. The 4-ship's checks are in `tests/unit/turn-sim/four-ship.test.js` (section 8).
+
+## 8. The 4-ship (Spread 4), from V2.7
+
+Patrick, 4 Oct 10:51Z: "an option to transition to a 4 ship and do all the four ship manoeuvres, same set up". Decision TS-50. Everything in sections 2 to 7 holds for the four (one flying core, the same roll, bank, speed and smooth hand-overs, the follow camera, ground tracks, planned paths, the Formation card, 3D); this section says only what is different.
+
+**The option.** Setup has a new first box, Formation: 2-ship (the default) or 4-ship. Choosing one starts again from t = 0 at that formation's default start. A mid-flight change from one to the other (the transition itself) is designed separately and is not built here.
+
+**The start (default).** Lead flying 000 at 220 KIAS; four aircraft side by side, one spacing between neighbours (default 6,000 ft, the wide side, AFM7 and AFM8 briefs p.15); paused at t = 0.
+
+| Item | What | Source |
+|---|---|---|
+| Line | Spread 4 is four-plane line abreast: #2 and #3 fly LAB off Lead, #4 flies LAB off #3. The whole line is three gaps (the SMM draws 12,000 to 18,000 ft) | SMM 16.42 paras 113, 116, Fig 16.33 |
+| Sides | #2 on Lead's right (the default): from behind, left to right, #4 #3 Lead #2 (the SMM's Spread 4 "West"). #2 on Lead's left: #2 Lead #3 #4 (the SMM's "East", the briefs' picture) | SMM Fig 16.33; AFM8 brief p.14; Patrick TS-44 |
+| Altitude stack | 300 ft steps, low to high 4, 3, 1, 2: #2 +300, Lead 0, #3 -300, #4 -600 against Lead, kept through every turn. Same on either side (**working answer**: the SMM says #2 sets the stack and #3 and #4 take the opposite block, and its example has #2 below) | AFM8 brief p.14-15; SMM Fig 16.33 |
+| Spacing box | The one Spacing box is the gap between every neighbour pair | SMM Fig 16.33 |
+
+**The buttons.** Delayed 90, Delayed 45, Check 20, In place 90 and Hook, each Left and Right with the same into or away words (from #2). The briefs list 90, hook and 45 (AFM8 brief p.13, p.17-18); the SMM approves in-place and check turns too (SMM 16.43 para 118). The shackle and the cross turn are not approved in Spread 4 and have no button. Each button's source is its 2-ship row in section 3 plus:
+
+| Button | How the four fly it | Ends | Source |
+|---|---|---|---|
+| Delayed 90 | The aircraft on the outside of the turn goes first, then each next one in towards the turn: #2, Lead, #3, #4 for a right turn and #4, #3, Lead, #2 for a left turn with #2 on Lead's left (the mirror with #2 on the right). Each waits spacing ÷ speed × cot 45° (14.3 s at 6,000 ft and 248 KTAS) after the one before, the 2-ship's exact-geometry wait (F6), so each rolls out abeam of the one before | Line abreast on the new heading, order reversed (sides swapped), one spacing between neighbours | AFM8 brief p.17; SMM Fig 16.34, 16.19 paras 52-54 |
+| Delayed 45 | #2 (the outside aircraft) turns 45 first. Every other aircraft in turn flies a 10° check turn toward the aircraft ahead of it in the order, then turns to the new heading, each waiting so that it rolls out abeam of the one before. **Working answer:** 10°, the low end of the brief's "10 to 15" | Line abreast on the new heading, sides swapped. The check's S-curve costs a little room, so the first aircraft to check rolls out a little tight of #2 (about 200 ft at 6,000 ft); the brief says fix spacing on roll-out | AFM8 brief p.18; SMM Fig 16.34 |
+| Check 20 | All four roll in together, as the 2-ship | The same line on the new heading, the line between neighbours turned 20° | SMM 16.19 para 58, 16.43 para 118 |
+| In place 90 | All four roll in together, as the 2-ship | A column of four in trail, one spacing between each, judged in trail | SMM 16.19 para 59 |
+| Hook | All four turn 180 together at 70/3. No G change on spacing, as TS-48 | Line abreast flying back the other way, same gaps | AFM8 brief p.18; SMM 16.45 para 121 |
+
+A delayed turn pressed when the four are not abreast (after a check or an in-place turn) is flown without the check turn and still rolls each aircraft out abeam of the one before it in the order (the earliest to turn goes first).
+
+**The screen.** Only the buttons the formation has show (the shackle and cross turn are hidden in the 4-ship), and a second fixed line under Setup gives the stack. The camera follows the middle of all four, zooming to keep the four in view. The Formation card has a line for each wingman against the aircraft it flies off (#2 and #3 off Lead, #4 off #3), the heights above Lead, and the last roll-out judged for each wingman in words and numbers, by the 2-ship's rule (ON SPACING, TIGHT, WIDE, FORE, AFT; IN TRAIL after an in-place turn). 3D shows all four on their stack.
+
+**When things go wrong.** The shackle and cross turn are refused in the 4-ship (a press throws; the screen has no button). A Spacing outside the SMM band is flown and flagged, as in section 5. Lead, #2, #3 and #4 are always the same ids, so the card, the colours (white with an outline for #4) and the tracks match the 2-ship.
+
+**Checks (light).** `tests/unit/turn-sim/four-ship.test.js`: the start picture and stack; the end picture of every button, both ways, with #2 on either side; who turns first, and the wait between them; the delayed 45's check turn; bank and G limits for all four; no two aircraft within 300 ft vertically and horizontally of each other (SMM 16.13 para 31) and the stack held; every hand-over smooth for all four; a press while flying queued. No time gates.
 
 ---
 

@@ -63,7 +63,9 @@ The three lists below are kept from the review's brief as references. Nothing in
 
 ## Step 4. Next, one at a time on the same core
 
-- [ ] In this order unless Patrick reorders: G-warm, entry to line abreast, rejoins (turning rejoin first, then fighting wing and fluid manoeuvring, TS-Q20), other formations, the 4-ship (TS-44's 4312 order), then the V6 features on `future.md`. Each gets its own short spec and Patrick's yes before it is built; the four-ship G-warm picture is checked with him first.
+- [x] The 4-ship as a Setup option (V2.7, `spec.md` section 8, TS-50), asked for by Patrick 4 Oct 10:51Z: Spread 4 line abreast with the brief's altitude stack, the five buttons the briefs and the SMM approve (delayed 90, delayed 45 with the check turn, check, in place, hook), the same flying, camera, tracks, card and 3D for four. Checks in `tests/unit/turn-sim/four-ship.test.js`. Switching 2-ship and 4-ship restarts from the default start; the mid-flight transition is designed elsewhere and comes later.
+- [ ] Patrick flies every 4-ship button in the real app (the "4-ship" checklist in `testing.md`).
+- [ ] In this order unless Patrick reorders: G-warm, entry to line abreast, rejoins (turning rejoin first, then fighting wing and fluid manoeuvring, TS-Q20), other formations (the 4-ship's other order, 2134, and the offset box), then the V6 features on `future.md`. Each gets its own short spec and Patrick's yes before it is built; the four-ship G-warm picture is checked with him first.
 - [ ] The error-practice layer (TS-R8), with questions D and E.
 
 ## Step 5. Sign-off

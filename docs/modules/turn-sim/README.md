@@ -1,6 +1,6 @@
 # Turn Sim
 
-This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. Start here, then read only the file you need.
+This folder is the formation turn sim. From V2.6 it shows the first version of live mode: a 2-ship in line abreast that flies along, with a button for each SMM line abreast manoeuvre. From V2.7 a Setup option makes it a 4-ship (Spread 4, `spec.md` section 8). Start here, then read only the file you need.
 
 ## Where it stands
 
@@ -27,7 +27,7 @@ Each has a working answer that the tool uses until it is settled.
 
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
-- **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words).
+- **Fly the first version** from the default start, every button both ways (`testing.md`, "First version" checklist, a draft for Patrick's own words), and the **4-ship** (V2.7; `testing.md`, "4-ship" checklist). The 4-ship's working answers to confirm (TS-50): the delayed 45's check turn is 10°, the altitude stack is the brief's on either side, and the check leaves the first aircraft to check about 200 ft tight.
 - **Retire the plan-mode code and its tests?** (`plan.md` Step 3).
 - **The low block height** for the IAS-to-TAS conversion (8,000 ft is an estimate, TS-38), and whether the wingman passes above (the working answer) or below in the crossing turns (TS-42).
 - **The hook's G change** at the 90° point is not flown when on speed and spacing (TS-48); confirm.
