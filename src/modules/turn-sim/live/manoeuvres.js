@@ -136,7 +136,7 @@ function together(pair, m, dir) {
 }
 
 /** The wingman's height for a crossing turn: up (or down) by the miss before the cross, back to Lead's height after. */
-function missProfile(t0, crossSec, endSec, sign = 1) {
+export function missProfile(t0, crossSec, endSec, sign = 1) {
   const up = Math.max(crossSec - 1, t0 + 2);
   const down = Math.min(crossSec + 1, endSec - 2);
   return [

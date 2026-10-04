@@ -10,6 +10,7 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
+import { resolveErrors, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
 
 /**
@@ -99,10 +100,13 @@ export function judgePair(lead, wing, spacingFt, shape = 'abreast') {
 }
 
 /**
- * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4).
+ * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4),
+ * and the err* training-error settings (errors.js, 2-ship only for now; rng replaces Math.random for the random error).
  * Returns an object whose `state` is updated in place by step(), press() and reset().
+ * @param {Record<string, any>} [options]
  */
 export function createFormation(options = {}) {
+  /** @type {Record<string, any>} */
   let opts = { ...LIVE_DEFAULTS, ...options };
   const state = {
     tSec: 0,
@@ -113,6 +117,9 @@ export function createFormation(options = {}) {
     planned: {}, // id -> [[t, x, y, alt], …], each aircraft's path for the manoeuvre being flown
     tracks: {}, // id -> [[t, x, y, alt], …], the whole flight
     judged: null, // the last roll-out's judgement, with the manoeuvre it followed
+    errors: null, // the training error set for #2, or null (errors.js)
+    errorOutcome: null, // how the last manoeuvre went with it: carried or fixed
+    slot: { fwd: 0, left: 0 }, // where #2 should be in Lead's frame (the SMM picture); the errors' reference
     spacingFt: opts.spacingFt,
     flown: 0, // manoeuvres finished since the start
   };
@@ -129,6 +136,10 @@ export function createFormation(options = {}) {
       ref: 1,
       name: '#2',
     };
+    state.slot = { fwd: 0, left: side * opts.spacingFt };
+    state.errors = opts.ships === 4 ? null : resolveErrors(opts, opts.rng); // training errors are 2-ship only for now
+    state.errorOutcome = null;
+    if (state.errors) applyStartErrors(lead, wing, state.errors, opts.spacingFt);
     state.tSec = 0;
     state.aircraft = opts.ships === 4
       ? fourShipStart({ spacingFt: opts.spacingFt, wingSide: opts.wingSide, headingRad: h, kias: opts.kias, tasFtps: tas })
@@ -169,7 +180,12 @@ export function createFormation(options = {}) {
   function start(key, dir) {
     const m = MANOEUVRES[key];
     const four = state.aircraft.length > 2;
-    const plan = four ? planFour(state.aircraft, key, dir, state.tSec) : planManoeuvre(state.aircraft, key, dir, state.tSec);
+    const plan = four
+      ? planFour(state.aircraft, key, dir, state.tSec)
+      : state.errors
+        ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot)
+        : planManoeuvre(state.aircraft, key, dir, state.tSec);
+    if (plan.slotAfter) state.slot = plan.slotAfter; // the next press starts after this one ends
     state.plans = plan.plans;
     state.planned = {};
     let endSec = state.tSec;
@@ -189,13 +205,16 @@ export function createFormation(options = {}) {
       shape: m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
       startSec: state.tSec,
       endSec,
+      errorRun: plan.errorRun ?? null,
     };
     state.judged = null;
+    state.errorOutcome = null;
   }
 
   function finish() {
     const [lead, wing] = state.aircraft;
     state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
+    if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
     state.current = null;
     state.planned = {};
     state.flown++;
