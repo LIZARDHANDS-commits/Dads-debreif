@@ -31,6 +31,9 @@ const ct102bProfile = Object.freeze({
 });
 
 /** Standard aircraft type profiles and circuit speeds (KIAS). */
+/** Real length of a T-6 nose to tail, feet (33 ft 4 in; the value the 3D view has used, not yet cited to a manual page). The 2D and 3D views draw aircraft no smaller than this. */
+export const T6_LENGTH_FT = 33.4;
+
 export const AIRCRAFT_TYPES = Object.freeze({
   'CT-156': Object.freeze({
     id: 'CT-156',

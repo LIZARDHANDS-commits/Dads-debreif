@@ -28,6 +28,7 @@ import { windVectorFtps } from '../../core/wind.js';
 import { T6A_GLIDE } from '../../core/t6-performance.js';
 import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
+import { T6_LENGTH_FT } from './types.js';
 
 export const MAP_MIN_SPAN_FT = 300;
 export const MAP_MAX_SPAN_FT = 200_000;
@@ -236,6 +237,15 @@ export function turnedShape(shape, headingDeg, sizePx) {
 }
 
 export const aircraftSymbol = (headingDeg, sizePx) => turnedShape(AIRCRAFT_SHAPE, headingDeg, sizePx);
+
+/** The smallest an aircraft symbol is drawn, in pixels (its size parameter). */
+export const MIN_SYMBOL_PX = 14;
+/**
+ * The symbol's size at this zoom: its real length (a T-6, 33.4 ft nose to tail, which is 1.7 of the
+ * shape's units) once that is bigger than MIN_SYMBOL_PX, so zoomed in it grows with the map and never
+ * looks smaller than the aircraft really is (Patrick, 4 Oct 09:19Z).
+ */
+export const aircraftSymbolPx = (pxPerFt) => Math.max(MIN_SYMBOL_PX, (T6_LENGTH_FT * pxPerFt) / 1.7);
 
 /** The smallest a conflict bubble and a caution ring are drawn on screen, in pixels, so they can be seen when zoomed out. */
 export const MIN_BUBBLE_PX = 8;
@@ -711,7 +721,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     const [x, y] = at(ac);
     const colour = colours.get(ac.id);
     ctx.beginPath();
-    aircraftSymbol(ac.headingDeg, 14).forEach(([dx, dy], i) => (i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy)));
+    aircraftSymbol(ac.headingDeg, aircraftSymbolPx(pxPerFt)).forEach(([dx, dy], i) => (i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy)));
     ctx.closePath();
     ctx.fillStyle = colour;
     ctx.fill();
