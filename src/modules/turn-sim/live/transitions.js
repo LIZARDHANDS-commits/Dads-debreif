@@ -328,6 +328,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
   let aligning = false;
   let ok = false;
   let reentered = false; // a phase change re-reads the step it happened in, with no reference turn rate for it
+  let stoppedAt = null; // when #2 first came to a stop in a phase with `stopFtps` (a real stop: SMM 12.20 para 45)
 
   for (let n = 0; n < Math.round(maxSec / STEP_SEC); n++) {
     // Both aircraft are read at the same instant (the start of the step).
@@ -371,7 +372,11 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
       const relVel = Math.hypot(W.tasFtps * Math.cos(W.headingRad) - vpx, W.tasFtps * Math.sin(W.headingRad) - vpy);
       const last = k === phases.length - 1;
       if (arrived && times[k].arrive === null && d <= (last ? Math.max(ph.finalTol, ph.advanceTol) : ph.advanceTol)) times[k].arrive = t;
-      if (arrived && !last && d <= ph.advanceTol && gateOpen) {
+      // A phase with stopFtps is a real stop: #2 must have stopped on it (relative speed under stopFtps) and held there dwellSec.
+      if (ph.stopFtps && arrived && d <= ph.advanceTol && relVel <= ph.stopFtps) stoppedAt ??= t;
+      const stopDone = !ph.stopFtps || (stoppedAt !== null && t - stoppedAt >= (ph.dwellSec ?? 0) - 1e-9);
+      if (arrived && !last && d <= ph.advanceTol && gateOpen && stopDone) {
+        stoppedAt = null;
         times[k].t1 = t;
         k++;
         const next = phases[k];
@@ -467,12 +472,29 @@ export function phase(slot, over = {}) {
     finalTol: 1.5,
     altSec: null, // seconds over which the height changes (null: the whole leg)
     altRateFtps: null, // when set, the height change takes at least |change| / this many seconds (the 4-ship's stack; null: no floor)
+    stopFtps: null, // when set, a real stop: the next phase starts only once #2's speed against the slot is under this...
+    dwellSec: 0, // ...and has been for this long (the station change's "stabilize", SMM 12.20 para 45)
     ...over,
   };
 }
 
 /** A station change in close formation (SMM 12.20 paras 44-47): about 5 kt, wings level but for a degree or two of heading. */
 export const slide = (slot, over = {}) => phase(slot, { advanceTol: 6, ...over });
+/**
+ * A station change's corner or end point, flown as a real stop (SMM 12.20 para 45: "stabilize in this position", "stop the
+ * aircraft", "stabilize directly behind the echelon position"): #2 stops on it and holds 2 s before moving on. The 1 ft/s
+ * and 2 s are estimates.
+ */
+export const stopAt = (slot, over = {}) => slide(slot, { fwdRate: 5, advanceTol: 2, stopFtps: 1, dwellSec: 2, ...over });
+/**
+ * The corner behind a close slot (SMM 12.20 para 45; Figs 12.12-12.13): back until #2's nose is at least 10 ft behind Lead's
+ * tail (line astern's own spacing, plus 12 ft so it does not fall short: an estimate), at the slot's own lateral, and low
+ * enough for the tail to pass below the prop wash (line astern's height: an estimate).
+ */
+export const cornerBehind = (slot, spacingFt) => {
+  const astern = slotFor('astern', 0, spacingFt);
+  return { fwd: astern.fwd - 12, left: slot.left, alt: astern.alt };
+};
 /** Drop back slowly (SMM 16.32 para 92): a few knots slower than Lead. */
 export const dropBack = (slot, over = {}) => phase(slot, { fwdRate: 12, latRate: 12, vrel0: 14, advanceTol: 25, finalTol: 6, bankCapDeg: 20, ...over });
 /**
@@ -538,9 +560,12 @@ function legsFor(from, s, to, sTo, spacingFt) {
 
   // Cross behind Lead to the other side, in the formation the pair is in. Fighting wing is crossed in place only when the target is
   // fighting wing or line abreast; for the close formations it closes first and crosses there, which is far quicker.
+  // A close crossover (SMM 12.20 paras 44-45, Figs 12.12-12.13): back and down into the corner and stop; across at a steady
+  // rate (a small heading change, slide's 8 ft/s: an estimate), passing slightly aft of line astern; stop directly behind
+  // the new slot; then forward and up into it. The caller adds the last move.
+  const corner = (key, side) => cornerBehind(slot(key, side), spacingFt);
   const crossClose = () => {
-    const astern = slot('astern', 0);
-    phases.push(slide({ fwd: astern.fwd - 12, left: slot(at, side).left, alt: astern.alt }), slide(astern), slide(slot(at, sTo)));
+    phases.push(stopAt(corner(at, side)), stopAt(corner(at, sTo)), slide(slot(at, sTo), { fwdRate: 5 }));
     side = sTo;
   };
   const closeTarget = to === 'echelon' || to === 'route';
@@ -578,9 +603,15 @@ function legsFor(from, s, to, sTo, spacingFt) {
       if (to === 'route') return phases;
     }
     if (to === 'astern') {
+      // Echelon to line astern (SMM 12.20 para 46): the first half of the crossover, stopping directly astern (slightly aft,
+      // the corner's spacing), then adjusting power to move up into position.
       const astern = slot('astern', 0);
-      if (at !== 'astern') phases.push(slide({ fwd: astern.fwd - 12, left: slot(at, side).left, alt: astern.alt }));
+      if (at !== 'astern') phases.push(stopAt(corner(at, side)), stopAt({ ...corner(at, side), left: 0 }));
       phases.push(slide(astern));
+    } else if (at === 'astern') {
+      // Line astern to echelon (SMM 12.20 para 47): the latter part of the crossover: across to directly behind the slot and
+      // stop, then forward and up into it.
+      phases.push(stopAt(corner(to, sTo)), slide(slot(to, sTo), { fwdRate: 5 }));
     } else if (at !== to || side !== sTo) {
       phases.push(slide(slot(to, sTo)));
     }
