@@ -102,7 +102,7 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 | Straight-in level-off | 2,700 | 808 | SMM 4.5 ¶8 |
 | PFL High Key | 5,000 | 3,108 | SMM 13.5 ¶8, D396, D400 |
 | PFL Low Key | 3,700 | 1,808 | SMM 13.8 ¶17 |
-| PFL Base/Final Key | 2,900–3,000 | ~1,100 | SMM 13.9 ¶18 |
+| PFL Final Key | 3,000 | ~1,100 | SMM 13.9 ¶18 |
 
 ### 3.4 Stall and Speed Limits
 | Limit | Value | Source |
@@ -117,19 +117,21 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 | Roll rate (tactical max) | 90 °/s | T6A_MANOEUVRE |
 
 ### 3.5 Glide Performance (Engine Out)
-| Config | Best Glide (KIAS) | Sink Rate (fpm) | NM per 1,000 ft | L/D |
-|---|---|---|---|---|
-| Clean, feathered | 125 | 1,350 | 2.0 | 12.15 |
-| Gear down | 105 (or 120 pattern) | 1,500 | 1.5 | — |
-| Landing flaps | 95 | 1,850 | 1.1 | — |
-| Windmilling | 110 | 2,350 | 1.0 | — |
+| Config | Best Glide (KIAS) | NM per 1,000 ft | L/D |
+|---|---|---|---|
+| Clean, feathered | 125 | 2.0 | 12.15 |
+| Gear down | 105 (or 120 pattern) | 1.5 | — |
+| Gear + T/O flap | 110 (**estimate**) | 1.3 (**estimate**) | — |
+| Landing flaps | 95 | 1.1 | — |
+| Windmilling | 110 | 1.0 | — |
+
+The sim uses the glide **ratio** for the configuration down (clean 2.0, gear 1.5, T/O flap 1.3 **estimate**, landing flap 1.1 NM per 1,000 ft; T-6A max glide chart, `manuals/traffic-pattern-numbers.md`). Sink rate = true airspeed ÷ ratio (`glideSinkFpm` in `src/core/t6-performance.js`). The chart's ft/min column only matches its ratios at about 16,000 ft and is not used.
 
 ### 3.6 Key Geometry
 | Measurement | Value | Derivation |
 |---|---|---|
 | Break turn radius (220 kt, 60° bank) | 2,470 ft (0.41 NM) | $R = v^2 / (g \tan 60^\circ)$ |
 | Final turn radius (120 kt, 35° bank) | 1,814 ft (0.30 NM) | $R = v^2 / (g \tan 35^\circ)$ |
-| PFL orbit radius (120 kt, 30° bank) | 2,200 ft (0.36 NM) | $R = v^2 / (g \tan 30^\circ)$ |
 | Glide slope intercept (3.0°) | 15,417 ft (2.54 NM) from threshold | $(2700 - 1892) / \tan(3^\circ)$ |
 | 0.75 NM speed gate | 4,558 ft from threshold | $0.75 \times 6,076$ |
 | Perch wind shift time | 29.8 s | $T = \pi \cdot v_{\text{tas}} / (g \tan 35^\circ)$ |
@@ -194,21 +196,56 @@ Dotted line, 4 waypoints joining PAT_INNER at the 45° entry leg (3,500 ft / 220
 ### 4.4 ENT_SI — Straight-In Entry
 Dotted line, 4 waypoints joining PAT_SI at the base leg (2,700 ft / 120 KIAS).
 
-### 4.5 PFL_HIGH_KEY — Practice Forced Landing from High Key
-NRG model. Overhead threshold at 5,000 ft MSL / 125 KIAS clean → 180° continuous gliding turn to Low Key (3,700 ft / 120 KIAS, gear down) → Base Key (2,900 ft, flaps T/O) → Final rollout → Touchdown. Orbit: 30° bank, $R \approx 2,200\text{ ft}$. 200 ft AGL safety gate (SMM 13.14).
+### 4.5 PFL: engine failure, and the glide from High Key
 
-### 4.6 PFL_PATTERN — In-Circuit Engine Failure
-NRG model. Triggered anywhere in circuit. Immediate zoom climb (`flyZoomT6A`): 2G pull to 20° nose-up, hold to 145 KIAS, push to capture 125 KIAS glide. If $V \le 150\text{ KIAS}$: level decel to 125.  
-Energy gate: $H_e = h + V^2 / (2g)$ vs distance to threshold:
-- **Sufficient**: intercept tangent of PFL circle, fly to Low Key.
-- **Insufficient**: direct to threshold, straight-in forced landing.
+Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIGH_KEY, 4.6 PFL_PATTERN and 4.7 PFL_FROM_AREA.
 
-### 4.7 PFL_FROM_AREA — Glide Inbound from Training Area
-NRG model. Spawns at user-defined position via **radial/distance/altitude from airfield center**:
-- Radial: 0–360° (default 090°)
-- Distance: 1–30 NM (default 10 NM)
-- Altitude: 3,000–15,000 ft MSL (default 8,000 ft)
-Aircraft spawns engine-out at best glide (125 KIAS clean), heading toward field (reciprocal of radial). Glides using `glideSinkFpm('clean', 125, alt)`. Arrives at High Key (5,000 ft MSL). Excess altitude burned via false High Key (SMM 13.7 ¶16).
+1. **Two ways in.** The PFL button is an engine failure where the aircraft is, power off from that moment. High Key (TR-R31) is practice: the aircraft arrives at High Key under power (PR 4), then flies this same glide.
+2. **The pattern is a circle.** 0.5 NM radius in calm air, left-hand for 29L, closing tangent to the centreline at the threshold (SMM 13.6 para 13). No straight legs.
+   - High Key: over the threshold on runway heading, window 5,000-6,000 ft MSL (WFO S2 art 403 para 1a; Patrick 06:30Z).
+   - Low Key: 180° round, 1 NM abeam, about 3,700 ft MSL (SMM 13.8 para 17).
+   - Final Key: 270° round, about 3,000 ft MSL, 1,000 ft AGL (SMM 13.9 para 18). Shown as "Final Key".
+   - Key heights are what the aircraft is checked against, not a schedule it is held to.
+3. **How it flies.** The join is flown live. The circle is a planned, wind-shaped ground track, and the aircraft blends onto it at a tangent. Height and speed come from the physics: the glide ratio of the configuration down, at the speed flown. Nothing writes a height by angle round the circle.
+4. **Speed.** 125 KIAS clean until the gear goes down, then 120 KIAS (SMM 13.5 para 8, 13.14 para 26; Patrick 06:26Z). Never slower to stretch the glide, except direct to the threshold (item 10).
+5. **Zoom.** Above 150 KIAS: a 2 G pull, push over through 140, capture 125 (EFIG p.408). The zoom turns toward the chosen join point at the same time, never away from the runway. At or below 150 KIAS: hold height and slow to 125. NFM Fig 3-4 (20° to 145 KIAS, p.3-12) stays a reference.
+6. **Choosing the join.** Chosen at the button press from energy height (He = h + V²/2g, true airspeed), less the expected zoom loss, and checked again at the top of the zoom.
+   - Points every 5° round the wind-corrected circle are tried.
+   - A point is reachable if a clean, 125 KIAS tangent glide with the wind gets there with height to spare.
+   - Of the reachable points, it picks the one most in line with its heading (SMM 13.13 para 24, 13.17 para 38; EFIG p.409-410).
+   - At the apex it changes only if the first choice is no longer reachable.
+7. **On the circle: one number, the energy margin.** Three drag options: gear, T/O flap, landing flap. The plan is gear near High Key, T/O flap near Low Key, landing flap near Final Key. Any of them can go early or late as required (Patrick, 08:32Z). Margin = height now − height needed to reach the aim point (a third down the runway) round the rest of the circle, flying that planned drag from here on, at the speed flown, with the wind. Re-checked every step. A positive margin brings the next step earlier; a negative margin pushes it later.
+
+   | Margin | What it does |
+   |---|---|
+   | More than the next drag step costs, plus a buffer | Takes the next step: gear, then T/O flap, then landing flap |
+   | Still high with everything out | Steeper bank, tighter through the air; never wider |
+   | About zero | Holds configuration |
+   | Below zero | Delays drag; cuts toward the next key |
+   | Can't reach the aim point even clean | Leaves the circle, direct to the threshold |
+
+   Drag only once on the circle, or committed direct with the runway made (SMM 13.6 para 15, 13.17 para 39). Circuit PFL: gear by Final Key at the latest. High Key and area PFL: gear by High Key, later if it arrives low (Patrick 06:26Z).
+8. **Bank follows the circle.** About 25° in calm air (calculation: r = V²/(g·tan φ) at about 127 KTAS); more on the downwind side and less into wind, to hold the ground track. Roll rate and easing are PR 2's.
+9. **Too high.**
+   - Circuit PFL never has the energy for High Key; it always joins the circle at a tangent (Patrick 06:30Z).
+   - Area PFL at High Key inside 5,000-6,000 ft: extends down the runway to a false High Key, then a false Low Key, the whole circle moved along (SMM 13.7 para 16, Fig 13.4).
+   - Above 6,000 ft: orbits at High Key, or takes the gear early, until in the window (SMM 13.5 para 11; WFO S2 art 403 para 1b).
+10. **Can't make the circle.** Direct to the threshold, gear up, flight path within 35° of runway heading by 2,100 ft. Late in the glide it may trade speed for height down to 80 KIAS, shown on screen as below the SMM speed. It may turn early and land further down the runway (Patrick, 08:33Z). If it can't make the runway at all, it ejects: the tag says "Eject" (Patrick, 08:33Z). *Working answer for the screen, not yet ruled on: it ejects as soon as no point on the runway is reachable; the aircraft is removed and a marker stays where it ejected.*
+11. **Wind.** Bank varies to hold the circle over the ground. In strong wind the keys also move into wind: High Key the full amount, Low Key half, about 1,000 ft per 10 kt (EFIG p.402, p.406; SMM 13.12 paras 21-23).
+12. **2,100 ft gate** (200 ft AGL): 120 KIAS and within 35° of runway heading (TR-R14). Bank under 45°, gear down and T/O flap are shown as flags (SMM 13.14 warning). Practice: a missed gate goes around. Engine failure: keeps going and tries to land.
+13. **Landing.** Wings level before the threshold, aiming a third down the runway, brought closer with flap (SMM 13.9 para 18). Touches down in line with the runway, no slower than 80 KIAS. A PFL that makes the runway then flies a touch-and-go, power back on, and carries on in the circuit (Patrick, 08:40Z); the touch-and-go itself is today's, made jump-free in PR 4.
+14. **On screen.** Once a PFL starts, a small tag beside the aircraft in 2D and 3D shows its current decision (for example "Zoom to circle", "Join at Low Key", "False High Key", "Direct threshold") and its configuration (clean, gear, T/O flap, landing flap). The margin shows as high / on profile / low at each key. Glide ring: how far the aircraft can glide from where it is now, in the configuration down, corrected for wind (the circle's centre drifts downwind by the wind over the glide time, so it is no longer centred on the aircraft), drawn on the ground (Patrick, 08:33Z). The PFL circle is also drawn on the ground.
+15. **If the numbers fail.** If the join search returns nothing usable (no finite answer), the aircraft does what item 10 says: direct to the runway, turning early to land further down it if needed, and ejects if it can't make the runway. *(New proposal, not yet ruled on.)*
+
+#### PFL settings (each with a default)
+
+| Setting | Default | Source |
+|---|---|---|
+| High Key window | 5,000-6,000 ft MSL | WFO S2 art 403 para 1a; Patrick 06:30Z |
+| Keys move into wind | On from 15 kt; can be switched off | EFIG p.406; 15 kt is an **estimate** (Patrick 06:56Z) |
+| Max bank on the PFL | Up to 60° until the 2,100 ft gate; below it, bank over 45° is flagged | Patrick, 08:34Z; SMM 13.14 warning. The stall line still holds: at 120 KIAS it allows about 59° (calculation, stall 86 KIAS) |
+| Drag buffer | Next step's cost + 100 ft | **Estimate** (`pfl-energy-logic.md`) |
+| Zoom | 2 G, push through 140, capture 125; only above 150 KIAS | EFIG p.408; Patrick 4440, 06:35Z |
 
 ### 4.8 TAKEOFF — Runway Departure
 
@@ -334,7 +371,8 @@ Every setting starts filled in so the first look is clean and intuitive:
 | `excessThrustPerWeight(kias, altFt, g)` | `src/core/t6-performance.js` | NRG: powered climb/accel |
 | `energyHeightFt(altFt, ktas)` | `src/core/t6-performance.js` | NRG: can-I-make-the-runway |
 | `stallLimitG(kias)` | `src/core/t6-performance.js` | Stall protection |
-| `flyZoomT6A(kias, altFt)` | `src/core/t6-performance.js` | PFL zoom climb |
+| `flyZoomT6A(kias, altFt)` | `src/core/t6-performance.js` | NFM zoom table: reference for height gained (the PFL flies the EFIG p.408 zoom, 4.5 item 5) |
+| `glideDragPerWeight(config, kias, altFt, g)` | `src/core/t6-performance.js` | PFL glide: drag for the configuration down |
 | `windTriangle(hdg, ktas, wind)` | `src/core/wind.js` | Wind crab angle on all legs |
 | `ktToFtps(kt)` | `src/core/units.js` | Speed conversion |
 | `FT_PER_NM`, `G_FTPS2` | `src/core/units.js` | Physical constants |

@@ -44,6 +44,7 @@ Sources: "aero" means standard aerodynamics, worked out in the test. A manual pa
 | `T6A_GLIDE` | t6-performance.js | Glide speed and ratio per configuration: clean 2.0, gear down 1.5, T/O flap 1.3, landing flap 1.1 NM per 1,000 ft | T-6A max glide chart; SMM 13.5 para 7. T/O flap row is an estimate |
 | `glideRatio(config)` | t6-performance.js | Feet flown per foot of height lost (clean about 12.2) | same chart |
 | `glideSinkFpm(config, kias, alt)` | t6-performance.js | Sink rate at any height (the chart's ft/min fit only at about 16,000 ft) | same chart |
+| `glideDragPerWeight(config, kias, alt, g)` | t6-performance.js | Drag over weight power off, for the configuration down, at any speed and G: the clean drag fit scaled by the square of the glide ratio (best glide comes out at about 108 KIAS gear down, 93 landing flap; chart 105 and 95) | same chart; the clean fit in `T6A_FIT` |
 | `zoomT6A`, `flyZoomT6A`, `NFM_ZOOM` | t6-performance.js | Height gained by the zoom after an engine failure | NFM Fig 3-4, p.3-12 |
 
 ## Wind and navigation
@@ -75,9 +76,9 @@ These live in `src/modules/traffic/` today. The refactor moves or replaces them 
 | The circuit, built by flying it: climb-out, crosswind at 220 KIAS, fixed downwind and base, break, perch moved so the final turn rolls out at the window | `circuit.js` (`buildCircuit`, `breakPointAlongFt`, `CIRCUIT`, `ROLL`) | New in PR 2; `generateWindAdjustedTrack` in `route.js` now calls it |
 | The path follower: moves an aircraft along a built path, with heading, bank, roll and pitch from the path | `path-follower.js` (`followRoute`, `trackAt`) | New in PR 2; uses the core functions above |
 | Old wind perch and break arc (closed pattern targeting) | `route.js` (`computeWindPerch`, `simulateBreakArc`, `computeBreakRollout`) | Still used by the closed pattern; replaced in PR 4 |
-| PFL circle and its old height schedule | `route.js` (`generatePflTrack`), `pfl-rail.js`, `pfl-solver.js` | Rebuilt in PR 3 |
-| The 1,350 ft/min sink literal | `pfl-rail.js`, `pfl-solver.js`, `map2d.js` | Replaced by `glideSinkFpm` in PR 3 |
-| Glide speeds 125 / 120 / 100 | `flight-engine.js` | Settled with the PFL spec in PR 3 (Patrick's C1: 125 clean, 120 gear down) |
+| PFL circle and its old height schedule | `route.js` (`generatePflTrack`), `pfl-rail.js`, `pfl-solver.js` | The PFL is rebuilt in `pfl.js` (PR 3): a simulated pilot flies it at the press on `circuit.js`'s pilot and the path follower flies the result. The old files stay only for the High Key climb's run-in and the map's PFL route, until PR 4 |
+| The 1,350 ft/min sink literal | `pfl-rail.js`, `pfl-solver.js` | Gone from `map2d.js` in PR 3 (the glide ring uses `glideRatio` and true airspeed); the old PFL files go in PR 4 |
+| Glide speeds 125 / 120 / 100 | `flight-engine.js` | Settled in PR 3: `PFL` in `pfl.js` (Patrick's C1: 125 clean, 120 gear down); `flight-engine.js`'s copy goes in PR 4 |
 | IAS used as TAS in calm air; heading passed where track is meant | `tick-aircraft.js`, `flight-engine.js` | Fixed in `tick-aircraft.js` in PR 2; `flight-engine.js` in PR 4 |
 | Bank laws, intercept gain, climb-arrest pitch, break deceleration | `flight-engine.js`, `tick-aircraft.js`, `high-key.js`, `breakout.js` | One guidance law in PR 2 and PR 4 |
 | Turn rate from bank, G from bank, g = 32.174 inline | `high-key.js`, `pfl-rail.js`, `pfl-solver.js`, `flight-engine.js` | Removed with those files' rewrites (PR 2 to PR 4) |
