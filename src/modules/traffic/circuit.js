@@ -241,7 +241,7 @@ export function breakTurnSec() {
 /**
  * Where the break starts, in feet past the threshold along the runway: 2,000 ft
  * with a 10 kt headwind (SMM 4.17 para 39), later with more headwind and earlier
- * with less (SMM 4.18 para 42). Working answer (Patrick's list, question B): it
+ * with less (SMM 4.18 para 42). Patrick chose "Same rollout spot" (4 Oct 08:48Z): it
  * moves by (headwind − 10 kt) × the time the break takes, so the rollout lands
  * on the same ground point in any headwind.
  */
