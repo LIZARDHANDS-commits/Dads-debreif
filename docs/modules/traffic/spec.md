@@ -14,7 +14,7 @@ Moved from `specs/SPEC-traffic.md` (the old copy is in `archive/specs/`).
 > **Module ID**: `traffic` in [`archive/SPEC.md`](../../../archive/SPEC.md)  
 > **Authoritative Companion**: Master Pattern Matrix at [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) (single source of truth for waypoints & coordinates)  
 > **Decisions**: D6, D10, D46, D109, D110, D117, D118, D134, D158, D368–D400, D406, D412 | **Requirements**: R2, R3, R4, R6, R8, R9, R14, R16, R21, R22, R24–R27, R34  
-> **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js.  
+> **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js. *Superseded 4 Oct 2026 (Patrick's card "Rebuild, then delete", 4 Oct 17:53Z): there is no physics mode or `flight-engine.js` any more; every manoeuvre is flown once by `circuit.js`'s simulated pilot and followed by `path-follower.js`.*  
 
 ---
 
@@ -410,6 +410,8 @@ Every setting starts filled in so the first look is clean and intuitive:
 ## 8. Code Reuse Map & Core Libraries
 
 ### 8.1 Reuse Map
+*History: `flight-engine.js` and the nav plans below were built, then removed on 4 Oct 2026 (Patrick's card "Rebuild, then delete", 4 Oct 17:53Z).*
+
 - **KEEP AS-IS (5,300+ lines, zero changes)**:
   `map2d.js` (673), `view3d.js` (1,146), `layout.js` (186), `playback-bar.js` (160), `settings-panel.js` (130), `defaults.js` (196), `types.js` (169), `profile.js` (356), `clock.js` (98), `dice.js` (28), `readouts.js` (149), `glue.js` (69), `profile-store.js`, `profiles-panel.js`, `editor.js`, `index.js`, CSS.
 - **KEEP + ADAPT (~200 lines changed)**:

@@ -394,8 +394,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
             'Closed Pattern: climb to 3,500 ft, 140 kt, selected bank turn into downwind',
             () => {
               const bankDeg = Number(closedBankSelect.value) || 50;
-              const pitchDeg = Number(row.closedPatternPitchDeg ?? settings.get().closedPatternPitchDeg ?? 10);
-              sim.command(row.id, 'closed_pattern', { bankDeg, pitchDeg });
+              sim.command(row.id, 'closed_pattern', { bankDeg });
               onChange?.();
             },
             row.command === 'closed_pattern',

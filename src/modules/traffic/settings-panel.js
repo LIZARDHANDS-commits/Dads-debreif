@@ -30,7 +30,6 @@ export const PANEL_KEYS = Object.freeze([
   'cautionVertFt',
   'autoDeconflict',
   'closedPatternBankDeg',
-  'closedPatternPitchDeg',
   'aircraftScale',
   'photoOpacityPct',
   'paint',
@@ -96,13 +95,6 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
         { value: 60, label: '60°' },
       ],
     }), 'Target bank angle for closed pattern climbing turn.'),
-    withHint(controls.number('closedPatternPitchDeg', {
-      label: 'Pitch angle',
-      unit: '°',
-      min: LIMITS.closedPatternPitchDeg[0],
-      max: LIMITS.closedPatternPitchDeg[1],
-      step: 1,
-    }), 'Target pitch attitude during initial climb.'),
   );
 
   menu.section('Aircraft').append(

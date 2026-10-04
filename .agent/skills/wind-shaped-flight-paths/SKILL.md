@@ -147,23 +147,12 @@ In simulation engines where progress along flight rails is tracked by scalar rou
 4. **The Rule**: Always guard lap offset calculations by route type:
    $$\text{targetDistFt} = \text{isClosedRoute}(\text{route}) \;?\; (\text{lapOffset} + \text{closestDist}) : \text{closestDist}$$
 
-### Pillar 11: Downstream Rail Handoff & State-Machine Handshake Protocol (The Anti-Flythrough Contract)
-When a dynamic approach or maneuver controller (e.g. `climb_high_key`, `breakout`, `closed_pattern`) reaches its arrival gate (such as High Key at 5,000 ft MSL on runway heading 298°), the transition into the downstream rail must satisfy three mandatory handshake rules:
+### Pillar 11: Hand-over at the end of a flown path (The Anti-Flythrough Contract)
+Every manoeuvre (go-around, High Key, closed pattern, breakout, PFL) is a path flown once by the simulated pilot and followed by the path follower; there is no physics mode (the old one was removed 4 Oct 2026, Patrick's card "Rebuild, then delete"). When a flown path ends, three things hold:
 
-1. **Command Annihilation (`a.command = null`):**
-   In hybrid state machines, `shouldEnterPhysics()` evaluates `if (a.command && PHYSICS_COMMANDS.has(a.command)) return true`. If a maneuver reaches its completion gate, sets `a.mode = 'RAIL'`, but leaves `a.command` set (e.g. `'climb_high_key'`), `shouldEnterPhysics` will instantly pull the aircraft back into `PHYSICS` mode on the very next tick! The maneuver has finished, but the engine thinks the command is still active.
-   - **The Rule**: `a.command = null` and `delete a._activeCommand` must be executed synchronously at the exact moment of transition.
-
-2. **Downstream Rail Instantiation (Preventing Rail Orphan Flythrough):**
-   Setting `a.mode = 'RAIL'` is completely ineffective if the downstream rail is not attached! The host engine's fallback rail runner operates on the default background circuit route (e.g. `PAT1`). If `a.pflRail` is missing, the engine evaluates distance along the background circuit, causing the aircraft to fly straight through the gate down the runway centerline.
-   - **The Rule**: The arrival gate must explicitly instantiate the downstream continuous dense rail (`a.pflRail = generatePflRail(a, env)`), initialize `a.pflRailIndex = 0`, and zero `a.distFt = 0`.
-
-3. **Next-Tick Forward Simulation Invariant Test:**
-   Never write a transition test that only asserts `if (reachedGate) assert.ok(transitioned)`.
-   - **The Rule**: Tests must continue stepping the simulation forward for at least 50–100 ticks (2.5–5.0 seconds) *after* the transition to prove that:
-     a) The aircraft does not snap back into physics mode.
-     b) The aircraft does not fly straight through along an unrelated background route.
-     c) Downstream telemetry (descent rate, bank angle into turn, rail waypoint stepping) is actively advancing.
+1. **The command ends with the path.** `sim.js` `goAroundEnded` clears `a.command` for a finished go-around, closed pattern or breakout, so nothing treats the manoeuvre as still running.
+2. **The next path is attached, never a fallback.** The path names what comes next (`then: 'join'` with a `joinId`, `then: 'breakout'`, or the circuit), and `startJoin` joins it from the aircraft's own position, heading, bank and turn rate. An aircraft left with no route to follow flies straight through the gate.
+3. **Tests keep flying after the hand-over.** A transition test steps on for several seconds past the hand-over and checks the aircraft follows the next path (no jump, phase moves on, height and bank behave), not just that the hand-over happened.
 
 ### Pillar 12: Pilot Domain Energy Gates & Spiral Continuity (The Anti-Window-Cut Contract)
 When classifying energy states for published procedural key points (e.g. High Key 5,000 ft MSL, Low Key 3,700 ft MSL, Base Key 2,900 ft MSL), trajectory solvers must never apply zero-tolerance mathematical boundaries ($\ge 5,000\text{ ft}$) without Pilot Domain Tolerances (D371: $\pm 100\text{ ft}$ standard, $\pm 200\text{ ft}$ loose).

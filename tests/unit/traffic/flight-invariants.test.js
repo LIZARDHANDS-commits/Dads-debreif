@@ -200,7 +200,7 @@ test('exactly one mode owns coordinates at every step', () => {
   // Use Moose Jaw setup
   const sim = createSim(clone(MOOSE_JAW), { seed: 1 });
   const routesById = new Map(MOOSE_JAW.routes.map((r) => [r.id, r]));
-  const VALID_MODES = [undefined, 'RAIL', 'PHYSICS'];
+  const VALID_MODES = [undefined, 'RAIL'];
 
   let prevStates = new Map();
 
@@ -210,8 +210,8 @@ test('exactly one mode owns coordinates at every step', () => {
     const { aircraft } = sim.state();
 
     // At each check, for each flying aircraft:
-    //   aircraft.mode must be one of: undefined (legacy rail), 'RAIL', 'PHYSICS'
-    //   (undefined is allowed because current sim doesn't set mode yet — this test is forward-looking)
+    //   aircraft.mode must be undefined (legacy rail) or 'RAIL': the old physics mode was retired (Patrick's card
+    //   "Rebuild, then delete", 4 Oct 2026); every manoeuvre is a flown path the path follower follows.
     //   No aircraft should have BOTH a.distFt changing AND a.x/a.y changing independently
     for (const ac of aircraft) {
       if (ac.status === 'flying') {
@@ -222,8 +222,6 @@ test('exactly one mode owns coordinates at every step', () => {
 
         const prev = prevStates.get(ac.id);
         if (prev) {
-          const distChanged = ac.distFt !== prev.distFt;
-
           if (ac.mode === undefined || ac.mode === 'RAIL') {
             // In rail mode, position (x, y) is coupled to distFt along the route.
             // Pos must not drift independently from the route position defined by distFt.
@@ -239,13 +237,6 @@ test('exactly one mode owns coordinates at every step', () => {
                 );
               }
             }
-          } else if (ac.mode === 'PHYSICS') {
-            // In physics mode, coordinates are owned by physics equations of motion.
-            // distFt must not be advancing an independent legacy rail track.
-            assert.ok(
-              !distChanged,
-              `Aircraft ${ac.id} in PHYSICS mode has distFt changing independently of physics coordinates at t=${t}s`
-            );
           }
         }
         prevStates.set(ac.id, { ...ac });
