@@ -49,8 +49,16 @@ export const PFL = Object.freeze({
   /** Glide speeds: 125 KIAS clean until the gear goes down, then 120 (SMM 13.5 para 8, 13.14 para 26; Patrick 06:26Z). */
   glideCleanKias: 125,
   glideGearKias: 120,
-  /** Going direct, it may trade speed late, down to 80 KIAS (Patrick 06:35Z; TR-R14). */
+  /** Going direct, it may trade speed late, down to 80 KIAS (Patrick 06:35Z; TR-R14), but never closer to the stall than the margin below. */
   minTradeKias: 80,
+  /**
+   * Stall speed at 1 G, KIAS, by configuration (index as PFL_CONFIGS). Clean: core's 86 (SMM 5.5 para 15 gives about 80-85);
+   * the gear doesn't change it; T/O flap lowers it only slightly (SMM 4.8 para 14), so it keeps the clean number (an estimate);
+   * landing flap: 76, the top of SMM 5.8 para 29's 68-76.
+   */
+  stallKias: [86, 86, 86, 76],
+  /** The speed trade stays this far above the stall: the stick shaker's 5-10 kt (SMM 5.5 para 15), at its low end. An estimate. */
+  stallMarginKt: 5,
   /** Up to 60° of bank until the 2,100 ft gate (Patrick 08:34Z); the stall line still holds. Bank over 45° below the gate is flagged (SMM 13.14). */
   maxBankDeg: 60,
   gateFlagBankDeg: 45,
@@ -391,11 +399,21 @@ function pathFtTo(path, proj, key) {
   return ft;
 }
 
-/** Height worth trading from speed, ft: (V² − V₈₀²) ÷ 2g in true airspeed. */
-function speedTradeFt(kias, altFt) {
+/** Core's stall line, (KIAS ÷ stall speed)², at this configuration's stall speed. */
+function stallG(kias, cfg) {
+  return stallLimitG(kias, /** @type {any} */ (PFL.stallKias[cfg]));
+}
+
+/** The slowest the speed trade goes in a configuration: 80 KIAS, or the stall plus its margin if that is higher. */
+function tradeFloorKias(cfg) {
+  return Math.max(PFL.minTradeKias, PFL.stallKias[cfg] + PFL.stallMarginKt);
+}
+
+/** Height worth trading from speed, ft: (V² − V_floor²) ÷ 2g in true airspeed. */
+function speedTradeFt(kias, altFt, cfg) {
   const v = ktToFtps(iasToTasKt(kias, altFt));
-  const v80 = ktToFtps(iasToTasKt(PFL.minTradeKias, altFt));
-  return Math.max(0, (v * v - v80 * v80) / (2 * G_FTPS2));
+  const vFloor = ktToFtps(iasToTasKt(tradeFloorKias(cfg), altFt));
+  return Math.max(0, (v * v - vFloor * vFloor) / (2 * G_FTPS2));
 }
 
 /**
@@ -470,13 +488,13 @@ function joinLabel(theta) {
 /**
  * Direct to the runway (spec 4.5 item 10): the nearest touchdown point, from a
  * third down the runway onward, it can make; turning early and landing further
- * down if it must (Patrick 08:33Z). Counts the late speed trade to 80 KIAS.
+ * down if it must (Patrick 08:33Z). Counts the late speed trade to 80 KIAS, or the stall plus margin in its configuration.
  * Returns null if it can make no point on the runway.
  */
-function chooseDirect(geo, from, altFt, kias, wind, headingDeg = undefined) {
+function chooseDirect(geo, from, altFt, kias, wind, headingDeg = undefined, cfg = 0) {
   const ground = THRESHOLD_DATA_ELEV_FT;
   const last = geo.lenFt - PFL.stopMarginFt;
-  const trade = speedTradeFt(kias, altFt);
+  const trade = speedTradeFt(kias, altFt, cfg);
   // Touchdown points from the aim point outward, nearest first: shorter (down to just past the threshold) or longer (turning early).
   const alongs = [];
   for (let d = 0; geo.aimAlongFt + d <= last + 1e-6 || geo.aimAlongFt - d >= 500; d += 500) {
@@ -669,7 +687,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     if (state === 'glide' && margin < 0) ahead = Math.min(PFL.maxLookaheadFt, ahead + PFL.cutFtPerFtLow * -margin);
     const c = carrot(path, project(path, seg, s), ahead);
     const wantTrack = bearing(s, c);
-    const stallBank = Math.acos(clamp(1 / Math.max(stallLimitG(s.ias), 1.0001), 0, 1)) / DEG;
+    const stallBank = Math.acos(clamp(1 / Math.max(stallG(s.ias, cfg), 1.0001), 0, 1)) / DEG;
     const bankMax = state === 'zoom' ? PFL.zoomMaxBankDeg : Math.min(PFL.maxBankDeg, stallBank);
     const bank = n * PILOT_DT < PFL.holdBankSec ? s.bank : bankFor(pilot.headingFor(wantTrack), s, bankMax);
 
@@ -698,14 +716,14 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     } else {
       let want = /** @type {number} */ (glideKias(cfg));
       if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
-      // Going direct and short: trade speed late, down to 80 KIAS (spec 4.5 item 10).
+      // Going direct and short: trade speed late, down to 80 KIAS or the stall plus margin (spec 4.5 item 10).
       if (plan.kind === 'direct' && margin < 0) {
         // Distance still to fly along the path, not straight-line: going direct it may first fly past the runway and turn back.
         if (pathFtTo(path, proj, 'aim') < 6076) {
-          // The speed whose kinetic energy covers the deficit: V² − 2g × deficit (true airspeed), no slower than 80 KIAS.
+          // The speed whose kinetic energy covers the deficit: V² − 2g × deficit (true airspeed), no slower than the trade floor.
           const v2 = tas * tas - 2 * G_FTPS2 * -margin;
           const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
-          want = Math.max(PFL.minTradeKias, Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
+          want = Math.max(tradeFloorKias(cfg), Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
         }
       }
       // Drag from the whole G: the turn's (bank) and the pitch's together.
@@ -717,7 +735,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       const wantGamma = state === 'slow' ? 0 : Math.asin(clamp(-dw - wantAccel / G_FTPS2, -1, 1));
       // The nose goes there with the G easing in and out (Patrick 17:49Z), up to 2 G in all (Patrick 17:52Z),
       // never past the stall line and never below 0 G; what the path doesn't take, the speed does, so the energy still adds up.
-      const nzHigh = Math.sqrt(Math.max(0, Math.min(PFL.glideMaxG, stallLimitG(s.ias)) ** 2 - turnG ** 2));
+      const nzHigh = Math.sqrt(Math.max(0, Math.min(PFL.glideMaxG, stallG(s.ias, cfg)) ** 2 - turnG ** 2));
       const nzWant = clamp(dampedClimbG(gamma, wantGamma, tas), 0, Math.max(nzHigh, Math.cos(gamma)));
       const eased = easeValue(nz, nzRate, nzWant, PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
       nz = eased.bankDeg; nzRate = eased.rollRateDps;
@@ -761,12 +779,12 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       }
       // Low on the circle and cutting in won't do it: go direct, turning early to land further down if needed; or eject.
       if (!onFinal && marginMin < -PFL.dragBufferFt && plan.kind !== 'direct') {
-        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg());
-        const trade = speedTradeFt(s.ias, s.alt);
+        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
+        const trade = speedTradeFt(s.ias, s.alt, cfg);
         if (direct) { replan(direct); notes.push(`went direct at ${Math.round(s.alt)} ft`); }
         else if (marginMin + trade < 0) { outcome = 'eject'; }
-      } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt) < 0) {
-        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg());
+      } else if (!onFinal && plan.kind === 'direct' && marginMin + speedTradeFt(s.ias, s.alt, cfg) < 0) {
+        const direct = chooseDirect(geo, s, s.alt, s.ias, wind, pilot.trackDeg(), cfg);
         if (direct && direct.aimAlongFt > (plan.aimAlongFt ?? 0) + 1) replan(direct);
         else if (!direct) outcome = 'eject';
       }
@@ -795,7 +813,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     if ((state === 'glide') && (s.phase === 'pfl_zoom')) {
       s.phase = 'pfl';
       const least = s.alt - ground - neededFt(minDragPlan(path), seg, proj.pt, s.alt, 0, wind);
-      const trade = plan.kind === 'direct' ? speedTradeFt(s.ias, s.alt) : 0;
+      const trade = plan.kind === 'direct' ? speedTradeFt(s.ias, s.alt, cfg) : 0;
       if (least + trade < 0) {
         const re = chooseJoin(geo, s, s.alt, pilot.trackDeg(), wind);
         replan(re);
