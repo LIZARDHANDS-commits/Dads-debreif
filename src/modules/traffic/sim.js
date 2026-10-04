@@ -40,6 +40,7 @@ import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from './evade.js';
 import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
 import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
+import { behaviourOf, behaviourLabel } from './behaviour.js';
 import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
@@ -580,18 +581,50 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         else if (choice === 'closed_high_key') startHighKeyClimb(a);
         continue;
       }
-      // Abeam the departure end on the outer downwind.
-      if (!a.rndDownwind && a.phase === 'outer_downwind' && pat.points[5] && pat.points[6]) {
+      // Abeam the departure end on the outer downwind (an SI-pattern aircraft always flies its straight-in: siPatternTick).
+      if (!a.rndDownwind && !onSiPattern(a) && a.phase === 'outer_downwind' && pat.points[5] && pat.points[6]) {
         const o = legOffsetsFt(pat.points[5], pat.points[6], a);
-        if (o.alongFt < 0 || o.alongFt > 3000) continue;
+        if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
         Object.assign(a, { rndDownwind: true, rndFinal: false });
         const choice = roll(a, odds.downwind);
         const ent2 = routeById('ENT2');
-        if (choice === 'straight_in' && ent2) {
-          startFlown(a, buildDownwindStraightIn(pat.points, stateOf(a), windNow(), ent2), 'STRAIGHT_IN_FLOWN', 'Straight-in', 'join', ent2.id);
-          a.phase = 'straight_in';
-        } else if (choice === 'high_key') startHighKeyClimb(a);
+        if (choice === 'straight_in' && ent2) startStraightInFromDownwind(a, pat, ent2);
+        else if (choice === 'high_key') startHighKeyClimb(a);
       }
+    }
+  }
+
+  /** The straight-in from the outer downwind (randomize.js buildDownwindStraightIn), flown once and then joining ENT2. */
+  function startStraightInFromDownwind(a, pat, ent2) {
+    startFlown(a, buildDownwindStraightIn(pat.points, stateOf(a), windNow(), ent2), 'STRAIGHT_IN_FLOWN', 'Straight-in', 'join', ent2.id);
+    a.phase = 'straight_in';
+  }
+
+  /**
+   * An aircraft flies the SI pattern lap after lap when its card's Pattern menu says SI, or, until it is set, when it
+   * started on a straight-in (ENT2) (Patrick, 4 Oct 23:15Z and 23:23Z; TR-61, TR-62).
+   */
+  const onSiPattern = (a) => (a.patternChoice ? a.patternChoice === 'si' : isStraightIn(routeById(a.startRouteId)));
+
+  /**
+   * The SI pattern (Traffic spec 4.15, TR-61): after its touch-and-go an aircraft that started on a straight-in flies
+   * Pattern 1's climb-out, crosswind and outer downwind, and abeam the departure end flies the straight-in from the
+   * outer downwind (down to 2,700 ft at 220 KIAS, slowing level and in the turn, onto ENT2's base), as the OHB pattern
+   * flies its laps. Once a lap: the flag clears on the next upwind.
+   */
+  function siPatternTick() {
+    const pat = routeById('PAT1'), ent2 = routeById('ENT2');
+    if (!pat || !ent2 || !pat.points[5] || !pat.points[6]) return;
+    for (const a of aircraft) {
+      if (!onSiPattern(a)) continue;
+      if (a.phase === 'climb') { a.siLap = false; continue; }
+      if (a.siLap || !a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
+      if (a.routeId !== pat.id || a.mode !== 'RAIL' || a.phase !== 'outer_downwind') continue;
+      if (a.goAroundFlight || a.pflFlight || a.pflRail || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      const o = legOffsetsFt(pat.points[5], pat.points[6], a);
+      if (o.alongFt < 0 || o.alongFt > RANDOM.downwindWindowFt) continue;
+      a.siLap = true;
+      startStraightInFromDownwind(a, pat, ent2);
     }
   }
 
@@ -809,6 +842,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     steps++;
     const opt = routeOptions();
     const wind = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+    if (steps % DECONFLICT.decideEverySteps === 0) siPatternTick();
     if (setup.randomize && steps % DECONFLICT.decideEverySteps === 0) randomizeTick();
     if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
     for (const a of aircraft) {
@@ -1269,10 +1303,35 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       return true;
     },
 
+    /** Sets the pattern an aircraft flies each lap: 'ohb' or 'si' (the card's Pattern menu; Traffic spec 4.15). */
+    setPattern(aircraftId, pattern) {
+      settle();
+      const a = aircraft.find((ac) => ac.id === aircraftId);
+      if (!a || (pattern !== 'ohb' && pattern !== 'si')) return false;
+      a.patternChoice = pattern;
+      return true;
+    },
+
     nextCallsign,
 
     /** What is where right now. */
     state() {
+      const rwy = circuitRunway();
+      const win = routeById('PAT1')?.points?.[12];
+      const windowFt = rwy && win ? Math.hypot(win.x - rwy.th.x, win.y - rwy.th.y) : NaN;
+      // The behaviour tag (behaviour.js, TR-60): where the aircraft stands against the runway, for a straight-in's final.
+      const tagOf = (a, route, kt, alt, x, y, leg) => {
+        let onFinal = false, toThresholdFt = NaN;
+        if (rwy && Number.isFinite(x) && Number.isFinite(y)) {
+          const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
+          const along = (x - rwy.th.x) * ux + (y - rwy.th.y) * uy, across = Math.abs((x - rwy.th.x) * uy - (y - rwy.th.y) * ux);
+          const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? 0) - compassDegFromVector(ux, uy)));
+          onFinal = along < 0 && across < 2000 && off < 30;
+          toThresholdFt = Math.hypot(x - rwy.th.x, y - rwy.th.y);
+        }
+        const b = behaviourOf({ ...a, kt, alt, leg, siPattern: onSiPattern(a) }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
+        return behaviourLabel(b, a.deconflict?.label ?? null) ?? a.deconflict?.label ?? null;
+      };
       const list = aircraft.map((a) => {
         const route = routeOf(a);
         const p = a.pflRail ? a : whereIs(a);
@@ -1300,6 +1359,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           engineFailed: Boolean(a.engineFailed),
           command: a.command ?? null,
           intent: a.intent ?? 'touch_and_go',
+          pattern: onSiPattern(a) ? 'si' : 'ohb',
           closedPatternBankDeg: a.closedPatternBankDeg,
           config: a.config,
           pflRail: a.pflRail ?? null,
@@ -1308,6 +1368,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
           deconflict: a.deconflict?.label ?? null,
+          behaviour: t < a.startsAt ? null : tagOf({ ...a, trackDeg: a.trackDeg ?? headingDeg }, route, iasKt, altFt, x, y, p.seg !== undefined ? p.seg + 1 : 1),
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

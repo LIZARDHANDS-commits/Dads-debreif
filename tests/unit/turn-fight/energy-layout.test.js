@@ -32,7 +32,7 @@ test('every number in Advanced setup has its three lines: what it is, why it has
     assert.ok(key in RANGES && key in DEFAULTS, `${key} has a range and a default`);
     assert.ok(label && what && change, `${key} says what it is and what changing it does`);
     // A number's source is a manual page, Patrick's ruling, or it is labelled an estimate (AGENTS.md, Flying numbers).
-    assert.match(why, /SMM \d|EFIG|Patrick|estimate/i, `${key} names its source or says estimate`);
+    assert.match(why, /SMM (Table )?\d|EFIG|Patrick|estimate/i, `${key} names its source or says estimate`);
   }
 });
 

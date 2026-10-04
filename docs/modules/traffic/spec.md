@@ -352,10 +352,50 @@ Code: `randomize.js` (the odds, the seeded rolls and the straight-in from the ou
    - **Abeam the departure end on the outer downwind** (Pattern 1 point 5): descend for a straight-in, climb to High Key for a PFL, or carry on round the overhead.
    - **On final, about a mile out** (an estimate): touch-and-go, full stop, or a low approach, which goes around about 1,500 ft short of the threshold (an estimate) as the go-around does (4.10).
 2. The normal choice (carry on, or touch-and-go on final) takes 100 minus the How often percent; the other two split it evenly.
-3. **The straight-in from the outer downwind** (the SI pattern; Patrick, 4 Oct 22:44Z: descend from abeam the departure end, then intercept ENT2, the SI rejoin, rolling out on base while decelerating to 140 knots) is flown once by the circuit's pilot: from abeam the departure end down from 3,500 to 2,700 ft at the speed it had, at no more than 1,000 ft/min (an estimate), then level and slowing at idle toward 140 KIAS (SMM 4.16 para 36); the left turn at 45° (an estimate) onto ENT2's base leg (Entry Mid to Entry Gate, about a mile past the overhead's base turn as SMM 4.16 para 36 has it), rolling out on base at 140 KIAS. Settled on the base leg it joins ENT2, which flies the Entry Gate at 120 KIAS, the final turn and the glide path to the runway. Without ENT2 in the setup it carries on round the overhead.
+3. **The straight-in from the outer downwind** (the SI pattern; Patrick, 4 Oct 22:44Z: descend from abeam the departure end, then intercept ENT2, the SI rejoin, rolling out on base while decelerating to 140 knots) is flown once by the circuit's pilot: from abeam the departure end down from 3,500 to 2,700 ft at 220 KIAS (SMM 4.16 para 36), at no more than 1,000 ft/min (an estimate), then level and slowing at idle toward 140 KIAS (SMM 4.16 para 36); the left turn at 45° (an estimate) onto ENT2's base leg (Entry Mid to Entry Gate, about a mile past the overhead's base turn as SMM 4.16 para 36 has it), rolling out on base at 140 KIAS. Settled on the base leg it joins ENT2, which flies the Entry Gate at 120 KIAS, the final turn and the glide path to the runway. Without ENT2 in the setup it carries on round the overhead.
 4. **Repeatable:** each roll is a hash of the run's seed, the callsign and how many rolls that aircraft has made, kept as plain fields on the aircraft, so a rewind replays the same choices and the order of the aircraft changes nothing.
 5. **Not rolled:** an aircraft flying a PFL, a climb to High Key, a go-around or another flown move, one with its engine failed, or one the deconfliction is moving. A move the dice start is flown exactly as its button flies it, and the deconfliction treats it the same way.
 6. **When data fails:** an aircraft with no position is skipped that tick; nothing else changes.
+
+### 4.14 Behaviour tag on every aircraft (Patrick, 4 Oct 21:55Z to 22:57Z)
+
+Code: `behaviour.js` (the tag's words and the configuration), `sim.js` `state()` (the `behaviour` field), `map2d.js` `getPflBadge` (shows it on the map and in the aircraft list). TR-60.
+
+1. Every flying aircraft carries a tag in the PFL tag's style: the pattern it is flying, what it does next and its configuration, for example `[OHB: final turn next · Gear + T/O flap]`. Words approved by Patrick (card list 22:34Z, "overhead can just be OHB" 22:44Z, "agreed" 22:53Z and 22:57Z):
+   - Overhead entry: `[OHB: initial next]`; initial: `[OHB: break next]`; break and inner downwind: `[OHB: final turn next]`.
+   - Final turn and final: `[FINAL: touch-and-go]`, `[FINAL: full stop]` or `[FINAL: low approach]`.
+   - Upwind: `[UPWIND: crosswind next]`; crosswind and outer downwind: `[OUTER: initial next]`.
+   - Straight-in: `[STRAIGHT-IN: final next]`, then the FINAL tag once lined up.
+   - Closed pattern: `[CLOSED: downwind next]`; climb to High Key: `[CLOSED TO HIGH KEY: PFL next]`; go-around: `[GO-AROUND: outer downwind next]`; breakout: `[BREAKOUT: rejoin next]`.
+   (The card's `[UPWIND: closed next]` and `[OUTER: straight-in next]` never show: a closed pattern or straight-in the dice pick starts at once and shows its own tag.)
+2. **Who wins:** a PFL's own tag shows while it glides; the deconfliction's tags (`[GIVING WAY: …]`, `[EVASIVE: …]`, `[SPACING: extend downwind]`) show while their move flies, with the configuration added.
+3. **Configuration** (Patrick's yes to the list, 22:53Z), with the PFL's labels plus "T/O flap" for gear up with the take-off flap still down:
+   - OHB: Clean through the initial and break (SMM 4.17 paras 38-39); Gear + T/O flap on the inner downwind once below 147 KIAS (SMM 4.17 paras 40-41, EFIG p.185; the gear point is a guess: no manual names it); Gear + landing flap from the perch (SMM 4.19 paras 43, 48).
+   - Straight-in: Clean down the outer downwind and until on ENT2's base (SMM 4.16 para 36); Gear + T/O flap on base (SMM 4.6 para 9); Gear + landing flap inside the window (SMM 4.8 para 13; the window's distance is Pattern 1's point 12 from the threshold).
+   - Closed pattern: Clean in the pull-up, then as OHB from the downwind (SMM 4.24 paras 57-58).
+   - Take-off, touch-and-go and go-around: Gear + T/O flap on the runway, gear up once 50 ft above the field (an estimate), flaps up at 110 KIAS (SMM 4.13 paras 30-31, 4.22 para 53).
+   - Low approach: unchanged until the go-around (SMM 4.21 paras 50-51). Climb to High Key and breakout: Clean.
+4. The tag only names what the sim already flies; it never changes how an aircraft flies. A PFL's configuration stays its own (pfl.js).
+5. **When data fails:** an aircraft with no route and no flown move shows no tag; one with no position shows its tag without the straight-in's final check (its configuration stays as on base).
+
+### 4.15 SI pattern (Patrick, 4 Oct 23:15Z to 23:19Z)
+
+Code: `sim.js` `siPatternTick` and `startStraightInFromDownwind`, `randomize.js` `buildDownwindStraightIn`. TR-61.
+
+1. An aircraft that starts on a straight-in (ENT2) flies the SI pattern lap after lap, as an OHB aircraft flies Pattern 1: after its touch-and-go it flies Pattern 1's climb-out, crosswind and outer downwind, then the straight-in from the outer downwind (4.13 item 3), joins ENT2 on its base leg and lands again. Patrick: "basically the OHB pattern but with the descent (keep 220 until at 2700) then joins the ENT 2 (just like how OHB works)".
+2. The descent starts abeam the departure end (Pattern 1 point 5, within 3,000 ft past it, an engineering window). Patrick's card "Departure end" (23:19Z): SMM 4.16 para 36 says the approach end, but it was written when the pattern was at 3,000 ft. It holds 220 KIAS down to 2,700 ft (SMM 4.16 para 36), then levels with the power reduced and slows toward 140 KIAS; it may still be slowing in the 45° turn onto base (Patrick, 23:15Z) and rolls out below 147 (SMM 4.16 para 36, 4.6 para 9).
+3. Randomize does not roll on the outer downwind for an SI-pattern aircraft (it always flies the straight-in); its upwind and final rolls still apply.
+4. **When data fails:** without ENT2 or Pattern 1's outer downwind in the setup it carries on round the overhead.
+
+### 4.16 The aircraft card's menu (Patrick, 4 Oct 23:23Z)
+
+Code: `aircraft.js` (the card), `sim.js` `setPattern`. TR-62.
+
+1. Each flying aircraft's card has one dropdown: **Pattern**, **Landing behaviour** or **Manoeuvres** (the default when the card first shows). Picking one shows that menu's buttons on the card; Remove stays on the card's name line.
+   - Pattern: **OHB** and **SI**. SI flies the SI pattern each lap (4.15); OHB the overhead. It takes effect at the next outer downwind. Until set, an aircraft that started on ENT2 flies SI and every other aircraft OHB.
+   - Landing behaviour: **Touch & Go**, **Full Stop** and **Go-around** (what was the Landing dropdown).
+   - Manoeuvres: **Breakout**, **Closed Pattern** with its bank, **High Key**, **PFL** and **Go-around**, as before.
+2. The highlighted button is the aircraft's current choice. The menu each card shows is remembered while the page is open.
 
 ---
 

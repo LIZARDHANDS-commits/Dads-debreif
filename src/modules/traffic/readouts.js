@@ -80,8 +80,8 @@ export function aircraftRows(state, setup) {
     return {
       id: a.id, type: a.type, color: a.color, routeName, routeId: a.routeId, leg: a.leg, altFt, kt, status: a.status, statusText,
       gsKt: Math.round(a.groundSpeedKt ?? a.kt), crabDeg: Math.round(a.crabDeg ?? 0),
-      engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase, intent: a.intent ?? 'touch_and_go',
-      pflDecision: a.pflDecision ?? null, config: a.config, deconflict: a.deconflict ?? null,
+      engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase, intent: a.intent ?? 'touch_and_go', pattern: a.pattern ?? 'ohb',
+      pflDecision: a.pflDecision ?? null, config: a.config, deconflict: a.deconflict ?? null, behaviour: a.behaviour ?? null,
       closedPatternBankDeg: a.closedPatternBankDeg,
       startsText: a.status === 'waiting' ? `starts at ${startTimeText(a.startsAt)}` : '',
       labelText: `${altFt}ft ${kt}kt ${routeName}`,
