@@ -31,7 +31,7 @@ import { createDice } from './dice.js';
 import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
 import { tickAircraft, initMode } from './tick-aircraft.js';
 import { makePflFromArea } from './nav-plans.js';
-import { buildPflRail } from './pfl-rail.js';
+import { startPflFlight } from './pfl.js';
 import { buildFullHighKeyRail, HIGH_KEY_PT } from './high-key.js';
 
 /** The step, in seconds of sim time. */
@@ -335,6 +335,52 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   }
 
 
+  /**
+   * The end of a PFL (Traffic spec 4.5 items 10-13): on the runway it flies a
+   * touch-and-go with power back on and carries on in the circuit (Patrick 08:40Z);
+   * a practice that missed the gate goes around; one that can't make the runway ejects.
+   */
+  function pflEnded(a) {
+    const done = a.pflDone;
+    delete a.pflDone;
+    delete a.pflFlight;
+    a.pflEndedThisStep = true;
+    a.engineFailed = false;
+    if (done === 'landed') {
+      const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern') ?? setup.routes[0];
+      const opt = routeOptions();
+      a.routeId = pat.id;
+      // On the circuit's first leg (threshold to departure end), not the initial above the same runway.
+      const p0 = pat.points[0], p1 = pat.points[1] ?? p0;
+      const d0 = pointDistFt(pat, 0, opt), d1 = pointDistFt(pat, 1, opt);
+      const legFt = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
+      const along = ((a.x - p0.x) * (p1.x - p0.x) + (a.y - p0.y) * (p1.y - p0.y)) / legFt;
+      a.distFt = d0 + Math.max(0, Math.min(along, d1 - d0));
+      const np = whereIs(a, pat);
+      // The circuit's climb-out passes close to, not exactly through, the touchdown point: close the gap smoothly.
+      a.joinOffset = { x: a.x - np.x, y: a.y - np.y };
+      a.mode = 'RAIL';
+      a.phase = 'touch_and_go';
+      a.command = null;
+      a.touchAndGo = true;
+      a.pflDecision = null;
+      a.config = undefined;
+      a.tag = undefined;
+    } else if (done === 'go_around') {
+      a.command = 'go_around';
+      a.mode = 'PHYSICS';
+      a.phase = 'go_around';
+      a.pflDecision = null;
+    } else {
+      a.active = false;
+      a.landed = false;
+      a.status = 'ejected';
+      a.command = null;
+      a.ejectAt = { x: a.x, y: a.y, alt: a.alt };
+      a.pflDecision = 'Eject';
+    }
+  }
+
   function stepOnce() {
     t += STEP_SEC; // added up one step at a time, as V6 does, so the clock is V6's to the last digit
     steps++;
@@ -345,7 +391,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       const route = routeOf(a);
       const beforeDist = a.distFt;
       tickAircraft(a, STEP_SEC, wind, route, opt);
-      if (a.mode === 'RAIL' && route && !a.pflRail) {
+      if (a.pflDone) pflEnded(a);
+      if (a.mode === 'RAIL' && route && !a.pflRail && !a.pflFlight && !a.pflEndedThisStep) {
         const len = routeLengthFt(route, opt);
         if (route.kind === 'pattern' && a.distFt >= beforeDist) {
           checkDecisions(a, beforeDist, a.distFt);
@@ -359,7 +406,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       if (a.active && a.pendingClosed && a.mode === 'RAIL' && !beforeUpwindEnd(a)) startClosedPattern(a);
 
       // Fallback Doctrine: continuous pattern training loop
-      if (a.active && !a.pflRail && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
+      delete a.pflEndedThisStep;
+      if (a.active && !a.pflRail && !a.pflFlight && (a.phase === 'touch_and_go' || a.phase === 'takeoff_climb') && a.x <= -3000) {
         if (!a.command) {
           // If no contingency command is active, climb to 2,500 ft MSL along runway heading (298°),
           // turn crosswind climbing to 3,500 ft MSL, and rejoin outer pattern for another overhead break.
@@ -543,6 +591,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   function statusOf(a) {
     if (!a.active) {
       if (a.status === 'crashed') return 'crashed';
+      if (a.status === 'ejected') return 'ejected';
       return a.landed ? 'landed' : 'done';
     }
     return t < a.startsAt ? 'waiting' : 'flying';
@@ -676,7 +725,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     /**
      * A new aircraft already in an engine-out glide at a point in the training area (Phase 2.5):
      * `radialDeg` °T and `distNm` NM from the field, `altFt` MSL, at 125 KIAS heading back toward the field,
-     * then the PFL command takes it to High Key and onto the PFL rails. Returns its callsign.
+     * then the PFL command flies its glide (Traffic spec 4.5). Returns its callsign.
      * @param {{ type?: string, radialDeg?: number, distNm?: number, altFt?: number, id?: string }} [spec]
      */
     spawnPflFromArea({ type = 'CT-156', radialDeg = 180, distNm = 5, altFt = 7500, id } = {}) {
@@ -779,15 +828,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
         const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
         const alt = a.alt ?? 3500;
-        let rail;
         if (distToHk <= 1500 && alt >= 4750) {
-          rail = buildPflRail(a, env, { targetKey: 'high_key', forceHighKey: true, ...options });
-          rail.routeId = 'PFL_HIGH_KEY';
-          a.engineFailed = true;
-        } else {
-          rail = buildFullHighKeyRail(a, env, options);
-          a.engineFailed = false;
+          // Already at High Key: power off now and glide the PFL, as practice (TR-R31).
+          startPflFlight(a, env, { practice: true, settings: setup.settings });
+          a.command = action;
+          a.routeId = 'PFL_HIGH_KEY';
+          return true;
         }
+        // The climb to High Key is today's until refactor PR 4; at High Key it hands over to the PFL (tick-aircraft.js).
+        const full = buildFullHighKeyRail(a, env, options);
+        const hk = full.findIndex((wp) => wp.tag === 'high_key');
+        const rail = Object.assign(hk > 0 ? full.slice(0, hk + 1) : full, { routeId: 'PFL_HIGH_KEY', handOffAtHighKey: true });
+        a.engineFailed = false;
         a.pflRail = rail;
         a.pflRailIndex = 0;
         a.distFt = 0;
@@ -811,35 +863,11 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a._blendTarget;
         delete a._blendTimer;
         a.phase = 'pfl';
-      } else if (action === 'engine_fail') {
-        a.command = action;
-        a.landed = false;
-        a.active = true;
-        a.engineFailed = true;
-        a.mode = 'PHYSICS';
-        a.model = 'NRG';
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        a.phase = 'pfl';
-      } else if (action === 'pfl_current') {
+      } else if (action === 'engine_fail' || action === 'pfl_current') {
+        // The PFL button: an engine failure where the aircraft is, flown as Traffic spec 4.5 says (pfl.js).
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
-        const pflRail = buildPflRail(a, env, options);
-        a.pflRail = pflRail;
-        a.pflRailIndex = 0;
-        a.distFt = 0;
-        a.engineFailed = true;
-        a.mode = 'RAIL';
-        a.routeId = 'PFL_HIGH_KEY';
-        a.navPlan = null;
+        startPflFlight(a, env, { settings: setup.settings });
         a.command = action;
-        a.landed = false;
-        a.active = true;
-        delete a._blendStart;
-        delete a._blendTarget;
-        delete a._blendTimer;
-        a.phase = pflRail[0]?.phase || 'pfl_zoom';
-        a.config = pflRail[0]?.config || 'clean';
       } else if (action === 'go_around') {
         a.command = action;
         a.landed = false;
@@ -920,6 +948,9 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           closedPatternPitchDeg: a.closedPatternPitchDeg,
           config: a.config,
           pflRail: a.pflRail ?? null,
+          pflDecision: a.pflDecision ?? null,
+          pflFlight: Boolean(a.pflFlight),
+          ejectAt: a.ejectAt ?? null,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

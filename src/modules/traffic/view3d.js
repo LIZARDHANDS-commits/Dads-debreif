@@ -19,7 +19,7 @@ import {
 import { createCt156Model, CT156_UNIT_LENGTH, PAINT_DEFAULT } from '../../ui-kit/ct156-model.js';
 import { KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { T6_LENGTH_FT } from './types.js';
-import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView } from './map2d.js';
+import { paletteFrom, conflictLevels, isFlying, aircraftColor, heightSpeedText, LEVEL_MARKS, MIN_RING_PX, photoAlignment, photoView, getPflBadge } from './map2d.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT } from './scenery3d.js';
@@ -1344,6 +1344,9 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       if (options.layerLabels) write(heightSpeedText(ac), x, p.y + 7, palette.text);
       const level = levels.get(ac.id);
       if (level) write(LEVEL_MARKS[level], x, p.y + 20, level === 'conflict' ? palette.bad : palette.caution, true);
+      // The PFL tag, as on the map (TR-R35).
+      const pfl = getPflBadge(ac);
+      if (pfl) write(pfl, x, p.y + (level ? 33 : options.layerLabels ? 20 : 7), pfl === '[CRASH SHORT]' ? palette.bad : '#38bdf8', true, 10);
     }
   }
 

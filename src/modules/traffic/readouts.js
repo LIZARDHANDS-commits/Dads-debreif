@@ -49,7 +49,7 @@ export function startTimeText(tSec) {
 
 // ── Aircraft and conflicts ───────────────────────────────────────────────────
 
-const STATUS_TEXT = { flying: 'Flying', waiting: 'Waiting', landed: 'Landed', done: 'Done' };
+const STATUS_TEXT = { flying: 'Flying', waiting: 'Waiting', landed: 'Landed', done: 'Done', ejected: 'Ejected' };
 
 /**
  * One row per aircraft in `state` (from `sim.state()`), in the same order. V6's table
@@ -80,6 +80,7 @@ export function aircraftRows(state, setup) {
     return {
       id: a.id, type: a.type, color: a.color, routeName, routeId: a.routeId, leg: a.leg, altFt, kt, status: a.status, statusText,
       engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase, intent: a.intent ?? 'touch_and_go',
+      pflDecision: a.pflDecision ?? null, config: a.config,
       closedPatternBankDeg: a.closedPatternBankDeg, closedPatternPitchDeg: a.closedPatternPitchDeg,
       startsText: a.status === 'waiting' ? `starts at ${startTimeText(a.startsAt)}` : '',
       labelText: `${altFt}ft ${kt}kt ${routeName}`,

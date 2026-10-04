@@ -68,7 +68,9 @@ const TRACK_PER_FT = 0.05;
 const LEVEL_OFF_SEC = 6;
 /** Radius for the line-holding law once on a line: small corrections only. An estimate. */
 const HOLD_RADIUS_FT = 3000;
-const DT = 0.1;
+/** The simulated pilot's time step, seconds. */
+export const PILOT_DT = 0.1;
+const DT = PILOT_DT;
 const RECORD_EVERY = 4; // a path point every 0.4 s (about 90 ft at 220 kt)
 const MAX_STEPS = 20000;
 
@@ -103,7 +105,7 @@ const ROLLOUT_LEAD_SEC = 1.0;
  * The bank for a heading error: positive right. `dir` 'left' makes a big error a
  * left turn. `s` is the pilot's state (heading, bank, KIAS, height).
  */
-function bankFor(wantedHdg, s, bankMax, dir = null) {
+export function bankFor(wantedHdg, s, bankMax, dir = null) {
   let err = wrapDeg180(wantedHdg - s.hdg);
   if (dir === 'left' && err > 30) err -= 360;
   if (dir === 'right' && err < -30) err += 360;
@@ -152,8 +154,10 @@ function readyToTurnOnto(line, s, trackDeg, radiusFt, groundSpeedFtps, lineGroun
  * A simulated pilot: flies the T-6 in the air mass with the wind adding to its
  * ground velocity, and records the path. `step` takes the wanted bank and the
  * climb rate and acceleration (true airspeed, ft/s per s) for this moment.
+ * Fields in `s.rec` go into every recorded point (the PFL's decision and
+ * configuration, pfl.js).
  */
-function makePilot(start, wind) {
+export function makePilot(start, wind) {
   const w = windVectorFtps(wind.windFromDeg, wind.windKt);
   const s = { ...start, bank: 0, rollRate: 0, k: 0, src: start.src ?? 0, phase: start.phase ?? 'initial', tag: undefined };
   const points = [];
@@ -161,7 +165,7 @@ function makePilot(start, wind) {
   const record = (extra = {}) => {
     points.push({
       x: s.x, y: s.y, alt: Math.round(s.alt * 10) / 10, kt: Math.round(s.ias * 10) / 10,
-      g: Math.round(gFromBankDeg(s.bank) * 100) / 100, src: s.src, phase: s.phase, headingDeg: s.hdg, tag: s.tag, ...extra,
+      g: Math.round(gFromBankDeg(s.bank) * 100) / 100, src: s.src, phase: s.phase, headingDeg: s.hdg, tag: s.tag, ...s.rec, ...extra,
     });
   };
   const ground = () => {

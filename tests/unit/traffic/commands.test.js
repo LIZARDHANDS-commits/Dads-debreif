@@ -29,27 +29,49 @@ import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
 
 const SETUP = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 
-test('sim.command engine_fail slows towards 110 KIAS and initiates emergency descent', () => {
+// Engine failure (Traffic spec 4.5 item 5): above 150 KIAS the aircraft zooms first
+// (SMM 13.17 para 34; NFM Fig 3-4 p.3-12); at or below 150 it holds height and slows
+// to 125 KIAS. Both then glide down.
+test('sim.command engine_fail above 150 KIAS climbs first (zoom), then glides down', () => {
   const sim = createSim(SETUP, { seed: 1 });
-  // Step until A1 is at cruise climb
   sim.stepTo(60);
   const acBefore = sim.state().aircraft.find((a) => a.id === 'A1');
   assert.equal(acBefore.status, 'flying');
   assert.equal(acBefore.engineFailed, false);
-  assert.ok(acBefore.kt > 110);
+  assert.ok(acBefore.kt > 150, `starts above 150 KIAS (${acBefore.kt})`);
 
-  // Issue engine fail
-  const ok = sim.command('A1', 'engine_fail');
-  assert.equal(ok, true);
+  assert.equal(sim.command('A1', 'engine_fail'), true);
 
-  // Advance 10 seconds
   sim.stepTo(70);
-  const acAfter = sim.state().aircraft.find((a) => a.id === 'A1');
-  assert.equal(acAfter.engineFailed, true);
-  // Airspeed decays toward 110 KIAS
-  assert.ok(acAfter.kt <= acBefore.kt);
-  // Altitude descends
-  assert.ok(acAfter.alt < acBefore.alt);
+  const acZoom = sim.state().aircraft.find((a) => a.id === 'A1');
+  assert.equal(acZoom.engineFailed, true);
+  assert.ok(acZoom.alt > acBefore.alt, `the zoom climbs: ${acZoom.alt} ft after ${acBefore.alt} ft`);
+  assert.ok(acZoom.kt < acBefore.kt, 'the zoom trades speed for the height');
+
+  sim.stepTo(90);
+  const acGlide = sim.state().aircraft.find((a) => a.id === 'A1');
+  assert.ok(acGlide.status === 'ejected' || acGlide.alt < acZoom.alt, `then it glides down (${acGlide.alt} ft)`);
+});
+
+test('sim.command engine_fail at or below 150 KIAS holds height while it slows, then glides down', () => {
+  const sim = createSim(SETUP, { seed: 1 });
+  const id = sim.spawn({ id: 'A_EF', routeId: 'PAT1', startPoint: 11, delaySec: 0 });
+  sim.stepTo(2);
+  const acBefore = sim.state().aircraft.find((a) => a.id === id);
+  assert.ok(acBefore.kt <= 150, `starts at or below 150 KIAS (${acBefore.kt})`);
+
+  assert.equal(sim.command(id, 'engine_fail'), true);
+
+  sim.stepTo(5);
+  const acSlow = sim.state().aircraft.find((a) => a.id === id);
+  assert.equal(acSlow.engineFailed, true);
+  // ±100 ft: the shared height margin (docs/TESTING.md).
+  assert.ok(Math.abs(acSlow.alt - acBefore.alt) <= 100, `holds height while slowing (${acBefore.alt} → ${acSlow.alt})`);
+  assert.ok(acSlow.kt <= acBefore.kt, 'slows');
+
+  sim.stepTo(30);
+  const acGlide = sim.state().aircraft.find((a) => a.id === id);
+  assert.ok(acGlide.alt < acBefore.alt - 100, `then glides down (${acGlide.alt} ft)`);
 });
 
 test('sim.command breakout turns away from circuit, climbs to 4,500 ft, and accelerates towards 220 kt', () => {
@@ -134,7 +156,7 @@ test('sim.command climb_low_key executes full power climb to Low Key (3,900 ft /
   assert.ok(acDescend.alt <= 3500, `Alt ${acDescend.alt} should descend on PFL profile`);
 });
 
-test('sim.command pfl_current executes zoom climb when >130 kt and glides at 125 kt', () => {
+test('sim.command pfl_current executes zoom climb when above 150 KIAS and glides at 125 kt', () => {
   const sim = createSim(SETUP, { seed: 1 });
   // Initial run-in is at 220 kt
   const id = sim.spawn({ id: 'A_PFL', routeId: 'PAT1', startPoint: 9, delaySec: 0 });
@@ -207,7 +229,7 @@ test('Preset Point - Closed Pattern (Point 2 on PAT1 at 2,400 ft / 140 kt) climb
   assert.notEqual(acPerch.phase, 'closed_pattern', 'must not stay stuck in closed pattern orbit');
 });
 
-test('sim.command climb_high_key maintains RAIL mode, approach power, cuts engine at High Key, and lands without re-joining PAT1', () => {
+test('sim.command climb_high_key maintains RAIL mode, approach power, cuts engine at High Key, lands and flies a touch-and-go', () => {
   const sim = createSim(SETUP, { seed: 1 });
   const id = sim.spawn({ id: 'A_HK_TEST', routeId: 'PAT1', startPoint: 11, delaySec: 0 });
   sim.stepTo(2);
@@ -234,11 +256,17 @@ test('sim.command climb_high_key maintains RAIL mode, approach power, cuts engin
   }
   assert.ok(crossedHighKey, 'Aircraft must cross High Key threshold and trigger engine failure');
 
-  // Step until landed
-  sim.stepTo(300);
-  ac = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(ac.routeId, 'PFL_HIGH_KEY');
-  assert.ok(ac.landed || ac.alt <= 1900, 'Aircraft must land at threshold');
-  assert.notEqual(ac.routeId, 'PAT1', 'Must never rejoin PAT1');
+  // A PFL that makes the runway flies a touch-and-go and carries on in the circuit (spec 4.5 item 13; Patrick 4 Oct 08:40Z).
+  let lowest = Infinity;
+  for (let t = 125; t <= 400 && ac.engineFailed; t += 1) {
+    sim.stepTo(t);
+    ac = sim.state().aircraft.find((a) => a.id === id);
+    lowest = Math.min(lowest, ac.alt);
+  }
+  assert.equal(ac.status, 'flying', 'still flying after the touch-and-go');
+  assert.equal(ac.engineFailed, false, 'power back on');
+  assert.equal(ac.routeId, 'PAT1', 'back in the circuit');
+  // ±100 ft: the shared height margin (docs/TESTING.md); the runway is at 1,880 ft.
+  assert.ok(lowest <= 1980, `came down to the runway (lowest ${lowest} ft)`);
 });
 

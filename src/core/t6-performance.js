@@ -198,6 +198,24 @@ export function glideRatio(config) {
 }
 
 /**
+ * Drag ÷ weight, engine off and prop feathered, for a T6A_GLIDE configuration
+ * ('clean', 'gearDown', 'flapsTakeoff', 'landing') at kias, altFt and g. Gear
+ * and flap raise the zero-lift part of the clean drag (dragPerWeight) so the
+ * configuration's best glide ratio is the max glide chart's: dragA ×
+ * (clean ratio ÷ its ratio)². Its best glide speed then comes out near the
+ * chart's: gear down about 108 KIAS (chart 105), landing flap about 93
+ * (chart 95). The flapsTakeoff row is an estimate, as its ratio is. Standard
+ * aerodynamics on the chart's numbers; checked against SMM 13.5 para 11's
+ * orbit losses: clean about 1,630 ft per 360° at 30° (SMM about 1,700), gear
+ * down about 2,000 ft (SMM about 2,600, a difference not yet settled).
+ */
+export function glideDragPerWeight(config, kias, altFt, g = 1) {
+  const f = T6A_FIT;
+  const k = (glideRatio('clean') / glideRatio(config)) ** 2;
+  return f.dragA * k * kias * kias + f.dragB * g * g / (kias * kias);
+}
+
+/**
  * The flight manual's zoom data (NFM Fig 3-4, p.3-12): height gained after an
  * engine failure, engine secured and prop feathered, gear and flaps up; 2 s
  * delay, 2 G pull to 20° nose up held to 145 KIAS, then a 0 to +0.5 G push to

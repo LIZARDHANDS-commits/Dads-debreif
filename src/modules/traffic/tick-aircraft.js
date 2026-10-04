@@ -25,6 +25,7 @@ import { stepBreakout } from './breakout.js';
 import { stepHighKey } from './high-key.js';
 import { PFL_AIRFIELD } from './pfl-solver.js';
 import { followRoute } from './path-follower.js';
+import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 export { stepBreakout } from './breakout.js';
 export { stepHighKey } from './high-key.js';
 
@@ -618,6 +619,21 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
   const windKt = wind?.windKt ?? 0;
   const env = { windFromDeg, windKt };
 
+  // ── PFL: the flown glide, on the path follower (Traffic spec 4.5; refactor PR 3) ──
+  if (a.pflFlight) {
+    const fl = a.pflFlight;
+    const p = followRoute(a, fl.route, env, stepDt, PFL_ROUTE_OPTIONS);
+    const pt = fl.route.points[Math.min(p.seg ?? 0, fl.route.points.length - 1)];
+    a.phase = pt?.phase ?? 'pfl';
+    a.pflDecision = pt?.decision ?? a.pflDecision;
+    a.config = pt?.config ?? a.config;
+    // The tag holds the last key passed (High Key until Low Key, and so on).
+    if (pt?.tag) a.tag = pt.tag;
+    a.engineFailed = true;
+    if (a.distFt >= routeLengthFt(fl.route, PFL_ROUTE_OPTIONS) - 0.5) a.pflDone = fl.outcome;
+    return a;
+  }
+
   // ── PFL KINEMATIC RAIL MODE ──────────────────────────────────────────────
   if (a.mode === 'RAIL' && a.pflRail && a.pflRail.length > 0) {
     if (a.pflRail[0].cumDistFt === undefined) {
@@ -654,6 +670,12 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     a.g = (wp0.g ?? 1.0) + ((wp1.g ?? 1.0) - (wp0.g ?? 1.0)) * u;
     a.phase = u < 0.5 ? wp0.phase : wp1.phase;
     a.config = u < 0.5 ? wp0.config : wp1.config;
+    if ((wp0.tag === 'high_key' || wp1.tag === 'high_key') && a.pflRail.handOffAtHighKey) {
+      // The High Key button: power off at High Key, then the same glide as a PFL, as practice (TR-R31).
+      a.tag = 'high_key';
+      startPflFlight(a, env, { practice: true });
+      return a;
+    }
     if (wp0.tag === 'high_key' || wp1.tag === 'high_key') {
       a.tag = 'high_key';
       a.engineFailed = true;

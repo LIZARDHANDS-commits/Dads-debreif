@@ -1,139 +1,151 @@
-// Checks: a PFL command or an engine-out spawned in the training area: starts on the rail with the gear and
-//   flaps clean, a good-energy case flies the PFL key phases and lands, a case 30 NM out comes down short of the
-//   runway (three tests now).
-// Serves: TR-R14.
-// Expected values: end results (lands within 3,000 ft of the 1,892 ft threshold, the far case ends more than
-//   3,000 ft out); the 10 minute and 150 s limits are safety stops with no reason written; spawn points typed
-//   in, no source yet; the "12:1 glide" comment matches traffic spec 3.5; input is the V6-derived data file.
+// Checks: the PFL (Traffic spec 4.5): from a spread of failure points and winds it lands on the runway or ejects
+//   as the energy says, takes no drag before the circle or a committed direct glide, never does worse with more
+//   height, and in the sim never moves further in a step than it flies; the PFL button, an area start that lands
+//   and flies a touch-and-go, and one far too low and far out that ejects.
+// Serves: TR-R14, TR-R30, TR-R35.
+// Expected values: end results only (on the runway, ejected, back in the circuit); clean glide 2 NM per 1,000 ft
+//   (T-6A max glide chart; SMM 13.5 para 7); start points are the circuit's own points and spec 4.5's keys; the
+//   step limit and the 10 minute safety stop have their reasons beside them.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { createSim, STEP_SEC } from '../../../src/modules/traffic/sim.js';
-import { tickAircraft } from '../../../src/modules/traffic/tick-aircraft.js';
-import { buildPflRail } from '../../../src/modules/traffic/pfl-rail.js';
-import { PFL_AIRFIELD } from '../../../src/modules/traffic/pfl-solver.js';
+import { flyPfl } from '../../../src/modules/traffic/pfl.js';
+import { THRESHOLD_29L, DEPARTURE_END_29L, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT } from '../../../src/modules/traffic/airfield.js';
 
-const MOOSE_JAW = JSON.parse(
-  readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8')
-);
+const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
+const NM = 6076.12;
+const KT_TO_FTPS = NM / 3600;
 
-function createTestSim(customSettings = {}) {
-  const setup = JSON.parse(JSON.stringify(MOOSE_JAW));
-  if (customSettings.windFromDeg !== undefined) setup.windFromDeg = customSettings.windFromDeg;
-  if (customSettings.windKt !== undefined) setup.windKt = customSettings.windKt;
+function createTestSim(wind = {}) {
+  const setup = structuredClone(MOOSE_JAW);
+  Object.assign(setup, wind);
   return createSim(setup);
 }
 
-// ── TEST 1: PFL INITIALIZATION & RAIL ATTACHMENT ──────────────────────────────
-test('Test 1: Spawning aircraft and issuing sim.command(id, "pfl_current") sets mode = "RAIL", attaches pflRail, and starts in zoom/glide phase', () => {
+/** Along and across the runway from the threshold, ft. */
+function onRunway(p) {
+  const ux = DEPARTURE_END_29L.x - THRESHOLD_29L.x, uy = DEPARTURE_END_29L.y - THRESHOLD_29L.y;
+  const len = Math.hypot(ux, uy);
+  const along = ((p.x - THRESHOLD_29L.x) * ux + (p.y - THRESHOLD_29L.y) * uy) / len;
+  const across = Math.abs((p.x - THRESHOLD_29L.x) * uy - (p.y - THRESHOLD_29L.y) * ux) / len;
+  return along >= 0 && along <= len && across <= 150;
+}
+
+// From the threshold at runway heading, `nm` out on the reciprocal (a straight-in final).
+const onFinal = (nm) => {
+  const back = (RUNWAY_29L_HDG_DEG + 180) * Math.PI / 180;
+  return { x: THRESHOLD_29L.x + nm * NM * Math.sin(back), y: THRESHOLD_29L.y + nm * NM * Math.cos(back) };
+};
+
+// Failure points: the circuit's own points (moose-jaw.json PAT1), spec 4.5's keys, and the training area.
+const STARTS = {
+  'High Key, 5,000 ft': { ...THRESHOLD_29L, alt: 5000, kias: 125, headingDeg: 298 },
+  'High Key, 6,500 ft (above the window)': { ...THRESHOLD_29L, alt: 6500, kias: 125, headingDeg: 298 },
+  'Break, 220 kt': { x: -288, y: -1441, alt: 3500, kias: 220, headingDeg: 298 },
+  'Break exit, 140 kt': { x: -3385, y: -4323, alt: 3500, kias: 140, headingDeg: 118 },
+  'Abeam departure end, 220 kt': { x: -10974, y: -12100, alt: 3500, kias: 220, headingDeg: 118 },
+  'Area, 5 NM south, 7,500 ft': { x: THRESHOLD_29L.x, y: THRESHOLD_29L.y - 5 * NM, alt: 7500, kias: 125, headingDeg: 0 },
+  'Area, 10 NM east, 8,000 ft': { x: THRESHOLD_29L.x + 10 * NM, y: THRESHOLD_29L.y, alt: 8000, kias: 125, headingDeg: 270 },
+};
+const WINDS = [{ windFromDeg: 360, windKt: 0 }, { windFromDeg: 298, windKt: 20 }, { windFromDeg: 208, windKt: 20 }];
+const RANK = { eject: 0, go_around: 1, landed: 2 };
+
+test('PFL: from each failure point with the height for it, it glides to the runway in calm air and 20 kt (head and cross)', () => {
+  for (const wind of WINDS) {
+    for (const [name, start] of Object.entries(STARTS)) {
+      const r = flyPfl(start, wind);
+      const last = r.points.at(-1);
+      assert.equal(r.outcome, 'landed', `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: ${r.outcome}`);
+      assert.ok(onRunway(last), `${name}, ${wind.windKt} kt from ${wind.windFromDeg}: touched down off the runway`);
+      for (const p of r.points) assert.ok([p.x, p.y, p.alt, p.kt].every(Number.isFinite), `${name}: a number is not finite`);
+    }
+  }
+});
+
+test('PFL: far too low to make the runway, it ejects (spec 4.5 item 10)', () => {
+  // 2 NM per 1,000 ft clean: 1,108 ft above the field glides about 2.2 NM, nowhere near 30 NM.
+  const r = flyPfl({ x: THRESHOLD_29L.x + 30 * NM, y: THRESHOLD_29L.y, alt: 3000, kias: 125, headingDeg: 270 }, WINDS[0]);
+  assert.equal(r.outcome, 'eject');
+  assert.ok(r.eject, 'says where it ejected');
+});
+
+test('PFL: no gear or flap before it is on the circle or committed direct (SMM 13.6 para 15, 13.17 para 39)', () => {
+  for (const wind of WINDS) {
+    for (const [name, start] of Object.entries(STARTS)) {
+      for (const p of flyPfl(start, wind).points) {
+        if (/^(Zoom|Slow to 125|Join)/.test(p.decision ?? '')) assert.equal(p.config, 'Clean', `${name}: ${p.config} while "${p.decision}"`);
+      }
+    }
+  }
+});
+
+test('PFL: more height at the start never gives a worse result', () => {
+  const starts = { ...STARTS, '2 NM final, 2,700 ft': { ...onFinal(2), alt: 2700, kias: 120, headingDeg: 298 } };
+  for (const wind of WINDS) {
+    for (const [name, start] of Object.entries(starts)) {
+      const low = flyPfl(start, wind), high = flyPfl({ ...start, alt: start.alt + 500 }, wind);
+      assert.ok(RANK[high.outcome] >= RANK[low.outcome], `${name}, ${wind.windKt} kt: ${low.outcome} at ${start.alt} ft but ${high.outcome} 500 ft higher`);
+    }
+  }
+});
+
+test('PFL button: engine failure on the spot, on the follower (RAIL), clean, zooming above 150 KIAS', () => {
   const sim = createTestSim();
   const id = sim.spawn({ type: 'CT-156', routeId: 'PAT1', startPoint: 9, delaySec: 0 });
-
-  // Step 0.1s so aircraft is active and flying along initial leg
   sim.stepTo(0.1);
+  const before = sim.state().aircraft.find((a) => a.id === id);
+  assert.equal(before.status, 'flying');
+  assert.ok(before.kt > 150, `starts above 150 KIAS (${before.kt})`);
 
-  const beforeState = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(beforeState.status, 'flying');
-
-  // Command PFL at current position
-  const ok = sim.command(id, 'pfl_current');
-  assert.equal(ok, true);
-
-  const afterState = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(afterState.mode, 'RAIL', 'Mode must be set to RAIL');
-  assert.equal(afterState.engineFailed, true, 'Engine failure flag must be set');
-  assert.equal(afterState.command, 'pfl_current');
-  assert.ok(
-    afterState.phase === 'pfl_zoom' || afterState.phase === 'pfl_glide' || afterState.phase === 'pfl_tangent',
-    `Initial PFL phase should be zoom or glide, got "${afterState.phase}"`
-  );
-  assert.ok(
-    afterState.config?.toLowerCase() === 'clean',
-    `Initial configuration must be clean, got "${afterState.config}"`
-  );
+  assert.equal(sim.command(id, 'pfl_current'), true);
+  const after = sim.state().aircraft.find((a) => a.id === id);
+  assert.equal(after.mode, 'RAIL');
+  assert.equal(after.engineFailed, true);
+  assert.equal(after.phase, 'pfl_zoom');
+  assert.equal(after.config, 'Clean');
+  assert.ok(after.pflDecision, 'the tag has a decision (TR-R35)');
 });
 
-// ── TEST 2: RECOVERABLE PFL GLIDE & SAFE TOUCHDOWN ────────────────────────────
-test('Test 2: Stepping simulation with surplus/nominal energy aircraft follows PFL rail through High Key -> Low Key -> Base Key -> Final and safely lands (a.status === "landed")', () => {
+test('PFL from the area: lands on the runway, then flies a touch-and-go back into the circuit (spec 4.5 item 13)', () => {
   const sim = createTestSim({ windFromDeg: 360, windKt: 5 });
-
-  // Spawn in the training area with surplus energy to reach High Key
-  // Radial 180 (south), 3 NM, 6,200 ft MSL
   const id = sim.spawnPflFromArea({ radialDeg: 180, distNm: 3, altFt: 6200 });
+  let ac = sim.state().aircraft.find((a) => a.id === id);
+  assert.equal(ac.engineFailed, true);
 
-  const startState = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(startState.mode, 'RAIL');
-  assert.equal(startState.engineFailed, true);
-
-  const observedPhases = new Set();
-  let landedState = null;
-
-  // Step simulation until aircraft touches down or maximum 10 minutes (6,000 steps)
-  for (let s = 0; s < 6000; s++) {
+  let lowest = null;
+  let lastStep = null;
+  // 10 minutes is a safety stop: 3 NM from 6,200 ft is a few minutes of glide.
+  for (let s = 0; s < 12000 && ac.engineFailed; s++) {
     sim.stepTo(sim.t + STEP_SEC);
-    const ac = sim.state().aircraft.find((a) => a.id === id);
-    if (!ac) break;
-    observedPhases.add(ac.phase);
-    if (!ac.active) {
-      landedState = ac;
-      break;
-    }
+    ac = sim.state().aircraft.find((a) => a.id === id);
+    if (!lowest || ac.alt < lowest.alt) lowest = { x: ac.x, y: ac.y, alt: ac.alt };
+    // No step longer than it flies: true airspeed (under 200 kt here) plus 5 kt of wind, with half again for
+    // the follower catching up onto its path.
+    if (lastStep) assert.ok(Math.hypot(ac.x - lastStep.x, ac.y - lastStep.y) <= 205 * KT_TO_FTPS * STEP_SEC * 1.5, 'jumped');
+    lastStep = { x: ac.x, y: ac.y };
   }
-
-  assert.ok(landedState !== null, 'Aircraft must finish glide and reach terminal state within 10 minutes');
-  assert.equal(landedState.status, 'landed', `Aircraft status must be "landed", got "${landedState.status}"`);
-  assert.equal(landedState.landed, true);
-  assert.equal(landedState.active, false);
-  assert.equal(landedState.alt, 1892, 'Terminal altitude must be runway elevation 1,892 ft MSL');
-
-  // Verify proximity to runway threshold (3104, -3194)
-  const distToThresh = Math.hypot(landedState.x - PFL_AIRFIELD.thresholdX, landedState.y - PFL_AIRFIELD.thresholdY);
-  assert.ok(distToThresh <= 3000, `Landed position must be within 3,000 ft of threshold, got ${distToThresh.toFixed(1)} ft`);
-
-  // Verify recovery phases were observed
-  const hasKeyPhase =
-    observedPhases.has('pfl_high_key') ||
-    observedPhases.has('pfl_low_key') ||
-    observedPhases.has('pfl_base_key') ||
-    observedPhases.has('pfl_final') ||
-    observedPhases.has('pfl_tangent');
-  assert.ok(hasKeyPhase, `Recovery must progress through PFL key phases. Observed: ${[...observedPhases].join(', ')}`);
+  assert.equal(ac.engineFailed, false, 'the PFL ended within the safety stop');
+  assert.equal(ac.status, 'flying', 'flying again after the touch-and-go');
+  assert.equal(ac.routeId, 'PAT1', 'back in the circuit');
+  // ±100 ft: the shared height margin (docs/TESTING.md).
+  assert.ok(lowest.alt <= FIELD_ELEV_FT + 100, `came down to the runway (lowest ${lowest.alt} ft)`);
+  assert.ok(onRunway(lowest), 'the lowest point was on the runway');
 });
 
-// ── TEST 3: UNRECOVERABLE DEFICIT ENERGY CRASH SHORT ─────────────────────────
-test('Test 3: Stepping simulation with unrecoverable / low-energy aircraft follows straight clean glide to terrain contact at 1,892 ft MSL and terminates with a.status === "crashed"', () => {
+test('PFL from the area, far too low and far out: ejects, the aircraft is gone and a marker stays (spec 4.5 item 10)', () => {
   const sim = createTestSim({ windFromDeg: 360, windKt: 10 });
-
-  // Spawn in the training area 30 NM away at only 3,000 ft MSL (1,108 ft AGL)
-  // At 12:1 glide ratio, maximum clean glide distance is ~2.2 NM << 30 NM.
   const id = sim.spawnPflFromArea({ radialDeg: 90, distNm: 30, altFt: 3000 });
-
-  const startState = sim.state().aircraft.find((a) => a.id === id);
-  assert.equal(startState.mode, 'RAIL');
-  assert.equal(startState.engineFailed, true);
-
-  let crashedState = null;
-
-  // Step simulation until aircraft terminates
-  for (let s = 0; s < 3000; s++) {
+  let ac = sim.state().aircraft.find((a) => a.id === id);
+  // 10 minutes is a safety stop: it ejects as soon as it can't make the runway.
+  for (let s = 0; s < 12000 && ac.active; s++) {
     sim.stepTo(sim.t + STEP_SEC);
-    const ac = sim.state().aircraft.find((a) => a.id === id);
-    if (!ac) break;
-    if (!ac.active) {
-      crashedState = ac;
-      break;
-    }
+    ac = sim.state().aircraft.find((a) => a.id === id);
   }
-
-  assert.ok(crashedState !== null, 'Aircraft must reach terrain contact within simulation run');
-  assert.equal(crashedState.status, 'crashed', `Aircraft status must be "crashed", got "${crashedState.status}"`);
-  assert.equal(crashedState.landed, true);
-  assert.equal(crashedState.active, false);
-  assert.equal(crashedState.alt, 1892, 'Terrain impact must occur at field elevation 1,892 ft MSL');
-
-  // Verify crash location is well short of the runway threshold
-  const distToThresh = Math.hypot(crashedState.x - PFL_AIRFIELD.thresholdX, crashedState.y - PFL_AIRFIELD.thresholdY);
-  assert.ok(distToThresh > 3000, `Crash location must be short of runway threshold (>3,000 ft), got ${distToThresh.toFixed(1)} ft`);
+  assert.equal(ac.status, 'ejected');
+  assert.equal(ac.active, false);
+  assert.ok(ac.ejectAt, 'a marker where it ejected');
+  assert.ok(Math.hypot(ac.ejectAt.x - THRESHOLD_29L.x, ac.ejectAt.y - THRESHOLD_29L.y) > 20 * NM, 'it ejected far out, not near the runway');
 });
