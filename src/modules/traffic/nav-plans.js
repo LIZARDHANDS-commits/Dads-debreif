@@ -162,7 +162,7 @@ export const ENT_SI = Object.freeze({
 const PFL_HIGH_KEY_WPS = [
   wp({ x: 3104,  y: -3194,  alt: 5000,  kias: 125,  phase: 'high_key',   label: 'High Key',   mode: 'rails', config: 'clean',    tag: 'high_key'  }),
   wp({ x: 7146,  y:-10275,  alt: 3700,  kias: 120,  phase: 'low_key',    label: 'Low Key',    mode: 'rails', config: 'gearDown', tag: 'low_key'   }),
-  wp({ x: 9076,  y: -6411,  alt: 2900,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'rails', config: 'landing',  tag: 'base_key'  }),
+  wp({ x: 8800,  y: -8800,  alt: 3000,  kias: 120,  phase: 'base_key',   label: 'Base Key',   mode: 'rails', config: 'landing',  tag: 'base_key'  }),
   wp({ x: 3104,  y: -3194,  alt: FIELD_ELEV, kias: 100, phase: 'pfl_final', label: 'Threshold', mode: 'rails', config: 'landing',  tag: 'threshold' }),
 ];
 

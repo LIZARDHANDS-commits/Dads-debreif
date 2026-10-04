@@ -145,7 +145,7 @@ export function calcZoomApex(aircraft, env = null, options = {}) {
  * - 35° nominal profile
  * - 40°–45° tight corner cut when low on energy to shorten track by ~1,500 ft (SMM Ch 13 doctrine).
  *
- * @param {{ x: number, y: number, alt: number, headingDeg: number, kias?: number }} apex - Aircraft state at zoom apex
+ * @param {{ x: number, y: number, alt: number, headingDeg: number, kias?: number, tag?: string, phase?: string, command?: string }} apex - Aircraft state at zoom apex
  * @param {{ windFromDeg?: number, windKt?: number }} [env] - Wind environment
  * @param {Object} [options] - Tuning options { route, bankDeg }
  * @returns {{

@@ -147,7 +147,7 @@ test('sim.command pfl_current executes zoom climb when >130 kt and glides at 125
   sim.stepTo(10);
   const acZoom = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(acZoom.engineFailed, true);
-  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl'].includes(acZoom.phase), 'phase should be PFL-related');
+  assert.ok(['pfl_current', 'pfl_zoom', 'pfl_glide', 'high_key', 'low_key', 'pfl'].includes(acZoom.phase), 'phase should be PFL-related');
   assert.ok(acZoom.alt > 2000, 'PFL descent');
 
   // After zoom completes, stabilizes at clean 125 KIAS best glide

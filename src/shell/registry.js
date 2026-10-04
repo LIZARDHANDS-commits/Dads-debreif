@@ -39,7 +39,7 @@ export const MODULES = [
   },
   {
     id: 'traffic',
-    eyebrow: 'Traffic · v2.1',
+    eyebrow: 'Traffic · v2.2',
     title: 'Traffic Pattern Sim',
     blurb: 'Define patterns, then fly aircraft through them',
     media: media('traffic'),

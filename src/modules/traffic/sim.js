@@ -738,7 +738,18 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         delete a._blendTarget;
         delete a._blendTimer;
         a.phase = 'pfl';
-      } else if (action === 'pfl_current' || action === 'engine_fail') {
+      } else if (action === 'engine_fail') {
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        a.engineFailed = true;
+        a.mode = 'PHYSICS';
+        a.model = 'NRG';
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = 'pfl';
+      } else if (action === 'pfl_current') {
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
         const pflRail = buildPflRail(a, env, options);
         a.pflRail = pflRail;

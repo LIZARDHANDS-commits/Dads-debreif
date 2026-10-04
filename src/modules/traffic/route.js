@@ -950,7 +950,8 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   let turnAccum = 0;
   const maxHkTurn = 180;
 
-  track.push({
+  const hkTrack = [];
+  hkTrack.push({
     x: curX,
     y: curY,
     alt: 5000,
@@ -968,7 +969,6 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     curHeadingDeg = (curHeadingDeg - dTurn + 360) % 360;
 
     const u = turnAccum / maxHkTurn;
-    const curAlt = 5000 - (5000 - 3700) * u;
     const curKt = 125 - (125 - 120) * u;
 
     const hdgRad = (curHeadingDeg * Math.PI) / 180;
@@ -977,10 +977,10 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     curX += vx * dt;
     curY += vy * dt;
 
-    track.push({
+    hkTrack.push({
       x: curX,
       y: curY,
-      alt: Math.round(curAlt),
+      alt: 5000, // Assigned via cumulative distance below
       kt: Math.round(curKt),
       g: 1.15,
       src: 0,
@@ -1001,12 +1001,13 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   const wtDw = windTriangle(dwTrackDeg, 120, windFromDeg, windKt);
   const dwHdgDeg = wtDw.canHoldTrack ? wtDw.headingDeg : dwTrackDeg;
 
+  const dwTrack = [];
   for (let k = 1; k <= dwSteps; k++) {
     const u = k / dwSteps;
-    track.push({
+    dwTrack.push({
       x: dwStartX + (lowKey.x - dwStartX) * u,
       y: dwStartY + (lowKey.y - dwStartY) * u,
-      alt: 3700,
+      alt: 3700, // Assigned via cumulative distance below
       kt: 120,
       g: 1.0,
       src: 1,
@@ -1015,6 +1016,22 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
       tag: k === dwSteps ? 'low_key' : 'downwind',
     });
   }
+
+  // Smooth, continuous altitude assignment from High Key (5,000 ft) to Low Key (3,700 ft)
+  const hkToLkPts = [...hkTrack, ...dwTrack];
+  let totalHkToLkDist = 0;
+  const distArr = [0];
+  for (let i = 1; i < hkToLkPts.length; i++) {
+    const stepD = Math.hypot(hkToLkPts[i].x - hkToLkPts[i - 1].x, hkToLkPts[i].y - hkToLkPts[i - 1].y);
+    totalHkToLkDist += stepD;
+    distArr.push(totalHkToLkDist);
+  }
+
+  for (let i = 0; i < hkToLkPts.length; i++) {
+    const u = totalHkToLkDist > 0 ? distArr[i] / totalHkToLkDist : i / (hkToLkPts.length - 1);
+    hkToLkPts[i].alt = Math.round(5000 - (5000 - 3700) * u);
+  }
+  track.push(...hkToLkPts);
 
   // Segment 3: Descending Final Turn (Low Key to Final Approach)
   curX = lowKey.x;
@@ -1044,7 +1061,8 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     ftTurnAccum += dTurn;
     curHeadingDeg = (curHeadingDeg - dTurn + 360) % 360;
 
-    const curAlt = 3700 - (3700 - 2119) * u;
+    // Authentic continuous descent: 3,700 ft (Low Key) -> 3,000 ft (Base Key at u=0.5) -> 2,400 ft (Final Rollout)
+    const curAlt = 3700 - (3700 - 2400) * u;
     const hdgRad = (curHeadingDeg * Math.PI) / 180;
     const vx = ftTasFtps * Math.sin(hdgRad) + wx;
     const vy = ftTasFtps * Math.cos(hdgRad) + wy;
@@ -1067,12 +1085,12 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     });
   }
 
-  // Segment 4: Final Approach straight-in to Threshold (2,119 ft -> 1,892 ft MSL)
+  // Segment 4: Final Approach straight-in to Threshold (2,400 ft -> 1,892 ft MSL)
   const finalDist = Math.hypot(th.x - curX, th.y - curY);
   const finalSteps = Math.max(10, Math.ceil(finalDist / 1000));
   const finalStartX = curX;
   const finalStartY = curY;
-  const startAlt = track.at(-1)?.alt ?? 2119;
+  const startAlt = track.at(-1)?.alt ?? 2400;
 
   for (let k = 1; k <= finalSteps; k++) {
     const u = k / finalSteps;

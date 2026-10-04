@@ -345,29 +345,30 @@ function isManeuverComplete(a, navPlan) {
     return false;
   }
 
-  // 1. Break turn completion:
-  if (a.phase === 'inner_downwind' || a.phase === 'downwind') {
-    return true;
+  // Active special maneuvers must NEVER be hijacked by generic circuit phase names:
+  // 1. High Key completion: continuous controller stepHighKey handles transition to PFL
+  if (a.command === 'climb_high_key' || a.phase === 'climb_high_key' || a._highKeyPhase !== undefined || navPlan?.id === 'HIGH_KEY') {
+    return false;
   }
 
-  // 2. Final turn completion:
-  if (a.phase === 'final' || a.phase === 'final_approach') {
-    return true;
-  }
-
-  // 3. Breakout completion: continuous controller stepBreakout handles rail capture directly
+  // 2. Breakout completion: continuous controller stepBreakout handles rail capture directly
   if (a.command === 'breakout' || a.phase === 'breakout' || navPlan?.id === 'BREAKOUT') {
     return false;
   }
 
-  // 4. Closed Pattern completion: continuous controller stepClosedPattern handles rail capture directly
+  // 3. Closed Pattern completion: continuous controller stepClosedPattern handles rail capture directly
   if (a.command === 'closed_pattern' || a.phase === 'closed_pattern' || navPlan?.id === 'CLOSED_PATTERN') {
     return false;
   }
 
-  // 5. High Key completion: continuous controller stepHighKey handles transition to PFL
-  if (a.command === 'climb_high_key' || a.phase === 'climb_high_key' || navPlan?.id === 'HIGH_KEY') {
-    return false;
+  // 4. Break turn completion:
+  if (a.phase === 'inner_downwind' || a.phase === 'downwind') {
+    return true;
+  }
+
+  // 5. Final turn completion:
+  if (a.phase === 'final' || a.phase === 'final_approach') {
+    return true;
   }
 
   // 4. Go-around completion:
@@ -784,25 +785,6 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     }
 
     stepAircraft(a, a.navPlan, env, stepDt);
-
-    if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
-      stepClosedPattern(a, route, env, stepDt, routeOptions);
-      if (a.mode === 'RAIL') {
-        return a;
-      }
-    }
-    if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
-      stepHighKey(a, route, env, stepDt, routeOptions);
-      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
-        return a;
-      }
-    }
-    if (a.phase === 'breakout' || a.command === 'breakout') {
-      stepBreakout(a, route, env, stepDt, routeOptions);
-      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
-        return a;
-      }
-    }
 
     if (isManeuverComplete(a, a.navPlan)) {
       if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'climb_high_key') {

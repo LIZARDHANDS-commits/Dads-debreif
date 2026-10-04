@@ -398,10 +398,21 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
         headingDeg: dwHdgWithCrab,
         bankDeg: 0,
         g: 1.0,
-        phase: 'downwind',
-        label: 'Downwind Leg',
+        phase: 'climb_high_key',
+        label: 'High Key Downwind',
         pitchDeg: pitch,
       });
+    }
+
+    // Ensure continuous altitude climb from downwind into base-to-final turn up to 5,000 ft MSL
+    if (baseTurnPts.length > 0) {
+      const startBaseAlt = dwAlt;
+      for (let k = 0; k < baseTurnPts.length; k++) {
+        const u = k / Math.max(1, baseTurnPts.length - 1);
+        const alt = Math.min(5000, Math.round(startBaseAlt + (5000 - startBaseAlt) * u));
+        baseTurnPts[k].alt = alt;
+        baseTurnPts[k].pitchDeg = calcHighKeyPitch(alt, 10);
+      }
     }
 
     // 5. Straight Run-in Approach Leg: rolloutPt to RUN_IN_PT
