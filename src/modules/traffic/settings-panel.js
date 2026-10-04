@@ -30,6 +30,7 @@ export const PANEL_KEYS = Object.freeze([
   'cautionVertFt',
   'closedPatternBankDeg',
   'closedPatternPitchDeg',
+  'aircraftScale',
   'photoOpacityPct',
   'paint',
   'graphicsQuality',
@@ -100,6 +101,16 @@ export function createSettingsPanel({ controls, settings, onToggle, available = 
       max: LIMITS.closedPatternPitchDeg[1],
       step: 1,
     }), 'Target pitch attitude during initial climb.'),
+  );
+
+  menu.section('Aircraft').append(
+    withHint(controls.slider('aircraftScale', {
+      label: 'Aircraft size',
+      min: LIMITS.aircraftScale[0],
+      max: LIMITS.aircraftScale[1],
+      step: 0.5,
+      format: (v) => (Number(v) === 1 ? 'Realistic' : `${v}×`),
+    }), 'Realistic is true size. Slide right to draw them bigger.'),
   );
 
   if (available.photo) {

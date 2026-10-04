@@ -297,6 +297,7 @@ test('Closed Pattern Preset Point 2 on PAT1 initializes and executes full 4-phas
 // the time is mostly the downwind, which runs the length of the runway plus final.
 test('Closed Pattern: every closed pattern lands within 2.5 minutes of the pull-up (Patrick, 4 Oct 09:26Z)', () => {
   const LIMIT_SEC = 150;
+  const RUNWAY_FT = 1880; // the runway's height in the sim, as the touch-and-go check in commands.test.js uses
   const cases = [
     { label: 'from the climb-out, calm', startPoint: 2, windKt: 0, windFromDeg: 360 },
     { label: 'from the climb-out, 20 kt from 200', startPoint: 2, windKt: 20, windFromDeg: 200 },
@@ -312,7 +313,9 @@ test('Closed Pattern: every closed pattern lands within 2.5 minutes of the pull-
       sim.stepTo(sim.t + 0.5);
       const a = sim.state().aircraft.find((x) => x.id === id);
       if (pullUpAt === null && a.phase === 'closed_pattern') pullUpAt = sim.t;
-      if (pullUpAt !== null && (a.phase === 'touch_and_go' || a.status === 'landed')) touchdownAt = sim.t;
+      // Touchdown: down to the runway (within 10 ft of its 1,880 ft), or named as a touch-and-go or landing;
+      // the circuit loops straight back round without either name (Patrick's card, 10:15Z).
+      if (pullUpAt !== null && (a.alt <= RUNWAY_FT + 10 || a.phase === 'touch_and_go' || a.status === 'landed')) touchdownAt = sim.t;
     }
     assert.ok(pullUpAt !== null, `${c.label}: the aircraft should pull up into the closed pattern`);
     assert.ok(touchdownAt !== null, `${c.label}: the aircraft should land again`);

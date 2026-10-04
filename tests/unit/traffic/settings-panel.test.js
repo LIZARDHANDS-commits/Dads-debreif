@@ -96,17 +96,17 @@ test('onToggle is told when the person opens or closes the menu, but not when th
 
 test('at first it shows conflict limits and closed pattern sections', () => {
   const { panel } = setup();
-  assert.deepEqual(legends(panel), ['Conflict limits', 'Closed pattern']);
+  assert.deepEqual(legends(panel), ['Conflict limits', 'Closed pattern', 'Aircraft']);
 });
 
 test('the photo section appears when the photo is on the screen, and 3D view when 3D is', () => {
   const photo = setup({ available: { photo: true } }).panel;
-  assert.deepEqual(legends(photo), ['Conflict limits', 'Closed pattern', 'Photo']);
+  assert.deepEqual(legends(photo), ['Conflict limits', 'Closed pattern', 'Aircraft', 'Photo']);
   assert.ok(box(photo, 'Photo opacity'));
   const view3d = setup({ available: { view3d: true } }).panel;
-  assert.deepEqual(legends(view3d), ['Conflict limits', 'Closed pattern', '3D view']);
+  assert.deepEqual(legends(view3d), ['Conflict limits', 'Closed pattern', 'Aircraft', '3D view']);
   const both = setup({ available: { photo: true, view3d: true } }).panel;
-  assert.deepEqual(legends(both), ['Conflict limits', 'Closed pattern', 'Photo', '3D view']);
+  assert.deepEqual(legends(both), ['Conflict limits', 'Closed pattern', 'Aircraft', 'Photo', '3D view']);
 });
 
 test('conflict limits sit in Conflict limits section', () => {
@@ -247,7 +247,7 @@ test('the conflict limits carry a one-line hint that a screen reader reads with 
     assert.ok(item.hint.length <= 60, 'one short line');
   }
   const everyHint = all(panel.element, (n) => n.getAttribute?.('class') === 'settings-hint');
-  assert.equal(everyHint.length, 6);
+  assert.equal(everyHint.length, 7);
 });
 
 test('the 3D view\'s Paint choice is in the menu, Harvard first and by default, and Reset to Standard Defaults puts it back', () => {

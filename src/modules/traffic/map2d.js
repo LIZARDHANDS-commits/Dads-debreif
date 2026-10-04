@@ -246,7 +246,7 @@ export const MIN_SYMBOL_PX = 14;
  * shape's units) once that is bigger than MIN_SYMBOL_PX, so zoomed in it grows with the map and never
  * looks smaller than the aircraft really is (Patrick, 4 Oct 09:19Z).
  */
-export const aircraftSymbolPx = (pxPerFt) => Math.max(MIN_SYMBOL_PX, (T6_LENGTH_FT * pxPerFt) / 1.7);
+export const aircraftSymbolPx = (pxPerFt, scale = 1) => Math.max(MIN_SYMBOL_PX, (T6_LENGTH_FT * pxPerFt) / 1.7) * (Number(scale) > 0 ? Number(scale) : 1);
 
 /** The smallest a conflict bubble and a caution ring are drawn on screen, in pixels, so they can be seen when zoomed out. */
 export const MIN_BUBBLE_PX = 8;
@@ -731,7 +731,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
     const [x, y] = at(ac);
     const colour = colours.get(ac.id);
     ctx.beginPath();
-    aircraftSymbol(ac.headingDeg, aircraftSymbolPx(pxPerFt)).forEach(([dx, dy], i) => (i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy)));
+    aircraftSymbol(ac.headingDeg, aircraftSymbolPx(pxPerFt, settings?.aircraftScale)).forEach(([dx, dy], i) => (i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy)));
     ctx.closePath();
     ctx.fillStyle = colour;
     ctx.fill();
