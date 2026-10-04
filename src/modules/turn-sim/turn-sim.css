@@ -549,6 +549,11 @@
   outline: 2px solid var(--accent, currentColor);
 }
 
+/* A closed More takes its contents out of the layout, so nothing hidden in it can sit over the buttons below. */
+[data-module='turn-sim'] .ts-more:not([open]) > :not(summary) {
+  display: none;
+}
+
 [data-module='turn-sim'] .ts-more > summary {
   cursor: pointer;
   font-size: var(--text-sm);
