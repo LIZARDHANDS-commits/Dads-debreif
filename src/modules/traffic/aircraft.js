@@ -17,6 +17,9 @@ const BOX_NAMES = Object.freeze({ spawnStartPoint: 'Start at point', spawnDelayS
 
 import { SPAWN_TYPES } from './types.js';
 import { conflictSpawnPlan } from './scenario-timing.js';
+import { onProfileAltFt } from './nav-plans.js';
+import { legDistances } from './route.js';
+import { FT_PER_NM } from '../../core/units.js';
 export { SPAWN_TYPES };
 
 export const PILOT_SPAWN_PRESETS = Object.freeze([
@@ -53,6 +56,26 @@ export function spotChoices(route) {
   const chosen = SPOT_CHOICES[route?.id]?.filter((c) => c.point <= count);
   if (chosen?.length) return chosen.map((c) => ({ ...c }));
   return Array.from({ length: count }, (_, i) => ({ label: route.points[i].label || route.points[i].tag || `Point ${i + 1}`, point: i + 1 }));
+}
+
+/**
+ * Routes whose start is chosen by distance back along the line instead of by spot buttons (Patrick, 4 Oct: the
+ * OHB Rejoin, "how many miles back on the rejoin line"). Until the engine can start partway along a leg (whole
+ * miles wait for Patrick's yes on that flying change), the choices are the line's own spots, by how far back
+ * from the merge they are along the line.
+ */
+export const MILES_BACK_ROUTES = Object.freeze(['ENT1']);
+
+/** Each start spot of a route but its last, with how far back from the last it is along the legs: [{ point, nm }], farthest first. */
+export function milesBack(route) {
+  const legs = legDistances(route);
+  const out = [];
+  let back = 0;
+  for (let i = legs.length - 1; i >= 0; i--) {
+    back += legs[i].ft;
+    out.unshift({ point: i + 1, nm: Math.round((back / FT_PER_NM) * 10) / 10 });
+  }
+  return out;
 }
 
 /** The Route list's last choice: an aircraft gliding in from the training area with the engine out (Patrick, 4 Oct). */
@@ -185,12 +208,23 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const { spawnDelayS: delay, pairGapS: gap } = settings.get();
     const what = pairBox.checked ? `a pair, ${gap} s apart,` : 'an aircraft';
     const when = delay > 0 ? `in ${delay} s` : 'now';
-    const text = `Press a spot to add ${what} there ${when}.`;
+    const milesRoute = MILES_BACK_ROUTES.includes(currentRoute()?.id);
+    const text = milesRoute ? `Choose how far back, then + Spawn adds ${what} there ${when}.` : `Press a spot to add ${what} there ${when}.`;
     if (spotsHint.textContent !== text) spotsHint.textContent = text;
   }
   function fillSpots() {
     clear(spots);
     const route = currentRoute();
+    if (MILES_BACK_ROUTES.includes(route?.id)) {
+      const pickId = 'traffic-spawn-miles-back';
+      const pick = h('select', { id: pickId }, milesBack(route).map(({ point, nm }) => h('option', { value: String(point) }, `${nm.toFixed(1)} NM back`)));
+      const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => spawnAt(Number(pick.value)) }, '+ Spawn');
+      guardButton(go, ['spawnDelayS']);
+      spots.appendChild(h('div', { class: 'control control-select spawn-miles' }, h('label', { for: pickId }, 'Miles back on the rejoin line'), pick));
+      spots.appendChild(go);
+      showSpotsHint();
+      return;
+    }
     for (const choice of spotChoices(route)) {
       const spot = spotOf(route, choice.point - 1);
       const button = h('button', {
@@ -304,13 +338,34 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     }
     onChange();
   };
+  // On profile (Patrick, 4 Oct): the start height from which this radial and distance cross High Key inside its
+  // 5,000-6,000 ft window in today's wind, worked out by flying the sim's own PFL (nav-plans.js onProfileAltFt).
+  const onProfile = () => {
+    const [radialDeg, distNm] = [pflRadial, pflDist].map((b) => Number(b.input.value));
+    if (![radialDeg, distNm].every(Number.isFinite)) return say('On profile: radial and distance must be numbers.');
+    say('Working out a start on profile…');
+    timers.after(0, () => {
+      let found = null;
+      try {
+        found = onProfileAltFt(radialDeg, distNm, { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, setup.settings);
+      } catch (err) {
+        console.error('On profile failed:', err);
+        return say('On profile could not be worked out.');
+      }
+      if (found.problem) return say(`On profile: ${found.problem}`);
+      pflAlt.input.value = String(found.altFt);
+      say(`On profile: from ${feet(found.altFt)} ft it crosses High Key at ${feet(found.highKeyFt)} ft in today's wind. Press + Spawn PFL.`);
+    });
+  };
   const pflFields = h(
     'div',
     { class: 'spawner-pfl', hidden: true },
     pflRadial.element,
     pflDist.element,
     pflAlt.element,
-    h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL'),
+    h('div', { class: 'spawn-buttons' },
+      h('button', { type: 'button', class: 'button', title: 'Sets the altitude so it crosses High Key between 5,000 and 6,000 ft in the wind set now', onclick: onProfile }, 'On profile'),
+      h('button', { type: 'button', class: 'button danger', onclick: spawnPfl }, '+ Spawn PFL')),
   );
 
   /** The spots for a route, or the PFL boxes for "PFL from area". */
