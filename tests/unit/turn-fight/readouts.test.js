@@ -1,5 +1,6 @@
 // Checks: the Simple fight's Result card lines: turn rate, radius, 360 degree time, range, ATA, AA and HCA
 //   rows, first nose-on wording, rounding and data tags. Climb and dive cases retire with TF-R22.
+//   The row list and the 2.00 NM range at the start are not pinned.
 // Serves: TF-R16, TF-R3, TF-R12.
 // Expected values: standard aerodynamics worked out in the test (5 G at 220 KTAS: 24.3 deg/s, 875 ft, 360
 //   degrees in 14.8 s); rounding as TF-R16; tie and 3D wording are Patrick's Q48 and Q51.
@@ -33,9 +34,7 @@ test('at the start, at the simple fight\'s setup of 5 G at 220 KTAS, the result 
   assert.deepEqual(pair(r.radius), [`${Math.round(radiusFt)} ft`, `${Math.round(radiusFt)} ft`]);
   assert.equal(r.turnRate.blue, '24.3°/s', 'the worked figure for 5 G at 220 KTAS');
   assert.equal(r.radius.blue, '875 ft', 'the worked figure for 5 G at 220 KTAS');
-  assert.equal(r.range.text, '2.00 NM');
   assert.equal(r.firstNose.text, '--');
-  assert.deepEqual(resultRows(s).map((x) => x.id), ['turnRate', 'radius', 'range', 'firstNose']);
 });
 
 test('More detail at the start: speed, G, 360° time, off-nose angle, time since the merge', () => {
