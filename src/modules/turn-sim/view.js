@@ -69,6 +69,7 @@ export function plannedBounds(run, maxSteps = 12100) {
  *   labels(): { id: { text, tone } } for the error labels.
  *   follow(): { x, y, spanXFt, spanYFt, zoom, snap } to keep centred and in view, or null to leave the camera where the person put it (the live screen's camera);
  *   planned(): { id: [[t, x, y, …], …] }, paths still to fly, drawn dashed when layers().planned is on.
+ *   tags?(): { id: { title, detail } }, the info tags (tags.js), drawn when layers().tags is on.
  */
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
@@ -113,7 +114,9 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
         else drawTurnCircles(ctx, map, state, settings);
       }
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
-      for (const a of state.aircraft) drawAircraft(ctx, map, a);
+      const tags = layers.tags ? source.tags?.() : null;
+      for (const a of state.aircraft) drawAircraft(ctx, map, a, !tags);
+      if (tags) drawTags(ctx, map, state, tags);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels());
     },
   });
@@ -462,7 +465,7 @@ function drawClockMarks(ctx, map, a) {
 }
 
 /** The aircraft: a nose-up arrow turned to its heading, with its number. #4 is white with a dark outline (#29). */
-function drawAircraft(ctx, map, a) {
+function drawAircraft(ctx, map, a, named = true) {
   const [x, y] = map.worldToScreen(a.xFt, a.yFt);
   const s = 15;
   ctx.save();
@@ -480,7 +483,38 @@ function drawAircraft(ctx, map, a) {
   ctx.stroke();
   ctx.fill();
   ctx.restore();
-  text(ctx, a.name ?? `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
+  if (named) text(ctx, a.name ?? `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
+}
+
+/**
+ * The info tags (tags.js): beside each aircraft a dark box with a border in its colour, the title in white and the detail
+ * in its colour, 10 px text, as Fight Sim draws them (turn-fight view.js, copied, not imported).
+ */
+function drawTags(ctx, map, state, tags) {
+  ctx.save();
+  ctx.font = `10px ${FONT}`;
+  for (const a of state.aircraft) {
+    const tag = tags[a.id];
+    if (!tag) continue;
+    const colour = SHIP_COLORS[a.id] ?? '#d9e6f2';
+    const [x, y] = map.worldToScreen(a.xFt, a.yFt);
+    const pad = 4;
+    const w = Math.max(ctx.measureText(tag.title).width, ctx.measureText(tag.detail).width) + 2 * pad;
+    const h = 26;
+    const tx = x + 14 + w > map.size.width ? x - 14 - w : x + 14; // on the left when the right would run off the picture
+    const ty = y - 8;
+    ctx.fillStyle = 'rgba(10, 18, 28, 0.85)';
+    ctx.fillRect(tx, ty, w, h);
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tx, ty, w, h);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(tag.title, tx + pad, ty + 11);
+    ctx.fillStyle = colour;
+    ctx.fillText(tag.detail, tx + pad, ty + 22);
+  }
+  ctx.restore();
 }
 
 /** Each wingman's label in words, beside it (V6 drawErrorLabels, line 1947). */

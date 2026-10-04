@@ -22,6 +22,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   lead75: false, // Lead's 7 and 5 o'clock lines: the back edge of the fighting wing cone, 60° of sweep (SMM 12.29 para 69)
   planned: true, // the paths still to fly, dashed
   turnCircles: false,
+  tags: true, // the info tag beside each aircraft: what it is doing and how it sits (spec section 10.4)
   autoFit: true, // the camera keeps every aircraft in the picture (spec section 10.3); a pan or zoom pauses it, Fit brings it back
   view: VIEW_DEFAULT, // '2d' or '3d'
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
@@ -39,7 +40,7 @@ export function migrateLayout(values, version) {
 export const LAYOUT_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({ view: [...VIEW_ALLOWED], paint: PAINT_OPTIONS.map((o) => o.value) }));
 
 /** Layers that only the 2D picture draws; they are greyed out in 3D. */
-const LAYERS_2D = ['lead39', 'lead75', 'planned', 'turnCircles'];
+const LAYERS_2D = ['lead39', 'lead75', 'planned', 'turnCircles', 'tags'];
 
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
@@ -184,6 +185,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('lead75', { label: 'Lead 7 and 5 o\'clock lines' }),
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
+    lc.checkbox('tags', { label: 'Info tags' }),
     lc.checkbox('autoFit', { label: 'Fit all aircraft' }),
     lc.select('paint', { label: '3D paint', options: PAINT_OPTIONS }),
   ]);

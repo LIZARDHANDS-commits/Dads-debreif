@@ -26,6 +26,7 @@ import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS, migrateLayout } from './layout.js';
 import { createTurnSimView } from './view.js';
+import { tagLines } from './tags.js';
 import { createView3d } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
@@ -184,6 +185,7 @@ function mount(root, app) {
       labels: () => ({}),
       follow,
       planned: () => state.planned,
+      tags: () => tagLines(state, formation.where()),
       rejoin: () => {
         if (!state.current?.change?.rejoining || state.aircraft.length !== 2) return null;
         const r = rejoinReadout(state.aircraft[0], state.aircraft[1]);
