@@ -357,18 +357,18 @@ Code: `randomize.js` (the odds, the seeded rolls and the straight-in from the ou
 5. **Not rolled:** an aircraft flying a PFL, a climb to High Key, a go-around or another flown move, one with its engine failed, or one the deconfliction is moving. A move the dice start is flown exactly as its button flies it, and the deconfliction treats it the same way.
 6. **When data fails:** an aircraft with no position is skipped that tick; nothing else changes.
 
-### 4.14 Behaviour tag on every aircraft (Patrick, 4 Oct 21:55Z to 22:57Z)
+### 4.14 Behaviour tag on every aircraft (Patrick, 4 Oct 21:55Z to 23:45Z)
 
 Code: `behaviour.js` (the tag's words and the configuration), `sim.js` `state()` (the `behaviour` field), `map2d.js` `getPflBadge` (shows it on the map and in the aircraft list). TR-60.
 
-1. Every flying aircraft carries a tag in the PFL tag's style: the pattern it is flying, what it does next and its configuration, for example `[OHB: final turn next · Gear + T/O flap]`. Words approved by Patrick (card list 22:34Z, "overhead can just be OHB" 22:44Z, "agreed" 22:53Z and 22:57Z):
-   - Overhead entry: `[OHB: initial next]`; initial: `[OHB: break next]`; break and inner downwind: `[OHB: final turn next]`.
-   - Final turn and final: `[FINAL: touch-and-go]`, `[FINAL: full stop]` or `[FINAL: low approach]`.
-   - Upwind: `[UPWIND: crosswind next]`; crosswind and outer downwind: `[OUTER: initial next]`.
-   - Straight-in: `[STRAIGHT-IN: final next]`, then the FINAL tag once lined up.
-   - Closed pattern: `[CLOSED: downwind next]`; climb to High Key: `[CLOSED TO HIGH KEY: PFL next]`; go-around: `[GO-AROUND: outer downwind next]`; breakout: `[BREAKOUT: rejoin next]`.
-   (The card's `[UPWIND: closed next]` and `[OUTER: straight-in next]` never show: a closed pattern or straight-in the dice pick starts at once and shows its own tag.)
-2. **Who wins:** a PFL's own tag shows while it glides; the deconfliction's tags (`[GIVING WAY: …]`, `[EVASIVE: …]`, `[SPACING: extend downwind]`) show while their move flies, with the configuration added.
+1. Every flying aircraft carries a tag in the PFL tag's style: the pattern it is flying, what it does next (not for OHB and SI) and its configuration, for example `[OHB · Gear + T/O flap]`. Clean is never shown outside a PFL's own tag: no configuration means clean. Words approved by Patrick (card list 22:34Z, "overhead can just be OHB" 22:44Z, "agreed" 22:53Z and 22:57Z; shortened 23:14Z, list approved 23:45Z):
+   - Overhead entry, initial, break and inner downwind: `[OHB]`, then `[OHB · Gear + T/O flap]` once below 147.
+   - Final turn and final: `[FINAL: touch-and-go · Gear + landing flap]`, or full stop, or low approach.
+   - Upwind: `[UPWIND: crosswind next]` (with `· Gear + T/O flap` on the runway); crosswind and outer downwind: `[OUTER: initial next]`, or `[OUTER: SI next]` on the SI pattern (4.15).
+   - Straight-in: `[SI]`, then `[SI · Gear + T/O flap]` on base, then the FINAL tag once lined up.
+   - Closed pattern: `[CLOSED: downwind next]`; climb to High Key: `[CLOSED TO HIGH KEY: PFL next]`; go-around: `[GO-AROUND: outer downwind next]` (with `· T/O flap` until 110 KIAS); breakout: `[BREAKOUT: rejoin next]`.
+   (The card's `[UPWIND: closed next]` never shows: a closed pattern the dice pick starts at once and shows its own tag.)
+2. **Who wins:** a PFL's own tag shows while it glides; the deconfliction's tags (`[GIVING WAY: …]`, `[EVASIVE: …]`, `[SPACING: extend downwind]`) show while their move flies, with the configuration added unless clean, for example `[GIVING WAY: break out]`.
 3. **Configuration** (Patrick's yes to the list, 22:53Z), with the PFL's labels plus "T/O flap" for gear up with the take-off flap still down:
    - OHB: Clean through the initial and break (SMM 4.17 paras 38-39); Gear + T/O flap on the inner downwind once below 147 KIAS (SMM 4.17 paras 40-41, EFIG p.185; the gear point is a guess: no manual names it); Gear + landing flap from the perch (SMM 4.19 paras 43, 48).
    - Straight-in: Clean down the outer downwind and until on ENT2's base (SMM 4.16 para 36); Gear + T/O flap on base (SMM 4.6 para 9); Gear + landing flap inside the window (SMM 4.8 para 13; the window's distance is Pattern 1's point 12 from the threshold).

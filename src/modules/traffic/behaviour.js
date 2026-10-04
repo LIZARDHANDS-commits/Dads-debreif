@@ -1,6 +1,6 @@
-// The behaviour tag on every aircraft (Traffic spec 4.14, TR-60; Patrick's words approved 4 Oct 22:53Z): the
-// pattern it is flying, what it does next, and its configuration, in the PFL tag's style, for example
-// "[OHB: final turn next · Gear + T/O flap]". A PFL's own tag and the deconfliction's tags win while they apply
+// The behaviour tag on every aircraft (Traffic spec 4.14, TR-60; Patrick's words approved 4 Oct 22:53Z, shortened
+// 23:45Z): the pattern it is flying, what it does next (not for OHB and SI) and its configuration unless clean, in the
+// PFL tag's style, for example "[OHB · Gear + T/O flap]" or "[UPWIND: crosswind next]". A PFL's own tag and the deconfliction's tags win while they apply
 // (map2d.js getPflBadge); the deconfliction's tags carry the configuration too.
 //
 // Nothing here moves an aircraft or reads the page: it only names what the sim already flies.
@@ -37,11 +37,16 @@ export function behaviourOf(a, ctx = {}) {
   return { ...what, config: configOf(a, what.pattern, ctx) };
 }
 
-/** The tag's words, "[PATTERN: next · configuration]", or the deconfliction's tag with the configuration added. */
+/**
+ * The tag's words, "[PATTERN: next · configuration]" ("[OHB · configuration]" for OHB and SI, which name no next step),
+ * or the deconfliction's tag with the configuration added. Clean is never shown: it is implied (Patrick, 4 Oct 23:14Z;
+ * only a PFL's own tag says Clean).
+ */
 export function behaviourLabel(b, deconflictLabel = null) {
-  if (deconflictLabel) return b?.config ? deconflictLabel.replace(/]$/, ` · ${b.config}]`) : deconflictLabel;
+  const config = b?.config && b.config !== CONFIG.clean ? b.config : null;
+  if (deconflictLabel) return config ? deconflictLabel.replace(/]$/, ` · ${config}]`) : deconflictLabel;
   if (!b) return null;
-  return `[${b.pattern}: ${b.next}${b.config ? ` · ${b.config}` : ''}]`;
+  return `[${b.pattern}${b.next ? `: ${b.next}` : ''}${config ? ` · ${config}` : ''}]`;
 }
 
 const finalWord = (a) => (a.rndLowApproach ? 'low approach' : FINAL_WORDS[a.intent] ?? 'touch-and-go');
@@ -53,25 +58,25 @@ function patternOf(a, ctx) {
   if (a.highKeyFlight) return { pattern: 'CLOSED TO HIGH KEY', next: 'PFL next', stage: 'climb' };
   if (flown === 'CLOSED_FLOWN') return { pattern: 'CLOSED', next: 'downwind next', stage: 'closed' };
   if (flown === 'GO_AROUND_FLOWN') return { pattern: 'GO-AROUND', next: 'outer downwind next', stage: 'go_around' };
-  if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'STRAIGHT-IN', next: 'final next', stage: 'straight_in_downwind' };
+  if (flown === 'STRAIGHT_IN_FLOWN') return { pattern: 'SI', next: null, stage: 'straight_in_downwind' };
   if (flown === 'EXTEND_FLOWN') {
     return a.phase === 'final_turn' || a.phase === 'final'
       ? { pattern: 'FINAL', next: finalWord(a), stage: 'final' }
-      : { pattern: 'OHB', next: 'final turn next', stage: 'inner_downwind' };
+      : { pattern: 'OHB', next: null, stage: 'inner_downwind' };
   }
   if (flown) return { pattern: 'BREAKOUT', next: 'rejoin next', stage: 'breakout' };
   const route = ctx.route;
   if (!route) return null;
   if (route.kind === 'entry' || route.kind === 'split') {
-    if (+route.mergeIndex > 0) return { pattern: 'OHB', next: 'initial next', stage: 'entry' };
-    return ctx.onFinal ? { pattern: 'FINAL', next: finalWord(a), stage: 'final_straight_in' } : { pattern: 'STRAIGHT-IN', next: 'final next', stage: 'straight_in' };
+    if (+route.mergeIndex > 0) return { pattern: 'OHB', next: null, stage: 'entry' };
+    return ctx.onFinal ? { pattern: 'FINAL', next: finalWord(a), stage: 'final_straight_in' } : { pattern: 'SI', next: null, stage: 'straight_in' };
   }
   switch (a.phase) {
     case 'climb': case 'climb_out': case 'touch_and_go': return { pattern: 'UPWIND', next: 'crosswind next', stage: 'upwind' };
-    case 'crosswind': case 'outer_downwind': return { pattern: 'OUTER', next: a.siPattern ? 'straight-in next' : 'initial next', stage: 'outer' };
-    case 'initial': return { pattern: 'OHB', next: 'break next', stage: 'initial' };
-    case 'break': return { pattern: 'OHB', next: 'final turn next', stage: 'break' };
-    case 'downwind': return { pattern: 'OHB', next: 'final turn next', stage: 'inner_downwind' };
+    case 'crosswind': case 'outer_downwind': return { pattern: 'OUTER', next: a.siPattern ? 'SI next' : 'initial next', stage: 'outer' };
+    case 'initial': return { pattern: 'OHB', next: null, stage: 'initial' };
+    case 'break': return { pattern: 'OHB', next: null, stage: 'break' };
+    case 'downwind': return { pattern: 'OHB', next: null, stage: 'inner_downwind' };
     case 'final_turn': case 'final': return { pattern: 'FINAL', next: finalWord(a), stage: 'final' };
     default: return null;
   }

@@ -12,7 +12,8 @@ import { scenarioAircraft } from '../../../src/modules/traffic/setup-panel.js';
 import { CONFIG, BEHAVIOUR } from '../../../src/modules/traffic/behaviour.js';
 
 const MJ = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
-const configOf = (tag) => tag?.match(/ · ([^\]]+)\]$/)?.[1] ?? null;
+// No configuration on the tag means clean (Patrick, 4 Oct 23:14Z: Clean only shows on a PFL).
+const configOf = (tag) => (tag ? tag.match(/ · ([^\]]+)\]$/)?.[1] ?? CONFIG.clean : null);
 
 /** Flies one aircraft and returns, per phase, the configurations seen with the lowest and highest speed. */
 function fly(routeId, seconds) {
