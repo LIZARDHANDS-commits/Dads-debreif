@@ -60,7 +60,7 @@ test('the flags are words: OVER G, STALL, both, or None; the tone is on for any 
 });
 
 test('a pull past the rolling limit goes OVER G, and the card says so in words, with the reason', () => {
-  const fight = createEnergyFight({ blueKias: 220, redKias: 220, blueMove: 'pitchBack', blueForceG: 6, turnsStart: 'now' }); // the engine's what-if G: no box on screen sets one
+  const fight = createEnergyFight({ blueKias: 220, redKias: 220, blueMove: 'pitchBack', blueForceG: 6, turnsStart: 'now', chaseAfterHeadOn: false }); // the engine's what-if G: no box on screen sets one; no chase after the head-on, which would clear the forced G before the roll-in counts as rolling
   let seen = null;
   for (let i = 0; i < 20 / 0.02 && !seen; i++) {
     stepEnergyFight(fight, 0.02);

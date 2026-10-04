@@ -192,16 +192,19 @@ test('a chaser starting fast at 25,000 ft keeps its nose up the faster it is, to
 
 // ── Forced past the top speed: a published limit is a reference, not a wall (F3, T10) ──
 
-test('a jet forced past the NFM line (a split S from 265 KIAS) goes past it and keeps flying: nothing holds it at the limit, and the fight carries on to a steady turn', () => {
-  for (const altFt of [10000, 25000]) {
-    const s = createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: 265, redKias: 265, blueMove: 'splitS', redMove: 'splitS', pursuit: 'none' });
+// Entry speeds are legal merge speeds (under the line at the start height) chosen so the dive really crosses the line: with G and roll
+// now building at the onset rates the split S is flatter at the bottom, so 265 KIAS from 10,000 ft only just reaches the 316 KIAS line.
+test('a jet forced past the NFM line (a split S from a fast merge) goes past it and keeps flying: nothing holds it at the limit, and the fight carries on to a steady turn', () => {
+  for (const [altFt, kias] of [[10000, 300], [25000, 265]]) {
+    const s = createEnergyFight({ blueAltFt: altFt, redAltFt: altFt, blueKias: kias, redKias: kias, blueMove: 'splitS', redMove: 'splitS', pursuit: 'none' });
     let fastest = 0;
+    let lineAtFastest = Infinity;
     for (let i = 0; i < FLIGHT_SEC / FIGHT_STEP_SEC; i++) {
       stepEnergyFight(s, FIGHT_STEP_SEC);
-      fastest = Math.max(fastest, s.blue.kias);
+      if (s.blue.kias > fastest) { fastest = s.blue.kias; lineAtFastest = nfmTopKias(s.blue.altFt); }
     }
-    // The what-if has to be a real one: the dive must have gone past the line, or this test says nothing about being held at it.
-    assert.ok(fastest > nfmTopKias(s.blue.altFt) + 1, `the forced split S from ${altFt} ft went past the NFM line (fastest ${fastest.toFixed(0)} KIAS)`);
+    // The what-if has to be a real one: the dive must have gone past the line (at the height it was flown at), or this test says nothing about being held at it.
+    assert.ok(fastest > lineAtFastest + 1, `the forced split S from ${altFt} ft went past the NFM line (fastest ${fastest.toFixed(0)} KIAS, line ${lineAtFastest.toFixed(0)})`);
     assert.ok(!s.stopped, 'the fight is not stopped by it');
     assert.ok(Math.abs(s.timeSec - FLIGHT_SEC) < 1, 'the fight clock kept running');
     for (const k of ['kias', 'altFt', 'g', 'bankDeg', 'climbDeg']) assert.ok(Number.isFinite(s.blue[k]), `blue.${k} is finite`);
