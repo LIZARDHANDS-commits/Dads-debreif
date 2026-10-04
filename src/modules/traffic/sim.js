@@ -33,14 +33,19 @@ import { tickAircraft } from './tick-aircraft.js';
 import { startJoin, startSideStep } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight, resumePflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
-import { buildGoAround } from './circuit.js';
+import { buildGoAround, buildExtendedDownwind, CIRCUIT } from './circuit.js';
 import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
-import { buildFlinch, buildClimbAhead, EVADE } from './evade.js';
+import { buildFlinch, buildClimbAhead, EVADE, spacingExtensionFt, extendLimitFt } from './evade.js';
 import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
-import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT } from './airfield.js';
+import { RANDOM, rollFor, pick, oddsFor, buildDownwindStraightIn } from './randomize.js';
+import { behaviourOf, behaviourLabel } from './behaviour.js';
+import { PATTERN_ALT_FT, RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
+import { iasToTasKt } from '../../core/t6-performance.js';
+import { windTriangle } from '../../core/wind.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
+import { legOffsetsFt } from '../../core/geo.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -432,6 +437,165 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     startSideStep(a, dirDeg, EVADE.flinchFt, EVADE.bankAwayOutSec, EVADE.bankAwayBackSec);
   }
 
+  /**
+   * Where an aircraft will be along the centreline, ft from the threshold, `sec` from now: walked along the path
+   * it is following at its route's speeds in today's wind (the wind triangle's ground speed on each leg), then
+   * straight on toward the threshold at its last speed once the path ends; straight on at its ground speed with no
+   * path. Sampled each second over the next five minutes. For spacing on final.
+   */
+  function leaderTrack(a, alongOf) {
+    const path = pathOf(a);
+    const wind = windNow();
+    const samples = [alongOf(a)];
+    let d = a.distFt ?? 0, gs = ktToFtps(a.gsKt ?? a.iasKt ?? 120), here = alongOf(a);
+    const endFt = path ? routeLengthFt(path.route, path.options) : 0;
+    for (let i = 1; i <= 300; i++) {
+      if (path && d < endFt) {
+        const p = posOnRoute(path.route, d, path.options);
+        const wt = windTriangle(p.headingDeg ?? 0, iasToTasKt(p.kt ?? a.iasKt ?? 120, p.alt ?? a.alt), wind.windFromDeg, wind.windKt);
+        gs = ktToFtps(Math.max(40, wt.groundSpeedKt));
+        d += gs;
+        here = alongOf(posOnRoute(path.route, Math.min(d, endFt), path.options));
+      } else here -= gs;
+      samples.push(here);
+    }
+    return (sec) => {
+      const k = Math.max(0, Math.min(299, Math.floor(sec)));
+      return samples[k] + (samples[k + 1] - samples[k]) * Math.max(0, Math.min(1, sec - k));
+    };
+  }
+
+  /**
+   * Spacing on final (TR-R18, TR-58; Patrick, 4 Oct 21:50Z and 21:52Z): an aircraft on Pattern 1's inner downwind
+   * that would roll out on final less than EVADE.finalSpacingFt from traffic on final extends its downwind to turn
+   * in behind it, and breaks out only if the extension would reach the overhead pattern's base and 45° leg.
+   * Traffic on final is anyone lined up with the runway and heading for it, within reach of the longest extension.
+   */
+  function spacingTick() {
+    const pat = routeById('PAT1');
+    const rwy = circuitRunway();
+    if (!pat || !rwy || !pat.points[12]) return;
+    const opt = routeOptions();
+    const perch = routePath(pat, opt).points.find((p) => p.tag === 'perch');
+    if (!perch) return;
+    const th = rwy.th, ux = (rwy.up.x - th.x) / rwy.len, uy = (rwy.up.y - th.y) / rwy.len;
+    const rwyTrack = compassDegFromVector(ux, uy);
+    const windowFt = Math.hypot(pat.points[12].x - th.x, pat.points[12].y - th.y);
+    const limitFt = extendLimitFt(pat.points, perch);
+    const reachFt = windowFt + EVADE.finalSpacingFt + (Number.isFinite(limitFt) ? Math.max(0, limitFt) : 3 * 6076);
+    const wind = windNow();
+    const live = aircraft.filter((a) => a.active && !a.landed && t >= a.startsAt && Number.isFinite(a.x) && Number.isFinite(a.y));
+    const alongOf = (p) => -((p.x - th.x) * ux + (p.y - th.y) * uy);
+    const leaders = [];
+    for (const a of live) {
+      const across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux), along = -alongOf(a);
+      const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
+      // Lined up and landing: within 2,000 ft of the centreline and 30° of the runway track, short of the threshold,
+      // and no more than 500 ft above the glide path (estimates), so the overhead's initial above doesn't count.
+      const glideFt = THRESHOLD_DATA_ELEV_FT + (pat.points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt * -along;
+      const linedUp = across < 2000 && off < 30 && along < 0 && -along <= reachFt && a.alt <= glideFt + 500;
+      const extending = a.goAroundFlight?.route.id === 'EXTEND_FLOWN';
+      const turningFinal = a.routeId === pat.id && a.mode === 'RAIL' && a.phase === 'final_turn' && !a.goAroundFlight;
+      if (!linedUp && !extending && !turningFinal) continue;
+      leaders.push({ a, distAt: leaderTrack(a, alongOf) });
+    }
+    if (!leaders.length) return;
+    for (const f of live) {
+      if (f.routeId !== pat.id || f.phase !== 'downwind' || f.mode !== 'RAIL' || f.deconflict) continue;
+      if (f.goAroundFlight || f.pflFlight || f.pflRail || f.highKeyFlight || f.sideStep) continue;
+      const ahead = leaders.filter((l) => l.a !== f);
+      if (!ahead.length) continue;
+      // Flown once without extending, all the way to the threshold: when and where it would roll out, and how fast
+      // it then comes down final (the circuit's own final, which it joins).
+      const plain = buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, 0, windowFt);
+      if (plain.rolloutSec == null) continue;
+      const rolloutFt = alongOf(plain.rollout);
+      const finalGsFtps = rolloutFt / Math.max(1, plain.endSec - plain.rolloutSec);
+      const ask = { rolloutSec: plain.rolloutSec, rolloutFt, downwindGsFtps: ktToFtps(f.gsKt ?? f.iasKt ?? 120), finalGsFtps, leaders: ahead };
+      let extendFt = spacingExtensionFt({ ...ask, limitFt: Math.max(0, limitFt) });
+      if (extendFt === 0) continue;
+      // The one it spaces on: the first that alone would keep it from turning in now.
+      const leader = ahead.find((l) => spacingExtensionFt({ ...ask, leaders: [l], limitFt: 0 }) === null) ?? ahead[0];
+      let flight = extendFt === null ? null : buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt);
+      // The final turn rolls out a little short of a full extension: make up the shortfall once.
+      const shortFt = flight ? rolloutFt + extendFt - alongOf(flight.rollout) : 0;
+      if (shortFt > 50) {
+        extendFt = Math.ceil((extendFt + shortFt) / 100) * 100;
+        flight = extendFt <= limitFt ? buildExtendedDownwind(pat.points, stateOf(f), wind.windFromDeg, wind.windKt, perch, extendFt) : null;
+      }
+      if (!flight) {
+        startBreakout(f);
+        f.deconflict = { move: 'breakout', layer: 'rules', rule: 'spacing on final: no room to extend', with: leader.a.id, label: deconflictLabel('breakout', 'rules') };
+        continue;
+      }
+      f.goAroundFlight = { route: { id: 'EXTEND_FLOWN', kind: 'flown', name: 'Extended downwind', points: flight.track }, then: 'final' };
+      f.distFt = 0;
+      f.mode = 'RAIL';
+      f.phase = 'downwind';
+      delete f.joinOffset;
+      f.deconflict = { move: 'extend_downwind', layer: 'rules', rule: 'spacing on final', with: leader.a.id, extendFt, label: deconflictLabel('extend_downwind', 'rules') };
+    }
+  }
+
+  /**
+   * Randomize behaviour (Traffic spec 4.13; Patrick, 4 Oct 21:52Z to 21:55Z): every 0.5 s, an aircraft at one of the
+   * three points rolls once (randomize.js): on the upwind from the departure end to 3/4 mile past it, abeam the
+   * departure end on the outer downwind, and about a mile out on final. Each roll is seeded by the run's seed, the
+   * callsign and its count, and the flags are plain fields on the aircraft, so a rewind replays the same choices.
+   */
+  function randomizeTick() {
+    const pat = routeById('PAT1');
+    const rwy = circuitRunway();
+    if (!pat || !rwy) return;
+    const th = rwy.th, ux = (rwy.up.x - th.x) / rwy.len, uy = (rwy.up.y - th.y) / rwy.len;
+    const rwyTrack = compassDegFromVector(ux, uy);
+    const odds = oddsFor(setup.randomizeSharePct);
+    const roll = (a, odds) => pick(odds, rollFor(seed, a.id, a.rndCount = (a.rndCount ?? 0) + 1));
+    for (const a of aircraft) {
+      if (!a.active || a.landed || t < a.startsAt || !Number.isFinite(a.x) || !Number.isFinite(a.y)) continue;
+      if (a.pflFlight || a.pflRail || a.highKeyFlight || a.engineFailed || a.deconflict) continue;
+      const along = (a.x - th.x) * ux + (a.y - th.y) * uy, across = Math.abs((a.x - th.x) * uy - (a.y - th.y) * ux);
+      const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? rwyTrack) - rwyTrack));
+      const route = routeOf(a);
+      // A low approach chosen on final goes around low over the runway end.
+      if (a.rndLowApproach && !a.goAroundFlight) {
+        if (along > -RANDOM.lowApproachFt && off < 30) { a.rndLowApproach = false; startGoAround(a); }
+        continue;
+      }
+      if (a.goAroundFlight) continue;
+      // On final, about a mile out: touch-and-go, full stop or low approach.
+      const onFinal = (route?.id === pat.id && a.phase === 'final') || (isStraightIn(route) && off < 30 && across < 2000);
+      if (onFinal && !a.rndFinal && along < 0 && -along <= RANDOM.finalRollFt) {
+        Object.assign(a, { rndFinal: true, rndUpwind: false, rndDownwind: false });
+        const choice = roll(a, odds.final);
+        if (choice === 'low_approach') { a.rndLowApproach = true; a.intent = 'touch_and_go'; }
+        else a.intent = choice;
+        continue;
+      }
+      if (route?.id !== pat.id || a.mode !== 'RAIL') continue;
+      // On the upwind after take-off, from the departure end to 3/4 mile past it (before the crosswind turn).
+      if (!a.rndUpwind && off < 30 && across < 2000 && along >= rwy.len && along <= rwy.len + RANDOM.upwindWindowFt) {
+        Object.assign(a, { rndUpwind: true, rndFinal: false });
+        const choice = roll(a, odds.upwind);
+        if (choice === 'closed_pattern') startClosedPattern(a);
+        else if (choice === 'closed_high_key') startHighKeyClimb(a);
+        continue;
+      }
+      // Abeam the departure end on the outer downwind.
+      if (!a.rndDownwind && a.phase === 'outer_downwind' && pat.points[5] && pat.points[6]) {
+        const o = legOffsetsFt(pat.points[5], pat.points[6], a);
+        if (o.alongFt < 0 || o.alongFt > 3000) continue;
+        Object.assign(a, { rndDownwind: true, rndFinal: false });
+        const choice = roll(a, odds.downwind);
+        const ent2 = routeById('ENT2');
+        if (choice === 'straight_in' && ent2) {
+          startFlown(a, buildDownwindStraightIn(pat.points, stateOf(a), windNow(), ent2), 'STRAIGHT_IN_FLOWN', 'Straight-in', 'join', ent2.id);
+          a.phase = 'straight_in';
+        } else if (choice === 'high_key') startHighKeyClimb(a);
+      }
+    }
+  }
+
   /** The path an aircraft is following now, for the deconfliction's prediction, or null when it flies free. */
   function pathOf(a) {
     const flown = a.goAroundFlight ?? a.highKeyFlight ?? a.pflFlight;
@@ -455,6 +619,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         : d.move === 'bank_away' ? Boolean(a.sideStep) : Boolean(a.goAroundFlight);
       if (!a.active || a.landed || !flying) delete a.deconflict;
     }
+    spacingTick();
     const limits = setup.conflictLimits ?? DEFAULT_CONFLICT_LIMITS;
     const frozen = freeze(aircraft.filter((a) => t >= a.startsAt), pathOf, routeOf);
     for (const d of decide(frozen, limits)) {
@@ -472,6 +637,44 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     }
   }
 
+  /**
+   * The climb to High Key from where the aircraft is (the High Key button, and Randomize's closed pattern to High Key
+   * and PFL): already at High Key, the practice PFL starts at once (TR-R31).
+   */
+  function startHighKeyClimb(a) {
+    const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+    const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
+    const alt = a.alt ?? 3500;
+    if (distToHk <= 1500 && alt >= 4750) {
+      // Already at High Key: power off now and glide the PFL, as practice (TR-R31).
+      startPflFlight(a, env, { practice: true, settings: setup.settings });
+      a.command = 'climb_high_key';
+      a.routeId = 'PFL_HIGH_KEY';
+      return;
+    }
+    // The climb to High Key, flown once from where the aircraft is (Traffic spec 1a item 23): a full-power
+    // climbing turn onto the 760 ft run-in, followed by the path follower; at High Key the PFL takes over (tick-aircraft.js).
+    const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+    const flown = buildHighKeyClimb({
+      x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
+    }, env, bankDeg);
+    a.highKeyFlight = { route: { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, settings: setup.settings };
+    a.engineFailed = false;
+    a.distFt = 0;
+    a.mode = 'RAIL';
+    a.routeId = 'PFL_HIGH_KEY';
+    a.command = 'climb_high_key';
+    a.landed = false;
+    a.active = true;
+    a.phase = 'climb_high_key';
+    a.config = 'Clean';
+    delete a.pflRail;
+    delete a.pflRailIndex;
+    delete a.pflFlight;
+    delete a.goAroundFlight;
+    delete a.joinOffset;
+  }
+
   /** The end of a flown go-around: settled on the outer downwind, it joins Pattern 1 there. */
   function goAroundEnded(a) {
     delete a.goAroundDone;
@@ -479,6 +682,20 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     delete a.goAroundFlight;
     // The deconfliction's short moves: the breakout follows, or the straight-in is joined again.
     if (then === 'breakout') { startBreakout(a); return; }
+    if (then === 'final') {
+      // An extended downwind ends on Pattern 1's own straight final, inside the window: join it there, never on
+      // the initial above it (same centreline).
+      const pat = routeById('PAT1');
+      if (!pat) { a.active = false; return; }
+      const opt = routeOptions();
+      const th = pat.points[0], win = pat.points[12];
+      const toGo = Math.hypot(a.x - th.x, a.y - th.y);
+      a.routeId = pat.id;
+      startJoin(a, pat, pointDistFt(pat, 12, opt) + Math.max(0, Math.hypot(win.x - th.x, win.y - th.y) - toGo), windNow(), opt);
+      a.phase = 'final';
+      a.mode = 'RAIL';
+      return;
+    }
     if (then === 'join') {
       const route = routeById(joinId);
       delete a.rejoinRouteId;
@@ -593,6 +810,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     steps++;
     const opt = routeOptions();
     const wind = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+    if (setup.randomize && steps % DECONFLICT.decideEverySteps === 0) randomizeTick();
     if (setup.deconflict && steps % DECONFLICT.decideEverySteps === 0) deconflictTick();
     for (const a of aircraft) {
       if (!a.active || t < a.startsAt) continue;
@@ -1020,37 +1238,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           startClosedPattern(a);
         }
       } else if (action === 'climb_high_key') {
-        const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
-        const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
-        const alt = a.alt ?? 3500;
-        if (distToHk <= 1500 && alt >= 4750) {
-          // Already at High Key: power off now and glide the PFL, as practice (TR-R31).
-          startPflFlight(a, env, { practice: true, settings: setup.settings });
-          a.command = action;
-          a.routeId = 'PFL_HIGH_KEY';
-          return true;
-        }
-        // The climb to High Key, flown once from where the aircraft is (Traffic spec 1a item 23): a full-power
-        // climbing turn onto the 760 ft run-in, followed by the path follower; at High Key the PFL takes over (tick-aircraft.js).
-        const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
-        const flown = buildHighKeyClimb({
-          x: a.x, y: a.y, alt: alt, kias: a.iasKt ?? a.kt ?? 140, headingDeg: a.headingDeg ?? RUNWAY_29L_HDG_DEG, bankDeg: a.bankDeg ?? 0,
-        }, env, bankDeg);
-        a.highKeyFlight = { route: { id: 'HIGH_KEY_FLOWN', kind: 'flown', name: 'Climb to High Key', points: flown.points }, settings: setup.settings };
-        a.engineFailed = false;
-        a.distFt = 0;
-        a.mode = 'RAIL';
-        a.routeId = 'PFL_HIGH_KEY';
-        a.command = action;
-        a.landed = false;
-        a.active = true;
-        a.phase = 'climb_high_key';
-        a.config = 'Clean';
-        delete a.pflRail;
-        delete a.pflRailIndex;
-        delete a.pflFlight;
-        delete a.goAroundFlight;
-        delete a.joinOffset;
+        startHighKeyClimb(a);
       } else if (action === 'engine_fail' || action === 'pfl_current') {
         // The PFL button: an engine failure where the aircraft is, flown as Traffic spec 4.5 says (pfl.js).
         const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
@@ -1086,6 +1274,22 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
     /** What is where right now. */
     state() {
+      const rwy = circuitRunway();
+      const win = routeById('PAT1')?.points?.[12];
+      const windowFt = rwy && win ? Math.hypot(win.x - rwy.th.x, win.y - rwy.th.y) : NaN;
+      // The behaviour tag (behaviour.js, TR-60): where the aircraft stands against the runway, for a straight-in's final.
+      const tagOf = (a, route, kt, alt, x, y, leg) => {
+        let onFinal = false, toThresholdFt = NaN;
+        if (rwy && Number.isFinite(x) && Number.isFinite(y)) {
+          const ux = (rwy.up.x - rwy.th.x) / rwy.len, uy = (rwy.up.y - rwy.th.y) / rwy.len;
+          const along = (x - rwy.th.x) * ux + (y - rwy.th.y) * uy, across = Math.abs((x - rwy.th.x) * uy - (y - rwy.th.y) * ux);
+          const off = Math.abs(wrapDeg180((a.trackDeg ?? a.headingDeg ?? 0) - compassDegFromVector(ux, uy)));
+          onFinal = along < 0 && across < 2000 && off < 30;
+          toThresholdFt = Math.hypot(x - rwy.th.x, y - rwy.th.y);
+        }
+        const b = behaviourOf({ ...a, kt, alt, leg }, { route, fieldElevFt: FIELD_ELEV_FT, onFinal, toThresholdFt, windowFt });
+        return behaviourLabel(b, a.deconflict?.label ?? null) ?? a.deconflict?.label ?? null;
+      };
       const list = aircraft.map((a) => {
         const route = routeOf(a);
         const p = a.pflRail ? a : whereIs(a);
@@ -1121,6 +1325,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           highKeyFlight: Boolean(a.highKeyFlight),
           ejectAt: a.ejectAt ?? null,
           deconflict: a.deconflict?.label ?? null,
+          behaviour: t < a.startsAt ? null : tagOf({ ...a, trackDeg: a.trackDeg ?? headingDeg }, route, iasKt, altFt, x, y, p.seg !== undefined ? p.seg + 1 : 1),
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

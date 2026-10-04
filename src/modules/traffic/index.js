@@ -43,7 +43,7 @@ function mount(root, app) {
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
-  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260°M at 15 kt (Patrick, 4 Oct 18:47Z; °M, TR-58).
+  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260°M at 15 kt (Patrick, 4 Oct 18:47Z; °M, TR-61).
   const opensBusy = start.profile === BUILT_IN[0].profile;
   if (opensBusy) setup.aircraft = scenarioAircraftNow('busy', 1);
   const sim = createSim(setup, { seed: start.profile.seed });
@@ -362,9 +362,9 @@ function mount(root, app) {
   const stopSettings = settings.subscribe((values) => {
     const beforeOpts = JSON.stringify(setup.routeOptions);
     const beforeWind = `${setup.windFromDeg}_${setup.windKt}`;
-    const beforeDeconflict = setup.deconflict;
+    const beforeDeconflict = setup.deconflict, beforeRandomize = `${setup.randomize}_${setup.randomizeSharePct}`;
     applyToSetup(setup, values);
-    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict) {
+    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict || `${setup.randomize}_${setup.randomizeSharePct}` !== beforeRandomize) {
       sim.forgetHistory(); // the turns and flight are flown differently now
     }
     clock.setSpeed(values.speed);

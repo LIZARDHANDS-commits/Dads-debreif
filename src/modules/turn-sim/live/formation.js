@@ -10,14 +10,16 @@ import { iasToTasKt } from '../../../core/t6-performance.js';
 import { KT_TO_FTPS } from '../../../core/units.js';
 import { STEP_SEC, makeAircraft, stepAircraft, planDone } from './flight.js';
 import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } from './manoeuvres.js';
-import { flyStep, dryRunT, planGoTo, classifyPair, judgeFormation } from './transitions.js';
+import { flyStep, dryRunT, planGoTo, classifyPair, judgeFormation, setFwShape } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
 import { G_WARM, planGWarm } from './g-warm.js';
-import { classifyFour, judgeFourFormation, FOUR_FORMATIONS } from './four-ship-slots.js';
+import { classifyFour, judgeFourFormation, FOUR_FORMATIONS, setFw4Shape } from './four-ship-slots.js';
 import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange } from './kinematic-moves.js';
 import { FW_TURN_KEYS, TURN_FORMATIONS, planFormationTurn } from './formation-turns.js';
+import { createFluidSession, fluidReadouts } from './fluid.js';
+import { FLUID_MOVES } from './fluid-lead.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -31,6 +33,8 @@ export const LIVE_DEFAULTS = Object.freeze({
   headingDeg: 0, // Lead flies 000 at the start
   ships: /** @type {2 | 4} */ (2), // 2-ship (the default) or 4-ship (Spread 4, live/four-ship.js)
   check45: true, // the 4-ship delayed 45 flies its check turn (AFM8 brief p.18, SMM Fig 16.34); off: a plain chain (Patrick, 4 Oct 11:28Z)
+  fluidRangeFt: 600, // fluid manoeuvring distance, 500-1,000 ft (SMM 16.17 para 42); 600 is Patrick's pick (19:20Z row 3), an estimate
+  fluidBank: /** @type {'gentle' | 'medium' | 'steep'} */ ('medium'), // Lead's level turn bank in fluid manoeuvring: 60/2 (AFM7 brief p.17)
 });
 
 /** Spacing the sim will fly at all; outside it a typed value is refused (spec section 5). */
@@ -107,7 +111,9 @@ export function judgePair(lead, wing, spacingFt, shape = 'abreast') {
 }
 
 /**
- * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4),
+ * A new formation. options: spacingFt, wingSide ('right' | 'left'), kias, blockFt, headingDeg, ships (2 or 4), the fighting
+ * wing desired places (fwRangeFt, fwSweepDeg for the 2-ship; fw4RangeFt, fw4SweepDeg for the 4-ship's #2; fw4OtherRangeFt,
+ * fw4OtherDeg for #3 and #4; TS-58, each defaulting to transitions.js FW2 or four-ship-slots.js FW4),
  * and the err* training-error settings and fix* Fix tools (errors.js, 2-ship only for now; rng replaces Math.random for the random error).
  * Returns an object whose `state` is updated in place by step(), press() and reset().
  * @param {Record<string, any>} [options]
@@ -131,10 +137,14 @@ export function createFormation(options = {}) {
     slot: { fwd: 0, left: 0 }, // where #2 should be in Lead's frame (the SMM picture); the errors' reference
     spacingFt: opts.spacingFt,
     flown: 0, // manoeuvres finished since the start
+    fluid: null, // fluid manoeuvring while it runs: { session, readouts, prev } (fluid.js, TS-57), else null
   };
   let record = [];
 
   function build() {
+    // The fighting wing desired places (TS-58): a missing value takes the default (transitions.js FW2, four-ship-slots.js FW4).
+    setFwShape({ rangeFt: opts.fwRangeFt, sweepDeg: opts.fwSweepDeg });
+    setFw4Shape({ twoRangeFt: opts.fw4RangeFt, twoDeg: opts.fw4SweepDeg, otherRangeFt: opts.fw4OtherRangeFt, otherDeg: opts.fw4OtherDeg });
     const tas = tasFtpsFor(opts.kias, opts.blockFt);
     const h = headingRadFromCompass(opts.headingDeg);
     const side = opts.wingSide === 'left' ? 1 : -1; // +1 left of Lead
@@ -163,6 +173,7 @@ export function createFormation(options = {}) {
     state.lastSide = side === 1 ? 1 : -1;
     state.spacingFt = opts.spacingFt;
     state.flown = 0;
+    state.fluid = null;
     record = [];
     keepTrack(true);
   }
@@ -258,6 +269,7 @@ export function createFormation(options = {}) {
    * plan; nothing then changes.
    */
   function startChange(to, changeOptions) {
+    if (to === 'fluid') return startFluid();
     whereNow();
     const four = state.aircraft.length > 2;
     const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide };
@@ -297,6 +309,55 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.errorOutcome = null;
     return true;
+  }
+
+  /**
+   * Fluid manoeuvring (spec section 10.3, TS-57): from fighting wing only, 2-ship only for now. The session flies both
+   * aircraft until Terminate brings #2 back to his fighting wing slot. Returns false with state.refusal when it can't start.
+   */
+  function startFluid() {
+    if (state.aircraft.length > 2) {
+      state.refusal = 'Fluid manoeuvring for the 4-ship comes later.';
+      return false;
+    }
+    if (whereNow().key !== 'fw') {
+      state.refusal = 'Fluid manoeuvring starts from fighting wing; change to fighting wing first.';
+      return false;
+    }
+    const [lead, wing] = state.aircraft;
+    const session = createFluidSession(lead, wing, state.tSec, { blockFt: opts.blockFt, rangeFt: opts.fluidRangeFt, bank: opts.fluidBank });
+    state.fluid = { session, readouts: null, prev: null };
+    state.plans = Object.fromEntries(state.aircraft.map((a) => [a.id, { segments: [] }]));
+    state.planned = session.planned();
+    state.current = {
+      key: 'fluid',
+      fluid: true,
+      dir: 0,
+      label: 'Fluid manoeuvring',
+      note: 'Lead turns away from #2 at 30°, then at MAX; #2 collapses into the cone.',
+      firstId: null,
+      shape: 'formation',
+      startSec: state.tSec,
+      endSec: Infinity,
+      errorRun: null,
+    };
+    state.judged = null;
+    state.refusal = null;
+    state.errorOutcome = null;
+    return true;
+  }
+
+  /** The end of fluid manoeuvring: back in fighting wing, judged against its band (spec section 10 table). */
+  function finishFluid() {
+    const [lead, wing] = state.aircraft;
+    state.fluid = null;
+    state.plans = Object.fromEntries(state.aircraft.map((a) => [a.id, { segments: [] }]));
+    const j = judgeFormation('fw', lead, wing, state.spacingFt);
+    state.judged = { label: 'Fluid manoeuvring, terminated', shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone };
+    state.current = null;
+    state.planned = {};
+    state.flown++;
+    whereNow();
   }
 
   function finish() {
@@ -368,6 +429,10 @@ export function createFormation(options = {}) {
      * queued one). Returns 'started' or 'queued'.
      */
     press(key, dir = 1) {
+      if (state.fluid) {
+        state.refusal = 'In fluid manoeuvring Lead flies the fluid buttons; Terminate first.';
+        return 'refused';
+      }
       const four = state.aircraft.length > 2;
       if (key === G_WARM.key && !four) throw new Error('G-warm is a four-ship manoeuvre for now (it starts from Spread 4)');
       if (!MANOEUVRES[key] && key !== G_WARM.key) throw new Error(`No manoeuvre called ${key}`);
@@ -391,6 +456,10 @@ export function createFormation(options = {}) {
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
     change(to, options = {}) {
+      if (state.fluid) {
+        state.refusal = 'Terminate fluid manoeuvring first; it ends in fighting wing.';
+        return 'refused';
+      }
       if (state.current) {
         const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS_LABEL(to);
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
@@ -402,13 +471,54 @@ export function createFormation(options = {}) {
      * Which formation the aircraft are in now: for the pair { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side },
      * for the four one of four-ship-slots.js FOUR_FORMATIONS or 'other', with #2's side.
      */
-    where: () => (state.aircraft.length > 2 ? classifyFour(state.aircraft) : classifyPair(state.aircraft[0], state.aircraft[1])),
+    where: () => (state.fluid ? { key: 'fluid', side: state.lastSide } : state.aircraft.length > 2 ? classifyFour(state.aircraft) : classifyPair(state.aircraft[0], state.aircraft[1])),
+    /**
+     * A Lead button in fluid manoeuvring (fluid-lead.js FLUID_MOVES: levelTurn, wingsLevel, reversal, climb, descend, loop, terminate); dir +1
+     * left, -1 right. Returns 'started', 'queued' (the entry is still flown) or 'refused' (state.refusal says why).
+     */
+    pressFluid(key, dir = 1) {
+      if (!state.fluid) {
+        state.refusal = 'Fluid manoeuvring is not running; start it from fighting wing.';
+        return 'refused';
+      }
+      if (!FLUID_MOVES[key]) throw new Error(`No fluid manoeuvre called ${key}`);
+      const r = state.fluid.session.press(key, dir);
+      if (typeof r === 'object') {
+        state.refusal = r.refused;
+        return 'refused';
+      }
+      state.refusal = null;
+      state.planned = state.fluid.session.planned();
+      return r;
+    },
+    /** Fluid manoeuvring settings, taken at once while it runs: { rangeFt (500-1,000), bank ('gentle' | 'medium' | 'steep') }. */
+    setFluid(next = {}) {
+      if (next.rangeFt !== undefined) opts.fluidRangeFt = next.rangeFt;
+      if (next.bank !== undefined) opts.fluidBank = next.bank;
+      if (state.fluid) {
+        if (next.rangeFt !== undefined) state.fluid.session.setRange(next.rangeFt);
+        if (next.bank !== undefined) state.fluid.session.setBank(next.bank);
+      }
+    },
     /** Drops the queued press, if any. */
     clearQueue() {
       state.queued = null;
     },
     /** Flies one fixed step. */
     step() {
+      if (state.fluid) {
+        const f = state.fluid;
+        const [lead, wing] = state.aircraft;
+        f.prev = { lead: { ...lead }, wing: { ...wing } };
+        f.session.step(lead, wing);
+        state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
+        f.readouts = fluidReadouts(lead, wing, f.prev, opts.blockFt);
+        state.planned = f.session.planned();
+        keepTrack();
+        keepRecord();
+        if (f.session.done) finishFluid();
+        return true;
+      }
       for (const a of state.aircraft) flyStep(a, state.plans[a.id] ?? (state.plans[a.id] = { segments: [] }), state.tSec);
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();

@@ -136,7 +136,7 @@ The 4 G hook is flown as the SMM gives it; the Orders' 3 G for more than two air
 | Formation | Places | KIAS | Source |
 |---|---|---|---|
 | Spread 4 | As section 8, at the spacing | 220 | Patrick 11:08Z; SMM 16.42 |
-| Fighting wing | #2 off Lead at 45°, #3 off #2 at 30°, #4 off #3 at 30°, every link 650 ft; #3 and #4 on the side opposite #2. Entered from Spread 4 or the offset box the stack is kept; from a close formation each is 60 ft below the one it flies off (estimate) | 200 | Patrick 11:44Z (estimates until Dad says); SMM 12.29 para 69, 16.38 paras 104-107 |
+| Fighting wing | #2 off Lead at 45°, #3 off #2 at 30°, #4 off #3 at 30°, every link 650 ft (the defaults; settings, section 10.4); #3 and #4 on the side opposite #2. Entered from Spread 4 or the offset box the stack is kept; from a close formation each is 60 ft below the one it flies off (estimate) | 200 | Patrick 11:44Z (estimates until Dad says); SMM 12.29 para 69, 16.38 paras 104-107 |
 | Fluid 4 | #3 abeam Lead at 6,000 ft on the side opposite #2; #2 in fighting wing on Lead, #4 in fighting wing on #3 at 45°, outside; on the stack | 200 (estimate) | AFM8 brief p.20 |
 | Offset box | #2 abeam Lead at the spacing; #3 7,000 ft behind Lead, half a spacing toward #2's side; #4 abeam #3 at the spacing on #2's side; on the stack. The box is on #2's side (estimate) | 220 (estimate) | AFM8 brief pp.21-22; SMM 16.41 paras 109-110; TS-18 |
 | Finger | #2 in echelon on Lead, its side; #3 in echelon on Lead, the other side; #4 in echelon on #3, outside. Named by the side #3 and #4 are on ("finger left": #3 and #4 left) | 200 | SMM 16.32; AFM7 brief p.19 |
@@ -226,10 +226,7 @@ Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix
   - Pressing Echelon from line abreast flies the hot turning rejoin straight to echelon (SMM 16.20 para 66).
   - #2 overtakes Lead by 10-20 KIAS in a turning rejoin (EFIG p.374) and 20-30 KIAS straight ahead (EFIG p.371), and stays below Lead.
   - #2's bank in a rejoin is capped at 60°, an estimate, flagged on screen and never a wall.
-- **Entering fluid manoeuvring:**
-  - from echelon by the 2-second break (SMM 16.17 para 43);
-  - from fighting wing by Lead's 30° turn, then max power (AFM7 p.17);
-  - from line abreast through fighting wing.
+- **Entering fluid manoeuvring:** from fighting wing only, by Lead's 30° turn, then max power (AFM7 p.17); greyed in every other formation (section 10.3, TS-57). ~~From echelon by the 2-second break (SMM 16.17 para 43); from line abreast through fighting wing.~~
 - **After a change:** the manoeuvre buttons work only in line abreast for now; they are greyed out in other formations. Fighting wing and fluid manoeuvring themselves (Lead's moves, #2 staying in the cone) are a separate step.
 
 **The positions** (the formation counts as established when #2 is inside these):
@@ -237,7 +234,7 @@ Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix
 | Formation | #2's position | Source |
 |---|---|---|
 | Line abreast | 4,000-6,000 ft abeam, 0-10° sweep | SMM 16.18 para 49 |
-| Fighting wing | 500-1,000 ft, 30-60° sweep, below Lead; default 750 ft and 45° (estimate) | SMM 12.29 para 69 |
+| Fighting wing | 500-1,000 ft, 30-60° sweep, below Lead; default 750 ft and 45° (estimate; a setting, section 10.4) | SMM 12.29 para 69 |
 | Route | 1 to 3 wingspans out on the wing-tip line | SMM 12.6 para 15 |
 | Echelon | about 45 ft out, 25 ft back, 5 ft down (estimate; the manual gives sight references, not feet) | SMM 12.4 paras 11-12 |
 | Line astern | directly behind and below, about 10 ft nose to tail | SMM 12.5 para 13 |
@@ -272,7 +269,7 @@ No time gates. A generous limit of 3 minutes per change catches a planner that n
 - **How it plans.** Lead flies ordinary segments (a speed change, and in a turning rejoin a pause then a 30° turn into #2). #2's path is worked out by a dry run in which #2 flies toward its slot in Lead's frame the way a pilot would (small heading changes for slides, bank for the rejoin), through the same flight step as every other aircraft; the bank and speed it commanded are recorded and replayed, so the path drawn is the path flown. Code: `live/transitions.js` (planner, `planGoTo`), `transitions-panel.js` (buttons and card lines), small hooks in `live/formation.js`, `layout.js`, `index.js`, `view.js`.
 - **The from-to routes** (design section 4): station changes between echelon, route and line astern by slides of about 5 kt (8 ft/s, estimate) crossing behind and below Lead; drop back and sweep out to fighting wing at about 12 ft/s; close through route from fighting wing at a 10-20 KIAS overtake, slowing to about 5 kt at route; entry to line abreast with Lead accelerating to 220 KIAS at full power while #2 turns away to open out; from line abreast a rejoin to fighting wing first, flown straight through it for the hot turning rejoin to echelon. A change of side (the Side switch) is made behind Lead in the formation the pair is in, never across his nose.
 - **The turning rejoin.** Lead slows to 200 KIAS, pauses until #2 has closed to about 2,000 ft ("Lead will pause, allow No. 2 to establish closure", AFM8 brief p.19), then turns 30° into #2 at 30° bank (SMM 12.24 para 54). #2's bank is capped at 60° (estimate); its overtake is 15 KIAS (EFIG p.374). The planner takes the first turn that keeps the overshoot lane (inside 1,000 ft #2 never more than 100 ft ahead of Lead's 3/9 line, and below Lead inside 2,000 ft); if none does, Lead holds straight and #2 flies the straight-ahead rejoin (SMM 12.26 paras 62-63). The rejoin choice under More is "Turning, Lead turns into #2" (the default) or "Straight ahead". Turning away, in-place turns, hot and cold line choices and an overtake box are not built (`future.md`).
-- **The slots** (where the planner sends #2, all estimates inside the table's bands): fighting wing 750 ft at 45° sweep, 60 ft below Lead; route 2 wingspans (67 ft) out, 25 ft back, 5 ft low; echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Setup spacing.
+- **The slots** (where the planner sends #2, all estimates inside the table's bands): fighting wing 750 ft at 45° sweep by default (a setting, section 10.4), 60 ft below Lead; route 2 wingspans (67 ft) out, 25 ft back, 5 ft low; echelon 45 ft out, 25 ft back, 5 ft down; line astern 43 ft centre to centre (10 ft nose to tail), 8 ft low; line abreast the Setup spacing.
 - **The card.** "Now:" (the formation the pair is in, read from where #2 really is), the existing "Flying:" line (for a change, "Line abreast right to Echelon right (hot turning rejoin)"), the rejoin block during a rejoin from line abreast (range, closure, Lead's clock position and ON LINE / HOT / COLD at 60° and 30°, #2's height against Lead), the flags (Lead's G over 4 in fighting wing and over 3 in close formation; #2 at or above Lead's height inside 2,000 ft; #2 at the 60° bank cap), and, once the change ends, the judgement against the table above. During a rejoin the picture draws a dashed range ring around Lead and a closure arrow on #2. The camera keeps every aircraft in view (section 10.2; before V2.16 it zoomed in by itself under about 1,000 ft apart).
 - **When it cannot be planned.** Nothing changes; the card says why in one line ("No safe rejoin from here: ..."), for example when the plan would take more than 3 minutes or ends outside the band. A press while a change is flying is queued, as the manoeuvres are (TS-45). A pair that fits no formation (in trail, mid-turn) is planned as a straight-ahead rejoin from where #2 is. Training errors are not applied to a change.
 - **Speed.** Lead's speed changes use `{ kind: 'speed', toKias, rateKtps }` segments; until the shared one in `live/flight.js` is swapped in, `flyStep` in `live/transitions.js` flies them itself (marked TEMPORARY there).
@@ -381,7 +378,7 @@ The rest of Patrick's 4 Oct rulings (18:00Z to 19:54Z), from the screen-piece br
     - fighting wing: the cone, 500-1,000 ft and 30-60° of sweep from the wing line (SMM 12.29 para 69, Fig 12.19). Inside 500 ft TIGHT, past 1,000 ft STRETCHED, outside the sweep OUT OF CONE, otherwise IN POSITION, with the range and sweep. No margin is added: the tag shows the band itself.
     - close formations: the roll-out judgement's in-position test (the section 10 table). Too close is TIGHT, too far is STRETCHED, and any other miss shows the judgement's own word (HIGH, LOW, OFF LINE).
     - line abreast and the wide 4-ship formations: the distance abeam only.
-- **Sweep, the manual's way**: measured back from the wing line of the aircraft flown off, 0° abeam (Fig 12.19). The 4-ship fighting wing places are unchanged: #2 45°, #3 and #4 30°, 650 ft, #3 and #4 on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14; Patrick 11:44Z). The 30° matches Fig 16.29's picture. Para 104's text says "a 60 degree sweep": that question is with Patrick.
+- **Sweep, the manual's way**: measured back from the wing line of the aircraft flown off, 0° abeam (Fig 12.19). The 4-ship fighting wing places are unchanged: #2 45°, #3 and #4 30°, 650 ft, #3 and #4 on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14; Patrick 11:44Z). The 30° matches Fig 16.29's picture. Para 104's text says "a 60 degree sweep": Patrick chose to set it himself through the setting (section 10.4, TS-58).
 
 **Settings and their defaults.** Fit all aircraft: on. Info tags: on. Lead 3/9 line: off. Lead 7 and 5 o'clock lines: off. All are in the Layers menu; the Fit button is the only new thing outside it, and it shows only while the camera is paused or off.
 
@@ -392,6 +389,69 @@ The rest of Patrick's 4 Oct rulings (18:00Z to 19:54Z), from the screen-piece br
 - `four-ship-changes.test.js`: the turn buttons in every 4-ship formation, with the same checks link by link; #2 crosses to echelon only once #3 has made room; in finger to line astern #3 moves across only once #2 is in.
 - `tags.test.js`: the fighting wing tag's states against the cone, and sweep measured from the wing line.
 - The camera, the lines, the tags on screen and the 3D picture are checked by eye in a browser run (sign-off).
+
+### 10.3 Fluid manoeuvring, the simplified baseline (2-ship, planned wingman) (V2.17, TS-57; climb, descend, the loop and the 15° hold V2.18, TS-59; built 4 Oct, not yet in Patrick's sign-off)
+
+Patrick 21:44Z: "lets get a working baseline thats simplified, if required, and work from there." This is that baseline. Numbers with no manual or ruling behind them are estimates. Pictures from the check run are in the project files at `turn-sim-review/screens/` (`v217-*.png`).
+
+**What changes on screen.**
+- **Fluid manoeuvring** under Change formation now works. It starts only from fighting wing; in every other formation, and in the 4-ship, it is greyed ("From fighting wing only"). This replaces section 10's entries from echelon (the 2-second break) and from line abreast.
+- A new group, **Fluid manoeuvring, Lead**, sits under Change formation: Level turn L, Level turn R, Wings level, Reversal, Climb, Descend, Loop (the last three from V2.18), Terminate. Its buttons work only while fluid manoeuvring runs.
+- **Fluid settings** (behind its own "More"): Lead's level turn bank (Gentle 30°, 60/2, Steep 70/3; default 60/2); the distance, 500-1,000 ft (default 600); how #2 is flown, Planned (the default) or Live (greyed, "coming later").
+- While fluid manoeuvring runs, the other Change formation buttons and the manoeuvre buttons are greyed ("Terminate first").
+- The card adds the fluid lines; the tags show the fluid words (below). Nothing else moves or disappears.
+
+**How it flies.**
+- **Planned, not live** (TS-55): Lead's path is planned at each press on the shared point mass (core `stepPointMass`) with the T-6A's full-power thrust and drag, and replayed. #2's path is worked out from Lead's (below), so it is planned too. Roll stays within 90°/s for both; Lead's G builds at no more than 4 G/s (estimate).
+- **Entry** (AFM7 brief p.17): Lead turns away from #2 at 30° of bank while "all call ready" (5 s, estimate), then rolls to the chosen bank at MAX. #2 collapses from his fighting wing slot into the cone (Fig 12.20, turn away), blending in over about 10 s (estimate). A Lead button pressed during the entry waits for its end.
+- **Level turn** (AFM7 brief p.17, AFM8 brief p.19): at the chosen bank, level, at MAX, until the next press. 30° is the brief's first stage, 60/2 its turn, 70/3 is SMM 16.18 para 50's line abreast number used as "steep" (estimate).
+- **Wings level**: Lead rolls out and holds height.
+- **Reversal** (Patrick's list; not a manual manoeuvre): Lead rolls through to the same bank the other way. With Lead wings level it is refused with the reason ("press a level turn first").
+- **Climb and Descend** (V2.18, TS-59; Patrick's list, design 5.1; not FM manoeuvres in the manuals): Lead changes only his pitch, 15° up or down (estimate) through 2,000 ft (estimate), then levels off and holds the new height, keeping the bank he had, so from a turn it is a climbing or descending turn. PCL stays MAX (SMM 16.17 para 43): the speed bleeds in the climb and builds in the descent. The nose moves at no more than 3°/s and the push over keeps 0.5 G (estimates; Lead keeps positive G, 2 CFFTS Orders B2 ch 8 para 1a). Cut short by the next press.
+- **Loop** (V2.18, TS-59; SMM 7.5 paras 10-13 and Fig 7.2; Table 7.1; EFIG p.170-171): Lead rolls wings level on the heading he has and gets to 230 KIAS at MAX by lowering or raising the nose up to 10° (the SMM says to attain 230, not how: estimate), then pulls 3.5 G wings level (EFIG p.171, inside the SMM's 3-4 G) until near the vertical (80°, estimate), then keeps the nose moving at a constant rate: the G bleeds off with the speed, slight positive G over the top (0.5 G at least, estimate; about 100-120 KIAS there, EFIG p.171), up to 4 G coming down (the top of the SMM's 3-4 G, at the Orders' 4 G), and the pull-out to level at about 230 KIAS (para 12). It uses about 2,500 ft of height (SMM 7.1 para 6: about 3,000). A press during the loop waits for its end.
+- **#2, the planned wingman** ("go where Lead was and do what Lead did", EFIG p.391): he flies along Lead's own path a few seconds behind him at the set straight-line distance (Patrick's pick row 4: range is the straight line), with two offsets:
+  - **across**: 15° off Lead's **current** tail line on his own side, in every turn, climb, descent and loop (Patrick 22:28Z, "lets go with hold 15"; V2.18, TS-59), inside the cone; never straight behind (Patrick 19:21Z). Where Lead was is turned about Lead onto that place, averaged over 3 s (estimate) so a roll of Lead's comes in over a couple of seconds; once a turn is steady #2 sits at 15° turning into him or away from him (V2.17 gave about 25° and 5°). Swapping sides "if it makes sense for spacing/lead/lag" (Patrick 22:28Z) is the next piece, with the swap over the top.
+  - **lag, pure or lead**: outside Lead's turn is lag, on his path pure, inside it lead (SMM 12.30 paras 72-74; EFIG p.391), 10% of the range at full size (estimate). A new turn into #2 starts with lag (make the miss first), one away from him with lead (collapse to his six), for about 4 s (estimate), then pure (Fig 12.20). #2 answers each turn a few seconds after Lead makes it.
+  - **in a climb or descent** he follows Lead's path, so his plane of motion follows Lead's (SMM 16.16 para 39c): lag while Lead's nose rises, lead while it falls, pure once it is steady (Patrick's loop rule carried over: estimate). The pursuit offset puts him just below Lead's path either way.
+  - **in the loop** (Patrick 17:12Z: "lag on the way up, try to cross horizon with fuselages both parallel, and lead on the way down"): his point on Lead's path is turned about Lead in the loop's plane, to about 20° outside Lead's tail line going up (lag: EFIG p.391, lag puts the path outside the turn circle), across over the top, about 20° inside coming down (lead), and back in trail for the pull-out; with the 15° across he stays about 25° off Lead's tail, inside the cone. **Fully parallel over the top would take #2 to about -2 G at 600 ft**, so he crosses the horizon about 20° off parallel (on Lead's own path it would be nearly 40°); the card says PURE there. Open with Patrick. All the loop numbers for #2 are estimates.
+  - his wings follow his lift at no more than 90°/s; G and attitude come from his path, so they always agree with it.
+- **Terminate** (SMM 16.17 paras 45-46, 48; AFM7 brief p.17; Patrick's pick row 7): Lead flies a gentle, predictable 30° turn (estimate) for 90° (estimate), the way he is already turning or away from #2 if wings level, with the power back to fighting wing's 200 KIAS (TS-53), then rolls out. #2 goes back to his fighting wing slot on the side he is on, over about 12 s (estimate). Then the pair is in fighting wing and the card judges it against the section 10 table. Rejoin to a close formation is its own Change formation button, as before (Patrick's pick row 7).
+
+**The cone and the readouts** (Patrick's picks 19:20Z, `fluid-conflicts.md`).
+- The cone is 60° in all, 30° either side of Lead's tail (row 2). Aspect is 0 at the tail (row 10; SMM 16.16 para 40b). HCA is the angle between the two headings (para 40c).
+- Distance 500-1,000 ft (SMM 16.17 para 42; AFM7 p.17, AFM8 p.19), 500-750 shown as good, default 600 (row 3); a typed value outside 500-1,000 is refused and the old one kept.
+- **Card lines**: Lead's manoeuvre and its phase; #2's pursuit (LAG, PURE, LEAD; INTO THE CONE during the entry; BACK TO FIGHTING WING during Terminate); for the loop, its entry and exit speeds against the SMM's ("Loop: entry 230 KIAS, exit 234 KIAS (SMM 230 in, 230 out: Table 7.1, 7.5 paras 11-12, Fig 7.2)"), shown from the set-up until Lead's next manoeuvre; his state and range; aspect, HCA and closure.
+- **#2's state** (card and tag): TIGHT inside 500 ft, STRETCHED past 1,000 ft, OUT OF CONE past 30° of aspect, otherwise IN POSITION.
+- **Tags**: Lead: the manoeuvre, its phase and KIAS. #2: his pursuit word; his state, range and aspect.
+
+**Flags, never walls.**
+- Inside the 500 ft bubble (SMM 16.17 para 44c; Gen Book p.11).
+- #2 over 5 G (SMM 16.17 para 44a; Gen Book p.11); Lead over 4 G (2 CFFTS Orders B2 ch 8 para 1a; Gen Book p.11) (row 11).
+- More than 90° of aspect with more than 90° of HCA and low line of sight (SMM 16.17 para 44b; "low" is under 5°/s, estimate).
+- Below 3,000 ft AGL, the fluid manoeuvring minimum (2 CFFTS Orders B2 ch 8 para 1f; Gen Book p.11), taken as about 6,000 ft MSL over the Moose Jaw areas (SMM 14.6 para 16; estimate until the block height is ruled).
+- At the stick shaker (the one physical limit; core `shakerG`).
+
+**When things go wrong.** Fluid manoeuvring pressed outside fighting wing, or in the 4-ship, is refused with the reason and nothing moves. A Lead button pressed during the entry waits for its end; during Terminate it is greyed. Any other button pressed during fluid manoeuvring is refused ("Terminate first"). Reset ends it.
+
+**Not built yet** (`future.md`, later pieces): #2 swapping sides (in a turn and over the top, next piece); the wingover and barrel roll; the standard sequence; Live wingman; Fluid 4 manoeuvring; cloverleaf, Cuban eight and Immelmann. The 3D view's camera looks down, so the loop is seen only in 2D from above (the 3D view is a bonus).
+
+**Checks (light).** `tests/unit/turn-sim/fluid.test.js`: fluid manoeuvring starts only from fighting wing; Lead's turn holds height and #2 stays in the 500-1,000 ft band and the cone with no jumps (roll within 90°/s); in a steady turn either way #2 sits 15° off Lead's tail (±5°); climb and descend end level higher and lower with G positive; the loop goes over the top and ends level on Lead's heading at 230 KIAS (±10 kt) with about 100-120 KIAS at the top, #2 in the cone with positive G; Terminate ends in fighting wing; a reversal from wings level is refused. The screen pieces are checked by eye in a browser run (sign-off).
+
+### 10.4 Fighting wing desired spacing and sweep as settings (V2.17, TS-58, built 4 Oct, not yet in Patrick's sign-off)
+
+Patrick 21:25Z: "Can we make the 'desired sweep and spacing' a setting?"
+
+- **Where:** Setup, behind "More: fighting wing spacing and sweep". Changing one starts again from the beginning, as the other Setup settings do.
+- **The settings and their defaults** (today's places, unchanged):
+  - 2-ship: #2 spacing off Lead 750 ft, sweep 45° (the middle of the SMM band; estimate).
+  - 4-ship: #2 spacing off Lead 650 ft, sweep 45°; #3 and #4 spacing 650 ft, sweep 30°, each off the one ahead (Patrick 11:44Z, estimates until Dad says; read from `four-ship-slots.js` FW4). Fluid 4's #4 flies off #3 with #2's pair.
+  - The 2-ship's two show in the 2-ship, the 4-ship's four in the 4-ship.
+- **Sweep is measured back from the wing line** of the aircraft flown off, 0° abeam (SMM 12.29 para 69, Fig 12.19; Patrick's pick row 1).
+- **Flagged, never walled:** outside the SMM's 500-1,000 ft and 30-60° band (SMM 12.29 para 69), the place is flown and a line under the settings says so; the roll-out judgement and the tags still judge against the SMM band, so a place outside it ends "TOO FAR" or the like. The sim flies 450-1,250 ft and 25-65° (estimates: just inside the region where the pair is still recognised as fighting wing, so the fighting wing buttons keep working); a typed value outside that is refused and the old one kept.
+- **What reads them:** the fighting wing slot for every change into fighting wing (2-ship and 4-ship), and the distance behind Lead at which fighting wing flows across to the other side.
+- **Not the fluid distance.** Fluid manoeuvring's distance (500-1,000 ft, default 600, section 10.3) stays its own setting: it is how far #2 sits behind Lead in the cone while manoeuvring, a different formation from fighting wing's place (SMM 16.17 para 42 against 12.29 para 69). Fluid manoeuvring is entered from wherever #2 is in fighting wing and Terminate returns him there.
+
+**Checks (light).** `tests/unit/turn-sim/fw-shape.test.js`: #2 settles at the spacing and sweep set (2-ship); a spacing past the band is flown there and flagged; #3 and #4 settle at their own spacing and sweep (4-ship); a place inside the band has no flag, outside it a flag, far outside it a refusal.
 
 ---
 

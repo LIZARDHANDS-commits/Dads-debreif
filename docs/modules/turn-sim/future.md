@@ -40,7 +40,17 @@ Patrick, 4 Oct (review thread): he wants all of V6's features eventually, added 
 
 ## Changing formation: what the 2-ship build left out (TS-53)
 
-- Fluid manoeuvring: its button is greyed ("coming later"); entering it (the 2 s break from echelon, Lead's 30° turn from fighting wing, through fighting wing from line abreast) and leaving it wait for live fighting wing and fluid (design section 3 M10).
+- ~~Fluid manoeuvring: its button is greyed ("coming later")~~: the baseline is built (V2.17, TS-57), entered from fighting wing only (Patrick 21:44Z). Entering from echelon by the 2 s break and from line abreast are dropped, not deferred.
+
+## Fluid manoeuvring: what the baseline leaves out (TS-57, Patrick 21:44Z)
+
+- ~~Climb and descend~~: built (V2.18, TS-59).
+- The wingover (SMM 16.17 para 47) and barrel roll (SMM 14.8 paras 18-19, Fig 14.1; Patrick's pick row 6: level inverted at the top, about 45° pitch, over 60° flagged) (the loop is built, V2.18, TS-59), with #2's lag on the way up, fuselages parallel over the top and lead on the way down (Patrick 17:12Z, 19:21Z), and the side swap over the top and in turns (Patrick 22:28Z: "can swap sides if it makes sense for spacing/lead/lag"; a `swapSide` hook is in `live/fluid-wing.js`). A draft of all three was flown in scratch runs on the core point mass; the open points are in the TS-57 report: a coordinated barrel roll can't simply chase the nose circle (it stays near knife edge at the slow top), so the draft flew a roll-and-pull schedule that meets the SMM's checkpoints; the draft wingover came out about 295 KIAS and 1,200 ft low.
+- The standard sequence (SMM 16.17 para 42): level turn, loop, two wingovers, barrel roll.
+- Entry and exit speeds on the card (SMM Table 7.1, Table 14.1).
+- The Live wingman (Patrick 18:03Z: a setting, Planned the default; Patrick 22:04Z: "get it working for planned across the board and implement live as a future feature"): a physics wingman with real energy, steering toward In position the way the Fight Sim's pilot steers toward the kill, using the shared core pursuit pieces from #295 (pursuit lift, turn plane, part-throttle power and 3-D aspect and HCA). Until then Planned is the default and the only working mode, and Live is shown greyed, "coming later".
+- Fluid 4 manoeuvring (AFM8 brief pp.20-22; SMM 16.40 para 108), with #3 and #4 opposite #2 (Fig 16.29) and 6,000 ft spacing (setting 4,000-6,000; Patrick's picks rows 8-9).
+- Cloverleaf, Cuban eight and Immelmann (design 5.1; not in the baseline or the next pieces).
 - Live fighting wing: #2 holding the cone while Lead turns and climbs; the manoeuvre buttons from fighting wing, echelon and route (greyed outside line abreast for now).
 - The Overshoot button and rejoin mistakes (too hot, too much bank), SMM 12.27; break and rejoin (design M7); the turning rejoin with Lead turning away from #2 (SMM Fig 16.24) and the in-place-turn rejoin (M9); the hot or cold line choice, an overtake box and a bank-cap box under More.
 - The dynamic entry to line abreast (both turn onto a new heading together, design M8); the 4-ship changes (design section 5).

@@ -9,13 +9,13 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { FORMATIONS, REJOIN, KIAS_OUTSIDE_LAB, rejoinReadout } from './live/transitions.js';
 import { FOUR_FORMATIONS, fourWords } from './live/four-ship-slots.js';
 
-/** The main buttons, in screen order. Fluid manoeuvring is built later (spec section 10: "coming later"). */
+/** The main buttons, in screen order. Fluid manoeuvring starts from fighting wing only (spec section 10.3, TS-57). */
 export const CHANGE_BUTTONS = Object.freeze([
   { key: 'lab', label: 'Line abreast' },
   { key: 'fw', label: 'Fighting wing' },
   { key: 'echelon', label: 'Echelon' },
   { key: 'route', label: 'Route' },
-  { key: 'fluid', label: 'Fluid manoeuvring', later: true },
+  { key: 'fluid', label: 'Fluid manoeuvring' },
 ]);
 /** The four's buttons (spec section 8): the wide formations first, then the close ones; Line astern and Route under More. */
 export const FOUR_CHANGE_BUTTONS = Object.freeze([
@@ -41,6 +41,7 @@ const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
 
 /** "Line abreast, right" for the pair as classified now (transitions.js classifyPair). */
 export function nowWords(where) {
+  if (where.key === 'fluid') return 'Fluid manoeuvring';
   const word = FORMATIONS[where.key]?.label;
   if (!word) return 'between formations';
   if (!FORMATIONS[where.key].sided) return word;
@@ -74,10 +75,11 @@ export function fourChangeFlags(state, where) {
 }
 
 /**
- * onChange(to, { side, rejoin }): called when a button is pressed. Returns
+ * onChange(to, { side, rejoin }): called when a button is pressed. fluidUi: the fluid manoeuvring group (fluid-panel.js),
+ * shown under this one for the 2-ship, or null. Returns
  * { element, cardElement, setShips(n), update(state, where), renderCard(state, where), values() }.
  */
-export function createChangeUi({ onChange }) {
+export function createChangeUi({ onChange, fluidUi = null }) {
   let side = 'keep';
   let rejoin = 'into';
   let four = false;
@@ -141,13 +143,14 @@ export function createChangeUi({ onChange }) {
     h('div', { class: 'ts-side', role: 'group', 'aria-label': 'Side #2 ends on' }, h('span', { class: 'ts-hint' }, 'Side'), sideButtons),
     refusal,
     more,
+    fluidUi?.element ?? null,
   );
 
   // ---- the card's lines ----
   const nowLine = h('p', { class: 'ts-line ts-now-formation' });
   const rejoinBlock = h('ul', { class: 'ts-lines ts-rejoin', 'aria-label': 'The rejoin', hidden: true });
   const flagList = h('ul', { class: 'ts-lines ts-flags', 'aria-label': 'Flags', hidden: true });
-  const cardElement = h('div', { class: 'ts-change-card' }, nowLine, rejoinBlock, flagList);
+  const cardElement = h('div', { class: 'ts-change-card' }, nowLine, rejoinBlock, flagList, fluidUi?.cardElement ?? null);
 
   return {
     element,
@@ -162,6 +165,7 @@ export function createChangeUi({ onChange }) {
       fourGrid.hidden = !four;
       fourMore.hidden = !four;
       hint.textContent = four ? FOUR_HINT : PAIR_HINT;
+      if (fluidUi) fluidUi.element.hidden = four; // the four's fluid manoeuvring is a later piece
       rejoinLabel.textContent = four ? 'Rejoin to fighting wing or finger' : 'Rejoin from line abreast';
       rejoinSelect.options[0].textContent = four ? 'Turning, Lead turns into the others' : REJOIN_OPTIONS[0].label;
       rejoinHint.textContent = four ? FOUR_REJOIN_HINT : PAIR_REJOIN_HINT;
@@ -179,8 +183,21 @@ export function createChangeUi({ onChange }) {
         refusal.hidden = !state.refusal;
         return;
       }
+      fluidUi?.update(state);
       for (const [key, button] of buttons) {
-        if (key === 'fluid') continue;
+        if (where.key === 'fluid') {
+          // In fluid manoeuvring Terminate is the way out; it ends in fighting wing (spec section 10.3).
+          button.disabled = true;
+          button.title = 'Terminate first';
+          continue;
+        }
+        if (key === 'fluid') {
+          // From fighting wing only (Patrick 21:44Z, spec section 10.3); greyed in every other formation.
+          const ok = where.key === 'fw' && !state.current;
+          button.disabled = !ok;
+          button.title = ok ? '' : where.key === 'fw' ? 'Wait for the change to finish' : 'From fighting wing only';
+          continue;
+        }
         const here = key === where.key && (key === 'astern' || side === 'keep' || (side === 'left') === (where.side > 0));
         // Line abreast has no side change of its own: a change of side there goes through another formation first.
         const greyed = here || (key === 'lab' && where.key === 'lab');
@@ -215,9 +232,10 @@ export function createChangeUi({ onChange }) {
           h('li', { class: r.aboveLead ? 'tone-caution' : 'tone-good' }, `#2 is ${ft(r.belowFt)} ${r.belowFt > 0 ? 'below' : 'above'} Lead`),
         );
       }
-      const flags = changeFlags(state, where);
+      const flags = where.key === 'fluid' ? [] : changeFlags(state, where); // fluid has its own flags (fluid-panel.js)
       flagList.hidden = flags.length === 0;
       for (const f of flags) flagList.append(h('li', { class: 'tone-caution' }, f));
+      fluidUi?.renderCard(state);
     },
   };
 }

@@ -1,18 +1,19 @@
-// Checks: the Energy screen's words: the note for a start above 15,000 ft, the model settings list and
-//   range-and-default hints, the About text on the MPT bank, the MPT reached and held, and the Tactical move.
+// Checks: the Energy screen's words: the note for a start above 15,000 ft, Advanced setup's numbers (each with a
+//   what, a why and a what-changing-it-does line) and range-and-default hints, the About text on the MPT bank, the MPT
+//   reached and held, and the Tactical move.
 // Serves: TF-R21, TF-R6.
 // Expected values: SMM 14.5 para 10, 14.3 para 6 (MPT about 160 KIAS) and 14.14 (bank 70 to 75 degrees); the
 //   model's banks (69 and 72 degrees) are recorded against them, not tuned; margins are the shared table, 160
 //   plus or minus 20 is the author's. Exact note sentences, label wording, hint strings and the Tactical
 //   look-ahead's range numbers are not pinned (Patrick, 4 Oct 11:48Z).
 
-// The Energy screen's words and lists (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for
-// checking", "Start geometry and altitudes"): the hints, the note beside a high start altitude, and the About lines on the
-// MPT bank, each held to the engine and the spec. The screen itself is checked in the browser (tests/e2e/turn-fight.spec.js).
+// The Energy screen's words and lists (SPEC-turn-fight, "The screen", "Advanced setup", "Start geometry and altitudes"): the
+// hints, the note beside a high start altitude, and the About lines on the MPT bank, each held to the engine and the spec.
+// The screen itself is checked in the browser (tests/e2e/turn-fight.spec.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEnergyFight, stepEnergyFight, ENERGY_ACCURATE_MAX_FT, ENERGY_MOVES, MOVE_LABELS } from '../../../src/modules/turn-fight/energy-sim.js';
-import { ALTITUDE_NOTE, ENERGY_ABOUT, CHECK_SETTINGS, rangeHint } from '../../../src/modules/turn-fight/layout.js';
+import { ALTITUDE_NOTE, ENERGY_ABOUT, ADVANCED_NUMBERS, ADVANCED_KEYS, CHECK_SETTINGS_KEYS, rangeHint } from '../../../src/modules/turn-fight/layout.js';
 import { ENERGY_CHECK_KEYS, RANGES, DEFAULTS, ALLOWED } from '../../../src/modules/turn-fight/state.js';
 import { TOLERANCES, assertNear } from '../../helpers/tolerances.js';
 
@@ -20,11 +21,18 @@ test('the note beside a start altitude above 15,000 ft is the spec\'s, in one no
   assert.equal(ENERGY_ACCURATE_MAX_FT, 15000);
 });
 
-test('Model settings for checking lists every box the spec lists, once each, in the engine\'s check keys', () => {
-  assert.deepEqual([...CHECK_SETTINGS.map(([key]) => key)].sort(), [...ENERGY_CHECK_KEYS].sort());
-  for (const [key, label, hint] of CHECK_SETTINGS) {
-    assert.ok(key in RANGES, `${key} has a range`);
-    assert.ok(label.length > 3 && hint.length > 10, key);
+test('Advanced setup\'s Smoothing and Model numbers hold every one of the engine\'s check keys, once each, so their reset puts back exactly those', () => {
+  assert.deepEqual([...CHECK_SETTINGS_KEYS].sort(), [...ENERGY_CHECK_KEYS].sort());
+  assert.equal(new Set(ADVANCED_NUMBERS.map((n) => n.key)).size, ADVANCED_NUMBERS.length, 'no number is listed twice');
+  for (const key of [...ADVANCED_KEYS.start, ...ADVANCED_KEYS.energy]) assert.ok(!ENERGY_CHECK_KEYS.includes(key), `${key} is not one the model-numbers reset touches`);
+});
+
+test('every number in Advanced setup has its three lines: what it is, why it has that value (a source or the word estimate) and what changing it does', () => {
+  for (const { key, label, what, why, change } of ADVANCED_NUMBERS) {
+    assert.ok(key in RANGES && key in DEFAULTS, `${key} has a range and a default`);
+    assert.ok(label && what && change, `${key} says what it is and what changing it does`);
+    // A number's source is a manual page, Patrick's ruling, or it is labelled an estimate (AGENTS.md, Flying numbers).
+    assert.match(why, /SMM (Table )?\d|EFIG|Patrick|estimate/i, `${key} names its source or says estimate`);
   }
 });
 
@@ -86,7 +94,7 @@ test('the constant-speed MPT is reached and held near 160 KIAS and the About tex
 });
 
 test('the About and hint text quote no manual: numbers and page references only', () => {
-  const all = [...ENERGY_ABOUT, ALTITUDE_NOTE, ...CHECK_SETTINGS.map(([, , hint]) => hint)].join(' ');
+  const all = [...ENERGY_ABOUT, ALTITUDE_NOTE, ...ADVANCED_NUMBERS.flatMap((n) => [n.what, n.why, n.change])].join(' ');
   assert.ok(!/["“”]/.test(all), 'no quotation marks in the help text');
   for (const ref of all.match(/SMM[\d .a-z]*/g) ?? []) assert.match(ref, /SMM(\s+\d+(\.\d+)?)?(\s+paras?\s+\d+( to \d+| and \d+)?)?/, ref);
 });
@@ -99,8 +107,8 @@ test('Task 18: Smart is selectable, the old tactical name still runs, and tactic
   assert.ok('tacticalLookaheadSec' in RANGES);
   assert.ok(ENERGY_CHECK_KEYS.includes('tacticalLookaheadSec'));
 
-  const checkItem = CHECK_SETTINGS.find(([k]) => k === 'tacticalLookaheadSec');
-  assert.ok(checkItem, 'tacticalLookaheadSec is in CHECK_SETTINGS');
+  const checkItem = ADVANCED_NUMBERS.find((n) => n.key === 'tacticalLookaheadSec');
+  assert.ok(checkItem, 'tacticalLookaheadSec is a number in Advanced setup');
 
   // Verifying tactical can be selected and runs in createEnergyFight
   const fight = createEnergyFight({ blueMove: 'tactical', redMove: 'tactical' });

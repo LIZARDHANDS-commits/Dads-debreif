@@ -18,7 +18,7 @@ export const RUNWAY_29L_HDG_DEG = 298;
 
 /**
  * Magnetic variation at Moose Jaw, degrees East (magnetic = true - this): Patrick's ruling, 4 Oct ("it's more like
- * 9 east"; TR-58). Used only to show the wind in °M; the flying is in true. The runway's true heading (298°) is
+ * 9 east"; TR-61). Used only to show the wind in °M; the flying is in true. The runway's true heading (298°) is
  * Patrick's ground truth on its own and does not come from this.
  */
 export const MAG_VARIATION_DEG_E = 9;

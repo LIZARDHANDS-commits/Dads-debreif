@@ -33,7 +33,7 @@ export const DEFAULTS = Object.freeze({
   graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
   // Wind: 260°M at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm). Set in true: 269°T with
-  // Moose Jaw's 9° East (TR-58). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
+  // Moose Jaw's 9° East (TR-61). Patrick, 4 Oct: "260 magnetic is fine" (it was 260°T, which reads 251°M).
   windFromDeg: 269,
   windKt: 15,
 
@@ -86,6 +86,11 @@ export const DEFAULTS = Object.freeze({
   // Automatic deconfliction (deconflict.js): on at the start (Patrick, 4 Oct 16:59Z, TR-50).
   autoDeconflict: true,
 
+  // Randomize behaviour (randomize.js): off at the start; each aircraft may pick its own landing and pattern (Patrick, 4 Oct 21:52Z).
+  randomizeBehaviour: false,
+  // ...and how often an aircraft does something other than the normal circuit, percent (Patrick's card "Odds as a setting", 4 Oct 22:29Z; 40, an estimate).
+  randomizeSharePct: 40,
+
   // Closed pattern maneuver: default 50° bank (selectable 45, 50, 60). The pitch comes from the climb and angle of attack.
   closedPatternBankDeg: 50,
 
@@ -123,6 +128,7 @@ export const LIMITS = Object.freeze({
   pointG: Object.freeze([1, 9]),
   closedPatternBankDeg: Object.freeze([30, 60]),
   aircraftScale: Object.freeze([1, 6]),
+  randomizeSharePct: Object.freeze([0, 100]),
   // Not in the spec's list; V6's own ranges where it had them.
   photoOpacityPct: Object.freeze([5, 100]),
   photoTrim: Object.freeze([0.8, 1.2]),

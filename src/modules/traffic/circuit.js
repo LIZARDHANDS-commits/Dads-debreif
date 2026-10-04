@@ -353,6 +353,33 @@ export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideF
 }
 
 /**
+ * Spacing on final (TR-R18, Patrick's R25; Patrick, 4 Oct 21:52Z): an aircraft on the inner downwind
+ * flies on past its perch by `extendFt` before it turns final, so it rolls out further out on the
+ * centreline, behind the traffic on final. Flown from its state `from` = { x, y, alt, kias,
+ * headingDeg, bankDeg } with the same downwind, final turn and final as the circuit; the final turn
+ * comes down to the glide path's height at its rollout (the window's own slope, about 3°, carried
+ * further out) instead of the window's height. `perch` is today's built perch. The path stops once it
+ * is on Pattern 1's own final, `joinBeforeWindowFt` inside the window, where Pattern 1 carries on.
+ * Returns { track, rollout, rolloutSec, endSec }: where it rolled out on final, and the seconds from `from` to
+ * the rollout and to the end of the path.
+ */
+export function buildExtendedDownwind(points, from, windFromDeg, windKt, perch, extendFt, joinBeforeWindowFt = 1000) {
+  const centre = lineOf(points[0], points[1]);
+  const back = (centre.trackDeg + 180) * Math.PI / 180;
+  const extended = { x: perch.x + extendFt * Math.sin(back), y: perch.y + extendFt * Math.cos(back) };
+  const windowFt = Math.hypot(points[12].x - points[0].x, points[12].y - points[0].y);
+  const slope = (points[12].alt - THRESHOLD_DATA_ELEV_FT) / windowFt;
+  const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0 };
+  const inner = flyInner(points, centre, 0, extended, { windFromDeg, windKt }, null, start, {
+    startStage: 'downwind',
+    finalTurnFromAlt: from.alt,
+    finalTurnEndAlt: THRESHOLD_DATA_ELEV_FT + slope * (windowFt + extendFt),
+    stopToGoFt: windowFt - joinBeforeWindowFt,
+  });
+  return { track: inner.track, rollout: inner.rollout, rolloutSec: inner.rolloutSec, endSec: inner.endSec };
+}
+
+/**
  * From the threshold round the outer pattern to the break point. With
  * `goAround` set to an aircraft's state ({ x, y, alt, ias, hdg, bank }) it flies
  * a go-around from there instead (Traffic spec 4.10; Patrick, 4 Oct 09:14Z and
@@ -479,9 +506,13 @@ function flyOuter(points, centre, breakAlong, wind, goAround = null) {
 /**
  * The break, downwind and final turn from the break point, aiming at `perch`;
  * then the final approach to the threshold. Returns the path and where the
- * final turn rolled out.
+ * final turn rolled out. `opts` (spacing on final, buildExtendedDownwind):
+ * `startStage` 'downwind' starts on the downwind instead of in the break;
+ * `finalTurnFromAlt` and `finalTurnEndAlt` replace pattern height and the
+ * window's height for the final turn's descent; `stopToGoFt` ends the path on
+ * final that far from the threshold.
  */
-function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null, from = null) {
+function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null, from = null, opts = {}) {
   const th = points[0];
   const rwyTrack = centre.trackDeg;
   const along = breakAlong;
@@ -491,9 +522,13 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
   const { s } = pilot;
   s.hdg = from ? from.hdg : pilot.headingFor(rwyTrack);
   if (from) { s.bank = from.bank ?? 0; s.rollRate = from.rollRate ?? 0; }
-  s.tag = 'break';
+  const startStage = opts.startStage ?? 'break';
+  if (startStage === 'downwind') { s.phase = 'downwind'; s.src = 10; }
+  s.tag = startStage;
   pilot.record();
-  let stage = 'break', turned = 0, ftTotal = null, ftStartHdg = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
+  const ftFromAlt = opts.finalTurnFromAlt ?? PATTERN_ALT_FT, ftEndAlt = opts.finalTurnEndAlt ?? points[12].alt;
+  let rolloutSec = null, ftTurned = 0;
+  let stage = startStage, turned = 0, ftTotal = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
   const glideStart = { alt: null, dist: null };
   for (let n = 0; n < MAX_STEPS; n++) {
     const g = gFromBankDeg(s.bank);
@@ -519,7 +554,6 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
         stage = 'finalTurn';
         pilot.mark({ src: 11, phase: 'final_turn', tag: 'perch' });
         s.tag = 'final_turn';
-        ftStartHdg = s.hdg;
         const finalHdg = pilot.headingFor(rwyTrack);
         ftTotal = ((s.hdg - finalHdg) % 360 + 360) % 360 || 360;
       }
@@ -530,12 +564,14 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
       // Height: a steady descent from pattern height to the window over the turn,
       // eased in and out at the ends. Spread over the distance the turn took on the
       // last try (the perch is found by trying again), or over the angle on the first.
-      const doneDeg = ((ftStartHdg - s.hdg) % 360 + 360) % 360;
-      const u = finalTurnFtGuess ? clamp(ftDist / finalTurnFtGuess, 0, 1) : clamp(doneDeg / ftTotal, 0, 1);
-      const hNow = PATTERN_ALT_FT - (PATTERN_ALT_FT - points[12].alt) * easedFraction(u, FINAL_TURN_EASE);
+      // Degrees turned so far, added up step by step: a heading that wanders right of where the turn began
+      // (a wind correction) counts as none turned, never as nearly a full circle.
+      const u = finalTurnFtGuess ? clamp(ftDist / finalTurnFtGuess, 0, 1) : clamp(ftTurned / ftTotal, 0, 1);
+      const hNow = ftFromAlt - (ftFromAlt - ftEndAlt) * easedFraction(u, FINAL_TURN_EASE);
       climb = (hNow - s.alt) / DT;
       if (Math.abs(wrapDeg180(finalHdg - s.hdg)) < 0.5 && Math.abs(s.bank) < 2) {
         rollout = { x: s.x, y: s.y };
+        rolloutSec = s.k * DT;
         finalTurnFt = ftDist;
         stage = 'final';
         pilot.mark({ src: 12, phase: 'final', tag: 'window' });
@@ -554,6 +590,7 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
       climb = lastClimb + (glideRate - lastClimb) * Math.min(1, DT / 1.5); // eases onto the glide path
       const wantKias = CIRCUIT.finalTurnKias - (CIRCUIT.finalTurnKias - CIRCUIT.thresholdKias) * f;
       accel = (ktToFtps(iasToTasKt(wantKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT * 0.2;
+      if (opts.stopToGoFt != null && toGo <= opts.stopToGoFt && Math.abs(s.bank) < 2) break;
       if (toGo <= v * DT) {
         pilot.points.push({ x: th.x, y: th.y, alt: THRESHOLD_DATA_ELEV_FT, kt: CIRCUIT.thresholdKias, g: 1, src: 0, phase: 'final', headingDeg: s.hdg, tag: 'threshold' });
         break;
@@ -563,7 +600,10 @@ function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = nu
     pilot.step(bank, climb, accel);
     lastClimb = climb;
     if (stage === 'break') turned += Math.abs(wrapDeg180(s.hdg - hdgBefore));
-    if (stage === 'finalTurn') ftDist += Math.hypot(s.x - xBefore, s.y - yBefore);
+    if (stage === 'finalTurn') {
+      ftDist += Math.hypot(s.x - xBefore, s.y - yBefore);
+      ftTurned = Math.max(0, ftTurned + wrapDeg180(hdgBefore - s.hdg));
+    }
   }
-  return { track: pilot.points, rollout: rollout ?? { x: s.x, y: s.y }, finalTurnFt };
+  return { track: pilot.points, rollout: rollout ?? { x: s.x, y: s.y }, finalTurnFt, rolloutSec, endSec: s.k * DT };
 }

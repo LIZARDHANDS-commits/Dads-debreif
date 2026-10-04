@@ -65,7 +65,7 @@ test('height and speed read "2,500 ft 220 kt", rounded, never "-0"', () => {
 });
 
 test('the wind label is written only when it isn\'t calm, in three digits, as a METAR gives it', () => {
-  // Shown in magnetic, 9° East at Moose Jaw (Patrick's ruling, TR-58): 250°T is 241°M.
+  // Shown in magnetic, 9° East at Moose Jaw (Patrick's ruling, TR-61): 250°T is 241°M.
   assert.equal(windText(250, 20), 'Wind 241°M 20 kt');
   assert.equal(windText(99, 5), 'Wind 090°M 5 kt');
   assert.equal(windText(9, 12), 'Wind 360°M 12 kt');

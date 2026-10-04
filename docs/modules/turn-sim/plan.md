@@ -91,7 +91,13 @@ The three lists below are kept from the review's brief as references. Nothing in
   - Checks in `formation-moves.test.js`, `four-ship-changes.test.js` and `tags.test.js`.
 - [ ] Patrick flies them in the real app (the "TS-56" checklist in `testing.md`).
 - [ ] Next, from the same rulings: hot rejoin off-standard starts (wide, close, ahead, high, tight, fast).
-- [ ] Next for formations, each with its own short spec and Patrick's yes: live fighting wing and fluid manoeuvring (the Fluid button is greyed until then; the second four-ship piece), manoeuvring in the offset box and Fluid 4, Overshoot and rejoin mistakes (`future.md`).
+- [x] Fluid manoeuvring, the simplified baseline (V2.17, `spec.md` section 10.3, TS-57; Patrick 21:44Z): entry from fighting wing only (greyed elsewhere); Lead's level turns (30°, 60/2, 70/3), wings level, reversal and Terminate back to fighting wing; #2 planned, in the cone at the distance set (default 600 ft) with lag, pure or lead; card lines, flags and tags; settings for the bank, the distance and the wingman method (Live greyed). Checks in `fluid.test.js`.
+- [x] Fluid manoeuvring, vertical piece 1 (V2.18, `spec.md` section 10.3, TS-59; Patrick 21:44Z, 22:04Z, 22:28Z): Lead's Climb and Descend (15°, 2,000 ft, bank kept) and the Loop (SMM 7.5, Table 7.1: 230 KIAS in and out, 3.5 G, constant rate over the top); #2 follows Lead's plane of motion, lags up, crosses the top near parallel and leads down in the loop; #2 holds 15° off Lead's current tail in every fluid turn; entry and exit speeds on the card. Checks in `fluid.test.js`.
+- [ ] Next: fluid vertical piece 2: #2's side swap (in turns, Patrick 22:28Z, and over the top), the wingover, the barrel roll and the standard sequence.
+- [ ] Patrick flies it in the real app (the "TS-57" checklist in `testing.md`).
+- [x] Fighting wing desired spacing and sweep as settings behind More (V2.17, `spec.md` section 10.4, TS-58; Patrick 21:25Z): 2-ship #2, 4-ship #2, and #3 and #4; defaults unchanged; outside the SMM band flown and flagged. Checks in `fw-shape.test.js`.
+- [ ] Next for fluid manoeuvring, each with Patrick's yes: climb and descend, the wingover, barrel roll and loop with #2's side swap, the standard sequence, entry and exit speeds on the card, the Live wingman, Fluid 4 manoeuvring (`future.md`).
+- [ ] Next for formations, each with its own short spec and Patrick's yes: live fighting wing (the second four-ship piece), manoeuvring in the offset box and Fluid 4, Overshoot and rejoin mistakes (`future.md`).
 
 ## Step 5. Sign-off
 

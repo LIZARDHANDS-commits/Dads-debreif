@@ -47,9 +47,24 @@ export const FOUR_FORMATIONS = Object.freeze({
  * Four-ship fighting wing: each link 650 ft; #2 at 45°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
  * The angles are sweep back from the wing line of the aircraft flown off, the manual's way (SMM 12.29 para 69, Fig 12.19).
  * #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14). Their 30° matches Fig 16.29's picture; the
- * para 104 text says a 60° sweep: both are written down and the question is with Patrick (TS-56).
+ * para 104 text says a 60° sweep: both are written down, and Patrick chose to set it himself through the setting (TS-58).
  */
 export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 45, otherDeg: 30 });
+/**
+ * The desired places now: FW4 by default, changed by the settings (Patrick 21:25Z, TS-58). #2's pair (spacing and sweep off
+ * Lead; #4 off #3 in Fluid 4 too) and #3/#4's pair (each off the one ahead in fighting wing).
+ */
+let fw4 = { twoRangeFt: FW4.rangeFt, twoDeg: FW4.twoDeg, otherRangeFt: FW4.rangeFt, otherDeg: FW4.otherDeg };
+
+/** Sets the four-ship's desired fighting wing places ({ twoRangeFt, twoDeg, otherRangeFt, otherDeg }; a missing value takes FW4's). */
+export function setFw4Shape({ twoRangeFt = FW4.rangeFt, twoDeg = FW4.twoDeg, otherRangeFt = FW4.rangeFt, otherDeg = FW4.otherDeg } = {}) {
+  fw4 = { twoRangeFt, twoDeg, otherRangeFt, otherDeg };
+}
+
+/** The four-ship's desired fighting wing places now. */
+export function fw4ShapeNow() {
+  return { ...fw4 };
+}
 /** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
 export const FW_STEP_DOWN_FT = 60;
 /** The offset box's second element sits this far behind the first (TS-18; SMM 16.41 para 109 gives 6,000-8,000 ft). */
@@ -64,7 +79,7 @@ const MARGIN_FT = 100;
 const MARGIN_DEG = 5;
 
 const NAMES = Object.freeze({ 1: 'Lead', 2: '#2', 3: '#3', 4: '#4' });
-const fwAt = (deg, side) => ({ fwd: -FW4.rangeFt * Math.sin(deg * DEG), left: side * FW4.rangeFt * Math.cos(deg * DEG) });
+const fwAt = (rangeFt, deg, side) => ({ fwd: -rangeFt * Math.sin(deg * DEG), left: side * rangeFt * Math.cos(deg * DEG) });
 
 /**
  * Where each wingman sits for formation `key` with #2 on side s: { 2: { ref, fwd, left, alt }, 3: …, 4: … }.
@@ -88,18 +103,18 @@ export function fourSlots(key, s, { spacingFt = 6000, stacked = true } = {}) {
         4: { ref: 3, fwd: 0, left: s * spacingFt, alt: STACK_FT[4] },
       };
     case 'fluid4':
-      // #4 flies fighting wing off #3 as #2 does off Lead: 45° and 650 ft (estimate: the pair's own default).
+      // #4 flies fighting wing off #3 as #2 does off Lead: #2's spacing and sweep setting (FW4: 650 ft at 45° by default, an estimate).
       return {
-        2: { ref: 1, ...fwAt(FW4.twoDeg, s), alt: STACK_FT[2] },
+        2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: STACK_FT[2] },
         3: { ref: 1, fwd: 0, left: -s * FLUID4_ABEAM_FT, alt: STACK_FT[3] },
-        4: { ref: 3, ...fwAt(FW4.twoDeg, -s), alt: STACK_FT[4] },
+        4: { ref: 3, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, -s), alt: STACK_FT[4] },
       };
     case 'fw':
     case 'fluidMan':
       return {
-        2: { ref: 1, ...fwAt(FW4.twoDeg, s), alt: stacked ? STACK_FT[2] : -FW_STEP_DOWN_FT },
-        3: { ref: 2, ...fwAt(FW4.otherDeg, -s), alt: stacked ? STACK_FT[3] : -2 * FW_STEP_DOWN_FT },
-        4: { ref: 3, ...fwAt(FW4.otherDeg, -s), alt: stacked ? STACK_FT[4] : -3 * FW_STEP_DOWN_FT },
+        2: { ref: 1, ...fwAt(fw4.twoRangeFt, fw4.twoDeg, s), alt: stacked ? STACK_FT[2] : -FW_STEP_DOWN_FT },
+        3: { ref: 2, ...fwAt(fw4.otherRangeFt, fw4.otherDeg, -s), alt: stacked ? STACK_FT[3] : -2 * FW_STEP_DOWN_FT },
+        4: { ref: 3, ...fwAt(fw4.otherRangeFt, fw4.otherDeg, -s), alt: stacked ? STACK_FT[4] : -3 * FW_STEP_DOWN_FT },
       };
     case 'finger':
       return {

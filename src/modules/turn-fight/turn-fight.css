@@ -84,11 +84,11 @@
   font-weight: 600;
 }
 
-/* Speed and G, and pitch beside them when Climb and dive is on: one column each. */
+/* Speed and G (the Simple fight's; hidden in Energy): one column each. */
 [data-module='turn-fight'] .tf-aircraft-row {
   display: grid;
   grid-auto-flow: column;
-  /* Each column is at least as wide as its label (which does not wrap), so "Speed (KTAS)" stays on one line beside Pitch (TF-5) without pushing the row out of its frame. */
+  /* Each column is at least as wide as its label (which does not wrap), so "Speed (KTAS)" stays on one line beside G (TF-5) without pushing the row out of its frame. */
   grid-auto-columns: minmax(min-content, 1fr);
   align-items: end; /* boxes line up even when a label wraps */
   gap: 0 var(--space-2);
@@ -289,7 +289,6 @@
 
 /* V6's dark stage: --bg-raised, which is V6's #071018. */
 [data-module='turn-fight'] .tf-topdown-wrap,
-[data-module='turn-fight'] .tf-profile,
 [data-module='turn-fight'] .tf-energy-panel {
   position: relative;
   min-height: 0;
@@ -302,16 +301,6 @@
 [data-module='turn-fight'] .tf-topdown {
   position: absolute;
   inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-[data-module='turn-fight'] .tf-profile {
-  height: clamp(9rem, 27vh, 11rem);
-}
-
-[data-module='turn-fight'] .tf-profile-canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -633,12 +622,18 @@
   margin-top: var(--space-2);
 }
 
+/* Advanced setup's line beside each number (what it is, why it has that value, what changing it does): the same small muted text as a hint, with its bold lead-ins kept readable. */
+[data-module='turn-fight'] .tf-why b {
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* Last, so a hidden panel or box stays hidden whatever display it was given above. */
 [data-module='turn-fight'] [hidden] {
   display: none;
 }
 
-/* Start geometry in Turn Fight settings (R28): an angle box with its left or right choice beside it, then the picture. */
+/* Start geometry in Advanced setup (R28): an angle box with its left or right choice beside it, then the picture. */
 [data-module='turn-fight'] .tf-start-row {
   display: flex;
   flex-wrap: wrap;
