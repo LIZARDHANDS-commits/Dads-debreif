@@ -200,7 +200,7 @@ test('exactly one mode owns coordinates at every step', () => {
   // Use Moose Jaw setup
   const sim = createSim(clone(MOOSE_JAW), { seed: 1 });
   const routesById = new Map(MOOSE_JAW.routes.map((r) => [r.id, r]));
-  const VALID_MODES = [undefined, 'RAIL', 'PHYSICS', 'BLENDING'];
+  const VALID_MODES = [undefined, 'RAIL', 'PHYSICS'];
 
   let prevStates = new Map();
 
@@ -210,7 +210,7 @@ test('exactly one mode owns coordinates at every step', () => {
     const { aircraft } = sim.state();
 
     // At each check, for each flying aircraft:
-    //   aircraft.mode must be one of: undefined (legacy rail), 'RAIL', 'PHYSICS', 'BLENDING'
+    //   aircraft.mode must be one of: undefined (legacy rail), 'RAIL', 'PHYSICS'
     //   (undefined is allowed because current sim doesn't set mode yet — this test is forward-looking)
     //   No aircraft should have BOTH a.distFt changing AND a.x/a.y changing independently
     for (const ac of aircraft) {

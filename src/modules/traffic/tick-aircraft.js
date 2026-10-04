@@ -10,11 +10,10 @@
 // ║  Never force physics to match a test value.                        ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 
-// Standalone Three-Mode State Machine (RAIL / PHYSICS / BLENDING)
+// Standalone Two-Mode State Machine (RAIL / PHYSICS)
 // Specifications: specs/SPEC-traffic.md §1.5, §2, Hard Invariants (D406, D412, R34)
 // Authoritative ground truth: docs/traffic-pattern-matrix.md
 
-import { ktToFtps } from '../../core/units.js';
 import { wrapDeg180 } from '../../core/angles.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
@@ -22,15 +21,9 @@ import { stepAircraft, calcInterceptHeading, calcCrossTrackError, CYMJ_DOWNWIND_
 import { getNavPlan, makeBreakout, makeGoAround } from './nav-plans.js';
 import { posOnRoute, closestDistFt, routeLengthFt, pointDistFt, isClosedRoute, DEFAULT_ROUTE_OPTIONS, computeBreakRollout, computeWindPerch, navSegs, routePath } from './route.js';
 import { stepBreakout } from './breakout.js';
-import { stepHighKey } from './high-key.js';
-import { PFL_AIRFIELD } from './pfl-solver.js';
 import { followRoute, startJoin } from './path-follower.js';
 import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 export { stepBreakout } from './breakout.js';
-export { stepHighKey } from './high-key.js';
-
-/** Duration of the smooth transition from physics back to rail (seconds). */
-export const BLEND_DURATION_SEC = 1.0;
 
 /** Set of pilot commands that require physics guidance mode. */
 export const PHYSICS_COMMANDS = Object.freeze(new Set([
@@ -42,15 +35,6 @@ export const PHYSICS_COMMANDS = Object.freeze(new Set([
   'climb_low_key',
   'closed_pattern',
 ]));
-
-/**
- * Normalizes an angle into [0, 360) degrees.
- * @param {number} deg
- * @returns {number}
- */
-function wrapDeg360(deg) {
-  return ((deg % 360) + 360) % 360;
-}
 
 /**
  * Resolves or looks up the navigation plan corresponding to an aircraft and route.
@@ -369,7 +353,7 @@ function isManeuverComplete(a, navPlan) {
   }
 
   // Active special maneuvers must NEVER be hijacked by generic circuit phase names:
-  // 1. High Key completion: continuous controller stepHighKey handles transition to PFL
+  // 1. High Key: flown on the path follower (a.highKeyFlight), never by this machine
   if (a.command === 'climb_high_key' || a.phase === 'climb_high_key' || a._highKeyPhase !== undefined || navPlan?.id === 'HIGH_KEY') {
     return false;
   }
@@ -417,7 +401,7 @@ function isManeuverComplete(a, navPlan) {
   }
 
   // 5. Active emergency glide commands and PFL rails never blend back to pattern:
-  if (a.pflRail || a.routeId === 'PFL_HIGH_KEY' || a.command === 'pfl_current' || a.command === 'engine_fail' || navPlan?.id === 'PFL_HIGH_KEY' || navPlan?.id === 'PFL_FROM_AREA' || (typeof a.phase === 'string' && a.phase.startsWith('pfl_'))) {
+  if (a.routeId === 'PFL_HIGH_KEY' || a.command === 'pfl_current' || a.command === 'engine_fail' || navPlan?.id === 'PFL_HIGH_KEY' || navPlan?.id === 'PFL_FROM_AREA' || (typeof a.phase === 'string' && a.phase.startsWith('pfl_'))) {
     return false;
   }
 
@@ -471,7 +455,7 @@ export function initMode(a) {
  * @returns {boolean}
  */
 export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
-  if (!a || a.pflRail || a.routeId === 'PFL_HIGH_KEY') return false;
+  if (!a || a.routeId === 'PFL_HIGH_KEY') return false;
 
   // Active pilot command always triggers physics
   if (a.command && PHYSICS_COMMANDS.has(a.command)) {
@@ -481,11 +465,6 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
   // Already in physics mode
   if (a.mode === 'PHYSICS') {
     return true;
-  }
-
-  // In blending mode without command, keep blending
-  if (a.mode === 'BLENDING') {
-    return false;
   }
 
   // Waypoint mode check in nav plan
@@ -515,28 +494,19 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
 }
 
 /**
- * Sets up BLENDING mode for a 1.0s transition from physics back to the nearest rail point.
+ * Hands a finished physics manoeuvre back to the route with the smooth join (startJoin, Traffic spec
+ * item 13a), from wherever the aircraft is and however it is moving, so nothing slides or snaps.
+ * The point on the route is the nearest one, kept on the leg the phase belongs to and on the same lap.
  * @param {Object} a - Aircraft state
  * @param {Object} [route] - Route definition
+ * @param {{ windFromDeg?: number, windKt?: number }} [env] - Wind
  * @param {Object} [routeOptions] - Route calculation options
  */
-export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
-  if (!a || a.pflRail || a.routeId === 'PFL_HIGH_KEY') return;
-  a.mode = 'BLENDING';
-  a._blendTimer = 0;
-  a._blendStart = {
-    x: a.x ?? 0,
-    y: a.y ?? 0,
-    alt: a.alt ?? 3500,
-    headingDeg: a.headingDeg ?? 0,
-    iasKt: a.iasKt ?? a.kt ?? 140,
-    bankDeg: a.bankDeg ?? 0,
-  };
-
-  if (!route) {
-    a._blendTarget = { ...a._blendStart, distFt: a.distFt ?? 0 };
-    return;
-  }
+export function handBackToRail(a, route, env = null, routeOptions = DEFAULT_ROUTE_OPTIONS) {
+  if (!a || a.routeId === 'PFL_HIGH_KEY') return;
+  a.mode = 'RAIL';
+  delete a.waypointIndex;
+  if (!route) return;
 
   let closestDist = closestDistFt(route, a, routeOptions);
 
@@ -574,30 +544,22 @@ export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
   const lapOffset = (isClosed && rLen > 0 && (a.distFt ?? 0) > 0) ? Math.floor(a.distFt / rLen) * rLen : 0;
   let targetDistFt = isClosed ? (lapOffset + closestDist) : closestDist;
 
-  // If blend would snap distFt backward by more than half the route,
+  // If the hand-back would put distFt backward by more than half the route,
   // add a lap to maintain forward progress toward route end
   if (isClosed && rLen > 0 && targetDistFt < (a.distFt ?? 0) - rLen / 2) {
     targetDistFt += rLen;
   }
   const p = posOnRoute(route, targetDistFt, routeOptions);
-
-  a._blendTarget = {
-    x: p.x,
-    y: p.y,
-    alt: p.alt ?? a.alt ?? 3500,
-    headingDeg: p.headingDeg ?? a.headingDeg ?? 0,
-    iasKt: p.kt ?? a.iasKt ?? 140,
-    distFt: targetDistFt,
-    phase: p.phase ?? a.phase,
-    tag: p.tag ?? route?.points?.[p.seg]?.tag,
-  };
+  startJoin(a, route, targetDistFt, env, routeOptions);
+  if (p.phase) a.phase = p.phase;
+  const tag = p.tag ?? route?.points?.[p.seg]?.tag;
+  if (tag) a.tag = tag;
 }
 
 /**
- * Executes a single simulation step for an aircraft according to the Three-Mode State Machine:
+ * Executes a single simulation step for an aircraft according to the Two-Mode State Machine:
  * - RAIL: Advances distance, derives coordinates from route, computes wind triangle.
  * - PHYSICS: Vector guidance and performance model via stepAircraft().
- * - BLENDING: 1.0s cubic smoothstep interpolation from physics exit back to nearest rail.
  *
  * @param {Object} a - Mutable aircraft state
  * @param {number} [dt=0.05] - Time step in seconds
@@ -657,177 +619,6 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     return a;
   }
 
-  // ── PFL KINEMATIC RAIL MODE ──────────────────────────────────────────────
-  if (a.mode === 'RAIL' && a.pflRail && a.pflRail.length > 0) {
-    if (a.pflRail[0].cumDistFt === undefined) {
-      let cumDist = 0;
-      a.pflRail[0].cumDistFt = 0;
-      for (let i = 1; i < a.pflRail.length; i++) {
-        cumDist += Math.hypot(a.pflRail[i].x - a.pflRail[i - 1].x, a.pflRail[i].y - a.pflRail[i - 1].y);
-        a.pflRail[i].cumDistFt = cumDist;
-      }
-    }
-
-    const gsKt = a.gsKt ?? a.iasKt ?? 120;
-    const gsFtps = ktToFtps(gsKt);
-    a.distFt = (a.distFt ?? 0) + gsFtps * stepDt;
-
-    let idx = a.pflRailIndex ?? 0;
-    while (idx < a.pflRail.length - 1 && (a.pflRail[idx + 1].cumDistFt ?? 0) <= a.distFt) {
-      idx++;
-    }
-    a.pflRailIndex = idx;
-    const wp0 = a.pflRail[idx];
-    const wp1 = a.pflRail[Math.min(idx + 1, a.pflRail.length - 1)];
-    const segDist = Math.max(0.001, (wp1.cumDistFt ?? 0) - (wp0.cumDistFt ?? 0));
-    const u = Math.max(0, Math.min(1, (a.distFt - (wp0.cumDistFt ?? 0)) / segDist));
-
-    a.x = wp0.x + (wp1.x - wp0.x) * u;
-    a.y = wp0.y + (wp1.y - wp0.y) * u;
-    a.alt = wp0.alt + (wp1.alt - wp0.alt) * u;
-    a.iasKt = (wp0.kias ?? wp0.kt ?? 120) + ((wp1.kias ?? wp1.kt ?? 120) - (wp0.kias ?? wp0.kt ?? 120)) * u;
-    a.kt = a.iasKt;
-    const diffHdg = wrapDeg180((wp1.headingDeg ?? wp0.headingDeg) - wp0.headingDeg);
-    a.headingDeg = wrapDeg360(wp0.headingDeg + diffHdg * u);
-    a.bankDeg = (wp0.bankDeg ?? 0) + ((wp1.bankDeg ?? 0) - (wp0.bankDeg ?? 0)) * u;
-    a.g = (wp0.g ?? 1.0) + ((wp1.g ?? 1.0) - (wp0.g ?? 1.0)) * u;
-    a.phase = u < 0.5 ? wp0.phase : wp1.phase;
-    a.config = u < 0.5 ? wp0.config : wp1.config;
-    if ((wp0.tag === 'high_key' || wp1.tag === 'high_key') && a.pflRail.handOffAtHighKey) {
-      // The High Key button: power off at High Key, then the same glide as a PFL, as practice (TR-R31).
-      a.tag = 'high_key';
-      startPflFlight(a, env, { practice: true });
-      return a;
-    }
-    if (wp0.tag === 'high_key' || wp1.tag === 'high_key') {
-      a.tag = 'high_key';
-      a.engineFailed = true;
-      a.targetSpeedKt = 120;
-    } else if (wp0.tag) {
-      a.tag = wp0.tag;
-    }
-
-    const tasKt = iasToTasKt(a.iasKt, a.alt);
-    const wt = windTriangle(a.headingDeg, Math.max(1, tasKt), windFromDeg, windKt);
-    a.gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
-    a.groundSpeedKt = a.gsKt;
-    a.crabDeg = wt.crabDeg;
-    a.trackDeg = wt.canHoldTrack ? wrapDeg360(a.headingDeg - wt.crabDeg) : a.headingDeg;
-
-    // Terrain contact and landing check
-    const CYMJ_THRESH_X = PFL_AIRFIELD.thresholdX;
-    const CYMJ_THRESH_Y = PFL_AIRFIELD.thresholdY;
-
-    if (a.alt <= 1892 || a.pflRailIndex >= a.pflRail.length - 1) {
-      const distToThresh = Math.hypot(a.x - CYMJ_THRESH_X, a.y - CYMJ_THRESH_Y);
-      if (a.pflRail.classification === 'crash_short' || distToThresh > 3000) {
-        a.alt = 1892;
-        a.status = 'crashed';
-        a.landed = true;
-        a.active = false;
-      } else {
-        a.alt = 1892;
-        a.status = 'landed';
-        a.landed = true;
-        a.active = false;
-      }
-    }
-
-    return a;
-  }
-
-  // ── BLENDING MODE ────────────────────────────────────────────────────────
-  if (a.mode === 'BLENDING') {
-    // Interruption: command issued during BLENDING cancels blend immediately
-    if (a.command && PHYSICS_COMMANDS.has(a.command)) {
-      delete a._blendStart;
-      delete a._blendTarget;
-      delete a._blendTimer;
-      a.mode = 'PHYSICS';
-      setupPhysicsPlan(a, route, env, routeOptions);
-      if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
-        stepClosedPattern(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL') return a;
-      }
-      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
-        stepHighKey(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
-      }
-      if (a.phase === 'breakout' || a.command === 'breakout') {
-        stepBreakout(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
-      }
-      stepAircraft(a, a.navPlan, env, stepDt);
-      if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
-        stepClosedPattern(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL') return a;
-      }
-      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
-        stepHighKey(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
-      }
-      if (a.phase === 'breakout' || a.command === 'breakout') {
-        stepBreakout(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
-      }
-      if (isManeuverComplete(a, a.navPlan)) {
-        if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'climb_high_key') {
-          a.command = null;
-          delete a._activeCommand;
-        }
-        if (!a.landed && a.active !== false) {
-          enterBlending(a, route, routeOptions);
-        }
-      }
-      return a;
-    }
-
-    a._blendTimer = (a._blendTimer ?? 0) + stepDt;
-    const u = Math.min(1.0, a._blendTimer / BLEND_DURATION_SEC);
-    const s = 3 * u * u - 2 * u * u * u; // cubic smoothstep
-
-    const start = a._blendStart;
-    const target = a._blendTarget;
-
-    if (start && target) {
-      a.x = start.x + (target.x - start.x) * s;
-      a.y = start.y + (target.y - start.y) * s;
-      a.alt = start.alt + (target.alt - start.alt) * s;
-
-      // Shortest angular turn interpolation across 0°/360°
-      const diffHdg = wrapDeg180(target.headingDeg - start.headingDeg);
-      a.headingDeg = wrapDeg360(start.headingDeg + diffHdg * s);
-
-      a.iasKt = start.iasKt + (target.iasKt - start.iasKt) * s;
-      a.kt = a.iasKt;
-
-      const startBank = start.bankDeg ?? 0;
-      a.bankDeg = startBank * (1 - s);
-
-      const tasKt = iasToTasKt(a.iasKt, a.alt);
-      const wt = windTriangle(a.headingDeg, Math.max(1, tasKt), windFromDeg, windKt);
-      a.gsKt = wt.canHoldTrack ? Math.max(wt.groundSpeedKt, 10) : 10;
-      a.groundSpeedKt = a.gsKt;
-      a.crabDeg = wt.crabDeg;
-      a.trackDeg = wt.canHoldTrack ? wrapDeg360(a.headingDeg - wt.crabDeg) : a.headingDeg;
-    }
-
-    if (u >= 1.0) {
-      if (target) {
-        a.distFt = target.distFt;
-        if (target.phase) a.phase = target.phase;
-        if (target.tag) a.tag = target.tag;
-      }
-      delete a._blendStart;
-      delete a._blendTarget;
-      delete a._blendTimer;
-      delete a.waypointIndex;
-      a.mode = 'RAIL';
-    }
-
-    return a;
-  }
-
   // ── PHYSICS MODE ─────────────────────────────────────────────────────────
   if (a.mode === 'PHYSICS') {
     if (a.command && PHYSICS_COMMANDS.has(a.command)) {
@@ -850,15 +641,9 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         return a;
       }
     }
-    if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
-      stepHighKey(a, route, env, stepDt, routeOptions);
-      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
-        return a;
-      }
-    }
     if (a.phase === 'breakout' || a.command === 'breakout') {
       stepBreakout(a, route, env, stepDt, routeOptions);
-      if (a.mode === 'RAIL' || a.mode === 'BLENDING') {
+      if (a.mode === 'RAIL') {
         return a;
       }
     }
@@ -871,7 +656,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         delete a._activeCommand;
       }
       if (!a.landed && a.active !== false) {
-        enterBlending(a, route, routeOptions);
+        handBackToRail(a, route, env, routeOptions);
       }
     }
 
@@ -888,26 +673,18 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
         stepClosedPattern(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL') return a;
       }
-      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
-        stepHighKey(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
-      }
       if (a.phase === 'breakout' || a.command === 'breakout') {
         stepBreakout(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+        if (a.mode === 'RAIL') return a;
       }
       stepAircraft(a, a.navPlan, env, stepDt);
       if (a.phase === 'closed_pattern' || a.command === 'closed_pattern') {
         stepClosedPattern(a, route, env, stepDt, routeOptions);
         if (a.mode === 'RAIL') return a;
       }
-      if (a.phase === 'climb_high_key' || a.command === 'climb_high_key') {
-        stepHighKey(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
-      }
       if (a.phase === 'breakout' || a.command === 'breakout') {
         stepBreakout(a, route, env, stepDt, routeOptions);
-        if (a.mode === 'RAIL' || a.mode === 'BLENDING') return a;
+        if (a.mode === 'RAIL') return a;
       }
       if (isManeuverComplete(a, a.navPlan)) {
         if (a.command === 'breakout' || a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'climb_high_key') {
@@ -915,7 +692,7 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
           delete a._activeCommand;
         }
         if (!a.landed && a.active !== false) {
-          enterBlending(a, route, routeOptions);
+          handBackToRail(a, route, env, routeOptions);
         }
       }
       return a;

@@ -350,7 +350,7 @@ When PFL pattern is selected and "From Area" start point chosen, three extra inp
 
 1. **Aircraft NEVER disappear randomly.** They keep flying their pattern continuously.
 2. **If an aircraft finishes a route with no next instruction**: revert to OHB (PAT_INNER) pattern.
-3. **Transitions**: No jumps at any hand-over (section 4.1, item 13a). Until refactor PR 4's clean-up merges, the manoeuvre controllers still hand back to the rail through the old 1.0 s blend. No instantaneous heading or speed jumps.
+3. **Transitions**: No jumps at any hand-over (section 4.1, item 13a). No instantaneous heading or speed jumps.
 4. **Landing is explicit**: aircraft only land when probability rolls at threshold (20% full stop, 80% touch-and-go).
 5. **Wind is always applied**: zero wind is NOT a special case. The same physics runs at 0 kt and 30 kt.
 6. **Accelerated stall protection**: bank angle capped at accelerated stall limit. At 120 KIAS: max bank 59°. At 140 KIAS: max bank 68°.

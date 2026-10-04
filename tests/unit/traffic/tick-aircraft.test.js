@@ -1,9 +1,9 @@
-// Checks: one aircraft through a few ticks: which of rail, physics or blending owns it, commands and waypoints
-//   switch to physics, a finished break blends back over 1.0 s, landed aircraft do not move, crosswind gives
+// Checks: one aircraft through a few ticks: whether the rail or physics owns it, commands and waypoints
+//   switch to physics, a finished break hands back to the rail with no jump, landed aircraft do not move, crosswind gives
 //   crab, tags found.
 // Serves: TR-R30, TR-R6, TR-R15.
 // Expected values: smoothstep and wind triangle worked out in the test; break bank 60 and perch bank 35 are
-//   traffic spec 3.2; the 1.0 s blend is a design choice; positions and the 1,892 ft threshold are typed in from
+//   traffic spec 3.2; positions and the 1,892 ft threshold are typed in from
 //   V6 data, no source.
 
 import test from 'node:test';
@@ -13,8 +13,7 @@ import {
   tickAircraft,
   shouldEnterPhysics,
   initMode,
-  enterBlending, evaluateWaypointTrigger,
-  BLEND_DURATION_SEC,
+  handBackToRail, evaluateWaypointTrigger,
   PHYSICS_COMMANDS,
 } from '../../../src/modules/traffic/tick-aircraft.js';
 import { posOnRoute, pointDistFt } from '../../../src/modules/traffic/route.js';
@@ -46,10 +45,6 @@ test('1.2 initMode preserves existing mode', () => {
   const aPhysics = { mode: 'PHYSICS' };
   initMode(aPhysics);
   assert.equal(aPhysics.mode, 'PHYSICS');
-
-  const aBlending = { mode: 'BLENDING' };
-  initMode(aBlending);
-  assert.equal(aBlending.mode, 'BLENDING');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,11 +83,6 @@ test('2.4 shouldEnterPhysics returns false on straight legs (Point 8 Initial, Po
 
   const finalDist = pointDistFt(pat1, 12);
   assert.equal(shouldEnterPhysics({ mode: 'RAIL', distFt: finalDist }, pat1), false);
-});
-
-test('2.5 shouldEnterPhysics returns false during BLENDING when no command is active', () => {
-  const a = { mode: 'BLENDING', distFt: pointDistFt(pat1, 9) };
-  assert.equal(shouldEnterPhysics(a, pat1), false, 'BLENDING mode without command must not re-trigger physics');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -172,7 +162,7 @@ test('4.1 PHYSICS mode steps physics engine and updates aircraft state', () => {
   assert.notEqual(a.headingDeg, prevHdg, 'Heading must change during physics turn');
 });
 
-test('4.2 PHYSICS break turn completion transitions to BLENDING', () => {
+test('4.2 PHYSICS break turn completion hands back to the rail with no jump', () => {
   const navPlan = getNavPlan('PAT_INNER');
   const a = {
     id: 'A1',
@@ -190,104 +180,11 @@ test('4.2 PHYSICS break turn completion transitions to BLENDING', () => {
     active: true,
   };
   tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
-
-  assert.equal(a.mode, 'BLENDING', 'Break completion must transition to BLENDING');
-  assert.ok(a._blendStart, '_blendStart must be recorded');
-  assert.ok(a._blendTarget, '_blendTarget must be computed');
-  assert.equal(a._blendTimer, 0, '_blendTimer must start at 0');
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Suite 5: BLENDING Mode Transition
-// ─────────────────────────────────────────────────────────────────────────────
-test('5.1 BLENDING mode interpolates smoothly over 1.0 second and finishes in RAIL mode', () => {
-  const a = {
-    id: 'A1',
-    mode: 'PHYSICS',
-    x: -3385,
-    y: -4323,
-    alt: 3500,
-    iasKt: 140,
-    headingDeg: 118,
-    turnAccumDeg: 180,
-    bankDeg: -20,
-    phase: 'break',
-    waypointIndex: 9,
-    navPlan: getNavPlan('PAT_INNER'),
-    active: true,
-  };
-  // Step into BLENDING
-  tickAircraft(a, 0.05, { windFromDeg: 360, windKt: 0 }, pat1);
-  assert.equal(a.mode, 'BLENDING');
-
-  const startX = a._blendStart.x;
-  const targetX = a._blendTarget.x;
-
-  // Step 0.5s of blending (halfway)
-  tickAircraft(a, 0.50, { windFromDeg: 360, windKt: 0 }, pat1);
-  assert.equal(a.mode, 'BLENDING');
-  assert.ok(a._blendTimer >= 0.50);
-
-  // Cubic smoothstep at u=0.55: s = 3*(0.55)^2 - 2*(0.55)^3 = 0.57475
-  // Check that x has moved toward targetX
-  assert.ok(
-    (startX <= targetX && a.x >= startX && a.x <= targetX) ||
-    (startX >= targetX && a.x <= startX && a.x >= targetX),
-    'Position must be smoothly interpolated between start and target'
-  );
-
-  // Step remaining duration to exceed 1.0s total
-  tickAircraft(a, 0.60, { windFromDeg: 360, windKt: 0 }, pat1);
-  assert.equal(a.mode, 'RAIL', 'After 1.0s blending must complete to RAIL mode');
-  assert.equal(a._blendStart, undefined, '_blendStart must be deleted');
-  assert.equal(a._blendTarget, undefined, '_blendTarget must be deleted');
-  assert.equal(a._blendTimer, undefined, '_blendTimer must be deleted');
-  assert.ok(a.distFt > 0, 'distFt must be established from blend target');
-});
-
-test('5.2 BLENDING mode interpolates heading via shortest turn across 0°/360°', () => {
-  const a = {
-    id: 'A1',
-    mode: 'BLENDING',
-    _blendStart: { x: 0, y: 0, alt: 3500, headingDeg: 350, iasKt: 140, bankDeg: 0 },
-    _blendTarget: { x: 100, y: 100, alt: 3500, headingDeg: 10, iasKt: 140, distFt: 1000 },
-    _blendTimer: 0,
-    active: true,
-  };
-
-  // Step halfway (0.5s): u = 0.5, s = 3(0.25) - 2(0.125) = 0.5
-  tickAircraft(a, 0.5, { windFromDeg: 360, windKt: 0 }, pat1);
-  assert.equal(a.mode, 'BLENDING');
-
-  // Shortest angular turn from 350° to 10° is +20° clockwise. Halfway is 0° (or 360°).
-  near(a.headingDeg, 0, 1.0, 'Heading halfway between 350° and 10° should be 0° (not 180°)');
-});
-
-test('5.3 Command issued during BLENDING cancels blend immediately and executes physics', () => {
-  const a = {
-    id: 'A1',
-    mode: 'BLENDING',
-    x: 1000,
-    y: 2000,
-    alt: 2500,
-    iasKt: 140,
-    headingDeg: 118,
-    _blendStart: { x: 900, y: 1900, alt: 2500, headingDeg: 118, iasKt: 140 },
-    _blendTarget: { x: 1100, y: 2100, alt: 2500, headingDeg: 118, iasKt: 140, distFt: 5000 },
-    _blendTimer: 0.3,
-    active: true,
-  };
-
-  // Issue breakout command during blend
-  a.command = 'breakout';
-  tickAircraft(a, 0.05, { windFromDeg: 360, windKt: 0 }, pat1);
-
-  assert.equal(a.mode, 'PHYSICS', 'Command must interrupt blend and enter PHYSICS immediately');
-  assert.equal(a._blendStart, undefined, '_blendStart must be cleared');
-  assert.equal(a._blendTarget, undefined, '_blendTarget must be cleared');
-  assert.equal(a._blendTimer, undefined, '_blendTimer must be cleared');
-  assert.equal(a.navPlan?.id, 'BREAKOUT', 'Nav plan must be set to BREAKOUT');
-  assert.equal(a.phase, 'breakout', 'Phase must be breakout');
+  assert.equal(a.mode, 'RAIL', 'Break completion hands back to the rail');
+  const before = { x: a.x, y: a.y };
+  tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
+  // No jump: 140 KIAS is about 24 ft in 0.1 s; 50 ft leaves room for the join curve.
+  assert.ok(Math.hypot(a.x - before.x, a.y - before.y) <= 50, 'no jump at the hand-back');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -340,7 +237,7 @@ test('6.3 Invariant: Landed or inactive aircraft do not tick', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Suite 7: Additional Commands & Circuit Scenarios
 // ─────────────────────────────────────────────────────────────────────────────
-test('7.1 Go-around command enters physics, executes climbout, and blends back to rail', () => {
+test('7.1 Go-around command enters physics, executes climbout, and hands back to the rail', () => {
   const a = {
     id: 'A1',
     mode: 'RAIL',
@@ -363,7 +260,7 @@ test('7.1 Go-around command enters physics, executes climbout, and blends back t
   a.waypointIndex = 3;
   tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
 
-  assert.equal(a.mode, 'BLENDING', 'Reaching crosswind in go-around must enter BLENDING');
+  assert.equal(a.mode, 'RAIL', 'Reaching crosswind in go-around hands back to the rail');
   assert.equal(a.command, null, 'Command must be cleared');
 });
 
@@ -387,7 +284,7 @@ test('7.2 PFL command switches model to NRG and loads PFL_HIGH_KEY plan', () => 
   assert.equal(a.navPlan?.id, 'PFL_HIGH_KEY');
 });
 
-test('7.3 Multi-lap cumulative distance is preserved through blending', () => {
+test('7.3 Multi-lap cumulative distance is preserved through the hand-back', () => {
   // Simulate an aircraft on lap 2 (distFt > 156,923 ft)
   const a = {
     id: 'A1',
@@ -405,14 +302,10 @@ test('7.3 Multi-lap cumulative distance is preserved through blending', () => {
     active: true,
   };
 
-  enterBlending(a, pat1);
-  assert.equal(a.mode, 'BLENDING');
-  // Target distFt should be offset into lap 2 (> 156,923 ft)
-  assert.ok(a._blendTarget.distFt >= 156923, 'Blend target must preserve lap offset');
-
-  // Complete blend (1.1s > 1.0s)
-  tickAircraft(a, 1.1, { windFromDeg: 360, windKt: 0 }, pat1);
+  handBackToRail(a, pat1);
   assert.equal(a.mode, 'RAIL');
+  assert.ok(a.distFt >= 156923, 'Hand-back keeps the lap: cumulative distance on lap 2');
+  tickAircraft(a, 0.1, { windFromDeg: 360, windKt: 0 }, pat1);
   assert.ok(a.distFt >= 156923, 'Cumulative distFt on lap 2 must be maintained');
 });
 
@@ -461,7 +354,7 @@ test('8.1 evaluateWaypointTrigger identifies break and perch triggers via tag or
   assert.equal(evaluateWaypointTrigger(null).trigger, null);
 });
 
-test('8.2 enterBlending uses semantic tags to disambiguate final approach rollout from initial leg', () => {
+test('8.2 handBackToRail uses semantic tags to pick the final approach rollout, not the initial leg', () => {
   const taggedPat = {
     ...pat1,
     points: pat1.points.map((p, i) => {
@@ -483,13 +376,12 @@ test('8.2 enterBlending uses semantic tags to disambiguate final approach rollou
     turnAccumDeg: 180,
   };
 
-  enterBlending(a, taggedPat);
-  assert.equal(a.mode, 'BLENDING');
-  assert.ok(a._blendTarget, 'Blend target computed');
-  assert.equal(a._blendTarget.tag, 'window', 'Target must have window tag on final approach rollout');
+  handBackToRail(a, taggedPat);
+  assert.equal(a.mode, 'RAIL');
+  assert.equal(a.tag, 'window', 'Hands back onto the final approach rollout (window tag)');
 });
 
-test('8.3 tickAircraft preserves waypoint tag in RAIL and BLENDING modes', () => {
+test('8.3 tickAircraft preserves waypoint tag in RAIL mode', () => {
   const taggedRoute = {
     id: 'TAGGED',
     name: 'Tagged',
