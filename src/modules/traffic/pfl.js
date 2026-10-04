@@ -21,7 +21,7 @@
 // degrees true; speeds KIAS unless named KTAS. Nothing here reads the page.
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
-import { gFromBankDeg, turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
+import { turnRadiusFromBankFt, turnRateFromBankRadPerSec, dampedClimbG, easeValue } from '../../core/flight-math.js';
 import { iasToTasKt, glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
@@ -36,6 +36,11 @@ export const PFL = Object.freeze({
   zoomAboveKias: 150,
   /** The zoom: a 2 G pull, push over through 140, capture 125 (EFIG p.408; Patrick C7 06:35Z). */
   zoomPullG: 2,
+  /** Most G the glide may pull to move the nose, never past the stall line (TR-51; Patrick 17:52Z). */
+  glideMaxG: 2,
+  /** How fast the G builds or eases, in G per second, and how fast that rate itself changes, in G per second² (TR-51). Estimates. */
+  gOnsetGps: 2,
+  gOnsetGps2: 8,
   pushOverKias: 140,
   /** Steepest climb angle in the pull, so the push-over can capture 125 KIAS. An estimate. */
   zoomMaxClimbDeg: 30,
@@ -596,7 +601,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   s.tag = undefined;
   pilot.record();
 
-  let gamma = 0;          // flight path angle in the zoom, radians
+  let gamma = 0;          // flight path angle, radians
+  let nz = 1, nzRate = 0; // G in the vertical plane (lift × cos bank) and how fast it is changing, per second
   let pullDone = false;
   let margin = 0;
   let lastKey = undefined;
@@ -613,7 +619,6 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
 
   for (let n = 0; n < MAX_STEPS; n++) {
     const tas = ktToFtps(iasToTasKt(s.ias, s.alt));
-    const bankG = gFromBankDeg(s.bank);
     const proj = project(path, seg, s);
     seg = proj.seg;
 
@@ -682,8 +687,11 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
         const want = glideGamma + (Math.max(gamma, glideGamma) - glideGamma) * f * 0.6;
         nLoad = clamp(Math.cos(gamma) + (want - gamma) * tas / G_FTPS2, 0, PFL.zoomPullG);
       }
-      const dw = glideDragPerWeight('clean', s.ias, s.alt, Math.max(nLoad, 0.5));
-      gamma += G_FTPS2 * (nLoad * Math.cos(s.bank * DEG) - Math.cos(gamma)) / tas * PILOT_DT;
+      // The G builds and eases at the onset rate, so the pull and the push-over never step (Patrick 17:49Z).
+      const eased = easeValue(nz, nzRate, nLoad * Math.cos(s.bank * DEG), PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
+      nz = eased.bankDeg; nzRate = eased.rollRateDps;
+      const dw = glideDragPerWeight('clean', s.ias, s.alt, Math.max(nz / Math.cos(s.bank * DEG), 0.5));
+      gamma += G_FTPS2 * (nz - Math.cos(gamma)) / tas * PILOT_DT;
       climb = tas * Math.sin(gamma);
       accel = -G_FTPS2 * (dw + Math.sin(gamma));
       if (pullDone && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
@@ -700,12 +708,22 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
           want = Math.max(PFL.minTradeKias, Math.min(want, vKt * PFL.glideGearKias / Math.max(iasToTasKt(PFL.glideGearKias, s.alt), 1)));
         }
       }
-      const dw = glideDragPerWeight(PFL_CONFIGS[cfg], s.ias, s.alt, bankG);
+      // Drag from the whole G: the turn's (bank) and the pitch's together.
+      const turnG = Math.tan(s.bank * DEG) * Math.cos(gamma);
+      const dw = glideDragPerWeight(PFL_CONFIGS[cfg], s.ias, s.alt, Math.max(Math.hypot(nz, turnG), 0.5));
       const wantTas = ktToFtps(iasToTasKt(want, s.alt));
-      accel = clamp((wantTas - tas) / 3, -PFL.maxAccelG * G_FTPS2, PFL.maxAccelG * G_FTPS2);
-      // Slowing level at or below 150 KIAS: hold height while the drag takes the speed off.
-      if (state === 'slow') { accel = -G_FTPS2 * dw; climb = 0; }
-      else climb = -tas * dw - tas * accel / G_FTPS2;
+      const wantAccel = clamp((wantTas - tas) / 3, -PFL.maxAccelG * G_FTPS2, PFL.maxAccelG * G_FTPS2);
+      // The flight path it wants: level while slowing at or below 150 KIAS, otherwise the glide that gives the wanted speed change.
+      const wantGamma = state === 'slow' ? 0 : Math.asin(clamp(-dw - wantAccel / G_FTPS2, -1, 1));
+      // The nose goes there with the G easing in and out (Patrick 17:49Z), up to 2 G in all (Patrick 17:52Z),
+      // never past the stall line and never below 0 G; what the path doesn't take, the speed does, so the energy still adds up.
+      const nzHigh = Math.sqrt(Math.max(0, Math.min(PFL.glideMaxG, stallLimitG(s.ias)) ** 2 - turnG ** 2));
+      const nzWant = clamp(dampedClimbG(gamma, wantGamma, tas), 0, Math.max(nzHigh, Math.cos(gamma)));
+      const eased = easeValue(nz, nzRate, nzWant, PILOT_DT, { maxRateDps: PFL.gOnsetGps, maxAccelDps2: PFL.gOnsetGps2 });
+      nz = eased.bankDeg; nzRate = eased.rollRateDps;
+      gamma += G_FTPS2 * (nz - Math.cos(gamma)) / tas * PILOT_DT;
+      climb = tas * Math.sin(gamma);
+      accel = -G_FTPS2 * (dw + Math.sin(gamma));
     }
 
     // The decision layer, once a second (spec 4.5 items 6-7, 9-10).
