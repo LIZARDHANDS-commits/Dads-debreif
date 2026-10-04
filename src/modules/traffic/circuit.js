@@ -290,9 +290,12 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
     if (Math.hypot(miss.x, miss.y) < 5) break;
     perch = { x: perch.x + miss.x, y: perch.y + miss.y };
   }
-  // The inner part starts at the outer part's last point, which it repeats with the break's phase and
-  // tag: an aircraft started "at the break" is in the break.
-  return { track: [...outer.track.slice(0, -1), ...inner.track], perch, breakAlongFt: breakAlong };
+  // The inner part starts at the outer part's last point. The route reads a point from the leg that
+  // ends at it, so that last point takes the break's phase: an aircraft started "at the break" is in the break.
+  const outerTrack = outer.track.slice();
+  const last = outerTrack.length - 1;
+  if (last >= 0) outerTrack[last] = { ...outerTrack[last], phase: inner.track[0]?.phase ?? outerTrack[last].phase };
+  return { track: [...outerTrack, ...inner.track], perch, breakAlongFt: breakAlong };
 }
 
 /**
