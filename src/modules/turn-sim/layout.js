@@ -46,9 +46,9 @@ const LAYERS_2D = ['lead39', 'lead75', 'planned', 'turnCircles', 'tags'];
 export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
 /** The line above the buttons, for the pair and for the four. */
-const PAIR_HINT = 'Press a manoeuvre and the pair flies it, then carries on in line abreast. A press while one is flying is flown next.';
+const PAIR_HINT = 'Press a manoeuvre and the pair flies it, then carries on in the formation it is in. A press while one is flying is flown next.';
 const PAIR_MOVES_NOTE = 'These manoeuvres fly in line abreast. Change to line abreast first.';
-const FOUR_HINT = 'Press a manoeuvre and the four fly it, then carry on in Spread 4 (line abreast). A press while one is flying is flown next.';
+const FOUR_HINT = 'Press a manoeuvre and the four fly it, then carry on in the formation they are in. A press while one is flying is flown next.';
 
 /** Ship colours as in V6, except #4: white with a dark outline (#29), as in the debrief. */
 export const SHIP_COLORS = Object.freeze({ 1: '#0066ff', 2: '#00cc44', 3: '#ff2222', 4: '#ffffff' });
