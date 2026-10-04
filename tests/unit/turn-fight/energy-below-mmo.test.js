@@ -1,5 +1,6 @@
 // Checks: the Energy engine and the T-6A top speed: the merge-speed limit at each height, speeds over it
 //   refused, the AI's chosen speed stays under the NFM line, and a jet forced past it keeps flying.
+//   The Immelmann reason sentence is not pinned.
 // Serves: TF-R4, TF-R6.
 // Expected values: NFM Figure 4-1-2 (Fig 5-3, p.5-9): 316 KIAS to 18,769 ft, 244 KIAS at 31,000 ft, worked out
 //   in nfm-limit.js, read to 2 KIAS; the engine's own margin is not checked; no top-speed flag exists yet to
@@ -170,7 +171,6 @@ test('Auto at the top merge speed at 25,000 ft picks an Immelmann (over the top 
   const s = createEnergyFight({ blueAltFt: 25000, redAltFt: 25000, blueKias: top, redKias: top, pursuit: 'pure' });
   for (const ac of [s.blue, s.red]) {
     assert.equal(ac.move, 'immelmann');
-    assert.match(ac.why, new RegExp(`^Immelmann: ${top} KIAS, other aircraft 180° off the nose, over the top at \\d+ KIAS`));
   }
 });
 

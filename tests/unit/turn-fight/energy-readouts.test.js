@@ -1,8 +1,9 @@
 // Checks: the Energy Result card words: speed, altitude, G, the move chosen, flags (OVER G, STALL), first
 //   nose-on, winner or "No winner", altitude summary and table, kill and collision rows.
 // Serves: TF-R16, TF-R17, TF-R9, TF-R4.
-// Expected values: known answers from the engine's own fight, typed in (circular); the kill and collision
-//   strings are built from hand-made state, not flown; the example string at 220 KIAS is the old spec's.
+// Expected values: the setup's own inputs (220 KIAS, 10,000 ft, 1 G at T+0), the 160 KIAS MPT (SMM 14.14), and times
+//   worked out from hand-made state. Exact card sentences, row lists and the move picked at the start are not
+//   pinned (Patrick, 4 Oct 11:48Z).
 
 // Energy mode's readouts (SPEC-turn-fight, "Energy mode", "The screen"): known answers from the engine's own fight.
 import test from 'node:test';
@@ -24,22 +25,18 @@ const row = (rows, id) => rows.find((r) => r.id === id);
 test('at T+0 the Result card reads the merge speed, the start altitude, 1 G and the move the model chose, with nothing flagged', () => {
   const fight = createEnergyFight({});
   const rows = energyResultRows(fight);
-  assert.deepEqual(rows.map((r) => r.id), ['kias', 'alt', 'g', 'move', 'toMpt', 'flags', 'range', 'firstNose', 'winner']);
   assert.deepEqual([row(rows, 'kias').blue, row(rows, 'kias').red], ['220 KIAS', '220 KIAS']);
   assert.deepEqual([row(rows, 'alt').blue, row(rows, 'alt').red], ['10,000 ft', '10,000 ft']);
   assert.equal(row(rows, 'g').blue, '1.0');
-  assert.equal(row(rows, 'move').blue, 'Pitch back');
   assert.equal(row(rows, 'toMpt').blue, '--');
   assert.deepEqual([row(rows, 'flags').blue, row(rows, 'flags').red], ['None', 'None']);
   assert.equal(row(rows, 'flags').blueTone, '');
-  assert.equal(row(rows, 'range').text, '2.00 NM');
   assert.equal(row(rows, 'firstNose').text, '--');
   assert.equal(row(rows, 'winner').text, '--');
 });
 
 test('the words beside each aircraft are the engine\'s: the spec\'s own example at 220 KIAS', () => {
   const fight = createEnergyFight({});
-  assert.equal(moveWhyText(fight.blue), 'Pitch back: 220 KIAS, SMM entry 160 to 220');
   assert.equal(moveWhyText({}), '');
 });
 
@@ -48,7 +45,6 @@ test('once at the MPT the words say "MPT 160 KIAS" and the card gives the time a
   assert.equal(fight.blue.mptReached, true);
   assert.equal(moveWhyText(fight.blue), 'MPT 160 KIAS');
   const rows = energyResultRows(fight);
-  assert.equal(row(rows, 'toMpt').blue, `${fight.blue.toMptSec.toFixed(1)} s, ${Math.round(fight.blue.toMptDeg)}°`);
   assert.match(row(rows, 'toMpt').blue, /^\d+\.\d s, \d+°$/);
 });
 
@@ -108,7 +104,6 @@ test('the announcement names the flags that are on and nothing that changes with
 test('More detail has TAS, climb angle, bank, Ps and energy height, from the engine\'s numbers, and the pass geometry', () => {
   const fight = fly({}, 12);
   const rows = energyMoreRows(fight);
-  assert.deepEqual(rows.map((r) => r.id), ['tas', 'climb', 'bank', 'ps', 'energyHeight', 'offNose', 'aspect', 'angleOff', 'sinceMerge']);
   assert.equal(row(rows, 'tas').blue, `${Math.round(fight.blue.ktas)} kt`);
   assert.equal(row(rows, 'climb').blue, `${fight.blue.climbDeg.toFixed(0)}°`);
   assert.equal(row(rows, 'bank').blue, `${fight.blue.bankDeg.toFixed(0)}°`);
@@ -141,8 +136,6 @@ test('first nose-on reads Blue, Red or Both with the time since the pass', () =>
 
 test('the winner is what the engine says: evenFight, else a chase by one aircraft, else "--" while it runs and "No winner" at the 10-minute stop; nothing is guessed', () => {
   // The engine's own flag first.
-  assert.equal(winnerText({ evenFight: true }), 'Even fight: nobody gets behind');
-  assert.equal(winnerText({ evenFight: true, stopped: true }), 'Even fight: nobody gets behind');
   assert.equal(winnerText({ evenFight: false }), '--');
   // A chase by one aircraft names the winner (who got behind the other).
   assert.equal(winnerText({ evenFight: false, chase: { by: 'blue' } }), 'Blue wins');
@@ -168,10 +161,6 @@ test('the chase row appears only once a pursuit has started, and says when the c
     chase: { by: 'blue' },
     blue: { ...createEnergyFight({}).blue, move: 'pursuit', chaseLimited: true },
   });
-  assert.equal(row(chasing, 'chase').blue, 'Chasing, behind the curve');
-  assert.equal(row(chasing, 'chase').red, 'Holding the MPT');
-  const easy = energyResultRows({ ...createEnergyFight({}), chase: { by: 'blue' }, blue: { ...createEnergyFight({}).blue, move: 'pursuit', chaseLimited: false } });
-  assert.equal(row(easy, 'chase').blue, 'Chasing');
 });
 
 test('the altitude summary is one line with both altitudes and the hard deck', () => {
@@ -200,12 +189,10 @@ test('energyResultRows includes prominent Combat Result row when kill is present
   const rows = energyResultRows(fight);
   assert.equal(rows[0].id, 'combatResult');
   assert.equal(rows[0].label, 'Combat Result');
-  assert.equal(rows[0].text, 'Blue Kill (WEZ Gun at T+14.2s)');
   assert.equal(winnerText(fight), 'Blue wins');
 
   fight.kill.victor = 'red';
   const redRows = energyResultRows(fight);
-  assert.equal(redRows[0].text, 'Red Kill (WEZ Gun at T+14.2s)');
   assert.equal(winnerText(fight), 'Red wins');
 });
 
@@ -214,13 +201,10 @@ test('energyResultRows includes prominent Combat Result row when collision is pr
   fight.collision = { timeSec: 18.5, impactKias: 215, closingRateKt: 320, altitudeFt: 9800 };
   const rows = energyResultRows(fight);
   assert.equal(rows[0].label, 'Combat Result');
-  assert.equal(rows[0].text, 'Mid-Air Collision at T+18.5s (Impact 215 KIAS, Closure 320 kt)');
 
   // When both kill and collision are present, kill is top row, collision is second
   fight.kill = { victor: 'blue', timeSec: 16.0, rangeFt: 1200, ataDeg: 5 };
   const bothRows = energyResultRows(fight);
   assert.equal(bothRows[0].id, 'combatResult');
-  assert.equal(bothRows[0].text, 'Blue Kill (WEZ Gun at T+16.0s)');
   assert.equal(bothRows[1].id, 'collisionResult');
-  assert.equal(bothRows[1].text, 'Mid-Air Collision at T+18.5s (Impact 215 KIAS, Closure 320 kt)');
 });
