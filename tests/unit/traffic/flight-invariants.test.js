@@ -200,7 +200,7 @@ test('exactly one mode owns coordinates at every step', () => {
   // Use Moose Jaw setup
   const sim = createSim(clone(MOOSE_JAW), { seed: 1 });
   const routesById = new Map(MOOSE_JAW.routes.map((r) => [r.id, r]));
-  const VALID_MODES = [undefined, 'RAIL', 'PHYSICS', 'BLENDING'];
+  const VALID_MODES = [undefined, 'RAIL', 'PHYSICS'];
 
   let prevStates = new Map();
 
