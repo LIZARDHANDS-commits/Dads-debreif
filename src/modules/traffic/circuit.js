@@ -301,10 +301,15 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
 /**
  * A go-around flown from an aircraft's state `from` = { x, y, alt, kias,
  * headingDeg, bankDeg } in a wind, onto Pattern 1's outer downwind (see
- * flyOuter). Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
+ * flyOuter). `sideFt` moves the line it flies up the runway that far to the
+ * right of the runway track (the deconfliction's move-over toward the inner
+ * runway, SMM 4.21 paras 50-51). Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
  */
-export function buildGoAround(points, from, windFromDeg = 360, windKt = 0) {
-  const centre = lineOf(points[0], points[1]);
+export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0) {
+  const rwy = lineOf(points[0], points[1]);
+  const r = (rwy.trackDeg + 90) * Math.PI / 180;
+  const shift = (p) => ({ ...p, x: p.x + sideFt * Math.sin(r), y: p.y + sideFt * Math.cos(r) });
+  const centre = sideFt ? lineOf(shift(points[0]), shift(points[1])) : rwy;
   const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0 };
   return flyOuter(points, centre, 0, { windFromDeg, windKt }, start).track;
 }

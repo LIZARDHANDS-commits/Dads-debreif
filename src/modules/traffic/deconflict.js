@@ -4,12 +4,13 @@
 // Two layers. Layer 1, by the book: once two aircraft would get inside the caution distance within the rules'
 // look-ahead, the right-of-way table below picks the one that gives way and the manual's move for it. Layer 2,
 // by skill: if the red (conflict distance) is still coming within the skill's look-ahead, the one giving way
-// breaks out now, and the one with right of way also acts at the last moment (SMM 4.28 para 69).
+// flinches out of the way and then breaks out (on final it goes around), and the one with right of way also
+// acts at the last moment (SMM 4.28 para 69); a PFL only banks away and keeps its glide (Patrick's card, Q3).
 //
 // This file only decides. It reads a frozen copy of the aircraft taken before anyone moves this tick, changes
 // nothing, and gives the same answer whatever order the aircraft are listed in, so a rewind replays the same.
 // sim.js starts the moves through the same functions the buttons use.
-import { posOnRoute } from './route.js';
+import { posOnRoute, pointDistFt } from './route.js';
 import { ktToFtps } from '../../core/units.js';
 import { wrapDeg180 } from '../../core/angles.js';
 import { firstEntrySampled } from '../../core/closest-approach.js';
@@ -56,8 +57,14 @@ const IN_PATTERN = new Set(['initial', 'break', 'inner_downwind', 'final_turn', 
 /** Only these can be told to give way; a PFL keeps its glide and a manoeuvre already flying is never restarted. */
 const CAN_MOVE = new Set([...IN_PATTERN, 'joining', 'straight_in', 'fly_through']);
 
-/** The skill move for an aircraft: a go-around on final, a breakout anywhere else (Patrick's card, Q3). */
-const skillMove = (standing) => (ON_FINAL.has(standing) ? 'go_around' : 'breakout');
+/**
+ * The move for an aircraft that must get out of the way: a go-around on final (a straight-in only on its last
+ * leg), a breakout anywhere else (Patrick's card, Q3). `f` is a frozen aircraft.
+ */
+const skillMove = (f) => (ON_FINAL.has(f.standing) && (f.standing !== 'straight_in' || f.finalLeg !== false) ? 'go_around' : 'breakout');
+
+/** The last-moment move: a PFL banks away, an aircraft on final goes around, anyone else flinches then breaks out. */
+const evasiveMove = (f) => (f.standing === 'pfl' ? 'bank_away' : skillMove(f) === 'go_around' ? 'go_around' : 'flinch');
 
 /**
  * Who gives way between two frozen aircraft, and how. Returns { giver, holder, move, rule } with giver and
@@ -71,29 +78,31 @@ export function rightOfWay(p, q) {
   if (sa === 'pfl' || sb === 'pfl') {
     if (sa === sb) return { giver: null, rule: 'two PFLs' };
     const [g, h] = sa === 'pfl' ? [b, a] : [a, b];
-    const move = g.standing === 'initial' || g.standing === 'break' ? 'fly_through' : skillMove(g.standing);
+    const move = g.standing === 'initial' || g.standing === 'break' ? 'fly_through' : skillMove(g);
     return pick(g, h, move, 'PFL has right of way');
   }
-  // R2: downwind has right of way over a fly-through, which breaks out (WFO S2 art 401 para 9 Note 1).
+  // R2: downwind has right of way over a fly-through, which climbs straight ahead above pattern height and
+  // then breaks out (WFO S2 art 401 para 9 Note 1; SMM 4.28 para 67; Patrick's card, Q4).
   const downwind = (s) => s === 'inner_downwind' || s === 'outer_downwind';
-  if (sa === 'fly_through' && downwind(sb)) return pick(a, b, 'breakout', 'downwind over fly-through');
-  if (sb === 'fly_through' && downwind(sa)) return pick(b, a, 'breakout', 'downwind over fly-through');
+  if (sa === 'fly_through' && downwind(sb)) return pick(a, b, 'climb_breakout', 'downwind over fly-through');
+  if (sb === 'fly_through' && downwind(sa)) return pick(b, a, 'climb_breakout', 'downwind over fly-through');
   // R1: established in the pattern over joining (SMM 4.5 para 8, 4.15 para 35; Patrick Q9: downwind over rejoining).
   if (sa === 'joining' && IN_PATTERN.has(sb)) return pick(a, b, 'breakout', 'pattern over joining');
   if (sb === 'joining' && IN_PATTERN.has(sa)) return pick(b, a, 'breakout', 'pattern over joining');
   // R4, R5: the perch is the point of no return (Patrick's card, Q1). Before it the aircraft about to perch
-  // breaks out; past it the straight-in moves over and goes around (SMM 4.19 para 43, 4.28 para 68).
+  // breaks out; past it the straight-in moves over toward the inner runway and goes around (SMM 4.19 para 43,
+  // 4.28 para 68, 4.21 paras 50-51).
   if (sa === 'straight_in' || sb === 'straight_in') {
     const [s, o] = sa === 'straight_in' ? [a, b] : [b, a];
     if (o.standing === 'inner_downwind') return pick(o, s, 'breakout', 'straight-in over an aircraft about to perch');
-    if (o.standing === 'final_turn' || o.standing === 'final') return pick(s, o, 'go_around', 'final turn over straight-in');
+    if (o.standing === 'final_turn' || o.standing === 'final') return pick(s, o, 'move_over', 'final turn over straight-in');
   }
   // No rule (Patrick, 11:25Z): the higher aircraft moves; at the same height the one on the right has right of
   // way, so the one on the left moves; callsign order settles a dead heat (an estimate).
   const dz = a.alt - b.alt;
   if (Math.abs(dz) >= DECONFLICT.higherByFt) {
     const [g, h] = dz > 0 ? [a, b] : [b, a];
-    return pick(g, h, skillMove(g.standing), 'higher aircraft moves');
+    return pick(g, h, skillMove(g), 'higher aircraft moves');
   }
   const rightOf = (from, to) => {
     const brg = Math.atan2(to.x - from.x, to.y - from.y) * 180 / Math.PI;
@@ -103,9 +112,9 @@ export function rightOfWay(p, q) {
   const aSeesRight = rightOf(a, b), bSeesRight = rightOf(b, a);
   if (aSeesRight !== bSeesRight) {
     const [g, h] = aSeesRight ? [a, b] : [b, a];
-    return pick(g, h, skillMove(g.standing), 'aircraft on the right has right of way');
+    return pick(g, h, skillMove(g), 'aircraft on the right has right of way');
   }
-  return pick(b, a, skillMove(b.standing), 'same height, head-on: callsign order');
+  return pick(b, a, skillMove(b), 'same height, head-on: callsign order');
 }
 
 /**
@@ -123,6 +132,7 @@ export function freeze(aircraft, pathOf, routeOf) {
     if (![a.x, a.y, a.alt, gsFtps, trackDeg].every(Number.isFinite)) continue;
     const climb = Number.isFinite(a.climbFtps) ? a.climbFtps : 0;
     const path = pathOf(a);
+    const route = routeOf(a);
     const track = [];
     if (path && Number.isFinite(a.distFt)) {
       // Along the path at today's ground speed; any gap from the path closes over the join (or 5 s, an estimate).
@@ -143,7 +153,11 @@ export function freeze(aircraft, pathOf, routeOf) {
       }
     }
     if (!track.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z))) continue;
-    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing: standingOf(a, routeOf(a)), busy: Boolean(a.deconflict), track });
+    const standing = standingOf(a, route);
+    // A straight-in is on final only on its last leg; further out it breaks out like anyone else (Patrick's Q3, Q7).
+    const finalLeg = standing === 'straight_in' && route?.points?.length >= 2 && Number.isFinite(a.distFt)
+      ? a.distFt >= pointDistFt(route, route.points.length - 2, path?.options) : undefined;
+    out.push({ id: a.id, x: a.x, y: a.y, alt: a.alt, trackDeg, gsFtps, standing, finalLeg, busy: Boolean(a.deconflict), track });
   }
   return out.sort((p, q) => (p.id < q.id ? -1 : p.id > q.id ? 1 : 0));
 }
@@ -173,15 +187,16 @@ export function decide(frozen, limits) {
         continue;
       }
       // Layer 2: the red still coming. The one giving way acts within the skill's look-ahead if it still can;
-      // the one with right of way (or both, when no one gives way) acts at the last moment.
+      // the one with right of way (or both, when no one gives way) acts at the last moment. Off final the move
+      // is the flinch, then the breakout; a PFL only banks away (Patrick's card, Q3).
       if (tRed === null) continue;
       if (giver && tRed <= DECONFLICT.skillLookAheadSec && CAN_MOVE.has(giver.standing) && !giver.busy) {
-        wanted.push({ t: tRed, id: giver.id, move: skillMove(giver.standing), layer: 'skill', rule: row.rule, with: holder.id });
+        wanted.push({ t: tRed, id: giver.id, move: evasiveMove(giver), layer: 'skill', rule: row.rule, with: holder.id });
       }
       if (tRed <= DECONFLICT.holderLookAheadSec) {
         for (const h of holder ? [holder] : [p, q]) {
-          if (CAN_MOVE.has(h.standing) && !h.busy) {
-            wanted.push({ t: tRed, id: h.id, move: skillMove(h.standing), layer: 'skill', rule: row.rule, with: (h === p ? q : p).id });
+          if ((CAN_MOVE.has(h.standing) || h.standing === 'pfl') && !h.busy) {
+            wanted.push({ t: tRed, id: h.id, move: evasiveMove(h), layer: 'skill', rule: row.rule, with: (h === p ? q : p).id });
           }
         }
       }
@@ -194,6 +209,7 @@ export function decide(frozen, limits) {
 
 /** The words on the tag beside an aircraft the deconfliction moved, like the PFL tag. */
 export function deconflictLabel(move, layer) {
-  const what = move === 'fly_through' ? 'fly-through' : move === 'go_around' ? 'go-around' : 'break out';
+  const WORDS = { fly_through: 'fly-through', go_around: 'go-around', move_over: 'move over', flinch: 'flinch', bank_away: 'bank away' };
+  const what = WORDS[move] ?? 'break out';
   return layer === 'skill' ? `[EVASIVE: ${what}]` : `[GIVING WAY: ${what}]`;
 }

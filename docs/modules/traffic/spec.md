@@ -304,22 +304,22 @@ See 1a, items 15-19 (Patrick, 09:56Z, 4 Oct 2026). Touch-and-go is item 21 and H
 
 ### 4.12 Automatic deconfliction (Patrick, 4 Oct 09:40Z to 11:54Z)
 
-Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), the shared `src/core/closest-approach.js` (the maths, ALL-27), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, on at the start (Patrick, 4 Oct 16:59Z, TR-50).
+Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), the shared `src/core/closest-approach.js` (the maths, ALL-27), `evade.js` (the flinch, the climb ahead and the straight-in rejoin, flown by the circuit's pilot), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, on at the start (Patrick, 4 Oct 16:59Z, TR-50).
 
 1. Every 0.5 s, from all the aircraft as they were before anyone moved, each aircraft's position is predicted every second for 15 s: along the path it is following, at today's ground speed, or straight on when it flies free.
 2. Nothing happens unless a pair would get inside the caution distance (500 ft and 500 ft, TR-Q11) within 15 s (Q2).
 3. **Layer 1, by the book.** The right-of-way table picks the one that gives way, once per pair, the same whichever aircraft is asked:
    - a PFL keeps right of way; an overhead aircraft at initial or in the break flies through, anyone on final goes around, anyone else breaks out (Patrick 09:43Z; WFO S2 art 401 para 9; SMM 4.28 para 68);
-   - downwind over a fly-through, which breaks out (WFO S2 art 401 para 9 Note 1; SMM 4.28 para 67);
+   - downwind over a fly-through, which climbs straight ahead to about 500 ft above pattern height (Q4, an estimate) and then breaks out (WFO S2 art 401 para 9 Note 1; SMM 4.28 para 67);
    - established in the pattern over joining, which breaks out (SMM 4.5 para 8, 4.15 para 35);
-   - the perch is the point of no return (Q1): before it the aircraft about to perch breaks out; past it the straight-in goes around (SMM 4.19 para 43, 4.28 para 68);
+   - the perch is the point of no return (Q1): before it the aircraft about to perch breaks out; past it the straight-in moves over 500 ft toward the inner runway (Q5, an estimate; the real 29L/29R gap is a question for Dad) and goes around, never descending (SMM 4.19 para 43, 4.28 para 68, 4.21 paras 50-51);
    - no rule (Q9): the higher aircraft moves (higher by 100 ft or more, an estimate); at the same height the one on the right has right of way, so the one on the left moves; a dead heat goes by callsign order (an estimate).
-4. **Layer 2, by skill.** If the red (200 ft and 200 ft) is still coming within 6 s, the one giving way acts if it still can; within 3 s the one with right of way acts too (SMM 4.28 para 69). The skill move is a breakout, or a go-around on final (Q3). A PFL never moves.
-5. The moves are today's: the breakout (TR-R34), the go-around (4.10), and the fly-through, which is the go-around's flown path from where the aircraft is at pattern height (straight on to the departure end, crosswind, the outer downwind; WFO S2 art 401 para 9). A move already flying is never restarted.
-6. A tag beside the aircraft says what it is doing, like the PFL tag: `[GIVING WAY: break out]`, `[GIVING WAY: fly-through]`, `[GIVING WAY: go-around]`, `[EVASIVE: break out]`.
+4. **Layer 2, by skill.** If the red (200 ft and 200 ft) is still coming within 6 s, the one giving way acts if it still can; within 3 s the one with right of way acts too (SMM 4.28 para 69). The skill move is the flinch and then the breakout, or a go-around on final (a straight-in counts as on final only on its last leg) (Q3). The flinch lasts about 5 s (an estimate): the aircraft above (or level and first by callsign) trades speed for about 500 ft of height wings level; the one below banks away at up to 60° (SMM 4.14 para 33), never past the stall line; head-on, both go right. A PFL only banks away: out about 500 ft off its path over about 12 s, back over about 20 s (estimates), keeping its glide.
+5. The moves: the breakout (TR-R34), after which a straight-in rejoins its own straight-in 2 NM before the end of its first leg, at that leg's height, and anyone else rejoins on the overhead entry as before (Q7); the go-around (4.10); and the fly-through, which is the go-around's flown path from where the aircraft is at pattern height (straight on to the departure end, crosswind, the outer downwind; WFO S2 art 401 para 9). A move already flying is never restarted.
+6. A tag beside the aircraft says what it is doing, like the PFL tag: `[GIVING WAY: break out]`, `[GIVING WAY: fly-through]`, `[GIVING WAY: go-around]`, `[GIVING WAY: move over]`, `[EVASIVE: flinch]`, `[EVASIVE: bank away]`.
 7. **When data fails:** an aircraft with a non-finite position, height, track or speed is left out of the check for that tick, never an error, and every other pair is still checked. A red that still appears is the honest sign it could not clear it. A rewind replays the same decisions (no dice, the tag is part of the aircraft's saved state).
 8. **Speeds:** predictions use ground speed; the moves fly their own indicated speeds.
-9. **Not built yet** (`future.md`): the flinch before the breakout, the move-over slide 500 ft toward the inner runway before the go-around (Q5), the straight-ahead climb of about 500 ft before a fly-through's breakout turns (Q4), rejoining on the same kind of entry (Q7; the breakout still rejoins on the overhead entry), and a PFL banking away.
+9. **Known limits:** a PFL's bank away moves it off its path without changing its glide (the height and speed stay the planned ones); the flinch and the climb ahead are flown paths, so the deconfliction predicts them, but the breakout after them is still the old physics controller (refactor PR 4), predicted straight on.
 
 ---
 
