@@ -14,7 +14,10 @@ const SIZES = [
 
 // Finds visible controls that overlap each other or stick out of the page.
 // While a modal dialog is open, only its controls count: the page behind it
-// can't be reached.
+// can't be reached. A control inside a closed <details> keeps a box in Chromium
+// though it isn't drawn, so checkVisibility() leaves it out; and a control is
+// measured only where its scrolling panels let it show, so one scrolled out of
+// a side column doesn't "overlap" whatever sits below that column.
 async function layoutProblems(page) {
   return page.evaluate(() => {
     const scope = document.querySelector('dialog[open]') ?? document;
@@ -22,17 +25,30 @@ async function layoutProblems(page) {
       .filter((el) => {
         const r = el.getBoundingClientRect();
         const style = getComputedStyle(el);
-        return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && !el.closest('[hidden], dialog:not([open])');
+        return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && !el.closest('[hidden], dialog:not([open])') && el.checkVisibility();
       })
       .filter((el) => !el.classList.contains('skip-link'));
+    // The part of a control its scrolling (or clipping) ancestors let show.
+    const shown = (el) => {
+      const r = el.getBoundingClientRect();
+      let { left, top, right, bottom } = r;
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const cs = getComputedStyle(p);
+        if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+        const c = p.getBoundingClientRect();
+        left = Math.max(left, c.left); top = Math.max(top, c.top); right = Math.min(right, c.right); bottom = Math.min(bottom, c.bottom);
+      }
+      return { left, top, right, bottom };
+    };
     const problems = [];
     const pageWidth = document.documentElement.clientWidth;
     if (document.documentElement.scrollWidth > pageWidth) problems.push(`page scrolls sideways (${document.documentElement.scrollWidth} > ${pageWidth})`);
     const name = (el) => `${el.tagName.toLowerCase()} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30)}"`;
-    const boxes = controls.map((el) => ({ el, r: el.getBoundingClientRect() }));
-    for (const { el, r } of boxes) {
+    for (const el of controls) {
+      const r = el.getBoundingClientRect();
       if (r.left < 0 || r.right > pageWidth + 0.5) problems.push(`${name(el)} is cut off at the side`);
     }
+    const boxes = controls.map((el) => ({ el, r: shown(el) })).filter(({ r }) => r.right - r.left > 1 && r.bottom - r.top > 1);
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i];
@@ -47,15 +63,11 @@ async function layoutProblems(page) {
   });
 }
 
-// Traffic is left out of this walk on Patrick's word (4 Oct 06:54Z: "Just delete those shitty tests"); its
-// faults are on docs/modules/traffic/plan.md, step 3.
-const CHECKED_ROUTES = ROUTES.filter((route) => route !== '#/traffic');
-
 for (const size of SIZES) {
   test.describe(`at ${size.width} × ${size.height}`, () => {
     test.use({ viewport: size });
 
-    for (const route of CHECKED_ROUTES) {
+    for (const route of ROUTES) {
       test(`${route} has no overlapping or cut-off controls`, async ({ page }) => {
         await openRoute(page, route);
         expect(await layoutProblems(page)).toEqual([]);

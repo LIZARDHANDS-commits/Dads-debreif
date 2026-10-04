@@ -572,6 +572,8 @@
 
 [data-module='traffic'] .aircraft-row {
   display: grid;
+  /* One column no wider than the panel, so a long line wraps instead of running off its right edge. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1) var(--space-2);
   padding: var(--space-1) 0;
   border-bottom: 1px solid var(--border);
