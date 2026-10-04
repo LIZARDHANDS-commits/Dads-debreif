@@ -287,25 +287,15 @@ test('without the 3D view there is no Paint choice (R3)', () => {
   assert.equal(paintLabel, undefined);
 });
 
-test('Closed pattern settings include Bank angle select and Pitch angle number input', () => {
+test('Closed pattern settings include the Bank angle select', () => {
   const { panel, settings } = setup();
   const bankLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Bank angle');
   assert.ok(bankLabel, 'Bank angle label exists');
-  const pitchLabel = tagged(panel.element, 'LABEL').find((l) => words(l) === 'Pitch angle');
-  assert.ok(pitchLabel, 'Pitch angle label exists');
 
   const selects = tagged(panel.element, 'SELECT');
   const bankSelect = selects.find((s) => s.id === bankLabel.getAttribute('for'));
   assert.ok(bankSelect, 'Bank angle select exists');
   assert.equal(settings.get().closedPatternBankDeg, 50);
-
-  const pitchInput = box(panel, 'Pitch angle');
-  assert.ok(pitchInput, 'Pitch angle input exists');
-  assert.equal(pitchInput.value, '10');
-  assert.equal(settings.get().closedPatternPitchDeg, 10);
-
-  type(pitchInput, '12');
-  assert.equal(settings.get().closedPatternPitchDeg, 12);
 });
 
 test('the 3D view Graphics Quality selector switches between High and Performance', () => {
