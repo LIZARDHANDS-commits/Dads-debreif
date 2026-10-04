@@ -32,7 +32,7 @@ For flying numbers: Patrick's practice first, then the 15 Wing Moose Jaw manuals
 - **Judgement calls wait for Patrick's yes** when they change what the tool does, for example a flight-math or weather-limit result, a new outside data source, or a default standard. Small fixes that are easy to undo can go ahead: each in its own commit, with a setting that holds the old value where that makes sense, and say what was done.
 - **Open questions don't stop the work:** the tool uses the best-guess answer until Patrick or Dad answers.
 - **Sign-off:** anyone can run a module's sign-off checklist and send Patrick the result. The next module starts only after Patrick's yes.
-- **Models:** each brief names the AI model and effort for its job. The default is Opus for planning, judging and writing flight code, and Sonnet for reading and research.
+- **Models:** each brief names the AI model and effort for its job, by the agents and models rule below.
 - **Write it down first:** how a module's aircraft are driven is settled in its spec and decisions before coding it, and a module's building starts once its spec is approved.
 - **Two failed fixes:** after two failed fixes for the same problem, stop and find the cause before trying again.
 - **One writer per file** at a time. Reviewers read and report; they never edit, revert or commit. Use a few agents with clear jobs, not swarms. Stop agents when the plan changes, and check git history, not agent reports, for what actually changed.
@@ -40,6 +40,19 @@ For flying numbers: Patrick's practice first, then the 15 Wing Moose Jaw manuals
 - **Questions for Dad** live in `docs/questions-for-dad.md`. Each has a working answer in the tool until he replies.
 
 **Every brief** for an agent or a new piece of work says: the task from `plan.md` and the files it may touch; the model and effort; "read `AGENTS.md` and the module's folder first"; "search for existing flight math before writing new"; the testing lines under Testing below, copied in full; and what to report (what was done, what is untested or unseen, what was unsure).
+
+## Agents and models (Patrick, 4 Oct 2026 22:29Z; Fable line 22:38Z)
+
+A fresh agent has to re-read files and be briefed, so small jobs are cheaper done by the thread itself. Agents pay off only on big, self-contained pieces.
+
+- **Thread does it itself:** docs, wording, one- or two-file fixes, CSS, version bumps, merges.
+- **Spawn an agent only when:** the piece spans many files and is long, or it's read-only research. One agent per thread at a time, with its work checked before merge.
+- **Models:**
+  - **Opus:** flight code, maths, and anything that changes how aircraft fly.
+  - **Sonnet:** screens, layout, menus, wording, docs, and manual-reading researchers.
+  - **Haiku:** mechanical lookups only.
+  - **Fable:** only after Opus fails twice on the same problem, or for a one-off architecture review, and the thread tells Patrick first.
+- **Thinking:** medium by default, and high only for designing or debugging flight maths.
 
 ## Flying numbers and manuals
 

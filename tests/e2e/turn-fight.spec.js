@@ -9,7 +9,7 @@
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { openRoute } from './routes.js';
 import { createEnergyFight, stepEnergyFight } from '../../src/modules/turn-fight/energy-sim.js';
-import { topKiasAt } from '../../src/modules/turn-fight/state.js';
+import { topKiasAt, DEFAULTS } from '../../src/modules/turn-fight/state.js';
 
 const time = (page) => page.locator('.tf-time');
 const phase = (page) => page.locator('.tf-phase');
@@ -17,7 +17,7 @@ const playButton = (page) => page.locator('.tf-play');
 const blue = (page) => page.getByRole('group', { name: 'Blue' });
 const red = (page) => page.getByRole('group', { name: 'Red' });
 const result = (page) => page.getByRole('table', { name: 'Result' });
-const settingsButton = (page) => page.getByRole('button', { name: "Pat's Fight and Turn Sim settings" });
+const settingsButton = (page) => page.getByRole('button', { name: 'Advanced setup' });
 const resetDefaults = (page) => page.getByRole('button', { name: /Reset to (Standard|V6) defaults/i });
 
 const seconds = async (page) => Number((await time(page).textContent()).replace('T+', ''));
@@ -102,9 +102,8 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   for (const who of [blue(page), red(page)]) {
     await expect(who.getByLabel('Speed (KTAS)')).toHaveValue('220');
     await expect(who.getByLabel('G', { exact: true })).toHaveValue('5');
-    await expect(who.getByLabel('Pitch (°)')).toBeHidden();
   }
-  for (const name of ['First nose chases', 'Climb and dive']) await expect(page.getByLabel(name)).not.toBeChecked();
+  await expect(page.getByLabel('First nose chases')).not.toBeChecked(); // in Advanced setup, which is closed at first
   await expect(page.getByText('Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?')).toBeVisible();
   // Energy (T-6) is a checkbox, off, and none of its boxes show until it is ticked (R22).
   await expect(page.getByLabel(/BFM Energy Fight|Energy \(T-6\)/)).not.toBeChecked();
@@ -119,7 +118,6 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   await expect(resetDefaults(page)).toBeHidden();
   await expect(page.locator('.tf-warning')).toHaveText(['', '', '']); // the warnings' boxes are always there, empty (Blue's, Red's, and Energy's start check)
   await expect(page.locator('.tf-warning').first()).toHaveAttribute('aria-live', 'polite');
-  await expect(page.locator('.tf-profile')).toBeHidden();
   await expect(page.getByRole('button', { name: 'More detail' })).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('button', { name: 'About this model' })).toHaveAttribute('aria-expanded', 'false');
   await expect(settingsButton(page)).toHaveAttribute('aria-expanded', 'false');
@@ -252,7 +250,6 @@ test('changing the setup starts the fight again; playback speed never does', asy
     () => red(page).getByLabel('G', { exact: true }).fill('6'),
     () => page.getByLabel('Start separation').fill('3'),
     () => page.getByLabel('First nose chases').check(),
-    () => page.getByLabel('Climb and dive').check(),
   ]) {
     await playButton(page).click();
     await expect.poll(() => seconds(page)).toBeGreaterThan(0.3);
@@ -275,14 +272,13 @@ test('the T-6 limit warning shows beside a G box that is too high for the speed,
   await expect(blue(page).locator('.tf-warning')).toHaveText(''); // the words go; the live region stays
 });
 
-test('Turn Fight settings is closed at first; it holds the height scale, and Reset to V6 defaults puts everything back', async ({ page }) => {
+test('Advanced setup is closed at first, and Reset to Standard Defaults puts everything back', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
-  await expect(page.getByText('Side view height scale')).toBeHidden();
+  if (await energyBox(page).isChecked()) await energyBox(page).uncheck();
+  await expect(ataBox(page)).toBeHidden();
   await settingsButton(page).click();
   await expect(settingsButton(page)).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByText('Display', { exact: true })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Side view height scale' })).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Side view height scale' }).getByRole('radio', { name: '2×' })).toBeChecked();
+  await expect(page.getByText('Start geometry', { exact: true })).toBeVisible();
 
   // Change a lot, including a refused entry left showing in a box.
   await page.getByText('1-circle', { exact: true }).click();
@@ -290,27 +286,23 @@ test('Turn Fight settings is closed at first; it holds the height scale, and Res
   await red(page).getByLabel('Speed (KTAS)').fill('260');
   await blue(page).getByLabel('G', { exact: true }).fill('999');
   await blue(page).getByLabel('G', { exact: true }).blur();
-  await page.getByLabel('Climb and dive').check();
   await page.getByLabel('First nose chases').check();
   await page.getByLabel('Playback speed').selectOption({ label: '4×' });
-  await page.getByRole('group', { name: 'Side view height scale' }).getByText('4×', { exact: true }).click();
   await playButton(page).click();
   await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
 
   await resetDefaults(page).click();
   await expect(page.getByRole('radio', { name: '2-circle' })).toBeChecked();
-  await expect(page.getByLabel('Start separation')).toHaveValue('2');
+  await expect(page.getByLabel('Start separation')).toHaveValue(String(DEFAULTS.separationNm));
   await expect(red(page).getByLabel('Speed (KTAS)')).toHaveValue('220');
   await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('5');
   await expect(blue(page).getByLabel('G', { exact: true })).not.toHaveAttribute('aria-invalid', 'true');
-  await expect(page.getByLabel('Climb and dive')).not.toBeChecked();
   await expect(page.getByLabel('First nose chases')).not.toBeChecked();
   await expect(page.getByLabel('Playback speed').locator('option:checked')).toHaveText('1×');
-  await expect(page.getByRole('group', { name: 'Side view height scale' }).getByRole('radio', { name: '2×' })).toBeChecked();
   await expect(time(page)).toHaveText('T+0.0');
   await expect(playButton(page)).toHaveText('Play');
-  await expect(page.locator('.tf-profile')).toBeHidden();
-  // Reset with a refused entry showing and nothing else changed also clears the box.
+  // Reset puts Energy back on, which hides the simple boxes; show them again to leave a refused entry in one.
+  await energyBox(page).uncheck();
   await red(page).getByLabel('Speed (KTAS)').fill('999');
   await red(page).getByLabel('Speed (KTAS)').blur();
   await expect(red(page).getByLabel('Speed (KTAS)')).toHaveAttribute('aria-invalid', 'true');
@@ -326,61 +318,13 @@ test('settings are remembered in this browser', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await page.getByText('1-circle', { exact: true }).click();
   await blue(page).getByLabel('Speed (KTAS)').fill('240');
-  await page.getByLabel('Climb and dive').check();
-  await blue(page).getByLabel('Pitch (°)').fill('15');
   await page.getByLabel('Playback speed').selectOption({ label: '2×' });
   await page.reload();
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'turn-fight');
   await expect(page.getByRole('radio', { name: '1-circle' })).toBeChecked();
   await expect(blue(page).getByLabel('Speed (KTAS)')).toHaveValue('240');
-  await expect(page.getByLabel('Climb and dive')).toBeChecked();
-  await expect(blue(page).getByLabel('Pitch (°)')).toHaveValue('15');
   await expect(page.getByLabel('Playback speed').locator('option:checked')).toHaveText('2×');
   await expect(time(page)).toHaveText('T+0.0'); // a fight always opens at the start
-});
-
-test('Climb and dive shows pitch and the side view, and the height scale works without resetting the fight', async ({ page }) => {
-  await openRoute(page, '#/turn-fight');
-  await expect(page.locator('.tf-profile')).toBeHidden();
-  await page.getByLabel('Climb and dive').check();
-  for (const who of [blue(page), red(page)]) await expect(who.getByLabel('Pitch (°)')).toHaveValue('0');
-  await expect(page.locator('.tf-profile')).toBeVisible();
-  await expect(page.getByLabel('First nose chases')).not.toBeChecked(); // each box shows only its own controls
-  // A pitch outside ±60° is refused.
-  await blue(page).getByLabel('Pitch (°)').fill('75');
-  await blue(page).getByLabel('Pitch (°)').blur();
-  await expect(blue(page).getByLabel('Pitch (°)').locator('xpath=..').locator('.control-message')).toHaveText(/Enter a number from -60 to 60/);
-  await blue(page).getByLabel('Pitch (°)').fill('25');
-  await red(page).getByLabel('Pitch (°)').fill('-25');
-  await playTo(page, 22);
-  const t = await seconds(page);
-  await expect.poll(() => pixelsNear(page, 'canvas.tf-profile-canvas', BLUE)).toBeGreaterThan(40);
-  await expect.poll(() => pixelsNear(page, 'canvas.tf-profile-canvas', RED)).toBeGreaterThan(40);
-  await page.getByRole('button', { name: 'More detail' }).click();
-  await expect(page.getByRole('row', { name: /Height change/ })).toBeVisible();
-  await expect(page.getByRole('row', { name: /Height between/ })).toBeVisible();
-
-  // The height scale changes the side view, and never the fight (#20).
-  await settingsButton(page).click();
-  const scale = page.getByRole('group', { name: 'Side view height scale' });
-  await expect(scale.getByRole('radio', { name: '2×' })).toBeEnabled();
-  const pictures = [];
-  for (const label of ['1×', '2×', '4×']) {
-    await scale.getByText(label, { exact: true }).click();
-    await expect(scale.getByRole('radio', { name: label })).toBeChecked();
-    await expect.poll(() => picture(page, 'canvas.tf-profile-canvas')).not.toBe(pictures.at(-1) ?? '');
-    pictures.push(await picture(page, 'canvas.tf-profile-canvas'));
-  }
-  expect(new Set(pictures).size).toBe(3);
-  expect(await time(page).textContent()).toBe(`T+${t.toFixed(1)}`);
-  await expect(playButton(page)).toHaveText('Play');
-
-  // Climb and dive off again: its boxes and the side view go.
-  await page.getByLabel('Climb and dive').uncheck();
-  await expect(page.locator('.tf-profile')).toBeHidden();
-  await expect(blue(page).getByLabel('Pitch (°)')).toBeHidden();
-  await expect(scale.getByRole('radio', { name: '2×' })).toBeDisabled(); // nothing to scale without the side view
-  await expect(page.getByRole('row', { name: /Height change/ })).toHaveCount(0);
 });
 
 test('First nose chases turns the dashed first nose-on line and the result on', async ({ page }) => {
@@ -494,10 +438,9 @@ test('the View switch opens on 2D, sits by Play, and a 2D visit loads no three.j
   await playButton(page).click();
   expect(seen).toEqual([]);
   expect(await contextsMade(page)).toBe(0);
-  // Paint is in the Display section of the closed settings menu, greyed out while 2D shows.
+  // Paint is in the Display section of Advanced setup, which is hidden while 2D shows (it is for the 3D view only).
   await settingsButton(page).click();
-  await expect(page.getByLabel('Paint')).toBeDisabled();
-  await expect(page.getByLabel('Paint').locator('option:checked')).toHaveText('Harvard');
+  await expect(page.getByLabel('Paint')).toBeHidden();
 });
 
 test('switching to 3D and back while the fight plays never resets it, and WebGL is freed each time', async ({ page }) => {
@@ -616,15 +559,13 @@ test('Overhead, Chase Blue and Chase Red move the camera; dragging and the wheel
   await expect(playButton(page)).toHaveText('Play');
 });
 
-test('Paint is a choice in the Display section of Turn Fight settings, and it repaints the aircraft in 3D', async ({ page }) => {
+test('Paint is a choice in the Display section of Advanced setup, shown in 3D, and it repaints the aircraft', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await viewChoice(page, '3D').check();
   await expect.poll(() => draws3d(page)).toBeGreaterThan(0);
   await settingsButton(page).click();
   const paint = page.getByLabel('Paint');
-  await expect(paint).toBeEnabled();
-  // The side view's height scale is for 2D only, so it is greyed out while 3D shows.
-  await expect(page.getByRole('group', { name: 'Side view height scale' }).getByRole('radio', { name: '2×' })).toBeDisabled();
+  await expect(paint).toBeVisible();
   await expect(paint.locator('option')).toHaveText(['Harvard', 'Ship colours']);
   await expect(paint.locator('option:checked')).toHaveText('Harvard'); // the default
   const harvard = await canvas3d(page).screenshot();
@@ -769,8 +710,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
     test('nothing overlaps or is cut off, first opened and with every panel open', async ({ page }) => {
       await openRoute(page, '#/turn-fight');
       expect(await layoutProblems(page)).toEqual([]);
-      await page.getByLabel('Climb and dive').check();
-      await page.getByRole('button', { name: "Pat's Fight and Turn Sim settings" }).click();
+      await settingsButton(page).click();
       await page.getByRole('button', { name: 'About this model' }).click();
       await page.getByRole('button', { name: 'More detail' }).click();
       await blue(page).getByLabel('Speed (KTAS)').fill('120'); // with a limit warning showing
@@ -778,13 +718,13 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       await blue(page).getByLabel('G', { exact: true }).fill('999'); // and a refusal message
       await blue(page).getByLabel('G', { exact: true }).blur();
       expect(await layoutProblems(page)).toEqual([]);
-      // The top-down view and the side view both fit their boxes.
-      const canvases = await page.evaluate(() => [...document.querySelectorAll('canvas.tf-topdown, canvas.tf-profile-canvas')].map((c) => {
+      // The top-down view fits its box.
+      const canvases = await page.evaluate(() => [...document.querySelectorAll('canvas.tf-topdown')].map((c) => {
         const r = c.getBoundingClientRect();
         return { w: r.width, h: r.height, cw: c.clientWidth, ch: c.clientHeight };
       }));
-      expect(canvases).toHaveLength(2);
-      for (const c of canvases) expect(c.w).toBeGreaterThan(300);
+      expect(canvases).toHaveLength(1);
+      expect(canvases[0].w).toBeGreaterThan(300);
       expect(canvases[0].h).toBeGreaterThan(200);
     });
 
@@ -804,7 +744,6 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
 
 const ataBox = (page) => page.getByLabel('Red\'s position off Blue\'s nose (ATA)');
 const aaBox = (page) => page.getByLabel('Red\'s aspect angle (AA)');
-const heightBox = (page) => page.getByLabel('Red starts above Blue (ft)');
 const side = (page, group, name) => page.getByRole('group', { name: group }).getByRole('radio', { name });
 const turnsAt = (page, name) => page.getByRole('group', { name: 'When the turns start' }).getByRole('radio', { name });
 const hcaLine = (page) => page.locator('.tf-hca:not(.tf-pass)');
@@ -820,30 +759,28 @@ async function openStartGeometry(page) {
   await expect(ataBox(page)).toBeVisible();
 }
 
-// The six Start geometry settings are at V6's head-on start.
+// The Start geometry settings are at the head-on start.
 async function expectHeadOn(page) {
   await expect(ataBox(page)).toHaveValue('0');
   await expect(side(page, 'ATA side', 'Left')).toBeChecked();
   await expect(aaBox(page)).toHaveValue('180');
   await expect(side(page, 'AA side', 'Left')).toBeChecked();
-  await expect(heightBox(page)).toHaveValue('0');
   await expect(turnsAt(page, 'At the pass')).toBeChecked();
 }
 
-test('Start geometry in the settings menu shows the six defaults and the heading crossing angle, 180° head-on', async ({ page }) => {
+test('Start geometry in Advanced setup shows the defaults and the heading crossing angle, 180° head-on', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await expect(ataBox(page)).toBeHidden(); // closed until opened
   await settingsButton(page).click();
   await expect(page.getByText('Start geometry', { exact: true })).toBeVisible();
   await expectHeadOn(page);
-  await expect(heightBox(page)).toBeDisabled(); // needs Climb and dive
   await expect(hcaLine(page)).toHaveText('Heading crossing angle (HCA): 180°');
   await expect(passLine(page)).toHaveText(/Pass at T\+\d+\.\d+ s/);
   await expect(headOnButton(page)).toBeVisible();
   await expect(time(page)).toHaveText('T+0.0');
 });
 
-test('a beam start: HCA 180°, the fight starts over, Play turns at once with no MERGE mark; Neutral Head-on puts all six back, paused', async ({ page }) => {
+test('a beam start: HCA 180°, the fight starts over, Play turns at once with no MERGE mark; Neutral Head-on puts the start back, paused', async ({ page }) => {
   await openStartGeometry(page);
   // The MERGE mark is drawn in the first nose-on colour; at V6's start it is there at T+0.
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', NOSE)).toBeGreaterThan(20);
@@ -863,12 +800,10 @@ test('a beam start: HCA 180°, the fight starts over, Play turns at once with no
   // Before first nose-on (+5 s) nothing is drawn in the MERGE colour: there is no pass to mark.
   expect(await pixelsNear(page, 'canvas.tf-topdown', NOSE)).toBe(0);
   await playButton(page).click();
-  // Change the rest of the start, then one click puts all six back, and the fight waits at T+0.0.
+  // Change the rest of the start, then one click puts the start back, and the fight waits at T+0.0.
   await side(page, 'AA side', 'Right').check();
   await side(page, 'ATA side', 'Right').check();
   await turnsAt(page, 'At once').check();
-  await page.getByLabel('Climb and dive').check();
-  await heightBox(page).fill('1500');
   await playButton(page).click();
   await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
   await headOnButton(page).click();
@@ -878,7 +813,6 @@ test('a beam start: HCA 180°, the fight starts over, Play turns at once with no
   await expect(playButton(page)).toHaveText('Play');
   await expect(phase(page)).toHaveText('HEAD-TO-HEAD');
   await expect.poll(() => pixelsNear(page, 'canvas.tf-topdown', NOSE)).toBeGreaterThan(20);
-  await expect(page.getByLabel('Climb and dive')).toBeChecked(); // only the start goes back
 });
 
 test('a crossing (ATA 0°, AA 90° left) at 4×: HCA 90°, TO THE PASS until T+16.4, then 2-CIRCLE; More detail has AA and Angle-off (HCA)', async ({ page }) => {
@@ -906,37 +840,9 @@ test('a crossing (ATA 0°, AA 90° left) at 4×: HCA 90°, TO THE PASS until T+1
   await expect(moreRow(page, /Angle-off \(HCA\)/)).toHaveText(/90°/); // 2-circle: both turn the same way
 });
 
-test('Red\'s height needs Climb and dive; at 2,000 ft the side view shows Red higher and both height changes read 0 ft at T+0', async ({ page }) => {
-  await openStartGeometry(page);
-  await expect(heightBox(page)).toBeDisabled();
-  await page.getByLabel('Climb and dive').check();
-  await expect(heightBox(page)).toBeEnabled();
-  await heightBox(page).fill('2000');
-  await expect(time(page)).toHaveText('T+0.0');
-  await moreButton(page).click();
-  await expect(moreRow(page, /Height change/)).toHaveText(/0 ft.*0 ft/);
-  await expect(moreRow(page, /Height between/)).toHaveText(/2,000 ft/);
-  // The mean row of each aircraft's colour in the side view: Red's is nearer the top.
-  const meanY = (rgb) => page.locator('canvas.tf-profile-canvas').evaluate((canvas, c) => {
-    const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    let n = 0, sum = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3] > 200 && Math.abs(data[i] - c[0]) < 40 && Math.abs(data[i + 1] - c[1]) < 40 && Math.abs(data[i + 2] - c[2]) < 40) { n++; sum += Math.floor(i / 4 / canvas.width); }
-    }
-    return n ? sum / n : null;
-  }, rgb);
-  await expect.poll(async () => { const r = await meanY(RED), b = await meanY(BLUE); return r !== null && b !== null && r < b - 5; }).toBe(true);
-  // Climb and dive off again: the box is greyed, its value is kept, and the fight is level.
-  await page.getByLabel('Climb and dive').uncheck();
-  await expect(heightBox(page)).toBeDisabled();
-  await expect(heightBox(page)).toHaveValue('2000');
-  await expect(result(page).getByRole('row', { name: /Range/ })).toHaveText(/2\.00 NM/);
-});
-
-test('refused start entries (blank, 200, -5, 6,000) show their message and mark the box invalid; the HCA and the fight stay', async ({ page }) => {
+test('refused start entries (blank, 200, -5) show their message and mark the box invalid; the HCA and the fight stay', async ({ page }) => {
   await openStartGeometry(page);
   await aaBox(page).fill('120'); // HCA 120°
-  await page.getByLabel('Climb and dive').check();
   await expect(hcaLine(page)).toHaveText('Heading crossing angle (HCA): 120°');
   const cases = [
     [ataBox(page), '', /Enter a number from 0 to 180/],
@@ -945,8 +851,6 @@ test('refused start entries (blank, 200, -5, 6,000) show their message and mark 
     [aaBox(page), '', /Enter a number from 0 to 180/],
     [aaBox(page), '200', /Enter a number from 0 to 180/],
     [aaBox(page), '-5', /Enter a number from 0 to 180/],
-    [heightBox(page), '', /Enter a number from -5,000 to 5,000/],
-    [heightBox(page), '6000', /Enter a number from -5,000 to 5,000/],
   ];
   for (const [box, value, message] of cases) {
     await box.fill(value);
@@ -980,7 +884,7 @@ test('Start geometry works from the keyboard: Tab order, arrow keys change a sid
   await expect(side(page, 'AA side', 'Left')).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(side(page, 'AA side', 'Right')).toBeChecked();
-  await page.keyboard.press('Tab'); // the height box is greyed, so the turns choice is next
+  await page.keyboard.press('Tab'); // the turns choice is next
   await expect(turnsAt(page, 'At the pass')).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(turnsAt(page, 'At once')).toBeChecked();
@@ -999,27 +903,21 @@ test('Start geometry works from the keyboard: Tab order, arrow keys change a sid
 });
 
 for (const scheme of ['light', 'dark']) {
-  for (const climb of [false, true]) {
-    test(`axe is clean with Turn Fight settings open, Climb and dive ${climb ? 'on' : 'off'}, ${scheme}`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await openStartGeometry(page);
-      if (climb) await page.getByLabel('Climb and dive').check();
-      await ataBox(page).fill('45');
-      await aaBox(page).fill('100');
-      // The disabled Red height box is marked aria-disabled by ui-kit (#202), so its greyed "ft" is exempt.
-      await expectNoA11yViolations(page);
-    });
-  }
+  test(`axe is clean with Advanced setup open, ${scheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await openStartGeometry(page);
+    await ataBox(page).fill('45');
+    await aaBox(page).fill('100');
+    await expectNoA11yViolations(page);
+  });
 }
 
-test('a beam start survives a reload, and Reset to V6 defaults puts the start geometry back', async ({ page }) => {
+test('a beam start survives a reload, and Reset to Standard Defaults puts the start geometry back', async ({ page }) => {
   await openStartGeometry(page);
   await ataBox(page).fill('90');
   await side(page, 'ATA side', 'Right').check();
   await aaBox(page).fill('90');
   await turnsAt(page, 'At once').check();
-  await page.getByLabel('Climb and dive').check();
-  await heightBox(page).fill('-1500');
   await page.reload();
   await page.waitForFunction(() => window.__ooda?.stats().mounted === 'turn-fight');
   await settingsButton(page).click();
@@ -1027,7 +925,6 @@ test('a beam start survives a reload, and Reset to V6 defaults puts the start ge
   await expect(side(page, 'ATA side', 'Right')).toBeChecked();
   await expect(aaBox(page)).toHaveValue('90');
   await expect(turnsAt(page, 'At once')).toBeChecked();
-  await expect(heightBox(page)).toHaveValue('-1500');
   await expect(time(page)).toHaveText('T+0.0');
   await expect(phase(page)).toHaveText('2-CIRCLE'); // the beam start turns at once
   await resetDefaults(page).click();
@@ -1151,13 +1048,14 @@ test('the intro, About and the turn line hold for any start: a tail chase never 
   await expect(page.getByText('from a head-on start a nose-on happens only if they come back exactly head-on')).toBeVisible();
 });
 
-test('TF3-6, TF3-8: the hints say what ATA, AA and HCA are and where they come from, that no side counts at 0° or 180°, and that the height is used with Climb and dive on', async ({ page }) => {
+test('TF3-6: the lines beside ATA and AA say what they are, why they have that value and where the terms come from, and that no side counts at 0° or 180°', async ({ page }) => {
   await openStartGeometry(page);
   const menu = page.locator('.tf-col-setup');
-  await expect(menu.getByText('ATA: the angle off Blue\'s nose (this tool\'s term). No side at 0° or 180°.')).toBeVisible();
-  await expect(menu.getByText('AA and HCA: SMM 12.2 paras 6 and 9; sides: SMM 16 para 40b.')).toBeVisible();
-  await expect(menu.getByText('Used with Climb and dive on. The start separation is measured level; Range includes height.')).toBeVisible();
-  await expect(menu.getByText('It shows with Climb and dive')).toHaveCount(0);
+  await expect(ataBox(page)).toHaveAccessibleDescription(/this tool's own term/);
+  await expect(ataBox(page)).toHaveAccessibleDescription(/Why this value/);
+  await expect(aaBox(page)).toHaveAccessibleDescription(/SMM 12\.2 paras 6 and 9/);
+  await expect(menu.getByText('Sides: which side of the jet the other one is on (SMM 16 para 40b); none at 0° or 180°.')).toBeVisible();
+  await expect(menu.getByText('Red starts above Blue')).toHaveCount(0); // removed with Climb and dive (TF-R22)
 });
 
 test('TF3-4: flipping a side at 0° or 180° (where it means nothing) does not restart the fight; at any other angle it does', async ({ page }) => {
@@ -1179,43 +1077,13 @@ test('TF3-4: flipping a side at 0° or 180° (where it means nothing) does not r
   await expect(time(page)).toHaveText('T+0.0');
 });
 
-for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }]) {
-  test(`TF3-10: with Climb and dive on the Speed (KTAS) label stays on one line, as tall as G's and Pitch's, at ${size.width} × ${size.height}`, async ({ page }) => {
-    await page.setViewportSize(size);
-    await openRoute(page, '#/turn-fight');
-    await page.getByLabel('Climb and dive').check();
-    for (const who of [blue(page), red(page)]) {
-      await expect(who.getByLabel('Pitch (°)')).toBeVisible();
-      const heights = await who.evaluate((fieldset) => [...fieldset.querySelectorAll('label')].map((l) => [l.textContent, Math.round(l.getBoundingClientRect().height)]));
-      const speed = heights.find(([text]) => text === 'Speed (KTAS)');
-      const g = heights.find(([text]) => text === 'G');
-      const pitch = heights.find(([text]) => text === 'Pitch (°)');
-      expect(speed[1], `Speed label height, ${JSON.stringify(heights)}`).toBe(g[1]);
-      expect(pitch[1]).toBe(g[1]);
-    }
-    expect(await layoutProblems(page)).toEqual([]);
-    // Nothing is pushed out of its row: not the Pitch box, with or without a G limit warning showing.
-    const rowsFit = () => page.locator('.tf-aircraft-row').evaluateAll((rows) => rows.map((row) => [row.scrollWidth - row.clientWidth, row.closest('fieldset').getBoundingClientRect().right - Math.max(...[...row.querySelectorAll('input')].map((i) => i.getBoundingClientRect().right))]));
-    for (const [over, room] of await rowsFit()) {
-      expect(over).toBeLessThanOrEqual(0);
-      expect(room).toBeGreaterThanOrEqual(0); // the last box ends inside the aircraft's frame
-    }
-    await blue(page).getByLabel('G', { exact: true }).fill('9');
-    await expect(blue(page).locator('.tf-warning')).not.toBeEmpty();
-    for (const [over, room] of await rowsFit()) {
-      expect(over).toBeLessThanOrEqual(0);
-      expect(room).toBeGreaterThanOrEqual(0);
-    }
-  });
-}
-
 // ---- Energy (T-6) (SPEC-turn-fight, "Energy mode", task 10, PR D) ---------------------------------------------------
 // Expected numbers are the engine's own (src/modules/turn-fight/energy-sim.js), for the default Energy fight: both at 220 KIAS and
 // 10,000 ft, head-on 2 NM, both on Auto. Pitch back from 220 KIAS, the jets pass at T+14.1 s, both reach the 160 KIAS MPT 9.1 s and 140°
 // later, both noses come on together at +17.1 s (a tie), and at T+30 each reads 162 KIAS at 10,605 ft and 3.3 G.
 const energyBox = (page) => page.getByLabel(/BFM Energy Fight|Energy \(T-6\)/);
 const energyGroup = (page) => page.getByRole('group', { name: 'Energy', exact: true });
-const checkGroup = (page) => page.getByRole('group', { name: 'Model settings for checking' });
+const checkGroup = (page) => page.getByRole('group', { name: 'Model numbers' });
 const resultRow = (page, name) => result(page).getByRole('row', { name });
 const moreDetail = (page) => page.getByRole('table', { name: 'More detail' });
 const words = (who) => who.locator('.tf-move');
@@ -1240,51 +1108,43 @@ function engineAt(setup, sec) {
 // The whole numbers of feet in a cell of the Result table, "9,734 ft10,808 ft" -> [9734, 10808].
 const feetIn = (text) => [...text.matchAll(/([\d,]+) ft/g)].map((m) => Number(m[1].replace(/,/g, '')));
 
-test('Energy (T-6) is off at first; ticking it greys out the simple boxes with their values kept and shows Start altitude, Merge speed and the move with why; unticking puts it all back', async ({ page }) => {
+test('Energy (T-6) hides the simple boxes with their values kept and shows Start altitude, Merge speed and the move with why; unticking puts it all back', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   if (await energyBox(page).isChecked()) await energyBox(page).uncheck();
   await blue(page).getByLabel('Speed (KTAS)').fill('240');
   await blue(page).getByLabel('G', { exact: true }).fill('6');
-  await page.getByLabel('Climb and dive').check();
+  await settingsButton(page).click();
   await page.getByLabel('First nose chases').check();
-  await expect(blue(page).getByLabel('Pitch (°)')).toBeVisible();
 
   await energyBox(page).check();
   for (const who of [blue(page), red(page)]) {
-    await expect(who.getByLabel('Speed (KTAS)')).toBeDisabled();
-    await expect(who.getByLabel('G', { exact: true })).toBeDisabled();
+    // The Simple fight's boxes are hidden, not greyed out (TF-R22).
+    await expect(who.getByLabel('Speed (KTAS)')).toBeHidden();
+    await expect(who.getByLabel('G', { exact: true })).toBeHidden();
     await expect(who.getByLabel('Start altitude (ft)')).toHaveValue('10000');
     await expect(who.getByLabel('Merge speed (KIAS)')).toHaveValue('220');
-    await expect(who.getByLabel('Pitch (°)')).toBeHidden();
     await expect(words(who)).toHaveText(/(?:Pitch back|Tactical AI|MPT)/);
   }
-  await expect(page.getByLabel('Climb and dive')).toBeDisabled();
-  await expect(page.getByLabel('First nose chases')).toBeDisabled();
-  // Greyed out, with their values kept.
-  await expect(blue(page).getByLabel('Speed (KTAS)')).toHaveValue('240');
-  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('6');
-  await expect(page.getByLabel('Climb and dive')).toBeChecked();
-  await expect(page.getByLabel('First nose chases')).toBeChecked();
+  await expect(page.getByLabel('First nose chases')).toBeHidden(); // Simple only
   await expect(page.locator('.tf-footer')).toHaveText(/BFM Energy Fight: full T-6 physics|Energy mode:/);
-  await expect(page.locator('.tf-profile')).toBeHidden(); // Climb and dive's side view stays away: Energy has its own
   await expect(page.locator('.tf-energy-panel')).toBeVisible();
   expect(await layoutProblems(page)).toEqual([]);
 
   await energyBox(page).uncheck();
   for (const who of [blue(page), red(page)]) {
-    await expect(who.getByLabel('Speed (KTAS)')).toBeEnabled();
-    await expect(who.getByLabel('G', { exact: true })).toBeEnabled();
+    await expect(who.getByLabel('Speed (KTAS)')).toBeVisible();
+    await expect(who.getByLabel('G', { exact: true })).toBeVisible();
     await expect(who.getByLabel('Start altitude (ft)')).toBeHidden();
     await expect(who.getByLabel('Merge speed (KIAS)')).toBeHidden();
     await expect(words(who)).toBeHidden();
   }
-  await expect(page.getByLabel('Climb and dive')).toBeEnabled();
-  await expect(page.getByLabel('First nose chases')).toBeEnabled();
+  await expect(page.getByLabel('First nose chases')).toBeVisible();
+  // Their values were kept while hidden.
   await expect(blue(page).getByLabel('Speed (KTAS)')).toHaveValue('240');
-  await expect(blue(page).getByLabel('Pitch (°)')).toBeVisible();
-  await expect(page.locator('.tf-footer')).toHaveText(/Turn Circle Geometry: constant-speed turn circles|Simplified: constant/);
+  await expect(blue(page).getByLabel('G', { exact: true })).toHaveValue('6');
+  await expect(page.getByLabel('First nose chases')).toBeChecked();
+  await expect(page.locator('.tf-footer')).toHaveText(/Turn Circle Geometry: constant-speed turn circles|Simple 2D Circles|Simplified: constant/);
   await expect(page.locator('.tf-energy-panel')).toBeHidden();
-  await expect(page.locator('.tf-profile')).toBeVisible();
 });
 
 test('Energy shows its defaults at T+0: 220 KIAS and 10,000 ft each, the move with why, nothing flagged, and a Result card of its own', async ({ page }) => {
@@ -1359,54 +1219,36 @@ test('by default (D403), the head-on pass initiates active combat pursuit: both 
   await playButton(page).click();
 });
 
-test('Turn Fight settings has Energy and Model settings for checking only with Energy on, in order, each box at the engine\'s default with its range', async ({ page }) => {
-  await openRoute(page, '?debug=aero#/turn-fight');
+// The sections of Advanced setup that show, in the order they sit (a section hidden in the mode is not listed).
+const visibleSections = (page) => page.locator('.settings-group:visible > legend').allTextContents();
+const inThisOrder = (found, wanted) => wanted.every((name, i) => found.indexOf(name) >= 0 && (i === 0 || found.indexOf(name) > found.indexOf(wanted[i - 1])));
+
+test('Advanced setup: its sections follow the mode, Model numbers shows with no address switch, and every number has its what, why and changing-it lines', async ({ page }) => {
+  await openRoute(page, '#/turn-fight');
   if (await energyBox(page).isChecked()) await energyBox(page).uncheck();
   await settingsButton(page).click();
-  const legends = () => page.locator('.settings-group:visible > legend').allTextContents();
-  expect(await legends()).toEqual(['Start geometry', 'Display']);
+  // Simple: the start geometry and the Simple fight's own switch; Energy's sections stay away.
+  expect(inThisOrder(await visibleSections(page), ['Start geometry', 'Pilot and moves'])).toBe(true);
+  for (const name of ['Energy', 'Smoothing', 'Model numbers']) expect(await visibleSections(page)).not.toContain(name);
   await expect(page.getByLabel('Hard deck (ft MSL)')).toBeHidden();
-  await energyBox(page).check();
-  expect(await legends()).toEqual(['Start geometry', 'Energy', 'Display', 'Model settings for checking']);
+  await expect(page.getByLabel('Data tags on aircraft')).toHaveCount(0); // the toolbar has the one Data tags switch
 
-  // More energy settings: Move per aircraft (Auto), MPT speed, Hard deck, Pursuit, Chase after a head-on pass.
-  await expect(page.getByLabel('Blue\'s move')).toHaveText(/Tactical AI.*Auto.*Immelmann.*Pitch back.*Slice.*Split S.*MPT/);
-  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Tactical AI (Dynamic Pilot)');
-  await expect(page.getByLabel('Red\'s move').locator('option:checked')).toHaveText('Tactical AI (Dynamic Pilot)');
-  await expect(page.getByLabel('MPT speed (KIAS)')).toHaveValue('160');
-  await expect(page.getByLabel('Hard deck (ft MSL)')).toHaveValue('6000');
-  await expect(page.getByLabel('Pursuit').locator('option:checked')).toHaveText(/Tactical \(Dynamic\)|Pure/);
-  await expect(page.getByLabel(/Chase (?:from|after a) head-on(?: pass)?/)).toBeChecked();
-  await expect(energyGroup(page)).toContainText('125 to 175 KIAS, default 160 KIAS.');
-  await expect(energyGroup(page)).toContainText('0 to 25,000 ft, default 6,000 ft.');
+  await energyBox(page).check();
+  expect(inThisOrder(await visibleSections(page), ['Start geometry', 'Pilot and moves', 'Energy', 'Smoothing', 'Model numbers'])).toBe(true);
+  expect(await visibleSections(page)).not.toContain('Display'); // paint is for the 3D view only
+
+  // Every number box in the menu has a line tied to it: what it is, why it has that value, and what changing it does.
+  const boxes = page.locator('.tf-col-setup .settings-body input[type="number"]');
+  const count = await boxes.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i++) {
+    await expect(boxes.nth(i), `number box ${i}`).toHaveAccessibleDescription(/Why this value:/);
+    await expect(boxes.nth(i), `number box ${i}`).toHaveAccessibleDescription(/Changing it:/);
+  }
   await expect(energyGroup(page)).toContainText('SMM 14.3 para 6');
   await expect(energyGroup(page)).toContainText('3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16)');
-
-  // Model settings for checking: every key the spec lists, at the engine's default, with its range.
-  const boxes = {
-    'Stall speed (KIAS)': ['86', '60 to 120 KIAS, default 86 KIAS.'],
-    'Shaker (% of the stall-line G)': ['94', '50 to 100%, default 94%.'],
-    'How long a stall lasts (s)': ['1', '0 to 5 s, default 1 s.'],
-    'Mid-range throttle (% of maximum thrust)': ['50', '10 to 100%, default 50%.'],
-    'Lead point (s ahead)': ['1', '0 to 5 s, default 1 s.'],
-    'Lag point (s behind)': ['1', '0 to 5 s, default 1 s.'],
-    'Roll rate (°/s)': ['90', '30 to 180°/s, default 90°/s.'],
-    'Pitch back bank at 160 KIAS (°)': ['60', '10 to 90°, default 60°.'],
-    'Pitch back bank at 220 KIAS (°)': ['30', '10 to 90°, default 30°.'],
-    'Auto: Immelmann or pitch back above (KIAS)': ['220', '160 to 316 KIAS, default 220 KIAS.'],
-    'Auto: split S below (KIAS)': ['120', '40 to 220 KIAS, default 120 KIAS.'],
-    'Immelmann off-nose angle (°)': ['120', '0 to 180°, default 120°.'],
-    'Lowest Immelmann top speed (KIAS)': ['120', '0 to 316 KIAS, default 120 KIAS.'],
-    'Look-ahead (s)': ['60', '0 to 120 s, default 60 s.'],
-    'Deck margin (ft)': ['1000', '0 to 10,000 ft, default 1,000 ft.'],
-    'Tactical AI lookahead (s)': ['20', '10 to 45, default 20.'],
-  };
-  for (const [label, [value, hint]] of Object.entries(boxes)) {
-    await expect(checkGroup(page).getByLabel(label, { exact: true }), label).toHaveValue(value);
-    await expect(checkGroup(page), label).toContainText(hint);
-  }
-  await expect(checkGroup(page).getByRole('button', { name: 'Reset to defaults', exact: true })).toBeVisible();
-  await expect(checkGroup(page)).toContainText('The numbers no manual gives');
+  await expect(page.getByLabel('Blue\'s move')).toBeVisible();
+  await expect(page.getByLabel(/Chase (?:from|after a) head-on(?: pass)?/)).toBeChecked(); // on by default, as its line says
   expect(await layoutProblems(page)).toEqual([]);
 
   // A refused entry shows the same message as the other boxes, and the last good value stays.
@@ -1414,15 +1256,17 @@ test('Turn Fight settings has Energy and Model settings for checking only with E
   await checkGroup(page).getByLabel('Stall speed (KIAS)').blur();
   await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveAttribute('aria-invalid', 'true');
   await expect(checkGroup(page)).toContainText('Enter a number from 60 to 120 KIAS.');
-  // Model settings' own reset puts back only those numbers.
+  // Model numbers' own reset puts back the smoothing and model numbers, and nothing else.
   await checkGroup(page).getByLabel('Stall speed (KIAS)').fill('83');
-  await page.getByLabel('Blue\'s move').selectOption({ label: 'Slice' });
+  await page.getByLabel('Blue\'s move').selectOption({ label: 'Set move: Slice' });
+  await page.getByLabel('G onset (G/s)').fill('9');
   await playButton(page).click();
   await expect.poll(() => seconds(page)).toBeGreaterThan(0.5);
-  await checkGroup(page).getByRole('button', { name: 'Reset to defaults', exact: true }).click();
-  await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveValue('86');
+  await checkGroup(page).getByRole('button', { name: /^Reset smoothing and model numbers to defaults$/ }).click();
+  await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).toHaveValue(String(DEFAULTS.stallKias));
   await expect(checkGroup(page).getByLabel('Stall speed (KIAS)')).not.toHaveAttribute('aria-invalid', 'true');
-  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Slice');
+  await expect(page.getByLabel('G onset (G/s)')).toHaveValue(String(DEFAULTS.gOnsetGPerSec));
+  await expect(page.getByLabel('Blue\'s move').locator('option:checked')).toHaveText('Set move: Slice');
   await expect(time(page)).toHaveText('T+0.0'); // a changed setting starts the fight again
 });
 
@@ -1638,7 +1482,7 @@ for (const scheme of ['light', 'dark']) {
   });
 }
 
-test('Energy settings are remembered across a reload, and Reset to V6 defaults turns Energy off and puts every Energy setting back', async ({ page }) => {
+test('Energy settings are remembered across a reload, and Reset to Standard Defaults puts every Energy setting back', async ({ page }) => {
   await openRoute(page, '#/turn-fight');
   await energyBox(page).check();
   await settingsButton(page).click();
@@ -1680,8 +1524,9 @@ test('Energy settings are remembered across a reload, and Reset to V6 defaults t
   await expect(energyBox(page)).not.toBeChecked();
   await expect(blue(page).getByLabel('Merge speed (KIAS)')).toBeHidden();
   await expect(page.locator('.tf-energy-panel')).toBeHidden();
-  await expect(blue(page).getByLabel('Speed (KTAS)')).toBeEnabled();
-  expect(await page.locator('.settings-group:visible > legend').allTextContents()).toEqual(['Start geometry', 'Display']);
+  await expect(blue(page).getByLabel('Speed (KTAS)')).toBeVisible();
+  const sections = await page.locator('.settings-group:visible > legend').allTextContents();
+  for (const name of ['Energy', 'Smoothing', 'Model numbers']) expect(sections).not.toContain(name);
 
   // And a reload after the untick opens with Energy off.
   await page.reload();

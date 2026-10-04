@@ -13,7 +13,6 @@ import {
 import { createRun, createEnergyRun, advanceRun, frameDtSec } from './playback.js';
 import { createLayout } from './layout.js';
 import { createTopDownView, createStartPictureView } from './view.js';
-import { createProfileView } from './profile.js';
 import { createView3d } from './view3d.js';
 import { energyResultRows, energyMoreRows, flagNotes, flagAnnouncement, moveWhyText, altitudeSummary, altitudeRows } from './energy-readouts.js';
 import { createAltitudeGraph } from './energy-graph.js';
@@ -119,7 +118,7 @@ function mount(root, app) {
         settings.update({ ...START_DEFAULTS });
         showSettingsInBoxes();
       },
-      // Model settings for checking has its own reset: just those numbers.
+      // Advanced setup's Model numbers has its own reset: the smoothing and model numbers, nothing else.
       checkingDefaults() {
         settings.update(checkingDefaults());
         showSettingsInBoxes();
@@ -136,15 +135,9 @@ function mount(root, app) {
     run: () => run,
     options: () => ({ dataTags: settings.get().dataTags }),
   }));
-  // The picture in Turn Fight settings, Start geometry: drawn from the set numbers, so it follows them as they change.
+  // The picture in Advanced setup, Start geometry: drawn from the set numbers, so it follows them as they change.
   // (With Energy on the jets' speeds are the true airspeeds of their merge speeds.)
   views.push(createStartPictureView(ui.startPicture, { timers: app.scheduler, setup: () => startSetupFrom(flownValues ?? settings.get()) }));
-  // The side view draws only while Climb and dive is on (and Energy is off: Energy has its own, the altitude graph); its panel is hidden (and 0 px) otherwise.
-  const profile = createProfileView(ui.profileCanvas, { timers: app.scheduler, run: () => run, scale: () => settings.get().heightScale });
-  views.push({
-    requestDraw: () => settings.get().vertical && !settings.get().energy && profile.requestDraw(),
-    dispose: profile.dispose,
-  });
   // Energy's side view: altitude against time, drawn with uPlot, which is fetched (import()) only when it is first shown.
   const graph = createAltitudeGraph(ui.energyChart, { run: () => run });
   // Shown only with Energy on and 2D wanted. It draws at the readouts' rate (renderReadouts), never every frame.
@@ -311,7 +304,7 @@ function mount(root, app) {
     }
     if (setup !== lastSetup) {
       lastSetup = setup;
-      resetFight(); // a new fight; playback speed and the height scale never get here (#20)
+      resetFight(); // a new fight; playback speed never gets here (#20)
     } else redraw();
     if (values.energy !== lastEnergy || values.view !== shownFor) syncGraph();
     lastEnergy = values.energy;

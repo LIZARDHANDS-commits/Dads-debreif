@@ -6,7 +6,7 @@
 //   kt Patrick); the working values Dad has not checked (shaker, stall time, throttle, roll rate, pick thresholds),
 //   the number of boxes and the exact refusal sentences are not pinned.
 
-// Energy mode's settings (SPEC-turn-fight, "The screen", "More energy settings", "Model settings for checking"):
+// Energy mode's settings (SPEC-turn-fight, "The screen", "Advanced setup"):
 // the defaults are the engine's, the ranges are its setup checks, and the setup key follows the Energy fight.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,7 +45,7 @@ test('the Energy defaults fly at once, and every default is in its own range', (
 
 test('the three groups of Energy settings cover every Energy key once', () => {
   assert.equal(new Set(ENERGY_KEYS).size, ENERGY_KEYS.length);
-  // Every key is in exactly one of the three groups (first view, More energy settings, Model settings for checking). How many keys there
+  // Every key is in exactly one of the three groups (first view, Pilot and moves with Energy, Smoothing with Model numbers). How many keys there
   // are is a design choice that moves whenever a model setting is added (TF-Q9, open), so no count is pinned.
   const groups = [ENERGY_FIRST_KEYS, ENERGY_MORE_KEYS, ENERGY_CHECK_KEYS];
   for (const key of ENERGY_KEYS) assert.equal(groups.filter((g) => g.includes(key)).length, 1, `${key} is in exactly one group`);
@@ -196,7 +196,7 @@ test('the start pass and picture use the true airspeed of the merge speed with E
   assert.ok(on.blueKt > 220, 'TAS is above IAS at 10,000 ft');
 });
 
-test('Reset to V6 defaults keeps Energy on and puts every Energy setting back; Reset to defaults in Model settings puts back only those', () => {
+test('Reset to V6 defaults keeps Energy on and puts every Energy setting back; the reset in Model numbers puts back only the smoothing and model numbers', () => {
   const patch = v6Defaults();
   assert.equal(patch.energy, true);
   for (const key of ENERGY_KEYS) assert.equal(patch[key], DEFAULTS[key], key);

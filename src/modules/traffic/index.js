@@ -381,9 +381,9 @@ function mount(root, app) {
   const stopSettings = settings.subscribe((values) => {
     const beforeOpts = JSON.stringify(setup.routeOptions);
     const beforeWind = `${setup.windFromDeg}_${setup.windKt}`;
-    const beforeDeconflict = setup.deconflict;
+    const beforeDeconflict = setup.deconflict, beforeRandomize = `${setup.randomize}_${setup.randomizeSharePct}`;
     applyToSetup(setup, values);
-    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict) {
+    if (JSON.stringify(setup.routeOptions) !== beforeOpts || `${setup.windFromDeg}_${setup.windKt}` !== beforeWind || setup.deconflict !== beforeDeconflict || `${setup.randomize}_${setup.randomizeSharePct}` !== beforeRandomize) {
       sim.forgetHistory(); // the turns and flight are flown differently now
     }
     clock.setSpeed(values.speed);
