@@ -349,10 +349,10 @@ function withRealControls(options = {}) {
 const numberBoxes = (bar) => tagged(bar.element, 'INPUT').filter((i) => i.getAttribute('type') === 'number');
 const messages = (bar) => all(bar.element, (n) => n.getAttribute?.('class') === 'control-message');
 
-test('the wind boxes start calm, take a good wind into the settings, and refuse the rest with a message', () => {
+test('the wind boxes start at the default wind, take a good wind into the settings, and refuse the rest with a message', () => {
   const { bar, settings } = withRealControls();
   const [from, speed] = numberBoxes(bar);
-  assert.deepEqual([from.value, speed.value], ['360', '0']);
+  assert.deepEqual([from.value, speed.value], [String(DEFAULTS.windFromDeg), String(DEFAULTS.windKt)]);
 
   from.value = '250';
   from.dispatch('input');
@@ -459,24 +459,21 @@ test('a note replaces the status words while it is set ("Replaying…"), and cle
   assert.equal(status(), 'Paused');
 });
 
-test('runway selector renders with Runway 29L (Active) selected by default, and Runway 11R (Coming soon) disabled', () => {
+test('runway selector renders with Runway 29L (Active) selected by default, and does not offer Runway 11R until it works (TR-R28)', () => {
   const { bar } = setup();
   const select = all(bar.element, (n) => n.getAttribute?.('aria-label') === 'Active runway')[0];
   assert.ok(select, 'Active runway select element is rendered');
   assert.equal(select.value, '29L');
 
   const options = tagged(select, 'OPTION');
-  assert.equal(options.length, 2);
+  assert.equal(options.length, 1);
 
   const opt29L = options.find((o) => o.value === '29L');
   assert.ok(opt29L);
   assert.equal(words(opt29L), 'Runway 29L (Active)');
   assert.equal(opt29L.disabled, false);
 
-  const opt11R = options.find((o) => o.value === '11R');
-  assert.ok(opt11R);
-  assert.equal(words(opt11R), 'Runway 11R (Coming soon)');
-  assert.equal(opt11R.disabled, true);
+  assert.ok(!options.some((o) => o.value === '11R'), 'no dead end');
 });
 
 test('selecting or changing runway triggers on.runwayChange and updates settings', () => {

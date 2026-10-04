@@ -42,6 +42,18 @@ export function povCamera(name, target, size, floorFt) {
 export const ALT_SCALE = 1;
 export const PHOTO_SPAN_FT = 105_600; // ten miles each way
 export const MID_SPAN_FT = 30_000;
+/**
+ * On High the middle tier covers the pattern lines plus a mile (Patrick, 4 Oct 2026: "sharp all the way to a mile
+ * past the pattern lines"): a square round the built-in Moose Jaw Pattern 1 points plus 6,076 ft, about 10 x 8 NM.
+ * It is four 4,096 px squares (about 7.6 ft a pixel, Esri zoom 15), not one 8,192 px canvas, which some browsers refuse.
+ */
+export const PATTERN_MID_SPAN_FT = 62_500;
+export const PATTERN_MID_CENTER_FT = Object.freeze({ x: -3_250, y: -8_930 });
+/** The four squares' centres, west to east then south to north. */
+export const PATTERN_MID_QUADS = Object.freeze([-1, 1].flatMap((dy) => [-1, 1].map((dx) => Object.freeze({
+  x: PATTERN_MID_CENTER_FT.x + (dx * PATTERN_MID_SPAN_FT) / 4,
+  y: PATTERN_MID_CENTER_FT.y + (dy * PATTERN_MID_SPAN_FT) / 4,
+}))));
 /** The sharpest ground (Esri zoom 18, about 1.3 ft a pixel): a box round both runway ends and the flight line. */
 export const TIGHT_SPAN_FT = 7_600;
 export const TIGHT_CENTER_FT = Object.freeze({ x: -480, y: -150 });
@@ -419,20 +431,36 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     side: THREE.DoubleSide,
   });
   const photoMesh = new THREE.Mesh(photoGeometry, photoMaterial);
+  // The ground photos are see-through, so they draw in a fixed order, coarsest first and sharpest on top;
+  // left to sort by distance from the camera they swap, and a coarser one could hide a sharper one (Patrick 18:59Z).
+  // Negative, so everything else, the route lines included, still draws over the ground.
+  photoMesh.renderOrder = -4;
   photoMesh.visible = false;
   root.add(photoMesh);
 
-  // Middle tier: sharper imagery for about three miles round the field
+  // Middle tier (Performance): sharper imagery for about three miles round the field
   const midGeometry = new THREE.PlaneGeometry(MID_SPAN_FT, MID_SPAN_FT);
   const midMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
   const midMesh = new THREE.Mesh(midGeometry, midMaterial);
+  midMesh.renderOrder = -3;
   midMesh.visible = false;
   root.add(midMesh);
+  // High: the middle tier stretched to the pattern plus a mile, in four squares (PATTERN_MID_QUADS)
+  const patternMidGeometry = new THREE.PlaneGeometry(PATTERN_MID_SPAN_FT / 2, PATTERN_MID_SPAN_FT / 2);
+  const patternMid = PATTERN_MID_QUADS.map(() => {
+    const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.97, depthWrite: false, fog: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(patternMidGeometry, material);
+    mesh.renderOrder = -3;
+    mesh.visible = false;
+    root.add(mesh);
+    return { mesh, material };
+  });
 
   // Sharpest tier: zoom-18 imagery over the runways and flight line (transparent until tiles arrive)
   const tightGeometry = new THREE.PlaneGeometry(TIGHT_SPAN_FT, TIGHT_SPAN_FT);
   const tightMaterial = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
   const tightMesh = new THREE.Mesh(tightGeometry, tightMaterial);
+  tightMesh.renderOrder = -1;
   tightMesh.visible = false;
   root.add(tightMesh);
 
@@ -446,6 +474,7 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     side: THREE.DoubleSide,
   });
   const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+  coreMesh.renderOrder = -2;
   coreMesh.visible = false;
   coreMesh.position.set(AIRFIELD_CORE_BOUNDS_FT.centerX, AIRFIELD_CORE_BOUNDS_FT.centerY, 0);
   root.add(coreMesh);
@@ -732,6 +761,17 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
     } else {
       midMesh.visible = false;
     }
+    patternMid.forEach(({ mesh, material }, i) => {
+      const texture = options.layerPhoto !== false ? options.patternMidTextures?.[i] : null;
+      mesh.visible = !!texture;
+      if (!texture) return;
+      if (material.map !== texture) {
+        material.map = texture;
+        material.needsUpdate = true;
+      }
+      material.opacity = (Number.isFinite(options.photoOpacityPct) ? options.photoOpacityPct : 100) / 100 * 0.97;
+      mesh.position.set(PATTERN_MID_QUADS[i].x, PATTERN_MID_QUADS[i].y, floor - 1.75);
+    });
 
     if (options.tightTexture && options.layerPhoto !== false) {
       tightMesh.visible = true;
@@ -909,6 +949,8 @@ export function createSceneKit(THREE, { models = defaultModels(), fatLines = nul
       photoMaterial.dispose();
       midGeometry.dispose();
       midMaterial.dispose();
+      patternMidGeometry.dispose();
+      patternMid.forEach(({ material }) => material.dispose());
       tightGeometry.dispose();
       tightMaterial.dispose();
       grid.geometry.dispose();
@@ -1157,6 +1199,16 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
   const ensurePhotoTexture = (options) => farTier.ensure(options);
   const tightTier = createTier({ span: TIGHT_SPAN_FT, px: 6144, maxZoom: 18, split: 4, cx: TIGHT_CENTER_FT.x, cy: TIGHT_CENTER_FT.y, debounceMs: 700, maxKept: 900, transparent: true });
   const ensureMidTexture = (options) => midTier.ensure(options);
+  const patternMidTiers = PATTERN_MID_QUADS.map((q) => createTier({ span: PATTERN_MID_SPAN_FT / 2, px: 4096, maxZoom: 15, split: 3, cx: q.x, cy: q.y }));
+  /** The middle ground for this quality: High the pattern-wide squares, Performance today's 30,000 ft square. The other one is let go, to free its memory. */
+  function ensureMiddle(options, isLow) {
+    if (isLow) {
+      patternMidTiers.forEach((t) => { if (t.canvas) t.dispose(); });
+      return { midTex: ensureMidTexture(options), patternMidTextures: null };
+    }
+    if (midTier.canvas) midTier.dispose();
+    return { midTex: null, patternMidTextures: patternMidTiers.map((t) => t.ensure(options)) };
+  }
   const ensureTightTexture = (options) => tightTier.ensure(options);
 
   function ensureCoreTexture(options) {
@@ -1337,6 +1389,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     lights.dispose();
     farTier.dispose();
     midTier.dispose();
+    patternMidTiers.forEach((t) => t.dispose());
     tightTier.dispose();
     if (coreDebounce) timers.clearTimeout?.(coreDebounce);
     coreDebounce = null;
@@ -1434,7 +1487,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const focus = dragging?.isPan ? dragging.center : view.center;
 
     const photoTex = ensurePhotoTexture(options);
-    const midTex = ensureMidTexture(options);
+    const { midTex, patternMidTextures } = ensureMiddle(options, isLow);
     const tightTex = isLow ? null : ensureTightTexture(options);
     const coreTex = ensureCoreTexture(options);
     kit.sync(data, {
@@ -1452,6 +1505,7 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
       layerPhoto: options.layerPhoto,
       photoTexture: photoTex,
       midTexture: midTex,
+      patternMidTextures,
       tightTexture: tightTex,
       coreTexture: coreTex,
       photoOpacityPct: options.photoOpacityPct,

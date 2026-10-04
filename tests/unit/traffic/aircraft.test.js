@@ -74,7 +74,7 @@ test('the spawner starts on the first entry (the first pattern when there is non
 test('a fresh spawner asks for a CT-156 on Entry 1, at point 1, with no delay', () => {
   const asked = spawnSpec({ ...DEFAULTS }, MOOSE_JAW.routes);
   assert.deepEqual(asked, { spec: { type: 'CT-156', routeId: 'ENT1', startPoint: 1, delaySec: 0 } });
-  assert.deepEqual([...SPAWN_TYPES], ['CT-156', 'CT-102B', 'CT-157', 'CT-155', 'CT-114', 'CF-188']);
+  assert.deepEqual([...SPAWN_TYPES], ['CT-156'], 'the Harvard II only in the first version (TR-R16)');
 });
 
 test('a start point that is not a whole number from 1, past the route\'s last point, or a bad delay is refused in plain words', () => {
@@ -207,21 +207,40 @@ test('the aircraft list has a row for each aircraft: callsign, type, route, and 
   const { list } = setup();
   const rows = withClass(list, 'aircraft-row');
   assert.equal(rows.length, 7);
-  assert.equal(words(rows[0]), 'A1 CT-156 on Pattern 1 Waiting, starts at 0:12');
+  assert.match(words(rows[0]), /^A1 CT-156 on Pattern 1.*Waiting, starts at 0:12$/);
   assert.equal(words(withClass(list, 'aircraft-empty')[0]), 'No aircraft yet. Use + Spawn to add one.');
   assert.equal(withClass(list, 'aircraft-empty')[0].hidden, true);
 });
 
-test('a flying aircraft shows its height, speed and Flying, in whole numbers; landed and done say so', () => {
+test('a flying aircraft shows its height, speed, ground speed, crab and Flying, in whole numbers; landed and done say so (TR-R6)', () => {
   const { panel, list, sim } = setup();
   sim.stepTo(60);
   panel.update(sim.state());
   const rows = withClass(list, 'aircraft-row');
-  assert.match(words(rows[0]), /^A1 CT-156 on Pattern 1 [\d,]+ ft, \d+ kt, Flying/);
+  assert.match(words(rows[0]), /^A1 CT-156 on Pattern 1.*[\d,]+ ft, \d+ kt, GS \d+ kt, (no crab|crab \d+° [LR]), Flying/);
+  assert.equal(detailText({ status: 'flying', statusText: 'Flying', altFt: 2500, kt: 140, gsKt: 128, crabDeg: -7 }), '2,500 ft, 140 kt, GS 128 kt, crab 7° L, Flying');
   const state = sim.state();
   assert.equal(detailText({ status: 'landed', statusText: 'Landed', altFt: 1880, kt: 0 }), '1,880 ft, Landed');
   assert.equal(detailText({ status: 'done', statusText: 'Done', altFt: 2500, kt: 100 }), '2,500 ft, Done');
   assert.ok(state.aircraft.length > 0);
+});
+
+test('Remove takes one aircraft out of the run, and only that one (TR-R19)', () => {
+  const { list, sim, panel } = setup();
+  const before = sim.state().aircraft.length;
+  const row = withClass(list, 'aircraft-row')[0];
+  buttonNamed(row, 'Remove').dispatch('click');
+  panel.update(sim.state());
+  assert.equal(sim.state().aircraft.length, before - 1);
+  assert.ok(!sim.state().aircraft.some((a) => a.id === 'A1'));
+});
+
+test('Spawn a conflict waits for a selected aircraft (Patrick, 4 Oct 19:24Z)', () => {
+  const { spawner, panel } = setup();
+  const button = buttonNamed(spawner, 'Spawn a conflict');
+  assert.equal(button.disabled, true);
+  panel.selectAircraft('A1');
+  assert.equal(button.disabled, false);
 });
 
 test('every row carries the callsign as text, so colour is never the only way to tell them apart', () => {

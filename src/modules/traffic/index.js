@@ -23,7 +23,8 @@ import { createMap2d, hintFor, photoCaption } from './map2d.js';
 import { createView3d } from './view3d.js';
 import { createSettingsPanel } from './settings-panel.js';
 import { createAircraftPanel } from './aircraft.js';
-import { createSetupPanel, scenarioAircraft } from './setup-panel.js';
+import { createSetupPanel, scenarioAircraft, BUSY_STRAIGHT_IN_SEC } from './setup-panel.js';
+import { straightInDelaySec } from './scenario-timing.js';
 import { applyToSetup, memoryStore, pauseOnThrow } from './glue.js';
 
 const STYLESHEET = new URL('./traffic.css', import.meta.url).href;
@@ -46,6 +47,9 @@ function mount(root, app) {
   settings.update({ ...profileSettingDefaults(), ...start.profile.settings });
   const setup = /** @type {any} */ ({ version: 1, name: start.profile.name, anchor: structuredClone(start.profile.anchor), routes: structuredClone(start.profile.routes), aircraft: structuredClone(start.profile.aircraft) });
   applyToSetup(setup, settings.get());
+  // The built-in Moose Jaw opens on the Busy circuit scenario, in 260° at 15 kt (Patrick, 4 Oct 18:47Z).
+  const opensBusy = start.profile === BUILT_IN[0].profile;
+  if (opensBusy) setup.aircraft = scenarioAircraftNow('busy', 1);
   const sim = createSim(setup, { seed: start.profile.seed });
   const clock = createClock({ sim, speed: settings.get().speed });
   let selectedRouteId = null; // no route is selected when the sim opens
@@ -103,6 +107,7 @@ function mount(root, app) {
   // Scenarios and the wind dial at the top of the Setup column (Patrick, 4 Oct 11:05Z).
   const setupPanel = createSetupPanel({ controls, settings, onScenario: (id) => loadScenario(id) });
   ui.slots.setup.append(setupPanel.element);
+  if (opensBusy) setupPanel.setActive('busy');
   const settingsPanel = createSettingsPanel({ controls, settings, onToggle: () => {}, available: { photo: true, view3d: true }, photoHome }); // opening the menu moves nothing on the map
   ui.slots.settings.append(settingsPanel.element);
   root.append(ui.element);
@@ -240,6 +245,20 @@ function mount(root, app) {
   }
 
   /**
+   * A scenario's aircraft for the routes on screen. Busy circuit's straight-in is timed for 260° at 15 kt; in any
+   * other wind it is timed again so it still meets the overhead aircraft in its final turn (scenario-timing.js,
+   * under a second).
+   */
+  function scenarioAircraftNow(id, seed) {
+    const list = scenarioAircraft(id, { routes: setup.routes.filter((r) => r.kind !== 'split'), builtIn: BUILT_IN[0].profile.aircraft, seed, type: settings.get().spawnType });
+    const inbound = list.find((a) => a.routeId === 'ENT2' && a.startsAtSec === BUSY_STRAIGHT_IN_SEC);
+    const overhead = list.find((a) => a.routeId === 'PAT1' && a.startIndex === 8 && !a.area);
+    const usual = setup.windFromDeg === 260 && setup.windKt === 15;
+    if (id === 'busy' && inbound && overhead && !usual) inbound.startsAtSec = straightInDelaySec(setup, overhead, inbound).delaySec;
+    return list;
+  }
+
+  /**
    * A scenario button: its aircraft replace the run's, on the routes already on screen, paused at 0:00.
    * The routes, the wind and the settings stay as they are. Random gets new dice on every press.
    */
@@ -248,7 +267,7 @@ function mount(root, app) {
     stopFrames?.();
     stopFrames = null;
     const seed = Math.floor(Math.random() * 2 ** 31); // only Random uses it: a new picture each press, repeatable once made
-    setup.aircraft = scenarioAircraft(id, { routes: setup.routes.filter((r) => r.kind !== 'split'), builtIn: BUILT_IN[0].profile.aircraft, seed, type: settings.get().spawnType });
+    setup.aircraft = scenarioAircraftNow(id, seed);
     sim.rebuild();
     clock.reset();
     setupPanel.setActive(id);

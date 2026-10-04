@@ -6,7 +6,9 @@ This folder is the turn fight: two aircraft manoeuvring against each other, with
 
 Built much further than the old file; the roadmap calls it ready for Patrick, and the reset found gaps between what Patrick decided and what is built (top-speed and hard-deck flags, pull G on screen, extra-stats panel) (`archive/HANDOVER.md:90`, `pf/reset/4-decisions/partb-turnfight.md:15`).
 
-Energy pilot (4 Oct): TF-57 PR 1 and 2 merged, and PR 3 merged as #297 (v2.11): one Smart pilot (TF-59), below the deck loses and climbs out (TF-R6), a deck guard and a collision break in every move, and a chase that can end (TF-58). Not yet seen on screen by Patrick.
+Energy pilot (4 Oct): TF-57 PR 1 and 2 merged, and PR 3 merged as #297 (v2.11): one Smart pilot (TF-59), below the deck loses and climbs out (TF-R6), a deck guard and a collision break in every move, and a chase that can end (TF-58). Then #309 (v2.12): the Smart pilot picks its next move at once and keeps under the top speed. Not yet seen on screen by Patrick.
+
+On screen the module is called "Pat's Fight and Turn Sim" (TF-60, v2.13); the folder and id stay `turn-fight`.
 
 ## What is next
 
@@ -30,6 +32,9 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
+- **An on-screen look at the fight** from the default start (Smart pilot, deck rule, top-speed guard, OVERSPEED and BELOW DECK flags; v2.14 once #327 merges).
+- **The sign-off checklist's Energy section:** new wording posted in the thread 4 Oct for his word-for-word yes; written into `testing.md` only after it.
+- **The look-ahead freeze:** a Smart pick can freeze the screen up to about 0.3 s (0.1 s on Reset). Card posted 4 Oct: spread it out (recommended), a shorter look-ahead, or leave it.
 
 ### Settled when this module's work resumes
 
@@ -40,7 +45,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 | TF-Q5 | ASK. After a head-on pass, should a jet start chasing at once? Spec: off by default, waiting for Patrick's word, and D152 says nobody chases a head-on pass. D403 says it defaults on by Patrick's ratification of 1 Oct. | On / Off | On (it is the later decision and the build does it), but say so on screen | `archive/specs/SPEC-turn-fight.md:238`; `docs/records/plan-decisions.md:235,525` (D152); `archive/docs/records/decisions-log.md:260` (D403); `src/modules/turn-fight/energy-sim.js:101` |
 | TF-Q9 | ASK. Where do the "model settings for checking" (stall speed, shaker, roll rate, throttle, look-aheads, deck margin) live? Spec: a visible section for Dad. Build: hidden unless the page address ends in ?debug=aero. | Visible closed section / hidden behind the address / separate page for Dad | Visible but closed, at the bottom, since Dad has to find them | `archive/specs/SPEC-turn-fight.md:239-250`; `src/modules/turn-fight/layout.js:432` |
 | TF-Q13 | Keep a stop at 10 minutes (and the auto-pause on a kill) so a run cannot go on for ever, or leave runs open-ended with a safe long-run? Not a timing gate either way. | Keep a stop / open-ended | Keep a stop, shown in plain words | `archive/specs/SPEC-turn-fight.md:136`; `src/modules/turn-fight/sim.js:25-26` |
-| TF-Q14 | Is the "BFM Energy Fight" name and "Turn Circle Geometry" naming (D409) right for students, and should the module keep its V6 name "Turn Rate / Turn Radius Fight"? Screen says Turn Fight, Simple footer says "Simple 2D Circles". | Keep current / return to V6 name for Simple | Keep "Turn Fight"; describe Simple as "turn rate and radius" in its first line | `src/modules/turn-fight/layout.js:25-26`; `archive/docs/records/decisions-log.md:270` (D409) |
+| TF-Q14 | Is the "BFM Energy Fight" name and "Turn Circle Geometry" naming (D409) right for students, and should the module keep its V6 name "Turn Rate / Turn Radius Fight"? Screen says Turn Fight, Simple footer says "Simple 2D Circles". | Keep current / return to V6 name for Simple | The module is now "Pat's Fight and Turn Sim" on screen (TF-60); keep the mode names; describe Simple as "turn rate and radius" in its first line | `src/modules/turn-fight/layout.js:25-26`; `archive/docs/records/decisions-log.md:270` (D409) |
 
 ### For Dad
 

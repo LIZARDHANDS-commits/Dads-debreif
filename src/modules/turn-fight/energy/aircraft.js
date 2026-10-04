@@ -6,7 +6,7 @@ import { wrapPi, degToRad, radToDeg } from '../../../core/angles.js';
 import { T6A_LIMITS, stallLimitG, tasToIasKt, energyHeightFt, excessFnFor } from '../../../core/t6-performance.js';
 import { stepPointMass, pointMassState, pointMassFlight } from '../../../core/point-mass.js';
 import { rollToward } from '../../../core/flight-math.js';
-import { MPT_WITHIN_KT, TUNING, shakerG, round, belowStallText } from './setup.js';
+import { MPT_WITHIN_KT, TUNING, shakerG, round, belowStallText, energyTopKias } from './setup.js';
 import { scale, unit, clamp, velOf, physicalBankDeg } from './frame.js';
 import { controlFor, isRolling } from './moves/index.js';
 import { handOver, reconsiderInMpt } from './pilot.js';
@@ -25,6 +25,7 @@ export function newAircraft(who, pose, p, kias, forceG) {
     throttle: 1,
     mptReached: false, toMptSec: 0, toMptDeg: 0,
     overG: false, overGReason: '', overGEver: false,
+    overSpeed: false, overSpeedReason: '', belowDeck: false, belowDeckReason: '',
     stall: false, stallReason: '', stallEver: false,
     collided: false,
     deconflicting: false,
@@ -34,6 +35,7 @@ export function newAircraft(who, pose, p, kias, forceG) {
   };
   readOut(ac, 1, 1, p);
   readSlow(ac, p);
+  readLimitFlags(ac, p);
   return ac;
 }
 
@@ -203,6 +205,7 @@ export function stepAircraft(state, ac, other, d) {
   ac.stall = timed || ac.kias < p.stallKias;
   if (!ac.stall) ac.stallReason = '';
   else if (!ac.stallReason) ac.stallReason = belowStallText(ac.kias, p);
+  readLimitFlags(ac, p);
   if (!ac.mptReached) {
     ac.toMptSec += d; ac.toMptDeg += Math.abs(radToDeg(wrapPi(after - before)));
     const atMpt = ac.move === 'levelMpt' || (ac.move === 'mpt' && Math.abs(ac.kias - p.mptKias) <= MPT_WITHIN_KT);
@@ -211,6 +214,18 @@ export function stepAircraft(state, ac, other, d) {
       if (ac.move === 'mpt') ac.why = `MPT ${round(p.mptKias)} KIAS`;
     }
   }
+}
+
+/**
+ * The two reference-limit flags (TF-R4, TF-R6): faster than the top speed for its height (energyTopKias), or below the hard
+ * deck. Both are published limits, flagged and never walls: the jet keeps flying (AGENTS.md, "references, not walls").
+ */
+export function readLimitFlags(ac, p) {
+  const top = energyTopKias(ac.altFt);
+  ac.overSpeed = ac.kias > top + 1e-9;
+  ac.overSpeedReason = ac.overSpeed ? `${round(ac.kias)} KIAS is above the ${round(top)} KIAS top speed at ${round(ac.altFt).toLocaleString('en-US')} ft` : '';
+  ac.belowDeck = ac.altFt < p.hardDeckFt;
+  ac.belowDeckReason = ac.belowDeck ? `${round(ac.altFt).toLocaleString('en-US')} ft is below the ${round(p.hardDeckFt).toLocaleString('en-US')} ft hard deck` : '';
 }
 
 /** One point-mass step, with the speed kept above zero so the flight path always has a direction (point-mass.js needs it). */

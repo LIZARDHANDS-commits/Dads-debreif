@@ -37,7 +37,7 @@ export const DECONFLICT = Object.freeze({
 export function standingOf(a, route) {
   if (a.pflFlight || a.pflRail) return 'pfl';
   if (a.deconflict?.move === 'fly_through' && a.goAroundFlight) return 'fly_through';
-  if (a.goAroundFlight || a.highKeyFlight || a.mode === 'PHYSICS' || a.command === 'breakout' || a.command === 'closed_pattern') return 'manoeuvring';
+  if (a.goAroundFlight || a.highKeyFlight || a.command === 'breakout' || a.command === 'closed_pattern') return 'manoeuvring';
   if (route && (route.kind === 'entry' || route.kind === 'split')) {
     return +route.mergeIndex > 0 || route.kind === 'split' ? 'joining' : 'straight_in';
   }

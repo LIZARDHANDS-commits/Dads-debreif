@@ -395,4 +395,4 @@ function mount(root, app) {
   };
 }
 
-export default { id: 'turn-sim', title: 'Formation Turn Sim', mount };
+export default { id: 'turn-sim', title: "Pat's Formation Simulator", mount };

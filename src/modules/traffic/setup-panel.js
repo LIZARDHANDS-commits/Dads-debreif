@@ -2,9 +2,10 @@
 // as a dial (click or drag round for the direction it blows from) with a bar under it for the strength.
 //
 // A scenario is only a list of aircraft starts on the setup's own routes ({ id, type, routeId, startIndex,
-// startsAtSec }, the same shape a saved profile keeps). So it replays, rewinds and resets like any run, and
-// it never changes the routes, the wind or a setting. "Random" puts five aircraft on route points picked
-// by seeded dice, spread apart, so the same seed gives the same picture.
+// startsAtSec, and for a PFL from the training area its area }, the same shape a saved profile keeps). So it
+// replays, rewinds and resets like any run, and it never changes the routes, the wind or a setting. "Random"
+// puts five aircraft on route points picked by seeded dice, spread apart, so the same seed gives the same
+// picture. "Busy circuit", the one the tool opens with (Patrick, 18:47Z), adds a PFL and a timed conflict.
 //
 // The dial and the bar write the windFromDeg and windKt settings, the same ones the engine reads, so the
 // aircraft already flying respond at once (TR-R5). Nothing here flies or changes a number of the flight.
@@ -16,6 +17,19 @@ import { LIMITS, RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
 
 /** How many aircraft Random puts up (Patrick, 11:05Z). */
 export const RANDOM_COUNT = 5;
+/** How many aircraft Busy circuit puts up, all told (Patrick, 18:36Z). */
+export const BUSY_COUNT = 10;
+/**
+ * Busy circuit's PFL: engine failed in the training area, 6 NM out on the 120° radial at 8,000 ft, which glides
+ * to High Key inside its 5,000-6,000 ft window (measured in calm air and 15 to 25 kt from 260, 4 Oct). An estimate.
+ */
+export const BUSY_PFL_AREA = Object.freeze({ radialDeg: 120, distNm: 6, altFt: 8000 });
+/**
+ * When Busy circuit's straight-in leaves the Final point of Entry 2, s: in the default wind (260° at 15 kt) it then
+ * meets the aircraft starting at Pattern 1's Final Entry in its final turn (measured, 4 Oct). In any other wind the
+ * screen works it out again (scenario-timing.js).
+ */
+export const BUSY_STRAIGHT_IN_SEC = 30;
 /** Random keeps its aircraft at least this far apart, so none starts inside another's conflict ring (estimate). */
 export const RANDOM_SPACING_FT = FT_PER_NM;
 /** While dragging, the dial moves in tens of degrees, the steps a METAR gives a wind in; the arrow keys with Shift give single degrees. */
@@ -29,6 +43,7 @@ const at = (routeId, startPoint, startsAtSec = 0) => ({ routeId, startIndex: sta
  * 'moose-jaw' is the built-in setup's own aircraft, and 'random' is made by randomStarts.
  */
 export const SCENARIOS = Object.freeze([
+  { id: 'busy', label: 'Busy circuit', about: 'Ten aircraft: seven at random points of Pattern 1, a PFL gliding in from the area to High Key, and a straight-in timed to meet an aircraft in its final turn. Press again for a new picture.' },
   { id: 'moose-jaw', label: 'Moose Jaw day', about: 'The seven aircraft the tool opens with, joining over 15 minutes.' },
   { id: 'one', label: 'One aircraft', about: 'One aircraft on Pattern 1 from the runway: watch one circuit, or press PFL.', starts: [at('PAT1', 1)] },
   { id: 'circuit', label: 'Full circuit', about: 'Four aircraft round Pattern 1 at once: departure end, crosswind, initial and short final.', starts: [at('PAT1', 2), at('PAT1', 5), at('PAT1', 9), at('PAT1', 13)] },
@@ -42,11 +57,12 @@ export const SCENARIOS = Object.freeze([
  * If the routes are too small for that, the spacing halves until five fit. Same seed, same starts.
  * @param {Array<any>} routes @param {number} seed
  */
-export function randomStarts(routes, seed, count = RANDOM_COUNT) {
+export function randomStarts(routes, seed, count = RANDOM_COUNT, { only = null, avoid = [] } = {}) {
   const dice = createDice(seed);
   const spots = [];
   for (const r of routes ?? []) {
     if (!r || r.kind === 'split' || !Array.isArray(r.points)) continue;
+    if (only && r.id !== only) continue;
     const last = r.kind === 'entry' ? r.points.length - 1 : r.points.length;
     for (let i = 0; i < last; i++) spots.push({ routeId: r.id, startIndex: i, x: r.points[i].x, y: r.points[i].y });
   }
@@ -59,7 +75,7 @@ export function randomStarts(routes, seed, count = RANDOM_COUNT) {
     picked = [];
     for (const s of spots) {
       if (picked.length >= count) break;
-      if (picked.every((p) => Math.hypot(p.x - s.x, p.y - s.y) >= spacing)) picked.push(s);
+      if ([...avoid, ...picked].every((p) => Math.hypot(p.x - s.x, p.y - s.y) >= spacing)) picked.push(s);
     }
     if (picked.length >= Math.min(count, spots.length)) break;
   }
@@ -76,8 +92,29 @@ export function scenarioAircraft(id, { routes, builtIn = [], seed = 1, type = 'C
   if (id === 'moose-jaw') return builtIn.filter((a) => have.has(a.routeId)).map((a) => ({ ...a }));
   const scenario = SCENARIOS.find((s) => s.id === id);
   if (!scenario) throw new RangeError(`unknown scenario ${id}`);
-  const starts = id === 'random' ? randomStarts(routes, seed) : scenario.starts.filter((s) => have.has(s.routeId));
-  return starts.map((s, i) => ({ id: `A${i + 1}`, type, routeId: s.routeId, startIndex: s.startIndex, startsAtSec: s.startsAtSec }));
+  const starts = id === 'random' ? randomStarts(routes, seed) : id === 'busy' ? busyStarts(routes, seed) : scenario.starts.filter((s) => have.has(s.routeId));
+  return starts.map((s, i) => {
+    const area = /** @type {{ area?: { radialDeg: number, distNm: number, altFt: number } }} */ (s).area;
+    return { id: `A${i + 1}`, type, routeId: s.routeId, startIndex: s.startIndex, startsAtSec: s.startsAtSec, ...(area ? { area: { ...area } } : {}) };
+  });
+}
+
+/**
+ * Busy circuit (Patrick, 4 Oct 18:36Z): the aircraft at Pattern 1's Final Entry, the straight-in on Entry 2 timed
+ * to meet it in its final turn, the PFL from the area, and the rest at random points of Pattern 1, at least
+ * RANDOM_SPACING_FT from each other and from the first two. Without Pattern 1 and Entry 2 it is only random starts.
+ * @param {Array<any>} routes @param {number} seed
+ */
+export function busyStarts(routes, seed) {
+  const pat = (routes ?? []).find((r) => r?.id === 'PAT1');
+  const ent = (routes ?? []).find((r) => r?.id === 'ENT2');
+  if (!pat || !ent || pat.points.length < 9 || ent.points.length < 4) return randomStarts(routes, seed, BUSY_COUNT);
+  const overhead = { routeId: 'PAT1', startIndex: 8, startsAtSec: 0 }; // Final Entry
+  const straightIn = { routeId: 'ENT2', startIndex: 3, startsAtSec: BUSY_STRAIGHT_IN_SEC }; // Final
+  const pfl = { routeId: 'PAT1', startIndex: 0, startsAtSec: 0, area: BUSY_PFL_AREA };
+  const avoid = [pat.points[8], ent.points[3]];
+  const rest = randomStarts(routes, seed, BUSY_COUNT - 3, { only: 'PAT1', avoid }).filter((s) => s.startIndex !== 8);
+  return [overhead, straightIn, pfl, ...rest];
 }
 
 /** 0-359 compass degrees from a point on the dial (dx right, dy down from its centre), as 1-360 in DIAL_STEP_DEG steps. */

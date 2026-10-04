@@ -2,7 +2,7 @@
 > **Moved here in the October 2026 reset.** Kept as the reference for the Traffic waypoints. The line below calling it "the single source of truth" is superseded: the Traffic requirements and decisions in `../modules/traffic/` win where they differ, and every number here should cite a manual page or Patrick's ruling.
 
 > **This document is the single source of truth for nav-plan waypoints.**  
-> Implementation agents read this as ground truth for `nav-plans.js`.
+> This was the ground truth for the old `nav-plans.js` (removed 4 Oct 2026); the circuit is now built from `src/modules/traffic/data/moose-jaw.json`.
 
 ## Coordinate System
 - Origin: CYMJ anchor (50.3303°N, 105.5592°W)

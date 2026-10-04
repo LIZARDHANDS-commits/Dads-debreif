@@ -14,13 +14,15 @@ Moved from `specs/SPEC-traffic.md` (the old copy is in `archive/specs/`).
 > **Module ID**: `traffic` in [`archive/SPEC.md`](../../../archive/SPEC.md)  
 > **Authoritative Companion**: Master Pattern Matrix at [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) (single source of truth for waypoints & coordinates)  
 > **Decisions**: D6, D10, D46, D109, D110, D117, D118, D134, D158, D368–D400, D406, D412 | **Requirements**: R2, R3, R4, R6, R8, R9, R14, R16, R21, R22, R24–R27, R34  
-> **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js.  
+> **Architecture Update (D412)**: Flight model uses Hybrid Rails/Physics — see SPEC_hybrid_migration.md for full details. Rails for stable legs via generateWindAdjustedTrack(), Physics for dynamic maneuvers via flight-engine.js. *Superseded 4 Oct 2026 (Patrick's card "Rebuild, then delete", 4 Oct 17:53Z): there is no physics mode or `flight-engine.js` any more; every manoeuvre is flown once by `circuit.js`'s simulated pilot and followed by `path-follower.js`.*  
 
 ---
 
 ## 1. How the aircraft moves (approved 4 Oct 2026, Traffic refactor PR 2)
 
 Patrick approved this wording on 4 Oct 2026 (08:45Z). It replaces the old sections 1 ("Why we're doing this"), "Hard Invariants" and 2.1-2.2. The closed pattern, High Key, go-around, breakout and PFL controllers, and their 1 s blend back to the rail, stay until refactor PR 3 and PR 4.
+
+*As built, 4 Oct 2026 (DADS v2.10.17): refactor PR 3 and PR 4 are done. There are no live controllers left: every manoeuvre is flown once by the simulated pilot (`circuit.js` `makePilot`, one roll model at 45°/s easing at 90°/s²) from where the aircraft is, recorded as a path, and followed by `path-follower.js`. The old physics engine (`flight-engine.js`) was deleted (Patrick's card "Rebuild, then delete", 17:53Z).*
 
 1. **One mover.** One path follower is the only code that writes an aircraft's position, heading, bank and pitch. The three phase machines become one. The manoeuvre controllers (closed pattern, High Key, go-around, breakout, PFL) still run until PR 3 and PR 4, but they hand their position to the path follower instead of writing it themselves.
 2. **Paths are built from the T-6, when they are needed.** A path is a smooth ground track (no corners) with the height and speed the aircraft can actually fly along it. It is built from the aircraft's performance and today's wind at the moment the aircraft needs it. Corners on the drawn route are only where the turns go, not part of the track.
@@ -37,6 +39,12 @@ Patrick approved this wording on 4 Oct 2026 (08:45Z). It replaces the old sectio
 ## 1a. Manoeuvres and rejoins (approved 4 Oct 2026, Traffic refactor PR 4)
 
 Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.11 text and adds touch-and-go and High Key from anywhere.
+
+*As built, 4 Oct 2026 (DADS v2.10.17), where it differs from the wording below (new wording waits for Patrick):*
+- *Item 15: the "one controller" is the simulated pilot, which flies each manoeuvre once as a path (`closed-pattern.js`, `high-key.js`, `breakout.js`, `circuit.js` `buildGoAround`); the shared climb is `circuit.js` `powerClimb`.*
+- *Item 16: the climb levels off smoothly as it nears the height (`powerClimb`), so the bank never rolls past the setting to stop the climb.*
+- *Items 17 and 19: the closed pattern rolls out on the inner downwind line and hands over to the circuit there, at least 300 ft past where the break rolls out (an estimate); the circuit then flies its own perch and final turn. It first carries on as it was for 0.8 s (an estimate matched to the path follower's smoothing) so the heading doesn't step at the hand-over.*
+- *Item 22: the breakout turns toward the breakout point 2 NM south of the pattern, climbing at full power toward 220 KIAS and 4,500 ft, then rejoins on ENT1's line at 3,500 ft and 220 KIAS, 0.7 to 1.2 NM before the Entry Gate (measured in calm and 20 kt); a straight-in rejoins its own straight-in.*
 
 ### One climbing turn for every rejoin
 
@@ -70,6 +78,8 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 ---
 
 ## 2. Architecture
+
+*History: 2.3 and 2.4 describe the old engine's KIN and NRG models and a model dropdown, which no longer exist (sections 1 and 1a replace them); 2.5's `computeBreakRollout` is no longer used by the flying. Step 3 of the plan rewrites this section.*
 
 ### 2.3 KIN vs NRG Performance Models
 - **KIN (Kinematic)** — default for normal pattern traffic:
@@ -273,7 +283,7 @@ One runway for now: every PFL flies to 29L, and one that makes the runway ends i
 12. **2,100 ft gate** (200 ft AGL): 120 KIAS and within 35° of runway heading (TR-R14). Bank under 45°, gear down and T/O flap are shown as flags (SMM 13.14 warning). Practice: a missed gate goes around. Engine failure: keeps going and tries to land.
 13. **Landing.** Wings level before the threshold, aiming a third down the runway until the landing flap goes down, then touching down in the first 1,000 ft, closer being better (SMM 13.9 para 18; Patrick 09:49Z, 09:56Z). Touches down in line with the runway, no slower than the speed trade's floor (item 10, TR-52). A PFL that makes the runway then flies a touch-and-go, power back on, and carries on in the circuit (Patrick, 08:40Z); the touch-and-go itself is today's, made jump-free in PR 4.
 14. **On screen.** Once a PFL starts, a small tag beside the aircraft in 2D and 3D shows its current decision (for example "Zoom to circle", "Join at Low Key", "False High Key", "Direct threshold") and its configuration (clean, gear, T/O flap, landing flap). The margin shows as high / on profile / low at each key. Glide ring: how far the aircraft can glide from where it is now, in the configuration down, corrected for wind (the circle's centre drifts downwind by the wind over the glide time, so it is no longer centred on the aircraft), drawn on the ground (Patrick, 08:33Z). The PFL circle is also drawn on the ground.
-15. **If the numbers fail.** If the join search returns nothing usable (no finite answer), the aircraft does what item 10 says: direct to the runway, turning early to land further down it if needed, and ejects if it can't make the runway. *(New proposal, not yet ruled on.)*
+15. **If the numbers fail.** If the join search returns nothing usable (no finite answer), the aircraft does what item 10 says: direct to the runway, turning early to land further down it if needed; if it can't make the runway, it glides on to Low Key or Low Key height and ejects there (Patrick, 4 Oct 19:37Z).
 
 #### PFL settings (each with a default)
 
@@ -315,14 +325,14 @@ Design and Patrick's nine answers: project files, `traffic-deconfliction/design.
    - a PFL keeps right of way; an overhead aircraft at initial or in the break flies through, anyone on final goes around, anyone else breaks out (Patrick 09:43Z; WFO S2 art 401 para 9; SMM 4.28 para 68);
    - downwind over a fly-through, which climbs straight ahead to about 500 ft above pattern height (Q4, an estimate) and then breaks out (WFO S2 art 401 para 9 Note 1; SMM 4.28 para 67);
    - established in the pattern over joining, which breaks out (SMM 4.5 para 8, 4.15 para 35);
-   - the perch is the point of no return (Q1): before it the aircraft about to perch breaks out; past it the straight-in moves over 500 ft toward the inner runway (Q5, an estimate; the real 29L/29R gap is a question for Dad) and goes around, never descending (SMM 4.19 para 43, 4.28 para 68, 4.21 paras 50-51);
+   - the perch is the point of no return (Q1): before it the aircraft about to perch breaks out; past it the straight-in moves over 500 ft toward the inner runway (Q5, an estimate; the real 29L/29R gap is a question for Dad) and goes around (SMM 4.19 para 43, 4.28 para 68, 4.21 paras 50-51). It adds power and levels off at 2,100 ft, coming down to it on a 3° path (an estimate) if it is higher, holds it to the upwind end, then climbs out as the go-around does (Patrick, 4 Oct 19:01Z, TR-56); the Go-around button still levels at 2,500 ft;
    - no rule (Q9): the higher aircraft moves (higher by 100 ft or more, an estimate); at the same height the one on the right has right of way, so the one on the left moves; a dead heat goes by callsign order (an estimate).
 4. **Layer 2, by skill.** If the red (200 ft and 200 ft) is still coming within 6 s, the one giving way acts if it still can; within 3 s the one with right of way acts too (SMM 4.28 para 69). The skill move is the flinch and then the breakout, or a go-around on final (a straight-in counts as on final only on its last leg) (Q3). The flinch lasts about 5 s (an estimate): the aircraft above (or level and first by callsign) trades speed for about 500 ft of height wings level; the one below banks away at up to 60° (SMM 4.14 para 33), never past the stall line; head-on, both go right. A PFL only banks away: out about 500 ft off its path over about 12 s, back over about 20 s (estimates), keeping its glide.
 5. The moves: the breakout (TR-R34), after which a straight-in rejoins its own straight-in 2 NM before the end of its first leg, at that leg's height, and anyone else rejoins on the overhead entry as before (Q7); the go-around (4.10); and the fly-through, which is the go-around's flown path from where the aircraft is at pattern height (straight on to the departure end, crosswind, the outer downwind; WFO S2 art 401 para 9). A move already flying is never restarted.
 6. A tag beside the aircraft says what it is doing, like the PFL tag: `[GIVING WAY: break out]`, `[GIVING WAY: fly-through]`, `[GIVING WAY: go-around]`, `[GIVING WAY: move over]`, `[EVASIVE: flinch]`, `[EVASIVE: bank away]`.
 7. **When data fails:** an aircraft with a non-finite position, height, track or speed is left out of the check for that tick, never an error, and every other pair is still checked. A red that still appears is the honest sign it could not clear it. A rewind replays the same decisions (no dice, the tag is part of the aircraft's saved state).
 8. **Speeds:** predictions use ground speed; the moves fly their own indicated speeds.
-9. **Known limits:** a PFL's bank away moves it off its path without changing its glide (the height and speed stay the planned ones); the flinch, the climb ahead and the breakout after them are all flown paths, so the deconfliction predicts them along the path they will fly (the breakout since 4 Oct, `breakout.js` `buildBreakout`).
+9. **Known limits:** a PFL's bank away costs height (TR-55): the path follower charges the extra G's drag and the extra ground at the glide ratio (about 40 ft for the 500 ft bank away, a calculation), and when it is back on its glide the PFL re-plans from where it really is; its speed stays the planned one. The flinch, the climb ahead and the breakout after them are all flown paths, so the deconfliction predicts them along the path they will fly (the breakout since 4 Oct, `breakout.js` `buildBreakout`).
 
 ---
 
@@ -387,12 +397,12 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 
 ### 7.2 Progressive Disclosure (R22)
 - **Playback bar**: Play/Pause, Rewind, −10 s, +10 s, Reset, speed (0.25× to 8×), clock, status, 2D/3D toggle, Fit, Layers.
-- **Setup column** (the left column, Patrick, 4 Oct 11:05Z): Scenarios buttons (Moose Jaw day, One aircraft, Full circuit, Joining traffic, Random; each replaces the aircraft, paused at 0:00, and keeps the routes, wind and settings), then Wind: a dial for the direction it blows from (°T, drag in 10° steps, arrow keys) and a strength bar (kt), with a line giving 29L's head and cross wind. Scenarios and notes and the routes list follow.
+- **Setup column** (the left column, Patrick, 4 Oct 11:05Z): Scenarios buttons (Busy circuit, Moose Jaw day, One aircraft, Full circuit, Joining traffic, Random; each replaces the aircraft, paused at 0:00, and keeps the routes, wind and settings). **Busy circuit** is the opening picture (Patrick, 4 Oct 18:36Z and 18:47Z): ten aircraft, seven at random points of Pattern 1 at least 1 NM apart, one entering the overhead, a PFL from the area (120°, 6 NM, 8,000 ft, an estimate that joins at High Key in winds up to 25 kt) and a straight-in on ENT2 timed so it meets the overhead aircraft in its final turn. The timing is measured by flying the two alone (30 s at 260°/15 kt, found again for any other wind); the deconfliction then moves the straight-in over toward the inner runway and goes around (4.12). Pressing it again gives a new picture., then Wind: a dial for the direction it blows from (°T, drag in 10° steps, arrow keys) and a strength bar (kt), with a line giving 29L's head and cross wind. Scenarios and notes and the routes list follow.
 - **Layers menu**: trails, altitude/speed labels, waypoint points, leg distances, conflict bubbles, caution rings, satellite photo. Under More: opacity, grid order, photo alignment.
 - **Routes list**: one line per route with color, kind, and link; "+ New route" dropdown.
 - **Selected route**: name, point table (number, label, alt, speed phase, bank/G).
-- **Spawner**: Pattern dropdown, Start Point dropdown, model (KIN/NRG), delay, + Spawn, + Pair (20 s apart, max 200 aircraft), Clear finished.
-- **Aircraft list**: callsign, type, pattern, altitude, airspeed, status, GS/crab, and Maneuver menu (Breakout, Go-Around, PFL, Remove).
+- **Spawner**: Pattern dropdown, Start Point dropdown, model (KIN/NRG), delay, + Spawn, + Pair (20 s apart, max 200 aircraft), Clear finished, and **Spawn a conflict** (Patrick, 4 Oct 19:24Z): with an aircraft selected, it adds one on the spawner's route, started at the point and after the delay (up to 2 minutes) that bring it within the caution distance (500 ft and 500 ft) of the selected aircraft at least 20 s ahead, appearing at least 1 NM from everyone and meeting no one else first (estimates). It works this out by flying everyone ahead on a copy of the run with no deconfliction (`scenario-timing.js` `conflictSpawnPlan`); if nothing on that route meets it in the next 3 minutes, it says so and adds nothing. Then the deconfliction, or the person, manages it.
+- **Aircraft list**: callsign, type, pattern, altitude, airspeed, status, GS/crab, and Maneuver menu (Breakout, Go-Around, PFL, Remove). It stays on one screen (Patrick, 4 Oct 19:27Z): rows that would run past the bottom of the window wait behind a "More (n)" button, which opens the whole list and becomes "Show fewer"; the selected aircraft always shows.
 - **Conflicts**: pair readouts with lateral and vertical separation in red (⚠ CONFLICT) or yellow (△ CAUTION).
 - **Settings menu**: all numbers and toggles live in one closed "Traffic settings" panel (R22).
 
@@ -400,7 +410,8 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 Every setting starts filled in so the first look is clean and intuitive:
 - Playback speed: 8×
 - 2D or 3D: 2D. 3D opens over the field: from north of the field looking south-south-east, low over the base, with the runways in the lower half and the circuit beyond (Patrick, 4 Oct 2026 10:17Z, from his screenshot). Fit still frames every route.
-- Wind: calm (360°T at 0 kt)
+- Wind: 260°T at 15 kt (Patrick, 4 Oct 18:47Z; was calm)
+- Aircraft: the Busy circuit scenario (7.2), unless a saved setup is open
 - Default aircraft type: CT-156 Harvard II (paint: `harvard`)
 - Pattern: PAT_INNER (Runway 29L, left-hand, 3,500 ft MSL)
 - Conflict limits: 200 ft lateral, 200 ft vertical (caution: 500 ft / 500 ft)
@@ -410,6 +421,8 @@ Every setting starts filled in so the first look is clean and intuitive:
 ## 8. Code Reuse Map & Core Libraries
 
 ### 8.1 Reuse Map
+*History: `flight-engine.js` and the nav plans below were built, then removed on 4 Oct 2026 (Patrick's card "Rebuild, then delete", 4 Oct 17:53Z).*
+
 - **KEEP AS-IS (5,300+ lines, zero changes)**:
   `map2d.js` (673), `view3d.js` (1,146), `layout.js` (186), `playback-bar.js` (160), `settings-panel.js` (130), `defaults.js` (196), `types.js` (169), `profile.js` (356), `clock.js` (98), `dice.js` (28), `readouts.js` (149), `glue.js` (69), `profile-store.js`, `profiles-panel.js`, `editor.js`, `index.js`, CSS.
 - **KEEP + ADAPT (~200 lines changed)**:

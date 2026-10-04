@@ -576,7 +576,9 @@ function carrot(path, proj, ahead) {
 /**
  * Flies a PFL from `start` = { x, y, alt, kias, headingDeg, bankDeg?, rollRateDps? } in `wind` =
  * { windFromDeg, windKt }. `options`: practice (the High Key button: a missed
- * gate goes around), settings (pflKeysIntoWind). Returns { points, outcome,
+ * gate goes around), settings (pflKeysIntoWind), midGlide ({ cfgIndex, patternPfl, plan?, decision? }:
+ * the engine already failed, so no zoom, the drag already out stays out, and it carries on along
+ * `plan` when given instead of choosing a join again). Returns { points, outcome,
  * touchdown?, eject?, notes } where points are path points with x, y, alt,
  * kt (KIAS), headingDeg, phase, tag, decision and config, and outcome is
  * 'landed', 'eject' or 'go_around'.
@@ -585,17 +587,18 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const practice = Boolean(options.practice);
   const geo = pflGeometry(wind.windFromDeg, wind.windKt, options.settings);
   const ground = THRESHOLD_DATA_ELEV_FT;
-  const pilot = makePilot({ x: start.x, y: start.y, alt: start.alt, ias: start.kias, hdg: start.headingDeg, src: 0, phase: 'pfl_zoom' }, wind);
+  const mid = options.midGlide ?? null;
+  const pilot = makePilot({ x: start.x, y: start.y, alt: start.alt, ias: start.kias, hdg: start.headingDeg, src: 0, phase: mid ? 'pfl' : 'pfl_zoom' }, wind);
   const { s } = pilot;
   // It starts in the bank and roll it already has, so the turn carries on without a step at the hand-over.
   s.bank = Number.isFinite(start.bankDeg) ? start.bankDeg : 0;
   s.rollRate = Number.isFinite(start.rollRateDps) ? start.rollRateDps : 0;
   s.rec = { decision: '', config: PFL_CONFIG_LABELS[0] };
-  let cfg = 0;
+  let cfg = mid ? clamp(Math.round(mid.cfgIndex ?? 0), 0, PFL_CONFIGS.length - 1) : 0;
   const setRec = (decision) => { s.rec = { decision, config: PFL_CONFIG_LABELS[cfg], cfgIndex: cfg }; };
 
   // The join, chosen at the press from the energy (zoom included) (spec 4.5 item 6).
-  const zooming = start.kias > PFL.zoomAboveKias;
+  const zooming = !mid && start.kias > PFL.zoomAboveKias;
   const zoomGain = zooming ? zoomT6A(start.kias, start.alt).gainFt : 0;
   // Slowing level from below 150 KIAS to 125 gives its energy too, once.
   const avail = start.alt + zoomGain;
@@ -604,22 +607,23 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const zoomRadius = (kias) => turnRadiusFromBankFt(ktToFtps(iasToTasKt(kias, start.alt + zoomGain / 2)), PFL.zoomMaxBankDeg);
   const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : DIRECT_TURN_RADIUS_FT;
   const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : DIRECT_TURN_RADIUS_FT;
-  let plan = chooseJoin(geo, s, avail, start.headingDeg, wind, { turnRadiusFt, minTurnRadiusFt });
+  let plan = mid?.plan ?? chooseJoin(geo, s, avail, start.headingDeg, wind, { turnRadiusFt, minTurnRadiusFt });
   // Already at High Key (the High Key button, or the PFL pressed there) inside the window or above: High Key's window
   // check runs at once, so a high one orbits or extends to a false High Key and false Low Key (TR-43; Patrick 17:36Z).
-  if (Math.hypot(s.x - geo.th.x, s.y - geo.th.y) <= PFL.atHighKeyFt && avail >= PFL.highKeyMinFt) {
+  if (!mid?.plan && Math.hypot(s.x - geo.th.x, s.y - geo.th.y) <= PFL.atHighKeyFt && avail >= PFL.highKeyMinFt) {
     plan = { kind: 'highKey', path: [{ x: s.x, y: s.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
   }
   // A pattern PFL: the PFL button pressed in the circuit, not one gliding from High Key. Only it may widen (TR-48).
-  const patternPfl = !practice && plan.kind !== 'highKey';
+  const patternPfl = mid ? Boolean(mid.patternPfl) : !practice && plan.kind !== 'highKey';
   let path = plan.path;
   let seg = 0;
-  let state = zooming ? 'zoom' : 'slow';
-  setRec(zooming ? `Zoom: ${plan.label.toLowerCase()}` : `Slow to 125: ${plan.label.toLowerCase()}`);
+  let state = mid ? 'glide' : zooming ? 'zoom' : 'slow';
+  setRec(mid ? (mid.decision || plan.label) : zooming ? `Zoom: ${plan.label.toLowerCase()}` : `Slow to 125: ${plan.label.toLowerCase()}`);
   s.tag = undefined;
   pilot.record();
 
-  let gamma = 0;          // flight path angle, radians
+  // Flight path angle, radians: level at the failure; mid-glide, the steady glide it was in.
+  let gamma = mid ? -Math.asin(clamp(glideDragPerWeight(PFL_CONFIGS[cfg], start.kias, start.alt, 1), 0, 1)) : 0;
   let nz = 1, nzRate = 0; // G in the vertical plane (lift × cos bank) and how fast it is changing, per second
   let pullDone = false;
   let margin = 0;
@@ -631,6 +635,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   let goingShort = false; // can't make the runway: glide on toward it until Low Key, then eject
   let pastLowKey = false;
   const notes = [];
+  // Each plan it flies and the point it starts at, so a PFL moved off its glide can carry on along it (resumePflFlight).
+  const planLog = [];
   const MAX_STEPS = 30000;
 
   const replan = (next) => { plan = next; path = next.path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p)); seg = 0; };
@@ -638,6 +644,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const onCircle = () => path[seg]?.theta !== undefined || path[seg]?.falseCircle || ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || plan.kind === 'direct';
 
   for (let n = 0; n < MAX_STEPS; n++) {
+    if (planLog[planLog.length - 1]?.path !== path) planLog.push({ at: pilot.points.length, plan: { ...plan, path } });
     const tas = ktToFtps(iasToTasKt(s.ias, s.alt));
     const proj = project(path, seg, s);
     seg = proj.seg;
@@ -869,7 +876,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   }
   if (!outcome) { outcome = 'eject'; eject = { x: s.x, y: s.y, alt: s.alt }; notes.push('ran out of steps'); }
   const points = pilot.points.map((p) => ({ ...p, phase: p.phase ?? 'pfl', kias: p.kt }));
-  return { points, outcome, touchdown, eject, gate, plan: plan.kind, notes };
+  return { points, outcome, touchdown, eject, gate, plan: plan.kind, patternPfl, planLog, notes };
 }
 
 // ── In the sim ───────────────────────────────────────────────────────────────
@@ -884,11 +891,13 @@ export function startPflFlight(a, wind, options = {}) {
   a.pflFlight = {
     route: { id: 'PFL_FLOWN', kind: 'flown', name: 'Engine-out glide', points: flight.points },
     outcome: flight.outcome, touchdown: flight.touchdown, eject: flight.eject, gate: flight.gate, practice: Boolean(options.practice),
+    patternPfl: flight.patternPfl, planLog: flight.planLog,
   };
   // The few seconds it has just flown, in the turn it is in, go in front of the glide, so the follower
   // reads its track and turn rate across the hand-over without a step; then onto the path from its own
   // track and speed (startJoin).
   const behind = flownBehind(a, flight.points[0], wind);
+  a.pflFlight.behindCount = behind.length;
   a.pflFlight.route.points = [...behind, ...flight.points];
   startJoin(a, a.pflFlight.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
   a.mode = 'RAIL';
@@ -905,6 +914,38 @@ export function startPflFlight(a, wind, options = {}) {
   delete a._blendTarget;
   delete a._blendTimer;
   return a.pflFlight;
+}
+
+/**
+ * Re-flies a PFL already under way from where aircraft `a` really is now, after something moved it off its
+ * planned glide (the deconfliction's bank away; Patrick's card 18:50Z): no zoom, the drag already out stays
+ * out, a practice stays a practice, and it chooses its join again from the height it has. Sets a.pflFlight
+ * like startPflFlight. `settings` as for startPflFlight.
+ */
+export function resumePflFlight(a, wind, settings = undefined) {
+  const prev = a.pflFlight;
+  const cfgIndex = Math.max(0, PFL_CONFIG_LABELS.indexOf(a.config ?? PFL_CONFIG_LABELS[0]));
+  return startPflFlight(a, wind, { practice: prev?.practice, settings, midGlide: { cfgIndex, patternPfl: prev?.patternPfl, plan: planNow(a, prev), decision: a.pflDecision } });
+}
+
+/** The plan `a` was flying where it is now, from the rest of it on: what the pilot meant to fly next. Null if unknown. */
+function planNow(a, flight) {
+  const log = flight?.planLog;
+  const pts = flight?.route?.points;
+  if (!log?.length || !pts?.length) return null;
+  // Which flown point it has reached, from the distance along the route; then the plan that was flying there.
+  let i = 0, d = 0;
+  while (i < pts.length - 1 && d + dist(pts[i], pts[i + 1]) <= (a.distFt ?? 0)) { d += dist(pts[i], pts[i + 1]); i++; }
+  const at = i - (flight.behindCount ?? 0);
+  const entry = [...log].reverse().find((e) => e.at <= at) ?? log[0];
+  const path = entry.plan.path;
+  // Where it is on that plan: the nearest leg, then on from there.
+  let seg = 0;
+  for (let k = 0, best = Infinity; k < path.length - 1; k++) {
+    const p = project(path, k, a);
+    if (p.seg === k && p.d < best) { best = p.d; seg = k; }
+  }
+  return { ...entry.plan, path: [{ ...path[seg], x: a.x, y: a.y, key: undefined, highKeyCheck: undefined }, ...path.slice(seg + 1)] };
 }
 
 /**

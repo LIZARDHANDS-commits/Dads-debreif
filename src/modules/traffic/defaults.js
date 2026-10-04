@@ -33,9 +33,9 @@ export const DEFAULTS = Object.freeze({
   // 3D graphics quality: 'high' (sharp 4-tier satellite and up to 24 full Harvards) or 'low' (performance).
   graphicsQuality: 'low', // Performance by default (Patrick, 3D upgrade); High is one click in the 3D bar or Traffic settings
 
-  // Wind: calm, 360°T at 0 kt.
-  windFromDeg: 360,
-  windKt: 0,
+  // Wind: 260°T at 15 kt, the opening picture's wind (Patrick, 4 Oct 18:47Z; was calm).
+  windFromDeg: 260,
+  windKt: 15,
 
   // Layers: trails, height and speed labels, route points, conflict bubbles,
   // caution rings and the satellite photo on (V6's built-in setup); leg
@@ -147,9 +147,8 @@ export const DEFAULTS = Object.freeze({
   ruleBreakAtDepartureEnd: true,
   ruleClosedPattern: true,
 
-  // Closed pattern maneuver: default 50° bank (selectable 45, 50, 60), 10° pitch climb.
+  // Closed pattern maneuver: default 50° bank (selectable 45, 50, 60). The pitch comes from the climb and angle of attack.
   closedPatternBankDeg: 50,
-  closedPatternPitchDeg: 10,
 
   // Aircraft size on the map: 1 = realistic, the real length with a smallest size so it can be seen (Patrick, 4 Oct 10:06Z).
   aircraftScale: 1,
@@ -215,7 +214,6 @@ export const LIMITS = Object.freeze({
   pointG: Object.freeze([1, 9]),
   sharePct: Object.freeze([0, 100]),
   closedPatternBankDeg: Object.freeze([30, 60]),
-  closedPatternPitchDeg: Object.freeze([5, 25]),
   aircraftScale: Object.freeze([1, 6]),
   // Not in the spec's list; V6's own ranges where it had them.
   photoOpacityPct: Object.freeze([5, 100]),

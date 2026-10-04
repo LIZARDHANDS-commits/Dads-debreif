@@ -121,8 +121,8 @@ test('right of way follows the orders and the SMM', () => {
 });
 
 test('a broken aircraft stops nothing: one with no position is left out, the others are still checked', () => {
-  const good = { id: 'A1', active: true, x: 0, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'PHYSICS' };
-  const broken = { id: 'A2', active: true, x: NaN, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'PHYSICS' };
+  const good = { id: 'A1', active: true, x: 0, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'RAIL' };
+  const broken = { id: 'A2', active: true, x: NaN, y: 0, alt: 3500, gsKt: 200, trackDeg: 90, mode: 'RAIL' };
   const frozen = freeze([good, broken], () => null, () => null);
   assert.deepEqual(frozen.map((f) => f.id), ['A1']);
 });
@@ -153,15 +153,17 @@ test('a fly-through breaking out climbs straight ahead to about 500 ft above pat
   }
 });
 
-test('the move-over flies up the runway about 500 ft toward the inner runway and never descends (Q5)', () => {
+test('the move-over flies up the runway about 500 ft toward the inner runway, levelling at 2,100 ft (Q5; Patrick, 19:01Z)', () => {
   const rwy = { a: PAT.points[0], b: PAT.points[1] };
   for (const w of WINDS) {
-    const path = buildGoAround(PAT.points, { x: 25000, y: -13000, alt: 2600, kias: 140, headingDeg: 298, bankDeg: 0 }, w.windFromDeg, w.windKt, EVADE.moveOverFt);
+    const path = buildGoAround(PAT.points, { x: 25000, y: -13000, alt: 2600, kias: 140, headingDeg: 298, bankDeg: 0 }, w.windFromDeg, w.windKt, EVADE.moveOverFt, EVADE.moveOverLevelAltFt);
     const overRunway = path.filter((p) => { const o = legOffsetsFt(rwy.a, rwy.b, p); return o.alongFt > 1000 && o.alongFt < 4000; });
     assert.ok(overRunway.length > 0);
     // Right of runway 29L's track is north, toward 29R.
     assert.ok(overRunway.every((p) => Math.abs(legOffsetsFt(rwy.a, rwy.b, p).crossFt - EVADE.moveOverFt) <= 100));
-    assert.ok(path.every((p, i) => i === 0 || p.alt >= path[i - 1].alt - 1), 'never descends');
+    // Margin ±100 ft (the shared table).
+    assert.ok(overRunway.every((p) => Math.abs(p.alt - EVADE.moveOverLevelAltFt) <= 100), 'level near 2,100 ft over the runway');
+    assert.ok(path.every((p) => p.alt >= EVADE.moveOverLevelAltFt - 100), 'never below its level-off height');
   }
 });
 
@@ -199,4 +201,21 @@ test('a PFL banks away and comes back onto its path with no jump', () => {
   }
   assert.ok(Math.abs(most - EVADE.flinchFt) <= 10, 'out about 500 ft');
   assert.ok(Math.abs(a.x) < 1 && !a.sideStep, 'back on its path');
+});
+
+test('a gliding PFL pays for its bank away in height: a little lower than its path, never higher (TR-55)', () => {
+  const route = { id: 'R', kind: 'flown', points: [{ x: 0, y: 0, alt: 5000, kt: 125 }, { x: 0, y: 60000, alt: 2000, kt: 125 }] };
+  const a = { distFt: 0, x: 0, y: 0, alt: 5000, iasKt: 125, headingDeg: 0, bankDeg: 0 };
+  followRoute(a, route, null, 0.05);
+  startSideStep(a, 90, EVADE.flinchFt, EVADE.bankAwayOutSec, EVADE.bankAwayBackSec);
+  let below = 0;
+  for (let t = 0; t < EVADE.bankAwayOutSec + EVADE.bankAwayBackSec - 0.05; t += 0.05) {
+    a.sideStep.glideConfig = 'clean';
+    followRoute(a, route, null, 0.05);
+    const pathAlt = 5000 - 3000 * a.distFt / 60000;
+    assert.ok(a.alt <= pathAlt + 0.5, 'never above its glide path');
+    below = pathAlt - a.alt;
+  }
+  // Standard aerodynamics on core's glide drag: tens of feet for a 500 ft bank away (the PFL thread's estimate is about 45 ft).
+  assert.ok(below > 10 && below < 100, `a bank away costs some height (${below.toFixed(0)} ft)`);
 });

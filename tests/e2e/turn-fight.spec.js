@@ -17,7 +17,7 @@ const playButton = (page) => page.locator('.tf-play');
 const blue = (page) => page.getByRole('group', { name: 'Blue' });
 const red = (page) => page.getByRole('group', { name: 'Red' });
 const result = (page) => page.getByRole('table', { name: 'Result' });
-const settingsButton = (page) => page.getByRole('button', { name: 'Turn Fight settings' });
+const settingsButton = (page) => page.getByRole('button', { name: "Pat's Fight and Turn Sim settings" });
 const resetDefaults = (page) => page.getByRole('button', { name: /Reset to (Standard|V6) defaults/i });
 
 const seconds = async (page) => Number((await time(page).textContent()).replace('T+', ''));
@@ -96,7 +96,7 @@ test('opens from its card with only the essentials, filled with V6\'s defaults @
   await openRoute(page, '#/');
   await page.locator('a.card[href="#/turn-fight"]').click();
   await page.waitForFunction(() => window.__ooda.stats().mounted === 'turn-fight');
-  await expect(page).toHaveTitle('Turn Fight · DAD\'s OODA LOOP');
+  await expect(page).toHaveTitle("Pat's Fight and Turn Sim · DAD's OODA LOOP");
   await expect(page.getByRole('radio', { name: '2-circle' })).toBeChecked();
   await expect(page.getByLabel('Start separation')).toHaveValue('2');
   for (const who of [blue(page), red(page)]) {
@@ -770,7 +770,7 @@ for (const size of [{ width: 1366, height: 768 }, { width: 1920, height: 1080 }]
       await openRoute(page, '#/turn-fight');
       expect(await layoutProblems(page)).toEqual([]);
       await page.getByLabel('Climb and dive').check();
-      await page.getByRole('button', { name: 'Turn Fight settings' }).click();
+      await page.getByRole('button', { name: "Pat's Fight and Turn Sim settings" }).click();
       await page.getByRole('button', { name: 'About this model' }).click();
       await page.getByRole('button', { name: 'More detail' }).click();
       await blue(page).getByLabel('Speed (KTAS)').fill('120'); // with a limit warning showing

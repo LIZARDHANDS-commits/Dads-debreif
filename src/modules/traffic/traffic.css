@@ -612,6 +612,15 @@
   font-size: var(--text-sm);
 }
 
+[data-module='traffic'] .aircraft-more {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+
+[data-module='traffic'] .aircraft-remove {
+  margin-left: auto;
+}
+
 [data-module='traffic'] .aircraft-row.has-engine-fail {
   background: rgba(239, 68, 68, 0.1);
   border-left: 3px solid var(--bad, #ef4444);
@@ -673,7 +682,7 @@
 
 [data-module='traffic'] .button-tiny.is-active {
   background: var(--brand, #58a6ff);
-  color: #fff;
+  color: var(--bg, #020a10); /* dark on the light fill: white failed the contrast check */
   border-color: var(--brand, #58a6ff);
 }
 
@@ -692,7 +701,7 @@
 
 [data-module='traffic'] .button-tiny.danger.is-active {
   background: var(--bad, #ef4444);
-  color: #fff;
+  color: var(--bg, #020a10);
   border-color: var(--bad, #ef4444);
 }
 

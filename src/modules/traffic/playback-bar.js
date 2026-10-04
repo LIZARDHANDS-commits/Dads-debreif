@@ -211,7 +211,8 @@ export function createPlaybackBar({ controls, settings, on, available = {}, list
         on.runwayChange?.(val);
       },
     },
-    RUNWAYS.map((r) => {
+    // A runway that doesn't work yet is not offered (TR-R27, TR-R28: no dead ends).
+    RUNWAYS.filter((r) => !r.disabled).map((r) => {
       const opt = h(
         'option',
         {

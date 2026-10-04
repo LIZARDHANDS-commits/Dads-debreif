@@ -60,8 +60,8 @@ test('the 3D aircraft\'s paint starts as the ui-kit\'s Harvard scheme and may ho
   assert.equal(settings.get().paint, 'ship', 'anything else is refused');
 });
 
-test('row: wind starts calm, 360°T at 0 kt', () => {
-  row({ windFromDeg: 360, windKt: 0 });
+test('row: wind starts 260°T at 15 kt (Patrick, 4 Oct 18:47Z)', () => {
+  row({ windFromDeg: 260, windKt: 15 });
 });
 
 test('row: layers, trails, labels, route points, bubbles, caution rings and the photo on; leg distances, turn data and Engine-out reach off', () => {

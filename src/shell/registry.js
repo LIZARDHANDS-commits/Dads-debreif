@@ -22,7 +22,7 @@ export const MODULES = [
   {
     id: 'turn-sim',
     eyebrow: 'Formation',
-    title: 'Formation Turn Sim',
+    title: "Pat's Formation Simulator",
     blurb: 'Tactical formation turns, step by step',
     media: media('turn-sim'),
     load: () => import('../modules/turn-sim/index.js'),
@@ -31,7 +31,7 @@ export const MODULES = [
   {
     id: 'turn-fight',
     eyebrow: 'BFM · v2.2',
-    title: 'Turn Fight',
+    title: "Pat's Fight and Turn Sim",
     blurb: '1-circle, 2-circle and 3D BFM AI fights (Harvard II 5.0 G)',
     media: media('turn-fight'),
     load: () => import('../modules/turn-fight/index.js'),

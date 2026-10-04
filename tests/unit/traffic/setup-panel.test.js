@@ -1,4 +1,5 @@
-// Checks: the Setup column's scenarios put aircraft where a pilot expects, Random spreads five apart, and the
+// Checks: the Setup column's scenarios put aircraft where a pilot expects, Random spreads five apart, Busy circuit
+//   puts up ten with a PFL and a straight-in that meets a final turn, and the
 // wind dial reads a bearing and the runway's head and cross wind the way a pilot works them out.
 // Serves: Patrick, 4 Oct 11:05Z (Setup menu, scenario buttons including Random with five aircraft, wind as a
 // dial for direction and a bar for strength); TR-R5 (wind set at any time).
@@ -7,16 +8,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, randomStarts, scenarioAircraft, dialBearing, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
+import { SCENARIOS, RANDOM_COUNT, RANDOM_SPACING_FT, BUSY_COUNT, randomStarts, scenarioAircraft, dialBearing, runwayWindText } from '../../../src/modules/traffic/setup-panel.js';
+import { straightInDelaySec, conflictSpawnPlan } from '../../../src/modules/traffic/scenario-timing.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 
 const mooseJaw = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 const routes = mooseJaw.routes;
 const pointOf = (a) => routes.find((r) => r.id === a.routeId).points[a.startIndex];
 
-test('Setup: five scenario buttons, Random among them', () => {
-  assert.equal(SCENARIOS.length, 5);
+test('Setup: the scenario buttons, Busy circuit first and Random among them', () => {
+  assert.equal(SCENARIOS[0].id, 'busy');
   assert.ok(SCENARIOS.some((s) => s.id === 'random'));
+});
+
+// Busy circuit (Patrick, 4 Oct 18:36Z): ten aircraft, a PFL from the area, a straight-in timed to meet a final turn.
+test('Setup: Busy circuit puts up ten: one PFL in the area, one straight-in, the rest on Pattern 1 at least 1 NM apart', () => {
+  for (const seed of [1, 7, 42]) {
+    const list = scenarioAircraft('busy', { routes, seed });
+    assert.equal(list.length, BUSY_COUNT);
+    assert.equal(list.filter((a) => a.area).length, 1, 'one PFL from the area');
+    assert.equal(list.filter((a) => a.routeId === 'ENT2').length, 1, 'one straight-in');
+    const onPattern = list.filter((a) => !a.area && a.routeId === 'PAT1');
+    for (const [i, a] of onPattern.entries()) {
+      for (const b of onPattern.slice(i + 1)) {
+        const [p, q] = [pointOf(a), pointOf(b)];
+        assert.ok(Math.hypot(p.x - q.x, p.y - q.y) >= RANDOM_SPACING_FT, `${a.id} and ${b.id} start at least 1 NM apart (seed ${seed})`);
+      }
+    }
+  }
+});
+
+// The caution distance (500 ft, TR-Q11) is the test of "meets": the timing helper finds a start that brings the
+// straight-in inside it while the other aircraft is in its final turn, in the default wind and in calm air.
+test('Setup: Busy circuit\'s straight-in can be timed to meet the overhead aircraft in its final turn', () => {
+  const list = scenarioAircraft('busy', { routes, seed: 1 });
+  const overhead = list.find((a) => a.routeId === 'PAT1' && a.startIndex === 8);
+  const inbound = list.find((a) => a.routeId === 'ENT2');
+  for (const wind of [{ windFromDeg: 260, windKt: 15 }, { windFromDeg: 360, windKt: 0 }]) {
+    const { closestFt } = straightInDelaySec({ ...mooseJaw, ...wind }, overhead, inbound);
+    assert.ok(closestFt < 500, `they meet within 500 ft in ${wind.windKt} kt from ${wind.windFromDeg}: ${Math.round(closestFt)} ft`);
+  }
 });
 
 test('Setup: Random puts five aircraft on route points, at least 1 NM apart, and the same dice give the same picture', () => {
@@ -61,4 +92,18 @@ test('Setup: the runway wind line gives head and cross wind as a pilot works the
   assert.equal(runwayWindText(208, 10), '29L: no head or tail, 10 kt cross from the left');
   assert.equal(runwayWindText(28, 10), '29L: no head or tail, 10 kt cross from the right');
   assert.equal(runwayWindText(200, 0), '29L: calm');
+});
+
+test('Spawn a conflict finds a straight-in that meets an aircraft on initial, inside the caution distance, and leaves the run as it was (Patrick, 4 Oct 19:24Z)', () => {
+  const setup = { ...mooseJaw, deconflict: true, windFromDeg: 260, windKt: 15, aircraft: scenarioAircraft('joining', { routes: mooseJaw.routes, seed: 3 }) };
+  const sim = createSim(setup, { seed: 1 });
+  sim.stepTo(15);
+  const target = sim.state().aircraft.find((a) => a.status === 'flying' && a.phase === 'initial');
+  assert.ok(target, 'an aircraft on initial to aim at');
+  const before = JSON.stringify(sim.state());
+  const plan = conflictSpawnPlan(sim, setup, target.id, 'ENT2');
+  assert.equal(JSON.stringify(sim.state()), before, 'the run itself is not touched');
+  assert.ok(plan, 'a straight-in can meet it');
+  // Inside the caution distance (500 ft, TR-Q11), and far enough ahead to be seen coming.
+  assert.ok(plan.closestFt < 500 && plan.inSec >= 20, JSON.stringify(plan));
 });
