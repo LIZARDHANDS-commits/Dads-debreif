@@ -1,12 +1,16 @@
 name: Deploy to GitHub Pages
 
-# Publishes the built site after CI passes on main (D12), so a commit that
-# fails any test, browser tests included, is never published.
-# One-time setup: repo Settings > Pages > Build and deployment > Source: GitHub Actions.
+# Every push to main publishes the site, whether or not CI passed: a failing
+# check shows as a warning on the CI run, never a stop (Q-T1, "Always
+# publish", docs/TESTING.md section 2).
+#
+# The site stays offline until Patrick picks a public repo or private with
+# GitHub Pro (Q-ALL-1, docs/PLAN.md). To turn publishing on:
+#   1. Settings > Pages > Build and deployment > Source: GitHub Actions.
+#   2. Settings > Secrets and variables > Actions > Variables: add PAGES_ON = true.
+# Until PAGES_ON is true, this workflow skips itself instead of failing.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -19,12 +23,10 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    if: vars.PAGES_ON == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 22

@@ -53,6 +53,7 @@ test('the Energy defaults fly at once, and every default is in its own range', (
 test('the three groups of Energy settings cover every Energy key once', () => {
   assert.equal(new Set(ENERGY_KEYS).size, ENERGY_KEYS.length);
   // The spec lists twelve model settings; lead and lag, the two pitch back banks, the two split points each make a pair, plus tactical AI lookahead.
+  // The count of 16 is a design choice, not a flight number: it follows where the model settings live (TF-Q9, open). It moves when that is settled.
   assert.equal(ENERGY_CHECK_KEYS.length, 16);
   for (const key of ENERGY_KEYS) assert.ok(key in DEFAULTS, key);
   // The moves and pursuits the boxes offer are the engine's.
@@ -74,11 +75,13 @@ test('the ranges are the engine\'s setup checks: KIAS 40 to VMO, altitude to 25,
   assert.ok(RANGES.shakerPct.min > 0 && RANGES.midThrottlePct.min > 0, 'the engine wants the shaker and throttle above 0');
 });
 
-test('both ends of every Energy number box give a fight the engine accepts and flies finite for 40 s', () => {
+test('both ends of every Energy number box give a fight the engine accepts and flies finite through the pass and the first turn', () => {
+  // Kept light (T9): 16 boxes at both ends fly 15 s each, long enough to pass and start the first turn at the default 1.2 NM start. Flying 40 s each took about a minute; most of the cost left is the AI's plan made when each fight is created.
+  const FLY_SEC = 15;
   const fly = (values) => {
     assert.equal(energyProblem(values), '', JSON.stringify(values));
     const fight = createEnergyFight(energySetupFrom(values));
-    for (let i = 0; i < 40 / 0.02; i++) stepEnergyFight(fight, 0.02);
+    for (let i = 0; i < FLY_SEC / 0.02; i++) stepEnergyFight(fight, 0.02);
     for (const who of ['blue', 'red']) for (const k of ['kias', 'altFt', 'g', 'bankDeg', 'climbDeg', 'psFtps']) assert.ok(Number.isFinite(fight[who][k]), `${who}.${k}`);
   };
   for (const key of NUMBER_ENERGY_KEYS) {

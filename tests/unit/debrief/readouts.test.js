@@ -9,7 +9,7 @@
 // or pruned, never accommodated by degrading aerodynamic fidelity.
 // ============================================================================
 
-// The readout rows (SPEC-debrief: Readouts and standards, #18, #21, D31, D32, D47, D52, D78).
+// The readout rows (SPEC-debrief: Readouts and standards, #18, #21, D31, D32, D47, D52, D78; DB-R6 to DB-R9).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -17,7 +17,6 @@ import { buildFlight, headingAt, estimatedGAt, sampleAt } from '../../../src/fli
 import { loadExampleFlight } from '../../../src/flight-data/examples.js';
 import { shipsIn3d } from '../../../src/modules/debrief/view3d/frame.js';
 import { makeLocalRef, localFtToLatLon } from '../../../src/core/geo.js';
-import { emPoint } from '../../../src/core/flight-math.js';
 import { V6_STANDARDS, DEFAULT_STANDARDS } from '../../../src/core/standards.js';
 import { KT_TO_FTPS } from '../../../src/core/units.js';
 import {
@@ -52,13 +51,24 @@ const box = buildFlight({
   4: track('Four', (t) => [v * t, -12000]),
 });
 
-test('est. IAS is core\'s EM-chart estimate: ground speed × √(density ratio) (D31)', () => {
-  for (const [gs, alt] of [[200, 5000], [180, 10_000], [250, 0], [150, 60_000]]) {
-    const em = emPoint({ x: 0, y: 0 }, { x: 1, y: 0, spdKt: gs, altFt: alt }, { x: 2, y: 0 });
-    assert.equal(estIasKt(gs, alt), em.iasKt);
+// Standard aerodynamics, worked here independently of the code: indicated airspeed is about true airspeed times the
+// square root of the density ratio, and the ISA density ratio in the troposphere is (1 - 6.8756e-6 x altitude in ft)^4.2559.
+const isaSigma = (altFt) => (1 - 6.8756e-6 * altFt) ** 4.2559;
+
+test('est. IAS is ground speed × √(density ratio), worked out by hand for a known track (D31)', () => {
+  // Hand-worked: at 5,000 ft ISA sigma = 0.8617, root = 0.9283, so 200 kt over the ground is about 185.7 kt est. IAS.
+  // The margin is 0.5 kt, not the shared ±10 kt: the two ISA formulas differ only in the rounding of their constants.
+  const margin = 0.5;
+  for (const [gs, alt] of [[200, 5000], [180, 10_000], [250, 0], [150, 20_000]]) {
+    const worked = gs * Math.sqrt(isaSigma(alt));
+    assert.ok(Math.abs(estIasKt(gs, alt) - worked) <= margin, `${gs} kt at ${alt} ft: ${estIasKt(gs, alt)} vs ${worked}`);
   }
+  assert.ok(Math.abs(estIasKt(200, 5000) - 185.7) <= margin);
   assert.equal(estIasKt(NaN, 5000), null);
-  assert.ok(estIasKt(200, 10_000) < 175 && estIasKt(200, 10_000) > 165);
+  // A known track: four ships level at 5,000 ft, each flying east at 200 kt over the ground, all read the same est. IAS.
+  for (const ship of readoutsAt(box, T(30)).ships) {
+    assert.ok(Math.abs(ship.iasKt - 200 * Math.sqrt(isaSigma(5000))) <= margin, `#${ship.slot}: ${ship.iasKt}`);
+  }
 });
 
 test('a standard applies to #2 to #4 with spread on, and to #3 alone with only offset on (#21)', () => {
@@ -304,28 +314,27 @@ test('V6\'s one-target standard is gated by the same blocks; a standard that is 
 
 // ── M2: bank over the same window as G ──
 
-// #2 on the example flight at scrubber start+1676 to +1688, where the bank flickered while G read 1.0 to 2.1.
-// The readouts and the 3D view give the same bank (D40). Bank in degrees, left wing down positive.
-// The heading change over t±1.5 s, est. G's window (M2). At +1688 that window touches the GPS gap
-// after 1688.9 s, so G is "--" and the bank is unknown: "bank --", wings level in 3D (audit of #194, Y2;
-// verification re-check N2; it read −57.4° before).
-// Final verification F3 moved these: the bank now uses the window's chord ground speed (est. G's), not the
-// one-second segment's, so it agrees with the G beside it (at +1683, 1.87 G and 57.7°: acos(1/1.87)). Before F3:
-// [-5.617, -11.3934, -5.4889, 6.7984, 7.3718, 0.1351, -51.0776, -62.3068, -47.2801, 34.033, 34.033, 6.7648, null].
-// The old ±1 s chord bank stays pinned on V6's path in tests/golden/debrief-3d.test.js.
-const EXAMPLE_BANK_PIN = [-5.5608, -12.1078, -5.6535, 6.5781, 7.3105, 0.1351, -53.614, -57.6967, -44.5474, 36.943, 34.8179, 6.3849, null];
-
-test('the example flight\'s #2, start+1676 to +1688: the pinned bank, the same in the readouts and the 3D view', async () => {
+// The readouts and the 3D view give the same bank (D40). Bank in degrees, left wing down positive; where it is
+// unknown (a window touching a GPS gap, "bank --") the 3D view draws wings level and says it is not known.
+// Over the whole example flight, so no value at a chosen second is pinned: for every ship at every second the
+// 3D view draws the bank the readouts show. (Bank beside G: see the F3 whole-flight test below.)
+test('the example flight: at every second, every ship\'s bank is the same in the readouts and the 3D view', async () => {
   const flight = await loadExampleFlight(fromRepo);
-  const got = [];
-  for (let s = 1676; s <= 1688; s++) {
-    const bank = readoutsAt(flight, flight.startT + s).ships[1].bankDeg;
-    const in3d = shipsIn3d(flight, flight.startT + s)[1];
-    assert.equal(in3d.bankDeg, bank ?? 0); // unknown: drawn wings level
-    assert.equal(in3d.bankKnown, bank !== null);
-    got.push(bank === null ? null : +bank.toFixed(4));
+  let compared = 0;
+  let unknown = 0;
+  for (let s = flight.startT; s <= flight.endT; s += 1) {
+    const ships = readoutsAt(flight, s).ships;
+    const in3d = shipsIn3d(flight, s);
+    for (const ship of ships) {
+      const drawn = in3d.find((d) => d.slot === ship.slot);
+      compared++;
+      assert.equal(drawn.bankDeg, ship.bankDeg ?? 0, `#${ship.slot} at +${s - flight.startT}`); // unknown: drawn wings level
+      assert.equal(drawn.bankKnown, ship.bankDeg !== null, `#${ship.slot} known at +${s - flight.startT}`);
+      if (ship.bankDeg === null) unknown++;
+    }
   }
-  assert.deepEqual(got, EXAMPLE_BANK_PIN);
+  assert.ok(compared > 15_000, `${compared} ship-seconds`);
+  assert.ok(unknown > 0, 'the example flight has moments where bank is unknown, so that case is covered');
 });
 
 /** A small repeatable noise in -0.5 to 0.5, so the test is the same every run. */
@@ -465,15 +474,22 @@ test('a 24 kt headwind raises Lead\'s est. IAS and flips "on parameters" to FAST
   assert.match(shipDetailText(head.ships[0])[0], /^Alt 12,000 ft, GS 250 kt, est\. IAS \d+ kt \(wind-corrected\)$/);
 });
 
-test('with no wind Lead\'s est. IAS stays ground speed based and says "(no wind)"; a wingman never takes Lead\'s wind (F1)', () => {
-  const flight = eastbound(250, 12_000);
+test('with no wind every ship\'s est. IAS is ground speed based and says "(no wind)"; with a wind every ship uses the same one (DB-R8, D3)', { todo: "Debrief plan step 2: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  const flight = eastbound(250, 12_000); // Lead and #2 abreast: the same path at the same time
   const none = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS });
   assert.match(leadText(none.lead).text, /^Lead \d+ kt est\. IAS \(no wind\), /);
-  assert.match(shipDetailText(none.ships[0])[0], /est\. IAS \d+ kt \(no wind\)$/);
-  assert.match(shipDetailText(none.ships[1])[0], /est\. IAS \d+ kt \(no wind\)$/);
+  for (const ship of none.ships) {
+    assert.match(shipDetailText(ship)[0], /est\. IAS \d+ kt \(no wind\)$/, `#${ship.slot}`);
+    assert.ok(Math.abs(ship.iasKt - estIasKt(250, 12_000)) < 0.01, `#${ship.slot}`);
+  }
+  // Winds aloft on: a 24 kt headwind is 24 kt more true airspeed for each ship (standard aerodynamics), the same
+  // for both, and each ship's line says the wind was used.
   const head = readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
-  assert.equal(head.ships[1].iasKt, none.ships[1].iasKt);
-  assert.match(shipDetailText(head.ships[1])[0], /\(no wind\)$/);
+  for (const ship of head.ships) {
+    assert.ok(Math.abs(ship.iasKt - (250 + 24) * Math.sqrt(isaSigma(12_000))) <= 0.5, `#${ship.slot}: ${ship.iasKt}`);
+    assert.match(shipDetailText(ship)[0], /\(wind-corrected\)$/, `#${ship.slot}`);
+  }
+  assert.equal(head.ships[1].iasKt, head.ships[0].iasKt); // the same path at the same time reads the same
   // A wind of null, or a missing one, is no wind.
   for (const leadWind of [null, undefined]) assert.equal(readoutsAt(flight, T(30), { standards: DEFAULT_STANDARDS, leadWind }).lead.iasKt, none.lead.iasKt);
 });
@@ -483,6 +499,7 @@ test('Lead not moving has no heading, so no wind correction even with a wind (F1
   const r = readoutsAt(still, T(30), { standards: DEFAULT_STANDARDS, leadWind: HEAD_24 });
   assert.match(leadText(r.lead).text, /\(no wind\)/);
   assert.equal(r.lead.windCorrected, false);
+  assert.ok(r.ships.every((ship) => ship.windCorrected === false), 'no ship has a heading to take a wind from');
 });
 
 test('the verdict follows the IAS shown: target and block are as before (F1)', () => {

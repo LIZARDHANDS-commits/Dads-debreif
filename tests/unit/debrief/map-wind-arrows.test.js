@@ -15,7 +15,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { drawWindArrows } from '../../../src/modules/debrief/map2d/layers.js';
-import { arrowVector } from '../../../src/modules/debrief/weather/wind-arrows.js';
 
 // A canvas context that keeps the path's points and the text, in order.
 function ctxStub() {
@@ -40,14 +39,31 @@ const mapAt = (shift = [0, 0], zoom = 1) => ({ worldToScreen: (x, y) => [100 + s
 const arrow = { x: 10, y: 20, dirDeg: 270, kt: 38, label: '270°T/38 kt' };
 
 test('an arrow starts at its point on the screen and its shaft ends downwind', () => {
-  const ctx = ctxStub();
-  drawWindArrows(ctx, mapAt(), [arrow]);
-  const v = arrowVector(arrow);
+  // The end point is typed in from the geometry, not worked out with the code's own arrowVector.
+  // A wind "from 270°" blows from the west toward the east, so on a north-up screen the arrow points straight right:
+  // the head is level with the tail (same y) and to its right. The point (10, 20) ft is at screen (110, 180) with mapAt().
   const tail = [110, 180];
-  assert.ok(ctx.log.moves.some(([x, y]) => x === tail[0] && y === tail[1]), 'the shaft starts at the point');
-  const head = [tail[0] + v.dx, tail[1] + v.dy];
-  assert.ok(ctx.log.lines.some(([x, y]) => Math.abs(x - head[0]) < 1e-9 && Math.abs(y - head[1]) < 1e-9), 'and ends downwind (a west wind: to the right)');
-  assert.ok(head[0] > tail[0]);
+  const shaftOf = (a) => {
+    const ctx = ctxStub();
+    drawWindArrows(ctx, mapAt(), [a]);
+    assert.ok(ctx.log.moves.some(([x, y]) => x === tail[0] && y === tail[1]), 'the shaft starts at the point');
+    return ctx.log.lines[0]; // the first line is the shaft; the barbs come after
+  };
+  const west = shaftOf({ ...arrow, dirDeg: 270, kt: 20 });
+  assert.ok(Math.abs(west[1] - tail[1]) < 1e-9, 'a west wind blows level across the screen');
+  // Length: the spec holds an arrow between 16 and 72 px, growing with the speed (docs/modules/debrief/spec.md, Winds aloft).
+  const len20 = west[0] - tail[0];
+  assert.ok(len20 >= 16 && len20 <= 72, `${len20} px`);
+  assert.ok(shaftOf({ ...arrow, dirDeg: 270, kt: 40 })[0] - tail[0] > len20, 'a stronger wind draws a longer arrow');
+  // A north wind (from 360°) blows south: straight down the screen. An east wind (from 090°) blows west: left.
+  const north = shaftOf({ ...arrow, dirDeg: 360, kt: 20 });
+  assert.ok(Math.abs(north[0] - tail[0]) < 1e-9 && north[1] > tail[1]);
+  const east = shaftOf({ ...arrow, dirDeg: 90, kt: 20 });
+  assert.ok(Math.abs(east[1] - tail[1]) < 1e-9 && east[0] < tail[0]);
+  // A south-west wind (from 225°) blows north-east: up and to the right, at 45°.
+  const southwest = shaftOf({ ...arrow, dirDeg: 225, kt: 20 });
+  assert.ok(southwest[0] > tail[0] && southwest[1] < tail[1]);
+  assert.ok(Math.abs((southwest[0] - tail[0]) - (tail[1] - southwest[1])) < 1e-9);
 });
 
 test('the arrows move with the map: pan shifts the whole arrow, zoom moves its place but not its length', () => {

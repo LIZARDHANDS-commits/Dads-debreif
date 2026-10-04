@@ -11,7 +11,7 @@
 
 // OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
 // The Turn Fight's fight (SPEC-turn-fight, Testing strategy 3): what the numbers mean.
-// tests/golden/turn-fight-sim.test.js pins the same code to V6 step by step.
+// Expected values are worked out from standard aerodynamics and geometry (F1) or are Patrick's rulings (Q48, Q49, Q51), never V6's output.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FT_PER_NM } from '../../../src/core/units.js';
@@ -33,7 +33,10 @@ function runUntil(setup, done, limitSec = 120) {
 }
 const sinceMerge = (s) => s.firstNose.timeSec - s.mergeSec;
 
-test('220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius, 360° in 18.7 s (V6 `M`)', () => {
+test('220 KTAS at 4 G turns at 19.2°/s on a 1,106 ft radius, 360° in 18.7 s (level-turn formulas, worked out below)', () => {
+  // Standard aerodynamics (F1): rate = g*sqrt(n^2-1)/V, radius = V^2/(g*sqrt(n^2-1)), full circle = 360 / rate.
+  // 220 kt = 371.3 ft/s; g*sqrt(4^2-1) = 32.174 * 3.873 = 124.6 ft/s^2; rate = 124.6 / 371.3 = 0.3356 rad/s = 19.2°/s;
+  // radius = 371.3^2 / 124.6 = 1,106 ft; 360 / 19.2 = 18.7 s.
   const t = levelTurn(220, 4);
   assert.equal(t.rateDegPerSec.toFixed(1), '19.2');
   assert.equal(t.radiusFt.toFixed(0), '1106');
@@ -54,7 +57,7 @@ test('a turn is tighter and faster with more G, and wider and slower at more spe
   assert.ok(levelTurn(300, 4).rateDegPerSec < levelTurn(220, 4).rateDegPerSec);
 });
 
-test('the merge is the separation divided by the closing speed: T+16.4 s at V6\'s defaults, 16.0 s at 250 and 200 kt', () => {
+test('the merge is the separation divided by the closing speed: T+16.4 s at 2 NM and 220 kt each, 16.0 s at 250 and 200 kt', () => {
   assert.equal(r1(mergeTimeSec(2, 220, 220)), 16.4);
   assert.equal(r1(mergeTimeSec(2, 250, 200)), 16);
   assert.equal(createFight().mergeSec, mergeTimeSec(2, 220, 220));
@@ -82,11 +85,11 @@ test('the start: Blue on the left heading east, Red on the right heading west, t
 });
 
 test('before the merge both fly straight and level at their own speed; the merge puts both at the centre at T+16.4 s', () => {
-  const s = createFight();
-  stepFight(s, 10);
-  near(s.timeSec, 10, 1e-9);
-  near(s.blue.xFt, -FT_PER_NM + 220 * 1.68781 * 10, 1e-6);
-  near(s.red.xFt, FT_PER_NM - 220 * 1.68781 * 10, 1e-6);
+  // Read halfway to the pass (the range has closed to half), an event, not a chosen second: each jet is where straight flight puts it.
+  const s = runUntil({}, (f) => rangeFt(f) <= FT_PER_NM);
+  assert.equal(s.merged, false);
+  near(s.blue.xFt, -FT_PER_NM + 220 * 1.68781 * s.timeSec, 1e-6);
+  near(s.red.xFt, FT_PER_NM - 220 * 1.68781 * s.timeSec, 1e-6);
   assert.deepEqual([s.blue.headingRad, s.red.headingRad, s.blue.yFt, s.merged], [0, Math.PI, 0, false]);
   const merged = runUntil({}, (f) => f.merged);
   assert.equal(r1(merged.timeSec), 16.4);
@@ -111,7 +114,7 @@ test('the merge puts both aircraft at the centre, exactly: the step that merges 
   near(Math.hypot(s.red.xFt, s.red.yFt), speedFtps * remainderSec, 1e-6);
 });
 
-test('at different speeds the jets end up together at the merge (Q49: they meet there; V6 moved them)', () => {
+test('at different speeds the jets end up together at the merge (Q49: they meet there, with no jump)', () => {
   const s = runUntil({ blueKt: 250, redKt: 200 }, (f) => f.merged);
   assert.equal(r1(s.timeSec), 16);
   near(Math.hypot(s.blue.xFt, s.blue.yFt), 250 * 1.68781 * (s.timeSec - s.mergeSec), 1e-6);
@@ -135,7 +138,7 @@ test('Q49: the jets start weighted by speed: Blue at -V1 / (V1 + V2) of the sepa
   near(s.blue.xFt, (-250 / 450) * 2 * FT_PER_NM, 1e-9);
   near(s.red.xFt, (200 / 450) * 2 * FT_PER_NM, 1e-9);
   near(rangeFt(s), 2 * FT_PER_NM, 1e-9, 'the separation is still the range');
-  // Equal speeds: the same start as V6's, half the separation each side.
+  // Equal speeds: half the separation each side.
   const even = createFight({ blueKt: 220, redKt: 220 });
   near(even.blue.xFt, -FT_PER_NM, 1e-9);
   near(even.red.xFt, FT_PER_NM, 1e-9);
@@ -144,16 +147,18 @@ test('Q49: the jets start weighted by speed: Blue at -V1 / (V1 + V2) of the sepa
   assert.ok(-fast.blue.xFt > fast.red.xFt);
 });
 
-test('Q49: at 250 and 200 kt the jets meet at the centre, with no jump; V6 met 675 ft off and then moved both', () => {
+test('Q49 (Patrick): at 250 and 200 kt the jets meet at the centre, with no jump; the older equal-distance start met 675 ft off and then moved both', () => {
   const now = pointAtMerge({ blueKt: 250, redKt: 200 });
   near(now.blueXFt, 0, 1e-6, 'Blue at the merge');
   near(now.redXFt, 0, 1e-6, 'Red at the merge');
   const v6 = pointAtMerge({ blueKt: 250, redKt: 200, v6Start: true });
-  near(v6.blueXFt, 675.1, 0.1, 'V6: Blue 675 ft off the centre');
-  near(v6.redXFt, 675.1, 0.1, 'V6: Red 675 ft off the centre');
+  // Worked out: starting 1 NM each side of the centre, Blue flies 250/450 of the 2 NM before they meet, so it is (250/450 - 1/2) x 2 NM = 0.111 NM = 675 ft past the centre.
+  const offFt = (250 / 450 - 0.5) * 2 * FT_PER_NM;
+  near(v6.blueXFt, offFt, 0.1, 'older start: Blue off the centre');
+  near(v6.redXFt, offFt, 0.1, 'older start: Red off the centre');
 });
 
-test('Q49: v6Start keeps V6\'s start (equal distance from the centre) and is not part of the setup boxes', () => {
+test('Q49: v6Start keeps the older start (equal distance from the centre) and is not part of the setup boxes', () => {
   const s = createFight({ blueKt: 250, redKt: 200, v6Start: true });
   near(s.blue.xFt, -FT_PER_NM, 1e-9);
   near(s.red.xFt, FT_PER_NM, 1e-9);
@@ -223,7 +228,7 @@ test('Q48: both within 5° in the same step is "both" even when the fight is une
   assert.deepEqual(s.firstNose.to, { xFt: s.red.xFt, yFt: s.red.yFt });
 });
 
-test('Q48: with First nose chases a tie chases the same as V6 does: both turn toward each other at their own rate', () => {
+test('Q48: with First nose chases a tie is chased by both: both turn toward each other at their own rate', () => {
   const s = createFight({ chase: true });
   while (!s.firstNose) stepFight(s, FIGHT_STEP_SEC);
   assert.equal(s.firstNose.both, true);
@@ -262,8 +267,8 @@ test('first nose-on is marked once, with the time and both positions, when an ai
 });
 
 test('nothing is marked before the merge, even though the noses are pointing at each other', () => {
-  const s = createFight();
-  stepFight(s, 10);
+  const s = runUntil({}, (f) => f.mergeSec - f.timeSec < 1); // a second before the pass: an event, not a chosen time
+  assert.equal(s.merged, false);
   assert.equal(s.firstNose, null);
   assert.equal(sinceMergeSec(s), 0);
 });
@@ -284,11 +289,11 @@ test('with First nose chases, the aircraft that got first nose-on keeps its nose
   assert.ok(offNoseDeg(free.blue, free.red) > 30, 'left alone, the same aircraft is already well off the other');
 });
 
-test('the chase wraps headings into ±π, as V6 does, where a free turn keeps counting past 2π', () => {
+test('the chase wraps headings into ±π (a design choice of the engine), where a free turn keeps counting past 2π', () => {
   const chase = createFight({ blueG: 6, chase: true });
   const free = createFight({ blueG: 6 });
-  stepFight(chase, 40);
-  stepFight(free, 40);
+  // Fly until the free turn has gone past a full circle (an event, not a second); the stop of 120 s is only a safety net.
+  for (let i = 0; i < 120 / FIGHT_STEP_SEC && !(free.blue.headingRad > 2 * Math.PI); i++) { stepFight(chase, FIGHT_STEP_SEC); stepFight(free, FIGHT_STEP_SEC); }
   assert.ok(Math.abs(chase.blue.headingRad) <= Math.PI && Math.abs(chase.red.headingRad) <= Math.PI);
   assert.ok(free.blue.headingRad > 2 * Math.PI);
 });
@@ -301,8 +306,9 @@ test('without the chase, the turn never changes course after first nose-on (both
 });
 
 test('Climb and dive off ignores the pitch boxes: the fight stays level', () => {
-  const s = createFight({ vertical: false, bluePitchDeg: 30, redPitchDeg: -20 });
-  stepFight(s, 60);
+  // Fly until the first nose-on, so the fight has gone through the pass and the turns.
+  const s = runUntil({ vertical: false, bluePitchDeg: 30, redPitchDeg: -20 }, (f) => f.firstNose);
+  assert.ok(s.merged && s.firstNose);
   assert.deepEqual([s.blue.zFt, s.red.zFt, s.blue.pitchRad, s.red.pitchRad], [0, 0, 0, 0]);
 });
 
@@ -448,7 +454,7 @@ test('Q51: offNose3dDeg is the angle from the nose (heading and pitch) to the li
   assert.equal(offNose3dDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)), offNoseDeg(at3(5, 5, 5, 1, 0.5), at3(5, 5, 5, 0, 0)));
 });
 
-test('Q51: ataDeg measures in 3D only with Climb and dive on (and not with v6OffNose); otherwise it is V6\'s ground-plane angle', () => {
+test('Q51: ataDeg measures in 3D only with Climb and dive on (and not with v6OffNose); otherwise it is the ground-plane angle', () => {
   const pitched = (extra) => {
     const s = createFight({ vertical: true, bluePitchDeg: 30, redPitchDeg: -20, ...extra });
     s.merged = true;

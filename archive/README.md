@@ -119,7 +119,13 @@ Every file moved here during the October 2026 reset has a row: where it used to 
 | `tasks/turn-fight/todo.md` | `tasks/turn-fight/todo.md` | Nothing open: history. |
 | `tasks/wx/plan.md` | `tasks/wx/plan.md` | Nothing open: history. |
 | `tasks/wx/todo.md` | `tasks/wx/todo.md` | Nothing open: history. |
-| Old plan Claude Doc, tabs Main, Roadmap, Future features, Rebuild or fix | `plan-doc/` (text copies made on 3 Oct 2026; the Doc itself is left in place) | `docs/PLAN.md`, `docs/FUTURE.md` and the module plans and future lists. |
+| `tests/unit/debrief/em.test.js` | `tests/unit/debrief/em.test.js` | Retired: the Debrief's EM chart was dropped (DB-R20). Patrick's retire list, 4 Oct 2026. |
+| `tests/crosscheck/traffic-expected.json` | `tests/crosscheck/traffic-expected.json` | Retired: a recording of an older version's output that nothing checks against. Patrick's retire list, 4 Oct 2026. |
+| `tests/e2e/visual.spec.js` and `tests/e2e/__screenshots__/visual.spec.js/` (9 pictures) | `tests/e2e/` | Retired: screenshot comparisons dropped (Q-T2); the layout check and Patrick's look cover the screens. |
+| Old plan Claude Doc, tabs Main, Roadmap, Future features, Rebuild or fix, Flight math check, Questions, Decisions, Requirements | `plan-doc/plan-doc-*.md` (text copies made on 3 Oct 2026; the Doc itself is left in place) | `docs/PLAN.md`, `docs/REQUIREMENTS.md`, `docs/DECISIONS.md`, `docs/FUTURE.md`, `docs/questions-for-dad.md` and the module folders. |
+| "OODA LOOP Feature Ideas" page (claude.ai artifact; the page stays online) | `plan-doc/feature-ideas-page.md` (text copy) | `docs/FUTURE.md` and each module's `future.md`. |
+| Branches `handover/turn-sim-task12-screen`, `turn-sim-215-recheck`, `turn-sim-223-fixes`, `turn-sim-task17-sequence` (Turn Sim work not on main) | `bundles/turn-sim-paused-branches.bundle` (the four branch tips; restore with `git fetch archive/bundles/turn-sim-paused-branches.bundle 'refs/heads/*:refs/remotes/turn-sim-bundle/*'`) | Flagged as work to reuse in `docs/modules/turn-sim/plan.md`, Step 1. |
+| Branches `wip/sim-3-worktree`, `backup/pre-swarm-038bc9b`, `backup/phases-1-2-done-978b7f1` (the Traffic vector-migration attempt) | `bundles/traffic-vector-migration-reverted.bundle` | Reverted attempt, kept for the record. Not plan input. |
 
 ## Moved inside `docs/`, not archived
 

@@ -11,7 +11,8 @@
 
 // The VNC chart layer (SPEC-debrief: Map layers): charts fetched only when
 // shown, warped once per alignment (#43), and a failed chart reported.
-// The warp itself is pinned to V6 in tests/golden/debrief-vnc.test.js.
+// The warp itself is pinned in tests/golden/debrief-vnc.test.js. What the user sees is checked here: the chart covers
+// its corners on the map and is redrawn once a frame (DB-R14); how many triangles the warp uses is not checked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeLocalRef, latLonToLocalFt } from '../../../src/core/geo.js';
@@ -23,9 +24,9 @@ const ref = makeLocalRef(50.3916, -105.5349);
 
 // A stand-in canvas that counts its drawImage calls.
 function fakeCanvas(width, height) {
-  const calls = { drawImage: 0 };
+  const calls = { drawImage: 0, drawn: [] };
   const ctx = new Proxy({ calls }, {
-    get: (o, k) => (k in o ? o[k] : (...a) => { if (k === 'drawImage') calls.drawImage += 1; return a; }),
+    get: (o, k) => (k in o ? o[k] : (...a) => { if (k === 'drawImage') { calls.drawImage += 1; calls.drawn.push(a); } return a; }),
     set: (o, k, v) => { o[k] = v; return true; },
   });
   return { width, height, getContext: () => ctx, ctx };
@@ -47,7 +48,7 @@ function setup() {
   return { layer, images, made, draw, changes: () => changes, screen };
 }
 
-test('the choices are V6\'s Off, South, North and Both', () => {
+test('the choices are Off, South, North and Both (DB-R14)', () => {
   assert.deepEqual({ ...VNC_CHOICES }, { off: [], south: ['south'], north: ['north'], both: ['south', 'north'] });
 });
 
@@ -69,16 +70,48 @@ test('a chart is warped once per alignment, then drawn with one drawImage a fram
   s.draw(['north']);
   assert.equal(s.made.length, 1);
   const warped = s.made[0];
-  assert.equal(warped.ctx.calls.drawImage, 18 * 18 * 2); // V6's mesh, every triangle
+  assert.ok(warped.ctx.calls.drawImage > 0); // the chart was drawn into its warped copy (how many triangles it takes is not checked)
   assert.ok(Math.abs(warped.width - 2048) < 400 && warped.height > 1000); // about the image's own resolution
   const before = s.screen.ctx.calls.drawImage;
   s.draw(['north']);
   s.draw(['north']);
   assert.equal(s.made.length, 1);
-  assert.equal(s.screen.ctx.calls.drawImage - before, 2);
+  assert.equal(s.screen.ctx.calls.drawImage - before, 2); // two frames, two drawImage calls: one a frame
   s.draw(['north'], { nudgeEastNm: 2, nudgeNorthNm: 0, scalePct: 100 });
   assert.equal(s.made.length, 2);
   assert.deepEqual(s.layer.state(), { wanted: 1, ready: 1, failed: 0 });
+});
+
+test('each chart covers its four corners on the map, and nudging it east moves it east', () => {
+  const NM_FT = 6076.12; // feet in a nautical mile
+  for (const key of Object.keys(VNC_CHARTS)) {
+    const s = setup();
+    s.draw([key]);
+    s.images[0].onload();
+    const rectOf = (align) => {
+      s.screen.ctx.calls.drawn.length = 0;
+      s.draw([key], align);
+      const [, x, y, w, h] = s.screen.ctx.calls.drawn.at(-1);
+      return { left: x, top: y, right: x + w, bottom: y + h };
+    };
+    const rect = rectOf(VNC_DEFAULT_ALIGN);
+    // The chart's four corners are where its edges say, in latitude and longitude, turned into map feet and then
+    // through the map's own scale (1 px = 1,000 ft in this test's map). The chart's hand alignment moves its
+    // edges by up to about 1.4 NM, so each edge must be within 2 NM of its nominal place.
+    const ch = VNC_CHARTS[key];
+    const px = (lat, lon) => { const p = latLonToLocalFt(ref, lat, lon); return [p.x / 1000, -p.y / 1000]; };
+    const tolPx = (2 * NM_FT) / 1000;
+    const [westPx, northPx] = px(ch.north, ch.west);
+    const [eastPx, southPx] = px(ch.south, ch.east);
+    assert.ok(Math.abs(rect.left - westPx) <= tolPx, `${key} west edge ${rect.left} vs ${westPx}`);
+    assert.ok(Math.abs(rect.right - eastPx) <= tolPx, `${key} east edge ${rect.right} vs ${eastPx}`);
+    assert.ok(Math.abs(rect.top - northPx) <= tolPx, `${key} north edge ${rect.top} vs ${northPx}`);
+    assert.ok(Math.abs(rect.bottom - southPx) <= tolPx, `${key} south edge ${rect.bottom} vs ${southPx}`);
+    // Nudge 2 NM east: the whole chart moves 2 NM (12 px here) east, and not north or south.
+    const nudged = rectOf({ nudgeEastNm: 2, nudgeNorthNm: 0, scalePct: 100 });
+    assert.ok(Math.abs(nudged.left - rect.left - (2 * NM_FT) / 1000) < 1, `${key} moved ${nudged.left - rect.left}`);
+    assert.ok(Math.abs(nudged.top - rect.top) < 1);
+  }
 });
 
 test('a chart that can\'t load is reported, and a closed layer ignores late arrivals', () => {

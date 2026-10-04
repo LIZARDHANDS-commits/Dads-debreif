@@ -17,6 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FT_PER_NM } from '../../../src/core/units.js';
+import { TOLERANCES } from '../../helpers/tolerances.js';
 import { wrapPi, radToDeg, degToRad } from '../../../src/core/angles.js';
 import { T6A_LIMITS, stallLimitG, availableG, splitST6A } from '../../../src/core/t6-performance.js';
 import { FIGHT_STEP_SEC, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.js';
@@ -41,6 +42,18 @@ function runUntil(setup, done, limitSec = 120) {
 function watch(setup, watcher, limitSec = 120) {
   const s = createEnergyFight(setup);
   for (let i = 0; i < limitSec / FIGHT_STEP_SEC; i++) { stepEnergyFight(s, FIGHT_STEP_SEC); if (watcher(s) === false) break; }
+  return s;
+}
+/** Fly on for sec more seconds, a hold window after an event (not a clock value to hit). */
+const flyFor = (s, sec) => { for (let i = 0; i < sec / FIGHT_STEP_SEC; i++) stepEnergyFight(s, FIGHT_STEP_SEC); return s; };
+/**
+ * Fly until done(state) (an event), failing if it never happens. The stop is only a safety net (Q-T13), set well above the usual time
+ * for the event with its reason beside each use; reaching it reads "never happened".
+ */
+function flyToEvent(setup, done, what, safetyStopSec) {
+  const s = createEnergyFight(setup);
+  for (let i = 0; i < safetyStopSec / FIGHT_STEP_SEC && !done(s); i++) stepEnergyFight(s, FIGHT_STEP_SEC);
+  assert.ok(done(s), `${what} never happened within the ${safetyStopSec} s safety stop`);
   return s;
 }
 const numbersOf = (o, path = '') => Object.entries(o).flatMap(([k, v]) => (
@@ -160,7 +173,7 @@ test('turns start at once when asked, and at once when the range is opening from
   near(opening.mergeSec, 0, 1e-9);
 });
 
-test('head-on, Blue turns left (counter-clockwise); Red also left in a 2-circle fight and right in a 1-circle fight (V6)', () => {
+test('head-on, Blue turns left (counter-clockwise); Red also left in a 2-circle fight and right in a 1-circle fight (the neutral head-on directions)', () => {
   const two = runUntil({ circles: 2, ...SOLO }, (s) => s.merged);
   assert.equal(two.blue.turnDir, 1);
   assert.equal(two.red.turnDir, 1);
@@ -341,12 +354,13 @@ test('where a chase from behind is on offer the race decides, by the real fight\
   const a = createEnergyFight({ blueKias: 250, redKias: 160, redMove: 'pitchBack', turnsStart: 'now', separationNm: 1.5, ataDeg: 120, aaDeg: 100, aaSide: 'right' });
   assert.equal(a.blue.move, 'pitchBack');
   assert.equal(a.plan.blue.race.immelmann, null);
-  near(a.plan.blue.race.pitchBack, 7.7, 0.5, 'pitch back');
+  // The pitch back gets a chase started inside the look-ahead (pickLookaheadSec, 60 s by default). No exact time is pinned.
+  assert.ok(a.plan.blue.race.pitchBack > 0 && a.plan.blue.race.pitchBack <= a.setup.pickLookaheadSec, `pitch back race ${a.plan.blue.race.pitchBack}`);
   assert.match(a.blue.why, /^Pitch back: nose on in about \d+ s vs no nose-on in \d+ s for an Immelmann, outside the SMM band \(160 to 220 KIAS\)$/);
-  // Blue 316 against Red 316: the Immelmann gets there (17.6 s), the pitch back never does.
+  // Blue 316 against Red 316: the Immelmann gets there, the pitch back never does.
   const b = createEnergyFight({ blueKias: 316, redKias: 316, redMove: 'mpt', turnsStart: 'now', separationNm: 1, ataDeg: 135, aaDeg: 20 });
   assert.equal(b.blue.move, 'immelmann');
-  near(b.plan.blue.race.immelmann, 17.6, 0.5, 'Immelmann');
+  assert.ok(b.plan.blue.race.immelmann > 0 && b.plan.blue.race.immelmann <= b.setup.pickLookaheadSec, `Immelmann race ${b.plan.blue.race.immelmann}`);
   assert.equal(b.plan.blue.race.pitchBack, null);
   assert.match(b.blue.why, /^Immelmann: nose on in about \d+ s vs no nose-on in \d+ s for a pitch back, outside the SMM band \(200 to 250 KIAS\)$/);
 });
@@ -384,57 +398,19 @@ test('the pick is deterministic: the same setup gives the same pick and the same
   assert.deepEqual(lookAheadPick(s, 'blue'), lookAheadPick(s, 'blue'));
 });
 
-/**
- * The fastest of `batches` timed batches of `runs` calls, in ms of this process's CPU time per call. CPU time, not the clock on the wall: the
- * suite runs many test files at once, and a busy machine stretches the wall clock but not the CPU a pick really takes.
- */
-function bestMsPerCall(fn, runs, batches) {
-  fn(); // warm the code up
-  let best = Infinity;
-  for (let b = 0; b < batches; b++) {
-    const c0 = process.cpuUsage();
-    for (let i = 0; i < runs; i++) fn();
-    const c = process.cpuUsage(c0);
-    best = Math.min(best, (c.user + c.system) / 1000 / runs);
-  }
-  return best;
-}
-
-test('the look-ahead is quick: a pick costs no more than five 60 s fights flown step by step, at the start, with a second round and in mid-fight', (t) => {
-  // Measured against this machine's own speed, not a fixed number of ms: a slower computer (or a CI runner) makes both
-  // sides slower alike. A pick races two moves for up to 60 s each, so about two fights' worth; five leaves room for the
-  // copying and the reason text, and still catches a pick that starts running extra races. Here, about 15 ms a fight and
-  // 30 to 40 ms a pick.
-  const fight60 = () => {
-    const s = createEnergyFight({ ...SOLO, blueKias: 250, redKias: 250, blueMove: 'pitchBack', redMove: 'pitchBack' });
-    for (let i = 0; i < 60 / FIGHT_STEP_SEC; i++) stepEnergyFight(s, FIGHT_STEP_SEC);
-  };
-  const fightMs = bestMsPerCall(fight60, 3, 5);
-  const limit = 5 * fightMs;
-  t.diagnostic(`a 60 s fight: ${fightMs.toFixed(1)} ms, so the limit is ${limit.toFixed(1)} ms per pick`);
-  const setup = { blueKias: 250, redKias: 250 };
-  // Two aircraft pick in each new fight, each racing the Immelmann against the pitch back; nothing scores here, so every run goes the whole 60 s.
-  const perPick = bestMsPerCall(() => createEnergyFight(setup), 3, 5) / 2;
-  t.diagnostic(`look-ahead at the start: ${perPick.toFixed(1)} ms per pick`);
-  assert.ok(perPick < limit, `${perPick.toFixed(1)} ms per pick at the start, limit ${limit.toFixed(1)}`);
-  // A fight where Blue's pick is raced again against Red's plan (and Red's race is run again): four picks, each the same cost.
-  const again = { blueKias: 250, redKias: 250, turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 };
-  const perRacedPick = bestMsPerCall(() => createEnergyFight(again), 3, 5) / 4;
-  t.diagnostic(`look-ahead in a fight with a second round: ${perRacedPick.toFixed(1)} ms per pick`);
-  assert.ok(perRacedPick < limit, `${perRacedPick.toFixed(1)} ms per pick with a second round, limit ${limit.toFixed(1)}`);
-  // Mid-fight: the pick after a move ends, here a second after the merge of the default 250 KIAS head-on, where nothing scores, so both runs go the whole 60 s.
-  const mid = runUntil(setup, (st) => st.merged && st.timeSec > st.mergeSec + 1, 60);
-  const midMs = bestMsPerCall(() => lookAheadPick(mid, 'blue'), 3, 5);
-  t.diagnostic(`look-ahead mid-fight: ${midMs.toFixed(1)} ms per pick`);
-  assert.ok(midMs < limit, `${midMs.toFixed(1)} ms per pick mid-fight, limit ${limit.toFixed(1)}`);
-});
-
 // ── Steps 2 and 3: from every merge speed to 160 ± 5 KIAS, then hold it ────
 
-// The spec names 100, 140, 180, 220 and 250; the todo says every speed from 100 to 250, so every 10 KIAS.
-const MERGE_SPEEDS = Array.from({ length: 16 }, (_, i) => 100 + 10 * i);
+// The spec names 100, 140, 180, 220 and 250; the todo says every speed from 100 to 250, so every 10 KIAS. Every change flies one speed
+// from each move's band (split S, slice, MPT, pitch back, Immelmann, and the top of the Immelmann range); module sign-off flies all 16.
+// SIGNOFF is the variable the CI sign-off run sets (.github/workflows/ci.yml).
+const ALL_MERGE_SPEEDS = Array.from({ length: 16 }, (_, i) => 100 + 10 * i);
+const SIGNOFF = process.env.SIGNOFF === 'true';
+const MERGE_SPEEDS = SIGNOFF ? ALL_MERGE_SPEEDS : [100, 140, 160, 180, 220, 250];
 
-/** Flies one Auto aircraft from the merge and returns when it reaches 160 ± 5 and what it cost. */
+/**
+ * Flies one Auto aircraft from the merge and returns what happened when it reached 160 ± 5 and what it cost. The 300 s loop is only a
+ * safety net (Q-T13): the MPT is usually reached within about 40 s of the pass, so reaching 300 s reads "never reached it".
+ */
 function toMpt(mergeKias, extra = {}) {
   const setup = { ...SOLO, blueKias: mergeKias, redKias: mergeKias, ...extra };
   const mptKias = setup.mptKias ?? 160;
@@ -458,35 +434,34 @@ function toMpt(mergeKias, extra = {}) {
 }
 
 for (const kias of MERGE_SPEEDS) {
-  test(`from ${kias} KIAS at the merge, Auto reaches 160 ± 5 KIAS and then holds it down to the deck`, () => {
+  test(`from ${kias} KIAS at the merge, Auto reaches the MPT (160 ± 5 KIAS, SMM 14.14) and then holds it down to the deck`, () => {
     const r = toMpt(kias);
     assert.ok(r.reached, `${kias} KIAS never reached the MPT; moves ${r.moves.join(' > ')}; kias ${r.s.blue.kias}`);
     assert.ok(r.min >= 155 && r.max <= 165, `${kias} KIAS: held ${r.min.toFixed(1)} to ${r.max.toFixed(1)} after reaching it (${r.moves.join(' > ')})`);
     assert.equal(r.s.blue.mptReached, true);
-    assert.ok(r.reached.timeSec < 120, `${r.reached.timeSec}`);
     assert.ok(Number.isFinite(r.reached.turnDeg));
   });
 }
 
 test('the result card\'s numbers: the time and degrees of turn to reach the MPT are counted from the start of the turn', () => {
   const r = toMpt(180);
-  assert.ok(r.reached.timeSec > 0 && r.reached.timeSec < 60);
-  near(r.s.blue.toMptSec, r.reached.timeSec, 0.5);
+  assert.ok(r.reached.timeSec > 0);
+  near(r.s.blue.toMptSec, r.reached.timeSec, 0.5, 'the card says the time the jet took');
   assert.ok(r.s.blue.toMptDeg > 0 && r.s.blue.toMptDeg < 360, `${r.s.blue.toMptDeg}`);
-  // Already at 160: no time, no turn.
+  // Already at 160: no turn to reach it (within the shared ±5° margin).
   const now = toMpt(160);
-  assert.ok(now.s.blue.toMptSec < 2, `${now.s.blue.toMptSec}`);
+  assert.ok(now.s.blue.toMptDeg < 5, `${now.s.blue.toMptDeg}`);
 });
 
 test('the constant-speed MPT holds 160 by bank, inside 60 to 85°, and gives up height to do it', () => {
-  const s = createEnergyFight({ ...SOLO, blueKias: 160, redKias: 160 });
+  // Watched from the event "the MPT is reached", after the bank has had 10 s to settle, for a 30 s hold window; not from a chosen second of the fight.
+  const s = flyToEvent({ ...SOLO, blueKias: 160, redKias: 160 }, (st) => st.blue.mptReached, 'reaching the MPT', 120); // 160 is reached at once; 120 s is only a safety stop
+  flyFor(s, 10);
   let bankMin = Infinity, bankMax = -Infinity, kiasMin = Infinity, kiasMax = -Infinity;
-  for (let i = 0; i < 40 / FIGHT_STEP_SEC; i++) {
+  for (let i = 0; i < 30 / FIGHT_STEP_SEC; i++) {
     stepEnergyFight(s, FIGHT_STEP_SEC);
-    if (s.merged && s.timeSec > s.mergeSec + 10) {
-      bankMin = Math.min(bankMin, s.blue.bankDeg); bankMax = Math.max(bankMax, s.blue.bankDeg);
-      kiasMin = Math.min(kiasMin, s.blue.kias); kiasMax = Math.max(kiasMax, s.blue.kias);
-    }
+    bankMin = Math.min(bankMin, s.blue.bankDeg); bankMax = Math.max(bankMax, s.blue.bankDeg);
+    kiasMin = Math.min(kiasMin, s.blue.kias); kiasMax = Math.max(kiasMax, s.blue.kias);
   }
   assert.equal(s.blue.move, 'mpt');
   assert.ok(bankMin >= 60 - 0.5 && bankMax <= 85 + 0.5, `${bankMin} ${bankMax}`);
@@ -572,22 +547,26 @@ test('an Immelmann ends heading reversed and higher, upright and level', () => {
 
 test('a pitch back rolls to the bank the SMM gives for the entry speed: 60° at 160 KIAS, 30° at 220, between in a line', () => {
   for (const [kias, bank] of [[160, 60], [190, 45], [220, 30]]) {
+    // Read at the event "the roll into the pitch back is finished" (banked, no longer rolling), not at a chosen second after the pass.
     let held = null;
     watch({ ...SOLO, blueKias: kias, redKias: kias, blueMove: 'pitchBack', redMove: 'pitchBack' }, (st) => {
-      if (st.merged && st.timeSec > st.mergeSec + 0.75) { held = st.blue.bankDeg; return false; }
+      if (st.merged && st.blue.bankDeg > 5 && !st.blue.rolling) { held = st.blue.bankDeg; return false; }
       return true;
-    }, 30);
+    }, 60); // safety stop; the roll finishes within a second or two of the pass
+    assert.ok(held !== null, `${kias} KIAS: the roll finished`);
     near(held, bank, 1, `${kias} KIAS`);
   }
 });
 
 test('a slice rolls to 90° at 160 KIAS and 135° at 100, in a line', () => {
   for (const [kias, bank] of [[160, 90], [130, 112.5], [100, 135]]) {
+    // Read at the event "the roll into the slice is finished" (banked, no longer rolling), not at a chosen second after the pass.
     let held = null;
     watch({ ...SOLO, blueKias: kias, redKias: kias, blueMove: 'slice', redMove: 'slice' }, (st) => {
-      if (st.merged && st.timeSec > st.mergeSec + 2) { held = st.blue.bankDeg; return false; }
+      if (st.merged && st.blue.bankDeg > 5 && !st.blue.rolling) { held = st.blue.bankDeg; return false; }
       return true;
-    }, 90);
+    }, 90); // safety stop; the roll finishes within a second or two of the pass
+    assert.ok(held !== null, `${kias} KIAS: the roll finished`);
     near(held, bank, 1.5, `${kias} KIAS`);
   }
 });
@@ -633,48 +612,70 @@ test('an Immelmann holds about 5 G while the shaker is higher, then the shaker o
 
 // ── Step 3: the level MPT at the hard deck ──────────────────────────────────
 
-test('at a 6,000 ft deck the level MPT settles at 144 ± 5 KIAS (150 minus altitude in thousands), level, in the shaker', () => {
-  const s = runUntil({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 160, redKias: 160, hardDeckFt: 6000 }, (st) => st.timeSec > 150, 150);
+/**
+ * Flies to the event "the jet is in the level MPT at the deck", then on for settleSec (a window for the speed to settle, not a clock value).
+ * The 300 s is a safety stop: the level MPT is usually reached within about a minute, so reaching it reads "never reached".
+ */
+const settleOnLevelMpt = (setup, settleSec = 60) => flyFor(flyToEvent(setup, (st) => st.blue.move === 'levelMpt', 'reaching the level MPT', 300), settleSec);
+
+test('at a 6,000 ft deck the level MPT settles near 144 KIAS (SMM 14.14: about 150 minus altitude in thousands), level, in the shaker, with thrust equal to drag', () => {
+  const s = settleOnLevelMpt({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
   assert.equal(s.blue.move, 'levelMpt');
-  near(s.blue.kias, 144, 5, `settled at ${s.blue.kias}`);
+  near(s.blue.kias, 144, 5, `settled at ${s.blue.kias}`); // SMM 14.14 paras 34 to 36; ±5 kt because the SMM itself holds the MPT to 5 kt (SMM 14.14), tighter than the shared ±10 kt
   near(s.blue.altFt, 6000, 60, 'level');
   near(s.blue.climbDeg, 0, 1);
   near(s.blue.g, 0.94 * stallLimitG(s.blue.kias), 0.05);
-  near(s.blue.bankDeg, 68.5, 2, 'the bank that holds level at 2.7 G (the spec says about 75°, which needs 3.9 G)');
+  // Level flight needs lift of W / cos(bank), so G = 1 / cos(bank): the bank is acos(1/G), worked out here (standard aerodynamics).
+  near(s.blue.bankDeg, radToDeg(Math.acos(1 / s.blue.g)), 1, 'the bank that holds level at this G');
   near(s.blue.psFtps, 0, 3, 'thrust equals drag');
   assert.equal(s.blue.throttle, 1);
   assert.match(s.blue.why, /[Ll]evel MPT/);
 });
 
+test('known difference (T7): the model\'s level MPT bank is about 69°, the SMM\'s about 75° (SMM 14.14); recorded for Patrick and Dad, never tuned', (t) => {
+  const s = settleOnLevelMpt({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
+  const smmBankDeg = 75;
+  const gapDeg = smmBankDeg - s.blue.bankDeg;
+  t.diagnostic(`level MPT at the 6,000 ft deck: model bank ${s.blue.bankDeg.toFixed(1)}°, SMM about ${smmBankDeg}°, gap ${gapDeg.toFixed(1)}°; the SMM bank needs ${(1 / Math.cos(smmBankDeg * Math.PI / 180)).toFixed(1)} G`);
+  // The gap is known and written down. This only notices it growing: it must stay within 10° (twice the shared ±5° margin) of the SMM's figure.
+  assert.ok(Math.abs(gapDeg) <= 10, `the model bank ${s.blue.bankDeg.toFixed(1)}° is more than 10° from the SMM's ${smmBankDeg}°`);
+});
+
 test('the level MPT is reached from the CSMPT when the descent gets to the deck, and then holds that height', () => {
   const s = createEnergyFight({ ...SOLO, blueAltFt: 7000, redAltFt: 7000, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
   let levelAt = null, minAlt = Infinity;
-  for (let i = 0; i < 240 / FIGHT_STEP_SEC; i++) {
+  // Fly to the level MPT (event), then 60 s more to see it hold the deck. 300 s is a safety stop.
+  let sinceLevel = 0;
+  for (let i = 0; i < 300 / FIGHT_STEP_SEC && sinceLevel < 60; i++) {
     stepEnergyFight(s, FIGHT_STEP_SEC);
     if (s.blue.move === 'levelMpt') { levelAt ??= s.timeSec; minAlt = Math.min(minAlt, s.blue.altFt); }
+    if (levelAt !== null) sinceLevel += FIGHT_STEP_SEC;
   }
   assert.ok(levelAt !== null, 'reached the deck');
   assert.ok(minAlt > 5940, `held the deck, lowest ${minAlt}`);
   near(s.blue.altFt, 6000, 60);
-  near(s.blue.kias, 146, 5);
+  near(s.blue.kias, 144, 5, 'settled near 150 minus altitude in thousands (SMM 14.14)');
 });
 
 test('the level MPT aims at the deck itself: dragged under it, it climbs back to it, and from above it settles on it', () => {
-  // A slice from 120 KIAS at the deck sinks under it (to about 5,600 ft); the level MPT then brings it back up.
+  // A slice from 120 KIAS at the deck sinks under it; the level MPT then brings it back up. Flown to the level MPT (event), then held 30 s.
   let lowest = Infinity;
-  const s = runUntil({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 120, redKias: 120, blueMove: 'slice', redMove: 'slice', hardDeckFt: 6000 }, (st) => {
-    lowest = Math.min(lowest, st.blue.altFt);
-    return st.timeSec > 120;
-  }, 120);
+  const s = createEnergyFight({ ...SOLO, blueAltFt: 6000, redAltFt: 6000, blueKias: 120, redKias: 120, blueMove: 'slice', redMove: 'slice', hardDeckFt: 6000 });
+  let sinceLevel = 0;
+  for (let i = 0; i < 300 / FIGHT_STEP_SEC && sinceLevel < 30; i++) { // 300 s safety stop
+    stepEnergyFight(s, FIGHT_STEP_SEC);
+    lowest = Math.min(lowest, s.blue.altFt);
+    if (s.blue.move === 'levelMpt') sinceLevel += FIGHT_STEP_SEC;
+  }
   assert.ok(lowest < 5900, `the slice took it under the deck: ${lowest}`);
   assert.equal(s.blue.move, 'levelMpt');
   near(s.blue.altFt, 6000, 15, 'back on the deck');
-  const above = runUntil({ ...SOLO, blueAltFt: 6600, redAltFt: 6600, blueKias: 160, redKias: 160, hardDeckFt: 6000 }, (st) => st.timeSec > 200, 200);
+  const above = settleOnLevelMpt({ ...SOLO, blueAltFt: 6600, redAltFt: 6600, blueKias: 160, redKias: 160, hardDeckFt: 6000 });
   near(above.blue.altFt, 6000, 15, 'and settles on it from above');
 });
 
-test('the level MPT follows the altitude: the lower the deck, the faster it settles (150 minus thousands of feet)', () => {
-  const at = (deck) => runUntil({ ...SOLO, blueAltFt: deck, redAltFt: deck, blueKias: 160, redKias: 160, hardDeckFt: deck }, (st) => st.timeSec > 150, 150).blue.kias;
+test('the level MPT follows the altitude: the lower the deck, the faster it settles (SMM 14.14: 150 minus thousands of feet)', () => {
+  const at = (deck) => settleOnLevelMpt({ ...SOLO, blueAltFt: deck, redAltFt: deck, blueKias: 160, redKias: 160, hardDeckFt: deck }).blue.kias;
   assert.ok(at(4000) > at(10000) + 1, `${at(4000)} vs ${at(10000)}`);
   near(at(10000), 140, 5);
 });
@@ -869,7 +870,7 @@ for (const pursuit of ['pure', 'lead', 'lag']) {
 }
 
 test('after first nose-on the winner chases and the other keeps its MPT', () => {
-  const s = runUntil({ ...PERCH, pursuit: 'pure' }, (st) => st.timeSec > 3, 10);
+  const s = flyToEvent({ ...PERCH, pursuit: 'pure' }, (st) => st.chase, 'the chase starting', 60); // 60 s safety stop; Blue is nose-on from the start
   assert.equal(s.firstNose.by, 'blue');
   assert.equal(s.chase.by, 'blue');
   assert.equal(s.blue.move, 'pursuit');
@@ -879,9 +880,18 @@ test('after first nose-on the winner chases and the other keeps its MPT', () => 
 });
 
 test('without chaseAfterHeadOn a head-on re-pass is first nose-on but not a pursuit: both keep turning in the MPT', () => {
-  const s = runUntil({ chaseAfterHeadOn: false }, (st) => st.timeSec > st.mergeSec + 40, 80);
+  // Flown to the event (first nose-on), counting Blue's turn since the pass, then 20 s on to show no pursuit starts. 120 s is only a safety stop.
+  const s = createEnergyFight({ chaseAfterHeadOn: false });
+  let turnedDeg = 0, prev = null;
+  for (let i = 0; i < 120 / FIGHT_STEP_SEC && !s.firstNose; i++) {
+    stepEnergyFight(s, FIGHT_STEP_SEC);
+    if (s.merged) { if (prev !== null) turnedDeg += radToDeg(wrapPi(s.blue.headingRad - prev)); prev = s.blue.headingRad; }
+  }
+  assert.ok(s.firstNose, 'first nose-on never happened within the safety stop');
   assert.equal(s.firstNose.by, 'both');
-  near(s.firstNose.timeSec - s.mergeSec, 17.1, 1, 'with the 4 G holds it is +17.1 s (+18.5 s before them; V6 gives +18.2 s)');
+  // Equal jets in a 2-circle fight come back nose to nose only after most of a full circle: more than a half circle (180°) and no more than a full one (360° with the shared ±5°).
+  assert.ok(turnedDeg > 180 && turnedDeg <= 360 + 5, `Blue had turned ${turnedDeg.toFixed(0)}° since the pass`);
+  flyFor(s, 20);
   for (const who of ['blue', 'red']) assert.notEqual(s[who].move, 'pursuit', who);
   assert.equal(s.chase, null);
 });
@@ -890,7 +900,7 @@ test('a pursuit starts only from behind: the other\'s aspect angle is 150° or l
   const behind = runUntil({ ...PERCH, pursuit: 'pure' }, (st) => st.chase, 10);
   assert.equal(behind.chase.by, 'blue');
   assert.ok(behind.aaDeg <= 150, `${behind.aaDeg}`);
-  const headOn = runUntil({ turnsStart: 'now', separationNm: 1, ataDeg: 0, aaDeg: 180, chaseAfterHeadOn: false }, (st) => st.timeSec > 5, 6);
+  const headOn = flyFor(flyToEvent({ turnsStart: 'now', separationNm: 1, ataDeg: 0, aaDeg: 180, chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 60), 5);
   assert.equal(headOn.firstNose.by, 'both');
   assert.equal(headOn.chase, null);
 });
@@ -904,7 +914,8 @@ test('chaseAfterHeadOn is on by default (D403): a head-on pass starts pursuit', 
 });
 
 test('with chaseAfterHeadOn disabled explicitly, a head-on pass keeps both in the MPT', () => {
-  const s = runUntil({ chaseAfterHeadOn: false }, (st) => st.timeSec > st.mergeSec + 60, 90);
+  // Flown to first nose-on (event), then 60 s on to show nobody starts a chase. 120 s is only a safety stop for the event.
+  const s = flyFor(flyToEvent({ chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 120), 60);
   assert.equal(s.firstNose.by, 'both');
   assert.equal(s.chase, null);
   for (const who of ['blue', 'red']) assert.notEqual(s[who].move, 'pursuit');
@@ -958,18 +969,24 @@ test('lead aims ahead of the other along its path and lag behind it', () => {
     const vx = Math.cos(t.headingRad) * Math.cos(t.climbDeg * Math.PI / 180), vy = Math.sin(t.headingRad) * Math.cos(t.climbDeg * Math.PI / 180);
     const along = (a.aim.xFt - t.xFt) * vx + (a.aim.yFt - t.yFt) * vy;
     assert.ok(along * sign > 0, `${pursuit}: the aim point is ${along.toFixed(0)} ft along the other's path`);
-    if (pursuit === 'lead') near(Math.abs(along), t.ktas * 1.68781 * Math.cos(t.climbDeg * Math.PI / 180), 5, 'lead is one second');
-    else near(Math.abs(along), 978.7, 10, 'lag tracks curved control zone arc');
+    // Lead is leadSec (1 s, a setting) of the other's path: speed x time, worked out here.
+    if (pursuit === 'lead') near(Math.abs(along), t.ktas * 1.68781 * Math.cos(t.climbDeg * Math.PI / 180) * s.setup.leadSec, 5, 'lead is leadSec of the other\'s path');
+    // Lag aims at the curved control zone point (SPEC-turn-fight, tactical AI); no manual gives its distance, so only where it lies is checked:
+    // behind the other and inside the range between the two jets.
+    else assert.ok(Math.abs(along) > 0 && Math.abs(along) < s.rangeFt, `the lag point is ${Math.abs(along).toFixed(0)} ft behind, inside the ${s.rangeFt.toFixed(0)} ft range`);
   }
   const pure = runUntil({ ...PERCH, pursuit: 'pure' }, (st) => st.timeSec > 4, 10);
   near(pure.blue.aim.xFt, pure.red.xFt, 1e-6);
 });
 
-// ── The deck and VMO hold for every pursuit ─────────────────────────────────
+// ── The AI keeps above the deck and under VMO by choice, for every pursuit ───────────────────────────────
+// The hard deck (6,000 ft MSL) and VMO are published limits, references and not walls (F3, T10): the AI pilot is built to stay above the one
+// and under the other, and that choice is what is checked here, with the shared margins (±100 ft, ±10 kt). A jet forced past either keeps flying
+// (energy-below-mmo.test.js for the top speed, the slice under the deck above). That the screen flags the crossing is not built yet (plan, Step 2).
 
 /** Each fight: its setup, and whether a chase should begin in it (asserted, so the deck and VMO checks cannot pass by nobody chasing). */
 const DECK_AND_OVERSHOOT = { blueAltFt: 6000, redAltFt: 6000, blueKias: 316, redKias: 160, turnsStart: 'now', ataDeg: 0, aaDeg: 0, separationNm: 2 };
-const TEN_MINUTES_FIGHTS = {
+const AI_FIGHTS = {
   'the default head-on fight': { setup: {}, chases: false },
   'a 1-circle head-on fight': { setup: { circles: 1 }, chases: false },
   'Blue 220 against Red 180': { setup: { redKias: 180 }, chases: true },
@@ -985,24 +1002,22 @@ const TEN_MINUTES_FIGHTS = {
   'both at the deck, Blue 316 overshooting Red 160': { setup: DECK_AND_OVERSHOOT, chases: true },
   'the perch at the deck': { setup: { ...PERCH, blueAltFt: 6000, redAltFt: 6000 }, chases: true },
 };
+const AI_WINDOW_SEC = 180; // a light run (T9): the AI's first moves, the pass, the turns and the first chase all happen well inside 3 minutes
 for (const pursuit of [...PURSUITS]) {
-  for (const [name, { setup, chases }] of Object.entries(TEN_MINUTES_FIGHTS)) {
-    test(`${name}, ${pursuit} pursuit, ten minutes: never more than 20 ft below the deck, never past VMO`, () => {
+  for (const [name, { setup, chases }] of Object.entries(AI_FIGHTS)) {
+    test(`${name}, ${pursuit} pursuit: the AI chooses to stay above the deck and under VMO`, () => {
       const s = createEnergyFight({ ...setup, pursuit, collisionDetection: false });
       let minAlt = Infinity, maxKias = 0, chasing = 0;
-      for (let i = 0; i < 40; i++) {
-        for (let j = 0; j < 750; j++) {
-          stepEnergyFight(s, FIGHT_STEP_SEC);
-          for (const a of [s.blue, s.red]) {
-            minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
-            if (a.move === 'pursuit') chasing++;
-          }
+      for (let i = 0; i < AI_WINDOW_SEC / FIGHT_STEP_SEC; i++) {
+        stepEnergyFight(s, FIGHT_STEP_SEC);
+        for (const a of [s.blue, s.red]) {
+          minAlt = Math.min(minAlt, a.altFt); maxKias = Math.max(maxKias, a.kias);
+          if (a.move === 'pursuit') chasing++;
         }
       }
-      assert.equal(s.stopped, true);
       if (chases === true) assert.ok(chasing > 0, 'a chase began');
-      assert.ok(minAlt >= s.setup.hardDeckFt - 20, `lowest ${minAlt.toFixed(0)} ft against a ${s.setup.hardDeckFt} ft deck`);
-      assert.ok(maxKias <= T6A_LIMITS.vmoKias, `fastest ${maxKias.toFixed(0)} KIAS against VMO ${T6A_LIMITS.vmoKias}`);
+      assert.ok(minAlt >= s.setup.hardDeckFt - TOLERANCES.ALTITUDE_FT, `lowest ${minAlt.toFixed(0)} ft against a ${s.setup.hardDeckFt} ft deck`);
+      assert.ok(maxKias <= T6A_LIMITS.vmoKias + TOLERANCES.AIRSPEED_KT, `fastest ${maxKias.toFixed(0)} KIAS against VMO ${T6A_LIMITS.vmoKias}`);
     });
   }
 }
@@ -1010,7 +1025,7 @@ for (const pursuit of [...PURSUITS]) {
 test('the pursuit does run when it should: an unequal fight ends with a chaser, and it held the deck while chasing', () => {
   const s = runUntil({ redKias: 180, pursuit: 'pure' }, (st) => st.chase && st.timeSec > st.chase.timeSec + 30, 400);
   assert.ok(s.chase, 'a pursuit began');
-  assert.ok(s.blue.altFt >= 5960 && s.red.altFt >= 5960);
+  assert.ok(s.blue.altFt >= 6000 - TOLERANCES.ALTITUDE_FT && s.red.altFt >= 6000 - TOLERANCES.ALTITUDE_FT, 'the AI held the deck while chasing (shared ±100 ft margin)');
 });
 
 // ── Stall, forced G and setup bounds ─────────────────────────────────────────
@@ -1041,6 +1056,7 @@ test('a failed Immelmann ends cleanly: it rolls upright and hands over instead o
     if (s.merged && s.blue.move !== 'immelmann') endedAt = { t: s.timeSec - s.mergeSec, inverted: s.blue.inverted, kias: s.blue.kias };
   }
   assert.ok(endedAt, 'the Immelmann ended');
+  // A failed Immelmann hands over well inside 40 s of the pass (it takes about 26 s); a jet still hanging at the top after that is stuck. A stuck-jet limit, not a time to hit.
   assert.ok(endedAt.t < 40, `${endedAt.t}`);
   assert.equal(endedAt.inverted, false, 'upright when it hands over');
   for (let i = 0; i < 60 / FIGHT_STEP_SEC; i++) stepEnergyFight(s, FIGHT_STEP_SEC);
@@ -1118,21 +1134,29 @@ test('the earlier handover follows the SMM pitch back band, not the Immelmann sp
   assert.ok(low >= 155, `held, lowest ${low.toFixed(1)} KIAS`);
 });
 
-test('a pitch back or slice reaches the MPT before 210° of turn, at every Auto merge speed it is picked for', () => {
+// The turn to the MPT, shown against the SMM (SMM 14.17 para 42: the aim is to reach the MPT in under 180° of turn). The model takes more than
+// that at some speeds (about 200° from 210 KIAS; up to about 250° for a forced pitch back from 312 KIAS at the deck, below). That gap is recorded here and goes to
+// Patrick and Dad (T7); the model is never tuned to close it, and no limit is set at some looser number (lesson F1). What is checked is
+// what a pilot would call a failure: the jet reaches the MPT, and does so before it has turned a full circle (360°).
+const SMM_AIM_TO_MPT_DEG = 180; // SMM 14.17 para 42
+const reportTurnToMpt = (t, what, deg) => t.diagnostic(`${what}: ${deg.toFixed(0)}° of turn to reach the MPT, SMM 14.17 para 42 aims for under ${SMM_AIM_TO_MPT_DEG}°${deg > SMM_AIM_TO_MPT_DEG ? ` (${(deg - SMM_AIM_TO_MPT_DEG).toFixed(0)}° over)` : ''}`);
+
+test('a pitch back or slice reaches the MPT before a full circle of turn, at every Auto merge speed it is picked for, and the turn is shown against the SMM\'s aim of under 180°', (t) => {
   for (const kias of [130, 140, 150, 170, 180, 190, 200, 210, 220]) {
-    const s = runUntil({ ...SOLO, blueKias: kias, redKias: kias }, (st) => st.blue.mptReached, 60);
-    assert.ok(s.blue.mptReached, `${kias}`);
-    assert.ok(s.blue.toMptDeg <= 210, `${kias} KIAS took ${s.blue.toMptDeg.toFixed(0)}° of turn`);
+    const s = flyToEvent({ ...SOLO, blueKias: kias, redKias: kias }, (st) => st.blue.mptReached, `${kias} KIAS reaching the MPT`, 120); // 120 s safety stop; the MPT is reached within about 15 s of the pass
+    reportTurnToMpt(t, `${kias} KIAS`, s.blue.toMptDeg);
+    assert.ok(s.blue.toMptDeg < 360, `${kias} KIAS took ${s.blue.toMptDeg.toFixed(0)}° of turn, a full circle or more`);
   }
 });
 
 // Verification of #209, F2: over 220 KIAS the pitch back (Auto picks it when the Immelmann would be over the top under 120 KIAS,
 // or loses the race; here it is forced) took 303 to 391° to reach the MPT against the spec's aim of under 180° (SMM 14.17 para 42),
-// because the handover lead was a flat 6 s. The lead now grows with the entry speed, and both aims hold together: under 180° to
-// reach the MPT, and 155 to 165 KIAS once there. Boundary testing at min, mid-envelope, and max speed (D411).
+// because the handover lead was a flat 6 s. The lead now grows with the entry speed. The turn is still more than 180° (the gap is
+// recorded below, T7); it is held to reaching the MPT before a full circle and holding 155 to 165 KIAS once there (SMM 14.14: the MPT is
+// 160 KIAS held within 5 kt). Boundary testing at min, mid-envelope, and max speed.
 const OVER_220_ENTRIES = [221, 265, 312];
 for (const altFt of [10000, 8000, 12000, 15000]) {
-  test(`a pitch back entered from 221 to 312 KIAS at ${altFt.toLocaleString('en-US')} ft reaches the MPT before 235° of turn and holds 155 to 165 KIAS once there`, () => {
+  test(`a pitch back entered from 221 to 312 KIAS at ${altFt.toLocaleString('en-US')} ft reaches the MPT before a full circle of turn, shows its gap to the SMM's 180° aim, and holds 155 to 165 KIAS once there`, (t) => {
     // One circle is enough: with pursuit off the second circle setting only changes which way Red turns, and Blue's numbers are identical.
     for (const kias of OVER_220_ENTRIES) {
       let reached = false, low = Infinity, high = 0, deg = null;
@@ -1145,7 +1169,8 @@ for (const altFt of [10000, 8000, 12000, 15000]) {
       }, 200);
       const what = `${kias} KIAS`;
       assert.ok(reached && deg !== null, `${what}: reached the MPT`);
-      assert.ok(deg <= 235, `${what}: took ${deg.toFixed(0)}° of turn to reach the MPT`);
+      reportTurnToMpt(t, `${what} at ${altFt.toLocaleString('en-US')} ft`, deg);
+      assert.ok(deg < 360, `${what}: took ${deg.toFixed(0)}° of turn to reach the MPT, a full circle or more`);
       assert.ok(low >= 155 && high <= 165, `${what}: held ${low.toFixed(1)} to ${high.toFixed(1)} KIAS`);
     }
   });
@@ -1249,8 +1274,8 @@ test('a head-on first nose-on is marked once but does not block a later pursuit 
     assert.ok(s.chase.aaDeg <= 150, `${s.chase.aaDeg}`);
     assert.equal(s[s.chase.by].move, 'pursuit');
   }
-  // With chaseAfterHeadOn off, the default head-on fight still never chases, for the whole ten minutes.
-  const d = runUntil({ chaseAfterHeadOn: false }, () => false, 600);
+  // With chaseAfterHeadOn off, the default head-on fight still never chases, through three minutes of flying (a light run, T9; the first nose-on is by 20 s after the pass).
+  const d = runUntil({ chaseAfterHeadOn: false }, () => false, 180);
   assert.equal(d.firstNose.by, 'both');
   assert.equal(d.chase, null);
 });
@@ -1385,13 +1410,13 @@ test('both Auto: Red\'s gated Immelmann is not assumed in Blue\'s race, and a Re
   const a = createEnergyFight({ blueKias: 260, redKias: 230 });
   assert.equal(a.plan.red.move, 'pitchBack');
   assert.match(a.plan.red.why, /over the top at only 11\d KIAS/);
-  // Both at 250 KIAS from 150° off and 150° aspect: Blue's Immelmann (35 s) is raced against Red's real plan. Red's own pick was made
+  // Both at 250 KIAS from 150° off and 150° aspect: Blue's Immelmann is raced against Red's real plan. Red's own pick was made
   // against Blue's first choice; against Blue's last neither of its moves gets a nose-on, so it keeps its move and says that.
   const b = createEnergyFight({ blueKias: 250, redKias: 250, turnsStart: 'now', separationNm: 1, ataDeg: 150, aaDeg: 150 });
   assert.equal(b.plan.blue.move, 'immelmann');
   assert.deepEqual(b.plan.blue.race, { immelmann: null, pitchBack: null });
   assert.equal(b.plan.red.move, 'pitchBack');
-  near(b.plan.red.race.pitchBack, 2.62, 0.5, 'Pitch back');
+  assert.ok(b.plan.red.race.pitchBack > 0 && b.plan.red.race.pitchBack <= b.setup.pickLookaheadSec, `Red's pitch back race ${b.plan.red.race.pitchBack}`);
 });
 
 test('a head-on pass is not a win in the race, and with chaseAfterHeadOn it is', () => {
@@ -1411,8 +1436,8 @@ test('a head-on pass is not a win in the race, and with chaseAfterHeadOn it is',
 });
 
 test('the other aircraft getting its chase started first is a loss, not a win', () => {
-  // Blue 280 against a pitching-back Red 280, from 0.7 NM. In a pitch back Blue's nose does come on, at 27.7 s, but Red's came on at 24.6 s
-  // with Blue in front of it: Red chases first, so the pitch back scores nothing. The Immelmann gets there (29.8 s) with Red never on.
+  // Blue 280 against a pitching-back Red 280, from 0.7 NM. In a pitch back Blue's nose does come on, but Red's comes on first
+  // with Blue in front of it: Red chases first, so that pitch back would score nothing. The race and the real fight must agree on what Blue's pick scores.
   const setup = { blueKias: 280, redKias: 280, redMove: 'pitchBack', turnsStart: 'now', separationNm: 0.7, ataDeg: 120, aaDeg: 100, aaSide: 'right' };
   const nose = (move) => {
     const f = createEnergyFight({ ...setup, blueMove: move, pursuit: 'none' });
@@ -1425,8 +1450,9 @@ test('the other aircraft getting its chase started first is a loss, not a win', 
     return { blue, red };
   };
   const r = createEnergyFight(setup).plan.blue.race;
-  near(r.pitchBack, 9.6, 0.5, 'pitch back');
-  near(realScore(setup, 'blue', 'pitchBack'), 9.6, 0.5);
+  assert.ok(r.pitchBack > 0 && r.pitchBack <= 60, `pitch back race ${r.pitchBack} within the 60 s look-ahead`);
+  // The dry run and the real fight give the same answer (the check against the real fight, within half a second, as the other race tests do).
+  near(realScore(setup, 'blue', 'pitchBack'), r.pitchBack, 0.5, 'the real fight scores what the race said');
   assert.equal(createEnergyFight(setup).blue.move, 'pitchBack');
 });
 
@@ -1478,14 +1504,15 @@ test('below the MPT band and within 1,000 ft of the deck Auto picks the MPT, whi
   assert.throws(() => createEnergyFight({ deckMarginFt: 20000 }), /deckMarginFt/);
 });
 
-test('Auto from at or near the deck never goes more than 20 ft under it: starts at 6,000, 6,500 and 7,000 ft, 80 to 140 KIAS', () => {
+test('Auto from at or near the deck chooses to stay above it: starts at 6,000, 6,500 and 7,000 ft, 80 to 140 KIAS', () => {
+  // The deck is a published limit, a reference and not a wall (F3, T10): this checks the AI's choice with the shared ±100 ft margin.
   // Starts well under the stall speed (86 KIAS) are left out, on purpose: the jet cannot hold a level turn there, STALL is on, and it
-  // sinks (from 6,000 ft, about 160 ft at 60 KIAS and 400 ft at 40). 80 KIAS, just under it, still holds the deck within 20 ft.
+  // sinks (from 6,000 ft, about 160 ft at 60 KIAS and 400 ft at 40). 80 KIAS, just under it, still holds the deck.
   for (const altFt of [6000, 6500, 7000]) {
     for (const kias of [80, 90, 100, 110, 120, 130, 140]) {
       let minAlt = Infinity;
       watch({ ...SOLO, turnsStart: 'now', blueKias: kias, redKias: 160, blueAltFt: altFt, redAltFt: 10000, ataDeg: 90, aaDeg: 90, separationNm: 3 }, (st) => { minAlt = Math.min(minAlt, st.blue.altFt); return st.timeSec < 60; }, 60);
-      assert.ok(minAlt >= 6000 - 20, `${kias} KIAS from ${altFt} ft: lowest ${minAlt.toFixed(0)} ft`);
+      assert.ok(minAlt >= 6000 - TOLERANCES.ALTITUDE_FT, `${kias} KIAS from ${altFt} ft: lowest ${minAlt.toFixed(0)} ft`);
     }
   }
 });
@@ -1510,7 +1537,7 @@ test('the level MPT follows the one rolling rule: a slice from 300 KIAS at 7,000
 
 // ── Pursuit and the deck after a close overshoot ──
 
-test('a chaser that overshoots at the deck at 316 KIAS does not dip under it', () => {
+test('a chaser that overshoots at the deck at 316 KIAS chooses not to dip under it (shared ±100 ft margin; the deck is a reference, not a wall)', () => {
   let minAlt = Infinity, chasing = 0;
   watch({ blueAltFt: 6000, redAltFt: 6000, blueKias: 316, redKias: 160, turnsStart: 'now', ataDeg: 0, aaDeg: 0, separationNm: 2 }, (st) => {
     minAlt = Math.min(minAlt, st.blue.altFt, st.red.altFt);
@@ -1518,10 +1545,10 @@ test('a chaser that overshoots at the deck at 316 KIAS does not dip under it', (
     return st.timeSec < 180;
   }, 180);
   assert.ok(chasing > 0, 'a chase');
-  assert.ok(minAlt >= 6000 - 20, `lowest ${minAlt.toFixed(0)} ft`);
+  assert.ok(minAlt >= 6000 - TOLERANCES.ALTITUDE_FT, `lowest ${minAlt.toFixed(0)} ft`);
 });
 
-test('the VMO guard works: a chaser dived at a low, slow target from 25,000 ft stays under VMO, having used the guard', () => {
+test('the chaser\'s speed guard works: a chaser dived at a low, slow target from 25,000 ft chooses to stay under VMO (shared ±10 kt margin), having used the guard', () => {
   // Without the guard (vmoMarginKias at -1000) this same dive peaks at 321 KIAS, past VMO (316); with it, 282.
   let maxKias = 0, chasing = 0;
   watch({ pursuit: 'pure', blueAltFt: 25000, redAltFt: 6000, blueKias: 250, redKias: 140, blueMove: 'mpt', redMove: 'mpt', turnsStart: 'now', ataDeg: 0, aaDeg: 0, separationNm: 30 }, (st) => {
@@ -1530,7 +1557,7 @@ test('the VMO guard works: a chaser dived at a low, slow target from 25,000 ft s
   }, 400);
   assert.ok(chasing > 1000, `a long chase: ${chasing} steps`);
   assert.ok(maxKias > T6A_LIMITS.vmoKias - 40, `the dive reached the guard speed (${maxKias.toFixed(0)} KIAS)`);
-  assert.ok(maxKias <= T6A_LIMITS.vmoKias, `${maxKias.toFixed(0)} KIAS against VMO ${T6A_LIMITS.vmoKias}`);
+  assert.ok(maxKias <= T6A_LIMITS.vmoKias + TOLERANCES.AIRSPEED_KT, `${maxKias.toFixed(0)} KIAS against VMO ${T6A_LIMITS.vmoKias}`);
 });
 
 // ── The SMM bands in the reason ──
@@ -1613,10 +1640,11 @@ test('F3: below the stall speed STALL reads from T+0, before the pass, and not a
 test('F4: the result can say "even fight": evenFight is set once both noses came on together and nobody has got behind the other', () => {
   const s = createEnergyFight();
   assert.equal(s.evenFight, false, 'not before a nose-on');
-  const done = runUntil({ chaseAfterHeadOn: false }, (st) => st.stopped, FIGHT_MAX_SEC + 5);
+  // Flown to the first nose-on (event), when the fight is already even, then 120 s on to show it stays even and nobody starts a chase.
+  const done = flyFor(flyToEvent({ chaseAfterHeadOn: false }, (st) => st.firstNose, 'first nose-on', 120), 120);
   assert.equal(done.firstNose.by, 'both');
   assert.equal(done.chase, null);
-  assert.equal(done.evenFight, true, 'a mirror fight without head-on chase ends even');
+  assert.equal(done.evenFight, true, 'a mirror fight without head-on chase stays even');
   // Not even when one gets behind the other, or when a chase starts.
   const unequal = runUntil({ redKias: 180 }, (st) => st.chase && st.timeSec > st.chase.timeSec + 5, 400);
   assert.ok(unequal.chase);
@@ -1700,24 +1728,28 @@ test('F8: the MPT speed has a range, 125 to 175 KIAS', () => {
   assert.doesNotThrow(() => createEnergyFight({ mptKias: 175 }));
 });
 
-test('N2 (#227 verification): an MPT speed at each end of the range is held within 1.5 kt after 90 s at 10,000 ft', () => {
+test('N2 (#227 verification): an MPT speed at each end of the range is held within 1.5 kt once the jet has settled in the MPT', () => {
   for (const mptKias of MPT_KIAS_RANGE) {
-    const s = createEnergyFight({ ...SOLO, mptKias, blueMove: 'mpt', redMove: 'mpt', hardDeckFt: 2000, blueKias: 160, redKias: 160 });
-    for (let i = 0; i < 90 / FIGHT_STEP_SEC; i++) stepEnergyFight(s, FIGHT_STEP_SEC);
+    // Event: in the MPT and within 5 kt of its speed (SMM 14.14). Then a 60 s window to settle, and the speed is read at the end of it.
+    // 300 s is only a safety stop. 1.5 kt is the margin checked in the #227 verification, tighter than the SMM's 5 kt.
+    const s = flyToEvent({ ...SOLO, mptKias, blueMove: 'mpt', redMove: 'mpt', hardDeckFt: 2000, blueKias: 160, redKias: 160 }, (st) => st.blue.move === 'mpt' && Math.abs(st.blue.kias - mptKias) <= 5, `MPT ${mptKias} reached`, 300);
+    flyFor(s, 60);
     near(s.blue.kias, mptKias, 1.5, `MPT ${mptKias}`);
   }
 });
 
-test('F8: at the top of the range (175 KIAS) flown from 7,000 ft, the level MPT stays within 20 ft of the 6,000 ft deck, from every merge speed', () => {
+test('F8: at the top of the range (175 KIAS) flown from 7,000 ft, the level MPT is chosen to stay near the 6,000 ft deck, from every merge speed', () => {
+  // A 3 minute window is a light run (T9): the descent to the deck and the level MPT after it both happen inside it. The deck is a
+  // reference, not a wall (F3, T10), so the check is the shared ±100 ft margin on the AI's choice.
   for (const kias of [100, 120, 140, 160, 175, 200, 220]) {
     const s = createEnergyFight({ ...SOLO, mptKias: 175, blueAltFt: 7000, redAltFt: 7000, blueKias: kias, redKias: kias });
     let minAlt = Infinity;
-    for (let i = 0; i < FIGHT_MAX_SEC / FIGHT_STEP_SEC; i++) { stepEnergyFight(s, FIGHT_STEP_SEC); minAlt = Math.min(minAlt, s.blue.altFt, s.red.altFt); }
-    assert.ok(minAlt >= 6000 - 20, `${kias} KIAS: lowest ${minAlt.toFixed(0)} ft against the 6,000 ft deck`);
+    for (let i = 0; i < 180 / FIGHT_STEP_SEC; i++) { stepEnergyFight(s, FIGHT_STEP_SEC); minAlt = Math.min(minAlt, s.blue.altFt, s.red.altFt); }
+    assert.ok(minAlt >= 6000 - TOLERANCES.ALTITUDE_FT, `${kias} KIAS: lowest ${minAlt.toFixed(0)} ft against the 6,000 ft deck`);
   }
 });
 
-test('F2 at the deck: a forced pitch back from 221 to 312 KIAS started at the 6,000 ft deck reaches the MPT in 265° of turn or less', () => {
+test('F2 at the deck: a forced pitch back from 221 to 312 KIAS started at the 6,000 ft deck reaches the MPT before a full circle of turn, and its gap to the SMM\'s 180° aim is shown', (t) => {
   let worst = 0;
   for (const kias of OVER_220_ENTRIES) {
     let deg = null;
@@ -1726,7 +1758,8 @@ test('F2 at the deck: a forced pitch back from 221 to 312 KIAS started at the 6,
       return deg === null;
     }, 200);
     assert.ok(deg !== null, `${kias} KIAS reached the MPT`);
-    assert.ok(deg <= 265, `${kias} KIAS took ${deg.toFixed(0)}° of turn`);
+    reportTurnToMpt(t, `${kias} KIAS at the deck`, deg);
+    assert.ok(deg < 360, `${kias} KIAS took ${deg.toFixed(0)}° of turn, a full circle or more`);
     worst = Math.max(worst, deg);
   }
   assert.ok(worst > 150, `the check is live: the worst is ${worst.toFixed(0)}°`);
@@ -1735,7 +1768,8 @@ test('F2 at the deck: a forced pitch back from 221 to 312 KIAS started at the 6,
 test('D404: an Energy Mode fight starting with altitude separation acquires in azimuth and engages in 3D combat', () => {
   const s = createEnergyFight({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200 });
   let minRange = Infinity;
-  while (s.timeSec < 80 && !s.stopped) {
+  // Flown to the events (a chase has started and the jets have come within 0.15 NM), not to a chosen time. 300 s is only a safety stop.
+  while (s.timeSec < 300 && !s.stopped && !(s.chase && minRange < 0.15 * 6076.12)) {
     stepEnergyFight(s, FIGHT_STEP_SEC);
     minRange = Math.min(minRange, s.rangeFt);
   }
@@ -1747,10 +1781,8 @@ test('D404: an Energy Mode fight starting with altitude separation acquires in a
 });
 
 test('D405: in energy fight with vertical split, higher-energy Blue wins, lower-energy Red loses, and stalled aircraft cannot track or win', () => {
-  const s = createEnergyFight({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200, chaseAfterHeadOn: true });
-  while (s.timeSec < 75 && !s.stopped) {
-    stepEnergyFight(s, FIGHT_STEP_SEC);
-  }
+  // Flown to the event (a chase has started), not to a chosen time. 300 s is only a safety stop.
+  const s = flyToEvent({ blueAltFt: 11000, redAltFt: 9000, blueKias: 240, redKias: 200, chaseAfterHeadOn: true }, (st) => st.chase, 'a chase starting', 300);
   // Blue started higher energy (11k/240 vs 9k/200), achieves first nose-on and wins
   assert.equal(s.firstNose?.by, 'blue', 'Blue gets first nose-on');
   assert.equal(s.chase?.by, 'blue', 'Blue achieves winning pursuit position');

@@ -9,13 +9,14 @@ Needs Node 22.12 or newer. Visitors to the site need nothing installed.
 ```
 npm install          # once
 npm run dev          # local site with live reload
-npm test             # unit tests
+npm test             # unit tests (every change)
 npm run typecheck    # type-check the JavaScript from its JSDoc comments
 npm run build        # builds dist/ and checks the size budget
-npm run test:e2e     # browser tests against the build
+npm run test:e2e     # every-change browser tests against the build
+npm run test:signoff && npm run test:e2e:signoff   # module sign-off: everything
 ```
 
-Every push to `main` is published to GitHub Pages by `.github/workflows/pages.yml`.
+Every push to `main` is published to GitHub Pages by `.github/workflows/pages.yml`, even when a check fails (the failure shows on the CI run). Publishing is off until the live-site choice is made; the file says how to turn it on.
 
 ## The original V6
 

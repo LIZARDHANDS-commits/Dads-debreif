@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // Browser tests run against the built site (`npm run build` first).
-// Locally only Chromium is installed; CI also runs Firefox and WebKit (R1).
+// Locally only Chromium is installed. CI's sign-off run adds the @smoke tests
+// in Firefox and WebKit (docs/TESTING.md, section 2).
 const CI = Boolean(process.env.CI);
 // PW_PORT lets two worktrees run their tests at once without one testing the
 // other's build (with reuseExistingServer, a server already on the port is used).
@@ -11,12 +12,6 @@ export default defineConfig({
   testDir: 'tests/e2e',
   forbidOnly: CI,
   retries: 0,
-  // Screenshot comparison (tests/e2e/visual.spec.js, D142). The reference
-  // pictures are made on Linux and CI is Linux, so the file names carry no
-  // platform. A small tolerance absorbs anti-aliasing differences between
-  // machines; a moved or covered control is far larger than 1% of the page.
-  snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
-  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.2 } },
   reporter: CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}/`,

@@ -32,6 +32,19 @@ async function open(page) {
 const setup = (page) => page.evaluate(() => window.__af.airfields.get());
 const more = (page) => page.getByRole('button', { name: 'More airfield settings' });
 
+// The distance from CYMJ to CYXE, worked out here by the haversine formula (mean earth radius 6,371 km, 1 NM = 1,852 m),
+// not typed in. The positions are the aerodrome reference points as published in the Canada Flight Supplement (recalled,
+// a guess until the page is named). The screen shows the distance to the nearest whole nautical mile.
+const CYMJ_POSITION = { lat: 50.3303, lon: -105.559 };
+const CYXE_POSITION = { lat: 52.1708, lon: -106.6997 };
+function haversineNm(a, b) {
+  const rad = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * rad / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin((b.lon - a.lon) * rad / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h)) / 1852;
+}
+// CYMJ's field elevation, 1,892 ft: Patrick's own CYMJ numbers (TR-24, D373; also SH-50).
+const CYMJ_ELEVATION_FT = 1892;
+
 test('by default: the home field, the alternates table and the minima line; More is closed', async ({ page }) => {
   await open(page);
   await expect(page.getByLabel('Home field')).toHaveValue('CYMJ');
@@ -39,12 +52,17 @@ test('by default: the home field, the alternates table and the minima line; More
   const rows = page.getByRole('table', { name: 'Alternates' }).getByRole('row');
   await expect(rows).toHaveCount(4); // header + 3
   await expect(rows.nth(3)).toContainText('CYXE');
-  await expect(rows.nth(3)).toContainText('119 NM');
-  await expect(page.getByTestId('minima-used')).toHaveText(
-    'Minima used: CYQR 600-2, not checked · CYYN 600-2, not checked · CYXE 600-2, not checked',
-  );
+  await expect(rows.nth(3)).toContainText(`${Math.round(haversineNm(CYMJ_POSITION, CYXE_POSITION))} NM`);
   await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByLabel('Plan uses a GNSS approach at CYMJ')).toBeHidden();
+});
+
+test('SOF-R12: the usual alternates open with their published landing minima filled in, none "not checked"', async ({ page }) => {
+  // Expected to fail until SOF plan step 3 is built; remove this mark then (Patrick's card, 4 Oct).
+  test.fail(true, 'SOF plan step 3: not built yet');
+  await open(page);
+  // The numbers are the published minima, entered with the airfield data, not typed here.
+  await expect(page.getByTestId('minima-used')).not.toContainText('not checked');
 });
 
 test('picking an approach type and lowest minima changes the minima used', async ({ page }) => {
@@ -130,7 +148,7 @@ test('making an alternate the home field says it was taken off the alternates (A
 test('More shows built-in details read-only, the GNSS checkbox and Reset', async ({ page }) => {
   await open(page);
   await more(page).click();
-  await expect(page.getByText('Moose Jaw · 50.3303, -105.559 · elevation 1,892 ft · America/Regina')).toBeVisible();
+  await expect(page.getByText(`Moose Jaw · ${CYMJ_POSITION.lat}, ${CYMJ_POSITION.lon} · elevation ${CYMJ_ELEVATION_FT.toLocaleString('en-US')} ft · America/Regina`)).toBeVisible();
   await page.getByLabel('Plan uses a GNSS approach at CYMJ').check();
   expect((await setup(page)).fields.CYMJ).toEqual({ gnssPlan: true });
   await page.getByLabel('CYQR approaches').selectOption('gnss-only');

@@ -44,7 +44,8 @@ async function visitThenGoOffline(page, context) {
 test('after one visit, home and About open with the network off', async ({ page, context }) => {
   await visitThenGoOffline(page, context);
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
+  // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
+  await expect(page.getByRole('heading', { level: 1 })).toContainText("DAD's OODA LOOP");
   await expect(page.locator('.card')).toHaveCount(6);
   await page.locator('a.card-about').click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
@@ -79,7 +80,7 @@ test('the example flight downloads only when asked, and then works offline', asy
   const asset = '585aab2601b787ed.kml';
   const text = await page.evaluate((a) => window.__ooda.exampleText(a), asset);
   expect(text.startsWith('<?xml')).toBe(true);
-  expect(text.length).toBe(2741913); // V6's file, un-gzipped
+  expect(text.length).toBe(2741913); // Dad's recorded track as shipped, un-gzipped: checks the file is not damaged
   expect(await keptExamples(page)).toEqual([`examples/${asset}.gz`]);
 
   await context.setOffline(true);

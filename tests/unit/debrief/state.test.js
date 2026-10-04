@@ -36,14 +36,37 @@ const fake = {
   cutTracks: [{ slot: 1, beforeS: 10, afterS: 55 }],
 };
 
-test('ship colours are V6\'s, except #4, which is white with an outline (#29)', () => {
+test('ships are told apart by colour: #1 blue, #2 green, #3 red, #4 white with a dark outline (DB-R24)', () => {
+  // DB-R24 (ratified 4 Oct 2026): #1 blue, #2 green, #3 red, #4 white with a dark outline (Patrick's #29 ruling).
   assert.deepEqual({ ...SHIP_COLORS }, { 1: '#0066ff', 2: '#00cc44', 3: '#ff2222', 4: '#ffffff' });
   assert.deepEqual([...OUTLINED_SHIPS], [4]);
 });
 
-test('the layout starts with extra detail closed, both columns open and the grid on (R22)', () => {
-  assert.deepEqual({ ...LAYOUT_DEFAULTS }, { statusDetails: false, flightColumn: true, formationColumn: true, moreDetail: false, standardsOpen: false, filesOpen: false, satellite: false, grid: true, trail: 'full', spacingLines: true, lead39: true, three39: false, cone: false, clockMarks: false, bubble: false, bubbleFt: 500, followLead: false, route: '', routeOpacity: 80, vnc: 'off', vncOpacity: 78, vncEastNm: 0, vncNorthNm: 0, vncScalePct: 100, wxMetar: false, wxMetarField: 'nearest', wxSatellite: false, wxSatelliteLayer: 'geocolor', wxSatelliteOpacity: 70, wxRadar: false, wxLightning: false, wxWinds: false, wxWindModel: 'hrdps', wxWindArrows: false, wxWindArrowFt: 8000, emOpen: false, emChart: 'auto', emTrail: true, tennisOpen: false, tennisShooter: 2, tennisTarget: 1, tennisBallKt: 350, tennisPitchBias: 0, tennisConeDeg: 6, tennisTofSec: 3, tennisRadiusFt: 250, tennisGravity: true, view: '2d', cam3d: 'followLead', yaw3d: -35, pitch3d: 52, zoom3d: 70, altScale3d: 2, model3d: 't6', paint3d: 'harvard', planeSize3d: 260, attLabels3d: true, trailSec3d: 90, landscape3d: true, groundRef3d: true, datum3d: 'min', grid3d: true, sticks3d: true, altMarks3d: true });
-  assert.ok(Object.isFrozen(LAYOUT_DEFAULTS));
+test('first visit: every menu and panel is closed and only the default layers are on (DB-R21)', () => {
+  const start = LAYOUT_DEFAULTS;
+  assert.ok(Object.isFrozen(start));
+  // The essentials are showing: the map in 2D, the flight column and the one small Formation card.
+  assert.equal(start.view, '2d');
+  assert.equal(start.flightColumn, true);
+  assert.equal(start.formationColumn, true);
+  // Every menu and panel starts closed: the status details, per-ship detail, standards, files and Tools.
+  for (const key of ['statusDetails', 'moreDetail', 'standardsOpen', 'filesOpen', 'tennisOpen']) assert.equal(start[key], false, key);
+  assert.deepEqual(Object.keys(start).filter((k) => /Open$/.test(k) && start[k] !== false), [], 'no panel starts open');
+  // The 2D layers: only the four default ones are on (DB-R21: full tracks, spacing lines, grid and Lead's 3/9 line).
+  assert.equal(start.trail, 'full');
+  const on = ['grid', 'spacingLines', 'lead39'];
+  const layers = ['satellite', 'grid', 'spacingLines', 'lead39', 'three39', 'cone', 'clockMarks', 'bubble', 'followLead'];
+  for (const key of layers) assert.equal(start[key], on.includes(key), key);
+  assert.equal(start.route, '', 'no route overlay');
+  assert.equal(start.vnc, 'off', 'no VNC chart');
+  // Weather starts off (DB-R18): every weather switch is false.
+  const weather = Object.keys(start).filter((k) => /^wx/.test(k) && typeof start[k] === 'boolean');
+  assert.ok(weather.length >= 5);
+  for (const key of weather) assert.equal(start[key], false, key);
+});
+
+test('the dropped EM chart keeps no settings (DB-R20)', { todo: "Debrief plan step 2 (remove the EM chart code): not done yet. Remove this mark when it is done (Patrick's card, 4 Oct)" }, () => {
+  assert.deepEqual(Object.keys(LAYOUT_DEFAULTS).filter((k) => /^em[A-Z]/.test(k)), [], 'no EM chart keys');
 });
 
 test('the one-line status counts tracks, gaps and trimmed tracks from what loaded (#23)', () => {

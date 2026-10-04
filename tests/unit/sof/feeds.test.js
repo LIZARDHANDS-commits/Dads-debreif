@@ -482,7 +482,10 @@ test('the RainViewer backup is aged from its frame time the same way', () => {
 
 // --- Audit fixes ------------------------------------------------------------
 
-test('hostile 256 KB replies are read in linear time, not minutes', () => {
+// SOF-R15 (a failed or hostile reply never breaks the radar and lightning pictures) and SOF-R23 (replies are untrusted).
+// How long reading takes is logged, not judged: a time limit here would fail on a slow computer (policy T2). The reader has no
+// step counter today; if it gains one, count the work as tests/unit/sof/map-lightning.test.js does for recolourLightning.
+test('hostile replies of up to 256 KB each get an answer or are refused, and nothing over 256 KB is read', (t) => {
   const head = '<Name>RADAR_1KM_RRAI</Name>';
   const size = 256 * 1024 - head.length - 64;
   const inputs = [
@@ -495,9 +498,16 @@ test('hostile 256 KB replies are read in linear time, not minutes', () => {
   for (const xml of inputs) {
     assert.ok(xml.length <= 256 * 1024);
     const t0 = performance.now();
-    parseLayerTimes(xml, 'RADAR_1KM_RRAI');
-    assert.ok(performance.now() - t0 < 50, `took ${Math.round(performance.now() - t0)} ms`);
+    let answer;
+    assert.doesNotThrow(() => { answer = parseLayerTimes(xml, 'RADAR_1KM_RRAI'); });
+    // An answer is a layer time that can be used; anything else is a refusal (null), never a made-up time.
+    assert.ok(answer === null || (answer.layer === 'RADAR_1KM_RRAI' && answer.latest instanceof Date && !Number.isNaN(+answer.latest)));
+    t.diagnostic(`${Math.round(performance.now() - t0)} ms for a ${Math.round(xml.length / 1024)} KB hostile reply (logged, not judged)`);
   }
+  // Nothing over 256 KB is read: a good reply padded past the limit is refused, and the same reply under it is read.
+  const good = `${head}<Dimension name="time" default="2026-09-30T07:12:00Z">2026-09-30T04:12:00Z/2026-09-30T07:12:00Z/PT6M</Dimension>`;
+  assert.ok(parseLayerTimes(good, 'RADAR_1KM_RRAI'));
+  assert.equal(parseLayerTimes(good + ' '.repeat(256 * 1024), 'RADAR_1KM_RRAI'), null);
 });
 
 test('a default outside the layer\'s own start and end is ignored', () => {

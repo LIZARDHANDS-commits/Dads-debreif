@@ -156,6 +156,8 @@ The one list. Each line is a question; the working answer applies until he says 
 - [ ] **Turn Sim review questions A to E,** on live controllers or planned paths, speed basis, the 300 ft stack, the clock cue and the error settings (`docs/modules/turn-sim/plan.md:25`).
 - [ ] **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
 - [ ] **Which Traffic faults block CI** (step 1 above) (`pf/reset/consolidation-plan.md:266`).
+- [ ] **Traffic replay test at sign-off only:** `tests/unit/traffic/rewind.test.js` never finishes, so it runs in the sign-off run, not on every change, until the Traffic work makes it finish reliably (flaky-test rule Q-T4; `docs/modules/traffic/testing.md`, "The rewind hang"; list in `tools/unit-tests.mjs`).
+- [ ] **Turn Fight turn to the MPT, for Patrick and Dad:** from many starts the model takes 192 to 252 degrees of turn to reach the maximum performance turn, against the SMM's aim of under 180 (SMM 14.17 para 42), and flies the level MPT at 68.5 degrees of bank against the SMM's about 75. No physics was changed; the tests check "before a full circle" and print the gap (`tests/unit/turn-fight/energy-sim.test.js`, `tests/unit/turn-fight/energy-layout.test.js`).
 - [ ] **PROTOTYPE flags** come off only at the combined sign-off (`HANDOVER.md:103`).
 - [ ] **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 - [ ] **Dad's questions and the screenshots question:** when to send, and the second ask (steps 6 and 7).

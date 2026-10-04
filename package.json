@@ -11,9 +11,11 @@
     "dev": "vite",
     "build": "vite build && node tools/check-size.mjs dist",
     "preview": "vite preview",
-    "test": "node --test \"tests/unit/**/*.test.js\" \"tests/crosscheck/**/*.test.js\"",
+    "test": "node tools/unit-tests.mjs",
     "typecheck": "tsc -p jsconfig.json",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test tests/e2e/smoke.spec.js tests/e2e/a11y.spec.js tests/e2e/layout.spec.js tests/e2e/buttons.spec.js tests/e2e/leave.spec.js tests/e2e/switching.spec.js tests/e2e/offline.spec.js tests/e2e/storage.spec.js tests/e2e/clock.spec.js tests/e2e/file.spec.js tests/e2e/media.spec.js tests/e2e/airfields.spec.js tests/e2e/ui-kit.spec.js",
+    "test:signoff": "node tools/unit-tests.mjs --all",
+    "test:e2e:signoff": "playwright test"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
