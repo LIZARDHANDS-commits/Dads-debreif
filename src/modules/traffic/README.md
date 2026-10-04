@@ -1,6 +1,6 @@
 # Traffic Pattern Sim
 
-Routes on the left, aircraft on the right, a map in the middle. The spec is [`specs/SPEC-traffic.md`](../../../specs/SPEC-traffic.md); the task list is in [`tasks/traffic/`](../../../tasks/traffic/todo.md).
+Setup on the left (scenarios, wind, routes), aircraft on the right, a map in the middle. The spec is [`specs/SPEC-traffic.md`](../../../specs/SPEC-traffic.md); the task list is in [`tasks/traffic/`](../../../tasks/traffic/todo.md).
 
 ## Screen
 
@@ -8,8 +8,9 @@ Routes on the left, aircraft on the right, a map in the middle. The spec is [`sp
 
 | File | What it does |
 |---|---|
-| `layout.js` | The three columns (Routes, map with the playback bar above it, Aircraft), the routes list and the "+ New route" menu. Below 900 px the map comes first and the columns stack. |
+| `layout.js` | The three columns (Setup, map with the playback bar above it, Aircraft), the routes list and the "+ New route" menu. Below 900 px the map comes first and the columns stack. |
 | `playback-bar.js` | Play or Pause, Reset, speed, the clock, Layers, Fit. |
+| `setup-panel.js` | The top of the Setup column: the scenario buttons (Random among them) and the wind dial with its strength bar. |
 | `clock.js` | Turns frame time into whole 0.05 s engine steps. Playback speed changes how many steps a frame asks for, never their size, so a run is the same at any frame rate. It also plays Rewind (backward at the same speeds) and does the -10 s and +10 s steps: exactly 10 s of sim time at any speed, through the sim's snapshots. |
 | `scene.js` | The plain data the map draws: routes with their path, decision points and turn data, leg lengths, aircraft, conflicts and trails. |
 | `map2d.js` | The 2D map on the canvas (grid, routes, aircraft, labels, trails, bubbles) and the satellite photo under it. |

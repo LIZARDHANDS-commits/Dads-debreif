@@ -38,6 +38,87 @@
   margin-top: var(--space-3);
 }
 
+/* Setup (Patrick, 4 Oct 11:05Z): the scenario buttons, then the wind dial with its strength bar beside it. */
+[data-module='traffic'] .setup-panel {
+  display: grid;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .setup-scenarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+[data-module='traffic'] .setup-scenario {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+[data-module='traffic'] .setup-scenario[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--bg-sunken);
+}
+
+[data-module='traffic'] .setup-wind {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+[data-module='traffic'] .setup-wind-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+[data-module='traffic'] .setup-wind-dial-wrap {
+  flex: none;
+  border-radius: 50%;
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-module='traffic'] .setup-wind-dial-wrap:active {
+  cursor: grabbing;
+}
+
+[data-module='traffic'] .setup-wind-dial-wrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+[data-module='traffic'] .setup-wind-dial {
+  display: block;
+  width: 132px;
+  height: 132px;
+}
+
+[data-module='traffic'] .setup-wind-side {
+  display: grid;
+  flex: 1 1 8rem;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+[data-module='traffic'] .setup-wind-side .control-slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+[data-module='traffic'] .setup-wind-side .control-slider label {
+  grid-column: 1 / -1;
+}
+
+[data-module='traffic'] .setup-wind-components {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
 /* Routes: one line each, the line style beside its name (solid, dashed, dotted), so a route is
    told apart by more than its colour. */
 [data-module='traffic'] .route-list {
