@@ -8,7 +8,7 @@ Built; the sign-off box is still open. As of 4 Oct 2026 (DADS v2.10.32) the flyi
 
 ## What is next
 
-Step 2's refactor is done, its clean-up included, and so are Step 4's screen faults spacing on final and Randomize behaviour (DADS v2.10.32). Next: a behaviour tag on every aircraft (Patrick, 4 Oct 21:52Z to 21:55Z). The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it (one estimate left, the T/O flap glide row); Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
+Step 2's refactor is done, its clean-up included, and so are Step 4's screen faults spacing on final, Randomize behaviour, and the behaviour tag with configuration on every aircraft (DADS v2.10.34). The plan's steps, in order: Step 1: The PFL review (TR-R14) and what waits on it (one estimate left, the T/O flap glide row); Step 2: Refactor the flying layer; Step 3: Refresh spec.md against the new requirements; Step 4: Fix the real faults found at the reset pin; Step 5: Build what the ratified requirements ask for and the screen lacks; Step 6: Check the camera, graphics and scenery work against the code; Step 7: Sign-off. Only what is in `plan.md` gets built.
 
 ## The files
 

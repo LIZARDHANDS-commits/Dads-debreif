@@ -343,7 +343,7 @@ export function shouldShowGlideFootprint(a, selectedAircraftId = null) {
 
 /**
  * Determines tactical PFL status badge for an aircraft in PFL recovery.
- * Returns null if not in PFL recovery. A PFL flown by the simulated pilot
+ * Returns null when no tag shows. Every aircraft carries its behaviour tag (behaviour.js, TR-60). A PFL flown by the simulated pilot
  * (Traffic spec 4.5 item 14, TR-R35) shows its decision and configuration,
  * for example `[PFL: Join at Low Key · Gear]`; the badges below are the old
  * phase-only ones.
@@ -363,7 +363,10 @@ export function getPflBadge(ac) {
   if (!ac) return null;
   if (ac.status === 'ejected') return '[EJECT]';
   if (ac.pflDecision) return ac.config ? `[PFL: ${ac.pflDecision} · ${ac.config}]` : `[PFL: ${ac.pflDecision}]`;
-  // What the automatic deconfliction is doing with it (deconflict.js), in pilot words.
+  // The behaviour tag (behaviour.js, TR-60): the pattern, what is next and the configuration, or what the automatic
+  // deconfliction is doing with it (deconflict.js) with the configuration added.
+  const gliding = ac.engineFailed === true || (typeof ac.phase === 'string' && (ac.phase.startsWith('pfl') || ac.phase.includes('crash')));
+  if (ac.behaviour && !gliding) return ac.behaviour;
   if (ac.deconflict) return ac.deconflict;
   const active = ac.engineFailed === true ||
     ac.command === 'pfl_current' ||
