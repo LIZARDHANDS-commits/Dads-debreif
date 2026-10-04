@@ -228,6 +228,35 @@ export function idleDecel(ias, alt, g) {
 }
 
 /**
+ * Full power toward `kias`, climbing to `toAltFt` with a smooth level-off (LEVEL_OFF_SEC): above `kias`
+ * the extra speed is traded for height over about ZOOM_SEC, and once held level by the level-off the
+ * power comes back, down to idle, to slow toward it; below `kias` it climbs at half the full-power rate
+ * while it speeds up. The climb comes from excess thrust at the turn's real G (spec item 16). Used by
+ * the climb to High Key and the closed pattern. Returns { climb, accel, climbMax } (ft/s, ft/s², ft/s).
+ */
+export function powerClimb(pilot, kias, toAltFt) {
+  const { s } = pilot;
+  const g = gFromBankDeg(s.bank);
+  const v = ktToFtps(pilot.tasKt());
+  const levelCap = Math.max(0, (toAltFt - s.alt) / LEVEL_OFF_SEC);
+  const climbMax = Math.max(0, excessThrustPerWeight(s.ias, s.alt, g)) * v;
+  let climb, accel;
+  if (s.ias > kias + 0.5) {
+    const decel = -(s.ias - kias) * KT_TO_FTPS / ZOOM_SEC;
+    climb = Math.min(v * (excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), levelCap);
+    const toTarget = (ktToFtps(iasToTasKt(kias, s.alt)) - v) / DT;
+    accel = Math.min(accelFor(s.ias, s.alt, g, climb), Math.max(idleDecel(s.ias, s.alt, g), toTarget));
+  } else if (s.ias < kias - 0.5) {
+    climb = Math.min(levelCap, climbMax * 0.5);
+    accel = accelFor(s.ias, s.alt, g, climb);
+  } else {
+    climb = Math.min(levelCap, climbMax);
+    accel = 0;
+  }
+  return { climb, accel, climbMax };
+}
+
+/**
  * Speed in the break, KIAS, at a fraction of the 180° turn: today's curve,
  * 220 × e^(−0.452 u), about 140 at the end (Traffic spec 3.7, "Break deceleration
  * (preserved)"). Patrick: the rollout downwind is about 140 (08:43Z, 4 Oct).
@@ -301,10 +330,15 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
 /**
  * A go-around flown from an aircraft's state `from` = { x, y, alt, kias,
  * headingDeg, bankDeg } in a wind, onto Pattern 1's outer downwind (see
- * flyOuter). Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
+ * flyOuter). `sideFt` moves the line it flies up the runway that far to the
+ * right of the runway track (the deconfliction's move-over toward the inner
+ * runway, SMM 4.21 paras 50-51). Returns the path [{ x, y, alt, kt, g, src, phase, headingDeg }].
  */
-export function buildGoAround(points, from, windFromDeg = 360, windKt = 0) {
-  const centre = lineOf(points[0], points[1]);
+export function buildGoAround(points, from, windFromDeg = 360, windKt = 0, sideFt = 0) {
+  const rwy = lineOf(points[0], points[1]);
+  const r = (rwy.trackDeg + 90) * Math.PI / 180;
+  const shift = (p) => ({ ...p, x: p.x + sideFt * Math.sin(r), y: p.y + sideFt * Math.cos(r) });
+  const centre = sideFt ? lineOf(shift(points[0]), shift(points[1])) : rwy;
   const start = { x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, bank: from.bankDeg ?? 0 };
   return flyOuter(points, centre, 0, { windFromDeg, windKt }, start).track;
 }

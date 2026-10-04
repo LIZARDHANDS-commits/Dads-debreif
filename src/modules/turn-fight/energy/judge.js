@@ -9,6 +9,7 @@ import { pointMassFlight } from '../../../core/point-mass.js';
 import { FIGHT_STEP_SEC, FIRST_NOSE_DEG } from '../sim.js';
 import { COLLISION_HITBOX_FT, PURSUIT_MAX_AA_DEG } from './setup.js';
 import { len, sub, clamp, velOf, posOf, noseAngleDeg, readPair } from './frame.js';
+import { startClimbOut } from './moves/climb-out.js';
 
 /**
  * Whether this aircraft's nose tracks the other (D386):
@@ -135,7 +136,7 @@ export function checkWezGun(state, d = FIGHT_STEP_SEC) {
     const postMerge = state.merged === true && state.timeSec > (state.mergeSec ?? 0) + 1.0;
     const ata = noseOffDeg(state, ac);
     const aa = 180 - noseOffDeg(state, target);
-    const inEnvelope = postMerge && !ac.stall && !ac.tumble && state.rangeFt < 2500 && ata <= 15.0 && aa <= 60.0;
+    const inEnvelope = postMerge && !state.deckLoss && !ac.stall && !ac.tumble && state.rangeFt < 2500 && ata <= 15.0 && aa <= 60.0;
     if (inEnvelope) {
       ac.ctl.wezTrackSec = (ac.ctl.wezTrackSec || 0) + d;
       if (ac.ctl.wezTrackSec >= 2.0 - 1e-6) {
@@ -215,4 +216,21 @@ export function checkMidAirCollision(state, d = FIGHT_STEP_SEC) {
     state.red.moveLabel = 'Collision Tumble';
     if (state.red.ctl) state.red.ctl.mode = 'tumble';
   }
+}
+
+/**
+ * Below the hard deck loses the fight (TF-R6, Patrick 4 Oct 17:20Z). After the pass, the first jet below the deck loses:
+ * `state.deckLoss` = { loser, winner, timeSec, altFt } ("both" with no winner if both go below in one step), recorded
+ * once. The loser stops fighting and climbs back out; the deck stays a reference, not a wall. Dry runs record it too,
+ * so the look-ahead counts it as a loss.
+ */
+export function markDeckLoss(state) {
+  if (!state.merged || state.deckLoss || state.collision) return;
+  const deck = state.setup.hardDeckFt;
+  const under = ['blue', 'red'].filter((w) => !state[w].tumble && state[w].altFt < deck);
+  if (!under.length) return;
+  const loser = under.length === 2 ? 'both' : under[0];
+  const winner = loser === 'both' ? null : (loser === 'blue' ? 'red' : 'blue');
+  state.deckLoss = { loser, winner, timeSec: state.timeSec, altFt: Math.min(...under.map((w) => state[w].altFt)) };
+  for (const w of under) startClimbOut(state[w], `Below the ${deck.toLocaleString('en-US')} ft hard deck: fight lost, climbing back out`);
 }

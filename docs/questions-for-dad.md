@@ -118,6 +118,11 @@ Each item names the thread that raised it and where the detail is.
 - **Why we ask:** V6's built-in setup uses 200 / 200 ft (conflict) and 500 / 500 ft (caution), which is nearly touching; its general defaults are 1,500 / 500 ft and 2,500 / 1,000 ft.
 - **Now:** the built-in setup's V6 numbers.
 
+**10. How far apart are 29L and 29R? (Traffic deconfliction, Q5)**
+- **Question:** How far apart are the centrelines of 29L and 29R at Moose Jaw?
+- **Why we ask:** when a straight-in has to give way to an aircraft in the final turn, it moves over between the runways and goes around (SMM 4.21 paras 50-51). The tool moves it halfway to 29R.
+- **Now:** 500 ft, half of the roughly 1,000 ft gap in the 3D scenery drawing (an estimate, Patrick's card 4 Oct 11:24Z).
+
 ### Turn Sim
 
 **9. The 4312 picture (plan doc Q31)**

@@ -2,7 +2,10 @@
 //   degrees) to 3,500 ft, roll-out on downwind, wind moves the perch, no position jump joining the downwind
 //   rail.
 // Serves: TR-R33, TR-R8, TR-R13, TR-R15.
-//   Also: every closed pattern lands within 2.5 minutes of the pull-up (Patrick, 4 Oct 09:14Z and 09:26Z).
+//   Also: every closed pattern lands within 3 minutes of the pull-up (Patrick, 4 Oct 09:14Z and 09:26Z; 3 minutes
+//   on his card of 4 Oct 18:00Z, since the closed pattern now flies the whole downwind).
+//   Also: the flown closed pattern (spec 1a items 16-19) rolls out on the built circuit's inner downwind, climbing
+//   in the turn, and hands over level at pattern height (Patrick, 4 Oct 17:53Z).
 // Expected values: perch bearing worked out in the test (atan2); 3,500 ft is Patrick's pattern height (TR-R4);
 //   50 degrees is traffic spec 3.2 (decision D400); start point, 140 kt and the 2 s / 40 s / 90 s limits are
 //   typed in, no source yet.
@@ -15,7 +18,9 @@ import { resolve } from 'node:path';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { tickAircraft, stepClosedPattern } from '../../../src/modules/traffic/tick-aircraft.js';
 import { initAircraftState, stepAircraft } from '../../../src/modules/traffic/flight-engine.js';
-import { computeWindPerch, posOnRoute, pointDistFt, navSegs } from '../../../src/modules/traffic/route.js';
+import { computeWindPerch, posOnRoute, pointDistFt, navSegs, routePath, DEFAULT_ROUTE_OPTIONS } from '../../../src/modules/traffic/route.js';
+import { legOffsetsFt } from '../../../src/core/geo.js';
+import { compassDegFromVector } from '../../../src/core/angles.js';
 import { wrapDeg180 } from '../../../src/core/angles.js';
 
 const mooseJaw = JSON.parse(
@@ -293,10 +298,11 @@ test('Closed Pattern Preset Point 2 on PAT1 initializes and executes full 4-phas
 });
 
 // Patrick, 4 Oct 09:14Z: "an aircraft that begins a closed pattern must land within 2 minutes"; limit set to
-// 2.5 minutes with the window moved to 3/4 NM (Patrick's card, 09:26Z). Timed from the pull-up to touchdown;
-// the time is mostly the downwind, which runs the length of the runway plus final.
-test('Closed Pattern: every closed pattern lands within 2.5 minutes of the pull-up (Patrick, 4 Oct 09:26Z)', () => {
-  const LIMIT_SEC = 150;
+// 2.5 minutes with the window moved to 3/4 NM (Patrick's card, 09:26Z), and 3 minutes once the closed pattern
+// flies the whole downwind (Patrick's card, 4 Oct 18:00Z). Timed from the pull-up to touchdown; the time
+// is mostly the downwind, which runs the length of the runway plus final, so the wind moves it.
+test('Closed Pattern: every closed pattern lands within 3 minutes of the pull-up', () => {
+  const LIMIT_SEC = 180;
   const RUNWAY_FT = 1880; // the runway's height in the sim, as the touch-and-go check in commands.test.js uses
   const cases = [
     { label: 'from the climb-out, calm', startPoint: 2, windKt: 0, windFromDeg: 360 },
@@ -321,5 +327,40 @@ test('Closed Pattern: every closed pattern lands within 2.5 minutes of the pull-
     assert.ok(touchdownAt !== null, `${c.label}: the aircraft should land again`);
     assert.ok(touchdownAt - pullUpAt <= LIMIT_SEC,
       `${c.label}: landed ${(touchdownAt - pullUpAt).toFixed(0)} s after the pull-up, limit ${LIMIT_SEC} s`);
+  }
+});
+
+// The flown closed pattern (spec 1a items 16-19; Patrick, 4 Oct 17:53Z): it aims at the inner downwind line of the
+// built circuit (from where the break rolls out to the perch), climbs while it turns, and hands over to Pattern 1
+// on that line, lined up and level at pattern height (3,500 ft, TR-R4). Margins from the shared table (±100 ft,
+// ±5°); the bank setting is a maximum, so the bank stays within it plus the 5° margin.
+test('Closed Pattern: rolls out on the inner downwind line, climbing in the turn, and hands over level', () => {
+  for (const wind of [{ windKt: 0, windFromDeg: 360 }, { windKt: 20, windFromDeg: 200 }]) {
+    const label = `${wind.windKt} kt from ${wind.windFromDeg}`;
+    const sim = createSim({ ...mooseJaw, aircraft: [], ...wind }, { seed: 42 });
+    const id = sim.spawn({ routeId: 'PAT1', startPoint: 2 });
+    const pat = mooseJaw.routes.find((r) => r.id === 'PAT1');
+    const built = routePath(pat, { ...DEFAULT_ROUTE_OPTIONS, ...(mooseJaw.routeOptions ?? {}), ...wind }).points;
+    const rollout = built.find((p) => p.tag === 'break_rollout') ?? pat.points[10];
+    const perch = built.find((p) => p.tag === 'perch') ?? pat.points[11];
+    const lineTrack = compassDegFromVector(perch.x - rollout.x, perch.y - rollout.y);
+    let climbedTurning = false, maxBank = 0, handOver = null, prevAlt = null;
+    while (sim.t < 200 && !handOver) {
+      sim.stepTo(sim.t + 0.5);
+      const a = sim.state().aircraft.find((x) => x.id === id);
+      if (a.phase === 'closed_pattern') {
+        maxBank = Math.max(maxBank, Math.abs(a.bankDeg));
+        if (Math.abs(a.bankDeg) > 30 && prevAlt !== null && a.alt > prevAlt) climbedTurning = true;
+        prevAlt = a.alt;
+      } else handOver = a;
+    }
+    assert.ok(handOver, `${label}: the closed pattern hands over to Pattern 1`);
+    assert.ok(climbedTurning, `${label}: it climbs while it turns`);
+    assert.ok(maxBank <= 50 + 5, `${label}: bank stays within the 50° setting, got ${maxBank.toFixed(1)}°`);
+    const off = legOffsetsFt(rollout, perch, handOver);
+    assert.ok(Math.abs(off.crossFt) <= 100, `${label}: on the downwind line at the hand-over, ${off.crossFt.toFixed(0)} ft off`);
+    assert.ok(Math.abs(wrapDeg180(handOver.trackDeg - lineTrack)) <= 5, `${label}: lined up with the downwind at the hand-over`);
+    assert.ok(Math.abs(handOver.alt - 3500) <= 100, `${label}: level at pattern height at the hand-over, got ${handOver.alt.toFixed(0)} ft`);
+    assert.equal(handOver.command, null, `${label}: the closed pattern is over`);
   }
 });

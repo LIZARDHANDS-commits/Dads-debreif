@@ -19,6 +19,8 @@ Built on TF-R1 to TF-R25, ratified by Patrick on 4 Oct 02:01Z (`pf/reset/1-requi
 - **F6. Events, not seconds.** Tests wait for the pass, a phase or the first nose-on, never for a T+ value. The 10-minute stop is the product's own rule (TF-R23) and is tested as a rule **(Q-T9, decided)**. Runs that fly until something happens have a safety stop **(Q-T13, decided)**.
 - **F7. Design numbers are named as settings.** The gun zone (2,500 ft, 15°, 60°, 2 s), the 35 ft hitbox, the tumble rate, the five presets, and the working values for Dad (stall 86 kt, 94 % shaker, roll rate, mid throttle) are design choices or values Dad hasn't checked yet (TF-Q10). Tests read them from where the code keeps them, so a change moves one test.
 
+**Checks set the rule up directly (TF-57 PR 3, Patrick 4 Oct 17:34Z: "it's chaos theory, it won't always be the same").** The same setup flies the same fight every time, but any honest change to the flying can send the default fight down another path. So a check of a rule sets that rule up itself: the MPT checks fly the MPT as a set move with the other jet's collision break off (`SOLO`), the head-on checks start nose to nose (`HEAD_ON`), and the race checks keep both jets on their first move. Checks that only pinned one story of the default fight were deleted with Patrick's word (D405's winner, the default fight never chasing). The deck and top-speed checks stay: they are pilot checks on every fight.
+
 ## How each Turn Fight requirement is checked
 
 "Each change" means a unit test or one of the per-change browser checks in section 2 (smoke, layout, accessibility, buttons, leaving, offline). Checks that need the whole Turn Fight browser file run at sign-off.

@@ -74,7 +74,7 @@ test('the constant-speed MPT is reached and held near 160 KIAS and the About tex
   const about = ENERGY_ABOUT.find((line) => line.startsWith('MPT bank'));
   assert.ok(about);
   assert.match(about, /about 72° in the constant-speed MPT/);
-  const cs = createEnergyFight({ pursuit: 'none' });
+  const cs = createEnergyFight({ pursuit: 'none', collisionAvoidance: false }); // the other jet's head-on passes do not break up the turn being measured (TF-58)
   // Event: in the MPT, banked up (not the level run-in before the turn) and within the SMM's 5 kt of 160 KIAS (SMM 14.14).
   flyUntil(cs, (s) => s.blue.move === 'mpt' && s.blue.bankDeg > 60 && Math.abs(s.blue.kias - 160) <= 5);
   holdFor(cs, 20);
@@ -91,10 +91,10 @@ test('the About and hint text quote no manual: numbers and page references only'
   for (const ref of all.match(/SMM[\d .a-z]*/g) ?? []) assert.match(ref, /SMM(\s+\d+(\.\d+)?)?(\s+paras?\s+\d+( to \d+| and \d+)?)?/, ref);
 });
 
-test('Task 18: tactical move is selectable and tacticalLookaheadSec exists in defaults and settings', () => {
-  assert.ok(ENERGY_MOVES.includes('tactical'), 'tactical is in ENERGY_MOVES');
-  assert.ok(ALLOWED.blueMove.includes('tactical'), 'tactical is in ALLOWED.blueMove');
-  assert.ok(ALLOWED.redMove.includes('tactical'), 'tactical is in ALLOWED.redMove');
+test('Task 18: Smart is selectable, the old tactical name still runs, and tacticalLookaheadSec exists in defaults and settings', () => {
+  assert.ok(ENERGY_MOVES.includes('tactical'), 'the engine still takes the old name');
+  assert.ok(ALLOWED.blueMove.includes('auto'), 'Smart is in ALLOWED.blueMove');
+  assert.ok(ALLOWED.redMove.includes('auto'), 'Smart is in ALLOWED.redMove');
 
   assert.ok('tacticalLookaheadSec' in RANGES);
   assert.ok(ENERGY_CHECK_KEYS.includes('tacticalLookaheadSec'));

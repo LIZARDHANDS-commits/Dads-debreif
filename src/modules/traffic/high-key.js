@@ -5,12 +5,8 @@ import { ktToFtps } from '../../core/units.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { CYMJ_RWY_HDG_DEG } from './flight-engine.js';
 import { THRESHOLD_29L, PFL_KEY_ALT_FT } from './airfield.js';
-import {
-  makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, accelFor, idleDecel, ZOOM_SEC, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT,
-} from './circuit.js';
-import { turnRadiusFromBankFt, gFromBankDeg } from '../../core/flight-math.js';
-import { excessThrustPerWeight } from '../../core/t6-performance.js';
-import { G_FTPS2, KT_TO_FTPS } from '../../core/units.js';
+import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, powerClimb, HOLD_RADIUS_FT } from './circuit.js';
+import { turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { legOffsetsFt } from '../../core/geo.js';
 
 // ── HIGH KEY GROUND TRUTH CONSTANTS ──────────────────────────────────────────
@@ -73,28 +69,11 @@ function flyHighKeyClimb(from, env, bankMax, line, joinFt) {
   const joinAlongFt = lineLenFt - joinFt;
   let stage = 'toLine', capturing = false, pastJoin = false, climbSum = 0, climbN = 0;
   for (let n = 0; n < 20000; n++) {
-    const g = gFromBankDeg(s.bank);
-    const tasKt = pilot.tasKt();
-    const v = ktToFtps(tasKt);
+    const v = ktToFtps(pilot.tasKt());
     const { alongFt, crossFt } = legOffsetsFt(line.a, line.b, s);
     if (stage === 'onLine' && alongFt >= lineLenFt) break; // at High Key
     // Height and speed: full power, 140 KIAS, a smooth level-off at High Key height; extra speed buys height.
-    const levelCap = Math.max(0, (hk.alt - s.alt) / LEVEL_OFF_SEC);
-    const climbMax = Math.max(0, excessThrustPerWeight(s.ias, s.alt, g)) * v;
-    let climb, accel;
-    if (s.ias > HIGH_KEY_CLIMB_KIAS + 0.5) {
-      const decel = -(s.ias - HIGH_KEY_CLIMB_KIAS) * KT_TO_FTPS / ZOOM_SEC;
-      climb = Math.min(v * (excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), levelCap);
-      // Held level by the level-off: power comes back, down to idle, to slow toward 140.
-      const toTarget = (ktToFtps(iasToTasKt(HIGH_KEY_CLIMB_KIAS, s.alt)) - v) / PILOT_DT;
-      accel = Math.min(accelFor(s.ias, s.alt, g, climb), Math.max(idleDecel(s.ias, s.alt, g), toTarget));
-    } else if (s.ias < HIGH_KEY_CLIMB_KIAS - 0.5) {
-      climb = Math.min(levelCap, climbMax * 0.5);
-      accel = accelFor(s.ias, s.alt, g, climb);
-    } else {
-      climb = Math.min(levelCap, climbMax);
-      accel = 0;
-    }
+    const { climb, accel, climbMax } = powerClimb(pilot, HIGH_KEY_CLIMB_KIAS, hk.alt);
     if (climb > 1) { climbSum += climb; climbN++; }
     // Where to point: toward the join on the extended centreline, then turn onto it and hold it to High Key.
     const R = turnRadiusFromBankFt(v, bankMax);

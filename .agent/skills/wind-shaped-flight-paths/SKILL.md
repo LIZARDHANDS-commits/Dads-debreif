@@ -124,27 +124,12 @@ interface RailWaypoint {
 }
 ```
 
-### Pillar 8: Coupled 3D Turn-and-Climb Arrest (The Lift-Vector Perch Slice & Level-Off)
-In dynamic pattern climbs (such as Closed Patterns, Go-Arounds, or missed approach climbs into downwind), pitch attitude, bank angle, and altitude capture must be tightly coupled rather than treated as sequential steps:
-
-1. **Vertical Lift Component Dumping:**
-   To arrest climb rate smoothly ($dh/dt \to 0$) exactly at target altitude $h_{\text{target}}$, scale climb pitch $\theta$ linearly over the final 300 ft buffer ($\Delta h \le 300\text{ ft}$):
-   $$\theta(h) = \theta_{\text{climb}} \cdot \max\left(0, \frac{h_{\text{target}} - h}{300}\right)$$
-
-2. **Horizontal Lift-Vector Slicing (Bank Modulation up to 90°):**
-   In the final 300 ft of climb, allow bank angle to modulate upward (up to $90^\circ$ for an unloaded slice). Dumping vertical lift ($L \cos\phi \to 0$) prevents altitude overshoot, while direct application of horizontal lift ($L \sin\phi$) accelerates turn convergence onto the wind-adjusted target waypoint (e.g. the wind-adjusted perch).
-
-3. **Proportional Rollout onto Wind-Killed Vector:**
-   Rather than snapping wings level or holding a rigid bank angle until a timer expires, smoothly roll out towards $0^\circ$ bank proportionally as heading error to the wind-adjusted track drops below $25^\circ$:
-   $$\phi_{\text{target}} = \begin{cases} 
-   0^\circ & |\Delta\psi| \le 2.5^\circ \\
-   \text{clamp}\left(\Delta\psi \cdot 1.8, -\phi_{\text{nom}}, \phi_{\text{nom}}\right) & |\Delta\psi| < 25^\circ \\
-   -\phi_{\text{slice}} & \text{otherwise}
-   \end{cases}$$
-   Wings roll level ($\phi = 0^\circ$) precisely as the aircraft captures the wind-killed heading pointing directly at the downstream waypoint at pattern speed.
-
-4. **Continuous Downwind Intercept:**
-   The aircraft continues tracking straight downwind along that wind-killed heading, tangent-capturing the downwind rail or perch waypoint with zero spatial discontinuity ($< 15\text{ ft/frame}$).
+### Pillar 8: The Closed Pattern: One Flown Climbing Turn onto the Downwind Line
+The closed pattern (Traffic spec 1a items 15-19, TR-R33; Patrick, 4 Oct 17:53Z) is flown once, like High Key (Pillar 9):
+1. **Fly it once, from where the aircraft is.** `buildClosedPattern` in `src/modules/traffic/closed-pattern.js` uses the circuit's simulated pilot (`makePilot`), starting from the aircraft's own place, heading, bank and speed. The path follower then flies the result. There is no live physics controller and no fixed pitch.
+2. **Aim at the line, not a point.** The left turn follows a circle of the turn's radius onto the inner downwind line of the built circuit, from where the break rolls out to the perch. The radius is widened for the wind over the ground (`trackForLine`), so it is one steady bank that rolls out on the line. Further out it first cuts toward the line at 90°.
+3. **Honest climb and pitch.** The pilot uses full power at 140 KIAS (`powerClimb` in `circuit.js`, shared with High Key). Extra speed is traded for height, the climb comes from excess thrust at the turn's real G, and the level-off at pattern height is smooth. The path follower works out the pitch from the climb and the angle of attack.
+4. **Hand over only when settled.** The path ends once the aircraft is on the line, lined up, wings level and at pattern height, and past where the break rolls out. Pattern 1 then carries on with `startJoin`, with no slide and no snap.
 
 ### Pillar 9: High Key from Anywhere: One Live Climbing Turn onto the Run-in
 When an aircraft is sent to High Key from wherever it is (Traffic spec 1a item 23, refactor PR 4):

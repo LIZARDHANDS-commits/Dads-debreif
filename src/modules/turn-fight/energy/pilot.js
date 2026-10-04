@@ -97,6 +97,9 @@ function forcedWhy(move, kias) {
 
 // ── The first move and Auto's pick in the fight ──────────────────────────────
 
+/** The Smart pilot: 'auto', or 'tactical', its older name. */
+export const isSmart = (move) => move === 'auto' || move === 'tactical';
+
 /**
  * The first move, from the speed the setup gave for the merge (not the KTAS round trip, which can land a hair under a
  * split point). `start` is the fight at T+0 that the look-ahead's races fly from (see noseOnSec); a pick made at the
@@ -105,8 +108,8 @@ function forcedWhy(move, kias) {
 export function chooseFirstMove(state, ac, other, start = null) {
   const p = state.setup;
   const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
-  if (forced === 'tactical') return pickTacticalMove(state, ac.who);
-  return forced === 'auto' ? autoPick(state, ac, other, ac.mergeKias, start) : { move: forced, why: forcedWhy(forced, ac.mergeKias) };
+  // The Smart pilot (TF-59; 'tactical' is its older name) takes its first move from the SMM table, as Auto did.
+  return isSmart(forced) ? autoPick(state, ac, other, ac.mergeKias, start) : { move: forced, why: forcedWhy(forced, ac.mergeKias) };
 }
 
 /**
@@ -156,8 +159,6 @@ export function lookAheadPick(state, who) {
   if (!state.merged && state.plan[who]) return state.plan[who];
   const ac = state[who];
   const other = who === 'blue' ? state.red : state.blue;
-  const forced = ac.who === 'blue' ? state.setup?.blueMove : state.setup?.redMove;
-  if (forced === 'tactical') return pickTacticalMove(state, ac.who);
   return autoPick(state, ac, other, ac.kias);
 }
 
@@ -166,8 +167,9 @@ export function lookAheadPick(state, who) {
 const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS', 'lowYoYo', 'highYoYo']);
 
 /** A move that has ended (ctl.next) hands to the next one: to the MPT, or a new Auto pick; a bank move flown past moveMaxSec is picked again next step. */
-export function handOver(state, ac, other, kias) {
+export function handOver(state, ac, other, kias, d = 0) {
   const c = ac.ctl;
+  if (c.mode === 'pursuit' && endLostChase(ac, other, d)) return;
   if (c.next) {
     const next = c.next; c.next = null;
     if (next === 'mpt') {
@@ -186,8 +188,24 @@ export function handOver(state, ac, other, kias) {
 }
 
 /**
- * The Tactical pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, above the deck
- * margin and not stalled or OVER G, it runs the look-ahead and takes any move but the MPT. Runs before the MPT's
+ * A chase ends when the shot is gone (TF-57 PR 3, "pursuit can end"): the chaser's nose has stayed more than
+ * chaseLostAtaDeg off the other for chaseLostSec. It flies the MPT and the pilot picks again from there; a new
+ * nose-on starts a new chase. Returns true when it ended this step.
+ */
+function endLostChase(ac, other, d) {
+  const c = ac.ctl;
+  c.lostSec = noseAngleDeg(ac, other) > TUNING.chaseLostAtaDeg ? (c.lostSec ?? 0) + d : 0;
+  if (c.lostSec < TUNING.chaseLostSec) return false;
+  c.lostSec = 0;
+  handToMpt(ac);
+  ac.move = 'mpt'; ac.moveLabel = MOVE_LABELS.mpt;
+  ac.why = `Chase lost: nose more than ${TUNING.chaseLostAtaDeg}° off the other for ${TUNING.chaseLostSec} s, back to the MPT to pick again`;
+  return true;
+}
+
+/**
+ * The pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, once the MPT has found
+ * its speed, above the deck margin and not stalled or OVER G, it runs the look-ahead and takes any move but the MPT. Runs before the MPT's
  * controller, so a new move flies from this same step. Not in a dry run, and not before the pass.
  */
 export function reconsiderInMpt(ctx) {
@@ -199,9 +217,11 @@ export function reconsiderInMpt(ctx) {
     if (c.mptEvalTimer >= 3.5 && (c.lockoutTimer || 0) <= 0) {
       c.mptEvalTimer = 0;
       const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
-      if (forced === 'tactical') {
+      // The Smart pilot looks again in the MPT with the look-ahead (TF-59), only when a chase is possible and the fight is not decided.
+      if (isSmart(forced) && p.pursuit !== 'none' && !state.deckLoss) {
         const altMargin = ((ac.altFt ?? f.altFt) - p.hardDeckFt) > (p.deckMarginFt ?? 1000);
-        if (altMargin && !ac.stall && !ac.overG) {
+        // Only once settled in the MPT (its speed found): a pilot does not start a new move halfway through recovering from the last.
+        if (altMargin && !c.capture && !ac.stall && !ac.overG) {
           const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
           if (best && best.move !== 'mpt' && best.move !== 'levelMpt') {
             startMove(state, ac, best.move, best.why, kias);
@@ -225,12 +245,12 @@ export function reconsiderInMpt(ctx) {
 export function startChases(state) {
   const chasers = [];
   for (const [ac, target] of [[state.blue, state.red], [state.red, state.blue]]) {
-    if (ac.ctl.mode !== 'pursuit' && !ac.stall && (onTheOther(state, ac, target) || shouldPursueTactical(state, ac, target))) {
+    if (ac.ctl.mode !== 'pursuit' && ac.ctl.mode !== 'climbOut' && !state.deckLoss && !ac.stall && (onTheOther(state, ac, target) || shouldPursueTactical(state, ac, target))) {
       chasers.push({ ac, aspectDeg: 180 - noseOffDeg(state, target) });
     }
   }
   // Across altitude separation (D404/D429): visual canopy acquisition engages fighters from level MPT into 3D combat pursuit
-  if (!chasers.length && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
+  if (!chasers.length && !state.deckLoss && state.setup.blueAltFt !== state.setup.redAltFt && state.timeSec > (state.mergeSec ?? 0) + 1.0) {
     const blueMpt = state.blue.ctl.mode === 'mpt' || state.blue.ctl.mode === 'levelMpt';
     const redMpt = state.red.ctl.mode === 'mpt' || state.red.ctl.mode === 'levelMpt';
     if (blueMpt && redMpt) {
