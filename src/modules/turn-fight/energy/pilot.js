@@ -166,9 +166,8 @@ export function lookAheadPick(state, who) {
 const BANK_MOVE_MODES = Object.freeze(['pitchBack', 'slice', 'immelmann', 'splitS', 'lowYoYo', 'highYoYo']);
 
 /** A move that has ended (ctl.next) hands to the next one: to the MPT, or a new Auto pick; a bank move flown past moveMaxSec is picked again next step. */
-export function handOver(state, ac, other, kias, d = 0) {
+export function handOver(state, ac, other, kias) {
   const c = ac.ctl;
-  if (c.mode === 'pursuit' && endLostChase(ac, other, d)) return;
   if (c.next) {
     const next = c.next; c.next = null;
     if (next === 'mpt') {
@@ -187,23 +186,7 @@ export function handOver(state, ac, other, kias, d = 0) {
 }
 
 /**
- * A chase ends when the shot is gone (TF-57 PR 3, "pursuit can end"): the chaser's nose has stayed more than
- * chaseLostAtaDeg off the other for chaseLostSec. It flies the MPT and the pilot picks again from there; a new
- * nose-on starts a new chase. Returns true when it ended this step.
- */
-function endLostChase(ac, other, d) {
-  const c = ac.ctl;
-  c.lostSec = noseAngleDeg(ac, other) > TUNING.chaseLostAtaDeg ? (c.lostSec ?? 0) + d : 0;
-  if (c.lostSec < TUNING.chaseLostSec) return false;
-  c.lostSec = 0;
-  handToMpt(ac);
-  ac.move = 'mpt'; ac.moveLabel = MOVE_LABELS.mpt;
-  ac.why = `Chase lost: nose more than ${TUNING.chaseLostAtaDeg}° off the other for ${TUNING.chaseLostSec} s, back to the MPT to pick again`;
-  return true;
-}
-
-/**
- * The pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, above the deck
+ * The Tactical pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, above the deck
  * margin and not stalled or OVER G, it runs the look-ahead and takes any move but the MPT. Runs before the MPT's
  * controller, so a new move flies from this same step. Not in a dry run, and not before the pass.
  */
@@ -216,7 +199,7 @@ export function reconsiderInMpt(ctx) {
     if (c.mptEvalTimer >= 3.5 && (c.lockoutTimer || 0) <= 0) {
       c.mptEvalTimer = 0;
       const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
-      if (forced === 'tactical' || forced === 'auto') { // one pilot (TF-57 PR 3): Auto looks again in the MPT as Tactical does
+      if (forced === 'tactical') {
         const altMargin = ((ac.altFt ?? f.altFt) - p.hardDeckFt) > (p.deckMarginFt ?? 1000);
         if (altMargin && !ac.stall && !ac.overG) {
           const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);

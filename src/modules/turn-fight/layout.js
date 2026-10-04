@@ -96,7 +96,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.8', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, 'TURN FIGHT v2.9', h('span', { class: 'tf-version-sub' }, '• Tactical AI & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',
