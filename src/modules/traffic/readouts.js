@@ -79,6 +79,7 @@ export function aircraftRows(state, setup) {
                 : STATUS_TEXT[a.status] || a.status;
     return {
       id: a.id, type: a.type, color: a.color, routeName, routeId: a.routeId, leg: a.leg, altFt, kt, status: a.status, statusText,
+      gsKt: Math.round(a.groundSpeedKt ?? a.kt), crabDeg: Math.round(a.crabDeg ?? 0),
       engineFailed: Boolean(a.engineFailed), command: a.command ?? null, phase: a.phase, intent: a.intent ?? 'touch_and_go',
       pflDecision: a.pflDecision ?? null, config: a.config, deconflict: a.deconflict ?? null,
       closedPatternBankDeg: a.closedPatternBankDeg,

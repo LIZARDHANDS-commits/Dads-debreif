@@ -612,6 +612,10 @@
   font-size: var(--text-sm);
 }
 
+[data-module='traffic'] .aircraft-remove {
+  margin-left: auto;
+}
+
 [data-module='traffic'] .aircraft-row.has-engine-fail {
   background: rgba(239, 68, 68, 0.1);
   border-left: 3px solid var(--bad, #ef4444);
