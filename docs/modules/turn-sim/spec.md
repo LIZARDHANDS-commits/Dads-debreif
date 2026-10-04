@@ -226,10 +226,7 @@ Code: `src/modules/turn-sim/live/errors.js` (the offsets, the two modes, the Fix
   - Pressing Echelon from line abreast flies the hot turning rejoin straight to echelon (SMM 16.20 para 66).
   - #2 overtakes Lead by 10-20 KIAS in a turning rejoin (EFIG p.374) and 20-30 KIAS straight ahead (EFIG p.371), and stays below Lead.
   - #2's bank in a rejoin is capped at 60°, an estimate, flagged on screen and never a wall.
-- **Entering fluid manoeuvring:**
-  - from echelon by the 2-second break (SMM 16.17 para 43);
-  - from fighting wing by Lead's 30° turn, then max power (AFM7 p.17);
-  - from line abreast through fighting wing.
+- **Entering fluid manoeuvring:** from fighting wing only, by Lead's 30° turn, then max power (AFM7 p.17); greyed in every other formation (section 10.3, TS-57). ~~From echelon by the 2-second break (SMM 16.17 para 43); from line abreast through fighting wing.~~
 - **After a change:** the manoeuvre buttons work only in line abreast for now; they are greyed out in other formations. Fighting wing and fluid manoeuvring themselves (Lead's moves, #2 staying in the cone) are a separate step.
 
 **The positions** (the formation counts as established when #2 is inside these):
@@ -392,6 +389,49 @@ The rest of Patrick's 4 Oct rulings (18:00Z to 19:54Z), from the screen-piece br
 - `four-ship-changes.test.js`: the turn buttons in every 4-ship formation, with the same checks link by link; #2 crosses to echelon only once #3 has made room; in finger to line astern #3 moves across only once #2 is in.
 - `tags.test.js`: the fighting wing tag's states against the cone, and sweep measured from the wing line.
 - The camera, the lines, the tags on screen and the 3D picture are checked by eye in a browser run (sign-off).
+
+### 10.3 Fluid manoeuvring, the simplified baseline (2-ship, planned wingman) (V2.17, TS-57, built 4 Oct, not yet in Patrick's sign-off)
+
+Patrick 21:44Z: "lets get a working baseline thats simplified, if required, and work from there." This is that baseline. Numbers with no manual or ruling behind them are estimates. Pictures from the check run are in the project files at `turn-sim-review/screens/` (`v217-*.png`).
+
+**What changes on screen.**
+- **Fluid manoeuvring** under Change formation now works. It starts only from fighting wing; in every other formation, and in the 4-ship, it is greyed ("From fighting wing only"). This replaces section 10's entries from echelon (the 2-second break) and from line abreast.
+- A new group, **Fluid manoeuvring, Lead**, sits under Change formation: Level turn L, Level turn R, Wings level, Reversal, Terminate. Its buttons work only while fluid manoeuvring runs.
+- **Fluid settings** (behind its own "More"): Lead's level turn bank (Gentle 30°, 60/2, Steep 70/3; default 60/2); the distance, 500-1,000 ft (default 600); how #2 is flown, Planned (the default) or Live (greyed, "coming later").
+- While fluid manoeuvring runs, the other Change formation buttons and the manoeuvre buttons are greyed ("Terminate first").
+- The card adds the fluid lines; the tags show the fluid words (below). Nothing else moves or disappears.
+
+**How it flies.**
+- **Planned, not live** (TS-55): Lead's path is planned at each press on the shared point mass (core `stepPointMass`) with the T-6A's full-power thrust and drag, and replayed. #2's path is worked out from Lead's (below), so it is planned too. Roll stays within 90°/s for both; Lead's G builds at no more than 4 G/s (estimate).
+- **Entry** (AFM7 brief p.17): Lead turns away from #2 at 30° of bank while "all call ready" (5 s, estimate), then rolls to the chosen bank at MAX. #2 collapses from his fighting wing slot into the cone (Fig 12.20, turn away), blending in over about 10 s (estimate). A Lead button pressed during the entry waits for its end.
+- **Level turn** (AFM7 brief p.17, AFM8 brief p.19): at the chosen bank, level, at MAX, until the next press. 30° is the brief's first stage, 60/2 its turn, 70/3 is SMM 16.18 para 50's line abreast number used as "steep" (estimate).
+- **Wings level**: Lead rolls out and holds height.
+- **Reversal** (Patrick's list; not a manual manoeuvre): Lead rolls through to the same bank the other way. With Lead wings level it is refused with the reason ("press a level turn first").
+- **#2, the planned wingman** ("go where Lead was and do what Lead did", EFIG p.391): he flies along Lead's own path a few seconds behind him at the set straight-line distance (Patrick's pick row 4: range is the straight line), with two offsets:
+  - **across**: 15° off Lead's tail on his own side, 10° in a steep turn (the collapse toward Lead's six, AFM7 brief p.14), inside the cone; never straight behind (Patrick 19:21Z). Both are estimates.
+  - **lag, pure or lead**: outside Lead's turn is lag, on his path pure, inside it lead (SMM 12.30 paras 72-74; EFIG p.391), 10% of the range at full size (estimate). A new turn into #2 starts with lag (make the miss first), one away from him with lead (collapse to his six), for about 4 s (estimate), then pure (Fig 12.20). #2 answers each turn a few seconds after Lead makes it.
+  - his wings follow his lift at no more than 90°/s; G and attitude come from his path, so they always agree with it.
+- **Terminate** (SMM 16.17 paras 45-46, 48; AFM7 brief p.17; Patrick's pick row 7): Lead flies a gentle, predictable 30° turn (estimate) for 90° (estimate), the way he is already turning or away from #2 if wings level, with the power back to fighting wing's 200 KIAS (TS-53), then rolls out. #2 goes back to his fighting wing slot on the side he is on, over about 12 s (estimate). Then the pair is in fighting wing and the card judges it against the section 10 table. Rejoin to a close formation is its own Change formation button, as before (Patrick's pick row 7).
+
+**The cone and the readouts** (Patrick's picks 19:20Z, `fluid-conflicts.md`).
+- The cone is 60° in all, 30° either side of Lead's tail (row 2). Aspect is 0 at the tail (row 10; SMM 16.16 para 40b). HCA is the angle between the two headings (para 40c).
+- Distance 500-1,000 ft (SMM 16.17 para 42; AFM7 p.17, AFM8 p.19), 500-750 shown as good, default 600 (row 3); a typed value outside 500-1,000 is refused and the old one kept.
+- **Card lines**: Lead's manoeuvre and its phase; #2's pursuit (LAG, PURE, LEAD; INTO THE CONE during the entry; BACK TO FIGHTING WING during Terminate); his state and range; aspect, HCA and closure.
+- **#2's state** (card and tag): TIGHT inside 500 ft, STRETCHED past 1,000 ft, OUT OF CONE past 30° of aspect, otherwise IN POSITION.
+- **Tags**: Lead: the manoeuvre, its phase and KIAS. #2: his pursuit word; his state, range and aspect.
+
+**Flags, never walls.**
+- Inside the 500 ft bubble (SMM 16.17 para 44c; Gen Book p.11).
+- #2 over 5 G (SMM 16.17 para 44a; Gen Book p.11); Lead over 4 G (2 CFFTS Orders B2 ch 8 para 1a; Gen Book p.11) (row 11).
+- More than 90° of aspect with more than 90° of HCA and low line of sight (SMM 16.17 para 44b; "low" is under 5°/s, estimate).
+- Below 3,000 ft AGL, the fluid manoeuvring minimum (2 CFFTS Orders B2 ch 8 para 1f; Gen Book p.11), taken as about 6,000 ft MSL over the Moose Jaw areas (SMM 14.6 para 16; estimate until the block height is ruled).
+- At the stick shaker (the one physical limit; core `shakerG`).
+
+**When things go wrong.** Fluid manoeuvring pressed outside fighting wing, or in the 4-ship, is refused with the reason and nothing moves. A Lead button pressed during the entry waits for its end; during Terminate it is greyed. Any other button pressed during fluid manoeuvring is refused ("Terminate first"). Reset ends it.
+
+**Not in this baseline** (`future.md`, later pieces): climb and descend; the wingover, barrel roll and loop; #2 swapping sides over the top; the standard sequence; entry and exit speeds on the card; Live wingman; Fluid 4 manoeuvring; cloverleaf, Cuban eight and Immelmann.
+
+**Checks (light).** `tests/unit/turn-sim/fluid.test.js`: fluid manoeuvring starts only from fighting wing; Lead's turn holds height and #2 stays in the 500-1,000 ft band and the cone with no jumps (roll within 90°/s); Terminate ends in fighting wing; a reversal from wings level is refused. The screen pieces are checked by eye in a browser run (sign-off).
 
 ---
 
