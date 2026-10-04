@@ -153,15 +153,17 @@ test('a fly-through breaking out climbs straight ahead to about 500 ft above pat
   }
 });
 
-test('the move-over flies up the runway about 500 ft toward the inner runway and never descends (Q5)', () => {
+test('the move-over flies up the runway about 500 ft toward the inner runway, levelling at 2,100 ft (Q5; Patrick, 19:01Z)', () => {
   const rwy = { a: PAT.points[0], b: PAT.points[1] };
   for (const w of WINDS) {
-    const path = buildGoAround(PAT.points, { x: 25000, y: -13000, alt: 2600, kias: 140, headingDeg: 298, bankDeg: 0 }, w.windFromDeg, w.windKt, EVADE.moveOverFt);
+    const path = buildGoAround(PAT.points, { x: 25000, y: -13000, alt: 2600, kias: 140, headingDeg: 298, bankDeg: 0 }, w.windFromDeg, w.windKt, EVADE.moveOverFt, EVADE.moveOverLevelAltFt);
     const overRunway = path.filter((p) => { const o = legOffsetsFt(rwy.a, rwy.b, p); return o.alongFt > 1000 && o.alongFt < 4000; });
     assert.ok(overRunway.length > 0);
     // Right of runway 29L's track is north, toward 29R.
     assert.ok(overRunway.every((p) => Math.abs(legOffsetsFt(rwy.a, rwy.b, p).crossFt - EVADE.moveOverFt) <= 100));
-    assert.ok(path.every((p, i) => i === 0 || p.alt >= path[i - 1].alt - 1), 'never descends');
+    // Margin ±100 ft (the shared table).
+    assert.ok(overRunway.every((p) => Math.abs(p.alt - EVADE.moveOverLevelAltFt) <= 100), 'level near 2,100 ft over the runway');
+    assert.ok(path.every((p) => p.alt >= EVADE.moveOverLevelAltFt - 100), 'never below its level-off height');
   }
 });
 
