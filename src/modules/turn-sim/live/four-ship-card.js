@@ -1,8 +1,9 @@
-// The Formation card's words for the 4-ship (Spread 4): the same card as the 2-ship's,
-// with a line for each wingman against the aircraft it flies off, and the roll-out judged
-// the same way, wingman by wingman (live/four-ship.js judgeFour).
+// The Formation card's words for the 4-ship: the same card as the 2-ship's, with a line for
+// each wingman against the aircraft it flies off, and the roll-out judged the same way, wingman
+// by wingman (live/four-ship.js judgeFour; a change of formation by four-ship-slots.js judgeFourFormation).
 import { relativeTo, MANOEUVRES } from './manoeuvres.js';
 import { compassDeg, intoOrAway } from './formation.js';
+import { classifyFour, fourWords } from './four-ship-slots.js';
 
 const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
 const signedFt = (n) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(Math.round(n)).toLocaleString('en-CA')}`;
@@ -13,15 +14,19 @@ export function cardForFour(state, wingSide) {
   const byId = new Map(state.aircraft.map((a) => [a.id, a]));
   const lead = state.aircraft[0];
   const c = state.current;
-  let flying = `Spread 4 on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
+  let flying = `${fourWords(classifyFour(state.aircraft))} on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
   if (c) {
-    const sided = MANOEUVRES[c.key].sided;
+    const sided = MANOEUVRES[c.key]?.sided;
     flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;
   }
+  // G-warm: the step being flown and the G it calls for (design section 7).
+  const step = c?.gWarm?.steps.find((st) => state.tSec >= st.t0 && state.tSec < st.t1) ?? null;
 
   const j = state.judged;
   let judged = null;
-  if (j) {
+  if (j?.shape === 'formation') {
+    judged = { text: `${j.label}: ${j.text}`, tone: j.tone }; // a change of formation, judged link by link
+  } else if (j) {
     const words = j.ships.map((s) => {
       const numbers = j.shape === 'trail'
         ? `${ftText(s.gapFt)} in trail, ${ftText(Math.abs(s.offsetFt))} off line`
@@ -29,7 +34,7 @@ export function cardForFour(state, wingSide) {
       return `${s.name} off ${s.refName} ${s.labels.join(', ')} (${numbers})`;
     });
     const good = j.ships.every((s) => s.labels[0] === 'ON SPACING' || s.labels[0] === 'IN TRAIL');
-    judged = { text: `${j.label}: ${words.join('; ')}.`, tone: good ? 'good' : 'caution' };
+    judged = { text: `${j.label}: ${words.join('; ')}.${j.gFlown ? ` ${j.gFlown}` : ''}`, tone: good ? 'good' : 'caution' };
   }
 
   const nowLines = state.aircraft.filter((a) => a.ref != null).map((a) => {
@@ -41,6 +46,8 @@ export function cardForFour(state, wingSide) {
   });
   nowLines.push(`Heights above Lead: ${state.aircraft.filter((a) => a.ref != null).map((a) => `${a.name} ${signedFt(a.altAboveFt - lead.altAboveFt)}`).join(', ')} ft`);
 
+  if (step) nowLines.unshift(`G-warm step: ${step.label}`);
+
   return {
     flying,
     note: c?.note ?? null,
@@ -50,7 +57,7 @@ export function cardForFour(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${a.kias} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
     })),
   };
 }

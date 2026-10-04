@@ -13,6 +13,9 @@ import { MANOEUVRES, planManoeuvre, relativeTo, dryRun, TURN_BANK_DEG, TURN_G } 
 import { flyStep, dryRunT, planGoTo, classifyPair, judgeFormation } from './transitions.js';
 import { resolveErrors, resolveFixTools, applyStartErrors, planWithErrors, outcomeOf } from './errors.js';
 import { FOUR_SHIP_KEYS, fourShipStart, planFour, judgeFour } from './four-ship.js';
+import { G_WARM, planGWarm } from './g-warm.js';
+import { classifyFour, judgeFourFormation, FOUR_FORMATIONS } from './four-ship-slots.js';
+import { planChangeFour } from './four-ship-moves.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -184,9 +187,11 @@ export function createFormation(options = {}) {
   }
 
   function start(key, dir) {
-    const m = MANOEUVRES[key];
+    const m = MANOEUVRES[key] ?? G_WARM;
     const four = state.aircraft.length > 2;
-    const plan = four
+    const plan = key === G_WARM.key
+      ? planGWarm(state.aircraft, state.tSec)
+      : four
       ? planFour(state.aircraft, key, dir, state.tSec, { check45: opts.check45 !== false })
       : state.errors
         ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot, { tools: resolveFixTools(opts), blockFt: opts.blockFt })
@@ -212,6 +217,8 @@ export function createFormation(options = {}) {
       startSec: state.tSec,
       endSec,
       errorRun: plan.errorRun ?? null,
+      // G-warm: its steps, and the least and most G any of the four pulled in each (design section 7: G flown against the call).
+      gWarm: plan.steps ? { steps: plan.steps, flown: plan.steps.map(() => ({ min: Infinity, max: -Infinity })), spacingAfter: plan.spacingAfter } : null,
     };
     state.judged = null;
     state.refusal = null;
@@ -220,18 +227,26 @@ export function createFormation(options = {}) {
 
   /** Where #2 is now: the formation it is in (transitions.js classifyPair), remembering which side it is on. */
   function whereNow() {
+    if (state.aircraft.length > 2) {
+      const c = classifyFour(state.aircraft);
+      if (c.side) state.lastSide = c.side;
+      return c;
+    }
     const c = classifyPair(state.aircraft[0], state.aircraft[1]);
     if (c.side) state.lastSide = c.side;
     return c;
   }
 
   /**
-   * Plans and starts a change of formation (transitions.js) from the pair as it is now.
-   * Returns false, with state.refusal saying why in one line, when there is no safe plan; nothing then changes.
+   * Plans and starts a change of formation from the formation as it is now: transitions.js for the pair,
+   * four-ship-moves.js for the four. Returns false, with state.refusal saying why in one line, when there is no safe
+   * plan; nothing then changes.
    */
   function startChange(to, changeOptions) {
     whereNow();
-    const plan = planGoTo(state.aircraft, to, { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide }, state.tSec);
+    const four = state.aircraft.length > 2;
+    const planOpts = { ...changeOptions, spacingFt: state.spacingFt, blockFt: opts.blockFt, lastSide: state.lastSide };
+    const plan = four ? planChangeFour(state.aircraft, to, planOpts, state.tSec) : planGoTo(state.aircraft, to, planOpts, state.tSec);
     if (!plan.ok) {
       state.refusal = plan.reason;
       return false;
@@ -247,9 +262,11 @@ export function createFormation(options = {}) {
       state.planned[a.id] = run.points;
       endSec = Math.max(endSec, state.tSec + run.durationSec);
     }
+    // The four fly off new references in the new formation (#3 off #2 in fighting wing, #4 off #3): the card reads them.
+    if (four) for (const a of state.aircraft) if (a.ref != null) a.ref = plan.refs[a.id];
     state.current = {
       key: `change:${to}`,
-      change: { to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg },
+      change: { to, side: plan.side, from: plan.from, rejoining: plan.rejoining, rejoinKind: plan.rejoinKind, flying: plan.flying, maxBankDeg: plan.maxBankDeg, four },
       dir: 0,
       label: plan.label,
       note: plan.note,
@@ -267,9 +284,16 @@ export function createFormation(options = {}) {
   function finish() {
     const [lead, wing] = state.aircraft;
     if (state.current.change) {
-      // A change of formation is judged against the target formation's band in the spec table (section 10).
-      const j = judgeFormation(state.current.change.to, lead, wing, state.spacingFt);
-      state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone };
+      // A change of formation is judged against the target formation's band in the spec table (section 10; the four:
+      // design section 7, each link against the aircraft it flies off).
+      const c = state.current.change;
+      const j = c.four ? judgeFourFormation(c.to, state.aircraft, c.side, { spacingFt: state.spacingFt }) : judgeFormation(c.to, lead, wing, state.spacingFt);
+      state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone, ...(c.four ? { ships: j.ships } : {}) };
+    } else if (state.current.gWarm) {
+      // G-warm ends in line abreast at the tightened gap (AFM8 brief p.16 item 5); that gap is the four's from now on.
+      const g = state.current.gWarm;
+      state.spacingFt = g.spacingAfter;
+      state.judged = { label: state.current.label, ...judgeFour(state.aircraft, state.spacingFt, 'abreast', judgePair), gFlown: gFlownWords(g) };
     } else {
       state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
       if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
@@ -282,9 +306,22 @@ export function createFormation(options = {}) {
       const next = state.queued;
       state.queued = null;
       if (next.change) startChange(next.change.to, next.change.options);
-      else if (MOVES_FROM.includes(whereNow().key)) start(next.key, next.dir);
-      else state.refusal = `${next.label} flies in line abreast only.`;
+      else {
+        const why = refuseMove(next.key, next.dir);
+        if (why) state.refusal = why;
+        else start(next.key, next.dir);
+      }
     }
+  }
+
+  /** Why a manoeuvre can't be flown from where the formation is now, or null (spec sections 8 and 10: line abreast only). */
+  function refuseMove(key, dir) {
+    const where = whereNow().key;
+    if (state.aircraft.length > 2) {
+      if (key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
+      return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
+    }
+    return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast only; change to line abreast first.`;
   }
 
   build();
@@ -306,12 +343,17 @@ export function createFormation(options = {}) {
      * queued one). Returns 'started' or 'queued'.
      */
     press(key, dir = 1) {
-      if (!MANOEUVRES[key]) throw new Error(`No manoeuvre called ${key}`);
-      if (state.aircraft.length > 2 && !FOUR_SHIP_KEYS.includes(key)) throw new Error(`${key} is not a four-ship manoeuvre`);
-      // The manoeuvres are line abreast manoeuvres (spec section 10): in a close formation or fighting wing they are not flown.
-      if (state.aircraft.length === 2 && !state.current && !MOVES_FROM.includes(whereNow().key)) {
-        state.refusal = `${labelFor(key, dir)} flies in line abreast only; change to line abreast first.`;
-        return 'refused';
+      const four = state.aircraft.length > 2;
+      if (key === G_WARM.key && !four) throw new Error('G-warm is a four-ship manoeuvre for now (it starts from Spread 4)');
+      if (!MANOEUVRES[key] && key !== G_WARM.key) throw new Error(`No manoeuvre called ${key}`);
+      if (four && !FOUR_SHIP_KEYS.includes(key) && key !== G_WARM.key) throw new Error(`${key} is not a four-ship manoeuvre`);
+      // The manoeuvres are line abreast manoeuvres (spec sections 8 and 10): in a close formation or fighting wing they are not flown.
+      if (!state.current) {
+        const why = refuseMove(key, dir);
+        if (why) {
+          state.refusal = why;
+          return 'refused';
+        }
       }
       if (!state.current) {
         start(key, dir);
@@ -322,23 +364,23 @@ export function createFormation(options = {}) {
     },
     /**
      * A "Change formation" press (spec section 10, transitions.js): to is 'lab', 'fw', 'echelon', 'route' or 'astern';
+     * for the four (spec section 8, four-ship-moves.js) one of four-ship-slots.js FOUR_FORMATIONS' keys;
      * options: { side: 'keep' | 'left' | 'right', rejoin: 'into' | 'straight' }. Flown at once when nothing is being
      * flown, otherwise queued like a manoeuvre. Returns 'started', 'queued' or 'refused' (state.refusal says why).
      */
     change(to, options = {}) {
-      if (state.aircraft.length > 2) {
-        state.refusal = 'Formation changes are for the 2-ship.';
-        return 'refused';
-      }
       if (state.current) {
-        const label = FORMATIONS_LABEL(to);
+        const label = state.aircraft.length > 2 ? FOUR_FORMATIONS[to]?.label ?? to : FORMATIONS_LABEL(to);
         state.queued = { key: `change:${to}`, dir: 0, label, change: { to, options } };
         return 'queued';
       }
       return startChange(to, options) ? 'started' : 'refused';
     },
-    /** Which formation the pair is in now: { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side }. */
-    where: () => classifyPair(state.aircraft[0], state.aircraft[1]),
+    /**
+     * Which formation the aircraft are in now: for the pair { key: 'lab' | 'fw' | 'echelon' | 'route' | 'astern' | 'other', side },
+     * for the four one of four-ship-slots.js FOUR_FORMATIONS or 'other', with #2's side.
+     */
+    where: () => (state.aircraft.length > 2 ? classifyFour(state.aircraft) : classifyPair(state.aircraft[0], state.aircraft[1])),
     /** Drops the queued press, if any. */
     clearQueue() {
       state.queued = null;
@@ -349,6 +391,14 @@ export function createFormation(options = {}) {
       state.tSec = Math.round((state.tSec + STEP_SEC) / STEP_SEC) * STEP_SEC;
       keepTrack();
       keepRecord();
+      const g = state.current?.gWarm;
+      if (g) {
+        const i = g.steps.findIndex((st) => state.tSec > st.t0 && state.tSec <= st.t1);
+        if (i >= 0) for (const a of state.aircraft) {
+          g.flown[i].min = Math.min(g.flown[i].min, a.g);
+          g.flown[i].max = Math.max(g.flown[i].max, a.g);
+        }
+      }
       if (state.current && state.aircraft.every((a) => planDone(a, state.plans[a.id]) && (state.tSec >= state.current.endSec - STEP_SEC / 2))) finish();
       return true;
     },
@@ -357,11 +407,24 @@ export function createFormation(options = {}) {
 
 /** The formations the manoeuvre buttons fly from: line abreast, or a picture that is none of the close ones (after an in-place turn). */
 const MOVES_FROM = ['lab', 'other'];
+/** The same for the four: Spread 4, or a wide picture that is none of the formations (a column after an in-place turn). */
+const MOVES_FROM_FOUR = ['spread4', 'other'];
+
+/** G-warm's G flown against each call (design section 7): "in place 90 3.0 G (3 called), push over 0.5 G (0.5), …". */
+function gFlownWords(g) {
+  const parts = g.steps.map((st, i) => {
+    const f = g.flown[i];
+    if (st.g === 1 || !Number.isFinite(f.max)) return null;
+    const flown = st.g < 1 ? f.min : f.max;
+    return `${st.name} ${flown.toFixed(1)} G (${st.g} called)`;
+  }).filter(Boolean);
+  return `G flown: ${parts.join(', ')}.`;
+}
 const FORMATIONS_LABEL = (to) => ({ lab: 'Line abreast', fw: 'Fighting wing', echelon: 'Echelon', route: 'Route', astern: 'Line astern' })[to] ?? to;
 
 /** The words for a press: "Hook right", "Shackle". */
 export function labelFor(key, dir) {
-  const m = MANOEUVRES[key];
+  const m = MANOEUVRES[key] ?? (key === G_WARM.key ? G_WARM : null);
   return m.sided ? `${m.label} ${dir > 0 ? 'left' : 'right'}` : m.label;
 }
 

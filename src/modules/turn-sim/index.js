@@ -20,6 +20,7 @@ import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, in
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
 import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
+import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/transitions.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
@@ -46,6 +47,8 @@ const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackl
   sided: MANOEUVRES[key].sided,
   ships: FOUR_SHIP_KEYS.includes(key) ? [2, 4] : [2], // the shackle and cross turn are not approved in Spread 4 (SMM 16.43 para 118)
 }));
+// G-warm, from Spread 4 (SMM 16.44 para 120; AFM8 brief p.16): one button, the four-ship's only for now.
+BUTTONS.push({ key: G_WARM.key, label: G_WARM.label, sided: false, ships: [4] });
 
 /** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {
@@ -144,10 +147,10 @@ function mount(root, app) {
   /** How much ground the camera keeps in view: both aircraft, with room for a turn circle each side. */
   const spanFt = () => {
     // Close together (a close formation, or the last part of a rejoin): zoom in so the pair can be seen, and back out when they open up.
-    if (state.aircraft.length === 2) {
-      const apart = Math.hypot(state.aircraft[0].xFt - state.aircraft[1].xFt, state.aircraft[0].yFt - state.aircraft[1].yFt);
-      if (apart < CLOSE_ZOOM_FT) return Math.max(CLOSE_SPAN_MIN_FT, 4 * apart + 200);
-    }
+    // The four zoom in the same way on their widest pair (a close 4-ship formation, spec section 8).
+    let apart = 0;
+    for (const a of state.aircraft) for (const b of state.aircraft) apart = Math.max(apart, Math.hypot(a.xFt - b.xFt, a.yFt - b.yFt));
+    if (apart < CLOSE_ZOOM_FT) return Math.max(CLOSE_SPAN_MIN_FT, 4 * apart + 200);
     const c = centre();
     let reach = 0;
     for (const a of state.aircraft) reach = Math.max(reach, Math.hypot(a.xFt - c.x, a.yFt - c.y));
@@ -243,12 +246,18 @@ function mount(root, app) {
     lastReadout = performance.now();
     const wingSide = setup.get().wingSide;
     ui.renderCard(state.aircraft.length > 2 ? cardForFour(state, wingSide) : cardFor(state, wingSide));
+    const whereAll = formation.where();
+    changeUi.update(state, whereAll);
+    changeUi.renderCard(state, whereAll);
     if (state.aircraft.length === 2) {
-      const where = formation.where();
-      changeUi.update(state, where);
-      changeUi.renderCard(state, where);
+      const where = whereAll;
       ui.setMovesEnabled(!['fw', 'echelon', 'route', 'astern'].includes(where.key)); // the manoeuvres are line abreast only
-    } else ui.setMovesEnabled(true);
+    } else {
+      // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
+      const where = whereAll.key;
+      const lineAbreast = where === 'spread4' || where === 'other';
+      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4. Change to Spread 4 first.');
+    }
   }
   function queueCard() {
     const wait = READOUT_MS - (performance.now() - lastReadout);

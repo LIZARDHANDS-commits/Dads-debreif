@@ -517,7 +517,8 @@
 }
 
 [data-module='turn-sim'] .ts-change[hidden],
-[data-module='turn-sim'] .ts-change-card[hidden] {
+[data-module='turn-sim'] .ts-change-card[hidden],
+[data-module='turn-sim'] .ts-change-grid[hidden] {
   display: none;
 }
 

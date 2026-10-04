@@ -93,12 +93,29 @@ export const SMOOTHER_PEAK = 1.875;
 export function heightAt(profile, t) {
   for (const leg of profile ?? []) {
     if (t < leg.t0 || t > leg.t1) continue;
+    if (leg.table) return tableAt(leg, t);
     const span = Math.max(leg.t1 - leg.t0, 1e-9);
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
     return { altAboveFt: leg.fromFt + rise * smoother(u), climbFtps: (rise * smootherSlope(u)) / span };
   }
   return null;
+}
+
+/**
+ * A height leg flown from a table (leg.table: { dt, alt: [], climb: [], nz: [] }, one entry every dt seconds from
+ * leg.t0): a vertical manoeuvre worked out in full when it is planned, such as G-warm's push over (g-warm.js), whose
+ * load factor is part of the plan. Read between entries in a straight line. Returns { altAboveFt, climbFtps, nz }:
+ * nz is the G the vertical manoeuvre puts on the aircraft with the wings level (1 in level flight).
+ */
+function tableAt(leg, t) {
+  const { dt, alt, climb, nz } = leg.table;
+  const x = Math.max(0, (t - leg.t0) / dt);
+  const i = Math.min(alt.length - 1, Math.floor(x));
+  const j = Math.min(alt.length - 1, i + 1);
+  const f = Math.min(1, x - i);
+  const mix = (arr) => arr[i] + (arr[j] - arr[i]) * f;
+  return { altAboveFt: mix(alt), climbFtps: mix(climb), nz: mix(nz) };
 }
 
 /**
@@ -119,7 +136,9 @@ export function speedAt(leg, t) {
  * Flies one step. `plan` is the aircraft's { segments, profile } and is used up as
  * it goes (finished segments are shifted off). `t` is the formation's time at the
  * start of the step. Segments:
- *   { kind: 'hold', untilSec }          straight and level until formation time untilSec
+ *   { kind: 'hold', untilSec, thenNext } straight and level until formation time untilSec; with thenNext the next
+ *        segment starts in the step the hold ends (so a plan joined from separately planned legs starts each leg on
+ *        the exact step it was planned from); without it the step the hold ends is still flown straight.
  *   { kind: 'turn', toRad, dir, bankDeg, rollOut }
  *        turn the `dir` way (+1 left, -1 right) at bankDeg (magnitude) to heading toRad;
  *        rollOut false hands the bank straight on to the next segment (the cross turn's two stages).
@@ -155,7 +174,10 @@ export function stepAircraft(a, plan, t) {
     }
     // otherwise: straight and level while the speed changes (or while an earlier change finishes)
   } else if (seg?.kind === 'hold') {
-    if (t + dt / 2 >= seg.untilSec) plan.segments.shift();
+    if (t + dt / 2 >= seg.untilSec) {
+      plan.segments.shift();
+      if (seg.thenNext) return stepAircraft(a, plan, t); // the next segment flies this same step
+    }
   } else if (seg?.kind === 'turn') {
     const toGo = angleToGo(a.headingRad, seg.toRad, seg.dir);
     if (!seg.rollingOut) {
@@ -207,6 +229,8 @@ export function stepAircraft(a, plan, t) {
   if (height) {
     a.altAboveFt = height.altAboveFt;
     a.climbFtps = height.climbFtps;
+    // A vertical manoeuvre planned with its load factor (a push over) adds what it pulls or pushes on top of the turn's G.
+    if (height.nz !== undefined) a.g += height.nz - 1;
   } else {
     a.climbFtps = 0;
   }

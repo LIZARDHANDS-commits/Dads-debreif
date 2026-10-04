@@ -84,6 +84,36 @@ Not tested: the screen (buttons, card, range ring, zoom): sign-off only. Not run
 8. Nothing jumps or snaps in 2D or 3D at 0.25x; bank looks smooth into and out of the rejoin turn; the flags stay quiet unless something is wrong.
 9. Say if the estimates look right: the 60° bank cap, the 15 KIAS overtake, Lead's pause and 30° turn, hot and cold at 60° and 30°, the fighting wing default of 750 ft, 45° and 60 ft below, and the close-formation distances.
 
+## 4-ship G-warm and changes (TS-54, `spec.md` section 8.1)
+
+The checks are in `tests/unit/turn-sim/g-warm.test.js` and `tests/unit/turn-sim/four-ship-changes.test.js`, written to Patrick's 4 Oct 11:50Z rule (test that it flies right: no snaps, limits flagged not walled, ends in the right formation, nothing breaks; no wording, seconds, counts or one-off values):
+
+| What | Check | Source of the expected value |
+|---|---|---|
+| G-warm, both sides | The first turn is toward #2; the least G is about half a G and the most about 4 (±0.5 G); the four sink in the push and end level, on the starting heading (±5°), on the stack (±100 ft), in the same left-to-right order, abeam at 4,000 ft (±100 ft) with sweep under 15° | SMM 16.22 para 71, 16.44 para 120; AFM8 brief pp.14, 16; SMM 16.18 para 49 |
+| G-warm smoothness | Nothing jumps; the four stay apart (300 ft) | TS-47; SMM 16.13 para 31 |
+| G-warm refusals | Refused outside Spread 4; a 2-ship press throws | spec section 8.1 |
+| A tour of the formations, both sides | Fighting wing, Fluid 4, offset box, fighting wing, finger, echelon, finger, box, finger, route, finger, line astern, finger, fighting wing, Spread 4: each ends in the formation pressed, link by link, on the side asked, at 200 KIAS (220 in Spread 4 and the offset box, ±10 kt) | The bands written out in the test from SMM 12.6 para 15, 12.29 para 69, 16.18 para 49, 16.32, 16.38, 16.41 para 109; AFM8 brief pp.14, 20; the 2-ship spec table's close margins; Patrick 11:08Z, 11:44Z |
+| The Side switch and straight-ahead rejoins | Finger and echelon both ways across, the straight-ahead rejoins, each ending in place | spec section 8.1 |
+| Always true | No roll faster than 90°/s, no jump in position or height (40 ft/s at most, an estimate of a gentle climb), bank under 90°, never two aircraft within a wingspan | TS-37, TS-47; T-6A wingspan |
+| Gates | In the turning rejoin to finger, #2 is in before #3, and #3 before #4 | SMM 16.34 para 96 |
+| Refusals and the queue | Fluid manoeuvring and "already there" are refused with nothing moved; a press during a change waits its turn; the manoeuvres are refused outside Spread 4 | spec section 8.1 |
+| Time | Only catches (5 minutes for G-warm, 10 for a change) that the plan finished; no timing check | design section 9 |
+
+Not tested: the screen (buttons, card lines, the 4-ship close zoom): sign-off only. Not run locally before the pull request beyond the two files once (CI is the one check).
+
+**Sign-off checklist, 4-ship G-warm and changes** (draft, for Patrick to put in his own words). Open the Turn Sim fresh, with the version shown on screen (V2.13), 2D, Setup Formation 4-ship:
+1. The Change formation group shows the four's buttons: Spread 4 (greyed: you are here), Fighting wing, Fluid 4, Fluid manoeuvring (greyed, "coming later"), Offset box, Finger, Echelon, Box; Line astern, Route and the rejoin choice under More.
+2. Press G-warm: in place 90 toward #2, the push over (a small dip), hook the other way, back to the start heading, and the wingmen tighten to about 4,000 ft. The card shows each step and, after, the G flown against each call.
+3. Press Fighting wing: Lead slows to 200 KIAS, pauses, turns gently toward #2; #2 rejoins inside, #3 and #4 on the far side, each about 650 ft off the one ahead, holding the stack.
+4. Press Finger: Lead turns into #2; #2 joins first, then #3, then #4; nobody crosses until the one ahead is in. The camera zooms in as they close.
+5. Press Echelon, Box, Line astern and Route, coming back to Finger between them: each looks like the SMM (cross behind and below, #4 lower than #3), slow and smooth.
+6. Use the Side switch with Echelon and Finger: #2 crosses behind and below Lead.
+7. From fighting wing press Fluid 4, then Offset box: #3 goes out to about 6,000 ft abeam with #2 and #4 in fighting wing; then both elements turn in place 90 and spread into the box, the second element about 7,000 ft back. Press Fighting wing: the box rejoins.
+8. Press Spread 4: Lead speeds up to 220 KIAS and the four open out on the stack. The manoeuvre buttons work again; in any other formation they are greyed with a reason.
+9. Nothing jumps or snaps in 2D or 3D at 0.25x; a second press during a change shows "Next: ..." and is flown after.
+10. Say if the estimates look right (`decisions.md` TS-54): the push-over dip and recovery, Lead's 90° turn into the others to finger, Fluid 4's #4 at 45°, the box on #2's side, #2 above Lead in a stacked rejoin until it comes off the stack, fighting wing to echelon through finger.
+
 ## Turn Sim rules on top of the whole-tool rules
 
 - **FM1. The end picture is the test (TS-R3 to TS-R5).** For each turn, both ways, in each formation, check who is where and which way they face once every aircraft has rolled out, against the SMM figure's page reference (Figs 16.15 to 16.21 and 16.30 to 16.36). The checks are positions relative to Lead and spacing against the set spacing. Each has a stated margin and its reason. How long the turn took is never checked (T2).

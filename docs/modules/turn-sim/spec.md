@@ -111,6 +111,70 @@ A delayed turn pressed when the four are not abreast (after a check or an in-pla
 
 **Checks (light).** `tests/unit/turn-sim/four-ship.test.js`: the start picture and stack; the end picture of every button, both ways, with #2 on either side; who turns first, and the wait between them; the delayed 45's check turn; bank and G limits for all four; no two aircraft within 300 ft vertically and horizontally of each other (SMM 16.13 para 31) and the stack held; every hand-over smooth for all four; a press while flying queued. No time gates.
 
+### 8.1 G-warm and changing formation, 4-ship (V2.13, TS-54, built 4 Oct, not yet in Patrick's sign-off)
+
+Patrick, 4 Oct 17:10Z and 17:19Z ("Continue four ship"): the planned part of the four-ship design (project files `turn-sim-review/four-ship/design.md`, sections 5.2, 5.5, 5.6, 6 and 7, with his answers at its end). Everything is planned at the press, like the 2-ship's changes (section 10): Lead flies ordinary segments and each wingman's path is a recorded dry run of the 2-ship's tracker flying to its place off the aircraft it flies off, through the same flight step, so the path drawn is the path flown. Numbers with no page or ruling beside them are **estimates**. Speeds are indicated (KIAS) unless they say otherwise.
+
+**G-warm (from Spread 4).** One button, G-warm, in the 4-ship only, pressable in Spread 4 (greyed elsewhere, with the reason). All four fly it together on the stack:
+
+| Step | What | Source |
+|---|---|---|
+| Standby | 15 s straight (estimate) | AFM8 brief p.16 |
+| In place 90 | Toward #2, 3 G | SMM 16.22 para 71, 16.44 para 120; AFM8 brief p.16 items 1-2 |
+| Push over | Half a G for 5 s, wings level: the flight path follows V dγ/dt = g(n − cos γ) at constant speed (standard aerodynamics); the G eases in over 1.5 s and out through 1.5 G (estimate) back to level flight. The four sink about 280 ft and end level (estimate: the SMM gives no figure) | SMM 16.22 para 71 |
+| Hook | The other way, 4 G | SMM 16.22 para 71 |
+| Complete | 4 s straight (estimate) | AFM8 brief p.16 |
+| In place 90 back | 3 G, onto the starting heading | SMM 16.22 para 71 |
+| Tighten | Each wingman closes to 4,000 ft off the aircraft it flies off: a 10° heading change at 30° bank (the training errors' lateral fix, estimates) | AFM8 brief p.16 item 5 |
+
+The 4 G hook is flown as the SMM gives it; the Orders' 3 G for more than two aircraft (2 CFFTS Orders B2 ch 8 p.98) is a reference, not a wall. The card shows the step and the G it calls for, and after it the G flown against each call. After a G-warm the four's spacing is 4,000 ft until Reset or a Setup change.
+
+**The buttons.** In the 4-ship the Change formation group has: Spread 4, Fighting wing, Fluid 4, Fluid manoeuvring (greyed, "coming later": the live build), Offset box, Finger, Echelon, Box; under More: Line astern, Route and the rejoin choice, "Turning, Lead turns into the others" (the default, Patrick 11:09Z) or "Straight ahead". The Side switch sets #2's side at the end (Keep, L, R). The button for where the four are is greyed. The manoeuvre buttons fly from Spread 4 (or a column after an in-place turn) and are greyed elsewhere, with the reason.
+
+**The places.** One table (`live/four-ship-slots.js`); each wingman is placed off the aircraft it flies off:
+
+| Formation | Places | KIAS | Source |
+|---|---|---|---|
+| Spread 4 | As section 8, at the spacing | 220 | Patrick 11:08Z; SMM 16.42 |
+| Fighting wing | #2 off Lead at 45°, #3 off #2 at 30°, #4 off #3 at 30°, every link 650 ft; #3 and #4 on the side opposite #2. Entered from Spread 4 or the offset box the stack is kept; from a close formation each is 60 ft below the one it flies off (estimate) | 200 | Patrick 11:44Z (estimates until Dad says); SMM 12.29 para 69, 16.38 paras 104-107 |
+| Fluid 4 | #3 abeam Lead at 6,000 ft on the side opposite #2; #2 in fighting wing on Lead, #4 in fighting wing on #3 at 45°, outside; on the stack | 200 (estimate) | AFM8 brief p.20 |
+| Offset box | #2 abeam Lead at the spacing; #3 7,000 ft behind Lead, half a spacing toward #2's side; #4 abeam #3 at the spacing on #2's side; on the stack. The box is on #2's side (estimate) | 220 (estimate) | AFM8 brief pp.21-22; SMM 16.41 paras 109-110; TS-18 |
+| Finger | #2 in echelon on Lead, its side; #3 in echelon on Lead, the other side; #4 in echelon on #3, outside. Named by the side #3 and #4 are on ("finger left": #3 and #4 left) | 200 | SMM 16.32; AFM7 brief p.19 |
+| Echelon | All three on #2's side, each in echelon on the one ahead | 200 | SMM 16.32 paras 87-88 |
+| Box | Finger with #4 in line astern on Lead | 200 | SMM 16.32 para 91; AFM7 brief p.20 |
+| Line astern | Each in line astern on the one ahead | 200 | SMM 16.32 paras 89-90 |
+| Route | Finger opened to route (2 wingspans out) | 200 | SMM 12.6 para 15; AFM8 brief p.9 |
+
+The close places are the 2-ship's (section 10: echelon 45 ft out, 25 ft back, 5 ft down; line astern 10 ft nose to tail; estimates); #4 goes a further 10 ft low when it crosses (estimate).
+
+**The moves.** A press flies the cheapest way there through the moves the manuals give (the design's section 6 graph; each move's rough cost is an estimate used only to choose the route), one leg after another, joined on the exact step. "Wait for the one ahead" (SMM 16.32 para 86, 16.34 paras 95-96; AFM7 brief p.18 item 2d) is a gate: a wingman starts when the one ahead has arrived, or a new leg starts when everyone has settled.
+
+| From to | How | Source |
+|---|---|---|
+| Spread 4, offset box or no formation to fighting wing | Turning rejoin (R3, F11): Lead slows to 200 KIAS, pauses while #2 closes, then turns 30° toward #2 at 30° bank (the first of 30, 45, 20 and 60° that keeps every wingman out of the overshoot lane, as the 2-ship); #3 and #4 rejoin too, holding the stack. If no turn keeps the lane, or "Straight ahead" is chosen, Lead flies straight and the card says so | AFM7 brief p.17, AFM8 brief pp.19, 25; SMM 12.26 paras 62-63 |
+| Fighting wing to finger | Turning rejoin (R2, the default): Lead turns 90° (estimate) into #2 at 30° bank; #2 joins first; #3 joins once #2 is in, coming off the stack while it waits; #4 once #3 is. Straight ahead (R1): each closes through route in turn, #2 first, the stack coming off as they close, then into finger | SMM 16.34 paras 95-96, 16.38 para 106; AFM7 brief pp.18, 21; SMM 16.15 para 38 |
+| Fighting wing to route | Close through route in turn (R1) | AFM7 brief p.18 item 2 |
+| Finger and route | A slide out or in, all at once | AFM8 brief p.9 |
+| Finger to echelon, and back | Echelon on #2's side: #3 and #4 drop back and down, pass behind and below #2 and Lead, #4 lower and behind #3, and take echelon (F2). The other side: #3 and #4 move out first, then #2 crosses behind and below Lead (F1). Back is the reverse (estimate: the manuals give one way) | SMM 16.32 paras 87-88; AFM7 brief p.19 |
+| Finger to box, and back | #4 moves back and down behind #3 into line astern on Lead | SMM 16.32 para 91; AFM7 brief p.20 |
+| Finger to line astern, and back | #3 drops back, #2 crosses behind Lead, #3 behind #2, #4 behind #3; back the other way | SMM 16.32 paras 86, 89-90 |
+| Finger or echelon to fighting wing | Drop back, then across into place (F6); no stack | SMM 16.32 para 92, 16.38 para 105 |
+| Fighting wing or finger to Spread 4 | Lead speeds up to 220 KIAS; the wingmen open out to one spacing each, the stack going on; from finger #3 waits for #4 to start moving out (10 s, estimate) | AFM7 brief p.15, AFM8 brief p.15; SMM 16.18 para 51, 16.42 para 114 |
+| Fighting wing to Fluid 4, and back | "Fluid 4, go": #3 diverges to 6,000 ft abeam Lead, #2 and #4 stay in fighting wing on the outside (F8); back is the reverse (estimate) | AFM8 brief p.20 |
+| Fluid 4 to offset box | "For offset box, in place 90": both elements turn in place 90 toward #2's side, then Lead speeds up and the elements spread to line abreast with the second element 7,000 ft back (F9) | AFM8 brief pp.21-22; SMM 16.41 paras 109-110 |
+
+Not every pair is direct: for example Spread 4 to finger is a turning rejoin to fighting wing, then a turning rejoin to finger; finger to finger on the other side goes through echelon (the SMM does not authorise finger to finger, SMM 16.33 para 93); fighting wing to echelon goes through finger (a simplification; the design has a direct rejoin). The card's note names every leg.
+
+**Height and speed.** Stack changes average no more than 15 ft/s (900 ft/min; estimate), so they never snap. Speed changes only inside a change, with the smooth speed segment (full power up, 1.5 kt/s down, an estimate, as section 10).
+
+**The card.** Now: where the four are, in words. Flying: the change and the route, the note naming each leg, and about how long is left. Each wingman's line reads off the aircraft it now flies off (#3 off #2 in fighting wing, #4 off Lead in the box). The end is judged link by link (design section 7): Spread 4 and the offset box's elements on spacing (±100 ft) and sweep (0-10°), the box's second element 6,000-8,000 ft back and within 500 ft of its slot sideways (estimate), the stack ±100 ft; fighting wing links 500-1,000 ft and 30-60° with the shared ±100 ft and ±5° round them (the 30° default is the band's flat end), on the right side; the close formations by the 2-ship's table. Flags, never walls: Lead above 4 G in fighting wing or 3 G in a close formation (2 CFFTS Orders B2 ch 8).
+
+**When things go wrong.** A press with no safe plan is refused in one line on the card and nothing moves: no route the manuals give, a plan longer than 8 minutes (a catch only), a plan that would end outside the band, or a wingman that could not settle. Fluid manoeuvring is greyed. A turning rejoin that can't keep the overshoot lane is flown straight ahead and the card says so. From a picture that is no formation (after an in-place turn) the four rejoin to fighting wing first, on the side #2 was last seen. A press during a change is queued, as the 2-ship's.
+
+**Not built here** (`future.md`): manoeuvring inside the offset box and Fluid 4; live fighting wing and fluid manoeuvring (the next piece); fighting wing to echelon direct; finger to offset box direct and "offset box east/west" from fighting wing; rejoin mistakes; the 2-ship G-warm.
+
+**Checks (light).** `tests/unit/turn-sim/g-warm.test.js` and `tests/unit/turn-sim/four-ship-changes.test.js` (`testing.md`, "4-ship G-warm and changes").
+
 ## 9. Training errors (TS-52, added 4 Oct, not yet in Patrick's sign-off)
 
 A training aid, behind a closed "Errors (training)" section in the Manoeuvres panel. Default off: with every error "none" the screen and the flying are exactly as in sections 1 to 7.

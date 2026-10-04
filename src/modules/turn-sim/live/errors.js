@@ -653,7 +653,7 @@ function speedPulse(gainFt, leadKias, tasPerKias, altFt, vertical, minHoldSec) {
  * Sideways from a turn of angle θ and back, at radius R: 2R(1 − cos θ), plus V t sin θ held between.
  * Returns { dir, angleRad, holdSec }.
  */
-function lateralLeg(moveFt, tasFtps) {
+export function lateralLeg(moveFt, tasFtps) {
   const dir = Math.sign(moveFt) || 1;
   const m = Math.abs(moveFt);
   const R = turnRadiusFromBankFt(tasFtps, FIX_LIMITS.lateralBankDeg);

@@ -36,6 +36,7 @@ export const SPEEDS = Object.freeze([0.25, 0.5, 1, 2, 4]);
 
 /** The line above the buttons, for the pair and for the four. */
 const PAIR_HINT = 'Press a manoeuvre and the pair flies it, then carries on in line abreast. A press while one is flying is flown next.';
+const PAIR_MOVES_NOTE = 'These manoeuvres fly in line abreast. Change to line abreast first.';
 const FOUR_HINT = 'Press a manoeuvre and the four fly it, then carry on in Spread 4 (line abreast). A press while one is flying is flown next.';
 
 /** Ship colours as in V6, except #4: white with a dark outline (#29), as in the debrief. */
@@ -88,7 +89,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   const movesPanel = createPanel({ title: 'Manoeuvres', onToggle: (c) => layout.update({ setupColumn: !c }) });
   const queueLine = h('p', { class: 'ts-hint ts-queue', role: 'status' });
   const movesHint = h('p', { class: 'ts-hint' }, PAIR_HINT);
-  const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, 'These manoeuvres fly in line abreast. Change to line abreast first.');
+  const movesNote = h('p', { class: 'ts-hint ts-warning', role: 'status', hidden: true }, PAIR_MOVES_NOTE);
   movesPanel.body.append(
     ...(changeUi ? [changeUi.element] : []),
     movesHint,
@@ -256,14 +257,17 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fourLine.hidden = ships !== 4;
       check45Field.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
-      if (changeUi) {
-        changeUi.element.hidden = ships === 4; // formation changes are the 2-ship's for now (spec section 10)
-        changeUi.cardElement.hidden = ships === 4;
-      }
+      changeUi?.setShips(ships); // the four have their own formation buttons (spec section 8)
     },
     /** The manoeuvre buttons work in line abreast only: greyed in the other formations, with the reason beside them. */
-    setMovesEnabled(enabled) {
-      for (const b of element.querySelectorAll('.ts-move-button')) b.disabled = !enabled;
+    /**
+     * @param {boolean} enabled
+     * @param {(key: string) => boolean} [keyEnabled] which buttons may be pressed when enabled (G-warm only from Spread 4)
+     * @param {string} [note] the reason shown when they are greyed
+     */
+    setMovesEnabled(enabled, keyEnabled = (_key) => true, note = PAIR_MOVES_NOTE) {
+      for (const b of element.querySelectorAll('.ts-move-button')) b.disabled = !enabled || !keyEnabled(b.dataset.move);
+      movesNote.textContent = note;
       movesNote.hidden = enabled;
     },
     /** The Fix tools show only when #2's response is Fix it. */
