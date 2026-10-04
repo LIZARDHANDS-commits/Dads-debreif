@@ -387,8 +387,8 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (!pflChosen) fillSpots();
   }
 
-  // "Spawn aircraft" opens and closes like Traffic settings (Patrick, 4 Oct); it is open at first.
-  const spawnPanel = createPanel({ title: 'Spawn aircraft', collapsed: false });
+  // "Spawn aircraft" opens and closes like Traffic settings, closed at first (Patrick, 4 Oct).
+  const spawnPanel = createPanel({ title: 'Spawn aircraft', collapsed: true });
   const spawnerBody = h(
     'section',
     { class: 'spawner', 'aria-label': 'Spawn aircraft' },
