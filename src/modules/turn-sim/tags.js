@@ -10,6 +10,9 @@
 //    table, link by link in the 4-ship). In it, IN POSITION; too close (TIGHT, TOO CLOSE, FORE) TIGHT; too far (WIDE, AFT,
 //    TOO FAR BACK) STRETCHED; otherwise the judgement's own word (HIGH, LOW, OFF LINE, WRONG SIDE).
 //  - Line abreast and the wide 4-ship formations: no state, the spacing only (the card judges them).
+// formation.js first: the live files import each other in a loop, and entering it at transitions.js reads REJOIN in
+// kinematic-moves.js before transitions.js has set it (the same happens on main if transitions.js is loaded first).
+import './live/formation.js';
 import { relativeTo, DEG } from './live/manoeuvres.js';
 import { judgeFormation, FORMATIONS } from './live/transitions.js';
 import { FOUR_FORMATIONS, fourSlots } from './live/four-ship-slots.js';

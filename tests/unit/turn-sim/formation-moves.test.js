@@ -242,7 +242,10 @@ test('2-ship close formations turn with Lead: #2 rolls with him, stepped up on t
       fly(f, what, (b, a, t) => {
         stepped(b, a, t);
         const l = link(a[0], a[1]);
-        assert.ok(!(l.across < WINGSPAN_FT && l.back < LENGTH_FT + 5), `${what} at ${t.toFixed(1)} s: wings overlap`);
+        // In a bank the step is along Lead's tilted wing line (SMM 12.5 para 12), so the level "across" shrinks by the
+        // cosine of the bank while the height difference grows: measure the gap in 3D, as four-ship-changes.test.js does.
+        const apartFt = Math.hypot(l.rel.fwd, l.rel.left, l.down);
+        assert.ok(apartFt > WINGSPAN_FT, `${what} at ${t.toFixed(1)} s: within a wingspan (${apartFt.toFixed(0)} ft)`);
         // 40 ft/s is a gentle climb or descent (an estimate, as in four-ship-changes.test.js)
         assert.ok(Math.abs(a[1].altAboveFt - b[1].altAboveFt) <= 40 * STEP_SEC, `${what} at ${t.toFixed(1)} s: #2 jumped in height`);
       });
