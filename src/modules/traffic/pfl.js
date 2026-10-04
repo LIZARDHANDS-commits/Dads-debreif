@@ -21,11 +21,13 @@
 // degrees true; speeds KIAS unless named KTAS. Nothing here reads the page.
 import { ktToFtps, KT_TO_FTPS, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, wrapDeg360, compassDegFromVector } from '../../core/angles.js';
-import { gFromBankDeg, turnRadiusFromBankFt } from '../../core/flight-math.js';
+import { gFromBankDeg, turnRadiusFromBankFt, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
 import { iasToTasKt, glideDragPerWeight, glideRatio, stallLimitG, zoomT6A } from '../../core/t6-performance.js';
 import { windTriangle } from '../../core/wind.js';
 import { legOffsetsFt } from '../../core/geo.js';
 import { makePilot, bankFor, PILOT_DT } from './circuit.js';
+import { startJoin } from './path-follower.js';
+import { routeLengthFt } from './route.js';
 import { THRESHOLD_29L, DEPARTURE_END_29L, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
 
 /** The PFL's flying numbers, each with its source. Orders and SMM numbers are defaults, not walls. */
@@ -85,6 +87,8 @@ export const PFL = Object.freeze({
   widenAboveFt: 100,
   /** Widest it goes outside the circle when widening. An estimate. */
   maxWidenFt: 6000,
+  /** For its first second it holds the bank it has before turning for the join: reaction time, and no step at the hand-over. An estimate. */
+  holdBankSec: 1,
   /** Speed changes in the glide: at most 0.1 G along the path. An estimate. */
   maxAccelG: 0.1,
 });
@@ -545,7 +549,7 @@ function carrot(path, proj, ahead) {
 }
 
 /**
- * Flies a PFL from `start` = { x, y, alt, kias, headingDeg } in `wind` =
+ * Flies a PFL from `start` = { x, y, alt, kias, headingDeg, bankDeg?, rollRateDps? } in `wind` =
  * { windFromDeg, windKt }. `options`: practice (the High Key button: a missed
  * gate goes around), settings (pflKeysIntoWind). Returns { points, outcome,
  * touchdown?, eject?, notes } where points are path points with x, y, alt,
@@ -558,6 +562,9 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const ground = THRESHOLD_DATA_ELEV_FT;
   const pilot = makePilot({ x: start.x, y: start.y, alt: start.alt, ias: start.kias, hdg: start.headingDeg, src: 0, phase: 'pfl_zoom' }, wind);
   const { s } = pilot;
+  // It starts in the bank and roll it already has, so the turn carries on without a step at the hand-over.
+  s.bank = Number.isFinite(start.bankDeg) ? start.bankDeg : 0;
+  s.rollRate = Number.isFinite(start.rollRateDps) ? start.rollRateDps : 0;
   s.rec = { decision: '', config: PFL_CONFIG_LABELS[0] };
   let cfg = 0;
   const setRec = (decision) => { s.rec = { decision, config: PFL_CONFIG_LABELS[cfg], cfgIndex: cfg }; };
@@ -649,7 +656,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     const wantTrack = bearing(s, c);
     const stallBank = Math.acos(clamp(1 / Math.max(stallLimitG(s.ias), 1.0001), 0, 1)) / DEG;
     const bankMax = state === 'zoom' ? PFL.zoomMaxBankDeg : Math.min(PFL.maxBankDeg, stallBank);
-    const bank = bankFor(pilot.headingFor(wantTrack), s, bankMax);
+    const bank = n * PILOT_DT < PFL.holdBankSec ? s.bank : bankFor(pilot.headingFor(wantTrack), s, bankMax);
 
     // Height and speed from the physics (spec 4.5 items 3-5).
     let climb, accel;
@@ -786,6 +793,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
     }
 
     pilot.step(bank, climb, accel);
+    // A path point every 0.2 s, between the pilot's own every 0.4 s, so the follower's turn rate changes in small steps.
+    if (s.k % 4 === 2 && s.alt > ground) pilot.record();
 
     // On the ground: on the runway is a landing (spec 4.5 item 13).
     if (s.alt <= ground) {
@@ -813,12 +822,17 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
  * (a missed gate goes around). Sets a.pflFlight, a.pflDecision and a.config.
  */
 export function startPflFlight(a, wind, options = {}) {
-  const flight = flyPfl({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 125, headingDeg: a.headingDeg ?? 298 }, wind, options);
+  const flight = flyPfl({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 125, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg, rollRateDps: a.rollRateDps }, wind, options);
   a.pflFlight = {
     route: { id: 'PFL_FLOWN', kind: 'flown', name: 'Engine-out glide', points: flight.points },
     outcome: flight.outcome, touchdown: flight.touchdown, eject: flight.eject, gate: flight.gate, practice: Boolean(options.practice),
   };
-  a.distFt = 0;
+  // The few seconds it has just flown, in the turn it is in, go in front of the glide, so the follower
+  // reads its track and turn rate across the hand-over without a step; then onto the path from its own
+  // track and speed (startJoin).
+  const behind = flownBehind(a, flight.points[0], wind);
+  a.pflFlight.route.points = [...behind, ...flight.points];
+  startJoin(a, a.pflFlight.route, routeLengthFt({ points: [...behind, flight.points[0]] }, PFL_ROUTE_OPTIONS), wind, PFL_ROUTE_OPTIONS);
   a.mode = 'RAIL';
   a.engineFailed = true;
   a.landed = false;
@@ -833,6 +847,28 @@ export function startPflFlight(a, wind, options = {}) {
   delete a._blendTarget;
   delete a._blendTimer;
   return a.pflFlight;
+}
+
+/**
+ * Where aircraft `a` has just been, worked back from its heading, bank and
+ * speed in `wind`: path points for the last few seconds, oldest first, ending
+ * just short of where it is (which is the glide's first point).
+ */
+function flownBehind(a, first, wind) {
+  const tasFtps = ktToFtps(iasToTasKt(a.iasKt ?? a.kt ?? 125, a.alt));
+  const omegaDeg = Number.isFinite(a.bankDeg) ? turnRateFromBankRadPerSec(Math.max(tasFtps, 1), a.bankDeg) * 180 / Math.PI : 0;
+  const w = { x: -Math.sin((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0), y: -Math.cos((wind?.windFromDeg ?? 360) * DEG) * ktToFtps(wind?.windKt ?? 0) };
+  const pts = [];
+  let x = a.x, y = a.y, hdg = a.headingDeg ?? 298;
+  const dt = 0.4;
+  for (let k = 0; k < 8; k++) {
+    // Back one step: undo the turn, then the move.
+    hdg -= omegaDeg * dt;
+    x -= (tasFtps * Math.sin(hdg * DEG) + w.x) * dt;
+    y -= (tasFtps * Math.cos(hdg * DEG) + w.y) * dt;
+    pts.unshift({ ...first, x, y, headingDeg: wrapDeg360(hdg) });
+  }
+  return pts;
 }
 
 /** The path follower's options for a flown PFL path: its points as they are, no rounding. */

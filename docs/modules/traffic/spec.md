@@ -284,6 +284,7 @@ Approved 4 Oct 2026 08:54Z (Traffic refactor PR 3). Replaces the old 4.5 PFL_HIG
 | On profile | Down to 50 ft low still counts as on profile: a planned step is taken | **Estimate** |
 | Touchdown point | Aim a third down until landing flap, then the first 1,000 ft | SMM 13.9 para 18; Patrick 09:49Z, 09:56Z |
 | Widen when high | More than 100 ft high with all drag out: widen before Final Key, up to 6,000 ft outside the circle | Patrick 10:10Z; 100 ft and 6,000 ft are **estimates** |
+| Start of the glide | Holds the bank it has for 1 s, then turns for the join, so the hand-over has no step in turn rate | **Estimate** (reaction time); Patrick 09:21Z, no snap at hand-overs |
 | Zoom | 2 G, push through 140, capture 125; only above 150 KIAS | EFIG p.408; Patrick 4440, 06:35Z |
 
 ### 4.8 TAKEOFF — Runway Departure
