@@ -36,7 +36,7 @@
         root: document.getElementById('view'), scheduler, store, settings, time, standards,
         onStatus: (text) => { statusLine.textContent = text; statusLine.hidden = !text; },
       });
-      const entry = { id: 'turn-sim', title: 'Formation Turn Sim', load: () => import('/src/modules/turn-sim/index.js') };
+      const entry = { id: 'turn-sim', title: "Pat's Formation Simulator", load: () => import('/src/modules/turn-sim/index.js') };
 
       window.__ts = {
         host,

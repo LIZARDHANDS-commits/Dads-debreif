@@ -22,7 +22,7 @@ export const MODULES = [
   {
     id: 'turn-sim',
     eyebrow: 'Formation',
-    title: 'Formation Turn Sim',
+    title: "Pat's Formation Simulator",
     blurb: 'Tactical formation turns, step by step',
     media: media('turn-sim'),
     load: () => import('../modules/turn-sim/index.js'),
