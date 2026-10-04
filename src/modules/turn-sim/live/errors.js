@@ -22,14 +22,26 @@
 // own plan. Both fly through flight.js, so every path is the kinematic path of the
 // rest of the Turn Sim: roll 90°/s, hand-overs smooth, banks inside FIX_LIMITS.
 //
-// A fix can only use what is flyable at constant speed: the roll-in time, the bank in
-// each half of the turn, the shackle's reversal time, and a smooth climb or descent.
-// Whatever is left after that is what the SMM leaves for the roll-out (speed changes
-// and small heading changes are a later step, docs/modules/turn-sim/future.md).
+// What a fix may use is set by the four "Fix tools" (Patrick, 4 Oct 11:42Z: "an options
+// menu on the tools 2 can use to fix including geometry, vertical, speed/power, and
+// changing lateral spacing"), all ticked by default, used smallest change first:
+//   Geometry      the roll-in time, the bank in each half of the turn, the shackle's
+//                 reversal time (the V2.8 fix);
+//   Vertical      a smooth climb or descent back to Lead's height, and with Speed/power
+//                 a small dive to gain speed or a zoom to lose it;
+//   Lateral       after the roll-out, a small heading change in or out and back, to
+//                 reach the set spacing ("fix any spacing or sweep errors on roll out",
+//                 AFM8 brief p.18);
+//   Speed/power   after the roll-out, more or less power for a while to close a fore/aft
+//                 gap, then Lead's speed again (a flight.js speed segment).
+// Whatever the ticked tools can't take out is left, and the card says which unticked
+// tool would have taken it out.
 import { wrapPi } from '../../../core/angles.js';
-import { gFromBankDeg } from '../../../core/flight-math.js';
-import { STEP_SEC, copyAircraft, heightAt, angleToGo } from './flight.js';
-import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, VERTICAL_MISS_FT } from './manoeuvres.js';
+import { gFromBankDeg, turnRadiusFromBankFt } from '../../../core/flight-math.js';
+import { excessThrustPerWeight } from '../../../core/t6-performance.js';
+import { G_FTPS2 } from '../../../core/units.js';
+import { STEP_SEC, copyAircraft, heightAt, angleToGo, stepAircraft, planDone, smoother, smootherSlope, SMOOTHER_PEAK } from './flight.js';
+import { planManoeuvre, dryRun, relativeTo, missProfile, onStep, turnSeg, VERTICAL_MISS_FT } from './manoeuvres.js';
 
 // ---- the settings ------------------------------------------------------------------------
 
@@ -56,7 +68,29 @@ export const ERROR_DEFAULTS = /** @type {Record<string, any>} */ (Object.freeze(
   errTimingSec: 2, // estimate: about 840 ft of flight at 248 KTAS
   errResponse: 'fix', // the wingman corrects "regardless of how it developed" (SMM 16.18 para 50)
   errRandom: false,
+  // The Fix tools, all ticked (Patrick, 4 Oct 11:42Z; draft wording in the project files, turn-sim-review/errors/fix-tools-draft.md)
+  fixGeometry: true,
+  fixVertical: true,
+  fixSpeed: true,
+  fixLateral: true,
 }));
+
+/** The Fix tools for the screen, in the order #2 uses them (smallest change first): setting, name, what it does. */
+export const FIX_TOOLS = Object.freeze([
+  { key: 'fixGeometry', tool: 'geometry', label: 'Geometry', hint: 'roll-in time, bank, reversal point' },
+  { key: 'fixVertical', tool: 'vertical', label: 'Vertical', hint: "back to Lead's height; with Speed/power, a small dive or zoom" },
+  { key: 'fixLateral', tool: 'lateral', label: 'Lateral spacing', hint: 'a few degrees in or out after the roll-out' },
+  { key: 'fixSpeed', tool: 'speed', label: 'Speed/power', hint: "power for a while, then Lead's speed" },
+]);
+
+/**
+ * Which Fix tools #2 may use: { geometry, vertical, speed, lateral }, each true unless its box is
+ * unticked (anything but false counts as ticked, so a bad value leaves the tool on, as the default).
+ */
+export function resolveFixTools(options = {}) {
+  return Object.fromEntries(FIX_TOOLS.map((t) => [t.tool, options[t.key] !== false]));
+}
+const ALL_TOOLS = Object.freeze({ geometry: true, vertical: true, speed: true, lateral: true });
 
 /** The settings that only allow some choices (createSettings' `allowed`). */
 export const ERROR_ALLOWED = /** @type {Record<string, any[]>} */ (Object.freeze({
@@ -81,16 +115,33 @@ export const ERROR_FIELDS = Object.freeze([
 export const RESPONSE_OPTIONS = Object.freeze([{ value: 'fix', label: 'Fix it' }, { value: 'reference', label: 'Turn at normal reference' }]);
 
 /**
- * What a fix may use. Estimates, flagged on the card when passed, never walls except that the
- * aircraft can't be asked for more than it can fly: bank 50° to 75° is 1.6 to 3.9 G, under the
- * wingman's +5 G reference (Gen Book p.11) and the rolling limit of 4.7 G (SMM/NFM via t6-performance).
+ * What a fix may use: every number of the Fix tools in one place (all pending Patrick's
+ * confirmation of the draft wording, 4 Oct 11:42Z). Estimates, flagged on the card when passed,
+ * never walls except that the aircraft can't be asked for more than it can fly: bank 50° to 75° is
+ * 1.6 to 3.9 G, under the wingman's +5 G reference (Gen Book p.11) and the rolling limit of 4.7 G
+ * (SMM/NFM via t6-performance). Speeding up is limited by the T-6A's full-power excess thrust
+ * (core excessThrustPerWeight, fitted to the sustained turn chart), so it is not a number here.
  */
 export const FIX_LIMITS = Object.freeze({
+  // Geometry
   bankDeg: [50, 75],
   extraDelaySec: 30, // longest it will hold off a roll-in to fix a position, beyond the standard
   reversalSec: 20, // how far the shackle's reversal may move either way
+  // Vertical
   maxClimbFtps: 60, // 3,600 fpm, estimate: the cross turn's standard miss already peaks at about 60 ft/s
+  diveFt: 500, // estimate: the deepest dive (or highest zoom) to gain (or lose) speed, back on height after
+  pushPullG: 0.3, // estimate: the most a dive or zoom moves the G away from 1 (a gentle push or pull, 0.7 to 1.3 G)
+  // Speed/power
+  speedKias: 20, // estimate: the most #2 flies above or below Lead's speed
+  slowKtps: 1.5, // estimate: the steepest he slows (KIAS per second) with the power back, level
+  // Lateral spacing
+  headingDeg: 10, // estimate: the most heading change in or out after the roll-out
+  lateralBankDeg: 30, // estimate: the bank for that small heading change (1.15 G)
+  lateralHoldSec: 20, // estimate: the heading change is sized so the straight leg in between takes about this long
 });
+
+/** A roll-out fix smaller than this isn't flown: the card names nothing under 50 ft either (wordsFor), too small for a pilot to chase (not a margin). */
+const NOTHING_TO_FIX_FT = 50;
 
 /** The smallest spacing the sim flies at (formation.js SPACING_LIMITS_FT), so "tight" can't put #2 on Lead. */
 const MIN_SPACING_FT = 1000;
@@ -370,17 +421,40 @@ const climbSpan = (riseFt) => (1.875 * Math.abs(riseFt)) / FIX_LIMITS.maxClimbFt
 /**
  * The plan for a button press with errors set. pair: [lead, wing] as they are now; key, dir, t0 as
  * for planManoeuvre; spec: from resolveErrors; slot: where #2 should be in Lead's frame now
- * ({ fwd, left }, the formation keeps it).
+ * ({ fwd, left }, the formation keeps it); context: { tools (resolveFixTools; all ticked when left
+ * out), blockFt (the block height, for the T-6A's excess thrust; 8,000 ft, F4, when left out) }.
  * Returns what planManoeuvre does, plus `slotAfter` (the slot after this manoeuvre) and
  * `errorRun` (what the card needs: see outcomeOf).
  */
-export function planWithErrors(pair, key, dir, t0, spec, slot) {
+export function planWithErrors(pair, key, dir, t0, spec, slot, context = {}) {
+  const tools = { ...ALL_TOOLS, ...(context.tools ?? {}) };
+  const blockFt = Number.isFinite(context.blockFt) ? context.blockFt : 8000;
+  const plan = planCore(pair, key, dir, t0, spec, slot, tools, blockFt);
+  // Not all out with the tools ticked: which unticked tool would have taken it out, or else the fewest together.
+  let wouldFix = [];
+  if (spec.response === 'fix' && !plan.fixedAtEnd) {
+    const unticked = FIX_TOOLS.filter((t) => !tools[t.tool]);
+    const fixesWith = (extra) => planCore(pair, key, dir, t0, spec, slot, { ...tools, ...Object.fromEntries(extra.map((t) => [t.tool, true])) }, blockFt).fixedAtEnd;
+    const groups = (n, from = 0) => (n === 0 ? [[]] : unticked.slice(from).flatMap((t, i) => groups(n - 1, from + i + 1).map((g) => [t, ...g])));
+    for (let n = 1; n <= unticked.length && !wouldFix.length; n++) {
+      wouldFix = groups(n).filter((g) => fixesWith(g)).map((g) => g.map((t) => t.label).join(' and '));
+    }
+  }
+  plan.errorRun.wouldFix = wouldFix;
+  delete plan.fixedAtEnd;
+  return plan;
+}
+
+/** planWithErrors for one set of tools, without the "which tool would have fixed it" search. */
+function planCore(pair, key, dir, t0, spec, slot, tools, blockFt) {
   const [lead, wing] = pair;
   const nomWing = inSlot(lead, wing, slot);
   const nominal = planManoeuvre([lead, nomWing], key, dir, t0);
   const leadNom = nominal.plans[lead.id].segments;
   const wingNom = nominal.plans[wing.id].segments;
   const crossing = Boolean(nominal.plans[wing.id].profile);
+  const fixing = spec.response === 'fix';
+  const geometry = fixing && tools.geometry;
 
   // The SMM picture: both flown with #2 in his slot, at the standard time, at the standard bank.
   const leadNomRun = dryRun(lead, { segments: leadNom }, t0);
@@ -410,21 +484,21 @@ export function planWithErrors(pair, key, dir, t0, spec, slot) {
   };
   const leadPlanFor = (leadShift) => ({ segments: shiftWhole(clone(leadNom), t0, leadShift) });
 
-  // Pass 1 (fix only): the knobs that correct the position errors, worked out for a wingman who rolls in on time.
+  // Geometry, pass 1: the knobs that correct the position errors, worked out for a wingman who rolls in on time.
   let intended = x0;
-  if (spec.response === 'fix' && (spec.foreFt || spec.spacingFt)) {
+  if (geometry && (spec.foreFt || spec.spacingFt)) {
     const free = [true, hasReversal, true, true];
     intended = solveKnobs(
       (xk) => sub(endPicture(leadNomRun, dryRun(wing, { segments: wingProgramme(wingNom, heading0, xk, t0) }, t0), t0), target),
       x0, lo, hi, free, scale,
     );
   }
-  // Pass 2: the timing error lands on the roll-in; a fix then works with what is left (the banks and the reversal).
+  // Geometry, pass 2: the timing error lands on the roll-in; a fix then works with what is left (the banks and the reversal).
   const timed = withTiming(intended);
   const leadPlan = leadPlanFor(timed.leadShift);
   const leadRun = dryRun(lead, leadPlan, t0);
   let xFinal = timed.x;
-  if (spec.response === 'fix' && lateBy) {
+  if (geometry && lateBy) {
     const free = [false, hasReversal, true, true];
     const lo2 = lo.slice();
     const hi2 = hi.slice();
@@ -441,16 +515,16 @@ export function planWithErrors(pair, key, dir, t0, spec, slot) {
   const refRun = dryRun(wing, { segments: wingProgramme(wingNom, heading0, refX.x, t0) }, t0);
   const uncorrected = sub(endPicture(refLeadRun, refRun, t0), target);
 
-  const fixing = spec.response === 'fix';
-  const x = fixing ? xFinal : refX.x;
-  const leadPlanFinal = fixing ? leadPlan : leadPlanFor(refX.leadShift);
-  const leadRunFinal = fixing ? leadRun : refLeadRun;
-  const segments = wingProgramme(wingNom, heading0, x, t0);
+  const x = geometry ? xFinal : refX.x;
+  const leadPlanFinal = geometry ? leadPlan : leadPlanFor(refX.leadShift);
+  const leadRunFinal = geometry ? leadRun : refLeadRun;
+  let segments = wingProgramme(wingNom, heading0, x, t0);
   const wingRun = dryRun(wing, { segments }, t0);
-  const residual = sub(endPicture(leadRunFinal, wingRun, t0), target);
 
-  // Height. A crossing turn's miss is made around where they really cross; a fix also flies back to Lead's height.
+  // Height. A crossing turn's miss is made around where they really cross (a fix always makes the
+  // 300 ft miss, SMM 16.13 para 31); Vertical also flies back to Lead's height.
   const h0 = wing.altAboveFt - lead.altAboveFt;
+  const vertical = fixing && tools.vertical;
   let profile;
   let minSepFt = null;
   const endSec = t0 + Math.max(leadRunFinal.durationSec, wingRun.durationSec);
@@ -460,11 +534,11 @@ export function planWithErrors(pair, key, dir, t0, spec, slot) {
     let hEnd = h0;
     if (fixing) {
       mid = Math.abs(h0) >= VERTICAL_MISS_FT ? h0 : (h0 >= 0 ? 1 : -1) * VERTICAL_MISS_FT;
-      hEnd = 0;
+      hEnd = vertical ? 0 : h0;
     }
     profile = crossingProfile(t0, at.t, endSec, h0, mid, hEnd);
     minSepFt = closestApproach(leadPlanFinal, wing, { segments, profile }, lead, t0).sepFt;
-  } else if (fixing && Math.abs(h0) > 1) {
+  } else if (vertical && Math.abs(h0) > 1) {
     const span = Math.max(4, climbSpan(h0));
     profile = [{ t0, t1: t0 + span, fromFt: h0, toFt: 0 }];
   }
@@ -473,25 +547,211 @@ export function planWithErrors(pair, key, dir, t0, spec, slot) {
     if (profileEnd > endSec) segments.push({ kind: 'hold', untilSec: onStep(profileEnd + STEP_SEC) }); // the plan isn't done until the height is
   }
 
+  // The roll-out fix: a heading change in or out (Lateral) and a speed change (Speed/power, with a dive or zoom when Vertical is ticked).
+  let rollOut = null;
+  if (fixing && (tools.lateral || tools.speed)) {
+    rollOut = planRollOutFix({ lead, wing, t0, segments, profile, leadRun: leadRunFinal, target, tools, blockFt, h0 });
+    segments = rollOut.segments;
+    profile = rollOut.profile;
+  }
+  const finalRun = dryRun(wing, { segments, profile }, t0);
+  const residual = sub(endPicture(leadRunFinal, finalRun, t0), target);
+  const endHeightFt = (profile?.length ? profile[profile.length - 1].toFt : h0);
+
   const banks = [x[2], x[3]];
   const maxG = Math.max(...banks.map((b) => gFromBankDeg(b)));
   const flags = [];
-  if (fixing && maxG > 3.05) flags.push(`flies ${maxG.toFixed(1)} G, more than the 3 G standard (SMM 16.18 para 50)`);
+  if (geometry && maxG > 3.05) flags.push(`flies ${maxG.toFixed(1)} G, more than the 3 G standard (SMM 16.18 para 50)`);
   if (minSepFt !== null && minSepFt < VERTICAL_MISS_FT) flags.push(`passes Lead ${Math.round(minSepFt)} ft away, under the 300 ft minimum (SMM 16.13 para 31)`);
 
   const total = (r) => Math.hypot(r[0], r[1]);
-  const note = fixing ? fixNote(x, intended, x0, banks, hasReversal, h0) : '#2 flies the standard turn for his slot at the standard time, so the error carries.';
+  const note = fixing
+    ? fixNote({ x, intended, x0, banks, hasReversal, h0, vertical, rollOut, target, leadKias: lead.kias })
+    : '#2 flies the standard turn for his slot at the standard time, so the error carries.';
   return {
     plans: { [lead.id]: leadPlanFinal, [wing.id]: { segments, profile } },
     note: `${nominal.note}${note ? ` ${note}` : ''}${flags.length ? ` #2 ${flags.join('; ')}.` : ''}`,
     firstId: nominal.firstId,
     slotAfter: { fwd: target.fwd, left: target.left },
-    errorRun: { response: spec.response, target, uncorrectedFt: total(uncorrected), predictedFt: total(residual), startHeightFt: h0, flags, banks },
+    errorRun: { response: spec.response, target, uncorrectedFt: total(uncorrected), predictedFt: total(residual), startHeightFt: h0, flags, banks, tools: { ...tools }, wouldFix: [] },
+    fixedAtEnd: total(residual) <= FIXED_WITHIN_FT && Math.abs(endHeightFt) <= FIXED_WITHIN_FT,
   };
 }
 
-/** What a fix did, in words: the timing and bank changes it made. */
-function fixNote(x, intended, x0, banks, hasReversal, h0) {
+// ---- the roll-out fix: Lateral spacing and Speed/power ------------------------------------------
+
+/**
+ * How long a smooth speed change of dKias from kias0 takes at the least (seconds), flown with a height change of
+ * dHeightFt over the same time (0 for none, minus for a dive). What it needs is the specific excess power
+ *     P = dh/dt + (V / g) dV/dt           (standard aerodynamics, energy height)
+ * which on the smootherstep is slope(u) / span × [dHeightFt + (V / g) ΔV]. More than zero, full power must give
+ * it (the T-6A's excess thrust × V, core excessThrustPerWeight); less than zero, the power back must take it,
+ * and that is set by FIX_LIMITS.slowKtps (the level slowing rate, an estimate). The height change also keeps
+ * under FIX_LIMITS.maxClimbFtps and FIX_LIMITS.pushPullG. A dive that pays for the speed (dHeightFt = -(V / g) ΔV) needs no power at all.
+ * Infinity when full power can't give it (past the T-6A's top speed at this height).
+ */
+function rampSpanSec(kias0, dKias, dHeightFt, tasPerKias, altFt) {
+  // The smootherstep's vertical acceleration peaks at (10 / √3) × rise / span², kept under the push or pull limit.
+  const pushPull = Math.sqrt(((10 / Math.sqrt(3)) * Math.abs(dHeightFt)) / (FIX_LIMITS.pushPullG * G_FTPS2));
+  let span = Math.max(pushPull, (SMOOTHER_PEAK * Math.abs(dHeightFt)) / FIX_LIMITS.maxClimbFtps);
+  const N = 40;
+  for (let i = 1; i < N; i++) {
+    const u = i / N;
+    const kias = kias0 + dKias * smoother(u);
+    const v = kias * tasPerKias;
+    const need = dHeightFt + (v / G_FTPS2) * dKias * tasPerKias; // feet of energy height per unit of the curve
+    const slope = smootherSlope(u);
+    if (need > 0) {
+      const power = excessThrustPerWeight(kias, altFt, 1) * v;
+      if (power <= 0) return Infinity;
+      span = Math.max(span, (slope * need) / power);
+    } else if (need < 0) {
+      const idle = (v / G_FTPS2) * FIX_LIMITS.slowKtps * tasPerKias;
+      span = Math.max(span, (slope * -need) / idle);
+    }
+  }
+  return span;
+}
+
+/**
+ * The speed change that gains `gainFt` on Lead (minus to lose it): up (or down) by dKias, a straight hold, back to
+ * Lead's speed; with Vertical, a dive while speeding up and a climb back while slowing (or a zoom then a descent).
+ * The smallest speed change that does it, up to FIX_LIMITS.speedKias; past that the hold grows. minHoldSec keeps the
+ * change going until the lateral fix is over, so the speed only comes back on a straight leg.
+ * Returns { dKias, upSec, backSec, holdSec, diveFt } (dKias and diveFt signed).
+ */
+function speedPulse(gainFt, leadKias, tasPerKias, altFt, vertical, minHoldSec) {
+  const sign = Math.sign(gainFt);
+  const shape = (dk) => {
+    const dv = dk * tasPerKias; // ft/s of true airspeed
+    const diveFt = vertical ? -sign * Math.min(FIX_LIMITS.diveFt, ((leadKias * tasPerKias) / G_FTPS2) * dv) : 0;
+    const upSec = rampSpanSec(leadKias, sign * dk, diveFt, tasPerKias, altFt);
+    const backSec = rampSpanSec(leadKias + sign * dk, -sign * dk, -diveFt, tasPerKias, altFt);
+    // The smootherstep spends half its time's worth at the new speed: gain = ΔV (up/2 + hold + back/2).
+    const rampsFt = dv * (upSec / 2 + minHoldSec + backSec / 2);
+    return { dKias: sign * dk, upSec, backSec, holdSec: minHoldSec, diveFt, dv, rampsFt };
+  };
+  let top = Number(FIX_LIMITS.speedKias);
+  while (top > 1 && !Number.isFinite(shape(top).upSec + shape(top).backSec)) top -= 1; // what full power can reach here
+  const full = shape(top);
+  if (!Number.isFinite(full.rampsFt)) return null;
+  if (full.rampsFt <= Math.abs(gainFt)) return { ...full, holdSec: minHoldSec + (Math.abs(gainFt) - full.rampsFt) / full.dv };
+  let a = 0;
+  let b = top;
+  for (let i = 0; i < 40; i++) {
+    const m = (a + b) / 2;
+    if (shape(m).rampsFt < Math.abs(gainFt)) a = m;
+    else b = m;
+  }
+  return shape(b);
+}
+
+/**
+ * The heading change that moves #2 `moveFt` across (plus is to Lead's left) after the roll-out: turn a few degrees,
+ * hold, turn back, like the shackle's turn, hold, turn (SMM 16.19 para 61). The angle is sized so the hold takes
+ * about FIX_LIMITS.lateralHoldSec, up to FIX_LIMITS.headingDeg; a small move turns less and doesn't hold.
+ * Sideways from a turn of angle θ and back, at radius R: 2R(1 − cos θ), plus V t sin θ held between.
+ * Returns { dir, angleRad, holdSec }.
+ */
+function lateralLeg(moveFt, tasFtps) {
+  const dir = Math.sign(moveFt) || 1;
+  const m = Math.abs(moveFt);
+  const R = turnRadiusFromBankFt(tasFtps, FIX_LIMITS.lateralBankDeg);
+  const maxRad = FIX_LIMITS.headingDeg * DEG;
+  let angleRad = Math.min(maxRad, Math.asin(Math.min(1, m / (tasFtps * FIX_LIMITS.lateralHoldSec))));
+  let holdSec = (m - 2 * R * (1 - Math.cos(angleRad))) / (tasFtps * Math.sin(angleRad));
+  if (!(holdSec > 0)) {
+    angleRad = Math.min(maxRad, Math.acos(Math.max(-1, 1 - m / (2 * R))));
+    holdSec = 0;
+  }
+  return { dir, angleRad, holdSec };
+}
+
+/** When each speed change in a plan begins and ends (formation seconds), from a fine dry run of the plan itself. */
+function speedChangeTimes(aircraft, plan, t0) {
+  const a = copyAircraft(aircraft);
+  const p = { segments: plan.segments.map((s) => ({ ...s })), profile: plan.profile };
+  const legs = [];
+  let t = t0;
+  for (let i = 0; i < 12000 && !planDone(a, p); i++) {
+    stepAircraft(a, p, t);
+    if (p.speedLeg && legs[legs.length - 1] !== p.speedLeg) legs.push(p.speedLeg);
+    t += STEP_SEC;
+  }
+  return legs.map((l) => ({ t0: l.t0, t1: l.t1 }));
+}
+
+/**
+ * The roll-out fix, after #2's own manoeuvre (base `segments` and height `profile`): Lateral spacing takes out what
+ * is left across Lead's heading, Speed/power what is left along it (including what the heading change costs along),
+ * each worked out from the measured end picture and corrected from full dry runs, so the plan is exact for what is flown.
+ * Returns { segments, profile, lateral, speed } (lateral and speed null when not flown).
+ */
+function planRollOutFix({ lead, wing, t0, segments: own, profile, leadRun, target, tools, blockFt, h0 }) {
+  // The roll-out fix starts once #2's own manoeuvre and its height legs are both done (a crossing turn's descent can outlast the turn).
+  const profileEnd = profile?.length ? profile[profile.length - 1].t1 : t0;
+  const ownEnd = t0 + dryRun(wing, { segments: own, profile }, t0).durationSec;
+  const segments = profileEnd > ownEnd ? [...own, { kind: 'hold', untilSec: onStep(profileEnd + STEP_SEC) }] : own;
+  const baseRun = dryRun(wing, { segments, profile }, t0);
+  const tR = t0 + baseRun.durationSec; // the step the roll-out fix starts on
+  const tas = baseRun.end.tasFtps;
+  const tasPerKias = tas / baseRun.end.kias;
+  const leadKias = lead.kias;
+  const hBase = profile?.length ? profile[profile.length - 1].toFt : h0;
+  const leadHeading = leadRun.end.headingRad;
+  const vertical = tools.vertical;
+  const turnOutSec = (angleRad) => dryRun(baseRun.end, { segments: [turnSeg(wrapPi(leadHeading + angleRad), 1, FIX_LIMITS.lateralBankDeg)] }, tR).durationSec;
+
+  let moveFt = 0;
+  let gainFt = 0;
+  let best = { segments, profile, lateral: null, speed: null, errFt: Infinity };
+  for (let iter = 0; iter < 6; iter++) {
+    const lateral = tools.lateral && Math.abs(moveFt) >= NOTHING_TO_FIX_FT ? lateralLeg(moveFt, tas) : null;
+    let latEnd = tR;
+    const latSegs = [];
+    if (lateral) {
+      const out = turnOutSec(lateral.angleRad);
+      latSegs.push(turnSeg(wrapPi(leadHeading + lateral.dir * lateral.angleRad), lateral.dir, FIX_LIMITS.lateralBankDeg));
+      if (lateral.holdSec > 0) latSegs.push({ kind: 'hold', untilSec: onStep(tR + out + lateral.holdSec) });
+      latSegs.push(turnSeg(leadHeading, -lateral.dir, FIX_LIMITS.lateralBankDeg));
+      latEnd = tR + out + Math.max(0, lateral.holdSec) + out;
+    }
+    const minHold = (upSec) => Math.max(0, latEnd - (tR + upSec));
+    let speed = null;
+    if (tools.speed && Math.abs(gainFt) >= NOTHING_TO_FIX_FT) {
+      // The hold the lateral fix needs depends on the ramp, which depends on the speed: two passes settle it.
+      speed = speedPulse(gainFt, leadKias, tasPerKias, blockFt, vertical, 0);
+      if (speed) speed = speedPulse(gainFt, leadKias, tasPerKias, blockFt, vertical, minHold(speed.upSec));
+    }
+    const segs = [...segments];
+    if (speed) segs.push({ kind: 'speed', toKias: leadKias + speed.dKias, rateKtps: Math.abs(speed.dKias) / speed.upSec, withNext: true });
+    segs.push(...latSegs);
+    if (speed) {
+      segs.push({ kind: 'hold', untilSec: onStep(tR + speed.upSec + speed.holdSec) });
+      segs.push({ kind: 'speed', toKias: leadKias, rateKtps: Math.abs(speed.dKias) / speed.backSec });
+    }
+    let prof = profile ? profile.map((l) => ({ ...l })) : undefined;
+    if (speed && speed.diveFt) {
+      // The dive (or zoom) is flown over exactly the time each speed change takes, so the energy adds up.
+      const [up, back] = speedChangeTimes(wing, { segments: segs, profile }, t0);
+      prof = [...(prof ?? []),
+        { t0: up.t0, t1: up.t1, fromFt: hBase, toFt: hBase + speed.diveFt },
+        { t0: back.t0, t1: back.t1, fromFt: hBase + speed.diveFt, toFt: hBase }];
+    }
+    const run = dryRun(wing, { segments: segs, profile: prof }, t0);
+    const end = endPicture(leadRun, run, t0);
+    const res = { fwd: end.fwd - target.fwd, left: end.left - target.left };
+    const errFt = Math.hypot(tools.speed ? res.fwd : 0, tools.lateral ? res.left : 0);
+    if (errFt < best.errFt) best = { segments: segs, profile: prof, lateral, speed, errFt };
+    if (errFt < 1) break;
+    if (tools.lateral) moveFt -= res.left;
+    if (tools.speed) gainFt -= res.fwd;
+  }
+  return best;
+}
+
+/** What a fix did, in words: the timing and bank changes, the height, the heading change and the speed change. */
+function fixNote({ x, intended, x0, banks, hasReversal, h0, vertical, rollOut, target, leadKias }) {
   const parts = [];
   const shift = intended[0] - x0[0];
   if (Math.abs(shift) >= 0.1) parts.push(`rolls in ${Math.abs(shift).toFixed(1)} s ${shift < 0 ? 'earlier' : 'later'} than standard`);
@@ -500,7 +760,19 @@ function fixNote(x, intended, x0, banks, hasReversal, h0) {
   if (Math.abs(b1 - x0[2]) >= 1 || Math.abs(b2 - x0[3]) >= 1) parts.push(`flies ${word(b1)} then ${word(b2)} (standard ${word(x0[2])} then ${word(x0[3])})`);
   const rev = x[1];
   if (hasReversal && Math.abs(rev) >= 0.1) parts.push(`reverses ${Math.abs(rev).toFixed(1)} s ${rev < 0 ? 'earlier' : 'later'}`);
-  if (Math.abs(h0) > 1) parts.push("flies back to Lead's height");
+  if (vertical && Math.abs(h0) > 1) parts.push("flies back to Lead's height");
+  const lat = rollOut?.lateral;
+  if (lat) {
+    const way = Math.abs(target.left) > 100 ? (lat.dir === Math.sign(target.left) ? 'out' : 'in') : (lat.dir > 0 ? 'left' : 'right');
+    parts.push(`turns ${(lat.angleRad / DEG).toFixed(0)}° ${way} after the roll-out${lat.holdSec > 0 ? ` for ${lat.holdSec.toFixed(0)} s` : ''} and back`);
+  }
+  const sp = rollOut?.speed;
+  if (sp) {
+    const up = sp.dKias > 0;
+    let words = `${up ? 'adds' : 'takes off'} ${Math.abs(sp.dKias).toFixed(0)} KIAS (to ${Math.round(leadKias + sp.dKias)}) for about ${(sp.upSec + sp.holdSec + sp.backSec).toFixed(0)} s, then matches Lead`;
+    if (sp.diveFt) words += `, ${up ? 'diving' : 'zooming'} ${Math.abs(sp.diveFt).toFixed(0)} ft and back on height`;
+    parts.push(words);
+  }
   return parts.length ? `Fix it: #2 ${parts.join(', ')}.` : 'Fix it: nothing to change here.';
 }
 
@@ -542,7 +814,10 @@ export function outcomeOf(run, lead, wing, label) {
       ? `${label}: #2 fixed it and ended in position${carriedWords ? `; ${carriedWords}` : ''}.`
       : `${label}: this error does not change the end picture here; #2 ended in position.`;
   } else {
-    text = `${label}: #2 fixed part of it and ended ${parts.join(', ')}${carriedWords ? `; ${carriedWords}` : ''}. What is left is for the roll-out fix (speed and heading), which is not flown here.`;
+    const would = run.wouldFix?.length
+      ? ` Ticking ${run.wouldFix.join(' or ')} in Fix tools would have taken it out.`
+      : ' That is more than the ticked Fix tools can take out inside their limits.';
+    text = `${label}: #2 fixed part of it and ended ${parts.join(', ')}${carriedWords ? `; ${carriedWords}` : ''}.${would}`;
   }
   return { label, response: run.response, fixed, totalFt, vertFt, uncorrectedFt: run.uncorrectedFt, residual: { fwdFt: res.fwd, leftFt: res.left }, text, tone: inPosition ? 'good' : 'caution', flags: run.flags };
 }

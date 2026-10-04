@@ -19,7 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFormation, judgePair } from '../../../src/modules/turn-sim/live/formation.js';
 import { relativeTo, TURN_BANK_DEG, VERTICAL_MISS_FT, CHECK_DEG } from '../../../src/modules/turn-sim/live/manoeuvres.js';
-import { ROLL, STEP_SEC } from '../../../src/modules/turn-sim/live/flight.js';
+import { ROLL, STEP_SEC, makeAircraft, stepAircraft, planDone } from '../../../src/modules/turn-sim/live/flight.js';
 import { turnRateFromBankRadPerSec } from '../../../src/core/flight-math.js';
 
 const SPACING_FT = 6000;
@@ -218,4 +218,34 @@ test('the roll-out judgement names what is wrong', () => {
   assert.deepEqual(judgePair(lead, { xFt: 5000, yFt: 0 }, 6000).labels, ['TIGHT']);
   assert.deepEqual(judgePair(lead, { xFt: 7000, yFt: 500 }, 6000).labels, ['WIDE', 'FORE']);
   assert.deepEqual(judgePair(lead, { xFt: 6000, yFt: -2000 }, 6000).labels, ['AFT']); // more than 10° of sweep (SMM 16.18 para 49)
+});
+
+test('a speed segment changes speed smoothly, straight on its own or during a turn, and ends on the new speed', () => {
+  // flight.js { kind: 'speed', toKias, rateKtps, withNext } (TS-52 Fix tools, Patrick 4 Oct 11:42Z; also for the formation changes).
+  // The acceleration starts and ends at zero and never jumps; position and track carry on; held alone it flies straight.
+  const tasPerKias = 248.1 * 1.68781 / 220; // 220 KIAS is about 248 KTAS at 8,000 ft (spec F4)
+  for (const [name, segments] of [
+    ['on its own', [{ kind: 'speed', toKias: 240, rateKtps: 1 }]],
+    ['during a turn', [{ kind: 'speed', toKias: 205, rateKtps: 1, withNext: true }, { kind: 'turn', toRad: Math.PI / 4, dir: -1, bankDeg: 30, rollOut: true }]],
+  ]) {
+    const a = makeAircraft({ id: 1, xFt: 0, yFt: 0, headingRad: Math.PI / 2, kias: 220, tasFtps: 220 * tasPerKias });
+    const plan = { segments: segments.map((s) => ({ ...s })) };
+    let t = 0;
+    let lastAccel = 0;
+    for (let i = 0; i < 4000 && !planDone(a, plan); i++) {
+      const before = { ...a };
+      stepAircraft(a, plan, t);
+      t += STEP_SEC;
+      const accel = (a.kias - before.kias) / STEP_SEC;
+      // 0.05 kt/s in one step is under 0.003 G: no step in the push of the throttle (the smooth curve itself moves it about 0.015).
+      assert.ok(Math.abs(accel - lastAccel) <= 0.05, `${name} at ${t.toFixed(2)} s: acceleration jumped`);
+      lastAccel = accel;
+      const moved = Math.hypot(a.xFt - before.xFt, a.yFt - before.yFt);
+      assert.ok(Math.abs(moved - ((a.tasFtps + before.tasFtps) / 2) * STEP_SEC) < 0.05 * STEP_SEC * a.tasFtps, `${name}: moved ${moved.toFixed(2)} ft`);
+      if (name === 'on its own') assert.equal(a.headingRad, Math.PI / 2, 'straight while the speed changes');
+    }
+    assert.ok(planDone(a, plan), `${name}: finished`);
+    assert.equal(a.kias, segments[0].toKias, `${name}: on the new speed`);
+    assert.ok(Math.abs(lastAccel) < 0.01, `${name}: the acceleration died away`);
+  }
 });

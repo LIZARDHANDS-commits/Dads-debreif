@@ -7,7 +7,7 @@ import { h, clear } from '../../ui-kit/dom.js';
 import { createPanel } from '../../ui-kit/panel.js';
 import { VIEW_DEFAULT, VIEW_ALLOWED } from '../../ui-kit/controls.js';
 import { PAINT_DEFAULT, PAINT_OPTIONS } from '../../ui-kit/ct156-model.js';
-import { ERROR_FIELDS, RESPONSE_OPTIONS } from './live/errors.js';
+import { ERROR_FIELDS, RESPONSE_OPTIONS, FIX_TOOLS } from './live/errors.js';
 
 /**
  * What the screen remembers in this browser: which columns are open, which
@@ -112,6 +112,11 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
   movesPanel.body.append(setup);
 
   // ---- Errors (training): closed, and every error starts at None (TS-52) ----
+  // The Fix tools #2 may use (Patrick, 4 Oct 11:42Z), all ticked; shown only when the response is Fix it.
+  const fixTools = h('fieldset', { class: 'ts-fix-tools' },
+    h('legend', {}, 'Fix tools'),
+    ...FIX_TOOLS.map((t) => h('div', { class: 'ts-check' }, setupControls.checkbox(t.key, { label: `${t.label}: ${t.hint}` }))),
+  );
   const errorsSection = h('details', { class: 'ts-errors' },
     h('summary', {}, 'Errors (training)'),
     h('p', { class: 'ts-hint' }, 'Start #2 out of position or rolling in off time, then see him carry the error or fix it. Reset puts it back.'),
@@ -119,8 +124,9 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       setupControls.select(f.key, { label: f.label, options: f.options }),
       setupControls.number(f.amountKey, { label: 'Amount', unit: f.unit, min: f.min, max: f.max, step: f.step }))),
     h('div', { class: 'ts-field' }, setupControls.select('errResponse', { label: '#2 then', options: RESPONSE_OPTIONS })),
+    fixTools,
     h('div', { class: 'ts-field' }, setupControls.checkbox('errRandom', { label: 'One random error at every Reset (replaces the choices above)' })),
-    h('p', { class: 'ts-hint' }, 'Fix it: #2 rolls in earlier or later and changes his bank, as far as he can at constant speed. Normal reference: he flies the standard turn and the error shows at the end.'),
+    h('p', { class: 'ts-hint' }, 'Fix it: #2 uses the ticked Fix tools, smallest change first. Normal reference: he flies the standard turn and the error shows at the end.'),
   );
   movesPanel.body.append(errorsSection);
 
@@ -246,6 +252,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       fourLine.hidden = ships !== 4;
       check45Field.hidden = ships !== 4;
       errorsSection.hidden = ships === 4; // training errors are 2-ship only for now (TS-52)
+    },
+    /** The Fix tools show only when #2's response is Fix it. */
+    setFixTools(visible) {
+      fixTools.hidden = !visible;
     },
     /** The flag under Spacing (outside the SMM band), or null. */
     setSpacingFlag(text) {
