@@ -107,7 +107,7 @@ export const FLUID_MOVES = Object.freeze({
   },
   wingover: {
     label: 'Wingovers', sided: true, interruptible: false, source: 'SMM 16.17 para 47',
-    speeds: { entryKias: 230, exitKias: null, source: 'SMM 16.17 para 47 (about 230 in; the exit is not given)' },
+    speeds: { entryKias: 230, exitKias: null, source: 'SMM 16.17 para 47: about 230 in, the exit not given' },
   },
   barrelRoll: {
     label: 'Barrel roll', sided: true, interruptible: false, source: 'SMM 14.8 paras 18-19, Fig 14.1; Table 14.1',

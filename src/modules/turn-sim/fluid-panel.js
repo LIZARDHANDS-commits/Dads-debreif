@@ -45,7 +45,8 @@ export function pursuitWord(wingCue) {
  */
 export function speedsLine(sp) {
   const kt = (n) => `${Math.round(n)} KIAS`;
-  const book = sp.book.exitKias == null ? `SMM ${sp.book.source}` : `SMM ${sp.book.entryKias} in, ${sp.book.exitKias} out: ${sp.book.source}`;
+  const src = sp.book.source.replace(/^SMM /, '');
+  const book = sp.book.exitKias == null ? `SMM ${src}` : `SMM ${sp.book.entryKias} in, ${sp.book.exitKias} out: ${src}`;
   if (sp.entryKias === null) return `${sp.label}: setting up ${kt(sp.book.entryKias)} for the entry (${book})`;
   return `${sp.label}: entry ${kt(sp.entryKias)}, exit ${sp.exitKias === null ? 'still to come' : kt(sp.exitKias)} (${book})`;
 }
