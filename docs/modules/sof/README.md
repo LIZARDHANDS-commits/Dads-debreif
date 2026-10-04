@@ -36,7 +36,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 
 ### For Dad
 
-All answered by Patrick on 4 Oct, in place of Dad: SOF-Q5 to Q8 are decisions SOF-33 to SOF-36 in `decisions.md`; SOF-Q4 and SOF-Q12 (wind and the favoured runway) are in `plan.md` Step 3 and `future.md`. The answers are also marked in `../../questions-for-dad.md`.
+All answered by Patrick on 4 Oct, in place of Dad: SOF-Q5 to Q8 are decisions SOF-33 to SOF-36 in `decisions.md`; SOF-Q4 and SOF-Q12 (wind and the favoured runway) are SOF-37, with both on the future list (`future.md`). The answers are also marked in `../../questions-for-dad.md`.
 
 Dad's flying questions for every module are in `../../questions-for-dad.md`.
 

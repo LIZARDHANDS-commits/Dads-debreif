@@ -46,6 +46,7 @@ Each row is one decision. "Rule" is the decision as it now reads (reworded where
 | SOF-34 | The alternate is checked from 1 h before to 1 h after the landing time, and home from takeoff to 1 h after landing (D70 is now in force) | D70 | Patrick's answer to SOF-Q6 ("ETA ±1 h"), 4 Oct 09:14Z: it errs on the safe side, stricter than the civil rule (ETA only). |
 | SOF-35 | Lightning within 20 NM of home raises a caution (setting 5 to 50 NM), and a caution already up stays up through a feed outage, marked "can't tell now, last seen N min ago"; SOF-11, SOF-22, SOF-29 and SOF-30 stand | | Patrick's answer to SOF-Q7 ("Yes, 20 NM"), 4 Oct 09:09Z. |
 | SOF-36 | Stale limits: METAR over 75 min, a TAF past its end, radar over 20 min, lightning over 40 min, satellite cloud over 60 min (D354 is now in force) | D354 | Patrick's answer to SOF-Q8 ("Keep these"), 4 Oct 09:09Z. They stay starting settings, not test gates. |
+| SOF-37 | No wind check for now: crosswind per runway, the 30 kt warning, the 35 kt cease-flying caution (all of SOF-R27) and the favoured-runway hover card go to the future list; the SOF shows the wind but flags nothing. No whole-field limit from V6 (home 25/30 kt, alternates 30/35). | | Patrick's answers to SOF-Q4 ("Crosswind per runway", 09:04Z) and SOF-Q12 ("Future list", 09:09Z), then "All to future" on 4 Oct 09:22Z when asked how that met his SOF-Q15 answer (00:56Z). |
 
 ## Replaced old decisions (history: what replaced them)
 
