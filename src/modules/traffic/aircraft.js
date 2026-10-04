@@ -64,7 +64,22 @@ export function spotChoices(route) {
  * OHB Rejoin, "how many miles back on the rejoin line", in whole miles; the engine starts it partway along a
  * leg, sim.spawn backFt, approved by Patrick 4 Oct).
  */
-export const MILES_BACK_ROUTES = Object.freeze(['ENT1']);
+export const MILES_BACK_ROUTES = Object.freeze(['ENT1', 'ENT2']);
+
+/**
+ * The miles boxes (Patrick, 4 Oct: "specifically selected", in 0.1 NM steps), each a distance back from its route's
+ * last point along the route (sim.spawn backFt, TR-64): the OHB Rejoin's Merge, and the SI Rejoin's end at the
+ * threshold. The most for a rejoin is its length; the least keeps the rejoin a rejoin (the OHB Rejoin's last half
+ * mile is the merge itself; the SI Rejoin below 4.2 NM is final, which the SI pattern's "Miles on final" covers).
+ * "Miles on final": 0.75 NM, the Window (3/4 mile), out to 4.1 NM, the SI Rejoin's Final point where it has rolled
+ * out after base (route file). `fallback` is the box's first value.
+ */
+export const MILES_BOXES = Object.freeze({
+  ENT1: Object.freeze({ label: 'Miles back from the Merge', least: 0.5, fallback: 9 }),
+  ENT2: Object.freeze({ label: 'Miles from the threshold', least: 4.2, fallback: 10 }),
+  final: Object.freeze({ label: 'Miles on final', routeId: 'ENT2', least: 0.75, most: 4.1, fallback: 2 }),
+});
+export const MILES_STEP_NM = 0.1;
 
 /** Each start spot of a route but its last, with how far back from the last it is along the legs: [{ point, nm }], farthest first. */
 export function milesBack(route) {
@@ -226,7 +241,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     const { spawnDelayS: delay, pairGapS: gap } = settings.get();
     const what = pairBox.checked ? `a pair, ${gap} s apart,` : 'an aircraft';
     const when = delay > 0 ? `in ${delay} s` : 'now';
-    const milesRoute = MILES_BACK_ROUTES.includes(currentRoute()?.id);
+    const milesRoute = !siChosen && MILES_BACK_ROUTES.includes(currentRoute()?.id);
     const text = milesRoute ? `Choose how far back, then + Spawn adds ${what} there ${when}.` : `Press a spot to add ${what} there ${when}.`;
     if (spotsHint.textContent !== text) spotsHint.textContent = text;
   }
@@ -234,6 +249,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     clear(spots);
     if (siChosen) {
       for (const choice of SI_SPOTS) {
+        if (choice.label === 'Final') continue; // on final it is the miles box below
         const route = setup.routes.find((r) => r.id === choice.routeId);
         if (!route?.points?.[choice.point - 1]) continue;
         const spot = spotOf(route, choice.point - 1);
@@ -241,19 +257,16 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
         guardButton(button, ['spawnDelayS']);
         spots.appendChild(button);
       }
+      const final = MILES_BOXES.final;
+      const ent2 = setup.routes.find((r) => r.id === final.routeId);
+      if (ent2) milesField(final, ent2, final.most);
       showSpotsHint();
       return;
     }
     const route = currentRoute();
     if (MILES_BACK_ROUTES.includes(route?.id)) {
-      const pickId = 'traffic-spawn-miles-back';
-      const most = Math.max(1, Math.floor(milesBack(route)[0]?.nm ?? 1)); // whole miles, up to the line's length
-      const pick = h('select', { id: pickId }, Array.from({ length: most }, (_, i) => h('option', { value: String(i + 1) }, `${i + 1} NM back`)));
-      pick.value = String(most); // the farthest, about where the old Entry Start was
-      const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => spawnBack(Number(pick.value)) }, '+ Spawn');
-      guardButton(go, ['spawnDelayS']);
-      spots.appendChild(h('div', { class: 'control control-select spawn-miles' }, h('label', { for: pickId }, 'Miles back on the rejoin line'), pick));
-      spots.appendChild(go);
+      const box = MILES_BOXES[route.id];
+      milesField(box, route, Math.round((milesBack(route)[0]?.nm ?? box.fallback) * 10) / 10);
       showSpotsHint();
       return;
     }
@@ -304,11 +317,28 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     if (choice.pattern) for (const id of ids) sim.setPattern?.(id, choice.pattern);
   }
 
-  /** + Spawn on a miles-back route: an aircraft (or a pair) `nm` back from the route's end along the line. */
-  function spawnBack(nm) {
+  /**
+   * A miles box and its + Spawn (MILES_BOXES): a number from `box.least` to `most` NM in 0.1 NM steps; + Spawn adds an
+   * aircraft (or a pair) that far back from `route`'s last point along it. A figure outside the range is said in words.
+   */
+  function milesField(box, route, most) {
+    const id = `traffic-spawn-miles-${route.id}-${box === MILES_BOXES.final ? 'final' : 'line'}`;
+    const top = Math.round(Math.max(box.least, most) * 10) / 10;
+    const input = h('input', { id, type: 'number', min: String(box.least), max: String(top), step: String(MILES_STEP_NM), inputmode: 'decimal', value: String(Math.min(box.fallback, top)) });
+    const range = h('span', { class: 'spawn-miles-range' }, `${box.least} to ${top} NM`);
+    const go = h('button', { type: 'button', class: 'button primary spawn-spot', onclick: () => {
+      const nm = Number(input.value);
+      if (!Number.isFinite(nm) || nm < box.least || nm > top) return say(`${box.label}: enter a number from ${box.least} to ${top}.`);
+      spawnBack(Math.round(nm * 10) / 10, route.id);
+    } }, '+ Spawn');
+    guardButton(go, ['spawnDelayS']);
+    spots.appendChild(h('div', { class: 'control control-number spawn-miles' }, h('label', { for: id }, box.label), h('div', { class: 'spawn-miles-row' }, input, range, go)));
+  }
+
+  /** + Spawn on a miles box: an aircraft (or a pair) `nm` back from the end of route `routeId` along it. */
+  function spawnBack(nm, routeId) {
     if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
-    settings.update({ spawnStartPoint: 1 });
-    spawn(pairBox.checked, { backFt: nm * FT_PER_NM });
+    spawn(pairBox.checked, { routeId, startPoint: 1, backFt: nm * FT_PER_NM });
   }
 
   /** A spot was pressed: an aircraft (or a pair, from Advanced settings) at that spot of the chosen route. */

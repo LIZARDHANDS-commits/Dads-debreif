@@ -121,15 +121,18 @@ test('the spawner shows Type and Route, a button for each spot of the route, and
   assert.equal(inputFor(spawner, 'Type').value, '0', 'CT-156 is the first in the list');
   assert.equal(inputFor(spawner, 'Route').value, 'ENT1');
   assert.equal(inputFor(spawner, 'Delay').value, '0');
-  // The OHB Rejoin starts by whole miles back along the line (Patrick, 4 Oct), up to its 9.2 NM length; 9 at first.
-  const miles = inputFor(spawner, 'Miles back on the rejoin line');
-  assert.deepEqual(tagged(miles, 'OPTION').map(words), ['1 NM back', '2 NM back', '3 NM back', '4 NM back', '5 NM back', '6 NM back', '7 NM back', '8 NM back', '9 NM back']);
-  assert.equal(miles.value, '9');
+  // The OHB Rejoin starts by miles back from the Merge in 0.1 NM steps (Patrick, 4 Oct), 0.5 to its 9.2 NM length; 9 at first.
+  const miles = inputFor(spawner, 'Miles back from the Merge');
+  assert.deepEqual([miles.getAttribute('type'), miles.getAttribute('step'), miles.getAttribute('min'), miles.getAttribute('max'), miles.value], ['number', '0.1', '0.5', '9.2', '9']);
   assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Choose how far back, then + Spawn adds an aircraft there now.');
   assert.equal(words(all(withClass(spawner, 'spawner-advanced')[0], (n) => n.tagName === 'SUMMARY')[0]), 'Advanced settings');
+  // The SI Rejoin too, by miles from the threshold: 4.2 (below that is final) to its 14.6 NM length (the route file).
   chooseRoute(spawner, 'ENT2');
-  assert.deepEqual(spotButtons(spawner).map(words), ['Entry Start', 'Entry Mid', 'Entry Gate', 'Final', 'Glide path', 'Merge'], 'the SI Rejoin\'s spots, by name');
-  assert.equal(spot(spawner, 'Entry Start').getAttribute('title'), 'Entry Start: 3,500 ft, 160 kt');
+  const si = inputFor(spawner, 'Miles from the threshold');
+  assert.deepEqual([si.getAttribute('min'), si.getAttribute('max')], ['4.2', '14.6']);
+  assert.equal(spotButtons(spawner).filter((b) => words(b) !== '+ Spawn').length, 0, 'no spot buttons on a rejoin');
+  // Spot buttons are for the patterns: the overhead break's need no + Spawn.
+  chooseRoute(spawner, 'PAT1');
   assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Press a spot to add an aircraft there now.');
   assert.equal(buttonNamed(spawner, '+ Spawn'), undefined, 'a spot press replaces + Spawn');
 });
@@ -143,13 +146,11 @@ test('the overhead break offers only Initial, In the break, Downwind and Perch (
   const added = sim.state().aircraft.at(-1);
   assert.equal(added.routeId, 'PAT1');
   assert.equal(settings.get().spawnStartPoint, 12, 'the Perch is the twelfth spot of the route');
-  chooseRoute(spawner, 'ENT2');
-  assert.equal(spotButtons(spawner).length, 6, 'the SI Rejoin keeps every spot');
 });
 
 test('on the OHB Rejoin, + Spawn adds an aircraft the chosen distance back, names it, and tells the screen', () => {
   const { spawner, sim, changes } = setup();
-  const miles = inputFor(spawner, 'Miles back on the rejoin line');
+  const miles = inputFor(spawner, 'Miles back from the Merge');
   miles.value = '2';
   spot(spawner, '+ Spawn').dispatch('click');
   assert.equal(sim.state().aircraft.length, 8);
@@ -167,14 +168,14 @@ test('on the OHB Rejoin, + Spawn adds an aircraft the chosen distance back, name
 test('type, route, spot and the delay decide the aircraft', () => {
   const { spawner, sim, settings } = setup();
   settings.update({ spawnType: 'CT-114' });
-  chooseRoute(spawner, 'ENT2');
+  chooseRoute(spawner, 'PAT1');
   type(inputFor(spawner, 'Delay'), '45');
   assert.equal(words(withClass(spawner, 'spawn-spots-hint')[0]), 'Press a spot to add an aircraft there in 45 s.');
-  spot(spawner, 'Entry Gate').dispatch('click');
+  spot(spawner, 'In the break').dispatch('click');
   const added = sim.state().aircraft.at(-1);
-  assert.deepEqual([added.type, added.routeId, added.startsAt], ['CT-114', 'ENT2', 45]);
-  assert.equal(settings.get().spawnRoute, 'ENT2');
-  assert.equal(settings.get().spawnStartPoint, 3);
+  assert.deepEqual([added.type, added.routeId, added.startsAt], ['CT-114', 'PAT1', 45]);
+  assert.equal(settings.get().spawnRoute, 'PAT1');
+  assert.equal(settings.get().spawnStartPoint, 10, 'the Break, the tenth spot');
 });
 
 test('the spawner keeps its own route when a route is picked elsewhere, and follows a route that is added', () => {
@@ -184,7 +185,7 @@ test('the spawner keeps its own route when a route is picked elsewhere, and foll
   panel.routesChanged();
   assert.equal(inputFor(spawner, 'Route').value, 'ENT2', 'its own choice stays');
   const options = tagged(inputFor(spawner, 'Route'), 'OPTION').map(words);
-  assert.deepEqual(options.slice(-2), ['Entry 9', 'PFL from area'], 'the new route, then PFL from area last');
+  assert.deepEqual(options.slice(-3), ['Entry 9', 'SI pattern', 'PFL from area'], 'the new route, then SI pattern, then PFL from area last');
 });
 
 test('with Add a pair ticked, a spot adds two aircraft on the same route, the pair gap apart', () => {
@@ -200,6 +201,35 @@ test('with Add a pair ticked, a spot adds two aircraft on the same route, the pa
   assert.deepEqual([first.routeId, second.routeId], ['PAT1', 'PAT1']);
   assert.equal(second.startsAt - first.startsAt, 20);
   assert.equal(words(withClass(spawner, 'spawn-message')[0]), 'Added A8 and A9.');
+});
+
+// The SI pattern (Patrick, 4 Oct): Downwind and Base buttons, and "Miles on final" from the Window (0.75 NM) to 4.1 NM.
+test('SI pattern offers Downwind and Base, and miles on final from 0.75 to 4.1 NM; 0.75 starts at the Window\'s height on the glide path', () => {
+  const { spawner, sim } = setup();
+  chooseRoute(spawner, 'si-pattern');
+  assert.deepEqual(spotButtons(spawner).map(words), ['Downwind', 'Base', '+ Spawn']);
+  const final = inputFor(spawner, 'Miles on final');
+  assert.deepEqual([final.getAttribute('min'), final.getAttribute('max'), final.getAttribute('step')], ['0.75', '4.1', '0.1']);
+  final.value = '0.75';
+  spot(spawner, '+ Spawn').dispatch('click');
+  const added = sim.state().aircraft.at(-1);
+  assert.equal(added.routeId, 'ENT2');
+  const window = MOOSE_JAW.routes.find((r) => r.id === 'PAT1').points[12]; // the Window, 3/4 mile: 2,119 ft
+  assert.ok(Math.abs(added.alt - window.alt) <= 100, `${added.alt} ft at 0.75 NM on final, the Window is ${window.alt} ft`);
+  final.value = '5';
+  spot(spawner, '+ Spawn').dispatch('click');
+  assert.match(words(withClass(spawner, 'spawn-message')[0]), /Miles on final: enter a number from 0\.75 to 4\.1/);
+});
+
+test('on the SI Rejoin, + Spawn starts an aircraft the chosen miles from the threshold along the rejoin', () => {
+  const { spawner, sim } = setup();
+  chooseRoute(spawner, 'ENT2');
+  inputFor(spawner, 'Miles from the threshold').value = '14.5';
+  spot(spawner, '+ Spawn').dispatch('click');
+  const added = sim.state().aircraft.at(-1);
+  const start = MOOSE_JAW.routes.find((r) => r.id === 'ENT2').points[0]; // the Entry Start, 14.6 NM along
+  const nm = Math.hypot(added.x - start.x, added.y - start.y) / 6076.12;
+  assert.ok(nm <= 0.3, `14.5 NM out is within 0.3 NM of the Entry Start (14.6 NM), got ${nm.toFixed(2)} NM`);
 });
 
 test('a pair with a gap that makes no sense adds neither aircraft', () => {
