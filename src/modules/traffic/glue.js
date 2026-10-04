@@ -21,7 +21,7 @@ export function within(value, range, fallback) {
 /**
  * Copies the traffic settings the engine reads into the setup: the conflict and caution
  * distances (`setup.conflictLimits`), the route options (`setup.routeOptions`), and wind.
- * @param {{ conflictLimits?: any, routeOptions?: any, windFromDeg?: number, windKt?: number, deconflict?: boolean }} setup
+ * @param {{ conflictLimits?: any, routeOptions?: any, windFromDeg?: number, windKt?: number, deconflict?: boolean, randomize?: boolean, randomizeSharePct?: number }} setup
  * @param {Record<string, any>} values the traffic settings (settings.get())
  */
 export function applyToSetup(setup, values) {
@@ -33,6 +33,8 @@ export function applyToSetup(setup, values) {
     cautionVertFt: distance('cautionVertFt'),
   };
   setup.deconflict = values.autoDeconflict === true;
+  setup.randomize = values.randomizeBehaviour === true;
+  setup.randomizeSharePct = within(values.randomizeSharePct, LIMITS.randomizeSharePct, DEFAULTS.randomizeSharePct);
   setup.routeOptions = {
     flyRoundedTurns: values.flyRoundedTurns === true,
     radiusFromG: values.radiusFromG === true,
