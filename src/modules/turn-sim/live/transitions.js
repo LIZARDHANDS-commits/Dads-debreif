@@ -30,6 +30,7 @@ import { G_FTPS2, FTPS_TO_KT } from '../../../core/units.js';
 import { STEP_SEC, stepAircraft, copyAircraft, planDone } from './flight.js';
 import { relativeTo, unit, wholeDegree, turnSeg, onStep, DEG } from './manoeuvres.js';
 import { judgePair, SWEEP_MAX_DEG } from './formation.js';
+import { applyPose } from './kinematic.js';
 
 // ---- the numbers -----------------------------------------------------------------------
 
@@ -189,6 +190,16 @@ function stepCommanded(a, targetBankDeg, t, profile) {
  */
 export function flyStep(a, plan, t) {
   const seg = plan.segments[0];
+  if (seg?.kind === 'poseTrack') {
+    // A kinematic pre-planned line (kinematic.js, TS-55): the pose for each step was worked out at the press.
+    seg.i ??= 0;
+    applyPose(a, seg.poses[seg.i++]);
+    if (seg.i >= seg.poses.length) {
+      plan.segments.shift();
+      a.turning = plan.segments.length > 0 || a.bankDeg !== 0;
+    }
+    return;
+  }
   if (seg?.kind === 'bankTrack') {
     seg.i ??= 0;
     const [bank, kias] = seg.points[seg.i++];
@@ -549,7 +560,7 @@ function legsFor(from, s, to, sTo, spacingFt) {
 }
 
 /** The words for how a change is flown. */
-function describe(from, to, rejoinKind) {
+export function describe(from, to, rejoinKind) {
   const fromLab = from === 'lab' || from === 'other';
   if (fromLab && to === 'lab') return 'in line abreast';
   if (fromLab) {
