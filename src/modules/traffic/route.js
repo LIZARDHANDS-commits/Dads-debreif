@@ -2,9 +2,9 @@
 // rounded, how long it is, where a point sits along it, and V6's builders for a new
 // pattern, entry and split (SPEC-traffic, "Routes (route.js)").
 //
-// This is V6's own model, ported unchanged and pinned to it by
-// tests/golden/traffic-route.test.js (R9). Line numbers refer to V6's decoded
-// Traffic page (traffic.html). Nothing here reads the page, a setting or the clock:
+// It started as V6's own model (R9); V6 is now a source of ideas only, and the
+// flying numbers are checked against the manuals (AGENTS.md). Line numbers refer
+// to V6's decoded Traffic page (traffic.html). Nothing here reads the page, a setting or the clock:
 // routes and options come in as plain values.
 //
 // Positions are feet, x east and y north (V6 had y pointing south: the built-in data
@@ -15,10 +15,11 @@
 // times per aircraft per frame, #49). The cache looks at the route's points each time
 // it is asked, so a point edited in place gives a new path.
 import { FT_PER_NM, ktToFtps } from '../../core/units.js';
-import { limitG, turnRadiusFt, bankDegFromG } from '../../core/flight-math.js';
-import { unitVectorFromCompassDeg } from '../../core/angles.js';
+import { limitG, turnRadiusFt, bankDegFromG, gFromBankDeg, turnRateFromBankRadPerSec } from '../../core/flight-math.js';
+import { unitVectorFromCompassDeg, compassDegFromVector } from '../../core/angles.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
-import { windTriangle } from '../../core/wind.js';
+import { windTriangle, windVectorFtps } from '../../core/wind.js';
+import { RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
 
 /** V6's route options when the boxes are left alone (built-in profile, line 613). */
 export const DEFAULT_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
@@ -251,7 +252,7 @@ function buildRoundedPoints(route, options) {
 }
 
 /** Compass heading, degrees from north, of a leg that goes dx east and dy north. */
-const compassDeg = (dx, dy) => (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+const compassDeg = compassDegFromVector;
 
 /** The path's legs (V6 `navSegs`, line 215), each with the heading it is flown on. */
 function buildSegs(points) {
@@ -531,8 +532,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
   const tasKt = iasToTasKt(iasKt, altFt);
   const tasFtps = ktToFtps(tasKt);
 
-  const g = 32.174;
-  const omega = (g * Math.tan((bankDeg * Math.PI) / 180)) / Math.max(1, tasFtps);
+  const omega = turnRateFromBankRadPerSec(Math.max(1, tasFtps), bankDeg);
   const turnSec = Math.PI / omega;
 
   if (!windKt || windKt <= 0) {
@@ -549,10 +549,7 @@ export function computeWindPerch(route, windFromDeg = 360, windKt = 0, options =
   }
 
   // Wind velocity vector (ft/s) in direction wind is blowing TOWARDS
-  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
-  const windFtps = ktToFtps(windKt);
-  const wx = windFtps * Math.sin(blowToRad);
-  const wy = windFtps * Math.cos(blowToRad);
+  const { x: wx, y: wy } = windVectorFtps(windFromDeg, windKt);
 
   const driftX = wx * turnSec;
   const driftY = wy * turnSec;
@@ -602,18 +599,14 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   const rwyLen = Math.hypot(dep.x - th.x, dep.y - th.y);
   const rwyUx = (dep.x - th.x) / rwyLen;
   const rwyUy = (dep.y - th.y) / rwyLen;
-  const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
-  const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
+  const rwyHeadingDeg = compassDegFromVector(dep.x - th.x, dep.y - th.y);
   const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
 
   const useRwyBreak = (windKt ?? 0) <= 0;
   const breakStartX = useRwyBreak ? th.x + rwyUx * 2000 : brk.x;
   const breakStartY = useRwyBreak ? th.y + rwyUy * 2000 : brk.y;
 
-  const windFtps = ktToFtps(windKt);
-  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
-  const wx = windFtps * Math.sin(blowToRad);
-  const wy = windFtps * Math.cos(blowToRad);
+  const { x: wx, y: wy } = windVectorFtps(windFromDeg, windKt);
 
   const tasInit = iasToTasKt(220, 3500);
   const tasDownwind = iasToTasKt(140, 3500);
@@ -634,7 +627,6 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
   let curHeadingDeg = entryHeadingDeg;
   let curIas = 220;
   const breakDt = 0.2;
-  const g = 32.174;
   let turnAccum = 0;
   const arcPoints = [];
 
@@ -643,7 +635,7 @@ function simulateBreakArc(route, windFromDeg = 360, windKt = 0) {
 
     const curTasKt = iasToTasKt(curIas, 3500);
     const tasFtps = ktToFtps(curTasKt);
-    const omega = (g * Math.tan((60 * Math.PI) / 180)) / Math.max(1, tasFtps);
+    const omega = turnRateFromBankRadPerSec(Math.max(1, tasFtps), 60);
     const dTurnDeg = Math.min((omega * breakDt * 180) / Math.PI, totalTurnDeg - turnAccum);
 
     turnAccum += dTurnDeg;
@@ -723,14 +715,10 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
 
   const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts[0];   // Threshold
   const dep = pts.find((p) => p.tag === 'departure_end' || /departure/i.test(p.label)) ?? pts[1];  // Departure End
-  const rwyHeadingRad = Math.atan2(dep.x - th.x, dep.y - th.y);
-  const rwyHeadingDeg = (rwyHeadingRad * 180 / Math.PI + 360) % 360;
+  const rwyHeadingDeg = compassDegFromVector(dep.x - th.x, dep.y - th.y);
   const downwindHeadingDeg = (rwyHeadingDeg + 180) % 360;
 
-  const windFtps = ktToFtps(windKt);
-  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
-  const wx = windFtps * Math.sin(blowToRad);
-  const wy = windFtps * Math.cos(blowToRad);
+  const { x: wx, y: wy } = windVectorFtps(windFromDeg, windKt);
 
   const track = [];
 
@@ -792,7 +780,6 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   }
 
   // 4. Descending Final Turn: Wind-smoothed continuous transition from Perch to Final
-  const g = 32.174;
   curX = perch.x;
   curY = perch.y;
   let curIas = 120;
@@ -837,8 +824,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     } else if (u > 0.85) {
       bankDeg = 35 * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
     }
-    const bankRad = (Math.max(5, bankDeg) * Math.PI) / 180;
-    const ftOmega = (g * Math.tan(bankRad)) / Math.max(1, ftTasFtps);
+    const ftOmega = turnRateFromBankRadPerSec(Math.max(1, ftTasFtps), Math.max(5, bankDeg));
     const dTurnDeg = Math.min((ftOmega * ftDt * 180) / Math.PI, totalTurnDeg - ftTurnAccum);
 
     ftTurnAccum += dTurnDeg;
@@ -851,7 +837,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
     curX += vx * ftDt;
     curY += vy * ftDt;
 
-    const currentG = 1 / Math.cos((bankDeg * Math.PI) / 180);
+    const currentG = gFromBankDeg(bankDeg);
     const isRollout = ftTurnAccum >= totalTurnDeg;
 
     track.push({
@@ -877,7 +863,7 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
   for (let k = 1; k <= finalSteps; k++) {
     const u = k / finalSteps;
     const kt = Math.round(120 - 20 * u);
-    const alt = Math.round(startAlt - (startAlt - 1880) * u);
+    const alt = Math.round(startAlt - (startAlt - THRESHOLD_DATA_ELEV_FT) * u);
     track.push({
       x: finalStartX + (th.x - finalStartX) * u,
       y: finalStartY + (th.y - finalStartY) * u,
@@ -907,8 +893,8 @@ export function generateWindAdjustedTrack(route, windFromDeg = 360, windKt = 0, 
 export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
   const pts = route?.points || route?.waypoints || [];
   const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
-  const rwyHeadingDeg = 298;
-  const radiusFt = 3038.06; // 0.5 NM radius (1.0 NM diameter)
+  const rwyHeadingDeg = RUNWAY_29L_HDG_DEG;
+  const radiusFt = PFL_CIRCLE_RADIUS_FT; // 0.5 NM radius (1.0 NM diameter)
 
   // 90° LEFT of Runway 29L heading is bearing 208° True (South-Southwest)
   const rad208 = (208 * Math.PI) / 180;
@@ -946,7 +932,7 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
     } else if (u <= 0.75) {
       alt = Math.round(3700 - (3700 - 2900) * ((u - 0.5) / 0.25));
     } else {
-      alt = Math.round(2900 - (2900 - 1892) * ((u - 0.75) / 0.25));
+      alt = Math.round(2900 - (2900 - FIELD_ELEV_FT) * ((u - 0.75) / 0.25));
     }
 
     // Airspeed schedule:

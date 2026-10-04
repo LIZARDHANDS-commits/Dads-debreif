@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import {
   T6A_LIMITS, stallLimitG, availableG, iasToTasKt, tasToIasKt, energyHeightFt,
   thrustPerWeight, dragPerWeight, excessThrustPerWeight,
-  T6A_GLIDE, glideSinkFpm, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
+  T6A_GLIDE, glideSinkFpm, glideRatio, NFM_ZOOM, zoomT6A, flyZoomT6A, t6aExcessFn,
   T6A_MANOEUVRE, shakerG, splitST6A, speedOfSoundKt, machToKiasKt, maxKiasT6A, modelMaxIasT6A,
 } from '../../../src/core/t6-performance.js';
 import {
@@ -512,4 +512,10 @@ test('the split S flies from a slow or a fast entry, says when it cannot finish,
   for (const [kias, alt] of [[0.5, 10000], [0, 10000], [-1, 10000], [317, 10000], [NaN, 10000], [110, NaN], [110, Infinity]]) {
     assert.throws(() => splitST6A(kias, alt), RangeError, `${kias} KIAS at ${alt} ft`);
   }
+});
+
+test('glideRatio: the chart\'s 2 NM per 1,000 ft clean is about 12.2 ft flown per foot lost', () => {
+  near(glideRatio('clean'), 2 * FT_PER_NM / 1000, 1e-9, 'clean');
+  near(glideRatio('landing'), 1.1 * FT_PER_NM / 1000, 1e-9, 'landing flap');
+  assert.throws(() => glideRatio('spoilers'), RangeError);
 });

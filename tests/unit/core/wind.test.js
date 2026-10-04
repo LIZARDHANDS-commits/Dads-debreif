@@ -7,7 +7,7 @@
 // of ideas only, not answers (docs/TESTING.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { windTriangle } from '../../../src/core/wind.js';
+import { windTriangle, windVectorFtps } from '../../../src/core/wind.js';
 
 const near = (actual, expected, tol, what) => assert.ok(Math.abs(actual - expected) <= tol, `${what}: ${actual} is not ${expected} ± ${tol}`);
 
@@ -72,4 +72,13 @@ test('a crosswind stronger than the airspeed, or a headwind that stops it, can\'
   assert.equal(windTriangle(0, 40, 0, 40).canHoldTrack, false, 'standing still over the ground');
   assert.deepEqual(windTriangle(0, 0, 0, 0),
     { crabDeg: 0, headingDeg: 0, groundSpeedKt: 0, headwindKt: 0, crosswindKt: 0, canHoldTrack: false }, 'no airspeed, and no NaN');
+});
+
+test('the wind vector points the way the air moves: from 270° blows east', () => {
+  const w = windVectorFtps(270, 10);
+  near(w.x, 16.8781, 1e-9, 'east');
+  near(w.y, 0, 1e-9, 'north');
+  const s = windVectorFtps(360, 20);
+  near(s.y, -33.7562, 1e-9, 'a north wind blows south');
+  assert.deepEqual(windVectorFtps(123, 0), { x: 0, y: 0 });
 });

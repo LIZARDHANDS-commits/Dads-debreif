@@ -32,3 +32,13 @@ test('local feet round-trip back to the same latitude and longitude', () => {
 test('the reference point is the origin', () => {
   assert.deepEqual(geo.latLonToLocalFt(ref, ref.lat, ref.lon), { x: 0, y: 0 });
 });
+
+test('legOffsetsFt: along a northbound leg, a point east of it is to the right', () => {
+  const o = geo.legOffsetsFt({ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 10, y: 50 });
+  assert.ok(Math.abs(o.alongFt - 50) < 1e-9);
+  assert.ok(Math.abs(o.crossFt - 10) < 1e-9);
+  const before = geo.legOffsetsFt({ x: 0, y: 0 }, { x: 100, y: 0 }, { x: -20, y: 5 });
+  assert.ok(Math.abs(before.alongFt + 20) < 1e-9, 'before the start is negative');
+  assert.ok(Math.abs(before.crossFt + 5) < 1e-9, 'north of an eastbound leg is to the left');
+  assert.deepEqual(geo.legOffsetsFt({ x: 1, y: 1 }, { x: 1, y: 1 }, { x: 5, y: 5 }), { alongFt: 0, crossFt: 0 });
+});

@@ -120,3 +120,16 @@ export function unitVectorFromCompassDeg(compassDeg) {
   const r = (90 - compassDeg) * Math.PI / 180;
   return { x: Math.cos(r), y: Math.sin(r) };
 }
+
+/** Compass degrees wrapped into 0 up to (not including) 360. */
+export function wrapDeg360(deg) {
+  return ((deg % 360) + 360) % 360;
+}
+
+/**
+ * Compass bearing in degrees (000 north, clockwise) of a vector dx east, dy
+ * north, in feet. The Traffic Sim lays out its routes this way.
+ */
+export function compassDegFromVector(dx, dy) {
+  return wrapDeg360(radToDeg(Math.atan2(dx, dy)));
+}

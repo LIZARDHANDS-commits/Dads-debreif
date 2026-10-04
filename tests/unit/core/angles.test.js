@@ -65,3 +65,12 @@ test('heading crossing angle is 0 to 180', () => {
   close(angles.headingCrossAngleDeg(0.1, -0.1), angles.radToDeg(0.2));
   close(angles.headingCrossAngleDeg(3, -3), angles.radToDeg(2 * Math.PI - 6));
 });
+
+test('wrapDeg360 and the compass bearing of a vector (x east, y north)', () => {
+  assert.equal(angles.wrapDeg360(-10), 350);
+  assert.equal(angles.wrapDeg360(370), 10);
+  assert.equal(angles.compassDegFromVector(0, 1), 0);
+  assert.ok(Math.abs(angles.compassDegFromVector(1, 0) - 90) < 1e-9);
+  assert.ok(Math.abs(angles.compassDegFromVector(0, -1) - 180) < 1e-9);
+  assert.ok(Math.abs(angles.compassDegFromVector(-1, 0) - 270) < 1e-9);
+});

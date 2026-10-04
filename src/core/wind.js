@@ -7,6 +7,7 @@
 // way. Speeds are in knots. One steady wind: a direction it
 // blows FROM, and a speed.
 import { degToRad, radToDeg } from './angles.js';
+import { ktToFtps } from './units.js';
 
 /** 0 to 360. */
 function wrap360(deg) {
@@ -49,3 +50,14 @@ export function windTriangle(trackDeg, tasKt, windFromDeg, windKt) {
   return { crabDeg, headingDeg: wrap360(trackDeg + crabDeg), groundSpeedKt: canHoldTrack ? groundSpeedKt : 0, headwindKt, crosswindKt, canHoldTrack };
 }
 
+
+/**
+ * The wind as a vector in feet per second, x east and y north, pointing the
+ * way the air moves (toward windFromDeg + 180). Add it to the aircraft's
+ * velocity through the air to get its velocity over the ground.
+ */
+export function windVectorFtps(windFromDeg, windKt) {
+  const blowTo = degToRad(windFromDeg + 180);
+  const v = ktToFtps(windKt);
+  return { x: v * Math.sin(blowTo), y: v * Math.cos(blowTo) };
+}

@@ -4,7 +4,7 @@ This folder is the shared parts every module uses: flight core (flight math), ap
 
 ## Where it stands
 
-Built and merged on main; waiting on the flight-math list, the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`).
+Built and merged on main. The flight-math list is written ([flight-math.md](flight-math.md)); waiting on the one-import-point review and the combined sign-off at the end (`archive/HANDOVER.md:92`, `archive/HANDOVER.md:94`).
 
 ## What is next
 
@@ -20,6 +20,7 @@ The plan's steps, in order: Step 1: Refresh spec.md against the new requirements
 | `testing.md` | This module's testing rules, its sign-off checklist and its list of tests |
 | `plan.md` | The ordered steps and checkboxes; the last step is the sign-off |
 | `future.md` | Ideas not being built until Patrick moves them up |
+| `flight-math.md` | Every shared flight formula, where it lives and its source: read it before writing flight math |
 
 ## Open questions
 

@@ -88,3 +88,17 @@ export function lonLatToWorldPixel(lon, lat, z) {
     y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * n * 256,
   };
 }
+
+/**
+ * Where point p sits against the straight leg from a to b, in feet, with x
+ * east and y north: alongFt is the distance along the leg from a (negative
+ * before a), crossFt is the distance off it, positive to the right of the
+ * direction a to b. A leg shorter than a millionth of a foot gives zeros.
+ */
+export function legOffsetsFt(a, b, p) {
+  const dx = p.x - a.x;
+  const dy = p.y - a.y;
+  if (Math.hypot(b.x - a.x, b.y - a.y) < 1e-6) return { alongFt: 0, crossFt: 0 };
+  const tau = Math.atan2(b.x - a.x, b.y - a.y);
+  return { alongFt: dx * Math.sin(tau) + dy * Math.cos(tau), crossFt: dx * Math.cos(tau) - dy * Math.sin(tau) };
+}

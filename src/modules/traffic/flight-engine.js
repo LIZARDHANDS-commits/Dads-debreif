@@ -15,14 +15,16 @@ import {
   flyZoomT6A,
   T6A_LIMITS,
 } from '../../core/t6-performance.js';
+import { legOffsetsFt } from '../../core/geo.js';
+import { FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, THRESHOLD_29L, RUNWAY_29L_HDG_DEG, DOWNWIND_29L_HDG_DEG } from './airfield.js';
 
-// Physical & Airfield Constants (CYMJ Runway 29L)
-export const CYMJ_FIELD_ELEV_FT = 1892;
-export const CYMJ_THRESH_ELEV_FT = 1880;
-export const CYMJ_THRESH_X = 3104;
-export const CYMJ_THRESH_Y = -3194;
-export const CYMJ_RWY_HDG_DEG = 298;
-export const CYMJ_DOWNWIND_HDG_DEG = 118;
+// Physical & Airfield Constants (CYMJ Runway 29L; the numbers and their sources are in airfield.js)
+export const CYMJ_FIELD_ELEV_FT = FIELD_ELEV_FT;
+export const CYMJ_THRESH_ELEV_FT = THRESHOLD_DATA_ELEV_FT;
+export const CYMJ_THRESH_X = THRESHOLD_29L.x;
+export const CYMJ_THRESH_Y = THRESHOLD_29L.y;
+export const CYMJ_RWY_HDG_DEG = RUNWAY_29L_HDG_DEG;
+export const CYMJ_DOWNWIND_HDG_DEG = DOWNWIND_29L_HDG_DEG;
 export const STALL_SPEED_KIAS = 86; // D158, D387
 export const VFE_LIMIT_KIAS = 147;   // Gear and flap limit (SMM 4.6 para 9)
 export const GLIDE_SLOPE_DEG = 3.0;
@@ -40,13 +42,7 @@ export const SPEED_GATE_WINDOW_FT = 4558;        // 0.75 NM from threshold
  */
 export function calcCrossTrackError(fromWp, toWp, point) {
   if (!fromWp || !toWp || !point) return 0;
-  const dx = point.x - fromWp.x;
-  const dy = point.y - fromWp.y;
-  const segLength = Math.hypot(toWp.x - fromWp.x, toWp.y - fromWp.y);
-  if (segLength < 1e-6) return 0;
-  // Track heading tau: clockwise from North (+y)
-  const tau = Math.atan2(toWp.x - fromWp.x, toWp.y - fromWp.y);
-  return dx * Math.cos(tau) - dy * Math.sin(tau);
+  return legOffsetsFt(fromWp, toWp, point).crossFt;
 }
 
 /**
@@ -59,12 +55,7 @@ export function calcCrossTrackError(fromWp, toWp, point) {
  */
 export function calcAlongTrackDist(fromWp, toWp, point) {
   if (!fromWp || !toWp || !point) return 0;
-  const dx = point.x - fromWp.x;
-  const dy = point.y - fromWp.y;
-  const segLength = Math.hypot(toWp.x - fromWp.x, toWp.y - fromWp.y);
-  if (segLength < 1e-6) return 0;
-  const tau = Math.atan2(toWp.x - fromWp.x, toWp.y - fromWp.y);
-  return dx * Math.sin(tau) + dy * Math.cos(tau);
+  return legOffsetsFt(fromWp, toWp, point).alongFt;
 }
 
 /**
