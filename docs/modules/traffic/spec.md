@@ -18,145 +18,24 @@ Moved from `specs/SPEC-traffic.md` (the old copy is in `archive/specs/`).
 
 ---
 
-## 1. Why We're Doing This: Unifying the Flight Engine
+## 1. How the aircraft moves (approved 4 Oct 2026, Traffic refactor PR 2)
 
-### 1.1 Current State: Two Competing Flight Systems
-The traffic sim currently suffers from a **hybrid architecture** where two flight systems fight each other:
+Patrick approved this wording on 4 Oct 2026 (08:45Z). It replaces the old sections 1 ("Why we're doing this"), "Hard Invariants" and 2.1-2.2. The closed pattern, High Key, go-around, breakout and PFL controllers, and their 1 s blend back to the rail, stay until refactor PR 3 and PR 4.
 
-1. **System A "Rails"** (1,466 lines in `sim.js`):
-   - Aircraft position = `posOnRoute(route, a.distFt)` — scalar distance along pre-computed polyline
-   - Speed interpolated between waypoints
-   - Used for: normal OHB circuit, entries, straight-in, final turn
-2. **System B "Vector Guidance"** (~500 lines in `sim.js`):
-   - Aircraft updated shadow variables (`a.customX/Y/Heading`, now banned under Invariant 2) each step with physics
-   - Used for: closed pattern climb, breakout, go-around, PFL commands
-   - **Critical flaw**: At the Perch, the code `delete`s all vector state and forces the aircraft back onto rails for the final turn
-
-### 1.2 What This Causes
-| Bug | Root Cause | Symptom |
-|---|---|---|
-| **Zero-wind OHB/Final Turn broken** | `route.js:273` switches to Bézier at zero wind instead of aero arcs | `(windKt ?? 0) > 0` fails |
-| **Zero-wind PFL not circular** | `buildPath()` has no PFL handling | Always makes polygon corners |
-| **Straight-in slows down too early** | Speed gate checks `route.id === 'PAT_SI'` | Never matches in normal operation |
-| **Aircraft teleport at break start** | `useRwyBreak = (windKt ?? 0) <= 0` | Forces break to 2,000 ft past threshold |
-| **Final turn dogleg at zero wind** | Perch at 4,307 ft but turn diameter is 4,013 ft | Rolls out 316 ft off centerline |
-
-### 1.3 Why the Closed Pattern Works
-The closed pattern uses free Cartesian vector guidance directly driving aircraft coordinates (not shadow variables). It works at all wind conditions because it is **always physics-driven**. The rest of the circuit fails because it uses rails.
-
-### 1.4 What's Already Implemented (~30%)
-- Closed pattern climb + downwind pursuit to Perch: ✅ (Needs wind crab on heading)
-- Breakout vector guidance: ✅ (Needs smooth `rollToward`)
-- PFL/Engine failure: ✅ (Needs `glideSinkFpm()`)
-- Go-around climb profile: ✅ (Needs smooth `rollToward` and wind crab)
-- Wind-shifted Perch calculation: ✅ (Matches D389)
-- Break decel formula (`route.js`): ✅ (Pre-computed, needs dynamic sim integration)
-- Localizer cross-track guidance: ✅ (Implemented in flight-engine.js L662-666)
-- Dynamic final turn bank modulation: ❌ Not implemented
-- Cubic descent curve: ❌ Not implemented
-- 3.0° glide slope capture: ❌ Not implemented (currently a 10° plunge)
-- Accelerated stall protection: ❌ Not implemented
-- `rollToward()`, `dampedClimbG()`, `glideSinkFpm()`: ❌ Never imported into `sim.js`
-
-### 1.5 The Fix: One Unified Flight Engine (D406, D412, R34)
-Replace the entire `fly(a)` function in `sim.js` with calls to a unified flight engine (`flight-engine.js`). Per D412, the architecture was refined from pure-vector to Hybrid Rails/Physics: aircraft fly on smooth pre-computed rail paths (via `generateWindAdjustedTrack()`) for stable legs (initial, downwind, approach, entries) and switch to `flight-engine.js` physics for dynamic maneuvers (break, final turn, closed pattern, PFL, breakout, go-around, takeoff). Transitions from physics back to rails use a 1.0s BLENDING mode (rail to physics is instant; see Hard Invariants). Published patterns provide both visual display overlays and exact ground-track rails for stable segments.
-
----
-
-## Hard Invariants — NEVER Rules
-
-> These rules are absolute. No agent, implementation, or optimization may violate them.
-
-### Invariant 1: Single Coordinate Owner
-At any simulation step, exactly ONE of three modes owns `a.x`, `a.y`, `a.alt`, `a.heading`:
-- **RAIL**: `distFt` advances, `posOnRoute()` derives coordinates
-- **PHYSICS**: `flight-engine.js` `stepAircraft()` owns coordinates exclusively  
-- **BLENDING**: timer-driven lerp owns coordinates during transition
-
-There is no dual-write period. There are no hybrid states.
-
-### Invariant 2: Zero Shadow Coordinates
-The following variables are BANNED and must never exist in `sim.js`:
-- `customX`, `customY`, `customAlt`, `customHeading`, `customKt`
-- `blendFrom`, `blendTo`, or any variable that stores a second set of coordinates
-- Any pattern where two systems compute coordinates and one is "selected"
-
-If you need both positions (physics result + rail target), use the BLENDING mode with a start/target pair owned by a single lerp function.
-
-### Invariant 3: BLENDING Mode Protocol
-- **PHYSICS → BLENDING**: When a maneuver completes, record `blendStart = {x,y,alt,heading}` from physics result, compute `blendTarget = posOnRoute(route, closestDistFt(route, a.x, a.y))`, set `a.mode = 'BLENDING'`.
-- **Duration**: 1.0 second, cubic smoothstep interpolation: `s = 3u² − 2u³` where `u = elapsed / 1.0`.
-- **Completion**: When `u ≥ 1.0`, set `a.distFt` from target, delete blend state, set `a.mode = 'RAIL'`.
-- **Interruption**: If a pilot command is issued during BLENDING, cancel the blend immediately, set `a.mode = 'PHYSICS'`, and execute the command from the current interpolated position.
-
-### Invariant 4: Asymmetric Transitions  
-- **RAIL → PHYSICS**: Instant. No blend needed. The flight-engine's roll rate limiter (45°/s) naturally smooths the turn entry.
-- **PHYSICS → RAIL**: Always via BLENDING (1.0s). Never a single-frame snap.
-
-### Break Deceleration (Preserved)
-The overhead break uses idle/prop-feathering drag modeled as:
-`V(u) = 220 × e^(−0.452 × u)` where u ∈ [0, 1] is normalized turn progress.
-This function (`calcBreakDecelSpeed` in `flight-engine.js`) must not be modified or bypassed.
+1. **One mover.** One path follower is the only code that writes an aircraft's position, heading, bank and pitch. The three phase machines become one. The manoeuvre controllers (closed pattern, High Key, go-around, breakout, PFL) still run until PR 3 and PR 4, but they hand their position to the path follower instead of writing it themselves.
+2. **Paths are built from the T-6, when they are needed.** A path is a smooth ground track (no corners) with the height and speed the aircraft can actually fly along it. It is built from the aircraft's performance and today's wind at the moment the aircraft needs it. Corners on the drawn route are only where the turns go, not part of the track.
+3. **Heading is continuous.** Heading is the path's track plus the crab for the wind, worked out at every point along it. It never steps.
+   - Today the heading jumps up to about 8° in one 0.05 s step at every route corner. That happens hundreds of times per circuit, at every wind. It is the jitter you see, not physics rounding (measured 4 Oct on main).
+4. **Bank comes from the turn.** Bank = tan⁻¹(true airspeed × heading rate ÷ g), from the path's own curvature and ground speed, so the same ground track needs more bank downwind and less into wind (standard aerodynamics).
+5. **Rolls ease in and out.** Bank changes at a roll rate that eases in and out, never instantly. Roll rate is a setting: default 45°/s, an estimate (no manual page gives a normal roll rate). Today's 90°/s in the breakout becomes the same setting.
+6. **Pitch comes from the climb or descent.** Pitch = flight path angle + angle of attack. The angle of attack grows with G and falls with speed squared, matched to the SMM attitudes: normal climb at 180 KIAS about 10-12° nose up, best-rate climb at 140 KIAS about 15° (SMM 3.14 para 35; EFIG p.126). The match is an estimate until checked on screen.
+7. **Height and speed change at achievable rates.** Climbs and accelerations come from full-power excess thrust at the turn's real G (`excessThrustPerWeight`). Decelerations come from idle drag. Nothing is blended between route points by distance.
+8. **Speeds name their kind.** True airspeed is worked out from indicated airspeed and height everywhere. Indicated airspeed is no longer used as true airspeed in calm air. Track goes where track is meant, heading where heading is meant.
+9. **What you see is what is flown.** The 2D and 3D views draw the sim's own heading, bank and pitch. The 3D view stops working out its own bank from heading change (view3d.js:98-134). If a little drawn smoothing is still needed after this, it smooths only the picture; the flown numbers stay exact (Patrick, 08:01Z).
 
 ---
 
 ## 2. Architecture
-
-### 2.1 Three-Tier Flight Engine
-```
-┌──────────────────────────────────────────────────────────────┐
-│                     FLIGHT ENGINE                             │
-│                                                               │
-│   Tier 1: GUIDANCE (same for all aircraft)                    │
-│   ├─ Track intercept: cross-track error → desired heading     │
-│   ├─ Lead turns: bank early to capture next track             │
-│   ├─ Wind correction: always applied, zero wind or not        │
-│   └─ Waypoint capture: along-track overshoot + capture radius │
-│                                                               │
-│   Tier 2: PERFORMANCE (per-aircraft model)                    │
-│   ├─ KIN (Kinematic): speed/alt from nav plan targets         │
-│   └─ NRG (Energy): speed/alt from T-6 aero model             │
-│       ├─ glideSinkFpm() for engine-out descent                │
-│       ├─ excessThrustPerWeight() for powered flight            │
-│       ├─ energyHeightFt() for can-I-make-it decisions          │
-│       └─ Flap/gear drag management for energy window           │
-│                                                               │
-│   Tier 3: INTEGRATION (same for all aircraft)                 │
-│   ├─ Position: x += (v_air × sin(hdg) + Wx) × dt             │
-│   ├─ Heading: hdg += ω × dt, ω = g×tan(bank)/v_air           │
-│   ├─ Bank: smooth roll via rollToward() at 45°/s              │
-│   └─ TAS: iasToTasKt() always applied                         │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### 2.2 Track Intercept Guidance (Lines, Not Points)
-Aircraft intercept and fly along the line between waypoints, not toward a single point.
-```javascript
-// For each aircraft, each step:
-const trackFrom = currentWaypoint;
-const trackTo   = nextWaypoint;
-
-// 1. Cross-track error: how far off the line am I?
-const trackHdg  = Math.atan2(trackTo.x - trackFrom.x, trackTo.y - trackFrom.y);
-const dx = aircraft.x - trackFrom.x;
-const dy = aircraft.y - trackFrom.y;
-const crossTrack = dx * Math.cos(trackHdg) - dy * Math.sin(trackHdg); // feet
-
-// 2. Along-track distance: how far along the segment?
-const alongTrack = dx * Math.sin(trackHdg) + dy * Math.cos(trackHdg);
-const segLength  = Math.hypot(trackTo.x - trackFrom.x, trackTo.y - trackFrom.y);
-
-// 3. Desired heading: track heading + intercept correction + wind crab
-const interceptAngle = Math.atan(crossTrack * 0.002); // 0.002 rad/ft gain
-const windCrab = windTriangle(trackHdg, v_tas, wind).crabRad;
-const desiredHeading = trackHdg - interceptAngle + windCrab;
-
-// 4. Waypoint capture: advance when along-track passes lead-turn distance
-const turnRadius = (v_air * v_air) / (G_FTPS2 * Math.tan(targetBankRad));
-const leadDist   = turnRadius * Math.tan(halfTurnAngle / 2);
-if (alongTrack >= segLength - leadDist) advanceWaypoint();
-```
-**This produces**: straight flight on long legs, smooth arcs at turns, self-correcting wind drift, and zero S-turning or corner-cutting.
 
 ### 2.3 KIN vs NRG Performance Models
 - **KIN (Kinematic)** — default for normal pattern traffic:
@@ -275,13 +154,31 @@ All numbers from 15 Wing SMM (Aug 2024), EFIG (24 Jun 2026), and T-6A NFM. Trace
 > **Authoritative Coordinates**: See [`docs/references/traffic-pattern-matrix.md`](../../references/traffic-pattern-matrix.md) for exact $(x, y)$ positions and waypoint attributes.
 
 ### 4.1 PAT_INNER — Overhead Break Circuit
-13 waypoints forming the primary tactical circuit.  
-Phase sequence: `initial` → `break` → `inner_downwind` → `final_turn` → `final` → `landing` → `takeoff_climb` → `closed_pattern` → `inner_downwind` (loops).
-- `break`: 60° bank, $V^2$ drag decel 220→140, drift with wind.
-- `inner_downwind`: Pure pursuit to dynamic wind-shifted Perch at 140→120 KIAS.
-- `final_turn`: Cubic descent 3,500→2,700, modulated bank 30°–45°, cross-track steering.
-- `final`: Localizer tracking on 298° centerline, 3.0° glide slope capture at 2.54 NM.
-- `closed_pattern`: 50° bank climb at 2,100 fpm to 3,500, rollout on 118° direct to Perch.
+
+Approved 4 Oct 2026 (Traffic refactor PR 2). Items 10-14 cover both the circuit and the take-off (4.8).
+
+10. **Outer pattern.** The downwind and base legs are fixed to the ground (Patrick, 08:11Z).
+    - After take-off, at full power on runway heading, the aircraft holds 5-7° nose up and accelerates until 180 KIAS. Then it climbs at 180 KIAS to 3,500 ft, levels, and accelerates at full power to 220 KIAS. Then it sets power for 220 (Patrick, 08:15Z; SMM 3.11 for the 5-7° take-off attitude, SMM 3.14 para 35 for the 180 KIAS climb).
+    - It turns left onto crosswind once it reaches 220 KIAS, so the turn comes earlier over the ground on a strong headwind day (Patrick, 08:11Z and 08:27Z; SMM 18.4 para 13: "level off at pattern altitude with an airspeed of 220 KIAS. When able, turn to the crosswind leg").
+    - The crosswind leg runs until the turn onto the fixed downwind. That turn starts early enough to roll out on the downwind line in today's wind.
+    - Outer pattern turns are 60° bank and 2 G, except the turn to initial, which uses 45-60° as needed to line up on the centreline (SMM 4.14 para 33).
+11. **The break.** It is a level turn at a constant 60° bank and 2 G, PCL idle (SMM 4.17 para 39).
+    - It rolls out when the aircraft's ground track points at the wind-corrected perch, so the turn may be a little more or less than 180° (Patrick, 08:27Z).
+    - The bank does not change for wind. The wind shapes the ground track ("Do not vary the angle of bank during the overhead break to compensate for a crosswind", SMM 4.18 para 42).
+    - Speed bleeds off from 220 to about 140 KIAS over the turn, on today's curve (Patrick, 08:43Z). An idle-drag model replaces it only once it includes the prop's drag at idle and still gives about 140.
+12. **One break point that moves with the headwind.** The break starts 2,000 ft past the threshold in a 10 kt headwind (SMM 4.17 para 39). It moves later in more headwind and earlier in less (SMM 4.18 para 42).
+    - *Working answer, see question B:* it moves by (headwind − 10 kt) × the time the break turn takes, so the aircraft rolls out at the same ground point in any headwind.
+    - That is about 1,700 ft past the threshold in calm air and about 2,300 ft in 20 kt (estimate from a turn of about 18 s).
+    - It replaces today's two points: 2,000 ft in calm air, and V6's 3,818 ft point in any wind at all (route.js:609, :745).
+13. **Final turn.** It is a continuous descending turn from the perch to the window, up to 45° bank (SMM 4.19 paras 43-48).
+    - The perch moves so the turn rolls out at the window: earlier in a strong headwind, later in a light one, tighter with wind from the north, wider with wind from the south (Patrick, 08:27Z; SMM 4.20 para 49).
+13a. **No jumps at any hand-over.** Each piece of path starts from where the last one ended: the same place, track, bank and pitch, and the same rates of change. It is joined like a clamped curve, so the joins are smooth (Patrick, 08:27Z).
+14. **Check on screen**, at calm and in a strong wind:
+    - the circuit from take-off and from initial;
+    - no heading or bank jitter;
+    - bank and radius look right in each turn;
+    - the break point moves smoothly as the wind goes 0 → 1 → 20 kt;
+    - every aircraft lands on the runway.
 
 ### 4.2 PAT_SI — Straight-In Pattern
 Shares waypoints 0–5 with PAT_INNER, then diverges at "Abeam Departure End":
@@ -314,7 +211,8 @@ NRG model. Spawns at user-defined position via **radial/distance/altitude from a
 Aircraft spawns engine-out at best glide (125 KIAS clean), heading toward field (reciprocal of radial). Glides using `glideSinkFpm('clean', 125, alt)`. Arrives at High Key (5,000 ft MSL). Excess altitude burned via false High Key (SMM 13.7 ¶16).
 
 ### 4.8 TAKEOFF — Runway Departure
-KIN model. Lineup on RWY 29L threshold at 0 KIAS, heading 298°. Accelerate down runway, rotate at 85 KIAS, climb on runway heading at 140 KIAS to 2,500 ft MSL, transition to closed pattern at departure end.
+
+See 4.1, item 10: at full power on runway heading, 5-7° nose up to 180 KIAS, 180 KIAS climb to 3,500 ft, accelerate to 220, crosswind turn once 220 is reached (Patrick, 08:11Z and 08:15Z, 4 Oct 2026; SMM 3.11, SMM 3.14 para 35, SMM 18.4 para 13).
 
 ### 4.9 BREAKOUT — Circuit Breakout
 KIN model. Immediate climbing turn (30–45° bank, 1,500–2,000 fpm) to 4,500 ft MSL (Updated per Patrick's approval, 2026-10-02). Steers toward breakout point 2.0 NM south of outer pattern center. Re-enters via ENT_OHB or ENT_SI.
@@ -354,7 +252,7 @@ When PFL pattern is selected and "From Area" start point chosen, three extra inp
 
 1. **Aircraft NEVER disappear randomly.** They keep flying their pattern continuously.
 2. **If an aircraft finishes a route with no next instruction**: revert to OHB (PAT_INNER) pattern.
-3. **Transitions**: Transitions follow Hard Invariants (RAIL → PHYSICS is instant, roll-rate smoothed at 45°/s; PHYSICS → RAIL uses 1.0s BLENDING mode). No instantaneous heading or speed jumps.
+3. **Transitions**: No jumps at any hand-over (section 4.1, item 13a). Until refactor PR 4, the manoeuvre controllers still hand back to the rail through the old 1.0 s blend. No instantaneous heading or speed jumps.
 4. **Landing is explicit**: aircraft only land when probability rolls at threshold (20% full stop, 80% touch-and-go).
 5. **Wind is always applied**: zero wind is NOT a special case. The same physics runs at 0 kt and 30 kt.
 6. **Accelerated stall protection**: bank angle capped at accelerated stall limit. At 120 KIAS: max bank 59°. At 140 KIAS: max bank 68°.
