@@ -11,12 +11,12 @@
 //   - pitch: the climb angle plus the angle of attack (T6A_PITCH).
 // Speeds: the route's speeds are KIAS; true airspeed comes from KIAS and
 // height (iasToTasKt) in every wind, and ground speed from the wind triangle.
-import { ktToFtps } from '../../core/units.js';
+import { ktToFtps, G_FTPS2 } from '../../core/units.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { bankDegFromTurnRate, easeRoll, gFromBankDeg } from '../../core/flight-math.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt, pitchDegFromClimb } from '../../core/t6-performance.js';
-import { posOnRoute, DEFAULT_ROUTE_OPTIONS } from './route.js';
+import { posOnRoute, routePath, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { ROLL } from './circuit.js';
 
 /**
@@ -38,6 +38,13 @@ const JOIN_ACCEL_FTPS2 = 0.15 * 32.174;
 
 /** Longest a join takes, seconds (an estimate). */
 const JOIN_MAX_SEC = 15;
+
+/** The path's own sideways (turning) acceleration at `distFt`, ft/s², right positive, at ground speed `gsFtps`. */
+function pathTurnAccel(route, distFt, gsFtps, options) {
+  const d = TRACK_WINDOW_FT;
+  const turnRad = wrapDeg180(trackAt(route, distFt + d, options) - trackAt(route, distFt - d, options)) * Math.PI / 180;
+  return gsFtps * gsFtps * turnRad / (2 * d);
+}
 
 /** Ground velocity along the route at `distFt`, ft/s, as { x, y } (x east, y north). */
 function pathGroundVelocity(route, distFt, env, options) {
@@ -71,6 +78,17 @@ export function startJoin(a, route, distFt, env = null, options = DEFAULT_ROUTE_
     vx0 = ktToFtps(gsKt) * Math.sin(r) - path.x;
     vy0 = ktToFtps(gsKt) * Math.cos(r) - path.y;
   }
+  // Sideways acceleration too: the aircraft's own turn (from its bank) less the path's, so the turn
+  // rate carries over without a step (Patrick, 10:05Z: smooth transitions).
+  let ax0 = 0, ay0 = 0;
+  if (Number.isFinite(trackDeg) && Number.isFinite(gsKt) && Number.isFinite(a.bankDeg)) {
+    const r = trackDeg * Math.PI / 180;
+    const aLat = G_FTPS2 * Math.tan(Math.max(-80, Math.min(80, a.bankDeg)) * Math.PI / 180);
+    const pathTurn = pathTurnAccel(route, distFt, Math.hypot(path.x, path.y), options);
+    const rp = Math.atan2(path.x, path.y);
+    ax0 = aLat * Math.cos(r) - pathTurn * Math.cos(rp);
+    ay0 = -aLat * Math.sin(r) + pathTurn * Math.sin(rp);
+  }
   // Height, climb rate and speed carry over the same way, so nothing steps there either.
   const alt0 = Number.isFinite(a.alt) && Number.isFinite(p.alt) ? a.alt - p.alt : 0;
   const vz0 = Number.isFinite(a.climbFtps) ? a.climbFtps : 0;
@@ -79,14 +97,54 @@ export function startJoin(a, route, distFt, env = null, options = DEFAULT_ROUTE_
   const T = Math.min(JOIN_MAX_SEC, Math.max(JOIN_SEC, Math.sqrt(6 * gapFt / JOIN_ACCEL_FTPS2), 4 * relFtps / JOIN_ACCEL_FTPS2));
   a.distFt = distFt;
   if (gapFt < 1 && relFtps < 1 && Math.abs(alt0) < 1 && Math.abs(vz0) < 0.5 && Math.abs(kt0) < 0.5) { delete a.joinOffset; return; }
-  a.joinOffset = { x: x0, y: y0, x0, y0, vx0, vy0, alt0, vz0, kt0, t: 0, T };
+  a.joinOffset = { x: x0, y: y0, x0, y0, vx0, vy0, ax0, ay0, alt0, vz0, kt0, t: 0, T };
 }
 
-/** The ground track in compass degrees at `distFt` along the route, read across the window so it never steps. */
+/**
+ * Place along the route at a distance, carried on straight beyond the ends of an open path
+ * along its first and last pieces, so the track read near either end is the way the aircraft
+ * was going there (a hand-over onto a new path at its start does not turn it early).
+ */
+function placeAlong(route, options) {
+  const { segs, lengthFt, closed } = routePath(route, options);
+  return (d) => {
+    if (closed || !segs.length || (d >= 0 && d <= lengthFt)) return posOnRoute(route, d, options);
+    const end = d < 0 ? posOnRoute(route, 0, options) : posOnRoute(route, lengthFt, options);
+    const seg = d < 0 ? segs.find((g) => g.len > 0.5) : [...segs].reverse().find((g) => g.len > 0.5);
+    if (!seg) return end;
+    const over = d < 0 ? d : d - lengthFt;
+    const r = seg.headingDeg * Math.PI / 180;
+    return { ...end, x: end.x + over * Math.sin(r), y: end.y + over * Math.cos(r) };
+  };
+}
+
+/** Samples each side of the point the track is averaged over (TRACK_SAMPLES), and the averaging's half-width. */
+const TRACK_SAMPLES = 12;
+const TRACK_HALF_WIDTH_FT = TRACK_WINDOW_FT * Math.SQRT2; // the same spread as the old flat window of TRACK_WINDOW_FT
+/**
+ * At speed the averaging spans at least this long either side, seconds, so a drawn turn's rate builds up
+ * over about the time the T-6 takes to roll into it (45° at 45°/s; an estimate) instead of all at once.
+ */
+const TRACK_HALF_WIDTH_SEC = 0.8;
+
+/**
+ * The ground track in compass degrees at `distFt` along the route: the path's direction averaged with a
+ * weight that falls to nothing at the window's ends, so neither the track nor its rate of turn ever steps
+ * as the aircraft passes the corners a drawn turn is made of (spec items 3 and 4; Patrick, 10:05Z).
+ */
 export function trackAt(route, distFt, options = DEFAULT_ROUTE_OPTIONS) {
-  const a = posOnRoute(route, distFt - TRACK_WINDOW_FT, options);
-  const b = posOnRoute(route, distFt + TRACK_WINDOW_FT, options);
-  const dx = b.x - a.x, dy = b.y - a.y;
+  const at = placeAlong(route, options);
+  const here = posOnRoute(route, distFt, options);
+  const tasFtps = ktToFtps(iasToTasKt(here.kt ?? 140, here.alt ?? 3500));
+  const halfWidthFt = Math.max(TRACK_HALF_WIDTH_FT, tasFtps * TRACK_HALF_WIDTH_SEC);
+  let dx = 0, dy = 0;
+  for (let k = 1; k <= TRACK_SAMPLES; k++) {
+    const s = halfWidthFt * (k - 0.5) / TRACK_SAMPLES;
+    const a = at(distFt - s);
+    const b = at(distFt + s);
+    dx += b.x - a.x;
+    dy += b.y - a.y;
+  }
   if (Math.hypot(dx, dy) < 1) return posOnRoute(route, distFt, options).headingDeg;
   return compassDegFromVector(dx, dy);
 }
@@ -120,11 +178,16 @@ export function followRoute(a, route, env, dt, options = DEFAULT_ROUTE_OPTIONS) 
     if (!Number.isFinite(j.T)) Object.assign(j, { x0: j.x, y0: j.y, vx0: 0, vy0: 0, t: 0, T: JOIN_SEC });
     j.t += dt;
     const u = Math.min(1, j.t / j.T);
-    const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u;
-    const d00 = (6 * u ** 2 - 6 * u) / j.T, d10 = 3 * u ** 2 - 4 * u + 1;
-    j.x = h00 * j.x0 + h10 * j.T * j.vx0;
-    j.y = h00 * j.y0 + h10 * j.T * j.vy0;
-    joinRate = { x: d00 * j.x0 + d10 * j.vx0, y: d00 * j.y0 + d10 * j.vy0 };
+    // Quintic Hermite: starts with the aircraft's own offset, velocity and turn, ends on the path
+    // with none, so place, track and turn rate all carry on without a step.
+    const h00 = 1 - 10 * u ** 3 + 15 * u ** 4 - 6 * u ** 5, h10 = u - 6 * u ** 3 + 8 * u ** 4 - 3 * u ** 5;
+    const h20 = 0.5 * u ** 2 - 1.5 * u ** 3 + 1.5 * u ** 4 - 0.5 * u ** 5;
+    const d00 = (-30 * u ** 2 + 60 * u ** 3 - 30 * u ** 4) / j.T, d10 = 1 - 18 * u ** 2 + 32 * u ** 3 - 15 * u ** 4;
+    const d20 = (u - 4.5 * u ** 2 + 6 * u ** 3 - 2.5 * u ** 4) * j.T;
+    const ax0 = j.ax0 ?? 0, ay0 = j.ay0 ?? 0;
+    j.x = h00 * j.x0 + h10 * j.T * j.vx0 + h20 * j.T * j.T * ax0;
+    j.y = h00 * j.y0 + h10 * j.T * j.vy0 + h20 * j.T * j.T * ay0;
+    joinRate = { x: d00 * j.x0 + d10 * j.vx0 + d20 * ax0, y: d00 * j.y0 + d10 * j.vy0 + d20 * ay0 };
     joinBlend = { alt: h00 * (j.alt0 ?? 0) + h10 * j.T * (j.vz0 ?? 0), kt: h00 * (j.kt0 ?? 0) };
     a.x += j.x;
     a.y += j.y;

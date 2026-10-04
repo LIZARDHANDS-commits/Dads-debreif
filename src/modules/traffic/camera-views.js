@@ -58,6 +58,23 @@ export function topDownCamera(box, size) {
   return { center, cam: { yawDeg: 0, pitchDeg: 0, zoom: clamp(pxPerFt * 1000, ZOOM), altScale: 1 } };
 }
 
+/**
+ * The view 3D opens on (Patrick, 4 Oct 2026 10:17Z, from his screenshot): from north of the field looking
+ * south-south-east, low over the base, with the runways in the lower half and the circuit beyond them. The angles,
+ * the middle of the picture and the ground across the screen were measured from that picture by lining up the
+ * runways and the tower (estimates): yaw 148°, 77° from straight down, about 11,500 ft across, centred over the
+ * circuit south-east of the 29L threshold at field height.
+ */
+export const FIELD_VIEW = Object.freeze({ yawDeg: 148, pitchDeg: 77, spanFt: 11_500, center: Object.freeze({ x: 5100, y: -6200 }) });
+
+/** Over the field: the opening view above, the same ground across any screen width. */
+export function fieldCamera(size) {
+  return {
+    center: { x: FIELD_VIEW.center.x, y: FIELD_VIEW.center.y, z: RWY_29L_THRESHOLD.alt },
+    cam: { yawDeg: FIELD_VIEW.yawDeg, pitchDeg: clamp(FIELD_VIEW.pitchDeg, PITCH), zoom: zoomFor(size.width, FIELD_VIEW.spanFt), altScale: 1 },
+  };
+}
+
 /** Tower: from the cab (floor + 140 ft) toward `target` ({ x, y, alt }), or toward the 29L threshold with none. */
 export function towerCamera(target, size, floorFt) {
   const eye = { ...TOWER_FT, alt: finite(floorFt, RWY_29L_THRESHOLD.alt) + TOWER_EYE_AGL_FT };

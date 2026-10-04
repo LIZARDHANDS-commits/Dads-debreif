@@ -374,7 +374,7 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 ### 7.3 Defaults & First Look
 Every setting starts filled in so the first look is clean and intuitive:
 - Playback speed: 8×
-- 2D or 3D: 2D
+- 2D or 3D: 2D. 3D opens over the field: from north of the field looking south-south-east, low over the base, with the runways in the lower half and the circuit beyond (Patrick, 4 Oct 2026 10:17Z, from his screenshot). Fit still frames every route.
 - Wind: calm (360°T at 0 kt)
 - Default aircraft type: CT-156 Harvard II (paint: `harvard`)
 - Pattern: PAT_INNER (Runway 29L, left-hand, 3,500 ft MSL)

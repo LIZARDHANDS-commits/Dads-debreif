@@ -22,6 +22,14 @@ Ideas for the Traffic Sim that are not being built. An idea moves into `plan.md`
   - traffic rejoining on an entry that would conflict breaks out and rejoins.
   It overlaps PPQ-03 (automated SMM rules) and PPQ-04 (fly-through) below, and FF25. The rules need their Flying Orders and SMM pages before it is specced.
 
+## Asked for by Patrick and built straight away (4 Oct 2026)
+
+- High Key from anywhere: a flown climb onto the run-in (09:14Z; merged in #259).
+- An Aircraft size slider under settings, starting at "Realistic" (10:06Z; #259).
+- The sim's name in the top left: "Pat's CYMJ Traffic & Pattern Simulator" (10:09Z; #259).
+- A test that every manoeuvre's transitions are smooth (10:05Z; six limits approved 10:18Z; `smooth-transitions.test.js`).
+- His oblique view over the field as the opening 3D view (10:17Z). Adding it to the Camera menu waits on his card.
+
 ## The old Phase 2 queue for Traffic (PPQ-01 to PPQ-08)
 
 The two copies of the queue name some rows differently; both names are given. Parts of PPQ-01, 02 and 05 are already built in the circuit and forced-landing work (the queue itself says so), and TR-R14, TR-R31 and TR-R32 now cover what the first version must do; what is listed here is only the part that is left (`archive/docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:45`, `archive/docs/REMEDIATION_ROADMAP.md:399`).

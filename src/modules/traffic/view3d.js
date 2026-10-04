@@ -25,7 +25,7 @@ import { makeLocalRef, latLonToLocalFt } from '../../core/geo.js';
 import { createAirfieldScenery, disposeAirfieldScenery, DEFAULT_FLOOR_FT } from './scenery3d.js';
 import { createLandmarks, disposeLandmarks, createWindsocks, updateWindsocks, disposeWindsocks } from './landmarks3d.js';
 import { AIRFIELD_CORE_BOUNDS_FT, paintCoreAirfieldVector, getCoreCorners, getOptimalCoreTileZoom } from './airfield-core-ground.js';
-import { topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
+import { fieldCamera, topDownCamera, towerCamera, cockpitCamera, padlockCamera, NEEDS_AIRCRAFT } from './camera-views.js';
 import { createCameraBar } from './camera-bar.js';
 
 /** The viewpoints worked out from a place (the tower) or an aircraft each frame, rather than framed once. */
@@ -1231,14 +1231,17 @@ export function createView3d({ host, timers, source, onLost = () => {}, win = gl
     const box = sceneBox(data.routes, data.aircraft);
 
     if (box && (!fitted || wantPreset)) {
-      const name = wantPreset ?? 'fit';
+      const name = wantPreset ?? 'field'; // 3D opens over the field (Patrick, 4 Oct 10:17Z); the buttons and menu still choose
       wantPreset = null;
       fitted = true;
       chasePending = false;
       viewMode = name;
       noteText = '';
       if (name === 'low') startChase(data, box, size);
-      else if (name === 'top') {
+      else if (name === 'field') {
+        follow = null;
+        view = fieldCamera(size);
+      } else if (name === 'top') {
         follow = null;
         view = topDownCamera(box, size);
       } else if (POV_VIEWS.has(name)) {
