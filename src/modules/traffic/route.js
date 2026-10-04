@@ -22,7 +22,10 @@ import { windTriangle, windVectorFtps } from '../../core/wind.js';
 import { RUNWAY_29L_HDG_DEG, FIELD_ELEV_FT, THRESHOLD_DATA_ELEV_FT, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
 import { buildCircuit } from './circuit.js';
 
-/** V6's route options when the boxes are left alone (built-in profile, line 613). */
+/**
+ * V6's route options when the boxes are left alone (built-in profile, line 613).
+ * @type {Readonly<{ flyRoundedTurns: boolean, radiusFromG: boolean, manualRadiusFt: number }>}
+ */
 export const DEFAULT_ROUTE_OPTIONS = Object.freeze({ flyRoundedTurns: true, radiusFromG: true, manualRadiusFt: 1800 });
 
 /** The colours V6 hands to new routes in turn (`palette`, line 140). */

@@ -429,7 +429,7 @@ export const SPAWN_PRESETS = Object.freeze([
 
   // PFL
   { pattern: 'PFL',         startPoint: 'High Key',        navPlanId: 'PFL_HIGH_KEY', waypointIndex: 0, x: 3104, y:  -3194, alt: 5000, kias: 125, headingDeg: RWY_HDG, phase: 'high_key'       },
-  { pattern: 'PFL',         startPoint: 'Low Key',         navPlanId: 'PFL_HIGH_KEY', waypointIndex: 1, x: 7146, y: -10275, alt: 3700, kias: 120, headingDeg: 118,     phase: 'low_key'        },
+  { pattern: 'PFL',         startPoint: 'Low Key',         navPlanId: 'PFL_HIGH_KEY', waypointIndex: 1, x: PFL_LOW_KEY_X, y: PFL_LOW_KEY_Y, alt: 3700, kias: 120, headingDeg: 118,     phase: 'low_key'        },
   { pattern: 'PFL',         startPoint: 'From Area',       navPlanId: null, waypointIndex: 0, x: null, y: null,  alt: null,  kias: 125, headingDeg: null, phase: 'pfl_inbound', factory: 'makePflFromArea' },
 
   // Takeoff

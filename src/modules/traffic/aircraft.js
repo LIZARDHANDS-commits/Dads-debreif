@@ -411,7 +411,7 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
           );
           const pflBtn = makeActionButton(
             'PFL',
-            'PFL (Current Position): simulate engine failure, zoom climb if >130 kt, glide 125 kt to intercept PFL profile',
+            'PFL (Current Position): engine failure here; zoom if above 150 KIAS, glide at 125 KIAS clean (120 with the gear) to the PFL circle, or direct to the runway, or eject',
             () => {
               sim.command(row.id, 'pfl_current');
               onChange?.();

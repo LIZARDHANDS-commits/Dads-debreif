@@ -882,21 +882,25 @@ test('the focus box is the first showing pattern and the flying aircraft near it
 // ---------------------------------------------------------------------------
 // PFL 2D Dynamic Glide Footprint & Tactical UI Badges (Task 4)
 
-test('calculateGlideFootprint computes clean glide radius and wind drift displacement downwind', () => {
-  // Calm wind at 5,000 ft MSL (Moose Jaw elevation 1,892 ft)
-  // altDiff = 5000 - 1892 = 3108 ft
-  // expected radius = (3108 / 1000) * 2.0 NM * 6076.12 ft/NM = 37769.16 ft
-  // expected tGlide = 3108 / (1350 / 60) = 138.133 s
+test('calculateGlideFootprint: glide ratio radius, and the wind carries the ring downwind (spec 4.5 item 14)', () => {
+  // 5,000 ft MSL over a 1,892 ft field: 3,108 ft to glide.
+  // Clean: 2.0 NM per 1,000 ft (T-6A max glide chart; SMM 13.5 para 7) = 37,769 ft.
   const ac = { x: 1000, y: 2000, alt: 5000 };
   const calm = calculateGlideFootprint(ac, 360, 0);
   near(calm.altDiff, 3108, 0.01);
   near(calm.rGlide, 37769.16, 0.1);
-  near(calm.tGlide, 138.133, 0.01);
   near(calm.cx, 1000, 0.01);
   near(calm.cy, 2000, 0.01);
   near(calm.driftFt, 0, 0.01);
+  // 37,769 ft at 125 KIAS (about 130-135 kt true at 3,500 ft, 219-228 ft/s) takes about 165-172 s;
+  // the band is wider than that so only a wrong unit or a wrong speed fails it.
+  assert.ok(calm.tGlide > 150 && calm.tGlide < 190, `glide time ${calm.tGlide}`);
 
-  // Ground level or below ground (alt <= 1892 ft)
+  // Gear down: 1.5 NM per 1,000 ft (same chart), a smaller ring.
+  const gear = calculateGlideFootprint({ ...ac, config: 'Gear' }, 360, 0);
+  near(gear.rGlide, 3108 * 1.5 * 6076.12 / 1000, 0.5);
+
+  // On the ground: nothing to glide.
   const ground = calculateGlideFootprint({ x: 0, y: 0, alt: 1892 }, 360, 20);
   assert.equal(ground.altDiff, 0);
   assert.equal(ground.rGlide, 0);
@@ -904,11 +908,12 @@ test('calculateGlideFootprint computes clean glide radius and wind drift displac
   assert.equal(ground.cx, 0);
   assert.equal(ground.cy, 0);
 
-  // With wind: circle remains centered on aircraft, driftFt indicates downwind drift
+  // A 20 kt wind from the north moves the ring's centre south by 20 kt over the glide time (Patrick 08:33Z).
   const northWind = calculateGlideFootprint(ac, 360, 20);
-  near(northWind.cx, 1000, 0.01);
-  near(northWind.cy, 2000, 0.01);
-  near(northWind.driftFt, 4662.8, 1.0);
+  near(northWind.cx, 1000, 1);
+  assert.ok(northWind.cy < 2000, 'the ring moves downwind (south)');
+  near(northWind.driftFt, 20 * 6076.12 / 3600 * northWind.tGlide, 1.0);
+  near(2000 - northWind.cy, northWind.driftFt, 1.0);
 });
 
 test('shouldShowGlideFootprint activates for engine failure, PFL phases, commands, or active selection', () => {
@@ -979,7 +984,7 @@ test('drawPflGroundCircle renders 0.5 NM radius circle and key points on ground'
   assert.ok(written.some((w) => w.includes('PFL Circle')), 'draws circle title');
   assert.ok(written.some((w) => w.includes('HIGH KEY')), 'marks High Key');
   assert.ok(written.some((w) => w.includes('LOW KEY')), 'marks Low Key');
-  assert.ok(written.some((w) => w.includes('BASE KEY')), 'marks Base Key');
+  assert.ok(written.some((w) => w.includes('FINAL KEY')), 'marks Final Key (spec 4.5 item 2: shown as "Final Key")');
   assert.ok(written.some((w) => w.includes('1.0 NM (90° Left)')), 'marks 90 deg left reference spoke');
 });
 
