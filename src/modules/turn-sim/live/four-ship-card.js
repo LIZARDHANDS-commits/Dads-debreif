@@ -57,7 +57,7 @@ export function cardForFour(state, wingSide) {
     ships: state.aircraft.map((a) => ({
       id: a.id,
       name: a.name,
-      text: `${a.kias} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
+      text: `${Math.round(a.kias)} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
     })),
   };
 }
