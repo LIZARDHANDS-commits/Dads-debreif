@@ -15,6 +15,7 @@ import { DEFAULTS, LIMITS } from '../../../src/modules/traffic/defaults.js';
 import { createSim } from '../../../src/modules/traffic/sim.js';
 import { createClock } from '../../../src/modules/traffic/clock.js';
 import { createSettings } from '../../../src/storage/settings.js';
+import { iasToTasKt } from '../../../src/core/t6-performance.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw.json', import.meta.url), 'utf8'));
 
@@ -76,7 +77,8 @@ test('wind settings reach the setup and update a running sim', () => {
   sim.stepTo(20.05);
   const a1After = sim.state().aircraft[0];
   assert.equal(a1After.crabDeg, 0);
-  assert.ok(Math.abs(a1After.groundSpeedKt - a1After.kt) <= 0.1);
+  // In calm air ground speed is the true airspeed (indicated airspeed corrected for height, standard day; Traffic spec item 8).
+  assert.ok(Math.abs(a1After.groundSpeedKt - iasToTasKt(a1After.kt, a1After.alt)) <= 0.1);
 });
 
 test('the settings the screen keeps start filled in from DEFAULTS, and a value of the wrong kind is refused', () => {

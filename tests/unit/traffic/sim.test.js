@@ -16,6 +16,7 @@ import { createSim, STEP_SEC, TYPE_COLORS } from '../../../src/modules/traffic/s
 import { createDice } from '../../../src/modules/traffic/dice.js';
 import { routeLengthFt, closestDistFt, positionAt } from '../../../src/modules/traffic/route.js';
 import { KT_TO_FTPS, ktToFtps } from '../../../src/core/units.js';
+import { iasToTasKt } from '../../../src/core/t6-performance.js';
 
 const MOOSE_JAW = JSON.parse(readFileSync(new URL('../../../src/modules/traffic/data/moose-jaw-v6.json', import.meta.url), 'utf8'));
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -103,11 +104,12 @@ test('an aircraft waits until its start time and then flies', () => {
   assert.ok(a.distFt > 0);
 });
 
-test('an aircraft moves along its route at the speed set there: 120 kt is 202.5 ft a second', () => {
+test('an aircraft moves along its route at the true airspeed for the speed set there: 120 KIAS at 2,000 ft is about 124 KTAS', () => {
   const sim = createSim(setupOf([straight(120)], [plane('A1', 'ST')]));
   sim.stepTo(10);
   const a = only(sim.state(), 'A1');
-  near(a.x, 120 * KT_TO_FTPS * 10, 1e-6);
+  // Calm air: ground speed is the true airspeed, 120 KIAS corrected for 2,000 ft on a standard day (aero; Traffic spec item 8). 1 ft allows for rounding over 200 steps.
+  near(a.x, iasToTasKt(120, 2000) * KT_TO_FTPS * 10, 1);
   assert.ok(Math.abs(only(sim.state(), 'A1').headingDeg - 90) <= 5, 'heading ~90°');
 });
 

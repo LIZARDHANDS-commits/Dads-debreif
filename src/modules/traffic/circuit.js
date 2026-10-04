@@ -89,6 +89,8 @@ function easedFraction(u, a = 0.2) {
   if (u > 1 - a) return 1 - peak * (1 - u) * (1 - u) / (2 * a);
   return peak * (u - a / 2);
 }
+/** Share of the final turn spent easing into and out of the descent at each end (about 3-4 s each). */
+const FINAL_TURN_EASE = 0.12;
 const acosDeg = (c) => Math.acos(clamp(c, -1, 1)) * 180 / Math.PI;
 const sinDeg = (d) => Math.sin(d * Math.PI / 180);
 
@@ -271,14 +273,19 @@ export function buildCircuit(points, windFromDeg = 360, windKt = 0) {
   let perch = { x: points[11].x, y: points[11].y };
   let inner = null;
   for (let i = 0; i < 6; i++) {
-    inner = flyInner(points, centre, breakAlong, perch, wind);
+    inner = flyInner(points, centre, breakAlong, perch, wind, inner?.finalTurnFt);
     const miss = { x: win.x - inner.rollout.x, y: win.y - inner.rollout.y };
     if (Math.hypot(miss.x, miss.y) < 5) break;
     perch = { x: perch.x + miss.x, y: perch.y + miss.y };
   }
   const outer = flyOuter(points, centre, breakAlong, wind);
   // The inner part starts where the outer one reached the break, so join them there.
-  return { track: [...outer.track, ...inner.track], perch, breakAlongFt: breakAlong };
+  // The route reads a point from the leg that ends at it, so the outer part's last
+  // point takes the break's phase: an aircraft started "at the break" is in the break.
+  const outerTrack = outer.track.slice();
+  const last = outerTrack.length - 1;
+  if (last >= 0) outerTrack[last] = { ...outerTrack[last], phase: inner.track[0]?.phase ?? outerTrack[last].phase };
+  return { track: [...outerTrack, ...inner.track], perch, breakAlongFt: breakAlong };
 }
 
 /** From the threshold round the outer pattern to the break point. */
@@ -361,7 +368,7 @@ function flyOuter(points, centre, breakAlong, wind) {
  * then the final approach to the threshold. Returns the path and where the
  * final turn rolled out.
  */
-function flyInner(points, centre, breakAlong, perch, wind) {
+function flyInner(points, centre, breakAlong, perch, wind, finalTurnFtGuess = null) {
   const th = points[0];
   const rwyTrack = centre.trackDeg;
   const along = breakAlong;
@@ -372,7 +379,7 @@ function flyInner(points, centre, breakAlong, perch, wind) {
   s.hdg = pilot.headingFor(rwyTrack);
   s.tag = 'break';
   pilot.record();
-  let stage = 'break', turned = 0, ftTotal = null, ftStartHdg = null, rollout = null, lastClimb = 0;
+  let stage = 'break', turned = 0, ftTotal = null, ftStartHdg = null, rollout = null, lastClimb = 0, ftDist = 0, finalTurnFt = null;
   const glideStart = { alt: null, dist: null };
   for (let n = 0; n < MAX_STEPS; n++) {
     const g = gFromBankDeg(s.bank);
@@ -406,13 +413,16 @@ function flyInner(points, centre, breakAlong, perch, wind) {
       const finalHdg = pilot.headingFor(rwyTrack);
       bank = bankFor(finalHdg, s, CIRCUIT.finalTurnBankDeg, 'left');
       accel = s.ias > CIRCUIT.finalTurnKias ? Math.max(idleDecel(s.ias, s.alt, g), (ktToFtps(iasToTasKt(CIRCUIT.finalTurnKias, s.alt)) - ktToFtps(pilot.tasKt())) / DT) : 0;
-      // Height: a smooth descent from pattern height to the window over the turn.
+      // Height: a steady descent from pattern height to the window over the turn,
+      // eased in and out at the ends. Spread over the distance the turn took on the
+      // last try (the perch is found by trying again), or over the angle on the first.
       const doneDeg = ((ftStartHdg - s.hdg) % 360 + 360) % 360;
-      const u = clamp(doneDeg / ftTotal, 0, 1);
-      const hNow = PATTERN_ALT_FT - (PATTERN_ALT_FT - points[12].alt) * easedFraction(u);
+      const u = finalTurnFtGuess ? clamp(ftDist / finalTurnFtGuess, 0, 1) : clamp(doneDeg / ftTotal, 0, 1);
+      const hNow = PATTERN_ALT_FT - (PATTERN_ALT_FT - points[12].alt) * easedFraction(u, FINAL_TURN_EASE);
       climb = (hNow - s.alt) / DT;
       if (Math.abs(wrapDeg180(finalHdg - s.hdg)) < 0.5 && Math.abs(s.bank) < 2) {
         rollout = { x: s.x, y: s.y };
+        finalTurnFt = ftDist;
         stage = 'final';
         pilot.mark({ src: 12, phase: 'final', tag: 'window' });
         s.tag = 'final';
@@ -435,9 +445,11 @@ function flyInner(points, centre, breakAlong, perch, wind) {
         break;
       }
     }
+    const xBefore = s.x, yBefore = s.y;
     pilot.step(bank, climb, accel);
     lastClimb = climb;
     if (stage === 'break') turned += Math.abs(wrapDeg180(s.hdg - hdgBefore));
+    if (stage === 'finalTurn') ftDist += Math.hypot(s.x - xBefore, s.y - yBefore);
   }
-  return { track: pilot.points, rollout: rollout ?? { x: s.x, y: s.y } };
+  return { track: pilot.points, rollout: rollout ?? { x: s.x, y: s.y }, finalTurnFt };
 }
