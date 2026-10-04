@@ -32,9 +32,8 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
-- **An on-screen look at the fight** from the default start (Smart pilot, deck rule, top-speed guard, OVERSPEED and BELOW DECK flags; v2.14 once #327 merges).
+- **An on-screen look at the fight** from the default start (Smart pilot, deck rule, top-speed guard, OVERSPEED and BELOW DECK flags; and the look-ahead spread over the steps, v2.15).
 - **The sign-off checklist's Energy section:** new wording posted in the thread 4 Oct for his word-for-word yes; written into `testing.md` only after it.
-- **The look-ahead freeze:** a Smart pick can freeze the screen up to about 0.3 s (0.1 s on Reset). Card posted 4 Oct: spread it out (recommended), a shorter look-ahead, or leave it.
 
 ### Settled when this module's work resumes
 

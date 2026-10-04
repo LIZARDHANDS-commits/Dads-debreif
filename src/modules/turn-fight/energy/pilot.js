@@ -5,10 +5,11 @@
 //
 // TF-57 PR 1 moved these here from energy-sim.js unchanged; PR 3 makes this the one place that picks moves.
 import { splitST6A } from '../../../core/t6-performance.js';
+import { FIGHT_STEP_SEC } from '../sim.js';
 import { MPT_WITHIN_KT, IMMELMANN_BAND_KIAS, PITCH_BACK_BAND_KIAS, SLICE_ENTRY_LOW_KIAS, TUNING, MOVE_LABELS, ENERGY_DEFAULT_SETUP, round, feet } from './setup.js';
 import { noseAngleDeg, noseOffAzDeg } from './frame.js';
 import { startMove, handToMpt, startPursuit } from './moves/index.js';
-import { noseOnRace, immelmannTopKias, pickTacticalMove } from './lookahead.js';
+import { noseOnRace, immelmannTopKias, pickTacticalMove, tacticalPickSteps } from './lookahead.js';
 import { onTheOther, noseOffDeg, shouldPursueTactical } from './judge.js';
 
 // ── Auto's table ─────────────────────────────────────────────────────────────
@@ -209,37 +210,79 @@ function endLostChase(state, ac, other, kias, d) {
  * The Smart pilot's look-ahead pick (TF-59): flies each move it could change to ahead in a copy of the fight and
  * starts the best, unless that is the MPT (which the jet is already in). Only after the pass, not in a dry run,
  * when a chase is possible (pursuit not none), the fight is not lost below the deck, the jet is more than the deck
- * margin above the deck and not stalled or OVER G, and the best run is one a pilot would fly. Returns true when it
- * started a move.
+ * margin above the deck and not stalled or OVER G, and the best run is one a pilot would fly.
+ *
+ * The pilot takes smartDecisionSec to decide (TF-62, Patrick 4 Oct 19:38Z: spread it out): the look-ahead starts from
+ * where the jet will be then, flying on as it is, and its work is shared evenly over the steps until then, so the
+ * screen never freezes; the move starts at that moment. 0 decides in this step, all at once, as before.
+ * Returns true when it started a move in this step.
  */
 function smartPickNow(state, ac, kias) {
-  const p = state.setup, c = ac.ctl;
+  if (!canPick(state, ac)) return false;
+  const p = state.setup;
+  ac.ctl.mptEvalTimer = 0;
+  const sec = p.tacticalLookaheadSec ?? 20;
+  const steps = Math.round((p.smartDecisionSec ?? 0) / FIGHT_STEP_SEC);
+  if (steps < 1) return startPick(state, ac, pickTacticalMove(state, ac.who, sec), kias);
+  const gen = tacticalPickSteps(state, ac.who, sec, steps * FIGHT_STEP_SEC);
+  const first = gen.next(); // the copy flies on to the moment of the pick, then says how much work is left
+  PENDING.set(ac, { gen, stepsLeft: steps, perStep: Math.ceil((first.value?.work ?? 0) / steps) + 1, result: first.done ? first.value : null });
+  return false;
+}
+
+/** A look-ahead being worked through, per aircraft. Kept off the fight state, so copies of the fight (dry runs) never carry one. */
+const PENDING = new WeakMap();
+
+function canPick(state, ac) {
+  const p = state.setup;
   const forced = ac.who === 'blue' ? p.blueMove : p.redMove;
   if (state.dry || !state.merged || !isSmart(forced) || p.pursuit === 'none' || state.deckLoss) return false;
-  if (ac.altFt - p.hardDeckFt <= (p.deckMarginFt ?? 1000) || ac.stall || ac.overG) return false;
-  c.mptEvalTimer = 0;
-  const best = pickTacticalMove(state, ac.who, p.tacticalLookaheadSec ?? 20);
+  return !(ac.altFt - p.hardDeckFt <= (p.deckMarginFt ?? 1000) || ac.stall || ac.overG);
+}
+
+function startPick(state, ac, best, kias) {
   if (!best || !best.valid || best.move === 'mpt' || best.move === 'levelMpt') return false;
   startMove(state, ac, best.move, best.why, kias);
-  c.lockoutTimer = 4.0;
+  ac.ctl.lockoutTimer = 4.0;
   return true;
 }
 
 /**
- * The pilot's look at a new move while it flies the MPT: every 3.5 s, after a 4 s lock-out, once the MPT has found
- * its speed (smartPickNow). Runs before the MPT's controller, so a new move flies from this same step.
+ * One step's share of a pending look-ahead; at the moment of the pick it starts the move. Dropped if the jet can no
+ * longer use it: a chase began, a stall, or it came within the deck margin.
+ */
+function workOnPick(state, ac, kias) {
+  const job = PENDING.get(ac);
+  if (!job) return false;
+  if (!canPick(state, ac) || (ac.ctl.mode !== 'mpt' && ac.ctl.mode !== 'levelMpt')) { PENDING.delete(ac); return false; }
+  job.stepsLeft -= 1;
+  const share = job.stepsLeft <= 0 ? Infinity : job.perStep;
+  for (let i = 0; i < share && !job.result; i++) {
+    const next = job.gen.next();
+    if (next.done) job.result = next.value;
+  }
+  if (job.stepsLeft > 0) return false;
+  PENDING.delete(ac);
+  return startPick(state, ac, job.result, kias);
+}
+
+/**
+ * The pilot's look at a new move while it flies the MPT: works on a pending look-ahead, and every 3.5 s, after a 4 s
+ * lock-out, once the MPT has found its speed, starts a new one (smartPickNow). Runs before the MPT's controller, so a
+ * new move flies from this same step.
  */
 export function reconsiderInMpt(ctx) {
   const { state, ac, kias, d } = ctx;
   const c = ac.ctl;
   if (!state.dry && state.merged && (c.mode === 'mpt' || c.mode === 'levelMpt')) {
     if (c.lockoutTimer > 0) c.lockoutTimer = Math.max(0, c.lockoutTimer - d);
+    if (PENDING.has(ac)) { workOnPick(state, ac, kias); return; }
     c.mptEvalTimer = (c.mptEvalTimer || 0) + d;
     if (c.mptEvalTimer >= 3.5 && (c.lockoutTimer || 0) <= 0) {
       c.mptEvalTimer = 0;
       if (!c.capture) smartPickNow(state, ac, kias);
     }
-  }
+  } else if (PENDING.has(ac)) PENDING.delete(ac);
 }
 
 // ── Starting a chase ─────────────────────────────────────────────────────────
