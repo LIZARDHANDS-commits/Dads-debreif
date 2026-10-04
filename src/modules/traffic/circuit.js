@@ -228,6 +228,35 @@ export function idleDecel(ias, alt, g) {
 }
 
 /**
+ * Full power toward `kias`, climbing to `toAltFt` with a smooth level-off (LEVEL_OFF_SEC): above `kias`
+ * the extra speed is traded for height over about ZOOM_SEC, and once held level by the level-off the
+ * power comes back, down to idle, to slow toward it; below `kias` it climbs at half the full-power rate
+ * while it speeds up. The climb comes from excess thrust at the turn's real G (spec item 16). Used by
+ * the climb to High Key and the closed pattern. Returns { climb, accel, climbMax } (ft/s, ft/s², ft/s).
+ */
+export function powerClimb(pilot, kias, toAltFt) {
+  const { s } = pilot;
+  const g = gFromBankDeg(s.bank);
+  const v = ktToFtps(pilot.tasKt());
+  const levelCap = Math.max(0, (toAltFt - s.alt) / LEVEL_OFF_SEC);
+  const climbMax = Math.max(0, excessThrustPerWeight(s.ias, s.alt, g)) * v;
+  let climb, accel;
+  if (s.ias > kias + 0.5) {
+    const decel = -(s.ias - kias) * KT_TO_FTPS / ZOOM_SEC;
+    climb = Math.min(v * (excessThrustPerWeight(s.ias, s.alt, g) - decel / G_FTPS2), levelCap);
+    const toTarget = (ktToFtps(iasToTasKt(kias, s.alt)) - v) / DT;
+    accel = Math.min(accelFor(s.ias, s.alt, g, climb), Math.max(idleDecel(s.ias, s.alt, g), toTarget));
+  } else if (s.ias < kias - 0.5) {
+    climb = Math.min(levelCap, climbMax * 0.5);
+    accel = accelFor(s.ias, s.alt, g, climb);
+  } else {
+    climb = Math.min(levelCap, climbMax);
+    accel = 0;
+  }
+  return { climb, accel, climbMax };
+}
+
+/**
  * Speed in the break, KIAS, at a fraction of the 180° turn: today's curve,
  * 220 × e^(−0.452 u), about 140 at the end (Traffic spec 3.7, "Break deceleration
  * (preserved)"). Patrick: the rollout downwind is about 140 (08:43Z, 4 Oct).

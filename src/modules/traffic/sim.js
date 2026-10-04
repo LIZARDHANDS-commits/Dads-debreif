@@ -28,13 +28,14 @@
 // and the events stay in that replay. The dice are still shared (per-aircraft dice are task 12).
 import { ktToFtps } from '../../core/units.js';
 import { createDice } from './dice.js';
-import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt } from './route.js';
+import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOnRoute, closestDistFt, routePath } from './route.js';
 import { tickAircraft, initMode } from './tick-aircraft.js';
 import { startJoin, startSideStep } from './path-follower.js';
 import { makePflFromArea } from './nav-plans.js';
 import { startPflFlight, PFL_ROUTE_OPTIONS } from './pfl.js';
 import { buildGoAround } from './circuit.js';
 import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
+import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 import { buildFlinch, buildClimbAhead, buildRejoin, EVADE } from './evade.js';
 import { PATTERN_ALT_FT } from './airfield.js';
@@ -134,6 +135,10 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
 
   // ── Aircraft ───────────────────────────────────────────────────────────────
 
+  /** The aircraft's state for a move flown from where it is. */
+  const stateOf = (a) => ({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 220, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0 });
+  const windNow = () => ({ windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 });
+
   /**
    * Puts an aircraft at the start of its route, as V6's `resetAircraftToStarts` does (line 411), and
    * clears `landed` as that does. (V6's Reset button, `reset`, line 239, left `landed` set.)
@@ -168,9 +173,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const startWp = route.points?.[a.startIndex];
     const isClosedPatternStart = route.id === 'PAT1' && (startWp?.tag === 'departure_end' || a.startIndex === 1 || /closed\s*pattern/i.test(startWp?.label || ''));
     if (isClosedPatternStart) {
-      a.mode = 'PHYSICS';
-      a.phase = 'closed_pattern';
-      a.command = 'closed_pattern';
       a.alt = 2400;
       a.iasKt = 140;
       a.headingDeg = 298;
@@ -178,7 +180,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       a.y = route.points[a.startIndex]?.y ?? 680.56;
       a.closedPatternBankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
       a.closedPatternPitchDeg = a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
-      a._closedPhase = 1;
+      startClosedPattern(a);
     } else {
       const isBrkPoint = route.id === 'PAT1' && (startWp?.tag === 'break' || a.startIndex === 9 || p.seg === 9 || a.startIndex === 2 || p.seg === 2 || /break/i.test(startWp?.label || ''));
       a.phase = p.phase || (isBrkPoint ? 'break' : 'initial');
@@ -247,18 +249,43 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     return across < 2000 && off < 60 && along > -3 * 6076 && along < rwy.len;
   }
 
-  /** Starts the closed pattern's climbing turn from where the aircraft is. */
+  /**
+   * The inner downwind of Pattern 1 as built today: where the break rolls out and the perch, from the
+   * built circuit (they move with the wind), or the route's own Break exit and Perch points.
+   */
+  function innerDownwind(pat) {
+    const built = routePath(pat, routeOptions()).points;
+    const rollout = built.find((p) => p.tag === 'break_rollout') ?? pat.points[10];
+    const perch = built.find((p) => p.tag === 'perch') ?? pat.points[11];
+    return rollout && perch ? { rollout, perch } : null;
+  }
+
+  /**
+   * The closed pattern from where the aircraft is (Traffic spec 1a item 19, TR-R33; closed-pattern.js flies
+   * it): one climbing left turn onto the inner downwind, followed by the path follower like the go-around;
+   * at its end Pattern 1 carries on from the downwind (goAroundEnded).
+   */
   function startClosedPattern(a) {
     a.pendingClosed = false;
+    const pat = routeById('PAT1') ?? setup.routes.find((r) => r.kind === 'pattern');
+    const downwind = pat && innerDownwind(pat);
+    if (!downwind) return;
+    const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+    const points = buildClosedPattern(stateOf(a), windNow(), downwind, bankDeg);
+    a.goAroundFlight = { route: { id: 'CLOSED_FLOWN', kind: 'flown', name: 'Closed pattern', points } };
+    a.distFt = 0;
+    a.mode = 'RAIL';
+    a.phase = 'closed_pattern';
     a.command = 'closed_pattern';
     a.landed = false;
     a.active = true;
-    a.mode = 'PHYSICS';
+    delete a.joinOffset;
+    delete a.navPlan;
+    delete a._activeCommand;
+    delete a._closedPhase;
     delete a._blendStart;
     delete a._blendTarget;
     delete a._blendTimer;
-    a.phase = 'closed_pattern';
-    a._closedPhase = 1;
   }
 
   /** Land or stay, and take a split or not, as an aircraft flies along a pattern (V6 `checkDecisions`, line 385). */
@@ -380,9 +407,6 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     a.intent = 'overhead';
   }
 
-  /** The aircraft's state for a move flown from where it is. */
-  const stateOf = (a) => ({ x: a.x, y: a.y, alt: a.alt, kias: a.iasKt ?? a.kt ?? 220, headingDeg: a.headingDeg ?? 298, bankDeg: a.bankDeg ?? 0 });
-  const windNow = () => ({ windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 });
 
   /**
    * A short move flown from where the aircraft is (evade.js), followed by the path follower like the go-around.
@@ -498,7 +522,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     startJoin(a, pat, closestDistFt(pat, a, opt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
     a.phase = posOnRoute(pat, a.distFt, opt).phase || 'downwind';
     a.mode = 'RAIL';
-    if (a.command === 'go_around') a.command = null;
+    if (a.command === 'go_around' || a.command === 'closed_pattern') a.command = null;
   }
 
   /** The end of an entry or split: join the pattern it is linked to, or finish (V6 `handleRouteEnd`, line 365). */
