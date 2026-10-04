@@ -93,7 +93,10 @@ export function scenarioAircraft(id, { routes, builtIn = [], seed = 1, type = 'C
   const scenario = SCENARIOS.find((s) => s.id === id);
   if (!scenario) throw new RangeError(`unknown scenario ${id}`);
   const starts = id === 'random' ? randomStarts(routes, seed) : id === 'busy' ? busyStarts(routes, seed) : scenario.starts.filter((s) => have.has(s.routeId));
-  return starts.map((s, i) => ({ id: `A${i + 1}`, type, routeId: s.routeId, startIndex: s.startIndex, startsAtSec: s.startsAtSec, ...(s.area ? { area: { ...s.area } } : {}) }));
+  return starts.map((s, i) => {
+    const area = /** @type {{ area?: { radialDeg: number, distNm: number, altFt: number } }} */ (s).area;
+    return { id: `A${i + 1}`, type, routeId: s.routeId, startIndex: s.startIndex, startsAtSec: s.startsAtSec, ...(area ? { area: { ...area } } : {}) };
+  });
 }
 
 /**

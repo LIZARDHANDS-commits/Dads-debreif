@@ -61,4 +61,6 @@ The two copies of the queue name some rows differently; both names are given. Pa
 ## Feature Ideas for the Traffic Sim
 
 - **Overhead break explorable**: break interval, bank and G against downwind spacing, plus a puzzle about where number two is when the lead rolls out; extends the Traffic Sim (Feature Ideas idea 27; value medium, effort small; flight math, so it needs a check first; `pf/reset/2-inventory/agents/sources/feature-ideas.md:29`)
+- A parachute animation when a PFL aircraft ejects (today a red ✕ marks the spot) (listed 4 Oct, after the 3D ground photo work, #317).
+- **3D speed:** Performance graphics cut the ground photos to 2,048 px; the sharpest (zoom 18) photo layer loads only when the camera is low near the field; and a frame-time readout to see what the 3D view costs (listed 4 Oct, after #317).
 - Runway and airfield data for any airfield (idea 7, old FF20) is needed for TR-R26 beyond Moose Jaw; it is listed once, in `../shared/future.md`.
