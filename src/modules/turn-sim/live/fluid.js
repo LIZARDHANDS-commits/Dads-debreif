@@ -14,7 +14,7 @@ import { FTPS_TO_KT, G_FTPS2 } from '../../../core/units.js';
 import { applyPose } from './kinematic.js';
 import { len3, sub3, poseOf3d, rollRateDps, unit3, dot3 } from './attitude.js';
 import { LEAD, FLUID_MOVES, leadStateOf, stepLead, levelTurn, wingsLevel, hold, reversal, entry, terminate, climbOrDescend, loop } from './fluid-lead.js';
-import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING } from './fluid-wing.js';
+import { startWing, nextWing, rawWingPoint, smoothPoint, wingPose, levelUpOf, WING, swapWanted, swapSide, wingValues } from './fluid-wing.js';
 
 const dt = STEP_SEC;
 const DEG = Math.PI / 180;
@@ -24,6 +24,8 @@ const AHEAD_STEPS = Math.round(20 / dt);
 const SEED_STEPS = Math.round(WING.maxBehindSec / dt) + 20;
 /** A guard on how far ahead the planner looks for the end of a manoeuvre a press must wait for. */
 const WAIT_LIMIT_STEPS = Math.round(240 / dt);
+/** How far apart #2's angles off the tail are read for his drift across the cone (the side swap): 0.25 s (estimate). */
+const SWAP_LOOK_STEPS = Math.round(0.25 / dt);
 
 /** The fluid manoeuvring numbers (Patrick's picks of 19:20Z, fluid-conflicts.md, unless said). */
 export const FLUID = Object.freeze({
@@ -53,7 +55,7 @@ export const LEVEL_BANKS = Object.freeze([
 export const bankDegFor = (value) => (LEVEL_BANKS.find((b) => b.value === value) ?? LEVEL_BANKS[1]).deg;
 
 /** The words for #2's pursuit, for the tags and the card. */
-export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LEAD' });
+export const PURSUIT_WORDS = Object.freeze({ lag: 'LAG', pure: 'PURE', lead: 'LEAD', swap: 'SWAPPING' });
 
 /**
  * A new session from fighting wing. lead, wing: the live aircraft (flight.js) at the press; t0 the formation time.
@@ -107,7 +109,17 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
     const r = e.ctl.step(e.st, mem, { wingSide: e.wing.side });
     const st = stepLead(e.st, r);
     const t = t0 + (kMax + 1) * dt;
-    const w = nextWing(e.wing, r.cue, t, rangeFt);
+    let w = nextWing(e.wing, r.cue, t, rangeFt);
+    // The side swap (fluid-wing.js swapWanted): from where #2 is now and how he is drifting, worked out from what is
+    // already flown (his raw points up to this step), so a press of Lead's never changes a swap already begun.
+    if (kMax - 2 * SWAP_LOOK_STEPS > kMin + SEED_STEPS) {
+      const [p0, p1, p2] = [R(kMax).latRad, R(kMax - SWAP_LOOK_STEPS).latRad, R(kMax - 2 * SWAP_LOOK_STEPS).latRad];
+      const h = SWAP_LOOK_STEPS * dt;
+      const rate = (p0 - p1) / h;
+      const s = e.wing.side;
+      const blend = wingValues(e.wing, e.t).blend;
+      if (swapWanted((s * p0) / DEG, (s * rate) / DEG, { blend, t, swapUntil: e.wing.swapUntil })) w = swapSide(w, t, rate);
+    }
     let ctl = e.ctl;
     let next = mem;
     let queue = e.queue;
@@ -244,7 +256,7 @@ export function createFluidSession(lead, wing, t0, opts = {}) {
       wing.turning = !this.done;
     },
     /**
-     * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'entry' | 'back to fighting wing'),
+     * What is flown now: { key, label, phase, manId, wingCue ('lag' | 'pure' | 'lead' | 'swap' | 'entry' | 'back to fighting wing'),
      * behindSec, speeds }. speeds: for the loop being flown, or the last one while Lead flies straight on after it,
      * { label, entryKias, exitKias (null until flown), book: { entryKias, exitKias, source } }; else null.
      */
