@@ -21,9 +21,6 @@ export const STEP_SEC = 0.05;
 /** Roll limits: up to 90°/s (Patrick, 4 Oct 08:54Z), building and dying away at 360°/s² (Patrick, card 09:54Z). */
 export const ROLL = Object.freeze({ maxRateDps: 90, maxAccelDps2: 360 });
 
-/** A roll-out that leaves the heading this close (radians, about 1°) to its target finishes on the target. */
-const HEADING_SETTLE_RAD = 0.02;
-
 /**
  * A new aircraft, straight and level.
  * @param {{id: number, xFt: number, yFt: number, headingRad: number, kias: number, tasFtps: number}} init
@@ -55,20 +52,32 @@ export function angleToGo(fromRad, toRad, dir) {
   return d < -1e-9 ? d + 2 * Math.PI : Math.max(0, d);
 }
 
+/**
+ * The heading change over one step whose bank goes from `fromDeg` to `toDeg`: the
+ * turn rate at the step's mean (trapezoid), so a roll-in and its roll-out are mirror
+ * images and a turn's path is the same whichever way it is flown.
+ */
+function stepTurnRad(tasFtps, fromDeg, toDeg) {
+  return ((turnRateFromBankRadPerSec(tasFtps, fromDeg) + turnRateFromBankRadPerSec(tasFtps, toDeg)) / 2) * STEP_SEC;
+}
+
 /** How much the heading still changes (radians, signed) if the wings are rolled level from here. */
 export function headingChangeRollingOut(bankDeg, rollRateDps, tasFtps) {
   let bank = bankDeg;
   let rate = rollRateDps;
   let change = 0;
   for (let i = 0; i < 400 && (Math.abs(bank) > 1e-6 || Math.abs(rate) > 1e-6); i++) {
+    const before = bank;
     ({ bankDeg: bank, rollRateDps: rate } = easeRoll(bank, rate, 0, STEP_SEC, ROLL));
-    change += turnRateFromBankRadPerSec(tasFtps, bank) * STEP_SEC;
+    change += stepTurnRad(tasFtps, before, bank);
   }
   return change;
 }
 
 /**
- * Height on a smooth (half-cosine) profile: { t0, t1, fromFt, toFt } in formation seconds.
+ * Height on a smooth profile: legs { t0, t1, fromFt, toFt } in formation seconds. Each leg
+ * starts and ends with no climb and no vertical acceleration (the smootherstep curve), so
+ * the pitch and the pitch rate carry straight on across every join.
  * Returns { altAboveFt, climbFtps } at time t, or null when t is outside every leg.
  */
 export function heightAt(profile, t) {
@@ -78,8 +87,8 @@ export function heightAt(profile, t) {
     const u = (t - leg.t0) / span;
     const rise = leg.toFt - leg.fromFt;
     return {
-      altAboveFt: leg.fromFt + (rise * (1 - Math.cos(Math.PI * u))) / 2,
-      climbFtps: (rise * Math.PI * Math.sin(Math.PI * u)) / (2 * span),
+      altAboveFt: leg.fromFt + rise * u * u * u * (10 - 15 * u + 6 * u * u),
+      climbFtps: (rise * 30 * u * u * (1 - u) * (1 - u)) / span,
     };
   }
   return null;
@@ -123,19 +132,20 @@ export function stepAircraft(a, plan, t) {
     }
     if (seg.rollingOut) {
       targetBank = 0;
-      if (Math.abs(a.bankDeg) < 1e-6 && Math.abs(a.rollRateDps) < 1e-6) {
-        // Wings level: a sliver of heading left over from the fixed step is taken out, never more than about 1°.
-        const left = wrapPi(seg.toRad - a.headingRad);
-        if (Math.abs(left) <= HEADING_SETTLE_RAD) a.headingRad = seg.toRad;
-        plan.segments.shift();
-      }
+      // Wings level: the turn is done. The heading is never nudged onto the target, so nothing jumps;
+      // what the fixed step leaves over is a fraction of a degree, the same for every aircraft flying the same turn.
+      if (Math.abs(a.bankDeg) < 1e-6 && Math.abs(a.rollRateDps) < 1e-6) plan.segments.shift();
     }
   }
 
+  const bankBefore = a.bankDeg;
+  const headingBefore = a.headingRad;
+  const climbBefore = a.climbFtps;
   const rolled = easeRoll(a.bankDeg, a.rollRateDps, targetBank, dt, ROLL);
   a.bankDeg = Math.abs(rolled.bankDeg) < 1e-9 ? 0 : rolled.bankDeg;
   a.rollRateDps = Math.abs(rolled.rollRateDps) < 1e-9 ? 0 : rolled.rollRateDps;
-  a.headingRad = wrapPi(a.headingRad + turnRateFromBankRadPerSec(a.tasFtps, a.bankDeg) * dt);
+  const turned = stepTurnRad(a.tasFtps, bankBefore, a.bankDeg);
+  a.headingRad = wrapPi(headingBefore + turned);
   a.g = gFromBankDeg(a.bankDeg);
   a.turning = a.bankDeg !== 0 || plan.segments.length > 0;
 
@@ -146,11 +156,24 @@ export function stepAircraft(a, plan, t) {
   } else {
     a.climbFtps = 0;
   }
-  // Level flight at constant speed: the path is flown at the aircraft's true airspeed (Patrick, card 09:54Z).
-  const horiz = Math.sqrt(Math.max(0, a.tasFtps * a.tasFtps - a.climbFtps * a.climbFtps));
-  a.xFt += Math.cos(a.headingRad) * horiz * dt;
-  a.yFt += Math.sin(a.headingRad) * horiz * dt;
-  a.pitchDeg = pitchDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g);
+  // Constant speed: the path is flown at the aircraft's true airspeed (Patrick, card 09:54Z), along the
+  // step's middle heading and with the step's mean climb, so the path has no lean either way.
+  const climb = (climbBefore + a.climbFtps) / 2;
+  const horiz = Math.sqrt(Math.max(0, a.tasFtps * a.tasFtps - climb * climb));
+  const middle = headingBefore + turned / 2;
+  a.xFt += Math.cos(middle) * horiz * dt;
+  a.yFt += Math.sin(middle) * horiz * dt;
+  a.pitchDeg = pitchAboveHorizonDeg(a);
+}
+
+/**
+ * The nose above the horizon: the climb angle plus the angle of attack, which in a
+ * banked turn is tilted with the wings, so only its cos(bank) share lifts the nose.
+ * The shared formula's angle of attack grows with G, so passing G x cos(bank) gives
+ * that share (1 in a level turn, where G = 1 / cos(bank)).
+ */
+function pitchAboveHorizonDeg(a) {
+  return pitchDegFromClimb(a.climbFtps, a.tasFtps, a.kias, a.g * Math.cos((a.bankDeg * Math.PI) / 180));
 }
 
 /** True when the aircraft has flown every segment and its wings are level. */

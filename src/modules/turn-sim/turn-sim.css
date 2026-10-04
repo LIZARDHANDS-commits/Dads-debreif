@@ -1,6 +1,7 @@
-/* The Formation Turn Sim's screen (SPEC-turn-sim: The screen). Everything is
-   scoped to the Turn Sim, so nothing here reaches another module. Colours and
-   spacing come from the ui-kit tokens. Three columns, none over another. */
+/* The Formation Turn Sim's screen, first version (docs/modules/turn-sim/spec.md,
+   "The screen"). Everything is scoped to the Turn Sim, so nothing here reaches
+   another module. Colours and spacing come from the ui-kit tokens. Three
+   columns, none over another. */
 
 [data-module='turn-sim'] .turn-sim {
   display: grid;
@@ -125,10 +126,6 @@
   margin-top: var(--space-1);
 }
 
-[data-module='turn-sim'] .ts-auto {
-  margin-bottom: var(--space-2);
-}
-
 [data-module='turn-sim'] .ts-warning,
 [data-module='turn-sim'] .ts-message {
   margin: 0 0 var(--space-2);
@@ -144,42 +141,82 @@
 
 [data-module='turn-sim'] .ts-warning[hidden],
 [data-module='turn-sim'] .ts-message[hidden],
-[data-module='turn-sim'] .ts-flags[hidden] {
+[data-module='turn-sim'] .ts-flags[hidden],
+[data-module='turn-sim'] .ts-turn[hidden] {
   display: none;
 }
 
-[data-module='turn-sim'] .ts-reset {
-  min-height: 2rem;
-  padding: var(--space-1) var(--space-3);
+/* Manoeuvres: the name, then a Left and a Right button, each saying into or away from #2. */
+[data-module='turn-sim'] .ts-move {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 5rem;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+[data-module='turn-sim'] .ts-move-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-module='turn-sim'] .ts-move-name {
+  font-weight: 600;
+}
+
+[data-module='turn-sim'] .ts-move-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  line-height: 1.15;
+}
+
+[data-module='turn-sim'] .ts-move-hint {
+  color: var(--text-muted);
   font-size: var(--text-sm);
 }
 
-[data-module='turn-sim'] .ts-group {
+[data-module='turn-sim'] .ts-queue {
+  min-height: 1.25rem;
   margin: 0 0 var(--space-3);
-  padding: 0 0 var(--space-2);
-  border-bottom: 1px solid var(--border);
 }
 
-[data-module='turn-sim'] .ts-position {
-  margin: 0 0 var(--space-2) var(--space-3);
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--border);
-}
-
-[data-module='turn-sim'] .ts-position[hidden] {
-  display: none;
-}
-
-[data-module='turn-sim'] .settings-group[hidden],
-[data-module='turn-sim'] .ts-group[hidden] {
-  display: none;
+[data-module='turn-sim'] .ts-setup {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
 }
 
 [data-module='turn-sim'] .ts-group-title {
-  margin: 0 0 var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
   color: var(--accent-strong);
   font-size: var(--text-sm);
   letter-spacing: 0.02em;
+}
+
+[data-module='turn-sim'] .ts-setup .ts-group-title {
+  margin-top: 0;
+}
+
+[data-module='turn-sim'] .ts-fixed {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The last roll-out: the words say it; colour only backs them up. */
+[data-module='turn-sim'] .ts-judged.tone-good {
+  color: var(--good);
+}
+
+[data-module='turn-sim'] .ts-judged.tone-caution {
+  color: var(--caution);
+}
+
+[data-module='turn-sim'] .ts-judged.tone-none {
+  color: var(--text-muted);
 }
 
 /* Stage: the playback bar and toolbar above the picture, never over it. */
@@ -316,11 +353,6 @@
   font-size: var(--text-sm);
 }
 
-[data-module='turn-sim'] .ts-detail h3 {
-  margin: var(--space-3) 0 var(--space-1);
-  font-size: var(--text-sm);
-}
-
 [data-module='turn-sim'] .ts-lines {
   margin: 0;
   padding: 0;
@@ -331,23 +363,6 @@
 
 [data-module='turn-sim'] .ts-lines li {
   padding: 0.125rem 0;
-}
-
-[data-module='turn-sim'] .ts-summary {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-}
-
-[data-module='turn-sim'] .ts-summary th {
-  color: var(--text-muted);
-  font-weight: normal;
-  text-align: left;
-}
-
-[data-module='turn-sim'] .ts-summary td {
-  text-align: right;
 }
 
 [data-module='turn-sim'] .ship-swatch {
@@ -402,10 +417,6 @@
   cursor: grabbing;
 }
 
-[data-module='turn-sim'] .ts-lines .tone-caution {
-  color: var(--caution);
-}
-
 /* Narrow screens (a phone, a small window): one column, so nothing sits over anything else (TS-11).
    The playback bar and picture come first, then Setup, then the Formation card. */
 @media (max-width: 900px) {
@@ -443,10 +454,3 @@
   }
 }
 
-[data-module='turn-sim'] .ts-cross-note[hidden] {
-  display: none;
-}
-
-[data-module='turn-sim'] .ts-cross-note.is-clamped {
-  color: var(--caution);
-}

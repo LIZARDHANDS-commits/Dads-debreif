@@ -36,6 +36,9 @@ export const MANOEUVRES = Object.freeze({
   crossTurn: { label: 'Cross turn', kind: 'cross', turnDeg: 180, sided: false, source: 'SMM 16.19 para 64, Fig 16.21' },
 });
 
+/** A heading rounded to the whole degree, so a turn aims at 090, not at 089.8 left over from the last one. */
+const DEG = Math.PI / 180;
+const wholeDegree = (rad) => wrapPi(Math.round(rad / DEG) * DEG);
 const unit = (h) => ({ x: Math.cos(h), y: Math.sin(h) });
 const dot = (a, b) => a.x * b.x + a.y * b.y;
 /** Rounds a time to the fixed step, so two aircraft flying the same turn at different times fly exact copies of it. */
@@ -87,10 +90,12 @@ const turnSeg = (toRad, dir, bankDeg, rollOut = true) => ({ kind: 'turn', toRad,
 function delayed(pair, m, dir, t0) {
   const [lead, wing] = pair;
   const h0 = lead.headingRad;
-  const h1 = wrapPi(h0 + dir * (m.turnDeg * Math.PI) / 180);
+  const h1 = wholeDegree(h0 + dir * m.turnDeg * DEG);
   const v = lead.tasFtps;
   const u0 = unit(h0);
-  const u1 = unit(h1);
+  const turn = [turnSeg(h1, dir, TURN_BANK_DEG)];
+  // The heading the turn really rolls out on (the fixed step leaves a fraction of a degree), from a dry run.
+  const u1 = unit(dryRun(lead, { segments: turn }, t0).end.headingRad);
   const waitFor = (first, second) => {
     const rel = { x: second.xFt - first.xFt, y: second.yFt - first.yFt };
     return dot(rel, u1) / (v * (1 - dot(u0, u1)));
@@ -106,15 +111,15 @@ function delayed(pair, m, dir, t0) {
   }
   wait = onStep(wait);
   const plans = {
-    [first.id]: { segments: [turnSeg(h1, dir, TURN_BANK_DEG)] },
-    [second.id]: { segments: [{ kind: 'hold', untilSec: t0 + wait }, turnSeg(h1, dir, TURN_BANK_DEG)] },
+    [first.id]: { segments: turn.map((seg) => ({ ...seg })) },
+    [second.id]: { segments: [{ kind: 'hold', untilSec: t0 + wait }, ...turn.map((seg) => ({ ...seg }))] },
   };
   return { plans, firstId: first.id, note: `${first.id === lead.id ? 'Lead' : '#2'} goes first (outside of the turn); the other waits ${wait.toFixed(1)} s and rolls out abeam.` };
 }
 
 /** Check, in-place and hook turns: both roll in together and fly the same turn (SMM 16.19 paras 58-60). */
 function together(pair, m, dir) {
-  const h1 = wrapPi(pair[0].headingRad + dir * (m.turnDeg * Math.PI) / 180);
+  const h1 = wholeDegree(pair[0].headingRad + dir * m.turnDeg * DEG);
   const plans = {};
   for (const a of pair) plans[a.id] = { segments: [turnSeg(h1, dir, TURN_BANK_DEG)] };
   const what = m.turnDeg >= 180 ? 'Both turn together through 180 and roll out abreast.' : m.turnDeg > 30 ? 'Both turn together and roll out in trail.' : 'Both turn together; the line between them turns with them.';
@@ -147,28 +152,35 @@ function sideways(aircraft, segments, dir, t0) {
  */
 function shackle(pair, t0) {
   const [lead, wing] = pair;
-  const h0 = lead.headingRad;
+  const h0 = wholeDegree(lead.headingRad);
   const rel = relativeTo(lead, wing);
   const spacing = Math.abs(rel.left);
   const leadDir = Math.sign(rel.left) || 1; // Lead turns toward the wingman
   const quarter = Math.PI / 4;
-  const out = sideways(lead, [turnSeg(wrapPi(h0 + leadDir * quarter), leadDir, TURN_BANK_DEG)], leadDir, t0);
   const v = lead.tasFtps;
-  const straight = onStep(Math.max(0, (spacing - 2 * out.sideFt) / (v * Math.sin(quarter))));
-  const build = (dir) => [
+  const out = sideways(lead, [turnSeg(wrapPi(h0 + leadDir * quarter), leadDir, TURN_BANK_DEG)], leadDir, t0);
+  const build = (dir, straight) => [
     turnSeg(wrapPi(h0 + dir * quarter), dir, TURN_BANK_DEG),
     { kind: 'hold', untilSec: t0 + onStep(out.durationSec) + straight },
     turnSeg(h0, -dir, TURN_BANK_DEG),
   ];
-  const leadSegs = build(leadDir);
-  const end = t0 + 2 * out.durationSec + straight;
+  // First guess from the geometry, then two corrections from dry runs of the whole programme,
+  // so each aircraft moves sideways by the spacing and they roll out at the spacing they started at.
+  let straight = Math.max(0, (spacing - 2 * out.sideFt) / (v * Math.sin(quarter)));
+  let run = sideways(lead, build(leadDir, onStep(straight)), leadDir, t0);
+  for (let i = 0; i < 2 && straight > 0; i++) {
+    straight = Math.max(0, straight + (spacing - run.sideFt) / (v * Math.sin(quarter)));
+    run = sideways(lead, build(leadDir, onStep(straight)), leadDir, t0);
+  }
+  straight = onStep(straight);
+  const end = t0 + run.durationSec;
   const cross = t0 + out.durationSec + straight / 2;
   return {
     plans: {
-      [lead.id]: { segments: leadSegs },
-      [wing.id]: { segments: build(-leadDir), profile: missProfile(t0, cross, end) },
+      [lead.id]: { segments: build(leadDir, straight) },
+      [wing.id]: { segments: build(-leadDir, straight), profile: missProfile(t0, cross, end) },
     },
-    note: straight === 0 && spacing < 2 * out.sideFt ? 'Spacing is too tight for a full shackle: they roll out closer than they started.' : 'Both turn in, #2 passes 300 ft above Lead, both turn back.',
+    note: straight === 0 && run.sideFt > spacing + 100 ? 'Spacing is too tight for a full shackle: they roll out wider than they started.' : 'Both turn in, #2 passes 300 ft above Lead, both turn back.',
   };
 }
 
@@ -181,7 +193,7 @@ function shackle(pair, t0) {
  */
 function crossTurn(pair, t0) {
   const [lead, wing] = pair;
-  const h0 = lead.headingRad;
+  const h0 = wholeDegree(lead.headingRad);
   const rel = relativeTo(lead, wing);
   const spacing = Math.abs(rel.left);
   const leadDir = Math.sign(rel.left) || 1;

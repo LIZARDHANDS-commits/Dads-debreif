@@ -1,11 +1,13 @@
 // The Turn Sim's picture: the ui-kit canvas view (drag to pan, wheel or +/- to
 // zoom) with V6's layers on it: grid, MOA box, Lead's 3/9 line, trails,
 // breadcrumbs, spacing lines, turn circles, clock marks, aircraft with their
-// numbers, and error labels. World units are feet, x east, y north; headings
+// numbers, and error labels. The first version's live screen adds a camera that
+// follows the formation, the planned paths drawn dashed, and leaves the MOA box
+// and the V6-only layers off. World units are feet, x east, y north; headings
 // are math radians (0 = east, counter-clockwise). It draws only when asked
 // (a step, a setting, the view or the size), so a paused sim draws nothing.
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
-import { turnRadiusFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
+import { turnRadiusFt, turnRadiusFromBankFt, limitG, MIN_TURN_G } from '../../core/flight-math.js';
 import { ktToFtps, formatNm } from '../../core/units.js';
 import { pairDistances, ft } from './readouts.js';
 import { SHIP_COLORS, OUTLINED_SHIPS } from './layout.js';
@@ -21,6 +23,8 @@ const SPACING_LINES = new Set(['1-2', '1-3', '1-4', '3-4']); // V6 drew these fo
 const MIN_SPAN_FT = 400;
 const MAX_SPAN_FT = 60 * FT_PER_NM * 2;
 const FIT_PADDING_PX = 40;
+/** How far the follow camera's zoom moves toward the zoom it wants, each frame: a gentle ease rather than a jump. */
+const FOLLOW_ZOOM_EASE = 0.08;
 
 /** Bounds { minX, minY, maxX, maxY } of some { x, y } points, or null with none. */
 export function boundsOf(points) {
@@ -59,10 +63,12 @@ export function plannedBounds(run, maxSteps = 12100) {
 
 /**
  * canvas: the picture's <canvas>. timers: the module's scheduler scope.
- * source: { state(), trails(), layers(), settings(), labels() }
+ * source: { state(), trails(), layers(), settings(), labels(), follow?(), planned?() }
  *   state(): the engine's state; trails(): { trail: { id: [[t, x, y], …] }, marks: { id: […] } };
  *   layers(): the remembered layer settings; settings(): the Turn Sim settings;
  *   labels(): { id: { text, tone } } for the error labels.
+ *   follow(): { x, y, spanFt } to keep centred and in view, or null (the live screen's camera);
+ *   planned(): { id: [[t, x, y, …], …] }, paths still to fly, drawn dashed when layers().planned is on.
  */
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
   let needsFit = null; // bounds to fit at the next draw, once the canvas has its real size
@@ -84,19 +90,25 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
       const layers = source.layers();
       const settings = source.settings();
       const lead = state.aircraft.find((a) => a.id === 1);
-      if (layers.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
+      const follow = source.follow?.();
+      if (follow) followFormation(map, follow);
+      else if (layers.followLead && lead && (lead.xFt !== map.view.cx || lead.yFt !== map.view.cy)) map.setCenter(lead.xFt, lead.yFt);
 
       const { width, height } = map.size;
       ctx.fillStyle = BACKGROUND;
       ctx.fillRect(0, 0, width, height);
       drawGrid(ctx, map);
-      drawMoa(ctx, map, settings.moaBoundaryNm);
+      if (Number.isFinite(settings.moaBoundaryNm)) drawMoa(ctx, map, settings.moaBoundaryNm);
       if (layers.lead39 && lead) drawLead39(ctx, map, lead);
       const { trail, marks } = source.trails();
-      drawTrails(ctx, map, trail);
+      if (layers.tracks !== false) drawTrails(ctx, map, trail);
+      if (layers.planned && source.planned) drawPlanned(ctx, map, source.planned(), state.tSec);
       if (layers.breadcrumbs) drawBreadcrumbs(ctx, map, marks, layers.crumbSec, state.tSec);
       if (layers.spacingLines) drawSpacingLines(ctx, map, state, layers.distNm);
-      if (layers.turnCircles && !state.finished) drawTurnCircles(ctx, map, state, settings);
+      if (layers.turnCircles && !state.finished) {
+        if (source.follow) drawBankCircles(ctx, map, state);
+        else drawTurnCircles(ctx, map, state, settings);
+      }
       if (layers.clockMarks) for (const a of state.aircraft) drawClockMarks(ctx, map, a);
       for (const a of state.aircraft) drawAircraft(ctx, map, a);
       if (layers.errorLabels) drawErrorLabels(ctx, map, state, source.labels());
@@ -119,6 +131,21 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
     },
     dispose: () => map.dispose(),
   };
+}
+
+/**
+ * The live screen's camera: centred on the formation, and zoomed so a square
+ * spanFt across fits the shorter side of the picture. The zoom eases toward that,
+ * unless the person has zoomed themselves (follow.zoom false).
+ */
+function followFormation(map, { x, y, spanFt, zoom = true, snap = false }) {
+  const { width, height } = map.size;
+  let scale = map.view.scale;
+  if (zoom && width > 0 && height > 0 && spanFt > 0) {
+    const want = Math.min(width, height) / spanFt;
+    scale = snap ? want : scale + (want - scale) * FOLLOW_ZOOM_EASE;
+  }
+  if (x !== map.view.cx || y !== map.view.cy || scale !== map.view.scale) map.setView({ cx: x, cy: y, scale });
 }
 
 // ---- drawing pieces ---------------------------------------------------------
@@ -206,6 +233,49 @@ function drawTrails(ctx, map, trail) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/** Each aircraft's path still to fly, dashed in its colour (the live screen's planned paths). */
+function drawPlanned(ctx, map, planned, now) {
+  ctx.save();
+  ctx.globalAlpha = 0.75;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([7, 6]);
+  for (const [id, points] of Object.entries(planned ?? {})) {
+    const ahead = points.filter((p) => p[0] >= now - 1e-9);
+    if (ahead.length < 2) continue;
+    ctx.strokeStyle = SHIP_COLORS[id] ?? '#d9e6f2';
+    ctx.beginPath();
+    ahead.forEach(([, x, y], i) => {
+      const [sx, sy] = map.worldToScreen(x, y);
+      if (i) ctx.lineTo(sx, sy);
+      else ctx.moveTo(sx, sy);
+    });
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The circle each banked aircraft is flying now, from its own true airspeed and bank, on the side its bank is (left positive). */
+function drawBankCircles(ctx, map, state) {
+  const scale = map.view.scale;
+  for (const a of state.aircraft) {
+    if (!a.bankDeg) continue;
+    const r = turnRadiusFromBankFt(a.tasFtps, Math.abs(a.bankDeg));
+    const side = Math.sign(a.bankDeg);
+    const [cx, cy] = map.worldToScreen(a.xFt + Math.cos(a.headingRad + side * Math.PI / 2) * r, a.yFt + Math.sin(a.headingRad + side * Math.PI / 2) * r);
+    const color = SHIP_COLORS[a.id];
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 8]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    text(ctx, `${a.name ?? `#${a.id}`} ${a.g.toFixed(1)} G, R ${ft(r)}`, cx, cy + r * scale + 14 + (a.id % 2 === 0 ? 13 : 0), color, 11, 'center');
+  }
 }
 
 /** A dot and the time at every `every` seconds along each path, for the run so far. */
@@ -336,7 +406,7 @@ function drawAircraft(ctx, map, a) {
   ctx.stroke();
   ctx.fill();
   ctx.restore();
-  text(ctx, `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
+  text(ctx, a.name ?? `#${a.id}`, x + 12, y - 10, '#ffffff', 12);
 }
 
 /** Each wingman's label in words, beside it (V6 drawErrorLabels, line 1947). */

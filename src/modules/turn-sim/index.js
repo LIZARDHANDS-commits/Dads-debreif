@@ -1,149 +1,179 @@
-// The Formation Turn Sim (specs/SPEC-turn-sim.md): set up a formation and a
-// turn, press Play, and watch it flown from above. mount() builds the screen
-// and wires the settings, the engine and the picture together; everything it
-// starts runs on the shell's scheduler and listeners, so the shell stops it
-// all when the Turn Sim closes (R4).
+// The Formation Turn Sim, first version (docs/modules/turn-sim/spec.md): a
+// 2-ship in line abreast that flies along on its own; press a manoeuvre button
+// and the pair flies it, then carries on. mount() builds the screen and wires the
+// formation, the picture and the buttons together; everything it starts runs on
+// the shell's scheduler and listeners, so the shell stops it all when the Turn
+// Sim closes (R4).
 //
-// The engine is always stepped in fixed 0.05 s steps (Assumption 4, #17):
-// playback speed changes how many steps run per frame, never their size, so
-// a run comes out the same at any frame rate.
-import { h } from '../../ui-kit/dom.js';
+// The formation is always flown in fixed 0.05 s steps (TS-R9): playback speed
+// changes how many steps run per frame, never their size, so the same presses at
+// the same times give the same picture at any frame rate.
+//
+// The plan-mode engine (engine/), its settings (settings.js, fields.js) and
+// readouts (readouts.js) stay in the repo, untouched, until Patrick agrees to
+// retire them; this screen no longer uses them.
 import { createSettings } from '../../storage/settings.js';
 import { createControls } from '../../ui-kit/controls.js';
-import { DEFAULT_STANDARDS } from '../../core/standards.js';
-import { availableG } from '../../core/t6-performance.js';
-import { DEFAULTS, SETTINGS_RULES, SETTINGS_ALLOWED, SETTINGS_VERSION, MANEUVER_TURN_DEG, turnProblem, migrateSettings } from './settings.js';
-import { createRun } from './engine/run.js';
-import { readoutsAt, formationRows, mapLabel, turnNumbers } from './readouts.js';
-import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, SHIP_COLORS } from './layout.js';
-import { createTurnSimView, plannedBounds, boundsOf } from './view.js';
-import { createView3d, turnSign } from './view3d.js';
-
-/** The most G a T-6 can pull at a speed (stall line, capped at +7 G), for the warning. */
-const tMaxG = (kt) => availableG(kt, false);
+import { STEP_SEC } from './live/flight.js';
+import { MANOEUVRES, relativeTo, turnRadiusAt } from './live/manoeuvres.js';
+import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, intoOrAway, labelFor } from './live/formation.js';
+import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
+import { createTurnSimView } from './view.js';
+import { createView3d } from './view3d.js';
 
 const STYLESHEET = new URL('./turn-sim.css', import.meta.url).href;
 
-/** V6's own step (`dt = 0.05`, line 784); the engine's STEP_SEC. */
-const STEP_SEC = 0.05;
 /** Most steps run in one frame, so a tab that was hidden can't freeze the page catching up. */
 const MAX_STEPS_PER_FRAME = 40;
-/** Readouts update at most this often while playing (SPEC-turn-sim: Performance). */
+/** The card updates at most this often while playing. */
 const READOUT_MS = 100;
-/** The trail shows this much of the run (V6 kept 800 points; here it's by time, #17). */
-const TRAIL_SEC = 60;
+/** The follow camera keeps this much room around the pair: a turn circle and a bit more, each side. */
+const FOLLOW_MARGIN_FT = 1500;
 
-/** The scenario isn't remembered between visits yet (profiles are a later task), so it lives in memory. */
+/** The buttons, in screen order (spec section 3). */
+const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackle', 'crossTurn'].map((key) => ({ key, label: MANOEUVRES[key].label, sided: MANOEUVRES[key].sided }));
+
+/** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {
   const docs = new Map();
   return { get: (name, fallback) => (docs.has(name) ? docs.get(name) : fallback), set: (name, value) => docs.set(name, value) };
 }
 
-/** Layout (open panels, layers) is remembered in this browser under one name, so it can't clash with other documents. */
+/** Layout (open columns, layers) is remembered in this browser under one name, so it can't clash with other documents. */
 function layoutStore(storage) {
   return { get: (_name, fallback) => storage.get('layout', fallback), set: (_name, value) => storage.set('layout', value) };
 }
 
+const SETUP_DEFAULTS = Object.freeze({ spacingFt: LIVE_DEFAULTS.spacingFt, wingSide: LIVE_DEFAULTS.wingSide });
+
+const ftText = (n) => `${Math.round(n).toLocaleString('en-CA')} ft`;
+const bankText = (deg) => (Math.abs(deg) < 0.5 ? 'wings level' : `bank ${Math.round(Math.abs(deg))}° ${deg > 0 ? 'L' : 'R'}`);
+
+/** The Formation card's words for the state now. */
+function cardFor(state, wingSide) {
+  const [lead, wing] = state.aircraft;
+  const rel = relativeTo(lead, wing);
+  const across = Math.abs(rel.left);
+  const sweepDeg = Math.atan2(-rel.fwd, Math.max(across, 1)) * 180 / Math.PI;
+  const c = state.current;
+  let flying = `Line abreast on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
+  if (c) {
+    const sided = MANOEUVRES[c.key].sided;
+    flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;
+  }
+  const j = state.judged;
+  let judged = null;
+  if (j) {
+    const words = j.labels.join(', ');
+    const numbers = j.shape === 'trail'
+      ? `${ftText(j.gapFt)} in trail, ${ftText(Math.abs(j.offsetFt))} off line`
+      : `${ftText(j.acrossFt)} abeam, ${ftText(Math.abs(j.foreAftFt))} ${j.foreAftFt >= 0 ? 'ahead of' : 'behind'} Lead's 3/9 line`;
+    const good = j.labels[0] === 'ON SPACING' || j.labels[0] === 'IN TRAIL';
+    judged = { text: `${j.label}: ${words}, ${numbers}.`, tone: good ? 'good' : 'caution' };
+  }
+  return {
+    flying,
+    note: c?.note ?? null,
+    queued: state.queued?.label ?? null,
+    nowLines: [
+      `Spacing ${ftText(Math.hypot(rel.fwd, rel.left))} (${ftText(across)} abeam)`,
+      `Sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'behind' : 'ahead'}`,
+      `#2 is ${ftText(Math.abs(wing.altAboveFt - lead.altAboveFt))} ${wing.altAboveFt >= lead.altAboveFt ? 'above' : 'below'} Lead`,
+    ],
+    judged,
+    ships: state.aircraft.map((a) => ({
+      id: a.id,
+      name: a.name,
+      text: `${a.kias} KIAS, ${String(compassDeg(a.headingRad)).padStart(3, '0')}, ${bankText(a.bankDeg)}, ${a.g.toFixed(1)} G`,
+    })),
+  };
+}
+
 function mount(root, app) {
-  const stylesheet = h('link', { rel: 'stylesheet', href: STYLESHEET });
+  const stylesheet = document.createElement('link');
+  stylesheet.rel = 'stylesheet';
+  stylesheet.href = STYLESHEET;
   document.head.append(stylesheet);
 
-  const scenario = createSettings(memoryStore(), DEFAULTS, { allowed: SETTINGS_ALLOWED, version: SETTINGS_VERSION, migrate: migrateSettings });
-  const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED });
-  const controls = createControls(scenario);
+  const setup = createSettings(memoryStore(), SETUP_DEFAULTS, { allowed: { wingSide: ['right', 'left'] } });
+  const layout = createSettings(layoutStore(app.storage), LAYOUT_DEFAULTS, { allowed: LAYOUT_ALLOWED, version: LAYOUT_VERSION });
+  const setupControls = createControls(setup);
   const layoutControls = createControls(layout);
-  const standards = () => app.standards?.get?.() ?? DEFAULT_STANDARDS;
 
-  const ui = createLayout({
-    scenario, controls, layout, layoutControls, rules: SETTINGS_RULES, defaults: DEFAULTS, listen: app.listen, say: app.status,
-  });
+  const formation = createFormation({ ...setup.get() });
+  const state = formation.state; // one live object, updated in place
+
+  const ui = createLayout({ buttons: BUTTONS, setupControls, layout, layoutControls, listen: app.listen, fixedLine: fixedLine(LIVE_DEFAULTS) });
   root.append(ui.element);
 
-  // ---- the run --------------------------------------------------------------
-  const run = createRun(scenario.get());
-  let trail = {}; // id -> [[elapsed, x, y], …], the last TRAIL_SEC of the run
-  let bankSigns = {}; // id -> +1 for a left turn, -1 for a right turn, as the aircraft last turned (3D banks the right way)
-  let lastHeading = {}; // id -> heading at the previous step
-  let marks = {}; // id -> [[t, x, y], …], every whole second of this leg, for breadcrumbs
-  let legStart = 0; // elapsed seconds before this leg began, so a trail keeps its order across legs
   let playing = false;
   let speed = 1;
   let owed = 0; // sim seconds waiting to be turned into fixed steps
   let stopFrames = null;
-  let userMoved = false; // the person moved the view, so a setup change doesn't refit it
-  let lastManeuver = scenario.get().maneuver;
-  let lastFormation = scenario.get().formation;
-  const TURN_SWITCHED_NOTE = 'Shackle and Cross turn are two-ship only, so this is now a Delayed 90.';
-  let wantView = '2d'; // the view the person asked for last
+  let userZoomed = false; // the person zoomed the 2D picture, so the camera stops zooming for them
+  let snapNext = true; // the next 2D frame takes the follow zoom at once (after a reset)
+  let wantView = '2d';
 
-  const state = () => run.state; // one live object, updated in place
+  const centre = () => {
+    const n = state.aircraft.length;
+    return {
+      x: state.aircraft.reduce((s, a) => s + a.xFt, 0) / n,
+      y: state.aircraft.reduce((s, a) => s + a.yFt, 0) / n,
+    };
+  };
+  /** How much ground the camera keeps in view: both aircraft, with room for a turn circle each side. */
+  const spanFt = () => {
+    const c = centre();
+    let reach = 0;
+    for (const a of state.aircraft) reach = Math.max(reach, Math.hypot(a.xFt - c.x, a.yFt - c.y));
+    return 2 * (Math.max(reach, state.spacingFt / 2) + turnRadiusAt(state.aircraft[0].tasFtps) + FOLLOW_MARGIN_FT);
+  };
+  /** The 2D camera: the middle of the pair, zoomed to spanFt (eased, or at once after a reset). */
+  const follow = () => {
+    const snap = snapNext;
+    snapNext = false;
+    return { ...centre(), spanFt: spanFt(), zoom: !userZoomed, snap };
+  };
 
-  function record() {
-    const s = state();
-    const elapsed = legStart + s.tSec;
-    for (const a of s.aircraft) {
-      if (a.id in lastHeading) {
-        const sign = turnSign(lastHeading[a.id], a.headingRad);
-        if (sign) bankSigns[a.id] = sign;
-      }
-      lastHeading[a.id] = a.headingRad;
-      const points = (trail[a.id] ??= []);
-      points.push([elapsed, a.xFt, a.yFt]);
-      let drop = 0;
-      while (drop < points.length - 1 && points[drop][0] < elapsed - TRAIL_SEC) drop++;
-      if (drop) points.splice(0, drop);
-      if (Math.abs(s.tSec - Math.round(s.tSec)) < 1e-6) (marks[a.id] ??= []).push([Math.round(s.tSec), a.xFt, a.yFt]);
-    }
-  }
-
-  // ---- the picture ------------------------------------------------------------
+  // ---- the pictures -------------------------------------------------------------------
   const view = createTurnSimView(ui.canvas, {
     timers: app.scheduler,
     onUserMove: () => {
-      userMoved = true;
+      userZoomed = true;
     },
     source: {
-      state,
-      trails: () => ({ trail, marks }),
+      state: () => state,
+      trails: () => ({ trail: state.tracks, marks: {} }),
       layers: () => layout.get(),
-      settings: () => scenario.get(),
-      labels: () => {
-        const out = {};
-        for (const row of formationRows(state(), scenario.get(), standards())) {
-          const label = mapLabel(row);
-          if (label) out[row.id] = label;
-        }
-        return out;
-      },
+      settings: () => ({}),
+      labels: () => ({}),
+      follow,
+      planned: () => state.planned,
     },
   });
-
-  // ---- the 3D picture: made now, but three.js loads only when 3D is first switched on ----
-  /** Before an aircraft has visibly turned, its bank leans the way the Turn direction says. */
-  const directionSigns = () => {
-    const sign = scenario.get().direction === 'left' ? 1 : -1;
-    return { 1: sign, 2: sign, 3: sign, 4: sign };
-  };
+  // three.js loads only when 3D is first switched on.
   const view3d = createView3d(ui.canvas3d, {
     timers: app.scheduler,
-    onUserMove: () => {
-      userMoved = true;
-    },
     source: {
-      state,
-      trails: () => ({ trail }),
+      state: () => state,
+      trails: () => ({ trail: state.tracks }),
       layers: () => layout.get(),
+      focus: centre,
       paint: () => layout.get().paint,
-      bankSigns: () => ({ ...directionSigns(), ...bankSigns }),
+      bankSigns: () => ({}), // the live bank is already signed (left positive)
       colors: SHIP_COLORS,
     },
   });
-  let shown = '2d'; // the picture on screen; the setting is what the person asked for
-  let keepNote = false;
+  let shown = '2d';
   let switching = 0; // counts switches, so a late three.js load can't undo a later choice
 
-  /** Whichever picture is showing draws; the other one does nothing (no frames while hidden). */
   const redraw = () => (shown === '3d' ? view3d.requestDraw() : view.requestDraw());
+
+  function fit3d() {
+    const c = centre();
+    const half = spanFt() / 2;
+    view3d.fit({ minX: c.x - half, minY: c.y - half, maxX: c.x + half, maxY: c.y + half }, state.aircraft[0].headingRad); // behind Lead
+  }
 
   async function applyView(want) {
     const turn = ++switching;
@@ -151,103 +181,64 @@ function mount(root, app) {
       shown = '2d';
       view3d.hide();
       ui.showView('2d');
-      if (!keepNote) ui.setNote('');
+      ui.setNote('');
       view.requestDraw();
       return;
     }
     ui.setNote('Loading 3D…');
     const result = await view3d.show();
     if (turn !== switching) {
-      if (wantView !== '3d') view3d.hide(); // switched away while three.js was loading: it must not stay showing
+      if (wantView !== '3d') view3d.hide();
       return;
     }
     if (!result.ok) {
       if (result.reason === 'closed') return;
-      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.'); // 'load' is a failed download
-      keepNote = true;
-      layout.update({ view: '2d' }); // comes back here as a switch to 2D, which keeps the note
-      keepNote = false;
+      layout.update({ view: '2d' }); // comes back here as a switch to 2D
+      ui.setNote(result.reason === 'gl' ? '3D needs WebGL, which this browser does not have.' : '3D needs a connection the first time.');
       return;
     }
     ui.setNote('');
     shown = '3d';
     ui.showView('3d');
+    fit3d();
     view3d.requestDraw();
   }
 
-  /** Fits the whole planned run (start and turn) at the real canvas size (#30). */
-  function fit() {
-    let bounds = null;
-    try {
-      bounds = plannedBounds(createRun(scenario.get()));
-    } catch (err) {
-      console.error('The planned run could not be flown to fit the view:', err);
-    }
-    bounds ??= boundsOf(state().aircraft.map((a) => ({ x: a.xFt, y: a.yFt })));
-    if (bounds) {
-      // Room for the turn circles at the edges, so their labels aren't cut off.
-      const room = turnNumbers(scenario.get()).radiusFt + 500;
-      const padded = { minX: bounds.minX - room, minY: bounds.minY - room, maxX: bounds.maxX + room, maxY: bounds.maxY + room };
-      view.fit(padded);
-      view3d.fit(padded, state().aircraft.find((a) => a.id === 1)?.headingRad ?? 0); // behind Lead
-    }
-    userMoved = false;
-  }
-
-  // ---- readouts: at most READOUT_MS apart while playing, at once otherwise ------
+  // ---- the Formation card: at most READOUT_MS apart while playing, at once otherwise ----
   let lastReadout = -Infinity;
   let pendingReadout = null;
-  function renderReadouts() {
+  function renderCard() {
     pendingReadout?.();
     pendingReadout = null;
     lastReadout = performance.now();
-    const r = readoutsAt(state(), scenario.get(), { standards: standards(), stallLimitG: tMaxG, distNm: layout.get().distNm });
-    ui.renderReadouts(r);
-    ui.setGWarning(r.gWarning);
+    ui.renderCard(cardFor(state, setup.get().wingSide));
   }
-  function queueReadouts() {
+  function queueCard() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
-    if (!playing || wait <= 0) renderReadouts();
-    else pendingReadout ??= app.scheduler.after(wait, renderReadouts);
+    if (!playing || wait <= 0) renderCard();
+    else pendingReadout ??= app.scheduler.after(wait, renderCard);
   }
   function refresh() {
-    ui.setTime(state().tSec);
+    ui.setTime(state.tSec);
     redraw();
-    queueReadouts();
+    queueCard();
   }
 
-  // ---- playback -----------------------------------------------------------------
-  function stepOnce() {
-    if (!run.step()) return false;
-    record();
-    return true;
-  }
-
+  // ---- playback ---------------------------------------------------------------------------
   function onFrame(dtMs) {
     owed += (dtMs / 1000) * speed;
     let steps = 0;
-    while (owed >= STEP_SEC - 1e-9 && steps < MAX_STEPS_PER_FRAME && stepOnce()) {
+    while (owed >= STEP_SEC - 1e-9 && steps < MAX_STEPS_PER_FRAME) {
+      formation.step();
       owed -= STEP_SEC;
       steps++;
     }
     if (steps === MAX_STEPS_PER_FRAME) owed = 0; // drop the backlog rather than chase it
-    if (state().finished) pause();
     refresh();
-  }
-
-  /** Play after the turn has finished starts a new leg from where the aircraft are (V6, audit b#13, #31). */
-  function startLegIfDue() {
-    if (!state().canStartLeg) return;
-    legStart += state().tSec;
-    run.startLeg();
-    marks = {}; // breadcrumbs start again for the new leg
-    ui.setLegHeading(state().startHeadingDeg); // V6 wrote Lead's heading into its Start heading box; here it is shown, never written back
-    record();
   }
 
   function play() {
     if (playing) return;
-    startLegIfDue();
     playing = true;
     owed = 0;
     ui.setPlaying(true);
@@ -261,69 +252,38 @@ function mount(root, app) {
     if (!playing) return;
     playing = false;
     ui.setPlaying(false);
-    renderReadouts(); // a readout still waiting its turn must not show a step behind the picture
+    renderCard(); // a card still waiting its turn must not show a step behind the picture
   }
 
   function resetRun() {
     pause();
-    run.reset(scenario.get());
-    trail = {};
-    marks = {};
-    bankSigns = {};
-    lastHeading = {};
-    legStart = 0;
-    ui.setLegHeading(null);
+    formation.reset({ ...setup.get() });
     owed = 0;
-    record();
+    userZoomed = false;
+    snapNext = true;
+    if (shown === '3d') fit3d();
     refresh();
   }
 
-  function stepButton() {
-    pause();
-    startLegIfDue();
-    stepOnce();
+  function press(key, dir) {
+    const how = formation.press(key, dir);
+    if (how === 'queued') app.status(`${labelFor(key, dir)} is next.`);
+    play(); // a button also starts the formation flying
     refresh();
   }
 
+  ui.onPress(press);
   ui.onPlayPause(() => (playing ? pause() : play()));
-  ui.onStep(stepButton);
   ui.onResetRun(resetRun);
   ui.onSpeed((x) => {
     speed = x; // changes steps per frame only; it doesn't stop the run
   });
-  ui.onFit(() => {
-    fit();
-    app.status('Fitted the whole turn on screen.');
-  });
-  ui.onResetLayout(() => {
-    layout.reset();
-    app.status('Layout back to the essentials.');
-  });
 
-  // Any setup change stops the run and goes back to t = 0 with the new plan (#31). Layers and speed don't.
-  const stopScenario = scenario.subscribe((values) => {
-    // Picking a four-ship formation while Shackle or Cross turn is chosen moves the menu to the default turn for good
-    // (the stored setting too), and says so, rather than keeping a turn the formation cannot fly.
-    if (turnProblem(values.formation, values.maneuver)) {
-      lastManeuver = DEFAULTS.maneuver;
-      lastFormation = values.formation;
-      ui.setTurnSwitched(TURN_SWITCHED_NOTE);
-      scenario.update({ maneuver: DEFAULTS.maneuver, turnDeg: MANEUVER_TURN_DEG[DEFAULTS.maneuver] }); // comes back here
-      return;
-    }
-    if (values.formation !== lastFormation || values.maneuver !== lastManeuver) ui.setTurnSwitched(null);
-    lastFormation = values.formation;
-    // Turn degrees follow the turn, as V6's boxes fill them in when the turn changes (line 2030).
-    if (values.maneuver !== lastManeuver) {
-      lastManeuver = values.maneuver;
-      if (values.turnDeg !== MANEUVER_TURN_DEG[values.maneuver]) {
-        scenario.update({ turnDeg: MANEUVER_TURN_DEG[values.maneuver] }); // comes back here, and does the reset
-        return;
-      }
-    }
-    ui.applyScenario(values);
+  // Setup changes start again from t = 0 (spec section 4). A spacing outside the SMM band is flown and flagged.
+  const stopSetup = setup.subscribe((values) => {
+    ui.setSide(values.wingSide);
+    ui.setSpacingFlag(checkSpacing(values.spacingFt).flag);
     resetRun();
-    if (!userMoved) fit();
   });
   const stopLayout = layout.subscribe((values) => {
     ui.applyLayout(values);
@@ -332,13 +292,12 @@ function mount(root, app) {
       applyView(wantView);
     }
     redraw();
-    queueReadouts();
   });
 
-  // The stylesheet decides the picture's size, so the first fit waits for it (#30).
+  // The stylesheet decides the picture's size, so the first draw waits for it.
   const ready = () => {
+    snapNext = true;
     view.setReady();
-    fit();
   };
   if (stylesheet.sheet) ready();
   else {
@@ -346,22 +305,16 @@ function mount(root, app) {
     stylesheet.addEventListener('error', ready, { once: true });
   }
 
-  // Space plays or pauses, the right arrow steps once, Home resets: only while the Turn Sim is
-  // open and never while typing (app.keys). On the picture, the arrows pan instead.
+  // Space plays or pauses and Home resets: only while the Turn Sim is open and never while typing (app.keys).
   app.keys({
     Space: () => (playing ? pause() : play()),
-    ArrowRight: stepButton,
     Home: resetRun,
   });
 
-  // Edited standards change the labels at once (Q46).
-  app.standards?.subscribe?.(() => {
-    redraw();
-    queueReadouts();
-  });
-
-  resetRun();
+  ui.setSide(setup.get().wingSide);
+  ui.setSpacingFlag(checkSpacing(setup.get().spacingFt).flag);
   ui.applyLayout(layout.get());
+  refresh();
   if (layout.get().view === '3d') {
     wantView = '3d'; // remembered from last time: three.js loads now, as it would on a switch
     applyView('3d');
@@ -370,9 +323,9 @@ function mount(root, app) {
   return () => {
     pause();
     pendingReadout?.();
-    stopScenario();
+    stopSetup();
     stopLayout();
-    controls.dispose();
+    setupControls.dispose();
     layoutControls.dispose();
     view.dispose();
     view3d.dispose();

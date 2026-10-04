@@ -1,44 +1,27 @@
 # Turn Sim: plan
 
-How to read this plan: steps are in the order to do them. Step 1 is a review, not a build: nothing in the Turn Sim is built, merged or archived until Patrick has decided what the review recommends (`pf/reset/consolidation-plan.md:268`). A line marked "Patrick decides" waits for his yes (his answer TQ-1: `pf/reset/4-decisions/answers.md:12`). The last step is the sign-off. Requirement numbers such as TS-R7 are in `requirements.md`; how each is checked is in `testing.md`.
+How to read this plan: steps are in the order to do them. Step 1, the review, is done: Patrick decided on 4 Oct and approved the first version's spec. A line marked "Patrick decides" waits for his yes (his answer TQ-1: `pf/reset/4-decisions/answers.md:12`). The last step is the sign-off. Requirement numbers such as TS-R7 are in `requirements.md`; how each is checked is in `testing.md`.
 
 ## Where it stands
 
-1. The Turn Sim is live as a PROTOTYPE on main and flies the SMM turns in plan mode only (set up a turn, press Play, watch it). Patrick's 3 October finding is that it needs a full overhaul before any more features or sign-off (`docs/handover/turn-sim.md:4`, `pf/reset/1-requirements/requirements.md:322`).
+1. From V2.6 the Turn Sim shows the first version of live mode: a 2-ship in line abreast with manoeuvre buttons, flown on a new core (`spec.md` Part 1). Before that it flew the SMM turns in plan mode only, and Patrick's 3 October finding was that it needed a full overhaul (`docs/handover/turn-sim.md:4`).
 2. Patrick wants two modes: plan mode, and live mode where the formation flies along and a manoeuvre button makes it fly that manoeuvre; whether to rebuild, start a new core or fix what is there is decided by the review in Step 1 (`pf/reset/1-requirements/requirements.md:327`, `pf/reset/consolidation-plan.md:285`).
 3. Four old branches and one backup bundle hold about 1,200 lines of Turn Sim work that is not on main; they are flagged in Step 1 as work to reuse and are not to be deleted until this plan carries the flag (`pf/reset/2-inventory/agents/agent-4-outside.md:8`, `pf/reset/2-inventory/file-register.md:47`).
 
-## Step 1. The Turn Sim review (analysis only; Patrick decides)
+## Step 1. The Turn Sim review (done, 4 Oct 2026)
 
-Aim: decide between rebuilding, building a new live core with named parts reused, or fixing what is there, for both modes. The review writes its answer down in `decisions.md` and rewrites Steps 2 onward of this plan. Nothing here changes the flying code.
+Patrick started the review early, alongside Traffic, on 4 Oct. Notes are in the project files at `turn-sim-review/` (README with every ruling and its time, `compare-and-recommend.md`, `architecture/architecture.md`, `line-abreast/line-abreast.md`, `first-version/`).
 
-**Hold**
-- [ ] Hold all Turn Sim code where it is: no Turn Sim file is archived, no branch is merged and no Turn Sim feature is built until the review is decided (Patrick, 4 Oct 02:16Z) (`pf/reset/consolidation-plan.md:268`).
-- [ ] Turn Sim tests stay as they are; their keep, rewrite or retire marks wait for the review (`pf/reset/5-testing/test-register.md:1`).
+- [x] Catalogue the code and draw the architecture (a Sonnet agent; `turn-sim-review/architecture/`).
+- [x] Explain line abreast from the manuals: spacing, each manoeuvre, timing and errors (a Sonnet agent; `turn-sim-review/line-abreast/`).
+- [x] Compare the SMM with what the code flies, and recommend (`turn-sim-review/compare-and-recommend.md`).
+- [x] Patrick decided: a new flying core, keeping and trimming the screen (TS-35); planned, kinematically accurate paths (TS-36, settles TS-Q25 and question A); roll 90°/s with a quick ease (TS-37, TS-Q7); constant 220 KIAS as true airspeed (TS-38, question B, TS-Q8 for now); exact geometry for delayed turns, replacing TS-R5's slanted line (TS-40); a real 300 ft vertical miss (TS-42, question C for the 2-ship); V6 corrections removed (TS-43, TS-Q17); 4312 swaps sides (TS-44, TS-Q5).
+- [x] Patrick approved the first-version spec and screen (`spec.md` Part 1), 4 Oct 10:03Z.
+- Question D (the clock cue) and E (error settings) wait for the errors layer; the cue is not the trigger in the first version (TS-40).
+- Carried forward, not settled by the review: TS-Q9 (box shackle), TS-Q10 (Dad's first email), TS-Q13 (CSV), TS-Q14 (spacing graph), TS-Q15 (LATE and EARLY), TS-Q16 (one-click faults), TS-Q19 (G-warm), TS-Q20 (second wave order), TS-Q23 (old checklist), TS-Q24 (Dad's four-ship answers), TS-R3 (the offset box), TS-R27 (the setting count; the first screen has about 20 controls).
+- [ ] Check the right-turn end-point helper (`simulateDelayedTurnFinalPos`, `src/modules/turn-sim/engine/plan.js`), which V6 mirrored for right turns (issue #15): only if plan mode's engine is kept; otherwise it goes with the retirement in Step 3.
 
-**What the review decides** (Patrick's brief for it, 4 Oct 02:16Z)
-- [ ] Plan mode and live mode. Live mode starts with a 2-ship (4-ship later) and a button menu of every manoeuvre in the SMM and the formation briefs; error practice is a later layer (`pf/reset/consolidation-plan.md:290`).
-- [ ] The review's own recommendation, for Patrick to accept or change: option (b), a new flying core that flies live step by step with each wingman reacting to the aircraft it flies off, keeping the named parts (the screen frame, the 2D and 3D pictures, the playback loop, the judging, the graph data), about 40% of the code kept (`pf/reset/1-requirements/agents/turn-sim-architecture-review.md:13`, `pf/reset/1-requirements/agents/turn-sim-architecture-review.md:12`).
-- [ ] Pilot behaviour for the live core is not written down: ask Dad for what each aircraft does and when it corrects in each manoeuvre (`pf/reset/1-requirements/agents/turn-sim-architecture-review.md:181`).
-- [ ] Five design questions from the architecture review, each with its best guess, for Patrick: A live wingman controllers or smooth planned paths (guess: Lead on a planned path, wingmen live); B speed as indicated or true (guess: indicated); C height, the 300 ft stack, in this version or flat with a note; D clock cue as the one timing behaviour (guess: yes); E per-wingman error knobs or a skill slider and one-click faults (`pf/reset/1-requirements/agents/turn-sim-architecture-review.md:189`, `pf/reset/1-requirements/agents/turn-sim-architecture-review.md:190`, `pf/reset/1-requirements/agents/turn-sim-architecture-review.md:191`, `pf/reset/1-requirements/agents/turn-sim-architecture-review.md:192`, `pf/reset/1-requirements/agents/turn-sim-architecture-review.md:193`).
-- [ ] How the Turn Sim is driven (TS-Q25; Patrick leans to the same smooth wind-shaped paths as Traffic, not decided) and the settled answer to the question "how should aircraft be driven" for this module (`pf/reset/1-requirements/questions.md:170`, `pf/reset/1-requirements/questions.md:32`).
-- [ ] The manoeuvre menu for the first 2-ship version: fly along in line abreast and offer the ten turns B1 to B10 of the manoeuvre catalogue (58 rows in all; the others are the later waves); the catalogue marks where sources disagree as ASK (`pf/reset/1-requirements/agents/turn-sim-manoeuvre-catalogue.md:12`, `pf/reset/1-requirements/agents/turn-sim-manoeuvre-catalogue.md:11`).
-
-**Items deferred to this review** (copied from the plan's "After the reset" note)
-- [ ] TS-Q2: rebuild, new core or fix (`pf/reset/1-requirements/questions.md:147`).
-- [ ] TS-Q10: Dad's first email (the source of the old decisions D41 to D45) is not in the archive; ask Patrick for it, and whether to send Dad his two Turn Sim questions (Delayed 45 cue; box rear delay) (`pf/reset/1-requirements/questions.md:155`, `docs/handover/turn-sim.md:49`).
-- [ ] TS-R27: the setting count. The module has 81 setting keys and a five-choice offset-box timing menu; the review decides how few the instructor sees (`pf/reset/1-requirements/requirements.md:357`).
-- [ ] TS-Q24: Dad's three four-ship working answers (rear check only between turns; box #3 delays 10 to 15 s and #4 turns on the cue; each formation's own #3 rule) stay as working answers until the review works them out properly (`pf/reset/1-requirements/questions.md:169`).
-- [ ] TS-Q20: rejoins, fighting wing and fluid manoeuvring are the second wave of live mode, starting with the turning rejoin; the review sets the order. The old future ideas FF39, FF40 and FF41 land here, not on a future list (`pf/reset/1-requirements/questions.md:165`, `archive/docs/records/future-ideas.md:11`).
-- [ ] Old decisions that follow the review: D123, D170 and D214 (the cross turn's second-half G: the SMM draws 2 G then 3 G, the code solves about 1.6 G at 6,000 ft so the pair rolls out at the set spacing); D324 and D385 (the spacing solver, scored at roll-out); D428a (three-tier screen), D428d (closed-form solver) and D428e (merge the four branches; make the run length automatic) (`pf/reset/4-decisions/partb-turnsim.md:12`, `pf/reset/4-decisions/partb-turnsim.md:13`).
-- [ ] "Auto" names two different controls in the code and the checklist; the review says which is which (`pf/reset/consolidation-plan.md:290`).
-- [ ] The offset box may not keep its shape both ways with a fixed 10 to 15 s delay for #3 (TS-R3) (`pf/reset/consolidation-plan.md:290`).
-- [ ] The shipped default is still the time delay; TS-R7 asks for the clock cue as the default (`pf/reset/consolidation-plan.md:290`, `pf/reset/1-requirements/questions.md:149`).
-- [ ] Wind: none for now, said on screen; the review may add it (TS-R10) (`pf/reset/1-requirements/requirements.md:337`).
-- [ ] Saved setups: the Profiles panel is a placeholder; build it or hide it (TS-Q11), with the shell's optional store line (see the Shared plan) (`pf/reset/1-requirements/questions.md:156`).
-- [ ] Open "Later" questions that depend on the design: TS-Q8 (constant speed and the sustained-G warning), TS-Q9 (box shackle), TS-Q13 (Export CSV), TS-Q14 (spacing graph and solver: first release or later, scored at roll-out), TS-Q15 (remove LATE and EARLY), TS-Q16 (one-click faults instead of the per-wingman error grid), TS-Q19 (G-warm), TS-Q21 (judge at roll-out only, one standard with the Debrief), TS-Q22 (MOA box), TS-Q23 (which of the checklist and the code to correct) (`pf/reset/1-requirements/questions.md:153`, `pf/reset/1-requirements/questions.md:154`, `pf/reset/1-requirements/questions.md:158`, `pf/reset/1-requirements/questions.md:159`, `pf/reset/1-requirements/questions.md:160`, `pf/reset/1-requirements/questions.md:161`, `pf/reset/1-requirements/questions.md:164`, `pf/reset/1-requirements/questions.md:166`, `pf/reset/1-requirements/questions.md:167`, `pf/reset/1-requirements/questions.md:168`).
-- [ ] Questions for Dad that stay with the review: TS-Q5 (the 4312 label order), TS-Q7 (a roll-in rate instead of instant bank), TS-Q17 (the correction model: lag, lead and G adjustment; default remove) (`pf/reset/1-requirements/questions.md:150`, `pf/reset/1-requirements/questions.md:152`, `pf/reset/1-requirements/questions.md:162`).
-- [ ] The four-ship G-warm (spread-4) picture is checked with Patrick before it is built (`docs/handover/turn-sim.md:50`).
+The three lists below are kept from the review's brief as references. Nothing in them is built unless a later step names it (TS-35: the branches are not merged).
 
 **Old work to reuse: the four branches and the bundle** (flag for the Turn Sim plan; Patrick, 3 Oct 23:54Z)
 - [ ] `handover/turn-sim-223-fixes`: the Delayed 45 check turn flies only at 45 degrees; the offset box keeps its shape at 5,000 to 6,000 ft aft (`docs/handover/turn-sim.md:22`).
@@ -59,7 +42,7 @@ Aim: decide between rebuilding, building a new live core with named parts reused
 - [ ] Reset decisions and tests: `4-decisions/partb-turnsim.md` and `4-decisions/agents/turn-sim.md` (`pf/reset/4-decisions/partb-turnsim.md:61`); `5-testing/agents/turn-sim.md` and the Turn Sim section of the test register (`pf/reset/5-testing/test-register.md:377`).
 - [ ] Project files: `pf/manuals/formation-and-turn-numbers.md` (page references only; the SMM text stays out of the repo); `pf/archive/2026-09/memory/turn-sim.md`; `pf/archive/2026-09/flight-math-check/turnsim.js` and `turnsim2.js` (scripts that drove V6's real Turn Sim); `pf/archive/2026-09/verification/turn-sim*.md`; Dad's check list and round-2 questions in `pf/archive/2026-09/dad-email/` (`pf/reset/1-requirements/questions.md:155`).
 
-**Old to-do tasks the review takes over** (none of these is built until the review decides)
+**Old to-do tasks the review took over** (none is built until a later step names it)
 - [ ] Task 12, aircraft errors panel and dragging (built on the screen-audit branch, one more review read needed) (`tasks/turn-sim/todo.md:60`).
 - [ ] Task 16, spacing graph and solver screen (`tasks/turn-sim/todo.md:68`).
 - [ ] Task 13, saved profiles and CSV; the shell's `scenarioStore` line (see the Shared plan) (`tasks/turn-sim/todo.md:80`).
@@ -67,26 +50,21 @@ Aim: decide between rebuilding, building a new live core with named parts reused
 - [ ] Task 14, browser tests and checklist: replaced by Step 5 below (`tasks/turn-sim/todo.md:83`).
 - [ ] Old roadmap notes: Milestone 3 Task 3.1 (consolidate the three branches, rebuild the hook as a true 180 degrees, update the browser-test regexes) and Task 3.2 are replaced by this review; the hook's 180-degree end picture is already TS-R4 (`archive/docs/REMEDIATION_ROADMAP.md:371`, `pf/reset/1-requirements/requirements.md:331`). The roadmap's Gate 3 is replaced by Step 5 below (`archive/docs/REMEDIATION_ROADMAP.md:376`).
 
-**End of the review**
-- [ ] Patrick decides: rebuild, new core with named parts reused, or fix. Record it in `decisions.md`, then replace Steps 2 to 4 below with the steps the choice needs (`pf/reset/consolidation-plan.md:290`).
-- [ ] Check the right-turn end-point helper (`simulateDelayedTurnFinalPos`, `src/modules/turn-sim/engine/plan.js`), which V6 mirrored for right turns (issue #15).
+## Step 2. First version: the 2-ship in line abreast (`spec.md` Part 1)
 
-## Step 2. Refresh spec.md against the new requirements (after the review)
+- [x] New flying core: one aircraft per step (`live/flight.js`), one builder per manoeuvre (`live/manoeuvres.js`), the pair with presses, queue, tracks, rolling record and roll-out judging (`live/formation.js`).
+- [x] The lean screen: buttons, Spacing and #2's side, follow camera, ground tracks, 3/9 line, planned paths, Formation card; 3D shows height, bank and pitch. Version V2.6.
+- [x] Light checks written with the code (`tests/unit/turn-sim/live.test.js`): end pictures, bank and G, 300 ft at the cross, smooth hand-overs, the queue.
+- [ ] Patrick flies every button in the real app from the default start (the sign-off checklist in `testing.md`, "First version").
 
-- [ ] Refresh `spec.md` against the new requirements when work resumes, rewriting every "same answer V6 gives" or "pinned to V6" line. The old spec says every Turn Sim number is pinned to V6 by a golden test (`specs/SPEC-turn-sim.md:23`), runs V6's own functions as the first test (`specs/SPEC-turn-sim.md:287`), pins V6's step and its Euler move (`specs/SPEC-turn-sim.md:26`), scores the solver "as in V6" (`specs/SPEC-turn-sim.md:162`), and lists golden tests and a V6 cross-check as the way to finish (`specs/SPEC-turn-sim.md:290`). Patrick's answer: V6 is a source of ideas, not answers (`pf/reset/1-requirements/questions.md:31`).
-- [ ] Rewrite the spec lines the ratified answers replaced: the Delayed 45 end picture (TS-R5), the clock cue as the default (TS-R7), KIAS with a block choice (TS-R6), wind none (TS-R10), and the solver scored at roll-out (D385) (`pf/reset/1-requirements/requirements.md:332`).
-- [ ] Fix the sign-off checklist and the code where they disagree (start heading 360 versus 0, the reset button's wording, the settings-menu sections it names, "closed-loop" auto timing), once the review decides which side moves (TS-Q23) (`pf/reset/1-requirements/questions.md:168`).
+## Step 3. Retire the plan-mode code (Patrick decides)
 
-## Step 3. Build what the review chose
+- [ ] With Patrick's yes: retire the plan-mode engine (`engine/`), `settings.js`, `fields.js`, `readouts.js`, their 20 unit test files and the plan-mode browser test `tests/e2e/turn-sim.spec.js` (sign-off only; it tests the old screen and fails on the new one). Before deleting, list what each did (rule book); ideas worth keeping go to `future.md`. Until then they stay, untouched.
 
-- [ ] Written by the review. It must cover the ratified lines TS-R1 to TS-R27 that the built screen does not meet today: the Profiles panel is a placeholder, and there is no Export CSV, no spacing graph, no solver button, no wingman dragging and no G-warm panel on main (`pf/reset/1-requirements/requirements.md:322`).
-- [ ] Each flying choice is settled in writing before it is coded, with its source, and the 300 ft stack height rule (TS-R11) is decided with it (`pf/reset/1-requirements/requirements.md:338`).
-- [ ] When a requirement is built, the check marked "New" in `testing.md` is written with it. A check that fails twice stops the work and Patrick is asked; the flying formulas are never bent to make a test pass (T7) (`pf/reset/5-testing/testing-policy.md:27`).
+## Step 4. Next, one at a time on the same core
 
-## Step 4. Second wave of live mode
-
-- [ ] Turning rejoin first, then fighting wing and fluid manoeuvring (level), in the order the review sets (TS-Q20). The vertical fluid manoeuvres (FF38) stay on the future list (`pf/reset/1-requirements/questions.md:165`).
-- [ ] Four-ship live mode and the error-practice layer (TS-R8) follow the 2-ship core (`pf/reset/1-requirements/requirements.md:335`).
+- [ ] In this order unless Patrick reorders: G-warm, entry to line abreast, rejoins (turning rejoin first, then fighting wing and fluid manoeuvring, TS-Q20), other formations, the 4-ship (TS-44's 4312 order), then the V6 features on `future.md`. Each gets its own short spec and Patrick's yes before it is built; the four-ship G-warm picture is checked with him first.
+- [ ] The error-practice layer (TS-R8), with questions D and E.
 
 ## Step 5. Sign-off
 
