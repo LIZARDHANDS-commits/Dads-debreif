@@ -71,6 +71,15 @@ export function turnRadiusFromBankFt(speedFtps, bankDeg) {
 }
 
 /**
+ * Bank in degrees for a coordinated turn at a heading rate: tan⁻¹(true airspeed
+ * × rate ÷ gravity). Signed like the rate: a positive (clockwise, right) rate
+ * gives a positive (right) bank. The inverse of turnRateFromBankRadPerSec.
+ */
+export function bankDegFromTurnRate(speedFtps, rateRadPerSec) {
+  return radToDeg(Math.atan((speedFtps * rateRadPerSec) / G_FTPS2));
+}
+
+/**
  * The G one Turn Sim aircraft turns at this step (`moveAircraftList`, lines
  * 1582 and 1583). Everything V6 reads from the page comes in as an argument:
  *
@@ -200,6 +209,25 @@ export function rollToward(bank, target, maxDeltaRad, prefer = 1) {
   if (Math.abs(delta) > Math.PI - 1e-3) delta = prefer * Math.PI;
   const moved = Math.abs(delta) <= maxDeltaRad ? delta : Math.sign(delta) * maxDeltaRad;
   return { bank: wrapPi(bank + moved), movedRad: Math.abs(moved) };
+}
+
+/**
+ * One step of a smooth roll toward targetDeg: the roll rate builds up and dies
+ * away at most maxAccelDps2, never passes maxRateDps, and slows in time to stop
+ * on the target, so the wings ease into and out of a bank instead of snapping.
+ * Degrees and degrees per second; returns { bankDeg, rollRateDps } for the next
+ * step. With no time step nothing moves.
+ */
+export function easeRoll(bankDeg, rollRateDps, targetDeg, dt, { maxRateDps, maxAccelDps2 }) {
+  if (!(dt > 0)) return { bankDeg, rollRateDps };
+  const err = targetDeg - bankDeg;
+  // The fastest rate that can still stop on the target at maxAccelDps2.
+  const half = (maxAccelDps2 * dt) / 2; // discrete-step correction, so the roll stops on the target, not past it
+  const stopRate = Math.max(0, Math.sqrt(2 * maxAccelDps2 * Math.abs(err) + half * half) - half);
+  const wanted = Math.sign(err) * Math.min(maxRateDps, stopRate, Math.abs(err) / dt);
+  const step = maxAccelDps2 * dt;
+  const rate = rollRateDps + Math.max(-step, Math.min(step, wanted - rollRateDps));
+  return { bankDeg: bankDeg + rate * dt, rollRateDps: rate };
 }
 
 /**

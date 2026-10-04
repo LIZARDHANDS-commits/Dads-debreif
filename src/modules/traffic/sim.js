@@ -253,6 +253,8 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           a.routeId = split.id;
           a.distFt = 0;
           a.phase = 'route';
+          const startP = whereIs(a, split);
+          if (Number.isFinite(a.x)) a.joinOffset = { x: a.x - startP.x, y: a.y - startP.y };
         }
       }
     }
@@ -272,10 +274,12 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     const target = routeById(route.attachTo);
     if (target && target.kind === 'pattern') {
       const mergeIndex = Math.max(0, Math.min(+route.mergeIndex || 0, target.points.length - 1));
-      const curPos = whereIs(a, route);
+      const curPos = { x: a.x ?? whereIs(a, route).x, y: a.y ?? whereIs(a, route).y };
       a.routeId = target.id;
       a.distFt = closestDistFt(target, curPos, routeOptions()) + Math.max(0, overshootFt);
       const nextP = whereIs(a, target);
+      // The pattern's path passes close to, not exactly through, the entry's end: close the gap smoothly (spec item 13a).
+      a.joinOffset = { x: curPos.x - nextP.x, y: curPos.y - nextP.y };
       a.phase = nextP.phase || (target.kind === 'pattern' ? 'initial' : 'route');
       // TR-08: a straight-in joining at the threshold (first point) evaluates landing intent
       if (mergeIndex === 0) {
@@ -858,6 +862,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           x, y, alt: altFt, kt: iasKt,
           headingDeg,
           bankDeg: a.bankDeg ?? 0,
+          pitchDeg: a.pitchDeg ?? null,
           phase: a.phase ?? 'initial',
           tag: a.tag ?? p.tag ?? route?.points?.[p.seg]?.tag,
           trackDeg: a.trackDeg ?? a.headingDeg ?? p.headingDeg,
