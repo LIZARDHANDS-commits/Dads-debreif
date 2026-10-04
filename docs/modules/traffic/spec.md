@@ -22,6 +22,8 @@ Moved from `specs/SPEC-traffic.md` (the old copy is in `archive/specs/`).
 
 Patrick approved this wording on 4 Oct 2026 (08:45Z). It replaces the old sections 1 ("Why we're doing this"), "Hard Invariants" and 2.1-2.2. The closed pattern, High Key, go-around, breakout and PFL controllers, and their 1 s blend back to the rail, stay until refactor PR 3 and PR 4.
 
+*As built, 4 Oct 2026 (DADS v2.10.17): refactor PR 3 and PR 4 are done. There are no live controllers left: every manoeuvre is flown once by the simulated pilot (`circuit.js` `makePilot`, one roll model at 45°/s easing at 90°/s²) from where the aircraft is, recorded as a path, and followed by `path-follower.js`. The old physics engine (`flight-engine.js`) was deleted (Patrick's card "Rebuild, then delete", 17:53Z).*
+
 1. **One mover.** One path follower is the only code that writes an aircraft's position, heading, bank and pitch. The three phase machines become one. The manoeuvre controllers (closed pattern, High Key, go-around, breakout, PFL) still run until PR 3 and PR 4, but they hand their position to the path follower instead of writing it themselves.
 2. **Paths are built from the T-6, when they are needed.** A path is a smooth ground track (no corners) with the height and speed the aircraft can actually fly along it. It is built from the aircraft's performance and today's wind at the moment the aircraft needs it. Corners on the drawn route are only where the turns go, not part of the track.
 3. **Heading is continuous.** Heading is the path's track plus the crab for the wind, worked out at every point along it. It never steps.
@@ -37,6 +39,12 @@ Patrick approved this wording on 4 Oct 2026 (08:45Z). It replaces the old sectio
 ## 1a. Manoeuvres and rejoins (approved 4 Oct 2026, Traffic refactor PR 4)
 
 Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.11 text and adds touch-and-go and High Key from anywhere.
+
+*As built, 4 Oct 2026 (DADS v2.10.17), where it differs from the wording below (new wording waits for Patrick):*
+- *Item 15: the "one controller" is the simulated pilot, which flies each manoeuvre once as a path (`closed-pattern.js`, `high-key.js`, `breakout.js`, `circuit.js` `buildGoAround`); the shared climb is `circuit.js` `powerClimb`.*
+- *Item 16: the climb levels off smoothly as it nears the height (`powerClimb`), so the bank never rolls past the setting to stop the climb.*
+- *Items 17 and 19: the closed pattern rolls out on the inner downwind line and hands over to the circuit there, at least 300 ft past where the break rolls out (an estimate); the circuit then flies its own perch and final turn. It first carries on as it was for 0.8 s (an estimate matched to the path follower's smoothing) so the heading doesn't step at the hand-over.*
+- *Item 22: the breakout turns toward the breakout point 2 NM south of the pattern, climbing at full power toward 220 KIAS and 4,500 ft, then rejoins on ENT1's line at 3,500 ft and 220 KIAS, 0.7 to 1.2 NM before the Entry Gate (measured in calm and 20 kt); a straight-in rejoins its own straight-in.*
 
 ### One climbing turn for every rejoin
 
@@ -70,6 +78,8 @@ Patrick approved this wording on 4 Oct 2026 (09:56Z). It replaces the old 4.9-4.
 ---
 
 ## 2. Architecture
+
+*History: 2.3 and 2.4 describe the old engine's KIN and NRG models and a model dropdown, which no longer exist (sections 1 and 1a replace them); 2.5's `computeBreakRollout` is no longer used by the flying. Step 3 of the plan rewrites this section.*
 
 ### 2.3 KIN vs NRG Performance Models
 - **KIN (Kinematic)** — default for normal pattern traffic:
