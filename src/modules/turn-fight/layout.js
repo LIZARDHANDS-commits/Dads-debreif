@@ -1,7 +1,8 @@
 // The Turn Fight's screen (SPEC-turn-fight, "The screen", R22): the Fight
 // setup column, the stage (toolbar, drawing area) and the Result column. Only
-// the essentials show at first; the tuning numbers sit in one closed "Turn
-// Fight settings" menu and the extras behind their checkboxes. The side
+// the essentials show at first; every other setting and number sits in one
+// closed "Advanced setup" menu (TF-63), each number with a line saying what it
+// is, why it has that value and what changing it does. The side
 // columns collapse with a real button (#34, #35). Everything on screen goes in
 // as text through h(), never as HTML.
 //
@@ -57,30 +58,158 @@ export function rangeHint(key) {
 }
 
 /**
- * The boxes in Model settings for checking, in the spec's order: [setting, label, what it is]. Each hint follows the range and default
- * (rangeHint) with what the number is and where it comes from.
+ * Every number box in Advanced setup, with its three lines (Patrick, 4 Oct 10:38Z): what it is, why it has that value
+ * and what changing it does. `why` is a manual page, Patrick's ruling, or the word "estimate" (an estimate is labelled one
+ * until a source backs it); the sources are the ones in spec.md and decisions.md, and no page is given that they do not give.
+ * `section` says where the box sits: 'start' (Start geometry), 'energy' (Energy), 'smoothing' or 'model' (Model numbers).
+ * The range and the default are not written here: rangeHint() reads them from state.js, so a line and its box cannot disagree.
  */
-export const CHECK_SETTINGS = Object.freeze([
-  ['stallKias', 'Stall speed (KIAS)', 'The V-n diagram reads about 89; the turn charts imply about 83; 86 is the agreed setting.'],
-  ['shakerPct', 'Shaker (% of the stall-line G)', '17 of 18 units of AOA (SMM 14.14 para 33).'],
-  ['stallSec', 'How long a stall lasts (s)', 'The G drops to 1 G for this long (SMM 14.14 para 32).'],
-  ['midThrottlePct', 'Mid-range throttle (% of maximum thrust)', 'Used rolling straight into an MPT from above its speed (SMM 14.14 paras 36 and 38).'],
-  ['leadSec', 'Lead point (s ahead)', 'Where a Lead pursuit aims, ahead of the other aircraft.'],
-  ['lagSec', 'Lag point (s behind)', 'Where a Lag pursuit aims, behind the other aircraft.'],
-  ['rollRateDegPerSec', 'Roll rate (°/s)', 'How fast the bank changes.'],
-  ['gOnsetGPerSec', 'G onset (G/s)', 'How fast the pilot builds or eases the G. Estimate: Patrick\'s brisk choice (4 Oct 2026). 0 turns it off.'],
-  ['rollAccelDegPerSec2', 'Roll acceleration (°/s²)', 'How fast the roll rate builds and dies away: 360 reaches 90°/s in 0.25 s. Estimate: Patrick\'s brisk choice (4 Oct 2026). 0 turns it off.'],
-  ['pitchBackBank160Deg', 'Pitch back bank at 160 KIAS (°)', 'More bank when slower (EFIG p.441).'],
-  ['pitchBackBank220Deg', 'Pitch back bank at 220 KIAS (°)', 'Less bank when faster, in a line from the 160 KIAS bank.'],
-  ['immelmannAboveKias', 'Smart: Immelmann or pitch back above (KIAS)', 'Above this, Smart races the Immelmann against the pitch back.'],
-  ['splitSBelowKias', 'Smart: split S below (KIAS)', 'Below this Smart flies a split S (a slice above it).'],
-  ['immelmannOffNoseDeg', 'Immelmann off-nose angle (°)', 'With no chase in the look-ahead, Smart flies the Immelmann when the other aircraft is more than this off the nose.'],
-  ['immelmannMinTopKias', 'Lowest Immelmann top speed (KIAS)', 'An Immelmann that would be over the top slower than this is never picked.'],
-  ['pickLookaheadSec', 'Look-ahead (s)', 'How far ahead Smart races the two moves above its split point. 0 turns the race off.'],
-  ['deckMarginFt', 'Deck margin (ft)', 'Under the MPT band and closer than this to the hard deck, Smart flies the level MPT instead of a slice or split S.'],
-  ['tacticalLookaheadSec', 'Smart look-ahead (s)', 'How far ahead Smart flies each move it could pick, to see which wins. 20 s is Patrick\'s ruling (4 Oct 2026).'],
-  ['smartDecisionSec', 'Smart decision time (s)', 'How long Smart takes to pick its next move, flying on meanwhile. Its look-ahead starts from where the jet will be then and is spread over that time, so the screen never freezes. 0 picks at once (the screen may freeze briefly). Estimate.'],
+export const ADVANCED_NUMBERS = Object.freeze([
+  {
+    key: 'startAtaDeg', section: 'start', label: 'Red\'s position off Blue\'s nose (ATA)',
+    what: 'How far off Blue\'s nose Red starts: 0° is dead ahead, 180° dead astern. Its left or right side is the choice beside it.',
+    why: 'Patrick\'s ruling, 4 Oct 01:49Z (TF-R14): Red 5° off Blue\'s nose. ATA is this tool\'s own term; the SMM has no off-nose angle (it gives the sides, SMM 16 para 40b).',
+    change: 'Moves Red across Blue\'s view and starts the fight again. No side counts at 0° or 180°.',
+  },
+  {
+    key: 'startAaDeg', section: 'start', label: 'Red\'s aspect angle (AA)',
+    what: 'Where Blue sits off Red\'s tail: 180° is Red pointing at Blue, 0° is Blue dead astern of Red.',
+    why: 'Patrick\'s ruling, 4 Oct 01:49Z (TF-R14): the neutral head-on start. AA and HCA are SMM 12.2 paras 6 and 9.',
+    change: 'Turns Red\'s heading and so the heading crossing angle (HCA, shown beside it), and starts the fight again. No side counts at 0° or 180°.',
+  },
+  {
+    key: 'mptKias', section: 'energy', label: 'MPT speed (KIAS)',
+    what: 'The speed the max-performance turn (MPT) is held at.',
+    why: 'SMM 14.3 para 6.',
+    change: 'Every MPT, and every hand-over from a move to the MPT, aims at this speed. The box stops at 125 and 175 KIAS: above 175 the level MPT sinks under the hard deck, and below 125 the 60° bank floor meets the stick shaker (model limits, TF-44).',
+  },
+  {
+    key: 'hardDeckFt', section: 'energy', label: 'Hard deck (ft MSL)',
+    what: 'The height the jets are to stay above.',
+    why: '6,000 ft MSL is 3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16).',
+    change: 'Smart keeps above it, and the level MPT holds 300 ft over it. A jet below it after the pass shows BELOW DECK and loses the fight (TF-R6): it is flagged, not stopped.',
+  },
+  {
+    key: 'gOnsetGPerSec', section: 'smoothing', label: 'G onset (G/s)',
+    what: 'How fast the pilot builds or eases the G.',
+    why: 'Estimate: Patrick chose the brisk setting (4 Oct 10:38Z); no manual gives a number.',
+    change: 'Higher: the G changes faster, nearer a one-step change. Lower: smoother, and each turn takes longer to set up. 0 turns it off.',
+  },
+  {
+    key: 'rollAccelDegPerSec2', section: 'smoothing', label: 'Roll acceleration (°/s²)',
+    what: 'How fast the roll rate builds up and dies away: 360 reaches 90°/s in 0.25 s.',
+    why: 'Estimate: Patrick chose the brisk setting (4 Oct 10:38Z); no manual gives a number.',
+    change: 'Higher: the roll starts and stops more sharply. Lower: it eases in and out more slowly. 0 turns it off.',
+  },
+  {
+    key: 'stallKias', section: 'model', label: 'Stall speed (KIAS)',
+    what: 'The 1 G stall speed. The most G a jet can pull at a speed is that speed over this, squared (the stall line).',
+    why: 'Patrick kept 86, labelled an estimate (TF-56, 4 Oct 09:10Z). The V-n diagram reads about 89 and the turn charts imply about 83.',
+    change: 'Higher: less G at every speed, so the shaker, the stall and the lost turn all come sooner. Lower: the opposite.',
+  },
+  {
+    key: 'shakerPct', section: 'model', label: 'Shaker (% of the stall-line G)',
+    what: 'How near the stall line the pilot pulls, as a percent of the stall-line G (the stick shaker).',
+    why: '17 of 18 units of AOA (SMM 14.14 para 33).',
+    change: 'Higher: harder pulls and a faster turn, with less room before the stall. Lower: more margin and a slower turn.',
+  },
+  {
+    key: 'stallSec', section: 'model', label: 'How long a stall lasts (s)',
+    what: 'How long the G drops to 1 G after a stall.',
+    why: 'That a stall costs the turn is SMM 14.14 para 32; the length is an estimate (Dad checks it, TF-56).',
+    change: 'Longer: a stall costs more of the fight. 0 gives no pause.',
+  },
+  {
+    key: 'midThrottlePct', section: 'model', label: 'Mid-range throttle (% of maximum thrust)',
+    what: 'The throttle used when rolling straight into an MPT from above its speed.',
+    why: 'Mid throttle in that case is SMM 14.14 paras 36 and 38; the 50 % is an estimate (TF-4).',
+    change: 'Higher: the jet keeps more speed going into the MPT. Lower: it slows sooner.',
+  },
+  {
+    key: 'leadSec', section: 'model', label: 'Lead point (s ahead)',
+    what: 'How far ahead of the other aircraft a Lead pursuit aims, in seconds of its flight.',
+    why: 'Estimate. The Lead and Lag pursuits themselves are SMM 12.30 and 16.16.',
+    change: 'Higher: the chaser points further ahead of the other jet. Only a Lead pursuit uses it.',
+  },
+  {
+    key: 'lagSec', section: 'model', label: 'Lag point (s behind)',
+    what: 'How far behind the other aircraft a Lag pursuit aims, in seconds of its flight.',
+    why: 'Estimate. The Lead and Lag pursuits themselves are SMM 12.30 and 16.16.',
+    change: 'Higher: the chaser points further behind the other jet. Only a Lag pursuit uses it.',
+  },
+  {
+    key: 'rollRateDegPerSec', section: 'model', label: 'Roll rate (°/s)',
+    what: 'How fast the bank changes when a jet rolls. It is also the roll in the split S.',
+    why: 'Estimate: the spec\'s default of 90°/s, with no manual page behind it.',
+    change: 'Higher: jets roll to a new bank sooner, so turns start and reverse sooner. Lower: they take longer to get there.',
+  },
+  {
+    key: 'pitchBackBank160Deg', section: 'model', label: 'Pitch back bank at 160 KIAS (°)',
+    what: 'The bank for a pitch back entered at 160 KIAS.',
+    why: 'The rule, more bank when slower, is EFIG p.441; the 60° itself is an estimate.',
+    change: 'More bank turns the jet more and climbs it less; less bank climbs more.',
+  },
+  {
+    key: 'pitchBackBank220Deg', section: 'model', label: 'Pitch back bank at 220 KIAS (°)',
+    what: 'The bank for a pitch back entered at 220 KIAS. Between 160 and 220 the bank runs along a line between the two.',
+    why: 'The rule, less bank when faster, is EFIG p.441; the 30° itself is an estimate.',
+    change: 'More bank turns the jet more and climbs it less; less bank climbs more.',
+  },
+  {
+    key: 'immelmannAboveKias', section: 'model', label: 'Smart: Immelmann or pitch back above (KIAS)',
+    what: 'Above this speed Smart\'s first move is the Immelmann or the pitch back, whichever its look-ahead says gets the nose on sooner.',
+    why: 'The top of the SMM\'s pitch back band (SMM 14.15, Table 14.1).',
+    change: 'Lower: Smart tries the Immelmann from a lower speed. Higher: it flies the pitch back up to a higher speed.',
+  },
+  {
+    key: 'splitSBelowKias', section: 'model', label: 'Smart: split S below (KIAS)',
+    what: 'Below this speed Smart\'s first move is a split S (a slice above it).',
+    why: 'SMM Table 14.1 (the split S band, 100 to 120 KIAS).',
+    change: 'Higher: Smart flies the split S at more speeds, and it loses about 2,000 ft (SMM 14.16 para 40).',
+  },
+  {
+    key: 'immelmannOffNoseDeg', section: 'model', label: 'Immelmann off-nose angle (°)',
+    what: 'With no chase in the look-ahead, Smart flies the Immelmann when the other aircraft is more than this off the nose, and the pitch back when it is less.',
+    why: 'Estimate.',
+    change: 'Lower: more Immelmanns. Higher: more pitch backs.',
+  },
+  {
+    key: 'immelmannMinTopKias', section: 'model', label: 'Lowest Immelmann top speed (KIAS)',
+    what: 'An Immelmann that would be over the top slower than this is never picked by Smart. A set Immelmann still flies.',
+    why: 'Estimate.',
+    change: 'Lower: Smart will pick Immelmanns that top out slower. 0 takes the floor away.',
+  },
+  {
+    key: 'pickLookaheadSec', section: 'model', label: 'Look-ahead (s)',
+    what: 'How far ahead Smart races the Immelmann against the pitch back, above its split speed.',
+    why: 'Estimate.',
+    change: 'Longer: the race is judged over more of the fight and takes more computing. 0 turns the race off.',
+  },
+  {
+    key: 'deckMarginFt', section: 'model', label: 'Deck margin (ft)',
+    what: 'Under the MPT band and closer than this to the hard deck, Smart flies the level MPT instead of a slice or split S.',
+    why: 'Estimate. It may come from the soft deck sitting at least 1,000 ft above the hard deck (SMM 14.6 to 14.7), which is a guess (TF-15).',
+    change: 'Larger: Smart keeps off slices and split S sooner when it is low. 0 takes the margin away.',
+  },
+  {
+    key: 'tacticalLookaheadSec', section: 'model', label: 'Smart look-ahead (s)',
+    what: 'How far ahead Smart flies each move it could pick, to see which wins.',
+    why: 'Patrick\'s ruling, 4 Oct 18:09Z (TF-59).',
+    change: 'Longer: Smart sees further and takes more computing. Shorter: a more short-sighted pilot.',
+  },
+  {
+    key: 'smartDecisionSec', section: 'model', label: 'Smart decision time (s)',
+    what: 'How long Smart takes to pick its next move, flying on meanwhile. Its look-ahead starts from where the jet will be then and is spread over that time, so the screen never freezes.',
+    why: 'Estimate. Patrick asked for it as a setting (TF-62, 4 Oct 19:38Z); 0.5 s is the estimate.',
+    change: 'Longer: Smart reacts later but the work is spread thinner. 0 picks at once, and the screen may freeze briefly.',
+  },
 ]);
+
+/** The setting keys in each section of Advanced setup's numbers, in the order they are shown. */
+export const ADVANCED_KEYS = Object.freeze(Object.fromEntries(['start', 'energy', 'smoothing', 'model'].map((section) => [section, ADVANCED_NUMBERS.filter((n) => n.section === section).map((n) => n.key)])));
+
+/** The keys of the Smoothing and Model numbers sections together: the ones Model numbers' own reset puts back (state.js checkingDefaults). */
+export const CHECK_SETTINGS_KEYS = Object.freeze([...ADVANCED_KEYS.smoothing, ...ADVANCED_KEYS.model]);
 
 /**
  * settings: the remembered values (storage/settings.js); controls: ui-kit controls bound to them.
@@ -96,7 +225,7 @@ export function createLayout({ settings, controls, on }) {
   };
 
   // ── Fight setup column ──────────────────────────────────────────────
-  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.15", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
+  const versionBadge = h('div', { class: 'tf-version-badge' }, "PAT'S FIGHT AND TURN SIM v2.16", h('span', { class: 'tf-version-sub' }, '• Smart pilot & Harvard 5.0 G'));
   const intro = h('p', { class: 'tf-intro' }, versionBadge, h('br'), 'Two aircraft start apart and turn, at the pass or at once: who gets their nose on the other first?');
   const presetSelect = h(
     'select',
@@ -118,8 +247,8 @@ export function createLayout({ settings, controls, on }) {
   const fightType = controls.choice('circles', { label: 'Fight type', options: [[1, '1-circle'], [2, '2-circle']] });
   const separation = controls.number('separationNm', { label: 'Start separation', ...RANGES.separationNm });
 
-  // One aircraft's boxes: speed and G, with pitch beside them (Climb and dive
-  // only), and the T-6 limit warning right under them.
+  // One aircraft's boxes: speed and G (the Simple fight's, hidden in Energy), the T-6 limit warning right under them,
+  // and Energy's start altitude and merge speed.
   function aircraft(who, letter, name) {
     // Always on the page, so a screen reader hears the words when they appear; only its text changes.
     const warning = h('p', { class: 'tf-warning', id: `tf-warning-${nextId++}`, 'aria-live': 'polite' });
@@ -128,8 +257,7 @@ export function createLayout({ settings, controls, on }) {
     const g = controls.number(`${who}G`, { label: G_LABEL, ...RANGES[`${who}G`] });
     const gInput = g.querySelector('input');
     gInput.setAttribute('aria-describedby', `${gInput.getAttribute('aria-describedby')} ${warning.id}`);
-    const pitchBox = h('div', { class: 'tf-pitch', hidden: true }, controls.number(`${who}PitchDeg`, { label: 'Pitch (°)', ...RANGES[`${who}PitchDeg`] }));
-    // Energy (T-6): each aircraft's start altitude and merge speed (they take the place of the greyed-out simple boxes' work),
+    // Energy (T-6): each aircraft's start altitude and merge speed (they take the place of the simple boxes, which are hidden then),
     // the note about high starts, and the move the model chose and why. All hidden until the Energy box is ticked.
     // Its text is there only while it shows: Start altitude's description points at it, and a hidden note still describes.
     const altNote = h('p', { class: 'tf-hint tf-alt-note', id: `tf-alt-note-${nextId++}`, hidden: true });
@@ -140,37 +268,50 @@ export function createLayout({ settings, controls, on }) {
       controls.number(`${who}Kias`, { label: 'Merge speed (KIAS)', ...RANGES[`${who}Kias`] }));
     // Always on the page while Energy is on, so a screen reader hears the move when it changes ("Pitch back", then "MPT 160 KIAS").
     const move = h('p', { class: 'tf-move', 'aria-live': 'polite', hidden: true });
+    const simpleRow = h('div', { class: 'tf-aircraft-row' }, speed, g);
     const element = h(
       'fieldset',
       { class: `tf-aircraft tf-${who}` },
       h('legend', {}, h('span', { class: 'tf-badge', 'aria-hidden': 'true' }, letter), name),
-      h('div', { class: 'tf-aircraft-row' }, speed, g, pitchBox),
+      simpleRow,
       warning,
       energyRow,
       altNote,
       move,
     );
-    return { element, warning, pitchBox, energyRow, altNote, move };
+    return { element, warning, simpleRow, energyRow, altNote, move };
   }
   const blue = aircraft('blue', 'B', 'Blue');
   const red = aircraft('red', 'R', 'Red');
 
-  const chase = controls.checkbox('chase', { label: 'First nose chases' });
-  const vertical = controls.checkbox('vertical', { label: 'Climb and dive' });
-  vertical.hidden = true;
   const energy = controls.checkbox('energy', { label: 'BFM Energy Fight' });
   // Why an Energy setup cannot fly (two numbers that don't go together): in words, where the boxes are.
   const energyProblem = h('p', { class: 'tf-warning tf-energy-problem', id: `tf-energy-problem-${nextId++}`, 'aria-live': 'polite' });
 
-  // The one closed settings menu. Start geometry and Energy sections are made
-  // here ahead of Display when those arrive (most-used first).
+  // The one closed menu, Advanced setup (TF-63): everything that is not on the first view. Its sections, in the order a person
+  // reaches for them: Start geometry, Pilot and moves, Energy, Smoothing, Display, Model numbers. Every number in it has a line
+  // beside it (ADVANCED_NUMBERS): what it is, why it has that value, and what changing it does.
   const menu = createSettingsMenu({
-    title: "Pat's Fight and Turn Sim settings",
+    title: 'Advanced setup',
     onReset: () => on.resetDefaults(),
     resetLabel: 'Reset to Standard Defaults',
     // The column scrolls, so a menu opened near its foot is brought into view, Reset button and all.
     onToggle: (collapsed) => !collapsed && menu.element.scrollIntoView?.({ block: 'nearest' }),
   });
+  menu.body.append(h('p', { class: 'tf-hint' }, 'Extra settings, none needed to play. Every number has a line beside it: what it is, why it has that value (a manual page, Patrick\'s ruling, or estimate) and what changing it does. Reset to Standard Defaults, at the foot, puts back every setting here.'));
+
+  // A number box and its line: the range and default, then ADVANCED_NUMBERS' three parts. The line is tied to the box, so a screen reader reads it with the box.
+  const NOTES = Object.fromEntries(ADVANCED_NUMBERS.map((n) => [n.key, n]));
+  function numberWithNote(key) {
+    const { label, what, why, change } = NOTES[key];
+    const box = controls.number(key, { label, ...RANGES[key] });
+    const line = h('p', { class: 'tf-hint tf-why', id: `tf-why-${nextId++}` },
+      `${rangeHint(key)} ${what} `, h('b', {}, 'Why this value: '), `${why} `, h('b', {}, 'Changing it: '), change);
+    const input = box.querySelector('input');
+    input.setAttribute('aria-describedby', `${input.getAttribute('aria-describedby')} ${line.id}`);
+    return [box, line];
+  }
+
   // ── Start geometry (R28): head-on by default, the most-used section ───
   const startSection = menu.section('Start geometry');
   const startPicture = h('canvas', { class: 'tf-start-picture' });
@@ -179,79 +320,86 @@ export function createLayout({ settings, controls, on }) {
   const turnText = h('p', { class: 'tf-turns', 'aria-live': 'polite' });
   const headOnButton = h('button', { type: 'button', class: 'button', onclick: () => on.headOn() }, 'Neutral Head-on');
   const sideChoices = [['left', 'Left'], ['right', 'Right']];
-  const redAbove = controls.number('redAboveFt', { label: 'Red starts above Blue (ft)', ...RANGES.redAboveFt });
+  const [ataBox, ataLine] = numberWithNote('startAtaDeg');
+  const [aaBox, aaLine] = numberWithNote('startAaDeg');
   startSection.append(
-    h('p', { class: 'tf-hint' }, 'Where the fight starts. Neutral head-on is the standard start. Changing these starts the fight again.'),
-    h('div', { class: 'tf-start-row' },
-      controls.number('startAtaDeg', { label: 'Red\'s position off Blue\'s nose (ATA)', ...RANGES.startAtaDeg }),
-      controls.choice('startAtaSide', { label: 'ATA side', options: sideChoices })),
-    h('p', { class: 'tf-hint' }, '0 to 180°, default 0° (dead ahead). ATA: the angle off Blue\'s nose (this tool\'s term). No side at 0° or 180°.'),
-    h('div', { class: 'tf-start-row' },
-      controls.number('startAaDeg', { label: 'Red\'s aspect angle (AA)', ...RANGES.startAaDeg }),
-      controls.choice('startAaSide', { label: 'AA side', options: sideChoices })),
-    h('p', { class: 'tf-hint' }, '0 to 180°, default 180° (Red points at Blue; 0° is Blue dead astern of Red). Side: which side of Red Blue is on, none at 0° or 180°. AA and HCA: SMM 12.2 paras 6 and 9; sides: SMM 16 para 40b.'),
+    h('p', { class: 'tf-hint' }, 'Where the fight starts. Neutral head-on is the standard start. Changing these starts the fight again. The start separation is on the first view and is measured level; Range includes any height between the jets.'),
+    h('div', { class: 'tf-start-row' }, ataBox, controls.choice('startAtaSide', { label: 'ATA side', options: sideChoices })),
+    ataLine,
+    h('div', { class: 'tf-start-row' }, aaBox, controls.choice('startAaSide', { label: 'AA side', options: sideChoices })),
+    aaLine,
+    h('p', { class: 'tf-hint' }, 'Sides: which side of the jet the other one is on (SMM 16 para 40b); none at 0° or 180°.'),
     hcaText,
     passText,
     turnText,
     h('div', { class: 'tf-start-picture-wrap' }, startPicture),
-    h('div', { class: 'tf-red-above' }, redAbove),
-    h('p', { class: 'tf-hint' }, '-5,000 to +5,000 ft, default 0. Used with Climb and dive on. The start separation is measured level; Range includes height.'),
     controls.choice('turnsAt', { label: 'When the turns start', options: [['pass', 'At the pass'], ['once', 'At once']] }),
     h('p', { class: 'tf-hint' }, 'At the pass (default): each jet flies straight until the range stops closing. At once: the turns start at T+0.'),
     headOnButton,
   );
 
-  // ── Energy (T-6): More energy settings, shown with the checkbox on ──────
-  const energySection = menu.section('Energy');
-  energySection.hidden = true;
+  // ── Pilot and moves: who decides each jet's move, how the chase goes, and what the Simple fight's chase does ──
+  const pilotSection = menu.section('Pilot and moves');
+  // The Simple fight's own switch, shown only there (hidden in Energy, which has its own chase rules below).
+  const chaseField = h('div', { class: 'tf-pilot-simple' },
+    controls.checkbox('chase', { label: 'First nose chases' }),
+    h('p', { class: 'tf-hint' }, 'Simple fight only. Off (default): each jet keeps turning its own circle. On: from the first nose-on, each jet turns toward the other.'));
   const moveOptions = ENERGY_MOVES.filter((id) => MOVE_NAMES[id]).map((id) => [id, MOVE_NAMES[id]]); // 'tactical' is Smart's old name, not shown
-  energySection.append(
-    h('p', { class: 'tf-hint' }, 'More energy settings. Changing any of them starts the fight again.'),
+  const pilotEnergy = h('div', { class: 'tf-pilot-energy' },
     controls.select('blueMove', { label: 'Blue\'s move', options: moveOptions }),
     controls.select('redMove', { label: 'Red\'s move', options: moveOptions }),
     h('p', { class: 'tf-hint' }, 'Smart (default) picks the first move from the merge speed (SMM Table 14.1), then in the MPT looks ahead for a better move. A set move is flown from the pass whatever the speed, then exits into the MPT, so you can compare them.'),
-    controls.number('mptKias', { label: 'MPT speed (KIAS)', ...RANGES.mptKias }),
-    h('p', { class: 'tf-hint' }, `${rangeHint('mptKias')} The max-performance turn (MPT) speed, SMM 14.3 para 6.`),
-    controls.number('hardDeckFt', { label: 'Hard deck (ft MSL)', ...RANGES.hardDeckFt }),
-    h('p', { class: 'tf-hint' }, `${rangeHint('hardDeckFt')} 6,000 ft MSL is 3,000 ft AGL in the Moose Jaw areas (SMM 14.6 para 16). It is where the model changes to the level MPT.`),
     controls.select('pursuit', { label: 'Pursuit', options: [['tactical', 'Tactical (Dynamic)'], ['pure', 'Pure'], ['lead', 'Lead'], ['lag', 'Lag']] }),
-    h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: Tactical (Dynamic) smoothly blends Lag in Control Zone -> Pure -> Lead for snapshot. Pure, Lead, and Lag force static instructor curves (SMM 12.30 and 16.16).'),
+    h('p', { class: 'tf-hint' }, 'How the first aircraft to get its nose on chases: Pure (default) aims straight at the other jet; Lead and Lag aim ahead of or behind it (SMM 12.30 and 16.16); Tactical (Dynamic) blends Lag in the control zone, Pure and Lead for a snapshot.'),
     controls.checkbox('chaseAfterHeadOn', { label: 'Chase from head-on' }),
-    h('p', { class: 'tf-hint' }, 'Off by default: a head-on first nose-on is marked but starts no chase. On: it starts the pursuit too.'),
+    h('p', { class: 'tf-hint' }, 'On by default (Patrick\'s ratification, D403; TF-Q5 is still open): a head-on first nose-on starts the pursuit too. Off: it is marked but starts no chase.'));
+  pilotSection.append(
+    h('p', { class: 'tf-hint' }, 'Changing any of these starts the fight again.'),
+    chaseField,
+    pilotEnergy,
+  );
+
+  // ── Energy (T-6): shown with the checkbox on ──────
+  const energySection = menu.section('Energy');
+  energySection.hidden = true;
+  energySection.append(
+    h('p', { class: 'tf-hint' }, 'Changing any of these starts the fight again.'),
+    ...ADVANCED_KEYS.energy.flatMap((key) => numberWithNote(key)),
     controls.checkbox('collisionDetection', { label: 'Mid-air collision' }),
-    h('p', { class: 'tf-hint' }, 'On: aircraft closer than 35 ft collide and tumble. Off: they pass through each other.'),
+    h('p', { class: 'tf-hint' }, 'On (default): aircraft closer than 35 ft, the size of the aircraft (TF-54), collide and tumble. Off: they pass through each other.'),
     controls.checkbox('collisionAvoidance', { label: 'Collision avoidance' }),
-    h('p', { class: 'tf-hint' }, 'On: pilots roll out of plane to clear each other when a collision is predicted.'),
+    h('p', { class: 'tf-hint' }, 'On (default): in every move the pilots break away from a predicted close pass (TF-58, provisional until Patrick sees it). Off: they fly on.'),
   );
 
+  // ── Smoothing (TF-57 PR 2): how fast the pilot builds G and rolls ──────
+  const smoothingSection = menu.section('Smoothing');
+  smoothingSection.hidden = true;
+  smoothingSection.append(
+    h('p', { class: 'tf-hint' }, 'Limits how fast the pilot changes G and roll, in every move, so nothing snaps. Changing a number starts the fight again.'),
+    ...ADVANCED_KEYS.smoothing.flatMap((key) => numberWithNote(key)),
+  );
+
+  // ── Display: the 3D view's paint. Shown only while 3D shows (the data tags are the toolbar's) ──────
   const display = menu.section('Display');
+  display.hidden = true;
   display.append(
-    controls.checkbox('dataTags', { label: 'Data tags on aircraft' }),
-    h('p', { class: 'tf-hint' }, 'Shows airspeed, G-load and active maneuver directly beside each aircraft.'),
-    controls.choice('heightScale', { label: 'Side view height scale', options: times(ALLOWED.heightScale) }),
-    h('p', { class: 'tf-hint' }, 'Stretches heights in the side view (2D, with Climb and dive).'),
     controls.select('paint', { label: 'Paint', options: PAINT_OPTIONS }),
-    h('p', { class: 'tf-hint' }, 'How the aircraft are painted in the 3D view. Ship colours are Blue and Red.'),
+    h('p', { class: 'tf-hint' }, 'How the aircraft are painted in the 3D view. Ship colours are Blue and Red. It never restarts the fight.'),
   );
 
-  // ── Model settings for checking: its own section at the bottom, with its own reset ──
-  const checkSection = menu.section('Model settings for checking');
+  // ── Model numbers: the numbers no manual gives, which Dad checks. Its own reset, as it was ──
+  const checkSection = menu.section('Model numbers');
   checkSection.hidden = true;
   checkSection.append(
-    h('p', { class: 'tf-hint' }, 'The numbers no manual gives, which Dad checks. A student never needs to open this. Changing one starts the fight again.'),
-    ...CHECK_SETTINGS.flatMap(([key, label, hint]) => [
-      controls.number(key, { label, ...RANGES[key] }),
-      h('p', { class: 'tf-hint' }, `${rangeHint(key)} ${hint}`),
-    ]),
-    h('button', { type: 'button', class: 'button tf-check-reset', onclick: () => on.checkingDefaults() }, 'Reset to defaults'),
+    h('p', { class: 'tf-hint' }, 'The numbers no manual fully gives, which Dad checks. A student never needs to open this. Changing one starts the fight again.'),
+    ...ADVANCED_KEYS.model.flatMap((key) => numberWithNote(key)),
+    h('button', { type: 'button', class: 'button tf-check-reset', onclick: () => on.checkingDefaults() }, 'Reset smoothing and model numbers to defaults'),
   );
 
   const about = createPanel({ title: 'About this model', collapsed: true });
   about.body.append(
     h('p', {}, h('b', {}, '2-circle (Rate Fight): '), 'Both jets turn into each other. Two separate circles. ', h('b', {}, '1-circle (Radius Fight): '), 'Jets turn opposite cockpit directions but same geographic direction. One shared circle.'),
     h('p', {}, h('b', {}, 'First nose: '), 'a yellow dashed line marks the first aircraft to get its nose within 5° of the other.'),
-    h('p', {}, 'With Climb and dive on, first nose-on needs the nose truly on the other jet; at a fixed climb or dive it may never come, and the chase then never starts.'),
-    h('p', {}, 'The aspect angle (AA) and off-nose angle (ATA) are measured in 3D with Climb and dive on, so with a height difference at T+0 the AA reads less than 180° even when Red points at Blue.'),
     h('p', {}, 'In a 2-circle fight between equal jets, from a head-on start a nose-on happens only if they come back exactly head-on; a sideways offset (ATA 1°, AA 179°) gives none, which is what a rate fight between equals means.'),
     h('p', {}, 'Level, coordinated turns, each aircraft a point.'),
   );
@@ -265,7 +413,7 @@ export function createLayout({ settings, controls, on }) {
   const setupPanel = createPanel({ title: 'Fight setup', onToggle: (collapsed) => settings.update({ setupOpen: !collapsed }) });
   setupPanel.body.append(
     intro, presetField, fightType, separation, blue.element, red.element,
-    h('div', { class: 'tf-extras' }, chase, vertical, energy),
+    h('div', { class: 'tf-extras' }, energy),
     energyProblem,
     menu.element, about.element,
   );
@@ -294,8 +442,6 @@ export function createLayout({ settings, controls, on }) {
   const note = h('p', { class: 'tf-note', role: 'status' });
 
   const canvas = h('canvas', { class: 'tf-topdown' });
-  const profileCanvas = h('canvas', { class: 'tf-profile-canvas' });
-  const profile = h('section', { class: 'tf-profile', 'aria-label': 'Side view', hidden: true }, profileCanvas);
   // Energy's side view: altitude against time (uPlot, drawn by energy-graph.js into `energyChart`), with its text alternative:
   // a line of numbers and a table (a real table, every ALTITUDE_TABLE_STEP_SEC seconds), for screen readers and anyone else.
   const energyChart = h('div', {
@@ -335,7 +481,7 @@ export function createLayout({ settings, controls, on }) {
     Object.entries(VIEWS).map(([id, { label }]) => h('button', { type: 'button', class: 'button tf-3d-view', onclick: () => on.cameraView(id) }, label)),
     h('span', { class: 'tf-3d-hint' }, 'Drag to turn it. Scroll or pinch to zoom. Grid squares are 1 NM.'),
   );
-  const views = h('div', { class: 'tf-views' }, h('div', { class: 'tf-topdown-wrap' }, canvas, canvas3d, cameraBar), profile, energyPanel);
+  const views = h('div', { class: 'tf-views' }, h('div', { class: 'tf-topdown-wrap' }, canvas, canvas3d, cameraBar), energyPanel);
   const footer = h('p', { class: 'tf-footer' }, SIMPLE_FOOTER);
   const stage = h(
     'section',
@@ -367,19 +513,15 @@ export function createLayout({ settings, controls, on }) {
 
   // Which picture is on screen: '2d' or '3d'. The view setting is what the person chose; this is what shows.
   let shown = '2d';
-  let sideViewWanted = false;
   let energyWanted = false;
   const showPictures = () => {
     const in3d = shown === '3d';
     canvas.hidden = in3d;
     canvas3d.hidden = !in3d;
     cameraBar.hidden = !in3d;
-    // The 3D scene replaces the whole drawing area, the side view with it. In Energy mode the side view is the altitude graph
-    // (real heights, so no height scale); Climb and dive is greyed out then, and its side view stays away.
-    profile.hidden = in3d || !sideViewWanted || energyWanted;
+    // The 3D scene replaces the whole drawing area, the side view with it. In Energy mode the side view is the altitude graph (real heights).
     energyPanel.hidden = in3d || !energyWanted;
-    controls.setDisabled('paint', !in3d); // the paint shows only in 3D
-    controls.setDisabled('heightScale', in3d || !sideViewWanted || energyWanted); // the height scale is for the 2D side view only
+    display.hidden = !in3d; // the paint is for 3D only: hidden in 2D, not greyed
   };
 
   // The start geometry's words (HCA, the pass, the turns): from the settings, or from the ones an Energy fight flies instead.
@@ -404,8 +546,7 @@ export function createLayout({ settings, controls, on }) {
     element,
     canvas,
     canvas3d,
-    profileCanvas,
-    /** The start picture's canvas (Start geometry, in the settings menu). */
+    /** The start picture's canvas (Start geometry, in Advanced setup). */
     startPicture,
     /** Shows the side view, and which controls go with each checkbox, from the settings. */
     applyLayout(values) {
@@ -413,26 +554,23 @@ export function createLayout({ settings, controls, on }) {
       resultPanel.setCollapsed(!values.resultOpen);
       setupCol.classList.toggle('is-collapsed', !values.setupOpen);
       resultCol.classList.toggle('is-collapsed', !values.resultOpen);
-      // Energy (T-6): the simple speed, G, Climb and dive and First nose chases are greyed out with their values kept, and
-      // Energy's start altitude and merge speed take their place. The pitch boxes belong to Climb and dive, so they go too.
+      // Energy (T-6): the Simple fight's speed and G and First nose chases are hidden (their values are kept), and
+      // Energy's start altitude and merge speed take their place. In Simple, Energy's own settings are hidden.
       const inEnergy = values.energy;
       energyWanted = inEnergy;
-      blue.pitchBox.hidden = !values.vertical || inEnergy;
-      red.pitchBox.hidden = !values.vertical || inEnergy;
-      sideViewWanted = values.vertical;
       showPictures();
-      for (const key of ['blueKt', 'redKt', 'blueG', 'redG', 'chase', 'bluePitchDeg', 'redPitchDeg']) controls.setDisabled(key, inEnergy);
-      controls.setDisabled('vertical', true);
-      controls.setDisabled('redAboveFt', !values.vertical || inEnergy);
       for (const box of [blue, red]) {
+        box.simpleRow.hidden = inEnergy;
         box.energyRow.hidden = !inEnergy;
         box.move.hidden = !inEnergy;
       }
+      chaseField.hidden = inEnergy;
+      pilotEnergy.hidden = !inEnergy;
       showAltNote(blue.altNote, inEnergy && values.blueAltFt > ENERGY_ACCURATE_MAX_FT);
       showAltNote(red.altNote, inEnergy && values.redAltFt > ENERGY_ACCURATE_MAX_FT);
       energySection.hidden = !inEnergy;
-      const showCheck = inEnergy && typeof window !== 'undefined' && Boolean(window.location?.search?.includes('debug=aero'));
-      checkSection.hidden = !showCheck;
+      smoothingSection.hidden = !inEnergy;
+      checkSection.hidden = !inEnergy; // for everyone, not only with ?debug=aero in the address (TF-63)
       energyAbout.hidden = !inEnergy;
       if (footer.textContent !== (inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER)) footer.textContent = inEnergy ? ENERGY_FOOTER : SIMPLE_FOOTER;
       // The pass, the pass note and the picture use the true airspeed of the merge speed in Energy.
