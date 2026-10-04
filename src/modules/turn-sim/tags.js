@@ -37,7 +37,7 @@ export function fwState(ref, wing) {
 
 /** A close formation's in-position test turned into one state word, for the 2-ship key (echelon, route, astern). */
 export function closeState(pairKey, ref, wing) {
-  const j = judgeFormation(pairKey, ref, wing);
+  const j = judgeFormation(pairKey, ref, wing, undefined, { wingPlane: true }); // stepped up or down in a turn is in place
   if (j.inBand) return 'IN POSITION';
   if (j.labels.some((l) => TIGHT_WORDS.has(l))) return 'TIGHT';
   if (j.labels.some((l) => STRETCHED_WORDS.has(l))) return 'STRETCHED';

@@ -111,11 +111,22 @@ export function classifyPair(lead, wing) {
   return { key: 'other', side };
 }
 
-/** Judges the pair against a formation's band in the spec table (section 10). Returns { key, inBand, labels, text, tone }. */
-export function judgeFormation(key, lead, wing, spacingFt = 6000) {
-  const rel = relativeTo(lead, wing);
+/**
+ * Judges the pair against a formation's band in the spec table (section 10). Returns { key, inBand, labels, text, tone }.
+ * opts.wingPlane: measure out and down in Lead's wing plane, not level, so a wingman stepped up or down with Lead's bank in
+ * a close turn (SMM 12.19 paras 41-43, Fig 12.11) reads as in place. Lead's bank only tilts the frame; level, it is the same.
+ */
+export function judgeFormation(key, lead, wing, spacingFt = 6000, opts = {}) {
+  const rel = { ...relativeTo(lead, wing) };
+  let down = lead.altAboveFt - wing.altAboveFt; // positive: #2 is below Lead
+  if (opts.wingPlane && lead.bankDeg) {
+    const phi = lead.bankDeg * DEG; // positive: left wing down
+    const up = -down;
+    const left = rel.left * Math.cos(phi) - up * Math.sin(phi);
+    down = -(rel.left * Math.sin(phi) + up * Math.cos(phi));
+    rel.left = left;
+  }
   const across = Math.abs(rel.left);
-  const down = lead.altAboveFt - wing.altAboveFt; // positive: #2 is below Lead
   const ft = (n) => `${Math.round(Math.abs(n)).toLocaleString('en-CA')} ft`;
   const word = FORMATIONS[key].label;
   let labels = [];
