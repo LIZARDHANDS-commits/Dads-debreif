@@ -57,6 +57,7 @@ Each row is one decision. "Rule" is the decision as it now reads (reworded where
 | TR-45 | Keys move into wind as a setting, on from 15 kt (estimate). | new | EFIG p.406; Patrick 06:56Z. |
 | TR-46 | The T/O flap glide row (1.3 NM per 1,000 ft) stays an estimate until a manual page or Dad backs it. | new | Patrick 04:18Z. |
 | TR-47 | PFL touchdown: aim a third down the runway until the landing flap goes down, then touch down in the first 1,000 ft, closer being better. Gear and T/O flap go at their planned point unless low; landing flap goes once it still makes the first 1,000 ft. Joins are flown in one turn where they can be. Wording in `spec.md` 4.5 items 6, 7 and 13. | TR-41's "most in line with the heading" | Patrick 4 Oct 09:46Z ("a big S turn instead of following the blue line"), 09:49Z ("They should want to TOUCH DOWN in the first third of the runway. ideally in the first thousand feet"), 09:56Z ("get on the profile if possible then use drag to land in the first third, closer is better"); SMM 13.9 para 18. |
+| TR-48 | PFL still high with all the drag out widens the circle between where it is and Final Key; Final Key is never extended. Replaces spec 4.5 item 7's "steeper bank, tighter through the air; never wider". | spec 4.5 item 7 table row | Patrick 4 Oct 10:10Z on the card: "Widen the circle but dont extend final key as per the SMM". Thresholds (100 ft high, 6,000 ft widest) are estimates. |
 
 ## Old plan-doc items (Q59, Q74 to Q77)
 
