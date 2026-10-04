@@ -114,11 +114,11 @@ function energyDefaults() {
   return {
     // The first view (with Energy on): start altitude and merge speed for each aircraft.
     blueAltFt: e.blueAltFt, redAltFt: e.redAltFt, blueKias: e.blueKias, redKias: e.redKias,
-    // More energy settings.
+    // Pilot and moves, and Energy, in Advanced setup.
     blueMove: 'auto', redMove: 'auto', mptKias: e.mptKias, hardDeckFt: e.hardDeckFt,
     pursuit: e.pursuit, chaseAfterHeadOn: e.chaseAfterHeadOn,
     collisionDetection: e.collisionDetection, collisionAvoidance: e.collisionAvoidance,
-    // Model settings for checking (numbers no manual gives).
+    // Smoothing and Model numbers, in Advanced setup (numbers no manual fully gives).
     stallKias: e.stallKias, shakerPct: Math.round(e.shakerFrac * 100), stallSec: e.stallSec,
     midThrottlePct: Math.round(e.midThrottle * 100), leadSec: e.leadSec, lagSec: e.lagSec,
     rollRateDegPerSec: e.rollRateDegPerSec, gOnsetGPerSec: e.gOnsetGPerSec, rollAccelDegPerSec2: e.rollAccelDegPerSec2,
@@ -130,7 +130,7 @@ function energyDefaults() {
   };
 }
 
-/** The settings of Energy's first view, of "More energy settings", and of "Model settings for checking". */
+/** The settings of Energy's first view, of the Pilot and moves and Energy sections of Advanced setup, and of its Smoothing and Model numbers sections. */
 export const ENERGY_FIRST_KEYS = Object.freeze(['blueAltFt', 'redAltFt', 'blueKias', 'redKias']);
 export const ENERGY_MORE_KEYS = Object.freeze(['blueMove', 'redMove', 'mptKias', 'hardDeckFt', 'pursuit', 'chaseAfterHeadOn', 'collisionDetection', 'collisionAvoidance']);
 export const ENERGY_CHECK_KEYS = Object.freeze([
@@ -175,7 +175,7 @@ export const ALLOWED = Object.freeze({
   playbackRate: [0.5, 1, 2, 4],
   view: [...VIEW_ALLOWED],
   paint: PAINT_OPTIONS.map((option) => option.value),
-  // Energy mode (SPEC-turn-fight, "More energy settings")
+  // Energy mode (SPEC-turn-fight, "Advanced setup")
   // 'tactical' is the old name of Smart: the engine still takes it, a saved one falls back to Smart ('auto').
   blueMove: ENERGY_MOVES.filter((m) => m !== 'tactical'),
   redMove: ENERGY_MOVES.filter((m) => m !== 'tactical'),
@@ -452,7 +452,7 @@ export function standardDefaults() {
 
 export const v6Defaults = standardDefaults;
 
-/** What "Reset to defaults" in Model settings for checking puts back: just those settings. */
+/** What the reset in Advanced setup's Model numbers puts back: the Smoothing and Model numbers settings, nothing else. */
 export function checkingDefaults() {
   return Object.fromEntries(ENERGY_CHECK_KEYS.map((key) => [key, DEFAULTS[key]]));
 }

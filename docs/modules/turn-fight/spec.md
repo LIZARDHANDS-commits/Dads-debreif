@@ -80,25 +80,25 @@ Three columns at 1366 × 768 and up, none covering another (R2), each side colum
 │ Blue  220 KTAS  4.0 G ││        (trails, aircraft, MERGE)      ││                         │
 │ Red   220 KTAS  4.0 G ││                                       ││ Range 0.63 NM           │
 │                       ││                                       ││ First nose-on           │
-│ ☐ First nose chases   ││                                       ││  Blue at +18.2 s        │
-│ ☐ Climb and dive      ││                                       ││ ▸ More detail           │
+│                       ││                                       ││  Blue at +18.2 s        │
+│                       ││                                       ││ ▸ More detail           │
 │ ☐ Energy (T-6)        ││                                       ││                         │
-│ ▸ Turn Fight settings ││                                       ││                         │
+│ ▸ Advanced setup      ││                                       ││                         │
 │ ▸ About this model    ││                                       ││                         │
 └───────────────────────┘└───────────────────────────────────────┘└─────────────────────────┘
 ```
 
-| Shown by default | Behind a checkbox (off by default), in the closed **Turn Fight settings** menu, or in a collapsed "More …" panel for extra readouts (R22) |
+| Shown by default | Behind a checkbox (off by default), in the closed **Advanced setup** menu (TF-63), or in a collapsed "More …" panel for extra readouts (R22) |
 |---|---|
-| Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6 |
-| Play or Pause, Reset, playback speed, the fight time (T+), the phase (HEAD-TO-HEAD, or TO THE PASS for other starts, then 1-CIRCLE or 2-CIRCLE) | **Climb and dive** (V6's "Vertical maneuvering"), off as in V6. Turning it on shows Blue and Red pitch beside their speed and G, and the side-view panel under the stage. The side view's height scale (1×, 2×, 4×) is in Turn Fight settings |
+| Fight type (1-circle or 2-circle, a two-way choice), start separation, Blue and Red speed and G (the Simple fight's; hidden in Energy, which has start altitude and merge speed instead) | **First nose chases** (V6's "First nose follows • defender turns inside"), off as in V6: in Advanced setup, Pilot and moves, Simple fight only |
+| Play or Pause, Reset, playback speed, Data tags, the fight time (T+), the phase (HEAD-TO-HEAD, or TO THE PASS for other starts, then 1-CIRCLE or 2-CIRCLE) | **Removed** (TF-R22, TF-63): V6's **Climb and dive** with its pitch boxes and side view, **Red starts above Blue**, and **Side view height scale**. None could be switched on in Energy or in Simple, and vertical flying lives in the Energy fight. The code behind them (`sim.js`'s vertical option, `profile.js`) is still in the repo until Step 2 of the plan removes it |
 | The top-down view: grid, trails, both aircraft, the MERGE mark (PASS when the jets pass more than about 0.25 NM apart), the first nose-on line | **More detail**: G, 360° time, each aircraft's off-nose angle (ATA), and true angle-off (one number), time since the pass (V6 says merge; this tool counts from the pass, which is the merge when head-on), and with Climb and dive on, each aircraft's height change and the height between them |
 | Result: turn rate and turn radius for each aircraft, range, first nose-on | **Energy (T-6)**, off by default: see Energy mode for what it shows |
 | A warning beside a G box when that G is more than a T-6 can pull at that speed (see T-6 limit warning) | **About this model**: V6's help text on 1-circle, 2-circle and first nose-on, plus the one-line model statement |
-| | **Turn Fight settings** (Patrick, 2026-09-30 07:20Z): one menu, closed by default, built with ui-kit's `createSettingsMenu` (SPEC-ui-kit, "Settings menu"). It holds every tuning number, in sections: **Start geometry** (head-on by default: Red off Blue's nose, Red's aspect angle, Red's starting height, when the turns start; see Start geometry and altitudes); **Display** (the side view's height scale and Paint, Harvard or Ship colours); with Energy on, **Energy** (see More energy settings in Energy mode) and **Model settings for checking**. Its Reset button is "Reset to V6 defaults". It opens in the page flow and never covers a control |
+| | **Advanced setup** (TF-63; it replaces the Turn Fight settings menu, Patrick 2026-09-30 07:20Z): one menu, closed by default, built with ui-kit's `createSettingsMenu` (SPEC-ui-kit, "Settings menu"). It holds every setting that is not on the first view, in sections; see Advanced setup below. Its Reset button is "Reset to Standard Defaults". It opens in the page flow and never covers a control |
 
-- **The fight changes only when the setup changes.** Changing the fight type, separation, a speed, a G, First nose chases, Climb and dive, or a pitch resets the fight, as in V6. Playback speed and the side view's height scale are display settings and never reset it (V6 reset on the height scale, #20).
-- **Settings are remembered** in this browser (`app.storage`), and "Reset to V6 defaults" in Turn Fight settings puts back V6's setup: 2-circle, 2 NM, both 220 KTAS and 4 G, both extras off, pitch 0°, height scale 2×, 1×, and Paint back to Harvard. It keeps the View (2D or 3D), which is a mode, not a setup.
+- **The fight changes only when the setup changes.** Changing the fight type, separation, a speed, a G, First nose chases or any Energy setting resets the fight, as in V6. Playback speed, Data tags and Paint are display settings and never reset it (V6 reset on the height scale, #20).
+- **Settings are remembered** in this browser (`app.storage`), each under its own key, so a reload restores them (the keys of the removed controls stay in storage, unused). "Reset to Standard Defaults" in Advanced setup puts back what the module opened with (TF-R14): 2-circle, 1.2 NM, Red 5° off Blue's nose, 5 G, Energy on with every Energy setting, 1×, Data tags on and Paint back to Harvard. It keeps the View (2D or 3D), which is a mode, not a setup.
 - **Keyboard** (through `app.keys`, only while the Turn Fight is open and never while typing): Space plays or pauses, Home resets. Tab moves between controls as normal.
 - **Colours** stay V6's: Blue #58a6ff, Red #ff6b6b, the first nose-on line #ffcc66. Each aircraft is also labelled B or R on the view and in every table, so colour is never the only signal.
 - **T-6 limit warning (simple mode).** When a set G is above what a T-6 can pull at the set speed, a warning shows beside the G box: "4.0 G is above the T-6's stall limit at 120 kt (1.9 G)" (the limit is rounded down, so the warning never understates it) or "Above the T-6's 7 G limit". The fight still flies what was set, as V6 does, so the tool can still show a generic fight. The stall limit is G = (speed ÷ 86 kt)², the sea-level stall line of the T-6A V-n diagram (manuals: formation-and-turn-numbers.md). The simple mode has no altitude, so its speed is taken as sea level, where true and indicated airspeed agree. V6's default, 220 KTAS at 4 G, is inside the limit (6.5 G), so no warning shows by default.
@@ -200,7 +200,7 @@ Patrick asked on 2026-09-30 (07:51Z, in the project chat) for a 2D/3D switch in 
 - **The switch.** ui-kit's shared View switch, `controls.viewSwitch()` (SPEC-ui-kit, "2D/3D switch", D141), sits on the stage toolbar next to Play: a "View" choice of 2D or 3D, seeded with `VIEW_DEFAULT` and checked against `VIEW_ALLOWED`. **2D is the default** and the choice is remembered in this browser. Switching never resets the fight or changes a number: both views draw the same fight state.
 - **2D** is the top-down view and, with Climb and dive or Energy on, the side view, exactly as specified above.
 - **3D** replaces the stage's drawing area with one 3D scene built from ui-kit's shared pieces (SPEC-ui-kit, "3D aircraft (three.js, D138)"):
-  - both aircraft are ui-kit's CT-156 model (`createCt156Model`) at their positions, headings and pitch, painted as a Harvard by default. A **Paint** choice (Harvard or Ship colours, from `PAINT_OPTIONS`, default `PAINT_DEFAULT`) sits in the Display section of Turn Fight settings. With ship colours, Blue is #58a6ff and Red #ff6b6b; either way each aircraft keeps its B or R label;
+  - both aircraft are ui-kit's CT-156 model (`createCt156Model`) at their positions, headings and pitch, painted as a Harvard by default. A **Paint** choice (Harvard or Ship colours, from `PAINT_OPTIONS`, default `PAINT_DEFAULT`) sits in the Display section of Advanced setup, which shows only while the 3D view shows. With ship colours, Blue is #58a6ff and Red #ff6b6b; either way each aircraft keeps its B or R label;
   - bank: in the simple fight, the level-turn bank for the set G (cos bank = 1 ÷ G), toward the turn; in Energy mode, the model's own bank. The attitude goes in exactly as ui-kit says (rotation order 'ZYX', `rotation.set(-bank, -pitch, hdg)`, heading in radians from east, counter-clockwise);
   - the camera uses only ui-kit's `matchProjection`, with points placed through `altToZ`; scene light and sky come from `addLights` and `addSky`;
   - trails as lines, a ground grid, the MERGE mark and the first nose-on line; in Energy mode, the hard deck as a see-through plane;
@@ -216,11 +216,75 @@ Patrick asked on 2026-09-30 (07:51Z, in the project chat) for a 2D/3D switch in 
 
 Patrick asked on 2026-09-30 (07:13Z, in this thread): every parameter starts with a default entry, and the interface is user friendly, intuitive and not overwhelming. So, for everything in this spec, including Energy mode and Start geometry:
 - **Every box, choice and checkbox opens filled in** with its default, which is V6's value where V6 had one. The fight plays straight away with nothing typed. A blank or bad entry never runs; the last good value stays (ui-kit's number rule).
-- **Layers, not a wall of boxes (R22).** The first view has the fight type, separation, and each aircraft's speed and G, as V6 did. Turning on Energy (T-6) adds only each aircraft's start altitude and merge speed. Everything else sits in the one closed Turn Fight settings menu (Patrick, 07:20Z: a settings menu that opens, so it doesn't overwhelm), in sections, most-used first: Start geometry, then Energy, then Model settings for checking. "More …" panels hold only extra readouts. Nothing opens by itself.
-- **Plain words first.** Each label says what it is in plain words, with the SMM term after it in brackets, for example "Red's position off Blue's nose (ATA)". Each has a one-line hint showing its unit, range and default, for example "0 to 180°, default 0°", and the SMM reference where there is one.
-- **Put it back in one click.** "Reset to V6 defaults" puts back the whole setup. "Head-on (V6)" resets Start geometry. "Reset to defaults" resets Model settings for checking.
+- **Layers, not a wall of boxes (R22).** The first view has the fight type, separation, and each aircraft's speed and G, as V6 did. Turning on Energy (T-6) adds only each aircraft's start altitude and merge speed. Everything else sits in the one closed Advanced setup menu (Patrick, 07:20Z: a settings menu that opens, so it doesn't overwhelm; renamed and extended by TF-63), in sections, most-used first. "More …" panels hold only extra readouts. Nothing opens by itself.
+- **Plain words first.** Each label says what it is in plain words, with the SMM term after it in brackets, for example "Red's position off Blue's nose (ATA)". Each box in Advanced setup has a line beside it (TF-63): its unit, range and default, then what it is, why it has that value (a manual page, Patrick's ruling, or the word estimate) and what changing it does.
+- **Put it back in one click.** "Reset to Standard Defaults" puts back the whole setup. "Neutral Head-on" resets Start geometry. "Reset smoothing and model numbers to defaults" resets those two sections only.
 - **Show the setup, not just numbers.** Start geometry draws a small picture of both jets as the numbers change. The chosen move and why ("Pitch back: 220 KIAS, SMM entry 160 to 220") shows beside each aircraft.
 - **Checked in the sign-off checklist:** someone who has never seen the tool opens it, plays the default fight, then switches on Energy and plays again, without opening any panel or typing anything.
+
+## Advanced setup (TF-63)
+
+Patrick approved the settings cut list on 4 Oct 10:41Z (card; the catalogue is `pf/turn-fight-review/settings-catalogue.md`) and asked on 10:38Z that every number in the extra settings carries a line saying what it is, why it has that value and what changing it does. One closed menu, **Advanced setup**, replaces the old sections Start geometry, Energy ("More energy settings"), Display and Model settings for checking. The words "Turn Fight settings" and `?debug=aero` are gone from the screen.
+
+### The screen
+
+The first view, with Energy on (V6's screen is the mock under "The screen" above; this one has fewer boxes):
+
+```
+Fight setup
+  Tactical Preset  [ Neutral High-Aspect Merge (Default) v ]
+  Fight type       (2-circle) (1-circle)
+  Start separation [1.2] NM
+  Blue  Start altitude [10,000] ft   Merge speed [220] KIAS     <- Simple's Speed and G are hidden, not greyed
+  Red   Start altitude [10,000] ft   Merge speed [220] KIAS
+  [x] BFM Energy Fight
+  > Advanced setup                                              <- closed
+  > About this model
+```
+
+Open, in Energy (a section that does not apply in the mode is not shown):
+
+```
+v Advanced setup
+  Extra settings, none needed to play. Every number has a line: what it is, why it has that value, what changing it does.
+  Start geometry     ATA [5] + side, AA [180] + side, HCA, the pass line, the turn line, the start picture,
+                     When the turns start, Neutral Head-on
+  Pilot and moves    Simple only: First nose chases.  Energy only: Blue's move, Red's move, Pursuit, Chase from head-on
+  Energy             MPT speed [160], Hard deck [6,000], Mid-air collision, Collision avoidance
+  Smoothing          G onset [6], Roll acceleration [360]
+  Display            Paint (shown only while the 3D view shows)
+  Model numbers      Stall speed, Shaker, How long a stall lasts, Mid-range throttle, Lead point, Lag point, Roll rate,
+                     Pitch back bank at 160 and 220, Smart: Immelmann or pitch back above, Smart: split S below,
+                     Immelmann off-nose angle, Lowest Immelmann top speed, Look-ahead, Deck margin,
+                     Smart look-ahead, Smart decision time, and "Reset smoothing and model numbers to defaults"
+  [ Reset to Standard Defaults ]
+```
+
+What moves or disappears:
+
+| Was | Now |
+|---|---|
+| Menu "Pat's Fight and Turn Sim settings" with Start geometry, Energy, Display | **Advanced setup**, with the sections above |
+| Model settings for checking (shown only with `?debug=aero`) | **Model numbers**, shown to everyone with Energy on; G onset and Roll acceleration sit in **Smoothing** |
+| Move, Pursuit, Chase from head-on (Energy section) | **Pilot and moves**, with First nose chases (Simple only) moved in from the first view |
+| Mid-air collision, Collision avoidance, MPT speed, Hard deck | **Energy** |
+| Simple's Speed and G greyed out in Energy | hidden in Energy |
+| Display: Data tags on aircraft | removed; the toolbar's Data tags is the one switch |
+| Display: Paint (greyed in 2D) | Display, hidden in 2D |
+| Climb and dive, Pitch boxes, Red starts above Blue, Side view height scale, the side view panel | removed (TF-R22) |
+| About: two paragraphs on Climb and dive | removed |
+
+Other lines of this spec that speak of Climb and dive describe code the screen no longer offers; plan Steps 1 and 2 rewrite them and remove the code.
+
+### The line beside each number
+
+Each number box has one line tied to it (read with the box by a screen reader): the range and default from `state.js` (so the line cannot disagree with the box), what the number is, **Why this value** and **Changing it**. "Why" is a manual page, Patrick's ruling, or the word estimate; the sources are the ones in this spec and in `decisions.md`, no page is given that they do not give, and no manual text is copied. The lines are `ADVANCED_NUMBERS` in `layout.js`. A number whose source is only an estimate says so, and Dad checks those (TF-56).
+
+### What did not change
+
+- **Every setting keeps its key and saved value**, so a reload restores what was set. Reset to Standard Defaults puts back the same settings as before. Keys of removed controls (`vertical`, the pitch boxes, `redAboveFt`, `heightScale`) stay in storage and in `DEFAULTS`; a browser that saved Climb and dive on before the checkbox was disabled would still fly it in the Simple fight until Reset to Standard Defaults.
+- **How anything flies.** The cut list's pilot-rule verdicts are not built by this change and their switches stay as they are: removing the Chase from head-on switch (TF-Q5 is still open), collision avoidance always on, merging Pursuit into the Smart pilot, removing the old Auto race look-ahead (Look-ahead, Immelmann off-nose angle, Lowest Immelmann top speed), and retuning the `TUNING` numbers.
+- The first view keeps the Tactical Preset list and the BFM Energy Fight checkbox; renaming the list "Start", the two-button Energy / Turn circles switch, folding the Neutral Head-on button into that list and the single version label are left for a later piece of work.
 
 ## Energy mode (FF23, D112)
 
@@ -236,17 +300,18 @@ The simple fight never changes speed, so it can't show this. Energy mode shows h
 
 ### The screen
 
-- **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed, G, Climb and dive and First nose chases are greyed out (their values are kept), and these appear:
+- **Energy (T-6)** is a checkbox, off by default. When it's on, the simple mode's speed and G and First nose chases are hidden (their values are kept), and these appear:
   - **Start altitude** for Blue and Red, each default 10,000 ft pressure altitude (see Start geometry and altitudes). That is the altitude the SMM's entry speeds assume (SMM 14.5 para 10), and high enough for a split S, which loses about 2,000 ft (SMM 14.16 para 40).
   - For Blue and Red: **merge speed** in KIAS (default 220), from 40 up to the top speed at that aircraft's start height, `energyTopKias` (the engine's own limit; see Limits): 316 KIAS (VMO) up to 17,570 ft, then true Mach 0.67 in the model's own indicated speed: 300 KIAS at 20,000 ft and 269 KIAS at 25,000 ft. The engine compares the model's own speed with VMO and with true Mach 0.67. The NFM's KIAS line (Fig 4-1-2, p. 5-9; core's `maxKiasT6A`: 309 at 20,000 ft, 279 at 25,000 ft) is not used here, because the model's IAS has no compressibility (see Limits). The height is checked first, so a speed over the limit is refused with a message that names the limit at that height, for example "Blue's merge speed is above the T-6A's limit at 25,000 ft (269 KIAS in the model, Mach 0.67; the NFM's 279 is the same Mach on the gauge)", or "(316 KIAS, VMO)" below the crossover, even for 317 or 400 KIAS. A speed under 40 says "from 40 to" the limit at that height. Where Mach governs, the limit is rounded down to the whole knot the message shows, so a merge at the limit never flies over Mach 0.67; the label says VMO only when the limit really is 316. The message names the model's figure and, because a pilot knows the NFM's, the NFM's number (core's `maxKiasT6A`, rounded) for the same Mach; between 17,570 and 18,879 ft the NFM's line is still VMO, so it is not quoted there.
   - Beside each aircraft, the move the model chose and why, for example "Pitch back: 220 KIAS, SMM entry 160 to 220", then "MPT 160 KIAS" once it's there.
-- **More energy settings**, the Energy section of Turn Fight settings:
+- **The Energy settings**, in Advanced setup (its Pilot and moves and Energy sections):
   - **Move** for each aircraft: Smart (default; step 5), or a set move (Immelmann, Pitch back, Slice, Split S or MPT) flown from the pass whatever the speed, then into the MPT, to compare them. Auto and Tactical AI are now the one Smart pilot (TF-59); a saved 'tactical' setting opens as Smart.
   - **MPT speed**, default 160 KIAS (SMM 14.3 para 6), from 125 to 175 KIAS: above that the level MPT sinks under the deck (at 175 it stays within 20 ft of it); below 125 the MPT's 60° bank floor meets the stick shaker, so it could not hold a slower speed. Both ends are held within 1.5 kt.
   - **Hard deck**, default 6,000 ft MSL. That is 3,000 ft AGL in the Moose Jaw areas, which lie over the Coteau and Dirt Hills (SMM 14.6 para 16). The user can set it. The level MPT holds 300 ft above it (step 3), and going below it after the pass loses the fight (step 5, TF-R6).
   - **Pursuit** for the aircraft that gets its nose on first: Pure (default), Lead or Lag (see step 4).
   - **Chase after a head-on pass**, on by default (D403; TF-Q5's working answer): with it on, a head-on first nose-on starts the pursuit too (see step 4).
-  - **Model settings for checking**, its own section at the bottom of Turn Fight settings, with its own "Reset to defaults" button: the numbers no manual gives, which Dad checks. A student never needs to open this.
+  - **Smoothing** and **Model numbers**, sections of Advanced setup, for everyone (no address switch; TF-63 replaces the `?debug=aero` working answer of TF-Q9), with one reset button, "Reset smoothing and model numbers to defaults": the numbers no manual fully gives, which Dad checks. A student never needs to open this.
+    - G onset, default 6 G/s, and roll acceleration, default 360°/s² (Smoothing; both estimates, Patrick's brisk choice, 4 Oct 10:38Z; 0 turns each off).
     - Stall speed, default 86 KIAS.
     - Shaker, default 94 % of the stall-line G.
     - How long a stall lasts, default 1 s.
@@ -299,7 +364,7 @@ The bands overlap in the SMM (the Immelmann is 200 to 250 and the pitch back 160
 - **Above the hard deck: the constant-speed MPT** (CSMPT, para 37), the two-circle rate fight. It holds 160 KIAS and gives up height to do it. 70 to 75° bank, pulled to the shaker, with bank used to hold the speed. Speed rising: less bank, nose higher. Speed falling: more bank, nose lower (EFIG p.430, SMM 14.4 para 8). The model has no fixed start bank: its speed-hold law sets the bank, kept within 60 to 85°, to hold 160 ± 5 KIAS; steady at 160 KIAS it settles at 72 to 73°.
 - **At the hard deck: the level MPT** (paras 34 to 36). When the aircraft gets down to 300 ft above the deck (an estimate and model setting, TF-59: below the deck loses the fight, so the model does not sit on it), the pilot raises the nose to level and holds it there by bank, not pitch, in the shaker at full power. The bank is about 69° (the chart bank, D143; the SMM's rule of thumb is 70 to 75°). The model doesn't aim for a speed here: the speed settles wherever thrust meets drag. The SMM says that is about 150 KIAS minus the altitude in thousands of feet, 144 KIAS at a 6,000 ft deck, and the model must match it (see Checks).
 
-**4. Pursuit after first nose-on.** The first aircraft to get its nose within 5° of the other, with the other's aspect angle 150° or less (from behind, not a head-on pass), stops its MPT and chases, in the pursuit picked under More energy settings (SMM 12.30 and 16.16). A head-on first nose-on is still marked as first nose-on but starts no chase, unless Chase after a head-on pass is on:
+**4. Pursuit after first nose-on.** The first aircraft to get its nose within 5° of the other, with the other's aspect angle 150° or less (from behind, not a head-on pass), stops its MPT and chases, in the pursuit picked under Pilot and moves in Advanced setup (SMM 12.30 and 16.16). A head-on first nose-on is still marked as first nose-on but starts no chase, unless Chase after a head-on pass is on:
 - **Pure:** nose on the other aircraft.
 - **Lead:** nose on where the other aircraft will be in 1 s, for a guns shot.
 - **Lag:** nose on where it was 1 s ago, to stop closing too fast and overshooting.
@@ -316,7 +381,7 @@ The chaser only pulls what a T-6 can: its G is capped at the shaker, and at +7 G
 - **Deck guard.** Every move but the chase (which has its own) pulls out of a dive that would bottom out less than 100 ft above the deck: the height lost rolling upright first, then the pull-out circle at the G the wing gives at the speed the dive will reach. The pilot rolls the lift to the vertical and pulls until the nose is back on the horizon.
 - Every number in this step is a model setting. The level MPT's 300 ft, the deck guard's 100 ft, the climb-out's 20° and 500 ft, the chase ending at 90° for 2 s and the 20 s look-ahead every 3.5 s are Patrick's ruling (4 Oct 18:09Z); the collision break's numbers are estimates.
 
-**Forced moves** (from More energy settings) fly the same way from the merge whatever the speed. The move still exits into the MPT, so a split S at 220 KIAS shows what it costs.
+**Forced moves** (from Pilot and moves in Advanced setup) fly the same way from the merge whatever the speed. The move still exits into the MPT, so a split S at 220 KIAS shows what it costs.
 
 ### The model (T-6A, point mass)
 
@@ -384,15 +449,15 @@ Any two of AA, HCA and ATA, with their sides, fix the third. The screen sets the
 
 ### The screen
 
-- **Start geometry**, a section of the closed Turn Fight settings menu (R22). Its fields:
-  - Red off Blue's nose (ATA): 0 to 180°, left or right, default 0°;
+- **Start geometry**, a section of the closed Advanced setup menu (R22, TF-63). Its fields:
+  - Red off Blue's nose (ATA): 0 to 180°, left or right, default 5° (Patrick, TF-R14);
   - Red's aspect angle (AA): 0 to 180°, left or right, default 180°;
   - the HCA, shown live, with a line under it: "Pass at T+16.4 s", "Turns start at once (the jets pass at T+16.4 s)", or "No pass: the turns start at once" (no closing range, or a pass after the 10-minute stop); and under that which way each jet will turn, for example "Blue turns left, Red turns right" (the rule in Which way each aircraft turns, with the 1-circle flip; with First nose chases on it adds "(until first nose-on; then each chases the other)", because the chase turns each jet toward the other from first nose-on), so the student sees what 1-circle and 2-circle will do from this start before pressing Play;
   - the hints say what each term is: ATA is this tool's term for the angle off Blue's nose; AA and HCA are SMM 12.2 paras 6 and 9; the sides are SMM 16 para 40b (the SMM has no off-nose angle). The side means nothing at 0° or 180°, and the hint says so; flipping it there does not restart the fight (the setup treats the side as left);
   - a small picture of the start, drawn from the numbers;
-  - a "Head-on (V6)" button that puts back the head-on defaults (ATA 0°, AA 180°, both sides left, Red level with Blue, turns at the pass).
+  - a "Neutral Head-on" button that puts back the start defaults (ATA 5°, AA 180°, both sides left, turns at the pass).
   - For example: ATA 0° with AA 90° is Red crossing Blue's nose, HCA 90°. ATA 0° with AA 0° is Blue dead astern of Red, HCA 0°.
-- **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft, from the deck up to 25,000 ft. Above 15,000 ft a note beside the box says the model's sustained turn rate reads low up there (core's check found it up to 28 % low at 20,000 ft and above near 200 KIAS, and within 0.65°/s at 15,000 ft and below), and that the SMM recommends aerobatics below 16,000 ft MSL (SMM 14.5 para 10); it is one note, not two warnings, and it goes once core's high-altitude fix lands. Decision logged for Patrick's review, 2026-09-30. The start separation is measured level, so the Range readout (the slant range, height included) reads a little more than the set separation when Red starts above or below. In the simple mode, a "Red starts above Blue" height (−5,000 to +5,000 ft, default 0) sets the starting height difference; it is used with Climb and dive on (the box is greyed out otherwise).
+- **Start altitude for each aircraft.** In Energy mode, Blue and Red each have a start altitude, both defaulting to 10,000 ft, from the deck up to 25,000 ft. Above 15,000 ft a note beside the box says the model's sustained turn rate reads low up there (core's check found it up to 28 % low at 20,000 ft and above near 200 KIAS, and within 0.65°/s at 15,000 ft and below), and that the SMM recommends aerobatics below 16,000 ft MSL (SMM 14.5 para 10); it is one note, not two warnings, and it goes once core's high-altitude fix lands. Decision logged for Patrick's review, 2026-09-30. The start separation is measured level, so the Range readout (the slant range, height included) reads a little more than the set separation when Red starts above or below. The Simple fight's old "Red starts above Blue" height box is removed (TF-R22, TF-63).
 - **When the turns start**, a choice in the Start geometry section (R22 keeps More detail for readouts):
   - At the pass (default): each aircraft flies straight until the range stops closing. At head-on that is V6's merge, T+16.4 s at the defaults. If the range is opening from the start, the turns start at once.
   - At once: the turns start at T+0, for a set-up like an offensive perch where the fight is already on.
@@ -428,7 +493,7 @@ src/modules/turn-fight/
   readouts.js     turns a fight state into readout lines (pure)
   view.js         top-down drawing on a ui-kit canvas surface
   view3d.js       the 3D view (three.js, loaded only when 3D is switched on), on ui-kit's three-aircraft.js
-  profile.js      the side view (Climb and dive)
+  profile.js      the side view (Climb and dive); no longer used by the screen (TF-63), to go with sim.js's vertical option in plan Step 2
   layout.js       the three columns, panels and controls
   turn-fight.css
   README.md       what's here and where to change common things (R8)
