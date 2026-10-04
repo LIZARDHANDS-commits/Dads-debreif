@@ -7,6 +7,7 @@ import { turnRadiusFt, dampedClimbG } from '../../../../core/flight-math.js';
 import { DECONFLICTION_OFFSET_FT, energyTopKias, TUNING } from '../setup.js';
 import { dot, len, scale, add, sub, cross, unit, clamp, velOf, posOf } from '../frame.js';
 import { willRoll } from './common.js';
+import { closestApproach, dangerGate, clearanceSide } from '../../../../core/closest-approach.js';
 
 /**
  * Curved Control Zone aim point 1,500 ft along the turn circle circumference behind the target.
@@ -100,34 +101,24 @@ export function tacticalAimCalculation(p, target, ac) {
 }
 
 /**
- * Analytical Time-to-Closest-Point-of-Approach (TCPA) and Miss Distance (Task 28):
- * Closed-form 3D vector calculation of CPA time and projected spatial clearance.
+ * Time to the closest point of approach and the miss distance there, flying straight on (core's closestApproach, ALL-27).
+ * Not closing gives tcpaSec 0; with no aircraft it gives Infinity and no closing.
  */
 export function computeTcpa(ac, target) {
   if (!ac || !target || !ac.pm || !target.pm) {
     return { tcpaSec: Infinity, missFt: Infinity, closing: false };
   }
-  const rx = (target.xFt ?? target.pm.x ?? 0) - (ac.xFt ?? ac.pm.x ?? 0);
-  const ry = (target.yFt ?? target.pm.y ?? 0) - (ac.yFt ?? ac.pm.y ?? 0);
-  const rz = (target.zFt ?? target.pm.z ?? 0) - (ac.zFt ?? ac.pm.z ?? 0);
-  const vx = (target.pm.vx ?? 0) - (ac.pm.vx ?? 0);
-  const vy = (target.pm.vy ?? 0) - (ac.pm.vy ?? 0);
-  const vz = (target.pm.vz ?? 0) - (ac.pm.vz ?? 0);
-  const vv = vx * vx + vy * vy + vz * vz;
-  if (vv < 1.0) {
-    return { tcpaSec: Infinity, missFt: Math.hypot(rx, ry, rz), closing: false };
-  }
-  const rv = rx * vx + ry * vy + rz * vz;
-  if (rv >= 0) {
-    return { tcpaSec: 0, missFt: Math.hypot(rx, ry, rz), closing: false };
-  }
-  const tcpaSec = -rv / vv;
-  const cpaX = rx + vx * tcpaSec;
-  const cpaY = ry + vy * tcpaSec;
-  const cpaZ = rz + vz * tcpaSec;
-  const missFt = Math.hypot(cpaX, cpaY, cpaZ);
-  return { tcpaSec, missFt, closing: true };
+  return closestApproach(stateOf(ac), stateOf(target));
 }
+
+/** Position (readouts first, as the fight reads them) and velocity of an aircraft, for core's closest approach. */
+function stateOf(ac) {
+  return { x: ac.xFt ?? ac.pm.x ?? 0, y: ac.yFt ?? ac.pm.y ?? 0, z: ac.zFt ?? ac.pm.z ?? 0, vx: ac.pm.vx ?? 0, vy: ac.pm.vy ?? 0, vz: ac.pm.vz ?? 0 };
+}
+
+// Fight Sim's danger test (model settings, estimates): closest point within 3.5 s and under 120 ft, or closing inside 600 ft;
+// once dodging it holds until the range opens past 800 ft.
+const DANGER = Object.freeze({ soonSec: 3.5, missFt: 120, nearFt: 600, releaseFt: 800 });
 
 /**
  * Defender turn-plane normal vector n_hat (Task 28):
@@ -150,13 +141,7 @@ export function aimPoint(p, target, ac = null) {
   if (!target || !target.pm) return { x: 0, y: 0, z: 0 };
   let danger = false;
   if (ac && ac.pm && target && target.pm && p?.collisionAvoidance !== false) {
-    const tcpa = computeTcpa(ac, target);
-    const rangeFt = Math.hypot(
-      (target.xFt ?? target.pm.x) - (ac.xFt ?? ac.pm.x),
-      (target.yFt ?? target.pm.y) - (ac.yFt ?? ac.pm.y),
-      (target.zFt ?? target.pm.z) - (ac.zFt ?? ac.pm.z)
-    );
-    danger = (tcpa.closing && tcpa.tcpaSec <= 3.5 && tcpa.missFt < 120) || (tcpa.closing && rangeFt < 600) || (ac.deconflicting && rangeFt < 800);
+    danger = dangerGate(ac.deconflicting, computeTcpa(ac, target), DANGER);
   }
 
   let aim;
@@ -181,7 +166,7 @@ export function aimPoint(p, target, ac = null) {
     const acPos = { x: ac.xFt ?? ac.pm.x ?? 0, y: ac.yFt ?? ac.pm.y ?? 0, z: ac.zFt ?? ac.pm.z ?? 0 };
     const targetPos = { x: target.xFt ?? target.pm.x ?? 0, y: target.yFt ?? target.pm.y ?? 0, z: target.zFt ?? target.pm.z ?? 0 };
     const dPos = dot(sub(acPos, targetPos), n);
-    const offsetSign = Math.abs(dPos) > 1.0 ? (dPos > 0 ? 1 : -1) : (ac.who === 'red' ? -1 : 1);
+    const offsetSign = clearanceSide(dPos, ac.who === 'red' ? -1 : 1);
     const offsetFt = offsetSign * DECONFLICTION_OFFSET_FT;
     aim.x += n.x * offsetFt;
     aim.y += n.y * offsetFt;
@@ -189,7 +174,7 @@ export function aimPoint(p, target, ac = null) {
 
     if (Math.abs(n.z) < 0.5) {
       const dZ = acPos.z - targetPos.z;
-      const zSign = Math.abs(dZ) > 1.0 ? (dZ > 0 ? 1 : -1) : (ac.who === 'red' ? -1 : 1);
+      const zSign = clearanceSide(dZ, ac.who === 'red' ? -1 : 1);
       aim.z += zSign * DECONFLICTION_OFFSET_FT;
     }
 
