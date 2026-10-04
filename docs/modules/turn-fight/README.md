@@ -42,10 +42,7 @@ Screen and build details. Each has a working answer (the best guess) that stands
 
 ### For Dad
 
-Flying calls, kept in `../../questions-for-dad.md` and sent to him in one message when Patrick chooses. The tool uses the best guess until he answers.
-
-- **TF-Q6:** see `../../questions-for-dad.md`
-- **TF-Q10:** see `../../questions-for-dad.md`
+Both answered by Patrick on 4 Oct, in place of Dad: TF-Q6 is decision TF-55 and TF-Q10 is TF-56 in `decisions.md`. The answers are also marked in `../../questions-for-dad.md`.
 
 ### Decision clashes from the requirements review
 
