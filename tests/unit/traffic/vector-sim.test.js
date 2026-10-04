@@ -349,7 +349,8 @@ test('Slice D: straight-in final approach rolls wings level and tracks 3.0 deg g
   // Near threshold (t = 135 s — allow more time with wind-adjusted geometry)
   sim.stepTo(135);
   const a135 = sim.state().aircraft[0];
-  assert.ok(['final', 'initial', 'final_turn'].includes(a135.phase), `Phase ${a135.phase}`);
+  // 'climb' is the climb-out after the touch-and-go, which was misnamed 'initial' before #282.
+  assert.ok(['final', 'initial', 'final_turn', 'climb'].includes(a135.phase), `Phase ${a135.phase}`);
   assert.ok(a135.alt <= 3500 && a135.alt >= 1880, `Altitude ${a135.alt}`);
 });
 
