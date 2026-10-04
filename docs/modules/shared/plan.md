@@ -35,6 +35,7 @@ The shared parts are the flight core (`src/core/`), the app frame and home scree
 - [ ] The app-frame tests at the pin: the home heading now reads "DAD's OODA LOOP V2.5" where three tests expect the plain heading (my reading: a test-side fix, for the tests and CI clean-up PR), and the Traffic overlap is a real Traffic fault listed in the Traffic plan, Step 3 (`pf/reset/5-testing/test-register.md:39`).
 - [ ] The flaps-takeoff glide row in `src/core/t6-performance.js:156` is labelled an estimate (Patrick approved, 4 Oct 04:18Z) until a manual page or Patrick backs it; it is settled in the Traffic PFL review (Traffic plan, Step 1) (`pf/reset/consolidation-plan.md:189`, `pf/reset/6-plan-and-rules/new-since-pin.md:15`, `../traffic/plan.md`).
 - [ ] Dependabot pull request #162 (a Playwright bump) is the only open pull request; merge only on a green run. It belongs to the GitHub tidy in `../../PLAN.md` (`docs/handover/app-frame.md:13`).
+- [ ] One colour for ship #4, white with an outline, in every module (issue #29).
 
 ## Step 4. Sign-off, with the combined sign-off of the whole tool
 

@@ -39,3 +39,4 @@ Patrick picked these on 30 Sep for the future list; the graphs and the geometry 
 - A first-class weather field in the debrief file instead of a value kept in the settings string (old plan PPQ-14); it waits for the next file-format change (`docs/records/verification/swarm/POST_PROTOTYPE_QUEUE.md:58`, `pf/reset/4-decisions/partb-whole-tool.md:105`).
 - Saved radar and lightning frames in the debrief file: the requirement DB-R18 puts them on the future list; what is already built stays in as it is, not worked on until Patrick moves it up (Patrick, card, 4 Oct 2026 05:03Z) (`pf/reset/1-requirements/requirements.md:99`).
 - If the SOF kept radar and lightning all day (SOF future list), the Debrief's 3-hour weather limit in DB-R18 could go; that idea is listed once, in `../sof/future.md` (old FF37) (`docs/records/future-ideas.md:11`).
+- 3D view: touch and pinch to zoom (issue #43).

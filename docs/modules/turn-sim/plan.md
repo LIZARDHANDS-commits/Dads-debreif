@@ -69,6 +69,7 @@ Aim: decide between rebuilding, building a new live core with named parts reused
 
 **End of the review**
 - [ ] Patrick decides: rebuild, new core with named parts reused, or fix. Record it in `decisions.md`, then replace Steps 2 to 4 below with the steps the choice needs (`pf/reset/consolidation-plan.md:290`).
+- [ ] Check the right-turn end-point helper (`simulateDelayedTurnFinalPos`, `src/modules/turn-sim/engine/plan.js`), which V6 mirrored for right turns (issue #15).
 
 ## Step 2. Refresh spec.md against the new requirements (after the review)
 
