@@ -21,6 +21,7 @@ export const LAYOUT_DEFAULTS = Object.freeze({
   lead39: true,
   planned: true, // the paths still to fly, dashed
   turnCircles: false,
+  autoFit: true, // the camera keeps every aircraft in the picture (spec section 10.3); a pan or zoom pauses it, Fit brings it back
   view: VIEW_DEFAULT, // '2d' or '3d'
   paint: PAINT_DEFAULT, // the 3D aircraft's paint: 'harvard' or 'ship'
 });
@@ -174,9 +175,12 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     lc.checkbox('lead39', { label: 'Lead 3/9 line' }),
     lc.checkbox('planned', { label: 'Planned path' }),
     lc.checkbox('turnCircles', { label: 'Turn circles' }),
+    lc.checkbox('autoFit', { label: 'Fit all aircraft' }),
     lc.select('paint', { label: '3D paint', options: PAINT_OPTIONS }),
   ]);
 
+  // Fit: back to the camera that keeps every aircraft in the picture, after a pan or zoom paused it (or once, when it is off).
+  const fitButton = h('button', { type: 'button', class: 'button ts-fit', hidden: true, title: 'Fit every aircraft in the picture again', onclick: () => handlers.fit?.() }, 'Fit');
   const canvas = h('canvas', { class: 'ts-canvas' });
   const canvas3d = h('canvas', { class: 'ts-canvas ts-canvas3d', hidden: true }); // the 3D view's own canvas: a WebGL context can't share the 2D one
   const canvasWrap = h('div', { class: 'ts-canvas-wrap' }, canvas, canvas3d);
@@ -186,6 +190,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     { class: 'ts-bar', role: 'group', 'aria-label': 'Playback' },
     playButton, resetRunButton, speedSelect, time,
     h('span', { class: 'ts-bar-gap' }),
+    fitButton,
     lc.viewSwitch(), note3d, layersMenu.element,
   );
   const stage = h('section', { class: 'ts-stage', 'aria-label': 'Formation from above and playback' }, bar, canvasWrap);
@@ -324,5 +329,10 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
     onPlayPause: (fn) => (handlers.playPause = fn),
     onResetRun: (fn) => (handlers.resetRun = fn),
     onSpeed: (fn) => (handlers.speed = fn),
+    onFit: (fn) => (handlers.fit = fn),
+    /** The Fit button shows while the fit-all camera is paused by a pan or zoom, or switched off. */
+    setFitShown(shown) {
+      fitButton.hidden = !shown;
+    },
   };
 }

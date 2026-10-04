@@ -67,7 +67,7 @@ export function plannedBounds(run, maxSteps = 12100) {
  *   state(): the engine's state; trails(): { trail: { id: [[t, x, y], …] }, marks: { id: […] } };
  *   layers(): the remembered layer settings; settings(): the Turn Sim settings;
  *   labels(): { id: { text, tone } } for the error labels.
- *   follow(): { x, y, spanFt } to keep centred and in view, or null (the live screen's camera);
+ *   follow(): { x, y, spanXFt, spanYFt, zoom, snap } to keep centred and in view, or null to leave the camera where the person put it (the live screen's camera);
  *   planned(): { id: [[t, x, y, …], …] }, paths still to fly, drawn dashed when layers().planned is on.
  */
 export function createTurnSimView(canvas, { timers, source, onUserMove }) {
@@ -136,15 +136,16 @@ export function createTurnSimView(canvas, { timers, source, onUserMove }) {
 }
 
 /**
- * The live screen's camera: centred on the formation, and zoomed so a square
- * spanFt across fits the shorter side of the picture. The zoom eases toward that,
- * unless the person has zoomed themselves (follow.zoom false).
+ * The live screen's camera: centred on (x, y), and zoomed so a box spanXFt by
+ * spanYFt fits the picture (or a square spanFt across fits its shorter side). The
+ * zoom eases toward that, or jumps to it when snap; follow.zoom false keeps the
+ * zoom as it is.
  */
-function followFormation(map, { x, y, spanFt, zoom = true, snap = false }) {
+function followFormation(map, { x, y, spanFt = 0, spanXFt = spanFt, spanYFt = spanFt, zoom = true, snap = false }) {
   const { width, height } = map.size;
   let scale = map.view.scale;
-  if (zoom && width > 0 && height > 0 && spanFt > 0) {
-    const want = Math.min(width, height) / spanFt;
+  if (zoom && width > 0 && height > 0 && spanXFt > 0 && spanYFt > 0) {
+    const want = Math.min(width / spanXFt, height / spanYFt);
     scale = snap ? want : scale + (want - scale) * FOLLOW_ZOOM_EASE;
   }
   if (x !== map.view.cx || y !== map.view.cy || scale !== map.view.scale) map.setView({ cx: x, cy: y, scale });
