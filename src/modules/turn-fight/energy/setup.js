@@ -131,7 +131,7 @@ export const FORCE_G_MAX = 12;           // a what-if G of 0 to 12 (core's +7 G 
  */
 export const TUNING = Object.freeze({
   captureLeadSec: 3,       // model setting: a bank move hands to the MPT when its speed, this many seconds ahead, would reach the MPT speed
-  captureLeadFastSec: 3.7, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft
+  captureLeadFastSec: 4.0, // model setting: the lead for a pitch back or slice entered at VMO (316 KIAS). It grows from captureLeadSec (entered at captureLeadFromKias) to this at VMO. The old flat 6 s over 220 KIAS took 303 to 391° to reach the MPT (aim: under 180°, SMM 14.17 para 42); 3 s alone loses the band above about 280 KIAS; this ramp meets both from 221 to 316 KIAS at 8,000 to 15,000 ft. Was 3.7 s; 4.0 s since roll builds smoothly (TF-57 PR 2): the slower roll-in let a 312 KIAS pitch back climb past 75° before the hand-over, and 4.0 s hands over in 190 to 279° of turn (estimate, model setting)
   captureLeadFromKias: 235, // model setting: entered at or under this speed the lead is captureLeadSec
   minBankMoveTurnDeg: 90,     // model setting: minimum turn before speed-based handover to MPT (Phase 1A)
   maxBankMoveTurnDeg: 170,    // model setting: a pitch back or slice that has not found the MPT speed by here hands to the MPT anyway
