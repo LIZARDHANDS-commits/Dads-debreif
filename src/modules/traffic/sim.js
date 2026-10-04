@@ -38,6 +38,7 @@ import { buildHighKeyClimb, HIGH_KEY_PT } from './high-key.js';
 import { buildClosedPattern } from './closed-pattern.js';
 import { DECONFLICT, freeze, decide, deconflictLabel } from './deconflict.js';
 import { buildFlinch, buildClimbAhead, buildRejoin, EVADE } from './evade.js';
+import { buildBreakout, gateLegOf, ENT1_ROUTE } from './breakout.js';
 import { PATTERN_ALT_FT } from './airfield.js';
 import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 
@@ -389,17 +390,19 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
   const isStraightIn = (r) => Boolean(r) && (r.kind === 'entry' || r.kind === 'split') && !(+r.mergeIndex > 0) && r.points?.length >= 2;
 
   /**
-   * The breakout from where the aircraft is (TR-R34; breakout.js flies it): the button and the deconfliction.
-   * A straight-in rejoins as a straight-in, anyone else on the overhead entry (Patrick's card, Q7).
+   * The breakout from where the aircraft is (TR-R34; breakout.js flies it once, then the path follower):
+   * the button and the deconfliction. A straight-in rejoins as a straight-in, anyone else on the overhead
+   * entry's line into the Entry Gate (Patrick's card, Q7); at the end it joins that route (goAroundEnded).
    */
   function startBreakout(a) {
     const from = routeOf(a);
-    if (isStraightIn(from)) a.rejoinRouteId = from.id;
-    else delete a.rejoinRouteId;
-    a.command = 'breakout';
-    a.landed = false;
-    a.active = true;
-    a.mode = 'PHYSICS';
+    // With no ENT1 in the setup it flies ENT1's line all the same and then joins Pattern 1 where it is nearest.
+    const joinTo = isStraightIn(from) ? from : routeById('ENT1');
+    const rejoin = joinTo ?? ENT1_ROUTE;
+    const leg = rejoin === from ? 0 : gateLegOf(rejoin);
+    const bankDeg = a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
+    startFlown(a, buildBreakout(stateOf(a), windNow(), rejoin, leg, bankDeg), 'BREAKOUT_FLOWN', 'Breakout', joinTo ? 'join' : null, joinTo?.id ?? null);
+    delete a.rejoinRouteId;
     delete a._blendStart;
     delete a._blendTarget;
     delete a._blendTimer;
@@ -522,7 +525,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
     startJoin(a, pat, closestDistFt(pat, a, opt), { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 }, opt);
     a.phase = posOnRoute(pat, a.distFt, opt).phase || 'downwind';
     a.mode = 'RAIL';
-    if (a.command === 'go_around' || a.command === 'closed_pattern') a.command = null;
+    if (a.command === 'go_around' || a.command === 'closed_pattern' || a.command === 'breakout') a.command = null;
   }
 
   /** The end of an entry or split: join the pattern it is linked to, or finish (V6 `handleRouteEnd`, line 365). */
@@ -1037,9 +1040,13 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
       settle();
       const a = aircraft.find((ac) => ac.id === aircraftId);
       if (!a) return false;
-      // A new command stops a flown go-around: back onto Pattern 1 where the aircraft is, then the command.
-      if (a.goAroundFlight?.then) delete a.goAroundFlight; // a deconfliction move just stops
-      if (a.goAroundFlight) goAroundEnded(a);
+      // A new command stops a flown go-around or closed pattern: back onto Pattern 1 where the aircraft is, then
+      // the command. A breakout or a deconfliction move just stops; the command flies from where it is. A
+      // touch-and-go in the air only sets the next landing, so the flown path carries on.
+      if (action !== 'touch_and_go') {
+        if (a.goAroundFlight?.then) delete a.goAroundFlight;
+        if (a.goAroundFlight) goAroundEnded(a);
+      }
       // A new command stops the flown climb to High Key; the command then flies from where the aircraft is.
       delete a.highKeyFlight;
       if (action === 'breakout') {

@@ -24,13 +24,66 @@
  *          altitude 3,500 ft, continuing up ENT1 into the circuit entry.
  */
 
-import { wrapDeg180 } from '../../core/angles.js';
+import { wrapDeg180, compassDegFromVector } from '../../core/angles.js';
 import { windTriangle } from '../../core/wind.js';
 import { iasToTasKt } from '../../core/t6-performance.js';
 import { turnRadiusFromBankFt, bankDegFromTurnRate } from '../../core/flight-math.js';
 import { ktToFtps } from '../../core/units.js';
 import { closestDistFt, DEFAULT_ROUTE_OPTIONS } from './route.js';
 import { startJoin } from './path-follower.js';
+import { makePilot, bankFor, powerClimb, CIRCUIT, PILOT_DT } from './circuit.js';
+import { flyRejoin } from './evade.js';
+
+// ── The breakout, flown once (Traffic spec 1a items 15-18 and 22, TR-R34) ──────
+// Patrick's card "Rebuild, then delete" (4 Oct 17:53Z): like the closed pattern, the breakout is flown once
+// by the circuit's simulated pilot from where the aircraft is, and the path follower flies the result.
+//   1. A climbing turn at the closed-pattern bank setting (45-60°, default 50°) toward the breakout point
+//      2 NM south of the pattern, climbing to 4,500 ft at full power (circuit.js powerClimb: the climb from
+//      excess thrust at the turn's real G, speeding up toward 220 KIAS as the old breakout did).
+//   2. Past the breakout point, the rejoin (evade.js flyRejoin): back to a gate 2 NM before the end of the
+//      line it rejoins, turning onto it and settling at the line's height and 220 KIAS. That line is ENT1's
+//      leg into the Entry Gate (TR-R34: at pattern height, at least 1 NM out), or a straight-in's own first
+//      leg (Patrick's card, Q7).
+// The old live controller below (stepBreakout) is no longer started; it goes in the clean-up.
+
+/** The breakout climbs to this height, ft MSL (TR-R34; Patrick, 4 Oct 01:24Z, TR-Q20). */
+export const BREAKOUT_ALT_FT = 4500;
+/** Within this of the breakout point, the climbing turn is over and it holds its track until level, ft (as the old controller, an estimate). */
+const BREAKOUT_REACHED_FT = 2500;
+const MOST_SEC = 600; // a guard: no breakout climb lasts this long
+
+/**
+ * Flies the breakout from `from` = { x, y, alt, kias, headingDeg, bankDeg } in `wind`, turning at up to
+ * `bankDeg`, then rejoins leg `leg` of `rejoinRoute` (see above). Returns the path
+ * [{ x, y, alt, kt, g, phase, headingDeg }]: phase 'breakout', then 'rejoin'.
+ */
+export function buildBreakout(from, wind, rejoinRoute, leg, bankDeg = 50) {
+  const env = { windFromDeg: wind?.windFromDeg ?? 360, windKt: wind?.windKt ?? 0 };
+  const pilot = makePilot({ x: from.x, y: from.y, alt: from.alt, ias: from.kias, hdg: from.headingDeg, src: 0, phase: 'breakout' }, env);
+  const { s } = pilot;
+  s.bank = from.bankDeg ?? 0;
+  pilot.record();
+  let heldTrack = null;
+  for (let n = 0; n < MOST_SEC / PILOT_DT; n++) {
+    if (heldTrack === null && Math.hypot(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y) <= BREAKOUT_REACHED_FT) heldTrack = pilot.trackDeg();
+    if (heldTrack !== null && s.alt >= BREAKOUT_ALT_FT - 50) break;
+    const { climb, accel } = powerClimb(pilot, CIRCUIT.patternKias, BREAKOUT_ALT_FT);
+    const bank = heldTrack === null
+      ? bankFor(pilot.headingFor(compassDegFromVector(BREAKOUT_PT.x - s.x, BREAKOUT_PT.y - s.y)), s, bankDeg)
+      : bankFor(pilot.headingFor(heldTrack), s, 30);
+    pilot.step(bank, climb, accel);
+  }
+  pilot.mark({ phase: 'rejoin' });
+  flyRejoin(pilot, rejoinRoute, leg);
+  pilot.record();
+  return pilot.points;
+}
+
+/** The leg of an entry that ends at its Entry Gate (ENT1's Mid to Gate), or its first leg if it has none. */
+export function gateLegOf(route) {
+  const i = route?.points?.findIndex((p) => p.tag === 'entry_gate' || /gate/i.test(p.label ?? '')) ?? -1;
+  return i >= 1 ? i - 1 : 0;
+}
 
 // ── Ground Truth Geometry Constants ──────────────────────────────────────────
 export const BREAKOUT_PT = Object.freeze({ x: -10974, y: -24252 });

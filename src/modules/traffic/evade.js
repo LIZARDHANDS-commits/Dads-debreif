@@ -5,7 +5,8 @@
 //
 //   - the flinch (Layer 2): a few seconds out of the way, up if free to climb, else a bank away, then the breakout;
 //   - the climb straight ahead before a fly-through breaks out (Patrick's Q4);
-//   - the rejoin of a broken-out straight-in onto its own straight-in (Patrick's Q7).
+//   - the rejoin of a broken-out straight-in onto its own straight-in (Patrick's Q7), and the same rejoin
+//     flown by the breakout onto ENT1 (breakout.js).
 //
 // Positions in map feet (x east, y north), headings compass degrees true, speeds KIAS. Nothing here reads a
 // setting or the page.
@@ -14,7 +15,7 @@ import { compassDegFromVector, wrapDeg180 } from '../../core/angles.js';
 import { gFromBankDeg, bankDegFromG, turnRadiusFromBankFt } from '../../core/flight-math.js';
 import { excessThrustPerWeight, stallLimitG, iasToTasKt } from '../../core/t6-performance.js';
 import { legOffsetsFt } from '../../core/geo.js';
-import { makePilot, bankFor, trackForLine, lineOf, CIRCUIT, ZOOM_SEC, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT } from './circuit.js';
+import { makePilot, bankFor, trackForLine, readyToTurnOnto, lineOf, CIRCUIT, ZOOM_SEC, LEVEL_OFF_SEC, HOLD_RADIUS_FT, PILOT_DT } from './circuit.js';
 
 /** Every number the moves use, each with its source. */
 export const EVADE = Object.freeze({
@@ -109,18 +110,30 @@ export function buildClimbAhead(from, wind, toAltFt) {
  * straight-in itself. `route` is the straight-in. Returns the path.
  */
 export function buildRejoin(from, wind, route) {
-  const p0 = route.points[0], p1 = route.points[1];
+  const pilot = makePilot(startOf(from, 'rejoin'), wind);
+  pilot.s.bank = from.bankDeg ?? 0;
+  pilot.record();
+  flyRejoin(pilot, route, 0);
+  pilot.record();
+  return pilot.points;
+}
+
+/**
+ * Flies `pilot` (circuit.js makePilot) back onto leg `leg` of `route` (from point `leg` to point `leg + 1`):
+ * to a gate 2 NM before the leg's end, turning onto the line there and settling at the line's height and
+ * 220 KIAS. Used by the straight-in rejoin above and by the breakout's rejoin onto ENT1 (breakout.js).
+ */
+export function flyRejoin(pilot, route, leg = 0) {
+  const p0 = route.points[leg], p1 = route.points[leg + 1];
   const line = lineOf(p0, p1);
   const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1;
   const ux = (p1.x - p0.x) / len, uy = (p1.y - p0.y) / len;
   const gateAlong = Math.max(0, len - EVADE.rejoinOutFt);
   const a0 = Number.isFinite(p0.alt) ? p0.alt : 3500, a1 = Number.isFinite(p1.alt) ? p1.alt : a0;
   const altFt = a0 + (a1 - a0) * gateAlong / len;
-  const pilot = makePilot(startOf(from, 'rejoin'), wind);
   const { s } = pilot;
-  s.bank = from.bankDeg ?? 0;
-  pilot.record();
-  let stage = 'toGate';
+  s.phase = 'rejoin';
+  let stage = 'toGate', turning = false, held = false;
   for (let n = 0; n < MOST_SEC / PILOT_DT; n++) {
     const climb = Math.max(-EVADE.rejoinVertFtps, Math.min(EVADE.rejoinVertFtps, (altFt - s.alt) / LEVEL_OFF_SEC));
     const accel = s.ias < CIRCUIT.patternKias - 0.5 ? 2 : s.ias > CIRCUIT.patternKias + 0.5 ? -2 : 0;
@@ -133,11 +146,23 @@ export function buildRejoin(from, wind, route) {
       pilot.step(bankFor(pilot.headingFor(compassDegFromVector(aim.x - s.x, aim.y - s.y)), s, 30), climb, accel);
       continue;
     }
-    pilot.step(bankFor(pilot.headingFor(trackForLine(line, s, HOLD_RADIUS_FT)), s, EVADE.rejoinBankDeg), climb, accel);
+    // Cut toward the line (up to 90°), then turn onto it when a steady turn at the rejoin bank rolls out on it
+    // (readyToTurnOnto, as the circuit's own turns do), then hold it with small corrections.
+    const trackErr = Math.abs(wrapDeg180(pilot.trackDeg() - line.trackDeg));
+    if (!turning && !held) {
+      const v = ktToFtps(pilot.tasKt());
+      const R = turnRadiusFromBankFt(v, EVADE.rejoinBankDeg);
+      const gsOnLine = Math.max(10, v + pilot.wind.x * ux + pilot.wind.y * uy); // the wind along the line, near enough
+      if (readyToTurnOnto(line, s, pilot.trackDeg(), R, pilot.groundSpeedFtps(), gsOnLine)) turning = true;
+      else if (Math.abs(off.crossFt) < 300 && trackErr < 15) held = true;
+    }
+    if (turning && trackErr < 3) { turning = false; held = true; }
+    const bank = turning
+      ? bankFor(pilot.headingFor(line.trackDeg), s, EVADE.rejoinBankDeg)
+      : bankFor(pilot.headingFor(trackForLine(line, s, HOLD_RADIUS_FT)), s, 30);
+    pilot.step(bank, climb, accel);
     const settled = Math.abs(off.crossFt) < 30 && Math.abs(wrapDeg180(pilot.trackDeg() - line.trackDeg)) < 2
       && Math.abs(s.bank) < 2 && Math.abs(s.alt - altFt) < 30;
     if (settled) break;
   }
-  pilot.record();
-  return pilot.points;
 }
