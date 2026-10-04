@@ -294,29 +294,31 @@ function closeFromFw(start, t0, opts, s, to) {
 /**
  * Fighting wing to echelon as a straight-ahead rejoin (Patrick 4 Oct 19:04Z, TS-55; SMM 12.26 paras 62-63, Fig 12.17; EFIG
  * p.371), replacing the route through finger. Each wingman rejoins on the one it will fly off in echelon: lines up on its
- * six just below the wake, closes with overtake, takes the small vector to the echelon side at about 500 ft, stabilises in
- * route and moves up the wing-tip line to echelon. #2 comes off the stack first (19:11Z). "Wait for the one ahead"
- * (SMM 16.34 para 95; AFM7 brief p.18 item 2d): #3 holds its place off #2 until #2 has reached its vector point, and #4
- * holds off #3 the same way, so each lines up behind a wingman that has already left fighting wing (the gate is an estimate).
+ * six about 1,000 ft back just below the wake (Fig 12.17; Patrick's card 19:54Z), closes with overtake, takes the small
+ * vector to the echelon side at about 500 ft, stabilises in route and moves up the wing-tip line to echelon. #2 comes off
+ * the stack first (19:11Z). Safe separation until the one ahead is stable (SMM 16.34 para 95; AFM7 brief p.21, "Straight
+ * Ahead Rejoins"): #3 holds its place off #2 until #2 has reached its vector point, then lines up 1,000 ft behind #2 and
+ * stays there until #2 is stable in echelon before it closes; #4 does the same on #3. The first gate is an estimate.
  */
 function straightToEchelon(start, t0, opts, sTo) {
   return legsInTurn(start, t0, opts, [(c) => {
     const ech4 = fourSlots('echelon', sTo);
     const route = slotFor('route', sTo);
-    const legsFor = (id) => {
+    const legsFor = (id, holdLineUpUntil) => {
       const { ref } = ech4[id];
       const refAlt = ref === 1 ? 0 : ech4[ref].alt;
       const at = (fwd, left, alt) => place(c, fwd, left, refAlt + alt);
-      return [...straightAhead(at, place(c, route.fwd, route.left, ech4[id].alt), { track: ref }), toSlot(c, slide, ech4[id])];
+      return [...straightAhead(at, place(c, route.fwd, route.left, ech4[id].alt), { track: ref, holdLineUpUntil }), toSlot(c, slide, ech4[id])];
     };
     const off2 = comeOffFirst(c, 2, 1);
     const vectorIndex = 1; // straightAhead's second phase (the closing leg) arrives at the vector point
+    const stableIndex = 3; // the last phase (the move up into echelon) arrives: that wingman is stable in position
     return {
       lead: toSpeed(c, 'echelon'),
       wings: [
         { id: 2, phases: () => [...off2, ...legsFor(2)] },
-        { id: 3, phases: (done) => [hold(c, 3, 2, { holdUntil: done[2].times[off2.length + vectorIndex].arrive }), ...legsFor(3)] },
-        { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1 + vectorIndex].arrive }), ...legsFor(4)] },
+        { id: 3, phases: (done) => [hold(c, 3, 2, { holdUntil: done[2].times[off2.length + vectorIndex].arrive }), ...legsFor(3, done[2].times[off2.length + stableIndex].arrive)] },
+        { id: 4, phases: (done) => [hold(c, 4, 3, { holdUntil: done[3].times[1 + vectorIndex].arrive }), ...legsFor(4, done[3].times[1 + stableIndex].arrive)] },
       ],
     };
   }]);

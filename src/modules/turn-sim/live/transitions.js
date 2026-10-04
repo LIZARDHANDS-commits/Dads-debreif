@@ -511,7 +511,7 @@ export const openOut = (slot, over = {}) => phase(slot, { fwdRate: 40, latRate: 
 
 /** The straight-ahead rejoin's places in feet, in the frame of the aircraft rejoined on (estimates, see straightAhead). */
 export const STRAIGHT_AHEAD = {
-  sixFt: -750, // line up on the six at the default fighting wing range, inside Fig 12.17's 1,000 ft (estimate)
+  sixFt: -1000, // line up on the six about 1,000 ft back (SMM Fig 12.17, point 1; Patrick's card "1,000 ft", 4 Oct 19:54Z)
   belowWakeFt: -20, // "fly just below lead's wake" (EFIG p.371); 20 ft is an estimate
   closeTowardFt: -150, // the closing leg's aim, ahead on the six line, so the closure holds until the vector point (estimate)
   vectorAtFt: 500, // "at approximately 500 ft" the small vector toward the echelon side (Fig 12.17, point 2; SMM 12.26 para 63)
@@ -519,19 +519,21 @@ export const STRAIGHT_AHEAD = {
 
 /**
  * A straight-ahead rejoin from fighting wing to route (SMM 12.26 paras 62-63, Fig 12.17; EFIG p.371): line up on the six of the
- * aircraft rejoined on, just below its wake; close with 20-30 KIAS overtake (EFIG p.371); from about 500 ft behind (Fig 12.17,
- * point 2) take a small vector to the side wanted, which aims slightly away from it, reduce the overtake and stabilise in route
- * (point 3). The caller then moves up the wing-tip line to echelon (point 4). at(fwd, left, alt) turns a place in the frame of
- * the aircraft rejoined on into a phase slot; route is the route slot itself; over (e.g. { track }) goes on every phase.
+ * aircraft rejoined on, about 1,000 ft back and just below its wake (Fig 12.17, point 1); close with 20-30 KIAS overtake (EFIG
+ * p.371); from about 500 ft behind (point 2) take a small vector to the side wanted, which aims slightly away from it, reduce
+ * the overtake and stabilise in route (point 3). The caller then moves up the wing-tip line to echelon (point 4). at(fwd, left,
+ * alt) turns a place in the frame of the aircraft rejoined on into a phase slot; route is the route slot itself; over (e.g.
+ * { track }) goes on every phase. holdLineUpUntil: a formation time before which the wingman stays lined up at 1,000 ft
+ * instead of closing (the 4-ship: safe separation until the aircraft ahead is stable, SMM 16.34 para 95; AFM7 brief p.21).
  * @param {(fwd: number, left: number, alt: number) => { fwd: number, left: number, alt: number }} at
  * @param {{ fwd: number, left: number, alt: number }} route
- * @param {{ endInRoute?: boolean, track?: number }} [options]
+ * @param {{ endInRoute?: boolean, track?: number, holdLineUpUntil?: number }} [options]
  */
-export function straightAhead(at, route, { endInRoute = false, ...over } = {}) {
+export function straightAhead(at, route, { endInRoute = false, holdLineUpUntil, ...over } = {}) {
   const A = STRAIGHT_AHEAD;
   const quick = { fwdRate: Infinity, latRate: Infinity, decel: 2, undertakeKias: 15, ...over };
   return [
-    phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60 }),
+    phase(at(A.sixFt, 0, A.belowWakeFt), { ...quick, vrel0: 20, kcap: 0.05, d0: 50, vrelMax: 100, bankCapDeg: 30, overtakeKias: 15, advanceTol: 60, ...(holdLineUpUntil !== undefined ? { holdUntil: holdLineUpUntil } : {}) }),
     // close along the six line at about 21 KIAS overtake, inside EFIG p.371's 20-30, until the vector point
     phase(at(A.closeTowardFt, 0, A.belowWakeFt), { ...quick, vrel0: 36, kcap: 0, vrelMax: 50, decel: 3, bankCapDeg: 20, overtakeKias: 30, advanceTol: A.vectorAtFt + A.closeTowardFt }),
     // then route, closing level or slightly low (SMM 16.15 para 38) and slowing as it comes in
