@@ -44,7 +44,7 @@ export function newAircraft(who, pose, p, kias, forceG) {
   return ac;
 }
 
-/** Copies the point-mass state and the performance numbers a screen reads into the aircraft. A dry run (`display` false) skips the two that only a screen reads, specific power and energy height. */
+/** Copies the point-mass state and the performance numbers a screen reads into the aircraft. A dry run (`display` false) skips specific power, which only a screen reads. */
 export function readOut(ac, g, throttle, p, shaker = null, display = true) {
   const f = pointMassFlight(ac.pm);
   const kias = tasToIasKt(f.ktas, f.altFt);
@@ -58,10 +58,12 @@ export function readOut(ac, g, throttle, p, shaker = null, display = true) {
   ac.bankDeg = physicalBankDeg(ac.pm, ac.bankRad, ac.turnDir || 1);
   ac.inverted = Math.abs(ac.bankDeg) > 90;
   ac.shakerG = shaker ?? shakerG(kias, p);
+  // Energy height is read every step, dry run or not: the tactical advantage score uses it to start a chase, so a dry run
+  // with a stale one would start its chase at another time than the real fight (the race and the fight must agree).
+  ac.energyHeightFt = energyHeightFt(f.altFt, f.ktas);
   if (!display) return;
   const excess = excessFnFor(throttle)(f.ktas, f.altFt, Math.max(g, 0));
   ac.psFtps = f.ktas * KT_TO_FTPS * excess;
-  ac.energyHeightFt = energyHeightFt(f.altFt, f.ktas);
 }
 
 
