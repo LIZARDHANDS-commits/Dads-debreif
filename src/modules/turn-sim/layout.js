@@ -252,7 +252,7 @@ export function createLayout({ buttons, setupControls, layout, layoutControls, l
       clear(now);
       for (const t of r.nowLines) now.append(h('li', {}, t));
       // A live region: rewritten only when the judgement changes, so a screen reader says it once.
-      const judgedText = r.judged ? r.judged.text : 'Judged once both have rolled out.';
+      const judgedText = r.judged ? r.judged.text : 'Judged once all have rolled out.';
       if (judgedText !== lastJudged) {
         lastJudged = judgedText;
         judged.textContent = judgedText;
