@@ -52,6 +52,8 @@ export const PFL = Object.freeze({
   /** The High Key window, ft MSL (WFO S2 art 403 para 1a; Patrick C4 06:30Z). */
   highKeyMinFt: 5000,
   highKeyMaxFt: 6000,
+  /** Within this of High Key, a PFL starts at High Key and gets its window check (the sim's High Key button uses the same 1,500 ft). An estimate. */
+  atHighKeyFt: 1500,
   /** Keys move into wind from 15 kt (estimate, Patrick 06:56Z): High Key the full amount, Low Key half, about 1,000 ft per 10 kt (EFIG p.402, p.406). */
   keyShiftFromKt: 15,
   keyShiftFtPer10Kt: 1000,
@@ -580,6 +582,11 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const turnRadiusFt = zooming ? zoomRadius((start.kias + PFL.glideCleanKias) / 2) : DIRECT_TURN_RADIUS_FT;
   const minTurnRadiusFt = zooming ? zoomRadius(PFL.glideCleanKias) : DIRECT_TURN_RADIUS_FT;
   let plan = chooseJoin(geo, s, avail, start.headingDeg, wind, { turnRadiusFt, minTurnRadiusFt });
+  // Already at High Key (the High Key button, or the PFL pressed there) inside the window or above: High Key's window
+  // check runs at once, so a high one orbits or extends to a false High Key and false Low Key (TR-43; Patrick 17:36Z).
+  if (Math.hypot(s.x - geo.th.x, s.y - geo.th.y) <= PFL.atHighKeyFt && avail >= PFL.highKeyMinFt) {
+    plan = { kind: 'highKey', path: [{ x: s.x, y: s.y, plan: 0, theta: 0, key: 'high_key', highKeyCheck: true }, ...arcToAim(geo, PFL.joinStepDeg)], theta: 0, label: 'At High Key' };
+  }
   // A pattern PFL: the PFL button pressed in the circuit, not one gliding from High Key. Only it may widen (TR-48).
   const patternPfl = !practice && plan.kind !== 'highKey';
   let path = plan.path;
@@ -601,7 +608,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
   const MAX_STEPS = 30000;
 
   const replan = (next) => { plan = next; path = next.path.map((p, i) => (i === 0 ? { ...p, x: s.x, y: s.y } : p)); seg = 0; };
-  const onCircle = () => path[seg]?.theta !== undefined || ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || plan.kind === 'direct';
+  // The false circle (false High Key to false Low Key) flies like the circle: drag goes on as it is due there.
+  const onCircle = () => path[seg]?.theta !== undefined || path[seg]?.falseCircle || ['threshold', 'touchdown', 'aim', 'rollout'].includes(path[seg]?.key) || plan.kind === 'direct';
 
   for (let n = 0; n < MAX_STEPS; n++) {
     const tas = ktToFtps(iasToTasKt(s.ias, s.alt));
@@ -638,9 +646,9 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
           const off = { x: geo.u.x * d, y: geo.u.y * d };
           const fhk = { x: geo.th.x + off.x, y: geo.th.y + off.y };
           const semi = [];
-          for (let th = PFL.joinStepDeg; th <= 180 + 1e-6; th += PFL.joinStepDeg) { const p = geo.at(th); semi.push({ x: p.x + off.x, y: p.y + off.y, plan: 1 }); }
+          for (let th = PFL.joinStepDeg; th <= 180 + 1e-6; th += PFL.joinStepDeg) { const p = geo.at(th); semi.push({ x: p.x + off.x, y: p.y + off.y, plan: 1, falseCircle: true, ...(th > 180 - 1e-6 ? { key: 'false_low_key' } : {}) }); }
           const lk = geo.at(180);
-          path = [{ x: s.x, y: s.y, plan: 1 }, { ...fhk, plan: 1, key: 'false_high_key' }, ...semi, { x: lk.x, y: lk.y, theta: 180, plan: planAt(180), key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)];
+          path = [{ x: s.x, y: s.y, plan: 1 }, { ...fhk, plan: 1, key: 'false_high_key', falseCircle: true }, ...semi, { x: lk.x, y: lk.y, theta: 180, plan: planAt(180), key: 'low_key' }, ...arcToAim(geo, 180 + PFL.joinStepDeg)];
           seg = 0;
           setRec('False High Key');
         } else {
@@ -753,7 +761,7 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       // The words on the tag (spec 4.5 item 14).
       let decision;
       if (plan.kind === 'direct') decision = s.ias < PFL.glideGearKias - 2 ? 'Trading speed' : plan.label;
-      else if (s.rec.decision?.startsWith('False High Key') && (path[seg]?.theta === undefined)) decision = 'False High Key';
+      else if (path[seg]?.falseCircle) decision = path.slice(0, seg + 1).some((p) => p.key === 'false_low_key') ? 'False Low Key' : 'False High Key';
       else if (s.rec.decision?.startsWith('Orbit') && path[seg]?.key !== 'threshold' && seg < path.findIndex((p) => p.highKeyCheck)) decision = s.rec.decision;
       else if (!onCircle()) decision = plan.label;
       else {
