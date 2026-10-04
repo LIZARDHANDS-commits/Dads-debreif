@@ -26,6 +26,7 @@
 import { FT_PER_NM } from '../../core/units.js';
 import { computeWindPerch } from './route.js';
 import { RUNWAYS, DEFAULT_RUNWAY } from './defaults.js';
+import { THRESHOLD_29L, FIELD_ELEV_FT, RUNWAY_29L_HDG_DEG } from './airfield.js';
 
 export { RUNWAYS, DEFAULT_RUNWAY };
 
@@ -35,11 +36,11 @@ export { RUNWAYS, DEFAULT_RUNWAY };
  * @typedef {{ pattern: string, startPoint: string, navPlanId: string|null, waypointIndex: number, x: number|null, y: number|null, alt: number|null, kias: number, headingDeg: number|null, phase: string, factory?: string }} SpawnPreset
  */
 
-// ── CYMJ constants (shared with flight-engine.js) ─────────────────────────────
-const THRESH_X  = 3104;
-const THRESH_Y  = -3194;
-const FIELD_ELEV = 1892;
-const RWY_HDG   = 298;
+// ── CYMJ constants (from airfield.js) ─────────────────────────────────────────
+const THRESH_X  = THRESHOLD_29L.x;
+const THRESH_Y  = THRESHOLD_29L.y;
+const FIELD_ELEV = FIELD_ELEV_FT;
+const RWY_HDG   = RUNWAY_29L_HDG_DEG;
 
 // ── PFL Ground Truth Constants (CYMJ RWY 29L SMM Ch 13 forced landing recovery) ──
 // 360° circle (1.0 NM diameter, 0.5 NM radius) centered 0.5 NM at 208° from threshold.

@@ -15,5 +15,5 @@ You build one task from a module's `plan.md` and nothing else. The Claude that s
 - Never change the flight physics to make a test pass. If a test fails twice, stop and report it; don't try a third time.
 - Every flying number names its source (a manual page or Patrick's ruling); an estimate is labelled as one. If sources disagree, stop and report both.
 - Touch only the files your brief lists. Never edit `original/`, `package.json`, CI settings or files another writer owns; ask instead.
-- Run the module's unit tests (and its browser tests if you changed a screen) before you report. Commit on your branch with a plain-English message that says what changed; don't push or open a pull request unless your brief says to.
-- Report: what you built, the files changed, test results with counts, anything untested or unseen, and anything you weren't sure of.
+- Don't run tests locally before you report: CI on the pull request is the one check (`AGENTS.md`, Testing). A build check is fine. Commit on your branch with a plain-English message that says what changed; don't push or open a pull request unless your brief says to.
+- Report: what you built, the files changed, the tests you wrote or changed, anything untested or unseen, and anything you weren't sure of.

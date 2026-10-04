@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ktToFtps } from '../../../src/core/units.js';
 import { radToDeg } from '../../../src/core/angles.js';
-import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack, rollToward, dampedClimbG } from '../../../src/core/flight-math.js';
+import { MIN_TURN_G, limitG, bankDegFromG, turnRadiusFt, turnRateRadPerSec, turnSimG, isaDensityRatio, emPoint, closureKt, formatClosureKt, gFromTrack, rollToward, dampedClimbG, gFromBankDeg, turnRateFromBankRadPerSec, turnRadiusFromBankFt } from '../../../src/core/flight-math.js';
 
 const near = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} is not within ${tol} of ${b}`);
 
@@ -165,3 +165,19 @@ test('dampedClimbG computes 1 G in level flight and increases with climb error',
   assert.ok(gPull > 1.0);
 });
 
+
+test('given the bank: 60° is 2 G, and radius and rate agree with the G-based functions', () => {
+  near(gFromBankDeg(60), 2, 1e-12);
+  near(gFromBankDeg(0), 1, 1e-12);
+  const v = ktToFtps(140);
+  for (const bank of [30, 45, 60]) {
+    const g = gFromBankDeg(bank);
+    near(turnRadiusFromBankFt(v, bank), turnRadiusFt(v, g), 1e-6);
+    near(turnRateFromBankRadPerSec(v, bank), turnRateRadPerSec(v, g), 1e-12);
+  }
+});
+
+test('a standard-rate turn: 3° per second at 120 KTAS takes about 18° of bank', () => {
+  // Worked out: bank = tan⁻¹(3°/s × v ÷ g) = 18.24° (standard aerodynamics).
+  near(radToDeg(turnRateFromBankRadPerSec(ktToFtps(120), 18.25)), 3, 0.02);
+});

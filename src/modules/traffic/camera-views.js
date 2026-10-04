@@ -5,12 +5,13 @@
 // The camera is orthographic, so a viewpoint is a look direction plus what sits in the middle of the screen. yaw is
 // a compass bearing (the camera looks along (sin yaw, cos yaw)); pitch is degrees from straight down (0 looks down,
 // 90 is level), clamped to the view's limits. Display only: no flight math.
+import { THRESHOLD_29L, THRESHOLD_DATA_ELEV_FT } from './airfield.js';
 
 /** The tower cab at CYMJ, in local feet, and how far above the field its eye sits. */
 export const TOWER_FT = Object.freeze({ x: 30, y: 2575 });
 export const TOWER_EYE_AGL_FT = 140;
 /** Runway 29L threshold (local feet, ft MSL): what the Padlock view keeps in sight. */
-export const RWY_29L_THRESHOLD = Object.freeze({ x: 3104, y: -3194, alt: 1880 });
+export const RWY_29L_THRESHOLD = Object.freeze({ x: THRESHOLD_29L.x, y: THRESHOLD_29L.y, alt: THRESHOLD_DATA_ELEV_FT });
 
 /** The views the Camera menu offers, in menu order. */
 export const CAMERA_VIEWS = Object.freeze([

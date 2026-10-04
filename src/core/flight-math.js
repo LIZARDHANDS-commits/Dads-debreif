@@ -12,7 +12,7 @@
 //
 // Line numbers refer to original/shell.html unless a sub-page is named.
 import { G_FTPS2, KT_TO_FTPS, FTPS_TO_KT, M_PER_FT } from './units.js';
-import { radToDeg, headingRad, wrapPi } from './angles.js';
+import { degToRad, radToDeg, headingRad, wrapPi } from './angles.js';
 
 /** The least G V6 lets any turn use: at exactly 1 G there is no turn. */
 export const MIN_TURN_G = 1.01;
@@ -49,6 +49,25 @@ export function turnRadiusFt(speedFtps, g) {
  */
 export function turnRateRadPerSec(speedFtps, g) {
   return speedFtps / turnRadiusFt(speedFtps, g);
+}
+
+/** G in a level, coordinated turn at bankDeg: 1 / cos(bank). 60° gives 2 G. */
+export function gFromBankDeg(bankDeg) {
+  return 1 / Math.cos(degToRad(bankDeg));
+}
+
+/**
+ * Turn rate in radians per second in a level, coordinated turn at bankDeg:
+ * gravity × tan(bank) ÷ true airspeed (ft/s). Same physics as turnRateRadPerSec,
+ * given the bank instead of the G.
+ */
+export function turnRateFromBankRadPerSec(speedFtps, bankDeg) {
+  return (G_FTPS2 * Math.tan(degToRad(bankDeg))) / speedFtps;
+}
+
+/** Turn radius in feet in a level, coordinated turn at bankDeg: v² ÷ (gravity × tan(bank)). */
+export function turnRadiusFromBankFt(speedFtps, bankDeg) {
+  return speedFtps * speedFtps / (G_FTPS2 * Math.tan(degToRad(bankDeg)));
 }
 
 /**

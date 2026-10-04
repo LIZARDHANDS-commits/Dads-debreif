@@ -11,12 +11,13 @@ import {
   calcCrossTrackError,
 } from './flight-engine.js';
 import { getNavPlan } from './nav-plans.js';
+import { THRESHOLD_29L, PFL_KEY_ALT_FT } from './airfield.js';
 import { generatePflRail, buildPflRail, densifyRail } from './pfl-rail.js';
 
 // ── HIGH KEY GROUND TRUTH CONSTANTS ──────────────────────────────────────────
-export const HIGH_KEY_PT = Object.freeze({ x: 3104, y: -3194, alt: 5000 });
+export const HIGH_KEY_PT = Object.freeze({ x: THRESHOLD_29L.x, y: THRESHOLD_29L.y, alt: PFL_KEY_ALT_FT.highKey });
 export const RWY_HDG_DEG = CYMJ_RWY_HDG_DEG ?? 298;
-export const RUN_IN_LEN_FT = 660; // 1/8 NM = 5,280 / 8 = 660 ft
+export const RUN_IN_LEN_FT = 660; // 1/8 statute mile (5,280 / 8). The ratified run-in is 1/8 NM, about 760 ft; it changes in refactor PR 4 (Traffic plan, Step 2)
 
 const RAD_RWY = degToRad(RWY_HDG_DEG);
 const UX_RWY = Math.sin(RAD_RWY); // -0.88294759...

@@ -149,6 +149,8 @@ export function t6aExcessFn(ktas, altFt, g) {
  * June 1998; Patrick's upload 06:33Z; SMM 13.5 para 7 agrees on 2 NM at 125).
  * chartSinkFpm is the chart's own sink rate, which works out as the glide
  * ratio at about 16,000 ft; glideSinkFpm gives it at any height.
+ * The flapsTakeoff row is an estimate, interpolated between gear down and
+ * landing flap; no manual gives it (Patrick, 4 Oct 2026 04:18Z).
  */
 export const T6A_GLIDE = Object.freeze({
   clean: Object.freeze({ kias: 125, nmPer1000Ft: 2.0, chartSinkFpm: 1350, prop: 'feathered', dragIndex: 0 }),
@@ -164,9 +166,17 @@ export const T6A_GLIDE = Object.freeze({
  * ratio is fixed through the air, so the sink rate grows with height.
  */
 export function glideSinkFpm(config, kias, altFt) {
+  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / glideRatio(config);
+}
+
+/**
+ * The glide ratio through the air for a T6A_GLIDE configuration: feet flown
+ * for each foot of height lost (clean 2 NM per 1,000 ft is about 12.2). The
+ * flapsTakeoff row is an estimate (see T6A_GLIDE).
+ */
+export function glideRatio(config) {
   if (!Object.hasOwn(T6A_GLIDE, config)) throw new RangeError(`glide configuration ${config}: use one of ${Object.keys(T6A_GLIDE).join(', ')}`);
-  const ratio = T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
-  return iasToTasKt(kias, altFt) * KT_TO_FTPS * 60 / ratio;
+  return T6A_GLIDE[config].nmPer1000Ft * FT_PER_NM / 1000;
 }
 
 /**

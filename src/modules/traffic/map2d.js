@@ -23,6 +23,10 @@
 import { createCanvasView } from '../../ui-kit/canvas-view.js';
 import { createTileLayer, ESRI_IMAGERY } from '../../ui-kit/map-tiles.js';
 import { makeLocalRef, localFtToLatLon, latLonToLocalFt } from '../../core/geo.js';
+import { FT_PER_NM } from '../../core/units.js';
+import { windVectorFtps } from '../../core/wind.js';
+import { T6A_GLIDE } from '../../core/t6-performance.js';
+import { FIELD_ELEV_FT, THRESHOLD_29L, PFL_CIRCLE_RADIUS_FT } from './airfield.js';
 import { TYPE_COLORS as FLEET_COLORS } from './types.js';
 
 export const MAP_MIN_SPAN_FT = 300;
@@ -273,16 +277,16 @@ export const aircraftColor = (ac) => ac.color ?? TYPE_COLORS[ac.type] ?? FLEET_C
  * @returns {{ cx: number, cy: number, rGlide: number, tGlide: number, altDiff: number, driftFt: number, wxFtps: number, wyFtps: number }}
  */
 export function calculateGlideFootprint(a, windFromDeg = 360, windKt = 0) {
-  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : 1892;
-  const altDiff = Math.max(0, alt - 1892);
-  const rGlide = (altDiff / 1000) * 2.0 * 6076.12;
+  const alt = Number.isFinite(a?.alt) ? /** @type {number} */ (a.alt) : FIELD_ELEV_FT;
+  const altDiff = Math.max(0, alt - FIELD_ELEV_FT);
+  const rGlide = (altDiff / 1000) * T6A_GLIDE.clean.nmPer1000Ft * FT_PER_NM;
+  // The glide chart's own sink rate, which only fits at about 16,000 ft; replaced
+  // when the PFL is rebuilt (Traffic plan, Step 2, PR 3).
   const tGlide = altDiff / (1350 / 60);
 
   const fromDeg = Number.isFinite(windFromDeg) ? windFromDeg : 360;
   const kt = Number.isFinite(windKt) && windKt > 0 ? windKt : 0;
-  const blowToRad = (((fromDeg % 360) + 180) * Math.PI) / 180;
-  const wxFtps = (kt * 1.68781) * Math.sin(blowToRad);
-  const wyFtps = (kt * 1.68781) * Math.cos(blowToRad);
+  const { x: wxFtps, y: wyFtps } = windVectorFtps(fromDeg % 360, kt);
 
   const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
   const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
@@ -405,7 +409,7 @@ export function getPflBadge(ac) {
   // Fallback heuristic based on altitude / speed if phase is generic ('pfl' or not yet refined)
   const alt = ac.altFt ?? ac.alt ?? 3500;
   const kt = ac.kt ?? 120;
-  if (alt <= 1892 && (status === 'crashed' || status === 'landed')) {
+  if (alt <= FIELD_ELEV_FT && (status === 'crashed' || status === 'landed')) {
     return '[CRASH SHORT]';
   }
   if (kt > 150) {
@@ -694,7 +698,7 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
           ctx.stroke();
 
           // Tactical HUD range label
-          const nmRange = (footprint.rGlide / 6076.12).toFixed(1);
+          const nmRange = (footprint.rGlide / FT_PER_NM).toFixed(1);
           text(`PFL GLIDE (${nmRange} NM)`, scx, scy - rPx - 4, '#38bdf8', { size: 10, bold: true, align: 'center', anchor: scx });
           ctx.restore();
         }
@@ -788,8 +792,8 @@ function drawWind(ctx, map, settings, palette, text) {
 
 // Draws the 1/2 NM radius (1 NM diameter) PFL circle on the ground for Runway 29L.
 export function drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle) {
-  const th = { x: 3104, y: -3194 }; // Threshold Runway 29L
-  const radiusFt = 3038.06; // 0.5 NM radius (1.0 NM diameter = 6076 ft)
+  const th = THRESHOLD_29L;
+  const radiusFt = PFL_CIRCLE_RADIUS_FT; // 0.5 NM radius (1.0 NM diameter = 6076 ft)
 
   // 90° LEFT of Runway 29L (298° - 90° = 208° True, South-Southwest)
   const rad208 = (208 * Math.PI) / 180;
