@@ -78,6 +78,19 @@ export function milesBack(route) {
   return out;
 }
 
+/**
+ * "SI pattern" in the Route list (Patrick, 4 Oct): Downwind, Base and Final. Downwind is the overhead break's
+ * Abeam departure end (point 6) with the aircraft's pattern set to SI, so it flies the straight-in from there; Base
+ * (the SI Rejoin's Entry Mid, the base leg the straight-in joins) and Final start on the SI Rejoin, which flies the SI
+ * pattern lap after lap already (TR-61).
+ */
+export const SI_PATTERN_CHOICE = 'si-pattern';
+export const SI_SPOTS = Object.freeze([
+  Object.freeze({ label: 'Downwind', routeId: 'PAT1', point: 6, pattern: 'si' }),
+  Object.freeze({ label: 'Base', routeId: 'ENT2', point: 2 }),
+  Object.freeze({ label: 'Final', routeId: 'ENT2', point: 4 }),
+]);
+
 /** The Route list's last choice: an aircraft gliding in from the training area with the engine out (Patrick, 4 Oct). */
 export const PFL_FROM_AREA = 'pfl-area';
 
@@ -172,11 +185,13 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   };
 
   let pflChosen = false; // "PFL from area" is picked in the Route list; it is not a route the setting can hold
+  let siChosen = false; // "SI pattern" is picked: its spots are on two routes (SI_SPOTS)
   const routeSelect = h('select', {
     id: 'traffic-spawn-route',
     onchange: () => {
       pflChosen = routeSelect.value === PFL_FROM_AREA;
-      if (!pflChosen) settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
+      siChosen = routeSelect.value === SI_PATTERN_CHOICE;
+      if (!pflChosen && !siChosen) settings.update({ spawnRoute: routeSelect.value, spawnStartPoint: 1 });
       showRouteParts();
       conflictButtonFollows();
     },
@@ -185,8 +200,11 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
     clear(routeSelect);
     const visibleRoutes = setup.routes.filter((r) => r && r.kind !== 'split');
     for (const route of visibleRoutes) routeSelect.appendChild(h('option', { value: route.id }, route.name));
+    const hasSi = SI_SPOTS.every((s) => setup.routes.some((r) => r.id === s.routeId));
+    if (hasSi) routeSelect.appendChild(h('option', { value: SI_PATTERN_CHOICE }, 'SI pattern'));
+    else siChosen = false;
     routeSelect.appendChild(h('option', { value: PFL_FROM_AREA }, 'PFL from area'));
-    routeSelect.value = pflChosen ? PFL_FROM_AREA : spawnRouteId(settings.get().spawnRoute, flownRoutes());
+    routeSelect.value = pflChosen ? PFL_FROM_AREA : siChosen ? SI_PATTERN_CHOICE : spawnRouteId(settings.get().spawnRoute, flownRoutes());
   };
 
   // The advanced choices: a delay before the aircraft starts, and adding a pair. Closed until asked for.
@@ -214,6 +232,18 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   }
   function fillSpots() {
     clear(spots);
+    if (siChosen) {
+      for (const choice of SI_SPOTS) {
+        const route = setup.routes.find((r) => r.id === choice.routeId);
+        if (!route?.points?.[choice.point - 1]) continue;
+        const spot = spotOf(route, choice.point - 1);
+        const button = h('button', { type: 'button', class: 'button spawn-spot', dataset: { point: String(choice.point) }, title: `${choice.label}: ${feet(spot.alt)} ft, ${spot.kt} kt`, onclick: () => spawnSi(choice) }, choice.label);
+        guardButton(button, ['spawnDelayS']);
+        spots.appendChild(button);
+      }
+      showSpotsHint();
+      return;
+    }
     const route = currentRoute();
     if (MILES_BACK_ROUTES.includes(route?.id)) {
       const pickId = 'traffic-spawn-miles-back';
@@ -243,9 +273,11 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
 
   // The spawner keeps its own choice of route: picking a route on the left doesn't change it (#45).
   function spawn(pair, extra = {}) {
-    const asked = spawnSpec(settings.get(), flownRoutes());
+    // `extra.routeId` and `extra.startPoint` start it on a route other than the Route list's (the SI pattern's spots).
+    const { routeId: onRoute, startPoint: atPoint, ...more } = extra;
+    const asked = spawnSpec(onRoute ? { ...settings.get(), spawnRoute: onRoute, spawnStartPoint: atPoint } : settings.get(), flownRoutes());
     if (asked.problem) return say(asked.problem);
-    asked.spec = { ...asked.spec, ...extra };
+    asked.spec = { ...asked.spec, ...more };
     const second = pair ? pairSpec(asked.spec, settings.get()) : null;
     if (second?.problem) return say(second.problem);
     // A saved profile holds MOST_AIRCRAFT at most (PR-04): stop here, in the same words Save would use.
@@ -255,11 +287,21 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
       const ids = [sim.spawn(asked.spec)];
       if (second) ids.push(sim.spawn(second.spec)); // the same route, as the spawner has it
       say(`Added ${ids.join(' and ')}.`);
+      onChange();
+      return ids;
     } catch (err) {
       if (!(err instanceof RangeError)) console.error('Adding an aircraft failed:', err);
       say(engineProblem(err));
     }
     onChange();
+    return [];
+  }
+
+  /** An SI pattern spot: an aircraft (or a pair) there, its pattern set to SI where the spot says so. */
+  function spawnSi(choice) {
+    if (pairBox.checked && controls.invalid().includes('pairGapS')) return say('Nothing was added: fix the Pair gap box first.');
+    const ids = spawn(pairBox.checked, { routeId: choice.routeId, startPoint: choice.point }) ?? [];
+    if (choice.pattern) for (const id of ids) sim.setPattern?.(id, choice.pattern);
   }
 
   /** + Spawn on a miles-back route: an aircraft (or a pair) `nm` back from the route's end along the line. */
@@ -321,9 +363,9 @@ export function createAircraftPanel({ controls, timers, settings, sim, setup, on
   const conflictButton = h('button', { type: 'button', class: 'button', disabled: true, title: 'Select an aircraft first', onclick: spawnConflict }, 'Spawn a conflict');
   // The button waits for a selected aircraft (Patrick: "when an aircraft is selected") and a route to put the new one on.
   const conflictButtonFollows = () => {
-    const on = Boolean(selectedAircraftId) && !pflChosen;
+    const on = Boolean(selectedAircraftId) && !pflChosen && !siChosen;
     conflictButton.disabled = !on;
-    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : pflChosen ? 'Choose a route above first' : 'Select an aircraft first';
+    conflictButton.title = on ? `A new aircraft on the route above, timed to meet ${selectedAircraftId}` : (pflChosen || siChosen) ? 'Choose a route above first' : 'Select an aircraft first';
   };
 
   // PFL from area: an aircraft already gliding with the engine out, somewhere in the training area. Its boxes show

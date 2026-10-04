@@ -14,7 +14,7 @@ import { BUILT_IN, profileSettingDefaults, startingProfile } from './profile.js'
 import { createSim } from './sim.js';
 import { clockText } from './readouts.js';
 import { createClock, TEN_SECONDS_STEPS } from './clock.js';
-import { buildScene, routeRows } from './scene.js';
+import { buildScene, routeRows, SI_PATTERN, siPatternPath } from './scene.js';
 import { createPlaybackBar } from './playback-bar.js';
 import { createLayout } from './layout.js';
 import { createMap2d, hintFor, photoCaption } from './map2d.js';
@@ -101,7 +101,7 @@ function mount(root, app) {
 
   const map = createMap2d(ui.canvas, {
     timers: app.scheduler,
-    scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: sim.trailOf }),
+    scene: () => withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: sim.trailOf })),
     settings: () => settings.get(),
     anchor: () => setup.anchor,
     onPhoto: (state) => {
@@ -115,7 +115,7 @@ function mount(root, app) {
     host: ui.stage3d,
     timers: app.scheduler,
     source: {
-      scene: () => buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] }), // 3D draws no trails
+      scene: () => withSiPattern(buildScene({ setup, state: state(), selectedRouteId, trailOf: () => [] })), // 3D draws no trails
       settings: () => settings.get(),
       anchor: () => setup.anchor,
       time: () => sim.t,
@@ -191,12 +191,23 @@ function mount(root, app) {
   // The PFL circle has a row in "Routes on the map" too (Patrick, 4 Oct). It is the Layers menu's "PFL ground
   // circle" switch (layerPflCircle), so the row and the menu always agree. Colour as map2d draws it.
   const PFL_CIRCLE_ROW = 'pfl-circle';
+  // The SI pattern has a row too (Patrick, 4 Oct): its line is flown, not stored (scene.js siPatternPath), so it is
+  // added to the picture here. Hidden at first, so the opening picture is as it was.
+  let siPatternShown = false;
+  const siPatternRow = () => ({ ...SI_PATTERN, visible: siPatternShown });
+  function withSiPattern(scene) {
+    if (!siPatternShown) return scene;
+    const path = siPatternPath(setup.routes, setup.windFromDeg ?? 360, setup.windKt ?? 0, setup.routeOptions);
+    if (path) scene.routes.push({ ...SI_PATTERN, visible: true, points: [], path });
+    return scene;
+  }
   const pflCircleRow = () => ({ id: PFL_CIRCLE_ROW, name: 'PFL circle', kind: 'pfl', color: '#ff9bce', visible: settings.get().layerPflCircle !== false });
   let shownPflCircle = null;
 
   function showRoutes() {
     const listed = setup.routes.filter((r) => r.kind !== 'split');
     const rows = routeRows(listed);
+    if (setup.routes.some((r) => r.id === 'PAT1') && setup.routes.some((r) => r.id === 'ENT2')) rows.push(siPatternRow());
     rows.push(pflCircleRow());
     shownPflCircle = settings.get().layerPflCircle !== false;
     ui.setRoutes(rows);
@@ -204,6 +215,12 @@ function mount(root, app) {
 
   /** A route's row was pressed: its line shows or hides on the map (Patrick, 4 Oct). Only the picture changes; the aircraft on it fly on. */
   function toggleRoute(id) {
+    if (id === SI_PATTERN.id) {
+      siPatternShown = !siPatternShown;
+      showRoutes();
+      redraw();
+      return;
+    }
     if (id === PFL_CIRCLE_ROW) {
       settings.update({ layerPflCircle: settings.get().layerPflCircle === false }); // the subscriber redraws and updates the row
       return;

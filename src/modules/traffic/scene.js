@@ -5,8 +5,35 @@
 // Pure: it reads the engine's setup and state and returns plain data. It changes nothing
 // and works out no flight math of its own (radius, bank and the drawn path are the engine's).
 import { DEFAULT_ROUTE_OPTIONS, drawPath, legDistances, pointTurn, computeWindPerch, generateWindAdjustedTrack, generatePflTrack } from './route.js';
+import { buildDownwindStraightIn } from './randomize.js';
 
 const isShowing = (route) => route.visible !== false;
+
+/** The SI pattern's line on the map (Patrick, 4 Oct): its id, name and colour as the routes list shows them. */
+export const SI_PATTERN = Object.freeze({ id: 'SI_PATTERN', name: 'SI pattern', kind: 'entry', color: '#ffa657' });
+const siLines = new WeakMap(); // Pattern 1's route → { key, ent2, path }: flown once per wind, not every frame
+
+/**
+ * The line an SI-pattern aircraft flies (Traffic spec 4.15, TR-61), for drawing only: Pattern 1 from the threshold
+ * round to abeam the departure end, then the straight-in the sim flies from there in this wind (randomize.js
+ * buildDownwindStraightIn, the same code the aircraft use: down to 2,700 ft at 220 KIAS, onto the SI Rejoin's base),
+ * then the SI Rejoin from its Entry Gate to the runway. Null without Pattern 1 and the SI Rejoin (ENT2).
+ */
+export function siPatternPath(routes, windFromDeg = 360, windKt = 0, options = DEFAULT_ROUTE_OPTIONS) {
+  const pat = routes.find((r) => r.id === 'PAT1'), ent2 = routes.find((r) => r.id === 'ENT2');
+  if (!pat || !ent2 || pat.points.length < 7 || ent2.points.length < 3) return null;
+  const key = `${windFromDeg}_${windKt}`;
+  const kept = siLines.get(pat);
+  if (kept && kept.key === key && kept.ent2 === ent2) return kept.path;
+  const a = pat.points[5], b = pat.points[6]; // abeam the departure end, then the outer downwind
+  const headingDeg = ((Math.atan2(b.x - a.x, b.y - a.y) * 180) / Math.PI + 360) % 360;
+  const round = drawPath({ id: 'SI_ROUND', name: 'SI pattern', kind: 'entry', points: pat.points.slice(0, 6) }, options);
+  const flown = buildDownwindStraightIn(pat.points, { x: a.x, y: a.y, alt: a.alt ?? 3500, kias: a.kt ?? 220, headingDeg, bankDeg: 0 }, { windFromDeg, windKt }, ent2);
+  const home = drawPath({ id: 'SI_HOME', name: 'SI pattern', kind: 'entry', points: ent2.points.slice(2) }, options);
+  const path = [...round, ...flown.map((p) => ({ x: p.x, y: p.y, alt: p.alt })), ...home];
+  siLines.set(pat, { key, ent2, path });
+  return path;
+}
 
 /** Where a route joins, as the routes list says it: "→ Overhead break P8" for an entry, "P6 → P1" for a split (points from 1). */
 export function routeLink(route, routes) {
