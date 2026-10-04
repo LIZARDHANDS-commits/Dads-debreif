@@ -337,8 +337,10 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
     reentered = false;
     if (times[k].t0 === null) times[k].t0 = t;
 
-    // The reference slot moves toward the phase's slot at the phase's rates.
-    for (const [axis, v, target, rate] of [['f', 'vf', ph.slot.fwd, ph.fwdRate], ['l', 'vl', ph.slot.left, ph.latRate]]) {
+    // The reference slot moves toward the phase's slot at the phase's rates. A phase with a `goal` (a goal-seeking phase,
+    // the fighting wing turns of TS-55) works out its slot afresh every step from where Lead and #2 are.
+    const slot = ph.goal ? ph.goal(L, W, t) : ph.slot;
+    for (const [axis, v, target, rate] of [['f', 'vf', slot.fwd, ph.fwdRate], ['l', 'vl', slot.left, ph.latRate]]) {
       if (!Number.isFinite(rate)) {
         ref[axis] = target;
         ref[v] = 0;
@@ -350,7 +352,7 @@ export function runTracker({ refs, wing0, t0, phases, profile, blockFt, maxSec =
         if (Math.abs(target - ref[axis]) < 0.05) ref[axis] = target;
       }
     }
-    const arrived = ref.f === ph.slot.fwd && ref.l === ph.slot.left;
+    const arrived = ph.goal ? Math.hypot(ref.f - slot.fwd, ref.l - slot.left) < (ph.goalTolFt ?? 2) : ref.f === ph.slot.fwd && ref.l === ph.slot.left;
 
     // The reference point and its velocity: attached to the aircraft it flies off, so it turns with it (v = vRef + ω × r + the reference's own motion).
     const { px, py, vpx, vpy } = refPoint(L, Lprev, ref, ph.world);

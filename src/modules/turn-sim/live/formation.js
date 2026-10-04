@@ -17,6 +17,7 @@ import { G_WARM, planGWarm } from './g-warm.js';
 import { classifyFour, judgeFourFormation, FOUR_FORMATIONS } from './four-ship-slots.js';
 import { planChangeFour } from './four-ship-moves.js';
 import { planHotRejoinChange } from './kinematic-moves.js';
+import { FW_TURN_KEYS, planFwTurn } from './formation-turns.js';
 
 /**
  * The first version's fixed numbers. Speeds name their kind (rule book): kias is
@@ -190,13 +191,21 @@ export function createFormation(options = {}) {
   function start(key, dir) {
     const m = MANOEUVRES[key] ?? G_WARM;
     const four = state.aircraft.length > 2;
-    const plan = key === G_WARM.key
+    // In fighting wing the 2-ship's turn buttons turn the formation (TS-55): Lead turns, #2 keeps in the band.
+    const fwTurn = !four && whereNow().key === 'fw' && FW_TURN_KEYS.includes(key);
+    const plan = fwTurn
+      ? planFwTurn(state.aircraft, key, dir, state.tSec, { blockFt: opts.blockFt })
+      : key === G_WARM.key
       ? planGWarm(state.aircraft, state.tSec)
       : four
       ? planFour(state.aircraft, key, dir, state.tSec, { check45: opts.check45 !== false })
       : state.errors
         ? planWithErrors(state.aircraft, key, dir, state.tSec, state.errors, state.slot, { tools: resolveFixTools(opts), blockFt: opts.blockFt })
         : planManoeuvre(state.aircraft, key, dir, state.tSec);
+    if (plan.ok === false) {
+      state.refusal = plan.reason;
+      return false;
+    }
     if (plan.slotAfter) state.slot = plan.slotAfter; // the next press starts after this one ends
     state.plans = plan.plans;
     state.planned = {};
@@ -214,7 +223,8 @@ export function createFormation(options = {}) {
       label: labelFor(key, dir),
       note: plan.note,
       firstId: plan.firstId ?? null,
-      shape: m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
+      shape: fwTurn ? 'formation' : m.kind === 'together' && m.turnDeg > 30 && m.turnDeg < 180 ? 'trail' : 'abreast',
+      fwTurn,
       startSec: state.tSec,
       endSec,
       errorRun: plan.errorRun ?? null,
@@ -224,6 +234,7 @@ export function createFormation(options = {}) {
     state.judged = null;
     state.refusal = null;
     state.errorOutcome = null;
+    return true;
   }
 
   /** Where #2 is now: the formation it is in (transitions.js classifyPair), remembering which side it is on. */
@@ -298,6 +309,10 @@ export function createFormation(options = {}) {
       const g = state.current.gWarm;
       state.spacingFt = g.spacingAfter;
       state.judged = { label: state.current.label, ...judgeFour(state.aircraft, state.spacingFt, 'abreast', judgePair), gFlown: gFlownWords(g) };
+    } else if (state.current.fwTurn) {
+      // A turn in fighting wing ends judged against the fighting wing band (spec section 10 table).
+      const j = judgeFormation('fw', lead, wing, state.spacingFt);
+      state.judged = { label: state.current.label, shape: 'formation', labels: j.inBand ? ['IN POSITION'] : j.labels, text: j.text, tone: j.tone };
     } else {
       state.judged = { label: state.current.label, ...(state.aircraft.length > 2 ? judgeFour(state.aircraft, state.spacingFt, state.current.shape, judgePair) : judgePair(lead, wing, state.spacingFt, state.current.shape)) };
       if (state.current.errorRun) state.errorOutcome = outcomeOf(state.current.errorRun, lead, wing, state.current.label);
@@ -325,7 +340,8 @@ export function createFormation(options = {}) {
       if (key === G_WARM.key) return where === 'spread4' ? null : 'G-warm starts from Spread 4; change to Spread 4 first.';
       return MOVES_FROM_FOUR.includes(where) ? null : `${labelFor(key, dir)} flies in Spread 4 only; change to Spread 4 first.`;
     }
-    return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast only; change to line abreast first.`;
+    if (where === 'fw' && FW_TURN_KEYS.includes(key)) return null; // the turns fly in fighting wing too (TS-55)
+    return MOVES_FROM.includes(where) ? null : `${labelFor(key, dir)} flies in line abreast${FW_TURN_KEYS.includes(key) ? ' or fighting wing' : ''} only; change formation first.`;
   }
 
   build();
@@ -359,10 +375,7 @@ export function createFormation(options = {}) {
           return 'refused';
         }
       }
-      if (!state.current) {
-        start(key, dir);
-        return 'started';
-      }
+      if (!state.current) return start(key, dir) ? 'started' : 'refused';
       state.queued = { key, dir, label: labelFor(key, dir) };
       return 'queued';
     },

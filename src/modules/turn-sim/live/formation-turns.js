@@ -1,152 +1,125 @@
-// Turns in fighting wing, 2-ship (Turn Sim spec section 10, decision TS-55; Patrick 4 Oct 18:00Z: "I want to be able to turn
-// the formation in fighting wing", on kinematic pre-planned lines). Lead flies the turn button's turn; #2's line is
-// worked out at the press (kinematic.js) and replayed exactly.
+// Turns in fighting wing, 2-ship (Turn Sim spec section 10, decision TS-55). Patrick 4 Oct 18:00Z: "I want to be able to
+// turn the formation in fighting wing"; 19:12Z: "500-1000 feet anywhere between 30-60 sweep, collapse to lead's six when
+// manoeuvring, and can use geometry on turn in and turn out to fix positioning if tight or stretched (as per the SMM)".
 //
-// The picture (SMM 12.29 para 69, Fig 12.20 "Fighting Wing Turn Entry (in position)", Fig 12.23 "Fighting Wing Turn Exit";
-// AFM7 brief p.14, Fighting Wing item 5):
-//  - A gentle turn: #2 keeps its side and sweep (AFM7 item 5a).
-//  - A moderate or steep turn: #2 collapses to Lead's 6 o'clock on Lead's turn circle (item 5b; Fig 12.20). From the outside
-//    it aims inside the turn circle (lead pursuit); from the inside it "makes the miss", then reverses and captures the
-//    turn circle (pure pursuit). Both come from one rule here: #2 flies Lead's own path a moment behind him, the sideways
-//    offset of fighting wing shrinking to nothing as Lead's bank steepens.
-//  - The exit: once Lead rolls out, #2 moves back out to the swept position (Fig 12.23: "pick the side you want and regain
-//    position"; here the same side it started on).
+// Lead flies the button's turn. #2 is the transitions.js tracker with a goal-seeking phase, run as a dry run at the press
+// and recorded (the same bank-and-speed replay as every 2-ship change), so it is repeatable. Its goal, every step:
+//  - Anywhere in the fighting wing band counts as in position (SMM 12.29 para 69, Fig 12.19: 500-1,000 ft, 30-60° sweep):
+//    inside it #2 stays where it is; outside it, the nearest point of the band, on #2's own side.
+//  - While Lead is manoeuvring (a moderate or steep bank) #2 collapses to Lead's six on Lead's turn circle (SMM 12.29
+//    para 69: "collapsing to lead's 6 o'clock"; AFM7 brief p.14, Fighting Wing item 5b; Fig 12.20 "capture the turn
+//    circle"), at its own range kept inside 500-1,000 ft: tight, it opens (lag); stretched, it closes (lead, cut-off), by
+//    the tracker's pursuit geometry on the turn in and the turn out (Figs 12.21, 12.22), with power only as far as the
+//    tracker's small overtake and undertake allow.
+//  - A gentle turn (the check turn) is not manoeuvring: #2 keeps its side and sweep (AFM7 brief p.14 item 5a).
+//  - Once Lead rolls out, #2 moves back out into the band on the side it started (Fig 12.23, "pick the side you want and
+//    regain position").
 // Numbers with no source beside them are estimates and say so.
-import { wrapPi } from '../../../core/angles.js';
 import { STEP_SEC } from './flight.js';
 import { MANOEUVRES, relativeTo, DEG } from './manoeuvres.js';
-import { recordFlight } from './transitions.js';
-import { makeTrack, seedTrack, posesFrom, settleLast, smoothest } from './kinematic.js';
+import { recordFlight, trackTwice, phase } from './transitions.js';
+import { smoothest } from './kinematic.js';
 import { leadTurnSegs } from './kinematic-moves.js';
-
-const dt = STEP_SEC;
+import { G_FTPS2 } from '../../../core/units.js';
 
 /** The numbers of the fighting wing turns. Estimates unless a source is given. */
 export const FW_TURN = Object.freeze({
-  gentleBankDeg: 30, // Lead's bank for a turn of 30° or less (the check turn): gentle, #2 keeps side and sweep (AFM7 brief p.14 item 5a)
-  steepBankDeg: 45, // Lead's bank for the bigger turns: moderate, #2 collapses to Lead's six (item 5b); 1.4 G level
-  collapseFromDeg: 25, // #2 starts collapsing once Lead's (lagged) bank passes this ...
-  collapseFullDeg: 40, // ... and is on Lead's turn circle by this
-  followSec: 12, // #2's collapse and exit, and its offset's heading, follow Lead over this long (the lag of Fig 12.20 and Fig 12.23)
+  gentleBankDeg: 30, // Lead's bank for a turn of 30° or less (the check turn): gentle (AFM7 brief p.14 item 5a)
+  turnBankDeg: 45, // Lead's bank for the bigger turns: moderate, so #2 collapses (item 5b); 1.4 G level
+  collapseFromDeg: 32, // #2 starts collapsing once Lead's bank passes this ...
+  collapseFullDeg: 42, // ... and goes all the way to Lead's six by this
+  band: { minFt: 500, maxFt: 1000, minSweepDeg: 30, maxSweepDeg: 60 }, // SMM 12.29 para 69, Fig 12.19
+  aimInsideFt: 50, // when #2 has to move back into the band, it aims this far inside its edge in range ...
+  aimInsideDeg: 5, // ... and in sweep, so it ends clearly in it (the shared ±100 ft and ±5° margins would also pass the edge)
+  turnDeg: { check: 20, delayed45: 45, delayed90: 90, inPlace90: 90, hook: 180 }, // each turn button's turn, in fighting wing
 });
 
-/** The turn buttons that fly in fighting wing (spec section 10): every turn; the shackle and cross turn stay line-abreast moves. */
-export const FW_TURN_KEYS = Object.freeze(['check', 'delayed45', 'delayed90', 'inPlace90', 'hook']);
+/** The turn buttons that fly in fighting wing (spec section 10); the shackle and the cross turn stay line abreast moves. */
+export const FW_TURN_KEYS = Object.freeze(Object.keys(FW_TURN.turnDeg));
 
-/** Three passes of a running mean over rows of { x, y }, half-width `half` rows. */
-function smoothRows(rows, half = 5) {
-  let out = rows;
-  for (let pass = 0; pass < 3; pass++) {
-    const src = out;
-    out = src.map((_, i) => {
-      const a = Math.max(0, i - half);
-      const b = Math.min(src.length - 1, i + half);
-      let x = 0;
-      let y = 0;
-      for (let j = a; j <= b; j++) {
-        x += src[j].x;
-        y += src[j].y;
-      }
-      return { x: x / (b - a + 1), y: y / (b - a + 1) };
-    });
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * The goal for #2 in Lead's frame (fwd, left), from where Lead and #2 are now. side: #2's side to come back to (+1 left,
+ * -1 right). Exported for the tests.
+ */
+export function fwGoal(L, W, side) {
+  const { band } = FW_TURN;
+  const q = relativeTo(L, W);
+  const range = Math.hypot(q.fwd, q.left);
+  // The band: stay put inside it; outside, its nearest point on #2's side (aiming a little inside the edge).
+  const inside =
+    range >= band.minFt && range <= band.maxFt && Math.sign(q.left) === side && sweepOf(q) >= band.minSweepDeg && sweepOf(q) <= band.maxSweepDeg;
+  let bandGoal = { fwd: q.fwd, left: q.left };
+  if (!inside) {
+    const r = clamp(range, band.minFt + FW_TURN.aimInsideFt, band.maxFt - FW_TURN.aimInsideFt);
+    const sw = clamp(Math.sign(q.left) === side ? sweepOf(q) : 90, band.minSweepDeg + FW_TURN.aimInsideDeg, band.maxSweepDeg - FW_TURN.aimInsideDeg) * DEG;
+    bandGoal = { fwd: -r * Math.sin(sw), left: side * r * Math.cos(sw) };
   }
-  return out;
+  // Manoeuvring: Lead's six on his turn circle, at #2's range kept in the band.
+  const c = smoothest((Math.abs(L.bankDeg) - FW_TURN.collapseFromDeg) / (FW_TURN.collapseFullDeg - FW_TURN.collapseFromDeg));
+  if (c <= 0) return bandGoal;
+  const r = clamp(range, band.minFt + FW_TURN.aimInsideFt, band.maxFt - FW_TURN.aimInsideFt);
+  const turnRadius = L.tasFtps ** 2 / (G_FTPS2 * Math.tan(Math.max(Math.abs(L.bankDeg), 1) * DEG));
+  const theta = Math.min(r / turnRadius, Math.PI / 2);
+  const six = { fwd: -turnRadius * Math.sin(theta), left: Math.sign(L.bankDeg) * turnRadius * (1 - Math.cos(theta)) };
+  return { fwd: bandGoal.fwd + (six.fwd - bandGoal.fwd) * c, left: bandGoal.left + (six.left - bandGoal.left) * c };
 }
 
-/** Lead's position at a fractional step j (cubic Hermite on his recorded positions and velocities; straight before the press). */
-function leadAt(rec, j) {
-  if (j <= 0) {
-    const a = rec.at(0);
-    return { x: a.xFt + Math.cos(a.headingRad) * a.tasFtps * j * dt, y: a.yFt + Math.sin(a.headingRad) * a.tasFtps * j * dt };
-  }
-  const i = Math.floor(j);
-  const f = j - i;
-  const a = rec.at(i);
-  const b = rec.at(i + 1);
-  const h00 = 2 * f ** 3 - 3 * f * f + 1;
-  const h10 = f ** 3 - 2 * f * f + f;
-  const h01 = -2 * f ** 3 + 3 * f * f;
-  const h11 = f ** 3 - f * f;
-  const va = { x: Math.cos(a.headingRad) * a.tasFtps * dt, y: Math.sin(a.headingRad) * a.tasFtps * dt };
-  const vb = { x: Math.cos(b.headingRad) * b.tasFtps * dt, y: Math.sin(b.headingRad) * b.tasFtps * dt };
-  return { x: h00 * a.xFt + h10 * va.x + h01 * b.xFt + h11 * vb.x, y: h00 * a.yFt + h10 * va.y + h01 * b.yFt + h11 * vb.y };
+/** Sweep back from Lead's 3/9 line, degrees (0 abeam, 90 straight behind). */
+function sweepOf(q) {
+  return Math.atan2(-q.fwd, Math.max(Math.abs(q.left), 1e-6)) / DEG;
 }
 
 /**
- * A turn in fighting wing. pair: [lead, wing], #2 in fighting wing; key: a turn button (FW_TURN_KEYS); dir: +1 left, -1 right.
- * Returns { ok, plans, note, leadBankDeg, maxBankDeg, minKias, maxKias, endSec }.
+ * A turn in fighting wing. pair: [lead, wing], #2 in fighting wing; key: a turn button (FW_TURN_KEYS); dir: +1 left,
+ * -1 right. Returns { ok, plans, note, leadBankDeg, maxBankDeg, endSec } or { ok: false, reason }.
  */
-export function planFwTurn(pair, key, dir, t0 = 0) {
+export function planFwTurn(pair, key, dir, t0 = 0, { blockFt = 8000 } = {}) {
   const [lead, wing] = pair;
   const m = MANOEUVRES[key];
   if (!FW_TURN_KEYS.includes(key)) return { ok: false, reason: `${m?.label ?? key} flies in line abreast only.` };
-  const bank = m.turnDeg <= 30 ? FW_TURN.gentleBankDeg : FW_TURN.steepBankDeg;
-  const leadSegs = leadTurnSegs(lead.headingRad, dir, m.turnDeg * DEG, bank, true);
-  const rec = recordFlight(lead, { segments: leadSegs }, t0);
-  let kOut = 1;
-  while (kOut < 20000 && !(rec.at(kOut).free && rec.at(kOut).bankDeg === 0)) kOut++;
-
-  // Where #2 is now: its fighting wing position, kept as the swept position it goes back to.
+  const turnDeg = FW_TURN.turnDeg[key];
+  const bank = turnDeg <= 30 ? FW_TURN.gentleBankDeg : FW_TURN.turnBankDeg;
+  const leadSegs = leadTurnSegs(lead.headingRad, dir, turnDeg * DEG, bank, true);
+  const refs = { [lead.id]: recordFlight(lead, { segments: leadSegs }, t0) };
   const rel0 = relativeTo(lead, wing);
-  const behind0 = -rel0.fwd;
-  const range0 = Math.hypot(rel0.fwd, rel0.left);
+  const side = Math.sign(rel0.left) || -1;
   const up0 = wing.altAboveFt - lead.altAboveFt;
-  const V = lead.tasFtps;
-  const follow = Math.round(FW_TURN.followSec / dt);
-  const n = kOut + 2 * follow + Math.ceil(range0 / V / dt) + 20;
-
-  // How far #2 has collapsed: none in a gentle bank, all of it in a steep one, eased in and out over followSec (a weighted
-  // average of the last followSec), so the collapse and the exit each take several seconds.
-  const unwrapped = [lead.headingRad];
-  for (let k = 1; k <= n; k++) unwrapped[k] = unwrapped[k - 1] + wrapPi(rec.at(k).headingRad - rec.at(k - 1).headingRad);
-  const weights = [];
-  let wsum = 0;
-  for (let j = 0; j <= follow; j++) {
-    const u = (j + 0.5) / (follow + 1);
-    const w = 140 * u ** 3 * (1 - u) ** 3;
-    weights.push(w);
-    wsum += w;
-  }
-  const lagAverage = (fn, k) => {
-    let v = 0;
-    for (let j = 0; j <= follow; j++) v += (weights[j] / wsum) * fn(Math.max(0, k - j));
-    return v;
-  };
-  const steep = (k) => smoothest((Math.abs(rec.at(k).bankDeg) - FW_TURN.collapseFromDeg) / (FW_TURN.collapseFullDeg - FW_TURN.collapseFromDeg));
-  const headingFollowed = (k) => lagAverage((j) => unwrapped[j], k);
-
-  // #2's line: Lead's own path `behind` feet back (on his turn circle when collapsed), plus fighting wing's sideways offset,
-  // which shrinks to nothing as Lead's bank steepens and grows back as he rolls out.
-  const pad = 15;
-  const raw = [];
-  for (let k = -pad; k <= n + pad; k++) {
-    const kk = Math.max(0, Math.min(n, k));
-    const collapse = lagAverage(steep, kk);
-    const behind = behind0 + (range0 - behind0) * collapse; // collapsed: straight behind at the same range (estimate: Fig 12.20 "stops the range from increasing")
-    const D = leadAt(rec, k - behind / V / dt);
-    const left = rel0.left * (1 - collapse);
-    const h = k <= 0 ? lead.headingRad : headingFollowed(kk);
-    raw.push({ x: D.x - Math.sin(h) * left, y: D.y + Math.cos(h) * left });
-  }
-  const line = smoothRows(raw);
-  const track = makeTrack(n);
-  seedTrack(track, wing);
-  for (let k = 1; k <= n + 3; k++) {
-    track.x[k + 3] = line[k + pad].x;
-    track.y[k + 3] = line[k + pad].y;
-    track.z[k + 3] = rec.at(Math.min(k, n)).altAboveFt + up0;
-  }
-  const out = posesFrom(track, wing.kias / wing.tasFtps);
-  settleLast(out.poses, rec.at(n));
-  const side = rel0.left > 0 ? 'left' : 'right';
+  const goalPhase = phase(
+    { fwd: rel0.fwd, left: rel0.left, alt: lead.altAboveFt + up0 },
+    {
+      goal: (L, W) => fwGoal(L, W, side),
+      goalTolFt: 3,
+      // How the tracker flies to the goal (estimates, the 4-ship's fighting wing follow, transitions-panel limits apply):
+      fwdRate: 40,
+      latRate: 60,
+      vrel0: 30,
+      kcap: 0.05,
+      d0: 100,
+      vrelMax: 120,
+      decel: 2,
+      bankCapDeg: 60, // the bank cap (an estimate), flagged on screen, never a wall
+      overtakeKias: 15, // power only a little: geometry does the rest (Patrick 19:12Z)
+      undertakeKias: 15,
+      advanceTol: 25,
+      finalTol: 6,
+    },
+  );
+  const { run, profile } = trackTwice({ refs, wing0: wing, t0, phases: [goalPhase], blockFt });
+  if (!run.ok) return { ok: false, reason: `No safe ${m.label.toLowerCase()} in fighting wing from here: #2 could not settle back into the band.` };
+  const sideWord = side > 0 ? 'left' : 'right';
   return {
     ok: true,
-    plans: { [lead.id]: { segments: leadSegs.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'poseTrack', poses: out.poses }] } },
-    note: `${m.label} ${dir > 0 ? 'left' : 'right'} in fighting wing: Lead turns at ${bank}° of bank; ${bank > FW_TURN.collapseFromDeg ? `#2 collapses to Lead's six on his turn circle, then moves back out to fighting wing ${side} (SMM Fig 12.20, 12.23)` : `#2 keeps its side and sweep (AFM7 brief p.14)`}.`,
+    plans: { [lead.id]: { segments: leadSegs.map((x) => ({ ...x })) }, [wing.id]: { segments: [{ kind: 'bankTrack', points: run.points }], profile } },
+    note:
+      `${turnDeg}° ${dir > 0 ? 'left' : 'right'} in fighting wing: Lead turns at ${bank}° of bank. ` +
+      (bank > FW_TURN.collapseFromDeg
+        ? `#2 collapses to Lead's six on his turn circle, then moves back out into the band on the ${sideWord} (SMM 12.29 para 69, Figs 12.20, 12.23).`
+        : `#2 keeps its side and sweep (AFM7 brief p.14).`),
     leadBankDeg: bank,
-    maxBankDeg: out.maxBankDeg,
-    minKias: out.minKias,
-    maxKias: out.maxKias,
-    endSec: t0 + n * dt,
+    maxBankDeg: run.maxBankDeg,
+    endSec: t0 + run.durationSec,
+    stepSec: STEP_SEC,
   };
 }
