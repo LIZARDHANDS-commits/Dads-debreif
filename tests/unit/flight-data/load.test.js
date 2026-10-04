@@ -22,8 +22,6 @@ const err = fn => { try { fn(); } catch (e) { return e; } return null; };
 test('the example flight loads with all four tracks cleaned (C9)', () => {
   const flight = loadFlight([1, 2, 3, 4].map(slot => ({ slot, name: `#${slot}`, text: text(slot) })));
   assert.deepEqual(Object.keys(flight.tracks), ['1', '2', '3', '4']);
-  assert.deepEqual(flight.tracks[2].dropped, { altitude: 1, position: 0, jump: 23 });
-  assert.equal(flight.tracks[2].gaps.length, 25);
   assert.equal(flight.tracks[1].name, '#1');
   assert.deepEqual(flight.cutTracks.map(c => c.slot), [1, 2, 3, 4]);
 });

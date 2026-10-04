@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { createEnergyFight, stepEnergyFight, ENERGY_ACCURATE_MAX_FT, ENERGY_MOVES, MOVE_LABELS } from '../../../src/modules/turn-fight/energy-sim.js';
 import { ALTITUDE_NOTE, ENERGY_ABOUT, CHECK_SETTINGS, rangeHint } from '../../../src/modules/turn-fight/layout.js';
 import { ENERGY_CHECK_KEYS, RANGES, DEFAULTS, ALLOWED } from '../../../src/modules/turn-fight/state.js';
+import { TOLERANCES, assertNear } from '../../helpers/tolerances.js';
 
 test('the note beside a start altitude above 15,000 ft is the spec\'s, in one note: the low turn rate, and SMM 14.5 para 10', () => {
   assert.equal(ENERGY_ACCURATE_MAX_FT, 15000);
@@ -56,25 +57,53 @@ test('every hint gives the range and the engine\'s default, from the same number
   }
 });
 
-test('the About text on the MPT bank is what the model does: about 69° at the deck and 72° above it, against the SMM\'s 75°', () => {
+// The model's MPT banks are recorded against the SMM's, not tuned to it (F2, T7): the SMM gives about 75° for the level MPT
+// (SMM 14.14); the model settles near 69° at the deck and 72° in the constant-speed MPT. The gap goes to Patrick and Dad.
+// Both MPTs are found by event (the jet reaches and holds the turn), never by a clock value (T2, F6).
+const STOP_SEC = 300; // safety stop only: the MPT is usually reached within about 60 s; reaching the stop fails as "never happened" (Q-T13)
+const holdFor = (state, sec) => { for (let i = 0; i < sec / 0.02; i++) stepEnergyFight(state, 0.02); };
+function flyUntil(fight, done) {
+  for (let i = 0; i < STOP_SEC / 0.02 && !done(fight); i++) stepEnergyFight(fight, 0.02);
+  assert.ok(done(fight), `the event never happened within the ${STOP_SEC} s safety stop`);
+}
+const bankInAbout = (about, pattern) => Number(about.match(pattern)[1]);
+
+test('the level MPT at the deck is reached and held as a steady turn, and the About text on its bank matches the model (about 69° against the SMM\'s 75°)', () => {
   const about = ENERGY_ABOUT.find((line) => line.startsWith('MPT bank'));
   assert.ok(about);
   assert.match(about, /about 75° for the level MPT/);
   assert.match(about, /70 to 75° for the constant-speed MPT/);
   assert.match(about, /about 69° at the deck/);
-  assert.match(about, /about 72° in the constant-speed MPT/);
-  // The numbers in the text are the engine's own, not remembered ones: fly the two MPTs and read the bank.
   const level = createEnergyFight({ hardDeckFt: 6000, blueAltFt: 6500, redAltFt: 6500, blueKias: 160, redKias: 160, pursuit: 'none' });
-  for (let i = 0; i < 120 / 0.02; i++) stepEnergyFight(level, 0.02);
-  assert.equal(level.blue.move, 'levelMpt');
-  assert.ok(Math.abs(level.blue.bankDeg - 68.5) < 0.5, `level MPT bank ${level.blue.bankDeg}`);
-  assert.ok(Math.abs(level.blue.kias - 146) < 1, `level MPT speed ${level.blue.kias}`);
-  assert.ok(Math.abs(level.blue.g - 2.7) < 0.1, `level MPT G ${level.blue.g}`);
+  flyUntil(level, (s) => s.blue.move === 'levelMpt'); // event: the jet has sunk to the deck and turned to the level MPT
+  holdFor(level, 60); // let the speed settle onto the level MPT
+  const settled = { kias: level.blue.kias, alt: level.blue.altFt, bank: level.blue.bankDeg };
+  holdFor(level, 20);
+  assert.equal(level.blue.move, 'levelMpt', 'it stays in the level MPT');
+  // Held: speed, height and bank stay put over the next 20 s (shared margins: ±10 kt, ±100 ft, ±5°).
+  assertNear(level.blue.kias, settled.kias, TOLERANCES.AIRSPEED_KT, 'level MPT speed holds');
+  assertNear(level.blue.altFt, settled.alt, TOLERANCES.ALTITUDE_FT, 'level MPT height holds');
+  assertNear(level.blue.bankDeg, settled.bank, TOLERANCES.ANGLE_DEG, 'level MPT bank holds');
+  assert.ok(level.blue.altFt >= 6000 - TOLERANCES.ALTITUDE_FT, 'it is held at the deck, not below it (hard deck 6,000 ft)');
+  // Near the MPT speed, SMM 14.3 para 6 (about 160 KIAS). A level turn at the deck sits below the constant-speed 160, so allow 20 kt.
+  assertNear(level.blue.kias, 160, 20, 'level MPT speed near the SMM\'s 160 KIAS');
+  // The text agrees with the model it describes, within the shared ±5° margin.
+  assertNear(level.blue.bankDeg, bankInAbout(about, /about (\d+)° at the deck/), TOLERANCES.ANGLE_DEG, 'About bank at the deck');
+});
+
+test('the constant-speed MPT is reached and held near 160 KIAS and the About text on its bank matches the model (about 72°, within the SMM\'s 70 to 75°)', () => {
+  const about = ENERGY_ABOUT.find((line) => line.startsWith('MPT bank'));
+  assert.ok(about);
+  assert.match(about, /about 72° in the constant-speed MPT/);
   const cs = createEnergyFight({ pursuit: 'none' });
-  for (let i = 0; i < 60 / 0.02; i++) stepEnergyFight(cs, 0.02);
-  assert.equal(cs.blue.move, 'mpt');
-  assert.ok(Math.abs(cs.blue.bankDeg - 72.2) < 0.5, `constant-speed MPT bank ${cs.blue.bankDeg}`);
-  assert.ok(Math.abs(cs.blue.g - 3.3) < 0.1, `constant-speed MPT G ${cs.blue.g}`);
+  // Event: in the MPT, banked up (not the level run-in before the turn) and within the SMM's 5 kt of 160 KIAS (SMM 14.14).
+  flyUntil(cs, (s) => s.blue.move === 'mpt' && s.blue.bankDeg > 60 && Math.abs(s.blue.kias - 160) <= 5);
+  holdFor(cs, 20);
+  assert.equal(cs.blue.move, 'mpt', 'it stays in the constant-speed MPT');
+  assertNear(cs.blue.kias, 160, 5, 'constant-speed MPT held within 5 kt of 160 KIAS (SMM 14.14)');
+  // The SMM gives 70 to 75° for this MPT (SMM 14.14); the shared ±5° margin on the band's ends is the check.
+  assert.ok(cs.blue.bankDeg >= 70 - TOLERANCES.ANGLE_DEG && cs.blue.bankDeg <= 75 + TOLERANCES.ANGLE_DEG, `constant-speed MPT bank ${cs.blue.bankDeg}`);
+  assertNear(cs.blue.bankDeg, bankInAbout(about, /about (\d+)° in the constant-speed MPT/), TOLERANCES.ANGLE_DEG, 'About bank in the constant-speed MPT');
 });
 
 test('the About and hint text quote no manual: numbers and page references only', () => {

@@ -53,6 +53,11 @@ test('PAINT_DEFAULT is Harvard, and PAINT_OPTIONS offers Harvard then Ship colou
   assert.ok(Object.isFrozen(PAINT_OPTIONS) && PAINT_OPTIONS.every(Object.isFrozen));
 });
 
+// Span against length: span 33 ft 5 in, length 33 ft 4 in (T-6A flight manual, AIR FORCE TO 1T-6A-1, Figure 1-2
+// "Aircraft Dimensions", page 1-7). The model is a drawn icon, not a scale model, so the margin is 10 %, not the
+// shared 5 %: the wing has to read as about as wide as the aircraft is long.
+const PUBLISHED_SPAN_OVER_LENGTH = (33 + 5 / 12) / (33 + 4 / 12);
+
 test('both paints build, in the frame nose +X, left +Y, up +Z, CT156_UNIT_LENGTH long', () => {
   assert.equal(CT156_UNIT_LENGTH, 1.44);
   for (const paint of ['harvard', 'ship', undefined, 'no-such-paint']) {
@@ -62,7 +67,7 @@ test('both paints build, in the frame nose +X, left +Y, up +Z, CT156_UNIT_LENGTH
     const size = b.getSize(new THREE.Vector3());
     assert.ok(Math.abs(size.x - CT156_UNIT_LENGTH) < 0.03, `${paint} length ${size.x}`);
     assert.ok(b.max.x > 0.6 && b.min.x < -0.7, `${paint} nose at +X, tail at -X`);
-    assert.ok(Math.abs(size.y - 1.32) < 0.06, `${paint} span ${size.y}`);
+    assert.ok(Math.abs(size.y / size.x - PUBLISHED_SPAN_OVER_LENGTH) <= PUBLISHED_SPAN_OVER_LENGTH * 0.10, `${paint} span over length ${(size.y / size.x).toFixed(3)}`);
     assert.ok(Math.abs(b.max.y + b.min.y) < 0.01, `${paint} symmetric left and right`);
     assert.ok(b.max.z > 0.28 && b.max.z < 0.32 && b.min.z > -0.3, `${paint} fin stands up to +Z (${b.max.z})`);
     disposeCt156Model(m);

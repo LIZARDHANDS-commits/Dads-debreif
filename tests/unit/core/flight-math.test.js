@@ -104,7 +104,7 @@ function steadyTurn(kt, rateDeg) {
   return [-1, 0, 1].map(k => ({ x: R * Math.sin(w * k), y: R - R * Math.cos(w * k) }));
 }
 
-test('emPoint shows the real turn rate (D39: V6 showed half)', () => {
+test('emPoint shows the real turn rate (D39): the heading change per second on a steady circle, rate = speed / radius', () => {
   for (const rate of [3, 10, 19.2, -15]) {
     const [a, p, b] = steadyTurn(200, rate);
     near(emPoint(a, p, b).turnRateDeg, Math.abs(rate), 1e-9);

@@ -28,7 +28,6 @@ Each has a working answer that the tool uses until it is settled.
 ### Waiting on Patrick now (also on the list in `../../PLAN.md`)
 
 - **PFL review items:** the new PFL work since the reset (D438 to D440), the pre-built PFL track (D436) and the PFL missing from the live manoeuvres, all held for the PFL review (`docs/modules/traffic/plan.md:13`).
-- **Which Traffic faults block CI** (`../../PLAN.md`, Finishing the reset, step 1) (`pf/reset/consolidation-plan.md:266`).
 
 ### Settled when this module's work resumes
 

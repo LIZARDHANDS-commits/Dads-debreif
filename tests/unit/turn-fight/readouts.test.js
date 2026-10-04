@@ -10,25 +10,35 @@
 // ============================================================================
 
 // OPERATOR DIRECTIVE: If there is an issue with tests repeatedly failing, ASK THE OPERATOR what to do before trying to tweak the physics to make it work.
-// The Turn Fight's readout lines (SPEC-turn-fight, "Readouts"): V6's rounding, as text.
-// tests/golden/turn-fight-sim.test.js compares every one with the text V6 writes.
+// The Turn Fight's readout lines (SPEC-turn-fight, "Readouts", TF-R16): the numbers, rounded as the spec says, as text.
+// Expected turn rates and radii are worked out here from standard aerodynamics (F1), not copied from the code or from V6.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { headingCrossAngleDeg } from '../../../src/core/angles.js';
+import { KT_TO_FTPS, G_FTPS2 } from '../../../src/core/units.js';
 import { createFight, stepFight, ataDeg } from '../../../src/modules/turn-fight/sim.js';
 import {
   timeText, phaseText, resultRows, moreDetailRows, geometryRows, firstNoseText, formatWholeFt, aircraftTagLines,
 } from '../../../src/modules/turn-fight/readouts.js';
 
 
+// Standard aerodynamics for a level turn (F1): rate = g*sqrt(n^2-1)/V, radius = V^2/(g*sqrt(n^2-1)); V in ft/s.
+const levelTurn = (ktas, n) => {
+  const v = ktas * KT_TO_FTPS, gUnit = G_FTPS2 * Math.sqrt(n * n - 1);
+  return { rateDegPerSec: (gUnit / v) * 180 / Math.PI, radiusFt: (v * v) / gUnit };
+};
 const byId = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
 const pair = (r) => [r.blue, r.red];
 
-test('at the start, at Harvard defaults, the result is 24.3°/s and 875 ft each, 2.00 NM apart, no first nose-on', () => {
+test('at the start, at the simple fight\'s setup of 5 G at 220 KTAS, the result is the level turn worked out here (24.3°/s, 875 ft each), 2.00 NM apart, no first nose-on', () => {
   const s = createFight();
   const r = byId(resultRows(s));
-  assert.deepEqual(pair(r.turnRate), ['24.3°/s', '24.3°/s']);
-  assert.deepEqual(pair(r.radius), ['875 ft', '875 ft']);
+  // 220 KTAS = 371.3 ft/s; g*sqrt(5^2-1) = 32.174 * 4.899 = 157.6 ft/s^2; rate = 157.6 / 371.3 = 0.4245 rad/s = 24.3°/s; radius = 371.3^2 / 157.6 = 875 ft.
+  const { rateDegPerSec, radiusFt } = levelTurn(220, 5);
+  assert.deepEqual(pair(r.turnRate), [`${rateDegPerSec.toFixed(1)}°/s`, `${rateDegPerSec.toFixed(1)}°/s`]);
+  assert.deepEqual(pair(r.radius), [`${Math.round(radiusFt)} ft`, `${Math.round(radiusFt)} ft`]);
+  assert.equal(r.turnRate.blue, '24.3°/s', 'the worked figure for 5 G at 220 KTAS');
+  assert.equal(r.radius.blue, '875 ft', 'the worked figure for 5 G at 220 KTAS');
   assert.equal(r.range.text, '2.00 NM');
   assert.equal(r.firstNose.text, '--');
   assert.deepEqual(resultRows(s).map((x) => x.id), ['turnRate', 'radius', 'range', 'firstNose']);
@@ -38,7 +48,10 @@ test('More detail at the start: speed, G, 360° time, off-nose angle, time since
   const m = byId(moreDetailRows(createFight()));
   assert.deepEqual(pair(m.speed), ['220 kt', '220 kt']);
   assert.deepEqual(pair(m.g), ['5.0', '5.0']);
-  assert.deepEqual(pair(m.time360), ['14.8 s', '14.8 s']);
+  // A full circle takes 360 / rate (F1): 360 / 24.3°/s = 14.8 s.
+  const t360 = 360 / levelTurn(220, 5).rateDegPerSec;
+  assert.deepEqual(pair(m.time360), [`${t360.toFixed(1)} s`, `${t360.toFixed(1)} s`]);
+  assert.equal(m.time360.blue, '14.8 s');
   assert.deepEqual(pair(m.offNose), ['0°', '0°']);
   assert.equal(m.sinceMerge.text, '0.0 s');
   assert.deepEqual(moreDetailRows(createFight()).map((x) => x.id), ['speed', 'g', 'time360', 'offNose', 'angleOff', 'sinceMerge']);
@@ -69,7 +82,7 @@ test('the clock reads T+ and one decimal; the phase is HEAD-TO-HEAD until the me
   assert.equal(phaseText(one), '1-CIRCLE');
 });
 
-test('rounding is V6\'s: G and rate and 360° time to one decimal, radius to whole feet, range to two decimals, angles to whole degrees', () => {
+test('rounding follows the spec\'s readout rules (TF-R16): G and rate and 360° time to one decimal, radius to whole feet, range to two decimals, angles to whole degrees', () => {
   const s = createFight({ blueKt: 173, redKt: 301, blueG: 3.34, redG: 6.66, separationNm: 1.25 });
   const r = byId(resultRows(s)), m = byId(moreDetailRows(s));
   assert.deepEqual(pair(m.g), ['3.3', '6.7']);
@@ -80,7 +93,7 @@ test('rounding is V6\'s: G and rate and 360° time to one decimal, radius to who
   assert.deepEqual(pair(m.speed), ['173 kt', '301 kt']);
 });
 
-test('the speed is shown as typed, and a G below 1.01 shows as the G V6 flies: 1.0', () => {
+test('the speed is shown as typed, and a G below 1.01 shows as 1.0, the least the simple fight flies', () => {
   const s = createFight({ blueKt: 220.5, blueG: 0.4 });
   const m = byId(moreDetailRows(s));
   assert.deepEqual(pair(m.speed), ['220.5 kt', '220 kt']);
@@ -145,7 +158,7 @@ test('Q51: true angle-off is the difference in headings: 180° head-on where the
   const m = byId(moreDetailRows(s));
   assert.equal(m.angleOff.text, '180°');
   assert.deepEqual(pair(m.offNose), ['0°', '0°']);
-  // After the merge at 19.2°/s each way the headings differ by 38.4° more each second (2-circle: both turn left, so they keep 180° apart).
+  // After the merge both jets turn left at the same rate, so they keep 180° apart (2-circle).
   stepFight(s, s.mergeSec + 5);
   assert.equal(byId(moreDetailRows(s)).angleOff.text, '180°', '2-circle: both turn left at the same rate');
   const one = createFight({ circles: 1 });
@@ -160,7 +173,7 @@ test('Q51: with Climb and dive on the off-nose angle in More detail is the 3D an
   const flat = createFight();
   while (!flat.firstNose) { stepFight(flat, 0.02); stepFight(s, 0.02); }
   const m = byId(moreDetailRows(s)), f = byId(moreDetailRows(flat));
-  assert.deepEqual(pair(f.offNose), ['5°', '5°'], 'level, V6\'s number');
+  assert.deepEqual(pair(f.offNose), ['5°', '5°'], 'level: first nose-on is judged within 5° of the nose (FIRST_NOSE_DEG, a design choice, TF-R9)');
   assert.notEqual(m.offNose.blue, '5°');
   assert.equal(m.offNose.blue, `${ataDeg(s, s.blue, s.red).toFixed(0)}°`);
   assert.equal(m.offNose.red, `${ataDeg(s, s.red, s.blue).toFixed(0)}°`);
@@ -257,7 +270,7 @@ test('R28: the live AA moves with the fight', () => {
 test('R28: before the pass the phase says TO THE PASS unless the start is head-on; once the turns start it is 1- or 2-CIRCLE', () => {
   assert.equal(phaseText(createFight({ startAaDeg: 90 })), 'TO THE PASS');
   assert.equal(phaseText(createFight({ startAtaDeg: 30 })), 'TO THE PASS');
-  assert.equal(phaseText(createFight({ startAtaSide: 'right', startAaSide: 'right' })), 'HEAD-TO-HEAD', 'head-on is V6\'s');
+  assert.equal(phaseText(createFight({ startAtaSide: 'right', startAaSide: 'right' })), 'HEAD-TO-HEAD', 'head-on is the neutral start');
   assert.equal(phaseText(createFight({ startAaDeg: 90, turnsAt: 'once' })), '2-CIRCLE');
   const s = createFight({ startAaDeg: 90, circles: 1 });
   stepFight(s, s.mergeSec + 1);

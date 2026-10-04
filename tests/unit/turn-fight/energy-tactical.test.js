@@ -15,6 +15,7 @@ import {
   pickTacticalMove,
   shouldPursueTactical,
   checkWezGun,
+  tacticalAdvantage,
   checkMidAirCollision,
   COLLISION_HITBOX_FT,
   computeTcpa,
@@ -24,6 +25,19 @@ import {
   TCPA_MISS_GATE_FT,
   DECONFLICTION_OFFSET_FT,
 } from '../../../src/modules/turn-fight/energy-sim.js';
+
+// Where the numbers in this file come from (F7). None is a manual number.
+// - The gun zone is a design choice for the tool (TF-R1, the gun-kill): inside 2,500 ft, nose within 15° of the other jet,
+//   the other jet's aspect within 60°, held for 2 s. energy-sim.js (checkWezGun) keeps these inline, not exported, so they are named once here.
+const GUN_ZONE = Object.freeze({ rangeFt: 2500, ataDeg: 15, aspectDeg: 60, buildUpSec: 2 });
+// - The hitbox is COLLISION_HITBOX_FT, read from the engine (CT-156 wingspan 33.4 ft, length 33.3 ft).
+// - The tumble rates after a collision are design choices, values for Dad to check (TF-Q10): [roll, pitch, yaw] in deg/s by closing speed.
+//   Blue gets the rates and Red the opposite signs. A faster closing speed is a harder tumble (checked at the end of the tumble test).
+const TUMBLE_RATES = Object.freeze({
+  slow: Object.freeze({ p: 150, q: -60, r: 50 }),    // closing under 35 kt
+  medium: Object.freeze({ p: 450, q: -200, r: 160 }), // closing 35 to 90 kt
+  fast: Object.freeze({ p: 900, q: -400, r: 300 }),   // closing over 90 kt
+});
 
 test('tacticalAimCalculation maintains convex combination wLag + wLead + wPure = 1.0 across flight envelopes', () => {
   const setup = { ...ENERGY_DEFAULT_SETUP, pursuit: 'tactical' };
@@ -249,14 +263,19 @@ test('Task 21: shouldPursueTactical allows ATA < 65 when deltaAdv > 0.15', () =>
   state.blue.kias = 240;
   state.red.kias = 130;
 
-  const ata = 55;
-  const res = shouldPursueTactical(state, state.blue, state.red);
-  // With ata ~ 55, under old rule (ata < 45) it would be false;
-  // with loosened rule (ata < 65 when deltaAdv > 0.15), it returns true.
-  assert.equal(typeof res, 'boolean');
+  // Blue has the commanding advantage: its advantage score beats Red's by more than 0.15 (the rule's own condition, SPEC-turn-fight tactical AI).
+  const gap = tacticalAdvantage(state.blue, state.red) - tacticalAdvantage(state.red, state.blue);
+  assert.ok(gap > 0.15, `Blue's advantage over Red is above 0.15 (${gap})`);
+  // ATA about 55° is past the usual 45° but inside 65°, so Blue is allowed to start the chase.
+  assert.equal(shouldPursueTactical(state, state.blue, state.red), true, 'Blue may chase at ATA 55 with a decisive advantage');
+  // The same jets with Blue pointing 70° off (beyond 65°) may not chase: the loosened gate is still a gate.
+  const wide = 70 * Math.PI / 180;
+  state.blue.pm.x = -2000 * Math.sin(wide);
+  state.blue.pm.y = -2000 * Math.cos(wide);
+  assert.equal(shouldPursueTactical(state, state.blue, state.red), false, 'Blue may not chase at ATA 70');
 });
 
-test('Task 22: WEZ Gun tracking accumulates when in envelope (<2500 ft, ATA < 15°, AA <= 60°)', () => {
+test('Task 22: WEZ Gun tracking accumulates when in the gun zone (range, ATA and aspect inside GUN_ZONE)', () => {
   const state = createEnergyFight({ turnsStart: 'now' });
   state.merged = true;
   state.mergeSec = 0;
@@ -271,24 +290,24 @@ test('Task 22: WEZ Gun tracking accumulates when in envelope (<2500 ft, ATA < 15
   state.blue.pm.vz = 0;
   state.blue.stall = false;
 
-  state.red.pm.x = 2000;
+  state.red.pm.x = GUN_ZONE.rangeFt - 500;
   state.red.pm.y = 0;
   state.red.pm.z = 10000;
   state.red.pm.vx = 200 * 1.68781;
   state.red.pm.vy = 0;
   state.red.pm.vz = 0;
 
-  // Blue ATA = 0° (<= 15°), Red AA = 0° (<= 60°), Range = 2000 ft (< 2500 ft)
+  // Blue ATA = 0° and Red AA = 0°, both inside the zone's angles, and the range is inside its reach.
   checkWezGun(state, 0.5);
   assert.ok(Math.abs(state.blue.ctl.wezTrackSec - 0.5) < 1e-4, `WEZ tracking accumulated 0.5 s (got ${state.blue.ctl.wezTrackSec})`);
   assert.equal(state.kill, undefined);
 });
 
-test('Task 22: WEZ Gun tracking triggers state.kill at 2.0 s', () => {
+test('Task 22: WEZ Gun tracking awards the kill once the zone has been held for its build-up time, and not before', () => {
   const state = createEnergyFight({ turnsStart: 'now' });
   state.merged = true;
   state.mergeSec = 0;
-  state.timeSec = 3.5;
+  state.timeSec = 3.5; // any time after the pass: the kill is judged on how long the zone was held, not on the clock
 
   state.blue.pm.x = 0;
   state.blue.pm.y = 0;
@@ -305,17 +324,21 @@ test('Task 22: WEZ Gun tracking triggers state.kill at 2.0 s', () => {
   state.red.pm.vy = 0;
   state.red.pm.vz = 0;
 
-  state.blue.ctl.wezTrackSec = 1.98;
+  // One step short of the build-up: still tracking, no kill.
+  state.blue.ctl.wezTrackSec = GUN_ZONE.buildUpSec - 0.04;
   checkWezGun(state, 0.02);
+  assert.equal(state.kill, undefined, 'no kill while the build-up time is not yet held');
 
+  // The step that completes the build-up awards it.
+  checkWezGun(state, 0.02);
   assert.ok(state.kill, 'state.kill should be defined');
   assert.equal(state.kill.victor, 'blue');
-  assert.equal(state.kill.timeSec, 3.5);
+  assert.equal(state.kill.timeSec, state.timeSec, 'the kill is stamped with the fight clock at that moment');
   assert.equal(state.kill.rangeFt, 1800);
   assert.equal(state.kill.ataDeg, 0);
 });
 
-test('Task 22: WEZ Gun tracking resets if target breaks out of 15° cone or opens range > 2500 ft', () => {
+test('Task 22: WEZ Gun tracking resets if the target breaks out of the gun zone: range, cone, aspect, or the attacker stalls', () => {
   const state = createEnergyFight({ turnsStart: 'now' });
   state.merged = true;
   state.mergeSec = 0;
@@ -338,27 +361,27 @@ test('Task 22: WEZ Gun tracking resets if target breaks out of 15° cone or open
 
   state.blue.ctl.wezTrackSec = 1.5;
 
-  // Case 1: Target opens range > 2500 ft
-  state.red.pm.x = 2600;
+  // Case 1: Target opens range beyond the zone's reach
+  state.red.pm.x = GUN_ZONE.rangeFt + 100;
   checkWezGun(state, 0.02);
-  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when range >= 2500 ft');
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when the range is outside the zone');
 
-  // Case 2: Blue ATA > 15° (e.g. 20°)
-  state.red.pm.x = 2000;
+  // Case 2: Blue ATA outside the zone's cone (5° past it)
+  state.red.pm.x = GUN_ZONE.rangeFt - 500;
   state.blue.ctl.wezTrackSec = 1.5;
-  const rad20 = 20 * Math.PI / 180;
-  state.blue.pm.vx = 200 * 1.68781 * Math.cos(rad20);
-  state.blue.pm.vy = 200 * 1.68781 * Math.sin(rad20);
+  const radOut = (GUN_ZONE.ataDeg + 5) * Math.PI / 180;
+  state.blue.pm.vx = 200 * 1.68781 * Math.cos(radOut);
+  state.blue.pm.vy = 200 * 1.68781 * Math.sin(radOut);
   checkWezGun(state, 0.02);
-  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when ATA > 15°');
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when ATA is outside the cone');
 
-  // Case 3: Target aspect angle > 60° (e.g. head-on, aspect 180°)
+  // Case 3: Target aspect beyond the zone's limit (head-on, aspect 180°)
   state.blue.pm.vx = 200 * 1.68781;
   state.blue.pm.vy = 0;
   state.red.pm.vx = -200 * 1.68781; // flying toward Blue
   state.blue.ctl.wezTrackSec = 1.5;
   checkWezGun(state, 0.02);
-  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when target aspect > 60°');
+  assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when the target aspect is beyond the zone');
 
   // Case 4: Attacker stalls
   state.red.pm.vx = 200 * 1.68781;
@@ -368,7 +391,7 @@ test('Task 22: WEZ Gun tracking resets if target breaks out of 15° cone or open
   assert.equal(state.blue.ctl.wezTrackSec, 0, 'Tracking resets when attacker stalls');
 });
 
-test('Task 27: checkMidAirCollision triggers state.collision when 3D range drops below 35 ft', () => {
+test('Task 27: checkMidAirCollision triggers state.collision when 3D range drops below the hitbox (COLLISION_HITBOX_FT)', () => {
   const state = createEnergyFight({ turnsStart: 'now' });
   state.timeSec = 5.0;
   state.blue.kias = 220;
@@ -385,17 +408,18 @@ test('Task 27: checkMidAirCollision triggers state.collision when 3D range drops
   state.blue.pm.vy = 0;
   state.blue.pm.vz = 0;
 
-  state.red.pm.x = 30;
+  const inside = COLLISION_HITBOX_FT - 5; // 5 ft inside the hitbox
+  state.red.pm.x = inside;
   state.red.pm.y = 0;
   state.red.pm.z = 10000;
-  state.red.xFt = 30;
+  state.red.xFt = inside;
   state.red.yFt = 0;
   state.red.zFt = 10000;
   state.red.pm.vx = -200 * 1.68781;
   state.red.pm.vy = 0;
   state.red.pm.vz = 0;
 
-  state.rangeFt = 30;
+  state.rangeFt = inside;
 
   checkMidAirCollision(state);
 
@@ -409,14 +433,14 @@ test('Task 27: checkMidAirCollision triggers state.collision when 3D range drops
   assert.ok(state.collision.relativeSpeedKt > 0, 'relative speed should be positive');
 });
 
-test('Task 27: checkMidAirCollision does not trigger when 3D range is 35 ft or above', () => {
+test('Task 27: checkMidAirCollision does not trigger when 3D range is at or above the hitbox', () => {
   const state = createEnergyFight({ turnsStart: 'now' });
   state.timeSec = 5.0;
-  state.rangeFt = 36;
+  state.rangeFt = COLLISION_HITBOX_FT + 1;
   state.blue.pm.x = 0;
-  state.red.pm.x = 36;
+  state.red.pm.x = COLLISION_HITBOX_FT + 1;
   state.blue.xFt = 0;
-  state.red.xFt = 36;
+  state.red.xFt = COLLISION_HITBOX_FT + 1;
 
   checkMidAirCollision(state);
 
@@ -424,13 +448,13 @@ test('Task 27: checkMidAirCollision does not trigger when 3D range is 35 ft or a
   assert.equal(state.blue.collided, false);
   assert.equal(state.red.collided, false);
 
-  // Boundary check at exactly COLLISION_HITBOX_FT (35 ft)
+  // Boundary check at exactly the hitbox
   state.rangeFt = COLLISION_HITBOX_FT;
   state.red.pm.x = COLLISION_HITBOX_FT;
   state.red.xFt = COLLISION_HITBOX_FT;
   checkMidAirCollision(state);
 
-  assert.ok(!state.collision, 'collision should not trigger at exactly 35 ft');
+  assert.ok(!state.collision, 'collision should not trigger at exactly the hitbox');
   assert.equal(state.blue.collided, false);
   assert.equal(state.red.collided, false);
 });
@@ -469,7 +493,7 @@ test('Task 27: checkMidAirCollision respects state.setup.collisionDetection === 
   const state = createEnergyFight({ turnsStart: 'now' });
   state.setup.collisionDetection = false;
   state.timeSec = 5.0;
-  state.rangeFt = 20; // Well below 35 ft
+  state.rangeFt = 20; // well inside the hitbox
   state.blue.pm.x = 0;
   state.red.pm.x = 20;
   state.blue.xFt = 0;
@@ -503,7 +527,7 @@ test('Task 28: computeTcpa calculates accurate closed-form time and miss distanc
 
   const tcpa = computeTcpa(ac, target);
   assert.equal(tcpa.closing, true);
-  // D411 tolerance: ±0.5 s for time, ±20 ft for spatial coords
+  // The answers are closed-form and worked out by hand above, so the margin only covers rounding: 0.1 s and 1 ft, tighter than the shared table.
   assert.ok(Math.abs(tcpa.tcpaSec - 1.875) <= 0.1, `tcpaSec ${tcpa.tcpaSec} matches 1.875 s within tolerance`);
   assert.ok(Math.abs(tcpa.missFt - 35.355) <= 1.0, `missFt ${tcpa.missFt} matches 35.355 ft within tolerance`);
 });
@@ -601,7 +625,7 @@ test('D425: Immelmann can be attempted across full entry envelope (180-316 KIAS)
   assert.ok(!moves175.includes('immelmann'), 'Immelmann is not feasible below 180 KIAS entry envelope');
 });
 
-test('Task 29: collision initializes ballistic tumble state machine with authentic rotational rates', () => {
+test('Task 29: collision starts a tumble at the design rates for its closing speed, opposite for the two jets, harder at higher closing speed', () => {
   // Test low relative speed (< 35 kt)
   const stateLow = {
     setup: { collisionDetection: true },
@@ -631,12 +655,12 @@ test('Task 29: collision initializes ballistic tumble state machine with authent
   assert.equal(stateLow.blue.why, 'Departure: Ballistic tumble after mid-air collision');
   assert.equal(stateLow.blue.move, 'tumble');
   assert.equal(stateLow.blue.moveLabel, 'Collision Tumble');
-  assert.equal(stateLow.blue.tumble.pDegPerSec, 150);
-  assert.equal(stateLow.blue.tumble.qDegPerSec, -60);
-  assert.equal(stateLow.blue.tumble.rDegPerSec, 50);
-  assert.equal(stateLow.red.tumble.pDegPerSec, -150);
-  assert.equal(stateLow.red.tumble.qDegPerSec, 60);
-  assert.equal(stateLow.red.tumble.rDegPerSec, -50);
+  assert.equal(stateLow.blue.tumble.pDegPerSec, TUMBLE_RATES.slow.p);
+  assert.equal(stateLow.blue.tumble.qDegPerSec, TUMBLE_RATES.slow.q);
+  assert.equal(stateLow.blue.tumble.rDegPerSec, TUMBLE_RATES.slow.r);
+  assert.equal(stateLow.red.tumble.pDegPerSec, -TUMBLE_RATES.slow.p);
+  assert.equal(stateLow.red.tumble.qDegPerSec, -TUMBLE_RATES.slow.q);
+  assert.equal(stateLow.red.tumble.rDegPerSec, -TUMBLE_RATES.slow.r);
 
   // Test medium relative speed (35 to 90 kt)
   const stateMed = {
@@ -661,12 +685,12 @@ test('Task 29: collision initializes ballistic tumble state machine with authent
     },
   };
   checkMidAirCollision(stateMed);
-  assert.equal(stateMed.blue.tumble.pDegPerSec, 450);
-  assert.equal(stateMed.blue.tumble.qDegPerSec, -200);
-  assert.equal(stateMed.blue.tumble.rDegPerSec, 160);
-  assert.equal(stateMed.red.tumble.pDegPerSec, -450);
-  assert.equal(stateMed.red.tumble.qDegPerSec, 200);
-  assert.equal(stateMed.red.tumble.rDegPerSec, -160);
+  assert.equal(stateMed.blue.tumble.pDegPerSec, TUMBLE_RATES.medium.p);
+  assert.equal(stateMed.blue.tumble.qDegPerSec, TUMBLE_RATES.medium.q);
+  assert.equal(stateMed.blue.tumble.rDegPerSec, TUMBLE_RATES.medium.r);
+  assert.equal(stateMed.red.tumble.pDegPerSec, -TUMBLE_RATES.medium.p);
+  assert.equal(stateMed.red.tumble.qDegPerSec, -TUMBLE_RATES.medium.q);
+  assert.equal(stateMed.red.tumble.rDegPerSec, -TUMBLE_RATES.medium.r);
 
   // Test high relative speed (> 90 kt)
   const stateHigh = {
@@ -691,12 +715,17 @@ test('Task 29: collision initializes ballistic tumble state machine with authent
     },
   };
   checkMidAirCollision(stateHigh);
-  assert.equal(stateHigh.blue.tumble.pDegPerSec, 900);
-  assert.equal(stateHigh.blue.tumble.qDegPerSec, -400);
-  assert.equal(stateHigh.blue.tumble.rDegPerSec, 300);
-  assert.equal(stateHigh.red.tumble.pDegPerSec, -900);
-  assert.equal(stateHigh.red.tumble.qDegPerSec, 400);
-  assert.equal(stateHigh.red.tumble.rDegPerSec, -300);
+  assert.equal(stateHigh.blue.tumble.pDegPerSec, TUMBLE_RATES.fast.p);
+  assert.equal(stateHigh.blue.tumble.qDegPerSec, TUMBLE_RATES.fast.q);
+  assert.equal(stateHigh.blue.tumble.rDegPerSec, TUMBLE_RATES.fast.r);
+  assert.equal(stateHigh.red.tumble.pDegPerSec, -TUMBLE_RATES.fast.p);
+  assert.equal(stateHigh.red.tumble.qDegPerSec, -TUMBLE_RATES.fast.q);
+  assert.equal(stateHigh.red.tumble.rDegPerSec, -TUMBLE_RATES.fast.r);
+
+  // Always true: a faster closing speed never tumbles the jet more gently.
+  for (const name of ['pDegPerSec', 'qDegPerSec', 'rDegPerSec']) {
+    assert.ok(Math.abs(stateLow.blue.tumble[name]) < Math.abs(stateMed.blue.tumble[name]) && Math.abs(stateMed.blue.tumble[name]) < Math.abs(stateHigh.blue.tumble[name]), name);
+  }
 });
 
 test('Task 29: tumbling aircraft decelerates due to bluff-body drag and drops under gravity', () => {

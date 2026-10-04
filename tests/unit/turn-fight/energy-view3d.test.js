@@ -26,9 +26,19 @@ const play = (run, seconds) => {
   for (let t = 0; t < seconds - 1e-9; t += 0.02) advanceRun(run, 0.02);
   return run;
 };
+// Events, not seconds (F6): fly until done(run) is true. The stop is only a safety net (Q-T13): these events happen within about 40 s, and reaching it fails as "never happened".
+const SAFETY_STOP_SEC = 120;
+const playUntil = (run, done, what) => {
+  for (let t = 0; t < SAFETY_STOP_SEC && !done(run); t += 0.02) advanceRun(run, 0.02);
+  assert.ok(done(run), `${what} never happened within the ${SAFETY_STOP_SEC} s safety stop`);
+  return run;
+};
+// The pitch back in progress: banked well past a level turn's and climbing (a pitch back climbs while it reverses, Turn Fight testing rule F2).
+const inThePitchBack = (run) => run.engine.blue.bankDeg > 60 && run.engine.blue.climbDeg > 10;
+const noseOnFirst = (run) => Boolean(run.engine.firstNose);
 
 test('in Energy mode the pose is the aircraft\'s own: bank from the energy state toward the turn, pitch from the climb angle, height from its altitude', () => {
-  const run = play(createEnergyRun({}), 18); // the pitch back is 4 G, 105° of bank and climbing at T+18
+  const run = playUntil(createEnergyRun({}), inThePitchBack, 'the pitch back'); // the pitch back: heavily banked and climbing
   const blue = run.engine.blue;
   assert.ok(blue.bankDeg > 60 && blue.climbDeg > 10, `bank ${blue.bankDeg}, climb ${blue.climbDeg}`);
   const pose = aircraftPose(run.fight, 'blue', 1);
@@ -37,7 +47,7 @@ test('in Energy mode the pose is the aircraft\'s own: bank from the energy state
   near(pose.headingRad, blue.headingRad);
   near(pose.z, blue.altFt * ALT_SCALE);
   assert.equal(pose.x, blue.xFt);
-  // Not the level-turn bank for the same G: acos(1/4) is 75.5°, and this bank is 105° over the top.
+  // Not the level-turn bank for the same G: a level turn at G has bank acos(1/G) (at 4 G, 75.5°), and this bank is well past it, over the top.
   assert.ok(Math.abs(pose.bankRad - Math.acos(1 / blue.g)) > 10 * DEG);
 });
 
@@ -77,7 +87,7 @@ test('the MERGE mark, the pass word and first nose-on read the Energy run as the
   assert.equal(showsMergeMark(createEnergyRun({ turnsStart: 'now' }).fight), false);
   assert.equal(passMarkWord(createEnergyRun({ aaDeg: 90 }).fight), 'PASS');
   assert.equal(firstNoseText(null), '');
-  const tie = play(createEnergyRun({}), 32); // the equal fight ties: the engine says by 'both'
+  const tie = playUntil(createEnergyRun({}), noseOnFirst, 'first nose-on'); // the equal fight ties: the engine says by 'both'
   assert.equal(tie.engine.firstNose.by, 'both');
   assert.equal(firstNoseText(tie.fight.firstNose), 'FIRST NOSE — BOTH');
 });
@@ -186,7 +196,7 @@ test('in the Energy scene the aircraft are drawn with their own bank and pitch, 
   const { THREE, scenes } = await threeWithSceneCapture();
   const page = fakePage();
   await withPageDocument(page, async () => {
-    const current = play(createEnergyRun({}), 18);
+    const current = playUntil(createEnergyRun({}), inThePitchBack, 'the pitch back');
     const queue = [];
     const view = createView3d(page.host, {
       timers: { frame: (fn) => { queue.push(fn); return () => {}; }, after: () => () => {} },
@@ -204,7 +214,7 @@ test('in the Energy scene the aircraft are drawn with their own bank and pitch, 
     near(planes[0].rotation.x, -blue.turnDir * blue.bankDeg * DEG, 1e-6);
     near(planes[0].rotation.y, -blue.climbDeg * DEG, 1e-6);
     // Fly on to the tie: the first nose-on line is drawn from Blue to Red although the engine's `by` is 'both'.
-    play(current, 14);
+    playUntil(current, noseOnFirst, 'first nose-on');
     assert.equal(current.engine.firstNose.by, 'both');
     view.requestDraw();
     while (queue.length) queue.shift()();

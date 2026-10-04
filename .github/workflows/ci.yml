@@ -1,11 +1,18 @@
 name: CI
 
+# What runs when is set by docs/TESTING.md, section 2.
+# - Every change (each pull request and each push to main): unit tests, type
+#   check, build with the size budget, and the every-change browser set in
+#   Chromium only. Aim: the whole run under 10 minutes.
+# - Module sign-off: run by hand from the Actions tab (Run workflow). Adds the
+#   sign-off-only unit tests, every module's full browser tests, and the smoke
+#   set in Firefox and WebKit.
+# A failing check shows red here but never stops the site publishing
+# (Q-T1, "Always publish"); see pages.yml.
 on:
   pull_request:
   push:
     branches: [main]
-  # Module sign-off (Patrick, 30 Sep): run by hand from the Actions tab to add
-  # the Firefox and WebKit smoke tests to the Chromium run.
   workflow_dispatch:
 
 permissions:
@@ -18,6 +25,9 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SIGNOFF: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -25,17 +35,22 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Unit and golden tests
-        run: npm test
+      # Each step after this one runs even if an earlier check failed, so one
+      # run shows every failure at once.
+      - name: Unit tests
+        run: npm run ${{ env.SIGNOFF == 'true' && 'test:signoff' || 'test' }}
       - name: Type check
+        if: ${{ !cancelled() }}
         run: npm run typecheck
       - name: Build with size budget
+        if: ${{ !cancelled() }}
         run: npm run build
       - name: Install browsers
-        run: npx playwright install --with-deps ${{ github.event_name == 'workflow_dispatch' && 'chromium firefox webkit' || 'chromium' }}
-      # Each PR and push runs Chromium only; the manual run adds Firefox and WebKit.
+        if: ${{ !cancelled() }}
+        run: npx playwright install --with-deps ${{ env.SIGNOFF == 'true' && 'chromium firefox webkit' || 'chromium' }}
       - name: Browser tests
-        run: npm run test:e2e -- ${{ github.event_name != 'workflow_dispatch' && '--project=chromium' || '' }}
+        if: ${{ !cancelled() }}
+        run: npm run ${{ env.SIGNOFF == 'true' && 'test:e2e:signoff' || 'test:e2e -- --project=chromium' }}
       - name: Keep the browser test report
         if: failure()
         uses: actions/upload-artifact@v7

@@ -216,10 +216,23 @@ test('D60: a GNSS-based alternate under 100 NM from a GNSS-based home is warned 
   assert.match(unknown.warnings[0], /distance/);
 });
 
-test('D60: bad minima fall back to V6\'s 600/2 rather than passing everything', () => {
-  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT 1SM BR OVC004');
-  for (const minima of [null, [], [{ ceilingFt: NaN, visSm: 2 }], { ceilingFt: 'x' }]) {
-    assert.equal(assessAlternate(t, at(29, 18), { minima }).status, 'below', JSON.stringify(minima));
+// SOF-R12: an alternate whose minima are not filled in, or can't be used, reads amber "Incomplete", never "meets".
+// The forecast below is 6 SM and a 4,000 ft ceiling, good enough for any usual alternate minima. If unusable minima
+// quietly fell back to a default limit, it would read "meets": that is what must never happen.
+test('SOF-R12: minima that cannot be read read Incomplete, never "meets"', () => {
+  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT P6SM BKN040');
+  for (const minima of [[], [{ ceilingFt: NaN, visSm: 2 }], { ceilingFt: 'x' }]) {
+    const r = assessAlternate(t, at(29, 18), { minima });
+    assert.equal(r.status, 'incomplete', JSON.stringify(minima));
+    assert.notEqual(r.status, 'meets');
+    assert.match(r.problems.at(-1), /minima/i, 'says why, in words');
+  }
+});
+
+test('SOF-R12: an alternate with no minima filled in at all reads Incomplete, never "meets"', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  const t = taf('TAF CYQR 291140Z 2912/3012 27010KT P6SM BKN040');
+  for (const opts of [{ minima: null }, {}]) {
+    assert.equal(assessAlternate(t, at(29, 18), opts).status, 'incomplete', JSON.stringify(opts));
   }
 });
 

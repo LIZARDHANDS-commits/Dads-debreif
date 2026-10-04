@@ -36,7 +36,8 @@ const screen = (extra = {}) => buildScreen({ airfields: airfields(), snapshot: s
 
 // ---- The bar ------------------------------------------------------------------------------
 
-test('the DTG is in V6\'s form, from the clock given', () => {
+// SOF-R21: the DTG reads in the form "031842Z OCT 26" (day, hour and minute Zulu, month, year), from the clock given.
+test('the DTG reads day-hour-minute Zulu, month and year, from the clock given (SOF-R21)', () => {
   assert.equal(screen().dtg, '291842Z SEP 26');
   assert.equal(screen().dtgIso, '2026-09-29T18:42:00.000Z');
 });
@@ -182,10 +183,16 @@ test('an alternate is judged against its own minima, and an alternate below them
   assert.equal(card.limitsNote, null);
 });
 
-test('an alternate whose approaches are not set is checked against 600-2 and says so (D95)', () => {
-  const card = screen().cards[1];
+test('an alternate whose approaches are not set reads amber "Incomplete" and keeps the note saying what it was checked against (SOF-R12, D95)', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  // SOF-R12 (ratified 4 Oct 2026): approaches or landing minima not filled in reads amber "Incomplete", never a green tick.
+  // The note stays (D95). The "Incomplete" part fails until the build task in docs/modules/sof/plan.md is done.
+  const card = screen({ snapshot: snap({ metar: { CYQR: metar('METAR CYQR 291800Z 26005KT 15SM FEW080 10/08 A2995') }, lastRound: round('ok', NOW, { metars: ['CYQR'] }), newestAt: NOW }) }).cards[1];
+  assert.equal(card.icao, 'CYQR');
   assert.equal(card.limitsText, '600-2');
   assert.equal(card.limitsNote, 'Approaches not set in Settings: checked against 600-2');
+  assert.match(card.result.words, /Incomplete/);
+  assert.notEqual(card.result.level, 'within', 'never a green tick, even in good weather');
+  assert.doesNotMatch(card.result.words, /meets|within limits/i);
 });
 
 test('a station with no METAR says so with the time of the last try; before any try it has no time', () => {

@@ -17,6 +17,7 @@ import {
   setBase, setPrecip, stackOrder, menuRows, baseLayers, setTrafficOption, TRAFFIC_LABELS,
 } from '../../../src/modules/sof/map-layers.js';
 
+// A fixed date, never the computer's: rain or snow follows the date (Sept is rain), so every start state is built from this.
 const SUMMER = new Date('2026-09-29T18:42:00Z');
 const ids = (list) => list.map((o) => o.id);
 
@@ -43,36 +44,36 @@ test('rain by default in summer, snow from November to March', () => {
 
 test('layers stack bottom to top: cloud, radar, coverage, lightning, warnings, routes, rings, airfields, traffic', () => {
   assert.deepEqual(ids(OVERLAYS), ['cloud', 'radar', 'coverage', 'lightning', 'warnings', 'routes', 'rings', 'airfields', 'traffic']);
-  const all = { ...defaultLayers(), on: Object.fromEntries(OVERLAYS.map((o) => [o.id, true])) };
+  const all = { ...defaultLayers({ now: SUMMER }), on: Object.fromEntries(OVERLAYS.map((o) => [o.id, true])) };
   assert.deepEqual(stackOrder(all, { relay: true }), ids(OVERLAYS));
 });
 
 test('the stack holds only what is on, and traffic waits for the relay address whatever was kept', () => {
-  assert.deepEqual(stackOrder(defaultLayers()), ['radar', 'coverage', 'lightning', 'rings', 'airfields']);
-  const asked = setLayerOn(defaultLayers(), 'traffic', true);
+  assert.deepEqual(stackOrder(defaultLayers({ now: SUMMER })), ['radar', 'coverage', 'lightning', 'rings', 'airfields']);
+  const asked = setLayerOn(defaultLayers({ now: SUMMER }), 'traffic', true);
   assert.equal(stackOrder(asked).includes('traffic'), false);
   assert.equal(stackOrder(asked, { relay: true }).at(-1), 'traffic');
 });
 
 test('layers stack: turning one on or off leaves the others as they were', () => {
-  const a = setLayerOn(defaultLayers(), 'cloud', true);
+  const a = setLayerOn(defaultLayers({ now: SUMMER }), 'cloud', true);
   assert.deepEqual(stackOrder(a).slice(0, 2), ['cloud', 'radar']);
   const b = setLayerOn(a, 'radar', false);
   assert.deepEqual(stackOrder(b), ['cloud', 'coverage', 'lightning', 'rings', 'airfields']);
-  assert.equal(defaultLayers().on.cloud, false, 'the earlier state is left alone');
+  assert.equal(defaultLayers({ now: SUMMER }).on.cloud, false, 'the earlier state is left alone');
 });
 
 test('the menu lists the overlays in stack order, each with its switch and slider, and hides traffic until the relay is set', () => {
-  const rows = menuRows(defaultLayers());
+  const rows = menuRows(defaultLayers({ now: SUMMER }));
   assert.deepEqual(ids(rows), ['cloud', 'radar', 'coverage', 'lightning', 'warnings', 'routes', 'rings', 'airfields']);
   assert.equal(rows.find((r) => r.id === 'radar').opacity, 75);
   assert.equal(rows.find((r) => r.id === 'rings').opacity, null, 'rings have no slider');
-  assert.equal(menuRows(defaultLayers(), { relay: true }).at(-1).id, 'traffic');
-  assert.ok(menuRows(defaultLayers()).every((r) => typeof r.label === 'string' && r.label));
+  assert.equal(menuRows(defaultLayers({ now: SUMMER }), { relay: true }).at(-1).id, 'traffic');
+  assert.ok(menuRows(defaultLayers({ now: SUMMER })).every((r) => typeof r.label === 'string' && r.label));
 });
 
 test('opacity is kept to the slider: 10 to 100 in steps of 5; layers without a slider change nothing', () => {
-  const s = defaultLayers();
+  const s = defaultLayers({ now: SUMMER });
   assert.equal(setLayerOpacity(s, 'radar', 42).opacity.radar, 40);
   assert.equal(setLayerOpacity(s, 'radar', 0).opacity.radar, OPACITY_RANGE.min);
   assert.equal(setLayerOpacity(s, 'radar', 500).opacity.radar, OPACITY_RANGE.max);
@@ -82,7 +83,7 @@ test('opacity is kept to the slider: 10 to 100 in steps of 5; layers without a s
 });
 
 test('base, rain or snow, and layer switches ignore anything not on the list', () => {
-  const s = defaultLayers();
+  const s = defaultLayers({ now: SUMMER });
   assert.equal(setBase(s, 'vnc').base, 'vnc');
   assert.equal(setBase(s, 'street'), s);
   assert.equal(setPrecip(s, 'snow').precip, 'snow');
@@ -92,16 +93,16 @@ test('base, rain or snow, and layer switches ignore anything not on the list', (
 });
 
 test('what the base draws: satellite always (it shows outside the VNC charts), the chart at 100 or at its slider', () => {
-  assert.deepEqual(baseLayers(defaultLayers()), { satellite: true, vnc: null });
-  assert.deepEqual(baseLayers(setBase(defaultLayers(), 'vnc')), { satellite: true, vnc: 100 });
-  assert.deepEqual(baseLayers(setBase(defaultLayers(), 'vnc-satellite')), { satellite: true, vnc: 70 });
-  const slid = setLayerOpacity(setBase(defaultLayers(), 'vnc-satellite'), 'vnc', 40);
+  assert.deepEqual(baseLayers(defaultLayers({ now: SUMMER })), { satellite: true, vnc: null });
+  assert.deepEqual(baseLayers(setBase(defaultLayers({ now: SUMMER }), 'vnc')), { satellite: true, vnc: 100 });
+  assert.deepEqual(baseLayers(setBase(defaultLayers({ now: SUMMER }), 'vnc-satellite')), { satellite: true, vnc: 70 });
+  const slid = setLayerOpacity(setBase(defaultLayers({ now: SUMMER }), 'vnc-satellite'), 'vnc', 40);
   assert.deepEqual(baseLayers(slid), { satellite: true, vnc: 40 });
 });
 
 test('the VNC chart has an opacity slider but is not an overlay: it cannot be switched on as a layer', () => {
-  assert.equal(defaultLayers().opacity.vnc, 70);
-  assert.equal(setLayerOn(defaultLayers(), 'vnc', true).on.vnc, undefined);
+  assert.equal(defaultLayers({ now: SUMMER }).opacity.vnc, 70);
+  assert.equal(setLayerOn(defaultLayers({ now: SUMMER }), 'vnc', true).on.vnc, undefined);
   assert.equal(cleanLayers({ opacity: { vnc: 33 } }).opacity.vnc, 35);
   assert.equal(cleanLayers({ opacity: { vnc: 'x' } }).opacity.vnc, 70);
 });
@@ -125,12 +126,12 @@ test('stored state keeps what is good: a switch, an opacity snapped to its step,
 });
 
 test('a stored state that has gone through JSON comes back the same', () => {
-  const s = setLayerOpacity(setLayerOn(setBase(defaultLayers(), 'vnc'), 'warnings', true), 'lightning', 50);
+  const s = setLayerOpacity(setLayerOn(setBase(defaultLayers({ now: SUMMER }), 'vnc'), 'warnings', true), 'lightning', 50);
   assert.deepEqual(cleanLayers(JSON.parse(JSON.stringify(s))), s);
 });
 
 test('traffic labels are off and military-only is off to begin with, and the choices are kept to the list', () => {
-  const s = defaultLayers();
+  const s = defaultLayers({ now: SUMMER });
   assert.deepEqual(s.traffic, { label: 'off', militaryOnly: false });
   assert.deepEqual(ids(TRAFFIC_LABELS), ['off', 'callsign', 'callsign-altitude', 'full']);
   assert.equal(setTrafficOption(s, { label: 'callsign' }).traffic.label, 'callsign');

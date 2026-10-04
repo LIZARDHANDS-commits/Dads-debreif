@@ -281,11 +281,31 @@ test('#4: an alternate card uses its own minima, not the home limits', () => {
   assert.match(worse.result.words, /^Below limits: CEILING 500 FT < 600 FT/);
 });
 
-test('an alternate with no minima given is checked against V6\'s 600-2', () => {
-  const c = alt({ metar: metarEntry('METAR CYQR 291800Z 27005KT 3SM BR BKN005 10/08 A2995') });
-  assert.equal(c.result.level, 'below');
-  assert.equal(c.limitsText, '600-2');
-  assert.deepEqual(DEFAULT_LIMITS.alternate, { ceilingFt: 600, visSm: 2 });
+test('an alternate with no approaches or landing minima set reads amber "Incomplete", says what it was checked against, and never reads "meets" (SOF-R12)', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  // SOF-R12 (ratified 4 Oct 2026, Patrick's answer SOF-Q3): an airfield whose approaches or landing minima are not filled in
+  // reads amber "Incomplete", never a green tick. This fails until the build task in docs/modules/sof/plan.md is done.
+  // 500 ft ceiling, 3 SM: below 600-2, and fine at 2000-3's visibility but not its ceiling. Either way the card is not "meets".
+  for (const raw of ['METAR CYQR 291800Z 27005KT 3SM BR BKN005 10/08 A2995', 'METAR CYQR 291800Z 27005KT 15SM FEW080 15/02 A2952']) {
+    const c = alt({ metar: metarEntry(raw) });
+    assert.match(c.result.words, /Incomplete/);
+    assert.notEqual(c.result.level, 'within', 'never a green tick');
+    assert.doesNotMatch(c.result.words, /meets|within limits/i);
+    assert.match(c.result.words, /600-2/, 'says what it was checked against');
+    assert.equal(c.limitsText, '600-2');
+  }
+  assert.deepEqual(DEFAULT_LIMITS.alternate, { ceilingFt: 600, visSm: 2 }); // the fallback it is checked against (Gen Book p.7)
+});
+
+// SOF-R4: a decoded line beside the raw text, worked out by hand from a hand-written METAR (S1). This fails until it is built.
+test('the card carries a decoded line beside the raw METAR: wind, visibility and cloud base in plain figures (SOF-R4)', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  // 270° at 12 kt gusting 20, 2 statute miles, broken cloud at 800 ft (BKN008 is hundreds of feet).
+  const c = alt({ metar: metarEntry('METAR CYQR 291800Z 27012G20KT 2SM BR BKN008 10/08 A2995') });
+  assert.equal(c.metar.decoded, '270/12G20, 2SM, 800 ft');
+  // A calm, clear, unlimited-visibility report decodes without inventing a ceiling.
+  const calm = alt({ metar: metarEntry('METAR CYQR 291800Z 00000KT 15SM SKC 15/02 A2952') });
+  assert.doesNotMatch(calm.metar.decoded, / ft/);
+  // No METAR, nothing to decode.
+  assert.ok(!alt({}).metar.decoded);
 });
 
 test('an alternate with several minima options is below only when below every one', () => {

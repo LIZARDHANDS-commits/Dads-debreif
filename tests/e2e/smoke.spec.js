@@ -15,7 +15,8 @@ import { openRoute } from './routes.js';
 test('home lists the Debrief Viewer, the Turn Sim, the Traffic Sim, SOF and Turn Fight as PROTOTYPEs, no module as coming soon, and About @smoke', async ({ page }) => {
   await openRoute(page, '#/');
   await expect(page).toHaveTitle("DAD's OODA LOOP");
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
+  // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
+  await expect(page.getByRole('heading', { level: 1 })).toContainText("DAD's OODA LOOP");
   const cards = page.locator('.card');
   await expect(cards).toHaveCount(6);
   await expect(page.locator('.card.is-planned')).toHaveCount(0); // every module now opens
@@ -38,7 +39,8 @@ test('About opens from its card and links back home @smoke', async ({ page }) =>
   await expect(page).toHaveURL(/#\/about$/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('About Dad');
   await page.getByRole('link', { name: '← Home' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText("DAD's OODA LOOP");
+  // The heading carries a version badge (ALL-R27), so it is checked to contain the name, not to equal it (ALL-R3).
+  await expect(page.getByRole('heading', { level: 1 })).toContainText("DAD's OODA LOOP");
 });
 
 // Every registry entry now has a load (Turn Fight and the Traffic Sim were the last two), so no

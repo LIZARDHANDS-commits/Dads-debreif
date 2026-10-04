@@ -40,7 +40,10 @@ test('only cards on screen load their videos, and they play', async ({ page }) =
 test('with reduced motion no videos load, unless Settings turns them on (#41)', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openRoute(page, '#/');
-  await page.waitForTimeout(500);
+  // Wait for what is on screen, not for a number of seconds: the cards' stills are showing, and the browser has
+  // run two frames, by which time the visibility check (IntersectionObserver) has reported every card on screen.
+  await expect(page.locator('.card-still').first()).toBeVisible();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   expect(await loadedVideos(page)).toEqual([]);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByLabel('Card videos').selectOption('full');

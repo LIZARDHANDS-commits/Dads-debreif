@@ -9,7 +9,7 @@
 // or pruned, never accommodated by degrading aerodynamic fidelity.
 // ============================================================================
 
-// Accessibility checks (axe, WCAG 2.0 A and AA) on each screen (D142).
+// Accessibility checks (axe, WCAG 2.1 A and AA, Q-T3 decided; the rule tags are set in fixtures.js) on each screen (ALL-R11, D142).
 // Each module route is added here as it is hooked into the registry.
 import { test, expect, expectNoA11yViolations } from './fixtures.js';
 import { openRoute } from './routes.js';

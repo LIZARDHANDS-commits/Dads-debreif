@@ -10,8 +10,7 @@
 // ============================================================================
 
 // Tests for src/modules/sof/waves.js: wave times, home call, alternate calls.
-// The V6 pins come first: they fix what V6 did before the new conversion is
-// trusted with a time (CLAUDE.md: pin old behaviour, then change it).
+// Wave times are checked against what a wall clock in the home zone reads (SOF-R10, SOF-R21), not against any old formula.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,66 +30,55 @@ import { smallHoursChange, noChange } from '../../fixtures/sof/timeline-zones.js
 const HOUR = 3_600_000;
 const NOW = new Date('2026-09-29T18:00:00Z'); // 12:00 in Moose Jaw
 
-// ---- V6, pinned -----------------------------------------------------------
+// ---- Wave times in the home zone (SOF-R10, SOF-R21) -----------------------
 
-// V6 sof.html line 1441: `new Date(Date.UTC(Y, M-1, D, ah+6, am))` for takeoff and
-// landing, landing moved to the next day when it is not after takeoff (line 1442).
-function v6Wave(Y, M, D, takeoff, land) {
-  const [ah, am] = takeoff.split(':').map(Number);
-  const [bh, bm] = land.split(':').map(Number);
-  const s = new Date(Date.UTC(Y, M - 1, D, ah + 6, am));
-  const e = new Date(Date.UTC(Y, M - 1, D, bh + 6, bm));
-  if (e <= s) e.setUTCDate(e.getUTCDate() + 1);
-  return { s, e };
-}
-
-// V6 sof.html line 2032, used by the 24-hour timeline: CST = 6 h, minutes of the
-// local day, landing +1440 when it is not after takeoff (line 2039).
-const CST = 3_600_000 * 6;
-const absoluteLocal = (y, m, d, mins) => Date.UTC(y, m, d, 0, 0) + CST + mins * 60000;
 const minutesOf = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
 
 const PAIRS = [
   ['08:00', '09:30'], ['00:00', '01:00'], ['06:00', '07:45'], ['13:45', '15:15'], ['17:59', '19:20'],
   ['18:00', '19:30'], ['20:30', '22:00'],
   ['22:00', '01:30'], ['23:30', '00:45'], ['18:00', '03:00'], // cross local midnight
-  ['12:00', '12:00'], // not after takeoff: V6 makes it a 24 h wave
+  ['12:00', '12:00'], // landing not after takeoff, so the next day; the same time itself is refused (below)
 ];
 
-test('pin: V6 wave times for Moose Jaw are local + 6 h (spot checks)', () => {
-  const w = v6Wave(2026, 9, 29, '08:00', '09:30');
-  assert.equal(w.s.toISOString(), '2026-09-29T14:00:00.000Z');
-  assert.equal(w.e.toISOString(), '2026-09-29T15:30:00.000Z');
-  const late = v6Wave(2026, 9, 29, '20:30', '22:00'); // evening waves are the next UTC day
-  assert.equal(late.s.toISOString(), '2026-09-30T02:30:00.000Z');
-  const cross = v6Wave(2026, 9, 29, '22:00', '01:30');
-  assert.equal(cross.e.toISOString(), '2026-09-30T07:30:00.000Z');
+// What a clock in Moose Jaw reads at a UTC moment, from the machine's own time-zone data (independent of the code under test).
+const reginaClock = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Regina', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
 });
+const reads = (date) => {
+  const p = Object.fromEntries(reginaClock.formatToParts(date).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+};
+const pad = (n) => String(n).padStart(2, '0');
 
-test('pin: V6 line 1441 and line 2032 agree with each other', () => {
-  for (const [a, b] of PAIRS) {
-    const w = v6Wave(2026, 9, 29, a, b);
-    const take = minutesOf(a);
-    let land = minutesOf(b);
-    if (land <= take) land += 1440;
-    assert.equal(+w.s, absoluteLocal(2026, 8, 29, take), `${a} takeoff`);
-    assert.equal(+w.e, absoluteLocal(2026, 8, 29, land), `${b} landing`);
-  }
+test('Moose Jaw wave times, hand-worked: local 08:00 is 14:00Z because Regina keeps CST (UTC-6) all year (SOF-R21, S7)', () => {
+  const plan = (takeoff, land) => planToUtc([{ takeoff, land }], { now: NOW, timeZone: 'America/Regina' }).waves[0];
+  const w = plan('08:00', '09:30');
+  assert.equal(w.takeoff.toISOString(), '2026-09-29T14:00:00.000Z');
+  assert.equal(w.land.toISOString(), '2026-09-29T15:30:00.000Z');
+  const late = plan('20:30', '22:00'); // an evening wave is the next UTC day
+  assert.equal(late.takeoff.toISOString(), '2026-09-30T02:30:00.000Z');
+  const cross = plan('22:00', '01:30'); // landing after local midnight: the next day
+  assert.equal(cross.land.toISOString(), '2026-09-30T07:30:00.000Z');
 });
 
 for (const year of [2026, 2028]) {
-  test(`Moose Jaw (America/Regina) wave times equal V6's +6 h on every day of ${year}`, () => {
+  test(`Moose Jaw (America/Regina) wave times are local + 6 h on every day of ${year}, summer and winter alike (SOF-R21, S7)`, () => {
     let days = 0;
     for (let t = Date.UTC(year, 0, 1); new Date(t).getUTCFullYear() === year; t += 24 * HOUR) {
       const d = new Date(t);
       const [Y, M, D] = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
       const date = { year: Y, month: M, day: D };
+      const next = new Date(Date.UTC(Y, M - 1, D + 1));
+      const nextDate = `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
       for (const [a, b] of PAIRS) {
-        if (a === b) continue; // V6 made this a 24 h wave; the rebuild refuses it (below)
-        const v6 = v6Wave(Y, M, D, a, b);
+        if (a === b) continue; // refused, below
         const [wave] = planToUtc([{ takeoff: a, land: b }], { now: NOW, timeZone: 'America/Regina', date }).waves;
-        assert.equal(wave.takeoff.toISOString(), v6.s.toISOString(), `${Y}-${M}-${D} ${a}`);
-        assert.equal(wave.land.toISOString(), v6.e.toISOString(), `${Y}-${M}-${D} ${a}-${b} landing`);
+        // A clock in Moose Jaw reads the typed time on the typed day; the landing is the next day when it is not after takeoff.
+        assert.equal(reads(wave.takeoff), `${Y}-${pad(M)}-${pad(D)} ${a}`, `${Y}-${M}-${D} ${a} takeoff`);
+        assert.equal(reads(wave.land), `${minutesOf(b) > minutesOf(a) ? `${Y}-${pad(M)}-${pad(D)}` : nextDate} ${b}`, `${Y}-${M}-${D} ${a}-${b} landing`);
+        // And Zulu is exactly six hours later than that local clock, with no daylight-saving change in it.
+        assert.equal(+wave.takeoff - Date.UTC(Y, M - 1, D, Number(a.slice(0, 2)), Number(a.slice(3))), 6 * HOUR, `${Y}-${M}-${D} ${a} is local + 6 h`);
       }
       days++;
     }
@@ -98,12 +86,12 @@ for (const year of [2026, 2028]) {
   });
 }
 
-test('the same takeoff and landing time is refused, not turned into a 24 h wave (deliberately unlike V6)', () => {
+test('the same takeoff and landing time is refused, not turned into a 24 h wave (SOF-R10)', () => {
   const r = planToUtc([{ takeoff: '12:00', land: '12:00' }, { takeoff: '12:00', land: '11:59' }], { now: NOW, timeZone: 'America/Regina' });
   assert.equal(r.skipped.length, 1);
   assert.equal(r.skipped[0].index, 0);
   assert.equal(r.skipped[0].problem, 'Landing is the same time as takeoff: set a later time, or an earlier one for the next day');
-  assert.equal(r.waves.length, 1, 'one minute earlier is the next day, as V6');
+  assert.equal(r.waves.length, 1, 'one minute earlier is the next day (SOF-R10)');
   assert.equal(r.waves[0].nextDay, true);
 });
 
@@ -204,13 +192,15 @@ test('now and the time zone are required: without them nothing is guessed', () =
   assert.match(planToUtc(plan, { now: NOW }).problem, /time zone/);
 });
 
-test('an evening wave is kept (V6 dropped it in Zulu mode, #7)', () => {
+// SOF-R10: evening waves are never dropped (a 22:00 to 00:30 wave is kept and gets a call).
+test('an evening wave is kept (SOF-R10)', () => {
   const { waves } = planToUtc([{ takeoff: '20:30', land: '22:00' }], { now: NOW, timeZone: 'America/Regina' });
   assert.equal(waves[0].takeoff.toISOString(), '2026-09-30T02:30:00.000Z');
   assert.equal(waves[0].land.toISOString(), '2026-09-30T04:00:00.000Z');
 });
 
-test('a landing not after takeoff is the next day, as in V6', () => {
+// SOF-R10: a landing earlier than takeoff means the next day.
+test('a landing not after takeoff is the next day (SOF-R10)', () => {
   const [w] = planToUtc([{ takeoff: '22:00', land: '01:30' }], { now: NOW, timeZone: 'America/Regina' }).waves;
   assert.equal(w.nextDay, true);
   assert.equal(w.land.toISOString(), '2026-09-30T07:30:00.000Z');
@@ -228,7 +218,8 @@ test('at most 5 waves; a wave without two readable times is skipped and named', 
   assert.deepEqual(planToUtc(undefined, { now: NOW, timeZone: 'America/Regina' }).waves, []);
 });
 
-test('waveWindow is takeoff to landing plus one hour (V6 lines 1441 to 1443)', () => {
+// SOF-R11: the call is always computed over takeoff to one hour after landing.
+test('waveWindow is takeoff to landing plus one hour (SOF-R11)', () => {
   const [w] = planToUtc([{ takeoff: '13:00', land: '14:30' }], { now: NOW, timeZone: 'America/Regina' }).waves;
   const win = waveWindow(w);
   assert.equal(win.from.toISOString(), '2026-09-29T19:00:00.000Z');
@@ -420,14 +411,20 @@ test('#4: an alternate below its minima shows below, and says which minima were 
   assert.equal(call.minimaText, '600-2');
 });
 
-test('approaches not set: checked against 600-2 and says so (D95)', () => {
+test('approaches not set: reads "Incomplete" and says what it was checked against (SOF-R12, D95)', { todo: "SOF plan step 3: not built yet. Remove this mark when it is built (Patrick's card, 4 Oct)" }, () => {
+  // SOF-R12 (ratified 4 Oct 2026): approaches or landing minima not filled in reads amber "Incomplete", never a green tick.
+  // The note stays (D95). The "Incomplete" part fails until the build task in docs/modules/sof/plan.md is done.
   const a = airfields();
   const [w] = wavesAt(['13:00', '14:30']);
   const call = alternateCall(w, 'CYQR', taf(ALT_TAF.good), a.checkOptions('CYQR'));
   assert.equal(call.note, 'Approaches not set: checked against 600-2');
+  assert.match(call.words, /Incomplete/);
+  assert.doesNotMatch(call.words, /meets|within|no alternate needed/i, 'never a green tick');
+  assert.notEqual(call.tone, 'ok');
   a.update({ fields: { CYQR: { approach: 'non-precision' } } });
   const set = alternateCall(w, 'CYQR', taf(ALT_TAF.good), a.checkOptions('CYQR'));
   assert.equal(set.note, null);
+  assert.doesNotMatch(set.words, /Incomplete/);
   assert.equal(set.minimaText, '800-2 (or 900-1½, 1000-1)');
 });
 

@@ -22,7 +22,7 @@ import { createFight, FIGHT_MAX_SEC } from '../../../src/modules/turn-fight/sim.
 import { START_DEFAULTS, MAX_PASS_SEC, startGeometry, turnDirections, isHeadOn, passNote, turnNote, passMarkWord, MERGE_WORD_MAX_NM } from '../../../src/modules/turn-fight/geometry.js';
 
 const near = (actual, expected, tol, msg) => assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} ${actual} vs ${expected}`);
-/** A setup: V6's defaults (2 NM, 220 kt each, head-on) with changes. */
+/** A setup for these tests: 2 NM, 220 kt each, head-on (this file's own neutral start, not the app's default 1.2 NM) with changes. */
 const setup = (change = {}) => ({ separationNm: 2, blueKt: 220, redKt: 220, ...START_DEFAULTS, ...change });
 const angleGap = (a, b) => Math.abs(radToDeg(wrapPi(a - b)));
 
@@ -154,7 +154,7 @@ test('each jet turns toward the other, from where it sits when the turns start',
   assert.equal(turnDirections(c, startGeometry(c)).blue, -1, 'Blue turns right, toward where Red is at the pass');
 });
 
-test('at exactly head-on the side is a tie, so V6\'s directions stand: Blue counter-clockwise, Red the same way (2-circle)', () => {
+test('at exactly head-on the side is a tie, so the neutral head-on directions stand: Blue counter-clockwise (left), Red the same way (2-circle)', () => {
   const s = setup();
   assert.deepEqual(turnDirections(s, startGeometry(s)), { blue: 1, red: 1 });
   // A tie stays a tie whichever side was picked when the angle is 0 or 180.
@@ -176,7 +176,7 @@ test('isHeadOn is true only for ATA 0° with AA 180° exactly, on either side', 
   assert.equal(isHeadOn(setup({ startAaDeg: 179.5 })), false);
 });
 
-test('the defaults are head-on, turns at the pass, Red level with Blue', () => {
+test('the start defaults are the neutral head-on that the reset returns to (TF-R14): head-on, turns at the pass, Red level with Blue', () => {
   assert.deepEqual({ ...START_DEFAULTS }, {
     startAtaDeg: 0, startAtaSide: 'left', startAaDeg: 180, startAaSide: 'left', redAboveFt: 0, turnsAt: 'pass',
   });
@@ -235,7 +235,7 @@ test('the pass note says when the jets pass, or that there is no pass', () => {
 const base = { separationNm: 2, blueKt: 220, redKt: 220, ...START_DEFAULTS };
 const words = (setup) => [2, 1].map((circles) => turnNote({ ...base, ...setup, circles }));
 
-test('the turn line says which way each jet turns, with Red flipped in a 1-circle fight: head-on is V6\'s left and left, left and right', () => {
+test('the turn line says which way each jet turns, with Red flipped in a 1-circle fight: head-on is the neutral left and left, left and right', () => {
   assert.deepEqual(words({}), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
 });
 
@@ -252,7 +252,7 @@ test('from a tail chase the 2-circle directions differ: Blue left and Red right,
   assert.deepEqual(words(tail), ['Blue turns left, Red turns right', 'Blue turns left, Red turns left']);
   const dirs = turnDirections({ ...base, ...tail }, startGeometry({ ...base, ...tail }));
   assert.notEqual(dirs.blue, dirs.red, 'each turns toward the other, from opposite sides');
-  // A stern chase (dead astern of a slower Red): both ties, so V6's directions stand.
+  // A stern chase (dead astern of a slower Red): both ties, so the neutral directions stand.
   assert.deepEqual(words({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), ['Blue turns left, Red turns left', 'Blue turns left, Red turns right']);
 });
 
@@ -261,7 +261,7 @@ test('from a tail chase the 2-circle directions differ: Blue left and Red right,
 test('the word at the pass is MERGE when the jets meet and PASS when they go by more than 0.25 NM apart', () => {
   const word = (setup) => passMarkWord(createFight({ ...setup }));
   assert.equal(MERGE_WORD_MAX_NM, 0.25);
-  assert.equal(word({}), 'MERGE', 'head-on, V6\'s merge');
+  assert.equal(word({}), 'MERGE', 'head-on, they meet');
   assert.equal(word({ startAtaDeg: 0, startAaDeg: 0, redKt: 150 }), 'MERGE', 'a stern chase passes through');
   assert.equal(word({ startAtaDeg: 5, startAaDeg: 175 }), 'MERGE', '2 NM x sin 5° = 0.17 NM apart');
   assert.equal(word({ startAtaDeg: 20, startAaDeg: 160 }), 'PASS', '0.68 NM apart');

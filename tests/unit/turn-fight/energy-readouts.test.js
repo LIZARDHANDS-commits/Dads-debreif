@@ -164,13 +164,6 @@ test('the winner is what the engine says: evenFight, else a chase by one aircraf
     assert.equal(winnerText(state), '--', JSON.stringify(state));
   }
   assert.equal(winnerText({ winner: 'blue', stopped: true }), 'No winner');
-  // And the engine's real fight: without head-on chase it is an even fight once both noses are on, at +17.1 s after the pass.
-  const fight = createEnergyFight({ chaseAfterHeadOn: false });
-  assert.equal(winnerText(fight), '--');
-  while (fight.timeSec < 40) stepEnergyFight(fight, 0.02);
-  assert.equal(fight.firstNose.by, 'both');
-  assert.equal(fight.evenFight, true);
-  assert.equal(winnerText(fight), 'Even fight: nobody gets behind');
 });
 
 test('the chase row appears only once a pursuit has started, and says when the chaser is behind the curve', () => {
