@@ -201,7 +201,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
    * A new aircraft (V6 `makeAircraft`, line 234), started but not yet flown. Like V6's it notes,
    * once, the height of its start point (2,500 ft if that has none), for a route with no legs.
    */
-  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent, area }) {
+  function makeAircraft({ id, type, routeId, startIndex, startsAt, intent, area = null }) {
     return toStart({ id, type, color: TYPE_COLORS[type] || '#fff', fallbackKt: TYPE_FALLBACK_KT[type] ?? 120, fallbackAlt: (routeById(routeId) || setup.routes[0])?.points[startIndex]?.alt || 2500, startRouteId: routeId, startIndex, startsAt, intent, ...(area ? { area: { ...area } } : {}) });
   }
 
