@@ -100,7 +100,7 @@ export function calcZoomApex(aircraft, env = null, options = {}) {
     const exitHeadingDeg = wrapDeg360(headingDeg + turnAmtDeg);
 
     // Vector advance along turn arc + wind drift
-    const avgHdgRad = degToRad(wrapDeg360((headingDeg + exitHeadingDeg) / 2));
+    const avgHdgRad = degToRad(wrapDeg360(headingDeg + turnAmtDeg / 2));
     const dxAir = distanceFt * Math.sin(avgHdgRad);
     const dyAir = distanceFt * Math.cos(avgHdgRad);
     const dxWind = wxFtps * timeSec;
@@ -140,6 +140,180 @@ export function calcZoomApex(aircraft, env = null, options = {}) {
 }
 
 /**
+ * Simulates a coordinated turn from an initial state toward a target bearing,
+ * returning the physical rollout position, altitude, and heading.
+ *
+ * @param {number} x0
+ * @param {number} y0
+ * @param {number} alt0
+ * @param {number} hdg0
+ * @param {number} targetBearingDeg
+ * @param {Object} [env]
+ * @param {number} [tasKt=120]
+ * @param {number} [bankDeg=35]
+ * @returns {{ xRoll: number, yRoll: number, zRoll: number, hdgRoll: number, turnMag: number, tTurn: number }}
+ */
+export function simulateTurnRollout(x0, y0, alt0, hdg0, targetBearingDeg, env = null, tasKt = 120, bankDeg = 35) {
+  const deltaHdg = wrapDeg180(targetBearingDeg - hdg0);
+  const turnMag = Math.abs(deltaHdg);
+  if (turnMag <= 2) {
+    return { xRoll: x0, yRoll: y0, zRoll: alt0, hdgRoll: hdg0, turnMag: 0, tTurn: 0 };
+  }
+
+  const turnDir = Math.sign(deltaHdg) || 1;
+  const tasFtps = ktToFtps(tasKt);
+  const maxBank = Math.min(60, Math.max(15, bankDeg));
+  const bRad = degToRad(maxBank);
+  const omega = (32.174 * Math.tan(bRad)) / Math.max(1, tasFtps);
+  const tTurn = degToRad(turnMag) / omega;
+
+  const windFromDeg = env?.windFromDeg ?? 360;
+  const windKt = env?.windKt ?? 0;
+  const blowToRad = degToRad((windFromDeg + 180) % 360);
+  const wxFtps = ktToFtps(windKt) * Math.sin(blowToRad);
+  const wyFtps = ktToFtps(windKt) * Math.cos(blowToRad);
+
+  const R = tasFtps / omega;
+  const psi0Rad = degToRad(hdg0);
+  const psiRollRad = degToRad(wrapDeg360(hdg0 + deltaHdg));
+
+  const dxAir = R * (Math.cos(psi0Rad) - Math.cos(psiRollRad)) * turnDir;
+  const dyAir = R * (Math.sin(psiRollRad) - Math.sin(psi0Rad)) * turnDir;
+  const dxWind = wxFtps * tTurn;
+  const dyWind = wyFtps * tTurn;
+
+  const xRoll = x0 + dxAir + dxWind;
+  const yRoll = y0 + dyAir + dyWind;
+  const zRoll = alt0 - (1350 / 60) * tTurn; // 1350 fpm descent during turn
+  const hdgRoll = wrapDeg360(hdg0 + deltaHdg);
+
+  return { xRoll, yRoll, zRoll, hdgRoll, turnMag, tTurn };
+}
+
+/**
+ * Evaluates the multi-variable drag & flap schedule based on arrival altitude margin Δz:
+ * - Δz > +400 ft: Early Gear + Flaps TO at intercept; Flaps LDG at Base (1,850+ fpm).
+ * - +150 to +400 ft: Flaps TO early at Low Key / tangent; Flaps LDG at Base (1,816 fpm).
+ * - -100 to +150 ft: Standard SMM schedule (1,350 fpm).
+ * - < -100 ft: Delay Gear & Flaps to glide clean (1,100 fpm Colonial/clean).
+ *
+ * @param {number} deltaZ - Altitude margin (arrival alt - target alt) in feet
+ * @returns {{ margin: number, earlyGear: boolean, earlyFlapsTo: boolean, earlyFlapsLdg: boolean, delayFlaps: boolean, delayGear: boolean, profile: string }}
+ */
+export function computeDragSchedule(deltaZ) {
+  return {
+    margin: Math.round(deltaZ * 10) / 10,
+    earlyGear: deltaZ > 400,
+    earlyFlapsTo: deltaZ > 150,
+    earlyFlapsLdg: deltaZ > 400,
+    delayFlaps: deltaZ < -100,
+    delayGear: deltaZ < -100,
+    profile: deltaZ > 400 ? 'high_energy' : (deltaZ > 150 ? 'moderate_energy' : (deltaZ < -100 ? 'low_energy' : 'nominal')),
+  };
+}
+
+/**
+ * Scans a continuous 3D PFL track for candidate touchpoints where glide bearing matches arc heading.
+ *
+ * @param {Object} apex - Aircraft state
+ * @param {Array<Object>} track - Discrete track waypoints along spiral curve
+ * @param {Object} [env] - Wind environment
+ * @param {number} [bankDeg=35] - Spiral bank angle
+ * @returns {Object|null}
+ */
+export function findContinuousArcTangent(apex, track, env = null, bankDeg = 35) {
+  const x0 = apex.x ?? 0;
+  const y0 = apex.y ?? 0;
+  const alt0 = apex.alt ?? 3500;
+  const hdg0 = apex.headingDeg ?? 0;
+  const tasKt = iasToTasKt(120, Math.max(1892, alt0));
+
+  // 1. Proximity guard check across all track waypoints:
+  // If aircraft is already within 500 ft of the arc/gate, return directLatch: true
+  let closestProx = null;
+  let minProxDist = Infinity;
+  for (let i = 0; i < track.length; i++) {
+    const p = track[i];
+    const d = Math.hypot(p.x - x0, p.y - y0);
+    if (d <= 500 && d < minProxDist) {
+      const deltaZ = alt0 - p.alt;
+      if (deltaZ >= -100) {
+        minProxDist = d;
+        closestProx = { point: p, index: i, deltaZ, dist: d };
+      }
+    }
+  }
+
+  if (closestProx) {
+    const p = closestProx.point;
+    return {
+      directLatch: true,
+      interceptDistanceFt: 0,
+      joinPoint: p,
+      joinIndex: closestProx.index,
+      energyMargin: closestProx.deltaZ,
+      tangentErrorDeg: 0,
+      interceptBearingDeg: p.headingDeg,
+      rolloutPt: { x: x0, y: y0, alt: alt0, headingDeg: hdg0 },
+      dragSchedule: computeDragSchedule(closestProx.deltaZ),
+    };
+  }
+
+  // 2. Continuous arc tangent scan along track:
+  const candidates = [];
+  for (let i = 0; i < track.length; i++) {
+    const p = track[i];
+    // Collinear tangent: turn towards the arc's heading at candidate p
+    const { xRoll, yRoll, zRoll, hdgRoll, turnMag } = simulateTurnRollout(x0, y0, alt0, hdg0, p.headingDeg, env, tasKt, bankDeg);
+
+    // Collinear intercept bearing from rollout point to candidate point
+    const beta = wrapDeg360(Math.atan2(p.x - xRoll, p.y - yRoll) * 180 / Math.PI);
+    const epsTangent = Math.abs(wrapDeg180(p.headingDeg - beta));
+    const distIntercept = Math.hypot(p.x - xRoll, p.y - yRoll);
+
+    // Clean glide arrival altitude
+    const arrAlt = calcCleanGlideArrival({ x: xRoll, y: yRoll, alt: zRoll }, p, env);
+    const deltaZ = arrAlt - p.alt;
+
+    // Filter: tangent error <= 5° and arrival altitude margin >= -100 ft
+    if (epsTangent <= 5 && deltaZ >= -100) {
+      const behindPenalty = turnMag > 100 ? (turnMag - 100) * 10 : 0;
+      const cost = 15 * epsTangent + 0.05 * distIntercept + 2 * turnMag + behindPenalty;
+      candidates.push({
+        point: p,
+        index: i,
+        deltaZ,
+        distIntercept,
+        epsTangent,
+        beta,
+        turnMag,
+        cost,
+        rolloutPt: { x: xRoll, y: yRoll, alt: zRoll, headingDeg: hdgRoll },
+      });
+    }
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((a, b) => a.cost - b.cost);
+  const best = candidates[0];
+
+  return {
+    directLatch: false,
+    interceptDistanceFt: best.distIntercept,
+    joinPoint: best.point,
+    joinIndex: best.index,
+    energyMargin: best.deltaZ,
+    tangentErrorDeg: best.epsTangent,
+    interceptBearingDeg: best.beta,
+    rolloutPt: best.rolloutPt,
+    dragSchedule: computeDragSchedule(best.deltaZ),
+  };
+}
+
+/**
  * Solves the optimal tangent intercept point and recovery classification along the wind-shifted PFL spiral.
  * Supports adaptive bank angle:
  * - 35° nominal profile
@@ -155,9 +329,14 @@ export function calcZoomApex(aircraft, env = null, options = {}) {
  *   joinIndex: number,
  *   track: Array<Object>,
  *   energyMargin: number,
- *   dragSchedule?: { margin: number, earlyFlapsTo: boolean, earlyFlapsLdg: boolean, delayFlaps: boolean, profile: string },
+ *   dragSchedule?: { margin: number, earlyGear: boolean, earlyFlapsTo: boolean, earlyFlapsLdg: boolean, delayFlaps: boolean, delayGear: boolean, profile: string },
  *   surplusOrbit: boolean,
- *   crashPoint: Object | null
+ *   crashPoint: Object | null,
+ *   directLatch?: boolean,
+ *   interceptDistanceFt?: number,
+ *   tangentErrorDeg?: number,
+ *   interceptBearingDeg?: number,
+ *   rolloutPt?: { x: number, y: number, alt: number, headingDeg: number }
  * }}
  */
 export function solvePflTangent(apex, env = null, options = {}) {
@@ -179,7 +358,8 @@ export function solvePflTangent(apex, env = null, options = {}) {
     headingDeg: PFL_AIRFIELD.rwyHdgDeg,
   };
 
-  const track35 = generatePflTrack(route, windFromDeg, windKt, /** @type {any} */ ({ bankDeg: 35 }));
+  const chosenBank = options.bankDeg ?? 35;
+  const track35 = generatePflTrack(route, windFromDeg, windKt, /** @type {any} */ ({ bankDeg: chosenBank }));
 
   // ── 0. FINAL APPROACH ALIGNMENT CHECK ──────────────────────────────────────
   // If aircraft is already aligned on final approach (heading ~298°) and positioned
@@ -187,20 +367,29 @@ export function solvePflTangent(apex, env = null, options = {}) {
   const trackToTh = wrapDeg360(Math.atan2(TH.x - apex.x, TH.y - apex.y) * 180 / Math.PI);
   const diffHdgToRwy = Math.abs(wrapDeg180(apex.headingDeg - PFL_AIRFIELD.rwyHdgDeg));
   const diffTrackToRwy = Math.abs(wrapDeg180(trackToTh - PFL_AIRFIELD.rwyHdgDeg));
-  const isAlignedFinal = diffHdgToRwy <= 30 && diffTrackToRwy <= 30 && apex.alt < 3500;
+  const diffHdgToTrack = Math.abs(wrapDeg180(apex.headingDeg - trackToTh));
+  const isAlignedFinal = (diffHdgToRwy <= 45 || diffHdgToTrack <= 45) && diffTrackToRwy <= 50 && apex.alt < 3500;
   if (isAlignedFinal) {
     const arrAltTh = calcCleanGlideArrival(apex, TH, env);
     if (arrAltTh >= PFL_AIRFIELD.thresholdAlt) {
       const thIdx = track35.length - 1;
+      const margin = arrAltTh - PFL_AIRFIELD.thresholdAlt;
+      const directLatch = Math.hypot(TH.x - apex.x, TH.y - apex.y) <= 500;
       return {
         classification: 'direct_threshold',
-        bankDeg: 35,
+        bankDeg: chosenBank,
         joinPoint: track35[thIdx],
         joinIndex: thIdx,
         track: track35,
-        energyMargin: arrAltTh - PFL_AIRFIELD.thresholdAlt,
+        energyMargin: margin,
+        dragSchedule: computeDragSchedule(margin),
         surplusOrbit: false,
         crashPoint: null,
+        directLatch,
+        interceptDistanceFt: directLatch ? 0 : Math.hypot(TH.x - apex.x, TH.y - apex.y),
+        tangentErrorDeg: diffHdgToRwy,
+        interceptBearingDeg: trackToTh,
+        rolloutPt: { x: apex.x, y: apex.y, alt: apex.alt, headingDeg: apex.headingDeg },
       };
     }
   }
@@ -214,19 +403,26 @@ export function solvePflTangent(apex, env = null, options = {}) {
                        apex.phase === 'pfl_high_key' ||
                        apex.command === 'climb_high_key';
   const arrAltHk = calcCleanGlideArrival(apex, HK, env);
-  // Pilot Domain Tolerance (D371): ±100 ft standard, ±200 ft loose. 4,850 ft MSL qualifies for High Key.
-  const canMakeHk = arrAltHk >= (PFL_AIRFIELD.highKeyAlt - 150);
+  const isHkCorridor = diffHdgToRwy <= 20 && distToHk <= 3000 && arrAltHk >= (PFL_AIRFIELD.highKeyAlt - 150);
 
-  if (isAtHk || isExplicitHk || canMakeHk) {
+  if (isAtHk || isExplicitHk || isHkCorridor) {
+    const margin = arrAltHk - PFL_AIRFIELD.highKeyAlt;
+    const directLatch = distToHk <= 500;
     return {
       classification: 'high_key',
-      bankDeg: 35,
+      bankDeg: chosenBank,
       joinPoint: track35[0],
       joinIndex: 0,
       track: track35,
-      energyMargin: arrAltHk - PFL_AIRFIELD.highKeyAlt,
+      energyMargin: margin,
+      dragSchedule: computeDragSchedule(margin),
       surplusOrbit: arrAltHk > 5300,
       crashPoint: null,
+      directLatch,
+      interceptDistanceFt: directLatch ? 0 : distToHk,
+      tangentErrorDeg: Math.abs(wrapDeg180(PFL_AIRFIELD.rwyHdgDeg - apex.headingDeg)),
+      interceptBearingDeg: wrapDeg360(Math.atan2(HK.x - apex.x, HK.y - apex.y) * 180 / Math.PI),
+      rolloutPt: { x: apex.x, y: apex.y, alt: apex.alt, headingDeg: apex.headingDeg },
     };
   }
 
@@ -235,23 +431,14 @@ export function solvePflTangent(apex, env = null, options = {}) {
   const lowKeyPt = track35.find((p) => p.tag === 'low_key') || track35.find((p) => p.phase === 'pfl_low_key') || track35[198];
   const lowKeyIdx = track35.indexOf(lowKeyPt);
   const arrAltLk = calcCleanGlideArrival(apex, lowKeyPt, env);
-
-  // In CYMJ runway 29L coordinates, downwind heading is ~118° (southeast, y decreasing).
-  // Past Low Key is when aircraft y is south of Low Key:
   const isPastLowKey = apex.y < (lowKeyPt.y - 300);
+  const diffHdgToDownwind = Math.abs(wrapDeg180(apex.headingDeg - 118));
+  const isDownwindTrack = diffHdgToDownwind <= 30;
 
-  if (arrAltLk >= 3300 && !isPastLowKey) {
+  if (isDownwindTrack && arrAltLk >= 3300 && !isPastLowKey) {
     const margin = arrAltLk - lowKeyPt.alt;
-    const dragSchedule = {
-      margin,
-      earlyGear: margin > 200,
-      earlyFlapsTo: margin > 150,
-      earlyFlapsLdg: margin > 400,
-      delayFlaps: margin < -100,
-      delayGear: margin < -150,
-      profile: margin > 400 ? 'high_energy' : (margin > 150 ? 'moderate_energy' : (margin < -100 ? 'low_energy' : 'nominal')),
-    };
-
+    const distToLk = Math.hypot(lowKeyPt.x - apex.x, lowKeyPt.y - apex.y);
+    const directLatch = distToLk <= 500;
     return {
       classification: 'low_key',
       bankDeg: 35,
@@ -259,19 +446,81 @@ export function solvePflTangent(apex, env = null, options = {}) {
       joinIndex: lowKeyIdx >= 0 ? lowKeyIdx : 198,
       track: track35,
       energyMargin: margin,
-      dragSchedule,
+      dragSchedule: computeDragSchedule(margin),
       surplusOrbit: false,
       crashPoint: null,
+      directLatch,
+      interceptDistanceFt: directLatch ? 0 : distToLk,
+      tangentErrorDeg: Math.abs(wrapDeg180(lowKeyPt.headingDeg - apex.headingDeg)),
+      interceptBearingDeg: wrapDeg360(Math.atan2(lowKeyPt.x - apex.x, lowKeyPt.y - apex.y) * 180 / Math.PI),
+      rolloutPt: { x: apex.x, y: apex.y, alt: apex.alt, headingDeg: apex.headingDeg },
     };
   }
 
-  // ── 3. BASE KEY / CORNER CUTTING CHECK (SMM Ch 13 Doctrine) ────────────────
+  // ── 3. CONTINUOUS ARC TANGENT SEARCH (ANYWHERE ALONG THE SPIRAL) ───────────
+  const track45 = generatePflTrack(route, windFromDeg, windKt, /** @type {any} */ ({ bankDeg: 45 }));
+  const isLowEnergy = (arrAltLk < 3500 && apex.alt >= 2600) || isPastLowKey;
+  const initialBank = isLowEnergy ? 45 : chosenBank;
+  const initialTrack = isLowEnergy ? track45 : track35;
+  const secondaryBank = isLowEnergy ? chosenBank : 45;
+  const secondaryTrack = isLowEnergy ? track35 : track45;
+
+  let arcSolution = findContinuousArcTangent(apex, initialTrack, env, initialBank);
+  let finalTrack = initialTrack;
+  let finalBank = initialBank;
+
+  if (!arcSolution || arcSolution.energyMargin < -50) {
+    const altSolution = findContinuousArcTangent(apex, secondaryTrack, env, secondaryBank);
+    if (altSolution && (altSolution.energyMargin >= -50 || !arcSolution || altSolution.energyMargin > arcSolution.energyMargin)) {
+      arcSolution = altSolution;
+      finalTrack = secondaryTrack;
+      finalBank = secondaryBank;
+    }
+  }
+
+  if (arcSolution) {
+    const joinPt = { ...arcSolution.joinPoint };
+    /** @type {'high_key' | 'low_key' | 'base_key' | 'direct_threshold' | 'crash_short'} */
+    let classification = 'low_key';
+
+    if (arcSolution.joinIndex === 0 || joinPt.tag === 'high_key' || joinPt.phase === 'pfl_high_key') {
+      classification = 'high_key';
+      joinPt.tag = 'high_key';
+    } else if (finalBank === 45 || joinPt.tag === 'base_key' || joinPt.phase === 'pfl_base_key') {
+      classification = 'base_key';
+      joinPt.tag = 'base_key';
+    } else if (joinPt.phase === 'pfl_low_key' || joinPt.tag === 'low_key' || joinPt.tag === 'downwind') {
+      classification = 'low_key';
+      joinPt.tag = 'low_key';
+    } else if (joinPt.phase === 'pfl_final' || joinPt.tag === 'final' || joinPt.tag === 'threshold') {
+      classification = 'direct_threshold';
+      joinPt.tag = 'threshold';
+    }
+
+    return {
+      classification,
+      bankDeg: finalBank,
+      joinPoint: joinPt,
+      joinIndex: arcSolution.joinIndex,
+      track: finalTrack,
+      energyMargin: arcSolution.energyMargin,
+      dragSchedule: arcSolution.dragSchedule,
+      surplusOrbit: false,
+      crashPoint: null,
+      directLatch: arcSolution.directLatch,
+      interceptDistanceFt: arcSolution.interceptDistanceFt,
+      tangentErrorDeg: arcSolution.tangentErrorDeg,
+      interceptBearingDeg: arcSolution.interceptBearingDeg,
+      rolloutPt: arcSolution.rolloutPt,
+    };
+  }
+
+  // ── 4. BASE KEY / CORNER CUTTING (45° BANK SMM CH 13 DOCTRINE) ──────────────
   // If approaching low on energy (arrAltLk < 3500) or already past Low Key,
   // pilot tightens final turn arc to 40°–45° bank, cutting the corner to shorten track.
-  const track45 = generatePflTrack(route, windFromDeg, windKt, /** @type {any} */ ({ bankDeg: 45 }));
-  const isLowEnergyCornerCut = arrAltLk < 3500 && apex.alt >= 2700;
+  const isLowEnergyCornerCut = (arrAltLk < 3500 && apex.alt >= 2600) || isPastLowKey;
   const chosenTrack = isLowEnergyCornerCut ? track45 : track35;
-  const chosenBank = isLowEnergyCornerCut ? 45 : 35;
+  const cornerBank = isLowEnergyCornerCut ? 45 : chosenBank;
 
   const baseCandidates = [];
   for (let i = 0; i < chosenTrack.length; i++) {
@@ -279,7 +528,6 @@ export function solvePflTangent(apex, env = null, options = {}) {
     if (p.phase === 'pfl_base_key' || p.tag === 'base_key') {
       const arrAlt = calcCleanGlideArrival(apex, p, env);
       const margin = arrAlt - p.alt;
-      // Invariant: Cutting the corner intercepts the turn where arrival altitude matches rail altitude (within ±50 ft)
       if (margin >= -50) {
         const remainingDistFt = Math.hypot(TH.x - p.x, TH.y - p.y);
         const reqAlt = PFL_AIRFIELD.thresholdAlt + (remainingDistFt / (1.5 * FT_PER_NM / 1000));
@@ -289,10 +537,16 @@ export function solvePflTangent(apex, env = null, options = {}) {
           const dHdgBrg = Math.abs(wrapDeg180(brg - apex.headingDeg));
           const dHdgTrk = Math.abs(wrapDeg180(p.headingDeg - brg));
 
-          // Penalize points behind aircraft or requiring sharp >90° reversal
+          // Disqualify rearward key candidates (dHdgBrg > 90°) if aircraft can make the threshold or is close to the field
+          const arrAltTh = calcCleanGlideArrival(apex, TH, env);
+          const canReachTh = arrAltTh >= PFL_AIRFIELD.thresholdAlt;
+          if (dHdgBrg > 90 && (canReachTh || d <= 3 * FT_PER_NM)) {
+            continue;
+          }
+
           const behindPenalty = dHdgBrg > 90 ? 10000 : 0;
           const cost = d + 800 * (dHdgBrg / 90) + 800 * (dHdgTrk / 90) + behindPenalty;
-          baseCandidates.push({ index: i, point: p, margin, d, cost, arrAlt });
+          baseCandidates.push({ index: i, point: p, margin, d, cost, arrAlt, brg, dHdgTrk });
         }
       }
     }
@@ -302,26 +556,23 @@ export function solvePflTangent(apex, env = null, options = {}) {
     baseCandidates.sort((a, b) => a.cost - b.cost);
     const best = baseCandidates[0];
     const margin = best.margin;
-    const dragSchedule = {
-      margin,
-      earlyGear: margin > 200,
-      earlyFlapsTo: margin > 150,
-      earlyFlapsLdg: margin > 400,
-      delayFlaps: margin < -100,
-      delayGear: margin < -150,
-      profile: margin > 400 ? 'high_energy' : (margin > 150 ? 'moderate_energy' : (margin < -100 ? 'low_energy' : 'nominal')),
-    };
+    const directLatch = best.d <= 500;
 
     return {
       classification: 'base_key',
-      bankDeg: chosenBank,
+      bankDeg: cornerBank,
       joinPoint: best.point,
       joinIndex: best.index,
       track: chosenTrack,
       energyMargin: margin,
-      dragSchedule,
+      dragSchedule: computeDragSchedule(margin),
       surplusOrbit: false,
       crashPoint: null,
+      directLatch,
+      interceptDistanceFt: directLatch ? 0 : best.d,
+      tangentErrorDeg: best.dHdgTrk,
+      interceptBearingDeg: best.brg,
+      rolloutPt: { x: apex.x, y: apex.y, alt: apex.alt, headingDeg: apex.headingDeg },
     };
   }
 
@@ -330,15 +581,23 @@ export function solvePflTangent(apex, env = null, options = {}) {
   const arrAltTh = calcCleanGlideArrival(apex, TH, env);
   if (arrAltTh >= PFL_AIRFIELD.thresholdAlt) {
     const thIdx = track35.length - 1;
+    const margin = arrAltTh - PFL_AIRFIELD.thresholdAlt;
+    const directLatch = Math.hypot(TH.x - apex.x, TH.y - apex.y) <= 500;
     return {
       classification: 'direct_threshold',
-      bankDeg: 35,
+      bankDeg: chosenBank,
       joinPoint: track35[thIdx],
       joinIndex: thIdx,
       track: track35,
-      energyMargin: arrAltTh - PFL_AIRFIELD.thresholdAlt,
+      energyMargin: margin,
+      dragSchedule: computeDragSchedule(margin),
       surplusOrbit: false,
       crashPoint: null,
+      directLatch,
+      interceptDistanceFt: directLatch ? 0 : Math.hypot(TH.x - apex.x, TH.y - apex.y),
+      tangentErrorDeg: diffHdgToRwy,
+      interceptBearingDeg: trackToTh,
+      rolloutPt: { x: apex.x, y: apex.y, alt: apex.alt, headingDeg: apex.headingDeg },
     };
   }
 
@@ -362,6 +621,7 @@ export function solvePflTangent(apex, env = null, options = {}) {
     joinIndex: -1,
     track: track35,
     energyMargin: arrAltTh - PFL_AIRFIELD.thresholdAlt, // Negative margin
+    dragSchedule: computeDragSchedule(arrAltTh - PFL_AIRFIELD.thresholdAlt),
     surplusOrbit: false,
     crashPoint: {
       x: crashX,
@@ -372,5 +632,10 @@ export function solvePflTangent(apex, env = null, options = {}) {
       tag: 'crash_short',
       config: 'Clean',
     },
+    directLatch: false,
+    interceptDistanceFt: maxGlideDist,
+    tangentErrorDeg: 0,
+    interceptBearingDeg: trackToTh,
+    rolloutPt: { x: apex.x, y: apex.y, alt: apex.alt, headingDeg: apex.headingDeg },
   };
 }

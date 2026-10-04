@@ -32,6 +32,7 @@ import { DEFAULT_ROUTE_OPTIONS, isClosedRoute, routeLengthFt, pointDistFt, posOn
 import { tickAircraft, initMode } from './tick-aircraft.js';
 import { makePflFromArea } from './nav-plans.js';
 import { buildPflRail } from './pfl-rail.js';
+import { buildFullHighKeyRail, HIGH_KEY_PT } from './high-key.js';
 
 /** The step, in seconds of sim time. */
 export const STEP_SEC = 0.05;
@@ -729,7 +730,34 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
         a.closedPatternBankDeg = options?.bankDeg ?? a.closedPatternBankDeg ?? setup.settings?.closedPatternBankDeg ?? 50;
         a.closedPatternPitchDeg = options?.pitchDeg ?? a.closedPatternPitchDeg ?? setup.settings?.closedPatternPitchDeg ?? 10;
         a._closedPhase = 1;
-      } else if (action === 'climb_high_key' || action === 'climb_low_key') {
+      } else if (action === 'climb_high_key') {
+        const env = { windFromDeg: setup.windFromDeg ?? 360, windKt: setup.windKt ?? 0 };
+        const distToHk = Math.hypot(HIGH_KEY_PT.x - (a.x ?? 0), HIGH_KEY_PT.y - (a.y ?? 0));
+        const alt = a.alt ?? 3500;
+        let rail;
+        if (distToHk <= 1500 && alt >= 4750) {
+          rail = buildPflRail(a, env, { targetKey: 'high_key', forceHighKey: true, ...options });
+          rail.routeId = 'PFL_HIGH_KEY';
+          a.engineFailed = true;
+        } else {
+          rail = buildFullHighKeyRail(a, env, options);
+          a.engineFailed = false;
+        }
+        a.pflRail = rail;
+        a.pflRailIndex = 0;
+        a.distFt = 0;
+        a.mode = 'RAIL';
+        a.routeId = 'PFL_HIGH_KEY';
+        a.navPlan = null;
+        a.command = action;
+        a.landed = false;
+        a.active = true;
+        delete a._blendStart;
+        delete a._blendTarget;
+        delete a._blendTimer;
+        a.phase = rail[0]?.phase || 'climb_high_key';
+        a.config = rail[0]?.config || 'Clean';
+      } else if (action === 'climb_low_key') {
         a.command = action;
         a.landed = false;
         a.active = true;
@@ -845,6 +873,7 @@ export function createSim(setup, { seed: firstSeed = 1, maxSnapshots = MOST_SNAP
           closedPatternBankDeg: a.closedPatternBankDeg,
           closedPatternPitchDeg: a.closedPatternPitchDeg,
           config: a.config,
+          pflRail: a.pflRail ?? null,
         };
       });
       return { t, aircraft: list, conflicts: findConflicts(list.filter((a) => a.status === 'flying')) };

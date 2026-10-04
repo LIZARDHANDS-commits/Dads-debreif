@@ -15,7 +15,19 @@ import { calcZoomApex, solvePflTangent, PFL_AIRFIELD } from './pfl-solver.js';
  * @returns {number}
  */
 function wrapDeg360(deg) {
-  return ((deg % 360) + 360) % 360;
+  const mod = deg % 360;
+  return mod < 0 ? mod + 360 : mod;
+}
+
+/**
+ * Rounds degrees to 1 decimal place and ensures result strictly in [0, 360).
+ * @param {number} deg
+ * @returns {number}
+ */
+function roundHdg(deg) {
+  const rounded = Math.round(deg * 10) / 10;
+  const wrapped = ((rounded % 360) + 360) % 360;
+  return (wrapped >= 360 || Object.is(wrapped, -0)) ? 0 : wrapped;
 }
 
 /**
@@ -31,7 +43,7 @@ function wrapDeg360(deg) {
  * @returns {'Clean' | 'Gear Down' | 'Flaps TO' | 'Flaps LDG'}
  */
 export function getPflConfig(alt, phase = '', dragSchedule = null) {
-  if (phase === 'crash_short' || phase === 'pfl_zoom') return 'Clean';
+  if (phase === 'crash_short' || phase === 'pfl_zoom' || phase === 'climb_high_key' || phase === 'high_key_run_in' || phase === 'downwind') return 'Clean';
 
   // Above 3,700 ft MSL, Harvard II glides clean to High Key / Low Key (SMM Ch 13)
   if (alt > 3700) return 'Clean';
@@ -125,7 +137,7 @@ export function densifyRail(points, maxStepFt = 19, dragSchedule = null) {
           alt: Math.round(alt * 10) / 10,
           kt: Math.round(kt * 10) / 10,
           kias: Math.round(kt * 10) / 10,
-          headingDeg: Math.round(headingDeg * 10) / 10,
+          headingDeg: roundHdg(headingDeg),
           bankDeg: Math.round(bankDeg * 10) / 10,
           g: Math.round(g * 100) / 100,
           phase,
@@ -213,7 +225,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         alt: Math.round(alt * 10) / 10,
         kt: Math.round(kt * 10) / 10,
         kias: Math.round(kt * 10) / 10,
-        headingDeg: Math.round(headingDeg * 10) / 10,
+        headingDeg: roundHdg(headingDeg),
         bankDeg: Math.round(bankDeg * 10) / 10,
         g: Math.round(g * 100) / 100,
         phase: 'pfl_zoom',
@@ -234,7 +246,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         alt: alt0,
         kt: Math.round(kt * 10) / 10,
         kias: Math.round(kt * 10) / 10,
-        headingDeg: hdg0,
+        headingDeg: roundHdg(hdg0),
         bankDeg: 0,
         g: 1.0,
         phase: 'pfl_zoom',
@@ -252,7 +264,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
       alt: alt0,
       kt: Math.min(120, kias0),
       kias: Math.min(120, kias0),
-      headingDeg: hdg0,
+      headingDeg: roundHdg(hdg0),
       bankDeg: bank0,
       g: 1.0,
       phase: isHk ? 'pfl_high_key' : 'pfl_zoom',
@@ -283,7 +295,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         alt: Math.round(alt * 10) / 10,
         kt: 120,
         kias: 120,
-        headingDeg: crashPt.headingDeg,
+        headingDeg: roundHdg(crashPt.headingDeg),
         bankDeg: 0,
         g: 1.0,
         phase: isEnd ? 'crash_short' : 'pfl_glide',
@@ -325,7 +337,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         alt: Math.round(alt * 10) / 10,
         kt,
         kias: kt,
-        headingDeg: Math.round(headingDeg * 10) / 10,
+        headingDeg: roundHdg(headingDeg),
         bankDeg: 0,
         g: 1.0,
         phase: isFlare ? 'pfl_final' : 'pfl_glide',
@@ -344,8 +356,42 @@ export function buildPflRail(aircraft, env = null, options = {}) {
     const distToJoin = Math.hypot(joinPt.x - apexPt.x, joinPt.y - apexPt.y);
     const recoveryStartIndex = rawWaypoints.length - 1;
 
-    if (distToJoin > 30) {
-      const targetTrackDeg = wrapDeg360(Math.atan2(joinPt.x - apexPt.x, joinPt.y - apexPt.y) * 180 / Math.PI);
+    if (solution.directLatch || distToJoin <= 30) {
+      // Aircraft is already within 500 ft of arc/gate (zero boomerang/loop)
+      // Smoothly transition over a few steps if distToJoin > 10, otherwise start immediately
+      if (distToJoin > 10) {
+        const numLatchSteps = Math.max(1, Math.ceil(distToJoin / maxStepFt));
+        for (let s = 1; s <= numLatchSteps; s++) {
+          const u = s / numLatchSteps;
+          const x = apexPt.x + (joinPt.x - apexPt.x) * u;
+          const y = apexPt.y + (joinPt.y - apexPt.y) * u;
+          const alt = apexPt.alt + (joinPt.alt - apexPt.alt) * u;
+          const diffHdg = wrapDeg180(joinPt.headingDeg - apexPt.headingDeg);
+          const headingDeg = wrapDeg360(apexPt.headingDeg + diffHdg * u);
+          const targetBank = joinPt.bankDeg ?? (joinPt.phase === 'pfl_base_key' || joinPt.phase === 'pfl_high_key' ? -solution.bankDeg : 0);
+          const bankDeg = (apexPt.bankDeg ?? 0) + (targetBank - (apexPt.bankDeg ?? 0)) * u;
+          const g = Math.abs(bankDeg) > 3 ? (1 / Math.cos(degToRad(Math.abs(bankDeg)))) : 1.0;
+          const phase = joinPt.phase || (solution.classification === 'high_key' ? 'pfl_high_key' : 'pfl_tangent');
+          const config = getPflConfig(alt, phase, solution.dragSchedule);
+
+          rawWaypoints.push({
+            x: Math.round(x * 10) / 10,
+            y: Math.round(y * 10) / 10,
+            alt: Math.round(alt * 10) / 10,
+            kt: 120,
+            kias: 120,
+            headingDeg: roundHdg(headingDeg),
+            bankDeg: Math.round(bankDeg * 10) / 10,
+            g: Math.round(g * 100) / 100,
+            phase,
+            config,
+            tag: s === numLatchSteps ? joinPt.tag : undefined,
+            mode: 'rails',
+          });
+        }
+      }
+    } else {
+      const targetTrackDeg = solution.interceptBearingDeg ?? wrapDeg360(Math.atan2(joinPt.x - apexPt.x, joinPt.y - apexPt.y) * 180 / Math.PI);
       const avgAlt = Math.max(1892, (apexPt.alt + joinPt.alt) / 2);
       const tasKt = iasToTasKt(120, avgAlt);
       const tasFtps = ktToFtps(tasKt);
@@ -363,10 +409,9 @@ export function buildPflRail(aircraft, env = null, options = {}) {
       let curAlt = apexPt.alt;
       let curHdg = apexPt.headingDeg ?? targetHdgDeg;
 
-      // 1. Coordinated Turn onto Direct Intercept Heading (No bank angle limitations)
+      // 1. Coordinated Turn onto Direct Intercept Heading (Smooth sinusoidal bank ramp, up to 60°)
       if (turnMag > 2) {
         const turnDir = Math.sign(deltaHdg) || 1;
-        // Natural bank up to 60° coordinated (no artificial clamp per Patrick's instruction)
         const maxBankDeg = Math.min(60, Math.max(15, turnMag));
         const dt = 0.05; // Ensures small steps (< 15 ft)
         let turnAccum = 0;
@@ -397,7 +442,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
             alt: Math.round(curAlt * 10) / 10,
             kt: 120,
             kias: 120,
-            headingDeg: Math.round(curHdg * 10) / 10,
+            headingDeg: roundHdg(curHdg),
             bankDeg: Math.round(bankDeg * 10) / 10,
             g: Math.round(g * 100) / 100,
             phase,
@@ -407,20 +452,39 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         }
       }
 
-      // 2. Wings-Level Straight Glide to Entry Gate
+      // 2. Straight Wings-Level Glide to Point T with Pillar 5 Rollout Blending over final 300 ft
       const distRemaining = Math.hypot(joinPt.x - curX, joinPt.y - curY);
       if (distRemaining > 10) {
         const numGlideSteps = Math.max(1, Math.ceil(distRemaining / maxStepFt));
         const startGlideX = curX;
         const startGlideY = curY;
         const startGlideAlt = curAlt;
+        const targetBank = joinPt.bankDeg ?? (joinPt.phase === 'pfl_base_key' || joinPt.phase === 'pfl_high_key' ? -solution.bankDeg : 0);
 
         for (let s = 1; s <= numGlideSteps; s++) {
           const u = s / numGlideSteps;
           const x = startGlideX + (joinPt.x - startGlideX) * u;
           const y = startGlideY + (joinPt.y - startGlideY) * u;
           const alt = startGlideAlt + (joinPt.alt - startGlideAlt) * u;
+          const dRem = distRemaining * (1 - u);
           const isEnd = s === numGlideSteps;
+
+          let hdg = targetHdgDeg;
+          let bank = 0;
+          let g = 1.0;
+
+          // Pillar 5 Rollout Blending: over the final 300 ft before T,
+          // smoothly blend heading and bank angle into the arc entry state (Δψ -> 0.0°, Δϕ -> 0.0°)
+          if (dRem <= 300) {
+            const blendSpan = Math.min(300, distRemaining);
+            const uBlend = 1.0 - (dRem / blendSpan);
+            const w = Math.sin(uBlend * (Math.PI / 2));
+            const diffHdg = wrapDeg180(joinPt.headingDeg - targetHdgDeg);
+            hdg = wrapDeg360(targetHdgDeg + diffHdg * w);
+            bank = targetBank * w;
+            g = Math.abs(bank) > 3 ? (1 / Math.cos(degToRad(Math.abs(bank)))) : 1.0;
+          }
+
           const phase = solution.classification === 'high_key' ? 'pfl_high_key' : 'pfl_tangent';
           const config = getPflConfig(alt, phase, solution.dragSchedule);
 
@@ -430,9 +494,9 @@ export function buildPflRail(aircraft, env = null, options = {}) {
             alt: Math.round(alt * 10) / 10,
             kt: 120,
             kias: 120,
-            headingDeg: Math.round(targetHdgDeg * 10) / 10,
-            bankDeg: 0,
-            g: 1.0,
+            headingDeg: roundHdg(hdg),
+            bankDeg: Math.round(bank * 10) / 10,
+            g: Math.round(g * 100) / 100,
             phase,
             config,
             tag: isEnd ? joinPt.tag : undefined,
@@ -444,7 +508,9 @@ export function buildPflRail(aircraft, env = null, options = {}) {
 
     // Append remaining spiral track from joinIndex + 1 to touchdown
     const spiral = solution.track;
-    const startIndex = Math.min(spiral.length - 1, solution.joinIndex + 1);
+    const startIndex = (distToJoin <= 10)
+      ? solution.joinIndex
+      : Math.min(spiral.length - 1, solution.joinIndex + 1);
 
     for (let i = startIndex; i < spiral.length; i++) {
       const sp = spiral[i];
@@ -455,8 +521,8 @@ export function buildPflRail(aircraft, env = null, options = {}) {
         alt: sp.alt,
         kt: sp.kt,
         kias: sp.kt,
-        headingDeg: sp.headingDeg,
-        bankDeg: sp.bankDeg ?? (sp.phase === 'pfl_base_key' ? -solution.bankDeg : 0),
+        headingDeg: roundHdg(sp.headingDeg),
+        bankDeg: sp.bankDeg ?? (sp.phase === 'pfl_base_key' || sp.phase === 'pfl_high_key' ? -solution.bankDeg : 0),
         g: sp.g ?? 1.0,
         phase: sp.phase,
         config,
@@ -532,6 +598,7 @@ export function buildPflRail(aircraft, env = null, options = {}) {
 
   // Attach metadata
   finalWaypoints.id = 'PFL_RAIL';
+  finalWaypoints.routeId = 'PFL_HIGH_KEY';
   finalWaypoints.model = 'KIN';
   finalWaypoints.loop = false;
   finalWaypoints.kind = 'pfl';

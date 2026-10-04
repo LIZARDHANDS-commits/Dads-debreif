@@ -26,6 +26,7 @@ export const LAYER_ITEMS = Object.freeze([
   { key: 'layerHeightLines', label: 'Height drop lines (3D)', needs: 'view3d' },
   { key: 'layerWindTrack', label: 'Wind-adjusted track', needs: 'windTrack' },
   { key: 'layerSmmReference', label: 'SMM calm reference', needs: 'windTrack' },
+  { key: 'layerPflCircle', label: 'PFL ground circle' },
   { key: 'layerPhoto', label: 'Satellite photo', needs: 'photo' },
   { key: 'layerEngineReach', label: 'Engine-out reach', needs: 'reach' },
 ]);

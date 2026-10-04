@@ -780,7 +780,8 @@ export function stepAircraft(aircraft, arg2, arg3, arg4) {
 
     if (aircraft.engineFailed) {
       // Gliding flight
-      const config = aircraft.config || 'clean';
+      const rawConfig = aircraft.config || 'clean';
+      const config = rawConfig === 'flapsTo' ? 'flapsTakeoff' : rawConfig;
       let sinkFpm = glideSinkFpm(config, aircraft.iasKt ?? 125, aircraft.alt ?? 3500);
       if (aircraft.command === 'climb_high_key' && aircraft.phase !== 'high_key') {
         sinkFpm *= 1.35; // Prototype simplification: increased drag on spiral after High Key

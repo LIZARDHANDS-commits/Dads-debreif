@@ -394,7 +394,7 @@ function isManeuverComplete(a, navPlan) {
   }
 
   // 5. Active emergency glide commands and PFL rails never blend back to pattern:
-  if (a.pflRail || a.command === 'pfl_current' || a.command === 'engine_fail' || navPlan?.id === 'PFL_HIGH_KEY' || navPlan?.id === 'PFL_FROM_AREA' || (typeof a.phase === 'string' && a.phase.startsWith('pfl_'))) {
+  if (a.pflRail || a.routeId === 'PFL_HIGH_KEY' || a.command === 'pfl_current' || a.command === 'engine_fail' || navPlan?.id === 'PFL_HIGH_KEY' || navPlan?.id === 'PFL_FROM_AREA' || (typeof a.phase === 'string' && a.phase.startsWith('pfl_'))) {
     return false;
   }
 
@@ -448,7 +448,7 @@ export function initMode(a) {
  * @returns {boolean}
  */
 export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
-  if (!a || a.pflRail) return false;
+  if (!a || a.pflRail || a.routeId === 'PFL_HIGH_KEY') return false;
 
   // Active pilot command always triggers physics
   if (a.command && PHYSICS_COMMANDS.has(a.command)) {
@@ -498,6 +498,7 @@ export function shouldEnterPhysics(a, route, routeOptions = DEFAULT_ROUTE_OPTION
  * @param {Object} [routeOptions] - Route calculation options
  */
 export function enterBlending(a, route, routeOptions = DEFAULT_ROUTE_OPTIONS) {
+  if (!a || a.pflRail || a.routeId === 'PFL_HIGH_KEY') return;
   a.mode = 'BLENDING';
   a._blendTimer = 0;
   a._blendStart = {
@@ -628,7 +629,11 @@ export function tickAircraft(a, dt = 0.05, wind = null, route = null, routeOptio
     a.g = (wp0.g ?? 1.0) + ((wp1.g ?? 1.0) - (wp0.g ?? 1.0)) * u;
     a.phase = u < 0.5 ? wp0.phase : wp1.phase;
     a.config = u < 0.5 ? wp0.config : wp1.config;
-    if (wp0.tag) {
+    if (wp0.tag === 'high_key' || wp1.tag === 'high_key') {
+      a.tag = 'high_key';
+      a.engineFailed = true;
+      a.targetSpeedKt = 120;
+    } else if (wp0.tag) {
       a.tag = wp0.tag;
     }
 

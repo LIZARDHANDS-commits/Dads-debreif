@@ -131,9 +131,9 @@ describe('nav-plans: PFL_HIGH_KEY', () => {
     assert.equal(wp0.config, 'clean');
   });
 
-  it('config transitions: clean → gearDown → landing', () => {
+  it('config transitions: clean → gearDown → flapsTo → landing', () => {
     const configs = PFL_HIGH_KEY.waypoints.map(w => w.config);
-    assert.deepEqual(configs, ['clean', 'gearDown', 'landing', 'landing']);
+    assert.deepEqual(configs, ['clean', 'gearDown', 'flapsTo', 'landing', 'landing']);
   });
 
   it('all waypoints are rails mode', () => {
@@ -168,11 +168,11 @@ describe('nav-plans: makePflFromArea', () => {
     assert.equal(low.alt, 3000);   // clamped
   });
 
-  it('plan has 5 waypoints ending at threshold', () => {
+  it('plan has 6 waypoints ending at threshold', () => {
     const { plan } = makePflFromArea(180, 15, 10000);
-    assert.equal(plan.waypoints.length, 5);
-    assert.equal(plan.waypoints[4].phase, 'pfl_final');
-    assert.equal(plan.waypoints[4].x, 3104); // threshold
+    assert.equal(plan.waypoints.length, 6);
+    assert.equal(plan.waypoints[5].phase, 'pfl_final');
+    assert.equal(plan.waypoints[5].x, 3104); // threshold
   });
 });
 
@@ -277,7 +277,8 @@ describe('nav-plans: semantic waypoint tags & lookup helpers', () => {
     assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'high_key'), 0);
     assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'low_key'), 1);
     assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'base_key'), 2);
-    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'threshold'), 3);
+    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'final_rollout'), 3);
+    assert.equal(findWaypointIndexByTag(PFL_HIGH_KEY, 'threshold'), 4);
   });
 
   it('TAKEOFF has correct semantic tags', () => {

@@ -11,7 +11,7 @@ import {
   calcCrossTrackError,
 } from './flight-engine.js';
 import { getNavPlan } from './nav-plans.js';
-import { generatePflRail } from './pfl-rail.js';
+import { generatePflRail, buildPflRail, densifyRail } from './pfl-rail.js';
 
 // ── HIGH KEY GROUND TRUTH CONSTANTS ──────────────────────────────────────────
 export const HIGH_KEY_PT = Object.freeze({ x: 3104, y: -3194, alt: 5000 });
@@ -214,51 +214,88 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
   const wxFtps = ktToFtps(windKt) * Math.sin(blowToRad);
   const wyFtps = ktToFtps(windKt) * Math.cos(blowToRad);
 
-  const dx0 = x0 - RUN_IN_PT.x;
-  const dy0 = y0 - RUN_IN_PT.y;
-  const alongTrack0 = dx0 * UX_RWY + dy0 * UY_RWY;
-  const deltaHdgRwy = Math.abs(wrapDeg180(hdg0 - RWY_HDG_DEG));
+  const dxThresh = x0 - HIGH_KEY_PT.x;
+  const dyThresh = y0 - HIGH_KEY_PT.y;
+  const distAlongRwy = dxThresh * UX_RWY + dyThresh * UY_RWY;
+  const distCrossRwy = dxThresh * NX_RWY + dyThresh * NY_RWY;
+  const dHdgRwy = Math.abs(wrapDeg180(hdg0 - RWY_HDG_DEG));
+  const dwTrackDeg = (RWY_HDG_DEG + 180) % 360; // 118°
+  const dHdgDw = Math.abs(wrapDeg180(hdg0 - dwTrackDeg));
 
-  const isUpwindDeparture = alongTrack0 > 100 || (alongTrack0 > -500 && deltaHdgRwy < 60 && alongTrack0 > -1500);
+  // Closed Pattern classification:
+  // - On runway/upwind before departure end: distAlongRwy between -200 and 8,050 ft and within runway corridor
+  const isUpwindBeforeDep = distAlongRwy >= -200 && distAlongRwy < 8050 && Math.abs(distCrossRwy) < 1500 && dHdgRwy < 60;
+  // - At or past departure end: distAlongRwy >= 8,000 ft and aligned with runway
+  const isUpwindPastDep = dHdgRwy < 60 && distCrossRwy > -3000 && distCrossRwy < 2500 && distAlongRwy >= 8000;
+  // - On downwind leg: south of runway and aligned with downwind track
+  const isOnDownwind = distCrossRwy < -1500 && dHdgDw < 60;
 
-  /** @type {any} */
-  const waypoints = [];
+  const tasClimbKt = iasToTasKt(140, Math.max(alt0, 3500));
+  const vClimbFtps = ktToFtps(tasClimbKt);
+  const climbBankDeg = options.climbBankDeg ?? 40;
+  const baseBankDeg = options.baseBankDeg ?? 38;
 
-  if (isUpwindDeparture) {
-    const tasClimbKt = iasToTasKt(140, Math.max(alt0, 3500));
-    const vClimbFtps = ktToFtps(tasClimbKt);
-    const climbBankDeg = options.climbBankDeg ?? 40;
-    const baseBankDeg = options.baseBankDeg ?? 38;
+  // 1. Target Rollout Point on extended runway centerline upstream of RUN_IN_PT
+  const leadRolloutFt = options.leadRolloutFt ?? 1000;
+  const rolloutPt = {
+    x: RUN_IN_PT.x - leadRolloutFt * UX_RWY,
+    y: RUN_IN_PT.y - leadRolloutFt * UY_RWY,
+    alt: 5000,
+    kt: 140,
+  };
 
-    // 1. Target Rollout Point on extended runway centerline upstream of RUN_IN_PT
-    const leadRolloutFt = options.leadRolloutFt ?? 1000;
-    const rolloutPt = {
-      x: RUN_IN_PT.x - leadRolloutFt * UX_RWY,
-      y: RUN_IN_PT.y - leadRolloutFt * UY_RWY,
-      alt: 5000,
-      kt: 140,
-    };
+  // 2. Base-to-Final Turn Arc (Backward target inversion per Pillar 3)
+  const wtRwy = windTriangle(RWY_HDG_DEG, Math.max(1, iasToTasKt(140, 5000)), windFromDeg, windKt);
+  const rwyHdgWithCrab = wtRwy.canHoldTrack ? wtRwy.headingDeg : RWY_HDG_DEG;
 
-    // 2. Base-to-Final Turn Arc (Backward target inversion per Pillar 3)
-    const wtRwy = windTriangle(RWY_HDG_DEG, Math.max(1, iasToTasKt(140, 5000)), windFromDeg, windKt);
-    const rwyHdgWithCrab = wtRwy.canHoldTrack ? wtRwy.headingDeg : RWY_HDG_DEG;
+  const wtDw = windTriangle(dwTrackDeg, Math.max(1, iasToTasKt(140, 5000)), windFromDeg, windKt);
+  const dwHdgWithCrab = wtDw.canHoldTrack ? wtDw.headingDeg : dwTrackDeg;
 
-    const dwTrackDeg = (RWY_HDG_DEG + 180) % 360; // 118°
-    const wtDw = windTriangle(dwTrackDeg, Math.max(1, iasToTasKt(140, 5000)), windFromDeg, windKt);
-    const dwHdgWithCrab = wtDw.canHoldTrack ? wtDw.headingDeg : dwTrackDeg;
+  const tasBaseKt = iasToTasKt(140, 5000);
+  const vBaseFtps = ktToFtps(tasBaseKt);
+  const omegaBase = (G_ACCEL * Math.tan(degToRad(baseBankDeg))) / vBaseFtps;
+  const omegaBaseDps = radToDeg(omegaBase);
 
-    const tasBaseKt = iasToTasKt(140, 5000);
-    const vBaseFtps = ktToFtps(tasBaseKt);
-    const omegaBase = (G_ACCEL * Math.tan(degToRad(baseBankDeg))) / vBaseFtps;
-    const omegaBaseDps = radToDeg(omegaBase);
+  const baseTurnPts = [];
+  const dtTurn = 0.5;
+  let turnAccum = 0;
+  const totalBaseTurnDeg = 180;
+  let curX = rolloutPt.x;
+  let curY = rolloutPt.y;
+  let curHdg = rwyHdgWithCrab;
 
-    const baseTurnPts = [];
-    const dtTurn = 0.5;
-    let turnAccum = 0;
-    const totalBaseTurnDeg = 180;
-    let curX = rolloutPt.x;
-    let curY = rolloutPt.y;
-    let curHdg = rwyHdgWithCrab;
+  baseTurnPts.push({
+    x: curX,
+    y: curY,
+    alt: 5000,
+    kt: 140,
+    headingDeg: curHdg,
+    bankDeg: 0,
+    g: 1.0,
+    phase: 'climb_high_key',
+    label: 'Base Rollout',
+    pitchDeg: 0,
+  });
+
+  while (turnAccum < totalBaseTurnDeg) {
+    const dDeg = Math.min(omegaBaseDps * dtTurn, totalBaseTurnDeg - turnAccum);
+    turnAccum += dDeg;
+    const prevHdg = (curHdg + dDeg) % 360;
+    const midHdgRad = degToRad((curHdg + dDeg * 0.5) % 360);
+    const vgx = vBaseFtps * Math.sin(midHdgRad) + wxFtps;
+    const vgy = vBaseFtps * Math.cos(midHdgRad) + wyFtps;
+    curX -= vgx * dtTurn;
+    curY -= vgy * dtTurn;
+    curHdg = prevHdg;
+
+    const uFwd = Math.max(0, Math.min(1, 1 - turnAccum / totalBaseTurnDeg));
+    let bank = -baseBankDeg;
+    if (uFwd < 0.15) {
+      bank = -baseBankDeg * Math.sin((uFwd / 0.15) * (Math.PI / 2));
+    } else if (uFwd > 0.85) {
+      bank = -baseBankDeg * Math.sin(((1 - uFwd) / 0.15) * (Math.PI / 2));
+    }
+    const g = 1 / Math.cos(degToRad(Math.abs(bank)));
 
     baseTurnPts.push({
       x: curX,
@@ -266,58 +303,71 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
       alt: 5000,
       kt: 140,
       headingDeg: curHdg,
-      bankDeg: 0,
-      g: 1.0,
+      bankDeg: bank,
+      g,
       phase: 'climb_high_key',
-      label: 'Base Rollout',
+      label: 'Base Turn',
       pitchDeg: 0,
     });
+  }
 
-    while (turnAccum < totalBaseTurnDeg) {
-      const dDeg = Math.min(omegaBaseDps * dtTurn, totalBaseTurnDeg - turnAccum);
-      turnAccum += dDeg;
-      const prevHdg = (curHdg + dDeg) % 360;
-      const midHdgRad = degToRad((curHdg + dDeg * 0.5) % 360);
-      const vgx = vBaseFtps * Math.sin(midHdgRad) + wxFtps;
-      const vgy = vBaseFtps * Math.cos(midHdgRad) + wyFtps;
-      curX -= vgx * dtTurn;
-      curY -= vgy * dtTurn;
-      curHdg = prevHdg;
+  baseTurnPts.reverse();
+  const baseEntryPt = baseTurnPts[0];
 
-      const uFwd = Math.max(0, Math.min(1, 1 - turnAccum / totalBaseTurnDeg));
-      let bank = -baseBankDeg;
-      if (uFwd < 0.15) {
-        bank = -baseBankDeg * Math.sin((uFwd / 0.15) * (Math.PI / 2));
-      } else if (uFwd > 0.85) {
-        bank = -baseBankDeg * Math.sin(((1 - uFwd) / 0.15) * (Math.PI / 2));
-      }
-      const g = 1 / Math.cos(degToRad(Math.abs(bank)));
+  /** @type {any} */
+  const waypoints = [];
 
-      baseTurnPts.push({
-        x: curX,
-        y: curY,
-        alt: 5000,
+  const DEP_END_X = -4066;
+  const DEP_END_Y = 681;
+
+  let turnStartX = x0;
+  let turnStartY = y0;
+  let turnStartAlt = alt0;
+  let turnStartHdg = hdg0;
+
+  if (isUpwindBeforeDep) {
+    // 3. Upwind Straight Departure: fly to departure end like a closed pattern
+    const distToDep = Math.hypot(DEP_END_X - x0, DEP_END_Y - y0);
+    const numUpwindSteps = Math.max(1, Math.ceil(distToDep / 500));
+    let curAlt = alt0;
+    for (let i = 0; i < numUpwindSteps; i++) {
+      const u = i / numUpwindSteps;
+      const x = x0 + (DEP_END_X - x0) * u;
+      const y = y0 + (DEP_END_Y - y0) * u;
+      const dtStep = (distToDep / numUpwindSteps) / Math.max(50, vClimbFtps);
+      curAlt = Math.min(2500, curAlt + 28.0 * dtStep);
+      waypoints.push({
+        x,
+        y,
+        alt: curAlt,
         kt: 140,
-        headingDeg: curHdg,
-        bankDeg: bank,
-        g,
+        headingDeg: rwyHdgWithCrab,
+        bankDeg: 0,
+        g: 1.0,
         phase: 'climb_high_key',
-        label: 'Base Turn',
-        pitchDeg: 0,
+        label: 'Upwind Departure',
+        pitchDeg: 10,
       });
     }
+    turnStartX = DEP_END_X;
+    turnStartY = DEP_END_Y;
+    turnStartAlt = Math.max(2400, curAlt);
+    turnStartHdg = rwyHdgWithCrab;
+  }
 
-    baseTurnPts.reverse();
-    const baseEntryPt = baseTurnPts[0];
+  let dwStartX = turnStartX;
+  let dwStartY = turnStartY;
+  let dwStartAlt = turnStartAlt;
 
-    // 3. Climbing Turn Arc from aircraft initial state
+  if (isUpwindBeforeDep || isUpwindPastDep) {
+    // 4. Climbing Turn into Downwind starting at departure end (or current past-departure position)
     const climbPts = [];
-    let curClimbX = x0;
-    let curClimbY = y0;
-    let curClimbAlt = alt0;
-    let curClimbHdg = hdg0;
+    let curClimbX = turnStartX;
+    let curClimbY = turnStartY;
+    let curClimbAlt = turnStartAlt;
+    let curClimbHdg = turnStartHdg;
     let climbTurnAccum = 0;
-    const targetClimbTurnDeg = Math.abs(wrapDeg180(dwHdgWithCrab - hdg0)) || 180;
+    const targetClimbTurnDeg = Math.abs(wrapDeg180(dwHdgWithCrab - turnStartHdg)) || 180;
     const omegaClimb = (G_ACCEL * Math.tan(degToRad(climbBankDeg))) / vClimbFtps;
     const omegaClimbDps = radToDeg(omegaClimb);
 
@@ -327,7 +377,7 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
       alt: curClimbAlt,
       kt: 140,
       headingDeg: curClimbHdg,
-      bankDeg: bank0,
+      bankDeg: 0,
       g: 1.0,
       phase: 'climb_high_key',
       label: 'Climb Turn Entry',
@@ -347,8 +397,7 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
       curClimbHdg = nextHdg;
 
       const pitch = calcHighKeyPitch(curClimbAlt, 10);
-      const climbRateFtps = 28.0 * (pitch / 10.0);
-      curClimbAlt = Math.min(5000, curClimbAlt + climbRateFtps * dtTurn);
+      curClimbAlt = Math.min(5000, curClimbAlt + 28.0 * (pitch / 10.0) * dtTurn);
 
       const uTurn = climbTurnAccum / targetClimbTurnDeg;
       let bank = -climbBankDeg;
@@ -373,98 +422,12 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
       });
     }
 
-    const climbRolloutPt = climbPts[climbPts.length - 1];
-
-    // 4. Downwind Leg connecting climbRolloutPt to baseEntryPt
-    const dwPts = [];
-    const distDw = Math.hypot(baseEntryPt.x - climbRolloutPt.x, baseEntryPt.y - climbRolloutPt.y);
-    const numDwSteps = Math.max(2, Math.ceil(distDw / 1000));
-    let dwAlt = climbRolloutPt.alt;
-
-    for (let i = 1; i < numDwSteps; i++) {
-      const u = i / numDwSteps;
-      const x = climbRolloutPt.x + (baseEntryPt.x - climbRolloutPt.x) * u;
-      const y = climbRolloutPt.y + (baseEntryPt.y - climbRolloutPt.y) * u;
-      const pitch = calcHighKeyPitch(dwAlt, 10);
-      const dtStep = (distDw / numDwSteps) / Math.max(50, vClimbFtps);
-      const climbRateFtps = 28.0 * (pitch / 10.0);
-      dwAlt = Math.min(5000, dwAlt + climbRateFtps * dtStep);
-
-      dwPts.push({
-        x,
-        y,
-        alt: dwAlt,
-        kt: 140,
-        headingDeg: dwHdgWithCrab,
-        bankDeg: 0,
-        g: 1.0,
-        phase: 'climb_high_key',
-        label: 'High Key Downwind',
-        pitchDeg: pitch,
-      });
-    }
-
-    // Ensure continuous altitude climb from downwind into base-to-final turn up to 5,000 ft MSL
-    if (baseTurnPts.length > 0) {
-      const startBaseAlt = dwAlt;
-      for (let k = 0; k < baseTurnPts.length; k++) {
-        const u = k / Math.max(1, baseTurnPts.length - 1);
-        const alt = Math.min(5000, Math.round(startBaseAlt + (5000 - startBaseAlt) * u));
-        baseTurnPts[k].alt = alt;
-        baseTurnPts[k].pitchDeg = calcHighKeyPitch(alt, 10);
-      }
-    }
-
-    // 5. Straight Run-in Approach Leg: rolloutPt to RUN_IN_PT
-    const runInApproachPts = [];
-    const distToRunIn = Math.hypot(RUN_IN_PT.x - rolloutPt.x, RUN_IN_PT.y - rolloutPt.y);
-    const numApproachSteps = Math.max(1, Math.ceil(distToRunIn / 500));
-    for (let i = 1; i <= numApproachSteps; i++) {
-      const u = i / numApproachSteps;
-      runInApproachPts.push({
-        x: rolloutPt.x + (RUN_IN_PT.x - rolloutPt.x) * u,
-        y: rolloutPt.y + (RUN_IN_PT.y - rolloutPt.y) * u,
-        alt: 5000,
-        kt: 140,
-        headingDeg: rwyHdgWithCrab,
-        bankDeg: 0,
-        g: 1.0,
-        phase: 'high_key_run_in',
-        label: 'Run-in Approach',
-        pitchDeg: 0,
-      });
-    }
-
-    // 6. 1/8 NM straight run-in: RUN_IN_PT to HIGH_KEY_PT decelerating 140 -> 120 KIAS
-    const runInPts = [];
-    const numRunInSteps = 6;
-    for (let i = 1; i <= numRunInSteps; i++) {
-      const u = i / numRunInSteps;
-      const kt = 140 - 20 * u;
-      const wtStep = windTriangle(RWY_HDG_DEG, Math.max(1, iasToTasKt(kt, 5000)), windFromDeg, windKt);
-      const stepHdg = wtStep.canHoldTrack ? wtStep.headingDeg : RWY_HDG_DEG;
-      const isEnd = i === numRunInSteps;
-
-      runInPts.push({
-        x: RUN_IN_PT.x + (HIGH_KEY_PT.x - RUN_IN_PT.x) * u,
-        y: RUN_IN_PT.y + (HIGH_KEY_PT.y - RUN_IN_PT.y) * u,
-        alt: 5000,
-        kt,
-        headingDeg: stepHdg,
-        bankDeg: 0,
-        g: 1.0,
-        phase: isEnd ? 'pfl_high_key' : 'high_key_run_in',
-        label: isEnd ? 'High Key' : '1/8 NM Run-in',
-        pitchDeg: 0,
-      });
-    }
-
-    waypoints.push(...climbPts, ...dwPts, ...baseTurnPts, ...runInApproachPts, ...runInPts);
-  } else {
-    // ── CASE B: SOUTH / SOUTHEAST APPROACH -> TANGENTIAL CURVE TO EXTENDED 298° LINE ──
-    const wtRwy = windTriangle(RWY_HDG_DEG, Math.max(1, iasToTasKt(140, 5000)), windFromDeg, windKt);
-    const rwyHdgWithCrab = wtRwy.canHoldTrack ? wtRwy.headingDeg : RWY_HDG_DEG;
-
+    waypoints.push(...climbPts);
+    dwStartX = curClimbX;
+    dwStartY = curClimbY;
+    dwStartAlt = curClimbAlt;
+  } else if (!isOnDownwind) {
+    // 5. South/Southeast Approach: curve directly onto extended runway centerline
     const leadFt = 2500;
     const interceptPt = {
       x: RUN_IN_PT.x - leadFt * UX_RWY,
@@ -472,7 +435,6 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
       alt: 5000,
       kt: 140,
     };
-
     const numCurveSteps = 10;
     let curAlt = alt0;
     for (let i = 0; i <= numCurveSteps; i++) {
@@ -517,6 +479,7 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
       });
     }
 
+    // 1/8 NM straight run-in to HIGH_KEY_PT
     const numRunInSteps = 6;
     for (let i = 1; i <= numRunInSteps; i++) {
       const u = i / numRunInSteps;
@@ -535,14 +498,131 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
         g: 1.0,
         phase: isEnd ? 'pfl_high_key' : 'high_key_run_in',
         label: isEnd ? 'High Key' : '1/8 NM Run-in',
+        tag: isEnd ? 'high_key' : undefined,
         pitchDeg: 0,
       });
     }
+
+    for (const wp of waypoints) {
+      wp.kias = wp.kt;
+      wp.mode = 'rails';
+      wp.engineFailed = false;
+    }
+
+    waypoints.id = 'HIGH_KEY_APPROACH';
+    waypoints.model = 'KIN';
+    waypoints.loop = false;
+    waypoints.waypoints = waypoints;
+    waypoints.points = waypoints;
+
+    return waypoints;
+  }
+
+  // 6. Downwind Leg connecting to baseEntryPt
+  const distDw = Math.hypot(baseEntryPt.x - dwStartX, baseEntryPt.y - dwStartY);
+  let curDwAlt = dwStartAlt;
+  if (distDw > 100) {
+    const numDwSteps = Math.max(2, Math.ceil(distDw / 800));
+    for (let i = (waypoints.length > 0 ? 1 : 0); i < numDwSteps; i++) {
+      const u = i / numDwSteps;
+      const x = dwStartX + (baseEntryPt.x - dwStartX) * u;
+      const y = dwStartY + (baseEntryPt.y - dwStartY) * u;
+      const pitch = calcHighKeyPitch(curDwAlt, 10);
+      const dtStep = (distDw / numDwSteps) / Math.max(50, vClimbFtps);
+      curDwAlt = Math.min(5000, curDwAlt + 28.0 * (pitch / 10.0) * dtStep);
+
+      waypoints.push({
+        x,
+        y,
+        alt: curDwAlt,
+        kt: 140,
+        headingDeg: dwHdgWithCrab,
+        bankDeg: 0,
+        g: 1.0,
+        phase: 'climb_high_key',
+        label: 'High Key Downwind',
+        pitchDeg: pitch,
+      });
+    }
+  }
+
+  // 7. Base Turn Arc
+  if (baseTurnPts.length > 0) {
+    const startBaseAlt = curDwAlt;
+    for (let k = 0; k < baseTurnPts.length; k++) {
+      const u = k / Math.max(1, baseTurnPts.length - 1);
+      const alt = Math.min(5000, Math.round(startBaseAlt + (5000 - startBaseAlt) * u));
+      baseTurnPts[k].alt = alt;
+      baseTurnPts[k].pitchDeg = calcHighKeyPitch(alt, 10);
+    }
+    waypoints.push(...baseTurnPts);
+  }
+
+  // 8. Straight Run-in Approach Leg: rolloutPt to RUN_IN_PT
+  const distToRunIn = Math.hypot(RUN_IN_PT.x - rolloutPt.x, RUN_IN_PT.y - rolloutPt.y);
+  const numApproachSteps = Math.max(1, Math.ceil(distToRunIn / 500));
+  for (let i = 1; i <= numApproachSteps; i++) {
+    const u = i / numApproachSteps;
+    waypoints.push({
+      x: rolloutPt.x + (RUN_IN_PT.x - rolloutPt.x) * u,
+      y: rolloutPt.y + (RUN_IN_PT.y - rolloutPt.y) * u,
+      alt: 5000,
+      kt: 140,
+      headingDeg: rwyHdgWithCrab,
+      bankDeg: 0,
+      g: 1.0,
+      phase: 'high_key_run_in',
+      label: 'Run-in Approach',
+      pitchDeg: 0,
+    });
+  }
+
+  // 9. 1/8 NM straight run-in: RUN_IN_PT to HIGH_KEY_PT decelerating 140 -> 120 KIAS
+  const numRunInSteps = 6;
+  for (let i = 1; i <= numRunInSteps; i++) {
+    const u = i / numRunInSteps;
+    const kt = 140 - 20 * u;
+    const wtStep = windTriangle(RWY_HDG_DEG, Math.max(1, iasToTasKt(kt, 5000)), windFromDeg, windKt);
+    const stepHdg = wtStep.canHoldTrack ? wtStep.headingDeg : RWY_HDG_DEG;
+    const isEnd = i === numRunInSteps;
+
+    waypoints.push({
+      x: RUN_IN_PT.x + (HIGH_KEY_PT.x - RUN_IN_PT.x) * u,
+      y: RUN_IN_PT.y + (HIGH_KEY_PT.y - RUN_IN_PT.y) * u,
+      alt: 5000,
+      kt,
+      headingDeg: stepHdg,
+      bankDeg: 0,
+      g: 1.0,
+      phase: isEnd ? 'pfl_high_key' : 'high_key_run_in',
+      label: isEnd ? 'High Key' : '1/8 NM Run-in',
+      tag: isEnd ? 'high_key' : undefined,
+      pitchDeg: 0,
+    });
+  }
+
+  // Universal Forward Tangent Guard (Pillar 1):
+  // Ensure every waypoint's nose strictly points along the forward velocity vector (with wind crab)
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const p0 = waypoints[i];
+    const p1 = waypoints[i + 1];
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    if (Math.hypot(dx, dy) > 0.5) {
+      const segTrack = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+      const tas = iasToTasKt(p0.kt ?? p0.kias ?? 140, p0.alt ?? 5000);
+      const wt = windTriangle(segTrack, Math.max(1, tas), windFromDeg, windKt);
+      p0.headingDeg = wt.canHoldTrack ? wt.headingDeg : segTrack;
+    }
+  }
+  if (waypoints.length > 1) {
+    waypoints[waypoints.length - 1].headingDeg = waypoints[waypoints.length - 2].headingDeg;
   }
 
   for (const wp of waypoints) {
     wp.kias = wp.kt;
     wp.mode = 'rails';
+    wp.engineFailed = false;
   }
 
   waypoints.id = 'HIGH_KEY_APPROACH';
@@ -552,6 +632,72 @@ export function buildHighKeyApproachRail(aircraft, env = null, options = {}) {
   waypoints.points = waypoints;
 
   return waypoints;
+}
+
+/**
+ * Synthesizes a unified, end-to-end kinematic rail for High Key:
+ * Approach (climb, downwind, base turn, run-in on 298°) + 360° PFL spiral to touchdown.
+ *
+ * @param {Object} aircraft - Aircraft state
+ * @param {Object} [env=null] - Wind environment
+ * @param {Object} [options={}] - Options
+ * @returns {Array<Object>} Unified kinematic rail
+ */
+export function buildFullHighKeyRail(aircraft, env = null, options = {}) {
+  const distToHk = Math.hypot(HIGH_KEY_PT.x - (aircraft.x ?? 0), HIGH_KEY_PT.y - (aircraft.y ?? 0));
+  const alt = aircraft.alt ?? 0;
+  if (distToHk <= 1500 && alt >= 4750) {
+    const directRail = buildPflRail(aircraft, env, { targetKey: 'high_key', forceHighKey: true, ...options });
+    directRail.routeId = 'PFL_HIGH_KEY';
+    return directRail;
+  }
+
+  const approachRaw = buildHighKeyApproachRail(aircraft, env, options);
+  const approach = densifyRail(approachRaw, 19);
+  for (const wp of approach) {
+    wp.engineFailed = false;
+  }
+  if (approach.length > 0) {
+    approach[approach.length - 1].tag = 'high_key';
+    approach[approach.length - 1].phase = 'pfl_high_key';
+  }
+
+  const hkAircraft = {
+    x: HIGH_KEY_PT.x,
+    y: HIGH_KEY_PT.y,
+    alt: 5000,
+    kias: 120,
+    headingDeg: RWY_HDG_DEG,
+  };
+  const pfl = buildPflRail(hkAircraft, env, { targetKey: 'high_key', forceHighKey: true, ...options });
+
+  // Stitch approach (omitting duplicate last point) + pfl (starts at High Key with tag: 'high_key')
+  const fullRail = /** @type {any} */ (approach.length > 1 ? [...approach.slice(0, -1), ...pfl] : [...pfl]);
+
+  let cumDist = 0;
+  if (fullRail.length > 0) {
+    fullRail[0].cumDistFt = 0;
+    for (let i = 1; i < fullRail.length; i++) {
+      const prev = fullRail[i - 1];
+      const cur = fullRail[i];
+      cumDist += Math.hypot(cur.x - prev.x, cur.y - prev.y);
+      cur.cumDistFt = Math.round(cumDist * 10) / 10;
+    }
+  }
+  fullRail.totalLengthFt = Math.round(cumDist * 10) / 10;
+
+  fullRail.id = 'PFL_RAIL';
+  fullRail.routeId = 'PFL_HIGH_KEY';
+  fullRail.model = 'KIN';
+  fullRail.loop = false;
+  fullRail.kind = 'pfl';
+  fullRail.waypoints = fullRail;
+  fullRail.points = fullRail;
+  fullRail.classification = 'high_key';
+  fullRail.bankDeg = pfl.bankDeg ?? 30;
+  fullRail.energyMargin = pfl.energyMargin;
+
+  return fullRail;
 }
 
 /**

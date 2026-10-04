@@ -18,7 +18,11 @@ import {
   calcCleanGlideArrival,
   calcZoomApex,
   solvePflTangent,
+  computeDragSchedule,
+  findContinuousArcTangent,
+  simulateTurnRollout,
 } from '../../../src/modules/traffic/pfl-solver.js';
+import { generatePflTrack } from '../../../src/modules/traffic/route.js';
 import { FT_PER_NM } from '../../../src/core/units.js';
 
 // ── 1. ZOOM APEX PERFORMANCE TESTS ──────────────────────────────────────────
@@ -148,12 +152,12 @@ test('PFL Tangent Solver: surplus energy (>5,300 ft MSL at High Key) classifies 
 });
 
 test('PFL Tangent Solver: downwind / Low Key energy classifies as low_key', () => {
-  // Aircraft downwind at 4,000 ft MSL (cannot reach High Key at 5,000 ft)
+  // Aircraft downwind at 4,000 ft MSL approaching Low Key (cannot reach High Key at 5,000 ft)
   const apex = {
-    x: 7145,
-    y: -8000,
+    x: 532,
+    y: -6000,
     alt: 4000,
-    headingDeg: 120,
+    headingDeg: 118,
     kias: 120,
   };
   const env = { windFromDeg: 360, windKt: 10 };
@@ -169,11 +173,9 @@ test('PFL Tangent Solver: downwind / Low Key energy classifies as low_key', () =
 
 test('PFL Tangent Solver: SMM Ch 13 doctrine selects tight bank (45°) when marginal energy cuts corner to save aircraft', () => {
   // Aircraft at Low Key area at 3,200 ft MSL (500 ft below nominal 3,700 ft MSL)
-  // With 35° bank, the 15,305 ft spiral requires ~1,800 ft of altitude, causing it to fall short.
-  // With 45° bank, the spiral is shortened by 1,869 ft, preserving ~150 ft of altitude to make the runway!
   const apex = {
-    x: 7145,
-    y: -10275,
+    x: 532,
+    y: -8031,
     alt: 3200,
     headingDeg: 118,
     kias: 120,
@@ -211,6 +213,30 @@ test('PFL Tangent Solver: direct threshold classified when too low for any key p
   assert.equal(result.crashPoint, null);
 });
 
+test('PFL Tangent Solver: aircraft near the perch facing runway with Base Key behind selects direct threshold, never turns backwards', () => {
+  // Aircraft at normal circuit downwind near the perch (x=7146, y=-10275), having turned towards threshold (heading ~320°)
+  // Base Key is behind it (at x=8793, y=-9538 or to the southeast). Altitude is 2,800 ft MSL.
+  // Glide distance to threshold (~3104, -3194) is ~8,100 ft (1.33 NM).
+  // Height above ground is 2,800 - 1,892 = 908 ft.
+  // At 2 NM / 1,000 ft, 908 ft yields 1.81 NM range. 1.81 > 1.33 NM => POSITIVE MARGIN!
+  const apex = {
+    x: 7146,
+    y: -10275,
+    alt: 2800,
+    headingDeg: 320,
+    kias: 120,
+  };
+  const env = { windFromDeg: 360, windKt: 0 };
+
+  const result = solvePflTangent(apex, env);
+
+  // Invariant: Must NOT classify as base_key pointing behind the aircraft; must glide direct to threshold
+  assert.equal(result.classification, 'direct_threshold');
+  assert.equal(result.joinPoint.tag, 'threshold');
+  assert.ok(result.energyMargin >= 0, `Must have positive arrival margin, got ${result.energyMargin}`);
+  assert.equal(result.crashPoint, null);
+});
+
 test('PFL Tangent Solver: unrecoverable deficit energy classifies as crash_short with terrain impact point', () => {
   // Aircraft 12 NM away from Moose Jaw at only 2,100 ft MSL (terrain elevation 1,892 ft MSL)
   const apex = {
@@ -240,3 +266,91 @@ test('PFL Tangent Solver: unrecoverable deficit energy classifies as crash_short
   const distApexToTh = Math.hypot(PFL_AIRFIELD.thresholdX - apex.x, PFL_AIRFIELD.thresholdY - apex.y);
   assert.ok(distApexToCrash < distApexToTh, 'Crash point must be short of threshold');
 });
+
+// ── 4. TASK 1: CONTINUOUS ARC TANGENT & PROXIMITY TESTS ──────────────────────
+test('PFL Tangent Solver: continuous arc tangent search finds tangent touchpoint with error <= 5 deg and deltaZ >= -100 ft', () => {
+  // Aircraft at an arbitrary off-track point in Moose Jaw training area
+  const aircraft = {
+    x: 9000,
+    y: -6000,
+    alt: 4200,
+    headingDeg: 270,
+    kias: 120,
+  };
+  const env = { windFromDeg: 360, windKt: 10 };
+  const track = generatePflTrack(null, env.windFromDeg, env.windKt, { bankDeg: 35 });
+
+  const result = findContinuousArcTangent(aircraft, track, env, 35);
+
+  assert.ok(result !== null, 'Must find a valid join point along spiral');
+  assert.ok(result.joinIndex >= 0, 'joinIndex must be non-negative');
+  assert.ok(result.tangentErrorDeg <= 5.0, `Tangent error must be <= 5 deg (Pilot Domain Tolerance D371), got ${result.tangentErrorDeg}`);
+  assert.ok(result.energyMargin >= -100, `Energy margin must satisfy deltaZ >= -100 ft, got ${result.energyMargin}`);
+  assert.ok(Number.isFinite(result.interceptDistanceFt), 'Intercept distance must be finite');
+});
+
+test('PFL Tangent Solver: solvePflTangent returns continuous arc tangent for off-track aircraft without key snapping', () => {
+  const aircraft = {
+    x: 9000,
+    y: -6000,
+    alt: 4200,
+    headingDeg: 270,
+    kias: 120,
+  };
+  const env = { windFromDeg: 360, windKt: 10 };
+
+  const result = solvePflTangent(aircraft, env);
+
+  assert.ok(result.joinIndex >= 0, 'Must find valid continuous arc joinIndex');
+  assert.ok(result.tangentErrorDeg <= 5.0, `solvePflTangent must achieve tangent error <= 5 deg, got ${result.tangentErrorDeg}`);
+  assert.ok(result.energyMargin >= -100, `Energy margin must satisfy deltaZ >= -100 ft, got ${result.energyMargin}`);
+  assert.equal(result.directLatch, false);
+});
+
+test('PFL Tangent Solver: multi-variable drag schedule table matches SMM Ch 13 absorption gates', () => {
+  // 1. Severe surplus (> +400 ft)
+  const schedHigh = computeDragSchedule(450);
+  assert.equal(schedHigh.profile, 'high_energy');
+  assert.equal(schedHigh.earlyGear, true);
+  assert.equal(schedHigh.earlyFlapsTo, true);
+  assert.equal(schedHigh.earlyFlapsLdg, true);
+
+  // 2. Moderate surplus (+150 to +400 ft)
+  const schedMod = computeDragSchedule(250);
+  assert.equal(schedMod.profile, 'moderate_energy');
+  assert.equal(schedMod.earlyGear, false);
+  assert.equal(schedMod.earlyFlapsTo, true);
+  assert.equal(schedMod.earlyFlapsLdg, false);
+
+  // 3. Nominal (-100 to +150 ft)
+  const schedNom = computeDragSchedule(50);
+  assert.equal(schedNom.profile, 'nominal');
+  assert.equal(schedNom.earlyGear, false);
+  assert.equal(schedNom.earlyFlapsTo, false);
+  assert.equal(schedNom.delayFlaps, false);
+
+  // 4. Deficit (< -100 ft)
+  const schedLow = computeDragSchedule(-120);
+  assert.equal(schedLow.profile, 'low_energy');
+  assert.equal(schedLow.delayFlaps, true);
+  assert.equal(schedLow.delayGear, true);
+});
+
+test('PFL Tangent Solver: aircraft within 500 ft of arc triggers directLatch with 0 ft intercept distance', () => {
+  // High Key coordinates at 5,000 ft
+  const hkAircraft = {
+    x: PFL_AIRFIELD.thresholdX + 150,
+    y: PFL_AIRFIELD.thresholdY + 150,
+    alt: 5000,
+    headingDeg: 298,
+    kias: 120,
+  };
+  const env = { windFromDeg: 360, windKt: 0 };
+
+  const result = solvePflTangent(hkAircraft, env);
+
+  assert.equal(result.directLatch, true, 'Aircraft within 500 ft must set directLatch = true');
+  assert.equal(result.interceptDistanceFt, 0, 'directLatch must have 0 ft intercept distance');
+  assert.equal(result.joinIndex, 0);
+});
+

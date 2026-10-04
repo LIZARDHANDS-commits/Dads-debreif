@@ -904,12 +904,10 @@ test('calculateGlideFootprint computes clean glide radius and wind drift displac
   assert.equal(ground.cx, 0);
   assert.equal(ground.cy, 0);
 
-  // With wind: 20 kt from 360 (north) blows toward south (180 deg)
-  // wx = 0, wy = -20 * 1.68781 = -33.7562 ft/s
-  // drift distance = 33.7562 * 138.133 = 4662.8 ft south
+  // With wind: circle remains centered on aircraft, driftFt indicates downwind drift
   const northWind = calculateGlideFootprint(ac, 360, 20);
   near(northWind.cx, 1000, 0.01);
-  near(northWind.cy, 2000 - 4662.8, 1.0);
+  near(northWind.cy, 2000, 0.01);
   near(northWind.driftFt, 4662.8, 1.0);
 });
 
@@ -973,5 +971,15 @@ test('drawScene renders dotted glide footprint ring and PFL badge when aircraft 
   const strokes = rec.named('stroke').map((c) => c.strokeStyle);
   assert.ok(strokes.includes('#38bdf8'), 'glide footprint ring drawn in tactical cyan');
   assert.ok(written.some((w) => w.startsWith('PFL GLIDE')), 'draws range label for glide footprint');
+});
+
+test('drawPflGroundCircle renders 0.5 NM radius circle and key points on ground', () => {
+  const rec = draw({}, { layerPflCircle: true });
+  const written = rec.written();
+  assert.ok(written.some((w) => w.includes('PFL Circle')), 'draws circle title');
+  assert.ok(written.some((w) => w.includes('HIGH KEY')), 'marks High Key');
+  assert.ok(written.some((w) => w.includes('LOW KEY')), 'marks Low Key');
+  assert.ok(written.some((w) => w.includes('BASE KEY')), 'marks Base Key');
+  assert.ok(written.some((w) => w.includes('1.0 NM (90° Left)')), 'marks 90 deg left reference spoke');
 });
 

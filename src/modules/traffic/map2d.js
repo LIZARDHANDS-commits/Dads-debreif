@@ -286,8 +286,8 @@ export function calculateGlideFootprint(a, windFromDeg = 360, windKt = 0) {
 
   const ax = Number.isFinite(a?.x) ? /** @type {number} */ (a.x) : 0;
   const ay = Number.isFinite(a?.y) ? /** @type {number} */ (a.y) : 0;
-  const cx = ax + wxFtps * tGlide;
-  const cy = ay + wyFtps * tGlide;
+  const cx = ax;
+  const cy = ay;
   const driftFt = Math.hypot(wxFtps * tGlide, wyFtps * tGlide);
 
   return { cx, cy, rGlide, tGlide, altDiff, driftFt, wxFtps, wyFtps };
@@ -592,6 +592,9 @@ export function drawScene(ctx, map, scene, settings, palette, layers = {}) {
       ctx.restore();
     }
   }
+  if (settings.layerPflCircle) {
+    drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle);
+  }
   if (settings.layerLegDistances) {
     for (const leg of legsToLabel(routes, scene.legs)) {
       const [x, y] = at(leg);
@@ -781,6 +784,111 @@ function drawWind(ctx, map, settings, palette, text) {
   ctx.fillStyle = palette.text;
   ctx.fill();
   text(words, width - 50, 34, palette.text, { size: 13, bold: true, align: 'right' });
+}
+
+// Draws the 1/2 NM radius (1 NM diameter) PFL circle on the ground for Runway 29L.
+export function drawPflGroundCircle(ctx, settings, palette, at, pxPerFt, text, circle) {
+  const th = { x: 3104, y: -3194 }; // Threshold Runway 29L
+  const radiusFt = 3038.06; // 0.5 NM radius (1.0 NM diameter = 6076 ft)
+
+  // 90° LEFT of Runway 29L (298° - 90° = 208° True, South-Southwest)
+  const rad208 = (208 * Math.PI) / 180;
+  const nLeftX = Math.sin(rad208); // -0.469472 (West)
+  const nLeftY = Math.cos(rad208); // -0.882948 (South)
+
+  // Center of circle: 0.5 NM at 208° from threshold
+  const cxFt = th.x + radiusFt * nLeftX; // 1677.7 ft
+  const cyFt = th.y + radiusFt * nLeftY; // -5876.4 ft
+  const [cx, cy] = at({ x: cxFt, y: cyFt });
+  const rPx = radiusFt * pxPerFt;
+
+  // Key coordinate points on the authentic 360° circle
+  const lkPt = { x: th.x + 2 * radiusFt * nLeftX, y: th.y + 2 * radiusFt * nLeftY }; // Low Key: (252, -8559)
+  // Base Key at 270° around circle (bearing 118° from center):
+  const rad118 = (118 * Math.PI) / 180;
+  const bkPt = { x: cxFt + radiusFt * Math.sin(rad118), y: cyFt + radiusFt * Math.cos(rad118) }; // Base Key: (4360, -7303)
+
+  // 1. PFL ground circle (0.5 NM radius / 1.0 NM diameter)
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 155, 206, 0.08)';
+  circle(cx, cy, rPx);
+  ctx.fill();
+
+  ctx.setLineDash([8, 6]);
+  ctx.strokeStyle = '#ff9bce';
+  ctx.lineWidth = 2.5;
+  circle(cx, cy, rPx);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Center mark and title
+  circle(cx, cy, 3);
+  ctx.fillStyle = '#ff9bce';
+  ctx.fill();
+  text('PFL Circle (0.5 NM Radius / 1.0 NM Dia)', cx, cy - 8, '#ff9bce', { size: 11, bold: true, align: 'center' });
+  ctx.restore();
+
+  // 2. Reference Spoke: 1.0 NM (90° Left of Runway Threshold)
+  const [thX, thY] = at(th);
+  const [lkX, lkY] = at(lkPt);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(thX, thY);
+  ctx.lineTo(lkX, lkY);
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const midSpokeX = (thX + lkX) / 2;
+  const midSpokeY = (thY + lkY) / 2;
+  text('1.0 NM (90° Left)', midSpokeX - 12, midSpokeY, '#ff6b6b', { size: 10, bold: true, align: 'right' });
+  ctx.restore();
+
+  // 3. Key Points on the PFL pattern
+  if (settings.layerPoints !== false) {
+    // High Key (0° of turn, over threshold at 5,000 ft MSL)
+    ctx.save();
+    circle(thX, thY, 5);
+    ctx.fillStyle = '#ff9bce';
+    ctx.fill();
+    ctx.strokeStyle = palette.halo;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    text('HIGH KEY (5,000\' MSL)', thX + 10, thY - 5, '#ff9bce', { size: 11, bold: true, anchor: thX });
+    text('Over Threshold / Clean 125 kt', thX + 10, thY + 9, palette.muted, { size: 9, anchor: thX });
+    ctx.restore();
+
+    // Low Key (180° around circle, 1 NM 90° left of threshold at 3,700 ft MSL)
+    // Red oval matching the section line road
+    ctx.save();
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(lkX, lkY, 14, 8, Math.PI / 12, 0, Math.PI * 2);
+    ctx.stroke();
+    circle(lkX, lkY, 4);
+    ctx.fillStyle = '#ff6b6b';
+    ctx.fill();
+    text('LOW KEY (3,700\' MSL)', lkX + 18, lkY - 5, '#ff6b6b', { size: 11, bold: true, anchor: lkX });
+    text('1.0 NM 90° Left / Gear Down 120 kt', lkX + 18, lkY + 9, palette.muted, { size: 9, anchor: lkX });
+    ctx.restore();
+
+    // Base Key (270° around circle, in the quarter-section field at 2,900 ft MSL)
+    // Blue marker matching Patrick's blue scribble
+    const [bkX, bkY] = at(bkPt);
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    circle(bkX, bkY, 6.5);
+    ctx.stroke();
+    circle(bkX, bkY, 3.5);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fill();
+    text('BASE KEY (2,900\' MSL)', bkX + 12, bkY - 5, '#38bdf8', { size: 11, bold: true, anchor: bkX });
+    text('Flaps TO/LDG / 120 kt', bkX + 12, bkY + 9, palette.muted, { size: 9, anchor: bkX });
+    ctx.restore();
+  }
 }
 
 // ---------------------------------------------------------------------------

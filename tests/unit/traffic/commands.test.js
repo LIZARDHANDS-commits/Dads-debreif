@@ -125,7 +125,7 @@ test('sim.command climb_low_key executes full power climb to Low Key (3,900 ft /
   sim.stepTo(15);
   const acClimb = sim.state().aircraft.find((a) => a.id === id);
   assert.equal(acClimb.command, 'climb_low_key');
-  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl'].includes(acClimb.phase), 'phase should be PFL-related');
+  assert.ok(['pfl_current', 'high_key', 'low_key', 'pfl', 'climb_low_key', 'pfl_low_key', 'base_key'].includes(acClimb.phase), 'phase should be PFL-related');
   assert.ok(acClimb.alt > 2000, `Alt ${acClimb.alt} should be in PFL glide`);
 
   // After capturing Low Key, proceeds into PFL descent
@@ -206,3 +206,39 @@ test('Preset Point - Closed Pattern (Point 2 on PAT1 at 2,400 ft / 140 kt) climb
   const acPerch = sim.state().aircraft.find((a) => a.id === id);
   assert.notEqual(acPerch.phase, 'closed_pattern', 'must not stay stuck in closed pattern orbit');
 });
+
+test('sim.command climb_high_key maintains RAIL mode, approach power, cuts engine at High Key, and lands without re-joining PAT1', () => {
+  const sim = createSim(SETUP, { seed: 1 });
+  const id = sim.spawn({ id: 'A_HK_TEST', routeId: 'PAT1', startPoint: 11, delaySec: 0 });
+  sim.stepTo(2);
+
+  const ok = sim.command(id, 'climb_high_key');
+  assert.equal(ok, true);
+
+  let ac = sim.state().aircraft.find((a) => a.id === id);
+  assert.equal(ac.mode, 'RAIL', 'Must be in RAIL mode, never PHYSICS mode');
+  assert.ok(ac.pflRail, 'Must have pflRail attached');
+  assert.equal(ac.engineFailed, false, 'Engine must remain powered during climb approach');
+
+  // Step until crossing High Key
+  let crossedHighKey = false;
+  for (let t = 3; t <= 120; t += 5) {
+    sim.stepTo(t);
+    ac = sim.state().aircraft.find((a) => a.id === id);
+    if (ac.engineFailed) {
+      crossedHighKey = true;
+      assert.equal(ac.tag, 'high_key');
+      assert.equal(ac.mode, 'RAIL');
+      break;
+    }
+  }
+  assert.ok(crossedHighKey, 'Aircraft must cross High Key threshold and trigger engine failure');
+
+  // Step until landed
+  sim.stepTo(300);
+  ac = sim.state().aircraft.find((a) => a.id === id);
+  assert.equal(ac.routeId, 'PFL_HIGH_KEY');
+  assert.ok(ac.landed || ac.alt <= 1900, 'Aircraft must land at threshold');
+  assert.notEqual(ac.routeId, 'PAT1', 'Must never rejoin PAT1');
+});
+

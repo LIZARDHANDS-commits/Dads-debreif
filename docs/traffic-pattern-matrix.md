@@ -126,18 +126,22 @@ Coordinates from current ENT2 in `moose-jaw.json`, merge point adjusted to PAT_S
 **Closed**: No (terminates at landing)  
 **Color**: `#ff9bce` (pink)
 
-| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Config | Phase |
-|---|---|---|---|---|---|---|---|
-| 0 | High Key | 3,104 | -3,194 | 5,000 | 125 | Clean, feathered | `high_key` |
-| 1 | Low Key | 7,146 | -10,275 | 3,700 | 120 | Gear DOWN | `low_key` |
-| 2 | Base Key | 9,076 | -6,411 | 2,900 | 120 | Flaps T/O | `base_key` |
-| 3 | Threshold | 3,104 | -3,194 | 1,892 | 100 | Flaps LDG | `pfl_final` |
+| # | Label | X (ft) | Y (ft) | Alt (MSL) | Speed (KIAS) | Config | Phase | Notes |
+|---|---|---|---|---|---|---|---|---|
+| 0 | High Key | 3,104 | -3,194 | 5,000 | 125 | Clean, feathered | `high_key` | Over 29L threshold, heading 298° |
+| 1 | Low Key | 4,064 | -9,909 | 3,700 | 120 | Gear DOWN | `low_key` | Abeam threshold on downwind, 1.0 NM lateral offset (118°) |
+| 2 | Base Key | 8,793 | -9,538 | 2,900 | 120 | Flaps T/O | `base_key` | Midpoint of 0.5 NM radius final turn |
+| 3 | Final Rollout | 6,636 | -5,072 | 2,400 | 110 | Flaps LDG | `pfl_final` | Wings level on extended centerline (298°) |
+| 4 | Threshold | 3,104 | -3,194 | 1,892 | 100 | Flaps LDG | `pfl_final` | Flare & touchdown |
+
+> [!NOTE]
+> **Decoupling from Circuit & Window:** PFL has a turn radius of 0.5 NM (1.0 NM lateral offset). It is completely independent of the normal circuit downwind (1.5 NM offset) and The Perch (+1.5 NM downwind). **"The Window" belongs strictly to PAT_SI (0.75 NM speed gate)** and has zero relation to PFL.
 
 ### PFL Energy Model
 - **Glide performance**: `glideSinkFpm('clean', 125, alt)` → 1,350 fpm (2.0 NM/1,000 ft)
 - **Gear down**: `glideSinkFpm('gearDown', 120, alt)` → 1,500 fpm (1.5 NM/1,000 ft)
 - **Landing config**: `glideSinkFpm('landing', 100, alt)` → 1,850 fpm (1.1 NM/1,000 ft)
-- **Orbit**: 30° bank, R ≈ 2,200 ft (0.36 NM), diameter ≈ 4,400 ft (≈ 1 NM per SMM)
+- **Turn radius**: Exactly 0.5 NM (3,038 ft) at 35° bank; diameter 1.0 NM (6,076 ft)
 - **200 ft AGL safety gate**: Mandatory go-around unless runway assured
 
 ---

@@ -248,10 +248,10 @@ test('the Layers menu binds the underlying layer settings for available features
   const { controls } = setup();
   const layers = controls.asked.filter((a) => a.kind === 'checkbox');
   assert.deepEqual(layers.map((l) => l.key), [
-    'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings',
+    'layerTrails', 'layerLabels', 'layerPoints', 'layerLegDistances', 'layerTurnData', 'layerBubbles', 'layerCautionRings', 'layerPflCircle',
   ]);
   assert.deepEqual(layers.map((l) => l.label), [
-    'Trails', 'Height and speed labels', 'Route points', 'Leg distances', 'Turn data (radius and bank)', 'Conflict bubbles', 'Caution rings',
+    'Trails', 'Height and speed labels', 'Route points', 'Leg distances', 'Turn data (radius and bank)', 'Conflict bubbles', 'Caution rings', 'PFL ground circle',
   ]);
 });
 

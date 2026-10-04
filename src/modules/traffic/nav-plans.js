@@ -42,13 +42,14 @@ const FIELD_ELEV = 1892;
 const RWY_HDG   = 298;
 
 // ── PFL Ground Truth Constants (CYMJ RWY 29L SMM Ch 13 forced landing recovery) ──
-// Completely decoupled from circuit Perch and Window (D428, D430)
-export const PFL_LOW_KEY_X = 4064;
-export const PFL_LOW_KEY_Y = -9909;
-export const PFL_BASE_KEY_X = 8793;
-export const PFL_BASE_KEY_Y = -9538;
-export const PFL_FINAL_ROLLOUT_X = 6636;
-export const PFL_FINAL_ROLLOUT_Y = -5072;
+// 360° circle (1.0 NM diameter, 0.5 NM radius) centered 0.5 NM at 208° from threshold.
+// Low Key is exactly 1.0 NM away 90° left (bearing 208°) of threshold.
+export const PFL_LOW_KEY_X = 252;
+export const PFL_LOW_KEY_Y = -8559;
+export const PFL_BASE_KEY_X = 4360;
+export const PFL_BASE_KEY_Y = -7303;
+export const PFL_FINAL_ROLLOUT_X = 4583;
+export const PFL_FINAL_ROLLOUT_Y = -4988;
 
 // ── Waypoint helper ───────────────────────────────────────────────────────────
 /** @param {Partial<Waypoint>} fields */

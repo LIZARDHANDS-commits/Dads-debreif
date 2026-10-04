@@ -908,232 +908,130 @@ export function generatePflTrack(route, windFromDeg = 360, windKt = 0, options =
   const pts = route?.points || route?.waypoints || [];
   const th = pts.find((p) => p.tag === 'threshold' || /threshold/i.test(p.label)) ?? pts.find((p) => (p.alt ?? 0) <= 2000) ?? pts[pts.length - 1] ?? { x: 3103.84, y: -3193.93 };
   const rwyHeadingDeg = 298;
-  const windFtps = ktToFtps(windKt);
-  const blowToRad = ((windFromDeg + 180) * Math.PI) / 180;
-  const wx = windFtps * Math.sin(blowToRad);
-  const wy = windFtps * Math.cos(blowToRad);
+  const radiusFt = 3038.06; // 0.5 NM radius (1.0 NM diameter)
 
-  const g = 32.174;
-  const dt = 0.2;
+  // 90° LEFT of Runway 29L heading is bearing 208° True (South-Southwest)
+  const rad208 = (208 * Math.PI) / 180;
+  const nLeftX = Math.sin(rad208); // -0.469472 (West)
+  const nLeftY = Math.cos(rad208); // -0.882948 (South)
+
+  // Center of circle: 0.5 NM at 208° from threshold
+  const cxFt = th.x + radiusFt * nLeftX; // ~1677.7 ft
+  const cyFt = th.y + radiusFt * nLeftY; // ~-5876.4 ft
+
+  const totalSteps = 120; // 3° per step for smooth high-density trajectory
   const track = [];
 
-  // ── Backward Target Inversion from Extended Runway Centerline (Pillar 3) ──
-  const radRwy = (rwyHeadingDeg * Math.PI) / 180;
-  const uRwyX = Math.sin(radRwy);
-  const uRwyY = Math.cos(radRwy);
-  const uUpstreamX = -uRwyX;
-  const uUpstreamY = -uRwyY;
-  const nLeftX = -uRwyY;
-  const nLeftY = uRwyX;
+  for (let k = 0; k <= totalSteps; k++) {
+    const u = k / totalSteps;
+    const turnDeg = u * 360;
 
-  const finalBankDeg = /** @type {any} */ (options)?.bankDeg ?? 30;
-  const hkBankDeg = finalBankDeg;
-  const hkTasKt = iasToTasKt(125, 4500);
-  const hkTasFtps = ktToFtps(hkTasKt);
-  const hkOmega = (g * Math.tan((hkBankDeg * Math.PI) / 180)) / Math.max(1, hkTasFtps);
-  const hkDiameterFt = (2 * hkTasFtps) / hkOmega;
+    // Angle from circle center to aircraft position on circle:
+    // Starts at bearing 028° (threshold), rotates counter-clockwise (left turn)
+    const posAngleDeg = (28 - turnDeg + 360) % 360;
+    const radPos = (posAngleDeg * Math.PI) / 180;
 
-  // Stabilized wings-level final approach rollout gate 4,000 ft upstream of threshold at 2,400 ft MSL
-  const dFinalFt = 4000;
-  const rolloutPt = {
-    x: th.x + dFinalFt * uUpstreamX,
-    y: th.y + dFinalFt * uUpstreamY,
-    alt: 2400,
-    headingDeg: rwyHeadingDeg,
-  };
+    // Position on circle in calm air
+    const calmX = cxFt + radiusFt * Math.sin(radPos);
+    const calmY = cyFt + radiusFt * Math.cos(radPos);
 
-  const ftTasKt = iasToTasKt(120, 3100);
-  const ftTasFtps = ktToFtps(ftTasKt);
-  const ftOmega = (g * Math.tan((finalBankDeg * Math.PI) / 180)) / Math.max(1, ftTasFtps);
-  const finalTurnSec = Math.PI / ftOmega;
+    // Flown track heading (tangent to circle pointing counter-clockwise):
+    const trackHdgDeg = ((rwyHeadingDeg - turnDeg) % 360 + 360) % 360;
 
-  const finalShiftX = -wx * finalTurnSec;
-  const finalShiftY = -wy * finalTurnSec;
+    // Altitude descent schedule:
+    // High Key (5,000') -> Low Key (3,700') at u=0.5 -> Base Key (2,900') at u=0.75 -> Threshold (1,892') at u=1.0
+    let alt;
+    if (u <= 0.5) {
+      alt = Math.round(5000 - (5000 - 3700) * (u / 0.5));
+    } else if (u <= 0.75) {
+      alt = Math.round(3700 - (3700 - 2900) * ((u - 0.5) / 0.25));
+    } else {
+      alt = Math.round(2900 - (2900 - 1892) * ((u - 0.75) / 0.25));
+    }
 
-  // Downwind lateral offset matches High Key rollout diameter so downwind leg is parallel to runway (118° true)
-  const lowKey = {
-    x: rolloutPt.x + hkDiameterFt * nLeftX + finalShiftX,
-    y: rolloutPt.y + hkDiameterFt * nLeftY + finalShiftY,
-    alt: 3700,
-  };
+    // Airspeed schedule:
+    // 125 KIAS (High Key) -> 120 KIAS (Low Key & Base Key) -> 100 KIAS (Threshold flare)
+    let kt;
+    if (u <= 0.5) {
+      kt = Math.round(125 - 5 * (u / 0.5));
+    } else if (u <= 0.75) {
+      kt = 120;
+    } else {
+      kt = Math.round(120 - 20 * ((u - 0.75) / 0.25));
+    }
 
-  // High Key start (directly over threshold at 5,000 ft MSL):
-  const highKeyPt = pts.find((p) => p.tag === 'high_key' || /high\s*key/i.test(p.label) || (p.alt ?? 0) >= 4800) ?? th;
-  let curX = highKeyPt.x;
-  let curY = highKeyPt.y;
+    // Phase and semantic tags:
+    let phase = 'pfl_high_key';
+    let tag = 'high_key';
+    let src = 0;
+    if (u === 0) {
+      phase = 'pfl_high_key';
+      tag = 'high_key';
+      src = 0;
+    } else if (u < 0.5) {
+      phase = 'pfl_high_key';
+      tag = 'high_key';
+      src = 0;
+    } else if (u === 0.5 || (u >= 0.48 && u <= 0.52)) {
+      phase = 'pfl_low_key';
+      tag = 'low_key';
+      src = 1;
+    } else if (u < 0.75) {
+      phase = 'pfl_base_key';
+      tag = 'base_key';
+      src = 2;
+    } else if (u === 0.75) {
+      phase = 'pfl_base_key';
+      tag = 'base_key';
+      src = 2;
+    } else if (u < 1.0) {
+      phase = 'pfl_final';
+      tag = 'final';
+      src = 3;
+    } else {
+      phase = 'pfl_final';
+      tag = 'threshold';
+      src = 3;
+    }
 
-  // Segment 1: High Key Turn (5,000 ft -> 3,700 ft, 125 KIAS -> 120 KIAS)
+    // Wind crab angle calculation
+    const tasKt = iasToTasKt(kt, alt);
+    const wt = windTriangle(trackHdgDeg, tasKt, windFromDeg, windKt);
+    const headingDeg = wt.canHoldTrack ? wt.headingDeg : trackHdgDeg;
 
-  const wtTh = windTriangle(rwyHeadingDeg, hkTasKt, windFromDeg, windKt);
-  let curHeadingDeg = wtTh.canHoldTrack ? wtTh.headingDeg : rwyHeadingDeg;
+    // Configuration schedule:
+    // Clean (High Key) -> Gear Down (Low Key) -> Landing Flaps (Base Key & Final)
+    let config = 'clean';
+    if (u >= 0.5 && u < 0.75) config = 'gearDown';
+    else if (u >= 0.75) config = 'landing';
 
-  let turnAccum = 0;
-  const maxHkTurn = 180;
+    // Nominal coordinated bank for 0.5 NM radius circle at 120 kt is ~25°–30° (1.15 G)
+    const bankDeg = (u === 0 || u === 1.0) ? 0 : 30;
+    const g = (u === 0 || u === 1.0) ? 1.0 : 1.15;
 
-  const hkTrack = [];
-  hkTrack.push({
-    x: curX,
-    y: curY,
-    alt: 5000,
-    kt: 125,
-    g: 1.0,
-    src: 0,
-    phase: 'pfl_high_key',
-    headingDeg: curHeadingDeg,
-    tag: 'high_key',
-  });
-
-  while (turnAccum < maxHkTurn) {
-    const dTurn = Math.min((hkOmega * dt * 180) / Math.PI, maxHkTurn - turnAccum);
-    turnAccum += dTurn;
-    curHeadingDeg = (curHeadingDeg - dTurn + 360) % 360;
-
-    const u = turnAccum / maxHkTurn;
-    const curKt = 125 - (125 - 120) * u;
-
-    const hdgRad = (curHeadingDeg * Math.PI) / 180;
-    const vx = hkTasFtps * Math.sin(hdgRad) + wx;
-    const vy = hkTasFtps * Math.cos(hdgRad) + wy;
-    curX += vx * dt;
-    curY += vy * dt;
-
-    hkTrack.push({
-      x: curX,
-      y: curY,
-      alt: 5000, // Assigned via cumulative distance below
-      kt: Math.round(curKt),
-      g: 1.15,
-      src: 0,
-      phase: 'pfl_high_key',
-      headingDeg: curHeadingDeg,
-      tag: 'high_key',
-    });
-  }
-
-  // Segment 2: Downwind Leg (Rollout to Low Key)
-  const dwDist = Math.hypot(lowKey.x - curX, lowKey.y - curY);
-  const dwSteps = Math.max(5, Math.ceil(dwDist / 1000));
-  const dwStartX = curX;
-  const dwStartY = curY;
-  const dwTrackRad = Math.atan2(lowKey.x - dwStartX, lowKey.y - dwStartY);
-  const dwTrackDeg = (dwTrackRad * 180 / Math.PI + 360) % 360;
-
-  const wtDw = windTriangle(dwTrackDeg, 120, windFromDeg, windKt);
-  const dwHdgDeg = wtDw.canHoldTrack ? wtDw.headingDeg : dwTrackDeg;
-
-  const dwTrack = [];
-  for (let k = 1; k <= dwSteps; k++) {
-    const u = k / dwSteps;
-    dwTrack.push({
-      x: dwStartX + (lowKey.x - dwStartX) * u,
-      y: dwStartY + (lowKey.y - dwStartY) * u,
-      alt: 3700, // Assigned via cumulative distance below
-      kt: 120,
-      g: 1.0,
-      src: 1,
-      phase: 'pfl_low_key',
-      headingDeg: dwHdgDeg,
-      tag: k === dwSteps ? 'low_key' : 'downwind',
-    });
-  }
-
-  // Smooth, continuous altitude assignment from High Key (5,000 ft) to Low Key (3,700 ft)
-  const hkToLkPts = [...hkTrack, ...dwTrack];
-  let totalHkToLkDist = 0;
-  const distArr = [0];
-  for (let i = 1; i < hkToLkPts.length; i++) {
-    const stepD = Math.hypot(hkToLkPts[i].x - hkToLkPts[i - 1].x, hkToLkPts[i].y - hkToLkPts[i - 1].y);
-    totalHkToLkDist += stepD;
-    distArr.push(totalHkToLkDist);
-  }
-
-  for (let i = 0; i < hkToLkPts.length; i++) {
-    const u = totalHkToLkDist > 0 ? distArr[i] / totalHkToLkDist : i / (hkToLkPts.length - 1);
-    hkToLkPts[i].alt = Math.round(5000 - (5000 - 3700) * u);
-  }
-  track.push(...hkToLkPts);
-
-  // Segment 3: Descending Final Turn (Low Key to Final Approach)
-  curX = lowKey.x;
-  curY = lowKey.y;
-
-  const wtLk = windTriangle(dwTrackDeg, ftTasKt, windFromDeg, windKt);
-  const entryHeadingDeg = wtLk.canHoldTrack ? wtLk.headingDeg : dwTrackDeg;
-
-  const wtFinal = windTriangle(rwyHeadingDeg, ftTasKt, windFromDeg, windKt);
-  const exitHeadingDeg = wtFinal.canHoldTrack ? wtFinal.headingDeg : rwyHeadingDeg;
-
-  let totalTurnDeg = ((entryHeadingDeg - exitHeadingDeg + 360) % 360);
-  if (totalTurnDeg < 30) totalTurnDeg += 360;
-
-  curHeadingDeg = entryHeadingDeg;
-  let ftTurnAccum = 0;
-
-  while (ftTurnAccum < totalTurnDeg) {
-    const u = ftTurnAccum / totalTurnDeg;
-    let bDeg = finalBankDeg;
-    if (u < 0.15) bDeg = finalBankDeg * Math.sin((u / 0.15) * (Math.PI / 2));
-    else if (u > 0.85) bDeg = finalBankDeg * Math.sin(((1 - u) / 0.15) * (Math.PI / 2));
-    const bRad = (Math.max(5, bDeg) * Math.PI) / 180;
-    const curOmega = (g * Math.tan(bRad)) / Math.max(1, ftTasFtps);
-    const dTurn = Math.min((curOmega * dt * 180) / Math.PI, totalTurnDeg - ftTurnAccum);
-
-    ftTurnAccum += dTurn;
-    curHeadingDeg = (curHeadingDeg - dTurn + 360) % 360;
-
-    // Authentic continuous descent: 3,700 ft (Low Key) -> 3,000 ft (Base Key at u=0.5) -> 2,400 ft (Final Rollout)
-    const curAlt = 3700 - (3700 - 2400) * u;
-    const hdgRad = (curHeadingDeg * Math.PI) / 180;
-    const vx = ftTasFtps * Math.sin(hdgRad) + wx;
-    const vy = ftTasFtps * Math.cos(hdgRad) + wy;
-    curX += vx * dt;
-    curY += vy * dt;
-
-    const currentG = 1 / Math.cos((bDeg * Math.PI) / 180);
-    const isRollout = ftTurnAccum >= totalTurnDeg;
-
-    // Clamp rollout point exactly to extended centerline gate
-    const ptX = isRollout ? rolloutPt.x : curX;
-    const ptY = isRollout ? rolloutPt.y : curY;
+    // Coordinates: clamped exactly to threshold at end
+    const x = (k === totalSteps) ? th.x : Math.round(calmX * 10) / 10;
+    const y = (k === totalSteps) ? th.y : Math.round(calmY * 10) / 10;
 
     track.push({
-      x: ptX,
-      y: ptY,
-      alt: Math.round(curAlt),
-      kt: 120,
-      g: Number(currentG.toFixed(2)),
-      src: isRollout ? 3 : 2,
-      phase: isRollout ? 'pfl_final' : 'pfl_base_key',
-      headingDeg: isRollout ? exitHeadingDeg : curHeadingDeg,
-      tag: isRollout ? 'final' : 'base_key',
-    });
-  }
-
-  // Segment 4: Final Approach straight-in along extended centerline to Threshold (2,400 ft -> 1,892 ft MSL)
-  const finalDist = Math.hypot(th.x - rolloutPt.x, th.y - rolloutPt.y);
-  const finalSteps = Math.max(10, Math.ceil(finalDist / 1000));
-  const startAlt = track.at(-1)?.alt ?? 2400;
-
-  for (let k = 1; k <= finalSteps; k++) {
-    const u = k / finalSteps;
-    const kt = Math.round(120 - 20 * u);
-    const alt = Math.round(startAlt - (startAlt - 1892) * u);
-    track.push({
-      x: rolloutPt.x + (th.x - rolloutPt.x) * u,
-      y: rolloutPt.y + (th.y - rolloutPt.y) * u,
+      x,
+      y,
       alt,
       kt,
-      g: 1.0,
-      src: 3,
-      phase: 'pfl_final',
-      headingDeg: exitHeadingDeg,
-      tag: k === finalSteps ? 'threshold' : 'final',
+      kias: kt,
+      headingDeg,
+      bankDeg,
+      g,
+      src,
+      phase,
+      tag,
+      config,
     });
   }
 
-  // The drag-adaptive spiral: clean at High Key, gear down at Low Key, landing flaps from Base Key to the threshold.
-  const PFL_CONFIG = { pfl_high_key: 'clean', pfl_low_key: 'gearDown', pfl_base_key: 'landing', pfl_final: 'landing' };
-  for (const p of track) p.config = PFL_CONFIG[p.phase] ?? 'clean';
+  // Ensure semantic tags exist on key indices for lookup helpers
+  if (!track.some(p => p.tag === 'low_key')) track[Math.round(totalSteps * 0.5)].tag = 'low_key';
+  if (!track.some(p => p.tag === 'base_key')) track[Math.round(totalSteps * 0.75)].tag = 'base_key';
 
   return track;
 }

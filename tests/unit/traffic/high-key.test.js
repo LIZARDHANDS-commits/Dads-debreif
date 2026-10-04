@@ -24,6 +24,7 @@ import {
   calcHighKeyTargetSpeed,
   calcHighKeyIntercept,
   buildHighKeyApproachRail,
+  buildFullHighKeyRail,
   stepHighKey,
 } from '../../../src/modules/traffic/high-key.js';
 import { initAircraftState, stepAircraft } from '../../../src/modules/traffic/flight-engine.js';
@@ -520,5 +521,68 @@ test('High Key PFL Rail Integrity: Transition instantiates full 360° spiral (hi
   const distToTh = Math.hypot(3104 - lastPoint.x, -3194 - lastPoint.y);
   assert.ok(distToTh <= 50, `Terminal point must touch down at runway threshold, got dist=${distToTh.toFixed(1)} ft`);
 });
+
+// ── 5. UNIFIED HIGH KEY KINEMATIC RAIL TESTS ──────────────────────────────────
+test('buildFullHighKeyRail stitches powered approach and 360° PFL spiral with zero coordinate snap (<25 ft/step)', () => {
+  const ac = {
+    x: 0,
+    y: 0,
+    alt: 2400,
+    headingDeg: 298,
+    iasKt: 140,
+    bankDeg: 0,
+  };
+  const env = { windFromDeg: 310, windKt: 12 };
+
+  const fullRail = buildFullHighKeyRail(ac, env);
+  assert.ok(fullRail.length > 50, 'Full rail must contain approach + spiral waypoints');
+  assert.equal(fullRail.routeId, 'PFL_HIGH_KEY');
+  assert.equal(fullRail.id, 'PFL_RAIL');
+  assert.equal(fullRail.classification, 'high_key');
+
+  // Find High Key threshold waypoint
+  const hkIdx = fullRail.findIndex((p) => p.tag === 'high_key');
+  assert.ok(hkIdx > 0, 'Must have high_key waypoint in rail');
+
+  // Verify all waypoints prior to High Key have engine running (engineFailed: false)
+  for (let i = 0; i < hkIdx; i++) {
+    assert.equal(fullRail[i].engineFailed, false, `wp[${i}] before High Key must have engineFailed=false`);
+  }
+
+  // Verify High Key threshold waypoint state
+  const hkWp = fullRail[hkIdx];
+  assert.equal(hkWp.alt, 5000);
+  assert.ok(Math.abs(hkWp.kt - 120) <= 1.0, `High Key speed should be 120 KIAS, got ${hkWp.kt}`);
+
+  // Invariant Guard: Zero coordinate snapping (< 25 ft/step) across the ENTIRE rail
+  for (let i = 1; i < fullRail.length; i++) {
+    const p0 = fullRail[i - 1];
+    const p1 = fullRail[i];
+    const d = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    assert.ok(d < 25, `Step distance ${d.toFixed(1)} ft between ${i - 1} and ${i} must be < 25 ft`);
+  }
+
+  // Verify terminal landing at 1,892 ft MSL
+  const lastWp = fullRail[fullRail.length - 1];
+  assert.equal(lastWp.alt, 1892);
+});
+
+test('buildFullHighKeyRail latches directly onto spiral when already near High Key', () => {
+  const ac = {
+    x: HIGH_KEY_PT.x + 200,
+    y: HIGH_KEY_PT.y - 150,
+    alt: 4900,
+    headingDeg: 298,
+    iasKt: 120,
+    bankDeg: 0,
+  };
+  const env = { windFromDeg: 310, windKt: 10 };
+
+  const rail = buildFullHighKeyRail(ac, env);
+  assert.equal(rail.classification, 'high_key');
+  assert.equal(rail[0].phase, 'pfl_high_key');
+  assert.equal(rail[0].tag, 'high_key');
+});
+
 
 

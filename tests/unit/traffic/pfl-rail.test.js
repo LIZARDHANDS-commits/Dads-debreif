@@ -67,11 +67,11 @@ test('PFL Rail Invariant: zero coordinate snapping (<25 ft/frame) across entire 
 
 test('PFL Rail Invariant: zero coordinate snapping (<25 ft/frame) across Low Key rail', () => {
   const aircraft = {
-    x: 2000,
-    y: -6500,
+    x: 532,
+    y: -6000,
     alt: 4000,
-    kias: 140,
-    headingDeg: 120,
+    kias: 120,
+    headingDeg: 118,
   };
   const env = { windFromDeg: 360, windKt: 15 };
 
