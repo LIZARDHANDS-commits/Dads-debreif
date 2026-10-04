@@ -150,11 +150,11 @@ After Traffic is signed off, the Turn Sim review runs before any Turn Sim buildi
 
 ## Waiting on Patrick
 
-The one list. Each line is a question; the working answer applies until he says otherwise (`AGENTS.md:103`). Updated 4 Oct 2026, 21:10Z.
+The one list. Each line is a question; the working answer applies until he says otherwise (`AGENTS.md:103`). Updated 4 Oct 2026, 21:35Z.
 
 - [ ] **Live site: public, or private with GitHub Pro.** Patrick's choice: pending (`pf/reset/6-plan-and-rules/ask-rows.md:17`).
 - [ ] **See Traffic and the PFL on screen** (DADS v2.10.30) from the default start: the Busy circuit, the refactored flying, the move-over, Spawn a conflict, the PFL from downwind, base and upwind, the High Key button, an area PFL at 8,000 ft, calm and 20 kt, and the step 5 quick items (Remove, ground speed and crab, Harvard only, 11R hidden) ([Traffic plan](modules/traffic/plan.md) Steps 1 and 2; spec 1a "Check on screen").
-- [ ] **See Pat's Fight and Turn Sim on screen** (v2.15): the Smart pilot and the OVERSPEED and BELOW DECK flags from the default start; and the new Energy wording in its sign-off checklist, which the Fight Sim thread is drafting for Patrick ([Turn Fight testing](modules/turn-fight/testing.md)).
+- [ ] **See Pat's Fight and Turn Sim on screen** (v2.15): the Smart pilot and the OVERSPEED and BELOW DECK flags from the default start, against the Energy section of its sign-off checklist (wording approved, #343; [Turn Fight testing](modules/turn-fight/testing.md)).
 - [ ] **Fly Pat's Formation Simulator** (V2.16) from the default start: every 2-ship and 4-ship button, Change formation, G-warm, the training errors, the hot turning rejoin, turns in every formation, the station changes, the fit-all camera, the clock lines and the info tags, against the checklists in [turn-sim testing](modules/turn-sim/testing.md). The estimates and source conflicts to confirm while flying, and whether to retire the plan-mode code (Step 3 of the [Turn Sim plan](modules/turn-sim/plan.md)), are listed in [the Turn Sim README](modules/turn-sim/README.md), "Waiting on Patrick now".
 - [ ] **4-ship fighting wing, #3 and #4 sweep:** 60° (SMM 16.38 para 104) or 30° as built. Card open in the Formation Sim thread.
 - [ ] **DB-Q4:** no smoothing of the estimated G (D219) or a 3-point median filter (D383); neither is built (`pf/reset/1-requirements/questions.md:17`, `docs/modules/debrief/plan.md:37`).
