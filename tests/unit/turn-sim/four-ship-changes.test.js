@@ -145,8 +145,8 @@ function wrongs(key, aircraft, s, spacingFt = SPACING_FT) {
   return out;
 }
 
-/** Flies until nothing is flown or queued, checking what is always true on every step. Returns what it saw. */
-function fly(f, label) {
+/** Flies until nothing is flown or queued, checking what is always true on every step; each(before, after) adds a press's own checks. */
+function fly(f, label, each = () => {}) {
   const t0 = f.state.tSec;
   let before = f.state.aircraft.map((a) => ({ ...a }));
   let minApartFt = Infinity;
@@ -166,6 +166,7 @@ function fly(f, label) {
     for (let i = 0; i < after.length; i++) for (let j = i + 1; j < after.length; j++) {
       minApartFt = Math.min(minApartFt, Math.hypot(after[i].xFt - after[j].xFt, after[i].yFt - after[j].yFt, after[i].altAboveFt - after[j].altAboveFt));
     }
+    each(before, after);
     before = after;
     assert.ok(f.state.tSec - t0 <= CATCH_SEC, `${label}: the change finished`);
   }
@@ -243,7 +244,40 @@ test('4-ship: a press that cannot be flown is refused with nothing moved, and a 
   assert.equal(f.change('finger'), 'queued');
   fly(f, 'fighting wing then finger');
   assert.deepEqual(wrongs('finger', f.state.aircraft, -1), []);
-  // The manoeuvre buttons fly from Spread 4: in finger they are refused, and the four stay put.
-  assert.equal(f.press('hook', 1), 'refused');
+  // G-warm flies from Spread 4 only: in finger it is refused, and the four stay put. (The turn buttons fly in finger
+  // now, Patrick 18:11Z: tested below.)
+  assert.equal(f.press('gWarm'), 'refused');
   assert.equal(f.state.current, null);
+});
+
+test('4-ship: the turn buttons turn every formation, each wingman rolling with Lead in his wing plane, and the four end in the formation they started in', () => {
+  // Patrick 18:11Z: "do turns in any of these formations"; spec section 10.2. In the close formations each wingman rolls
+  // with Lead (bank within the shared ±5°) and, once Lead has held his bank 5 s (the 3 s plane lag of TS-55, an estimate,
+  // plus 2 s), a wingman more than a wingspan out to the side is stepped up on the outside and down on the inside (SMM 12.19
+  // paras 41-43, Fig 12.11; 16.36 paras 99-102). In fighting wing each stays in his band and ends there (AFM7 brief p.14).
+  for (const form of ['finger', 'echelon', 'box', 'trail', 'route', 'fw']) {
+    for (const [key, dir] of [['delayed90', 1], ['hook', -1]]) {
+      const f = createFormation({ ships: 4, wingSide: 'right' });
+      changeTo(f, 'fw', {}, -1);
+      if (form !== 'fw') changeTo(f, form, {}, form === 'trail' ? 0 : -1);
+      const what = `${form}, ${key} ${dir > 0 ? 'left' : 'right'}`;
+      assert.equal(f.press(key, dir), 'started', `${what}: ${f.state.refusal ?? ''}`);
+      let heldSec = 0;
+      fly(f, what, (_b, after) => {
+        if (form === 'fw') return;
+        const L = after[0];
+        heldSec = Math.abs(L.bankDeg) >= 25 && Math.abs(L.rollRateDps) < 0.5 ? heldSec + STEP_SEC : 0;
+        for (const w of after.slice(1)) {
+          assert.ok(Math.abs(w.bankDeg - L.bankDeg) <= 5, `${what}: #${w.id} not rolling with Lead`);
+          const l = link(L, w);
+          if (heldSec >= 5 && l.across > WINGSPAN_FT) {
+            const inside = l.side === Math.sign(L.bankDeg);
+            const up = w.altAboveFt - L.altAboveFt;
+            assert.ok(inside ? up < 0 : up > 0, `${what}: #${w.id} should be stepped ${inside ? 'down (inside)' : 'up (outside)'}, is ${up.toFixed(0)} ft`);
+          }
+        }
+      });
+      assert.deepEqual(wrongs(form, f.state.aircraft, form === 'trail' ? 0 : -1), [], `${what} ends in ${form}`);
+    }
+  }
 });

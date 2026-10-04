@@ -142,7 +142,7 @@ test('in a rejoin #2 stays below Lead once inside 2,000 ft, and never goes ahead
   }
 });
 
-test('a press while a change is flying is queued and flown the moment it ends; the manoeuvres fly in line abreast only', () => {
+test('a press while a change is flying is queued and flown the moment it ends; the line abreast manoeuvres fly in line abreast only', () => {
   const f = createFormation();
   assert.equal(f.change('fw'), 'started');
   assert.equal(f.change('route'), 'queued');
@@ -152,8 +152,9 @@ test('a press while a change is flying is queued and flown the moment it ends; t
   });
   assert.ok(sawSecond, 'the queued change was flown');
   assert.ok(inBand('route', ...f.state.aircraft), 'and ended in route');
-  // In route a manoeuvre is refused (and nothing changes); change back to line abreast and it is flown again.
-  assert.equal(f.press('delayed90', 1), 'refused');
+  // In route a line abreast manoeuvre (the shackle) is refused, and nothing changes; change back to line abreast and it
+  // is flown again. The turn buttons do fly in route now (Patrick 18:11Z, spec section 10.2), tested in formation-moves.
+  assert.equal(f.press('shackle', 1), 'refused');
   f.change('lab');
   fly(f);
   assert.equal(f.press('check', 1), 'started');

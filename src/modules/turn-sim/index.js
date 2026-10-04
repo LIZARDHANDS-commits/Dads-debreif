@@ -22,7 +22,7 @@ import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
 import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/transitions.js';
-import { FW_TURN_KEYS } from './live/formation-turns.js';
+import { FW_TURN_KEYS, TURN_FORMATIONS } from './live/formation-turns.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
 import { createTurnSimView } from './view.js';
@@ -250,16 +250,18 @@ function mount(root, app) {
     const whereAll = formation.where();
     changeUi.update(state, whereAll);
     changeUi.renderCard(state, whereAll);
-    if (state.aircraft.length === 2) {
-      const where = whereAll;
-      // The manoeuvres are line abreast moves; in fighting wing the turn buttons turn the formation (TS-55).
-      if (where.key === 'fw') ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
-      else ui.setMovesEnabled(!['echelon', 'route', 'astern'].includes(where.key));
+    const ships = state.aircraft.length > 2 ? 4 : 2;
+    if (TURN_FORMATIONS[ships].includes(whereAll.key)) {
+      // In fighting wing and the close formations the turn buttons turn the formation (TS-55, spec section 10.2); the
+      // shackle, the cross turn and G-warm stay line abreast moves.
+      ui.setMovesEnabled(true, (key) => FW_TURN_KEYS.includes(key));
+    } else if (ships === 2) {
+      ui.setMovesEnabled(true);
     } else {
       // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
       const where = whereAll.key;
       const lineAbreast = where === 'spread4' || where === 'other';
-      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4. Change to Spread 4 first.');
+      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4, fighting wing and the close formations. Change formation first.');
     }
   }
   function queueCard() {
