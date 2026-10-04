@@ -301,6 +301,18 @@ function neededFt(path, seg, pos, altFt, cfgNow, wind, takeNext = false, stopAtK
   return need;
 }
 
+/** Feet still to fly along the path from a projection to the first point with `key` (all of it if there is none). */
+function pathFtTo(path, proj, key) {
+  let ft = 0;
+  let a = proj.pt;
+  for (let i = proj.seg + 1; i < path.length; i++) {
+    ft += dist(a, path[i]);
+    if (path[i].key === key) break;
+    a = path[i];
+  }
+  return ft;
+}
+
 /** Height worth trading from speed, ft: (V² − V₈₀²) ÷ 2g in true airspeed. */
 function speedTradeFt(kias, altFt) {
   const v = ktToFtps(iasToTasKt(kias, altFt));
@@ -550,8 +562,8 @@ export function flyPfl(start, wind = { windFromDeg: 360, windKt: 0 }, options = 
       if (state === 'slow' && s.ias <= PFL.glideCleanKias + 0.5) state = 'glide';
       // Going direct and short: trade speed late, down to 80 KIAS (spec 4.5 item 10).
       if (plan.kind === 'direct' && margin < 0) {
-        const toTd = dist(s, geo.along(plan.aimAlongFt ?? geo.aimAlongFt));
-        if (toTd < 6076) {
+        // Distance still to fly along the path, not straight-line: going direct it may first fly past the runway and turn back.
+        if (pathFtTo(path, proj, 'aim') < 6076) {
           // The speed whose kinetic energy covers the deficit: V² − 2g × deficit (true airspeed), no slower than 80 KIAS.
           const v2 = tas * tas - 2 * G_FTPS2 * -margin;
           const vKt = Math.sqrt(Math.max(v2, 0)) / KT_TO_FTPS;
