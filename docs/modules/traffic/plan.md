@@ -85,8 +85,10 @@ Screen changes only: nothing in `src/core`, and no default, range or flying beha
 - [x] The Moose Jaw routes are named as pilots call them: Pattern 1 is "Overhead break", Entry 1 "OHB Rejoin", Entry 2 "SI Rejoin". DADS v2.10.31.
 - [x] One "Scenario: Busy circuit" drop-down at the top of the left column replaces the six scenario buttons; it shows the scenario loaded (Busy circuit by default), a line saying what it is, and a "New picture" button for Busy circuit and Random. DADS v2.10.32.
 - [x] "Scenarios and notes" (saved setups with Save, Load, Delete and notes) is off the screen (Patrick, 4 Oct: "I don't think we need scenarios and notes, just a drop down for pre-made scenarios"). The tool always opens on the built-in Moose Jaw. The code stays until Patrick says; the feature is on the Traffic future list. DADS v2.10.32.
-- [ ] TR-R25 (save, load and delete a setup) needs its wording changed to match; waiting on Patrick's yes to the wording.
+- [x] TR-R25 reworded to match (Patrick's yes to the wording, 4 Oct); saving and loading scenarios is on the Traffic future list.
 - [x] The aircraft spawner stays at the top of the right column (Patrick, 4 Oct).
+- [x] "Routes on the map" also shows or hides the PFL circle; its row is the Layers menu's "PFL ground circle" switch, so the two agree (Patrick, 4 Oct). DADS v2.10.33.
+- [x] The route rows carry the name only, no second label ("pattern", "→ Overhead break P1"); "Hidden" shows beside a route that is off the map (Patrick, 4 Oct). DADS v2.10.33.
 
 ## Step 6. Check the camera, graphics and scenery work against the code
 

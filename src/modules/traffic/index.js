@@ -186,13 +186,26 @@ function mount(root, app) {
     redraw();
   }
 
+  // The PFL circle has a row in "Routes on the map" too (Patrick, 4 Oct). It is the Layers menu's "PFL ground
+  // circle" switch (layerPflCircle), so the row and the menu always agree. Colour as map2d draws it.
+  const PFL_CIRCLE_ROW = 'pfl-circle';
+  const pflCircleRow = () => ({ id: PFL_CIRCLE_ROW, name: 'PFL circle', kind: 'pfl', color: '#ff9bce', visible: settings.get().layerPflCircle !== false });
+  let shownPflCircle = null;
+
   function showRoutes() {
     const listed = setup.routes.filter((r) => r.kind !== 'split');
-    ui.setRoutes(routeRows(listed));
+    const rows = routeRows(listed);
+    rows.push(pflCircleRow());
+    shownPflCircle = settings.get().layerPflCircle !== false;
+    ui.setRoutes(rows);
   }
 
   /** A route's row was pressed: its line shows or hides on the map (Patrick, 4 Oct). Only the picture changes; the aircraft on it fly on. */
   function toggleRoute(id) {
+    if (id === PFL_CIRCLE_ROW) {
+      settings.update({ layerPflCircle: settings.get().layerPflCircle === false }); // the subscriber redraws and updates the row
+      return;
+    }
     const route = setup.routes.find((r) => r.id === id);
     if (!route || route.kind === 'split') return;
     route.visible = route.visible === false;
@@ -353,6 +366,7 @@ function mount(root, app) {
     clock.setSpeed(values.speed);
     bar.setState({ speed: values.speed });
     if (values.view !== wantView) applyView(values.view);
+    if ((values.layerPflCircle !== false) !== shownPflCircle) showRoutes(); // the Layers menu switched the PFL circle
     changed();
   });
 

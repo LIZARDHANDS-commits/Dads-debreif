@@ -80,15 +80,15 @@ test('at first no route is picked: the left column shows only the routes list', 
   for (const slot of Object.values(ui.slots)) assert.equal(slot.childNodes.length, 0, 'the slots start empty');
 });
 
-test('the routes list has one line per route: its name and where it joins, or its kind', () => {
+test('the routes list has one line per route: its name only, with "Hidden" beside it when it is off the map', () => {
   const { ui } = setup();
   ui.setRoutes(ROUTES);
   const rows = withClass(ui.element, 'route-row');
   assert.deepEqual(rows.map((row) => withClass(row, 'route-name')[0].textContent), ['Pattern 1', 'Entry 1', 'Split 1']);
-  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['pattern', '→ Pattern 1 P8', 'P6 → P1']);
+  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['', '', '']);
   assert.equal(one(ui.element, 'route-empty').hidden, true);
-  assert.equal(routeDetail(ROUTES[1]), '→ Pattern 1 P8');
-  assert.equal(routeDetail({ kind: 'split' }), 'split');
+  assert.equal(routeDetail(ROUTES[1]), '');
+  assert.equal(routeDetail({ ...ROUTES[1], visible: false }), 'Hidden');
 });
 
 test('each route shows its colour and its line style, so it is told apart by more than colour', () => {
@@ -105,7 +105,7 @@ test('a route row is pressed while its route shows on the map; a hidden one is n
   ui.setRoutes([ROUTES[0], { ...ROUTES[1], visible: false }, ROUTES[2]]);
   const rows = withClass(ui.element, 'route-row');
   assert.deepEqual(rows.map((r) => r.getAttribute('aria-pressed')), ['true', 'false', 'true']);
-  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['pattern', 'Hidden', 'P6 → P1']);
+  assert.deepEqual(rows.map((row) => withClass(row, 'route-detail')[0].textContent), ['', 'Hidden', '']);
   assert.equal(rows[0].getAttribute('title'), 'Hide Pattern 1 on the map');
   assert.equal(rows[1].getAttribute('title'), 'Show Entry 1 on the map');
 });

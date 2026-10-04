@@ -20,8 +20,8 @@ export const SIMPLIFIED_NOTE = 'Simplified: aircraft fly their routes at set spe
 export const NEW_ROUTE_CHOICES = Object.freeze([]);
 export const newRouteChoices = () => NEW_ROUTE_CHOICES;
 
-/** The second line of a route's row: "Hidden" when it is off the map, else where it joins ("→ Overhead break P8", "P6 → P1"), or its kind. */
-export const routeDetail = (row) => (row.visible === false ? 'Hidden' : row.link || row.kind);
+/** The words beside a route's name: "Hidden" when it is off the map, else nothing; the name says what it is (Patrick, 4 Oct). */
+export const routeDetail = (row) => (row.visible === false ? 'Hidden' : '');
 
 /**
  * bar: the playback bar (playback-bar.js). listen: app.listen.
