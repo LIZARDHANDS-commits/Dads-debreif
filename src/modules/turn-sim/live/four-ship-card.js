@@ -15,9 +15,11 @@ export function cardForFour(state, wingSide) {
   const c = state.current;
   let flying = `Spread 4 on ${String(compassDeg(lead.headingRad)).padStart(3, '0')}, waiting for a button.`;
   if (c) {
-    const sided = MANOEUVRES[c.key].sided;
+    const sided = MANOEUVRES[c.key]?.sided;
     flying = `Flying: ${c.label}${sided ? ` (${intoOrAway(c.dir, wingSide)})` : ''}`;
   }
+  // G-warm: the step being flown and the G it calls for (design section 7).
+  const step = c?.gWarm?.steps.find((st) => state.tSec >= st.t0 && state.tSec < st.t1) ?? null;
 
   const j = state.judged;
   let judged = null;
@@ -29,7 +31,7 @@ export function cardForFour(state, wingSide) {
       return `${s.name} off ${s.refName} ${s.labels.join(', ')} (${numbers})`;
     });
     const good = j.ships.every((s) => s.labels[0] === 'ON SPACING' || s.labels[0] === 'IN TRAIL');
-    judged = { text: `${j.label}: ${words.join('; ')}.`, tone: good ? 'good' : 'caution' };
+    judged = { text: `${j.label}: ${words.join('; ')}.${j.gFlown ? ` ${j.gFlown}` : ''}`, tone: good ? 'good' : 'caution' };
   }
 
   const nowLines = state.aircraft.filter((a) => a.ref != null).map((a) => {
@@ -40,6 +42,8 @@ export function cardForFour(state, wingSide) {
     return `${a.name} off ${ref.name}: ${ftText(across)} abeam, sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'behind' : 'ahead'}`;
   });
   nowLines.push(`Heights above Lead: ${state.aircraft.filter((a) => a.ref != null).map((a) => `${a.name} ${signedFt(a.altAboveFt - lead.altAboveFt)}`).join(', ')} ft`);
+
+  if (step) nowLines.unshift(`G-warm step: ${step.label}`);
 
   return {
     flying,

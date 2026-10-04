@@ -20,6 +20,7 @@ import { createFormation, LIVE_DEFAULTS, checkSpacing, compassDeg, fixedLine, in
 import { ERROR_DEFAULTS, ERROR_ALLOWED, errorCardLines } from './live/errors.js';
 import { FOUR_SHIP_KEYS, fourShipLine } from './live/four-ship.js';
 import { cardForFour } from './live/four-ship-card.js';
+import { G_WARM } from './live/g-warm.js';
 import { rejoinReadout } from './live/transitions.js';
 import { createChangeUi } from './transitions-panel.js';
 import { createLayout, LAYOUT_DEFAULTS, LAYOUT_ALLOWED, LAYOUT_VERSION, SHIP_COLORS } from './layout.js';
@@ -46,6 +47,8 @@ const BUTTONS = ['delayed90', 'delayed45', 'check', 'inPlace90', 'hook', 'shackl
   sided: MANOEUVRES[key].sided,
   ships: FOUR_SHIP_KEYS.includes(key) ? [2, 4] : [2], // the shackle and cross turn are not approved in Spread 4 (SMM 16.43 para 118)
 }));
+// G-warm, from Spread 4 (SMM 16.44 para 120; AFM8 brief p.16): one button, the four-ship's only for now.
+BUTTONS.push({ key: G_WARM.key, label: G_WARM.label, sided: false, ships: [4] });
 
 /** The setup isn't remembered between visits (saved setups are a later step), so it lives in memory. */
 function memoryStore() {
@@ -248,7 +251,12 @@ function mount(root, app) {
       changeUi.update(state, where);
       changeUi.renderCard(state, where);
       ui.setMovesEnabled(!['fw', 'echelon', 'route', 'astern'].includes(where.key)); // the manoeuvres are line abreast only
-    } else ui.setMovesEnabled(true);
+    } else {
+      // The four's manoeuvres fly from Spread 4 (or a column after an in-place turn); G-warm from Spread 4 only.
+      const where = formation.where().key;
+      const lineAbreast = where === 'spread4' || where === 'other';
+      ui.setMovesEnabled(lineAbreast, (key) => key !== G_WARM.key || where === 'spread4', 'These manoeuvres fly in Spread 4. Change to Spread 4 first.');
+    }
   }
   function queueCard() {
     const wait = READOUT_MS - (performance.now() - lastReadout);
