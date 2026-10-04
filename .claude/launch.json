@@ -1,0 +1,16 @@
+{
+  // Starts the app for the desktop app's Browser pane (Ctrl+Shift+B; Ctrl+Shift+S picks an element).
+  // Vite always uses port 5173; if that port is busy it stops with an error instead of moving.
+  "version": "0.0.1",
+  // Off so Claude doesn't screenshot after every edit; turn it on from the server dropdown.
+  "autoVerify": false,
+  "configurations": [
+    {
+      "name": "dads-ooda-loop",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173,
+      "autoPort": false
+    }
+  ]
+}

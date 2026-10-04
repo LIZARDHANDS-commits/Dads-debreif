@@ -48,7 +48,7 @@ The modules are `debrief`, `sof`, `traffic`, `turn-fight`, `turn-sim` and `share
 
 - **Code:** `src/` (one folder per module under `src/modules/`, shared code in `src/core/`, `src/shell/`, `src/wx/` and the other shared folders). **Tests:** `tests/`.
 - **Dad's V6:** `original/`, never edited.
-- **Skills:** one folder, `.agent/skills/`, with `.claude/skills` as a link to it (Patrick, 4 Oct 2026).
+- **Skills:** one folder, `.agent/skills/`, with `.claude/skills` as a link to it (Patrick, 4 Oct 2026). On Windows, the link needs Developer Mode on and `git config core.symlinks true` before checkout; otherwise Claude Code sees no skills.
 - **Outside the repo (private, project files):** the flying manuals, Patrick's session logs and a copy of Dad's V6 file. Never copied into the repo.
 
 ## Citations

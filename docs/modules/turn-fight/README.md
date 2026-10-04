@@ -33,7 +33,6 @@ Each has a working answer that the tool uses until it is settled.
 
 - **The two PC-only reports** (Turn Sim and Turn Fight architecture reports): where in the repo their content lands (`pf/reset/2-inventory/file-register.md:194`).
 - **An on-screen look at the fight** from the default start (Smart pilot, deck rule, top-speed guard, OVERSPEED and BELOW DECK flags; and the look-ahead spread over the steps, v2.15).
-- **The sign-off checklist's Energy section:** new wording posted in the thread 4 Oct for his word-for-word yes; written into `testing.md` only after it.
 
 ### Settled when this module's work resumes
 
