@@ -305,7 +305,7 @@ See 1a, items 15-19 (Patrick, 09:56Z, 4 Oct 2026). Touch-and-go is item 21 and H
 
 ### 4.12 Automatic deconfliction (Patrick, 4 Oct 09:40Z to 11:54Z)
 
-Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), the shared `src/core/closest-approach.js` (the maths, ALL-27), `evade.js` (the flinch, the climb ahead and the straight-in rejoin, flown by the circuit's pilot), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, on at the start (Patrick, 4 Oct 16:59Z, TR-50).
+Design and Patrick's nine answers: project files, `traffic-deconfliction/design.md`. Code: `deconflict.js` (decides), the shared `src/core/closest-approach.js` (the maths, ALL-27), `evade.js` (the flinch, the climb ahead and the straight-in rejoin, flown by the circuit's pilot), `breakout.js` (the breakout, flown the same way), `sim.js` (starts the moves). Setting: Traffic settings > Conflict limits > **Automatic deconfliction**, on at the start (Patrick, 4 Oct 16:59Z, TR-50).
 
 1. Every 0.5 s, from all the aircraft as they were before anyone moved, each aircraft's position is predicted every second for 15 s: along the path it is following, at today's ground speed, or straight on when it flies free.
 2. Nothing happens unless a pair would get inside the caution distance (500 ft and 500 ft, TR-Q11) within 15 s (Q2).
@@ -320,7 +320,7 @@ Design and Patrick's nine answers: project files, `traffic-deconfliction/design.
 6. A tag beside the aircraft says what it is doing, like the PFL tag: `[GIVING WAY: break out]`, `[GIVING WAY: fly-through]`, `[GIVING WAY: go-around]`, `[GIVING WAY: move over]`, `[EVASIVE: flinch]`, `[EVASIVE: bank away]`.
 7. **When data fails:** an aircraft with a non-finite position, height, track or speed is left out of the check for that tick, never an error, and every other pair is still checked. A red that still appears is the honest sign it could not clear it. A rewind replays the same decisions (no dice, the tag is part of the aircraft's saved state).
 8. **Speeds:** predictions use ground speed; the moves fly their own indicated speeds.
-9. **Known limits:** a PFL's bank away moves it off its path without changing its glide (the height and speed stay the planned ones); the flinch and the climb ahead are flown paths, so the deconfliction predicts them, but the breakout after them is still the old physics controller (refactor PR 4), predicted straight on.
+9. **Known limits:** a PFL's bank away moves it off its path without changing its glide (the height and speed stay the planned ones); the flinch, the climb ahead and the breakout after them are all flown paths, so the deconfliction predicts them along the path they will fly (the breakout since 4 Oct, `breakout.js` `buildBreakout`).
 
 ---
 

@@ -125,15 +125,20 @@ test('sim.command breakout completes multi-phase Split 2 exit, south leg, and re
   const ok = sim.command(id, 'breakout');
   assert.equal(ok, true);
 
-  // Flies through breakout climb to 4,500 ft and vectors outbound
-  sim.stepTo(30);
+  // Flies through the breakout climb to 4,500 ft and vectors outbound: checked where it turns back to rejoin, found
+  // by its phase, not at a chosen second (the climb is flown from excess thrust now, Traffic spec 1a item 22).
   let ac = sim.state().aircraft.find((a) => a.id === id);
+  while (sim.t < 200 && ac.phase === 'breakout') {
+    sim.stepTo(sim.t + 0.5);
+    ac = sim.state().aircraft.find((a) => a.id === id);
+  }
   assert.equal(ac.command, 'breakout');
+  assert.equal(ac.phase, 'rejoin', 'turns back to rejoin');
   assert.ok(Math.abs(ac.alt - 4500) <= 100, 'alt ~4500 ft');
   assert.ok(ac.kt > 100, 'speed > 100 kt');
 
   // Progresses southwards along the Split 2 corridor
-  sim.stepTo(100);
+  sim.stepTo(sim.t + 40);
   ac = sim.state().aircraft.find((a) => a.id === id);
   assert.ok(ac.alt > 3000, 'departing and maintaining alt');
 
