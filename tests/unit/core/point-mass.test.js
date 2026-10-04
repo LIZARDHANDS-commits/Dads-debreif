@@ -111,3 +111,13 @@ test('exactly straight up, with no horizontal speed at all: the last up is carri
   assert.ok(Number.isFinite(f.ktas), 'no NaN');
   near(Math.abs(f.headingRad), Math.PI, 1e-9, 'pulling towards its up, the west');
 });
+
+test('the G and bank for a lift vector undo the step\'s lift: 2 G at 60° right bank in level flight comes back as 2 G and 60°', async () => {
+  const { gAndBankForLift } = await import('../../../src/core/point-mass.js');
+  const vHat = { x: 1, y: 0, z: 0 }, up = { x: 0, y: 0, z: 1 };
+  const right = { x: 0, y: -1, z: 0 }; // v × up for a jet flying east
+  const b = Math.PI / 3;
+  const lift = { x: 0, y: 2 * Math.sin(b) * right.y, z: 2 * Math.cos(b) };
+  const { g, bankRad } = gAndBankForLift(lift, vHat, up);
+  assert.ok(Math.abs(g - 2) < 1e-9 && Math.abs(bankRad - b) < 1e-9);
+});

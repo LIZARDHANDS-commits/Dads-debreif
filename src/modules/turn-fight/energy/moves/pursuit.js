@@ -8,6 +8,7 @@ import { DECONFLICTION_OFFSET_FT, energyTopKias, TUNING } from '../setup.js';
 import { dot, len, scale, add, sub, cross, unit, clamp, velOf, posOf } from '../frame.js';
 import { willRoll } from './common.js';
 import { closestApproach, dangerGate, clearanceSide } from '../../../../core/closest-approach.js';
+import { liftTowardAim, gAndBankForLift, turnPlaneNormal as coreTurnPlaneNormal } from '../../../../core/point-mass.js';
 
 /**
  * Curved Control Zone aim point 1,500 ft along the turn circle circumference behind the target.
@@ -120,20 +121,10 @@ function stateOf(ac) {
 // once dodging it holds until the range opens past 800 ft.
 const DANGER = Object.freeze({ soonSec: 3.5, missFt: 120, nearFt: 600, releaseFt: 800 });
 
-/**
- * Defender turn-plane normal vector n_hat (Task 28):
- * In a turn, n_hat is orthogonal to velocity and lift/normal axis (V x up).
- * In straight/wings-level flight, falls back to local vertical {0, 0, 1}.
- */
+/** The other's turn plane (core's turnPlaneNormal): v × up while it turns (more than 1.2 G with a turn direction), else straight up. */
 export function turnPlaneNormal(target) {
   if (!target || !target.pm) return { x: 0, y: 0, z: 1 };
-  if (Math.abs(target.turnDir || 0) > 0.1 && (target.g ?? 1.0) > 1.2) {
-    const up = target.pm.up || { x: 0, y: 0, z: 1 };
-    const n = cross(velOf(target.pm), up);
-    const nl = len(n);
-    return nl > 1e-6 ? scale(n, 1 / nl) : { x: 0, y: 0, z: 1 };
-  }
-  return { x: 0, y: 0, z: 1 };
+  return coreTurnPlaneNormal(velOf(target.pm), target.pm.up, Math.abs(target.turnDir || 0) > 0.1 && (target.g ?? 1.0) > 1.2);
 }
 
 /** Where a chaser aims: the other (pure), a point `leadSec` ahead of it along its path (lead), the curved Control Zone 1,500 ft behind (lag), or continuous dynamic blend (tactical). */
@@ -210,18 +201,8 @@ export function controlPursuit(ctx) {
   if (calc) {
     ac.why = `${calc.label} after first nose-on`;
   }
-  const toAim = sub(aim, posOf(ac.pm));
-  const distance = len(toAim);
-  const weightPerp = sub({ x: 0, y: 0, z: 1 }, scale(vHat, vHat.z)); // the weight's part square to the path
-  // The lift (in G) that carries the weight and turns at the rate the pointing error asks for.
-  let wanted = weightPerp;
-  if (distance > 1e-6) {
-    const u = scale(toAim, 1 / distance);
-    const error = Math.acos(clamp(dot(u, vHat), -1, 1));
-    const toward = sub(u, scale(vHat, dot(u, vHat)));
-    const m = len(toward);
-    if (m > 1e-9) wanted = add(weightPerp, scale(toward, (vFtps * TUNING.chaseGainPerSec * error / G_FTPS2) / m));
-  }
+  // The lift (in G) that carries the weight and turns at the rate the pointing error asks for (core's pursuit lift).
+  const { wanted, weightPerp } = liftTowardAim(vHat, sub(aim, posOf(ac.pm)), vFtps, TUNING.chaseGainPerSec);
   // Axes for the limits: e is up in the vertical plane of the path, s is sideways, both square to the path.
   const cosGamma = Math.sqrt(Math.max(0, 1 - vHat.z * vHat.z));
   const e = cosGamma > 0.02 ? unit(weightPerp) : ac.pm.up;
@@ -275,10 +256,7 @@ export function controlPursuit(ctx) {
       alpha = Math.min(alphaFloor, cap);
       beta = Math.sign(betaWanted) * Math.min(Math.abs(betaWanted), Math.sqrt(Math.max(0, cap * cap - alpha * alpha)));
     }
-    const lift = add(scale(e, alpha), scale(s, beta));
-    const g = len(lift);
-    const rightC = cross(vHat, ac.pm.up);
-    const bankRad = g > 1e-9 ? Math.atan2(dot(lift, rightC) / g, dot(lift, ac.pm.up) / g) : ac.bankRad;
+    const { g, bankRad } = gAndBankForLift(add(scale(e, alpha), scale(s, beta)), vHat, ac.pm.up, ac.bankRad);
     return { g, bankRad, prefer: bankRad >= 0 ? 1 : -1, throttle: 1, cap, guarded };
   };
   let cmd = build(capFor(false));

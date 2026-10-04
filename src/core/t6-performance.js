@@ -162,6 +162,15 @@ export function t6aExcessFn(ktas, altFt, g) {
   return excessThrustPerWeight(tasToIasKt(ktas, altFt), altFt, g);
 }
 
+/** The excess-power callback for the point-mass step at part throttle: thrust scales with `throttle` (0 to 1), drag does not. Full throttle is t6aExcessFn itself. */
+export function excessFnFor(throttle) {
+  if (throttle === 1) return t6aExcessFn;
+  return (ktas, altFt, g) => {
+    const kias = tasToIasKt(ktas, altFt);
+    return throttle * thrustPerWeight(kias, altFt) - dragPerWeight(kias, altFt, g);
+  };
+}
+
 /**
  * The T-6A max glide chart (engine inoperative, IAS; PT6A-68, flight test,
  * June 1998; Patrick's upload 06:33Z; SMM 13.5 para 7 agrees on 2 NM at 125).
