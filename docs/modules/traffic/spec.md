@@ -343,6 +343,22 @@ Design and Patrick's nine answers: project files, `traffic-deconfliction/design.
 
 ---
 
+### 4.13 Randomize behaviour (Patrick, 4 Oct 21:52Z to 22:29Z)
+
+Code: `randomize.js` (the odds, the seeded rolls and the straight-in from the outer downwind), `sim.js` `randomizeTick`. Setting: the **Randomize behaviour** box under Scenarios, off at the start, and under it, only while it is ticked, a **How often** slider (percent of rolls that pick something other than the normal circuit; 40 by default, an estimate; Patrick's card "Odds as a setting", 22:29Z). TR-59.
+
+1. Every 0.5 s an aircraft at one of three points rolls once:
+   - **On the upwind after take-off**, from the departure end of the runway to 3/4 mile past it (Patrick, 21:54Z): a closed pattern (4.11), a closed pattern to High Key (the climb to High Key and the practice PFL), or carry on. Closed patterns only start here, before the crosswind turn; the Closed pattern button still works from anywhere.
+   - **Abeam the departure end on the outer downwind** (Pattern 1 point 5): descend for a straight-in, climb to High Key for a PFL, or carry on round the overhead.
+   - **On final, about a mile out** (an estimate): touch-and-go, full stop, or a low approach, which goes around about 1,500 ft short of the threshold (an estimate) as the go-around does (4.10).
+2. The normal choice (carry on, or touch-and-go on final) takes 100 minus the How often percent; the other two split it evenly.
+3. **The straight-in from the outer downwind** is flown once by the circuit's pilot (TR-3; SMM 4.5 para 8, 4.7 para 12): down from 3,500 to 2,700 ft at no more than 1,000 ft/min (an estimate), slowing to 140 KIAS along the outer downwind; the base turn onto Pattern 1's base line (points 6-7, carried on to the centreline) at up to 45° and down to 120 KIAS on base; the final turn onto the centreline at up to 45°. Settled on the centreline, about 3 NM out, it joins the straight-in route (ENT2), which carries it down the glide path to the runway. Without ENT2 in the setup it carries on round the overhead.
+4. **Repeatable:** each roll is a hash of the run's seed, the callsign and how many rolls that aircraft has made, kept as plain fields on the aircraft, so a rewind replays the same choices and the order of the aircraft changes nothing.
+5. **Not rolled:** an aircraft flying a PFL, a climb to High Key, a go-around or another flown move, one with its engine failed, or one the deconfliction is moving. A move the dice start is flown exactly as its button flies it, and the deconfliction treats it the same way.
+6. **When data fails:** an aircraft with no position is skipped that tick; nothing else changes.
+
+---
+
 ## 5. Spawn UI
 
 ### 5.1 Two-Dropdown System

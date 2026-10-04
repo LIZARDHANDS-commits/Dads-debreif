@@ -212,7 +212,13 @@ export function createSetupPanel({ controls, settings, onScenario }) {
     h('p', { class: 'traffic-subtitle' }, 'Wind'),
     h('div', { class: 'setup-wind-row' }, dial, h('div', { class: 'setup-wind-side' }, strength, components)),
   );
-  const element = h('div', { class: 'setup-panel' }, h('p', { class: 'traffic-subtitle' }, 'Scenarios'), row, wind);
+  // Randomize behaviour (Patrick, 4 Oct 21:52Z): off at the start; each aircraft picks its own landing and pattern.
+  const randomize = controls.checkbox('randomizeBehaviour', { label: 'Randomize behaviour' });
+  randomize.title = 'Each aircraft may choose its landing, a closed pattern, a straight-in or a PFL, from seeded dice.';
+  // How often, shown only while Randomize is ticked (extras behind a switch).
+  const share = controls.slider('randomizeSharePct', { label: 'How often', min: LIMITS.randomizeSharePct[0], max: LIMITS.randomizeSharePct[1], step: 10, format: (v) => `${v}% different` });
+  share.title = 'How often an aircraft does something other than the normal circuit at each point.';
+  const element = h('div', { class: 'setup-panel' }, h('p', { class: 'traffic-subtitle' }, 'Scenarios'), row, randomize, share, wind);
 
   function token(name, fallback) {
     try {
@@ -261,6 +267,7 @@ export function createSetupPanel({ controls, settings, onScenario }) {
   }
 
   function show(values) {
+    share.hidden = values.randomizeBehaviour !== true;
     const from = values.windFromDeg, kt = values.windKt;
     dial.setAttribute('aria-valuenow', String(from));
     dial.setAttribute('aria-valuetext', kt > 0 ? `from ${from}° true` : `calm, set to ${from}° true`);
