@@ -43,7 +43,12 @@ export const FOUR_FORMATIONS = Object.freeze({
   route: { label: 'Route', kias: 200, sided: true },
 });
 
-/** Four-ship fighting wing: each link 650 ft; #2 at 45°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says). */
+/**
+ * Four-ship fighting wing: each link 650 ft; #2 at 45°, #3 and #4 at 30° (Patrick, 4 Oct 11:44Z; estimates until Dad says).
+ * The angles are sweep back from the wing line of the aircraft flown off, the manual's way (SMM 12.29 para 69, Fig 12.19).
+ * #3 and #4 sit on the side opposite #2 (SMM 16.38 para 104; AFM7 brief p.14). Their 30° matches Fig 16.29's picture; the
+ * para 104 text says a 60° sweep: both are written down and the question is with Patrick (TS-56).
+ */
 export const FW4 = Object.freeze({ rangeFt: 650, twoDeg: 45, otherDeg: 30 });
 /** Fighting wing with no stack (entered from a close formation): each aircraft 60 ft below the one it flies off, the 2-ship's estimate. */
 export const FW_STEP_DOWN_FT = 60;

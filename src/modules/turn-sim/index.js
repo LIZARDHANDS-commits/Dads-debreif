@@ -100,7 +100,8 @@ function cardFor(state, wingSide) {
     queued: state.queued?.label ?? null,
     nowLines: [
       `Spacing ${ftText(Math.hypot(rel.fwd, rel.left))} (${ftText(across)} abeam)`,
-      `Sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'behind' : 'ahead'}`,
+      // Sweep the manual's way: back from Lead's wing line, 0° abeam (SMM 12.29 para 69, Fig 12.19)
+      `Sweep ${Math.abs(sweepDeg).toFixed(0)}° ${sweepDeg >= 0 ? 'back from' : 'ahead of'} Lead's wing line`,
       `#2 is ${ftText(Math.abs(wing.altAboveFt - lead.altAboveFt))} ${wing.altAboveFt >= lead.altAboveFt ? 'above' : 'below'} Lead`,
     ],
     judged,

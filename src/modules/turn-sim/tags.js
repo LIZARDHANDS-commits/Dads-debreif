@@ -86,7 +86,7 @@ export function tagLines(state, where) {
     let detail;
     if (target === 'fw') {
       const s = fwState(ref, a);
-      detail = `${s.state} · ${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° sweep`;
+      detail = `${s.state} · ${ft(s.rangeFt)}, ${Math.round(s.sweepDeg)}° from the wing line`;
     } else if (CLOSE_KEYS.has(target)) {
       detail = closeState(four ? pairKeyFor(target, a.id) : target, ref, a);
     } else {
